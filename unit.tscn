@@ -1,0 +1,44 @@
+[gd_scene load_steps=6 format=3 uid="uid://dfjhg20p6pvxm"]
+
+[ext_resource type="Script" uid="uid://dp2k8mbhvm6v0" path="res://unit.gd" id="1_ctwoc"]
+[ext_resource type="Script" uid="uid://chgaolunbm3vb" path="res://die.gd" id="2_davkp"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_ctwoc"]
+height = 1.0
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_davkp"]
+height = 1.0
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_5wnup"]
+height = 1.0
+
+[node name="Unit" type="CharacterBody3D" node_paths=PackedStringArray("highlight_mesh")]
+script = ExtResource("1_ctwoc")
+highlight_mesh = NodePath("HighlightMesh")
+hover_color = Color(0.156863, 1, 1, 0.501961)
+
+[node name="Thrust" type="Node" parent="."]
+script = ExtResource("2_davkp")
+count = 1
+bonus = -2
+metadata/_custom_type_script = "uid://chgaolunbm3vb"
+
+[node name="Swing" type="Node" parent="."]
+script = ExtResource("2_davkp")
+count = 1
+metadata/_custom_type_script = "uid://chgaolunbm3vb"
+
+[node name="Damage" type="Node" parent="."]
+script = ExtResource("2_davkp")
+metadata/_custom_type_script = "uid://chgaolunbm3vb"
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("CapsuleMesh_ctwoc")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("CapsuleMesh_davkp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("CapsuleShape3D_5wnup")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]

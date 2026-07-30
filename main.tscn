@@ -1,0 +1,67 @@
+[gd_scene load_steps=9 format=3 uid="uid://d1qy6jfw10nnh"]
+
+[ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
+[ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
+[ext_resource type="Script" uid="uid://bwtn55jbtliv4" path="res://drag_select_box.gd" id="1_lquwl"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
+[ext_resource type="Script" uid="uid://dest3cxkrnl56" path="res://crpg_camera.gd" id="3_h2yge"]
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_lquwl"]
+vertices = PackedVector3Array(-9.5, 1, -9.5, -9.5, 1, 9.5, 9.5, 1, 9.5, 9.5, 1, -9.5)
+polygons = [PackedInt32Array(3, 2, 0), PackedInt32Array(0, 2, 1)]
+
+[sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
+size = Vector3(20, 1, 20)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ig7tw"]
+size = Vector3(20, 1, 20)
+
+[node name="Node3D" type="Node3D"]
+script = ExtResource("1_7mycd")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="DragSelectBox" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("1_lquwl")
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
+navigation_mesh = SubResource("NavigationMesh_lquwl")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="NavigationRegion3D"]
+script = ExtResource("1_1bvp3")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="NavigationRegion3D/StaticBody3D"]
+mesh = SubResource("BoxMesh_7dm0k")
+skeleton = NodePath("../../..")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/StaticBody3D"]
+shape = SubResource("BoxShape3D_ig7tw")
+
+[node name="Ally" parent="." instance=ExtResource("3_7mycd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 1, -3)
+dexterity = 15
+selected_color = Color(0.156863, 1, 1, 0.627451)
+
+[node name="Ally2" parent="." instance=ExtResource("3_7mycd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, -3)
+dexterity = 15
+selected_color = Color(0.156863, 1, 1, 0.627451)
+
+[node name="Enemy" parent="." instance=ExtResource("3_7mycd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 3)
+dexterity = 15
+faction = &"enemy"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="Camera3D" type="Camera3D" parent="." node_paths=PackedStringArray("focus_target")]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 3, 1)
+script = ExtResource("3_h2yge")
+focus_target = NodePath("../Enemy")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)
