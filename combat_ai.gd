@@ -63,8 +63,11 @@ func _attempt_action(unit: Unit) -> void:
 		unit.movement_finished.disconnect(_on_movement_finished)
 	unit.movement_finished.connect(_on_movement_finished, CONNECT_ONE_SHOT)
 
-	var destination: Vector3 = _approach_point(unit, target)
-	if not unit.move_to(destination):
+	var destination: Vector3 = _standoff_goal(unit, target)
+	# target is excluded from obstacle-detour so the unit doesn't try to
+	# route AROUND the very thing it's trying to get close to — see
+	# Unit.move_to's extra_avoidance_exclusions.
+	if not unit.move_to(destination, [target]):
 		# Rejected outright (e.g. budget already at 0) — nothing more to
 		# try this turn.
 		if unit.movement_finished.is_connected(_on_movement_finished):
@@ -99,12 +102,14 @@ func _find_nearest_hostile(unit: Unit) -> Unit:
 	return nearest
 
 
-## Point to move toward: a spot just inside this unit's reach of target,
-## not the target's exact position — walking onto the same point another
-## unit occupies is exactly what causes units to get physically stuck
-## against each other (see Unit.stuck_timeout for the fallback if it still
-## happens). Clamped to whatever's left of this turn's move budget.
-func _approach_point(unit: Unit, target: Unit) -> Vector3:
+## The point this unit is trying to reach: just inside reach of target,
+## not target's exact position (walking onto the same point another unit
+## occupies is exactly what causes units to get physically stuck against
+## each other). Budget clamping and routing around OTHER units now happen
+## inside Unit.move_to() itself (see PathAvoidance) — this only needs to
+## say where the unit wants to end up, not how far it can actually get
+## there this turn.
+func _standoff_goal(unit: Unit, target: Unit) -> Vector3:
 	var to_target: Vector3 = target.global_position - unit.global_position
 	var distance: float = to_target.length()
 	if distance <= 0.001:
@@ -122,8 +127,4 @@ func _approach_point(unit: Unit, target: Unit) -> Vector3:
 	# "already arrived," so it would never move that last bit either).
 	var margin: float = unit.arrival_tolerance + 0.05
 	var standoff: float = max(unit.reach + unit.radius + target.radius - margin, 0.05)
-	var approach_distance: float = max(distance - standoff, 0.0)
-
-	if approach_distance <= unit.move_remaining:
-		return unit.global_position + direction * approach_distance
-	return unit.global_position + direction * unit.move_remaining
+	return target.global_position - direction * standoff

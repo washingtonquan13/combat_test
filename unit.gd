@@ -20,11 +20,20 @@ extends CharacterBody3D
 ## Real-time speed (world units/sec) while executing a move order. Distinct
 ## from `move`, which is the per-turn distance budget in combat.
 @export var move_speed: float = 4.0
-## This unit's rough collision radius — used both for avoidance (how much
-## berth other units give it) and for reach calculations (is_in_reach
-## measures edge-to-edge distance, not center-to-center, so this matters
-## for melee range too). Set to roughly match the actual collision shape.
+## This unit's rough collision radius — used for reach calculations
+## (is_in_reach measures edge-to-edge, not center-to-center) and as the
+## basis for avoidance clearance (see avoidance_margin below). Set to
+## roughly match the actual collision shape.
 @export var radius: float = 0.5
+## Extra buffer added on top of radius for avoidance/detour purposes only
+## — the physical collision shape stays exactly radius, this just tells
+## PathAvoidance's detour math to aim for a bit more separation than the
+## bare minimum. Real-time RVO steering is disabled (see move_to()), so
+## this margin's main effect now is how much slack detoured paths leave
+## between units — zero slack means any small imprecision (arrival
+## tolerance, physics step size) eats directly into actual contact
+## instead of a buffer absorbing it.
+@export var avoidance_margin: float = 0.15
 ## How close (meters) to a move's destination counts as "arrived" —
 ## NavigationAgent3D defaults this to 1.0m, which is often larger than
 ## reach itself, so a unit can report movement finished while still up to
@@ -91,6 +100,12 @@ var _moving: bool = false
 var _move_start_position: Vector3 = Vector3.ZERO
 var _stuck_timer: float = 0.0
 var _last_progress_position: Vector3 = Vector3.ZERO
+## The validated path this unit is currently walking (see move_to /
+## _budget_path) and which point in it is next. Followed directly instead
+## of via NavigationAgent3D's own path-following/avoidance — see
+## move_to()'s doc comment.
+var _current_path: PackedVector3Array = PackedVector3Array()
+var _path_index: int = 0
 
 ## True while a drag-select box is currently overlapping this unit. Kept
 ## separate from is_hovered (real mouse-over) and is_selected (committed
@@ -118,10 +133,12 @@ func _ready() -> void:
 
 
 func _setup_avoidance() -> void:
-	nav_agent.radius = radius
-	nav_agent.avoidance_enabled = true
-	nav_agent.target_desired_distance = arrival_tolerance
-	nav_agent.velocity_computed.connect(_on_velocity_computed)
+	nav_agent.radius = radius + avoidance_margin
+	# Real-time RVO steering is intentionally OFF — see move_to()'s doc
+	# comment for why. nav_agent is kept only for get_navigation_map()
+	# and closest-point queries (used by PathAvoidance); it no longer
+	# drives how this unit actually moves.
+	nav_agent.avoidance_enabled = false
 
 
 func _setup_highlight() -> void:
@@ -226,13 +243,24 @@ func _physics_process(delta: float) -> void:
 	if not _moving:
 		return
 
-	if nav_agent.is_navigation_finished():
+	# Skip past any waypoints already within arrival_tolerance — matters
+	# most right after a detour inserts two closely-spaced points (see
+	# PathAvoidance), so the unit doesn't stall trying to "arrive" at a
+	# point behind or barely past its current position.
+	while _path_index < _current_path.size():
+		var to_waypoint: Vector3 = _current_path[_path_index] - global_position
+		to_waypoint.y = 0.0
+		if to_waypoint.length() > arrival_tolerance:
+			break
+		_path_index += 1
+
+	if _path_index >= _current_path.size():
 		_finish_move()
 		return
 
-	# Last-resort safety net — see stuck_timeout's doc comment. With
-	# avoidance handling the common case (units blocking each other),
-	# this should mostly only catch genuinely unreachable destinations.
+	# Last-resort safety net — see stuck_timeout's doc comment. With a
+	# path already validated to fit (see PathAvoidance), this should
+	# mostly only catch genuinely unreachable waypoints.
 	if global_position.distance_to(_last_progress_position) < 0.05:
 		_stuck_timer += delta
 		if _stuck_timer >= stuck_timeout:
@@ -242,74 +270,73 @@ func _physics_process(delta: float) -> void:
 		_stuck_timer = 0.0
 		_last_progress_position = global_position
 
-	var next_point: Vector3 = nav_agent.get_next_path_position()
-	var direction: Vector3 = next_point - global_position
-	direction.y = 0.0
-	direction = direction.normalized()
+	var to_target: Vector3 = _current_path[_path_index] - global_position
+	to_target.y = 0.0
+	var direction: Vector3 = to_target.normalized()
 
-	# Hand the desired velocity to the avoidance simulation rather than
-	# moving immediately — other avoidance-enabled units (moving or idle)
-	# get factored in, and velocity_computed reports back the adjusted
-	# "safe" velocity, which is what actually drives move_and_slide().
-	nav_agent.velocity = direction * move_speed
-
-
-func _on_velocity_computed(safe_velocity: Vector3) -> void:
-	if not _moving:
-		return
-	velocity = safe_velocity
+	velocity = direction * move_speed
 	move_and_slide()
 
 
-## Orders this unit toward destination along the nav mesh. Out of combat
-## this always succeeds and walks the full distance. In combat: only
-## CombatManager.current_unit may move at all. If destination is farther
-## than move_remaining, the unit still moves — it just stops once its
-## budget runs out (clamped along the straight line to destination, see
-## _clamp_to_move_budget) instead of the whole order being rejected.
-## Clicking past your movement range and having the unit walk as far as
-## it can is normal CRPG UX; silently refusing the click is not. Returns
-## false only if the order is rejected outright: already moving, not your
-## turn, or no budget left at all.
-func move_to(destination: Vector3) -> bool:
+## Orders this unit toward destination. Out of combat this always
+## succeeds and walks the real navmesh path (obstacles aren't detoured
+## around outside combat — see below), returning false only if
+## destination is unreachable at all. In combat: only
+## CombatManager.current_unit may move. The unit walks a fully validated
+## path — real navmesh route, detoured around other units, truncated
+## wherever move_remaining runs out (see PathAvoidance.find_budget_path)
+## — directly, waypoint by waypoint (_physics_process), rather than
+## handing the destination to NavigationAgent3D's own path-following and
+## reactive RVO steering. That reactive layer was found to make
+## deadlocks/standoffs MORE likely as avoidance margins increased: RVO's
+## reciprocal avoidance can oscillate in tight spaces even when a
+## perfectly good, already-validated route exists. Since only one unit
+## ever moves at a time in this turn-based system, other units' positions
+## are static for the whole duration of any single move, so there's
+## nothing live avoidance would catch that the validated path doesn't
+## already account for. extra_avoidance_exclusions lets a caller (e.g.
+## CombatAI approaching its own attack target) leave specific units out
+## of the detour calculation — you don't want to route around the very
+## unit you're trying to get close to.
+func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bool:
 	if _moving:
 		return false
+
+	var path: PackedVector3Array
 
 	if CombatManager.in_combat:
 		if CombatManager.current_unit != self:
 			return false
 		if not has_move_remaining():
 			return false
-		destination = _clamp_to_move_budget(destination)
+		path = _budget_path(destination, extra_avoidance_exclusions)
+	else:
+		path = NavigationServer3D.map_get_path(nav_agent.get_navigation_map(), global_position, destination, true)
 
+	if path.size() < 2:
+		return false
+
+	_current_path = path
+	_path_index = 1
 	_move_start_position = global_position
 	_stuck_timer = 0.0
 	_last_progress_position = global_position
-	nav_agent.target_position = destination
 	_moving = true
 	movement_started.emit(self)
 	return true
 
 
-## Clamps destination to the farthest point reachable with move_remaining,
-## along the straight line toward it in the ground plane — same
-## straight-line approximation used everywhere else here (is_in_reach,
-## can_move), not an actual path-length calculation. Distance is measured
-## in XZ only, matching how _physics_process actually drives movement
-## (its direction vector also has Y zeroed): the unit's own origin rarely
-## sits exactly at ground level, so a 3D distance here would burn part of
-## the move budget on a vertical offset that covers no real ground
-## distance, landing the clamped point short of where the budget should
-## actually reach.
-func _clamp_to_move_budget(destination: Vector3) -> Vector3:
-	var to_dest: Vector3 = destination - global_position
-	to_dest.y = 0.0
-	var distance: float = to_dest.length()
-	if distance <= move_remaining or distance <= 0.001:
-		return destination
-	var clamped: Vector3 = global_position + (to_dest / distance) * move_remaining
-	clamped.y = destination.y
-	return clamped
+## See PathAvoidance.find_budget_path — this is just the Unit-specific
+## plumbing (nav map, own position/budget, obstacle list) around that
+## shared geometry.
+func _budget_path(goal: Vector3, extra_exclusions: Array = []) -> PackedVector3Array:
+	var excluded: Array = [self]
+	excluded.append_array(extra_exclusions)
+	var obstacles: Dictionary = PathAvoidance.gather_obstacles(get_tree(), excluded)
+	return PathAvoidance.find_budget_path(
+		nav_agent.get_navigation_map(), global_position, goal, move_remaining,
+		obstacles.positions, obstacles.radii, radius + avoidance_margin
+	)
 
 
 ## Cancels the current move order in place, still spending whatever
@@ -327,14 +354,15 @@ func is_moving() -> bool:
 func _finish_move() -> void:
 	_moving = false
 	velocity = Vector3.ZERO
-	nav_agent.velocity = Vector3.ZERO
+	_current_path = PackedVector3Array()
+	_path_index = 0
 	if CombatManager.in_combat:
 		# Beeline distance from where the move started to where it ended —
-		# not the length of the path actually walked. Avoidance can take a
+		# not the length of the path actually walked. Detours can take a
 		# winding route around other units, but since only this net
 		# displacement is charged, that detour costs nothing extra against
-		# move_remaining. (This isn't a special case for avoidance — it's
-		# just what this line always did; it's worth calling out now that
+		# move_remaining. (This isn't new for the validated-path system —
+		# it's just what this line always did; worth calling out now that
 		# detours are an expected, common thing.)
 		var traveled: float = _move_start_position.distance_to(global_position)
 		spend_move(traveled)
@@ -474,13 +502,16 @@ func _handle_death() -> void:
 		SelectionManager.deselect(self)
 	set_box_hover(false)
 
-	# Stop participating in pathfinding/avoidance entirely — a corpse
-	# shouldn't keep steering other units around it via RVO predictions,
-	# and shouldn't itself keep trying to move.
+	# Stop moving entirely — a corpse shouldn't keep trying to walk
+	# anywhere. It's also already excluded from PathAvoidance's obstacle
+	# gathering by the remove_from_group("units") call above, so other
+	# units won't detour around it either (matches corpse_blocks_movement
+	# below, which controls whether it still blocks via physical
+	# collision).
 	_moving = false
 	velocity = Vector3.ZERO
-	nav_agent.velocity = Vector3.ZERO
-	nav_agent.avoidance_enabled = false
+	_current_path = PackedVector3Array()
+	_path_index = 0
 	set_physics_process(false)
 
 	if not corpse_blocks_movement:
