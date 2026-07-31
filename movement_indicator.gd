@@ -13,15 +13,16 @@ extends Node3D
 ## Two pieces:
 ##  - A flat disc on the ground showing move_remaining as a straight-line
 ##    radius around the unit. Same straight-line approximation used
-##    everywhere else in this project's movement code (is_in_reach, the
-##    move-budget clamp) — it won't account for obstacles between the
-##    unit and the edge of the disc, just like those don't.
-##  - A line following the ACTUAL nav-mesh path (via
-##    NavigationServer3D.map_get_path, queried through the unit's own
-##    nav_agent) from the unit to wherever the mouse is hovering on the
-##    ground, colored white for the portion within move_remaining and red
-##    for the portion beyond it. This part IS pathfinding-accurate, since
-##    it's genuinely tracing the route the unit would walk.
+##    elsewhere in this project (is_in_reach) — it won't account for
+##    obstacles between the unit and the edge of the disc.
+##  - A line following the EXACT planned route (via
+##    PathAvoidance.simulate_path — the same deterministic planner
+##    Unit.move_to() itself calls) from the unit to wherever the mouse is
+##    hovering, colored white for the portion within move_remaining and
+##    red for the portion beyond it. Since this calls the literal same
+##    planning function the real move will use, with the same obstacle
+##    data, this preview IS what will happen — not an approximation of
+##    it.
 ##
 ## Note: this draws a 1-pixel unshaded line (ImmediateMesh, LINE_STRIP) —
 ## fine for a first pass, but Godot doesn't give line primitives real
@@ -141,30 +142,30 @@ func _update_path_preview(unit: Unit) -> void:
 	var obstacles: Dictionary = PathAvoidance.gather_obstacles(get_tree(), [unit])
 	var clearance: float = unit.radius + unit.avoidance_margin
 
-	# Sanitize the hover point the same way find_budget_path sanitizes a
-	# move goal — hovering directly over another unit would otherwise
-	# preview a path terminating inside it, since segment detouring alone
-	# can't fix an invalid ENDPOINT (see PathAvoidance.clear_goal).
-	var safe_hover_point = PathAvoidance.clear_goal(hover_point, obstacles.positions, obstacles.radii, clearance, map_rid)
-	if safe_hover_point == null:
+	# Sanitize the hover point the same way move_to() sanitizes a move
+	# goal (see PathAvoidance.clear_goal) — hovering directly over
+	# another unit would otherwise have nothing valid to plan toward.
+	var safe_hover_point: Vector3 = PathAvoidance.clear_goal(hover_point, obstacles.positions, obstacles.radii, clearance, map_rid)
+
+	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, unit.global_position, safe_hover_point, true)
+	if waypoints.size() < 2:
 		_path_mesh.visible = false
 		return
 
-	var raw_path: PackedVector3Array = NavigationServer3D.map_get_path(
-		map_rid, unit.global_position, safe_hover_point, true
+	# The SAME planning call move_to() itself makes — a large budget here
+	# gets the full route to the hover point regardless of move_remaining;
+	# the white/red split below is what shows how far the unit could
+	# actually get this turn. Because this is the literal same
+	# deterministic function with the same obstacle data, this preview
+	# and the real move can never disagree.
+	var path: PackedVector3Array = PathAvoidance.simulate_path(
+		waypoints, unit.move_speed, 9999.0,
+		obstacles.positions, obstacles.radii, clearance, unit.avoidance_margin, unit.arrival_tolerance
 	)
 
-	if raw_path.size() < 2:
+	if path.size() < 2:
 		_path_mesh.visible = false
 		return
-
-	# Detour around other units the same way Unit.move_to() actually will —
-	# otherwise this preview shows a route straight through units that the
-	# real move would walk around, and the white/red split would land in
-	# the wrong place.
-	var path: PackedVector3Array = PathAvoidance.avoid_obstacles(
-		raw_path, obstacles.positions, obstacles.radii, clearance, map_rid
-	)
 
 	_draw_path(path, unit.move_remaining)
 	_path_mesh.visible = true
