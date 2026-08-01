@@ -2,9 +2,10 @@ extends Node
 ## Combat test harness — merge this into your main scene's root script.
 ##
 ## SETUP:
-##  1. Project Settings > Input Map: add two actions —
+##  1. Project Settings > Input Map: add three actions —
 ##       "test_start_combat" mapped to a key (e.g. K)
 ##       "test_end_turn"      mapped to a key (e.g. N)
+##       "test_delay_turn"    mapped to a key (e.g. M)
 ##  2. Make sure your Unit instances are already in the scene tree, each
 ##     with `faction` set appropriately (player units default to "player";
 ##     give enemies something else, e.g. "enemy").
@@ -13,7 +14,9 @@ extends Node
 ##     is, every attack/move/death.
 ##  4. On your turn: right-click the ground to move (respects move budget),
 ##     left-click an enemy to attack (see unit.gd _on_input_event). Press
-##     the end-turn key when you're done acting.
+##     the end-turn key when you're done acting, or the delay-turn key to
+##     give up this turn for now and go later in this same round instead
+##     (see CombatManager.delay_turn — defaults to delaying by 1).
 
 var _signals_connected: bool = false
 
@@ -24,6 +27,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("test_end_turn"):
 		if CombatManager.in_combat:
 			CombatManager.end_turn()
+	elif event.is_action_pressed("test_delay_turn"):
+		if CombatManager.in_combat:
+			var unit: Unit = CombatManager.current_unit
+			if unit and not CombatManager.delay_turn(unit):
+				print("Couldn't delay ", unit.name, "'s turn.")
 
 
 func _start_test_combat() -> void:

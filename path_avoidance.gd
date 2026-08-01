@@ -203,6 +203,15 @@ static func effective_target(
 ## guarantee rather than an approximation — there is no live decision
 ## left to diverge from what this returns.
 ##
+## Each step is snapped back onto the navmesh (nav_map) after moving —
+## steering_direction only ever reasons about UNITS (obstacle_positions),
+## it has no idea walls exist. The straight line between two consecutive
+## navmesh waypoints is guaranteed wall-clear, but a detour CURVING
+## around a nearby unit is not automatically wall-aware just because its
+## endpoints are — without this snap, repulsion from a unit near a
+## corridor wall could push the simulated path straight into that wall,
+## since nothing in the steering math would ever know it was there.
+##
 ## budget caps total distance — the LAST step is clamped so the returned
 ## path's total length never exceeds it, landing the final point at
 ## exactly budget distance (not the nearest step boundary), which is what
@@ -219,7 +228,8 @@ static func simulate_path(
 	obstacle_radii: PackedFloat32Array,
 	clearance: float,
 	influence_padding: float,
-	arrival_tolerance: float
+	arrival_tolerance: float,
+	nav_map: RID
 ) -> PackedVector3Array:
 	if waypoints.size() < 2:
 		return waypoints
@@ -247,8 +257,15 @@ static func simulate_path(
 			break
 
 		var move_dist: float = min(step_dist, budget - traveled)
-		position += dir * move_dist
-		traveled += move_dist
+		var tentative: Vector3 = position + dir * move_dist
+
+		# See doc comment above — this is what keeps unit-avoidance from
+		# ever curving the simulated path off the walkable navmesh.
+		var snapped: Vector3 = NavigationServer3D.map_get_closest_point(nav_map, tentative)
+		var actual_dist: float = position.distance_to(snapped)
+
+		position = snapped
+		traveled += actual_dist
 		path.append(position)
 
 	return path

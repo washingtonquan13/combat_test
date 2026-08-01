@@ -1,6 +1,6 @@
 extends Node3D
-## Movement range + path preview, BG3-style. Only shows during combat, for
-## the unit whose turn it currently is, and only if that unit is
+## Movement path preview, BG3-style. Only shows during combat, for the
+## unit whose turn it currently is, and only if that unit is
 ## player-controlled (Unit.is_player_controlled) — the AI's turns don't
 ## get this, and neither does anything out of combat.
 ##
@@ -10,19 +10,13 @@ extends Node3D
 ## physics layer your ground/terrain body (see ground_click_target.gd) is
 ## actually on, so mouse hover can be raycast onto it.
 ##
-## Two pieces:
-##  - A flat disc on the ground showing move_remaining as a straight-line
-##    radius around the unit. Same straight-line approximation used
-##    elsewhere in this project (is_in_reach) — it won't account for
-##    obstacles between the unit and the edge of the disc.
-##  - A line following the EXACT planned route (via
-##    PathAvoidance.simulate_path — the same deterministic planner
-##    Unit.move_to() itself calls) from the unit to wherever the mouse is
-##    hovering, colored white for the portion within move_remaining and
-##    red for the portion beyond it. Since this calls the literal same
-##    planning function the real move will use, with the same obstacle
-##    data, this preview IS what will happen — not an approximation of
-##    it.
+## A line follows the EXACT planned route (via PathAvoidance.simulate_path
+## — the same deterministic planner Unit.move_to() itself calls) from the
+## unit to wherever the mouse is hovering, colored white for the portion
+## within move_remaining and red for the portion beyond it. Since this
+## calls the literal same planning function the real move will use, with
+## the same obstacle data, this preview IS what will happen — not an
+## approximation of it.
 ##
 ## Note: this draws a 1-pixel unshaded line (ImmediateMesh, LINE_STRIP) —
 ## fine for a first pass, but Godot doesn't give line primitives real
@@ -30,45 +24,18 @@ extends Node3D
 ## thick line later, that's a natural follow-up.
 
 @export var ground_collision_mask: int = 1
-@export var range_color: Color = Color(1, 1, 1, 0.25)
 @export var path_in_range_color: Color = Color(1, 1, 1, 0.9)
 @export var path_out_of_range_color: Color = Color(1, 0.2, 0.2, 0.9)
-## Lifts the disc/line slightly above the ground to avoid z-fighting with
+## Lifts the line slightly above the ground to avoid z-fighting with
 ## terrain geometry.
 @export var height_offset: float = 0.05
 
-var _range_mesh: MeshInstance3D
-var _range_material: StandardMaterial3D
 var _path_mesh: MeshInstance3D
 var _path_immediate: ImmediateMesh
 
 
 func _ready() -> void:
-	_build_range_indicator()
 	_build_path_line()
-
-
-func _build_range_indicator() -> void:
-	_range_mesh = MeshInstance3D.new()
-	add_child(_range_mesh)
-
-	# A very short cylinder approximates a flat disc — cheap, and lets the
-	# radius just be a uniform XZ scale instead of rebuilding geometry
-	# every frame.
-	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = 1.0
-	cylinder.bottom_radius = 1.0
-	cylinder.height = 0.02
-	cylinder.radial_segments = 48
-	_range_mesh.mesh = cylinder
-
-	_range_material = StandardMaterial3D.new()
-	_range_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_range_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_range_material.albedo_color = range_color
-	_range_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_range_mesh.material_override = _range_material
-	_range_mesh.visible = false
 
 
 func _build_path_line() -> void:
@@ -93,7 +60,6 @@ func _process(_delta: float) -> void:
 		_hide_all()
 		return
 
-	_update_range_indicator(unit)
 	_update_path_preview(unit)
 
 
@@ -116,20 +82,8 @@ func _get_active_unit() -> Unit:
 
 
 func _hide_all() -> void:
-	if _range_mesh:
-		_range_mesh.visible = false
 	if _path_mesh:
 		_path_mesh.visible = false
-
-
-func _update_range_indicator(unit: Unit) -> void:
-	if unit.move_remaining <= 0.01:
-		_range_mesh.visible = false
-		return
-
-	_range_mesh.visible = true
-	_range_mesh.global_position = unit.global_position + Vector3(0, height_offset, 0)
-	_range_mesh.scale = Vector3(unit.move_remaining, 1.0, unit.move_remaining)
 
 
 func _update_path_preview(unit: Unit) -> void:
@@ -160,7 +114,7 @@ func _update_path_preview(unit: Unit) -> void:
 	# and the real move can never disagree.
 	var path: PackedVector3Array = PathAvoidance.simulate_path(
 		waypoints, unit.move_speed, 9999.0,
-		obstacles.positions, obstacles.radii, clearance, unit.avoidance_margin, unit.arrival_tolerance
+		obstacles.positions, obstacles.radii, clearance, unit.avoidance_margin, unit.arrival_tolerance, map_rid
 	)
 
 	if path.size() < 2:

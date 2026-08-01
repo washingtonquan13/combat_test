@@ -71,6 +71,13 @@ extends CharacterBody3D
 @export var hover_color: Color = Color(1, 1, 1, 0.5)
 @export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
 
+@export_group("UI")
+## Shown in the initiative order portrait (see initiative_portrait.gd) and
+## anywhere else in UI that wants a picture for this unit. Optional —
+## leave unset and assign the TextureRect's texture directly in the
+## editor instead, if you'd rather not route it through Unit.
+@export var portrait_texture: Texture2D
+
 signal hover_started(unit: Unit)
 signal hover_ended(unit: Unit)
 signal selected(unit: Unit)
@@ -335,7 +342,7 @@ func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bo
 
 	var planned_path: PackedVector3Array = PathAvoidance.simulate_path(
 		waypoints, move_speed, budget,
-		obstacles.positions, obstacles.radii, clearance, avoidance_margin, arrival_tolerance
+		obstacles.positions, obstacles.radii, clearance, avoidance_margin, arrival_tolerance, map_rid
 	)
 
 	if planned_path.size() < 2:

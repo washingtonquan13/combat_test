@@ -81,6 +81,38 @@ func end_turn() -> void:
 	_advance_turn.call_deferred()
 
 
+## Delays unit's turn instead of acting now: gives up its current slot
+## and is reinserted `positions` further along the SAME pass through
+## turn_order — e.g. positions=1 swaps it with whoever would go right
+## after it, so that unit acts now instead and the delaying unit acts
+## after them. This doesn't grant an extra turn; it's still exactly one
+## activation per cycle through turn_order, just relocated within it.
+##
+## Only the unit stepping into the vacated slot gets reset_turn_actions()
+## called (ordinary turn-start behavior) — the delaying unit deliberately
+## does NOT get reset now. Whatever it already did or didn't do this pass
+## is done; it gets a full fresh turn whenever its now-later slot comes
+## up, exactly like any other turn.
+##
+## Can only be called by the unit whose turn it currently is (you delay
+## your own upcoming turn, not someone else's). Returns false if that's
+## not the case, combat isn't running, or positions < 1. positions
+## defaults to 1 pending a real turn-order UI to choose a specific value.
+func delay_turn(unit: Unit, positions: int = 1) -> bool:
+	if not in_combat or unit != current_unit or positions < 1:
+		return false
+
+	turn_order.remove_at(_turn_index)
+	var insert_index: int = clamp(_turn_index + positions, 0, turn_order.size())
+	turn_order.insert(insert_index, unit)
+
+	var next_unit: Unit = turn_order[_turn_index]
+	turn_ended.emit(unit)
+	next_unit.reset_turn_actions()
+	turn_started.emit(next_unit)
+	return true
+
+
 func _advance_turn() -> void:
 	if not in_combat:
 		return

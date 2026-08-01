@@ -1,0 +1,30 @@
+[gd_scene load_steps=3 format=3 uid="uid://cdvqb6pxh8ft1"]
+
+[ext_resource type="Script" uid="uid://dxqyodjtpq1mq" path="res://initiative_portrait.gd" id="1_7eos5"]
+[ext_resource type="Texture2D" uid="uid://c10vrr2spytr7" path="res://assets/portraits/test_portrait.jpg" id="1_iubtq"]
+
+[node name="InitiativePortrait" type="Control"]
+custom_minimum_size = Vector2(80, 100)
+layout_mode = 3
+anchors_preset = 0
+script = ExtResource("1_7eos5")
+
+[node name="Portrait" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+texture = ExtResource("1_iubtq")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="DamageOverlay" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(1, 0, 0, 0.298039)
