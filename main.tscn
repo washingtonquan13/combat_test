@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=19 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -12,6 +12,7 @@
 [ext_resource type="Texture2D" uid="uid://cxnwr1ibqbqe5" path="res://assets/portraits/dwarf_fighter_1.jpg" id="6_dg77c"]
 [ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="7_ycdy4"]
 [ext_resource type="Texture2D" uid="uid://bmpvtkr2rfmo5" path="res://assets/portraits/woodland_goblin_rogue_by_thedrimdrim_dh26oji-fullview.jpg" id="8_w48qg"]
+[ext_resource type="Texture2D" uid="uid://crp4mkdu5gcik" path="res://assets/portraits/gooblin_Wiz.jpg" id="12_ycdy4"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_lquwl"]
 vertices = PackedVector3Array(3.25, 1, 0.75, 2.75, 1, 1.25, 9.5, 1, 1.25, 3, 1, -1, 9.5, 1, -9.5, -2.75, 1, -1, -9.5, 1, -9.5, -9.5, 1, -1, -2.75, 1, 1.25, -9.5, 1, 9.5, 9.5, 1, 9.5)
@@ -109,6 +110,17 @@ faction = &"enemy"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("8_w48qg")
+
+[node name="GoblinWizard" parent="." instance=ExtResource("3_7mycd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, 5)
+intelligence = 16
+current_hp = 8
+maximum_fp = 8
+reach = 5.0
+faction = &"enemy"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("12_ycdy4")
 
 [node name="Camera3D" type="Camera3D" parent="." node_paths=PackedStringArray("focus_target")]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 3, 1)

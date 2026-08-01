@@ -38,18 +38,31 @@ func _on_turn_started(unit: Unit) -> void:
 
 
 ## Attacks if in reach, otherwise moves closer and tries again once that
-## move finishes (see _on_movement_finished) — repeating rather than
-## giving up after one move is what lets a unit that closes most but not
-## all of the distance on its first attempt finish the job with whatever
-## budget it has left, instead of wasting the rest of the turn.
+## move finishes (see _on_movement_finished). Under the current
+## deterministic movement planner (Unit.move_to / PathAvoidance.
+## simulate_path), a single move_to() call already computes the exact
+## reachable route up front — if the standoff point fits within
+## move_remaining, one call gets there precisely; if it doesn't, the plan
+## is truncated at exactly the budget, and a second call this same turn
+## would just find has_move_remaining() false and get rejected (budget
+## doesn't refill until this unit's next turn). So retrying isn't doing
+## "incremental progress across attempts" anymore — it's a safety net
+## for the one case that can still leave a unit short of a fully-budgeted
+## move: stuck_timeout firing on genuine physical obstruction, not just
+## running out of distance.
 func _attempt_action(unit: Unit) -> void:
 	var target: Unit = _find_nearest_hostile(unit)
 	if not target:
 		CombatManager.end_turn()
 		return
 
-	if unit.is_in_reach(target):
-		unit.attack(target, unit.swing)
+	var ability: Ability = unit.default_ability()
+	if not ability:
+		CombatManager.end_turn()
+		return
+
+	if ability.is_in_range(unit, target):
+		unit.use_ability(ability, target)
 		CombatManager.end_turn()
 		return
 
@@ -64,9 +77,9 @@ func _attempt_action(unit: Unit) -> void:
 	unit.movement_finished.connect(_on_movement_finished, CONNECT_ONE_SHOT)
 
 	var destination: Vector3 = _standoff_goal(unit, target)
-	# target is excluded from obstacle-detour so the unit doesn't try to
-	# route AROUND the very thing it's trying to get close to — see
-	# Unit.move_to's extra_avoidance_exclusions.
+	# target is excluded from the plan's obstacle list so the route
+	# doesn't try to go AROUND the very thing it's trying to get close to
+	# — see Unit.move_to's extra_avoidance_exclusions.
 	if not unit.move_to(destination, [target]):
 		# Rejected outright (e.g. budget already at 0) — nothing more to
 		# try this turn.
@@ -102,13 +115,23 @@ func _find_nearest_hostile(unit: Unit) -> Unit:
 	return nearest
 
 
-## The point this unit is trying to reach: just inside reach of target,
-## not target's exact position (walking onto the same point another unit
-## occupies is exactly what causes units to get physically stuck against
-## each other). Budget clamping and routing around OTHER units now happen
-## inside Unit.move_to() itself (see PathAvoidance) — this only needs to
-## say where the unit wants to end up, not how far it can actually get
-## there this turn.
+## The point this unit is trying to reach: just inside MELEE reach of
+## target, not target's exact position (walking onto the same point
+## another unit occupies is exactly what causes units to get physically
+## stuck against each other). Budget clamping and routing around OTHER
+## units now happen inside Unit.move_to() itself (see PathAvoidance) —
+## this only needs to say where the unit wants to end up, not how far it
+## can actually get there this turn.
+##
+## Still hardcoded to unit.reach regardless of the equipped ability's
+## actual target_type — a unit whose default_ability() is RANGED_ENEMY
+## will still walk in to melee distance instead of stopping at
+## ability.max_range, or not moving at all if already in range (that
+## specific case IS handled correctly — see _attempt_action's
+## ability.is_in_range() check, which is why a ranged unit that starts
+## already in range won't move). Making approach behavior actually
+## ability-aware (stand off at range instead of closing to melee) is
+## real follow-up work, not something this pass tried to solve.
 func _standoff_goal(unit: Unit, target: Unit) -> Vector3:
 	var to_target: Vector3 = target.global_position - unit.global_position
 	var distance: float = to_target.length()

@@ -12,6 +12,13 @@ extends CharacterBody3D
 @export var current_fp: int = 10
 
 @export var reach: float = 1.0
+## No longer referenced by combat resolution — Ability resources (see
+## ability.gd) carry their own damage dice now, so a given ability isn't
+## tied to whichever fixed die a unit happens to have. Left in place
+## rather than removed since a future weapon system (weapon choice is
+## already on the project's to-do list) is a plausible reason to want a
+## unit's base weapon dice again, at which point an Ability could pull
+## from these instead of (or in addition to) its own embedded dice.
 @onready var thrust: Die = $Thrust
 @onready var swing: Die = $Swing
 @onready var damage: Die = $Damage
@@ -52,6 +59,11 @@ extends CharacterBody3D
 ## targets when clicked during that unit's turn; same-faction clicks still
 ## select as normal (see _on_input_event / is_hostile_to).
 @export var faction: StringName = &"player"
+## Abilities this unit currently has available. abilities[0] is used as
+## the default (see default_ability) when nothing's explicitly armed via
+## AbilityManager — that's what makes click-to-attack keep working before
+## a hotbar exists to actually choose between multiple abilities.
+@export var abilities: Array[Ability] = []
 
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.
@@ -83,8 +95,9 @@ signal hover_ended(unit: Unit)
 signal selected(unit: Unit)
 signal deselected(unit: Unit)
 
-## result dict shape: { in_reach, hit, damage, to_hit, raw_damage }
-signal attacked(attacker: Unit, target: Unit, result: Dictionary)
+## result dict shape: { in_range, already_acted, hit, damage, to_hit,
+## raw_damage, ability }
+signal ability_used(attacker: Unit, target: Unit, result: Dictionary)
 signal took_damage(unit: Unit, amount: int)
 signal died(unit: Unit)
 
@@ -181,12 +194,15 @@ func _on_mouse_exited() -> void:
 
 
 ## During combat, left-clicking an enemy unit while your own unit is both
-## selected and the acting unit (CombatManager.current_unit) attacks it
-## instead of selecting it. Every other click falls through to normal
-## selection — which is a safe no-op for non-player units regardless,
-## since SelectionManager itself refuses anything that isn't
-## is_player_controlled(). Clicking an enemy outside of a valid attack
-## context does nothing, exactly as intended.
+## selected and the acting unit (CombatManager.current_unit) uses an
+## ability against it instead of selecting it — whichever ability is
+## currently armed via AbilityManager, or the acting unit's
+## default_ability() if nothing's explicitly armed (keeps click-to-attack
+## working before a hotbar exists to choose between abilities). Every
+## other click falls through to normal selection — which is a safe no-op
+## for non-player units regardless, since SelectionManager itself refuses
+## anything that isn't is_player_controlled(). Clicking an enemy outside
+## of a valid attack context does nothing, exactly as intended.
 func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
 	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
@@ -195,7 +211,9 @@ func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _norm
 		var acting_unit: Unit = CombatManager.current_unit
 		if acting_unit and acting_unit != self and acting_unit.is_hostile_to(self) \
 				and acting_unit in SelectionManager.selected_units:
-			acting_unit.attack(self, acting_unit.swing)
+			var ability: Ability = AbilityManager.armed_ability if AbilityManager.armed_ability else acting_unit.default_ability()
+			if ability:
+				acting_unit.use_ability(ability, self)
 			return
 
 	var additive: bool = event.shift_pressed
@@ -451,52 +469,64 @@ func roll_vs(target_number: int) -> Dictionary:
 	}
 
 
-## Placeholder melee skill — just DX for now. Swap in a real skill lookup
-## later (weapon skill, etc.) without touching attack()'s call site.
+## Placeholder melee/ranged skill — just DX for now. Swap in a real skill
+## lookup later (weapon skill, ability-specific skill, etc.) without
+## touching use_ability()'s call site.
 func attack_skill() -> int:
 	return dexterity
 
 
-## Resolves one melee attack against target using weapon_die (pass in
-## self.thrust or self.swing). No defense roll — DR is the only mitigation.
-## One attack per turn (see has_attacked/reset_turn_actions) — a miss still
-## spends it, same as the swing itself being the spent action, not the hit.
+## abilities[0], or null if this unit has none equipped. Used as the
+## fallback when nothing's explicitly armed via AbilityManager — see that
+## autoload's doc comment.
+func default_ability() -> Ability:
+	return abilities[0] if not abilities.is_empty() else null
+
+
+## Resolves using ability against target. Range/LoS rules and damage
+## dice come entirely from the Ability resource — this method just
+## enforces turn state (the once-per-turn attack action) and rolls
+## to-hit/damage, same shape regardless of what kind of ability it is.
+## A miss still spends the action if the ability uses one, same as
+## before: the attempt itself is what's spent, not the hit.
 ## Returns a result dict for logging/UI:
-## { in_reach, already_attacked, hit, damage, to_hit, raw_damage }
-func attack(target: Unit, weapon_die: Die) -> Dictionary:
+## { in_range, already_acted, hit, damage, to_hit, raw_damage, ability }
+func use_ability(ability: Ability, target: Unit) -> Dictionary:
 	var result := {
 		"attacker": self,
 		"target": target,
-		"in_reach": is_in_reach(target),
-		"already_attacked": has_attacked,
+		"ability": ability,
+		"in_range": ability.is_in_range(self, target),
+		"already_acted": ability.uses_attack_action and has_attacked,
 		"hit": false,
 		"damage": 0,
 	}
 
-	if has_attacked:
+	if result.already_acted:
 		return result
 
-	if not result.in_reach:
+	if not result.in_range:
 		return result
 
-	has_attacked = true
+	if ability.uses_attack_action:
+		has_attacked = true
 
 	var to_hit := roll_vs(attack_skill())
 	result["to_hit"] = to_hit
 	if not to_hit.success:
-		attacked.emit(self, target, result)
+		ability_used.emit(self, target, result)
 		return result
 
 	result["hit"] = true
 
-	var raw_damage: int = weapon_die.roll()
+	var raw_damage: int = ability.roll_damage()
 	var applied: int = max(raw_damage - target.damage_reduction, 0)
 	result["raw_damage"] = raw_damage
 	result["damage"] = applied
 
 	target.take_damage(applied)
 
-	attacked.emit(self, target, result)
+	ability_used.emit(self, target, result)
 	return result
 
 

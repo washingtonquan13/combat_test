@@ -60,8 +60,8 @@ func _connect_debug_signals(units: Array[Unit]) -> void:
 		_signals_connected = true
 
 	for unit in units:
-		if not unit.attacked.is_connected(_on_unit_attacked):
-			unit.attacked.connect(_on_unit_attacked)
+		if not unit.ability_used.is_connected(_on_unit_ability_used):
+			unit.ability_used.connect(_on_unit_ability_used)
 		if not unit.died.is_connected(_on_unit_died):
 			unit.died.connect(_on_unit_died)
 
@@ -79,17 +79,17 @@ func _on_turn_started(unit: Unit) -> void:
 	SelectionManager.select(unit)
 
 
-func _on_unit_attacked(attacker: Unit, target: Unit, result: Dictionary) -> void:
-	if result.already_attacked:
-		print("   ", attacker.name, " has already attacked this turn.")
-	elif not result.in_reach:
-		print("   ", attacker.name, " is out of reach of ", target.name)
+func _on_unit_ability_used(attacker: Unit, target: Unit, result: Dictionary) -> void:
+	if result.already_acted:
+		print("   ", attacker.name, " has already acted this turn.")
+	elif not result.in_range:
+		print("   ", attacker.name, " is out of range of ", target.name, " with ", result.ability.ability_name)
 	elif not result.to_hit.success:
-		print("   ", attacker.name, " misses ", target.name,
+		print("   ", attacker.name, " misses ", target.name, " with ", result.ability.ability_name,
 				" (rolled ", result.to_hit.roll, " vs ", result.to_hit.target, ")")
 	else:
-		print("   ", attacker.name, " hits ", target.name, " for ", result.damage,
-				" damage (", target.current_hp, " HP left)")
+		print("   ", attacker.name, " hits ", target.name, " with ", result.ability.ability_name,
+				" for ", result.damage, " damage (", target.current_hp, " HP left)")
 
 
 func _on_unit_died(unit: Unit) -> void:

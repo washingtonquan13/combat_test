@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 SelectionManager="*res://selection_manager.gd"
 CombatManager="*res://combat_manager.gd"
 CombatAi="*res://combat_ai.gd"
+AbilityManager="*res://ability_manager.gd"
 
 [input]
 
