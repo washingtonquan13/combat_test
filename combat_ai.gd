@@ -76,7 +76,7 @@ func _attempt_action(unit: Unit) -> void:
 		unit.movement_finished.disconnect(_on_movement_finished)
 	unit.movement_finished.connect(_on_movement_finished, CONNECT_ONE_SHOT)
 
-	var destination: Vector3 = _standoff_goal(unit, target)
+	var destination: Vector3 = _standoff_goal(unit, target, ability)
 	# target is excluded from the plan's obstacle list so the route
 	# doesn't try to go AROUND the very thing it's trying to get close to
 	# — see Unit.move_to's extra_avoidance_exclusions.
@@ -115,39 +115,37 @@ func _find_nearest_hostile(unit: Unit) -> Unit:
 	return nearest
 
 
-## The point this unit is trying to reach: just inside MELEE reach of
-## target, not target's exact position (walking onto the same point
-## another unit occupies is exactly what causes units to get physically
-## stuck against each other). Budget clamping and routing around OTHER
-## units now happen inside Unit.move_to() itself (see PathAvoidance) —
-## this only needs to say where the unit wants to end up, not how far it
-## can actually get there this turn.
+## The point this unit is trying to reach: just inside ability's range of
+## target (melee_range or max_range, whichever applies), not target's
+## exact position (walking onto the same point another unit occupies is
+## exactly what causes units to get physically stuck against each
+## other). Budget clamping and routing around OTHER units happen inside
+## Unit.move_to() itself (see PathAvoidance) — this only needs to say
+## where the unit wants to end up, not how far it can actually get there
+## this turn.
 ##
-## Still hardcoded to unit.reach regardless of the equipped ability's
-## actual target_type — a unit whose default_ability() is RANGED_ENEMY
-## will still walk in to melee distance instead of stopping at
-## ability.max_range, or not moving at all if already in range (that
-## specific case IS handled correctly — see _attempt_action's
-## ability.is_in_range() check, which is why a ranged unit that starts
-## already in range won't move). Making approach behavior actually
-## ability-aware (stand off at range instead of closing to melee) is
-## real follow-up work, not something this pass tried to solve.
-func _standoff_goal(unit: Unit, target: Unit) -> Vector3:
+## For a ranged ability this gets the unit within max_range, but doesn't
+## account for line of sight at all — a unit can walk to a point that's
+## in range but still has no clear shot (e.g. behind a wall), and won't
+## know to reposition further. Finding a spot with both range AND line
+## of sight is real follow-up work, not something this pass solved.
+func _standoff_goal(unit: Unit, target: Unit, ability: Ability) -> Vector3:
 	var to_target: Vector3 = target.global_position - unit.global_position
 	var distance: float = to_target.length()
 	if distance <= 0.001:
 		return unit.global_position
 
 	var direction: Vector3 = to_target / distance
+	var ability_range: float = ability.melee_range if ability.target_type == Ability.TargetType.MELEE_ENEMY else ability.max_range
 	# Center-to-center distance at which this unit's *edge* sits exactly
-	# at reach from target's edge (mirrors Unit.edge_distance_to). The
-	# margin must exceed arrival_tolerance, not just be some small
-	# constant — Unit's nav agent considers itself "arrived" (i.e. moves
+	# at ability_range from target's edge (mirrors Unit.edge_distance_to).
+	# The margin must exceed arrival_tolerance, not just be some small
+	# constant — Unit's movement considers itself "arrived" (i.e. moves
 	# no further) once within arrival_tolerance of the destination, so a
-	# smaller margin lets it legitimately stop just outside reach on the
+	# smaller margin lets it legitimately stop just outside range on the
 	# very first approach, with no further progress possible on retry
 	# (any remaining gap smaller than arrival_tolerance also counts as
 	# "already arrived," so it would never move that last bit either).
 	var margin: float = unit.arrival_tolerance + 0.05
-	var standoff: float = max(unit.reach + unit.radius + target.radius - margin, 0.05)
+	var standoff: float = max(ability_range + unit.radius + target.radius - margin, 0.05)
 	return target.global_position - direction * standoff

@@ -32,9 +32,18 @@ enum TargetType { MELEE_ENEMY, RANGED_ENEMY }
 
 @export_group("Targeting")
 @export var target_type: TargetType = TargetType.MELEE_ENEMY
-## Only used when target_type is RANGED_ENEMY. Compared against
-## Unit.edge_distance_to (edge-to-edge, matching how reach already works
-## for melee), not raw center-to-center distance.
+## Only used when target_type is MELEE_ENEMY. Compared against
+## Unit.edge_distance_to (edge-to-edge, not center-to-center) — this
+## ability's own range, not a shared per-unit stat. Different melee
+## abilities on the same unit can have different reach (a dagger stab
+## and a spear thrust shouldn't have to agree on one number) — this is
+## exactly the thing that broke when melee range used to defer to a
+## Unit.reach stat: changing that ONE number for any reason (including
+## by mistake) silently changed the range of EVERY melee ability that
+## unit had, with no way for a specific ability to override it.
+@export var melee_range: float = 1.0
+## Only used when target_type is RANGED_ENEMY. Same edge-to-edge
+## convention as melee_range above.
 @export var max_range: float = 8.0
 ## Only used when target_type is RANGED_ENEMY. See LineOfSight.
 @export var requires_line_of_sight: bool = true
@@ -68,7 +77,7 @@ func roll_damage() -> int:
 func is_in_range(attacker: Unit, target: Unit) -> bool:
 	match target_type:
 		TargetType.MELEE_ENEMY:
-			return attacker.is_in_reach(target)
+			return attacker.edge_distance_to(target) <= melee_range
 		TargetType.RANGED_ENEMY:
 			if attacker.edge_distance_to(target) > max_range:
 				return false

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=3 format=3 uid="uid://ccpq7il7jxpx1"]
+
+[ext_resource type="Texture2D" uid="uid://fsfptrhr6sy3" path="res://assets/ability_icon/attack_icon_melee.png" id="1_owfv6"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_m1xwx"]
+
+[resource]
+script = ExtResource("2_m1xwx")
+ability_name = "Basic Attack (Melee)"
+icon = ExtResource("1_owfv6")
+target_type = 0
+max_range = 1.0
+requires_line_of_sight = false
+los_obstruction_mask = 1
+damage_dice_count = 1
+damage_dice_sides = 6
+damage_dice_bonus = 0
+uses_attack_action = true
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

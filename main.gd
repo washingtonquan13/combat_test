@@ -100,4 +100,4 @@ func _on_combat_ended(winning_faction: StringName) -> void:
 	if winning_faction == &"":
 		print("--- Combat ended: mutual wipe, no survivors ---")
 	else:
-		print("--- Combat ended: ", winning_faction, " wins ---")
+		print("--- Combat ended: ", winning_faction, " wins ---") 

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=3 format=3 uid="uid://cb3k1n2puqron"]
+
+[ext_resource type="Texture2D" uid="uid://buwrel4grptvr" path="res://assets/ability_icon/attack_icon_ranged.png" id="1_8dawa"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="1_vpgqn"]
+
+[resource]
+script = ExtResource("1_vpgqn")
+ability_name = "Basic Attack (Ranged)"
+icon = ExtResource("1_8dawa")
+target_type = 1
+max_range = 8.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+damage_dice_count = 1
+damage_dice_sides = 6
+damage_dice_bonus = 0
+uses_attack_action = true
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

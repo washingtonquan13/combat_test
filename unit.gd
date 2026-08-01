@@ -11,7 +11,6 @@ extends CharacterBody3D
 @export var maximum_fp: int = 10
 @export var current_fp: int = 10
 
-@export var reach: float = 1.0
 ## No longer referenced by combat resolution — Ability resources (see
 ## ability.gd) carry their own damage dice now, so a given ability isn't
 ## tied to whichever fixed die a unit happens to have. Left in place
@@ -27,10 +26,11 @@ extends CharacterBody3D
 ## Real-time speed (world units/sec) while executing a move order. Distinct
 ## from `move`, which is the per-turn distance budget in combat.
 @export var move_speed: float = 4.0
-## This unit's rough collision radius — used for reach calculations
-## (is_in_reach measures edge-to-edge, not center-to-center) and as the
-## basis for avoidance clearance (see avoidance_margin below). Set to
-## roughly match the actual collision shape.
+## This unit's rough collision radius — used for range calculations
+## (see edge_distance_to and Ability.is_in_range: edge-to-edge, not
+## center-to-center) and as the basis for avoidance clearance (see
+## avoidance_margin below). Set to roughly match the actual collision
+## shape.
 @export var radius: float = 0.5
 ## Extra buffer added on top of radius for planning purposes only — the
 ## physical collision shape stays exactly radius, this just tells the
@@ -446,15 +446,12 @@ func distance_to(other: Unit) -> float:
 
 
 ## Center-to-center distance minus both units' radii — how far apart their
-## actual bodies are, not their positions. This is what reach should be
-## measured against; two units can be "touching" while still having
-## meaningfully distant global_positions once you account for size.
+## actual bodies are, not their positions. This is what any range check
+## (melee or ranged — see Ability.is_in_range) should be measured
+## against; two units can be "touching" while still having meaningfully
+## distant global_positions once you account for size.
 func edge_distance_to(other: Unit) -> float:
 	return max(distance_to(other) - radius - other.radius, 0.0)
-
-
-func is_in_reach(target: Unit) -> bool:
-	return edge_distance_to(target) <= reach
 
 
 ## GURPS-style roll-under: 3d6 <= target_number succeeds. Lower rolls are
