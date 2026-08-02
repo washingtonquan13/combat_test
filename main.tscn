@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=35 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -23,6 +23,7 @@
 [ext_resource type="PackedScene" uid="uid://dtttg6dyn8w56" path="res://system_log.tscn" id="12_xuqvo"]
 [ext_resource type="Texture2D" uid="uid://crp4mkdu5gcik" path="res://assets/portraits/gooblin_Wiz.jpg" id="12_ycdy4"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://abilities/basic_attack_ranged.tres" id="13_074og"]
+[ext_resource type="Script" uid="uid://bb040f657sdme" path="res://end_turn_button.gd" id="13_qsp4k"]
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://abilities/jump.tres" id="16_getpj"]
 [ext_resource type="Texture2D" uid="uid://cbcv6cepoupv1" path="res://assets/portraits/hobgoblin.jpg" id="19_82xsv"]
 [ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://abilities/explosive_fireball.tres" id="20_0odxb"]
@@ -103,6 +104,22 @@ script = ExtResource("6_w48qg")
 slot_scene = ExtResource("8_cegan")
 
 [node name="SystemLog" parent="CanvasLayer" instance=ExtResource("12_xuqvo")]
+
+[node name="EndTurnButton" type="Button" parent="CanvasLayer"]
+custom_minimum_size = Vector2(90, 31)
+anchors_preset = -1
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -90.0
+offset_top = -31.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+text = "END TURN"
+script = ExtResource("13_qsp4k")
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
 navigation_mesh = SubResource("NavigationMesh_lquwl")
