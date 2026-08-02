@@ -146,14 +146,16 @@ portrait_texture = ExtResource("6_dg77c")
 [node name="ElfRanger" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1, -8)
 dexterity = 15
+move = 12
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("7_ycdy4")
 
 [node name="TieflingWizard" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)
-dexterity = 14
+dexterity = 18
 intelligence = 16
+move = 12
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("21_lswn8")
@@ -161,6 +163,8 @@ portrait_texture = ExtResource("21_lswn8")
 [node name="Mook" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 5)
 dexterity = 5
+maximum_hp = 2
+current_hp = 2
 faction = &"enemy"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf")])
 hover_color = Color(1, 0, 0, 0.501961)
@@ -171,8 +175,8 @@ portrait_texture = ExtResource("8_w48qg")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, 5)
 dexterity = 5
 intelligence = 16
+maximum_hp = 2
 current_hp = 2
-maximum_fp = 2
 faction = &"enemy"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf")])
 hover_color = Color(1, 0, 0, 0.501961)
@@ -183,10 +187,8 @@ portrait_texture = ExtResource("12_ycdy4")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 5)
 dexterity = 5
 intelligence = 16
-health = 2
 maximum_hp = 2
-current_hp = 8
-maximum_fp = 8
+current_hp = 2
 faction = &"enemy"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf")])
 hover_color = Color(1, 0, 0, 0.501961)
@@ -197,10 +199,8 @@ portrait_texture = ExtResource("12_ycdy4")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, 5)
 dexterity = 5
 intelligence = 16
-health = 2
 maximum_hp = 2
-current_hp = 8
-maximum_fp = 8
+current_hp = 2
 faction = &"enemy"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf")])
 hover_color = Color(1, 0, 0, 0.501961)
@@ -224,7 +224,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("19_82xsv")
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 3, 1)
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 8, -2)
 script = ExtResource("3_h2yge")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]

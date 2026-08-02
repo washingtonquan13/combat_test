@@ -15,7 +15,7 @@ metadata/_custom_type_script = "uid://l0qndk2gae1o"
 
 [sub_resource type="Resource" id="Resource_pm8sj"]
 script = ExtResource("5_nl2jd")
-max_range = 8.0
+max_range = 15.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
 metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
