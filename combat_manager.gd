@@ -19,6 +19,9 @@ var turn_order: Array[Unit] = []
 var in_combat: bool = false
 
 var _turn_index: int = -1
+## Set while a delay_turn() call is waiting on a busy unit to become
+## idle before it can actually apply — see delay_turn/_on_unit_idle_for_delay.
+var _pending_delay_positions: int = -1
 
 var current_unit: Unit:
 	get:
@@ -67,17 +70,38 @@ func end_combat(winning_faction: StringName = &"") -> void:
 
 
 ## Call once the active unit is done acting (attacked, moved, passed, etc).
-## Advancing is deferred rather than called directly: if the next unit's
-## turn resolves instantly (already in reach, AI attacks and calls
-## end_turn again immediately), calling _advance_turn() synchronously here
-## would nest that whole resolution inside this call — and with several
-## units doing that back-to-back, inside THAT call, and so on, you get an
-## effectively recursive chain with no base case. Deferring makes each
-## turn's resolution its own step instead of a nested call frame.
+##
+## If the current unit still has something in flight (Unit.is_busy() —
+## mid-move, or an async ability effect like Jump's arc animation still
+## running), the request is accepted but DEFERRED: this connects to the
+## unit's became_idle signal and re-calls itself once that fires, rather
+## than either cutting the action off mid-resolution or silently dropping
+## the end-turn request. This is the actual fix for turns being able to
+## end while an action was still resolving — previously nothing checked
+## this at all.
+##
+## Once not busy, advancing is deferred via call_deferred rather than
+## called directly: if the next unit's turn resolves instantly (already
+## in reach, AI attacks and calls end_turn again immediately), calling
+## _advance_turn() synchronously here would nest that whole resolution
+## inside this call — and with several units doing that back-to-back,
+## inside THAT call, and so on, you get an effectively recursive chain
+## with no base case. Deferring makes each turn's resolution its own step
+## instead of a nested call frame.
 func end_turn() -> void:
 	if not in_combat:
 		return
-	turn_ended.emit(current_unit)
+
+	var unit: Unit = current_unit
+	if not unit:
+		return
+
+	if unit.is_busy():
+		if not unit.became_idle.is_connected(end_turn):
+			unit.became_idle.connect(end_turn, CONNECT_ONE_SHOT)
+		return
+
+	turn_ended.emit(unit)
 	_advance_turn.call_deferred()
 
 
@@ -94,6 +118,10 @@ func end_turn() -> void:
 ## is done; it gets a full fresh turn whenever its now-later slot comes
 ## up, exactly like any other turn.
 ##
+## Same busy-deferral as end_turn() — if the unit still has something in
+## flight, the delay is accepted but applied once it becomes idle, not
+## cut in immediately mid-action.
+##
 ## Can only be called by the unit whose turn it currently is (you delay
 ## your own upcoming turn, not someone else's). Returns false if that's
 ## not the case, combat isn't running, or positions < 1. positions
@@ -102,6 +130,24 @@ func delay_turn(unit: Unit, positions: int = 1) -> bool:
 	if not in_combat or unit != current_unit or positions < 1:
 		return false
 
+	if unit.is_busy():
+		_pending_delay_positions = positions
+		if not unit.became_idle.is_connected(_on_unit_idle_for_delay):
+			unit.became_idle.connect(_on_unit_idle_for_delay, CONNECT_ONE_SHOT)
+		return true
+
+	_perform_delay(unit, positions)
+	return true
+
+
+func _on_unit_idle_for_delay() -> void:
+	var positions: int = _pending_delay_positions
+	_pending_delay_positions = -1
+	if in_combat and current_unit:
+		_perform_delay(current_unit, positions)
+
+
+func _perform_delay(unit: Unit, positions: int) -> void:
 	turn_order.remove_at(_turn_index)
 	var insert_index: int = clamp(_turn_index + positions, 0, turn_order.size())
 	turn_order.insert(insert_index, unit)
@@ -110,7 +156,6 @@ func delay_turn(unit: Unit, positions: int = 1) -> bool:
 	turn_ended.emit(unit)
 	next_unit.reset_turn_actions()
 	turn_started.emit(next_unit)
-	return true
 
 
 func _advance_turn() -> void:

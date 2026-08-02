@@ -64,11 +64,13 @@ func clamp_to_budget(attacker: Unit, destination: Vector3) -> Vector3:
 
 func _animate_jump(attacker: Unit, destination: Vector3) -> void:
 	var start: Vector3 = attacker.global_position
+	attacker.begin_busy()
 	var tween: Tween = attacker.create_tween()
 	tween.tween_method(
 		func(t: float): attacker.global_position = arc_point(start, destination, t),
 		0.0, 1.0, jump_duration
 	)
+	tween.finished.connect(attacker.end_busy)
 
 
 ## Point along the jump's parabolic arc at t (0 = start, 1 = end), peaking

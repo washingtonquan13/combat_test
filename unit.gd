@@ -104,6 +104,12 @@ signal died(unit: Unit)
 
 signal movement_started(unit: Unit)
 signal movement_finished(unit: Unit)
+## Fired the instant this unit has nothing left in flight — no move in
+## progress, no async ability effect (e.g. Jump's arc animation) still
+## running. This is what CombatManager waits on before actually ending a
+## turn that was requested while the unit was still mid-action, instead
+## of either cutting the action off or silently dropping the request.
+signal became_idle()
 
 var is_hovered: bool = false
 var is_selected: bool = false
@@ -114,6 +120,14 @@ var is_selected: bool = false
 ## has_attacked gates attack() to once per turn.
 var move_remaining: float = 0.0
 var has_attacked: bool = false
+
+## Separate from _moving (movement has always had its own dedicated flag
+## driving _physics_process) — this covers any OTHER async action, like
+## MoveCasterEffect's Jump animation, that isn't movement but still needs
+## something to finish before the turn can safely end. Anything async
+## should bracket itself with begin_busy()/end_busy() rather than
+## inventing its own separate "is this thing still running" flag.
+var _busy_count: int = 0
 
 var _moving: bool = false
 var _move_start_position: Vector3 = Vector3.ZERO
@@ -333,7 +347,7 @@ func _physics_process(delta: float) -> void:
 ## own attack target) leave specific units out of the plan's avoidance —
 ## you don't want to route around the very unit you're trying to reach.
 func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bool:
-	if _moving:
+	if is_busy():
 		return false
 
 	var budget: float = INF
@@ -390,6 +404,33 @@ func is_moving() -> bool:
 	return _moving
 
 
+## Whether this unit has anything currently in flight — movement, or any
+## async ability effect that's bracketed itself with begin_busy(). This
+## is what CombatManager checks before ending a turn, and what move_to/
+## use_ability check before starting something new (so a jump animation
+## and a move order can't both be running at once, or so a second
+## ability can't fire mid-way through the first one's async effect).
+func is_busy() -> bool:
+	return _moving or _busy_count > 0
+
+
+## Call when starting an async action (an ability's animation, etc.) that
+## CombatManager should wait for before letting the turn end. Must be
+## paired with a later end_busy() call once that action actually finishes.
+func begin_busy() -> void:
+	_busy_count += 1
+
+
+func end_busy() -> void:
+	_busy_count = max(_busy_count - 1, 0)
+	_check_idle()
+
+
+func _check_idle() -> void:
+	if not is_busy():
+		became_idle.emit()
+
+
 func _finish_move() -> void:
 	_moving = false
 	velocity = Vector3.ZERO
@@ -409,6 +450,7 @@ func _finish_move() -> void:
 	_path_index = 0
 	_planned_distance = 0.0
 	movement_finished.emit(self)
+	_check_idle()
 
 
 ## --- Combat ---
@@ -488,8 +530,17 @@ func default_ability() -> Ability:
 ## that gates ALL of an ability's effects together, not per-effect
 ## resolution. A miss still spends the action if the ability uses one,
 ## same as before: the attempt itself is what's spent, not the hit.
+##
+## Rejects outright (busy=true in the result, nothing else evaluated) if
+## this unit already has something in flight — movement, or a previous
+## ability's async effect (e.g. mid-Jump-animation) still resolving.
+## Without this, a second ability could fire while the first one's
+## effect (a Tween-driven animation, say) is still running, overlapping
+## two actions that were each supposed to be a single discrete turn
+## action.
+##
 ## Returns a result dict for logging/UI:
-## { in_range, already_acted, hit, damage, to_hit, effects, ability }
+## { in_range, already_acted, busy, hit, damage, to_hit, effects, ability }
 ## damage is the SUM of every effect's own "damage" key, for convenience
 ## — usually zero or one DamageEffect, but this doesn't assume that; see
 ## effects for the individual per-effect results if more detail is
@@ -499,12 +550,19 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"attacker": self,
 		"target": target,
 		"ability": ability,
-		"in_range": ability.is_in_range(self, target),
-		"already_acted": ability.uses_attack_action and has_attacked,
+		"busy": is_busy(),
+		"in_range": false,
+		"already_acted": false,
 		"hit": false,
 		"damage": 0,
 		"effects": [],
 	}
+
+	if result.busy:
+		return result
+
+	result["in_range"] = ability.is_in_range(self, target)
+	result["already_acted"] = ability.uses_attack_action and has_attacked
 
 	if result.already_acted:
 		return result
