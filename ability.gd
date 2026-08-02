@@ -1,62 +1,29 @@
 class_name Ability
 extends Resource
-## Data for one combat ability — melee or ranged, with its own targeting
-## rule and damage dice. Create instances as .tres files (editor: right-
-## click in FileSystem > New Resource > Ability), not in code, so
-## designers can add/tune abilities without touching scripts.
+## Data for one combat ability, composed from independent pieces rather
+## than one flat set of fields covering every possible ability shape —
+## see AbilityTargeting and AbilityEffect for why. This resource only
+## holds what's genuinely universal to every ability regardless of what
+## it does: a name/icon, HOW it picks a target (targeting), WHAT happens
+## when it resolves (effects, plural — an ability can combine more than
+## one), and turn-economy cost.
 ##
-## Deliberately scoped to what's actually needed right now (a melee
-## basic attack, a ranged basic attack with line of sight) rather than a
-## speculative general framework for ability types with no concrete
-## design yet (AoE, buffs, cooldowns, resource costs). Extend this when
-## there's a second real requirement to generalize from, not before.
-##
-## Damage dice are embedded directly here (damage_dice_count/sides/bonus)
-## rather than referencing Unit's existing thrust/swing/damage Die nodes.
-## Two reasons: Die is a Node (extends Node), and a Resource shouldn't
-## hold a reference to a specific scene-tree node instance — Resources
-## are meant to be data that can be shared/reused, not tied to one
-## unit's scene. And conceptually, an ability's damage shouldn't have to
-## come from "whichever fixed die the wielder happens to have" — a Power
-## Attack ability and a Quick Jab ability should be able to specify
-## completely different dice, independent of any weapon. Wiring an
-## ability's damage to derive from an equipped WEAPON specifically is the
-## natural next step once weapon choice (already on the project's to-do
-## list) is actually built — that's a separate, later integration, not
-## something this resource tries to solve now.
-
-enum TargetType { MELEE_ENEMY, RANGED_ENEMY }
+## Create instances as .tres files (editor: right-click in FileSystem >
+## New Resource > Ability), assign a targeting resource and one or more
+## effect resources in the Inspector.
 
 @export var ability_name: String = "Basic Attack"
 @export var icon: Texture2D
 
-@export_group("Targeting")
-@export var target_type: TargetType = TargetType.MELEE_ENEMY
-## Only used when target_type is MELEE_ENEMY. Compared against
-## Unit.edge_distance_to (edge-to-edge, not center-to-center) — this
-## ability's own range, not a shared per-unit stat. Different melee
-## abilities on the same unit can have different reach (a dagger stab
-## and a spear thrust shouldn't have to agree on one number) — this is
-## exactly the thing that broke when melee range used to defer to a
-## Unit.reach stat: changing that ONE number for any reason (including
-## by mistake) silently changed the range of EVERY melee ability that
-## unit had, with no way for a specific ability to override it.
-@export var melee_range: float = 1.0
-## Only used when target_type is RANGED_ENEMY. Same edge-to-edge
-## convention as melee_range above.
-@export var max_range: float = 8.0
-## Only used when target_type is RANGED_ENEMY. See LineOfSight.
-@export var requires_line_of_sight: bool = true
-## Physics layer LoS raycasts treat as blocking (walls/terrain — not
-## units; see LineOfSight's doc comment for why units don't block shots).
-@export var los_obstruction_mask: int = 1
-
-@export_group("Damage")
-@export var damage_dice_count: int = 1
-@export var damage_dice_sides: int = 6
-@export var damage_dice_bonus: int = 0
+@export var targeting: AbilityTargeting
+@export var effects: Array[AbilityEffect] = []
 
 @export_group("Cost")
+## Whether landing a hit requires a to-hit roll (Unit.roll_vs) before any
+## effects apply, or effects just always happen. Resolved ONCE per
+## use_ability() call, not per-effect — see DamageEffect's doc comment
+## for why a miss needs to skip every effect together, not just damage.
+@export var requires_to_hit: bool = true
 ## Whether this counts against the once-per-turn attack action
 ## (Unit.has_attacked). Every current ability does; kept as an explicit
 ## flag rather than assumed so a future free-action ability doesn't need
@@ -64,24 +31,12 @@ enum TargetType { MELEE_ENEMY, RANGED_ENEMY }
 @export var uses_attack_action: bool = true
 
 
-func roll_damage() -> int:
-	var total: int = 0
-	for _i in damage_dice_count:
-		total += randi_range(1, damage_dice_sides)
-	return total + damage_dice_bonus
-
-
-## Whether target is a legal target for THIS ability from attacker's
-## current position — range/LoS only, not turn state (has_attacked
-## etc.), which stays Unit.use_ability()'s job.
-func is_in_range(attacker: Unit, target: Unit) -> bool:
-	match target_type:
-		TargetType.MELEE_ENEMY:
-			return attacker.edge_distance_to(target) <= melee_range
-		TargetType.RANGED_ENEMY:
-			if attacker.edge_distance_to(target) > max_range:
-				return false
-			if requires_line_of_sight and not LineOfSight.has_clear_shot(attacker, target, los_obstruction_mask):
-				return false
-			return true
-	return false
+## Whether target is a legal target for this ability from attacker's
+## current position — delegates entirely to targeting, since range/LoS
+## rules are its concern, not this resource's. Returns false if no
+## targeting is assigned at all (a misconfigured ability, not a valid
+## no-target ability — those don't exist yet, see this file's header).
+func is_in_range(attacker: Unit, target) -> bool:
+	if not targeting:
+		return false
+	return targeting.is_valid_target(attacker, target)

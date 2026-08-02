@@ -95,7 +95,7 @@ func _get_active_unit() -> Unit:
 
 func _get_armed_ranged_ability() -> Ability:
 	var ability: Ability = AbilityManager.armed_ability
-	if not ability or ability.target_type != Ability.TargetType.RANGED_ENEMY:
+	if not ability or not (ability.targeting is RangedEnemyTargeting):
 		return null
 	return ability
 
@@ -127,11 +127,22 @@ func _get_hovered_hostile(unit: Unit) -> Unit:
 	return hovered
 
 
+## Reads range/LoS off ability.targeting directly (cast to
+## RangedEnemyTargeting — safe since _get_armed_ranged_ability already
+## confirmed it's that type). This is a legitimate, narrow exception to
+## staying fully generic about targeting components: this indicator's
+## whole purpose is showing three distinct visual states an "is it
+## valid" bool can't distinguish (too far vs. blocked), so it needs the
+## concrete field values, not just a yes/no. Most other ability-aware
+## code (hotbar tooltips, CombatAI's approach distance) never needs this
+## and stays fully polymorphic instead.
 func _draw_line(unit: Unit, target: Unit, ability: Ability) -> void:
+	var targeting: RangedEnemyTargeting = ability.targeting
+
 	var color: Color
-	if unit.edge_distance_to(target) > ability.max_range:
+	if unit.edge_distance_to(target) > targeting.max_range:
 		color = out_of_range_color
-	elif ability.requires_line_of_sight and not LineOfSight.has_clear_shot(unit, target, ability.los_obstruction_mask):
+	elif targeting.requires_line_of_sight and not LineOfSight.has_clear_shot(unit, target, targeting.los_obstruction_mask):
 		color = blocked_color
 	else:
 		color = clear_color

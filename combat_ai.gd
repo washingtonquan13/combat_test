@@ -116,15 +116,16 @@ func _find_nearest_hostile(unit: Unit) -> Unit:
 
 
 ## The point this unit is trying to reach: just inside ability's range of
-## target (melee_range or max_range, whichever applies), not target's
-## exact position (walking onto the same point another unit occupies is
-## exactly what causes units to get physically stuck against each
-## other). Budget clamping and routing around OTHER units happen inside
-## Unit.move_to() itself (see PathAvoidance) — this only needs to say
-## where the unit wants to end up, not how far it can actually get there
-## this turn.
+## target (see AbilityTargeting.approach_range — polymorphic, so this
+## doesn't need to know which targeting subclass it's dealing with), not
+## target's exact position (walking onto the same point another unit
+## occupies is exactly what causes units to get physically stuck against
+## each other). Budget clamping and routing around OTHER units happen
+## inside Unit.move_to() itself (see PathAvoidance) — this only needs to
+## say where the unit wants to end up, not how far it can actually get
+## there this turn.
 ##
-## For a ranged ability this gets the unit within max_range, but doesn't
+## For a ranged ability this gets the unit within range, but doesn't
 ## account for line of sight at all — a unit can walk to a point that's
 ## in range but still has no clear shot (e.g. behind a wall), and won't
 ## know to reposition further. Finding a spot with both range AND line
@@ -136,7 +137,7 @@ func _standoff_goal(unit: Unit, target: Unit, ability: Ability) -> Vector3:
 		return unit.global_position
 
 	var direction: Vector3 = to_target / distance
-	var ability_range: float = ability.melee_range if ability.target_type == Ability.TargetType.MELEE_ENEMY else ability.max_range
+	var ability_range: float = ability.targeting.approach_range() if ability.targeting else 0.0
 	# Center-to-center distance at which this unit's *edge* sits exactly
 	# at ability_range from target's edge (mirrors Unit.edge_distance_to).
 	# The margin must exceed arrival_tolerance, not just be some small

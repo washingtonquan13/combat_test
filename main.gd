@@ -79,17 +79,21 @@ func _on_turn_started(unit: Unit) -> void:
 	SelectionManager.select(unit)
 
 
-func _on_unit_ability_used(attacker: Unit, target: Unit, result: Dictionary) -> void:
+func _on_unit_ability_used(attacker: Unit, target, result: Dictionary) -> void:
+	var target_desc: String = target.name if target is Unit else str(target)
+
 	if result.already_acted:
 		print("   ", attacker.name, " has already acted this turn.")
 	elif not result.in_range:
-		print("   ", attacker.name, " is out of range of ", target.name, " with ", result.ability.ability_name)
-	elif not result.to_hit.success:
-		print("   ", attacker.name, " misses ", target.name, " with ", result.ability.ability_name,
+		print("   ", attacker.name, " is out of range of ", target_desc, " with ", result.ability.ability_name)
+	elif result.ability.requires_to_hit and not result.to_hit.success:
+		print("   ", attacker.name, " misses ", target_desc, " with ", result.ability.ability_name,
 				" (rolled ", result.to_hit.roll, " vs ", result.to_hit.target, ")")
-	else:
-		print("   ", attacker.name, " hits ", target.name, " with ", result.ability.ability_name,
+	elif target is Unit:
+		print("   ", attacker.name, " hits ", target_desc, " with ", result.ability.ability_name,
 				" for ", result.damage, " damage (", target.current_hp, " HP left)")
+	else:
+		print("   ", attacker.name, " uses ", result.ability.ability_name, " at ", target_desc)
 
 
 func _on_unit_died(unit: Unit) -> void:
@@ -100,4 +104,4 @@ func _on_combat_ended(winning_faction: StringName) -> void:
 	if winning_faction == &"":
 		print("--- Combat ended: mutual wipe, no survivors ---")
 	else:
-		print("--- Combat ended: ", winning_faction, " wins ---") 
+		print("--- Combat ended: ", winning_faction, " wins ---")

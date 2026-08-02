@@ -96,8 +96,9 @@ signal selected(unit: Unit)
 signal deselected(unit: Unit)
 
 ## result dict shape: { in_range, already_acted, hit, damage, to_hit,
-## raw_damage, ability }
-signal ability_used(attacker: Unit, target: Unit, result: Dictionary)
+## effects, ability }. target is typed loosely (not Unit) since some
+## abilities target a point instead of a unit — see GroundPointTargeting.
+signal ability_used(attacker: Unit, target, result: Dictionary)
 signal took_damage(unit: Unit, amount: int)
 signal died(unit: Unit)
 
@@ -480,15 +481,20 @@ func default_ability() -> Ability:
 	return abilities[0] if not abilities.is_empty() else null
 
 
-## Resolves using ability against target. Range/LoS rules and damage
-## dice come entirely from the Ability resource — this method just
-## enforces turn state (the once-per-turn attack action) and rolls
-## to-hit/damage, same shape regardless of what kind of ability it is.
-## A miss still spends the action if the ability uses one, same as
-## before: the attempt itself is what's spent, not the hit.
+## Resolves using ability against target. Range/LoS rules come from
+## ability.targeting; what happens on a hit comes from ability.effects
+## (see those classes' doc comments) — this method's job is purely turn
+## state (the once-per-turn attack action) and the single to-hit roll
+## that gates ALL of an ability's effects together, not per-effect
+## resolution. A miss still spends the action if the ability uses one,
+## same as before: the attempt itself is what's spent, not the hit.
 ## Returns a result dict for logging/UI:
-## { in_range, already_acted, hit, damage, to_hit, raw_damage, ability }
-func use_ability(ability: Ability, target: Unit) -> Dictionary:
+## { in_range, already_acted, hit, damage, to_hit, effects, ability }
+## damage is the SUM of every effect's own "damage" key, for convenience
+## — usually zero or one DamageEffect, but this doesn't assume that; see
+## effects for the individual per-effect results if more detail is
+## needed than the aggregate.
+func use_ability(ability: Ability, target) -> Dictionary:
 	var result := {
 		"attacker": self,
 		"target": target,
@@ -497,6 +503,7 @@ func use_ability(ability: Ability, target: Unit) -> Dictionary:
 		"already_acted": ability.uses_attack_action and has_attacked,
 		"hit": false,
 		"damage": 0,
+		"effects": [],
 	}
 
 	if result.already_acted:
@@ -508,20 +515,25 @@ func use_ability(ability: Ability, target: Unit) -> Dictionary:
 	if ability.uses_attack_action:
 		has_attacked = true
 
-	var to_hit := roll_vs(attack_skill())
-	result["to_hit"] = to_hit
-	if not to_hit.success:
-		ability_used.emit(self, target, result)
-		return result
+	if ability.requires_to_hit:
+		var to_hit := roll_vs(attack_skill())
+		result["to_hit"] = to_hit
+		if not to_hit.success:
+			ability_used.emit(self, target, result)
+			return result
 
 	result["hit"] = true
 
-	var raw_damage: int = ability.roll_damage()
-	var applied: int = max(raw_damage - target.damage_reduction, 0)
-	result["raw_damage"] = raw_damage
-	result["damage"] = applied
+	var effect_results: Array = []
+	var total_damage: int = 0
+	for effect in ability.effects:
+		var effect_result: Dictionary = effect.apply(self, target)
+		effect_results.append(effect_result)
+		if effect_result.has("damage"):
+			total_damage += effect_result["damage"]
 
-	target.take_damage(applied)
+	result["effects"] = effect_results
+	result["damage"] = total_damage
 
 	ability_used.emit(self, target, result)
 	return result

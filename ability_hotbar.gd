@@ -85,7 +85,7 @@ func _on_ability_armed(_ability: Ability) -> void:
 	_update_slot_states()
 
 
-func _on_ability_used(_attacker: Unit, _target: Unit, _result: Dictionary) -> void:
+func _on_ability_used(_attacker: Unit, _target, _result: Dictionary) -> void:
 	# Using one ability can make OTHERS unusable too (has_attacked), so
 	# refresh every slot's disabled state, not just the one that fired.
 	_update_slot_states()

@@ -1,7 +1,8 @@
 extends StaticBody3D
-## Attach to your ground/terrain collision body. Left-click on empty ground
-## clears the current selection; right-click issues a move order to the
-## selected unit(s) toward the clicked point.
+## Attach to your ground/terrain collision body. Left-click on empty
+## ground clears the current selection (unless a ground-point-targeting
+## ability like Jump is armed — see below); right-click issues a move
+## order to the selected unit(s) toward the clicked point.
 ##
 ## Requires:
 ##  - input_ray_pickable = true on this body (default is true)
@@ -17,9 +18,34 @@ func _on_input_event(_camera: Node, event: InputEvent, click_position: Vector3, 
 		return
 
 	if event.button_index == MOUSE_BUTTON_LEFT:
+		if _try_use_ground_targeted_ability(click_position):
+			return
 		SelectionManager.deselect_all()
 	elif event.button_index == MOUSE_BUTTON_RIGHT:
 		_command_move(click_position)
+
+
+## If a ground-point-targeting ability (see GroundPointTargeting) is
+## currently armed via AbilityManager, and it's the acting player unit's
+## own turn, uses it at the clicked point instead of the click falling
+## through to normal ground-click behavior. Mirrors how Unit._on_input_event
+## checks ability-use before falling through to normal selection on an
+## enemy click — same pattern, applied to ground clicks instead of unit
+## clicks. Returns true if the click was consumed this way.
+func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
+	var ability: Ability = AbilityManager.armed_ability
+	if not ability or not (ability.targeting is GroundPointTargeting):
+		return false
+
+	if not CombatManager.in_combat:
+		return false
+
+	var unit: Unit = CombatManager.current_unit
+	if not unit or unit not in SelectionManager.selected_units:
+		return false
+
+	unit.use_ability(ability, click_position)
+	return true
 
 
 func _command_move(destination: Vector3) -> void:

@@ -26,15 +26,12 @@ func _apply_ability() -> void:
 func _build_tooltip() -> String:
 	var lines: PackedStringArray = [ability.ability_name]
 
-	match ability.target_type:
-		Ability.TargetType.MELEE_ENEMY:
-			lines.append("Melee")
-		Ability.TargetType.RANGED_ENEMY:
-			lines.append("Ranged, range %.1f" % ability.max_range)
-			if ability.requires_line_of_sight:
-				lines.append("Requires line of sight")
+	if ability.targeting:
+		lines.append(ability.targeting.describe())
 
-	lines.append("%dd%d+%d damage" % [ability.damage_dice_count, ability.damage_dice_sides, ability.damage_dice_bonus])
+	for effect in ability.effects:
+		lines.append(effect.describe())
+
 	return "\n".join(lines)
 
 
