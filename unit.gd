@@ -157,8 +157,15 @@ var _box_hovered: bool = false
 
 var _highlight_material: StandardMaterial3D
 
+## Owns this unit's active status effects (Bleeding, Sleep, Prone, ...) —
+## see status_manager.gd. Unit exposes the small forwarding API below
+## (apply_status/remove_status/etc.) rather than external code reaching
+## into this directly.
+var _status_manager: StatusManager
+
 
 func _ready() -> void:
+	_status_manager = StatusManager.new(self)
 	# CollisionObject3D (CharacterBody3D's base) already provides
 	# mouse_entered/mouse_exited/input_event signals once this is on and
 	# Project Settings > Physics > Common > Enable Object Picking is on
@@ -347,7 +354,7 @@ func _physics_process(delta: float) -> void:
 ## own attack target) leave specific units out of the plan's avoidance —
 ## you don't want to route around the very unit you're trying to reach.
 func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bool:
-	if is_busy():
+	if is_busy() or status_prevents_turn():
 		return false
 
 	var budget: float = INF
@@ -462,6 +469,42 @@ func reset_turn_actions() -> void:
 	has_attacked = false
 
 
+## --- Status effects — thin forwarding API over _status_manager, see
+## status_manager.gd for the actual tracking/dispatch logic. ---
+
+func apply_status(effect: StatusEffect) -> void:
+	_status_manager.apply(effect)
+
+
+func remove_status(effect: StatusEffect) -> void:
+	_status_manager.remove(effect)
+
+
+func has_status(effect: StatusEffect) -> bool:
+	return _status_manager.has(effect)
+
+
+## Called by CombatManager right after reset_turn_actions() each time
+## this unit's turn starts — fires every active status's on_turn_start
+## (damage-over-time ticks, etc.) and ticks duration down.
+func tick_statuses() -> void:
+	_status_manager.tick_turn_start()
+
+
+## Whether any active status prevents this unit from acting at all this
+## turn (Sleep, Stun, ...) — checked directly by move_to()/use_ability(),
+## not just advisory.
+func status_prevents_turn() -> bool:
+	return _status_manager.prevents_turn()
+
+
+## Sum of every active status's to-hit modifier against an incoming
+## attack, from this unit being the DEFENDER — see
+## StatusBehavior.modify_incoming_attack_to_hit.
+func incoming_attack_to_hit_modifier(attacker: Unit, ability: Ability) -> int:
+	return _status_manager.incoming_attack_to_hit_modifier(attacker, ability)
+
+
 ## Whether this unit could cover `distance` this turn without exceeding
 ## its move budget. Not used internally by move_to() anymore (which
 ## clamps rather than rejects) — kept as a query helper for anything that
@@ -533,11 +576,12 @@ func default_ability() -> Ability:
 ##
 ## Rejects outright (busy=true in the result, nothing else evaluated) if
 ## this unit already has something in flight — movement, or a previous
-## ability's async effect (e.g. mid-Jump-animation) still resolving.
-## Without this, a second ability could fire while the first one's
-## effect (a Tween-driven animation, say) is still running, overlapping
-## two actions that were each supposed to be a single discrete turn
-## action.
+## ability's async effect (e.g. mid-Jump-animation) still resolving —
+## OR if a status effect (Sleep, Stun, ...) prevents it from acting at
+## all this turn. Both share the same "busy" result key rather than
+## separate flags, since from every existing caller's perspective
+## (CombatAI, click routing) they mean the same thing: nothing happened,
+## try something else or end the turn.
 ##
 ## Returns a result dict for logging/UI:
 ## { in_range, already_acted, busy, hit, damage, to_hit, effects, ability }
@@ -550,7 +594,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"attacker": self,
 		"target": target,
 		"ability": ability,
-		"busy": is_busy(),
+		"busy": is_busy() or status_prevents_turn(),
 		"in_range": false,
 		"already_acted": false,
 		"hit": false,
@@ -574,7 +618,15 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		has_attacked = true
 
 	if ability.requires_to_hit:
-		var to_hit := roll_vs(attack_skill())
+		# The DEFENDER's active statuses (Prone, etc.) can modify how
+		# easy THEY are to hit — summed onto the attacker's own skill
+		# before rolling, so e.g. Prone's melee bonus/ranged penalty
+		# applies regardless of which ability is being used against them.
+		var to_hit_target: int = attack_skill()
+		if target is Unit:
+			to_hit_target += target.incoming_attack_to_hit_modifier(self, ability)
+
+		var to_hit := roll_vs(to_hit_target)
 		result["to_hit"] = to_hit
 		if not to_hit.success:
 			ability_used.emit(self, target, result)
@@ -585,7 +637,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	var effect_results: Array = []
 	var total_damage: int = 0
 	for effect in ability.effects:
-		var effect_result: Dictionary = effect.apply(self, target)
+		var effect_result: Dictionary = effect.apply(self, target, ability)
 		effect_results.append(effect_result)
 		if effect_result.has("damage"):
 			total_damage += effect_result["damage"]
@@ -602,6 +654,7 @@ func take_damage(amount: int) -> void:
 		return
 	current_hp = max(current_hp - amount, 0)
 	took_damage.emit(self, amount)
+	_status_manager.notify_damage_taken(amount)
 	if current_hp == 0:
 		died.emit(self)
 		_handle_death()

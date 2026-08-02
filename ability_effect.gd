@@ -9,11 +9,14 @@ extends Resource
 
 ## Applies this effect and returns a dict of whatever's relevant for
 ## logging/UI — shape varies by effect subclass (a DamageEffect returns
-## damage dealt; a future MoveCasterEffect might return nothing
-## meaningful). target's type depends on what the ability's
-## AbilityTargeting validated — usually a Unit, eventually a Vector3.
-## Override in each subclass.
-func apply(_attacker: Unit, _target) -> Dictionary:
+## damage dealt; MoveCasterEffect returns distance jumped). target's type
+## depends on what the ability's AbilityTargeting validated — a Unit for
+## single-target abilities, a Vector3 for point/area ones. ability is the
+## Ability this effect belongs to — mainly so an area-based effect can
+## read its sibling AreaTargeting's radius (see AreaDamageEffect) instead
+## of carrying its own separate radius field that could drift out of
+## sync with a sibling effect's copy. Override in each subclass.
+func apply(_attacker: Unit, _target, _ability: Ability) -> Dictionary:
 	return {}
 
 

@@ -158,12 +158,12 @@ func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 
 
 func _update_ring(ability: Ability, hover_point: Vector3) -> void:
-	var area_effect: AreaDamageEffect = _get_area_effect(ability)
-	if not area_effect:
+	var targeting := ability.targeting as AreaTargeting
+	if not targeting:
 		_ring_mesh.visible = false
 		return
 
-	_draw_ring(hover_point, area_effect.radius)
+	_draw_ring(hover_point, targeting.radius)
 	_ring_mesh.visible = true
 
 
@@ -179,10 +179,3 @@ func _draw_ring(center: Vector3, radius: float) -> void:
 		_ring_immediate.surface_add_vertex(point)
 
 	_ring_immediate.surface_end()
-
-
-func _get_area_effect(ability: Ability) -> AreaDamageEffect:
-	for effect in ability.effects:
-		if effect is AreaDamageEffect:
-			return effect
-	return null

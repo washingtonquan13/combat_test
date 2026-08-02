@@ -73,7 +73,8 @@ func _on_combat_started(turn_order: Array[Unit]) -> void:
 
 
 func _on_turn_started(unit: Unit) -> void:
-	print("-> ", unit.name, "'s turn (move budget ", unit.move_remaining, ")")
+	var status_note: String = " — CANNOT ACT (status effect)" if unit.status_prevents_turn() else ""
+	print("-> ", unit.name, "'s turn (move budget ", unit.move_remaining, ")", status_note)
 	# Auto-select the acting unit so a right-click moves it and a left-click
 	# on an enemy attacks it, without manually clicking it first each turn.
 	SelectionManager.select(unit)

@@ -9,8 +9,17 @@ extends AbilityTargeting
 ## Deliberately doesn't require the point to be on walkable navmesh the
 ## way GroundPointTargeting (Jump) does — an AoE center is just where the
 ## blast goes off, not somewhere the caster needs to stand.
+##
+## radius is the blast's area of effect — the SINGLE source of truth for
+## it, read by every area-based AbilityEffect on the same ability (see
+## AreaDamageEffect, AreaApplyStatusEffect) via ability.targeting.radius,
+## rather than each effect carrying its own separate radius field. That
+## used to be two independently-set numbers that had to be manually kept
+## equal to guarantee "the status applies to exactly who the damage
+## hits" — now there's structurally only one number to set at all.
 
 @export var max_range: float = 10.0
+@export var radius: float = 3.0
 @export var requires_line_of_sight: bool = true
 @export var los_obstruction_mask: int = 1
 @export var eye_height: float = 1.5
@@ -36,7 +45,7 @@ func expects_point_target() -> bool:
 
 
 func describe() -> String:
-	var s := "Area target, range %.1f" % max_range
+	var s := "Area target, range %.1f, radius %.1f" % [max_range, radius]
 	if requires_line_of_sight:
 		s += ", requires line of sight"
 	return s

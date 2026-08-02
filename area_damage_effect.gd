@@ -7,6 +7,12 @@ extends AbilityEffect
 ## same sibling-class pattern as DamageEffect/StDamageEffect rather than
 ## trying to share dice fields across effect types.
 ##
+## radius is NOT set here — it's read from ability.targeting.radius (see
+## AreaTargeting), the single source of truth shared with any other
+## area-based effect on the same ability (AreaApplyStatusEffect, etc.),
+## so a status and the damage that triggers it structurally cannot
+## disagree about how big the blast is.
+##
 ## Friendly-fire safe by default (affects_allies=false, affects_hostiles
 ## =true) — flip affects_allies on for something genuinely
 ## indiscriminate. "Ally"/"hostile" here is relative to the CASTER
@@ -17,7 +23,6 @@ extends AbilityEffect
 ## radius is caught by it, matching the edge-based convention used
 ## everywhere else in this project (reach, ranged max_range, etc.).
 
-@export var radius: float = 3.0
 @export var dice_count: int = 2
 @export var dice_sides: int = 6
 @export var dice_bonus: int = 0
@@ -25,11 +30,16 @@ extends AbilityEffect
 @export var affects_allies: bool = false
 
 
-func apply(attacker: Unit, target) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability) -> Dictionary:
 	if not target is Vector3:
 		return {}
 
+	var targeting := ability.targeting as AreaTargeting
+	if not targeting:
+		return {}
+
 	var center: Vector3 = target
+	var radius: float = targeting.radius
 	var affected: Array = []
 
 	for node in attacker.get_tree().get_nodes_in_group("units"):
@@ -67,4 +77,4 @@ func roll_damage() -> int:
 
 
 func describe() -> String:
-	return "%dd%d+%d damage in %.1fm radius" % [dice_count, dice_sides, dice_bonus, radius]
+	return "%dd%d+%d damage" % [dice_count, dice_sides, dice_bonus]

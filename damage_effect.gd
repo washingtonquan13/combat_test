@@ -12,7 +12,7 @@ extends AbilityEffect
 @export var dice_bonus: int = 0
 
 
-func apply(_attacker: Unit, target) -> Dictionary:
+func apply(_attacker: Unit, target, _ability: Ability) -> Dictionary:
 	if not target is Unit:
 		return {}
 

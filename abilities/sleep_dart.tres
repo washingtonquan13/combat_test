@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=15 format=3 uid="uid://polrlhck5ycm"]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_wcufp"]
+[ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://apply_status_effect.gd" id="2_1vrnf"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_6yrul"]
+[ext_resource type="Texture2D" uid="uid://b1nndgvx3k1yo" path="res://assets/ability_icon/sleep_spell_icon.png" id="3_21ej2"]
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="3_0585o"]
+[ext_resource type="Script" uid="uid://c13klrwq84gxl" path="res://incapacitate_behavior.gd" id="4_4i07h"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="4_0585o"]
+[ext_resource type="Script" uid="uid://08b8exry67bf" path="res://remove_on_damage_behavior.gd" id="5_4i07h"]
+[ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://ranged_enemy_targeting.gd" id="6_4i07h"]
+
+[sub_resource type="Resource" id="Resource_lj2hd"]
+script = ExtResource("4_4i07h")
+metadata/_custom_type_script = "uid://c13klrwq84gxl"
+
+[sub_resource type="Resource" id="Resource_isytm"]
+script = ExtResource("5_4i07h")
+metadata/_custom_type_script = "uid://08b8exry67bf"
+
+[sub_resource type="Resource" id="Resource_qnicf"]
+script = ExtResource("4_0585o")
+status_name = "Sleep"
+icon = ExtResource("3_21ej2")
+default_duration = 3
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("3_0585o")]([SubResource("Resource_lj2hd"), SubResource("Resource_isytm")])
+metadata/_custom_type_script = "uid://cplabynayhpiv"
+
+[sub_resource type="Resource" id="Resource_fdn0e"]
+script = ExtResource("2_1vrnf")
+status = SubResource("Resource_qnicf")
+metadata/_custom_type_script = "uid://cxvg4h3mmr1l4"
+
+[sub_resource type="Resource" id="Resource_4i07h"]
+script = ExtResource("6_4i07h")
+max_range = 15.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
+
+[resource]
+script = ExtResource("2_6yrul")
+ability_name = "Sleep Dart"
+icon = ExtResource("3_21ej2")
+targeting = SubResource("Resource_4i07h")
+effects = Array[ExtResource("1_wcufp")]([SubResource("Resource_fdn0e")])
+requires_to_hit = false
+uses_attack_action = true
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

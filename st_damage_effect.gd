@@ -28,7 +28,7 @@ enum DamageType { SWING, THRUST }
 @export var bonus: int = 0
 
 
-func apply(attacker: Unit, target) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 	if not target is Unit:
 		return {}
 

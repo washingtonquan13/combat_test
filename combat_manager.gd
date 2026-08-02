@@ -173,8 +173,24 @@ func _advance_turn() -> void:
 		return
 
 	_turn_index = (_turn_index + 1) % turn_order.size()
-	current_unit.reset_turn_actions()
-	turn_started.emit(current_unit)
+	var unit: Unit = current_unit
+	unit.reset_turn_actions()
+	unit.tick_statuses()
+
+	# tick_statuses() can kill the unit outright (a Bleeding/Burning tick)
+	# or, via that death, end combat entirely (the last enemy bleeds out)
+	# — re-check rather than assuming the state from a few lines up still
+	# holds. Deferred re-advance for the same reason end_turn() defers:
+	# calling _advance_turn() synchronously here would nest this turn's
+	# resolution inside the current call frame instead of making it its
+	# own step.
+	if not in_combat:
+		return
+	if not is_instance_valid(unit) or not unit.is_alive():
+		_advance_turn.call_deferred()
+		return
+
+	turn_started.emit(unit)
 
 
 ## Ends combat the moment only one faction (or none) remains among the
