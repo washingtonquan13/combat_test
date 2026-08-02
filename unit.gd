@@ -629,6 +629,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		var to_hit := roll_vs(to_hit_target)
 		result["to_hit"] = to_hit
 		if not to_hit.success:
+			SystemLog.print("%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(self), _log_target_desc(target), ability.ability_name])
 			ability_used.emit(self, target, result)
 			return result
 
@@ -645,8 +646,20 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	result["effects"] = effect_results
 	result["damage"] = total_damage
 
+	if total_damage > 0:
+		SystemLog.print("%s hits %s with %s." % [LogFormat.unit_name(self), _log_target_desc(target), ability.ability_name])
+	else:
+		SystemLog.print("%s uses %s on %s." % [LogFormat.unit_name(self), ability.ability_name, _log_target_desc(target)])
+
 	ability_used.emit(self, target, result)
 	return result
+
+
+## Describes an ability's target for log messages — a Unit gets its
+## colored name, a Vector3 (ground/area targeting) gets a generic label,
+## since there's no "name" to show for a point in space.
+func _log_target_desc(target) -> String:
+	return LogFormat.unit_name(target) if target is Unit else "the target area"
 
 
 func take_damage(amount: int) -> void:
@@ -654,8 +667,10 @@ func take_damage(amount: int) -> void:
 		return
 	current_hp = max(current_hp - amount, 0)
 	took_damage.emit(self, amount)
+	SystemLog.print("%s takes %s damage." % [LogFormat.unit_name(self), LogFormat.damage(amount)])
 	_status_manager.notify_damage_taken(amount)
 	if current_hp == 0:
+		SystemLog.print("[b]%s has died.[/b]" % LogFormat.unit_name(self))
 		died.emit(self)
 		_handle_death()
 

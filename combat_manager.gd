@@ -55,11 +55,17 @@ func start_combat(combatants: Array[Unit]) -> void:
 
 	_turn_index = -1
 	in_combat = true
+	SystemLog.print("[b]--- Combat started ---[/b]")
 	combat_started.emit(turn_order)
 	_advance_turn.call_deferred()
 
 
 func end_combat(winning_faction: StringName = &"") -> void:
+	if winning_faction == &"":
+		SystemLog.print("[b]--- Combat ended: mutual wipe ---[/b]")
+	else:
+		SystemLog.print("[b]--- Combat ended: %s wins ---[/b]" % LogFormat.faction_name(winning_faction))
+
 	in_combat = false
 	for unit in turn_order:
 		if is_instance_valid(unit) and unit.died.is_connected(_on_unit_died):
@@ -155,7 +161,7 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 	var next_unit: Unit = turn_order[_turn_index]
 	turn_ended.emit(unit)
 	next_unit.reset_turn_actions()
-	turn_started.emit(next_unit)
+	_log_and_emit_turn_started(next_unit)
 
 
 func _advance_turn() -> void:
@@ -190,6 +196,14 @@ func _advance_turn() -> void:
 		_advance_turn.call_deferred()
 		return
 
+	_log_and_emit_turn_started(unit)
+
+
+## Shared by both places a unit's turn actually starts (normal advance,
+## and stepping into the slot vacated by a delay_turn call) so the log
+## line isn't duplicated at each call site.
+func _log_and_emit_turn_started(unit: Unit) -> void:
+	SystemLog.print("[u]%s's turn[/u]" % LogFormat.unit_name(unit))
 	turn_started.emit(unit)
 
 
