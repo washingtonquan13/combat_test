@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=8 format=3 uid="uid://dh51y4swh78rh"]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_res1m"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_nideg"]
+[ext_resource type="Script" uid="uid://dley113smhdn3" path="res://area_damage_effect.gd" id="2_y8mr0"]
+[ext_resource type="Texture2D" uid="uid://bcmxnrpmk4ii7" path="res://assets/ability_icon/fireball_icon.png" id="3_dbc05"]
+[ext_resource type="Script" uid="uid://bhfvvo8gbkewp" path="res://area_targeting.gd" id="5_r5ii0"]
+
+[sub_resource type="Resource" id="Resource_l62op"]
+script = ExtResource("2_y8mr0")
+radius = 6.0
+dice_count = 2
+dice_sides = 6
+dice_bonus = 0
+affects_hostiles = true
+affects_allies = true
+metadata/_custom_type_script = "uid://dley113smhdn3"
+
+[sub_resource type="Resource" id="Resource_ycrns"]
+script = ExtResource("5_r5ii0")
+max_range = 10.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+eye_height = 0.5
+metadata/_custom_type_script = "uid://bhfvvo8gbkewp"
+
+[resource]
+script = ExtResource("2_nideg")
+ability_name = "Explosive Fireball"
+icon = ExtResource("3_dbc05")
+targeting = SubResource("Resource_ycrns")
+effects = Array[ExtResource("1_res1m")]([SubResource("Resource_l62op")])
+requires_to_hit = true
+uses_attack_action = true
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

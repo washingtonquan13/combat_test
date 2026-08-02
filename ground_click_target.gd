@@ -25,16 +25,18 @@ func _on_input_event(_camera: Node, event: InputEvent, click_position: Vector3, 
 		_command_move(click_position)
 
 
-## If a ground-point-targeting ability (see GroundPointTargeting) is
-## currently armed via AbilityManager, and it's the acting player unit's
-## own turn, uses it at the clicked point instead of the click falling
-## through to normal ground-click behavior. Mirrors how Unit._on_input_event
-## checks ability-use before falling through to normal selection on an
-## enemy click — same pattern, applied to ground clicks instead of unit
-## clicks. Returns true if the click was consumed this way.
+## If the currently armed ability (see AbilityManager) expects a ground
+## point as its target (Ability.targeting.expects_point_target — Jump,
+## an AoE, or any future point-targeting ability), and it's the acting
+## player unit's own turn, uses it at the clicked point instead of the
+## click falling through to normal ground-click behavior. Mirrors how
+## Unit._on_input_event checks ability-use before falling through to
+## normal selection on an enemy click — same pattern, applied to ground
+## clicks instead of unit clicks. Returns true if the click was consumed
+## this way.
 func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 	var ability: Ability = AbilityManager.armed_ability
-	if not ability or not (ability.targeting is GroundPointTargeting):
+	if not ability or not ability.targeting or not ability.targeting.expects_point_target():
 		return false
 
 	if not CombatManager.in_combat:

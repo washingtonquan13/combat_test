@@ -50,5 +50,9 @@ func is_valid_target(attacker: Unit, target) -> bool:
 	return true
 
 
+func expects_point_target() -> bool:
+	return true
+
+
 func describe() -> String:
 	return "Ground target, range %.1f" % max_range

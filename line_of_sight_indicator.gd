@@ -5,11 +5,15 @@ extends Node3D
 ## AbilityManager) is a ranged one — melee abilities don't need this,
 ## since melee range is a pure distance check with no obstruction concept.
 ##
-## While hovering over a hostile unit, draws a line from the attacker to
-## that unit, colored:
-##   - clear_color        — in range AND clear line of sight (valid shot)
-##   - blocked_color       — in range, but something's in the way
-##   - out_of_range_color  — out of range entirely (LoS not even checked)
+## The line continuously tracks the cursor, not just when precisely
+## hovering a unit — aiming at open ground still draws a line to that
+## point (no_target_color), same as BG3's targeting line following your
+## mouse everywhere rather than only snapping on over a valid target.
+## Colors:
+##   - clear_color        — hovering a hostile unit, in range, clear LoS
+##   - blocked_color       — hovering a hostile unit, in range, but blocked
+##   - out_of_range_color   — hovering a hostile unit, but too far away
+##   - no_target_color        — not hovering any (hostile) unit at all
 ##
 ## Range and LoS are checked here the same way Ability.is_in_range() does
 ## internally for RANGED_ENEMY — duplicated rather than called through
@@ -20,17 +24,21 @@ extends Node3D
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
 ## its own MeshInstance3D in code. unit_collision_mask must match
-## whatever physics layer your Units' CollisionShape3D bodies are
-## actually on, so hovering can detect them via raycast.
+## whatever physics layer your Units' CollisionShape3D bodies are on
+## (for detecting a hovered unit); ground_collision_mask must match your
+## ground/terrain body's layer (for the fallback ground point, so the
+## line has somewhere to point when no unit is under the cursor).
 ##
 ## Note: like the movement indicator, this draws a 1-pixel unshaded line
 ## (ImmediateMesh, LINE_STRIP) — fine for a first pass, thicker lines
 ## would need an actual ribbon mesh.
 
 @export var unit_collision_mask: int = 1
+@export var ground_collision_mask: int = 1
 @export var clear_color: Color = Color(1, 1, 1, 0.9)
 @export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
 @export var out_of_range_color: Color = Color(0.5, 0.5, 0.5, 0.6)
+@export var no_target_color: Color = Color(0.7, 0.7, 0.7, 0.35)
 ## Roughly chest/eye height — a line drawn at ground level reads poorly
 ## against 3D geometry; this matches LineOfSight's own default eye_height
 ## so the drawn line reflects where the raycast actually checks.
@@ -62,21 +70,19 @@ func _build_line() -> void:
 
 func _process(_delta: float) -> void:
 	var unit := _get_active_unit()
-	if not unit:
-		_line_mesh.visible = false
-		return
-
 	var ability := _get_armed_ranged_ability()
-	if not ability:
+
+	if not unit or not ability:
 		_line_mesh.visible = false
 		return
 
-	var target := _get_hovered_hostile(unit)
-	if not target:
+	var aim_point = _get_aim_point()
+	if aim_point == null:
 		_line_mesh.visible = false
 		return
 
-	_draw_line(unit, target, ability)
+	var hovered_unit: Unit = _get_hovered_hostile(unit)
+	_draw_line(unit, aim_point, hovered_unit, ability)
 	_line_mesh.visible = true
 
 
@@ -98,6 +104,38 @@ func _get_armed_ranged_ability() -> Ability:
 	if not ability or not (ability.targeting is RangedEnemyTargeting):
 		return null
 	return ability
+
+
+## Where the line should point to: a hovered hostile unit's position if
+## there is one, otherwise the ground point under the cursor — this is
+## what keeps the line following the mouse continuously instead of
+## disappearing whenever the cursor isn't precisely over a unit.
+func _get_aim_point():
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return null
+
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var dir: Vector3 = camera.project_ray_normal(mouse_pos)
+	var to: Vector3 = from + dir * 1000.0
+
+	var space_state := get_world_3d().direct_space_state
+
+	var unit_query := PhysicsRayQueryParameters3D.create(from, to)
+	unit_query.collision_mask = unit_collision_mask
+	var unit_result := space_state.intersect_ray(unit_query)
+	if not unit_result.is_empty():
+		var hovered := unit_result.get("collider") as Unit
+		if hovered:
+			return hovered.global_position
+
+	var ground_query := PhysicsRayQueryParameters3D.create(from, to)
+	ground_query.collision_mask = ground_collision_mask
+	var ground_result := space_state.intersect_ray(ground_query)
+	if ground_result.is_empty():
+		return null
+	return ground_result.position
 
 
 func _get_hovered_hostile(unit: Unit) -> Unit:
@@ -131,24 +169,24 @@ func _get_hovered_hostile(unit: Unit) -> Unit:
 ## RangedEnemyTargeting — safe since _get_armed_ranged_ability already
 ## confirmed it's that type). This is a legitimate, narrow exception to
 ## staying fully generic about targeting components: this indicator's
-## whole purpose is showing three distinct visual states an "is it
-## valid" bool can't distinguish (too far vs. blocked), so it needs the
-## concrete field values, not just a yes/no. Most other ability-aware
-## code (hotbar tooltips, CombatAI's approach distance) never needs this
-## and stays fully polymorphic instead.
-func _draw_line(unit: Unit, target: Unit, ability: Ability) -> void:
+## whole purpose is showing distinct visual states an "is it valid" bool
+## can't distinguish, so it needs the concrete field values, not just a
+## yes/no.
+func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Ability) -> void:
 	var targeting: RangedEnemyTargeting = ability.targeting
 
 	var color: Color
-	if unit.edge_distance_to(target) > targeting.max_range:
+	if hovered_unit == null:
+		color = no_target_color
+	elif unit.edge_distance_to(hovered_unit) > targeting.max_range:
 		color = out_of_range_color
-	elif targeting.requires_line_of_sight and not LineOfSight.has_clear_shot(unit, target, targeting.los_obstruction_mask):
+	elif targeting.requires_line_of_sight and not LineOfSight.has_clear_shot(unit, hovered_unit, targeting.los_obstruction_mask):
 		color = blocked_color
 	else:
 		color = clear_color
 
 	var from: Vector3 = unit.global_position + Vector3(0, height_offset, 0)
-	var to: Vector3 = target.global_position + Vector3(0, height_offset, 0)
+	var to: Vector3 = aim_point + Vector3(0, height_offset, 0)
 
 	_line_immediate.clear_surfaces()
 	_line_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
