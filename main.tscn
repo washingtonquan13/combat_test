@@ -103,7 +103,6 @@ script = ExtResource("6_w48qg")
 slot_scene = ExtResource("8_cegan")
 
 [node name="SystemLog" parent="CanvasLayer" instance=ExtResource("12_xuqvo")]
-anchors_preset = 6
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
 navigation_mesh = SubResource("NavigationMesh_lquwl")

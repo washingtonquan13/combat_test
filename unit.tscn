@@ -33,9 +33,9 @@ faction = null
 abilities = null
 death_cleanup_delay = null
 corpse_blocks_movement = null
+highlight_mesh = NodePath("HighlightMesh")
 hover_color = Color(0.156863, 1, 1, 0.501961)
 selected_color = null
-highlight_mesh = NodePath("HighlightMesh")
 
 [node name="Thrust" type="Node" parent="."]
 script = ExtResource("2_davkp")
