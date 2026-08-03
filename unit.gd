@@ -128,51 +128,32 @@ signal movement_finished(unit: Unit)
 ## of either cutting the action off or silently dropping the request.
 signal became_idle()
 
-var is_hovered: bool = false
-var is_selected: bool = false
+## is_hovered/is_selected forward to _selection (see UnitSelection) —
+## same computed-property pattern as move_remaining/has_attacked
+## forwarding to _action_state, safe here for the same reason: neither
+## is @export, so nothing needs to read them before _selection exists.
+var is_hovered: bool:
+	get: return _selection.is_hovered
+var is_selected: bool:
+	get: return _selection.is_selected
 
 ## --- Turn action budget (combat) ---
-## Reset by CombatManager at the start of this unit's turn. move_remaining
-## counts down as movement code (not part of this file) calls spend_move().
-## has_attacked gates attack() to once per turn.
-var move_remaining: float = 0.0
-var has_attacked: bool = false
+## Both properties forward to _action_state (see UnitActionState) —
+## every existing reader/writer of unit.move_remaining/unit.has_attacked
+## keeps working completely unchanged; only the storage moved.
+var move_remaining: float:
+	get: return _action_state.move_remaining
+	set(value): _action_state.move_remaining = value
 
-## Separate from _moving (movement has always had its own dedicated flag
-## driving _physics_process) — this covers any OTHER async action, like
-## MoveCasterEffect's Jump animation, that isn't movement but still needs
-## something to finish before the turn can safely end. Anything async
-## should bracket itself with begin_busy()/end_busy() rather than
-## inventing its own separate "is this thing still running" flag.
-var _busy_count: int = 0
+var has_attacked: bool:
+	get: return _action_state.has_attacked
+	set(value): _action_state.has_attacked = value
 
-var _moving: bool = false
-var _move_start_position: Vector3 = Vector3.ZERO
-var _stuck_timer: float = 0.0
-var _last_progress_position: Vector3 = Vector3.ZERO
-## The exact route this unit is currently walking, and which point in it
-## is next. This is planned ONCE, in full, before movement starts (see
-## move_to / PathAvoidance.simulate_path) — nothing about avoidance is
-## decided live while walking; _physics_process just follows these fixed
-## points. That's what makes the move's exact arrival point and distance
-## known in advance rather than discovered after the fact.
-var _current_path: PackedVector3Array = PackedVector3Array()
-var _path_index: int = 0
-## The planned path's exact total length, computed once when the plan is
-## made. Spent as this turn's move budget on a normal completion — see
-## _finish_move — rather than re-measuring distance walked, since a
-## precomputed, deterministically-followed path is authoritative by
-## construction: there's no live deviation left that measuring could
-## catch that the plan didn't already account for.
-var _planned_distance: float = 0.0
-
-## True while a drag-select box is currently overlapping this unit. Kept
-## separate from is_hovered (real mouse-over) and is_selected (committed
-## selection) so drag-select can preview without actually selecting until
-## the drag finishes.
-var _box_hovered: bool = false
-
-var _highlight_material: StandardMaterial3D
+var _action_state: UnitActionState
+var _facing: UnitFacing
+var _selection: UnitSelection
+var _movement: UnitMovement
+var _combat: UnitCombat
 
 ## Owns this unit's active status effects (Bleeding, Sleep, Prone, ...) —
 ## see status_manager.gd. Unit exposes the small forwarding API below
@@ -183,6 +164,22 @@ var _status_manager: StatusManager
 
 func _ready() -> void:
 	_status_manager = StatusManager.new(self)
+	_action_state = UnitActionState.new(self)
+	_facing = UnitFacing.new(self)
+	_selection = UnitSelection.new(self)
+	_movement = UnitMovement.new(self)
+	_combat = UnitCombat.new(self)
+	# Relayed rather than replaced — external code (CombatManager's
+	# end_turn/delay_turn deferral, notably) connects to unit.became_idle
+	# directly and must keep working unchanged; the signal's actual
+	# source of truth is now UnitActionState, but nothing outside Unit
+	# needs to know that. Same reasoning for the four selection signals
+	# below, relayed from UnitSelection.
+	_action_state.became_idle.connect(func(): became_idle.emit())
+	_selection.hover_started.connect(func(): hover_started.emit(self))
+	_selection.hover_ended.connect(func(): hover_ended.emit(self))
+	_selection.selected.connect(func(): selected.emit(self))
+	_selection.deselected.connect(func(): deselected.emit(self))
 	# CollisionObject3D (CharacterBody3D's base) already provides
 	# mouse_entered/mouse_exited/input_event signals once this is on and
 	# Project Settings > Physics > Common > Enable Object Picking is on
@@ -194,44 +191,16 @@ func _ready() -> void:
 	mouse_exited.connect(_on_mouse_exited)
 	input_event.connect(_on_input_event)
 
-	_setup_highlight()
-	_setup_avoidance()
-
-
-func _setup_avoidance() -> void:
-	nav_agent.radius = radius + avoidance_margin
-	# Real-time RVO steering is intentionally OFF — see move_to()'s doc
-	# comment for why. nav_agent is kept only for get_navigation_map()
-	# and closest-point queries (used by PathAvoidance); it no longer
-	# drives how this unit actually moves.
-	nav_agent.avoidance_enabled = false
-
-
-func _setup_highlight() -> void:
-	if highlight_mesh:
-		# Give this unit its own material instance so its ring can change
-		# color independently of any siblings sharing the same base mesh.
-		var mat := StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		_highlight_material = mat
-		highlight_mesh.material_override = mat
-		highlight_mesh.visible = false
-
-	if outline_mesh:
-		outline_mesh.visible = false
+	_selection.setup()
+	_movement.setup_avoidance()
 
 
 func _on_mouse_entered() -> void:
-	is_hovered = true
-	hover_started.emit(self)
-	_update_highlight()
+	_selection.on_mouse_entered()
 
 
 func _on_mouse_exited() -> void:
-	is_hovered = false
-	hover_ended.emit(self)
-	_update_highlight()
+	_selection.on_mouse_exited()
 
 
 ## During combat, left-clicking an enemy unit while your own unit is both
@@ -280,201 +249,61 @@ func is_player_controlled() -> bool:
 ## SelectionManager.select()/deselect() rather than this directly, so the
 ## manager's selected_units list and this unit's state never drift apart.
 func set_selected(value: bool) -> void:
-	if is_selected == value:
-		return
-	is_selected = value
-	if value:
-		selected.emit(self)
-	else:
-		deselected.emit(self)
-	_update_highlight()
+	_selection.set_selected(value)
 
 
 ## Called by a drag-select box while it's overlapping this unit, purely as
 ## a visual preview — does not touch is_selected or SelectionManager.
 func set_box_hover(value: bool) -> void:
-	if _box_hovered == value:
-		return
-	_box_hovered = value
-	_update_highlight()
-
-
-func _update_highlight() -> void:
-	var state_color: Variant = null
-	var show: bool = false
-
-	if is_selected:
-		show = true
-		state_color = selected_color
-	elif is_hovered or _box_hovered:
-		show = true
-		state_color = hover_color
-
-	if highlight_mesh:
-		highlight_mesh.visible = show
-		if show:
-			_highlight_material.albedo_color = state_color
-
-	if outline_mesh:
-		outline_mesh.visible = show
-		if show:
-			var outline_material := outline_mesh.material_override as ShaderMaterial
-			if outline_material:
-				outline_material.set_shader_parameter("outline_color", state_color)
+	_selection.set_box_hover(value)
 
 
 func _physics_process(delta: float) -> void:
-	if not _moving:
-		return
-
-	# Skip past any waypoints already within arrival_tolerance — matters
-	# most right after a simulated step lands very close to the next
-	# waypoint, so the unit doesn't stall trying to "arrive" at a point
-	# behind or barely past its current position.
-	while _path_index < _current_path.size():
-		var to_waypoint: Vector3 = _current_path[_path_index] - global_position
-		to_waypoint.y = 0.0
-		if to_waypoint.length() > arrival_tolerance:
-			break
-		_path_index += 1
-
-	if _path_index >= _current_path.size():
-		_finish_move()
-		return
-
-	# Last-resort safety net — see stuck_timeout's doc comment. The path
-	# being followed here was already planned to fit (see
-	# PathAvoidance.simulate_path), so in normal circumstances this
-	# should never trigger; it exists for genuinely unexpected physical
-	# obstruction (e.g. physics collision response deviating from the
-	# plan) rather than as the primary mechanism for anything.
-	if global_position.distance_to(_last_progress_position) < 0.05:
-		_stuck_timer += delta
-		if _stuck_timer >= stuck_timeout:
-			_finish_move()
-			return
-	else:
-		_stuck_timer = 0.0
-		_last_progress_position = global_position
-
-	var to_target: Vector3 = _current_path[_path_index] - global_position
-	to_target.y = 0.0
-	var direction: Vector3 = to_target.normalized()
-
-	face_direction(direction, delta)
-
-	velocity = direction * move_speed
-	move_and_slide()
+	_movement.physics_process(delta)
 
 
-## Smoothly rotates toward facing `direction` (ground-plane only — Y is
-## ignored, since facing is a yaw-only concept for a walking character)
-## over `delta` seconds, at rotation_speed. Shared by movement-follow-
-## path (above) and aim-while-armed tracking (see the standalone aim-
-## facing script) — a single rotation implementation everything calls
-## into, rather than duplicating the yaw math per caller.
+## Delegates to UnitFacing — see that file for why the exports
+## (rotation_speed, facing_offset_degrees) stay directly on Unit while
+## only the methods that use them moved into the component. Shared by
+## movement-follow-path (below) and aim-while-armed tracking (see the
+## standalone aim-facing script) — a single rotation implementation
+## everything calls into, rather than duplicating the yaw math per
+## caller.
 func face_direction(direction: Vector3, delta: float) -> void:
-	direction.y = 0.0
-	if direction.length_squared() < 0.0001:
-		return
-	var target_yaw: float = atan2(-direction.x, -direction.z) + deg_to_rad(facing_offset_degrees)
-	rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-rotation_speed * delta))
+	_facing.face_direction(direction, delta)
 
 
-## Convenience wrapper — faces smoothly toward a world-space point
-## instead of a raw direction.
 func face_point(point: Vector3, delta: float) -> void:
-	face_direction(point - global_position, delta)
+	_facing.face_point(point, delta)
 
 
 ## Instantly snaps to face a direction, no smoothing — used where a
 ## gradual turn would look wrong, e.g. facing your target the instant an
 ## attack resolves rather than still turning mid-swing (see use_ability).
 func snap_face_direction(direction: Vector3) -> void:
-	direction.y = 0.0
-	if direction.length_squared() < 0.0001:
-		return
-	rotation.y = atan2(-direction.x, -direction.z) + deg_to_rad(facing_offset_degrees)
+	_facing.snap_face_direction(direction)
 
 
 func snap_face_point(point: Vector3) -> void:
-	snap_face_direction(point - global_position)
+	_facing.snap_face_point(point)
 
 
-## Orders this unit toward destination. The ENTIRE route is planned once,
-## up front — real navmesh path (walls) run through
-## PathAvoidance.simulate_path (other units, budget truncation) — before
-## any movement starts, then walked exactly as planned with no avoidance
-## decisions made live. This is a deliberate choice, not an optimization:
-## reactive avoidance (Godot's RVO, or an earlier version of this system
-## that steered live every physics frame) cannot guarantee an exact
-## arrival point or exact budget consumption, because it doesn't know
-## what it's going to do until it's already doing it. Planning once
-## up front — with the SAME deterministic function the movement indicator
-## previews with — means the preview IS the plan IS what happens: no gap
-## between what's shown and what occurs. Out of combat, budget is
-## effectively unlimited (the unit just walks the full route). In
-## combat: only CombatManager.current_unit may move, and the plan is
-## truncated at exactly move_remaining — see PathAvoidance.simulate_path.
-## extra_avoidance_exclusions lets a caller (e.g. CombatAI approaching its
-## own attack target) leave specific units out of the plan's avoidance —
-## you don't want to route around the very unit you're trying to reach.
+## Delegates to UnitMovement — see that file for the deterministic
+## plan-then-execute rationale in full, and for why move_speed/radius/
+## avoidance_margin/arrival_tolerance/stuck_timeout/nav_agent all stay
+## directly on Unit rather than moving into the component.
 func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bool:
-	if not can_act():
-		return false
-
-	var budget: float = INF
-
-	if CombatManager.in_combat:
-		if CombatManager.current_unit != self:
-			return false
-		if not has_move_remaining():
-			return false
-		budget = move_remaining
-
-	var excluded: Array = [self]
-	excluded.append_array(extra_avoidance_exclusions)
-	var obstacles: Dictionary = PathAvoidance.gather_obstacles(get_tree(), excluded)
-	var map_rid: RID = nav_agent.get_navigation_map()
-	var clearance: float = radius + avoidance_margin
-
-	var safe_destination: Vector3 = PathAvoidance.clear_goal(
-		destination, obstacles.positions, obstacles.radii, clearance, map_rid
-	)
-
-	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, global_position, safe_destination, true)
-	if waypoints.size() < 2:
-		return false
-
-	var planned_path: PackedVector3Array = PathAvoidance.simulate_path(
-		waypoints, move_speed, budget,
-		obstacles.positions, obstacles.radii, clearance, avoidance_margin, arrival_tolerance, map_rid
-	)
-
-	if planned_path.size() < 2:
-		return false
-
-	_current_path = planned_path
-	_path_index = 1
-	_planned_distance = PathAvoidance.path_length(planned_path)
-	_move_start_position = global_position
-	_stuck_timer = 0.0
-	_last_progress_position = global_position
-	_moving = true
-	movement_started.emit(self)
-	return true
+	return _movement.move_to(destination, extra_avoidance_exclusions)
 
 
 ## Cancels the current move order in place, still spending whatever
 ## distance was actually covered (combat only).
 func stop_moving() -> void:
-	if not _moving:
-		return
-	_finish_move()
+	_movement.stop_moving()
 
 
 func is_moving() -> bool:
-	return _moving
+	return _movement.is_moving()
 
 
 ## Whether this unit has anything currently in flight — movement, or any
@@ -484,46 +313,30 @@ func is_moving() -> bool:
 ## and a move order can't both be running at once, or so a second
 ## ability can't fire mid-way through the first one's async effect).
 func is_busy() -> bool:
-	return _moving or _busy_count > 0
+	return _action_state.is_busy()
 
 
 ## Call when starting an async action (an ability's animation, etc.) that
 ## CombatManager should wait for before letting the turn end. Must be
 ## paired with a later end_busy() call once that action actually finishes.
 func begin_busy() -> void:
-	_busy_count += 1
+	_action_state.begin_busy()
 
 
 func end_busy() -> void:
-	_busy_count = max(_busy_count - 1, 0)
-	_check_idle()
+	_action_state.end_busy()
 
 
-func _check_idle() -> void:
-	if not is_busy():
-		became_idle.emit()
-
-
-func _finish_move() -> void:
-	_moving = false
-	velocity = Vector3.ZERO
-
-	if CombatManager.in_combat:
-		# The plan completed fully (walked every point) → charge its
-		# exact known length, not a re-measurement — that length IS what
-		# was walked, by construction, since nothing deviated from it.
-		# Cut short instead (stuck_timeout, or a manual stop_moving()
-		# mid-route) → fall back to actually-measured displacement, since
-		# in that abnormal case the plan and reality genuinely diverged.
-		var completed_fully: bool = _path_index >= _current_path.size()
-		var traveled: float = _planned_distance if completed_fully else _move_start_position.distance_to(global_position)
-		spend_move(traveled)
-
-	_current_path = PackedVector3Array()
-	_path_index = 0
-	_planned_distance = 0.0
-	movement_finished.emit(self)
-	_check_idle()
+## Called by UnitMovement whenever movement stops — is_busy()'s answer
+## may have changed as a result (is_moving() just flipped to false), but
+## UnitActionState has no way to learn that on its own (is_moving() is
+## polled, not pushed), so this explicitly tells it to re-check.
+## Deliberately routed through Unit rather than UnitMovement reaching
+## into _action_state directly — components talk to their owner, never
+## to each other, keeping the composition pattern consistent regardless
+## of which two subsystems happen to need to coordinate.
+func notify_movement_idle_check() -> void:
+	_action_state.check_idle()
 
 
 ## --- Combat ---
@@ -531,8 +344,7 @@ func _finish_move() -> void:
 ## Called by CombatManager when this unit's turn begins. Refills the move
 ## budget from the `move` stat and clears the attack flag.
 func reset_turn_actions() -> void:
-	move_remaining = float(move)
-	has_attacked = false
+	_action_state.reset_turn_actions(float(move))
 
 
 ## --- Status effects — thin forwarding API over _status_manager, see
@@ -579,7 +391,7 @@ func status_prevents_turn() -> bool:
 ## question doesn't even apply to them — so this predicate only ever
 ## reasons about the unit itself.
 func can_act() -> bool:
-	return not is_busy() and not status_prevents_turn()
+	return _action_state.can_act()
 
 
 ## Sum of every active status's to-hit modifier against an incoming
@@ -594,17 +406,17 @@ func incoming_attack_to_hit_modifier(attacker: Unit, ability: Ability) -> int:
 ## clamps rather than rejects) — kept as a query helper for anything that
 ## wants to check reachability before committing to an order.
 func can_move(distance: float) -> bool:
-	return distance <= move_remaining + 0.001
+	return _action_state.can_move(distance)
 
 
 ## Deducts distance already moved from the remaining budget this turn.
 ## Clamped so overshoot (e.g. rounding) can't push it negative.
 func spend_move(distance: float) -> void:
-	move_remaining = max(move_remaining - distance, 0.0)
+	_action_state.spend_move(distance)
 
 
 func has_move_remaining() -> bool:
-	return move_remaining > 0.0
+	return _action_state.has_move_remaining()
 
 
 func is_alive() -> bool:
@@ -624,148 +436,36 @@ func edge_distance_to(other: Unit) -> float:
 	return max(distance_to(other) - radius - other.radius, 0.0)
 
 
-## GURPS-style roll-under: 3d6 <= target_number succeeds. Lower rolls are
-## always better, and margin is how far under (positive = comfortable pass).
+## Delegates to UnitCombat — see that file for why the stat exports
+## (strength, dexterity, current_hp, damage_reduction, abilities, ...)
+## stay directly on Unit while the logic that resolves against them
+## moved into the component.
 func roll_vs(target_number: int) -> Dictionary:
-	var roll: int = randi_range(1, 6) + randi_range(1, 6) + randi_range(1, 6)
-	return {
-		"roll": roll,
-		"target": target_number,
-		"success": roll <= target_number,
-		"margin": target_number - roll,
-	}
+	return _combat.roll_vs(target_number)
 
 
-## Placeholder melee/ranged skill — just DX for now. Swap in a real skill
-## lookup later (weapon skill, ability-specific skill, etc.) without
-## touching use_ability()'s call site.
 func attack_skill() -> int:
-	return dexterity
+	return _combat.attack_skill()
 
 
-## abilities[0], or null if this unit has none equipped. Used as the
-## fallback when nothing's explicitly armed via AbilityManager — see that
-## autoload's doc comment.
 func default_ability() -> Ability:
-	return abilities[0] if not abilities.is_empty() else null
+	return _combat.default_ability()
 
 
-## Resolves using ability against target. Range/LoS rules come from
-## ability.targeting; what happens on a hit comes from ability.effects
-## (see those classes' doc comments) — this method's job is purely turn
-## state (the once-per-turn attack action) and the single to-hit roll
-## that gates ALL of an ability's effects together, not per-effect
-## resolution. A miss still spends the action if the ability uses one,
-## same as before: the attempt itself is what's spent, not the hit.
-##
-## Rejects outright (busy=true in the result, nothing else evaluated) if
-## this unit already has something in flight — movement, or a previous
-## ability's async effect (e.g. mid-Jump-animation) still resolving —
-## OR if a status effect (Sleep, Stun, ...) prevents it from acting at
-## all this turn. Both share the same "busy" result key rather than
-## separate flags, since from every existing caller's perspective
-## (CombatAI, click routing) they mean the same thing: nothing happened,
-## try something else or end the turn.
-##
-## Returns a result dict for logging/UI:
-## { in_range, already_acted, busy, hit, damage, to_hit, effects, ability }
-## damage is the SUM of every effect's own "damage" key, for convenience
-## — usually zero or one DamageEffect, but this doesn't assume that; see
-## effects for the individual per-effect results if more detail is
-## needed than the aggregate.
 func use_ability(ability: Ability, target) -> Dictionary:
-	var result := {
-		"attacker": self,
-		"target": target,
-		"ability": ability,
-		"busy": not can_act(),
-		"in_range": false,
-		"already_acted": false,
-		"hit": false,
-		"damage": 0,
-		"effects": [],
-	}
-
-	if result.busy:
-		return result
-
-	result["in_range"] = ability.is_in_range(self, target)
-	result["already_acted"] = ability.uses_attack_action and has_attacked
-
-	if result.already_acted:
-		return result
-
-	if not result.in_range:
-		return result
-
-	if ability.uses_attack_action:
-		has_attacked = true
-
-	# Face the target the instant the action is confirmed to happen, not
-	# gradually — this is what gives CombatAI-driven attacks correct
-	# facing too (AI never goes through mouse-hover aiming at all), and
-	# covers Jump's facing for free (target is the landing point, so
-	# facing it here IS facing the jump direction — no separate rotation
-	# logic needed in MoveCasterEffect itself).
-	if target is Vector3 or target is Unit:
-		snap_face_point(target if target is Vector3 else target.global_position)
-
-	if ability.requires_to_hit:
-		# The DEFENDER's active statuses (Prone, etc.) can modify how
-		# easy THEY are to hit — summed onto the attacker's own skill
-		# before rolling, so e.g. Prone's melee bonus/ranged penalty
-		# applies regardless of which ability is being used against them.
-		var to_hit_target: int = attack_skill()
-		if target is Unit:
-			to_hit_target += target.incoming_attack_to_hit_modifier(self, ability)
-
-		var to_hit := roll_vs(to_hit_target)
-		result["to_hit"] = to_hit
-		if not to_hit.success:
-			SystemLog.print("%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(self), _log_target_desc(target), ability.ability_name])
-			ability_used.emit(self, target, result)
-			return result
-
-	result["hit"] = true
-
-	var effect_results: Array = []
-	var total_damage: int = 0
-	for effect in ability.effects:
-		var effect_result: Dictionary = effect.apply(self, target, ability)
-		effect_results.append(effect_result)
-		if effect_result.has("damage"):
-			total_damage += effect_result["damage"]
-
-	result["effects"] = effect_results
-	result["damage"] = total_damage
-
-	if total_damage > 0:
-		SystemLog.print("%s hits %s with %s." % [LogFormat.unit_name(self), _log_target_desc(target), ability.ability_name])
-	else:
-		SystemLog.print("%s uses %s on %s." % [LogFormat.unit_name(self), ability.ability_name, _log_target_desc(target)])
-
-	ability_used.emit(self, target, result)
-	return result
-
-
-## Describes an ability's target for log messages — a Unit gets its
-## colored name, a Vector3 (ground/area targeting) gets a generic label,
-## since there's no "name" to show for a point in space.
-func _log_target_desc(target) -> String:
-	return LogFormat.unit_name(target) if target is Unit else "the target area"
+	return _combat.use_ability(ability, target)
 
 
 func take_damage(amount: int) -> void:
-	if amount <= 0:
-		return
-	current_hp = max(current_hp - amount, 0)
-	took_damage.emit(self, amount)
-	SystemLog.print("%s takes %s damage." % [LogFormat.unit_name(self), LogFormat.damage(amount)])
+	_combat.take_damage(amount)
+
+
+## Called by UnitCombat's take_damage() — routed through Unit rather
+## than UnitCombat reaching into _status_manager directly, same
+## component-talks-to-owner-only rule as UnitMovement's
+## notify_movement_idle_check().
+func notify_status_of_damage(amount: int) -> void:
 	_status_manager.notify_damage_taken(amount)
-	if current_hp == 0:
-		SystemLog.print("[b]%s has died.[/b]" % LogFormat.unit_name(self))
-		died.emit(self)
-		_handle_death()
 
 
 ## Strips a dead unit out of every system that would otherwise keep
@@ -788,11 +488,10 @@ func _handle_death() -> void:
 	# gathering by the remove_from_group("units") call above, so other
 	# units won't detour around it either (matches corpse_blocks_movement
 	# below, which controls whether it still blocks via physical
-	# collision).
-	_moving = false
-	velocity = Vector3.ZERO
-	_current_path = PackedVector3Array()
-	_path_index = 0
+	# collision). force_stop(), not stop_moving() — this is an immediate,
+	# raw halt with no movement_finished signal and no budget spend; a
+	# dying unit isn't "completing" a move, it's being silenced.
+	_movement.force_stop()
 	set_physics_process(false)
 
 	if not corpse_blocks_movement:
