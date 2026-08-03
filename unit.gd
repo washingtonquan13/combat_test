@@ -420,7 +420,7 @@ func snap_face_point(point: Vector3) -> void:
 ## own attack target) leave specific units out of the plan's avoidance —
 ## you don't want to route around the very unit you're trying to reach.
 func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bool:
-	if is_busy() or status_prevents_turn():
+	if not can_act():
 		return false
 
 	var budget: float = INF
@@ -564,6 +564,24 @@ func status_prevents_turn() -> bool:
 	return _status_manager.prevents_turn()
 
 
+## Whether this unit is currently free to take a NEW action at all — not
+## already busy with something in flight, and not prevented by an active
+## status effect. This is the single thing move_to()/use_ability() check
+## before doing anything, and the same thing
+## PlayerInteractionState.get_active_unit() delegates to for its own
+## unit-intrinsic half of "can the player currently act."
+##
+## Deliberately does NOT know about whose turn it is, who's
+## player-controlled, or anything about combat/UI state — those are
+## PlayerInteractionState's job, layered on TOP of this, not folded into
+## it. An AI unit's own move_to()/use_ability() calls must never be
+## blocked by "is this the player's currently active unit" — that
+## question doesn't even apply to them — so this predicate only ever
+## reasons about the unit itself.
+func can_act() -> bool:
+	return not is_busy() and not status_prevents_turn()
+
+
 ## Sum of every active status's to-hit modifier against an incoming
 ## attack, from this unit being the DEFENDER — see
 ## StatusBehavior.modify_incoming_attack_to_hit.
@@ -660,7 +678,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"attacker": self,
 		"target": target,
 		"ability": ability,
-		"busy": is_busy() or status_prevents_turn(),
+		"busy": not can_act(),
 		"in_range": false,
 		"already_acted": false,
 		"hit": false,

@@ -1,4 +1,4 @@
-extends Node3D
+extends IndicatorBase
 ## Jump arc preview, BG3-style — matches MoveCasterEffect's actual
 ## trajectory exactly (same arc math, same budget clamp, both called
 ## directly rather than reimplemented here) so what's shown is what will
@@ -10,11 +10,9 @@ extends Node3D
 ## armed ability (see AbilityManager) uses GroundPointTargeting.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
-## its own line mesh in code. ground_collision_mask must match whatever
-## physics layer your ground/terrain body is on (same requirement as
-## movement_indicator.gd's hover raycast).
+## its own line mesh in code. ground_collision_mask (see IndicatorBase)
+## must match whatever physics layer your ground/terrain body is on.
 
-@export var ground_collision_mask: int = 1
 @export var valid_color: Color = Color(1, 1, 1, 0.9)
 @export var invalid_color: Color = Color(1, 0.2, 0.2, 0.9)
 @export var arc_segments: int = 24
@@ -24,23 +22,9 @@ var _line_immediate: ImmediateMesh
 
 
 func _ready() -> void:
-	_build_line()
-
-
-func _build_line() -> void:
-	_line_mesh = MeshInstance3D.new()
-	add_child(_line_mesh)
-
-	_line_immediate = ImmediateMesh.new()
-	_line_mesh.mesh = _line_immediate
-
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.vertex_color_use_as_albedo = true
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_line_mesh.material_override = mat
-	_line_mesh.visible = false
+	var built: Dictionary = _create_line_mesh()
+	_line_mesh = built.mesh_instance
+	_line_immediate = built.immediate
 
 
 func _process(_delta: float) -> void:
@@ -78,26 +62,6 @@ func _get_armed_move_effect() -> MoveCasterEffect:
 			return effect
 
 	return null
-
-
-func _get_mouse_ground_point():
-	var camera: Camera3D = get_viewport().get_camera_3d()
-	if not camera:
-		return null
-
-	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
-	var from: Vector3 = camera.project_ray_origin(mouse_pos)
-	var dir: Vector3 = camera.project_ray_normal(mouse_pos)
-	var to: Vector3 = from + dir * 1000.0
-
-	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = ground_collision_mask
-	var result := space_state.intersect_ray(query)
-
-	if result.is_empty():
-		return null
-	return result.position
 
 
 func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hover_point: Vector3) -> void:

@@ -1,4 +1,4 @@
-extends Node3D
+extends IndicatorBase
 ## Ranged-ability line-of-sight preview, BG3-style. Only shows during
 ## combat, for the unit whose turn it currently is, only when that unit
 ## is player-controlled, and only when the currently armed ability (see
@@ -23,18 +23,14 @@ extends Node3D
 ## changes, this needs to be kept in sync with it.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
-## its own MeshInstance3D in code. unit_collision_mask must match
-## whatever physics layer your Units' CollisionShape3D bodies are on
-## (for detecting a hovered unit); ground_collision_mask must match your
-## ground/terrain body's layer (for the fallback ground point, so the
-## line has somewhere to point when no unit is under the cursor).
+## its own MeshInstance3D in code. unit_collision_mask/ground_collision_mask
+## (see IndicatorBase) must match your Units'/ground's actual physics
+## layers.
 ##
 ## Note: like the movement indicator, this draws a 1-pixel unshaded line
 ## (ImmediateMesh, LINE_STRIP) — fine for a first pass, thicker lines
 ## would need an actual ribbon mesh.
 
-@export var unit_collision_mask: int = 1
-@export var ground_collision_mask: int = 1
 @export var clear_color: Color = Color(1, 1, 1, 0.9)
 @export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
 @export var out_of_range_color: Color = Color(0.5, 0.5, 0.5, 0.6)
@@ -49,23 +45,9 @@ var _line_immediate: ImmediateMesh
 
 
 func _ready() -> void:
-	_build_line()
-
-
-func _build_line() -> void:
-	_line_mesh = MeshInstance3D.new()
-	add_child(_line_mesh)
-
-	_line_immediate = ImmediateMesh.new()
-	_line_mesh.mesh = _line_immediate
-
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.vertex_color_use_as_albedo = true
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	_line_mesh.material_override = mat
-	_line_mesh.visible = false
+	var built: Dictionary = _create_line_mesh()
+	_line_mesh = built.mesh_instance
+	_line_immediate = built.immediate
 
 
 func _process(_delta: float) -> void:
@@ -76,12 +58,12 @@ func _process(_delta: float) -> void:
 		_line_mesh.visible = false
 		return
 
-	var aim_point = _get_aim_point()
+	var hovered_unit: Unit = _get_hovered_hostile(unit)
+	var aim_point = hovered_unit.global_position if hovered_unit else _get_mouse_ground_point()
 	if aim_point == null:
 		_line_mesh.visible = false
 		return
 
-	var hovered_unit: Unit = _get_hovered_hostile(unit)
 	_draw_line(unit, aim_point, hovered_unit, ability)
 	_line_mesh.visible = true
 
@@ -94,62 +76,15 @@ func _get_armed_ranged_ability() -> Ability:
 	return PlayerInteractionState.get_armed_ability_of_targeting_type(RangedEnemyTargeting)
 
 
-## Where the line should point to: a hovered hostile unit's position if
-## there is one, otherwise the ground point under the cursor — this is
-## what keeps the line following the mouse continuously instead of
-## disappearing whenever the cursor isn't precisely over a unit.
-func _get_aim_point():
-	var camera: Camera3D = get_viewport().get_camera_3d()
-	if not camera:
-		return null
-
-	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
-	var from: Vector3 = camera.project_ray_origin(mouse_pos)
-	var dir: Vector3 = camera.project_ray_normal(mouse_pos)
-	var to: Vector3 = from + dir * 1000.0
-
-	var space_state := get_world_3d().direct_space_state
-
-	var unit_query := PhysicsRayQueryParameters3D.create(from, to)
-	unit_query.collision_mask = unit_collision_mask
-	var unit_result := space_state.intersect_ray(unit_query)
-	if not unit_result.is_empty():
-		var hovered := unit_result.get("collider") as Unit
-		if hovered:
-			return hovered.global_position
-
-	var ground_query := PhysicsRayQueryParameters3D.create(from, to)
-	ground_query.collision_mask = ground_collision_mask
-	var ground_result := space_state.intersect_ray(ground_query)
-	if ground_result.is_empty():
-		return null
-	return ground_result.position
-
-
+## Filters IndicatorBase._get_hovered_unit() down to "alive AND hostile
+## to unit" — this indicator only cares about valid attack targets, not
+## just whatever's under the cursor.
 func _get_hovered_hostile(unit: Unit) -> Unit:
-	var camera: Camera3D = get_viewport().get_camera_3d()
-	if not camera:
-		return null
-
-	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
-	var from: Vector3 = camera.project_ray_origin(mouse_pos)
-	var dir: Vector3 = camera.project_ray_normal(mouse_pos)
-	var to: Vector3 = from + dir * 1000.0
-
-	var space_state := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = unit_collision_mask
-	var result := space_state.intersect_ray(query)
-
-	if result.is_empty():
-		return null
-
-	var hovered := result.get("collider") as Unit
+	var hovered := _get_hovered_unit()
 	if not hovered or not hovered.is_alive():
 		return null
 	if not unit.is_hostile_to(hovered):
 		return null
-
 	return hovered
 
 

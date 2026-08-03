@@ -23,10 +23,19 @@ extends RefCounted
 ## PlayerInteractionState.get_active_unit(), from anywhere.
 
 ## The unit whose turn it currently is, if and only if: combat is
-## running, that unit is alive and player-controlled, and it isn't
-## currently busy (mid-move, mid-ability-animation). Returns null
-## otherwise — every caller should treat a null return as "hide/do
-## nothing," not try to reconstruct why on its own.
+## running, that unit is alive and player-controlled, and Unit.can_act()
+## says it's free to do something (not busy, not prevented by an active
+## status like Sleep/Stun). Returns null otherwise — every caller should
+## treat a null return as "hide/do nothing," not try to reconstruct why
+## on its own.
+##
+## Delegates the unit-intrinsic half of this check to Unit.can_act()
+## rather than re-deriving it here — this is deliberately the ONLY place
+## the player/turn-specific conditions (is it the current turn, is it
+## player-controlled) get layered on top, so those two concerns
+## (can THIS unit act at all vs. is it currently the PLAYER's turn to
+## direct it) stay in exactly one place each rather than getting
+## re-mixed together per caller.
 static func get_active_unit() -> Unit:
 	if not CombatManager.in_combat:
 		return null
@@ -36,7 +45,7 @@ static func get_active_unit() -> Unit:
 		return null
 	if not unit.is_player_controlled():
 		return null
-	if unit.is_busy():
+	if not unit.can_act():
 		return null
 
 	return unit
