@@ -23,6 +23,11 @@ CombatAi="*res://combat_ai.gd"
 AbilityManager="*res://ability_manager.gd"
 SystemLog="*res://system_log.gd"
 
+[display]
+
+window/size/viewport_width=1600
+window/size/viewport_height=900
+
 [input]
 
 test_start_combat={

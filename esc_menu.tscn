@@ -1,0 +1,98 @@
+[gd_scene load_steps=3 format=3 uid="uid://b7xan8a2vpty4"]
+
+[ext_resource type="Script" uid="uid://driv5tm8iiwsf" path="res://src/esc_menu.gd" id="1_4yblc"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_8m571"]
+font_size = 24
+
+[node name="EscMenu" type="Control"]
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -166.0
+offset_top = -312.0
+offset_right = 166.0
+offset_bottom = 312.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_4yblc")
+
+[node name="PanelContainer" type="PanelContainer" parent="."]
+layout_mode = 2
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -166.0
+offset_top = -312.0
+offset_right = 166.0
+offset_bottom = 312.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="PanelContainer"]
+layout_mode = 2
+size_flags_horizontal = 0
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBoxContainer" type="VBoxContainer" parent="PanelContainer/MarginContainer"]
+custom_minimum_size = Vector2(300, 600)
+layout_mode = 2
+
+[node name="Label" type="Label" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 6
+text = "MENU"
+label_settings = SubResource("LabelSettings_8m571")
+horizontal_alignment = 1
+
+[node name="Button" type="Button" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "SAVE GAME"
+
+[node name="Button2" type="Button" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "LOAD GAME"
+
+[node name="Button3" type="Button" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "OPTIONS"
+
+[node name="Button4" type="Button" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "MAIN MENU"
+
+[node name="HSeparator" type="HSeparator" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ExitToDesktop" type="Button" parent="PanelContainer/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "EXIT TO DESKTOP"
+
+[node name="ExitButton" type="Button" parent="."]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -52.0
+offset_top = 16.0
+offset_right = -20.0
+offset_bottom = 48.0
+grow_horizontal = 0
+text = "X"
+
+[connection signal="pressed" from="PanelContainer/MarginContainer/VBoxContainer/ExitToDesktop" to="." method="_on_exit_to_desktop_pressed"]
+[connection signal="pressed" from="ExitButton" to="." method="_on_exit_button_pressed"]

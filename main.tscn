@@ -1,4 +1,4 @@
-[gd_scene load_steps=36 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=39 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -25,7 +25,10 @@
 [ext_resource type="Texture2D" uid="uid://crp4mkdu5gcik" path="res://assets/portraits/gooblin_Wiz.jpg" id="12_ycdy4"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://abilities/basic_attack_ranged.tres" id="13_074og"]
 [ext_resource type="Script" uid="uid://bb040f657sdme" path="res://end_turn_button.gd" id="13_qsp4k"]
+[ext_resource type="Texture2D" uid="uid://b87v8swp3yenp" path="res://assets/ui_icon/hamburger_icon.png" id="15_seu75"]
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://abilities/jump.tres" id="16_getpj"]
+[ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://menu_button.gd" id="16_htxhm"]
+[ext_resource type="Script" uid="uid://ds5sh15dh1euk" path="res://esc_menu.gd" id="17_jq2sk"]
 [ext_resource type="Texture2D" uid="uid://cbcv6cepoupv1" path="res://assets/portraits/hobgoblin.jpg" id="19_82xsv"]
 [ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://abilities/explosive_fireball.tres" id="20_0odxb"]
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://abilities/sleep_dart.tres" id="21_a6jrf"]
@@ -86,6 +89,7 @@ anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
 offset_left = -20.0
+offset_top = 20.0
 offset_right = 20.0
 offset_bottom = 40.0
 grow_horizontal = 2
@@ -124,6 +128,66 @@ grow_horizontal = 0
 grow_vertical = 0
 text = "END TURN"
 script = ExtResource("13_qsp4k")
+
+[node name="MenuButton" type="Button" parent="CanvasLayer" node_paths=PackedStringArray("esc_menu")]
+custom_minimum_size = Vector2(32, 32)
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -8.0
+offset_top = 8.0
+offset_right = -8.0
+offset_bottom = 8.0
+grow_horizontal = 0
+icon = ExtResource("15_seu75")
+script = ExtResource("16_htxhm")
+esc_menu = NodePath("../EscMenu")
+
+[node name="EscMenu" type="Control" parent="CanvasLayer"]
+custom_minimum_size = Vector2(300, 200)
+layout_mode = 3
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -20.0
+offset_top = -20.0
+offset_right = 20.0
+offset_bottom = 20.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("17_jq2sk")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/EscMenu"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+
+[node name="SaveGame" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "SAVE GAME"
+
+[node name="LoadGame" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "LOAD GAME"
+
+[node name="Settings" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "SETTINGS
+"
+
+[node name="ExitToDesktop" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "EXIT TO DESKTOP"
 
 [node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
 navigation_mesh = SubResource("NavigationMesh_lquwl")
@@ -191,7 +255,7 @@ selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("21_lswn8")
 
 [node name="Mook" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 5)
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 8, 1, 5)
 dexterity = 5
 maximum_hp = 2
 current_hp = 2
@@ -202,7 +266,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("8_w48qg")
 
 [node name="Mook2" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, 5)
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 6, 1, 5)
 dexterity = 5
 intelligence = 16
 maximum_hp = 2
@@ -214,7 +278,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("12_ycdy4")
 
 [node name="Mook3" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 5)
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 2, 1, 5)
 dexterity = 5
 intelligence = 16
 maximum_hp = 2
@@ -226,7 +290,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("12_ycdy4")
 
 [node name="Mook4" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, 5)
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 1, 5)
 dexterity = 5
 intelligence = 16
 maximum_hp = 2
@@ -238,7 +302,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("12_ycdy4")
 
 [node name="Hobgoblin" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, 5)
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 4, 1, 5)
 strength = 16
 dexterity = 12
 health = 20
@@ -258,3 +322,6 @@ script = ExtResource("3_h2yge")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)
+
+[connection signal="pressed" from="CanvasLayer/MenuButton" to="CanvasLayer/MenuButton" method="_on_pressed"]
+[connection signal="pressed" from="CanvasLayer/EscMenu/VBoxContainer/ExitToDesktop" to="CanvasLayer/EscMenu" method="_on_exit_to_desktop_pressed"]
