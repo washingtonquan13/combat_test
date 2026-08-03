@@ -7,20 +7,21 @@ extends Node3D
 ## entirely unconcerned with which way the character model happens to
 ## be facing.
 ##
-## Only checks AbilityManager.armed_ability directly, no fallback to the
-## acting unit's default_ability() — same deliberate choice as
-## line_of_sight_indicator.gd: this only activates once something is
-## explicitly armed via the hotbar, not on every ordinary click-to-
-## attack.
+## Only checks whether SOMETHING is armed (via PlayerInteractionState.
+## has_any_ability_armed), no fallback to the acting unit's own
+## default_ability() — same deliberate choice as line_of_sight_indicator
+## .gd: this only activates once something is explicitly armed via the
+## hotbar, not on every ordinary click-to-attack.
 ##
 ## Mirrors the OTHER indicator scripts' hover-detection pattern (raycast
 ## against units first, fall back to ground) as its own independent
 ## copy rather than sharing their logic directly — kept separate so it
 ## can't risk disrupting the already-working indicators.
 ##
-## Scene setup: attach to a plain Node anywhere in your main scene — no
-## visuals of its own, so nothing to build in code the way the other
-## indicators do.
+## Scene setup: attach to a Node3D anywhere in your main scene — needs to
+## be a Node3D specifically (not a plain Node) for get_world_3d() to be
+## available for the raycast, even though this script has no visuals of
+## its own the way the other indicators do.
 
 @export var unit_collision_mask: int = 1
 @export var ground_collision_mask: int = 1
@@ -38,28 +39,17 @@ func _process(delta: float) -> void:
 	unit.face_point(aim_point, delta)
 
 
-## Only the acting unit, only if player-controlled, only if something's
-## explicitly armed, only if not currently busy — movement-follow-path
-## rotation (see Unit._physics_process) already owns facing while
-## walking, and both trying to set rotation.y in the same frame would
-## just fight each other. is_busy() rather than is_moving() specifically
-## so this also stands down during Jump's mid-air animation, not just
-## ordinary walking — same fix applied across the visual indicators too.
+## Delegates the shared "is the player currently free to act" condition
+## to PlayerInteractionState, plus this script's own specific rule: only
+## active while something's explicitly armed (movement-follow-path
+## rotation, see Unit._physics_process, already owns facing while
+## walking — both trying to set rotation.y in the same frame would just
+## fight each other, which is part of why PlayerInteractionState's
+## is_busy() check matters here too, not just for visual indicators).
 func _get_active_unit() -> Unit:
-	if not CombatManager.in_combat:
+	if not PlayerInteractionState.has_any_ability_armed():
 		return null
-
-	var unit: Unit = CombatManager.current_unit
-	if not unit or not is_instance_valid(unit) or not unit.is_alive():
-		return null
-	if not unit.is_player_controlled():
-		return null
-	if unit.is_busy():
-		return null
-	if not AbilityManager.armed_ability:
-		return null
-
-	return unit
+	return PlayerInteractionState.get_active_unit()
 
 
 func _get_aim_point():

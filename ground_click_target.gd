@@ -39,10 +39,7 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 	if not ability or not ability.targeting or not ability.targeting.expects_point_target():
 		return false
 
-	if not CombatManager.in_combat:
-		return false
-
-	var unit: Unit = CombatManager.current_unit
+	var unit: Unit = PlayerInteractionState.get_active_unit()
 	if not unit or unit not in SelectionManager.selected_units:
 		return false
 
@@ -55,6 +52,17 @@ func _command_move(destination: Vector3) -> void:
 		# Only the acting unit may move, and only on its own turn — a
 		# right-click while other units are selected (or it's not your
 		# turn) is silently ignored rather than moving the wrong unit.
+		# Also silently ignored while an ability is armed — same rule
+		# movement_indicator.gd already enforces visually (it hides
+		# itself in this exact state), now actually enforced here too,
+		# not just implied. Without this, right-clicking while something
+		# was armed would move the unit anyway despite the indicator
+		# having told the player movement wasn't on the table — arm and
+		# move were never mutually exclusive in practice, just visually
+		# implied to be. Uses PlayerInteractionState, the same shared
+		# check the indicator itself uses, so the two can't drift apart.
+		if PlayerInteractionState.has_any_ability_armed():
+			return
 		var unit: Unit = CombatManager.current_unit
 		if unit and unit in SelectionManager.selected_units:
 			unit.move_to(destination)

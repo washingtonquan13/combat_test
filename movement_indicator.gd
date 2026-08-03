@@ -63,33 +63,14 @@ func _process(_delta: float) -> void:
 	_update_path_preview(unit)
 
 
-## Only the acting unit, only if it's player-controlled, only if it isn't
-## currently busy with something (mid-walk OR mid-ability-animation, e.g.
-## Jump's arc — is_busy() covers both, is_moving() alone would miss the
-## Jump case since Jump doesn't set _moving at all), and — this is the
-## actual fix for indicators overlapping — only if NO ability is
-## currently armed. This script predates the ability system entirely and
-## never had any awareness that armed_ability exists, which is exactly
-## why arming Jump (or anything else) never suppressed the movement path
-## preview: nothing here ever checked for it. A click while an ability is
-## armed uses that ability instead of moving (see ground_click_target.gd),
-## so the movement preview showing at the same time was actively
-## misleading, not just redundant clutter.
+## Delegates the shared "is the player currently free to act" condition
+## to PlayerInteractionState, plus this script's own specific rule: hide
+## whenever ANY ability is armed, since a click in that state uses the
+## ability instead of moving (see ground_click_target.gd).
 func _get_active_unit() -> Unit:
-	if not CombatManager.in_combat:
+	if PlayerInteractionState.has_any_ability_armed():
 		return null
-
-	var unit: Unit = CombatManager.current_unit
-	if not unit or not is_instance_valid(unit) or not unit.is_alive():
-		return null
-	if not unit.is_player_controlled():
-		return null
-	if unit.is_busy():
-		return null
-	if AbilityManager.armed_ability:
-		return null
-
-	return unit
+	return PlayerInteractionState.get_active_unit()
 
 
 func _hide_all() -> void:

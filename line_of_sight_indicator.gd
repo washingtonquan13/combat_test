@@ -86,32 +86,12 @@ func _process(_delta: float) -> void:
 	_line_mesh.visible = true
 
 
-## Only the acting unit, only if player-controlled, and only if not
-## currently busy — consistent with jump_indicator.gd's same fix. No
-## async ranged effect exists yet to actually trigger this today, but
-## without the check here too, the same "preview lingers through an
-## action that's still resolving" bug would silently reappear the moment
-## one does.
 func _get_active_unit() -> Unit:
-	if not CombatManager.in_combat:
-		return null
-
-	var unit: Unit = CombatManager.current_unit
-	if not unit or not is_instance_valid(unit) or not unit.is_alive():
-		return null
-	if not unit.is_player_controlled():
-		return null
-	if unit.is_busy():
-		return null
-
-	return unit
+	return PlayerInteractionState.get_active_unit()
 
 
 func _get_armed_ranged_ability() -> Ability:
-	var ability: Ability = AbilityManager.armed_ability
-	if not ability or not (ability.targeting is RangedEnemyTargeting):
-		return null
-	return ability
+	return PlayerInteractionState.get_armed_ability_of_targeting_type(RangedEnemyTargeting)
 
 
 ## Where the line should point to: a hovered hostile unit's position if

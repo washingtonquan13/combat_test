@@ -60,28 +60,8 @@ func _process(_delta: float) -> void:
 	_line_mesh.visible = true
 
 
-## Only the acting unit, only if player-controlled, and — this is the
-## actual fix for the preview lingering after actually jumping — only if
-## not currently busy. Jump doesn't disarm itself after one use (nothing
-## disarms AbilityManager until the next turn starts), so without this
-## check, the preview kept drawing a fresh arc from wherever the unit
-## currently was, including WHILE mid-air during the jump's own Tween
-## animation and immediately after landing — armed_ability was still set
-## the whole time, so the only thing that was ever missing was checking
-## whether the unit could actually act on it right now.
 func _get_active_unit() -> Unit:
-	if not CombatManager.in_combat:
-		return null
-
-	var unit: Unit = CombatManager.current_unit
-	if not unit or not is_instance_valid(unit) or not unit.is_alive():
-		return null
-	if not unit.is_player_controlled():
-		return null
-	if unit.is_busy():
-		return null
-
-	return unit
+	return PlayerInteractionState.get_active_unit()
 
 
 ## The armed ability's own MoveCasterEffect instance (not a new one) —
@@ -89,8 +69,8 @@ func _get_active_unit() -> Unit:
 ## preview matches whatever jump_duration/arc_height that SPECIFIC
 ## ability was actually configured with.
 func _get_armed_move_effect() -> MoveCasterEffect:
-	var ability: Ability = AbilityManager.armed_ability
-	if not ability or not (ability.targeting is GroundPointTargeting):
+	var ability: Ability = PlayerInteractionState.get_armed_ability_of_targeting_type(GroundPointTargeting)
+	if not ability:
 		return null
 
 	for effect in ability.effects:
