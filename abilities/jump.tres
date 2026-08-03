@@ -25,5 +25,5 @@ icon = ExtResource("3_klqml")
 targeting = SubResource("Resource_uc2tp")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_srpy8")])
 requires_to_hit = false
-uses_attack_action = true
+uses_attack_action = false
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

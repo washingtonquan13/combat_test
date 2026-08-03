@@ -274,8 +274,8 @@ portrait_texture = ExtResource("6_dg77c")
 
 [node name="ElfRanger" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 1, -8)
-dexterity = 15
-move = 12
+dexterity = 18
+move = 18
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("7_ycdy4")
@@ -363,7 +363,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("19_82xsv")
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -3, 8, -2)
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -8)
 script = ExtResource("3_h2yge")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
