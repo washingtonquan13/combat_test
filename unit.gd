@@ -90,6 +90,13 @@ extends CharacterBody3D
 ## unit's feet) used to show hover/selection state. Safe to leave
 ## unassigned — highlighting is just skipped if there's no mesh.
 @export var highlight_mesh: MeshInstance3D
+## Optional full-body outline — a SEPARATE MeshInstance3D sharing the
+## same mesh and skeleton as the character model, with the outline.gdshader
+## material applied (see that file's header for the technique). Distinct
+## from highlight_mesh (that one's a flat ring at the feet; this one
+## traces the actual animated silhouette) — safe to leave unassigned,
+## same as highlight_mesh.
+@export var outline_mesh: MeshInstance3D
 @export var hover_color: Color = Color(1, 1, 1, 0.5)
 @export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
 
@@ -201,16 +208,18 @@ func _setup_avoidance() -> void:
 
 
 func _setup_highlight() -> void:
-	if not highlight_mesh:
-		return
-	# Give this unit its own material instance so its ring can change
-	# color independently of any siblings sharing the same base mesh.
-	var mat := StandardMaterial3D.new()
-	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_highlight_material = mat
-	highlight_mesh.material_override = mat
-	highlight_mesh.visible = false
+	if highlight_mesh:
+		# Give this unit its own material instance so its ring can change
+		# color independently of any siblings sharing the same base mesh.
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_highlight_material = mat
+		highlight_mesh.material_override = mat
+		highlight_mesh.visible = false
+
+	if outline_mesh:
+		outline_mesh.visible = false
 
 
 func _on_mouse_entered() -> void:
@@ -291,16 +300,27 @@ func set_box_hover(value: bool) -> void:
 
 
 func _update_highlight() -> void:
-	if not highlight_mesh:
-		return
+	var state_color: Variant = null
+	var show: bool = false
+
 	if is_selected:
-		highlight_mesh.visible = true
-		_highlight_material.albedo_color = selected_color
+		show = true
+		state_color = selected_color
 	elif is_hovered or _box_hovered:
-		highlight_mesh.visible = true
-		_highlight_material.albedo_color = hover_color
-	else:
-		highlight_mesh.visible = false
+		show = true
+		state_color = hover_color
+
+	if highlight_mesh:
+		highlight_mesh.visible = show
+		if show:
+			_highlight_material.albedo_color = state_color
+
+	if outline_mesh:
+		outline_mesh.visible = show
+		if show:
+			var outline_material := outline_mesh.material_override as ShaderMaterial
+			if outline_material:
+				outline_material.set_shader_parameter("outline_color", state_color)
 
 
 func _physics_process(delta: float) -> void:
