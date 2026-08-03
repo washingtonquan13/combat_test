@@ -39,6 +39,16 @@ extends CharacterBody3D
 ## imprecision eats directly into actual contact instead of a buffer
 ## absorbing it.
 @export var avoidance_margin: float = 0.15
+## How quickly this unit turns to face a new direction — used for
+## following the movement path and for tracking an aimed target while an
+## ability is armed (see face_direction/face_point). Higher = snappier,
+## lower = more of a visible turn lag.
+@export var rotation_speed: float = 10.0
+## Some imported character rigs face a different default direction than
+## Godot's own forward convention (-Z) — if the character visibly faces
+## sideways or backwards relative to where it's actually moving/aiming,
+## adjust this rather than the rotation math itself.
+@export var facing_offset_degrees: float = 0.0
 ## How close (meters) to a move's destination counts as "arrived" —
 ## NavigationAgent3D defaults this to 1.0m, which is often larger than
 ## reach itself, so a unit can report movement finished while still up to
@@ -331,8 +341,44 @@ func _physics_process(delta: float) -> void:
 	to_target.y = 0.0
 	var direction: Vector3 = to_target.normalized()
 
+	face_direction(direction, delta)
+
 	velocity = direction * move_speed
 	move_and_slide()
+
+
+## Smoothly rotates toward facing `direction` (ground-plane only — Y is
+## ignored, since facing is a yaw-only concept for a walking character)
+## over `delta` seconds, at rotation_speed. Shared by movement-follow-
+## path (above) and aim-while-armed tracking (see the standalone aim-
+## facing script) — a single rotation implementation everything calls
+## into, rather than duplicating the yaw math per caller.
+func face_direction(direction: Vector3, delta: float) -> void:
+	direction.y = 0.0
+	if direction.length_squared() < 0.0001:
+		return
+	var target_yaw: float = atan2(-direction.x, -direction.z) + deg_to_rad(facing_offset_degrees)
+	rotation.y = lerp_angle(rotation.y, target_yaw, 1.0 - exp(-rotation_speed * delta))
+
+
+## Convenience wrapper — faces smoothly toward a world-space point
+## instead of a raw direction.
+func face_point(point: Vector3, delta: float) -> void:
+	face_direction(point - global_position, delta)
+
+
+## Instantly snaps to face a direction, no smoothing — used where a
+## gradual turn would look wrong, e.g. facing your target the instant an
+## attack resolves rather than still turning mid-swing (see use_ability).
+func snap_face_direction(direction: Vector3) -> void:
+	direction.y = 0.0
+	if direction.length_squared() < 0.0001:
+		return
+	rotation.y = atan2(-direction.x, -direction.z) + deg_to_rad(facing_offset_degrees)
+
+
+func snap_face_point(point: Vector3) -> void:
+	snap_face_direction(point - global_position)
 
 
 ## Orders this unit toward destination. The ENTIRE route is planned once,
@@ -616,6 +662,15 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 	if ability.uses_attack_action:
 		has_attacked = true
+
+	# Face the target the instant the action is confirmed to happen, not
+	# gradually — this is what gives CombatAI-driven attacks correct
+	# facing too (AI never goes through mouse-hover aiming at all), and
+	# covers Jump's facing for free (target is the landing point, so
+	# facing it here IS facing the jump direction — no separate rotation
+	# logic needed in MoveCasterEffect itself).
+	if target is Vector3 or target is Unit:
+		snap_face_point(target if target is Vector3 else target.global_position)
 
 	if ability.requires_to_hit:
 		# The DEFENDER's active statuses (Prone, etc.) can modify how

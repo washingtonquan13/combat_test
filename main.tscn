@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=36 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
 [ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://line_of_sight_indicator.gd" id="3_074og"]
 [ext_resource type="Script" uid="uid://dest3cxkrnl56" path="res://crpg_camera.gd" id="3_h2yge"]
+[ext_resource type="Script" uid="uid://dxckq302pihqf" path="res://unit_aim_facing.gd" id="3_kq58d"]
 [ext_resource type="PackedScene" uid="uid://cdvqb6pxh8ft1" path="res://initiative_portrait.tscn" id="4_272bh"]
 [ext_resource type="Script" uid="uid://dco3xcx22f26n" path="res://initiative_row.gd" id="4_dg77c"]
 [ext_resource type="Script" uid="uid://8r0mkwuth7cw" path="res://jump_indicator.gd" id="4_ryguw"]
@@ -54,6 +55,9 @@ script = ExtResource("1_7mycd")
 stream = ExtResource("2_a6jrf")
 volume_db = -20.0
 autoplay = true
+
+[node name="UnitAimFacing" type="Node3D" parent="."]
+script = ExtResource("3_kq58d")
 
 [node name="MovementIndicator" type="Node3D" parent="."]
 script = ExtResource("2_7mycd")
