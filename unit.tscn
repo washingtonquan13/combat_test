@@ -4,13 +4,10 @@
 [ext_resource type="Script" uid="uid://chgaolunbm3vb" path="res://die.gd" id="2_davkp"]
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_ctwoc"]
-height = 1.0
 
 [sub_resource type="CapsuleMesh" id="CapsuleMesh_davkp"]
-height = 1.0
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_5wnup"]
-height = 1.0
 
 [node name="Unit" type="CharacterBody3D" node_paths=PackedStringArray("highlight_mesh")]
 script = ExtResource("1_ctwoc")
@@ -53,12 +50,16 @@ script = ExtResource("2_davkp")
 metadata/_custom_type_script = "uid://chgaolunbm3vb"
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 mesh = SubResource("CapsuleMesh_ctwoc")
 
 [node name="HighlightMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+visible = false
 mesh = SubResource("CapsuleMesh_davkp")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CapsuleShape3D_5wnup")
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
