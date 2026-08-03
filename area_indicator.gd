@@ -93,6 +93,10 @@ func _hide_all() -> void:
 		_ring_mesh.visible = false
 
 
+## Only the acting unit, only if player-controlled, and only if not
+## currently busy — same fix as jump_indicator.gd/line_of_sight_indicator
+## .gd, for consistency across every indicator rather than just the one
+## that happened to have an async effect (Jump) to expose the bug first.
 func _get_active_unit() -> Unit:
 	if not CombatManager.in_combat:
 		return null
@@ -101,6 +105,8 @@ func _get_active_unit() -> Unit:
 	if not unit or not is_instance_valid(unit) or not unit.is_alive():
 		return null
 	if not unit.is_player_controlled():
+		return null
+	if unit.is_busy():
 		return null
 
 	return unit

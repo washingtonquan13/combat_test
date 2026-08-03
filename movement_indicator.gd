@@ -64,8 +64,17 @@ func _process(_delta: float) -> void:
 
 
 ## Only the acting unit, only if it's player-controlled, only if it isn't
-## already mid-move (a trailing indicator following a unit that's already
-## committed to walking would be confusing, not helpful).
+## currently busy with something (mid-walk OR mid-ability-animation, e.g.
+## Jump's arc — is_busy() covers both, is_moving() alone would miss the
+## Jump case since Jump doesn't set _moving at all), and — this is the
+## actual fix for indicators overlapping — only if NO ability is
+## currently armed. This script predates the ability system entirely and
+## never had any awareness that armed_ability exists, which is exactly
+## why arming Jump (or anything else) never suppressed the movement path
+## preview: nothing here ever checked for it. A click while an ability is
+## armed uses that ability instead of moving (see ground_click_target.gd),
+## so the movement preview showing at the same time was actively
+## misleading, not just redundant clutter.
 func _get_active_unit() -> Unit:
 	if not CombatManager.in_combat:
 		return null
@@ -75,7 +84,9 @@ func _get_active_unit() -> Unit:
 		return null
 	if not unit.is_player_controlled():
 		return null
-	if unit.is_moving():
+	if unit.is_busy():
+		return null
+	if AbilityManager.armed_ability:
 		return null
 
 	return unit

@@ -86,6 +86,12 @@ func _process(_delta: float) -> void:
 	_line_mesh.visible = true
 
 
+## Only the acting unit, only if player-controlled, and only if not
+## currently busy — consistent with jump_indicator.gd's same fix. No
+## async ranged effect exists yet to actually trigger this today, but
+## without the check here too, the same "preview lingers through an
+## action that's still resolving" bug would silently reappear the moment
+## one does.
 func _get_active_unit() -> Unit:
 	if not CombatManager.in_combat:
 		return null
@@ -94,6 +100,8 @@ func _get_active_unit() -> Unit:
 	if not unit or not is_instance_valid(unit) or not unit.is_alive():
 		return null
 	if not unit.is_player_controlled():
+		return null
+	if unit.is_busy():
 		return null
 
 	return unit

@@ -39,10 +39,12 @@ func _process(delta: float) -> void:
 
 
 ## Only the acting unit, only if player-controlled, only if something's
-## explicitly armed, only if not already mid-move — movement-follow-path
+## explicitly armed, only if not currently busy — movement-follow-path
 ## rotation (see Unit._physics_process) already owns facing while
 ## walking, and both trying to set rotation.y in the same frame would
-## just fight each other.
+## just fight each other. is_busy() rather than is_moving() specifically
+## so this also stands down during Jump's mid-air animation, not just
+## ordinary walking — same fix applied across the visual indicators too.
 func _get_active_unit() -> Unit:
 	if not CombatManager.in_combat:
 		return null
@@ -52,7 +54,7 @@ func _get_active_unit() -> Unit:
 		return null
 	if not unit.is_player_controlled():
 		return null
-	if unit.is_moving():
+	if unit.is_busy():
 		return null
 	if not AbilityManager.armed_ability:
 		return null
