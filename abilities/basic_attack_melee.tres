@@ -25,4 +25,6 @@ targeting = SubResource("Resource_uasc7")
 effects = Array[ExtResource("1_m1xwx")]([SubResource("Resource_7yie4")])
 requires_to_hit = true
 uses_attack_action = null
+waits_for_impact = false
+impact_timeout = 3.0
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

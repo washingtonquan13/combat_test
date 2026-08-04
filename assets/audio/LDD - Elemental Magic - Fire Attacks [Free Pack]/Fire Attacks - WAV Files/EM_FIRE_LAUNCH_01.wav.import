@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://botodxjct1cq4"
+path="res://.godot/imported/EM_FIRE_LAUNCH_01.wav-e0ebb31b78ee151380b103afa5480247.sample"
+
+[deps]
+
+source_file="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav"
+dest_files=["res://.godot/imported/EM_FIRE_LAUNCH_01.wav-e0ebb31b78ee151380b103afa5480247.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2
