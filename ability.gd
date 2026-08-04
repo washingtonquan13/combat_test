@@ -30,6 +30,18 @@ extends Resource
 ## special-casing anywhere else.
 @export var uses_attack_action: bool = true
 
+@export_group("Impact FX")
+## Optional per-ability composable VFX sequence — see VfxEffect. Left
+## unset, unit_vfx.gd falls back to its own generic default sequence, so
+## you only need to fill this in for abilities that should look/sound
+## distinct (a Fireball's [ProjectileStep, SpawnParticleStep,
+## PlaySoundStep] vs. a Sword Attack's generic clang). Replaces an
+## earlier flat PackedScene+AudioStream pair — a single composable
+## sequence can express both (and a projectile, and timing between
+## them) without needing separate fields for each kind of thing that
+## might play.
+@export var impact_vfx: VfxEffect
+
 
 ## Whether target is a legal target for this ability from attacker's
 ## current position — delegates entirely to targeting, since range/LoS

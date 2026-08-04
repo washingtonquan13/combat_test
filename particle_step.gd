@@ -1,0 +1,62 @@
+class_name ProjectileStep
+extends VfxStep
+## Animates a visual (a mesh/particle scene — a glowing orb, an arrow,
+## whatever fits) flying from the caster's position to the target's,
+## over a fixed duration or at a fixed speed. ALWAYS blocks the next
+## step — that's the entire point of a projectile step: whatever comes
+## after it (typically a SpawnParticleStep for the impact) shouldn't
+## happen until the projectile has actually visually arrived.
+##
+## This is purely visual timing, not gameplay timing — see unit_vfx.gd's
+## header for why. The projectile takes real time to fly; the damage it
+## visually represents was already applied the instant use_ability()
+## resolved, before this sequence even started playing. What this step
+## DOES fix is the projectile itself looking real (genuine travel time)
+## rather than an explosion just happening instantly at both ends.
+##
+## Reuses the same parabolic arc math MoveCasterEffect.arc_point() uses
+## for Jump — same shape, different purpose (a purely cosmetic flight
+## path here, versus Jump's actual gameplay movement) — duplicated
+## rather than shared, since sharing would mean this purely-visual step
+## depending on a gameplay-movement class for an unrelated reason.
+
+@export var projectile_scene: PackedScene
+## Fixed flight time in seconds. If 0, speed is used instead to compute
+## duration from distance, so the same step can either feel consistent
+## regardless of range (fixed duration) or feel physically real (fixed
+## speed) depending on which fits the ability better.
+@export var duration: float = 0.0
+@export var speed: float = 15.0
+@export var arc_height: float = 0.0
+
+
+func play(context: Node, from: Vector3, to: Vector3) -> void:
+	if not projectile_scene:
+		return
+
+	var instance := projectile_scene.instantiate()
+	context.get_tree().current_scene.add_child(instance)
+
+	var flight_time: float = duration if duration > 0.0 else from.distance_to(to) / max(speed, 0.01)
+
+	var tween: Tween = context.create_tween()
+	tween.tween_method(
+		func(t: float):
+			if is_instance_valid(instance):
+				instance.global_position = _arc_point(from, to, t),
+		0.0, 1.0, flight_time
+	)
+	await tween.finished
+
+	if is_instance_valid(instance):
+		instance.queue_free()
+
+
+func _arc_point(from: Vector3, to: Vector3, t: float) -> Vector3:
+	var point: Vector3 = from.lerp(to, t)
+	point.y += arc_height * 4.0 * t * (1.0 - t)
+	return point
+
+
+func describe() -> String:
+	return "Projectile: %s" % ("fixed %.1fs" % duration if duration > 0.0 else "%.1f m/s" % speed)
