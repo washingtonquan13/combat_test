@@ -30,7 +30,7 @@ extends VfxStep
 @export var arc_height: float = 0.0
 
 
-func play(context: Node, from: Vector3, to: Vector3) -> void:
+func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null) -> void:
 	if not projectile_scene:
 		return
 

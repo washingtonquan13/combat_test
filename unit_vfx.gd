@@ -51,7 +51,7 @@ func _on_ability_used(attacker: Unit, target, result: Dictionary) -> void:
 	if result.hit:
 		var ability: Ability = result.ability
 		var sequence: VfxEffect = ability.impact_vfx if ability.impact_vfx else default_hit_vfx
-		_play(sequence, attacker.global_position, target_position)
+		_play(sequence, attacker.global_position, target_position, ability)
 
 
 func _on_died(dying_unit: Unit) -> void:
@@ -70,8 +70,10 @@ func _get_target_position(target, attacker: Unit) -> Vector3:
 ## long the sequence takes to finish playing. context is the scene root,
 ## not this node — see VfxEffect.play's doc comment for why: this node
 ## is a child of the CASTER, which could die and be freed mid-sequence,
-## which would cut an in-progress Tween off along with it.
-func _play(sequence: VfxEffect, from: Vector3, to: Vector3) -> void:
+## which would cut an in-progress Tween off along with it. ability is
+## optional — only the hit path has one to pass (see SpawnParticleStep's
+## radius sync); miss/death sequences don't need it.
+func _play(sequence: VfxEffect, from: Vector3, to: Vector3, ability: Ability = null) -> void:
 	if not sequence:
 		return
-	sequence.play(get_tree().current_scene, from, to)
+	sequence.play(get_tree().current_scene, from, to, ability)

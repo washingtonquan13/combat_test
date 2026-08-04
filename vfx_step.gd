@@ -30,8 +30,13 @@ extends Resource
 ## from/to are the caster's and target's positions at the moment the
 ## WHOLE sequence started, not re-evaluated per step — a step doesn't
 ## need to know which step number it is or where in the sequence it
-## sits, just the two points the sequence is playing between.
-func play(_context: Node, _from: Vector3, _to: Vector3) -> void:
+## sits, just the two points the sequence is playing between. ability is
+## the Ability that triggered this sequence (optional, null for
+## sequences not tied to an ability use — e.g. a death effect) — most
+## steps ignore it, but it's there for the ones that need to read
+## gameplay data, e.g. SpawnParticleStep optionally scaling itself to
+## match AreaTargeting's actual blast radius.
+func play(_context: Node, _from: Vector3, _to: Vector3, _ability: Ability = null) -> void:
 	pass
 
 

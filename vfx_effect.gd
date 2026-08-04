@@ -24,8 +24,9 @@ extends Resource
 ## the caster or target Unit, since either combatant could die and be
 ## freed mid-sequence (a projectile step's Tween is bound to whatever
 ## node created it; if that node gets queue_free()'d, the Tween dies
-## with it, cutting the visual off mid-flight).
-func play(context: Node, from: Vector3, to: Vector3) -> void:
+## with it, cutting the visual off mid-flight). ability is passed through
+## to every step — see VfxStep.play's doc comment.
+func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null) -> void:
 	for step in steps:
 		if step:
-			await step.play(context, from, to)
+			await step.play(context, from, to, ability)

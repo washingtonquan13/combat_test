@@ -9,7 +9,7 @@ extends VfxStep
 @export var duration: float = 0.5
 
 
-func play(context: Node, _from: Vector3, _to: Vector3) -> void:
+func play(context: Node, _from: Vector3, _to: Vector3, _ability: Ability = null) -> void:
 	await context.get_tree().create_timer(duration).timeout
 
 
