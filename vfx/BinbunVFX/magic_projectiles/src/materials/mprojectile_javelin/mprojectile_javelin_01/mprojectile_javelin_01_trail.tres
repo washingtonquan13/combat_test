@@ -1,7 +1,7 @@
 [gd_resource type="ShaderMaterial" load_steps=5 format=3 uid="uid://i8e0680c2cn7"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://assets/BinbunVFX/shared/shader/transparent.gdshader" id="1_wmxrk"]
-[ext_resource type="Texture2D" uid="uid://brh44ewuar3o" path="res://assets/BinbunVFX/shared/texture/noise/cell/cell_manhattan_01.tres" id="3_y6add"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_wmxrk"]
+[ext_resource type="Texture2D" uid="uid://brh44ewuar3o" path="res://vfx/BinbunVFX/shared/texture/noise/cell/cell_manhattan_01.tres" id="3_y6add"]
 
 [sub_resource type="Gradient" id="Gradient_lte8t"]
 interpolation_mode = 2

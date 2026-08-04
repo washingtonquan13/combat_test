@@ -1,8 +1,8 @@
 [gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://cpvi6cvofi3ps"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://assets/BinbunVFX/shared/shader/transparent.gdshader" id="1_w3v0b"]
-[ext_resource type="Texture2D" uid="uid://m3fbr4afc2d7" path="res://assets/BinbunVFX/shared/texture/noise/cell/cell_inverted_01.tres" id="2_w3v0b"]
-[ext_resource type="Texture2D" uid="uid://dcddn03hc7k3n" path="res://assets/BinbunVFX/shared/texture/noise/cell/cell_inverted_02.tres" id="3_cf5hh"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_w3v0b"]
+[ext_resource type="Texture2D" uid="uid://m3fbr4afc2d7" path="res://vfx/BinbunVFX/shared/texture/noise/cell/cell_inverted_01.tres" id="2_w3v0b"]
+[ext_resource type="Texture2D" uid="uid://dcddn03hc7k3n" path="res://vfx/BinbunVFX/shared/texture/noise/cell/cell_inverted_02.tres" id="3_cf5hh"]
 
 [sub_resource type="Gradient" id="Gradient_lte8t"]
 interpolation_mode = 2

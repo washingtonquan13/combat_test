@@ -1,8 +1,8 @@
 [gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://drkta6ov6x77p"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://assets/BinbunVFX/shared/shader/transparent.gdshader" id="1_ggwbo"]
-[ext_resource type="Texture2D" uid="uid://caa3q1x4sy2r" path="res://assets/BinbunVFX/shared/texture/noise/warp/warp_blotch_01.tres" id="2_ggwbo"]
-[ext_resource type="Texture2D" uid="uid://dxnxeedgoka4h" path="res://assets/BinbunVFX/shared/texture/noise/pingpong/pingpong_simple_02.tres" id="3_ggwbo"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_ggwbo"]
+[ext_resource type="Texture2D" uid="uid://caa3q1x4sy2r" path="res://vfx/BinbunVFX/shared/texture/noise/warp/warp_blotch_01.tres" id="2_ggwbo"]
+[ext_resource type="Texture2D" uid="uid://dxnxeedgoka4h" path="res://vfx/BinbunVFX/shared/texture/noise/pingpong/pingpong_simple_02.tres" id="3_ggwbo"]
 
 [sub_resource type="Gradient" id="Gradient_lte8t"]
 interpolation_mode = 2

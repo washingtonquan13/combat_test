@@ -1,10 +1,10 @@
 [gd_scene load_steps=14 format=3 uid="uid://pwjoclbech1b"]
 
-[ext_resource type="Material" uid="uid://ckydc4wpygfnq" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_04/mprojectile_wave_04_wave.tres" id="1_m2sb2"]
-[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://assets/BinbunVFX/shared/script/vfx_controller.gd" id="1_wak8h"]
-[ext_resource type="Material" uid="uid://cragwg3j2c001" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_04/mprojectile_wave_04_head.tres" id="2_q6k4w"]
-[ext_resource type="Material" uid="uid://bjp7a6pyphlm8" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_04/mprojectile_wave_04_core.tres" id="3_q6k4w"]
-[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://assets/BinbunVFX/shared/script/vfx_light.gd" id="4_ycx3u"]
+[ext_resource type="Material" uid="uid://ckydc4wpygfnq" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_04/mprojectile_wave_04_wave.tres" id="1_m2sb2"]
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://vfx/BinbunVFX/shared/script/vfx_controller.gd" id="1_wak8h"]
+[ext_resource type="Material" uid="uid://cragwg3j2c001" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_04/mprojectile_wave_04_head.tres" id="2_q6k4w"]
+[ext_resource type="Material" uid="uid://bjp7a6pyphlm8" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_04/mprojectile_wave_04_core.tres" id="3_q6k4w"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://vfx/BinbunVFX/shared/script/vfx_light.gd" id="4_ycx3u"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_wak8h"]
 top_radius = 0.3
@@ -221,6 +221,7 @@ _data = {
 }
 
 [node name="MProjectileWaveVFX_04" type="Node3D"]
+transform = Transform3D(-4.37114e-08, 0, -1, 0, 1, 0, 1, 0, -4.37114e-08, 0, 0, 0)
 script = ExtResource("1_wak8h")
 primary_color = Color(0.992157, 0.905882, 0.698039, 1)
 secondary_color = Color(0.945098, 0.356863, 0, 1)

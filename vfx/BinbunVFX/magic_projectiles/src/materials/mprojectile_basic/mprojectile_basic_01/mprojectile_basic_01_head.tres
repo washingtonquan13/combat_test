@@ -1,7 +1,7 @@
 [gd_resource type="ShaderMaterial" load_steps=5 format=3 uid="uid://bj56vdmfq2vq0"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://assets/BinbunVFX/shared/shader/transparent.gdshader" id="1_ku0fo"]
-[ext_resource type="Texture2D" uid="uid://b66egwstb1s5q" path="res://assets/BinbunVFX/shared/texture/noise/cell/cell_manhattan_02.tres" id="2_0kq3h"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_ku0fo"]
+[ext_resource type="Texture2D" uid="uid://b66egwstb1s5q" path="res://vfx/BinbunVFX/shared/texture/noise/cell/cell_manhattan_02.tres" id="2_0kq3h"]
 
 [sub_resource type="Gradient" id="Gradient_yoxos"]
 

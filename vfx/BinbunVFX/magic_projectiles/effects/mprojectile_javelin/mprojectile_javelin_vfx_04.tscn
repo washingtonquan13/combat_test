@@ -1,10 +1,10 @@
 [gd_scene load_steps=13 format=3 uid="uid://c3ef0ilf2xc1g"]
 
-[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://assets/BinbunVFX/shared/script/vfx_controller.gd" id="1_7tsqh"]
-[ext_resource type="Material" uid="uid://cvold2mwlqta4" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_javelin/mprojectile_javelin_04/mprojectile_javelin_04_head.tres" id="1_dc7gh"]
-[ext_resource type="Material" uid="uid://b8fhe2pd1ucie" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_javelin/mprojectile_javelin_04/mprojectile_javelin_04_trail.tres" id="2_dc7gh"]
-[ext_resource type="Material" uid="uid://hdi3s34rpnpu" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_javelin/mprojectile_javelin_04/mprojectile_javelin_04_core.tres" id="3_dc7gh"]
-[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://assets/BinbunVFX/shared/script/vfx_light.gd" id="4_osv0r"]
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://vfx/BinbunVFX/BinbunVFX/shared/script/vfx_controller.gd" id="1_7tsqh"]
+[ext_resource type="Material" uid="uid://cvold2mwlqta4" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_javelin/mprojectile_javelin_04/mprojectile_javelin_04_head.tres" id="1_dc7gh"]
+[ext_resource type="Material" uid="uid://b8fhe2pd1ucie" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_javelin/mprojectile_javelin_04/mprojectile_javelin_04_trail.tres" id="2_dc7gh"]
+[ext_resource type="Material" uid="uid://hdi3s34rpnpu" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_javelin/mprojectile_javelin_04/mprojectile_javelin_04_core.tres" id="3_dc7gh"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://vfx/BinbunVFX/BinbunVFX/shared/script/vfx_light.gd" id="4_osv0r"]
 
 [sub_resource type="SphereMesh" id="SphereMesh_1bf66"]
 radius = 0.2

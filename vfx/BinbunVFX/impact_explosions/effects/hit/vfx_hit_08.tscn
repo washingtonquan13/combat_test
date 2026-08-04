@@ -1,0 +1,224 @@
+[gd_scene load_steps=23 format=3 uid="uid://cp7mydlqqpb17"]
+
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://vfx/BinbunVFX/shared/script/vfx_controller.gd" id="1_ghyif"]
+[ext_resource type="Shader" uid="uid://cssforqq3llvn" path="res://vfx/BinbunVFX/impact_explosions/src/shader/basic.gdshader" id="1_uiasa"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://vfx/BinbunVFX/shared/script/vfx_light.gd" id="2_ghyif"]
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_mf6mg"]
+load_path = "res://.godot/imported/flash_03.png-5a9d2c66592f2873db86fa41f28ce732.s3tc.ctex"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_746na"]
+render_priority = 0
+shader = ExtResource("1_uiasa")
+shader_parameter/mask_texture = SubResource("CompressedTexture2D_mf6mg")
+shader_parameter/edge_smoothness = 0.5
+shader_parameter/color_smoothness = 1.0
+shader_parameter/primary_color = Color(1, 0.611765, 0.0941176, 1)
+shader_parameter/secondary_color = Color(0.894118, 0.101961, 0, 1)
+shader_parameter/billboard = true
+shader_parameter/proximity_fade = false
+shader_parameter/proximity_fade_distance = 1.0
+shader_parameter/alpha_mode = 0
+
+[sub_resource type="Curve" id="Curve_sdvv1"]
+_data = [Vector2(0.5, 1), 0.0, -3.02196, 0, 0, Vector2(1, 0), -0.0871912, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_6d4th"]
+curve = SubResource("Curve_sdvv1")
+
+[sub_resource type="Curve" id="Curve_cpsjg"]
+_data = [Vector2(0, 1), 0.0, 0.032534, 0, 0, Vector2(1, 0.775281), -0.40554, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_7vnfm"]
+curve = SubResource("Curve_cpsjg")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ba0na"]
+emission_shape = 1
+emission_sphere_radius = 0.1
+angle_min = -720.0
+angle_max = 720.0
+direction = Vector3(0, 1, 0)
+gravity = Vector3(0, 0, 0)
+scale_min = 0.7
+scale_max = 1.1
+scale_curve = SubResource("CurveTexture_7vnfm")
+alpha_curve = SubResource("CurveTexture_6d4th")
+
+[sub_resource type="QuadMesh" id="QuadMesh_shtac"]
+size = Vector2(1.2, 2)
+subdivide_width = 32
+subdivide_depth = 32
+
+[sub_resource type="CompressedTexture2D" id="CompressedTexture2D_uiasa"]
+load_path = "res://.godot/imported/flash_03.png-5a9d2c66592f2873db86fa41f28ce732.s3tc.ctex"
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ghyif"]
+render_priority = 0
+shader = ExtResource("1_uiasa")
+shader_parameter/mask_texture = SubResource("CompressedTexture2D_uiasa")
+shader_parameter/edge_smoothness = 0.5
+shader_parameter/color_smoothness = 1.0
+shader_parameter/primary_color = Color(1, 0.611765, 0.0941176, 1)
+shader_parameter/secondary_color = Color(0.894118, 0.101961, 0, 1)
+shader_parameter/billboard = true
+shader_parameter/proximity_fade = false
+shader_parameter/proximity_fade_distance = 1.0
+shader_parameter/alpha_mode = 0
+
+[sub_resource type="Curve" id="Curve_mf6mg"]
+_data = [Vector2(0.479381, 1), 0.0, -2.39775, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_746na"]
+curve = SubResource("Curve_mf6mg")
+
+[sub_resource type="Curve" id="Curve_6d4th"]
+_data = [Vector2(0, 1), 0.0, -0.125756, 0, 0, Vector2(1, 0.775281), -0.565127, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="CurveTexture_cpsjg"]
+curve = SubResource("Curve_6d4th")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_7vnfm"]
+emission_shape = 1
+emission_sphere_radius = 0.1
+angle_min = -720.0
+angle_max = 720.0
+gravity = Vector3(0, 0, 0)
+scale_max = 1.4
+scale_curve = SubResource("CurveTexture_cpsjg")
+color = Color(0, 0, 0, 1)
+alpha_curve = SubResource("CurveTexture_746na")
+
+[sub_resource type="QuadMesh" id="QuadMesh_ba0na"]
+size = Vector2(3, 2)
+subdivide_width = 32
+subdivide_depth = 32
+
+[sub_resource type="Animation" id="Animation_ghyif"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Hit_01:emitting")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Hit_02:emitting")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [false]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Light:light_multiplier")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [1.0]
+}
+
+[sub_resource type="Animation" id="Animation_uiasa"]
+resource_name = "main"
+length = 0.8
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Hit_01:emitting")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [true]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Hit_02:emitting")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [true]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Light:light_multiplier")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.4, 0.8),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [1.0, 0.0, 0.0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_mf6mg"]
+_data = {
+&"RESET": SubResource("Animation_ghyif"),
+&"main": SubResource("Animation_uiasa")
+}
+
+[node name="VFXHit_08" type="Node3D"]
+script = ExtResource("1_ghyif")
+primary_color = Color(1, 0.611765, 0.0941176, 1)
+secondary_color = Color(0.894118, 0.101961, 0, 1)
+light_color = Color(1, 1, 0.67451, 1)
+
+[node name="Hit_01" type="GPUParticles3D" parent="."]
+sorting_offset = -0.5
+material_override = SubResource("ShaderMaterial_746na")
+emitting = false
+amount = 2
+lifetime = 0.4
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ParticleProcessMaterial_ba0na")
+draw_pass_1 = SubResource("QuadMesh_shtac")
+
+[node name="Hit_02" type="GPUParticles3D" parent="."]
+sorting_offset = -1.0
+material_override = SubResource("ShaderMaterial_ghyif")
+emitting = false
+amount = 2
+lifetime = 0.4
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ParticleProcessMaterial_7vnfm")
+draw_pass_1 = SubResource("QuadMesh_ba0na")
+
+[node name="Light" type="OmniLight3D" parent="."]
+light_color = Color(1, 1, 0.67451, 1)
+light_energy = 2.0
+light_size = 4.0
+light_cull_mask = 4294426623
+omni_range = 8.0
+script = ExtResource("2_ghyif")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_mf6mg")
+}

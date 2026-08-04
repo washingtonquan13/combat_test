@@ -1,10 +1,10 @@
 [gd_scene load_steps=14 format=3 uid="uid://doqxkohd7fjj5"]
 
-[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://assets/BinbunVFX/shared/script/vfx_controller.gd" id="1_dtgg3"]
-[ext_resource type="Material" uid="uid://cp7tg30vqk2vn" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_01/mprojectile_wave_01_wave.tres" id="1_lagfn"]
-[ext_resource type="Material" uid="uid://bs1i3vhalaqyt" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_01/mprojectile_wave_01_head.tres" id="2_htm7d"]
-[ext_resource type="Material" uid="uid://254tdr5mxtu4" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_01/mprojectile_wave_01_core.tres" id="3_2xbmx"]
-[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://assets/BinbunVFX/shared/script/vfx_light.gd" id="4_e2thh"]
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://vfx/BinbunVFX/BinbunVFX/shared/script/vfx_controller.gd" id="1_dtgg3"]
+[ext_resource type="Material" uid="uid://cp7tg30vqk2vn" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_01/mprojectile_wave_01_wave.tres" id="1_lagfn"]
+[ext_resource type="Material" uid="uid://bs1i3vhalaqyt" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_01/mprojectile_wave_01_head.tres" id="2_htm7d"]
+[ext_resource type="Material" uid="uid://254tdr5mxtu4" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_01/mprojectile_wave_01_core.tres" id="3_2xbmx"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://vfx/BinbunVFX/BinbunVFX/shared/script/vfx_light.gd" id="4_e2thh"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_bl0hp"]
 top_radius = 0.2

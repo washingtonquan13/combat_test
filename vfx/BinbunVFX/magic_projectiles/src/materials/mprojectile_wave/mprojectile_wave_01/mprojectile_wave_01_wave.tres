@@ -1,7 +1,7 @@
 [gd_resource type="ShaderMaterial" load_steps=7 format=3 uid="uid://cp7tg30vqk2vn"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://assets/BinbunVFX/shared/shader/transparent.gdshader" id="1_chq8n"]
-[ext_resource type="Texture2D" uid="uid://brh44ewuar3o" path="res://assets/BinbunVFX/shared/texture/noise/cell/cell_manhattan_01.tres" id="2_chq8n"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_chq8n"]
+[ext_resource type="Texture2D" uid="uid://brh44ewuar3o" path="res://vfx/BinbunVFX/shared/texture/noise/cell/cell_manhattan_01.tres" id="2_chq8n"]
 
 [sub_resource type="Gradient" id="Gradient_lagfn"]
 offsets = PackedFloat32Array(0, 0.721311, 1)

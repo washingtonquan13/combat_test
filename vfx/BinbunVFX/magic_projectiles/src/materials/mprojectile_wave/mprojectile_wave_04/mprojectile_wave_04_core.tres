@@ -1,6 +1,6 @@
 [gd_resource type="ShaderMaterial" load_steps=4 format=3 uid="uid://bjp7a6pyphlm8"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://assets/BinbunVFX/shared/shader/transparent.gdshader" id="1_tqxo1"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_mvl0d"]
 
 [sub_resource type="Gradient" id="Gradient_u8ypt"]
 
@@ -11,7 +11,7 @@ fill_to = Vector2(0.752688, 0)
 
 [resource]
 render_priority = 0
-shader = ExtResource("1_tqxo1")
+shader = ExtResource("1_mvl0d")
 shader_parameter/mask1_texture = SubResource("GradientTexture2D_8xrmt")
 shader_parameter/mask1_scroll = Vector2(0, 0)
 shader_parameter/mask1_scale = Vector2(1, 1)

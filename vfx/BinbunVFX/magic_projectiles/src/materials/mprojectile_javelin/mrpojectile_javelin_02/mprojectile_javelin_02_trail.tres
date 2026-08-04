@@ -1,7 +1,7 @@
 [gd_resource type="ShaderMaterial" load_steps=5 format=3 uid="uid://cw2ku3hn4aamt"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://assets/BinbunVFX/shared/shader/transparent.gdshader" id="1_ek033"]
-[ext_resource type="Texture2D" uid="uid://b4oin70qugy41" path="res://assets/BinbunVFX/shared/texture/noise/web/web_warped_01.tres" id="2_ek033"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_ek033"]
+[ext_resource type="Texture2D" uid="uid://b4oin70qugy41" path="res://vfx/BinbunVFX/shared/texture/noise/web/web_warped_01.tres" id="2_ek033"]
 
 [sub_resource type="Gradient" id="Gradient_lte8t"]
 interpolation_mode = 2

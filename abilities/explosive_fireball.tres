@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=15 format=3 uid="uid://dh51y4swh78rh"]
+[gd_resource type="Resource" script_class="Ability" load_steps=24 format=3 uid="uid://dh51y4swh78rh"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_res1m"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_nideg"]
@@ -9,6 +9,12 @@
 [ext_resource type="Script" uid="uid://bhfvvo8gbkewp" path="res://area_targeting.gd" id="5_r5ii0"]
 [ext_resource type="Script" uid="uid://ckc0lgw7iemnq" path="res://damage_over_time_behavior.gd" id="5_tdje2"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="6_o01xw"]
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://vfx_effect.gd" id="8_f0pgo"]
+[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://vfx_step.gd" id="9_gy3xg"]
+[ext_resource type="PackedScene" uid="uid://pwjoclbech1b" path="res://vfx/BinbunVFX/magic_projectiles/effects/mprojectile_wave/mprojectile_wave_vfx_04.tscn" id="10_nhug0"]
+[ext_resource type="Script" uid="uid://dc1p8g11mnit" path="res://particle_step.gd" id="11_sep1y"]
+[ext_resource type="PackedScene" uid="uid://b6eowhdx7a7vq" path="res://vfx/BinbunVFX/impact_explosions/effects/impact/vfx_impact_03.tscn" id="12_gy3xg"]
+[ext_resource type="Script" uid="uid://dcgjthqwkn30" path="res://spawn_particle_step.gd" id="12_woc63"]
 
 [sub_resource type="Resource" id="Resource_l62op"]
 script = ExtResource("2_y8mr0")
@@ -43,13 +49,32 @@ affects_hostiles = true
 affects_allies = true
 metadata/_custom_type_script = "uid://b31m1uvps4rb"
 
+[sub_resource type="Resource" id="Resource_y636c"]
+script = ExtResource("11_sep1y")
+projectile_scene = ExtResource("10_nhug0")
+duration = 1.0
+speed = 15.0
+arc_height = 0.0
+metadata/_custom_type_script = "uid://dc1p8g11mnit"
+
+[sub_resource type="Resource" id="Resource_a73or"]
+script = ExtResource("12_woc63")
+scene = ExtResource("12_gy3xg")
+at = 1
+metadata/_custom_type_script = "uid://dcgjthqwkn30"
+
+[sub_resource type="Resource" id="Resource_xtw6w"]
+script = ExtResource("8_f0pgo")
+steps = Array[ExtResource("9_gy3xg")]([SubResource("Resource_y636c"), SubResource("Resource_a73or")])
+metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
+
 [sub_resource type="Resource" id="Resource_ycrns"]
 script = ExtResource("5_r5ii0")
 max_range = 15.0
 radius = 6.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
-eye_height = 0.5
+eye_height = 1.5
 metadata/_custom_type_script = "uid://bhfvvo8gbkewp"
 
 [resource]
@@ -60,4 +85,5 @@ targeting = SubResource("Resource_ycrns")
 effects = Array[ExtResource("1_res1m")]([SubResource("Resource_l62op"), SubResource("Resource_kjwuy")])
 requires_to_hit = false
 uses_attack_action = true
+impact_vfx = SubResource("Resource_xtw6w")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"
