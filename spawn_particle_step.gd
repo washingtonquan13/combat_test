@@ -41,9 +41,23 @@ enum At { CASTER, TARGET }
 
 @export var scale_to_ability_radius: bool = false
 @export var authored_radius: float = 1.0
+## How much the effect's HEIGHT scales relative to its radius, when
+## scale_to_ability_radius is on. 1.0 = uniform (height grows exactly as
+## much as radius does — sends every vertically-shooting element
+## (sparks, smoke, light rays) proportionally higher as the radius
+## grows, which reads as absurd for something that's supposed to be
+## WIDE, not TALL). 0.0 = height never changes regardless of radius,
+## fully decoupled — verified visually against this specific asset to be
+## the right value; the vertical elements were authored at a height that
+## already looks correct on their own, independent of blast radius, so
+## they shouldn't be touched at all. Values in between interpolate, if a
+## different asset actually does want some partial height growth. Pure
+## transform math either way: Node3D.scale applies per-axis to
+## everything under this node as a group.
+@export_range(0.0, 1.0, 0.05) var height_scale_factor: float = 0.0
 
 
-func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null) -> void:
+func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null, _caster: Unit = null) -> void:
 	if not scene:
 		return
 
@@ -55,8 +69,9 @@ func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null) ->
 		instance.global_position = position
 		if scale_to_ability_radius and ability and ability.targeting is AreaTargeting:
 			var target_radius: float = (ability.targeting as AreaTargeting).radius
-			var factor: float = target_radius / max(authored_radius, 0.001)
-			instance.scale = Vector3.ONE * factor
+			var radius_factor: float = target_radius / max(authored_radius, 0.001)
+			var height_factor: float = 1.0 + (radius_factor - 1.0) * height_scale_factor
+			instance.scale = Vector3(radius_factor, height_factor, radius_factor)
 
 	await _wait_for_completion(instance)
 

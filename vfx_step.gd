@@ -35,8 +35,12 @@ extends Resource
 ## sequences not tied to an ability use — e.g. a death effect) — most
 ## steps ignore it, but it's there for the ones that need to read
 ## gameplay data, e.g. SpawnParticleStep optionally scaling itself to
-## match AreaTargeting's actual blast radius.
-func play(_context: Node, _from: Vector3, _to: Vector3, _ability: Ability = null) -> void:
+## match AreaTargeting's actual blast radius. caster is the attacking
+## Unit (also optional, null for the same non-ability-tied sequences) —
+## needed by ImpactSignalStep to call caster.notify_impact(), which is
+## what actually unblocks a waits_for_impact ability's damage
+## resolution at exactly the moment this step is reached in the sequence.
+func play(_context: Node, _from: Vector3, _to: Vector3, _ability: Ability = null, _caster: Unit = null) -> void:
 	pass
 
 

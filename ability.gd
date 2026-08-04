@@ -30,6 +30,24 @@ extends Resource
 ## special-casing anywhere else.
 @export var uses_attack_action: bool = true
 
+@export_group("Timing")
+## If true, use_ability() waits for Unit.notify_impact() — called by an
+## attack animation's Call Method Track (placed at the frame a weapon
+## actually connects), or a VFX sequence's ImpactSignalStep (typically
+## right after a projectile arrives) — before actually applying this
+## ability's effects. Damage genuinely lands when the animation/VFX
+## SHOWS it landing, not the instant the ability is used. Defaults false
+## so abilities without a properly synced animation/VFX set up yet keep
+## resolving immediately, exactly as they already do — this is
+## deliberately opt-in per ability, not a forced change to everything.
+@export var waits_for_impact: bool = false
+## Safety timeout — if notify_impact() never arrives (the animation/VFX
+## isn't actually wired up to call it, despite waits_for_impact being
+## on), effects apply anyway after this many seconds rather than the
+## ability hanging forever and stalling the whole turn. A late-but-
+## correct resolution is a far safer failure mode than a stuck game.
+@export var impact_timeout: float = 3.0
+
 @export_group("Impact FX")
 ## Optional per-ability composable VFX sequence — see VfxEffect. Left
 ## unset, unit_vfx.gd falls back to its own generic default sequence, so

@@ -18,13 +18,20 @@ extends Node
 ## Unit.move_to() at all (see move_caster_effect.gd), so it never fires
 ## movement_started/movement_finished the way ordinary walking does.
 ##
-## Worth knowing: the spell sequence is PURELY cosmetic timing, not tied
-## to when damage actually resolves — this combat system resolves an
-## attack's outcome (hit/miss/damage) entirely synchronously the instant
-## use_ability() is called, before any animation plays at all. The
-## "Shoot" clip triggering doesn't correspond to some deeper moment of
-## calculation; it's sequenced for visual flavor after the fact. Common
-## and reasonable, just worth being explicit about.
+## Worth knowing: whether damage is actually TIMED to this animation
+## depends on the ability's own waits_for_impact flag (see Ability). If
+## it's on, Unit.use_ability() genuinely pauses before applying effects
+## until something calls unit.notify_impact() — typically an
+## AnimationPlayer Call Method Track placed at the frame a weapon
+## actually connects (e.g. mid-swing on sword_attack_animation). This
+## script doesn't add that track for you — it has to be placed manually
+## in each relevant clip in the AnimationPlayer editor, calling
+## unit.notify_impact via the track's configured target. If
+## waits_for_impact is off (the default), or a clip never got that
+## track added, effects still resolve — either immediately, or after
+## Ability.impact_timeout elapses as a safety fallback — so a missing
+## track doesn't hang the turn, it just means that specific ability
+## isn't actually synced yet.
 ##
 ## SETUP REQUIREMENT: the Jump loop clip (jump_loop_animation) needs to
 ## actually be authored/set to loop in its import/Animation settings.
@@ -76,7 +83,7 @@ func _ready() -> void:
 
 	unit.movement_started.connect(_on_movement_started)
 	unit.movement_finished.connect(_on_movement_finished)
-	unit.ability_used.connect(_on_ability_used)
+	unit.ability_use_started.connect(_on_ability_use_started)
 	unit.took_damage.connect(_on_took_damage)
 	unit.died.connect(_on_died)
 	unit.became_idle.connect(_on_unit_became_idle)
@@ -93,15 +100,19 @@ func _on_movement_finished(_u: Unit) -> void:
 	_play(idle_animation)
 
 
-func _on_ability_used(_attacker: Unit, _target, result: Dictionary) -> void:
-	if result.busy or result.already_acted or not result.in_range:
-		return
-
-	if _is_jump(result.ability):
+## Fires the instant an ability use is confirmed to happen — before
+## to-hit is even rolled, so this doesn't need to check result.busy/
+## already_acted/in_range the way the old ability_used-based version
+## did; ability_use_started only ever fires once those have already
+## passed. This is what makes the animation start playing WHEN the
+## attack actually begins, rather than only after the outcome (hit,
+## miss, damage) is already known.
+func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void:
+	if _is_jump(ability):
 		_start_jump_sequence()
 		return
 
-	if result.ability.targeting is MeleeEnemyTargeting:
+	if ability.targeting is MeleeEnemyTargeting:
 		_play(sword_attack_animation)
 	else:
 		_start_spell_sequence()

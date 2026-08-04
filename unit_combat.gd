@@ -76,6 +76,16 @@ func default_ability() -> Ability:
 ## — usually zero or one DamageEffect, but this doesn't assume that; see
 ## effects for the individual per-effect results if more detail is
 ## needed than the aggregate.
+##
+## Emits ability_use_started BEFORE to-hit is even rolled — see that
+## signal's doc comment on Unit for why: animation/VFX need to react to
+## "this is happening" immediately (to start a swing, launch a
+## projectile), not wait for the final outcome. If ability.waits_for_impact
+## is set, effects don't actually apply until Unit.notify_impact() fires
+## (or a timeout elapses) AFTER a confirmed hit — see
+## _wait_for_impact_or_timeout. ability_used (the final result, same
+## signal as always) only fires once effects have actually resolved,
+## which may now be meaningfully later than when this method was called.
 func use_ability(ability: Ability, target) -> Dictionary:
 	var result := {
 		"attacker": _owner,
@@ -104,6 +114,8 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if ability.uses_attack_action:
 		_owner.has_attacked = true
 
+	_owner.ability_use_started.emit(_owner, target, ability)
+
 	# Face the target the instant the action is confirmed to happen, not
 	# gradually — this is what gives CombatAI-driven attacks correct
 	# facing too (AI never goes through mouse-hover aiming at all), and
@@ -131,6 +143,11 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 	result["hit"] = true
 
+	if ability.waits_for_impact:
+		_owner.begin_busy()
+		await _wait_for_impact_or_timeout(ability.impact_timeout)
+		_owner.end_busy()
+
 	var effect_results: Array = []
 	var total_damage: int = 0
 	for effect in ability.effects:
@@ -149,6 +166,37 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 	_owner.ability_used.emit(_owner, target, result)
 	return result
+
+
+## Awaits Unit.impact_triggered, or `timeout` seconds, whichever comes
+## first. The timeout exists so an ability with waits_for_impact set,
+## but whose animation/VFX ISN'T actually wired up to call
+## notify_impact(), doesn't hang the whole turn forever — it just
+## resolves a little late instead, a far safer failure mode than a
+## stuck game. Polls once per frame rather than trying to build a true
+## signal "race" — simpler to reason about, and the cost is negligible
+## given timeouts here are measured in single-digit seconds at most.
+##
+## `done` is wrapped in a single-element Array rather than a bare bool —
+## GDScript lambda closures capture local PRIMITIVE variables (bool,
+## int, ...) BY VALUE, not by reference, so `done = true` inside the
+## lambda would silently mutate a private copy scoped to the lambda
+## itself, never the polling loop's own variable below, even though the
+## lambda executes correctly and the assignment "succeeds." Arrays are a
+## reference type — the lambda and the loop both hold a reference to the
+## SAME array object, so mutating its contents (not reassigning the
+## variable) actually propagates. This was a real, confirmed bug (found
+## via diagnostic prints — both finish() calls fired exactly as
+## expected, but the loop never saw it), not a hypothetical one.
+func _wait_for_impact_or_timeout(timeout: float) -> void:
+	var done := [false]
+	var finish := func(): done[0] = true
+
+	_owner.impact_triggered.connect(finish, CONNECT_ONE_SHOT)
+	_owner.get_tree().create_timer(timeout).timeout.connect(finish, CONNECT_ONE_SHOT)
+
+	while not done[0]:
+		await _owner.get_tree().process_frame
 
 
 ## Describes an ability's target for log messages — a Unit gets its

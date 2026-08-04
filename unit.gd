@@ -112,12 +112,31 @@ signal hover_ended(unit: Unit)
 signal selected(unit: Unit)
 signal deselected(unit: Unit)
 
+## Fires the INSTANT an ability use is confirmed to happen (past all
+## rejection checks — busy, already-acted, out of range), BEFORE to-hit
+## is even rolled. This is what animation/VFX should react to for
+## STARTING to play (a swing animation, a projectile launching) — they
+## shouldn't wait for the final outcome, since a projectile needs to
+## fly before anyone knows whether it'll be ruled a hit. Distinct from
+## ability_used (below), which still carries the final result but may
+## now fire meaningfully later — see waits_for_impact.
+signal ability_use_started(attacker: Unit, target, ability: Ability)
+
 ## result dict shape: { in_range, already_acted, hit, damage, to_hit,
 ## effects, ability }. target is typed loosely (not Unit) since some
 ## abilities target a point instead of a unit — see GroundPointTargeting.
 signal ability_used(attacker: Unit, target, result: Dictionary)
 signal took_damage(unit: Unit, amount: int)
 signal died(unit: Unit)
+
+## Fired by an attack animation's Call Method Track (at the frame a
+## weapon actually connects) or a VFX sequence's ImpactSignalStep
+## (typically right after a projectile arrives) — the signal
+## UnitCombat.use_ability() waits on before applying an ability's
+## effects, when that ability has waits_for_impact set. See
+## notify_impact() below, which is what animation tracks/VFX steps
+## should actually call.
+signal impact_triggered()
 
 signal movement_started(unit: Unit)
 signal movement_finished(unit: Unit)
@@ -452,8 +471,15 @@ func default_ability() -> Ability:
 	return _combat.default_ability()
 
 
+## Also a coroutine now, same as UnitCombat.use_ability() — it has to
+## be, to correctly propagate that method's own return value rather
+## than returning whatever a coroutine call yields when not awaited.
+## Every existing caller (click routing, CombatAI) already calls this
+## fire-and-forget, never touching the return value, so none of them
+## needed to change — only this forwarding line, which specifically
+## tries to hand that value back to ITS OWN caller, did.
 func use_ability(ability: Ability, target) -> Dictionary:
-	return _combat.use_ability(ability, target)
+	return await _combat.use_ability(ability, target)
 
 
 func take_damage(amount: int) -> void:
@@ -466,6 +492,15 @@ func take_damage(amount: int) -> void:
 ## notify_movement_idle_check().
 func notify_status_of_damage(amount: int) -> void:
 	_status_manager.notify_damage_taken(amount)
+
+
+## Called by an attack animation's Call Method Track or a VFX sequence's
+## ImpactSignalStep — see impact_triggered's doc comment for the full
+## explanation. Public and directly callable (not routed through a
+## component) since the callers here are external to Unit entirely
+## (an AnimationPlayer track, a VfxStep), not another owned component.
+func notify_impact() -> void:
+	impact_triggered.emit()
 
 
 ## Strips a dead unit out of every system that would otherwise keep

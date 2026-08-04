@@ -492,6 +492,7 @@ mesh = SubResource("SphereMesh_awqfb")
 [node name="Smoke" type="GPUParticles3D" parent="."]
 layers = 540672
 material_override = ExtResource("2_plj08")
+emitting = false
 amount = 16
 lifetime = 0.8
 one_shot = true
@@ -502,6 +503,7 @@ draw_pass_1 = SubResource("SphereMesh_plj08")
 [node name="Sparks" type="GPUParticles3D" parent="."]
 layers = 540672
 material_override = SubResource("ShaderMaterial_msnhc")
+emitting = false
 amount = 16
 lifetime = 0.5
 one_shot = true

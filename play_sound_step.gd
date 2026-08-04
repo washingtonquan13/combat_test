@@ -12,7 +12,7 @@ enum At { CASTER, TARGET }
 @export var at: At = At.TARGET
 
 
-func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null) -> void:
+func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _caster: Unit = null) -> void:
 	if not stream:
 		return
 

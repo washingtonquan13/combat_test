@@ -579,8 +579,6 @@ _data = {
 
 [node name="VFXImpact_03" type="Node3D"]
 script = ExtResource("1_b0uon")
-preview = false
-one_shot = true
 primary_color = Color(1, 0.780392, 0.231373, 1)
 secondary_color = Color(0.960784, 0.388235, 0.176471, 1)
 
