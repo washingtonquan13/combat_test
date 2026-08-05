@@ -1,9 +1,13 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=26 format=3 uid="uid://dh51y4swh78rh"]
+[gd_resource type="Resource" script_class="Ability" load_steps=40 format=3 uid="uid://dh51y4swh78rh"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_res1m"]
+[ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://sfx_layer.gd" id="1_tsbd3"]
+[ext_resource type="AudioStream" uid="uid://0ixtvquyqpm4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_CAST_01.wav" id="2_ldoga"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_nideg"]
+[ext_resource type="AudioStream" uid="uid://b0g8oi0unsi83" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_HOLD_4s.wav" id="2_xtw6w"]
 [ext_resource type="Script" uid="uid://dley113smhdn3" path="res://area_damage_effect.gd" id="2_y8mr0"]
 [ext_resource type="Texture2D" uid="uid://bcmxnrpmk4ii7" path="res://assets/ability_icon/fireball_icon.png" id="3_dbc05"]
+[ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://sfx_cue.gd" id="3_mme6j"]
 [ext_resource type="Script" uid="uid://b31m1uvps4rb" path="res://area_apply_status_effect.gd" id="3_ycrns"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="4_846f3"]
 [ext_resource type="Script" uid="uid://bhfvvo8gbkewp" path="res://area_targeting.gd" id="5_r5ii0"]
@@ -16,6 +20,35 @@
 [ext_resource type="PackedScene" uid="uid://2eq2j53sic1i" path="res://vfx/BinbunVFX/impact_explosions/effects/impact/vfx_impact_04.tscn" id="12_gy3xg"]
 [ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://impact_signal_step.gd" id="12_nhug0"]
 [ext_resource type="Script" uid="uid://dcgjthqwkn30" path="res://spawn_particle_step.gd" id="12_woc63"]
+[ext_resource type="AudioStream" uid="uid://btymytoka47j5" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_IMPACT_01.wav" id="16_y636c"]
+[ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="18_a73or"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://ability_timing.gd" id="22_tsbd3"]
+
+[sub_resource type="Resource" id="Resource_iownq"]
+script = ExtResource("1_tsbd3")
+stream = ExtResource("2_ldoga")
+delay = 0.0
+volume_db = 0.0
+pitch_scale = 1.0
+metadata/_custom_type_script = "uid://ctxyvb7k718wy"
+
+[sub_resource type="Resource" id="Resource_cb6pu"]
+script = ExtResource("3_mme6j")
+layers = Array[ExtResource("1_tsbd3")]([SubResource("Resource_iownq")])
+metadata/_custom_type_script = "uid://bb7l26qye5i03"
+
+[sub_resource type="Resource" id="Resource_ypxel"]
+script = ExtResource("1_tsbd3")
+stream = ExtResource("18_a73or")
+delay = 0.0
+volume_db = 0.0
+pitch_scale = 1.0
+metadata/_custom_type_script = "uid://ctxyvb7k718wy"
+
+[sub_resource type="Resource" id="Resource_xy1i2"]
+script = ExtResource("3_mme6j")
+layers = Array[ExtResource("1_tsbd3")]([SubResource("Resource_ypxel")])
+metadata/_custom_type_script = "uid://bb7l26qye5i03"
 
 [sub_resource type="Resource" id="Resource_l62op"]
 script = ExtResource("2_y8mr0")
@@ -88,6 +121,26 @@ los_obstruction_mask = 1
 eye_height = 1.5
 metadata/_custom_type_script = "uid://bhfvvo8gbkewp"
 
+[sub_resource type="Resource" id="Resource_ldoga"]
+script = ExtResource("1_tsbd3")
+stream = ExtResource("16_y636c")
+delay = 0.0
+volume_db = 0.0
+pitch_scale = 1.0
+metadata/_custom_type_script = "uid://ctxyvb7k718wy"
+
+[sub_resource type="Resource" id="Resource_mme6j"]
+script = ExtResource("3_mme6j")
+layers = Array[ExtResource("1_tsbd3")]([SubResource("Resource_ldoga")])
+metadata/_custom_type_script = "uid://bb7l26qye5i03"
+
+[sub_resource type="Resource" id="Resource_k4g3k"]
+script = ExtResource("22_tsbd3")
+waits_for_impact = true
+impact_timeout = 3.0
+impact_sfx = SubResource("Resource_mme6j")
+metadata/_custom_type_script = "uid://bjatij1rn26yg"
+
 [resource]
 script = ExtResource("2_nideg")
 ability_name = "Explosive Fireball"
@@ -96,7 +149,9 @@ targeting = SubResource("Resource_ycrns")
 effects = Array[ExtResource("1_res1m")]([SubResource("Resource_l62op"), SubResource("Resource_kjwuy")])
 requires_to_hit = false
 uses_attack_action = true
-waits_for_impact = true
-impact_timeout = 3.0
+timing = SubResource("Resource_k4g3k")
 impact_vfx = SubResource("Resource_xtw6w")
+armed_enter_sfx = SubResource("Resource_cb6pu")
+armed_hold_sfx = ExtResource("2_xtw6w")
+cast_sfx = SubResource("Resource_xy1i2")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"
