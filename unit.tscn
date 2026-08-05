@@ -70,6 +70,7 @@ height = 0.001
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_74e6i"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_5wnup"]
+radius = 0.25
 
 [sub_resource type="Animation" id="Animation_21vk2"]
 resource_name = "A_TPose"
@@ -17803,6 +17804,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CapsuleShape3D_5wnup")
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
+height = 2.0
+radius = 0.25
 
 [node name="NavigationObstacle3D" type="NavigationObstacle3D" parent="."]
 radius = 0.5
