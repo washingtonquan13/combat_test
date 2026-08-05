@@ -18,6 +18,15 @@ extends HBoxContainer
 ## changed it.
 
 @export var portrait_scene: PackedScene
+## The row's own target width cap — as combatants are added beyond what
+## fits at each portrait's authored size, every portrait shrinks UNIFORMLY
+## (both axes by the same factor, see initiative_portrait.gd's
+## set_fit_scale/_fit_scale) so the whole row still fits within this
+## width instead of running off-screen for a large combat, without ever
+## distorting an individual portrait's aspect ratio. Never scales UP past
+## 1.0 — a small combat still shows portraits at their normal authored
+## size, this only ever shrinks to make room.
+@export var max_total_width: float = 800.0
 
 var _slots: Dictionary = {}  # Unit -> Control (the instanced portrait)
 
@@ -61,6 +70,8 @@ func _add_slot(unit: Unit) -> void:
 	if not unit.died.is_connected(_on_unit_died):
 		unit.died.connect(_on_unit_died)
 
+	_update_fit_scale()
+
 
 ## Removes the slot the instant its unit dies, rather than waiting for
 ## the next turn boundary — CombatManager doesn't actually filter a dead
@@ -75,6 +86,37 @@ func _on_unit_died(unit: Unit) -> void:
 	if is_instance_valid(slot):
 		slot.queue_free()
 	_slots.erase(unit)
+	_update_fit_scale()
+
+
+## Computes one shared scale factor from however many portraits are
+## currently in the row and applies it to all of them — a single number
+## for the whole row rather than per-portrait, since they need to shrink
+## TOGETHER to stay the same size as each other, not independently.
+## Accounts for HBoxContainer's own inter-child separation, not just raw
+## portrait width, so max_total_width is actually respected rather than
+## slightly overshot once separation adds up across many combatants.
+func _update_fit_scale() -> void:
+	var count: int = _slots.size()
+	if count == 0:
+		return
+
+	var any_slot: Control = _slots.values()[0]
+	if not is_instance_valid(any_slot):
+		return
+
+	var base_width: float = any_slot.get_base_min_size().x
+	if base_width <= 0.0:
+		return
+
+	var separation: float = get_theme_constant("separation")
+	var natural_total_width: float = base_width * count + separation * max(count - 1, 0)
+	var scale: float = min(1.0, max_total_width / natural_total_width)
+
+	for unit in _slots:
+		var slot: Control = _slots[unit]
+		if is_instance_valid(slot):
+			slot.set_fit_scale(scale)
 
 
 func _sync_order() -> void:
