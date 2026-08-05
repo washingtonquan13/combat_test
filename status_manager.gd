@@ -7,6 +7,17 @@ extends RefCounted
 ## PathAvoidance being a separate file for movement's own subsystem
 ## rather than that logic living directly in unit.gd.
 
+## Relayed by Unit as status_applied/status_removed/status_ticked (see
+## Unit._ready) — same forwarding convention as UnitActionState.became_idle
+## and UnitSelection's four signals, not fired directly by anything
+## outside this file. unit_vfx.gd/unit_sfx.gd connect to Unit's relayed
+## versions to play StatusEffect.apply_vfx/tick_vfx/remove_vfx and
+## apply_sfx/tick_sfx/remove_sfx — this class has no VFX/SFX knowledge of
+## its own, same separation as everywhere else in the project.
+signal status_applied(effect: StatusEffect, active_status: ActiveStatus)
+signal status_removed(effect: StatusEffect)
+signal status_ticked(effect: StatusEffect, active_status: ActiveStatus)
+
 var _owner: Unit
 var active: Array[ActiveStatus] = []
 
@@ -34,6 +45,7 @@ func apply(effect: StatusEffect) -> void:
 	active.append(new_active)
 	for behavior in effect.behaviors:
 		behavior.on_apply(_owner, new_active)
+	status_applied.emit(effect, new_active)
 
 
 func remove(effect: StatusEffect) -> void:
@@ -43,6 +55,7 @@ func remove(effect: StatusEffect) -> void:
 	active.erase(existing)
 	for behavior in effect.behaviors:
 		behavior.on_remove(_owner, existing)
+	status_removed.emit(effect)
 
 
 func has(effect: StatusEffect) -> bool:
@@ -65,6 +78,7 @@ func tick_turn_start() -> void:
 	for a in active.duplicate():
 		for behavior in a.effect.behaviors:
 			behavior.on_turn_start(_owner, a)
+		status_ticked.emit(a.effect, a)
 
 		a.turns_remaining -= 1
 		if a.turns_remaining <= 0:

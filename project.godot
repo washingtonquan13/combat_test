@@ -21,6 +21,7 @@ SelectionManager="*res://selection_manager.gd"
 CombatManager="*res://combat_manager.gd"
 CombatAi="*res://combat_ai.gd"
 AbilityManager="*res://ability_manager.gd"
+SurfaceManager="*res://surface_manager.gd"
 SystemLog="*res://system_log.gd"
 
 [display]

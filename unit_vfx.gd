@@ -44,6 +44,9 @@ func _ready() -> void:
 
 	unit.ability_use_started.connect(_on_ability_use_started)
 	unit.died.connect(_on_died)
+	unit.status_applied.connect(_on_status_applied)
+	unit.status_ticked.connect(_on_status_ticked)
+	unit.status_removed.connect(_on_status_removed)
 
 
 func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
@@ -54,6 +57,22 @@ func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 
 func _on_died(dying_unit: Unit) -> void:
 	_play(default_death_vfx, dying_unit.global_position, dying_unit.global_position)
+
+
+## Status VFX is self-targeted (the affected unit, not a caster/target
+## pair) — from and to are both this unit's own position, and ability/
+## caster are left null since a status tick has no ability context of
+## its own (see StatusEffect's Apply/Tick/Remove FX groups).
+func _on_status_applied(affected_unit: Unit, effect: StatusEffect) -> void:
+	_play(effect.apply_vfx, affected_unit.global_position, affected_unit.global_position)
+
+
+func _on_status_ticked(affected_unit: Unit, effect: StatusEffect) -> void:
+	_play(effect.tick_vfx, affected_unit.global_position, affected_unit.global_position)
+
+
+func _on_status_removed(affected_unit: Unit, effect: StatusEffect) -> void:
+	_play(effect.remove_vfx, affected_unit.global_position, affected_unit.global_position)
 
 
 func _get_target_position(target, attacker: Unit) -> Vector3:

@@ -14,9 +14,23 @@ signal turn_ended(unit: Unit)
 ## every remaining combatant died simultaneously (a mutual wipe) — see
 ## _check_combat_end.
 signal combat_ended(winning_faction: StringName)
+## Fired every time turn_order wraps back to its start — i.e. a full
+## round has completed and a new one is beginning, right before that
+## round's first unit gets turn_started. Nothing in this file consumes
+## this itself; it exists as a checkpoint for anything that needs to age
+## over ROUNDS rather than per-unit turns — SurfaceManager, notably,
+## which ages every Surface's remaining duration here rather than
+## inventing its own scheduler (see surface_manager.gd).
+signal round_started(round_number: int)
 
 var turn_order: Array[Unit] = []
 var in_combat: bool = false
+## Counts full passes through turn_order — 1 for the very first turn of
+## combat, incrementing each time _turn_index wraps back to 0. Not
+## affected by delay_turn() (that only reorders turn_order/moves the
+## delaying unit within the same pass, never touches _turn_index other
+## than the ordinary advance already does).
+var round_number: int = 0
 
 var _turn_index: int = -1
 ## Set while a delay_turn() call is waiting on a busy unit to become
@@ -54,6 +68,7 @@ func start_combat(combatants: Array[Unit]) -> void:
 			unit.died.connect(_on_unit_died)
 
 	_turn_index = -1
+	round_number = 0
 	in_combat = true
 	SystemLog.print("[b]--- Combat started ---[/b]")
 	combat_started.emit(turn_order)
@@ -179,6 +194,10 @@ func _advance_turn() -> void:
 		return
 
 	_turn_index = (_turn_index + 1) % turn_order.size()
+	if _turn_index == 0:
+		round_number += 1
+		round_started.emit(round_number)
+
 	var unit: Unit = current_unit
 	unit.reset_turn_actions()
 	unit.tick_statuses()

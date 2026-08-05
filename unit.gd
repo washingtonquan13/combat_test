@@ -138,6 +138,14 @@ signal died(unit: Unit)
 ## should actually call.
 signal impact_triggered()
 
+## Relayed from _status_manager (see status_manager.gd) — same
+## relay-not-replace convention as the selection signals below. Consumed
+## by unit_vfx.gd/unit_sfx.gd to play StatusEffect's apply/tick/remove
+## VFX/SFX; nothing about Unit itself knows what those look or sound like.
+signal status_applied(unit: Unit, effect: StatusEffect)
+signal status_removed(unit: Unit, effect: StatusEffect)
+signal status_ticked(unit: Unit, effect: StatusEffect)
+
 signal movement_started(unit: Unit)
 signal movement_finished(unit: Unit)
 ## Fired the instant this unit has nothing left in flight — no move in
@@ -199,6 +207,9 @@ func _ready() -> void:
 	_selection.hover_ended.connect(func(): hover_ended.emit(self))
 	_selection.selected.connect(func(): selected.emit(self))
 	_selection.deselected.connect(func(): deselected.emit(self))
+	_status_manager.status_applied.connect(func(effect, _active): status_applied.emit(self, effect))
+	_status_manager.status_removed.connect(func(effect): status_removed.emit(self, effect))
+	_status_manager.status_ticked.connect(func(effect, _active): status_ticked.emit(self, effect))
 	# CollisionObject3D (CharacterBody3D's base) already provides
 	# mouse_entered/mouse_exited/input_event signals once this is on and
 	# Project Settings > Physics > Common > Enable Object Picking is on

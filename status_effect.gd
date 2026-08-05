@@ -22,6 +22,29 @@ enum StackMode {
 
 @export var behaviors: Array[StatusBehavior] = []
 
+@export_group("Apply FX")
+## Optional VFX/SFX played the instant this status is first applied (not
+## replayed on a REFRESH/STACK re-application — mirrors StatusBehavior.
+## on_apply's own scope, see StatusManager.apply). See unit_vfx.gd/
+## unit_sfx.gd, which react to Unit's relayed status_applied signal.
+@export var apply_vfx: VfxEffect
+@export var apply_sfx: SfxCue
+
+@export_group("Tick FX")
+## Optional VFX/SFX played on every on_turn_start tick while active (a
+## DamageOverTimeBehavior's per-turn hit, say) — left unset for statuses
+## with no turn_start behavior at all, or ones that don't need a
+## repeating cue for it.
+@export var tick_vfx: VfxEffect
+@export var tick_sfx: SfxCue
+
+@export_group("Remove FX")
+## Optional VFX/SFX played when this status is removed — expired,
+## cured, or replaced. Not played on stack/refresh, only on an actual
+## StatusManager.remove() call.
+@export var remove_vfx: VfxEffect
+@export var remove_sfx: SfxCue
+
 
 func describe() -> String:
 	var lines: PackedStringArray = [status_name]

@@ -1,14 +1,30 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=15 format=3 uid="uid://polrlhck5ycm"]
+[gd_resource type="Resource" script_class="Ability" load_steps=20 format=3 uid="uid://polrlhck5ycm"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_wcufp"]
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://apply_status_effect.gd" id="2_1vrnf"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_6yrul"]
 [ext_resource type="Texture2D" uid="uid://b1nndgvx3k1yo" path="res://assets/ability_icon/sleep_spell_icon.png" id="3_21ej2"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="3_0585o"]
+[ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://sfx_layer.gd" id="3_ce624"]
 [ext_resource type="Script" uid="uid://c13klrwq84gxl" path="res://incapacitate_behavior.gd" id="4_4i07h"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="4_0585o"]
+[ext_resource type="AudioStream" uid="uid://dhyrec4mjssa7" path="res://assets/audio/sleep_chime.mp3" id="4_lj2hd"]
 [ext_resource type="Script" uid="uid://08b8exry67bf" path="res://remove_on_damage_behavior.gd" id="5_4i07h"]
+[ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://sfx_cue.gd" id="5_isytm"]
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://ranged_enemy_targeting.gd" id="6_4i07h"]
+
+[sub_resource type="Resource" id="Resource_hnt1n"]
+script = ExtResource("3_ce624")
+stream = ExtResource("4_lj2hd")
+delay = 0.0
+volume_db = 0.0
+pitch_scale = 1.0
+metadata/_custom_type_script = "uid://ctxyvb7k718wy"
+
+[sub_resource type="Resource" id="Resource_ehjo2"]
+script = ExtResource("5_isytm")
+layers = Array[ExtResource("3_ce624")]([SubResource("Resource_hnt1n")])
+metadata/_custom_type_script = "uid://bb7l26qye5i03"
 
 [sub_resource type="Resource" id="Resource_lj2hd"]
 script = ExtResource("4_4i07h")
@@ -26,6 +42,7 @@ default_duration = 3
 stack_mode = 0
 max_stacks = 1
 behaviors = Array[ExtResource("3_0585o")]([SubResource("Resource_lj2hd"), SubResource("Resource_isytm")])
+apply_sfx = SubResource("Resource_ehjo2")
 metadata/_custom_type_script = "uid://cplabynayhpiv"
 
 [sub_resource type="Resource" id="Resource_fdn0e"]
@@ -48,6 +65,4 @@ targeting = SubResource("Resource_4i07h")
 effects = Array[ExtResource("1_wcufp")]([SubResource("Resource_fdn0e")])
 requires_to_hit = false
 uses_attack_action = true
-waits_for_impact = false
-impact_timeout = 3.0
 metadata/_custom_type_script = "uid://bpidhds13g0p8"
