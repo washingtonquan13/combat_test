@@ -31,7 +31,7 @@ extends CharacterBody3D
 ## center-to-center) and as the basis for avoidance clearance (see
 ## avoidance_margin below). Set to roughly match the actual collision
 ## shape.
-@export var radius: float = 0.5
+@export var radius: float = 0.25
 ## Extra buffer added on top of radius for planning purposes only — the
 ## physical collision shape stays exactly radius, this just tells the
 ## planning simulation (see PathAvoidance.simulate_path) to route with a
