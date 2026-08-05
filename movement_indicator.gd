@@ -84,36 +84,47 @@ func _update_path_preview(unit: Unit) -> void:
 		_path_mesh.visible = false
 		return
 
-	# The SAME planning call move_to() itself makes — a large budget here
-	# gets the full route to the hover point regardless of move_remaining;
-	# the white/red split below is what shows how far the unit could
-	# actually get this turn. Because this is the literal same
-	# deterministic function with the same obstacle data, this preview
-	# and the real move can never disagree.
-	var path: PackedVector3Array = PathAvoidance.simulate_path(
+	# The SAME planning call move_to() itself makes, right down to the
+	# same cost_sampler (so difficult terrain shortens/reshapes this
+	# preview exactly as much as it will the real move) — a large budget
+	# here gets the full route to the hover point regardless of
+	# move_remaining; the white/red split below is what shows how far
+	# the unit could actually get this turn. Because this is the literal
+	# same deterministic function with the same obstacle data and the
+	# same cost sampling, this preview and the real move can never
+	# disagree.
+	var planned: Dictionary = PathAvoidance.simulate_path(
 		waypoints, unit.move_speed, 9999.0,
-		obstacles.positions, obstacles.radii, clearance, unit.avoidance_margin, unit.arrival_tolerance, map_rid
+		obstacles.positions, obstacles.radii, clearance, unit.avoidance_margin, unit.arrival_tolerance, map_rid,
+		SurfaceManager.movement_cost_multiplier_at
 	)
+	var path: PackedVector3Array = planned.path
 
 	if path.size() < 2:
 		_path_mesh.visible = false
 		return
 
-	_draw_path(path, unit.move_remaining)
+	_draw_path(path, planned.cumulative_cost, unit.move_remaining)
 	_path_mesh.visible = true
 
 
 ## Rebuilds the path line each frame, split into a white segment
-## (cumulative distance <= budget) and a red segment (the rest). The split
-## point is interpolated along whichever path segment crosses the budget
-## boundary, so the color change lands exactly at the true edge of
-## move_remaining rather than snapping to the nearest path vertex.
-func _draw_path(path: PackedVector3Array, budget: float) -> void:
+## (cumulative COST <= budget) and a red segment (the rest) — cost, not
+## raw distance, read straight from simulate_path's own cumulative_cost
+## array rather than re-summing segment lengths here. That matters once
+## difficult terrain is in play: re-deriving cost from geometry alone
+## would silently ignore any multiplier, putting the split in the wrong
+## place. Reading the exact numbers the simulation already produced
+## means this can't disagree with where the real move will actually run
+## out. The split point is interpolated along whichever path segment
+## crosses the budget boundary, so the color change lands exactly at the
+## true edge of move_remaining rather than snapping to the nearest path
+## vertex.
+func _draw_path(path: PackedVector3Array, cumulative_cost: PackedFloat32Array, budget: float) -> void:
 	_path_immediate.clear_surfaces()
 	_path_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
 
 	var lift := Vector3(0, height_offset, 0)
-	var accumulated: float = 0.0
 	var split_done: bool = budget <= 0.0
 
 	_path_immediate.surface_set_color(path_out_of_range_color if split_done else path_in_range_color)
@@ -122,11 +133,11 @@ func _draw_path(path: PackedVector3Array, budget: float) -> void:
 	for i in range(1, path.size()):
 		var segment_start: Vector3 = path[i - 1]
 		var segment_end: Vector3 = path[i]
-		var segment_length: float = segment_start.distance_to(segment_end)
+		var segment_cost: float = cumulative_cost[i] - cumulative_cost[i - 1]
 
-		if not split_done and accumulated + segment_length >= budget:
-			var remaining: float = budget - accumulated
-			var t: float = (remaining / segment_length) if segment_length > 0.0 else 0.0
+		if not split_done and cumulative_cost[i] >= budget:
+			var remaining: float = budget - cumulative_cost[i - 1]
+			var t: float = (remaining / segment_cost) if segment_cost > 0.0 else 0.0
 			var split_point: Vector3 = segment_start.lerp(segment_end, t)
 
 			_path_immediate.surface_set_color(path_in_range_color)
@@ -137,7 +148,6 @@ func _draw_path(path: PackedVector3Array, budget: float) -> void:
 
 			split_done = true
 
-		accumulated += segment_length
 		_path_immediate.surface_set_color(path_out_of_range_color if split_done else path_in_range_color)
 		_path_immediate.surface_add_vertex(segment_end + lift)
 

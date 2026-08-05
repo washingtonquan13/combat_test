@@ -38,12 +38,14 @@ var _last_progress_position: Vector3 = Vector3.ZERO
 ## live while walking; physics_process just follows these fixed points.
 var _current_path: PackedVector3Array = PackedVector3Array()
 var _path_index: int = 0
-## The planned path's exact total length, computed once when the plan is
-## made. Spent as this turn's move budget on a normal completion (see
-## _finish_move) rather than re-measuring distance walked, since a
-## precomputed, deterministically-followed path is authoritative by
-## construction.
-var _planned_distance: float = 0.0
+## The planned path's exact total BUDGET COST — not necessarily its
+## physical length; the two only diverge while crossing difficult
+## terrain (see Surface.movement_cost_multiplier) — computed once when
+## the plan is made. Spent as this turn's move budget on a normal
+## completion (see _finish_move) rather than re-measuring distance
+## walked, since a precomputed, deterministically-followed plan is
+## authoritative by construction.
+var _planned_cost: float = 0.0
 
 
 func _init(owner: Unit) -> void:
@@ -98,17 +100,19 @@ func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bo
 	if waypoints.size() < 2:
 		return false
 
-	var planned_path: PackedVector3Array = PathAvoidance.simulate_path(
+	var planned: Dictionary = PathAvoidance.simulate_path(
 		waypoints, _owner.move_speed, budget,
-		obstacles.positions, obstacles.radii, clearance, _owner.avoidance_margin, _owner.arrival_tolerance, map_rid
+		obstacles.positions, obstacles.radii, clearance, _owner.avoidance_margin, _owner.arrival_tolerance, map_rid,
+		SurfaceManager.movement_cost_multiplier_at
 	)
+	var planned_path: PackedVector3Array = planned.path
 
 	if planned_path.size() < 2:
 		return false
 
 	_current_path = planned_path
 	_path_index = 1
-	_planned_distance = PathAvoidance.path_length(planned_path)
+	_planned_cost = planned.cumulative_cost[-1] if planned.cumulative_cost.size() > 0 else 0.0
 	_move_start_position = _owner.global_position
 	_stuck_timer = 0.0
 	_last_progress_position = _owner.global_position
@@ -187,18 +191,22 @@ func _finish_move() -> void:
 
 	if CombatManager.in_combat:
 		# The plan completed fully (walked every point) → charge its
-		# exact known length, not a re-measurement — that length IS what
-		# was walked, by construction, since nothing deviated from it.
+		# exact known cost, not a re-measurement — that cost IS what was
+		# spent, by construction, since nothing deviated from the plan.
 		# Cut short instead (stuck_timeout, or a manual stop_moving()
-		# mid-route) → fall back to actually-measured displacement, since
-		# in that abnormal case the plan and reality genuinely diverged.
+		# mid-route) → fall back to actually-measured PHYSICAL
+		# displacement, since in that abnormal case the plan and reality
+		# genuinely diverged. That fallback under-charges if the
+		# cut-short portion crossed difficult terrain — same "rare
+		# last-resort path, not the normal case" trade-off as every other
+		# use of stuck_timeout in this file, not worth chasing exactly.
 		var completed_fully: bool = _path_index >= _current_path.size()
-		var traveled: float = _planned_distance if completed_fully else _move_start_position.distance_to(_owner.global_position)
-		_owner.spend_move(traveled)
+		var spent: float = _planned_cost if completed_fully else _move_start_position.distance_to(_owner.global_position)
+		_owner.spend_move(spent)
 
 	_current_path = PackedVector3Array()
 	_path_index = 0
-	_planned_distance = 0.0
+	_planned_cost = 0.0
 	_owner.movement_finished.emit(_owner)
 	# _moving just flipped to false above — is_busy()'s answer may have
 	# changed as a result, but UnitActionState has no way to learn that

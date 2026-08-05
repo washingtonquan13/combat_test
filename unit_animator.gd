@@ -75,6 +75,19 @@ extends Node
 ## jump just landed."
 var _awaiting_jump_land: bool = false
 
+## Whichever StatusEffect currently has this unit visually holding its
+## apply_animation's final frame (see StatusEffect.apply_animation) —
+## null when nothing's holding a pose. A single slot, not a stack:
+## a unit can only physically be in one pose at once, so that's the
+## right model for as long as only one status ever sets apply_animation
+## at a time. If a SECOND held-pose status is ever added and both land
+## on the same unit around the same time, the second is deliberately
+## ignored (see _on_status_applied) rather than clobbering this — losing
+## one status's pose animation is a fine trade against the alternative,
+## which is a unit stuck holding a pose forever with nothing left
+## tracking it to ever play its remove_animation.
+var _held_status_effect: StatusEffect = null
+
 
 func _ready() -> void:
 	if not unit or not animation_player:
@@ -87,16 +100,36 @@ func _ready() -> void:
 	unit.took_damage.connect(_on_took_damage)
 	unit.died.connect(_on_died)
 	unit.became_idle.connect(_on_unit_became_idle)
+	unit.status_applied.connect(_on_status_applied)
+	unit.status_removed.connect(_on_status_removed)
 	animation_player.animation_finished.connect(_on_animation_finished)
 
 	_play(idle_animation)
 
 
+## Starting a NEW move deliberately abandons any pose currently being
+## held (see _held_status_effect) — matches the already-agreed rule that
+## a unit choosing to act while afflicted interrupts the pose rather
+## than it persisting through everything. Clearing here (not just
+## overwriting the clip) is what stops _on_status_removed from later
+## trying to play a recovery animation for a pose the unit already
+## visually got up out of by walking away.
 func _on_movement_started(_u: Unit) -> void:
+	_held_status_effect = null
 	_play(walk_animation)
 
 
+## Does NOT touch idle_animation while a pose is being held — this is
+## the actual fix for "movement breaks the animation": a unit that
+## slips mid-route (see _on_status_applied) is still walking the SAME
+## already-in-flight move when it finishes moments later, and this used
+## to unconditionally stomp the fall pose with Idle right then, well
+## before the status was ever actually removed. Now it just leaves
+## whatever's currently held alone; _on_status_removed is what's
+## actually responsible for transitioning off it.
 func _on_movement_finished(_u: Unit) -> void:
+	if _held_status_effect:
+		return
 	_play(idle_animation)
 
 
@@ -149,7 +182,34 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 
 func _on_died(_u: Unit) -> void:
 	_awaiting_jump_land = false
+	_held_status_effect = null
 	_play(death_animation)
+
+
+## Interrupted by anything else this unit does next (walking, attacking
+## — the same as any other one-shot clip already gets interrupted) since
+## this ruleset's own status behaviors (ProneBehavior, notably) don't
+## prevent acting while afflicted — a unit can absolutely stand up mid-
+## Grease to swing at something. That's a deliberate simplification, not
+## an oversight: it means the pose doesn't automatically resume once
+## they stop moving/attacking again, even if the status is technically
+## still active. Good enough for a cosmetic pose; revisit only if a
+## status's visual needs to survive the unit taking other actions.
+func _on_status_applied(_affected_unit: Unit, effect: StatusEffect) -> void:
+	if effect.apply_animation == "":
+		return
+	if _held_status_effect != null:
+		return  # already holding a different pose — see _held_status_effect's doc comment
+	_held_status_effect = effect
+	_play(effect.apply_animation)
+
+
+func _on_status_removed(_affected_unit: Unit, effect: StatusEffect) -> void:
+	if effect != _held_status_effect:
+		return
+	_held_status_effect = null
+	if effect.remove_animation != "":
+		_play(effect.remove_animation)
 
 
 func _on_unit_became_idle() -> void:
@@ -172,6 +232,13 @@ func _on_spell_channel_done() -> void:
 ## case; forcing it here would visually interrupt an in-progress walk).
 func _on_animation_finished(anim_name: StringName) -> void:
 	if anim_name == death_animation:
+		return
+
+	# Holds on the pose's final frame instead of falling through to idle
+	# below — see _held_status_effect's doc comment. Cleared by
+	# _on_status_removed, which is what actually plays the recovery clip
+	# (StatusEffect.remove_animation) once the status is gone.
+	if _held_status_effect and anim_name == _held_status_effect.apply_animation:
 		return
 
 	if anim_name == jump_start_animation:

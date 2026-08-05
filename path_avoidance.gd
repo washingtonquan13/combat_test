@@ -197,11 +197,11 @@ static func effective_target(
 ## THE PLANNER. Simulates steering_direction forward through a sequence
 ## of navmesh waypoints, in small fixed time steps, entirely ahead of
 ## time — no real unit is touched, nothing here is live. Deterministic:
-## the same waypoints/obstacles/budget always produce the same exact
-## route, which is what makes calling this once (in Unit.move_to, before
-## any movement starts) and walking the fixed result afterward a hard
-## guarantee rather than an approximation — there is no live decision
-## left to diverge from what this returns.
+## the same waypoints/obstacles/budget/cost_sampler always produce the
+## same exact route, which is what makes calling this once (in
+## Unit.move_to, before any movement starts) and walking the fixed
+## result afterward a hard guarantee rather than an approximation —
+## there is no live decision left to diverge from what this returns.
 ##
 ## Each step is snapped back onto the navmesh (nav_map) after moving —
 ## steering_direction only ever reasons about UNITS (obstacle_positions),
@@ -212,14 +212,35 @@ static func effective_target(
 ## corridor wall could push the simulated path straight into that wall,
 ## since nothing in the steering math would ever know it was there.
 ##
-## budget caps total distance — the LAST step is clamped so the returned
-## path's total length never exceeds it, landing the final point at
-## exactly budget distance (not the nearest step boundary), which is what
-## lets move budget be charged by this path's exact known length rather
-## than measured after the fact. Pass a large value (e.g. the indicator
-## does) to get the full route to target regardless of a unit's actual
-## move_remaining, for previewing the whole path with its own budget
-## split drawn separately.
+## budget caps total COST, not total physical distance — those two are
+## only the same number when cost_sampler is unset (or returns 1.0
+## everywhere). cost_sampler, if valid, is called with the CURRENT
+## simulated position once per step and returns a multiplier applied to
+## that step's physical distance before it's charged against budget —
+## see Surface.movement_cost_multiplier/SurfaceManager.
+## movement_cost_multiplier_at for the actual difficult-terrain use of
+## this. Left unset (the default), every step costs exactly its physical
+## distance, same as before this parameter existed. The LAST affordable
+## step is clamped so total cost never exceeds budget, landing the final
+## point at exactly budget cost (not the nearest step boundary) — which
+## is why the return value carries cumulative_cost alongside path rather
+## than callers re-deriving cost from raw geometry — this file used to
+## expose a separate path_length() helper for that, removed once cost
+## stopped being the same number as physical length; recompute from
+## cumulative_cost instead of resurrecting it for a general "physical
+## length" need if one ever comes up. Pass a large budget (e.g. the
+## indicator does) to get the full route to target regardless of a unit's actual
+## move_remaining, for previewing the whole path with its own cost split
+## drawn separately.
+##
+## Returns {"path": PackedVector3Array, "cumulative_cost": PackedFloat32Array}
+## — cumulative_cost[i] is the total cost to reach path[i] from the
+## start (cumulative_cost[0] is always 0.0), parallel to path. Callers
+## that need "how much did this whole plan cost" want
+## cumulative_cost[-1]; callers that need a cost-aware split partway
+## through the path (see movement_indicator.gd) read the array directly
+## rather than re-summing distances themselves, so there's no chance of
+## a re-derivation disagreeing with what was actually simulated.
 static func simulate_path(
 	waypoints: PackedVector3Array,
 	move_speed: float,
@@ -229,15 +250,20 @@ static func simulate_path(
 	clearance: float,
 	influence_padding: float,
 	arrival_tolerance: float,
-	nav_map: RID
-) -> PackedVector3Array:
+	nav_map: RID,
+	cost_sampler: Callable = Callable()
+) -> Dictionary:
 	if waypoints.size() < 2:
-		return waypoints
+		var flat_costs: PackedFloat32Array = PackedFloat32Array()
+		for _i in waypoints.size():
+			flat_costs.append(0.0)
+		return {"path": waypoints, "cumulative_cost": flat_costs}
 
 	const STEP_TIME: float = 0.05
 	const MAX_STEPS: int = 600  # 30 simulated seconds — generous safety cap
 
 	var path: PackedVector3Array = PackedVector3Array([waypoints[0]])
+	var cumulative_cost: PackedFloat32Array = PackedFloat32Array([0.0])
 	var position: Vector3 = waypoints[0]
 	var waypoint_index: int = 1
 	var traveled: float = 0.0
@@ -256,7 +282,13 @@ static func simulate_path(
 		if dir == Vector3.ZERO:
 			break
 
-		var move_dist: float = min(step_dist, budget - traveled)
+		# Guarded away from 0 — a stray 0 multiplier would make
+		# max_affordable (and therefore move_dist) infinite/undefined.
+		var multiplier: float = cost_sampler.call(position) if cost_sampler.is_valid() else 1.0
+		multiplier = max(multiplier, 0.001)
+
+		var max_affordable: float = (budget - traveled) / multiplier
+		var move_dist: float = min(step_dist, max_affordable)
 		var tentative: Vector3 = position + dir * move_dist
 
 		# See doc comment above — this is what keeps unit-avoidance from
@@ -265,17 +297,8 @@ static func simulate_path(
 		var actual_dist: float = position.distance_to(snapped)
 
 		position = snapped
-		traveled += actual_dist
+		traveled += actual_dist * multiplier
 		path.append(position)
+		cumulative_cost.append(traveled)
 
-	return path
-
-
-## Total length of a polyline — used to know a planned path's exact
-## distance up front (for authentic, precise budget spend) without
-## re-measuring anything after the fact.
-static func path_length(path: PackedVector3Array) -> float:
-	var total: float = 0.0
-	for i in range(1, path.size()):
-		total += path[i - 1].distance_to(path[i])
-	return total
+	return {"path": path, "cumulative_cost": cumulative_cost}

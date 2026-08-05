@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dr51e1l3niwh0"]
 
-[ext_resource type="Texture2D" uid="uid://bdx5augumelsm" path="res://assets/grease_surface.png" id="1_jwe1b"]
+[ext_resource type="Texture2D" uid="uid://bqa7rkjt480dn" path="res://assets/grease_surface_circular.png" id="1_jwe1b"]
 
 [node name="Grease" type="Decal"]
 texture_albedo = ExtResource("1_jwe1b")

@@ -25,12 +25,36 @@ extends Resource
 ## its own. -1 means permanent — it never ages out via round tick and has
 ## to be cleared some other way (a future dispel effect, say).
 @export var duration_rounds: int = 3
-## Applied to any unit standing inside the surface at the START of that
-## unit's own turn (see SurfaceManager._on_turn_started) — the same
-## checkpoint StatusManager.tick_turn_start() already runs at, just
-## checked from the surface's side instead of the unit's. Left unset, the
-## surface exists visually but does nothing mechanically.
+## Vertical extent (meters) of the Area3D collision shape SurfaceManager
+## builds for this surface (see SurfaceManager.spawn) — centered so it
+## reaches from ground level up to this height, tall enough to reliably
+## overlap a unit's own collision shape regardless of minor ground
+## unevenness. Purely a detection volume, not a visual — has nothing to
+## do with ambient_scene's own size.
+@export var detection_height: float = 2.0
+## Applied to a unit the MOMENT it physically enters the surface's Area3D
+## (see SurfaceManager.spawn/_on_body_entered) — punishes the actual
+## movement decision, mid-turn, rather than waiting for a turn boundary —
+## and again at the START of any turn a unit is still standing inside it
+## (see SurfaceManager._on_turn_started), which is what keeps it applied
+## turn after turn for someone who just stands there without triggering
+## a fresh entry event. Left unset, the surface exists visually but does
+## nothing mechanically.
 @export var status_effect: StatusEffect
+
+@export_group("Movement")
+## Multiplies the BUDGET cost (not the visual walking speed) of
+## physically crossing this surface — 2.0 means every meter walked
+## through it costs 2 meters of move_remaining, the standard "difficult
+## terrain" rule most tactics games use. 1.0 (the default) means no
+## effect at all. Read via SurfaceManager.movement_cost_multiplier_at,
+## which PathAvoidance.simulate_path samples DURING route planning
+## itself (see that function's cost_sampler param) — baked into the plan
+## up front rather than applied separately during the real walk, which
+## is what guarantees the movement preview and the actual move can never
+## disagree about it (see path_avoidance.gd's own header for why that
+## guarantee matters generally).
+@export var movement_cost_multiplier: float = 1.0
 
 @export_group("Visual")
 ## Persistent looping visual instantiated once when the surface spawns

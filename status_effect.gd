@@ -38,6 +38,25 @@ enum StackMode {
 @export var tick_vfx: VfxEffect
 @export var tick_sfx: SfxCue
 
+@export_group("Animation")
+## Optional clip played the instant this status is first applied (same
+## first-application-only scope as apply_vfx/apply_sfx — not replayed on
+## a REFRESH/STACK re-application) — a plain clip name, not a composable
+## resource like VfxEffect/SfxCue, matching how every OTHER animation in
+## this project already works (see unit_animator.gd's Clip Names group).
+## Meant for a status with a genuinely distinct POSE, not just a
+## reaction flourish — see remove_animation below for why the two are a
+## pair, not independent fields.
+@export var apply_animation: String = ""
+## Optional clip played when this status is actually removed (expired,
+## cured, replaced) IF apply_animation ever played and is still being
+## held — see unit_animator.gd's _held_status_effect. Left unset, a
+## status with apply_animation set just holds on that clip's final frame
+## indefinitely once removed, which is very likely not what you want; if
+## you set apply_animation for a real pose (lying down, frozen, ...) you
+## almost always want a matching remove_animation (a recovery clip) too.
+@export var remove_animation: String = ""
+
 @export_group("Remove FX")
 ## Optional VFX/SFX played when this status is removed — expired,
 ## cured, or replaced. Not played on stack/refresh, only on an actual

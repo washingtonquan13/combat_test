@@ -15,6 +15,11 @@ var rounds_remaining: int
 ## (see SurfaceManager.spawn) — freed when the surface expires. Null if
 ## surface.ambient_scene was left unassigned.
 var visual_node: Node3D
+## The Area3D SurfaceManager builds for this placement to detect units
+## physically entering it (see SurfaceManager.spawn) — freed alongside
+## visual_node when the surface expires. Always present, unlike
+## visual_node, since detection doesn't depend on an optional field.
+var area: Area3D
 
 
 func _init(p_surface: Surface, p_position: Vector3, p_radius: float, p_rounds_remaining: int) -> void:
