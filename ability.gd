@@ -58,7 +58,25 @@ extends Resource
 ## sequence can express both (and a projectile, and timing between
 ## them) without needing separate fields for each kind of thing that
 ## might play.
+##
+## Launch and impact SFX belong INSIDE this sequence, as PlaySoundStep
+## entries — a launch sound early in steps, an impact sound right after
+## an ImpactSignalStep — not in any separate SFX system. They're already
+## correctly synced by virtue of being awaited in sequence along with
+## everything else; a parallel SFX mechanism for the same two moments
+## would just be a second, competing source of truth for timing that's
+## already solved here.
 @export var impact_vfx: VfxEffect
+
+@export_group("Armed Stance SFX")
+## Optional per-ability overrides for the sound played the instant this
+## ability becomes armed, and the sound looped for as long as it STAYS
+## armed (waiting for the player to pick a target) — see unit_sfx.gd,
+## which owns these two specific moments and nothing else (launch/impact
+## stay in impact_vfx above). Left unset, unit_sfx.gd falls back to its
+## own generic defaults.
+@export var armed_enter_sfx: AudioStream
+@export var armed_hold_sfx: AudioStream
 
 
 ## Whether target is a legal target for this ability from attacker's

@@ -28,6 +28,20 @@ extends VfxStep
 ## (the "AnimationPlayer" child name, the "play"/"one_shot" duck-typed
 ## interface) — reasonable for scenes built with it, not a universal
 ## guarantee for arbitrary future VFX.
+##
+## IMPORTANT: play() spawns the instance and returns IMMEDIATELY — it
+## does NOT wait for the effect to actually finish before letting the
+## SEQUENCE continue to whatever step comes next (a PlaySoundStep, say).
+## Cleanup (freeing the instance once it's actually done) runs as an
+## independent background task instead. An earlier version of this file
+## incorrectly awaited that cleanup INSIDE play() itself — which fixed
+## effects looping forever, but as a side effect also blocked the next
+## step in the sequence from starting until the ENTIRE particle effect
+## had finished playing, seconds later. A PlaySoundStep placed after
+## this one would then fire long after the actual impact moment, not at
+## it — "when should this instance be freed" and "when should the next
+## step start" are two different questions; they'd been incorrectly
+## tied to the same answer.
 
 enum At { CASTER, TARGET }
 
@@ -73,8 +87,14 @@ func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null, _c
 			var height_factor: float = 1.0 + (radius_factor - 1.0) * height_scale_factor
 			instance.scale = Vector3(radius_factor, height_factor, radius_factor)
 
-	await _wait_for_completion(instance)
+	# Deliberately NOT awaited — this is what lets play() return right
+	# away instead of blocking the sequence. Cleanup happens on its own
+	# schedule, independent of whatever step comes next.
+	_cleanup_when_done(instance)
 
+
+func _cleanup_when_done(instance: Node) -> void:
+	await _wait_for_completion(instance)
 	if is_instance_valid(instance):
 		instance.queue_free()
 
