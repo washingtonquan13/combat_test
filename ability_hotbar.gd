@@ -1,11 +1,14 @@
-extends HBoxContainer
+extends GridContainer
 ## Ability hotbar — shows the current turn's abilities (if it's a
 ## player-controlled unit's turn) and lets the player click one to "arm"
 ## it via AbilityManager, for their next click-to-target (see
 ## Unit._on_input_event). Hidden during the AI's turns and outside of
 ## combat, same visibility rule as movement_indicator.gd.
 ##
-## Scene setup: attach to an HBoxContainer. Assign slot_scene to the
+## Scene setup: attach to a GridContainer (set its `columns` in the
+## Inspector — a plain HBoxContainer stopped being enough once the
+## ability list grew past what fits in one row; wraps into additional
+## rows instead of running off-screen). Assign slot_scene to the
 ## HotbarSlot scene (hotbar_slot.gd).
 ##
 ## Disarms at the start of every turn — clicking an enemy with nothing
@@ -74,7 +77,16 @@ func _rebuild(unit: Unit) -> void:
 	_update_slot_states()
 
 
+## A self-targeting ability (see AbilityTargeting.resolves_immediately)
+## fires immediately on press rather than arming — there's no further
+## input to wait for, the target is already known. Every other ability
+## keeps the existing arm/disarm toggle, waiting for Unit._on_input_event
+## or ground_click_target.gd to actually supply a target.
 func _on_slot_pressed(ability: Ability) -> void:
+	if ability.targeting and ability.targeting.resolves_immediately():
+		_current_unit.use_ability(ability, _current_unit)
+		return
+
 	if AbilityManager.armed_ability == ability:
 		AbilityManager.disarm()
 	else:

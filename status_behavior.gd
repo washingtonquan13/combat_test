@@ -57,6 +57,17 @@ func modify_incoming_attack_to_hit(_defender: Unit, _attacker: Unit, _ability: A
 	return 0
 
 
+## The Bless/outgoing-side counterpart to modify_incoming_attack_to_hit
+## above — a flat modifier to an OUTGOING attack's to-hit target number,
+## from the perspective of the unit this status is attached to being the
+## ATTACKER. Same roll-under convention: a positive modifier helps the
+## unit carrying this status land their OWN attacks; summed across every
+## active status on the ATTACKER for a given attack (see
+## StatusManager.outgoing_attack_to_hit_modifier).
+func modify_outgoing_attack_to_hit(_attacker: Unit, _target, _ability: Ability) -> int:
+	return 0
+
+
 ## Human-readable summary for tooltips. Override in each subclass.
 func describe() -> String:
 	return ""

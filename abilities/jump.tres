@@ -16,6 +16,7 @@ metadata/_custom_type_script = "uid://deawu000jynxq"
 script = ExtResource("5_cxc1v")
 max_range = 6.0
 navmesh_tolerance = 0.5
+requires_ally = false
 metadata/_custom_type_script = "uid://drd20fn8tucu"
 
 [resource]

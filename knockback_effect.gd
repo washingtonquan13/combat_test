@@ -1,0 +1,66 @@
+class_name KnockbackEffect
+extends AbilityEffect
+## Pushes the TARGET directly away from the caster along the straight
+## line between them, by a fixed distance — same direct global_position
+## Tween approach MoveCasterEffect uses for Jump (see that file), just
+## applied to target instead of attacker, with no arc (a shove stays on
+## the ground, it doesn't launch into the air).
+##
+## Deliberately bypasses move_and_slide() and PathAvoidance the same way
+## Jump does — a shove isn't a walk order, it shouldn't path around
+## obstacles or ask permission. The one thing it DOES respect is the
+## navmesh itself: the destination is snapped onto walkable ground so a
+## knockback can't shove a unit through a wall or off into the void.
+## Does NOT check for another unit already standing at the landing spot
+## (no pileup/collision resolution) — an intentional simplification, not
+## an oversight; revisit if stacking knockbacks into a wall of allies
+## becomes a real tactic worth modeling.
+##
+## Doesn't touch anyone's move_remaining — being shoved isn't the
+## target's own movement choice, so it costs neither the caster's nor
+## the target's turn budget. Still triggers ordinary physics overlap
+## (Area3D.body_entered/exited) same as any other movement, since that's
+## driven by the physics engine noticing the collision shape moved, not
+## by HOW it moved — knocking someone into Grease works correctly for
+## free, no special-casing needed here.
+
+@export var distance: float = 3.0
+@export var push_duration: float = 0.25
+
+
+func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
+	if not target is Unit:
+		return {}
+
+	var from: Vector3 = attacker.global_position
+	var to: Vector3 = target.global_position
+	var offset: Vector3 = to - from
+	offset.y = 0.0
+	if offset.length() < 0.001:
+		return {}
+
+	var direction: Vector3 = offset.normalized()
+	var raw_destination: Vector3 = to + direction * distance
+
+	var map_rid: RID = target.nav_agent.get_navigation_map()
+	var destination: Vector3 = NavigationServer3D.map_get_closest_point(map_rid, raw_destination)
+	var actual_distance: float = to.distance_to(destination)
+
+	_animate_push(target, destination)
+
+	return {"knockback_distance": actual_distance}
+
+
+func _animate_push(target: Unit, destination: Vector3) -> void:
+	var start: Vector3 = target.global_position
+	target.begin_busy()
+	var tween: Tween = target.create_tween()
+	tween.tween_method(
+		func(t: float): target.global_position = start.lerp(destination, t),
+		0.0, 1.0, push_duration
+	)
+	tween.finished.connect(target.end_busy)
+
+
+func describe() -> String:
+	return "Knockback %.1fm" % distance

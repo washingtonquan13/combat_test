@@ -233,28 +233,39 @@ func _on_mouse_exited() -> void:
 	_selection.on_mouse_exited()
 
 
-## During combat, left-clicking an enemy unit while your own unit is both
+## During combat, left-clicking a unit while your own unit is both
 ## selected and the acting unit (CombatManager.current_unit) uses an
 ## ability against it instead of selecting it — whichever ability is
 ## currently armed via AbilityManager, or the acting unit's
 ## default_ability() if nothing's explicitly armed (keeps click-to-attack
-## working before a hotbar exists to choose between abilities). Every
-## other click falls through to normal selection — which is a safe no-op
-## for non-player units regardless, since SelectionManager itself refuses
-## anything that isn't is_player_controlled(). Clicking an enemy outside
-## of a valid attack context does nothing, exactly as intended.
+## working before a hotbar exists to choose between abilities).
+##
+## Which clicks count depends on that ability's own targeting: an
+## ordinary (non-ally) ability only fires on a HOSTILE click, same as
+## always; one with AbilityTargeting.requires_ally set (a heal, a buff)
+## only fires on a click on the SAME faction instead — see
+## AbilityTargeting.requires_ally_target's doc comment for why this is a
+## flag there rather than a separate targeting subclass. Resolving
+## `ability` before checking hostility (rather than after, like before
+## this) is what makes that possible — the routing decision now depends
+## on which ability would actually be used, not a fixed rule.
+##
+## Every other click falls through to normal selection — which is a safe
+## no-op for non-player units regardless, since SelectionManager itself
+## refuses anything that isn't is_player_controlled().
 func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
 	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 
 	if CombatManager.in_combat:
 		var acting_unit: Unit = CombatManager.current_unit
-		if acting_unit and acting_unit != self and acting_unit.is_hostile_to(self) \
-				and acting_unit in SelectionManager.selected_units:
+		if acting_unit and acting_unit != self and acting_unit in SelectionManager.selected_units:
 			var ability: Ability = AbilityManager.armed_ability if AbilityManager.armed_ability else acting_unit.default_ability()
-			if ability:
+			var wants_ally: bool = ability and ability.targeting and ability.targeting.requires_ally_target()
+			var hostile: bool = acting_unit.is_hostile_to(self)
+			if ability and (wants_ally != hostile):
 				acting_unit.use_ability(ability, self)
-			return
+				return
 
 	var additive: bool = event.shift_pressed
 	SelectionManager.select(self, additive)
@@ -429,6 +440,13 @@ func can_act() -> bool:
 ## StatusBehavior.modify_incoming_attack_to_hit.
 func incoming_attack_to_hit_modifier(attacker: Unit, ability: Ability) -> int:
 	return _status_manager.incoming_attack_to_hit_modifier(attacker, ability)
+
+
+## Sum of every active status's to-hit modifier to an OUTGOING attack,
+## from this unit being the ATTACKER — see
+## StatusBehavior.modify_outgoing_attack_to_hit.
+func outgoing_attack_to_hit_modifier(target, ability: Ability) -> int:
+	return _status_manager.outgoing_attack_to_hit_modifier(target, ability)
 
 
 ## Whether this unit could cover `distance` this turn without exceeding

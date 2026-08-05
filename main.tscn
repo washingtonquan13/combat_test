@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=48 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -34,6 +34,12 @@
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://abilities/sleep_dart.tres" id="21_a6jrf"]
 [ext_resource type="Texture2D" uid="uid://caua8wslo4n0e" path="res://assets/portraits/tiefling_wizard.jpg" id="21_lswn8"]
 [ext_resource type="Resource" uid="uid://8t1yvopu728x" path="res://abilities/grease.tres" id="29_4k2k6"]
+[ext_resource type="Resource" uid="uid://bmgw6mjv7sps4" path="res://abilities/heal.tres" id="30_heal"]
+[ext_resource type="Resource" uid="uid://c2d5yg20sskb7" path="res://abilities/shield.tres" id="31_shield"]
+[ext_resource type="Resource" uid="uid://xrcp3khftmgl" path="res://abilities/bless.tres" id="32_bless"]
+[ext_resource type="Resource" uid="uid://b6b42e1tuow5" path="res://abilities/weaken.tres" id="33_weaken"]
+[ext_resource type="Resource" uid="uid://c0qppy4xryydr" path="res://abilities/shove.tres" id="34_shove"]
+[ext_resource type="Resource" uid="uid://bk3h1qlytr0eg" path="res://abilities/cure.tres" id="35_cure"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_lquwl"]
 vertices = PackedVector3Array(-9.5, 0.52, -0.75, -4.5, 0.52, -0.75, -4.5, 0.52, -2.75, -2.25, 0.52, -3, -2.25, 0.52, -9.5, -9.5, 0.52, -9.5, 5, 0.52, -6.75, 7.25, 0.52, -7, 7.25, 0.52, -9.5, 4.75, 0.52, -2.75, 5, 0.52, -3, 9.5, 0.52, -9.5, 9.25, 0.52, -6.75, 9.25, 0.52, -3.25, 9.5, 0.52, 1.5, 8.75, 0.52, -2.75, 4.75, 0.52, 1.25, 6, 3.52, -6, 6, 3.52, -4, 8, 3.52, -4, 8, 3.52, -6, 6.25, 0.52, -5.75, 6.25, 0.52, -4, 8, 0.52, -4, 8, 0.52, -5.75, -3.5, 5.52, -2, -3.5, 5.52, 2, 3.5, 5.52, 2, 3.5, 5.52, -2, -3.25, 0.52, -1.75, -3.25, 0.52, 2, 3.5, 0.52, 2, 3.5, 0.52, -1.75, -4.5, 0.52, 3, -3, 0.52, 9.5, -2.75, 0.52, 3.25, -9.5, 0.52, 9.5, 4.75, 0.52, 2.75, 4.25, 0.52, 3.25, 3, 0.52, 9.5, 9.5, 0.52, 9.5, 2.75, 0.52, 3.25)
@@ -106,7 +112,7 @@ grow_horizontal = 2
 script = ExtResource("4_dg77c")
 portrait_scene = ExtResource("4_272bh")
 
-[node name="AbilityHotbar" type="HBoxContainer" parent="CanvasLayer"]
+[node name="AbilityHotbar" type="GridContainer" parent="CanvasLayer"]
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
@@ -118,6 +124,7 @@ offset_right = 20.0
 offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 0
+columns = 6
 script = ExtResource("6_w48qg")
 slot_scene = ExtResource("8_cegan")
 
@@ -294,7 +301,7 @@ dexterity = 18
 intelligence = 16
 move = 27
 move_speed = 5.0
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6")])
+abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("21_lswn8")
 

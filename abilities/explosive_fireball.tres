@@ -121,6 +121,7 @@ radius = 3.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
 eye_height = 1.5
+requires_ally = false
 metadata/_custom_type_script = "uid://bhfvvo8gbkewp"
 
 [sub_resource type="Resource" id="Resource_ldoga"]

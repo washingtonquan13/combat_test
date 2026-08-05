@@ -133,7 +133,11 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		# easy THEY are to hit — summed onto the attacker's own skill
 		# before rolling, so e.g. Prone's melee bonus/ranged penalty
 		# applies regardless of which ability is being used against them.
+		# The ATTACKER's own active statuses (Bless, etc.) modify the
+		# same target number from the other side — see
+		# StatusBehavior.modify_outgoing_attack_to_hit.
 		var to_hit_target: int = attack_skill()
+		to_hit_target += _owner.outgoing_attack_to_hit_modifier(target, ability)
 		if target is Unit:
 			to_hit_target += target.incoming_attack_to_hit_modifier(_owner, ability)
 

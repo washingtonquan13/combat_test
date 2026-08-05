@@ -29,6 +29,14 @@ extends RichTextLabel
 @export var auto_scroll_to_bottom: bool = true
 
 var _scroll_container: ScrollContainer
+var _v_scroll: VScrollBar
+## Whether the view was at the bottom as of the most recent line/rebuild
+## — computed BEFORE that content was applied (see _on_line_logged/
+## _on_log_rebuilt), then acted on later by _on_v_scroll_changed once the
+## scrollbar's range has genuinely caught up. Splitting "decide" from
+## "act" across two events is the actual fix — see that function's doc
+## comment for why a single call_deferred() wasn't reliable.
+var _follow_bottom: bool = false
 
 
 func _ready() -> void:
@@ -42,7 +50,11 @@ func _ready() -> void:
 
 	_scroll_container = get_parent() as ScrollContainer
 	if not _scroll_container:
-		push_warning("combat_log.gd expects its parent to be a ScrollContainer — found %s instead. Auto-scroll-to-bottom will be disabled." % get_parent())
+		push_warning("log.gd expects its parent to be a ScrollContainer — found %s instead. Auto-scroll-to-bottom will be disabled." % get_parent())
+	else:
+		_v_scroll = _scroll_container.get_v_scroll_bar()
+		if _v_scroll:
+			_v_scroll.changed.connect(_on_v_scroll_changed)
 
 	SystemLog.line_logged.connect(_on_line_logged)
 	SystemLog.log_rebuilt.connect(_on_log_rebuilt)
@@ -51,10 +63,8 @@ func _ready() -> void:
 
 
 func _on_line_logged(bbcode_line: String) -> void:
-	var was_at_bottom: bool = _is_scrolled_to_bottom()
+	_follow_bottom = _is_scrolled_to_bottom()
 	append_text(bbcode_line + "\n")
-	if was_at_bottom:
-		_scroll_to_bottom_deferred()
 
 
 ## Called on startup (to catch up) and whenever SystemLog trims its
@@ -62,12 +72,10 @@ func _on_line_logged(bbcode_line: String) -> void:
 ## this display otherwise has no way to "un-append" text that's no
 ## longer in SystemLog.lines.
 func _on_log_rebuilt() -> void:
-	var was_at_bottom: bool = _is_scrolled_to_bottom()
+	_follow_bottom = _is_scrolled_to_bottom()
 	clear()
 	for line in SystemLog.lines:
 		append_text(line + "\n")
-	if was_at_bottom:
-		_scroll_to_bottom_deferred()
 
 
 ## True if there's no meaningful room left to scroll down further — on
@@ -76,27 +84,29 @@ func _on_log_rebuilt() -> void:
 ## opening the log: no prior scroll position to preserve, so it should
 ## just track the bottom from the start.
 func _is_scrolled_to_bottom() -> bool:
-	if not _scroll_container:
+	if not _v_scroll:
 		return false
-	var v_scroll: VScrollBar = _scroll_container.get_v_scroll_bar()
-	if not v_scroll:
-		return false
-	return v_scroll.value + v_scroll.page >= v_scroll.max_value - 1.0
+	return _v_scroll.value + _v_scroll.page >= _v_scroll.max_value - 1.0
 
 
-func _scroll_to_bottom_deferred() -> void:
-	if auto_scroll_to_bottom and _scroll_container:
-		# Deferred, not immediate — append_text/fit_content resizing this
-		# RichTextLabel happens through Godot's layout system, which
-		# hasn't necessarily run yet on the same line this was called
-		# from. Scrolling immediately would use the PREVIOUS (shorter)
-		# content height and land short of the true new bottom.
-		_scroll_to_bottom.call_deferred()
-
-
-func _scroll_to_bottom() -> void:
-	if not _scroll_container:
+## THE actual fix. The old version scrolled via a single call_deferred()
+## right after append_text(), betting that Godot's layout system would
+## have already resized this RichTextLabel (fit_content) AND recomputed
+## the ScrollContainer's scrollbar range by the time that deferred call
+## ran. Both of those go through Godot's own deferred/idle-time layout
+## passes too, with no guaranteed ordering against a plain
+## call_deferred() — so the scroll would sometimes land using the
+## PREVIOUS max_value, one line short of the true bottom, and once
+## that's happened once the drift compounds: _is_scrolled_to_bottom()'s
+## tolerance stops matching, and the view silently stops following
+## entirely.
+##
+## Reacting to VScrollBar.changed instead removes the guesswork — that
+## signal fires specifically when min/max/page actually change (not on
+## ordinary scroll position changes, which fire value_changed instead —
+## see Range's own docs), so this only ever runs once max_value is
+## genuinely authoritative for the content that was just appended.
+func _on_v_scroll_changed() -> void:
+	if not auto_scroll_to_bottom or not _follow_bottom:
 		return
-	var v_scroll: VScrollBar = _scroll_container.get_v_scroll_bar()
-	if v_scroll:
-		_scroll_container.scroll_vertical = int(v_scroll.max_value)
+	_scroll_container.scroll_vertical = int(_v_scroll.max_value)

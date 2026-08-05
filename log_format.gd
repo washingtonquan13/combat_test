@@ -9,6 +9,7 @@ extends RefCounted
 static var player_color: Color = Color(0.4, 0.7, 1.0)
 static var enemy_color: Color = Color(1.0, 0.4, 0.4)
 static var damage_color: Color = Color(1.0, 0.6, 0.2)
+static var heal_color: Color = Color(0.4, 1.0, 0.5)
 
 
 static func unit_name(unit: Unit) -> String:
@@ -23,3 +24,7 @@ static func faction_name(faction: StringName) -> String:
 
 static func damage(amount: int) -> String:
 	return "[color=#%s][b]%d[/b][/color]" % [damage_color.to_html(false), amount]
+
+
+static func heal(amount: int) -> String:
+	return "[color=#%s][b]%d[/b][/color]" % [heal_color.to_html(false), amount]

@@ -113,3 +113,14 @@ func incoming_attack_to_hit_modifier(attacker: Unit, ability: Ability) -> int:
 		for behavior in a.effect.behaviors:
 			total += behavior.modify_incoming_attack_to_hit(_owner, attacker, ability)
 	return total
+
+
+## Sum of every active status's modifier to an OUTGOING attack's to-hit
+## target number, from this unit being the ATTACKER — see
+## StatusBehavior.modify_outgoing_attack_to_hit.
+func outgoing_attack_to_hit_modifier(target, ability: Ability) -> int:
+	var total: int = 0
+	for a in active:
+		for behavior in a.effect.behaviors:
+			total += behavior.modify_outgoing_attack_to_hit(_owner, target, ability)
+	return total
