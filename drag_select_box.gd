@@ -42,20 +42,20 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			_drag_start = event.position
-			_drag_end = event.position
-			_dragging = false
-			_additive = event.shift_pressed
-			_boxed_units.clear()
-		else:
-			if _dragging:
-				_finish_drag()
-			_dragging = false
-			queue_redraw()
+	if event.is_action_pressed("left_click"):
+		_drag_start = event.position
+		_drag_end = event.position
+		_dragging = false
+		_additive = Input.is_action_pressed("select_additive")
+		_boxed_units.clear()
 
-	elif event is InputEventMouseMotion and Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+	elif event.is_action_released("left_click"):
+		if _dragging:
+			_finish_drag()
+		_dragging = false
+		queue_redraw()
+
+	elif event is InputEventMouseMotion and Input.is_action_pressed("left_click"):
 		_drag_end = event.position
 		if not _dragging and _drag_start.distance_to(_drag_end) >= drag_threshold:
 			_dragging = true

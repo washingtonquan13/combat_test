@@ -17,11 +17,15 @@ class_name CRPGCamera
 ##     leash — otherwise every control (Q/E, WASD, scroll, auto-pitch,
 ##     look_at) behaves identically to bound mode.
 ##
-## Controls (identical in both modes):
-##   Q / E         — yaw rotation around the anchor
-##   W A S D       — move the anchor (leashed in bound, free in unbound)
-##   Scroll wheel  — zoom toward/away from the anchor (clamped to
-##                   min_distance/max_distance in both modes)
+## Controls (identical in both modes) — bound to InputMap actions (see
+## project.godot > Input Map, or Project Settings in the editor) rather
+## than hardcoded keys/buttons, so rebinding any of these needs no code
+## changes:
+##   camera_rotate_left / camera_rotate_right (Q / E) — yaw around the anchor
+##   camera_pan_forward/backward/left/right (W A S D) — move the anchor
+##     (leashed in bound, free in unbound)
+##   camera_zoom_in / camera_zoom_out (scroll wheel)  — zoom toward/away
+##     from the anchor (clamped to min_distance/max_distance in both modes)
 ##
 ## Pitch is never controlled directly — it's always derived from zoom
 ## distance via min_pitch/max_pitch, in both modes, exactly like bound
@@ -129,11 +133,8 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton and event.pressed):
-		return
-
-	var scroll_up: bool = event.button_index == MOUSE_BUTTON_WHEEL_UP
-	var scroll_down: bool = event.button_index == MOUSE_BUTTON_WHEEL_DOWN
+	var scroll_up: bool = event.is_action_pressed("camera_zoom_in")
+	var scroll_down: bool = event.is_action_pressed("camera_zoom_out")
 	if not (scroll_up or scroll_down):
 		return
 
@@ -193,9 +194,9 @@ func _handle_rotation_input(delta: float) -> void:
 	# counterclockwise (left) when viewed from above — the opposite of the
 	# usual "E turns right" expectation. Q therefore increases yaw (turn
 	# left) and E decreases it (turn right) to match that expectation.
-	if Input.is_key_pressed(KEY_Q):
+	if Input.is_action_pressed("camera_rotate_left"):
 		target_yaw += rotation_speed * delta
-	if Input.is_key_pressed(KEY_E):
+	if Input.is_action_pressed("camera_rotate_right"):
 		target_yaw -= rotation_speed * delta
 
 
@@ -231,13 +232,13 @@ func _get_flat_facing(yaw_deg: float) -> Array:
 
 func _get_wasd_input() -> Vector2:
 	var input_dir: Vector2 = Vector2.ZERO
-	if Input.is_key_pressed(KEY_W):
+	if Input.is_action_pressed("camera_pan_forward"):
 		input_dir.y -= 1.0
-	if Input.is_key_pressed(KEY_S):
+	if Input.is_action_pressed("camera_pan_backward"):
 		input_dir.y += 1.0
-	if Input.is_key_pressed(KEY_A):
+	if Input.is_action_pressed("camera_pan_left"):
 		input_dir.x -= 1.0
-	if Input.is_key_pressed(KEY_D):
+	if Input.is_action_pressed("camera_pan_right"):
 		input_dir.x += 1.0
 	return input_dir.normalized() if input_dir.length() > 0.0 else input_dir
 

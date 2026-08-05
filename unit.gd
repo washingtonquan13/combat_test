@@ -253,8 +253,18 @@ func _on_mouse_exited() -> void:
 ## Every other click falls through to normal selection — which is a safe
 ## no-op for non-player units regardless, since SelectionManager itself
 ## refuses anything that isn't is_player_controlled().
+##
+## Right-clicking a unit (ally or enemy) while an ability is armed
+## disarms it instead — see ground_click_target.gd's own right-click
+## handler for the ground-click half of the same behavior, and why it's
+## a cancel rather than also issuing a command at the same click.
 func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
-	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
+	if event.is_action_pressed("right_click"):
+		if AbilityManager.armed_ability:
+			AbilityManager.disarm()
+		return
+
+	if not event.is_action_pressed("left_click"):
 		return
 
 	if CombatManager.in_combat:
@@ -267,7 +277,7 @@ func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _norm
 				acting_unit.use_ability(ability, self)
 				return
 
-	var additive: bool = event.shift_pressed
+	var additive: bool = Input.is_action_pressed("select_additive")
 	SelectionManager.select(self, additive)
 
 
