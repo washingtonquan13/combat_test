@@ -1,11 +1,30 @@
 class_name UnitMovement
 extends RefCounted
-## Owns path-following movement for ONE unit — the deterministic
-## plan-then-execute system (see move_to()'s doc comment for the full
-## rationale) where the entire route is simulated once, up front, via
-## PathAvoidance.simulate_path, then walked exactly as planned with no
-## live avoidance decisions. Owned by that Unit (see Unit._movement),
-## same pattern as StatusManager/UnitActionState/UnitFacing/UnitSelection.
+## Owns path-following movement for ONE unit — deterministic
+## plan-then-execute, same as before, but now the ROUTE ITSELF (not a
+## repulsion simulation layered on top of it) is what avoids other
+## units: this unit carries its own NavigationObstacle3D that carves a
+## hole into the baked navmesh, and every other living unit does the
+## same, so NavigationServer3D.map_get_path() simply never returns a
+## route through occupied space in the first place. See
+## navigation_carving.gd for how/when the navmesh actually gets rebaked
+## (once per turn, or once per free-roam move order — NOT continuously),
+## and this file's header history: an earlier version used a custom
+## potential-field steering pass (path_avoidance.gd, still present,
+## intentionally unused, kept as a revert path) to fake unit-avoidance on
+## top of a navmesh that didn't know about units at all; a version after
+## that tried Godot's live NavigationAgent3D RVO avoidance instead, which
+## was also reverted — this is turn-based with only ONE unit ever moving
+## at a time, so there's no reciprocal multi-agent negotiation to do,
+## just one mover against momentarily-static obstacles, which navmesh
+## carving solves directly and exactly rather than approximately.
+##
+## Once the route itself is already avoidance-correct, all move_to() has
+## left to do is turn it into a budget-aware walking plan — see
+## RoutePlanner.plan, which truncates the route to fit `budget` and
+## integrates terrain cost (Surface.movement_cost_multiplier) along the
+## way. The SAME function is what movement_indicator.gd calls for the
+## preview, so preview and real move can never disagree.
 ##
 ## move_speed/radius/avoidance_margin/arrival_tolerance/stuck_timeout/
 ## nav_agent all stay directly on Unit rather than moving in here — the
@@ -13,11 +32,8 @@ extends RefCounted
 ## rotation_speed (the Inspector needs to read/write them before this
 ## component exists), and radius/nav_agent specifically because they're
 ## read directly by code well outside movement entirely (combat
-## targeting, area effects, PathAvoidance's own obstacle gathering) —
-## radius in particular is a general "how big is this unit" property,
-## not a movement-specific one, even though avoidance is what most
-## heavily depends on it. This component reads all of them back through
-## its owner reference.
+## targeting, area effects). This component reads all of them back
+## through its owner reference.
 ##
 ## Can't call move_and_slide() or set velocity/global_position on
 ## itself — a RefCounted has no physics body or transform at all — so
@@ -34,8 +50,8 @@ var _last_progress_position: Vector3 = Vector3.ZERO
 
 ## The exact route this unit is currently walking, and which point in it
 ## is next. Planned ONCE, in full, before movement starts (see move_to /
-## PathAvoidance.simulate_path) — nothing about avoidance is decided
-## live while walking; physics_process just follows these fixed points.
+## RoutePlanner.plan) — nothing about avoidance is decided live while
+## walking; physics_process just follows these fixed points.
 var _current_path: PackedVector3Array = PackedVector3Array()
 var _path_index: int = 0
 ## The planned path's exact total BUDGET COST — not necessarily its
@@ -52,13 +68,64 @@ func _init(owner: Unit) -> void:
 	_owner = owner
 
 
+## Configures this unit's carving obstacle — a real saved child node
+## (Unit.nav_obstacle, see unit.tscn/unit.gd), not something created in
+## code — see this file's header and navigation_carving.gd for the full
+## picture. avoidance_enabled is OFF: this is carving (a bake-time hole
+## in the navmesh), not live RVO push.
 func setup_avoidance() -> void:
 	_owner.nav_agent.radius = _owner.radius + _owner.avoidance_margin
-	# Real-time RVO steering is intentionally OFF — see move_to()'s doc
-	# comment for why. nav_agent is kept only for get_navigation_map()
-	# and closest-point queries (used by PathAvoidance); it no longer
-	# drives how this unit actually moves.
 	_owner.nav_agent.avoidance_enabled = false
+
+	# Doubled own radius as a placeholder until the first real rebake
+	# calls set_carving_radius with an actual mover's size (see that
+	# method's doc comment for why the hole needs room for BOTH bodies).
+	# Confirmed empirically, not obvious from the docs: carving reads
+	# ONLY the `vertices` polygon outline, never `radius` — radius is
+	# exclusively an avoidance (RVO) property. A radius-only obstacle
+	# silently carves nothing at all.
+	_set_carving_shape(_owner.radius * 2.0 + _owner.avoidance_margin)
+
+
+## Toggles whether this unit's own footprint carves the navmesh at all —
+## called by NavigationCarving right before a rebake, disabled for
+## whichever unit(s) are about to move (a unit can't have its own
+## standing position baked into a hole, or map_get_path has nowhere
+## valid to start from).
+func set_carving_enabled(enabled: bool) -> void:
+	_owner.nav_obstacle.affect_navigation_mesh = enabled
+
+
+## Resizes the carved hole for whoever's about to be walking around this
+## unit — see NavigationCarving, which computes this from the actual
+## mover's radius each rebake rather than a value fixed at setup time.
+## Confirmed empirically (a route hugging a hole sized to only the
+## STANDING unit's own radius+margin let a moving unit's route aim
+## straight at a point still deep inside the standing unit's physical
+## body — carving nullifies navmesh cells strictly within the obstacle's
+## own shape, it does NOT separately erode by the walking agent's radius
+## the way baking erodes away from walls): the hole has to be big enough
+## for BOTH bodies — this unit's own radius, AND the radius of whoever
+## is walking past it — or move_and_slide's physical collision (not the
+## plan) ends up being what actually stops the mover, short and stuck,
+## rather than the plan routing cleanly around in the first place.
+func set_carving_radius(mover_clearance: float) -> void:
+	_set_carving_shape(_owner.radius + _owner.avoidance_margin + mover_clearance)
+
+
+## Builds a circular polygon (see set_carving_radius's doc comment for
+## why this can't just be nav_obstacle.radius) and assigns it as the
+## obstacle's carve outline. Local space, Y ignored (the obstacle's own
+## global Y position is what's actually used for vertical placement, per
+## NavigationObstacle3D.vertices) — a flat ring of points around the
+## unit's own origin is all carving needs.
+func _set_carving_shape(radius: float) -> void:
+	const SEGMENTS: int = 12
+	var vertices: PackedVector3Array = PackedVector3Array()
+	for i in SEGMENTS:
+		var angle: float = TAU * float(i) / float(SEGMENTS)
+		vertices.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
+	_owner.nav_obstacle.vertices = vertices
 
 
 func is_moving() -> bool:
@@ -69,11 +136,11 @@ func is_moving() -> bool:
 ## deterministic plan-then-execute rationale. Out of combat, budget is
 ## effectively unlimited. In combat: only CombatManager.current_unit may
 ## move, and the plan is truncated at exactly move_remaining — see
-## PathAvoidance.simulate_path. extra_avoidance_exclusions lets a caller
-## (e.g. CombatAI approaching its own attack target) leave specific
-## units out of the plan's avoidance — you don't want to route around
-## the very unit you're trying to reach.
-func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bool:
+## RoutePlanner.plan. Callers are responsible for making sure the navmesh
+## has actually been rebaked for this unit as a mover before calling this
+## (see NavigationCarving.rebake_for_movers) — combat turn-start and
+## free-roam move orders both already do this.
+func move_to(destination: Vector3) -> bool:
 	if not _owner.can_act():
 		return false
 
@@ -86,25 +153,12 @@ func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bo
 			return false
 		budget = _owner.move_remaining
 
-	var excluded: Array = [_owner]
-	excluded.append_array(extra_avoidance_exclusions)
-	var obstacles: Dictionary = PathAvoidance.gather_obstacles(_owner.get_tree(), excluded)
 	var map_rid: RID = _owner.nav_agent.get_navigation_map()
-	var clearance: float = _owner.radius + _owner.avoidance_margin
-
-	var safe_destination: Vector3 = PathAvoidance.clear_goal(
-		destination, obstacles.positions, obstacles.radii, clearance, map_rid
-	)
-
-	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, _owner.global_position, safe_destination, true)
+	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, _owner.global_position, destination, true)
 	if waypoints.size() < 2:
 		return false
 
-	var planned: Dictionary = PathAvoidance.simulate_path(
-		waypoints, _owner.move_speed, budget,
-		obstacles.positions, obstacles.radii, clearance, _owner.avoidance_margin, _owner.arrival_tolerance, map_rid,
-		SurfaceManager.movement_cost_multiplier_at
-	)
+	var planned: Dictionary = RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)
 	var planned_path: PackedVector3Array = planned.path
 
 	if planned_path.size() < 2:
@@ -146,9 +200,9 @@ func physics_process(delta: float) -> void:
 		return
 
 	# Skip past any waypoints already within arrival_tolerance — matters
-	# most right after a simulated step lands very close to the next
-	# waypoint, so the unit doesn't stall trying to "arrive" at a point
-	# behind or barely past its current position.
+	# most right after a step lands very close to the next waypoint, so
+	# the unit doesn't stall trying to "arrive" at a point behind or
+	# barely past its current position.
 	while _path_index < _current_path.size():
 		var to_waypoint: Vector3 = _current_path[_path_index] - _owner.global_position
 		to_waypoint.y = 0.0
@@ -161,11 +215,12 @@ func physics_process(delta: float) -> void:
 		return
 
 	# Last-resort safety net — see stuck_timeout's doc comment. The path
-	# being followed here was already planned to fit (see
-	# PathAvoidance.simulate_path), so in normal circumstances this
-	# should never trigger; it exists for genuinely unexpected physical
-	# obstruction (e.g. physics collision response deviating from the
-	# plan) rather than as the primary mechanism for anything.
+	# being followed here is already geometrically clear of every other
+	# unit AND every wall (it came straight from the carved navmesh), so
+	# in normal circumstances this should never trigger; it exists for
+	# genuinely unexpected physical obstruction (e.g. physics collision
+	# response deviating from the plan) rather than as the primary
+	# mechanism for anything.
 	if _owner.global_position.distance_to(_last_progress_position) < 0.05:
 		_stuck_timer += delta
 		if _stuck_timer >= _owner.stuck_timeout:

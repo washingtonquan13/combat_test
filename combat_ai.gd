@@ -77,10 +77,12 @@ func _attempt_action(unit: Unit) -> void:
 	unit.movement_finished.connect(_on_movement_finished, CONNECT_ONE_SHOT)
 
 	var destination: Vector3 = _standoff_goal(unit, target, ability)
-	# target is excluded from the plan's obstacle list so the route
-	# doesn't try to go AROUND the very thing it's trying to get close to
-	# — see Unit.move_to's extra_avoidance_exclusions.
-	if not unit.move_to(destination, [target]):
+	# _standoff_goal already aims just inside range of target, not onto
+	# target's own position, so this doesn't need to exclude target from
+	# the navmesh's carved obstacles (see Unit.move_to) — the route can
+	# get all the way to a proper standoff point without detouring
+	# around target at all.
+	if not unit.move_to(destination):
 		# Rejected outright (e.g. budget already at 0) — nothing more to
 		# try this turn.
 		if unit.movement_finished.is_connected(_on_movement_finished):

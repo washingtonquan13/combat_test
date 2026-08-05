@@ -11,12 +11,14 @@ extends IndicatorBase
 ## body (see ground_click_target.gd) is actually on, so mouse hover can
 ## be raycast onto it.
 ##
-## A line follows the EXACT planned route (via PathAvoidance.simulate_path
-## — the same deterministic planner Unit.move_to() itself calls) from the
-## unit to wherever the mouse is hovering, colored white for the portion
+## A line follows the EXACT planned route (via RoutePlanner.plan — the
+## same budget/cost planner Unit.move_to() itself calls, over a navmesh
+## route that's already avoidance-correct thanks to per-unit
+## NavigationObstacle3D carving, see navigation_carving.gd) from the unit
+## to wherever the mouse is hovering, colored white for the portion
 ## within move_remaining and red for the portion beyond it. Since this
-## calls the literal same planning function the real move will use, with
-## the same obstacle data, this preview IS what will happen — not an
+## calls the literal same planning function the real move will use, over
+## the same navmesh state, this preview IS what will happen — not an
 ## approximation of it.
 ##
 ## Note: this draws a 1-pixel unshaded line (ImmediateMesh, LINE_STRIP) —
@@ -71,33 +73,23 @@ func _update_path_preview(unit: Unit) -> void:
 		return
 
 	var map_rid: RID = unit.nav_agent.get_navigation_map()
-	var obstacles: Dictionary = PathAvoidance.gather_obstacles(get_tree(), [unit])
-	var clearance: float = unit.radius + unit.avoidance_margin
 
-	# Sanitize the hover point the same way move_to() sanitizes a move
-	# goal (see PathAvoidance.clear_goal) — hovering directly over
-	# another unit would otherwise have nothing valid to plan toward.
-	var safe_hover_point: Vector3 = PathAvoidance.clear_goal(hover_point, obstacles.positions, obstacles.radii, clearance, map_rid)
-
-	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, unit.global_position, safe_hover_point, true)
+	# Hovering directly over another unit's carved-out footprint has
+	# nothing valid to plan toward exactly at that point — map_get_path
+	# naturally resolves to the nearest walkable point outside it, same
+	# as move_to() itself; no separate sanitizing step needed.
+	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, unit.global_position, hover_point, true)
 	if waypoints.size() < 2:
 		_path_mesh.visible = false
 		return
 
-	# The SAME planning call move_to() itself makes, right down to the
-	# same cost_sampler (so difficult terrain shortens/reshapes this
-	# preview exactly as much as it will the real move) — a large budget
-	# here gets the full route to the hover point regardless of
-	# move_remaining; the white/red split below is what shows how far
-	# the unit could actually get this turn. Because this is the literal
-	# same deterministic function with the same obstacle data and the
-	# same cost sampling, this preview and the real move can never
-	# disagree.
-	var planned: Dictionary = PathAvoidance.simulate_path(
-		waypoints, unit.move_speed, 9999.0,
-		obstacles.positions, obstacles.radii, clearance, unit.avoidance_margin, unit.arrival_tolerance, map_rid,
-		SurfaceManager.movement_cost_multiplier_at
-	)
+	# The SAME planning call move_to() itself makes, with the same
+	# cost_sampler — a large budget here gets the full route to the hover
+	# point regardless of move_remaining; the white/red split below is
+	# what shows how far the unit could actually get this turn. Because
+	# this is the literal same function over the literal same navmesh
+	# state, this preview and the real move can never disagree.
+	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at)
 	var path: PackedVector3Array = planned.path
 
 	if path.size() < 2:

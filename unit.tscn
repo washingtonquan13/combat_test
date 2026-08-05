@@ -17804,6 +17804,12 @@ shape = SubResource("CapsuleShape3D_5wnup")
 
 [node name="NavigationAgent3D" type="NavigationAgent3D" parent="."]
 
+[node name="NavigationObstacle3D" type="NavigationObstacle3D" parent="."]
+radius = 0.5
+height = 2.0
+affect_navigation_mesh = true
+avoidance_enabled = false
+
 [node name="UnitAnimator" type="Node" parent="." node_paths=PackedStringArray("unit", "animation_player")]
 script = ExtResource("3_5wnup")
 unit = NodePath("..")

@@ -27,6 +27,46 @@ extends RefCounted
 ## they call the literal same function, so what you see is what happens.
 ## Unit.move_to() calls this ONCE, up front, then just walks the result
 ## point by point with no further avoidance decisions made mid-walk.
+##
+## Two refinements on top of the base steering, both aimed at the same
+## underlying issue: steering_direction/effective_target only ever reason
+## about OTHER UNITS, never walls — wall-awareness exists ONLY as the
+## post-hoc navmesh snap at the end of each step (see simulate_path). That
+## combination can deadlock: a step aims to satisfy unit clearance,
+## clips a wall, gets snapped back, aims the same way again next step —
+## a stable stuck point, not noise.
+##
+##  - STRICT side commitment in effective_target: once a side (left/right
+##    around a blocking obstacle) is chosen, it is NEVER re-litigated
+##    while still navigating around that same blockage — only released
+##    once the direct line is genuinely clear again (see preferred_side).
+##    An earlier version of this tried a soft "prefer the same side
+##    unless the other is meaningfully shorter" threshold instead; it
+##    didn't reliably hold, because the geometry that makes one side look
+##    shorter can shift by MORE than any fixed threshold as the mover's
+##    own avoidance motion changes its position — the fix isn't a bigger
+##    threshold, it's not re-asking the question at all while still
+##    committed.
+##  - Detect-and-retry in simulate_path: after a full pass, if the
+##    resulting path is excessively longer than the direct waypoint route
+##    (the actual harm zigzag causes — wasted move budget, matching what
+##    was actually reported), re-run the whole simulation once more
+##    forcing the OPPOSITE initial side choice, and keep whichever
+##    result is actually shorter. This is what "detect zigzag and look
+##    for a path without it" means concretely — an explicit compare-and-
+##    choose, not a hope that a smarter in-the-moment heuristic avoids it.
+##  - Progressive clearance/padding relaxation when forward progress
+##    stalls for several consecutive steps — eases the avoidance margin
+##    down (never below the mover's bare physical radius, passed in as
+##    min_clearance — that floor is what guarantees this can never cause
+##    actual visual overlap, only let two units pass closer than their
+##    full comfort margin) until the path can actually get through a gap
+##    that's physically passable but was being blocked by the SOFT
+##    clearance requirement alone. If relaxation alone doesn't resolve a
+##    stall (clearance has eased most of the way to the floor and it's
+##    STILL not moving), the side commitment above is released early as a
+##    last resort — committing hard to a side is only a good idea as long
+##    as that side is actually working out.
 
 
 ## Collects every other living unit's position/radius as obstacle data.
@@ -91,22 +131,32 @@ static func clear_goal(
 ## from anything too close." influence_padding extends how far out
 ## repulsion starts ramping up beyond bare clearance distance, so the
 ## simulated route curves around an obstacle before grazing it rather
-## than reacting at the last instant. Returns Vector3.ZERO only when
-## target is effectively already reached.
+## than reacting at the last instant.
+##
+## Returns {"direction": Vector3, "side": float} rather than a bare
+## Vector3 — direction is Vector3.ZERO only when target is effectively
+## already reached; side is whichever way effective_target went around an
+## obstacle this step (1.0 left, -1.0 right, 0.0 if nothing was blocking),
+## passed straight through from effective_target's own result. Callers
+## (simulate_path) feed this back in as the NEXT step's preferred_side —
+## see that parameter's doc comment on effective_target for why.
 static func steering_direction(
 	position: Vector3,
 	target: Vector3,
 	obstacle_positions: PackedVector3Array,
 	obstacle_radii: PackedFloat32Array,
 	clearance: float,
-	influence_padding: float
-) -> Vector3:
-	var aim: Vector3 = effective_target(position, target, obstacle_positions, obstacle_radii, clearance)
+	influence_padding: float,
+	preferred_side: float = 0.0,
+	bias_opposite: bool = false
+) -> Dictionary:
+	var aim_result: Dictionary = effective_target(position, target, obstacle_positions, obstacle_radii, clearance, preferred_side, bias_opposite)
+	var aim: Vector3 = aim_result.point
 
 	var to_aim: Vector3 = aim - position
 	to_aim.y = 0.0
 	if to_aim.length() < 0.001:
-		return Vector3.ZERO
+		return {"direction": Vector3.ZERO, "side": 0.0}
 	var desired: Vector3 = to_aim.normalized()
 
 	var repulsion: Vector3 = Vector3.ZERO
@@ -134,7 +184,8 @@ static func steering_direction(
 		var nudge: Vector3 = Vector3(-desired.z, 0.0, desired.x)
 		blended += nudge * 0.5
 
-	return blended.normalized() if blended.length() > 0.001 else Vector3.ZERO
+	var direction: Vector3 = blended.normalized() if blended.length() > 0.001 else Vector3.ZERO
+	return {"direction": direction, "side": aim_result.side}
 
 
 ## Where to actually aim, given what's in the way — not just "target."
@@ -148,18 +199,46 @@ static func steering_direction(
 ## of whatever was blocking it. This is what lets the simulated route
 ## treat several obstacles standing together as ONE blockage to go
 ## around, instead of reacting to only whichever one is nearest.
+##
+## preferred_side (1.0 left, -1.0 right, 0.0 no commitment yet — see
+## steering_direction, which threads the PREVIOUS step's chosen side back
+## in here) makes the left-vs-right choice STICK: once committed to a
+## side for a given blocking situation, that side is used directly,
+## skipping the left_extent-vs-right_extent comparison entirely, for as
+## long as something's still blocking. It's only ever recomputed fresh
+## when preferred_side is 0.0 — which simulate_path only passes after a
+## step reports back "clear" (blocking was false), i.e. genuinely past
+## whatever it was going around. Without this, an obstacle sitting almost
+## exactly on the line to target makes left_extent/right_extent nearly
+## equal, and as the mover's own avoidance motion shifts its position
+## step to step, which one's smaller can swing enough to flip the choice
+## — the aim point alternates left/right, which is what "zigzagging near
+## a destination next to another unit" actually was.
+##
+## bias_opposite flips which side a FRESH (uncommitted) decision defaults
+## to — used only by simulate_path's retry pass (see that function) to
+## deliberately explore the other routing option when the first attempt
+## turned out to wander excessively, never used for the normal/first
+## pass.
+##
+## Returns {"point": Vector3, "side": float} — side is 0.0 when nothing's
+## blocking (point is just target unmodified), otherwise whichever side
+## was actually used this call, for the caller to feed back in as next
+## step's preferred_side.
 static func effective_target(
 	position: Vector3,
 	target: Vector3,
 	obstacle_positions: PackedVector3Array,
 	obstacle_radii: PackedFloat32Array,
-	clearance: float
-) -> Vector3:
+	clearance: float,
+	preferred_side: float = 0.0,
+	bias_opposite: bool = false
+) -> Dictionary:
 	var to_target: Vector3 = target - position
 	to_target.y = 0.0
 	var dist_to_target: float = to_target.length()
 	if dist_to_target < 0.001:
-		return target
+		return {"point": target, "side": 0.0}
 
 	var direction: Vector3 = to_target / dist_to_target
 	var perpendicular: Vector3 = Vector3(-direction.z, 0.0, direction.x)
@@ -185,13 +264,22 @@ static func effective_target(
 				right_extent = max(right_extent, required + lateral)
 
 	if not blocking:
-		return target
+		return {"point": target, "side": 0.0}
 
-	var offset: float = min(left_extent, right_extent) + clearance
-	var side: Vector3 = perpendicular if left_extent <= right_extent else -perpendicular
+	var use_left: bool
+	if preferred_side != 0.0:
+		use_left = preferred_side > 0.0
+	elif bias_opposite:
+		use_left = left_extent > right_extent
+	else:
+		use_left = left_extent <= right_extent
+
+	var offset: float = (left_extent if use_left else right_extent) + clearance
+	var side_vec: Vector3 = perpendicular if use_left else -perpendicular
 	var forward_reach: float = min(dist_to_target, offset * 2.0)
 
-	return position + direction * forward_reach + side * offset
+	var point: Vector3 = position + direction * forward_reach + side_vec * offset
+	return {"point": point, "side": 1.0 if use_left else -1.0}
 
 
 ## THE PLANNER. Simulates steering_direction forward through a sequence
@@ -241,6 +329,30 @@ static func effective_target(
 ## through the path (see movement_indicator.gd) read the array directly
 ## rather than re-summing distances themselves, so there's no chance of
 ## a re-derivation disagreeing with what was actually simulated.
+## min_clearance is the hard floor progressive relaxation (see this
+## file's header) will never ease clearance below — pass the mover's bare
+## physical radius (NOT radius+avoidance_margin), which combined with an
+## obstacle's own radius in effective_target/steering_direction's math is
+## exactly the true no-overlap boundary. Left at its default (0.0), which
+## reads as "no floor supplied," relaxation is disabled entirely (clamps
+## to the unrelaxed clearance) rather than silently relaxing toward
+## zero — a caller has to explicitly opt in with a real floor for this to
+## do anything, so an old, not-yet-updated call site fails safe (back to
+## the original stuck-not-overlapping behavior) instead of failing
+## permissive.
+##
+## Runs _simulate_path_pass once, then checks whether that result is
+## actually GOOD — see _should_retry, which is the real question this
+## asks: either "it never got reasonably close to the destination, and
+## that's not just because it ran out of budget getting there" (stuck),
+## or "it got there, but by wandering far more than the direct route
+## required" (zigzagged). Either way, this re-runs the ENTIRE simulation
+## once more with bias_opposite (see effective_target), forcing every
+## fresh left/right decision to try the OTHER option instead — a genuine
+## second attempt at the route, not a tweak to the first one — and keeps
+## whichever of the two actually did better (see _is_better_result). A
+## short route (< 1m) skips this entirely — not worth a second pass for a
+## hop too small to meaningfully get stuck or wander on.
 static func simulate_path(
 	waypoints: PackedVector3Array,
 	move_speed: float,
@@ -251,7 +363,109 @@ static func simulate_path(
 	influence_padding: float,
 	arrival_tolerance: float,
 	nav_map: RID,
-	cost_sampler: Callable = Callable()
+	cost_sampler: Callable = Callable(),
+	min_clearance: float = 0.0
+) -> Dictionary:
+	var result: Dictionary = _simulate_path_pass(
+		waypoints, move_speed, budget, obstacle_positions, obstacle_radii,
+		clearance, influence_padding, arrival_tolerance, nav_map,
+		cost_sampler, min_clearance, false
+	)
+
+	if not _should_retry(result, waypoints, budget):
+		return result
+
+	var retry: Dictionary = _simulate_path_pass(
+		waypoints, move_speed, budget, obstacle_positions, obstacle_radii,
+		clearance, influence_padding, arrival_tolerance, nav_map,
+		cost_sampler, min_clearance, true
+	)
+	return retry if _is_better_result(retry, result, waypoints) else result
+
+
+## The actual "discard it and take a new path" check: did the FIRST pass
+## reach the real destination (the last waypoint — where the player
+## actually clicked, resolved onto the navmesh) within a reasonable
+## slack, or did it stall short for a reason that ISN'T simply running
+## out of move budget getting there? A destination farther than
+## move_remaining SHOULD stop short — that's correct, not a bug, so
+## budget_exhausted is checked explicitly and excluded. Also flags a
+## technically-completed path that wandered excessively far to get
+## there (ZIGZAG_LENGTH_RATIO) as still worth a second attempt, even
+## though it did arrive — "reached, but by taking 3x the direct
+## distance" is still the thing this whole mechanism exists to catch.
+static func _should_retry(result: Dictionary, waypoints: PackedVector3Array, budget: float) -> bool:
+	const ARRIVAL_SLACK: float = 0.5  # meters short of the destination that still counts as "didn't get there"
+	const ZIGZAG_LENGTH_RATIO: float = 1.35
+
+	var route_len: float = _route_length(waypoints)
+	if route_len < 1.0:
+		return false
+
+	var path: PackedVector3Array = result.path
+	var costs: PackedFloat32Array = result.cumulative_cost
+	var last_point: Vector3 = path[path.size() - 1]
+	var destination: Vector3 = waypoints[waypoints.size() - 1]
+	var final_cost: float = costs[costs.size() - 1] if costs.size() > 0 else 0.0
+
+	var reached: bool = last_point.distance_to(destination) <= ARRIVAL_SLACK
+	var budget_exhausted: bool = final_cost >= budget - 0.01
+
+	if not reached and not budget_exhausted:
+		return true
+
+	return _path_length(path) > route_len * ZIGZAG_LENGTH_RATIO
+
+
+## Which of two full simulation results actually did better — first by
+## whichever got genuinely closer to the real destination (not just
+## "shorter," which a path that gave up early would win on for the wrong
+## reason), and only once they're comparably close, by whichever took
+## less distance to get there.
+static func _is_better_result(candidate: Dictionary, baseline: Dictionary, waypoints: PackedVector3Array) -> bool:
+	var destination: Vector3 = waypoints[waypoints.size() - 1]
+	var candidate_path: PackedVector3Array = candidate.path
+	var baseline_path: PackedVector3Array = baseline.path
+
+	var candidate_dist: float = candidate_path[candidate_path.size() - 1].distance_to(destination)
+	var baseline_dist: float = baseline_path[baseline_path.size() - 1].distance_to(destination)
+
+	if absf(candidate_dist - baseline_dist) > 0.1:
+		return candidate_dist < baseline_dist
+
+	return _path_length(candidate_path) < _path_length(baseline_path)
+
+
+## Sum of consecutive distances along a polyline — used both for
+## _route_length (the waypoints themselves) and to measure how long a
+## simulated path actually came out.
+static func _path_length(points: PackedVector3Array) -> float:
+	var total: float = 0.0
+	for i in range(1, points.size()):
+		total += points[i - 1].distance_to(points[i])
+	return total
+
+
+static func _route_length(waypoints: PackedVector3Array) -> float:
+	return _path_length(waypoints)
+
+
+## One deterministic simulation pass — see simulate_path for the
+## detect-and-retry wrapper around this, and bias_opposite's doc comment
+## on effective_target for what it does here.
+static func _simulate_path_pass(
+	waypoints: PackedVector3Array,
+	move_speed: float,
+	budget: float,
+	obstacle_positions: PackedVector3Array,
+	obstacle_radii: PackedFloat32Array,
+	clearance: float,
+	influence_padding: float,
+	arrival_tolerance: float,
+	nav_map: RID,
+	cost_sampler: Callable,
+	min_clearance: float,
+	bias_opposite: bool
 ) -> Dictionary:
 	if waypoints.size() < 2:
 		var flat_costs: PackedFloat32Array = PackedFloat32Array()
@@ -262,12 +476,37 @@ static func simulate_path(
 	const STEP_TIME: float = 0.05
 	const MAX_STEPS: int = 600  # 30 simulated seconds — generous safety cap
 
+	# Stall detection/relaxation tuning — see this file's header for why
+	# this exists. STALL_STEPS_BEFORE_RELAX * STEP_TIME (0.3s) of
+	# near-zero progress before easing up at all; each easing step is
+	# gradual (10%/25% toward the floor), not an instant drop, so a
+	# genuinely brief hesitation doesn't overreact. RELEASE_COMMITMENT_AT
+	# is the last-resort escape valve: if clearance has already relaxed
+	# most of the way to the floor and it's STILL not making progress,
+	# the side commitment itself gets released early (see
+	# STALL_STEPS_BEFORE_RELAX's use below) rather than staying
+	# permanently locked onto a side that isn't actually working.
+	const STALL_PROGRESS_THRESHOLD: float = 0.02  # meters/step below which a step "didn't really move"
+	const STALL_STEPS_BEFORE_RELAX: int = 6
+	const CLEARANCE_RELAX_STEP: float = 0.9   # multiplies the 0..1 relax weight toward the floor
+	const PADDING_RELAX_STEP: float = 0.75    # padding has no overlap floor, so it can ease off faster
+	const RELEASE_COMMITMENT_AT: float = 0.3  # clearance_weight below this + still stalling -> release the side
+
 	var path: PackedVector3Array = PackedVector3Array([waypoints[0]])
 	var cumulative_cost: PackedFloat32Array = PackedFloat32Array([0.0])
 	var position: Vector3 = waypoints[0]
 	var waypoint_index: int = 1
 	var traveled: float = 0.0
 	var step_dist: float = move_speed * STEP_TIME
+
+	# clearance_weight/padding_weight are 1.0 = full unrelaxed strength,
+	# easing toward 0.0 (= min_clearance / zero padding) under sustained
+	# stall, reset to 1.0 the instant a step makes real progress again.
+	var floor_clearance: float = clearance if min_clearance <= 0.0 else min(min_clearance, clearance)
+	var clearance_weight: float = 1.0
+	var padding_weight: float = 1.0
+	var stall_steps: int = 0
+	var preferred_side: float = 0.0
 
 	for _step in MAX_STEPS:
 		if traveled >= budget or waypoint_index >= waypoints.size():
@@ -276,9 +515,21 @@ static func simulate_path(
 		var target: Vector3 = waypoints[waypoint_index]
 		if position.distance_to(target) <= arrival_tolerance:
 			waypoint_index += 1
+			preferred_side = 0.0
+			clearance_weight = 1.0
+			padding_weight = 1.0
+			stall_steps = 0
 			continue
 
-		var dir: Vector3 = steering_direction(position, target, obstacle_positions, obstacle_radii, clearance, influence_padding)
+		var effective_clearance: float = lerp(floor_clearance, clearance, clearance_weight)
+		var effective_padding: float = influence_padding * padding_weight
+
+		var steer: Dictionary = steering_direction(
+			position, target, obstacle_positions, obstacle_radii,
+			effective_clearance, effective_padding, preferred_side, bias_opposite
+		)
+		var dir: Vector3 = steer.direction
+		preferred_side = steer.side
 		if dir == Vector3.ZERO:
 			break
 
@@ -295,6 +546,19 @@ static func simulate_path(
 		# ever curving the simulated path off the walkable navmesh.
 		var snapped: Vector3 = NavigationServer3D.map_get_closest_point(nav_map, tentative)
 		var actual_dist: float = position.distance_to(snapped)
+
+		if actual_dist < STALL_PROGRESS_THRESHOLD:
+			stall_steps += 1
+			if stall_steps >= STALL_STEPS_BEFORE_RELAX:
+				clearance_weight *= CLEARANCE_RELAX_STEP
+				padding_weight *= PADDING_RELAX_STEP
+				stall_steps = 0
+				if clearance_weight < RELEASE_COMMITMENT_AT:
+					preferred_side = 0.0
+		else:
+			stall_steps = 0
+			clearance_weight = 1.0
+			padding_weight = 1.0
 
 		position = snapped
 		traveled += actual_dist * multiplier

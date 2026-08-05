@@ -61,6 +61,12 @@ extends CharacterBody3D
 ## practice; it's now a last-resort safety net rather than the main fix.
 @export var stuck_timeout: float = 1.5
 @onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
+## This unit's carved footprint in the navmesh while it's NOT the one
+## moving — see UnitMovement/NavigationCarving. A real saved scene child
+## (matching nav_agent) rather than something conjured in code at
+## runtime, so it's visible/inspectable the same way everything else on
+## this node is.
+@onready var nav_obstacle: NavigationObstacle3D = $NavigationObstacle3D
 
 @export var damage_reduction: int = 0
 
@@ -342,9 +348,29 @@ func snap_face_point(point: Vector3) -> void:
 ## Delegates to UnitMovement — see that file for the deterministic
 ## plan-then-execute rationale in full, and for why move_speed/radius/
 ## avoidance_margin/arrival_tolerance/stuck_timeout/nav_agent all stay
-## directly on Unit rather than moving into the component.
-func move_to(destination: Vector3, extra_avoidance_exclusions: Array = []) -> bool:
-	return _movement.move_to(destination, extra_avoidance_exclusions)
+## directly on Unit rather than moving into the component. Callers don't
+## need to exclude other units from avoidance anymore (there used to be
+## an extra_avoidance_exclusions param for this) — the navmesh itself is
+## already carved around every OTHER unit by the time this runs (see
+## NavigationCarving), and a destination near another unit simply routes
+## to the nearest walkable point outside that unit's own footprint,
+## which is what you want when approaching a target to attack it too.
+func move_to(destination: Vector3) -> bool:
+	return _movement.move_to(destination)
+
+
+## Toggles whether this unit's own footprint carves the navmesh — see
+## NavigationCarving, which calls this on every unit right before a
+## rebake.
+func set_carving_enabled(enabled: bool) -> void:
+	_movement.set_carving_enabled(enabled)
+
+
+## Resizes this unit's carved hole to leave room for a mover with
+## mover_clearance (radius + avoidance_margin) to pass at a safe
+## distance — see UnitMovement.set_carving_radius and NavigationCarving.
+func set_carving_radius(mover_clearance: float) -> void:
+	_movement.set_carving_radius(mover_clearance)
 
 
 ## Cancels the current move order in place, still spending whatever
@@ -567,6 +593,14 @@ func _handle_death() -> void:
 	# dying unit isn't "completing" a move, it's being silenced.
 	_movement.force_stop()
 	set_physics_process(false)
+
+	# remove_from_group("units") above means NavigationCarving will never
+	# revisit this unit's carving state again — set its FINAL state
+	# explicitly now rather than leaving it frozen at whatever it
+	# happened to be (e.g. disabled, if this unit died while it was the
+	# current mover) instead of what corpse_blocks_movement actually
+	# calls for.
+	set_carving_enabled(corpse_blocks_movement)
 
 	if not corpse_blocks_movement:
 		collision_layer = 0

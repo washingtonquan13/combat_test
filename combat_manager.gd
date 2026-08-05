@@ -66,6 +66,14 @@ func start_combat(combatants: Array[Unit]) -> void:
 	for unit in turn_order:
 		if not unit.died.is_connected(_on_unit_died):
 			unit.died.connect(_on_unit_died)
+		# Anything that can displace a unit mid-turn (Knockback, Shove,
+		# Jump's move_caster_effect — none of which go through
+		# Unit.move_to(), so none of them trigger a rebake on their own)
+		# finishes by emitting ability_used — see this file's other
+		# rebake call sites for why the navmesh needs to stay current
+		# with actual positions, not just at turn boundaries.
+		if not unit.ability_used.is_connected(_on_ability_used):
+			unit.ability_used.connect(_on_ability_used)
 
 	_turn_index = -1
 	round_number = 0
@@ -83,8 +91,12 @@ func end_combat(winning_faction: StringName = &"") -> void:
 
 	in_combat = false
 	for unit in turn_order:
-		if is_instance_valid(unit) and unit.died.is_connected(_on_unit_died):
+		if not is_instance_valid(unit):
+			continue
+		if unit.died.is_connected(_on_unit_died):
 			unit.died.disconnect(_on_unit_died)
+		if unit.ability_used.is_connected(_on_ability_used):
+			unit.ability_used.disconnect(_on_ability_used)
 	turn_order.clear()
 	_turn_index = -1
 	combat_ended.emit(winning_faction)
@@ -122,6 +134,12 @@ func end_turn() -> void:
 			unit.became_idle.connect(end_turn, CONNECT_ONE_SHOT)
 		return
 
+	# Catches anything that displaced a unit right at the tail end of this
+	# turn without going through ability_used/move_to's own rebake
+	# triggers (belt-and-suspenders alongside _advance_turn's own rebake
+	# for whoever goes next — cheap, since this only runs once per turn
+	# either way).
+	NavigationCarving.rebake_for_movers(get_tree(), [unit])
 	turn_ended.emit(unit)
 	_advance_turn.call_deferred()
 
@@ -174,6 +192,7 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 	turn_order.insert(insert_index, unit)
 
 	var next_unit: Unit = turn_order[_turn_index]
+	NavigationCarving.rebake_for_movers(get_tree(), [next_unit])
 	turn_ended.emit(unit)
 	next_unit.reset_turn_actions()
 	_log_and_emit_turn_started(next_unit)
@@ -199,6 +218,12 @@ func _advance_turn() -> void:
 		round_started.emit(round_number)
 
 	var unit: Unit = current_unit
+	# Rebakes the navmesh with every OTHER living unit carved into it as
+	# an obstacle, and this unit's own footprint excluded (it can't have
+	# its own standing position carved into a hole) — see
+	# NavigationCarving. Once per turn is exactly the cadence this is
+	# meant for: nothing else moves again until this unit's turn ends.
+	NavigationCarving.rebake_for_movers(get_tree(), [unit])
 	unit.reset_turn_actions()
 	unit.tick_statuses()
 
@@ -253,6 +278,12 @@ func _on_unit_died(_unit: Unit) -> void:
 	if not in_combat:
 		return
 
+	# A death can change what the navmesh should look like — a corpse
+	# that doesn't block movement (see Unit.corpse_blocks_movement/
+	# _handle_death) stops carving — regardless of whose turn it is or
+	# whether this ends combat outright.
+	NavigationCarving.rebake_for_movers(get_tree(), [current_unit] if current_unit else [])
+
 	# Check the win/loss condition the instant anyone dies — don't wait
 	# for the next turn boundary. A death on someone else's turn (e.g. the
 	# player's only unit dying to an enemy attack) would otherwise leave
@@ -267,3 +298,14 @@ func _on_unit_died(_unit: Unit) -> void:
 	# as end_turn() — see its comment.
 	if current_unit != null and not current_unit.is_alive():
 		_advance_turn.call_deferred()
+
+
+## Knockback, Shove, Jump's move_caster_effect, and anything else an
+## ability's effects do to displace a unit — none of them go through
+## Unit.move_to(), so none of them trigger a rebake on their own the way
+## an ordinary move does. This is the catch-all for "the ability that
+## just resolved might have moved someone."
+func _on_ability_used(attacker: Unit, _target, _result: Dictionary) -> void:
+	if not in_combat:
+		return
+	NavigationCarving.rebake_for_movers(get_tree(), [attacker])

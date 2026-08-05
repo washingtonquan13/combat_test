@@ -71,5 +71,14 @@ func _command_move(destination: Vector3) -> void:
 			unit.move_to(destination)
 		return
 
+	# Free-roam moves aren't gated by turn order the way combat is — every
+	# selected unit can move at once — so all of them are excluded from
+	# carving for this one rebake, not just a single mover (see
+	# NavigationCarving). Simultaneous movers can still end up navigating
+	# around each other's stale (pre-move) positions rather than truly
+	# live positions until the next rebake — an accepted approximation
+	# outside combat, where "only one unit ever moves at a time" doesn't
+	# hold in the first place.
+	NavigationCarving.rebake_for_movers(get_tree(), SelectionManager.selected_units)
 	for unit in SelectionManager.selected_units:
 		unit.move_to(destination)

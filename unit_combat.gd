@@ -222,5 +222,10 @@ func take_damage(amount: int) -> void:
 	_owner.notify_status_of_damage(amount)
 	if _owner.current_hp == 0:
 		SystemLog.print("[b]%s has died.[/b]" % LogFormat.unit_name(_owner))
-		_owner.died.emit(_owner)
+		# Cleanup BEFORE the signal, not after — died listeners (e.g.
+		# CombatManager's navmesh rebake, which needs to see whether this
+		# corpse still carves — see Unit._handle_death) should observe
+		# the unit's final post-death state, not catch it mid-death since
+		# signal emission is synchronous.
 		_owner._handle_death()
+		_owner.died.emit(_owner)
