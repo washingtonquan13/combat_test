@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=31 format=3 uid="uid://dh51y4swh78rh"]
+[gd_resource type="Resource" script_class="Ability" load_steps=30 format=3 uid="uid://dh51y4swh78rh"]
 
 [ext_resource type="AudioStream" uid="uid://cmh8l6j2c1mqy" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_CAST_02.wav" id="1_a73or"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_res1m"]
@@ -18,8 +18,8 @@
 [ext_resource type="PackedScene" uid="uid://2eq2j53sic1i" path="res://vfx/BinbunVFX/impact_explosions/effects/impact/vfx_impact_04.tscn" id="12_gy3xg"]
 [ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://impact_signal_step.gd" id="12_nhug0"]
 [ext_resource type="Script" uid="uid://dcgjthqwkn30" path="res://spawn_particle_step.gd" id="12_woc63"]
-[ext_resource type="Script" uid="uid://dpdllsn2s7rqr" path="res://play_sound_step.gd" id="15_woc63"]
 [ext_resource type="AudioStream" uid="uid://btymytoka47j5" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_IMPACT_01.wav" id="16_y636c"]
+[ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="18_a73or"]
 
 [sub_resource type="Resource" id="Resource_l62op"]
 script = ExtResource("2_y8mr0")
@@ -78,15 +78,9 @@ authored_radius = 1.0
 height_scale_factor = 0.05
 metadata/_custom_type_script = "uid://dcgjthqwkn30"
 
-[sub_resource type="Resource" id="Resource_a73or"]
-script = ExtResource("15_woc63")
-stream = ExtResource("16_y636c")
-at = 1
-metadata/_custom_type_script = "uid://dpdllsn2s7rqr"
-
 [sub_resource type="Resource" id="Resource_xtw6w"]
 script = ExtResource("8_f0pgo")
-steps = Array[ExtResource("9_gy3xg")]([SubResource("Resource_f0pgo"), SubResource("Resource_sep1y"), SubResource("Resource_gy3xg"), SubResource("Resource_a73or")])
+steps = Array[ExtResource("9_gy3xg")]([SubResource("Resource_f0pgo"), SubResource("Resource_sep1y"), SubResource("Resource_gy3xg")])
 metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
 
 [sub_resource type="Resource" id="Resource_ycrns"]
@@ -111,4 +105,6 @@ impact_timeout = 3.0
 impact_vfx = SubResource("Resource_xtw6w")
 armed_enter_sfx = ExtResource("1_a73or")
 armed_hold_sfx = ExtResource("2_xtw6w")
+launch_sfx = ExtResource("18_a73or")
+impact_sfx = ExtResource("16_y636c")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

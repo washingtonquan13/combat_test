@@ -1,30 +1,41 @@
 extends Node
 ## Reactive SFX trigger, synced to the SAME anchors driving animation and
-## VFX — but owning ONLY the two moments nothing else already covers:
-## entering an armed stance, and holding it. Mirrors unit_animator.gd/
-## unit_vfx.gd's exact wiring pattern: zero combat logic of its own,
-## purely reactive to signals that already exist (or, for arming
-## specifically, to AbilityManager's existing signal, filtered to
-## whether THIS unit is the one doing the arming — AbilityManager itself
-## is global/unit-agnostic, on purpose, same as everywhere else it's
-## used in this project).
+## VFX. Mirrors unit_animator.gd/unit_vfx.gd's exact wiring pattern:
+## zero combat logic of its own, purely reactive to signals that already
+## exist (or, for arming specifically, to AbilityManager's existing
+## signal, filtered to whether THIS unit is the one doing the arming —
+## AbilityManager itself is global/unit-agnostic, on purpose, same as
+## everywhere else it's used in this project).
+##
+## Owns all FOUR standard audio moments in one place: armed-enter,
+## armed-hold (a sustained loop while an ability stays armed, waiting
+## for a target), launch, and impact. Launch/impact deliberately react
+## directly to Unit.ability_use_started/impact_triggered — the same
+## unit-level signals animation/VFX already react to — rather than
+## living inside the ability's impact_vfx sequence as a PlaySoundStep.
+## That used to be the recommendation; it changed after a purely visual
+## fix to SpawnParticleStep's cleanup logic silently broke a
+## PlaySoundStep's timing, since they shared the same sequence and
+## therefore the same execution path. Reacting to the unit-level signals
+## directly means a future VFX-only change can't do that again — audio
+## and visuals no longer share any code path at all for these two
+## moments. PlaySoundStep still exists inside VfxEffect for sounds that
+## genuinely need positioning relative to a specific mid-sequence VFX
+## moment with no corresponding combat signal (timed to a projectile's
+## midpoint, say) — this file isn't trying to replace that, only to be
+## the default home for the two common, standard moments.
 ##
 ## Deliberately NON-BLOCKING throughout — nothing here ever awaits
 ## anything, every sound is fire-and-forget, matching how BG3/DOS2/WotR/
 ## PoE2 actually handle this: combat never waits on audio length. What
 ## makes it feel synced is that each sound STARTS at the exact right
 ## moment, not that anything is gated on it finishing.
-##
-## Launch and impact SFX are explicitly NOT handled here — see
-## Ability.impact_vfx's doc comment. They belong as PlaySoundStep
-## entries inside the ability's own VfxEffect sequence, already
-## correctly synced by being awaited in order alongside everything else
-## in that sequence. Duplicating those two moments here would create a
-## second, competing source of truth for timing that's already solved.
 
 @export var unit: Unit
 @export var default_armed_enter_sfx: AudioStream
 @export var default_armed_hold_sfx: AudioStream
+@export var default_launch_sfx: AudioStream
+@export var default_impact_sfx: AudioStream
 
 ## The looping "holding a stance" player, parented directly under `unit`
 ## (not the scene root, unlike VfxEffect's one-shot sequences) —
@@ -36,6 +47,19 @@ extends Node
 ## left to finish once the unit holding the stance is gone.
 var _hold_player: AudioStreamPlayer3D
 
+## Which ability is currently in flight, and where its target actually
+## is, so impact_triggered (a plain, parameterless signal — it's called
+## from generic sources, an AnimationPlayer track or an ImpactSignalStep,
+## neither of which necessarily has this handy to pass through) knows
+## which impact_sfx to play, and WHERE — a ranged/AoE impact happens at
+## the target, potentially far from the attacker, not at the attacker's
+## own position. Neither is cleared explicitly — a unit can only ever
+## have one ability in flight at a time (use_ability() is gated by
+## can_act()/busy-state), so the next ability_use_started always
+## overwrites both safely before either could be misread as stale.
+var _pending_ability: Ability
+var _pending_target_position: Vector3
+
 
 func _ready() -> void:
 	if not unit:
@@ -44,6 +68,7 @@ func _ready() -> void:
 
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.ability_use_started.connect(_on_ability_use_started)
+	unit.impact_triggered.connect(_on_impact_triggered)
 
 
 func _on_ability_armed(ability: Ability) -> void:
@@ -56,7 +81,7 @@ func _on_ability_armed(ability: Ability) -> void:
 		return  # disarmed — nothing more to play
 
 	var enter_sfx: AudioStream = ability.armed_enter_sfx if ability.armed_enter_sfx else default_armed_enter_sfx
-	_play_one_shot(enter_sfx)
+	_play_one_shot(enter_sfx, unit.global_position)
 
 	var hold_sfx: AudioStream = ability.armed_hold_sfx if ability.armed_hold_sfx else default_armed_hold_sfx
 	_start_hold_loop(hold_sfx)
@@ -67,17 +92,31 @@ func _on_ability_armed(ability: Ability) -> void:
 ## clicking an enemy with nothing explicitly armed, falling back to
 ## default_ability() — see AbilityManager) — either way, the unit isn't
 ## standing in an armed stance anymore the instant something launches.
-func _on_ability_use_started(_attacker: Unit, _target, _ability: Ability) -> void:
+func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 	_stop_hold_loop()
 
+	_pending_ability = ability
+	_pending_target_position = target.global_position if target is Unit else (target if target is Vector3 else attacker.global_position)
 
-func _play_one_shot(stream: AudioStream) -> void:
+	var launch_sfx: AudioStream = ability.launch_sfx if ability.launch_sfx else default_launch_sfx
+	_play_one_shot(launch_sfx, attacker.global_position)
+
+
+func _on_impact_triggered() -> void:
+	var ability: Ability = _pending_ability
+	var impact_sfx: AudioStream = default_impact_sfx
+	if ability and ability.impact_sfx:
+		impact_sfx = ability.impact_sfx
+	_play_one_shot(impact_sfx, _pending_target_position)
+
+
+func _play_one_shot(stream: AudioStream, position: Vector3) -> void:
 	if not stream:
 		return
 	var player := AudioStreamPlayer3D.new()
 	get_tree().current_scene.add_child(player)
 	player.stream = stream
-	player.global_position = unit.global_position
+	player.global_position = position
 	player.play()
 	player.finished.connect(player.queue_free)
 

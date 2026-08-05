@@ -52,20 +52,21 @@ extends Resource
 ## Optional per-ability composable VFX sequence — see VfxEffect. Left
 ## unset, unit_vfx.gd falls back to its own generic default sequence, so
 ## you only need to fill this in for abilities that should look/sound
-## distinct (a Fireball's [ProjectileStep, SpawnParticleStep,
-## PlaySoundStep] vs. a Sword Attack's generic clang). Replaces an
-## earlier flat PackedScene+AudioStream pair — a single composable
-## sequence can express both (and a projectile, and timing between
-## them) without needing separate fields for each kind of thing that
-## might play.
+## distinct (a Fireball's [ProjectileStep, SpawnParticleStep] vs. a
+## Sword Attack's plain hit). Replaces an earlier flat PackedScene+
+## AudioStream pair — a single composable sequence can express a
+## projectile and timing between steps without needing separate fields
+## for each visual thing that might play.
 ##
-## Launch and impact SFX belong INSIDE this sequence, as PlaySoundStep
-## entries — a launch sound early in steps, an impact sound right after
-## an ImpactSignalStep — not in any separate SFX system. They're already
-## correctly synced by virtue of being awaited in sequence along with
-## everything else; a parallel SFX mechanism for the same two moments
-## would just be a second, competing source of truth for timing that's
-## already solved here.
+## For SOUND specifically, prefer launch_sfx/impact_sfx below (Action
+## SFX group) over adding a PlaySoundStep here — see that group's doc
+## comment for why: this sequence's steps have their own internal
+## lifecycle/cleanup logic that audio has no reason to depend on, and a
+## purely visual change here has already once silently broken audio
+## timing as a result. PlaySoundStep still exists and is still the right
+## tool for a sound that needs precise positioning relative to a
+## specific mid-sequence VFX moment with no corresponding combat signal
+## — just not the default choice for the two common cases anymore.
 @export var impact_vfx: VfxEffect
 
 @export_group("Armed Stance SFX")
@@ -77,6 +78,23 @@ extends Resource
 ## own generic defaults.
 @export var armed_enter_sfx: AudioStream
 @export var armed_hold_sfx: AudioStream
+
+@export_group("Action SFX")
+## Optional per-ability overrides for the sound played at LAUNCH
+## (Unit.ability_use_started — the instant use is confirmed, before
+## to-hit) and IMPACT (Unit.impact_triggered). These are the two most
+## common SFX moments, given their own direct hooks in unit_sfx.gd
+## rather than requiring a PlaySoundStep inside impact_vfx for the
+## common case — deliberately kept OUT of the VFX sequence, reacting to
+## the same unit-level signals animation/VFX already react to, so a
+## purely visual change to impact_vfx can never again silently affect
+## audio timing (they no longer share any execution path). PlaySoundStep
+## remains available inside impact_vfx for sounds that genuinely need to
+## be positioned relative to a specific mid-sequence VFX moment (timed
+## to a projectile's midpoint, say) that has no corresponding combat
+## signal of its own — use whichever fits a given sound's actual need.
+@export var launch_sfx: AudioStream
+@export var impact_sfx: AudioStream
 
 
 ## Whether target is a legal target for this ability from attacker's
