@@ -80,12 +80,15 @@ func default_ability() -> Ability:
 ## Emits ability_use_started BEFORE to-hit is even rolled — see that
 ## signal's doc comment on Unit for why: animation/VFX need to react to
 ## "this is happening" immediately (to start a swing, launch a
-## projectile), not wait for the final outcome. If ability.waits_for_impact
-## is set, effects don't actually apply until Unit.notify_impact() fires
-## (or a timeout elapses) AFTER a confirmed hit — see
-## _wait_for_impact_or_timeout. ability_used (the final result, same
+## projectile), not wait for the final outcome. If ability.timing is
+## assigned and its waits_for_impact is set, effects don't actually
+## apply until Unit.notify_impact() fires (or a timeout elapses) AFTER a
+## confirmed hit — see _wait_for_impact_or_timeout. Most abilities have
+## no AbilityTiming at all (see that class), in which case effects apply
+## immediately, same as always. ability_used (the final result, same
 ## signal as always) only fires once effects have actually resolved,
-## which may now be meaningfully later than when this method was called.
+## which may now be meaningfully later than when this method was called
+## for abilities that do wait.
 func use_ability(ability: Ability, target) -> Dictionary:
 	var result := {
 		"attacker": _owner,
@@ -143,9 +146,9 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 	result["hit"] = true
 
-	if ability.waits_for_impact:
+	if ability.timing and ability.timing.waits_for_impact:
 		_owner.begin_busy()
-		await _wait_for_impact_or_timeout(ability.impact_timeout)
+		await _wait_for_impact_or_timeout(ability.timing.impact_timeout)
 		_owner.end_busy()
 
 	var effect_results: Array = []

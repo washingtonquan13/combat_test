@@ -9,7 +9,7 @@ extends Node
 ##
 ## Owns all FOUR standard audio moments in one place: armed-enter,
 ## armed-hold (a sustained loop while an ability stays armed, waiting
-## for a target), launch, and impact. Launch/impact deliberately react
+## for a target), cast, and impact. Cast/impact deliberately react
 ## directly to Unit.ability_use_started/impact_triggered — the same
 ## unit-level signals animation/VFX already react to — rather than
 ## living inside the ability's impact_vfx sequence as a PlaySoundStep.
@@ -25,17 +25,44 @@ extends Node
 ## midpoint, say) — this file isn't trying to replace that, only to be
 ## the default home for the two common, standard moments.
 ##
+## cast_sfx lives directly on Ability — genuinely universal, every
+## ability fires ability_use_started regardless of shape. impact_sfx
+## lives on the OPTIONAL Ability.timing (see AbilityTiming) instead —
+## "impact" as a concept only exists for abilities with a genuinely
+## distinct launch/impact shape (a projectile, a synced melee swing); a
+## self-buff or passive has no such moment at all, and previously
+## carried an impact_sfx field regardless, unused. Most abilities simply
+## have no AbilityTiming assigned, in which case impact falls straight
+## through to this script's own generic default.
+##
+## Armed-enter/cast/impact are each a composable SfxCue (see that
+## file), not a bare AudioStream — these are exactly the kind of moment
+## that often wants more than one layered sound, and a single-field
+## design can't express that without growing new fields per additional
+## sound. armed-hold stays a plain AudioStream — a sustained loop is a
+## different enough case (layering multiple loops is a rare need) that
+## the same composition wasn't worth applying there too.
+##
 ## Deliberately NON-BLOCKING throughout — nothing here ever awaits
-## anything, every sound is fire-and-forget, matching how BG3/DOS2/WotR/
-## PoE2 actually handle this: combat never waits on audio length. What
-## makes it feel synced is that each sound STARTS at the exact right
-## moment, not that anything is gated on it finishing.
+## anything itself (SfxCue/SfxLayer's own internal per-layer delays run
+## independently in the background), matching how BG3/DOS2/WotR/PoE2
+## actually handle this: combat never waits on audio length. What makes
+## it feel synced is that each sound STARTS at the exact right moment,
+## not that anything is gated on it finishing.
+##
+## Worth knowing plainly: this covers the EXISTING four moments well,
+## but doesn't add new ones. A channeled ability needing a repeating
+## "tick" sound, or a multi-hit ability needing a separate impact sound
+## per hit, would need Unit.impact_triggered itself to support firing
+## more than once per use_ability() call — it currently doesn't. That's
+## a change to the combat-level sync signals, a separate and larger
+## question from making the existing four moments composable.
 
 @export var unit: Unit
-@export var default_armed_enter_sfx: AudioStream
+@export var default_armed_enter_sfx: SfxCue
 @export var default_armed_hold_sfx: AudioStream
-@export var default_launch_sfx: AudioStream
-@export var default_impact_sfx: AudioStream
+@export var default_cast_sfx: SfxCue
+@export var default_impact_sfx: SfxCue
 
 ## The looping "holding a stance" player, parented directly under `unit`
 ## (not the scene root, unlike VfxEffect's one-shot sequences) —
@@ -80,8 +107,8 @@ func _on_ability_armed(ability: Ability) -> void:
 	if not ability:
 		return  # disarmed — nothing more to play
 
-	var enter_sfx: AudioStream = ability.armed_enter_sfx if ability.armed_enter_sfx else default_armed_enter_sfx
-	_play_one_shot(enter_sfx, unit.global_position)
+	var enter_cue: SfxCue = ability.armed_enter_sfx if ability.armed_enter_sfx else default_armed_enter_sfx
+	_play_cue(enter_cue, unit.global_position)
 
 	var hold_sfx: AudioStream = ability.armed_hold_sfx if ability.armed_hold_sfx else default_armed_hold_sfx
 	_start_hold_loop(hold_sfx)
@@ -98,27 +125,26 @@ func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 	_pending_ability = ability
 	_pending_target_position = target.global_position if target is Unit else (target if target is Vector3 else attacker.global_position)
 
-	var launch_sfx: AudioStream = ability.launch_sfx if ability.launch_sfx else default_launch_sfx
-	_play_one_shot(launch_sfx, attacker.global_position)
+	var cast_cue: SfxCue = ability.cast_sfx if ability.cast_sfx else default_cast_sfx
+	_play_cue(cast_cue, attacker.global_position)
 
 
+## impact_sfx now lives on the optional Ability.timing (see
+## AbilityTiming) rather than directly on Ability — most abilities have
+## no timing assigned at all, in which case this falls straight through
+## to the generic default, same as if impact_sfx had simply been unset.
 func _on_impact_triggered() -> void:
 	var ability: Ability = _pending_ability
-	var impact_sfx: AudioStream = default_impact_sfx
-	if ability and ability.impact_sfx:
-		impact_sfx = ability.impact_sfx
-	_play_one_shot(impact_sfx, _pending_target_position)
+	var impact_cue: SfxCue = default_impact_sfx
+	if ability and ability.timing and ability.timing.impact_sfx:
+		impact_cue = ability.timing.impact_sfx
+	_play_cue(impact_cue, _pending_target_position)
 
 
-func _play_one_shot(stream: AudioStream, position: Vector3) -> void:
-	if not stream:
+func _play_cue(cue: SfxCue, position: Vector3) -> void:
+	if not cue:
 		return
-	var player := AudioStreamPlayer3D.new()
-	get_tree().current_scene.add_child(player)
-	player.stream = stream
-	player.global_position = position
-	player.play()
-	player.finished.connect(player.queue_free)
+	cue.play(get_tree().current_scene, position)
 
 
 func _start_hold_loop(stream: AudioStream) -> void:

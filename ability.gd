@@ -6,7 +6,14 @@ extends Resource
 ## holds what's genuinely universal to every ability regardless of what
 ## it does: a name/icon, HOW it picks a target (targeting), WHAT happens
 ## when it resolves (effects, plural — an ability can combine more than
-## one), and turn-economy cost.
+## one), turn-economy cost, and armed/cast SFX (every ability gets
+## armed and used, projectile or not).
+##
+## Timing (waits_for_impact) and impact SFX are deliberately NOT here —
+## see AbilityTiming. Only abilities with a genuinely distinct launch/
+## impact shape (a projectile, a synced melee swing) assign one; most
+## abilities leave Ability.timing unset entirely rather than carrying
+## fields for a concept that was never relevant to them.
 ##
 ## Create instances as .tres files (editor: right-click in FileSystem >
 ## New Resource > Ability), assign a targeting resource and one or more
@@ -31,22 +38,12 @@ extends Resource
 @export var uses_attack_action: bool = true
 
 @export_group("Timing")
-## If true, use_ability() waits for Unit.notify_impact() — called by an
-## attack animation's Call Method Track (placed at the frame a weapon
-## actually connects), or a VFX sequence's ImpactSignalStep (typically
-## right after a projectile arrives) — before actually applying this
-## ability's effects. Damage genuinely lands when the animation/VFX
-## SHOWS it landing, not the instant the ability is used. Defaults false
-## so abilities without a properly synced animation/VFX set up yet keep
-## resolving immediately, exactly as they already do — this is
-## deliberately opt-in per ability, not a forced change to everything.
-@export var waits_for_impact: bool = false
-## Safety timeout — if notify_impact() never arrives (the animation/VFX
-## isn't actually wired up to call it, despite waits_for_impact being
-## on), effects apply anyway after this many seconds rather than the
-## ability hanging forever and stalling the whole turn. A late-but-
-## correct resolution is a far safer failure mode than a stuck game.
-@export var impact_timeout: float = 3.0
+## Optional — see AbilityTiming's own header for the full reasoning.
+## Leave unset for anything without a genuinely distinct launch/impact
+## shape (buffs, passives, adjacent-target heals, ...); assign one only
+## for abilities where "impact" is a real, separate moment from "use" —
+## a projectile, or a melee swing synced to an animation's connect frame.
+@export var timing: AbilityTiming
 
 @export_group("Impact FX")
 ## Optional per-ability composable VFX sequence — see VfxEffect. Left
@@ -58,43 +55,40 @@ extends Resource
 ## projectile and timing between steps without needing separate fields
 ## for each visual thing that might play.
 ##
-## For SOUND specifically, prefer launch_sfx/impact_sfx below (Action
-## SFX group) over adding a PlaySoundStep here — see that group's doc
-## comment for why: this sequence's steps have their own internal
-## lifecycle/cleanup logic that audio has no reason to depend on, and a
-## purely visual change here has already once silently broken audio
-## timing as a result. PlaySoundStep still exists and is still the right
-## tool for a sound that needs precise positioning relative to a
-## specific mid-sequence VFX moment with no corresponding combat signal
-## — just not the default choice for the two common cases anymore.
+## For SOUND specifically, prefer cast_sfx below / timing.impact_sfx
+## over adding a PlaySoundStep here — see those fields' doc comments for
+## why: this sequence's steps have their own internal lifecycle/cleanup
+## logic that audio has no reason to depend on, and a purely visual
+## change here has already once silently broken audio timing as a
+## result. PlaySoundStep still exists and is still the right tool for a
+## sound that needs precise positioning relative to a specific mid-
+## sequence VFX moment with no corresponding combat signal — just not
+## the default choice for the common cases anymore.
 @export var impact_vfx: VfxEffect
 
 @export_group("Armed Stance SFX")
 ## Optional per-ability overrides for the sound played the instant this
-## ability becomes armed, and the sound looped for as long as it STAYS
-## armed (waiting for the player to pick a target) — see unit_sfx.gd,
-## which owns these two specific moments and nothing else (launch/impact
-## stay in impact_vfx above). Left unset, unit_sfx.gd falls back to its
-## own generic defaults.
-@export var armed_enter_sfx: AudioStream
+## ability becomes armed (a composable SfxCue — see that file), and the
+## sound looped for as long as it STAYS armed (a plain AudioStream, not
+## a cue — a sustained loop is a genuinely different case from a
+## layerable one-shot burst; "layer multiple simultaneous loops" is a
+## rare enough need that it isn't worth the same composition here). See
+## unit_sfx.gd, which owns these moments. Left unset, unit_sfx.gd falls
+## back to its own generic defaults. Universal to every armable ability
+## — arming isn't a projectile-specific concept, unlike impact.
+@export var armed_enter_sfx: SfxCue
 @export var armed_hold_sfx: AudioStream
 
-@export_group("Action SFX")
-## Optional per-ability overrides for the sound played at LAUNCH
-## (Unit.ability_use_started — the instant use is confirmed, before
-## to-hit) and IMPACT (Unit.impact_triggered). These are the two most
-## common SFX moments, given their own direct hooks in unit_sfx.gd
-## rather than requiring a PlaySoundStep inside impact_vfx for the
-## common case — deliberately kept OUT of the VFX sequence, reacting to
-## the same unit-level signals animation/VFX already react to, so a
-## purely visual change to impact_vfx can never again silently affect
-## audio timing (they no longer share any execution path). PlaySoundStep
-## remains available inside impact_vfx for sounds that genuinely need to
-## be positioned relative to a specific mid-sequence VFX moment (timed
-## to a projectile's midpoint, say) that has no corresponding combat
-## signal of its own — use whichever fits a given sound's actual need.
-@export var launch_sfx: AudioStream
-@export var impact_sfx: AudioStream
+@export_group("Cast SFX")
+## Optional composable sound (see SfxCue) played the instant this
+## ability's use is confirmed (Unit.ability_use_started) — genuinely
+## universal, unlike impact_sfx (see AbilityTiming): every ability fires
+## that signal, projectile or not, so even a pure self-buff can
+## meaningfully want a cast sound here. Named cast_sfx rather than
+## launch_sfx specifically to avoid smuggling the same projectile-only
+## assumption AbilityTiming was split out to remove — this fires for
+## literally every ability use.
+@export var cast_sfx: SfxCue
 
 
 ## Whether target is a legal target for this ability from attacker's
