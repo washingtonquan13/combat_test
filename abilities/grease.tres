@@ -1,0 +1,67 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=18 format=3 uid="uid://8t1yvopu728x"]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_klks1"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_8da6v"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://spawn_surface_effect.gd" id="2_nljf2"]
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://surface.gd" id="3_3v0v0"]
+[ext_resource type="PackedScene" uid="uid://dr51e1l3niwh0" path="res://grease.tscn" id="3_5hn5t"]
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="4_5hn5t"]
+[ext_resource type="Script" uid="uid://oat2wgdvlw2c" path="res://prone_behavior.gd" id="5_ahm4a"]
+[ext_resource type="Script" uid="uid://c13klrwq84gxl" path="res://incapacitate_behavior.gd" id="6_iikuq"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="7_oyg0r"]
+[ext_resource type="Texture2D" uid="uid://qiuxvonh0jav" path="res://assets/ability_icon/grease_icon.png" id="8_5hn5t"]
+[ext_resource type="Script" uid="uid://bhfvvo8gbkewp" path="res://area_targeting.gd" id="9_3xeoo"]
+
+[sub_resource type="Resource" id="Resource_w70ck"]
+script = ExtResource("5_ahm4a")
+melee_bonus = 4
+ranged_penalty = -4
+metadata/_custom_type_script = "uid://oat2wgdvlw2c"
+
+[sub_resource type="Resource" id="Resource_7pofh"]
+script = ExtResource("6_iikuq")
+metadata/_custom_type_script = "uid://c13klrwq84gxl"
+
+[sub_resource type="Resource" id="Resource_efyr5"]
+script = ExtResource("7_oyg0r")
+status_name = "Slipped"
+icon = ExtResource("8_5hn5t")
+default_duration = 1
+stack_mode = 2
+max_stacks = 1
+behaviors = Array[ExtResource("4_5hn5t")]([SubResource("Resource_w70ck"), SubResource("Resource_7pofh")])
+metadata/_custom_type_script = "uid://cplabynayhpiv"
+
+[sub_resource type="Resource" id="Resource_6bgp3"]
+script = ExtResource("3_3v0v0")
+surface_name = "Grease"
+duration_rounds = 3
+status_effect = SubResource("Resource_efyr5")
+ambient_scene = ExtResource("3_5hn5t")
+scale_ambient_to_radius = true
+authored_radius = 1.0
+metadata/_custom_type_script = "uid://cykbj1s0c82e5"
+
+[sub_resource type="Resource" id="Resource_golul"]
+script = ExtResource("2_nljf2")
+surface = SubResource("Resource_6bgp3")
+metadata/_custom_type_script = "uid://5apipwrij8ef"
+
+[sub_resource type="Resource" id="Resource_si4fr"]
+script = ExtResource("9_3xeoo")
+max_range = 10.0
+radius = 3.0
+requires_line_of_sight = false
+los_obstruction_mask = 1
+eye_height = 1.5
+metadata/_custom_type_script = "uid://bhfvvo8gbkewp"
+
+[resource]
+script = ExtResource("2_8da6v")
+ability_name = "Grease"
+icon = ExtResource("8_5hn5t")
+targeting = SubResource("Resource_si4fr")
+effects = Array[ExtResource("1_klks1")]([SubResource("Resource_golul")])
+requires_to_hit = true
+uses_attack_action = true
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

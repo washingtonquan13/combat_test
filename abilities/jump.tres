@@ -26,6 +26,4 @@ targeting = SubResource("Resource_uc2tp")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_srpy8")])
 requires_to_hit = false
 uses_attack_action = false
-waits_for_impact = false
-impact_timeout = 3.0
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

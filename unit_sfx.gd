@@ -7,10 +7,11 @@ extends Node
 ## AbilityManager itself is global/unit-agnostic, on purpose, same as
 ## everywhere else it's used in this project).
 ##
-## Owns all FOUR standard audio moments in one place: armed-enter,
+## Owns the four standard ABILITY audio moments in one place: armed-enter,
 ## armed-hold (a sustained loop while an ability stays armed, waiting
-## for a target), cast, and impact. Cast/impact deliberately react
-## directly to Unit.ability_use_started/impact_triggered — the same
+## for a target), cast, and impact — plus three STATUS moments (apply/
+## tick/remove, see the block below on those). Cast/impact deliberately
+## react directly to Unit.ability_use_started/impact_triggered — the same
 ## unit-level signals animation/VFX already react to — rather than
 ## living inside the ability's impact_vfx sequence as a PlaySoundStep.
 ## That used to be the recommendation; it changed after a purely visual
@@ -50,13 +51,24 @@ extends Node
 ## it feel synced is that each sound STARTS at the exact right moment,
 ## not that anything is gated on it finishing.
 ##
-## Worth knowing plainly: this covers the EXISTING four moments well,
-## but doesn't add new ones. A channeled ability needing a repeating
-## "tick" sound, or a multi-hit ability needing a separate impact sound
-## per hit, would need Unit.impact_triggered itself to support firing
-## more than once per use_ability() call — it currently doesn't. That's
-## a change to the combat-level sync signals, a separate and larger
-## question from making the existing four moments composable.
+## Status apply/tick/remove (see status_manager.gd's status_applied/
+## status_ticked/status_removed, relayed through Unit the same way as
+## the ability signals above) are the status system's own equivalent of
+## cast/impact — StatusEffect.apply_sfx/tick_sfx/remove_sfx, each an
+## SfxCue same as the ability fields, played at the AFFECTED unit's own
+## position (there's no separate attacker/target split for a status
+## tick the way there is for an ability). Unlike ability moments, these
+## have no default-fallback fields here — a status with none of the
+## three assigned is simply silent, which is the right default for the
+## many statuses (most buffs/debuffs) that don't want a sound at all.
+##
+## Worth knowing plainly: this covers the seven moments above well, but
+## doesn't add new ones. A channeled ability needing a repeating "tick"
+## sound, or a multi-hit ability needing a separate impact sound per
+## hit, would need Unit.impact_triggered itself to support firing more
+## than once per use_ability() call — it currently doesn't. That's a
+## change to the combat-level sync signals, a separate and larger
+## question from making the existing moments composable.
 
 @export var unit: Unit
 @export var default_armed_enter_sfx: SfxCue
@@ -96,6 +108,9 @@ func _ready() -> void:
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.ability_use_started.connect(_on_ability_use_started)
 	unit.impact_triggered.connect(_on_impact_triggered)
+	unit.status_applied.connect(_on_status_applied)
+	unit.status_ticked.connect(_on_status_ticked)
+	unit.status_removed.connect(_on_status_removed)
 
 
 func _on_ability_armed(ability: Ability) -> void:
@@ -139,6 +154,21 @@ func _on_impact_triggered() -> void:
 	if ability and ability.timing and ability.timing.impact_sfx:
 		impact_cue = ability.timing.impact_sfx
 	_play_cue(impact_cue, _pending_target_position)
+
+
+## Status SFX plays at the affected unit's own position, same reasoning
+## as unit_vfx.gd's status handlers — see StatusEffect's Apply/Tick/
+## Remove FX groups.
+func _on_status_applied(affected_unit: Unit, effect: StatusEffect) -> void:
+	_play_cue(effect.apply_sfx, affected_unit.global_position)
+
+
+func _on_status_ticked(affected_unit: Unit, effect: StatusEffect) -> void:
+	_play_cue(effect.tick_sfx, affected_unit.global_position)
+
+
+func _on_status_removed(affected_unit: Unit, effect: StatusEffect) -> void:
+	_play_cue(effect.remove_sfx, affected_unit.global_position)
 
 
 func _play_cue(cue: SfxCue, position: Vector3) -> void:
