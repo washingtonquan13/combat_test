@@ -173,32 +173,38 @@ func move_to(destination: Vector3) -> bool:
 	var flying: bool = _owner.is_flying()
 	var query_origin: Vector3 = _owner.global_position
 	var query_destination: Vector3 = destination
+	var target_altitude: float = 0.0
 	if flying:
+		target_altitude = clamp(
+			_owner.flight_target_altitude,
+			NavigationCarving.FLIGHT_MIN_ALTITUDE,
+			NavigationCarving.FLIGHT_CEILING_HEIGHT
+		)
 		# The QUERY has to happen at the air navmesh's OWN baked height
-		# (FLIGHT_CEILING_HEIGHT), not the unit's real altitude —
+		# (target_altitude — see rebake_air_region_at_altitude, which
+		# bakes real obstacle geometry AT that height), not necessarily
+		# the unit's real current altitude if it's mid-climb —
 		# map_get_path only snaps a point onto navmesh geometry within a
-		# small tolerance, and a unit hovering well below the ceiling is
-		# too far from it vertically to snap at all (confirmed by
-		# testing: querying at the unit's actual altitude silently
-		# returned zero waypoints). Only the XZ shape of the result
-		# matters; NavigationCarving.remap_flight_altitude() below is
-		# what turns that into the unit's actual flight path.
-		NavigationCarving.ensure_air_region_baked(_owner.get_tree())
-		query_origin.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
-		query_destination.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
+		# small tolerance, and a unit far from the baked height is too
+		# far from it vertically to snap at all (confirmed by testing).
+		# Only the XZ shape of the result matters; remap_flight_altitude()
+		# below is what turns that into the unit's actual flight path.
+		NavigationCarving.rebake_air_region_at_altitude(_owner.get_tree(), target_altitude)
+		query_origin.y = target_altitude
+		query_destination.y = target_altitude
 
+	# Flying queries a completely separate NavigationMap (not just a
+	# different layer bitmask on the same one) — see
+	# NavigationCarving.get_air_map()'s header for why: two regions with
+	# overlapping XZ footprints on one shared map broke regardless of
+	# navigation_layers, confirmed by testing.
 	var navigation_layers: int = NavigationCarving.AIR_LAYER if flying else NavigationCarving.GROUND_LAYER
-	var map_rid: RID = _owner.nav_agent.get_navigation_map()
+	var map_rid: RID = NavigationCarving.get_air_map() if flying else _owner.nav_agent.get_navigation_map()
 	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, query_origin, query_destination, true, navigation_layers)
 	if waypoints.size() < 2:
 		return false
 
 	if flying:
-		var target_altitude: float = clamp(
-			_owner.flight_target_altitude,
-			NavigationCarving.FLIGHT_MIN_ALTITUDE,
-			NavigationCarving.FLIGHT_CEILING_HEIGHT
-		)
 		waypoints = NavigationCarving.remap_flight_altitude(waypoints, _owner.global_position.y, target_altitude)
 
 	var planned: Dictionary = RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)

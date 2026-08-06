@@ -57,15 +57,43 @@ static var _flush_queued: bool = false
 const GROUND_LAYER := 1
 const AIR_LAYER := 2
 
-## Single flat global flight ceiling for the prototype — see
-## ensure_air_region_baked(). A deliberate simplification (see this
-## project's flight-design discussion): real per-location ceiling
-## geometry or altitude bands are a later upgrade if a map ever actually
-## needs them, not built preemptively.
+## The air region lives on its OWN NavigationMap, not the World3D
+## default map ground uses — confirmed necessary by testing, not a
+## design preference: two regions with overlapping XZ footprints on the
+## SAME map, even a completely flat pair with no shared obstacle at all,
+## reliably triggers a NavigationServer "attempted to merge a navigation
+## mesh polygon edge with another already-merged edge" error during that
+## map's periodic sync pass. navigation_layers (AIR_LAYER/GROUND_LAYER
+## above) was meant to be how ground/air stayed distinguished on one
+## shared map; that assumption turned out not to hold once the air layer
+## got real geometry-scanned obstacles instead of an empty rectangle —
+## kept anyway since it's still harmless/correct on the air map's own
+## terms, just no longer the thing doing the actual separation.
+static var _air_map: RID
+
+
+## Lazily creates (once) and returns the dedicated air NavigationMap RID
+## — see the const comment above for why this exists instead of reusing
+## the default map. map_set_active is required: a server-created map
+## isn't live until explicitly activated, unlike the World3D default map
+## which Godot activates for you.
+static func get_air_map() -> RID:
+	if not _air_map.is_valid():
+		_air_map = NavigationServer3D.map_create()
+		NavigationServer3D.map_set_active(_air_map, true)
+	return _air_map
+
+## Ceiling for the flight envelope — the hard upper clamp on
+## Unit.adjust_flight_altitude(), not a physical obstacle (there's no
+## geometry up there; a unit just can't scroll/hold past it). Real
+## ceiling obstacles, where they exist, come from actual level geometry
+## now that rebake_air_region_at_altitude() scans it — see that
+## function's header for why this changed from the original
+## flat-rectangle prototype.
 const FLIGHT_CEILING_HEIGHT := 12.0
-## Generous flat bound covering any reasonable battle map — this is a
-## single rectangle, not per-level geometry, so oversizing it costs
-## nothing.
+## Generous flat bound for the air layer's synthetic floor plate,
+## covering any reasonable battle map — a single large rectangle, not
+## per-level geometry, so oversizing it costs nothing.
 const FLIGHT_AREA_HALF_EXTENT := 100.0
 ## Floor for Unit.adjust_flight_altitude()'s clamp — a flat safety
 ## minimum, not real per-location ground height (that would need a
@@ -74,8 +102,17 @@ const FLIGHT_AREA_HALF_EXTENT := 100.0
 ## this just stops scrolling from dragging a unit's TARGET altitude
 ## below/through the floor before they ever land.
 const FLIGHT_MIN_ALTITUDE := 1.0
+## Skips re-baking the air layer for a target altitude within this many
+## meters of the last bake — avoids a full geometry-scan bake for
+## floating-point noise or negligible drift, while still re-baking for
+## any real altitude change.
+const AIR_REBAKE_EPSILON := 0.1
 
 static var _air_region: NavigationRegion3D
+static var _air_floor_body: StaticBody3D
+## Sentinel far outside the real flight envelope so the very first call
+## always bakes rather than being skipped by the epsilon check above.
+static var _air_baked_altitude: float = -INF
 
 
 ## Rewrites a flight path's Y values to interpolate from start_altitude
@@ -106,50 +143,123 @@ static func remap_flight_altitude(waypoints: PackedVector3Array, start_altitude:
 	return result
 
 
-## Creates and bakes the air navigation layer once — idempotent (a
-## second call is a no-op), so every call site (rebake_for_movers()
-## every turn, GrantFlightEffect at cast time, move_to() as a last-
-## resort fallback) can just call this unconditionally rather than
-## coordinating who's responsible for doing it once. In practice
-## rebake_for_movers() is what actually creates it, on combat's very
-## first turn, whether or not anyone ends up flying — see that
-## function's comment for why creating it that early matters. Deliberately NOT a
-## real NavigationServer3D.parse_source_geometry_data()/
-## bake_from_source_geometry_data() bake like rebake_for_movers() below:
-## there's no obstacle geometry to scan for yet (no ceiling obstacles,
-## no per-unit carving — see this file's header for why flying units
-## don't carve each other into this layer at all), so the navmesh is
-## just one big hand-authored flat rectangle instead. Its baked Y is
-## irrelevant to actual flight altitude — UnitMovement.move_to()
-## overrides the Y of whatever path this returns to the unit's own
-## chosen height; only the XZ shape (a single open rectangle, currently
-## no holes) matters here. Switch this to a real geometry-scanned bake
-## the day a map actually needs static air obstacles (a ceiling, a
-## no-fly zone) — deferred, not forgotten.
-static func ensure_air_region_baked(tree: SceneTree) -> void:
-	if is_instance_valid(_air_region):
+## Bakes (or re-bakes) the air navigation layer's walkable surface at
+## `altitude`, from REAL level geometry — replaces an earlier version of
+## this function that hand-authored an empty flat rectangle with no
+## obstacle awareness at all (confirmed missing via direct testing: a
+## flying unit was flying straight through walls the ground layer
+## already routes around). Reuses the exact same real-geometry bake
+## pipeline rebake_for_movers() below already uses for the ground layer
+## (parse_source_geometry_data + bake_from_source_geometry_data, region's
+## PARENT as the discovery root) — just with a synthetic, invisible
+## "floor" plate (_air_floor_body) repositioned to `altitude` instead of
+## ground level. Recast's own obstacle exclusion (already proven correct
+## for the ground layer, and directly verified for this specific
+## use — baking a floor next to a tall wall produced a real detour
+## around its exact footprint, while a short wall below that height was
+## correctly ignored) then naturally carves out any real static geometry
+## — walls, platforms, boxes — that occupies that specific height,
+## leaving the rest open. Continuous in the real sense: any altitude,
+## not a handful of pre-baked bands, since the bake target is whatever
+## height is actually relevant right now, not a fixed layer.
+##
+## Idempotent against small altitude drift (see AIR_REBAKE_EPSILON) so
+## every call site can call this liberally rather than tracking whether
+## a rebake is actually owed.
+##
+## Real cost, unlike the old one-time rectangle: this is a genuine
+## geometry-scan bake, same class of cost as the ground layer's own
+## per-turn rebake, done every time a flying unit's relevant altitude
+## changes meaningfully — not free, but proportionate to what it buys.
+## And per the "freshly baked region needs a real physics frame before
+## it's queryable" lesson (see feedback memory), this has to be
+## triggered PROACTIVELY, ahead of when a query will actually happen —
+## see call sites in rebake_for_movers() (every turn start, for whoever
+## flying is currently acting) and movement_indicator.gd's altitude-key-
+## release handling, not lazily inside move_to() alone (though it's
+## still called there too, as a last-resort safety net).
+static func rebake_air_region_at_altitude(tree: SceneTree, altitude: float) -> void:
+	if is_instance_valid(_air_region) and absf(altitude - _air_baked_altitude) < AIR_REBAKE_EPSILON:
 		return
 
+	if not is_instance_valid(_air_region):
+		_create_air_region(tree)
+
+	_air_floor_body.position.y = altitude - 0.1
+	_air_baked_altitude = altitude
+
+	# A fresh NavigationMesh each bake, not the same resource re-baked in
+	# place — this floor plate physically moves every time (unlike the
+	# ground layer's own source geometry, which never moves between
+	# bakes), and bake_from_source_geometry_data mutating stale polygon
+	# data from a DIFFERENT source position in place is a real,
+	# reproducible source of corruption (confirmed by testing). Safe to
+	# reposition/re-bake the same persistent REGION node in place now
+	# that it's on its own dedicated map (see AIR_MAP/get_air_map()) —
+	# the map-sharing conflict that previously forced full region
+	# destroy-and-recreate every rebake doesn't apply once ground and
+	# air are never reconciled against each other on the same map.
+	_air_region.navigation_mesh = NavigationMesh.new()
+
+	var ground_region: NavigationRegion3D = tree.get_first_node_in_group("nav_region") as NavigationRegion3D
+	var parent: Node = ground_region.get_parent() if ground_region else tree.current_scene
+	var source_geometry_data := NavigationMeshSourceGeometryData3D.new()
+	NavigationServer3D.parse_source_geometry_data(_air_region.navigation_mesh, source_geometry_data, parent)
+	NavigationServer3D.bake_from_source_geometry_data(_air_region.navigation_mesh, source_geometry_data)
+	_air_region.set_navigation_mesh(_air_region.navigation_mesh)
+
+
+## One-time construction of the air region and its synthetic floor plate
+## — a real StaticBody3D (MeshInstance3D + CollisionShape3D, same
+## belt-and-suspenders reasoning as everywhere else in this project that
+## doesn't know which geometry source mode is configured) so it actually
+## participates in parse_source_geometry_data's scan alongside real
+## level geometry. Invisible (mesh_instance.visible = false) — this is a
+## bake-source plate, not something a player should ever see floating at
+## a unit's flight altitude.
+##
+## Parented under the SAME root the ground region uses (so later scans
+## pick up real static level geometry alongside this plate — units don't
+## leak into that scan regardless, since they're CharacterBody3D, not
+## StaticBody3D, same as how the ground bake already never picks them
+## up), then EXPLICITLY reassigned onto the dedicated air map — Godot
+## auto-attaches a newly-added NavigationRegion3D to the World3D default
+## map, which is exactly the map ground already uses; region_set_map
+## overrides that immediately, before this region ever gets baked, so it
+## never actually coexists with the ground region on the same map even
+## momentarily.
+static func _create_air_region(tree: SceneTree) -> void:
 	var region := NavigationRegion3D.new()
 	region.name = "AirNavigationRegion3D"
 	region.add_to_group("air_nav_region")
 	region.navigation_layers = AIR_LAYER
+	region.navigation_mesh = NavigationMesh.new()
 
-	var nav_mesh := NavigationMesh.new()
+	var floor_body := StaticBody3D.new()
+	floor_body.name = "AirFloorPlate"
+	region.add_child(floor_body)
+
 	var h: float = FLIGHT_AREA_HALF_EXTENT
-	var y: float = FLIGHT_CEILING_HEIGHT
-	# Winding matters — Recast only treats a polygon as walkable if its
-	# face normal points +Y. This order (confirmed by testing, not
-	# assumed) is what actually produces that; the "obvious" [0,1,2,3]
-	# order here faces -Y and silently bakes to zero usable polygons.
-	nav_mesh.vertices = PackedVector3Array([
-		Vector3(-h, y, -h), Vector3(h, y, -h), Vector3(h, y, h), Vector3(-h, y, h),
-	])
-	nav_mesh.add_polygon(PackedInt32Array([0, 3, 2, 1]))
-	region.navigation_mesh = nav_mesh
+	var mesh_instance := MeshInstance3D.new()
+	var box_mesh := BoxMesh.new()
+	box_mesh.size = Vector3(h * 2.0, 0.2, h * 2.0)
+	mesh_instance.mesh = box_mesh
+	mesh_instance.visible = false
+	floor_body.add_child(mesh_instance)
 
-	tree.current_scene.add_child(region)
+	var collision := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = Vector3(h * 2.0, 0.2, h * 2.0)
+	collision.shape = box_shape
+	floor_body.add_child(collision)
+
+	var ground_region: NavigationRegion3D = tree.get_first_node_in_group("nav_region") as NavigationRegion3D
+	var parent: Node = ground_region.get_parent() if ground_region else tree.current_scene
+	parent.add_child(region)
+	NavigationServer3D.region_set_map(region.get_region_rid(), get_air_map())
+
 	_air_region = region
+	_air_floor_body = floor_body
 
 static func request_rebake(tree: SceneTree, movers: Array) -> void:
 	for m in movers:
@@ -182,18 +292,22 @@ static func _flush_pending_rebake() -> void:
 
 
 static func rebake_for_movers(tree: SceneTree, movers: Array) -> void:
-	# Piggybacks the air region's one-time creation onto ground rebaking
-	# (called every single turn already, from combat's very first turn)
-	# rather than waiting for the first actual flight move to trigger it
-	# lazily — see ensure_air_region_baked()'s own header for why: a
-	# freshly created NavigationRegion3D needs the NavigationServer a
-	# real physics frame or two to register before map_get_path can see
-	# it, and a synchronous move_to() call can't await that. Creating it
-	# here instead means it's had many turns to settle by the time
-	# anyone could plausibly have cast a flight ability AND clicked a
-	# destination — two separate inputs that can't happen in the same
-	# frame combat starts in.
-	ensure_air_region_baked(tree)
+	# Piggybacks an air-layer rebake onto ground rebaking (called every
+	# single turn already, from combat's very first turn) for any mover
+	# that's currently flying, rather than waiting for that unit's own
+	# move_to() call to trigger it lazily — see
+	# rebake_air_region_at_altitude()'s own header for why: a freshly
+	# baked region needs the NavigationServer a real physics frame or two
+	# to register before map_get_path can see it, and a synchronous
+	# move_to() call can't await that. Baking here instead means it's had
+	# many frames to settle by the time this mover could plausibly have
+	# clicked a destination — two separate inputs that can't happen in
+	# the same frame their turn starts in. Harmless/no-op for a mover
+	# that isn't flying, or whose altitude hasn't meaningfully changed
+	# since the last bake (see AIR_REBAKE_EPSILON).
+	for m in movers:
+		if m is Unit and m.is_flying():
+			rebake_air_region_at_altitude(tree, m.flight_target_altitude)
 
 	var region: NavigationRegion3D = tree.get_first_node_in_group("nav_region") as NavigationRegion3D
 	if not region:
@@ -213,8 +327,10 @@ static func rebake_for_movers(tree: SceneTree, movers: Array) -> void:
 		# occupies its ground-level footprint, so it shouldn't carve a
 		# hole into the GROUND navmesh at all (a ground unit should be
 		# free to walk underneath it). It still doesn't carve the AIR
-		# navmesh either — see ensure_air_region_baked()'s header for why
-		# flying units don't carve each other at all, in either layer.
+		# navmesh either — mutual flyer-to-flyer avoidance is a separate,
+		# not-yet-built follow-up (see this project's flight-design
+		# notes), not something rebake_air_region_at_altitude()'s
+		# real-geometry bake currently accounts for.
 		var carves_ground: bool = not is_mover and not unit.is_flying()
 		unit.set_carving_enabled(carves_ground)
 		if carves_ground:

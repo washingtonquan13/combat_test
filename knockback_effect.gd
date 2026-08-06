@@ -56,12 +56,18 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 	if target.is_flying():
 		# No navmesh snap here — see this file's header for why
 		# map_get_closest_point() isn't safe to use once an air region
-		# exists on the same map. Not needed anyway: the air layer is
-		# currently one open rectangle with no carved obstacles (see
-		# NavigationCarving.ensure_air_region_baked), so there's nothing
-		# to snap away from. Y is explicitly held at the target's
-		# current altitude regardless of what raw_destination's Y ended
-		# up being (it already matches, since offset.y was zeroed above
+		# exists on the same map. Note this is now a real simplification,
+		# not "nothing to snap to" — the air layer gets a real
+		# geometry-scanned bake at the target's own altitude now (see
+		# NavigationCarving.rebake_air_region_at_altitude), so there
+		# genuinely could be a wall there to shove someone through. Not
+		# fixed here: doing this properly needs a layer-scoped closest-
+		# point search, which map_get_closest_point still can't do (no
+		# navigation_layers parameter) — flagged, not solved, since
+		# nothing asked for shove-respects-air-obstacles specifically.
+		# Y is explicitly held at the target's current altitude
+		# regardless of what raw_destination's Y ended up being (it
+		# already matches, since offset.y was zeroed above
 		# — this just makes that invariant explicit rather than implicit).
 		destination = raw_destination
 		destination.y = to.y

@@ -98,6 +98,18 @@ func _handle_altitude_input(unit: Unit, delta: float) -> void:
 	if direction != 0.0:
 		unit.adjust_flight_altitude(direction * altitude_adjust_speed * delta)
 
+	# Re-bakes the air layer's real-geometry obstacle avoidance on key
+	# RELEASE, not every held frame — a full geometry-scan bake every
+	# frame while R/F is held would be wasteful, and a real player
+	# always has at least one more frame between letting go and clicking
+	# a destination (two separate inputs), which is exactly the lead
+	# time rebake_air_region_at_altitude() needs to have synced before
+	# that click's query happens. See NavigationCarving.
+	# rebake_air_region_at_altitude()'s own header for the fuller reason
+	# this can't just happen lazily inside move_to() alone.
+	if Input.is_action_just_released("fly_ascend") or Input.is_action_just_released("fly_descend"):
+		NavigationCarving.rebake_air_region_at_altitude(unit.get_tree(), unit.flight_target_altitude)
+
 
 func _update_path_preview(unit: Unit) -> void:
 	var hover_point = _get_mouse_ground_point()
@@ -105,21 +117,28 @@ func _update_path_preview(unit: Unit) -> void:
 		_path_mesh.visible = false
 		return
 
-	var map_rid: RID = unit.nav_agent.get_navigation_map()
-
 	# Mirrors UnitMovement.move_to()'s own flying branch exactly — same
-	# query-at-ceiling-height-then-remap approach and the same
+	# query-at-target-altitude-then-remap approach and the same
 	# remap_flight_altitude() call (see that function's comment for
 	# why), so this preview can't diverge from what the real move will
 	# do (see this file's header).
 	var flying: bool = unit.is_flying()
 	var query_origin: Vector3 = unit.global_position
 	var query_hover_point: Vector3 = hover_point
+	var target_altitude: float = 0.0
 	if flying:
-		NavigationCarving.ensure_air_region_baked(unit.get_tree())
-		query_origin.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
-		query_hover_point.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
+		target_altitude = clamp(
+			unit.flight_target_altitude,
+			NavigationCarving.FLIGHT_MIN_ALTITUDE,
+			NavigationCarving.FLIGHT_CEILING_HEIGHT
+		)
+		NavigationCarving.rebake_air_region_at_altitude(unit.get_tree(), target_altitude)
+		query_origin.y = target_altitude
+		query_hover_point.y = target_altitude
 	var navigation_layers: int = NavigationCarving.AIR_LAYER if flying else NavigationCarving.GROUND_LAYER
+	# Flying queries the dedicated air map, not the shared default map —
+	# see NavigationCarving.get_air_map()'s header for why.
+	var map_rid: RID = NavigationCarving.get_air_map() if flying else unit.nav_agent.get_navigation_map()
 
 	# Hovering directly over another unit's carved-out footprint has
 	# nothing valid to plan toward exactly at that point — map_get_path
@@ -131,11 +150,6 @@ func _update_path_preview(unit: Unit) -> void:
 		return
 
 	if flying:
-		var target_altitude: float = clamp(
-			unit.flight_target_altitude,
-			NavigationCarving.FLIGHT_MIN_ALTITUDE,
-			NavigationCarving.FLIGHT_CEILING_HEIGHT
-		)
 		waypoints = NavigationCarving.remap_flight_altitude(waypoints, unit.global_position.y, target_altitude)
 
 	# The SAME planning call move_to() itself makes, with the same
