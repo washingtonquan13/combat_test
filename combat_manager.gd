@@ -63,6 +63,14 @@ signal round_started(round_number: int)
 ## the end-turn button while TURN_ENDING/TURN_STARTING) without needing
 ## to listen to every specific signal individually.
 signal phase_changed(phase: Phase)
+## Fired by add_unit_to_combat() — a summon joining a fight already in
+## progress. Deliberately separate from combat_started (the initial
+## roster): anything that builds its own view of "who's in this fight"
+## off combat_started alone (see initiative_row.gd, which is exactly
+## what missed this) needs a SEPARATE hook for a unit arriving after
+## that initial snapshot, not a reason to re-derive from turn_order on
+## every turn_started.
+signal unit_joined_combat(unit: Unit)
 
 var turn_order: Array[Unit] = []
 ## Counts full passes through turn_order — 1 for the very first turn of
@@ -121,16 +129,7 @@ func start_combat(combatants: Array[Unit]) -> void:
 	)
 
 	for unit in turn_order:
-		if not unit.died.is_connected(_on_unit_died):
-			unit.died.connect(_on_unit_died)
-		# Anything that can displace a unit mid-turn (Knockback, Shove,
-		# Jump's move_caster_effect — none of which go through
-		# Unit.move_to(), so none of them trigger a rebake on their own)
-		# finishes by emitting ability_used — see this file's other
-		# rebake call sites for why the navmesh needs to stay current
-		# with actual positions, not just at turn boundaries.
-		if not unit.ability_used.is_connected(_on_ability_used):
-			unit.ability_used.connect(_on_ability_used)
+		_connect_unit_signals(unit)
 
 	_turn_index = -1
 	round_number = 0
@@ -138,6 +137,65 @@ func start_combat(combatants: Array[Unit]) -> void:
 	SystemLog.print("[b]--- Combat started ---[/b]")
 	combat_started.emit(turn_order)
 	_advance_turn.call_deferred()
+
+
+## Connects the two per-unit signals every combatant needs — shared by
+## start_combat()'s initial roster and add_unit_to_combat() (a summon,
+## say), so a unit joining mid-combat gets exactly the same wiring as one
+## that was there from the start, rather than a second, easy-to-drift
+## copy of the same two lines.
+func _connect_unit_signals(unit: Unit) -> void:
+	if not unit.died.is_connected(_on_unit_died):
+		unit.died.connect(_on_unit_died)
+	# Anything that can displace a unit mid-turn (Knockback, Shove,
+	# Jump's move_caster_effect — none of which go through
+	# Unit.move_to(), so none of them trigger a rebake on their own)
+	# finishes by emitting ability_used — see this file's other
+	# rebake call sites for why the navmesh needs to stay current
+	# with actual positions, not just at turn boundaries.
+	if not unit.ability_used.is_connected(_on_ability_used):
+		unit.ability_used.connect(_on_ability_used)
+
+
+## Injects a new unit into the CURRENTLY RUNNING combat — a summon, most
+## likely. Slots in right after after_unit (typically the summoner —
+## defaults to whoever's turn it currently is, since that's who's
+## casting the summon in the overwhelmingly common case), not re-sorted
+## into full initiative order: simpler bookkeeping, and it means
+## summoning something gives you near-immediate tempo rather than
+## waiting on a freshly-rolled initiative slot that might land far away.
+## Does NOT call reset_turn_actions() — that happens exactly once, at the
+## normal point _advance_turn() already reaches every unit's turn, same
+## as any other combatant; a summon gets a fresh move/attack budget when
+## its own turn naturally comes up, not before.
+##
+## No-op outside combat (phase == OUT_OF_COMBAT) — there's no turn_order
+## to inject into; a summon cast outside combat is just a unit that
+## exists, nothing this method needs to be involved in.
+func add_unit_to_combat(unit: Unit, after_unit: Unit = null) -> void:
+	if phase == Phase.OUT_OF_COMBAT:
+		return
+
+	_connect_unit_signals(unit)
+
+	var insert_index: int = _turn_index + 1
+	if after_unit:
+		var after_index: int = turn_order.find(after_unit)
+		if after_index != -1:
+			insert_index = after_index + 1
+
+	turn_order.insert(insert_index, unit)
+
+	# Inserting AT OR BEFORE the current slot pushes the unit already
+	# sitting there (and every other index at/after the insertion point)
+	# one place further along — without this, current_unit would silently
+	# start pointing at the wrong combatant the instant that happens (only
+	# reachable when after_unit is someone earlier in this round than
+	# whoever's currently acting).
+	if insert_index <= _turn_index:
+		_turn_index += 1
+
+	unit_joined_combat.emit(unit)
 
 
 func end_combat(winning_faction: StringName = &"") -> void:

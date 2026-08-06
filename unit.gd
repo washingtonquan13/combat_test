@@ -152,6 +152,10 @@ signal status_applied(unit: Unit, effect: StatusEffect)
 signal status_removed(unit: Unit, effect: StatusEffect)
 signal status_ticked(unit: Unit, effect: StatusEffect)
 
+## Fires whenever visual_state changes — see that property's doc comment
+## for why this exists and what owns it.
+signal visual_state_changed(unit: Unit, state: VisualState)
+
 signal movement_started(unit: Unit)
 signal movement_finished(unit: Unit)
 ## Fired the instant this unit has nothing left in flight — no move in
@@ -169,6 +173,43 @@ var is_hovered: bool:
 	get: return _selection.is_hovered
 var is_selected: bool:
 	get: return _selection.is_selected
+
+## Owned and written by unit_animator.gd — NOT by any RefCounted
+## component the way move_remaining/is_hovered are, since the animator
+## is a scene-tree sibling node (wired via editor export), not something
+## Unit creates in _ready(). Deliberately just two values, not one per
+## situation (hit-while-standing, hit-while-down, casting, jumping...) —
+## the STATE is "is this unit currently holding a status pose or not";
+## WHICH clip/vfx/sfx plays for anything that happens on top of that is
+## data on the StatusEffect resource itself (see posed_status and
+## StatusEffect's Hit Reaction FX group), never a new hardcoded case.
+##
+## Exists on Unit, not just inside unit_animator.gd privately, so
+## unit_vfx.gd/unit_sfx.gd (or anything else) can ask "is this unit
+## currently posed" without independently reconstructing that tracking
+## themselves — which is exactly how a real bug happened once already
+## (see unit_animator.gd's VisualState doc comment): a unit hit while
+## posed played its hit reaction and never returned to the pose,
+## because the fallback that decided what to rest on didn't know a pose
+## was being held at all. One authoritative value here, read by every
+## reactive system, is what keeps that from happening again independently
+## in each one.
+enum VisualState { STANDING, POSED }
+
+var visual_state: VisualState = VisualState.STANDING:
+	set(value):
+		if visual_state == value:
+			return
+		visual_state = value
+		visual_state_changed.emit(self, value)
+
+## Whichever StatusEffect is currently being visually held while
+## visual_state == POSED — null otherwise. Set alongside visual_state,
+## by the same owner (unit_animator.gd) — this is what lets a reactive
+## system read StatusEffect.hit_reaction_vfx/hit_reaction_sfx for the
+## CURRENTLY-held pose without needing its own copy of "which status,
+## if any, is being held right now."
+var posed_status: StatusEffect = null
 
 ## --- Turn action budget (combat) ---
 ## Both properties forward to _action_state (see UnitActionState) —

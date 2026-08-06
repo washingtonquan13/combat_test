@@ -75,6 +75,12 @@ extends Node
 @export var default_armed_hold_sfx: AudioStream
 @export var default_cast_sfx: SfxCue
 @export var default_impact_sfx: SfxCue
+## Played instead of nothing at all when this unit takes damage while
+## visual_state == POSED (see Unit.visual_state) and the held status
+## doesn't set its own StatusEffect.hit_reaction_sfx — left unset (the
+## default), a hit taken while posed simply gets no extra cue of its
+## own, same as a standing hit already gets none from this script today.
+@export var default_hit_reaction_sfx: SfxCue
 
 ## The looping "holding a stance" player, parented directly under `unit`
 ## (not the scene root, unlike VfxEffect's one-shot sequences) —
@@ -108,6 +114,7 @@ func _ready() -> void:
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.ability_use_started.connect(_on_ability_use_started)
 	unit.impact_triggered.connect(_on_impact_triggered)
+	unit.took_damage.connect(_on_took_damage)
 	unit.status_applied.connect(_on_status_applied)
 	unit.status_ticked.connect(_on_status_ticked)
 	unit.status_removed.connect(_on_status_removed)
@@ -154,6 +161,20 @@ func _on_impact_triggered() -> void:
 	if ability and ability.timing and ability.timing.impact_sfx:
 		impact_cue = ability.timing.impact_sfx
 	_play_cue(impact_cue, _pending_target_position)
+
+
+## Reads the currently-held status's own hit_reaction_sfx if it set one
+## (see StatusEffect), otherwise this script's own default — same
+## pattern as unit_animator.gd's/unit_vfx.gd's _on_took_damage, reading
+## the SAME Unit.posed_status rather than tracking pose state
+## independently here.
+func _on_took_damage(hit_unit: Unit, _amount: int) -> void:
+	if not hit_unit.is_alive():
+		return
+
+	var posed: StatusEffect = hit_unit.posed_status
+	var cue: SfxCue = posed.hit_reaction_sfx if posed and posed.hit_reaction_sfx else default_hit_reaction_sfx
+	_play_cue(cue, hit_unit.global_position)
 
 
 ## Status SFX plays at the affected unit's own position, same reasoning

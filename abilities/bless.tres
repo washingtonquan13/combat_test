@@ -22,6 +22,7 @@ stack_mode = 0
 max_stacks = 1
 behaviors = Array[ExtResource("6_behavior")]([SubResource("Resource_outgoing")])
 apply_animation = ""
+apply_animation_loops = false
 remove_animation = ""
 hit_reaction_animation = ""
 metadata/_custom_type_script = "uid://cplabynayhpiv"

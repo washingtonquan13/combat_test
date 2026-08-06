@@ -44,6 +44,7 @@ max_stacks = 1
 behaviors = Array[ExtResource("3_0585o")]([SubResource("Resource_lj2hd"), SubResource("Resource_isytm")])
 apply_sfx = SubResource("Resource_ehjo2")
 apply_animation = "UAL2_Standard/Hit_Knockback"
+apply_animation_loops = false
 remove_animation = "UAL2_Standard/LayToIdle"
 hit_reaction_animation = ""
 metadata/_custom_type_script = "uid://cplabynayhpiv"

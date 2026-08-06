@@ -48,25 +48,38 @@ enum StackMode {
 ## reaction flourish — see remove_animation below for why the two are a
 ## pair, not independent fields.
 @export var apply_animation: String = ""
+## Whether apply_animation is a looping "resting" clip (e.g. a lying-
+## down idle) rather than a one-shot that should freeze on its final
+## frame once it finishes playing — see unit_animator.gd's
+## _rest_on_base_animation, which is the only place this is read.
+## Defaults false (freeze on last frame), matching how apply_animation
+## already behaved before this field existed — a status only needs to
+## touch this if its pose clip is specifically authored to loop.
+@export var apply_animation_loops: bool = false
 ## Optional clip played when this status is actually removed (expired,
 ## cured, replaced) IF apply_animation ever played and is still being
-## held — see unit_animator.gd's _held_status_effect. Left unset, the
+## held — see unit_animator.gd's Unit.posed_status. Left unset, the
 ## animator falls back to its own default idle clip instead (rather than
 ## holding the pose's final frame forever, which is very likely not what
 ## you want) — but if you set apply_animation for a real pose (lying
 ## down, frozen, ...) you almost always want a matching, purpose-made
 ## remove_animation (a recovery clip) too.
 @export var remove_animation: String = ""
-## Optional clip played instead of the animator's default hit reaction
-## while this status's apply_animation is being held (e.g. a "flinch
+
+@export_group("Hit Reaction FX")
+## Optional clip/VFX/SFX played instead of the animator's/VFX's/SFX's own
+## defaults for a moment where this unit takes damage while this
+## status's apply_animation is currently being held (e.g. a "flinch
 ## while down" clip for Prone/Incapacitate, distinct from a standing
-## hit-react) — left unset, the animator plays its normal default hit
-## reaction and then returns to holding this status's pose afterward
-## either way. This field only changes WHICH clip plays for that moment,
-## never whether the unit correctly returns to the pose — that part is
-## handled structurally, not per-status, so it can't be forgotten by
-## leaving this unset.
+## hit-react) — same shape as Apply/Tick/Remove FX above, just for this
+## fourth moment. Left unset, each system plays its own normal default
+## reaction instead. Whichever plays, the unit still correctly returns to
+## holding this status's pose afterward regardless — that part is
+## handled structurally (see Unit.visual_state/posed_status), not
+## per-status, so it can't be forgotten by leaving these unset.
 @export var hit_reaction_animation: String = ""
+@export var hit_reaction_vfx: VfxEffect
+@export var hit_reaction_sfx: SfxCue
 
 @export_group("Remove FX")
 ## Optional VFX/SFX played when this status is removed — expired,

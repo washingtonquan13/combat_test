@@ -35,6 +35,7 @@ func _ready() -> void:
 	CombatManager.combat_started.connect(_on_combat_started)
 	CombatManager.turn_started.connect(_on_turn_started)
 	CombatManager.combat_ended.connect(_on_combat_ended)
+	CombatManager.unit_joined_combat.connect(_on_unit_joined_combat)
 
 
 func _on_combat_started(turn_order: Array[Unit]) -> void:
@@ -51,6 +52,17 @@ func _on_turn_started(_unit: Unit) -> void:
 
 func _on_combat_ended(_winning_faction: StringName) -> void:
 	_clear_all()
+
+
+## A unit joining a fight already in progress (a summon, most likely —
+## see CombatManager.unit_joined_combat) — _add_slot() alone would just
+## append its portrait to the end of the row regardless of where it
+## actually landed in turn_order, so _sync_order() runs right after to
+## place it correctly immediately rather than leaving it visually
+## misordered until whatever the next natural turn_started happens to be.
+func _on_unit_joined_combat(unit: Unit) -> void:
+	_add_slot(unit)
+	_sync_order()
 
 
 func _add_slot(unit: Unit) -> void:

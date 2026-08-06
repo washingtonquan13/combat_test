@@ -40,6 +40,16 @@ extends Node
 ## strictly required for correctness — but if it's NOT looping and
 ## finishes before the physical jump does, the character will visibly
 ## freeze on Jump's last frame until landing actually triggers Jump_Land.
+##
+## OWNS Unit.visual_state/posed_status — this is the only script that
+## ever writes to them, same as it's the only thing that ever decides
+## which clip plays. They live on Unit rather than staying private here
+## (an earlier version of this file had its own local copies) so
+## unit_vfx.gd/unit_sfx.gd can read "is this unit currently posed, by
+## which status" without independently re-deriving that tracking
+## themselves — see Unit.VisualState's own doc comment for the bug that
+## happened once already from each reactive system quietly assuming its
+## own answer to that question.
 
 @export var unit: Unit
 @export var animation_player: AnimationPlayer
@@ -68,41 +78,12 @@ extends Node
 @export var jump_loop_animation: String = "Jump"
 @export var jump_land_animation: String = "Jump_Land"
 
-## Structural visual state — deliberately just two values, not one per
-## situation (hit-while-standing, hit-while-down, casting, jumping, ...).
-## The STATE is "is this unit currently holding a status pose or not";
-## WHICH clip plays for any one-shot that happens on top of that (a hit
-## reaction, in particular) is data on the StatusEffect resource itself
-## (see hit_reaction_animation), not a new hardcoded case here. Adding a
-## new posed status is authoring a .tres, same as apply_animation/
-## remove_animation already were — it never requires a new enum value or
-## touching this script.
-##
-## This existed as a bug before it existed as a state: a unit hit while
-## holding a pose (Prone, Incapacitated, ...) played the standing hit
-## reaction and then fell through to standing Idle afterward, because
-## _on_took_damage and _on_animation_finished's fallback both hardcoded
-## idle_animation directly instead of asking "what should I actually be
-## resting on right now." _base_animation below is that answer, kept
-## correct in exactly the two places a pose starts/ends (_on_status_
-## applied/_on_status_removed) instead of re-derived ad hoc wherever a
-## one-shot clip happens to finish.
-enum VisualState { STANDING, POSED }
-
-signal visual_state_changed(state: VisualState)
-
-var visual_state: VisualState = VisualState.STANDING:
-	set(value):
-		if visual_state == value:
-			return
-		visual_state = value
-		visual_state_changed.emit(value)
-
 ## What a one-shot clip (a hit reaction, most commonly) returns to once
 ## it finishes — idle_animation normally, or the held status's
-## apply_animation while VisualState.POSED. The single source every
-## fallback reads from; see this enum's own doc comment for the bug this
-## replaces.
+## apply_animation while unit.visual_state == POSED. The single source
+## every fallback reads from, kept correct in exactly the two places a
+## pose starts/ends (_on_status_applied/_on_status_removed) instead of
+## re-derived ad hoc wherever a one-shot clip happens to finish.
 var _base_animation: String = ""
 
 ## True only while actively sequencing a jump (Start -> loop -> Land) —
@@ -111,20 +92,6 @@ var _base_animation: String = ""
 ## a future unrelated async effect finishing could be misread as "the
 ## jump just landed."
 var _awaiting_jump_land: bool = false
-
-## Whichever StatusEffect currently has this unit visually holding its
-## apply_animation's final frame (see StatusEffect.apply_animation) —
-## null when nothing's holding a pose; kept in sync with
-## visual_state == POSED. A single slot, not a stack: a unit can only
-## physically be in one pose at once, so that's the right model for as
-## long as only one status ever sets apply_animation at a time. If a
-## SECOND held-pose status is ever added and both land on the same unit
-## around the same time, the second is deliberately ignored (see
-## _on_status_applied) rather than clobbering this — losing one status's
-## pose animation is a fine trade against the alternative, which is a
-## unit stuck holding a pose forever with nothing left tracking it to
-## ever play its remove_animation.
-var _held_status_effect: StatusEffect = null
 
 
 func _ready() -> void:
@@ -147,15 +114,15 @@ func _ready() -> void:
 
 
 ## Starting a NEW move deliberately abandons any pose currently being
-## held (see _held_status_effect) — matches the already-agreed rule that
+## held (see Unit.posed_status) — matches the already-agreed rule that
 ## a unit choosing to act while afflicted interrupts the pose rather
 ## than it persisting through everything. Clearing here (not just
 ## overwriting the clip) is what stops _on_status_removed from later
 ## trying to play a recovery animation for a pose the unit already
 ## visually got up out of by walking away.
 func _on_movement_started(_u: Unit) -> void:
-	_held_status_effect = null
-	visual_state = VisualState.STANDING
+	unit.posed_status = null
+	unit.visual_state = Unit.VisualState.STANDING
 	_base_animation = idle_animation
 	_play(walk_animation)
 
@@ -169,7 +136,7 @@ func _on_movement_started(_u: Unit) -> void:
 ## whatever's currently held alone; _on_status_removed is what's
 ## actually responsible for transitioning off it.
 func _on_movement_finished(_u: Unit) -> void:
-	if _held_status_effect:
+	if unit.posed_status:
 		return
 	_play(idle_animation)
 
@@ -225,15 +192,17 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 	if not unit.is_alive():
 		return
 
-	if _held_status_effect and _held_status_effect.hit_reaction_animation != "":
-		_play(_held_status_effect.hit_reaction_animation)
+	var posed: StatusEffect = unit.posed_status
+	if posed and posed.hit_reaction_animation != "":
+		_play(posed.hit_reaction_animation)
 	else:
 		_play(hit_animation)
 
 
 func _on_died(_u: Unit) -> void:
 	_awaiting_jump_land = false
-	_held_status_effect = null
+	unit.posed_status = null
+	unit.visual_state = Unit.VisualState.STANDING
 	_play(death_animation)
 
 
@@ -249,19 +218,19 @@ func _on_died(_u: Unit) -> void:
 func _on_status_applied(_affected_unit: Unit, effect: StatusEffect) -> void:
 	if effect.apply_animation == "":
 		return
-	if _held_status_effect != null:
-		return  # already holding a different pose — see _held_status_effect's doc comment
-	_held_status_effect = effect
-	visual_state = VisualState.POSED
+	if unit.posed_status != null:
+		return  # already holding a different pose — see Unit.posed_status's doc comment
+	unit.posed_status = effect
+	unit.visual_state = Unit.VisualState.POSED
 	_base_animation = effect.apply_animation
 	_play(effect.apply_animation)
 
 
 func _on_status_removed(_affected_unit: Unit, effect: StatusEffect) -> void:
-	if effect != _held_status_effect:
+	if effect != unit.posed_status:
 		return
-	_held_status_effect = null
-	visual_state = VisualState.STANDING
+	unit.posed_status = null
+	unit.visual_state = Unit.VisualState.STANDING
 	_base_animation = idle_animation
 	if effect.remove_animation != "":
 		_play(effect.remove_animation)
@@ -290,20 +259,22 @@ func _on_spell_channel_done() -> void:
 ## in-progress walk).
 ##
 ## Returning to _base_animation (not a hardcoded idle_animation) here is
-## the actual fix for the pose/hit-reaction bug this file's VisualState
-## doc comment describes: a hit reaction played while VisualState.POSED
-## is a one-shot clip exactly like a spell's Exit step, and this is the
-## SAME fallback every one-shot already funnels through — it just needed
-## to ask "what should I rest on" instead of assuming standing idle.
+## the actual fix for the pose/hit-reaction bug Unit.VisualState's doc
+## comment describes: a hit reaction played while unit.visual_state ==
+## POSED is a one-shot clip exactly like a spell's Exit step, and this is
+## the SAME fallback every one-shot already funnels through — it just
+## needed to ask "what should I rest on" instead of assuming standing
+## idle.
 func _on_animation_finished(anim_name: StringName) -> void:
 	if anim_name == death_animation:
 		return
 
 	# Holds on the pose's final frame instead of falling through below —
-	# see _held_status_effect's doc comment. Cleared by
-	# _on_status_removed, which is what actually plays the recovery clip
+	# see Unit.posed_status's doc comment. Cleared by _on_status_removed,
+	# which is what actually plays the recovery clip
 	# (StatusEffect.remove_animation) once the status is gone.
-	if _held_status_effect and anim_name == _held_status_effect.apply_animation:
+	var posed: StatusEffect = unit.posed_status
+	if posed and anim_name == posed.apply_animation:
 		return
 
 	if anim_name == jump_start_animation:
@@ -323,16 +294,22 @@ func _on_animation_finished(anim_name: StringName) -> void:
 
 
 ## Returning to a plain idle is a normal fresh play. Returning to a HELD
-## POSE is different — that clip already played once in full when the
-## status was first applied (see _on_status_applied) and is meant to be
-## RESTING on its final frame, not replayed from the start every time a
-## one-shot on top of it (a hit reaction) finishes — an unconditional
-## _play(_base_animation) would visibly replay the whole "collapse to
-## the ground" motion after every single hit while down, instead of
-## snapping straight back to already being down.
+## POSE is different by default — that clip already played once in full
+## when the status was first applied (see _on_status_applied) and is
+## meant to be RESTING on its final frame, not replayed from the start
+## every time a one-shot on top of it (a hit reaction) finishes: an
+## unconditional _play(_base_animation) would visibly replay the whole
+## "collapse to the ground" motion after every single hit while down,
+## instead of snapping straight back to already being down. That's the
+## default (StatusEffect.apply_animation_loops == false) — a status
+## whose pose is authored as a genuine LOOP instead (a "lying down,
+## breathing" idle) sets that field, and this just lets it keep playing
+## normally rather than freezing it mid-loop, which would look wrong the
+## other way around.
 func _rest_on_base_animation() -> void:
 	_play(_base_animation)
-	if _held_status_effect and _base_animation == _held_status_effect.apply_animation:
+	var posed: StatusEffect = unit.posed_status
+	if posed and _base_animation == posed.apply_animation and not posed.apply_animation_loops:
 		if animation_player.has_animation(_base_animation):
 			animation_player.seek(animation_player.current_animation_length, true)
 

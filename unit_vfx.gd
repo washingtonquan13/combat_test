@@ -35,6 +35,12 @@ extends Node
 @export var unit: Unit
 @export var default_impact_vfx: VfxEffect
 @export var default_death_vfx: VfxEffect
+## Played instead of nothing at all when this unit takes damage while
+## visual_state == POSED (see Unit.visual_state) and the held status
+## doesn't set its own StatusEffect.hit_reaction_vfx — left unset (the
+## default), a hit taken while posed simply gets no extra VFX of its own,
+## same as a standing hit already gets none from this script today.
+@export var default_hit_reaction_vfx: VfxEffect
 
 
 func _ready() -> void:
@@ -43,6 +49,7 @@ func _ready() -> void:
 		return
 
 	unit.ability_use_started.connect(_on_ability_use_started)
+	unit.took_damage.connect(_on_took_damage)
 	unit.died.connect(_on_died)
 	unit.status_applied.connect(_on_status_applied)
 	unit.status_ticked.connect(_on_status_ticked)
@@ -53,6 +60,19 @@ func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 	var target_position: Vector3 = _get_target_position(target, attacker)
 	var sequence: VfxEffect = ability.impact_vfx if ability.impact_vfx else default_impact_vfx
 	_play(sequence, attacker.global_position, target_position, ability, attacker)
+
+
+## Reads the currently-held status's own hit_reaction_vfx if it set one
+## (see StatusEffect), otherwise this script's own default — same
+## pattern as unit_animator.gd's _on_took_damage, reading the SAME
+## Unit.posed_status rather than tracking pose state independently here.
+func _on_took_damage(hit_unit: Unit, _amount: int) -> void:
+	if not hit_unit.is_alive():
+		return
+
+	var posed: StatusEffect = hit_unit.posed_status
+	var sequence: VfxEffect = posed.hit_reaction_vfx if posed and posed.hit_reaction_vfx else default_hit_reaction_vfx
+	_play(sequence, hit_unit.global_position, hit_unit.global_position)
 
 
 func _on_died(dying_unit: Unit) -> void:

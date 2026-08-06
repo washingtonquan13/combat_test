@@ -31,6 +31,7 @@ stack_mode = 0
 max_stacks = 1
 behaviors = Array[ExtResource("4_5hn5t")]([SubResource("Resource_w70ck"), SubResource("Resource_7pofh")])
 apply_animation = "UAL2_Standard/Hit_Knockback"
+apply_animation_loops = false
 remove_animation = "UAL2_Standard/LayToIdle"
 hit_reaction_animation = ""
 metadata/_custom_type_script = "uid://cplabynayhpiv"
