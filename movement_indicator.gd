@@ -12,14 +12,14 @@ extends IndicatorBase
 ## be raycast onto it.
 ##
 ## A line follows the EXACT planned route (via RoutePlanner.plan — the
-## same budget/cost planner Unit.move_to() itself calls, over a navmesh
-## route that's already avoidance-correct thanks to per-unit
-## NavigationObstacle3D carving, see navigation_carving.gd) from the unit
-## to wherever the mouse is hovering, colored white for the portion
-## within move_remaining and red for the portion beyond it. Since this
-## calls the literal same planning function the real move will use, over
-## the same navmesh state, this preview IS what will happen — not an
-## approximation of it.
+## same budget/cost planner Unit.move_to() itself calls, over a route
+## from NavigationGrid.find_path() that's already avoidance-correct
+## against every other unit's footprint and real level geometry, see
+## navigation_grid.gd) from the unit to wherever the mouse is hovering,
+## colored white for the portion within move_remaining and red for the
+## portion beyond it. Since this calls the literal same planning function
+## the real move will use, over the same grid state, this preview IS what
+## will happen — not an approximation of it.
 ##
 ## Note: this draws a 1-pixel unshaded line (ImmediateMesh, LINE_STRIP) —
 ## fine for a first pass, but Godot doesn't give line primitives real
@@ -98,18 +98,6 @@ func _handle_altitude_input(unit: Unit, delta: float) -> void:
 	if direction != 0.0:
 		unit.adjust_flight_altitude(direction * altitude_adjust_speed * delta)
 
-	# Re-bakes the air layer's real-geometry obstacle avoidance on key
-	# RELEASE, not every held frame — a full geometry-scan bake every
-	# frame while R/F is held would be wasteful, and a real player
-	# always has at least one more frame between letting go and clicking
-	# a destination (two separate inputs), which is exactly the lead
-	# time rebake_air_region_at_altitude() needs to have synced before
-	# that click's query happens. See NavigationCarving.
-	# rebake_air_region_at_altitude()'s own header for the fuller reason
-	# this can't just happen lazily inside move_to() alone.
-	if Input.is_action_just_released("fly_ascend") or Input.is_action_just_released("fly_descend"):
-		NavigationCarving.rebake_air_region_at_altitude(unit.get_tree(), unit.flight_target_altitude)
-
 
 func _update_path_preview(unit: Unit) -> void:
 	var hover_point = _get_mouse_ground_point()
@@ -118,45 +106,31 @@ func _update_path_preview(unit: Unit) -> void:
 		return
 
 	# Mirrors UnitMovement.move_to()'s own flying branch exactly — same
-	# query-at-target-altitude-then-remap approach and the same
-	# remap_flight_altitude() call (see that function's comment for
-	# why), so this preview can't diverge from what the real move will
-	# do (see this file's header).
+	# XZ-from-click/Y-from-target-altitude query, so this preview can't
+	# diverge from what the real move will do (see this file's header).
 	var flying: bool = unit.is_flying()
-	var query_origin: Vector3 = unit.global_position
 	var query_hover_point: Vector3 = hover_point
-	var target_altitude: float = 0.0
 	if flying:
-		target_altitude = clamp(
+		query_hover_point.y = clamp(
 			unit.flight_target_altitude,
-			NavigationCarving.FLIGHT_MIN_ALTITUDE,
-			NavigationCarving.FLIGHT_CEILING_HEIGHT
+			NavigationGrid.FLIGHT_MIN_ALTITUDE,
+			NavigationGrid.FLIGHT_CEILING_HEIGHT
 		)
-		NavigationCarving.rebake_air_region_at_altitude(unit.get_tree(), target_altitude)
-		query_origin.y = target_altitude
-		query_hover_point.y = target_altitude
-	var navigation_layers: int = NavigationCarving.AIR_LAYER if flying else NavigationCarving.GROUND_LAYER
-	# Flying queries the dedicated air map, not the shared default map —
-	# see NavigationCarving.get_air_map()'s header for why.
-	var map_rid: RID = NavigationCarving.get_air_map() if flying else unit.nav_agent.get_navigation_map()
 
-	# Hovering directly over another unit's carved-out footprint has
-	# nothing valid to plan toward exactly at that point — map_get_path
-	# naturally resolves to the nearest walkable point outside it, same
-	# as move_to() itself; no separate sanitizing step needed.
-	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, query_origin, query_hover_point, true, navigation_layers)
+	# Hovering directly over another unit's own footprint has nothing
+	# valid to plan toward exactly at that point — find_path() naturally
+	# resolves to the nearest valid cell outside it, same as move_to()
+	# itself; no separate sanitizing step needed.
+	var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, query_hover_point, unit, flying)
 	if waypoints.size() < 2:
 		_path_mesh.visible = false
 		return
-
-	if flying:
-		waypoints = NavigationCarving.remap_flight_altitude(waypoints, unit.global_position.y, target_altitude)
 
 	# The SAME planning call move_to() itself makes, with the same
 	# cost_sampler — a large budget here gets the full route to the hover
 	# point regardless of move_remaining; the white/red split below is
 	# what shows how far the unit could actually get this turn. Because
-	# this is the literal same function over the literal same navmesh
+	# this is the literal same function over the literal same grid
 	# state, this preview and the real move can never disagree.
 	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at)
 	var path: PackedVector3Array = planned.path

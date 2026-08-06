@@ -68,13 +68,6 @@ extends CharacterBody3D
 ## the moment flight is granted, so it's never stale/unset by the time
 ## anything reads it.
 @export var flight_target_altitude: float = 0.0
-@onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
-## This unit's carved footprint in the navmesh while it's NOT the one
-## moving — see UnitMovement/NavigationCarving. A real saved scene child
-## (matching nav_agent) rather than something conjured in code at
-## runtime, so it's visible/inspectable the same way everything else on
-## this node is.
-@onready var nav_obstacle: NavigationObstacle3D = $NavigationObstacle3D
 
 @export var damage_reduction: int = 0
 
@@ -277,7 +270,6 @@ func _ready() -> void:
 	input_event.connect(_on_input_event)
 
 	_selection.setup()
-	_movement.setup_avoidance()
 
 
 func _on_mouse_entered() -> void:
@@ -396,30 +388,16 @@ func snap_face_point(point: Vector3) -> void:
 
 ## Delegates to UnitMovement — see that file for the deterministic
 ## plan-then-execute rationale in full, and for why move_speed/radius/
-## avoidance_margin/arrival_tolerance/stuck_timeout/nav_agent all stay
-## directly on Unit rather than moving into the component. Callers don't
-## need to exclude other units from avoidance anymore (there used to be
-## an extra_avoidance_exclusions param for this) — the navmesh itself is
-## already carved around every OTHER unit by the time this runs (see
-## NavigationCarving), and a destination near another unit simply routes
-## to the nearest walkable point outside that unit's own footprint,
-## which is what you want when approaching a target to attack it too.
+## avoidance_margin/arrival_tolerance/stuck_timeout all stay directly on
+## Unit rather than moving into the component. Callers don't need to
+## exclude other units from avoidance anymore (there used to be an
+## extra_avoidance_exclusions param for this) — the shared grid already
+## marks every OTHER unit's footprint occupied by the time this runs (see
+## NavigationGrid), and a destination near another unit simply routes to
+## the nearest valid cell outside that unit's own footprint, which is
+## what you want when approaching a target to attack it too.
 func move_to(destination: Vector3) -> bool:
 	return _movement.move_to(destination)
-
-
-## Toggles whether this unit's own footprint carves the navmesh — see
-## NavigationCarving, which calls this on every unit right before a
-## rebake.
-func set_carving_enabled(enabled: bool) -> void:
-	_movement.set_carving_enabled(enabled)
-
-
-## Resizes this unit's carved hole to leave room for a mover with
-## mover_clearance (radius + avoidance_margin) to pass at a safe
-## distance — see UnitMovement.set_carving_radius and NavigationCarving.
-func set_carving_radius(mover_clearance: float) -> void:
-	_movement.set_carving_radius(mover_clearance)
 
 
 ## Cancels the current move order in place, still spending whatever
@@ -490,23 +468,23 @@ func has_status(effect: StatusEffect) -> bool:
 
 ## Whether any active status currently grants this unit flight — see
 ## FlightBehavior/StatusManager.grants_flight(). UnitMovement.move_to()
-## checks this to route on the air navigation layer instead of ground
-## (see NavigationCarving.AIR_LAYER/GROUND_LAYER).
+## checks this to switch NavigationGrid.find_path()'s traversal rule from
+## grounded (requires solid support underfoot) to flying (requires only
+## being within the flight altitude envelope).
 func is_flying() -> bool:
 	return _status_manager.grants_flight()
 
 
 ## Nudges flight_target_altitude by delta, clamped to the valid flight
-## envelope (see NavigationCarving.FLIGHT_MIN_ALTITUDE/
-## FLIGHT_CEILING_HEIGHT) — called from movement_indicator.gd's scroll-
-## wheel handling while this unit is the active, flying unit. Doesn't
-## move the unit itself; only changes where its NEXT move_to() call
-## will aim for.
+## envelope (see NavigationGrid.FLIGHT_MIN_ALTITUDE/FLIGHT_CEILING_HEIGHT)
+## — called from movement_indicator.gd's R/F key handling while this unit
+## is the active, flying unit. Doesn't move the unit itself; only changes
+## where its NEXT move_to() call will aim for.
 func adjust_flight_altitude(delta: float) -> void:
 	flight_target_altitude = clamp(
 		flight_target_altitude + delta,
-		NavigationCarving.FLIGHT_MIN_ALTITUDE,
-		NavigationCarving.FLIGHT_CEILING_HEIGHT
+		NavigationGrid.FLIGHT_MIN_ALTITUDE,
+		NavigationGrid.FLIGHT_CEILING_HEIGHT
 	)
 
 
@@ -527,11 +505,11 @@ func ground_if_flying() -> void:
 ## below it — called by ForceLandOnExpireBehavior the instant the
 ## Flying status is removed, whether that's a voluntary Land ability or
 ## the status's own duration running out. A physics raycast rather than
-## NavigationServer3D.map_get_closest_point(): that call has no
-## navigation_layers parameter (see ground_point_targeting.gd's own use
-## of it), so on a map with both a ground AND an air region it can't be
-## scoped to "ground only" — it could just as easily snap onto the air
-## sheet instead. Excludes every unit (not just self) from the raycast
+## a NavigationGrid lookup: landing needs the true physical surface
+## directly beneath this exact XZ position, not the nearest VALID cell
+## (which could be meters off to the side) — a raycast is the right tool
+## for "what's physically underneath me," independent of grid resolution.
+## Excludes every unit (not just self) from the raycast
 ## since ground and unit collision share collision_layer 1 by default
 ## in this project (see indicator_base.gd) — otherwise landing directly
 ## above an ally would land ON them instead of the ground beneath them.
@@ -734,15 +712,16 @@ func _handle_death() -> void:
 	_movement.force_stop()
 	set_physics_process(false)
 
-	# remove_from_group("units") above means NavigationCarving will never
-	# revisit this unit's carving state again — set its FINAL state
-	# explicitly now rather than leaving it frozen at whatever it
-	# happened to be (e.g. disabled, if this unit died while it was the
-	# current mover) instead of what corpse_blocks_movement actually
-	# calls for.
-	set_carving_enabled(corpse_blocks_movement)
-
-	if not corpse_blocks_movement:
+	if corpse_blocks_movement:
+		# remove_from_group("units") above means NavigationGrid.
+		# update_occupancy will never see this unit via the normal "units"
+		# group loop again — a separate group is what lets a corpse that's
+		# meant to keep blocking movement still get marked occupied on the
+		# grid (see that function), instead of silently becoming
+		# pathable-through the instant it dies even though it still
+		# physically collides.
+		add_to_group("blocking_corpses")
+	else:
 		collision_layer = 0
 		collision_mask = 0
 

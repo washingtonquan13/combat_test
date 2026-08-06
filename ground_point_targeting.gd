@@ -3,7 +3,7 @@ extends AbilityTargeting
 ## Targets a ground point instead of a unit — for abilities like a
 ## BG3-style Jump, not an attack. target here is a Vector3, not a Unit.
 ##
-## Deliberately does NOT check that a connected navmesh path exists
+## Deliberately does NOT check that a connected walkable path exists
 ## between attacker and the point — a jump is explicitly supposed to be
 ## able to cross a gap a normal walk couldn't path through (that's the
 ## entire point of it being a jump and not just another way to walk).
@@ -21,9 +21,10 @@ extends AbilityTargeting
 ## this doesn't cause a problem, just an ability the AI never picks.
 
 @export var max_range: float = 6.0
-## How close (meters) the landing point needs to be to the actual
-## navmesh to count as "on walkable ground" — matches the tolerance
-## pattern used elsewhere for point validation (see PathAvoidance).
+## How close (meters) the landing point needs to be to an actual valid
+## grid cell (see NavigationGrid) to count as "on walkable ground" —
+## matches the tolerance pattern used elsewhere for point validation
+## (see PathAvoidance).
 @export var navmesh_tolerance: float = 0.5
 
 
@@ -36,9 +37,10 @@ func is_valid_target(attacker: Unit, target) -> bool:
 	if attacker.global_position.distance_to(destination) > max_range:
 		return false
 
-	var map_rid: RID = attacker.nav_agent.get_navigation_map()
-	var closest_on_mesh: Vector3 = NavigationServer3D.map_get_closest_point(map_rid, destination)
-	if closest_on_mesh.distance_to(destination) > navmesh_tolerance:
+	var clearance: float = attacker.radius + attacker.avoidance_margin
+	var max_radius_cells: int = ceili(navmesh_tolerance / NavigationGrid.CELL_SIZE)
+	var snap: Dictionary = NavigationGrid.nearest_valid_point(attacker.get_tree(), destination, clearance, attacker.is_flying(), attacker, max_radius_cells)
+	if not snap.found or snap.point.distance_to(destination) > navmesh_tolerance:
 		return false
 
 	var obstacles: Dictionary = PathAvoidance.gather_obstacles(attacker.get_tree(), [attacker])

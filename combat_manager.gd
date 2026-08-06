@@ -149,9 +149,9 @@ func _connect_unit_signals(unit: Unit) -> void:
 		unit.died.connect(_on_unit_died)
 	# Anything that can displace a unit mid-turn (Knockback, Shove,
 	# Jump's move_caster_effect — none of which go through
-	# Unit.move_to(), so none of them trigger a rebake on their own)
-	# finishes by emitting ability_used — see this file's other
-	# rebake call sites for why the navmesh needs to stay current
+	# Unit.move_to(), so none of them trigger an occupancy update on their
+	# own) finishes by emitting ability_used — see this file's other
+	# occupancy-update call sites for why the grid needs to stay current
 	# with actual positions, not just at turn boundaries.
 	if not unit.ability_used.is_connected(_on_ability_used):
 		unit.ability_used.connect(_on_ability_used)
@@ -252,11 +252,11 @@ func end_turn() -> void:
 	phase = Phase.TURN_ENDING
 
 	# Catches anything that displaced a unit right at the tail end of this
-	# turn without going through ability_used/move_to's own rebake
-	# triggers (belt-and-suspenders alongside _advance_turn's own rebake
+	# turn without going through ability_used/move_to's own occupancy
+	# update (belt-and-suspenders alongside _advance_turn's own update
 	# for whoever goes next — cheap, since this only runs once per turn
 	# either way).
-	NavigationCarving.rebake_for_movers(get_tree(), [unit])
+	NavigationGrid.update_occupancy(get_tree(), [unit])
 	turn_ended.emit(unit)
 	_advance_turn.call_deferred()
 
@@ -310,7 +310,7 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 
 	var next_unit: Unit = turn_order[_turn_index]
 	phase = Phase.TURN_STARTING
-	NavigationCarving.rebake_for_movers(get_tree(), [next_unit])
+	NavigationGrid.update_occupancy(get_tree(), [next_unit])
 	turn_ended.emit(unit)
 	next_unit.reset_turn_actions()
 	_log_and_emit_turn_started(next_unit)
@@ -362,12 +362,12 @@ func _advance_turn() -> void:
 
 	var unit: Unit = current_unit
 	phase = Phase.TURN_STARTING
-	# Rebakes the navmesh with every OTHER living unit carved into it as
-	# an obstacle, and this unit's own footprint excluded (it can't have
-	# its own standing position carved into a hole) — see
-	# NavigationCarving. Once per turn is exactly the cadence this is
-	# meant for: nothing else moves again until this unit's turn ends.
-	NavigationCarving.rebake_for_movers(get_tree(), [unit])
+	# Marks every OTHER living unit's footprint occupied on the shared
+	# grid, and this unit's own footprint excluded (it can't have its own
+	# standing position block its own path query) — see NavigationGrid.
+	# Once per turn is exactly the cadence this is meant for: nothing else
+	# moves again until this unit's turn ends.
+	NavigationGrid.update_occupancy(get_tree(), [unit])
 	unit.reset_turn_actions()
 	unit.tick_statuses()
 
@@ -421,22 +421,23 @@ func _check_combat_end() -> bool:
 
 
 func _on_unit_died(_unit: Unit) -> void:
-	# A death can change what the navmesh should look like — a corpse
-	# that doesn't block movement (see Unit.corpse_blocks_movement/
-	# _handle_death) stops carving. Deliberately BEFORE the phase check
-	# below and unconditional on it: an AoE that wipes a faction fires
-	# one died signal per kill, synchronously, in the same call stack —
-	# if THIS death is what ends combat (_check_combat_end, further
-	# down), every death after it in that same batch would otherwise hit
-	# the early return and never get its corpse's now-correct carving
-	# state actually baked in, leaving a permanently stuck "unwalkable"
-	# pocket where a cleaned-up corpse used to be. This is the exact bug
-	# class this file's header describes — see there for why phase (one
-	# value, one transition point per edge) is what actually prevents it
-	# rather than just patching this one call site's ordering.
-	# request_rebake (not rebake_for_movers) coalesces same-frame deaths
-	# into a single bake instead of one full bake per corpse.
-	NavigationCarving.request_rebake(get_tree(), [current_unit] if current_unit else [])
+	# A death can change what the grid's occupancy should look like — a
+	# corpse that doesn't block movement (see Unit.corpse_blocks_movement/
+	# _handle_death) removes from the "units" group immediately (see
+	# _handle_death), so the very next update_occupancy call already skips
+	# it — no bake, no per-frame coalescing needed the way the old navmesh
+	# rebake required (that existed only to wait out
+	# NavigationObstacle3D's own removal, which this system doesn't have).
+	# Deliberately BEFORE the phase check below and unconditional on it:
+	# an AoE that wipes a faction fires one died signal per kill,
+	# synchronously, in the same call stack — if THIS death is what ends
+	# combat (_check_combat_end, further down), every death after it in
+	# that same batch would otherwise hit the early return and never get
+	# the grid's occupancy updated for it. This is the exact bug class
+	# this file's header describes — see there for why phase (one value,
+	# one transition point per edge) is what actually prevents it rather
+	# than just patching this one call site's ordering.
+	NavigationGrid.update_occupancy(get_tree(), [current_unit] if current_unit else [])
 
 	if phase == Phase.OUT_OF_COMBAT:
 		return
@@ -474,11 +475,8 @@ func _on_unit_died(_unit: Unit) -> void:
 
 ## Knockback, Shove, Jump's move_caster_effect, and anything else an
 ## ability's effects do to displace a unit — none of them go through
-## Unit.move_to(), so none of them trigger a rebake on their own the way
-## an ordinary move does. This is the catch-all for "the ability that
-## just resolved might have moved someone." request_rebake (not
-## rebake_for_movers) so an AoE that fires several ability_used-adjacent
-## deaths/effects in one synchronous burst still only bakes once — see
-## _on_unit_died for the fuller reasoning.
+## Unit.move_to(), so none of them trigger an occupancy update on their
+## own the way an ordinary move does. This is the catch-all for "the
+## ability that just resolved might have moved someone."
 func _on_ability_used(attacker: Unit, _target, _result: Dictionary) -> void:
-	NavigationCarving.request_rebake(get_tree(), [attacker])
+	NavigationGrid.update_occupancy(get_tree(), [attacker])

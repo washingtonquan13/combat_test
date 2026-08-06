@@ -1,11 +1,10 @@
 class_name RoutePlanner
 extends RefCounted
-## Turns a raw navmesh route (NavigationServer3D.map_get_path — already
-## correct with respect to other units, thanks to per-unit
-## NavigationObstacle3D carving; see NavigationCarving) into a
-## budget-aware walking plan: the same route, truncated to fit `budget`,
-## with terrain cost (see Surface.movement_cost_multiplier) integrated
-## along the way.
+## Turns a raw route (NavigationGrid.find_path() — already correct with
+## respect to other units and real level geometry; see navigation_grid.gd)
+## into a budget-aware walking plan: the same route, truncated to fit
+## `budget`, with terrain cost (see Surface.movement_cost_multiplier)
+## integrated along the way.
 ##
 ## Used by BOTH the real move (UnitMovement.move_to) and the preview
 ## (movement_indicator) — the literal same function, the same inputs, so

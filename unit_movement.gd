@@ -1,23 +1,20 @@
 class_name UnitMovement
 extends RefCounted
 ## Owns path-following movement for ONE unit — deterministic
-## plan-then-execute, same as before, but now the ROUTE ITSELF (not a
-## repulsion simulation layered on top of it) is what avoids other
-## units: this unit carries its own NavigationObstacle3D that carves a
-## hole into the baked navmesh, and every other living unit does the
-## same, so NavigationServer3D.map_get_path() simply never returns a
-## route through occupied space in the first place. See
-## navigation_carving.gd for how/when the navmesh actually gets rebaked
-## (once per turn, or once per free-roam move order — NOT continuously),
-## and this file's header history: an earlier version used a custom
-## potential-field steering pass (path_avoidance.gd, still present,
-## intentionally unused, kept as a revert path) to fake unit-avoidance on
-## top of a navmesh that didn't know about units at all; a version after
-## that tried Godot's live NavigationAgent3D RVO avoidance instead, which
-## was also reverted — this is turn-based with only ONE unit ever moving
-## at a time, so there's no reciprocal multi-agent negotiation to do,
-## just one mover against momentarily-static obstacles, which navmesh
-## carving solves directly and exactly rather than approximately.
+## plan-then-execute: NavigationGrid.find_path() (see that file) already
+## returns a route that avoids every other living unit's footprint AND
+## real level geometry, for both grounded and flying movement over one
+## shared grid, so move_to() has nothing left to decide about avoidance —
+## it just walks the fixed result. This file's header history: an earlier
+## version used a custom potential-field steering pass (path_avoidance.gd,
+## still present, intentionally unused, kept as a revert path) to fake
+## unit-avoidance on top of a navmesh that didn't know about units at all;
+## a version after that tried Godot's live NavigationAgent3D RVO avoidance
+## instead, also reverted; the navmesh itself was replaced by NavigationGrid
+## after repeated bake/sync bugs (see that file's own header) — this is
+## turn-based with only ONE unit ever moving at a time, so there's no
+## reciprocal multi-agent negotiation to do, just one mover against
+## momentarily-static obstacles.
 ##
 ## Once the route itself is already avoidance-correct, all move_to() has
 ## left to do is turn it into a budget-aware walking plan — see
@@ -26,14 +23,13 @@ extends RefCounted
 ## way. The SAME function is what movement_indicator.gd calls for the
 ## preview, so preview and real move can never disagree.
 ##
-## move_speed/radius/avoidance_margin/arrival_tolerance/stuck_timeout/
-## nav_agent all stay directly on Unit rather than moving in here — the
-## @export ones for the same editor-safety reasoning as UnitFacing's
-## rotation_speed (the Inspector needs to read/write them before this
-## component exists), and radius/nav_agent specifically because they're
-## read directly by code well outside movement entirely (combat
-## targeting, area effects). This component reads all of them back
-## through its owner reference.
+## move_speed/radius/avoidance_margin/arrival_tolerance/stuck_timeout all
+## stay directly on Unit rather than moving in here — the @export ones for
+## the same editor-safety reasoning as UnitFacing's rotation_speed (the
+## Inspector needs to read/write them before this component exists), and
+## radius specifically because it's read directly by code well outside
+## movement entirely (combat targeting, area effects). This component
+## reads all of them back through its owner reference.
 ##
 ## Can't call move_and_slide() or set velocity/global_position on
 ## itself — a RefCounted has no physics body or transform at all — so
@@ -68,83 +64,6 @@ func _init(owner: Unit) -> void:
 	_owner = owner
 
 
-## Configures this unit's carving obstacle — a real saved child node
-## (Unit.nav_obstacle, see unit.tscn/unit.gd), not something created in
-## code — see this file's header and navigation_carving.gd for the full
-## picture. avoidance_enabled is OFF: this is carving (a bake-time hole
-## in the navmesh), not live RVO push.
-##
-## Sets radius/carve_navigation_mesh/affect_navigation_mesh/height in
-## CODE, explicitly, even though unit.tscn also saves them — confirmed
-## by reading Godot 4.4's own NavigationObstacle3D source
-## (navmesh_parse_source_geometry): radius and vertices EACH
-## independently contribute their own carved shape if both are set —
-## an earlier comment here claiming "carving only reads vertices, never
-## radius" was wrong, based on testing done before a since-fixed root-
-## node bug made ALL carving silently do nothing regardless of radius or
-## vertices, so it never actually got re-verified. A stray non-zero
-## radius left on the saved node (from an editor resave — the same
-## class of drift that separately reset cell_height once already) means
-## every obstacle was contributing an extra, unmanaged circular hole
-## alongside the properly-sized vertices polygon. Setting it here, in
-## code, on every run, is what makes this not silently regress again the
-## next time the editor resaves the scene.
-func setup_avoidance() -> void:
-	_owner.nav_agent.radius = _owner.radius + _owner.avoidance_margin
-	_owner.nav_agent.avoidance_enabled = false
-
-	_owner.nav_obstacle.radius = 0.0
-	_owner.nav_obstacle.height = 2.0
-	_owner.nav_obstacle.carve_navigation_mesh = true
-	_owner.nav_obstacle.avoidance_enabled = false
-
-	# Doubled own radius as a placeholder until the first real rebake
-	# calls set_carving_radius with an actual mover's size (see that
-	# method's doc comment for why the hole needs room for BOTH bodies).
-	_set_carving_shape(_owner.radius * 2.0 + _owner.avoidance_margin)
-
-
-## Toggles whether this unit's own footprint carves the navmesh at all —
-## called by NavigationCarving right before a rebake, disabled for
-## whichever unit(s) are about to move (a unit can't have its own
-## standing position baked into a hole, or map_get_path has nowhere
-## valid to start from).
-func set_carving_enabled(enabled: bool) -> void:
-	_owner.nav_obstacle.affect_navigation_mesh = enabled
-
-
-## Resizes the carved hole for whoever's about to be walking around this
-## unit — see NavigationCarving, which computes this from the actual
-## mover's radius each rebake rather than a value fixed at setup time.
-## Confirmed empirically (a route hugging a hole sized to only the
-## STANDING unit's own radius+margin let a moving unit's route aim
-## straight at a point still deep inside the standing unit's physical
-## body — carving nullifies navmesh cells strictly within the obstacle's
-## own shape, it does NOT separately erode by the walking agent's radius
-## the way baking erodes away from walls): the hole has to be big enough
-## for BOTH bodies — this unit's own radius, AND the radius of whoever
-## is walking past it — or move_and_slide's physical collision (not the
-## plan) ends up being what actually stops the mover, short and stuck,
-## rather than the plan routing cleanly around in the first place.
-func set_carving_radius(mover_clearance: float) -> void:
-	_set_carving_shape(_owner.radius + _owner.avoidance_margin + mover_clearance)
-
-
-## Builds a circular polygon (see set_carving_radius's doc comment for
-## why this can't just be nav_obstacle.radius) and assigns it as the
-## obstacle's carve outline. Local space, Y ignored (the obstacle's own
-## global Y position is what's actually used for vertical placement, per
-## NavigationObstacle3D.vertices) — a flat ring of points around the
-## unit's own origin is all carving needs.
-func _set_carving_shape(radius: float) -> void:
-	const SEGMENTS: int = 12
-	var vertices: PackedVector3Array = PackedVector3Array()
-	for i in SEGMENTS:
-		var angle: float = TAU * float(i) / float(SEGMENTS)
-		vertices.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
-	_owner.nav_obstacle.vertices = vertices
-
-
 func is_moving() -> bool:
 	return _moving
 
@@ -153,10 +72,10 @@ func is_moving() -> bool:
 ## deterministic plan-then-execute rationale. Out of combat, budget is
 ## effectively unlimited. In combat: only CombatManager.current_unit may
 ## move, and the plan is truncated at exactly move_remaining — see
-## RoutePlanner.plan. Callers are responsible for making sure the navmesh
-## has actually been rebaked for this unit as a mover before calling this
-## (see NavigationCarving.rebake_for_movers) — combat turn-start and
-## free-roam move orders both already do this.
+## RoutePlanner.plan. Callers are responsible for making sure the grid's
+## occupancy is current for this unit as a mover before calling this (see
+## NavigationGrid.update_occupancy) — combat turn-start and free-roam move
+## orders both already do this.
 func move_to(destination: Vector3) -> bool:
 	if not _owner.can_act():
 		return false
@@ -171,41 +90,25 @@ func move_to(destination: Vector3) -> bool:
 		budget = _owner.move_remaining
 
 	var flying: bool = _owner.is_flying()
-	var query_origin: Vector3 = _owner.global_position
 	var query_destination: Vector3 = destination
-	var target_altitude: float = 0.0
 	if flying:
-		target_altitude = clamp(
+		# XZ comes from wherever was clicked; Y is the pilot's own target
+		# altitude (see Unit.flight_target_altitude), not the clicked
+		# point's Y — a ground click always resolves near y=0, which
+		# isn't where a flying unit is headed. find_path() below does a
+		# genuine 3D search between the unit's real current position and
+		# this point, so the returned route already climbs/descends
+		# around real obstacles at each height — no separate "bake at one
+		# height, then reinterpret Y along XZ progress" step needed.
+		query_destination.y = clamp(
 			_owner.flight_target_altitude,
-			NavigationCarving.FLIGHT_MIN_ALTITUDE,
-			NavigationCarving.FLIGHT_CEILING_HEIGHT
+			NavigationGrid.FLIGHT_MIN_ALTITUDE,
+			NavigationGrid.FLIGHT_CEILING_HEIGHT
 		)
-		# The QUERY has to happen at the air navmesh's OWN baked height
-		# (target_altitude — see rebake_air_region_at_altitude, which
-		# bakes real obstacle geometry AT that height), not necessarily
-		# the unit's real current altitude if it's mid-climb —
-		# map_get_path only snaps a point onto navmesh geometry within a
-		# small tolerance, and a unit far from the baked height is too
-		# far from it vertically to snap at all (confirmed by testing).
-		# Only the XZ shape of the result matters; remap_flight_altitude()
-		# below is what turns that into the unit's actual flight path.
-		NavigationCarving.rebake_air_region_at_altitude(_owner.get_tree(), target_altitude)
-		query_origin.y = target_altitude
-		query_destination.y = target_altitude
 
-	# Flying queries a completely separate NavigationMap (not just a
-	# different layer bitmask on the same one) — see
-	# NavigationCarving.get_air_map()'s header for why: two regions with
-	# overlapping XZ footprints on one shared map broke regardless of
-	# navigation_layers, confirmed by testing.
-	var navigation_layers: int = NavigationCarving.AIR_LAYER if flying else NavigationCarving.GROUND_LAYER
-	var map_rid: RID = NavigationCarving.get_air_map() if flying else _owner.nav_agent.get_navigation_map()
-	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, query_origin, query_destination, true, navigation_layers)
+	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
 	if waypoints.size() < 2:
 		return false
-
-	if flying:
-		waypoints = NavigationCarving.remap_flight_altitude(waypoints, _owner.global_position.y, target_altitude)
 
 	var planned: Dictionary = RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)
 	var planned_path: PackedVector3Array = planned.path
@@ -272,7 +175,7 @@ func physics_process(delta: float) -> void:
 
 	# Last-resort safety net — see stuck_timeout's doc comment. The path
 	# being followed here is already geometrically clear of every other
-	# unit AND every wall (it came straight from the carved navmesh), so
+	# unit AND every solid cell (it came straight from NavigationGrid), so
 	# in normal circumstances this should never trigger; it exists for
 	# genuinely unexpected physical obstruction (e.g. physics collision
 	# response deviating from the plan) rather than as the primary

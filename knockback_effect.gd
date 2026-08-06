@@ -12,15 +12,11 @@ extends AbilityEffect
 ## Deliberately bypasses move_and_slide() and PathAvoidance the same way
 ## Jump does — a shove isn't a walk order, it shouldn't path around
 ## obstacles or ask permission. The one thing it DOES respect is the
-## navmesh itself for a GROUNDED target: the destination is snapped onto
-## walkable ground so a knockback can't shove a unit through a wall or
-## off into the void. A FLYING target skips that snap entirely — see
-## apply()'s own comment for why: NavigationServer3D.
-## map_get_closest_point() has no navigation_layers parameter (confirmed
-## — same limitation Unit.land() works around), so with both a ground
-## and an air region on the same map it could just as easily snap onto
-## the wrong one, silently dropping a flying target toward the ground
-## instead of leaving it at its own height.
+## grid itself for a GROUNDED target: the destination is snapped onto a
+## valid supported cell (see NavigationGrid.nearest_valid_point) so a
+## knockback can't shove a unit through a wall, off into the void, or
+## into another unit. A FLYING target skips that snap entirely — see
+## apply()'s own comment for why.
 ## Does NOT check for another unit already standing at the landing spot
 ## (no pileup/collision resolution) — an intentional simplification, not
 ## an oversight; revisit if stacking knockbacks into a wall of allies
@@ -54,26 +50,25 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 
 	var destination: Vector3
 	if target.is_flying():
-		# No navmesh snap here — see this file's header for why
-		# map_get_closest_point() isn't safe to use once an air region
-		# exists on the same map. Note this is now a real simplification,
-		# not "nothing to snap to" — the air layer gets a real
-		# geometry-scanned bake at the target's own altitude now (see
-		# NavigationCarving.rebake_air_region_at_altitude), so there
-		# genuinely could be a wall there to shove someone through. Not
-		# fixed here: doing this properly needs a layer-scoped closest-
-		# point search, which map_get_closest_point still can't do (no
-		# navigation_layers parameter) — flagged, not solved, since
-		# nothing asked for shove-respects-air-obstacles specifically.
-		# Y is explicitly held at the target's current altitude
-		# regardless of what raw_destination's Y ended up being (it
-		# already matches, since offset.y was zeroed above
+		# No grid snap here, deliberately — a shove is a pure horizontal
+		# displacement (see this file's header); it doesn't check for
+		# real obstacles at the target's altitude at all (shove is
+		# melee-range, so attacker and target are already close in
+		# altitude, and nothing has asked for shove-respects-air-
+		# obstacles specifically). Y is explicitly held at the target's
+		# current altitude regardless of what raw_destination's Y ended
+		# up being (it already matches, since offset.y was zeroed above
 		# — this just makes that invariant explicit rather than implicit).
 		destination = raw_destination
 		destination.y = to.y
 	else:
-		var map_rid: RID = target.nav_agent.get_navigation_map()
-		destination = NavigationServer3D.map_get_closest_point(map_rid, raw_destination)
+		var clearance: float = target.radius + target.avoidance_margin
+		var snap: Dictionary = NavigationGrid.nearest_valid_point(target.get_tree(), raw_destination, clearance, false, target)
+		# Nothing valid found nearby (e.g. shoved toward a solid wall
+		# with no clear cell within range) — left exactly where it is
+		# rather than guessing a fallback, same "no guessing" philosophy
+		# as Unit.land()'s own "nowhere to land" case.
+		destination = snap.point if snap.found else to
 
 	var actual_distance: float = to.distance_to(destination)
 

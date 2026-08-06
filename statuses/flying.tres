@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="2_behavior"]
 [ext_resource type="Script" uid="uid://cp37tt8ahehq4" path="res://flight_behavior.gd" id="3_flight"]
 [ext_resource type="Script" path="res://force_land_on_expire_behavior.gd" id="4_land"]
-[ext_resource type="Script" path="res://altitude_advantage_behavior.gd" id="5_altitude"]
+[ext_resource type="Script" uid="uid://yor401j5yoxb" path="res://altitude_advantage_behavior.gd" id="5_altitude"]
 
 [sub_resource type="Resource" id="Resource_flight"]
 script = ExtResource("3_flight")
