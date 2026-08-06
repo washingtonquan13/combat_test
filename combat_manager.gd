@@ -6,6 +6,41 @@ extends Node
 ## out "whose turn is it" via signals, and UI/AI code calls Unit.attack()
 ## (see unit_combat_additions.gd) then CombatManager.end_turn() when a unit
 ## is done acting. Dead units are dropped from the order automatically.
+##
+## Turn flow is an explicit state machine (see Phase) rather than a bare
+## in_combat bool plus scattered busy/idle flag checks — the thing that
+## replaced was a real bug class, not a hypothetical one: a mass-kill AoE
+## fires one died signal per corpse, synchronously, in the same call
+## stack, and whichever death happened to trigger _check_combat_end()
+## flipped in_combat false out from under every death handler still to
+## run in that same batch — each one hit an early-return guard and never
+## finished its own cleanup. One authoritative phase value, transitioned
+## in exactly one place per edge, is what makes that class of bug
+## structurally harder to reintroduce, instead of relying on every new
+## signal handler remembering to re-check a shared bool correctly.
+##
+## Deliberately only 4 phases, not the 6 in the design sketch this was
+## drafted from — two of the sketch's boxes turned out not to be
+## separately OBSERVABLE runtime states once actually built:
+##   - "Awaiting Action" and "Action Resolving" collapse into ACTIVE here.
+##     Nothing at the CombatManager level currently needs to react to
+##     that specific transition — Unit.is_busy() already answers "is the
+##     acting unit currently mid-move/mid-ability" at every point that
+##     actually checks it (end_turn, delay_turn). Splitting ACTIVE in two
+##     would mean wiring a new "became busy" signal (UnitActionState has
+##     became_idle for the reverse direction, not this one) for a
+##     distinction nothing consumes yet — exactly the kind of speculative
+##     complexity worth skipping until something real needs it.
+##   - "Combat Ending" collapses into the OUT_OF_COMBAT transition
+##     itself. _check_combat_end() calling end_combat() is one
+##     synchronous call, not two frames apart — there's no interval where
+##     code could ever observe "ending" as distinct from "ended."
+enum Phase {
+	OUT_OF_COMBAT,  ## No combat running. in_combat reads false.
+	TURN_STARTING,  ## Between _advance_turn() beginning and the eventual live unit's turn_started firing — may loop on itself if tick_statuses() kills whoever's up next.
+	ACTIVE,         ## A unit's turn is live. See Unit.is_busy() for whether it's specifically idle (awaiting a click/AI decision) or mid-action.
+	TURN_ENDING,    ## end_turn() has been called; waiting on the acting unit to finish anything in flight before the next _advance_turn() runs.
+}
 
 signal combat_started(turn_order: Array[Unit])
 signal turn_started(unit: Unit)
@@ -22,15 +57,37 @@ signal combat_ended(winning_faction: StringName)
 ## which ages every Surface's remaining duration here rather than
 ## inventing its own scheduler (see surface_manager.gd).
 signal round_started(round_number: int)
+## Fires on every transition, including the ones already covered by a
+## more specific signal above (turn_started et al) — for anything that
+## wants to react to phase generally (e.g. a debug HUD, or graying out
+## the end-turn button while TURN_ENDING/TURN_STARTING) without needing
+## to listen to every specific signal individually.
+signal phase_changed(phase: Phase)
 
 var turn_order: Array[Unit] = []
-var in_combat: bool = false
 ## Counts full passes through turn_order — 1 for the very first turn of
 ## combat, incrementing each time _turn_index wraps back to 0. Not
 ## affected by delay_turn() (that only reorders turn_order/moves the
 ## delaying unit within the same pass, never touches _turn_index other
 ## than the ordinary advance already does).
 var round_number: int = 0
+
+## The single authoritative turn-flow state — see Phase and this file's
+## header. Every transition happens in exactly one place (search for
+## "phase =" to find all of them); nothing outside this file ever writes
+## to it, only reads it via in_combat or phase_changed.
+var phase: Phase = Phase.OUT_OF_COMBAT:
+	set(value):
+		if phase == value:
+			return
+		phase = value
+		phase_changed.emit(value)
+
+## Derived from phase rather than an independent flag — every external
+## reader (there are over a dozen) keeps working completely unchanged;
+## only the storage moved.
+var in_combat: bool:
+	get: return phase != Phase.OUT_OF_COMBAT
 
 var _turn_index: int = -1
 ## Set while a delay_turn() call is waiting on a busy unit to become
@@ -77,7 +134,7 @@ func start_combat(combatants: Array[Unit]) -> void:
 
 	_turn_index = -1
 	round_number = 0
-	in_combat = true
+	phase = Phase.TURN_STARTING
 	SystemLog.print("[b]--- Combat started ---[/b]")
 	combat_started.emit(turn_order)
 	_advance_turn.call_deferred()
@@ -89,7 +146,7 @@ func end_combat(winning_faction: StringName = &"") -> void:
 	else:
 		SystemLog.print("[b]--- Combat ended: %s wins ---[/b]" % LogFormat.faction_name(winning_faction))
 
-	in_combat = false
+	phase = Phase.OUT_OF_COMBAT
 	for unit in turn_order:
 		if not is_instance_valid(unit):
 			continue
@@ -122,7 +179,7 @@ func end_combat(winning_faction: StringName = &"") -> void:
 ## with no base case. Deferring makes each turn's resolution its own step
 ## instead of a nested call frame.
 func end_turn() -> void:
-	if not in_combat:
+	if phase != Phase.ACTIVE:
 		return
 
 	var unit: Unit = current_unit
@@ -133,6 +190,8 @@ func end_turn() -> void:
 		if not unit.became_idle.is_connected(end_turn):
 			unit.became_idle.connect(end_turn, CONNECT_ONE_SHOT)
 		return
+
+	phase = Phase.TURN_ENDING
 
 	# Catches anything that displaced a unit right at the tail end of this
 	# turn without going through ability_used/move_to's own rebake
@@ -166,7 +225,7 @@ func end_turn() -> void:
 ## not the case, combat isn't running, or positions < 1. positions
 ## defaults to 1 pending a real turn-order UI to choose a specific value.
 func delay_turn(unit: Unit, positions: int = 1) -> bool:
-	if not in_combat or unit != current_unit or positions < 1:
+	if phase != Phase.ACTIVE or unit != current_unit or positions < 1:
 		return false
 
 	if unit.is_busy():
@@ -182,7 +241,7 @@ func delay_turn(unit: Unit, positions: int = 1) -> bool:
 func _on_unit_idle_for_delay() -> void:
 	var positions: int = _pending_delay_positions
 	_pending_delay_positions = -1
-	if in_combat and current_unit:
+	if phase == Phase.ACTIVE and current_unit:
 		_perform_delay(current_unit, positions)
 
 
@@ -192,6 +251,7 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 	turn_order.insert(insert_index, unit)
 
 	var next_unit: Unit = turn_order[_turn_index]
+	phase = Phase.TURN_STARTING
 	NavigationCarving.rebake_for_movers(get_tree(), [next_unit])
 	turn_ended.emit(unit)
 	next_unit.reset_turn_actions()
@@ -199,7 +259,7 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 
 
 func _advance_turn() -> void:
-	if not in_combat:
+	if phase == Phase.OUT_OF_COMBAT:
 		return
 
 	# is_instance_valid guards against a unit whose node has already been
@@ -218,6 +278,7 @@ func _advance_turn() -> void:
 		round_started.emit(round_number)
 
 	var unit: Unit = current_unit
+	phase = Phase.TURN_STARTING
 	# Rebakes the navmesh with every OTHER living unit carved into it as
 	# an obstacle, and this unit's own footprint excluded (it can't have
 	# its own standing position carved into a hole) — see
@@ -234,7 +295,7 @@ func _advance_turn() -> void:
 	# calling _advance_turn() synchronously here would nest this turn's
 	# resolution inside the current call frame instead of making it its
 	# own step.
-	if not in_combat:
+	if phase == Phase.OUT_OF_COMBAT:
 		return
 	if not is_instance_valid(unit) or not unit.is_alive():
 		_advance_turn.call_deferred()
@@ -245,8 +306,10 @@ func _advance_turn() -> void:
 
 ## Shared by both places a unit's turn actually starts (normal advance,
 ## and stepping into the slot vacated by a delay_turn call) so the log
-## line isn't duplicated at each call site.
+## line isn't duplicated at each call site — and now the one place ACTIVE
+## is ever entered from.
 func _log_and_emit_turn_started(unit: Unit) -> void:
+	phase = Phase.ACTIVE
 	SystemLog.print("[u]%s's turn[/u]" % LogFormat.unit_name(unit))
 	turn_started.emit(unit)
 
@@ -277,19 +340,22 @@ func _check_combat_end() -> bool:
 func _on_unit_died(_unit: Unit) -> void:
 	# A death can change what the navmesh should look like — a corpse
 	# that doesn't block movement (see Unit.corpse_blocks_movement/
-	# _handle_death) stops carving. Deliberately BEFORE the in_combat
-	# check below and unconditional on it: an AoE that wipes a faction
-	# fires one died signal per kill, synchronously, in the same call
-	# stack — if THIS death is what ends combat (_check_combat_end,
-	# further down), every death after it in that same batch would
-	# otherwise hit the early return and never get its corpse's
-	# now-correct carving state actually baked in, leaving a permanently
-	# stuck "unwalkable" pocket where a cleaned-up corpse used to be.
+	# _handle_death) stops carving. Deliberately BEFORE the phase check
+	# below and unconditional on it: an AoE that wipes a faction fires
+	# one died signal per kill, synchronously, in the same call stack —
+	# if THIS death is what ends combat (_check_combat_end, further
+	# down), every death after it in that same batch would otherwise hit
+	# the early return and never get its corpse's now-correct carving
+	# state actually baked in, leaving a permanently stuck "unwalkable"
+	# pocket where a cleaned-up corpse used to be. This is the exact bug
+	# class this file's header describes — see there for why phase (one
+	# value, one transition point per edge) is what actually prevents it
+	# rather than just patching this one call site's ordering.
 	# request_rebake (not rebake_for_movers) coalesces same-frame deaths
 	# into a single bake instead of one full bake per corpse.
 	NavigationCarving.request_rebake(get_tree(), [current_unit] if current_unit else [])
 
-	if not in_combat:
+	if phase == Phase.OUT_OF_COMBAT:
 		return
 
 	# Check the win/loss condition the instant anyone dies — don't wait

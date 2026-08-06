@@ -19,4 +19,5 @@ max_stacks = 1
 behaviors = Array[ExtResource("2_behavior")]([SubResource("Resource_statmod")])
 apply_animation = ""
 remove_animation = ""
+hit_reaction_animation = ""
 metadata/_custom_type_script = "uid://cplabynayhpiv"
