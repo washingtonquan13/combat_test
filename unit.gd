@@ -510,6 +510,19 @@ func adjust_flight_altitude(delta: float) -> void:
 	)
 
 
+## Forces this unit out of the air by removing every status currently
+## granting it flight — used by IncapacitateBehavior so Sleep/Stun/
+## Paralysis (anything built from it) knocks a flying unit down instead
+## of leaving it hovering, unreachable, indefinitely for the rest of the
+## status's duration. Deliberately doesn't call land() itself: removing
+## the status is what fires ForceLandOnExpireBehavior.on_remove() (see
+## statuses/flying.tres), the exact same landing logic a voluntary Land
+## cast already goes through — one landing implementation, not two.
+func ground_if_flying() -> void:
+	for effect in _status_manager.flight_granting_effects():
+		remove_status(effect)
+
+
 ## Snaps this unit straight down onto whatever solid ground is directly
 ## below it — called by ForceLandOnExpireBehavior the instant the
 ## Flying status is removed, whether that's a voluntary Land ability or

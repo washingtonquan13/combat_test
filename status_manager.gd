@@ -115,6 +115,22 @@ func grants_flight() -> bool:
 	return false
 
 
+## Every currently active StatusEffect that's granting this unit flight
+## right now — see Unit.ground_if_flying(), which removes each of these
+## to force a fall (e.g. getting Incapacitated mid-air). Plural: nothing
+## currently applies more than one flight-granting status to the same
+## unit at once, but nothing stops it either, so this doesn't assume
+## there's only ever one.
+func flight_granting_effects() -> Array[StatusEffect]:
+	var result: Array[StatusEffect] = []
+	for a in active:
+		for behavior in a.effect.behaviors:
+			if behavior.grants_flight():
+				result.append(a.effect)
+				break
+	return result
+
+
 ## Sum of every active status's modifier to an incoming attack's to-hit
 ## target number, from this unit being the DEFENDER — see
 ## StatusBehavior.modify_incoming_attack_to_hit.

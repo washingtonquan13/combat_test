@@ -56,6 +56,18 @@ func _attempt_action(unit: Unit) -> void:
 		CombatManager.end_turn()
 		return
 
+	# Deliberately dumb, same spirit as the rest of this file: doesn't
+	# weigh whether flying is actually the BEST move, just "my target is
+	# airborne, I'm not, and I have a way to fly" → take off. A coroutine
+	# now (the await below) — safe, since both call sites already invoke
+	# this fire-and-forget, same as Unit.use_ability() elsewhere in this
+	# file. Never lands again on its own; landing isn't something this
+	# baseline AI does at all yet.
+	if target.is_flying() and not unit.is_flying():
+		var flight_ability: Ability = _find_flight_ability(unit)
+		if flight_ability:
+			await unit.use_ability(flight_ability, unit)
+
 	var ability: Ability = unit.default_ability()
 	if not ability:
 		CombatManager.end_turn()
@@ -99,6 +111,20 @@ func _on_movement_finished(unit: Unit) -> void:
 		return
 
 	_attempt_action(unit)
+
+
+## The first ability in unit's own list that grants flight (a
+## GrantFlightEffect among its effects) — type-checked, not compared
+## against a specific StatusEffect/Ability resource, so this works for
+## any unit carrying any flight-granting ability, not just abilities/
+## fly.tres specifically. Returns null if this unit has no way to fly
+## at all, which is the common case and not an error.
+func _find_flight_ability(unit: Unit) -> Ability:
+	for ability in unit.abilities:
+		for effect in ability.effects:
+			if effect is GrantFlightEffect:
+				return ability
+	return null
 
 
 func _find_nearest_hostile(unit: Unit) -> Unit:
