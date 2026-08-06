@@ -1,4 +1,4 @@
-[gd_scene load_steps=50 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=51 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -42,6 +42,7 @@
 [ext_resource type="Resource" uid="uid://bk3h1qlytr0eg" path="res://abilities/cure.tres" id="35_cure"]
 [ext_resource type="Resource" uid="uid://qvfwynd2l033" path="res://abilities/summon_spirit.tres" id="36_4lmeg"]
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://abilities/fly.tres" id="37_0cp0l"]
+[ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://abilities/land.tres" id="38_d2t1y"]
 
 [sub_resource type="NavigationMesh" id="NavigationMesh_lquwl"]
 vertices = PackedVector3Array(-9.75, 1, -0.5, -4.25, 1, -0.5, -4.25, 1, -2.5, -2, 1, -2.75, -2, 1, -9.75, -9.75, 1, -9.75, 4.25, 1, -2.75, 5.25, 1, -3.5, 5.25, 1, -6.5, 7.5, 1, -6.75, 7.5, 1, -9.75, 5.5, 1, -3, 9, 1, -6.5, 9.75, 1, -9.75, 9, 1, -3.5, 9.75, 1, 1.25, 4.5, 1, 1, 8.5, 1, -3, 5.75, 4, -6.25, 5.75, 4, -3.75, 8.25, 4, -3.75, 8.25, 4, -6.25, 6, 1, -6, 6, 1, -3.75, 8.25, 1, -3.75, 8.25, 1, -6, -3.75, 6, -2.25, -3.75, 6, 2.25, 3.75, 6, 2.25, 3.75, 6, -2.25, -3.5, 1, -2, -3.5, 1, 2.25, 3.75, 1, 2.25, 3.75, 1, -2, -4.25, 1, 2.75, -2.75, 1, 9.75, -2.5, 1, 3, -9.75, 1, 9.75, 4.5, 1, 2.5, 4, 1, 3, 2.75, 1, 9.75, 9.75, 1, 9.75, 2.5, 1, 3)
@@ -303,7 +304,7 @@ dexterity = 18
 intelligence = 16
 move = 27
 move_speed = 5.0
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l")])
+abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("21_lswn8")
 

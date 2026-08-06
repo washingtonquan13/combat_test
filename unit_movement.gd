@@ -171,26 +171,18 @@ func move_to(destination: Vector3) -> bool:
 		budget = _owner.move_remaining
 
 	var flying: bool = _owner.is_flying()
-	var held_altitude: float = _owner.global_position.y
 	var query_origin: Vector3 = _owner.global_position
 	var query_destination: Vector3 = destination
 	if flying:
-		# Altitude control isn't built yet — every current destination
-		# comes from a ground raycast (see ground_click_target.gd), so
-		# without this a flying unit would silently sink to ground level
-		# on every move. Holds whatever height it's currently at instead;
-		# real altitude control is a deferred follow-up (see
-		# GrantFlightEffect and FlightBehavior).
-		#
-		# The QUERY itself, though, has to happen at the air navmesh's
-		# OWN baked height (FLIGHT_CEILING_HEIGHT), not the unit's real
-		# altitude — map_get_path only snaps a point onto navmesh
-		# geometry within a small tolerance, and a unit hovering well
-		# below the ceiling is too far from it vertically to snap at all
-		# (confirmed by testing: querying at the unit's actual altitude
-		# silently returned zero waypoints). Only the XZ shape of the
-		# result matters; every returned waypoint's Y gets rewritten back
-		# onto held_altitude below regardless of what height it queried at.
+		# The QUERY has to happen at the air navmesh's OWN baked height
+		# (FLIGHT_CEILING_HEIGHT), not the unit's real altitude —
+		# map_get_path only snaps a point onto navmesh geometry within a
+		# small tolerance, and a unit hovering well below the ceiling is
+		# too far from it vertically to snap at all (confirmed by
+		# testing: querying at the unit's actual altitude silently
+		# returned zero waypoints). Only the XZ shape of the result
+		# matters; NavigationCarving.remap_flight_altitude() below is
+		# what turns that into the unit's actual flight path.
 		NavigationCarving.ensure_air_region_baked(_owner.get_tree())
 		query_origin.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
 		query_destination.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
@@ -202,8 +194,12 @@ func move_to(destination: Vector3) -> bool:
 		return false
 
 	if flying:
-		for i in waypoints.size():
-			waypoints[i].y = held_altitude
+		var target_altitude: float = clamp(
+			_owner.flight_target_altitude,
+			NavigationCarving.FLIGHT_MIN_ALTITUDE,
+			NavigationCarving.FLIGHT_CEILING_HEIGHT
+		)
+		waypoints = NavigationCarving.remap_flight_altitude(waypoints, _owner.global_position.y, target_altitude)
 
 	var planned: Dictionary = RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)
 	var planned_path: PackedVector3Array = planned.path
@@ -249,10 +245,17 @@ func physics_process(delta: float) -> void:
 	# Skip past any waypoints already within arrival_tolerance — matters
 	# most right after a step lands very close to the next waypoint, so
 	# the unit doesn't stall trying to "arrive" at a point behind or
-	# barely past its current position.
+	# barely past its current position. Y is flattened for a GROUND
+	# unit (horizontal arrival is all that ever mattered before flight
+	# existed) but kept for a flying one — otherwise a flying unit could
+	# consider itself "arrived" at a waypoint from XZ distance alone
+	# while still well off in altitude, and skip past the very step that
+	# was supposed to carry it the rest of the way up/down.
+	var flying: bool = _owner.is_flying()
 	while _path_index < _current_path.size():
 		var to_waypoint: Vector3 = _current_path[_path_index] - _owner.global_position
-		to_waypoint.y = 0.0
+		if not flying:
+			to_waypoint.y = 0.0
 		if to_waypoint.length() > _owner.arrival_tolerance:
 			break
 		_path_index += 1
@@ -277,8 +280,17 @@ func physics_process(delta: float) -> void:
 		_stuck_timer = 0.0
 		_last_progress_position = _owner.global_position
 
+	# Y flattened for a GROUND unit — velocity was never meant to carry a
+	# vertical component before flight existed, gravity/floor collision
+	# via move_and_slide() handled that implicitly. A flying unit needs
+	# the real 3D direction, or it silently only ever moves horizontally
+	# no matter what altitude its planned path actually climbs/descends
+	# to (confirmed by testing: the planned path and its movement COST
+	# were correctly 3D, but nothing ever consumed the path's Y before
+	# this — this is that missing consumer).
 	var to_target: Vector3 = _current_path[_path_index] - _owner.global_position
-	to_target.y = 0.0
+	if not flying:
+		to_target.y = 0.0
 	var direction: Vector3 = to_target.normalized()
 
 	_owner.face_direction(direction, delta)

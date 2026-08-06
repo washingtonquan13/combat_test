@@ -60,6 +60,14 @@ extends CharacterBody3D
 ## of hanging the turn forever. Avoidance (below) should make this rare in
 ## practice; it's now a last-resort safety net rather than the main fix.
 @export var stuck_timeout: float = 1.5
+## The altitude a flying unit's NEXT move targets — read/written by
+## adjust_flight_altitude() (scroll-wheel input, see
+## movement_indicator.gd), read by UnitMovement.move_to() to decide
+## where the flight path's Y actually goes. Meaningless while not
+## flying; GrantFlightEffect initializes it to the unit's actual height
+## the moment flight is granted, so it's never stale/unset by the time
+## anything reads it.
+@export var flight_target_altitude: float = 0.0
 @onready var nav_agent: NavigationAgent3D = $NavigationAgent3D
 ## This unit's carved footprint in the navmesh while it's NOT the one
 ## moving — see UnitMovement/NavigationCarving. A real saved scene child
@@ -486,6 +494,55 @@ func has_status(effect: StatusEffect) -> bool:
 ## (see NavigationCarving.AIR_LAYER/GROUND_LAYER).
 func is_flying() -> bool:
 	return _status_manager.grants_flight()
+
+
+## Nudges flight_target_altitude by delta, clamped to the valid flight
+## envelope (see NavigationCarving.FLIGHT_MIN_ALTITUDE/
+## FLIGHT_CEILING_HEIGHT) — called from movement_indicator.gd's scroll-
+## wheel handling while this unit is the active, flying unit. Doesn't
+## move the unit itself; only changes where its NEXT move_to() call
+## will aim for.
+func adjust_flight_altitude(delta: float) -> void:
+	flight_target_altitude = clamp(
+		flight_target_altitude + delta,
+		NavigationCarving.FLIGHT_MIN_ALTITUDE,
+		NavigationCarving.FLIGHT_CEILING_HEIGHT
+	)
+
+
+## Snaps this unit straight down onto whatever solid ground is directly
+## below it — called by ForceLandOnExpireBehavior the instant the
+## Flying status is removed, whether that's a voluntary Land ability or
+## the status's own duration running out. A physics raycast rather than
+## NavigationServer3D.map_get_closest_point(): that call has no
+## navigation_layers parameter (see ground_point_targeting.gd's own use
+## of it), so on a map with both a ground AND an air region it can't be
+## scoped to "ground only" — it could just as easily snap onto the air
+## sheet instead. Excludes every unit (not just self) from the raycast
+## since ground and unit collision share collision_layer 1 by default
+## in this project (see indicator_base.gd) — otherwise landing directly
+## above an ally would land ON them instead of the ground beneath them.
+func land() -> void:
+	var exclude: Array[RID] = []
+	for node in get_tree().get_nodes_in_group("units"):
+		if node is Unit:
+			exclude.append(node.get_rid())
+
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(global_position, global_position + Vector3.DOWN * 200.0)
+	query.exclude = exclude
+	var result: Dictionary = space_state.intersect_ray(query)
+
+	if result.is_empty():
+		# Flew out over a genuine void with nothing below — left exactly
+		# where it is rather than guessing at a fallback position. A
+		# known limitation (see this project's flight-design notes), not
+		# a crash.
+		SystemLog.print("%s has nowhere to land." % LogFormat.unit_name(self))
+		return
+
+	global_position = result.position
+	SystemLog.print("%s lands." % LogFormat.unit_name(self))
 
 
 ## Called by CombatManager right after reset_turn_actions() each time

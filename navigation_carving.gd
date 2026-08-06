@@ -67,8 +67,43 @@ const FLIGHT_CEILING_HEIGHT := 12.0
 ## single rectangle, not per-level geometry, so oversizing it costs
 ## nothing.
 const FLIGHT_AREA_HALF_EXTENT := 100.0
+## Floor for Unit.adjust_flight_altitude()'s clamp — a flat safety
+## minimum, not real per-location ground height (that would need a
+## downward raycast/navmesh query per adjustment, not just a constant).
+## Landing (Unit.land()) is what actually finds real ground precisely;
+## this just stops scrolling from dragging a unit's TARGET altitude
+## below/through the floor before they ever land.
+const FLIGHT_MIN_ALTITUDE := 1.0
 
 static var _air_region: NavigationRegion3D
+
+
+## Rewrites a flight path's Y values to interpolate from start_altitude
+## to target_altitude, based on how far along the path's XZ length each
+## waypoint sits — used by both UnitMovement.move_to() and
+## movement_indicator.gd's preview so the two can't diverge (same
+## reasoning as both already sharing RoutePlanner.plan). waypoints come
+## back from map_get_path sitting on the air layer's own baked height
+## (FLIGHT_CEILING_HEIGHT) — not a real altitude, only their XZ shape is
+## meaningful; this is what turns that into an actual flight path that
+## climbs/descends from wherever the unit currently is to
+## target_altitude over the course of the move (so ascending/descending
+## spends real movement budget via RoutePlanner's ordinary 3D-distance
+## cost, rather than needing a separate cost rule for it).
+static func remap_flight_altitude(waypoints: PackedVector3Array, start_altitude: float, target_altitude: float) -> PackedVector3Array:
+	var xz_lengths: PackedFloat32Array = PackedFloat32Array([0.0])
+	var total_length: float = 0.0
+	for i in range(1, waypoints.size()):
+		var a := Vector2(waypoints[i - 1].x, waypoints[i - 1].z)
+		var b := Vector2(waypoints[i].x, waypoints[i].z)
+		total_length += a.distance_to(b)
+		xz_lengths.append(total_length)
+
+	var result: PackedVector3Array = waypoints.duplicate()
+	for i in result.size():
+		var t: float = xz_lengths[i] / total_length if total_length > 0.0 else 1.0
+		result[i].y = lerp(start_altitude, target_altitude, t)
+	return result
 
 
 ## Creates and bakes the air navigation layer once — idempotent (a

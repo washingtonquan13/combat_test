@@ -31,6 +31,16 @@ extends IndicatorBase
 ## Lifts the line slightly above the ground to avoid z-fighting with
 ## terrain geometry.
 @export var height_offset: float = 0.05
+## Meters/second the active flying unit's Unit.flight_target_altitude
+## changes while fly_ascend ("R")/fly_descend ("F") is held — see
+## _process(). InputMap actions, not hardcoded keys (see project.godot
+## > Input Map, same convention as left_click/right_click in
+## ground_click_target.gd) — rebinding either needs no code change.
+## Not the scroll wheel: camera_zoom_in/camera_zoom_out already own
+## that (see project.godot) — scroll-adjusting altitude would have
+## fought the camera for the same input every time a flying unit was
+## active.
+@export var altitude_adjust_speed: float = 3.0
 
 var _path_mesh: MeshInstance3D
 var _path_immediate: ImmediateMesh
@@ -42,12 +52,13 @@ func _ready() -> void:
 	_path_immediate = built.immediate
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var unit := _get_active_unit()
 	if not unit:
 		_hide_all()
 		return
 
+	_handle_altitude_input(unit, delta)
 	_update_path_preview(unit)
 
 
@@ -66,6 +77,28 @@ func _hide_all() -> void:
 		_path_mesh.visible = false
 
 
+## Holding fly_ascend/fly_descend continuously adjusts the active
+## flying unit's TARGET altitude for its next move — called from
+## _process() rather than an input callback, since this needs to move
+## smoothly for as long as the key stays down, not once per key-down
+## event. Same gating as the path preview (only reached at all once
+## _get_active_unit() already passed in _process), plus its own
+## is_flying() check, since a non-flying active unit shouldn't react to
+## these keys just because they happen to be held.
+func _handle_altitude_input(unit: Unit, delta: float) -> void:
+	if not unit.is_flying():
+		return
+
+	var direction: float = 0.0
+	if Input.is_action_pressed("fly_ascend"):
+		direction += 1.0
+	if Input.is_action_pressed("fly_descend"):
+		direction -= 1.0
+
+	if direction != 0.0:
+		unit.adjust_flight_altitude(direction * altitude_adjust_speed * delta)
+
+
 func _update_path_preview(unit: Unit) -> void:
 	var hover_point = _get_mouse_ground_point()
 	if hover_point == null:
@@ -75,11 +108,11 @@ func _update_path_preview(unit: Unit) -> void:
 	var map_rid: RID = unit.nav_agent.get_navigation_map()
 
 	# Mirrors UnitMovement.move_to()'s own flying branch exactly — same
-	# altitude-hold, same query-at-ceiling-height-then-remap approach
-	# (see that function's comment for why), so this preview can't
-	# diverge from what the real move will do (see this file's header).
+	# query-at-ceiling-height-then-remap approach and the same
+	# remap_flight_altitude() call (see that function's comment for
+	# why), so this preview can't diverge from what the real move will
+	# do (see this file's header).
 	var flying: bool = unit.is_flying()
-	var held_altitude: float = unit.global_position.y
 	var query_origin: Vector3 = unit.global_position
 	var query_hover_point: Vector3 = hover_point
 	if flying:
@@ -98,8 +131,12 @@ func _update_path_preview(unit: Unit) -> void:
 		return
 
 	if flying:
-		for i in waypoints.size():
-			waypoints[i].y = held_altitude
+		var target_altitude: float = clamp(
+			unit.flight_target_altitude,
+			NavigationCarving.FLIGHT_MIN_ALTITUDE,
+			NavigationCarving.FLIGHT_CEILING_HEIGHT
+		)
+		waypoints = NavigationCarving.remap_flight_altitude(waypoints, unit.global_position.y, target_altitude)
 
 	# The SAME planning call move_to() itself makes, with the same
 	# cost_sampler — a large budget here gets the full route to the hover
