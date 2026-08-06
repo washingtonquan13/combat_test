@@ -275,14 +275,22 @@ func _check_combat_end() -> bool:
 
 
 func _on_unit_died(_unit: Unit) -> void:
-	if not in_combat:
-		return
-
 	# A death can change what the navmesh should look like — a corpse
 	# that doesn't block movement (see Unit.corpse_blocks_movement/
-	# _handle_death) stops carving — regardless of whose turn it is or
-	# whether this ends combat outright.
-	NavigationCarving.rebake_for_movers(get_tree(), [current_unit] if current_unit else [])
+	# _handle_death) stops carving. Deliberately BEFORE the in_combat
+	# check below and unconditional on it: an AoE that wipes a faction
+	# fires one died signal per kill, synchronously, in the same call
+	# stack — if THIS death is what ends combat (_check_combat_end,
+	# further down), every death after it in that same batch would
+	# otherwise hit the early return and never get its corpse's
+	# now-correct carving state actually baked in, leaving a permanently
+	# stuck "unwalkable" pocket where a cleaned-up corpse used to be.
+	# request_rebake (not rebake_for_movers) coalesces same-frame deaths
+	# into a single bake instead of one full bake per corpse.
+	NavigationCarving.request_rebake(get_tree(), [current_unit] if current_unit else [])
+
+	if not in_combat:
+		return
 
 	# Check the win/loss condition the instant anyone dies — don't wait
 	# for the next turn boundary. A death on someone else's turn (e.g. the
@@ -304,8 +312,9 @@ func _on_unit_died(_unit: Unit) -> void:
 ## ability's effects do to displace a unit — none of them go through
 ## Unit.move_to(), so none of them trigger a rebake on their own the way
 ## an ordinary move does. This is the catch-all for "the ability that
-## just resolved might have moved someone."
+## just resolved might have moved someone." request_rebake (not
+## rebake_for_movers) so an AoE that fires several ability_used-adjacent
+## deaths/effects in one synchronous burst still only bakes once — see
+## _on_unit_died for the fuller reasoning.
 func _on_ability_used(attacker: Unit, _target, _result: Dictionary) -> void:
-	if not in_combat:
-		return
-	NavigationCarving.rebake_for_movers(get_tree(), [attacker])
+	NavigationCarving.request_rebake(get_tree(), [attacker])

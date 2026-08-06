@@ -34,6 +34,49 @@ extends RefCounted
 ## that covers both the region's own walkable geometry AND every unit's
 ## obstacle, wherever it sits in the tree.
 
+## Coalescing entry point for triggers that don't need the bake to be
+## done before code LATER IN THE SAME CALL STACK runs (a death; an
+## ability finishing) — as opposed to turn-start/free-roam move orders,
+## which plan a path immediately afterward and must keep calling
+## rebake_for_movers directly. Without this, an AoE that kills several
+## units in one synchronous loop triggered one full bake PER DEATH, back
+## to back — the actual source of the reported mass-death stutter.
+## Multiple requests in the same frame merge into a single deferred bake
+## covering every requested mover at once.
+static var _pending_movers: Dictionary = {}  # Unit -> true, dedup set
+static var _pending_tree: SceneTree
+static var _flush_queued: bool = false
+
+static func request_rebake(tree: SceneTree, movers: Array) -> void:
+	for m in movers:
+		if is_instance_valid(m):
+			_pending_movers[m] = true
+	_pending_tree = tree
+	if _flush_queued:
+		return
+	_flush_queued = true
+	# Waits for the NEXT frame's process_frame signal, not call_deferred
+	# (same-frame idle time) — a dying unit's own node is usually
+	# queue_free()'d in the same synchronous burst that requests this
+	# rebake, and queue_free() is ALSO a deferred operation. Both being
+	# on the same same-frame deferred-call queue was never something to
+	# rely on the ordering of; waiting a full frame guarantees every
+	# queue_free() from the events that triggered this request has
+	# already been fully processed (node and its NavigationObstacle3D
+	# child actually gone) before the scene tree gets walked for baking.
+	tree.process_frame.connect(_flush_pending_rebake, CONNECT_ONE_SHOT)
+
+
+static func _flush_pending_rebake() -> void:
+	_flush_queued = false
+	var movers: Array = _pending_movers.keys().filter(is_instance_valid)
+	_pending_movers.clear()
+	var tree: SceneTree = _pending_tree
+	_pending_tree = null
+	if tree:
+		rebake_for_movers(tree, movers)
+
+
 static func rebake_for_movers(tree: SceneTree, movers: Array) -> void:
 	var region: NavigationRegion3D = tree.get_first_node_in_group("nav_region") as NavigationRegion3D
 	if not region:

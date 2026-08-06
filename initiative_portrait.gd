@@ -1,12 +1,15 @@
 extends Control
 ## Single portrait for a BG3-style initiative order row.
 ##
-## Scene setup — a plain Control (NOT a layout Container, since its two
+## Scene setup — a plain Control (NOT a layout Container, since its
 ## children need to overlap, not flow side by side), sized to your
-## portrait dimensions, with two full-rect-anchored children:
+## portrait dimensions, with three full-rect-anchored children:
 ##   - TextureRect named "Portrait"       — the unit's art
 ##   - ColorRect named "DamageOverlay"    — semi-transparent red; grows
 ##     upward from the bottom as the unit loses HP
+##   - Panel named "OutlineFrame"         — colored border, see
+##     _setup_outline. Last child (drawn on top) so the border stays
+##     crisp regardless of how much the damage overlay has filled in.
 ##
 ## Put one instance of this scene per combatant inside an HBoxContainer
 ## for the horizontal initiative strip — HBoxContainer is the right tool
@@ -22,6 +25,12 @@ extends Control
 
 @export var unit: Unit
 @export var overlay_color: Color = Color(1, 0, 0, 0.5)
+## Border thickness, in pixels — the color itself comes from
+## unit.selected_color (see _setup_outline), not a separate field, so a
+## portrait's outline automatically matches whatever team color is
+## already authored per-unit for the 3D hover/selection ring, instead of
+## being a second place that color needs to be kept in sync.
+@export var outline_width: float = 3.0
 @export var highlight_tint: Color = Color(1.4, 1.3, 0.9, 1.0)
 ## How much bigger the portrait gets on this unit's turn, as a multiple
 ## of whatever size it's CURRENTLY shrunk to by the row (see
@@ -37,6 +46,7 @@ extends Control
 
 @onready var portrait: TextureRect = $Portrait
 @onready var damage_overlay: ColorRect = $DamageOverlay
+@onready var outline_frame: Panel = $OutlineFrame
 
 var _base_min_size: Vector2
 ## Uniform (both axes) scale applied to _base_min_size to get the
@@ -67,6 +77,8 @@ func _ready() -> void:
 
 	if unit.portrait_texture:
 		portrait.texture = unit.portrait_texture
+
+	_setup_outline()
 
 	unit.took_damage.connect(func(_u, _amount): _update_overlay())
 	unit.died.connect(func(_u): _update_overlay())
@@ -112,6 +124,18 @@ func get_base_min_size() -> Vector2:
 func _apply_size() -> void:
 	var scale: float = _fit_scale * highlight_scale if _highlighted else _fit_scale
 	custom_minimum_size = _base_min_size * scale
+
+
+## A transparent-center StyleBoxFlat with just a border is the simplest
+## way to draw an outline on a Control — no shader, no custom _draw().
+## border_color comes from unit.selected_color rather than a field of its
+## own (see outline_width's doc comment).
+func _setup_outline() -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0, 0, 0, 0)
+	style.set_border_width_all(outline_width)
+	style.border_color = unit.selected_color
+	outline_frame.add_theme_stylebox_override("panel", style)
 
 
 func _update_overlay() -> void:

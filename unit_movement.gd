@@ -73,17 +73,34 @@ func _init(owner: Unit) -> void:
 ## code — see this file's header and navigation_carving.gd for the full
 ## picture. avoidance_enabled is OFF: this is carving (a bake-time hole
 ## in the navmesh), not live RVO push.
+##
+## Sets radius/carve_navigation_mesh/affect_navigation_mesh/height in
+## CODE, explicitly, even though unit.tscn also saves them — confirmed
+## by reading Godot 4.4's own NavigationObstacle3D source
+## (navmesh_parse_source_geometry): radius and vertices EACH
+## independently contribute their own carved shape if both are set —
+## an earlier comment here claiming "carving only reads vertices, never
+## radius" was wrong, based on testing done before a since-fixed root-
+## node bug made ALL carving silently do nothing regardless of radius or
+## vertices, so it never actually got re-verified. A stray non-zero
+## radius left on the saved node (from an editor resave — the same
+## class of drift that separately reset cell_height once already) means
+## every obstacle was contributing an extra, unmanaged circular hole
+## alongside the properly-sized vertices polygon. Setting it here, in
+## code, on every run, is what makes this not silently regress again the
+## next time the editor resaves the scene.
 func setup_avoidance() -> void:
 	_owner.nav_agent.radius = _owner.radius + _owner.avoidance_margin
 	_owner.nav_agent.avoidance_enabled = false
 
+	_owner.nav_obstacle.radius = 0.0
+	_owner.nav_obstacle.height = 2.0
+	_owner.nav_obstacle.carve_navigation_mesh = true
+	_owner.nav_obstacle.avoidance_enabled = false
+
 	# Doubled own radius as a placeholder until the first real rebake
 	# calls set_carving_radius with an actual mover's size (see that
 	# method's doc comment for why the hole needs room for BOTH bodies).
-	# Confirmed empirically, not obvious from the docs: carving reads
-	# ONLY the `vertices` polygon outline, never `radius` — radius is
-	# exclusively an avoidance (RVO) property. A radius-only obstacle
-	# silently carves nothing at all.
 	_set_carving_shape(_owner.radius * 2.0 + _owner.avoidance_margin)
 
 
