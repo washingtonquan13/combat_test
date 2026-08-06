@@ -74,14 +74,32 @@ func _update_path_preview(unit: Unit) -> void:
 
 	var map_rid: RID = unit.nav_agent.get_navigation_map()
 
+	# Mirrors UnitMovement.move_to()'s own flying branch exactly — same
+	# altitude-hold, same query-at-ceiling-height-then-remap approach
+	# (see that function's comment for why), so this preview can't
+	# diverge from what the real move will do (see this file's header).
+	var flying: bool = unit.is_flying()
+	var held_altitude: float = unit.global_position.y
+	var query_origin: Vector3 = unit.global_position
+	var query_hover_point: Vector3 = hover_point
+	if flying:
+		NavigationCarving.ensure_air_region_baked(unit.get_tree())
+		query_origin.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
+		query_hover_point.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
+	var navigation_layers: int = NavigationCarving.AIR_LAYER if flying else NavigationCarving.GROUND_LAYER
+
 	# Hovering directly over another unit's carved-out footprint has
 	# nothing valid to plan toward exactly at that point — map_get_path
 	# naturally resolves to the nearest walkable point outside it, same
 	# as move_to() itself; no separate sanitizing step needed.
-	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, unit.global_position, hover_point, true)
+	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, query_origin, query_hover_point, true, navigation_layers)
 	if waypoints.size() < 2:
 		_path_mesh.visible = false
 		return
+
+	if flying:
+		for i in waypoints.size():
+			waypoints[i].y = held_altitude
 
 	# The SAME planning call move_to() itself makes, with the same
 	# cost_sampler — a large budget here gets the full route to the hover

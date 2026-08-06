@@ -480,6 +480,14 @@ func has_status(effect: StatusEffect) -> bool:
 	return _status_manager.has(effect)
 
 
+## Whether any active status currently grants this unit flight — see
+## FlightBehavior/StatusManager.grants_flight(). UnitMovement.move_to()
+## checks this to route on the air navigation layer instead of ground
+## (see NavigationCarving.AIR_LAYER/GROUND_LAYER).
+func is_flying() -> bool:
+	return _status_manager.grants_flight()
+
+
 ## Called by CombatManager right after reset_turn_actions() each time
 ## this unit's turn starts — fires every active status's on_turn_start
 ## (damage-over-time ticks, etc.) and ticks duration down.

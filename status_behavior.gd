@@ -68,6 +68,15 @@ func modify_outgoing_attack_to_hit(_attacker: Unit, _target, _ability: Ability) 
 	return 0
 
 
+## Whether this behavior grants flight while active — if ANY active
+## status returns true here, Unit.is_flying() reports true (see
+## StatusManager.grants_flight(), which UnitMovement.move_to() checks to
+## pick ground vs air navigation). Same "any active status contributes"
+## pattern as prevents_turn().
+func grants_flight() -> bool:
+	return false
+
+
 ## Human-readable summary for tooltips. Override in each subclass.
 func describe() -> String:
 	return ""

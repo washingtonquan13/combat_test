@@ -170,10 +170,40 @@ func move_to(destination: Vector3) -> bool:
 			return false
 		budget = _owner.move_remaining
 
+	var flying: bool = _owner.is_flying()
+	var held_altitude: float = _owner.global_position.y
+	var query_origin: Vector3 = _owner.global_position
+	var query_destination: Vector3 = destination
+	if flying:
+		# Altitude control isn't built yet — every current destination
+		# comes from a ground raycast (see ground_click_target.gd), so
+		# without this a flying unit would silently sink to ground level
+		# on every move. Holds whatever height it's currently at instead;
+		# real altitude control is a deferred follow-up (see
+		# GrantFlightEffect and FlightBehavior).
+		#
+		# The QUERY itself, though, has to happen at the air navmesh's
+		# OWN baked height (FLIGHT_CEILING_HEIGHT), not the unit's real
+		# altitude — map_get_path only snaps a point onto navmesh
+		# geometry within a small tolerance, and a unit hovering well
+		# below the ceiling is too far from it vertically to snap at all
+		# (confirmed by testing: querying at the unit's actual altitude
+		# silently returned zero waypoints). Only the XZ shape of the
+		# result matters; every returned waypoint's Y gets rewritten back
+		# onto held_altitude below regardless of what height it queried at.
+		NavigationCarving.ensure_air_region_baked(_owner.get_tree())
+		query_origin.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
+		query_destination.y = NavigationCarving.FLIGHT_CEILING_HEIGHT
+
+	var navigation_layers: int = NavigationCarving.AIR_LAYER if flying else NavigationCarving.GROUND_LAYER
 	var map_rid: RID = _owner.nav_agent.get_navigation_map()
-	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, _owner.global_position, destination, true)
+	var waypoints: PackedVector3Array = NavigationServer3D.map_get_path(map_rid, query_origin, query_destination, true, navigation_layers)
 	if waypoints.size() < 2:
 		return false
+
+	if flying:
+		for i in waypoints.size():
+			waypoints[i].y = held_altitude
 
 	var planned: Dictionary = RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)
 	var planned_path: PackedVector3Array = planned.path

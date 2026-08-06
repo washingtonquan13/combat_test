@@ -47,6 +47,75 @@ static var _pending_movers: Dictionary = {}  # Unit -> true, dedup set
 static var _pending_tree: SceneTree
 static var _flush_queued: bool = false
 
+## navigation_layers bitmask values passed to NavigationServer3D.
+## map_get_path() by UnitMovement.move_to()/movement_indicator.gd to
+## pick which region's polygons a query considers. GROUND_LAYER matches
+## the ground NavigationRegion3D's default (unset navigation_layers is
+## 1) — left implicit there rather than set explicitly in main.tscn, so
+## this constant exists mainly to give that default a name at the call
+## sites instead of a bare "1" whose meaning isn't obvious out of context.
+const GROUND_LAYER := 1
+const AIR_LAYER := 2
+
+## Single flat global flight ceiling for the prototype — see
+## ensure_air_region_baked(). A deliberate simplification (see this
+## project's flight-design discussion): real per-location ceiling
+## geometry or altitude bands are a later upgrade if a map ever actually
+## needs them, not built preemptively.
+const FLIGHT_CEILING_HEIGHT := 12.0
+## Generous flat bound covering any reasonable battle map — this is a
+## single rectangle, not per-level geometry, so oversizing it costs
+## nothing.
+const FLIGHT_AREA_HALF_EXTENT := 100.0
+
+static var _air_region: NavigationRegion3D
+
+
+## Creates and bakes the air navigation layer once — idempotent (a
+## second call is a no-op), so every call site (rebake_for_movers()
+## every turn, GrantFlightEffect at cast time, move_to() as a last-
+## resort fallback) can just call this unconditionally rather than
+## coordinating who's responsible for doing it once. In practice
+## rebake_for_movers() is what actually creates it, on combat's very
+## first turn, whether or not anyone ends up flying — see that
+## function's comment for why creating it that early matters. Deliberately NOT a
+## real NavigationServer3D.parse_source_geometry_data()/
+## bake_from_source_geometry_data() bake like rebake_for_movers() below:
+## there's no obstacle geometry to scan for yet (no ceiling obstacles,
+## no per-unit carving — see this file's header for why flying units
+## don't carve each other into this layer at all), so the navmesh is
+## just one big hand-authored flat rectangle instead. Its baked Y is
+## irrelevant to actual flight altitude — UnitMovement.move_to()
+## overrides the Y of whatever path this returns to the unit's own
+## chosen height; only the XZ shape (a single open rectangle, currently
+## no holes) matters here. Switch this to a real geometry-scanned bake
+## the day a map actually needs static air obstacles (a ceiling, a
+## no-fly zone) — deferred, not forgotten.
+static func ensure_air_region_baked(tree: SceneTree) -> void:
+	if is_instance_valid(_air_region):
+		return
+
+	var region := NavigationRegion3D.new()
+	region.name = "AirNavigationRegion3D"
+	region.add_to_group("air_nav_region")
+	region.navigation_layers = AIR_LAYER
+
+	var nav_mesh := NavigationMesh.new()
+	var h: float = FLIGHT_AREA_HALF_EXTENT
+	var y: float = FLIGHT_CEILING_HEIGHT
+	# Winding matters — Recast only treats a polygon as walkable if its
+	# face normal points +Y. This order (confirmed by testing, not
+	# assumed) is what actually produces that; the "obvious" [0,1,2,3]
+	# order here faces -Y and silently bakes to zero usable polygons.
+	nav_mesh.vertices = PackedVector3Array([
+		Vector3(-h, y, -h), Vector3(h, y, -h), Vector3(h, y, h), Vector3(-h, y, h),
+	])
+	nav_mesh.add_polygon(PackedInt32Array([0, 3, 2, 1]))
+	region.navigation_mesh = nav_mesh
+
+	tree.current_scene.add_child(region)
+	_air_region = region
+
 static func request_rebake(tree: SceneTree, movers: Array) -> void:
 	for m in movers:
 		if is_instance_valid(m):
@@ -78,6 +147,19 @@ static func _flush_pending_rebake() -> void:
 
 
 static func rebake_for_movers(tree: SceneTree, movers: Array) -> void:
+	# Piggybacks the air region's one-time creation onto ground rebaking
+	# (called every single turn already, from combat's very first turn)
+	# rather than waiting for the first actual flight move to trigger it
+	# lazily — see ensure_air_region_baked()'s own header for why: a
+	# freshly created NavigationRegion3D needs the NavigationServer a
+	# real physics frame or two to register before map_get_path can see
+	# it, and a synchronous move_to() call can't await that. Creating it
+	# here instead means it's had many turns to settle by the time
+	# anyone could plausibly have cast a flight ability AND clicked a
+	# destination — two separate inputs that can't happen in the same
+	# frame combat starts in.
+	ensure_air_region_baked(tree)
+
 	var region: NavigationRegion3D = tree.get_first_node_in_group("nav_region") as NavigationRegion3D
 	if not region:
 		return
@@ -92,8 +174,15 @@ static func rebake_for_movers(tree: SceneTree, movers: Array) -> void:
 		if not unit:
 			continue
 		var is_mover: bool = unit in movers
-		unit.set_carving_enabled(not is_mover)
-		if not is_mover:
+		# A flying unit isn't standing on the ground — nothing physically
+		# occupies its ground-level footprint, so it shouldn't carve a
+		# hole into the GROUND navmesh at all (a ground unit should be
+		# free to walk underneath it). It still doesn't carve the AIR
+		# navmesh either — see ensure_air_region_baked()'s header for why
+		# flying units don't carve each other at all, in either layer.
+		var carves_ground: bool = not is_mover and not unit.is_flying()
+		unit.set_carving_enabled(carves_ground)
+		if carves_ground:
 			unit.set_carving_radius(mover_clearance)
 
 	var source_geometry_data := NavigationMeshSourceGeometryData3D.new()

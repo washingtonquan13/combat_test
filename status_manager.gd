@@ -104,6 +104,17 @@ func notify_damage_taken(amount: int) -> void:
 			behavior.on_damage_taken(_owner, amount, a)
 
 
+## Whether ANY active status grants this unit flight right now — see
+## StatusBehavior.grants_flight(). Checked by Unit.is_flying(), which
+## UnitMovement.move_to() uses to pick ground vs air navigation.
+func grants_flight() -> bool:
+	for a in active:
+		for behavior in a.effect.behaviors:
+			if behavior.grants_flight():
+				return true
+	return false
+
+
 ## Sum of every active status's modifier to an incoming attack's to-hit
 ## target number, from this unit being the DEFENDER — see
 ## StatusBehavior.modify_incoming_attack_to_hit.
