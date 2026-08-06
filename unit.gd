@@ -609,6 +609,27 @@ func notify_impact() -> void:
 	impact_triggered.emit()
 
 
+## Removes this unit from combat and frees it without going through
+## damage — used when a summon's tracking status expires (see
+## DespawnOnExpireBehavior). Reuses the exact same cleanup as a real
+## death (_handle_death + the died signal) since every system that needs
+## to know "this unit is gone" — CombatManager's turn_order pruning,
+## initiative UI, the animator/VFX death reactions — already listens to
+## died; a summon leaving combat this way is exactly that, just not
+## caused by damage, so it gets its own log line instead of "has died".
+## current_hp is zeroed (not left as whatever it was) so is_alive()
+## agrees with everything else — CombatManager._advance_turn(), notably,
+## which decides whether to keep giving this unit turns purely off
+## is_alive(), same as an ordinary death; without this, a summon
+## expiring on its OWN turn would still get turn_started emitted for it
+## a moment before its queue_free() actually takes effect.
+func expire() -> void:
+	SystemLog.print("%s fades away." % LogFormat.unit_name(self))
+	current_hp = 0
+	_handle_death()
+	died.emit(self)
+
+
 ## Strips a dead unit out of every system that would otherwise keep
 ## treating it as a live participant, then frees the node (after
 ## death_cleanup_delay, if set). remove_from_group happens first and

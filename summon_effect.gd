@@ -30,6 +30,13 @@ extends AbilityEffect
 @export var hp_override: int = 0
 ## Left at 0, keeps summon_scene's own move stat.
 @export var move_override: int = 0
+## Left unset, the summon lasts indefinitely (until it dies normally).
+## Set to a StatusEffect with a DespawnOnExpireBehavior (see that file)
+## to give the summon a limited lifespan — applied directly to the
+## SUMMON, not the caster, so its default_duration ticks down via the
+## existing StatusManager machinery on the summon's own turns, no new
+## timer system needed.
+@export var duration_status: StatusEffect
 
 
 func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
@@ -55,6 +62,9 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 
 	attacker.get_parent().add_child(summon)
 	summon.global_position = target
+
+	if duration_status:
+		summon.apply_status(duration_status)
 
 	CombatManager.add_unit_to_combat(summon, attacker)
 
