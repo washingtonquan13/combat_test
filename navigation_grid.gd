@@ -57,6 +57,13 @@ const MAX_EXPANSIONS: int = 30000
 static var _bounds_origin: Vector3
 static var _grid_size: Vector3i
 static var _solid: PackedByteArray
+## 1 = no solid cell directly beneath — illegal for GROUNDED movement.
+## Precomputed once at bake time alongside _solid (not per-clearance like
+## _get_inflated_solid: whether a cell has ground support depends only on
+## the cell itself, not on a mover's footprint disc) — see _is_valid_cell,
+## the hottest function in this file, for why this exists instead of
+## calling has_support()/is_solid() per neighbor check.
+static var _no_support: PackedByteArray
 static var _baked: bool = false
 ## Vector3i cell -> Unit currently filling it. Cleared and rebuilt whole
 ## each update_occupancy call rather than incrementally patched — cheap at
@@ -65,6 +72,13 @@ static var _baked: bool = false
 static var _occupied: Dictionary = {}
 
 static var _neighbor_offsets: Array[Vector3i] = []
+## clearance (float) -> Array[Vector3i], memoized so repeated find_path
+## calls for the same unit (the movement preview calls this every hovered
+## frame) don't redo the same small nested loop every time.
+static var _disc_offsets_cache: Dictionary = {}
+## clearance (float) -> PackedByteArray the same size as _solid — see
+## _get_inflated_solid.
+static var _inflated_solid_cache: Dictionary = {}
 
 
 ## --- Setup / bake -----------------------------------------------------
@@ -123,6 +137,23 @@ static func _bake_static(tree: SceneTree) -> void:
 
 	for collision_shape in shapes:
 		_rasterize_shape(collision_shape)
+
+	_bake_no_support()
+
+
+## One-time pass (see _no_support's own doc comment) marking every cell
+## that has no solid cell directly beneath it. A full O(grid size) scan,
+## same cost class as _rasterize_shape's own work — acceptable since this
+## runs once at bake time, never per-query.
+static func _bake_no_support() -> void:
+	_no_support = PackedByteArray()
+	_no_support.resize(_solid.size())
+	for z in _grid_size.z:
+		for y in _grid_size.y:
+			for x in _grid_size.x:
+				var supported: bool = y > 0 and _solid[_cell_index(Vector3i(x, y - 1, z))] != 0
+				if not supported:
+					_no_support[_cell_index(Vector3i(x, y, z))] = 1
 
 
 static func _collect_static_shapes(node: Node, out: Array[CollisionShape3D]) -> void:
@@ -254,8 +285,11 @@ static func update_occupancy(tree: SceneTree, movers: Array) -> void:
 ## Flat horizontal disc of cell offsets (Y always 0) around a footprint's
 ## own center — Y ignored deliberately, same reasoning the old carving
 ## polygon used: a unit's footprint is a flat ring around its own origin,
-## not a stack extending up/down.
+## not a stack extending up/down. Memoized by clearance (see
+## _disc_offsets_cache).
 static func _disc_offsets(clearance: float) -> Array[Vector3i]:
+	if _disc_offsets_cache.has(clearance):
+		return _disc_offsets_cache[clearance]
 	var result: Array[Vector3i] = []
 	var reach: int = ceili(clearance / CELL_SIZE)
 	for dx in range(-reach, reach + 1):
@@ -263,15 +297,68 @@ static func _disc_offsets(clearance: float) -> Array[Vector3i]:
 			if Vector2(dx * CELL_SIZE, dz * CELL_SIZE).length() > clearance:
 				continue
 			result.append(Vector3i(dx, 0, dz))
+	_disc_offsets_cache[clearance] = result
 	return result
 
 
-static func _is_free(cell: Vector3i, offsets: Array[Vector3i], self_unit: Unit) -> bool:
+## Precomputes, once per distinct clearance and cached FOREVER after (level
+## geometry is static — never changes mid-match, same lifetime assumption
+## _solid itself already relies on), which cells are illegal for a mover of
+## this clearance to occupy due to STATIC geometry alone. This is the
+## Minkowski sum of _solid with the mover's own footprint disc: cell X is
+## marked here if a mover CENTERED at X would have some solid cell inside
+## its own footprint.
+##
+## This is the actual fix for the worst performance problem this file had:
+## before this cache existed, every single neighbor check during A* re-
+## scanned the mover's ENTIRE disc (up to ~25 cells) against _solid from
+## scratch — up to 26 neighbors x ~25 disc cells = ~650 array reads per
+## A* EXPANSION, times up to thousands of expansions per query, times
+## every query the movement preview fires per hovered frame. Since the
+## disc shape and _solid are both fixed for the lifetime of a match, that
+## entire scan can be paid ONCE per clearance (here) instead of on every
+## single neighbor check — turning each neighbor's static-geometry check
+## into one O(1) array read.
+static func _get_inflated_solid(clearance: float, offsets: Array[Vector3i]) -> PackedByteArray:
+	if _inflated_solid_cache.has(clearance):
+		return _inflated_solid_cache[clearance]
+
+	var inflated := PackedByteArray()
+	inflated.resize(_solid.size())
+	for z in _grid_size.z:
+		for y in _grid_size.y:
+			for x in _grid_size.x:
+				var cell := Vector3i(x, y, z)
+				if _solid[_cell_index(cell)] == 0:
+					continue
+				for offset in offsets:
+					# A mover centered at (cell - offset) would have THIS
+					# solid cell fall inside its own footprint disc — so
+					# that center position is what's illegal, not `cell`.
+					var blocked_center: Vector3i = cell - offset
+					if _in_bounds(blocked_center):
+						inflated[_cell_index(blocked_center)] = 1
+
+	_inflated_solid_cache[clearance] = inflated
+	return inflated
+
+
+## Dynamic-occupancy-only check (which unit, if any, currently stands on
+## each of `cell`'s footprint offsets) — kept as a direct per-query disc
+## scan against _occupied rather than precomputed/cached the way static
+## solid geometry is: _occupied is small (a handful of living units'
+## footprints, not the whole grid) and changes every turn, so caching it
+## the same way would mean re-paying the full inflation cost on every
+## update_occupancy call for comparatively little benefit. The empty-check
+## up front matters in practice, though — most queries happen with nobody
+## else standing anywhere near the route, and skipping the disc loop
+## entirely in that case (rather than doing ~13-25 Dictionary lookups that
+## were always going to come back empty) measurably cut per-neighbor cost.
+static func _is_clear_of_units(cell: Vector3i, offsets: Array[Vector3i], self_unit: Unit) -> bool:
+	if _occupied.is_empty():
+		return true
 	for offset in offsets:
-		var c: Vector3i = cell + offset
-		if is_solid(c):
-			return false
-		var occupant = _occupied.get(c)
+		var occupant = _occupied.get(cell + offset)
 		if occupant and occupant != self_unit:
 			return false
 	return true
@@ -279,18 +366,29 @@ static func _is_free(cell: Vector3i, offsets: Array[Vector3i], self_unit: Unit) 
 
 ## Whether `cell` is a legal place for a mover to actually be, under
 ## `flying`'s traversal rule — see this file's header. Grounded requires
-## solid support directly beneath; flying requires being within the flight
-## altitude envelope instead (no physical geometry above/below cares).
-static func _is_valid_cell(cell: Vector3i, offsets: Array[Vector3i], flying: bool, self_unit: Unit = null) -> bool:
-	if not _in_bounds(cell):
+## solid support directly beneath (the precomputed _no_support, not a
+## has_support()/is_solid() call — see that var's doc comment); flying
+## requires being within the flight altitude envelope instead. Bounds/
+## index math is inlined here rather than calling out to
+## _in_bounds()/_cell_index()/cell_center() — this is the hottest function
+## in the whole file (called once per A* neighbor, tens of thousands of
+## times in a single query) and direct profiling showed GDScript's
+## per-function-call overhead, not any one algorithm, was the actual cost;
+## removing the extra call layers measurably helped where the earlier
+## O(1)-lookup optimizations alone hadn't.
+static func _is_valid_cell(cell: Vector3i, offsets: Array[Vector3i], clearance: float, flying: bool, self_unit: Unit = null) -> bool:
+	if cell.x < 0 or cell.y < 0 or cell.z < 0 or cell.x >= _grid_size.x or cell.y >= _grid_size.y or cell.z >= _grid_size.z:
 		return false
+	var idx: int = cell.x + cell.y * _grid_size.x + cell.z * _grid_size.x * _grid_size.y
 	if flying:
-		var world_y: float = cell_center(cell).y
+		var world_y: float = _bounds_origin.y + (float(cell.y) + 0.5) * CELL_SIZE
 		if world_y < FLIGHT_MIN_ALTITUDE or world_y > FLIGHT_CEILING_HEIGHT:
 			return false
-	elif not has_support(cell):
+	elif _no_support[idx] != 0:
 		return false
-	return _is_free(cell, offsets, self_unit)
+	if _get_inflated_solid(clearance, offsets)[idx] != 0:
+		return false
+	return _is_clear_of_units(cell, offsets, self_unit)
 
 
 ## --- Nearest-valid-point utility ----------------------------------------
@@ -309,14 +407,14 @@ static func _is_valid_cell(cell: Vector3i, offsets: Array[Vector3i], flying: boo
 static func nearest_valid_point(tree: SceneTree, point: Vector3, clearance: float, flying: bool, exclude_unit: Unit = null, max_radius_cells: int = 12) -> Dictionary:
 	ensure_baked(tree)
 	var offsets: Array[Vector3i] = _disc_offsets(clearance)
-	var snap: Dictionary = _find_nearest_free_cell(world_to_cell(point), offsets, flying, exclude_unit, max_radius_cells)
+	var snap: Dictionary = _find_nearest_free_cell(world_to_cell(point), offsets, clearance, flying, exclude_unit, max_radius_cells)
 	if not snap.found:
 		return {"found": false, "point": point}
 	return {"found": true, "point": cell_center(snap.cell)}
 
 
-static func _find_nearest_free_cell(cell: Vector3i, offsets: Array[Vector3i], flying: bool, self_unit: Unit, max_radius: int) -> Dictionary:
-	if _is_valid_cell(cell, offsets, flying, self_unit):
+static func _find_nearest_free_cell(cell: Vector3i, offsets: Array[Vector3i], clearance: float, flying: bool, self_unit: Unit, max_radius: int) -> Dictionary:
+	if _is_valid_cell(cell, offsets, clearance, flying, self_unit):
 		return {"found": true, "cell": cell}
 	for radius in range(1, max_radius + 1):
 		for dx in range(-radius, radius + 1):
@@ -325,7 +423,7 @@ static func _find_nearest_free_cell(cell: Vector3i, offsets: Array[Vector3i], fl
 					if maxi(absi(dx), maxi(absi(dy), absi(dz))) != radius:
 						continue  # only this shell — smaller radii already tried
 					var candidate: Vector3i = cell + Vector3i(dx, dy, dz)
-					if _is_valid_cell(candidate, offsets, flying, self_unit):
+					if _is_valid_cell(candidate, offsets, clearance, flying, self_unit):
 						return {"found": true, "cell": candidate}
 	return {"found": false, "cell": cell}
 
@@ -357,7 +455,7 @@ static func find_path(tree: SceneTree, start: Vector3, destination: Vector3, uni
 	if not _in_bounds(start_cell):
 		return PackedVector3Array()
 
-	var goal_snap: Dictionary = _find_nearest_free_cell(world_to_cell(destination), offsets, flying, unit, 12)
+	var goal_snap: Dictionary = _find_nearest_free_cell(world_to_cell(destination), offsets, clearance, flying, unit, 12)
 	if not goal_snap.found:
 		return PackedVector3Array()
 	var goal_cell: Vector3i = goal_snap.cell
@@ -365,10 +463,10 @@ static func find_path(tree: SceneTree, start: Vector3, destination: Vector3, uni
 	if start_cell == goal_cell:
 		return PackedVector3Array([start, cell_center(goal_cell)])
 
-	var raw: PackedVector3Array = _a_star(start, start_cell, goal_cell, offsets, flying, unit)
+	var raw: PackedVector3Array = _a_star(start, start_cell, goal_cell, offsets, clearance, flying, unit)
 	if raw.size() < 2:
 		return raw
-	return _smooth_path(raw, offsets, flying, unit)
+	return _smooth_path(raw, offsets, clearance, flying, unit)
 
 
 static func _ensure_neighbor_offsets() -> void:
@@ -391,7 +489,17 @@ static func _heuristic(a: Vector3i, b: Vector3i) -> float:
 ## start cell's own validity is never checked (a unit is wherever it
 ## already is, even if that's mid-air between cells); only cells being
 ## stepped INTO are gated by _is_valid_cell.
-static func _a_star(start: Vector3, start_cell: Vector3i, goal_cell: Vector3i, offsets: Array[Vector3i], flying: bool, unit: Unit) -> PackedVector3Array:
+##
+## Uses Dictionary<Vector3i, X> for came_from/g_score/closed rather than
+## flat integer-indexed arrays — tried the flat-array version (avoiding
+## Vector3i hashing) and directly measured it SLOWER, not faster: it needs
+## an extra _cell_index() call per neighbor on top of the one
+## _is_valid_cell already computes internally, and that redundant call
+## cost more than the Dictionary hashing it was meant to avoid. Left as
+## Dictionaries deliberately, with that measurement as the reason — see
+## _is_valid_cell's own header for where the real remaining cost profiled
+## to instead.
+static func _a_star(start: Vector3, start_cell: Vector3i, goal_cell: Vector3i, offsets: Array[Vector3i], clearance: float, flying: bool, unit: Unit) -> PackedVector3Array:
 	var came_from: Dictionary = {}
 	var g_score: Dictionary = {start_cell: 0.0}
 	var closed: Dictionary = {}
@@ -411,14 +519,16 @@ static func _a_star(start: Vector3, start_cell: Vector3i, goal_cell: Vector3i, o
 		if expansions > MAX_EXPANSIONS:
 			break
 
+		var current_g: float = g_score[current]
+
 		for offset in _neighbor_offsets:
 			var neighbor: Vector3i = current + offset
 			if closed.has(neighbor):
 				continue
-			if not _is_valid_cell(neighbor, offsets, flying, unit):
+			if not _is_valid_cell(neighbor, offsets, clearance, flying, unit):
 				continue
 			var step_cost: float = Vector3(offset).length() * CELL_SIZE
-			var tentative: float = g_score[current] + step_cost
+			var tentative: float = current_g + step_cost
 			if tentative < g_score.get(neighbor, INF):
 				g_score[neighbor] = tentative
 				came_from[neighbor] = current
@@ -447,14 +557,14 @@ static func _reconstruct_path(came_from: Dictionary, start: Vector3, start_cell:
 ## of smooth line segments. RoutePlanner.plan already subdivides each
 ## remaining segment into short steps for terrain-cost sampling, so this
 ## only removes redundant path VERTICES, not sampling granularity.
-static func _smooth_path(path: PackedVector3Array, offsets: Array[Vector3i], flying: bool, unit: Unit) -> PackedVector3Array:
+static func _smooth_path(path: PackedVector3Array, offsets: Array[Vector3i], clearance: float, flying: bool, unit: Unit) -> PackedVector3Array:
 	if path.size() <= 2:
 		return path
 	var result: PackedVector3Array = PackedVector3Array([path[0]])
 	var anchor: int = 0
 	var probe: int = 2
 	while probe < path.size():
-		if _line_clear(path[anchor], path[probe], offsets, flying, unit):
+		if _line_clear(path[anchor], path[probe], offsets, clearance, flying, unit):
 			probe += 1
 		else:
 			result.append(path[probe - 1])
@@ -464,12 +574,12 @@ static func _smooth_path(path: PackedVector3Array, offsets: Array[Vector3i], fly
 	return result
 
 
-static func _line_clear(a: Vector3, b: Vector3, offsets: Array[Vector3i], flying: bool, unit: Unit) -> bool:
+static func _line_clear(a: Vector3, b: Vector3, offsets: Array[Vector3i], clearance: float, flying: bool, unit: Unit) -> bool:
 	var length: float = a.distance_to(b)
 	var steps: int = max(1, ceili(length / CELL_SIZE))
 	for i in range(1, steps):
 		var t: float = float(i) / float(steps)
-		if not _is_valid_cell(world_to_cell(a.lerp(b, t)), offsets, flying, unit):
+		if not _is_valid_cell(world_to_cell(a.lerp(b, t)), offsets, clearance, flying, unit):
 			return false
 	return true
 

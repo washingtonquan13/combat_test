@@ -45,6 +45,16 @@ extends IndicatorBase
 var _path_mesh: MeshInstance3D
 var _path_immediate: ImmediateMesh
 
+## Cache for the last NavigationGrid.find_path() query this preview made —
+## see _update_path_preview. A* is a real search, not free; re-running it
+## unconditionally every rendered frame (most of which the mouse hasn't
+## meaningfully moved) was this preview's single biggest performance cost.
+var _last_query_unit: Unit = null
+var _last_query_flying: bool = false
+var _last_query_start_cell: Vector3i
+var _last_query_dest_cell: Vector3i
+var _last_waypoints: PackedVector3Array = PackedVector3Array()
+
 
 func _ready() -> void:
 	var built: Dictionary = _create_line_mesh()
@@ -117,11 +127,39 @@ func _update_path_preview(unit: Unit) -> void:
 			NavigationGrid.FLIGHT_CEILING_HEIGHT
 		)
 
-	# Hovering directly over another unit's own footprint has nothing
-	# valid to plan toward exactly at that point — find_path() naturally
-	# resolves to the nearest valid cell outside it, same as move_to()
-	# itself; no separate sanitizing step needed.
-	var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, query_hover_point, unit, flying)
+	# Only re-run the actual A* search when the meaningful inputs moved to
+	# a different CELL — hover position, unit's own position, or flying
+	# altitude (already folded into dest_cell, since query_hover_point.y
+	# carries the target altitude) — not on every single frame regardless
+	# of whether anything changed, which is most frames (the mouse sitting
+	# still is the common case, not the exception). RoutePlanner.plan
+	# below still re-runs every frame regardless — it's a cheap linear
+	# walk of the path, not a search, so it can stay live-updating against
+	# move_remaining without needing the same caching.
+	var start_cell: Vector3i = NavigationGrid.world_to_cell(unit.global_position)
+	var dest_cell: Vector3i = NavigationGrid.world_to_cell(query_hover_point)
+	var query_unchanged: bool = (
+		unit == _last_query_unit
+		and flying == _last_query_flying
+		and start_cell == _last_query_start_cell
+		and dest_cell == _last_query_dest_cell
+	)
+
+	var waypoints: PackedVector3Array
+	if query_unchanged:
+		waypoints = _last_waypoints
+	else:
+		# Hovering directly over another unit's own footprint has nothing
+		# valid to plan toward exactly at that point — find_path()
+		# naturally resolves to the nearest valid cell outside it, same as
+		# move_to() itself; no separate sanitizing step needed.
+		waypoints = NavigationGrid.find_path(unit.get_tree(), unit.global_position, query_hover_point, unit, flying)
+		_last_query_unit = unit
+		_last_query_flying = flying
+		_last_query_start_cell = start_cell
+		_last_query_dest_cell = dest_cell
+		_last_waypoints = waypoints
+
 	if waypoints.size() < 2:
 		_path_mesh.visible = false
 		return
