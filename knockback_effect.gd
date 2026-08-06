@@ -3,14 +3,24 @@ extends AbilityEffect
 ## Pushes the TARGET directly away from the caster along the straight
 ## line between them, by a fixed distance — same direct global_position
 ## Tween approach MoveCasterEffect uses for Jump (see that file), just
-## applied to target instead of attacker, with no arc (a shove stays on
-## the ground, it doesn't launch into the air).
+## applied to target instead of attacker, with no arc: a shove is a pure
+## horizontal displacement, it never changes the target's altitude — a
+## flying target stays exactly as airborne as it was (deliberate design
+## choice: shove isn't a fall/knockdown, that's IncapacitateBehavior's
+## job — see Unit.ground_if_flying()).
 ##
 ## Deliberately bypasses move_and_slide() and PathAvoidance the same way
 ## Jump does — a shove isn't a walk order, it shouldn't path around
 ## obstacles or ask permission. The one thing it DOES respect is the
-## navmesh itself: the destination is snapped onto walkable ground so a
-## knockback can't shove a unit through a wall or off into the void.
+## navmesh itself for a GROUNDED target: the destination is snapped onto
+## walkable ground so a knockback can't shove a unit through a wall or
+## off into the void. A FLYING target skips that snap entirely — see
+## apply()'s own comment for why: NavigationServer3D.
+## map_get_closest_point() has no navigation_layers parameter (confirmed
+## — same limitation Unit.land() works around), so with both a ground
+## and an air region on the same map it could just as easily snap onto
+## the wrong one, silently dropping a flying target toward the ground
+## instead of leaving it at its own height.
 ## Does NOT check for another unit already standing at the landing spot
 ## (no pileup/collision resolution) — an intentional simplification, not
 ## an oversight; revisit if stacking knockbacks into a wall of allies
@@ -42,8 +52,23 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 	var direction: Vector3 = offset.normalized()
 	var raw_destination: Vector3 = to + direction * distance
 
-	var map_rid: RID = target.nav_agent.get_navigation_map()
-	var destination: Vector3 = NavigationServer3D.map_get_closest_point(map_rid, raw_destination)
+	var destination: Vector3
+	if target.is_flying():
+		# No navmesh snap here — see this file's header for why
+		# map_get_closest_point() isn't safe to use once an air region
+		# exists on the same map. Not needed anyway: the air layer is
+		# currently one open rectangle with no carved obstacles (see
+		# NavigationCarving.ensure_air_region_baked), so there's nothing
+		# to snap away from. Y is explicitly held at the target's
+		# current altitude regardless of what raw_destination's Y ended
+		# up being (it already matches, since offset.y was zeroed above
+		# — this just makes that invariant explicit rather than implicit).
+		destination = raw_destination
+		destination.y = to.y
+	else:
+		var map_rid: RID = target.nav_agent.get_navigation_map()
+		destination = NavigationServer3D.map_get_closest_point(map_rid, raw_destination)
+
 	var actual_distance: float = to.distance_to(destination)
 
 	_animate_push(target, destination)
