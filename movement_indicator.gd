@@ -31,16 +31,6 @@ extends IndicatorBase
 ## Lifts the line slightly above the ground to avoid z-fighting with
 ## terrain geometry.
 @export var height_offset: float = 0.05
-## Meters/second the active flying unit's Unit.flight_target_altitude
-## changes while fly_ascend ("R")/fly_descend ("F") is held — see
-## _process(). InputMap actions, not hardcoded keys (see project.godot
-## > Input Map, same convention as left_click/right_click in
-## ground_click_target.gd) — rebinding either needs no code change.
-## Not the scroll wheel: camera_zoom_in/camera_zoom_out already own
-## that (see project.godot) — scroll-adjusting altitude would have
-## fought the camera for the same input every time a flying unit was
-## active.
-@export var altitude_adjust_speed: float = 3.0
 
 var _path_mesh: MeshInstance3D
 var _path_immediate: ImmediateMesh
@@ -55,6 +45,17 @@ var _last_query_start_cell: Vector3i
 var _last_query_dest_cell: Vector3i
 var _last_waypoints: PackedVector3Array = PackedVector3Array()
 
+## Whether the Ctrl altitude-drag was active last frame — used only to
+## detect the moment it STARTS (see _handle_altitude_input), so the drag's
+## XZ anchor gets captured once per press instead of drifting every frame.
+var _altitude_dragging: bool = false
+## XZ position the altitude drag's vertical plane is anchored to — wherever
+## the ground hover was pointing at the instant the modifier was pressed.
+## Frozen for the duration of the hold: while dragging, the mouse only
+## controls height, not destination, so the two can't fight over the same
+## input.
+var _altitude_drag_anchor_xz: Vector2 = Vector2.ZERO
+
 
 func _ready() -> void:
 	var built: Dictionary = _create_line_mesh()
@@ -62,13 +63,13 @@ func _ready() -> void:
 	_path_immediate = built.immediate
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	var unit := _get_active_unit()
 	if not unit:
 		_hide_all()
 		return
 
-	_handle_altitude_input(unit, delta)
+	_handle_altitude_input(unit)
 	_update_path_preview(unit)
 
 
@@ -87,26 +88,76 @@ func _hide_all() -> void:
 		_path_mesh.visible = false
 
 
-## Holding fly_ascend/fly_descend continuously adjusts the active
-## flying unit's TARGET altitude for its next move — called from
-## _process() rather than an input callback, since this needs to move
-## smoothly for as long as the key stays down, not once per key-down
-## event. Same gating as the path preview (only reached at all once
-## _get_active_unit() already passed in _process), plus its own
-## is_flying() check, since a non-flying active unit shouldn't react to
-## these keys just because they happen to be held.
-func _handle_altitude_input(unit: Unit, delta: float) -> void:
-	if not unit.is_flying():
+## Modifier-style altitude control: hold fly_altitude_modifier (Ctrl) and
+## the active flying unit's TARGET altitude tracks the mouse directly,
+## instead of the old R/F "nudge at a fixed speed" scheme. Called from
+## _process() rather than an input callback since it needs to keep sampling
+## the live mouse position for as long as the modifier stays down. Same
+## gating as the path preview (only reached at all once _get_active_unit()
+## already passed in _process), plus its own is_flying() check, since a
+## non-flying active unit shouldn't react to this just because it's held.
+##
+## How the drag itself works: on the frame the modifier is first held, the
+## XZ point the ground hover was aiming at gets frozen as _altitude_drag_
+## anchor_xz — for the rest of the hold, mouse movement only changes
+## height, not destination, so the two never fight over the same input.
+## Height comes from casting the camera ray through the current mouse
+## position and intersecting it against a vertical "wall" of infinite
+## height standing at that anchor XZ, facing the camera — see
+## _sample_altitude_from_mouse for why that's the right shape of plane to
+## use. Releasing the modifier ends the drag; whatever altitude it landed
+## on stays committed (same as R/F leaving flight_target_altitude wherever
+## it was last nudged to).
+func _handle_altitude_input(unit: Unit) -> void:
+	if not unit.is_flying() or not Input.is_action_pressed("fly_altitude_modifier"):
+		_altitude_dragging = false
 		return
 
-	var direction: float = 0.0
-	if Input.is_action_pressed("fly_ascend"):
-		direction += 1.0
-	if Input.is_action_pressed("fly_descend"):
-		direction -= 1.0
+	if not _altitude_dragging:
+		var ground_point = _get_mouse_ground_point()
+		var anchor: Vector3 = ground_point if ground_point != null else unit.global_position
+		_altitude_drag_anchor_xz = Vector2(anchor.x, anchor.z)
+		_altitude_dragging = true
 
-	if direction != 0.0:
-		unit.adjust_flight_altitude(direction * altitude_adjust_speed * delta)
+	var sampled_altitude = _sample_altitude_from_mouse(_altitude_drag_anchor_xz)
+	if sampled_altitude != null:
+		unit.set_flight_altitude(sampled_altitude)
+
+
+## Reads the altitude implied by the current mouse position: casts the
+## camera ray through the mouse and intersects it with a vertical plane
+## anchored at anchor_xz. The plane's normal is the camera's own back
+## vector flattened to purely horizontal (Y zeroed before normalizing) —
+## flattening it is what keeps this a true vertical wall regardless of the
+## CRPGCamera's pitch, so only how high or low the ray crosses that wall
+## matters. Without flattening, a pitched-down camera would tilt the
+## "wall" too, coupling horizontal mouse movement into the altitude result
+## in a way that would feel wrong to drag. Returns null if there's no
+## active camera or the ray can't hit the plane at all (near-parallel to
+## it — not reachable in practice given the camera's pitch is clamped well
+## away from looking straight along the horizon).
+func _sample_altitude_from_mouse(anchor_xz: Vector2):
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return null
+
+	var back: Vector3 = camera.global_transform.basis.z
+	var normal := Vector3(back.x, 0.0, back.z)
+	if normal.length() < 0.001:
+		return null
+	normal = normal.normalized()
+
+	var anchor_point := Vector3(anchor_xz.x, 0.0, anchor_xz.y)
+	var plane := Plane(normal, anchor_point)
+
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var dir: Vector3 = camera.project_ray_normal(mouse_pos)
+
+	var hit = plane.intersects_ray(from, dir)
+	if hit == null:
+		return null
+	return hit.y
 
 
 func _update_path_preview(unit: Unit) -> void:

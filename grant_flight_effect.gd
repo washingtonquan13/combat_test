@@ -18,7 +18,7 @@ func apply(attacker: Unit, _target, _ability: Ability) -> Dictionary:
 	# The unit's next move should hold this new height by default, not
 	# snap back toward wherever flight_target_altitude was last left
 	# (0.0, or a stale value from a previous flight) — see
-	# Unit.adjust_flight_altitude()/movement_indicator.gd's R/F key
+	# Unit.set_flight_altitude()/movement_indicator.gd's Ctrl-drag
 	# handling for how the player changes this afterward.
 	attacker.flight_target_altitude = attacker.global_position.y
 

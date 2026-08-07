@@ -61,12 +61,11 @@ extends CharacterBody3D
 ## practice; it's now a last-resort safety net rather than the main fix.
 @export var stuck_timeout: float = 1.5
 ## The altitude a flying unit's NEXT move targets — read/written by
-## adjust_flight_altitude() (scroll-wheel input, see
-## movement_indicator.gd), read by UnitMovement.move_to() to decide
-## where the flight path's Y actually goes. Meaningless while not
-## flying; GrantFlightEffect initializes it to the unit's actual height
-## the moment flight is granted, so it's never stale/unset by the time
-## anything reads it.
+## set_flight_altitude() (Ctrl-drag input, see movement_indicator.gd),
+## read by UnitMovement.move_to() to decide where the flight path's Y
+## actually goes. Meaningless while not flying; GrantFlightEffect
+## initializes it to the unit's actual height the moment flight is
+## granted, so it's never stale/unset by the time anything reads it.
 @export var flight_target_altitude: float = 0.0
 
 @export var damage_reduction: int = 0
@@ -475,14 +474,14 @@ func is_flying() -> bool:
 	return _status_manager.grants_flight()
 
 
-## Nudges flight_target_altitude by delta, clamped to the valid flight
+## Sets flight_target_altitude directly, clamped to the valid flight
 ## envelope (see NavigationGrid.FLIGHT_MIN_ALTITUDE/FLIGHT_CEILING_HEIGHT)
-## — called from movement_indicator.gd's R/F key handling while this unit
-## is the active, flying unit. Doesn't move the unit itself; only changes
-## where its NEXT move_to() call will aim for.
-func adjust_flight_altitude(delta: float) -> void:
+## — called every frame from movement_indicator.gd's Ctrl-drag altitude
+## control while this unit is the active, flying unit. Doesn't move the
+## unit itself; only changes where its NEXT move_to() call will aim for.
+func set_flight_altitude(altitude: float) -> void:
 	flight_target_altitude = clamp(
-		flight_target_altitude + delta,
+		altitude,
 		NavigationGrid.FLIGHT_MIN_ALTITUDE,
 		NavigationGrid.FLIGHT_CEILING_HEIGHT
 	)
