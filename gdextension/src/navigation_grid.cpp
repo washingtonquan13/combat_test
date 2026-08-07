@@ -808,7 +808,7 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 	return true;
 }
 
-bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit) {
+bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit) {
 	if (cell.x < 0 || cell.y < 0 || cell.z < 0 || cell.x >= grid_size.x || cell.y >= grid_size.y || cell.z >= grid_size.z) {
 		return false;
 	}
@@ -841,10 +841,37 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 		}
 	}
 
-	NavChunk &dist_chunk = ensure_chunk_dist(chunk_coord);
-	float clearance_world = (float)dist_chunk.dist[li] / (float)DIST_SCALE * CELL_SIZE;
-	if (clearance_world <= clearance) {
-		return false;
+	// Body clearance checked across every Y-layer the unit's height spans,
+	// starting at THIS cell — not just this one layer. bake_chunk_dist
+	// already computes horizontal distance-to-nearest-solid independently
+	// PER Y-LAYER (see its own comment), so no baking change is needed
+	// here, only walking more of what's already there. Before this, a
+	// unit could be routed somewhere its reference point fit but its body
+	// didn't — a low archway for a grounded unit, or (what actually
+	// surfaced this) a flying unit routed just under a platform: its
+	// single reference cell was clear, but nothing checked the layers
+	// above it where its body actually is. Applies uniformly to flying
+	// and grounded — the reference cell is always treated as the body's
+	// base, extending upward, matching how GrantFlightEffect/land() also
+	// treat the reference Y as "where the unit's feet are," airborne or
+	// not.
+	int vertical_cells = std::max(1, (int)std::ceil(height / CELL_SIZE));
+	for (int dy = 0; dy < vertical_cells; dy++) {
+		Vector3i layer_chunk_coord = chunk_coord;
+		int layer_li = li;
+		if (dy > 0) {
+			Vector3i layer_cell = cell + Vector3i(0, dy, 0);
+			if (layer_cell.y >= grid_size.y) {
+				return false;
+			}
+			layer_chunk_coord = cell_to_chunk_coord(layer_cell);
+			layer_li = local_index(cell_to_local(layer_cell));
+		}
+		NavChunk &dist_chunk = ensure_chunk_dist(layer_chunk_coord);
+		float clearance_world = (float)dist_chunk.dist[layer_li] / (float)DIST_SCALE * CELL_SIZE;
+		if (clearance_world <= clearance) {
+			return false;
+		}
 	}
 
 	return is_clear_of_units(cell, chunk_idx, offsets, clearance, self_unit);
@@ -855,7 +882,13 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells) {
 	ensure_baked(tree);
 	const std::vector<Vector3i> &offsets = disc_offsets(clearance);
-	NearestResult snap = find_nearest_free_cell(world_to_cell(point), offsets, clearance, flying, exclude_unit, max_radius_cells);
+	// height comes off exclude_unit the same duck-typed way find_path()
+	// reads it off its own unit parameter — exclude_unit is genuinely
+	// optional here (DEFVAL(Variant()) in _bind_methods), unlike find_path's
+	// unit, so this can't assume non-null the way get_float_prop's other
+	// callers do.
+	float height = exclude_unit ? get_float_prop(exclude_unit, "height") : 0.0f;
+	NearestResult snap = find_nearest_free_cell(world_to_cell(point), offsets, clearance, height, flying, exclude_unit, max_radius_cells);
 	Dictionary result;
 	if (!snap.found) {
 		result["found"] = false;
@@ -867,8 +900,8 @@ Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, f
 	return result;
 }
 
-NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit, int max_radius) {
-	if (is_valid_cell(cell, offsets, clearance, flying, self_unit)) {
+NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int max_radius) {
+	if (is_valid_cell(cell, offsets, clearance, height, flying, self_unit)) {
 		return { true, cell };
 	}
 	for (int radius = 1; radius <= max_radius; radius++) {
@@ -880,7 +913,7 @@ NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vecto
 						continue;
 					}
 					Vector3i candidate = cell + Vector3i(dx, dy, dz);
-					if (is_valid_cell(candidate, offsets, clearance, flying, self_unit)) {
+					if (is_valid_cell(candidate, offsets, clearance, height, flying, self_unit)) {
 						return { true, candidate };
 					}
 				}
@@ -896,6 +929,7 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 	ensure_baked(tree);
 
 	float clearance = get_float_prop(unit, "radius") + get_float_prop(unit, "avoidance_margin");
+	float height = get_float_prop(unit, "height");
 	const std::vector<Vector3i> &offsets = disc_offsets(clearance);
 	ensure_neighbor_offsets();
 
@@ -904,7 +938,7 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 		return PackedVector3Array();
 	}
 
-	NearestResult goal_snap = find_nearest_free_cell(world_to_cell(destination), offsets, clearance, flying, unit, 12);
+	NearestResult goal_snap = find_nearest_free_cell(world_to_cell(destination), offsets, clearance, height, flying, unit, 12);
 	if (!goal_snap.found) {
 		return PackedVector3Array();
 	}
@@ -929,15 +963,15 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 	std::vector<uint8_t> corridor = coarse_corridor(start_cell, goal_cell, flying);
 	PackedVector3Array raw;
 	if (!corridor.empty()) {
-		raw = a_star(start, start_cell, goal_cell, offsets, clearance, flying, unit, &corridor);
+		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, &corridor);
 	}
 	if (raw.size() < 2) {
-		raw = a_star(start, start_cell, goal_cell, offsets, clearance, flying, unit, nullptr);
+		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, nullptr);
 	}
 	if (raw.size() < 2) {
 		return raw;
 	}
-	return smooth_path(raw, offsets, clearance, flying, unit);
+	return smooth_path(raw, offsets, clearance, height, flying, unit);
 }
 
 void NavigationGrid::ensure_neighbor_offsets() {
@@ -1087,7 +1121,7 @@ std::vector<uint8_t> NavigationGrid::coarse_corridor(const Vector3i &start_cell,
 	return corridor;
 }
 
-PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask) {
+PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask) {
 	std::priority_queue<OpenEntry, std::vector<OpenEntry>, OpenEntryCompare> open_heap;
 
 	astar_search_id++;
@@ -1134,7 +1168,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			if (astar_closed_gen[neighbor_idx] == sid) {
 				continue;
 			}
-			if (!is_valid_cell(neighbor, offsets, clearance, flying, unit)) {
+			if (!is_valid_cell(neighbor, offsets, clearance, height, flying, unit)) {
 				continue;
 			}
 			float step_cost = neighbor_step_cost[oi];
@@ -1171,7 +1205,7 @@ PackedVector3Array NavigationGrid::reconstruct_path(const Vector3 &start, const 
 	return result;
 }
 
-PackedVector3Array NavigationGrid::smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit) {
+PackedVector3Array NavigationGrid::smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit) {
 	if (path.size() <= 2) {
 		return path;
 	}
@@ -1184,7 +1218,7 @@ PackedVector3Array NavigationGrid::smooth_path(const PackedVector3Array &path, c
 	int anchor = 0;
 	int probe = 2;
 	while (probe < path.size()) {
-		if (line_clear(path[anchor], path[probe], offsets, clearance, flying, unit, sid)) {
+		if (line_clear(path[anchor], path[probe], offsets, clearance, height, flying, unit, sid)) {
 			probe++;
 		} else {
 			result.push_back(path[probe - 1]);
@@ -1196,13 +1230,13 @@ PackedVector3Array NavigationGrid::smooth_path(const PackedVector3Array &path, c
 	return result;
 }
 
-bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, int smooth_sid) {
+bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int smooth_sid) {
 	float length = a.distance_to(b);
 	int steps = std::max(1, (int)std::ceil(length / CELL_SIZE));
 	for (int i = 1; i < steps; i++) {
 		float t = (float)i / (float)steps;
 		Vector3 point = a.lerp(b, t);
-		if (!is_valid_cell_cached(world_to_cell(point), offsets, clearance, flying, unit, smooth_sid)) {
+		if (!is_valid_cell_cached(world_to_cell(point), offsets, clearance, height, flying, unit, smooth_sid)) {
 			return false;
 		}
 	}
@@ -1214,7 +1248,7 @@ bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::v
 // why this is exact (not approximate) despite the cache. Mirrors
 // is_valid_cell's own out-of-bounds handling (false) so callers can
 // treat this as a drop-in replacement.
-bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit, int smooth_sid) {
+bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int smooth_sid) {
 	if (!in_bounds(cell)) {
 		return false;
 	}
@@ -1222,7 +1256,7 @@ bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vecto
 	if (smooth_valid_gen[idx] == smooth_sid) {
 		return smooth_valid_result[idx] != 0;
 	}
-	bool result = is_valid_cell(cell, offsets, clearance, flying, self_unit);
+	bool result = is_valid_cell(cell, offsets, clearance, height, flying, self_unit);
 	smooth_valid_gen[idx] = smooth_sid;
 	smooth_valid_result[idx] = result ? (uint8_t)1 : (uint8_t)0;
 	return result;

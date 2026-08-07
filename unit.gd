@@ -39,6 +39,17 @@ extends CharacterBody3D
 ## imprecision eats directly into actual contact instead of a buffer
 ## absorbing it.
 @export var avoidance_margin: float = 0.15
+## This unit's body height for navigation purposes — NavigationGrid checks
+## clearance all the way from this unit's reference cell up through
+## height above it, not just the single cell the reference point sits in,
+## so pathing won't route a tall unit somewhere its feet fit but its head
+## doesn't (a low archway, or a flying unit tucked just under a platform).
+## Matches the actual CapsuleShape3D's height in unit.tscn (unit.tscn
+## only overrides radius, so the capsule sits at Godot's own default
+## height of 2.0) — kept as a separate export rather than read off the
+## collision shape directly since NavigationGrid only duck-types simple
+## float properties off the Unit script, not scene-tree collision nodes.
+@export var height: float = 2.0
 ## How quickly this unit turns to face a new direction — used for
 ## following the movement path and for tracking an aimed target while an
 ## ability is armed (see face_direction/face_point). Higher = snappier,

@@ -164,7 +164,7 @@ private:
 	std::vector<int> smooth_valid_gen;
 	std::vector<uint8_t> smooth_valid_result;
 	int smooth_search_id = 0;
-	bool is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit, int smooth_sid);
+	bool is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int smooth_sid);
 
 	// Static geometry, bucketed once by every chunk its AABB overlaps, so
 	// rasterizing one chunk only tests the shapes that could touch it
@@ -222,13 +222,13 @@ private:
 	void set_occupant(const Vector3i &cell, Object *obj);
 
 	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const;
-	bool is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit);
+	bool is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit);
 
 	struct NearestResult {
 		bool found;
 		Vector3i cell;
 	};
-	NearestResult find_nearest_free_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit, int max_radius);
+	NearestResult find_nearest_free_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int max_radius);
 
 	void ensure_neighbor_offsets();
 	static float heuristic(const Vector3i &a, const Vector3i &b);
@@ -245,14 +245,14 @@ private:
 	// one, so this can only affect speed).
 	std::vector<uint8_t> coarse_corridor(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
 
-	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask);
+	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask);
 	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);
-	PackedVector3Array smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit);
-	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, int smooth_sid);
+	PackedVector3Array smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
+	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int smooth_sid);
 
 	// Reads a float property off a duck-typed GDScript "Unit" instance
-	// (radius, avoidance_margin, flight_target_altitude) — everything in
-	// the "units"/"blocking_corpses" groups is a Unit-scripted node by
+	// (radius, avoidance_margin, height, flight_target_altitude) —
+	// everything in the "units"/"blocking_corpses" groups is a Unit-scripted node by
 	// this codebase's own hard invariant (only Unit._ready() ever calls
 	// add_to_group("units")), so this trusts that rather than re-deriving
 	// a type check GDScript's own "as Unit" cast already gave up on
