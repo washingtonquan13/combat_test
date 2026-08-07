@@ -621,7 +621,13 @@ void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
 		if (in_bounds(base_cell)) {
 			ensure_chunk_dist(cell_to_chunk_coord(base_cell));
 		}
-		for (const Vector3i &offset : disc_offsets(clearance)) {
+		// A flying occupant needs a full 3D volume, not the horizontal-only
+		// disc grounded units share a common Y reference for — see
+		// sphere_offsets' own comment for why the horizontal disc alone
+		// silently let two hovering units pass through each other.
+		bool node_flying = node->has_method("is_flying") && call_bool(node, "is_flying");
+		const std::vector<Vector3i> &occ_offsets = node_flying ? sphere_offsets(clearance) : disc_offsets(clearance);
+		for (const Vector3i &offset : occ_offsets) {
 			Vector3i cell = base_cell + offset;
 			if (in_bounds(cell)) {
 				set_occupant(cell, obj);
@@ -643,7 +649,12 @@ void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
 		}
 		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
 		Vector3i base_cell = world_to_cell(n3d->get_global_position());
-		for (const Vector3i &offset : disc_offsets(clearance)) {
+		// A corpse isn't force-landed on death (see Unit._handle_death) --
+		// one that died mid-air stays exactly where it was, so it needs
+		// the same flying-aware volume as a live flying unit.
+		bool node_flying = node->has_method("is_flying") && call_bool(node, "is_flying");
+		const std::vector<Vector3i> &occ_offsets = node_flying ? sphere_offsets(clearance) : disc_offsets(clearance);
+		for (const Vector3i &offset : occ_offsets) {
 			Vector3i cell = base_cell + offset;
 			if (in_bounds(cell)) {
 				set_occupant(cell, obj);
@@ -679,6 +690,46 @@ const std::vector<Vector3i> &NavigationGrid::disc_offsets(float clearance) {
 	return emplaced.first->second;
 }
 
+// Full 3D occupancy volume for a flying occupant, used in place of
+// disc_offsets (which is deliberately horizontal-only, dy always 0) when
+// marking cells a FLYING unit/corpse occupies in update_occupancy. A
+// grounded unit's Y is pinned to whatever surface it's standing on, so two
+// grounded units near each other always land on the same Y cell and the
+// horizontal disc alone catches their collision correctly. A flying unit
+// has no such shared reference — its altitude is whatever the player last
+// set it to (R/F historically, now the Ctrl-drag control) — so two
+// hovering units can be right next to each other in world space while
+// sitting in DIFFERENT Y cells, and the horizontal-only disc would never
+// mark them as overlapping at all. That's the actual root cause behind
+// "flying units fly through each other" — read-side collision checks
+// (is_clear_of_units) don't need to change; they already test a
+// horizontal disc around each candidate cell at that candidate's own Y,
+// which correctly detects an overlap once the occupied SET properly
+// represents the occupant's true 3D volume here on the write side.
+const std::vector<Vector3i> &NavigationGrid::sphere_offsets(float clearance) {
+	int key = clearance_key(clearance);
+	auto it = sphere_offsets_cache.find(key);
+	if (it != sphere_offsets_cache.end()) {
+		return it->second;
+	}
+
+	std::vector<Vector3i> result;
+	int reach = (int)std::ceil(clearance / CELL_SIZE);
+	for (int dx = -reach; dx <= reach; dx++) {
+		for (int dy = -reach; dy <= reach; dy++) {
+			for (int dz = -reach; dz <= reach; dz++) {
+				float dist = std::sqrt((float)(dx * dx + dy * dy + dz * dz)) * CELL_SIZE;
+				if (dist > clearance) {
+					continue;
+				}
+				result.push_back(Vector3i(dx, dy, dz));
+			}
+		}
+	}
+	auto emplaced = sphere_offsets_cache.emplace(key, std::move(result));
+	return emplaced.first->second;
+}
+
 bool NavigationGrid::is_clear_of_units(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const {
 	if (!any_occupied) {
 		return true;
@@ -690,24 +741,29 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, const std::vector<V
 	// time even when nothing is anywhere near THIS cell, which used to
 	// force every single neighbor check across the whole search to do a
 	// full per-offset hashmap lookup regardless. Checking has_occupancy on
-	// the 3x3 chunk neighborhood first rules that out cheaply for the
+	// the 3x3x3 chunk neighborhood first rules that out cheaply for the
 	// common case. Only sound when the disc's reach can't cross more than
 	// one chunk width, which holds for any realistic unit clearance (this
 	// falls back to the exact per-offset check otherwise, so an oversized
-	// clearance degrades to the old cost rather than being wrong).
+	// clearance degrades to the old cost rather than being wrong). Checks
+	// all three axes, not just the horizontal ones — a flying occupant's
+	// occupancy is a real 3D sphere now (see sphere_offsets), so it can
+	// land in a vertically-adjacent chunk too.
 	int reach_cells = (int)std::ceil(clearance / CELL_SIZE);
 	if (reach_cells <= CHUNK_DIM) {
 		Vector3i cc = cell_to_chunk_coord(cell);
 		bool maybe_nearby = false;
 		for (int dx = -1; dx <= 1 && !maybe_nearby; dx++) {
-			for (int dz = -1; dz <= 1 && !maybe_nearby; dz++) {
-				Vector3i nc = cc + Vector3i(dx, 0, dz);
-				if (!chunk_in_bounds(nc)) {
-					continue;
-				}
-				const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(nc)];
-				if (slot && slot->has_occupancy) {
-					maybe_nearby = true;
+			for (int dy = -1; dy <= 1 && !maybe_nearby; dy++) {
+				for (int dz = -1; dz <= 1 && !maybe_nearby; dz++) {
+					Vector3i nc = cc + Vector3i(dx, dy, dz);
+					if (!chunk_in_bounds(nc)) {
+						continue;
+					}
+					const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(nc)];
+					if (slot && slot->has_occupancy) {
+						maybe_nearby = true;
+					}
 				}
 			}
 		}

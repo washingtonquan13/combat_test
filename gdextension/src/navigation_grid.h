@@ -157,7 +157,8 @@ private:
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
 
 	std::vector<Vector3i> neighbor_offsets; // 26-connectivity, fine A*
-	std::unordered_map<int, std::vector<Vector3i>> disc_offsets_cache; // horizontal (x,z) offsets by clearance — occupancy discs only
+	std::unordered_map<int, std::vector<Vector3i>> disc_offsets_cache; // horizontal (x,z) offsets by clearance — grounded occupancy discs
+	std::unordered_map<int, std::vector<Vector3i>> sphere_offsets_cache; // full 3D offsets by clearance — flying occupancy (see sphere_offsets)
 
 	void ensure_project_scanned(SceneTree *tree);
 	void collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out);
@@ -189,6 +190,7 @@ private:
 
 	static int clearance_key(float clearance);
 	const std::vector<Vector3i> &disc_offsets(float clearance);
+	const std::vector<Vector3i> &sphere_offsets(float clearance);
 
 	Object *occupant_at(const Vector3i &cell) const;
 	void set_occupant(const Vector3i &cell, Object *obj);
