@@ -403,7 +403,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("19_82xsv")
 
 [node name="Camera3D" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -8)
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -5)
 script = ExtResource("3_h2yge")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
