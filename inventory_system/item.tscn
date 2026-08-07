@@ -8,6 +8,7 @@
 [node name="Item" type="MarginContainer"]
 offset_right = 32.0
 offset_bottom = 32.0
+tooltip_text = "Item (1×1)  Stack: 1"
 script = ExtResource("1_3aprp")
 tooltip_scene = ExtResource("2_6muww")
 context_menu_scene = ExtResource("3_vljjh")

@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://b1x42s1wppw2q"]
 
-[ext_resource type="Script" path="res://inventory_system/context_menu.gd" id="1_ctxmenu"]
+[ext_resource type="Script" uid="uid://b65otqu8fy2y" path="res://inventory_system/context_menu.gd" id="1_ctxmenu"]
 
 [node name="ContextMenu" type="PopupPanel"]
 size = Vector2i(100, 109)

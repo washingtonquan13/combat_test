@@ -73,3 +73,19 @@ static func get_armed_ability_of_targeting_type(targeting_type: Script) -> Abili
 	if not is_instance_of(ability.targeting, targeting_type):
 		return null
 	return ability
+
+
+## The currently armed ability, if and only if it has a
+## PathedProjectileStep in its impact VFX (see Ability.
+## has_pathed_projectile) — used by seeking_indicator.gd, which needs a
+## real NavigationGrid route preview instead of
+## line_of_sight_indicator.gd's straight aim line for exactly these
+## abilities. Keyed on VFX composition rather than targeting type (unlike
+## get_armed_ability_of_targeting_type above) since "seeking" is a
+## property of HOW an ability travels, not what it targets — nothing
+## stops a future seeking ability from using a different targeting shape.
+static func get_armed_seeking_ability() -> Ability:
+	var ability: Ability = AbilityManager.armed_ability
+	if not ability or not ability.has_pathed_projectile():
+		return null
+	return ability

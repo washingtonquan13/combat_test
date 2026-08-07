@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=18 format=3 uid="uid://dnpp2x27ui1ou"]
+
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="1_abil"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="2_effb"]
+[ext_resource type="Texture2D" uid="uid://cvcjqkcix407i" path="res://assets/ability_icon/magic_missile_icon.png" id="3_4oqof"]
+[ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://ranged_enemy_targeting.gd" id="3_targ"]
+[ext_resource type="Script" uid="uid://l0qndk2gae1o" path="res://damage_effect.gd" id="4_dmg"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://ability_timing.gd" id="5_time"]
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://vfx_effect.gd" id="6_vfxe"]
+[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://vfx_step.gd" id="7_step"]
+[ext_resource type="Script" uid="uid://cj6o5nktqa6n8" path="res://pathed_projectile_step.gd" id="8_path"]
+[ext_resource type="PackedScene" path="res://magic_missile_projectile.tscn" id="9_proj"]
+[ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://impact_signal_step.gd" id="10_imp"]
+
+[sub_resource type="Resource" id="Resource_dmg"]
+script = ExtResource("4_dmg")
+dice_count = 1
+dice_sides = 4
+dice_bonus = 1
+metadata/_custom_type_script = "uid://l0qndk2gae1o"
+
+[sub_resource type="Resource" id="Resource_path"]
+script = ExtResource("8_path")
+projectile_scene = ExtResource("9_proj")
+duration = 0.0
+speed = 20.0
+flying = true
+radius = 0.1
+avoidance_margin = 0.0
+height = 0.1
+facing_offset_degrees = 0.0
+launch_height_offset = 1.0
+metadata/_custom_type_script = "uid://cj6o5nktqa6n8"
+
+[sub_resource type="Resource" id="Resource_imp"]
+script = ExtResource("10_imp")
+metadata/_custom_type_script = "uid://bkpdhvqqgfc8o"
+
+[sub_resource type="Resource" id="Resource_vfxe"]
+script = ExtResource("6_vfxe")
+steps = Array[ExtResource("7_step")]([SubResource("Resource_path"), SubResource("Resource_imp")])
+metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
+
+[sub_resource type="Resource" id="Resource_targ"]
+script = ExtResource("3_targ")
+max_range = 24.0
+requires_line_of_sight = false
+los_obstruction_mask = 1
+requires_ally = false
+metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
+
+[sub_resource type="Resource" id="Resource_time"]
+script = ExtResource("5_time")
+waits_for_impact = true
+impact_timeout = 3.0
+metadata/_custom_type_script = "uid://bjatij1rn26yg"
+
+[resource]
+script = ExtResource("1_abil")
+ability_name = "Magic Missile"
+icon = ExtResource("3_4oqof")
+targeting = SubResource("Resource_targ")
+effects = Array[ExtResource("2_effb")]([SubResource("Resource_dmg")])
+requires_to_hit = false
+uses_attack_action = true
+timing = SubResource("Resource_time")
+impact_vfx = SubResource("Resource_vfxe")
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

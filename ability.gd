@@ -100,3 +100,27 @@ func is_in_range(attacker: Unit, target) -> bool:
 	if not targeting:
 		return false
 	return targeting.is_valid_target(attacker, target)
+
+
+## The PathedProjectileStep in impact_vfx.steps, if this ability has one
+## — used by seeking_indicator.gd (via PlayerInteractionState) to decide
+## whether to preview the real NavigationGrid route instead of
+## line_of_sight_indicator.gd's straight aim line, and to read that
+## step's OWN radius/avoidance_margin/height/flying/launch_height_offset
+## for the preview query, so it can't disagree with what the actual cast
+## will do (same WYSIWYG principle AreaIndicator uses reading
+## AreaTargeting.radius directly). Derived from the actual VFX
+## composition rather than a separate hand-set "is this a seeking
+## ability" flag, so it can't drift out of sync with what impact_vfx
+## actually plays.
+func get_pathed_projectile_step() -> PathedProjectileStep:
+	if not impact_vfx:
+		return null
+	for step in impact_vfx.steps:
+		if step is PathedProjectileStep:
+			return step
+	return null
+
+
+func has_pathed_projectile() -> bool:
+	return get_pathed_projectile_step() != null

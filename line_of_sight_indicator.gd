@@ -72,8 +72,16 @@ func _get_active_unit() -> Unit:
 	return PlayerInteractionState.get_active_unit()
 
 
+## Excludes seeking abilities (see Ability.has_pathed_projectile) even
+## though they're RangedEnemyTargeting too — seeking_indicator.gd shows
+## the real bent NavigationGrid route for those instead of this straight
+## aim line, and the two would otherwise both draw for the same armed
+## ability.
 func _get_armed_ranged_ability() -> Ability:
-	return PlayerInteractionState.get_armed_ability_of_targeting_type(RangedEnemyTargeting)
+	var ability := PlayerInteractionState.get_armed_ability_of_targeting_type(RangedEnemyTargeting)
+	if ability and ability.has_pathed_projectile():
+		return null
+	return ability
 
 
 ## Filters IndicatorBase._get_hovered_unit() down to "alive AND hostile

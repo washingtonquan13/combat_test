@@ -1,4 +1,4 @@
-[gd_scene load_steps=59 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=61 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -45,6 +45,8 @@
 [ext_resource type="Resource" uid="uid://qvfwynd2l033" path="res://abilities/summon_spirit.tres" id="36_4lmeg"]
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://abilities/fly.tres" id="37_0cp0l"]
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://abilities/land.tres" id="38_d2t1y"]
+[ext_resource type="Resource" uid="uid://dnpp2x27ui1ou" path="res://abilities/magic_missile.tres" id="42_qnost"]
+[ext_resource type="Script" path="res://seeking_indicator.gd" id="43_seek"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -110,6 +112,9 @@ script = ExtResource("4_ryguw")
 
 [node name="AreaIndicator" type="Node3D" parent="."]
 script = ExtResource("5_d13ii")
+
+[node name="SeekingIndicator" type="Node3D" parent="."]
+script = ExtResource("43_seek")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
@@ -363,7 +368,7 @@ dexterity = 18
 intelligence = 16
 move = 24
 move_speed = 5.0
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y")])
+abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y"), ExtResource("42_qnost")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("21_lswn8")
 
