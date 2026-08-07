@@ -1,4 +1,4 @@
-[gd_scene load_steps=57 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=59 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -77,6 +77,12 @@ size = Vector3(4, 1, 4)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_qnost"]
 size = Vector3(4, 1, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_qnost"]
+size = Vector3(4, 1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wnkbs"]
+size = Vector3(4, 1, 1)
 
 [sub_resource type="Environment" id="Environment_movement_glow"]
 glow_enabled = true
@@ -307,6 +313,15 @@ mesh = SubResource("BoxMesh_0n3wm")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform4"]
 shape = SubResource("BoxShape3D_qnost")
 
+[node name="StaticBody3D" type="StaticBody3D" parent="LevelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 11, 6.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/StaticBody3D"]
+mesh = SubResource("BoxMesh_qnost")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/StaticBody3D"]
+shape = SubResource("BoxShape3D_wnkbs")
+
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)
 strength = 16
@@ -346,7 +361,7 @@ portrait_texture = ExtResource("7_ycdy4")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -8)
 dexterity = 18
 intelligence = 16
-move = 27
+move = 24
 move_speed = 5.0
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
