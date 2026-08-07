@@ -29,7 +29,6 @@ albedo_color = Color(0.666665, 0.4, 0.858824, 1)
 roughness = 0.5
 
 [sub_resource type="ArrayMesh" id="ArrayMesh_ksg5a"]
-resource_local_to_scene = true
 resource_name = "UAL1_Standard_Mannequin"
 _surfaces = [{
 "aabb": AABB(-0.972227, 0.000461441, -0.164154, 1.94445, 1.82872, 0.369598),
@@ -17821,6 +17820,7 @@ unit = NodePath("..")
 [node name="GeneralSkeleton" parent="CharacterModel/Armature" index="0"]
 bones/1/position = Vector3(0, 0.9167, -0.0501)
 bones/1/rotation = Quaternion(2.68221e-07, 0, 0, 1)
+bones/2/rotation = Quaternion(-0.00292752, -0.00101466, -0.00962706, 0.999949)
 bones/3/rotation = Quaternion(-1.45286e-07, 0, 0, 1)
 bones/4/rotation = Quaternion(-4.47035e-08, 0, 0, 1)
 bones/5/rotation = Quaternion(2.23517e-08, 0, 0, 1)
