@@ -372,19 +372,29 @@ func _draw_dashed_strip(points: PackedVector3Array, color: Color, lift: Vector3,
 		cumulative[i] = cumulative[i - 1] + points[i - 1].distance_to(points[i])
 	var total: float = cumulative[cumulative.size() - 1]
 
-	_path_immediate.surface_begin(Mesh.PRIMITIVE_LINES)
-	_path_immediate.surface_set_color(color)
-
+	# Collect vertices first rather than calling surface_begin() up front —
+	# a short segment (e.g. hovering right at the edge of move_remaining,
+	# where the out-of-range sliver can be tiny) combined with a phase
+	# already carried deep into a "gap" from the previous strip can
+	# legitimately produce zero dashes. surface_end() hard-errors on an
+	# empty surface (ImmediateMesh requires at least one vertex), so the
+	# surface only gets opened at all once there's something to put in it.
+	var dash_vertices := PackedVector3Array()
 	var pos: float = -fmod(phase, period)
 	while pos < total:
 		var dash_start: float = max(pos, 0.0)
 		var dash_end: float = min(pos + dash_length, total)
 		if dash_end > dash_start:
-			_path_immediate.surface_add_vertex(_point_at_distance(points, cumulative, dash_start) + lift)
-			_path_immediate.surface_add_vertex(_point_at_distance(points, cumulative, dash_end) + lift)
+			dash_vertices.append(_point_at_distance(points, cumulative, dash_start) + lift)
+			dash_vertices.append(_point_at_distance(points, cumulative, dash_end) + lift)
 		pos += period
 
-	_path_immediate.surface_end()
+	if not dash_vertices.is_empty():
+		_path_immediate.surface_begin(Mesh.PRIMITIVE_LINES)
+		_path_immediate.surface_set_color(color)
+		for vertex in dash_vertices:
+			_path_immediate.surface_add_vertex(vertex)
+		_path_immediate.surface_end()
 
 	return fmod(phase + total, period)
 
