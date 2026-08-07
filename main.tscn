@@ -1,4 +1,4 @@
-[gd_scene load_steps=61 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=62 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -47,6 +47,7 @@
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://abilities/land.tres" id="38_d2t1y"]
 [ext_resource type="Resource" uid="uid://dnpp2x27ui1ou" path="res://abilities/magic_missile.tres" id="42_qnost"]
 [ext_resource type="Script" path="res://seeking_indicator.gd" id="43_seek"]
+[ext_resource type="Script" path="res://aerial_area_indicator.gd" id="44_aer3d"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -112,6 +113,9 @@ script = ExtResource("4_ryguw")
 
 [node name="AreaIndicator" type="Node3D" parent="."]
 script = ExtResource("5_d13ii")
+
+[node name="AerialAreaIndicator" type="Node3D" parent="."]
+script = ExtResource("44_aer3d")
 
 [node name="SeekingIndicator" type="Node3D" parent="."]
 script = ExtResource("43_seek")

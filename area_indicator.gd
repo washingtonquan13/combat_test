@@ -9,9 +9,19 @@ extends IndicatorBase
 ## without obscuring it, and matches how every other indicator in this
 ## project draws via line primitives rather than solid meshes.
 ##
+## FLOOR-ONLY — the center always sits wherever the ground raycast hit,
+## with no way to lift it. Deliberate: this indicator is for abilities
+## where an airborne blast center wouldn't make sense (Grease, which
+## spawns a ground-hugging Surface — see SpawnSurfaceEffect/Surface,
+## detection_height=0.05 on grease.tres's own Surface sub-resource). For
+## an ability that genuinely CAN be aimed in open 3D space (Fireball),
+## see aerial_area_indicator.gd/AerialAreaTargeting instead — this
+## indicator explicitly EXCLUDES those (see _get_armed_area_ability) so
+## the two never both show for the same armed ability.
+##
 ## Only shows during combat, for the unit whose turn it currently is,
 ## only when player-controlled, and only when the currently armed
-## ability uses AreaTargeting.
+## ability uses AreaTargeting (but not AerialAreaTargeting).
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
 ## its own visuals in code. ground_collision_mask (see IndicatorBase)
@@ -69,8 +79,15 @@ func _get_active_unit() -> Unit:
 	return PlayerInteractionState.get_active_unit()
 
 
+## Excludes AerialAreaTargeting even though it IS an AreaTargeting (see
+## this file's header) — aerial_area_indicator.gd shows the 3D-aware
+## preview for those instead, and the two would otherwise both draw for
+## the same armed ability.
 func _get_armed_area_ability() -> Ability:
-	return PlayerInteractionState.get_armed_ability_of_targeting_type(AreaTargeting)
+	var ability := PlayerInteractionState.get_armed_ability_of_targeting_type(AreaTargeting)
+	if ability and ability.targeting is AerialAreaTargeting:
+		return null
+	return ability
 
 
 func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:

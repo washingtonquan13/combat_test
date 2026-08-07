@@ -30,6 +30,8 @@ avoidance_margin = 0.0
 height = 0.1
 facing_offset_degrees = 0.0
 launch_height_offset = 1.0
+corner_round_radius = 1.0
+corner_round_segments = 6
 metadata/_custom_type_script = "uid://cj6o5nktqa6n8"
 
 [sub_resource type="Resource" id="Resource_imp"]

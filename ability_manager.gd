@@ -35,19 +35,49 @@ var armed_ability: Ability = null
 ## unit was being watched even if the current unit has since changed.
 var _watched_unit: Unit = null
 
+## Absolute world Y a player has dragged an AreaTargeting ability's aim
+## point up to via the fly_altitude_modifier (Ctrl) hold — see
+## area_indicator.gd's own height-drag handling, which is the only writer
+## of this via set_aim_height_override(). Read by ground_click_target.gd
+## at the moment of the actual click, so the confirmed cast can't
+## disagree with what the preview showed — same WYSIWYG reasoning as
+## every other indicator in this project. has_aim_height_override false
+## means "use the natural ground-hover height," i.e. today's existing
+## flat-on-the-ground behavior, unchanged unless a player deliberately
+## lifts it. Reset whenever the armed ability changes — a leftover
+## height from a previous, unrelated cast should never silently carry
+## into a new one, same reasoning flying altitude resets between
+## separately-initiated actions.
+var aim_height_override: float = 0.0
+var has_aim_height_override: bool = false
+
 
 func arm(ability: Ability) -> void:
 	armed_ability = ability
+	has_aim_height_override = false
 	_watch_current_unit()
 	ability_armed.emit(ability)
 
 
 func disarm() -> void:
 	_unwatch_unit()
+	has_aim_height_override = false
 	if armed_ability == null:
 		return
 	armed_ability = null
 	ability_armed.emit(null)
+
+
+## Called by area_indicator.gd each frame the player drags height with
+## fly_altitude_modifier held — see that file for the actual input/plane-
+## intersection math. A plain setter here rather than area_indicator.gd
+## writing the fields directly, so this stays the one place the "is a
+## height override active" state actually lives — same centralization
+## reasoning PlayerInteractionState's own header documents for scattered
+## per-consumer state.
+func set_aim_height_override(y: float) -> void:
+	aim_height_override = y
+	has_aim_height_override = true
 
 
 func _watch_current_unit() -> void:

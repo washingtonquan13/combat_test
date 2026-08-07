@@ -54,7 +54,23 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 	if not unit or unit not in SelectionManager.selected_units:
 		return false
 
-	unit.use_ability(ability, click_position)
+	# click_position is always exactly where the physics ray hit the
+	# ground body itself, so it can never carry a lifted height on its
+	# own — an AerialAreaTargeting ability aimed into the air via
+	# aerial_area_indicator.gd's Ctrl height-drag (see that file and
+	# AbilityManager.aim_height_override) needs its Y overridden here,
+	# the same value the preview was already showing, so the confirmed
+	# cast can't disagree with what the player saw. Checked against
+	# AerialAreaTargeting specifically, not AreaTargeting generally —
+	# plain AreaTargeting (Grease) is floor-only by design (see that
+	# class and area_indicator.gd) and must never pick up a stray
+	# override. GroundPointTargeting (Jump) never gets one either — you
+	# can't jump to a point floating in midair with nothing under it.
+	var target_point: Vector3 = click_position
+	if ability.targeting is AerialAreaTargeting and AbilityManager.has_aim_height_override:
+		target_point.y = AbilityManager.aim_height_override
+
+	unit.use_ability(ability, target_point)
 	return true
 
 
