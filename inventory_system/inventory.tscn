@@ -1,0 +1,44 @@
+[gd_scene load_steps=3 format=3 uid="uid://dql71bcpiu04e"]
+
+[ext_resource type="Script" uid="uid://8i7uo6p7c728" path="res://inventory_system/inventory.gd" id="1_rhgoo"]
+[ext_resource type="Texture2D" uid="uid://bgxsjado2r2xo" path="res://assets/inventory_cell.png" id="2_hj2ta"]
+
+[node name="Inventory" type="Control" groups=["inventories"]]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 768.0
+offset_bottom = 384.0
+size_flags_horizontal = 3
+script = ExtResource("1_rhgoo")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 2
+offset_right = 768.0
+offset_bottom = 384.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ItemLayer" type="Control" parent="ScrollContainer"]
+custom_minimum_size = Vector2(768, 384)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="GridTexture" type="TextureRect" parent="ScrollContainer/ItemLayer"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+texture = ExtResource("2_hj2ta")
+stretch_mode = 1
+
+[node name="GhostPreview" type="ColorRect" parent="ScrollContainer/ItemLayer"]
+visible = false
+layout_mode = 2
+size_flags_horizontal = 0
+size_flags_vertical = 0
+color = Color(1, 1, 1, 0.2)
