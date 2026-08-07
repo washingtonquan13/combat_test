@@ -77,7 +77,7 @@ extends VfxStep
 ## identical technique, which only ever affects what gets DRAWN — there's
 ## no separate "real" flight path elsewhere this needs to stay in sync
 ## with, so rounding the flown path directly is safe here).
-@export var corner_round_radius: float = 1.0
+@export var corner_round_radius: float = 2.0
 @export var corner_round_segments: int = 6
 
 
