@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=4 uid="uid://c34760nfcne1d"]
+[gd_scene load_steps=16 format=4 uid="uid://c34760nfcne1d"]
 
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="1_kiej4"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="2_0gcaf"]
@@ -8,7 +8,9 @@
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://abilities/jump.tres" id="5_4oheh"]
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://abilities/sleep_dart.tres" id="6_f6t7d"]
 [ext_resource type="Resource" uid="uid://b6b42e1tuow5" path="res://abilities/weaken.tres" id="7_tl1uc"]
+[ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://abilities/fly.tres" id="8_4oheh"]
 [ext_resource type="Texture2D" uid="uid://c0uiuvxn4k3ym" path="res://assets/portraits/sylph.jpg" id="8_iyx1s"]
+[ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://abilities/land.tres" id="9_f6t7d"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_5vvy1"]
 resource_local_to_scene = true
@@ -70,25 +72,11 @@ dexterity = 16
 maximum_hp = 2
 current_hp = 2
 move = 14
-abilities = Array[ExtResource("2_4uwdf")]([ExtResource("3_iyx1s"), ExtResource("4_m3o4p"), ExtResource("5_4oheh"), ExtResource("6_f6t7d"), ExtResource("7_tl1uc")])
+abilities = Array[ExtResource("2_4uwdf")]([ExtResource("3_iyx1s"), ExtResource("4_m3o4p"), ExtResource("5_4oheh"), ExtResource("6_f6t7d"), ExtResource("7_tl1uc"), ExtResource("8_4oheh"), ExtResource("9_f6t7d")])
 portrait_texture = ExtResource("8_iyx1s")
 
 [node name="OutlineMesh" parent="." index="3"]
 material_override = SubResource("ShaderMaterial_5vvy1")
 mesh = SubResource("ArrayMesh_liq4q")
-
-[node name="GeneralSkeleton" parent="CharacterModel/Armature" index="0"]
-bones/1/position = Vector3(0, 0.9167, -0.0501)
-bones/9/rotation = Quaternion(-1.15904e-07, -0.707107, -1.05367e-08, 0.707107)
-bones/10/rotation = Quaternion(-1.87516e-07, 0.707107, 1.07512e-07, 0.707106)
-bones/27/rotation = Quaternion(-0.214187, 0.673887, 0.214187, 0.673887)
-bones/33/rotation = Quaternion(-1.36977e-07, 0.707107, -1.05367e-08, 0.707107)
-bones/34/rotation = Quaternion(-1.87282e-07, -0.707107, -1.07746e-07, 0.707106)
-bones/46/rotation = Quaternion(-0.0337501, 0.99943, 7.07709e-09, -1.32272e-07)
-bones/50/rotation = Quaternion(-0.0188578, 0.999822, -1.52169e-08, -2.36915e-07)
-bones/51/rotation = Quaternion(-0.214187, -0.673887, -0.214187, 0.673887)
-bones/52/rotation = Quaternion(1.49012e-08, 8.9407e-08, -5.96046e-08, 1)
-bones/57/rotation = Quaternion(3.0194e-09, 0.707105, -0.707108, -3.43099e-09)
-bones/62/rotation = Quaternion(-3.02326e-09, 0.707105, -0.707108, 3.22905e-09)
 
 [editable path="CharacterModel"]
