@@ -67,6 +67,13 @@ extends CharacterBody3D
 ## initializes it to the unit's actual height the moment flight is
 ## granted, so it's never stale/unset by the time anything reads it.
 @export var flight_target_altitude: float = 0.0
+## Seconds the eased Tween in land() takes to descend to the ground —
+## see that method. Matches GrantFlightEffect.ascend_duration's role for
+## takeoff (that one lives on the effect resource since takeoff always
+## starts from a single ability; landing fires from multiple places —
+## voluntary Land, or getting knocked out mid-air — so its duration
+## lives here on Unit instead, one shared value for every caller.)
+@export var land_duration: float = 0.6
 
 @export var damage_reduction: int = 0
 
@@ -500,18 +507,27 @@ func ground_if_flying() -> void:
 		remove_status(effect)
 
 
-## Snaps this unit straight down onto whatever solid ground is directly
-## below it — called by ForceLandOnExpireBehavior the instant the
-## Flying status is removed, whether that's a voluntary Land ability or
-## the status's own duration running out. A physics raycast rather than
-## a NavigationGrid lookup: landing needs the true physical surface
-## directly beneath this exact XZ position, not the nearest VALID cell
-## (which could be meters off to the side) — a raycast is the right tool
-## for "what's physically underneath me," independent of grid resolution.
-## Excludes every unit (not just self) from the raycast
-## since ground and unit collision share collision_layer 1 by default
-## in this project (see indicator_base.gd) — otherwise landing directly
-## above an ally would land ON them instead of the ground beneath them.
+## Descends this unit straight down onto whatever solid ground is
+## directly below it, eased over land_duration via Tween rather than an
+## instant teleport (same TRANS_SINE/EASE_IN_OUT curve GrantFlightEffect
+## uses for takeoff, so the two read as one consistent motion language)
+## — called by ForceLandOnExpireBehavior the instant the Flying status is
+## removed, whether that's a voluntary Land ability, the status's own
+## duration running out, or IncapacitateBehavior force-removing it
+## (Sleep/Stun/Paralysis on a flying unit). Deliberately the same landing
+## regardless of caller — a graceful descent even when knocked out isn't
+## fully realistic, but a single shared animation is worth more than
+## relitigating tone per call site; revisit only with a concrete reason.
+##
+## A physics raycast rather than a NavigationGrid lookup: landing needs
+## the true physical surface directly beneath this exact XZ position, not
+## the nearest VALID cell (which could be meters off to the side) — a
+## raycast is the right tool for "what's physically underneath me,"
+## independent of grid resolution. Excludes every unit (not just self)
+## from the raycast since ground and unit collision share collision_layer
+## 1 by default in this project (see indicator_base.gd) — otherwise
+## landing directly above an ally would land ON them instead of the
+## ground beneath them.
 func land() -> void:
 	var exclude: Array[RID] = []
 	for node in get_tree().get_nodes_in_group("units"):
@@ -531,7 +547,12 @@ func land() -> void:
 		SystemLog.print("%s has nowhere to land." % LogFormat.unit_name(self))
 		return
 
-	global_position = result.position
+	begin_busy()
+	var tween: Tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE)
+	tween.set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(self, "global_position:y", result.position.y, land_duration)
+	tween.finished.connect(end_busy)
 	SystemLog.print("%s lands." % LogFormat.unit_name(self))
 
 
