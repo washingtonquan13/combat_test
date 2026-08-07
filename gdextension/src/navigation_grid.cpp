@@ -97,6 +97,7 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 
 	chunks.clear();
 	chunks.resize((size_t)chunk_grid_size.x * (size_t)chunk_grid_size.y * (size_t)chunk_grid_size.z);
+	chunk_occupancy_nearby.assign(chunks.size(), 0);
 
 	size_t total_cells = (size_t)grid_size.x * (size_t)grid_size.y * (size_t)grid_size.z;
 	astar_g_score.assign(total_cells, 0.0f);
@@ -104,6 +105,10 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	astar_came_from.assign(total_cells, -1);
 	astar_closed_gen.assign(total_cells, 0);
 	astar_search_id = 0;
+
+	smooth_valid_gen.assign(total_cells, 0);
+	smooth_valid_result.assign(total_cells, 0);
+	smooth_search_id = 0;
 
 	// Bucket every shape by each chunk its AABB overlaps, so a lazy
 	// rasterize of one chunk only tests the shapes that could matter.
@@ -347,11 +352,6 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	}
 }
 
-bool NavigationGrid::cell_no_support(const Vector3i &cell) {
-	NavChunk &chunk = ensure_chunk_support(cell_to_chunk_coord(cell));
-	return chunk.no_support[local_index(cell_to_local(cell))] != 0;
-}
-
 NavChunk &NavigationGrid::ensure_chunk_dist(const Vector3i &chunk_coord) {
 	NavChunk &chunk = ensure_chunk_rasterized(chunk_coord);
 	if (chunk.dist_baked) {
@@ -546,12 +546,6 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	}
 }
 
-float NavigationGrid::cell_clearance_world(const Vector3i &cell) {
-	NavChunk &chunk = ensure_chunk_dist(cell_to_chunk_coord(cell));
-	uint16_t raw = chunk.dist[local_index(cell_to_local(cell))];
-	return (float)raw / (float)DIST_SCALE * CELL_SIZE;
-}
-
 // --- Dynamic occupancy -------------------------------------------------------
 
 Object *NavigationGrid::occupant_at(const Vector3i &cell) const {
@@ -662,6 +656,44 @@ void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
 			}
 		}
 	}
+
+	refresh_chunk_occupancy_nearby();
+}
+
+// Precomputes, for every chunk, whether ANY chunk in its own 3x3x3
+// neighborhood has_occupancy. This exact 27-chunk scan used to happen
+// inline inside is_clear_of_units, freshly, on every single candidate
+// cell a pathfinding query touched — up to once per neighbor per A*
+// expansion. Occupancy itself only changes here, at a turn-boundary
+// update_occupancy call, so the scan is a loop invariant with respect to
+// any pathfinding query run between updates: computing it once here
+// and reading an O(1) flag from is_clear_of_units is the same "hoist the
+// invariant out of the hot path" trade already used for the flat A*
+// scratch arrays and the per-chunk distance field elsewhere in this file.
+void NavigationGrid::refresh_chunk_occupancy_nearby() {
+	std::fill(chunk_occupancy_nearby.begin(), chunk_occupancy_nearby.end(), (uint8_t)0);
+	if (!any_occupied) {
+		return;
+	}
+	for (int idx = 0; idx < (int)chunks.size(); idx++) {
+		Vector3i cc = chunk_coord_from_index(idx);
+		bool nearby = false;
+		for (int dx = -1; dx <= 1 && !nearby; dx++) {
+			for (int dy = -1; dy <= 1 && !nearby; dy++) {
+				for (int dz = -1; dz <= 1 && !nearby; dz++) {
+					Vector3i nc = cc + Vector3i(dx, dy, dz);
+					if (!chunk_in_bounds(nc)) {
+						continue;
+					}
+					const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(nc)];
+					if (slot && slot->has_occupancy) {
+						nearby = true;
+					}
+				}
+			}
+		}
+		chunk_occupancy_nearby[idx] = nearby ? (uint8_t)1 : (uint8_t)0;
+	}
 }
 
 int NavigationGrid::clearance_key(float clearance) {
@@ -730,7 +762,7 @@ const std::vector<Vector3i> &NavigationGrid::sphere_offsets(float clearance) {
 	return emplaced.first->second;
 }
 
-bool NavigationGrid::is_clear_of_units(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const {
+bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const {
 	if (!any_occupied) {
 		return true;
 	}
@@ -740,34 +772,25 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, const std::vector<V
 	// a real battlefield with several units, that's true almost all the
 	// time even when nothing is anywhere near THIS cell, which used to
 	// force every single neighbor check across the whole search to do a
-	// full per-offset hashmap lookup regardless. Checking has_occupancy on
-	// the 3x3x3 chunk neighborhood first rules that out cheaply for the
-	// common case. Only sound when the disc's reach can't cross more than
-	// one chunk width, which holds for any realistic unit clearance (this
-	// falls back to the exact per-offset check otherwise, so an oversized
-	// clearance degrades to the old cost rather than being wrong). Checks
-	// all three axes, not just the horizontal ones — a flying occupant's
+	// full per-offset hashmap lookup regardless. chunk_occupancy_nearby
+	// (see refresh_chunk_occupancy_nearby) is this same 3x3x3
+	// chunk-neighborhood check, precomputed once per update_occupancy call
+	// instead of rescanned fresh on every candidate cell here — an O(1)
+	// lookup rules out the common case cheaply. Only sound when the disc's
+	// reach can't cross more than one chunk width, which holds for any
+	// realistic unit clearance (this falls back to the exact per-offset
+	// check otherwise, so an oversized clearance degrades to the old cost
+	// rather than being wrong). The cached flag already accounts for all
+	// three axes, not just the horizontal ones — a flying occupant's
 	// occupancy is a real 3D sphere now (see sphere_offsets), so it can
-	// land in a vertically-adjacent chunk too.
+	// land in a vertically-adjacent chunk too. chunk_idx is the caller's
+	// already-computed chunk_coord_index(cell_to_chunk_coord(cell)) — this
+	// is always called right after is_valid_cell derives the same chunk
+	// coordinate for its own support/clearance checks, so recomputing it a
+	// third time here would be pure waste.
 	int reach_cells = (int)std::ceil(clearance / CELL_SIZE);
 	if (reach_cells <= CHUNK_DIM) {
-		Vector3i cc = cell_to_chunk_coord(cell);
-		bool maybe_nearby = false;
-		for (int dx = -1; dx <= 1 && !maybe_nearby; dx++) {
-			for (int dy = -1; dy <= 1 && !maybe_nearby; dy++) {
-				for (int dz = -1; dz <= 1 && !maybe_nearby; dz++) {
-					Vector3i nc = cc + Vector3i(dx, dy, dz);
-					if (!chunk_in_bounds(nc)) {
-						continue;
-					}
-					const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(nc)];
-					if (slot && slot->has_occupancy) {
-						maybe_nearby = true;
-					}
-				}
-			}
-		}
-		if (!maybe_nearby) {
+		if (!chunk_occupancy_nearby[chunk_idx]) {
 			return true;
 		}
 	}
@@ -794,13 +817,37 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 		if (world_y < FLIGHT_MIN_ALTITUDE || world_y > FLIGHT_CEILING_HEIGHT) {
 			return false;
 		}
-	} else if (cell_no_support(cell)) {
+	}
+
+	// Chunk coordinate/local index/chunk lookup computed ONCE and shared
+	// across the support, clearance, and occupancy checks below — this
+	// used to be independently re-derived by cell_no_support(),
+	// cell_clearance_world(), and is_clear_of_units() each calling
+	// cell_to_chunk_coord(cell) (and re-fetching the chunk) on their own,
+	// even though all three are answering questions about the exact same
+	// cell within the same call. Found by profiling alongside the
+	// smooth_path memoization above; same "hoist the repeated work out of
+	// the hot path" idea, just at cell-granularity instead of query- or
+	// update-granularity.
+	Vector3i chunk_coord = cell_to_chunk_coord(cell);
+	Vector3i local = cell_to_local(cell);
+	int li = local_index(local);
+	int chunk_idx = chunk_coord_index(chunk_coord);
+
+	if (!flying) {
+		NavChunk &support_chunk = ensure_chunk_support(chunk_coord);
+		if (support_chunk.no_support[li] != 0) {
+			return false;
+		}
+	}
+
+	NavChunk &dist_chunk = ensure_chunk_dist(chunk_coord);
+	float clearance_world = (float)dist_chunk.dist[li] / (float)DIST_SCALE * CELL_SIZE;
+	if (clearance_world <= clearance) {
 		return false;
 	}
-	if (cell_clearance_world(cell) <= clearance) {
-		return false;
-	}
-	return is_clear_of_units(cell, offsets, clearance, self_unit);
+
+	return is_clear_of_units(cell, chunk_idx, offsets, clearance, self_unit);
 }
 
 // --- Nearest-valid-point utility --------------------------------------------
@@ -904,6 +951,12 @@ void NavigationGrid::ensure_neighbor_offsets() {
 					continue;
 				}
 				neighbor_offsets.push_back(Vector3i(dx, dy, dz));
+				// The 26 offsets are a fixed, known-in-advance set — every
+				// step cost is one of exactly 3 values (1, sqrt(2), sqrt(3))
+				// times CELL_SIZE. Precomputing here means a_star's hot loop
+				// reads a float instead of calling length() (a sqrt) on
+				// every neighbor of every expansion.
+				neighbor_step_cost.push_back(Vector3((float)dx, (float)dy, (float)dz).length() * CELL_SIZE);
 			}
 		}
 	}
@@ -1068,7 +1121,8 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 
 		float current_g = astar_g_score[current_idx];
 
-		for (const Vector3i &offset : neighbor_offsets) {
+		for (size_t oi = 0; oi < neighbor_offsets.size(); oi++) {
+			const Vector3i &offset = neighbor_offsets[oi];
 			Vector3i neighbor = current + offset;
 			if (!in_bounds(neighbor)) {
 				continue;
@@ -1083,7 +1137,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			if (!is_valid_cell(neighbor, offsets, clearance, flying, unit)) {
 				continue;
 			}
-			float step_cost = Vector3((float)offset.x, (float)offset.y, (float)offset.z).length() * CELL_SIZE;
+			float step_cost = neighbor_step_cost[oi];
 			float tentative = current_g + step_cost;
 			float neighbor_g = (astar_g_gen[neighbor_idx] == sid) ? astar_g_score[neighbor_idx] : 1e30f;
 			if (tentative < neighbor_g) {
@@ -1121,12 +1175,16 @@ PackedVector3Array NavigationGrid::smooth_path(const PackedVector3Array &path, c
 	if (path.size() <= 2) {
 		return path;
 	}
+
+	smooth_search_id++;
+	int sid = smooth_search_id;
+
 	PackedVector3Array result;
 	result.push_back(path[0]);
 	int anchor = 0;
 	int probe = 2;
 	while (probe < path.size()) {
-		if (line_clear(path[anchor], path[probe], offsets, clearance, flying, unit)) {
+		if (line_clear(path[anchor], path[probe], offsets, clearance, flying, unit, sid)) {
 			probe++;
 		} else {
 			result.push_back(path[probe - 1]);
@@ -1138,17 +1196,36 @@ PackedVector3Array NavigationGrid::smooth_path(const PackedVector3Array &path, c
 	return result;
 }
 
-bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit) {
+bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, int smooth_sid) {
 	float length = a.distance_to(b);
 	int steps = std::max(1, (int)std::ceil(length / CELL_SIZE));
 	for (int i = 1; i < steps; i++) {
 		float t = (float)i / (float)steps;
 		Vector3 point = a.lerp(b, t);
-		if (!is_valid_cell(world_to_cell(point), offsets, clearance, flying, unit)) {
+		if (!is_valid_cell_cached(world_to_cell(point), offsets, clearance, flying, unit, smooth_sid)) {
 			return false;
 		}
 	}
 	return true;
+}
+
+// Memoized wrapper around is_valid_cell for use within a single
+// smooth_path() call — see the header comment on smooth_valid_gen for
+// why this is exact (not approximate) despite the cache. Mirrors
+// is_valid_cell's own out-of-bounds handling (false) so callers can
+// treat this as a drop-in replacement.
+bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit, int smooth_sid) {
+	if (!in_bounds(cell)) {
+		return false;
+	}
+	int idx = cell_index(cell);
+	if (smooth_valid_gen[idx] == smooth_sid) {
+		return smooth_valid_result[idx] != 0;
+	}
+	bool result = is_valid_cell(cell, offsets, clearance, flying, self_unit);
+	smooth_valid_gen[idx] = smooth_sid;
+	smooth_valid_result[idx] = result ? (uint8_t)1 : (uint8_t)0;
+	return result;
 }
 
 // --- Duck-typed GDScript "Unit" property/method access ---------------------

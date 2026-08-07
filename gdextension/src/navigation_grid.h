@@ -150,6 +150,22 @@ private:
 	std::vector<int> astar_closed_gen;
 	int astar_search_id = 0;
 
+	// Same flat-array-plus-generation-stamp trade as the fine-A* scratch
+	// above, applied to smooth_path's is_valid_cell calls instead.
+	// smooth_path's string-pulling re-derives line_clear(anchor, probe)
+	// from scratch for every probe extension, which resamples most of the
+	// SAME cells near the anchor over and over as probe grows (found by
+	// profiling to dominate total find_path time on long paths — ~80% of
+	// it on a 60m detour). is_valid_cell is pure for the duration of one
+	// query (grid/occupancy state doesn't change mid-call), so caching its
+	// result per cell here is exact, not an approximation — it changes
+	// nothing about WHICH points get sampled or the early-exit behavior,
+	// only skips recomputing an answer already known this call.
+	std::vector<int> smooth_valid_gen;
+	std::vector<uint8_t> smooth_valid_result;
+	int smooth_search_id = 0;
+	bool is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit, int smooth_sid);
+
 	// Static geometry, bucketed once by every chunk its AABB overlaps, so
 	// rasterizing one chunk only tests the shapes that could touch it
 	// instead of every shape in the level.
@@ -157,8 +173,20 @@ private:
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
 
 	std::vector<Vector3i> neighbor_offsets; // 26-connectivity, fine A*
+	std::vector<float> neighbor_step_cost; // parallel to neighbor_offsets — precomputed world-unit length of each offset, so a_star's hot loop doesn't call length() (sqrt) 26x per expansion for a fixed, known-in-advance set of vectors
 	std::unordered_map<int, std::vector<Vector3i>> disc_offsets_cache; // horizontal (x,z) offsets by clearance — grounded occupancy discs
 	std::unordered_map<int, std::vector<Vector3i>> sphere_offsets_cache; // full 3D offsets by clearance — flying occupancy (see sphere_offsets)
+
+	// Per-chunk cache: true iff ANY chunk in this chunk's own 3x3x3
+	// neighborhood has_occupancy — see refresh_chunk_occupancy_nearby.
+	// Rebuilt once whenever update_occupancy runs (a turn boundary), then
+	// read as a plain O(1) lookup by every is_clear_of_units call in
+	// between — replaces what used to be a fresh 27-chunk scan on EVERY
+	// candidate cell during pathfinding (i.e. up to 26x per A* expansion)
+	// with work proportional to chunk count, done once per occupancy
+	// update instead of once per candidate cell.
+	std::vector<uint8_t> chunk_occupancy_nearby;
+	void refresh_chunk_occupancy_nearby();
 
 	void ensure_project_scanned(SceneTree *tree);
 	void collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out);
@@ -185,8 +213,6 @@ private:
 	void bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chunk);
 
 	bool is_solid(const Vector3i &cell);
-	bool cell_no_support(const Vector3i &cell);
-	float cell_clearance_world(const Vector3i &cell);
 
 	static int clearance_key(float clearance);
 	const std::vector<Vector3i> &disc_offsets(float clearance);
@@ -195,7 +221,7 @@ private:
 	Object *occupant_at(const Vector3i &cell) const;
 	void set_occupant(const Vector3i &cell, Object *obj);
 
-	bool is_clear_of_units(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const;
+	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const;
 	bool is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit);
 
 	struct NearestResult {
@@ -222,7 +248,7 @@ private:
 	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask);
 	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);
 	PackedVector3Array smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit);
-	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit);
+	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, int smooth_sid);
 
 	// Reads a float property off a duck-typed GDScript "Unit" instance
 	// (radius, avoidance_margin, flight_target_altitude) — everything in
