@@ -1,3 +1,12 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# GDExtension native build — godot-cpp is a cloned+compiled dependency
+# (~65MB static lib alone), not project source; re-fetch via
+# `git clone --branch 4.4 https://github.com/godotengine/godot-cpp.git`
+# into gdextension/ and rebuild with SCons rather than versioning it.
+gdextension/godot-cpp/
+gdextension/src/*.o
+gdextension/.sconsign*.dblite
+gdextension/.sconf_temp/
