@@ -21,16 +21,33 @@ extends IndicatorBase
 ## the real move will use, over the same grid state, this preview IS what
 ## will happen — not an approximation of it.
 ##
-## Note: this draws a 1-pixel unshaded line (ImmediateMesh, LINE_STRIP) —
-## fine for a first pass, but Godot doesn't give line primitives real
-## width without building an actual ribbon mesh. If you want a visibly
-## thick line later, that's a natural follow-up.
+## The line itself is corner-rounded and drawn as short dashes rather
+## than one solid strip — see _round_corners/_draw_dashed_strip below —
+## for the BG3-style segmented rope look.
+##
+## Note: this draws 1-pixel unshaded lines (ImmediateMesh, PRIMITIVE_
+## LINES) — fine for a first pass, but Godot doesn't give line
+## primitives real width without building an actual ribbon mesh, so the
+## dashes here are thin, not the thick capsule shapes a reference image
+## might show. If you want visibly thick segments later, that's a
+## natural follow-up.
 
 @export var path_in_range_color: Color = Color(1, 1, 1, 0.9)
 @export var path_out_of_range_color: Color = Color(1, 0.2, 0.2, 0.9)
 ## Lifts the line slightly above the ground to avoid z-fighting with
 ## terrain geometry.
 @export var height_offset: float = 0.05
+## Purely visual corner rounding for the rendered line — see
+## _round_corners. The taut path RoutePlanner produces is optimal but
+## not smooth: real corners at real angles, which read as jagged when
+## drawn as-is. This never touches the actual path/cost/collision data,
+## only what gets drawn here.
+@export var corner_round_radius: float = 0.35
+@export var corner_round_segments: int = 6
+## Dash + gap arc-length (meters) for the segmented "rope" look — see
+## _draw_dashed_strip.
+@export var dash_length: float = 0.3
+@export var dash_gap: float = 0.18
 
 var _path_mesh: MeshInstance3D
 var _path_immediate: ImmediateMesh
@@ -232,47 +249,158 @@ func _update_path_preview(unit: Unit) -> void:
 	_path_mesh.visible = true
 
 
-## Rebuilds the path line each frame, split into a white segment
-## (cumulative COST <= budget) and a red segment (the rest) — cost, not
-## raw distance, read straight from simulate_path's own cumulative_cost
-## array rather than re-summing segment lengths here. That matters once
-## difficult terrain is in play: re-deriving cost from geometry alone
-## would silently ignore any multiplier, putting the split in the wrong
-## place. Reading the exact numbers the simulation already produced
-## means this can't disagree with where the real move will actually run
-## out. The split point is interpolated along whichever path segment
-## crosses the budget boundary, so the color change lands exactly at the
-## true edge of move_remaining rather than snapping to the nearest path
-## vertex.
+## Rebuilds the path line each frame, split into an in-range sub-path
+## (cumulative COST <= budget) and an out-of-range sub-path (the rest) —
+## cost, not raw distance, read straight from simulate_path's own
+## cumulative_cost array rather than re-summing segment lengths here.
+## That matters once difficult terrain is in play: re-deriving cost from
+## geometry alone would silently ignore any multiplier, putting the
+## split in the wrong place. Reading the exact numbers the simulation
+## already produced means this can't disagree with where the real move
+## will actually run out. The split point is interpolated along
+## whichever path segment crosses the budget boundary, so the color
+## change lands exactly at the true edge of move_remaining rather than
+## snapping to the nearest path vertex.
+##
+## Each sub-path is corner-rounded and drawn as its own dashed strip
+## (see _round_corners/_draw_dashed_strip), with the dash phase carried
+## from the in-range strip into the out-of-range one so the segmented
+## rhythm reads as one continuous rope through the budget boundary
+## rather than two independently-phased halves.
 func _draw_path(path: PackedVector3Array, cumulative_cost: PackedFloat32Array, budget: float) -> void:
 	_path_immediate.clear_surfaces()
-	_path_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
 
 	var lift := Vector3(0, height_offset, 0)
-	var split_done: bool = budget <= 0.0
 
-	_path_immediate.surface_set_color(path_out_of_range_color if split_done else path_in_range_color)
-	_path_immediate.surface_add_vertex(path[0] + lift)
+	var split_index: int = path.size()
+	var split_point: Vector3 = path[path.size() - 1]
+	if budget <= 0.0:
+		split_index = 0
+		split_point = path[0]
+	else:
+		for i in range(1, path.size()):
+			if cumulative_cost[i] >= budget:
+				var segment_cost: float = cumulative_cost[i] - cumulative_cost[i - 1]
+				var remaining: float = budget - cumulative_cost[i - 1]
+				var t: float = (remaining / segment_cost) if segment_cost > 0.0 else 0.0
+				split_point = path[i - 1].lerp(path[i], t)
+				split_index = i
+				break
 
-	for i in range(1, path.size()):
-		var segment_start: Vector3 = path[i - 1]
-		var segment_end: Vector3 = path[i]
-		var segment_cost: float = cumulative_cost[i] - cumulative_cost[i - 1]
+	var in_range_points := PackedVector3Array()
+	for i in range(0, split_index):
+		in_range_points.append(path[i])
+	if split_index < path.size():
+		in_range_points.append(split_point)
 
-		if not split_done and cumulative_cost[i] >= budget:
-			var remaining: float = budget - cumulative_cost[i - 1]
-			var t: float = (remaining / segment_cost) if segment_cost > 0.0 else 0.0
-			var split_point: Vector3 = segment_start.lerp(segment_end, t)
+	var out_of_range_points := PackedVector3Array()
+	if split_index < path.size():
+		out_of_range_points.append(split_point)
+		for i in range(split_index, path.size()):
+			out_of_range_points.append(path[i])
 
-			_path_immediate.surface_set_color(path_in_range_color)
-			_path_immediate.surface_add_vertex(split_point + lift)
+	var in_range_rounded := _round_corners(in_range_points, corner_round_radius, corner_round_segments)
+	var out_of_range_rounded := _round_corners(out_of_range_points, corner_round_radius, corner_round_segments)
 
-			_path_immediate.surface_set_color(path_out_of_range_color)
-			_path_immediate.surface_add_vertex(split_point + lift)
+	var phase: float = _draw_dashed_strip(in_range_rounded, path_in_range_color, lift, 0.0)
+	_draw_dashed_strip(out_of_range_rounded, path_out_of_range_color, lift, phase)
 
-			split_done = true
 
-		_path_immediate.surface_set_color(path_out_of_range_color if split_done else path_in_range_color)
-		_path_immediate.surface_add_vertex(segment_end + lift)
+## Purely visual corner rounding for the rendered path line — replaces
+## each interior vertex with a small quadratic-Bezier fillet so real
+## grid-aligned turns don't read as jagged 90/45-degree corners. Radius
+## is clamped per-corner to at most half of either adjacent segment's
+## length, so short zigzag segments can't produce overlapping arcs.
+## Endpoints are always kept exact (the line still starts at the unit
+## and ends exactly at the hover point / budget split). The result is
+## only ever used for drawing — never fed back into pathfinding, cost,
+## or the real move.
+func _round_corners(points: PackedVector3Array, radius: float, arc_segments: int) -> PackedVector3Array:
+	if points.size() < 3 or radius <= 0.0:
+		return points
+
+	var result := PackedVector3Array()
+	result.append(points[0])
+
+	for i in range(1, points.size() - 1):
+		var prev: Vector3 = points[i - 1]
+		var corner: Vector3 = points[i]
+		var next: Vector3 = points[i + 1]
+
+		var to_prev: Vector3 = corner - prev
+		var to_next: Vector3 = next - corner
+		var len_prev: float = to_prev.length()
+		var len_next: float = to_next.length()
+		if len_prev < 0.001 or len_next < 0.001:
+			result.append(corner)
+			continue
+
+		var r: float = min(radius, len_prev * 0.5, len_next * 0.5)
+		var arc_start: Vector3 = corner - (to_prev / len_prev) * r
+		var arc_end: Vector3 = corner + (to_next / len_next) * r
+
+		result.append(arc_start)
+		for s in range(1, arc_segments):
+			var t: float = float(s) / float(arc_segments)
+			var a: Vector3 = arc_start.lerp(corner, t)
+			var b: Vector3 = corner.lerp(arc_end, t)
+			result.append(a.lerp(b, t))
+		result.append(arc_end)
+
+	result.append(points[points.size() - 1])
+	return result
+
+
+## Walks `points` (already corner-rounded) and emits it as PRIMITIVE_LINES
+## dashes of dash_length separated by dash_gap, instead of one solid
+## strip — the segmented "rope" look from the BG3-style reference.
+## `phase` is how far into the dash+gap period the pattern already was
+## when this call starts (arc-length); pass the return value from one
+## call into the next so consecutive strips (in-range then out-of-range)
+## continue the same rhythm instead of each restarting its own pattern
+## from a fresh dash. Returns the phase for whatever continues after
+## this strip.
+func _draw_dashed_strip(points: PackedVector3Array, color: Color, lift: Vector3, phase: float) -> float:
+	var period: float = dash_length + dash_gap
+	if points.size() < 2 or period <= 0.0:
+		return phase
+
+	var cumulative := PackedFloat32Array()
+	cumulative.resize(points.size())
+	cumulative[0] = 0.0
+	for i in range(1, points.size()):
+		cumulative[i] = cumulative[i - 1] + points[i - 1].distance_to(points[i])
+	var total: float = cumulative[cumulative.size() - 1]
+
+	_path_immediate.surface_begin(Mesh.PRIMITIVE_LINES)
+	_path_immediate.surface_set_color(color)
+
+	var pos: float = -fmod(phase, period)
+	while pos < total:
+		var dash_start: float = max(pos, 0.0)
+		var dash_end: float = min(pos + dash_length, total)
+		if dash_end > dash_start:
+			_path_immediate.surface_add_vertex(_point_at_distance(points, cumulative, dash_start) + lift)
+			_path_immediate.surface_add_vertex(_point_at_distance(points, cumulative, dash_end) + lift)
+		pos += period
 
 	_path_immediate.surface_end()
+
+	return fmod(phase + total, period)
+
+
+## Point on `points` (with per-vertex cumulative arc length `cumulative`)
+## at arc-length `distance` from the start, clamped to the endpoints —
+## shared walking logic for _draw_dashed_strip.
+func _point_at_distance(points: PackedVector3Array, cumulative: PackedFloat32Array, distance: float) -> Vector3:
+	if distance <= 0.0:
+		return points[0]
+	var total: float = cumulative[cumulative.size() - 1]
+	if distance >= total:
+		return points[points.size() - 1]
+	for i in range(1, points.size()):
+		if cumulative[i] >= distance:
+			var seg_len: float = cumulative[i] - cumulative[i - 1]
+			var t: float = ((distance - cumulative[i - 1]) / seg_len) if seg_len > 0.0 else 0.0
+			return points[i - 1].lerp(points[i], t)
+	return points[points.size() - 1]
