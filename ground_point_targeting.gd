@@ -26,6 +26,19 @@ extends AbilityTargeting
 ## matches the tolerance pattern used elsewhere for point validation
 ## (see PathAvoidance).
 @export var navmesh_tolerance: float = 0.5
+## Whether the landing point's altitude validity follows the ATTACKER's
+## own flying state (true — correct for Jump: a flying attacker jumps to
+## an airborne point, a grounded one to a ground point, since the
+## attacker itself ends up there) or is always validated as ground
+## regardless of the attacker's altitude (false — needed for anything
+## that places something ELSE at the point, like Summon Spirit: a
+## summoned creature is independently grounded, so validating against
+## the flying CASTER's altitude was rejecting every ground click while
+## airborne — the caster's own state has nothing to do with where the
+## summon lands). Defaults true to match this targeting type's original,
+## Jump-only behavior; abilities that place something else should set
+## this false in their .tres.
+@export var validate_as_caster_flying: bool = true
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
@@ -37,9 +50,10 @@ func is_valid_target(attacker: Unit, target) -> bool:
 	if attacker.global_position.distance_to(destination) > max_range:
 		return false
 
+	var flying: bool = attacker.is_flying() if validate_as_caster_flying else false
 	var clearance: float = attacker.radius + attacker.avoidance_margin
 	var max_radius_cells: int = ceili(navmesh_tolerance / NavigationGrid.CELL_SIZE)
-	var snap: Dictionary = NavigationGrid.nearest_valid_point(attacker.get_tree(), destination, clearance, attacker.is_flying(), attacker, max_radius_cells)
+	var snap: Dictionary = NavigationGrid.nearest_valid_point(attacker.get_tree(), destination, clearance, flying, attacker, max_radius_cells)
 	if not snap.found or snap.point.distance_to(destination) > navmesh_tolerance:
 		return false
 
