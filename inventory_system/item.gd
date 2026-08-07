@@ -21,10 +21,12 @@ extends Container
 	set(value):
 		width = value
 		_update_size()
+		_update_tooltip_text()
 @export var height: int = 1:
 	set(value):
 		height = value
 		_update_size()
+		_update_tooltip_text()
 @export var current_stack_count: int = 1
 @export var maximum_stack_count: int = 99
 
@@ -35,36 +37,24 @@ enum LayoutMode { GRID, EQUIPPED }
 		_update_size()
 
 var is_being_dragged: bool = false
-var active_tooltip: Control = null
 var context_menu: Control = null
-
-var hover_time: float = 0.0
-const TOOLTIP_DELAY := 0.3
 
 func _ready() -> void:
 	if is_instance_valid(icon_rect):
 		icon_rect.texture = icon
 	_update_size()
+	_update_tooltip_text()
 
 func _update_size() -> void:
 	if layout == LayoutMode.GRID:
 		size = Vector2i(width, height) * cell_size_px
 	# EQUIPPED layout size is owned by whichever EquipSlot the item is placed in.
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	if Engine.is_editor_hint():
 		return
 
 	var mouse_inside := is_mouse_visible_and_hovered()
-
-	# Tooltip logic — suppressed for everyone while any drag is in progress.
-	if mouse_inside and not get_viewport().gui_is_dragging():
-		hover_time += delta
-		if hover_time >= TOOLTIP_DELAY:
-			show_tooltip()
-	else:
-		hover_time = 0.0
-		hide_tooltip()
 
 	# Background alpha
 	if mouse_inside:
@@ -77,7 +67,6 @@ func _notification(what: int) -> void:
 		NOTIFICATION_DRAG_BEGIN:
 			if get_viewport().gui_get_drag_data() == self:
 				is_being_dragged = true
-				hide_tooltip()
 				modulate.a = 0.4
 		NOTIFICATION_DRAG_END:
 			is_being_dragged = false
@@ -113,6 +102,10 @@ func detach_from_current_location() -> void:
 func update_stack_count_label() -> void:
 	stack_count_label.text = str(current_stack_count)
 	stack_count_label.visible = current_stack_count > 1
+	_update_tooltip_text()
+
+func _update_tooltip_text() -> void:
+	tooltip_text = "Item (%d×%d)  Stack: %d" % [width, height, current_stack_count]
 
 func get_cell_size() -> Vector2i:
 	return Vector2i(width, height)
@@ -140,45 +133,18 @@ func get_ancestor_scroll_container() -> ScrollContainer:
 		p = p.get_parent()
 	return null
 
-func show_tooltip() -> void:
-	if active_tooltip != null or tooltip_scene == null or not is_visible_in_tree():
-		return
-
-	var layers: Array = get_tree().get_nodes_in_group("tooltip_layer")
-	if layers.is_empty():
-		return
+## Godot calls this natively when the built-in hover-tooltip timer elapses;
+## returning a Control here shows it instead of the plain default text box.
+## Positioning, screen-edge clamping, and show/hide lifecycle are all handled
+## by the engine — no manual tooltip_layer node required.
+func _make_custom_tooltip(for_text: String) -> Object:
+	if tooltip_scene == null:
+		return null
 
 	var tooltip: Control = tooltip_scene.instantiate()
-	tooltip.z_index = 1000
-	active_tooltip = tooltip
-
 	if tooltip.has_method("set_text"):
-		var text: String = "Item (%d×%d)  Stack: %d" % [width, height, current_stack_count]
-		tooltip.set_text(text)
-
-	var tooltip_size: Vector2 = tooltip.get_combined_minimum_size()
-	var item_rect: Rect2 = get_global_rect()
-	var margin: float = 4.0
-
-	var proposed_pos: Vector2 = item_rect.position + Vector2(item_rect.size.x + margin, 0)
-	var proposed_rect: Rect2 = Rect2(proposed_pos, tooltip_size)
-
-	if proposed_rect.intersects(item_rect):
-		proposed_pos = item_rect.position - Vector2(tooltip_size.x + margin, 0)
-
-	var screen_rect: Rect2 = get_viewport().get_visible_rect()
-	var clamped_x: float = clamp(proposed_pos.x, screen_rect.position.x, screen_rect.end.x - tooltip_size.x)
-	var clamped_y: float = clamp(proposed_pos.y, screen_rect.position.y, screen_rect.end.y - tooltip_size.y)
-	var final_pos: Vector2 = Vector2(clamped_x, clamped_y)
-
-	var layer: Node = layers[0]
-	layer.add_child(tooltip)
-	tooltip.global_position = final_pos
-
-func hide_tooltip() -> void:
-	if active_tooltip:
-		active_tooltip.queue_free()
-		active_tooltip = null
+		tooltip.set_text(for_text)
+	return tooltip
 
 func open_context_menu() -> void:
 	if context_menu and is_instance_valid(context_menu):
