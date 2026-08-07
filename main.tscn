@@ -68,12 +68,13 @@ size = Vector3(3, 3, 3)
 size = Vector3(1, 10, 20)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_gngh3"]
-size = Vector3(4, 1, 4)
+size = Vector3(1, 10, 20)
 
 [sub_resource type="BoxMesh" id="BoxMesh_0n3wm"]
 size = Vector3(4, 1, 4)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_qnost"]
+size = Vector3(4, 1, 4)
 
 [node name="Node3D" type="Node3D"]
 script = ExtResource("1_7mycd")
@@ -269,6 +270,7 @@ shape = SubResource("BoxShape3D_4k2k6")
 
 [node name="Platform3" type="StaticBody3D" parent="LevelGeometry"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 5.5, 0)
+script = ExtResource("1_1bvp3")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform3"]
 mesh = SubResource("BoxMesh_d2t1y")
@@ -278,6 +280,7 @@ shape = SubResource("BoxShape3D_gngh3")
 
 [node name="Platform4" type="StaticBody3D" parent="LevelGeometry"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 10, 8)
+script = ExtResource("1_1bvp3")
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform4"]
 mesh = SubResource("BoxMesh_0n3wm")
