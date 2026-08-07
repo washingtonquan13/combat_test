@@ -577,6 +577,7 @@ void NavigationGrid::set_occupant(const Vector3i &cell, Object *obj) {
 		slot = std::make_unique<NavChunk>(); // occupancy doesn't need geometry rasterized
 	}
 	slot->occupied[local_index(cell_to_local(cell))] = obj;
+	slot->has_occupancy = true;
 }
 
 void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
@@ -584,6 +585,7 @@ void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
 	for (auto &slot : chunks) {
 		if (slot) {
 			slot->occupied.clear();
+			slot->has_occupancy = false;
 		}
 	}
 	any_occupied = false;
@@ -677,10 +679,43 @@ const std::vector<Vector3i> &NavigationGrid::disc_offsets(float clearance) {
 	return emplaced.first->second;
 }
 
-bool NavigationGrid::is_clear_of_units(const Vector3i &cell, const std::vector<Vector3i> &offsets, Object *self_unit) const {
+bool NavigationGrid::is_clear_of_units(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const {
 	if (!any_occupied) {
 		return true;
 	}
+
+	// Fast path: any_occupied only means "someone is occupied SOMEWHERE on
+	// the map" (matches the pre-chunking design's single global flag) — on
+	// a real battlefield with several units, that's true almost all the
+	// time even when nothing is anywhere near THIS cell, which used to
+	// force every single neighbor check across the whole search to do a
+	// full per-offset hashmap lookup regardless. Checking has_occupancy on
+	// the 3x3 chunk neighborhood first rules that out cheaply for the
+	// common case. Only sound when the disc's reach can't cross more than
+	// one chunk width, which holds for any realistic unit clearance (this
+	// falls back to the exact per-offset check otherwise, so an oversized
+	// clearance degrades to the old cost rather than being wrong).
+	int reach_cells = (int)std::ceil(clearance / CELL_SIZE);
+	if (reach_cells <= CHUNK_DIM) {
+		Vector3i cc = cell_to_chunk_coord(cell);
+		bool maybe_nearby = false;
+		for (int dx = -1; dx <= 1 && !maybe_nearby; dx++) {
+			for (int dz = -1; dz <= 1 && !maybe_nearby; dz++) {
+				Vector3i nc = cc + Vector3i(dx, 0, dz);
+				if (!chunk_in_bounds(nc)) {
+					continue;
+				}
+				const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(nc)];
+				if (slot && slot->has_occupancy) {
+					maybe_nearby = true;
+				}
+			}
+		}
+		if (!maybe_nearby) {
+			return true;
+		}
+	}
+
 	for (const Vector3i &offset : offsets) {
 		Vector3i c = cell + offset;
 		if (!in_bounds(c)) {
@@ -709,7 +744,7 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	if (cell_clearance_world(cell) <= clearance) {
 		return false;
 	}
-	return is_clear_of_units(cell, offsets, self_unit);
+	return is_clear_of_units(cell, offsets, clearance, self_unit);
 }
 
 // --- Nearest-valid-point utility --------------------------------------------
@@ -952,7 +987,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 	int start_idx = cell_index(start_cell);
 	astar_g_score[start_idx] = 0.0f;
 	astar_g_gen[start_idx] = sid;
-	open_heap.push({ heuristic(start_cell, goal_cell), start_cell });
+	open_heap.push({ heuristic(start_cell, goal_cell) * HEURISTIC_WEIGHT, start_cell });
 
 	int expansions = 0;
 
@@ -999,7 +1034,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 				astar_g_score[neighbor_idx] = tentative;
 				astar_g_gen[neighbor_idx] = sid;
 				astar_came_from[neighbor_idx] = current_idx;
-				open_heap.push({ tentative + heuristic(neighbor, goal_cell), neighbor });
+				open_heap.push({ tentative + heuristic(neighbor, goal_cell) * HEURISTIC_WEIGHT, neighbor });
 			}
 		}
 	}
