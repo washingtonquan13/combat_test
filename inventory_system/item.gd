@@ -37,7 +37,7 @@ enum LayoutMode { GRID, EQUIPPED }
 		_update_size()
 
 var is_being_dragged: bool = false
-var context_menu: Control = null
+var context_menu: Window = null
 
 func _ready() -> void:
 	if is_instance_valid(icon_rect):
@@ -71,6 +71,10 @@ func _notification(what: int) -> void:
 		NOTIFICATION_DRAG_END:
 			is_being_dragged = false
 			modulate.a = 1.0
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT:
+		open_context_menu()
 
 func _get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := TextureRect.new()
@@ -146,18 +150,29 @@ func _make_custom_tooltip(for_text: String) -> Object:
 		tooltip.set_text(for_text)
 	return tooltip
 
+## Right-click menu, shown via a Window-based Popup — rendered as a top-most
+## overlay by the engine (embedded in the main viewport per project settings),
+## with built-in click-outside/Escape-to-close. No manual layer node needed,
+## same reasoning as the drag preview and tooltip.
 func open_context_menu() -> void:
 	if context_menu and is_instance_valid(context_menu):
 		context_menu.queue_free()
+		context_menu = null
 
 	if context_menu_scene == null:
 		return
 
-	var layers := get_tree().get_nodes_in_group("tooltip_layer")
-	if layers.is_empty():
-		return
+	var menu: Window = context_menu_scene.instantiate()
+	context_menu = menu
+	get_tree().root.add_child(menu)
 
-	context_menu = context_menu_scene.instantiate()
-	context_menu.z_index = 2000
-	context_menu.global_position = get_global_mouse_position()
-	layers[0].add_child(context_menu)
+	if menu.has_method("setup"):
+		menu.setup(self)
+
+	menu.reset_size()
+
+	var viewport_rect: Rect2 = get_viewport_rect()
+	var pos: Vector2 = get_global_mouse_position()
+	pos.x = clamp(pos.x, 0, viewport_rect.size.x - menu.size.x)
+	pos.y = clamp(pos.y, 0, viewport_rect.size.y - menu.size.y)
+	menu.popup(Rect2i(pos, menu.size))

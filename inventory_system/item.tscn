@@ -6,12 +6,13 @@
 [ext_resource type="PackedScene" uid="uid://b1x42s1wppw2q" path="res://inventory_system/context_menu.tscn" id="3_vljjh"]
 
 [node name="Item" type="MarginContainer"]
-offset_right = 64.0
-offset_bottom = 64.0
+offset_right = 32.0
+offset_bottom = 32.0
 script = ExtResource("1_3aprp")
 tooltip_scene = ExtResource("2_6muww")
 context_menu_scene = ExtResource("3_vljjh")
 icon = ExtResource("3_6muww")
+cell_size_px = 32
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 2
