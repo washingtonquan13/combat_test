@@ -239,8 +239,10 @@ size_flags_vertical = 3
 text = "EXIT TO DESKTOP"
 
 [node name="Inventory" parent="CanvasLayer" instance=ExtResource("18_qnost")]
+visible = false
 
 [node name="Item" parent="CanvasLayer" instance=ExtResource("19_wnkbs")]
+visible = false
 offset_left = 832.0
 offset_right = 896.0
 offset_bottom = 96.0

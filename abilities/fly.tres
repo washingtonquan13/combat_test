@@ -11,7 +11,9 @@
 script = ExtResource("3_grant")
 flying_status = ExtResource("5_flying")
 takeoff_height = 3.0
-ascend_duration = 0.6
+vertical_speed = 5.0
+min_ascend_duration = 0.15
+max_ascend_duration = 4.0
 metadata/_custom_type_script = "res://grant_flight_effect.gd"
 
 [sub_resource type="Resource" id="Resource_selftargeting"]

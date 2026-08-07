@@ -67,13 +67,31 @@ extends CharacterBody3D
 ## initializes it to the unit's actual height the moment flight is
 ## granted, so it's never stale/unset by the time anything reads it.
 @export var flight_target_altitude: float = 0.0
-## Seconds the eased Tween in land() takes to descend to the ground —
-## see that method. Matches GrantFlightEffect.ascend_duration's role for
-## takeoff (that one lives on the effect resource since takeoff always
-## starts from a single ability; landing fires from multiple places —
-## voluntary Land, or getting knocked out mid-air — so its duration
-## lives here on Unit instead, one shared value for every caller.)
-@export var land_duration: float = 0.6
+## Vertical descent speed (m/s) for the eased Tween in land() — see that
+## method. Duration is distance/vertical_speed, clamped to
+## [min_land_duration, max_land_duration], so a landing reads as a
+## constant-ish speed rather than a fixed time: a unit hovering a half
+## meter up doesn't take as long to land as one dropping from the flight
+## ceiling. Matches GrantFlightEffect's takeoff pacing in spirit (same
+## curve, same "controlled by velocity" feel) — that one lives on the
+## effect resource since takeoff always starts from a single ability;
+## landing fires from multiple places (voluntary Land, or getting
+## knocked out mid-air), so its tuning lives here on Unit instead, one
+## shared value for every caller.
+@export var vertical_speed: float = 6.0
+## Floor on land()'s eased duration — keeps a near-zero-height landing
+## from reading as an instant snap.
+@export var min_land_duration: float = 0.15
+## Ceiling on land()'s eased duration. Deliberately NOT derived from
+## NavigationGrid.FLIGHT_CEILING_HEIGHT or any other flight-system
+## constant — Unit shouldn't need to know about, or stay in sync with,
+## that value. Set generously high (well above what
+## vertical_speed × any realistic descent produces) so it never engages
+## during ordinary flight and every normal landing reads as true
+## constant velocity; it only exists as a hard backstop against a
+## pathological case — e.g. the land() raycast finding ground deep in a
+## chasm — so a freak long descent can't stall the animation forever.
+@export var max_land_duration: float = 4.0
 
 @export var damage_reduction: int = 0
 
@@ -508,7 +526,8 @@ func ground_if_flying() -> void:
 
 
 ## Descends this unit straight down onto whatever solid ground is
-## directly below it, eased over land_duration via Tween rather than an
+## directly below it, eased via Tween over a duration scaled by descent
+## distance (see vertical_speed above) rather than a fixed time or an
 ## instant teleport (same TRANS_SINE/EASE_IN_OUT curve GrantFlightEffect
 ## uses for takeoff, so the two read as one consistent motion language)
 ## — called by ForceLandOnExpireBehavior the instant the Flying status is
@@ -547,11 +566,14 @@ func land() -> void:
 		SystemLog.print("%s has nowhere to land." % LogFormat.unit_name(self))
 		return
 
+	var descent: float = absf(global_position.y - result.position.y)
+	var duration: float = clampf(descent / vertical_speed, min_land_duration, max_land_duration)
+
 	begin_busy()
 	var tween: Tween = create_tween()
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
-	tween.tween_property(self, "global_position:y", result.position.y, land_duration)
+	tween.tween_property(self, "global_position:y", result.position.y, duration)
 	tween.finished.connect(end_busy)
 	SystemLog.print("%s lands." % LogFormat.unit_name(self))
 
