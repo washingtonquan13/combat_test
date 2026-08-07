@@ -1,4 +1,4 @@
-[gd_scene load_steps=54 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=57 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -29,8 +29,11 @@
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://abilities/jump.tres" id="16_getpj"]
 [ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://menu_button.gd" id="16_htxhm"]
 [ext_resource type="Script" uid="uid://ds5sh15dh1euk" path="res://esc_menu.gd" id="17_jq2sk"]
+[ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://inventory_system/inventory.tscn" id="18_qnost"]
 [ext_resource type="Texture2D" uid="uid://cbcv6cepoupv1" path="res://assets/portraits/hobgoblin.jpg" id="19_82xsv"]
+[ext_resource type="PackedScene" uid="uid://c6cftiltyv5xo" path="res://inventory_system/item.tscn" id="19_wnkbs"]
 [ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://abilities/explosive_fireball.tres" id="20_0odxb"]
+[ext_resource type="Texture2D" uid="uid://d1bjg6rqr22fb" path="res://assets/test_item_icons/test_chest.png" id="20_f6a44"]
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://abilities/sleep_dart.tres" id="21_a6jrf"]
 [ext_resource type="Texture2D" uid="uid://caua8wslo4n0e" path="res://assets/portraits/tiefling_wizard.jpg" id="21_lswn8"]
 [ext_resource type="Resource" uid="uid://8t1yvopu728x" path="res://abilities/grease.tres" id="29_4k2k6"]
@@ -103,6 +106,7 @@ script = ExtResource("5_d13ii")
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
 [node name="DragSelectBox" type="Control" parent="CanvasLayer"]
+visible = false
 layout_mode = 3
 anchors_preset = 0
 offset_right = 40.0
@@ -233,6 +237,19 @@ text = "SETTINGS
 layout_mode = 2
 size_flags_vertical = 3
 text = "EXIT TO DESKTOP"
+
+[node name="Inventory" parent="CanvasLayer" instance=ExtResource("18_qnost")]
+visible = false
+
+[node name="Item" parent="CanvasLayer" instance=ExtResource("19_wnkbs")]
+visible = false
+offset_left = 832.0
+offset_right = 896.0
+offset_bottom = 96.0
+icon = ExtResource("20_f6a44")
+cell_size_px = 32
+width = 2
+height = 3
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 

@@ -1,9 +1,9 @@
 [gd_scene load_steps=5 format=3 uid="uid://c6cftiltyv5xo"]
 
 [ext_resource type="Script" uid="uid://c4oi4tue2xgxi" path="res://inventory_system/item.gd" id="1_3aprp"]
-[ext_resource type="PackedScene" path="res://inventory_system/item_tooltip.tscn" id="2_6muww"]
+[ext_resource type="PackedScene" uid="uid://dh3wt71h4dgt8" path="res://inventory_system/item_tooltip.tscn" id="2_6muww"]
 [ext_resource type="Texture2D" uid="uid://c140egpvoqs1e" path="res://assets/icon.svg" id="3_6muww"]
-[ext_resource type="PackedScene" path="res://inventory_system/context_menu.tscn" id="3_vljjh"]
+[ext_resource type="PackedScene" uid="uid://b1x42s1wppw2q" path="res://inventory_system/context_menu.tscn" id="3_vljjh"]
 
 [node name="Item" type="MarginContainer"]
 offset_right = 64.0

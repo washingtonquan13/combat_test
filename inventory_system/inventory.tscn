@@ -1,44 +1,57 @@
-[gd_scene load_steps=3 format=3 uid="uid://dql71bcpiu04e"]
+[gd_scene load_steps=4 format=3 uid="uid://dql71bcpiu04e"]
 
 [ext_resource type="Script" uid="uid://8i7uo6p7c728" path="res://inventory_system/inventory.gd" id="1_rhgoo"]
 [ext_resource type="Texture2D" uid="uid://bgxsjado2r2xo" path="res://assets/inventory_cell.png" id="2_hj2ta"]
+[ext_resource type="Script" uid="uid://cndq23w3gjyy1" path="res://inventory_system/item_layer.gd" id="3_itemlayer"]
 
 [node name="Inventory" type="Control" groups=["inventories"]]
+custom_minimum_size = Vector2(398, 192)
 layout_mode = 3
 anchors_preset = 0
-offset_right = 768.0
-offset_bottom = 384.0
+offset_right = 398.0
+offset_bottom = 192.0
 size_flags_horizontal = 3
 script = ExtResource("1_rhgoo")
+cell_size_px = 32
+height = 12
 
 [node name="ScrollContainer" type="ScrollContainer" parent="."]
-layout_mode = 2
-offset_right = 768.0
-offset_bottom = 384.0
-size_flags_horizontal = 3
-size_flags_vertical = 3
+layout_mode = 0
+offset_right = 384.0
+offset_bottom = 192.0
+horizontal_scroll_mode = 3
+vertical_scroll_mode = 3
 
 [node name="ItemLayer" type="Control" parent="ScrollContainer"]
-custom_minimum_size = Vector2(768, 384)
+custom_minimum_size = Vector2(384, 384)
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
-
-[node name="GridTexture" type="TextureRect" parent="ScrollContainer/ItemLayer"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-texture = ExtResource("2_hj2ta")
-stretch_mode = 1
+script = ExtResource("3_itemlayer")
+grid_texture = ExtResource("2_hj2ta")
+cell_size_px = 32
 
 [node name="GhostPreview" type="ColorRect" parent="ScrollContainer/ItemLayer"]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 0
 size_flags_vertical = 0
+mouse_filter = 2
 color = Color(1, 1, 1, 0.2)
+
+[node name="VScrollBar" type="VScrollBar" parent="."]
+layout_mode = 0
+offset_left = 384.0
+offset_right = 398.0
+offset_bottom = 192.0
+max_value = 384.0
+page = 192.0
+
+[node name="HScrollBar" type="HScrollBar" parent="."]
+visible = false
+layout_mode = 0
+offset_top = 192.0
+offset_right = 384.0
+offset_bottom = 206.0
+max_value = 384.0
+page = 384.0

@@ -10,12 +10,15 @@ script = ExtResource("1_jq5ol")
 
 [node name="Background" type="TextureRect" parent="."]
 layout_mode = 2
+mouse_filter = 2
 texture = ExtResource("1_qxdsw")
 
 [node name="GhostPreview" type="ColorRect" parent="."]
 visible = false
 layout_mode = 2
+mouse_filter = 2
 color = Color(1, 1, 1, 0.2)
 
 [node name="ItemLayer" type="Control" parent="."]
 layout_mode = 2
+mouse_filter = 2

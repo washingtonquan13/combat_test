@@ -8,51 +8,48 @@ extends Container
 
 @export var tooltip_scene: PackedScene
 @export var context_menu_scene: PackedScene
-@export var icon: Texture2D
-@export var cell_size_px: int = 64
-@export var width: int = 1
-@export var height: int = 1
+@export var icon: Texture2D:
+	set(value):
+		icon = value
+		if is_instance_valid(icon_rect):
+			icon_rect.texture = value
+@export var cell_size_px: int = 64:
+	set(value):
+		cell_size_px = value
+		_update_size()
+@export var width: int = 1:
+	set(value):
+		width = value
+		_update_size()
+@export var height: int = 1:
+	set(value):
+		height = value
+		_update_size()
 @export var current_stack_count: int = 1
 @export var maximum_stack_count: int = 99
 
 enum LayoutMode { GRID, EQUIPPED }
-@export var layout: LayoutMode = LayoutMode.GRID
+@export var layout: LayoutMode = LayoutMode.GRID:
+	set(value):
+		layout = value
+		_update_size()
 
-var dragging: bool = false
-var drag_offset: Vector2 = Vector2.ZERO
-var inventories: Array = []
-var previous_equip_slot: EquipSlot = null
-var previous_inventory: Inventory = null
-var last_position: Vector2 = Vector2.ZERO
-var original_parent: Node = null
+var is_being_dragged: bool = false
 var active_tooltip: Control = null
 var context_menu: Control = null
 
 var hover_time: float = 0.0
 const TOOLTIP_DELAY := 0.3
 
-var ghost_state := {
-	"inventory": null,
-	"grid_position": Vector2i(-1, -1),
-	"valid": false
-}
-
 func _ready() -> void:
-	set_process_unhandled_input(true)
-
-func _process(_delta: float) -> void:
-	# Ensure node is fully initialized
-	if not is_instance_valid(icon_rect):
-		return
-
-	# Optional: only update if icon changed or needs refreshing
-	if icon_rect.texture != icon:
+	if is_instance_valid(icon_rect):
 		icon_rect.texture = icon
+	_update_size()
 
+func _update_size() -> void:
 	if layout == LayoutMode.GRID:
 		size = Vector2i(width, height) * cell_size_px
-	elif layout == LayoutMode.EQUIPPED:
-		size = Vector2i(80, 80)
+	# EQUIPPED layout size is owned by whichever EquipSlot the item is placed in.
 
 func _physics_process(delta: float) -> void:
 	if Engine.is_editor_hint():
@@ -60,8 +57,8 @@ func _physics_process(delta: float) -> void:
 
 	var mouse_inside := is_mouse_visible_and_hovered()
 
-	# Tooltip logic
-	if mouse_inside and not dragging:
+	# Tooltip logic — suppressed for everyone while any drag is in progress.
+	if mouse_inside and not get_viewport().gui_is_dragging():
 		hover_time += delta
 		if hover_time >= TOOLTIP_DELAY:
 			show_tooltip()
@@ -75,76 +72,26 @@ func _physics_process(delta: float) -> void:
 	else:
 		background.color.a = 0.5
 
-	if dragging:
-		var drag_layer := get_drag_layer()
-		if drag_layer:
-			global_position = get_global_mouse_position() - drag_offset
+func _notification(what: int) -> void:
+	match what:
+		NOTIFICATION_DRAG_BEGIN:
+			if get_viewport().gui_get_drag_data() == self:
+				is_being_dragged = true
+				hide_tooltip()
+				modulate.a = 0.4
+		NOTIFICATION_DRAG_END:
+			is_being_dragged = false
+			modulate.a = 1.0
 
-		# Inventory ghost logic
-		var new_inventory := get_hovered_inventory()
-		if previous_inventory != new_inventory:
-			if previous_inventory:
-				previous_inventory.hide_ghost_preview()
-			previous_inventory = new_inventory
-
-		if previous_inventory:
-			previous_inventory.update_ghost_preview(self)
-
-		# Equip slot ghost logic
-		var hovered_slot := get_hovered_equip_slot()
-		for slot in get_tree().get_nodes_in_group("equip_slots"):
-			if slot == hovered_slot:
-				slot.ghost_preview.visible = true
-			else:
-				slot.ghost_preview.visible = false
-
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
-			dragging = true
-			hide_tooltip()
-			background.visible = false
-			last_position = global_position
-			inventories = get_all_inventories()
-			original_parent = get_parent()
-
-			# Handle drag origin from equip slot
-			var slot := get_parent_equip_slot()
-			if slot:
-				previous_equip_slot = slot
-				slot.unequip()
-				layout = LayoutMode.GRID
-				size = Vector2i(width, height) * cell_size_px  # Force size update
-				drag_offset = size / 2  # Recenter drag
-
-			var drag_layer = get_drag_layer()
-			if drag_layer:
-				if original_parent:
-					original_parent.remove_child(self)
-				drag_layer.add_child(self)
-				# Redundant recentering in case drag_offset was set before drag_layer move
-				drag_offset = size / 2
-
-	elif event is InputEventMouseMotion and dragging:
-		var screen_rect: Rect2 = get_viewport_rect()
-		var proposed_position: Vector2 = get_global_mouse_position() - drag_offset
-		proposed_position.x = clamp(proposed_position.x, 0, screen_rect.size.x - size.x)
-		proposed_position.y = clamp(proposed_position.y, 0, screen_rect.size.y - size.y)
-		global_position = proposed_position
-
-		var hovered_inventory: Inventory = get_hovered_inventory()
-		if hovered_inventory:
-			hovered_inventory.update_ghost_preview(self)
-	
-	#if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
-		#open_context_menu()
-
-func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT and dragging:
-		end_drag()
-
-func update_drag_offset() -> void:
-	drag_offset = size / 2
+func _get_drag_data(_at_position: Vector2) -> Variant:
+	var preview := TextureRect.new()
+	preview.texture = icon
+	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview.size = Vector2i(width, height) * cell_size_px
+	preview.position = -preview.size / 2
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	set_drag_preview(preview)
+	return self
 
 func get_parent_equip_slot() -> EquipSlot:
 	var parent := get_parent()
@@ -152,44 +99,16 @@ func get_parent_equip_slot() -> EquipSlot:
 		return parent.get_parent() as EquipSlot
 	return null
 
-func end_drag() -> void:
-	dragging = false
-	background.visible = true
+## Leaves wherever the item currently lives (grid or equip slot), including
+## the equip-slot-side bookkeeping, so it's ready to be added somewhere new.
+func detach_from_current_location() -> void:
+	var slot := get_parent_equip_slot()
+	if slot:
+		slot.unequip()
 
-	var hovered_slot := get_hovered_equip_slot()
-	if hovered_slot and hovered_slot.accepts_item(self):
-		hovered_slot.equip(self)
-	else:
-		if ghost_state["valid"] and ghost_state["inventory"]:
-			ghost_state["inventory"].request_item_drop(self, ghost_state["grid_position"])
-			ghost_state["inventory"].hide_ghost_preview()
-		elif previous_equip_slot:
-			previous_equip_slot.equip(self)
-		else:
-			if get_parent() != original_parent and original_parent:
-				get_parent().remove_child(self)
-				original_parent.add_child(self)
-			global_position = last_position
-
-	for inventory in inventories:
-		inventory.hide_ghost_preview()
-
-	for slot_node in get_tree().get_nodes_in_group("equip_slots"):
-		slot_node.ghost_preview.visible = false
-
-	ghost_state = {
-		"inventory": null,
-		"grid_position": Vector2i(-1, -1),
-		"valid": false
-	}
-
-func intersects_inventory(inventory: Inventory) -> bool:
-	var item_layer_rect: Rect2 = Rect2(
-		inventory.item_layer.get_global_transform().origin,
-		Vector2(inventory.width, inventory.height) * inventory.cell_size_px
-	)
-
-	return item_layer_rect.has_point(global_position)
+	var parent := get_parent()
+	if parent:
+		parent.remove_child(self)
 
 func update_stack_count_label() -> void:
 	stack_count_label.text = str(current_stack_count)
@@ -198,40 +117,11 @@ func update_stack_count_label() -> void:
 func get_cell_size() -> Vector2i:
 	return Vector2i(width, height)
 
-func get_drag_layer() -> Node:
-	var layers: Array = get_tree().get_nodes_in_group("drag_layer")
-	if layers.is_empty():
-		return null
-	return layers[0]
-
-func get_all_inventories() -> Array:
-	return get_tree().get_nodes_in_group("inventories")
-
-func get_hovered_inventory() -> Inventory:
-	var mouse_pos: Vector2 = get_global_mouse_position()
-
-	for inventory in inventories:
-		var scroll: ScrollContainer = inventory.scroll_container
-		var item_layer_origin: Vector2 = inventory.item_layer.get_global_transform().origin
-		var item_layer_size: Vector2 = Vector2(inventory.width, inventory.height) * inventory.cell_size_px
-		var item_layer_rect: Rect2 = Rect2(item_layer_origin, item_layer_size)
-
-		var visible_rect: Rect2 = Rect2(
-			scroll.get_global_transform().origin,
-			scroll.size
-		)
-
-		var visible_region: Rect2 = item_layer_rect.intersection(visible_rect)
-		if visible_region and visible_region.has_point(mouse_pos):
-			return inventory
-
-	return null
-
 func is_mouse_visible_and_hovered() -> bool:
 	var mouse_pos: Vector2 = get_global_mouse_position()
 	var item_rect: Rect2 = get_global_rect()
 
-	var scroll: ScrollContainer = find_parent("ScrollContainer")
+	var scroll := get_ancestor_scroll_container()
 	if scroll:
 		var clip_rect: Rect2 = Rect2(
 			scroll.get_global_transform().origin,
@@ -241,6 +131,14 @@ func is_mouse_visible_and_hovered() -> bool:
 			return false
 
 	return item_rect.has_point(mouse_pos)
+
+func get_ancestor_scroll_container() -> ScrollContainer:
+	var p := get_parent()
+	while p:
+		if p is ScrollContainer:
+			return p
+		p = p.get_parent()
+	return null
 
 func show_tooltip() -> void:
 	if active_tooltip != null or tooltip_scene == null or not is_visible_in_tree():
@@ -297,10 +195,3 @@ func open_context_menu() -> void:
 	context_menu.z_index = 2000
 	context_menu.global_position = get_global_mouse_position()
 	layers[0].add_child(context_menu)
-
-func get_hovered_equip_slot() -> EquipSlot:
-	for slot in get_tree().get_nodes_in_group("equip_slots"):
-		var slot_rect: Rect2 = slot.get_global_rect()
-		if slot_rect.has_point(get_global_mouse_position()):
-			return slot
-	return null
