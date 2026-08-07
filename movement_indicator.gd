@@ -21,19 +21,38 @@ extends IndicatorBase
 ## the real move will use, over the same grid state, this preview IS what
 ## will happen — not an approximation of it.
 ##
-## The line itself is corner-rounded and drawn as short dashes rather
-## than one solid strip — see _round_corners/_draw_dashed_strip below —
-## for the BG3-style segmented rope look.
+## The line itself is corner-rounded (_round_corners) then drawn as one
+## flat, ground-hugging ribbon mesh (_draw_textured_ribbon), carrying
+## real UVs and shaded by movement_indicator_line.gdshader: additive
+## blend, brightness shaped only by a soft smoothstep falloff across the
+## ribbon's WIDTH (UV.y) — no crisp/opaque line, no length-wise dash
+## pattern, just the glowing gradient edge itself. (Two earlier,
+## discarded variants: a dashed pattern sampled along the ribbon's
+## length, and a separate crisp regular-alpha "core" line under a
+## soft "glow" halo — both removed per explicit request; the soft
+## gradient edge WAS the intended line all along, not an add-on around
+## something harder.) Deliberately pushed past the scene's
+## glow_hdr_threshold (brightness_boost uniform — see main.tscn's
+## WorldEnvironment, which enables glow project-wide) so it actually
+## blooms instead of just being a bright shape.
 ##
-## Note: this draws 1-pixel unshaded lines (ImmediateMesh, PRIMITIVE_
-## LINES) — fine for a first pass, but Godot doesn't give line
-## primitives real width without building an actual ribbon mesh, so the
-## dashes here are thin, not the thick capsule shapes a reference image
-## might show. If you want visibly thick segments later, that's a
-## natural follow-up.
+## The ribbon stays ground-flat (oriented via _horizontal_perpendicular,
+## always in the XZ plane) rather than camera-facing — this is a path
+## decal lying on the terrain, not an effect that should swivel to face
+## the camera as it orbits.
+##
+## Godot (like most renderers) doesn't give line primitives real width,
+## so the ribbon is real geometry: flat quads (ImmediateMesh,
+## PRIMITIVE_TRIANGLES), not PRIMITIVE_LINES.
 
-@export var path_in_range_color: Color = Color(1, 1, 1, 0.9)
-@export var path_out_of_range_color: Color = Color(1, 0.2, 0.2, 0.9)
+@export var path_in_range_color: Color = Color(1, 1, 1, 0.5)
+@export var path_out_of_range_color: Color = Color(1, 0, 0, 0.5)
+## Total arc length (meters) over which the color smoothly blends from
+## path_in_range_color to path_out_of_range_color, centered on the
+## move_remaining budget boundary — see _draw_textured_ribbon/
+## _color_at_arc_length. 0 reproduces a hard, instant color cut exactly
+## at the boundary.
+@export var color_transition_length: float = 0
 ## Lifts the line slightly above the ground to avoid z-fighting with
 ## terrain geometry.
 @export var height_offset: float = 0.05
@@ -44,10 +63,20 @@ extends IndicatorBase
 ## only what gets drawn here.
 @export var corner_round_radius: float = 0.35
 @export var corner_round_segments: int = 6
-## Dash + gap arc-length (meters) for the segmented "rope" look — see
-## _draw_dashed_strip.
-@export var dash_length: float = 0.3
-@export var dash_gap: float = 0.18
+## Ribbon width (meters) — see movement_indicator_line.gdshader.
+@export var line_width: float = 0.05
+## Fraction of the ribbon's width spent fading in from each edge — see
+## the shader's edge_softness. Smaller reads as a crisper edge; 0.5 (the
+## max) fades continuously from edge to centerline with no flat plateau
+## at all. Kept high/soft since the gradient falloff IS the whole
+## visual, not a halo around something crisper.
+@export var edge_softness: float = 0.5
+## Multiplies brightness past the scene's glow_hdr_threshold (Environment
+## default 1.0) so the line actually blooms — see
+## movement_indicator_line.gdshader's brightness_boost uniform.
+@export var brightness_boost: float = 2.5
+
+const LINE_SHADER: Shader = preload("res://movement_indicator_line.gdshader")
 
 var _path_mesh: MeshInstance3D
 var _path_immediate: ImmediateMesh
@@ -78,6 +107,12 @@ func _ready() -> void:
 	var built: Dictionary = _create_line_mesh()
 	_path_mesh = built.mesh_instance
 	_path_immediate = built.immediate
+
+	var mat := ShaderMaterial.new()
+	mat.shader = LINE_SHADER
+	mat.set_shader_parameter("edge_softness", edge_softness)
+	mat.set_shader_parameter("brightness_boost", brightness_boost)
+	_path_mesh.material_override = mat
 
 
 func _process(_delta: float) -> void:
@@ -262,11 +297,16 @@ func _update_path_preview(unit: Unit) -> void:
 ## change lands exactly at the true edge of move_remaining rather than
 ## snapping to the nearest path vertex.
 ##
-## Each sub-path is corner-rounded and drawn as its own dashed strip
-## (see _round_corners/_draw_dashed_strip), with the dash phase carried
-## from the in-range strip into the out-of-range one so the segmented
-## rhythm reads as one continuous rope through the budget boundary
-## rather than two independently-phased halves.
+## Each sub-path is corner-rounded SEPARATELY (see _round_corners — it
+## keeps endpoints exact, so the split point stays at its precise
+## interpolated position in both halves rather than getting rounded away
+## from the true budget edge), then the two rounded halves are
+## concatenated into one continuous polyline (dropping the duplicate
+## split-point vertex where they join) and drawn as a single ribbon —
+## see _draw_textured_ribbon/_color_at_arc_length for how that ribbon's
+## per-vertex color smoothly blends across the budget boundary instead
+## of the two halves each being a single flat color with a hard cut
+## between them.
 func _draw_path(path: PackedVector3Array, cumulative_cost: PackedFloat32Array, budget: float) -> void:
 	_path_immediate.clear_surfaces()
 
@@ -302,8 +342,26 @@ func _draw_path(path: PackedVector3Array, cumulative_cost: PackedFloat32Array, b
 	var in_range_rounded := _round_corners(in_range_points, corner_round_radius, corner_round_segments)
 	var out_of_range_rounded := _round_corners(out_of_range_points, corner_round_radius, corner_round_segments)
 
-	var phase: float = _draw_dashed_strip(in_range_rounded, path_in_range_color, lift, 0.0)
-	_draw_dashed_strip(out_of_range_rounded, path_out_of_range_color, lift, phase)
+	if out_of_range_rounded.size() < 2:
+		# The whole path fits comfortably within move_remaining — there's
+		# no real budget boundary anywhere on it at all, so split_point
+		# above is just a leftover placeholder value, not a true edge to
+		# blend toward. INF as the split position makes
+		# _color_at_arc_length naturally resolve to pure
+		# path_in_range_color everywhere (see its own comment) without a
+		# separate code path here.
+		_draw_textured_ribbon(in_range_rounded, INF, lift, line_width)
+		return
+
+	var combined := in_range_rounded.duplicate()
+	for i in range(1, out_of_range_rounded.size()):
+		combined.append(out_of_range_rounded[i])
+
+	var split_arc_length := 0.0
+	for i in range(1, in_range_rounded.size()):
+		split_arc_length += in_range_rounded[i - 1].distance_to(in_range_rounded[i])
+
+	_draw_textured_ribbon(combined, split_arc_length, lift, line_width)
 
 
 ## Purely visual corner rounding for the rendered path line — replaces
@@ -351,66 +409,166 @@ func _round_corners(points: PackedVector3Array, radius: float, arc_segments: int
 	return result
 
 
-## Walks `points` (already corner-rounded) and emits it as PRIMITIVE_LINES
-## dashes of dash_length separated by dash_gap, instead of one solid
-## strip — the segmented "rope" look from the BG3-style reference.
-## `phase` is how far into the dash+gap period the pattern already was
-## when this call starts (arc-length); pass the return value from one
-## call into the next so consecutive strips (in-range then out-of-range)
-## continue the same rhythm instead of each restarting its own pattern
-## from a fresh dash. Returns the phase for whatever continues after
-## this strip.
-func _draw_dashed_strip(points: PackedVector3Array, color: Color, lift: Vector3, phase: float) -> float:
-	var period: float = dash_length + dash_gap
-	if points.size() < 2 or period <= 0.0:
-		return phase
+## Draws `points` (already corner-rounded, ONE continuous polyline
+## spanning the whole path — see _draw_path for why the in-range and
+## out-of-range halves get concatenated before reaching here) into
+## _path_immediate. UV.y is 0 at the left edge, 1 at the right, for the
+## shader's width falloff (see movement_indicator_line.gdshader) — the
+## only UV component the current shader actually reads. UV.x is still
+## tracked as cumulative arc length in meters, even though nothing
+## currently samples it — cheap to keep computing correctly, and would
+## make a future animated-flow or length-based effect a small addition
+## rather than a rework. Reused as the input to _color_at_arc_length,
+## which is where each vertex's actual color comes from — not a single
+## flat tint for the whole ribbon, see that function.
+##
+## Uses a proper miter join: one perpendicular PER POINT (via
+## _miter_perpendiculars), not one per segment — otherwise two quads
+## meeting at a bend each compute their own perpendicular from only
+## their own segment's direction and disagree on where their shared edge
+## actually is, leaving a visible gap or overlap at every corner.
+## Sharing one perpendicular per point makes adjacent quads agree
+## exactly on the joint's edge vertices instead.
+func _draw_textured_ribbon(points: PackedVector3Array, split_arc_length: float, lift: Vector3, width: float) -> void:
+	if points.size() < 2 or width <= 0.0:
+		return
+
+	var lifted := PackedVector3Array()
+	for p in points:
+		lifted.append(p + lift)
 
 	var cumulative := PackedFloat32Array()
-	cumulative.resize(points.size())
+	cumulative.resize(lifted.size())
 	cumulative[0] = 0.0
-	for i in range(1, points.size()):
-		cumulative[i] = cumulative[i - 1] + points[i - 1].distance_to(points[i])
-	var total: float = cumulative[cumulative.size() - 1]
+	for i in range(1, lifted.size()):
+		cumulative[i] = cumulative[i - 1] + lifted[i - 1].distance_to(lifted[i])
 
-	# Collect vertices first rather than calling surface_begin() up front —
-	# a short segment (e.g. hovering right at the edge of move_remaining,
-	# where the out-of-range sliver can be tiny) combined with a phase
-	# already carried deep into a "gap" from the previous strip can
-	# legitimately produce zero dashes. surface_end() hard-errors on an
-	# empty surface (ImmediateMesh requires at least one vertex), so the
-	# surface only gets opened at all once there's something to put in it.
-	var dash_vertices := PackedVector3Array()
-	var pos: float = -fmod(phase, period)
-	while pos < total:
-		var dash_start: float = max(pos, 0.0)
-		var dash_end: float = min(pos + dash_length, total)
-		if dash_end > dash_start:
-			dash_vertices.append(_point_at_distance(points, cumulative, dash_start) + lift)
-			dash_vertices.append(_point_at_distance(points, cumulative, dash_end) + lift)
-		pos += period
+	var perps := _miter_perpendiculars(lifted, width * 0.5)
+	var half_transition: float = color_transition_length * 0.5
 
-	if not dash_vertices.is_empty():
-		_path_immediate.surface_begin(Mesh.PRIMITIVE_LINES)
-		_path_immediate.surface_set_color(color)
-		for vertex in dash_vertices:
-			_path_immediate.surface_add_vertex(vertex)
-		_path_immediate.surface_end()
+	var vertices := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var colors := PackedColorArray()
+	for i in range(1, lifted.size()):
+		if cumulative[i] - cumulative[i - 1] < 0.0001:
+			continue
+		var a: Vector3 = lifted[i - 1]
+		var b: Vector3 = lifted[i]
+		var perp_a: Vector3 = perps[i - 1]
+		var perp_b: Vector3 = perps[i]
+		var uv_a: float = cumulative[i - 1]
+		var uv_b: float = cumulative[i]
+		var color_a: Color = _color_at_arc_length(uv_a, split_arc_length, half_transition)
+		var color_b: Color = _color_at_arc_length(uv_b, split_arc_length, half_transition)
 
-	return fmod(phase + total, period)
+		vertices.append(a - perp_a)
+		uvs.append(Vector2(uv_a, 0.0))
+		colors.append(color_a)
+		vertices.append(a + perp_a)
+		uvs.append(Vector2(uv_a, 1.0))
+		colors.append(color_a)
+		vertices.append(b + perp_b)
+		uvs.append(Vector2(uv_b, 1.0))
+		colors.append(color_b)
+
+		vertices.append(a - perp_a)
+		uvs.append(Vector2(uv_a, 0.0))
+		colors.append(color_a)
+		vertices.append(b + perp_b)
+		uvs.append(Vector2(uv_b, 1.0))
+		colors.append(color_b)
+		vertices.append(b - perp_b)
+		uvs.append(Vector2(uv_b, 0.0))
+		colors.append(color_b)
+
+	if vertices.is_empty():
+		return
+
+	_path_immediate.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in range(vertices.size()):
+		_path_immediate.surface_set_color(colors[i])
+		_path_immediate.surface_set_uv(uvs[i])
+		_path_immediate.surface_add_vertex(vertices[i])
+	_path_immediate.surface_end()
 
 
-## Point on `points` (with per-vertex cumulative arc length `cumulative`)
-## at arc-length `distance` from the start, clamped to the endpoints —
-## shared walking logic for _draw_dashed_strip.
-func _point_at_distance(points: PackedVector3Array, cumulative: PackedFloat32Array, distance: float) -> Vector3:
-	if distance <= 0.0:
-		return points[0]
-	var total: float = cumulative[cumulative.size() - 1]
-	if distance >= total:
-		return points[points.size() - 1]
-	for i in range(1, points.size()):
-		if cumulative[i] >= distance:
-			var seg_len: float = cumulative[i] - cumulative[i - 1]
-			var t: float = ((distance - cumulative[i - 1]) / seg_len) if seg_len > 0.0 else 0.0
-			return points[i - 1].lerp(points[i], t)
-	return points[points.size() - 1]
+## Color for a vertex at `arc_length` along the ribbon, blending smoothly
+## between path_in_range_color and path_out_of_range_color across
+## `half_transition` meters on each side of `split_arc_length` (the
+## move_remaining budget boundary) — an exact 50/50 mix precisely AT the
+## boundary, pure path_in_range_color at half_transition or more before
+## it, pure path_out_of_range_color at half_transition or more after.
+## half_transition<=0 reproduces a hard, instant cut. split_arc_length
+## can be INF (see _draw_path) to mean "no real boundary on this
+## ribbon" — every finite arc_length then reads as arbitrarily far
+## "before" it, which this formula already resolves to pure
+## path_in_range_color without needing a separate branch for that case.
+func _color_at_arc_length(arc_length: float, split_arc_length: float, half_transition: float) -> Color:
+	if half_transition <= 0.0:
+		return path_out_of_range_color if arc_length >= split_arc_length else path_in_range_color
+	var t: float = clamp((arc_length - split_arc_length) / half_transition, -1.0, 1.0)
+	var t01: float = (t + 1.0) * 0.5
+	return path_in_range_color.lerp(path_out_of_range_color, t01)
+
+
+## One ribbon-width perpendicular per point in `lifted`, for a proper
+## miter join (see _draw_textured_ribbon) — at an interior point, this
+## is the perpendicular of the AVERAGED incoming/outgoing segment
+## direction rather than either segment's own, so both quads sharing
+## that point use the exact same edge vertices there. At an endpoint
+## (only one adjacent segment exists) it's just that segment's own
+## perpendicular.
+##
+## Scaled by 1/cos(half the turn angle) — the standard miter-length
+## correction. Without it, a shared perpendicular angled between two
+## segments doesn't reach `half_width` measured perpendicular to either
+## ACTUAL segment, so the ribbon would visibly pinch thinner at every
+## bend. The correction blows up toward a sharp spike as the turn
+## approaches a full reversal (a well-known miter-join degenerate case),
+## guarded by falling back to no correction there — not a real concern
+## in practice since _round_corners already keeps the turn angle at any
+## one point small (it subdivides each corner into corner_round_segments
+## pieces), never a sharp reversal.
+func _miter_perpendiculars(lifted: PackedVector3Array, half_width: float) -> PackedVector3Array:
+	var perps := PackedVector3Array()
+	perps.resize(lifted.size())
+	for i in range(lifted.size()):
+		var dir_in := Vector3.ZERO
+		var dir_out := Vector3.ZERO
+		if i > 0:
+			var d: Vector3 = lifted[i] - lifted[i - 1]
+			if d.length() > 0.0001:
+				dir_in = d.normalized()
+		if i < lifted.size() - 1:
+			var d: Vector3 = lifted[i + 1] - lifted[i]
+			if d.length() > 0.0001:
+				dir_out = d.normalized()
+
+		var miter_dir: Vector3 = dir_in + dir_out
+		if miter_dir.length() < 0.0001:
+			miter_dir = dir_in if dir_in.length() > 0.0001 else dir_out
+
+		var stretch: float = 1.0
+		if dir_in.length() > 0.0001 and dir_out.length() > 0.0001:
+			var cos_half_angle: float = sqrt(max(0.0, (1.0 + dir_in.dot(dir_out)) * 0.5))
+			if cos_half_angle > 0.2:
+				stretch = 1.0 / cos_half_angle
+
+		perps[i] = _horizontal_perpendicular(miter_dir) * half_width * stretch
+	return perps
+
+
+## Sideways (XZ-plane) direction perpendicular to `direction`, for a
+## flat ground-hugging ribbon's width — always horizontal regardless of
+## `direction`'s own slope, so the ribbon reads as a constant-width
+## trail seen from above rather than one that thins out as the path
+## steepens (relevant for a flying unit's path, which can bend up/down).
+## Falls back to world right when `direction` is purely vertical (no
+## horizontal component to rotate) — an edge case straight-up/down
+## flight movement can hit.
+func _horizontal_perpendicular(direction: Vector3) -> Vector3:
+	var horizontal := Vector2(direction.x, direction.z)
+	if horizontal.length() < 0.001:
+		return Vector3.RIGHT
+	horizontal = horizontal.normalized()
+	return Vector3(-horizontal.y, 0.0, horizontal.x)

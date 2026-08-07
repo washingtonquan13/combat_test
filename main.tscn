@@ -1,4 +1,4 @@
-[gd_scene load_steps=56 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=57 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -77,6 +77,9 @@ size = Vector3(4, 1, 4)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_qnost"]
 size = Vector3(4, 1, 4)
+
+[sub_resource type="Environment" id="Environment_movement_glow"]
+glow_enabled = true
 
 [node name="Node3D" type="Node3D"]
 script = ExtResource("1_7mycd")
@@ -378,6 +381,9 @@ portrait_texture = ExtResource("19_82xsv")
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -8)
 script = ExtResource("3_h2yge")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_movement_glow")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)
