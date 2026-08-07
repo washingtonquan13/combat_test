@@ -1,4 +1,4 @@
-[gd_scene load_steps=50 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=54 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -63,6 +63,17 @@ size = Vector3(3, 3, 3)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_4k2k6"]
 size = Vector3(3, 3, 3)
+
+[sub_resource type="BoxMesh" id="BoxMesh_d2t1y"]
+size = Vector3(1, 10, 20)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_gngh3"]
+size = Vector3(4, 1, 4)
+
+[sub_resource type="BoxMesh" id="BoxMesh_0n3wm"]
+size = Vector3(4, 1, 4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_qnost"]
 
 [node name="Node3D" type="Node3D"]
 script = ExtResource("1_7mycd")
@@ -255,6 +266,24 @@ skeleton = NodePath("../../..")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform2"]
 shape = SubResource("BoxShape3D_4k2k6")
+
+[node name="Platform3" type="StaticBody3D" parent="LevelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 5.5, 0)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform3"]
+mesh = SubResource("BoxMesh_d2t1y")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform3"]
+shape = SubResource("BoxShape3D_gngh3")
+
+[node name="Platform4" type="StaticBody3D" parent="LevelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 10, 8)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform4"]
+mesh = SubResource("BoxMesh_0n3wm")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform4"]
+shape = SubResource("BoxShape3D_qnost")
 
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)
