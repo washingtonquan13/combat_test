@@ -1,7 +1,7 @@
 #ifndef NAVIGATION_GRID_H
 #define NAVIGATION_GRID_H
 // C++ port of navigation_grid.gd — see that file's own header (still
-// present in git history) for the full design rationale: one shared 3D
+// present in git history) for the original design rationale: one shared 3D
 // grid for ground+flight, static geometry baked once, dynamic occupancy
 // rebuilt per turn. This class is registered as an Engine singleton named
 // "NavigationGrid" (see register_types.cpp) so every existing GDScript
@@ -10,14 +10,22 @@
 // NavigationGrid.find_path(...)/update_occupancy(...)/etc. completely
 // unchanged — only the implementation moved from GDScript to native code.
 //
-// Internal data structures deliberately do NOT mirror the GDScript
-// version's Dictionary<Vector3i, X> choices — those were tuned around
-// GDScript-interpreter-specific overhead (see navigation_grid.gd's own
-// A* comment: a flat-array rewrite measured SLOWER in GDScript because of
-// redundant per-call overhead unique to the interpreter). That tradeoff
-// doesn't apply to compiled C++, where flat, integer-indexed arrays and
-// std::unordered_map keyed by a plain int cell index are straightforwardly
-// faster than hashing a 3-int struct — so that's what's used here instead.
+// CHUNKED STORAGE (this revision): the world is no longer one dense flat
+// array. It's split into CHUNK_DIM^3-cell chunks, lazily rasterized and
+// baked on demand as queries actually touch them — sized for a single
+// bounded, always-resident map (no eviction), matching a Solasta/BG3-style
+// "one big continuous level at a time" scope rather than an unbounded
+// streamed world. See each chunk-lifecycle method's own comment for the
+// two-tier bake split (cheap support/coarse-flags tier vs. the more
+// expensive per-cell clearance distance-field tier) and why it exists.
+//
+// Everything ABOVE the chunk-accessor layer (is_valid_cell, a_star,
+// smooth_path, nearest_valid_point, reconstruct_path) is deliberately
+// left structurally identical to the pre-chunking version — only
+// is_solid/cell_no_support/cell_clearance_world/occupant_at changed what
+// they read from underneath. That's intentional: those algorithms were
+// already correctness-tested, and the smallest-risk way to add chunking
+// was to keep them oblivious to it.
 
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/classes/node.hpp>
@@ -39,9 +47,35 @@
 
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
+#include <memory>
 #include <cstdint>
 
 namespace godot {
+
+// One CHUNK_DIM^3 cube of the grid. Lazily rasterized (solid geometry
+// only), then baked in two independent tiers on top of that:
+//   - support tier: no_support[] (needs solid straight down) plus two
+//     coarse flags (has_ground_passable / has_flyable) used ONLY by the
+//     cheap chunk-level coarse search, deliberately ignoring clearance and
+//     occupancy so it stays cheap — see NavigationGrid::coarse_corridor.
+//   - dist tier: per-cell horizontal distance-to-nearest-solid, replacing
+//     the old per-clearance inflated_solid_cache with one shared field
+//     (see NavigationGrid::bake_chunk_dist for why one field suffices).
+// Occupancy lives here too but is independent of bake state entirely — a
+// chunk can hold occupancy before it's ever geometrically touched.
+struct NavChunk {
+	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
+	std::vector<uint8_t> no_support; // CHUNK_DIM^3, 1 = nothing solid directly below
+	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
+	std::unordered_map<int, Object *> occupied; // chunk-local index -> occupant
+
+	bool rasterized = false;
+	bool support_baked = false;
+	bool dist_baked = false;
+	bool has_ground_passable = false;
+	bool has_flyable = false;
+};
 
 class NavigationGrid : public Object {
 	GDCLASS(NavigationGrid, Object)
@@ -70,41 +104,80 @@ private:
 	static constexpr float BOUNDS_MARGIN = 2.0f;
 	static constexpr int MAX_EXPANSIONS = 30000;
 
+	static constexpr int CHUNK_DIM = 32; // 8m/side at 0.25m cells
+	static constexpr int MAX_CLEARANCE_CELLS = 16; // 4m horizontal reach cap for the distance field
+	static constexpr int DIST_SCALE = 8; // fixed-point precision for NavChunk::dist (1/8 cell ~= 0.03m)
+	static constexpr int CORRIDOR_RADIUS_CHUNKS = 1; // fine search slack around the coarse route
+
 	Vector3 bounds_origin;
 	Vector3i grid_size;
-	std::vector<uint8_t> solid;
-	std::vector<uint8_t> no_support;
-	bool baked = false;
+	Vector3i chunk_grid_size;
+	bool baked = false; // project geometry scanned + chunk table sized (NOT "every chunk rasterized")
+	bool any_occupied = false;
 
-	// cell index -> occupying unit/corpse Object*, matching the GDScript
-	// version's Dictionary<Vector3i, Unit> semantics exactly (a raw,
-	// non-owning reference — occupancy is rebuilt every turn boundary, so
-	// a stale pointer from a freed unit is never read across a boundary
-	// where that could matter, same as the GDScript version's own
-	// Variant-held Node reference).
-	std::unordered_map<int, Object *> occupied;
+	std::vector<std::unique_ptr<NavChunk>> chunks;
 
-	std::vector<Vector3i> neighbor_offsets;
+	// Persistent fine-A* scratch, sized once to the total (bounded) world
+	// cell count when the project is scanned and reused across every
+	// query via a generation stamp instead of a fresh
+	// unordered_map/unordered_set per call — the same flat-array-over-hash
+	// trade already used for the per-chunk distance field, applied here
+	// once profiling showed g_score/came_from/closed hashing (not chunk
+	// lookups, which are plain vector indexing) was the dominant per-
+	// expansion cost once the corridor restriction made searches long
+	// enough for that to matter. astar_g_gen/astar_closed_gen record which
+	// search last touched a cell; a stale generation means "not part of
+	// the current search," standing in for what would otherwise need a
+	// full clear between queries.
+	std::vector<float> astar_g_score;
+	std::vector<int> astar_g_gen;
+	std::vector<int> astar_came_from;
+	std::vector<int> astar_closed_gen;
+	int astar_search_id = 0;
 
-	std::unordered_map<int, std::vector<Vector3i>> disc_offsets_cache;
-	std::unordered_map<int, std::vector<uint8_t>> inflated_solid_cache;
+	// Static geometry, bucketed once by every chunk its AABB overlaps, so
+	// rasterizing one chunk only tests the shapes that could touch it
+	// instead of every shape in the level.
+	std::vector<CollisionShape3D *> all_shapes;
+	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
 
-	void bake_static(SceneTree *tree);
-	void bake_no_support();
+	std::vector<Vector3i> neighbor_offsets; // 26-connectivity, fine A*
+	std::unordered_map<int, std::vector<Vector3i>> disc_offsets_cache; // horizontal (x,z) offsets by clearance — occupancy discs only
+
+	void ensure_project_scanned(SceneTree *tree);
 	void collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out);
 	AABB shape_global_aabb(CollisionShape3D *cs);
 	AABB transform_aabb(const Transform3D &t, const AABB &aabb);
-	void rasterize_shape(CollisionShape3D *cs);
 
 	Vector3 cell_center(const Vector3i &cell) const;
-	int cell_index(const Vector3i &cell) const;
+	int cell_index(const Vector3i &cell) const; // global bijection over grid_size — A* bookkeeping keys only
 	Vector3i cell_from_index(int idx) const;
 	bool in_bounds(const Vector3i &cell) const;
-	bool is_solid(const Vector3i &cell) const;
+
+	Vector3i cell_to_chunk_coord(const Vector3i &cell) const;
+	Vector3i cell_to_local(const Vector3i &cell) const;
+	int chunk_coord_index(const Vector3i &chunk_coord) const;
+	Vector3i chunk_coord_from_index(int idx) const;
+	bool chunk_in_bounds(const Vector3i &chunk_coord) const;
+	static int local_index(const Vector3i &local);
+
+	NavChunk &ensure_chunk_rasterized(const Vector3i &chunk_coord);
+	NavChunk &ensure_chunk_support(const Vector3i &chunk_coord);
+	NavChunk &ensure_chunk_dist(const Vector3i &chunk_coord);
+	void rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk);
+	void bake_chunk_support(const Vector3i &chunk_coord, NavChunk &chunk);
+	void bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chunk);
+
+	bool is_solid(const Vector3i &cell);
+	bool cell_no_support(const Vector3i &cell);
+	float cell_clearance_world(const Vector3i &cell);
 
 	static int clearance_key(float clearance);
 	const std::vector<Vector3i> &disc_offsets(float clearance);
-	const std::vector<uint8_t> &get_inflated_solid(float clearance, const std::vector<Vector3i> &offsets);
+
+	Object *occupant_at(const Vector3i &cell) const;
+	void set_occupant(const Vector3i &cell, Object *obj);
+
 	bool is_clear_of_units(const Vector3i &cell, const std::vector<Vector3i> &offsets, Object *self_unit) const;
 	bool is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *self_unit);
 
@@ -116,8 +189,21 @@ private:
 
 	void ensure_neighbor_offsets();
 	static float heuristic(const Vector3i &a, const Vector3i &b);
-	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit);
-	PackedVector3Array reconstruct_path(const std::unordered_map<int, int> &came_from, const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);
+	static float coarse_heuristic(const Vector3i &a, const Vector3i &b);
+
+	// Cheap chunk-level A* (using only the support-tier coarse flags) that
+	// returns a chunk_coord_index -> allowed flat mask covering
+	// CORRIDOR_RADIUS_CHUNKS around an approximate route from start to
+	// goal, or an empty vector if none was found. A flat mask rather than
+	// a hash set for the same reason as astar_g_score above — chunk counts
+	// are small, so this is cheap to allocate fresh per query. Deliberately
+	// optimistic/approximate — see find_path for why that's safe (a failed
+	// corridor-restricted fine search always falls back to an unrestricted
+	// one, so this can only affect speed).
+	std::vector<uint8_t> coarse_corridor(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
+
+	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask);
+	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);
 	PackedVector3Array smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit);
 	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, bool flying, Object *unit);
 
