@@ -1,37 +1,55 @@
-extends StaticBody3D
-## Attach to your ground/terrain collision body. Left-click on empty
-## ground clears the current selection (unless a ground-point-targeting
-## ability like Jump is armed — see below); right-click issues a move
-## order to the selected unit(s) toward the clicked point — UNLESS an
-## ability is currently armed, in which case right-click disarms it
-## instead (see _on_input_event) and does NOT also move, same as
-## Unit._on_input_event's right-click handler for clicking a unit while
-## armed. Right-click as "cancel the thing I just armed" is the natural
-## expectation once arm/click-to-target exists at all — before this, an
-## armed ability just silently swallowed the right-click and did
-## nothing, which read as broken input rather than an intentional cancel.
+extends IndicatorBase
+## Global ground-click handler — left-click on empty ground clears the
+## current selection (unless a ground-point-targeting ability like Jump
+## is armed — see below); right-click issues a move order to the
+## selected unit(s) toward the clicked point — UNLESS an ability is
+## currently armed, in which case right-click disarms it instead and
+## does NOT also move, same as Unit._on_input_event's right-click
+## handler for clicking a unit while armed. Right-click as "cancel the
+## thing I just armed" is the natural expectation once arm/click-to-
+## target exists at all — before this, an armed ability just silently
+## swallowed the right-click and did nothing, which read as broken
+## input rather than an intentional cancel.
 ##
-## Requires:
-##  - input_ray_pickable = true on this body (default is true)
-##  - Project Settings > Physics > Common > Enable Object Picking = on
-##    (default is on)
+## One global node doing a centralized raycast (via IndicatorBase's
+## _get_mouse_ground_point/_get_hovered_unit), NOT a script attached to
+## every ground collision body — the previous version extended
+## StaticBody3D and relied on per-object physics picking
+## (CollisionObject3D.input_event), which meant this exact script had
+## to be attached individually to all five of main.tscn's ground/
+## platform bodies. That stops scaling the moment a real level's ground
+## is built from more than a handful of pieces (a GridMap, a multi-
+## chunk terrain, ...). This version needs to exist exactly once, and
+## works against any number of ground bodies for free as long as they're
+## on ground_collision_mask (see IndicatorBase) — no per-object setup.
 ##
-## "Left-click"/"right-click" above are the InputMap actions left_click/
+## A hovered-unit check runs first and bails out if the click actually
+## landed on a unit — Unit._on_input_event (still per-object physics
+## picking, unchanged) already owns clicks landing on a unit; this
+## script must not also react to the same click's ground point.
+##
+## "Left-click"/"right-click" below are the InputMap actions left_click/
 ## right_click (see project.godot > Input Map), not hardcoded
 ## MOUSE_BUTTON_LEFT/RIGHT checks — rebinding either needs no code change.
 
-func _ready() -> void:
-	input_event.connect(_on_input_event)
-
-
-func _on_input_event(_camera: Node, event: InputEvent, click_position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("left_click"):
+		if _get_hovered_unit():
+			return
+		var click_position = _get_mouse_ground_point()
+		if click_position == null:
+			return
 		if _try_use_ground_targeted_ability(click_position):
 			return
 		SelectionManager.deselect_all()
 	elif event.is_action_pressed("right_click"):
+		if _get_hovered_unit():
+			return
 		if AbilityManager.armed_ability:
 			AbilityManager.disarm()
+			return
+		var click_position = _get_mouse_ground_point()
+		if click_position == null:
 			return
 		_command_move(click_position)
 
@@ -55,8 +73,8 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 		return false
 
 	# click_position is always exactly where the physics ray hit the
-	# ground body itself, so it can never carry a lifted height on its
-	# own — an AerialAreaTargeting ability aimed into the air via
+	# ground, so it can never carry a lifted height on its own — an
+	# AerialAreaTargeting ability aimed into the air via
 	# aerial_area_indicator.gd's Ctrl height-drag (see that file and
 	# AbilityManager.aim_height_override) needs its Y overridden here,
 	# the same value the preview was already showing, so the confirmed
@@ -74,7 +92,7 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 	return true
 
 
-## Only reached when nothing's armed — see _on_input_event, which
+## Only reached when nothing's armed — see _unhandled_input, which
 ## disarms and consumes the click instead of calling this whenever an
 ## ability IS armed.
 func _command_move(destination: Vector3) -> void:

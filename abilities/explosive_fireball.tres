@@ -10,7 +10,7 @@
 [ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://sfx_cue.gd" id="3_mme6j"]
 [ext_resource type="Script" uid="uid://b31m1uvps4rb" path="res://area_apply_status_effect.gd" id="3_ycrns"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="4_846f3"]
-[ext_resource type="Script" path="res://aerial_area_targeting.gd" id="5_r5ii0"]
+[ext_resource type="Script" uid="uid://b1y7f6ela25ie" path="res://aerial_area_targeting.gd" id="5_r5ii0"]
 [ext_resource type="Script" uid="uid://ckc0lgw7iemnq" path="res://damage_over_time_behavior.gd" id="5_tdje2"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="6_o01xw"]
 [ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://vfx_effect.gd" id="8_f0pgo"]
