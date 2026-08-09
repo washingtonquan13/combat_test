@@ -54,6 +54,11 @@ var _last_progress_position: Vector3 = Vector3.ZERO
 var _ladder_stage: int = 0
 var _ladder: Ladder = null
 var _ladder_far: Vector3 = Vector3.ZERO
+## Whether this journey is climbing up (base->top) or down (top->base) —
+## needed because climb_waypoints' path isn't symmetric (see its own
+## header); the climb must be walked in the right order, not just
+## between the right two points.
+var _ladder_going_up: bool = true
 var _ladder_final_destination: Vector3 = Vector3.ZERO
 
 ## The exact route this unit is currently walking, and which point in it
@@ -109,8 +114,7 @@ func move_to(destination: Vector3) -> bool:
 		var route: Dictionary = Ladder.find_route(_owner, destination)
 		if not route.is_empty():
 			if route.affordable:
-				_begin_ladder_journey(route, destination)
-				return true
+				return _begin_ladder_journey(route, destination)
 			# Can't afford the full climb this turn (see Ladder.
 			# find_route/required_move — checked as a hard precondition,
 			# never clamped/attempted-and-stranded) — walk toward the
@@ -175,35 +179,100 @@ func _start_walk(raw_destination: Vector3, budget: float) -> bool:
 ## itself as the budget (rather than INF) keeps this consistent with
 ## every other walk's budget accounting regardless, belt-and-suspenders
 ## rather than relying purely on that guarantee.
-func _begin_ladder_journey(route: Dictionary, final_destination: Vector3) -> void:
+##
+## Returns whether the journey actually started — move_to() forwards this
+## as its own return value. _start_walk can legitimately fail here for
+## two very different reasons that must NOT be treated the same way:
+## already standing at (or effectively at) route.near — the common case
+## right after climbing UP, since the very next thing a player often does
+## is immediately try to climb back DOWN from essentially that same
+## spot — versus route.near being genuinely unreachable. The first isn't
+## a failure at all, it just means there's no walk needed before
+## climbing; skip straight to stage 2. Confirmed as a real, reproducible
+## bug, not a hypothetical: before this distinction existed, the "already
+## there" case silently left _ladder_stage stuck at 1 forever — nothing
+## was ever going to advance it, since physics_process()'s own
+## "reached the end" check (which is what would normally notice and
+## chain into the climb) never runs at all while _moving is false — so
+## the unit stood frozen while move_to() had already told its caller the
+## move succeeded. That's exactly "can climb up but can't come back
+## down": climbing up starts from somewhere genuinely far from the base,
+## so the walk is real; climbing down starts from right where the unit
+## is already standing after the climb up, hitting this exact case.
+func _begin_ladder_journey(route: Dictionary, final_destination: Vector3) -> bool:
 	_ladder = route.ladder
 	_ladder_far = route.far
 	_ladder_final_destination = final_destination
-	_ladder_stage = 1
-	_start_walk(route.near, _owner.move_remaining if CombatManager.in_combat else INF)
+	_ladder_going_up = route.going_up
+
+	if _owner.global_position.distance_to(route.near) <= _owner.arrival_tolerance:
+		_ladder_stage = 2
+		_climb_ladder()
+		return true
+
+	if _start_walk(route.near, _owner.move_remaining if CombatManager.in_combat else INF):
+		_ladder_stage = 1
+		return true
+
+	_ladder = null
+	return false
 
 
-## Stage 2 — the actual climb. A direct Tween between the ladder's two
-## points, bypassing move_and_slide() entirely, the same technique
-## MoveCasterEffect/KnockbackEffect already use for Jump/Shove — a climb
-## isn't a walk order, it shouldn't path around anything. Spends
-## required_move atomically, all at once (already confirmed affordable in
-## full back in move_to/find_route) — not measured or re-derived here,
-## matching this ladder's own "no partial climb" contract.
+## Stage 2 — the actual climb. Bypasses move_and_slide() entirely, the
+## same technique MoveCasterEffect/KnockbackEffect already use for Jump/
+## Shove — a climb isn't a walk order, it shouldn't path around anything.
+## Spends required_move atomically, all at once (already confirmed
+## affordable in full back in move_to/find_route) — not measured or
+## re-derived here, matching this ladder's own "no partial climb"
+## contract.
+##
+## Animates through Ladder.climb_waypoints (up to 3 points: base, an
+## intermediate straight-up point, top), NOT a bare start-to-destination
+## lerp — a single diagonal line between an outside-the-geometry point
+## and an inset one can cut straight through whatever solid corner sits
+## between them (confirmed, reproduced — see that function's own
+## header). climb_waypoints always computes base-to-top order and gets
+## reversed here for a descent — NOT recomputed from _owner's actual
+## current position — because the path's shape depends on which end is
+## genuinely outside the geometry (always the base), not on which
+## direction happens to be first; see climb_waypoints' header for the
+## real, reproduced bug that came from getting this backwards.
+## Ladder.find_route already validated this exact route via
+## _climb_path_is_clear before this journey was ever allowed to begin,
+## so this is playing back an already-confirmed-safe path, not hoping it
+## happens to be clear. Each segment's duration is proportional to its
+## own share of the total distance, so a long vertical climb with a
+## short horizontal step at the top doesn't spend equal time on both.
 func _climb_ladder() -> void:
 	var ladder: Ladder = _ladder
-	var start: Vector3 = _owner.global_position
-	var destination: Vector3 = _ladder_far
 
 	_owner.begin_busy()
 	if CombatManager.in_combat:
 		_owner.spend_move(ladder.required_move)
 
+	var waypoints: PackedVector3Array = Ladder.climb_waypoints(ladder.base_position(), ladder.top_position())
+	if not _ladder_going_up:
+		waypoints.reverse()
+	if waypoints.size() < 2:
+		# Degenerate ladder (base and top coincide) — nothing to actually
+		# animate.
+		_on_climb_finished.call_deferred()
+		return
+
+	var total_dist: float = 0.0
+	for i in range(1, waypoints.size()):
+		total_dist += waypoints[i - 1].distance_to(waypoints[i])
+
 	var tween: Tween = _owner.create_tween()
-	tween.tween_method(
-		func(t: float): _owner.global_position = start.lerp(destination, t),
-		0.0, 1.0, ladder.climb_duration
-	)
+	for i in range(1, waypoints.size()):
+		var seg_start: Vector3 = waypoints[i - 1]
+		var seg_end: Vector3 = waypoints[i]
+		var seg_dist: float = seg_start.distance_to(seg_end)
+		var seg_duration: float = ladder.climb_duration * (seg_dist / total_dist) if total_dist > 0.001 else ladder.climb_duration
+		tween.tween_method(
+			func(t: float): _owner.global_position = seg_start.lerp(seg_end, t),
+			0.0, 1.0, seg_duration
+		)
 	tween.finished.connect(_on_climb_finished)
 
 
