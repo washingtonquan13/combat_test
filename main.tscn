@@ -1,4 +1,4 @@
-[gd_scene load_steps=64 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=65 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -48,6 +48,7 @@
 [ext_resource type="Resource" uid="uid://dnpp2x27ui1ou" path="res://abilities/magic_missile.tres" id="42_qnost"]
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="43_seek"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="44_aer3d"]
+[ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -346,6 +347,16 @@ mesh = SubResource("BoxMesh_f6a44")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform6"]
 shape = SubResource("BoxShape3D_0cbny")
 
+[node name="Ladder" parent="LevelGeometry" instance=ExtResource("50_ladder")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -3)
+
+[node name="MeshInstance3D" parent="LevelGeometry/Ladder" index="0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0.5)
+layers = 2
+
+[node name="Top" parent="LevelGeometry/Ladder" index="2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 1)
+
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)
 strength = 16
@@ -430,3 +441,5 @@ transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 
 [connection signal="pressed" from="CanvasLayer/MenuButton" to="CanvasLayer/MenuButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer/EscMenu/ExitButton" to="CanvasLayer/EscMenu" method="_on_exit_button_pressed"]
 [connection signal="pressed" from="CanvasLayer/EscMenu/VBoxContainer/ExitToDesktop" to="CanvasLayer/EscMenu" method="_on_exit_to_desktop_pressed"]
+
+[editable path="LevelGeometry/Ladder"]

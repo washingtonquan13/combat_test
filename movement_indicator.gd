@@ -218,6 +218,17 @@ func _update_path_preview(unit: Unit) -> void:
 		_path_mesh.visible = false
 		return
 
+	# Mirrors UnitMovement.move_to()'s own ladder branch exactly (see
+	# Ladder.find_route) — same query, same affordability check, so this
+	# preview can never show a climb the real move wouldn't also perform,
+	# or vice versa. Bypasses the ordinary cached-query path entirely
+	# below; see _update_ladder_preview for why.
+	if not unit.is_flying():
+		var route: Dictionary = Ladder.find_route(unit, hover_point)
+		if not route.is_empty():
+			_update_ladder_preview(unit, route, hover_point)
+			return
+
 	# Mirrors UnitMovement.move_to()'s own flying branch exactly — same
 	# XZ-from-click/Y-from-target-altitude query, so this preview can't
 	# diverge from what the real move will do (see this file's header).
@@ -281,6 +292,54 @@ func _update_path_preview(unit: Unit) -> void:
 		return
 
 	_draw_path(path, planned.cumulative_cost, unit.move_remaining)
+	_path_mesh.visible = true
+
+
+## Ladder-aware counterpart to the tail end of _update_path_preview above
+## — see Ladder.find_route for `route`'s shape. Reuses _draw_path
+## completely unchanged in both branches below; only how the (path,
+## cumulative_cost) pair fed into it gets assembled differs.
+func _update_ladder_preview(unit: Unit, route: Dictionary, hover_point: Vector3) -> void:
+	if not route.affordable:
+		# Can't afford the climb this turn — show exactly what
+		# UnitMovement.move_to() will actually do: walk toward the
+		# ladder's near point, ordinary in-range/out-of-range split, and
+		# nothing beyond it. Never draw a climb that won't happen — the
+		# whole point of this ladder's "no partial movement" design is
+		# that the preview must never promise an outcome the execution
+		# can't deliver.
+		var near_planned: Dictionary = route.near_planned
+		if near_planned.path.size() < 2:
+			_path_mesh.visible = false
+			return
+		_draw_path(near_planned.path, near_planned.cumulative_cost, unit.move_remaining)
+		_path_mesh.visible = true
+		return
+
+	# Affordable — build ONE combined path spanning all three legs (walk
+	# to near, the climb itself as a flat required_move cost, walk from
+	# far toward the actual hover point) and hand it to the exact same
+	# _draw_path used for an ordinary move. _draw_path only ever needs a
+	# path + parallel cumulative cost + a budget; it doesn't care whether
+	# a given segment's cost came from ordinary walking or a ladder's
+	# flat climb cost, so no drawing logic needs to change for this case
+	# at all.
+	var combined_path: PackedVector3Array = route.near_planned.path.duplicate()
+	var combined_cost: PackedFloat32Array = route.near_planned.cumulative_cost.duplicate()
+	var base_cost: float = combined_cost[combined_cost.size() - 1] if combined_cost.size() > 0 else 0.0
+	var climb_total: float = base_cost + route.ladder.required_move
+
+	combined_path.append(route.far)
+	combined_cost.append(climb_total)
+
+	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), route.far, hover_point, unit, false)
+	if tail_waypoints.size() >= 2:
+		var tail_planned: Dictionary = RoutePlanner.plan(tail_waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at)
+		for i in range(1, tail_planned.path.size()):
+			combined_path.append(tail_planned.path[i])
+			combined_cost.append(climb_total + tail_planned.cumulative_cost[i])
+
+	_draw_path(combined_path, combined_cost, unit.move_remaining)
 	_path_mesh.visible = true
 
 

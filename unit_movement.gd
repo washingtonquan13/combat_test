@@ -44,6 +44,18 @@ var _move_start_position: Vector3 = Vector3.ZERO
 var _stuck_timer: float = 0.0
 var _last_progress_position: Vector3 = Vector3.ZERO
 
+## Which leg of a ladder journey (see Ladder, move_to's ladder branch, and
+## _begin_ladder_journey/_climb_ladder/_on_climb_finished below) is
+## currently in flight: 0 = none, 1 = walking to the ladder's near point,
+## 2 = climbing, 3 = walking from the ladder's far point to the real
+## final destination. Checked by _finish_move() to decide whether an
+## ordinary walk completing should chain into the next ladder stage
+## instead of emitting movement_finished right away.
+var _ladder_stage: int = 0
+var _ladder: Ladder = null
+var _ladder_far: Vector3 = Vector3.ZERO
+var _ladder_final_destination: Vector3 = Vector3.ZERO
+
 ## The exact route this unit is currently walking, and which point in it
 ## is next. Planned ONCE, in full, before movement starts (see move_to /
 ## RoutePlanner.plan) — nothing about avoidance is decided live while
@@ -89,8 +101,37 @@ func move_to(destination: Vector3) -> bool:
 			return false
 		budget = _owner.move_remaining
 
+	# Ladders are a grounded-only mechanic (see Ladder) — a flying unit
+	# already has unrestricted vertical movement and never needs one, so
+	# this check is skipped entirely for a flying mover rather than
+	# needing its own flying-awareness.
+	if not _owner.is_flying():
+		var route: Dictionary = Ladder.find_route(_owner, destination)
+		if not route.is_empty():
+			if route.affordable:
+				_begin_ladder_journey(route, destination)
+				return true
+			# Can't afford the full climb this turn (see Ladder.
+			# find_route/required_move — checked as a hard precondition,
+			# never clamped/attempted-and-stranded) — walk toward the
+			# ladder's near point as far as ordinary budget allows, but
+			# never start the climb itself. Matches
+			# movement_indicator.gd's preview exactly: never shows or
+			# attempts a climb that won't complete.
+			return _start_walk(route.near, budget)
+
+	return _start_walk(destination, budget)
+
+
+## Plans a route to raw_destination within budget and starts walking it —
+## the shared "plan then execute" core move_to() itself uses for an
+## ordinary move, and each walking leg of a ladder journey (see
+## _begin_ladder_journey/_on_climb_finished) reuses identically, so a
+## ladder's walking legs are governed by the exact same budget-truncation/
+## terrain-cost rules as any other move.
+func _start_walk(raw_destination: Vector3, budget: float) -> bool:
 	var flying: bool = _owner.is_flying()
-	var query_destination: Vector3 = destination
+	var query_destination: Vector3 = raw_destination
 	if flying:
 		# XZ comes from wherever was clicked; Y is the pilot's own target
 		# altitude (see Unit.flight_target_altitude), not the clicked
@@ -127,6 +168,67 @@ func move_to(destination: Vector3) -> bool:
 	return true
 
 
+## Stage 1 of a ladder journey — see Ladder.find_route for `route`'s
+## shape. Already confirmed affordable IN FULL (walk + climb together)
+## before this is ever called (see move_to), so this walk is guaranteed
+## to complete without being cut short by budget — passing move_remaining
+## itself as the budget (rather than INF) keeps this consistent with
+## every other walk's budget accounting regardless, belt-and-suspenders
+## rather than relying purely on that guarantee.
+func _begin_ladder_journey(route: Dictionary, final_destination: Vector3) -> void:
+	_ladder = route.ladder
+	_ladder_far = route.far
+	_ladder_final_destination = final_destination
+	_ladder_stage = 1
+	_start_walk(route.near, _owner.move_remaining if CombatManager.in_combat else INF)
+
+
+## Stage 2 — the actual climb. A direct Tween between the ladder's two
+## points, bypassing move_and_slide() entirely, the same technique
+## MoveCasterEffect/KnockbackEffect already use for Jump/Shove — a climb
+## isn't a walk order, it shouldn't path around anything. Spends
+## required_move atomically, all at once (already confirmed affordable in
+## full back in move_to/find_route) — not measured or re-derived here,
+## matching this ladder's own "no partial climb" contract.
+func _climb_ladder() -> void:
+	var ladder: Ladder = _ladder
+	var start: Vector3 = _owner.global_position
+	var destination: Vector3 = _ladder_far
+
+	_owner.begin_busy()
+	if CombatManager.in_combat:
+		_owner.spend_move(ladder.required_move)
+
+	var tween: Tween = _owner.create_tween()
+	tween.tween_method(
+		func(t: float): _owner.global_position = start.lerp(destination, t),
+		0.0, 1.0, ladder.climb_duration
+	)
+	tween.finished.connect(_on_climb_finished)
+
+
+## Stage 3 — walk from the ladder's far point toward the real destination,
+## using whatever move_remaining is left after the climb. This leg is
+## ordinary movement in every sense (can fall short of the real
+## destination, same ARRIVAL_SLACK/budget rules as any other move) — the
+## "no partial movement" guarantee only ever protected the climb itself,
+## not the rest of the turn's movement.
+func _on_climb_finished() -> void:
+	_owner.end_busy()
+	_ladder_stage = 3
+	_ladder = null
+	var final_destination: Vector3 = _ladder_final_destination
+
+	if not _start_walk(final_destination, _owner.move_remaining if CombatManager.in_combat else INF):
+		# Nothing left to walk (already there, or no valid path onward) —
+		# the journey still completed successfully; emit completion
+		# directly instead of waiting on a walk leg that was never going
+		# to start.
+		_ladder_stage = 0
+		_owner.movement_finished.emit(_owner)
+		_owner.notify_movement_idle_check()
+
+
 ## Cancels the current move order in place, still spending whatever
 ## distance was actually covered (combat only).
 func stop_moving() -> void:
@@ -145,6 +247,8 @@ func force_stop() -> void:
 	_owner.velocity = Vector3.ZERO
 	_current_path = PackedVector3Array()
 	_path_index = 0
+	_ladder_stage = 0
+	_ladder = null
 
 
 func physics_process(delta: float) -> void:
@@ -212,24 +316,46 @@ func _finish_move() -> void:
 	_moving = false
 	_owner.velocity = Vector3.ZERO
 
+	# Needed both for the spend calculation below AND to decide whether a
+	# ladder journey's walking leg may chain into its next stage (see
+	# below) — an organically-completed leg chains, one cut short
+	# (stuck_timeout, or a manual stop_moving() mid-route) aborts the
+	# ladder journey cleanly instead of climbing from wherever it
+	# happened to stop.
+	var completed_fully: bool = _path_index >= _current_path.size()
+
 	if CombatManager.in_combat:
 		# The plan completed fully (walked every point) → charge its
 		# exact known cost, not a re-measurement — that cost IS what was
 		# spent, by construction, since nothing deviated from the plan.
-		# Cut short instead (stuck_timeout, or a manual stop_moving()
-		# mid-route) → fall back to actually-measured PHYSICAL
+		# Cut short instead → fall back to actually-measured PHYSICAL
 		# displacement, since in that abnormal case the plan and reality
 		# genuinely diverged. That fallback under-charges if the
 		# cut-short portion crossed difficult terrain — same "rare
 		# last-resort path, not the normal case" trade-off as every other
 		# use of stuck_timeout in this file, not worth chasing exactly.
-		var completed_fully: bool = _path_index >= _current_path.size()
 		var spent: float = _planned_cost if completed_fully else _move_start_position.distance_to(_owner.global_position)
 		_owner.spend_move(spent)
 
 	_current_path = PackedVector3Array()
 	_path_index = 0
 	_planned_cost = 0.0
+
+	if _ladder_stage == 1 and completed_fully:
+		# Reached the ladder's base/top — the walking leg is done, but
+		# this ISN'T the end of the overall move yet, so movement_finished
+		# doesn't fire here; the climb (stage 2) picks up immediately.
+		_ladder_stage = 2
+		_climb_ladder()
+		return
+
+	if _ladder_stage != 0:
+		# Either stage 3 (the walk after climbing) finished — completed
+		# fully or not, same "may fall short" rule as any other move — or
+		# stage 1 got cut short and the journey is aborting cleanly.
+		_ladder_stage = 0
+		_ladder = null
+
 	_owner.movement_finished.emit(_owner)
 	# _moving just flipped to false above — is_busy()'s answer may have
 	# changed as a result, but UnitActionState has no way to learn that
