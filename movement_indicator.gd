@@ -327,10 +327,23 @@ func _update_ladder_preview(unit: Unit, route: Dictionary, hover_point: Vector3)
 	var combined_path: PackedVector3Array = route.near_planned.path.duplicate()
 	var combined_cost: PackedFloat32Array = route.near_planned.cumulative_cost.duplicate()
 	var base_cost: float = combined_cost[combined_cost.size() - 1] if combined_cost.size() > 0 else 0.0
-	var climb_total: float = base_cost + route.ladder.required_move
 
-	combined_path.append(route.far)
-	combined_cost.append(climb_total)
+	# The climb segment itself — the SAME base-to-top canonical path
+	# (reversed for a descent, via route.going_up) UnitMovement.
+	# _climb_ladder actually animates, NOT a straight line from near to
+	# far. A straight line is the exact clipping bug already found and
+	# fixed once in the real movement (see Ladder.climb_waypoints' own
+	# header) — drawing one here instead would silently reintroduce it
+	# in the preview only, showing a line cutting through geometry the
+	# real climb now correctly detours around.
+	var climb_points: PackedVector3Array = Ladder.climb_waypoints(route.ladder.base_position(), route.ladder.top_position())
+	if not route.going_up:
+		climb_points.reverse()
+	var climb_total: float = base_cost
+	for i in range(1, climb_points.size()):
+		combined_path.append(climb_points[i])
+		climb_total = base_cost + (route.ladder.required_move if i == climb_points.size() - 1 else 0.0)
+		combined_cost.append(climb_total)
 
 	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), route.far, hover_point, unit, false)
 	if tail_waypoints.size() >= 2:
