@@ -1,4 +1,4 @@
-[gd_scene load_steps=62 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=64 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -86,6 +86,12 @@ size = Vector3(4, 1, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_wnkbs"]
 size = Vector3(4, 1, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_f6a44"]
+size = Vector3(3, 1, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_0cbny"]
+size = Vector3(3, 1, 3)
 
 [sub_resource type="Environment" id="Environment_movement_glow"]
 glow_enabled = true
@@ -322,14 +328,23 @@ mesh = SubResource("BoxMesh_0n3wm")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform4"]
 shape = SubResource("BoxShape3D_qnost")
 
-[node name="StaticBody3D" type="StaticBody3D" parent="LevelGeometry"]
+[node name="Platform5" type="StaticBody3D" parent="LevelGeometry"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 11, 6.5)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/StaticBody3D"]
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform5"]
 mesh = SubResource("BoxMesh_qnost")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/StaticBody3D"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform5"]
 shape = SubResource("BoxShape3D_wnkbs")
+
+[node name="Platform6" type="StaticBody3D" parent="LevelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 11, 6.5)
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform6"]
+mesh = SubResource("BoxMesh_f6a44")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform6"]
+shape = SubResource("BoxShape3D_0cbny")
 
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)

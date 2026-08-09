@@ -56,12 +56,7 @@ func _get_armed_move_effect() -> MoveCasterEffect:
 	var ability: Ability = PlayerInteractionState.get_armed_ability_of_targeting_type(GroundPointTargeting)
 	if not ability:
 		return null
-
-	for effect in ability.effects:
-		if effect is MoveCasterEffect:
-			return effect
-
-	return null
+	return ability.get_move_caster_effect()
 
 
 func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hover_point: Vector3) -> void:

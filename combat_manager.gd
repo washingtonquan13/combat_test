@@ -320,10 +320,13 @@ func _advance_turn() -> void:
 	if phase == Phase.OUT_OF_COMBAT:
 		return
 
-	# Captured before filtering — see the block below the filter for why
-	# resuming needs to know not just the stale numeric _turn_index but
-	# WHO was actually there.
-	var previous_unit: Unit = current_unit
+	# Captured before turn_order is reassigned below — Array.filter()
+	# returns a NEW array rather than mutating in place, so this keeps
+	# referencing the original, unfiltered ordering (and search_start, the
+	# index to resume searching from) even after turn_order is reassigned
+	# to the filtered one a few lines down.
+	var pre_filter_order: Array[Unit] = turn_order
+	var search_start: int = _turn_index + 1
 
 	# is_instance_valid guards against a unit whose node has already been
 	# freed (death_cleanup_delay == 0 frees immediately on death) — this
@@ -335,27 +338,27 @@ func _advance_turn() -> void:
 	if _check_combat_end():
 		return
 
-	# previous_unit still present in the filtered array (the ordinary
-	# case — their turn simply ended) → resume right after wherever they
-	# ended up. previous_unit itself is the one that's gone (died before
-	# or during its own turn — a DamageOverTimeBehavior tick or a
-	# summon's DespawnOnExpireBehavior expiring, see
-	# DespawnOnExpireBehavior) → do NOT increment: removing it from the
-	# array above already shifted everyone who came after it one slot
-	# earlier, so the stale numeric _turn_index already lands on
-	# whoever's actually next. Incrementing on top of that shift is what
-	# used to skip the following unit's turn entirely — confirmed via
-	# testing summon expiry, not a hypothetical. (Assumes only
-	# previous_unit's own slot was removed this pass; a unit earlier in
-	# turn_order dying in the exact same synchronous batch as
-	# previous_unit isn't currently reachable — nothing kills two units
-	# at once outside an ability that only ever fires while the caster,
-	# not the target, is current_unit.)
-	if is_instance_valid(previous_unit) and previous_unit.is_alive():
-		_turn_index = turn_order.find(previous_unit) + 1
-	elif previous_unit == null:
-		_turn_index = 0
-	_turn_index = _turn_index % turn_order.size()
+	# Walk forward from wherever the just-finished turn left off, in the
+	# ORIGINAL pre-filter order, and take the first unit still alive —
+	# correct no matter how many units died this pass, including whoever's
+	# turn just ended. An earlier version derived the new index purely
+	# from THAT unit's own post-filter position, which broke if it died in
+	# the same synchronous batch as another unit EARLIER in turn_order
+	# (e.g. an AoE that catches its own caster and an ally standing near
+	# them — AreaDamageEffect's affects_allies supports exactly this, see
+	# abilities/explosive_fireball.tres, so this isn't just hypothetical):
+	# the stale index then landed one slot short, silently skipping
+	# whoever should have gone next. This walk needs no separate case for
+	# the very first call of combat either — _turn_index starts at -1, so
+	# search_start is already 0, which is where the walk should start.
+	var next_unit: Unit = null
+	for i in range(pre_filter_order.size()):
+		var candidate: Unit = pre_filter_order[(search_start + i) % pre_filter_order.size()]
+		if is_instance_valid(candidate) and candidate.is_alive():
+			next_unit = candidate
+			break
+
+	_turn_index = turn_order.find(next_unit)
 	if _turn_index == 0:
 		round_number += 1
 		round_started.emit(round_number)

@@ -119,13 +119,6 @@ func _on_watched_unit_ability_used(attacker: Unit, _target, _result: Dictionary)
 func _is_still_usable(unit: Unit, ability: Ability) -> bool:
 	if ability.uses_attack_action and unit.has_attacked:
 		return false
-	if _is_move_budget_ability(ability) and not unit.has_move_remaining():
+	if ability.has_move_caster_effect() and not unit.has_move_remaining():
 		return false
 	return true
-
-
-func _is_move_budget_ability(ability: Ability) -> bool:
-	for effect in ability.effects:
-		if effect is MoveCasterEffect:
-			return true
-	return false

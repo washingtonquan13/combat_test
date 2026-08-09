@@ -124,3 +124,22 @@ func get_pathed_projectile_step() -> PathedProjectileStep:
 
 func has_pathed_projectile() -> bool:
 	return get_pathed_projectile_step() != null
+
+
+## The MoveCasterEffect in effects, if this ability has one — used by
+## AbilityManager (an armed movement-budget ability like Jump shouldn't
+## auto-disarm just because the attack action is spent, only once move
+## budget itself runs out) and jump_indicator.gd (to preview the exact
+## arc that effect will produce). Same shape as get_pathed_projectile_step
+## above: derived from the actual effect composition rather than a
+## separate hand-set flag, so both call sites can't independently drift
+## out of sync with each other or with what the ability actually does.
+func get_move_caster_effect() -> MoveCasterEffect:
+	for effect in effects:
+		if effect is MoveCasterEffect:
+			return effect
+	return null
+
+
+func has_move_caster_effect() -> bool:
+	return get_move_caster_effect() != null
