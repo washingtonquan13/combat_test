@@ -352,7 +352,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -3)
 
 [node name="MeshInstance3D" parent="LevelGeometry/Ladder" index="0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0.5)
-layers = 2
 
 [node name="Top" parent="LevelGeometry/Ladder" index="2"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 1)
