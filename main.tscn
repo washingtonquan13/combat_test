@@ -1,4 +1,4 @@
-[gd_scene load_steps=65 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=66 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -49,6 +49,7 @@
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="43_seek"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="44_aer3d"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
+[ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -131,6 +132,9 @@ script = ExtResource("44_aer3d")
 
 [node name="SeekingIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("43_seek")
+
+[node name="NavDebugOverlay" type="Node3D" parent="Indicators"]
+script = ExtResource("51_navdbg")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
