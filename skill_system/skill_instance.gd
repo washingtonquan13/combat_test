@@ -1,12 +1,23 @@
 class_name SkillInstance
-extends Resource
+extends Node
 ## One unit's trained investment in a skill it actually knows — a Skill
-## definition plus how many levels this specific unit has bought. A Node
-## in the original design (reparented into a Character's $Skills child so
-## SkillCalculator could find it via get_node("Skills").get_children()) —
-## nothing here actually needs the scene tree, so this is a plain
-## Resource instead, referenced directly from Unit.skills the same way
-## Unit.abilities/custom_slots already reference Ability resources.
+## definition plus how many levels this specific unit has bought.
+##
+## A Node deliberately, not a Resource — levels_purchased is genuine
+## per-character progression state that a future "level up" action will
+## mutate at runtime, unlike Ability's fields (never mutated, so safely
+## shared as one .tres across every unit that has that ability). A
+## Resource can't structurally prevent two units from accidentally
+## sharing the same saved SkillInstance and silently corrupting each
+## other's levels the moment one of them levels up; a Node can't be
+## aliased that way at all. Simple enough (no _process, no children of
+## its own) that the Node overhead doesn't matter.
+##
+## Lives as an actual child under a unit's own Skills node (see
+## Unit.get_skills/add_skill) — NOT discovered by outside code via a
+## hardcoded get_node("Skills") path the way the original design did.
+## Unit owns that lookup internally and exposes a plain typed method
+## instead, so nothing outside Unit needs to know its internal structure.
 
 @export var skill_data: Skill = null
 ## Levels purchased beyond the base (1 = just the base attribute+

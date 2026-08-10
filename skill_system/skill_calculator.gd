@@ -82,7 +82,7 @@ static func _resolve_default_source(unit: Unit, rule: DefaultRule, depth: int) -
 
 
 static func _find_instance(unit: Unit, skill_name: String) -> SkillInstance:
-	for instance in unit.skills:
+	for instance in unit.get_skills():
 		if instance.skill_data.skill_name == skill_name:
 			return instance
 	return null

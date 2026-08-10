@@ -8,13 +8,6 @@ extends CharacterBody3D
 @export var will: int = 10
 @export var perception: int = 10
 
-## Skills this unit has actually trained — never a slot for every skill
-## that exists in the game, only the ones confirmed here. See
-## SkillCalculator.get_skill_level: a name NOT found in this array still
-## resolves via SkillDatabase for a usable default, exactly like a
-## learned one, just without a trained_level contribution.
-@export var skills: Array[SkillInstance] = []
-
 @export var maximum_hp: int = 10
 @export var current_hp: int = 10
 @export var maximum_fp: int = 10
@@ -30,6 +23,16 @@ extends CharacterBody3D
 @onready var thrust: Die = $Thrust
 @onready var swing: Die = $Swing
 @onready var damage: Die = $Damage
+
+## Skills this unit has actually trained live as real children here —
+## never a slot for every skill that exists in the game, only the ones
+## confirmed under this node. Private: nothing outside Unit should reach
+## into this directly (see get_skills()/add_skill() below) — the
+## original design's bug was exactly that, external code finding this by
+## a hardcoded get_node("Skills") string path. Referencing Unit's own
+## known child via $ here is the safe, ordinary case that pattern warns
+## against, not a repeat of it.
+@onready var _skills_container: Node = $Skills
 
 @export var move: int = 5
 ## Real-time speed (world units/sec) while executing a move order. Distinct
@@ -689,6 +692,27 @@ func get_attribute_value(attribute_name: String) -> int:
 		"Will": return will
 		"Per": return perception
 		_: return 0
+
+
+## Every SkillInstance this unit has actually trained. The one place
+## that reads _skills_container's actual children — SkillCalculator and
+## anything else that needs a unit's skills calls this instead of ever
+## touching the container directly, so the internal "skills are children
+## of a Skills node" detail stays exactly that, internal.
+func get_skills() -> Array[SkillInstance]:
+	var result: Array[SkillInstance] = []
+	for child in _skills_container.get_children():
+		if child is SkillInstance:
+			result.append(child)
+	return result
+
+
+## Learns a new skill (or moves an already-existing SkillInstance under
+## this unit, e.g. when reassigning one at runtime) — reparent rather
+## than add_child so passing an instance that already belongs to another
+## unit does the right thing instead of erroring.
+func add_skill(skill_instance: SkillInstance) -> void:
+	skill_instance.reparent(_skills_container)
 
 
 func distance_to(other: Unit) -> float:

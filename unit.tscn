@@ -17789,6 +17789,8 @@ metadata/_custom_type_script = "uid://chgaolunbm3vb"
 script = ExtResource("2_davkp")
 metadata/_custom_type_script = "uid://chgaolunbm3vb"
 
+[node name="Skills" type="Node" parent="."]
+
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_baxm0")
 mesh = SubResource("ArrayMesh_ksg5a")
