@@ -8,13 +8,16 @@ extends HBoxContainer
 ## _refresh_out_of_combat_unit) — visible whenever there's a
 ## player-controlled unit to show, either way.
 ##
-## Out of combat, this only DISPLAYS and ARMS abilities correctly —
-## actually completing a cast still requires combat
-## (Unit._on_input_event's ability-click branch and
-## PlayerInteractionState.get_active_unit() are both hard-gated to
-## CombatManager.in_combat, deliberately left alone by this rework).
-## Arming something out of combat and clicking a target currently no-ops
-## rather than casting — a known, accepted gap, not a bug to chase here.
+## Casting works out of combat too, not just display/arm — see
+## PlayerInteractionState.get_active_unit() (resolves the first selected
+## unit out of combat, the acting unit in combat) and Unit._on_input_event,
+## both of which route through that one function rather than checking
+## CombatManager.in_combat separately. No turn economy applies out of
+## combat (UnitCombat.use_ability's already_acted/has_attacked gating is
+## combat-only, same convention as move budget everywhere else in this
+## project) and no per-turn status/surface decay happens either — an
+## out-of-combat buff/debuff/DoT just sits at full duration until a real
+## combat session runs, a deliberate, accepted characteristic, not a bug.
 ##
 ## Scene setup: this script now attaches to the HBoxContainer itself (was
 ## a GridContainer pre-rework — see main.tscn). Children, left to right,

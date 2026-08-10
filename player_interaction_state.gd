@@ -1,10 +1,11 @@
 class_name PlayerInteractionState
 extends RefCounted
 ## Single source of truth for "what can the player currently do" — the
-## condition every indicator/facing script (movement_indicator.gd,
-## jump_indicator.gd, line_of_sight_indicator.gd, area_indicator.gd,
-## unit_aim_facing.gd) needs answered before deciding whether to show
-## anything or react to input at all.
+## condition every preview indicator, facing script, and click-to-act
+## handler needs answered before deciding whether to show anything or
+## react to input at all. See get_active_unit()'s own doc comment for the
+## current, exact list of consumers — kept in exactly one place rather
+## than copied here too, for the same reason this file exists at all.
 ##
 ## Existed as five independently hand-written copies of the same
 ## condition chain before this — when armed_ability was introduced, four
@@ -22,8 +23,9 @@ extends RefCounted
 ## actual sources of truth. Call directly, e.g.
 ## PlayerInteractionState.get_active_unit(), from anywhere.
 
-## The unit whose turn it currently is, if and only if: combat is
-## running, that unit is alive and player-controlled, and Unit.can_act()
+## The unit the player is currently commanding, in or out of combat — the
+## acting unit whose turn it is during combat, or the first selected unit
+## otherwise — as long as it's alive, player-controlled, and Unit.can_act()
 ## says it's free to do something (not busy, not prevented by an active
 ## status like Sleep/Stun). Returns null otherwise — every caller should
 ## treat a null return as "hide/do nothing," not try to reconstruct why
@@ -31,16 +33,22 @@ extends RefCounted
 ##
 ## Delegates the unit-intrinsic half of this check to Unit.can_act()
 ## rather than re-deriving it here — this is deliberately the ONLY place
-## the player/turn-specific conditions (is it the current turn, is it
-## player-controlled) get layered on top, so those two concerns
-## (can THIS unit act at all vs. is it currently the PLAYER's turn to
-## direct it) stay in exactly one place each rather than getting
-## re-mixed together per caller.
+## the player/turn-specific conditions (who's allowed to act right now,
+## in or out of combat) get layered on top. Consumed by every preview
+## indicator (movement_indicator.gd, jump_indicator.gd,
+## line_of_sight_indicator.gd, area_indicator.gd, aerial_area_indicator.gd,
+## seeking_indicator.gd, unit_aim_facing.gd), ground_click_target.gd's
+## ground-targeted ability casting, and Unit._on_input_event's
+## unit-targeted ability casting — none of which has any OTHER
+## combat-only gate, which is what makes widening this one function
+## enough to make all of them correctly work out of combat too.
 static func get_active_unit() -> Unit:
-	if not CombatManager.in_combat:
-		return null
+	var unit: Unit
+	if CombatManager.in_combat:
+		unit = CombatManager.current_unit
+	else:
+		unit = SelectionManager.selected_units[0] if not SelectionManager.selected_units.is_empty() else null
 
-	var unit: Unit = CombatManager.current_unit
 	if not unit or not is_instance_valid(unit) or not unit.is_alive():
 		return null
 	if not unit.is_player_controlled():

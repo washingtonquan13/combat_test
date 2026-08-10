@@ -324,12 +324,13 @@ func _on_mouse_exited() -> void:
 	_selection.on_mouse_exited()
 
 
-## During combat, left-clicking a unit while your own unit is both
-## selected and the acting unit (CombatManager.current_unit) uses an
-## ability against it instead of selecting it — whichever ability is
-## currently armed via AbilityManager, or the acting unit's
+## Left-clicking a unit while your own unit is both selected and the
+## currently active one (PlayerInteractionState.get_active_unit() — the
+## acting unit in combat, or the first selected unit out of combat) uses
+## an ability against it instead of selecting it — whichever ability is
+## currently armed via AbilityManager, or the active unit's
 ## default_ability() if nothing's explicitly armed (keeps click-to-attack
-## working before a hotbar exists to choose between abilities).
+## working without an explicit hotbar pick, in or out of combat).
 ##
 ## Which clicks count depends on that ability's own targeting: an
 ## ordinary (non-ally) ability only fires on a HOSTILE click, same as
@@ -358,15 +359,14 @@ func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _norm
 	if not event.is_action_pressed("left_click"):
 		return
 
-	if CombatManager.in_combat:
-		var acting_unit: Unit = CombatManager.current_unit
-		if acting_unit and acting_unit != self and acting_unit in SelectionManager.selected_units:
-			var ability: Ability = AbilityManager.armed_ability if AbilityManager.armed_ability else acting_unit.default_ability()
-			var wants_ally: bool = ability and ability.targeting and ability.targeting.requires_ally_target()
-			var hostile: bool = acting_unit.is_hostile_to(self)
-			if ability and (wants_ally != hostile):
-				acting_unit.use_ability(ability, self)
-				return
+	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
+	if acting_unit and acting_unit != self and acting_unit in SelectionManager.selected_units:
+		var ability: Ability = AbilityManager.armed_ability if AbilityManager.armed_ability else acting_unit.default_ability()
+		var wants_ally: bool = ability and ability.targeting and ability.targeting.requires_ally_target()
+		var hostile: bool = acting_unit.is_hostile_to(self)
+		if ability and (wants_ally != hostile):
+			acting_unit.use_ability(ability, self)
+			return
 
 	var additive: bool = Input.is_action_pressed("select_additive")
 	SelectionManager.select(self, additive)
