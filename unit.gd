@@ -116,6 +116,15 @@ extends CharacterBody3D
 ## AbilityManager — that's what makes click-to-attack keep working before
 ## a hotbar exists to actually choose between multiple abilities.
 @export var abilities: Array[Ability] = []
+## Player-assignable "Custom" hotbar section — fixed-size, null = empty
+## slot. A slot holds a REFERENCE to one of this unit's OTHER abilities
+## (from either Ability.Category), never a copy and never removed from
+## its home section — see hotbar_slot.gd's drag-and-drop, which hands
+## over the Ability resource itself rather than moving anything. Resize
+## this default (add/remove null entries) per-unit in the Inspector for
+## a unit that should have more or fewer than 6 — ability_hotbar.gd
+## reads custom_slots.size() rather than assuming 6.
+@export var custom_slots: Array[Ability] = [null, null, null, null, null, null]
 
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.

@@ -25,6 +25,7 @@ metadata/_custom_type_script = "uid://dr8ikn7mlllm6"
 script = ExtResource("1_ability")
 ability_name = "Fly"
 icon = ExtResource("6_icon")
+category = 1
 targeting = SubResource("Resource_selftargeting")
 effects = Array[ExtResource("2_effect")]([SubResource("Resource_grantflight")])
 requires_to_hit = false

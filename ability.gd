@@ -22,6 +22,15 @@ extends Resource
 @export var ability_name: String = "Basic Attack"
 @export var icon: Texture2D
 
+## Which hotbar section this ability's own slot belongs in — NOT whether
+## it can also appear in a unit's Custom hotbar section (see
+## Unit.custom_slots, which references abilities regardless of
+## category). Defaults to ABILITIES since most abilities are spells/
+## special actions, not universal martial ones — only Basic Attack
+## (Melee/Ranged), Jump, and Shove override this to COMMON.
+enum Category { COMMON, ABILITIES }
+@export var category: Category = Category.ABILITIES
+
 @export var targeting: AbilityTargeting
 @export var effects: Array[AbilityEffect] = []
 

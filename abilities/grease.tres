@@ -67,6 +67,7 @@ metadata/_custom_type_script = "uid://bhfvvo8gbkewp"
 script = ExtResource("2_8da6v")
 ability_name = "Grease"
 icon = ExtResource("8_5hn5t")
+category = 1
 targeting = SubResource("Resource_si4fr")
 effects = Array[ExtResource("1_klks1")]([SubResource("Resource_golul")])
 requires_to_hit = true

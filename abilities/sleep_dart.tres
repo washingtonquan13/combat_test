@@ -66,6 +66,7 @@ metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 script = ExtResource("2_6yrul")
 ability_name = "Sleep Dart"
 icon = ExtResource("3_21ej2")
+category = 1
 targeting = SubResource("Resource_4i07h")
 effects = Array[ExtResource("1_wcufp")]([SubResource("Resource_fdn0e")])
 requires_to_hit = false

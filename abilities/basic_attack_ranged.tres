@@ -25,6 +25,7 @@ metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 script = ExtResource("1_vpgqn")
 ability_name = "Basic Attack (Ranged)"
 icon = ExtResource("1_8dawa")
+category = 0
 targeting = SubResource("Resource_pm8sj")
 effects = Array[ExtResource("1_7ohbq")]([SubResource("Resource_hw5nm")])
 requires_to_hit = true

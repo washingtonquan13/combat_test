@@ -150,6 +150,7 @@ metadata/_custom_type_script = "uid://bjatij1rn26yg"
 script = ExtResource("2_nideg")
 ability_name = "Explosive Fireball"
 icon = ExtResource("3_dbc05")
+category = 1
 targeting = SubResource("Resource_ycrns")
 effects = Array[ExtResource("1_res1m")]([SubResource("Resource_l62op"), SubResource("Resource_kjwuy")])
 requires_to_hit = false

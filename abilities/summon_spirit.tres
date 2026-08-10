@@ -44,6 +44,7 @@ metadata/_custom_type_script = "uid://drd20fn8tucu"
 script = ExtResource("2_4kc7v")
 ability_name = "Summon Spirit"
 icon = ExtResource("3_icon")
+category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_summoneffect")])
 requires_to_hit = false

@@ -1,4 +1,4 @@
-[gd_scene load_steps=66 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=67 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -50,6 +50,7 @@
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="44_aer3d"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
+[ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://hotbar_divider.gd" id="52_hbdivider"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -158,7 +159,7 @@ grow_horizontal = 2
 script = ExtResource("4_dg77c")
 portrait_scene = ExtResource("4_272bh")
 
-[node name="AbilityHotbar" type="GridContainer" parent="CanvasLayer"]
+[node name="AbilityHotbar" type="HBoxContainer" parent="CanvasLayer"]
 anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
@@ -170,9 +171,30 @@ offset_right = 20.0
 offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 0
-columns = 6
 script = ExtResource("6_w48qg")
 slot_scene = ExtResource("8_cegan")
+
+[node name="CommonGrid" type="GridContainer" parent="CanvasLayer/AbilityHotbar"]
+layout_mode = 2
+columns = 4
+
+[node name="DividerCommonAbilities" type="VSeparator" parent="CanvasLayer/AbilityHotbar"]
+custom_minimum_size = Vector2(10, 32)
+layout_mode = 2
+script = ExtResource("52_hbdivider")
+
+[node name="AbilitiesGrid" type="GridContainer" parent="CanvasLayer/AbilityHotbar"]
+layout_mode = 2
+columns = 6
+
+[node name="DividerAbilitiesCustom" type="VSeparator" parent="CanvasLayer/AbilityHotbar"]
+custom_minimum_size = Vector2(10, 32)
+layout_mode = 2
+script = ExtResource("52_hbdivider")
+
+[node name="CustomGrid" type="GridContainer" parent="CanvasLayer/AbilityHotbar"]
+layout_mode = 2
+columns = 6
 
 [node name="SystemLog" parent="CanvasLayer" instance=ExtResource("12_xuqvo")]
 custom_minimum_size = Vector2(240, 280)

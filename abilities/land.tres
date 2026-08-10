@@ -21,6 +21,7 @@ metadata/_custom_type_script = "res://self_targeting.gd"
 script = ExtResource("1_ability")
 ability_name = "Land"
 icon = ExtResource("6_icon")
+category = 1
 targeting = SubResource("Resource_selftargeting")
 effects = Array[ExtResource("2_effect")]([SubResource("Resource_landeffect")])
 requires_to_hit = false

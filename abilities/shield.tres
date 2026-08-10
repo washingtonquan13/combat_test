@@ -42,6 +42,7 @@ metadata/_custom_type_script = "uid://dr8ikn7mlllm6"
 script = ExtResource("1_ability")
 ability_name = "Shield"
 icon = ExtResource("8_icon")
+category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_applystatus")])
 requires_to_hit = false

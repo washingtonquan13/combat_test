@@ -25,6 +25,7 @@ metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 script = ExtResource("1_ability")
 ability_name = "Heal"
 icon = ExtResource("5_icon")
+category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_heal")])
 requires_to_hit = false
