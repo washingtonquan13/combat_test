@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Skill" load_steps=4 format=3 uid="uid://cxye1dh2856fy"]
+
+[ext_resource type="Script" uid="uid://cmdum51cu8h1p" path="res://skill_system/skill.gd" id="1_skill"]
+[ext_resource type="Script" uid="uid://ce7meu88ey25g" path="res://skill_system/default_rule.gd" id="2_default"]
+
+[sub_resource type="Resource" id="Resource_default"]
+script = ExtResource("2_default")
+source_type = 0
+source_name = "DX"
+modifier = -6
+
+[resource]
+script = ExtResource("1_skill")
+skill_name = "Acrobatics"
+controlling_attribute = "DX"
+difficulty_level = -2
+defaults = Array[ExtResource("2_default")]([SubResource("Resource_default")])
+learned_only = false
+description = "Staying on your feet in a tricky situation, or performing a stunt of balance and body control."

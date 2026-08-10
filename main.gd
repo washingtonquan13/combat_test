@@ -21,6 +21,10 @@ extends Node
 var _signals_connected: bool = false
 
 
+func _ready() -> void:
+	print(SkillCalculator.get_skill_level($ElfRanger, "Acrobatics").skill_level)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("test_start_combat"):
 		_start_test_combat()

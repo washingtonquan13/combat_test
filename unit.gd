@@ -5,6 +5,15 @@ extends CharacterBody3D
 @export var dexterity: int = 10
 @export var intelligence: int = 10
 @export var health: int = 10
+@export var will: int = 10
+@export var perception: int = 10
+
+## Skills this unit has actually trained — never a slot for every skill
+## that exists in the game, only the ones confirmed here. See
+## SkillCalculator.get_skill_level: a name NOT found in this array still
+## resolves via SkillDatabase for a usable default, exactly like a
+## learned one, just without a trained_level contribution.
+@export var skills: Array[SkillInstance] = []
 
 @export var maximum_hp: int = 10
 @export var current_hp: int = 10
@@ -664,6 +673,22 @@ func has_move_remaining() -> bool:
 
 func is_alive() -> bool:
 	return current_hp > 0
+
+
+## String-keyed so skill_system's DefaultRule/AttributePrerequisite (and
+## anything else that names an attribute generically off a .tres) can
+## resolve one without needing a match/if-chain of their own — same role
+## as Character.get_attribute_value() in the gurps project this was
+## ported from.
+func get_attribute_value(attribute_name: String) -> int:
+	match attribute_name:
+		"ST": return strength
+		"DX": return dexterity
+		"IQ": return intelligence
+		"HT": return health
+		"Will": return will
+		"Per": return perception
+		_: return 0
 
 
 func distance_to(other: Unit) -> float:
