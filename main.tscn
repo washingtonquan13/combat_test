@@ -328,7 +328,7 @@ skeleton = NodePath("../../..")
 shape = SubResource("BoxShape3D_272bh")
 
 [node name="Platform2" type="StaticBody3D" parent="LevelGeometry"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 2, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 2, -3)
 
 [node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform2"]
 mesh = SubResource("BoxMesh_jq2sk")

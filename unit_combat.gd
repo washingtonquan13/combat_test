@@ -152,6 +152,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		if not to_hit.success:
 			SystemLog.print("%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name])
 			_owner.ability_used.emit(_owner, target, result)
+			_maybe_trigger_combat(target)
 			return result
 
 	result["hit"] = true
@@ -178,7 +179,23 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		SystemLog.print("%s uses %s on %s." % [LogFormat.unit_name(_owner), ability.ability_name, _log_target_desc(target)])
 
 	_owner.ability_used.emit(_owner, target, result)
+	_maybe_trigger_combat(target)
 	return result
+
+
+## Starts real combat if this was an out-of-combat hostile act against a
+## living Unit — miss or hit, doesn't matter, an attempted attack is still
+## aggression. No-op for point/ground-targeted abilities (target isn't a
+## Unit) — AoE/ground-targeted hostile abilities deliberately don't
+## trigger combat yet; see CombatManager.start_combat_from_hostile_act.
+func _maybe_trigger_combat(target) -> void:
+	if CombatManager.in_combat:
+		return
+	if not target is Unit or not target.is_alive():
+		return
+	if not _owner.is_hostile_to(target):
+		return
+	CombatManager.start_combat_from_hostile_act(_owner, target)
 
 
 ## Awaits Unit.impact_triggered, or `timeout` seconds, whichever comes

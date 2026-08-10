@@ -102,11 +102,41 @@ var _turn_index: int = -1
 ## idle before it can actually apply — see delay_turn/_on_unit_idle_for_delay.
 var _pending_delay_positions: int = -1
 
+## Set by start_combat_from_hostile_act right before combat starts — this
+## unit's triggering attack already spent an attack action out of combat
+## (see UnitCombat._maybe_trigger_combat), so _begin_unit_turn_actions
+## re-applies that the FIRST time this unit's own turn actually starts
+## (whichever of the two paths that happens through — see that
+## function), immediately undoing the fresh has_attacked=false
+## reset_turn_actions() would otherwise hand them. Without this, gating
+## has_attacked to in_combat (see UnitCombat.use_ability) only stops the
+## triggering attack itself from spending an action — it does nothing to
+## stop reset_turn_actions() later handing the same unit a completely
+## fresh one once their real turn starts, which is the actual "extra
+## action" bug this exists to close.
+## Self-clearing: read and nulled out the one time it's consumed, so it
+## only ever affects that one turn, never a later one. Deliberately NOT
+## also cleared in end_combat() — the only way it could survive a whole
+## combat unconsumed is the marked unit dying before their own first turn
+## ever comes up, in which case it references a dead unit no future turn
+## can ever match against (dead units are always filtered out of
+## turn_order first) — a harmless stale reference, not a leak worth
+## spending code guarding against.
+var _skip_first_action_for: Unit = null
+
 var current_unit: Unit:
 	get:
 		if _turn_index >= 0 and _turn_index < turn_order.size():
 			return turn_order[_turn_index]
 		return null
+
+## How close another unit needs to be to the attacker OR the target (same
+## faction as whichever one it's near) to get pulled into a freshly
+## triggered combat — see start_combat_from_hostile_act. A plain tunable
+## constant, not @export — same convention as combat_ai.gd's
+## MAX_MOVE_ATTEMPTS_PER_TURN, a global gameplay number with nothing
+## per-instance to configure.
+const AGGRO_PULL_RADIUS: float = 10.0
 
 
 ## Builds initiative order from the given combatants and starts combat.
@@ -137,6 +167,33 @@ func start_combat(combatants: Array[Unit]) -> void:
 	SystemLog.print("[b]--- Combat started ---[/b]")
 	combat_started.emit(turn_order)
 	_advance_turn.call_deferred()
+
+
+## Starts a new combat encounter from an out-of-combat hostile ability
+## use (see UnitCombat._maybe_trigger_combat, the only caller). attacker
+## and target are always in the roster; anyone else in the "units" group
+## within AGGRO_PULL_RADIUS of EITHER one, sharing that one's faction, is
+## pulled in too — same scan-and-distance idiom combat_ai.gd's
+## _find_nearest_hostile already uses for targeting, not a new detection
+## mechanism. No-op if combat is somehow already running by the time this
+## fires — the caller already checks `not in_combat` right before calling
+## this, but this doesn't trust that alone.
+func start_combat_from_hostile_act(attacker: Unit, target: Unit) -> void:
+	if in_combat:
+		return
+
+	var roster: Array[Unit] = [attacker, target]
+	for node in attacker.get_tree().get_nodes_in_group("units"):
+		var unit := node as Unit
+		if not unit or not unit.is_alive() or unit in roster:
+			continue
+		var joins_attacker: bool = unit.faction == attacker.faction and unit.distance_to(attacker) <= AGGRO_PULL_RADIUS
+		var joins_target: bool = unit.faction == target.faction and unit.distance_to(target) <= AGGRO_PULL_RADIUS
+		if joins_attacker or joins_target:
+			roster.append(unit)
+
+	_skip_first_action_for = attacker
+	start_combat(roster)
 
 
 ## Connects the two per-unit signals every combatant needs — shared by
@@ -312,8 +369,23 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 	phase = Phase.TURN_STARTING
 	NavigationGrid.update_occupancy(get_tree(), [next_unit])
 	turn_ended.emit(unit)
-	next_unit.reset_turn_actions()
+	_begin_unit_turn_actions(next_unit)
 	_log_and_emit_turn_started(next_unit)
+
+
+## Applies reset_turn_actions()'s normal effect for whoever's turn is
+## starting, PLUS immediately re-consuming their attack action if they're
+## _skip_first_action_for (see that var's own doc comment). The ONLY two
+## places a unit's turn actually begins — _advance_turn's normal case,
+## and _perform_delay's "next_unit steps into the vacated slot" case —
+## both route through here instead of calling reset_turn_actions()
+## directly, so a triggering attacker's turn-skip can't end up applying
+## on one path and silently not the other.
+func _begin_unit_turn_actions(unit: Unit) -> void:
+	unit.reset_turn_actions()
+	if unit == _skip_first_action_for:
+		unit.has_attacked = true
+		_skip_first_action_for = null
 
 
 func _advance_turn() -> void:
@@ -371,7 +443,7 @@ func _advance_turn() -> void:
 	# Once per turn is exactly the cadence this is meant for: nothing else
 	# moves again until this unit's turn ends.
 	NavigationGrid.update_occupancy(get_tree(), [unit])
-	unit.reset_turn_actions()
+	_begin_unit_turn_actions(unit)
 	unit.tick_statuses()
 
 	# tick_statuses() can kill the unit outright (a Bleeding/Burning tick)
