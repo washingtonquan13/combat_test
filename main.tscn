@@ -52,7 +52,7 @@
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
 [ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://hotbar_divider.gd" id="52_hbdivider"]
 [ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://party_panel.gd" id="53_partypanel"]
-[ext_resource type="PackedScene" path="res://interactable_prop.tscn" id="54_prop"]
+[ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="54_prop"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -199,11 +199,10 @@ layout_mode = 2
 columns = 6
 
 [node name="SystemLog" parent="CanvasLayer" instance=ExtResource("12_xuqvo")]
-custom_minimum_size = Vector2(240, 280)
+anchors_preset = -1
 offset_left = -240.0
-offset_top = -140.0
-offset_bottom = 140.0
-metadata/_edit_use_anchors_ = true
+offset_top = -90.0
+offset_bottom = 90.0
 
 [node name="PartyPanel" type="VBoxContainer" parent="CanvasLayer"]
 anchors_preset = 4
@@ -475,7 +474,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("19_82xsv")
 
 [node name="InteractableProp" parent="." instance=ExtResource("54_prop")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0.5, -8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -5)
