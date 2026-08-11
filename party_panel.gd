@@ -1,43 +1,51 @@
 extends VBoxContainer
 ## Left-edge party display — always visible in and out of combat, no
-## CombatManager gating at all. Two sections: a list of core party
-## members (one row per player-faction unit that wasn't itself
-## summoned), and a grouped summons list (one row per summoner currently
-## owning 1+ living summons, NOT one row per summoned unit — mass
-## summoning is meant to be a central mechanic eventually, and a panel
-## that grows one row per summon doesn't survive that).
+## CombatManager gating at all. One row per core party member (a
+## player-faction unit that wasn't itself summoned): that member's own
+## portrait, followed by a small overlapping "hand of cards" fan of
+## portrait chips for whatever it currently has summoned — inspired by
+## BG3's action-economy fan next to each portrait. Replaces an earlier
+## version that gave each summoner a separate text-labeled row below the
+## core list ("Kael's summons — 3"); that Button's text-driven width
+## could exceed the panel's own narrow column and spill out sideways,
+## which is exactly the "too much horizontal real estate" this fan
+## design fixes — a fan only grows by (chip width - overlap) per
+## additional summon, not a full new row's worth of width, and there's
+## no text at all left to overflow.
 ##
 ## Scene setup: VBoxContainer root placed directly under CanvasLayer,
 ## left-anchored — same convention AbilityHotbar/InitiativeRow already
 ## use (script attached straight to a Control in main.tscn, no wrapper
-## scene). Children: CoreContainer (VBoxContainer, empty — populated at
-## runtime), SummonsHeader (Label), SummonsContainer (VBoxContainer,
-## empty). Assign slot_scene to unit_portrait.tscn — the same shared
-## portrait/click-to-select component initiative_row.gd uses, instanced
-## directly with no wrapper scene around it (an earlier version wrapped
-## it in its own Button to add click-to-select; unit_portrait.gd now
-## has that built in, so the wrapper was just a source of layout bugs
-## for no remaining reason to exist).
+## scene). One child: CoreContainer (VBoxContainer, empty — populated at
+## runtime with one HBoxContainer row per core unit). Assign slot_scene
+## to unit_portrait.tscn — the same shared portrait/click-to-select
+## component initiative_row.gd uses, instanced directly with no wrapper
+## scene around it, for BOTH the core portrait and every summon chip in
+## its fan.
 
 @export var slot_scene: PackedScene
+## Uniform size multiplier for summon chips relative to their authored
+## size in unit_portrait.tscn — deliberately smaller than the core
+## portrait's own 0.5 (see _add_core_slot) so a fan of chips reads as
+## subordinate to the party member that owns it, card-hand style.
+@export var summon_chip_scale: float = 0.35
+## How many pixels each summon chip overlaps the previous one by, via
+## negative separation on the fan HBoxContainer — Godot's own container
+## layout does the actual overlapping/repacking, both when a chip is
+## added and when one is removed, so nothing here ever repositions chips
+## by hand. Tune this and summon_chip_scale live in the inspector to get
+## the fan reading right — both are just starting points.
+@export var summon_fan_overlap: int = 18
 
 @onready var _core_container: VBoxContainer = $CoreContainer
-@onready var _summons_header: Label = $SummonsHeader
-@onready var _summons_container: VBoxContainer = $SummonsContainer
 
-var _core_slots: Dictionary = {}  # Unit -> the unit_portrait Button instance
-var _summon_group_rows: Dictionary = {}  # Unit (summoner) -> Button (group row)
-## Unit (summon) -> Unit (summoner) — the live membership this panel is
-## tracking. Looked up when a summon's own died signal fires (its
-## summoned_by is still readable then too, but going through this map
-## keeps registration/unregistration symmetric and doesn't assume
-## summoned_by survives however far into cleanup death has gotten).
-var _summon_owners: Dictionary = {}
+var _core_rows: Dictionary = {}  # Unit -> HBoxContainer (that unit's portrait + its summon fan)
+var _summon_fans: Dictionary = {}  # Unit (summoner) -> HBoxContainer (its fan, inside its own row)
+var _summon_chips: Dictionary = {}  # Unit (summon) -> the unit_portrait Button instance in its summoner's fan
 
 
 func _ready() -> void:
 	visible = false
-	_summons_header.visible = false
 	# Deferred — CanvasLayer (and this panel under it) is declared before
 	# the actual unit nodes in main.tscn, so scanning "units" immediately
 	# here could run before every unit has added itself to that group in
@@ -54,18 +62,27 @@ func _rebuild_core() -> void:
 
 
 func _add_core_slot(unit: Unit) -> void:
-	if not slot_scene or unit in _core_slots:
+	if not slot_scene or unit in _core_rows:
 		return
 
-	var slot: Button = slot_scene.instantiate()
+	var row := HBoxContainer.new()
+	_core_container.add_child(row)
+
+	var portrait: Button = slot_scene.instantiate()
 	# unit must be assigned BEFORE add_child — add_child triggers the
 	# slot's _ready() synchronously, and unit_portrait.gd's _ready()
 	# reads unit immediately (portrait texture, signal hookups). Same
 	# requirement initiative_row.gd's own _add_slot already follows.
-	slot.unit = unit
-	_core_container.add_child(slot)
-	slot.set_fit_scale(0.5)
-	_core_slots[unit] = slot
+	portrait.unit = unit
+	row.add_child(portrait)
+	portrait.set_fit_scale(0.5)
+
+	var fan := HBoxContainer.new()
+	fan.add_theme_constant_override("separation", -summon_fan_overlap)
+	row.add_child(fan)
+
+	_core_rows[unit] = row
+	_summon_fans[unit] = fan
 
 	if not unit.died.is_connected(_on_core_unit_died):
 		unit.died.connect(_on_core_unit_died)
@@ -74,12 +91,13 @@ func _add_core_slot(unit: Unit) -> void:
 
 
 func _on_core_unit_died(unit: Unit) -> void:
-	if unit not in _core_slots:
+	if unit not in _core_rows:
 		return
-	var slot: Control = _core_slots[unit]
-	if is_instance_valid(slot):
-		slot.queue_free()
-	_core_slots.erase(unit)
+	var row: Control = _core_rows[unit]
+	if is_instance_valid(row):
+		row.queue_free()
+	_core_rows.erase(unit)
+	_summon_fans.erase(unit)
 	_update_visibility()
 
 
@@ -105,62 +123,33 @@ func _on_core_unit_ability_used(attacker: Unit, _target, result: Dictionary) -> 
 
 
 func _register_summon(summoner: Unit, summon: Unit) -> void:
-	_summon_owners[summon] = summoner
-	summon.died.connect(_on_summon_died, CONNECT_ONE_SHOT)
-	_refresh_summon_group(summoner)
-
-
-func _on_summon_died(summon: Unit) -> void:
-	var summoner: Unit = _summon_owners.get(summon)
-	_summon_owners.erase(summon)
-	if summoner:
-		_refresh_summon_group(summoner)
-
-
-## Rebuilds summoner's own group row from the current _summon_owners
-## membership — counts, relabels, creates the row on the first summon,
-## frees it once the count reaches zero. Called after every
-## registration/death rather than incrementing/decrementing a stored
-## count, so it can never drift out of sync with _summon_owners.
-func _refresh_summon_group(summoner: Unit) -> void:
-	var count: int = 0
-	for summon in _summon_owners:
-		if _summon_owners[summon] == summoner:
-			count += 1
-
-	if count <= 0:
-		if summoner in _summon_group_rows:
-			var stale_row: Button = _summon_group_rows[summoner]
-			if is_instance_valid(stale_row):
-				stale_row.queue_free()
-			_summon_group_rows.erase(summoner)
-		_summons_header.visible = not _summon_group_rows.is_empty()
+	if not slot_scene or summon in _summon_chips:
+		return
+	var fan: HBoxContainer = _summon_fans.get(summoner)
+	if not fan:
 		return
 
-	var row: Button
-	if summoner in _summon_group_rows and is_instance_valid(_summon_group_rows[summoner]):
-		row = _summon_group_rows[summoner]
-	else:
-		row = Button.new()
-		row.pressed.connect(_on_summon_group_pressed.bind(summoner))
-		_summons_container.add_child(row)
-		_summon_group_rows[summoner] = row
+	var chip: Button = slot_scene.instantiate()
+	chip.unit = summon
+	fan.add_child(chip)
+	chip.set_fit_scale(summon_chip_scale)
 
-	row.text = "%s's summons — %d" % [summoner.name, count]
-	_summons_header.visible = true
+	_summon_chips[summon] = chip
+	summon.died.connect(_on_summon_died, CONNECT_ONE_SHOT)
 
 
-func _on_summon_group_pressed(summoner: Unit) -> void:
-	var first: bool = true
-	for summon in _summon_owners:
-		if _summon_owners[summon] != summoner:
-			continue
-		if first:
-			SelectionManager.select(summon)
-			first = false
-		else:
-			SelectionManager.add(summon)
+## Frees just this one summon's own chip — the fan HBoxContainer it lived
+## in repacks the remaining chips automatically (that's the point of
+## negative separation instead of manually-positioned chips: removal is
+## exactly as free as insertion was). No group bookkeeping to refresh
+## since nothing here is counted or labeled anymore — the fan's actual
+## child count IS the visible count.
+func _on_summon_died(summon: Unit) -> void:
+	var chip: Control = _summon_chips.get(summon)
+	if chip and is_instance_valid(chip):
+		chip.queue_free()
+	_summon_chips.erase(summon)
 
 
 func _update_visibility() -> void:
-	visible = not _core_slots.is_empty()
+	visible = not _core_rows.is_empty()
