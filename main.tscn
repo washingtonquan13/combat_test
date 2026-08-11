@@ -9,7 +9,7 @@
 [ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://line_of_sight_indicator.gd" id="3_074og"]
 [ext_resource type="Script" uid="uid://dest3cxkrnl56" path="res://crpg_camera.gd" id="3_h2yge"]
 [ext_resource type="Script" uid="uid://dxckq302pihqf" path="res://unit_aim_facing.gd" id="3_kq58d"]
-[ext_resource type="PackedScene" path="res://unit_portrait.tscn" id="4_272bh"]
+[ext_resource type="PackedScene" uid="uid://caf7q4n41fgu5" path="res://unit_portrait.tscn" id="4_272bh"]
 [ext_resource type="Script" uid="uid://dco3xcx22f26n" path="res://initiative_row.gd" id="4_dg77c"]
 [ext_resource type="Script" uid="uid://8r0mkwuth7cw" path="res://jump_indicator.gd" id="4_ryguw"]
 [ext_resource type="Script" uid="uid://dqa8pee2hc1ky" path="res://area_indicator.gd" id="5_d13ii"]

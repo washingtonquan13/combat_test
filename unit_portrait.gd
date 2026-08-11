@@ -80,11 +80,21 @@ func _ready() -> void:
 	damage_overlay.color = overlay_color
 	_base_min_size = custom_minimum_size
 
-	# Top-aligned within a row, not vertically centered/filled — this is
-	# what keeps every portrait's TOP edge level regardless of height, so
-	# growing one's height on its turn extends downward from that shared
-	# top edge instead of growing symmetrically (which would push into
-	# neighbors) or shifting the whole row's baseline around.
+	# Shrink to natural size on whichever axis ends up being the CROSS axis
+	# for whatever container this lands in — Godot's FILL default (both
+	# flags) stretches a child across the full cross-axis space, which is
+	# wrong here in either orientation this component gets used in: in
+	# initiative_row.gd's HBoxContainer that's height (a tall portrait
+	# would push into its neighbors); in party_panel.gd's VBoxContainer
+	# that's width (stretches the button far past its authored aspect
+	# ratio, and Portrait's STRETCH_KEEP_ASPECT_COVERED then crops/zooms
+	# to cover the mismatched rect instead of showing the whole image).
+	# Setting both SHRINK_BEGIN here means whichever axis turns out to be
+	# "cross" is already handled, regardless of which container this ends
+	# up in. Also keeps every portrait's TOP-LEFT corner level regardless
+	# of size changes (highlighting, fit-scale), instead of growing
+	# symmetrically or shifting a row's baseline around.
+	size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	size_flags_vertical = Control.SIZE_SHRINK_BEGIN
 
 	pressed.connect(_on_pressed)
