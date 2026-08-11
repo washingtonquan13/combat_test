@@ -1,20 +1,28 @@
 extends IndicatorBase
-## Global ground-click handler — left-click on empty ground clears the
-## current selection (unless a ground-point-targeting ability like Jump
-## is armed — see below); right-click issues a move order to the
-## selected unit(s) toward the clicked point — UNLESS an ability is
-## currently armed, in which case right-click disarms it instead and
-## does NOT also move, same as Unit._on_input_event's right-click
-## handler for clicking a unit while armed. Right-click as "cancel the
-## thing I just armed" is the natural expectation once arm/click-to-
-## target exists at all — before this, an armed ability just silently
-## swallowed the right-click and did nothing, which read as broken
-## input rather than an intentional cancel.
+## Global click router — the one place that decides what left/right click
+## do, for both the ground AND anything interactable (a Unit, an
+## InteractableProp, anything future implementing get_interactions()).
+##
+## Left-click on empty ground moves the selected unit(s) there — UNLESS a
+## ground-point-targeting ability like Jump is armed, in which case it's
+## used instead (see _try_use_ground_targeted_ability). Left-click on an
+## interactable does nothing here at all — Unit._on_input_event (still
+## per-object physics picking) owns that click; this script's own
+## hovered-interactable check exists purely to bail out and stay out of
+## its way.
+##
+## Right-click disarms an armed ability if there is one (same "cancel the
+## thing I just armed" priority as before — right-click swallowing input
+## silently otherwise reads as broken, not intentional). Otherwise, if
+## the cursor is over an interactable, opens InteractionMenu for it —
+## this is the ONLY place that happens; no interactable needs its own
+## right-click wiring, just get_interactions(). Right-click on empty
+## ground does nothing (no menu, no move — move lives on left-click now).
 ##
 ## One global node doing a centralized raycast (via IndicatorBase's
-## _get_mouse_ground_point/_get_hovered_unit), NOT a script attached to
-## every ground collision body — the previous version extended
-## StaticBody3D and relied on per-object physics picking
+## _get_mouse_ground_point/_get_hovered_unit/_get_hovered_interactable),
+## NOT a script attached to every ground collision body — the previous
+## version extended StaticBody3D and relied on per-object physics picking
 ## (CollisionObject3D.input_event), which meant this exact script had
 ## to be attached individually to all five of main.tscn's ground/
 ## platform bodies. That stops scaling the moment a real level's ground
@@ -23,35 +31,33 @@ extends IndicatorBase
 ## works against any number of ground bodies for free as long as they're
 ## on ground_collision_mask (see IndicatorBase) — no per-object setup.
 ##
-## A hovered-unit check runs first and bails out if the click actually
-## landed on a unit — Unit._on_input_event (still per-object physics
-## picking, unchanged) already owns clicks landing on a unit; this
-## script must not also react to the same click's ground point.
-##
-## "Left-click"/"right-click" below are the InputMap actions left_click/
-## right_click (see project.godot > Input Map), not hardcoded
-## MOUSE_BUTTON_LEFT/RIGHT checks — rebinding either needs no code change.
+## "Left-click"/"right-click"/"deselect_all" below are all InputMap
+## actions (see project.godot > Input Map), not hardcoded
+## MOUSE_BUTTON_LEFT/RIGHT/KEY_TAB checks — rebinding any of them needs no
+## code change.
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("left_click"):
-		if _get_hovered_unit():
+		if _get_hovered_interactable():
 			return
 		var click_position = _get_mouse_ground_point()
 		if click_position == null:
 			return
 		if _try_use_ground_targeted_ability(click_position):
 			return
-		SelectionManager.deselect_all()
+		_command_move(click_position)
 	elif event.is_action_pressed("right_click"):
-		if _get_hovered_unit():
-			return
 		if AbilityManager.armed_ability:
 			AbilityManager.disarm()
 			return
-		var click_position = _get_mouse_ground_point()
-		if click_position == null:
+		var target: Node = _get_hovered_interactable()
+		if not target:
 			return
-		_command_move(click_position)
+		var actor: Unit = PlayerInteractionState.get_active_unit()
+		if actor:
+			InteractionMenu.open_for(target, actor)
+	elif event.is_action_pressed("deselect_all"):
+		SelectionManager.deselect_all()
 
 
 ## If the currently armed ability (see AbilityManager) expects a ground
@@ -92,13 +98,13 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 	return true
 
 
-## Only reached when nothing's armed — see _unhandled_input, which
-## disarms and consumes the click instead of calling this whenever an
-## ability IS armed.
+## Only reached on a left-click that didn't land on an interactable and
+## wasn't consumed by an armed ground-targeted ability — see
+## _unhandled_input.
 func _command_move(destination: Vector3) -> void:
 	if CombatManager.in_combat:
 		# Only the acting unit may move, and only on its own turn — a
-		# right-click while other units are selected (or it's not your
+		# ground click while other units are selected (or it's not your
 		# turn) is silently ignored rather than moving the wrong unit.
 		var unit: Unit = CombatManager.current_unit
 		if unit and unit in SelectionManager.selected_units:

@@ -90,3 +90,33 @@ func _get_hovered_unit() -> Unit:
 	if result.is_empty():
 		return null
 	return result.get("collider") as Unit
+
+
+## The interactable currently under the mouse cursor, or null — same
+## raycast as _get_hovered_unit() (same collision mask, same ray), but
+## duck-typed via has_method() instead of cast to Unit, so it matches
+## ANY interactable (Unit, InteractableProp, anything future) rather than
+## only Unit specifically. _get_hovered_unit() itself is left alone —
+## its existing callers (line_of_sight_indicator.gd, etc.) genuinely want
+## a real Unit, not anything interactable.
+func _get_hovered_interactable() -> Node:
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return null
+
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var dir: Vector3 = camera.project_ray_normal(mouse_pos)
+	var to: Vector3 = from + dir * 1000.0
+
+	var space_state := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = unit_collision_mask
+	var result := space_state.intersect_ray(query)
+
+	if result.is_empty():
+		return null
+	var collider = result.get("collider")
+	if collider is Node and collider.has_method("get_interactions"):
+		return collider
+	return null

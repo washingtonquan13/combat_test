@@ -148,6 +148,16 @@ extends CharacterBody3D
 ## don't outlive their summoner).
 @export var summoned_by: Unit = null
 
+@export_group("Interaction")
+## Right-click verbs this unit can ever offer (Attack, Examine, ...) —
+## authored once and reused across instances exactly like abilities
+## above, not a fixed list every unit gets automatically. Filtered down
+## to whichever ones are ACTUALLY valid right now by get_interactions()
+## below, same "authored data vs. currently-true" split
+## AbilityTargeting/PrerequisiteRule already use elsewhere in this
+## project.
+@export var interactions: Array[InteractionOption] = []
+
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.
 ## 0 means immediate. Raise this if you want time for a death animation or
@@ -368,16 +378,12 @@ func _on_mouse_exited() -> void:
 ## no-op for non-player units regardless, since SelectionManager itself
 ## refuses anything that isn't is_player_controlled().
 ##
-## Right-clicking a unit (ally or enemy) while an ability is armed
-## disarms it instead — see ground_click_target.gd's own right-click
-## handler for the ground-click half of the same behavior, and why it's
-## a cancel rather than also issuing a command at the same click.
+## Right-click has no handler here at all — ground_click_target.gd is the
+## sole global right-click router (disarm-if-armed, else open a context
+## menu for whatever's under the cursor via _get_hovered_interactable()),
+## so every interactable (this unit included) only needs to implement
+## get_interactions() below, not its own input_event wiring too.
 func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
-	if event.is_action_pressed("right_click"):
-		if AbilityManager.armed_ability:
-			AbilityManager.disarm()
-		return
-
 	if not event.is_action_pressed("left_click"):
 		return
 
@@ -392,6 +398,18 @@ func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _norm
 
 	var additive: bool = Input.is_action_pressed("select_additive")
 	SelectionManager.select(self, additive)
+
+
+## Right-click verb list, filtered to whichever of `interactions` are
+## actually valid for actor against this unit right now — see
+## InteractionOption.is_available. Called fresh every time the context
+## menu opens (InteractionMenu.open_for), never cached.
+func get_interactions(actor: Unit) -> Array[InteractionOption]:
+	var result: Array[InteractionOption] = []
+	for option in interactions:
+		if option.is_available(actor, self):
+			result.append(option)
+	return result
 
 
 func is_hostile_to(other: Unit) -> bool:

@@ -1,0 +1,20 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://interactable_prop.gd" id="1_prop"]
+[ext_resource type="Resource" path="res://interactions/examine.tres" id="2_examine"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_prop"]
+size = Vector3(1, 1, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_prop"]
+size = Vector3(1, 1, 1)
+
+[node name="InteractableProp" type="StaticBody3D"]
+script = ExtResource("1_prop")
+interactions = Array[InteractionOption]([ExtResource("2_examine")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_prop")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_prop")

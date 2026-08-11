@@ -133,6 +133,9 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if InteractionMenu.is_open():
+		return
+
 	var scroll_up: bool = event.is_action_pressed("camera_zoom_in")
 	var scroll_down: bool = event.is_action_pressed("camera_zoom_out")
 	if not (scroll_up or scroll_down):
@@ -145,6 +148,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	if InteractionMenu.is_open():
+		return
+
 	_handle_rotation_input(delta)
 	_handle_anchor_movement_input(delta)
 
