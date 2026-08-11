@@ -137,6 +137,16 @@ extends CharacterBody3D
 ## a unit that should have more or fewer than 6 — ability_hotbar.gd
 ## reads custom_slots.size() rather than assuming 6.
 @export var custom_slots: Array[Ability] = [null, null, null, null, null, null]
+## Which unit summoned this one, or null if it wasn't summoned at all —
+## set by SummonEffect.apply() at creation time (occasionally hand-set
+## in the Inspector too, for a scripted encounter that wants a boss to
+## start the fight with pre-placed minions). Exported like every other
+## per-unit relationship on this class, not a separate composable
+## "summon tag" — there's no behavioral variation to plug in here, just
+## one optional reference, so a bare field matches this rather than
+## inventing a new mechanism (see _handle_death's use of this: summons
+## don't outlive their summoner).
+@export var summoned_by: Unit = null
 
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.
@@ -721,7 +731,7 @@ func distance_to(other: Unit) -> float:
 
 ## Center-to-center distance minus both units' radii — how far apart their
 ## actual bodies are, not their positions. This is what any range check
-## (melee or ranged — see Ability.is_in_range) should be measured
+## (melee or ranged — see Ability.is_in_range) should be measured-
 ## against; two units can be "touching" while still having meaningfully
 ## distant global_positions once you account for size.
 func edge_distance_to(other: Unit) -> float:
@@ -835,6 +845,21 @@ func _handle_death() -> void:
 	else:
 		collision_layer = 0
 		collision_mask = 0
+
+	# Summoned dependents don't outlive their summoner — expire(), not a
+	# raw queue_free(), so each one still goes through this exact same
+	# cleanup path (occupancy update, corpse handling, its own died
+	# signal) and can itself cascade to whatever IT summoned in turn.
+	# Scans "units" rather than a maintained back-reference list — same
+	# idiom every other "find related units" query in this project
+	# already uses (combat_ai.gd's nearest-hostile search, the AoE
+	# effects), and get_nodes_in_group returns a fresh snapshot array, so
+	# a dependent's own expire() call removing ITSELF from "units"
+	# mid-loop can't disturb this iteration.
+	for node in get_tree().get_nodes_in_group("units"):
+		var dependent := node as Unit
+		if dependent and dependent.summoned_by == self:
+			dependent.expire()
 
 	if death_cleanup_delay > 0.0:
 		get_tree().create_timer(death_cleanup_delay).timeout.connect(queue_free)
