@@ -1,9 +1,23 @@
-extends Control
-## Single portrait for a BG3-style initiative order row.
+extends Button
+## Clickable portrait for a unit — art + HP-as-overlay + team-colored
+## outline, click selects the unit. Shared between the turn-order strip
+## (initiative_row.gd) and the party panel (party_panel.gd) — renamed
+## from the original initiative_portrait.gd/.tscn (Control-based, no
+## click handling) once a second UI needed the exact same visual, rather
+## than staying named/scoped for turn order specifically.
 ##
-## Scene setup — a plain Control (NOT a layout Container, since its
-## children need to overlap, not flow side by side), sized to your
-## portrait dimensions, with three full-rect-anchored children:
+## A Button root, not a plain Control — clicking anywhere on the
+## portrait calls SelectionManager.select(), same as clicking the unit
+## in the 3D world (including shift-click-to-add, via the same
+## select_additive action). flat = true on the root (see the .tscn)
+## suppresses Godot's default button chrome (this project has no theme
+## at all — a stock Button background/border would show through/around
+## the art otherwise); Button still contributes its own hover/pressed
+## feedback for free.
+##
+## Scene setup — a Button root sized to your portrait dimensions, with
+## three full-rect-anchored children (unchanged from the original
+## Control version):
 ##   - TextureRect named "Portrait"       — the unit's art
 ##   - ColorRect named "DamageOverlay"    — semi-transparent red; grows
 ##     upward from the bottom as the unit loses HP
@@ -11,11 +25,11 @@ extends Control
 ##     _setup_outline. Last child (drawn on top) so the border stays
 ##     crisp regardless of how much the damage overlay has filled in.
 ##
-## Put one instance of this scene per combatant inside an HBoxContainer
-## for the horizontal initiative strip — HBoxContainer is the right tool
-## for arranging MULTIPLE portraits in a row; it's just the wrong tool
-## for a single portrait's internal layers, which is why those live in a
-## plain Control instead.
+## Put one instance of this scene per unit inside an HBoxContainer (the
+## initiative strip) or add directly to any Container (the party panel)
+## — HBoxContainer is the right tool for arranging MULTIPLE portraits in
+## a row; it's just the wrong tool for a single portrait's internal
+## layers, which is why those live as manually-anchored children instead.
 ##
 ## The overlay never needs texture masking or a shader: it's just a
 ## rectangle whose height is driven by anchor_top. anchor_bottom stays
@@ -32,16 +46,16 @@ extends Control
 ## being a second place that color needs to be kept in sync.
 @export var outline_width: float = 3.0
 @export var highlight_tint: Color = Color(1.4, 1.3, 0.9, 1.0)
-## How much bigger the portrait gets on this unit's turn, as a multiple
-## of whatever size it's CURRENTLY shrunk to by the row (see
-## initiative_row.gd's max_total_width/_fit_scale) — applied uniformly to
-## both axes, unlike before, so the aspect ratio never distorts. This is
-## allowed to (and normally will) grow PAST the portrait's original
-## authored size — the "don't exceed the original size" constraint only
-## ever applied to the UNHIGHLIGHTED case (see _fit_scale, which is
+## How much bigger the portrait gets when highlighted, as a multiple of
+## whatever size it's CURRENTLY shrunk to (see max_total_width/_fit_scale
+## below) — applied uniformly to both axes so the aspect ratio never
+## distorts. Allowed to (and normally will) grow PAST the portrait's
+## original authored size — the "don't exceed the original size"
+## constraint only ever applies to the UNHIGHLIGHTED case (_fit_scale is
 ## always <= 1.0); highlighting is the one deliberate exception, since
 ## making the current turn's portrait bigger than normal is the entire
-## point of it.
+## point of it. Unused by the party panel (nothing there ever calls
+## set_highlighted), harmless to leave at its default there.
 @export var highlight_scale: float = 1.25
 
 @onready var portrait: TextureRect = $Portrait
@@ -50,13 +64,14 @@ extends Control
 
 var _base_min_size: Vector2
 ## Uniform (both axes) scale applied to _base_min_size to get the
-## CURRENT unhighlighted size — driven by initiative_row.gd to shrink
-## every portrait equally as more combatants join, so the whole row fits
-## within its own max_total_width instead of running off-screen. Always
+## CURRENT unhighlighted size — driven by whichever container this is
+## in (initiative_row.gd shrinks every portrait equally as more units
+## join a combat; party_panel.gd just sets one fixed value) so a row
+## fits within its own target width instead of running off-screen,
+## without ever distorting an individual portrait's aspect ratio. Always
 ## <= 1.0 — this only ever shrinks portraits below their authored size,
-## never grows them past it. Uniform on purpose: scaling width and height
-## by the SAME factor is what keeps each portrait's aspect ratio exactly
-## as authored. See _apply_size, which combines this with highlight_scale.
+## never grows them past it. See _apply_size, which combines this with
+## highlight_scale.
 var _fit_scale: float = 1.0
 var _highlighted: bool = false
 
@@ -65,12 +80,14 @@ func _ready() -> void:
 	damage_overlay.color = overlay_color
 	_base_min_size = custom_minimum_size
 
-	# Top-aligned within the row, not vertically centered/filled — this
-	# is what keeps every portrait's TOP edge level regardless of height,
-	# so growing one's height on its turn extends downward from that
-	# shared top edge instead of growing symmetrically (which would push
-	# into neighbors) or shifting the whole row's baseline around.
+	# Top-aligned within a row, not vertically centered/filled — this is
+	# what keeps every portrait's TOP edge level regardless of height, so
+	# growing one's height on its turn extends downward from that shared
+	# top edge instead of growing symmetrically (which would push into
+	# neighbors) or shifting the whole row's baseline around.
 	size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+
+	pressed.connect(_on_pressed)
 
 	if not unit:
 		return
@@ -85,6 +102,13 @@ func _ready() -> void:
 	_update_overlay()
 
 
+func _on_pressed() -> void:
+	if not unit:
+		return
+	var additive: bool = Input.is_action_pressed("select_additive")
+	SelectionManager.select(unit, additive)
+
+
 ## Called by initiative_row.gd — grows the slot's actual RESERVED height
 ## in the HBoxContainer (custom_minimum_size), not a visual scale
 ## transform, so the container allocates the extra room itself instead
@@ -97,9 +121,10 @@ func set_highlighted(value: bool) -> void:
 	_apply_size()
 
 
-## Uniform fit-to-row scale, set by initiative_row.gd — see _fit_scale's
-## doc comment. Combined with highlight growth in _apply_size rather than
-## either one clobbering the other's write to custom_minimum_size.
+## Uniform scale, set by whichever container owns this instance — see
+## _fit_scale's doc comment. Combined with highlight growth in
+## _apply_size rather than either one clobbering the other's write to
+## custom_minimum_size.
 func set_fit_scale(factor: float) -> void:
 	_fit_scale = factor
 	_apply_size()
@@ -108,19 +133,18 @@ func set_fit_scale(factor: float) -> void:
 ## The size THIS portrait was originally authored at (custom_minimum_size
 ## in the editor, before any fit/highlight scaling) — read by
 ## initiative_row.gd to compute how much every portrait needs to shrink
-## to fit N of them within max_total_width, without needing its own
+## to fit N of them within its own target width, without needing its own
 ## separately-maintained copy of that number.
 func get_base_min_size() -> Vector2:
 	return _base_min_size
 
 
-## Combines the row's fit_scale with highlight_scale into ONE uniform
-## multiplier. Unhighlighted, that's just fit_scale — always <= 1.0, so a
-## unit NOT currently taking its turn never renders bigger than its
-## original authored size. Highlighted, fit_scale and highlight_scale
-## multiply together with no ceiling — deliberately allowed to exceed the
-## original size, since that's the whole visual point of highlighting the
-## current turn.
+## Combines fit_scale with highlight_scale into ONE uniform multiplier.
+## Unhighlighted, that's just fit_scale — always <= 1.0, so a unit NOT
+## currently highlighted never renders bigger than its original authored
+## size. Highlighted, fit_scale and highlight_scale multiply together
+## with no ceiling — deliberately allowed to exceed the original size,
+## since that's the whole visual point of highlighting.
 func _apply_size() -> void:
 	var scale: float = _fit_scale * highlight_scale if _highlighted else _fit_scale
 	custom_minimum_size = _base_min_size * scale

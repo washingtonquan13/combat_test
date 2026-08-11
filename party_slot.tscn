@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3 uid="uid://t0momntrmixx"]
+
+[ext_resource type="Script" path="res://party_slot.gd" id="1_slot"]
+[ext_resource type="PackedScene" path="res://initiative_portrait.tscn" id="2_portrait"]
+
+[node name="PartySlot" type="Button"]
+custom_minimum_size = Vector2(44, 54)
+size_flags_horizontal = 0
+script = ExtResource("1_slot")
+portrait_scene = ExtResource("2_portrait")

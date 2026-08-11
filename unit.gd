@@ -174,7 +174,7 @@ extends CharacterBody3D
 @export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
 
 @export_group("UI")
-## Shown in the initiative order portrait (see initiative_portrait.gd) and
+## Shown in the initiative/party portrait (see unit_portrait.gd) and
 ## anywhere else in UI that wants a picture for this unit. Optional —
 ## leave unset and assign the TextureRect's texture directly in the
 ## editor instead, if you'd rather not route it through Unit.

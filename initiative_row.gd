@@ -2,13 +2,14 @@ extends HBoxContainer
 ## Builds and keeps the initiative order row in sync with
 ## CombatManager.turn_order. HBoxContainer is exactly the right node for
 ## this level (unlike a single portrait's internal layers — see
-## initiative_portrait.gd) since here you genuinely want automatic
-## side-by-side flow layout for however many combatants are in the row.
+## unit_portrait.gd) since here you genuinely want automatic side-by-side
+## flow layout for however many combatants are in the row.
 ##
 ## Scene setup: attach this script to an HBoxContainer anywhere in your
-## combat UI. Assign portrait_scene to the PortraitSlot scene (a Control
-## root with initiative_portrait.gd attached, exposing a `unit` property
-## and set_highlighted()).
+## combat UI. Assign portrait_scene to unit_portrait.tscn (a Button root
+## with unit_portrait.gd attached, exposing a `unit` property and
+## set_highlighted()) — shared with party_panel.gd, not turn-order-specific
+## despite living in this file's own vocabulary.
 ##
 ## Resyncs on every turn_started rather than trying to special-case each
 ## kind of change (a delay_turn reorder, a death, a normal advance) —
@@ -18,14 +19,21 @@ extends HBoxContainer
 ## changed it.
 
 @export var portrait_scene: PackedScene
+## Applied to every portrait regardless of how many are in the row —
+## this row's own "don't overpower the rest of the UI" baseline size,
+## independent of the dynamic crowding shrink below. 0.75 = 25% smaller
+## than a portrait's own authored size (see unit_portrait.tscn), the
+## size it'd otherwise render at with only a handful of combatants (too
+## few to ever trigger the width-based shrink on its own).
+@export var base_scale: float = 0.75
 ## The row's own target width cap — as combatants are added beyond what
 ## fits at each portrait's authored size, every portrait shrinks UNIFORMLY
-## (both axes by the same factor, see initiative_portrait.gd's
-## set_fit_scale/_fit_scale) so the whole row still fits within this
-## width instead of running off-screen for a large combat, without ever
-## distorting an individual portrait's aspect ratio. Never scales UP past
-## 1.0 — a small combat still shows portraits at their normal authored
-## size, this only ever shrinks to make room.
+## (both axes by the same factor, see unit_portrait.gd's set_fit_scale/
+## _fit_scale) so the whole row still fits within this width instead of
+## running off-screen for a large combat, without ever distorting an
+## individual portrait's aspect ratio. Combines multiplicatively with
+## base_scale above — never scales UP past base_scale itself, only
+## shrinks further from there to make room for a crowded row.
 @export var max_total_width: float = 800.0
 
 var _slots: Dictionary = {}  # Unit -> Control (the instanced portrait)
@@ -71,7 +79,7 @@ func _add_slot(unit: Unit) -> void:
 
 	var slot: Control = portrait_scene.instantiate()
 	# unit must be assigned BEFORE add_child — add_child triggers the
-	# slot's _ready() synchronously, and initiative_portrait.gd's
+	# slot's _ready() synchronously, and unit_portrait.gd's
 	# _ready() reads unit immediately (portrait texture, signal hookups).
 	# Setting it after add_child means _ready() already ran and bailed
 	# out on a still-null unit by the time this line executes.
@@ -123,7 +131,8 @@ func _update_fit_scale() -> void:
 
 	var separation: float = get_theme_constant("separation")
 	var natural_total_width: float = base_width * count + separation * max(count - 1, 0)
-	var scale: float = min(1.0, max_total_width / natural_total_width)
+	var crowding_scale: float = min(1.0, max_total_width / natural_total_width)
+	var scale: float = base_scale * crowding_scale
 
 	for unit in _slots:
 		var slot: Control = _slots[unit]

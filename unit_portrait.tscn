@@ -1,12 +1,11 @@
-[gd_scene load_steps=3 format=3 uid="uid://cdvqb6pxh8ft1"]
+[gd_scene load_steps=3 format=3 uid="uid://caf7q4n41fgu5"]
 
-[ext_resource type="Script" uid="uid://dxqyodjtpq1mq" path="res://initiative_portrait.gd" id="1_7eos5"]
+[ext_resource type="Script" uid="uid://yymqxocj81r0" path="res://unit_portrait.gd" id="1_7eos5"]
 [ext_resource type="Texture2D" uid="uid://c10vrr2spytr7" path="res://assets/portraits/test_portrait.jpg" id="1_iubtq"]
 
-[node name="InitiativePortrait" type="Control"]
+[node name="UnitPortrait" type="Button"]
 custom_minimum_size = Vector2(80, 100)
-layout_mode = 3
-anchors_preset = 0
+flat = true
 script = ExtResource("1_7eos5")
 
 [node name="Portrait" type="TextureRect" parent="."]
@@ -16,6 +15,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 texture = ExtResource("1_iubtq")
 expand_mode = 1
 stretch_mode = 6
@@ -27,6 +27,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 color = Color(1, 0, 0, 0.298039)
 
 [node name="OutlineFrame" type="Panel" parent="."]
