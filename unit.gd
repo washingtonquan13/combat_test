@@ -149,14 +149,24 @@ extends CharacterBody3D
 @export var summoned_by: Unit = null
 
 @export_group("Interaction")
-## Right-click verbs this unit can ever offer (Attack, Examine, ...) —
-## authored once and reused across instances exactly like abilities
-## above, not a fixed list every unit gets automatically. Filtered down
-## to whichever ones are ACTUALLY valid right now by get_interactions()
+## Right-click verbs this unit can ever offer — filtered down to
+## whichever ones are ACTUALLY valid right now by get_interactions()
 ## below, same "authored data vs. currently-true" split
 ## AbilityTargeting/PrerequisiteRule already use elsewhere in this
-## project.
-@export var interactions: Array[InteractionOption] = []
+## project (AttackInteraction only shows on a hostile target,
+## TalkInteraction only on a non-hostile one, ExamineInteraction always).
+##
+## Defaulted here, in the script, rather than hand-copied onto each of
+## main.tscn's unit instances — every unit gets the same baseline verbs
+## (unlike abilities, which genuinely differ per unit and so ARE authored
+## per-instance), so a shared default means a newly placed unit can't
+## forget to wire this up. A specific instance can still override it in
+## the Inspector for something unusual (e.g. a unit with nothing to say).
+@export var interactions: Array[InteractionOption] = [
+	preload("res://interactions/attack.tres"),
+	preload("res://interactions/talk.tres"),
+	preload("res://interactions/examine.tres"),
+]
 
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.
