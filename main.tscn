@@ -28,7 +28,6 @@
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://abilities/jump.tres" id="16_getpj"]
 [ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://menu_button.gd" id="16_htxhm"]
 [ext_resource type="Script" uid="uid://ds5sh15dh1euk" path="res://esc_menu.gd" id="17_jq2sk"]
-[ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://inventory_system/inventory.tscn" id="18_qnost"]
 [ext_resource type="Texture2D" uid="uid://cbcv6cepoupv1" path="res://assets/portraits/hobgoblin.jpg" id="19_82xsv"]
 [ext_resource type="PackedScene" uid="uid://c6cftiltyv5xo" path="res://inventory_system/item.tscn" id="19_wnkbs"]
 [ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://abilities/explosive_fireball.tres" id="20_0odxb"]
@@ -57,6 +56,7 @@
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://dialogue_system/conversation_log.tscn" id="56_convlog"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
+[ext_resource type="PackedScene" uid="uid://cyujqslp8k004" path="res://party_overview.tscn" id="59_partyoverview"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -256,9 +256,6 @@ grow_vertical = 0
 text = "END TURN"
 script = ExtResource("13_qsp4k")
 
-[node name="Inventory" parent="CanvasLayer/TacticalUI" instance=ExtResource("18_qnost")]
-visible = false
-
 [node name="Item" parent="CanvasLayer/TacticalUI" instance=ExtResource("19_wnkbs")]
 visible = false
 layout_mode = 0
@@ -281,6 +278,9 @@ grow_horizontal = 0
 icon = ExtResource("15_seu75")
 script = ExtResource("16_htxhm")
 esc_menu = NodePath("../EscMenu")
+
+[node name="PartyOverview" parent="CanvasLayer" instance=ExtResource("59_partyoverview")]
+layout_mode = 3
 
 [node name="EscMenu" type="Control" parent="CanvasLayer"]
 custom_minimum_size = Vector2(300, 200)
@@ -347,7 +347,6 @@ conversation_log = NodePath("../ConversationLog")
 tactical_ui = NodePath("../TacticalUI")
 
 [node name="ConversationLog" parent="CanvasLayer" instance=ExtResource("56_convlog")]
-layout_mode = 3
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 
