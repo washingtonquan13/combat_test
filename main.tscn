@@ -53,7 +53,7 @@
 [ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://hotbar_divider.gd" id="52_hbdivider"]
 [ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://party_panel.gd" id="53_partypanel"]
 [ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="54_prop"]
-[ext_resource type="PackedScene" path="res://dialogue_system/dialogue_overlay.tscn" id="55_dlgoverlay"]
+[ext_resource type="PackedScene" uid="uid://divqi7putsgwu" path="res://dialogue_system/dialogue_overlay.tscn" id="55_dlgoverlay"]
 [ext_resource type="PackedScene" path="res://dialogue_system/conversation_log.tscn" id="56_convlog"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
@@ -342,10 +342,9 @@ layout_mode = 2
 size_flags_vertical = 3
 text = "EXIT TO DESKTOP"
 
-[node name="DialogueOverlay" parent="CanvasLayer" node_paths=PackedStringArray("conversation_log") instance=ExtResource("55_dlgoverlay")]
-layout_mode = 3
-anchors_preset = -1
+[node name="DialogueOverlay" parent="CanvasLayer" node_paths=PackedStringArray("conversation_log", "tactical_ui") instance=ExtResource("55_dlgoverlay")]
 conversation_log = NodePath("../ConversationLog")
+tactical_ui = NodePath("../TacticalUI")
 
 [node name="ConversationLog" parent="CanvasLayer" instance=ExtResource("56_convlog")]
 layout_mode = 3

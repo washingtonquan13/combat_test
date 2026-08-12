@@ -16,12 +16,17 @@ extends Control
 ## fight between the two.
 
 @export var conversation_log: Control
+## The existing tactical HUD wrapper (main.tscn's TacticalUI Control) —
+## hidden for the duration of a conversation, restored when it ends.
+## Toggled here rather than TacticalUI reacting to DialogueManager
+## itself, matching the conversation_log toggle right below: this script
+## already owns "what the screen looks like during dialogue."
+@export var tactical_ui: Control
 
-@onready var _speaker_label: Label = $MarginContainer/VBoxContainer/SpeakerLabel
-@onready var _line_text: RichTextLabel = $MarginContainer/VBoxContainer/LineText
-@onready var _choices_text: RichTextLabel = $MarginContainer/VBoxContainer/ChoicesText
-@onready var _continue_button: Button = $MarginContainer/VBoxContainer/ContinueButton
-@onready var _log_button: Button = $MarginContainer/VBoxContainer/LogButton
+@onready var _line_text: RichTextLabel = $VBoxContainer/ContentBox/InnerVBox/MarginContainer/BodyVBox/LineText
+@onready var _choices_text: RichTextLabel = $VBoxContainer/ContentBox/InnerVBox/MarginContainer/BodyVBox/ChoicesText
+@onready var _continue_button: Button = $VBoxContainer/HeaderBar/ContinueButton
+@onready var _log_button: Button = $VBoxContainer/HeaderBar/LogButton
 
 var _current_choices: Array[DialogueChoice] = []
 
@@ -43,19 +48,25 @@ func _on_dialogue_started(_root: DialogueNode) -> void:
 	visible = true
 	_choices_text.text = ""
 	_continue_button.visible = false
+	if tactical_ui:
+		tactical_ui.visible = false
 
 
 ## speaker_token is "" for the smaller echo lines (alignment message,
-## echoed response, skill check result) — the speaker label deliberately
-## stays on whoever last had a real line rather than clearing, since
-## those echoes are the player's own side of the conversation, not a
-## new speaker taking over.
+## echoed response, skill check result) — shown as plain text, no name
+## attached, same as they get no name in the log either (see
+## DialogueManager.record_line). A real speaker gets DialogueFormat's
+## shared "Name on its own bold line, then the text" treatment — the
+## exact same formatting the log uses, so there's only one place that
+## decides what "who said this" looks like, not a separate SpeakerLabel
+## Control that has to stay position-synced with the line under it.
 func _on_line_shown(text: String, speaker_token: String) -> void:
-	_line_text.text = text
 	if speaker_token == "":
+		_line_text.text = text
 		return
 	var unit: Unit = DialogueManager.participants.get(speaker_token)
-	_speaker_label.text = unit.name if unit else ""
+	var speaker_name: String = unit.name if unit else speaker_token.capitalize()
+	_line_text.text = DialogueFormat.speaker_line(speaker_name, text)
 
 
 func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
@@ -76,6 +87,8 @@ func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
 
 func _on_dialogue_ended() -> void:
 	visible = false
+	if tactical_ui:
+		tactical_ui.visible = true
 	if conversation_log:
 		conversation_log.visible = false
 

@@ -51,6 +51,17 @@ func setup() -> void:
 	if _owner.outline_mesh:
 		_owner.outline_mesh.visible = false
 
+	# update_highlight() suppresses its own output while DialogueManager
+	# is active (see that function) but only ever runs reactively — on a
+	# hover/selection/box-hover CHANGE. Nothing else touches this unit's
+	# state while a conversation plays, so nothing would naturally
+	# re-trigger it once the conversation ends either; without this, a
+	# unit selected before dialogue started would stay invisible-ringed
+	# forever after. Both ends of the transition just ask this unit to
+	# recompute what it should already be showing.
+	DialogueManager.dialogue_started.connect(func(_root): update_highlight())
+	DialogueManager.dialogue_ended.connect(update_highlight)
+
 
 func on_mouse_entered() -> void:
 	is_hovered = true

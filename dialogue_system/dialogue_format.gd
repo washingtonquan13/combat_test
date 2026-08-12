@@ -28,6 +28,16 @@ static func alignment_tag(alignment_name: String) -> String:
 	return "[color=#%s](%s)[/color]" % [alignment_colors[alignment_name].to_html(false), alignment_name]
 
 
+## The shared "who said this" formatting — a bold name on its own line,
+## then the line itself, so a long line wrapping to multiple lines never
+## risks the name blending into the paragraph the way an inline
+## "Name: text" would. Used by BOTH dialogue_overlay.gd (the current
+## line) and DialogueManager.record_line (the transcript) so they can
+## never drift into two near-identical formats of the same thing.
+static func speaker_line(speaker_name: String, text: String) -> String:
+	return "[b]%s[/b]\n%s" % [speaker_name, text]
+
+
 static func skill_tag(skill_name: String) -> String:
 	if skill_name == "":
 		return ""

@@ -30,7 +30,11 @@ func resolve(actor: Unit, target: Unit) -> String:
 	if alignment_name != "":
 		DialogueManager.record_line("You performed an action that was %s." % DialogueFormat.alignment_tag(alignment_name))
 	if dialogue_line != "":
-		DialogueManager.record_line(dialogue_line)
+		# "player" specifically (not empty) — this is the response actor
+		# just spoke aloud, not a system aside, so the log should
+		# attribute it to them the same way a node's own text_block gets
+		# attributed to its speaker.
+		DialogueManager.record_line(dialogue_line, "player")
 	return _resolve_next_node_id(actor, target)
 
 

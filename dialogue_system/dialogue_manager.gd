@@ -95,8 +95,27 @@ func end_dialogue() -> void:
 ## current line right now. The single path every line goes through,
 ## called both by _show_node (a node's own text) and by
 ## DialogueChoice.resolve/SkillCheckChoice (the smaller echo lines).
+##
+## The transcript entry and the emitted signal carry the speaker
+## DIFFERENTLY on purpose: line_shown keeps passing the bare text plus
+## the raw token, since dialogue_overlay.gd builds its own copy of the
+## "who said this" string via DialogueFormat.speaker_line (same helper,
+## called separately, so the current line and the transcript entry are
+## never required to be the literal same string in memory). What
+## actually gets stored in transcript is already fully formatted — a
+## real speaker_token becomes DialogueFormat.speaker_line's bold-name-
+## then-text, an empty one (the alignment message / skill check result
+## echoes — narration about what just happened, not something a
+## character says) becomes a dimmed italic aside instead, matching the
+## old GURPS-project DialogueBox's own system-message styling.
 func record_line(text: String, speaker_token: String = "") -> void:
-	transcript.append(text)
+	if speaker_token != "":
+		var unit: Unit = participants.get(speaker_token)
+		var speaker_name: String = unit.name if unit else speaker_token.capitalize()
+		transcript.append(DialogueFormat.speaker_line(speaker_name, text))
+	else:
+		transcript.append("[color=#A0A0A0][i]%s[/i][/color]" % text)
+
 	line_shown.emit(text, speaker_token)
 
 
