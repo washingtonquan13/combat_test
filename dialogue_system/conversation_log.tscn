@@ -1,8 +1,9 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=2 format=3 uid="uid://d0e788k8s6tyw"]
 
-[ext_resource type="Script" path="res://dialogue_system/conversation_log.gd" id="1_log"]
+[ext_resource type="Script" uid="uid://d31ijjkcipuxw" path="res://dialogue_system/conversation_log.gd" id="1_log"]
 
 [node name="ConversationLog" type="Control"]
+layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -18,9 +19,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -300.0
-offset_top = -250.0
+offset_top = -185.5
 offset_right = 300.0
-offset_bottom = 250.0
+offset_bottom = 185.5
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -48,7 +49,7 @@ layout_mode = 2
 text = "Close"
 
 [node name="ScrollContainer" type="ScrollContainer" parent="PanelContainer/MarginContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 380)
+custom_minimum_size = Vector2(0, 300)
 layout_mode = 2
 size_flags_vertical = 3
 
