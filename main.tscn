@@ -259,7 +259,6 @@ text = "END TURN"
 script = ExtResource("13_qsp4k")
 
 [node name="Item" parent="CanvasLayer/TacticalUI" instance=ExtResource("19_wnkbs")]
-visible = false
 layout_mode = 0
 offset_left = 832.0
 offset_right = 896.0
