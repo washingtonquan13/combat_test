@@ -18,12 +18,11 @@ extends Control
 ## belongs with the stash/loot-transfer pass, not bolted on here as a
 ## half-measure. Close and reopen on a different unit instead.
 ##
-## Alignment grid: 9 cells, Chaos/Neutral/Law x Dark/Neutral/Light,
-## columns matching Unit.alignment_category() and rows matching
-## Unit.tendency_category() — the SAME category logic Unit itself owns,
-## not re-derived here. Exactly one cell gets _alignment_highlight_style;
-## the rest are reset to no override every refresh, so there's never a
-## stale highlight left on the wrong cell.
+## Alignment display: AlignmentTitle shows the category label (the same
+## Chaos/Neutral/Law x Dark/Neutral/Light categories Unit itself owns,
+## via alignment_category()/tendency_category()) and AlignmentGrid (see
+## alignment_grid.gd) plots a dot at the unit's exact raw alignment/
+## tendency position underneath it — continuous position, discrete title.
 ##
 ## Skills are real — one row per Unit.get_skills() entry, level computed
 ## through SkillCalculator (the exact same resolution a dialogue skill
@@ -56,12 +55,20 @@ extends Control
 @onready var _sort_button: Button = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortButton
 @onready var _inventory: Inventory = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/Inventory
 
-## (alignment_category, tendency_category) -> the PanelContainer cell —
-## built once in _ready() from the 9 hand-authored grid cells, so
-## _refresh_alignment_grid() never needs a match/if chain to find the
-## right one.
-var _alignment_cells: Dictionary = {}
-var _alignment_highlight_style: StyleBoxFlat
+## (alignment_category, tendency_category) -> display title, matching
+## Unit.alignment_category()/tendency_category()'s -1/0/1 output exactly
+## so this never needs its own copy of the threshold logic. Tendency
+## reads as a modifier on alignment ("Dark Chaos", not "Chaotic Dark"),
+## so it leads and alignment takes its noun form (Chaos/Law, not
+## Chaotic/Lawful) instead of the adjective form used elsewhere.
+const _ALIGNMENT_TITLES: Dictionary = {
+	Vector2i(-1, 1): "Light Chaos", Vector2i(0, 1): "Light Neutral", Vector2i(1, 1): "Light Law",
+	Vector2i(-1, 0): "Neutral Chaos", Vector2i(0, 0): "True Neutral", Vector2i(1, 0): "Neutral Law",
+	Vector2i(-1, -1): "Dark Chaos", Vector2i(0, -1): "Dark Neutral", Vector2i(1, -1): "Dark Law",
+}
+
+@onready var _alignment_title: Label = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentTitle
+@onready var _alignment_grid: AlignmentGrid = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid
 
 @onready var _skill_list: VBoxContainer = $ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer/SkillList
 
@@ -70,15 +77,6 @@ var _unit: Unit = null
 
 func _ready() -> void:
 	visible = false
-
-	var grid: GridContainer = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid
-	_alignment_cells = {
-		Vector2i(-1, 1): grid.get_node("ChaosLight"), Vector2i(0, 1): grid.get_node("NeutralLight"), Vector2i(1, 1): grid.get_node("LawLight"),
-		Vector2i(-1, 0): grid.get_node("ChaosNeutral"), Vector2i(0, 0): grid.get_node("TrueNeutral"), Vector2i(1, 0): grid.get_node("LawNeutral"),
-		Vector2i(-1, -1): grid.get_node("ChaosDark"), Vector2i(0, -1): grid.get_node("NeutralDark"), Vector2i(1, -1): grid.get_node("LawDark"),
-	}
-	_alignment_highlight_style = StyleBoxFlat.new()
-	_alignment_highlight_style.bg_color = Color(1, 1, 1, 0.18)
 
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
@@ -122,13 +120,9 @@ func _show_tab(tab_name: String) -> void:
 
 
 func _refresh_alignment_grid(unit: Unit) -> void:
-	var current: Vector2i = Vector2i(unit.alignment_category(), unit.tendency_category())
-	for key in _alignment_cells:
-		var cell: PanelContainer = _alignment_cells[key]
-		if key == current:
-			cell.add_theme_stylebox_override("panel", _alignment_highlight_style)
-		else:
-			cell.remove_theme_stylebox_override("panel")
+	var category: Vector2i = Vector2i(unit.alignment_category(), unit.tendency_category())
+	_alignment_title.text = _ALIGNMENT_TITLES.get(category, "True Neutral")
+	_alignment_grid.set_alignment(unit.alignment, unit.tendency)
 
 
 func _refresh_skill_list(unit: Unit) -> void:

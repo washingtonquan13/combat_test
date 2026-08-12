@@ -1,6 +1,6 @@
-[gd_scene load_steps=22 format=3 uid="uid://1hnfjqb3x811"]
+[gd_scene load_steps=22 format=3 uid="uid://mjl4jm7c14t"]
 
-[ext_resource type="Texture2D" uid="uid://c6p8bs6eksvr5" path="res://vfx/BinbunVFX/shared/texture/placeholder.png" id="1_i3yry"]
+[ext_resource type="Texture2D" uid="uid://dq8jkeeag6vov" path="res://vfx/BinbunVFX/shared/texture/placeholder.png" id="1_i3yry"]
 [ext_resource type="PackedScene" uid="uid://bjpdybxj6pn7q" path="res://vfx/BinbunVFX/magic_projectiles/effects/mprojectile_basic/mprojectile_basic_vfx_01.tscn" id="2_o0fpi"]
 [ext_resource type="PackedScene" uid="uid://cjuv2qv4sfd7v" path="res://vfx/BinbunVFX/magic_projectiles/effects/mprojectile_basic/mprojectile_basic_vfx_02.tscn" id="3_2ebng"]
 [ext_resource type="PackedScene" uid="uid://cqmyowmbbcggb" path="res://vfx/BinbunVFX/magic_projectiles/effects/mprojectile_basic/mprojectile_basic_vfx_03.tscn" id="4_bi0ll"]

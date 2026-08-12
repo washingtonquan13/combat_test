@@ -1,9 +1,10 @@
-[gd_scene load_steps=5 format=3 uid="uid://jfavnc280asx"]
+[gd_scene load_steps=6 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://inventory_system/equip_slot.tscn" id="2_equip"]
 [ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://inventory_system/inventory.tscn" id="3_inv"]
 [ext_resource type="PackedScene" path="res://stats_column.tscn" id="4_stats"]
+[ext_resource type="Script" uid="uid://2g8vxoibdf3k" path="res://alignment_grid.gd" id="5_align_grid"]
 
 [node name="PartyOverview" type="Control"]
 layout_mode = 3
@@ -264,119 +265,17 @@ text = "Alignment"
 [node name="HSeparator" type="HSeparator" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
 layout_mode = 2
 
-[node name="AlignmentGrid" type="GridContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
+[node name="AlignmentTitle" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
 layout_mode = 2
-theme_override_constants/h_separation = 6
-theme_override_constants/v_separation = 6
-columns = 3
-
-[node name="ChaosLight" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/ChaosLight"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Chaotic Light"
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="NeutralLight" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/NeutralLight"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Neutral Light"
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="LawLight" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/LawLight"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Lawful Light"
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="ChaosNeutral" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/ChaosNeutral"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Chaotic Neutral"
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="TrueNeutral" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/TrueNeutral"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 18
 text = "True Neutral"
 horizontal_alignment = 1
-autowrap_mode = 2
 
-[node name="LawNeutral" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+[node name="AlignmentGrid" type="Control" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
+custom_minimum_size = Vector2(260, 260)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/LawNeutral"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Lawful Neutral"
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="ChaosDark" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/ChaosDark"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Chaotic Dark"
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="NeutralDark" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/NeutralDark"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Neutral Dark"
-horizontal_alignment = 1
-autowrap_mode = 2
-
-[node name="LawDark" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/LawDark"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
-text = "Lawful Dark"
-horizontal_alignment = 1
-autowrap_mode = 2
+size_flags_horizontal = 4
+script = ExtResource("5_align_grid")
 
 [node name="SkillColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
 layout_mode = 1

@@ -1,10 +1,10 @@
 [gd_scene load_steps=14 format=3 uid="uid://b7jw20eo0o7st"]
 
-[ext_resource type="Material" uid="uid://8y10j0wo1t3b" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_03/mprojectile_wave_03_wave.tres" id="1_tql67"]
-[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://vfx/BinbunVFX/BinbunVFX/shared/script/vfx_controller.gd" id="1_wqdsh"]
-[ext_resource type="Material" uid="uid://c5odnwin8fjjm" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_03/mprojectile_wave_03_head.tres" id="2_prpce"]
-[ext_resource type="Material" uid="uid://casnljlykrcxf" path="res://vfx/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_03/mprojectile_wave_03_core.tres" id="3_prpce"]
-[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://vfx/BinbunVFX/BinbunVFX/shared/script/vfx_light.gd" id="4_rp3a2"]
+[ext_resource type="Material" uid="uid://8y10j0wo1t3b" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_03/mprojectile_wave_03_wave.tres" id="1_tql67"]
+[ext_resource type="Script" uid="uid://tb7n6ybv43ch" path="res://assets/BinbunVFX/shared/script/vfx_controller.gd" id="1_wqdsh"]
+[ext_resource type="Material" uid="uid://c5odnwin8fjjm" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_03/mprojectile_wave_03_head.tres" id="2_prpce"]
+[ext_resource type="Material" uid="uid://casnljlykrcxf" path="res://assets/BinbunVFX/magic_projectiles/src/materials/mprojectile_wave/mprojectile_wave_03/mprojectile_wave_03_core.tres" id="3_prpce"]
+[ext_resource type="Script" uid="uid://bdk8hhttligw" path="res://assets/BinbunVFX/shared/script/vfx_light.gd" id="4_rp3a2"]
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_n8ni0"]
 top_radius = 0.3

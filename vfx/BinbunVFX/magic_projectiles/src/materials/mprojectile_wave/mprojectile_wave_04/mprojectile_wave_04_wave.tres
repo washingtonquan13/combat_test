@@ -1,7 +1,6 @@
-[gd_resource type="ShaderMaterial" load_steps=7 format=3 uid="uid://ckydc4wpygfnq"]
+[gd_resource type="ShaderMaterial" load_steps=6 format=3 uid="uid://ckydc4wpygfnq"]
 
-[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_qvhwt"]
-[ext_resource type="Texture2D" uid="uid://3phqmluuewrc" path="res://vfx/BinbunVFX/shared/texture/noise/warp/warp_brush_02.tres" id="2_6eumv"]
+[ext_resource type="Shader" uid="uid://ctc5s68igpvj6" path="res://vfx/BinbunVFX/shared/shader/transparent.gdshader" id="1_llpq3"]
 
 [sub_resource type="Gradient" id="Gradient_lagfn"]
 offsets = PackedFloat32Array(0, 0.721311, 1)
@@ -22,14 +21,13 @@ fill_from = Vector2(0.5, 0)
 
 [resource]
 render_priority = 0
-shader = ExtResource("1_qvhwt")
+shader = ExtResource("1_llpq3")
 shader_parameter/mask1_texture = SubResource("GradientTexture2D_htm7d")
 shader_parameter/mask1_scroll = Vector2(0, -4)
 shader_parameter/mask1_scale = Vector2(1, 6)
 shader_parameter/mask1_radial = false
 shader_parameter/mask1_rotation = 0.0
 shader_parameter/use_mask2 = true
-shader_parameter/mask2_texture = ExtResource("2_6eumv")
 shader_parameter/mask2_scroll = Vector2(0, -0.25)
 shader_parameter/mask2_scale = Vector2(1, 0.5)
 shader_parameter/mask2_strength = 1.0

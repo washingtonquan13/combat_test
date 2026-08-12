@@ -56,7 +56,7 @@
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://dialogue_system/conversation_log.tscn" id="56_convlog"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
-[ext_resource type="PackedScene" path="res://party_overview.tscn" id="59_partyoverview"]
+[ext_resource type="PackedScene" uid="uid://jfavnc280asx" path="res://party_overview.tscn" id="59_partyoverview"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -280,7 +280,6 @@ script = ExtResource("16_htxhm")
 esc_menu = NodePath("../EscMenu")
 
 [node name="PartyOverview" parent="CanvasLayer" instance=ExtResource("59_partyoverview")]
-layout_mode = 3
 
 [node name="EscMenu" type="Control" parent="CanvasLayer"]
 custom_minimum_size = Vector2(300, 200)
@@ -428,6 +427,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 1)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -8)
 dexterity = 18
 intelligence = 16
+alignment = -100
+tendency = 100
 move = 24
 move_speed = 5.0
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y"), ExtResource("42_qnost")])
