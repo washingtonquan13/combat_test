@@ -1,4 +1,4 @@
-[gd_scene load_steps=73 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=75 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -57,6 +57,8 @@
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
 [ext_resource type="PackedScene" uid="uid://jfavnc280asx" path="res://party_overview.tscn" id="59_partyoverview"]
+[ext_resource type="PackedScene" path="res://chest.tscn" id="60_chest"]
+[ext_resource type="PackedScene" path="res://stash_panel.tscn" id="61_stashpanel"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)
@@ -281,6 +283,9 @@ esc_menu = NodePath("../EscMenu")
 
 [node name="PartyOverview" parent="CanvasLayer" instance=ExtResource("59_partyoverview")]
 
+[node name="StashPanel" parent="CanvasLayer" node_paths=PackedStringArray("party_overview") instance=ExtResource("61_stashpanel")]
+party_overview = NodePath("../PartyOverview")
+
 [node name="EscMenu" type="Control" parent="CanvasLayer"]
 custom_minimum_size = Vector2(300, 200)
 layout_mode = 3
@@ -499,6 +504,9 @@ portrait_texture = ExtResource("19_82xsv")
 
 [node name="InteractableProp" parent="." instance=ExtResource("54_prop")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)
+
+[node name="Chest" parent="." instance=ExtResource("60_chest")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, -8)
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -5)

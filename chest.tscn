@@ -1,0 +1,27 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://chest.gd" id="1_chest"]
+[ext_resource type="Resource" path="res://interactions/loot.tres" id="2_loot"]
+[ext_resource type="Resource" path="res://interactions/examine.tres" id="3_examine"]
+[ext_resource type="Script" path="res://interaction_option.gd" id="4_opt"]
+[ext_resource type="PackedScene" path="res://inventory_system/inventory.tscn" id="5_inv"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_chest"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chest"]
+
+[node name="Chest" type="StaticBody3D"]
+script = ExtResource("1_chest")
+interactions = Array[ExtResource("4_opt")]([ExtResource("2_loot"), ExtResource("3_examine")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_chest")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_chest")
+
+[node name="Inventory" parent="." instance=ExtResource("5_inv")]
+width = 6
+height = 4
+visible_width = 6
+visible_height = 4

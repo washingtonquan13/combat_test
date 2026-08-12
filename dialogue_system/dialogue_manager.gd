@@ -50,7 +50,7 @@ func is_active() -> bool:
 ## defined interaction with the turn/initiative state machine yet, and
 ## nothing about talking to an ally requires it to work mid-fight.
 func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -> void:
-	if CombatManager.in_combat or not root:
+	if CombatManager.in_combat or StashManager.is_active() or not root:
 		return
 
 	transcript.clear()

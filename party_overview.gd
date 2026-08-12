@@ -1,3 +1,4 @@
+class_name PartyOverview
 extends Control
 ## The party's "character sheet." Two real sections, both anchored
 ## 3-column layouts sharing the SAME StatsColumn component (see
@@ -87,7 +88,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("open_party_overview") or DialogueManager.is_active():
+	if not event.is_action_pressed("open_party_overview") or DialogueManager.is_active() or StashManager.is_active():
 		return
 
 	if visible:
@@ -97,6 +98,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	var unit: Unit = PlayerInteractionState.get_active_unit()
 	if unit:
 		open_for(unit)
+
+
+## Lets StashPanel borrow the party's shared Inventory node while a chest
+## is open (see stash_panel.gd) — reparented out and back rather than a
+## second Inventory instance, so there's only ever one real set of items.
+func get_inventory() -> Inventory:
+	return _inventory
+
+
+## Where get_inventory()'s node belongs when nothing has borrowed it —
+## StashPanel reparents it back here on close.
+func get_inventory_slot() -> VBoxContainer:
+	return $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer
 
 
 func open_for(unit: Unit) -> void:
