@@ -167,6 +167,11 @@ extends CharacterBody3D
 	preload("res://interactions/talk.tres"),
 	preload("res://interactions/examine.tres"),
 ]
+## Root of this unit's conversation tree, or null if it has nothing
+## authored yet — read by talk_interaction.gd, same per-unit-authored-
+## Resource convention as abilities/interactions above (not a fixed list
+## every unit gets automatically; most units will leave this unset).
+@export var dialogue_root: DialogueNode = null
 
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.
@@ -394,6 +399,12 @@ func _on_mouse_exited() -> void:
 ## so every interactable (this unit included) only needs to implement
 ## get_interactions() below, not its own input_event wiring too.
 func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
+	# Same reasoning as ground_click_target.gd's own guard — a live
+	# conversation owns the screen, clicking a unit underneath it
+	# shouldn't attack/select it.
+	if DialogueManager.is_active():
+		return
+
 	if not event.is_action_pressed("left_click"):
 		return
 

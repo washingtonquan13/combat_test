@@ -42,6 +42,11 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Same reasoning as ground_click_target.gd's own guard — no box-
+	# selecting units while a live conversation owns the screen.
+	if DialogueManager.is_active():
+		return
+
 	if event.is_action_pressed("left_click"):
 		_drag_start = event.position
 		_drag_end = event.position

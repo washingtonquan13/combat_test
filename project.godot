@@ -24,6 +24,8 @@ AbilityManager="*res://ability_manager.gd"
 SurfaceManager="*res://surface_manager.gd"
 SystemLog="*res://system_log.gd"
 InteractionMenu="*res://interaction_menu.gd"
+CameraDirector="*res://camera_director.gd"
+DialogueManager="*res://dialogue_system/dialogue_manager.gd"
 
 [display]
 

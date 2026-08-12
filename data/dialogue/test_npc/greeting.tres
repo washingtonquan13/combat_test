@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=7 format=3 uid="uid://du5jbw4pgw8ub"]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" uid="uid://140411bqkp7s" path="res://dialogue_system/line_choice.gd" id="3_line"]
+[ext_resource type="Script" uid="uid://cimkiuejxqinm" path="res://dialogue_system/skill_check_choice.gd" id="4_check"]
+
+[sub_resource type="Resource" id="Resource_ask"]
+script = ExtResource("3_line")
+next_node_id = "test_ask_more"
+text = "What are you doing out here?"
+alignment_name = ""
+is_repeatable = false
+dialogue_line = ""
+
+[sub_resource type="Resource" id="Resource_persuade"]
+script = ExtResource("4_check")
+skill_name = "Persuasion"
+success_node_id = "test_persuade_success"
+failure_node_id = "test_persuade_failure"
+show_to_player = true
+text = "Let me travel with you — I can help."
+alignment_name = ""
+is_repeatable = false
+dialogue_line = ""
+
+[resource]
+script = ExtResource("1_node")
+id = "test_greeting"
+speaker = "npc"
+text_block = "You there — this road isn't safe alone. What do you want?"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_ask"), SubResource("Resource_persuade")])
+next_node_id = ""

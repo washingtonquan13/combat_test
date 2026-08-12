@@ -37,6 +37,14 @@ extends IndicatorBase
 ## code change.
 
 func _unhandled_input(event: InputEvent) -> void:
+	# The cinematic camera being frozen out from under a live conversation
+	# (see camera_director.gd) doesn't by itself stop a click from still
+	# reaching the tactical world underneath it — this is what actually
+	# does that: no move orders, no ability casts, no context menus while
+	# DialogueManager owns the screen.
+	if DialogueManager.is_active():
+		return
+
 	if event.is_action_pressed("left_click"):
 		if _get_hovered_interactable():
 			return

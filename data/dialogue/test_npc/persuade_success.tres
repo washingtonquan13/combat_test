@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://dialogue_system/dialogue_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = "test_persuade_success"
+speaker = "npc"
+text_block = "...Fine. You've got an honest face. Stay close and don't slow me down."
+next_node_id = "test_end"

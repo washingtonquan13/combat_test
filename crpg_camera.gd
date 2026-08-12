@@ -106,6 +106,8 @@ func _get_mode() -> Mode:
 
 
 func _ready() -> void:
+	CameraDirector.register_tactical_camera(self)
+
 	target_distance = clamp((min_distance + max_distance) * 0.5, min_distance, max_distance)
 	current_distance = target_distance
 	target_pitch = _calculate_pitch_for_distance(current_distance)
@@ -133,7 +135,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if InteractionMenu.is_open():
+	if not CameraDirector.has_control():
 		return
 
 	var scroll_up: bool = event.is_action_pressed("camera_zoom_in")
@@ -148,7 +150,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
-	if InteractionMenu.is_open():
+	if not CameraDirector.has_control():
 		return
 
 	_handle_rotation_input(delta)
