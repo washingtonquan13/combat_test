@@ -28,6 +28,7 @@ extends Resource
 ## through from DialogueManager.choose().
 func resolve(actor: Unit, target: Unit) -> String:
 	if alignment_name != "":
+		actor.apply_alignment_tag(alignment_name)
 		DialogueManager.record_line("You performed an action that was %s." % DialogueFormat.alignment_tag(alignment_name))
 	if dialogue_line != "":
 		# "player" specifically (not empty) — this is the response actor

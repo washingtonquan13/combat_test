@@ -56,7 +56,7 @@
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://dialogue_system/conversation_log.tscn" id="56_convlog"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
-[ext_resource type="PackedScene" uid="uid://cyujqslp8k004" path="res://party_overview.tscn" id="59_partyoverview"]
+[ext_resource type="PackedScene" path="res://party_overview.tscn" id="59_partyoverview"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
 size = Vector3(20, 1, 20)

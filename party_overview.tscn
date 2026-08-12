@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://cyujqslp8k004"]
+[gd_scene load_steps=5 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://inventory_system/equip_slot.tscn" id="2_equip"]
 [ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://inventory_system/inventory.tscn" id="3_inv"]
+[ext_resource type="PackedScene" path="res://stats_column.tscn" id="4_stats"]
 
 [node name="PartyOverview" type="Control"]
 layout_mode = 3
@@ -29,6 +30,10 @@ anchor_right = 1.0
 offset_bottom = 44.0
 grow_horizontal = 2
 theme_override_constants/separation = 4
+
+[node name="TabInventory" type="Button" parent="TopBar"]
+layout_mode = 2
+text = "Inventory"
 
 [node name="TabCharacter" type="Button" parent="TopBar"]
 layout_mode = 2
@@ -67,7 +72,7 @@ offset_top = 44.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="CharacterPanel" type="Control" parent="ContentArea"]
+[node name="InventoryPanel" type="Control" parent="ContentArea"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -75,337 +80,125 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="StatsColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
+[node name="StatsColumn" parent="ContentArea/InventoryPanel" instance=ExtResource("4_stats")]
 layout_mode = 1
 anchors_preset = -1
-anchor_right = 0.32
-anchor_bottom = 1.0
-grow_vertical = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 16
-
-[node name="ScrollContainer" type="ScrollContainer" parent="ContentArea/CharacterPanel/StatsColumn"]
-layout_mode = 2
-horizontal_scroll_mode = 0
-
-[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="NameLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="AlignmentLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-modulate = Color(1, 1, 1, 0.7)
-layout_mode = 2
-
-[node name="HSeparator" type="HSeparator" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="HPHeader" type="HBoxContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/HPHeader"]
-layout_mode = 2
-text = "HP"
-
-[node name="Spacer" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/HPHeader"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="HPValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/HPHeader"]
-layout_mode = 2
-
-[node name="HPBar" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 6)
-layout_mode = 2
-
-[node name="Bg" type="ColorRect" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/HPBar"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
+anchor_right = 0.28
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(1, 1, 1, 0.12)
 
-[node name="Fill" type="ColorRect" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/HPBar"]
+[node name="EquipmentColumn" type="MarginContainer" parent="ContentArea/InventoryPanel"]
 layout_mode = 1
 anchors_preset = -1
-anchor_bottom = 1.0
-grow_vertical = 2
-color = Color(0.85, 0.3, 0.3, 1)
-
-[node name="FPHeader" type="HBoxContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/FPHeader"]
-layout_mode = 2
-text = "FP"
-
-[node name="Spacer" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/FPHeader"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="FPValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/FPHeader"]
-layout_mode = 2
-
-[node name="FPBar" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 6)
-layout_mode = 2
-
-[node name="Bg" type="ColorRect" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/FPBar"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(1, 1, 1, 0.12)
-
-[node name="Fill" type="ColorRect" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/FPBar"]
-layout_mode = 1
-anchors_preset = -1
-anchor_bottom = 1.0
-grow_vertical = 2
-color = Color(0.3, 0.55, 0.85, 1)
-
-[node name="HSeparator2" type="HSeparator" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="AttributeGrid" type="GridContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-theme_override_constants/v_separation = 6
-columns = 2
-
-[node name="STLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "ST"
-
-[node name="STValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="DXLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "DX"
-
-[node name="DXValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="IQLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "IQ"
-
-[node name="IQValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="HTLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "HT"
-
-[node name="HTValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="WillLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "Will"
-
-[node name="WillValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="PerLabel" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "Per"
-
-[node name="PerValue" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="HSeparator3" type="HSeparator" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="DRRow" type="HBoxContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/DRRow"]
-layout_mode = 2
-text = "DR"
-
-[node name="Spacer" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/DRRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Value" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/DRRow"]
-layout_mode = 2
-
-[node name="MoveRow" type="HBoxContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/MoveRow"]
-layout_mode = 2
-text = "Move"
-
-[node name="Spacer" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/MoveRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Value" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/MoveRow"]
-layout_mode = 2
-
-[node name="HSeparator4" type="HSeparator" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="ThrustRow" type="HBoxContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/ThrustRow"]
-layout_mode = 2
-text = "Thrust"
-
-[node name="Spacer" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/ThrustRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Value" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/ThrustRow"]
-layout_mode = 2
-
-[node name="SwingRow" type="HBoxContainer" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/SwingRow"]
-layout_mode = 2
-text = "Swing"
-
-[node name="Spacer" type="Control" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/SwingRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Value" type="Label" parent="ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/SwingRow"]
-layout_mode = 2
-
-[node name="EquipmentColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
-layout_mode = 1
-anchors_preset = -1
-anchor_left = 0.32
-anchor_right = 0.66
+anchor_left = 0.28
+anchor_right = 0.62
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_top = 20
 
-[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/EquipmentColumn"]
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn"]
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_constants/separation = 14
 
-[node name="Portrait" type="TextureRect" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer"]
+[node name="Portrait" type="TextureRect" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
 custom_minimum_size = Vector2(180, 240)
 layout_mode = 2
 size_flags_horizontal = 4
 expand_mode = 1
 stretch_mode = 5
 
-[node name="EquipGrid" type="GridContainer" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer"]
+[node name="EquipGrid" type="GridContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
 theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 10
 columns = 3
 
-[node name="Slot1" type="VBoxContainer" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slot1" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot1" instance=ExtResource("2_equip")]
+[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot1" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot1"]
+[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot1"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Head"
 horizontal_alignment = 1
 
-[node name="Slot2" type="VBoxContainer" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slot2" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot2" instance=ExtResource("2_equip")]
+[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot2" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot2"]
+[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot2"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Body"
 horizontal_alignment = 1
 
-[node name="Slot3" type="VBoxContainer" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slot3" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot3" instance=ExtResource("2_equip")]
+[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot3" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot3"]
+[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot3"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Main hand"
 horizontal_alignment = 1
 
-[node name="Slot4" type="VBoxContainer" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slot4" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot4" instance=ExtResource("2_equip")]
+[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot4" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot4"]
+[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot4"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Off hand"
 horizontal_alignment = 1
 
-[node name="Slot5" type="VBoxContainer" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slot5" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot5" instance=ExtResource("2_equip")]
+[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot5" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot5"]
+[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot5"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Ring"
 horizontal_alignment = 1
 
-[node name="Slot6" type="VBoxContainer" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slot6" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot6" instance=ExtResource("2_equip")]
+[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot6" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(56, 56)
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot6"]
+[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot6"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 11
 text = "Trinket"
 horizontal_alignment = 1
 
-[node name="InventoryColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
+[node name="InventoryColumn" type="MarginContainer" parent="ContentArea/InventoryPanel"]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.66
+anchor_left = 0.62
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
@@ -414,23 +207,208 @@ theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 24
 
-[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/InventoryColumn"]
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn"]
 layout_mode = 2
 theme_override_constants/separation = 10
 
-[node name="SortButton" type="Button" parent="ContentArea/CharacterPanel/InventoryColumn/VBoxContainer"]
+[node name="SortButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 0
 text = "Sort items"
 
-[node name="Inventory" parent="ContentArea/CharacterPanel/InventoryColumn/VBoxContainer" instance=ExtResource("3_inv")]
-custom_minimum_size = Vector2(206, 320)
+[node name="Inventory" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer" instance=ExtResource("3_inv")]
+custom_minimum_size = Vector2(206, 288)
 layout_mode = 2
 size_flags_vertical = 3
 width = 6
-height = 18
+height = 16
 visible_width = 6
-visible_height = 10
+visible_height = 9
+
+[node name="CharacterPanel" type="Control" parent="ContentArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="StatsColumn" parent="ContentArea/CharacterPanel" instance=ExtResource("4_stats")]
+layout_mode = 1
+anchors_preset = -1
+anchor_right = 0.28
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="AlignmentColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.28
+anchor_right = 0.64
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 16
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/AlignmentColumn"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
+layout_mode = 2
+text = "Alignment"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
+layout_mode = 2
+
+[node name="AlignmentGrid" type="GridContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+columns = 3
+
+[node name="ChaosLight" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/ChaosLight"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Chaotic Light"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="NeutralLight" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/NeutralLight"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Neutral Light"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="LawLight" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/LawLight"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Lawful Light"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ChaosNeutral" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/ChaosNeutral"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Chaotic Neutral"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="TrueNeutral" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/TrueNeutral"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "True Neutral"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="LawNeutral" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/LawNeutral"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Lawful Neutral"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="ChaosDark" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/ChaosDark"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Chaotic Dark"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="NeutralDark" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/NeutralDark"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Neutral Dark"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="LawDark" type="PanelContainer" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid/LawDark"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Lawful Dark"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="SkillColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.64
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/SkillColumn"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/CharacterPanel/SkillColumn/VBoxContainer"]
+layout_mode = 2
+text = "Skills"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/CharacterPanel/SkillColumn/VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="ContentArea/CharacterPanel/SkillColumn/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SkillList" type="VBoxContainer" parent="ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+theme_override_constants/separation = 4
 
 [node name="PlaceholderPanel" type="Control" parent="ContentArea"]
 visible = false

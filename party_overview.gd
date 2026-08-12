@@ -1,9 +1,15 @@
 extends Control
-## The party's "character sheet" — stats, equipment, and (for now) the
-## other tabs the old GURPS-project version stubbed out and never wired
-## up either. Opens showing whichever unit is currently active
-## (PlayerInteractionState.get_active_unit() — same resolution every
-## other player-facing system already uses), toggled by the
+## The party's "character sheet." Two real sections, both anchored
+## 3-column layouts sharing the SAME StatsColumn component (see
+## stats_column.gd) on the left, so a unit's stats read identically in
+## both places instead of two hand-authored copies drifting apart:
+##   Inventory (first tab, default) — Stats | Equipment paperdoll | Items
+##   Character (second tab)         — Stats | Alignment grid | Skills
+## Spellbook/Journal/Encyclopedia/Map are the old GURPS-project version's
+## remaining tabs, still stubbed, sharing one placeholder.
+##
+## Opens showing whichever unit is currently active
+## (PlayerInteractionState.get_active_unit()), toggled by the
 ## open_party_overview action (C).
 ##
 ## No in-panel character switcher — EquipSlot's equipped_item is scene-
@@ -12,24 +18,22 @@ extends Control
 ## belongs with the stash/loot-transfer pass, not bolted on here as a
 ## half-measure. Close and reopen on a different unit instead.
 ##
-## Combat design goals (see memory: combat_design_goals): only
-## ST/DX/IQ/HT/Will/Per, HP/FP, DR, and Move are shown. Dodge/Parry/
-## Block/SM/Basic Lift/Speed existed in the old GURPS-project version
-## and are deliberately NOT here — this project's combat stays fast and
-## low-roll, not a full active-defense layer.
+## Alignment grid: 9 cells, Chaos/Neutral/Law x Dark/Neutral/Light,
+## columns matching Unit.alignment_category() and rows matching
+## Unit.tendency_category() — the SAME category logic Unit itself owns,
+## not re-derived here. Exactly one cell gets _alignment_highlight_style;
+## the rest are reset to no override every refresh, so there's never a
+## stale highlight left on the wrong cell.
 ##
-## Alignment shows "—" — nothing on Unit tracks accumulated alignment
-## yet (DialogueChoice.alignment_name is a per-choice tag, logged, never
-## summed anywhere). The row stays so the layout doesn't need to change
-## the moment that tracking exists; it just has nothing real to show yet.
+## Skills are real — one row per Unit.get_skills() entry, level computed
+## through SkillCalculator (the exact same resolution a dialogue skill
+## check would use, so this can never disagree with what a real check
+## rolls against). Built dynamically each refresh, same "rebuild rather
+## than diff" approach party_panel.gd/ability_hotbar.gd already use for
+## their own variable-length per-unit lists.
 
-## No separate "inventory" tab/key anymore — the inventory grid lives as
-## a third column inside the character panel itself now (see
-## InventoryColumn), always visible alongside stats and equipment rather
-## than something you tab away to. "Character" is the one real,
-## permanently-shown view; Spellbook/Journal/Encyclopedia/Map still share
-## one placeholder panel, same as before.
 @onready var _tab_buttons: Dictionary = {
+	"inventory": $TopBar/TabInventory,
 	"character": $TopBar/TabCharacter,
 	"spellbook": $TopBar/TabSpellbook,
 	"journal": $TopBar/TabJournal,
@@ -37,6 +41,7 @@ extends Control
 	"map": $TopBar/TabMap,
 }
 @onready var _panels: Dictionary = {
+	"inventory": $ContentArea/InventoryPanel,
 	"character": $ContentArea/CharacterPanel,
 	"spellbook": $ContentArea/PlaceholderPanel,
 	"journal": $ContentArea/PlaceholderPanel,
@@ -44,26 +49,21 @@ extends Control
 	"map": $ContentArea/PlaceholderPanel,
 }
 
-@onready var _name_label: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/NameLabel
-@onready var _alignment_label: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AlignmentLabel
-@onready var _hp_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/HPHeader/HPValue
-@onready var _hp_fill: ColorRect = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/HPBar/Fill
-@onready var _fp_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/FPHeader/FPValue
-@onready var _fp_fill: ColorRect = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/FPBar/Fill
-@onready var _st_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid/STValue
-@onready var _dx_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid/DXValue
-@onready var _iq_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid/IQValue
-@onready var _ht_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid/HTValue
-@onready var _will_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid/WillValue
-@onready var _per_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/AttributeGrid/PerValue
-@onready var _dr_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/DRRow/Value
-@onready var _move_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/MoveRow/Value
-@onready var _thrust_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/ThrustRow/Value
-@onready var _swing_value: Label = $ContentArea/CharacterPanel/StatsColumn/ScrollContainer/VBoxContainer/SwingRow/Value
-@onready var _portrait: TextureRect = $ContentArea/CharacterPanel/EquipmentColumn/VBoxContainer/Portrait
+@onready var _inventory_stats: StatsColumn = $ContentArea/InventoryPanel/StatsColumn
+@onready var _character_stats: StatsColumn = $ContentArea/CharacterPanel/StatsColumn
 
-@onready var _sort_button: Button = $ContentArea/CharacterPanel/InventoryColumn/VBoxContainer/SortButton
-@onready var _inventory: Inventory = $ContentArea/CharacterPanel/InventoryColumn/VBoxContainer/Inventory
+@onready var _portrait: TextureRect = $ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/Portrait
+@onready var _sort_button: Button = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortButton
+@onready var _inventory: Inventory = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/Inventory
+
+## (alignment_category, tendency_category) -> the PanelContainer cell —
+## built once in _ready() from the 9 hand-authored grid cells, so
+## _refresh_alignment_grid() never needs a match/if chain to find the
+## right one.
+var _alignment_cells: Dictionary = {}
+var _alignment_highlight_style: StyleBoxFlat
+
+@onready var _skill_list: VBoxContainer = $ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer/SkillList
 
 var _unit: Unit = null
 
@@ -71,12 +71,21 @@ var _unit: Unit = null
 func _ready() -> void:
 	visible = false
 
+	var grid: GridContainer = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid
+	_alignment_cells = {
+		Vector2i(-1, 1): grid.get_node("ChaosLight"), Vector2i(0, 1): grid.get_node("NeutralLight"), Vector2i(1, 1): grid.get_node("LawLight"),
+		Vector2i(-1, 0): grid.get_node("ChaosNeutral"), Vector2i(0, 0): grid.get_node("TrueNeutral"), Vector2i(1, 0): grid.get_node("LawNeutral"),
+		Vector2i(-1, -1): grid.get_node("ChaosDark"), Vector2i(0, -1): grid.get_node("NeutralDark"), Vector2i(1, -1): grid.get_node("LawDark"),
+	}
+	_alignment_highlight_style = StyleBoxFlat.new()
+	_alignment_highlight_style.bg_color = Color(1, 1, 1, 0.18)
+
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
 	$TopBar/CloseButton.pressed.connect(func(): visible = false)
 	_sort_button.pressed.connect(_inventory.sort_items)
 
-	_show_tab("character")
+	_show_tab("inventory")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -94,9 +103,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func open_for(unit: Unit) -> void:
 	_unit = unit
-	_refresh_character_panel()
+	_inventory_stats.refresh(unit)
+	_character_stats.refresh(unit)
+	_portrait.texture = unit.portrait_texture
+	_refresh_alignment_grid(unit)
+	_refresh_skill_list(unit)
 	visible = true
-	_show_tab("character")
+	_show_tab("inventory")
 
 
 func _show_tab(tab_name: String) -> void:
@@ -108,41 +121,40 @@ func _show_tab(tab_name: String) -> void:
 		_tab_buttons[key].disabled = (key == tab_name)
 
 
-func _refresh_character_panel() -> void:
-	_name_label.text = _unit.name
-	_alignment_label.text = "—"
-
-	_hp_value.text = "%d / %d" % [_unit.current_hp, _unit.maximum_hp]
-	_hp_fill.anchor_right = _fraction(_unit.current_hp, _unit.maximum_hp)
-	_fp_value.text = "%d / %d" % [_unit.current_fp, _unit.maximum_fp]
-	_fp_fill.anchor_right = _fraction(_unit.current_fp, _unit.maximum_fp)
-
-	_st_value.text = str(_unit.strength)
-	_dx_value.text = str(_unit.dexterity)
-	_iq_value.text = str(_unit.intelligence)
-	_ht_value.text = str(_unit.health)
-	_will_value.text = str(_unit.will)
-	_per_value.text = str(_unit.perception)
-
-	_dr_value.text = str(_unit.damage_reduction)
-	_move_value.text = str(_unit.move)
-
-	_thrust_value.text = _describe_die(_unit.thrust)
-	_swing_value.text = _describe_die(_unit.swing)
-
-	_portrait.texture = _unit.portrait_texture
+func _refresh_alignment_grid(unit: Unit) -> void:
+	var current: Vector2i = Vector2i(unit.alignment_category(), unit.tendency_category())
+	for key in _alignment_cells:
+		var cell: PanelContainer = _alignment_cells[key]
+		if key == current:
+			cell.add_theme_stylebox_override("panel", _alignment_highlight_style)
+		else:
+			cell.remove_theme_stylebox_override("panel")
 
 
-func _fraction(current: int, maximum: int) -> float:
-	if maximum <= 0:
-		return 0.0
-	return clampf(float(current) / float(maximum), 0.0, 1.0)
+func _refresh_skill_list(unit: Unit) -> void:
+	for child in _skill_list.get_children():
+		child.queue_free()
 
+	var skills: Array[SkillInstance] = unit.get_skills()
+	if skills.is_empty():
+		var empty_label := Label.new()
+		empty_label.modulate = Color(1, 1, 1, 0.5)
+		empty_label.text = "No skills trained yet."
+		_skill_list.add_child(empty_label)
+		return
 
-func _describe_die(die: Die) -> String:
-	var text: String = "%dd%d" % [die.count, die.sides]
-	if die.bonus > 0:
-		text += "+%d" % die.bonus
-	elif die.bonus < 0:
-		text += str(die.bonus)
-	return text
+	for skill in skills:
+		var result: SkillCheckResult = SkillCalculator.get_skill_level(unit, skill.skill_data.skill_name)
+
+		var row := HBoxContainer.new()
+		var name_label := Label.new()
+		name_label.text = skill.skill_data.skill_name
+		var spacer := Control.new()
+		spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var level_label := Label.new()
+		level_label.text = str(result.skill_level)
+
+		row.add_child(name_label)
+		row.add_child(spacer)
+		row.add_child(level_label)
+		_skill_list.add_child(row)

@@ -28,7 +28,7 @@ success_node_id = "test_persuade_success"
 failure_node_id = "test_persuade_failure"
 show_to_player = true
 text = "Let me travel with you — I can help."
-alignment_name = "Good"
+alignment_name = "Light"
 is_repeatable = false
 dialogue_line = "Let me travel with you — I can help."
 

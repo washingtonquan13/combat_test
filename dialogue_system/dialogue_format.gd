@@ -9,11 +9,14 @@ extends RefCounted
 ## both the overlay AND the conversation log can call the same
 ## formatting without either one owning it.
 
+## Four tags, not six — Good/Evil dropped. This project's alignment model
+## is two independent axes (see Unit.alignment/tendency): Chaos-Neutral-
+## Law and Dark-Neutral-Light. There's no separate good/evil spectrum,
+## so a choice tag can only ever be one of these four (or "" for no
+## shift) — matches what Unit.apply_alignment_tag() actually recognizes.
 static var alignment_colors: Dictionary = {
 	"Light": Color(0.541, 0.706, 1.0),
 	"Dark": Color(0.6, 0.4, 0.8),
-	"Good": Color(0.812, 0.686, 0.431),
-	"Evil": Color(0.631, 0.224, 0.180),
 	"Lawful": Color(0.706, 0.706, 0.706),
 	"Chaotic": Color(0.490, 0.627, 0.769),
 }
