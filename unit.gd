@@ -52,6 +52,7 @@ const ALIGNMENT_SHIFT_AMOUNT: int = 10
 ## against, not a repeat of it.
 @onready var _skills_container: Node = $Skills
 
+@export_group("Movement")
 @export var move: int = 5
 ## Real-time speed (world units/sec) while executing a move order. Distinct
 ## from `move`, which is the per-turn distance budget in combat.
@@ -134,9 +135,8 @@ const ALIGNMENT_SHIFT_AMOUNT: int = 10
 ## chasm — so a freak long descent can't stall the animation forever.
 @export var max_land_duration: float = 4.0
 
-@export var damage_reduction: int = 0
-
 @export_group("Combat")
+@export var damage_reduction: int = 0
 ## Units with a different faction than the acting unit are valid attack
 ## targets when clicked during that unit's turn; same-faction clicks still
 ## select as normal (see _on_input_event / is_hostile_to).
