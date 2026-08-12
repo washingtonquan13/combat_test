@@ -1,4 +1,4 @@
-[gd_scene load_steps=75 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=78 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -29,9 +29,7 @@
 [ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://menu_button.gd" id="16_htxhm"]
 [ext_resource type="Script" uid="uid://ds5sh15dh1euk" path="res://esc_menu.gd" id="17_jq2sk"]
 [ext_resource type="Texture2D" uid="uid://cbcv6cepoupv1" path="res://assets/portraits/hobgoblin.jpg" id="19_82xsv"]
-[ext_resource type="PackedScene" uid="uid://c6cftiltyv5xo" path="res://inventory_system/item.tscn" id="19_wnkbs"]
 [ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://abilities/explosive_fireball.tres" id="20_0odxb"]
-[ext_resource type="Texture2D" uid="uid://d1bjg6rqr22fb" path="res://assets/test_item_icons/test_chest.png" id="20_f6a44"]
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://abilities/sleep_dart.tres" id="21_a6jrf"]
 [ext_resource type="Texture2D" uid="uid://caua8wslo4n0e" path="res://assets/portraits/tiefling_wizard.jpg" id="21_lswn8"]
 [ext_resource type="Resource" uid="uid://8t1yvopu728x" path="res://abilities/grease.tres" id="29_4k2k6"]
@@ -48,9 +46,13 @@
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="43_seek"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="44_aer3d"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
+[ext_resource type="Script" uid="uid://b3gvuamt478hc" path="res://skill_system/skill_instance.gd" id="50_sm6fg"]
+[ext_resource type="Resource" uid="uid://bybjpwdtyimg6" path="res://data/skills/arcana.tres" id="51_b17eg"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
 [ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://hotbar_divider.gd" id="52_hbdivider"]
+[ext_resource type="Resource" uid="uid://cxye1dh2856fy" path="res://data/skills/acrobatics.tres" id="52_ntx8l"]
 [ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://party_panel.gd" id="53_partypanel"]
+[ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="53_uatky"]
 [ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="54_prop"]
 [ext_resource type="PackedScene" uid="uid://divqi7putsgwu" path="res://dialogue_system/dialogue_overlay.tscn" id="55_dlgoverlay"]
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://dialogue_system/conversation_log.tscn" id="56_convlog"]
@@ -103,6 +105,13 @@ size = Vector3(3, 1, 3)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_0cbny"]
 size = Vector3(3, 1, 3)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
+resource_local_to_scene = true
+render_priority = 0
+shader = ExtResource("53_uatky")
+shader_parameter/outline_color = Color(1, 0.85, 0.2, 1)
+shader_parameter/outline_width = 0.02
 
 [sub_resource type="Environment" id="Environment_movement_glow"]
 glow_enabled = true
@@ -257,14 +266,6 @@ grow_horizontal = 0
 grow_vertical = 0
 text = "END TURN"
 script = ExtResource("13_qsp4k")
-
-[node name="Item" parent="CanvasLayer/TacticalUI" instance=ExtResource("19_wnkbs")]
-layout_mode = 0
-offset_left = 832.0
-offset_right = 896.0
-tooltip_text = "Item (2×1)  Stack: 1"
-icon = ExtResource("20_f6a44")
-width = 2
 
 [node name="MenuButton" type="Button" parent="CanvasLayer" node_paths=PackedStringArray("esc_menu")]
 custom_minimum_size = Vector2(32, 32)
@@ -439,6 +440,19 @@ abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource(
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("21_lswn8")
 
+[node name="SkillInstance" type="Node" parent="TieflingWizard/Skills" index="0"]
+script = ExtResource("50_sm6fg")
+skill_data = ExtResource("51_b17eg")
+metadata/_custom_type_script = "uid://b3gvuamt478hc"
+
+[node name="SkillInstance2" type="Node" parent="TieflingWizard/Skills" index="1"]
+script = ExtResource("50_sm6fg")
+skill_data = ExtResource("52_ntx8l")
+metadata/_custom_type_script = "uid://b3gvuamt478hc"
+
+[node name="OutlineMesh" parent="TieflingWizard" index="4"]
+material_override = SubResource("ShaderMaterial_rqtf5")
+
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)
 strength = 16
@@ -522,3 +536,5 @@ transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 
 [connection signal="pressed" from="CanvasLayer/EscMenu/VBoxContainer/ExitToDesktop" to="CanvasLayer/EscMenu" method="_on_exit_to_desktop_pressed"]
 
 [editable path="LevelGeometry/Ladder"]
+[editable path="TieflingWizard"]
+[editable path="TieflingWizard/CharacterModel"]
