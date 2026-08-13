@@ -3,14 +3,13 @@
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_m1xwx"]
 [ext_resource type="Texture2D" uid="uid://fsfptrhr6sy3" path="res://assets/ability_icon/attack_icon_melee.png" id="1_owfv6"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_m1xwx"]
-[ext_resource type="Script" uid="uid://b8lanh5no52ke" path="res://st_damage_effect.gd" id="3_ebikf"]
+[ext_resource type="Script" uid="uid://fgbbihwp3tid" path="res://gear_damage_effect.gd" id="2_on0pe"]
 [ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://melee_enemy_targeting.gd" id="5_ebikf"]
 
-[sub_resource type="Resource" id="Resource_7yie4"]
-script = ExtResource("3_ebikf")
-damage_type = 0
-bonus = 1
-metadata/_custom_type_script = "uid://b8lanh5no52ke"
+[sub_resource type="Resource" id="Resource_ebikf"]
+script = ExtResource("2_on0pe")
+category = 0
+metadata/_custom_type_script = "uid://fgbbihwp3tid"
 
 [sub_resource type="Resource" id="Resource_uasc7"]
 script = ExtResource("5_ebikf")
@@ -24,7 +23,7 @@ ability_name = "Basic Attack (Melee)"
 icon = ExtResource("1_owfv6")
 category = 0
 targeting = SubResource("Resource_uasc7")
-effects = Array[ExtResource("1_m1xwx")]([SubResource("Resource_7yie4")])
+effects = Array[ExtResource("1_m1xwx")]([SubResource("Resource_ebikf")])
 requires_to_hit = true
 uses_attack_action = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

@@ -7,12 +7,11 @@ extends Resource
 ## instead of one class with a field per possible status.
 ##
 ## SWING/THRUST read the wielder's own ST-derived damage (see
-## StDamageEffect.roll_damage, which GearDamageEffect calls with
+## UnitCombat.roll_damage, which GearDamageEffect calls with
 ## damage_bonus as the weapon's contribution) — sw+2/thr+2 in GURPS
 ## notation. FIXED ignores the wielder's ST entirely and rolls its own
-## dice (a wand, say), the same count/sides/bonus shape Die already
-## uses, just as plain Resource fields since this is composed onto a
-## Resource (GearItem), not a scene child the way Die's callers are.
+## dice (a wand, say) via the plain count/sides/bonus fields below,
+## since this is composed onto a Resource (GearItem), not a scene node.
 
 enum DamageType { SWING, THRUST, FIXED }
 

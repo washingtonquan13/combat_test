@@ -45,20 +45,11 @@ func refresh(unit: Unit) -> void:
 	_dr_value.text = str(unit.get_stat("DR"))
 	_move_value.text = str(unit.get_stat("Move"))
 
-	_thrust_value.text = _describe_die(unit.thrust)
-	_swing_value.text = _describe_die(unit.swing)
+	_thrust_value.text = unit.describe_damage(UnitCombat.DamageType.THRUST, 0)
+	_swing_value.text = unit.describe_damage(UnitCombat.DamageType.SWING, 0)
 
 
 func _fraction(current: int, maximum: int) -> float:
 	if maximum <= 0:
 		return 0.0
 	return clampf(float(current) / float(maximum), 0.0, 1.0)
-
-
-func _describe_die(die: Die) -> String:
-	var text: String = "%dd%d" % [die.count, die.sides]
-	if die.bonus > 0:
-		text += "+%d" % die.bonus
-	elif die.bonus < 0:
-		text += str(die.bonus)
-	return text

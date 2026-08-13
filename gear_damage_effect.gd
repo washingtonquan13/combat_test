@@ -4,8 +4,8 @@ extends AbilityEffect
 ## equipped, instead of a fixed bonus baked into the ability itself
 ## (see StDamageEffect) — the ability just says "melee" or "ranged" via
 ## category; the equipped weapon (or lack of one) decides the rest.
-## Swing/Thrust weapons share StDamageEffect.roll_damage()'s exact
-## GURPS formula, just fed the weapon's damage_bonus instead of a value
+## Swing/Thrust weapons share UnitCombat.roll_damage()'s exact GURPS
+## formula, just fed the weapon's damage_bonus instead of a value
 ## hardcoded on this effect; Fixed weapons roll their own dice entirely,
 ## ignoring the attacker's ST.
 ##
@@ -52,7 +52,7 @@ func _find_weapon(attacker: Unit) -> GearItem:
 
 func _roll(attacker: Unit, weapon: GearItem) -> int:
 	if not weapon:
-		return StDamageEffect.roll_damage(attacker.get_stat("ST"), StDamageEffect.DamageType.SWING, 0)
+		return attacker.roll_damage(UnitCombat.DamageType.SWING, 0)
 
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:
@@ -62,9 +62,9 @@ func _roll(attacker: Unit, weapon: GearItem) -> int:
 				total += randi_range(1, weapon_data.fixed_dice_sides)
 			return total + weapon_data.fixed_dice_bonus
 		WeaponData.DamageType.THRUST:
-			return StDamageEffect.roll_damage(attacker.get_stat("ST"), StDamageEffect.DamageType.THRUST, weapon_data.damage_bonus)
+			return attacker.roll_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus)
 		_:
-			return StDamageEffect.roll_damage(attacker.get_stat("ST"), StDamageEffect.DamageType.SWING, weapon_data.damage_bonus)
+			return attacker.roll_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus)
 
 
 func describe() -> String:

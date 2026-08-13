@@ -23,8 +23,85 @@ extends RefCounted
 var _owner: Unit
 
 
+## GURPS ST-based swing/thrust damage — computed from a formula rather
+## than looking up the official table — approximates the real
+## (N+1)d-1/+0/+1/+2 progression ST 10-22 is built on (1d, 1d+1, 1d+2,
+## 2d-1, 2d, ...):
+##
+##   swing dice  = ((ST - 10) + 4) / 4
+##   thrust dice = ((ST - 10) + 4) / 8
+##
+## That division produces a fractional die count; the fractional part
+## becomes an adjustment on the floored whole-die count:
+##   fraction == 0             -> no adjustment
+##   fraction <= 0.25          -> +1 flat
+##   0.25 < fraction <= 0.5    -> +2 flat
+##   0.5  < fraction <= 0.75   -> +1 extra die, with a flat -1 ("1d-1")
+##   fraction >  0.75          -> +1 extra die, no flat modifier
+##                                 ("1d+0") — rolls over to the next
+##                                 full die, continuing the same
+##                                 -1/+0/+1/+2 cycle.
+##
+## Lives here rather than on either caller (StDamageEffect,
+## GearDamageEffect) since neither actually owns it — it's this unit's
+## own ST-derived capability, independent of whichever ability or
+## weapon happens to be delivering it. Already had to be pried loose
+## from StDamageEffect once (when GearDamageEffect needed the identical
+## math for equipped weapons); stats_column.gd's character-sheet display
+## needs the same numbers a third time, with no ability involved at all
+## — the clearest sign this belongs on the unit, not an effect.
+enum DamageType { SWING, THRUST }
+
+
 func _init(owner: Unit) -> void:
 	_owner = owner
+
+
+## Rolls this unit's ST-derived swing/thrust damage plus bonus (an
+## ability's own flat bonus, or an equipped weapon's damage_bonus — see
+## StDamageEffect/GearDamageEffect, the two current callers).
+func roll_damage(damage_type: DamageType, bonus: int) -> int:
+	var dice: Dictionary = _damage_dice(damage_type)
+	var total: int = 0
+	for _i in int(dice.count):
+		total += randi_range(1, 6)  # GURPS damage dice are always d6
+	return total + int(dice.flat_bonus) + bonus
+
+
+## Same formula as roll_damage(), without rolling — e.g. "1d+2" — for
+## display (see stats_column.gd's Thrust/Swing rows, shown with bonus 0
+## for the character's own base capability).
+func describe_damage(damage_type: DamageType, bonus: int) -> String:
+	var dice: Dictionary = _damage_dice(damage_type)
+	var flat: int = int(dice.flat_bonus) + bonus
+	var text: String = "%dd" % int(dice.count)
+	if flat > 0:
+		text += "+%d" % flat
+	elif flat < 0:
+		text += str(flat)
+	return text
+
+
+func _damage_dice(damage_type: DamageType) -> Dictionary:
+	var divisor: int = 4 if damage_type == DamageType.SWING else 8
+	var raw: float = float((_owner.get_stat("ST") - 10) + 4) / divisor
+
+	var dice_count: int = int(floor(raw))
+	var fraction: float = raw - dice_count
+	var flat_bonus: int = 0
+
+	if fraction > 0.75:
+		dice_count += 1
+	elif fraction > 0.5:
+		dice_count += 1
+		flat_bonus = -1
+	elif fraction > 0.25:
+		flat_bonus = 2
+	elif fraction > 0.0:
+		flat_bonus = 1
+
+	dice_count = max(dice_count, 0)
+	return {"count": dice_count, "flat_bonus": flat_bonus}
 
 
 ## GURPS-style roll-under: 3d6 <= target_number succeeds. Lower rolls are

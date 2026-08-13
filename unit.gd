@@ -31,17 +31,6 @@ const ALIGNMENT_NEUTRAL_THRESHOLD: int = 25
 ## .resolve(), the only current caller.
 const ALIGNMENT_SHIFT_AMOUNT: int = 10
 
-## No longer referenced by combat resolution — Ability resources (see
-## ability.gd) carry their own damage dice now, so a given ability isn't
-## tied to whichever fixed die a unit happens to have. Left in place
-## rather than removed since a future weapon system (weapon choice is
-## already on the project's to-do list) is a plausible reason to want a
-## unit's base weapon dice again, at which point an Ability could pull
-## from these instead of (or in addition to) its own embedded dice.
-@onready var thrust: Die = $Thrust
-@onready var swing: Die = $Swing
-@onready var damage: Die = $Damage
-
 ## Skills this unit has actually trained live as real children here —
 ## never a slot for every skill that exists in the game, only the ones
 ## confirmed under this node. Private: nothing outside Unit should reach
@@ -945,6 +934,18 @@ func attack_skill() -> int:
 
 func default_ability() -> Ability:
 	return _combat.default_ability()
+
+
+## ST-derived swing/thrust damage — see UnitCombat.roll_damage/
+## describe_damage for the actual formula. bonus is the caller's own
+## flat addition (an ability's authored bonus, or an equipped weapon's
+## damage_bonus) — pass 0 for this unit's bare capability.
+func roll_damage(damage_type: UnitCombat.DamageType, bonus: int) -> int:
+	return _combat.roll_damage(damage_type, bonus)
+
+
+func describe_damage(damage_type: UnitCombat.DamageType, bonus: int) -> String:
+	return _combat.describe_damage(damage_type, bonus)
 
 
 ## Also a coroutine now, same as UnitCombat.use_ability() — it has to

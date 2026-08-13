@@ -3,15 +3,13 @@
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_7ohbq"]
 [ext_resource type="Texture2D" uid="uid://buwrel4grptvr" path="res://assets/ability_icon/attack_icon_ranged.png" id="1_8dawa"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="1_vpgqn"]
-[ext_resource type="Script" uid="uid://l0qndk2gae1o" path="res://damage_effect.gd" id="2_4hxbv"]
+[ext_resource type="Script" uid="uid://fgbbihwp3tid" path="res://gear_damage_effect.gd" id="2_4hxbv"]
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://ranged_enemy_targeting.gd" id="5_nl2jd"]
 
-[sub_resource type="Resource" id="Resource_hw5nm"]
+[sub_resource type="Resource" id="Resource_nl2jd"]
 script = ExtResource("2_4hxbv")
-dice_count = 1
-dice_sides = 6
-dice_bonus = 0
-metadata/_custom_type_script = "uid://l0qndk2gae1o"
+category = 1
+metadata/_custom_type_script = "uid://fgbbihwp3tid"
 
 [sub_resource type="Resource" id="Resource_pm8sj"]
 script = ExtResource("5_nl2jd")
@@ -27,7 +25,7 @@ ability_name = "Basic Attack (Ranged)"
 icon = ExtResource("1_8dawa")
 category = 0
 targeting = SubResource("Resource_pm8sj")
-effects = Array[ExtResource("1_7ohbq")]([SubResource("Resource_hw5nm")])
+effects = Array[ExtResource("1_7ohbq")]([SubResource("Resource_nl2jd")])
 requires_to_hit = true
 uses_attack_action = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"
