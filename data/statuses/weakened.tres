@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=5 format=3 uid="uid://c85ia34mg8o67"]
+
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="1_fc6tn"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="2_dot3n"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="3_ge06c"]
+
+[sub_resource type="Resource" id="Resource_statmod"]
+script = ExtResource("2_dot3n")
+stat_name = "DR"
+amount = -2
+metadata/_custom_type_script = "uid://bgd2vy28ksd3v"
+
+[resource]
+script = ExtResource("3_ge06c")
+status_name = "Weakened"
+default_duration = 3
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("1_fc6tn")]([SubResource("Resource_statmod")])
+apply_animation = ""
+apply_animation_loops = false
+remove_animation = ""
+hit_reaction_animation = ""
+metadata/_custom_type_script = "uid://cplabynayhpiv"

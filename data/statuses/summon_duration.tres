@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=5 format=3 uid="uid://ck17lsl6ce1ys"]
+
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="1_7cyxo"]
+[ext_resource type="Script" uid="uid://bibvdrivvqsjl" path="res://despawn_on_expire_behavior.gd" id="2_uanyr"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="3_8hgh3"]
+
+[sub_resource type="Resource" id="Resource_despawn"]
+script = ExtResource("2_uanyr")
+metadata/_custom_type_script = "res://despawn_on_expire_behavior.gd"
+
+[resource]
+script = ExtResource("3_8hgh3")
+status_name = "Summoned"
+default_duration = 3
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("1_7cyxo")]([SubResource("Resource_despawn")])
+apply_animation = ""
+apply_animation_loops = false
+remove_animation = ""
+hit_reaction_animation = ""
+metadata/_custom_type_script = "uid://cplabynayhpiv"

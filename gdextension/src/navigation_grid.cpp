@@ -643,7 +643,7 @@ void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
 		}
 		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
 		Vector3i base_cell = world_to_cell(n3d->get_global_position());
-		// A corpse isn't force-landed on death (see Unit._handle_death) --
+		// A corpse isn't force-landed on death (see UnitDeath.handle_death) --
 		// one that died mid-air stays exactly where it was, so it needs
 		// the same flying-aware volume as a live flying unit.
 		bool node_flying = node->has_method("is_flying") && call_bool(node, "is_flying");

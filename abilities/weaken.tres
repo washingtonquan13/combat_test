@@ -1,15 +1,15 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://b6b42e1tuow5"]
 
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="1_ability"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://ranged_enemy_targeting.gd" id="2_targeting"]
-[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="3_effect"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
+[ext_resource type="Resource" uid="uid://c85ia34mg8o67" path="res://data/statuses/weakened.tres" id="3_no82x"]
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://apply_status_effect.gd" id="4_applystatus"]
-[ext_resource type="Resource" uid="uid://c85ia34mg8o67" path="res://statuses/weakened.tres" id="5_weakened"]
 [ext_resource type="Texture2D" uid="uid://dpndcrjdduiek" path="res://assets/ability_icon/weaken_icon.png" id="6_icon"]
 
 [sub_resource type="Resource" id="Resource_applystatus"]
 script = ExtResource("4_applystatus")
-status = ExtResource("5_weakened")
+status = ExtResource("3_no82x")
 metadata/_custom_type_script = "uid://cxvg4h3mmr1l4"
 
 [sub_resource type="Resource" id="Resource_targeting"]

@@ -1,0 +1,26 @@
+[gd_scene load_steps=3 format=3 uid="uid://dtgr0062ae6jf"]
+
+[ext_resource type="Script" uid="uid://d3ej6v75625cj" path="res://systems/inventory_system/equip_slot.gd" id="1_jq5ol"]
+[ext_resource type="Texture2D" uid="uid://drundrt1j3xdi" path="res://assets/equip_slot.png" id="1_qxdsw"]
+
+[node name="EquipSlot" type="MarginContainer" groups=["equip_slots"]]
+offset_right = 64.0
+offset_bottom = 64.0
+size_flags_horizontal = 4
+script = ExtResource("1_jq5ol")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("1_qxdsw")
+expand_mode = 2
+
+[node name="GhostPreview" type="ColorRect" parent="."]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 0.2)
+
+[node name="ItemLayer" type="Control" parent="."]
+layout_mode = 2
+mouse_filter = 2

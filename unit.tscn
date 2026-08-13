@@ -1,11 +1,11 @@
 [gd_scene load_steps=59 format=4 uid="uid://dfjhg20p6pvxm"]
 
-[ext_resource type="Script" uid="uid://dp2k8mbhvm6v0" path="res://unit.gd" id="1_ctwoc"]
+[ext_resource type="Script" uid="uid://dp2k8mbhvm6v0" path="res://systems/unit_system/unit.gd" id="1_ctwoc"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="3_1sk4h"]
-[ext_resource type="Script" uid="uid://dilgwwepmjg6q" path="res://unit_animator.gd" id="3_5wnup"]
+[ext_resource type="Script" uid="uid://dilgwwepmjg6q" path="res://systems/unit_system/unit_animator.gd" id="3_5wnup"]
 [ext_resource type="PackedScene" uid="uid://bsk4jx2fxytqm" path="res://assets/UAL1_Standard.glb" id="3_davkp"]
-[ext_resource type="Script" uid="uid://dnh7j3tbx8iv1" path="res://unit_vfx.gd" id="5_of1k5"]
-[ext_resource type="Script" uid="uid://ck5pdrnkh24um" path="res://unit_sfx.gd" id="6_74e6i"]
+[ext_resource type="Script" uid="uid://dnh7j3tbx8iv1" path="res://systems/unit_system/unit_vfx.gd" id="5_of1k5"]
+[ext_resource type="Script" uid="uid://ck5pdrnkh24um" path="res://systems/unit_system/unit_sfx.gd" id="6_74e6i"]
 [ext_resource type="AnimationLibrary" uid="uid://dljalqhwbvg6h" path="res://assets/UAL2_Standard.glb" id="6_baxm0"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]

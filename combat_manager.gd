@@ -498,8 +498,8 @@ func _check_combat_end() -> bool:
 func _on_unit_died(_unit: Unit) -> void:
 	# A death can change what the grid's occupancy should look like — a
 	# corpse that doesn't block movement (see Unit.corpse_blocks_movement/
-	# _handle_death) removes from the "units" group immediately (see
-	# _handle_death), so the very next update_occupancy call already skips
+	# UnitDeath.handle_death) removes from the "units" group immediately
+	# (see UnitDeath.handle_death), so the very next update_occupancy call already skips
 	# it — no bake, no per-frame coalescing needed the way the old navmesh
 	# rebake required (that existed only to wait out
 	# NavigationObstacle3D's own removal, which this system doesn't have).

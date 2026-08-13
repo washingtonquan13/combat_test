@@ -1,15 +1,15 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://di2purkqksvn2"]
 
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="1_ability"]
-[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="2_effect"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="2_effect"]
+[ext_resource type="Resource" uid="uid://dwarcbw0o48hl" path="res://data/statuses/flying.tres" id="2_hnf8g"]
 [ext_resource type="Script" uid="uid://f71ebavboyjq" path="res://grant_flight_effect.gd" id="3_grant"]
 [ext_resource type="Script" path="res://self_targeting.gd" id="4_self"]
-[ext_resource type="Resource" uid="uid://dwarcbw0o48hl" path="res://statuses/flying.tres" id="5_flying"]
 [ext_resource type="Texture2D" uid="uid://dnioh6l87lxu6" path="res://assets/ability_icon/fly_icon.png" id="6_icon"]
 
 [sub_resource type="Resource" id="Resource_grantflight"]
 script = ExtResource("3_grant")
-flying_status = ExtResource("5_flying")
+flying_status = ExtResource("2_hnf8g")
 takeoff_height = 3.0
 vertical_speed = 5.0
 min_ascend_duration = 0.15

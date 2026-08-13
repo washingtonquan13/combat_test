@@ -1,7 +1,7 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://stash_component.gd" id="1_stash"]
-[ext_resource type="PackedScene" path="res://inventory_system/inventory.tscn" id="2_inv"]
+[ext_resource type="Script" uid="uid://d0e0ebj0jpo3o" path="res://stash_component.gd" id="1_stash"]
+[ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://systems/inventory_system/inventory.tscn" id="2_inv"]
 
 [node name="StashComponent" type="Node"]
 script = ExtResource("1_stash")

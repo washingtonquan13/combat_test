@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=9 format=3 uid="uid://dwarcbw0o48hl"]
+
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="1_xtugy"]
+[ext_resource type="Script" uid="uid://cp37tt8ahehq4" path="res://flight_behavior.gd" id="2_26ayu"]
+[ext_resource type="Script" path="res://force_land_on_expire_behavior.gd" id="3_ybjf0"]
+[ext_resource type="Script" uid="uid://yor401j5yoxb" path="res://altitude_advantage_behavior.gd" id="4_y3pbu"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="5_wwfy6"]
+
+[sub_resource type="Resource" id="Resource_flight"]
+script = ExtResource("2_26ayu")
+metadata/_custom_type_script = "res://flight_behavior.gd"
+
+[sub_resource type="Resource" id="Resource_land"]
+script = ExtResource("3_ybjf0")
+metadata/_custom_type_script = "res://force_land_on_expire_behavior.gd"
+
+[sub_resource type="Resource" id="Resource_altitude"]
+script = ExtResource("4_y3pbu")
+to_hit_penalty_per_meter = 0.5
+max_modifier = 4
+metadata/_custom_type_script = "res://altitude_advantage_behavior.gd"
+
+[resource]
+script = ExtResource("5_wwfy6")
+status_name = "Flying"
+default_duration = 99
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("1_xtugy")]([SubResource("Resource_flight"), SubResource("Resource_land"), SubResource("Resource_altitude")])
+apply_animation = ""
+apply_animation_loops = false
+remove_animation = ""
+hit_reaction_animation = ""
+metadata/_custom_type_script = "uid://cplabynayhpiv"

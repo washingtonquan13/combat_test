@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=20 format=3 uid="uid://polrlhck5ycm"]
 
-[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_wcufp"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_wcufp"]
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://apply_status_effect.gd" id="2_1vrnf"]
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_6yrul"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_6yrul"]
 [ext_resource type="Texture2D" uid="uid://b1nndgvx3k1yo" path="res://assets/ability_icon/sleep_spell_icon.png" id="3_21ej2"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="3_0585o"]
 [ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://sfx_layer.gd" id="3_ce624"]

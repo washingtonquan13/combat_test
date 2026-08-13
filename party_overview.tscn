@@ -1,8 +1,8 @@
 [gd_scene load_steps=6 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://party_overview.gd" id="1_overview"]
-[ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://inventory_system/equip_slot.tscn" id="2_equip"]
-[ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://inventory_system/inventory.tscn" id="3_inv"]
+[ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://systems/inventory_system/equip_slot.tscn" id="2_equip"]
+[ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://systems/inventory_system/inventory.tscn" id="3_inv"]
 [ext_resource type="PackedScene" path="res://stats_column.tscn" id="4_stats"]
 [ext_resource type="Script" uid="uid://2g8vxoibdf3k" path="res://alignment_grid.gd" id="5_align_grid"]
 

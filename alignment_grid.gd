@@ -10,9 +10,10 @@ extends Control
 
 ## Raw alignment/tendency are unbounded running totals (see unit.gd), but
 ## the dot needs a fixed range to plot against. 100 is 10 shifts deep in
-## one direction (Unit.ALIGNMENT_SHIFT_AMOUNT=10) — well past the neutral
-## band (Unit.ALIGNMENT_NEUTRAL_THRESHOLD=25), so the dot has room to
-## move within a band before pinning to the edge. Tune freely.
+## one direction (UnitAlignment.ALIGNMENT_SHIFT_AMOUNT=10) — well past
+## the neutral band (UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD=25), so
+## the dot has room to move within a band before pinning to the edge.
+## Tune freely.
 const DISPLAY_RANGE: float = 100.0
 const DOT_RADIUS: float = 7.0
 const EDGE_LABEL_SIZE: int = 12

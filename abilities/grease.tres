@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=18 format=3 uid="uid://8t1yvopu728x"]
 
-[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_klks1"]
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_8da6v"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_klks1"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_8da6v"]
 [ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://spawn_surface_effect.gd" id="2_nljf2"]
 [ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://surface.gd" id="3_3v0v0"]
 [ext_resource type="PackedScene" uid="uid://dr51e1l3niwh0" path="res://grease.tscn" id="3_5hn5t"]

@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=13 format=3 uid="uid://xrcp3khftmgl"]
 
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="1_ability"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://ranged_enemy_targeting.gd" id="2_targeting"]
-[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="3_effect"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://apply_status_effect.gd" id="4_applystatus"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="5_status"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="6_behavior"]

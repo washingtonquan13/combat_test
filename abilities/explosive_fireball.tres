@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=40 format=3 uid="uid://dh51y4swh78rh"]
 
-[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="1_res1m"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_res1m"]
 [ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://sfx_layer.gd" id="1_tsbd3"]
 [ext_resource type="AudioStream" uid="uid://0ixtvquyqpm4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_CAST_01.wav" id="2_ldoga"]
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="2_nideg"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_nideg"]
 [ext_resource type="AudioStream" uid="uid://b0g8oi0unsi83" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_HOLD_4s.wav" id="2_xtw6w"]
 [ext_resource type="Script" uid="uid://dley113smhdn3" path="res://area_damage_effect.gd" id="2_y8mr0"]
 [ext_resource type="Texture2D" uid="uid://bcmxnrpmk4ii7" path="res://assets/ability_icon/fireball_icon.png" id="3_dbc05"]
@@ -16,13 +16,13 @@
 [ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://vfx_effect.gd" id="8_f0pgo"]
 [ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://vfx_step.gd" id="9_gy3xg"]
 [ext_resource type="Script" uid="uid://bbwsb2teel8f1" path="res://projectile_step.gd" id="10_inwvo"]
-[ext_resource type="PackedScene" uid="uid://pwjoclbech1b" path="res://vfx/BinbunVFX/magic_projectiles/effects/mprojectile_wave/mprojectile_wave_vfx_04.tscn" id="10_nhug0"]
-[ext_resource type="PackedScene" uid="uid://2eq2j53sic1i" path="res://vfx/BinbunVFX/impact_explosions/effects/impact/vfx_impact_04.tscn" id="12_gy3xg"]
 [ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://impact_signal_step.gd" id="12_nhug0"]
 [ext_resource type="Script" uid="uid://dcgjthqwkn30" path="res://spawn_particle_step.gd" id="12_woc63"]
+[ext_resource type="PackedScene" uid="uid://pwjoclbech1b" path="res://scenes/vfx/BinbunVFX/magic_projectiles/effects/mprojectile_wave/mprojectile_wave_vfx_04.tscn" id="15_ldoga"]
 [ext_resource type="AudioStream" uid="uid://btymytoka47j5" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_IMPACT_01.wav" id="16_y636c"]
 [ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="18_a73or"]
-[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://ability_timing.gd" id="22_tsbd3"]
+[ext_resource type="PackedScene" uid="uid://2eq2j53sic1i" path="res://scenes/vfx/BinbunVFX/impact_explosions/effects/impact/vfx_impact_04.tscn" id="18_mme6j"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="22_tsbd3"]
 
 [sub_resource type="Resource" id="Resource_iownq"]
 script = ExtResource("1_tsbd3")
@@ -89,7 +89,7 @@ metadata/_custom_type_script = "uid://b31m1uvps4rb"
 
 [sub_resource type="Resource" id="Resource_f0pgo"]
 script = ExtResource("10_inwvo")
-projectile_scene = ExtResource("10_nhug0")
+projectile_scene = ExtResource("15_ldoga")
 duration = 0.0
 speed = 15.0
 arc_height = 0.0
@@ -102,7 +102,7 @@ metadata/_custom_type_script = "uid://bkpdhvqqgfc8o"
 
 [sub_resource type="Resource" id="Resource_gy3xg"]
 script = ExtResource("12_woc63")
-scene = ExtResource("12_gy3xg")
+scene = ExtResource("18_mme6j")
 at = 1
 force_one_shot = true
 fallback_lifetime = 2.0

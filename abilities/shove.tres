@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=8 format=3 uid="uid://c0qppy4xryydr"]
 
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="1_ability"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
 [ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://melee_enemy_targeting.gd" id="2_targeting"]
-[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://ability_effect.gd" id="3_effect"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
 [ext_resource type="Script" uid="uid://drjjm08fw6max" path="res://knockback_effect.gd" id="4_knockback"]
 [ext_resource type="Texture2D" uid="uid://ciq4hgb50hjbf" path="res://assets/ability_icon/knockback_icon.png" id="5_icon"]
 

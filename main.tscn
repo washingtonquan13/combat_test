@@ -19,7 +19,7 @@
 [ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="7_ycdy4"]
 [ext_resource type="PackedScene" uid="uid://c8p3x6fyoh5xw" path="res://hotbar_slot.tscn" id="8_cegan"]
 [ext_resource type="Texture2D" uid="uid://bmpvtkr2rfmo5" path="res://assets/portraits/woodland_goblin_rogue_by_thedrimdrim_dh26oji-fullview.jpg" id="8_w48qg"]
-[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://ability.gd" id="9_vivmo"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="9_vivmo"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://abilities/basic_attack_melee.tres" id="10_yaehf"]
 [ext_resource type="PackedScene" uid="uid://dtttg6dyn8w56" path="res://system_log.tscn" id="12_xuqvo"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://abilities/basic_attack_ranged.tres" id="13_074og"]
@@ -46,7 +46,7 @@
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="43_seek"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="44_aer3d"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
-[ext_resource type="Script" uid="uid://b3gvuamt478hc" path="res://skill_system/skill_instance.gd" id="50_sm6fg"]
+[ext_resource type="Script" uid="uid://b3gvuamt478hc" path="res://systems/skill_system/skill_instance.gd" id="50_sm6fg"]
 [ext_resource type="Resource" uid="uid://bybjpwdtyimg6" path="res://data/skills/arcana.tres" id="51_b17eg"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
 [ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://hotbar_divider.gd" id="52_hbdivider"]
@@ -54,9 +54,9 @@
 [ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://party_panel.gd" id="53_partypanel"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="53_uatky"]
 [ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="54_prop"]
-[ext_resource type="PackedScene" uid="uid://divqi7putsgwu" path="res://dialogue_system/dialogue_overlay.tscn" id="55_dlgoverlay"]
-[ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://dialogue_system/conversation_log.tscn" id="56_convlog"]
-[ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
+[ext_resource type="PackedScene" uid="uid://divqi7putsgwu" path="res://systems/dialogue_system/dialogue_overlay.tscn" id="55_dlgoverlay"]
+[ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://systems/dialogue_system/conversation_log.tscn" id="56_convlog"]
+[ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
 [ext_resource type="PackedScene" uid="uid://jfavnc280asx" path="res://party_overview.tscn" id="59_partyoverview"]
 [ext_resource type="PackedScene" uid="uid://dwu2y8j3sei5i" path="res://chest.tscn" id="60_chest"]
@@ -450,7 +450,7 @@ script = ExtResource("50_sm6fg")
 skill_data = ExtResource("52_ntx8l")
 metadata/_custom_type_script = "uid://b3gvuamt478hc"
 
-[node name="OutlineMesh" parent="TieflingWizard" index="5"]
+[node name="OutlineMesh" parent="TieflingWizard" index="2"]
 material_override = SubResource("ShaderMaterial_rqtf5")
 
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]

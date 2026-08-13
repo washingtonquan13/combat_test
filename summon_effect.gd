@@ -45,7 +45,7 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 
 	var summon: Unit = summon_scene.instantiate()
 	summon.faction = attacker.faction
-	# Ties this summon's lifetime to attacker's — see Unit._handle_death,
+	# Ties this summon's lifetime to attacker's — see UnitDeath.handle_death,
 	# which expires everything it summoned the moment it dies.
 	summon.summoned_by = attacker
 	# Reads as "your" summon, not a random third color scheme — only the
