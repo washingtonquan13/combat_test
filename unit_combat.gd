@@ -43,7 +43,7 @@ func roll_vs(target_number: int) -> Dictionary:
 ## lookup later (weapon skill, ability-specific skill, etc.) without
 ## touching use_ability()'s call site.
 func attack_skill() -> int:
-	return _owner.dexterity
+	return _owner.get_stat("DX")
 
 
 ## abilities[0], or null if this unit has none equipped. Used as the

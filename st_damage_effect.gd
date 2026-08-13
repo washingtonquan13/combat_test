@@ -32,8 +32,8 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 	if not target is Unit:
 		return {}
 
-	var raw_damage: int = roll_damage(attacker.strength)
-	var applied: int = max(raw_damage - target.damage_reduction, 0)
+	var raw_damage: int = roll_damage(attacker.get_stat("ST"))
+	var applied: int = max(raw_damage - target.get_stat("DR"), 0)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}

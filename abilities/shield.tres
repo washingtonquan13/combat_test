@@ -11,7 +11,7 @@
 
 [sub_resource type="Resource" id="Resource_statmod"]
 script = ExtResource("7_statmod")
-stat_name = "damage_reduction"
+stat_name = "DR"
 amount = 3
 metadata/_custom_type_script = "uid://bgd2vy28ksd3v"
 

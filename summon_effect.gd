@@ -61,7 +61,7 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 		summon.maximum_hp = hp_override
 		summon.current_hp = hp_override
 	if move_override > 0:
-		summon.move = move_override
+		summon.set_stat_base("Move", move_override)
 
 	attacker.get_parent().add_child(summon)
 	summon.global_position = target

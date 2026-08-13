@@ -749,16 +749,56 @@ func is_alive() -> bool:
 ## anything else that names an attribute generically off a .tres) can
 ## resolve one without needing a match/if-chain of their own — same role
 ## as Character.get_attribute_value() in the gurps project this was
-## ported from.
+## ported from. Kept as a thin alias over get_stat() rather than renamed,
+## so skill_system's existing callers need no changes.
 func get_attribute_value(attribute_name: String) -> int:
-	match attribute_name:
-		"ST": return strength
-		"DX": return dexterity
-		"IQ": return intelligence
-		"HT": return health
-		"Will": return will
-		"Per": return perception
-		_: return 0
+	return get_stat(attribute_name)
+
+
+## Effective value of a named stat — base field plus every currently
+## active modifier (status effects today, equipment later once it grants
+## any — see stat_modifier() below). The base fields themselves
+## (strength, damage_reduction, ...) are never mutated by a modifier
+## anymore; each read recomputes fresh, the same "sum every active
+## source at query time" shape incoming_attack_to_hit_modifier already
+## uses for to-hit instead of mutating anything.
+func get_stat(stat_name: String) -> int:
+	var base: int = 0
+	match stat_name:
+		"ST": base = strength
+		"DX": base = dexterity
+		"IQ": base = intelligence
+		"HT": base = health
+		"Will": base = will
+		"Per": base = perception
+		"DR": base = damage_reduction
+		"Move": base = move
+	return base + stat_modifier(stat_name)
+
+
+## Writes a new BASE value for a named stat — the get_stat() match in
+## reverse. For the rare caller that needs to set a stat outright rather
+## than modify it temporarily (SummonEffect's move_override, e.g.), not
+## a general-purpose setter for modifiers — those go through
+## StatModifierBehavior/stat_modifier() instead.
+func set_stat_base(stat_name: String, value: int) -> void:
+	match stat_name:
+		"ST": strength = value
+		"DX": dexterity = value
+		"IQ": intelligence = value
+		"HT": health = value
+		"Will": will = value
+		"Per": perception = value
+		"DR": damage_reduction = value
+		"Move": move = value
+
+
+## Sum of every active status's modifier to a named stat — see
+## StatModifierBehavior, the only current source. Same forwarding
+## convention incoming_attack_to_hit_modifier/outgoing_attack_to_hit_modifier
+## already use for their own StatusManager aggregation.
+func stat_modifier(stat_name: String) -> int:
+	return _status_manager.stat_modifier(stat_name)
 
 
 ## -1/0/1 for Chaos/Neutral/Law — the only thing anything outside Unit

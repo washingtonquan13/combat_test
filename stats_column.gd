@@ -35,15 +35,15 @@ func refresh(unit: Unit) -> void:
 	_fp_value.text = "%d / %d" % [unit.current_fp, unit.maximum_fp]
 	_fp_fill.anchor_right = _fraction(unit.current_fp, unit.maximum_fp)
 
-	_st_value.text = str(unit.strength)
-	_dx_value.text = str(unit.dexterity)
-	_iq_value.text = str(unit.intelligence)
-	_ht_value.text = str(unit.health)
-	_will_value.text = str(unit.will)
-	_per_value.text = str(unit.perception)
+	_st_value.text = str(unit.get_stat("ST"))
+	_dx_value.text = str(unit.get_stat("DX"))
+	_iq_value.text = str(unit.get_stat("IQ"))
+	_ht_value.text = str(unit.get_stat("HT"))
+	_will_value.text = str(unit.get_stat("Will"))
+	_per_value.text = str(unit.get_stat("Per"))
 
-	_dr_value.text = str(unit.damage_reduction)
-	_move_value.text = str(unit.move)
+	_dr_value.text = str(unit.get_stat("DR"))
+	_move_value.text = str(unit.get_stat("Move"))
 
 	_thrust_value.text = _describe_die(unit.thrust)
 	_swing_value.text = _describe_die(unit.swing)

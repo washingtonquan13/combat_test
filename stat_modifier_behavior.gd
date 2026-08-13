@@ -1,35 +1,24 @@
 class_name StatModifierBehavior
 extends StatusBehavior
-## Temporarily adds `amount` to `stat_name` (a plain Unit property name —
-## damage_reduction, move, strength, ...) for as long as this status is
-## active, reverting the exact same amount on removal. One reusable
-## behavior instead of a separate class per stat — Shield (damage_reduction,
-## positive), Weaken (damage_reduction, negative), and Slow (move,
-## negative) are all just this with different stat_name/amount/icon, the
-## same "small reusable piece, many .tres variations" reasoning
-## DamageOverTimeBehavior already established for Bleeding/Burning/Poison.
+## Contributes `amount` to `stat_name` (one of Unit.get_stat()'s names —
+## "ST", "DR", "Move", ...) for as long as this status is active. One
+## reusable behavior instead of a separate class per stat — Shield (DR,
+## positive), Weaken (DR, negative), and Slow (Move, negative) are all
+## just this with different stat_name/amount/icon, the same "small
+## reusable piece, many .tres variations" reasoning DamageOverTimeBehavior
+## already established for Bleeding/Burning/Poison.
 ##
-## Uses Object.set()/get() (Unit is a Node, a plain Object underneath) to
-## reach an arbitrary property by name rather than needing a dedicated
-## field-and-branch per stat. Only meaningful for numeric @export stats
-## that are read fresh where they're used (damage_reduction is read live
-## every hit; move is read fresh into move_remaining at reset_turn_actions
-## each turn) — reverting the SAME delta back on_remove is what keeps this
-## safe even if the stat was also changed by something else while active,
-## as long as that something else doesn't ALSO revert relative to a stale
-## snapshot; two simultaneous StatModifierBehaviors on the same stat both
-## add/revert their own delta independently and compose correctly.
+## Pure data — no on_apply/on_remove. StatusManager.stat_modifier() sums
+## `amount` across every active status matching stat_name fresh each time
+## Unit.get_stat() is called, the same query-at-read-time shape
+## modify_incoming_attack_to_hit already uses for to-hit, rather than
+## mutating and reverting a field. This is also what lets a future
+## equipment modifier reuse this exact class unchanged — it only ever
+## needs to be summed by whichever aggregator is asking, never told to
+## apply or revert itself.
 
-@export var stat_name: String = "damage_reduction"
+@export var stat_name: String = "DR"
 @export var amount: int = 0
-
-
-func on_apply(unit: Unit, _active: ActiveStatus) -> void:
-	unit.set(stat_name, unit.get(stat_name) + amount)
-
-
-func on_remove(unit: Unit, _active: ActiveStatus) -> void:
-	unit.set(stat_name, unit.get(stat_name) - amount)
 
 
 func describe() -> String:

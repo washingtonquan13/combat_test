@@ -73,7 +73,7 @@ func _connect_debug_signals(units: Array[Unit]) -> void:
 func _on_combat_started(turn_order: Array[Unit]) -> void:
 	print("--- Combat started ---")
 	for unit in turn_order:
-		print("  ", unit.name, " (", unit.faction, ") DX ", unit.dexterity, " HP ", unit.current_hp)
+		print("  ", unit.name, " (", unit.faction, ") DX ", unit.get_stat("DX"), " HP ", unit.current_hp)
 
 
 func _on_turn_started(unit: Unit) -> void:

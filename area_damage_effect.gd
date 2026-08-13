@@ -58,7 +58,7 @@ func apply(attacker: Unit, target, ability: Ability) -> Dictionary:
 			continue
 
 		var raw_damage: int = roll_damage()
-		var applied: int = max(raw_damage - unit.damage_reduction, 0)
+		var applied: int = max(raw_damage - unit.get_stat("DR"), 0)
 		unit.take_damage(applied)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})
 

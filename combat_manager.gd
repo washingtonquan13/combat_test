@@ -153,8 +153,8 @@ func start_combat(combatants: Array[Unit]) -> void:
 		tiebreak[unit] = randi_range(1, 6)
 
 	turn_order.sort_custom(func(a: Unit, b: Unit) -> bool:
-		if a.dexterity != b.dexterity:
-			return a.dexterity > b.dexterity
+		if a.get_stat("DX") != b.get_stat("DX"):
+			return a.get_stat("DX") > b.get_stat("DX")
 		return tiebreak[a] > tiebreak[b]
 	)
 
