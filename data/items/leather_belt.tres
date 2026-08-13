@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=5 format=3 uid="uid://c63mejhpeqvgo"]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" uid="uid://b22mv7hnxmeyi" path="res://assets/test_item_icons/test_belt.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="3_statmod"]
+
+[sub_resource type="Resource" id="Resource_statmod"]
+script = ExtResource("3_statmod")
+stat_name = "DR"
+amount = 1
+
+[resource]
+script = ExtResource("1_gear")
+item_name = "Leather Belt"
+icon = ExtResource("2_icon")
+width = 2
+height = 1
+slot_type = 8
+stat_modifiers = Array[ExtResource("3_statmod")]([SubResource("Resource_statmod")])

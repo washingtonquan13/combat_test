@@ -6,15 +6,15 @@
 [ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://interaction_option.gd" id="4_opt"]
 [ext_resource type="PackedScene" path="res://stash_component.tscn" id="5_stash"]
 [ext_resource type="PackedScene" uid="uid://c6cftiltyv5xo" path="res://inventory_system/item.tscn" id="6_item"]
-[ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="7_sword"]
-[ext_resource type="Texture2D" uid="uid://b7oi6ye8v7p0" path="res://assets/test_item_icons/test_shield.png" id="8_shield"]
 [ext_resource type="Texture2D" uid="uid://u8puvbqkit5k" path="res://assets/test_item_icons/test_healing_potion.png" id="9_potion"]
-[ext_resource type="Texture2D" uid="uid://b22mv7hnxmeyi" path="res://assets/test_item_icons/test_belt.png" id="10_belt"]
-[ext_resource type="Texture2D" uid="uid://dinqj6wkwp5tw" path="res://assets/test_item_icons/test_boots.png" id="11_boots"]
-[ext_resource type="Texture2D" uid="uid://d1bjg6rqr22fb" path="res://assets/test_item_icons/test_chest.png" id="12_chestpiece"]
-[ext_resource type="Texture2D" uid="uid://cuq7x56612mx2" path="res://assets/test_item_icons/test_gloves.png" id="13_gloves"]
-[ext_resource type="Texture2D" uid="uid://1rjqfvy3hsiu" path="res://assets/test_item_icons/test_helmet.png" id="14_helmet"]
 [ext_resource type="Texture2D" uid="uid://bor7ucx1k3nh1" path="res://assets/test_item_icons/test_mana_potion.png" id="15_manapotion"]
+[ext_resource type="Resource" path="res://data/items/iron_sword.tres" id="16_sword"]
+[ext_resource type="Resource" path="res://data/items/wooden_shield.tres" id="17_shield"]
+[ext_resource type="Resource" path="res://data/items/leather_chestpiece.tres" id="18_chest"]
+[ext_resource type="Resource" path="res://data/items/leather_boots.tres" id="19_boots"]
+[ext_resource type="Resource" path="res://data/items/leather_gloves.tres" id="20_gloves"]
+[ext_resource type="Resource" path="res://data/items/leather_helmet.tres" id="21_helmet"]
+[ext_resource type="Resource" path="res://data/items/leather_belt.tres" id="22_belt"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_chest"]
 
@@ -47,40 +47,28 @@ custom_minimum_size = Vector2(192, 192)
 layout_mode = 0
 offset_right = 64.0
 offset_bottom = 96.0
-tooltip_text = "Item (2×3)  Stack: 1"
-icon = ExtResource("7_sword")
-width = 2
-height = 3
+gear_data = ExtResource("16_sword")
 
 [node name="TestShield" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="2" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 64.0
 offset_right = 128.0
 offset_bottom = 96.0
-tooltip_text = "Item (2×3)  Stack: 1"
-icon = ExtResource("8_shield")
-width = 2
-height = 3
+gear_data = ExtResource("17_shield")
 
 [node name="TestChestpiece" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="3" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_left = 128.0
 offset_right = 192.0
 offset_bottom = 96.0
-tooltip_text = "Item (2×3)  Stack: 1"
-icon = ExtResource("12_chestpiece")
-width = 2
-height = 3
+gear_data = ExtResource("18_chest")
 
 [node name="TestBoots" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="4" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_top = 96.0
 offset_right = 64.0
 offset_bottom = 160.0
-tooltip_text = "Item (2×2)  Stack: 1"
-icon = ExtResource("11_boots")
-width = 2
-height = 2
+gear_data = ExtResource("19_boots")
 
 [node name="TestGloves" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="5" instance=ExtResource("6_item")]
 layout_mode = 0
@@ -88,10 +76,7 @@ offset_left = 64.0
 offset_top = 96.0
 offset_right = 128.0
 offset_bottom = 160.0
-tooltip_text = "Item (2×2)  Stack: 1"
-icon = ExtResource("13_gloves")
-width = 2
-height = 2
+gear_data = ExtResource("20_gloves")
 
 [node name="TestHelmet" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="6" instance=ExtResource("6_item")]
 layout_mode = 0
@@ -99,19 +84,14 @@ offset_left = 128.0
 offset_top = 96.0
 offset_right = 192.0
 offset_bottom = 160.0
-tooltip_text = "Item (2×2)  Stack: 1"
-icon = ExtResource("14_helmet")
-width = 2
-height = 2
+gear_data = ExtResource("21_helmet")
 
 [node name="TestBelt" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="7" instance=ExtResource("6_item")]
 layout_mode = 0
 offset_top = 160.0
 offset_right = 64.0
 offset_bottom = 192.0
-tooltip_text = "Item (2×1)  Stack: 1"
-icon = ExtResource("10_belt")
-width = 2
+gear_data = ExtResource("22_belt")
 
 [node name="TestPotion" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="8" instance=ExtResource("6_item")]
 layout_mode = 0

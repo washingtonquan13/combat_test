@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=6 format=3 uid="uid://cing3w35sxrnh"]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="3_s3sab"]
+[ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://weapon_data.gd" id="3_weapon"]
+
+[sub_resource type="Resource" id="Resource_weapon"]
+script = ExtResource("3_weapon")
+damage_type = 0
+damage_bonus = 2
+fixed_dice_count = 1
+fixed_dice_sides = 6
+fixed_dice_bonus = 0
+
+[resource]
+script = ExtResource("1_gear")
+item_name = "Iron Sword"
+icon = ExtResource("2_icon")
+width = 2
+height = 3
+slot_type = 11
+stat_modifiers = Array[ExtResource("3_s3sab")]([])
+weapon_data = SubResource("Resource_weapon")
