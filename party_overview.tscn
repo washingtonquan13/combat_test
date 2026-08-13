@@ -98,103 +98,140 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 16
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn"]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_constants/separation = 14
+theme_override_constants/separation = 16
 
-[node name="Portrait" type="TextureRect" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
+[node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
+layout_mode = 2
+text = "Equipment"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
+layout_mode = 2
+
+[node name="PortraitRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 12
+
+[node name="LeftSlots" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 8
+
+[node name="Helmet" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Amulet" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Cloak" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="ChestArmor" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Undershirt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Bracers" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Portrait" type="TextureRect" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
 custom_minimum_size = Vector2(180, 240)
 layout_mode = 2
-size_flags_horizontal = 4
+size_flags_vertical = 4
 expand_mode = 1
-stretch_mode = 5
 
-[node name="EquipGrid" type="GridContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
+[node name="RightSlots" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_constants/separation = 8
+
+[node name="Ring1" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Ring2" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Gloves" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Belt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Legs" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="Boots" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+
+[node name="HSeparator2" type="HSeparator" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
+layout_mode = 2
+
+[node name="WeaponSetsRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_constants/h_separation = 16
-theme_override_constants/v_separation = 10
-columns = 3
+theme_override_constants/separation = 28
 
-[node name="Slot1" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="MeleeSet" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow"]
 layout_mode = 2
+theme_override_constants/separation = 6
 
-[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot1" instance=ExtResource("2_equip")]
-custom_minimum_size = Vector2(56, 56)
+[node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet"]
 layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot1"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Head"
+theme_override_font_sizes/font_size = 12
+text = "Melee"
 horizontal_alignment = 1
 
-[node name="Slot2" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slots" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MainHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot2" instance=ExtResource("2_equip")]
-custom_minimum_size = Vector2(56, 56)
+[node name="OffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 
-[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot2"]
+[node name="RangedSet" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Body"
+theme_override_constants/separation = 6
+
+[node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "Ranged"
 horizontal_alignment = 1
 
-[node name="Slot3" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
+[node name="Slots" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="MainHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 
-[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot3" instance=ExtResource("2_equip")]
-custom_minimum_size = Vector2(56, 56)
+[node name="OffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
+custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot3"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Main hand"
-horizontal_alignment = 1
-
-[node name="Slot4" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
-layout_mode = 2
-
-[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot4" instance=ExtResource("2_equip")]
-custom_minimum_size = Vector2(56, 56)
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot4"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Off hand"
-horizontal_alignment = 1
-
-[node name="Slot5" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
-layout_mode = 2
-
-[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot5" instance=ExtResource("2_equip")]
-custom_minimum_size = Vector2(56, 56)
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot5"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Ring"
-horizontal_alignment = 1
-
-[node name="Slot6" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid"]
-layout_mode = 2
-
-[node name="EquipSlot" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot6" instance=ExtResource("2_equip")]
-custom_minimum_size = Vector2(56, 56)
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/EquipGrid/Slot6"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-text = "Trinket"
-horizontal_alignment = 1
 
 [node name="InventoryColumn" type="MarginContainer" parent="ContentArea/InventoryPanel"]
 layout_mode = 1
@@ -211,6 +248,13 @@ theme_override_constants/margin_right = 24
 [node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn"]
 layout_mode = 2
 theme_override_constants/separation = 10
+
+[node name="Header" type="Label" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
+layout_mode = 2
+text = "Stash"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
+layout_mode = 2
 
 [node name="SortButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
 layout_mode = 2

@@ -6,12 +6,14 @@
 [node name="EquipSlot" type="MarginContainer" groups=["equip_slots"]]
 offset_right = 64.0
 offset_bottom = 64.0
+size_flags_horizontal = 4
 script = ExtResource("1_jq5ol")
 
 [node name="Background" type="TextureRect" parent="."]
 layout_mode = 2
 mouse_filter = 2
 texture = ExtResource("1_qxdsw")
+expand_mode = 2
 
 [node name="GhostPreview" type="ColorRect" parent="."]
 visible = false

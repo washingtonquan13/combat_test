@@ -52,7 +52,7 @@ extends Control
 @onready var _inventory_stats: StatsColumn = $ContentArea/InventoryPanel/StatsColumn
 @onready var _character_stats: StatsColumn = $ContentArea/CharacterPanel/StatsColumn
 
-@onready var _portrait: TextureRect = $ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/Portrait
+@onready var _portrait: TextureRect = $ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/Portrait
 @onready var _sort_button: Button = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortButton
 @onready var _inventory: Inventory = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/Inventory
 
