@@ -52,6 +52,18 @@ const ALIGNMENT_SHIFT_AMOUNT: int = 10
 ## against, not a repeat of it.
 @onready var _skills_container: Node = $Skills
 
+## Off-canvas home for equipped Item nodes belonging to THIS unit while
+## its party sheet isn't the one being shown — see get_equipped_items_home()
+## and party_overview.gd's open_for(), which reparents equipped Items
+## here (and back into an EquipSlot) on every unit switch, the same
+## reparent-based idiom StashComponent/StashPanel already use. A Control
+## parented under a 3D node still renders (Viewport-based, not
+## CanvasItem-ancestor-based — see alignment_grid.gd/stash_component.gd's
+## own note on this), so party_overview.gd is responsible for setting
+## visible = false on anything reparented here and true again on the
+## way back out.
+@onready var _equipped_items_home: Node = $EquippedItems
+
 @export_group("Movement")
 @export var move: int = 5
 ## Real-time speed (world units/sec) while executing a move order. Distinct
@@ -339,6 +351,7 @@ var _selection: UnitSelection
 var _movement: UnitMovement
 var _combat: UnitCombat
 var _stat_modifiers: UnitStatModifiers
+var _equipment: UnitEquipment
 
 ## Owns this unit's active status effects (Bleeding, Sleep, Prone, ...) —
 ## see status_manager.gd. Unit exposes the small forwarding API below
@@ -355,6 +368,7 @@ func _ready() -> void:
 	_movement = UnitMovement.new(self)
 	_combat = UnitCombat.new(self)
 	_stat_modifiers = UnitStatModifiers.new()
+	_equipment = UnitEquipment.new(self)
 	# Relayed rather than replaced — external code (CombatManager's
 	# end_turn/delay_turn deferral, notably) connects to unit.became_idle
 	# directly and must keep working unchanged; the signal's actual
@@ -824,6 +838,26 @@ func unregister_stat_modifier(modifier: StatModifierBehavior) -> void:
 ## see UnitStatModifiers.stat_modifier_sources.
 func stat_modifier_sources(stat_name: String) -> Array[ActiveStatModifier]:
 	return _stat_modifiers.stat_modifier_sources(stat_name)
+
+
+## Which Item (if any) this unit currently has equipped in the named
+## EquipSlot — see UnitEquipment.
+func get_equipped_item(slot_key: String) -> Item:
+	return _equipment.get_item(slot_key)
+
+
+func equip_item(slot_key: String, item: Item) -> void:
+	_equipment.equip(slot_key, item)
+
+
+func unequip_item(slot_key: String) -> Item:
+	return _equipment.unequip(slot_key)
+
+
+## Where an equipped Item node lives while this unit's sheet isn't the
+## one currently open — see _equipped_items_home's own header.
+func get_equipped_items_home() -> Node:
+	return _equipped_items_home
 
 
 ## -1/0/1 for Chaos/Neutral/Law — the only thing anything outside Unit

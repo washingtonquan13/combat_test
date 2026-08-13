@@ -32,14 +32,19 @@ func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
 	if not target is Unit:
 		return {}
 
-	var raw_damage: int = roll_damage(attacker.get_stat("ST"))
+	var raw_damage: int = roll_damage(attacker.get_stat("ST"), damage_type, bonus)
 	var applied: int = max(raw_damage - target.get_stat("DR"), 0)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}
 
 
-func roll_damage(strength: int) -> int:
+## Static so GearDamageEffect can share the exact same GURPS dice-
+## progression math for a weapon's damage_bonus instead of duplicating
+## it — bonus used to be read off self here, coupling the formula to
+## one hardcoded per-ability value; now it's just a parameter, and this
+## ability's own apply() above passes its own bonus field same as before.
+static func roll_damage(strength: int, damage_type: DamageType, bonus: int) -> int:
 	var divisor: int = 4 if damage_type == DamageType.SWING else 8
 	var raw: float = float((strength - 10) + 4) / divisor
 

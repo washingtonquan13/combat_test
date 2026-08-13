@@ -13,11 +13,13 @@ extends Control
 ## (PlayerInteractionState.get_active_unit()), toggled by the
 ## open_party_overview action (C).
 ##
-## No in-panel character switcher — EquipSlot's equipped_item is scene-
-## local state with nowhere on Unit to persist to between characters
-## (Unit doesn't track equipment at all yet), and solving that properly
-## belongs with the stash/loot-transfer pass, not bolted on here as a
-## half-measure. Close and reopen on a different unit instead.
+## Still no in-panel character switcher, but the underlying gap that
+## used to justify deferring one is fixed: equipment now persists per-
+## unit (see UnitEquipment), and _swap_equipment() below reparents the
+## 16 shared EquipSlots' items out to the outgoing unit's storage and in
+## from the incoming unit's, the same pattern StashPanel already uses
+## for a chest's single Inventory, just looped over 16 slots. Close and
+## reopen on a different unit still — nothing calls this mid-session yet.
 ##
 ## Alignment display: AlignmentTitle shows the category label (the same
 ## Chaos/Neutral/Law x Dark/Neutral/Light categories Unit itself owns,
@@ -55,6 +57,28 @@ extends Control
 @onready var _portrait: TextureRect = $ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/Portrait
 @onready var _sort_button: Button = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortButton
 @onready var _inventory: Inventory = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/Inventory
+
+## All 16 shared equip slots, built once so _swap_equipment() doesn't
+## need to re-walk the tree every unit switch — same "gather named nodes
+## once" style _alignment_cells already uses.
+@onready var _equip_slots: Array[EquipSlot] = [
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Helmet,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Amulet,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Cloak,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/ChestArmor,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Undershirt,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Bracers,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Ring1,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Ring2,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Gloves,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Belt,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Legs,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Boots,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots/MeleeMainHand,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots/MeleeOffHand,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots/RangedMainHand,
+	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots/RangedOffHand,
+]
 
 ## (alignment_category, tendency_category) -> display title, matching
 ## Unit.alignment_category()/tendency_category()'s -1/0/1 output exactly
@@ -114,6 +138,7 @@ func get_inventory_slot() -> VBoxContainer:
 
 
 func open_for(unit: Unit) -> void:
+	_swap_equipment(unit)
 	_unit = unit
 	_inventory_stats.refresh(unit)
 	_character_stats.refresh(unit)
@@ -122,6 +147,29 @@ func open_for(unit: Unit) -> void:
 	_refresh_skill_list(unit)
 	visible = true
 	_show_tab("inventory")
+
+
+## Reparents the outgoing unit's (self._unit, still the OLD value at
+## this point) equipped items out to ITS OWN storage, and the incoming
+## unit's already-equipped items in — via EquipSlot.display_item()/
+## clear_display(), the visual-only pair, NOT equip()/unequip(), so
+## nothing gets re-registered or reverted just because it became
+## visible/invisible. See Unit._equipped_items_home's header for why
+## visibility is toggled explicitly here.
+func _swap_equipment(unit: Unit) -> void:
+	var previous_unit: Unit = _unit
+	for slot in _equip_slots:
+		if previous_unit and slot.equipped_item:
+			var item: Item = slot.equipped_item
+			item.reparent(previous_unit.get_equipped_items_home())
+			item.visible = false
+			slot.clear_display()
+
+		slot.unit = unit
+		var stored_item: Item = unit.get_equipped_item(slot.name)
+		if stored_item:
+			stored_item.visible = true
+			slot.display_item(stored_item)
 
 
 func _show_tab(tab_name: String) -> void:

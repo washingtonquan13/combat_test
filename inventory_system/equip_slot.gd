@@ -4,6 +4,16 @@ extends MarginContainer
 @onready var item_layer: Control = $ItemLayer
 @onready var ghost_preview: ColorRect = $GhostPreview
 
+## Which kind of GearItem this slot accepts — see accepts_item().
+@export var slot_type: GearItem.SlotType = GearItem.SlotType.HELMET
+
+## Which unit this slot currently represents — assigned by
+## party_overview.gd's open_for(), not per-instance in the .tscn (all 16
+## slots are shared UI, re-pointed at whichever unit's sheet is open).
+## equip()/unequip() only touch the unit's stat modifiers/storage when
+## this is set; display_item()/clear_display() below never do, regardless.
+@export var unit: Unit
+
 var equipped_item: Item = null
 
 func _ready() -> void:
@@ -29,10 +39,33 @@ func _drop_data(_at_position: Vector2, data: Variant) -> void:
 func _on_mouse_exited() -> void:
 	ghost_preview.visible = false
 
+## Real equip — a drag-and-drop from the inventory grid (see
+## _drop_data). Places the item AND registers its stat modifiers on
+## unit (if set). party_overview.gd's unit-switch swap deliberately
+## does NOT call this — see display_item() below.
 func equip(item: Item) -> void:
 	if equipped_item:
 		unequip()
+	display_item(item)
+	if unit:
+		unit.equip_item(name, item)
 
+
+## Real unequip — counterpart to equip(), same "drag-and-drop only"
+## scope. Reverts unit's stat modifiers before clearing the display.
+func unequip() -> void:
+	if unit and equipped_item:
+		unit.unequip_item(name)
+	clear_display()
+
+
+## Pure visual placement, no stat/storage side effects — reparents item
+## into view with no idea whether it's a NEW equip or just redisplaying
+## something already equipped on unit. party_overview.gd's open_for()
+## uses this (paired with clear_display()) when swapping which unit's
+## sheet is shown: the item's already registered on its owning unit,
+## nothing needs registering again just because it's visible again.
+func display_item(item: Item) -> void:
 	if item.get_parent():
 		item.reparent(item_layer)
 	else:
@@ -43,10 +76,12 @@ func equip(item: Item) -> void:
 	item.size = item_layer.size
 	item.position = Vector2.ZERO
 
-func unequip() -> void:
+
+## Visual-only counterpart to display_item() — see its header.
+func clear_display() -> void:
 	equipped_item = null
 
 func accepts_item(item: Item) -> bool:
-	# For now, any item is acceptable (besides whatever's already here). You
-	# could validate item type here later.
-	return equipped_item == null or equipped_item == item
+	if not (equipped_item == null or equipped_item == item):
+		return false
+	return item.gear_data != null and item.gear_data.slot_type == slot_type

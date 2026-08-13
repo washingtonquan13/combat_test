@@ -8,6 +8,20 @@ extends Container
 
 @export var tooltip_scene: PackedScene
 @export var context_menu_scene: PackedScene
+## Mechanical/definition data for this item — see gear_item.gd. Setting
+## this cascades into icon/width/height below (their own setters still
+## fire _update_size()/_update_tooltip_text() as normal), so a new Item
+## pointed at a given GearItem can't get the wrong footprint by hand-
+## authoring mistake. Those three stay directly editable too — this
+## isn't a hard lock, just the source of truth when it's set. Null for
+## a non-gear item (currency, a plain consumable).
+@export var gear_data: GearItem:
+	set(value):
+		gear_data = value
+		if gear_data:
+			icon = gear_data.icon
+			width = gear_data.width
+			height = gear_data.height
 @export var icon: Texture2D:
 	set(value):
 		icon = value

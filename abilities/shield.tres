@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://apply_status_effect.gd" id="4_applystatus"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="5_status"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="6_behavior"]
-[ext_resource type="Script" path="res://stat_modifier_behavior.gd" id="7_statmod"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="7_statmod"]
 [ext_resource type="Texture2D" uid="uid://bhp5cjpuunhki" path="res://assets/ability_icon/shield_icon.png" id="8_icon"]
 
 [sub_resource type="Resource" id="Resource_statmod"]

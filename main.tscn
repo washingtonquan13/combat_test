@@ -450,7 +450,7 @@ script = ExtResource("50_sm6fg")
 skill_data = ExtResource("52_ntx8l")
 metadata/_custom_type_script = "uid://b3gvuamt478hc"
 
-[node name="OutlineMesh" parent="TieflingWizard" index="4"]
+[node name="OutlineMesh" parent="TieflingWizard" index="5"]
 material_override = SubResource("ShaderMaterial_rqtf5")
 
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
