@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="GearItem" load_steps=5 format=3 uid="uid://fo6f8ulop317"]
 
-[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://gear_item.gd" id="1_gear"]
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://1rjqfvy3hsiu" path="res://assets/test_item_icons/test_helmet.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="3_statmod"]
 

@@ -1,27 +1,26 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=13 format=3 uid="uid://c2d5yg20sskb7"]
+[gd_resource type="Resource" script_class="Ability" load_steps=13 format=3 uid="uid://xrcp3khftmgl"]
 
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
-[ext_resource type="Script" path="res://self_targeting.gd" id="2_targeting"]
+[ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://systems/ability_system/ranged_enemy_targeting.gd" id="2_targeting"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
-[ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://apply_status_effect.gd" id="4_applystatus"]
+[ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://systems/ability_system/apply_status_effect.gd" id="4_applystatus"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="5_status"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="6_behavior"]
-[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="7_statmod"]
-[ext_resource type="Texture2D" uid="uid://bhp5cjpuunhki" path="res://assets/ability_icon/shield_icon.png" id="8_icon"]
+[ext_resource type="Script" path="res://outgoing_attack_modifier_behavior.gd" id="7_outgoing"]
+[ext_resource type="Texture2D" uid="uid://d23sxrfn4ew0a" path="res://assets/ability_icon/bless_icon.png" id="8_icon"]
 
-[sub_resource type="Resource" id="Resource_statmod"]
-script = ExtResource("7_statmod")
-stat_name = "DR"
-amount = 3
-metadata/_custom_type_script = "uid://bgd2vy28ksd3v"
+[sub_resource type="Resource" id="Resource_outgoing"]
+script = ExtResource("7_outgoing")
+bonus = 2
+metadata/_custom_type_script = "uid://bl6ho0f6egol0"
 
 [sub_resource type="Resource" id="Resource_status"]
 script = ExtResource("5_status")
-status_name = "Shielded"
+status_name = "Blessed"
 default_duration = 3
 stack_mode = 0
 max_stacks = 1
-behaviors = Array[ExtResource("6_behavior")]([SubResource("Resource_statmod")])
+behaviors = Array[ExtResource("6_behavior")]([SubResource("Resource_outgoing")])
 apply_animation = ""
 apply_animation_loops = false
 remove_animation = ""
@@ -35,12 +34,15 @@ metadata/_custom_type_script = "uid://cxvg4h3mmr1l4"
 
 [sub_resource type="Resource" id="Resource_targeting"]
 script = ExtResource("2_targeting")
-requires_ally = false
-metadata/_custom_type_script = "uid://dr8ikn7mlllm6"
+max_range = 8.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+requires_ally = true
+metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 
 [resource]
 script = ExtResource("1_ability")
-ability_name = "Shield"
+ability_name = "Bless"
 icon = ExtResource("8_icon")
 category = 1
 targeting = SubResource("Resource_targeting")

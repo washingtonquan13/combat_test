@@ -3,19 +3,19 @@
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
 [ext_resource type="Resource" uid="uid://dwarcbw0o48hl" path="res://data/statuses/flying.tres" id="2_ebxon"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="2_effect"]
-[ext_resource type="Script" path="res://land_effect.gd" id="3_land"]
-[ext_resource type="Script" path="res://self_targeting.gd" id="4_self"]
+[ext_resource type="Script" uid="uid://bph6xgrkmsdog" path="res://systems/ability_system/land_effect.gd" id="3_land"]
+[ext_resource type="Script" uid="uid://dr8ikn7mlllm6" path="res://systems/ability_system/self_targeting.gd" id="4_self"]
 [ext_resource type="Texture2D" uid="uid://c6vaf6x57c2ld" path="res://assets/ability_icon/land_icon.png" id="6_icon"]
 
 [sub_resource type="Resource" id="Resource_landeffect"]
 script = ExtResource("3_land")
 flying_status = ExtResource("2_ebxon")
-metadata/_custom_type_script = "res://land_effect.gd"
+metadata/_custom_type_script = "res://systems/ability_system/land_effect.gd"
 
 [sub_resource type="Resource" id="Resource_selftargeting"]
 script = ExtResource("4_self")
 requires_ally = false
-metadata/_custom_type_script = "res://self_targeting.gd"
+metadata/_custom_type_script = "res://systems/ability_system/self_targeting.gd"
 
 [resource]
 script = ExtResource("1_ability")

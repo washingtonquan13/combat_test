@@ -3,8 +3,8 @@
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_m1xwx"]
 [ext_resource type="Texture2D" uid="uid://fsfptrhr6sy3" path="res://assets/ability_icon/attack_icon_melee.png" id="1_owfv6"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_m1xwx"]
-[ext_resource type="Script" uid="uid://fgbbihwp3tid" path="res://gear_damage_effect.gd" id="2_on0pe"]
-[ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://melee_enemy_targeting.gd" id="5_ebikf"]
+[ext_resource type="Script" uid="uid://fgbbihwp3tid" path="res://systems/ability_system/gear_damage_effect.gd" id="2_on0pe"]
+[ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://systems/ability_system/melee_enemy_targeting.gd" id="5_ebikf"]
 
 [sub_resource type="Resource" id="Resource_ebikf"]
 script = ExtResource("2_on0pe")

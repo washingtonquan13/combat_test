@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="GearItem" load_steps=6 format=3 uid="uid://cing3w35sxrnh"]
 
-[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://gear_item.gd" id="1_gear"]
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="3_s3sab"]
-[ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://weapon_data.gd" id="3_weapon"]
+[ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
 
 [sub_resource type="Resource" id="Resource_weapon"]
 script = ExtResource("3_weapon")

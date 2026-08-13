@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://bk3h1qlytr0eg"]
 
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
-[ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://ranged_enemy_targeting.gd" id="2_targeting"]
+[ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://systems/ability_system/ranged_enemy_targeting.gd" id="2_targeting"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
 [ext_resource type="Resource" uid="uid://c85ia34mg8o67" path="res://data/statuses/weakened.tres" id="3_o0cbu"]
-[ext_resource type="Script" path="res://remove_status_effect.gd" id="4_removestatus"]
+[ext_resource type="Script" uid="uid://clns7d00wprck" path="res://systems/ability_system/remove_status_effect.gd" id="4_removestatus"]
 [ext_resource type="Texture2D" uid="uid://kn4uycho3rsy" path="res://assets/ability_icon/cure_icon.png" id="6_icon"]
 
 [sub_resource type="Resource" id="Resource_removestatus"]
