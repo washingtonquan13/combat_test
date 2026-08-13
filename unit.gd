@@ -338,6 +338,7 @@ var _facing: UnitFacing
 var _selection: UnitSelection
 var _movement: UnitMovement
 var _combat: UnitCombat
+var _stat_modifiers: UnitStatModifiers
 
 ## Owns this unit's active status effects (Bleeding, Sleep, Prone, ...) —
 ## see status_manager.gd. Unit exposes the small forwarding API below
@@ -353,6 +354,7 @@ func _ready() -> void:
 	_selection = UnitSelection.new(self)
 	_movement = UnitMovement.new(self)
 	_combat = UnitCombat.new(self)
+	_stat_modifiers = UnitStatModifiers.new()
 	# Relayed rather than replaced — external code (CombatManager's
 	# end_turn/delay_turn deferral, notably) connects to unit.became_idle
 	# directly and must keep working unchanged; the signal's actual
@@ -793,12 +795,26 @@ func set_stat_base(stat_name: String, value: int) -> void:
 		"Move": move = value
 
 
-## Sum of every active status's modifier to a named stat — see
-## StatModifierBehavior, the only current source. Same forwarding
-## convention incoming_attack_to_hit_modifier/outgoing_attack_to_hit_modifier
-## already use for their own StatusManager aggregation.
+## Sum of every currently registered modifier to a named stat — see
+## UnitStatModifiers. Source-agnostic: StatusManager is the only
+## registrant today (see register_stat_modifier below), but this has no
+## idea statuses exist, only that something registered a modifier.
 func stat_modifier(stat_name: String) -> int:
-	return _status_manager.stat_modifier(stat_name)
+	return _stat_modifiers.stat_modifier(stat_name)
+
+
+## Registers/unregisters one StatModifierBehavior with this unit's stat
+## system — called by StatusManager.apply()/remove() today, and by
+## whatever wires up equipment later, each on its own equivalent of
+## apply/remove. Thin forwarders rather than exposing _stat_modifiers
+## directly, same reasoning as every other composed-helper forward on
+## this class.
+func register_stat_modifier(modifier: StatModifierBehavior) -> void:
+	_stat_modifiers.register_modifier(modifier)
+
+
+func unregister_stat_modifier(modifier: StatModifierBehavior) -> void:
+	_stat_modifiers.unregister_modifier(modifier)
 
 
 ## -1/0/1 for Chaos/Neutral/Law — the only thing anything outside Unit

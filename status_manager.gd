@@ -45,6 +45,8 @@ func apply(effect: StatusEffect) -> void:
 	active.append(new_active)
 	for behavior in effect.behaviors:
 		behavior.on_apply(_owner, new_active)
+		if behavior is StatModifierBehavior:
+			_owner.register_stat_modifier(behavior)
 	status_applied.emit(effect, new_active)
 
 
@@ -55,6 +57,8 @@ func remove(effect: StatusEffect) -> void:
 	active.erase(existing)
 	for behavior in effect.behaviors:
 		behavior.on_remove(_owner, existing)
+		if behavior is StatModifierBehavior:
+			_owner.unregister_stat_modifier(behavior)
 	status_removed.emit(effect)
 
 
@@ -150,18 +154,4 @@ func outgoing_attack_to_hit_modifier(target, ability: Ability) -> int:
 	for a in active:
 		for behavior in a.effect.behaviors:
 			total += behavior.modify_outgoing_attack_to_hit(_owner, target, ability)
-	return total
-
-
-## Sum of every active status's contribution to a named stat — see
-## StatModifierBehavior. Queried fresh by Unit.get_stat() rather than
-## applied/reverted against a field, same query-at-read-time shape as
-## the to-hit modifiers above instead of StatModifierBehavior's old
-## mutate-in-place approach.
-func stat_modifier(stat_name: String) -> int:
-	var total: int = 0
-	for a in active:
-		for behavior in a.effect.behaviors:
-			if behavior is StatModifierBehavior and behavior.stat_name == stat_name:
-				total += behavior.amount
 	return total
