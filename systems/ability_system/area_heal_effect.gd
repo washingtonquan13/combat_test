@@ -16,7 +16,7 @@ extends AbilityEffect
 @export var affects_allies: bool = true
 
 
-func apply(attacker: Unit, target, ability: Ability) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3:
 		return {}
 

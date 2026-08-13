@@ -20,7 +20,7 @@ extends AbilityEffect
 @export var surface: Surface
 
 
-func apply(_attacker: Unit, target, ability: Ability) -> Dictionary:
+func apply(_attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3 or not surface:
 		return {}
 

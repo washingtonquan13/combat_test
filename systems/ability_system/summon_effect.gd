@@ -39,7 +39,7 @@ extends AbilityEffect
 @export var duration_status: StatusEffect
 
 
-func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not summon_scene or not (target is Vector3):
 		return {}
 

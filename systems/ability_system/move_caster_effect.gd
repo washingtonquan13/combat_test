@@ -29,7 +29,7 @@ extends AbilityEffect
 @export var arc_height: float = 1.5
 
 
-func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3:
 		return {}
 

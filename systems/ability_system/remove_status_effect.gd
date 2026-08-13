@@ -15,7 +15,7 @@ extends AbilityEffect
 @export var status: StatusEffect
 
 
-func apply(_attacker: Unit, target, _ability: Ability) -> Dictionary:
+func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit or not status:
 		return {}
 

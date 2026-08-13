@@ -16,7 +16,7 @@ extends Resource
 ## read its sibling AreaTargeting's radius (see AreaDamageEffect) instead
 ## of carrying its own separate radius field that could drift out of
 ## sync with a sibling effect's copy. Override in each subclass.
-func apply(_attacker: Unit, _target, _ability: Ability) -> Dictionary:
+func apply(_attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	return {}
 
 

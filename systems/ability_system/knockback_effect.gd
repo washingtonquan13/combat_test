@@ -34,7 +34,7 @@ extends AbilityEffect
 @export var push_duration: float = 0.25
 
 
-func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 

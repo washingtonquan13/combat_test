@@ -30,7 +30,7 @@ extends AbilityEffect
 @export var max_ascend_duration: float = 4.0
 
 
-func apply(attacker: Unit, _target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not flying_status:
 		return {}
 

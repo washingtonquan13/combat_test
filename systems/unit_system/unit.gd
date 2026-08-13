@@ -830,6 +830,10 @@ func describe_damage(damage_type: UnitCombat.DamageType, bonus: int) -> String:
 	return _combat.describe_damage(damage_type, bonus)
 
 
+func max_damage(damage_type: UnitCombat.DamageType, bonus: int) -> int:
+	return _combat.max_damage(damage_type, bonus)
+
+
 ## Also a coroutine now, same as UnitCombat.use_ability() — it has to
 ## be, to correctly propagate that method's own return value rather
 ## than returning whatever a coroutine call yields when not awaited.

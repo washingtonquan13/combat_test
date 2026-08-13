@@ -20,6 +20,17 @@ extends RefCounted
 
 var _owner: Unit
 
+## Applied to the attacker on a critical-failure to-hit roll — see
+## roll_vs()'s critical_failure detection and use_ability()'s miss
+## branch below. default_duration=2, not 1: StatusManager.
+## tick_turn_start() fires (and decrements) at the START of the owning
+## unit's own turn, before that turn's actions are available, so a
+## duration-1 status applied mid-turn would already be ticked to 0 and
+## removed before the attacker could ever act under it. 2 survives the
+## attacker's own next turn (ticks 2->1, stays active) and expires at
+## the start of the turn after that (ticks 1->0).
+const CRIT_FAIL_PENALTY: StatusEffect = preload("res://data/statuses/crit_fail_penalty.tres")
+
 
 ## GURPS ST-based swing/thrust damage — computed from a formula rather
 ## than looking up the official table — approximates the real
@@ -79,6 +90,14 @@ func roll_damage(damage_type: DamageType, bonus: int) -> int:
 	return total + int(dice.flat_bonus) + bonus
 
 
+## Maximum possible swing/thrust damage plus bonus — every die at its
+## highest face — for critical hits (GearDamageEffect/StDamageEffect),
+## which deal guaranteed max damage instead of rolling.
+func max_damage(damage_type: DamageType, bonus: int) -> int:
+	var dice: Dictionary = _damage_dice(damage_type)
+	return int(dice.count) * 6 + int(dice.flat_bonus) + bonus
+
+
 ## Same formula as roll_damage(), without rolling — e.g. "1d+2" — for
 ## display (see stats_column.gd's Thrust/Swing rows, shown with bonus 0
 ## for the character's own base capability).
@@ -126,13 +145,32 @@ func _damage_dice(damage_type: DamageType) -> Dictionary:
 
 ## GURPS-style roll-under: 3d6 <= target_number succeeds. Lower rolls are
 ## always better, and margin is how far under (positive = comfortable pass).
+##
+## critical_success is checked first and forces success=true even when
+## roll > target_number — a natural 3 or 4 always succeeds regardless of
+## skill, a real GURPS rule easy to miss. critical_failure symmetrically
+## forces success=false even when roll <= target_number — an 18 is
+## always a critical failure even for a very high skill. Thresholds:
+## 3/4 always crit-succeed; 5 crit-succeeds at skill 15+; 6 at skill 16+;
+## 18 always crit-fails; 17 crit-fails unless skill 16+; anything 10+
+## over skill crit-fails.
 func roll_vs(target_number: int) -> Dictionary:
 	var roll: int = randi_range(1, 6) + randi_range(1, 6) + randi_range(1, 6)
+	var critical_success: bool = roll == 3 or roll == 4 \
+		or (roll == 5 and target_number >= 15) \
+		or (roll == 6 and target_number >= 16)
+	var critical_failure: bool = not critical_success and (
+		roll == 18
+		or (roll == 17 and target_number <= 15)
+		or roll >= target_number + 10
+	)
 	return {
 		"roll": roll,
 		"target": target_number,
-		"success": roll <= target_number,
+		"success": critical_success or (not critical_failure and roll <= target_number),
 		"margin": target_number - roll,
+		"critical_success": critical_success,
+		"critical_failure": critical_failure,
 	}
 
 
@@ -273,6 +311,8 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		result["to_hit"] = to_hit
 		if not to_hit.success:
 			SystemLog.print("%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name])
+			if to_hit.critical_failure:
+				_owner.apply_status(CRIT_FAIL_PENALTY)
 			_owner.ability_used.emit(_owner, target, result)
 			_maybe_trigger_combat(target)
 			return result
@@ -284,10 +324,17 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		await _wait_for_impact_or_timeout(ability.timing.impact_timeout)
 		_owner.end_busy()
 
+	# Abilities with requires_to_hit=false never populate "to_hit" above,
+	# so they correctly never critical-hit — there's no roll for a crit
+	# to attach to (see this project's ability-by-ability scope check:
+	# only the two GearDamageEffect basic attacks currently roll to-hit
+	# at all).
+	var is_critical: bool = result.get("to_hit", {}).get("critical_success", false)
+
 	var effect_results: Array = []
 	var total_damage: int = 0
 	for effect in ability.effects:
-		var effect_result: Dictionary = effect.apply(_owner, target, ability)
+		var effect_result: Dictionary = effect.apply(_owner, target, ability, is_critical)
 		effect_results.append(effect_result)
 		if effect_result.has("damage"):
 			total_damage += effect_result["damage"]

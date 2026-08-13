@@ -18,13 +18,16 @@ enum WeaponCategory { MELEE, RANGED }
 @export var category: WeaponCategory = WeaponCategory.MELEE
 
 
-func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
 	var weapon: GearItem = _find_weapon(attacker)
-	var raw_damage: int = _roll(attacker, weapon)
-	var applied: int = max(raw_damage - target.get_stat("DR"), 0)
+	var raw_damage: int = _roll(attacker, weapon, is_critical)
+	# Critical hit: ignores DR entirely and deals guaranteed max damage
+	# (see UnitCombat.max_damage) — no second roll, staying consistent
+	# with this project's fast/not-roll-heavy combat goal.
+	var applied: int = raw_damage if is_critical else max(raw_damage - target.get_stat("DR"), 0)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -50,21 +53,26 @@ func _find_weapon(attacker: Unit) -> GearItem:
 	return null
 
 
-func _roll(attacker: Unit, weapon: GearItem) -> int:
+func _roll(attacker: Unit, weapon: GearItem, is_critical: bool) -> int:
 	if not weapon:
-		return attacker.roll_damage(UnitCombat.DamageType.SWING, 0)
+		return attacker.max_damage(UnitCombat.DamageType.SWING, 0) if is_critical \
+			else attacker.roll_damage(UnitCombat.DamageType.SWING, 0)
 
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:
 		WeaponData.DamageType.FIXED:
+			if is_critical:
+				return weapon_data.fixed_dice_count * weapon_data.fixed_dice_sides + weapon_data.fixed_dice_bonus
 			var total: int = 0
 			for _i in weapon_data.fixed_dice_count:
 				total += randi_range(1, weapon_data.fixed_dice_sides)
 			return total + weapon_data.fixed_dice_bonus
 		WeaponData.DamageType.THRUST:
-			return attacker.roll_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus)
+			return attacker.max_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus) if is_critical \
+				else attacker.roll_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus)
 		_:
-			return attacker.roll_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus)
+			return attacker.max_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus) if is_critical \
+				else attacker.roll_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus)
 
 
 func describe() -> String:

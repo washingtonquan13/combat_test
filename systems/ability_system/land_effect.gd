@@ -9,7 +9,7 @@ extends AbilityEffect
 @export var flying_status: StatusEffect
 
 
-func apply(attacker: Unit, _target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not flying_status:
 		return {}
 	if not attacker.has_status(flying_status):

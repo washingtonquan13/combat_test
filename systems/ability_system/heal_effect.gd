@@ -11,7 +11,7 @@ extends AbilityEffect
 @export var dice_bonus: int = 0
 
 
-func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 

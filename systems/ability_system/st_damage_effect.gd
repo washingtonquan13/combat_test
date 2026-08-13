@@ -13,12 +13,16 @@ extends AbilityEffect
 @export var bonus: int = 0
 
 
-func apply(attacker: Unit, target, _ability: Ability) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
-	var raw_damage: int = attacker.roll_damage(damage_type, bonus)
-	var applied: int = max(raw_damage - target.get_stat("DR"), 0)
+	# Critical hit: ignores DR entirely and deals guaranteed max damage
+	# (see UnitCombat.max_damage) — no second roll, staying consistent
+	# with this project's fast/not-roll-heavy combat goal.
+	var raw_damage: int = attacker.max_damage(damage_type, bonus) if is_critical \
+		else attacker.roll_damage(damage_type, bonus)
+	var applied: int = raw_damage if is_critical else max(raw_damage - target.get_stat("DR"), 0)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}
