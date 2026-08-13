@@ -806,15 +806,24 @@ func stat_modifier(stat_name: String) -> int:
 ## Registers/unregisters one StatModifierBehavior with this unit's stat
 ## system — called by StatusManager.apply()/remove() today, and by
 ## whatever wires up equipment later, each on its own equivalent of
-## apply/remove. Thin forwarders rather than exposing _stat_modifiers
+## apply/remove. source is a display label for attribution (e.g. a
+## StatusEffect's status_name) — see ActiveStatModifier for why it's
+## passed in per-registration rather than read off the (shared) modifier
+## resource. Thin forwarders rather than exposing _stat_modifiers
 ## directly, same reasoning as every other composed-helper forward on
 ## this class.
-func register_stat_modifier(modifier: StatModifierBehavior) -> void:
-	_stat_modifiers.register_modifier(modifier)
+func register_stat_modifier(modifier: StatModifierBehavior, source: String) -> void:
+	_stat_modifiers.register_modifier(modifier, source)
 
 
 func unregister_stat_modifier(modifier: StatModifierBehavior) -> void:
 	_stat_modifiers.unregister_modifier(modifier)
+
+
+## Every currently active contribution to a named stat, with its source —
+## see UnitStatModifiers.stat_modifier_sources.
+func stat_modifier_sources(stat_name: String) -> Array[ActiveStatModifier]:
+	return _stat_modifiers.stat_modifier_sources(stat_name)
 
 
 ## -1/0/1 for Chaos/Neutral/Law — the only thing anything outside Unit

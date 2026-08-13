@@ -46,7 +46,7 @@ func apply(effect: StatusEffect) -> void:
 	for behavior in effect.behaviors:
 		behavior.on_apply(_owner, new_active)
 		if behavior is StatModifierBehavior:
-			_owner.register_stat_modifier(behavior)
+			_owner.register_stat_modifier(behavior, effect.status_name)
 	status_applied.emit(effect, new_active)
 
 
