@@ -456,7 +456,7 @@ material_override = SubResource("ShaderMaterial_rqtf5")
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)
 strength = 16
-dexterity = 14
+dexterity = 16
 health = 16
 current_hp = 16
 move = 27

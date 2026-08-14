@@ -802,12 +802,14 @@ func edge_distance_to(other: Unit) -> float:
 	return max(distance_to(other) - radius - other.radius, 0.0)
 
 
-## Delegates to UnitCombat — see that file for why the stat exports
-## (strength, dexterity, current_hp, damage_reduction, abilities, ...)
-## stay directly on Unit while the logic that resolves against them
-## moved into the component.
+## Forwards to SuccessRoll — not UnitCombat, since nothing about GURPS'
+## roll-under success resolution actually needs a Unit; both this and
+## SkillCheckChoice's dialogue rolls just feed it a target number. Kept
+## as a Unit method anyway (rather than callers reaching SuccessRoll
+## directly) purely so neither existing caller needed to change when
+## this moved out of UnitCombat.
 func roll_vs(target_number: int) -> Dictionary:
-	return _combat.roll_vs(target_number)
+	return SuccessRoll.roll_vs(target_number)
 
 
 func attack_skill() -> int:

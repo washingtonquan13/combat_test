@@ -143,37 +143,6 @@ func _damage_dice(damage_type: DamageType) -> Dictionary:
 	return {"count": dice_count, "flat_bonus": flat_bonus}
 
 
-## GURPS-style roll-under: 3d6 <= target_number succeeds. Lower rolls are
-## always better, and margin is how far under (positive = comfortable pass).
-##
-## critical_success is checked first and forces success=true even when
-## roll > target_number — a natural 3 or 4 always succeeds regardless of
-## skill, a real GURPS rule easy to miss. critical_failure symmetrically
-## forces success=false even when roll <= target_number — an 18 is
-## always a critical failure even for a very high skill. Thresholds:
-## 3/4 always crit-succeed; 5 crit-succeeds at skill 15+; 6 at skill 16+;
-## 18 always crit-fails; 17 crit-fails unless skill 16+; anything 10+
-## over skill crit-fails.
-func roll_vs(target_number: int) -> Dictionary:
-	var roll: int = randi_range(1, 6) + randi_range(1, 6) + randi_range(1, 6)
-	var critical_success: bool = roll == 3 or roll == 4 \
-		or (roll == 5 and target_number >= 15) \
-		or (roll == 6 and target_number >= 16)
-	var critical_failure: bool = not critical_success and (
-		roll == 18
-		or (roll == 17 and target_number <= 15)
-		or roll >= target_number + 10
-	)
-	return {
-		"roll": roll,
-		"target": target_number,
-		"success": critical_success or (not critical_failure and roll <= target_number),
-		"margin": target_number - roll,
-		"critical_success": critical_success,
-		"critical_failure": critical_failure,
-	}
-
-
 ## Placeholder melee/ranged skill — just DX for now. Swap in a real skill
 ## lookup later (weapon skill, ability-specific skill, etc.) without
 ## touching use_ability()'s call site.
@@ -307,7 +276,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		if target is Unit:
 			to_hit_target += target.incoming_attack_to_hit_modifier(_owner, ability)
 
-		var to_hit := roll_vs(to_hit_target)
+		var to_hit := SuccessRoll.roll_vs(to_hit_target)
 		result["to_hit"] = to_hit
 		if not to_hit.success:
 			SystemLog.print("%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name])
