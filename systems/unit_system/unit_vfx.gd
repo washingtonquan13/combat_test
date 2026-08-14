@@ -10,7 +10,7 @@ extends Node
 ## Listens to ability_use_started, not ability_used — the sequence needs
 ## to begin the INSTANT an ability is confirmed to happen (so a
 ## projectile can actually fly), not wait for the final to-hit outcome,
-## which isn't even known yet at that point. This means the impact
+## which isn't even known yet at that point. This means the cast
 ## sequence plays THE SAME WAY regardless of whether the attack will
 ## eventually be ruled a hit or miss — there's deliberately no separate
 ## "miss" VFX anymore (an earlier version of this script had one, keyed
@@ -27,14 +27,43 @@ extends Node
 ## header. Without one, a waits_for_impact ability just falls back to
 ## its timeout instead of ever syncing to this sequence at all.
 ##
-## VfxEffect/VfxStep resources are assets YOU compose in the editor
-## (.tres files referencing your own particle scenes and sound files) —
-## this script only supplies the reactive wiring that plays them at the
-## right moments.
+## Also owns the armed-enter/armed-hold moments (see _on_ability_armed
+## below) — the VFX counterpart to unit_sfx.gd's existing armed-enter/
+## armed-hold SFX handling, filtered the same way (AbilityManager is
+## global/unit-agnostic; this only reacts when THIS unit is the one
+## arming).
+##
+## VfxEffect/VfxStep resources, and armed-hold PackedScenes, are assets
+## YOU compose in the editor (.tres/.tscn files referencing your own
+## particle scenes and sound files) — this script only supplies the
+## reactive wiring that plays them at the right moments.
 
 @export var unit: Unit
-@export var default_impact_vfx: VfxEffect
+@export var default_armed_enter_vfx: VfxEffect
+## A looping/continuous scene to instantiate and hold for as long as an
+## ability stays armed — deliberately a bare PackedScene, not a
+## composable VfxEffect sequence, mirroring why unit_sfx.gd's
+## armed_hold_sfx is a bare AudioStream rather than an SfxCue: a
+## sustained effect that's meant to keep running indefinitely doesn't
+## fit VfxStep's contract of eventually finishing (VfxEffect.play()
+## awaits every step to completion) — this is instantiated and simply
+## never forced into one-shot mode, the same "the asset itself loops,
+## calling code just holds and releases it" shape armed_hold_sfx uses.
+@export var default_armed_hold_vfx: PackedScene
+@export var default_cast_vfx: VfxEffect
 @export var default_death_vfx: VfxEffect
+
+## Instantiated and simply held — not awaited, not forced into one-shot
+## mode, so a looping scene keeps looping until _stop_hold_vfx() frees
+## it. Parented directly under `unit` (not the scene root, unlike the
+## one-shot _play() sequences) — deliberately: this represents THIS
+## unit's own "armed, waiting to act" state, which should end the
+## instant they die, same as unit_sfx.gd's own _hold_player. One-shot
+## VfxEffect sequences use the scene root instead specifically so an
+## in-flight fireball can finish even if its caster died right after
+## casting — that reasoning doesn't apply to a hold effect, there's
+## nothing left to finish once the unit holding the stance is gone.
+var _hold_instance: Node = null
 ## Played instead of nothing at all when this unit takes damage while
 ## visual_state == POSED (see Unit.visual_state) and the held status
 ## doesn't set its own StatusEffect.hit_reaction_vfx — left unset (the
@@ -48,6 +77,7 @@ func _ready() -> void:
 		push_warning("unit_vfx.gd needs `unit` assigned in the Inspector.")
 		return
 
+	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.ability_use_started.connect(_on_ability_use_started)
 	unit.took_damage.connect(_on_took_damage)
 	unit.died.connect(_on_died)
@@ -56,10 +86,48 @@ func _ready() -> void:
 	unit.status_removed.connect(_on_status_removed)
 
 
+## Mirrors unit_sfx.gd's _on_ability_armed exactly — same
+## CombatManager.current_unit guard (AbilityManager is global/unit-
+## agnostic, this only reacts when THIS unit is the one arming), same
+## enter-then-start-hold shape.
+func _on_ability_armed(ability: Ability) -> void:
+	if CombatManager.current_unit != unit:
+		return
+
+	_stop_hold_vfx()
+
+	if not ability:
+		return  # disarmed — nothing more to play
+
+	var enter_vfx: VfxEffect = ability.armed_enter_vfx if ability.armed_enter_vfx else default_armed_enter_vfx
+	_play(enter_vfx, unit.global_position, unit.global_position, ability, unit)
+
+	var hold_scene: PackedScene = ability.armed_hold_vfx if ability.armed_hold_vfx else default_armed_hold_vfx
+	_start_hold_vfx(hold_scene)
+
+
+## Launching ANY ability ends the "holding a stance" state — see
+## unit_sfx.gd's own _on_ability_use_started for why this isn't
+## conditional on which ability specifically armed.
 func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
+	_stop_hold_vfx()
+
 	var target_position: Vector3 = _get_target_position(target, attacker)
-	var sequence: VfxEffect = ability.impact_vfx if ability.impact_vfx else default_impact_vfx
+	var sequence: VfxEffect = ability.cast_vfx if ability.cast_vfx else default_cast_vfx
 	_play(sequence, attacker.global_position, target_position, ability, attacker)
+
+
+func _start_hold_vfx(scene: PackedScene) -> void:
+	if not scene:
+		return
+	_hold_instance = scene.instantiate()
+	unit.add_child(_hold_instance)
+
+
+func _stop_hold_vfx() -> void:
+	if _hold_instance and is_instance_valid(_hold_instance):
+		_hold_instance.queue_free()
+	_hold_instance = null
 
 
 ## Reads the currently-held status's own hit_reaction_vfx if it set one

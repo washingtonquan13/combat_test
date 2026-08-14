@@ -9,7 +9,7 @@ extends Resource
 ## exists.
 ##
 ## Create instances as .tres files, assign a sequence of step resources.
-## Assign the result to an Ability's impact_vfx field to give that
+## Assign the result to an Ability's cast_vfx field to give that
 ## specific ability its own distinct sequence — a Fireball can be
 ## [ProjectileStep, SpawnParticleStep, PlaySoundStep] while a Sword
 ## Attack is just [PlaySoundStep], sharing whichever step TYPES apply

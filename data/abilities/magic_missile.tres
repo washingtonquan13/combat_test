@@ -12,13 +12,6 @@
 [ext_resource type="PackedScene" path="res://magic_missile_projectile.tscn" id="9_proj"]
 [ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://impact_signal_step.gd" id="10_imp"]
 
-[sub_resource type="Resource" id="Resource_dmg"]
-script = ExtResource("4_dmg")
-dice_count = 1
-dice_sides = 4
-dice_bonus = 1
-metadata/_custom_type_script = "uid://l0qndk2gae1o"
-
 [sub_resource type="Resource" id="Resource_path"]
 script = ExtResource("8_path")
 projectile_scene = ExtResource("9_proj")
@@ -42,6 +35,13 @@ metadata/_custom_type_script = "uid://bkpdhvqqgfc8o"
 script = ExtResource("6_vfxe")
 steps = Array[ExtResource("7_step")]([SubResource("Resource_path"), SubResource("Resource_imp")])
 metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
+
+[sub_resource type="Resource" id="Resource_dmg"]
+script = ExtResource("4_dmg")
+dice_count = 1
+dice_sides = 4
+dice_bonus = 1
+metadata/_custom_type_script = "uid://l0qndk2gae1o"
 
 [sub_resource type="Resource" id="Resource_targ"]
 script = ExtResource("3_targ")
@@ -67,5 +67,5 @@ effects = Array[ExtResource("2_effb")]([SubResource("Resource_dmg")])
 requires_to_hit = false
 uses_attack_action = true
 timing = SubResource("Resource_time")
-impact_vfx = SubResource("Resource_vfxe")
+cast_vfx = SubResource("Resource_vfxe")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

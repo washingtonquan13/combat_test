@@ -77,7 +77,7 @@ extends Resource
 @export_group("Spawn/Expire FX")
 ## Optional one-shot VFX/SFX for the instant the surface appears or
 ## expires — reuses VfxEffect/SfxCue exactly like every other one-shot
-## moment in the project (Ability's impact_vfx, StatusEffect's apply/
+## moment in the project (Ability's cast_vfx, StatusEffect's apply/
 ## remove FX, ...).
 @export var spawn_vfx: VfxEffect
 @export var spawn_sfx: SfxCue

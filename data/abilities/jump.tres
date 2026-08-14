@@ -1,14 +1,15 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=8 format=3 uid="uid://vk3dtgoqxf16"]
+[gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://vk3dtgoqxf16"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_pqnpu"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_4kc7v"]
 [ext_resource type="Script" uid="uid://deawu000jynxq" path="res://systems/ability_system/move_caster_effect.gd" id="2_8xeob"]
 [ext_resource type="Texture2D" uid="uid://bdpy4af10hwl1" path="res://assets/ability_icon/jump_icon.png" id="3_klqml"]
 [ext_resource type="Script" uid="uid://drd20fn8tucu" path="res://systems/ability_system/ground_point_targeting.gd" id="5_cxc1v"]
+[ext_resource type="Resource" uid="uid://d1ucf1e0n7ao4" path="res://data/animation_sequences/jump.tres" id="6_castanim"]
 
 [sub_resource type="Resource" id="Resource_srpy8"]
 script = ExtResource("2_8xeob")
-jump_duration = 1.0
+jump_duration = 1.4
 arc_height = 1.5
 metadata/_custom_type_script = "uid://deawu000jynxq"
 
@@ -29,4 +30,5 @@ targeting = SubResource("Resource_uc2tp")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_srpy8")])
 requires_to_hit = false
 uses_attack_action = false
+cast_animation = ExtResource("6_castanim")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

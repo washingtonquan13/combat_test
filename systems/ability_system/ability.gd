@@ -54,15 +54,18 @@ enum Category { COMMON, ABILITIES }
 ## a projectile, or a melee swing synced to an animation's connect frame.
 @export var timing: AbilityTiming
 
-@export_group("Impact FX")
-## Optional per-ability composable VFX sequence — see VfxEffect. Left
-## unset, unit_vfx.gd falls back to its own generic default sequence, so
-## you only need to fill this in for abilities that should look/sound
+@export_group("Cast VFX")
+## Optional per-ability composable VFX sequence — see VfxEffect. Named
+## cast_vfx (not impact_vfx) because it plays starting the instant this
+## ability's use is confirmed (Unit.ability_use_started), the same
+## moment cast_sfx below fires — "impact" was never accurate, this is
+## the whole cast-through-impact visual sequence, not just the impact
+## moment specifically (a sequence can still mark its own internal
+## impact beat with an ImpactSignalStep, same as always). Left unset,
+## unit_vfx.gd falls back to its own generic default sequence, so you
+## only need to fill this in for abilities that should look/sound
 ## distinct (a Fireball's [ProjectileStep, SpawnParticleStep] vs. a
-## Sword Attack's plain hit). Replaces an earlier flat PackedScene+
-## AudioStream pair — a single composable sequence can express a
-## projectile and timing between steps without needing separate fields
-## for each visual thing that might play.
+## Sword Attack's plain hit).
 ##
 ## For SOUND specifically, prefer cast_sfx below / timing.impact_sfx
 ## over adding a PlaySoundStep here — see those fields' doc comments for
@@ -73,20 +76,31 @@ enum Category { COMMON, ABILITIES }
 ## sound that needs precise positioning relative to a specific mid-
 ## sequence VFX moment with no corresponding combat signal — just not
 ## the default choice for the common cases anymore.
-@export var impact_vfx: VfxEffect
+@export var cast_vfx: VfxEffect
 
-@export_group("Armed Stance SFX")
-## Optional per-ability overrides for the sound played the instant this
-## ability becomes armed (a composable SfxCue — see that file), and the
-## sound looped for as long as it STAYS armed (a plain AudioStream, not
-## a cue — a sustained loop is a genuinely different case from a
-## layerable one-shot burst; "layer multiple simultaneous loops" is a
-## rare enough need that it isn't worth the same composition here). See
-## unit_sfx.gd, which owns these moments. Left unset, unit_sfx.gd falls
-## back to its own generic defaults. Universal to every armable ability
-## — arming isn't a projectile-specific concept, unlike impact.
+@export_group("Armed Stance FX")
+## Optional per-ability overrides for what plays the instant this
+## ability becomes armed, and what plays/holds for as long as it STAYS
+## armed — a composable SfxCue/VfxEffect for the one-shot enter moment
+## (layering is a real, common need there), a plain AudioStream/
+## PackedScene for the sustained hold (a looping asset the calling code
+## just instantiates and holds, not a layered one-shot sequence —
+## "layer multiple simultaneous loops" is rare enough not to warrant the
+## same composition). Animation's pair is plainer still — just clip
+## names, not composable resources at all — since AnimationPlayer only
+## ever plays one clip at a time and already has a native "loop a clip
+## indefinitely" primitive (the same one idle_animation/walk_animation
+## use), so there's no equivalent need for SFX/VFX's bare-primitive
+## workaround. See unit_sfx.gd/unit_vfx.gd/unit_animator.gd, which each
+## own their own one of these moments. Left unset, they fall back to
+## their own generic defaults. Universal to every armable ability —
+## arming isn't a projectile-specific concept, unlike impact.
 @export var armed_enter_sfx: SfxCue
 @export var armed_hold_sfx: AudioStream
+@export var armed_enter_vfx: VfxEffect
+@export var armed_hold_vfx: PackedScene
+@export var armed_enter_animation: String = ""
+@export var armed_hold_animation: String = ""
 
 @export_group("Cast SFX")
 ## Optional composable sound (see SfxCue) played the instant this
@@ -98,6 +112,13 @@ enum Category { COMMON, ABILITIES }
 ## assumption AbilityTiming was split out to remove — this fires for
 ## literally every ability use.
 @export var cast_sfx: SfxCue
+
+@export_group("Cast Animation")
+## Optional per-ability composable animation sequence — see
+## AnimationSequence. Left unset, unit_animator.gd falls back to its own
+## generic default sequence, same fallback shape as cast_vfx/cast_sfx
+## above. Plays on the same ability_use_started moment as those two.
+@export var cast_animation: AnimationSequence
 
 
 ## Whether target is a legal target for this ability from attacker's
@@ -111,7 +132,7 @@ func is_in_range(attacker: Unit, target) -> bool:
 	return targeting.is_valid_target(attacker, target)
 
 
-## The PathedProjectileStep in impact_vfx.steps, if this ability has one
+## The PathedProjectileStep in cast_vfx.steps, if this ability has one
 ## — used by seeking_indicator.gd (via PlayerInteractionState) to decide
 ## whether to preview the real NavigationGrid route instead of
 ## line_of_sight_indicator.gd's straight aim line, and to read that
@@ -120,12 +141,12 @@ func is_in_range(attacker: Unit, target) -> bool:
 ## will do (same WYSIWYG principle AreaIndicator uses reading
 ## AreaTargeting.radius directly). Derived from the actual VFX
 ## composition rather than a separate hand-set "is this a seeking
-## ability" flag, so it can't drift out of sync with what impact_vfx
+## ability" flag, so it can't drift out of sync with what cast_vfx
 ## actually plays.
 func get_pathed_projectile_step() -> PathedProjectileStep:
-	if not impact_vfx:
+	if not cast_vfx:
 		return null
-	for step in impact_vfx.steps:
+	for step in cast_vfx.steps:
 		if step is PathedProjectileStep:
 			return step
 	return null

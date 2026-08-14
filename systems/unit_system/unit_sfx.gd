@@ -13,7 +13,7 @@ extends Node
 ## tick/remove, see the block below on those). Cast/impact deliberately
 ## react directly to Unit.ability_use_started/impact_triggered — the same
 ## unit-level signals animation/VFX already react to — rather than
-## living inside the ability's impact_vfx sequence as a PlaySoundStep.
+## living inside the ability's cast_vfx sequence as a PlaySoundStep.
 ## That used to be the recommendation; it changed after a purely visual
 ## fix to SpawnParticleStep's cleanup logic silently broke a
 ## PlaySoundStep's timing, since they shared the same sequence and

@@ -10,36 +10,31 @@ extends Node
 ## from inside your instanced/editable-children .glb into
 ## `animation_player`.
 ##
-## Melee vs ranged attacks play DIFFERENT things (a single Sword_Attack
-## clip vs a 4-phase Enter/Idle/Shoot/Exit spell sequence), decided by
-## checking ability.targeting's type. Jump gets its own 3-phase sequence
-## (Start/loop/Land), detected by checking whether the used ability's
-## effects contain a MoveCasterEffect — Jump doesn't go through
-## Unit.move_to() at all (see move_caster_effect.gd), so it never fires
-## movement_started/movement_finished the way ordinary walking does.
+## An ability's cast animation is driven entirely by data (see
+## AnimationSequence/AnimationPhase) rather than hardcoded per ability
+## shape — this script has no idea what a "melee attack," "spell," or
+## "jump" is anymore. ability.cast_animation (falling back to this
+## script's own default_cast_animation when unset, same fallback shape
+## cast_vfx/cast_sfx already use) supplies an ordered list of phases;
+## this script just plays each phase's clip and advances to the next one
+## whenever that phase's own AdvanceTrigger says to — see
+## _advance_to_next_phase()/_active_phase() near the bottom of this file
+## for the actual player.
 ##
 ## Worth knowing: whether damage is actually TIMED to this animation
 ## depends on the ability's own waits_for_impact flag (see Ability). If
 ## it's on, Unit.use_ability() genuinely pauses before applying effects
 ## until something calls unit.notify_impact() — typically an
 ## AnimationPlayer Call Method Track placed at the frame a weapon
-## actually connects (e.g. mid-swing on sword_attack_animation). This
-## script doesn't add that track for you — it has to be placed manually
-## in each relevant clip in the AnimationPlayer editor, calling
-## unit.notify_impact via the track's configured target. If
-## waits_for_impact is off (the default), or a clip never got that
-## track added, effects still resolve — either immediately, or after
-## Ability.impact_timeout elapses as a safety fallback — so a missing
-## track doesn't hang the turn, it just means that specific ability
-## isn't actually synced yet.
-##
-## SETUP REQUIREMENT: the Jump loop clip (jump_loop_animation) needs to
-## actually be authored/set to loop in its import/Animation settings.
-## Landing is triggered by force-interrupting it via became_idle (see
-## _on_unit_became_idle) regardless of whether it loops, so this isn't
-## strictly required for correctness — but if it's NOT looping and
-## finishes before the physical jump does, the character will visibly
-## freeze on Jump's last frame until landing actually triggers Jump_Land.
+## actually connects (e.g. mid-swing on whichever clip a melee ability's
+## cast_animation plays). This script doesn't add that track for you —
+## it has to be placed manually in each relevant clip in the
+## AnimationPlayer editor, calling unit.notify_impact via the track's
+## configured target. If waits_for_impact is off (the default), or a
+## clip never got that track added, effects still resolve — either
+## immediately, or after Ability.impact_timeout elapses as a safety
+## fallback — so a missing track doesn't hang the turn, it just means
+## that specific ability isn't actually synced yet.
 ##
 ## OWNS Unit.visual_state/posed_status — this is the only script that
 ## ever writes to them, same as it's the only thing that ever decides
@@ -57,26 +52,22 @@ extends Node
 @export_group("Clip Names")
 @export var idle_animation: String = "Idle"
 @export var walk_animation: String = "Jog_Fwd"
-@export var sword_attack_animation: String = "Sword_Attack"
 @export var hit_animation: String = "Hit_Chest"
 @export var death_animation: String = "Death01"
 
-@export_group("Ranged/Spell Sequence")
-@export var spell_enter_animation: String = "Spell_Simple_Enter"
-@export var spell_idle_animation: String = "Spell_Simple_Idle"
-@export var spell_shoot_animation: String = "Spell_Simple_Shoot"
-@export var spell_exit_animation: String = "Spell_Simple_Exit"
-## How long to hold on spell_idle_animation before firing Shoot. NOT
-## driven by animation_finished like the other sequence steps —
-## "Idle"-named clips are often authored to loop indefinitely (likely
-## true here too, given the name), so waiting for it to finish naturally
-## could mean waiting forever and never reaching Shoot at all.
-@export var spell_channel_duration: float = 0.3
+@export_group("Cast Animation")
+## Fallback AnimationSequence for any ability that doesn't set its own
+## cast_animation — same fallback shape unit_vfx.gd/unit_sfx.gd already
+## use for cast_vfx/cast_sfx.
+@export var default_cast_animation: AnimationSequence
 
-@export_group("Jump Sequence")
-@export var jump_start_animation: String = "Jump_Start"
-@export var jump_loop_animation: String = "Jump"
-@export var jump_land_animation: String = "Jump_Land"
+@export_group("Armed Animation")
+## Fallback clip names for any ability that doesn't set its own
+## armed_enter_animation/armed_hold_animation — same fallback shape
+## unit_sfx.gd/unit_vfx.gd already use for their own armed moments. See
+## _on_ability_armed() for how the two chain together.
+@export var default_armed_enter_animation: String = ""
+@export var default_armed_hold_animation: String = ""
 
 ## What a one-shot clip (a hit reaction, most commonly) returns to once
 ## it finishes — idle_animation normally, or the held status's
@@ -86,12 +77,43 @@ extends Node
 ## re-derived ad hoc wherever a one-shot clip happens to finish.
 var _base_animation: String = ""
 
-## True only while actively sequencing a jump (Start -> loop -> Land) —
-## disambiguates Unit.became_idle, which fires whenever ANY async
-## busy-state clears, not just a jump landing specifically. Without this,
-## a future unrelated async effect finishing could be misread as "the
-## jump just landed."
-var _awaiting_jump_land: bool = false
+## Which AnimationSequence is currently being played through
+## _play_sequence(), and which phase within it — null/-1 when nothing's
+## active. Kept as plain state here (not inside a suspended coroutine)
+## specifically so an interruption (a hit reaction stealing the
+## AnimationPlayer) can't strand anything waiting on an
+## animation_finished that will never come — see AnimationSequence's
+## own header for the full reasoning.
+var _active_sequence: AnimationSequence = null
+var _active_phase_index: int = -1
+## Bumped every time _play_sequence starts a new play-through — captured
+## by ON_TIMER phases so a stale timer from an already-abandoned
+## play-through recognizes itself as stale at fire time, instead of
+## force-advancing whatever sequence happens to be active by then.
+var _sequence_token: int = 0
+## Set when advance_external() is called before the active sequence has
+## actually reached its EXTERNAL phase yet, and consumed the instant
+## _advance_to_next_phase() lands on one — see advance_external()'s own
+## doc comment for the real, confirmed race this guards against (a
+## physical event arriving before the clip that's supposed to still be
+## playing has finished).
+var _external_advance_pending: bool = false
+
+## Which clip _on_ability_armed() is currently waiting on to naturally
+## finish before it starts the hold loop, and what to hold on once it
+## does — both cleared the instant either happens (see
+## _on_animation_finished's guard, which only consumes these when
+## anim_name actually matches _pending_armed_enter_clip, so an unrelated
+## clip finishing — a hit reaction interrupting mid-enter, say — can't
+## be misread as the enter clip completing). Kept as simple string state
+## rather than routed through the cast-sequence machinery above: enter-
+## then-hold is a plainer one-shot-then-loop shape that doesn't need
+## multi-phase composition, matching armed_enter_sfx/armed_enter_vfx's
+## own single-moment shape rather than stretching AnimationSequence
+## (built for a different kind of "one thing ends, decide what's next")
+## onto something that doesn't need it.
+var _pending_armed_enter_clip: String = ""
+var _pending_armed_hold: String = ""
 
 
 func _ready() -> void:
@@ -99,6 +121,7 @@ func _ready() -> void:
 		push_warning("unit_animator.gd needs both `unit` and `animation_player` assigned in the Inspector.")
 		return
 
+	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.movement_started.connect(_on_movement_started)
 	unit.movement_finished.connect(_on_movement_finished)
 	unit.ability_use_started.connect(_on_ability_use_started)
@@ -141,6 +164,42 @@ func _on_movement_finished(_u: Unit) -> void:
 	_play(idle_animation)
 
 
+## Mirrors unit_sfx.gd's/unit_vfx.gd's own _on_ability_armed exactly —
+## same CombatManager.current_unit guard (AbilityManager is global/
+## unit-agnostic, this only reacts when THIS unit is the one arming).
+##
+## Doesn't touch unit.posed_status/visual_state at all — same choice
+## _on_ability_use_started already makes for cast animation (see that
+## method): _play() switches the visible clip regardless, and leaving
+## the pose state untouched is what lets _rest_on_base_animation()
+## correctly resume the held pose afterward instead of needing its own
+## separate interrupt/resume bookkeeping.
+func _on_ability_armed(ability: Ability) -> void:
+	if CombatManager.current_unit != unit:
+		return
+
+	_pending_armed_enter_clip = ""
+	_pending_armed_hold = ""
+
+	if not ability:
+		# disarmed — same "what should I actually be showing right now"
+		# fallback every other one-shot completion already funnels
+		# through, rather than a bespoke "just play idle" special case.
+		if not unit.is_moving():
+			_rest_on_base_animation()
+		return
+
+	var enter: String = ability.armed_enter_animation if ability.armed_enter_animation != "" else default_armed_enter_animation
+	var hold: String = ability.armed_hold_animation if ability.armed_hold_animation != "" else default_armed_hold_animation
+
+	if enter != "":
+		_pending_armed_enter_clip = enter
+		_pending_armed_hold = hold
+		_play(enter)
+	elif hold != "":
+		_play(hold)
+
+
 ## Fires the instant an ability use is confirmed to happen — before
 ## to-hit is even rolled, so this doesn't need to check result.busy/
 ## already_acted/in_range the way the old ability_used-based version
@@ -148,39 +207,16 @@ func _on_movement_finished(_u: Unit) -> void:
 ## passed. This is what makes the animation start playing WHEN the
 ## attack actually begins, rather than only after the outcome (hit,
 ## miss, damage) is already known.
+##
+## Launching ANY ability ends the armed-enter/hold state, same as
+## unit_sfx.gd/unit_vfx.gd's own _on_ability_use_started already does
+## for their own hold moments — regardless of whether it was
+## specifically the armed ability that fired.
 func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void:
-	if _is_jump(ability):
-		_start_jump_sequence()
-		return
-
-	if ability.targeting is MeleeEnemyTargeting:
-		_play(sword_attack_animation)
-	else:
-		_start_spell_sequence()
-
-
-func _is_jump(ability: Ability) -> bool:
-	for effect in ability.effects:
-		if effect is MoveCasterEffect:
-			return true
-	return false
-
-
-func _start_jump_sequence() -> void:
-	_awaiting_jump_land = true
-	_play(jump_start_animation)
-	# Jump loop starts once Jump_Start finishes naturally (see
-	# _on_animation_finished). Landing is triggered by
-	# Unit.became_idle, not by waiting on the loop clip — that fires
-	# exactly when MoveCasterEffect's tween completes, i.e. the actual
-	# physical moment the arc reaches its destination, regardless of
-	# whatever the loop clip itself is doing.
-
-
-func _start_spell_sequence() -> void:
-	_play(spell_enter_animation)
-	# Idle -> (timed hold) -> Shoot -> Exit, sequenced in
-	# _on_animation_finished / _on_spell_channel_done.
+	_pending_armed_enter_clip = ""
+	_pending_armed_hold = ""
+	var sequence: AnimationSequence = ability.cast_animation if ability.cast_animation else default_cast_animation
+	_play_sequence(sequence)
 
 
 ## Reads the currently-held status's own hit_reaction_animation if it
@@ -200,7 +236,10 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 
 
 func _on_died(_u: Unit) -> void:
-	_awaiting_jump_land = false
+	_active_sequence = null
+	_active_phase_index = -1
+	_pending_armed_enter_clip = ""
+	_pending_armed_hold = ""
 	unit.posed_status = null
 	unit.visual_state = Unit.VisualState.STANDING
 	_play(death_animation)
@@ -239,20 +278,12 @@ func _on_status_removed(_affected_unit: Unit, effect: StatusEffect) -> void:
 
 
 func _on_unit_became_idle() -> void:
-	if not _awaiting_jump_land:
-		return
-	_awaiting_jump_land = false
-	_play(jump_land_animation)
+	advance_external()
 
 
-func _on_spell_channel_done() -> void:
-	_play(spell_shoot_animation)
-
-
-## Sequences the multi-clip jump/spell sequences by chaining off each
-## clip's natural completion (except the deliberately-timer-driven
-## spell-idle step — see spell_channel_duration), and returns to
-## _base_animation after any other one-shot clip finishes — except
+## Sequences the cast-animation phase player by chaining off each
+## phase's own AdvanceTrigger (see _advance_to_next_phase), and returns
+## to _base_animation after any other one-shot clip finishes — except
 ## death, which stays on its final pose, and except while a walk is
 ## genuinely still in progress (movement_finished already owns returning
 ## to idle for that case; forcing it here would visually interrupt an
@@ -261,10 +292,10 @@ func _on_spell_channel_done() -> void:
 ## Returning to _base_animation (not a hardcoded idle_animation) here is
 ## the actual fix for the pose/hit-reaction bug Unit.VisualState's doc
 ## comment describes: a hit reaction played while unit.visual_state ==
-## POSED is a one-shot clip exactly like a spell's Exit step, and this is
-## the SAME fallback every one-shot already funnels through — it just
-## needed to ask "what should I rest on" instead of assuming standing
-## idle.
+## POSED is a one-shot clip exactly like a cast sequence's last phase,
+## and this is the SAME fallback every one-shot already funnels through
+## — it just needed to ask "what should I rest on" instead of assuming
+## standing idle.
 func _on_animation_finished(anim_name: StringName) -> void:
 	if anim_name == death_animation:
 		return
@@ -277,17 +308,28 @@ func _on_animation_finished(anim_name: StringName) -> void:
 	if posed and anim_name == posed.apply_animation:
 		return
 
-	if anim_name == jump_start_animation:
-		_play(jump_loop_animation)
+	# The armed-enter clip finishing is what starts the hold loop — see
+	# _on_ability_armed. Guarded on anim_name actually matching (not
+	# just _pending_armed_enter_clip being non-empty) so an unrelated
+	# clip finishing mid-enter — a hit reaction interrupting it, say —
+	# can't be misread as the enter clip having completed.
+	if _pending_armed_enter_clip != "" and anim_name == _pending_armed_enter_clip:
+		var hold: String = _pending_armed_hold
+		_pending_armed_enter_clip = ""
+		_pending_armed_hold = ""
+		if hold != "":
+			_play(hold)
+		elif not unit.is_moving():
+			_rest_on_base_animation()
 		return
 
-	if anim_name == spell_enter_animation:
-		_play(spell_idle_animation)
-		get_tree().create_timer(spell_channel_duration).timeout.connect(_on_spell_channel_done, CONNECT_ONE_SHOT)
-		return
-	if anim_name == spell_shoot_animation:
-		_play(spell_exit_animation)
-		return
+	var phase: AnimationPhase = _active_phase()
+	if phase and anim_name == phase.animation_name and phase.advance_trigger == AnimationPhase.AdvanceTrigger.ON_FINISH:
+		if _advance_to_next_phase():
+			return
+		# last phase just finished — fall through to the same
+		# rest-on-base check below, same as any other one-shot clip
+		# finishing with nothing queued after it.
 
 	if not unit.is_moving():
 		_rest_on_base_animation()
@@ -317,3 +359,110 @@ func _rest_on_base_animation() -> void:
 func _play(anim_name: String) -> void:
 	if animation_player.has_animation(anim_name):
 		animation_player.play(anim_name)
+
+
+## --- Cast animation phase player ---
+## See AnimationSequence's own header for why this state lives here as
+## plain fields instead of inside an awaited coroutine the way
+## VfxEffect.play() gets away with.
+
+func _active_phase() -> AnimationPhase:
+	if not _active_sequence or _active_phase_index < 0 or _active_phase_index >= _active_sequence.phases.size():
+		return null
+	return _active_sequence.phases[_active_phase_index]
+
+
+func _play_sequence(sequence: AnimationSequence) -> void:
+	_sequence_token += 1
+	_external_advance_pending = false
+	_active_sequence = sequence
+	_active_phase_index = -1
+	_advance_to_next_phase()
+
+
+## Moves to the next phase and starts playing its clip, or clears the
+## active sequence and returns false if that was the last phase — every
+## call site (ON_FINISH in _on_animation_finished, the ON_TIMER
+## callback below, advance_external) funnels the false case into the
+## same _rest_on_base_animation() fallback every other one-shot clip
+## already uses, so "sequence ended" needs no special case of its own.
+##
+## Landing on an EXTERNAL phase with _external_advance_pending already
+## set means the physical event this phase is waiting for already
+## happened (see advance_external()'s doc comment) — skip straight past
+## it via a self-recursive call rather than sitting on a clip that's
+## already visually stale (the unit already physically landed; showing
+## the airborne loop at this point would be wrong, not just late).
+func _advance_to_next_phase() -> bool:
+	_active_phase_index += 1
+	var next: AnimationPhase = _active_phase()
+	if not next:
+		_active_sequence = null
+		_active_phase_index = -1
+		return false
+
+	_play(next.animation_name)
+
+	match next.advance_trigger:
+		AnimationPhase.AdvanceTrigger.ON_TIMER:
+			var token: int = _sequence_token
+			get_tree().create_timer(next.duration).timeout.connect(
+				func(): _on_timer_phase_done(token),
+				CONNECT_ONE_SHOT
+			)
+		AnimationPhase.AdvanceTrigger.EXTERNAL:
+			if _external_advance_pending:
+				_external_advance_pending = false
+				return _advance_to_next_phase()
+	return true
+
+
+func _on_timer_phase_done(token: int) -> void:
+	if token != _sequence_token:
+		return  # a newer play-through has since started; this timer is stale
+	if not _advance_to_next_phase() and not unit.is_moving():
+		_rest_on_base_animation()
+
+
+## Whether the active sequence is currently sitting on an EXTERNAL
+## phase. Because Unit.use_ability()/move_to() already refuse to start
+## anything new while this unit is_busy(), only ONE async thing can ever
+## be in flight per unit at a time — so "an EXTERNAL phase is active
+## right now" can only ever mean THIS unit's current sequence is the one
+## waiting on it, regardless of which ability it belongs to. This is the
+## same disambiguation an earlier version of this file needed a
+## jump-specific guard flag for, generalized for free: starting anything
+## new always resets _active_sequence/_active_phase_index first (see
+## _play_sequence), so a stale wait can never survive past that point.
+func _is_awaiting_external() -> bool:
+	var phase: AnimationPhase = _active_phase()
+	return phase != null and phase.advance_trigger == AnimationPhase.AdvanceTrigger.EXTERNAL
+
+
+## Called by unrelated gameplay logic (today: _on_unit_became_idle, for
+## Jump's landing — fired once MoveCasterEffect's Tween physically
+## completes, an event with no animation-side signal of its own at all)
+## to push the active sequence past a phase that can't advance itself.
+##
+## The physical event this represents can arrive BEFORE the sequence has
+## actually reached its EXTERNAL phase yet — confirmed real, not just a
+## theoretical race: jump.tres's jump_duration originally shipped at
+## 1.0s, shorter than Jump_Start's own authored clip (1.33s), so
+## became_idle fired while the sequence was still sitting on Start
+## (ON_FINISH), not yet Loop (EXTERNAL). Since became_idle only fires
+## once per busy transition, silently no-op-ing here stranded the
+## sequence on Loop forever once it DID naturally arrive there — the bug
+## this fixed. jump_duration is now tuned past Jump_Start's length so
+## this specific case no longer triggers the race in practice, but the
+## guard stays: nothing enforces that relationship, and any other
+## EXTERNAL-using sequence could hit the same ordering depending on its
+## own clip lengths. Recording the request as pending and letting
+## _advance_to_next_phase() consume it the instant it lands on an
+## EXTERNAL phase makes this correct regardless of which order the two
+## events actually arrive in.
+func advance_external() -> void:
+	if _is_awaiting_external():
+		if not _advance_to_next_phase() and not unit.is_moving():
+			_rest_on_base_animation()
+	else:
+		_external_advance_pending = true

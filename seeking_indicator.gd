@@ -1,7 +1,7 @@
 extends IndicatorBase
 ## Targeting preview for "seeking" abilities (see Ability.
 ## has_pathed_projectile) — Magic Missile and anything else whose
-## impact_vfx includes a PathedProjectileStep. Same philosophy as
+## cast_vfx includes a PathedProjectileStep. Same philosophy as
 ## movement_indicator.gd: instead of a straight aim line (what
 ## line_of_sight_indicator.gd draws for every other ranged ability),
 ## this queries NavigationGrid.find_path() and previews the REAL bent

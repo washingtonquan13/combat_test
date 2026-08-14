@@ -50,6 +50,35 @@ script = ExtResource("3_mme6j")
 layers = Array[ExtResource("1_tsbd3")]([SubResource("Resource_ypxel")])
 metadata/_custom_type_script = "uid://bb7l26qye5i03"
 
+[sub_resource type="Resource" id="Resource_f0pgo"]
+script = ExtResource("10_inwvo")
+projectile_scene = ExtResource("15_ldoga")
+duration = 0.0
+speed = 15.0
+arc_height = 0.0
+facing_offset_degrees = 180.0
+metadata/_custom_type_script = "uid://bbwsb2teel8f1"
+
+[sub_resource type="Resource" id="Resource_sep1y"]
+script = ExtResource("12_nhug0")
+metadata/_custom_type_script = "uid://bkpdhvqqgfc8o"
+
+[sub_resource type="Resource" id="Resource_gy3xg"]
+script = ExtResource("12_woc63")
+scene = ExtResource("18_mme6j")
+at = 1
+force_one_shot = true
+fallback_lifetime = 2.0
+scale_to_ability_radius = true
+authored_radius = 1.0
+height_scale_factor = 0.05
+metadata/_custom_type_script = "uid://dcgjthqwkn30"
+
+[sub_resource type="Resource" id="Resource_xtw6w"]
+script = ExtResource("8_f0pgo")
+steps = Array[ExtResource("9_gy3xg")]([SubResource("Resource_f0pgo"), SubResource("Resource_sep1y"), SubResource("Resource_gy3xg")])
+metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
+
 [sub_resource type="Resource" id="Resource_l62op"]
 script = ExtResource("2_y8mr0")
 dice_count = 2
@@ -86,35 +115,6 @@ status = SubResource("Resource_inwvo")
 affects_hostiles = true
 affects_allies = true
 metadata/_custom_type_script = "uid://b31m1uvps4rb"
-
-[sub_resource type="Resource" id="Resource_f0pgo"]
-script = ExtResource("10_inwvo")
-projectile_scene = ExtResource("15_ldoga")
-duration = 0.0
-speed = 15.0
-arc_height = 0.0
-facing_offset_degrees = 180.0
-metadata/_custom_type_script = "uid://bbwsb2teel8f1"
-
-[sub_resource type="Resource" id="Resource_sep1y"]
-script = ExtResource("12_nhug0")
-metadata/_custom_type_script = "uid://bkpdhvqqgfc8o"
-
-[sub_resource type="Resource" id="Resource_gy3xg"]
-script = ExtResource("12_woc63")
-scene = ExtResource("18_mme6j")
-at = 1
-force_one_shot = true
-fallback_lifetime = 2.0
-scale_to_ability_radius = true
-authored_radius = 1.0
-height_scale_factor = 0.05
-metadata/_custom_type_script = "uid://dcgjthqwkn30"
-
-[sub_resource type="Resource" id="Resource_xtw6w"]
-script = ExtResource("8_f0pgo")
-steps = Array[ExtResource("9_gy3xg")]([SubResource("Resource_f0pgo"), SubResource("Resource_sep1y"), SubResource("Resource_gy3xg")])
-metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
 
 [sub_resource type="Resource" id="Resource_ycrns"]
 script = ExtResource("5_r5ii0")
@@ -156,7 +156,7 @@ effects = Array[ExtResource("1_res1m")]([SubResource("Resource_l62op"), SubResou
 requires_to_hit = false
 uses_attack_action = true
 timing = SubResource("Resource_k4g3k")
-impact_vfx = SubResource("Resource_xtw6w")
+cast_vfx = SubResource("Resource_xtw6w")
 armed_enter_sfx = SubResource("Resource_cb6pu")
 armed_hold_sfx = ExtResource("2_xtw6w")
 cast_sfx = SubResource("Resource_xy1i2")

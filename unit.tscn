@@ -1,6 +1,7 @@
-[gd_scene load_steps=59 format=4 uid="uid://dfjhg20p6pvxm"]
+[gd_scene load_steps=60 format=4 uid="uid://dfjhg20p6pvxm"]
 
 [ext_resource type="Script" uid="uid://dp2k8mbhvm6v0" path="res://systems/unit_system/unit.gd" id="1_ctwoc"]
+[ext_resource type="Resource" path="res://data/animation_sequences/spell_cast.tres" id="castanim_spell"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="3_1sk4h"]
 [ext_resource type="Script" uid="uid://dilgwwepmjg6q" path="res://systems/unit_system/unit_animator.gd" id="3_5wnup"]
 [ext_resource type="PackedScene" uid="uid://bsk4jx2fxytqm" path="res://assets/UAL1_Standard.glb" id="3_davkp"]
@@ -17794,6 +17795,7 @@ shape = SubResource("CapsuleShape3D_5wnup")
 script = ExtResource("3_5wnup")
 unit = NodePath("..")
 animation_player = NodePath("../CharacterModel/AnimationPlayer")
+default_cast_animation = ExtResource("castanim_spell")
 
 [node name="UnitVFX" type="Node" parent="." node_paths=PackedStringArray("unit")]
 script = ExtResource("5_of1k5")
