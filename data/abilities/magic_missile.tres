@@ -68,4 +68,6 @@ requires_to_hit = false
 uses_attack_action = true
 timing = SubResource("Resource_time")
 cast_vfx = SubResource("Resource_vfxe")
+armed_enter_animation = ""
+armed_hold_animation = ""
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

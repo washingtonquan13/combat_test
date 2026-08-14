@@ -6,7 +6,7 @@
 [sub_resource type="Resource" id="Resource_start"]
 script = ExtResource("2_phase")
 animation_name = "Jump_Start"
-advance_trigger = 0
+advance_trigger = 1
 duration = 0.3
 
 [sub_resource type="Resource" id="Resource_loop"]

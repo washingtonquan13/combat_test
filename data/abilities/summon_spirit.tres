@@ -49,5 +49,7 @@ targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_summoneffect")])
 requires_to_hit = false
 uses_attack_action = true
+armed_enter_animation = ""
+armed_hold_animation = ""
 cast_sfx = SubResource("Resource_0coen")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

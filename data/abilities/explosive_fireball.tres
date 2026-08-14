@@ -159,5 +159,7 @@ timing = SubResource("Resource_k4g3k")
 cast_vfx = SubResource("Resource_xtw6w")
 armed_enter_sfx = SubResource("Resource_cb6pu")
 armed_hold_sfx = ExtResource("2_xtw6w")
+armed_enter_animation = ""
+armed_hold_animation = ""
 cast_sfx = SubResource("Resource_xy1i2")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

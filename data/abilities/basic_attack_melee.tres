@@ -27,5 +27,7 @@ targeting = SubResource("Resource_uasc7")
 effects = Array[ExtResource("1_m1xwx")]([SubResource("Resource_ebikf")])
 requires_to_hit = true
 uses_attack_action = true
+armed_enter_animation = ""
+armed_hold_animation = ""
 cast_animation = ExtResource("6_castanim")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

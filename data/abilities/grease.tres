@@ -72,4 +72,6 @@ targeting = SubResource("Resource_si4fr")
 effects = Array[ExtResource("1_klks1")]([SubResource("Resource_golul")])
 requires_to_hit = true
 uses_attack_action = true
+armed_enter_animation = ""
+armed_hold_animation = ""
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

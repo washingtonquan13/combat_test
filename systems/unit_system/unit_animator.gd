@@ -372,12 +372,29 @@ func _on_animation_finished(anim_name: StringName) -> void:
 		return
 
 	var phase: AnimationPhase = _active_phase()
-	if phase and anim_name == phase.animation_name and phase.advance_trigger == AnimationPhase.AdvanceTrigger.ON_FINISH:
-		if _advance_to_next_phase():
+	if phase and anim_name == phase.animation_name:
+		if phase.advance_trigger == AnimationPhase.AdvanceTrigger.ON_FINISH:
+			if _advance_to_next_phase():
+				return
+			# last phase just finished — fall through to the same
+			# rest-on-base check below, same as any other one-shot clip
+			# finishing with nothing queued after it.
+		elif phase.advance_trigger == AnimationPhase.AdvanceTrigger.EXTERNAL:
+			# An EXTERNAL phase's own clip reaching its natural end is NOT
+			# permission to move on — only advance_external() is. Without
+			# this, a clip that isn't ALSO configured to loop in the
+			# AnimationPlayer (Jump's mid-air "Jump" clip, confirmed:
+			# nothing in UAL1_Standard.glb.import overrides its loop
+			# mode, so it imports as LOOP_NONE and plays exactly once)
+			# would fall through to _rest_on_base_animation() below the
+			# instant its own short playtime elapsed — silently swapping
+			# it for idle mid-air, well before the real external event
+			# (Jump's landing Tween) actually fires. Replaying the same
+			# clip holds it visibly in place until that real event
+			# arrives, regardless of whether the clip's own loop_mode
+			# happens to be set correctly.
+			_play(phase.animation_name)
 			return
-		# last phase just finished — fall through to the same
-		# rest-on-base check below, same as any other one-shot clip
-		# finishing with nothing queued after it.
 
 	if not unit.is_moving():
 		_rest_on_base_animation()

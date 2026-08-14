@@ -71,4 +71,6 @@ targeting = SubResource("Resource_4i07h")
 effects = Array[ExtResource("1_wcufp")]([SubResource("Resource_fdn0e")])
 requires_to_hit = false
 uses_attack_action = true
+armed_enter_animation = ""
+armed_hold_animation = ""
 metadata/_custom_type_script = "uid://bpidhds13g0p8"
