@@ -132,8 +132,56 @@ func _ready() -> void:
 	unit.status_removed.connect(_on_status_removed)
 	animation_player.animation_finished.connect(_on_animation_finished)
 
+	_validate_animation_names()
+
 	_base_animation = idle_animation
 	_play(idle_animation)
+
+
+## Warns about every clip name referenced by this unit's own animation
+## fields, or by any ability in its roster, that doesn't actually exist
+## on animation_player — checked once here at scene load rather than
+## only discovered lazily whenever a specific phase is finally reached
+## in play (see _play()'s own warning for that backstop case). The
+## whole point of AnimationSequence/AnimationPhase being data an author
+## edits directly is undermined if a typo'd clip name just produces a
+## silently frozen character with nothing in the console pointing at
+## why — this is what actually makes that authoring safe.
+##
+## Can't do the same for StatusEffect's own apply_animation/
+## hit_reaction_animation/remove_animation fields the same way — which
+## status a unit might end up carrying isn't known until one's actually
+## applied at runtime, unlike abilities, which are a fixed roster
+## sitting on unit.abilities from the start.
+func _validate_animation_names() -> void:
+	_check_clip(idle_animation, "idle_animation")
+	_check_clip(walk_animation, "walk_animation")
+	_check_clip(hit_animation, "hit_animation")
+	_check_clip(death_animation, "death_animation")
+	_check_sequence(default_cast_animation, "default_cast_animation")
+	_check_clip(default_armed_enter_animation, "default_armed_enter_animation")
+	_check_clip(default_armed_hold_animation, "default_armed_hold_animation")
+
+	for ability in unit.abilities:
+		if not ability:
+			continue
+		_check_sequence(ability.cast_animation, "%s.cast_animation" % ability.ability_name)
+		_check_clip(ability.armed_enter_animation, "%s.armed_enter_animation" % ability.ability_name)
+		_check_clip(ability.armed_hold_animation, "%s.armed_hold_animation" % ability.ability_name)
+
+
+func _check_sequence(sequence: AnimationSequence, label: String) -> void:
+	if not sequence:
+		return
+	for i in sequence.phases.size():
+		var phase: AnimationPhase = sequence.phases[i]
+		if phase:
+			_check_clip(phase.animation_name, "%s phase %d (%s)" % [label, i, phase.animation_name])
+
+
+func _check_clip(anim_name: String, label: String) -> void:
+	if anim_name != "" and not animation_player.has_animation(anim_name):
+		push_warning("unit_animator.gd: %s on %s references unknown animation \"%s\"." % [label, unit.name, anim_name])
 
 
 ## Starting a NEW move deliberately abandons any pose currently being
@@ -359,6 +407,8 @@ func _rest_on_base_animation() -> void:
 func _play(anim_name: String) -> void:
 	if animation_player.has_animation(anim_name):
 		animation_player.play(anim_name)
+	else:
+		push_warning("unit_animator.gd: tried to play unknown animation \"%s\" on %s." % [anim_name, unit.name])
 
 
 ## --- Cast animation phase player ---
