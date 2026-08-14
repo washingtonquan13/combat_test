@@ -381,19 +381,20 @@ func _on_animation_finished(anim_name: StringName) -> void:
 			# finishing with nothing queued after it.
 		elif phase.advance_trigger == AnimationPhase.AdvanceTrigger.EXTERNAL:
 			# An EXTERNAL phase's own clip reaching its natural end is NOT
-			# permission to move on — only advance_external() is. Without
-			# this, a clip that isn't ALSO configured to loop in the
-			# AnimationPlayer (Jump's mid-air "Jump" clip, confirmed:
-			# nothing in UAL1_Standard.glb.import overrides its loop
-			# mode, so it imports as LOOP_NONE and plays exactly once)
-			# would fall through to _rest_on_base_animation() below the
-			# instant its own short playtime elapsed — silently swapping
-			# it for idle mid-air, well before the real external event
-			# (Jump's landing Tween) actually fires. Replaying the same
-			# clip holds it visibly in place until that real event
-			# arrives, regardless of whether the clip's own loop_mode
-			# happens to be set correctly.
-			_play(phase.animation_name)
+			# permission to move on — only advance_external() is. But
+			# unlike ON_FINISH, that's not permission to do anything else
+			# either: just return and leave it alone. A finished,
+			# non-looping AnimationPlayer clip (Jump's mid-air "Jump"
+			# clip, confirmed non-looping — nothing in
+			# UAL1_Standard.glb.import overrides its loop mode) already
+			# holds cleanly on its own last frame on its own; Godot
+			# simply stops advancing playback position, nothing resets
+			# or changes the applied pose. Falling through to
+			# _rest_on_base_animation() below (the original bug) swaps
+			# it for idle mid-air; explicitly replaying it from frame 0
+			# (a fix tried and reverted) is a visible pop back to its
+			# start pose every time it naturally finishes. Doing nothing
+			# is the only one of the three that's actually seamless.
 			return
 
 	if not unit.is_moving():
