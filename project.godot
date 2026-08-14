@@ -33,6 +33,10 @@ StashManager="*res://stash_manager.gd"
 window/size/viewport_width=1600
 window/size/viewport_height=900
 
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/animation_sequence_tools/plugin.cfg")
+
 [input]
 
 test_start_combat={

@@ -1,3 +1,4 @@
+@tool
 class_name AnimationPhase
 extends Resource
 ## One clip within an AnimationSequence, plus data describing how the

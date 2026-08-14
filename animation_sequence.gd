@@ -1,3 +1,4 @@
+@tool
 class_name AnimationSequence
 extends Resource
 ## A composable, ordered sequence of AnimationPlayer clips for one
