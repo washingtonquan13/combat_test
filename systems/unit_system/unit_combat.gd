@@ -31,6 +31,13 @@ var _owner: Unit
 ## the start of the turn after that (ticks 1->0).
 const CRIT_FAIL_PENALTY: StatusEffect = preload("res://data/statuses/crit_fail_penalty.tres")
 
+## General ranged high-ground rule — a live position comparison for
+## THIS attack, not a persistent condition on either unit, so it's
+## applied directly here rather than through StatusManager's per-status
+## aggregation the way Prone/Bless/etc. are. See AltitudeAdvantageBehavior's
+## own header for why it used to be Flying-status-only and no longer is.
+const ALTITUDE_ADVANTAGE: AltitudeAdvantageBehavior = preload("res://data/altitude_advantage.tres")
+
 
 ## GURPS ST-based swing/thrust damage — computed from a formula rather
 ## than looking up the official table — approximates the real
@@ -143,11 +150,17 @@ func _damage_dice(damage_type: DamageType) -> Dictionary:
 	return {"count": dice_count, "flat_bonus": flat_bonus}
 
 
-## Placeholder melee/ranged skill — just DX for now. Swap in a real skill
-## lookup later (weapon skill, ability-specific skill, etc.) without
-## touching use_ability()'s call site.
+## Every attack — melee, ranged, any weapon — resolves against this one
+## skill rather than a skill per weapon type, by design (see
+## data/skills/basic_attack.tres's own description for the reasoning).
+## Explicitly trainable independent of raw DX: SkillCalculator.
+## get_skill_level() always keeps the better of a unit's actual trained
+## level and Basic Attack's own DX default (modifier 0), so an untrained
+## unit gets exactly plain DX — identical to this method's old
+## placeholder behavior — and training only ever helps, never hurts,
+## relative to that floor.
 func attack_skill() -> int:
-	return _owner.get_stat("DX")
+	return SkillCalculator.get_skill_level(_owner, "Basic Attack").skill_level
 
 
 ## abilities[0], or null if this unit has none equipped. Used as the
@@ -275,6 +288,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		to_hit_target += _owner.outgoing_attack_to_hit_modifier(target, ability)
 		if target is Unit:
 			to_hit_target += target.incoming_attack_to_hit_modifier(_owner, ability)
+			to_hit_target += ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, _owner, ability)
 
 		var to_hit := SuccessRoll.roll_vs(to_hit_target)
 		result["to_hit"] = to_hit

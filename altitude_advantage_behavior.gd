@@ -1,12 +1,21 @@
 class_name AltitudeAdvantageBehavior
-extends StatusBehavior
-## Ranged attacks against a unit high above the attacker are harder to
-## land; against one below the attacker, easier — continuous with
-## altitude difference, not banded, to match this project's free-
-## altitude flight (see the flight-design discussion this followed).
-## Same shape as ProneBehavior (which splits melee/ranged the same way,
-## via ability.targeting's type), but a scaled continuous value instead
-## of a flat bonus.
+extends Resource
+## General high-ground rule for ranged attacks — a unit shooting DOWN at
+## a target below it gets easier, shooting UP gets harder, continuous
+## with the height difference rather than banded, to match this
+## project's free-altitude flight (see the flight-design discussion this
+## followed).
+##
+## Originally a StatusBehavior attached only to the Flying status,
+## meaning the bonus only ever applied when the DEFENDER happened to be
+## flying — a grounded unit standing on this project's own elevated
+## platforms got no benefit at all for shooting down at someone on the
+## floor. Altitude difference isn't really a persistent condition on one
+## unit the way a status is, though — it's a live relationship between
+## attacker and defender positions at the moment of THIS attack, which
+## is why it now lives as a plain Resource UnitCombat.use_ability() calls
+## directly (see the ALTITUDE_ADVANTAGE const there) instead of going
+## through StatusManager's per-status aggregation.
 ##
 ## Melee gets no equivalent modifier here on purpose: MeleeEnemyTargeting's
 ## own tiny range (see Unit.edge_distance_to, already full 3D distance)

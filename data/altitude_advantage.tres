@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="AltitudeAdvantageBehavior" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://yor401j5yoxb" path="res://altitude_advantage_behavior.gd" id="1_altitude"]
+
+[resource]
+script = ExtResource("1_altitude")
+to_hit_penalty_per_meter = 0.5
+max_modifier = 4
+metadata/_custom_type_script = "uid://yor401j5yoxb"

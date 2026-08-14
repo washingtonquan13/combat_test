@@ -31,9 +31,15 @@ class_name CRPGCamera
 ## distance via min_pitch/max_pitch, in both modes, exactly like bound
 ## mode always has been.
 ##
-## Because yaw/pitch/distance/anchor are all continuous shared state, gaining
-## or losing focus_target at runtime never snaps the camera — unbound simply
-## keeps orbiting whatever anchor point bound mode left it at, and vice versa.
+## Because yaw/pitch/distance/anchor are all continuous shared state, and
+## focus_target's own setter converts the anchor's stored offset between
+## "relative to a target" and "absolute position" at the exact moment of
+## any transition (see that property's own doc comment), gaining, losing,
+## or switching focus_target at runtime never jumps the anchor's position.
+## look_at's own target is smoothed too (current_look_at_point, eased
+## toward the true anchor every frame) rather than snapping to face a new
+## anchor point instantly — position and rotation now ease together
+## instead of position gliding while rotation whips to match.
 ##
 ## global_position eases toward a single desired_position every physics frame
 ## (the "swagger" lerp) — identical in both modes, since desired_position is
@@ -45,13 +51,57 @@ enum Mode { BOUND, UNBOUND }
 
 @export_group("Target")
 ## The node the camera orbits. Leave empty for free-roam (unbound) mode.
-@export var focus_target: Node3D
+## A property with a setter, not a plain field, specifically so every
+## transition (gaining a target, losing one, switching to a different
+## one) keeps the anchor's WORLD POSITION continuous instead of jumping.
+## current_anchor_offset means something different in each mode (see its
+## own doc comment below): a small offset RELATIVE to focus_target in
+## bound mode, but the anchor's ABSOLUTE position in unbound mode.
+## Without this setter, losing focus would reinterpret whatever small
+## pan offset was active as an absolute world position instead of
+## converting it — teleporting the anchor to wherever that offset sits
+## near the origin, rather than seamlessly staying exactly where it was
+## already looking.
+@export var focus_target: Node3D:
+	set(value):
+		if value == focus_target:
+			return
+		if value == null:
+			# Losing focus: freeze the anchor's CURRENT world position
+			# into current_anchor_offset itself, so unbound mode (which
+			# reads it as an absolute position) picks up from exactly
+			# where bound mode left off.
+			var frozen: Vector3 = _get_anchor_point()
+			current_anchor_offset = frozen
+			target_anchor_offset = frozen
+		elif focus_target == null:
+			# Gaining focus from unbound: convert the absolute anchor
+			# position into an offset relative to the new target, so
+			# bound mode's leash math starts from the right place
+			# instead of jumping to "no pan at all."
+			var relative: Vector3 = current_anchor_offset - (value.global_position + focus_offset)
+			current_anchor_offset = relative
+			target_anchor_offset = relative
+		else:
+			# Switching between two different non-null targets: recenter
+			# on the new one rather than carrying over however far the
+			# player had panned from the old one. current_anchor_offset
+			# still eases toward this via the existing lerp in
+			# _physics_process — same smoothing any other pan gets.
+			target_anchor_offset = Vector3.ZERO
+		focus_target = value
 ## Offset applied to the focus target's position (e.g. raise anchor above the ground).
 ## Bound mode only — unbound mode's anchor has no base position to offset.
 @export var focus_offset: Vector3 = Vector3(0, 1, 0)
 ## How quickly the camera's actual position catches up to desired_position.
 ## This is the main source of the camera's "swagger" — identical in both modes.
 @export var follow_smoothing: float = 10.0
+## How quickly the camera's LOOK direction (what look_at aims at) catches
+## up to the true anchor point — separate from follow_smoothing (which
+## eases global_position) so a target change can't make the camera snap
+## its facing instantly while its physical position is still gliding
+## over. Same default so both ease at the same rate out of the box.
+@export var look_smoothing: float = 10.0
 
 @export_group("Rotation (Q/E)")
 @export var rotation_speed: float = 90.0
@@ -98,6 +148,14 @@ var target_anchor_offset: Vector3 = Vector3.ZERO
 ## pitch pipeline each physics frame. global_position eases toward this —
 ## see _physics_process. That one lerp is where all the "swagger" comes from.
 var desired_position: Vector3 = Vector3.ZERO
+## What look_at actually aims at — eased toward the true anchor point
+## every physics frame (see look_smoothing), rather than look_at reading
+## the anchor directly. Reading it directly would snap the camera's
+## facing instantly on any focus_target change, even on frames where
+## global_position is still gliding smoothly toward its own
+## desired_position — position and rotation need the same kind of easing
+## to actually look like one continuous motion instead of two mismatched ones.
+var current_look_at_point: Vector3 = Vector3.ZERO
 var _last_anchor_point: Vector3 = Vector3.ZERO   # cached for look_at, applied after the shared position lerp
 
 
@@ -107,6 +165,8 @@ func _get_mode() -> Mode:
 
 func _ready() -> void:
 	CameraDirector.register_tactical_camera(self)
+	CombatManager.turn_started.connect(_on_turn_started)
+	CombatManager.combat_ended.connect(_on_combat_ended)
 
 	target_distance = clamp((min_distance + max_distance) * 0.5, min_distance, max_distance)
 	current_distance = target_distance
@@ -132,6 +192,30 @@ func _ready() -> void:
 	current_yaw = target_yaw
 	current_anchor_offset = target_anchor_offset
 	desired_position = global_position
+	current_look_at_point = _get_anchor_point()
+
+
+## Camera has never followed anyone up to now — focus_target simply
+## started null and nothing ever assigned it, so the camera has run in
+## permanent free-roam (UNBOUND) mode since before combat, flight, or
+## ladders existed. Following whoever's turn it is is the highest-value
+## default for TACTICAL play specifically — see focus_target's own
+## setter for how this transition (and losing focus, below) stays
+## seamless instead of snapping.
+func _on_turn_started(unit: Unit) -> void:
+	focus_target = unit
+
+
+## Returns to free-roam once tactical play ends, rather than leaving the
+## camera leashed (max_pan_radius) to whichever unit happened to act
+## last — exploration/out-of-combat movement isn't yet wired to any
+## per-unit follow target, so null (unbound) is the correct default here.
+## focus_target's own setter freezes the anchor's current world position
+## into current_anchor_offset the instant this fires, so the camera
+## keeps looking at exactly the same point and simply stops following it
+## — not a jump to wherever that offset would otherwise land.
+func _on_combat_ended(_winning_faction: StringName) -> void:
+	focus_target = null
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -186,7 +270,13 @@ func _physics_process(delta: float) -> void:
 	# Shared "swagger" step — identical lerp for both modes.
 	global_position = global_position.lerp(desired_position, 1.0 - exp(-follow_smoothing * delta))
 
-	look_at(anchor_point, Vector3.UP)
+	# Eased toward the true anchor, same as global_position is eased
+	# toward desired_position above — look_at()'ing anchor_point directly
+	# would rotate the camera to face it instantly, snapping the view the
+	# moment focus_target changes even while global_position is still
+	# gliding smoothly toward the new anchor.
+	current_look_at_point = current_look_at_point.lerp(anchor_point, 1.0 - exp(-look_smoothing * delta))
+	look_at(current_look_at_point, Vector3.UP)
 
 
 ## Bound mode: anchor = focus_target + offset + leashed pan offset.
