@@ -429,7 +429,20 @@ func get_interactions(actor: Unit) -> Array[InteractionOption]:
 	return result
 
 
+## Plain faction inequality has been correct so far only because every
+## unit in the game has been either "player" or "enemy" — a two-faction
+## world where != happens to give the right answer. "neutral" (the
+## Scared Townperson, the first unit ever given that faction) broke that
+## silently: neutral != player is true, so she read as hostile to the
+## party, hiding Talk (AttackInteraction/TalkInteraction both gate on
+## this) even though nothing about her was ever meant to be hostile to
+## anyone. Explicit neutral carve-out rather than a general faction-
+## relationship table — there's exactly one non-obvious case to handle
+## right now, not a matrix of many factions with different relationships
+## to build for speculatively.
 func is_hostile_to(other: Unit) -> bool:
+	if faction == &"neutral" or other.faction == &"neutral":
+		return false
 	return faction != other.faction
 
 

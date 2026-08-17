@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3 uid="uid://dwqtkbnj05wva"]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
+
+[sub_resource type="Resource" id="Resource_quest"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_quest_intro"
+text = "What's been happening around here?"
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "What's been happening around here?"
+
+[sub_resource type="Resource" id="Resource_town"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_town"
+text = "Tell me about this town."
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "Tell me about this town."
+
+[sub_resource type="Resource" id="Resource_people"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_people"
+text = "What are the people like, around here?"
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "What are the people like, around here?"
+
+[sub_resource type="Resource" id="Resource_life"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_life"
+text = "What's day-to-day life like for you?"
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "What's day-to-day life like for you?"
+
+[sub_resource type="Resource" id="Resource_goodbye"]
+script = ExtResource("3_line")
+next_node_id = ""
+text = "I should get going. Take care."
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "I should get going. Take care."
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_hub"
+speaker = "npc"
+text_block = "I don't get many friendly faces through here anymore. Watch yourself — even standing here talking to you, I keep expecting something to come out of the trees. What did you want to know?"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_quest"), SubResource("Resource_town"), SubResource("Resource_people"), SubResource("Resource_life"), SubResource("Resource_goodbye")])
+next_node_id = ""

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_people"
+speaker = "npc"
+text_block = "Stubborn, mostly — that's what's kept this place standing as long as it has. We look out for each other, share what food there is, take turns on the watch at night. There's an old woman, Maren, who's buried two sons to the raids and still bakes bread for anyone who knocks. That's the kind of people we are. Doesn't mean we're not scared. Just means we haven't left yet."
+next_node_id = "townsperson_hub"

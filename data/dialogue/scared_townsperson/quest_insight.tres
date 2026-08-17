@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_quest_insight"
+speaker = "npc"
+text_block = "...There's one more thing. The night they hit the mill, I saw one of them stop at the well and just stare at it — like it was looking for something. The others didn't seem to notice, but the big one did, and it got angry, herded it along. I haven't told anyone that part. Didn't know what to make of it, and didn't want people thinking I'd lost my nerve completely."
+next_node_id = "townsperson_quest_details"

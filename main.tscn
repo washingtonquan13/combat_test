@@ -1,4 +1,4 @@
-[gd_scene load_steps=78 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=69 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -33,6 +33,7 @@
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://data/abilities/sleep_dart.tres" id="21_a6jrf"]
 [ext_resource type="Texture2D" uid="uid://caua8wslo4n0e" path="res://assets/portraits/tiefling_wizard.jpg" id="21_lswn8"]
 [ext_resource type="Resource" uid="uid://8t1yvopu728x" path="res://data/abilities/grease.tres" id="29_4k2k6"]
+[ext_resource type="PackedScene" path="res://proto_block.tscn" id="29_pjyto"]
 [ext_resource type="Resource" uid="uid://bmgw6mjv7sps4" path="res://data/abilities/heal.tres" id="30_heal"]
 [ext_resource type="Resource" uid="uid://c2d5yg20sskb7" path="res://data/abilities/shield.tres" id="31_shield"]
 [ext_resource type="Resource" uid="uid://xrcp3khftmgl" path="res://data/abilities/bless.tres" id="32_bless"]
@@ -58,53 +59,13 @@
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://systems/dialogue_system/conversation_log.tscn" id="56_convlog"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://interaction_option.gd" id="58_uatky"]
 [ext_resource type="PackedScene" uid="uid://jfavnc280asx" path="res://party_overview.tscn" id="59_partyoverview"]
+[ext_resource type="Resource" path="res://data/interactions/talk.tres" id="59_rqtf5"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="60_1vm84"]
 [ext_resource type="PackedScene" uid="uid://dwu2y8j3sei5i" path="res://chest.tscn" id="60_chest"]
 [ext_resource type="PackedScene" path="res://stash_panel.tscn" id="61_stashpanel"]
-
-[sub_resource type="BoxMesh" id="BoxMesh_7dm0k"]
-size = Vector3(20, 1, 20)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_ig7tw"]
-size = Vector3(20, 1, 20)
-
-[sub_resource type="BoxMesh" id="BoxMesh_7mycd"]
-resource_local_to_scene = true
-size = Vector3(8, 5, 5)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_272bh"]
-resource_local_to_scene = true
-size = Vector3(8, 5, 5)
-
-[sub_resource type="BoxMesh" id="BoxMesh_jq2sk"]
-size = Vector3(3, 3, 3)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_4k2k6"]
-size = Vector3(3, 3, 3)
-
-[sub_resource type="BoxMesh" id="BoxMesh_d2t1y"]
-size = Vector3(1, 10, 20)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_gngh3"]
-size = Vector3(1, 10, 20)
-
-[sub_resource type="BoxMesh" id="BoxMesh_0n3wm"]
-size = Vector3(4, 1, 4)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_qnost"]
-size = Vector3(4, 1, 4)
-
-[sub_resource type="BoxMesh" id="BoxMesh_qnost"]
-size = Vector3(4, 1, 1)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_wnkbs"]
-size = Vector3(4, 1, 1)
-
-[sub_resource type="BoxMesh" id="BoxMesh_f6a44"]
-size = Vector3(3, 1, 3)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_0cbny"]
-size = Vector3(3, 1, 3)
+[ext_resource type="Resource" uid="uid://dwqtkbnj05wva" path="res://data/dialogue/scared_townsperson/hub.tres" id="62_townsdlg"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -356,68 +317,52 @@ tactical_ui = NodePath("../TacticalUI")
 
 [node name="Floor" type="StaticBody3D" parent="LevelGeometry"]
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Floor"]
-mesh = SubResource("BoxMesh_7dm0k")
-skeleton = NodePath("../../..")
+[node name="ProtoBlock6" parent="LevelGeometry/Floor" instance=ExtResource("29_pjyto")]
+size = Vector3(100, 1, 100)
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Floor"]
-shape = SubResource("BoxShape3D_ig7tw")
+[node name="ProtoBlock" parent="LevelGeometry/Floor" instance=ExtResource("29_pjyto")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 1, -19)
+size = Vector3(2, 1, 2)
 
-[node name="Platform" type="StaticBody3D" parent="LevelGeometry"]
+[node name="ProtoBlock3" parent="LevelGeometry/Floor" instance=ExtResource("29_pjyto")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 1, -19)
+size = Vector3(2, 1, 2)
+
+[node name="ProtoBlock4" parent="LevelGeometry/Floor" instance=ExtResource("29_pjyto")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 1, -23)
+size = Vector3(2, 1, 2)
+
+[node name="ProtoBlock5" parent="LevelGeometry/Floor" instance=ExtResource("29_pjyto")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 1, -27)
+size = Vector3(2, 1, 2)
+
+[node name="ProtoBlock2" parent="LevelGeometry/Floor" instance=ExtResource("29_pjyto")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 1, -24.5)
+size = Vector3(2, 1, 2)
+
+[node name="Platform" parent="LevelGeometry" instance=ExtResource("29_pjyto")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+size = Vector3(8, 5, 5)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform"]
-mesh = SubResource("BoxMesh_7mycd")
-skeleton = NodePath("../../..")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform"]
-shape = SubResource("BoxShape3D_272bh")
-
-[node name="Platform2" type="StaticBody3D" parent="LevelGeometry"]
+[node name="Platform2" parent="LevelGeometry" instance=ExtResource("29_pjyto")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 7, 2, -3)
+size = Vector3(3, 3, 3)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform2"]
-mesh = SubResource("BoxMesh_jq2sk")
-skeleton = NodePath("../../..")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform2"]
-shape = SubResource("BoxShape3D_4k2k6")
-
-[node name="Platform3" type="StaticBody3D" parent="LevelGeometry"]
+[node name="Platform3" parent="LevelGeometry" instance=ExtResource("29_pjyto")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -9.5, 5.5, 0)
+size = Vector3(1, 10, 20)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform3"]
-mesh = SubResource("BoxMesh_d2t1y")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform3"]
-shape = SubResource("BoxShape3D_gngh3")
-
-[node name="Platform4" type="StaticBody3D" parent="LevelGeometry"]
+[node name="Platform4" parent="LevelGeometry" instance=ExtResource("29_pjyto")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 10, 8)
+size = Vector3(4, 1, 4)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform4"]
-mesh = SubResource("BoxMesh_0n3wm")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform4"]
-shape = SubResource("BoxShape3D_qnost")
-
-[node name="Platform5" type="StaticBody3D" parent="LevelGeometry"]
+[node name="Platform5" parent="LevelGeometry" instance=ExtResource("29_pjyto")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7, 11, 6.5)
+size = Vector3(4, 1, 1)
 
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform5"]
-mesh = SubResource("BoxMesh_qnost")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform5"]
-shape = SubResource("BoxShape3D_wnkbs")
-
-[node name="Platform6" type="StaticBody3D" parent="LevelGeometry"]
+[node name="Platform6" parent="LevelGeometry" instance=ExtResource("29_pjyto")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 11, 6.5)
-
-[node name="MeshInstance3D" type="MeshInstance3D" parent="LevelGeometry/Platform6"]
-mesh = SubResource("BoxMesh_f6a44")
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="LevelGeometry/Platform6"]
-shape = SubResource("BoxShape3D_0cbny")
+size = Vector3(3, 1, 3)
 
 [node name="Ladder" parent="LevelGeometry" instance=ExtResource("50_ladder")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -3)
@@ -486,6 +431,18 @@ move = 27
 move_speed = 5.0
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])
 dialogue_root = ExtResource("58_testdlg")
+selected_color = Color(0.156863, 1, 1, 0.627451)
+portrait_texture = ExtResource("7_ycdy4")
+
+[node name="Scared Townperson" parent="." instance=ExtResource("3_7mycd")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.5, -23.5)
+dexterity = 18
+move = 27
+move_speed = 5.0
+faction = &"neutral"
+abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])
+interactions = Array[ExtResource("58_uatky")]([ExtResource("59_rqtf5"), ExtResource("60_1vm84")])
+dialogue_root = ExtResource("62_townsdlg")
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("7_ycdy4")
 

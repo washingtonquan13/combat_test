@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_life"
+speaker = "npc"
+text_block = "Tiring, if I'm honest. I used to work the mill during the day and sleep easy at night. Now I still work the mill, but I take a turn on the watch wall twice a week, and I don't sleep easy any night. You get used to flinching at every sound past dark. I keep telling myself it won't always be like this. Some days I believe it."
+next_node_id = "townsperson_hub"

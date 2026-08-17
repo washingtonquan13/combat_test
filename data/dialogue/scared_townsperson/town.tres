@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_town"
+speaker = "npc"
+text_block = "This is Millhaven — or what's left of the name, anyway. Used to be a proper stop on the trade road, back when the road was worth traveling. There's the mill, the old chapel, maybe two dozen houses worth calling homes. Half the storefronts on the square have been shuttered since the raids started. Folks who could afford to leave, did."
+next_node_id = "townsperson_hub"

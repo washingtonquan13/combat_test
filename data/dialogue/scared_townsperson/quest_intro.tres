@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=5 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
+[ext_resource type="Script" uid="uid://cimkiuejxqinm" path="res://systems/dialogue_system/skill_check_choice.gd" id="4_check"]
+
+[sub_resource type="Resource" id="Resource_details"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_quest_details"
+text = "What exactly have they done?"
+dialogue_line = "What exactly have they done?"
+
+[sub_resource type="Resource" id="Resource_insight"]
+script = ExtResource("4_check")
+skill_name = "Insight"
+success_node_id = "townsperson_quest_insight"
+failure_node_id = "townsperson_quest_details"
+show_to_player = false
+text = "(there's something else she's not saying)"
+
+[sub_resource type="Resource" id="Resource_sympathy"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_hub"
+text = "That's terrible. I hope it gets better."
+alignment_name = "Light"
+dialogue_line = "That's terrible. I hope it gets better."
+
+[sub_resource type="Resource" id="Resource_dismiss"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_hub"
+text = "Rough. But that's not really my problem."
+alignment_name = "Dark"
+dialogue_line = "Rough. But that's not really my problem."
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_quest_intro"
+speaker = "npc"
+text_block = "You mean the raids. Goblins, mostly — small bands, quick and mean — but there's bigger ones running with them now. Uglier, smarter, giving the orders. It's gotten worse these past few months."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_details"), SubResource("Resource_insight"), SubResource("Resource_sympathy"), SubResource("Resource_dismiss")])
