@@ -20,6 +20,18 @@ extends Resource
 @export var alignment_name: String = ""
 @export var is_repeatable: bool = false
 @export var dialogue_line: String = ""
+## Set on FlagManager the instant this choice is picked — the write
+## half of dialogue's flag/state support. "" means this choice doesn't
+## touch a flag, the common case.
+@export var sets_flag: String = ""
+## Optional gate on whether this choice is even offered — see
+## DialogueManager._show_node, which filters on this the same way it
+## already filters on used_choices. Unlike used_choices (which only
+## suppresses a choice within ONE conversation, and resets on the next),
+## a FlagPrerequisite persists across separate conversations entirely,
+## since it reads FlagManager rather than DialogueManager's own
+## per-conversation state.
+@export var prerequisites: PrerequisiteRule = null
 
 
 ## actor is whichever Unit is speaking THIS response (the player-
@@ -30,6 +42,8 @@ func resolve(actor: Unit, target: Unit) -> String:
 	if alignment_name != "":
 		actor.apply_alignment_tag(alignment_name)
 		DialogueManager.record_line("You performed an action that was %s." % DialogueFormat.alignment_tag(alignment_name))
+	if sets_flag != "":
+		FlagManager.set_flag(sets_flag)
 	if dialogue_line != "":
 		# "player" specifically (not empty) — this is the response actor
 		# just spoke aloud, not a system aside, so the log should

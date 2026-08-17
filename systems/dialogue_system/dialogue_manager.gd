@@ -129,6 +129,8 @@ func _show_node(node: DialogueNode) -> void:
 		var key: String = "%s:%d" % [node.id, i]
 		if used_choices.has(key) and not choice.is_repeatable:
 			continue
+		if choice.prerequisites and not choice.prerequisites.is_satisfied(participants.get("player")):
+			continue
 		visible_choices.append(choice)
 	choices_shown.emit(visible_choices)
 

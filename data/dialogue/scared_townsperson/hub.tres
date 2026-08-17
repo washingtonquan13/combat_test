@@ -1,8 +1,14 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3 uid="uid://dwqtkbnj05wva"]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=11 format=3 uid="uid://dwqtkbnj05wva"]
 
 [ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
 [ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
 [ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/skill_system/flag_prerequisite.gd" id="4_flagcheck"]
+
+[sub_resource type="Resource" id="Resource_not_heard"]
+script = ExtResource("4_flagcheck")
+flag_name = "townsperson_heard_raids"
+requires_absent = true
 
 [sub_resource type="Resource" id="Resource_quest"]
 script = ExtResource("3_line")
@@ -11,6 +17,8 @@ text = "What's been happening around here?"
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "What's been happening around here?"
+sets_flag = "townsperson_heard_raids"
+prerequisites = SubResource("Resource_not_heard")
 
 [sub_resource type="Resource" id="Resource_town"]
 script = ExtResource("3_line")

@@ -27,6 +27,7 @@ InteractionMenu="*res://interaction_menu.gd"
 CameraDirector="*res://camera_director.gd"
 DialogueManager="*res://systems/dialogue_system/dialogue_manager.gd"
 StashManager="*res://stash_manager.gd"
+FlagManager="*res://flag_manager.gd"
 
 [display]
 
