@@ -12,6 +12,7 @@ text = "What are you doing out here?"
 alignment_name = ""
 is_repeatable = false
 dialogue_line = ""
+sets_flag = ""
 
 [sub_resource type="Resource" id="Resource_dismissive"]
 script = ExtResource("3_line")
@@ -20,6 +21,7 @@ text = "I don't have time for this."
 alignment_name = "Chaotic"
 is_repeatable = false
 dialogue_line = "I don't have time for this."
+sets_flag = ""
 
 [sub_resource type="Resource" id="Resource_persuade"]
 script = ExtResource("4_check")
@@ -31,6 +33,7 @@ text = "Let me travel with you — I can help."
 alignment_name = "Light"
 is_repeatable = false
 dialogue_line = "Let me travel with you — I can help."
+sets_flag = ""
 
 [resource]
 script = ExtResource("1_node")

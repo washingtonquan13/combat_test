@@ -35,6 +35,22 @@ var participants: Dictionary = {}  # String token ("player"/"npc") -> Unit
 var used_choices: Dictionary = {}  # "node_id:index" -> true
 var transcript: Array[String] = []
 
+## The exact filtered list _show_node() last emitted via choices_shown —
+## choose() indexes into THIS, not current_node.choices. They're
+## different index spaces the instant any earlier choice is hidden
+## (used, or prerequisites-gated): the overlay renders buttons numbered
+## by POSITION IN THE FILTERED LIST, but choose() used to index straight
+## into the full, unfiltered array. The two only ever agreed by
+## coincidence, on a node's first-ever visit before anything was hidden
+## — confirmed via a real trace (2026-08-17): on a hub revisit with
+## earlier choices already used, clicking the one visible "goodbye"
+## choice silently re-triggered the FIRST full-array choice instead.
+## Hub-and-spoke is the only structure in this project that revisits a
+## node with a partially-used choice list, which is exactly why this
+## went unnoticed until now — test_npc's tree is strictly linear and
+## never re-shows a node after hiding one of its choices.
+var _visible_choices: Array[DialogueChoice] = []
+
 var _id_to_path: Dictionary = {}  # String id -> String res:// path
 var _indexed: bool = false
 
@@ -61,14 +77,22 @@ func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -
 
 
 func choose(index: int) -> void:
-	if not current_node or index < 0 or index >= current_node.choices.size():
+	if not current_node or index < 0 or index >= _visible_choices.size():
+		print("[DIALOGUE DEBUG] choose(%d) REJECTED - no current_node or index out of range (visible count=%d)" % [index, _visible_choices.size()])
 		return
 
-	var key: String = "%s:%d" % [current_node.id, index]
-	var choice: DialogueChoice = current_node.choices[index]
+	# index is a position in the FILTERED list the overlay actually
+	# rendered — find() recovers the choice's stable position in the
+	# full node.choices array, which is what used_choices' key format
+	# (and any future revisit of this same node) depends on.
+	var choice: DialogueChoice = _visible_choices[index]
+	var full_index: int = current_node.choices.find(choice)
+	var key: String = "%s:%d" % [current_node.id, full_index]
 	used_choices[key] = true
+	print("[DIALOGUE DEBUG] choose(%d) [visible] -> full_index=%d on '%s', choice text='%s', marking '%s' used" % [index, full_index, current_node.id, choice.text, key])
 
 	var next_id: String = choice.resolve(participants.get("player"), participants.get("npc"))
+	print("[DIALOGUE DEBUG]   resolved next_id = '%s'" % next_id)
 	_load_node_by_id(next_id)
 
 
@@ -77,7 +101,9 @@ func choose(index: int) -> void:
 ## real branch.
 func advance() -> void:
 	if not current_node or not current_node.choices.is_empty():
+		print("[DIALOGUE DEBUG] advance() REJECTED - no current_node or choices not empty")
 		return
+	print("[DIALOGUE DEBUG] advance() on '%s', next_node_id='%s'" % [current_node.id, current_node.next_node_id])
 	if current_node.next_node_id == "":
 		end_dialogue()
 		return
@@ -87,6 +113,7 @@ func advance() -> void:
 func end_dialogue() -> void:
 	current_node = null
 	participants = {}
+	_visible_choices = []
 	dialogue_ended.emit()
 
 
@@ -121,6 +148,7 @@ func record_line(text: String, speaker_token: String = "") -> void:
 
 func _show_node(node: DialogueNode) -> void:
 	current_node = node
+	print("[DIALOGUE DEBUG] _show_node: id='%s' text='%s'" % [node.id, node.text_block.left(40)])
 	record_line(node.text_block, node.speaker)
 
 	var visible_choices: Array[DialogueChoice] = []
@@ -128,20 +156,28 @@ func _show_node(node: DialogueNode) -> void:
 		var choice: DialogueChoice = node.choices[i]
 		var key: String = "%s:%d" % [node.id, i]
 		if used_choices.has(key) and not choice.is_repeatable:
+			print("[DIALOGUE DEBUG]   choice %d '%s' HIDDEN (already used, key='%s')" % [i, choice.text, key])
 			continue
 		if choice.prerequisites and not choice.prerequisites.is_satisfied(participants.get("player")):
+			print("[DIALOGUE DEBUG]   choice %d '%s' HIDDEN (prerequisites unsatisfied)" % [i, choice.text])
 			continue
+		print("[DIALOGUE DEBUG]   choice %d '%s' VISIBLE" % [i, choice.text])
 		visible_choices.append(choice)
+	print("[DIALOGUE DEBUG]   -> %d/%d choices visible" % [visible_choices.size(), node.choices.size()])
+	_visible_choices = visible_choices
 	choices_shown.emit(visible_choices)
 
 
 func _load_node_by_id(id: String) -> void:
+	print("[DIALOGUE DEBUG] _load_node_by_id('%s')" % id)
 	if id == "":
+		print("[DIALOGUE DEBUG]   empty id -> end_dialogue()")
 		end_dialogue()
 		return
 
 	var node: DialogueNode = _find_node(id)
 	if not node:
+		print("[DIALOGUE DEBUG]   *** NO NODE FOUND for id '%s' -- broken reference ***" % id)
 		push_error("DialogueManager: no node found for id '%s'" % id)
 		end_dialogue()
 		return
