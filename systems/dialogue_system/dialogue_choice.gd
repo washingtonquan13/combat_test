@@ -30,8 +30,15 @@ extends Resource
 ## suppresses a choice within ONE conversation, and resets on the next),
 ## a FlagPrerequisite persists across separate conversations entirely,
 ## since it reads FlagManager rather than DialogueManager's own
-## per-conversation state.
+## per-conversation state. An AlignmentPrerequisite works the same way,
+## gating on the acting unit's alignment/tendency category instead.
 @export var prerequisites: PrerequisiteRule = null
+## What this choice does to the world beyond the flag/alignment
+## bookkeeping above — give an item, start a fight, anything a future
+## DialogueEffect subclass adds. Applied in array order, after the
+## bookkeeping below so a flag this same choice sets is already visible
+## to an effect that might care.
+@export var effects: Array[DialogueEffect] = []
 
 
 ## actor is whichever Unit is speaking THIS response (the player-
@@ -44,6 +51,8 @@ func resolve(actor: Unit, target: Unit) -> String:
 		DialogueManager.record_line("You performed an action that was %s." % DialogueFormat.alignment_tag(alignment_name))
 	if sets_flag != "":
 		FlagManager.set_flag(sets_flag)
+	for effect in effects:
+		effect.apply(actor, target)
 	if dialogue_line != "":
 		# "player" specifically (not empty) — this is the response actor
 		# just spoke aloud, not a system aside, so the log should

@@ -102,6 +102,10 @@ var _unit: Unit = null
 
 func _ready() -> void:
 	visible = false
+	# So a Resource with no scene-tree position of its own (GiveItemEffect)
+	# can still find its way to the party's shared inventory — see that
+	# file's header for why a group, not a direct reference.
+	add_to_group("party_overview")
 
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))

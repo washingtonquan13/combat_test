@@ -17,6 +17,32 @@ func is_available(actor: Unit, target) -> bool:
 func execute(actor: Unit, target) -> void:
 	var unit_target: Unit = target
 	if unit_target.dialogue_root:
-		DialogueManager.start_dialogue(unit_target.dialogue_root, {"player": actor, "npc": unit_target})
+		DialogueManager.start_dialogue(unit_target.dialogue_root, _build_participants(actor, unit_target))
 	else:
 		SystemLog.print("%s has nothing to say yet." % unit_target.name)
+
+
+## "player"/"npc" stay reserved exactly as before — every existing
+## dialogue tree already keys on those two tokens, and actor is always
+## the one initiating, unit_target always who they clicked. Beyond that,
+## every OTHER present party member gets added under their own unit
+## name (party_panel.gd's own is_player_controlled()+summoned_by==null
+## filter for "core roster", so a summoned creature never gets treated
+## as a conversation participant) — this is the entire fix for the
+## two-token-only gap named in dialogue_system_bg3_gap_analysis.md.
+## DialogueManager.participants was ALWAYS just a generic String->Unit
+## dict; nothing about it enforced exactly two entries. Only this one
+## caller ever populated it, so this is the whole change: a dialogue
+## author can now write DialogueNode.speaker (or a future companion-
+## reaction choice) as an exact unit name, e.g. "ElfRanger", and
+## DialogueCameraRig/dialogue_overlay.gd resolve it for free — both
+## already look tokens up via participants.get(token) generically, keyed
+## by actual node name rather than a synthetic index so it stays legible
+## to whoever's authoring the .tres and stable across roster changes.
+func _build_participants(actor: Unit, unit_target: Unit) -> Dictionary:
+	var participants: Dictionary = {"player": actor, "npc": unit_target}
+	for node in actor.get_tree().get_nodes_in_group("units"):
+		var unit := node as Unit
+		if unit and unit != actor and unit.is_player_controlled() and unit.summoned_by == null:
+			participants[unit.name] = unit
+	return participants
