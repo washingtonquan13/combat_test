@@ -1,6 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=2 format=3 uid="uid://bfl788333hlg2"]
 
-[ext_resource type="Script" path="res://systems/dialogue_system/skill_check_dice_popup.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://cv7ol81bag5ag" path="res://systems/dialogue_system/skill_check_dice_popup.gd" id="1_script"]
 
 [node name="SkillCheckDicePopup" type="Control"]
+layout_mode = 3
+anchors_preset = 0
 script = ExtResource("1_script")

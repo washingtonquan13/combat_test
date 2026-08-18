@@ -21,13 +21,35 @@ const DIE_FACE_NORMALS: Dictionary = {
 	2: Vector3.RIGHT, 5: Vector3.LEFT,
 	3: Vector3.BACK, 4: Vector3.FORWARD,
 }
-const FACE_COLORS: Dictionary = {
-	1: Color.RED, 2: Color.LIME, 3: Color.DODGER_BLUE,
-	4: Color.YELLOW, 5: Color.MAGENTA, 6: Color.CYAN,
+## The die's OVERALL correction per face — NOT the same rotations used
+## to place each face's Label3D in _build_die(). This set answers "how
+## do I rotate the whole die, as a rigid body, so THIS face ends up
+## where Basis.looking_at()'s own -Z convention expects" — i.e. each
+## entry is R such that R * DIE_FACE_NORMALS[face] == Vector3(0,0,-1).
+## Composed with a camera-facing basis in _on_dice_roll_requested() so
+## the chosen face lands pointed at the camera, not just "up" — hand-
+## derived per axis-aligned face rather than a generic from/to
+## quaternion, which leaves the roll around that axis undetermined
+## (fine for a plain color, not fine for a numeral that needs to stay
+## upright instead of landing sideways).
+const FACE_TO_FORWARD_EULER: Dictionary = {
+	1: Vector3(-PI / 2, 0, 0), 6: Vector3(PI / 2, 0, 0),
+	2: Vector3(0, PI / 2, 0), 5: Vector3(0, -PI / 2, 0),
+	3: Vector3(PI, 0, 0), 4: Vector3(0, 0, 0),
 }
 const DIE_SPACING: float = 1.4
 const TUMBLE_DURATION: float = 1.0
+## Each die's tween runs this much longer than the previous die's, so
+## all 3 visibly stop in sequence instead of landing in a near-unison
+## blur — big enough to read as "one at a time," not just jitter.
+const STAGGER_STEP: float = 0.4
+## Arbitrary — the roll hasn't happened yet, so no face value is
+## "correct" while waiting on the Roll button. Just needs to be some
+## fixed value so the idle pose is camera-facing instead of whatever
+## identity/last-landed rotation the die happened to have.
+const IDLE_FACE_VALUE: int = 1
 
+var _camera: Camera3D
 var _dice: Array[Node3D] = []
 var _result_label: Label
 var _continue_button: Button
@@ -60,10 +82,10 @@ func _build_scene() -> void:
 	viewport.own_world_3d = true
 	viewport.transparent_bg = true
 
-	var camera := Camera3D.new()
-	viewport.add_child(camera)
-	camera.position = Vector3(0, 2.0, 3.2)
-	camera.look_at(Vector3.ZERO, Vector3.UP)
+	_camera = Camera3D.new()
+	viewport.add_child(_camera)
+	_camera.position = Vector3(0, 2.0, 3.2)
+	_camera.look_at(Vector3.ZERO, Vector3.UP)
 
 	var light := DirectionalLight3D.new()
 	viewport.add_child(light)
@@ -86,10 +108,25 @@ func _build_scene() -> void:
 	_continue_button.visible = false
 
 
-## A plain colored-face placeholder — same "mechanic before the art"
-## stand-in as dice_roll_prototype.gd, since no real numbered die
-## texture exists yet. Swapping in real art later only touches this
-## function; _on_dice_roll_requested below never needs to change.
+## A real numeral per face — no texture asset exists, but Label3D
+## renders actual legible text without needing one, a step up from
+## dice_roll_prototype.gd's flat-colored-square placeholder. Swapping
+## in real numbered art later only touches this function;
+## _on_dice_roll_requested below never needs to change.
+##
+## The per-face rotation below is confirmed correct on its own terms —
+## it aims each face's content at the right world direction, verified
+## live (the die itself always presents the intended face to the
+## camera). What was still wrong after that was the glyph ITSELF
+## reading mirrored on every face — a separate, orthogonal problem:
+## rotation alone can never mirror anything (it's orientation-
+## preserving), so no amount of retuning the rotation table above could
+## ever have fixed this. scale.x = -1 corrects the glyph in the label's
+## own local space, independent of and unaffected by whichever way
+## that space then gets rotated to face outward. billboard stays
+## explicitly disabled: each numeral must rotate WITH the die during
+## the tumble and only read correctly once genuinely landed, never
+## fake it by always facing the camera.
 func _build_die() -> Node3D:
 	var die := Node3D.new()
 	var body := MeshInstance3D.new()
@@ -100,48 +137,68 @@ func _build_die() -> Node3D:
 	body.material_override = body_mat
 
 	for face in DIE_FACE_NORMALS:
-		var marker := MeshInstance3D.new()
-		die.add_child(marker)
-		var plane := PlaneMesh.new()
-		plane.size = Vector2(0.6, 0.6)
-		marker.mesh = plane
-		var mat := StandardMaterial3D.new()
-		mat.albedo_color = FACE_COLORS[face]
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		marker.material_override = mat
+		var label := Label3D.new()
+		die.add_child(label)
+		label.text = str(face)
+		label.font_size = 64
+		label.pixel_size = 0.008
+		label.modulate = Color(0.92, 0.88, 0.78)
+		label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		label.scale.x = -1
 
 		var normal: Vector3 = DIE_FACE_NORMALS[face]
-		marker.position = normal * 0.51
-		# Every normal here is axis-aligned, so a direct X/Z rotation is
-		# simpler to state (and check by eye) than a general from/to
-		# quaternion — same reasoning as dice_roll_prototype.gd.
+		label.position = normal * 0.52
 		if normal == Vector3.UP:
-			pass
+			label.rotation = Vector3(-PI / 2, 0, 0)
 		elif normal == Vector3.DOWN:
-			marker.rotation = Vector3(PI, 0, 0)
+			label.rotation = Vector3(PI / 2, 0, 0)
 		elif normal == Vector3.RIGHT:
-			marker.rotation = Vector3(0, 0, -PI / 2)
+			label.rotation = Vector3(0, PI / 2, 0)
 		elif normal == Vector3.LEFT:
-			marker.rotation = Vector3(0, 0, PI / 2)
+			label.rotation = Vector3(0, -PI / 2, 0)
 		elif normal == Vector3.BACK:
-			marker.rotation = Vector3(PI / 2, 0, 0)
+			pass
 		elif normal == Vector3.FORWARD:
-			marker.rotation = Vector3(-PI / 2, 0, 0)
+			label.rotation = Vector3(PI, 0, 0)
 
 	return die
 
 
+## The die's target rotation so face_value points at _camera — not
+## just Vector3.UP, which only looks head-on to a camera that's
+## directly overhead. Composes a camera-facing basis (whose own -Z
+## points at the camera, roll fixed by world-up) with
+## FACE_TO_FORWARD_EULER's fixed per-face correction, so the exact
+## chosen face ends up where that -Z is, right numeral upright — see
+## FACE_TO_FORWARD_EULER's own comment for the derivation.
+func _face_toward_camera_euler(die: Node3D, face_value: int) -> Vector3:
+	var to_camera: Vector3 = (_camera.position - die.position).normalized()
+	var camera_facing: Basis = Basis.looking_at(to_camera, Vector3.UP)
+	var face_correction: Basis = Basis.from_euler(FACE_TO_FORWARD_EULER[face_value])
+	return (camera_facing * face_correction).get_euler()
+
+
 func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	visible = true
+	# Without this, a die sits at whatever rotation it was last left in
+	# (identity on the very first roll ever) instead of presenting a
+	# face square to the camera — identity in particular reads as
+	# tilted, since the camera isn't positioned straight down any one
+	# axis (see _build_scene()'s _camera.position).
+	for i in 3:
+		_dice[i].rotation = _face_toward_camera_euler(_dice[i], IDLE_FACE_VALUE)
+	_result_label.text = "%s check" % skill_name
+	_continue_button.text = "Roll"
+	_continue_button.visible = true
+	await _continue_button.pressed
+
 	_continue_button.visible = false
 	_result_label.text = "Rolling %s..." % skill_name
 
 	var tweens: Array[Tween] = []
 	for i in 3:
 		var die: Node3D = _dice[i]
-		var face_value: int = roll.dice[i]
-		var target_quat: Quaternion = Quaternion(DIE_FACE_NORMALS[face_value], Vector3.UP)
-		var target_euler: Vector3 = target_quat.get_euler()
+		var target_euler: Vector3 = _face_toward_camera_euler(die, roll.dice[i])
 		# Extra whole turns stacked onto the target before tweening —
 		# same final orientation either way, but Tween interpolates
 		# rotation's X/Y/Z linearly, so the extra turns are visibly
@@ -152,7 +209,7 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 		)
 		die.rotation = Vector3(randf_range(0, TAU), randf_range(0, TAU), randf_range(0, TAU))
 		var tween: Tween = create_tween()
-		tween.tween_property(die, "rotation", spun_euler, TUMBLE_DURATION + i * 0.15) \
+		tween.tween_property(die, "rotation", spun_euler, TUMBLE_DURATION + i * STAGGER_STEP) \
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 		tweens.append(tween)
 
@@ -160,7 +217,7 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 		await tween.finished
 	# Normalize off the extra full turns now that every die has landed.
 	for i in 3:
-		_dice[i].rotation = Quaternion(DIE_FACE_NORMALS[roll.dice[i]], Vector3.UP).get_euler()
+		_dice[i].rotation = _face_toward_camera_euler(_dice[i], roll.dice[i])
 
 	var verdict: String = "Failed"
 	if roll.critical_success:
@@ -171,6 +228,7 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 		verdict = "Success"
 	_result_label.text = "%s — %d vs %d" % [verdict, roll.roll, roll.target]
 
+	_continue_button.text = "Continue"
 	_continue_button.visible = true
 	await _continue_button.pressed
 	visible = false

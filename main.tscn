@@ -70,7 +70,7 @@
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="63_dlgrootopt"]
 [ext_resource type="Resource" uid="uid://b0g3uyinnv5km" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="64_resolveddlg"]
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
-[ext_resource type="PackedScene" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
+[ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -337,8 +337,6 @@ tactical_ui = NodePath("../TacticalUI")
 [node name="ConversationLog" parent="CanvasLayer" instance=ExtResource("56_convlog")]
 
 [node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("66_dicepopup")]
-layout_mode = 3
-anchors_preset = 0
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 
