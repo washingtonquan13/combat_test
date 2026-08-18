@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://cctvyqn1q1ms0"]
+
+[ext_resource type="Script" uid="uid://dwwcnkpbhi5if" path="res://dice_roll_prototype.gd" id="1_script"]
+
+[node name="DiceRollPrototype" type="Node3D"]
+script = ExtResource("1_script")

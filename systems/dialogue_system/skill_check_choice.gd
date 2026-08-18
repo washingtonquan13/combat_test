@@ -5,18 +5,19 @@ extends DialogueChoice
 ## project version's hardcoded trait dictionary, which was never wired
 ## to an actual character at all.
 ##
-## No QuickContestChoice sibling (opposed NPC roll) yet — there's no
-## opposed-roll primitive anywhere in this project's combat system to
-## resolve one against. Add it if a scene actually needs an NPC to roll
-## back, rather than building it speculatively now.
+## See QuickContestChoice for the opposed-NPC-roll sibling this file's
+## own header used to say didn't exist yet — this scene needed one.
+## DialogueManager.find_assisting_companion()'s bonus (a present ally
+## who can also use this skill) applies here too; both classes share
+## the exact same assist logic.
 
 @export var skill_name: String = ""
 @export var success_node_id: String = ""
 @export var failure_node_id: String = ""
-## False hides the skill tag on the response button (shows "???"
-## instead, see DialogueFormat.choice_label) until picked — matches
-## BG3's own treatment of a check the character wouldn't consciously
-## know they're attempting.
+## False hides the skill tag/DC preview on the response button (shows
+## "???" instead, see DialogueFormat.choice_label) until picked —
+## matches BG3's own treatment of a check the character wouldn't
+## consciously know they're attempting.
 @export var show_to_player: bool = true
 
 
@@ -26,6 +27,8 @@ func _resolve_next_node_id(actor: Unit, _target: Unit) -> String:
 		DialogueManager.record_line("(%s has no way to attempt this.)" % skill_name)
 		return failure_node_id
 
-	var roll: Dictionary = actor.roll_vs(result.skill_level)
-	DialogueManager.record_line(DialogueFormat.skill_result(skill_name, roll.roll, roll.target, roll.success))
+	var assistant: Unit = DialogueManager.find_assisting_companion(skill_name)
+	var target: int = result.skill_level + (DialogueManager.ASSIST_BONUS if assistant else 0)
+	var roll: Dictionary = actor.roll_vs(target)
+	DialogueManager.record_line(DialogueFormat.skill_result(skill_name, roll, assistant))
 	return success_node_id if roll.success else failure_node_id

@@ -41,35 +41,81 @@ static func speaker_line(speaker_name: String, text: String) -> String:
 	return "[b]%s[/b]\n%s" % [speaker_name, text]
 
 
-static func skill_tag(skill_name: String) -> String:
+## target/can_use/assisted turn this into the DC/modifier preview — the
+## acting unit's actual current number to beat, "untrained" instead of
+## a misleading 0 if they have no way to attempt it at all, and a "+"
+## mark when a present companion's assist (see
+## DialogueManager.find_assisting_companion) is already folded into
+## target.
+static func skill_tag(skill_name: String, target: int, can_use: bool, assisted: bool) -> String:
 	if skill_name == "":
 		return ""
-	return "[color=#%s]|%s|[/color]" % [skill_tag_color.to_html(false), skill_name]
+	var target_text: String = "%d" % target if can_use else "untrained"
+	var assist_mark: String = "+" if assisted else ""
+	return "[color=#%s]|%s %s%s|[/color]" % [skill_tag_color.to_html(false), skill_name, target_text, assist_mark]
 
 
 ## The full response-button label for one choice — alignment tag (if
-## any) + skill tag (if any, and only if that check isn't hidden) +
-## the response text itself. A hidden SkillCheckChoice (show_to_player
-## == false) collapses to "???" instead, same as the old system.
+## any) + skill tag/DC preview (if any, and only if that check isn't
+## hidden) + the response text itself. A hidden SkillCheckChoice/
+## QuickContestChoice (show_to_player == false) collapses to "???"
+## instead, same as the old system.
 static func choice_label(choice: DialogueChoice) -> String:
-	if choice is SkillCheckChoice and not choice.show_to_player:
+	if (choice is SkillCheckChoice or choice is QuickContestChoice) and not choice.show_to_player:
 		return "???"
 
 	var tags: Array[String] = []
 	var alignment: String = alignment_tag(choice.alignment_name)
 	if alignment != "":
 		tags.append(alignment)
-	if choice is SkillCheckChoice:
-		var skill: String = skill_tag(choice.skill_name)
-		if skill != "":
-			tags.append(skill)
+	if choice is SkillCheckChoice or choice is QuickContestChoice:
+		tags.append(_skill_preview_tag(choice))
 	tags.append(choice.text)
 	return " ".join(tags)
 
 
-static func skill_result(skill_name: String, rolled: int, target: int, success: bool) -> String:
-	var color: Color = success_color if success else failure_color
-	var verdict: String = "Succeeded" if success else "Failed"
-	return "[color=#%s]%s[/color] at a [color=#FFFFFF]%s[/color] check — rolled %d vs target %d" % [
-		color.to_html(false), verdict, skill_name, rolled, target
+## Shared by SkillCheckChoice and QuickContestChoice — both just need
+## "what's MY side's number." A contest's NPC-side target is
+## deliberately not previewed here — unknown information going in,
+## same as the player never sees an enemy's exact defenses ahead of an
+## attack roll.
+static func _skill_preview_tag(choice: DialogueChoice) -> String:
+	var actor: Unit = DialogueManager.participants.get("player")
+	if not actor:
+		return skill_tag(choice.skill_name, 0, false, false)
+	var result: SkillCheckResult = SkillCalculator.get_skill_level(actor, choice.skill_name)
+	var assistant: Unit = DialogueManager.find_assisting_companion(choice.skill_name)
+	var target: int = result.skill_level + (DialogueManager.ASSIST_BONUS if assistant else 0)
+	return skill_tag(choice.skill_name, target, result.can_use_skill, assistant != null)
+
+
+## roll is the full SuccessRoll.roll_vs() Dictionary — surfaces the
+## critical success/failure GURPS already computes there (the old
+## signature took separate rolled/target/success values and silently
+## dropped that information). assistant is whoever's
+## find_assisting_companion() bonus applied, if any, credited by name.
+static func skill_result(skill_name: String, roll: Dictionary, assistant: Unit = null) -> String:
+	var color: Color = success_color if roll.success else failure_color
+	var verdict: String = "Failed"
+	if roll.critical_success:
+		verdict = "Critically succeeded"
+	elif roll.critical_failure:
+		verdict = "Critically failed"
+	elif roll.success:
+		verdict = "Succeeded"
+	var assist_note: String = " (%s helped)" % assistant.name if assistant else ""
+	return "[color=#%s]%s[/color] at a [color=#FFFFFF]%s[/color] check%s — rolled %d vs target %d" % [
+		color.to_html(false), verdict, skill_name, assist_note, roll.roll, roll.target
+	]
+
+
+## The GURPS Quick Contest readout — both sides' own roll vs their own
+## target, side by side, so a loss against a strong NPC reads as
+## exactly that rather than a bare pass/fail. See
+## QuickContestChoice._wins_contest for how actor_wins gets decided.
+static func contest_result(actor_skill_name: String, actor_roll: Dictionary, npc_skill_name: String, npc_roll: Dictionary, actor_wins: bool) -> String:
+	var color: Color = success_color if actor_wins else failure_color
+	var verdict: String = "You win the contest" if actor_wins else "You lose the contest"
+	return "[color=#%s]%s[/color] — your [color=#FFFFFF]%s[/color] rolled %d vs %d, their [color=#FFFFFF]%s[/color] rolled %d vs %d" % [
+		color.to_html(false), verdict, actor_skill_name, actor_roll.roll, actor_roll.target, npc_skill_name, npc_roll.roll, npc_roll.target
 	]

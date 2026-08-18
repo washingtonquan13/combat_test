@@ -29,6 +29,13 @@ signal choices_shown(choices: Array[DialogueChoice])
 signal dialogue_ended()
 
 const DIALOGUE_DATA_PATH: String = "res://data/dialogue"
+## Flat bonus a qualifying present companion grants the acting unit's
+## side of a skill check — see find_assisting_companion(). BG3-Help-
+## simplified: GURPS' own Cooperative Skill Use (B347) stacks multiple
+## helpers up to +4 and requires skill 15+ or beating the worker's own
+## level; nothing here needs that scope yet, just "one ally who can
+## also do this makes it a little easier."
+const ASSIST_BONUS: int = 1
 
 var current_node: DialogueNode = null
 var participants: Dictionary = {}  # String token ("player"/"npc") -> Unit
@@ -83,6 +90,22 @@ func is_active() -> bool:
 func resolve_root_id(npc: Unit, actor: Unit) -> String:
 	var root: DialogueNode = npc.resolve_dialogue_root(actor)
 	return root.id if root else ""
+
+
+## Present companion (or null) who can use skill_name — the "assist"
+## half of a skill check, checked by SkillCheckChoice/QuickContestChoice
+## and previewed by DialogueFormat. "player"/"npc" tokens are excluded;
+## those are the actor and the one being talked to, not an ally
+## offering to help. First qualifying companion wins — ASSIST_BONUS
+## doesn't stack across multiple present companions (see that constant).
+func find_assisting_companion(skill_name: String) -> Unit:
+	for token in participants:
+		if token == "player" or token == "npc":
+			continue
+		var companion: Unit = participants[token]
+		if SkillCalculator.get_skill_level(companion, skill_name).can_use_skill:
+			return companion
+	return null
 
 
 ## participants maps DialogueNode.speaker tokens to actual Units for
