@@ -59,3 +59,22 @@ func snap_face_direction(direction: Vector3) -> void:
 
 func snap_face_point(point: Vector3) -> void:
 	snap_face_direction(point - _owner.global_position)
+
+
+## The direction this unit's MODEL actually, visually faces right now —
+## NOT -_owner.global_transform.basis.z, Godot's own "forward" for the
+## node's transform. Every method above bakes facing_offset_degrees
+## into _owner.rotation.y specifically so the visual model ends up
+## facing the intended direction despite the model's own forward not
+## matching Godot's -Z convention (unit.tscn's real rig needs 180° —
+## its forward is its BACK, by this convention) — which means
+## basis.z itself is now offset from the true visual direction by that
+## same amount, the opposite way. Rotating back by -facing_offset_degrees
+## undoes exactly that. Added for dialogue_camera_rig.gd's shot framing,
+## which was reading basis.z directly and ending up on the wrong side
+## of the model entirely (180° off) — anything else that ever needs
+## "which way is this unit's face actually pointing" should call this
+## too, not re-derive it.
+func visual_forward() -> Vector3:
+	var raw_forward: Vector3 = -_owner.global_transform.basis.z
+	return raw_forward.rotated(Vector3.UP, -deg_to_rad(_owner.facing_offset_degrees))

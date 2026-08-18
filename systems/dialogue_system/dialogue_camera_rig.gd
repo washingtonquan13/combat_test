@@ -78,7 +78,7 @@ func _on_dialogue_ended() -> void:
 
 func _frame_speaker(unit: Unit) -> void:
 	var anchor: Vector3 = _get_face_anchor(unit)
-	var forward: Vector3 = -unit.global_transform.basis.z
+	var forward: Vector3 = unit.visual_forward()
 	var shot_dir: Vector3 = forward.rotated(Vector3.UP, deg_to_rad(shot_horizontal_offset_degrees))
 
 	_camera.global_position = anchor + shot_dir * shot_distance + Vector3(0, shot_height_offset, 0)

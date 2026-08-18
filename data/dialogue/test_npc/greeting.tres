@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3 uid="uid://du5jbw4pgw8ub"]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=10 format=3 uid="uid://du5jbw4pgw8ub"]
 
 [ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
 [ext_resource type="Script" uid="uid://c4hlxqsiloaun" path="res://systems/dialogue_system/dialogue_effect.gd" id="2_af3uh"]
 [ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
 [ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
 [ext_resource type="Script" uid="uid://cimkiuejxqinm" path="res://systems/dialogue_system/skill_check_choice.gd" id="4_check"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="5_deo4r"]
 
 [sub_resource type="Resource" id="Resource_ask"]
 script = ExtResource("3_line")
@@ -48,3 +49,4 @@ speaker = "npc"
 text_block = "You there — this road isn't safe alone. What do you want?"
 choices = Array[ExtResource("2_choice")]([SubResource("Resource_ask"), SubResource("Resource_dismissive"), SubResource("Resource_persuade")])
 next_node_id = ""
+interjection_options = Array[ExtResource("5_deo4r")]([])

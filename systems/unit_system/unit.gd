@@ -522,6 +522,16 @@ func snap_face_point(point: Vector3) -> void:
 	_facing.snap_face_point(point)
 
 
+## The direction this unit's MODEL actually, visually faces — see
+## UnitFacing.visual_forward() for why this differs from
+## -global_transform.basis.z (Godot's own "forward") by
+## facing_offset_degrees. Anything that needs to know which way a unit
+## is really looking (dialogue_camera_rig.gd's shot framing, e.g.)
+## should call this, not read basis.z directly.
+func visual_forward() -> Vector3:
+	return _facing.visual_forward()
+
+
 ## Delegates to UnitMovement — see that file for the deterministic
 ## plan-then-execute rationale in full, and for why move_speed/radius/
 ## avoidance_margin/arrival_tolerance/stuck_timeout all stay directly on
