@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3 uid="uid://du5jbw4pgw8ub"]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3 uid="uid://du5jbw4pgw8ub"]
 
 [ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" uid="uid://c4hlxqsiloaun" path="res://systems/dialogue_system/dialogue_effect.gd" id="2_af3uh"]
 [ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
 [ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
 [ext_resource type="Script" uid="uid://cimkiuejxqinm" path="res://systems/dialogue_system/skill_check_choice.gd" id="4_check"]
@@ -8,20 +9,24 @@
 [sub_resource type="Resource" id="Resource_ask"]
 script = ExtResource("3_line")
 next_node_id = "test_ask_more"
+returns_to_root = false
 text = "What are you doing out here?"
 alignment_name = ""
 is_repeatable = false
 dialogue_line = ""
 sets_flag = ""
+effects = Array[ExtResource("2_af3uh")]([])
 
 [sub_resource type="Resource" id="Resource_dismissive"]
 script = ExtResource("3_line")
 next_node_id = "test_dismissive_end"
+returns_to_root = false
 text = "I don't have time for this."
 alignment_name = "Chaotic"
 is_repeatable = false
 dialogue_line = "I don't have time for this."
 sets_flag = ""
+effects = Array[ExtResource("2_af3uh")]([])
 
 [sub_resource type="Resource" id="Resource_persuade"]
 script = ExtResource("4_check")
@@ -34,6 +39,7 @@ alignment_name = "Light"
 is_repeatable = false
 dialogue_line = "Let me travel with you — I can help."
 sets_flag = ""
+effects = Array[ExtResource("2_af3uh")]([])
 
 [resource]
 script = ExtResource("1_node")

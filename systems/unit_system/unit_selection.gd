@@ -59,8 +59,27 @@ func setup() -> void:
 	# unit selected before dialogue started would stay invisible-ringed
 	# forever after. Both ends of the transition just ask this unit to
 	# recompute what it should already be showing.
-	DialogueManager.dialogue_started.connect(func(_root): update_highlight())
+	DialogueManager.dialogue_started.connect(_on_dialogue_started)
 	DialogueManager.dialogue_ended.connect(update_highlight)
+
+
+func _on_dialogue_started(_root: DialogueNode) -> void:
+	update_highlight()
+
+
+## Called from Unit.handle_death() — without this, the two connections
+## above are the one thing that outlives this unit: a Callable bound to
+## a RefCounted target (this object) holds a strong reference, so a
+## dead unit's UnitSelection stays alive purely because DialogueManager
+## still points at it, and the NEXT conversation started/ended anywhere
+## in the game calls update_highlight() against a Unit whose Node has
+## already been freed — "previously freed" errors on highlight_mesh.
+## Reachable only once something has died AND a conversation has
+## started/ended in the same session, which is exactly why this went
+## unnoticed until a real quest-completion conversation exercised it.
+func teardown() -> void:
+	DialogueManager.dialogue_started.disconnect(_on_dialogue_started)
+	DialogueManager.dialogue_ended.disconnect(update_highlight)
 
 
 func on_mouse_entered() -> void:

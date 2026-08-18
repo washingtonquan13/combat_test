@@ -911,5 +911,11 @@ func expire() -> void:
 ## cascade, queue_free) — see UnitDeath.handle_death(). Public: called
 ## both by expire() above and by UnitCombat.take_damage() when this
 ## unit's HP reaches 0 through an actual hit.
+##
+## _selection.teardown() lives here rather than inside
+## UnitDeath.handle_death() itself — UnitDeath and UnitSelection stay
+## unaware of each other, same as everywhere else in this file; Unit is
+## the one place that already legitimately holds both.
 func handle_death() -> void:
 	_death.handle_death()
+	_selection.teardown()

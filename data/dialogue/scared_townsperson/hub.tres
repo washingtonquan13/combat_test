@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=11 format=3 uid="uid://dwqtkbnj05wva"]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=12 format=3 uid="uid://dwqtkbnj05wva"]
 
 [ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
 [ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" uid="uid://c4hlxqsiloaun" path="res://systems/dialogue_system/dialogue_effect.gd" id="2_d3lky"]
 [ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="4_flagcheck"]
 
@@ -13,48 +14,58 @@ requires_absent = true
 [sub_resource type="Resource" id="Resource_quest"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_quest_intro"
+returns_to_root = false
 text = "What's been happening around here?"
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "What's been happening around here?"
 sets_flag = "townsperson_heard_raids"
 prerequisites = SubResource("Resource_not_heard")
+effects = Array[ExtResource("2_d3lky")]([])
 
 [sub_resource type="Resource" id="Resource_town"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_town"
+returns_to_root = false
 text = "Tell me about this town."
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "Tell me about this town."
 sets_flag = ""
+effects = Array[ExtResource("2_d3lky")]([])
 
 [sub_resource type="Resource" id="Resource_people"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_people"
+returns_to_root = false
 text = "What are the people like, around here?"
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "What are the people like, around here?"
 sets_flag = ""
+effects = Array[ExtResource("2_d3lky")]([])
 
 [sub_resource type="Resource" id="Resource_life"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_life"
+returns_to_root = false
 text = "What's day-to-day life like for you?"
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "What's day-to-day life like for you?"
 sets_flag = ""
+effects = Array[ExtResource("2_d3lky")]([])
 
 [sub_resource type="Resource" id="Resource_goodbye"]
 script = ExtResource("3_line")
 next_node_id = ""
+returns_to_root = false
 text = "I should get going. Take care."
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "I should get going. Take care."
 sets_flag = ""
+effects = Array[ExtResource("2_d3lky")]([])
 
 [resource]
 script = ExtResource("1_node")

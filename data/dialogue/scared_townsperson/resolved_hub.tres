@@ -1,40 +1,53 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3 uid="uid://b0g3uyinnv5km"]
 
 [ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" uid="uid://c4hlxqsiloaun" path="res://systems/dialogue_system/dialogue_effect.gd" id="2_1xyio"]
 [ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
 [ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
 
 [sub_resource type="Resource" id="Resource_glad_to_help"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_resolved_hub"
+returns_to_root = false
 text = "We were glad to help."
 alignment_name = "Lawful"
 is_repeatable = false
 dialogue_line = "We were glad to help."
+sets_flag = ""
+effects = Array[ExtResource("2_1xyio")]([])
 
 [sub_resource type="Resource" id="Resource_paid_for_it"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_resolved_hub"
+returns_to_root = false
 text = "It's what you paid us for."
 alignment_name = "Chaotic"
 is_repeatable = false
 dialogue_line = "It's what you paid us for."
+sets_flag = ""
+effects = Array[ExtResource("2_1xyio")]([])
 
 [sub_resource type="Resource" id="Resource_really_over"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_resolved_reassurance"
+returns_to_root = false
 text = "Is it really over?"
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "Is it really over?"
+sets_flag = ""
+effects = Array[ExtResource("2_1xyio")]([])
 
 [sub_resource type="Resource" id="Resource_resolved_goodbye"]
 script = ExtResource("3_line")
 next_node_id = ""
+returns_to_root = false
 text = "Take care of yourself."
 alignment_name = ""
 is_repeatable = false
 dialogue_line = "Take care of yourself."
+sets_flag = ""
+effects = Array[ExtResource("2_1xyio")]([])
 
 [resource]
 script = ExtResource("1_node")
