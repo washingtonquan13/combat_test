@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_resolved_reassurance"
+speaker = "npc"
+text_block = "I think so. I sent word to the mill and the Hollis farm — nobody's seen so much as a footprint since. Doesn't mean I've stopped checking the treeline every morning, but... it's quiet. Really quiet."
+next_node_id = "townsperson_resolved_hub"

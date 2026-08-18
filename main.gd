@@ -19,10 +19,15 @@ extends Node
 ##     (see CombatManager.delay_turn — defaults to delaying by 1).
 
 var _signals_connected: bool = false
+## The raid quest's two goblinoids — see _watch_goblinoid_raid_quest().
+## Emptied out as each one dies; townsperson_raids_resolved sets once
+## both are gone, regardless of how the fight that killed them started.
+var _goblinoids_remaining: Array[Unit] = []
 
 
 func _ready() -> void:
 	print(SkillCalculator.get_skill_level($ElfRanger, "Acrobatics").skill_level)
+	_watch_goblinoid_raid_quest()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -103,6 +108,25 @@ func _on_unit_ability_used(attacker: Unit, target, result: Dictionary) -> void:
 
 func _on_unit_died(unit: Unit) -> void:
 	print("   ", unit.name, " has died.")
+
+
+## Connected unconditionally at scene start, NOT through
+## _connect_debug_signals above — that only wires up when combat starts
+## via the K-key test harness, so it'd silently never fire for combat
+## triggered the real way (clicking the hostile unit directly). The
+## Scared Townperson's second dialogue phase (see her dialogue_options /
+## resolved_hub.tres) depends on this flag actually getting set in a
+## normal playthrough, not just the debug path.
+func _watch_goblinoid_raid_quest() -> void:
+	_goblinoids_remaining = [$GoblinRogue as Unit, $Hobgoblin as Unit]
+	for goblinoid in _goblinoids_remaining:
+		goblinoid.died.connect(_on_goblinoid_died)
+
+
+func _on_goblinoid_died(unit: Unit) -> void:
+	_goblinoids_remaining.erase(unit)
+	if _goblinoids_remaining.is_empty():
+		FlagManager.set_flag("townsperson_raids_resolved")
 
 
 func _on_combat_ended(winning_faction: StringName) -> void:

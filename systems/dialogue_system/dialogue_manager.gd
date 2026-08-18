@@ -59,6 +59,22 @@ func is_active() -> bool:
 	return current_node != null
 
 
+## Which DialogueNode.id npc's dialogue_options currently resolves to
+## for actor — see Unit.resolve_dialogue_root(). Used by
+## LineChoice.returns_to_root (an in-conversation "return to hub" that
+## needs to land on whichever phase is current, not a hardcoded ID) and
+## by talk_interaction.gd's own initial Talk click — the same
+## resolution, just triggered from two different places, so neither can
+## ever disagree about which conversation phase is current. "" if
+## nothing currently applies — the same sentinel next_node_id already
+## uses for "end the conversation" (see _load_node_by_id), so an NPC
+## who's run out of anything to say ends things cleanly instead of
+## erroring on a lookup for a null id.
+func resolve_root_id(npc: Unit, actor: Unit) -> String:
+	var root: DialogueNode = npc.resolve_dialogue_root(actor)
+	return root.id if root else ""
+
+
 ## participants maps DialogueNode.speaker tokens to actual Units for
 ## THIS conversation — {"player": actor, "npc": target} for the common
 ## 1-on-1 case (see talk_interaction.gd), more tokens for a future group

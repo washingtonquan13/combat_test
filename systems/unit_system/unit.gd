@@ -168,11 +168,15 @@ extends CharacterBody3D
 	preload("res://data/interactions/talk.tres"),
 	preload("res://data/interactions/examine.tres"),
 ]
-## Root of this unit's conversation tree, or null if it has nothing
-## authored yet — read by talk_interaction.gd, same per-unit-authored-
-## Resource convention as abilities/interactions above (not a fixed list
-## every unit gets automatically; most units will leave this unset).
-@export var dialogue_root: DialogueNode = null
+## Candidate entry points into this unit's conversation, evaluated in
+## order — see DialogueRootOption and resolve_dialogue_root() below.
+## Empty means nothing authored yet (most units will leave this unset),
+## same per-unit-authored-Resource convention as abilities/interactions
+## above. Was a single dialogue_root: DialogueNode field until an NPC
+## needing more than one conversation over the life of the game (first
+## meeting vs. quest-active vs. quest-resolved) exposed the limit — see
+## dialogue_system_bg3_gap_analysis.md.
+@export var dialogue_options: Array[DialogueRootOption] = []
 
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.
@@ -427,6 +431,24 @@ func get_interactions(actor: Unit) -> Array[InteractionOption]:
 		if option.is_available(actor, self):
 			result.append(option)
 	return result
+
+
+## First dialogue_options entry whose prerequisite is satisfied (or has
+## none at all), null if nothing currently applies. Takes actor rather
+## than checking self — every other DialogueChoice.prerequisites check
+## already evaluates against the PLAYER (see DialogueManager._show_node,
+## which always passes participants.get("player")), so a root-selection
+## prerequisite follows the same convention for consistency: "does the
+## PLAYER'S state make this the right conversation," not the NPC's own.
+## Called both by talk_interaction.gd's initial Talk click and by
+## DialogueManager.resolve_root_id() for an in-conversation "return to
+## hub" choice — the one shared resolver both need, so neither can ever
+## disagree about which conversation phase is current.
+func resolve_dialogue_root(actor: Unit) -> DialogueNode:
+	for option in dialogue_options:
+		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
+			return option.root
+	return null
 
 
 ## Plain faction inequality has been correct so far only because every

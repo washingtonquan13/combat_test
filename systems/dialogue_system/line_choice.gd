@@ -10,7 +10,17 @@ extends DialogueChoice
 ## descriptive one on every concrete case instead.
 
 @export var next_node_id: String = ""
+## When true, ignores next_node_id and routes back through target's own
+## dialogue_options instead — see DialogueManager.resolve_root_id().
+## For a "return to the hub" choice that needs to land on whichever
+## phase of the conversation is CURRENTLY correct, not a next_node_id
+## hardcoded to one specific hub — a hub that resolves a quest mid-
+## conversation should route back to the post-quest hub, not the one
+## it started in.
+@export var returns_to_root: bool = false
 
 
-func _resolve_next_node_id(_actor: Unit, _target: Unit) -> String:
+func _resolve_next_node_id(actor: Unit, target: Unit) -> String:
+	if returns_to_root:
+		return DialogueManager.resolve_root_id(target, actor)
 	return next_node_id

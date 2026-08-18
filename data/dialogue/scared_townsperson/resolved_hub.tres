@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
+
+[sub_resource type="Resource" id="Resource_glad_to_help"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_resolved_hub"
+text = "We were glad to help."
+alignment_name = "Lawful"
+is_repeatable = false
+dialogue_line = "We were glad to help."
+
+[sub_resource type="Resource" id="Resource_paid_for_it"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_resolved_hub"
+text = "It's what you paid us for."
+alignment_name = "Chaotic"
+is_repeatable = false
+dialogue_line = "It's what you paid us for."
+
+[sub_resource type="Resource" id="Resource_really_over"]
+script = ExtResource("3_line")
+next_node_id = "townsperson_resolved_reassurance"
+text = "Is it really over?"
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "Is it really over?"
+
+[sub_resource type="Resource" id="Resource_resolved_goodbye"]
+script = ExtResource("3_line")
+next_node_id = ""
+text = "Take care of yourself."
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "Take care of yourself."
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_resolved_hub"
+speaker = "npc"
+text_block = "They're gone. All of them — no torches on the treeline last night, first time since this started. I keep waiting to hear something moving out there, and there's nothing. I don't have the words for what you did for this town."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_glad_to_help"), SubResource("Resource_paid_for_it"), SubResource("Resource_really_over"), SubResource("Resource_resolved_goodbye")])
+next_node_id = ""

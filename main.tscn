@@ -1,4 +1,4 @@
-[gd_scene load_steps=69 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=76 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -66,6 +66,9 @@
 [ext_resource type="PackedScene" uid="uid://dwu2y8j3sei5i" path="res://chest.tscn" id="60_chest"]
 [ext_resource type="PackedScene" path="res://stash_panel.tscn" id="61_stashpanel"]
 [ext_resource type="Resource" uid="uid://dwqtkbnj05wva" path="res://data/dialogue/scared_townsperson/hub.tres" id="62_townsdlg"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_root_option.gd" id="63_dlgrootopt"]
+[ext_resource type="Resource" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="64_resolveddlg"]
+[ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -76,6 +79,23 @@ shader_parameter/outline_width = 0.02
 
 [sub_resource type="Environment" id="Environment_movement_glow"]
 glow_enabled = true
+
+[sub_resource type="Resource" id="Resource_testnpc_dlgopt"]
+script = ExtResource("63_dlgrootopt")
+root = ExtResource("58_testdlg")
+
+[sub_resource type="Resource" id="Resource_townsperson_dlgopt"]
+script = ExtResource("63_dlgrootopt")
+root = ExtResource("62_townsdlg")
+
+[sub_resource type="Resource" id="Resource_raids_resolved"]
+script = ExtResource("65_flagcheck")
+flag_name = "townsperson_raids_resolved"
+
+[sub_resource type="Resource" id="Resource_townsperson_resolved_dlgopt"]
+script = ExtResource("63_dlgrootopt")
+root = ExtResource("64_resolveddlg")
+prerequisite = SubResource("Resource_raids_resolved")
 
 [node name="Node3D" type="Node3D"]
 script = ExtResource("1_7mycd")
@@ -430,7 +450,7 @@ dexterity = 18
 move = 27
 move_speed = 5.0
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])
-dialogue_root = ExtResource("58_testdlg")
+dialogue_options = Array[ExtResource("63_dlgrootopt")]([SubResource("Resource_testnpc_dlgopt")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("7_ycdy4")
 
@@ -442,7 +462,7 @@ move_speed = 5.0
 faction = &"neutral"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])
 interactions = Array[ExtResource("58_uatky")]([ExtResource("59_rqtf5"), ExtResource("60_1vm84")])
-dialogue_root = ExtResource("62_townsdlg")
+dialogue_options = Array[ExtResource("63_dlgrootopt")]([SubResource("Resource_townsperson_resolved_dlgopt"), SubResource("Resource_townsperson_dlgopt")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("7_ycdy4")
 
