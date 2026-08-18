@@ -42,6 +42,7 @@ func _ready() -> void:
 	DialogueManager.line_shown.connect(_on_line_shown)
 	DialogueManager.choices_shown.connect(_on_choices_shown)
 	DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
+	DialogueManager.dice_roll_requested.connect(_on_dice_roll_requested)
 
 
 func _on_dialogue_started(_root: DialogueNode) -> void:
@@ -83,6 +84,20 @@ func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
 	for i in choices.size():
 		lines.append("[url=%d]%d. %s[/url]" % [i, i + 1, DialogueFormat.choice_label(choices[i])])
 	_choices_text.text = "\n".join(lines)
+
+
+## The choice that just resolved is already committed (used_choices is
+## marked before DialogueManager.choose() even starts awaiting) — but
+## the OLD choice list/Continue button are still the last thing
+## choices_shown rendered, and stay clickable, for as long as the roll
+## takes to play out underneath skill_check_dice_popup.gd. Without
+## this, a second click during that window would call choose() again
+## concurrently. Nothing needs to restore these — the resolution that's
+## already running emits a fresh choices_shown/line_shown once it
+## actually finishes, same as any other node transition.
+func _on_dice_roll_requested(_skill_name: String, _roll: Dictionary) -> void:
+	_choices_text.text = ""
+	_continue_button.visible = false
 
 
 func _on_dialogue_ended() -> void:

@@ -27,6 +27,17 @@ signal dialogue_started(root: DialogueNode)
 signal line_shown(text: String, speaker_token: String)
 signal choices_shown(choices: Array[DialogueChoice])
 signal dialogue_ended()
+## Fired by SkillCheckChoice/QuickContestChoice once a roll is fully
+## decided (roll is SuccessRoll.roll_vs()'s own Dictionary) — the
+## presentation layer (skill_check_dice_popup.gd) plays the dice
+## tumbling to that ALREADY-FINAL result, then emits
+## dice_roll_finished back. The choice's own resolution awaits that
+## signal before revealing the result line, so the log text can never
+## appear before the dice do. DialogueManager only ever emits/awaits
+## its own signals here — never reaches into the popup directly, same
+## presentation split as everywhere else in this file.
+signal dice_roll_requested(skill_name: String, roll: Dictionary)
+signal dice_roll_finished()
 
 const DIALOGUE_DATA_PATH: String = "res://data/dialogue"
 ## Flat bonus a qualifying present companion grants the acting unit's
@@ -126,6 +137,13 @@ func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -
 	_show_node(_resolve_interjection(root))
 
 
+## Async since DialogueChoice.resolve() is — a skill-check-backed
+## choice awaits DialogueManager's own dice_roll_finished signal
+## before its result is known (see dice_roll_requested above). A
+## caller that doesn't await this (dialogue_overlay.gd's click handler
+## doesn't need to) just lets it run as a detached coroutine; every
+## state change it makes still lands via the usual signals whenever it
+## actually finishes.
 func choose(index: int) -> void:
 	if not current_node or index < 0 or index >= _visible_choices.size():
 		return
@@ -139,7 +157,7 @@ func choose(index: int) -> void:
 	var key: String = "%s:%d" % [current_node.id, full_index]
 	used_choices[key] = true
 
-	var next_id: String = choice.resolve(participants.get("player"), participants.get("npc"))
+	var next_id: String = await choice.resolve(participants.get("player"), participants.get("npc"))
 	_load_node_by_id(next_id)
 
 

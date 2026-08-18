@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = "townsperson_quest_pushed_back"
+speaker = "npc"
+text_block = "I've told you what I know. Don't push me on this."
+next_node_id = "townsperson_hub"

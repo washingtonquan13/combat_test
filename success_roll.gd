@@ -19,7 +19,8 @@ extends RefCounted
 ## 18 always crit-fails; 17 crit-fails unless skill 16+; anything 10+
 ## over skill crit-fails.
 static func roll_vs(target_number: int) -> Dictionary:
-	var roll: int = randi_range(1, 6) + randi_range(1, 6) + randi_range(1, 6)
+	var dice: Array[int] = [randi_range(1, 6), randi_range(1, 6), randi_range(1, 6)]
+	var roll: int = dice[0] + dice[1] + dice[2]
 	var critical_success: bool = roll == 3 or roll == 4 \
 		or (roll == 5 and target_number >= 15) \
 		or (roll == 6 and target_number >= 16)
@@ -30,6 +31,11 @@ static func roll_vs(target_number: int) -> Dictionary:
 	)
 	return {
 		"roll": roll,
+		# The three individual dice, not just their sum — added for
+		# skill_check_dice_popup.gd, which shows the actual rolled
+		# faces rather than an abstract number. Purely additive: every
+		# existing caller only ever read "roll" and ignores this key.
+		"dice": dice,
 		"target": target_number,
 		"success": critical_success or (not critical_failure and roll <= target_number),
 		"margin": target_number - roll,

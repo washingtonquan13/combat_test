@@ -41,18 +41,21 @@ static func speaker_line(speaker_name: String, text: String) -> String:
 	return "[b]%s[/b]\n%s" % [speaker_name, text]
 
 
-## target/can_use/assisted turn this into the DC/modifier preview — the
-## acting unit's actual current number to beat, "untrained" instead of
-## a misleading 0 if they have no way to attempt it at all, and a "+"
-## mark when a present companion's assist (see
+## target/can_use turn this into the DC/modifier preview — this is a
+## roll-UNDER system (SuccessRoll: 3d6 <= target succeeds), so target
+## IS the full number to beat, not a DC alongside a separate modifier —
+## just the plain skill name and that number, "untrained" instead of a
+## misleading 0 if there's no way to attempt it at all. No separate
+## assist marker: a present companion's bonus (see
 ## DialogueManager.find_assisting_companion) is already folded into
-## target.
-static func skill_tag(skill_name: String, target: int, can_use: bool, assisted: bool) -> String:
+## target by the caller, so the number shown is already the real one —
+## a "+" suffix here would misread as d20-style "need 12 or higher,"
+## backwards for a system where lower rolls are better.
+static func skill_tag(skill_name: String, target: int, can_use: bool) -> String:
 	if skill_name == "":
 		return ""
 	var target_text: String = "%d" % target if can_use else "untrained"
-	var assist_mark: String = "+" if assisted else ""
-	return "[color=#%s]|%s %s%s|[/color]" % [skill_tag_color.to_html(false), skill_name, target_text, assist_mark]
+	return "[color=#%s]|%s %s|[/color]" % [skill_tag_color.to_html(false), skill_name, target_text]
 
 
 ## The full response-button label for one choice — alignment tag (if
@@ -82,11 +85,11 @@ static func choice_label(choice: DialogueChoice) -> String:
 static func _skill_preview_tag(choice: DialogueChoice) -> String:
 	var actor: Unit = DialogueManager.participants.get("player")
 	if not actor:
-		return skill_tag(choice.skill_name, 0, false, false)
+		return skill_tag(choice.skill_name, 0, false)
 	var result: SkillCheckResult = SkillCalculator.get_skill_level(actor, choice.skill_name)
 	var assistant: Unit = DialogueManager.find_assisting_companion(choice.skill_name)
 	var target: int = result.skill_level + (DialogueManager.ASSIST_BONUS if assistant else 0)
-	return skill_tag(choice.skill_name, target, result.can_use_skill, assistant != null)
+	return skill_tag(choice.skill_name, target, result.can_use_skill)
 
 
 ## roll is the full SuccessRoll.roll_vs() Dictionary — surfaces the

@@ -1,14 +1,24 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
 
 [ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
 [ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
 [ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
+[ext_resource type="Script" uid="uid://c8boovobqbij4" path="res://systems/dialogue_system/quick_contest_choice.gd" id="4_contest"]
 
 [sub_resource type="Resource" id="Resource_location"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_quest_location"
 text = "Do you know where they're camped?"
 dialogue_line = "Do you know where they're camped?"
+
+[sub_resource type="Resource" id="Resource_push"]
+script = ExtResource("4_contest")
+skill_name = "Persuasion"
+npc_skill_name = "Insight"
+success_node_id = "townsperson_quest_location"
+failure_node_id = "townsperson_quest_pushed_back"
+text = "Push her for exactly where they're camped."
+dialogue_line = "You know more than you're saying. Where exactly are they camped?"
 
 [sub_resource type="Resource" id="Resource_watch"]
 script = ExtResource("3_line")
@@ -21,4 +31,4 @@ script = ExtResource("1_node")
 id = "townsperson_quest_details"
 speaker = "npc"
 text_block = "Three nights back they hit the Hollis farm — burned the grain store, took what livestock they could herd off, and put an arrow through Old Hollis's leg when he came out swinging a torch at them. Before that it was the mill. Before that, some fool who wandered too close to the tree line at dusk never came home at all. They don't come every night. Just enough that nobody sleeps easy anymore."
-choices = Array[ExtResource("2_choice")]([SubResource("Resource_location"), SubResource("Resource_watch")])
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_location"), SubResource("Resource_push"), SubResource("Resource_watch")])

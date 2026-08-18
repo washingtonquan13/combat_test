@@ -1,4 +1,4 @@
-[gd_scene load_steps=76 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=78 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -50,6 +50,7 @@
 [ext_resource type="Script" uid="uid://b3gvuamt478hc" path="res://systems/skill_system/skill_instance.gd" id="50_sm6fg"]
 [ext_resource type="Resource" uid="uid://bybjpwdtyimg6" path="res://data/skills/arcana.tres" id="51_b17eg"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
+[ext_resource type="Resource" uid="uid://c2jjtj71ljycn" path="res://data/skills/insight.tres" id="52_cyx1q"]
 [ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://hotbar_divider.gd" id="52_hbdivider"]
 [ext_resource type="Resource" uid="uid://cxye1dh2856fy" path="res://data/skills/acrobatics.tres" id="52_ntx8l"]
 [ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://party_panel.gd" id="53_partypanel"]
@@ -69,6 +70,7 @@
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="63_dlgrootopt"]
 [ext_resource type="Resource" uid="uid://b0g3uyinnv5km" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="64_resolveddlg"]
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
+[ext_resource type="PackedScene" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -334,6 +336,10 @@ tactical_ui = NodePath("../TacticalUI")
 
 [node name="ConversationLog" parent="CanvasLayer" instance=ExtResource("56_convlog")]
 
+[node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("66_dicepopup")]
+layout_mode = 3
+anchors_preset = 0
+
 [node name="LevelGeometry" type="Node3D" parent="."]
 
 [node name="Floor" type="StaticBody3D" parent="LevelGeometry"]
@@ -414,6 +420,12 @@ metadata/_custom_type_script = "uid://b3gvuamt478hc"
 [node name="SkillInstance2" type="Node" parent="TieflingWizard/Skills" index="1"]
 script = ExtResource("50_sm6fg")
 skill_data = ExtResource("52_ntx8l")
+metadata/_custom_type_script = "uid://b3gvuamt478hc"
+
+[node name="SkillInstance3" type="Node" parent="TieflingWizard/Skills" index="2"]
+script = ExtResource("50_sm6fg")
+skill_data = ExtResource("52_cyx1q")
+levels_purchased = 7
 metadata/_custom_type_script = "uid://b3gvuamt478hc"
 
 [node name="OutlineMesh" parent="TieflingWizard" index="2"]

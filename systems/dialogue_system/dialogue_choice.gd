@@ -59,9 +59,15 @@ func resolve(actor: Unit, target: Unit) -> String:
 		# attribute it to them the same way a node's own text_block gets
 		# attributed to its speaker.
 		DialogueManager.record_line(dialogue_line, "player")
-	return _resolve_next_node_id(actor, target)
+	return await _resolve_next_node_id(actor, target)
 
 
+## Not actually async on the base class or LineChoice — GDScript
+## doesn't require a function to declare await just because SOME
+## override (SkillCheckChoice/QuickContestChoice, awaiting
+## DialogueManager.dice_roll_finished) uses it internally. awaiting a
+## plain synchronous return value here resolves immediately, so this
+## costs nothing for a choice that never rolls anything.
 func _resolve_next_node_id(_actor: Unit, _target: Unit) -> String:
 	push_error("%s doesn't implement _resolve_next_node_id() yet" % get_script().resource_path)
 	return ""

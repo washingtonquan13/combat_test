@@ -30,10 +30,17 @@ func _resolve_next_node_id(actor: Unit, target: Unit) -> String:
 	# SuccessRoll), so even an untrained NPC keeps a slim chance.
 	var npc_target: int = npc_result.skill_level if npc_result.can_use_skill else 0
 
+	# Both rolls are fully decided here, same as SkillCheckChoice — only
+	# the actor's own dice get shown (an opposed check doesn't reveal
+	# the NPC's roll visually any more than an attack roll reveals an
+	# enemy's exact defenses; their result still fully counts, just via
+	# the text readout below, not the dice popup).
 	var actor_roll: Dictionary = actor.roll_vs(actor_target)
 	var npc_roll: Dictionary = target.roll_vs(npc_target)
-	var actor_wins: bool = _wins_contest(actor_roll, npc_roll)
+	DialogueManager.dice_roll_requested.emit(skill_name, actor_roll)
+	await DialogueManager.dice_roll_finished
 
+	var actor_wins: bool = _wins_contest(actor_roll, npc_roll)
 	DialogueManager.record_line(DialogueFormat.contest_result(skill_name, actor_roll, npc_skill_name, npc_roll, actor_wins))
 	return success_node_id if actor_wins else failure_node_id
 

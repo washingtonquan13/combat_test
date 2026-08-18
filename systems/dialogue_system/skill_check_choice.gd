@@ -29,6 +29,12 @@ func _resolve_next_node_id(actor: Unit, _target: Unit) -> String:
 
 	var assistant: Unit = DialogueManager.find_assisting_companion(skill_name)
 	var target: int = result.skill_level + (DialogueManager.ASSIST_BONUS if assistant else 0)
+	# The roll is fully decided right here, before the dice ever show
+	# anything — dice_roll_requested only ever plays back a result
+	# that's already final, never determines one.
 	var roll: Dictionary = actor.roll_vs(target)
+	DialogueManager.dice_roll_requested.emit(skill_name, roll)
+	await DialogueManager.dice_roll_finished
+
 	DialogueManager.record_line(DialogueFormat.skill_result(skill_name, roll, assistant))
 	return success_node_id if roll.success else failure_node_id
