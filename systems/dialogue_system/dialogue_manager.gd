@@ -51,6 +51,16 @@ var transcript: Array[String] = []
 ## never re-shows a node after hiding one of its choices.
 var _visible_choices: Array[DialogueChoice] = []
 
+## Interjection root DialogueNode.id -> true, once shown — see
+## _resolve_interjection(). Without this, an interjection whose
+## next_node_id routes back to the very node it preempted would refire
+## every single time that node is re-approached (a presence-gated
+## interjection has no natural way to "expire" on its own — the
+## companion doesn't stop being present just because they already
+## reacted once), which on a hub the player can cycle back through
+## would show the same reaction forever instead of once.
+var _used_interjections: Dictionary = {}
+
 var _id_to_path: Dictionary = {}  # String id -> String res:// path
 var _indexed: bool = false
 
@@ -87,9 +97,10 @@ func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -
 
 	transcript.clear()
 	used_choices.clear()
+	_used_interjections.clear()
 	participants = conversation_participants
 	dialogue_started.emit(root)
-	_show_node(root)
+	_show_node(_resolve_interjection(root))
 
 
 func choose(index: int) -> void:
@@ -185,7 +196,24 @@ func _load_node_by_id(id: String) -> void:
 		end_dialogue()
 		return
 
-	_show_node(node)
+	_show_node(_resolve_interjection(node))
+
+
+## First node.interjection_options entry whose prerequisite is
+## satisfied (or has none) AND hasn't already fired this conversation,
+## returned INSTEAD of node — node itself if nothing qualifies, the
+## common case. Runs once per navigation, on whatever node is ABOUT to
+## be shown next; the interjection node's own next_node_id (authored to
+## point back at node.id) is what actually lands the conversation back
+## here afterward, not any special-casing in here.
+func _resolve_interjection(node: DialogueNode) -> DialogueNode:
+	for option in node.interjection_options:
+		if _used_interjections.has(option.root.id):
+			continue
+		if not option.prerequisite or option.prerequisite.is_satisfied(participants.get("player")):
+			_used_interjections[option.root.id] = true
+			return option.root
+	return node
 
 
 func _find_node(id: String) -> DialogueNode:

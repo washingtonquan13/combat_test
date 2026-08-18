@@ -25,3 +25,15 @@ extends Resource
 ## Empty choices AND an empty next_node_id together mean this node ends
 ## the conversation.
 @export var next_node_id: String = ""
+## Candidate reactions checked whenever something is about to navigate
+## TO this node — see DialogueManager._resolve_interjection(). First
+## entry whose prerequisite is satisfied (e.g. a
+## ParticipantPresentPrerequisite gating on a specific companion) is
+## shown INSTEAD of this node, as its own full beat — real BG3-style
+## companion banter: "before the player hears this, so-and-so reacts to
+## it." Reuses DialogueRootOption exactly as-is (a candidate node +
+## prerequisite is the same shape whether it's a phase of an NPC's
+## whole conversation or one reaction to one beat) — author the
+## interjection's own next_node_id as THIS node's id, so the
+## conversation lands here normally right after.
+@export var interjection_options: Array[DialogueRootOption] = []
