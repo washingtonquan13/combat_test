@@ -1,40 +1,69 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=14 format=3]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=19 format=3 uid="uid://gyr1tlx16q28"]
 
 [ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
 [ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" uid="uid://c4hlxqsiloaun" path="res://systems/dialogue_system/dialogue_effect.gd" id="2_p6lwf"]
 [ext_resource type="Script" uid="uid://140411bqkp7s" path="res://systems/dialogue_system/line_choice.gd" id="3_line"]
-[ext_resource type="Script" uid="uid://cimkiuejxqinm" path="res://systems/dialogue_system/skill_check_choice.gd" id="4_check"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="5_dlgrootopt"]
 [ext_resource type="Script" uid="uid://dck0tdkcow324" path="res://systems/dialogue_system/participant_present_prerequisite.gd" id="6_present"]
 [ext_resource type="Resource" path="res://data/dialogue/scared_townsperson/quest_intro_dwarf_reaction.tres" id="7_dwarfreact"]
+[ext_resource type="Script" path="res://systems/skill_system/passive_skill_prerequisite.gd" id="8_passive"]
+[ext_resource type="Script" uid="uid://10vuvxw1ipwg" path="res://systems/dialogue_system/give_item_effect.gd" id="9_giveitem"]
+[ext_resource type="Resource" path="res://data/items/healing_potion.tres" id="10_potion"]
+
+[sub_resource type="Resource" id="Resource_potion_effect"]
+script = ExtResource("9_giveitem")
+gear_data = ExtResource("10_potion")
 
 [sub_resource type="Resource" id="Resource_details"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_quest_details"
+returns_to_root = false
 text = "What exactly have they done?"
+alignment_name = ""
+is_repeatable = false
 dialogue_line = "What exactly have they done?"
+sets_flag = ""
+effects = Array[ExtResource("2_p6lwf")]([SubResource("Resource_potion_effect")])
+
+[sub_resource type="Resource" id="Resource_insight_passive"]
+script = ExtResource("8_passive")
+skill_name = "Insight"
+flag_name = "townsperson_quest_intro_insight_rolled"
 
 [sub_resource type="Resource" id="Resource_insight"]
-script = ExtResource("4_check")
-skill_name = "Insight"
-success_node_id = "townsperson_quest_insight"
-failure_node_id = "townsperson_quest_details"
-show_to_player = false
-text = "(there's something else she's not saying)"
+script = ExtResource("3_line")
+next_node_id = "townsperson_quest_insight"
+returns_to_root = false
+text = "If you aren't telling me everything, please do so."
+alignment_name = ""
+is_repeatable = false
+dialogue_line = "If you aren't telling me everything, please do so."
+sets_flag = ""
+prerequisites = SubResource("Resource_insight_passive")
+effects = Array[ExtResource("2_p6lwf")]([])
 
 [sub_resource type="Resource" id="Resource_sympathy"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_hub"
+returns_to_root = false
 text = "That's terrible. I hope it gets better."
 alignment_name = "Light"
+is_repeatable = false
 dialogue_line = "That's terrible. I hope it gets better."
+sets_flag = ""
+effects = Array[ExtResource("2_p6lwf")]([])
 
 [sub_resource type="Resource" id="Resource_dismiss"]
 script = ExtResource("3_line")
 next_node_id = "townsperson_hub"
+returns_to_root = false
 text = "Rough. But that's not really my problem."
 alignment_name = "Dark"
+is_repeatable = false
 dialogue_line = "Rough. But that's not really my problem."
+sets_flag = ""
+effects = Array[ExtResource("2_p6lwf")]([])
 
 [sub_resource type="Resource" id="Resource_dwarf_present"]
 script = ExtResource("6_present")
@@ -51,4 +80,5 @@ id = "townsperson_quest_intro"
 speaker = "npc"
 text_block = "You mean the raids. Goblins, mostly — small bands, quick and mean — but there's bigger ones running with them now. Uglier, smarter, giving the orders. It's gotten worse these past few months."
 choices = Array[ExtResource("2_choice")]([SubResource("Resource_details"), SubResource("Resource_insight"), SubResource("Resource_sympathy"), SubResource("Resource_dismiss")])
+next_node_id = ""
 interjection_options = Array[ExtResource("5_dlgrootopt")]([SubResource("Resource_dwarf_reaction_option")])

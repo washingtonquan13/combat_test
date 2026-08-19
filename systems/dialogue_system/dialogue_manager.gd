@@ -9,11 +9,12 @@ extends Node
 ## and dialogue_camera_rig.gd both just listen to this autoload's signals
 ## and react; this file never touches a Control or a Camera3D.
 ##
-## Node lookup is indexed once, lazily, the first time a dialogue actually
-## starts — NOT rescanned per node transition. The old GURPS-project
-## DialogueManager walked res://data/dialogue with DirAccess on every
-## single node change; this is the exact same fix already applied once
-## for SkillDatabase, applied again here.
+## Node lookup is indexed once, at _ready(), NOT rescanned per node
+## transition. The old GURPS-project DialogueManager walked
+## res://data/dialogue with DirAccess on every single node change; this
+## is the exact same fix already applied once for SkillDatabase, applied
+## again here. Indexing also runs a debug-build validation pass over
+## every hand-typed node-id reference — see _validate_node_references().
 
 signal dialogue_started(root: DialogueNode)
 ## Fired for EVERY line shown — a node's own text_block, and the smaller
@@ -79,8 +80,27 @@ var _visible_choices: Array[DialogueChoice] = []
 ## would show the same reaction forever instead of once.
 var _used_interjections: Dictionary = {}
 
+## DialogueNode.id -> true, once its text_block has been narrated this
+## conversation — see _show_node(). Without this, looping back to a
+## hub node (any topic that routes back to it) replayed the NPC's full
+## opening line every single time, which no comparable game actually
+## does — a hub you've already heard greet you once shouldn't greet you
+## again in the same sitting, just re-offer the choice list. Cleared in
+## start_dialogue() alongside used_choices/_used_interjections: a FRESH
+## conversation should still open with a real greeting, this is only
+## about not repeating it within one.
+var _narrated_node_ids: Dictionary = {}
+
 var _id_to_path: Dictionary = {}  # String id -> String res:// path
 var _indexed: bool = false
+
+
+## Forces indexing (and its debug-build reference validation) at boot
+## rather than waiting for the first real dialogue lookup — otherwise a
+## broken cross-reference would stay silent for an entire playthrough
+## that never happens to reach that specific branch.
+func _ready() -> void:
+	_ensure_indexed()
 
 
 func is_active() -> bool:
@@ -132,6 +152,7 @@ func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -
 	transcript.clear()
 	used_choices.clear()
 	_used_interjections.clear()
+	_narrated_node_ids.clear()
 	participants = conversation_participants
 	dialogue_started.emit(root)
 	_show_node(_resolve_interjection(root))
@@ -211,7 +232,9 @@ func record_line(text: String, speaker_token: String = "") -> void:
 
 func _show_node(node: DialogueNode) -> void:
 	current_node = node
-	record_line(node.text_block, node.speaker)
+	if not _narrated_node_ids.has(node.id):
+		_narrated_node_ids[node.id] = true
+		record_line(node.text_block, node.speaker)
 
 	var visible_choices: Array[DialogueChoice] = []
 	for i in node.choices.size():
@@ -269,6 +292,8 @@ func _ensure_indexed() -> void:
 		return
 	_indexed = true
 	_index_directory(DIALOGUE_DATA_PATH)
+	if OS.is_debug_build():
+		_validate_node_references()
 
 
 func _index_directory(dir_path: String) -> void:
@@ -289,6 +314,47 @@ func _index_directory(dir_path: String) -> void:
 		elif entry_name.get_extension() == "tres":
 			var res: Resource = load(full_path)
 			if res is DialogueNode:
+				if _id_to_path.has(res.id):
+					push_warning("DialogueManager: duplicate DialogueNode id '%s' — '%s' and '%s' both claim it; the second silently wins." % [res.id, _id_to_path[res.id], full_path])
 				_id_to_path[res.id] = full_path
 		entry_name = da.get_next()
 	da.list_dir_end()
+
+
+## Debug-build-only sanity pass over every hand-typed node-id reference
+## (next_node_id, success/failure_node_id) — these are plain strings
+## with zero compile-time checking, previously only caught by manually
+## grepping a freshly-authored tree before trusting it. Runs once,
+## right after indexing (which _ready() now forces eagerly rather than
+## waiting for the first real lookup), so a typo surfaces at boot even
+## on a playthrough that never actually reaches the broken branch —
+## cheap, since load() below just returns each already-indexed resource
+## from cache, not a second disk read.
+func _validate_node_references() -> void:
+	for id in _id_to_path:
+		var node: DialogueNode = load(_id_to_path[id]) as DialogueNode
+		_check_reference(id, "DialogueNode.next_node_id", node.next_node_id)
+		for choice in node.choices:
+			_check_choice_references(id, choice)
+
+
+func _check_choice_references(from_id: String, choice: DialogueChoice) -> void:
+	if choice is LineChoice:
+		# next_node_id is meaningless (and often deliberately empty) when
+		# returns_to_root routes through resolve_dialogue_root() instead.
+		if not choice.returns_to_root:
+			_check_reference(from_id, "LineChoice.next_node_id", choice.next_node_id)
+	elif choice is SkillCheckChoice:
+		_check_reference(from_id, "SkillCheckChoice.success_node_id", choice.success_node_id)
+		_check_reference(from_id, "SkillCheckChoice.failure_node_id", choice.failure_node_id)
+	elif choice is QuickContestChoice:
+		_check_reference(from_id, "QuickContestChoice.success_node_id", choice.success_node_id)
+		_check_reference(from_id, "QuickContestChoice.failure_node_id", choice.failure_node_id)
+
+
+## "" is always a valid, meaningful value here (it means "end the
+## conversation" — see _load_node_by_id), never a mistake, so only a
+## non-empty target that doesn't resolve gets flagged.
+func _check_reference(from_id: String, field_name: String, target_id: String) -> void:
+	if target_id != "" and not _id_to_path.has(target_id):
+		push_warning("DialogueManager: %s on node '%s' references unknown node id '%s'." % [field_name, from_id, target_id])

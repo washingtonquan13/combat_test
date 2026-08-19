@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=4 format=3]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" uid="uid://u8puvbqkit5k" path="res://assets/test_item_icons/test_healing_potion.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="3_statmod"]
+
+[resource]
+script = ExtResource("1_gear")
+item_name = "Healing Potion"
+icon = ExtResource("2_icon")
+width = 1
+height = 1
+slot_type = 8
+stat_modifiers = Array[ExtResource("3_statmod")]([])
