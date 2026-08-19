@@ -23,8 +23,9 @@ extends Control
 ## already owns "what the screen looks like during dialogue."
 @export var tactical_ui: Control
 
-@onready var _line_text: RichTextLabel = $VBoxContainer/ContentBox/InnerVBox/MarginContainer/BodyVBox/LineText
-@onready var _choices_text: RichTextLabel = $VBoxContainer/ContentBox/InnerVBox/MarginContainer/BodyVBox/ChoicesText
+@onready var _speaker_label: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/SpeakerLabel
+@onready var _line_text: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/LineText
+@onready var _choices_text: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/ChoicesText
 @onready var _continue_button: Button = $VBoxContainer/HeaderBar/ContinueButton
 @onready var _log_button: Button = $VBoxContainer/HeaderBar/LogButton
 
@@ -54,20 +55,26 @@ func _on_dialogue_started(_root: DialogueNode) -> void:
 
 
 ## speaker_token is "" for the smaller echo lines (alignment message,
-## echoed response, skill check result) — shown as plain text, no name
-## attached, same as they get no name in the log either (see
-## DialogueManager.record_line). A real speaker gets DialogueFormat's
-## shared "Name on its own bold line, then the text" treatment — the
-## exact same formatting the log uses, so there's only one place that
-## decides what "who said this" looks like, not a separate SpeakerLabel
-## Control that has to stay position-synced with the line under it.
+## echoed response, skill check result) — SpeakerLabel stays hidden and
+## LineText just shows plain text, same as they get no name in the log
+## either (see DialogueManager.record_line). A real speaker's name goes
+## in SpeakerLabel instead of being baked into LineText's own string —
+## pinned above the scrolling body text so it can't scroll away with
+## it, unlike the transcript's own inline "Name\ntext" block, which
+## stays exactly as before. DialogueFormat.speaker_name_tag() is the
+## same bold styling speaker_line() (still used by the transcript)
+## builds from internally, factored out so neither can drift from the
+## other.
 func _on_line_shown(text: String, speaker_token: String) -> void:
 	if speaker_token == "":
+		_speaker_label.visible = false
 		_line_text.text = text
 		return
 	var unit: Unit = DialogueManager.participants.get(speaker_token)
 	var speaker_name: String = unit.name if unit else speaker_token.capitalize()
-	_line_text.text = DialogueFormat.speaker_line(speaker_name, text)
+	_speaker_label.visible = true
+	_speaker_label.text = DialogueFormat.speaker_name_tag(speaker_name)
+	_line_text.text = text
 
 
 func _on_choices_shown(choices: Array[DialogueChoice]) -> void:

@@ -1,6 +1,9 @@
-[gd_scene load_steps=2 format=3 uid="uid://divqi7putsgwu"]
+[gd_scene load_steps=3 format=3 uid="uid://divqi7putsgwu"]
 
 [ext_resource type="Script" uid="uid://dtgvg6hkvogcw" path="res://systems/dialogue_system/dialogue_overlay.gd" id="1_overlay"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+bg_color = Color(0, 0, 0, 0.55)
 
 [node name="DialogueOverlay" type="Control"]
 layout_mode = 3
@@ -39,50 +42,38 @@ layout_mode = 2
 size_flags_horizontal = 0
 text = "Log"
 
-[node name="ContentBox" type="Control" parent="VBoxContainer"]
+[node name="PanelContainer" type="PanelContainer" parent="VBoxContainer"]
+clip_contents = true
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
 
-[node name="Background" type="ColorRect" parent="VBoxContainer/ContentBox"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-color = Color(0, 0, 0, 0.55)
-
-[node name="InnerVBox" type="VBoxContainer" parent="VBoxContainer/ContentBox"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/ContentBox/InnerVBox"]
+[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/PanelContainer"]
 layout_mode = 2
-size_flags_vertical = 3
 theme_override_constants/margin_left = 48
 theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 48
 theme_override_constants/margin_bottom = 24
 
-[node name="BodyVBox" type="VBoxContainer" parent="VBoxContainer/ContentBox/InnerVBox/MarginContainer"]
+[node name="BodyVBox" type="VBoxContainer" parent="VBoxContainer/PanelContainer/MarginContainer"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="LineText" type="RichTextLabel" parent="VBoxContainer/ContentBox/InnerVBox/MarginContainer/BodyVBox"]
-custom_minimum_size = Vector2(0, 80)
+[node name="SpeakerLabel" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
+custom_minimum_size = Vector2(0, 24)
 layout_mode = 2
 bbcode_enabled = true
 fit_content = true
 scroll_active = false
 
-[node name="ChoicesText" type="RichTextLabel" parent="VBoxContainer/ContentBox/InnerVBox/MarginContainer/BodyVBox"]
+[node name="LineText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
 custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
+size_flags_vertical = 3
 bbcode_enabled = true
-fit_content = true
-scroll_active = false
+
+[node name="ChoicesText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true

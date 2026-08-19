@@ -31,14 +31,20 @@ static func alignment_tag(alignment_name: String) -> String:
 	return "[color=#%s](%s)[/color]" % [alignment_colors[alignment_name].to_html(false), alignment_name]
 
 
-## The shared "who said this" formatting — a bold name on its own line,
-## then the line itself, so a long line wrapping to multiple lines never
-## risks the name blending into the paragraph the way an inline
-## "Name: text" would. Used by BOTH dialogue_overlay.gd (the current
-## line) and DialogueManager.record_line (the transcript) so they can
-## never drift into two near-identical formats of the same thing.
+## Bold name on its own line, then the text — a long line wrapping to
+## multiple lines never risks the name blending into the paragraph the
+## way an inline "Name: text" would. Split from speaker_line() below so
+## dialogue_overlay.gd's live SpeakerLabel (name pinned above the
+## scrolling body text, not part of it) can use just the name half —
+## the transcript still gets both together via speaker_line(), so
+## neither can drift into its own near-identical format of "who said
+## this."
+static func speaker_name_tag(speaker_name: String) -> String:
+	return "[b]%s[/b]" % speaker_name
+
+
 static func speaker_line(speaker_name: String, text: String) -> String:
-	return "[b]%s[/b]\n%s" % [speaker_name, text]
+	return "%s\n%s" % [speaker_name_tag(speaker_name), text]
 
 
 ## target/can_use turn this into the DC/modifier preview — this is a
