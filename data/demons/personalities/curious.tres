@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="DemonPersonality" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/negotiation_system/demon_personality.gd" id="1_personality"]
+
+[resource]
+script = ExtResource("1_personality")
+alignment_tolerance = 2
+tendency_tolerance = 2
+favored_tones = Array[StringName]([&"friendly", &"curious"])
+disfavored_tones = Array[StringName]([&"hostile"])
+recruit_weight = 2.0
+flee_weight = 1.0
+attack_weight = 1.0
+heal_weight = 0.5

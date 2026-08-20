@@ -42,7 +42,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# reaching the tactical world underneath it — this is what actually
 	# does that: no move orders, no ability casts, no context menus while
 	# DialogueManager owns the screen.
-	if DialogueManager.is_active():
+	if DialogueManager.is_active() or NegotiationManager.is_active():
 		return
 
 	if event.is_action_pressed("left_click"):

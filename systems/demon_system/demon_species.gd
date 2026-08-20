@@ -34,3 +34,10 @@ extends Resource
 @export var unit_scene: PackedScene
 @export var max_hp: int = 10
 @export var max_fp: int = 0
+## This species' negotiation temperament — null means it can never
+## reach a real outcome through negotiation (NegotiationManager treats
+## a missing personality as simply uninterested, see that file). Left
+## optional/nullable rather than required so a species that's only ever
+## obtained through fusion (never encountered wild) doesn't need one
+## authored at all.
+@export var personality: DemonPersonality = null

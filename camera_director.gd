@@ -31,7 +31,7 @@ func register_tactical_camera(cam: Camera3D) -> void:
 
 
 func has_control() -> bool:
-	return not InteractionMenu.is_open() and not DialogueManager.is_active()
+	return not InteractionMenu.is_open() and not DialogueManager.is_active() and not NegotiationManager.is_active()
 
 
 ## Switches the viewport to cam — used by dialogue_camera_rig.gd (and any

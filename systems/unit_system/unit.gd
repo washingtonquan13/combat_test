@@ -167,6 +167,25 @@ extends CharacterBody3D
 ## — the one case where the live Unit's state is never synced back at all,
 ## since a demon reduced to 0 HP in actual combat is gone for good.
 @export var owned_demon: OwnedDemon = null
+## Whether right-click offers "Negotiate" on this unit at all (see
+## NegotiateInteraction, and Unit.interactions' default array below,
+## which includes it unconditionally — is_available() already double-
+## gates on this flag plus combat/hostility, so a non-negotiable unit
+## never shows the option regardless). Authored per-instance in the
+## Inspector for whichever hostile units a level wants negotiable;
+## false by default, same "off unless deliberately turned on" default
+## corpse_blocks_movement/every other opt-in flag on this class uses.
+@export var negotiable: bool = false
+## Which DemonSpecies a successful Recruit outcome actually adds to
+## DemonRoster — NOT the same thing as owned_demon above. owned_demon
+## only exists on a unit that's ALREADY a roster entry (a summoned
+## demon); a wild, not-yet-recruited hostile demon has no roster entry
+## to point at yet, so it needs this separate, direct reference instead.
+## NegotiationManager reads species/personality off this (see
+## DemonSpecies.personality) — left null for anything that isn't meant
+## to be negotiable-into-a-recruit, same optional-reference convention
+## as every other field in this group.
+@export var negotiation_species: DemonSpecies = null
 
 @export_group("Interaction")
 ## Right-click verbs this unit can ever offer — filtered down to
@@ -186,6 +205,7 @@ extends CharacterBody3D
 	preload("res://data/interactions/attack.tres"),
 	preload("res://data/interactions/talk.tres"),
 	preload("res://data/interactions/examine.tres"),
+	preload("res://data/interactions/negotiate.tres"),
 ]
 ## Candidate entry points into this unit's conversation, evaluated in
 ## order — see DialogueRootOption and resolve_dialogue_root() below.

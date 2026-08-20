@@ -1,4 +1,4 @@
-[gd_scene load_steps=80 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=82 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -73,6 +73,8 @@
 [ext_resource type="Resource" uid="uid://b0g3uyinnv5km" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="64_resolveddlg"]
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
+[ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
+[ext_resource type="Resource" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -338,6 +340,9 @@ tactical_ui = NodePath("../TacticalUI")
 
 [node name="ConversationLog" parent="CanvasLayer" instance=ExtResource("56_convlog")]
 
+[node name="NegotiationPanel" parent="CanvasLayer" node_paths=PackedStringArray("tactical_ui") instance=ExtResource("69_negotiationpanel")]
+tactical_ui = NodePath("../TacticalUI")
+
 [node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("66_dicepopup")]
 
 [node name="LevelGeometry" type="Node3D" parent="."]
@@ -486,6 +491,8 @@ maximum_hp = 8
 current_hp = 8
 faction = &"enemy"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf")])
+negotiable = true
+negotiation_species = ExtResource("70_testpixie")
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 portrait_texture = ExtResource("8_w48qg")

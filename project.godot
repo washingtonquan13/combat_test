@@ -29,6 +29,7 @@ DialogueManager="*res://systems/dialogue_system/dialogue_manager.gd"
 StashManager="*res://stash_manager.gd"
 FlagManager="*res://flag_manager.gd"
 DemonRoster="*res://systems/demon_system/demon_roster.gd"
+NegotiationManager="*res://systems/negotiation_system/negotiation_manager.gd"
 
 [display]
 
