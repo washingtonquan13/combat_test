@@ -368,6 +368,47 @@ horizontal_scroll_mode = 0
 layout_mode = 2
 theme_override_constants/separation = 4
 
+[node name="JournalPanel" type="Control" parent="ContentArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="ContentArea/JournalPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/JournalPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/JournalPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Journal"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/JournalPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="ContentArea/JournalPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="JournalList" type="VBoxContainer" parent="ContentArea/JournalPanel/MarginContainer/VBoxContainer/ScrollContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
 [node name="PlaceholderPanel" type="Control" parent="ContentArea"]
 visible = false
 layout_mode = 1

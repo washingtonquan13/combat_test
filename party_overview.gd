@@ -6,8 +6,14 @@ extends Control
 ## both places instead of two hand-authored copies drifting apart:
 ##   Inventory (first tab, default) — Stats | Equipment paperdoll | Items
 ##   Character (second tab)         — Stats | Alignment grid | Skills
-## Spellbook/Journal/Encyclopedia/Map are the old GURPS-project version's
-## remaining tabs, still stubbed, sharing one placeholder.
+## Spellbook/Encyclopedia/Map are the old GURPS-project version's
+## remaining tabs, still stubbed, sharing one placeholder. Journal is
+## real — one row per QuestDatabase.get_all() entry that's actually been
+## started, title plus whichever QuestStage.journal_text is current (see
+## _refresh_journal_list()). A quest's progress is never stored here or
+## anywhere quest-specific — Quest.current_stage() derives it by reading
+## FlagManager directly, the same world state dialogue already writes to
+## via DialogueChoice.sets_flag/DialogueEffect.
 ##
 ## Opens showing whichever unit is currently active
 ## (PlayerInteractionState.get_active_unit()), toggled by the
@@ -46,7 +52,7 @@ extends Control
 	"inventory": $ContentArea/InventoryPanel,
 	"character": $ContentArea/CharacterPanel,
 	"spellbook": $ContentArea/PlaceholderPanel,
-	"journal": $ContentArea/PlaceholderPanel,
+	"journal": $ContentArea/JournalPanel,
 	"encyclopedia": $ContentArea/PlaceholderPanel,
 	"map": $ContentArea/PlaceholderPanel,
 }
@@ -96,6 +102,7 @@ const _ALIGNMENT_TITLES: Dictionary = {
 @onready var _alignment_grid: AlignmentGrid = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid
 
 @onready var _skill_list: VBoxContainer = $ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer/SkillList
+@onready var _journal_list: VBoxContainer = $ContentArea/JournalPanel/MarginContainer/VBoxContainer/ScrollContainer/JournalList
 
 var _unit: Unit = null
 
@@ -149,6 +156,7 @@ func open_for(unit: Unit) -> void:
 	_portrait.texture = unit.portrait_texture
 	_refresh_alignment_grid(unit)
 	_refresh_skill_list(unit)
+	_refresh_journal_list()
 	visible = true
 	_show_tab("inventory")
 
@@ -218,3 +226,42 @@ func _refresh_skill_list(unit: Unit) -> void:
 		row.add_child(spacer)
 		row.add_child(level_label)
 		_skill_list.add_child(row)
+
+
+## Unlike _refresh_skill_list/_refresh_alignment_grid, takes no unit — a
+## quest's progress is FlagManager world state, not per-character, so
+## the Journal reads the same regardless of which party member's
+## overview is open (the same "which unit is asking doesn't change the
+## answer" reason FlagPrerequisite ignores its own unit argument).
+func _refresh_journal_list() -> void:
+	for child in _journal_list.get_children():
+		child.queue_free()
+
+	var started_quests: Array[Quest] = []
+	for quest in QuestDatabase.get_all():
+		if quest.is_started():
+			started_quests.append(quest)
+
+	if started_quests.is_empty():
+		var empty_label := Label.new()
+		empty_label.modulate = Color(1, 1, 1, 0.5)
+		empty_label.text = "No quests yet."
+		_journal_list.add_child(empty_label)
+		return
+
+	for quest in started_quests:
+		var stage: QuestStage = quest.current_stage()
+
+		var entry := VBoxContainer.new()
+		entry.add_theme_constant_override("separation", 2)
+
+		var title_label := Label.new()
+		title_label.text = quest.title + ("  (Complete)" if quest.is_complete() else "")
+
+		var text_label := Label.new()
+		text_label.text = stage.journal_text
+		text_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+
+		entry.add_child(title_label)
+		entry.add_child(text_label)
+		_journal_list.add_child(entry)
