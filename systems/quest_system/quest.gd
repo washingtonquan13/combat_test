@@ -23,6 +23,17 @@ extends Resource
 @export var stages: Array[QuestStage] = []
 
 
+## Every stage reached so far, in authored order — the Journal's detail
+## view shows the whole log (what led here), not just where the player
+## currently stands, which current_stage() alone can't answer.
+func reached_stages() -> Array[QuestStage]:
+	var result: Array[QuestStage] = []
+	for stage in stages:
+		if FlagManager.has_flag(stage.flag_name):
+			result.append(stage)
+	return result
+
+
 ## The LAST stage in order whose flag is set, or null if none are (the
 ## quest hasn't been picked up yet). Last-in-order rather than
 ## first-unset because FlagManager flags are never cleared once true —
@@ -30,11 +41,8 @@ extends Resource
 ## true too; this wants the FURTHEST one reached, not the first one
 ## found.
 func current_stage() -> QuestStage:
-	var reached: QuestStage = null
-	for stage in stages:
-		if FlagManager.has_flag(stage.flag_name):
-			reached = stage
-	return reached
+	var reached: Array[QuestStage] = reached_stages()
+	return reached[-1] if not reached.is_empty() else null
 
 
 func is_started() -> bool:

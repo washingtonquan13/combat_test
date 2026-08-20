@@ -8,12 +8,14 @@ extends Control
 ##   Character (second tab)         — Stats | Alignment grid | Skills
 ## Spellbook/Encyclopedia/Map are the old GURPS-project version's
 ## remaining tabs, still stubbed, sharing one placeholder. Journal is
-## real — one row per QuestDatabase.get_all() entry that's actually been
-## started, title plus whichever QuestStage.journal_text is current (see
-## _refresh_journal_list()). A quest's progress is never stored here or
-## anywhere quest-specific — Quest.current_stage() derives it by reading
-## FlagManager directly, the same world state dialogue already writes to
-## via DialogueChoice.sets_flag/DialogueEffect.
+## real — a master-detail split (see _refresh_journal_list()): every
+## started QuestDatabase.get_all() entry gets a row in the left
+## ItemList, and _show_quest_detail() renders the SELECTED one's full
+## reached_stages() log on the right, most recent at full brightness,
+## earlier ones dimmed. A quest's progress is never stored here or
+## anywhere quest-specific — Quest.current_stage()/reached_stages()
+## derive it by reading FlagManager directly, the same world state
+## dialogue already writes to via DialogueChoice.sets_flag/DialogueEffect.
 ##
 ## Opens showing whichever unit is currently active
 ## (PlayerInteractionState.get_active_unit()), toggled by the
@@ -102,9 +104,17 @@ const _ALIGNMENT_TITLES: Dictionary = {
 @onready var _alignment_grid: AlignmentGrid = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid
 
 @onready var _skill_list: VBoxContainer = $ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer/SkillList
-@onready var _journal_list: VBoxContainer = $ContentArea/JournalPanel/MarginContainer/VBoxContainer/ScrollContainer/JournalList
+
+@onready var _quest_list: ItemList = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestListMargin/QuestListVBox/QuestList
+@onready var _quest_detail_title: Label = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestDetailMargin/QuestDetailVBox/DetailTitle
+@onready var _quest_detail_list: VBoxContainer = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestDetailMargin/QuestDetailVBox/ScrollContainer/DetailList
 
 var _unit: Unit = null
+## _quest_list's items are just text/index — this is the actual Quest
+## each row refers to, index-for-index, so a click on row i can look up
+## _journal_quests[i] without QuestDatabase needing to expose "the Nth
+## quest" as a concept of its own.
+var _journal_quests: Array[Quest] = []
 
 
 func _ready() -> void:
@@ -118,6 +128,7 @@ func _ready() -> void:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
 	$TopBar/CloseButton.pressed.connect(func(): visible = false)
 	_sort_button.pressed.connect(_inventory.sort_items)
+	_quest_list.item_selected.connect(_on_quest_selected)
 
 	_show_tab("inventory")
 
@@ -233,35 +244,72 @@ func _refresh_skill_list(unit: Unit) -> void:
 ## the Journal reads the same regardless of which party member's
 ## overview is open (the same "which unit is asking doesn't change the
 ## answer" reason FlagPrerequisite ignores its own unit argument).
+##
+## Left/right master-detail split (ItemList + a separate detail pane),
+## matching how quest journals actually read elsewhere (a list of
+## quests, and the full step-by-step log for whichever one is
+## selected) rather than one flat list of single-line summaries. No
+## quest-chain grouping or a "show completed" filter yet — this project
+## has exactly one quest right now, so building either would be guessing
+## at a shape with nothing real to guess from; add them once a second
+## quest actually makes flat-list-of-one-quest feel cramped.
 func _refresh_journal_list() -> void:
-	for child in _journal_list.get_children():
+	_quest_list.clear()
+	_journal_quests.clear()
+
+	for quest in QuestDatabase.get_all():
+		if not quest.is_started():
+			continue
+		_journal_quests.append(quest)
+		_quest_list.add_item(quest.title + ("  (Complete)" if quest.is_complete() else ""))
+
+	if _journal_quests.is_empty():
+		_show_quest_detail(null)
+		return
+
+	_quest_list.select(0)
+	_show_quest_detail(_journal_quests[0])
+
+
+func _on_quest_selected(index: int) -> void:
+	_show_quest_detail(_journal_quests[index])
+
+
+## quest is null for the "nothing started yet" empty state — shows a
+## dimmed placeholder in the detail pane instead of leaving it stuck on
+## whatever the previously-open character's Journal last selected.
+func _show_quest_detail(quest: Quest) -> void:
+	for child in _quest_detail_list.get_children():
 		child.queue_free()
 
-	var started_quests: Array[Quest] = []
-	for quest in QuestDatabase.get_all():
-		if quest.is_started():
-			started_quests.append(quest)
-
-	if started_quests.is_empty():
+	if not quest:
+		_quest_detail_title.text = ""
 		var empty_label := Label.new()
 		empty_label.modulate = Color(1, 1, 1, 0.5)
 		empty_label.text = "No quests yet."
-		_journal_list.add_child(empty_label)
+		_quest_detail_list.add_child(empty_label)
 		return
 
-	for quest in started_quests:
-		var stage: QuestStage = quest.current_stage()
+	_quest_detail_title.text = quest.title + ("  (Complete)" if quest.is_complete() else "")
+
+	var reached: Array[QuestStage] = quest.reached_stages()
+	for i in reached.size():
+		var stage: QuestStage = reached[i]
+		var is_current: bool = i == reached.size() - 1
 
 		var entry := VBoxContainer.new()
 		entry.add_theme_constant_override("separation", 2)
-
-		var title_label := Label.new()
-		title_label.text = quest.title + ("  (Complete)" if quest.is_complete() else "")
+		# Earlier stages read as history once superseded — only the
+		# current (latest-reached) one stays at full brightness, same
+		# "what's active vs. what's done" distinction a real quest log
+		# marks with an icon; a dim/bright split is the simplest version
+		# of that with plain Labels, no new art needed.
+		if not is_current:
+			entry.modulate = Color(1, 1, 1, 0.6)
 
 		var text_label := Label.new()
 		text_label.text = stage.journal_text
 		text_label.autowrap_mode = TextServer.AUTOWRAP_WORD
 
-		entry.add_child(title_label)
 		entry.add_child(text_label)
-		_journal_list.add_child(entry)
+		_quest_detail_list.add_child(entry)
