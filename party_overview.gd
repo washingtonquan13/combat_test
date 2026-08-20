@@ -45,6 +45,7 @@ extends Control
 @onready var _tab_buttons: Dictionary = {
 	"inventory": $TopBar/TabInventory,
 	"character": $TopBar/TabCharacter,
+	"demons": $TopBar/TabDemons,
 	"spellbook": $TopBar/TabSpellbook,
 	"journal": $TopBar/TabJournal,
 	"encyclopedia": $TopBar/TabEncyclopedia,
@@ -53,6 +54,7 @@ extends Control
 @onready var _panels: Dictionary = {
 	"inventory": $ContentArea/InventoryPanel,
 	"character": $ContentArea/CharacterPanel,
+	"demons": $ContentArea/DemonPanel,
 	"spellbook": $ContentArea/PlaceholderPanel,
 	"journal": $ContentArea/JournalPanel,
 	"encyclopedia": $ContentArea/PlaceholderPanel,
@@ -104,6 +106,8 @@ const _ALIGNMENT_TITLES: Dictionary = {
 @onready var _alignment_grid: AlignmentGrid = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid
 
 @onready var _skill_list: VBoxContainer = $ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer/SkillList
+
+@onready var _demon_panel: DemonCompendiumPanel = $ContentArea/DemonPanel
 
 @onready var _quest_list: ItemList = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestListMargin/QuestListVBox/QuestList
 @onready var _quest_detail_title: Label = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestDetailMargin/QuestDetailVBox/DetailTitle
@@ -168,6 +172,7 @@ func open_for(unit: Unit) -> void:
 	_refresh_alignment_grid(unit)
 	_refresh_skill_list(unit)
 	_refresh_journal_list()
+	_demon_panel.refresh()
 	visible = true
 	_show_tab("inventory")
 

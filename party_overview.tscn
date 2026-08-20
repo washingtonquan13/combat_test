@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3 uid="uid://jfavnc280asx"]
+[gd_scene load_steps=7 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://systems/inventory_system/equip_slot.tscn" id="2_equip"]
 [ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://systems/inventory_system/inventory.tscn" id="3_inv"]
 [ext_resource type="PackedScene" path="res://stats_column.tscn" id="4_stats"]
 [ext_resource type="Script" uid="uid://2g8vxoibdf3k" path="res://alignment_grid.gd" id="5_align_grid"]
+[ext_resource type="Script" path="res://demon_compendium_panel.gd" id="6_demon_panel"]
 
 [node name="PartyOverview" type="Control"]
 layout_mode = 3
@@ -39,6 +40,10 @@ text = "Inventory"
 [node name="TabCharacter" type="Button" parent="TopBar"]
 layout_mode = 2
 text = "Character"
+
+[node name="TabDemons" type="Button" parent="TopBar"]
+layout_mode = 2
+text = "Demons"
 
 [node name="TabSpellbook" type="Button" parent="TopBar"]
 layout_mode = 2
@@ -368,6 +373,106 @@ horizontal_scroll_mode = 0
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
+
+[node name="DemonPanel" type="Control" parent="ContentArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("6_demon_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="ContentArea/DemonPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/DemonPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Demons"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="RosterColumn" type="VBoxContainer" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="RosterHeader" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/RosterColumn"]
+layout_mode = 2
+text = "Roster"
+
+[node name="RosterList" type="ItemList" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/RosterColumn"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="FusionColumn" type="VBoxContainer" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="FusionHeader" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+layout_mode = 2
+text = "Fusion"
+
+[node name="SlotALabel" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+layout_mode = 2
+text = "Parent A"
+
+[node name="SlotAList" type="ItemList" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SlotBLabel" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+layout_mode = 2
+text = "Parent B"
+
+[node name="SlotBList" type="ItemList" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+custom_minimum_size = Vector2(0, 100)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="FuseButton" type="Button" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+layout_mode = 2
+disabled = true
+text = "Fuse"
+
+[node name="FusionResultLabel" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+layout_mode = 2
+autowrap_mode = 2
+text = "Select two demons to fuse."
+
+[node name="DebugGrantRow" type="HBoxContainer" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="GrantSpeciesList" type="OptionButton" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/DebugGrantRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="GrantButton" type="Button" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/DebugGrantRow"]
+layout_mode = 2
+text = "Grant (debug)"
 
 [node name="JournalPanel" type="Control" parent="ContentArea"]
 visible = false

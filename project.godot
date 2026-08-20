@@ -28,6 +28,7 @@ CameraDirector="*res://camera_director.gd"
 DialogueManager="*res://systems/dialogue_system/dialogue_manager.gd"
 StashManager="*res://stash_manager.gd"
 FlagManager="*res://flag_manager.gd"
+DemonRoster="*res://systems/demon_system/demon_roster.gd"
 
 [display]
 
