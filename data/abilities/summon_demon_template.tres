@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=8 format=3 uid="uid://k88n0qe7hax7"]
+
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_fnyxh"]
+[ext_resource type="Script" uid="uid://ceihf6fykj8ui" path="res://systems/ability_system/summon_demon_effect.gd" id="2_effect"]
+[ext_resource type="Script" uid="uid://drd20fn8tucu" path="res://systems/ability_system/ground_point_targeting.gd" id="3_targeting"]
+[ext_resource type="Texture2D" uid="uid://d3ar1leiae2l3" path="res://assets/ability_icon/summon_icon.png" id="4_icon"]
+
+[sub_resource type="Resource" id="Resource_summondemoneffect"]
+script = ExtResource("2_effect")
+max_active_summons = 1
+
+[sub_resource type="Resource" id="Resource_targeting"]
+script = ExtResource("3_targeting")
+max_range = 8.0
+navmesh_tolerance = 0.5
+validate_as_caster_flying = false
+requires_ally = false
+
+[resource]
+script = ExtResource("1_ability")
+ability_name = "Summon Demon"
+icon = ExtResource("4_icon")
+category = 1
+targeting = SubResource("Resource_targeting")
+effects = Array[ExtResource("1_fnyxh")]([SubResource("Resource_summondemoneffect")])
+requires_to_hit = false
+uses_attack_action = true
+armed_enter_animation = ""
+armed_hold_animation = ""

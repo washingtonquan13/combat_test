@@ -1,4 +1,4 @@
-[gd_scene load_steps=78 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=80 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -46,6 +46,8 @@
 [ext_resource type="Resource" uid="uid://dnpp2x27ui1ou" path="res://data/abilities/magic_missile.tres" id="42_qnost"]
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="43_seek"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="44_aer3d"]
+[ext_resource type="Resource" uid="uid://k88n0qe7hax7" path="res://data/abilities/summon_demon_template.tres" id="49_jx0wj"]
+[ext_resource type="Resource" uid="uid://7h8i2qfohe2g" path="res://data/abilities/dismiss_summon.tres" id="50_kkkcx"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
 [ext_resource type="Script" uid="uid://b3gvuamt478hc" path="res://systems/skill_system/skill_instance.gd" id="50_sm6fg"]
 [ext_resource type="Resource" uid="uid://bybjpwdtyimg6" path="res://data/skills/arcana.tres" id="51_b17eg"]
@@ -406,7 +408,7 @@ alignment = -100
 tendency = 100
 move = 24
 move_speed = 5.0
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y"), ExtResource("42_qnost")])
+abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y"), ExtResource("42_qnost"), ExtResource("49_jx0wj"), ExtResource("50_kkkcx")])
 selected_color = Color(0.156863, 1, 1, 0.627451)
 portrait_texture = ExtResource("21_lswn8")
 

@@ -397,6 +397,15 @@ func take_damage(amount: int) -> void:
 	_owner.notify_status_of_damage(amount)
 	if _owner.current_hp == 0:
 		SystemLog.print("[b]%s has died.[/b]" % LogFormat.unit_name(_owner))
+		# A demon reduced to 0 HP by real damage is permanently lost, not
+		# just off the field — unlike DismissEffect (a deliberate
+		# withdrawal, which syncs state back and leaves the roster entry
+		# intact) or UnitDeath.expire() (a timed summon's own tracking
+		# running out). Both of those still emit this exact same died
+		# signal, so this can only be decided at THIS call site, not by
+		# listening to died generically.
+		if _owner.owned_demon:
+			DemonRoster.release(_owner.owned_demon)
 		# Cleanup BEFORE the signal, not after — died listeners (e.g.
 		# CombatManager's navmesh rebake, which needs to see whether this
 		# corpse still carves — see UnitDeath.handle_death) should observe

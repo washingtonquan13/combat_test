@@ -149,6 +149,25 @@ extends CharacterBody3D
 ## summons don't outlive their summoner).
 @export var summoned_by: Unit = null
 
+@export_group("Demon")
+## Which OwnedDemon roster entry this unit currently represents, or null
+## for every unit that isn't a fielded demon (which is most of them) —
+## set by SummonDemonEffect.apply() at summon time, same "bare optional
+## reference, no behavioral variation to plug in" reasoning summoned_by
+## above already uses for itself. This single nullable reference IS the
+## "is this unit a demon" marker throughout the whole feature; nothing
+## else checks a separate flag or scene type.
+##
+## A live Unit's own current_hp/current_fp are the source of truth WHILE
+## it's summoned — this only gets synced back into owned_demon's own
+## current_hp/current_fp at the moment it leaves the field (see
+## DismissEffect), or read from when first fielding it (see
+## SummonDemonEffect). UnitCombat.take_damage() checks this on a real
+## death to permanently release the roster entry (see DemonRoster.release)
+## — the one case where the live Unit's state is never synced back at all,
+## since a demon reduced to 0 HP in actual combat is gone for good.
+@export var owned_demon: OwnedDemon = null
+
 @export_group("Interaction")
 ## Right-click verbs this unit can ever offer — filtered down to
 ## whichever ones are ACTUALLY valid right now by get_interactions()

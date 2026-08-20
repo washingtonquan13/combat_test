@@ -18,6 +18,18 @@ func is_valid_target(_attacker: Unit, _target) -> bool:
 	return false
 
 
+## Whether attacker has ANY legal target for this ability at all right
+## now, regardless of where the player is currently aiming — used to
+## disable a hotbar slot outright rather than leaving it clickable for
+## an ability that couldn't possibly resolve (see hotbar_slot.gd's
+## refresh_state). True on every existing subclass by default, since
+## most targeting shapes (melee/ranged enemy, ground point) can always
+## find SOME legal point/target in the abstract; override where that
+## isn't true — see DismissTargeting, the first case where it matters.
+func has_any_valid_target(_attacker: Unit) -> bool:
+	return true
+
+
 ## Whether this ability expects to be aimed at a UNIT ON THE SAME FACTION
 ## rather than a hostile one — a heal, a buff. Read by Unit._on_input_event
 ## to decide whether clicking a friendly unit should cast this ability at

@@ -94,11 +94,16 @@ func refresh_state() -> void:
 		disabled = false
 		return
 	set_armed(ability == AbilityManager.armed_ability)
-	disabled = CombatManager.in_combat and ability.uses_attack_action and unit.has_attacked
+	disabled = (CombatManager.in_combat and ability.uses_attack_action and unit.has_attacked) \
+			or (ability.targeting and not ability.targeting.has_any_valid_target(unit))
 
 
 func _on_pressed() -> void:
 	if not ability:
+		return
+	var template_effect: SummonDemonEffect = _get_summon_demon_effect()
+	if template_effect:
+		_show_demon_picker(template_effect)
 		return
 	if ability.targeting and ability.targeting.resolves_immediately():
 		unit.use_ability(ability, unit)
@@ -107,6 +112,58 @@ func _on_pressed() -> void:
 		AbilityManager.disarm()
 	else:
 		AbilityManager.arm(ability)
+
+
+## Whether `ability` carries a SummonDemonEffect template — a runtime
+## type-check, not a new exported field on Ability/AbilityEffect, so this
+## one ability's popup requirement doesn't add schema weight every OTHER
+## ability's .tres would carry too. See this file's own header and
+## demon_compendium_panel.gd for the fuller reasoning behind keeping this
+## scope-contained.
+func _get_summon_demon_effect() -> SummonDemonEffect:
+	for effect in ability.effects:
+		if effect is SummonDemonEffect:
+			return effect
+	return null
+
+
+## One button per individually-owned demon — never grouped by species,
+## since different instances can be mid-battle-damaged or freshly
+## recruited, exactly the distinction a species-grouped list would hide.
+## A plain built-in PopupMenu, not a custom Control — this is a one-off
+## choice list, not something that needs its own scene.
+func _show_demon_picker(template_effect: SummonDemonEffect) -> void:
+	var owned: Array[OwnedDemon] = DemonRoster.all_owned()
+	if owned.is_empty():
+		SystemLog.print("No demons in your roster yet.")
+		return
+
+	var popup := PopupMenu.new()
+	add_child(popup)
+	for i in owned.size():
+		var entry: OwnedDemon = owned[i]
+		popup.add_item("%s (HP %d/%d)" % [entry.species.species_name, entry.current_hp, entry.species.max_hp], i)
+	popup.id_pressed.connect(func(id: int): _on_demon_picked(owned[id], template_effect))
+	popup.popup_hide.connect(popup.queue_free)
+	popup.popup(Rect2(get_screen_position(), Vector2.ZERO))
+
+
+## Constructs a FRESH SummonDemonEffect wrapping the picked OwnedDemon,
+## then arms it through AbilityManager exactly like any other targeted
+## ability — the existing ground-click-to-place flow downstream is
+## completely unaware anything special happened here. ability.duplicate()
+## (a shallow copy — sub-resources like targeting stay SHARED with the
+## template, not cloned) rather than hand-copying every Ability field, so
+## this can't silently go stale the next time Ability gains a new export.
+func _on_demon_picked(owned_demon: OwnedDemon, template_effect: SummonDemonEffect) -> void:
+	var picked_effect := SummonDemonEffect.new()
+	picked_effect.owned_demon = owned_demon
+	picked_effect.max_active_summons = template_effect.max_active_summons
+
+	var picked_ability: Ability = ability.duplicate()
+	picked_ability.effects = [picked_effect]
+
+	AbilityManager.arm(picked_ability)
 
 
 func _get_drag_data(_at_position: Vector2) -> Variant:
