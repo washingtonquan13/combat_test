@@ -301,17 +301,12 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		# applies regardless of which ability is being used against them.
 		# The ATTACKER's own active statuses (Bless, etc.) modify the
 		# same target number from the other side — see
-		# StatusBehavior.modify_outgoing_attack_to_hit.
-		var to_hit_target: int = attack_skill()
-		to_hit_target += _owner.outgoing_attack_to_hit_modifier(target, ability)
-		if target is Unit:
-			to_hit_target += target.incoming_attack_to_hit_modifier(_owner, ability)
-			to_hit_target += ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, _owner, ability)
-
-		var to_hit := SuccessRoll.roll_vs(to_hit_target)
+		# StatusBehavior.modify_outgoing_attack_to_hit. See _roll_to_hit
+		# for the actual target-number math.
+		var to_hit := _roll_to_hit(target, ability)
 		result["to_hit"] = to_hit
 		if not to_hit.success:
-			SystemLog.print("%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name])
+			SystemLog.print(_miss_log_line(target, ability))
 			if to_hit.critical_failure:
 				_owner.apply_status(CRIT_FAIL_PENALTY)
 			_owner.ability_used.emit(_owner, target, result)
@@ -332,6 +327,40 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# at all).
 	var is_critical: bool = result.get("to_hit", {}).get("critical_success", false)
 
+	var effect_data: Dictionary = _apply_effects(target, ability, is_critical)
+	result["effects"] = effect_data.effects
+	result["damage"] = effect_data.damage
+
+	if effect_data.damage > 0:
+		SystemLog.print(_hit_log_line(target, ability))
+	else:
+		SystemLog.print(_use_log_line(target, ability))
+
+	_owner.ability_used.emit(_owner, target, result)
+	_maybe_trigger_combat(target)
+	return result
+
+
+## Attacker's to-hit target number against target for ability — own
+## skill plus outgoing modifiers, defender's incoming modifiers and
+## altitude advantage if target is a Unit — then rolled. Pure
+## computation; use_ability() still owns deciding what a miss DOES
+## (crit-fail status, log, signal, early return).
+func _roll_to_hit(target, ability: Ability) -> Dictionary:
+	var to_hit_target: int = attack_skill()
+	to_hit_target += _owner.outgoing_attack_to_hit_modifier(target, ability)
+	if target is Unit:
+		to_hit_target += target.incoming_attack_to_hit_modifier(_owner, ability)
+		to_hit_target += ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, _owner, ability)
+	return SuccessRoll.roll_vs(to_hit_target)
+
+
+## Applies every one of ability's effects against target in order,
+## aggregating each effect's own "damage" key into one total — usually
+## zero or one DamageEffect, but this doesn't assume that; see effects
+## for the individual per-effect results if more detail is needed than
+## the aggregate.
+func _apply_effects(target, ability: Ability, is_critical: bool) -> Dictionary:
 	var effect_results: Array = []
 	var total_damage: int = 0
 	for effect in ability.effects:
@@ -339,18 +368,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		effect_results.append(effect_result)
 		if effect_result.has("damage"):
 			total_damage += effect_result["damage"]
-
-	result["effects"] = effect_results
-	result["damage"] = total_damage
-
-	if total_damage > 0:
-		SystemLog.print("%s hits %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name])
-	else:
-		SystemLog.print("%s uses %s on %s." % [LogFormat.unit_name(_owner), ability.ability_name, _log_target_desc(target)])
-
-	_owner.ability_used.emit(_owner, target, result)
-	_maybe_trigger_combat(target)
-	return result
+	return {"effects": effect_results, "damage": total_damage}
 
 
 ## Starts real combat if this was an out-of-combat hostile act against a
@@ -406,6 +424,26 @@ func _log_target_desc(target) -> String:
 	return LogFormat.unit_name(target) if target is Unit else "the target area"
 
 
+func _miss_log_line(target, ability: Ability) -> String:
+	return "%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name]
+
+
+func _hit_log_line(target, ability: Ability) -> String:
+	return "%s hits %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name]
+
+
+func _use_log_line(target, ability: Ability) -> String:
+	return "%s uses %s on %s." % [LogFormat.unit_name(_owner), ability.ability_name, _log_target_desc(target)]
+
+
+func _damage_log_line(amount: int) -> String:
+	return "%s takes %s damage." % [LogFormat.unit_name(_owner), LogFormat.damage(amount)]
+
+
+func _death_log_line() -> String:
+	return "[b]%s has died.[/b]" % LogFormat.unit_name(_owner)
+
+
 ## Restores amount HP, clamped at maximum_hp — the positive-direction
 ## counterpart to take_damage() below. Emits healed() so anything
 ## watching for an HP change (unit_portrait.gd's live overlay, notably)
@@ -434,10 +472,10 @@ func take_damage(amount: int) -> void:
 		return
 	_owner.current_hp = max(_owner.current_hp - amount, 0)
 	_owner.took_damage.emit(_owner, amount)
-	SystemLog.print("%s takes %s damage." % [LogFormat.unit_name(_owner), LogFormat.damage(amount)])
+	SystemLog.print(_damage_log_line(amount))
 	_owner.notify_status_of_damage(amount)
 	if _owner.current_hp == 0:
-		SystemLog.print("[b]%s has died.[/b]" % LogFormat.unit_name(_owner))
+		SystemLog.print(_death_log_line())
 		# A demon reduced to 0 HP by real damage is permanently lost, not
 		# just off the field — unlike DismissEffect (a deliberate
 		# withdrawal, which syncs state back and leaves the roster entry
