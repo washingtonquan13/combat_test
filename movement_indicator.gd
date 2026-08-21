@@ -141,13 +141,14 @@ func _hide_all() -> void:
 
 
 ## Modifier-style altitude control: hold fly_altitude_modifier (Ctrl) and
-## the active flying unit's TARGET altitude tracks the mouse directly,
-## instead of the old R/F "nudge at a fixed speed" scheme. Called from
-## _process() rather than an input callback since it needs to keep sampling
-## the live mouse position for as long as the modifier stays down. Same
-## gating as the path preview (only reached at all once _get_active_unit()
-## already passed in _process), plus its own is_flying() check, since a
-## non-flying active unit shouldn't react to this just because it's held.
+## every currently-relevant flying unit's TARGET altitude tracks the
+## mouse directly, instead of the old R/F "nudge at a fixed speed"
+## scheme. Called from _process() rather than an input callback since it
+## needs to keep sampling the live mouse position for as long as the
+## modifier stays down. Same gating as the path preview (only reached at
+## all once _get_active_unit() already passed in _process) — which units
+## actually receive the sampled altitude comes from
+## _flying_units_for_altitude_control(), not just active_unit itself.
 ##
 ## How the drag itself works: on the frame the modifier is first held, the
 ## XZ point the ground hover was aiming at gets frozen as _altitude_drag_
@@ -160,20 +161,48 @@ func _hide_all() -> void:
 ## use. Releasing the modifier ends the drag; whatever altitude it landed
 ## on stays committed (same as R/F leaving flight_target_altitude wherever
 ## it was last nudged to).
-func _handle_altitude_input(unit: Unit) -> void:
-	if not unit.is_flying() or not Input.is_action_pressed("fly_altitude_modifier"):
+func _handle_altitude_input(active_unit: Unit) -> void:
+	var flying_units: Array[Unit] = _flying_units_for_altitude_control(active_unit)
+	if flying_units.is_empty() or not Input.is_action_pressed("fly_altitude_modifier"):
 		_altitude_dragging = false
 		return
 
 	if not _altitude_dragging:
 		var ground_point = _get_mouse_ground_point()
-		var anchor: Vector3 = ground_point if ground_point != null else unit.global_position
+		var anchor: Vector3 = ground_point if ground_point != null else active_unit.global_position
 		_altitude_drag_anchor_xz = Vector2(anchor.x, anchor.z)
 		_altitude_dragging = true
 
 	var sampled_altitude = _sample_altitude_from_mouse(_altitude_drag_anchor_xz)
 	if sampled_altitude != null:
-		unit.set_flight_altitude(sampled_altitude)
+		for unit in flying_units:
+			unit.set_flight_altitude(sampled_altitude)
+
+
+## Which units the altitude drag should actually apply to. In combat,
+## only the single acting unit can ever move at all, so this stays
+## scoped exactly to it, same as before. Out of combat, a move command
+## already applies to the WHOLE current selection — a leader going to
+## the clicked point plus every other selected unit landing on a ring
+## around it (see ground_click_target.gd) — altitude control follows
+## the same scope, every currently-selected flying unit sharing the one
+## dragged altitude, rather than only whichever unit happens to be first
+## in the selection (PlayerInteractionState.get_active_unit()'s own
+## definition, out of combat). That mismatch was the actual bug: a
+## mixed flying+ground selection silently did nothing on Ctrl-drag
+## whenever a ground unit happened to be selected first, since
+## active_unit.is_flying() was false and the whole gesture no-opped.
+func _flying_units_for_altitude_control(active_unit: Unit) -> Array[Unit]:
+	if not active_unit:
+		return []
+	if CombatManager.in_combat:
+		return [active_unit] if active_unit.is_flying() else []
+
+	var flying: Array[Unit] = []
+	for unit in SelectionManager.selected_units:
+		if unit.is_flying():
+			flying.append(unit)
+	return flying
 
 
 ## Reads the altitude implied by the current mouse position: casts the

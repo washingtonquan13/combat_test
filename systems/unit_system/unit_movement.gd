@@ -93,6 +93,7 @@ func is_moving() -> bool:
 ## occupancy is current for this unit as a mover before calling this (see
 ## NavigationGrid.update_occupancy) — combat turn-start and free-roam move
 ## orders both already do this.
+##
 func move_to(destination: Vector3) -> bool:
 	if not _owner.can_act():
 		return false
@@ -127,13 +128,16 @@ func move_to(destination: Vector3) -> bool:
 	return _start_walk(destination, budget)
 
 
-## Plans a route to raw_destination within budget and starts walking it —
-## the shared "plan then execute" core move_to() itself uses for an
-## ordinary move, and each walking leg of a ladder journey (see
-## _begin_ladder_journey/_on_climb_finished) reuses identically, so a
-## ladder's walking legs are governed by the exact same budget-truncation/
-## terrain-cost rules as any other move.
-func _start_walk(raw_destination: Vector3, budget: float) -> bool:
+## Plans a route from this unit's current position to raw_destination
+## WITHOUT starting to walk it — a pure query, extracted out of
+## _start_walk() below (its only caller) purely so its own
+## flying-Y-override + NavigationGrid.find_path() + RoutePlanner.plan()
+## sequence has one clearly-named home.
+##
+## budget defaults to INF — a bare route/cost query has no inherent
+## budget of its own; _start_walk() is the one caller that passes a
+## real one.
+func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
 	var flying: bool = _owner.is_flying()
 	var query_destination: Vector3 = raw_destination
 	if flying:
@@ -153,9 +157,19 @@ func _start_walk(raw_destination: Vector3, budget: float) -> bool:
 
 	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
 	if waypoints.size() < 2:
-		return false
+		return {"path": PackedVector3Array(), "cumulative_cost": PackedFloat32Array()}
 
-	var planned: Dictionary = RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)
+	return RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)
+
+
+## Plans a route to raw_destination within budget and starts walking it —
+## the shared "plan then execute" core move_to() itself uses for an
+## ordinary move, and each walking leg of a ladder journey (see
+## _begin_ladder_journey/_on_climb_finished) reuses identically, so a
+## ladder's walking legs are governed by the exact same budget-truncation/
+## terrain-cost rules as any other move.
+func _start_walk(raw_destination: Vector3, budget: float) -> bool:
+	var planned: Dictionary = plan_route(raw_destination, budget)
 	var planned_path: PackedVector3Array = planned.path
 
 	if planned_path.size() < 2:

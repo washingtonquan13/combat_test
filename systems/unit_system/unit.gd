@@ -93,6 +93,12 @@ extends CharacterBody3D
 ## a meter short of the standoff point CombatAI aimed for. Kept small and
 ## explicit so "arrived" actually means arrived.
 @export var arrival_tolerance: float = 0.15
+## Ring radius (meters) a group move's followers get spread around the
+## leader's own destination point (see ground_click_target.gd's
+## free-roam move command) — larger than arrival_tolerance on purpose:
+## that one means "reached an exact point," this means "landed
+## somewhere in a loose cluster around the leader," not a precise spot.
+@export var formation_spread_radius: float = 2.0
 ## If a move makes no meaningful progress for this many seconds — e.g. a
 ## nav target that's genuinely unreachable — the move is abandoned instead
 ## of hanging the turn forever. Avoidance (below) should make this rare in

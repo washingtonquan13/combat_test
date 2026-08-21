@@ -128,5 +128,34 @@ func _command_move(destination: Vector3) -> void:
 	# outside combat, where "only one unit ever moves at a time" doesn't
 	# hold in the first place.
 	NavigationGrid.update_occupancy(get_tree(), SelectionManager.selected_units)
+
+	# Leader-driven, but fully deterministic — every mover is planned
+	# ONCE, right here, against this one occupancy snapshot, exactly
+	# like every other move in this game (a live "followers re-target
+	# the leader's CURRENT position" version was tried and reverted: it
+	# meant repeatedly re-planning against NavigationGrid.find_path(),
+	# which never refreshes occupancy itself — every re-plan read an
+	# increasingly stale snapshot in which every mover was still
+	# excluded from occupancy, so followers walked straight through each
+	# other and the leader for the whole trip). The leader (whoever
+	# get_active_unit() resolves to — "first selected" out of combat)
+	# goes exactly to the clicked point; everyone else gets a destination
+	# offset onto an evenly-spaced ring around that SAME point, not tied
+	# to any unit's current position — a fixed personal offset read as
+	# "everyone lining up side by side" when this was tried before.
+	var leader: Unit = PlayerInteractionState.get_active_unit()
+	if not leader:
+		for unit in SelectionManager.selected_units:
+			unit.move_to(destination)
+		return
+
+	var followers: Array[Unit] = []
 	for unit in SelectionManager.selected_units:
-		unit.move_to(destination)
+		if unit != leader:
+			followers.append(unit)
+
+	leader.move_to(destination)
+	for i in followers.size():
+		var angle: float = TAU * float(i) / float(followers.size())
+		var offset := Vector3(cos(angle), 0.0, sin(angle)) * leader.formation_spread_radius
+		followers[i].move_to(destination + offset)
