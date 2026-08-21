@@ -38,11 +38,15 @@ extends IndicatorBase
 
 func _unhandled_input(event: InputEvent) -> void:
 	# The cinematic camera being frozen out from under a live conversation
-	# (see camera_director.gd) doesn't by itself stop a click from still
-	# reaching the tactical world underneath it — this is what actually
-	# does that: no move orders, no ability casts, no context menus while
-	# DialogueManager owns the screen.
-	if DialogueManager.is_active() or NegotiationManager.is_active():
+	# or menu (see camera_director.gd) doesn't by itself stop a click from
+	# still reaching the tactical world underneath it — this is what
+	# actually does that: no move orders, no ability casts, no context
+	# menus while any of CameraDirector's own blockers own the screen.
+	# Reuses has_control() itself rather than keeping a second,
+	# separately-maintained list of the same conditions here — a click
+	# shouldn't be able to reach the world in any state where the camera
+	# is frozen out of responding to input either.
+	if not CameraDirector.has_control():
 		return
 
 	if event.is_action_pressed("left_click"):
@@ -87,21 +91,14 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 		return false
 
 	# click_position is always exactly where the physics ray hit the
-	# ground, so it can never carry a lifted height on its own — an
-	# AerialAreaTargeting ability aimed into the air via
-	# aerial_area_indicator.gd's Ctrl height-drag (see that file and
-	# AbilityManager.aim_height_override) needs its Y overridden here,
-	# the same value the preview was already showing, so the confirmed
-	# cast can't disagree with what the player saw. Checked against
-	# AerialAreaTargeting specifically, not AreaTargeting generally —
-	# plain AreaTargeting (Grease) is floor-only by design (see that
-	# class and area_indicator.gd) and must never pick up a stray
-	# override. GroundPointTargeting (Jump) never gets one either — you
-	# can't jump to a point floating in midair with nothing under it.
-	var target_point: Vector3 = click_position
-	if ability.targeting is AerialAreaTargeting and AbilityManager.has_aim_height_override:
-		target_point.y = AbilityManager.aim_height_override
-
+	# ground, so it can never carry a lifted height on its own — letting
+	# ability.targeting itself decide whether/how to adjust it (see
+	# AbilityTargeting.resolve_target_point) instead of this router
+	# knowing about specific subclasses like AerialAreaTargeting. Plain
+	# AreaTargeting (Grease) and GroundPointTargeting (Jump) both inherit
+	# the no-op default — floor-only abilities have no business picking
+	# up a stray height override.
+	var target_point: Vector3 = ability.targeting.resolve_target_point(click_position)
 	unit.use_ability(ability, target_point)
 	return true
 
@@ -129,33 +126,6 @@ func _command_move(destination: Vector3) -> void:
 	# hold in the first place.
 	NavigationGrid.update_occupancy(get_tree(), SelectionManager.selected_units)
 
-	# Leader-driven, but fully deterministic — every mover is planned
-	# ONCE, right here, against this one occupancy snapshot, exactly
-	# like every other move in this game (a live "followers re-target
-	# the leader's CURRENT position" version was tried and reverted: it
-	# meant repeatedly re-planning against NavigationGrid.find_path(),
-	# which never refreshes occupancy itself — every re-plan read an
-	# increasingly stale snapshot in which every mover was still
-	# excluded from occupancy, so followers walked straight through each
-	# other and the leader for the whole trip). The leader (whoever
-	# get_active_unit() resolves to — "first selected" out of combat)
-	# goes exactly to the clicked point; everyone else gets a destination
-	# offset onto an evenly-spaced ring around that SAME point, not tied
-	# to any unit's current position — a fixed personal offset read as
-	# "everyone lining up side by side" when this was tried before.
-	var leader: Unit = PlayerInteractionState.get_active_unit()
-	if not leader:
-		for unit in SelectionManager.selected_units:
-			unit.move_to(destination)
-		return
-
-	var followers: Array[Unit] = []
-	for unit in SelectionManager.selected_units:
-		if unit != leader:
-			followers.append(unit)
-
-	leader.move_to(destination)
-	for i in followers.size():
-		var angle: float = TAU * float(i) / float(followers.size())
-		var offset := Vector3(cos(angle), 0.0, sin(angle)) * leader.formation_spread_radius
-		followers[i].move_to(destination + offset)
+	# Leader/follower formation math lives on FormationPlanner, not here —
+	# see that file for why it's leader-driven but fully deterministic.
+	FormationPlanner.command_group_move(SelectionManager.selected_units, destination)

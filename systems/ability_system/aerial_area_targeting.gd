@@ -16,9 +16,23 @@ extends AreaTargeting
 ## Carries no fields of its own — max_range/radius/LoS are all identical
 ## to AreaTargeting, inherited unchanged. Exists purely as a
 ## distinguishable TYPE: aerial_area_indicator.gd (Ctrl-drag height +
-## wireframe-sphere preview) and ground_click_target.gd (whether a
-## click's height gets overridden) both dispatch on this specific
-## subclass via is_instance_of/is, rather than AreaTargeting generally —
-## and area_indicator.gd explicitly EXCLUDES it (see that file), so
-## exactly one of the two indicators ever shows for a given armed
-## ability.
+## wireframe-sphere preview) dispatches on this specific subclass via
+## is_instance_of/is, rather than AreaTargeting generally — and
+## area_indicator.gd explicitly EXCLUDES it (see that file), so exactly
+## one of the two indicators ever shows for a given armed ability.
+## ground_click_target.gd no longer needs a type-check of its own for
+## this: resolve_target_point() below (see AbilityTargeting) applies the
+## same Ctrl-dragged height polymorphically instead.
+
+
+## Lifts the raw ground-click point to the Ctrl-dragged height the
+## player aimed at, if any — click_position is always exactly where the
+## physics ray hit the ground (see ground_click_target.gd), so it can
+## never carry a lifted height on its own. AbilityManager.
+## aim_height_override holds the same value aerial_area_indicator.gd's
+## own preview was already showing, so the confirmed cast can't disagree
+## with what the player saw.
+func resolve_target_point(click_position: Vector3) -> Vector3:
+	if AbilityManager.has_aim_height_override:
+		click_position.y = AbilityManager.aim_height_override
+	return click_position

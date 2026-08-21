@@ -74,6 +74,18 @@ func expects_point_target() -> bool:
 	return false
 
 
+## Adjusts a raw click point into the actual point an ability should be
+## used at — called by ground_click_target.gd right before use_ability(),
+## on every point-targeting ability regardless of subclass. Default is a
+## no-op passthrough; override where a targeting shape needs to
+## transform the raw click before use — see AerialAreaTargeting, which
+## lifts it to a Ctrl-dragged height. Keeps the click router itself
+## ignorant of which concrete subclasses need this adjustment, rather
+## than a growing "is AerialAreaTargeting or is X or ..." chain there.
+func resolve_target_point(click_position: Vector3) -> Vector3:
+	return click_position
+
+
 ## Distance CombatAI should try to close to before considering a target
 ## in range — used for movement/standoff purposes (see CombatAI.
 ## _standoff_goal). Override in each subclass; base returns 0 (stand
