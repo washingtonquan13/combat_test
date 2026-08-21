@@ -16,9 +16,7 @@ func on_turn_start(unit: Unit, active: ActiveStatus) -> void:
 	for _i in active.stacks:
 		raw += roll_heal()
 
-	var before: int = unit.current_hp
-	unit.current_hp = min(unit.current_hp + raw, unit.maximum_hp)
-	var applied: int = unit.current_hp - before
+	var applied: int = unit.heal(raw)
 
 	if applied > 0:
 		SystemLog.print("%s regenerates %s HP." % [LogFormat.unit_name(unit), LogFormat.heal(applied)])

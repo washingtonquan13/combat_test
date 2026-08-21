@@ -35,7 +35,22 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	attacker.apply_status(flying_status)
-	var target_y: float = attacker.global_position.y + takeoff_height
+	# Clamped to the same flight envelope every other altitude write in
+	# this project already respects (Unit.set_flight_altitude(),
+	# UnitMovement.plan_route(), movement_indicator.gd's own preview) —
+	# this was the one unclamped write. Without it, taking off from
+	# anywhere within takeoff_height of NavigationGrid.FLIGHT_CEILING_HEIGHT
+	# (a tall platform, notably) left the unit standing above the ceiling,
+	# which NavigationGrid.is_valid_cell() hard-rejects for a flying query
+	# — every subsequent find_path() call, preview or real, then starts
+	# from a cell the grid considers invalid and returns nothing: no
+	# indicator, no movement, until landing brought the unit back into the
+	# valid range.
+	var target_y: float = clamp(
+		attacker.global_position.y + takeoff_height,
+		NavigationGrid.FLIGHT_MIN_ALTITUDE,
+		NavigationGrid.FLIGHT_CEILING_HEIGHT
+	)
 	# The unit's next move should hold this new height by default, not
 	# snap back toward wherever flight_target_altitude was last left
 	# (0.0, or a stale value from a previous flight) — see
@@ -46,7 +61,12 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	# already sees the real final altitude, not a stale one.
 	attacker.flight_target_altitude = target_y
 
-	var duration: float = clampf(takeoff_height / vertical_speed, min_ascend_duration, max_ascend_duration)
+	# Distance actually traveled (not the nominal takeoff_height) — the
+	# two only diverge in the clamped near-ceiling case, same "duration
+	# tracks the real distance" discipline Unit.land() already uses for
+	# its own descent.
+	var ascent: float = target_y - attacker.global_position.y
+	var duration: float = clampf(ascent / vertical_speed, min_ascend_duration, max_ascend_duration)
 
 	attacker.begin_busy()
 	var tween: Tween = attacker.create_tween()

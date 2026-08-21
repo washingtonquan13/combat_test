@@ -108,6 +108,7 @@ func _ready() -> void:
 	_setup_outline()
 
 	unit.took_damage.connect(func(_u, _amount): _update_overlay())
+	unit.healed.connect(func(_u, _amount): _update_overlay())
 	unit.died.connect(func(_u): _update_overlay())
 	_update_overlay()
 

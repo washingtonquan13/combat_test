@@ -75,9 +75,9 @@
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
 [ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
-[ext_resource type="Script" path="res://systems/ai_system/ai_behavior.gd" id="90_aibehavior"]
-[ext_resource type="Script" path="res://systems/ai_system/use_ability_on_nearest_hostile_behavior.gd" id="91_useabilitybehavior"]
-[ext_resource type="Script" path="res://systems/ai_system/heal_wounded_ally_behavior.gd" id="92_healwoundedbehavior"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="90_aibehavior"]
+[ext_resource type="Script" uid="uid://ds81ldf2c2t2x" path="res://systems/ai_system/use_ability_on_nearest_hostile_behavior.gd" id="91_useabilitybehavior"]
+[ext_resource type="Script" uid="uid://c7w2wlpj8is6m" path="res://systems/ai_system/heal_wounded_ally_behavior.gd" id="92_healwoundedbehavior"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -534,8 +534,6 @@ portrait_texture = ExtResource("19_82xsv")
 [node name="GoblinShaman" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 6, 0.5, 7)
 display_name = "Goblin Shaman"
-maximum_hp = 10
-current_hp = 10
 faction = &"enemy"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og")])
 ai_behaviors = Array[ExtResource("90_aibehavior")]([SubResource("Resource_shaman_heal_behavior"), SubResource("Resource_shaman_attack_behavior")])

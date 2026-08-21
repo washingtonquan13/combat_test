@@ -33,9 +33,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_heal: int = roll_heal()
-		var before: int = unit.current_hp
-		unit.current_hp = min(unit.current_hp + raw_heal, unit.maximum_hp)
-		var applied: int = unit.current_hp - before
+		var applied: int = unit.heal(raw_heal)
 		affected.append({"unit": unit, "raw_heal": raw_heal, "healed": applied})
 
 	var total_healed: int = 0

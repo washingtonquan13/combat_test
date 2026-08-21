@@ -294,6 +294,7 @@ signal ability_use_started(attacker: Unit, target, ability: Ability)
 ## abilities target a point instead of a unit — see GroundPointTargeting.
 signal ability_used(attacker: Unit, target, result: Dictionary)
 signal took_damage(unit: Unit, amount: int)
+signal healed(unit: Unit, amount: int)
 signal died(unit: Unit)
 
 ## Fired by an attack animation's Call Method Track (at the frame a
@@ -967,6 +968,13 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 func take_damage(amount: int) -> void:
 	_combat.take_damage(amount)
+
+
+## Restores amount HP, clamped at maximum_hp. Returns the amount
+## ACTUALLY restored (may be less than amount once near/at maximum_hp)
+## — see UnitCombat.heal().
+func heal(amount: int) -> int:
+	return _combat.heal(amount)
 
 
 ## Called by UnitCombat's take_damage() — routed through Unit rather

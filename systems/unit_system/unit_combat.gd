@@ -406,6 +406,29 @@ func _log_target_desc(target) -> String:
 	return LogFormat.unit_name(target) if target is Unit else "the target area"
 
 
+## Restores amount HP, clamped at maximum_hp — the positive-direction
+## counterpart to take_damage() below. Emits healed() so anything
+## watching for an HP change (unit_portrait.gd's live overlay, notably)
+## refreshes on the way up too, not just the way down — take_damage()
+## already emitted took_damage() for that; nothing on the heal side ever
+## emitted its own equivalent, which is why healing correctly changed
+## current_hp but never visibly showed it: HealEffect/AreaHealEffect/
+## HealOverTimeBehavior each mutated current_hp directly, with no
+## caller-side way to know it needed to redraw anything. Returns the
+## amount ACTUALLY restored (may be less than amount once near/at
+## maximum_hp) so callers can log/report exactly how much landed without
+## re-deriving before/after themselves.
+func heal(amount: int) -> int:
+	if amount <= 0:
+		return 0
+	var before: int = _owner.current_hp
+	_owner.current_hp = min(_owner.current_hp + amount, _owner.maximum_hp)
+	var applied: int = _owner.current_hp - before
+	if applied > 0:
+		_owner.healed.emit(_owner, applied)
+	return applied
+
+
 func take_damage(amount: int) -> void:
 	if amount <= 0:
 		return

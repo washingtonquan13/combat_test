@@ -16,9 +16,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 		return {}
 
 	var raw_heal: int = roll_heal()
-	var before: int = target.current_hp
-	target.current_hp = min(target.current_hp + raw_heal, target.maximum_hp)
-	var applied: int = target.current_hp - before
+	var applied: int = target.heal(raw_heal)
 
 	if applied > 0:
 		SystemLog.print("%s heals %s for %s HP." % [LogFormat.unit_name(attacker), LogFormat.unit_name(target), LogFormat.heal(applied)])
