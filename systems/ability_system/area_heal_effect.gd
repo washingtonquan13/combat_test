@@ -8,6 +8,9 @@ extends AbilityEffect
 ## Defaults flipped from AreaDamageEffect's (affects_allies=true,
 ## affects_hostiles=false) — a heal indiscriminately hitting enemies too
 ## would need a very deliberate reason, unlike an explosion.
+##
+## Same shared scan as AreaDamageEffect — see that file's header — via
+## UnitQuery.area_affected.
 
 @export var dice_count: int = 2
 @export var dice_sides: int = 6
@@ -28,21 +31,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	var radius: float = targeting.radius
 	var affected: Array = []
 
-	for node in attacker.get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if not unit or not unit.is_alive():
-			continue
-
-		var edge_dist: float = center.distance_to(unit.global_position) - unit.radius
-		if edge_dist > radius:
-			continue
-
-		var is_hostile: bool = attacker.is_hostile_to(unit)
-		if is_hostile and not affects_hostiles:
-			continue
-		if not is_hostile and not affects_allies:
-			continue
-
+	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_heal: int = roll_heal()
 		var before: int = unit.current_hp
 		unit.current_hp = min(unit.current_hp + raw_heal, unit.maximum_hp)

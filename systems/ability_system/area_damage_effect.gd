@@ -22,6 +22,10 @@ extends AbilityEffect
 ## radius), not center-to-center — a unit whose edge is inside the blast
 ## radius is caught by it, matching the edge-based convention used
 ## everywhere else in this project (reach, ranged max_range, etc.).
+##
+## The scan itself (edge-distance + hostile/ally gating) lives in
+## UnitQuery.area_affected — AreaHealEffect/AreaApplyStatusEffect share
+## the exact same scan; only what happens to each matched unit differs.
 
 @export var dice_count: int = 2
 @export var dice_sides: int = 6
@@ -42,21 +46,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	var radius: float = targeting.radius
 	var affected: Array = []
 
-	for node in attacker.get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if not unit or not unit.is_alive():
-			continue
-
-		var edge_dist: float = center.distance_to(unit.global_position) - unit.radius
-		if edge_dist > radius:
-			continue
-
-		var is_hostile: bool = attacker.is_hostile_to(unit)
-		if is_hostile and not affects_hostiles:
-			continue
-		if not is_hostile and not affects_allies:
-			continue
-
+	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
 		var applied: int = max(raw_damage - unit.get_stat("DR"), 0)
 		unit.take_damage(applied)

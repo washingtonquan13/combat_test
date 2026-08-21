@@ -85,16 +85,12 @@ func handle_death() -> void:
 	# raw queue_free(), so each one still goes through this exact same
 	# cleanup path (occupancy update, corpse handling, its own died
 	# signal) and can itself cascade to whatever IT summoned in turn.
-	# Scans "units" rather than a maintained back-reference list — same
-	# idiom every other "find related units" query in this project
-	# already uses (combat_ai.gd's nearest-hostile search, the AoE
-	# effects), and get_nodes_in_group returns a fresh snapshot array, so
-	# a dependent's own expire() call removing ITSELF from "units"
-	# mid-loop can't disturb this iteration.
-	for node in _owner.get_tree().get_nodes_in_group("units"):
-		var dependent := node as Unit
-		if dependent and dependent.summoned_by == _owner:
-			dependent.expire()
+	# UnitQuery.dependents_of returns a fresh snapshot array, decoupled
+	# from the live "units" group the instant it's built, so a
+	# dependent's own expire() call removing ITSELF from "units" mid-loop
+	# can't disturb this iteration.
+	for dependent in UnitQuery.dependents_of(_owner.get_tree(), _owner):
+		dependent.expire()
 
 	if _owner.death_cleanup_delay > 0.0:
 		_owner.get_tree().create_timer(_owner.death_cleanup_delay).timeout.connect(_owner.queue_free)

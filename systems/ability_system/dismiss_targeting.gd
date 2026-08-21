@@ -22,9 +22,8 @@ func is_valid_target(attacker: Unit, target) -> bool:
 
 
 func has_any_valid_target(attacker: Unit) -> bool:
-	for node in attacker.get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if unit and is_valid_target(attacker, unit):
+	for unit in UnitQuery.all_units(attacker.get_tree()):
+		if is_valid_target(attacker, unit):
 			return true
 	return false
 

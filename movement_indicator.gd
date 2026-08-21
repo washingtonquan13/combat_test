@@ -196,7 +196,10 @@ func _flying_units_for_altitude_control(active_unit: Unit) -> Array[Unit]:
 	if not active_unit:
 		return []
 	if CombatManager.in_combat:
-		return [active_unit] if active_unit.is_flying() else []
+		var solo: Array[Unit] = []
+		if active_unit.is_flying():
+			solo.append(active_unit)
+		return solo
 
 	var flying: Array[Unit] = []
 	for unit in SelectionManager.selected_units:

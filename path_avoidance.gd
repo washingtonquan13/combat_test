@@ -35,10 +35,7 @@ static func gather_obstacles(tree: SceneTree, excluded: Array) -> Dictionary:
 	var positions: PackedVector3Array = PackedVector3Array()
 	var radii: PackedFloat32Array = PackedFloat32Array()
 
-	for node in tree.get_nodes_in_group("units"):
-		var unit := node as Unit
-		if not unit or unit in excluded or not unit.is_alive():
-			continue
+	for unit in UnitQuery.living_units(tree, excluded):
 		positions.append(unit.global_position)
 		radii.append(unit.radius)
 

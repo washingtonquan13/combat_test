@@ -54,10 +54,8 @@ func _ready() -> void:
 
 
 func _rebuild_core() -> void:
-	for node in get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if unit and unit.is_player_controlled() and unit.summoned_by == null:
-			_add_core_slot(unit)
+	for unit in UnitQuery.core_party_units(get_tree()):
+		_add_core_slot(unit)
 	_update_visibility()
 
 

@@ -43,8 +43,7 @@ func execute(actor: Unit, target) -> void:
 ## to whoever's authoring the .tres and stable across roster changes.
 func _build_participants(actor: Unit, unit_target: Unit) -> Dictionary:
 	var participants: Dictionary = {"player": actor, "npc": unit_target}
-	for node in actor.get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if unit and unit != actor and unit.is_player_controlled() and unit.summoned_by == null:
+	for unit in UnitQuery.core_party_units(actor.get_tree()):
+		if unit != actor:
 			participants[unit.name] = unit
 	return participants

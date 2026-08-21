@@ -8,8 +8,8 @@ extends Node
 ## in reach, attack once if possible, then end the turn. No targeting
 ## priorities beyond "closest," no positioning smarts, no multi-target
 ## consideration. Meant to make the combat loop testable end-to-end —
-## replace _find_nearest_hostile / _take_turn with something smarter later
-## without touching CombatManager or Unit.
+## replace UnitQuery.nearest_hostile / _take_turn with something smarter
+## later without touching CombatManager or Unit.
 
 ## Factions this AI controls. Anything NOT in this set is left alone
 ## (assumed player-controlled, or otherwise externally driven).
@@ -52,7 +52,7 @@ func _on_turn_started(unit: Unit) -> void:
 ## move: stuck_timeout firing on genuine physical obstruction, not just
 ## running out of distance.
 func _attempt_action(unit: Unit) -> void:
-	var target: Unit = _find_nearest_hostile(unit)
+	var target: Unit = UnitQuery.nearest_hostile(get_tree(), unit)
 	if not target:
 		CombatManager.end_turn()
 		return
@@ -126,22 +126,6 @@ func _find_flight_ability(unit: Unit) -> Ability:
 			if effect is GrantFlightEffect:
 				return ability
 	return null
-
-
-func _find_nearest_hostile(unit: Unit) -> Unit:
-	var nearest: Unit = null
-	var nearest_dist: float = INF
-	for node in get_tree().get_nodes_in_group("units"):
-		var other := node as Unit
-		if not other or not other.is_alive():
-			continue
-		if not unit.is_hostile_to(other):
-			continue
-		var dist: float = unit.distance_to(other)
-		if dist < nearest_dist:
-			nearest_dist = dist
-			nearest = other
-	return nearest
 
 
 ## The point this unit is trying to reach: just inside ability's range of

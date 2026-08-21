@@ -503,9 +503,8 @@ func ground_if_flying() -> void:
 ## ground beneath them.
 func land() -> void:
 	var exclude: Array[RID] = []
-	for node in _owner.get_tree().get_nodes_in_group("units"):
-		if node is Unit:
-			exclude.append(node.get_rid())
+	for unit in UnitQuery.all_units(_owner.get_tree()):
+		exclude.append(unit.get_rid())
 
 	var space_state := _owner.get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(_owner.global_position, _owner.global_position + Vector3.DOWN * 200.0)

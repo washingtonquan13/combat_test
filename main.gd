@@ -48,10 +48,7 @@ func _start_test_combat() -> void:
 		print("Combat already in progress.")
 		return
 
-	var units: Array[Unit] = []
-	for node in get_tree().get_nodes_in_group("units"):
-		if node is Unit and node.is_alive():
-			units.append(node)
+	var units: Array[Unit] = UnitQuery.living_units(get_tree())
 
 	if units.is_empty():
 		print("No units found in the 'units' group — nothing to fight with.")

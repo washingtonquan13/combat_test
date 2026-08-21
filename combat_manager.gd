@@ -173,20 +173,21 @@ func start_combat(combatants: Array[Unit]) -> void:
 ## use (see UnitCombat._maybe_trigger_combat, the only caller). attacker
 ## and target are always in the roster; anyone else in the "units" group
 ## within AGGRO_PULL_RADIUS of EITHER one, sharing that one's faction, is
-## pulled in too — same scan-and-distance idiom combat_ai.gd's
-## _find_nearest_hostile already uses for targeting, not a new detection
-## mechanism. No-op if combat is somehow already running by the time this
-## fires — the caller already checks `not in_combat` right before calling
-## this, but this doesn't trust that alone.
+## pulled in too — scanned via UnitQuery.living_units, the same shared
+## helper combat_ai.gd's nearest-hostile targeting uses, though the
+## radius/faction OR-logic below stays local: two different points
+## (attacker's and target's), each checked against a DIFFERENT unit's
+## faction, isn't a generic-enough shape to be worth a second shared
+## primitive for what's still this method's only caller. No-op if
+## combat is somehow already running by the time this fires — the
+## caller already checks `not in_combat` right before calling this, but
+## this doesn't trust that alone.
 func start_combat_from_hostile_act(attacker: Unit, target: Unit) -> void:
 	if in_combat:
 		return
 
 	var roster: Array[Unit] = [attacker, target]
-	for node in attacker.get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if not unit or not unit.is_alive() or unit in roster:
-			continue
+	for unit in UnitQuery.living_units(attacker.get_tree(), roster):
 		var joins_attacker: bool = unit.faction == attacker.faction and unit.distance_to(attacker) <= AGGRO_PULL_RADIUS
 		var joins_target: bool = unit.faction == target.faction and unit.distance_to(target) <= AGGRO_PULL_RADIUS
 		if joins_attacker or joins_target:

@@ -39,9 +39,8 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 		return {}
 
 	var active_count: int = 0
-	for node in attacker.get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if unit and unit.is_alive() and unit.is_player_controlled() and unit.summoned_by != null and unit.owned_demon != null:
+	for unit in UnitQuery.all_units(attacker.get_tree()):
+		if unit.is_alive() and unit.is_player_controlled() and unit.summoned_by != null and unit.owned_demon != null:
 			active_count += 1
 	if active_count >= max_active_summons:
 		SystemLog.print("%s can't field any more demons right now." % LogFormat.unit_name(attacker))

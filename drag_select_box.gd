@@ -88,10 +88,7 @@ func _update_box_hover_preview() -> void:
 	var rect := Rect2(_drag_start, Vector2.ZERO).expand(_drag_end)
 	var current: Array[Unit] = []
 
-	for node in get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if not unit:
-			continue
+	for unit in UnitQuery.all_units(get_tree()):
 		if not unit.is_player_controlled():
 			continue
 		if camera.is_position_behind(unit.global_position):

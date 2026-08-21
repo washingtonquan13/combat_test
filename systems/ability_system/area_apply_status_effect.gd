@@ -11,6 +11,9 @@ extends AbilityEffect
 ## AreaDamageEffect, AreaApplyStatusEffect(status=Burning)]) and they're
 ## structurally guaranteed to affect the exact same area — no separate
 ## radius fields that could drift out of sync.
+##
+## Same shared scan as AreaDamageEffect — see that file's header — via
+## UnitQuery.area_affected.
 
 @export var status: StatusEffect
 @export var affects_hostiles: bool = true
@@ -29,21 +32,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	var radius: float = targeting.radius
 	var affected: Array[Unit] = []
 
-	for node in attacker.get_tree().get_nodes_in_group("units"):
-		var unit := node as Unit
-		if not unit or not unit.is_alive():
-			continue
-
-		var edge_dist: float = center.distance_to(unit.global_position) - unit.radius
-		if edge_dist > radius:
-			continue
-
-		var is_hostile: bool = attacker.is_hostile_to(unit)
-		if is_hostile and not affects_hostiles:
-			continue
-		if not is_hostile and not affects_allies:
-			continue
-
+	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		unit.apply_status(status)
 		affected.append(unit)
 

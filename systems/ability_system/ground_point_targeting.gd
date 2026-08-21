@@ -12,7 +12,7 @@ extends AbilityTargeting
 ## wall), and that nothing else is already standing there.
 ##
 ## Known limitation: CombatAI's targeting is built entirely around
-## finding and approaching a hostile UNIT (_find_nearest_hostile
+## finding and approaching a hostile UNIT (UnitQuery.nearest_hostile
 ## returns a Unit, never a point) — an AI unit whose default_ability()
 ## uses this targeting type would never find a valid target and
 ## effectively never use it. Making the AI capable of choosing to jump
