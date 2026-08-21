@@ -14,7 +14,7 @@ static var heal_color: Color = Color(0.4, 1.0, 0.5)
 
 static func unit_name(unit: Unit) -> String:
 	var color: Color = player_color if unit.is_player_controlled() else enemy_color
-	return "[color=#%s]%s[/color]" % [color.to_html(false), unit.name]
+	return "[color=#%s]%s[/color]" % [color.to_html(false), unit.get_display_name()]
 
 
 static func faction_name(faction: StringName) -> String:

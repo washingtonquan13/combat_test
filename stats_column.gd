@@ -28,7 +28,7 @@ extends MarginContainer
 
 
 func refresh(unit: Unit) -> void:
-	_name_label.text = unit.name
+	_name_label.text = unit.get_display_name()
 
 	_hp_value.text = "%d / %d" % [unit.current_hp, unit.maximum_hp]
 	_hp_fill.anchor_right = _fraction(unit.current_hp, unit.maximum_hp)

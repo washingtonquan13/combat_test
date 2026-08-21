@@ -194,7 +194,7 @@ func _swap_equipment(unit: Unit) -> void:
 			slot.clear_display()
 
 		slot.unit = unit
-		var stored_item: Item = unit.get_equipped_item(slot.name)
+		var stored_item: Item = unit.get_equipped_item(slot.slot)
 		if stored_item:
 			stored_item.visible = true
 			slot.display_item(stored_item)

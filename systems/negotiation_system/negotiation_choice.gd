@@ -36,5 +36,5 @@ func resolve(actor: Unit, target: Unit) -> String:
 			NegotiationManager.end_negotiation(NegotiationManager.Outcome.FLEE)
 			return ""
 	if dialogue_line != "":
-		SystemLog.print(DialogueFormat.speaker_line(actor.name, dialogue_line))
+		SystemLog.print(DialogueFormat.speaker_line(actor.get_display_name(), dialogue_line))
 	return await _resolve_next_node_id(actor, target)

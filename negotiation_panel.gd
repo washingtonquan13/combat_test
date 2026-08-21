@@ -35,7 +35,7 @@ func _ready() -> void:
 
 func _on_negotiation_started(demon: Unit) -> void:
 	visible = true
-	_demon_label.text = "[b]%s[/b] is willing to talk." % demon.name
+	_demon_label.text = "[b]%s[/b] is willing to talk." % demon.get_display_name()
 	if tactical_ui:
 		tactical_ui.visible = false
 

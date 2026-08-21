@@ -222,7 +222,7 @@ func end_dialogue() -> void:
 func record_line(text: String, speaker_token: String = "") -> void:
 	if speaker_token != "":
 		var unit: Unit = participants.get(speaker_token)
-		var speaker_name: String = unit.name if unit else speaker_token.capitalize()
+		var speaker_name: String = unit.get_display_name() if unit else speaker_token.capitalize()
 		transcript.append(DialogueFormat.speaker_line(speaker_name, text))
 	else:
 		transcript.append("[color=#A0A0A0][i]%s[/i][/color]" % text)

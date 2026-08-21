@@ -7,6 +7,22 @@ extends MarginContainer
 ## Which kind of GearItem this slot accepts — see accepts_item().
 @export var slot_type: GearItem.SlotType = GearItem.SlotType.HELMET
 
+## This specific slot's stable identity, used as UnitEquipment's storage
+## key — deliberately a SEPARATE concept from slot_type above, which
+## only answers "what kind of item fits here" (any ring fits any ring
+## slot, so GearItem.SlotType.RING alone can't tell the two ring slots
+## apart; Slot below can, since it has one value per actual slot).
+## Authored per-instance in party_overview.tscn, one of these 16 values
+## per EquipSlot node — replaces keying storage off this node's own
+## scene-tree name, which broke silently on a rename (see
+## UnitEquipment's own header for why that mattered).
+enum Slot {
+	HELMET, AMULET, CLOAK, CHEST_ARMOR, UNDERSHIRT, BRACERS,
+	RING_1, RING_2, GLOVES, BELT, LEGS, BOOTS,
+	MELEE_MAIN_HAND, MELEE_OFF_HAND, RANGED_MAIN_HAND, RANGED_OFF_HAND,
+}
+@export var slot: Slot = Slot.HELMET
+
 ## Which unit this slot currently represents — assigned by
 ## party_overview.gd's open_for(), not per-instance in the .tscn (all 16
 ## slots are shared UI, re-pointed at whichever unit's sheet is open).
@@ -48,14 +64,14 @@ func equip(item: Item) -> void:
 		unequip()
 	display_item(item)
 	if unit:
-		unit.equip_item(name, item)
+		unit.equip_item(slot, item)
 
 
 ## Real unequip — counterpart to equip(), same "drag-and-drop only"
 ## scope. Reverts unit's stat modifiers before clearing the display.
 func unequip() -> void:
 	if unit and equipped_item:
-		unit.unequip_item(name)
+		unit.unequip_item(slot)
 	clear_display()
 
 

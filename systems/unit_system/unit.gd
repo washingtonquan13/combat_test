@@ -1,6 +1,19 @@
 class_name Unit
 extends CharacterBody3D
 
+@export_group("Identity")
+## The name shown to the player — combat log, character sheet, dialogue,
+## negotiation. Deliberately separate from this node's own scene-tree
+## .name: that's Godot's own structural identifier (what a $NodePath
+## resolves, what shows in the Scene dock), not a display string, and
+## conflating the two meant renaming a unit for clarity, or one day
+## localizing its name, had no way to happen without touching the scene
+## tree itself. Left empty by default rather than required, so existing
+## content keeps working unchanged — see get_display_name() below,
+## which is what every player-facing consumer should call instead of
+## reading .name (or this field) directly.
+@export var display_name: String = ""
+
 @export var strength: int = 10
 @export var dexterity: int = 10
 @export var intelligence: int = 10
@@ -755,6 +768,15 @@ func is_alive() -> bool:
 	return current_hp > 0
 
 
+## The name to actually show the player — display_name if one's been
+## authored, the scene node's own name otherwise. This fallback (not a
+## hard requirement) is what lets existing unit instances keep working
+## unchanged the moment this field existed, rather than needing every
+## placed unit edited in the same pass that added it.
+func get_display_name() -> String:
+	return display_name if display_name != "" else name
+
+
 ## String-keyed so skill_system's DefaultRule/AttributePrerequisite (and
 ## anything else that names an attribute generically off a .tres) can
 ## resolve one without needing a match/if-chain of their own — same role
@@ -836,15 +858,15 @@ func stat_modifier_sources(stat_name: String) -> Array[ActiveStatModifier]:
 
 ## Which Item (if any) this unit currently has equipped in the named
 ## EquipSlot — see UnitEquipment.
-func get_equipped_item(slot_key: String) -> Item:
+func get_equipped_item(slot_key: EquipSlot.Slot) -> Item:
 	return _equipment.get_item(slot_key)
 
 
-func equip_item(slot_key: String, item: Item) -> void:
+func equip_item(slot_key: EquipSlot.Slot, item: Item) -> void:
 	_equipment.equip(slot_key, item)
 
 
-func unequip_item(slot_key: String) -> Item:
+func unequip_item(slot_key: EquipSlot.Slot) -> Item:
 	return _equipment.unequip(slot_key)
 
 

@@ -71,7 +71,7 @@ func _on_line_shown(text: String, speaker_token: String) -> void:
 		_line_text.text = text
 		return
 	var unit: Unit = DialogueManager.participants.get(speaker_token)
-	var speaker_name: String = unit.name if unit else speaker_token.capitalize()
+	var speaker_name: String = unit.get_display_name() if unit else speaker_token.capitalize()
 	_speaker_label.visible = true
 	_speaker_label.text = DialogueFormat.speaker_name_tag(speaker_name)
 	_line_text.text = text

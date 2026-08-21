@@ -11,5 +11,11 @@ func is_available(_actor: Unit, _target) -> bool:
 
 
 func execute(_actor: Unit, target) -> void:
-	var label_text: String = target.name if target is Node else str(target)
+	var label_text: String
+	if target is Unit:
+		label_text = target.get_display_name()
+	elif target is Node:
+		label_text = target.name
+	else:
+		label_text = str(target)
 	SystemLog.print("Examined %s." % label_text)

@@ -74,7 +74,7 @@
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
-[ext_resource type="Resource" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
+[ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -407,6 +407,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 1)
 
 [node name="TieflingWizard" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -8)
+display_name = "Tiefling Wizard"
 dexterity = 18
 intelligence = 16
 alignment = -100
@@ -438,6 +439,7 @@ material_override = SubResource("ShaderMaterial_rqtf5")
 
 [node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)
+display_name = "Human Barbarian"
 strength = 16
 dexterity = 16
 health = 16
@@ -451,6 +453,7 @@ portrait_texture = ExtResource("5_efxa6")
 
 [node name="DwarfFighter" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, -8)
+display_name = "Dwarf Fighter"
 strength = 14
 dexterity = 16
 maximum_hp = 14
@@ -464,6 +467,7 @@ portrait_texture = ExtResource("6_dg77c")
 
 [node name="ElfRanger" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.5, -8)
+display_name = "Elf Ranger"
 dexterity = 18
 move = 27
 move_speed = 5.0
@@ -474,6 +478,7 @@ portrait_texture = ExtResource("7_ycdy4")
 
 [node name="Scared Townperson" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.5, -23.5)
+display_name = "Scared Townperson"
 dexterity = 18
 move = 27
 move_speed = 5.0
@@ -486,6 +491,7 @@ portrait_texture = ExtResource("7_ycdy4")
 
 [node name="GoblinRogue" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 3, 0.5, 7)
+display_name = "Goblin Rogue"
 dexterity = 14
 maximum_hp = 8
 current_hp = 8
@@ -499,6 +505,7 @@ portrait_texture = ExtResource("8_w48qg")
 
 [node name="Hobgoblin" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1, 0.5, 7)
+display_name = "Hobgoblin"
 strength = 16
 dexterity = 12
 health = 20

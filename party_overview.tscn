@@ -135,26 +135,31 @@ layout_mode = 2
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 1
+slot = 1
 
 [node name="Cloak" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 2
+slot = 2
 
 [node name="ChestArmor" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 3
+slot = 3
 
 [node name="Undershirt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 4
+slot = 4
 
 [node name="Bracers" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 5
+slot = 5
 
 [node name="Portrait" type="TextureRect" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
 custom_minimum_size = Vector2(180, 240)
@@ -171,31 +176,37 @@ theme_override_constants/separation = 8
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 6
+slot = 6
 
 [node name="Ring2" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 6
+slot = 7
 
 [node name="Gloves" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 7
+slot = 8
 
 [node name="Belt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 8
+slot = 9
 
 [node name="Legs" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 9
+slot = 10
 
 [node name="Boots" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 10
+slot = 11
 
 [node name="HSeparator2" type="HSeparator" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
 layout_mode = 2
@@ -223,11 +234,13 @@ theme_override_constants/separation = 10
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 11
+slot = 12
 
 [node name="MeleeOffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 12
+slot = 13
 
 [node name="RangedSet" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow"]
 layout_mode = 2
@@ -247,11 +260,13 @@ theme_override_constants/separation = 10
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 13
+slot = 14
 
 [node name="RangedOffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 14
+slot = 15
 
 [node name="InventoryColumn" type="MarginContainer" parent="ContentArea/InventoryPanel"]
 layout_mode = 1

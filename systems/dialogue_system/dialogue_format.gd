@@ -112,7 +112,7 @@ static func skill_result(skill_name: String, roll: Dictionary, assistant: Unit =
 		verdict = "Critically failed"
 	elif roll.success:
 		verdict = "Succeeded"
-	var assist_note: String = " (%s helped)" % assistant.name if assistant else ""
+	var assist_note: String = " (%s helped)" % assistant.get_display_name() if assistant else ""
 	return "[color=#%s]%s[/color] at a [color=#FFFFFF]%s[/color] check%s — rolled %d vs target %d" % [
 		color.to_html(false), verdict, skill_name, assist_note, roll.roll, roll.target
 	]

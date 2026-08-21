@@ -40,7 +40,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if CombatManager.in_combat:
 			var unit: Unit = CombatManager.current_unit
 			if unit and not CombatManager.delay_turn(unit):
-				print("Couldn't delay ", unit.name, "'s turn.")
+				print("Couldn't delay ", unit.get_display_name(), "'s turn.")
 
 
 func _start_test_combat() -> void:
@@ -78,36 +78,36 @@ func _connect_debug_signals(units: Array[Unit]) -> void:
 func _on_combat_started(turn_order: Array[Unit]) -> void:
 	print("--- Combat started ---")
 	for unit in turn_order:
-		print("  ", unit.name, " (", unit.faction, ") DX ", unit.get_stat("DX"), " HP ", unit.current_hp)
+		print("  ", unit.get_display_name(), " (", unit.faction, ") DX ", unit.get_stat("DX"), " HP ", unit.current_hp)
 
 
 func _on_turn_started(unit: Unit) -> void:
 	var status_note: String = " — CANNOT ACT (status effect)" if unit.status_prevents_turn() else ""
-	print("-> ", unit.name, "'s turn (move budget ", unit.move_remaining, ")", status_note)
+	print("-> ", unit.get_display_name(), "'s turn (move budget ", unit.move_remaining, ")", status_note)
 	# Auto-select the acting unit so a right-click moves it and a left-click
 	# on an enemy attacks it, without manually clicking it first each turn.
 	SelectionManager.select(unit)
 
 
 func _on_unit_ability_used(attacker: Unit, target, result: Dictionary) -> void:
-	var target_desc: String = target.name if target is Unit else str(target)
+	var target_desc: String = target.get_display_name() if target is Unit else str(target)
 
 	if result.already_acted:
-		print("   ", attacker.name, " has already acted this turn.")
+		print("   ", attacker.get_display_name(), " has already acted this turn.")
 	elif not result.in_range:
-		print("   ", attacker.name, " is out of range of ", target_desc, " with ", result.ability.ability_name)
+		print("   ", attacker.get_display_name(), " is out of range of ", target_desc, " with ", result.ability.ability_name)
 	elif result.ability.requires_to_hit and not result.to_hit.success:
-		print("   ", attacker.name, " misses ", target_desc, " with ", result.ability.ability_name,
+		print("   ", attacker.get_display_name(), " misses ", target_desc, " with ", result.ability.ability_name,
 				" (rolled ", result.to_hit.roll, " vs ", result.to_hit.target, ")")
 	elif target is Unit:
-		print("   ", attacker.name, " hits ", target_desc, " with ", result.ability.ability_name,
+		print("   ", attacker.get_display_name(), " hits ", target_desc, " with ", result.ability.ability_name,
 				" for ", result.damage, " damage (", target.current_hp, " HP left)")
 	else:
-		print("   ", attacker.name, " uses ", result.ability.ability_name, " at ", target_desc)
+		print("   ", attacker.get_display_name(), " uses ", result.ability.ability_name, " at ", target_desc)
 
 
 func _on_unit_died(unit: Unit) -> void:
-	print("   ", unit.name, " has died.")
+	print("   ", unit.get_display_name(), " has died.")
 
 
 ## Connected unconditionally at scene start, NOT through

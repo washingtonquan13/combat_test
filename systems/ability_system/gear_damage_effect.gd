@@ -39,8 +39,8 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 ## neither slot holds an actual weapon (empty, or gear with no
 ## weapon_data — a shield, say).
 func _find_weapon(attacker: Unit) -> GearItem:
-	var main_key: String = "MeleeMainHand" if category == WeaponCategory.MELEE else "RangedMainHand"
-	var off_key: String = "MeleeOffHand" if category == WeaponCategory.MELEE else "RangedOffHand"
+	var main_key: EquipSlot.Slot = EquipSlot.Slot.MELEE_MAIN_HAND if category == WeaponCategory.MELEE else EquipSlot.Slot.RANGED_MAIN_HAND
+	var off_key: EquipSlot.Slot = EquipSlot.Slot.MELEE_OFF_HAND if category == WeaponCategory.MELEE else EquipSlot.Slot.RANGED_OFF_HAND
 
 	var main_item: Item = attacker.get_equipped_item(main_key)
 	if main_item and main_item.gear_data and main_item.gear_data.weapon_data:
