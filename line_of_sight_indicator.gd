@@ -68,10 +68,6 @@ func _process(_delta: float) -> void:
 	_line_mesh.visible = true
 
 
-func _get_active_unit() -> Unit:
-	return PlayerInteractionState.get_active_unit()
-
-
 ## Excludes seeking abilities (see Ability.has_pathed_projectile) even
 ## though they're RangedEnemyTargeting too — seeking_indicator.gd shows
 ## the real bent NavigationGrid route for those instead of this straight
@@ -82,18 +78,6 @@ func _get_armed_ranged_ability() -> Ability:
 	if ability and ability.has_pathed_projectile():
 		return null
 	return ability
-
-
-## Filters IndicatorBase._get_hovered_unit() down to "alive AND hostile
-## to unit" — this indicator only cares about valid attack targets, not
-## just whatever's under the cursor.
-func _get_hovered_hostile(unit: Unit) -> Unit:
-	var hovered := _get_hovered_unit()
-	if not hovered or not hovered.is_alive():
-		return null
-	if not unit.is_hostile_to(hovered):
-		return null
-	return hovered
 
 
 ## Reads range/LoS off ability.targeting directly (cast to

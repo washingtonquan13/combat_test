@@ -78,22 +78,6 @@ func _process(_delta: float) -> void:
 	_line_mesh.visible = true
 
 
-func _get_active_unit() -> Unit:
-	return PlayerInteractionState.get_active_unit()
-
-
-## Filters IndicatorBase._get_hovered_unit() down to "alive AND hostile
-## to unit" — same as line_of_sight_indicator.gd's identically-named
-## method, this indicator only cares about valid attack targets.
-func _get_hovered_hostile(unit: Unit) -> Unit:
-	var hovered := _get_hovered_unit()
-	if not hovered or not hovered.is_alive():
-		return null
-	if not unit.is_hostile_to(hovered):
-		return null
-	return hovered
-
-
 func _update_path_preview(unit: Unit, ability: Ability, step: PathedProjectileStep, aim_point: Vector3, hovered_unit: Unit) -> void:
 	var launch_point: Vector3 = unit.global_position + Vector3(0, step.launch_height_offset, 0)
 

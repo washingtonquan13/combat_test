@@ -44,10 +44,6 @@ func _process(_delta: float) -> void:
 	_line_mesh.visible = true
 
 
-func _get_active_unit() -> Unit:
-	return PlayerInteractionState.get_active_unit()
-
-
 ## The armed ability's own MoveCasterEffect instance (not a new one) —
 ## calling ITS arc_point()/clamp_to_budget() is what guarantees the
 ## preview matches whatever jump_duration/arc_height that SPECIFIC

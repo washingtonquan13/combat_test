@@ -1,3 +1,4 @@
+class_name AreaIndicator
 extends IndicatorBase
 ## AoE ability preview, BG3-style: a line from caster to the hovered
 ## point (colored by range/line-of-sight, same states as
@@ -73,10 +74,6 @@ func _hide_all() -> void:
 		_line_mesh.visible = false
 	if _ring_mesh:
 		_ring_mesh.visible = false
-
-
-func _get_active_unit() -> Unit:
-	return PlayerInteractionState.get_active_unit()
 
 
 ## Excludes AerialAreaTargeting even though it IS an AreaTargeting (see

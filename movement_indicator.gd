@@ -157,10 +157,10 @@ func _hide_all() -> void:
 ## Height comes from casting the camera ray through the current mouse
 ## position and intersecting it against a vertical "wall" of infinite
 ## height standing at that anchor XZ, facing the camera — see
-## _sample_altitude_from_mouse for why that's the right shape of plane to
-## use. Releasing the modifier ends the drag; whatever altitude it landed
-## on stays committed (same as R/F leaving flight_target_altitude wherever
-## it was last nudged to).
+## IndicatorBase._sample_height_from_mouse for why that's the right shape
+## of plane to use. Releasing the modifier ends the drag; whatever
+## altitude it landed on stays committed (same as R/F leaving
+## flight_target_altitude wherever it was last nudged to).
 func _handle_altitude_input(active_unit: Unit) -> void:
 	var flying_units: Array[Unit] = _flying_units_for_altitude_control(active_unit)
 	if flying_units.is_empty() or not Input.is_action_pressed("fly_altitude_modifier"):
@@ -173,7 +173,7 @@ func _handle_altitude_input(active_unit: Unit) -> void:
 		_altitude_drag_anchor_xz = Vector2(anchor.x, anchor.z)
 		_altitude_dragging = true
 
-	var sampled_altitude = _sample_altitude_from_mouse(_altitude_drag_anchor_xz)
+	var sampled_altitude = _sample_height_from_mouse(_altitude_drag_anchor_xz)
 	if sampled_altitude != null:
 		for unit in flying_units:
 			unit.set_flight_altitude(sampled_altitude)
@@ -203,42 +203,6 @@ func _flying_units_for_altitude_control(active_unit: Unit) -> Array[Unit]:
 		if unit.is_flying():
 			flying.append(unit)
 	return flying
-
-
-## Reads the altitude implied by the current mouse position: casts the
-## camera ray through the mouse and intersects it with a vertical plane
-## anchored at anchor_xz. The plane's normal is the camera's own back
-## vector flattened to purely horizontal (Y zeroed before normalizing) —
-## flattening it is what keeps this a true vertical wall regardless of the
-## CRPGCamera's pitch, so only how high or low the ray crosses that wall
-## matters. Without flattening, a pitched-down camera would tilt the
-## "wall" too, coupling horizontal mouse movement into the altitude result
-## in a way that would feel wrong to drag. Returns null if there's no
-## active camera or the ray can't hit the plane at all (near-parallel to
-## it — not reachable in practice given the camera's pitch is clamped well
-## away from looking straight along the horizon).
-func _sample_altitude_from_mouse(anchor_xz: Vector2):
-	var camera: Camera3D = get_viewport().get_camera_3d()
-	if not camera:
-		return null
-
-	var back: Vector3 = camera.global_transform.basis.z
-	var normal := Vector3(back.x, 0.0, back.z)
-	if normal.length() < 0.001:
-		return null
-	normal = normal.normalized()
-
-	var anchor_point := Vector3(anchor_xz.x, 0.0, anchor_xz.y)
-	var plane := Plane(normal, anchor_point)
-
-	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
-	var from: Vector3 = camera.project_ray_origin(mouse_pos)
-	var dir: Vector3 = camera.project_ray_normal(mouse_pos)
-
-	var hit = plane.intersects_ray(from, dir)
-	if hit == null:
-		return null
-	return hit.y
 
 
 func _update_path_preview(unit: Unit) -> void:
