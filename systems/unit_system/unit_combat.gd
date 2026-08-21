@@ -266,13 +266,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		return result
 
 	result["in_range"] = ability.is_in_range(_owner, target)
-	# The once-per-turn attack-action economy only means something WITH a
-	# turn — gated to combat the same way move_caster_effect.gd already
-	# gates Jump's own move-budget spend/check, so has_attacked can't act
-	# as a permanent "attacked once, ever" limiter out of combat (nothing
-	# outside a real combat's turn-advance ever resets it — see
-	# CombatManager._advance_turn/Unit.reset_turn_actions).
-	result["already_acted"] = CombatManager.in_combat and ability.uses_attack_action and _owner.has_attacked
+	result["already_acted"] = ability.attack_action_spent_by(_owner)
 
 	if result.already_acted:
 		return result

@@ -83,18 +83,14 @@ func set_armed(value: bool) -> void:
 ## for every slot after any ability-affecting signal, and by set_ability
 ## for the one slot that just changed which ability it holds (a fresh
 ## Custom assignment can't wait for the next unrelated signal to look
-## right). CombatManager.in_combat gates has_attacked here specifically
-## because has_attacked is only ever reset by CombatManager's own
-## per-turn flow (see unit_action_state.gd/combat_manager.gd) — without
-## this gate, a unit that last attacked during combat would show
-## permanently-disabled buttons out of combat.
+## right).
 func refresh_state() -> void:
 	if not ability or not unit:
 		set_armed(false)
 		disabled = false
 		return
 	set_armed(ability == AbilityManager.armed_ability)
-	disabled = (CombatManager.in_combat and ability.uses_attack_action and unit.has_attacked) \
+	disabled = ability.attack_action_spent_by(unit) \
 			or (ability.targeting and not ability.targeting.has_any_valid_target(unit))
 
 

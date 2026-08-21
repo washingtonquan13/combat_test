@@ -117,7 +117,7 @@ func _on_watched_unit_ability_used(attacker: Unit, _target, _result: Dictionary)
 ## turn-economy side: the attack action, if this ability needs one, and
 ## remaining move budget, if it's a movement-budget ability like Jump.
 func _is_still_usable(unit: Unit, ability: Ability) -> bool:
-	if ability.uses_attack_action and unit.has_attacked:
+	if ability.attack_action_spent_by(unit):
 		return false
 	if ability.has_move_caster_effect() and not unit.has_move_remaining():
 		return false
