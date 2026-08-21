@@ -6,12 +6,13 @@ extends RefCounted
 ## real level geometry, for both grounded and flying movement over one
 ## shared grid, so move_to() has nothing left to decide about avoidance —
 ## it just walks the fixed result. This file's header history: an earlier
-## version used a custom potential-field steering pass (path_avoidance.gd,
-## still present, intentionally unused, kept as a revert path) to fake
-## unit-avoidance on top of a navmesh that didn't know about units at all;
-## a version after that tried Godot's live NavigationAgent3D RVO avoidance
-## instead, also reverted; the navmesh itself was replaced by NavigationGrid
-## after repeated bake/sync bugs (see that file's own header) — this is
+## version used a custom potential-field steering pass (path_avoidance.gd
+## — that planner has since been deleted from that file entirely, having
+## reached zero real callers; see its own header) to fake unit-avoidance
+## on top of a navmesh that didn't know about units at all; a version
+## after that tried Godot's live NavigationAgent3D RVO avoidance instead,
+## also reverted; the navmesh itself was replaced by NavigationGrid after
+## repeated bake/sync bugs (see that file's own header) — this is
 ## turn-based with only ONE unit ever moving at a time, so there's no
 ## reciprocal multi-agent negotiation to do, just one mover against
 ## momentarily-static obstacles.

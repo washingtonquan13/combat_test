@@ -125,7 +125,7 @@ func _on_body_entered(body: Node3D, active: ActiveSurface) -> void:
 	body.apply_status(active.surface.status_effect)
 
 
-## Read by PathAvoidance.simulate_path (via a Callable passed in by
+## Read by RoutePlanner.plan (via a Callable passed in by
 ## UnitMovement.move_to/movement_indicator.gd — see Surface.
 ## movement_cost_multiplier's doc comment) while planning a route. point
 ## is a bare sample point along the simulated path, not a unit — no

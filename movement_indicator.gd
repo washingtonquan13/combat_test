@@ -387,7 +387,7 @@ func _update_ladder_preview(unit: Unit, route: Dictionary, hover_point: Vector3)
 
 ## Rebuilds the path line each frame, split into an in-range sub-path
 ## (cumulative COST <= budget) and an out-of-range sub-path (the rest) —
-## cost, not raw distance, read straight from simulate_path's own
+## cost, not raw distance, read straight from RoutePlanner.plan's own
 ## cumulative_cost array rather than re-summing segment lengths here.
 ## That matters once difficult terrain is in play: re-deriving cost from
 ## geometry alone would silently ignore any multiplier, putting the

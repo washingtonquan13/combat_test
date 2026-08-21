@@ -39,9 +39,10 @@ func _on_turn_started(unit: Unit) -> void:
 
 ## Attacks if in reach, otherwise moves closer and tries again once that
 ## move finishes (see _on_movement_finished). Under the current
-## deterministic movement planner (Unit.move_to / PathAvoidance.
-## simulate_path), a single move_to() call already computes the exact
-## reachable route up front — if the standoff point fits within
+## deterministic movement planner (Unit.move_to / NavigationGrid.
+## find_path + RoutePlanner.plan), a single move_to() call already
+## computes the exact reachable route up front — if the standoff point
+## fits within
 ## move_remaining, one call gets there precisely; if it doesn't, the plan
 ## is truncated at exactly the budget, and a second call this same turn
 ## would just find has_move_remaining() false and get rejected (budget

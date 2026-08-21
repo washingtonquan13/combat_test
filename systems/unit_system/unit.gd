@@ -60,11 +60,11 @@ extends CharacterBody3D
 ## shape.
 @export var radius: float = 0.25
 ## Extra buffer added on top of radius for planning purposes only — the
-## physical collision shape stays exactly radius, this just tells the
-## planning simulation (see PathAvoidance.simulate_path) to route with a
-## bit more separation than the bare minimum. Zero slack means any small
-## imprecision eats directly into actual contact instead of a buffer
-## absorbing it.
+## physical collision shape stays exactly radius, this just tells
+## NavigationGrid's own clearance queries (find_path/nearest_valid_point)
+## to route with a bit more separation than the bare minimum. Zero slack
+## means any small imprecision eats directly into actual contact instead
+## of a buffer absorbing it.
 @export var avoidance_margin: float = 0.15
 ## This unit's body height for navigation purposes — NavigationGrid checks
 ## clearance all the way from this unit's reference cell up through

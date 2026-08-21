@@ -48,12 +48,11 @@ extends Resource
 ## through it costs 2 meters of move_remaining, the standard "difficult
 ## terrain" rule most tactics games use. 1.0 (the default) means no
 ## effect at all. Read via SurfaceManager.movement_cost_multiplier_at,
-## which PathAvoidance.simulate_path samples DURING route planning
-## itself (see that function's cost_sampler param) — baked into the plan
-## up front rather than applied separately during the real walk, which
-## is what guarantees the movement preview and the actual move can never
-## disagree about it (see path_avoidance.gd's own header for why that
-## guarantee matters generally).
+## which RoutePlanner.plan samples DURING route planning itself (see
+## that function's cost_sampler param) — baked into the plan up front
+## rather than applied separately during the real walk, which is what
+## guarantees the movement preview and the actual move can never
+## disagree about it.
 @export var movement_cost_multiplier: float = 1.0
 
 @export_group("Visual")
