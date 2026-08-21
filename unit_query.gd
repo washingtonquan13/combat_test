@@ -109,3 +109,13 @@ static func dependents_of(tree: SceneTree, summoner: Unit) -> Array[Unit]:
 		if unit.summoned_by == summoner:
 			dependents.append(unit)
 	return dependents
+
+
+## Every living unit NOT hostile to `unit` (allies, by this project's
+## faction rules — see Unit.is_hostile_to), excluding unit itself.
+static func living_allies(tree: SceneTree, unit: Unit) -> Array[Unit]:
+	var allies: Array[Unit] = []
+	for other in living_units(tree):
+		if other != unit and not unit.is_hostile_to(other):
+			allies.append(other)
+	return allies

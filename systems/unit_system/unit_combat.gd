@@ -213,7 +213,7 @@ func resolve_click_ability(acting_unit: Unit) -> Ability:
 ## try something else or end the turn.
 ##
 ## Returns a result dict for logging/UI:
-## { in_range, already_acted, busy, hit, damage, to_hit, effects, ability }
+## { in_range, invalid_target, already_acted, busy, hit, damage, to_hit, effects, ability }
 ## damage is the SUM of every effect's own "damage" key, for convenience
 ## — usually zero or one DamageEffect, but this doesn't assume that; see
 ## effects for the individual per-effect results if more detail is
@@ -237,6 +237,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"target": target,
 		"ability": ability,
 		"busy": not _owner.can_act(),
+		"invalid_target": false,
 		"in_range": false,
 		"already_acted": false,
 		"hit": false,
@@ -245,6 +246,23 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	}
 
 	if result.busy:
+		return result
+
+	# A structural mismatch, independent of range or turn economy — an
+	# ally-only ability (heal.tres/cure.tres/bless.tres, anything with
+	# AbilityTargeting.requires_ally set) aimed at a hostile target can
+	# never be legal, so it's rejected here rather than in is_in_range's
+	# geometry check. This is what actually stops a misconfigured
+	# AiBehavior (see systems/ai_system) — or any other future caller —
+	# from healing an enemy: previously requires_ally_target() was only
+	# ever checked in resolve_click_ability(), the PLAYER's click-routing
+	# path, never here in the resolution path CombatAI also calls.
+	# Deliberately one-directional: an ordinary (non-ally) ability aimed
+	# at an ally is NOT rejected — that targeting is hostility-agnostic
+	# by design already (see AbilityTargeting.requires_ally's own doc
+	# comment; friendly-fire-capable AoE already relies on this).
+	if ability.targeting and ability.targeting.requires_ally_target() and target is Unit and _owner.is_hostile_to(target):
+		result["invalid_target"] = true
 		return result
 
 	result["in_range"] = ability.is_in_range(_owner, target)

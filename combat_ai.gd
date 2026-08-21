@@ -3,13 +3,15 @@ extends Node
 ## Project > Project Settings > AutoLoad, alongside CombatManager and
 ## SelectionManager.
 ##
-## Deliberately dumb baseline behavior: on any AI-controlled unit's turn,
-## find the nearest living hostile unit, close the distance if not already
-## in reach, attack once if possible, then end the turn. No targeting
-## priorities beyond "closest," no positioning smarts, no multi-target
-## consideration. Meant to make the combat loop testable end-to-end —
-## replace UnitQuery.nearest_hostile / _take_turn with something smarter
-## later without touching CombatManager or Unit.
+## On any AI-controlled unit's turn, decide what to do (see
+## _decide_action — a unit's own ai_behaviors, see AiBehavior, tried in
+## order; a unit with none authored falls back to the original baseline
+## of nearest living hostile + default_ability()), close the distance if
+## the result isn't already in reach, act once possible, then end the
+## turn. Still no positioning smarts beyond "stand at the chosen
+## ability's own range" (see _standoff_goal) and no multi-action turns —
+## a behavior picks ONE (ability, target) pair per turn, not a full
+## plan.
 
 ## Factions this AI controls. Anything NOT in this set is left alone
 ## (assumed player-controlled, or otherwise externally driven).
@@ -52,8 +54,10 @@ func _on_turn_started(unit: Unit) -> void:
 ## move: stuck_timeout firing on genuine physical obstruction, not just
 ## running out of distance.
 func _attempt_action(unit: Unit) -> void:
-	var target: Unit = UnitQuery.nearest_hostile(get_tree(), unit)
-	if not target:
+	var decision: Dictionary = _decide_action(unit)
+	var ability: Ability = decision.get("ability")
+	var target: Unit = decision.get("target")
+	if not ability or not target:
 		CombatManager.end_turn()
 		return
 
@@ -63,16 +67,13 @@ func _attempt_action(unit: Unit) -> void:
 	# now (the await below) — safe, since both call sites already invoke
 	# this fire-and-forget, same as Unit.use_ability() elsewhere in this
 	# file. Never lands again on its own; landing isn't something this
-	# baseline AI does at all yet.
+	# baseline AI does at all yet. Applies just as well to a healer
+	# chasing a flying ally as to a melee unit chasing a flying hostile —
+	# target here isn't assumed hostile.
 	if target.is_flying() and not unit.is_flying():
 		var flight_ability: Ability = _find_flight_ability(unit)
 		if flight_ability:
 			await unit.use_ability(flight_ability, unit)
-
-	var ability: Ability = unit.default_ability()
-	if not ability:
-		CombatManager.end_turn()
-		return
 
 	if ability.is_in_range(unit, target):
 		unit.use_ability(ability, target)
@@ -101,6 +102,25 @@ func _attempt_action(unit: Unit) -> void:
 		if unit.movement_finished.is_connected(_on_movement_finished):
 			unit.movement_finished.disconnect(_on_movement_finished)
 		CombatManager.end_turn()
+
+
+## Tries unit's own ai_behaviors in order (see AiBehavior); falls back
+## to the original hardcoded nearest-hostile/default_ability baseline
+## when the array is empty or every entry declines, so existing content
+## with nothing authored keeps behaving exactly as before.
+func _decide_action(unit: Unit) -> Dictionary:
+	for behavior in unit.ai_behaviors:
+		var decision: Dictionary = behavior.resolve(unit)
+		if not decision.is_empty():
+			return decision
+
+	var target: Unit = UnitQuery.nearest_hostile(get_tree(), unit)
+	if not target:
+		return {}
+	var ability: Ability = unit.default_ability()
+	if not ability:
+		return {}
+	return {"ability": ability, "target": target}
 
 
 func _on_movement_finished(unit: Unit) -> void:

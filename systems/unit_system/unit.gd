@@ -148,6 +148,11 @@ extends CharacterBody3D
 ## AbilityManager — that's what makes click-to-attack keep working before
 ## a hotbar exists to actually choose between multiple abilities.
 @export var abilities: Array[Ability] = []
+## Composable AI decision rules, tried in order — see AiBehavior. Empty
+## (every unit today) falls back to CombatAI's original hardcoded
+## nearest-hostile/default_ability baseline, so no existing content
+## needs migrating.
+@export var ai_behaviors: Array[AiBehavior] = []
 ## Player-assignable "Custom" hotbar section — fixed-size, null = empty
 ## slot. A slot holds a REFERENCE to one of this unit's OTHER abilities
 ## (from either Ability.Category), never a copy and never removed from
