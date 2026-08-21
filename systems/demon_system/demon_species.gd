@@ -34,10 +34,21 @@ extends Resource
 @export var unit_scene: PackedScene
 @export var max_hp: int = 10
 @export var max_fp: int = 0
-## This species' negotiation temperament — null means it can never
-## reach a real outcome through negotiation (NegotiationManager treats
-## a missing personality as simply uninterested, see that file). Left
-## optional/nullable rather than required so a species that's only ever
-## obtained through fusion (never encountered wild) doesn't need one
-## authored at all.
-@export var personality: DemonPersonality = null
+## Candidate entry points into this species' negotiation conversation —
+## exact mirror of Unit.dialogue_options/resolve_dialogue_root(), same
+## reasoning: a species that's only ever obtained through fusion (never
+## encountered wild) can leave this empty, and one that IS negotiable
+## can vary its opening depending on state (first encounter vs. already
+## fought once, say) without needing a different mechanism than NPCs
+## already use for the same problem.
+@export var negotiation_options: Array[DialogueRootOption] = []
+
+
+## First negotiation_options entry whose prerequisite is satisfied (or
+## has none), null if nothing currently applies — see
+## Unit.resolve_dialogue_root(), the pattern this mirrors exactly.
+func resolve_negotiation_root(actor: Unit) -> DialogueNode:
+	for option in negotiation_options:
+		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
+			return option.root
+	return null

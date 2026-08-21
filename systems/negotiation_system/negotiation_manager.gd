@@ -2,62 +2,53 @@ extends Node
 ## Autoload singleton. Register as "NegotiationManager" under
 ## Project > Project Settings > AutoLoad.
 ##
-## Orchestrates one negotiation at a time — a lighter, COMBAT-ONLY
-## sibling to DialogueManager, not built on top of it: SMT-style
-## negotiation is a fixed response list plus personality-weighted
-## outcome rolling, not a branching node graph, and this project's own
-## design pass explicitly scoped it as "a different, lighter interaction
-## flow," not a reskin of the full conversation system. Deliberately
-## dumb about PRESENTATION, same split as DialogueManager itself —
-## negotiation_panel.gd just listens to the signals below and reacts;
-## this file never touches a Control.
+## Orchestrates one negotiation at a time — a combat-capable sibling of
+## DialogueManager, reusing DialogueNode/DialogueChoice as its content
+## model (see NegotiationChoice for why DialogueChoice itself needed a
+## sibling override rather than literal reuse) but indexing its own
+## separate content folder — negotiation trees are never mixed into the
+## real dialogue system's id-namespace. DialogueManager itself can't be
+## reused directly as the orchestrator either: it explicitly refuses to
+## start during combat (see its own start_dialogue), and negotiation is
+## explicitly combat-ONLY by design.
 ##
-## Resolution: every response you pick shifts a running favor score
-## (tone match), then rolls the demon's personality weights (adjusted by
-## that favor) against each other to see whether THIS round ends things
-## — nothing is fully certain, matching real SMT negotiation's own
-## any-exchange-can-end-it feel. A round that rolls toward FLEE/ATTACK
-## gives the player one last chance to sweeten the deal with a real
-## sacrifice (see make_offer) before it locks in.
+## Deliberately dumb about PRESENTATION, same split as DialogueManager
+## itself — negotiation_panel.gd just listens to the signals below and
+## reacts; this file never touches a Control.
 
 signal negotiation_started(demon: Unit)
-signal responses_shown(responses: Array[NegotiationResponse])
-signal offer_requested()
+signal line_shown(text: String)
+signal choices_shown(choices: Array[DialogueChoice])
 signal negotiation_ended(outcome: Outcome)
 
-## CONTINUE never reaches negotiation_ended — it only ever lives inside
-## _roll_outcome()/_advance_round(), meaning "keep talking, no resolution
-## yet." Kept in the same enum as the real outcomes (rather than a
-## separate internal-only enum) so _roll_outcome()'s weighted-pick table
-## and end_negotiation()'s match can both key off ONE set of values that
-## can never drift out of sync with each other.
+## CONTINUE never reaches negotiation_ended — end_negotiation() refuses
+## to be called with it. It only exists as NegotiationOutcomeChoice's
+## own default value (Godot's own default for an unset export is
+## whichever enum entry is index 0) so an author who forgets to set
+## outcome gets flagged by _validate_node_references() below, rather
+## than a silent wrong ending with no other sign anything was missed.
 enum Outcome { CONTINUE, RECRUIT, FLEE, ATTACK, HEAL_PLAYER }
 
-## ITEM/MONEY exist as real cases so content and UI can reference them
-## by name, but make_offer() below only actually implements HP/FP —
-## this project has no currency system, and an item offer needs a real
-## picker (matching StashPanel's reparent-into-a-slot idiom); neither is
-## built here. See this project's own demon-system plan for the same
-## explicit descope.
-enum OfferType { HP, FP, ITEM, MONEY }
-
-const RESPONSES_DIR: String = "res://data/negotiation/responses/"
+const CONVERSATIONS_DIR: String = "res://data/negotiation/conversations"
 
 var current_demon: Unit = null
 var current_actor: Unit = null
-var current_favor: int = 0
-var current_round: int = 0
+var current_node: DialogueNode = null
 
-var _responses: Array[NegotiationResponse] = []
-## Response -> true once chosen this negotiation — mirrors
-## DialogueManager.used_choices exactly, same reason: a non-repeatable
-## response should stop being offered after its first use.
-var _used_responses: Dictionary = {}
-## The FLEE/ATTACK result a bad roll landed on, held while offer_requested
-## is out for the player's decision — decline_offer() locks this in
-## as-is; make_offer() re-rolls instead of using it, but a fresh bad
-## roll overwrites it the same way.
-var _pending_outcome: Outcome = Outcome.CONTINUE
+## "node_id:index" -> true — exact mirror of DialogueManager.used_choices.
+var used_choices: Dictionary = {}
+## The exact filtered list _show_node() last emitted via choices_shown —
+## choose() indexes into THIS, not current_node.choices. See choose()'s
+## own doc comment for why: a real, already-fixed bug in DialogueManager
+## whose FIX this copies, not just its shape.
+var _visible_choices: Array[DialogueChoice] = []
+
+var _id_to_path: Dictionary = {}  # String id -> String res:// path
+var _indexed: bool = false
+
+
+func _ready() -> void:
+	_ensure_indexed()
 
 
 func is_active() -> bool:
@@ -75,66 +66,50 @@ func start_negotiation(actor: Unit, demon: Unit) -> void:
 		return
 	if not demon.negotiable or not demon.is_alive() or not demon.negotiation_species:
 		return
+	var root: DialogueNode = demon.negotiation_species.resolve_negotiation_root(actor)
+	if not root:
+		return
 
 	current_actor = actor
 	current_demon = demon
-	current_favor = 0
-	current_round = 0
-	_pending_outcome = Outcome.CONTINUE
-	_used_responses.clear()
-	if _responses.is_empty():
-		_load_responses()
+	used_choices.clear()
 
 	negotiation_started.emit(demon)
-	responses_shown.emit(_visible_responses())
+	_show_node(root)
 
 
-## Async since Unit.use_ability() (see end_negotiation's ATTACK branch)
-## is a coroutine — matches how every other fire-and-forget caller of
-## use_ability elsewhere in this project already handles that, never
-## awaiting its result.
-func choose_response(response: NegotiationResponse) -> void:
+## index is a position in the FILTERED list negotiation_panel.gd
+## actually rendered — find() recovers the choice's stable position in
+## the full node.choices array, which is what used_choices' key format
+## depends on. This is NOT optional polish: DialogueManager had a real,
+## confirmed bug (see that file's own header) where indexing the raw
+## click position straight into node.choices broke the instant a node
+## was revisited with an earlier choice already hidden, silently firing
+## the wrong one instead. Nothing here prevents an authored
+## next_node_id from looping back to an earlier node, so this is
+## defended against from the start rather than discovered the hard way
+## a second time.
+func choose(index: int) -> void:
+	if not is_active() or not current_node or index < 0 or index >= _visible_choices.size():
+		return
+
+	var choice: DialogueChoice = _visible_choices[index]
+	var full_index: int = current_node.choices.find(choice)
+	used_choices["%s:%d" % [current_node.id, full_index]] = true
+
+	var next_id: String = await choice.resolve(current_actor, current_demon)
 	if not is_active():
+		# A NegotiationOutcomeChoice (or a lethal SacrificeHpEffect) may
+		# have already concluded things from inside resolve() itself —
+		# same "reach into the orchestrator from within a choice's own
+		# resolution" pattern SkillCheckChoice already uses on
+		# DialogueManager.
 		return
-	_used_responses[response] = true
-	var personality: DemonPersonality = _current_personality()
-	if personality:
-		current_favor += personality.tone_favor(response.tone)
-	_advance_round()
-
-
-## HP sacrifice goes through the REAL take_damage() path — genuine
-## stakes, not a cosmetic number, per this feature's own design (see
-## demon_negotiation_fusion_system.md). Self-limiting on its own: an
-## actor who keeps offering HP can actually die from it, which is why
-## this checks is_alive() immediately after and bails the negotiation
-## out safely rather than letting a dead actor keep "negotiating."
-func make_offer(offer_type: OfferType, amount: int) -> void:
-	if not is_active() or amount <= 0:
-		return
-	match offer_type:
-		OfferType.HP:
-			current_actor.take_damage(amount)
-			if not current_actor.is_alive():
-				end_negotiation(Outcome.FLEE)
-				return
-			current_favor += amount
-		OfferType.FP:
-			current_actor.current_fp = maxi(current_actor.current_fp - amount, 0)
-			current_favor += amount
-		OfferType.ITEM, OfferType.MONEY:
-			return
-	_advance_round()
-
-
-func decline_offer() -> void:
-	if not is_active():
-		return
-	end_negotiation(_pending_outcome)
+	_load_node_by_id(next_id)
 
 
 ## The one place every negotiation actually concludes — never called
-## with Outcome.CONTINUE (see this file's own Outcome doc comment).
+## with Outcome.CONTINUE (see that enum's own doc comment).
 ## RECRUIT/HEAL_PLAYER/FLEE all remove the negotiated Unit from combat
 ## via expire() (same cleanup DespawnOnExpireBehavior's timed-summon
 ## expiry already uses) — ATTACK is the one outcome that leaves it
@@ -169,79 +144,136 @@ func end_negotiation(outcome: Outcome) -> void:
 
 	current_demon = null
 	current_actor = null
-	_pending_outcome = Outcome.CONTINUE
+	current_node = null
+	_visible_choices = []
 	negotiation_ended.emit(outcome)
 
 
-func _advance_round() -> void:
-	current_round += 1
-	var result: Outcome = _roll_outcome()
-	if result == Outcome.CONTINUE:
-		responses_shown.emit(_visible_responses())
-		return
-	if result == Outcome.FLEE or result == Outcome.ATTACK:
-		_pending_outcome = result
-		offer_requested.emit()
-		return
-	end_negotiation(result)
+## Filters node.choices by used_choices/is_repeatable and by
+## prerequisites — the SAME two conditions DialogueManager._show_node
+## already applies, evaluated against current_actor (the negotiating
+## player unit), matching how DialogueManager always evaluates a
+## choice's prerequisites against its own "player" participant rather
+## than the NPC/demon being spoken to.
+##
+## An empty filtered result is ALWAYS an authoring gap here, unlike
+## regular dialogue (where empty choices + empty next_node_id is a
+## valid, intentional way to end a conversation) — a negotiation tree
+## must always end via an explicit NegotiationOutcomeChoice, so
+## DialogueNode.next_node_id is authored-but-never-read for negotiation
+## content. Reaching a dead end fails safe to FLEE with a warning rather
+## than leaving the panel showing no way to respond at all.
+func _show_node(node: DialogueNode) -> void:
+	current_node = node
+	line_shown.emit(node.text_block)
 
-
-## Weighted random pick across CONTINUE plus the four real outcomes.
-## CONTINUE starts high and decays each round (floored, never reaching
-## zero) so early rounds favor more back-and-forth and later ones are
-## more likely to resolve, without a hard round cap — matches the
-## "nothing guaranteed, real roll" resolution this was explicitly built
-## around rather than a deterministic threshold.
-func _roll_outcome() -> Outcome:
-	var personality: DemonPersonality = _current_personality()
-	if not personality:
-		# No personality authored on this content yet — treat as simply
-		# uninterested rather than crashing on a null dereference.
-		return Outcome.FLEE
-
-	var weights: Dictionary[Outcome, float] = {
-		Outcome.CONTINUE: maxf(3.0 - current_round, 0.5),
-		Outcome.RECRUIT: maxf(personality.recruit_weight + current_favor, 0.0),
-		Outcome.FLEE: maxf(personality.flee_weight - current_favor * 0.5, 0.0),
-		Outcome.ATTACK: maxf(personality.attack_weight - current_favor, 0.0),
-		Outcome.HEAL_PLAYER: maxf(personality.heal_weight + maxf(current_favor, 0.0) * 0.5, 0.0),
-	}
-	if not personality.alignment_acceptable(current_demon, current_actor) or not personality.tendency_acceptable(current_demon, current_actor):
-		weights[Outcome.RECRUIT] = 0.0
-
-	var total: float = 0.0
-	for w in weights.values():
-		total += w
-	if total <= 0.0:
-		return Outcome.CONTINUE
-
-	var roll: float = randf() * total
-	var accumulated: float = 0.0
-	for result in weights:
-		accumulated += weights[result]
-		if roll < accumulated:
-			return result
-	return Outcome.CONTINUE
-
-
-func _current_personality() -> DemonPersonality:
-	if not current_demon or not current_demon.negotiation_species:
-		return null
-	return current_demon.negotiation_species.personality
-
-
-func _visible_responses() -> Array[NegotiationResponse]:
-	var result: Array[NegotiationResponse] = []
-	for response in _responses:
-		if response.is_repeatable or not _used_responses.has(response):
-			result.append(response)
-	return result
-
-
-func _load_responses() -> void:
-	for file_name in DirAccess.get_files_at(RESPONSES_DIR):
-		if not file_name.ends_with(".tres"):
+	var visible: Array[DialogueChoice] = []
+	for i in node.choices.size():
+		var choice: DialogueChoice = node.choices[i]
+		var key: String = "%s:%d" % [node.id, i]
+		if used_choices.has(key) and not choice.is_repeatable:
 			continue
-		var response := load(RESPONSES_DIR + file_name) as NegotiationResponse
-		if response:
-			_responses.append(response)
+		if choice.prerequisites and not choice.prerequisites.is_satisfied(current_actor):
+			continue
+		visible.append(choice)
+	_visible_choices = visible
+
+	if visible.is_empty():
+		push_warning("NegotiationManager: node '%s' has no available choices — negotiation trees must always end via an explicit NegotiationOutcomeChoice. Falling back to FLEE." % node.id)
+		end_negotiation(Outcome.FLEE)
+		return
+
+	choices_shown.emit(visible)
+
+
+func _load_node_by_id(id: String) -> void:
+	if id == "":
+		# There's no neutral "just end" for a negotiation the way
+		# DialogueManager.end_dialogue() has for a normal conversation —
+		# SOME outcome must always occur, so an empty id (most likely a
+		# NegotiationLineChoice with next_node_id left unset) fails safe
+		# the same way an unresolvable one does below.
+		end_negotiation(Outcome.FLEE)
+		return
+
+	var node: DialogueNode = _find_node(id)
+	if not node:
+		push_error("NegotiationManager: no node found for id '%s'" % id)
+		end_negotiation(Outcome.FLEE)
+		return
+
+	_show_node(node)
+
+
+func _find_node(id: String) -> DialogueNode:
+	_ensure_indexed()
+	if not _id_to_path.has(id):
+		return null
+	return load(_id_to_path[id]) as DialogueNode
+
+
+func _ensure_indexed() -> void:
+	if _indexed:
+		return
+	_indexed = true
+	_index_directory(CONVERSATIONS_DIR)
+	if OS.is_debug_build():
+		_validate_node_references()
+
+
+func _index_directory(dir_path: String) -> void:
+	var da: DirAccess = DirAccess.open(dir_path)
+	if not da:
+		return
+
+	da.list_dir_begin()
+	var entry_name: String = da.get_next()
+	while entry_name != "":
+		if entry_name == "." or entry_name == "..":
+			entry_name = da.get_next()
+			continue
+
+		var full_path: String = dir_path + "/" + entry_name
+		if da.current_is_dir():
+			_index_directory(full_path)
+		elif entry_name.get_extension() == "tres":
+			var res: Resource = load(full_path)
+			if res is DialogueNode:
+				if _id_to_path.has(res.id):
+					push_warning("NegotiationManager: duplicate DialogueNode id '%s' — '%s' and '%s' both claim it; the second silently wins." % [res.id, _id_to_path[res.id], full_path])
+				_id_to_path[res.id] = full_path
+		entry_name = da.get_next()
+	da.list_dir_end()
+
+
+## Debug-build-only sanity pass over every hand-typed node-id reference
+## and choice-type assumption — mirrors DialogueManager's own
+## _validate_node_references()/_check_reference(), for the same reason:
+## next_node_id/outcome are authored strings/enums with zero compile-time
+## checking, and a wrong one here resolves as a plausible-looking but
+## WRONG outcome rather than an obvious crash — a strictly easier way to
+## ship a bug unnoticed than dialogue's own equivalent typo.
+func _validate_node_references() -> void:
+	for id in _id_to_path:
+		var node: DialogueNode = load(_id_to_path[id]) as DialogueNode
+		for choice in node.choices:
+			if choice is NegotiationLineChoice:
+				_check_reference(id, "NegotiationLineChoice.next_node_id", choice.next_node_id)
+			elif choice is NegotiationOutcomeChoice:
+				if choice.outcome == Outcome.CONTINUE:
+					push_warning("NegotiationManager: node '%s' has a NegotiationOutcomeChoice with outcome left unset (CONTINUE) — will silently resolve as FLEE." % id)
+			else:
+				push_warning("NegotiationManager: node '%s' has a choice of type '%s', not a NegotiationChoice subclass — it will call the real DialogueManager instead of this system." % [id, choice.get_script().resource_path])
+
+
+## Deliberately diverges from DialogueManager._check_reference()'s own
+## version, which treats an empty target as always valid (a real,
+## intentional way to end normal dialogue). Empty is NEVER a valid
+## ending here — see _load_node_by_id, which treats "" as "fail safe to
+## FLEE," not "end normally" — so an empty next_node_id gets its own
+## warning instead of a silent pass.
+func _check_reference(from_id: String, field_name: String, target_id: String) -> void:
+	if target_id == "":
+		push_warning("NegotiationManager: %s on node '%s' is empty — a negotiation tree should always end via an explicit NegotiationOutcomeChoice, not an empty next_node_id." % [field_name, from_id])
+	elif not _id_to_path.has(target_id):
+		push_warning("NegotiationManager: %s on node '%s' references unknown node id '%s'." % [field_name, from_id, target_id])

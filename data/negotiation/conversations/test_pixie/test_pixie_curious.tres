@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="3_outcome"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="4_line"]
+
+[sub_resource type="Resource" id="Resource_recruit"]
+script = ExtResource("3_outcome")
+outcome = 1
+text = "Because I'm asking, not commanding."
+
+[sub_resource type="Resource" id="Resource_dismiss"]
+script = ExtResource("4_line")
+next_node_id = "test_pixie_annoyed"
+text = "Fine. Have it your way."
+
+[resource]
+script = ExtResource("1_node")
+id = "test_pixie_curious"
+text_block = "Join you? Why would I trust a mortal's word?"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_recruit"), SubResource("Resource_dismiss")])

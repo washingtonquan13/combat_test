@@ -46,25 +46,14 @@ bbcode_enabled = true
 fit_content = true
 scroll_active = false
 
-[node name="ResponsesText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
+[node name="LineText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
 custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
 size_flags_vertical = 3
 bbcode_enabled = true
 
-[node name="OfferBar" type="HBoxContainer" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
-visible = false
+[node name="ChoicesText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
+custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="OfferHpButton" type="Button" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox/OfferBar"]
-layout_mode = 2
-text = "Offer HP"
-
-[node name="OfferFpButton" type="Button" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox/OfferBar"]
-layout_mode = 2
-text = "Offer FP"
-
-[node name="DeclineOfferButton" type="Button" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox/OfferBar"]
-layout_mode = 2
-text = "Decline"
+size_flags_vertical = 3
+bbcode_enabled = true

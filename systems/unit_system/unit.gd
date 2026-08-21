@@ -181,10 +181,11 @@ extends CharacterBody3D
 ## only exists on a unit that's ALREADY a roster entry (a summoned
 ## demon); a wild, not-yet-recruited hostile demon has no roster entry
 ## to point at yet, so it needs this separate, direct reference instead.
-## NegotiationManager reads species/personality off this (see
-## DemonSpecies.personality) — left null for anything that isn't meant
-## to be negotiable-into-a-recruit, same optional-reference convention
-## as every other field in this group.
+## NegotiationManager reads the negotiation conversation tree off this
+## (see DemonSpecies.negotiation_options/resolve_negotiation_root()) —
+## left null for anything that isn't meant to be negotiable-into-a-
+## recruit, same optional-reference convention as every other field in
+## this group.
 @export var negotiation_species: DemonSpecies = null
 
 @export_group("Interaction")

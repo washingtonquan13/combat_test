@@ -1,9 +1,0 @@
-[gd_resource type="Resource" script_class="NegotiationResponse" load_steps=2 format=3]
-
-[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_response.gd" id="1_response"]
-
-[resource]
-script = ExtResource("1_response")
-text = "Greetings — I mean you no harm."
-tone = &"friendly"
-is_repeatable = false
