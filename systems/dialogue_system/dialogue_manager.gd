@@ -91,8 +91,12 @@ var _used_interjections: Dictionary = {}
 ## about not repeating it within one.
 var _narrated_node_ids: Dictionary = {}
 
-var _id_to_path: Dictionary = {}  # String id -> String res:// path
-var _indexed: bool = false
+var _index := DialogueNodeIndex.new("DialogueManager")
+## Guards _validate_node_references() specifically — separate from
+## _index's own internal "indexed once" tracking, since _ensure_indexed()
+## below is called on every node lookup but validation must still only
+## ever run the first time.
+var _validated: bool = false
 
 
 ## Forces indexing (and its debug-build reference validation) at boot
@@ -282,43 +286,14 @@ func _resolve_interjection(node: DialogueNode) -> DialogueNode:
 
 func _find_node(id: String) -> DialogueNode:
 	_ensure_indexed()
-	if not _id_to_path.has(id):
-		return null
-	return load(_id_to_path[id]) as DialogueNode
+	return _index.find_node(id)
 
 
 func _ensure_indexed() -> void:
-	if _indexed:
-		return
-	_indexed = true
-	_index_directory(DIALOGUE_DATA_PATH)
-	if OS.is_debug_build():
+	_index.ensure_indexed(DIALOGUE_DATA_PATH)
+	if OS.is_debug_build() and not _validated:
+		_validated = true
 		_validate_node_references()
-
-
-func _index_directory(dir_path: String) -> void:
-	var da: DirAccess = DirAccess.open(dir_path)
-	if not da:
-		return
-
-	da.list_dir_begin()
-	var entry_name: String = da.get_next()
-	while entry_name != "":
-		if entry_name == "." or entry_name == "..":
-			entry_name = da.get_next()
-			continue
-
-		var full_path: String = dir_path + "/" + entry_name
-		if da.current_is_dir():
-			_index_directory(full_path)
-		elif entry_name.get_extension() == "tres":
-			var res: Resource = load(full_path)
-			if res is DialogueNode:
-				if _id_to_path.has(res.id):
-					push_warning("DialogueManager: duplicate DialogueNode id '%s' — '%s' and '%s' both claim it; the second silently wins." % [res.id, _id_to_path[res.id], full_path])
-				_id_to_path[res.id] = full_path
-		entry_name = da.get_next()
-	da.list_dir_end()
 
 
 ## Debug-build-only sanity pass over every hand-typed node-id reference
@@ -331,8 +306,8 @@ func _index_directory(dir_path: String) -> void:
 ## cheap, since load() below just returns each already-indexed resource
 ## from cache, not a second disk read.
 func _validate_node_references() -> void:
-	for id in _id_to_path:
-		var node: DialogueNode = load(_id_to_path[id]) as DialogueNode
+	for id in _index.all_ids():
+		var node: DialogueNode = _index.find_node(id)
 		_check_reference(id, "DialogueNode.next_node_id", node.next_node_id)
 		for choice in node.choices:
 			_check_choice_references(id, choice)
@@ -356,5 +331,5 @@ func _check_choice_references(from_id: String, choice: DialogueChoice) -> void:
 ## conversation" — see _load_node_by_id), never a mistake, so only a
 ## non-empty target that doesn't resolve gets flagged.
 func _check_reference(from_id: String, field_name: String, target_id: String) -> void:
-	if target_id != "" and not _id_to_path.has(target_id):
+	if target_id != "" and not _index.has_id(target_id):
 		push_warning("DialogueManager: %s on node '%s' references unknown node id '%s'." % [field_name, from_id, target_id])

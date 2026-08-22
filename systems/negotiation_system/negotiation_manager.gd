@@ -43,8 +43,12 @@ var used_choices: Dictionary = {}
 ## whose FIX this copies, not just its shape.
 var _visible_choices: Array[DialogueChoice] = []
 
-var _id_to_path: Dictionary = {}  # String id -> String res:// path
-var _indexed: bool = false
+var _index := DialogueNodeIndex.new("NegotiationManager")
+## Guards _validate_node_references() specifically — separate from
+## _index's own internal "indexed once" tracking, since _ensure_indexed()
+## below is called on every node lookup but validation must still only
+## ever run the first time.
+var _validated: bool = false
 
 
 func _ready() -> void:
@@ -207,43 +211,14 @@ func _load_node_by_id(id: String) -> void:
 
 func _find_node(id: String) -> DialogueNode:
 	_ensure_indexed()
-	if not _id_to_path.has(id):
-		return null
-	return load(_id_to_path[id]) as DialogueNode
+	return _index.find_node(id)
 
 
 func _ensure_indexed() -> void:
-	if _indexed:
-		return
-	_indexed = true
-	_index_directory(CONVERSATIONS_DIR)
-	if OS.is_debug_build():
+	_index.ensure_indexed(CONVERSATIONS_DIR)
+	if OS.is_debug_build() and not _validated:
+		_validated = true
 		_validate_node_references()
-
-
-func _index_directory(dir_path: String) -> void:
-	var da: DirAccess = DirAccess.open(dir_path)
-	if not da:
-		return
-
-	da.list_dir_begin()
-	var entry_name: String = da.get_next()
-	while entry_name != "":
-		if entry_name == "." or entry_name == "..":
-			entry_name = da.get_next()
-			continue
-
-		var full_path: String = dir_path + "/" + entry_name
-		if da.current_is_dir():
-			_index_directory(full_path)
-		elif entry_name.get_extension() == "tres":
-			var res: Resource = load(full_path)
-			if res is DialogueNode:
-				if _id_to_path.has(res.id):
-					push_warning("NegotiationManager: duplicate DialogueNode id '%s' — '%s' and '%s' both claim it; the second silently wins." % [res.id, _id_to_path[res.id], full_path])
-				_id_to_path[res.id] = full_path
-		entry_name = da.get_next()
-	da.list_dir_end()
 
 
 ## Debug-build-only sanity pass over every hand-typed node-id reference
@@ -254,8 +229,8 @@ func _index_directory(dir_path: String) -> void:
 ## WRONG outcome rather than an obvious crash — a strictly easier way to
 ## ship a bug unnoticed than dialogue's own equivalent typo.
 func _validate_node_references() -> void:
-	for id in _id_to_path:
-		var node: DialogueNode = load(_id_to_path[id]) as DialogueNode
+	for id in _index.all_ids():
+		var node: DialogueNode = _index.find_node(id)
 		for choice in node.choices:
 			if choice is NegotiationLineChoice:
 				_check_reference(id, "NegotiationLineChoice.next_node_id", choice.next_node_id)
@@ -275,5 +250,5 @@ func _validate_node_references() -> void:
 func _check_reference(from_id: String, field_name: String, target_id: String) -> void:
 	if target_id == "":
 		push_warning("NegotiationManager: %s on node '%s' is empty — a negotiation tree should always end via an explicit NegotiationOutcomeChoice, not an empty next_node_id." % [field_name, from_id])
-	elif not _id_to_path.has(target_id):
+	elif not _index.has_id(target_id):
 		push_warning("NegotiationManager: %s on node '%s' references unknown node id '%s'." % [field_name, from_id, target_id])
