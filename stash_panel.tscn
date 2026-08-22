@@ -33,6 +33,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="CloseButton" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Close"
 
@@ -61,6 +62,7 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="ChestTitle" type="Label" parent="ContentArea/ChestColumn/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "Chest"
@@ -69,10 +71,12 @@ text = "Chest"
 layout_mode = 2
 
 [node name="ChestSlot" type="MarginContainer" parent="ContentArea/ChestColumn/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="TakeAllButton" type="Button" parent="ContentArea/ChestColumn/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0
 text = "Take All"
@@ -101,5 +105,6 @@ text = "Party"
 layout_mode = 2
 
 [node name="PartySlot" type="MarginContainer" parent="ContentArea/PartyColumn/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3

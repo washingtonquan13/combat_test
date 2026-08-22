@@ -43,51 +43,57 @@ extends Control
 ## their own variable-length per-unit lists.
 
 @onready var _tab_buttons: Dictionary = {
-	"inventory": $TopBar/TabInventory,
-	"character": $TopBar/TabCharacter,
-	"demons": $TopBar/TabDemons,
-	"spellbook": $TopBar/TabSpellbook,
-	"journal": $TopBar/TabJournal,
-	"encyclopedia": $TopBar/TabEncyclopedia,
-	"map": $TopBar/TabMap,
+	"inventory": %TabInventory,
+	"character": %TabCharacter,
+	"demons": %TabDemons,
+	"spellbook": %TabSpellbook,
+	"journal": %TabJournal,
+	"encyclopedia": %TabEncyclopedia,
+	"map": %TabMap,
 }
 @onready var _panels: Dictionary = {
-	"inventory": $ContentArea/InventoryPanel,
-	"character": $ContentArea/CharacterPanel,
-	"demons": $ContentArea/DemonPanel,
-	"spellbook": $ContentArea/PlaceholderPanel,
-	"journal": $ContentArea/JournalPanel,
-	"encyclopedia": $ContentArea/PlaceholderPanel,
-	"map": $ContentArea/PlaceholderPanel,
+	"inventory": %InventoryPanel,
+	"character": %CharacterPanel,
+	"demons": %DemonPanel,
+	"spellbook": %PlaceholderPanel,
+	"journal": %JournalPanel,
+	"encyclopedia": %PlaceholderPanel,
+	"map": %PlaceholderPanel,
 }
 
+## Left as plain NodePaths, not %UniqueName — both StatsColumn instances
+## share their sub-scene's own default root name, so marking both unique
+## within THIS scene would collide (see stats_column.tscn's own 15
+## fields for the ones that WERE safe to convert: each of those is
+## scoped to its own instance's independent unique-name namespace,
+## unlike these two outer references, which are scoped to this scene).
 @onready var _inventory_stats: StatsColumn = $ContentArea/InventoryPanel/StatsColumn
 @onready var _character_stats: StatsColumn = $ContentArea/CharacterPanel/StatsColumn
 
-@onready var _portrait: TextureRect = $ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/Portrait
-@onready var _sort_button: Button = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortButton
-@onready var _inventory: Inventory = $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/Inventory
+@onready var _portrait: TextureRect = %Portrait
+@onready var _sort_button: Button = %SortButton
+@onready var _inventory: Inventory = %Inventory
 
 ## All 16 shared equip slots, built once so _swap_equipment() doesn't
 ## need to re-walk the tree every unit switch — same "gather named nodes
 ## once" style _alignment_cells already uses.
 @onready var _equip_slots: Array[EquipSlot] = [
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Helmet,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Amulet,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Cloak,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/ChestArmor,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Undershirt,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots/Bracers,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Ring1,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Ring2,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Gloves,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Belt,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Legs,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots/Boots,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots/MeleeMainHand,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots/MeleeOffHand,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots/RangedMainHand,
-	$ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots/RangedOffHand,
+	%Helmet,
+	%Amulet,
+	%Cloak,
+	%ChestArmor,
+	%Undershirt,
+	%Bracers,
+	%Ring1,
+	%Ring2,
+	%Gloves,
+	%Belt,
+	%Legs,
+	%Boots,
+	%MeleeMainHand,
+	%MeleeOffHand,
+	%RangedMainHand,
+	%RangedOffHand,
 ]
 
 ## (alignment_category, tendency_category) -> display title, matching
@@ -102,16 +108,16 @@ const _ALIGNMENT_TITLES: Dictionary = {
 	Vector2i(-1, -1): "Dark Chaos", Vector2i(0, -1): "Dark Neutral", Vector2i(1, -1): "Dark Law",
 }
 
-@onready var _alignment_title: Label = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentTitle
-@onready var _alignment_grid: AlignmentGrid = $ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer/AlignmentGrid
+@onready var _alignment_title: Label = %AlignmentTitle
+@onready var _alignment_grid: AlignmentGrid = %AlignmentGrid
 
-@onready var _skill_list: VBoxContainer = $ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer/SkillList
+@onready var _skill_list: VBoxContainer = %SkillList
 
-@onready var _demon_panel: DemonCompendiumPanel = $ContentArea/DemonPanel
+@onready var _demon_panel: DemonCompendiumPanel = %DemonPanel
 
-@onready var _quest_list: ItemList = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestListMargin/QuestListVBox/QuestList
-@onready var _quest_detail_title: Label = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestDetailMargin/QuestDetailVBox/DetailTitle
-@onready var _quest_detail_list: VBoxContainer = $ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestDetailMargin/QuestDetailVBox/ScrollContainer/DetailList
+@onready var _quest_list: ItemList = %QuestList
+@onready var _quest_detail_title: Label = %DetailTitle
+@onready var _quest_detail_list: VBoxContainer = %DetailList
 
 var _unit: Unit = null
 ## _quest_list's items are just text/index — this is the actual Quest
@@ -130,7 +136,7 @@ func _ready() -> void:
 
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
-	$TopBar/CloseButton.pressed.connect(func(): visible = false)
+	%CloseButton.pressed.connect(func(): visible = false)
 	_sort_button.pressed.connect(_inventory.sort_items)
 	_quest_list.item_selected.connect(_on_quest_selected)
 
@@ -160,7 +166,7 @@ func get_inventory() -> Inventory:
 ## Where get_inventory()'s node belongs when nothing has borrowed it —
 ## StashPanel reparents it back here on close.
 func get_inventory_slot() -> VBoxContainer:
-	return $ContentArea/InventoryPanel/InventoryColumn/VBoxContainer
+	return %VBoxContainer
 
 
 func open_for(unit: Unit) -> void:

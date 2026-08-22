@@ -19,10 +19,10 @@ extends Control
 
 @export var party_overview: PartyOverview
 
-@onready var _stash_title: Label = $ContentArea/ChestColumn/VBoxContainer/ChestTitle
-@onready var _stash_slot: MarginContainer = $ContentArea/ChestColumn/VBoxContainer/ChestSlot
-@onready var _party_slot: MarginContainer = $ContentArea/PartyColumn/VBoxContainer/PartySlot
-@onready var _take_all_button: Button = $ContentArea/ChestColumn/VBoxContainer/TakeAllButton
+@onready var _stash_title: Label = %ChestTitle
+@onready var _stash_slot: MarginContainer = %ChestSlot
+@onready var _party_slot: MarginContainer = %PartySlot
+@onready var _take_all_button: Button = %TakeAllButton
 
 var _stash: StashComponent = null
 
@@ -31,7 +31,7 @@ func _ready() -> void:
 	visible = false
 	StashManager.stash_opened.connect(_on_stash_opened)
 	StashManager.stash_closed.connect(_on_stash_closed)
-	$TopBar/CloseButton.pressed.connect(func(): StashManager.close_stash())
+	%CloseButton.pressed.connect(func(): StashManager.close_stash())
 	_take_all_button.pressed.connect(_on_take_all_pressed)
 
 

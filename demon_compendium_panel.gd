@@ -14,14 +14,14 @@ extends Control
 ## construction, rather than needing an extra "can't fuse a demon with
 ## itself" check layered on top.
 
-@onready var _roster_list: ItemList = $MarginContainer/VBoxContainer/HBoxContainer/RosterColumn/RosterList
-@onready var _slot_a_list: ItemList = $MarginContainer/VBoxContainer/HBoxContainer/FusionColumn/SlotAList
-@onready var _slot_b_list: ItemList = $MarginContainer/VBoxContainer/HBoxContainer/FusionColumn/SlotBList
-@onready var _fuse_button: Button = $MarginContainer/VBoxContainer/HBoxContainer/FusionColumn/FuseButton
-@onready var _fusion_result_label: Label = $MarginContainer/VBoxContainer/HBoxContainer/FusionColumn/FusionResultLabel
-@onready var _debug_grant_row: HBoxContainer = $MarginContainer/VBoxContainer/DebugGrantRow
-@onready var _grant_species_list: OptionButton = $MarginContainer/VBoxContainer/DebugGrantRow/GrantSpeciesList
-@onready var _grant_button: Button = $MarginContainer/VBoxContainer/DebugGrantRow/GrantButton
+@onready var _roster_list: ItemList = %RosterList
+@onready var _slot_a_list: ItemList = %SlotAList
+@onready var _slot_b_list: ItemList = %SlotBList
+@onready var _fuse_button: Button = %FuseButton
+@onready var _fusion_result_label: Label = %FusionResultLabel
+@onready var _debug_grant_row: HBoxContainer = %DebugGrantRow
+@onready var _grant_species_list: OptionButton = %GrantSpeciesList
+@onready var _grant_button: Button = %GrantButton
 
 ## data/demons/fusion_chart.tres — the one authored chart, loaded once.
 const FUSION_CHART_PATH: String = "res://data/demons/fusion_chart.tres"

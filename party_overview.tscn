@@ -34,30 +34,37 @@ grow_horizontal = 2
 theme_override_constants/separation = 4
 
 [node name="TabInventory" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Inventory"
 
 [node name="TabCharacter" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Character"
 
 [node name="TabDemons" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Demons"
 
 [node name="TabSpellbook" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Spellbook"
 
 [node name="TabJournal" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Journal"
 
 [node name="TabEncyclopedia" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Encyclopedia"
 
 [node name="TabMap" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Map"
 
@@ -66,6 +73,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="CloseButton" type="Button" parent="TopBar"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Close"
 
@@ -79,6 +87,7 @@ grow_horizontal = 2
 grow_vertical = 2
 
 [node name="InventoryPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -128,40 +137,47 @@ size_flags_vertical = 4
 theme_override_constants/separation = 8
 
 [node name="Helmet" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 
 [node name="Amulet" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 1
 slot = 1
 
 [node name="Cloak" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 2
 slot = 2
 
 [node name="ChestArmor" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 3
 slot = 3
 
 [node name="Undershirt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 4
 slot = 4
 
 [node name="Bracers" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 5
 slot = 5
 
 [node name="Portrait" type="TextureRect" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(180, 240)
 layout_mode = 2
 size_flags_vertical = 4
@@ -173,36 +189,42 @@ size_flags_vertical = 4
 theme_override_constants/separation = 8
 
 [node name="Ring1" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 6
 slot = 6
 
 [node name="Ring2" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 6
 slot = 7
 
 [node name="Gloves" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 7
 slot = 8
 
 [node name="Belt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 8
 slot = 9
 
 [node name="Legs" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 9
 slot = 10
 
 [node name="Boots" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 10
@@ -231,12 +253,14 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="MeleeMainHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 11
 slot = 12
 
 [node name="MeleeOffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 12
@@ -257,12 +281,14 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="RangedMainHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 13
 slot = 14
 
 [node name="RangedOffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(32, 32)
 layout_mode = 2
 slot_type = 14
@@ -281,6 +307,7 @@ theme_override_constants/margin_top = 20
 theme_override_constants/margin_right = 24
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 10
 
@@ -292,11 +319,13 @@ text = "Stash"
 layout_mode = 2
 
 [node name="SortButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0
 text = "Sort items"
 
 [node name="Inventory" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer" instance=ExtResource("3_inv")]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(206, 288)
 layout_mode = 2
 size_flags_vertical = 3
@@ -306,6 +335,7 @@ visible_width = 6
 visible_height = 9
 
 [node name="CharacterPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -345,12 +375,14 @@ text = "Alignment"
 layout_mode = 2
 
 [node name="AlignmentTitle" type="Label" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "True Neutral"
 horizontal_alignment = 1
 
 [node name="AlignmentGrid" type="Control" parent="ContentArea/CharacterPanel/AlignmentColumn/VBoxContainer"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(260, 260)
 layout_mode = 2
 size_flags_horizontal = 4
@@ -385,11 +417,13 @@ size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
 [node name="SkillList" type="VBoxContainer" parent="ContentArea/CharacterPanel/SkillColumn/VBoxContainer/ScrollContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
 
 [node name="DemonPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -437,6 +471,7 @@ layout_mode = 2
 text = "Roster"
 
 [node name="RosterList" type="ItemList" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/RosterColumn"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
@@ -454,6 +489,7 @@ layout_mode = 2
 text = "Parent A"
 
 [node name="SlotAList" type="ItemList" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
@@ -463,33 +499,40 @@ layout_mode = 2
 text = "Parent B"
 
 [node name="SlotBList" type="ItemList" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 100)
 layout_mode = 2
 size_flags_vertical = 3
 
 [node name="FuseButton" type="Button" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+unique_name_in_owner = true
 layout_mode = 2
 disabled = true
 text = "Fuse"
 
 [node name="FusionResultLabel" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/FusionColumn"]
+unique_name_in_owner = true
 layout_mode = 2
 autowrap_mode = 2
 text = "Select two demons to fuse."
 
 [node name="DebugGrantRow" type="HBoxContainer" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="GrantSpeciesList" type="OptionButton" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/DebugGrantRow"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="GrantButton" type="Button" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/DebugGrantRow"]
+unique_name_in_owner = true
 layout_mode = 2
 text = "Grant (debug)"
 
 [node name="JournalPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
 visible = false
 layout_mode = 1
 anchors_preset = 15
@@ -530,6 +573,7 @@ text = "Journal"
 layout_mode = 2
 
 [node name="QuestList" type="ItemList" parent="ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestListMargin/QuestListVBox"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
@@ -543,6 +587,7 @@ layout_mode = 2
 theme_override_constants/separation = 8
 
 [node name="DetailTitle" type="Label" parent="ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestDetailMargin/QuestDetailVBox"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 20
 text = "Select a quest"
@@ -556,11 +601,13 @@ size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
 [node name="DetailList" type="VBoxContainer" parent="ContentArea/JournalPanel/MarginContainer/HBoxContainer/QuestDetailMargin/QuestDetailVBox/ScrollContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 16
 
 [node name="PlaceholderPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
 visible = false
 layout_mode = 1
 anchors_preset = 15

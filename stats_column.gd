@@ -10,21 +10,21 @@ extends MarginContainer
 ## ST/DX/IQ/HT/Will/Per, HP/FP, DR, and Move are shown — no GURPS active
 ## defenses (Dodge/Parry/Block/SM/Basic Lift/Speed).
 
-@onready var _name_label: Label = $ScrollContainer/VBoxContainer/NameLabel
-@onready var _hp_value: Label = $ScrollContainer/VBoxContainer/HPHeader/HPValue
-@onready var _hp_fill: ColorRect = $ScrollContainer/VBoxContainer/HPBar/Fill
-@onready var _fp_value: Label = $ScrollContainer/VBoxContainer/FPHeader/FPValue
-@onready var _fp_fill: ColorRect = $ScrollContainer/VBoxContainer/FPBar/Fill
-@onready var _st_value: Label = $ScrollContainer/VBoxContainer/AttributeGrid/STValue
-@onready var _dx_value: Label = $ScrollContainer/VBoxContainer/AttributeGrid/DXValue
-@onready var _iq_value: Label = $ScrollContainer/VBoxContainer/AttributeGrid/IQValue
-@onready var _ht_value: Label = $ScrollContainer/VBoxContainer/AttributeGrid/HTValue
-@onready var _will_value: Label = $ScrollContainer/VBoxContainer/AttributeGrid/WillValue
-@onready var _per_value: Label = $ScrollContainer/VBoxContainer/AttributeGrid/PerValue
-@onready var _dr_value: Label = $ScrollContainer/VBoxContainer/DRRow/Value
-@onready var _move_value: Label = $ScrollContainer/VBoxContainer/MoveRow/Value
-@onready var _thrust_value: Label = $ScrollContainer/VBoxContainer/ThrustRow/Value
-@onready var _swing_value: Label = $ScrollContainer/VBoxContainer/SwingRow/Value
+@onready var _name_label: Label = %NameLabel
+@onready var _hp_value: Label = %HPValue
+@onready var _hp_fill: ColorRect = %HPFill
+@onready var _fp_value: Label = %FPValue
+@onready var _fp_fill: ColorRect = %FPFill
+@onready var _st_value: Label = %STValue
+@onready var _dx_value: Label = %DXValue
+@onready var _iq_value: Label = %IQValue
+@onready var _ht_value: Label = %HTValue
+@onready var _will_value: Label = %WillValue
+@onready var _per_value: Label = %PerValue
+@onready var _dr_value: Label = %DRValue
+@onready var _move_value: Label = %MoveValue
+@onready var _thrust_value: Label = %ThrustValue
+@onready var _swing_value: Label = %SwingValue
 
 
 func refresh(unit: Unit) -> void:
