@@ -46,6 +46,7 @@ extends Control
 	"inventory": %TabInventory,
 	"character": %TabCharacter,
 	"demons": %TabDemons,
+	"spawn": %TabSpawn,
 	"spellbook": %TabSpellbook,
 	"journal": %TabJournal,
 	"encyclopedia": %TabEncyclopedia,
@@ -55,6 +56,7 @@ extends Control
 	"inventory": %InventoryPanel,
 	"character": %CharacterPanel,
 	"demons": %DemonPanel,
+	"spawn": %SpawnPanel,
 	"spellbook": %PlaceholderPanel,
 	"journal": %JournalPanel,
 	"encyclopedia": %PlaceholderPanel,
@@ -114,6 +116,7 @@ const _ALIGNMENT_TITLES: Dictionary = {
 @onready var _skill_list: VBoxContainer = %SkillList
 
 @onready var _demon_panel: DemonCompendiumPanel = %DemonPanel
+@onready var _spawn_panel: DebugSpawnPanel = %SpawnPanel
 
 @onready var _quest_list: ItemList = %QuestList
 @onready var _quest_detail_title: Label = %DetailTitle
@@ -136,6 +139,7 @@ func _ready() -> void:
 
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
+	%TabSpawn.visible = OS.is_debug_build()
 	%CloseButton.pressed.connect(func(): visible = false)
 	_sort_button.pressed.connect(_inventory.sort_items)
 	_quest_list.item_selected.connect(_on_quest_selected)
@@ -154,6 +158,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	var unit: Unit = PlayerInteractionState.get_active_unit()
 	if unit:
 		open_for(unit)
+	elif OS.is_debug_build():
+		visible = true
+		_show_tab("spawn")
 
 
 ## Lets StashPanel borrow the party's shared Inventory node while a chest
@@ -179,6 +186,7 @@ func open_for(unit: Unit) -> void:
 	_refresh_skill_list(unit)
 	_refresh_journal_list()
 	_demon_panel.refresh()
+	_spawn_panel.refresh()
 	visible = true
 	_show_tab("inventory")
 

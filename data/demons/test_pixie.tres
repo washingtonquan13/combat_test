@@ -24,6 +24,7 @@ will = 10
 perception = 10
 max_hp = 8
 max_fp = 6
+damage_reduction = 0
 faction = &"player"
 order = &"Fairy"
 rank = 2

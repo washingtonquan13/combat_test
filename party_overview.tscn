@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://jfavnc280asx"]
+[gd_scene load_steps=8 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://systems/inventory_system/equip_slot.tscn" id="2_equip"]
@@ -6,6 +6,9 @@
 [ext_resource type="PackedScene" path="res://stats_column.tscn" id="4_stats"]
 [ext_resource type="Script" uid="uid://2g8vxoibdf3k" path="res://alignment_grid.gd" id="5_align_grid"]
 [ext_resource type="Script" path="res://demon_compendium_panel.gd" id="6_demon_panel"]
+[ext_resource type="Script" path="res://debug_spawn_panel.gd" id="7_spawn_panel"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_spawn_faction"]
 
 [node name="PartyOverview" type="Control"]
 layout_mode = 3
@@ -47,6 +50,11 @@ text = "Character"
 unique_name_in_owner = true
 layout_mode = 2
 text = "Demons"
+
+[node name="TabSpawn" type="Button" parent="TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Spawn"
 
 [node name="TabSpellbook" type="Button" parent="TopBar"]
 unique_name_in_owner = true
@@ -530,6 +538,76 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 2
 text = "Grant (debug)"
+
+[node name="SpawnPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("7_spawn_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="ContentArea/SpawnPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/SpawnPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Spawn"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="SpawnUnitList" type="ItemList" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="FactionRow" type="HBoxContainer" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="FriendlyButton" type="Button" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer/FactionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_group = SubResource("ButtonGroup_spawn_faction")
+text = "Friendly"
+
+[node name="HostileButton" type="Button" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer/FactionRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ButtonGroup_spawn_faction")
+text = "Hostile"
+
+[node name="SpawnStatusLabel" type="Label" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Not armed."
+
+[node name="ArmSpawnButton" type="Button" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Arm Spawn"
 
 [node name="JournalPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true

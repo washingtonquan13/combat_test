@@ -1,4 +1,4 @@
-[gd_scene load_steps=88 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=83 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -18,7 +18,6 @@
 [ext_resource type="Script" uid="uid://5dq2mibjdmfb" path="res://ability_hotbar.gd" id="6_w48qg"]
 [ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="7_ycdy4"]
 [ext_resource type="PackedScene" uid="uid://c8p3x6fyoh5xw" path="res://hotbar_slot.tscn" id="8_cegan"]
-[ext_resource type="Texture2D" uid="uid://bmpvtkr2rfmo5" path="res://assets/portraits/woodland_goblin_rogue_by_thedrimdrim_dh26oji-fullview.jpg" id="8_w48qg"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="9_vivmo"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="10_yaehf"]
 [ext_resource type="PackedScene" uid="uid://dtttg6dyn8w56" path="res://system_log.tscn" id="12_xuqvo"]
@@ -28,7 +27,6 @@
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://data/abilities/jump.tres" id="16_getpj"]
 [ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://menu_button.gd" id="16_htxhm"]
 [ext_resource type="Script" uid="uid://ds5sh15dh1euk" path="res://esc_menu.gd" id="17_jq2sk"]
-[ext_resource type="Texture2D" uid="uid://cbcv6cepoupv1" path="res://assets/portraits/hobgoblin.jpg" id="19_82xsv"]
 [ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://data/abilities/explosive_fireball.tres" id="20_0odxb"]
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://data/abilities/sleep_dart.tres" id="21_a6jrf"]
 [ext_resource type="Texture2D" uid="uid://caua8wslo4n0e" path="res://assets/portraits/tiefling_wizard.jpg" id="21_lswn8"]
@@ -76,9 +74,8 @@
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
 [ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
 [ext_resource type="Resource" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
-[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="90_aibehavior"]
-[ext_resource type="Script" uid="uid://ds81ldf2c2t2x" path="res://systems/ai_system/use_ability_on_nearest_hostile_behavior.gd" id="91_useabilitybehavior"]
-[ext_resource type="Script" uid="uid://c7w2wlpj8is6m" path="res://systems/ai_system/heal_wounded_ally_behavior.gd" id="92_healwoundedbehavior"]
+[ext_resource type="Resource" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
+[ext_resource type="Resource" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -104,15 +101,6 @@ prerequisite = SubResource("Resource_raids_resolved")
 [sub_resource type="Resource" id="Resource_townsperson_dlgopt"]
 script = ExtResource("63_dlgrootopt")
 root = ExtResource("62_townsdlg")
-
-[sub_resource type="Resource" id="Resource_shaman_heal_behavior"]
-script = ExtResource("92_healwoundedbehavior")
-heal_ability = ExtResource("30_heal")
-hp_threshold = 0.5
-
-[sub_resource type="Resource" id="Resource_shaman_attack_behavior"]
-script = ExtResource("91_useabilitybehavior")
-ability = ExtResource("13_074og")
 
 [sub_resource type="Environment" id="Environment_movement_glow"]
 glow_enabled = true
@@ -512,29 +500,15 @@ selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="Hobgoblin" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1, 0.5, 7)
-display_name = "Hobgoblin"
-strength = 16
-dexterity = 12
-health = 20
-maximum_hp = 20
-current_hp = 20
-maximum_fp = 20
-damage_reduction = 2
-faction = &"enemy"
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf")])
+definition = ExtResource("72_hobgoblin")
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
-portrait_texture = ExtResource("19_82xsv")
 
 [node name="GoblinShaman" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 6, 0.5, 7)
-display_name = "Goblin Shaman"
-faction = &"enemy"
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og")])
-ai_behaviors = Array[ExtResource("90_aibehavior")]([SubResource("Resource_shaman_heal_behavior"), SubResource("Resource_shaman_attack_behavior")])
+definition = ExtResource("73_goblinshaman")
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
-portrait_texture = ExtResource("8_w48qg")
 
 [node name="InteractableProp" parent="." instance=ExtResource("54_prop")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)

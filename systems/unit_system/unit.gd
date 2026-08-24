@@ -506,6 +506,14 @@ func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _norm
 	# shouldn't attack/select it.
 	if DialogueManager.is_active():
 		return
+	# A debug spawn click claims the world entirely — a click landing on
+	# an existing unit's own collision body while armed must not ALSO
+	# select/attack that unit on the same click (Godot physics picking
+	# and _unhandled_input both fire independently on one press — see
+	# ground_click_target.gd's header). That file's debug-spawn branch is
+	# what actually consumes this click.
+	if PlayerInteractionState.is_debug_spawn_armed():
+		return
 
 	if not event.is_action_pressed("left_click"):
 		return

@@ -67,6 +67,16 @@ static func has_any_ability_armed() -> bool:
 	return AbilityManager.armed_ability != null
 
 
+## Whether the debug-only spawn tool (see DebugSpawner) is currently
+## armed and waiting for a world click. Debug-only by construction
+## (armed_definition can only ever be set from DebugSpawnPanel, itself
+## gated on OS.is_debug_build() end to end), so this needs no additional
+## debug check of its own — same "thin read of the real source of
+## truth" shape as has_any_ability_armed().
+static func is_debug_spawn_armed() -> bool:
+	return DebugSpawner.armed_definition != null
+
+
 ## The currently armed ability, if and only if it's armed AND its
 ## targeting is an instance of targeting_type — used by
 ## jump_indicator.gd / line_of_sight_indicator.gd / area_indicator.gd,

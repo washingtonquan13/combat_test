@@ -50,6 +50,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	if event.is_action_pressed("left_click"):
+		if PlayerInteractionState.is_debug_spawn_armed():
+			_spawn_debug_unit()
+			return
 		if _get_hovered_interactable():
 			return
 		var click_position = _get_mouse_ground_point()
@@ -59,6 +62,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		_command_move(click_position)
 	elif event.is_action_pressed("right_click"):
+		if DebugSpawner.armed_definition:
+			DebugSpawner.disarm()
+			return
 		if AbilityManager.armed_ability:
 			AbilityManager.disarm()
 			return
@@ -101,6 +107,38 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 	var target_point: Vector3 = ability.targeting.resolve_target_point(click_position)
 	unit.use_ability(ability, target_point)
 	return true
+
+
+## Spawns DebugSpawner's currently armed UnitDefinition at wherever the
+## ground raycast resolves this click, joining active combat if one's
+## running (CombatManager.add_unit_to_combat no-ops out of combat). See
+## SummonDemonEffect.apply() for the pattern this simplifies from.
+##
+## Always consumes the click while armed, even on a miss (no ground hit
+## under the cursor) — deliberately does NOT fall through to
+## _command_move on a miss, so an accidental miss-click while armed can
+## never move the selected unit instead. Stays armed on a miss; disarms
+## only once a spawn actually lands.
+func _spawn_debug_unit() -> void:
+	var click_position = _get_mouse_ground_point()
+	if click_position == null:
+		return
+
+	var definition: UnitDefinition = DebugSpawner.armed_definition
+	var faction: StringName = DebugSpawner.armed_faction
+	DebugSpawner.disarm()
+
+	var spawned: Unit = definition.unit_scene.instantiate()
+	# .definition's cascade sets faction = definition.faction as part of
+	# the same assignment — the override below must come AFTER, or the
+	# panel's chosen faction gets silently overwritten back to the
+	# species default the instant .definition is assigned.
+	spawned.definition = definition
+	spawned.faction = faction
+	get_tree().current_scene.add_child(spawned)
+	spawned.global_position = click_position
+
+	CombatManager.add_unit_to_combat(spawned)
 
 
 ## Only reached on a left-click that didn't land on an interactable and
