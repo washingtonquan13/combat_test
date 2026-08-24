@@ -3,10 +3,11 @@ extends CharacterBody3D
 
 @export_group("Identity")
 ## Which kind of unit this is — cascades display_name/portrait_texture/
-## faction/the full stat block/abilities/ai_behaviors onto this instance
-## the moment it's assigned, same "data resource separate from the
-## presentation node" convention Item.gear_data already uses (see that
-## file). Declared FIRST, ahead of every field it cascades into, because
+## faction/the full stat block/damage_reduction/abilities/ai_behaviors/
+## negotiable onto this instance the moment it's assigned, same "data
+## resource separate from the presentation node" convention
+## Item.gear_data already uses (see that file). Declared FIRST, ahead
+## of every field it cascades into, because
 ## Godot deserializes a scene's properties in script-declaration order —
 ## the cascade has to fire before this instance's own explicit overrides
 ## (if any) are applied, so an override still wins. Not a hard lock: any
@@ -36,6 +37,7 @@ extends CharacterBody3D
 			damage_reduction = definition.damage_reduction
 			abilities = definition.abilities
 			ai_behaviors = definition.ai_behaviors
+			negotiable = definition.negotiable
 ## The name shown to the player — combat log, character sheet, dialogue,
 ## negotiation. Deliberately separate from this node's own scene-tree
 ## .name: that's Godot's own structural identifier (what a $NodePath
@@ -229,23 +231,15 @@ extends CharacterBody3D
 ## NegotiateInteraction, and Unit.interactions' default array below,
 ## which includes it unconditionally — is_available() already double-
 ## gates on this flag plus combat/hostility, so a non-negotiable unit
-## never shows the option regardless). Authored per-instance in the
-## Inspector for whichever hostile units a level wants negotiable;
-## false by default, same "off unless deliberately turned on" default
-## corpse_blocks_movement/every other opt-in flag on this class uses.
+## never shows the option regardless). Cascades from definition.negotiable
+## as a default (see that field's setter) — a species that's naturally
+## negotiable stops needing this retyped on every placement — but stays
+## directly overridable per-instance afterward for a specific encounter
+## that wants an exception, same "not a hard lock" spirit as every other
+## cascaded field. False by default, same "off unless deliberately
+## turned on" default corpse_blocks_movement/every other opt-in flag on
+## this class uses.
 @export var negotiable: bool = false
-## Which UnitDefinition a successful Recruit outcome actually adds to
-## DemonRoster — NOT the same thing as owned_demon above. owned_demon
-## only exists on a unit that's ALREADY a roster entry (a summoned
-## demon); a wild, not-yet-recruited hostile demon has no roster entry
-## to point at yet, so it needs this separate, direct reference instead.
-## NegotiationManager reads the negotiation conversation tree off this
-## (see UnitDefinition.negotiation_options/resolve_negotiation_root()) —
-## left null for anything that isn't meant to be negotiable-into-a-
-## recruit, same optional-reference convention as every other field in
-## this group. When null, resolve_recruit_definition() falls back to
-## this unit's own definition instead — see that method.
-@export var negotiation_species: UnitDefinition = null
 
 @export_group("Interaction")
 ## Right-click verbs this unit can ever offer — filtered down to
@@ -557,17 +551,6 @@ func resolve_dialogue_root(actor: Unit) -> DialogueNode:
 		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
 			return option.root
 	return null
-
-
-## Which UnitDefinition a successful Recruit outcome should add to
-## DemonRoster for this (wild, hostile) unit — negotiation_species if
-## explicitly authored (an override, e.g. GoblinRogue's existing
-## test_pixie wiring), else this unit's own definition. Null if neither
-## is set; NegotiationManager treats that as "not actually negotiable."
-func resolve_recruit_definition() -> UnitDefinition:
-	if negotiation_species != null:
-		return negotiation_species
-	return definition
 
 
 ## Plain faction inequality has been correct so far only because every

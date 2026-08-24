@@ -20,3 +20,4 @@ faction = &"enemy"
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
+negotiable = true

@@ -42,4 +42,5 @@ portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack_ranged")])
 ai_behaviors = Array[ExtResource("6_aibehavior")]([SubResource("Resource_shaman_heal_behavior"), SubResource("Resource_shaman_attack_behavior")])
+negotiable = true
 negotiation_options = Array[ExtResource("7_pe0nw")]([])

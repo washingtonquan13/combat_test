@@ -73,7 +73,7 @@
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
 [ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
-[ext_resource type="Resource" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
+[ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
 [ext_resource type="Resource" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
 
@@ -493,14 +493,13 @@ portrait_texture = ExtResource("7_ycdy4")
 [node name="GoblinRogue" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 3, 0.5, 7)
 definition = ExtResource("71_goblinrogue")
-negotiable = true
-negotiation_species = ExtResource("70_testpixie")
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="Hobgoblin" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1, 0.5, 7)
 definition = ExtResource("72_hobgoblin")
+formation_spread_radius = 2.5
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
 

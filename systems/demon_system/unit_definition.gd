@@ -70,6 +70,25 @@ extends Resource
 @export var abilities: Array[Ability] = []
 @export var ai_behaviors: Array[AiBehavior] = []
 
+## Whether this species is negotiable BY DEFAULT — cascades onto
+## Unit.negotiable (see that field), still overridable per-instance for
+## a specific encounter that wants an exception either way. A species
+## with no real negotiation content authored (negotiation_options empty)
+## being left negotiable=true is harmless — NegotiationManager's own
+## guard already requires resolve_negotiation_root() to return something
+## before a conversation can start.
+@export var negotiable: bool = false
+## Which UnitDefinition a successful Recruit outcome actually adds to
+## DemonRoster — defaults to this species itself (see
+## resolve_recruit_definition() below) when left null. Exists for the
+## rare case where recruiting this thing nets you something ELSE
+## entirely (a summoner whose defeat lets you recruit whatever it
+## summoned, say) — NOT a per-instance concern, so unlike negotiable
+## this has no equivalent override left on Unit; two placements of the
+## same species recruiting into two different results would be two
+## different species, not two different instances of one.
+@export var recruit_as: UnitDefinition = null
+
 ## Candidate entry points into this species' negotiation conversation —
 ## exact mirror of Unit.dialogue_options/resolve_dialogue_root(), same
 ## reasoning: a species that's only ever obtained through fusion (never
@@ -88,3 +107,12 @@ func resolve_negotiation_root(actor: Unit) -> DialogueNode:
 		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
 			return option.root
 	return null
+
+
+## Which UnitDefinition a successful Recruit outcome should actually add
+## to DemonRoster — recruit_as if explicitly authored, else this species
+## itself. Always non-null (unlike the old Unit-side version this
+## replaces, which could return null for a unit with no definition at
+## all) — a species is never missing a definition to fall back to.
+func resolve_recruit_definition() -> UnitDefinition:
+	return recruit_as if recruit_as else self

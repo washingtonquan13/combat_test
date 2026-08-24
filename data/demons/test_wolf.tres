@@ -1,14 +1,30 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=6 format=3 uid="uid://gf742i35d0m"]
 
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_h1xie"]
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_species"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_m3cv2"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="3_6jl47"]
 
 [resource]
 script = ExtResource("1_species")
 id = "test_wolf"
 display_name = "Wolf"
-order = &"Beast"
-rank = 4
-unit_scene = ExtResource("2_scene")
+strength = 10
+dexterity = 10
+intelligence = 10
+health = 10
+move = 5
+will = 10
+perception = 10
 max_hp = 14
 max_fp = 0
+damage_reduction = 0
+faction = &"player"
+order = &"Beast"
+rank = 4
+is_special = false
+unit_scene = ExtResource("2_scene")
+abilities = Array[ExtResource("1_h1xie")]([])
+ai_behaviors = Array[ExtResource("2_m3cv2")]([])
+negotiation_options = Array[ExtResource("3_6jl47")]([])
