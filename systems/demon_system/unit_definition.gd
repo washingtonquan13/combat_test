@@ -50,6 +50,7 @@ extends Resource
 
 @export var max_hp: int = 10
 @export var max_fp: int = 0
+@export var damage_reduction: int = 0
 
 @export var faction: StringName = &"player"
 
