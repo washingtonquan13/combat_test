@@ -70,8 +70,7 @@ func start_negotiation(actor: Unit, demon: Unit) -> void:
 		return
 	if not demon.negotiable or not demon.is_alive() or not demon.definition:
 		return
-	var recruit_definition: UnitDefinition = demon.definition.resolve_recruit_definition()
-	var root: DialogueNode = recruit_definition.resolve_negotiation_root(actor)
+	var root: DialogueNode = demon.definition.resolve_negotiation_root(actor)
 	if not root:
 		return
 
@@ -128,7 +127,7 @@ func end_negotiation(outcome: Outcome) -> void:
 
 	match outcome:
 		Outcome.RECRUIT:
-			DemonRoster.recruit(demon.definition.resolve_recruit_definition())
+			DemonRoster.recruit(demon.definition)
 			SystemLog.print("%s joins your demon roster." % LogFormat.unit_name(demon))
 			demon.expire()
 		Outcome.FLEE:
