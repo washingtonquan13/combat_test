@@ -33,6 +33,7 @@ extends CharacterBody3D
 			current_hp = definition.max_hp
 			maximum_fp = definition.max_fp
 			current_fp = definition.max_fp
+			damage_reduction = definition.damage_reduction
 			abilities = definition.abilities
 			ai_behaviors = definition.ai_behaviors
 ## The name shown to the player — combat log, character sheet, dialogue,
