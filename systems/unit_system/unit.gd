@@ -28,6 +28,7 @@ extends CharacterBody3D
 			health = definition.health
 			will = definition.will
 			perception = definition.perception
+			move = definition.move
 			maximum_hp = definition.max_hp
 			current_hp = definition.max_hp
 			maximum_fp = definition.max_fp
@@ -862,23 +863,6 @@ func get_stat(stat_name: String) -> int:
 		"DR": base = damage_reduction
 		"Move": base = move
 	return base + stat_modifier(stat_name)
-
-
-## Writes a new BASE value for a named stat — the get_stat() match in
-## reverse. For the rare caller that needs to set a stat outright rather
-## than modify it temporarily (SummonEffect's move_override, e.g.), not
-## a general-purpose setter for modifiers — those go through
-## StatModifierBehavior/stat_modifier() instead.
-func set_stat_base(stat_name: String, value: int) -> void:
-	match stat_name:
-		"ST": strength = value
-		"DX": dexterity = value
-		"IQ": intelligence = value
-		"HT": health = value
-		"Will": will = value
-		"Per": perception = value
-		"DR": damage_reduction = value
-		"Move": move = value
 
 
 ## Sum of every currently registered modifier to a named stat — see

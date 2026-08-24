@@ -8,7 +8,7 @@ extends AbilityEffect
 ## enforcing the party-wide summon cap below.
 ##
 ## Unlike SummonEffect, owned_demon identifies WHICH roster entry to
-## field, not a fixed summon_scene — so a single shared ability template
+## field, not a fixed definition — so a single shared ability template
 ## (data/abilities/summon_demon_template.tres) works for every owned
 ## demon; hotbar_slot.gd constructs a fresh SummonDemonEffect instance
 ## per pick from the roster popup instead of one .tres existing per

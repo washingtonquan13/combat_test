@@ -44,6 +44,7 @@ extends Resource
 @export var dexterity: int = 10
 @export var intelligence: int = 10
 @export var health: int = 10
+@export var move: int = 5
 @export var will: int = 10
 @export var perception: int = 10
 

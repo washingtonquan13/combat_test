@@ -1,4 +1,4 @@
-[gd_scene load_steps=16 format=4 uid="uid://c34760nfcne1d"]
+[gd_scene load_steps=16 format=4 uid="uid://b286adfqpghbs"]
 
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="1_kiej4"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="2_0gcaf"]

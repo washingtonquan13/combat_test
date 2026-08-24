@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=6 format=3 uid="uid://ccc386jmoy5wn"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=8 format=3 uid="uid://ccc386jmoy5wn"]
 
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_p1ekw"]
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_species"]
-[ext_resource type="PackedScene" uid="uid://c34760nfcne1d" path="res://scenes/units/sylph.tscn" id="2_scene"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_bmdmi"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="3_rootopt"]
 [ext_resource type="Resource" uid="uid://ce76hdgm435e5" path="res://data/negotiation/conversations/test_pixie/test_pixie_greeting.tres" id="4_greeting"]
 
@@ -13,10 +15,20 @@ root = ExtResource("4_greeting")
 script = ExtResource("1_species")
 id = "test_pixie"
 display_name = "Pixie"
+strength = 10
+dexterity = 10
+intelligence = 10
+health = 10
+move = 5
+will = 10
+perception = 10
+max_hp = 8
+max_fp = 6
+faction = &"player"
 order = &"Fairy"
 rank = 2
 is_special = false
 unit_scene = ExtResource("2_scene")
-max_hp = 8
-max_fp = 6
+abilities = Array[ExtResource("1_p1ekw")]([])
+ai_behaviors = Array[ExtResource("2_bmdmi")]([])
 negotiation_options = Array[ExtResource("3_rootopt")]([SubResource("Resource_negotiation_root")])

@@ -9,7 +9,7 @@
 [ext_resource type="Texture2D" uid="uid://d3ar1leiae2l3" path="res://assets/ability_icon/summon_icon.png" id="3_icon"]
 [ext_resource type="Script" uid="uid://drd20fn8tucu" path="res://systems/ability_system/ground_point_targeting.gd" id="5_cxc1v"]
 [ext_resource type="Resource" uid="uid://ck17lsl6ce1ys" path="res://data/statuses/summon_duration.tres" id="5_sn5x5"]
-[ext_resource type="PackedScene" uid="uid://c34760nfcne1d" path="res://scenes/units/sylph.tscn" id="7_bcqd7"]
+[ext_resource type="Resource" path="res://data/units/spirit.tres" id="7_bcqd7"]
 
 [sub_resource type="Resource" id="Resource_usfjf"]
 script = ExtResource("1_ddq06")
@@ -26,9 +26,7 @@ metadata/_custom_type_script = "uid://bb7l26qye5i03"
 
 [sub_resource type="Resource" id="Resource_summoneffect"]
 script = ExtResource("2_summon")
-summon_scene = ExtResource("7_bcqd7")
-hp_override = 2
-move_override = 14
+definition = ExtResource("7_bcqd7")
 duration_status = ExtResource("5_sn5x5")
 metadata/_custom_type_script = "res://systems/ability_system/summon_effect.gd"
 
