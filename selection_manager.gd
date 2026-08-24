@@ -19,6 +19,19 @@ signal selection_changed(selected_units: Array[Unit])
 var selected_units: Array[Unit] = []
 
 
+func _ready() -> void:
+	# The "debug harness auto-selecting whoever's turn it is" case named
+	# above, now real — select() already no-ops on a hostile unit via its
+	# own is_player_controlled() guard, so this needs no combat-side
+	# awareness of who's allowed to be selected; it just always tries.
+	# Non-additive: whichever units were selected during free-roam (or
+	# left over from a previous turn) stop mattering the moment a new
+	# turn starts — turn_started is CombatManager's one authoritative
+	# "a unit's turn is now live" signal, fired from both normal turn
+	# advance and the delay_turn path (see combat_manager.gd).
+	CombatManager.turn_started.connect(select)
+
+
 ## additive = true (e.g. shift-click) adds to the current selection instead
 ## of replacing it. Clicking an already-selected unit with additive = true
 ## deselects just that unit (standard RTS/CRPG toggle behavior).
