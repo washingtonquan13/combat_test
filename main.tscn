@@ -1,4 +1,4 @@
-[gd_scene load_steps=83 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=82 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -72,7 +72,6 @@
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
-[ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
 [ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
 [ext_resource type="Resource" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
@@ -518,6 +517,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, -8)
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -5)
 script = ExtResource("3_h2yge")
+max_pan_radius = 50.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 environment = SubResource("Environment_movement_glow")

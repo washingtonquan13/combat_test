@@ -32,4 +32,5 @@ is_special = false
 unit_scene = ExtResource("2_scene")
 abilities = Array[ExtResource("1_p1ekw")]([])
 ai_behaviors = Array[ExtResource("2_bmdmi")]([])
+negotiable = false
 negotiation_options = Array[ExtResource("3_rootopt")]([SubResource("Resource_negotiation_root")])

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3 uid="uid://cq4j1lx0pvp1k"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=8 format=3 uid="uid://cq4j1lx0pvp1k"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
@@ -7,7 +7,6 @@
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="4_ba8yd"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="5_attack"]
-[ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="6_pixie"]
 
 [resource]
 script = ExtResource("1_def")
@@ -32,5 +31,4 @@ unit_scene = ExtResource("2_scene")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
 ai_behaviors = Array[ExtResource("3_snjgn")]([])
 negotiable = true
-recruit_as = ExtResource("6_pixie")
 negotiation_options = Array[ExtResource("4_ba8yd")]([])
