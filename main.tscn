@@ -75,7 +75,7 @@
 [ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
 [ext_resource type="Resource" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
 [ext_resource type="Resource" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
-[ext_resource type="Resource" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
+[ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true

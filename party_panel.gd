@@ -1,3 +1,4 @@
+class_name PartyPanel
 extends VBoxContainer
 ## Left-edge party display — always visible in and out of combat, no
 ## CombatManager gating at all. One row per core party member (a
@@ -46,6 +47,7 @@ var _summon_chips: Dictionary = {}  # Unit (summon) -> the unit_portrait Button 
 
 func _ready() -> void:
 	visible = false
+	add_to_group("party_panel")
 	# Deferred — CanvasLayer (and this panel under it) is declared before
 	# the actual unit nodes in main.tscn, so scanning "units" immediately
 	# here could run before every unit has added itself to that group in
@@ -56,6 +58,19 @@ func _ready() -> void:
 func _rebuild_core() -> void:
 	for unit in UnitQuery.core_party_units(get_tree()):
 		_add_core_slot(unit)
+	_update_visibility()
+
+
+## Public entry point for a core party member that joins AFTER the
+## initial _rebuild_core scan — the debug spawn tool's own friendly
+## spawns, found via ground_click_target.gd through the "party_panel"
+## group rather than a direct reference, same reasoning
+## give_item_effect.gd already uses to reach PartyOverview through the
+## "party_overview" group. _add_core_slot is already idempotent (skips
+## a unit already present), so this is safe to call more than once for
+## the same unit.
+func register_core_unit(unit: Unit) -> void:
+	_add_core_slot(unit)
 	_update_visibility()
 
 

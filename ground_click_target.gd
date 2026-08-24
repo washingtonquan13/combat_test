@@ -135,10 +135,29 @@ func _spawn_debug_unit() -> void:
 	# species default the instant .definition is assigned.
 	spawned.definition = definition
 	spawned.faction = faction
+	if faction == &"enemy":
+		# hover_color/selected_color aren't part of the .definition cascade
+		# (see UnitDefinition's header) and default to Unit's own
+		# yellow-gold — correct for a friendly spawn (every player-faction
+		# unit in main.tscn leaves these unset too), wrong for a hostile
+		# one. Every hand-authored hostile uses exactly this red, so match
+		# it here instead of leaving debug spawns looking friendly.
+		spawned.hover_color = Color(1, 0, 0, 0.501961)
+		spawned.selected_color = Color(1, 0, 0, 0.627451)
 	get_tree().current_scene.add_child(spawned)
 	spawned.global_position = click_position
 
 	CombatManager.add_unit_to_combat(spawned)
+
+	if faction == &"player":
+		# party_panel.gd builds its core-member list once, one frame after
+		# scene load (_rebuild_core), with no other reactive path for a
+		# unit that joins later — a summon gets picked up via a completely
+		# different mechanism (ability_used's result dict), which a raw
+		# debug spawn never fires. Register directly instead.
+		var party_panel: PartyPanel = get_tree().get_first_node_in_group("party_panel")
+		if party_panel:
+			party_panel.register_core_unit(spawned)
 
 
 ## Only reached on a left-click that didn't land on an interactable and

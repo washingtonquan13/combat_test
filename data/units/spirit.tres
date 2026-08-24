@@ -27,6 +27,7 @@ will = 10
 perception = 10
 max_hp = 2
 max_fp = 0
+damage_reduction = 0
 faction = &"player"
 order = &""
 rank = 1
