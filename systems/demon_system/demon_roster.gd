@@ -21,7 +21,7 @@ var _owned: Array[OwnedDemon] = []
 
 ## Creates a fresh, full-HP/FP OwnedDemon and adds it to the roster —
 ## used by both a fusion result and negotiation's Recruit outcome.
-func recruit(species: DemonSpecies) -> OwnedDemon:
+func recruit(species: UnitDefinition) -> OwnedDemon:
 	var owned := OwnedDemon.new()
 	owned.species = species
 	owned.current_hp = species.max_hp

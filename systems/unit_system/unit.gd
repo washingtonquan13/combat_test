@@ -2,6 +2,38 @@ class_name Unit
 extends CharacterBody3D
 
 @export_group("Identity")
+## Which kind of unit this is — cascades display_name/portrait_texture/
+## faction/the full stat block/abilities/ai_behaviors onto this instance
+## the moment it's assigned, same "data resource separate from the
+## presentation node" convention Item.gear_data already uses (see that
+## file). Declared FIRST, ahead of every field it cascades into, because
+## Godot deserializes a scene's properties in script-declaration order —
+## the cascade has to fire before this instance's own explicit overrides
+## (if any) are applied, so an override still wins. Not a hard lock: any
+## cascaded field stays directly editable afterward, same as gear_data's
+## icon/width/height. Left null and unused on a live SUMMONED demon —
+## owned_demon.species is already the authoritative definition there
+## (see SummonDemonEffect), so setting this too would just be a second
+## path to the same data.
+@export var definition: UnitDefinition = null:
+	set(value):
+		definition = value
+		if definition:
+			display_name = definition.display_name
+			portrait_texture = definition.portrait_texture
+			faction = definition.faction
+			strength = definition.strength
+			dexterity = definition.dexterity
+			intelligence = definition.intelligence
+			health = definition.health
+			will = definition.will
+			perception = definition.perception
+			maximum_hp = definition.max_hp
+			current_hp = definition.max_hp
+			maximum_fp = definition.max_fp
+			current_fp = definition.max_fp
+			abilities = definition.abilities
+			ai_behaviors = definition.ai_behaviors
 ## The name shown to the player — combat log, character sheet, dialogue,
 ## negotiation. Deliberately separate from this node's own scene-tree
 ## .name: that's Godot's own structural identifier (what a $NodePath
@@ -200,17 +232,18 @@ extends CharacterBody3D
 ## false by default, same "off unless deliberately turned on" default
 ## corpse_blocks_movement/every other opt-in flag on this class uses.
 @export var negotiable: bool = false
-## Which DemonSpecies a successful Recruit outcome actually adds to
+## Which UnitDefinition a successful Recruit outcome actually adds to
 ## DemonRoster — NOT the same thing as owned_demon above. owned_demon
 ## only exists on a unit that's ALREADY a roster entry (a summoned
 ## demon); a wild, not-yet-recruited hostile demon has no roster entry
 ## to point at yet, so it needs this separate, direct reference instead.
 ## NegotiationManager reads the negotiation conversation tree off this
-## (see DemonSpecies.negotiation_options/resolve_negotiation_root()) —
+## (see UnitDefinition.negotiation_options/resolve_negotiation_root()) —
 ## left null for anything that isn't meant to be negotiable-into-a-
 ## recruit, same optional-reference convention as every other field in
-## this group.
-@export var negotiation_species: DemonSpecies = null
+## this group. When null, resolve_recruit_definition() falls back to
+## this unit's own definition instead — see that method.
+@export var negotiation_species: UnitDefinition = null
 
 @export_group("Interaction")
 ## Right-click verbs this unit can ever offer — filtered down to
@@ -514,6 +547,17 @@ func resolve_dialogue_root(actor: Unit) -> DialogueNode:
 		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
 			return option.root
 	return null
+
+
+## Which UnitDefinition a successful Recruit outcome should add to
+## DemonRoster for this (wild, hostile) unit — negotiation_species if
+## explicitly authored (an override, e.g. GoblinRogue's existing
+## test_pixie wiring), else this unit's own definition. Null if neither
+## is set; NegotiationManager treats that as "not actually negotiable."
+func resolve_recruit_definition() -> UnitDefinition:
+	if negotiation_species != null:
+		return negotiation_species
+	return definition
 
 
 ## Plain faction inequality has been correct so far only because every

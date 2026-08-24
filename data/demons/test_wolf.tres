@@ -1,12 +1,12 @@
-[gd_resource type="Resource" script_class="DemonSpecies" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://systems/demon_system/demon_species.gd" id="1_species"]
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_species"]
 [ext_resource type="PackedScene" uid="uid://c34760nfcne1d" path="res://scenes/units/sylph.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_species")
-species_id = "test_wolf"
-species_name = "Wolf"
+id = "test_wolf"
+display_name = "Wolf"
 order = &"Beast"
 rank = 4
 unit_scene = ExtResource("2_scene")

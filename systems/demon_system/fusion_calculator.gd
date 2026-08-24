@@ -4,18 +4,18 @@ extends RefCounted
 ## stateless, takes its full input as parameters. Operates purely at
 ## the SPECIES level — fusion math cares about Order/rank, never about
 ## a specific OwnedDemon instance's current HP, which is why this takes
-## DemonSpecies in and out, not OwnedDemon (see DemonCompendiumPanel,
+## UnitDefinition in and out, not OwnedDemon (see DemonCompendiumPanel,
 ## which unwraps the two selected OwnedDemon instances to their
 ## .species before calling this).
 
 ## Null if the chart has no recipe connecting the two orders, or the
 ## resulting order has no valid (non-special) member to land on.
-static func compute_fusion(chart: FusionChart, species_a: DemonSpecies, species_b: DemonSpecies) -> DemonSpecies:
+static func compute_fusion(chart: FusionChart, species_a: UnitDefinition, species_b: UnitDefinition) -> UnitDefinition:
 	var result_order: StringName = chart.result_order(species_a.order, species_b.order)
 	if result_order == &"":
 		return null
 
-	var candidates: Array[DemonSpecies] = []
+	var candidates: Array[UnitDefinition] = []
 	for species in DemonDatabase.members_of_order(result_order):
 		if not species.is_special:
 			candidates.append(species)
@@ -23,7 +23,7 @@ static func compute_fusion(chart: FusionChart, species_a: DemonSpecies, species_
 		return null
 
 	var computed_rank: int = roundi((species_a.rank + species_b.rank) / 2.0)
-	var best: DemonSpecies = candidates[0]
+	var best: UnitDefinition = candidates[0]
 	var best_distance: int = absi(best.rank - computed_rank)
 	for species in candidates:
 		var distance: int = absi(species.rank - computed_rank)

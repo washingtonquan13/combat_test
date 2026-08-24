@@ -16,7 +16,7 @@ extends Resource
 ## to look one up by name — you always already have the reference from
 ## whichever list the player clicked into).
 
-@export var species: DemonSpecies
+@export var species: UnitDefinition
 @export var current_hp: int = 0
 @export var current_fp: int = 0
 ## Purely informational for now (e.g. a "battle-tested" indicator in

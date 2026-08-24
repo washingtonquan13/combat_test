@@ -1,4 +1,4 @@
-[gd_scene load_steps=87 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=88 format=3 uid="uid://d1qy6jfw10nnh"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
@@ -75,6 +75,7 @@
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
 [ext_resource type="Resource" uid="uid://ccc386jmoy5wn" path="res://data/demons/test_pixie.tres" id="70_testpixie"]
+[ext_resource type="Resource" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="90_aibehavior"]
 [ext_resource type="Script" uid="uid://ds81ldf2c2t2x" path="res://systems/ai_system/use_ability_on_nearest_hostile_behavior.gd" id="91_useabilitybehavior"]
 [ext_resource type="Script" uid="uid://c7w2wlpj8is6m" path="res://systems/ai_system/heal_wounded_ally_behavior.gd" id="92_healwoundedbehavior"]
@@ -503,17 +504,11 @@ portrait_texture = ExtResource("7_ycdy4")
 
 [node name="GoblinRogue" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 3, 0.5, 7)
-display_name = "Goblin Rogue"
-dexterity = 14
-maximum_hp = 8
-current_hp = 8
-faction = &"enemy"
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf")])
+definition = ExtResource("71_goblinrogue")
 negotiable = true
 negotiation_species = ExtResource("70_testpixie")
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
-portrait_texture = ExtResource("8_w48qg")
 
 [node name="Hobgoblin" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1, 0.5, 7)

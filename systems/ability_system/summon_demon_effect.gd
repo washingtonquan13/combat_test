@@ -47,7 +47,17 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 		return {}
 
 	var summon: Unit = owned_demon.species.unit_scene.instantiate()
+	# The cascade off .definition carries display_name/portrait_texture/
+	# the full stat block/abilities/ai_behaviors onto the summon in one
+	# line (see Unit.definition's setter) — faction/current_hp/current_fp
+	# still need an explicit override afterward: a recruited demon fights
+	# for whoever fielded it, not its species' default faction, and a
+	# damaged demon shouldn't be free-healed back to full just by being
+	# re-summoned (see owned_demon.gd's own header).
+	summon.definition = owned_demon.species
 	summon.faction = attacker.faction
+	summon.current_hp = owned_demon.current_hp
+	summon.current_fp = owned_demon.current_fp
 	# Ties this summon's lifetime to attacker's — see UnitDeath.handle_death,
 	# which expires everything it summoned the moment it dies. Same
 	# convention SummonEffect already uses for its own summons.
@@ -55,10 +65,6 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	summon.owned_demon = owned_demon
 	summon.hover_color = attacker.hover_color
 	summon.selected_color = attacker.selected_color
-	summon.maximum_hp = owned_demon.species.max_hp
-	summon.current_hp = owned_demon.current_hp
-	summon.maximum_fp = owned_demon.species.max_fp
-	summon.current_fp = owned_demon.current_fp
 
 	owned_demon.has_been_summoned = true
 

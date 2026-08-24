@@ -12,7 +12,7 @@ extends Resource
 
 ## "" (no match) if no recipe connects these two orders in either
 ## direction — the same empty-StringName-as-"nothing" sentinel
-## DemonSpecies.order's own default uses.
+## UnitDefinition.order's own default uses.
 func result_order(order_a: StringName, order_b: StringName) -> StringName:
 	for recipe in recipes:
 		if (recipe.order_a == order_a and recipe.order_b == order_b) \

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=6 format=3]
+
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="Texture2D" uid="uid://bmpvtkr2rfmo5" path="res://assets/portraits/woodland_goblin_rogue_by_thedrimdrim_dh26oji-fullview.jpg" id="3_portrait"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
+[ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="5_attack"]
+
+[resource]
+script = ExtResource("1_def")
+id = "goblin_rogue"
+display_name = "Goblin Rogue"
+dexterity = 14
+faction = &"enemy"
+max_hp = 8
+portrait_texture = ExtResource("3_portrait")
+unit_scene = ExtResource("2_scene")
+abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])

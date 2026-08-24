@@ -138,7 +138,7 @@ func _show_demon_picker(template_effect: SummonDemonEffect) -> void:
 	add_child(popup)
 	for i in owned.size():
 		var entry: OwnedDemon = owned[i]
-		popup.add_item("%s (HP %d/%d)" % [entry.species.species_name, entry.current_hp, entry.species.max_hp], i)
+		popup.add_item("%s (HP %d/%d)" % [entry.species.display_name, entry.current_hp, entry.species.max_hp], i)
 	popup.id_pressed.connect(func(id: int): _on_demon_picked(owned[id], template_effect))
 	popup.popup_hide.connect(popup.queue_free)
 	popup.popup(Rect2(get_screen_position(), Vector2.ZERO))

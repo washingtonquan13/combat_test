@@ -33,7 +33,7 @@ var _fusion_chart: FusionChart
 var _roster_entries: Array[OwnedDemon] = []
 var _slot_a_entries: Array[OwnedDemon] = []
 var _slot_b_entries: Array[OwnedDemon] = []
-var _grant_species: Array[DemonSpecies] = []
+var _grant_species: Array[UnitDefinition] = []
 
 
 func _ready() -> void:
@@ -65,7 +65,7 @@ func refresh() -> void:
 func _populate_demon_list(list: ItemList, entries: Array[OwnedDemon]) -> void:
 	list.clear()
 	for owned in entries:
-		list.add_item("%s (HP %d/%d)" % [owned.species.species_name, owned.current_hp, owned.species.max_hp])
+		list.add_item("%s (HP %d/%d)" % [owned.species.display_name, owned.current_hp, owned.species.max_hp])
 
 
 func _update_fusion_preview() -> void:
@@ -82,13 +82,13 @@ func _update_fusion_preview() -> void:
 		_fuse_button.disabled = true
 		return
 
-	var result: DemonSpecies = FusionCalculator.compute_fusion(_fusion_chart, a.species, b.species)
+	var result: UnitDefinition = FusionCalculator.compute_fusion(_fusion_chart, a.species, b.species)
 	if not result:
 		_fusion_result_label.text = "These two don't fuse into anything."
 		_fuse_button.disabled = true
 		return
 
-	_fusion_result_label.text = "Result: %s" % result.species_name
+	_fusion_result_label.text = "Result: %s" % result.display_name
 	_fuse_button.disabled = false
 
 
@@ -98,7 +98,7 @@ func _on_fuse_pressed() -> void:
 	if not a or not b or a == b:
 		return
 
-	var result: DemonSpecies = FusionCalculator.compute_fusion(_fusion_chart, a.species, b.species)
+	var result: UnitDefinition = FusionCalculator.compute_fusion(_fusion_chart, a.species, b.species)
 	if not result:
 		return
 
@@ -119,7 +119,7 @@ func _refresh_grant_list() -> void:
 	_grant_species = DemonDatabase.get_all()
 	_grant_species_list.clear()
 	for species in _grant_species:
-		_grant_species_list.add_item(species.species_name)
+		_grant_species_list.add_item(species.display_name)
 
 
 func _on_grant_pressed() -> void:
