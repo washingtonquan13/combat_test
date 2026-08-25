@@ -21,8 +21,14 @@ extends Control
 @onready var _play_button: Button = %PlayTrackButton
 @onready var _stop_button: Button = %StopTrackButton
 @onready var _status_label: Label = %MusicStatusLabel
+@onready var _position_slider: HSlider = %PositionSlider
 
 var _tracks: Array[MusicTrack] = []
+## While true, _process() leaves the slider's value alone instead of
+## snapping it back to the real playback position every frame — without
+## this, dragging would fight _process()'s own per-frame update and
+## never actually move.
+var _scrubbing: bool = false
 
 
 func _ready() -> void:
@@ -30,6 +36,8 @@ func _ready() -> void:
 		return
 	_play_button.pressed.connect(_on_play_pressed)
 	_stop_button.pressed.connect(MusicManager.stop)
+	_position_slider.drag_started.connect(func(): _scrubbing = true)
+	_position_slider.drag_ended.connect(_on_slider_drag_ended)
 	_populate_list()
 	_update_status()
 
@@ -38,6 +46,22 @@ func _process(_delta: float) -> void:
 	if not OS.is_debug_build() or not is_visible_in_tree():
 		return
 	_update_status()
+	if not _scrubbing:
+		_update_slider()
+
+
+func _on_slider_drag_ended(value_changed: bool) -> void:
+	_scrubbing = false
+	if value_changed:
+		MusicManager.seek(_position_slider.value)
+
+
+func _update_slider() -> void:
+	var playing: bool = MusicManager.get_phase() != MusicManager.Phase.STOPPED
+	_position_slider.editable = playing
+	var length: float = MusicManager.get_length()
+	_position_slider.max_value = length if length > 0.0 else 1.0
+	_position_slider.value = MusicManager.get_position() if playing else 0.0
 
 
 func refresh() -> void:

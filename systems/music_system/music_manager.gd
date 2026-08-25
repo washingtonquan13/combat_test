@@ -258,6 +258,21 @@ func get_position() -> float:
 	return reference.get_playback_position() if is_instance_valid(reference) else 0.0
 
 
+## Repositions everything currently playing to the same point at once —
+## same "back to back, nothing awaited in between" discipline _play_all
+## uses, so a seek can't desync one stem from the rest. Debug-tool use
+## only (the scrubber in the music panel); no guard against seeking
+## right as an intro->loop preroll/reveal is about to fire — that
+## transition's timing is wall-clock-driven (see this file's own header),
+## not position-driven, so a seek landing in that narrow window could in
+## principle skip a reveal with nothing prerolled yet. Acceptable for a
+## manual debug scrub, not worth guarding against.
+func seek(to_position: float) -> void:
+	for player in _active_players.values():
+		if is_instance_valid(player):
+			player.seek(to_position)
+
+
 func get_length() -> float:
 	if _active_players.is_empty():
 		return 0.0

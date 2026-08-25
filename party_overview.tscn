@@ -713,6 +713,13 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Stopped."
 
+[node name="PositionSlider" type="HSlider" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 1.0
+step = 0.01
+editable = false
+
 [node name="JournalPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true
 visible = false
