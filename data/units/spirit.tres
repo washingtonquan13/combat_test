@@ -31,6 +31,7 @@ damage_reduction = 0
 faction = &"player"
 order = &""
 rank = 1
+personality = &""
 is_special = false
 portrait_texture = ExtResource("4_u1mfq")
 unit_scene = ExtResource("2_scene")
