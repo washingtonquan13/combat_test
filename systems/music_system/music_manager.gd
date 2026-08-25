@@ -29,13 +29,72 @@ extends Node
 ## list — costs nothing for the fixed-song version this pass builds,
 ## but it's the exact lookup a future dynamic-layering feature needs to
 ## address "the drums layer" by name instead of by array position.
+##
+## PREROLL, not pre-warming: an earlier version of this file just
+## pre-created the loop AudioStreamPlayers during the intro (node +
+## stream assigned early, play() still called at the transition). That
+## measurably did NOT close the gap — instrumentation showed play()
+## itself, not node creation or stream assignment, is where Godot pays
+## real setup/decode cost (~80ms, measured), regardless of how long the
+## player had already existed. So instead: the loop stems are actually
+## played, silently (SILENT_VOLUME_DB), PREROLL_MARGIN before the intro
+## is due to end — comfortably past that ~80ms — and "starting the
+## loop" at the real transition moment is just raising their volume
+## back to normal, never a fresh play() call. The tradeoff, worth
+## knowing about: the loop is genuinely PREROLL_MARGIN seconds into its
+## own content by the time it's revealed, not sample-0 — for a musical
+## loop this is normally inaudible, but it's a real, deliberate
+## approximation, not a perfect solution.
+##
+## REACTIVE, not estimated, for the exact reveal moment: earlier
+## versions of this transition waited for the intro's playback
+## position to reach a computed target (a wall-clock Timer, then later
+## a hardware-clock-corrected position poll) — both hit the same real,
+## confirmed bug. Per Godot's own AudioStreamPlayer docs,
+## get_playback_position() "returns 0.0 if no sounds are playing," and
+## since the intro stems are NOT loop-enabled, once one naturally
+## finishes, its position resets to 0 rather than holding at the end.
+## Polling for "position >= target" can race right past that reset and
+## never see it again — confirmed as the cause of the intro simply
+## going silent with the loop never starting. The reveal trigger now
+## reacts to `not reference.playing` instead, which Godot itself flips
+## the instant the stream genuinely stops — no estimate, no race to
+## lose. The PREROLL trigger still has to fire proactively, before the
+## end (there's no signal for "N seconds before finished"), so that
+## part still uses an elapsed real-time estimate — the "System Clock
+## Approach" from
+## https://docs.godotengine.org/en/4.4/tutorials/audio/sync_with_audio.html,
+## which the docs call fine for a wait this short (their drift warning
+## is about continuously tracking a song over minutes, not a single
+## ~18s proactive lead-in); being slightly off here only nudges the
+## preroll window, it can never cause a hang the way the reveal side's
+## old design could.
 
-const NEAR_END_THRESHOLD: float = 2.0
+const NEAR_END_THRESHOLD: float = 1.0
 const QUICK_FADE_DURATION: float = 0.4
 const SILENT_VOLUME_DB: float = -80.0
+## Comfortably above the ~80ms play()-latency measured via
+## _log_first_audible — how long before a transition the NEXT phase is
+## silently started, so that latency is already paid by the time it
+## needs to be heard. Tune up if it's ever measured higher than this.
+const PREROLL_MARGIN: float = 0.2
 
+## Read-only outside this file — see get_phase(). Exists purely for
+## observers (the debug music panel; nothing in this file's own control
+## flow branches on it), so it's updated at whichever points make each
+## transition obvious rather than derived from _active_players/
+## _prerolled_players state, which would be a much fussier reverse-
+## engineering of the same information.
+enum Phase { STOPPED, INTRO, LOOP, OUTRO }
+
+var _phase: Phase = Phase.STOPPED
 var _current_track: MusicTrack = null
 var _active_players: Dictionary = {}  # StringName -> AudioStreamPlayer
+## Real (non-silent) volumes for whatever's currently prerolling, keyed
+## the same way — so reveal knows what to raise each player BACK to,
+## since preroll itself has to stomp volume_db down to silent.
+var _prerolled_players: Dictionary = {}
+var _prerolled_volumes: Dictionary = {}
 ## Bumped on every play_track()/stop() call. A pending await (waiting
 ## out an intro, or waiting for the loop's boundary) captures this
 ## value before waiting and checks it again after — if something newer
@@ -50,17 +109,46 @@ func play_track(track: MusicTrack) -> void:
 
 	var token: int = _bump_generation()
 	_hard_stop_active_players()
+	_hard_stop_prerolled_players()
 	_current_track = track
 
 	if not track.intro.is_empty():
-		_active_players = _spawn_and_play(track.intro)
-		var intro_length: float = track.intro[0].stream.get_length()
-		await get_tree().create_timer(intro_length).timeout
-		if token != _generation:
-			return
-		_hard_stop_active_players()
+		_phase = Phase.INTRO
+		_active_players = _spawn(track.intro)
+		_play_all(_active_players)
+		await _run_intro_to_loop(token, track)
+	else:
+		_phase = Phase.LOOP
+		_active_players = _spawn_and_play(track.loop)
 
-	_active_players = _spawn_and_play(track.loop)
+
+## Drives the intro->loop handoff: an elapsed-time estimate proactively
+## triggers preroll before the intro ends, then reveal reacts to the
+## intro's own `playing` state going false — see this file's header for
+## why reveal specifically must not be estimated.
+func _run_intro_to_loop(token: int, track: MusicTrack) -> void:
+	var reference: AudioStreamPlayer = _active_players.values()[0]
+	var intro_length: float = reference.stream.get_length()
+	var start_usec: int = Time.get_ticks_usec()
+	var latency_offset: float = AudioServer.get_time_to_next_mix() + AudioServer.get_output_latency()
+	var preroll_started: bool = false
+
+	while true:
+		await get_tree().process_frame
+		if token != _generation or not is_instance_valid(reference):
+			return
+
+		var elapsed: float = max((Time.get_ticks_usec() - start_usec) / 1000000.0 - latency_offset, 0.0)
+
+		if not preroll_started and elapsed >= intro_length - PREROLL_MARGIN:
+			preroll_started = true
+			_start_preroll(track.loop)
+
+		if not reference.playing:
+			_hard_stop_active_players()
+			_active_players = _reveal_prerolled()
+			_phase = Phase.LOOP
+			return
 
 
 ## Ends the current track. If the loop is already close to its own
@@ -87,10 +175,53 @@ func stop() -> void:
 		_hard_stop_active_players()
 		if _current_track and not _current_track.outro.is_empty():
 			_active_players = _spawn_and_play(_current_track.outro)
+			_phase = Phase.OUTRO
+			# Bookkeeping only, for get_phase()'s benefit — the outro is a
+			# one-shot, non-looping phase, so unlike the loop (see this
+			# file's header for why THAT one never hooks `finished`),
+			# there's no sync-drift risk in reacting to its natural end.
+			var outro_reference: AudioStreamPlayer = _active_players.values()[0]
+			outro_reference.finished.connect(_on_outro_finished.bind(token))
+		else:
+			_phase = Phase.STOPPED
 	else:
 		_quick_fade_and_stop_active_players()
+		_phase = Phase.STOPPED
 
 	_current_track = null
+
+
+func _on_outro_finished(token: int) -> void:
+	if token == _generation:
+		_phase = Phase.STOPPED
+
+
+func get_phase() -> Phase:
+	return _phase
+
+
+func get_current_track() -> MusicTrack:
+	return _current_track
+
+
+## 0.0 outside of Phase.LOOP/OUTRO's outro or whenever nothing valid is
+## currently playing — see get_length()'s own note on why that's not
+## distinguishable from "genuinely at position 0" without also checking
+## get_phase(), which callers (the debug music panel) already do.
+func get_position() -> float:
+	if _active_players.is_empty():
+		return 0.0
+	var reference: AudioStreamPlayer = _active_players.values()[0]
+	return reference.get_playback_position() if is_instance_valid(reference) else 0.0
+
+
+func get_length() -> float:
+	if _active_players.is_empty():
+		return 0.0
+	var reference: AudioStreamPlayer = _active_players.values()[0]
+	if not is_instance_valid(reference) or not reference.stream:
+		return 0.0
+	return reference.stream.get_length()
 
 
 func _bump_generation() -> int:
@@ -98,7 +229,33 @@ func _bump_generation() -> int:
 	return _generation
 
 
-func _spawn_and_play(stems: Array[MusicStem]) -> Dictionary:
+## Silently starts playing stems ahead of when they're actually needed
+## — real play(), real position advancing, just inaudible — so whatever
+## play()-time setup cost Godot pays happens now instead of at the
+## moment this needs to sound clean. See _reveal_prerolled.
+func _start_preroll(stems: Array[MusicStem]) -> void:
+	_prerolled_players = _spawn(stems)
+	_prerolled_volumes.clear()
+	for stem in stems:
+		if stem and stem.name in _prerolled_players:
+			_prerolled_volumes[stem.name] = stem.volume_db
+			_prerolled_players[stem.name].volume_db = SILENT_VOLUME_DB
+	_play_all(_prerolled_players)
+
+
+## Raises whatever's currently prerolling back to its real authored
+## volume and hands it over as the new active set — no play() call
+## here, which is the entire point: it's already genuinely playing.
+func _reveal_prerolled() -> Dictionary:
+	for stem_name in _prerolled_players:
+		_prerolled_players[stem_name].volume_db = _prerolled_volumes.get(stem_name, 0.0)
+	var revealed: Dictionary = _prerolled_players
+	_prerolled_players = {}
+	_prerolled_volumes.clear()
+	return revealed
+
+
+func _spawn(stems: Array[MusicStem]) -> Dictionary:
 	var players: Dictionary = {}
 	for stem in stems:
 		if not stem or not stem.stream:
@@ -109,14 +266,20 @@ func _spawn_and_play(stems: Array[MusicStem]) -> Dictionary:
 		player.stream = stem.stream
 		player.volume_db = stem.volume_db
 		players[stem.name] = player
+	return players
 
-	# Separate loop from spawn so every player's play() call happens as
-	# close together as possible — building the array above does the
-	# (comparatively slow) node/resource setup work first, out of the
-	# way of the timing-sensitive part.
+
+## Every player's play() call happens as close together as possible —
+## whatever node/resource setup was needed already happened in _spawn,
+## out of the way of this timing-sensitive part.
+func _play_all(players: Dictionary) -> void:
 	for player in players.values():
 		player.play()
 
+
+func _spawn_and_play(stems: Array[MusicStem]) -> Dictionary:
+	var players: Dictionary = _spawn(stems)
+	_play_all(players)
 	return players
 
 
@@ -125,6 +288,14 @@ func _hard_stop_active_players() -> void:
 		if is_instance_valid(player):
 			player.queue_free()
 	_active_players.clear()
+
+
+func _hard_stop_prerolled_players() -> void:
+	for player in _prerolled_players.values():
+		if is_instance_valid(player):
+			player.queue_free()
+	_prerolled_players.clear()
+	_prerolled_volumes.clear()
 
 
 func _quick_fade_and_stop_active_players() -> void:

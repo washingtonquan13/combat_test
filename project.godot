@@ -32,7 +32,6 @@ DemonRoster="*res://systems/demon_system/demon_roster.gd"
 NegotiationManager="*res://systems/negotiation_system/negotiation_manager.gd"
 DebugSpawner="*res://debug_spawner.gd"
 MusicManager="*res://systems/music_system/music_manager.gd"
-VerifyMusicManager="*res://verify_music_manager.gd"
 
 [display]
 

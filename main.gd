@@ -29,6 +29,11 @@ func _ready() -> void:
 	print(SkillCalculator.get_skill_level($ElfRanger, "Acrobatics").skill_level)
 	_watch_goblinoid_raid_quest()
 
+	# TEMPORARY — manual listen-test for MusicManager. Remove once you've
+	# confirmed the intro/loop/outro handoff sounds right, or replace with
+	# a real trigger (level-up, presumably, given the track's name).
+	MusicManager.play_track(load("res://data/music/level_up_groovy.tres"))
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("test_start_combat"):

@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3 uid="uid://jfavnc280asx"]
+[gd_scene load_steps=9 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://systems/inventory_system/equip_slot.tscn" id="2_equip"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" uid="uid://2g8vxoibdf3k" path="res://alignment_grid.gd" id="5_align_grid"]
 [ext_resource type="Script" path="res://demon_compendium_panel.gd" id="6_demon_panel"]
 [ext_resource type="Script" path="res://debug_spawn_panel.gd" id="7_spawn_panel"]
+[ext_resource type="Script" path="res://debug_music_panel.gd" id="8_music_panel"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_spawn_faction"]
 
@@ -55,6 +56,11 @@ text = "Demons"
 unique_name_in_owner = true
 layout_mode = 2
 text = "Spawn"
+
+[node name="TabMusic" type="Button" parent="TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Music"
 
 [node name="TabSpellbook" type="Button" parent="TopBar"]
 unique_name_in_owner = true
@@ -608,6 +614,66 @@ text = "Not armed."
 unique_name_in_owner = true
 layout_mode = 2
 text = "Arm Spawn"
+
+[node name="MusicPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("8_music_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="ContentArea/MusicPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/MusicPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Music"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="MusicTrackList" type="ItemList" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ButtonRow" type="HBoxContainer" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PlayTrackButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Play"
+
+[node name="StopTrackButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Stop"
+
+[node name="MusicStatusLabel" type="Label" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Stopped."
 
 [node name="JournalPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true

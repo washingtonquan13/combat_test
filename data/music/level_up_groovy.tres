@@ -1,7 +1,7 @@
-[gd_resource type="Resource" script_class="MusicTrack" load_steps=21 format=3]
+[gd_resource type="Resource" script_class="MusicTrack" load_steps=21 format=3 uid="uid://cabmrqxkcikwh"]
 
-[ext_resource type="Script" path="res://systems/music_system/music_track.gd" id="1_track"]
-[ext_resource type="Script" path="res://systems/music_system/music_stem.gd" id="2_stem"]
+[ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="1_track"]
+[ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="2_stem"]
 [ext_resource type="AudioStream" uid="uid://cc4bj5ptjh8v4" path="res://assets/audio/level_up_groovy_stems/level_up_groovy_intro_bass.wav" id="3_introbass"]
 [ext_resource type="AudioStream" uid="uid://x15x65j378uw" path="res://assets/audio/level_up_groovy_stems/level_up_groovy_intro_drums.wav" id="4_introdrums"]
 [ext_resource type="AudioStream" uid="uid://bq3i6hrfrojyn" path="res://assets/audio/level_up_groovy_stems/level_up_groovy_intro_synth.wav" id="5_introsynth"]
