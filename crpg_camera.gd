@@ -90,8 +90,13 @@ enum Mode { BOUND, UNBOUND }
 			# _physics_process — same smoothing any other pan gets.
 			target_anchor_offset = Vector3.ZERO
 		focus_target = value
-## Offset applied to the focus target's position (e.g. raise anchor above the ground).
-## Bound mode only — unbound mode's anchor has no base position to offset.
+## Offset applied to the focus target's position (e.g. raise anchor above
+## the ground). Also applied in unbound mode to the ground-probed initial
+## anchor (see _ready()) for the same reason: an anchor sitting exactly
+## ON a collision surface, rather than above it, makes camera collision's
+## own raycast immediately self-intersect that surface (confirmed bug —
+## see _collision_clamp_distance's header) and clamp to
+## min_collision_distance every frame, regardless of any real obstruction.
 @export var focus_offset: Vector3 = Vector3(0, 1, 0)
 ## How quickly the camera's actual position catches up to desired_position.
 ## This is the main source of the camera's "swagger" — identical in both modes.
@@ -115,6 +120,12 @@ enum Mode { BOUND, UNBOUND }
 ## Max horizontal distance (XZ plane) the anchor may stray from focus_target.
 ## Bound mode only — unbound mode's anchor is never leashed.
 @export var max_pan_radius: float = 8.0
+## How far above/below the anchor's current height to search for ground
+## while panning in free-roam (unbound) mode — see _ground_hug_anchor.
+## Bound mode doesn't use this: its anchor already tracks focus_target's
+## own height directly, so panning across uneven terrain is handled for
+## free by just following whoever the camera is focused on.
+@export var ground_probe_range: float = 20.0
 
 @export_group("Zoom (Scroll)")
 @export var zoom_speed: float = 10.0
@@ -129,6 +140,25 @@ enum Mode { BOUND, UNBOUND }
 @export var max_pitch: float = 65.0
 ## Optional curve mapping zoom-in (0) to zoom-out (1) fraction to pitch interpolation.
 @export var pitch_curve: Curve
+
+@export_group("Collision")
+## Physics layer(s) the camera avoids clipping through — matches this
+## project's shared ground/geometry layer (see indicator_base.gd's own
+## ground_collision_mask default). Units live on that same layer but are
+## always excluded explicitly (see _collision_clamp_distance) — the same
+## "environment blocks, units don't" rule LineOfSight already establishes
+## for line-of-sight raycasts (see that file's header): a party member or
+## enemy walking near the sightline should never yank the camera around,
+## only walls/terrain/props should.
+@export var collision_mask: int = 1
+## How much clearance to keep from a hit surface — the camera stops this
+## far short of the wall rather than exactly at it, so its own near-clip
+## plane doesn't still poke through at oblique angles.
+@export var collision_margin: float = 0.4
+## Absolute floor on how close collision is allowed to pull the camera,
+## even in a tight corner where hit_distance - collision_margin would
+## otherwise put it nearer still (or, degenerately, negative).
+@export var min_collision_distance: float = 1.0
 
 # shared state (kept continuous across both modes so switching never snaps)
 var current_yaw: float = 0.0        # degrees
@@ -187,7 +217,23 @@ func _ready() -> void:
 			-sin(pitch_rad),
 			-cos(yaw_rad) * cos(pitch_rad)
 		)
-		target_anchor_offset = global_position + forward * current_distance
+		# Raycast toward the ground first, rather than blindly projecting
+		# by current_distance — confirmed bug: on this scene's authored
+		# starting angle, a blind projection overshoots the floor and
+		# lands the anchor underneath it, in open space below the map.
+		# Harmless on its own (nothing used to care where the anchor
+		# physically was), but camera collision (see _collision_clamp_
+		# distance) then faithfully finds "the floor, hit from below,
+		# right in front of the anchor" and pulls the camera down toward
+		# it — the reported "stuck in the void" bug. Falls back to the
+		# old blind projection if the ray finds nothing (e.g. the camera
+		# happens to be aimed at open sky).
+		var probe_target: Vector3 = global_position + forward * current_distance
+		var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+		var probe_query := PhysicsRayQueryParameters3D.create(global_position, probe_target)
+		probe_query.collision_mask = collision_mask
+		var probe_result: Dictionary = space_state.intersect_ray(probe_query)
+		target_anchor_offset = (probe_result.position + focus_offset) if not probe_result.is_empty() else probe_target
 
 	current_yaw = target_yaw
 	current_anchor_offset = target_anchor_offset
@@ -265,9 +311,17 @@ func _physics_process(delta: float) -> void:
 		-cos(yaw_rad) * cos(pitch_rad)
 	)
 
-	desired_position = anchor_point - (forward * current_distance)
+	var collision_safe_distance: float = _collision_clamp_distance(anchor_point, forward, current_distance)
+	desired_position = anchor_point - (forward * collision_safe_distance)
 
-	# Shared "swagger" step — identical lerp for both modes.
+	# Shared "swagger" step — identical lerp for both modes. This same
+	# lerp is what makes collision avoidance read as a subtle nudge
+	# rather than a hard snap: desired_position itself can change
+	# abruptly (an obstruction appearing or clearing between one frame
+	# and the next), but global_position always eases toward wherever
+	# desired_position currently is, exactly like it already eases
+	# toward every other change to anchor/zoom/rotation. No separate
+	# smoothing pass needed just for collision.
 	global_position = global_position.lerp(desired_position, 1.0 - exp(-follow_smoothing * delta))
 
 	# Eased toward the true anchor, same as global_position is eased
@@ -285,6 +339,38 @@ func _get_anchor_point() -> Vector3:
 	if focus_target:
 		return focus_target.global_position + focus_offset + current_anchor_offset
 	return current_anchor_offset
+
+
+## Shortens distance to whatever a raycast from `from` toward the
+## camera's ideal position (from - forward*distance) allows, stopping
+## collision_margin short of the first hit — the camera pulls IN toward
+## the anchor to avoid clipping through geometry instead of phasing
+## through it, same idea SpringArm3D uses for a third-person follow
+## camera, just computed by hand here since this script already owns
+## its own position pipeline rather than delegating to a node hierarchy.
+##
+## Units are gathered fresh and excluded every call — see this file's
+## Collision export group for why. Returns a plain float and touches no
+## camera state itself; desired_position ends up eased through the same
+## follow_smoothing lerp every other movement already goes through, so
+## this never needs a separate smoothing pass of its own.
+func _collision_clamp_distance(from: Vector3, forward: Vector3, distance: float) -> float:
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var to: Vector3 = from - forward * distance
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = collision_mask
+
+	var excluded: Array = []
+	for unit in UnitQuery.all_units(get_tree()):
+		excluded.append(unit.get_rid())
+	query.exclude = excluded
+
+	var result: Dictionary = space_state.intersect_ray(query)
+	if result.is_empty():
+		return distance
+
+	var hit_distance: float = from.distance_to(result.position)
+	return max(hit_distance - collision_margin, min_collision_distance)
 
 
 func _handle_rotation_input(delta: float) -> void:
@@ -315,8 +401,38 @@ func _handle_anchor_movement_input(delta: float) -> void:
 	var move: Vector3 = (right * input_dir.x + forward * -input_dir.y) * move_speed * delta
 	target_anchor_offset += move
 
-	if _get_mode() == Mode.BOUND and target_anchor_offset.length() > max_pan_radius:
-		target_anchor_offset = target_anchor_offset.normalized() * max_pan_radius
+	if _get_mode() == Mode.BOUND:
+		if target_anchor_offset.length() > max_pan_radius:
+			target_anchor_offset = target_anchor_offset.normalized() * max_pan_radius
+	else:
+		_ground_hug_anchor()
+
+
+## Free-roam only: re-probes the ground directly beneath the anchor's new
+## horizontal position and adjusts target_anchor_offset's height toward
+## it — eased in via the exact same move_smoothing lerp every other
+## anchor movement already goes through in _physics_process, so this
+## doesn't need a separate smoothing pass of its own, same reasoning
+## _collision_clamp_distance's own header gives for follow_smoothing.
+## Bound mode doesn't call this: its anchor already tracks focus_target's
+## own height directly, so uneven terrain is handled for free there.
+##
+## Leaves target_anchor_offset.y untouched if the probe finds nothing
+## (e.g. panned out past the edge of authored geometry) rather than
+## snapping to some fallback height — same "don't invent data you don't
+## have" reasoning _ready()'s own ground probe already follows.
+func _ground_hug_anchor() -> void:
+	var probe_top: Vector3 = Vector3(target_anchor_offset.x, target_anchor_offset.y + ground_probe_range, target_anchor_offset.z)
+	var probe_bottom: Vector3 = Vector3(target_anchor_offset.x, target_anchor_offset.y - ground_probe_range, target_anchor_offset.z)
+
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(probe_top, probe_bottom)
+	query.collision_mask = collision_mask
+	var result: Dictionary = space_state.intersect_ray(query)
+	if result.is_empty():
+		return
+
+	target_anchor_offset.y = result.position.y + focus_offset.y
 
 
 ## Ground-plane forward/right for a given yaw, ignoring pitch. Signs match
