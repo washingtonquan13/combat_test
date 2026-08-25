@@ -1,0 +1,108 @@
+[gd_resource type="Resource" script_class="MusicTrack" load_steps=27 format=3 uid="uid://bcj2ssed82by0"]
+
+[ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="1_yr7ph"]
+[ext_resource type="AudioStream" uid="uid://vj31dhyxrm0" path="res://assets/audio/negotiation/Bass_intro.wav" id="2_bqibn"]
+[ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="2_kimwi"]
+[ext_resource type="AudioStream" uid="uid://bhk2ae5fk6sfl" path="res://assets/audio/negotiation/Drums_intro.wav" id="3_nlqb4"]
+[ext_resource type="AudioStream" uid="uid://dvtyxhnorvcvy" path="res://assets/audio/negotiation/Keyboard_intro.wav" id="4_0yqaa"]
+[ext_resource type="AudioStream" uid="uid://dysdoq30jrfsh" path="res://assets/audio/negotiation/Synth_intro.wav" id="5_tp1io"]
+[ext_resource type="AudioStream" uid="uid://cej01lqf2ijdl" path="res://assets/audio/negotiation/Bass_loop.wav" id="6_xctn7"]
+[ext_resource type="AudioStream" uid="uid://bqdyktrkp6w5a" path="res://assets/audio/negotiation/Drums_loop.wav" id="7_0nh7c"]
+[ext_resource type="AudioStream" uid="uid://b7j12w7utyxkr" path="res://assets/audio/negotiation/Keyboard_loop.wav" id="8_04561"]
+[ext_resource type="AudioStream" uid="uid://b3q5rq3126f5v" path="res://assets/audio/negotiation/Synth_loop.wav" id="9_xbp4q"]
+[ext_resource type="AudioStream" uid="uid://dcuxhqne1788v" path="res://assets/audio/negotiation/Bass_outro.wav" id="10_a3g3t"]
+[ext_resource type="AudioStream" uid="uid://byj4xuu3saks8" path="res://assets/audio/negotiation/Drums_outro.wav" id="11_nfwti"]
+[ext_resource type="AudioStream" uid="uid://xidyvobirpe7" path="res://assets/audio/negotiation/Keyboard_outro.wav" id="12_qgbq8"]
+[ext_resource type="AudioStream" uid="uid://gqtdmoc1u6ej" path="res://assets/audio/negotiation/Synth_outro.wav" id="13_7vwvp"]
+
+[sub_resource type="Resource" id="Resource_5jiym"]
+script = ExtResource("1_yr7ph")
+name = &"bass_intro"
+stream = ExtResource("2_bqibn")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_pcn0g"]
+script = ExtResource("1_yr7ph")
+name = &"drums_intro"
+stream = ExtResource("3_nlqb4")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_2hvs0"]
+script = ExtResource("1_yr7ph")
+name = &"keyboard_intro"
+stream = ExtResource("4_0yqaa")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_uayp1"]
+script = ExtResource("1_yr7ph")
+name = &"synth_intro"
+stream = ExtResource("5_tp1io")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_vxtad"]
+script = ExtResource("1_yr7ph")
+name = &"bass_loop"
+stream = ExtResource("6_xctn7")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_63irv"]
+script = ExtResource("1_yr7ph")
+name = &"drums_loop"
+stream = ExtResource("7_0nh7c")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_tp1io"]
+script = ExtResource("1_yr7ph")
+name = &"keyboard_loop"
+stream = ExtResource("8_04561")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_xctn7"]
+script = ExtResource("1_yr7ph")
+name = &"synth_loop"
+stream = ExtResource("9_xbp4q")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_0nh7c"]
+script = ExtResource("1_yr7ph")
+name = &"bass_outro"
+stream = ExtResource("10_a3g3t")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_04561"]
+script = ExtResource("1_yr7ph")
+name = &"drums_outro"
+stream = ExtResource("11_nfwti")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_xbp4q"]
+script = ExtResource("1_yr7ph")
+name = &"keyboard_outro"
+stream = ExtResource("12_qgbq8")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_8441f"]
+script = ExtResource("1_yr7ph")
+name = &"synth_outro"
+stream = ExtResource("13_7vwvp")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[resource]
+script = ExtResource("2_kimwi")
+id = "negotiation"
+intro = Array[ExtResource("1_yr7ph")]([SubResource("Resource_5jiym"), SubResource("Resource_pcn0g"), SubResource("Resource_2hvs0"), SubResource("Resource_uayp1")])
+loop = Array[ExtResource("1_yr7ph")]([SubResource("Resource_vxtad"), SubResource("Resource_63irv"), SubResource("Resource_tp1io"), SubResource("Resource_xctn7")])
+outro = Array[ExtResource("1_yr7ph")]([SubResource("Resource_0nh7c"), SubResource("Resource_04561"), SubResource("Resource_xbp4q"), SubResource("Resource_8441f")])
+metadata/_custom_type_script = "uid://b6n0bkv8eyu2j"
