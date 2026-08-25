@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="MusicTrack" load_steps=5 format=3 uid="uid://cbi4j3n5qq2lu"]
+
+[ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="1_tvae7"]
+[ext_resource type="AudioStream" uid="uid://dvxujj78ctgfm" path="res://assets/audio/neon_pulse_2.ogg" id="2_2c2h8"]
+[ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="2_48p4j"]
+
+[sub_resource type="Resource" id="Resource_fds0j"]
+script = ExtResource("1_tvae7")
+name = &"neon_pulse_2"
+stream = ExtResource("2_2c2h8")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[resource]
+script = ExtResource("2_48p4j")
+id = "neon_pulse"
+intro = Array[ExtResource("1_tvae7")]([])
+loop = Array[ExtResource("1_tvae7")]([SubResource("Resource_fds0j")])
+outro = Array[ExtResource("1_tvae7")]([])
+metadata/_custom_type_script = "uid://b6n0bkv8eyu2j"
