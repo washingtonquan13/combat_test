@@ -45,6 +45,26 @@ class_name CRPGCamera
 ## (the "swagger" lerp) — identical in both modes, since desired_position is
 ## built from the same distance/pitch/anchor smoothing pipeline either way.
 ##
+## Also handled, both physics-driven rather than input-driven so they react
+## regardless of what the player's actively doing: distance collision (see
+## _required_distance_reduction/_update_distance_reduction — pulls the
+## camera in rather than clipping through geometry) and, unbound mode only,
+## height correction over uneven terrain (see _required_height_lift/
+## _update_height_lift). Both are computed as small, disposable "how much
+## correction right now" magnitudes eased toward 0 every frame, layered on
+## top of the true player-driven distance/anchor rather than ever being
+## written into them — see _smoothed_distance_reduction/_smoothed_height_
+## lift's own header for why that split matters.
+##
+## Distance collision alone still gets uncomfortably close in a tight
+## corner (it can only pull straight back along one fixed line, never
+## find a less-cramped angle) — a lateral "dodge to the clearer side" fix
+## was tried and worked, but got dropped: no real CRPG actually solves
+## corners that way. What BG3 itself does instead is documented (see
+## _apply_occlusion_fade's own header) — fading walls/ceilings transparent
+## rather than repositioning the camera at all — and that's the intended
+## real fix, not yet built.
+##
 ## Written for Godot 4.x
 
 enum Mode { BOUND, UNBOUND }
@@ -92,10 +112,11 @@ enum Mode { BOUND, UNBOUND }
 		focus_target = value
 ## Offset applied to the focus target's position (e.g. raise anchor above
 ## the ground). Also applied in unbound mode to the ground-probed initial
-## anchor (see _ready()) for the same reason: an anchor sitting exactly
-## ON a collision surface, rather than above it, makes camera collision's
-## own raycast immediately self-intersect that surface (confirmed bug —
-## see _collision_clamp_distance's header) and clamp to
+## anchor (see _ready()) and to _required_height_lift's own probe, for
+## the same reason: an anchor sitting exactly ON a collision surface,
+## rather than above it, makes camera collision's own raycast immediately
+## self-intersect that surface (confirmed bug — see
+## _required_distance_reduction's header) and clamp to
 ## min_collision_distance every frame, regardless of any real obstruction.
 @export var focus_offset: Vector3 = Vector3(0, 1, 0)
 ## How quickly the camera's actual position catches up to desired_position.
@@ -121,10 +142,10 @@ enum Mode { BOUND, UNBOUND }
 ## Bound mode only — unbound mode's anchor is never leashed.
 @export var max_pan_radius: float = 8.0
 ## How far above/below the anchor's current height to search for ground
-## while panning in free-roam (unbound) mode — see _ground_hug_anchor.
-## Bound mode doesn't use this: its anchor already tracks focus_target's
-## own height directly, so panning across uneven terrain is handled for
-## free by just following whoever the camera is focused on.
+## in free-roam (unbound) mode — see _required_height_lift. Bound mode
+## doesn't use this: its anchor already tracks focus_target's own height
+## directly, so uneven terrain is handled for free by just following
+## whoever the camera is focused on.
 @export var ground_probe_range: float = 20.0
 
 @export_group("Zoom (Scroll)")
@@ -145,20 +166,44 @@ enum Mode { BOUND, UNBOUND }
 ## Physics layer(s) the camera avoids clipping through — matches this
 ## project's shared ground/geometry layer (see indicator_base.gd's own
 ## ground_collision_mask default). Units live on that same layer but are
-## always excluded explicitly (see _collision_clamp_distance) — the same
-## "environment blocks, units don't" rule LineOfSight already establishes
-## for line-of-sight raycasts (see that file's header): a party member or
-## enemy walking near the sightline should never yank the camera around,
-## only walls/terrain/props should.
+## always excluded explicitly (see _required_distance_reduction) — the
+## same "environment blocks, units don't" rule LineOfSight already
+## establishes for line-of-sight raycasts (see that file's header): a
+## party member or enemy walking near the sightline should never yank
+## the camera around, only walls/terrain/props should.
 @export var collision_mask: int = 1
-## How much clearance to keep from a hit surface — the camera stops this
-## far short of the wall rather than exactly at it, so its own near-clip
-## plane doesn't still poke through at oblique angles.
+## Radius of the sphere swept from the anchor toward the camera's ideal
+## position (see _required_distance_reduction), rather than a zero-
+## thickness ray — a plain ray can slip past a wall grazing the edge of
+## the view (a corner, a doorway frame) since it only tests one exact
+## line; a small sphere catches that because it has to keep this much
+## clearance on every side, not just dead-center.
+@export var collision_shape_radius: float = 0.3
+## Additional clearance kept from a hit surface ON TOP OF
+## collision_shape_radius — the camera stops this much further short of
+## the wall than the bare non-overlap point, so its own near-clip plane
+## doesn't still poke through at oblique angles.
 @export var collision_margin: float = 0.4
 ## Absolute floor on how close collision is allowed to pull the camera,
-## even in a tight corner where hit_distance - collision_margin would
+## even in a tight corner where the raycast/shapecast math would
 ## otherwise put it nearer still (or, degenerately, negative).
 @export var min_collision_distance: float = 1.0
+
+@export_group("Collision Response")
+## How quickly a NEW or worsening obstruction pulls the camera in (see
+## _update_distance_reduction) or lifts its height (see
+## _update_height_lift) — kept fast on purpose, so the camera never
+## visibly clips even for a frame or two while catching up. Shared
+## between both systems since they're the same underlying idea (react
+## fast to a new problem, ease out of a solved one) — split into
+## separate distance/height knobs later if they ever need to feel
+## different from each other.
+@export var response_in_speed: float = 20.0
+## How quickly the camera eases back out once an obstruction clears —
+## deliberately slower than response_in_speed by default, so release
+## reads as a graceful settle rather than snapping straight back to
+## full distance/height the instant something's no longer in the way.
+@export var response_out_speed: float = 6.0
 
 # shared state (kept continuous across both modes so switching never snaps)
 var current_yaw: float = 0.0        # degrees
@@ -187,6 +232,23 @@ var desired_position: Vector3 = Vector3.ZERO
 ## to actually look like one continuous motion instead of two mismatched ones.
 var current_look_at_point: Vector3 = Vector3.ZERO
 var _last_anchor_point: Vector3 = Vector3.ZERO   # cached for look_at, applied after the shared position lerp
+
+## How much shorter than current_distance collision currently requires
+## the camera to sit, and how much ABOVE current_anchor_offset.y the
+## free-roam anchor currently needs lifting — both pure "magnitude of
+## correction right now" values, always >= 0, eased every physics frame
+## toward a freshly-computed target (see _update_distance_reduction/
+## _update_height_lift) rather than ever being written back into
+## current_distance/current_anchor_offset themselves. That distinction
+## is load-bearing, not stylistic: an earlier version of height
+## correction DID write directly into the anchor's persistent height,
+## which meant it could only ever go up and had no way to tell "still
+## needed" apart from "was needed once" — see _update_height_lift's own
+## header for the full story. Naturally revert to 0 the moment they're
+## no longer needed, since nothing ever mutates the value they're
+## measured against.
+var _smoothed_distance_reduction: float = 0.0
+var _smoothed_height_lift: float = 0.0
 
 
 func _get_mode() -> Mode:
@@ -222,12 +284,12 @@ func _ready() -> void:
 		# starting angle, a blind projection overshoots the floor and
 		# lands the anchor underneath it, in open space below the map.
 		# Harmless on its own (nothing used to care where the anchor
-		# physically was), but camera collision (see _collision_clamp_
-		# distance) then faithfully finds "the floor, hit from below,
-		# right in front of the anchor" and pulls the camera down toward
-		# it — the reported "stuck in the void" bug. Falls back to the
-		# old blind projection if the ray finds nothing (e.g. the camera
-		# happens to be aimed at open sky).
+		# physically was), but camera collision (see
+		# _required_distance_reduction) then faithfully finds "the floor,
+		# hit from below, right in front of the anchor" and pulls the
+		# camera down toward it — the reported "stuck in the void" bug.
+		# Falls back to the old blind projection if the ray finds nothing
+		# (e.g. the camera happens to be aimed at open sky).
 		var probe_target: Vector3 = global_position + forward * current_distance
 		var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 		var probe_query := PhysicsRayQueryParameters3D.create(global_position, probe_target)
@@ -299,6 +361,7 @@ func _physics_process(delta: float) -> void:
 	current_pitch = lerp(current_pitch, target_pitch, 1.0 - exp(-zoom_smoothing * delta))
 
 	current_anchor_offset = current_anchor_offset.lerp(target_anchor_offset, 1.0 - exp(-move_smoothing * delta))
+	_update_height_lift(delta)
 
 	var anchor_point: Vector3 = _get_anchor_point()
 	_last_anchor_point = anchor_point
@@ -311,17 +374,20 @@ func _physics_process(delta: float) -> void:
 		-cos(yaw_rad) * cos(pitch_rad)
 	)
 
-	var collision_safe_distance: float = _collision_clamp_distance(anchor_point, forward, current_distance)
+	_update_distance_reduction(anchor_point, forward, current_distance, delta)
+	_apply_occlusion_fade(anchor_point, forward, current_distance)
+	var collision_safe_distance: float = max(current_distance - _smoothed_distance_reduction, min_collision_distance)
 	desired_position = anchor_point - (forward * collision_safe_distance)
 
-	# Shared "swagger" step — identical lerp for both modes. This same
-	# lerp is what makes collision avoidance read as a subtle nudge
-	# rather than a hard snap: desired_position itself can change
-	# abruptly (an obstruction appearing or clearing between one frame
-	# and the next), but global_position always eases toward wherever
-	# desired_position currently is, exactly like it already eases
-	# toward every other change to anchor/zoom/rotation. No separate
-	# smoothing pass needed just for collision.
+	# Shared "swagger" step — identical lerp for both modes. desired_
+	# position is already smooth by the time it gets here (both
+	# _smoothed_distance_reduction and _smoothed_height_lift are eased
+	# values, not raw per-frame results), so this lerp is a second,
+	# general layer of smoothing on top — the collision/height response
+	# has its own fast-in/slow-out character (see the Collision Response
+	# export group), and this lerp gives it the same general "swagger"
+	# every other camera movement already has, exactly like it already
+	# eases toward every other change to anchor/zoom/rotation.
 	global_position = global_position.lerp(desired_position, 1.0 - exp(-follow_smoothing * delta))
 
 	# Eased toward the true anchor, same as global_position is eased
@@ -334,30 +400,54 @@ func _physics_process(delta: float) -> void:
 
 
 ## Bound mode: anchor = focus_target + offset + leashed pan offset.
-## Unbound mode: anchor = the pan offset itself, since there's no target.
+## Unbound mode: anchor = the pan offset itself (never leashed), plus
+## whatever height lift is currently active — see _smoothed_height_lift
+## and _update_height_lift. Bound mode never adds lift: focus_target's
+## own live position already IS the true height, in both directions.
 func _get_anchor_point() -> Vector3:
 	if focus_target:
 		return focus_target.global_position + focus_offset + current_anchor_offset
-	return current_anchor_offset
+	return current_anchor_offset + Vector3(0, _smoothed_height_lift, 0)
 
 
-## Shortens distance to whatever a raycast from `from` toward the
-## camera's ideal position (from - forward*distance) allows, stopping
-## collision_margin short of the first hit — the camera pulls IN toward
-## the anchor to avoid clipping through geometry instead of phasing
-## through it, same idea SpringArm3D uses for a third-person follow
-## camera, just computed by hand here since this script already owns
-## its own position pipeline rather than delegating to a node hierarchy.
+## Eases _smoothed_distance_reduction toward whatever
+## _required_distance_reduction freshly computes this frame — fast when
+## a NEW or worsening obstruction needs more pulled off (response_in_
+## speed), slower when releasing back out as one clears (response_out_
+## speed). See _smoothed_distance_reduction's own header for why this is
+## a magnitude eased toward zero rather than an absolute value written
+## into current_distance/target_distance directly.
+func _update_distance_reduction(anchor_point: Vector3, forward: Vector3, distance: float, delta: float) -> void:
+	var required: float = _required_distance_reduction(anchor_point, forward, distance)
+	var response_speed: float = response_in_speed if required > _smoothed_distance_reduction else response_out_speed
+	_smoothed_distance_reduction = lerp(_smoothed_distance_reduction, required, 1.0 - exp(-response_speed * delta))
+
+
+## How much shorter than `distance` collision currently requires the
+## camera to sit, or 0.0 if the path from `from` toward the camera's
+## ideal position (from - forward*distance) is clear — the camera pulls
+## IN toward the anchor to avoid clipping through geometry instead of
+## phasing through it, same idea SpringArm3D uses for a third-person
+## follow camera, just computed by hand here since this script already
+## owns its own position pipeline rather than delegating to a node
+## hierarchy.
 ##
-## Units are gathered fresh and excluded every call — see this file's
-## Collision export group for why. Returns a plain float and touches no
-## camera state itself; desired_position ends up eased through the same
-## follow_smoothing lerp every other movement already goes through, so
-## this never needs a separate smoothing pass of its own.
-func _collision_clamp_distance(from: Vector3, forward: Vector3, distance: float) -> float:
+## Swept as a small sphere (collision_shape_radius), not a bare ray —
+## a zero-thickness ray can slip past a wall grazing the edge of the
+## view (a corner, a doorway frame) since it only tests one exact line;
+## a sphere has to keep that much clearance on every side. Units are
+## gathered fresh and excluded every call — see this file's Collision
+## export group for why.
+func _required_distance_reduction(from: Vector3, forward: Vector3, distance: float) -> float:
 	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
-	var to: Vector3 = from - forward * distance
-	var query := PhysicsRayQueryParameters3D.create(from, to)
+
+	var shape := SphereShape3D.new()
+	shape.radius = collision_shape_radius
+
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = shape
+	query.transform = Transform3D(Basis(), from)
+	query.motion = -forward * distance
 	query.collision_mask = collision_mask
 
 	var excluded: Array = []
@@ -365,12 +455,56 @@ func _collision_clamp_distance(from: Vector3, forward: Vector3, distance: float)
 		excluded.append(unit.get_rid())
 	query.exclude = excluded
 
-	var result: Dictionary = space_state.intersect_ray(query)
-	if result.is_empty():
-		return distance
+	var cast_result: PackedFloat32Array = space_state.cast_motion(query)
+	# cast_motion does NOT return an empty array for "nothing in the
+	# way" — confirmed via direct testing, contrary to how intersect_ray
+	# behaves elsewhere in this file. A fully clear motion reports
+	# safe_fraction 1.0 (a normal 2-element result), not emptiness; an
+	# empty result specifically means the query itself couldn't run
+	# (e.g. no space state available). Both need to bail out with no
+	# reduction — treating a 1.0 safe_fraction as "found something" was
+	# a real, confirmed bug: it applied collision_margin's subtraction
+	# unconditionally, reporting a small phantom reduction even on a
+	# completely open line.
+	if cast_result.is_empty() or cast_result[0] >= 1.0:
+		return 0.0
 
-	var hit_distance: float = from.distance_to(result.position)
-	return max(hit_distance - collision_margin, min_collision_distance)
+	var safe_fraction: float = cast_result[0]
+	var safe_distance: float = max(safe_fraction * distance - collision_margin, min_collision_distance)
+	return max(distance - safe_distance, 0.0)
+
+
+## Occlusion fade hook — NOT YET IMPLEMENTED. This is the intended REAL
+## fix for the "gets uncomfortably close in a tight corner" problem
+## distance reduction alone has (see _required_distance_reduction's own
+## header) — not by finding a cleverer camera position, but by not
+## needing to: fade whatever's in the way transparent and leave the
+## camera where it already was. Confirmed via direct research
+## (2026-08-25) that this is what CRPGs with this camera style actually
+## do — Larian has said BG3's camera dissolves walls/ceilings with a
+## smooth opacity transition on entering a room and fades them back in
+## on leaving, rather than repositioning the camera around them; older
+## isometric CRPGs (Diablo-likes) use the same "fade what's between
+## camera and character" idea for trees/walls. A lateral "dodge to
+## whichever side has more room" alternative was tried here first and
+## it DID work (headless-verified: recovered a fully-clear distance in a
+## corner scenario that pure distance-reduction left stuck badly
+## cramped) — dropped anyway, specifically because no real CRPG solves
+## corners by repositioning the camera like that; fading the obstruction
+## is the authentic technique and this hook exists so a future pass can
+## build that instead.
+##
+## Left as a hook rather than built now: a real version needs its own
+## tagging convention (a dedicated physics layer, or a group, marking
+## which objects are fade-eligible vs. solid — walls/ceilings dissolve,
+## solid terrain still gets real collision) and a dithered-transparency
+## shader or material trick, and this project has no fadeable-prop
+## content yet to build or verify either of those against. Called every
+## physics frame with the same inputs _update_distance_reduction gets,
+## so wiring a real implementation in later is a matter of filling this
+## function in — no changes needed elsewhere in the pipeline.
+func _apply_occlusion_fade(_from: Vector3, _forward: Vector3, _distance: float) -> void:
+	pass
 
 
 func _handle_rotation_input(delta: float) -> void:
@@ -401,38 +535,63 @@ func _handle_anchor_movement_input(delta: float) -> void:
 	var move: Vector3 = (right * input_dir.x + forward * -input_dir.y) * move_speed * delta
 	target_anchor_offset += move
 
-	if _get_mode() == Mode.BOUND:
-		if target_anchor_offset.length() > max_pan_radius:
-			target_anchor_offset = target_anchor_offset.normalized() * max_pan_radius
-	else:
-		_ground_hug_anchor()
+	if _get_mode() == Mode.BOUND and target_anchor_offset.length() > max_pan_radius:
+		target_anchor_offset = target_anchor_offset.normalized() * max_pan_radius
 
 
-## Free-roam only: re-probes the ground directly beneath the anchor's new
-## horizontal position and adjusts target_anchor_offset's height toward
-## it — eased in via the exact same move_smoothing lerp every other
-## anchor movement already goes through in _physics_process, so this
-## doesn't need a separate smoothing pass of its own, same reasoning
-## _collision_clamp_distance's own header gives for follow_smoothing.
-## Bound mode doesn't call this: its anchor already tracks focus_target's
-## own height directly, so uneven terrain is handled for free there.
+## Eases _smoothed_height_lift toward whatever _required_height_lift
+## freshly computes this frame — same asymmetric fast-in/slow-out shape
+## _update_distance_reduction uses, for the same reason. Bound mode
+## doesn't need lift at all (focus_target's live height already tracks
+## both up and down for free), so this just holds it at exactly 0 there
+## rather than letting a stale value from a previous unbound stretch
+## linger.
 ##
-## Leaves target_anchor_offset.y untouched if the probe finds nothing
-## (e.g. panned out past the edge of authored geometry) rather than
-## snapping to some fallback height — same "don't invent data you don't
-## have" reasoning _ready()'s own ground probe already follows.
-func _ground_hug_anchor() -> void:
-	var probe_top: Vector3 = Vector3(target_anchor_offset.x, target_anchor_offset.y + ground_probe_range, target_anchor_offset.z)
-	var probe_bottom: Vector3 = Vector3(target_anchor_offset.x, target_anchor_offset.y - ground_probe_range, target_anchor_offset.z)
+## This whole function — and the base/offset split it and
+## _required_height_lift exist to preserve — replaces an earlier
+## version that WROTE the required height directly into
+## target_anchor_offset.y, permanently. That meant there was no
+## separate "true" height left to revert to: once raised for a tall
+## platform, it could only ever go up, never back down once you moved
+## away, since the correction and the base it was correcting were the
+## same variable. _collision_clamp_distance (now _required_distance_
+## reduction) never had this problem — it already computed a fresh,
+## disposable correction every frame instead of mutating current_
+## distance/target_distance — height just hadn't been brought in line
+## with that same pattern yet.
+func _update_height_lift(delta: float) -> void:
+	if _get_mode() == Mode.BOUND:
+		_smoothed_height_lift = 0.0
+		return
+
+	var required: float = _required_height_lift()
+	var response_speed: float = response_in_speed if required > _smoothed_height_lift else response_out_speed
+	_smoothed_height_lift = lerp(_smoothed_height_lift, required, 1.0 - exp(-response_speed * delta))
+
+
+## Free-roam only: how much ABOVE current_anchor_offset.y (the anchor's
+## own, un-lifted height — never the already-lifted _get_anchor_point())
+## the ground directly below actually requires right now, or 0.0 if the
+## current height already clears it (or nothing is found within
+## ground_probe_range). A pure "extra lift needed" magnitude, always
+## >= 0 — never negative, since being above a surface by any amount is
+## never itself a problem worth correcting (confirmed bug in an earlier
+## version that DID treat "lower surface below" as something to snap
+## down to — see _update_height_lift's own header for the fuller story).
+func _required_height_lift() -> float:
+	var base_y: float = current_anchor_offset.y
+	var probe_top: Vector3 = Vector3(current_anchor_offset.x, base_y + ground_probe_range, current_anchor_offset.z)
+	var probe_bottom: Vector3 = Vector3(current_anchor_offset.x, base_y - ground_probe_range, current_anchor_offset.z)
 
 	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(probe_top, probe_bottom)
 	query.collision_mask = collision_mask
 	var result: Dictionary = space_state.intersect_ray(query)
 	if result.is_empty():
-		return
+		return 0.0
 
-	target_anchor_offset.y = result.position.y + focus_offset.y
+	var required_y: float = result.position.y + focus_offset.y
+	return max(required_y - base_y, 0.0)
 
 
 ## Ground-plane forward/right for a given yaw, ignoring pitch. Signs match
