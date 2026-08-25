@@ -100,6 +100,61 @@ const PREROLL_MARGIN: float = 0.2
 ## engineering of the same information.
 enum Phase { STOPPED, INTRO, LOOP, OUTRO }
 
+## Real gameplay triggers, not just the debug panel — CombatManager/
+## NegotiationManager stay completely unaware this file exists (same
+## decoupled, signal-driven shape as SystemLog/negotiation_panel.gd
+## already use elsewhere), MusicManager just reacts. Track ids are
+## content, not code — hardcoded here rather than exported/configurable,
+## matching this project's general "if there's only ever one real
+## answer, don't build a setting for it" stance; revisit if a second
+## combat track or per-encounter music is ever wanted.
+const COMBAT_TRACK_ID: String = "neon_pulse"
+const NEGOTIATION_TRACK_ID: String = "negotiation"
+
+
+func _ready() -> void:
+	CombatManager.combat_started.connect(_on_combat_started)
+	CombatManager.combat_ended.connect(_on_combat_ended)
+	NegotiationManager.negotiation_started.connect(_on_negotiation_started)
+	NegotiationManager.negotiation_ended.connect(_on_negotiation_ended)
+
+
+func _on_combat_started(_turn_order: Array[Unit]) -> void:
+	var track: MusicTrack = MusicTrackDatabase.find(COMBAT_TRACK_ID)
+	if track:
+		play_track(track)
+
+
+## Stops outright rather than resuming some pre-combat track — this
+## project has no ambient/exploration theme authored yet. Revisit once
+## one exists.
+func _on_combat_ended(_winning_faction: StringName) -> void:
+	stop()
+
+
+func _on_negotiation_started(_demon: Unit) -> void:
+	var track: MusicTrack = MusicTrackDatabase.find(NEGOTIATION_TRACK_ID)
+	if track:
+		play_track(track)
+
+
+## Guarded on CombatManager.in_combat specifically because negotiation
+## ending doesn't always mean combat is still going — a RECRUIT/FLEE/
+## HEAL_PLAYER outcome can remove the last hostile unit and end combat
+## in the same beat negotiation itself ends. Without this check, a
+## negotiation_ended arriving after combat_ended already silenced things
+## would incorrectly restart the combat track right before it should
+## have gone quiet. Whichever signal actually fires last, checking live
+## state here (not signal-arrival order, which isn't worth depending on)
+## keeps the result correct either way.
+func _on_negotiation_ended(_outcome: int) -> void:
+	if not CombatManager.in_combat:
+		return
+	var track: MusicTrack = MusicTrackDatabase.find(COMBAT_TRACK_ID)
+	if track:
+		play_track(track)
+
+
 var _phase: Phase = Phase.STOPPED
 var _current_track: MusicTrack = null
 var _active_players: Dictionary = {}  # StringName -> AudioStreamPlayer
