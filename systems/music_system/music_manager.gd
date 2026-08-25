@@ -70,8 +70,21 @@ extends Node
 ## preroll window, it can never cause a hang the way the reveal side's
 ## old design could.
 
-const NEAR_END_THRESHOLD: float = 1.0
-const QUICK_FADE_DURATION: float = 0.4
+## A fade this long needs real time to actually reach silence — see
+## NEAR_END_THRESHOLD just below for how that's kept from running past
+## the loop's own boundary.
+const QUICK_FADE_DURATION: float = 2.0
+## Kept comfortably above QUICK_FADE_DURATION — not a fixed number of
+## its own — so stop()'s two branches never overlap: any call landing
+## in the quick-fade branch (time_remaining > this) is guaranteed to
+## have the fade finish, and the player freed, before the loop's own
+## boundary would have arrived. Without that guarantee, a long enough
+## fade started just past this threshold would still be running when
+## the loop wrapped to its next cycle — audible as the fade quietly
+## "restarting" partway through instead of just dying out — and would
+## eat into territory that should have gone to the outro instead. If
+## QUICK_FADE_DURATION changes, this follows it automatically.
+const NEAR_END_THRESHOLD: float = QUICK_FADE_DURATION + 0.3
 const SILENT_VOLUME_DB: float = -80.0
 ## Comfortably above the ~80ms play()-latency measured via
 ## _log_first_audible — how long before a transition the NEXT phase is
