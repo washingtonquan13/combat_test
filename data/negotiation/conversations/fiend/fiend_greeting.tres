@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_effect.gd" id="5_effect"]
+[ext_resource type="Script" path="res://systems/dialogue_system/sacrifice_hp_effect.gd" id="6_sacrifice"]
+
+[sub_resource type="Resource" id="Resource_sacrifice_effect"]
+script = ExtResource("6_sacrifice")
+amount = 5
+
+[sub_resource type="Resource" id="Resource_taste"]
+script = ExtResource("3_line")
+next_node_id = "fiend_taste"
+text = "I'm not afraid of what you're offering."
+dialogue_line = "[lets it draw close enough to touch, and doesn't pull away]"
+effects = Array[ExtResource("5_effect")]([SubResource("Resource_sacrifice_effect")])
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("4_outcome")
+outcome = 3
+text = "Everything ends eventually. Might as well be now."
+
+[resource]
+script = ExtResource("1_node")
+id = "fiend_greeting"
+text_block = "Every mortal thing has an ending stitched into it already, whether it knows the shape of it or not. I can feel yours from here. Do you want to know it, or would you rather I simply deliver it?"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_taste"), SubResource("Resource_attack")])

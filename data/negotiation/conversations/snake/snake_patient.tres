@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="3_outcome"]
+
+[sub_resource type="Resource" id="Resource_recruit"]
+script = ExtResource("3_outcome")
+outcome = 1
+text = "The patient kind. Worth keeping close, then."
+
+[sub_resource type="Resource" id="Resource_flee"]
+script = ExtResource("3_outcome")
+outcome = 2
+text = "Patient enough to know when to slip away instead."
+
+[resource]
+script = ExtResource("1_node")
+id = "snake_patient"
+text_block = "...Patient. Good answer, or at least the one I'd have given. Let's not waste that patience on a fight neither of us needs to have."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_recruit"), SubResource("Resource_flee")])

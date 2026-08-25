@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="3_outcome"]
+
+[sub_resource type="Resource" id="Resource_recruit"]
+script = ExtResource("3_outcome")
+outcome = 1
+text = "Discretion goes both ways. Work with me."
+
+[sub_resource type="Resource" id="Resource_flee"]
+script = ExtResource("3_outcome")
+outcome = 2
+text = "[It melts back into the dark without another word.]"
+
+[resource]
+script = ExtResource("1_node")
+id = "night_discreet"
+text_block = "...Discretion. Not a word most lead with. Most lead with a threat, and I've heard every threat worth hearing twice already."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_recruit"), SubResource("Resource_flee")])

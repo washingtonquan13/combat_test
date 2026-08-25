@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_effect.gd" id="5_effect"]
+[ext_resource type="Script" path="res://systems/dialogue_system/sacrifice_hp_effect.gd" id="6_sacrifice"]
+
+[sub_resource type="Resource" id="Resource_sacrifice_effect"]
+script = ExtResource("6_sacrifice")
+amount = 5
+
+[sub_resource type="Resource" id="Resource_kneel"]
+script = ExtResource("3_line")
+next_node_id = "tyrant_kneel"
+text = "Then take your due, and consider it paid."
+dialogue_line = "[kneels, and does not flinch when it collects]"
+effects = Array[ExtResource("5_effect")]([SubResource("Resource_sacrifice_effect")])
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("4_outcome")
+outcome = 3
+text = "I kneel for no one."
+
+[resource]
+script = ExtResource("1_node")
+id = "tyrant_greeting"
+text_block = "Everything here answers to me eventually — some as subjects, most as corpses. I find the second category tediously easy to fill. Which will you be?"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_kneel"), SubResource("Resource_attack")])

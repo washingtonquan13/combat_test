@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+
+[sub_resource type="Resource" id="Resource_judge"]
+script = ExtResource("3_line")
+next_node_id = "holy_judge"
+text = "Then judge honestly. I can bear that much."
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("4_outcome")
+outcome = 3
+text = "I don't answer to your judgment."
+
+[resource]
+script = ExtResource("1_node")
+id = "holy_greeting"
+text_block = "I have already weighed you, in the time it took you to raise your weapon. Most come up wanting. Shall I tell you which you are, or would you rather not know?"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_judge"), SubResource("Resource_attack")])

@@ -1,27 +1,47 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=10 format=3 uid="uid://cmj4r7apedmkb"]
 
-[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
-[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
-[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
-[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+[ext_resource type="Script" uid="uid://ddsvgj0pmor1t" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" uid="uid://c4hlxqsiloaun" path="res://systems/dialogue_system/dialogue_effect.gd" id="2_a8ib8"]
+[ext_resource type="Script" uid="uid://nba7gdoopiu8" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" uid="uid://c6rhex3ydloj0" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" uid="uid://sls7oto0dwg6" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="5_7t10k"]
 
 [sub_resource type="Resource" id="Resource_purpose"]
 script = ExtResource("3_line")
 next_node_id = "avatar_purpose"
 text = "What is it that moves you?"
+alignment_name = ""
+is_repeatable = false
+dialogue_line = ""
+sets_flag = ""
+effects = Array[ExtResource("2_a8ib8")]([])
 
 [sub_resource type="Resource" id="Resource_attack"]
 script = ExtResource("4_outcome")
 outcome = 3
 text = "I don't care what wears your face. Fight or flee."
+alignment_name = ""
+is_repeatable = false
+dialogue_line = ""
+sets_flag = ""
+effects = Array[ExtResource("2_a8ib8")]([])
 
 [sub_resource type="Resource" id="Resource_recruit"]
 script = ExtResource("4_outcome")
 outcome = 1
 text = "Then lend that vastness to my cause."
+alignment_name = ""
+is_repeatable = false
+dialogue_line = ""
+sets_flag = ""
+effects = Array[ExtResource("2_a8ib8")]([])
 
 [resource]
 script = ExtResource("1_node")
 id = "avatar_greeting"
+speaker = ""
 text_block = "I am not myself, not truly — merely a vessel for something vast, wearing this shape to speak with you. What do you seek from what speaks through me?"
 choices = Array[ExtResource("2_choice")]([SubResource("Resource_purpose"), SubResource("Resource_attack"), SubResource("Resource_recruit")])
+next_node_id = ""
+interjection_options = Array[ExtResource("5_7t10k")]([])

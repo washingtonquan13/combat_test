@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_effect.gd" id="5_effect"]
+[ext_resource type="Script" path="res://systems/dialogue_system/sacrifice_hp_effect.gd" id="6_sacrifice"]
+
+[sub_resource type="Resource" id="Resource_sacrifice_effect"]
+script = ExtResource("6_sacrifice")
+amount = 5
+
+[sub_resource type="Resource" id="Resource_bold"]
+script = ExtResource("3_line")
+next_node_id = "dragon_bold"
+text = "I'm not leaving. Do your worst."
+dialogue_line = "[stands beneath it, unmoved, and lets it strike]"
+effects = Array[ExtResource("5_effect")]([SubResource("Resource_sacrifice_effect")])
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("4_outcome")
+outcome = 3
+text = "Then leave, or be ash."
+
+[resource]
+script = ExtResource("1_node")
+id = "dragon_greeting"
+text_block = "Centuries, mortal. I have watched things older than your language turn to dust. You have perhaps a minute of my patience before I decide you're beneath even that."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_bold"), SubResource("Resource_attack")])

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="3_outcome"]
+
+[sub_resource type="Resource" id="Resource_recruit"]
+script = ExtResource("3_outcome")
+outcome = 1
+text = "Then walk with me, and maybe I'll understand eventually."
+
+[sub_resource type="Resource" id="Resource_flee"]
+script = ExtResource("3_outcome")
+outcome = 2
+text = "...Forget I asked."
+
+[resource]
+script = ExtResource("1_node")
+id = "entity_ask"
+text_block = "A question asked without expecting an answer it could actually hold. Curious. Most demand to know. You merely... wondered. That's the first interesting thing that's happened to me in some time."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_recruit"), SubResource("Resource_flee")])
