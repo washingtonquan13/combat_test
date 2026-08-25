@@ -72,7 +72,7 @@
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
 [ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
-[ext_resource type="Resource" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
+[ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]

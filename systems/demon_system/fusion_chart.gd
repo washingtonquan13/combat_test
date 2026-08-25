@@ -1,11 +1,15 @@
 class_name FusionChart
 extends Resource
 ## The whole Order x Order -> Order fusion table, as one authored
-## resource (data/demons/fusion_chart.tres) — the deliberate exception
-## to this project's usual one-file-per-thing convention (data/skills/,
-## data/quests/): fusion combinations are inherently pairs, not
-## naturally one-file-per-thing, and the real games present this as one
-## cohesive chart, not scattered recipe files.
+## resource (data/fusion_charts/fusion_chart.tres) — the deliberate
+## exception to this project's usual one-file-per-thing convention
+## (data/skills/, data/quests/): fusion combinations are inherently
+## pairs, not naturally one-file-per-thing, and the real games present
+## this as one cohesive chart, not scattered recipe files. Its own
+## folder, not data/demons/, since it isn't a demon itself — leaves
+## room for a future second chart (a fusion-accident table, a
+## fusion-while-cursed table, ...) to live alongside it without either
+## being mixed in with actual demon definitions.
 
 @export var recipes: Array[FusionRecipe] = []
 

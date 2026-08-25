@@ -60,7 +60,7 @@ static func refresh() -> void:
 
 static func _load_all() -> void:
 	for file_name in DirAccess.get_files_at(DEMONS_DIR):
-		if not file_name.ends_with(".tres") or file_name == "fusion_chart.tres":
+		if not file_name.ends_with(".tres"):
 			continue
 		var species := load(DEMONS_DIR + file_name) as UnitDefinition
 		if species:

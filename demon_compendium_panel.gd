@@ -23,8 +23,13 @@ extends Control
 @onready var _grant_species_list: OptionButton = %GrantSpeciesList
 @onready var _grant_button: Button = %GrantButton
 
-## data/demons/fusion_chart.tres — the one authored chart, loaded once.
-const FUSION_CHART_PATH: String = "res://data/demons/fusion_chart.tres"
+## data/fusion_charts/fusion_chart.tres — the one authored chart, loaded
+## once. Lives in its own folder, not data/demons/, because it isn't a
+## demon — it's a cross-cutting rules table that happens to reference
+## demon orders, same reasoning a future "fusion accident" or "fusion
+## while cursed" chart would want its own file in the same folder
+## rather than getting mixed in with the demons themselves.
+const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
 
 var _fusion_chart: FusionChart
 ## ItemList items are just text/index — these are the actual OwnedDemon

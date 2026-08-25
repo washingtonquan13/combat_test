@@ -32,7 +32,7 @@ static func refresh() -> void:
 static func _load_all() -> void:
 	for dir in [DEMONS_DIR, UNITS_DIR]:
 		for file_name in DirAccess.get_files_at(dir):
-			if not file_name.ends_with(".tres") or file_name == "fusion_chart.tres":
+			if not file_name.ends_with(".tres"):
 				continue
 			var definition := load(dir + file_name) as UnitDefinition
 			if definition:

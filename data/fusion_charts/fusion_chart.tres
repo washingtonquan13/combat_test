@@ -1,0 +1,308 @@
+[gd_resource type="Resource" script_class="FusionChart" load_steps=53 format=3 uid="uid://dg403vq6v2h1g"]
+
+[ext_resource type="Script" uid="uid://doxwacu8lain5" path="res://systems/demon_system/fusion_chart.gd" id="1_chart"]
+[ext_resource type="Script" uid="uid://s3oqr2snjl6n" path="res://systems/demon_system/fusion_recipe.gd" id="2_recipe"]
+
+[sub_resource type="Resource" id="Resource_lady_wargod"]
+script = ExtResource("2_recipe")
+order_a = &"Lady"
+order_b = &"Wargod"
+result_order = &"Divine"
+
+[sub_resource type="Resource" id="Resource_wargod_divine"]
+script = ExtResource("2_recipe")
+order_a = &"Wargod"
+order_b = &"Divine"
+result_order = &"Holy"
+
+[sub_resource type="Resource" id="Resource_divine_holy"]
+script = ExtResource("2_recipe")
+order_a = &"Divine"
+order_b = &"Holy"
+result_order = &"Seraph"
+
+[sub_resource type="Resource" id="Resource_holy_seraph"]
+script = ExtResource("2_recipe")
+order_a = &"Holy"
+order_b = &"Seraph"
+result_order = &"Deity"
+
+[sub_resource type="Resource" id="Resource_seraph_deity"]
+script = ExtResource("2_recipe")
+order_a = &"Seraph"
+order_b = &"Deity"
+result_order = &"Avatar"
+
+[sub_resource type="Resource" id="Resource_fairy_beast"]
+script = ExtResource("2_recipe")
+order_a = &"Fairy"
+order_b = &"Beast"
+result_order = &"Avian"
+
+[sub_resource type="Resource" id="Resource_beast_avian"]
+script = ExtResource("2_recipe")
+order_a = &"Beast"
+order_b = &"Avian"
+result_order = &"Snake"
+
+[sub_resource type="Resource" id="Resource_avian_snake"]
+script = ExtResource("2_recipe")
+order_a = &"Avian"
+order_b = &"Snake"
+result_order = &"Raptor"
+
+[sub_resource type="Resource" id="Resource_snake_raptor"]
+script = ExtResource("2_recipe")
+order_a = &"Snake"
+order_b = &"Raptor"
+result_order = &"Brute"
+
+[sub_resource type="Resource" id="Resource_raptor_brute"]
+script = ExtResource("2_recipe")
+order_a = &"Raptor"
+order_b = &"Brute"
+result_order = &"Femme"
+
+[sub_resource type="Resource" id="Resource_brute_femme"]
+script = ExtResource("2_recipe")
+order_a = &"Brute"
+order_b = &"Femme"
+result_order = &"Entity"
+
+[sub_resource type="Resource" id="Resource_femme_entity"]
+script = ExtResource("2_recipe")
+order_a = &"Femme"
+order_b = &"Entity"
+result_order = &"Dragon"
+
+[sub_resource type="Resource" id="Resource_night_fury"]
+script = ExtResource("2_recipe")
+order_a = &"Night"
+order_b = &"Fury"
+result_order = &"Foul"
+
+[sub_resource type="Resource" id="Resource_fury_foul"]
+script = ExtResource("2_recipe")
+order_a = &"Fury"
+order_b = &"Foul"
+result_order = &"Wilder"
+
+[sub_resource type="Resource" id="Resource_foul_wilder"]
+script = ExtResource("2_recipe")
+order_a = &"Foul"
+order_b = &"Wilder"
+result_order = &"Vile"
+
+[sub_resource type="Resource" id="Resource_wilder_vile"]
+script = ExtResource("2_recipe")
+order_a = &"Wilder"
+order_b = &"Vile"
+result_order = &"Haunt"
+
+[sub_resource type="Resource" id="Resource_vile_haunt"]
+script = ExtResource("2_recipe")
+order_a = &"Vile"
+order_b = &"Haunt"
+result_order = &"Fallen"
+
+[sub_resource type="Resource" id="Resource_haunt_fallen"]
+script = ExtResource("2_recipe")
+order_a = &"Haunt"
+order_b = &"Fallen"
+result_order = &"Tyrant"
+
+[sub_resource type="Resource" id="Resource_fallen_tyrant"]
+script = ExtResource("2_recipe")
+order_a = &"Fallen"
+order_b = &"Tyrant"
+result_order = &"Fiend"
+
+[sub_resource type="Resource" id="Resource_beast_holy"]
+script = ExtResource("2_recipe")
+order_a = &"Beast"
+order_b = &"Holy"
+result_order = &"Avatar"
+
+[sub_resource type="Resource" id="Resource_fallen_snake"]
+script = ExtResource("2_recipe")
+order_a = &"Fallen"
+order_b = &"Snake"
+result_order = &"Beast"
+
+[sub_resource type="Resource" id="Resource_divine_fiend"]
+script = ExtResource("2_recipe")
+order_a = &"Divine"
+order_b = &"Fiend"
+result_order = &"Entity"
+
+[sub_resource type="Resource" id="Resource_wargod_vile"]
+script = ExtResource("2_recipe")
+order_a = &"Wargod"
+order_b = &"Vile"
+result_order = &"Brute"
+
+[sub_resource type="Resource" id="Resource_seraph_tyrant"]
+script = ExtResource("2_recipe")
+order_a = &"Seraph"
+order_b = &"Tyrant"
+result_order = &"Femme"
+
+[sub_resource type="Resource" id="Resource_deity_haunt"]
+script = ExtResource("2_recipe")
+order_a = &"Deity"
+order_b = &"Haunt"
+result_order = &"Dragon"
+
+[sub_resource type="Resource" id="Resource_element_fairy"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Fairy"
+result_order = &"Fairy"
+
+[sub_resource type="Resource" id="Resource_element_avatar"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Avatar"
+result_order = &"Avatar"
+
+[sub_resource type="Resource" id="Resource_element_avian"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Avian"
+result_order = &"Avian"
+
+[sub_resource type="Resource" id="Resource_element_beast"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Beast"
+result_order = &"Beast"
+
+[sub_resource type="Resource" id="Resource_element_brute"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Brute"
+result_order = &"Brute"
+
+[sub_resource type="Resource" id="Resource_element_deity"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Deity"
+result_order = &"Deity"
+
+[sub_resource type="Resource" id="Resource_element_divine"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Divine"
+result_order = &"Divine"
+
+[sub_resource type="Resource" id="Resource_element_dragon"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Dragon"
+result_order = &"Dragon"
+
+[sub_resource type="Resource" id="Resource_element_entity"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Entity"
+result_order = &"Entity"
+
+[sub_resource type="Resource" id="Resource_element_fallen"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Fallen"
+result_order = &"Fallen"
+
+[sub_resource type="Resource" id="Resource_element_femme"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Femme"
+result_order = &"Femme"
+
+[sub_resource type="Resource" id="Resource_element_fiend"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Fiend"
+result_order = &"Fiend"
+
+[sub_resource type="Resource" id="Resource_element_foul"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Foul"
+result_order = &"Foul"
+
+[sub_resource type="Resource" id="Resource_element_fury"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Fury"
+result_order = &"Fury"
+
+[sub_resource type="Resource" id="Resource_element_haunt"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Haunt"
+result_order = &"Haunt"
+
+[sub_resource type="Resource" id="Resource_element_holy"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Holy"
+result_order = &"Holy"
+
+[sub_resource type="Resource" id="Resource_element_lady"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Lady"
+result_order = &"Lady"
+
+[sub_resource type="Resource" id="Resource_element_night"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Night"
+result_order = &"Night"
+
+[sub_resource type="Resource" id="Resource_element_raptor"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Raptor"
+result_order = &"Raptor"
+
+[sub_resource type="Resource" id="Resource_element_seraph"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Seraph"
+result_order = &"Seraph"
+
+[sub_resource type="Resource" id="Resource_element_snake"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Snake"
+result_order = &"Snake"
+
+[sub_resource type="Resource" id="Resource_element_tyrant"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Tyrant"
+result_order = &"Tyrant"
+
+[sub_resource type="Resource" id="Resource_element_vile"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Vile"
+result_order = &"Vile"
+
+[sub_resource type="Resource" id="Resource_element_wargod"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Wargod"
+result_order = &"Wargod"
+
+[sub_resource type="Resource" id="Resource_element_wilder"]
+script = ExtResource("2_recipe")
+order_a = &"Element"
+order_b = &"Wilder"
+result_order = &"Wilder"
+
+[resource]
+script = ExtResource("1_chart")
+recipes = Array[ExtResource("2_recipe")]([SubResource("Resource_lady_wargod"), SubResource("Resource_wargod_divine"), SubResource("Resource_divine_holy"), SubResource("Resource_holy_seraph"), SubResource("Resource_seraph_deity"), SubResource("Resource_fairy_beast"), SubResource("Resource_beast_avian"), SubResource("Resource_avian_snake"), SubResource("Resource_snake_raptor"), SubResource("Resource_raptor_brute"), SubResource("Resource_brute_femme"), SubResource("Resource_femme_entity"), SubResource("Resource_night_fury"), SubResource("Resource_fury_foul"), SubResource("Resource_foul_wilder"), SubResource("Resource_wilder_vile"), SubResource("Resource_vile_haunt"), SubResource("Resource_haunt_fallen"), SubResource("Resource_fallen_tyrant"), SubResource("Resource_beast_holy"), SubResource("Resource_fallen_snake"), SubResource("Resource_divine_fiend"), SubResource("Resource_wargod_vile"), SubResource("Resource_seraph_tyrant"), SubResource("Resource_deity_haunt"), SubResource("Resource_element_fairy"), SubResource("Resource_element_avatar"), SubResource("Resource_element_avian"), SubResource("Resource_element_beast"), SubResource("Resource_element_brute"), SubResource("Resource_element_deity"), SubResource("Resource_element_divine"), SubResource("Resource_element_dragon"), SubResource("Resource_element_entity"), SubResource("Resource_element_fallen"), SubResource("Resource_element_femme"), SubResource("Resource_element_fiend"), SubResource("Resource_element_foul"), SubResource("Resource_element_fury"), SubResource("Resource_element_haunt"), SubResource("Resource_element_holy"), SubResource("Resource_element_lady"), SubResource("Resource_element_night"), SubResource("Resource_element_raptor"), SubResource("Resource_element_seraph"), SubResource("Resource_element_snake"), SubResource("Resource_element_tyrant"), SubResource("Resource_element_vile"), SubResource("Resource_element_wargod"), SubResource("Resource_element_wilder")])

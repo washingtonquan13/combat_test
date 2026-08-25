@@ -1,8 +1,8 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=13 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=15 format=3 uid="uid://ehj61nxkw7ml"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
-[ext_resource type="Texture2D" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
+[ext_resource type="Texture2D" uid="uid://c10vrr2spytr7" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="5_attack_ranged"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="6_aibehavior"]
@@ -10,7 +10,7 @@
 [ext_resource type="Resource" uid="uid://bmgw6mjv7sps4" path="res://data/abilities/heal.tres" id="8_heal"]
 [ext_resource type="Script" uid="uid://ds81ldf2c2t2x" path="res://systems/ai_system/use_ability_on_nearest_hostile_behavior.gd" id="9_useabilitybehavior"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="10_root_option"]
-[ext_resource type="Resource" path="res://data/negotiation/conversations/deity/deity_greeting.tres" id="11_greeting"]
+[ext_resource type="Resource" uid="uid://bp4qpjk75qwx0" path="res://data/negotiation/conversations/deity/deity_greeting.tres" id="11_greeting"]
 
 [sub_resource type="Resource" id="Resource_deity_heal_behavior"]
 script = ExtResource("7_healbehavior")
