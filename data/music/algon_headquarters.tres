@@ -15,7 +15,7 @@
 script = ExtResource("1_ikp7s")
 name = &"backing_vocals"
 stream = ExtResource("2_gxuv5")
-volume_db = 0.0
+volume_db = -10.0
 metadata/_custom_type_script = "uid://cxkep0ii0tmec"
 
 [sub_resource type="Resource" id="Resource_t44ti"]
