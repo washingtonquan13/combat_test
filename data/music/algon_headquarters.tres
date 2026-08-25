@@ -1,12 +1,76 @@
-[gd_resource type="Resource" script_class="MusicTrack" load_steps=3 format=3 uid="uid://bqcuejs6xr2ve"]
+[gd_resource type="Resource" script_class="MusicTrack" load_steps=19 format=3 uid="uid://bqcuejs6xr2ve"]
 
 [ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="1_ikp7s"]
 [ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="2_e4jdx"]
+[ext_resource type="AudioStream" uid="uid://b37mgll7gox4g" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (Backing Vocals).wav" id="2_gxuv5"]
+[ext_resource type="AudioStream" uid="uid://dxm8y4doonbsv" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (Bass).wav" id="3_nypwi"]
+[ext_resource type="AudioStream" uid="uid://0sks1yaly1ef" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (Drums).wav" id="4_30tx8"]
+[ext_resource type="AudioStream" uid="uid://b8h7lgy1y8csw" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (FX).wav" id="5_eobmd"]
+[ext_resource type="AudioStream" uid="uid://dlt8vv1kutsds" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (Keyboard).wav" id="6_iet47"]
+[ext_resource type="AudioStream" uid="uid://egvm4p8l8otk" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (Percussion).wav" id="7_a1y3y"]
+[ext_resource type="AudioStream" uid="uid://dtra7bdppyfvu" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (Synth).wav" id="8_h3fb0"]
+[ext_resource type="AudioStream" uid="uid://w0ootg3pa1uc" path="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (Vocals).wav" id="9_y3iwd"]
+
+[sub_resource type="Resource" id="Resource_ri88v"]
+script = ExtResource("1_ikp7s")
+name = &"backing_vocals"
+stream = ExtResource("2_gxuv5")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_t44ti"]
+script = ExtResource("1_ikp7s")
+name = &"bass"
+stream = ExtResource("3_nypwi")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_juxab"]
+script = ExtResource("1_ikp7s")
+name = &"drums"
+stream = ExtResource("4_30tx8")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_fo11t"]
+script = ExtResource("1_ikp7s")
+name = &"fx"
+stream = ExtResource("5_eobmd")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_h7pph"]
+script = ExtResource("1_ikp7s")
+name = &"keyboard"
+stream = ExtResource("6_iet47")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_xahd6"]
+script = ExtResource("1_ikp7s")
+name = &"percussion"
+stream = ExtResource("7_a1y3y")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_n6tkj"]
+script = ExtResource("1_ikp7s")
+name = &"synth"
+stream = ExtResource("8_h3fb0")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[sub_resource type="Resource" id="Resource_wo33w"]
+script = ExtResource("1_ikp7s")
+name = &"vocals"
+stream = ExtResource("9_y3iwd")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
 
 [resource]
 script = ExtResource("2_e4jdx")
-id = ""
+id = "algon_headquarters"
 intro = Array[ExtResource("1_ikp7s")]([])
-loop = Array[ExtResource("1_ikp7s")]([])
+loop = Array[ExtResource("1_ikp7s")]([SubResource("Resource_ri88v"), SubResource("Resource_t44ti"), SubResource("Resource_juxab"), SubResource("Resource_fo11t"), SubResource("Resource_h7pph"), SubResource("Resource_xahd6"), SubResource("Resource_n6tkj"), SubResource("Resource_wo33w")])
 outro = Array[ExtResource("1_ikp7s")]([])
 metadata/_custom_type_script = "uid://b6n0bkv8eyu2j"
