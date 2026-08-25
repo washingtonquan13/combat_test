@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="3_outcome"]
+
+[sub_resource type="Resource" id="Resource_recruit"]
+script = ExtResource("3_outcome")
+outcome = 1
+text = "...Nothing beneath me refuses me twice. Fine. Follow, then — as an equal."
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("3_outcome")
+outcome = 3
+text = "Then you'll learn why tribute was the wiser choice."
+
+[resource]
+script = ExtResource("1_node")
+id = "scary_pressed"
+text_block = "...Refused. Twice defiant, now. That is either very brave, or very foolish."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_recruit"), SubResource("Resource_attack")])

@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="5_attack"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
-[ext_resource type="Resource" path="res://data/negotiation/conversations/element/element_greeting.tres" id="7_greeting"]
+[ext_resource type="Resource" path="res://data/negotiation/conversations/cryptic/cryptic_greeting.tres" id="7_greeting"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
@@ -28,6 +28,7 @@ max_fp = 10
 damage_reduction = 1
 faction = &"enemy"
 order = &"Element"
+personality = &"Cryptic"
 rank = 1
 is_special = false
 portrait_texture = ExtResource("3_portrait")

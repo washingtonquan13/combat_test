@@ -40,11 +40,23 @@ theme_override_constants/margin_bottom = 24
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="DemonLabel" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
+[node name="HeaderRow" type="HBoxContainer" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
 layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DemonLabel" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 bbcode_enabled = true
 fit_content = true
 scroll_active = false
+
+[node name="MoodIndicator" type="ColorRect" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(16, 16)
+layout_mode = 2
+size_flags_vertical = 4
+color = Color(0.6, 0.6, 0.6, 1)
 
 [node name="LineText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
 custom_minimum_size = Vector2(0, 80)

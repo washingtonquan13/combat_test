@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_effect.gd" id="5_effect_base"]
+[ext_resource type="Script" path="res://systems/skill_system/negotiated_gold_prerequisite.gd" id="6_gold_gate"]
+[ext_resource type="Script" path="res://systems/negotiation_system/sacrifice_negotiated_gold_effect.gd" id="7_pay_gold"]
+[ext_resource type="Script" path="res://systems/negotiation_system/volatile_mood_effect.gd" id="8_mood"]
+
+[sub_resource type="Resource" id="Resource_gold_gate"]
+script = ExtResource("6_gold_gate")
+
+[sub_resource type="Resource" id="Resource_pay_gold"]
+script = ExtResource("7_pay_gold")
+
+[sub_resource type="Resource" id="Resource_pay"]
+script = ExtResource("4_outcome")
+outcome = 1
+text = "Fine! Take it! {gold} gold, whatever, here!"
+prerequisites = SubResource("Resource_gold_gate")
+effects = Array[ExtResource("5_effect_base")]([SubResource("Resource_pay_gold")])
+
+[sub_resource type="Resource" id="Resource_refuse_mood"]
+script = ExtResource("8_mood")
+min_amount = -4
+max_amount = 1
+
+[sub_resource type="Resource" id="Resource_refuse"]
+script = ExtResource("3_line")
+next_node_id = "moody_pressed"
+text = "No! Why would I just GIVE you that?!"
+effects = Array[ExtResource("5_effect_base")]([SubResource("Resource_refuse_mood")])
+
+[resource]
+script = ExtResource("1_node")
+id = "moody_request"
+text_block = "I NEED — no wait, I WANT — {gold} gold. Is that so much to ask?! Is it?!"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_pay"), SubResource("Resource_refuse")])

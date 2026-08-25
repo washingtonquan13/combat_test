@@ -13,13 +13,31 @@ extends Control
 ## NegotiationManager._show_node) — a negotiation tree only ever ends via
 ## an explicit outcome choice, never a "keep going" beat.
 
+## Flat colors, not a StyleBox/icon — this project has no art budget for
+## a real reaction-icon asset (same portrait-scarcity situation as the
+## SMT race roster), so a plain ColorRect standing in for one is the
+## right-sized version: still a real at-a-glance signal, zero new assets.
+const MOOD_COLOR_POSITIVE: Color = Color(0.4, 0.75, 0.4)
+const MOOD_COLOR_NEGATIVE: Color = Color(0.8, 0.4, 0.4)
+const MOOD_COLOR_NEUTRAL: Color = Color(0.6, 0.6, 0.6)
+
 @export var tactical_ui: Control
 
-@onready var _demon_label: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/DemonLabel
+@onready var _demon_label: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/HeaderRow/DemonLabel
+@onready var _mood_indicator: ColorRect = %MoodIndicator
 @onready var _line_text: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/LineText
 @onready var _choices_text: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/ChoicesText
 
 var _current_choices: Array[DialogueChoice] = []
+## Set by _on_mood_note_shown, consumed by the very next _on_line_shown —
+## SystemLog already carries mood_note_shown's text into the permanent
+## log, but SystemLog's own panel lives under tactical_ui, which is
+## hidden for as long as this panel is open (see _on_negotiation_started).
+## A mood shift on a choice that CONTINUES the conversation would
+## otherwise never be seen at all until well after the fact, so it rides
+## along on the next line this panel shows instead of needing a Control
+## of its own.
+var _pending_mood_note: String = ""
 
 
 func _ready() -> void:
@@ -31,17 +49,34 @@ func _ready() -> void:
 	NegotiationManager.line_shown.connect(_on_line_shown)
 	NegotiationManager.choices_shown.connect(_on_choices_shown)
 	NegotiationManager.negotiation_ended.connect(_on_negotiation_ended)
+	NegotiationManager.mood_note_shown.connect(_on_mood_note_shown)
 
 
 func _on_negotiation_started(demon: Unit) -> void:
 	visible = true
 	_demon_label.text = "[b]%s[/b] is willing to talk." % demon.get_display_name()
+	_pending_mood_note = ""
+	_mood_indicator.color = MOOD_COLOR_NEUTRAL
 	if tactical_ui:
 		tactical_ui.visible = false
 
 
+func _on_mood_note_shown(text: String) -> void:
+	_pending_mood_note = text
+	if NegotiationManager.current_mood > 0:
+		_mood_indicator.color = MOOD_COLOR_POSITIVE
+	elif NegotiationManager.current_mood < 0:
+		_mood_indicator.color = MOOD_COLOR_NEGATIVE
+	else:
+		_mood_indicator.color = MOOD_COLOR_NEUTRAL
+
+
 func _on_line_shown(text: String) -> void:
-	_line_text.text = NegotiationManager.format_text(text)
+	var shown: String = NegotiationManager.format_text(text)
+	if _pending_mood_note != "":
+		shown += "\n\n[i][color=#999999]%s[/color][/i]" % _pending_mood_note
+		_pending_mood_note = ""
+	_line_text.text = shown
 
 
 func _on_choices_shown(choices: Array[DialogueChoice]) -> void:

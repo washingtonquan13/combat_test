@@ -20,6 +20,9 @@ signal negotiation_started(demon: Unit)
 signal line_shown(text: String)
 signal choices_shown(choices: Array[DialogueChoice])
 signal negotiation_ended(outcome: Outcome)
+## See current_mood's own doc comment for why this exists alongside
+## SystemLog rather than instead of it.
+signal mood_note_shown(text: String)
 
 ## CONTINUE never reaches negotiation_ended — end_negotiation() refuses
 ## to be called with it. It only exists as NegotiationOutcomeChoice's
@@ -35,12 +38,24 @@ var current_demon: Unit = null
 var current_actor: Unit = null
 var current_node: DialogueNode = null
 
-## Hidden per-negotiation "how well is this going" counter — authored
-## choices read it via MoodPrerequisite and write it via ShiftMoodEffect
-## (see both under systems/negotiation_system/ and systems/skill_system/).
-## Deliberately not surfaced in any UI: it gates which choices appear,
-## the same invisible way AlignmentPrerequisite/FlagPrerequisite already
-## gate choices, rather than adding a new meter for the player to watch.
+## Per-negotiation "how well is this going" counter — authored choices
+## read it via MoodPrerequisite and write it via ShiftMoodEffect (see
+## both under systems/negotiation_system/ and systems/skill_system/).
+## No numeric meter in the UI (this project has no art budget for a new
+## reaction-icon indicator — see the portrait-scarcity precedent from
+## the SMT race roster), but NOT silent either: shift_mood() narrates
+## every change, matching how real modern SMT negotiation (Strange
+## Journey's TALK system, not Nocturne's more opaque one) actually
+## surfaces mood — no bar, but real text feedback the player can read
+## and react to. Goes out through TWO channels, not one: SystemLog (the
+## same system-aside channel end_negotiation() already uses for its own
+## outcomes — becomes visible the moment tactical_ui reappears, whether
+## that's immediately after an outcome closes the panel or much later)
+## AND mood_note_shown below, specifically for negotiation_panel.gd to
+## surface WHILE the panel is still open and SystemLog itself is hidden
+## behind it — a mood shift on a choice that continues the conversation
+## (not an immediately-ending outcome) would otherwise go unseen until
+## the negotiation was already over.
 var current_mood: int = 0
 ## This encounter's rolled gold amount — computed once per negotiation
 ## in start_negotiation(), rank-scaled so a Tyrant asks for more than a
@@ -49,6 +64,11 @@ var current_mood: int = 0
 ## either way, just authored into different choices. Referenced in
 ## authored text via the {gold} token (see format_text()).
 var current_gold_amount: int = 0
+## One pardon per negotiation, consumed by try_forgive() — see that
+## method's own doc comment. Matches the real, confirmed mechanic: a
+## demon may let exactly one "disliked" (never "hated") answer slide
+## before the negotiation ends.
+var forgiveness_available: bool = true
 
 ## "node_id:index" -> true — exact mirror of DialogueManager.used_choices.
 var used_choices: Dictionary = {}
@@ -92,7 +112,16 @@ func start_negotiation(actor: Unit, demon: Unit) -> void:
 	current_actor = actor
 	current_demon = demon
 	used_choices.clear()
-	current_mood = 0
+	forgiveness_available = true
+	# Alignment/tendency mismatch nudges the starting mood down instead
+	# of a flat 0 — the closest cheap equivalent to the real eligibility
+	# check's "opposite-alignment demons start out with a worse attitude"
+	# rule, reusing Unit.alignment_category()/tendency_category() exactly
+	# as AlignmentPrerequisite/the party overview's alignment grid already
+	# do, rather than a new threshold system.
+	var mismatch: int = absi(actor.alignment_category() - demon.alignment_category()) \
+			+ absi(actor.tendency_category() - demon.tendency_category())
+	current_mood = -mismatch
 	# Rank-scaled random range, not a flat authored number — a Fiend
 	# should plausibly ask for more than a goblin, and repeat encounters
 	# with the same species shouldn't always demand the exact same
@@ -106,6 +135,47 @@ func start_negotiation(actor: Unit, demon: Unit) -> void:
 
 func shift_mood(amount: int) -> void:
 	current_mood += amount
+
+	var note: String = ""
+	if amount >= 3:
+		note = "The demon's mood brightens considerably."
+	elif amount > 0:
+		note = "The demon's mood seems to improve."
+	elif amount <= -3:
+		note = "That visibly sours the demon's mood."
+	elif amount < 0:
+		note = "The mood turns a bit awkward..."
+
+	if note != "":
+		SystemLog.print(note)
+		mood_note_shown.emit(note)
+
+
+## One pardon per negotiation — consumed on first use, false forever
+## after (see PersonalityDislikedChoice, the one caller). "Hated"
+## answers never call this — see PersonalityHatedChoice, which is never
+## forgivable by design.
+func try_forgive() -> bool:
+	if not forgiveness_available:
+		return false
+	forgiveness_available = false
+	SystemLog.print("The demon lets that one slide... this time.")
+	return true
+
+
+## Semi-deterministic, not a guarantee — mood shifts the odds heavily,
+## but even a maximally-charmed demon has SOME chance of still declining,
+## and even a badly-soured one has some chance of still coming around.
+## Confirmed against real reference material (Strange Journey's TALK
+## system): good responses "improve success chances," they don't lock in
+## success — see NegotiationOutcomeChoice._resolve_next_node_id, the one
+## caller, for how a failed roll on RECRUIT/HEAL_PLAYER falls back to
+## FLEE rather than the demon turning hostile — a failed pitch reads as
+## "no thanks," not a betrayal, matching how the reference material's own
+## failure state played out (the demon just left).
+func roll_success() -> bool:
+	var chance: float = clampf(0.5 + current_mood * 0.1, 0.05, 0.95)
+	return randf() < chance
 
 
 ## Substitutes the {gold} token with this encounter's own rolled amount
@@ -275,6 +345,12 @@ func _validate_node_references() -> void:
 			elif choice is NegotiationOutcomeChoice:
 				if choice.outcome == Outcome.CONTINUE:
 					push_warning("NegotiationManager: node '%s' has a NegotiationOutcomeChoice with outcome left unset (CONTINUE) — will silently resolve as FLEE." % id)
+			elif choice is PersonalityDislikedChoice:
+				_check_reference(id, "PersonalityDislikedChoice.next_node_id", choice.next_node_id)
+			elif choice is PersonalityHatedChoice:
+				pass  # No reference to validate — always resolves ATTACK unconditionally.
+			elif choice is NegotiationChoice:
+				pass  # A real NegotiationChoice subclass this validator doesn't know the specific shape of yet — nothing wrong, just nothing more to check.
 			else:
 				push_warning("NegotiationManager: node '%s' has a choice of type '%s', not a NegotiationChoice subclass — it will call the real DialogueManager instead of this system." % [id, choice.get_script().resource_path])
 

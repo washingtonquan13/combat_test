@@ -56,6 +56,16 @@ extends Resource
 
 @export var order: StringName = &""
 @export var rank: int = 1
+## Which shared negotiation reaction table this species draws its
+## Liked/Neutral/Disliked/Hated responses from (see negotiation_options
+## below — each personality type's shared tree lives directly under
+## data/negotiation/conversations/, e.g. .../girly/, same level as a
+## per-demon folder) — separate axis from order: personality is about
+## how a demon REACTS during negotiation, order is about fusion/
+## taxonomy. "" for a species with no
+## personality-driven negotiation content (negotiable=false, or content
+## not yet migrated).
+@export var personality: StringName = &""
 ## True means this species can never be a fusion RESULT — obtainable
 ## only via negotiation/story, standard "boss/unique demon" exemption.
 ## Can still be a fusion INPUT.

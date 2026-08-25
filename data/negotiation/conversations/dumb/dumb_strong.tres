@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_effect.gd" id="4_effect_base"]
+[ext_resource type="Script" path="res://systems/negotiation_system/shift_mood_effect.gd" id="5_mood"]
+[ext_resource type="Script" path="res://systems/negotiation_system/personality_disliked_choice.gd" id="6_disliked"]
+[ext_resource type="Script" path="res://systems/negotiation_system/personality_hated_choice.gd" id="7_hated"]
+
+[sub_resource type="Resource" id="Resource_liked_mood"]
+script = ExtResource("5_mood")
+amount = 3
+
+[sub_resource type="Resource" id="Resource_liked"]
+script = ExtResource("3_line")
+next_node_id = "dumb_request"
+text = "Yes. Strong. Good fight."
+effects = Array[ExtResource("4_effect_base")]([SubResource("Resource_liked_mood")])
+
+[sub_resource type="Resource" id="Resource_neutral_mood"]
+script = ExtResource("5_mood")
+amount = 1
+
+[sub_resource type="Resource" id="Resource_neutral"]
+script = ExtResource("3_line")
+next_node_id = "dumb_request"
+text = "Strong enough, I think."
+effects = Array[ExtResource("4_effect_base")]([SubResource("Resource_neutral_mood")])
+
+[sub_resource type="Resource" id="Resource_disliked"]
+script = ExtResource("6_disliked")
+next_node_id = "dumb_request"
+text = "Strength is a complicated metric, actually—"
+
+[sub_resource type="Resource" id="Resource_hated"]
+script = ExtResource("7_hated")
+text = "Define 'strong' first, precisely."
+
+[resource]
+script = ExtResource("1_node")
+id = "dumb_strong"
+text_block = "Fight good? Strong?"
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_liked"), SubResource("Resource_neutral"), SubResource("Resource_disliked"), SubResource("Resource_hated")])
