@@ -110,6 +110,11 @@ enum Phase { STOPPED, INTRO, LOOP, OUTRO }
 ## combat track or per-encounter music is ever wanted.
 const COMBAT_TRACK_ID: String = "neon_pulse"
 const NEGOTIATION_TRACK_ID: String = "negotiation"
+## algon_headquarters is a stand-in, not a purpose-composed exploration
+## theme — reusing an existing track the way test_portrait.jpg stood in
+## for 25 demons' portraits earlier this project. Swap the id, not the
+## hook, whenever a real one exists.
+const EXPLORATION_TRACK_ID: String = "algon_headquarters"
 
 
 func _ready() -> void:
@@ -117,40 +122,48 @@ func _ready() -> void:
 	CombatManager.combat_ended.connect(_on_combat_ended)
 	NegotiationManager.negotiation_started.connect(_on_negotiation_started)
 	NegotiationManager.negotiation_ended.connect(_on_negotiation_ended)
+	_play_track_id(EXPLORATION_TRACK_ID)
 
 
 func _on_combat_started(_turn_order: Array[Unit]) -> void:
-	var track: MusicTrack = MusicTrackDatabase.find(COMBAT_TRACK_ID)
-	if track:
-		play_track(track)
+	_play_track_id(COMBAT_TRACK_ID)
 
 
-## Stops outright rather than resuming some pre-combat track — this
-## project has no ambient/exploration theme authored yet. Revisit once
-## one exists.
+## Resumes the exploration theme rather than stopping outright — see
+## EXPLORATION_TRACK_ID's own doc comment on why that's algon_headquarters
+## specifically. A negotiation_ended that also ends combat (see that
+## handler's own comment) deliberately does NOT also start this track
+## itself; combat_ended firing is what's actually responsible for the
+## return to exploration music, whichever order the two signals arrive
+## in, so there's only ever one caller starting it back up, never two
+## racing each other.
 func _on_combat_ended(_winning_faction: StringName) -> void:
-	stop()
+	_play_track_id(EXPLORATION_TRACK_ID)
 
 
 func _on_negotiation_started(_demon: Unit) -> void:
-	var track: MusicTrack = MusicTrackDatabase.find(NEGOTIATION_TRACK_ID)
-	if track:
-		play_track(track)
+	_play_track_id(NEGOTIATION_TRACK_ID)
 
 
 ## Guarded on CombatManager.in_combat specifically because negotiation
 ## ending doesn't always mean combat is still going — a RECRUIT/FLEE/
 ## HEAL_PLAYER outcome can remove the last hostile unit and end combat
 ## in the same beat negotiation itself ends. Without this check, a
-## negotiation_ended arriving after combat_ended already silenced things
-## would incorrectly restart the combat track right before it should
-## have gone quiet. Whichever signal actually fires last, checking live
-## state here (not signal-arrival order, which isn't worth depending on)
-## keeps the result correct either way.
+## negotiation_ended arriving after combat_ended already returned things
+## to the exploration theme would incorrectly restart the combat track
+## right before it should have gone quiet. Whichever signal actually
+## fires last, checking live state here (not signal-arrival order, which
+## isn't worth depending on) keeps the result correct either way — and
+## if combat HAS already ended, this deliberately does nothing further;
+## combat_ended's own handler already started the exploration theme.
 func _on_negotiation_ended(_outcome: int) -> void:
 	if not CombatManager.in_combat:
 		return
-	var track: MusicTrack = MusicTrackDatabase.find(COMBAT_TRACK_ID)
+	_play_track_id(COMBAT_TRACK_ID)
+
+
+func _play_track_id(id: String) -> void:
+	var track: MusicTrack = MusicTrackDatabase.find(id)
 	if track:
 		play_track(track)
 
