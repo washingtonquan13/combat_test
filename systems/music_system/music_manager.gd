@@ -116,13 +116,40 @@ var _prerolled_volumes: Dictionary = {}
 var _generation: int = 0
 
 
+## Starts a new track. If something else is already playing, fades it
+## out first (reuses _quick_fade_and_stop_active_players, the same
+## tween stop()'s own quick-fade branch uses) and waits for that fade
+## to finish in silence before the new track starts — a sequential
+## handoff, not a true overlapping crossfade. That's deliberate: unlike
+## a single track's own intro/loop/outro stems (authored to layer
+## together on purpose), two different MusicTracks aren't composed to
+## sound good played at once — different tempo, key, mood — so
+## overlapping them would just be noise, not a blend. While the fade is
+## running, get_phase()/get_current_track() report STOPPED/null rather
+## than stale info about the outgoing track, which is no longer
+## something a caller can act on anyway.
+##
+## Deliberately does NOT wait for the outgoing track's loop to reach
+## its own boundary the way stop() can: switching to a different song
+## is a "get there now" moment (entering combat, say), not a graceful
+## ending, so there's no near-boundary/outro branch here, only the
+## fade-then-switch.
 func play_track(track: MusicTrack) -> void:
 	if not track:
 		return
 
 	var token: int = _bump_generation()
-	_hard_stop_active_players()
 	_hard_stop_prerolled_players()
+
+	var was_playing: bool = not _active_players.is_empty()
+	_quick_fade_and_stop_active_players()
+	if was_playing:
+		_phase = Phase.STOPPED
+		_current_track = null
+		await get_tree().create_timer(QUICK_FADE_DURATION).timeout
+		if token != _generation:
+			return
+
 	_current_track = track
 
 	if not track.intro.is_empty():
@@ -170,9 +197,12 @@ func _run_intro_to_loop(token: int, track: MusicTrack) -> void:
 ## as a DJ letting a phrase finish before mixing out. Otherwise — the
 ## wait would be long enough to feel unresponsive — stops right where
 ## it is with a quick fade instead of cutting the outro in wherever the
-## loop happened to be. Once real crossfading exists, that second case
-## is where it plugs in: fade the loop out as it currently sounds,
-## rather than a hard stop dressed up with a fade.
+## loop happened to be.
+##
+## That fade (_quick_fade_and_stop_active_players) is the same one
+## play_track() reuses when switching to a different track — see that
+## function's own comment for why the handoff there is a sequential
+## fade-then-switch rather than a true overlapping crossfade.
 func stop() -> void:
 	if _active_players.is_empty():
 		return
