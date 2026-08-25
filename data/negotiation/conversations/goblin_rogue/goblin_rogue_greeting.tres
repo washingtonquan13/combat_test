@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+
+[sub_resource type="Resource" id="Resource_pitch"]
+script = ExtResource("3_line")
+next_node_id = "goblin_rogue_pitch"
+text = "Useful how?"
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("4_outcome")
+outcome = 3
+text = "You're not worth the trouble."
+
+[sub_resource type="Resource" id="Resource_shrug"]
+script = ExtResource("3_line")
+next_node_id = "goblin_rogue_shrug"
+text = "You'd betray your own kind that easily?"
+
+[resource]
+script = ExtResource("1_node")
+id = "goblin_rogue_greeting"
+text_block = "Wait— wait! No need for that. You look like the sort who'd rather profit than fight. I can be... useful."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_pitch"), SubResource("Resource_attack"), SubResource("Resource_shrug")])

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+
+[sub_resource type="Resource" id="Resource_reading"]
+script = ExtResource("3_line")
+next_node_id = "goblin_shaman_reading"
+text = "Then look. I've nothing to hide."
+
+[sub_resource type="Resource" id="Resource_plain"]
+script = ExtResource("3_line")
+next_node_id = "goblin_shaman_plain"
+text = "Spare me the theater. Talk plainly or don't."
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("4_outcome")
+outcome = 3
+text = "I have no patience for goblin rituals."
+
+[resource]
+script = ExtResource("1_node")
+id = "goblin_shaman_greeting"
+text_block = "Hold. Before you strike, I would read what moves in you. The spirits are... curious about your kind today."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_reading"), SubResource("Resource_plain"), SubResource("Resource_attack")])

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+
+[sub_resource type="Resource" id="Resource_deference"]
+script = ExtResource("3_line")
+next_node_id = "deity_deference"
+text = "I don't presume to command you. I ask."
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("4_outcome")
+outcome = 3
+text = "Bow, or don't. I have nothing else to discuss."
+
+[resource]
+script = ExtResource("1_node")
+id = "deity_greeting"
+text_block = "You stand before me as though we were equals. We are not. Choose your next words with that understood."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_deference"), SubResource("Resource_attack")])

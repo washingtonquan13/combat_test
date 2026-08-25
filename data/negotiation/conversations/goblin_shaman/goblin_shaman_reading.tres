@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
+[ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
+[ext_resource type="Script" path="res://systems/skill_system/alignment_prerequisite.gd" id="5_alignment"]
+
+[sub_resource type="Resource" id="Resource_alignment_gate"]
+script = ExtResource("5_alignment")
+axis = 1
+required_category = 1
+
+[sub_resource type="Resource" id="Resource_moved"]
+script = ExtResource("3_line")
+next_node_id = "goblin_shaman_moved"
+text = "Then trust what you've seen."
+prerequisites = SubResource("Resource_alignment_gate")
+
+[sub_resource type="Resource" id="Resource_recruit"]
+script = ExtResource("4_outcome")
+outcome = 1
+text = "Good. Then join me, and let's see if that holds."
+
+[sub_resource type="Resource" id="Resource_flee"]
+script = ExtResource("4_outcome")
+outcome = 2
+text = "...Or don't. Your choice."
+
+[resource]
+script = ExtResource("1_node")
+id = "goblin_shaman_reading"
+text_block = "...The spirits show me contradictions in most who pass this way. Not in you, though. You are exactly what you appear to be. That is rarer, and more trustworthy, than most realize."
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_moved"), SubResource("Resource_recruit"), SubResource("Resource_flee")])
