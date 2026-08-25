@@ -77,6 +77,8 @@ extends Control
 @onready var _portrait: TextureRect = %Portrait
 @onready var _sort_button: Button = %SortButton
 @onready var _inventory: Inventory = %Inventory
+@onready var _gold_label: Label = %GoldLabel
+@onready var _debug_add_gold_button: Button = %DebugAddGoldButton
 
 ## All 16 shared equip slots, built once so _swap_equipment() doesn't
 ## need to re-walk the tree every unit switch — same "gather named nodes
@@ -147,6 +149,11 @@ func _ready() -> void:
 	%CloseButton.pressed.connect(func(): visible = false)
 	_sort_button.pressed.connect(_inventory.sort_items)
 	_quest_list.item_selected.connect(_on_quest_selected)
+
+	_debug_add_gold_button.visible = OS.is_debug_build()
+	_debug_add_gold_button.pressed.connect(func(): CurrencyManager.add_gold(50))
+	CurrencyManager.gold_changed.connect(_on_gold_changed)
+	_on_gold_changed(CurrencyManager.gold)
 
 	_show_tab("inventory")
 
@@ -337,3 +344,7 @@ func _show_quest_detail(quest: Quest) -> void:
 
 		entry.add_child(text_label)
 		_quest_detail_list.add_child(entry)
+
+
+func _on_gold_changed(new_amount: int) -> void:
+	_gold_label.text = "Gold: %d" % new_amount

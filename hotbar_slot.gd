@@ -99,7 +99,7 @@ func _on_pressed() -> void:
 		return
 	var template_effect: SummonDemonEffect = _get_summon_demon_effect()
 	if template_effect:
-		_show_demon_picker(template_effect)
+		_show_demon_picker()
 		return
 	if ability.targeting and ability.targeting.resolves_immediately():
 		unit.use_ability(ability, unit)
@@ -128,7 +128,7 @@ func _get_summon_demon_effect() -> SummonDemonEffect:
 ## recruited, exactly the distinction a species-grouped list would hide.
 ## A plain built-in PopupMenu, not a custom Control — this is a one-off
 ## choice list, not something that needs its own scene.
-func _show_demon_picker(template_effect: SummonDemonEffect) -> void:
+func _show_demon_picker() -> void:
 	var owned: Array[OwnedDemon] = DemonRoster.all_owned()
 	if owned.is_empty():
 		SystemLog.print("No demons in your roster yet.")
@@ -139,7 +139,7 @@ func _show_demon_picker(template_effect: SummonDemonEffect) -> void:
 	for i in owned.size():
 		var entry: OwnedDemon = owned[i]
 		popup.add_item("%s (HP %d/%d)" % [entry.species.display_name, entry.current_hp, entry.species.max_hp], i)
-	popup.id_pressed.connect(func(id: int): _on_demon_picked(owned[id], template_effect))
+	popup.id_pressed.connect(func(id: int): _on_demon_picked(owned[id]))
 	popup.popup_hide.connect(popup.queue_free)
 	popup.popup(Rect2(get_screen_position(), Vector2.ZERO))
 
@@ -151,10 +151,9 @@ func _show_demon_picker(template_effect: SummonDemonEffect) -> void:
 ## (a shallow copy — sub-resources like targeting stay SHARED with the
 ## template, not cloned) rather than hand-copying every Ability field, so
 ## this can't silently go stale the next time Ability gains a new export.
-func _on_demon_picked(owned_demon: OwnedDemon, template_effect: SummonDemonEffect) -> void:
+func _on_demon_picked(owned_demon: OwnedDemon) -> void:
 	var picked_effect := SummonDemonEffect.new()
 	picked_effect.owned_demon = owned_demon
-	picked_effect.max_active_summons = template_effect.max_active_summons
 
 	var picked_ability: Ability = ability.duplicate()
 	picked_ability.effects = [picked_effect]

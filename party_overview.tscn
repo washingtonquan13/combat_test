@@ -86,6 +86,16 @@ text = "Map"
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="GoldLabel" type="Label" parent="TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Gold: 50"
+
+[node name="DebugAddGoldButton" type="Button" parent="TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+50 (debug)"
+
 [node name="CloseButton" type="Button" parent="TopBar"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -489,6 +499,12 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 
+[node name="ReleaseButton" type="Button" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer/RosterColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Release"
+
 [node name="FusionColumn" type="VBoxContainer" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/HBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
@@ -544,6 +560,28 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 2
 text = "Grant (debug)"
+
+[node name="DebugSummonCapRow" type="HBoxContainer" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SummonCapLabel" type="Label" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/DebugSummonCapRow"]
+layout_mode = 2
+text = "Max active summons (debug):"
+
+[node name="SummonCapSpinBox" type="SpinBox" parent="ContentArea/DemonPanel/MarginContainer/VBoxContainer/DebugSummonCapRow"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 1
+max_value = 10
+value = 3
+
+[node name="ReleaseConfirmDialog" type="ConfirmationDialog" parent="ContentArea/DemonPanel"]
+unique_name_in_owner = true
+visible = false
+title = "Release demon?"
+dialog_text = "This demon will be permanently released from your roster."
 
 [node name="SpawnPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true

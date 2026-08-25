@@ -1,15 +1,34 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
 [ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
 [ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="3_line"]
 [ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="4_outcome"]
 [ext_resource type="Script" path="res://systems/skill_system/alignment_prerequisite.gd" id="5_alignment"]
+[ext_resource type="Script" path="res://systems/skill_system/item_owned_prerequisite.gd" id="6_item_owned"]
+[ext_resource type="Script" path="res://systems/dialogue_system/sacrifice_item_effect.gd" id="7_sacrifice_item"]
+[ext_resource type="Resource" uid="uid://cing3w35sxrnh" path="res://data/items/iron_sword.tres" id="8_sword"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_effect.gd" id="9_effect_base"]
 
 [sub_resource type="Resource" id="Resource_alignment_gate"]
 script = ExtResource("5_alignment")
 axis = 1
 required_category = 1
+
+[sub_resource type="Resource" id="Resource_item_gate"]
+script = ExtResource("6_item_owned")
+gear_data = ExtResource("8_sword")
+
+[sub_resource type="Resource" id="Resource_gift_effect"]
+script = ExtResource("7_sacrifice_item")
+gear_data = ExtResource("8_sword")
+
+[sub_resource type="Resource" id="Resource_gift"]
+script = ExtResource("4_outcome")
+outcome = 1
+text = "Take this, then — a token, freely given."
+prerequisites = SubResource("Resource_item_gate")
+effects = Array[ExtResource("9_effect_base")]([SubResource("Resource_gift_effect")])
 
 [sub_resource type="Resource" id="Resource_moved"]
 script = ExtResource("3_line")
@@ -31,4 +50,4 @@ text = "...Or don't. Your choice."
 script = ExtResource("1_node")
 id = "goblin_shaman_reading"
 text_block = "...The spirits show me contradictions in most who pass this way. Not in you, though. You are exactly what you appear to be. That is rarer, and more trustworthy, than most realize."
-choices = Array[ExtResource("2_choice")]([SubResource("Resource_moved"), SubResource("Resource_recruit"), SubResource("Resource_flee")])
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_moved"), SubResource("Resource_recruit"), SubResource("Resource_flee"), SubResource("Resource_gift")])

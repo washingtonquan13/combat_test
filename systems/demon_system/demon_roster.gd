@@ -18,6 +18,15 @@ extends Node
 
 var _owned: Array[OwnedDemon] = []
 
+## Party-wide cap on how many demons can be actively fielded at once —
+## read by SummonDemonEffect.apply(). Debug-adjustable for now (see the
+## demon compendium panel's debug row) — the real long-term driver is
+## meant to be party progression, but this project has no progression/
+## XP system yet. Whatever eventually computes that should assign
+## directly into this field rather than adding a parallel value; nothing
+## else needs to change.
+var max_active_summons: int = 3
+
 
 ## Creates a fresh, full-HP/FP OwnedDemon and adds it to the roster —
 ## used by both a fusion result and negotiation's Recruit outcome.

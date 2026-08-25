@@ -21,13 +21,6 @@ extends AbilityEffect
 ## re-summoning isn't free healing.
 
 @export var owned_demon: OwnedDemon
-## Party-wide cap on how many demons can be actively fielded at once —
-## kept per-effect rather than a global constant so a future capacity
-## item/ability could differ, though nothing currently varies it.
-## Counted live across the whole party (see apply() below), not
-## per-summoner: this project only ever has one summoner today, but the
-## rule is written to not silently break if that changes.
-@export var max_active_summons: int = 1
 
 
 func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
@@ -38,11 +31,16 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 		# consumed by fusion between the picker opening and this resolving.
 		return {}
 
+	# Counted live across the whole party, not per-summoner: this project
+	# only ever has one summoner today, but the rule is written to not
+	# silently break if that changes. Cap itself lives on DemonRoster, not
+	# here — see that field's own doc comment for why (party-wide,
+	# debug-adjustable, eventually progression-derived).
 	var active_count: int = 0
 	for unit in UnitQuery.all_units(attacker.get_tree()):
 		if unit.is_alive() and unit.is_player_controlled() and unit.summoned_by != null and unit.owned_demon != null:
 			active_count += 1
-	if active_count >= max_active_summons:
+	if active_count >= DemonRoster.max_active_summons:
 		SystemLog.print("%s can't field any more demons right now." % LogFormat.unit_name(attacker))
 		return {}
 

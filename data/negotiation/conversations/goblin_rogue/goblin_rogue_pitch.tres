@@ -1,9 +1,12 @@
-[gd_resource type="Resource" script_class="DialogueNode" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="DialogueNode" load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://systems/dialogue_system/dialogue_node.gd" id="1_node"]
 [ext_resource type="Script" path="res://systems/dialogue_system/dialogue_choice.gd" id="2_choice"]
 [ext_resource type="Script" path="res://systems/negotiation_system/negotiation_outcome_choice.gd" id="3_outcome"]
 [ext_resource type="Script" path="res://systems/negotiation_system/negotiation_line_choice.gd" id="4_line"]
+[ext_resource type="Script" path="res://systems/skill_system/negotiated_gold_prerequisite.gd" id="5_gold_gate"]
+[ext_resource type="Script" path="res://systems/negotiation_system/sacrifice_negotiated_gold_effect.gd" id="6_pay_gold"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_effect.gd" id="7_effect_base"]
 
 [sub_resource type="Resource" id="Resource_recruit"]
 script = ExtResource("3_outcome")
@@ -15,8 +18,21 @@ script = ExtResource("4_line")
 next_node_id = "goblin_rogue_pressed"
 text = "And the moment a better offer comes along?"
 
+[sub_resource type="Resource" id="Resource_gold_gate"]
+script = ExtResource("5_gold_gate")
+
+[sub_resource type="Resource" id="Resource_pay_gold"]
+script = ExtResource("6_pay_gold")
+
+[sub_resource type="Resource" id="Resource_bribe"]
+script = ExtResource("3_outcome")
+outcome = 2
+text = "Offer them {gold} gold to walk away instead."
+prerequisites = SubResource("Resource_gold_gate")
+effects = Array[ExtResource("7_effect_base")]([SubResource("Resource_pay_gold")])
+
 [resource]
 script = ExtResource("1_node")
 id = "goblin_rogue_pitch"
 text_block = "I know where three separate patrols dodge sightlines. I know which locks pop soft. Point me at a fight, I fight. Point me at a door, it opens. That's worth keeping alive, isn't it?"
-choices = Array[ExtResource("2_choice")]([SubResource("Resource_recruit"), SubResource("Resource_pressed")])
+choices = Array[ExtResource("2_choice")]([SubResource("Resource_recruit"), SubResource("Resource_pressed"), SubResource("Resource_bribe")])

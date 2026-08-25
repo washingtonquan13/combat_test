@@ -251,3 +251,27 @@ func sort_items() -> void:
 		if pos != Vector2i(-1, -1):
 			item.position = pos * cell_size_px
 			item_layer.add_child(item)
+
+func has_item(gear_data: GearItem) -> bool:
+	return _find_item(gear_data) != null
+
+## Decrements the matching item's stack, or removes it entirely once its
+## stack hits zero. False (no-op) if nothing matched — see
+## SacrificeItemEffect, the caller that needs to tell the two apart.
+func consume_item(gear_data: GearItem) -> bool:
+	var item: Item = _find_item(gear_data)
+	if not item:
+		return false
+	if item.current_stack_count > 1:
+		item.current_stack_count -= 1
+		item.update_stack_count_label()
+	else:
+		item.detach_from_current_location()
+		item.queue_free()
+	return true
+
+func _find_item(gear_data: GearItem) -> Item:
+	for child in item_layer.get_children():
+		if child is Item and child.gear_data == gear_data:
+			return child
+	return null

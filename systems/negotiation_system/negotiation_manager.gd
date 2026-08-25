@@ -35,6 +35,21 @@ var current_demon: Unit = null
 var current_actor: Unit = null
 var current_node: DialogueNode = null
 
+## Hidden per-negotiation "how well is this going" counter — authored
+## choices read it via MoodPrerequisite and write it via ShiftMoodEffect
+## (see both under systems/negotiation_system/ and systems/skill_system/).
+## Deliberately not surfaced in any UI: it gates which choices appear,
+## the same invisible way AlignmentPrerequisite/FlagPrerequisite already
+## gate choices, rather than adding a new meter for the player to watch.
+var current_mood: int = 0
+## This encounter's rolled gold amount — computed once per negotiation
+## in start_negotiation(), rank-scaled so a Tyrant asks for more than a
+## goblin. Used both directions: the player offering gold, or paying a
+## demon's own demand (see SacrificeNegotiatedGoldEffect) — same number
+## either way, just authored into different choices. Referenced in
+## authored text via the {gold} token (see format_text()).
+var current_gold_amount: int = 0
+
 ## "node_id:index" -> true — exact mirror of DialogueManager.used_choices.
 var used_choices: Dictionary = {}
 ## The exact filtered list _show_node() last emitted via choices_shown —
@@ -77,9 +92,32 @@ func start_negotiation(actor: Unit, demon: Unit) -> void:
 	current_actor = actor
 	current_demon = demon
 	used_choices.clear()
+	current_mood = 0
+	# Rank-scaled random range, not a flat authored number — a Fiend
+	# should plausibly ask for more than a goblin, and repeat encounters
+	# with the same species shouldn't always demand the exact same
+	# amount.
+	var rank: int = demon.definition.rank
+	current_gold_amount = randi_range(rank * 10, rank * 20)
 
 	negotiation_started.emit(demon)
 	_show_node(root)
+
+
+func shift_mood(amount: int) -> void:
+	current_mood += amount
+
+
+## Substitutes the {gold} token with this encounter's own rolled amount
+## — the one dynamic value negotiation text ever needs to show, so a
+## single fixed token beats building a general templating engine nothing
+## else in the dialogue system has any need for. Choice/node resources
+## are loaded once and SHARED across every negotiation with that
+## species, so this can't mutate .text in place — that would corrupt the
+## authored data for every future encounter. negotiation_panel.gd calls
+## this on whatever text it's about to render instead.
+func format_text(text: String) -> String:
+	return text.replace("{gold}", str(current_gold_amount))
 
 
 ## index is a position in the FILTERED list negotiation_panel.gd

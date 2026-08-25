@@ -41,14 +41,14 @@ func _on_negotiation_started(demon: Unit) -> void:
 
 
 func _on_line_shown(text: String) -> void:
-	_line_text.text = text
+	_line_text.text = NegotiationManager.format_text(text)
 
 
 func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
 	_current_choices = choices
 	var lines: Array[String] = []
 	for i in choices.size():
-		lines.append("[url=%d]%d. %s[/url]" % [i, i + 1, choices[i].text])
+		lines.append("[url=%d]%d. %s[/url]" % [i, i + 1, NegotiationManager.format_text(choices[i].text)])
 	_choices_text.text = "\n".join(lines)
 
 

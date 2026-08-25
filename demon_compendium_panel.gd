@@ -15,6 +15,8 @@ extends Control
 ## itself" check layered on top.
 
 @onready var _roster_list: ItemList = %RosterList
+@onready var _release_button: Button = %ReleaseButton
+@onready var _release_confirm_dialog: ConfirmationDialog = %ReleaseConfirmDialog
 @onready var _slot_a_list: ItemList = %SlotAList
 @onready var _slot_b_list: ItemList = %SlotBList
 @onready var _fuse_button: Button = %FuseButton
@@ -22,6 +24,8 @@ extends Control
 @onready var _debug_grant_row: HBoxContainer = %DebugGrantRow
 @onready var _grant_species_list: OptionButton = %GrantSpeciesList
 @onready var _grant_button: Button = %GrantButton
+@onready var _debug_summon_cap_row: HBoxContainer = %DebugSummonCapRow
+@onready var _summon_cap_spin_box: SpinBox = %SummonCapSpinBox
 
 ## data/fusion_charts/fusion_chart.tres — the one authored chart, loaded
 ## once. Lives in its own folder, not data/demons/, because it isn't a
@@ -44,17 +48,25 @@ var _grant_species: Array[UnitDefinition] = []
 func _ready() -> void:
 	_fusion_chart = load(FUSION_CHART_PATH) as FusionChart
 	_debug_grant_row.visible = OS.is_debug_build()
+	_debug_summon_cap_row.visible = OS.is_debug_build()
+
+	_roster_list.item_selected.connect(func(_i): _update_release_button())
+	_release_button.pressed.connect(func(): _release_confirm_dialog.popup_centered())
+	_release_confirm_dialog.confirmed.connect(_on_release_confirmed)
 
 	_slot_a_list.item_selected.connect(func(_i): _update_fusion_preview())
 	_slot_b_list.item_selected.connect(func(_i): _update_fusion_preview())
 	_fuse_button.pressed.connect(_on_fuse_pressed)
 	if OS.is_debug_build():
 		_grant_button.pressed.connect(_on_grant_pressed)
+		_summon_cap_spin_box.value = DemonRoster.max_active_summons
+		_summon_cap_spin_box.value_changed.connect(func(value: float): DemonRoster.max_active_summons = int(value))
 
 
 func refresh() -> void:
 	_roster_entries = DemonRoster.all_owned()
 	_populate_demon_list(_roster_list, _roster_entries)
+	_update_release_button()
 
 	_slot_a_entries = DemonRoster.all_owned()
 	_populate_demon_list(_slot_a_list, _slot_a_entries)
@@ -118,6 +130,24 @@ func _selected_entry(list: ItemList, entries: Array[OwnedDemon]) -> OwnedDemon:
 	if selected.is_empty():
 		return null
 	return entries[selected[0]]
+
+
+func _update_release_button() -> void:
+	_release_button.disabled = _selected_entry(_roster_list, _roster_entries) == null
+
+
+## Only asks DemonRoster.release() to act — the confirmation itself
+## already happened via ReleaseConfirmDialog (a built-in ConfirmationDialog,
+## matching this project's preference for native Godot mechanisms) before
+## this ever fires. Releasing is permanent, same as a summoned demon
+## dying in real combat, so this isn't a "just in case" guard — it's the
+## one and only place release actually happens from the UI.
+func _on_release_confirmed() -> void:
+	var target: OwnedDemon = _selected_entry(_roster_list, _roster_entries)
+	if not target:
+		return
+	DemonRoster.release(target)
+	refresh()
 
 
 func _refresh_grant_list() -> void:
