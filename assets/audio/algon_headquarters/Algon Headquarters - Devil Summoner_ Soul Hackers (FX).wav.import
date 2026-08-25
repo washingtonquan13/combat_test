@@ -1,0 +1,24 @@
+[remap]
+
+importer="wav"
+type="AudioStreamWAV"
+uid="uid://b8h7lgy1y8csw"
+path="res://.godot/imported/Algon Headquarters - Devil Summoner_ Soul Hackers (FX).wav-9a7376fd03cc64d66fcf46d29ffc5917.sample"
+
+[deps]
+
+source_file="res://assets/audio/algon_headquarters/Algon Headquarters - Devil Summoner_ Soul Hackers (FX).wav"
+dest_files=["res://.godot/imported/Algon Headquarters - Devil Summoner_ Soul Hackers (FX).wav-9a7376fd03cc64d66fcf46d29ffc5917.sample"]
+
+[params]
+
+force/8_bit=false
+force/mono=false
+force/max_rate=false
+force/max_rate_hz=44100
+edit/trim=false
+edit/normalize=false
+edit/loop_mode=0
+edit/loop_begin=0
+edit/loop_end=-1
+compress/mode=2

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="MusicTrack" load_steps=3 format=3 uid="uid://bqcuejs6xr2ve"]
+
+[ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="1_ikp7s"]
+[ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="2_e4jdx"]
+
+[resource]
+script = ExtResource("2_e4jdx")
+id = ""
+intro = Array[ExtResource("1_ikp7s")]([])
+loop = Array[ExtResource("1_ikp7s")]([])
+outro = Array[ExtResource("1_ikp7s")]([])
+metadata/_custom_type_script = "uid://b6n0bkv8eyu2j"
