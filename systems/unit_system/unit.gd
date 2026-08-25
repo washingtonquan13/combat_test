@@ -12,10 +12,12 @@ extends CharacterBody3D
 ## the cascade has to fire before this instance's own explicit overrides
 ## (if any) are applied, so an override still wins. Not a hard lock: any
 ## cascaded field stays directly editable afterward, same as gear_data's
-## icon/width/height. Left null and unused on a live SUMMONED demon —
-## owned_demon.species is already the authoritative definition there
-## (see SummonDemonEffect), so setting this too would just be a second
-## path to the same data.
+## icon/width/height. Also set on a live SUMMONED demon —
+## SummonDemonEffect assigns owned_demon.species here so a summon goes
+## through the same cascade as every other unit, then explicitly
+## overrides faction/current_hp/current_fp afterward (a recruited demon
+## fights for whoever fielded it, and re-summoning isn't free healing —
+## see that file's own comment).
 @export var definition: UnitDefinition = null:
 	set(value):
 		definition = value
