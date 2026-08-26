@@ -126,6 +126,9 @@ func _get_summon_demon_effect() -> SummonDemonEffect:
 ## One button per individually-owned demon — never grouped by species,
 ## since different instances can be mid-battle-damaged or freshly
 ## recruited, exactly the distinction a species-grouped list would hide.
+## Also excludes anything DemonRoster.is_fielded() already — an owned
+## demon currently out on the field isn't pickable again, the UI-side
+## half of the fix alongside SummonDemonEffect's own authoritative check.
 ## A plain built-in PopupMenu, not a custom Control — this is a one-off
 ## choice list, not something that needs its own scene.
 func _show_demon_picker() -> void:
@@ -134,12 +137,17 @@ func _show_demon_picker() -> void:
 		SystemLog.print("No demons in your roster yet.")
 		return
 
+	var available: Array[OwnedDemon] = owned.filter(func(entry: OwnedDemon): return not DemonRoster.is_fielded(entry))
+	if available.is_empty():
+		SystemLog.print("All your demons are already in the field.")
+		return
+
 	var popup := PopupMenu.new()
 	add_child(popup)
-	for i in owned.size():
-		var entry: OwnedDemon = owned[i]
+	for i in available.size():
+		var entry: OwnedDemon = available[i]
 		popup.add_item("%s (HP %d/%d)" % [entry.species.display_name, entry.current_hp, entry.species.max_hp], i)
-	popup.id_pressed.connect(func(id: int): _on_demon_picked(owned[id]))
+	popup.id_pressed.connect(func(id: int): _on_demon_picked(available[id]))
 	popup.popup_hide.connect(popup.queue_free)
 	popup.popup(Rect2(get_screen_position(), Vector2.ZERO))
 

@@ -50,6 +50,23 @@ func is_owned(owned_demon: OwnedDemon) -> bool:
 	return _owned.has(owned_demon)
 
 
+## Whether this specific roster entry is currently fielded as a live Unit
+## anywhere in the scene — the check SummonDemonEffect.apply() and
+## hotbar_slot.gd's demon picker were both missing, which let the exact
+## same OwnedDemon be summoned more than once at a time: nothing but the
+## aggregate max_active_summons count gated a second summon of an
+## ALREADY-fielded entry, so two (or three) live Units could end up
+## sharing one OwnedDemon reference. Scans the same "units" group
+## UnitQuery already reads rather than DemonRoster tracking its own
+## separate fielded-set — Unit.owned_demon is already the one source of
+## truth for "is this entry out right now."
+func is_fielded(owned_demon: OwnedDemon) -> bool:
+	for unit in UnitQuery.all_units(get_tree()):
+		if unit.is_alive() and unit.owned_demon == owned_demon:
+			return true
+	return false
+
+
 ## The full roster, individual entries included — the compendium
 ## panel's own listing, one row per instance, not grouped by species.
 func all_owned() -> Array[OwnedDemon]:

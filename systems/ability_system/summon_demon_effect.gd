@@ -30,6 +30,13 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 		# Defensive only — the roster entry could theoretically have been
 		# consumed by fusion between the picker opening and this resolving.
 		return {}
+	if DemonRoster.is_fielded(owned_demon):
+		# The authoritative check, not just the picker's filtering below —
+		# this is what actually stops the same OwnedDemon from being
+		# summoned twice (see DemonRoster.is_fielded's own doc comment for
+		# why that used to be possible and what it silently corrupted).
+		SystemLog.print("%s is already in the field." % owned_demon.species.display_name)
+		return {}
 
 	# Counted live across the whole party, not per-summoner: this project
 	# only ever has one summoner today, but the rule is written to not
