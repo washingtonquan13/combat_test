@@ -122,6 +122,21 @@ func _ready() -> void:
 	CombatManager.combat_ended.connect(_on_combat_ended)
 	NegotiationManager.negotiation_started.connect(_on_negotiation_started)
 	NegotiationManager.negotiation_ended.connect(_on_negotiation_ended)
+
+
+## Called by MainRoot's own _ready() once the game proper has actually
+## started — NOT fired automatically from this file's own _ready()
+## anymore. Autoloads initialize before the first scene's _ready() runs,
+## so an unconditional auto-play here used to start exploration music
+## even when a main menu (a separate, earlier run/main_scene) was what
+## actually booted first, forcing that menu's own play_track() call to
+## immediately fade it back out again — a real, audible "wrong track
+## flashes for ~2s" blip on every boot. Moving this to an explicit call
+## from whichever scene is genuinely entering the game world (MainRoot)
+## fixes that, and generalizes better besides: a future second entry
+## point (e.g. "Continue" vs "New Game") can each decide their own
+## opening music instead of this file forcing one default on everyone.
+func start_exploration_theme() -> void:
 	_play_track_id(EXPLORATION_TRACK_ID)
 
 
