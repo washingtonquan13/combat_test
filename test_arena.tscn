@@ -1,31 +1,21 @@
-[gd_scene load_steps=81 format=3 uid="uid://d1qy6jfw10nnh"]
+[gd_scene load_steps=61 format=3]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
-[ext_resource type="Script" uid="uid://qvd58qh5ypor" path="res://main.gd" id="1_7mycd"]
-[ext_resource type="Script" uid="uid://bwtn55jbtliv4" path="res://drag_select_box.gd" id="1_lquwl"]
+[ext_resource type="Script" path="res://test_arena.gd" id="1_7mycd"]
 [ext_resource type="Script" uid="uid://cmxyf1fnxa72t" path="res://movement_indicator.gd" id="2_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
 [ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://line_of_sight_indicator.gd" id="3_074og"]
 [ext_resource type="Script" uid="uid://dest3cxkrnl56" path="res://crpg_camera.gd" id="3_h2yge"]
 [ext_resource type="Script" uid="uid://dxckq302pihqf" path="res://unit_aim_facing.gd" id="3_kq58d"]
-[ext_resource type="PackedScene" uid="uid://caf7q4n41fgu5" path="res://unit_portrait.tscn" id="4_272bh"]
-[ext_resource type="Script" uid="uid://dco3xcx22f26n" path="res://initiative_row.gd" id="4_dg77c"]
 [ext_resource type="Script" uid="uid://8r0mkwuth7cw" path="res://jump_indicator.gd" id="4_ryguw"]
 [ext_resource type="Script" uid="uid://dqa8pee2hc1ky" path="res://area_indicator.gd" id="5_d13ii"]
 [ext_resource type="Texture2D" uid="uid://nguaiexl5e8a" path="res://assets/portraits/barbarian.jpg" id="5_efxa6"]
 [ext_resource type="Texture2D" uid="uid://cxnwr1ibqbqe5" path="res://assets/portraits/dwarf_fighter_1.jpg" id="6_dg77c"]
-[ext_resource type="Script" uid="uid://5dq2mibjdmfb" path="res://ability_hotbar.gd" id="6_w48qg"]
 [ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="7_ycdy4"]
-[ext_resource type="PackedScene" uid="uid://c8p3x6fyoh5xw" path="res://hotbar_slot.tscn" id="8_cegan"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="9_vivmo"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="10_yaehf"]
-[ext_resource type="PackedScene" uid="uid://dtttg6dyn8w56" path="res://system_log.tscn" id="12_xuqvo"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="13_074og"]
-[ext_resource type="Script" uid="uid://bb040f657sdme" path="res://end_turn_button.gd" id="13_qsp4k"]
-[ext_resource type="Texture2D" uid="uid://b87v8swp3yenp" path="res://assets/ui_icon/hamburger_icon.png" id="15_seu75"]
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://data/abilities/jump.tres" id="16_getpj"]
-[ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://menu_button.gd" id="16_htxhm"]
-[ext_resource type="Script" uid="uid://ds5sh15dh1euk" path="res://esc_menu.gd" id="17_jq2sk"]
 [ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://data/abilities/explosive_fireball.tres" id="20_0odxb"]
 [ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://data/abilities/sleep_dart.tres" id="21_a6jrf"]
 [ext_resource type="Texture2D" uid="uid://caua8wslo4n0e" path="res://assets/portraits/tiefling_wizard.jpg" id="21_lswn8"]
@@ -50,27 +40,18 @@
 [ext_resource type="Resource" uid="uid://bybjpwdtyimg6" path="res://data/skills/arcana.tres" id="51_b17eg"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
 [ext_resource type="Resource" uid="uid://c2jjtj71ljycn" path="res://data/skills/insight.tres" id="52_cyx1q"]
-[ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://hotbar_divider.gd" id="52_hbdivider"]
 [ext_resource type="Resource" uid="uid://cxye1dh2856fy" path="res://data/skills/acrobatics.tres" id="52_ntx8l"]
-[ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://party_panel.gd" id="53_partypanel"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="53_uatky"]
 [ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="54_prop"]
-[ext_resource type="PackedScene" uid="uid://divqi7putsgwu" path="res://systems/dialogue_system/dialogue_overlay.tscn" id="55_dlgoverlay"]
-[ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://systems/dialogue_system/conversation_log.tscn" id="56_convlog"]
-[ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="57_dlgcamrig"]
 [ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
 [ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://interaction_option.gd" id="58_uatky"]
-[ext_resource type="PackedScene" uid="uid://jfavnc280asx" path="res://party_overview.tscn" id="59_partyoverview"]
 [ext_resource type="Resource" path="res://data/interactions/talk.tres" id="59_rqtf5"]
 [ext_resource type="Resource" path="res://data/interactions/examine.tres" id="60_1vm84"]
 [ext_resource type="PackedScene" uid="uid://dwu2y8j3sei5i" path="res://chest.tscn" id="60_chest"]
-[ext_resource type="PackedScene" path="res://stash_panel.tscn" id="61_stashpanel"]
 [ext_resource type="Resource" uid="uid://dwqtkbnj05wva" path="res://data/dialogue/scared_townsperson/hub.tres" id="62_townsdlg"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="63_dlgrootopt"]
 [ext_resource type="Resource" uid="uid://b0g3uyinnv5km" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="64_resolveddlg"]
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
-[ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="66_dicepopup"]
-[ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="69_negotiationpanel"]
 [ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
 [ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
@@ -103,14 +84,11 @@ root = ExtResource("62_townsdlg")
 [sub_resource type="Environment" id="Environment_movement_glow"]
 glow_enabled = true
 
-[node name="Node3D" type="Node3D"]
+[node name="TestArena" type="Node3D"]
 script = ExtResource("1_7mycd")
 
 [node name="GroundClickTarget" type="Node3D" parent="."]
 script = ExtResource("1_1bvp3")
-
-[node name="DialogueCameraRig" type="Node3D" parent="."]
-script = ExtResource("57_dlgcamrig")
 
 [node name="Indicators" type="Node3D" parent="."]
 
@@ -138,206 +116,6 @@ script = ExtResource("43_seek")
 
 [node name="NavDebugOverlay" type="Node3D" parent="Indicators"]
 script = ExtResource("51_navdbg")
-
-[node name="CanvasLayer" type="CanvasLayer" parent="."]
-
-[node name="DragSelectBox" type="Control" parent="CanvasLayer"]
-visible = false
-layout_mode = 3
-anchors_preset = 0
-offset_right = 40.0
-offset_bottom = 40.0
-script = ExtResource("1_lquwl")
-
-[node name="TacticalUI" type="Control" parent="CanvasLayer"]
-layout_mode = 3
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-mouse_filter = 2
-
-[node name="InitiativeRow" type="HBoxContainer" parent="CanvasLayer/TacticalUI"]
-layout_mode = 0
-anchor_left = 0.5
-anchor_right = 0.5
-offset_left = -20.0
-offset_top = 20.0
-offset_right = 20.0
-offset_bottom = 40.0
-grow_horizontal = 2
-script = ExtResource("4_dg77c")
-portrait_scene = ExtResource("4_272bh")
-
-[node name="AbilityHotbar" type="HBoxContainer" parent="CanvasLayer/TacticalUI"]
-layout_mode = 0
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -20.0
-offset_top = -40.0
-offset_right = 20.0
-offset_bottom = -20.0
-grow_horizontal = 2
-grow_vertical = 0
-script = ExtResource("6_w48qg")
-slot_scene = ExtResource("8_cegan")
-
-[node name="CommonGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 4
-
-[node name="DividerCommonAbilities" type="VSeparator" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-custom_minimum_size = Vector2(10, 32)
-layout_mode = 2
-script = ExtResource("52_hbdivider")
-
-[node name="AbilitiesGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 6
-
-[node name="DividerAbilitiesCustom" type="VSeparator" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-custom_minimum_size = Vector2(10, 32)
-layout_mode = 2
-script = ExtResource("52_hbdivider")
-
-[node name="CustomGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 6
-
-[node name="SystemLog" parent="CanvasLayer/TacticalUI" instance=ExtResource("12_xuqvo")]
-layout_mode = 1
-anchors_preset = -1
-offset_left = -240.0
-offset_top = -90.0
-offset_bottom = 90.0
-
-[node name="PartyPanel" type="VBoxContainer" parent="CanvasLayer/TacticalUI"]
-layout_mode = 0
-anchor_top = 0.5
-anchor_bottom = 0.5
-offset_left = 20.0
-offset_top = -180.0
-offset_right = 150.0
-offset_bottom = 180.0
-grow_vertical = 2
-size_flags_horizontal = 0
-theme_override_constants/separation = 4
-alignment = 1
-script = ExtResource("53_partypanel")
-slot_scene = ExtResource("4_272bh")
-
-[node name="CoreContainer" type="VBoxContainer" parent="CanvasLayer/TacticalUI/PartyPanel"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="EndTurnButton" type="Button" parent="CanvasLayer/TacticalUI"]
-custom_minimum_size = Vector2(90, 31)
-layout_mode = 0
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -90.0
-offset_top = -31.0
-offset_right = -20.0
-offset_bottom = -20.0
-grow_horizontal = 0
-grow_vertical = 0
-text = "END TURN"
-script = ExtResource("13_qsp4k")
-
-[node name="MenuButton" type="Button" parent="CanvasLayer" node_paths=PackedStringArray("esc_menu")]
-custom_minimum_size = Vector2(32, 32)
-anchors_preset = 1
-anchor_left = 1.0
-anchor_right = 1.0
-offset_left = -8.0
-offset_top = 8.0
-offset_right = -8.0
-offset_bottom = 8.0
-grow_horizontal = 0
-icon = ExtResource("15_seu75")
-script = ExtResource("16_htxhm")
-esc_menu = NodePath("../EscMenu")
-
-[node name="PartyOverview" parent="CanvasLayer" instance=ExtResource("59_partyoverview")]
-
-[node name="StashPanel" parent="CanvasLayer" node_paths=PackedStringArray("party_overview") instance=ExtResource("61_stashpanel")]
-party_overview = NodePath("../PartyOverview")
-
-[node name="EscMenu" type="Control" parent="CanvasLayer"]
-custom_minimum_size = Vector2(300, 200)
-layout_mode = 3
-anchors_preset = 8
-anchor_left = 0.5
-anchor_top = 0.5
-anchor_right = 0.5
-anchor_bottom = 0.5
-offset_left = -150.0
-offset_top = -100.0
-offset_right = 150.0
-offset_bottom = 100.0
-grow_horizontal = 2
-grow_vertical = 2
-script = ExtResource("17_jq2sk")
-
-[node name="ExitButton" type="Button" parent="CanvasLayer/EscMenu"]
-custom_minimum_size = Vector2(32, 32)
-layout_mode = 1
-anchors_preset = -1
-anchor_left = 0.926667
-anchor_top = -0.07
-anchor_right = 0.926667
-anchor_bottom = -0.07
-offset_top = -32.0
-offset_right = 32.0
-grow_horizontal = 0
-text = "X"
-metadata/_edit_use_anchors_ = true
-
-[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/EscMenu"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-alignment = 1
-
-[node name="Save" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-text = "SAVE"
-
-[node name="Load" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-text = "LOAD"
-
-[node name="Settings" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-text = "SETTINGS
-"
-
-[node name="ExitToDesktop" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 3
-text = "EXIT TO DESKTOP"
-
-[node name="DialogueOverlay" parent="CanvasLayer" node_paths=PackedStringArray("conversation_log", "tactical_ui") instance=ExtResource("55_dlgoverlay")]
-conversation_log = NodePath("../ConversationLog")
-tactical_ui = NodePath("../TacticalUI")
-
-[node name="ConversationLog" parent="CanvasLayer" instance=ExtResource("56_convlog")]
-
-[node name="NegotiationPanel" parent="CanvasLayer" node_paths=PackedStringArray("tactical_ui") instance=ExtResource("69_negotiationpanel")]
-tactical_ui = NodePath("../TacticalUI")
-
-[node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("66_dicepopup")]
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 
@@ -518,10 +296,6 @@ environment = SubResource("Environment_movement_glow")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)
-
-[connection signal="pressed" from="CanvasLayer/MenuButton" to="CanvasLayer/MenuButton" method="_on_pressed"]
-[connection signal="pressed" from="CanvasLayer/EscMenu/ExitButton" to="CanvasLayer/EscMenu" method="_on_exit_button_pressed"]
-[connection signal="pressed" from="CanvasLayer/EscMenu/VBoxContainer/ExitToDesktop" to="CanvasLayer/EscMenu" method="_on_exit_to_desktop_pressed"]
 
 [editable path="LevelGeometry/Ladder"]
 [editable path="TieflingWizard"]

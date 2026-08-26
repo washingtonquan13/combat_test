@@ -18,6 +18,13 @@ extends Node
 ##     give up this turn for now and go later in this same round instead
 ##     (see CombatManager.delay_turn — defaults to delaying by 1).
 
+## Debug-only trigger for SceneManager.push_scene()/pop_scene() (L key —
+## see project.godot's test_toggle_scene_push) so the push/pop cycle has
+## something to actually exercise in a running game before the real
+## fusion-room scene exists. Not itself part of the scene-swapping
+## feature — delete once something real calls push_scene/pop_scene.
+const _SCENE_MANAGER_TEST_ROOM := preload("res://scenes/scene_manager_test_room.tscn")
+
 var _signals_connected: bool = false
 ## The raid quest's two goblinoids — see _watch_goblinoid_raid_quest().
 ## Emptied out as each one dies; townsperson_raids_resolved sets once
@@ -41,6 +48,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			var unit: Unit = CombatManager.current_unit
 			if unit and not CombatManager.delay_turn(unit):
 				print("Couldn't delay ", unit.get_display_name(), "'s turn.")
+	elif event.is_action_pressed("test_toggle_scene_push"):
+		_toggle_scene_push()
+
+
+func _toggle_scene_push() -> void:
+	if SceneManager.current_root() == self:
+		SceneManager.push_scene(_SCENE_MANAGER_TEST_ROOM)
+	else:
+		SceneManager.pop_scene()
 
 
 func _start_test_combat() -> void:
@@ -131,3 +147,11 @@ func _on_combat_ended(winning_faction: StringName) -> void:
 		print("--- Combat ended: mutual wipe, no survivors ---")
 	else:
 		print("--- Combat ended: ", winning_faction, " wins ---")
+
+
+## Satisfies SceneManager's duck-typed push/pop contract (see
+## systems/scene_system/scene_manager.gd) — called on suspend/resume to
+## unregister/re-register this arena's own tactical camera with
+## CameraDirector, since a merely-hidden node's _ready() never refires.
+func get_tactical_camera() -> Camera3D:
+	return $Camera3D

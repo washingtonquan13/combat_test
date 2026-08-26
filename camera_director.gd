@@ -25,9 +25,22 @@ var _tactical_camera: Camera3D = null
 
 ## Called once by crpg_camera.gd's own _ready() — this autoload has no
 ## other way to know which Camera3D is "the tactical one" to hand control
-## back to once a cinematic shot ends.
+## back to once a cinematic shot ends. Also called by SceneManager when
+## restoring a suspended arena — that camera's _ready() never refires
+## (the node was only hidden, never left the tree), so re-registration
+## has to be explicit there instead of automatic.
 func register_tactical_camera(cam: Camera3D) -> void:
 	_tactical_camera = cam
+
+
+## Called when a tactical camera is being retired (suspended by
+## SceneManager, or freed) so a now-stale camera can't be handed control
+## via deactivate_cinematic_camera(). Guarded on identity so an
+## out-of-order call from a camera that ISN'T the currently-registered
+## one can't clobber a legitimate registration.
+func unregister_tactical_camera(cam: Camera3D) -> void:
+	if _tactical_camera == cam:
+		_tactical_camera = null
 
 
 func has_control() -> bool:
@@ -44,7 +57,8 @@ func activate_cinematic_camera(cam: Camera3D) -> void:
 
 ## Hands the viewport back to whichever camera registered itself as the
 ## tactical one. Safe to call even if nothing ever registered (a scene
-## with no tactical camera at all) — just does nothing.
+## with no tactical camera at all), or if the registered camera has since
+## been freed/unregistered without a replacement yet — just does nothing.
 func deactivate_cinematic_camera() -> void:
-	if _tactical_camera:
+	if is_instance_valid(_tactical_camera):
 		_tactical_camera.make_current()

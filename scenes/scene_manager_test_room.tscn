@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://h5g2irwldfov"]
+
+[sub_resource type="Environment" id="Environment_testroom"]
+background_mode = 1
+background_color = Color(0.6, 0.1, 0.7, 1)
+
+[node name="SceneManagerTestRoom" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+current = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_testroom")

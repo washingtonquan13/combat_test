@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Combat Test"
-run/main_scene="uid://d1qy6jfw10nnh"
+run/main_scene="res://MainRoot.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
 config/icon="res://icon.svg"
 
@@ -33,6 +33,7 @@ NegotiationManager="*res://systems/negotiation_system/negotiation_manager.gd"
 DebugSpawner="*res://debug_spawner.gd"
 MusicManager="*res://systems/music_system/music_manager.gd"
 CurrencyManager="*res://systems/currency_system/currency_manager.gd"
+SceneManager="*res://systems/scene_system/scene_manager.gd"
 
 [display]
 
@@ -48,6 +49,11 @@ enabled=PackedStringArray("res://addons/animation_sequence_tools/plugin.cfg")
 test_start_combat={
 "deadzone": 0.2,
 "events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":49,"key_label":0,"unicode":49,"location":0,"echo":false,"script":null)
+]
+}
+test_toggle_scene_push={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"resource_local_to_scene":false,"resource_name":"","device":-1,"window_id":0,"alt_pressed":false,"shift_pressed":false,"ctrl_pressed":false,"meta_pressed":false,"pressed":false,"keycode":0,"physical_keycode":76,"key_label":0,"unicode":108,"location":0,"echo":false,"script":null)
 ]
 }
 test_end_turn={

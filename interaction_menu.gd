@@ -51,6 +51,13 @@ func open_for(target: Node, actor: Unit) -> void:
 	_popup.popup()
 
 
+## Force-closes the popup if open. Called by SceneManager before
+## suspending a scene, so a menu anchored to an about-to-be-hidden
+## unit/prop doesn't linger holding a stale _actor/_target.
+func close() -> void:
+	_popup.hide()
+
+
 ## Whether a menu is currently up — polled per-frame by crpg_camera.gd to
 ## suspend all camera input for as long as it's open (BG3 does the same:
 ## the camera can't rotate/pan/zoom out from under an open radial menu).
