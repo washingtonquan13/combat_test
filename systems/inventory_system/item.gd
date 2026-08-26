@@ -79,7 +79,7 @@ func _physics_process(_delta: float) -> void:
 func _notification(what: int) -> void:
 	match what:
 		NOTIFICATION_DRAG_BEGIN:
-			if get_viewport().gui_get_drag_data() == self:
+			if is_same(get_viewport().gui_get_drag_data(), self):
 				is_being_dragged = true
 				modulate.a = 0.4
 		NOTIFICATION_DRAG_END:
