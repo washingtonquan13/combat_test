@@ -32,20 +32,93 @@ var _signals_connected: bool = false
 var _goblinoids_remaining: Array[Unit] = []
 
 
-## Bootstrap content, not a permanent architectural constraint — these 4
-## are hand-placed today because that's how every unit in this project
-## has been authored so far, not because PartyManager.members requires
-## it. A future character-creation flow or debug add/remove menu can add
-## to (or remove from) this same roster at runtime without needing a
-## party member to have ever been placed in this scene at all.
+## Bootstrap content, not a permanent architectural constraint — the 3
+## non-leader companions are hand-placed today because that's how every
+## unit in this project has been authored so far, not because
+## PartyManager.members requires it. A future debug add/remove menu can
+## add to (or remove from) this same roster at runtime without needing a
+## party member to have ever been placed in this scene at all — see
+## _build_leader() below, which already proves that shape for real.
 func _ready() -> void:
 	print(SkillCalculator.get_skill_level($ElfRanger, "Acrobatics").skill_level)
 	_watch_goblinoid_raid_quest()
-	PartyManager.add_member($TieflingWizard)
+	var leader: Unit = _build_leader()
+	PartyManager.add_member(leader)
 	PartyManager.add_member($HumanBarbarian)
 	PartyManager.add_member($DwarfFighter)
 	PartyManager.add_member($ElfRanger)
-	PartyManager.set_leader($TieflingWizard)
+	PartyManager.set_leader(leader)
+
+
+## Returns the real leader Unit for this session — deliberately NOT the
+## same thing as "reuse whatever's already hand-placed in the scene."
+## If a character was actually created (see PendingCharacter, written by
+## character_creation.gd on Confirm), this instantiates a genuinely
+## FRESH unit.tscn and frees the hand-placed TieflingWizard node outright
+## — she was only ever a bootstrap placeholder standing in for "the
+## leader," never a specific story character, so keeping her around
+## unused once a real one exists would just be a second, silent unit
+## nobody asked for. This is the actual proof that a party member
+## doesn't have to be hardcoded in this scene at all: the same
+## instantiate-and-PartyManager.add_member() shape a future debug
+## add/remove menu needs is exactly what's used here, not a one-off
+## reuse of an existing node.
+##
+## Falls back to the hand-placed TieflingWizard, completely untouched,
+## if chargen was never run (loading straight into this scene for a
+## headless test, e.g.) — that fallback has to keep working exactly as
+## it did before this existed.
+##
+## Only the 3 abilities named as "standard for every unit" get assigned
+## — a freshly-created blank character hasn't earned a spellbook, by
+## design (see the user's own stated intent: richer abilities are meant
+## to come from a future debug menu, not be assumed at creation).
+func _build_leader() -> Unit:
+	var placeholder: Unit = $TieflingWizard
+
+	if not PendingCharacter.is_ready:
+		return placeholder
+
+	var leader: Unit = preload("res://unit.tscn").instantiate()
+	add_child(leader)
+	leader.global_transform = placeholder.global_transform
+	leader.faction = Unit.PLAYER_FACTION
+	leader.display_name = PendingCharacter.display_name
+	leader.strength = PendingCharacter.strength
+	leader.dexterity = PendingCharacter.dexterity
+	leader.intelligence = PendingCharacter.intelligence
+	leader.health = PendingCharacter.health
+	leader.abilities = [
+		load("res://data/abilities/basic_attack_melee.tres"),
+		load("res://data/abilities/jump.tres"),
+		load("res://data/abilities/shove.tres"),
+	]
+	# Matches the other 3 party members' own shared color, authored
+	# directly on each of them in this scene — visual party consistency,
+	# not a Unit-script default.
+	leader.selected_color = Color(0.156863, 1, 1, 0.627451)
+
+	for skill_name in PendingCharacter.skill_levels:
+		var relative_level: int = PendingCharacter.skill_levels[skill_name]
+		if relative_level == 0:
+			continue  # no investment -- nothing to record, matches how an
+			# untrained skill just defaults off the controlling attribute
+		var skill: Skill = SkillDatabase.find(skill_name)
+		if not skill:
+			continue
+		var instance := SkillInstance.new()
+		instance.skill_data = skill
+		# SkillInstance's own baseline is levels_purchased=1 ("just the
+		# base attribute+difficulty roll"); Bucket C's own notation calls
+		# that same baseline "+0" — the +1 is reconciling those two
+		# conventions, not an arbitrary offset.
+		instance.levels_purchased = relative_level + 1
+		add_child(instance)  # needs a parent before add_skill's reparent() call below
+		leader.add_skill(instance)
+
+	placeholder.queue_free()
+	PendingCharacter.clear()
+	return leader
 
 
 func _unhandled_input(event: InputEvent) -> void:

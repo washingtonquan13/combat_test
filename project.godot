@@ -36,6 +36,7 @@ CurrencyManager="*res://systems/currency_system/currency_manager.gd"
 SceneManager="*res://systems/scene_system/scene_manager.gd"
 FactionRelations="*res://systems/faction_system/faction_relations.gd"
 PartyManager="*res://systems/party_system/party_manager.gd"
+PendingCharacter="*res://systems/character_creation_system/pending_character.gd"
 
 [display]
 

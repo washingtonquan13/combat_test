@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="PointBuyTable" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/character_creation_system/point_buy_table.gd" id="1_ptbuy"]
+
+[resource]
+script = ExtResource("1_ptbuy")
+costs = {
+-1: -1,
+0: 0,
+1: 1,
+2: 2,
+3: 3,
+4: 5,
+5: 7,
+6: 10,
+7: 13,
+8: 17
+}
+min_value = -1
+max_value = 8
+default_value = 0
+point_pool = 10
