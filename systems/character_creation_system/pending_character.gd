@@ -14,6 +14,7 @@ extends Node
 
 var is_ready: bool = false
 var display_name: String = ""
+var portrait_texture: Texture2D = null
 var strength: int = 10
 var dexterity: int = 10
 var intelligence: int = 10
@@ -27,6 +28,7 @@ var skill_levels: Dictionary = {}
 func clear() -> void:
 	is_ready = false
 	display_name = ""
+	portrait_texture = null
 	strength = 10
 	dexterity = 10
 	intelligence = 10

@@ -119,6 +119,15 @@ const _ALIGNMENT_TITLES: Dictionary = {
 
 @onready var _skill_list: VBoxContainer = %SkillList
 
+@onready var _ability_list: VBoxContainer = %AbilityList
+@onready var _debug_grant_section: VBoxContainer = %DebugGrantSection
+@onready var _grant_ability_list: ItemList = %GrantAbilityList
+@onready var _grant_ability_button: Button = %GrantAbilityButton
+## Index-for-index with _grant_ability_list's rows — same "the list item
+## is just text, this array is the real reference" convention
+## DemonCompendiumPanel's own _grant_species already uses.
+var _grantable_abilities: Array[Ability] = []
+
 @onready var _demon_panel: DemonCompendiumPanel = %DemonPanel
 @onready var _spawn_panel: DebugSpawnPanel = %SpawnPanel
 @onready var _music_panel: DebugMusicPanel = %MusicPanel
@@ -154,6 +163,13 @@ func _ready() -> void:
 	_debug_add_gold_button.pressed.connect(func(): CurrencyManager.add_gold(50))
 	CurrencyManager.gold_changed.connect(_on_gold_changed)
 	_on_gold_changed(CurrencyManager.gold)
+
+	_debug_grant_section.visible = OS.is_debug_build()
+	if OS.is_debug_build():
+		_grantable_abilities = AbilityDatabase.get_all()
+		for ability in _grantable_abilities:
+			_grant_ability_list.add_item(ability.ability_name)
+		_grant_ability_button.pressed.connect(_on_grant_ability_pressed)
 
 	_show_tab("inventory")
 
@@ -195,6 +211,7 @@ func open_for(unit: Unit) -> void:
 	_portrait.texture = unit.portrait_texture
 	_refresh_alignment_grid(unit)
 	_refresh_skill_list(unit)
+	_refresh_ability_list(unit)
 	_refresh_journal_list()
 	_demon_panel.refresh()
 	_spawn_panel.refresh()
@@ -268,6 +285,41 @@ func _refresh_skill_list(unit: Unit) -> void:
 		row.add_child(spacer)
 		row.add_child(level_label)
 		_skill_list.add_child(row)
+
+
+func _refresh_ability_list(unit: Unit) -> void:
+	for child in _ability_list.get_children():
+		child.queue_free()
+
+	if unit.abilities.is_empty():
+		var empty_label := Label.new()
+		empty_label.modulate = Color(1, 1, 1, 0.5)
+		empty_label.text = "No abilities."
+		_ability_list.add_child(empty_label)
+		return
+
+	for ability in unit.abilities:
+		var label := Label.new()
+		label.text = ability.ability_name if ability else "(unknown)"
+		_ability_list.add_child(label)
+
+
+## Appends to the unit's own abilities array — every unit's ability list
+## is already a plain per-instance Array[Ability] (see Unit.abilities),
+## so "grant an ability" needs nothing more than this; there's no
+## separate registration step the way summoning/skills have. Refreshes
+## the read-only list above immediately so the grant is visible without
+## reopening the sheet, same "the debug action's effect should be
+## immediately observable" standard DemonCompendiumPanel's own grant
+## button already holds itself to.
+func _on_grant_ability_pressed() -> void:
+	if not _unit:
+		return
+	var selected: PackedInt32Array = _grant_ability_list.get_selected_items()
+	if selected.is_empty():
+		return
+	_unit.abilities.append(_grantable_abilities[selected[0]])
+	_refresh_ability_list(_unit)
 
 
 ## Unlike _refresh_skill_list/_refresh_alignment_grid, takes no unit — a

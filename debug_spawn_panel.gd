@@ -12,16 +12,31 @@ extends Control
 ##
 ## Picking a unit + a faction + Arm Spawn hands both to
 ## DebugSpawner.arm(); actual placement happens on the next world click
-## (see ground_click_target.gd's debug-spawn branch).
+## (see ground_click_target.gd's debug-spawn branch, which — same as
+## Add to Party below — also calls PartyManager.add_member() for a
+## friendly placement, so both spawn paths keep the roster in sync
+## instead of one silently drifting from what party_panel shows).
+##
+## Party add/remove lives in this same tab rather than a new one —
+## reuses the exact unit picker above (Add to Party just skips arming/
+## the ground click and places immediately), and this was already the
+## established "the whole tab is debug tools" home before this was added.
 
 @onready var _unit_list: ItemList = %SpawnUnitList
 @onready var _friendly_button: Button = %FriendlyButton
 @onready var _hostile_button: Button = %HostileButton
 @onready var _status_label: Label = %SpawnStatusLabel
 @onready var _arm_button: Button = %ArmSpawnButton
+@onready var _add_to_party_button: Button = %AddToPartyButton
+@onready var _party_list: ItemList = %PartyMembersList
+@onready var _remove_from_party_button: Button = %RemoveFromPartyButton
 
 var _definitions: Array[UnitDefinition] = []
 var _selected_faction: StringName = &"enemy"
+## Index-for-index with _party_list's rows — same "the list item is just
+## text, this array is the real reference" convention
+## DemonCompendiumPanel's own _roster_entries already uses.
+var _party_entries: Array[Unit] = []
 
 
 func _ready() -> void:
@@ -30,9 +45,15 @@ func _ready() -> void:
 	_friendly_button.pressed.connect(_on_faction_pressed.bind(&"player"))
 	_hostile_button.pressed.connect(_on_faction_pressed.bind(&"enemy"))
 	_arm_button.pressed.connect(_on_arm_pressed)
+	_add_to_party_button.pressed.connect(_on_add_to_party_pressed)
+	_party_list.item_selected.connect(func(_i): _update_remove_button())
+	_remove_from_party_button.pressed.connect(_on_remove_from_party_pressed)
 	DebugSpawner.armed_changed.connect(func(_d, _f): _update_status())
+	PartyManager.member_added.connect(func(_u): _refresh_party_list())
+	PartyManager.member_removed.connect(func(_u): _refresh_party_list())
 	_populate_list()
 	_update_status()
+	_refresh_party_list()
 
 
 func refresh() -> void:
@@ -40,6 +61,7 @@ func refresh() -> void:
 		return
 	_populate_list()
 	_update_status()
+	_refresh_party_list()
 
 
 func _populate_list() -> void:
@@ -65,3 +87,63 @@ func _update_status() -> void:
 		_status_label.text = "Armed: %s (%s) — click the world to place." % [DebugSpawner.armed_definition.display_name, DebugSpawner.armed_faction]
 	else:
 		_status_label.text = "Not armed."
+
+
+## Places the selected unit immediately (no ground click, no arming) and
+## adds it straight to PartyManager — this is the actual proof, alongside
+## character creation, that party membership never needed hand-placed
+## scene content. Always player-side regardless of the Friendly/Hostile
+## toggle above (a "hostile party member" isn't a real concept), and
+## deliberately does NOT go through .definition's faction cascade for
+## that reason — same override-after-cascade ordering
+## ground_click_target.gd's own _spawn_debug_unit already uses.
+func _on_add_to_party_pressed() -> void:
+	var selected: PackedInt32Array = _unit_list.get_selected_items()
+	if selected.is_empty():
+		return
+
+	var definition: UnitDefinition = _definitions[selected[0]]
+	var spawned: Unit = definition.unit_scene.instantiate()
+	spawned.definition = definition
+	spawned.faction = Unit.PLAYER_FACTION
+
+	var anchor: Unit = PartyManager.leader
+	var spawn_point: Vector3 = anchor.global_position + Vector3(randf_range(-2.0, 2.0), 0.0, randf_range(-2.0, 2.0)) if anchor else Vector3.ZERO
+
+	get_tree().current_scene.add_child(spawned)
+	spawned.global_position = spawn_point
+
+	PartyManager.add_member(spawned)
+
+
+func _refresh_party_list() -> void:
+	_party_entries = PartyManager.members
+	_party_list.clear()
+	for unit in _party_entries:
+		var suffix: String = "  (leader)" if PartyManager.is_leader(unit) else ""
+		_party_list.add_item(unit.get_display_name() + suffix)
+	_update_remove_button()
+
+
+func _update_remove_button() -> void:
+	_remove_from_party_button.disabled = _selected_party_entry() == null
+
+
+func _selected_party_entry() -> Unit:
+	var selected: PackedInt32Array = _party_list.get_selected_items()
+	if selected.is_empty():
+		return null
+	return _party_entries[selected[0]]
+
+
+## Removes the roster entry AND despawns the unit — a debug "remove from
+## party" that leaves the unit standing around, no longer tracked but
+## still physically present, would just be confusing. (PartyManager
+## itself deliberately doesn't decide this — see its own remove_member()
+## doc comment — this is that decision, made here.)
+func _on_remove_from_party_pressed() -> void:
+	var target: Unit = _selected_party_entry()
+	if not target:
+		return
+	PartyManager.remove_member(target)
+	target.queue_free()

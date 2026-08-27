@@ -86,16 +86,6 @@ text = "Map"
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="GoldLabel" type="Label" parent="TopBar"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Gold: 50"
-
-[node name="DebugAddGoldButton" type="Button" parent="TopBar"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "+50 (debug)"
-
 [node name="CloseButton" type="Button" parent="TopBar"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -342,11 +332,29 @@ text = "Stash"
 [node name="HSeparator" type="HSeparator" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
 layout_mode = 2
 
-[node name="SortButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
+[node name="SortRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SortButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 0
 text = "Sort items"
+
+[node name="SortRowSpacer" type="Control" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="GoldLabel" type="Label" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Gold: 50"
+
+[node name="DebugAddGoldButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+50 (debug)"
 
 [node name="Inventory" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer" instance=ExtResource("3_inv")]
 unique_name_in_owner = true
@@ -371,7 +379,7 @@ grow_vertical = 2
 [node name="StatsColumn" parent="ContentArea/CharacterPanel" instance=ExtResource("4_stats")]
 layout_mode = 1
 anchors_preset = -1
-anchor_right = 0.28
+anchor_right = 0.25
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
@@ -379,8 +387,8 @@ grow_vertical = 2
 [node name="AlignmentColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.28
-anchor_right = 0.64
+anchor_left = 0.25
+anchor_right = 0.5
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
@@ -415,14 +423,14 @@ script = ExtResource("5_align_grid")
 [node name="SkillColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.64
-anchor_right = 1.0
+anchor_left = 0.5
+anchor_right = 0.75
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 16
 theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 24
+theme_override_constants/margin_right = 16
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/SkillColumn"]
 layout_mode = 2
@@ -445,6 +453,62 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 4
+
+[node name="AbilitiesColumn" type="MarginContainer" parent="ContentArea/CharacterPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_left = 0.75
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/AbilitiesColumn"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer"]
+layout_mode = 2
+text = "Abilities"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer"]
+layout_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="AbilityList" type="VBoxContainer" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer/ScrollContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="DebugGrantSection" type="VBoxContainer" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="DebugHSeparator" type="HSeparator" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer/DebugGrantSection"]
+layout_mode = 2
+
+[node name="DebugHeader" type="Label" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer/DebugGrantSection"]
+layout_mode = 2
+text = "Grant (debug)"
+
+[node name="GrantAbilityList" type="ItemList" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer/DebugGrantSection"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 140)
+layout_mode = 2
+
+[node name="GrantAbilityButton" type="Button" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer/DebugGrantSection"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Add to Unit"
 
 [node name="DemonPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true
@@ -652,6 +716,29 @@ text = "Not armed."
 unique_name_in_owner = true
 layout_mode = 2
 text = "Arm Spawn"
+
+[node name="PartyHeader" type="Label" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Party"
+
+[node name="PartyHSeparator" type="HSeparator" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="AddToPartyButton" type="Button" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Add Selected to Party"
+
+[node name="PartyMembersList" type="ItemList" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RemoveFromPartyButton" type="Button" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Remove Selected from Party"
 
 [node name="MusicPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true

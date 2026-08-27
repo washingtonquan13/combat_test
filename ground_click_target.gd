@@ -158,6 +158,12 @@ func _spawn_debug_unit() -> void:
 		var party_panel: PartyPanel = get_tree().get_first_node_in_group("party_panel")
 		if party_panel:
 			party_panel.register_core_unit(spawned)
+		# PartyManager didn't exist when this debug-spawn path was
+		# originally built — without this, a friendly debug spawn showed
+		# up visually in party_panel but was silently absent from the
+		# actual roster, the same "two independently-drifting mechanisms"
+		# problem this project keeps finding and closing elsewhere.
+		PartyManager.add_member(spawned)
 
 
 ## Only reached on a left-click that didn't land on an interactable and

@@ -2,15 +2,20 @@ extends Control
 ## Character creation — building the player's own character (the future
 ## party leader, "THE MAIN CHARACTER" per the roadmap this was scoped
 ## against), via the point-buy tables verified for Buckets A (attributes)
-## and C (skills). Bucket B is deliberately not part of this — see
-## PointBuyTable's own header for why.
+## and C (skills), plus a portrait pick. Bucket B is deliberately not
+## part of this — see PointBuyTable's own header for why.
+##
+## Tab-based (a plain TabContainer — matches this project's own "prefer
+## built-in Godot mechanisms" stance rather than hand-rolling a page
+## switcher), specifically so adding a 5th/6th tab later (background,
+## starting gear, ...) is just another TabContainer child, not a
+## reflow of an ever-more-crowded single screen. Back/Confirm live
+## OUTSIDE the tabs, at the bottom, since Confirm's validity depends on
+## every tab at once regardless of which one is currently showing.
 ##
 ## Its own scene, reached only from main_menu.tscn's Start button, plain
-## change_scene_to_file in and out — never SceneManager. This happens
-## exactly once, right after New Game, with no game state yet in
-## existence worth preserving on the way back if Back is pressed (see
-## main_menu.gd's own header for the fuller reasoning on why the menu
-## boundary doesn't use SceneManager's suspend/resume model).
+## change_scene_to_file in and out — never SceneManager (see
+## main_menu.gd's own header for the fuller reasoning).
 ##
 ## On Confirm, a real Unit can't be built yet — there's no arena loaded
 ## to place it in — so the result is written into PendingCharacter
@@ -27,7 +32,23 @@ const ATTRIBUTE_LABELS: Dictionary = {
 	"health": "Health",
 }
 
+## Matches unit_portrait.tscn's own authored ratio exactly (80x100) —
+## see that scene for why: a TextureRect using expand_mode=EXPAND_IGNORE_
+## SIZE + stretch_mode=STRETCH_KEEP_ASPECT_COVERED inside a Control held
+## to this ratio is what makes an arbitrarily-sized source image crop
+## to fill it consistently, the same way the initiative strip/party
+## panel already do. Grid thumbnails and the preview box are just
+## different absolute scales of the same 4:5 shape, not two different
+## crops.
+const PORTRAIT_ASPECT_RATIO: Vector2 = Vector2(80, 100)
+const PORTRAIT_GRID_CELL_SCALE: float = 0.8  # 64x80
+const PORTRAIT_PREVIEW_SCALE: float = 2.0  # 160x200
+const PORTRAITS_DIR: String = "res://assets/portraits/"
+const PORTRAIT_EXTENSIONS: Array[String] = ["jpg", "jpeg", "png"]
+
 @onready var _name_edit: LineEdit = %NameEdit
+@onready var _portrait_grid: GridContainer = %PortraitGrid
+@onready var _preview_texture: TextureRect = %PreviewTexture
 @onready var _attributes_header: Label = %AttributesHeader
 @onready var _attributes_list: VBoxContainer = %AttributesList
 @onready var _skills_header: Label = %SkillsHeader
@@ -38,6 +59,8 @@ var _attribute_values: Dictionary = {}  # String -> int
 var _skill_values: Dictionary = {}  # String (skill name) -> int (relative level)
 var _attribute_rows: Dictionary = {}  # String -> Dictionary (row's own widgets)
 var _skill_rows: Dictionary = {}
+var _portrait_buttons: Dictionary = {}  # String (res:// path) -> Button, for selection highlighting
+var _selected_portrait_path: String = ""
 
 
 func _ready() -> void:
@@ -49,8 +72,11 @@ func _ready() -> void:
 		_skill_values[skill.skill_name] = SKILL_TABLE.default_value
 		_build_row(_skills_list, skill.skill_name, skill.skill_name, _skill_rows, _on_skill_step)
 
+	_build_portrait_grid()
+
 	_refresh_attributes()
 	_refresh_skills()
+	_update_confirm_state()
 
 
 func _build_row(parent: VBoxContainer, label_text: String, key: String, row_registry: Dictionary, step_callback: Callable) -> void:
@@ -87,52 +113,123 @@ func _build_row(parent: VBoxContainer, label_text: String, key: String, row_regi
 
 
 func _on_attribute_step(attr: String, delta: int) -> void:
-	var new_value: int = _attribute_values[attr] + delta
-	if new_value < ATTRIBUTE_TABLE.min_value or new_value > ATTRIBUTE_TABLE.max_value:
+	if not _can_afford_step(ATTRIBUTE_TABLE, _attribute_values, attr, delta):
 		return
-	_attribute_values[attr] = new_value
+	_attribute_values[attr] = _attribute_values[attr] + delta
 	_refresh_attributes()
 
 
 func _on_skill_step(skill_name: String, delta: int) -> void:
-	var new_value: int = _skill_values[skill_name] + delta
-	if new_value < SKILL_TABLE.min_value or new_value > SKILL_TABLE.max_value:
+	if not _can_afford_step(SKILL_TABLE, _skill_values, skill_name, delta):
 		return
-	_skill_values[skill_name] = new_value
+	_skill_values[skill_name] = _skill_values[skill_name] + delta
 	_refresh_skills()
 
 
+## The actual enforcement of "points remaining can never go negative" —
+## lives here, not just in the button-disabled state _refresh_* also
+## sets. That disabled state exists for real-time UI feedback (so a
+## player sees a "+" go dim before ever pressing it), but it's a
+## REFLECTION of this rule, not the only thing enforcing it — this
+## function has to independently refuse an unaffordable step regardless
+## of whether it was reached through a live (non-disabled) button or any
+## other future caller.
+func _can_afford_step(table: PointBuyTable, values: Dictionary, key: String, delta: int) -> bool:
+	var new_value: int = values[key] + delta
+	if new_value < table.min_value or new_value > table.max_value:
+		return false
+	if delta > 0:
+		var marginal_cost: int = table.cost_for(new_value) - table.cost_for(values[key])
+		if marginal_cost > table.points_remaining(values):
+			return false
+	return true
+
+
+## Refuses a "+" the instant the NEXT step's marginal cost would exceed
+## what's left to spend — points_remaining must never go negative and
+## then need clawing back, it should simply not be reachable through the
+## UI at all. "-" needs no equivalent guard: lowering a value only ever
+## refunds or holds cost steady on both of these tables, it can never
+## itself cause an overspend.
 func _refresh_attributes() -> void:
+	var remaining: int = ATTRIBUTE_TABLE.points_remaining(_attribute_values)
 	for attr in ATTRIBUTE_NAMES:
 		var value: int = _attribute_values[attr]
 		var row: Dictionary = _attribute_rows[attr]
 		row["value_label"].text = str(value)
 		row["cost_label"].text = "cost %d" % ATTRIBUTE_TABLE.cost_for(value)
 		row["minus"].disabled = value <= ATTRIBUTE_TABLE.min_value
-		row["plus"].disabled = value >= ATTRIBUTE_TABLE.max_value
+		var next_step_cost: int = ATTRIBUTE_TABLE.cost_for(value + 1) - ATTRIBUTE_TABLE.cost_for(value)
+		row["plus"].disabled = value >= ATTRIBUTE_TABLE.max_value or next_step_cost > remaining
 
-	var remaining: int = ATTRIBUTE_TABLE.points_remaining(_attribute_values)
 	_attributes_header.text = "ATTRIBUTES  —  Points remaining: %d" % remaining
 	_update_confirm_state()
 
 
 func _refresh_skills() -> void:
+	var remaining: int = SKILL_TABLE.points_remaining(_skill_values)
 	for skill_name in _skill_values:
 		var value: int = _skill_values[skill_name]
 		var row: Dictionary = _skill_rows[skill_name]
 		row["value_label"].text = "%+d" % value
 		row["cost_label"].text = "cost %d" % SKILL_TABLE.cost_for(value)
 		row["minus"].disabled = value <= SKILL_TABLE.min_value
-		row["plus"].disabled = value >= SKILL_TABLE.max_value
+		var next_step_cost: int = SKILL_TABLE.cost_for(value + 1) - SKILL_TABLE.cost_for(value)
+		row["plus"].disabled = value >= SKILL_TABLE.max_value or next_step_cost > remaining
 
-	var remaining: int = SKILL_TABLE.points_remaining(_skill_values)
 	_skills_header.text = "SKILLS  —  Points remaining: %d" % remaining
+	_update_confirm_state()
+
+
+## Scans PORTRAITS_DIR directly rather than any authored list — "they're
+## all resources already" was the whole point (per the user's own
+## framing): a new file dropped in that folder shows up here with no
+## code change, same "theoretically infinite by scanning a folder"
+## convention SkillDatabase/DemonDatabase/MusicTrackDatabase already use.
+func _build_portrait_grid() -> void:
+	for file_name in DirAccess.get_files_at(PORTRAITS_DIR):
+		var extension: String = file_name.get_extension().to_lower()
+		if extension not in PORTRAIT_EXTENSIONS:
+			continue
+
+		var path: String = PORTRAITS_DIR + file_name
+		var texture: Texture2D = load(path)
+		if not texture:
+			continue
+
+		var button := Button.new()
+		button.flat = true
+		button.custom_minimum_size = PORTRAIT_ASPECT_RATIO * PORTRAIT_GRID_CELL_SCALE
+		button.toggle_mode = true
+		button.pressed.connect(_on_portrait_selected.bind(path))
+		_portrait_grid.add_child(button)
+
+		var thumb := TextureRect.new()
+		thumb.texture = texture
+		thumb.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		thumb.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		thumb.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		thumb.set_anchors_preset(Control.PRESET_FULL_RECT)
+		button.add_child(thumb)
+
+		_portrait_buttons[path] = button
+
+
+func _on_portrait_selected(path: String) -> void:
+	if _selected_portrait_path == path:
+		return
+	if _selected_portrait_path in _portrait_buttons:
+		_portrait_buttons[_selected_portrait_path].button_pressed = false
+	_selected_portrait_path = path
+	_portrait_buttons[path].button_pressed = true
+	_preview_texture.texture = load(path)
 	_update_confirm_state()
 
 
 func _update_confirm_state() -> void:
 	var name_given: bool = not _name_edit.text.strip_edges().is_empty()
-	_confirm_button.disabled = not (name_given and ATTRIBUTE_TABLE.is_valid(_attribute_values) and SKILL_TABLE.is_valid(_skill_values))
+	var portrait_given: bool = not _selected_portrait_path.is_empty()
+	_confirm_button.disabled = not (name_given and portrait_given and ATTRIBUTE_TABLE.is_valid(_attribute_values) and SKILL_TABLE.is_valid(_skill_values))
 
 
 func _on_name_text_changed(_new_text: String) -> void:
@@ -144,6 +241,7 @@ func _on_confirm_pressed() -> void:
 		return
 
 	PendingCharacter.display_name = _name_edit.text.strip_edges()
+	PendingCharacter.portrait_texture = load(_selected_portrait_path)
 	PendingCharacter.strength = _attribute_values["strength"]
 	PendingCharacter.dexterity = _attribute_values["dexterity"]
 	PendingCharacter.intelligence = _attribute_values["intelligence"]

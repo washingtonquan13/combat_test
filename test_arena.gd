@@ -84,6 +84,7 @@ func _build_leader() -> Unit:
 	leader.global_transform = placeholder.global_transform
 	leader.faction = Unit.PLAYER_FACTION
 	leader.display_name = PendingCharacter.display_name
+	leader.portrait_texture = PendingCharacter.portrait_texture
 	leader.strength = PendingCharacter.strength
 	leader.dexterity = PendingCharacter.dexterity
 	leader.intelligence = PendingCharacter.intelligence
