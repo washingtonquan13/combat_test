@@ -190,9 +190,18 @@ func default_ability() -> Ability:
 ## actually be used, not a fixed rule.
 func resolve_click_ability(acting_unit: Unit) -> Ability:
 	var ability: Ability = AbilityManager.armed_ability if AbilityManager.armed_ability else acting_unit.default_ability()
-	var wants_ally: bool = ability and ability.targeting and ability.targeting.requires_ally_target()
-	var hostile: bool = acting_unit.is_hostile_to(_owner)
-	return ability if ability and (wants_ally != hostile) else null
+	if not ability:
+		return null
+	var wants_ally: bool = ability.targeting and ability.targeting.requires_ally_target()
+	if wants_ally:
+		return ability if not acting_unit.is_hostile_to(_owner) else null
+	# Non-ally abilities (ordinary attacks) are routable at anyone who
+	# isn't your own side — a neutral or allied-faction unit is a valid
+	# target, not just an already-hostile one. See
+	## AttackInteraction.is_available()'s own identical rule (right-click
+	## menu) and FactionRelations/_maybe_trigger_combat below (what
+	## actually happens the instant the attack lands).
+	return ability if not _owner.is_player_controlled() else null
 
 
 ## Resolves using ability against target. Range/LoS rules come from
@@ -376,7 +385,16 @@ func _maybe_trigger_combat(target) -> void:
 	if not target is Unit or not target.is_alive():
 		return
 	if not _owner.is_hostile_to(target):
-		return
+		# Not already hostile — but the attack just happened regardless,
+		# so it's a provocation: escalate the two FACTIONS to temporary
+		# hostility (see FactionRelations), then re-check. Without the
+		# re-check, combat would never actually start against a freshly-
+		# provoked target, since the base relation is still non-hostile
+		# at this exact instant.
+		_owner.attacked_non_hostile_unit.emit(_owner, target)
+		FactionRelations.escalate_to_temporary_hostile(_owner.faction, target.faction)
+		if not _owner.is_hostile_to(target):
+			return
 	CombatManager.start_combat_from_hostile_act(_owner, target)
 
 

@@ -473,25 +473,31 @@ func _log_and_emit_turn_started(unit: Unit) -> void:
 	turn_started.emit(unit)
 
 
-## Ends combat the moment only one faction (or none) remains among the
-## living, rather than waiting for every combatant on both sides to die.
-## Without this, one side being wiped out just left the other side's
-## turns cycling forever with nothing to do — not a crash, but an
+## Ends combat the moment no two living combatants are still hostile to
+## each other, rather than waiting for every combatant on both sides to
+## die. Without this, one side being wiped out just left the other
+## side's turns cycling forever with nothing to do — not a crash, but an
 ## unrecoverable stall with no way back to player control.
+##
+## Relation-based (pairwise is_hostile_to), not faction-tag-based — used
+## to just count distinct literal faction strings among survivors, which
+## meant a non-hostile bystander (a &"neutral" unit pulled into the same
+## turn_order without ever being attacked) could keep combat from ever
+## auto-ending, since its own faction tag kept alive_factions.size() at 2
+## even after the real fight was already over. See FactionRelations.
 ## Returns true if combat was ended.
 func _check_combat_end() -> bool:
-	var alive_factions: Dictionary = {}
+	var living: Array[Unit] = []
 	for unit in turn_order:
 		if is_instance_valid(unit) and unit.is_alive():
-			alive_factions[unit.faction] = true
+			living.append(unit)
 
-	if alive_factions.size() > 1:
-		return false
+	for i in living.size():
+		for j in range(i + 1, living.size()):
+			if living[i].is_hostile_to(living[j]):
+				return false  # somebody here still wants to fight somebody else here
 
-	var winner: StringName = &""
-	if alive_factions.size() == 1:
-		winner = alive_factions.keys()[0]
-
+	var winner: StringName = living[0].faction if not living.is_empty() else &""
 	end_combat(winner)
 	return true
 

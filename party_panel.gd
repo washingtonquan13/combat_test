@@ -56,7 +56,9 @@ func _ready() -> void:
 
 
 func _rebuild_core() -> void:
-	for unit in UnitQuery.core_party_units(get_tree()):
+	var units: Array[Unit] = UnitQuery.core_party_units(get_tree())
+	units.sort_custom(func(a: Unit, b: Unit) -> bool: return PartyManager.is_leader(a) and not PartyManager.is_leader(b))
+	for unit in units:
 		_add_core_slot(unit)
 	_update_visibility()
 

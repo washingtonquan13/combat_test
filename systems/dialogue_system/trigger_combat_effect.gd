@@ -16,4 +16,12 @@ extends DialogueEffect
 ## fight this effect to stay open.
 
 func apply(actor: Unit, target: Unit) -> void:
+	# Same escalation FactionRelations expects any provoked hostility to
+	# go through (see UnitCombat._maybe_trigger_combat) — without this,
+	# the two combatants would share a turn_order for this fight but
+	# still read as non-hostile everywhere else (is_hostile_to, Attack's
+	# own availability, etc.), since nothing else here ever touched
+	# faction relations.
+	target.attacked_non_hostile_unit.emit(target, actor)
+	FactionRelations.escalate_to_temporary_hostile(target.faction, actor.faction)
 	CombatManager.start_combat_from_hostile_act(target, actor)

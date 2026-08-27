@@ -18,7 +18,7 @@ static func unit_name(unit: Unit) -> String:
 
 
 static func faction_name(faction: StringName) -> String:
-	var color: Color = player_color if faction == &"player" else enemy_color
+	var color: Color = player_color if faction == Unit.PLAYER_FACTION else enemy_color
 	return "[color=#%s]%s[/color]" % [color.to_html(false), faction]
 
 

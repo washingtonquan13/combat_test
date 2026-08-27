@@ -181,6 +181,14 @@ extends CharacterBody3D
 ## targets when clicked during that unit's turn; same-faction clicks still
 ## select as normal (see _on_input_event / is_hostile_to).
 @export var faction: StringName = &"player"
+## The canonical "this is the player's own side" tag — named here so
+## is_player_controlled() and anything else that cares "is this MY unit"
+## (LogFormat's coloring, e.g.) reference one constant instead of
+## independently retyping the literal &"player". NOT part of
+## FactionRelations' relation matrix — that autoload treats "player" as
+## an ordinary faction tag like any other; this is purely about who the
+## player controls, a separate question from who's hostile to whom.
+const PLAYER_FACTION: StringName = &"player"
 ## Abilities this unit currently has available. abilities[0] is used as
 ## the default (see default_ability) when nothing's explicitly armed via
 ## AbilityManager — that's what makes click-to-attack keep working before
@@ -320,6 +328,19 @@ signal deselected(unit: Unit)
 ## now fire meaningfully later — see waits_for_impact.
 signal ability_use_started(attacker: Unit, target, ability: Ability)
 
+## Fired the moment an out-of-combat attack lands (hit OR miss — an
+## attempt is still aggression, matching _maybe_trigger_combat's own
+## reasoning) against a unit that was NOT hostile beforehand — the real
+## provocation moment BG3 models as SetRelationTemporaryHostile.
+## FactionRelations reacts to it directly (see
+## UnitCombat._maybe_trigger_combat, the sole emitter today), but this is
+## a real signal, not a private implementation detail: anything else that
+## ever wants to react to "someone just started a fight with a former
+## non-enemy" (a reputation system, a witness mechanic, a UI toast) has
+## something to connect to. Never fires for a same-faction target — see
+## FactionRelations.escalate_to_temporary_hostile's own no-op guard.
+signal attacked_non_hostile_unit(attacker: Unit, target: Unit)
+
 ## result dict shape: { in_range, already_acted, hit, damage, to_hit,
 ## effects, ability }. target is typed loosely (not Unit) since some
 ## abilities target a point instead of a unit — see GroundPointTargeting.
@@ -366,6 +387,12 @@ var is_hovered: bool:
 	get: return _selection.is_hovered
 var is_selected: bool:
 	get: return _selection.is_selected
+## Whether THIS unit is the designated party leader/protagonist — see
+## PartyManager, the sole owner of this designation. Computed, not
+## stored, same reasoning is_selected/is_hovered forward rather than
+## duplicate state: there's exactly one place this can ever be set.
+var is_party_leader: bool:
+	get: return PartyManager.is_leader(self)
 
 ## Owned and written by unit_animator.gd — NOT by any RefCounted
 ## component the way move_remaining/is_hovered are, since the animator
@@ -555,21 +582,17 @@ func resolve_dialogue_root(actor: Unit) -> DialogueNode:
 	return null
 
 
-## Plain faction inequality has been correct so far only because every
-## unit in the game has been either "player" or "enemy" — a two-faction
-## world where != happens to give the right answer. "neutral" (the
-## Scared Townperson, the first unit ever given that faction) broke that
-## silently: neutral != player is true, so she read as hostile to the
-## party, hiding Talk (AttackInteraction/TalkInteraction both gate on
-## this) even though nothing about her was ever meant to be hostile to
-## anyone. Explicit neutral carve-out rather than a general faction-
-## relationship table — there's exactly one non-obvious case to handle
-## right now, not a matrix of many factions with different relationships
-## to build for speculatively.
+## Delegates to FactionRelations — see that autoload for the actual
+## relation rules (a base faction-to-faction tier, plus any temporary-
+## hostile escalation from a provoked attack — see
+## UnitCombat._maybe_trigger_combat, the real trigger for that). This
+## method itself no longer encodes any faction-specific logic at all;
+## it used to hardcode the &"neutral" carve-out directly here, which is
+## exactly why a real relation matrix replaced it — that carve-out only
+## ever handled one case (a unit is Neutral to everyone), not a real
+## per-faction-pair relationship.
 func is_hostile_to(other: Unit) -> bool:
-	if faction == &"neutral" or other.faction == &"neutral":
-		return false
-	return faction != other.faction
+	return FactionRelations.is_hostile(faction, other.faction)
 
 
 ## Whether this unit can be selected/commanded by the player at all.
@@ -580,7 +603,7 @@ func is_hostile_to(other: Unit) -> bool:
 ## direct contextual action triggered by a click, not a persistent
 ## selection — see _on_input_event's attack routing.
 func is_player_controlled() -> bool:
-	return faction == &"player"
+	return faction == PLAYER_FACTION
 
 
 ## Selection state is owned by SelectionManager — call

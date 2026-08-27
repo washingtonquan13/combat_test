@@ -14,8 +14,16 @@ extends Node
 ## plan.
 
 ## Factions this AI controls. Anything NOT in this set is left alone
-## (assumed player-controlled, or otherwise externally driven).
-@export var ai_factions: Array[StringName] = [&"enemy"]
+## (assumed player-controlled, or otherwise externally driven). Includes
+## &"neutral" — not optional polish: once a neutral unit can actually
+## become hostile (see FactionRelations/attacked_non_hostile_unit), it
+## can end up with a live turn in turn_order. Without this, nothing would
+## ever drive that turn (is_player_controlled() is false, and &"neutral"
+## wasn't in this list), soft-locking CombatManager in Phase.ACTIVE
+## forever with nobody calling end_turn(). Safe for an uninvolved
+## bystander too — nobody's escalated against them, so _decide_action
+## finds nothing to do and their turn just passes.
+@export var ai_factions: Array[StringName] = [&"enemy", &"neutral"]
 
 ## Safety cap on movement attempts within a single turn — guards against a
 ## pathological loop where a unit is fully wedged against something and

@@ -13,7 +13,12 @@ func is_available(actor: Unit, target) -> bool:
 	if not target is Unit:
 		return false
 	var unit_target: Unit = target
-	if not actor.is_hostile_to(unit_target):
+	# Not hostile-only anymore — a neutral or allied-faction unit is a
+	# valid Attack target too (see FactionRelations/
+	# UnitCombat._maybe_trigger_combat for what actually happens once the
+	# attack lands: it escalates the two factions to hostile). The only
+	# real exclusion is your own side.
+	if unit_target.is_player_controlled():
 		return false
 	return actor.default_ability() != null
 

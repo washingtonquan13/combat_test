@@ -32,9 +32,20 @@ var _signals_connected: bool = false
 var _goblinoids_remaining: Array[Unit] = []
 
 
+## Bootstrap content, not a permanent architectural constraint — these 4
+## are hand-placed today because that's how every unit in this project
+## has been authored so far, not because PartyManager.members requires
+## it. A future character-creation flow or debug add/remove menu can add
+## to (or remove from) this same roster at runtime without needing a
+## party member to have ever been placed in this scene at all.
 func _ready() -> void:
 	print(SkillCalculator.get_skill_level($ElfRanger, "Acrobatics").skill_level)
 	_watch_goblinoid_raid_quest()
+	PartyManager.add_member($TieflingWizard)
+	PartyManager.add_member($HumanBarbarian)
+	PartyManager.add_member($DwarfFighter)
+	PartyManager.add_member($ElfRanger)
+	PartyManager.set_leader($TieflingWizard)
 
 
 func _unhandled_input(event: InputEvent) -> void:

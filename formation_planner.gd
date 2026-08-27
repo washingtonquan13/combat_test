@@ -29,7 +29,7 @@ extends RefCounted
 ## resolves to ("first selected" out of combat); if that's null (nothing
 ## selected), every unit is just sent straight to destination instead.
 static func command_group_move(units: Array[Unit], destination: Vector3) -> void:
-	var leader: Unit = PlayerInteractionState.get_active_unit()
+	var leader: Unit = PartyManager.leader if PartyManager.leader in units else PlayerInteractionState.get_active_unit()
 	if not leader:
 		for unit in units:
 			unit.move_to(destination)
