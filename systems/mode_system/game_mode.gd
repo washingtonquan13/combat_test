@@ -9,13 +9,13 @@ extends Node
 ## whole time underneath.
 ##
 ## Two kinds of transition, kept deliberately distinct:
-## - WORLD transitions (MAIN_MENU / CHARACTER_CREATION / EXPLORATION) are
-##   mutually exclusive alternatives, one loaded world at a time — see
-##   set_base_mode(), called by WorldManager.load_world() with whatever
-##   the freshly loaded world's own duck-typed get_base_mode() returns.
-##   This REPLACES the bottom of the stack rather than nesting, the same
-##   "replace, don't stack" rule WorldManager itself already follows for
-##   worlds — a new world isn't layered on top of the old one.
+## - WORLD transitions (MAIN_MENU / CHARACTER_CREATION / EXPLORATION /
+##   OVERWORLD) are mutually exclusive alternatives, one loaded world at a
+##   time — see set_base_mode(), called by WorldManager.load_world() with
+##   whatever the freshly loaded world's own duck-typed get_base_mode()
+##   returns. This REPLACES the bottom of the stack rather than nesting,
+##   the same "replace, don't stack" rule WorldManager itself already
+##   follows for worlds — a new world isn't layered on top of the old one.
 ## - OVERLAY transitions (COMBAT / DIALOGUE / NEGOTIATION / LOOTING /
 ##   CUTSCENE) genuinely nest on top of whatever the current base is —
 ##   see push_mode()/pop_mode(). Restoring to what was underneath (not a
@@ -23,9 +23,16 @@ extends Node
 ##   leaving a negotiation started mid-combat must return to COMBAT, not
 ##   silently drop to EXPLORATION — the identical restore-to-previous
 ##   lesson UIStack already applies to UI screens.
+##
+## OVERWORLD is deliberately its OWN base mode, not folded into
+## EXPLORATION — the overworld has no tactical camera and nothing
+## selectable, so CameraDirector.has_control() (EXPLORATION/COMBAT only)
+## correctly excludes it without needing a special case, and nothing that
+## already gates on has_control() (drag_select_box.gd, ground click
+## routing, targeting indicators) needs to change to stay off there.
 
 enum Mode {
-	MAIN_MENU, CHARACTER_CREATION, EXPLORATION,
+	MAIN_MENU, CHARACTER_CREATION, EXPLORATION, OVERWORLD,
 	COMBAT, DIALOGUE, NEGOTIATION, LOOTING, CUTSCENE,
 }
 

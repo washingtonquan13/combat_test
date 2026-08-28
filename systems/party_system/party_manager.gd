@@ -36,6 +36,14 @@ signal leader_changed(unit: Unit)
 var members: Array[Unit] = []
 var leader: Unit = null
 
+## The party's PERSISTENT, canonical form — survives even a world that
+## deliberately spawns no Units at all (see WorldManager.spawns_party()),
+## like the overworld's single controllable avatar. members/leader are a
+## live PROJECTION of this into real nodes for whichever world is
+## currently spawning them; roster is what actually endures across a
+## world swap. capture() writes here, spawn_party() reads from here.
+var roster: Array[PartyMemberData] = []
+
 ## Set by character_creation.gd on Confirm, consumed once by whichever
 ## world first spawns it (today: test_arena.gd's own _build_leader();
 ## once WorldManager exists, its first load_world() call) — the same
@@ -112,15 +120,24 @@ func is_leader(unit: Unit) -> bool:
 ## runs once the new world exists. Neither half is safe to call out of
 ## that order.
 
-## Snapshots every current party member into plain data — see
+## Snapshots every current party member into roster — see
 ## PartyMemberData's own header for exactly what is and isn't captured.
 ## Must be called before clear_members()/the old world being freed, since
 ## it reads directly off the live Unit nodes.
-func capture() -> Array[PartyMemberData]:
-	var records: Array[PartyMemberData] = []
+##
+## Guarded on members not being empty: leaving a world that never spawned
+## the party in the first place (the overworld, e.g. — see
+## WorldManager.spawns_party()) would otherwise silently overwrite
+## roster with an empty capture and lose the party for real. members
+## being empty there is expected, not "the party left" — roster already
+## correctly remembers who's actually in it from the last world that DID
+## spawn them.
+func capture() -> void:
+	if members.is_empty():
+		return
+	roster.clear()
 	for unit in members:
-		records.append(_capture_one(unit))
-	return records
+		roster.append(_capture_one(unit))
 
 
 func _capture_one(unit: Unit) -> PartyMemberData:
@@ -146,6 +163,8 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	data.abilities = unit.abilities.duplicate()
 	data.custom_slots = unit.custom_slots.duplicate()
 	data.is_leader = is_leader(unit)
+	data.selected_color = unit.selected_color
+	data.hover_color = unit.hover_color
 
 	for skill_instance in unit.get_skills():
 		var record := PartySkillRecord.new()
@@ -216,6 +235,8 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	unit.tendency = record.tendency
 	unit.abilities = record.abilities.duplicate()
 	unit.custom_slots = record.custom_slots.duplicate()
+	unit.selected_color = record.selected_color
+	unit.hover_color = record.hover_color
 
 	for skill_record in record.skills:
 		var instance := SkillInstance.new()
@@ -232,12 +253,12 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	return unit
 
 
-## Spawns every record into world and rebuilds members/leader against the
-## freshly-instantiated Units — the counterpart to capture(). Must run
-## after clear_members() (old roster already let go) and after world
-## actually exists in the tree.
-func spawn_party(records: Array[PartyMemberData], world: Node, spawn_point: Node3D) -> void:
-	for record in records:
+## Spawns every roster record into world and rebuilds members/leader
+## against the freshly-instantiated Units — the counterpart to capture().
+## Must run after clear_members() (old roster already let go) and after
+## world actually exists in the tree.
+func spawn_party(world: Node, spawn_point: Node3D) -> void:
+	for record in roster:
 		var unit: Unit = spawn_member(record, world, spawn_point)
 		add_member(unit)
 		if record.is_leader:

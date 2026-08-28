@@ -14,6 +14,12 @@ extends VBoxContainer
 ## additional summon, not a full new row's worth of width, and there's
 ## no text at all left to overflow.
 ##
+## Renders from live PartyManager.members when a world spawns the party
+## (every world except the overworld today), and from PartyManager.roster
+## — plain PartyMemberData, no live Unit at all — when it doesn't (see
+## _on_world_loaded()). unit_portrait.gd's own data export is what makes
+## a single portrait component serve both cases.
+##
 ## Scene setup: VBoxContainer root placed directly under CanvasLayer,
 ## left-anchored — same convention AbilityHotbar/InitiativeRow already
 ## use (script attached straight to a Control in main.tscn, no wrapper
@@ -40,8 +46,14 @@ extends VBoxContainer
 
 @onready var _core_container: VBoxContainer = $CoreContainer
 
-var _core_rows: Dictionary = {}  # Unit -> HBoxContainer (that unit's portrait + its summon fan)
-var _summon_fans: Dictionary = {}  # Unit (summoner) -> HBoxContainer (its fan, inside its own row)
+## Keyed by Unit for a spawned world, or by PartyMemberData for a world
+## that deliberately doesn't spawn the party (the overworld — see
+## PartyManager.roster/WorldManager.spawns_party()). Untyped Dictionary,
+## so both key shapes coexist without incident; a given row is always
+## exactly one or the other, never both, since a world either spawns the
+## party or it doesn't.
+var _core_rows: Dictionary = {}  # (Unit | PartyMemberData) -> HBoxContainer
+var _summon_fans: Dictionary = {}  # Unit (summoner) -> HBoxContainer (its fan, inside its own row) -- live units only
 var _summon_chips: Dictionary = {}  # Unit (summon) -> the unit_portrait Button instance in its summoner's fan
 
 
@@ -63,6 +75,7 @@ func _ready() -> void:
 	PartyManager.member_removed.connect(_on_member_removed)
 	PartyManager.leader_changed.connect(_on_leader_changed)
 	WorldManager.world_loading.connect(_on_world_loading)
+	WorldManager.world_loaded.connect(_on_world_loaded)
 	# Deferred, same reasoning as before: safe even if this panel is ever
 	# constructed after members already exist (e.g. a future scene that
 	# doesn't boot through MainRoot at all).
@@ -91,6 +104,22 @@ func _on_leader_changed(_unit: Unit) -> void:
 	_sort_rows()
 
 
+## Fires after a load_world() call fully resolves — including, if the new
+## world spawns the party, after every member_added it triggered along
+## the way (see WorldManager.load_world()'s own ordering: spawn_party()
+## runs, THEN world_loaded emits). So members being non-empty here means
+## _on_member_added already built real rows and this has nothing to do;
+## members being empty and roster non-empty means the new world opted out
+## of spawning (spawns_party() -> false, the overworld) and this is the
+## ONLY signal telling the panel to render data-only rows instead.
+func _on_world_loaded(_world: Node) -> void:
+	if PartyManager.members.is_empty() and not PartyManager.roster.is_empty():
+		for record in PartyManager.roster:
+			_add_data_slot(record)
+		_sort_rows()
+		_update_visibility()
+
+
 ## PartyManager.clear_members() deliberately emits no per-unit signals
 ## (see that method's own header — nothing needs to react to an
 ## incremental teardown, since every listener is about to see a whole new
@@ -113,13 +142,21 @@ func _on_world_loading(_scene: PackedScene) -> void:
 ## ordering _rebuild_core() used to only apply via a full sort, now done
 ## incrementally via move_child() so an add/leader-change never has to
 ## rebuild every row (which would destroy each summoner's live fan of
-## chips built by _register_summon()).
+## chips built by _register_summon()). Checks PartyManager.leader (a live
+## Unit) first; when nothing is spawned (rendering from roster instead —
+## see _on_world_loaded), falls back to whichever PartyMemberData record
+## has is_leader set, since PartyManager.leader is null the whole time
+## the party isn't spawned as real Units at all.
 func _sort_rows() -> void:
 	var leader: Unit = PartyManager.leader
-	if not leader or leader not in _core_rows:
+	if leader and leader in _core_rows:
+		_core_container.move_child(_core_rows[leader], 0)
 		return
-	var row: Control = _core_rows[leader]
-	_core_container.move_child(row, 0)
+
+	for record in PartyManager.roster:
+		if record.is_leader and record in _core_rows:
+			_core_container.move_child(_core_rows[record], 0)
+			return
 
 
 func _add_core_slot(unit: Unit) -> void:
@@ -147,6 +184,25 @@ func _add_core_slot(unit: Unit) -> void:
 
 	if not unit.ability_used.is_connected(_on_core_unit_ability_used):
 		unit.ability_used.connect(_on_core_unit_ability_used)
+
+
+## Data-only counterpart to _add_core_slot() — a portrait rendered from a
+## captured PartyMemberData record instead of a live Unit (see
+## _on_world_loaded). No summon fan: nothing can be summoned by a unit
+## that doesn't currently exist as a real Unit at all.
+func _add_data_slot(record: PartyMemberData) -> void:
+	if not slot_scene or record in _core_rows:
+		return
+
+	var row := HBoxContainer.new()
+	_core_container.add_child(row)
+
+	var portrait: Button = slot_scene.instantiate()
+	portrait.data = record
+	row.add_child(portrait)
+	portrait.set_fit_scale(0.5)
+
+	_core_rows[record] = row
 
 
 ## A core unit's own death is not listened to directly — every unit that

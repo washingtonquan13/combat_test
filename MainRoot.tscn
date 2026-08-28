@@ -1,6 +1,6 @@
-[gd_scene load_steps=23 format=3]
+[gd_scene load_steps=23 format=3 uid="uid://cu821ekvs0wu5"]
 
-[ext_resource type="Script" path="res://main_root.gd" id="1_mainroot"]
+[ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
 [ext_resource type="Script" uid="uid://bwtn55jbtliv4" path="res://drag_select_box.gd" id="3_lquwl"]
 [ext_resource type="PackedScene" uid="uid://caf7q4n41fgu5" path="res://unit_portrait.tscn" id="4_272bh"]
@@ -159,8 +159,8 @@ script = ExtResource("13_htxhm")
 blocks_input_below = true
 
 [node name="StashPanel" parent="CanvasLayer" node_paths=PackedStringArray("party_overview") instance=ExtResource("15_stashpanel")]
-blocks_input_below = true
 party_overview = NodePath("../PartyOverview")
+blocks_input_below = true
 
 [node name="EscMenu" type="Control" parent="CanvasLayer"]
 custom_minimum_size = Vector2(300, 200)
@@ -217,6 +217,12 @@ layout_mode = 2
 size_flags_vertical = 3
 text = "SETTINGS
 "
+
+[node name="DebugExitToOverworldButton" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+text = "EXIT TO OVERWORLD (DEBUG)"
 
 [node name="ExitToDesktop" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
 layout_mode = 2

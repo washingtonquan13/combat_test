@@ -38,6 +38,12 @@ extends Button
 ## what makes it read as "filling up from the bottom."
 
 @export var unit: Unit
+## Alternate, data-only source — used when unit is null (see _ready()).
+## Renders the texture and outline color from a captured record with no
+## live signal hookups and no click-to-select, for a party member that
+## isn't currently spawned as a real Unit at all (the overworld's party
+## display, e.g. — see PartyManager.roster).
+@export var data: PartyMemberData
 @export var overlay_color: Color = Color(1, 0, 0, 0.5)
 ## Border thickness, in pixels — the color itself comes from
 ## unit.selected_color (see _setup_outline), not a separate field, so a
@@ -99,18 +105,20 @@ func _ready() -> void:
 
 	pressed.connect(_on_pressed)
 
-	if not unit:
-		return
-
-	if unit.portrait_texture:
-		portrait.texture = unit.portrait_texture
-
-	_setup_outline()
-
-	unit.took_damage.connect(func(_u, _amount): _update_overlay())
-	unit.healed.connect(func(_u, _amount): _update_overlay())
-	unit.died.connect(func(_u): _update_overlay())
-	_update_overlay()
+	if unit:
+		if unit.portrait_texture:
+			portrait.texture = unit.portrait_texture
+		_setup_outline(unit.selected_color)
+		unit.took_damage.connect(func(_u, _amount): _update_overlay())
+		unit.healed.connect(func(_u, _amount): _update_overlay())
+		unit.died.connect(func(_u): _update_overlay())
+		_update_overlay()
+	elif data:
+		if data.portrait_texture:
+			portrait.texture = data.portrait_texture
+		_setup_outline(data.selected_color)
+		# No live HP to show for a record that isn't spawned right now.
+		damage_overlay.visible = false
 
 
 func _on_pressed() -> void:
@@ -163,13 +171,14 @@ func _apply_size() -> void:
 
 ## A transparent-center StyleBoxFlat with just a border is the simplest
 ## way to draw an outline on a Control — no shader, no custom _draw().
-## border_color comes from unit.selected_color rather than a field of its
-## own (see outline_width's doc comment).
-func _setup_outline() -> void:
+## color comes from whichever source _ready() is currently using
+## (unit.selected_color or data.selected_color) rather than a field of
+## its own (see outline_width's doc comment).
+func _setup_outline(color: Color) -> void:
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0, 0, 0, 0)
 	style.set_border_width_all(outline_width)
-	style.border_color = unit.selected_color
+	style.border_color = color
 	outline_frame.add_theme_stylebox_override("panel", style)
 
 

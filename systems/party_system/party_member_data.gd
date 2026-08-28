@@ -30,6 +30,15 @@ extends Resource
 @export var display_name: String = ""
 @export var portrait_texture: Texture2D = null
 @export var faction: StringName = &"player"
+## Team colors — authored per-instance on Unit (test_arena.tscn's 4
+## starting members each set their own), not derivable from definition
+## the way most other cascaded fields are. Missing this was a real,
+## silent bug: every world reload restored a member's stats but not its
+## color, so a party member's HUD/selection-ring color quietly reverted
+## to Unit's own script defaults the moment spawn_member() replaced the
+## original hand-placed node.
+@export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
+@export var hover_color: Color = Color(1, 1, 1, 0.5)
 
 @export var strength: int = 10
 @export var dexterity: int = 10

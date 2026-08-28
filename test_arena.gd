@@ -91,11 +91,6 @@ func _build_leader() -> Unit:
 		return placeholder
 
 	var leader: Unit = PartyManager.spawn_member(PartyManager.pending_leader, self, placeholder)
-	# Matches the other 3 party members' own shared color, authored
-	# directly on each of them in this scene — visual party consistency,
-	# not a Unit-script default.
-	leader.selected_color = Color(0.156863, 1, 1, 0.627451)
-
 	placeholder.queue_free()
 	PartyManager.pending_leader = null
 	return leader

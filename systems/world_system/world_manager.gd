@@ -24,10 +24,15 @@ extends Node
 ## happens to have a backdrop still belongs to the UI layer, and its
 ## backdrop is an ordinary world loaded independently underneath it.
 ##
-## A world may implement one duck-typed method, get_base_mode() ->
-## GameMode.Mode, forwarded to GameMode.set_base_mode(). A backdrop world
-## with no gameplay of its own simply doesn't implement it, leaving
-## whatever mode its screen already set intact.
+## A world may implement up to three duck-typed methods:
+## - get_base_mode() -> GameMode.Mode, forwarded to GameMode.set_base_mode().
+##   A backdrop world with no gameplay of its own simply doesn't implement
+##   it, leaving whatever mode its screen already set intact.
+## - spawns_party() -> bool, defaulting to true when absent. A world like
+##   the overworld — one controllable avatar, not four tactical Units —
+##   returns false; PartyManager.roster survives untouched either way,
+##   only whether it gets projected into live Units for THIS world varies.
+## - get_spawn_point(name: StringName) -> Node3D, same as it's always been.
 ##
 ## Does NOT touch SceneTree.current_scene — see MainRoot.tscn's own note
 ## for why that's a hard, unavoidable Godot constraint (current_scene can
@@ -41,14 +46,23 @@ var _scene_root: Node = null
 var _current_world: Node = null
 
 ## Set for the duration of a single load_world() call, the instant the
-## incoming world is known to have a party pending restoration — see
-## is_restoring_party() below. Exists because a world's own _ready() runs
-## SYNCHRONOUSLY inside _scene_root.add_child(world), before spawn_party()
-## ever gets called (spawn_party needs the world already in the tree) —
-## so a world that wants to skip its own hardcoded bootstrap content on a
-## reload (see test_arena.gd) has no other way to know a real spawn is
-## about to follow.
-var _pending_party_records: Array[PartyMemberData] = []
+## incoming world is known to be about to have PartyManager.roster spawned
+## into it — see is_restoring_party() below. Exists because a world's own
+## _ready() runs SYNCHRONOUSLY inside _scene_root.add_child(world), before
+## spawn_party() ever gets called (spawn_party needs the world already in
+## the tree) — so a world that wants to skip its own hardcoded bootstrap
+## content on a reload (see test_arena.gd) has no other way to know a real
+## spawn is about to follow.
+var _is_restoring_party: bool = false
+
+## Which named spawn point an area-world should return the party to on
+## its next load — set by a door before it calls load_world() to enter an
+## area, read back by the debug exit (see esc_menu.gd) so leaving lands
+## you where you came in rather than always at "default". Plain shared
+## state rather than a parameter threaded through load_world() itself,
+## since the door and the exit are two unrelated callers on opposite ends
+## of a trip through a completely different world.
+var pending_return_spawn: StringName = &"default"
 
 
 ## Called once by MainRoot's own script. SceneRoot boots empty (see
@@ -73,11 +87,13 @@ func can_load() -> bool:
 
 
 ## Frees whatever world is currently loaded (if any) and instantiates
-## scene in its place. If a world with a real party was loaded (i.e. this
-## isn't the very first load), the party is captured before the old world
-## is freed and respawned into the new one at spawn_point_name — see
-## PartyManager's own capture()/spawn_party(). Returns the new world, or
-## null if the load was refused.
+## scene in its place. If the outgoing world actually had the party
+## spawned into it, that's captured into PartyManager.roster before it's
+## freed. Whether the roster gets spawned into the NEW world depends on
+## that world's own duck-typed spawns_party() (default true when absent)
+## — a world that opts out (the overworld's single avatar) is loaded with
+## zero party Units regardless of what roster holds. Returns the new
+## world, or null if the load was refused.
 func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -> Node:
 	if not can_load():
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
@@ -85,9 +101,11 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 
 	world_loading.emit(scene)
 
-	var records: Array[PartyMemberData] = []
 	if _current_world:
-		records = PartyManager.capture()
+		# A no-op when the outgoing world never spawned the party in the
+		# first place (members is empty) — see PartyManager.capture()'s
+		# own guard for why that's required, not just harmless.
+		PartyManager.capture()
 		_dismiss_fielded_demons()
 		PartyManager.clear_members()
 
@@ -110,9 +128,10 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 		_current_world.queue_free()
 		_current_world = null
 
-	_pending_party_records = records
-
 	var world: Node = scene.instantiate()
+	var world_wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
+	_is_restoring_party = world_wants_party and not PartyManager.roster.is_empty()
+
 	_scene_root.add_child(world)
 	_current_world = world
 	if world.has_method("get_base_mode"):
@@ -124,11 +143,11 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 			CameraDirector.register_tactical_camera(cam)
 			cam.make_current()
 
-	if not records.is_empty():
+	if _is_restoring_party:
 		var spawn_point: Node3D = _resolve_spawn_point(world, spawn_point_name)
-		PartyManager.spawn_party(records, world, spawn_point)
+		PartyManager.spawn_party(world, spawn_point)
 
-	_pending_party_records = []
+	_is_restoring_party = false
 
 	world_loaded.emit(world)
 	return world
@@ -138,14 +157,14 @@ func current_world() -> Node:
 	return _current_world
 
 
-## Whether the world currently being loaded (mid-load_world() call) has a
-## captured party about to be spawned into it — see this file's own
-## _pending_party_records header for why a world needs to be able to ask
+## Whether the world currently being loaded (mid-load_world() call) is
+## about to have PartyManager.roster spawned into it — see this file's
+## own _is_restoring_party header for why a world needs to be able to ask
 ## this from inside its own _ready(). False outside of an active
-## load_world() call, and false for the very first load (nothing to
-## restore yet).
+## load_world() call, for the very first load (nothing to restore yet),
+## and for a world that opts out via spawns_party() -> false.
 func is_restoring_party() -> bool:
-	return not _pending_party_records.is_empty()
+	return _is_restoring_party
 
 
 ## Withdraws every currently-fielded demon through the same path a

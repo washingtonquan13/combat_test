@@ -267,6 +267,13 @@ func _on_confirm_pressed() -> void:
 	record.dexterity = _attribute_values["dexterity"]
 	record.intelligence = _attribute_values["intelligence"]
 	record.health = _attribute_values["health"]
+	# Matches the other 3 hand-placed party members' own shared color,
+	# authored directly on each of them in test_arena.tscn — visual party
+	# consistency, not a Unit-script default. Belongs on the record itself
+	# (not patched on after spawning, as this used to be) so it survives
+	# every subsequent world reload the same way every other field does —
+	# see PartyManager.spawn_member(), which now restores it unconditionally.
+	record.selected_color = Color(0.156863, 1, 1, 0.627451)
 	# Only the 3 abilities named as "standard for every unit" — a freshly
 	# created blank character hasn't earned a spellbook by design; richer
 	# abilities come from a future debug menu, not chargen.
