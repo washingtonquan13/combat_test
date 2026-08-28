@@ -1,7 +1,7 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=4 format=3 uid="uid://c2c7lpjdp2kli"]
 
-[ext_resource type="Script" path="res://overworld.gd" id="1_overworld"]
-[ext_resource type="Script" path="res://overworld_camera.gd" id="2_camera"]
+[ext_resource type="Script" uid="uid://cl3cxjmnn0lte" path="res://overworld.gd" id="1_overworld"]
+[ext_resource type="Script" uid="uid://dp4x5pea11kqx" path="res://overworld_camera.gd" id="2_camera"]
 
 [sub_resource type="Environment" id="Environment_overworld"]
 background_mode = 1

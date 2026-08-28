@@ -20,7 +20,7 @@
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://systems/dialogue_system/conversation_log.tscn" id="18_convlog"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="19_negotiationpanel"]
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="20_dicepopup"]
-[ext_resource type="PackedScene" path="res://main_menu.tscn" id="21_mainmenu"]
+[ext_resource type="PackedScene" uid="uid://du3ql8xrqy76h" path="res://main_menu.tscn" id="21_mainmenu"]
 [ext_resource type="PackedScene" path="res://character_creation.tscn" id="22_charcreate"]
 
 [node name="MainRoot" type="Node"]
@@ -34,7 +34,6 @@ script = ExtResource("2_dlgcamrig")
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
 [node name="DragSelectBox" type="Control" parent="CanvasLayer"]
-visible = false
 layout_mode = 3
 anchors_preset = 0
 offset_right = 40.0

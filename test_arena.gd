@@ -40,7 +40,6 @@ func _ready() -> void:
 	# game world at all).
 	MusicManager.start_exploration_theme()
 
-	print(SkillCalculator.get_skill_level($ElfRanger, "Acrobatics").skill_level)
 	_watch_goblinoid_raid_quest()
 
 	# Bootstrap-only: on a genuinely fresh load (nothing captured from a

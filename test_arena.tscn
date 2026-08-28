@@ -1,7 +1,7 @@
-[gd_scene load_steps=61 format=3]
+[gd_scene load_steps=62 format=3 uid="uid://c2eymxqvi7vu1"]
 
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
-[ext_resource type="Script" path="res://test_arena.gd" id="1_7mycd"]
+[ext_resource type="Script" uid="uid://22gse85gkv76" path="res://test_arena.gd" id="1_7mycd"]
 [ext_resource type="Script" uid="uid://cmxyf1fnxa72t" path="res://movement_indicator.gd" id="2_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
 [ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://line_of_sight_indicator.gd" id="3_074og"]
@@ -82,6 +82,8 @@ script = ExtResource("63_dlgrootopt")
 root = ExtResource("62_townsdlg")
 
 [sub_resource type="Environment" id="Environment_movement_glow"]
+background_mode = 1
+background_color = Color(0.09, 0.1, 0.13, 1)
 glow_enabled = true
 
 [node name="TestArena" type="Node3D"]
