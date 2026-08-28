@@ -45,35 +45,81 @@ var _summon_fans: Dictionary = {}  # Unit (summoner) -> HBoxContainer (its fan, 
 var _summon_chips: Dictionary = {}  # Unit (summon) -> the unit_portrait Button instance in its summoner's fan
 
 
+## Reactive to PartyManager's own membership signals rather than a one-
+## shot post-boot scan — the panel used to assume its units already
+## existed in the same scene by the time a single deferred frame elapsed
+## (true back when MainRoot pre-instanced the arena at edit time), which
+## stopped holding the moment WorldManager made worlds load asynchronously
+## at runtime, well after this panel's own _ready(). PartyManager is the
+## single authoritative roster (see that file's own header) and every
+## real path that should produce a portrait already calls add_member() —
+## the initial bootstrap, a world reload's spawn_party(), and both debug
+## spawn tools — so listening to it directly loses no case and closes the
+## exact "two independently-drifting mechanisms" gap register_core_unit()
+## used to paper over for just the debug-spawn path.
 func _ready() -> void:
 	visible = false
-	add_to_group("party_panel")
-	# Deferred — CanvasLayer (and this panel under it) is declared before
-	# the actual unit nodes in main.tscn, so scanning "units" immediately
-	# here could run before every unit has added itself to that group in
-	# its own _ready(). One frame later, everything's settled.
+	PartyManager.member_added.connect(_on_member_added)
+	PartyManager.member_removed.connect(_on_member_removed)
+	PartyManager.leader_changed.connect(_on_leader_changed)
+	WorldManager.world_loading.connect(_on_world_loading)
+	# Deferred, same reasoning as before: safe even if this panel is ever
+	# constructed after members already exist (e.g. a future scene that
+	# doesn't boot through MainRoot at all).
 	_rebuild_core.call_deferred()
 
 
 func _rebuild_core() -> void:
-	var units: Array[Unit] = UnitQuery.core_party_units(get_tree())
-	units.sort_custom(func(a: Unit, b: Unit) -> bool: return PartyManager.is_leader(a) and not PartyManager.is_leader(b))
-	for unit in units:
+	for unit in PartyManager.members:
 		_add_core_slot(unit)
+	_sort_rows()
 	_update_visibility()
 
 
-## Public entry point for a core party member that joins AFTER the
-## initial _rebuild_core scan — the debug spawn tool's own friendly
-## spawns, found via ground_click_target.gd through the "party_panel"
-## group rather than a direct reference, same reasoning
-## give_item_effect.gd already uses to reach PartyOverview through the
-## "party_overview" group. _add_core_slot is already idempotent (skips
-## a unit already present), so this is safe to call more than once for
-## the same unit.
-func register_core_unit(unit: Unit) -> void:
+func _on_member_added(unit: Unit) -> void:
 	_add_core_slot(unit)
+	_sort_rows()
 	_update_visibility()
+
+
+func _on_member_removed(unit: Unit) -> void:
+	_remove_core_slot(unit)
+	_update_visibility()
+
+
+func _on_leader_changed(_unit: Unit) -> void:
+	_sort_rows()
+
+
+## PartyManager.clear_members() deliberately emits no per-unit signals
+## (see that method's own header — nothing needs to react to an
+## incremental teardown, since every listener is about to see a whole new
+## world instead) — this is what tells the panel to actually let go of
+## its own rows before their Units are freed, rather than relying on a
+## signal that was never going to fire. Fired at the very start of
+## load_world(), before the outgoing world is freed, so every row here is
+## still valid at the moment this runs.
+func _on_world_loading(_scene: PackedScene) -> void:
+	for row in _core_rows.values():
+		if is_instance_valid(row):
+			row.queue_free()
+	_core_rows.clear()
+	_summon_fans.clear()
+	_summon_chips.clear()
+	_update_visibility()
+
+
+## Moves the leader's row (if any) to the front — the same leader-first
+## ordering _rebuild_core() used to only apply via a full sort, now done
+## incrementally via move_child() so an add/leader-change never has to
+## rebuild every row (which would destroy each summoner's live fan of
+## chips built by _register_summon()).
+func _sort_rows() -> void:
+	var leader: Unit = PartyManager.leader
+	if not leader or leader not in _core_rows:
+		return
+	var row: Control = _core_rows[leader]
+	_core_container.move_child(row, 0)
 
 
 func _add_core_slot(unit: Unit) -> void:
@@ -99,13 +145,19 @@ func _add_core_slot(unit: Unit) -> void:
 	_core_rows[unit] = row
 	_summon_fans[unit] = fan
 
-	if not unit.died.is_connected(_on_core_unit_died):
-		unit.died.connect(_on_core_unit_died)
 	if not unit.ability_used.is_connected(_on_core_unit_ability_used):
 		unit.ability_used.connect(_on_core_unit_ability_used)
 
 
-func _on_core_unit_died(unit: Unit) -> void:
+## A core unit's own death is not listened to directly — every unit that
+## can ever reach _core_rows is (or was) a PartyManager member, and
+## PartyManager already connects its own death handler
+## (see PartyManager.add_member -> _on_member_died -> remove_member(),
+## which emits member_removed) — so _on_member_removed above already
+## covers this case. A second direct unit.died listener here would just
+## be the same "two independently-drifting mechanisms" problem this whole
+## fix exists to close, one signal earlier.
+func _remove_core_slot(unit: Unit) -> void:
 	if unit not in _core_rows:
 		return
 	var row: Control = _core_rows[unit]
@@ -113,7 +165,6 @@ func _on_core_unit_died(unit: Unit) -> void:
 		row.queue_free()
 	_core_rows.erase(unit)
 	_summon_fans.erase(unit)
-	_update_visibility()
 
 
 ## Detects a new summon the same way this project already communicates

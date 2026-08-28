@@ -27,22 +27,21 @@ extends Node
 ## once nothing is left to close.
 
 var _stack: Array[UIScreen] = []
-var _world_hides_hud: bool = false
-var _hud: CanvasLayer = null
+var _hud: Control = null
 
 
-## Called once by MainRoot's own script.
-func register_hud(hud: CanvasLayer) -> void:
+## Called once by MainRoot's own script with the TACTICAL HUD subtree
+## (MainRoot/CanvasLayer/TacticalUI) — deliberately NOT the CanvasLayer
+## itself. The CanvasLayer is the root of ALL UI, every UIScreen included,
+## so hiding it would hide the very screen that asked for the HUD to be
+## hidden. That was a real shipped bug: DialogueOverlay/NegotiationPanel
+## set hides_hud=true, UIStack hid the whole CanvasLayer, and the dialogue
+## and negotiation panels never appeared at all. "The HUD" means the
+## gameplay chrome (initiative row, hotbar, party panel, end-turn button,
+## system log, menu button) — a SIBLING of every screen, never their
+## ancestor.
+func register_hud(hud: Control) -> void:
 	_hud = hud
-	_update_hud_visibility()
-
-
-## Called by WorldManager.load_world() with whether the just-loaded world
-## wants the gameplay HUD hidden (main_menu.tscn/character_creation.tscn
-## do, test_arena.tscn doesn't) — composed with whatever UI screens are
-## independently open, since either reason should keep the HUD hidden.
-func set_world_hides_hud(value: bool) -> void:
-	_world_hides_hud = value
 	_update_hud_visibility()
 
 
@@ -127,7 +126,7 @@ func _pop_topmost_cancelable() -> bool:
 func _update_hud_visibility() -> void:
 	if not _hud:
 		return
-	var hidden: bool = _world_hides_hud
+	var hidden: bool = false
 	for screen in _stack:
 		if screen.hides_hud:
 			hidden = true

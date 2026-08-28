@@ -13,14 +13,21 @@ extends Node
 ## own capture()/clear_members()/spawn_party() trio) — nothing the party
 ## owns lives inside the world being freed anymore.
 ##
-## "World" here is deliberately broad — main_menu.tscn and
-## character_creation.tscn are worlds too (each implements two duck-typed
-## methods: hides_hud() -> bool, forwarded to UIStack.set_world_hides_hud()
-## — see that autoload for how it's composed with whatever UI screens are
-## independently open — and get_base_mode() -> GameMode.Mode, forwarded to
-## GameMode.set_base_mode()), not just test_arena.tscn/a future overworld.
-## All four of this project's real scene transitions go through this one
-## mechanism now.
+## A "world" is a 3D environment ONLY — test_arena.tscn today, a future
+## overworld/fusion room, and (when there's art for one) a non-interactive
+## backdrop behind the main menu or a framing set for character creation.
+## The main menu and character creation THEMSELVES are deliberately NOT
+## worlds: they're UIScreens plus a GameMode (see main_root.gd, which
+## pushes the menu screen and sets the mode without loading any world at
+## all). Collapsing a UI screen into the world layer is exactly the
+## conflation the three-layer split exists to prevent — a screen that
+## happens to have a backdrop still belongs to the UI layer, and its
+## backdrop is an ordinary world loaded independently underneath it.
+##
+## A world may implement one duck-typed method, get_base_mode() ->
+## GameMode.Mode, forwarded to GameMode.set_base_mode(). A backdrop world
+## with no gameplay of its own simply doesn't implement it, leaving
+## whatever mode its screen already set intact.
 ##
 ## Does NOT touch SceneTree.current_scene — see MainRoot.tscn's own note
 ## for why that's a hard, unavoidable Godot constraint (current_scene can
@@ -108,7 +115,6 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 	var world: Node = scene.instantiate()
 	_scene_root.add_child(world)
 	_current_world = world
-	UIStack.set_world_hides_hud(world.has_method("hides_hud") and world.hides_hud())
 	if world.has_method("get_base_mode"):
 		GameMode.set_base_mode(world.get_base_mode())
 

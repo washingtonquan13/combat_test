@@ -1,4 +1,4 @@
-extends Control
+extends UIScreen
 ## Character creation — building the player's own character (the future
 ## party leader, "THE MAIN CHARACTER" per the roadmap this was scoped
 ## against), via the point-buy tables verified for Buckets A (attributes)
@@ -13,18 +13,25 @@ extends Control
 ## OUTSIDE the tabs, at the bottom, since Confirm's validity depends on
 ## every tab at once regardless of which one is currently showing.
 ##
-## Its own world, reached only from main_menu.tscn's Start button, loaded
-## and left via WorldManager.load_world() like every other world
-## transition in this project.
+## A UIScreen living permanently under MainRoot's CanvasLayer, NOT a
+## world — same reasoning as main_menu.gd's own header. Reached from the
+## title screen's Start button; Confirm is the one place in the whole
+## front end that actually loads a world, because that's the moment the
+## game proper begins. If a 3D framing set for the character being built
+## is ever wanted (BG3 stands yours on a plinth), that's an ordinary
+## backdrop world loaded underneath this screen, not a replacement for it.
 ##
 ## On Confirm, a real Unit can't be built yet — there's no arena loaded
 ## to place it in — so the result is written into PartyManager.
 ## pending_leader as a plain PartyMemberData instead, and whichever world
 ## first spawns (test_arena.gd's own _build_leader(), today) consumes it.
+##
+## State deliberately survives backing out to the title screen and
+## returning (this screen is instanced once, not rebuilt per visit) — a
+## player who steps back shouldn't lose an in-progress build.
 
 const ATTRIBUTE_TABLE: PointBuyTable = preload("res://data/character_creation/attribute_costs.tres")
 const SKILL_TABLE: PointBuyTable = preload("res://data/character_creation/skill_costs.tres")
-const MAIN_MENU_SCENE: PackedScene = preload("res://main_menu.tscn")
 const TEST_ARENA_SCENE: PackedScene = preload("res://test_arena.tscn")
 
 const ATTRIBUTE_NAMES: Array[String] = ["strength", "dexterity", "intelligence", "health"]
@@ -66,16 +73,12 @@ var _portrait_buttons: Dictionary = {}  # String (res:// path) -> Button, for se
 var _selected_portrait_path: String = ""
 
 
-## Duck-typed — see WorldManager.load_world()/UIStack.set_world_hides_hud().
-## Same reasoning as main_menu.gd's own hides_hud(): no party/world exists
-## yet for the gameplay HUD to be meaningful during chargen either.
-func hides_hud() -> bool:
-	return true
-
-
-## Duck-typed — see WorldManager.load_world()/GameMode.set_base_mode().
-func get_base_mode() -> GameMode.Mode:
-	return GameMode.Mode.CHARACTER_CREATION
+func _enter_tree() -> void:
+	# So main_menu.gd's Start can find this screen without holding a
+	# NodePath to it — same find-by-role idiom party_overview/
+	# conversation_log/esc_menu already use. In _enter_tree rather than
+	# _ready so it's discoverable regardless of sibling _ready order.
+	add_to_group("character_creation")
 
 
 func _ready() -> void:
@@ -291,8 +294,15 @@ func _on_confirm_pressed() -> void:
 
 	PartyManager.pending_leader = record
 
+	# The one place the front end actually loads a world — this is the
+	# moment the game proper begins. load_world() sets the base mode
+	# itself off test_arena.gd's own get_base_mode(), so nothing here
+	# needs to touch GameMode.
+	close()
 	WorldManager.load_world(TEST_ARENA_SCENE)
 
 
 func _on_back_pressed() -> void:
-	WorldManager.load_world(MAIN_MENU_SCENE)
+	GameMode.set_base_mode(GameMode.Mode.MAIN_MENU)
+	close()
+	UIStack.push(get_tree().get_first_node_in_group("main_menu"))

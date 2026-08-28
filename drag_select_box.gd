@@ -42,9 +42,13 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Same reasoning as ground_click_target.gd's own guard — no box-
-	# selecting units while a live conversation owns the screen.
-	if DialogueManager.is_active():
+	# Box-selecting units only makes sense while the tactical camera
+	# actually owns the screen — the same single predicate that already
+	# governs camera input, rather than this file keeping its own list of
+	# things that should suppress it. Previously an is_active() check
+	# against DialogueManager alone, which covered conversations but not
+	# negotiation, looting, the title screen, or character creation.
+	if not CameraDirector.has_control():
 		return
 
 	if event.is_action_pressed("left_click"):

@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
@@ -20,6 +20,8 @@
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://systems/dialogue_system/conversation_log.tscn" id="18_convlog"]
 [ext_resource type="PackedScene" path="res://negotiation_panel.tscn" id="19_negotiationpanel"]
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="20_dicepopup"]
+[ext_resource type="PackedScene" path="res://main_menu.tscn" id="21_mainmenu"]
+[ext_resource type="PackedScene" path="res://character_creation.tscn" id="22_charcreate"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -139,8 +141,9 @@ grow_vertical = 0
 text = "END TURN"
 script = ExtResource("11_qsp4k")
 
-[node name="MenuButton" type="Button" parent="CanvasLayer"]
+[node name="MenuButton" type="Button" parent="CanvasLayer/TacticalUI"]
 custom_minimum_size = Vector2(32, 32)
+layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0
 anchor_right = 1.0
@@ -234,6 +237,17 @@ closes_on_cancel = false
 
 [node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("20_dicepopup")]
 
-[connection signal="pressed" from="CanvasLayer/MenuButton" to="CanvasLayer/MenuButton" method="_on_pressed"]
+[node name="MainMenu" parent="CanvasLayer" instance=ExtResource("21_mainmenu")]
+hides_hud = true
+blocks_input_below = true
+closes_on_cancel = false
+
+[node name="CharacterCreation" parent="CanvasLayer" instance=ExtResource("22_charcreate")]
+visible = false
+hides_hud = true
+blocks_input_below = true
+closes_on_cancel = false
+
+[connection signal="pressed" from="CanvasLayer/TacticalUI/MenuButton" to="CanvasLayer/TacticalUI/MenuButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer/EscMenu/ExitButton" to="CanvasLayer/EscMenu" method="_on_exit_button_pressed"]
 [connection signal="pressed" from="CanvasLayer/EscMenu/VBoxContainer/ExitToDesktop" to="CanvasLayer/EscMenu" method="_on_exit_to_desktop_pressed"]

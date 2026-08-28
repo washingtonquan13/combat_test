@@ -150,19 +150,10 @@ func _spawn_debug_unit() -> void:
 	CombatManager.add_unit_to_combat(spawned)
 
 	if faction == &"player":
-		# party_panel.gd builds its core-member list once, one frame after
-		# scene load (_rebuild_core), with no other reactive path for a
-		# unit that joins later — a summon gets picked up via a completely
-		# different mechanism (ability_used's result dict), which a raw
-		# debug spawn never fires. Register directly instead.
-		var party_panel: PartyPanel = get_tree().get_first_node_in_group("party_panel")
-		if party_panel:
-			party_panel.register_core_unit(spawned)
-		# PartyManager didn't exist when this debug-spawn path was
-		# originally built — without this, a friendly debug spawn showed
-		# up visually in party_panel but was silently absent from the
-		# actual roster, the same "two independently-drifting mechanisms"
-		# problem this project keeps finding and closing elsewhere.
+		# party_panel.gd listens to PartyManager.member_added directly and
+		# picks this up on its own — no separate registration call needed
+		# (that used to be true, back when the panel only ever scanned
+		# once at boot; not anymore, see that file's own _ready() header).
 		PartyManager.add_member(spawned)
 
 
