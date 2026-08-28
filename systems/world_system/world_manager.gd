@@ -61,37 +61,15 @@ var _current_area: AreaDefinition = null
 ## spawn is about to follow.
 var _is_restoring_party: bool = false
 
-## The (area, spawn point) pair to land on when leaving the CURRENT area
-## with nowhere fixed to go — see AreaExit's own header for the "empty
-## target_area means return to where you came from" rule this backs.
-## return_spawn_point is set by the door/exit an area was entered through
-## right before it calls load_area() (AreaExit.travel() does this for
-## both walk-in doors and context-menu Travel props); return_area_id is
-## captured automatically by load_area() itself, from whichever area was
-## current right before the swap. Plain shared state rather than a
-## parameter threaded through load_area() itself, since the entering
-## trigger and the eventual exit are two unrelated callers on opposite
-## ends of a trip through a completely different world.
-##
-## A single pair, not a stack — this handles one level of nesting
-## (hub-and-spoke, which is this game's own overworld/area topology).
-## Genuine multi-level nesting would need this to become a stack; that's
-## a change to these two fields, not to the model around them.
-var return_area_id: StringName = &""
-var return_spawn_point: StringName = &"default"
-
-## Which named spawn point THIS load_world() call was actually asked to
-## place its occupant at — set at the top of every call, read by a world
-## that needs it at _ready() time but doesn't spawn a tactical party (see
-## overworld.gd's own _spawn_avatar()), so _resolve_spawn_point()'s own
-## PartyManager.spawn_party() path never reaches it. Deliberately a
-## SEPARATE field from return_spawn_point, not the same one re-read:
-## AreaExit.travel() (whatever triggered this load) mutates
-## return_spawn_point for BOOKKEEPING purposes — recording where a FUTURE
-## trip back to the area being LEFT should land — before this load even
-## starts running. A world reading return_spawn_point directly at _ready()
-## would read that bookkeeping write instead of the value that was
-## actually true when THIS load was requested.
+## Which named spawn point THIS load_world() call resolved to — set once,
+## right after the incoming world is instantiated (see load_world()),
+## read by a world that needs it at _ready() time but doesn't spawn a
+## tactical party (see overworld.gd's own _spawn_avatar()), so
+## _resolve_spawn_point()'s own PartyManager.spawn_party() path never
+## reaches it. Already the FINAL resolved name by the time anything reads
+## it — see _resolve_entry_spawn_point()'s own comment for the three-tier
+## resolution (explicit request > derived back-link > world's own
+## "default" fallback) that produced it.
 var _pending_spawn_point_name: StringName = &"default"
 
 
@@ -124,12 +102,19 @@ func can_load() -> bool:
 ## — a world that opts out (the overworld's single avatar) is loaded with
 ## zero party Units regardless of what roster holds. Returns the new
 ## world, or null if the load was refused.
-func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -> Node:
+## spawn_point_name empty means "let the destination derive it" (see
+## _resolve_entry_spawn_point()); from_area_id is the id of the area
+## being LEFT, used only for that derivation — load_area() passes its own
+## current_area().id automatically, so a caller going through load_area()
+## never needs to supply either explicitly. A caller using this low-level
+## primitive directly (nothing does today) can omit both for the same
+## "land at the world's own default" behavior a first-ever load already
+## has.
+func load_world(scene: PackedScene, spawn_point_name: StringName = &"", from_area_id: StringName = &"") -> Node:
 	if not can_load():
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
 
-	_pending_spawn_point_name = spawn_point_name
 	world_loading.emit(scene)
 
 	if _current_world:
@@ -171,6 +156,16 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 		NavigationGrid.invalidate()
 
 	var world: Node = scene.instantiate()
+	# Resolved BEFORE entering the tree — instantiate() already built the
+	# whole subtree structurally (children exist, get_children() works)
+	# even though _ready() hasn't cascaded yet, so world's own doors/exits
+	# are inspectable here. Must happen before add_child() below: a
+	# world's _ready() (which runs synchronously inside add_child()) may
+	# need the final answer immediately, and there's no other point where
+	# both "the world exists to inspect" and "nothing has read it yet"
+	# hold at once.
+	_pending_spawn_point_name = _resolve_entry_spawn_point(world, spawn_point_name, from_area_id)
+
 	var world_wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
 	_is_restoring_party = world_wants_party and not PartyManager.roster.is_empty()
 
@@ -186,7 +181,7 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 			cam.make_current()
 
 	if _is_restoring_party:
-		var spawn_point: Node3D = _resolve_spawn_point(world, spawn_point_name)
+		var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
 		PartyManager.spawn_party(world, spawn_point)
 
 	_is_restoring_party = false
@@ -203,21 +198,23 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 ## between areas; load_world() stays public purely as the low-level
 ## primitive this delegates to.
 ##
-## return_area_id only updates once the load actually happens — an
-## unknown id or a refused load (can_load() false) leaves it untouched,
-## since nothing actually changed.
-func load_area(area_id: StringName, spawn_point_name: StringName = &"default") -> Node:
+## spawn_point_name is normally left empty — see
+## _resolve_entry_spawn_point() for why the destination almost always
+## derives the right answer on its own. current_area().id (whatever's
+## STILL loaded at the moment of the call) is passed through automatically
+## as the "area being left" for that derivation; callers never track or
+## supply it themselves.
+func load_area(area_id: StringName, spawn_point_name: StringName = &"") -> Node:
 	var area: AreaDefinition = AreaDatabase.find(area_id)
 	if not area:
 		push_warning("WorldManager.load_area: unknown area id '%s'" % area_id)
 		return null
 
-	var outgoing_id: StringName = _current_area.id if _current_area else &""
-	var world: Node = load_world(area.world_scene, spawn_point_name)
+	var from_area_id: StringName = _current_area.id if _current_area else &""
+	var world: Node = load_world(area.world_scene, spawn_point_name, from_area_id)
 	if not world:
 		return null
 
-	return_area_id = outgoing_id
 	_current_area = area
 	return world
 
@@ -287,3 +284,56 @@ func _resolve_spawn_point(world: Node, spawn_point_name: StringName) -> Node3D:
 			return point
 	push_warning("WorldManager: %s has no spawn point '%s' — spawning at world origin." % [world.name, spawn_point_name])
 	return world
+
+
+## Which named spawn point to actually request from `world`, in three
+## tiers: an explicit request always wins; otherwise, if we know which
+## area is being LEFT, search world's own AreaExit components for one
+## whose OWN target_area points back at it — that exit's arrival_point
+## (or its own parent, see AreaExit's own header) is, by construction,
+## the correct way back, no history required; otherwise fall through to
+## the world's own "default" fallback marker (get_spawn_point() on every
+## world already degrades gracefully from there).
+##
+## This is what makes even a FIRST-EVER trip into an area land in the
+## right place — a fresh character-creation entry into test_arena has
+## never been anywhere, so there's nothing to derive FROM there, but the
+## very next trip TO the overworld already has a real from_area_id
+## (test_arena), and the overworld's own DoorA already declares
+## target_area = "test_arena" as authored content — no round trip needed
+## to "prime" anything.
+func _resolve_entry_spawn_point(world: Node, requested_name: StringName, from_area_id: StringName) -> StringName:
+	if requested_name != &"":
+		return requested_name
+	if from_area_id != &"":
+		var back_link: StringName = _find_back_link(world, from_area_id)
+		if back_link != &"":
+			return back_link
+	return &"default"
+
+
+## The name of whichever landing spot inside `world` leads back to
+## from_area_id, or &"" if none does (an intentionally one-way link, or a
+## world with no exits of its own at all).
+func _find_back_link(world: Node, from_area_id: StringName) -> StringName:
+	for exit in _find_area_exits(world):
+		if exit.target_area == from_area_id:
+			var landing: Node = exit.arrival_point if exit.arrival_point else exit.get_parent()
+			return landing.name
+	return &""
+
+
+## Every AreaExit anywhere under root, at any depth — a door's own direct
+## child, or nested under a prop the way test_arena's OverworldExit is.
+## A raw recursive walk rather than get_tree().get_nodes_in_group(): this
+## runs on a freshly instantiate()'d subtree that ISN'T in the tree yet
+## (see load_world()'s own comment on why it has to run before add_child),
+## so nothing has reached _ready() to register a group membership yet —
+## get_children() is the only thing available at this point.
+func _find_area_exits(root: Node) -> Array[AreaExit]:
+	var result: Array[AreaExit] = []
+	for child in root.get_children():
+		if child is AreaExit:
+			result.append(child)
+		result.append_array(_find_area_exits(child))
+	return result

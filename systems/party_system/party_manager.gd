@@ -153,6 +153,7 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	data.will = unit.will
 	data.perception = unit.perception
 	data.move = unit.move
+	data.move_speed = unit.move_speed
 	data.maximum_hp = unit.maximum_hp
 	data.current_hp = unit.current_hp
 	data.maximum_fp = unit.maximum_fp
@@ -226,6 +227,7 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	unit.will = record.will
 	unit.perception = record.perception
 	unit.move = record.move
+	unit.move_speed = record.move_speed
 	unit.maximum_hp = record.maximum_hp
 	unit.current_hp = record.current_hp
 	unit.maximum_fp = record.maximum_fp

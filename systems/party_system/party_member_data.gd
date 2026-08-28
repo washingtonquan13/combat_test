@@ -47,6 +47,15 @@ extends Resource
 @export var will: int = 10
 @export var perception: int = 10
 @export var move: int = 5
+## Real-time physical movement speed — distinct from move (the tactical
+## move-budget stat) the same way it's distinct on Unit itself. Missing
+## this was a silent bug of the exact same shape selected_color's own doc
+## comment already records: every world reload restored a member's stats
+## but not their physical speed, so a hand-tuned member (test_arena.tscn
+## authors 5.0 on all four starting members, Unit's own script default is
+## 4.0) quietly reverted the moment spawn_member() replaced the original
+## hand-placed node.
+@export var move_speed: float = 4.0
 
 @export var maximum_hp: int = 10
 @export var current_hp: int = 10

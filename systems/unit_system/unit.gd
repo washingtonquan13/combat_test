@@ -501,6 +501,20 @@ func _ready() -> void:
 	_selection.setup()
 
 
+## Releases _selection's DialogueManager connections whenever this unit
+## stops being part of the live tree — not just on death (see
+## handle_death()'s own call to the same teardown()). Without this, an
+## ordinary world reload (WorldManager.load_world() freeing the outgoing
+## world) leaked one UnitSelection per party member per reload: nothing
+## else ever disconnected it, so DialogueManager's own strong Callable
+## reference kept each one alive, silently calling update_highlight()
+## against an already-freed Unit on the next conversation anywhere in the
+## game — see UnitSelection.teardown()'s own comment for the full shape
+## of the bug and why teardown() has to be idempotent because of this.
+func _exit_tree() -> void:
+	_selection.teardown()
+
+
 func _on_mouse_entered() -> void:
 	_selection.on_mouse_entered()
 

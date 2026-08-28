@@ -67,19 +67,30 @@ func _on_dialogue_started(_root: DialogueNode) -> void:
 	update_highlight()
 
 
-## Called from Unit.handle_death() — without this, the two connections
-## above are the one thing that outlives this unit: a Callable bound to
-## a RefCounted target (this object) holds a strong reference, so a
-## dead unit's UnitSelection stays alive purely because DialogueManager
-## still points at it, and the NEXT conversation started/ended anywhere
-## in the game calls update_highlight() against a Unit whose Node has
-## already been freed — "previously freed" errors on highlight_mesh.
-## Reachable only once something has died AND a conversation has
-## started/ended in the same session, which is exactly why this went
-## unnoticed until a real quest-completion conversation exercised it.
+## Called from Unit.handle_death() AND Unit._exit_tree() — without this,
+## the two connections above are the one thing that outlives this unit: a
+## Callable bound to a RefCounted target (this object) holds a strong
+## reference, so a unit's UnitSelection would otherwise stay alive purely
+## because DialogueManager still points at it, and the NEXT conversation
+## started/ended anywhere in the game calls update_highlight() against a
+## Unit whose Node has already been freed — "previously freed" errors on
+## highlight_mesh. Originally reachable only once something had died AND
+## a conversation had started/ended in the same session; now ALSO reached
+## by every party member on an ordinary world reload (WorldManager.
+## load_world() frees the outgoing world's Units with nothing else ever
+## disconnecting this), which is a much more common path — see
+## Unit._exit_tree()'s own comment.
+##
+## Idempotent (guarded on is_connected()) because a dying unit now reaches
+## this twice: once immediately from handle_death(), then again when the
+## deferred queue_free() actually removes it from the tree and fires
+## _exit_tree() — disconnecting an already-disconnected signal would
+## otherwise be a hard error, not a no-op.
 func teardown() -> void:
-	DialogueManager.dialogue_started.disconnect(_on_dialogue_started)
-	DialogueManager.dialogue_ended.disconnect(update_highlight)
+	if DialogueManager.dialogue_started.is_connected(_on_dialogue_started):
+		DialogueManager.dialogue_started.disconnect(_on_dialogue_started)
+	if DialogueManager.dialogue_ended.is_connected(update_highlight):
+		DialogueManager.dialogue_ended.disconnect(update_highlight)
 
 
 func on_mouse_entered() -> void:

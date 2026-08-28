@@ -201,7 +201,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 2)
 [node name="DoorA" parent="SpawnPoints" instance=ExtResource("4_p0ssl")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, 2)
 
-[node name="AreaExit2" type="Node" parent="SpawnPoints/DoorA"]
+[node name="AreaExit" type="Node" parent="SpawnPoints/DoorA"]
 script = ExtResource("6_u40xr")
 target_area = &"test_arena"
 

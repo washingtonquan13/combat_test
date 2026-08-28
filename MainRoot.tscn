@@ -1,4 +1,4 @@
-[gd_scene load_steps=32 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=33 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
@@ -31,6 +31,7 @@
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="29_aerialind"]
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="30_seekind"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="31_navdbg"]
+[ext_resource type="Script" uid="uid://dwxlhcmxv7u8v" path="res://interact_prompt.gd" id="32_interactprompt"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -192,6 +193,27 @@ offset_bottom = 8.0
 grow_horizontal = 0
 icon = ExtResource("12_seu75")
 script = ExtResource("13_htxhm")
+
+[node name="InteractPrompt" type="PanelContainer" parent="CanvasLayer"]
+visible = false
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -80.0
+offset_top = -60.0
+offset_right = 80.0
+offset_bottom = -30.0
+grow_horizontal = 2
+grow_vertical = 0
+script = ExtResource("32_interactprompt")
+
+[node name="Label" type="Label" parent="CanvasLayer/InteractPrompt"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Enter"
+horizontal_alignment = 1
 
 [node name="PartyOverview" parent="CanvasLayer" instance=ExtResource("14_partyoverview")]
 blocks_input_below = true

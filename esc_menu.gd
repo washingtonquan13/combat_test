@@ -11,6 +11,16 @@ extends UIScreen
 ## game references it. Left alone as out of scope for whatever touched
 ## this file next — flagging here so it isn't mistaken for live content.
 
+## The debug exit's own fixed destination — WorldManager no longer
+## tracks "wherever you came from" at all (see the architectural
+## fix-pass writeup in project memory for why remembering it was itself
+## the bug), so this button just names the overworld directly. It still
+## lands on the CORRECT door rather than the overworld's bare Start
+## marker: WorldManager's own back-link derivation finds whichever
+## overworld door leads back to the arena and lands there — this button
+## doesn't need to know or care which one that is.
+const HOME_AREA: StringName = &"overworld"
+
 @onready var _debug_exit_button: Button = %DebugExitToOverworldButton
 
 
@@ -39,15 +49,7 @@ func _on_exit_button_pressed() -> void:
 
 
 ## Debug-only escape hatch, kept alongside the real one (see
-## OverworldExit/travel_interaction.gd in test_arena.tscn) — returns to
-## whichever area/spawn point WorldManager.return_area_id/
-## return_spawn_point currently hold, same as a real Travel exit with an
-## empty target_area would. Falls back to "overworld" specifically (not
-## just whatever AreaDatabase happens to find) when return_area_id is
-## still empty — reachable straight from character creation, which never
-## visits the overworld at all — so this debug button always works, the
-## same guarantee its old hardcoded OVERWORLD_SCENE preload gave for free.
+## OverworldExit/travel_interaction.gd in test_arena.tscn).
 func _on_debug_exit_pressed() -> void:
 	close()
-	var area_id: StringName = WorldManager.return_area_id if WorldManager.return_area_id != &"" else &"overworld"
-	WorldManager.load_area(area_id, WorldManager.return_spawn_point)
+	WorldManager.load_area(HOME_AREA)

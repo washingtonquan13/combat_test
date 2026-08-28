@@ -8,14 +8,48 @@ extends Node
 ## an InteractableProp share no common base below Node, so this can't
 ## live as a shared method on either.
 ##
-## Empty target_area means "return to wherever the player came from" —
-## resolved through WorldManager.return_area_id/return_spawn_point at
-## the moment of travel rather than a fixed destination. That's what lets
-## ONE arena exit serve any number of overworld doors leading into it:
-## whichever door you walked in through is where you walk back out.
+## Purely DATA — travel() only forwards to WorldManager.load_area(),
+## which does the real work, including WHICH spawn point to land on in
+## the destination (see WorldManager._resolve_entry_spawn_point() and its
+## back-link derivation). This component doesn't remember anything about
+## past trips and never writes to WorldManager at all — an earlier
+## version of this file did (a "return_area_id"/"return_spawn_point"
+## pair, mutated by whichever exit fired most recently), and that mutable
+## shared state was the actual source of two real, separate bugs: an
+## avatar landing wrong because one exit's bookkeeping write raced ahead
+## of another's read, and every FIRST-EVER trip into an area landing at
+## its bare fallback marker because there was nothing to remember yet.
+## Deriving the landing spot from the destination's own authored content
+## instead of a runtime breadcrumb closes both — see WorldManager's own
+## header for the full reasoning, and the architectural fix-pass writeup
+## in project memory for the incident this replaced.
+##
+## target_area is required — an exit with an empty target_area is a
+## configuration mistake, not a "figure it out" signal, and travel()
+## warns rather than silently misrouting.
 
 @export var target_area: StringName = &""
-@export var target_spawn_point: StringName = &"default"
+## Optional — which named spawn point in target_area this exit's own
+## travel() should request. Leave empty to let the DESTINATION derive it:
+## WorldManager searches target_area's own world for whichever of ITS
+## OWN exits leads back to the area being left, and that exit's
+## arrival_point becomes the landing spot — correct by construction,
+## since that's definitionally the way back. Only needs setting for a
+## genuinely asymmetric link (the destination has no exit pointing back
+## this way at all) or to force one specific choice among several valid
+## ones.
+@export var target_spawn_point: StringName = &""
+## Where THIS exit should be treated as leading TO within its OWN scene
+## when something else resolves a back-link against target_area (see
+## WorldManager._find_back_link()) — defaults to this exit's own parent
+## (the door/prop itself) when unset. Only needs overriding when that
+## parent isn't a safe place to physically stand: the arena's exit prop
+## is a solid StaticBody3D, so its own AreaExit points this at a separate
+## walkable Marker3D instead (see test_arena.tscn's own
+## OverworldExit/ArrivalPoint). An overworld door is an Area3D with no
+## solid collision, so its AreaExit leaves this unset — arriving directly
+## ON the door is correct there.
+@export var arrival_point: Node3D
 
 
 ## Direct children only, deliberately not recursive — same reasoning as
@@ -28,24 +62,15 @@ static func find_on(node: Node) -> AreaExit:
 	return null
 
 
-## Resolves the destination (falling back to the return pair when
-## target_area is empty), records this exit's own PARENT's name as the
-## spawn point the area being left should return to next time, then
-## defers the actual load. Callers are always reacting from inside a
-## physics callback (body_entered) or a menu action that must close
-## first — deferring is owned here once rather than duplicated at both
-## call sites. See WorldManager.load_area()'s own note on why the defer
-## is required at all (the world being freed owns whatever node this
-## call started from).
+## Starts the trip. Deferred: callers are always reacting from inside a
+## physics callback (body_entered) or an input/menu action, and the load
+## this triggers can synchronously free the very node this call started
+## from — see WorldManager.load_world()'s own note on why.
 func travel() -> void:
-	var area_id: StringName = target_area
-	var spawn_point: StringName = target_spawn_point
-	if area_id == &"":
-		area_id = WorldManager.return_area_id
-		spawn_point = WorldManager.return_spawn_point
-
-	WorldManager.return_spawn_point = get_parent().name
-	call_deferred("_load", area_id, spawn_point)
+	if target_area == &"":
+		push_warning("AreaExit.travel() on %s has no target_area set." % get_parent().name)
+		return
+	call_deferred("_load", target_area, target_spawn_point)
 
 
 func _load(area_id: StringName, spawn_point: StringName) -> void:

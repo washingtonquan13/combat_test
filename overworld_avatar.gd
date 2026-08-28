@@ -19,6 +19,17 @@ extends CharacterBody3D
 ## purely for visual interest as a placeholder token. Movement direction
 ## and the spin are intentionally decoupled: this is not a facing
 ## indicator.
+##
+## HANGING DECISION — control schema divergence: the overworld (this
+## file) is WASD + walk-into-range-then-press-interact, JRPG-like, one
+## avatar, unambiguous proximity. The in-level tactical party is
+## click-to-move + right-click-a-verb, CRPG-like, four selectable units,
+## proximity that ISN'T unambiguous. Both are correct for what they are —
+## neither is being shoehorned into the other — but whether to eventually
+## unify the movement/interaction vocabulary across the two is an open
+## question, deliberately deferred, not scheduled. Nothing here should be
+## built toward either outcome on spec. See interact_prompt.gd's own
+## header for the interaction half of this same comparison.
 
 @export var move_speed: float = 6.0
 @export var acceleration: float = 24.0

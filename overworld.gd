@@ -59,9 +59,3 @@ func _spawn_avatar() -> void:
 
 	var spawn_point: Node3D = get_spawn_point(WorldManager.pending_spawn_point_name())
 	_avatar.global_position = spawn_point.global_position
-
-	# Landing directly on top of a door needs it unprimed, or its own
-	# collider overlapping the avatar the instant it spawns would fire
-	# body_entered again and bounce straight back — see overworld_door.gd.
-	if spawn_point is OverworldDoor:
-		spawn_point.set_primed(false)

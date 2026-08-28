@@ -255,9 +255,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, -8)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, -8)
 interactions = Array[ExtResource("58_uatky")]([ExtResource("75_travel")])
 
-[node name="AreaExit" type="Node" parent="OverworldExit"]
+[node name="AreaExit" type="Node" parent="OverworldExit" node_paths=PackedStringArray("arrival_point")]
 script = ExtResource("76_exit")
 target_area = &"overworld"
+arrival_point = NodePath("../ArrivalPoint")
+
+[node name="ArrivalPoint" type="Marker3D" parent="OverworldExit"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 3)
 
 [node name="PartySpawnPoint" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -8)

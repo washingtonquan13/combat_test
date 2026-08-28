@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="AreaDefinition" load_steps=2 format=3 uid="uid://bpjoy46co5vve"]
+
+[ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_gqiq4"]
+
+[resource]
+script = ExtResource("1_gqiq4")
+id = &""
+display_name = ""
+metadata/_custom_type_script = "uid://dxjfu3gj225jt"
