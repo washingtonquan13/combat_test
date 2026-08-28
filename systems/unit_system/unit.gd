@@ -919,6 +919,11 @@ func get_equipped_item(slot_key: EquipSlot.Slot) -> Item:
 	return _equipment.get_item(slot_key)
 
 
+## Every slot currently holding an item — see UnitEquipment.equipped_slots().
+func get_equipped_slots() -> Array:
+	return _equipment.equipped_slots()
+
+
 func equip_item(slot_key: EquipSlot.Slot, item: Item) -> void:
 	_equipment.equip(slot_key, item)
 

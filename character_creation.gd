@@ -13,16 +13,19 @@ extends Control
 ## OUTSIDE the tabs, at the bottom, since Confirm's validity depends on
 ## every tab at once regardless of which one is currently showing.
 ##
-## Its own scene, reached only from main_menu.tscn's Start button, plain
-## change_scene_to_file in and out — never SceneManager (see
-## main_menu.gd's own header for the fuller reasoning).
+## Its own world, reached only from main_menu.tscn's Start button, loaded
+## and left via WorldManager.load_world() like every other world
+## transition in this project.
 ##
 ## On Confirm, a real Unit can't be built yet — there's no arena loaded
-## to place it in — so the result is written into PendingCharacter
-## instead, and test_arena.gd applies it once MainRoot actually loads.
+## to place it in — so the result is written into PartyManager.
+## pending_leader as a plain PartyMemberData instead, and whichever world
+## first spawns (test_arena.gd's own _build_leader(), today) consumes it.
 
 const ATTRIBUTE_TABLE: PointBuyTable = preload("res://data/character_creation/attribute_costs.tres")
 const SKILL_TABLE: PointBuyTable = preload("res://data/character_creation/skill_costs.tres")
+const MAIN_MENU_SCENE: PackedScene = preload("res://main_menu.tscn")
+const TEST_ARENA_SCENE: PackedScene = preload("res://test_arena.tscn")
 
 const ATTRIBUTE_NAMES: Array[String] = ["strength", "dexterity", "intelligence", "health"]
 const ATTRIBUTE_LABELS: Dictionary = {
@@ -61,6 +64,18 @@ var _attribute_rows: Dictionary = {}  # String -> Dictionary (row's own widgets)
 var _skill_rows: Dictionary = {}
 var _portrait_buttons: Dictionary = {}  # String (res:// path) -> Button, for selection highlighting
 var _selected_portrait_path: String = ""
+
+
+## Duck-typed — see WorldManager.load_world()/UIStack.set_world_hides_hud().
+## Same reasoning as main_menu.gd's own hides_hud(): no party/world exists
+## yet for the gameplay HUD to be meaningful during chargen either.
+func hides_hud() -> bool:
+	return true
+
+
+## Duck-typed — see WorldManager.load_world()/GameMode.set_base_mode().
+func get_base_mode() -> GameMode.Mode:
+	return GameMode.Mode.CHARACTER_CREATION
 
 
 func _ready() -> void:
@@ -240,17 +255,44 @@ func _on_confirm_pressed() -> void:
 	if _confirm_button.disabled:
 		return
 
-	PendingCharacter.display_name = _name_edit.text.strip_edges()
-	PendingCharacter.portrait_texture = load(_selected_portrait_path)
-	PendingCharacter.strength = _attribute_values["strength"]
-	PendingCharacter.dexterity = _attribute_values["dexterity"]
-	PendingCharacter.intelligence = _attribute_values["intelligence"]
-	PendingCharacter.health = _attribute_values["health"]
-	PendingCharacter.skill_levels = _skill_values.duplicate()
-	PendingCharacter.is_ready = true
+	var record := PartyMemberData.new()
+	record.is_leader = true
+	record.display_name = _name_edit.text.strip_edges()
+	record.portrait_texture = load(_selected_portrait_path)
+	record.faction = Unit.PLAYER_FACTION
+	record.strength = _attribute_values["strength"]
+	record.dexterity = _attribute_values["dexterity"]
+	record.intelligence = _attribute_values["intelligence"]
+	record.health = _attribute_values["health"]
+	# Only the 3 abilities named as "standard for every unit" — a freshly
+	# created blank character hasn't earned a spellbook by design; richer
+	# abilities come from a future debug menu, not chargen.
+	record.abilities = [
+		load("res://data/abilities/basic_attack_melee.tres"),
+		load("res://data/abilities/jump.tres"),
+		load("res://data/abilities/shove.tres"),
+	]
 
-	get_tree().change_scene_to_file("res://MainRoot.tscn")
+	for skill_name in _skill_values:
+		var relative_level: int = _skill_values[skill_name]
+		if relative_level == 0:
+			continue  # no investment -- matches how an untrained skill just
+			# defaults off the controlling attribute
+		var skill: Skill = SkillDatabase.find(skill_name)
+		if not skill:
+			continue
+		var skill_record := PartySkillRecord.new()
+		skill_record.skill = skill
+		# SkillInstance's own baseline is levels_purchased=1 ("just the base
+		# attribute+difficulty roll"); Bucket C's own notation calls that
+		# same baseline "+0" — the +1 reconciles those two conventions.
+		skill_record.levels_purchased = relative_level + 1
+		record.skills.append(skill_record)
+
+	PartyManager.pending_leader = record
+
+	WorldManager.load_world(TEST_ARENA_SCENE)
 
 
 func _on_back_pressed() -> void:
-	get_tree().change_scene_to_file("res://main_menu.tscn")
+	WorldManager.load_world(MAIN_MENU_SCENE)

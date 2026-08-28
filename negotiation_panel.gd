@@ -1,4 +1,4 @@
-extends Control
+extends UIScreen
 ## Thin, reactive negotiation UI — purely a listener over
 ## NegotiationManager's signals, never touches its state directly, same
 ## "the manager owns state, this just renders" split as
@@ -12,6 +12,11 @@ extends Control
 ## is authored-but-never-read for negotiation content (see
 ## NegotiationManager._show_node) — a negotiation tree only ever ends via
 ## an explicit outcome choice, never a "keep going" beat.
+##
+## hides_hud/blocks_input_below/closes_on_cancel are authored on this
+## scene's instance in MainRoot.tscn (hides_hud=true,
+## blocks_input_below=true, closes_on_cancel=false, same reasoning as
+## dialogue_overlay.gd — see UIScreen's own header).
 
 ## Flat colors, not a StyleBox/icon — this project has no art budget for
 ## a real reaction-icon asset (same portrait-scarcity situation as the
@@ -20,8 +25,6 @@ extends Control
 const MOOD_COLOR_POSITIVE: Color = Color(0.4, 0.75, 0.4)
 const MOOD_COLOR_NEGATIVE: Color = Color(0.8, 0.4, 0.4)
 const MOOD_COLOR_NEUTRAL: Color = Color(0.6, 0.6, 0.6)
-
-@export var tactical_ui: Control
 
 @onready var _demon_label: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/HeaderRow/DemonLabel
 @onready var _mood_indicator: ColorRect = %MoodIndicator
@@ -53,12 +56,10 @@ func _ready() -> void:
 
 
 func _on_negotiation_started(demon: Unit) -> void:
-	visible = true
+	open()
 	_demon_label.text = "[b]%s[/b] is willing to talk." % demon.get_display_name()
 	_pending_mood_note = ""
 	_mood_indicator.color = MOOD_COLOR_NEUTRAL
-	if tactical_ui:
-		tactical_ui.visible = false
 
 
 func _on_mood_note_shown(text: String) -> void:
@@ -88,9 +89,7 @@ func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
 
 
 func _on_negotiation_ended(_outcome: int) -> void:
-	visible = false
-	if tactical_ui:
-		tactical_ui.visible = true
+	close()
 
 
 func _on_choice_meta_clicked(meta) -> void:

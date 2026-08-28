@@ -33,6 +33,13 @@ func get_item(slot_key: EquipSlot.Slot) -> Item:
 	return _equipped.get(slot_key)
 
 
+## Every slot currently holding an item — used by PartyMemberData.capture()
+## to enumerate a unit's loadout without needing to probe all 16 EquipSlot
+## enum values by hand.
+func equipped_slots() -> Array:
+	return _equipped.keys()
+
+
 ## Records item as equipped in slot_key and registers every stat
 ## modifier its GearItem grants — does NOT touch the scene tree (no
 ## reparenting here); that's EquipSlot's job, this is just the per-unit

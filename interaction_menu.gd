@@ -51,8 +51,8 @@ func open_for(target: Node, actor: Unit) -> void:
 	_popup.popup()
 
 
-## Force-closes the popup if open. Called by SceneManager before
-## suspending a scene, so a menu anchored to an about-to-be-hidden
+## Force-closes the popup if open. Called by WorldManager before freeing
+## the outgoing world on a load, so a menu anchored to an about-to-be-freed
 ## unit/prop doesn't linger holding a stale _actor/_target.
 func close() -> void:
 	_popup.hide()

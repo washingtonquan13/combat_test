@@ -1,4 +1,4 @@
-extends Control
+extends UIScreen
 ## Thin, subtitle-style dialogue UI — deliberately NOT the old GURPS-
 ## project's DialogueBox (dual static portraits, heavy nested panels, an
 ## always-visible scrolling transcript). The cinematic camera IS the
@@ -14,14 +14,11 @@ extends Control
 ## and a single clickable rich-text list is simpler than a
 ## Button+RichTextLabel composite per choice, with no container-sizing
 ## fight between the two.
-
-@export var conversation_log: Control
-## The existing tactical HUD wrapper (main.tscn's TacticalUI Control) —
-## hidden for the duration of a conversation, restored when it ends.
-## Toggled here rather than TacticalUI reacting to DialogueManager
-## itself, matching the conversation_log toggle right below: this script
-## already owns "what the screen looks like during dialogue."
-@export var tactical_ui: Control
+##
+## hides_hud/blocks_input_below/closes_on_cancel are authored on this
+## scene's instance in MainRoot.tscn (hides_hud=true,
+## blocks_input_below=true, closes_on_cancel=false — nothing currently
+## lets Escape abruptly end a conversation) — see UIScreen's own header.
 
 @onready var _speaker_label: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/SpeakerLabel
 @onready var _line_text: RichTextLabel = $VBoxContainer/PanelContainer/MarginContainer/BodyVBox/LineText
@@ -47,11 +44,9 @@ func _ready() -> void:
 
 
 func _on_dialogue_started(_root: DialogueNode) -> void:
-	visible = true
+	open()
 	_choices_text.text = ""
 	_continue_button.visible = false
-	if tactical_ui:
-		tactical_ui.visible = false
 
 
 ## speaker_token is "" for the smaller echo lines (alignment message,
@@ -108,11 +103,10 @@ func _on_dice_roll_requested(_skill_name: String, _roll: Dictionary) -> void:
 
 
 func _on_dialogue_ended() -> void:
-	visible = false
-	if tactical_ui:
-		tactical_ui.visible = true
-	if conversation_log:
-		conversation_log.visible = false
+	close()
+	var log: UIScreen = get_tree().get_first_node_in_group("conversation_log")
+	if log:
+		UIStack.pop(log)
 
 
 func _on_choice_meta_clicked(meta) -> void:
@@ -124,5 +118,10 @@ func _on_continue_pressed() -> void:
 
 
 func _on_log_pressed() -> void:
-	if conversation_log:
-		conversation_log.visible = not conversation_log.visible
+	var log: UIScreen = get_tree().get_first_node_in_group("conversation_log")
+	if not log:
+		return
+	if UIStack.is_open(log):
+		UIStack.pop(log)
+	else:
+		UIStack.push(log)

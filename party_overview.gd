@@ -1,5 +1,5 @@
 class_name PartyOverview
-extends Control
+extends UIScreen
 ## The party's "character sheet." Two real sections, both anchored
 ## 3-column layouts sharing the SAME StatsColumn component (see
 ## stats_column.gd) on the left, so a unit's stats read identically in
@@ -41,6 +41,13 @@ extends Control
 ## rolls against). Built dynamically each refresh, same "rebuild rather
 ## than diff" approach party_panel.gd/ability_hotbar.gd already use for
 ## their own variable-length per-unit lists.
+##
+## blocks_input_below=true is authored on this scene's instance in
+## MainRoot.tscn (see UIScreen's own header) — what makes UIStack.
+## can_open() correctly refuse a new C-key open while a stash is up,
+## replacing the old hand-rolled "DialogueManager.is_active() or
+## StashManager.is_active()" guard this file used to check directly.
+## hides_hud/closes_on_cancel stay at UIScreen's own defaults.
 
 @onready var _tab_buttons: Dictionary = {
 	"inventory": %TabInventory,
@@ -155,7 +162,7 @@ func _ready() -> void:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
 	%TabSpawn.visible = OS.is_debug_build()
 	%TabMusic.visible = OS.is_debug_build()
-	%CloseButton.pressed.connect(func(): visible = false)
+	%CloseButton.pressed.connect(close)
 	_sort_button.pressed.connect(_inventory.sort_items)
 	_quest_list.item_selected.connect(_on_quest_selected)
 
@@ -175,18 +182,21 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("open_party_overview") or DialogueManager.is_active() or StashManager.is_active():
+	if not event.is_action_pressed("open_party_overview"):
 		return
 
-	if visible:
-		visible = false
+	if UIStack.is_open(self):
+		close()
+		return
+
+	if not UIStack.can_open():
 		return
 
 	var unit: Unit = PlayerInteractionState.get_active_unit()
 	if unit:
 		open_for(unit)
 	elif OS.is_debug_build():
-		visible = true
+		open()
 		_show_tab("spawn")
 
 
@@ -216,7 +226,7 @@ func open_for(unit: Unit) -> void:
 	_demon_panel.refresh()
 	_spawn_panel.refresh()
 	_music_panel.refresh()
-	visible = true
+	open()
 	_show_tab("inventory")
 
 

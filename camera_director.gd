@@ -12,39 +12,51 @@ extends Node
 ## chain problem PlayerInteractionState already exists to prevent for
 ## click-routing, just showing up on the camera side.
 ##
-## has_control() AGGREGATES known blockers rather than systems pushing
-## ownership state into this autoload — each blocker's "am I active" state
-## stays exactly where it already lives (InteractionMenu's own popup
-## visibility, DialogueManager.is_active()), so there's nothing here that
-## can drift out of sync with the thing it's supposed to reflect. Adding
-## a future blocker (a cutscene system) is a one-line addition to this
-## function, not a change to crpg_camera.gd at all.
+## has_control() is a GameMode query — see that autoload for the full
+## reasoning. CombatManager/DialogueManager/NegotiationManager/
+## StashManager each push/pop their own GameMode.Mode when they start/end
+## rather than exposing an is_active() for this file to aggregate by
+## hand; adding a future blocker (a cutscene system) means giving it its
+## own mode and possibly widening this function's allow-list, not adding
+## a new hardcoded autoload reference here.
+##
+## InteractionMenu is the one deliberate exception, checked directly —
+## it's a brief right-click context menu, not a genuine mode transition,
+## so it was never folded into GameMode.
 
 var _tactical_camera: Camera3D = null
 
 
-## Called once by crpg_camera.gd's own _ready() — this autoload has no
-## other way to know which Camera3D is "the tactical one" to hand control
-## back to once a cinematic shot ends. Also called by SceneManager when
-## restoring a suspended arena — that camera's _ready() never refires
-## (the node was only hidden, never left the tree), so re-registration
-## has to be explicit there instead of automatic.
+## Called by crpg_camera.gd's own _ready() — this autoload has no other
+## way to know which Camera3D is "the tactical one" to hand control back
+## to once a cinematic shot ends. Also called (redundantly but harmlessly)
+## by WorldManager.load_world() right after a newly loaded world enters
+## the tree, so a world whose camera script doesn't self-register still
+## gets registered and made current — see that file's own header.
 func register_tactical_camera(cam: Camera3D) -> void:
 	_tactical_camera = cam
 
 
-## Called when a tactical camera is being retired (suspended by
-## SceneManager, or freed) so a now-stale camera can't be handed control
-## via deactivate_cinematic_camera(). Guarded on identity so an
-## out-of-order call from a camera that ISN'T the currently-registered
+## Called when a tactical camera is being retired (its world is about to
+## be freed by WorldManager.load_world()) so a now-stale camera can't be
+## handed control via deactivate_cinematic_camera(). Guarded on identity
+## so an out-of-order call from a camera that ISN'T the currently-registered
 ## one can't clobber a legitimate registration.
 func unregister_tactical_camera(cam: Camera3D) -> void:
 	if _tactical_camera == cam:
 		_tactical_camera = null
 
 
+## True only during EXPLORATION and COMBAT — the two modes where a
+## tactical 3D camera actually exists and should respond to input.
+## Deliberately distinct from GameMode.can_transition() (which answers
+## "is it safe to swap worlds right now," true for MAIN_MENU/
+## CHARACTER_CREATION too) — a different question with a different true
+## set.
 func has_control() -> bool:
-	return not InteractionMenu.is_open() and not DialogueManager.is_active() and not NegotiationManager.is_active()
+	if InteractionMenu.is_open():
+		return false
+	return GameMode.current_mode() in [GameMode.Mode.EXPLORATION, GameMode.Mode.COMBAT]
 
 
 ## Switches the viewport to cam — used by dialogue_camera_rig.gd (and any

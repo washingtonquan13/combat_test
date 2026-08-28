@@ -18,13 +18,6 @@ extends Node
 ##     give up this turn for now and go later in this same round instead
 ##     (see CombatManager.delay_turn — defaults to delaying by 1).
 
-## Debug-only trigger for SceneManager.push_scene()/pop_scene() (L key —
-## see project.godot's test_toggle_scene_push) so the push/pop cycle has
-## something to actually exercise in a running game before the real
-## fusion-room scene exists. Not itself part of the scene-swapping
-## feature — delete once something real calls push_scene/pop_scene.
-const _SCENE_MANAGER_TEST_ROOM := preload("res://scenes/scene_manager_test_room.tscn")
-
 var _signals_connected: bool = false
 ## The raid quest's two goblinoids — see _watch_goblinoid_raid_quest().
 ## Emptied out as each one dies; townsperson_raids_resolved sets once
@@ -40,85 +33,71 @@ var _goblinoids_remaining: Array[Unit] = []
 ## party member to have ever been placed in this scene at all — see
 ## _build_leader() below, which already proves that shape for real.
 func _ready() -> void:
+	# The actual "entering the game world" moment — see MusicManager.
+	# start_exploration_theme()'s own doc comment for why this call lives
+	# here now instead of firing unconditionally from MusicManager's own
+	# _ready() (main_menu/character_creation load first and aren't the
+	# game world at all).
+	MusicManager.start_exploration_theme()
+
 	print(SkillCalculator.get_skill_level($ElfRanger, "Acrobatics").skill_level)
 	_watch_goblinoid_raid_quest()
-	var leader: Unit = _build_leader()
-	PartyManager.add_member(leader)
-	PartyManager.add_member($HumanBarbarian)
-	PartyManager.add_member($DwarfFighter)
-	PartyManager.add_member($ElfRanger)
-	PartyManager.set_leader(leader)
+
+	# Bootstrap-only: on a genuinely fresh load (nothing captured from a
+	# prior world), this scene builds the starting roster from its own
+	# hand-placed content, same as before WorldManager existed. On a
+	# RELOAD of this same scene, WorldManager is about to spawn_party() a
+	# captured roster the instant this _ready() returns (spawn_party()
+	# needs this scene already in the tree, so it can't run any earlier)
+	# — is_restoring_party() is what lets this scene tell the difference.
+	# The 4 hand-placed party nodes below are a ONE-TIME bootstrap, not
+	# permanent scene content: on a reload they'd otherwise sit in the
+	# tree as unregistered duplicates of whatever spawn_party() is about
+	# to create from the captured data, so they're freed instead.
+	if WorldManager.is_restoring_party():
+		$TieflingWizard.queue_free()
+		$HumanBarbarian.queue_free()
+		$DwarfFighter.queue_free()
+		$ElfRanger.queue_free()
+	else:
+		var leader: Unit = _build_leader()
+		PartyManager.add_member(leader)
+		PartyManager.add_member($HumanBarbarian)
+		PartyManager.add_member($DwarfFighter)
+		PartyManager.add_member($ElfRanger)
+		PartyManager.set_leader(leader)
 
 
 ## Returns the real leader Unit for this session — deliberately NOT the
 ## same thing as "reuse whatever's already hand-placed in the scene."
-## If a character was actually created (see PendingCharacter, written by
-## character_creation.gd on Confirm), this instantiates a genuinely
-## FRESH unit.tscn and frees the hand-placed TieflingWizard node outright
-## — she was only ever a bootstrap placeholder standing in for "the
+## If a character was actually created (see PartyManager.pending_leader,
+## written by character_creation.gd on Confirm), this spawns a genuinely
+## FRESH unit via PartyManager.spawn_member() (the same instantiate-and-
+## cascade path a full world reload uses — see PartyManager's own capture/
+## spawn header) and frees the hand-placed TieflingWizard node outright —
+## she was only ever a bootstrap placeholder standing in for "the
 ## leader," never a specific story character, so keeping her around
 ## unused once a real one exists would just be a second, silent unit
-## nobody asked for. This is the actual proof that a party member
-## doesn't have to be hardcoded in this scene at all: the same
-## instantiate-and-PartyManager.add_member() shape a future debug
-## add/remove menu needs is exactly what's used here, not a one-off
-## reuse of an existing node.
+## nobody asked for.
 ##
 ## Falls back to the hand-placed TieflingWizard, completely untouched,
 ## if chargen was never run (loading straight into this scene for a
 ## headless test, e.g.) — that fallback has to keep working exactly as
 ## it did before this existed.
-##
-## Only the 3 abilities named as "standard for every unit" get assigned
-## — a freshly-created blank character hasn't earned a spellbook, by
-## design (see the user's own stated intent: richer abilities are meant
-## to come from a future debug menu, not be assumed at creation).
 func _build_leader() -> Unit:
 	var placeholder: Unit = $TieflingWizard
 
-	if not PendingCharacter.is_ready:
+	if not PartyManager.pending_leader:
 		return placeholder
 
-	var leader: Unit = preload("res://unit.tscn").instantiate()
-	add_child(leader)
-	leader.global_transform = placeholder.global_transform
-	leader.faction = Unit.PLAYER_FACTION
-	leader.display_name = PendingCharacter.display_name
-	leader.portrait_texture = PendingCharacter.portrait_texture
-	leader.strength = PendingCharacter.strength
-	leader.dexterity = PendingCharacter.dexterity
-	leader.intelligence = PendingCharacter.intelligence
-	leader.health = PendingCharacter.health
-	leader.abilities = [
-		load("res://data/abilities/basic_attack_melee.tres"),
-		load("res://data/abilities/jump.tres"),
-		load("res://data/abilities/shove.tres"),
-	]
+	var leader: Unit = PartyManager.spawn_member(PartyManager.pending_leader, self, placeholder)
 	# Matches the other 3 party members' own shared color, authored
 	# directly on each of them in this scene — visual party consistency,
 	# not a Unit-script default.
 	leader.selected_color = Color(0.156863, 1, 1, 0.627451)
 
-	for skill_name in PendingCharacter.skill_levels:
-		var relative_level: int = PendingCharacter.skill_levels[skill_name]
-		if relative_level == 0:
-			continue  # no investment -- nothing to record, matches how an
-			# untrained skill just defaults off the controlling attribute
-		var skill: Skill = SkillDatabase.find(skill_name)
-		if not skill:
-			continue
-		var instance := SkillInstance.new()
-		instance.skill_data = skill
-		# SkillInstance's own baseline is levels_purchased=1 ("just the
-		# base attribute+difficulty roll"); Bucket C's own notation calls
-		# that same baseline "+0" — the +1 is reconciling those two
-		# conventions, not an arbitrary offset.
-		instance.levels_purchased = relative_level + 1
-		add_child(instance)  # needs a parent before add_skill's reparent() call below
-		leader.add_skill(instance)
-
 	placeholder.queue_free()
-	PendingCharacter.clear()
+	PartyManager.pending_leader = null
 	return leader
 
 
@@ -133,15 +112,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			var unit: Unit = CombatManager.current_unit
 			if unit and not CombatManager.delay_turn(unit):
 				print("Couldn't delay ", unit.get_display_name(), "'s turn.")
-	elif event.is_action_pressed("test_toggle_scene_push"):
-		_toggle_scene_push()
-
-
-func _toggle_scene_push() -> void:
-	if SceneManager.current_root() == self:
-		SceneManager.push_scene(_SCENE_MANAGER_TEST_ROOM)
-	else:
-		SceneManager.pop_scene()
 
 
 func _start_test_combat() -> void:
@@ -234,9 +204,24 @@ func _on_combat_ended(winning_faction: StringName) -> void:
 		print("--- Combat ended: ", winning_faction, " wins ---")
 
 
-## Satisfies SceneManager's duck-typed push/pop contract (see
-## systems/scene_system/scene_manager.gd) — called on suspend/resume to
-## unregister/re-register this arena's own tactical camera with
-## CameraDirector, since a merely-hidden node's _ready() never refires.
+## Satisfies WorldManager's duck-typed load/unload contract (see
+## systems/world_system/world_manager.gd) — called on load/unload to
+## register/unregister this arena's own tactical camera with
+## CameraDirector.
 func get_tactical_camera() -> Camera3D:
 	return $Camera3D
+
+
+## Duck-typed — see WorldManager.load_world()/GameMode.set_base_mode().
+func get_base_mode() -> GameMode.Mode:
+	return GameMode.Mode.EXPLORATION
+
+
+## Satisfies WorldManager's duck-typed spawn-point contract (see
+## world_manager.gd's own _resolve_spawn_point()). Only one named point
+## exists today — a single starting area, the same one the hand-placed
+## TieflingWizard/companions already occupy — so spawn_point_name is
+## unused for now; a second world (an overworld, the fusion room) with
+## multiple real entrances is what would make branching on it worthwhile.
+func get_spawn_point(_spawn_point_name: StringName) -> Node3D:
+	return $PartySpawnPoint

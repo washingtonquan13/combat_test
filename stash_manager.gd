@@ -28,9 +28,11 @@ func open_stash(stash: StashComponent, actor: Unit) -> void:
 	if not stash or DialogueManager.is_active() or is_active():
 		return
 	current_stash = stash
+	GameMode.push_mode(GameMode.Mode.LOOTING)
 	stash_opened.emit(stash, actor)
 
 
 func close_stash() -> void:
 	current_stash = null
+	GameMode.pop_mode()
 	stash_closed.emit()

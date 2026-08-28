@@ -1,11 +1,12 @@
-extends Control
+extends UIScreen
 ## Loot-transfer UI: two Inventory-hosting slots side by side, one for
 ## the currently open StashComponent, one for the party's shared
 ## Inventory (borrowed from PartyOverview). Neither Inventory node is
 ## copied or rebuilt — both get REPARENTED in on open and back out on
 ## close, the same idiom Item/EquipSlot already use to move an item
 ## between containers (see stash_component.gd, party_overview.gd's
-## get_inventory()).
+## get_inventory()). This reparenting is a separate concern from
+## show/hide (owned by UIScreen/UIStack below) and stays exactly as-is.
 ##
 ## Purely reactive to StashManager's signals, same split DialogueOverlay
 ## already uses with DialogueManager — this file owns "what the screen
@@ -16,6 +17,17 @@ extends Control
 ## chest's StaticBody3D, say), but Control rendering only needs a
 ## Viewport, not a CanvasItem ancestor, so it would otherwise render in
 ## screen space at all times. See stash_component.gd's header.
+##
+## hides_hud/closes_on_cancel stay at UIScreen's own defaults (false and
+## true — looting doesn't hide the gameplay HUD today, matching prior
+## behavior, and Escape/CloseButton both back out of it).
+## blocks_input_below=true is authored on this scene's instance in
+## MainRoot.tscn — the party's shared Inventory is a single physical
+## node borrowed via reparenting (see above), so it genuinely can't be
+## shown by two screens at once; this is what makes party_overview.gd's
+## own C-key open correctly refuse to open while looting (see
+## UIStack.can_open()), replacing the old hand-rolled
+## StashManager.is_active() check there.
 
 @export var party_overview: PartyOverview
 
@@ -37,12 +49,13 @@ func _ready() -> void:
 
 func _on_stash_opened(stash: StashComponent, _actor: Unit) -> void:
 	_stash = stash
-	party_overview.visible = false
+	if UIStack.is_open(party_overview):
+		UIStack.pop(party_overview)
 	_stash_title.text = stash.display_name
 	stash.inventory.reparent(_stash_slot)
 	stash.inventory.visible = true
 	party_overview.get_inventory().reparent(_party_slot)
-	visible = true
+	open()
 
 
 func _on_stash_closed() -> void:
@@ -50,7 +63,7 @@ func _on_stash_closed() -> void:
 		_stash.inventory.visible = false
 		_stash.inventory.reparent(_stash)
 	party_overview.get_inventory().reparent(party_overview.get_inventory_slot())
-	visible = false
+	close()
 	_stash = null
 
 

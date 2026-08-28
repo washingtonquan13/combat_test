@@ -158,6 +158,7 @@ func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -
 	_used_interjections.clear()
 	_narrated_node_ids.clear()
 	participants = conversation_participants
+	GameMode.push_mode(GameMode.Mode.DIALOGUE)
 	dialogue_started.emit(root)
 	_show_node(_resolve_interjection(root))
 
@@ -202,6 +203,7 @@ func end_dialogue() -> void:
 	current_node = null
 	participants = {}
 	_visible_choices = []
+	GameMode.pop_mode()
 	dialogue_ended.emit()
 
 

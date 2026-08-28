@@ -164,6 +164,7 @@ func start_combat(combatants: Array[Unit]) -> void:
 	_turn_index = -1
 	round_number = 0
 	phase = Phase.TURN_STARTING
+	GameMode.push_mode(GameMode.Mode.COMBAT)
 	SystemLog.print("[b]--- Combat started ---[/b]")
 	combat_started.emit(turn_order)
 	_advance_turn.call_deferred()
@@ -272,6 +273,7 @@ func end_combat(winning_faction: StringName = &"") -> void:
 			unit.ability_used.disconnect(_on_ability_used)
 	turn_order.clear()
 	_turn_index = -1
+	GameMode.pop_mode()
 	combat_ended.emit(winning_faction)
 
 
