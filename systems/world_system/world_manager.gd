@@ -44,6 +44,12 @@ signal world_loaded(world: Node)
 
 var _scene_root: Node = null
 var _current_world: Node = null
+## The AreaDefinition behind the currently loaded world, if it was loaded
+## via load_area() — null for a world loaded through the raw load_world()
+## primitive (nothing calls that directly anymore, but it stays a valid
+## way to boot a world with no area data at all, e.g. a standalone test
+## scene). Read by MusicManager to resolve per-area tracks.
+var _current_area: AreaDefinition = null
 
 ## Set for the duration of a single load_world() call, the instant the
 ## incoming world is known to be about to have PartyManager.roster spawned
@@ -55,14 +61,38 @@ var _current_world: Node = null
 ## spawn is about to follow.
 var _is_restoring_party: bool = false
 
-## Which named spawn point an area-world should return the party to on
-## its next load — set by a door before it calls load_world() to enter an
-## area, read back by the debug exit (see esc_menu.gd) so leaving lands
-## you where you came in rather than always at "default". Plain shared
-## state rather than a parameter threaded through load_world() itself,
-## since the door and the exit are two unrelated callers on opposite ends
-## of a trip through a completely different world.
-var pending_return_spawn: StringName = &"default"
+## The (area, spawn point) pair to land on when leaving the CURRENT area
+## with nowhere fixed to go — see AreaExit's own header for the "empty
+## target_area means return to where you came from" rule this backs.
+## return_spawn_point is set by the door/exit an area was entered through
+## right before it calls load_area() (AreaExit.travel() does this for
+## both walk-in doors and context-menu Travel props); return_area_id is
+## captured automatically by load_area() itself, from whichever area was
+## current right before the swap. Plain shared state rather than a
+## parameter threaded through load_area() itself, since the entering
+## trigger and the eventual exit are two unrelated callers on opposite
+## ends of a trip through a completely different world.
+##
+## A single pair, not a stack — this handles one level of nesting
+## (hub-and-spoke, which is this game's own overworld/area topology).
+## Genuine multi-level nesting would need this to become a stack; that's
+## a change to these two fields, not to the model around them.
+var return_area_id: StringName = &""
+var return_spawn_point: StringName = &"default"
+
+## Which named spawn point THIS load_world() call was actually asked to
+## place its occupant at — set at the top of every call, read by a world
+## that needs it at _ready() time but doesn't spawn a tactical party (see
+## overworld.gd's own _spawn_avatar()), so _resolve_spawn_point()'s own
+## PartyManager.spawn_party() path never reaches it. Deliberately a
+## SEPARATE field from return_spawn_point, not the same one re-read:
+## AreaExit.travel() (whatever triggered this load) mutates
+## return_spawn_point for BOOKKEEPING purposes — recording where a FUTURE
+## trip back to the area being LEFT should land — before this load even
+## starts running. A world reading return_spawn_point directly at _ready()
+## would read that bookkeeping write instead of the value that was
+## actually true when THIS load was requested.
+var _pending_spawn_point_name: StringName = &"default"
 
 
 ## Called once by MainRoot's own script. SceneRoot boots empty (see
@@ -99,6 +129,7 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
 
+	_pending_spawn_point_name = spawn_point_name
 	world_loading.emit(scene)
 
 	if _current_world:
@@ -162,6 +193,41 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 
 	world_loaded.emit(world)
 	return world
+
+
+## The data-driven counterpart to load_world() — resolves area_id through
+## AreaDatabase and loads its world_scene, so callers never hold a direct
+## PackedScene/AreaDefinition reference to a destination (see
+## AreaDefinition.world_scene's own doc comment for why that indirection
+## matters). This is now the ONLY way anything in the game transitions
+## between areas; load_world() stays public purely as the low-level
+## primitive this delegates to.
+##
+## return_area_id only updates once the load actually happens — an
+## unknown id or a refused load (can_load() false) leaves it untouched,
+## since nothing actually changed.
+func load_area(area_id: StringName, spawn_point_name: StringName = &"default") -> Node:
+	var area: AreaDefinition = AreaDatabase.find(area_id)
+	if not area:
+		push_warning("WorldManager.load_area: unknown area id '%s'" % area_id)
+		return null
+
+	var outgoing_id: StringName = _current_area.id if _current_area else &""
+	var world: Node = load_world(area.world_scene, spawn_point_name)
+	if not world:
+		return null
+
+	return_area_id = outgoing_id
+	_current_area = area
+	return world
+
+
+func current_area() -> AreaDefinition:
+	return _current_area
+
+
+func pending_spawn_point_name() -> StringName:
+	return _pending_spawn_point_name
 
 
 func current_world() -> Node:

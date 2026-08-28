@@ -1,4 +1,4 @@
-[gd_scene load_steps=53 format=3 uid="uid://c2eymxqvi7vu1"]
+[gd_scene load_steps=55 format=3 uid="uid://c2eymxqvi7vu1"]
 
 [ext_resource type="Script" uid="uid://22gse85gkv76" path="res://test_arena.gd" id="1_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
@@ -46,6 +46,8 @@
 [ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
 [ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
+[ext_resource type="Resource" path="res://data/interactions/travel.tres" id="75_travel"]
+[ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="76_exit"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -248,6 +250,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)
 
 [node name="Chest" parent="." instance=ExtResource("60_chest")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, -8)
+
+[node name="OverworldExit" parent="." instance=ExtResource("54_prop")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, -8)
+interactions = Array[ExtResource("58_uatky")]([ExtResource("75_travel")])
+
+[node name="AreaExit" type="Node" parent="OverworldExit"]
+script = ExtResource("76_exit")
+target_area = &"overworld"
 
 [node name="PartySpawnPoint" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -8)

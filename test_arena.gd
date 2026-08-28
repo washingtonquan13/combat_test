@@ -33,13 +33,6 @@ var _goblinoids_remaining: Array[Unit] = []
 ## party member to have ever been placed in this scene at all — see
 ## _build_leader() below, which already proves that shape for real.
 func _ready() -> void:
-	# The actual "entering the game world" moment — see MusicManager.
-	# start_exploration_theme()'s own doc comment for why this call lives
-	# here now instead of firing unconditionally from MusicManager's own
-	# _ready() (main_menu/character_creation load first and aren't the
-	# game world at all).
-	MusicManager.start_exploration_theme()
-
 	_watch_goblinoid_raid_quest()
 
 	# Bootstrap-only: on a genuinely fresh load (nothing captured from a
@@ -212,10 +205,11 @@ func get_base_mode() -> GameMode.Mode:
 
 
 ## Satisfies WorldManager's duck-typed spawn-point contract (see
-## world_manager.gd's own _resolve_spawn_point()). Only one named point
-## exists today — a single starting area, the same one the hand-placed
-## TieflingWizard/companions already occupy — so spawn_point_name is
-## unused for now; a second world (an overworld, the fusion room) with
-## multiple real entrances is what would make branching on it worthwhile.
-func get_spawn_point(_spawn_point_name: StringName) -> Node3D:
-	return $PartySpawnPoint
+## world_manager.gd's own _resolve_spawn_point()). Resolves by name
+## against this scene's own children — PartySpawnPoint stays the
+## fallback for an unknown/empty name, same "missing spawn point
+## degrades gracefully" contract every world answering this method
+## follows (see overworld.gd's own get_spawn_point()).
+func get_spawn_point(spawn_point_name: StringName) -> Node3D:
+	var point := find_child(String(spawn_point_name), true, false) as Node3D
+	return point if point else $PartySpawnPoint

@@ -32,7 +32,6 @@ extends UIScreen
 
 const ATTRIBUTE_TABLE: PointBuyTable = preload("res://data/character_creation/attribute_costs.tres")
 const SKILL_TABLE: PointBuyTable = preload("res://data/character_creation/skill_costs.tres")
-const TEST_ARENA_SCENE: PackedScene = preload("res://test_arena.tscn")
 
 const ATTRIBUTE_NAMES: Array[String] = ["strength", "dexterity", "intelligence", "health"]
 const ATTRIBUTE_LABELS: Dictionary = {
@@ -302,11 +301,11 @@ func _on_confirm_pressed() -> void:
 	PartyManager.pending_leader = record
 
 	# The one place the front end actually loads a world — this is the
-	# moment the game proper begins. load_world() sets the base mode
+	# moment the game proper begins. load_area() sets the base mode
 	# itself off test_arena.gd's own get_base_mode(), so nothing here
 	# needs to touch GameMode.
 	close()
-	WorldManager.load_world(TEST_ARENA_SCENE)
+	WorldManager.load_area(&"test_arena")
 
 
 func _on_back_pressed() -> void:

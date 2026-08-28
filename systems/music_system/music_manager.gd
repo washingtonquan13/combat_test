@@ -103,11 +103,13 @@ enum Phase { STOPPED, INTRO, LOOP, OUTRO }
 ## Real gameplay triggers, not just the debug panel — CombatManager/
 ## NegotiationManager stay completely unaware this file exists (same
 ## decoupled, signal-driven shape as SystemLog/negotiation_panel.gd
-## already use elsewhere), MusicManager just reacts. Track ids are
-## content, not code — hardcoded here rather than exported/configurable,
-## matching this project's general "if there's only ever one real
-## answer, don't build a setting for it" stance; revisit if a second
-## combat track or per-encounter music is ever wanted.
+## already use elsewhere), MusicManager just reacts. Each moment now
+## resolves through WorldManager.current_area()'s own exploration_track/
+## combat_track/negotiation_track first (see AreaDefinition) — every
+## area/level authors its own theme instead of this file hardcoding one
+## global answer. These three ids are the FALLBACK only: no area loaded
+## at all (main menu, chargen) or an area that leaves a field unset both
+## fall through to the same track as before.
 const COMBAT_TRACK_ID: String = "neon_pulse"
 const NEGOTIATION_TRACK_ID: String = "negotiation"
 ## algon_headquarters is a stand-in, not a purpose-composed exploration
@@ -122,42 +124,46 @@ func _ready() -> void:
 	CombatManager.combat_ended.connect(_on_combat_ended)
 	NegotiationManager.negotiation_started.connect(_on_negotiation_started)
 	NegotiationManager.negotiation_ended.connect(_on_negotiation_ended)
+	# Requires MusicManager to be registered AFTER WorldManager in
+	# Project Settings > Autoload — autoloads' _ready() runs in
+	# registration order, and referencing an autoload that doesn't exist
+	# yet here would be a hard error.
+	WorldManager.world_loaded.connect(_on_world_loaded)
 
 
-## Called by MainRoot's own _ready() once the game proper has actually
-## started — NOT fired automatically from this file's own _ready()
-## anymore. Autoloads initialize before the first scene's _ready() runs,
-## so an unconditional auto-play here used to start exploration music
-## even when a main menu (a separate, earlier run/main_scene) was what
-## actually booted first, forcing that menu's own play_track() call to
-## immediately fade it back out again — a real, audible "wrong track
-## flashes for ~2s" blip on every boot. Moving this to an explicit call
-## from whichever scene is genuinely entering the game world (MainRoot)
-## fixes that, and generalizes better besides: a future second entry
-## point (e.g. "Continue" vs "New Game") can each decide their own
-## opening music instead of this file forcing one default on everyone.
+## Fires on every real world load — see WorldManager.load_world()'s own
+## header on why current_scene/world loads never happen for the main
+## menu or character creation (both are UI screens, not worlds), which
+## used to be the exact failure mode the old MainRoot-triggered call this
+## replaces was written to dodge. Individual levels no longer call this
+## themselves (see test_arena.gd's own history) — one hook here covers
+## every area a door/exit can ever lead to.
+func _on_world_loaded(_world: Node) -> void:
+	start_exploration_theme()
+
+
 func start_exploration_theme() -> void:
-	_play_track_id(EXPLORATION_TRACK_ID)
+	_play_area_or_fallback(func(area): return area.exploration_track, EXPLORATION_TRACK_ID)
 
 
 func _on_combat_started(_turn_order: Array[Unit]) -> void:
-	_play_track_id(COMBAT_TRACK_ID)
+	_play_area_or_fallback(func(area): return area.combat_track, COMBAT_TRACK_ID)
 
 
 ## Resumes the exploration theme rather than stopping outright — see
 ## EXPLORATION_TRACK_ID's own doc comment on why that's algon_headquarters
-## specifically. A negotiation_ended that also ends combat (see that
-## handler's own comment) deliberately does NOT also start this track
-## itself; combat_ended firing is what's actually responsible for the
-## return to exploration music, whichever order the two signals arrive
-## in, so there's only ever one caller starting it back up, never two
-## racing each other.
+## specifically by default. A negotiation_ended that also ends combat
+## (see that handler's own comment) deliberately does NOT also start this
+## track itself; combat_ended firing is what's actually responsible for
+## the return to exploration music, whichever order the two signals
+## arrive in, so there's only ever one caller starting it back up, never
+## two racing each other.
 func _on_combat_ended(_winning_faction: StringName) -> void:
-	_play_track_id(EXPLORATION_TRACK_ID)
+	_play_area_or_fallback(func(area): return area.exploration_track, EXPLORATION_TRACK_ID)
 
 
 func _on_negotiation_started(_demon: Unit) -> void:
-	_play_track_id(NEGOTIATION_TRACK_ID)
+	_play_area_or_fallback(func(area): return area.negotiation_track, NEGOTIATION_TRACK_ID)
 
 
 ## Guarded on CombatManager.in_combat specifically because negotiation
@@ -174,11 +180,21 @@ func _on_negotiation_started(_demon: Unit) -> void:
 func _on_negotiation_ended(_outcome: int) -> void:
 	if not CombatManager.in_combat:
 		return
-	_play_track_id(COMBAT_TRACK_ID)
+	_play_area_or_fallback(func(area): return area.combat_track, COMBAT_TRACK_ID)
 
 
-func _play_track_id(id: String) -> void:
-	var track: MusicTrack = MusicTrackDatabase.find(id)
+## field_getter reads the wanted MusicTrack field off the current area —
+## null if there's no area loaded (main menu, chargen) or that field was
+## simply left unauthored, either of which falls through to fallback_id
+## via MusicTrackDatabase, same lookup every hardcoded id used before
+## areas existed. Already-playing guard lives in play_track() itself
+## (see that function) so a door leading between two areas that happen
+## to share a track never audibly restarts it.
+func _play_area_or_fallback(field_getter: Callable, fallback_id: String) -> void:
+	var area: AreaDefinition = WorldManager.current_area()
+	var track: MusicTrack = field_getter.call(area) if area else null
+	if not track:
+		track = MusicTrackDatabase.find(fallback_id)
 	if track:
 		play_track(track)
 
@@ -219,6 +235,10 @@ var _generation: int = 0
 ## fade-then-switch.
 func play_track(track: MusicTrack) -> void:
 	if not track:
+		return
+	# Same track already going (or already prerolled) — no-op, so a door
+	# between two areas that share a theme doesn't audibly restart it.
+	if track == _current_track and _phase != Phase.STOPPED:
 		return
 
 	var token: int = _bump_generation()

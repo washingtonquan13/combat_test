@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="AreaDefinition" load_steps=6 format=3 uid="uid://ca8ij2qlcnp74"]
+
+[ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://c2eymxqvi7vu1" path="res://test_arena.tscn" id="2_scene"]
+[ext_resource type="Resource" uid="uid://bqcuejs6xr2ve" path="res://data/music/algon_headquarters.tres" id="3_exploration"]
+[ext_resource type="Resource" uid="uid://cbi4j3n5qq2lu" path="res://data/music/neon_pulse.tres" id="4_combat"]
+[ext_resource type="Resource" uid="uid://bcj2ssed82by0" path="res://data/music/negotiation.tres" id="5_negotiation"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"test_arena"
+display_name = "Test Arena"
+world_scene = ExtResource("2_scene")
+exploration_track = ExtResource("3_exploration")
+combat_track = ExtResource("4_combat")
+negotiation_track = ExtResource("5_negotiation")

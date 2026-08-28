@@ -11,8 +11,6 @@ extends UIScreen
 ## game references it. Left alone as out of scope for whatever touched
 ## this file next — flagging here so it isn't mistaken for live content.
 
-const OVERWORLD_SCENE: PackedScene = preload("res://overworld.tscn")
-
 @onready var _debug_exit_button: Button = %DebugExitToOverworldButton
 
 
@@ -40,11 +38,16 @@ func _on_exit_button_pressed() -> void:
 	close()
 
 
-## Debug-only escape hatch until a real "leave the area" trigger exists
-## in test_arena itself — see the overworld plan's own scoping note.
-## WorldManager.pending_return_spawn was set by whichever door the
-## player used to enter (see overworld.gd), so this returns them to the
-## same one rather than always the overworld's default start point.
+## Debug-only escape hatch, kept alongside the real one (see
+## OverworldExit/travel_interaction.gd in test_arena.tscn) — returns to
+## whichever area/spawn point WorldManager.return_area_id/
+## return_spawn_point currently hold, same as a real Travel exit with an
+## empty target_area would. Falls back to "overworld" specifically (not
+## just whatever AreaDatabase happens to find) when return_area_id is
+## still empty — reachable straight from character creation, which never
+## visits the overworld at all — so this debug button always works, the
+## same guarantee its old hardcoded OVERWORLD_SCENE preload gave for free.
 func _on_debug_exit_pressed() -> void:
 	close()
-	WorldManager.load_world(OVERWORLD_SCENE, WorldManager.pending_return_spawn)
+	var area_id: StringName = WorldManager.return_area_id if WorldManager.return_area_id != &"" else &"overworld"
+	WorldManager.load_area(area_id, WorldManager.return_spawn_point)

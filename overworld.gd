@@ -1,56 +1,28 @@
 extends Node3D
-## Greybox SMT-style overworld — a maze generated at _ready() from a text
-## layout rather than hand-placed nodes, using proto_block.tscn (already
-## a StaticBody3D with a BoxMesh/BoxShape3D, see that file's own header)
-## for both walls and the floor slab. Purely a pipeline proof: one door
-## leading to test_arena.tscn today, plus the single controllable avatar
-## and its follow camera.
+## Generic overworld shell — spawns the controllable avatar at whichever
+## named SpawnPoints child matches the requested spawn point (falling
+## back to Start), aims the follow camera at it, and answers WorldManager's
+## duck-typed world contract. Every overworld instance shares this exact
+## script; what makes one overworld different from another is entirely in
+## its own authored scene (its Geometry, and which doors sit in its own
+## SpawnPoints) — see overworld_door.gd for how a door itself decides
+## where "in" leads. This is what makes more than one overworld possible
+## at all: nothing here is specific to any one maze.
 ##
-## '#' wall, '.' floor, 'S' the avatar's very-first spawn point, 'A' the
-## door tile — both a floor tile AND a trigger that enters test_arena,
-## remembering that the door was used (WorldManager.pending_return_spawn)
-## so the debug exit in esc_menu.gd returns the avatar to it rather than
-## the default start point. Marked with a real visual (see
-## _add_door_visual()) since an Area3D trigger alone is invisible — the
-## whole point of a marked entrance is that the player can SEE it from
-## the overhead camera before walking into it.
+## Was a runtime maze generator (a LAYOUT text grid, walls/floor/door all
+## built in _ready()) until the data-driven-areas pass baked that output
+## into this scene's own authored nodes instead — see git history on this
+## file for the generator this replaced.
 
 const AVATAR_SCENE: PackedScene = preload("res://overworld_avatar.tscn")
-const WALL_SCENE: PackedScene = preload("res://proto_block.tscn")
-const TEST_ARENA_SCENE: PackedScene = preload("res://test_arena.tscn")
-
-const CELL_SIZE: float = 2.0
-const WALL_HEIGHT: float = 2.0
-
-## Flat emissive color, not a real asset — this project has no art
-## budget for a proper doorway/portal model (same "no budget for a real
-## asset" precedent negotiation_panel.gd's own MOOD_COLOR constants
-## already established), and a bright, unambiguous color reads clearly
-## enough as "this is special" from the camera's steep overhead angle.
-const DOOR_COLOR: Color = Color(1.0, 0.75, 0.2, 1.0)
-
-const LAYOUT: PackedStringArray = [
-	"###########",
-	"#S.#.....A#",
-	"#.#.#.###.#",
-	"#.#.#.....#",
-	"#.#.#####.#",
-	"#.........#",
-	"#.#######.#",
-	"#.........#",
-	"###########",
-]
 
 @onready var _camera: OverworldCamera = $OverworldCamera
-@onready var _geometry: Node3D = $Geometry
+@onready var _spawn_points: Node3D = $SpawnPoints
 
 var _avatar: OverworldAvatar
-var _door_areas: Dictionary = {}  # StringName -> Area3D
-var _start_point: Marker3D
 
 
 func _ready() -> void:
-	_build_maze()
 	_spawn_avatar()
 	_camera.target = _avatar
 	_camera.snap_to_target()
@@ -72,151 +44,24 @@ func get_tactical_camera() -> Camera3D:
 	return _camera
 
 
+## Falls back to the Start marker on an unknown/empty name — same
+## "missing spawn point degrades gracefully" contract every world
+## answering this duck-typed method follows.
 func get_spawn_point(spawn_point_name: StringName) -> Node3D:
-	return _door_areas.get(spawn_point_name, _start_point)
-
-
-func _build_maze() -> void:
-	for row in LAYOUT.size():
-		var line: String = LAYOUT[row]
-		for col in line.length():
-			var world_pos := Vector3(col * CELL_SIZE, 0.0, row * CELL_SIZE)
-			match line[col]:
-				"#":
-					_place_wall(world_pos)
-				"S":
-					_start_point = _place_marker(world_pos)
-				"A":
-					_place_door(world_pos, line[col])
-
-	_place_floor()
-
-
-func _place_wall(pos: Vector3) -> void:
-	var block: ProtoBlock = WALL_SCENE.instantiate()
-	_geometry.add_child(block)
-	block.size = Vector3(CELL_SIZE, WALL_HEIGHT, CELL_SIZE)
-	block.position = pos + Vector3(0.0, WALL_HEIGHT / 2.0, 0.0)
-
-
-func _place_floor() -> void:
-	var width: float = LAYOUT[0].length() * CELL_SIZE
-	var depth: float = LAYOUT.size() * CELL_SIZE
-	var block: ProtoBlock = WALL_SCENE.instantiate()
-	_geometry.add_child(block)
-	block.size = Vector3(width, 1.0, depth)
-	block.position = Vector3(width / 2.0 - CELL_SIZE / 2.0, -0.5, depth / 2.0 - CELL_SIZE / 2.0)
-
-
-func _place_marker(pos: Vector3) -> Marker3D:
-	var marker := Marker3D.new()
-	_geometry.add_child(marker)
-	marker.position = pos
-	return marker
-
-
-## Each door is an Area3D covering its own cell, plus a real visual (see
-## _add_door_visual()) so it's actually visible on approach, not just a
-## trigger volume you'd have to already know about. "primed" (see its
-## own metadata) guards against the avatar re-triggering the very door it
-## just spawned on top of, returning from test_arena — without this, the
-## instant its collider starts overlapping an already-occupied door on
-## spawn, body_entered would fire again and bounce straight back. The
-## door NOT matching the avatar's spawn point starts primed=true (a real
-## approach should trigger normally); _spawn_avatar() below flips a
-## matching door to primed=false after placing the avatar, and
-## body_exited flips it back the moment the avatar actually walks off it.
-func _place_door(pos: Vector3, door_name: String) -> void:
-	var door := Area3D.new()
-	door.name = "Door" + door_name
-	door.set_meta("primed", true)
-	_geometry.add_child(door)
-	door.position = pos
-
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(CELL_SIZE, WALL_HEIGHT, CELL_SIZE)
-	shape.shape = box
-	door.add_child(shape)
-
-	_add_door_visual(door)
-
-	door.body_entered.connect(_on_door_entered.bind(door, StringName(door_name)))
-	door.body_exited.connect(_on_door_exited.bind(door))
-
-	_door_areas[StringName(door_name)] = door
-
-
-## A bright floor plate (the most visible shape from directly overhead,
-## where this camera spends most of its time) plus four corner pillars
-## (so the door still reads at a lower zoom or a rotated angle, where a
-## flat plate alone would foreshorten toward invisible). Purely
-## decorative children of the Area3D — the trigger's own CollisionShape3D
-## above is what actually detects the avatar.
-func _add_door_visual(door: Area3D) -> void:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = DOOR_COLOR
-	material.emission_enabled = true
-	material.emission = DOOR_COLOR
-	material.emission_energy_multiplier = 1.5
-
-	var plate := MeshInstance3D.new()
-	var plate_mesh := BoxMesh.new()
-	plate_mesh.size = Vector3(CELL_SIZE * 0.9, 0.1, CELL_SIZE * 0.9)
-	plate.mesh = plate_mesh
-	plate.material_override = material
-	plate.position = Vector3(0.0, 0.05, 0.0)
-	door.add_child(plate)
-
-	var pillar_offset: float = CELL_SIZE * 0.4
-	var corners: Array[Vector3] = [
-		Vector3(-pillar_offset, 0.0, -pillar_offset),
-		Vector3(pillar_offset, 0.0, -pillar_offset),
-		Vector3(-pillar_offset, 0.0, pillar_offset),
-		Vector3(pillar_offset, 0.0, pillar_offset),
-	]
-	for corner in corners:
-		var pillar := MeshInstance3D.new()
-		var pillar_mesh := BoxMesh.new()
-		pillar_mesh.size = Vector3(0.15, WALL_HEIGHT * 0.8, 0.15)
-		pillar.mesh = pillar_mesh
-		pillar.material_override = material
-		pillar.position = corner + Vector3(0.0, WALL_HEIGHT * 0.4, 0.0)
-		door.add_child(pillar)
+	var point := _spawn_points.find_child(String(spawn_point_name), true, false) as Node3D
+	return point if point else _spawn_points.find_child("Start", true, false) as Node3D
 
 
 func _spawn_avatar() -> void:
 	_avatar = AVATAR_SCENE.instantiate()
-	_geometry.add_child(_avatar)
+	add_child(_avatar)
+	_avatar.camera = _camera
 
-	var spawn_name: StringName = WorldManager.pending_return_spawn
-	var spawn_point: Node3D = get_spawn_point(spawn_name)
+	var spawn_point: Node3D = get_spawn_point(WorldManager.pending_spawn_point_name())
 	_avatar.global_position = spawn_point.global_position
 
-	if _door_areas.has(spawn_name):
-		_door_areas[spawn_name].set_meta("primed", false)
-
-
-func _on_door_exited(body: Node3D, door: Area3D) -> void:
-	if body is OverworldAvatar:
-		door.set_meta("primed", true)
-
-
-func _on_door_entered(body: Node3D, door: Area3D, door_name: StringName) -> void:
-	if not body is OverworldAvatar or not door.get_meta("primed"):
-		return
-	WorldManager.pending_return_spawn = door_name
-	# Deferred, not called directly: body_entered fires from WITHIN the
-	# physics server's own callback, and load_world() synchronously frees
-	# this exact world — including this door's own CollisionObject3D via
-	# WorldManager's remove_child() (see that file's own note on why that
-	# has to be synchronous, not deferred, for a different reason: the
-	# name-collision bug it was written to fix). Godot explicitly
-	# disallows removing a CollisionObject3D mid-physics-callback; calling
-	# through call_deferred() runs the actual load at the next idle frame,
-	# safely outside physics processing.
-	call_deferred("_enter_test_arena")
-
-
-func _enter_test_arena() -> void:
-	WorldManager.load_world(TEST_ARENA_SCENE)
+	# Landing directly on top of a door needs it unprimed, or its own
+	# collider overlapping the avatar the instant it spawns would fire
+	# body_entered again and bounce straight back — see overworld_door.gd.
+	if spawn_point is OverworldDoor:
+		spawn_point.set_primed(false)
