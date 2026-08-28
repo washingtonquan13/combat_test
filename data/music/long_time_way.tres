@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="MusicTrack" load_steps=5 format=3 uid="uid://dgicil3b28tsc"]
+
+[ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="1_my40c"]
+[ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="2_ikisb"]
+[ext_resource type="AudioStream" uid="uid://cvl1kg5w61ka1" path="res://assets/audio/long_time_way/long_time_way.wav" id="2_jcx3l"]
+
+[sub_resource type="Resource" id="Resource_42u3m"]
+script = ExtResource("1_my40c")
+name = &"long_time_way"
+stream = ExtResource("2_jcx3l")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[resource]
+script = ExtResource("2_ikisb")
+id = "long_time_way"
+intro = Array[ExtResource("1_my40c")]([])
+loop = Array[ExtResource("1_my40c")]([SubResource("Resource_42u3m")])
+outro = Array[ExtResource("1_my40c")]([])
+metadata/_custom_type_script = "uid://b6n0bkv8eyu2j"

@@ -1,9 +1,13 @@
-[gd_resource type="Resource" script_class="AreaDefinition" load_steps=2 format=3 uid="uid://bpjoy46co5vve"]
+[gd_resource type="Resource" script_class="AreaDefinition" load_steps=4 format=3 uid="uid://bpjoy46co5vve"]
 
+[ext_resource type="Resource" uid="uid://byp3tywn7mkxg" path="res://data/music/tokyo_smt4.tres" id="1_1u2cq"]
 [ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_gqiq4"]
+[ext_resource type="PackedScene" uid="uid://df5t2kabkbaop" path="res://test_area_2.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_gqiq4")
 id = &"test_area_2"
 display_name = "Test Area 2"
+world_scene = ExtResource("2_scene")
+exploration_track = ExtResource("1_1u2cq")
 metadata/_custom_type_script = "uid://dxjfu3gj225jt"

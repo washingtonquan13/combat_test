@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="MusicTrack" load_steps=5 format=3 uid="uid://byp3tywn7mkxg"]
+
+[ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="1_ehl6s"]
+[ext_resource type="AudioStream" uid="uid://cxs08r12fv07o" path="res://assets/audio/tokyo_smt4/tokyo_smt4.wav" id="2_diwpp"]
+[ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="2_jvbre"]
+
+[sub_resource type="Resource" id="Resource_rytt1"]
+script = ExtResource("1_ehl6s")
+name = &"tokyo_smt4"
+stream = ExtResource("2_diwpp")
+volume_db = 0.0
+metadata/_custom_type_script = "uid://cxkep0ii0tmec"
+
+[resource]
+script = ExtResource("2_jvbre")
+id = "tokyo_smt4"
+intro = Array[ExtResource("1_ehl6s")]([])
+loop = Array[ExtResource("1_ehl6s")]([SubResource("Resource_rytt1")])
+outro = Array[ExtResource("1_ehl6s")]([])
+metadata/_custom_type_script = "uid://b6n0bkv8eyu2j"

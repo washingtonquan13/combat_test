@@ -1,4 +1,4 @@
-[gd_scene load_steps=33 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=34 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
@@ -32,6 +32,7 @@
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="30_seekind"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="31_navdbg"]
 [ext_resource type="Script" uid="uid://dwxlhcmxv7u8v" path="res://interact_prompt.gd" id="32_interactprompt"]
+[ext_resource type="Script" uid="uid://cu2efa5w2hpro" path="res://debug_combat_harness.gd" id="33_debugharness"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -43,6 +44,9 @@ script = ExtResource("2_dlgcamrig")
 
 [node name="GroundClickTarget" type="Node3D" parent="."]
 script = ExtResource("23_groundclick")
+
+[node name="DebugCombatHarness" type="Node" parent="."]
+script = ExtResource("33_debugharness")
 
 [node name="Indicators" type="Node3D" parent="."]
 

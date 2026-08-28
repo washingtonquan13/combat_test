@@ -1,6 +1,6 @@
 [gd_scene load_steps=9 format=3 uid="uid://cshmjyky7xnal"]
 
-[ext_resource type="Script" uid="uid://3y4xrnpoqd5e" path="res://cathedral_of_shadows.gd" id="1_ac70m"]
+[ext_resource type="Script" uid="uid://cgkwhh1u5fo4r" path="res://systems/world_system/game_area.gd" id="1_ac70m"]
 [ext_resource type="PackedScene" path="res://proto_block.tscn" id="2_6wee1"]
 [ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="3_8xsl3"]
 [ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://interaction_option.gd" id="4_usiwd"]
