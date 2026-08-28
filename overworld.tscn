@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://cl3cxjmnn0lte" path="res://overworld.gd" id="1_overworld"]
 [ext_resource type="PackedScene" path="res://proto_block.tscn" id="2_5xcxp"]
 [ext_resource type="PackedScene" path="res://overworld_camera.tscn" id="2_camera"]
-[ext_resource type="PackedScene" path="res://overworld_door.tscn" id="4_p0ssl"]
+[ext_resource type="PackedScene" uid="uid://b826s0f7pql2r" path="res://overworld_door.tscn" id="4_p0ssl"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="6_u40xr"]
 
 [sub_resource type="Environment" id="Environment_5xcxp"]
@@ -204,6 +204,20 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 18, 0, 2)
 [node name="AreaExit" type="Node" parent="SpawnPoints/DoorA"]
 script = ExtResource("6_u40xr")
 target_area = &"test_arena"
+
+[node name="DoorA2" parent="SpawnPoints" instance=ExtResource("4_p0ssl")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.19772, 0, 2)
+
+[node name="AreaExit" type="Node" parent="SpawnPoints/DoorA2"]
+script = ExtResource("6_u40xr")
+target_area = &"test_area_2"
+
+[node name="DoorA3" parent="SpawnPoints" instance=ExtResource("4_p0ssl")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.19772, 0, 14)
+
+[node name="AreaExit" type="Node" parent="SpawnPoints/DoorA3"]
+script = ExtResource("6_u40xr")
+target_area = &"cathedral_of_shadows"
 
 [node name="OverworldCamera" parent="." instance=ExtResource("2_camera")]
 

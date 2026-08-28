@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="AreaDefinition" load_steps=2 format=3 uid="uid://c241t4wslhoek"]
+
+[ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_jj0ks"]
+
+[resource]
+script = ExtResource("1_jj0ks")
+id = &"cathedral_of_shadows"
+display_name = "Cathedral of Shadows"
+metadata/_custom_type_script = "uid://dxjfu3gj225jt"
