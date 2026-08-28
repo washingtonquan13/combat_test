@@ -195,7 +195,7 @@ func _on_status_removed(affected_unit: Unit, effect: StatusEffect) -> void:
 func _play_cue(cue: SfxCue, position: Vector3) -> void:
 	if not cue:
 		return
-	cue.play(get_tree().current_scene, position)
+	cue.play(WorldManager.spawn_parent(), position)
 
 
 func _start_hold_loop(stream: AudioStream) -> void:

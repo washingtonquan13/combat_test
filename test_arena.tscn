@@ -1,14 +1,8 @@
-[gd_scene load_steps=62 format=3 uid="uid://c2eymxqvi7vu1"]
+[gd_scene load_steps=53 format=3 uid="uid://c2eymxqvi7vu1"]
 
-[ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="1_1bvp3"]
 [ext_resource type="Script" uid="uid://22gse85gkv76" path="res://test_arena.gd" id="1_7mycd"]
-[ext_resource type="Script" uid="uid://cmxyf1fnxa72t" path="res://movement_indicator.gd" id="2_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
-[ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://line_of_sight_indicator.gd" id="3_074og"]
-[ext_resource type="Script" uid="uid://dest3cxkrnl56" path="res://crpg_camera.gd" id="3_h2yge"]
-[ext_resource type="Script" uid="uid://dxckq302pihqf" path="res://unit_aim_facing.gd" id="3_kq58d"]
-[ext_resource type="Script" uid="uid://8r0mkwuth7cw" path="res://jump_indicator.gd" id="4_ryguw"]
-[ext_resource type="Script" uid="uid://dqa8pee2hc1ky" path="res://area_indicator.gd" id="5_d13ii"]
+[ext_resource type="PackedScene" path="res://crpg_camera.tscn" id="3_h2yge"]
 [ext_resource type="Texture2D" uid="uid://nguaiexl5e8a" path="res://assets/portraits/barbarian.jpg" id="5_efxa6"]
 [ext_resource type="Texture2D" uid="uid://cxnwr1ibqbqe5" path="res://assets/portraits/dwarf_fighter_1.jpg" id="6_dg77c"]
 [ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="7_ycdy4"]
@@ -31,14 +25,11 @@
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="37_0cp0l"]
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="38_d2t1y"]
 [ext_resource type="Resource" uid="uid://dnpp2x27ui1ou" path="res://data/abilities/magic_missile.tres" id="42_qnost"]
-[ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="43_seek"]
-[ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="44_aer3d"]
 [ext_resource type="Resource" uid="uid://k88n0qe7hax7" path="res://data/abilities/summon_demon_template.tres" id="49_jx0wj"]
 [ext_resource type="Resource" uid="uid://7h8i2qfohe2g" path="res://data/abilities/dismiss_summon.tres" id="50_kkkcx"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
 [ext_resource type="Script" uid="uid://b3gvuamt478hc" path="res://systems/skill_system/skill_instance.gd" id="50_sm6fg"]
 [ext_resource type="Resource" uid="uid://bybjpwdtyimg6" path="res://data/skills/arcana.tres" id="51_b17eg"]
-[ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="51_navdbg"]
 [ext_resource type="Resource" uid="uid://c2jjtj71ljycn" path="res://data/skills/insight.tres" id="52_cyx1q"]
 [ext_resource type="Resource" uid="uid://cxye1dh2856fy" path="res://data/skills/acrobatics.tres" id="52_ntx8l"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="53_uatky"]
@@ -88,36 +79,6 @@ glow_enabled = true
 
 [node name="TestArena" type="Node3D"]
 script = ExtResource("1_7mycd")
-
-[node name="GroundClickTarget" type="Node3D" parent="."]
-script = ExtResource("1_1bvp3")
-
-[node name="Indicators" type="Node3D" parent="."]
-
-[node name="UnitAimFacing" type="Node3D" parent="Indicators"]
-script = ExtResource("3_kq58d")
-
-[node name="MovementIndicator" type="Node3D" parent="Indicators"]
-script = ExtResource("2_7mycd")
-
-[node name="LineOfSightIndicator" type="Node3D" parent="Indicators"]
-script = ExtResource("3_074og")
-height_offset = 2.0
-
-[node name="JumpIndicator" type="Node3D" parent="Indicators"]
-script = ExtResource("4_ryguw")
-
-[node name="AreaIndicator" type="Node3D" parent="Indicators"]
-script = ExtResource("5_d13ii")
-
-[node name="AerialAreaIndicator" type="Node3D" parent="Indicators"]
-script = ExtResource("44_aer3d")
-
-[node name="SeekingIndicator" type="Node3D" parent="Indicators"]
-script = ExtResource("43_seek")
-
-[node name="NavDebugOverlay" type="Node3D" parent="Indicators"]
-script = ExtResource("51_navdbg")
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 
@@ -291,9 +252,8 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, -8)
 [node name="PartySpawnPoint" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -8)
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="CRPGCamera" parent="." instance=ExtResource("3_h2yge")]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, -1, 8, -5)
-script = ExtResource("3_h2yge")
 max_pan_radius = 50.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]

@@ -144,7 +144,7 @@ func _spawn_debug_unit() -> void:
 		# it here instead of leaving debug spawns looking friendly.
 		spawned.hover_color = Color(1, 0, 0, 0.501961)
 		spawned.selected_color = Color(1, 0, 0, 0.627451)
-	get_tree().current_scene.add_child(spawned)
+	WorldManager.spawn_parent().add_child(spawned)
 	spawned.global_position = click_position
 
 	CombatManager.add_unit_to_combat(spawned)

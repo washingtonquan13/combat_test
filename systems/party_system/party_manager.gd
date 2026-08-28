@@ -257,9 +257,39 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 ## against the freshly-instantiated Units — the counterpart to capture().
 ## Must run after clear_members() (old roster already let go) and after
 ## world actually exists in the tree.
+##
+## Every record lands at spawn_point first (spawn_member's own existing
+## contract — test_arena.gd's chargen-leader bootstrap call relies on
+## that exact single-point behavior too, so it's left unchanged). Every
+## NON-leader record is then nudged onto FormationPlanner's own ring
+## offset around that same point and snapped to the nearest real standing
+## cell via NavigationGrid.nearest_valid_point() — without the offset,
+## every member spawns exactly coincident (a real shipped bug: the
+## physics solver's depenetration shoves some of them airborne, and
+## before unit_movement.gd's own gravity fix they'd stay there forever,
+## with no support cell for NavigationGrid to path across); without the
+## snap, raw trig can land a follower inside a wall or off a ledge just
+## as easily as on solid ground. The leader keeps the party's true
+## landing point exactly, unmoved — it's the one position every door/
+## spawn marker was actually authored at.
 func spawn_party(world: Node, spawn_point: Node3D) -> void:
+	var followers: Array[PartyMemberData] = []
+	for record in roster:
+		if not record.is_leader:
+			followers.append(record)
+
 	for record in roster:
 		var unit: Unit = spawn_member(record, world, spawn_point)
+
+		if not record.is_leader:
+			var index: int = followers.find(record)
+			var offset: Vector3 = FormationPlanner.ring_offset(index, followers.size(), unit.formation_spread_radius)
+			var target: Vector3 = spawn_point.global_position + offset
+			var clearance: float = unit.radius + unit.avoidance_margin
+			var resolved: Dictionary = NavigationGrid.nearest_valid_point(get_tree(), target, clearance, false, null)
+			if resolved.found:
+				unit.global_position = resolved.point
+
 		add_member(unit)
 		if record.is_leader:
 			set_leader(unit)

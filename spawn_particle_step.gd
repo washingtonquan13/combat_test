@@ -77,7 +77,7 @@ func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null, _c
 
 	var position: Vector3 = from if at == At.CASTER else to
 	var instance := scene.instantiate()
-	context.get_tree().current_scene.add_child(instance)
+	WorldManager.spawn_parent().add_child(instance)
 
 	if instance is Node3D:
 		instance.global_position = position

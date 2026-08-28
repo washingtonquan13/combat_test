@@ -110,7 +110,7 @@ func _on_add_to_party_pressed() -> void:
 	var anchor: Unit = PartyManager.leader
 	var spawn_point: Vector3 = anchor.global_position + Vector3(randf_range(-2.0, 2.0), 0.0, randf_range(-2.0, 2.0)) if anchor else Vector3.ZERO
 
-	get_tree().current_scene.add_child(spawned)
+	WorldManager.spawn_parent().add_child(spawned)
 	spawned.global_position = spawn_point
 
 	PartyManager.add_member(spawned)

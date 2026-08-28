@@ -179,4 +179,4 @@ func _get_target_position(target, attacker: Unit) -> Vector3:
 func _play(sequence: VfxEffect, from: Vector3, to: Vector3, ability: Ability = null, caster: Unit = null) -> void:
 	if not sequence:
 		return
-	sequence.play(get_tree().current_scene, from, to, ability, caster)
+	sequence.play(WorldManager.spawn_parent(), from, to, ability, caster)

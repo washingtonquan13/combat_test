@@ -49,7 +49,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 		return
 
 	var wrapper := Node3D.new()
-	context.get_tree().current_scene.add_child(wrapper)
+	WorldManager.spawn_parent().add_child(wrapper)
 
 	var instance := projectile_scene.instantiate()
 	wrapper.add_child(instance)

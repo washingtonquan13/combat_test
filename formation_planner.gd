@@ -42,6 +42,17 @@ static func command_group_move(units: Array[Unit], destination: Vector3) -> void
 
 	leader.move_to(destination)
 	for i in followers.size():
-		var angle: float = TAU * float(i) / float(followers.size())
-		var offset := Vector3(cos(angle), 0.0, sin(angle)) * leader.formation_spread_radius
+		var offset: Vector3 = ring_offset(i, followers.size(), leader.formation_spread_radius)
 		followers[i].move_to(destination + offset)
+
+
+## One point on an evenly-spaced ring of `count` points around the
+## origin, at index `index` — the same "everyone lining up side by side"
+## math command_group_move uses for its followers, factored out so
+## PartyManager.spawn_party() can spread a freshly-spawned party around
+## its own landing point instead of stacking every member on the exact
+## same coordinate (see that file's own header for why coincident spawns
+## are a real bug, not just a visual nicety).
+static func ring_offset(index: int, count: int, radius: float) -> Vector3:
+	var angle: float = TAU * float(index) / float(count)
+	return Vector3(cos(angle), 0.0, sin(angle)) * radius

@@ -40,6 +40,17 @@ extends RefCounted
 
 var _owner: Unit
 
+## Read once from ProjectSettings rather than re-fetched every physics
+## frame — same default (physics/3d/default_gravity, 9.8) every
+## CharacterBody3D in Godot uses out of the box. Only applied to a
+## grounded (non-flying) unit — see physics_process()'s own note on why
+## this exists: without it, ANY vertical displacement (two units spawning
+## on the exact same point, a knockback, a despawning platform) leaves a
+## unit permanently airborne with no support cell for NavigationGrid to
+## path across, since nothing before this ever wrote velocity.y for a
+## grounded mover at all.
+var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
+
 var _moving: bool = false
 var _move_start_position: Vector3 = Vector3.ZERO
 var _stuck_timer: float = 0.0
@@ -337,7 +348,30 @@ func force_stop() -> void:
 
 
 func physics_process(delta: float) -> void:
+	var flying: bool = _owner.is_flying()
+
+	# Gravity is intentionally the ONLY thing that ever writes velocity.y
+	# for a grounded unit now — see _gravity's own header. Runs before the
+	# _moving early-out below so an IDLE grounded unit still falls (a
+	# stacked spawn resolves before anyone ever issues it a move order),
+	# and runs unconditionally rather than only while moving, so gravity
+	# can't be reintroduced as a "only applies mid-walk" bug later. Flying
+	# is untouched — altitude there is owned entirely by
+	# flight_target_altitude, never by gravity.
+	if not flying:
+		if _owner.is_on_floor():
+			_owner.velocity.y = 0.0
+		else:
+			_owner.velocity.y -= _gravity * delta
+
 	if not _moving:
+		# Only a grounded unit needs move_and_slide() here — that's what
+		# actually turns the velocity.y just set above into a real fall/
+		# floor-snap. A flying, idle unit is unchanged from before this:
+		# it never touches move_and_slide() until it's actually ordered
+		# somewhere.
+		if not flying:
+			_owner.move_and_slide()
 		return
 
 	# Skip past any waypoints already within arrival_tolerance — matters
@@ -349,7 +383,6 @@ func physics_process(delta: float) -> void:
 	# consider itself "arrived" at a waypoint from XZ distance alone
 	# while still well off in altitude, and skip past the very step that
 	# was supposed to carry it the rest of the way up/down.
-	var flying: bool = _owner.is_flying()
 	while _path_index < _current_path.size():
 		var to_waypoint: Vector3 = _current_path[_path_index] - _owner.global_position
 		if not flying:
@@ -378,14 +411,14 @@ func physics_process(delta: float) -> void:
 		_stuck_timer = 0.0
 		_last_progress_position = _owner.global_position
 
-	# Y flattened for a GROUND unit — velocity was never meant to carry a
-	# vertical component before flight existed, gravity/floor collision
-	# via move_and_slide() handled that implicitly. A flying unit needs
-	# the real 3D direction, or it silently only ever moves horizontally
-	# no matter what altitude its planned path actually climbs/descends
-	# to (confirmed by testing: the planned path and its movement COST
-	# were correctly 3D, but nothing ever consumed the path's Y before
-	# this — this is that missing consumer).
+	# Y flattened for a GROUND unit — horizontal direction only; the
+	# vertical component of velocity is gravity's alone now (see the top
+	# of this function), never overwritten here. A flying unit needs the
+	# real 3D direction, or it silently only ever moves horizontally no
+	# matter what altitude its planned path actually climbs/descends to
+	# (confirmed by testing: the planned path and its movement COST were
+	# correctly 3D, but nothing ever consumed the path's Y before this —
+	# this is that missing consumer).
 	var to_target: Vector3 = _current_path[_path_index] - _owner.global_position
 	if not flying:
 		to_target.y = 0.0
@@ -393,7 +426,11 @@ func physics_process(delta: float) -> void:
 
 	_owner.face_direction(direction, delta)
 
-	_owner.velocity = direction * _owner.move_speed
+	if flying:
+		_owner.velocity = direction * _owner.move_speed
+	else:
+		_owner.velocity.x = direction.x * _owner.move_speed
+		_owner.velocity.z = direction.z * _owner.move_speed
 	_owner.move_and_slide()
 
 

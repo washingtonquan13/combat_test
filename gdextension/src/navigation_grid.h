@@ -86,6 +86,17 @@ public:
 	~NavigationGrid();
 
 	void ensure_baked(SceneTree *tree);
+	// Drops every cached reference to the currently-loaded world's geometry
+	// (all_shapes/shapes_by_chunk hold raw CollisionShape3D* into it) and
+	// resets the baked latch, so the NEXT ensure_baked() call performs a
+	// real re-scan instead of trusting stale state. Must be called by
+	// WorldManager.load_world() before the outgoing world is freed —
+	// without this, this singleton (it outlives every world, see this
+	// class's own header) keeps dereferencing pointers into freed memory
+	// the first time a query lazily touches a not-yet-rasterized chunk,
+	// which is a real crash this project shipped (native segfault, no
+	// preceding GDScript error — see WorldManager's own note on this).
+	void invalidate();
 	void update_occupancy(SceneTree *tree, Array movers);
 	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells);
 	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying);

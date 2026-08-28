@@ -203,7 +203,7 @@ func _on_combat_ended(winning_faction: StringName) -> void:
 ## register/unregister this arena's own tactical camera with
 ## CameraDirector.
 func get_tactical_camera() -> Camera3D:
-	return $Camera3D
+	return $CRPGCamera
 
 
 ## Duck-typed — see WorldManager.load_world()/GameMode.set_base_mode().

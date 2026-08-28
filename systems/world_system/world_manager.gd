@@ -128,6 +128,17 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 		_current_world.queue_free()
 		_current_world = null
 
+		# NavigationGrid is an Engine singleton (see its own header) — it
+		# outlives every world and caches raw CollisionShape3D* pointers
+		# into whichever world it last scanned. Without this, those
+		# pointers dangle into the geometry just freed above, and the next
+		# query that lazily rasterizes a not-yet-touched chunk dereferences
+		# freed memory — a real native crash this project shipped (no
+		# GDScript error precedes it; shows as a bare signal 11). This
+		# forces the next ensure_baked() call to do a real re-scan instead
+		# of trusting stale state.
+		NavigationGrid.invalidate()
+
 	var world: Node = scene.instantiate()
 	var world_wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
 	_is_restoring_party = world_wants_party and not PartyManager.roster.is_empty()
@@ -155,6 +166,20 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"default") -
 
 func current_world() -> Node:
 	return _current_world
+
+
+## Where a spawned Node belongs — the loaded world if one exists, the
+## (empty) scene root otherwise, so a menu-time effect can't hard-error.
+## Every one-off spawn (a debug unit, a projectile, a sound cue, a
+## particle burst, a surface patch, a VFX sequence) should parent through
+## this instead of get_tree().current_scene — current_scene is MainRoot
+## for the entire game (see this file's own header on why load_world()
+## deliberately never touches it), so that old idiom was silently
+## parenting every one of those outside the world they actually belong
+## to: they'd survive a world swap, be invisible to load_world()'s own
+## teardown (capture/clear/free), and never get freed or recaptured.
+func spawn_parent() -> Node:
+	return _current_world if _current_world else _scene_root
 
 
 ## Whether the world currently being loaded (mid-load_world() call) is

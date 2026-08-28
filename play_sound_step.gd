@@ -18,7 +18,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 
 	var position: Vector3 = from if at == At.CASTER else to
 	var player := AudioStreamPlayer3D.new()
-	context.get_tree().current_scene.add_child(player)
+	WorldManager.spawn_parent().add_child(player)
 	player.stream = stream
 	player.global_position = position
 	player.play()

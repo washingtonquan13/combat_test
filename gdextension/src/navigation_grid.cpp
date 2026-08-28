@@ -24,6 +24,7 @@ NavigationGrid::~NavigationGrid() {}
 
 void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("ensure_baked", "tree"), &NavigationGrid::ensure_baked);
+	ClassDB::bind_method(D_METHOD("invalidate"), &NavigationGrid::invalidate);
 	ClassDB::bind_method(D_METHOD("update_occupancy", "tree", "movers"), &NavigationGrid::update_occupancy);
 	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12));
 	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying"), &NavigationGrid::find_path);
@@ -52,7 +53,18 @@ void NavigationGrid::ensure_baked(SceneTree *tree) {
 	baked = true;
 }
 
+void NavigationGrid::invalidate() {
+	baked = false;
+}
+
 void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
+	// Cleared here, not just left to accumulate — this function reruns
+	// after invalidate(), and both containers are append-only below, so
+	// without this a re-scan would keep every dangling pointer from the
+	// world that was just freed alongside the new world's real ones.
+	all_shapes.clear();
+	shapes_by_chunk.clear();
+
 	Node *root = tree->get_current_scene();
 	if (root) {
 		collect_static_shapes(root, all_shapes);

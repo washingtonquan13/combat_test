@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=32 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
@@ -22,6 +22,15 @@
 [ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="20_dicepopup"]
 [ext_resource type="PackedScene" uid="uid://du3ql8xrqy76h" path="res://main_menu.tscn" id="21_mainmenu"]
 [ext_resource type="PackedScene" path="res://character_creation.tscn" id="22_charcreate"]
+[ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://ground_click_target.gd" id="23_groundclick"]
+[ext_resource type="Script" uid="uid://dxckq302pihqf" path="res://unit_aim_facing.gd" id="24_aimfacing"]
+[ext_resource type="Script" uid="uid://cmxyf1fnxa72t" path="res://movement_indicator.gd" id="25_moveind"]
+[ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://line_of_sight_indicator.gd" id="26_losind"]
+[ext_resource type="Script" uid="uid://8r0mkwuth7cw" path="res://jump_indicator.gd" id="27_jumpind"]
+[ext_resource type="Script" uid="uid://dqa8pee2hc1ky" path="res://area_indicator.gd" id="28_areaind"]
+[ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="29_aerialind"]
+[ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="30_seekind"]
+[ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="31_navdbg"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -30,6 +39,36 @@ script = ExtResource("1_mainroot")
 
 [node name="DialogueCameraRig" type="Node3D" parent="."]
 script = ExtResource("2_dlgcamrig")
+
+[node name="GroundClickTarget" type="Node3D" parent="."]
+script = ExtResource("23_groundclick")
+
+[node name="Indicators" type="Node3D" parent="."]
+
+[node name="UnitAimFacing" type="Node3D" parent="Indicators"]
+script = ExtResource("24_aimfacing")
+
+[node name="MovementIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("25_moveind")
+
+[node name="LineOfSightIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("26_losind")
+height_offset = 2.0
+
+[node name="JumpIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("27_jumpind")
+
+[node name="AreaIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("28_areaind")
+
+[node name="AerialAreaIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("29_aerialind")
+
+[node name="SeekingIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("30_seekind")
+
+[node name="NavDebugOverlay" type="Node3D" parent="Indicators"]
+script = ExtResource("31_navdbg")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 

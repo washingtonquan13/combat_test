@@ -44,7 +44,7 @@ func spawn(surface: Surface, position: Vector3, radius: float) -> ActiveSurface:
 	var instance := ActiveSurface.new(surface, position, radius, surface.duration_rounds)
 	active_surfaces.append(instance)
 
-	var context: Node = get_tree().current_scene
+	var context: Node = WorldManager.spawn_parent()
 
 	if surface.ambient_scene:
 		var visual := surface.ambient_scene.instantiate()
@@ -173,7 +173,7 @@ func _on_combat_ended(_winning_faction: StringName) -> void:
 func _expire(active: ActiveSurface) -> void:
 	active_surfaces.erase(active)
 
-	var context: Node = get_tree().current_scene
+	var context: Node = WorldManager.spawn_parent()
 	if active.surface.expire_vfx:
 		active.surface.expire_vfx.play(context, active.position, active.position)
 	if active.surface.expire_sfx:
