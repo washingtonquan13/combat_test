@@ -2,15 +2,18 @@ extends Node3D
 ## Greybox SMT-style overworld — a maze generated at _ready() from a text
 ## layout rather than hand-placed nodes, using proto_block.tscn (already
 ## a StaticBody3D with a BoxMesh/BoxShape3D, see that file's own header)
-## for both walls and the floor slab. Purely a pipeline proof: three
-## doors, all leading to test_arena.tscn today, plus the single
-## controllable avatar and its follow camera.
+## for both walls and the floor slab. Purely a pipeline proof: one door
+## leading to test_arena.tscn today, plus the single controllable avatar
+## and its follow camera.
 ##
-## '#' wall, '.' floor, 'S' the avatar's very-first spawn point, 'A'/'B'/
-## 'C' door tiles — each is both a floor tile AND a trigger that enters
-## test_arena, remembering which door was used (WorldManager.
-## pending_return_spawn) so the debug exit in esc_menu.gd returns the
-## avatar to the same one.
+## '#' wall, '.' floor, 'S' the avatar's very-first spawn point, 'A' the
+## door tile — both a floor tile AND a trigger that enters test_arena,
+## remembering that the door was used (WorldManager.pending_return_spawn)
+## so the debug exit in esc_menu.gd returns the avatar to it rather than
+## the default start point. Marked with a real visual (see
+## _add_door_visual()) since an Area3D trigger alone is invisible — the
+## whole point of a marked entrance is that the player can SEE it from
+## the overhead camera before walking into it.
 
 const AVATAR_SCENE: PackedScene = preload("res://overworld_avatar.tscn")
 const WALL_SCENE: PackedScene = preload("res://proto_block.tscn")
@@ -18,6 +21,13 @@ const TEST_ARENA_SCENE: PackedScene = preload("res://test_arena.tscn")
 
 const CELL_SIZE: float = 2.0
 const WALL_HEIGHT: float = 2.0
+
+## Flat emissive color, not a real asset — this project has no art
+## budget for a proper doorway/portal model (same "no budget for a real
+## asset" precedent negotiation_panel.gd's own MOOD_COLOR constants
+## already established), and a bright, unambiguous color reads clearly
+## enough as "this is special" from the camera's steep overhead angle.
+const DOOR_COLOR: Color = Color(1.0, 0.75, 0.2, 1.0)
 
 const LAYOUT: PackedStringArray = [
 	"###########",
@@ -27,7 +37,7 @@ const LAYOUT: PackedStringArray = [
 	"#.#.#####.#",
 	"#.........#",
 	"#.#######.#",
-	"#B.......C#",
+	"#.........#",
 	"###########",
 ]
 
@@ -76,7 +86,7 @@ func _build_maze() -> void:
 					_place_wall(world_pos)
 				"S":
 					_start_point = _place_marker(world_pos)
-				"A", "B", "C":
+				"A":
 					_place_door(world_pos, line[col])
 
 	_place_floor()
@@ -105,14 +115,16 @@ func _place_marker(pos: Vector3) -> Marker3D:
 	return marker
 
 
-## Each door is an Area3D covering its own cell. "primed" (see its own
-## metadata) guards against the avatar re-triggering the very door it
+## Each door is an Area3D covering its own cell, plus a real visual (see
+## _add_door_visual()) so it's actually visible on approach, not just a
+## trigger volume you'd have to already know about. "primed" (see its
+## own metadata) guards against the avatar re-triggering the very door it
 ## just spawned on top of, returning from test_arena — without this, the
 ## instant its collider starts overlapping an already-occupied door on
-## spawn, body_entered would fire again and bounce straight back. A
-## door NOT under the avatar's spawn point starts primed=true (its first
-## real approach should trigger normally); _spawn_avatar() below flips
-## the ONE matching door to primed=false after placing the avatar, and
+## spawn, body_entered would fire again and bounce straight back. The
+## door NOT matching the avatar's spawn point starts primed=true (a real
+## approach should trigger normally); _spawn_avatar() below flips a
+## matching door to primed=false after placing the avatar, and
 ## body_exited flips it back the moment the avatar actually walks off it.
 func _place_door(pos: Vector3, door_name: String) -> void:
 	var door := Area3D.new()
@@ -127,10 +139,50 @@ func _place_door(pos: Vector3, door_name: String) -> void:
 	shape.shape = box
 	door.add_child(shape)
 
+	_add_door_visual(door)
+
 	door.body_entered.connect(_on_door_entered.bind(door, StringName(door_name)))
 	door.body_exited.connect(_on_door_exited.bind(door))
 
 	_door_areas[StringName(door_name)] = door
+
+
+## A bright floor plate (the most visible shape from directly overhead,
+## where this camera spends most of its time) plus four corner pillars
+## (so the door still reads at a lower zoom or a rotated angle, where a
+## flat plate alone would foreshorten toward invisible). Purely
+## decorative children of the Area3D — the trigger's own CollisionShape3D
+## above is what actually detects the avatar.
+func _add_door_visual(door: Area3D) -> void:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = DOOR_COLOR
+	material.emission_enabled = true
+	material.emission = DOOR_COLOR
+	material.emission_energy_multiplier = 1.5
+
+	var plate := MeshInstance3D.new()
+	var plate_mesh := BoxMesh.new()
+	plate_mesh.size = Vector3(CELL_SIZE * 0.9, 0.1, CELL_SIZE * 0.9)
+	plate.mesh = plate_mesh
+	plate.material_override = material
+	plate.position = Vector3(0.0, 0.05, 0.0)
+	door.add_child(plate)
+
+	var pillar_offset: float = CELL_SIZE * 0.4
+	var corners: Array[Vector3] = [
+		Vector3(-pillar_offset, 0.0, -pillar_offset),
+		Vector3(pillar_offset, 0.0, -pillar_offset),
+		Vector3(-pillar_offset, 0.0, pillar_offset),
+		Vector3(pillar_offset, 0.0, pillar_offset),
+	]
+	for corner in corners:
+		var pillar := MeshInstance3D.new()
+		var pillar_mesh := BoxMesh.new()
+		pillar_mesh.size = Vector3(0.15, WALL_HEIGHT * 0.8, 0.15)
+		pillar.mesh = pillar_mesh
+		pillar.material_override = material
+		pillar.position = corner + Vector3(0.0, WALL_HEIGHT * 0.4, 0.0)
+		door.add_child(pillar)
 
 
 func _spawn_avatar() -> void:
