@@ -48,7 +48,10 @@ var _current_world: Node = null
 ## via load_area() — null for a world loaded through the raw load_world()
 ## primitive (nothing calls that directly anymore, but it stays a valid
 ## way to boot a world with no area data at all, e.g. a standalone test
-## scene). Read by MusicManager to resolve per-area tracks.
+## scene). Read by MusicManager to resolve per-area tracks. Assigned inside
+## load_world() itself, BEFORE world_loaded emits — a listener reacting to
+## that signal (MusicManager) is guaranteed this already names the world it
+## was just handed, never the one just torn down.
 var _current_area: AreaDefinition = null
 
 ## Set for the duration of a single load_world() call, the instant the
@@ -103,19 +106,22 @@ func can_load() -> bool:
 ## zero party Units regardless of what roster holds. Returns the new
 ## world, or null if the load was refused.
 ## spawn_point_name empty means "let the destination derive it" (see
-## _resolve_entry_spawn_point()); from_area_id is the id of the area
-## being LEFT, used only for that derivation — load_area() passes its own
-## current_area().id automatically, so a caller going through load_area()
-## never needs to supply either explicitly. A caller using this low-level
-## primitive directly (nothing does today) can omit both for the same
-## "land at the world's own default" behavior a first-ever load already
-## has.
-func load_world(scene: PackedScene, spawn_point_name: StringName = &"", from_area_id: StringName = &"") -> Node:
+## _resolve_entry_spawn_point()); area is the AreaDefinition behind scene,
+## or null for a world with no area data at all (nothing calls it that way
+## today, but it stays valid — see _current_area's own header). Also owns
+## assigning _current_area, so it and _current_world always describe the
+## same world together, before world_loaded ever fires — see _current_area's
+## header for why that ordering is load-bearing, not incidental.
+func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: AreaDefinition = null) -> Node:
 	if not can_load():
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
 
 	world_loading.emit(scene)
+
+	# Captured before any of the teardown below can touch _current_area —
+	# this is "the area being left," read once, up front.
+	var from_area_id: StringName = _current_area.id if _current_area else &""
 
 	if _current_world:
 		# A no-op when the outgoing world never spawned the party in the
@@ -154,6 +160,14 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", from_are
 		# forces the next ensure_baked() call to do a real re-scan instead
 		# of trusting stale state.
 		NavigationGrid.invalidate()
+
+	# Assigned here — after the outgoing world is fully torn down, before the
+	# incoming one is even instantiated — so _current_area and _current_world
+	# change together with no window where one names the old world and the
+	# other the new one. In particular this must land before world_loaded
+	# emits below, since MusicManager's own handler reads current_area()
+	# synchronously from inside it.
+	_current_area = area
 
 	var world: Node = scene.instantiate()
 	# Resolved BEFORE entering the tree — instantiate() already built the
@@ -200,23 +214,16 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", from_are
 ##
 ## spawn_point_name is normally left empty — see
 ## _resolve_entry_spawn_point() for why the destination almost always
-## derives the right answer on its own. current_area().id (whatever's
-## STILL loaded at the moment of the call) is passed through automatically
-## as the "area being left" for that derivation; callers never track or
-## supply it themselves.
+## derives the right answer on its own. Which area is being LEFT is derived
+## by load_world() itself from current_area(), whatever's still loaded at
+## the moment of the call; callers never track or supply it.
 func load_area(area_id: StringName, spawn_point_name: StringName = &"") -> Node:
 	var area: AreaDefinition = AreaDatabase.find(area_id)
 	if not area:
 		push_warning("WorldManager.load_area: unknown area id '%s'" % area_id)
 		return null
 
-	var from_area_id: StringName = _current_area.id if _current_area else &""
-	var world: Node = load_world(area.world_scene, spawn_point_name, from_area_id)
-	if not world:
-		return null
-
-	_current_area = area
-	return world
+	return load_world(area.world_scene, spawn_point_name, area)
 
 
 func current_area() -> AreaDefinition:

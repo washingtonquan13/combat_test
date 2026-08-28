@@ -15,9 +15,9 @@ extends Node
 ## changes to accommodate one. There's no backdrop art today.
 ##
 ## MusicManager.start_exploration_theme() is not called here — the title
-## screen plays its own track (see main_menu.gd), and the exploration
-## theme starts from test_arena.gd's own _ready(), the actual moment a
-## gameplay world exists.
+## screen plays its own track (see main_menu.gd). The exploration theme
+## instead starts from MusicManager's own world_loaded handler, which fires
+## for every real world load (see WorldManager.load_world()).
 
 func _ready() -> void:
 	WorldManager.register_scene_root($SceneRoot)
