@@ -55,6 +55,7 @@ extends UIScreen
 	"demons": %TabDemons,
 	"spawn": %TabSpawn,
 	"music": %TabMusic,
+	"alignment": %TabAlignment,
 	"spellbook": %TabSpellbook,
 	"journal": %TabJournal,
 	"encyclopedia": %TabEncyclopedia,
@@ -66,6 +67,7 @@ extends UIScreen
 	"demons": %DemonPanel,
 	"spawn": %SpawnPanel,
 	"music": %MusicPanel,
+	"alignment": %AlignmentPanel,
 	"spellbook": %PlaceholderPanel,
 	"journal": %JournalPanel,
 	"encyclopedia": %PlaceholderPanel,
@@ -138,6 +140,7 @@ var _grantable_abilities: Array[Ability] = []
 @onready var _demon_panel: DemonCompendiumPanel = %DemonPanel
 @onready var _spawn_panel: DebugSpawnPanel = %SpawnPanel
 @onready var _music_panel: DebugMusicPanel = %MusicPanel
+@onready var _alignment_panel: DebugAlignmentPanel = %AlignmentPanel
 
 @onready var _quest_list: ItemList = %QuestList
 @onready var _quest_detail_title: Label = %DetailTitle
@@ -162,6 +165,7 @@ func _ready() -> void:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
 	%TabSpawn.visible = OS.is_debug_build()
 	%TabMusic.visible = OS.is_debug_build()
+	%TabAlignment.visible = OS.is_debug_build()
 	%CloseButton.pressed.connect(close)
 	_sort_button.pressed.connect(_inventory.sort_items)
 	_quest_list.item_selected.connect(_on_quest_selected)
@@ -196,8 +200,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if unit:
 		open_for(unit)
 	elif OS.is_debug_build():
+		# No active Unit at all means the overworld (see
+		# PlayerInteractionState) — the one place Alignment is actually
+		# the tab worth landing on, since it's also the only tab here
+		# that has anything to show with no live Unit to open on.
+		_alignment_panel.refresh()
 		open()
-		_show_tab("spawn")
+		_show_tab("alignment")
 
 
 ## Lets StashPanel borrow the party's shared Inventory node while a chest
@@ -226,6 +235,7 @@ func open_for(unit: Unit) -> void:
 	_demon_panel.refresh()
 	_spawn_panel.refresh()
 	_music_panel.refresh()
+	_alignment_panel.refresh()
 	open()
 	_show_tab("inventory")
 

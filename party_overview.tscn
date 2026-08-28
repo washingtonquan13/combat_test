@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3 uid="uid://jfavnc280asx"]
+[gd_scene load_steps=10 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://systems/inventory_system/equip_slot.tscn" id="2_equip"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://demon_compendium_panel.gd" id="6_demon_panel"]
 [ext_resource type="Script" path="res://debug_spawn_panel.gd" id="7_spawn_panel"]
 [ext_resource type="Script" path="res://debug_music_panel.gd" id="8_music_panel"]
+[ext_resource type="Script" path="res://debug_alignment_panel.gd" id="9_alignment_panel"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_spawn_faction"]
 
@@ -61,6 +62,11 @@ text = "Spawn"
 unique_name_in_owner = true
 layout_mode = 2
 text = "Music"
+
+[node name="TabAlignment" type="Button" parent="TopBar"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Alignment"
 
 [node name="TabSpellbook" type="Button" parent="TopBar"]
 unique_name_in_owner = true
@@ -806,6 +812,90 @@ layout_mode = 2
 max_value = 1.0
 step = 0.01
 editable = false
+
+[node name="AlignmentPanel" type="Control" parent="ContentArea"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("9_alignment_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="ContentArea/AlignmentPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/AlignmentPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Leader Alignment"
+
+[node name="HSeparator" type="HSeparator" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="AlignmentSlider" type="HSlider" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="AlignmentValueLabel" type="Label" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0"
+
+[node name="PresetGrid" type="GridContainer" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="ChaosMildButton" type="Button" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer/PresetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Chaos (Mild)"
+
+[node name="NeutralMildButton" type="Button" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer/PresetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Neutral (Mild)"
+
+[node name="LawMildButton" type="Button" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer/PresetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Law (Mild)"
+
+[node name="ChaosExtremeButton" type="Button" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer/PresetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Chaos (Extreme)"
+
+[node name="NeutralExtremeButton" type="Button" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer/PresetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Neutral (Extreme)"
+
+[node name="LawExtremeButton" type="Button" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer/PresetGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Law (Extreme)"
+
+[node name="AlignmentReadoutLabel" type="Label" parent="ContentArea/AlignmentPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Neutral · extremity 0.00 · wobbling"
 
 [node name="JournalPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true

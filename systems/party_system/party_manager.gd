@@ -112,6 +112,38 @@ func is_leader(unit: Unit) -> bool:
 	return unit != null and unit == leader
 
 
+## The leader's alignment regardless of which world is currently loaded —
+## the live leader Unit if one is spawned (an ordinary area), otherwise
+## the roster's own is_leader record (the overworld, which spawns no
+## Units at all — see spawns_party()). Falls through to 0 (dead centre)
+## only when there's genuinely no leader anywhere yet (before chargen).
+## Read every frame by OverworldAvatar's alignment-driven spin, which is
+## exactly the "need this outside a level" case members/leader alone
+## can't answer.
+func leader_alignment() -> int:
+	if leader:
+		return leader.alignment
+	for record in roster:
+		if record.is_leader:
+			return record.alignment
+	return 0
+
+
+## Writes alignment to WHICHEVER of the live leader Unit / roster record
+## currently exist, so a debug-set value holds across the next world
+## transition either direction instead of being silently overwritten by
+## capture()/spawn_party()'s own alignment fields. Not gated on
+## OS.is_debug_build() here — that belongs to the caller (the debug
+## panel); this is just a plain setter mirroring leader_alignment()'s own
+## dual read path.
+func set_leader_alignment(value: int) -> void:
+	if leader:
+		leader.alignment = value
+	for record in roster:
+		if record.is_leader:
+			record.alignment = value
+
+
 ## --- World reload (capture/spawn) ---
 ## The pair that makes replace-only world loading possible without losing
 ## the party — see WorldManager.load_world(), the sole caller of both

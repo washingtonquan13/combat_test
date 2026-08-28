@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://cxkep0ii0tmec" path="res://systems/music_system/music_stem.gd" id="1_my40c"]
 [ext_resource type="Script" uid="uid://b6n0bkv8eyu2j" path="res://systems/music_system/music_track.gd" id="2_ikisb"]
-[ext_resource type="AudioStream" uid="uid://cvl1kg5w61ka1" path="res://assets/audio/long_time_way/long_time_way.wav" id="2_jcx3l"]
+[ext_resource type="AudioStream" uid="uid://b4nxya0gan2ye" path="res://assets/audio/long_time_way/long_time_way_ver2.wav" id="2_jcx3l"]
 
 [sub_resource type="Resource" id="Resource_42u3m"]
 script = ExtResource("1_my40c")

@@ -15,10 +15,13 @@ extends CharacterBody3D
 ## keys here for a completely different job.
 ##
 ## The body itself never rotates toward its direction of travel — see
-## SpinPivot below, which is a deliberately UNRELATED, always-on spin
-## purely for visual interest as a placeholder token. Movement direction
-## and the spin are intentionally decoupled: this is not a facing
-## indicator.
+## SpinPivot below, whose motion instead reads the party leader's
+## Law/Chaos alignment (PartyManager.leader_alignment()) — Law spins
+## clockwise, Chaos counter-clockwise, both faster the more extreme the
+## value; Neutral doesn't spin at all, it wobbles, more agitated the
+## closer it sits to tipping one way. Movement direction and the spin are
+## still intentionally decoupled: this is not a facing indicator, it's an
+## alignment indicator.
 ##
 ## HANGING DECISION — control schema divergence: the overworld (this
 ## file) is WASD + walk-into-range-then-press-interact, JRPG-like, one
@@ -34,7 +37,24 @@ extends CharacterBody3D
 @export var move_speed: float = 6.0
 @export var acceleration: float = 24.0
 @export var gravity: float = 18.0
-@export var spin_speed_degrees: float = 120.0
+
+@export_group("Alignment Spin")
+## Degrees/sec at the neutral threshold's own edge (extremity 0.0) for
+## Law/Chaos — see UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD, the value
+## just past which a unit stops counting as Neutral at all.
+@export var base_spin_degrees: float = 90.0
+@export var mild_spin_scale: float = 0.8
+@export var extreme_spin_scale: float = 2.0
+## +1 spins Law clockwise viewed from above (Godot's rotate_y is
+## otherwise counter-clockwise for a positive angle) — flip to -1 if it
+## reads backwards against the actual camera framing.
+@export var law_spin_sign: float = -1.0
+@export var neutral_wobble_min_degrees: float = 90.0
+@export var neutral_wobble_max_degrees: float = 180.0
+## Radians/sec fed into sin() for the Neutral wobble — see this file's
+## header on the ambiguous "0.005 * time" source spec; this assumes
+## milliseconds (~5 rad/sec, a ~1.25s wobble period), tune freely.
+@export var neutral_wobble_frequency: float = 5.0
 
 ## Set by overworld.gd right after instancing — the avatar reads this
 ## every physics frame to know which way "forward" currently means.
@@ -70,6 +90,28 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
-	# Always-on, independent of movement/facing entirely — see this
-	# file's own header.
-	_spin_pivot.rotate_y(deg_to_rad(spin_speed_degrees) * delta)
+	_apply_alignment_spin(delta)
+
+
+## Independent of movement/facing entirely — see this file's own header.
+## Law/Chaos accumulate rotation (rotate_y, continuous); Neutral instead
+## assigns rotation.y ABSOLUTELY each frame rather than accumulating a
+## sine on top of it — accumulating would drift into a slow spin of its
+## own instead of staying a true wobble around the origin.
+func _apply_alignment_spin(delta: float) -> void:
+	var alignment: int = PartyManager.leader_alignment()
+	var category: int = UnitAlignment.category_for(alignment)
+
+	if category == 0:
+		var extremity: float = clampf(absf(alignment) / float(UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD), 0.0, 1.0)
+		var amplitude_degrees: float = lerpf(neutral_wobble_min_degrees, neutral_wobble_max_degrees, extremity)
+		var elapsed: float = Time.get_ticks_msec() / 1000.0
+		_spin_pivot.rotation.y = deg_to_rad(amplitude_degrees) * sin(elapsed * neutral_wobble_frequency)
+		return
+
+	var threshold: float = float(UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD)
+	var full_scale: float = AlignmentGrid.DISPLAY_RANGE
+	var extremity: float = clampf((absf(alignment) - threshold) / (full_scale - threshold), 0.0, 1.0)
+	var speed_degrees: float = base_spin_degrees * lerpf(mild_spin_scale, extreme_spin_scale, extremity)
+	var direction_sign: float = law_spin_sign if category > 0 else -law_spin_sign
+	_spin_pivot.rotate_y(direction_sign * deg_to_rad(speed_degrees) * delta)

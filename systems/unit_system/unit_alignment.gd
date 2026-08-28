@@ -28,9 +28,17 @@ func _init(owner: Unit) -> void:
 ## first caller; nothing about the category logic is UI-specific, so it
 ## lives here rather than being re-derived in the UI layer.
 func alignment_category() -> int:
-	if _owner.alignment < -ALIGNMENT_NEUTRAL_THRESHOLD:
+	return category_for(_owner.alignment)
+
+
+## Static counterpart to alignment_category() for a caller that only has
+## the raw int, not a live Unit to build an instance around — the
+## overworld avatar's alignment-driven spin (PartyManager.leader_alignment()
+## has no Unit at all in the overworld) is the first such caller.
+static func category_for(alignment: int) -> int:
+	if alignment < -ALIGNMENT_NEUTRAL_THRESHOLD:
 		return -1
-	if _owner.alignment > ALIGNMENT_NEUTRAL_THRESHOLD:
+	if alignment > ALIGNMENT_NEUTRAL_THRESHOLD:
 		return 1
 	return 0
 
