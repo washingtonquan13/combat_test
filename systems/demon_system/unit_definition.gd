@@ -79,6 +79,12 @@ extends Resource
 @export var unit_scene: PackedScene
 @export var abilities: Array[Ability] = []
 @export var ai_behaviors: Array[AiBehavior] = []
+## How many factors CombatAI's scorer weighs when picking this species'
+## actions — see AiScorer's own header for the tier table. Cascades onto
+## Unit.ai_smartness exactly like every other field here; 2 (Tactical) is
+## both this field's default and Unit's own, so an unauthored species
+## behaves identically whether or not this line exists in its .tres.
+@export var ai_smartness: int = 2
 
 ## Whether this species is negotiable BY DEFAULT — cascades onto
 ## Unit.negotiable (see that field), still overridable per-instance for

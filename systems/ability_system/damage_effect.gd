@@ -32,3 +32,7 @@ func roll_damage() -> int:
 
 func describe() -> String:
 	return "%dd%d+%d damage" % [dice_count, dice_sides, dice_bonus]
+
+
+func expected_damage(_attacker: Unit) -> float:
+	return float(dice_count) * (float(dice_sides) + 1.0) / 2.0 + float(dice_bonus)

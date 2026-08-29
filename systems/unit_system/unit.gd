@@ -39,6 +39,7 @@ extends CharacterBody3D
 			damage_reduction = definition.damage_reduction
 			abilities = definition.abilities
 			ai_behaviors = definition.ai_behaviors
+			ai_smartness = definition.ai_smartness
 			negotiable = definition.negotiable
 ## The name shown to the player — combat log, character sheet, dialogue,
 ## negotiation. Deliberately separate from this node's own scene-tree
@@ -206,6 +207,12 @@ const PLAYER_FACTION: StringName = &"player"
 ## nearest-hostile/default_ability baseline, so no existing content
 ## needs migrating.
 @export var ai_behaviors: Array[AiBehavior] = []
+## How many factors CombatAI's scorer weighs when choosing this
+## unit's actions this turn -- see AiScorer's own header for the tier
+## table. Cascades from UnitDefinition.ai_smartness (see that field);
+## 2 (Tactical) is the default on both, so an unauthored unit is
+## unaffected by this field's mere existence.
+@export var ai_smartness: int = 2
 ## Player-assignable "Custom" hotbar section — fixed-size, null = empty
 ## slot. A slot holds a REFERENCE to one of this unit's OTHER abilities
 ## (from either Ability.Category), never a copy and never removed from
@@ -694,6 +701,16 @@ func move_to(destination: Vector3) -> bool:
 	return _movement.move_to(destination)
 
 
+## Pure route/cost query — see UnitMovement.plan_route's own doc comment.
+## Exposed here so AiScorer can price out a candidate destination without
+## actually issuing a move order (same read-only need movement_indicator.gd
+## already has for its own preview, just reached via RoutePlanner.plan
+## directly there since it doesn't need the flying-Y-override step this
+## wraps).
+func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
+	return _movement.plan_route(raw_destination, budget)
+
+
 ## Cancels the current move order in place, still spending whatever
 ## distance was actually covered (combat only).
 func stop_moving() -> void:
@@ -1028,6 +1045,12 @@ func describe_damage(damage_type: UnitCombat.DamageType, bonus: int) -> String:
 
 func max_damage(damage_type: UnitCombat.DamageType, bonus: int) -> int:
 	return _combat.max_damage(damage_type, bonus)
+
+
+## Expected value of roll_damage() without rolling — see UnitCombat.
+## average_damage's own doc comment (AiScorer's reason for existing).
+func average_damage(damage_type: UnitCombat.DamageType, bonus: int) -> float:
+	return _combat.average_damage(damage_type, bonus)
 
 
 ## Also a coroutine now, same as UnitCombat.use_ability() — it has to

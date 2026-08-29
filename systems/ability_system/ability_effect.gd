@@ -24,3 +24,21 @@ func apply(_attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> D
 ## each subclass.
 func describe() -> String:
 	return ""
+
+
+## Expected damage this effect would deal to ONE target if attacker used
+## it right now, without actually rolling or requiring a real target —
+## AiScorer's own building block for ranking candidate actions before
+## committing to one. Base default 0.0 covers every non-damaging effect
+## (a buff, a status application) for free. Override in each damage-
+## dealing subclass; see DamageEffect for the plain-dice case and
+## StDamageEffect for the attacker-ST-derived one.
+func expected_damage(_attacker: Unit) -> float:
+	return 0.0
+
+
+## Expected HP this effect would restore to ONE target — the heal-side
+## mirror of expected_damage() above, same reasoning. Override in each
+## healing subclass.
+func expected_heal(_attacker: Unit) -> float:
+	return 0.0

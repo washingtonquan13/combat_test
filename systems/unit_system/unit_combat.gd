@@ -105,6 +105,15 @@ func max_damage(damage_type: DamageType, bonus: int) -> int:
 	return int(dice.count) * 6 + int(dice.flat_bonus) + bonus
 
 
+## Expected value of roll_damage() without actually rolling — each d6
+## averages 3.5 — used by AiScorer to rank candidate actions by expected
+## damage rather than sampling a live roll (which would make the AI's
+## own decision non-deterministic and untestable independent of RNG).
+func average_damage(damage_type: DamageType, bonus: int) -> float:
+	var dice: Dictionary = _damage_dice(damage_type)
+	return float(dice.count) * 3.5 + float(dice.flat_bonus) + float(bonus)
+
+
 ## Same formula as roll_damage(), without rolling — e.g. "1d+2" — for
 ## display (see stats_column.gd's Thrust/Swing rows, shown with bonus 0
 ## for the character's own base capability).
@@ -250,6 +259,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"in_range": false,
 		"already_acted": false,
 		"cant_afford_move_cost": false,
+		"cant_afford_fp_cost": false,
 		"hit": false,
 		"damage": 0,
 		"effects": [],
@@ -284,6 +294,12 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# convention UnitMovement.move_to() uses), so this only ever applies
 	# mid-combat.
 	result["cant_afford_move_cost"] = CombatManager.in_combat and ability.move_cost > 0.0 and _owner.move_remaining < ability.move_cost
+	# NOT wrapped in CombatManager.in_combat, unlike move_cost above — FP
+	# is a persistent resource that exists whether or not a fight is
+	# happening (move_remaining is meaningless out of combat; current_fp
+	# isn't), so casting an FP-costing ability outside combat still has
+	# to be affordable. See Ability.fp_cost's own header.
+	result["cant_afford_fp_cost"] = ability.fp_cost > 0.0 and _owner.current_fp < ability.fp_cost
 
 	if result.already_acted:
 		return result
@@ -294,11 +310,17 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if result.cant_afford_move_cost:
 		return result
 
+	if result.cant_afford_fp_cost:
+		return result
+
 	if CombatManager.in_combat and ability.uses_attack_action:
 		_owner.has_attacked = true
 
 	if CombatManager.in_combat and ability.move_cost > 0.0:
 		_owner.spend_move(ability.move_cost)
+
+	if ability.fp_cost > 0.0:
+		_owner.current_fp = maxi(_owner.current_fp - int(ability.fp_cost), 0)
 
 	_owner.ability_use_started.emit(_owner, target, ability)
 

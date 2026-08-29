@@ -156,6 +156,7 @@ effects = Array[ExtResource("1_res1m")]([SubResource("Resource_l62op"), SubResou
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
+fp_cost = 0.0
 timing = SubResource("Resource_k4g3k")
 cast_vfx = SubResource("Resource_xtw6w")
 armed_enter_sfx = SubResource("Resource_cb6pu")

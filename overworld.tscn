@@ -57,6 +57,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 2)
 [node name="Wall_r1_c3" parent="Geometry" instance=ExtResource("2_5xcxp")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 2)
 
+[node name="Wall_r1_c4" parent="Geometry" instance=ExtResource("2_5xcxp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 1, 4)
+
 [node name="Wall_r1_c10" parent="Geometry" instance=ExtResource("2_5xcxp")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 1, 2)
 
@@ -64,6 +67,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 20, 1, 2)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 4)
 
 [node name="Wall_r2_c2" parent="Geometry" instance=ExtResource("2_5xcxp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, 2)
+
+[node name="Wall_r2_c3" parent="Geometry" instance=ExtResource("2_5xcxp")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 1, 4)
 
 [node name="Wall_r2_c4" parent="Geometry" instance=ExtResource("2_5xcxp")]

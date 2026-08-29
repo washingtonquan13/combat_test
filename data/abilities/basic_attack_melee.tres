@@ -28,6 +28,7 @@ effects = Array[ExtResource("1_m1xwx")]([SubResource("Resource_ebikf")])
 requires_to_hit = true
 uses_attack_action = true
 move_cost = 0.0
+fp_cost = 0.0
 armed_enter_animation = ""
 armed_hold_animation = ""
 cast_animation = ExtResource("6_castanim")

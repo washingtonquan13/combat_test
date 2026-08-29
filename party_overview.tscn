@@ -746,6 +746,18 @@ layout_mode = 2
 disabled = true
 text = "Remove Selected from Party"
 
+[node name="RestoreHeader" type="Label" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Restore"
+
+[node name="RestoreHSeparator" type="HSeparator" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="RestoreHpFpButton" type="Button" parent="ContentArea/SpawnPanel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Restore Party + Roster HP/FP"
+
 [node name="MusicPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true
 visible = false

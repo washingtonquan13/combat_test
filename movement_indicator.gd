@@ -280,7 +280,16 @@ func _update_path_preview(unit: Unit) -> void:
 	# what shows how far the unit could actually get this turn. Because
 	# this is the literal same function over the literal same grid
 	# state, this preview and the real move can never disagree.
-	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at)
+	# Same ascend/descend multipliers UnitMovement.plan_route() itself
+	# passes for a flying mover (see FlightRules) — without these, this
+	# preview under-reported a flying unit's climb cost by up to 2×, so
+	# the white/red split no longer matched what move_to() actually
+	# charged (see this file's own header, which promises exactly that
+	# equivalence). Both stay 1.0/1.0 (a strict no-op) for a grounded
+	# unit, unchanged from before this fix.
+	var ascend_multiplier: float = UnitMovement.FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
+	var descend_multiplier: float = UnitMovement.FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
+	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at, ascend_multiplier, descend_multiplier)
 	var path: PackedVector3Array = planned.path
 
 	if path.size() < 2:

@@ -31,3 +31,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 func describe() -> String:
 	var label := "Swing" if damage_type == UnitCombat.DamageType.SWING else "Thrust"
 	return "%s damage (ST-based)" % label
+
+
+func expected_damage(attacker: Unit) -> float:
+	return attacker.average_damage(damage_type, bonus)

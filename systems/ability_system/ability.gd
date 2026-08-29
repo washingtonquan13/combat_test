@@ -56,6 +56,14 @@ enum Category { COMMON, ABILITIES }
 ## Defaults to 0.0, so every ability authored before this field existed
 ## is completely unaffected.
 @export var move_cost: float = 0.0
+## Flat FP cost, checked as a HARD PRECONDITION in UnitCombat.use_ability()
+## — same shape as move_cost above, but NOT combat-gated: FP is a
+## persistent resource that exists whether or not a fight is happening
+## (unlike move_remaining, which is meaningless out of combat), so
+## casting an FP-costing ability outside combat still spends it. Only
+## fly.tres uses this today; every other ability defaults to 0.0 and is
+## completely unaffected.
+@export var fp_cost: float = 0.0
 
 @export_group("Timing")
 ## Optional — see AbilityTiming's own header for the full reasoning.

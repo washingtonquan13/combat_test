@@ -33,3 +33,7 @@ func roll_heal() -> int:
 
 func describe() -> String:
 	return "Heals %dd%d+%d" % [dice_count, dice_sides, dice_bonus]
+
+
+func expected_heal(_attacker: Unit) -> float:
+	return float(dice_count) * (float(dice_sides) + 1.0) / 2.0 + float(dice_bonus)

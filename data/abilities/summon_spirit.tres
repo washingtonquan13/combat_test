@@ -48,6 +48,7 @@ effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_summoneffect")])
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
+fp_cost = 0.0
 armed_enter_animation = ""
 armed_hold_animation = ""
 cast_sfx = SubResource("Resource_0coen")

@@ -78,3 +78,24 @@ func _roll(attacker: Unit, weapon: GearItem, is_critical: bool) -> int:
 func describe() -> String:
 	var label := "Melee" if category == WeaponCategory.MELEE else "Ranged"
 	return "%s weapon damage" % label
+
+
+## Mirrors _roll()'s own branching without rolling — see AbilityEffect.
+## expected_damage's own header. No weapon (bare-handed) and THRUST/SWING
+## weapons both delegate to attacker.average_damage exactly as _roll()
+## delegates to attacker.roll_damage/max_damage; only FIXED weapons need
+## their own average-of-dice math since they bypass the attacker's ST
+## entirely.
+func expected_damage(attacker: Unit) -> float:
+	var weapon: GearItem = _find_weapon(attacker)
+	if not weapon:
+		return attacker.average_damage(UnitCombat.DamageType.SWING, 0)
+
+	var weapon_data: WeaponData = weapon.weapon_data
+	match weapon_data.damage_type:
+		WeaponData.DamageType.FIXED:
+			return float(weapon_data.fixed_dice_count) * (float(weapon_data.fixed_dice_sides) + 1.0) / 2.0 + float(weapon_data.fixed_dice_bonus)
+		WeaponData.DamageType.THRUST:
+			return attacker.average_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus)
+		_:
+			return attacker.average_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus)

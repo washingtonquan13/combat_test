@@ -30,6 +30,7 @@ extends Control
 @onready var _add_to_party_button: Button = %AddToPartyButton
 @onready var _party_list: ItemList = %PartyMembersList
 @onready var _remove_from_party_button: Button = %RemoveFromPartyButton
+@onready var _restore_button: Button = %RestoreHpFpButton
 
 var _definitions: Array[UnitDefinition] = []
 var _selected_faction: StringName = &"enemy"
@@ -48,6 +49,7 @@ func _ready() -> void:
 	_add_to_party_button.pressed.connect(_on_add_to_party_pressed)
 	_party_list.item_selected.connect(func(_i): _update_remove_button())
 	_remove_from_party_button.pressed.connect(_on_remove_from_party_pressed)
+	_restore_button.pressed.connect(_on_restore_pressed)
 	DebugSpawner.armed_changed.connect(func(_d, _f): _update_status())
 	PartyManager.member_added.connect(func(_u): _refresh_party_list())
 	PartyManager.member_removed.connect(func(_u): _refresh_party_list())
@@ -147,3 +149,22 @@ func _on_remove_from_party_pressed() -> void:
 		return
 	PartyManager.remove_member(target)
 	target.queue_free()
+
+
+## Stands in for the recovery model this project doesn't have yet (see
+## FlightRules/FpDrainBehavior's own headers — FP is spent, nothing
+## restores it). Covers BOTH halves of where FP/HP can currently live:
+## PartyManager.members (live Units, present or not depending on
+## spawns_party() — see WorldManager) AND DemonRoster's own OwnedDemon
+## entries, whose current_hp/current_fp persist independently of any
+## live Unit (a dismissed demon isn't in members at all — see
+## OwnedDemon's own header). Restoring only one half would silently miss
+## the other.
+func _on_restore_pressed() -> void:
+	for unit in PartyManager.members:
+		unit.current_hp = unit.maximum_hp
+		unit.current_fp = unit.maximum_fp
+
+	for owned in DemonRoster.all_owned():
+		owned.current_hp = owned.species.max_hp
+		owned.current_fp = owned.species.max_fp

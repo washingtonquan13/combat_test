@@ -31,6 +31,7 @@ effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_srpy8")])
 requires_to_hit = false
 uses_attack_action = false
 move_cost = 0.0
+fp_cost = 0.0
 armed_enter_animation = ""
 armed_hold_animation = ""
 cast_animation = ExtResource("6_castanim")

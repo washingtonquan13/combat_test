@@ -36,5 +36,6 @@ portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
 ai_behaviors = Array[ExtResource("3_g88m1")]([])
+ai_smartness = 2
 negotiable = true
 negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])

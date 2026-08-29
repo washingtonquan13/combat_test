@@ -68,3 +68,13 @@ func roll_damage() -> int:
 
 func describe() -> String:
 	return "%dd%d+%d damage" % [dice_count, dice_sides, dice_bonus]
+
+
+## Per-target average, NOT scaled by how many units the blast would
+## actually catch — AiScorer scores one (ability, target) candidate at a
+## time (see that file's own header on why multi-target AoE candidate
+## generation is out of scope for this pass), so this answers "how much
+## would ONE hit unit expect to take," same shape as every sibling
+## damage effect's expected_damage().
+func expected_damage(_attacker: Unit) -> float:
+	return float(dice_count) * (float(dice_sides) + 1.0) / 2.0 + float(dice_bonus)

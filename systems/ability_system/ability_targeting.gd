@@ -87,8 +87,8 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 
 
 ## Distance CombatAI should try to close to before considering a target
-## in range — used for movement/standoff purposes (see CombatAI.
-## _standoff_goal). Override in each subclass; base returns 0 (stand
+## in range — used for movement/standoff purposes (see AiScorer.
+## standoff_goal). Override in each subclass; base returns 0 (stand
 ## right next to target) as a safe default for any targeting kind that
 ## doesn't override this.
 func approach_range() -> float:
