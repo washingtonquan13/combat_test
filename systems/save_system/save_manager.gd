@@ -8,12 +8,24 @@ extends Node
 ##
 ## Coordinates, but never itself HOLDS, game state — every actual value
 ## lives in exactly one place already (FlagManager, PartyManager,
-## DemonRoster, CurrencyManager, WorldManager), each newly carrying a
-## duck-typed save_state()/load_state() pair (see those files). This
-## file's only job is: gather those five Dictionaries, write them to one
-## ConfigFile, and do the reverse in an order that doesn't stomp itself
-## (see load_file()'s own header on the capture trap that ordering
-## exists to avoid).
+## DemonRoster, CurrencyManager, WorldManager, and the party's own shared
+## Inventory), each carrying a duck-typed save_state()/load_state() pair
+## (see those files, and Inventory's own — that pair now lives there
+## rather than on StashComponent, specifically so this file can reuse it
+## for the party's Inventory too, instead of a second, parallel
+## implementation). This file's only job is: gather those six
+## Dictionaries, write them to one ConfigFile, and do the reverse in an
+## order that doesn't stomp itself (see load_file()'s own header on the
+## capture trap that ordering exists to avoid).
+##
+## The party's shared Inventory (see _party_inventory()) is a PERMANENT
+## child of MainRoot's CanvasLayer, inside party_overview.tscn — not part
+## of any world, and therefore never captured/cleared by anything
+## WorldManager's own teardown does. Without saving it explicitly here,
+## items taken from a chest into it would silently vanish the moment the
+## application actually restarts (a real, shipped bug this comment
+## exists to keep from happening again): the chest correctly persists
+## having lost them, and nothing correctly persists where they went.
 ##
 ## FlagManager's own Dictionary carries quest progress AND all of
 ## AreaState's per-area records along for free — see that file's header.
@@ -103,6 +115,7 @@ func save(save_name: String) -> bool:
 	cfg.set_value("party", "data", PartyManager.save_state())
 	cfg.set_value("demons", "data", DemonRoster.save_state())
 	cfg.set_value("currency", "data", CurrencyManager.save_state())
+	cfg.set_value("inventory", "data", _party_inventory().save_state())
 
 	var err: Error = cfg.save(path)
 	if err != OK:
@@ -145,6 +158,11 @@ func load_file(path: String) -> bool:
 	PartyManager.load_state(cfg.get_value("party", "data", {}))
 	DemonRoster.load_state(cfg.get_value("demons", "data", {}))
 	CurrencyManager.load_state(cfg.get_value("currency", "data", {}))
+	# Not gated on _current_world/area the way party_transforms/
+	# avatar_transform are below — the party's shared Inventory is a
+	# permanent CanvasLayer child, not something a destination world
+	# creates, so there's no "wait for world_loaded" step needed here.
+	_party_inventory().load_state(cfg.get_value("inventory", "data", {}))
 
 	# Consumed by _on_world_loaded() the moment the area below finishes
 	# loading — can't apply these here, since the destination world (and
@@ -214,6 +232,19 @@ func delete_save(path: String) -> void:
 func most_recent() -> String:
 	var saves: Array[Dictionary] = list_saves()
 	return saves[0]["path"] if not saves.is_empty() else ""
+
+
+## Found by role rather than a direct reference, same group-lookup idiom
+## GiveItemEffect (give_item_effect.gd) already uses to reach this exact
+## node — this file is an autoload with no scene-tree position of its
+## own to hold a NodePath against, and PartyOverview isn't an autoload
+## either. Never null in practice: PartyOverview is a permanent child of
+## MainRoot's CanvasLayer, present from boot regardless of GameMode or
+## whether a world is loaded (the main menu, e.g., where load_file() is
+## a legitimate caller).
+func _party_inventory() -> Inventory:
+	var party_overview: Node = get_tree().get_first_node_in_group("party_overview")
+	return party_overview.get_inventory()
 
 
 func _current_leader_name() -> String:

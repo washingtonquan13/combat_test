@@ -2,6 +2,8 @@
 class_name Inventory
 extends Control
 
+const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
+
 @onready var scroll_container: ScrollContainer = $ScrollContainer
 @onready var ghost_preview: ColorRect = $ScrollContainer/ItemLayer/GhostPreview
 @onready var item_layer: InventoryGridLayer = $ScrollContainer/ItemLayer
@@ -275,3 +277,86 @@ func _find_item(gear_data: GearItem) -> Item:
 		if child is Item and child.gear_data == gear_data:
 			return child
 	return null
+
+
+## --- Save/load ---
+## Part of the save_state()/load_state() contract WorldManager's
+## reconciliation pass duck-types against (see area_state.gd/
+## world_manager.gd) and SaveManager reuses directly for the party's own
+## shared Inventory (see save_manager.gd's own [inventory] section) — the
+## same "build it once, spend it twice" phase 2's own plan anticipated
+## for this exact pair, now actually collected onto the Inventory that
+## holds the data instead of StashComponent, which only ever delegated to
+## it. An empty Dictionary means "nothing worth recording," so a chest
+## that was never opened is correctly left to rebuild from its authored
+## contents (see AreaState.stored_state()'s own header on why null and
+## "recorded empty" must never be conflated).
+##
+## Grid position round-trips through cell_size_px, the same convention
+## request_item_drop()/auto_place_item() above already use. Item
+## identity is ItemDefinition.id, not a direct resource reference — the
+## same reason AreaDatabase/ItemDatabase key everything else by id
+## rather than by resource path.
+func save_state() -> Dictionary:
+	var layer: Node = _resolve_item_layer()
+	var items: Array[Dictionary] = []
+	for child in layer.get_children():
+		if child is Item and child.definition:
+			var grid_pos: Vector2i = child.position / cell_size_px
+			items.append({
+				"id": child.definition.id,
+				"x": grid_pos.x,
+				"y": grid_pos.y,
+				"stack": child.current_stack_count,
+			})
+	return {"items": items}
+
+
+## Rebuilds this Inventory's contents from a previously-saved state,
+## replacing whatever's currently in it. Called from two different
+## timing contexts, both of which _resolve_item_layer() below exists to
+## survive: WorldManager's reconciliation pass on a STASH's Inventory,
+## before the world (and therefore this node) has entered the tree at
+## all, and SaveManager directly on the party's own Inventory, which IS
+## already in the tree (it's a permanent CanvasLayer child) but whose
+## contents still need clearing first the same way.
+func load_state(state: Dictionary) -> void:
+	var layer: Node = _resolve_item_layer()
+
+	# Item children only — layer also holds GhostPreview (see
+	# inventory.tscn), a structural sibling this file's own @onready
+	# ghost_preview member caches a reference to. Freeing it here left
+	# that reference dangling: the next drag over this SAME Inventory
+	# instance (this rebuild never touches the Inventory node itself,
+	# only wipes its contents) crashed on the first ghost_preview.size/
+	# .visible write in update_ghost_preview()/hide_ghost_preview()
+	# above, against an already-freed node.
+	for child in layer.get_children():
+		if child is Item:
+			child.queue_free()
+
+	for entry in state.get("items", []):
+		var definition: ItemDefinition = ItemDatabase.find(entry.get("id", &""))
+		if not definition:
+			push_warning("Inventory.load_state: unknown item id '%s'" % entry.get("id"))
+			continue
+
+		var item: Item = ITEM_SCENE.instantiate()
+		item.definition = definition
+		item.current_stack_count = entry.get("stack", 1)
+		item.layout = Item.LayoutMode.GRID
+		layer.add_child(item)
+		item.position = Vector2i(entry.get("x", 0), entry.get("y", 0)) * cell_size_px
+
+
+## The live item_layer member when valid, get_node() otherwise. item_layer
+## is @onready, unresolved until THIS node's own _ready() has run — untrue
+## in WorldManager's detached, pre-add_child() reconciliation window (see
+## load_state()'s own header on why that timing has to be survived here,
+## not just avoided by callers). get_node() works regardless, since it
+## walks the already-built child structure rather than depending on
+## tree-entry timing.
+func _resolve_item_layer() -> Node:
+	if is_instance_valid(item_layer):
+		return item_layer
+	return get_node("ScrollContainer/ItemLayer")

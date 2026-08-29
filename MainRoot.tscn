@@ -317,20 +317,20 @@ closes_on_cancel = false
 
 [node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("20_dicepopup")]
 
-[node name="SaveLoadPanel" parent="CanvasLayer" instance=ExtResource("34_saveloadpanel")]
-blocks_input_below = true
-
 [node name="MainMenu" parent="CanvasLayer" node_paths=PackedStringArray("save_load_panel") instance=ExtResource("21_mainmenu")]
+save_load_panel = NodePath("../SaveLoadPanel")
 hides_hud = true
 blocks_input_below = true
 closes_on_cancel = false
-save_load_panel = NodePath("../SaveLoadPanel")
 
 [node name="CharacterCreation" parent="CanvasLayer" instance=ExtResource("22_charcreate")]
 visible = false
 hides_hud = true
 blocks_input_below = true
 closes_on_cancel = false
+
+[node name="SaveLoadPanel" parent="CanvasLayer" instance=ExtResource("34_saveloadpanel")]
+blocks_input_below = true
 
 [connection signal="pressed" from="CanvasLayer/TacticalUI/MenuButton" to="CanvasLayer/TacticalUI/MenuButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer/EscMenu/ExitButton" to="CanvasLayer/EscMenu" method="_on_exit_button_pressed"]

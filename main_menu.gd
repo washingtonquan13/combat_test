@@ -31,15 +31,14 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
-	var track: MusicTrack = MusicTrackDatabase.find("level_up_groovy")
-	if track:
-		MusicManager.play_track(track)
-
 	# Recomputed every time this becomes visible, not just once here — a
 	# save made mid-session (Esc menu -> Save, then Esc menu -> Main Menu)
 	# needs CONTINUE to pick it up without a restart. Same on-show refresh
 	# idiom esc_menu.gd's own _on_visibility_changed already uses for its
-	# debug exit button.
+	# debug exit button. The title track moved here too, for the same
+	# reason: _ready() only ever fires once at boot, so returning to this
+	# screen via Esc -> MAIN MENU never replayed it — the exploration
+	# theme just kept playing underneath a silent title screen.
 	visibility_changed.connect(_on_visibility_changed)
 	_on_visibility_changed()
 
@@ -54,6 +53,12 @@ func _ready() -> void:
 func _on_visibility_changed() -> void:
 	if visible:
 		_continue_button.visible = SaveManager.most_recent() != ""
+		# play_track() no-ops when this is already the playing track (see
+		# music_manager.gd), so re-showing this screen without leaving it
+		# (a stray visibility_changed toggle) doesn't restart the intro.
+		var track: MusicTrack = MusicTrackDatabase.find("level_up_groovy")
+		if track:
+			MusicManager.play_track(track)
 
 
 ## Straight screen-to-screen handoff within the front end: no world is
