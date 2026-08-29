@@ -32,11 +32,21 @@ func open_stash(stash: StashComponent, actor: Unit) -> void:
 	stash_opened.emit(stash, actor)
 
 
+## Idempotent — a close with nothing open is a no-op, not an unbalanced
+## GameMode.pop_mode() that would eat a mode this file never pushed.
+## Reachable for real now that StashPanel routes EVERY close back through
+## here (see its own _on_visibility_changed): the Close button both pops
+## the screen and calls this, so one of the two arrivals always finds the
+## stash already closed. Also what makes that routing recursion-safe,
+## together with current_stash being cleared before the emit below.
 func close_stash() -> void:
+	if not is_active():
+		return
+
 	# Captured before current_stash is cleared below — closing is the
-	# right moment to persist (see StashComponent.save_state()'s own
-	# header): the panel's reparent-based transfer means contents are
-	# only settled once it closes, not while items are mid-drag.
+	# right moment to persist (see Inventory.save_state()'s own header):
+	# the panel's reparent-based transfer means contents are only settled
+	# once it closes, not while items are mid-drag.
 	var closing_stash: StashComponent = current_stash
 
 	current_stash = null

@@ -45,6 +45,30 @@ func _ready() -> void:
 	StashManager.stash_closed.connect(_on_stash_closed)
 	%CloseButton.pressed.connect(func(): StashManager.close_stash())
 	_take_all_button.pressed.connect(_on_take_all_pressed)
+	# See _on_visibility_changed() — this is what keeps StashManager's own
+	# "is a stash open" state honest no matter HOW this screen got closed,
+	# not just via the Close button above.
+	visibility_changed.connect(_on_visibility_changed)
+
+
+## This screen can be closed by paths that never go through
+## StashManager at all — Escape (UIStack._pop_topmost_cancelable, since
+## closes_on_cancel defaults true here) and UIStack.close_all(). Both
+## only set visible = false, so without this StashManager kept
+## current_stash set and GameMode kept LOOTING pushed FOREVER, which
+## soft-locked the game outright: can_transition() stayed false, so
+## saving and world travel were refused, and CameraDirector.has_control()
+## stayed false, so the camera, unit selection and click-to-move all went
+## dead with no way back. Routing every close back through close_stash()
+## makes this screen's visibility the single source of truth and fixes
+## every such path at once, including any added later.
+##
+## No recursion risk: close_stash() clears current_stash BEFORE emitting
+## stash_closed, so the _on_stash_closed() -> close() this triggers finds
+## is_active() already false on the way back through here.
+func _on_visibility_changed() -> void:
+	if not visible and StashManager.is_active():
+		StashManager.close_stash()
 
 
 func _on_stash_opened(stash: StashComponent, _actor: Unit) -> void:
