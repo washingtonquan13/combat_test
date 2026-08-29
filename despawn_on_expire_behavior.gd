@@ -11,7 +11,7 @@ extends StatusBehavior
 ## tracking status, so in practice this only ever fires on natural
 ## duration expiry.
 
-func on_remove(unit: Unit, _active: ActiveStatus) -> void:
+func on_remove(unit: Unit, _active: ActiveStatus, _voluntary: bool = false) -> void:
 	unit.expire()
 
 

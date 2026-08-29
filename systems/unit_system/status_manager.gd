@@ -50,13 +50,21 @@ func apply(effect: StatusEffect) -> void:
 	status_applied.emit(effect, new_active)
 
 
-func remove(effect: StatusEffect) -> void:
+## voluntary defaults false — "this removal wasn't the unit's own
+## deliberate choice." Only LandEffect (a player-chosen Land action)
+## passes true; natural expiry (tick_turn_start below) and
+## Unit.ground_if_flying() (Incapacitate forcing a flyer down) both fall
+## through to the default, which is exactly right for both: neither is
+## a choice the unit made. See ForceLandOnExpireBehavior for the one
+## behavior that actually reads this — fall damage only applies when
+## false.
+func remove(effect: StatusEffect, voluntary: bool = false) -> void:
 	var existing: ActiveStatus = _find(effect)
 	if not existing:
 		return
 	active.erase(existing)
 	for behavior in effect.behaviors:
-		behavior.on_remove(_owner, existing)
+		behavior.on_remove(_owner, existing, voluntary)
 		if behavior is StatModifierBehavior:
 			_owner.unregister_stat_modifier(behavior)
 	status_removed.emit(effect)

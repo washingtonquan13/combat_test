@@ -38,6 +38,12 @@ extends RefCounted
 ## _owner.velocity and calls _owner.move_and_slide() directly rather
 ## than being fully self-contained.
 
+## Same "authored global rule, reached by a preload const" idiom
+## UnitCombat.ALTITUDE_ADVANTAGE already uses — see FlightRules' own
+## header for why altitude's cost side is data rather than a hardcoded
+## constant.
+const FLIGHT_RULES: FlightRules = preload("res://data/flight_rules.tres")
+
 var _owner: Unit
 
 ## Read once from ProjectSettings rather than re-fetched every physics
@@ -171,7 +177,13 @@ func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
 	if waypoints.size() < 2:
 		return {"path": PackedVector3Array(), "cumulative_cost": PackedFloat32Array()}
 
-	return RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at)
+	# Vertical cost multipliers only ever passed non-default (1.0/1.0)
+	# here, and only for a flying mover — see FlightRules's own header.
+	# A grounded unit's route is billed identically to before this
+	# existed, since RoutePlanner.plan()'s defaults are a strict no-op.
+	var ascend_multiplier: float = FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
+	var descend_multiplier: float = FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
+	return RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at, ascend_multiplier, descend_multiplier)
 
 
 ## Plans a route to raw_destination within budget and starts walking it —
@@ -538,7 +550,19 @@ func ground_if_flying() -> void:
 ## 1 by default in this project (see indicator_base.gd) — otherwise
 ## landing directly above an ally would land ON them instead of the
 ## ground beneath them.
-func land() -> void:
+## controlled=true (a voluntary Land action, see LandEffect) never rolls
+## fall damage regardless of descent — altitude itself stays pure upside
+## (see FlightRules' own header), so the only cost this file's flight
+## economy exacts is an UNCONTROLLED landing, exactly like running out
+## of movement budget already costs a turn. false (the default, and what
+## every other caller passes — natural expiry, IncapacitateBehavior
+## forcing a flyer down) rolls FlightRules.roll_fall_damage() against the
+## same descent this function was already computing for the animation,
+## and applies it the same way DamageEffect.apply() does (roll, subtract
+## DR, floor at 0, take_damage()) — so falling composes with death,
+## AreaState recording, and everything else that already expects that
+## exact shape.
+func land(controlled: bool = false) -> void:
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(_owner.get_tree()):
 		exclude.append(unit.get_rid())
@@ -559,6 +583,9 @@ func land() -> void:
 	var descent: float = absf(_owner.global_position.y - result.position.y)
 	var duration: float = clampf(descent / _owner.vertical_speed, _owner.min_land_duration, _owner.max_land_duration)
 
+	if not controlled:
+		_apply_fall_damage(descent)
+
 	_owner.begin_busy()
 	var tween: Tween = _owner.create_tween()
 	tween.set_trans(Tween.TRANS_SINE)
@@ -566,3 +593,23 @@ func land() -> void:
 	tween.tween_property(_owner, "global_position:y", result.position.y, duration)
 	tween.finished.connect(_owner.end_busy)
 	SystemLog.print("%s lands." % LogFormat.unit_name(_owner))
+
+
+## Rolled and applied before the landing tween even starts, not on
+## impact — descent is already fully known at this point (the whole
+## fall happened off-screen while the unit was flying), so there's
+## nothing meaningful left to wait for; this also sidesteps needing to
+## reason about whether a lethal fall should interrupt the descent
+## animation.
+func _apply_fall_damage(descent: float) -> void:
+	var raw_damage: int = FLIGHT_RULES.roll_fall_damage(descent)
+	if raw_damage <= 0:
+		return
+
+	var applied: int = raw_damage
+	if FLIGHT_RULES.fall_damage_reduced_by_dr:
+		applied = max(raw_damage - _owner.get_stat("DR"), 0)
+
+	if applied > 0:
+		SystemLog.print("%s takes %d fall damage." % [LogFormat.unit_name(_owner), applied])
+		_owner.take_damage(applied)

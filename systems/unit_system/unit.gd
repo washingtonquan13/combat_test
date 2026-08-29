@@ -758,8 +758,10 @@ func apply_status(effect: StatusEffect) -> void:
 	_status_manager.apply(effect)
 
 
-func remove_status(effect: StatusEffect) -> void:
-	_status_manager.remove(effect)
+## voluntary forwarded straight to StatusManager.remove() — see that
+## method's own header. LandEffect is the one caller that passes true.
+func remove_status(effect: StatusEffect, voluntary: bool = false) -> void:
+	_status_manager.remove(effect, voluntary)
 
 
 func has_status(effect: StatusEffect) -> bool:
@@ -783,8 +785,10 @@ func ground_if_flying() -> void:
 	_movement.ground_if_flying()
 
 
-func land() -> void:
-	_movement.land()
+## controlled=true (a voluntary Land action) never rolls fall damage,
+## regardless of height — see UnitMovement.land()'s own header.
+func land(controlled: bool = false) -> void:
+	_movement.land(controlled)
 
 
 ## The list of this unit's active statuses currently granting it flight

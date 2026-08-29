@@ -5,6 +5,11 @@ extends AbilityEffect
 ## itself, see statuses/flying.tres), fired via on_remove the instant
 ## remove_status() below takes it off, so this effect doesn't duplicate
 ## that logic; it only decides WHETHER to remove it.
+##
+## The `true` on remove_status() below is what makes THIS specific
+## landing exempt from fall damage — see StatusManager.remove()'s own
+## header on the voluntary flag. Every other way flight ends (expiry,
+## Incapacitate) falls through to false and rolls it.
 
 @export var flying_status: StatusEffect
 
@@ -16,7 +21,7 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 		SystemLog.print("%s isn't flying." % LogFormat.unit_name(attacker))
 		return {}
 
-	attacker.remove_status(flying_status)
+	attacker.remove_status(flying_status, true)
 	return {}
 
 

@@ -249,6 +249,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"invalid_target": false,
 		"in_range": false,
 		"already_acted": false,
+		"cant_afford_move_cost": false,
 		"hit": false,
 		"damage": 0,
 		"effects": [],
@@ -276,6 +277,13 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 	result["in_range"] = ability.is_in_range(_owner, target)
 	result["already_acted"] = ability.attack_action_spent_by(_owner)
+	# Hard precondition, not a clamp — same pattern Ladder.required_move
+	# already uses (see Ability.move_cost's own header): an ability with a
+	# flat move_cost either fully executes or is refused outright, never
+	# "half cast." Out of combat, budget is effectively unlimited (same
+	# convention UnitMovement.move_to() uses), so this only ever applies
+	# mid-combat.
+	result["cant_afford_move_cost"] = CombatManager.in_combat and ability.move_cost > 0.0 and _owner.move_remaining < ability.move_cost
 
 	if result.already_acted:
 		return result
@@ -283,8 +291,14 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if not result.in_range:
 		return result
 
+	if result.cant_afford_move_cost:
+		return result
+
 	if CombatManager.in_combat and ability.uses_attack_action:
 		_owner.has_attacked = true
+
+	if CombatManager.in_combat and ability.move_cost > 0.0:
+		_owner.spend_move(ability.move_cost)
 
 	_owner.ability_use_started.emit(_owner, target, ability)
 

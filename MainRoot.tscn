@@ -242,8 +242,8 @@ offset_bottom = 100.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("16_jq2sk")
-blocks_input_below = true
 save_load_panel = NodePath("../SaveLoadPanel")
+blocks_input_below = true
 
 [node name="ExitButton" type="Button" parent="CanvasLayer/EscMenu"]
 custom_minimum_size = Vector2(32, 32)

@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="1_xtugy"]
 [ext_resource type="Script" uid="uid://cp37tt8ahehq4" path="res://flight_behavior.gd" id="2_26ayu"]
-[ext_resource type="Script" path="res://force_land_on_expire_behavior.gd" id="3_ybjf0"]
+[ext_resource type="Script" uid="uid://c5uo8sjvlhniq" path="res://force_land_on_expire_behavior.gd" id="3_ybjf0"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="5_wwfy6"]
 
 [sub_resource type="Resource" id="Resource_flight"]

@@ -23,10 +23,19 @@ extends RefCounted
 ## nearest step boundary — this is what lets UnitMovement charge
 ## move_remaining from a known plan total instead of a re-measurement.
 ##
+## ascend_multiplier/descend_multiplier scale a step's VERTICAL component
+## before measuring its cost — see FlightRules, the one real caller of a
+## non-default value (only when the moving unit is flying; ground
+## movement always passes 1.0/1.0, so this is a strict no-op for every
+## existing call site and every ground path). Applied per-step rather
+## than per-segment because a single waypoint-to-waypoint segment is
+## still a straight lerp either way, so scaling just the vertical
+## component of each step's own delta is exact, not an approximation.
+##
 ## Returns {"path": PackedVector3Array, "cumulative_cost": PackedFloat32Array}
 ## — cumulative_cost[i] is the total cost to reach path[i] from the
 ## start (cumulative_cost[0] is always 0.0), parallel to path.
-static func plan(waypoints: PackedVector3Array, budget: float, cost_sampler: Callable) -> Dictionary:
+static func plan(waypoints: PackedVector3Array, budget: float, cost_sampler: Callable, ascend_multiplier: float = 1.0, descend_multiplier: float = 1.0) -> Dictionary:
 	const STEP_LENGTH: float = 0.5
 
 	var path: PackedVector3Array = PackedVector3Array([waypoints[0]])
@@ -41,12 +50,15 @@ static func plan(waypoints: PackedVector3Array, budget: float, cost_sampler: Cal
 			continue
 
 		var steps: int = max(1, ceili(segment_length / STEP_LENGTH))
-		var step_length: float = segment_length / steps
 		var previous_point: Vector3 = segment_start
 
 		for s in range(1, steps + 1):
 			var t: float = float(s) / float(steps)
 			var point: Vector3 = segment_start.lerp(segment_end, t)
+
+			var delta: Vector3 = point - previous_point
+			var vertical_multiplier: float = ascend_multiplier if delta.y > 0.0 else descend_multiplier
+			var step_length: float = Vector3(delta.x, delta.y * vertical_multiplier, delta.z).length()
 
 			var multiplier: float = cost_sampler.call(previous_point) if cost_sampler.is_valid() else 1.0
 			multiplier = max(multiplier, 0.001)
@@ -54,7 +66,7 @@ static func plan(waypoints: PackedVector3Array, budget: float, cost_sampler: Cal
 
 			if traveled + step_cost >= budget:
 				var remaining: float = budget - traveled
-				var frac: float = clamp(remaining / step_cost, 0.0, 1.0)
+				var frac: float = clamp(remaining / step_cost, 0.0, 1.0) if step_cost > 0.0 else 0.0
 				path.append(previous_point.lerp(point, frac))
 				cumulative_cost.append(budget)
 				return {"path": path, "cumulative_cost": cumulative_cost}

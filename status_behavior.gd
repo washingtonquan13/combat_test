@@ -18,7 +18,12 @@ func on_apply(_unit: Unit, _active: ActiveStatus) -> void:
 
 
 ## Called once when the status is removed (expired, cured, replaced).
-func on_remove(_unit: Unit, _active: ActiveStatus) -> void:
+## voluntary is true only when the unit itself chose this removal (a
+## Land action) — false for natural expiry or any other forced removal
+## (Incapacitate grounding a flyer). See StatusManager.remove()'s own
+## header for the full reasoning; ForceLandOnExpireBehavior is the one
+## behavior that currently reads this.
+func on_remove(_unit: Unit, _active: ActiveStatus, _voluntary: bool = false) -> void:
 	pass
 
 

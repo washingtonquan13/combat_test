@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="FlightRules" load_steps=2 format=3 uid="uid://bqxv82yfm0nsn"]
+
+[ext_resource type="Script" uid="uid://dt2scbrygmps3" path="res://systems/unit_system/flight_rules.gd" id="1_flightrules"]
+
+[resource]
+script = ExtResource("1_flightrules")
+ascend_cost_multiplier = 1.0
+descend_cost_multiplier = 1.0
+safe_fall_distance = 2.0
+fall_dice_sides = 6
+fall_adds_per_step = 2
+fall_steps_per_die = 3
+fall_damage_reduced_by_dr = true

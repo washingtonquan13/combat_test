@@ -26,6 +26,7 @@ targeting = SubResource("Resource_selftargeting")
 effects = Array[ExtResource("2_effect")]([SubResource("Resource_landeffect")])
 requires_to_hit = false
 uses_attack_action = false
+move_cost = 0.0
 armed_enter_animation = ""
 armed_hold_animation = ""
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

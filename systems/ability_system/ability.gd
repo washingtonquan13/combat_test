@@ -45,6 +45,17 @@ enum Category { COMMON, ABILITIES }
 ## flag rather than assumed so a future free-action ability doesn't need
 ## special-casing anywhere else.
 @export var uses_attack_action: bool = true
+## Flat movement-budget cost, checked as a HARD PRECONDITION in
+## UnitCombat.use_ability() — same "can't afford, can't attempt" pattern
+## Ladder.required_move already uses (see that file), not the separate
+## clamp-to-what's-affordable pattern MoveCasterEffect (Jump) uses for
+## its own distance-SCALED cost. The two never overlap: this is a flat
+## toll for casting the ability at all (fly.tres uses it for takeoff),
+## Jump's is proportional to how far you actually jump — one clamps
+## naturally to a shorter version, the other can't be "half paid."
+## Defaults to 0.0, so every ability authored before this field existed
+## is completely unaffected.
+@export var move_cost: float = 0.0
 
 @export_group("Timing")
 ## Optional — see AbilityTiming's own header for the full reasoning.

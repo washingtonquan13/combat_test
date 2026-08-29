@@ -80,11 +80,20 @@ func _attempt_action(unit: Unit) -> void:
 	# target here isn't assumed hostile.
 	if target.is_flying() and not unit.is_flying():
 		var flight_ability: Ability = _find_flight_ability(unit)
-		if flight_ability:
+		if flight_ability and not (CombatManager.in_combat and flight_ability.move_cost > 0.0 and unit.move_remaining < flight_ability.move_cost):
 			await unit.use_ability(flight_ability, unit)
 
 	if ability.is_in_range(unit, target):
-		unit.use_ability(ability, target)
+		# Same hard-precondition formula UnitCombat.use_ability() itself
+		# checks (see Ability.move_cost's own header) — checked here too
+		# so a chosen ability the unit can't pay for doesn't silently
+		# burn the whole turn on a no-op use_ability() call. Real
+		# cost-aware DECISION-making (choosing a different, affordable
+		# action instead) belongs to the scored candidate AI, not this
+		# baseline — this is only a "don't waste the turn" guard.
+		var cant_afford: bool = CombatManager.in_combat and ability.move_cost > 0.0 and unit.move_remaining < ability.move_cost
+		if not cant_afford:
+			unit.use_ability(ability, target)
 		CombatManager.end_turn()
 		return
 
