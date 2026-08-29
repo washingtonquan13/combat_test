@@ -11,12 +11,23 @@ extends Node
 ## granted through this autoload, matches how DemonRoster/FlagManager
 ## already track their own party-wide state.
 ##
-## Not persisted to disk, same as FlagManager/DemonRoster — this project
-## has no save system yet.
+## Persisted via save_state()/load_state() below — see SaveManager.
 
 signal gold_changed(new_amount: int)
 
 var gold: int = 50
+
+
+func save_state() -> Dictionary:
+	return {"gold": gold}
+
+
+## Emits gold_changed — a load is exactly the kind of external change
+## any gold-display UI needs to react to, same as add_gold()/spend_gold()
+## already do for an ordinary in-session change.
+func load_state(state: Dictionary) -> void:
+	gold = state.get("gold", gold)
+	gold_changed.emit(gold)
 
 
 func add_gold(amount: int) -> void:

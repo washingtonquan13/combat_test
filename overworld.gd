@@ -44,6 +44,16 @@ func spawns_party() -> bool:
 	return false
 
 
+## Read by SaveManager to restore the avatar's exact saved position
+## after a load — the overworld has no "party" for PartyManager.members
+## to index into (see spawns_party() above), so this is the one other
+## place a saved position needs to land. Public rather than reaching
+## into the private _avatar field from outside, same as this file's
+## other duck-typed accessors (get_tactical_camera, get_spawn_point).
+func get_avatar() -> OverworldAvatar:
+	return _avatar
+
+
 func _spawn_avatar() -> void:
 	_avatar = AVATAR_SCENE.instantiate()
 	add_child(_avatar)

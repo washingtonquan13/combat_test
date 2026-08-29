@@ -38,6 +38,7 @@ FactionRelations="*res://systems/faction_system/faction_relations.gd"
 PartyManager="*res://systems/party_system/party_manager.gd"
 UIStack="*res://systems/ui_system/ui_stack.gd"
 GameMode="*res://systems/mode_system/game_mode.gd"
+SaveManager="*res://systems/save_system/save_manager.gd"
 
 [display]
 

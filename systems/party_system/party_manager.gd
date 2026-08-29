@@ -228,6 +228,173 @@ func clear_members() -> void:
 	leader = null
 
 
+## --- Save/load ---
+## See SaveManager, the sole caller of both. Operates on roster, not
+## members/leader directly — capture() (called first, below) is what
+## keeps roster current against whatever's actually live right now, the
+## same refresh a world transition already triggers.
+
+## capture() first: roster is only ever refreshed on a world transition
+## (see that method's own header), so without this a save taken mid-area
+## would serialize STALE data — the roster as of the last transition, not
+## this session's actual HP/equipment/position changes. Correctly a
+## no-op in the overworld (capture()'s own members-empty guard), where
+## roster is already the party's only representation.
+func save_state() -> Dictionary:
+	capture()
+	var records: Array[Dictionary] = []
+	for record in roster:
+		records.append(_save_one(record))
+	return {"members": records}
+
+
+func _save_one(record: PartyMemberData) -> Dictionary:
+	# "" for a null entry, not skipped — custom_slots in particular is a
+	# fixed-size array of hotbar slots (see Unit.custom_slots's own
+	# default: 6 nulls, meaning 6 empty slots), so which INDEX is empty
+	# is real information; dropping null entries would shift every
+	# later filled slot down on load. Same treatment for abilities for
+	# consistency, even though nothing authors a null there today.
+	var abilities: Array[String] = []
+	for ability in record.abilities:
+		abilities.append(ability.ability_name if ability else "")
+	var custom_slots: Array[String] = []
+	for ability in record.custom_slots:
+		custom_slots.append(ability.ability_name if ability else "")
+
+	var skills: Array[Dictionary] = []
+	for skill_record in record.skills:
+		skills.append({
+			"skill_name": skill_record.skill.skill_name,
+			"levels_purchased": skill_record.levels_purchased,
+		})
+
+	# Slot keys stay as their raw EquipSlot.Slot int — ConfigFile's Variant
+	# round-trip preserves a Dictionary[int, String] exactly, so there's
+	# no need to stringify the key the way JSON would have forced.
+	var equipment: Dictionary = {}
+	for slot in record.equipment:
+		var gear: GearItem = record.equipment[slot]
+		equipment[slot] = gear.id
+
+	return {
+		"definition_id": record.definition.id if record.definition else "",
+		"is_leader": record.is_leader,
+		"display_name": record.display_name,
+		# The one unavoidable path-not-id exception — Texture2D has no id
+		# field and no database (see SaveManager's own header on this).
+		"portrait_path": record.portrait_texture.resource_path if record.portrait_texture else "",
+		"faction": record.faction,
+		"selected_color": record.selected_color,
+		"hover_color": record.hover_color,
+		"strength": record.strength,
+		"dexterity": record.dexterity,
+		"intelligence": record.intelligence,
+		"health": record.health,
+		"will": record.will,
+		"perception": record.perception,
+		"move": record.move,
+		"move_speed": record.move_speed,
+		"maximum_hp": record.maximum_hp,
+		"current_hp": record.current_hp,
+		"maximum_fp": record.maximum_fp,
+		"current_fp": record.current_fp,
+		"damage_reduction": record.damage_reduction,
+		"alignment": record.alignment,
+		"tendency": record.tendency,
+		"abilities": abilities,
+		"custom_slots": custom_slots,
+		"skills": skills,
+		"equipment": equipment,
+	}
+
+
+## Rebuilds roster from a save file — does NOT touch members/leader
+## (still cleared from whatever WorldManager.unload() already did; see
+## SaveManager's own load order). spawn_party() reads roster once the
+## destination area actually exists, same as an ordinary world
+## transition.
+func load_state(state: Dictionary) -> void:
+	roster.clear()
+	for entry in state.get("members", []):
+		roster.append(_load_one(entry))
+
+
+func _load_one(entry: Dictionary) -> PartyMemberData:
+	var record := PartyMemberData.new()
+
+	var definition_id: String = entry.get("definition_id", "")
+	if definition_id != "":
+		record.definition = SpawnableUnitDatabase.find(definition_id)
+
+	record.is_leader = entry.get("is_leader", false)
+	record.display_name = entry.get("display_name", "")
+
+	var portrait_path: String = entry.get("portrait_path", "")
+	if portrait_path != "":
+		record.portrait_texture = load(portrait_path) as Texture2D
+
+	record.faction = entry.get("faction", &"player")
+	record.selected_color = entry.get("selected_color", record.selected_color)
+	record.hover_color = entry.get("hover_color", record.hover_color)
+	record.strength = entry.get("strength", record.strength)
+	record.dexterity = entry.get("dexterity", record.dexterity)
+	record.intelligence = entry.get("intelligence", record.intelligence)
+	record.health = entry.get("health", record.health)
+	record.will = entry.get("will", record.will)
+	record.perception = entry.get("perception", record.perception)
+	record.move = entry.get("move", record.move)
+	record.move_speed = entry.get("move_speed", record.move_speed)
+	record.maximum_hp = entry.get("maximum_hp", record.maximum_hp)
+	record.current_hp = entry.get("current_hp", record.current_hp)
+	record.maximum_fp = entry.get("maximum_fp", record.maximum_fp)
+	record.current_fp = entry.get("current_fp", record.current_fp)
+	record.damage_reduction = entry.get("damage_reduction", record.damage_reduction)
+	record.alignment = entry.get("alignment", record.alignment)
+	record.tendency = entry.get("tendency", record.tendency)
+
+	# "" means the slot was empty at save time (see _save_one's own note
+	# on custom_slots being fixed-size and index-meaningful) — append
+	# null to preserve that position, not skip it. Only a NON-empty name
+	# that fails to resolve is a real data problem worth a warning.
+	for ability_name in entry.get("abilities", []):
+		if ability_name == "":
+			record.abilities.append(null)
+			continue
+		var ability: Ability = AbilityDatabase.find(ability_name)
+		if ability:
+			record.abilities.append(ability)
+		else:
+			push_warning("PartyManager.load_state: unknown ability '%s'" % ability_name)
+			record.abilities.append(null)
+	for ability_name in entry.get("custom_slots", []):
+		if ability_name == "":
+			record.custom_slots.append(null)
+			continue
+		var ability: Ability = AbilityDatabase.find(ability_name)
+		if ability:
+			record.custom_slots.append(ability)
+		else:
+			push_warning("PartyManager.load_state: unknown ability '%s'" % ability_name)
+			record.custom_slots.append(null)
+
+	for skill_entry in entry.get("skills", []):
+		var skill: Skill = SkillDatabase.find(skill_entry.get("skill_name", ""))
+		if not skill:
+			continue
+		var skill_record := PartySkillRecord.new()
+		skill_record.skill = skill
+		skill_record.levels_purchased = skill_entry.get("levels_purchased", 1)
+		record.skills.append(skill_record)
+
+	for slot in entry.get("equipment", {}):
+		var gear: GearItem = ItemDatabase.find(entry["equipment"][slot]) as GearItem
+		if gear:
+			record.equipment[slot] = gear
+
+	return record
+
+
 ## Instantiates one party member from a snapshot and places it in world —
 ## definition.unit_scene if the record carries a species (a recruited
 ## demon or authored companion), plain unit.tscn otherwise (a character-

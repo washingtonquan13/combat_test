@@ -24,6 +24,25 @@ static func get_all() -> Array[UnitDefinition]:
 	return _all
 
 
+## Null if no definition with this id exists in either directory. A
+## linear scan, deliberately not a cached id->definition dict — see this
+## file's own header on why a flat array is kept instead of one: an id
+## collision between demons/ and units/ is a pre-existing authoring risk
+## either way, and this returns whichever this array happens to hold
+## first rather than letting one silently overwrite the other in a
+## cache. Needed for save/load: PartyMemberData.definition is saved as
+## an id (see SaveManager), and a saved leader/companion can come from
+## EITHER directory — DemonDatabase.find() alone can't resolve a
+## units/-sourced definition.
+static func find(id: String) -> UnitDefinition:
+	if _all.is_empty():
+		_load_all()
+	for definition in _all:
+		if definition.id == id:
+			return definition
+	return null
+
+
 static func refresh() -> void:
 	_all.clear()
 	_load_all()

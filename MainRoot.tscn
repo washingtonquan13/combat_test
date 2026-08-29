@@ -1,4 +1,4 @@
-[gd_scene load_steps=34 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=35 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
@@ -33,6 +33,7 @@
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="31_navdbg"]
 [ext_resource type="Script" uid="uid://dwxlhcmxv7u8v" path="res://interact_prompt.gd" id="32_interactprompt"]
 [ext_resource type="Script" uid="uid://cu2efa5w2hpro" path="res://debug_combat_harness.gd" id="33_debugharness"]
+[ext_resource type="PackedScene" path="res://save_load_panel.tscn" id="34_saveloadpanel"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -226,7 +227,7 @@ blocks_input_below = true
 party_overview = NodePath("../PartyOverview")
 blocks_input_below = true
 
-[node name="EscMenu" type="Control" parent="CanvasLayer"]
+[node name="EscMenu" type="Control" parent="CanvasLayer" node_paths=PackedStringArray("save_load_panel")]
 custom_minimum_size = Vector2(300, 200)
 layout_mode = 3
 anchors_preset = 8
@@ -242,6 +243,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("16_jq2sk")
 blocks_input_below = true
+save_load_panel = NodePath("../SaveLoadPanel")
 
 [node name="ExitButton" type="Button" parent="CanvasLayer/EscMenu"]
 custom_minimum_size = Vector2(32, 32)
@@ -266,12 +268,14 @@ grow_horizontal = 2
 grow_vertical = 2
 alignment = 1
 
-[node name="Save" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+[node name="SaveButton" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 text = "SAVE"
 
-[node name="Load" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+[node name="LoadButton" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
 text = "LOAD"
@@ -281,6 +285,12 @@ layout_mode = 2
 size_flags_vertical = 3
 text = "SETTINGS
 "
+
+[node name="MainMenuButton" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+text = "MAIN MENU"
 
 [node name="DebugExitToOverworldButton" type="Button" parent="CanvasLayer/EscMenu/VBoxContainer"]
 unique_name_in_owner = true
@@ -307,10 +317,14 @@ closes_on_cancel = false
 
 [node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("20_dicepopup")]
 
-[node name="MainMenu" parent="CanvasLayer" instance=ExtResource("21_mainmenu")]
+[node name="SaveLoadPanel" parent="CanvasLayer" instance=ExtResource("34_saveloadpanel")]
+blocks_input_below = true
+
+[node name="MainMenu" parent="CanvasLayer" node_paths=PackedStringArray("save_load_panel") instance=ExtResource("21_mainmenu")]
 hides_hud = true
 blocks_input_below = true
 closes_on_cancel = false
+save_load_panel = NodePath("../SaveLoadPanel")
 
 [node name="CharacterCreation" parent="CanvasLayer" instance=ExtResource("22_charcreate")]
 visible = false

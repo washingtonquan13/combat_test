@@ -15,6 +15,15 @@ extends UIScreen
 ## the title screen, and Escape must not dismiss it (there'd be nothing
 ## underneath).
 
+## Set via node_paths on this scene's own MainRoot.tscn instance —
+## SaveLoadPanel is pushed ON TOP of this screen (not instead of it) for
+## LOAD GAME, same as StashPanel opens over PartyOverview rather than
+## replacing it (see stash_panel.gd's own header for that precedent).
+@export var save_load_panel: SaveLoadPanel
+
+@onready var _continue_button: Button = %ContinueButton
+
+
 func _enter_tree() -> void:
 	# Found by role rather than NodePath — see character_creation.gd's own
 	# matching _enter_tree(), which its Back button resolves through here.
@@ -25,6 +34,26 @@ func _ready() -> void:
 	var track: MusicTrack = MusicTrackDatabase.find("level_up_groovy")
 	if track:
 		MusicManager.play_track(track)
+
+	# Recomputed every time this becomes visible, not just once here — a
+	# save made mid-session (Esc menu -> Save, then Esc menu -> Main Menu)
+	# needs CONTINUE to pick it up without a restart. Same on-show refresh
+	# idiom esc_menu.gd's own _on_visibility_changed already uses for its
+	# debug exit button.
+	visibility_changed.connect(_on_visibility_changed)
+	_on_visibility_changed()
+
+	# Closes itself if a load completes while it's the one open — reached
+	# via CONTINUE below, but ALSO via a load initiated from
+	# save_load_panel while this screen sits open underneath it. Without
+	# this, a successful load would leave the title screen's own
+	# Background ColorRect covering the freshly-loaded world.
+	SaveManager.load_completed.connect(_on_load_completed)
+
+
+func _on_visibility_changed() -> void:
+	if visible:
+		_continue_button.visible = SaveManager.most_recent() != ""
 
 
 ## Straight screen-to-screen handoff within the front end: no world is
@@ -38,3 +67,26 @@ func _on_start_pressed() -> void:
 
 func _on_quit_pressed() -> void:
 	get_tree().quit()
+
+
+## _continue_button.visible already guards this from being reachable
+## with no save on disk (see _on_visibility_changed) — most_recent()
+## re-checked here regardless, same belt-and-suspenders reasoning
+## save_load_panel.gd's own _on_save_pressed applies to an empty name.
+func _on_continue_pressed() -> void:
+	var path: String = SaveManager.most_recent()
+	if path != "":
+		SaveManager.load_file(path)
+
+
+func _on_load_pressed() -> void:
+	save_load_panel.open_for(SaveLoadPanel.Mode.LOAD)
+
+
+## SaveManager.load_completed fires for EVERY successful load, including
+## ones that have nothing to do with this screen (an Esc-menu load
+## during ordinary play) — only close if THIS screen is actually the one
+## currently open.
+func _on_load_completed(_path: String) -> void:
+	if UIStack.is_open(self):
+		close()

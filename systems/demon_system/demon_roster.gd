@@ -15,6 +15,14 @@ extends Node
 ## it's out. Dismissing or ending a fight doesn't touch this array at
 ## all; only release() (fusion consuming a parent, or a real combat
 ## death — see UnitCombat.take_damage()) does.
+##
+## Persisted via save_state()/load_state() below — see SaveManager.
+## Known, accepted gap: a demon that's actively FIELDED (a live Unit
+## whose owned_demon points here) at save time is not re-summoned on
+## load — only ownership round-trips, not "currently on the field."
+## SaveManager.can_save() only allows saving in EXPLORATION/OVERWORLD,
+## and summoning is a combat action, so this is reachable only through
+## the debug summon path, not ordinary play.
 
 var _owned: Array[OwnedDemon] = []
 
@@ -71,3 +79,38 @@ func is_fielded(owned_demon: OwnedDemon) -> bool:
 ## panel's own listing, one row per instance, not grouped by species.
 func all_owned() -> Array[OwnedDemon]:
 	return _owned.duplicate()
+
+
+## species.id, not a direct UnitDefinition reference — same
+## resource-by-id convention every other saved reference uses (see
+## SpawnableUnitDatabase.find(), the counterpart this is read back
+## through).
+func save_state() -> Dictionary:
+	var entries: Array[Dictionary] = []
+	for owned in _owned:
+		entries.append({
+			"species_id": owned.species.id if owned.species else "",
+			"current_hp": owned.current_hp,
+			"current_fp": owned.current_fp,
+			"has_been_summoned": owned.has_been_summoned,
+		})
+	return {
+		"owned": entries,
+		"max_active_summons": max_active_summons,
+	}
+
+
+func load_state(state: Dictionary) -> void:
+	_owned.clear()
+	for entry in state.get("owned", []):
+		var species: UnitDefinition = SpawnableUnitDatabase.find(entry.get("species_id", ""))
+		if not species:
+			push_warning("DemonRoster.load_state: unknown species id '%s'" % entry.get("species_id"))
+			continue
+		var owned := OwnedDemon.new()
+		owned.species = species
+		owned.current_hp = entry.get("current_hp", species.max_hp)
+		owned.current_fp = entry.get("current_fp", species.max_fp)
+		owned.has_been_summoned = entry.get("has_been_summoned", false)
+		_owned.append(owned)
+	max_active_summons = state.get("max_active_summons", max_active_summons)

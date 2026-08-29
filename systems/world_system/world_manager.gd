@@ -97,6 +97,81 @@ func can_load() -> bool:
 	return not InteractionMenu.is_open() and GameMode.can_transition()
 
 
+## Frees whatever world is currently loaded, WITHOUT capturing it into
+## PartyManager.roster first — the one caller that needs this is
+## SaveManager.load_file(): roster is about to be overwritten by the
+## save file's own data one line later, so capturing the (about to be
+## discarded) live world first would just be immediately undone. Every
+## ordinary area transition still goes through load_world(), which calls
+## the same teardown with capture_party=true — this does not change that
+## path at all.
+##
+## No-op (returns true) when nothing is loaded — the main menu, e.g.,
+## where SaveManager.load_file() can also be called from. Returns false,
+## refused exactly like load_world(), if a load isn't currently allowed
+## (mid-combat/dialogue/loot).
+func unload() -> bool:
+	if not can_load():
+		push_warning("WorldManager.unload refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
+		return false
+
+	world_loading.emit(null)
+	_teardown_current_world(false)
+	_current_area = null
+	return true
+
+
+## The shared half of leaving whatever world is currently loaded (if
+## any) — extracted from load_world() so SaveManager.load_file() can
+## reuse the exact same teardown via unload() above, with capture_party
+## controlling only whether PartyManager.capture() runs. Every other
+## step (dismissing fielded demons, clearing selection/menus/UI,
+## unregistering the tactical camera, freeing the world node, invalidating
+## NavigationGrid) happens unconditionally either way — none of that
+## depends on whether the party gets captured first.
+func _teardown_current_world(capture_party: bool) -> void:
+	if not _current_world:
+		return
+
+	if capture_party:
+		# A no-op when the outgoing world never spawned the party in the
+		# first place (members is empty) — see PartyManager.capture()'s
+		# own guard for why that's required, not just harmless.
+		PartyManager.capture()
+	_dismiss_fielded_demons()
+	PartyManager.clear_members()
+
+	SelectionManager.deselect_all()
+	InteractionMenu.close()
+	UIStack.close_all()
+	if _current_world.has_method("get_tactical_camera"):
+		var old_cam: Camera3D = _current_world.get_tactical_camera()
+		if is_instance_valid(old_cam):
+			CameraDirector.unregister_tactical_camera(old_cam)
+
+	# remove_child() immediately, THEN queue_free() — not queue_free()
+	# alone. queue_free() defers the actual removal, so the outgoing
+	# world would still occupy its name among _scene_root's children
+	# at the moment a new world is added right after, and Godot silently
+	# renames the newcomer (e.g. "TestArena" -> "TestArena2") to avoid
+	# the collision. Freeing is still safe to defer; only staying
+	# IN THE TREE needs to end synchronously here.
+	_scene_root.remove_child(_current_world)
+	_current_world.queue_free()
+	_current_world = null
+
+	# NavigationGrid is an Engine singleton (see its own header) — it
+	# outlives every world and caches raw CollisionShape3D* pointers
+	# into whichever world it last scanned. Without this, those
+	# pointers dangle into the geometry just freed above, and the next
+	# query that lazily rasterizes a not-yet-touched chunk dereferences
+	# freed memory — a real native crash this project shipped (no
+	# GDScript error precedes it; shows as a bare signal 11). This
+	# forces the next ensure_baked() call to do a real re-scan instead
+	# of trusting stale state.
+	NavigationGrid.invalidate()
+
+
 ## Frees whatever world is currently loaded (if any) and instantiates
 ## scene in its place. If the outgoing world actually had the party
 ## spawned into it, that's captured into PartyManager.roster before it's
@@ -123,43 +198,10 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# this is "the area being left," read once, up front.
 	var from_area_id: StringName = _current_area.id if _current_area else &""
 
-	if _current_world:
-		# A no-op when the outgoing world never spawned the party in the
-		# first place (members is empty) — see PartyManager.capture()'s
-		# own guard for why that's required, not just harmless.
-		PartyManager.capture()
-		_dismiss_fielded_demons()
-		PartyManager.clear_members()
-
-		SelectionManager.deselect_all()
-		InteractionMenu.close()
-		UIStack.close_all()
-		if _current_world.has_method("get_tactical_camera"):
-			var old_cam: Camera3D = _current_world.get_tactical_camera()
-			if is_instance_valid(old_cam):
-				CameraDirector.unregister_tactical_camera(old_cam)
-
-		# remove_child() immediately, THEN queue_free() — not queue_free()
-		# alone. queue_free() defers the actual removal, so the outgoing
-		# world would still occupy its name among _scene_root's children
-		# at the moment the new world is added below, and Godot silently
-		# renames the newcomer (e.g. "TestArena" -> "TestArena2") to avoid
-		# the collision. Freeing is still safe to defer; only staying
-		# IN THE TREE needs to end synchronously here.
-		_scene_root.remove_child(_current_world)
-		_current_world.queue_free()
-		_current_world = null
-
-		# NavigationGrid is an Engine singleton (see its own header) — it
-		# outlives every world and caches raw CollisionShape3D* pointers
-		# into whichever world it last scanned. Without this, those
-		# pointers dangle into the geometry just freed above, and the next
-		# query that lazily rasterizes a not-yet-touched chunk dereferences
-		# freed memory — a real native crash this project shipped (no
-		# GDScript error precedes it; shows as a bare signal 11). This
-		# forces the next ensure_baked() call to do a real re-scan instead
-		# of trusting stale state.
-		NavigationGrid.invalidate()
+	# true: an ordinary area transition, PartyManager.roster must stay
+	# current against whatever was actually live. See _teardown_current_world's
+	# own header for the false case (SaveManager.load_file(), via unload()).
+	_teardown_current_world(true)
 
 	# Assigned here — after the outgoing world is fully torn down, before the
 	# incoming one is even instantiated — so _current_area and _current_world
@@ -292,6 +334,11 @@ func pending_spawn_point_name() -> StringName:
 	return _pending_spawn_point_name
 
 
+## Null when nothing is loaded (the main menu, e.g.). Pre-existing —
+## SaveManager's own _capture_avatar_transform() is a new caller that
+## needs the live world node directly rather than just its
+## AreaDefinition, since a saved position has to be read off whatever
+## get_avatar() the CURRENT world happens to expose.
 func current_world() -> Node:
 	return _current_world
 

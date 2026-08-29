@@ -13,11 +13,28 @@ extends Node
 ## things that aren't dialogue at all (an item pickup, a fight's outcome)
 ## without those systems needing to know DialogueManager exists.
 ##
-## Not persisted to disk — this project has no save system yet, so flags
-## currently live only for the running session, same as everything else
-## un-saved right now.
+## Persisted via save_state()/load_state() below — see SaveManager, the
+## one caller of both. Serializing this single flat dictionary carries
+## quest progress (quest.gd derives "which stage" from these flags at
+## READ time rather than storing it separately — see that file's own
+## header) and all of AreaState's per-area records (phase 2 put those
+## behind this same dictionary, under a reserved "areastate/" prefix)
+## along for free, with no separate save path for either.
 
 var _flags: Dictionary = {}
+
+
+## duplicate(true) — a DEEP copy, not the live dictionary. AreaState's
+## own values are themselves Dictionaries (a stash's item list, e.g.),
+## so a shallow copy would hand the caller (SaveManager, about to write
+## this to a ConfigFile) a container that still aliases this file's own
+## nested data.
+func save_state() -> Dictionary:
+	return _flags.duplicate(true)
+
+
+func load_state(state: Dictionary) -> void:
+	_flags = state.duplicate(true)
 
 
 ## value defaults to true for the common "did this happen yet" case, so
