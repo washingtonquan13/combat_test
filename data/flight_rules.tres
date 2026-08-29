@@ -4,7 +4,7 @@
 
 [resource]
 script = ExtResource("1_flightrules")
-ascend_cost_multiplier = 1.0
+ascend_cost_multiplier = 2.0
 descend_cost_multiplier = 1.0
 safe_fall_distance = 2.0
 fall_dice_sides = 6
