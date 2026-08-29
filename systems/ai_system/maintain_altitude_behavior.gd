@@ -12,14 +12,19 @@ extends AiBehavior
 ## have (see combat_ai.gd's own header) — except now that's one candidate
 ## among many instead of an unconditional reflex, so a unit that can't
 ## afford it, or for which some other action scores better, correctly
-## doesn't bother.
+## doesn't bother. Scored by how much incoming threat (see AiScorer.
+## incoming_threat) climbing to preferred_altitude would avoid — a
+## melee-only battlefield makes this decisive, an all-ranged one
+## correctly leaves the unit grounded.
 ##
-## Airborne: proposes this unit's normal attack against the nearest
-## hostile, but insists on preferred_altitude rather than whatever
-## altitude the standoff-goal math would otherwise leave it at — see
-## AiScorer._resolve_reach's flight_altitude override for how a
-## temporarily-adopted altitude gets planned against without touching
-## the unit's real state until the plan is actually chosen.
+## Airborne: proposes landing instead of attacking once nothing can
+## reach this unit anymore (mirrors the takeoff decision — no reason left
+## to keep paying flight's FP upkeep), otherwise this unit's normal
+## attack against the nearest hostile, insisting on preferred_altitude
+## rather than whatever altitude the standoff-goal math would otherwise
+## leave it at — see AiScorer._resolve_reach's flight_altitude override
+## for how a temporarily-adopted altitude gets planned against without
+## touching the unit's real state until the plan is actually chosen.
 
 @export var preferred_altitude: float = 8.0
 ## Added on top of whatever the takeoff candidate would otherwise score
@@ -38,13 +43,29 @@ func propose(unit: Unit) -> Array[AiPlan]:
 		var flight_ability: Ability = FlightAiUtil.find_flight_ability(unit)
 		if not flight_ability:
 			return []
+		var current_threat: float = AiScorer.incoming_threat(unit, unit.global_position)
+		var airborne_position: Vector3 = Vector3(unit.global_position.x, preferred_altitude, unit.global_position.z)
+		var airborne_threat: float = AiScorer.incoming_threat(unit, airborne_position)
 		var takeoff := AiPlan.new(flight_ability, unit)
-		takeoff.score = takeoff_score_bonus
+		takeoff.score = takeoff_score_bonus + (current_threat - airborne_threat)
 		return [takeoff]
 
 	var target: Unit = UnitQuery.nearest_hostile(unit.get_tree(), unit)
 	if not target:
 		return []
+
+	# Nothing left that can reach this unit up here and FP is finite —
+	# come back down rather than draining it for no reason (see this
+	# file's own header on the mirror problem this was leaving unsolved:
+	# nothing ever told a flyer to land before FpDrainBehavior forced it).
+	var land_ability: Ability = FlightAiUtil.find_land_ability(unit)
+	if land_ability and unit.maximum_fp > 0:
+		var threat_here: float = AiScorer.incoming_threat(unit, unit.global_position)
+		if threat_here <= 0.01:
+			var land_plan := AiPlan.new(land_ability, unit)
+			land_plan.score = takeoff_score_bonus
+			return [land_plan]
+
 	var ability: Ability = unit.default_ability()
 	if not ability:
 		return []

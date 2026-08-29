@@ -31,6 +31,18 @@ extends RefCounted
 ##                leaves it unable to sustain something already running,
 ##                e.g. Flying's own upkeep — see FpDrainBehavior).
 ##
+## This scorer reasons about damage DEALT (_score_plan) and damage TAKEN
+## (incoming_threat) as two separate halves — a plan's own score_bonus
+## plus expected-damage/heal covers the first; authored positioning
+## behaviors that care about the second (MaintainAltitudeBehavior's
+## takeoff, a future FleeBehavior rewrite) call incoming_threat()
+## themselves rather than this file injecting threat-avoidance into
+## every candidate's score. Earlier iterations assumed altitude
+## reasoning "fell out for free" because AltitudeAdvantageBehavior
+## shifts the to-hit number — it does, but that shift caps at +4 and is
+## second-order next to simply being out of a melee attacker's reach,
+## which is what actually justifies a flyer's takeoff cost.
+##
 ## Known simplifications, not bugs: line of sight is ignored when
 ## checking whether a standoff point would land a ranged ability in
 ## range (an approximation of RangedEnemyTargeting's real LoS raycast —
@@ -339,14 +351,76 @@ static func _fallback_plan(unit: Unit, tree: SceneTree) -> AiPlan:
 	return plan
 
 
+## Expected damage unit would take before its next turn if it stood at
+## position right now — the missing half of this scorer (see header):
+## everything else here reasons about damage DEALT, this is the only
+## place damage TAKEN is modeled. For each living hostile, takes that
+## hostile's single best damage-dealing attack (same MeleeEnemyTargeting/
+## RangedEnemyTargeting + expected_damage > 0 filter as
+## _enumerate_baseline_candidates) times its chance to hit unit at
+## position, and only counts it if the hostile could plausibly reach
+## position this turn.
+##
+## Two deliberate approximations, same spirit as this file's other
+## documented shortcuts:
+## - Reach is a straight-line distance check (hostile's move_remaining +
+##   the ability's approach_range vs edge distance to position), not a
+##   real NavigationGrid.find_path — an A* search per hostile per ability
+##   per candidate position is real cost for a number that only needs to
+##   RANK candidates, not guarantee anything.
+## - _chance_to_hit is evaluated with unit hypothetically AT position,
+##   which needs the same temporary-adopt-and-restore _resolve_reach
+##   already uses for flight_altitude: unit's real global_position is
+##   swapped in, queried, and swapped back, so scoring one candidate can
+##   never leak a hypothetical position into another candidate scored in
+##   the same pass.
+static func incoming_threat(unit: Unit, position: Vector3) -> float:
+	var previous_position: Vector3 = unit.global_position
+	unit.global_position = position
+
+	var threat: float = 0.0
+	for hostile in UnitQuery.living_units(unit.get_tree()):
+		if not unit.is_hostile_to(hostile):
+			continue
+
+		var best_hit_value: float = 0.0
+		for ability in hostile.abilities:
+			if not ability.targeting:
+				continue
+			if not (ability.targeting is MeleeEnemyTargeting or ability.targeting is RangedEnemyTargeting):
+				continue
+
+			var total_damage: float = 0.0
+			for effect in ability.effects:
+				total_damage += effect.expected_damage(hostile)
+			if total_damage <= 0.0:
+				continue
+
+			var reach: float = hostile.move_remaining + ability.targeting.approach_range()
+			var edge_distance: float = hostile.global_position.distance_to(position) - hostile.radius - unit.radius
+			if edge_distance > reach:
+				continue
+
+			var chance: float = _chance_to_hit(hostile, unit, ability) if ability.requires_to_hit else 1.0
+			best_hit_value = max(best_hit_value, total_damage * chance)
+
+		threat += best_hit_value
+
+	unit.global_position = previous_position
+	return threat
+
+
 ## Attacker's real to-hit target number against target for ability —
 ## same formula UnitCombat._roll_to_hit builds (own skill, outgoing
 ## modifiers, defender's incoming modifiers, altitude advantage), just
-## converted to a probability instead of actually rolled. This is what
-## makes altitude reasoning fall out for free (see this file's header):
-## AltitudeAdvantageBehavior already changes the target number, so it
-## already changes the resulting probability, with no separate
-## "altitude" term anywhere in this scorer.
+## converted to a probability instead of actually rolled. The to-hit term
+## this produces DOES shift with altitude (AltitudeAdvantageBehavior caps
+## at +4 — see altitude_advantage_behavior.gd), but that shift alone is
+## second-order: against an already-likely-to-hit ranged attacker, +4
+## buys only a few points of probability, nowhere near enough to justify
+## a takeoff's cost on its own. The decisive reason to fly is captured
+## separately, in incoming_threat() above — melee-only hostiles simply
+## can't reach a unit that isn't on the ground.
 static func _chance_to_hit(unit: Unit, target, ability: Ability) -> float:
 	var target_number: int = unit.attack_skill()
 	target_number += unit.outgoing_attack_to_hit_modifier(target, ability)
