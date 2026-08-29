@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=14 format=3 uid="uid://c2ocs8andnhho"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=18 format=3 uid="uid://c2ocs8andnhho"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
@@ -6,7 +6,9 @@
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="5_attack"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
+[ext_resource type="Script" uid="uid://cy4cwggbdbhod" path="res://systems/ai_system/swoop_attack_behavior.gd" id="7_0nb8d"]
 [ext_resource type="Resource" uid="uid://cwjyokhysugqe" path="res://data/negotiation/conversations/foolish/foolish_greeting.tres" id="7_greeting"]
+[ext_resource type="Script" uid="uid://dsh34hjqknuhi" path="res://systems/ai_system/flee_behavior.gd" id="8_xx5nt"]
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="90_fly"]
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="91_land"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="92_aibehavior"]
@@ -17,6 +19,20 @@ script = ExtResource("93_maintainalt")
 preferred_altitude = 10.0
 takeoff_score_bonus = 1.0
 reposition_score_bonus = 0.0
+
+[sub_resource type="Resource" id="Resource_jm2jp"]
+script = ExtResource("7_0nb8d")
+swoop_altitude = 1.0
+score_bonus = 0.0
+metadata/_custom_type_script = "uid://cy4cwggbdbhod"
+
+[sub_resource type="Resource" id="Resource_2pllx"]
+script = ExtResource("8_xx5nt")
+hp_threshold = 0.902
+flee_distance = 10.0
+altitude_while_fleeing = 8.0
+score_bonus = 100.0
+metadata/_custom_type_script = "uid://dsh34hjqknuhi"
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
@@ -44,7 +60,7 @@ is_special = false
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("90_fly"), ExtResource("91_land")])
-ai_behaviors = Array[ExtResource("92_aibehavior")]([SubResource("Resource_flightai_maintain")])
+ai_behaviors = Array[ExtResource("92_aibehavior")]([SubResource("Resource_flightai_maintain"), SubResource("Resource_jm2jp"), SubResource("Resource_2pllx")])
 ai_smartness = 2
 negotiable = true
 negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])
