@@ -82,5 +82,20 @@ func propose(unit: Unit) -> Array[AiPlan]:
 		# own header: has_destination false means this attacks
 		# immediately if in range, same as any other candidate).
 		plan.flight_altitude = preferred_altitude
-	plan.score = reposition_score_bonus
+
+	# Without a threat-based bias, this candidate scores IDENTICALLY to
+	# the plain baseline-enumerated attack (same ability/target/expected
+	# damage — see AiScorer._enumerate_baseline_candidates), and
+	# AiScorer.best_plan only replaces its running best on a strict `>`,
+	# so a tie always loses to whichever candidate was enumerated first.
+	# That silently discarded every climb: a unit could take off (see
+	# this file's grounded branch) and then never actually reach
+	# preferred_altitude, hovering wherever the takeoff ability happened
+	# to leave it. Scoring the same way takeoff does — by how much
+	# incoming threat holding preferred_altitude avoids versus the
+	# current position — gives an actual reason to climb instead of
+	# relying on a tie to break the right way.
+	var current_threat: float = AiScorer.incoming_threat(unit, unit.global_position)
+	var preferred_threat: float = AiScorer.incoming_threat(unit, Vector3(goal_xz.x, preferred_altitude, goal_xz.z))
+	plan.score = reposition_score_bonus + (current_threat - preferred_threat)
 	return [plan]
