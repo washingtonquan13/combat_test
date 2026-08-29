@@ -10,7 +10,7 @@
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="90_fly"]
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="91_land"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="92_aibehavior"]
-[ext_resource type="Script" path="res://systems/ai_system/maintain_altitude_behavior.gd" id="93_maintainalt"]
+[ext_resource type="Script" uid="uid://dj3vkllm7h00d" path="res://systems/ai_system/maintain_altitude_behavior.gd" id="93_maintainalt"]
 
 [sub_resource type="Resource" id="Resource_flightai_maintain"]
 script = ExtResource("93_maintainalt")
@@ -33,7 +33,7 @@ health = 8
 move = 5
 will = 10
 perception = 14
-max_hp = 7
+max_hp = 8
 max_fp = 8
 damage_reduction = 0
 faction = &"enemy"
