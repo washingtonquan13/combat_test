@@ -205,6 +205,15 @@ enum Mode { BOUND, UNBOUND }
 ## full distance/height the instant something's no longer in the way.
 @export var response_out_speed: float = 6.0
 
+@export_group("Load Focus")
+## How close global_position needs to get to desired_position before the
+## initial on-load focus (see _on_world_loaded below) is considered
+## "settled" and releases back to free-roam. Checked against the actual
+## eased position, not the raw anchor/yaw/distance targets individually
+## — global_position is where every one of those pipelines converges,
+## so it's the one number that means "no longer visibly moving."
+@export var load_focus_settle_distance: float = 0.5
+
 # shared state (kept continuous across both modes so switching never snaps)
 var current_yaw: float = 0.0        # degrees
 var target_yaw: float = 0.0         # degrees
@@ -250,6 +259,13 @@ var _last_anchor_point: Vector3 = Vector3.ZERO   # cached for look_at, applied a
 var _smoothed_distance_reduction: float = 0.0
 var _smoothed_height_lift: float = 0.0
 
+## True from the moment _on_world_loaded below assigns focus_target to
+## the leader until the camera visually settles on them (see
+## load_focus_settle_distance) and releases back to free-roam. Checked
+## every physics frame while true (see _physics_process); a no-op the
+## rest of the time.
+var _settling_load_focus: bool = false
+
 
 func _get_mode() -> Mode:
 	return Mode.BOUND if focus_target != null else Mode.UNBOUND
@@ -259,6 +275,12 @@ func _ready() -> void:
 	CameraDirector.register_tactical_camera(self)
 	CombatManager.turn_started.connect(_on_turn_started)
 	CombatManager.combat_ended.connect(_on_combat_ended)
+	# Fires once for THIS camera's own creation — a new CRPGCamera
+	# instance is built fresh on every area load (see area .tscn files),
+	# so by the time a DIFFERENT world_loaded could fire, this instance
+	# already belongs to a torn-down world and the is_ancestor_of() guard
+	# below skips it.
+	WorldManager.world_loaded.connect(_on_world_loaded)
 
 	target_distance = clamp((min_distance + max_distance) * 0.5, min_distance, max_distance)
 	current_distance = target_distance
@@ -324,6 +346,40 @@ func _on_turn_started(unit: Unit) -> void:
 ## — not a jump to wherever that offset would otherwise land.
 func _on_combat_ended(_winning_faction: StringName) -> void:
 	focus_target = null
+
+
+## Every area load drops this camera in wherever its OWN .tscn happens
+## to author its starting transform — with no relationship at all to
+## wherever the party actually spawned, which reads as especially wrong
+## after a save/load restores a leader position far from that default
+## framing. Reuses the exact same focus_target pipeline
+## _on_turn_started already drives for combat-follow: aim at the leader,
+## let the existing anchor/yaw/distance easing carry the camera to them
+## (the "swagger" glide, not a snap), then hand control back once
+## _physics_process below detects it's actually arrived.
+func _on_world_loaded(world: Node) -> void:
+	if not world.is_ancestor_of(self):
+		return
+	if not PartyManager.leader:
+		return
+	focus_target = PartyManager.leader
+	_settling_load_focus = true
+
+
+## Bails without releasing if focus_target no longer points at the
+## leader THIS settle started for — combat starting mid-glide (unlikely,
+## since worlds only ever load out of combat, but not impossible if a
+## fight is scripted to start immediately on entry) has already
+## reassigned focus_target via _on_turn_started by then, and that
+## follow now owns the camera; this must not clear it out from under
+## that on the next frame's settle check.
+func _update_load_focus() -> void:
+	if focus_target != PartyManager.leader:
+		_settling_load_focus = false
+		return
+	if global_position.distance_to(desired_position) <= load_focus_settle_distance:
+		focus_target = null
+		_settling_load_focus = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -397,6 +453,13 @@ func _physics_process(delta: float) -> void:
 	# gliding smoothly toward the new anchor.
 	current_look_at_point = current_look_at_point.lerp(anchor_point, 1.0 - exp(-look_smoothing * delta))
 	look_at(current_look_at_point, Vector3.UP)
+
+	# After the lerps above so this frame's freshly-updated
+	# global_position/desired_position are what gets checked — settling
+	# a frame late is harmless, checking against last frame's stale
+	# values isn't.
+	if _settling_load_focus:
+		_update_load_focus()
 
 
 ## Bound mode: anchor = focus_target + offset + leashed pan offset.
