@@ -78,8 +78,20 @@ func _build_leader() -> Unit:
 ## dialogue phase (see her dialogue_options / resolved_hub.tres) depends
 ## on this flag actually getting set in a normal playthrough, not just
 ## the debug path.
+## get_node_or_null(), not $GoblinRogue/$Hobgoblin directly — a
+## goblinoid with a persistent_id can legitimately be ABSENT from this
+## scene by the time _ready() runs: WorldManager's AreaState
+## reconciliation pass (see world_manager.gd) frees a defeated one
+## before the world ever enters the tree, on every re-entry after the
+## quest was already resolved once. A raid already fully resolved in a
+## prior visit needs no watcher at all — townsperson_raids_resolved was
+## already set the moment the last one died.
 func _watch_goblinoid_raid_quest() -> void:
-	_goblinoids_remaining = [$GoblinRogue as Unit, $Hobgoblin as Unit]
+	var candidates: Array[Unit] = [
+		get_node_or_null("GoblinRogue") as Unit,
+		get_node_or_null("Hobgoblin") as Unit,
+	]
+	_goblinoids_remaining = candidates.filter(func(u): return is_instance_valid(u))
 	for goblinoid in _goblinoids_remaining:
 		goblinoid.died.connect(_on_goblinoid_died)
 

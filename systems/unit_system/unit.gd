@@ -52,6 +52,13 @@ extends CharacterBody3D
 ## reading .name (or this field) directly.
 @export var display_name: String = ""
 
+## Stable authored identity for area persistence — see AreaState. Empty
+## means "not persistent," which is the correct default for most units
+## (party members, summons, anything spawned rather than hand-placed);
+## set this only on a hand-placed unit whose death should be remembered
+## across a re-entry into its area (a goblinoid in test_arena, e.g.).
+@export var persistent_id: StringName = &""
+
 @export var strength: int = 10
 @export var dexterity: int = 10
 @export var intelligence: int = 10

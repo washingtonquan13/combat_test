@@ -180,6 +180,16 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# hold at once.
 	_pending_spawn_point_name = _resolve_entry_spawn_point(world, spawn_point_name, from_area_id)
 
+	# Same detached window _resolve_entry_spawn_point() above already
+	# exploits — the subtree exists structurally but _ready() hasn't
+	# cascaded, so a removed entity is freed here and NEVER enters the
+	# tree at all (no spawn-then-despawn flicker, no CombatManager
+	# registration to unwind). Guarded on area != null since load_world()
+	# is legitimately callable with no area data (see _current_area's own
+	# header) — AreaState has nothing to reconcile against in that case.
+	if area:
+		_reconcile_area_state(world, area.id)
+
 	var world_wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
 	_is_restoring_party = world_wants_party and not PartyManager.roster.is_empty()
 
@@ -202,6 +212,54 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 
 	world_loaded.emit(world)
 	return world
+
+
+## Applies AreaState against a just-instantiated, not-yet-in-tree world —
+## see load_world()'s own call site for why this timing matters. Duck-
+## types on "persistent_id" rather than checking node classes by name, so
+## a future class besides Unit/InteractableProp can opt in by declaring
+## the same field with no change needed here (see AreaState's own header
+## on the intrinsic-id design this reads).
+func _reconcile_area_state(world: Node, area_id: StringName) -> void:
+	for node in _collect_persistent_nodes(world):
+		var entity_id: StringName = node.persistent_id
+
+		if AreaState.is_removed(area_id, entity_id):
+			node.get_parent().remove_child(node)
+			node.queue_free()
+			continue
+
+		# The save_state()/load_state() contract may live on a CHILD
+		# component rather than the persistent_id-bearing node itself —
+		# a chest's contents are owned by its StashComponent, not by the
+		# InteractableProp directly (same "capability by composition"
+		# reasoning StashComponent.find_on()'s own header gives). Direct
+		# children only, so this can't accidentally reach into an
+		# unrelated persistent node nested underneath.
+		var target: Node = node
+		if not target.has_method("load_state"):
+			for child in node.get_children():
+				if child.has_method("load_state"):
+					target = child
+					break
+
+		if target.has_method("load_state"):
+			var state: Variant = AreaState.stored_state(area_id, entity_id)
+			if state != null:
+				target.load_state(state)
+
+
+## Recursive: an entity's persistent_id can sit at any depth (a Unit
+## nested under formation logic, a StashComponent's owner nested under
+## whatever an area's own hierarchy looks like) — same reasoning
+## AreaValidator's own _collect_exits() walk already applies.
+func _collect_persistent_nodes(node: Node) -> Array[Node]:
+	var found: Array[Node] = []
+	if "persistent_id" in node and node.persistent_id != &"":
+		found.append(node)
+	for child in node.get_children():
+		found.append_array(_collect_persistent_nodes(child))
+	return found
 
 
 ## The data-driven counterpart to load_world() — resolves area_id through

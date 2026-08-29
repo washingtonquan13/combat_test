@@ -15,10 +15,12 @@ fixed_dice_bonus = 0
 
 [resource]
 script = ExtResource("1_gear")
+slot_type = 11
+stat_modifiers = Array[ExtResource("3_s3sab")]([])
+weapon_data = SubResource("Resource_weapon")
+id = &"iron_sword"
 item_name = "Iron Sword"
 icon = ExtResource("2_icon")
 width = 2
 height = 3
-slot_type = 11
-stat_modifiers = Array[ExtResource("3_s3sab")]([])
-weapon_data = SubResource("Resource_weapon")
+maximum_stack_count = 99

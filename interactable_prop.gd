@@ -15,6 +15,12 @@ extends StaticBody3D
 ## .tres list convention as Unit.interactions.
 @export var interactions: Array[InteractionOption] = []
 
+## Stable authored identity for area persistence — see AreaState. Empty
+## means "not persistent" (the correct default for ordinary scenery);
+## set this on anything WorldManager's reconciliation pass needs to be
+## able to remove or restore state on (a lootable chest, a future door).
+@export var persistent_id: StringName = &""
+
 
 ## Identical in shape to Unit.get_interactions() — deliberately duplicated
 ## rather than shared, see interaction_option.gd's own header for why two

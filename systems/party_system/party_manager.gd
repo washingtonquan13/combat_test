@@ -281,7 +281,7 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 
 	for slot in record.equipment:
 		var item: Item = ITEM_SCENE.instantiate()
-		item.gear_data = record.equipment[slot]
+		item.definition = record.equipment[slot]
 		unit.equip_item(slot, item)
 
 	return unit

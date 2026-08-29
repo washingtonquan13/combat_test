@@ -8,20 +8,31 @@ extends Container
 
 @export var tooltip_scene: PackedScene
 @export var context_menu_scene: PackedScene
-## Mechanical/definition data for this item — see gear_item.gd. Setting
-## this cascades into icon/width/height below (their own setters still
-## fire _update_size()/_update_tooltip_text() as normal), so a new Item
-## pointed at a given GearItem can't get the wrong footprint by hand-
-## authoring mistake. Those three stay directly editable too — this
-## isn't a hard lock, just the source of truth when it's set. Null for
-## a non-gear item (currency, a plain consumable).
-@export var gear_data: GearItem:
+## Definition data for this item — see item_definition.gd/gear_item.gd.
+## Setting this cascades into icon/width/height below (their own
+## setters still fire _update_size()/_update_tooltip_text() as normal),
+## so a new Item pointed at a given definition can't get the wrong
+## footprint by hand-authoring mistake. Those three stay directly
+## editable too — this isn't a hard lock, just the source of truth when
+## it's set. Any Item can have one — gear and non-gear (currency, a
+## plain consumable) items alike; only gear ones point at a GearItem
+## specifically (see gear_data below).
+@export var definition: ItemDefinition:
 	set(value):
-		gear_data = value
-		if gear_data:
-			icon = gear_data.icon
-			width = gear_data.width
-			height = gear_data.height
+		definition = value
+		if definition:
+			icon = definition.icon
+			width = definition.width
+			height = definition.height
+## Read-only view of `definition` typed as GearItem — non-null only when
+## this item's definition IS one, e.g. `if item.gear_data:` to check
+## "is this item equippable" the same way every existing call site
+## already did before `definition` existed. Every read site (EquipSlot,
+## UnitEquipment, Inventory's has_item/consume_item, etc.) keeps working
+## unchanged; only the few WRITE sites (assigning gear_data =) needed to
+## move to `definition` directly.
+var gear_data: GearItem:
+	get: return definition as GearItem
 @export var icon: Texture2D:
 	set(value):
 		icon = value

@@ -11,9 +11,11 @@ amount = 2
 
 [resource]
 script = ExtResource("1_gear")
+slot_type = 3
+stat_modifiers = Array[ExtResource("3_statmod")]([SubResource("Resource_statmod")])
+id = &"leather_chestpiece"
 item_name = "Leather Chestpiece"
 icon = ExtResource("2_icon")
 width = 2
 height = 3
-slot_type = 3
-stat_modifiers = Array[ExtResource("3_statmod")]([SubResource("Resource_statmod")])
+maximum_stack_count = 99

@@ -1,12 +1,12 @@
 [gd_resource type="Resource" script_class="ItemDefinition" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://systems/inventory_system/item_definition.gd" id="1_def"]
-[ext_resource type="Texture2D" uid="uid://u8puvbqkit5k" path="res://assets/test_item_icons/test_healing_potion.png" id="2_icon"]
+[ext_resource type="Texture2D" uid="uid://bor7ucx1k3nh1" path="res://assets/test_item_icons/test_mana_potion.png" id="2_icon"]
 
 [resource]
 script = ExtResource("1_def")
-id = &"healing_potion"
-item_name = "Healing Potion"
+id = &"mana_potion"
+item_name = "Mana Potion"
 icon = ExtResource("2_icon")
 width = 1
 height = 1

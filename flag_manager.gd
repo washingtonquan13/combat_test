@@ -38,3 +38,15 @@ func has_flag(flag_name: String) -> bool:
 
 func clear_flag(flag_name: String) -> void:
 	_flags.erase(flag_name)
+
+
+## Every currently-set flag name starting with prefix — lets a consumer
+## that owns a reserved namespace within this flat dictionary (see
+## AreaState's "areastate/" prefix) enumerate and clear its own flags as
+## a unit, without this file needing to know that namespace exists.
+func get_flag_names_with_prefix(prefix: String) -> Array[String]:
+	var matches: Array[String] = []
+	for flag_name in _flags:
+		if flag_name.begins_with(prefix):
+			matches.append(flag_name)
+	return matches

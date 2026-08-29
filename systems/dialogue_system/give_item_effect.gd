@@ -29,7 +29,7 @@ func apply(actor: Unit, _target: Unit) -> void:
 		return
 
 	var item: Item = ITEM_SCENE.instantiate()
-	item.gear_data = gear_data
+	item.definition = gear_data
 	if not party_overview.get_inventory().auto_place_item(item):
 		push_warning("GiveItemEffect: party inventory has no room for %s." % gear_data.item_name)
 		item.queue_free()

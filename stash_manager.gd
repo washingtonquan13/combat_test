@@ -33,6 +33,35 @@ func open_stash(stash: StashComponent, actor: Unit) -> void:
 
 
 func close_stash() -> void:
+	# Captured before current_stash is cleared below — closing is the
+	# right moment to persist (see StashComponent.save_state()'s own
+	# header): the panel's reparent-based transfer means contents are
+	# only settled once it closes, not while items are mid-drag.
+	var closing_stash: StashComponent = current_stash
+
 	current_stash = null
 	GameMode.pop_mode()
 	stash_closed.emit()
+
+	_persist_stash_state(closing_stash)
+
+
+## The owning persistent node is always this component's direct parent
+## — same structural convention StashComponent.find_on() itself relies
+## on, just walked in reverse. Silently no-ops for a stash whose owner
+## has no persistent_id (not everything lootable needs to be area-state-
+## tracked) or that has no current area (WorldManager.current_area() is
+## null outside a loaded area).
+func _persist_stash_state(stash: StashComponent) -> void:
+	if not is_instance_valid(stash):
+		return
+
+	var owner_node: Node = stash.get_parent()
+	if not owner_node or owner_node.get("persistent_id") == null or owner_node.persistent_id == &"":
+		return
+
+	var area: AreaDefinition = WorldManager.current_area()
+	if not area:
+		return
+
+	AreaState.store_state(area.id, owner_node.persistent_id, stash.save_state())

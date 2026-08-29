@@ -50,6 +50,17 @@ func expire() -> void:
 ## regardless of how long the actual node sticks around for a death
 ## animation.
 func handle_death() -> void:
+	# Recorded first, before any of the teardown below — this is a real
+	# death (handle_death(), not expire(): a despawning summon never
+	# carries a persistent_id, since only hand-placed content does — see
+	# Unit.persistent_id's own header). Empty is the default for the
+	# overwhelming majority of units (party members, summons), so this is
+	# a no-op for them; current_area() is null outside a loaded area
+	# (nothing calls WorldManager.load_world() with no AreaDefinition
+	# today, but stays guarded regardless — see _current_area's header).
+	if _owner.persistent_id != &"" and WorldManager.current_area():
+		AreaState.mark_removed(WorldManager.current_area().id, _owner.persistent_id)
+
 	_owner.remove_from_group("units")
 	_owner.input_ray_pickable = false
 
