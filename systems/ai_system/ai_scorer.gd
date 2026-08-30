@@ -448,6 +448,8 @@ static func _apply_positional_value(unit: Unit, plan: AiPlan) -> void:
 		_death_probability(unit, unit.global_position) - _death_probability(unit, end_position)
 	)
 
+	gain -= _unsustainable_flight_cost(unit, plan, end_position)
+
 	if absf(gain) < SCORE_EPSILON:
 		return
 
@@ -912,6 +914,58 @@ static func score_position(unit: Unit, position: Vector3) -> float:
 	return value
 
 
+## What taking off costs when the unit can't afford to stay up once it
+## gets there — the mirror of _forced_descent_cost, for the one case that
+## function structurally cannot see.
+##
+## _forced_descent_cost reasons from unit.is_flying(), so a GROUNDED unit
+## weighing a takeoff pays nothing for flight it cannot sustain: it isn't
+## airborne yet, so there's no descent to anticipate. That let an Avian
+## with a single FP spend it on Fly, reach three metres, and be dropped
+## again on the very next turn for fall damage — all cost, no benefit,
+## and obviously silly to anyone watching.
+##
+## Charges the fall the takeoff is buying, whenever the FP left AFTER
+## paying for the ability can't cover even one turn aloft. Scored rather
+## than forbidden, because the arithmetic already knows what flight is
+## worth here: if being airborne genuinely saves more than the fall costs
+## (a cornered unit escaping something lethal), it still wins, and the
+## rest of the time it correctly doesn't bother.
+static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: Vector3) -> float:
+	if unit.is_flying() or plan.pure_reposition or not plan.ability:
+		return 0.0
+
+	var upkeep: int = FlightAiUtil.prospective_flight_upkeep(plan.ability)
+	if upkeep <= 0:
+		return 0.0
+
+	var remaining: float = float(unit.current_fp) - plan.ability.fp_cost
+	var turns_aloft: float = remaining / float(upkeep)
+	if turns_aloft >= KILL_HORIZON_TURNS:
+		return 0.0
+
+	var ground_y: float = _ground_y_at(unit, end_position)
+	var descent: float = maxf(0.0, end_position.y - ground_y)
+
+	var cost: float = 0.0
+	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
+	if roll.dice_count > 0:
+		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
+		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
+			cost = maxf(0.0, cost - float(unit.damage_reduction))
+
+	# And the safety it's buying is only rented. _apply_positional_value
+	# has already credited this takeoff with escaping everything that
+	# can't reach it up there — for the FULL horizon, because
+	# score_position has no way to know the unit can't pay to stay. Give
+	# back the share of that credit it hasn't actually earned, or a bird
+	# with one FP happily buys three turns of safety it gets one turn of.
+	var grounded_fraction: float = 1.0 - turns_aloft / KILL_HORIZON_TURNS
+	cost += sustained_incoming_threat(
+		unit, Vector3(end_position.x, ground_y, end_position.z)) * grounded_fraction
+	return cost
+
+
 ## What being airborne at position really costs once you account for not
 ## being able to STAY there — the fall when the FP runs out, plus the time
 ## spent on the ground afterwards.
@@ -980,8 +1034,17 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 static func _ground_y_at(unit: Unit, position: Vector3) -> float:
 	var exclude: Array[RID] = []
 	for other in UnitQuery.all_units(unit.get_tree()):
+		# Skip anything already on its way out. A queue_free()d unit stays
+		# in its group for the rest of the frame but its physics RID is
+		# already gone, and handing a dangling RID to the physics server
+		# takes the whole process down with a segfault rather than an
+		# error — found by a unit dying on the turn before this ran.
+		if not is_instance_valid(other) or not other.is_inside_tree():
+			continue
 		exclude.append(other.get_rid())
 
+	if not unit.is_inside_tree():
+		return position.y
 	var space_state := unit.get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(position, position + Vector3.DOWN * 200.0)
 	query.exclude = exclude

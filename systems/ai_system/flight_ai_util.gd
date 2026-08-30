@@ -35,7 +35,26 @@ static func find_land_ability(unit: Unit) -> Ability:
 static func flight_upkeep(unit: Unit) -> int:
 	var total: int = 0
 	for status in unit.flight_granting_statuses():
-		for behavior in status.behaviors:
-			if behavior is FpDrainBehavior:
-				total += behavior.fp_per_turn
+		total += status_upkeep(status)
+	return total
+
+
+## Upkeep of a flight status this unit has NOT applied yet — what taking
+## off would commit it to. flight_upkeep() above can only see statuses
+## already active, which is exactly no help to a grounded unit deciding
+## whether it can afford to leave the ground in the first place.
+static func prospective_flight_upkeep(ability: Ability) -> int:
+	if not ability:
+		return 0
+	for effect in ability.effects:
+		if effect is GrantFlightEffect and effect.flying_status:
+			return status_upkeep(effect.flying_status)
+	return 0
+
+
+static func status_upkeep(status: StatusEffect) -> int:
+	var total: int = 0
+	for behavior in status.behaviors:
+		if behavior is FpDrainBehavior:
+			total += behavior.fp_per_turn
 	return total
