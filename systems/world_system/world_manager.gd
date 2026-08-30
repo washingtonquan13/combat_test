@@ -201,8 +201,31 @@ func _move_attention_to(parent: Node) -> void:
 ## context menu, not a real mode transition). Naturally always true
 ## during the menu/chargen hops (nothing has started either of those
 ## things yet).
-func can_load() -> bool:
-	return not InteractionMenu.is_open() and GameMode.can_transition()
+func can_load(travellers: Array[Unit] = []) -> bool:
+	if InteractionMenu.is_open():
+		return false
+	if GameMode.can_transition():
+		return true
+
+	# Something is overlaid on the base mode. Combat is the one overlay
+	# that is a question about WHO rather than about the player: a fight
+	# detains the people IN it, and once the party can split, someone
+	# standing across the room is not one of them. Everything else —
+	# dialogue, negotiation, looting, a cutscene — is a modal the PLAYER
+	# is in, and nobody travels out of those.
+	if GameMode.current_mode() != GameMode.Mode.COMBAT:
+		return false
+	return not _any_traveller_fighting(travellers)
+
+
+## Whether anyone actually going is tied up in a fight. An empty list
+## means everyone embodied here, matching _resolve_travellers, so the
+## no-argument form still answers the old question: can the party leave.
+func _any_traveller_fighting(travellers: Array[Unit]) -> bool:
+	for unit in _resolve_travellers(travellers):
+		if is_instance_valid(unit) and unit.in_combat():
+			return true
+	return false
 
 
 ## Frees whatever world is currently loaded, WITHOUT capturing it into
@@ -439,7 +462,14 @@ func _resident_for(area: AreaDefinition) -> ResidentWorld:
 ## or null for a world with no area data at all — which is also what makes
 ## a world un-resident, since there is no id to find it by again.
 func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: AreaDefinition = null, travellers: Array[Unit] = []) -> Node:
-	if not can_load():
+	# Who is going, resolved BEFORE the gate: a fight detains the people in
+	# it, so whether this load is allowed depends on who is leaving. Also
+	# before _leave_focused, while _focused still says which world these
+	# people are standing in.
+	var outgoing: ResidentWorld = _focused
+	var going: Array[Unit] = _resolve_travellers(travellers)
+
+	if not can_load(going):
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
 
@@ -447,14 +477,6 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 
 	# "The area being left," read once, up front — before leaving clears it.
 	var from_area_id: StringName = current_area().id if current_area() else &""
-
-	# true: an ordinary area transition, so PartyManager.roster must stay
-	# current against whatever was actually live. See unload() for the
-	# false case (SaveManager.load_file()).
-	# Resolved BEFORE leaving, while _focused still says which world these
-	# people are standing in.
-	var outgoing: ResidentWorld = _focused
-	var going: Array[Unit] = _resolve_travellers(travellers)
 
 	_leave_focused()
 

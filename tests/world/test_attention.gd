@@ -40,6 +40,7 @@ func run() -> void:
 		_it_does_not_drag_the_player_there()
 		_combat_mode_belongs_to_the_fight_on_screen()
 		await _going_there_settles_it()
+		_a_fight_only_detains_the_people_in_it()
 
 	_cleanup()
 
@@ -144,6 +145,31 @@ func _going_there_settles_it() -> void:
 	check("now the player IS in combat, because this is the fight on screen",
 		GameMode.current_mode() == GameMode.Mode.COMBAT,
 		"arrived at the fight without entering combat mode")
+
+
+## A fight detains the people IN it, not everyone who happens to be
+## nearby. can_load() used to refuse every load whenever anything on
+## screen was fighting, which with a split party meant half of it could
+## not walk out of a room the other half was brawling in.
+func _a_fight_only_detains_the_people_in_it() -> void:
+	var detained: Array[Unit] = [_stayer]
+	check("someone in the fight cannot travel out of it",
+		not WorldManager.can_load(detained),
+		"walked out mid-turn")
+
+	var bystander: Unit = null
+	for unit in PartyManager.members:
+		if is_instance_valid(unit) and unit != _stayer and not unit.in_combat():
+			bystander = unit
+			break
+	if bystander == null:
+		check("SETUP: a party member outside the fight", false)
+		return
+
+	var free_to_go: Array[Unit] = [bystander]
+	check("but someone who is not in it still can",
+		WorldManager.can_load(free_to_go),
+		"a fight they are not part of refused their travel")
 
 
 func _spawn_enemy_beside(ally: Unit) -> Unit:
