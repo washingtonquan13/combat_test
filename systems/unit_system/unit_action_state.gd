@@ -81,6 +81,27 @@ func can_act() -> bool:
 	return not is_busy() and not _owner.status_prevents_turn()
 
 
+## A NON-MOVEMENT action in flight — an ability animation, a dice roll,
+## anything bracketed by begin_busy()/end_busy().
+##
+## Split out of is_busy() because that one predicate was answering two
+## different questions and only one of them should include walking.
+## "Do not end the turn yet" must include it: a unit still crossing the
+## floor has not finished its move. "Cannot be given an order" must not:
+## a walking unit is exactly when the player most wants to say something
+## else, and conflating the two is what made click-to-move ignore every
+## click until the last one landed.
+func is_acting() -> bool:
+	return _busy_count > 0
+
+
+## Whether the player can give this unit an order. Movement-permissive
+## by design — see is_acting(). Distinct from can_act(), which stays
+## strict and is what ability use asks.
+func can_be_commanded() -> bool:
+	return not is_acting() and not _owner.status_prevents_turn()
+
+
 ## Whether `distance` could be covered without exceeding the remaining
 ## budget.
 func can_move(distance: float) -> bool:

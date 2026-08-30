@@ -1,6 +1,6 @@
 class_name OverworldAvatar
 extends CharacterBody3D
-## The single controllable overworld avatar — deliberately NOT a Unit:
+## One party group, drawn on the overworld — deliberately NOT a Unit:
 ## no nav-grid pathing, no turn budget, nothing that would make
 ## UnitQuery/SelectionManager pick it up. Direct WASD physics movement,
 ## relative to whatever the camera's current yaw is (see
@@ -34,6 +34,16 @@ extends CharacterBody3D
 ## built toward either outcome on spec. See interact_prompt.gd's own
 ## header for the interaction half of this same comparison.
 
+## The group this avatar stands for. There is one avatar per group in
+## the overworld, which is what lets a split party be somewhere at all
+## rather than being collected the moment it arrives.
+var group: PartyGroup = null
+
+## Only the active avatar takes input. Without this every avatar reads
+## the same WASD and the whole party walks in lockstep while pretending
+## to be in different places.
+var active: bool = false
+
 @export var move_speed: float = 6.0
 @export var acceleration: float = 24.0
 @export var gravity: float = 18.0
@@ -64,15 +74,20 @@ extends CharacterBody3D
 
 
 func _physics_process(delta: float) -> void:
+	# An inactive avatar still falls and still spins — it is standing
+	# somewhere, not paused — it just is not being driven.
 	var input_dir := Vector2.ZERO
-	if Input.is_action_pressed("camera_pan_forward"):
-		input_dir.y -= 1.0
-	if Input.is_action_pressed("camera_pan_backward"):
-		input_dir.y += 1.0
-	if Input.is_action_pressed("camera_pan_left"):
-		input_dir.x -= 1.0
-	if Input.is_action_pressed("camera_pan_right"):
-		input_dir.x += 1.0
+	if not active:
+		input_dir = Vector2.ZERO
+	else:
+		if Input.is_action_pressed("camera_pan_forward"):
+			input_dir.y -= 1.0
+		if Input.is_action_pressed("camera_pan_backward"):
+			input_dir.y += 1.0
+		if Input.is_action_pressed("camera_pan_left"):
+			input_dir.x -= 1.0
+		if Input.is_action_pressed("camera_pan_right"):
+			input_dir.x += 1.0
 	input_dir = input_dir.normalized()
 
 	var yaw: float = camera.get_yaw() if camera else 0.0
@@ -89,6 +104,13 @@ func _physics_process(delta: float) -> void:
 		velocity.y -= gravity * delta
 
 	move_and_slide()
+
+	# Written back every frame so the group remembers where it is
+	# standing — the overworld is rebuilt from groups, not the other way
+	# round, and a group that forgot its position would snap back to the
+	# door it came in by.
+	if group:
+		group.overworld_position = global_position
 
 	_apply_alignment_spin(delta)
 
@@ -115,3 +137,25 @@ func _apply_alignment_spin(delta: float) -> void:
 	var speed_degrees: float = base_spin_degrees * lerpf(mild_spin_scale, extreme_spin_scale, extremity)
 	var direction_sign: float = law_spin_sign if category > 0 else -law_spin_sign
 	_spin_pivot.rotate_y(direction_sign * deg_to_rad(speed_degrees) * delta)
+
+
+func _ready() -> void:
+	# Clickable the same way a Unit is (see unit.gd) — picking is per
+	# viewport and the world view already enables it.
+	input_ray_pickable = true
+	if not input_event.is_connected(_on_input_event):
+		input_event.connect(_on_input_event)
+
+
+## Clicking an avatar commands that group. The counterpart to clicking
+## an absent companion's portrait (see unit_portrait._on_pressed), for
+## the case where the people you want are not embodied and so have no
+## portrait to click.
+func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3,
+		_normal: Vector3, _shape_idx: int) -> void:
+	if not event.is_action_pressed("left_click") or group == null:
+		return
+	PartyManager.active_group = group
+	var overworld: Node = get_parent()
+	if overworld and overworld.has_method("sync_avatars"):
+		overworld.sync_avatars()

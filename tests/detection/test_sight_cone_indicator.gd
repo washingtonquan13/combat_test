@@ -21,6 +21,8 @@ func run() -> void:
 	_hidden_when_it_should_be()
 	_key_toggles_it()
 
+	await _cones_stop_at_the_world_on_screen()
+
 	_indicator.queue_free()
 
 
@@ -140,3 +142,51 @@ func _hidden_when_it_should_be() -> void:
 	CombatManager.end_combat(&"")
 
 	free_spawned()
+
+
+## Cones are drawn for observers found through UnitQuery.living_units,
+## which is the deliberately GLOBAL form and spans every RESIDENT world
+## rather than the one on screen. Unscoped, an NPC standing in an area
+## the player cannot see had its field of view drawn over the area they
+## can — a cone hanging in the air above unrelated ground.
+##
+## Built with two live World3Ds the way tests/world does, since a
+## one-world game cannot tell a scoped query from an unscoped one.
+func _cones_stop_at_the_world_on_screen() -> void:
+	var elsewhere := SubViewport.new()
+	elsewhere.own_world_3d = true
+	elsewhere.size = Vector2i(64, 64)
+	_root.add_child(elsewhere)
+	await get_tree().process_frame
+
+	var foreign: Unit = load("res://unit.tscn").instantiate()
+	elsewhere.add_child(foreign)
+	foreign.faction = &"enemy"
+	foreign.strength = 10
+	foreign.dexterity = 10
+	foreign.maximum_hp = 20
+	foreign.current_hp = 20
+	var abilities: Array[Ability] = [melee()]
+	foreign.abilities = abilities
+	foreign.global_position = Vector3.ZERO
+	foreign.reset_turn_actions()
+	await get_tree().physics_frame
+
+	# A party member in THIS world, so _observers has someone to be
+	# hostile to — without one it returns empty and the check below would
+	# pass without testing anything.
+	var ally: Unit = spawn_brute(4.0)
+	ally.faction = &"player"
+	await get_tree().physics_frame
+
+	var observers: Array[Unit] = _indicator._observers()
+	check("an NPC in another world gets no cone drawn in this one",
+		not observers.has(foreign),
+		"a foreign observer leaked into the overlay")
+
+	if foreign.is_in_group("units"):
+		foreign.remove_from_group("units")
+	elsewhere.remove_child(foreign)
+	foreign.queue_free()
+	_root.remove_child(elsewhere)
+	elsewhere.queue_free()

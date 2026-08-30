@@ -85,7 +85,12 @@ func is_open() -> bool:
 ## relative to the game's own viewport, not the OS desktop.
 func _get_screen_position(target: Node) -> Vector2:
 	var node_3d := target as Node3D
-	var camera: Camera3D = get_viewport().get_camera_3d()
+	# The focused world's camera — this popup lives on the root viewport,
+	# which has no 3D camera of its own now that worlds render into their
+	# own. get_mouse_position() below stays on THIS viewport deliberately:
+	# the popup positions in root-viewport coordinates, and the world view
+	# is a full-screen 1:1 container, so the two agree.
+	var camera: Camera3D = WorldManager.focused_camera()
 	if not node_3d or not camera:
 		return get_viewport().get_mouse_position()
 	return camera.unproject_position(node_3d.global_position)

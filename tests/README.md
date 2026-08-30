@@ -78,6 +78,8 @@ entirely the wrong reason.
 | `test_flight_decisions` | every flight bug that reached a player, as a named regression |
 | `test_scoring` | threat/kill value, tie-breaking, positional value, adopt-restore |
 | `test_turn_economy` | a free action must not cost the turn |
+| `test_encounters` | fights as instances; a unit outside one is free; GameMode refcounting |
+| `test_world_scoping` | two live World3Ds prove cross-world isolation; WorldContext lifetime |
 | `test_detection` | sight cone, line of sight, what starts a fight and what doesn't |
 | `test_join_leave_combat` | hearing a fight joins it; escaping one leaves it |
 | `test_sight_cone_indicator` | the drawn cone agrees with the cone detection rolls against |

@@ -20,6 +20,15 @@ extends Resource
 ## could spawn the party inside geometry; a loaded world's own named spawn
 ## point is what actually places the party — see PartyManager.spawn_into).
 
+## Stable identity, carried onto the spawned Unit as its
+## persistent_id and back off it on capture.
+##
+## Generated ONCE, then saved and never regenerated — a turn order, or
+## anything else written down about a unit, is only meaningful if the
+## same name finds the same person on the far side of a load. Empty on
+## a record built before ids existed; PartyManager stamps one then.
+@export var id: StringName = &""
+
 @export var definition: UnitDefinition = null
 ## Whether this record was PartyManager's leader at capture time — read
 ## by spawn_party() to re-designate the leader among the freshly spawned

@@ -122,9 +122,14 @@ func _on_selection_changed(_selected_units: Array[Unit]) -> void:
 	_refresh_out_of_combat_unit()
 
 
+## Follows the selection whether or not a fight is running. The guard
+## that used to sit here — return early while in_combat — is what made
+## selecting a party member outside a battle do nothing at all: the bar
+## kept showing the combatant's abilities, so there was no way to reach
+## anybody else's. Whether the displayed unit can actually USE what is
+## shown is a per-unit question now (Unit.is_commandable), not a
+## question about whether a fight exists somewhere.
 func _refresh_out_of_combat_unit() -> void:
-	if CombatManager.in_combat:
-		return
 
 	var unit: Unit = SelectionManager.selected_units[0] if not SelectionManager.selected_units.is_empty() else null
 	if unit == _current_unit:

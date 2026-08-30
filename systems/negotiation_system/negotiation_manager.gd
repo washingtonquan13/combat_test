@@ -101,7 +101,7 @@ func is_active() -> bool:
 ## combat-EXCLUDED), so a hostile demon Unit is never accidentally both
 ## "in a conversation" and "being negotiated with" at once.
 func start_negotiation(actor: Unit, demon: Unit) -> void:
-	if not CombatManager.in_combat or is_active() or DialogueManager.is_active() or StashManager.is_active():
+	if not CombatManager.any_combat_running() or is_active() or DialogueManager.is_active() or StashManager.is_active():
 		return
 	if not demon.negotiable or not demon.is_alive() or not demon.definition:
 		return

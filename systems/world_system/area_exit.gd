@@ -66,12 +66,27 @@ static func find_on(node: Node) -> AreaExit:
 ## physics callback (body_entered) or an input/menu action, and the load
 ## this triggers can synchronously free the very node this call started
 ## from — see WorldManager.load_world()'s own note on why.
+## WHO travels is the current selection, the same rule BG3 uses and the
+## same split ground_click_target._command_move already makes between the
+## units a click commands and the ones it doesn't. Selecting nobody takes
+## everyone standing in this world with you, which is what walking out of
+## a door with no one selected should obviously do.
+##
+## Resolved here, at the moment the exit fires, rather than being passed
+## in: an exit is walked into as often as it is clicked (see
+## overworld_door.gd), and neither caller has a traveller list to give.
 func travel() -> void:
 	if target_area == &"":
 		push_warning("AreaExit.travel() on %s has no target_area set." % get_parent().name)
 		return
-	call_deferred("_load", target_area, target_spawn_point)
+
+	var travellers: Array[Unit] = []
+	for unit in SelectionManager.selected_units:
+		if is_instance_valid(unit) and PartyManager.is_member(unit):
+			travellers.append(unit)
+
+	call_deferred("_load", target_area, target_spawn_point, travellers)
 
 
-func _load(area_id: StringName, spawn_point: StringName) -> void:
-	WorldManager.load_area(area_id, spawn_point)
+func _load(area_id: StringName, spawn_point: StringName, travellers: Array[Unit]) -> void:
+	WorldManager.load_area(area_id, spawn_point, travellers)

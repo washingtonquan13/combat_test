@@ -197,8 +197,8 @@ func has_move_caster_effect() -> bool:
 ## Whether unit has already spent its once-per-turn attack action on
 ## THIS ability's own economy — true only if uses_attack_action is set
 ## AND unit.has_attacked AND there's an actual turn for that to mean
-## anything (CombatManager.in_combat). has_attacked is never reset
-## outside a real combat's turn-advance, so without the in_combat gate
+## anything (unit.in_combat()). has_attacked is never reset
+## outside a real combat's turn-advance, so without that gate
 ## this misreads as "permanently spent" the instant a unit ever attacks
 ## once. Single source of truth for this check — UnitCombat.use_ability()'s
 ## already_acted rejection, hotbar_slot.gd's disabled state, and
@@ -207,4 +207,4 @@ func has_move_caster_effect() -> bool:
 ## without the in_combat gate — safe only by accident of its one caller's
 ## context, not because it actually encoded the same rule.
 func attack_action_spent_by(unit: Unit) -> bool:
-	return CombatManager.in_combat and uses_attack_action and unit.has_attacked
+	return unit.in_combat() and uses_attack_action and unit.has_attacked

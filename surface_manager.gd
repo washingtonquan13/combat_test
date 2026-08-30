@@ -28,7 +28,21 @@ extends Node
 ##    anything that hits zero — rides on the signal CombatManager already
 ##    emits rather than a separate scheduler of its own.
 
-var active_surfaces: Array[ActiveSurface] = []
+## Backed by the loaded world's WorldContext rather than stored here, so
+## surfaces cannot outlive the world holding their visual_node and Area3D.
+## They used to be cleared only on combat_ended — meaning a Grease cast
+## outside combat, followed by an area change, left this array pointing at
+## nodes the freed world had taken with it.
+##
+## Kept as a property under the original name so every existing reader is
+## untouched. Falls back to a local array when no world is loaded (the main
+## menu), which is where nothing should be spawning surfaces anyway.
+var active_surfaces: Array[ActiveSurface]:
+	get:
+		var context: WorldContext = WorldManager.context()
+		return context.surfaces if context else _detached_surfaces
+
+var _detached_surfaces: Array[ActiveSurface] = []
 
 
 func _ready() -> void:

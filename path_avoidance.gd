@@ -35,7 +35,15 @@ static func gather_obstacles(tree: SceneTree, excluded: Array) -> Dictionary:
 	var positions: PackedVector3Array = PackedVector3Array()
 	var radii: PackedFloat32Array = PackedFloat32Array()
 
-	for unit in UnitQuery.living_units(tree, excluded):
+	# Scoped to the mover's world when one is identifiable — steering around
+	# a unit standing in another area would be a phantom obstacle. excluded
+	# always contains the mover itself (see this function's own header), so
+	# it is the natural reference; falls back to the global scan when a
+	# caller passes something else entirely.
+	var reference: Unit = excluded[0] if excluded.size() > 0 and excluded[0] is Unit else null
+	var candidates: Array[Unit] = UnitQuery.living_units_near(reference, excluded) 		if reference else UnitQuery.living_units(tree, excluded)
+
+	for unit in candidates:
 		positions.append(unit.global_position)
 		radii.append(unit.radius)
 

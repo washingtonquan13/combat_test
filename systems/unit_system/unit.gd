@@ -65,6 +65,12 @@ extends CharacterBody3D
 ## across a re-entry into its area (a goblinoid in test_arena, e.g.).
 @export var persistent_id: StringName = &""
 
+## State handed to this unit before its components existed, applied at
+## the end of _ready(). WorldManager reconciles a world BEFORE it enters
+## the tree (so a removed entity never enters at all), which is earlier
+## than every component this state describes.
+var _pending_state: Dictionary = {}
+
 @export var strength: int = 10
 @export var dexterity: int = 10
 @export var intelligence: int = 10
@@ -497,6 +503,29 @@ var _awareness: UnitAwareness
 var _status_manager: StatusManager
 
 
+## Mints an id for something that will CARRY it — a party member, whose
+## record stores it and outlives every world they stand in.
+##
+## Deliberately not called for every unit that enters a world. An
+## unauthored scene unit given an id here would look addressable and
+## not be: rebuilding its world instantiates the scene again and mints a
+## different one, so every AreaState entry written under the old id
+## becomes garbage that can never match. An empty persistent_id already
+## means "not persistent" throughout this project (see
+## WorldManager._collect_persistent_nodes, which skips them), and that
+## convention is the right one — an authored NPC persists because
+## somebody gave it a name, not because it exists.
+static func generate_persistent_id() -> StringName:
+	_id_counter += 1
+	# The counter alone restarts each session and would collide with an id
+	# already saved; the suffix is what stops a fresh unit adopting somebody
+	# else's history.
+	return StringName("gen_%d_%04x" % [_id_counter, randi() % 65536])
+
+
+static var _id_counter: int = 0
+
+
 func _ready() -> void:
 	_status_manager = StatusManager.new(self)
 	_action_state = UnitActionState.new(self)
@@ -516,6 +545,9 @@ func _ready() -> void:
 	# source of truth is now UnitActionState, but nothing outside Unit
 	# needs to know that. Same reasoning for the four selection signals
 	# below, relayed from UnitSelection.
+	if not _pending_state.is_empty():
+		_apply_pending_state()
+
 	_action_state.became_idle.connect(func(): became_idle.emit())
 	_selection.hover_started.connect(func(): hover_started.emit(self))
 	_selection.hover_ended.connect(func(): hover_ended.emit(self))
@@ -644,6 +676,29 @@ func resolve_dialogue_root(actor: Unit) -> DialogueNode:
 ## per-faction-pair relationship.
 func is_hostile_to(other: Unit) -> bool:
 	return FactionRelations.is_hostile(faction, other.faction)
+
+
+## Which fight this unit is currently in, or null. Set by Encounter as it
+## adopts and releases units — never assigned from outside.
+##
+## The field that makes "is this unit under combat rules" a read rather
+## than a global assumption. Everything that used to ask
+## CombatManager.in_combat about a specific unit's turn economy asks here
+## instead, which is what lets one unit fight while another walks around
+## freely (see CombatManager's own header).
+var encounter: Encounter = null
+
+
+## Whether combat rules apply to THIS unit — a move budget, a spent attack
+## action. Deliberately not the same question as CombatManager.in_combat,
+## which asks what the PLAYER is looking at.
+func in_combat() -> bool:
+	return encounter != null and encounter.is_running
+
+
+## Whether it is this unit's turn in whatever fight it is in.
+func is_my_turn() -> bool:
+	return encounter != null and encounter.current_unit == self
 
 
 ## What this unit currently knows about anyone else — see UnitAwareness.
@@ -877,6 +932,37 @@ func can_act() -> bool:
 	return _action_state.can_act()
 
 
+## See UnitActionState.is_acting/can_be_commanded — a walking unit can
+## still be told to walk somewhere else.
+func is_acting() -> bool:
+	return _action_state.is_acting()
+
+
+func can_be_commanded() -> bool:
+	return _action_state.can_be_commanded()
+
+
+## Whether the PLAYER can direct this unit right now. The single answer
+## to a question that used to have two.
+##
+## It was split between SelectionManager (out of combat) and
+## CombatManager.current_unit (in combat), switched on a global
+## in_combat flag — which cannot mean anything sensible once several
+## fights can run in several worlds at once. Turn order binds a unit
+## only while it is actually IN a fight, exactly as movement already
+## treats it (see ground_click_target._command_move, the model this
+## follows): a member standing outside a battle is commandable while it
+## rages, and a combatant is not commandable off its own turn.
+func is_commandable() -> bool:
+	if not is_alive() or not is_player_controlled():
+		return false
+	if not can_be_commanded():
+		return false
+	if in_combat() and not is_my_turn():
+		return false
+	return true
+
+
 ## Sum of every active status's to-hit modifier against an incoming
 ## attack, from this unit being the DEFENDER — see
 ## StatusBehavior.modify_incoming_attack_to_hit.
@@ -1091,6 +1177,54 @@ func average_damage(damage_type: UnitCombat.DamageType, bonus: int) -> float:
 ## tries to hand that value back to ITS OWN caller, did.
 func use_ability(ability: Ability, target) -> Dictionary:
 	return await _combat.use_ability(ability, target)
+
+
+# --- Persistence -----------------------------------------------------
+# The duck-typed save_state()/load_state() pair WorldManager already
+# looks for when reconciling an area (see _reconcile_area_state, which
+# found only StashComponent before this). AreaState recorded who DIED
+# and what containers held; a unit remembered nothing, so an enemy you
+# wounded and walked away from came back whole the moment its world was
+# freed — visible in play, not only across saves.
+#
+# Awareness is deliberately NOT included. It is per-observer state keyed
+# by other units, so writing it needs their ids too, and coming back
+# unaware after a reload is the reasonable reading anyway.
+
+func save_state() -> Dictionary:
+	return {
+		"hp": current_hp,
+		"fp": current_fp,
+		"transform": global_transform,
+		"flight_altitude": flight_target_altitude,
+		"move_remaining": move_remaining,
+		"has_attacked": has_attacked,
+		"statuses": _status_manager.save_state(),
+	}
+
+
+## Deferred when the components this describes do not exist yet — see
+## _pending_state. Calling this on a freshly instantiated, not-yet-in-
+## tree unit is the NORMAL case, not an edge one.
+func load_state(state: Dictionary) -> void:
+	_pending_state = state
+	if _action_state != null:
+		_apply_pending_state()
+
+
+func _apply_pending_state() -> void:
+	var state: Dictionary = _pending_state
+	_pending_state = {}
+
+	current_hp = int(state.get("hp", current_hp))
+	current_fp = int(state.get("fp", current_fp))
+	flight_target_altitude = float(state.get("flight_altitude", flight_target_altitude))
+	move_remaining = float(state.get("move_remaining", move_remaining))
+	has_attacked = bool(state.get("has_attacked", has_attacked))
+	_status_manager.load_state(state.get("statuses", []))
+
+	if state.has("transform"):
+		global_transform = state["transform"]
 
 
 func take_damage(amount: int) -> void:

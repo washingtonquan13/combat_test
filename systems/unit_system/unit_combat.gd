@@ -254,6 +254,9 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"attacker": _owner,
 		"target": target,
 		"ability": ability,
+		# can_act(), the STRICT form, which still counts walking: a unit
+		# mid-path cannot also swing. Only being ORDERED is permissive
+		# while moving (see UnitActionState.can_be_commanded).
 		"busy": not _owner.can_act(),
 		"invalid_target": false,
 		"in_range": false,
@@ -266,6 +269,22 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	}
 
 	if result.busy:
+		return result
+
+	# Turn order, as a hard precondition rather than a UI convention.
+	#
+	# There was no check here at all: out-of-turn use was prevented only
+	# because the hotbar never showed a non-current unit's abilities. Now
+	# that the bar follows the SELECTION, that accident is gone and this
+	# has to be real — and it should have been anyway, since every AI
+	# attack comes through this same path and nothing else was stopping a
+	# misbehaving caller from acting out of turn.
+	#
+	# Only binding on a unit actually IN a fight, the same way move_to()
+	# treats it: standing outside a battle means acting freely while it
+	# rages.
+	if _owner.in_combat() and not _owner.is_my_turn():
+		result["busy"] = true
 		return result
 
 	# A structural mismatch, independent of range or turn economy — an
@@ -293,7 +312,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# "half cast." Out of combat, budget is effectively unlimited (same
 	# convention UnitMovement.move_to() uses), so this only ever applies
 	# mid-combat.
-	result["cant_afford_move_cost"] = CombatManager.in_combat and ability.move_cost > 0.0 and _owner.move_remaining < ability.move_cost
+	result["cant_afford_move_cost"] = _owner.in_combat() and ability.move_cost > 0.0 and _owner.move_remaining < ability.move_cost
 	# NOT wrapped in CombatManager.in_combat, unlike move_cost above — FP
 	# is a persistent resource that exists whether or not a fight is
 	# happening (move_remaining is meaningless out of combat; current_fp
@@ -313,10 +332,10 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if result.cant_afford_fp_cost:
 		return result
 
-	if CombatManager.in_combat and ability.uses_attack_action:
+	if _owner.in_combat() and ability.uses_attack_action:
 		_owner.has_attacked = true
 
-	if CombatManager.in_combat and ability.move_cost > 0.0:
+	if _owner.in_combat() and ability.move_cost > 0.0:
 		_owner.spend_move(ability.move_cost)
 
 	if ability.fp_cost > 0.0:
@@ -416,7 +435,9 @@ func _apply_effects(target, ability: Ability, is_critical: bool) -> Dictionary:
 ## Unit) — AoE/ground-targeted hostile abilities deliberately don't
 ## trigger combat yet; see CombatManager.start_combat_from_hostile_act.
 func _maybe_trigger_combat(target) -> void:
-	if CombatManager.in_combat:
+	# THIS unit, not the world. Another fight running somewhere else is no
+	# reason for an attack over here not to start its own.
+	if _owner.in_combat():
 		return
 	if not target is Unit or not target.is_alive():
 		return

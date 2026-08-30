@@ -143,8 +143,23 @@ func _get_hovered_hostile(acting_unit: Unit) -> Unit:
 ## condition on top, in OPPOSITE directions (one hides while something's
 ## armed, the other only shows while something is), so neither is a
 ## duplicate of this default despite looking similar at a glance.
+## The unit indicators draw for - and null for one standing in a world
+## the player is not looking at.
+##
+## That guard belongs HERE rather than in each indicator: every 3D
+## indicator inherits this, and they are carried between viewports as
+## the player switches worlds (see WorldManager attention nodes), so
+## without it a line of sight, a movement range or a jump arc drawn for
+## somebody in another area keeps being drawn over the area now on
+## screen - pointing at geometry that is not there.
 func _get_active_unit() -> Unit:
-	return PlayerInteractionState.get_active_unit()
+	var unit: Unit = PlayerInteractionState.get_active_unit()
+	if unit == null:
+		return null
+	var context: WorldContext = WorldManager.context()
+	if context and not context.contains(unit):
+		return null
+	return unit
 
 
 ## Reads the height/altitude implied by the current mouse position: casts

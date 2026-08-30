@@ -52,9 +52,20 @@ const FORMAT_VERSION: int = 1
 ## overworld save — consumed and cleared the moment world_loaded fires
 ## for that load. See _on_world_loaded()'s own header for why this can't
 ## just be a local variable inside load_file().
-var _pending_party_transforms: Array[Transform3D] = []
+## Where each party member was standing, BY ID rather than by position
+## in a list. Index-matching worked only while there was one party in
+## one place; with a split party the list spans groups and areas, and
+## the units present in the world being loaded are some arbitrary
+## subset of it. Keyed by persistent_id, only the ones actually here
+## match, and the rest are simply not applied.
+var _pending_party_transforms: Dictionary = {}
 var _pending_avatar_transform: Variant = null
 var _awaiting_position_restore: bool = false
+
+## Fights from the save that have not been rebuilt yet, by area id.
+## Outlives the load itself: a battle in an area the player was not in
+## waits here until they go there.
+var _pending_encounters: Dictionary = {}
 
 
 func _ready() -> void:
@@ -70,10 +81,16 @@ func _ready() -> void:
 ## WorldManager itself uses; the explicit mode check narrows that further
 ## to the two base modes an save can actually make sense of.
 func can_save() -> bool:
-	if not GameMode.can_transition():
-		return false
 	var mode: GameMode.Mode = GameMode.current_mode()
-	return mode == GameMode.Mode.EXPLORATION or mode == GameMode.Mode.OVERWORLD
+	# COMBAT is allowed now: a fight is written down as who is in it, in
+	# what order, and how far through (see Encounter.save_state), with
+	# every combatant's own state travelling with the unit. Dialogue,
+	# negotiation and looting still refuse — those are live conversations
+	# and open panels with nothing serializing them, and they need their
+	# own review before that changes.
+	return mode == GameMode.Mode.EXPLORATION \
+		or mode == GameMode.Mode.OVERWORLD \
+		or mode == GameMode.Mode.COMBAT
 
 
 ## save_name is the player-facing label shown in the save list — never
@@ -90,6 +107,13 @@ func save(save_name: String) -> bool:
 		push_warning("SaveManager.save refused: no area currently loaded.")
 		return false
 
+	# Before anything is written. capture() is what MINTS a party member an
+	# id (see PartyManager._capture_one), and the transform table below is
+	# keyed by id — captured first, every key would be the empty string and
+	# every position would collapse onto a single entry. save_state() calls
+	# it again harmlessly; what matters is that it has happened by now.
+	PartyManager.capture()
+
 	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 
 	var timestamp: int = int(Time.get_unix_time_from_system())
@@ -102,6 +126,11 @@ func save(save_name: String) -> bool:
 	cfg.set_value("meta", "leader_name", _current_leader_name())
 	cfg.set_value("meta", "format_version", FORMAT_VERSION)
 
+	# The area the player is LOOKING at, which is the one a load rebuilds.
+	# Every other group carries its own area_id (see
+	# PartyManager.save_state), and its world is rebuilt from authored
+	# content plus AreaState when the player next travels there — which,
+	# now that units remember, means rebuilt as it was left.
 	cfg.set_value("world", "area_id", area.id)
 	cfg.set_value("world", "party_transforms", _capture_party_transforms())
 	# Only written when non-null (an overworld save) — see load_file()'s
@@ -116,6 +145,9 @@ func save(save_name: String) -> bool:
 	cfg.set_value("demons", "data", DemonRoster.save_state())
 	cfg.set_value("currency", "data", CurrencyManager.save_state())
 	cfg.set_value("inventory", "data", _party_inventory().save_state())
+	# By area, so a fight nobody was watching comes back when the player
+	# next walks into it rather than needing its world kept alive.
+	cfg.set_value("combat", "encounters", WorldManager.encounters_by_area())
 
 	var err: Error = cfg.save(path)
 	if err != OK:
@@ -150,7 +182,9 @@ func load_file(path: String) -> bool:
 		push_warning("SaveManager.load_file failed reading '%s': %s" % [path, error_string(err)])
 		return false
 
-	if not WorldManager.unload():
+	# Forced: a save taken mid-combat has to be loadable, and the ordinary
+	# gate refuses to swap worlds under a live fight.
+	if not WorldManager.unload(true):
 		push_warning("SaveManager.load_file refused: WorldManager.unload() was refused.")
 		return false
 
@@ -176,11 +210,15 @@ func load_file(path: String) -> bool:
 	# save: _capture_avatar_transform() only ever writes a real value
 	# when the world being saved has get_avatar(), so passing null
 	# through as "the default" doesn't mean what it looks like it means).
-	_pending_party_transforms = cfg.get_value("world", "party_transforms", [])
+	_pending_party_transforms = cfg.get_value("world", "party_transforms", {})
 	if cfg.has_section_key("world", "avatar_transform"):
 		_pending_avatar_transform = cfg.get_value("world", "avatar_transform")
 	else:
 		_pending_avatar_transform = null
+	# Kept until each area is actually visited, NOT consumed in one go:
+	# only the area being loaded now can have its fight rebuilt, and the
+	# others are rebuilt whenever the player travels to them.
+	_pending_encounters = cfg.get_value("combat", "encounters", {})
 	_awaiting_position_restore = true
 
 	var area_id: StringName = cfg.get_value("world", "area_id", &"")
@@ -259,10 +297,11 @@ func _current_leader_name() -> String:
 ## Empty array for the overworld (spawns_party() == false, nothing in
 ## PartyManager.members to capture) — avatar_transform below is what
 ## carries a position there instead.
-func _capture_party_transforms() -> Array[Transform3D]:
-	var transforms: Array[Transform3D] = []
+func _capture_party_transforms() -> Dictionary:
+	var transforms: Dictionary = {}
 	for unit in PartyManager.members:
-		transforms.append(unit.global_transform)
+		if is_instance_valid(unit) and unit.persistent_id != &"":
+			transforms[String(unit.persistent_id)] = unit.global_transform
 	return transforms
 
 
@@ -288,15 +327,42 @@ func _capture_avatar_transform() -> Variant:
 ## area save) can't leave this latched on for the NEXT unrelated load.
 func _on_world_loaded(world: Node) -> void:
 	if not _awaiting_position_restore:
+		_restore_encounters_here()
 		return
 	_awaiting_position_restore = false
 
-	for i in range(min(_pending_party_transforms.size(), PartyManager.members.size())):
-		PartyManager.members[i].global_transform = _pending_party_transforms[i]
-	_pending_party_transforms = []
+	for unit in PartyManager.members:
+		var key: String = String(unit.persistent_id)
+		if _pending_party_transforms.has(key):
+			unit.global_transform = _pending_party_transforms[key]
+	_pending_party_transforms = {}
 
 	if _pending_avatar_transform != null and world.has_method("get_avatar"):
 		var avatar: Node3D = world.get_avatar()
 		if is_instance_valid(avatar):
 			avatar.global_transform = _pending_avatar_transform
 	_pending_avatar_transform = null
+
+	# Last: a turn order is meaningless until the units it names exist and
+	# are where they belong.
+	_restore_encounters_here()
+
+
+## Rebuilds any saved fight belonging to the area now on screen, and
+## forgets it once rebuilt. Runs on EVERY world load, not only the one a
+## load_file caused, because that is how a fight in an area the player
+## was not in comes back when they finally walk into it.
+func _restore_encounters_here() -> void:
+	if _pending_encounters.is_empty():
+		return
+	var area: AreaDefinition = WorldManager.current_area()
+	if area == null:
+		return
+	var key: String = String(area.id)
+	if not _pending_encounters.has(key):
+		return
+
+	var states: Array = _pending_encounters[key]
+	_pending_encounters.erase(key)
+	for state in states:
+		CombatManager.restore_combat(state)

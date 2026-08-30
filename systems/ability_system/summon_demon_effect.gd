@@ -44,7 +44,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	# here — see that field's own doc comment for why (party-wide,
 	# debug-adjustable, eventually progression-derived).
 	var active_count: int = 0
-	for unit in UnitQuery.all_units(attacker.get_tree()):
+	for unit in UnitQuery.all_units_near(attacker):
 		if unit.is_alive() and unit.is_player_controlled() and unit.summoned_by != null and unit.owned_demon != null:
 			active_count += 1
 	if active_count >= DemonRoster.max_active_summons:

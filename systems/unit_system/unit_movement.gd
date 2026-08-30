@@ -113,13 +113,29 @@ func is_moving() -> bool:
 ## orders both already do this.
 ##
 func move_to(destination: Vector3) -> bool:
-	if not _owner.can_act():
+	# can_be_commanded(), not can_act(): a unit that is already walking is
+	# precisely when the player most wants to say something else. can_act()
+	# counts walking as busy, so opening with it meant every click during a
+	# walk was refused and silently dropped — no redirect, no cancel, no
+	# feedback, just a unit finishing an order the player had changed their
+	# mind about.
+	if not _owner.can_be_commanded():
 		return false
+
+	# The order in flight is REPLACED, not queued behind. Ended without
+	# announcing, since it did not finish — but still charged for the
+	# distance actually walked, which _finish_move already measures for a
+	# move cut short rather than trusting the abandoned plan's cost.
+	if _moving:
+		_finish_move(false)
 
 	var budget: float = INF
 
-	if CombatManager.in_combat:
-		if CombatManager.current_unit != _owner:
+	# Turn order binds a unit only while it is actually IN a fight. A unit
+	# standing outside one moves freely even while a battle rages nearby —
+	# which is what makes walking a straggler into an ambush possible.
+	if _owner.in_combat():
+		if not _owner.is_my_turn():
 			return false
 		if not _owner.has_move_remaining():
 			return false
@@ -248,7 +264,7 @@ func _begin_ladder_journey(route: Dictionary, final_destination: Vector3) -> boo
 		_climb_ladder()
 		return true
 
-	if _start_walk(route.near, _owner.move_remaining if CombatManager.in_combat else INF):
+	if _start_walk(route.near, _owner.move_remaining if _owner.in_combat() else INF):
 		_ladder_stage = 1
 		return true
 
@@ -285,7 +301,7 @@ func _climb_ladder() -> void:
 	var ladder: Ladder = _ladder
 
 	_owner.begin_busy()
-	if CombatManager.in_combat:
+	if _owner.in_combat():
 		_owner.spend_move(ladder.required_move)
 
 	var waypoints: PackedVector3Array = Ladder.climb_waypoints(ladder.base_position(), ladder.top_position())
@@ -326,7 +342,7 @@ func _on_climb_finished() -> void:
 	_ladder = null
 	var final_destination: Vector3 = _ladder_final_destination
 
-	if not _start_walk(final_destination, _owner.move_remaining if CombatManager.in_combat else INF):
+	if not _start_walk(final_destination, _owner.move_remaining if _owner.in_combat() else INF):
 		# Nothing left to walk (already there, or no valid path onward) —
 		# the journey still completed successfully; emit completion
 		# directly instead of waiting on a walk leg that was never going
@@ -446,7 +462,12 @@ func physics_process(delta: float) -> void:
 	_owner.move_and_slide()
 
 
-func _finish_move() -> void:
+## announce = false ends the move without emitting movement_finished:
+## the move did not finish, it was REPLACED by a new order (see
+## move_to). The budget is still charged for the distance actually
+## walked; only the "I am done" announcement is withheld, because
+## listeners treat it as a completed step and act on it.
+func _finish_move(announce: bool = true) -> void:
 	_moving = false
 	_owner.velocity = Vector3.ZERO
 
@@ -458,7 +479,7 @@ func _finish_move() -> void:
 	# happened to stop.
 	var completed_fully: bool = _path_index >= _current_path.size()
 
-	if CombatManager.in_combat:
+	if _owner.in_combat():
 		# The plan completed fully (walked every point) → charge its
 		# exact known cost, not a re-measurement — that cost IS what was
 		# spent, by construction, since nothing deviated from the plan.
@@ -490,7 +511,8 @@ func _finish_move() -> void:
 		_ladder_stage = 0
 		_ladder = null
 
-	_owner.movement_finished.emit(_owner)
+	if announce:
+		_owner.movement_finished.emit(_owner)
 	# _moving just flipped to false above — is_busy()'s answer may have
 	# changed as a result, but UnitActionState has no way to learn that
 	# on its own (is_moving() is polled, not pushed), so this explicitly
@@ -564,7 +586,7 @@ func ground_if_flying() -> void:
 ## exact shape.
 func land(controlled: bool = false) -> void:
 	var exclude: Array[RID] = []
-	for unit in UnitQuery.all_units(_owner.get_tree()):
+	for unit in UnitQuery.all_units_near(_owner):
 		exclude.append(unit.get_rid())
 
 	var space_state := _owner.get_world_3d().direct_space_state

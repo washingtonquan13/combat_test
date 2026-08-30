@@ -223,7 +223,7 @@ func _on_movement_finished(_u: Unit) -> void:
 ## correctly resume the held pose afterward instead of needing its own
 ## separate interrupt/resume bookkeeping.
 func _on_ability_armed(ability: Ability) -> void:
-	if CombatManager.current_unit != unit:
+	if unit.in_combat() and not unit.is_my_turn():
 		return
 
 	_pending_armed_enter_clip = ""
