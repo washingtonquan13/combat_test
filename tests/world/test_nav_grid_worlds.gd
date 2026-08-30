@@ -318,6 +318,13 @@ func _a_real_authored_area_still_bakes() -> void:
 	for node in get_tree().get_nodes_in_group("units"):
 		if node.is_inside_tree() and area.is_ancestor_of(node):
 			node.remove_from_group("units")
+
+	# The arena registers its authored party with PartyManager on _ready.
+	# Freeing the area does not unregister them, so without this the next
+	# suite inherits four freed Units in PartyManager.members — invisible
+	# until something iterates them, which residency (capture() on leaving
+	# a world) is the first thing to do.
+	PartyManager.clear_members()
 	_root.remove_child(area)
 	area.queue_free()
 	await get_tree().process_frame

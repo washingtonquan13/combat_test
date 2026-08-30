@@ -113,7 +113,7 @@ func start_combat(combatants: Array[Unit], skip_first_action_for: Unit = null) -
 
 	if _involves_player(combatants):
 		focused_encounter = encounter
-	_push_combat_mode()
+		_claim_combat_mode(encounter)
 
 	encounter.begin(combatants, skip_first_action_for)
 	return encounter
@@ -175,8 +175,17 @@ func add_unit_to_combat(unit: Unit, after_unit: Unit = null, encounter: Encounte
 		target = after_unit.encounter
 	if target == null:
 		target = focused_encounter
-	if target:
-		target.add_unit(unit, after_unit)
+	if not target:
+		return
+	target.add_unit(unit, after_unit)
+	# A fight can BECOME the player's after it started — walking into an
+	# NPC scrap is a supported way to join one (see DetectionManager). The
+	# mode has to follow, or the player is in a fight with an exploration
+	# HUD and no turn controls.
+	if unit.is_player_controlled():
+		if focused_encounter == null:
+			focused_encounter = target
+		_claim_combat_mode(target)
 
 
 func remove_unit_from_combat(unit: Unit) -> void:
@@ -240,7 +249,7 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 				focused_encounter = other
 				break
 
-	_pop_combat_mode()
+	_release_combat_mode(encounter)
 	combat_ended.emit(winning_faction)
 	encounter.queue_free()
 
@@ -252,7 +261,33 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 # finished. One push when the first fight starts, one pop when the last
 # ends.
 
+## Which encounters are holding COMBAT mode up. Membership, not a bare
+## count, because claiming has to be idempotent: a second player unit
+## walking into the same fight must not push a second time, and the pop
+## on that fight ending must match however many pushes it really made.
+var _mode_claims: Array[Encounter] = []
+
 var _combat_mode_depth: int = 0
+
+
+## COMBAT mode is about the PLAYER being in a fight, not about a fight
+## existing anywhere. Two NPCs going at it never put the player in combat
+## mode — which was always true in principle and became reachable in
+## practice once worlds stayed live: a scrap in an area the player isn't
+## even looking at would otherwise freeze their HUD into a fight they
+## cannot see, let alone act in.
+func _claim_combat_mode(encounter: Encounter) -> void:
+	if _mode_claims.has(encounter):
+		return
+	_mode_claims.append(encounter)
+	_push_combat_mode()
+
+
+func _release_combat_mode(encounter: Encounter) -> void:
+	if not _mode_claims.has(encounter):
+		return
+	_mode_claims.erase(encounter)
+	_pop_combat_mode()
 
 
 func _push_combat_mode() -> void:

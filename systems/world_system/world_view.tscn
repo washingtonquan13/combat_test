@@ -7,7 +7,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 stretch = true
-mouse_filter = 1
 
 [node name="SubViewport" type="SubViewport" parent="."]
 own_world_3d = true

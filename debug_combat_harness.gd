@@ -56,6 +56,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("test_end_turn"):
 		if CombatManager.in_combat:
 			CombatManager.end_turn()
+	elif event.is_action_pressed("toggle_area_residency"):
+		_toggle_area_residency()
 	elif event.is_action_pressed("test_delay_turn"):
 		if CombatManager.in_combat:
 			var unit: Unit = CombatManager.current_unit
@@ -126,3 +128,28 @@ func _on_combat_ended(winning_faction: StringName) -> void:
 		print("--- Combat ended: mutual wipe, no survivors ---")
 	else:
 		print("--- Combat ended: ", winning_faction, " wins ---")
+
+
+## Keeps the current area loaded when the player walks out of it, so
+## leaving and coming back RE-ENTERS the world they left rather than
+## building a fresh one — the same world node, with its dead still lying
+## where they fell and anything mid-flight still mid-flight.
+##
+## Debug-only because residency is normally EARNED: a world stays loaded
+## while something is still running in it (see ResidentWorld.is_earned),
+## and an idle arena is deliberately not worth keeping — AreaState already
+## carries what has to outlive a reload. This is how to see the difference
+## without first arranging to leave a fight behind.
+func _toggle_area_residency() -> void:
+	var area: AreaDefinition = WorldManager.current_area()
+	if area == null:
+		print("[residency] nothing loaded")
+		return
+
+	var pinned: bool = not WorldManager.is_area_pinned(area.id)
+	WorldManager.set_area_pinned(area.id, pinned)
+	print("[residency] %s is now %s. loaded: %s" % [
+		area.id,
+		"KEPT when you leave" if pinned else "freed when you leave (unless it earns it)",
+		str(WorldManager.resident_area_ids()),
+	])

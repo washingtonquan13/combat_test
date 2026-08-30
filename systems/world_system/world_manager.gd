@@ -41,6 +41,10 @@ extends Node
 
 signal world_loading(scene: PackedScene)
 signal world_loaded(world: Node)
+## The player's attention moved to a different resident world. Distinct
+## from world_loaded, which fires only when a world is newly built —
+## re-entering a world that stayed loaded emits this and not that.
+signal world_focused(world: Node)
 
 ## One world's viewport, as a scene so its settings stay editable rather
 ## than buried in code. Three of them are load-bearing and none is the
@@ -52,19 +56,37 @@ signal world_loaded(world: Node)
 ## - physics_object_picking: unit click-select is CollisionObject3D
 ##   input_event (see unit.gd), which is per-viewport. Off means units
 ##   silently stop being clickable.
-## - mouse_filter = PASS, not the SubViewportContainer default of STOP.
-##   STOP consumes the mouse event in the ROOT viewport's GUI pass, so
-##   nothing outside the world view ever reaches _unhandled_input again —
-##   which broke drag-select, the one mouse tool that legitimately lives
-##   on the HUD canvas rather than inside the world. PASS forwards into
-##   the SubViewport exactly the same way (forwarding is only skipped for
-##   IGNORE) while leaving the event unhandled for the root, restoring
-##   the pre-viewport behaviour where the click router and the drag box
-##   both saw the same event.
+## - audio_listener_enable_3d: without a listener in the viewport that
+##   owns the world, every 3D sound in it goes silent, with no error.
+##
+## mouse_filter is left at the container default of STOP. It consumes the
+## mouse event in the ROOT viewport's GUI pass, so nothing outside the
+## world view reaches _unhandled_input for the mouse any more. That is not
+## a bug to route around — it is the consequence of the world having its
+## own viewport, and the answer is that a mouse tool operating on the
+## world belongs INSIDE the world view. PASS does not help: it still marks
+## the event consumed by GUI, and IGNORE stops the container forwarding
+## into the SubViewport at all, so there is no filter value that both
+## forwards and falls through. See register_attention_nodes().
 const WORLD_VIEW_SCENE: PackedScene = preload("res://systems/world_system/world_view.tscn")
 
 var _scene_root: Node = null
-var _current_world: Node = null
+
+## Every world currently loaded, by area id — see ResidentWorld. Worlds
+## are no longer swapped one-for-one: a world the player leaves stays here
+## for as long as it has earned to (ResidentWorld.is_earned), and is
+## re-entered rather than rebuilt.
+##
+## Keyed by area id because that is what load_area() is asked for. A world
+## loaded through the raw load_world() primitive with no area data has no
+## id, so it is never resident and always replaced — the same worlds that
+## have never had AreaState either.
+var _residents: Dictionary = {}
+
+## The one the player is looking at. Null with nothing loaded (the main
+## menu). Every "the current world" accessor on this file answers about
+## this one.
+var _focused: ResidentWorld = null
 
 ## Where per-world viewports get instanced — see MainRoot.tscn's own
 ## WorldHost note. A world lives in its own SubViewport because World3D is
@@ -73,11 +95,6 @@ var _current_world: Node = null
 ## WorldContext, UnitQuery, and the navigation grid's registry) keys off
 ## World3D precisely because of it.
 var _world_host: Control = null
-
-## The WorldView (SubViewportContainer + SubViewport) showing the current
-## world. Freed with the world; the world is its grandchild, so freeing
-## the view frees the world too.
-var _current_view: SubViewportContainer = null
 
 ## Nodes that represent THE PLAYER LOOKING AT THINGS rather than anything
 ## a world owns: the indicators, the click router, the dialogue camera
@@ -89,19 +106,13 @@ var _current_view: SubViewportContainer = null
 ## used to decide what does NOT belong on WorldContext: there is one
 ## player, so there is one set of these. See register_attention_nodes().
 var _attention_nodes: Array[Node] = []
-var _attention_home: Node = null
-## Per-world state (fights, surfaces, nav grid) — see WorldContext. Built
-## with the world, disposed with it.
-var _context: WorldContext = null
-## The AreaDefinition behind the currently loaded world, if it was loaded
-## via load_area() — null for a world loaded through the raw load_world()
-## primitive (nothing calls that directly anymore, but it stays a valid
-## way to boot a world with no area data at all, e.g. a standalone test
-## scene). Read by MusicManager to resolve per-area tracks. Assigned inside
-## load_world() itself, BEFORE world_loaded emits — a listener reacting to
-## that signal (MusicManager) is guaranteed this already names the world it
-## was just handed, never the one just torn down.
-var _current_area: AreaDefinition = null
+## Each attention node's ORIGINAL parent, remembered per node rather than
+## once for the group: they do not all come from the same place. The 3D
+## ones hang off MainRoot; the drag-select box is a Control on the HUD
+## canvas. Sending them all back to one home on unload would quietly
+## relocate half of them.
+var _attention_homes: Dictionary = {}
+
 
 ## Set for the duration of a single load_world() call, the instant the
 ## incoming world is known to be about to have PartyManager.roster spawned
@@ -145,10 +156,10 @@ func register_world_host(host: Control) -> void:
 ## main menu, where there is no viewport to sit in and nothing to point at.
 func register_attention_nodes(nodes: Array[Node]) -> void:
 	_attention_nodes = nodes
+	_attention_homes.clear()
 	for node in nodes:
 		if node and node.get_parent():
-			_attention_home = node.get_parent()
-			break
+			_attention_homes[node] = node.get_parent()
 
 
 ## The viewport the player is currently looking into, or null when no
@@ -156,9 +167,7 @@ func register_attention_nodes(nodes: Array[Node]) -> void:
 ## a Control on the HUD canvas can't use get_viewport() to reach the
 ## world's camera anymore, since its own viewport is the root one.
 func focused_viewport() -> Viewport:
-	if not is_instance_valid(_current_view):
-		return null
-	return _current_view.get_child(0) as Viewport
+	return _focused.viewport() if _focused else null
 
 
 ## The camera rendering the focused world, or null. Null is ordinary, not
@@ -172,14 +181,14 @@ func focused_camera() -> Camera3D:
 ## reparent() keeps them alive across the view being freed — without this
 ## they would be freed alongside whichever world they were pointing at.
 func _move_attention_to(parent: Node) -> void:
-	var destination: Node = parent if parent else _attention_home
-	if not destination:
-		return
 	for node in _attention_nodes:
-		if is_instance_valid(node) and node.get_parent() != destination:
-			# keep_global_transform = false: these all sit at the origin
-			# with identity transforms, and carrying a transform across
-			# two different worlds' spaces means nothing.
+		if not is_instance_valid(node):
+			continue
+		var destination: Node = parent if parent else _attention_homes.get(node)
+		if destination and node.get_parent() != destination:
+			# keep_global_transform = false: these sit at the origin with
+			# identity transforms, and carrying a transform across two
+			# different worlds' spaces means nothing.
 			node.reparent(destination, false)
 
 
@@ -215,98 +224,167 @@ func unload() -> bool:
 		return false
 
 	world_loading.emit(null)
-	_teardown_current_world(false)
-	_current_area = null
+	_leave_focused(false)
+	# "Nothing is loaded," not "nothing is focused" — so every resident
+	# goes, earned or not. SaveManager is about to replace the whole game
+	# state, and a fight still running in some other area is part of what
+	# it is replacing.
+	for resident in _residents.values():
+		if is_instance_valid(resident):
+			resident.dispose()
+	_residents.clear()
+	NavigationGrid.invalidate()
 	return true
 
 
-## The shared half of leaving whatever world is currently loaded (if
-## any) — extracted from load_world() so SaveManager.load_file() can
-## reuse the exact same teardown via unload() above, with capture_party
-## controlling only whether PartyManager.capture() runs. Every other
-## step (dismissing fielded demons, clearing selection/menus/UI,
-## unregistering the tactical camera, freeing the world node, invalidating
-## NavigationGrid) happens unconditionally either way — none of that
-## depends on whether the party gets captured first.
-func _teardown_current_world(capture_party: bool) -> void:
-	if not _current_world:
+## Steps the player OUT of the focused world without deciding whether that
+## world survives. Splitting those two apart is the whole of this rung:
+## leaving used to mean freeing, and now it means the world carries on
+## without an audience.
+##
+## capture_party controls only whether PartyManager.capture() runs first —
+## SaveManager.load_file() is about to overwrite the roster anyway (see
+## unload()). Everything else happens either way.
+func _leave_focused(capture_party: bool) -> void:
+	if not _focused:
 		return
 
-	# BEFORE anything else touches the outgoing world. Ends its fights and
-	# drops its surfaces while the nodes they reference are still valid —
-	# see WorldContext.dispose(), and the leak it exists to close.
-	if _context:
-		_context.dispose()
-		_context.queue_free()
-		_context = null
-
-	if capture_party:
-		# A no-op when the outgoing world never spawned the party in the
-		# first place (members is empty) — see PartyManager.capture()'s
-		# own guard for why that's required, not just harmless.
-		PartyManager.capture()
-	_dismiss_fielded_demons()
-	PartyManager.clear_members()
+	_release_party_from(_focused, capture_party)
 
 	SelectionManager.deselect_all()
 	InteractionMenu.close()
 	UIStack.close_all()
-	if _current_world.has_method("get_tactical_camera"):
-		var old_cam: Camera3D = _current_world.get_tactical_camera()
+
+	var world: Node = _focused.world
+	if world and world.has_method("get_tactical_camera"):
+		var old_cam: Camera3D = world.get_tactical_camera()
 		if is_instance_valid(old_cam):
 			CameraDirector.unregister_tactical_camera(old_cam)
 
-	# remove_child() immediately, THEN queue_free() — not queue_free()
-	# alone. queue_free() defers the actual removal, so the outgoing view
-	# would still occupy its name among WorldHost's children at the moment
-	# a new one is added right after, and Godot silently renames the
-	# newcomer (e.g. "WorldView" -> "WorldView2") to avoid the collision.
-	# Freeing is still safe to defer; only staying IN THE TREE needs to end
-	# synchronously here.
-	# Attention nodes first — they are children of the viewport about to
-	# be freed, and they belong to the player, not to this world.
+	# The attention nodes are children of this world's viewport and belong
+	# to the player, not to the world, so they have to be out before it can
+	# be freed under them.
 	_move_attention_to(null)
+	_focused.set_focused(false)
+	_focused = null
 
-	# The world is the viewport's grandchild, so freeing the view frees the
-	# world with it — one free, not two.
-	if is_instance_valid(_current_view):
-		_world_host.remove_child(_current_view)
-		_current_view.queue_free()
-		_current_view = null
-	else:
-		# No view only if a world was somehow parented without one.
-		if _current_world.get_parent():
-			_current_world.get_parent().remove_child(_current_world)
-		_current_world.queue_free()
-	_current_world = null
 
-	# Belt and braces. WorldContext.dispose() above is what actually
-	# retires this world's grid now (it calls NavigationGrid
-	# .unregister_world, which drops the raw CollisionShape3D* into the
-	# geometry freed just above — the dangling pointers behind a real
-	# native crash this project shipped, a bare signal 11 with no
-	# GDScript error before it). This line covers the one path that
-	# misses: a world that never got a context, because it wasn't a
-	# Node3D. Harmless otherwise — it only forces the next query to
-	# re-scan.
+## The party leaves a world when the player does.
+##
+## Residency preserves what the WORLD owns — its fights, its dead, its
+## surfaces — not where your party happens to be standing. The party still
+## travels as one; leaving members behind is phase 3, and this function is
+## where that changes.
+##
+## They must be FREED, not merely forgotten. clear_members() drops
+## references only, and the Units are children of the world — so a world
+## that stays resident would keep them standing there while the next world
+## spawned a second copy of every one of them from the same roster.
+func _release_party_from(resident: ResidentWorld, capture_party: bool) -> void:
+	if capture_party:
+		# A no-op when this world never spawned the party in the first
+		# place (members is empty) — see PartyManager.capture()'s own guard
+		# for why that's required rather than merely harmless.
+		PartyManager.capture()
+	_dismiss_fielded_demons()
+
+	var leaving: Array[Unit] = PartyManager.members.duplicate()
+	PartyManager.clear_members()
+	for unit in leaving:
+		if not is_instance_valid(unit):
+			continue
+		# Out of the group first: a half-freed unit still answering group
+		# queries is the exact shape of bug the test suite has caught
+		# repeatedly (see UnitQuery's own guards).
+		if unit.is_in_group("units"):
+			unit.remove_from_group("units")
+		if unit.get_parent():
+			unit.get_parent().remove_child(unit)
+		unit.queue_free()
+
+
+## Frees a world that has nothing left worth preserving — see
+## ResidentWorld.is_earned for what counts. Safe to call with null, and
+## with a world that is staying.
+func _retire_if_unearned(resident: ResidentWorld) -> void:
+	if resident == null or not is_instance_valid(resident) or resident.is_earned():
+		return
+
+	if _residents.get(resident.area_id()) == resident:
+		_residents.erase(resident.area_id())
+	resident.dispose()
+
+	# Belt and braces. WorldContext.dispose() inside ResidentWorld is what
+	# actually retires this world's navigation grid (it calls
+	# NavigationGrid.unregister_world, dropping the raw CollisionShape3D*
+	# into geometry about to be freed — the dangling pointers behind a real
+	# native crash this project shipped, a bare signal 11 with no GDScript
+	# error before it). This covers the one path that misses: a world that
+	# never got a context because it wasn't a Node3D.
 	NavigationGrid.invalidate()
 
 
-## Frees whatever world is currently loaded (if any) and instantiates
-## scene in its place. If the outgoing world actually had the party
-## spawned into it, that's captured into PartyManager.roster before it's
-## freed. Whether the roster gets spawned into the NEW world depends on
-## that world's own duck-typed spawns_party() (default true when absent)
-## — a world that opts out (the overworld's single avatar) is loaded with
-## zero party Units regardless of what roster holds. Returns the new
-## world, or null if the load was refused.
+## Points the player at a world that is already loaded and in the tree.
+## The counterpart to _leave_focused, and the only place _focused is set.
+func _focus(resident: ResidentWorld) -> void:
+	_focused = resident
+	resident.set_focused(true)
+	_move_attention_to(resident.viewport())
+
+	var world: Node = resident.world
+	if world.has_method("get_base_mode"):
+		GameMode.set_base_mode(world.get_base_mode())
+
+	if world.has_method("get_tactical_camera"):
+		var cam: Camera3D = world.get_tactical_camera()
+		if is_instance_valid(cam):
+			CameraDirector.register_tactical_camera(cam)
+			# Per-viewport, so each world's camera can be current in its
+			# own viewport at the same time — they do not fight.
+			cam.make_current()
+
+	_spawn_party_into(resident)
+	world_focused.emit(world)
+
+
+## Projects PartyManager.roster into live Units in this world, if it wants
+## them. A world that opts out via spawns_party() (the overworld, with its
+## single avatar) gets none regardless of what roster holds.
+func _spawn_party_into(resident: ResidentWorld) -> void:
+	var world: Node = resident.world
+	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
+	_is_restoring_party = wants_party and not PartyManager.roster.is_empty()
+	if _is_restoring_party:
+		var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
+		PartyManager.spawn_party(world, spawn_point)
+	_is_restoring_party = false
+
+
+## The resident world for an area, or null. Null for a null area on
+## purpose: a world loaded through the raw load_world() primitive has no
+## id to be found by, so it is never re-entered, only replaced.
+func _resident_for(area: AreaDefinition) -> ResidentWorld:
+	if area == null:
+		return null
+	var resident: ResidentWorld = _residents.get(area.id)
+	return resident if is_instance_valid(resident) else null
+
+
+## Puts `scene`'s world on screen, building it only if it isn't already
+## loaded. The world the player is leaving is stepped out of first, then
+## freed ONLY if it has nothing left to preserve — see
+## ResidentWorld.is_earned. Returns the world now focused, or null if the
+## load was refused.
+##
+## Re-entering a resident area emits world_focused and NOT world_loaded:
+## nothing was loaded. A listener that must react to both (MusicManager)
+## wants both signals; one that is really about construction (a world's
+## own bootstrap) wants only world_loaded.
+##
 ## spawn_point_name empty means "let the destination derive it" (see
 ## _resolve_entry_spawn_point()); area is the AreaDefinition behind scene,
-## or null for a world with no area data at all (nothing calls it that way
-## today, but it stays valid — see _current_area's own header). Also owns
-## assigning _current_area, so it and _current_world always describe the
-## same world together, before world_loaded ever fires — see _current_area's
-## header for why that ordering is load-bearing, not incidental.
+## or null for a world with no area data at all — which is also what makes
+## a world un-resident, since there is no id to find it by again.
 func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: AreaDefinition = null) -> Node:
 	if not can_load():
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
@@ -314,22 +392,28 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 
 	world_loading.emit(scene)
 
-	# Captured before any of the teardown below can touch _current_area —
-	# this is "the area being left," read once, up front.
-	var from_area_id: StringName = _current_area.id if _current_area else &""
+	# "The area being left," read once, up front — before leaving clears it.
+	var from_area_id: StringName = current_area().id if current_area() else &""
 
-	# true: an ordinary area transition, PartyManager.roster must stay
-	# current against whatever was actually live. See _teardown_current_world's
-	# own header for the false case (SaveManager.load_file(), via unload()).
-	_teardown_current_world(true)
+	# true: an ordinary area transition, so PartyManager.roster must stay
+	# current against whatever was actually live. See unload() for the
+	# false case (SaveManager.load_file()).
+	var outgoing: ResidentWorld = _focused
+	_leave_focused(true)
 
-	# Assigned here — after the outgoing world is fully torn down, before the
-	# incoming one is even instantiated — so _current_area and _current_world
-	# change together with no window where one names the old world and the
-	# other the new one. In particular this must land before world_loaded
-	# emits below, since MusicManager's own handler reads current_area()
-	# synchronously from inside it.
-	_current_area = area
+	var existing: ResidentWorld = _resident_for(area)
+	if existing != outgoing:
+		_retire_if_unearned(outgoing)
+
+	# Already loaded: step back into it rather than rebuilding. This is the
+	# whole point of residency — the world kept running while the player
+	# was elsewhere, and rebuilding it would throw away exactly what was
+	# being preserved.
+	if existing:
+		_pending_spawn_point_name = _resolve_entry_spawn_point(
+			existing.world, spawn_point_name, from_area_id)
+		_focus(existing)
+		return existing.world
 
 	var world: Node = scene.instantiate()
 	# Resolved BEFORE entering the tree — instantiate() already built the
@@ -347,48 +431,42 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# cascaded, so a removed entity is freed here and NEVER enters the
 	# tree at all (no spawn-then-despawn flicker, no CombatManager
 	# registration to unwind). Guarded on area != null since load_world()
-	# is legitimately callable with no area data (see _current_area's own
-	# header) — AreaState has nothing to reconcile against in that case.
+	# is legitimately callable with no area data — AreaState has nothing
+	# to reconcile against in that case. Runs on construction only: a
+	# resident world re-entered above is already reconciled, and running
+	# it again would re-apply a saved state over live changes.
 	if area:
 		_reconcile_area_state(world, area.id)
 
-	var world_wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
-	_is_restoring_party = world_wants_party and not PartyManager.roster.is_empty()
+	# Set before the world enters the tree, because a world's _ready() runs
+	# synchronously inside add_child() and may need to know a real party
+	# spawn is about to follow (see test_arena.gd, and is_restoring_party).
+	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
+	_is_restoring_party = wants_party and not PartyManager.roster.is_empty()
+
+	var resident := ResidentWorld.new()
+	resident.name = "Resident_%s" % (area.id if area else &"anonymous")
+	resident.area = area
+	resident.world = world
+	add_child(resident)
 
 	# Into its own viewport, not straight into SceneRoot. Everything
 	# world-scoped keys off World3D, and a viewport is what mints one.
-	_current_view = WORLD_VIEW_SCENE.instantiate()
-	_world_host.add_child(_current_view)
-	_current_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var viewport: SubViewport = _current_view.get_child(0)
-	viewport.add_child(world)
-	_current_world = world
-
-	# Before anything raycasts. The indicators and the click router are
-	# useless — silently, returning empty hits — while they sit in a
-	# different World3D from the world they are pointing at.
-	_move_attention_to(viewport)
+	resident.view = WORLD_VIEW_SCENE.instantiate()
+	_world_host.add_child(resident.view)
+	resident.view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	resident.viewport().add_child(world)
 
 	# Built immediately after the world enters the tree, since World3D —
 	# the context's identity — only exists once it has a viewport.
-	_context = WorldContext.new(world if world is Node3D else null)
-	_context.name = "WorldContext"
-	add_child(_context)
-	if world.has_method("get_base_mode"):
-		GameMode.set_base_mode(world.get_base_mode())
+	resident.context = WorldContext.new(world if world is Node3D else null)
+	resident.context.name = "WorldContext"
+	resident.add_child(resident.context)
 
-	if world.has_method("get_tactical_camera"):
-		var cam: Camera3D = world.get_tactical_camera()
-		if is_instance_valid(cam):
-			CameraDirector.register_tactical_camera(cam)
-			cam.make_current()
+	if area:
+		_residents[area.id] = resident
 
-	if _is_restoring_party:
-		var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
-		PartyManager.spawn_party(world, spawn_point)
-
-	_is_restoring_party = false
-
+	_focus(resident)
 	world_loaded.emit(world)
 	return world
 
@@ -463,8 +541,11 @@ func load_area(area_id: StringName, spawn_point_name: StringName = &"") -> Node:
 	return load_world(area.world_scene, spawn_point_name, area)
 
 
+## The area behind the FOCUSED world, or null with nothing loaded. Read
+## by MusicManager to resolve per-area tracks; it and current_world()
+## always describe the same world, because both now read the same record.
 func current_area() -> AreaDefinition:
-	return _current_area
+	return _focused.area if _focused else null
 
 
 func pending_spawn_point_name() -> StringName:
@@ -477,22 +558,25 @@ func pending_spawn_point_name() -> StringName:
 ## AreaDefinition, since a saved position has to be read off whatever
 ## get_avatar() the CURRENT world happens to expose.
 func current_world() -> Node:
-	return _current_world
+	return _focused.world if _focused else null
 
 
 ## The loaded world's own state — its fights, its surfaces, its navigation
 ## grid. Null when nothing is loaded (the main menu). See WorldContext.
 func context() -> WorldContext:
-	return _context
+	return _focused.context if _focused else null
 
 
-## The context owning `node`, or the current one. A single-world lookup
-## today; the shape a later multi-world pass needs, and the reason callers
-## should reach for this instead of context() where a node is in hand.
+## The context owning `node`, or the focused one when nothing claims it.
+## Was a stub returning the single context either way; now it really does
+## search, and is what anything holding a node should ask instead of
+## context() — a unit in an unfocused world has a context, and it is not
+## the player's.
 func context_for(node: Node) -> WorldContext:
-	if _context and _context.contains(node):
-		return _context
-	return _context
+	for resident in _residents.values():
+		if is_instance_valid(resident) and resident.context and resident.context.contains(node):
+			return resident.context
+	return context()
 
 
 ## Where a spawned Node belongs — the loaded world if one exists, the
@@ -506,7 +590,7 @@ func context_for(node: Node) -> WorldContext:
 ## to: they'd survive a world swap, be invisible to load_world()'s own
 ## teardown (capture/clear/free), and never get freed or recaptured.
 func spawn_parent() -> Node:
-	return _current_world if _current_world else _scene_root
+	return _focused.world if _focused else _scene_root
 
 
 ## Whether the world currently being loaded (mid-load_world() call) is
@@ -515,6 +599,36 @@ func spawn_parent() -> Node:
 ## this from inside its own _ready(). False outside of an active
 ## load_world() call, for the very first load (nothing to restore yet),
 ## and for a world that opts out via spawns_party() -> false.
+## Every area currently loaded, focused or not. Debug and diagnostics —
+## nothing in the game should be enumerating worlds to find something; ask
+## context_for() with the node in hand instead.
+func resident_area_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for id in _residents.keys():
+		ids.append(id)
+	return ids
+
+
+## Keeps an area loaded even with nothing running in it (see
+## ResidentWorld.is_earned). The debug focus cycle uses this so a world can
+## be switched back to; the party will use it once it can be left behind.
+func set_area_pinned(area_id: StringName, pinned: bool) -> void:
+	var resident: ResidentWorld = _residents.get(area_id)
+	if is_instance_valid(resident):
+		resident.pinned = pinned
+
+
+func is_area_pinned(area_id: StringName) -> bool:
+	var resident: ResidentWorld = _residents.get(area_id)
+	return is_instance_valid(resident) and resident.pinned
+
+
+## Whether an area is currently loaded — the question load_area() asks
+## itself before deciding to build anything.
+func is_area_resident(area_id: StringName) -> bool:
+	return is_instance_valid(_residents.get(area_id))
+
+
 func is_restoring_party() -> bool:
 	return _is_restoring_party
 
