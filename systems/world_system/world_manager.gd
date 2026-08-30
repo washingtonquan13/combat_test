@@ -697,6 +697,28 @@ func focus_world_of(node: Node) -> bool:
 	return false
 
 
+## The area whose world contains `node`, or null. The counterpart to
+## context_for() for anything that needs to NAME where something is —
+## "Kael is waiting for orders in the Arena" needs the area, not the
+## context.
+func area_of(node: Node) -> AreaDefinition:
+	for resident in _residents.values():
+		if is_instance_valid(resident) and resident.context and resident.context.contains(node):
+			return resident.area
+	return null
+
+
+## Every loaded world's context, focused or not — for the few systems
+## that must reason about ALL worlds rather than the one on screen. A
+## fight running where the player isn't looking is still a fight.
+func all_contexts() -> Array[WorldContext]:
+	var out: Array[WorldContext] = []
+	for resident in _residents.values():
+		if is_instance_valid(resident) and resident.context:
+			out.append(resident.context)
+	return out
+
+
 ## Every area currently loaded, focused or not. Debug and diagnostics —
 ## nothing in the game should be enumerating worlds to find something; ask
 ## context_for() with the node in hand instead.

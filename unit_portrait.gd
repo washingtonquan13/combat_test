@@ -138,11 +138,22 @@ func _on_pressed() -> void:
 	SelectionManager.select(unit, additive)
 
 
-## Dims a member who is somewhere the player isn't looking. Purely a
-## readout — the portrait stays clickable, and clicking it is how you go
-## to them (see _on_pressed).
-func set_elsewhere(value: bool) -> void:
-	modulate = Color(0.45, 0.45, 0.55, 1.0) if value else Color(1, 1, 1, 1)
+## How a member standing in another world reads. Purely a readout — the
+## portrait stays clickable either way, and clicking it is how you go to
+## them (see _on_pressed).
+##
+## Two states rather than one, because "away" and "away and stalled
+## waiting for you" are different news. Dimmed says the party is split;
+## lit warm against the dimmed rest says a fight over there has run out of
+## things it can do without you, which is the one thing here that is
+## actually urgent.
+func set_elsewhere(value: bool, needs_attention: bool = false) -> void:
+	if needs_attention:
+		modulate = Color(1.35, 0.85, 0.55, 1.0)
+	elif value:
+		modulate = Color(0.45, 0.45, 0.55, 1.0)
+	else:
+		modulate = Color(1, 1, 1, 1)
 
 
 ## Called by initiative_row.gd — grows the slot's actual RESERVED height

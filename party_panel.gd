@@ -80,6 +80,9 @@ func _ready() -> void:
 	# world_loaded (nothing was loaded), and a focus switch is exactly when
 	# "who is here" changes — so the panel has to listen for both.
 	WorldManager.world_focused.connect(_on_world_focused)
+	# A fight elsewhere reaching one of our units is the other thing that
+	# changes how a row should read — see CombatManager's Attention section.
+	CombatManager.attention_changed.connect(_mark_absent_members)
 	# Deferred, same reasoning as before: safe even if this panel is ever
 	# constructed after members already exist (e.g. a future scene that
 	# doesn't boot through MainRoot at all).
@@ -111,8 +114,11 @@ func _mark_absent_members() -> void:
 		if not is_instance_valid(row) or row.get_child_count() == 0:
 			continue
 		var portrait: Node = row.get_child(0)
-		if portrait.has_method("set_elsewhere"):
-			portrait.set_elsewhere(context != null and not context.contains(key))
+		if not portrait.has_method("set_elsewhere"):
+			continue
+		var elsewhere: bool = context != null and not context.contains(key)
+		portrait.set_elsewhere(elsewhere,
+			elsewhere and CombatManager.unit_awaiting_attention(key))
 
 
 func _on_member_added(unit: Unit) -> void:

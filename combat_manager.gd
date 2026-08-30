@@ -35,6 +35,11 @@ signal phase_changed(phase: Encounter.Phase)
 signal unit_joined_combat(unit: Unit)
 signal unit_left_combat(unit: Unit)
 
+## The set of fights waiting on a player who isn't watching them changed.
+## See _note_attention — this is what makes a split party's off-screen
+## fight visible instead of silently stalled.
+signal attention_changed()
+
 ## How close another unit needs to be to the attacker OR the target (same
 ## faction as whichever one it's near) to get pulled into a freshly
 ## triggered fight. A plain tunable constant, same convention as
@@ -55,6 +60,40 @@ var encounters: Array[Encounter]:
 		return context.encounters if context else _detached_encounters
 
 var _detached_encounters: Array[Encounter] = []
+
+
+## Every fight in every loaded world, not just the one on screen.
+##
+## `encounters` above is deliberately the FOCUSED world's list, because
+## that is what the UI means by "the fights". Anything reasoning about
+## whether a fight exists at all — is anything running, does the mode
+## need to change, has this one ended — has to look wider than the
+## player is looking, or a battle in another world is invisible to the
+## systems that are supposed to be managing it.
+func all_encounters() -> Array[Encounter]:
+	var out: Array[Encounter] = []
+	for context in WorldManager.all_contexts():
+		for encounter in context.encounters:
+			if is_instance_valid(encounter) and not out.has(encounter):
+				out.append(encounter)
+	for encounter in _detached_encounters:
+		if is_instance_valid(encounter) and not out.has(encounter):
+			out.append(encounter)
+	return out
+
+
+## Where a fight among these combatants belongs: the world they are
+## standing in, NOT the world the player happens to be watching.
+## Getting this wrong files the fight under someone else's world,
+## where its own world's teardown will not end it and its own world's
+## residency will not count it.
+func _encounter_list_for(combatants: Array[Unit]) -> Array[Encounter]:
+	for unit in combatants:
+		if is_instance_valid(unit):
+			var context: WorldContext = WorldManager.context_for(unit)
+			if context:
+				return context.encounters
+	return _detached_encounters
 
 ## The one the player is currently commanding, and what every legacy
 ## accessor below reports on. Set when an encounter the player is part of
@@ -90,7 +129,7 @@ var phase: Encounter.Phase:
 ## in_combat, which is specifically about the player's view. Used for
 ## global concerns like music that shouldn't care which fight it is.
 func any_combat_running() -> bool:
-	for encounter in encounters:
+	for encounter in all_encounters():
 		# An encounter is queue_free()d as it ends, so it can briefly be
 		# both freed and still referenced — by a snapshot of this array, or
 		# during the same frame it was erased.
@@ -108,14 +147,16 @@ func start_combat(combatants: Array[Unit], skip_first_action_for: Unit = null) -
 	var encounter := Encounter.new()
 	encounter.name = "Encounter%d" % (encounters.size() + 1)
 	add_child(encounter)
-	encounters.append(encounter)
+	_encounter_list_for(combatants).append(encounter)
 	_relay(encounter)
 
 	if _involves_player(combatants):
 		focused_encounter = encounter
-		_claim_combat_mode(encounter)
 
 	encounter.begin(combatants, skip_first_action_for)
+	# After begin(), which is what fills turn_order — and what the claim is
+	# computed from.
+	_refresh_mode_claims()
 	return encounter
 
 
@@ -185,7 +226,7 @@ func add_unit_to_combat(unit: Unit, after_unit: Unit = null, encounter: Encounte
 	if unit.is_player_controlled():
 		if focused_encounter == null:
 			focused_encounter = target
-		_claim_combat_mode(target)
+		_refresh_mode_claims()
 
 
 func remove_unit_from_combat(unit: Unit) -> void:
@@ -217,7 +258,10 @@ func _involves_player(combatants: Array[Unit]) -> bool:
 
 func _relay(encounter: Encounter) -> void:
 	encounter.combat_started.connect(func(order): combat_started.emit(order))
-	encounter.turn_started.connect(func(unit): turn_started.emit(unit))
+	encounter.turn_started.connect(func(unit):
+		_note_attention(encounter, unit)
+		turn_started.emit(unit)
+	)
 	encounter.turn_ended.connect(func(unit): turn_ended.emit(unit))
 	encounter.phase_changed.connect(func(p): phase_changed.emit(p))
 	encounter.unit_joined_combat.connect(func(unit): unit_joined_combat.emit(unit))
@@ -239,7 +283,13 @@ func _relay(encounter: Encounter) -> void:
 
 
 func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> void:
-	encounters.erase(encounter)
+	# From wherever it actually lives, which may not be the world on screen.
+	for context in WorldManager.all_contexts():
+		context.encounters.erase(encounter)
+	_detached_encounters.erase(encounter)
+	if _awaiting.has(encounter):
+		_awaiting.erase(encounter)
+		attention_changed.emit()
 	if focused_encounter == encounter:
 		# Hand focus to another fight the player is still in, if there is
 		# one, so the UI follows them rather than going blank mid-battle.
@@ -250,6 +300,9 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 				break
 
 	_release_combat_mode(encounter)
+	# This fight ending can change nothing else, but focus may have been
+	# waiting on it — re-check the rest either way.
+	_refresh_mode_claims()
 	combat_ended.emit(winning_faction)
 	encounter.queue_free()
 
@@ -270,12 +323,46 @@ var _mode_claims: Array[Encounter] = []
 var _combat_mode_depth: int = 0
 
 
-## COMBAT mode is about the PLAYER being in a fight, not about a fight
-## existing anywhere. Two NPCs going at it never put the player in combat
-## mode — which was always true in principle and became reachable in
-## practice once worlds stayed live: a scrap in an area the player isn't
-## even looking at would otherwise freeze their HUD into a fight they
-## cannot see, let alone act in.
+## COMBAT mode is about the fight the player is LOOKING AT.
+##
+## Two conditions, and both were learned the hard way. It must involve a
+## player unit — two NPCs going at it never put the player in combat mode,
+## which was always true in principle and became reachable the moment
+## worlds stayed live. And it must be in the world on screen: once the
+## party can split, the player can be in a fight in one world and walking
+## around peacefully in another, and claiming mode for the fight they
+## cannot see would freeze the world they can — including refusing to let
+## them travel to the fight that wants them.
+##
+## Recomputed rather than toggled at each event, because the answer
+## changes for reasons that are not events on the encounter at all: the
+## player looking somewhere else changes it without anything happening in
+## the fight.
+func _refresh_mode_claims() -> void:
+	for encounter in all_encounters():
+		if not is_instance_valid(encounter):
+			continue
+		var want: bool = encounter.is_running 			and _involves_player(encounter.turn_order) 			and _is_in_focused_world(encounter)
+		if want:
+			_claim_combat_mode(encounter)
+		else:
+			_release_combat_mode(encounter)
+
+
+func _is_in_focused_world(encounter: Encounter) -> bool:
+	var context: WorldContext = WorldManager.context()
+	if context == null:
+		# No world loaded means nowhere else to be, so every fight is the
+		# one on screen. Keeps a fight staged outside the world system —
+		# the headless harness, the debug combat harness — behaving exactly
+		# as it did before worlds could be elsewhere.
+		return true
+	for unit in encounter.turn_order:
+		if is_instance_valid(unit) and context.contains(unit):
+			return true
+	return false
+
+
 func _claim_combat_mode(encounter: Encounter) -> void:
 	if _mode_claims.has(encounter):
 		return
@@ -302,3 +389,100 @@ func _pop_combat_mode() -> void:
 	_combat_mode_depth -= 1
 	if _combat_mode_depth == 0:
 		GameMode.pop_mode()
+
+
+# --- Attention --------------------------------------------------------
+# A fight in a world the player isn't looking at runs perfectly well right
+# up to the moment it reaches one of THEIR units, and then it simply waits
+# — correctly, since the turn loop blocks on input, but silently. With the
+# party able to split across live worlds, that is a fight stalled off
+# screen with nothing anywhere saying so.
+#
+# Deliberately NOT resolved by stealing focus. Yanking the camera out of
+# whatever the player is doing to drop them into a fight they didn't know
+# existed is worse than the silence. This raises a flag and leaves the
+# decision with them; the party panel renders it, and clicking the
+# portrait is already the way to go there (see unit_portrait._on_pressed).
+
+var _awaiting: Array[Encounter] = []
+
+
+func _ready() -> void:
+	# Deferred, NOT connected here directly. This autoload is constructed
+	# long before WorldManager (2nd vs 18th in project.godot), so reaching
+	# for it during _ready finds nothing and the connection silently never
+	# happens — which shows up much later as combat mode simply failing to
+	# follow the player between worlds. A deferred call runs once every
+	# autoload exists.
+	_connect_to_world.call_deferred()
+
+
+func _connect_to_world() -> void:
+	# Switching worlds is the other half of both things below: which fight
+	# is on screen decides combat mode, and a fight stops waiting the moment
+	# the player is actually looking at it.
+	if not WorldManager.world_focused.is_connected(_on_world_focused):
+		WorldManager.world_focused.connect(_on_world_focused)
+
+
+## Fights currently waiting on a player unit the player cannot see.
+func encounters_awaiting_attention() -> Array[Encounter]:
+	return _awaiting
+
+
+## Whether this unit is the one an unwatched fight is waiting on — what
+## the party panel asks to decide how to render a portrait.
+func unit_awaiting_attention(unit: Unit) -> bool:
+	for encounter in _awaiting:
+		if is_instance_valid(encounter) and encounter.current_unit == unit:
+			return true
+	return false
+
+
+func _note_attention(encounter: Encounter, unit: Unit) -> void:
+	var waiting: bool = is_instance_valid(unit) and unit.is_player_controlled() 		and not _is_watched(unit)
+
+	if waiting:
+		if _awaiting.has(encounter):
+			return
+		_awaiting.append(encounter)
+		SystemLog.print("%s is waiting for orders%s." % [
+			LogFormat.unit_name(unit), _where(unit)])
+		attention_changed.emit()
+		return
+
+	if _awaiting.has(encounter):
+		_awaiting.erase(encounter)
+		attention_changed.emit()
+
+
+func _on_world_focused(_world: Node) -> void:
+	# Which fight the player is looking at just changed, and that is half
+	# of what decides combat mode.
+	_refresh_mode_claims()
+
+	var changed: bool = false
+	for encounter in _awaiting.duplicate():
+		if not is_instance_valid(encounter) or _is_watched(encounter.current_unit):
+			_awaiting.erase(encounter)
+			changed = true
+	if changed:
+		attention_changed.emit()
+
+
+## Whether the player can actually see this unit right now. Not "is it in
+## the focused world" spelled out at every call site — a unit with no
+## context at all (no world loaded) counts as unwatched.
+func _is_watched(unit: Unit) -> bool:
+	if not is_instance_valid(unit):
+		return true
+	var context: WorldContext = WorldManager.context()
+	return context != null and context.contains(unit)
+
+
+## " in the Cathedral", or "" when the area has no name to give.
+func _where(unit: Unit) -> String:
+	var area: AreaDefinition = WorldManager.area_of(unit)
+	if area == null or area.display_name == "":
+		return ""
+	return " in %s" % area.display_name
