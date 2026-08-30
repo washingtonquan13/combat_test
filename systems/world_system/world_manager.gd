@@ -42,8 +42,35 @@ extends Node
 signal world_loading(scene: PackedScene)
 signal world_loaded(world: Node)
 
+const WORLD_VIEW_SCENE: PackedScene = preload("res://systems/world_system/world_view.tscn")
+
 var _scene_root: Node = null
 var _current_world: Node = null
+
+## Where per-world viewports get instanced — see MainRoot.tscn's own
+## WorldHost note. A world lives in its own SubViewport because World3D is
+## PER-VIEWPORT: that is the only mechanism Godot offers for two live
+## worlds at once, and everything world-scoped in this project (see
+## WorldContext, UnitQuery, and the navigation grid's registry) keys off
+## World3D precisely because of it.
+var _world_host: Control = null
+
+## The WorldView (SubViewportContainer + SubViewport) showing the current
+## world. Freed with the world; the world is its grandchild, so freeing
+## the view frees the world too.
+var _current_view: SubViewportContainer = null
+
+## Nodes that represent THE PLAYER LOOKING AT THINGS rather than anything
+## a world owns: the indicators, the click router, the dialogue camera
+## rig. A Node3D only renders in — and only raycasts against — the World3D
+## of the viewport it sits under, so these have to live inside whichever
+## viewport is being looked at, and they move as it changes.
+##
+## Moved rather than duplicated per world, on the same reasoning rung 2
+## used to decide what does NOT belong on WorldContext: there is one
+## player, so there is one set of these. See register_attention_nodes().
+var _attention_nodes: Array[Node] = []
+var _attention_home: Node = null
 ## Per-world state (fights, surfaces, nav grid) — see WorldContext. Built
 ## with the world, disposed with it.
 var _context: WorldContext = null
@@ -85,6 +112,56 @@ var _pending_spawn_point_name: StringName = &"default"
 ## pre-placed the way the old SceneManager used to.
 func register_scene_root(root: Node) -> void:
 	_scene_root = root
+
+
+## Called once by MainRoot's own script, alongside register_scene_root.
+## Boots empty — views are instanced here per world as they load.
+func register_world_host(host: Control) -> void:
+	_world_host = host
+
+
+## Called once by MainRoot's own script with the player-attention nodes to
+## carry between viewports (see _attention_nodes). Their CURRENT parent is
+## remembered as the home they return to whenever no world is loaded — the
+## main menu, where there is no viewport to sit in and nothing to point at.
+func register_attention_nodes(nodes: Array[Node]) -> void:
+	_attention_nodes = nodes
+	for node in nodes:
+		if node and node.get_parent():
+			_attention_home = node.get_parent()
+			break
+
+
+## The viewport the player is currently looking into, or null when no
+## world is loaded. The one place anything outside a world should ask —
+## a Control on the HUD canvas can't use get_viewport() to reach the
+## world's camera anymore, since its own viewport is the root one.
+func focused_viewport() -> Viewport:
+	if not is_instance_valid(_current_view):
+		return null
+	return _current_view.get_child(0) as Viewport
+
+
+## The camera rendering the focused world, or null. Null is ordinary, not
+## exceptional — the main menu loads no world and has no camera.
+func focused_camera() -> Camera3D:
+	var viewport: Viewport = focused_viewport()
+	return viewport.get_camera_3d() if viewport else null
+
+
+## Moves the attention nodes into `parent`, or home when it is null.
+## reparent() keeps them alive across the view being freed — without this
+## they would be freed alongside whichever world they were pointing at.
+func _move_attention_to(parent: Node) -> void:
+	var destination: Node = parent if parent else _attention_home
+	if not destination:
+		return
+	for node in _attention_nodes:
+		if is_instance_valid(node) and node.get_parent() != destination:
+			# keep_global_transform = false: these all sit at the origin
+			# with identity transforms, and carrying a transform across
+			# two different worlds' spaces means nothing.
+			node.reparent(destination, false)
 
 
 ## Whether a load is currently allowed — a world can't safely be swapped
@@ -161,14 +238,27 @@ func _teardown_current_world(capture_party: bool) -> void:
 			CameraDirector.unregister_tactical_camera(old_cam)
 
 	# remove_child() immediately, THEN queue_free() — not queue_free()
-	# alone. queue_free() defers the actual removal, so the outgoing
-	# world would still occupy its name among _scene_root's children
-	# at the moment a new world is added right after, and Godot silently
-	# renames the newcomer (e.g. "TestArena" -> "TestArena2") to avoid
-	# the collision. Freeing is still safe to defer; only staying
-	# IN THE TREE needs to end synchronously here.
-	_scene_root.remove_child(_current_world)
-	_current_world.queue_free()
+	# alone. queue_free() defers the actual removal, so the outgoing view
+	# would still occupy its name among WorldHost's children at the moment
+	# a new one is added right after, and Godot silently renames the
+	# newcomer (e.g. "WorldView" -> "WorldView2") to avoid the collision.
+	# Freeing is still safe to defer; only staying IN THE TREE needs to end
+	# synchronously here.
+	# Attention nodes first — they are children of the viewport about to
+	# be freed, and they belong to the player, not to this world.
+	_move_attention_to(null)
+
+	# The world is the viewport's grandchild, so freeing the view frees the
+	# world with it — one free, not two.
+	if is_instance_valid(_current_view):
+		_world_host.remove_child(_current_view)
+		_current_view.queue_free()
+		_current_view = null
+	else:
+		# No view only if a world was somehow parented without one.
+		if _current_world.get_parent():
+			_current_world.get_parent().remove_child(_current_world)
+		_current_world.queue_free()
 	_current_world = null
 
 	# Belt and braces. WorldContext.dispose() above is what actually
@@ -246,8 +336,19 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	var world_wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
 	_is_restoring_party = world_wants_party and not PartyManager.roster.is_empty()
 
-	_scene_root.add_child(world)
+	# Into its own viewport, not straight into SceneRoot. Everything
+	# world-scoped keys off World3D, and a viewport is what mints one.
+	_current_view = WORLD_VIEW_SCENE.instantiate()
+	_world_host.add_child(_current_view)
+	_current_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var viewport: SubViewport = _current_view.get_child(0)
+	viewport.add_child(world)
 	_current_world = world
+
+	# Before anything raycasts. The indicators and the click router are
+	# useless — silently, returning empty hits — while they sit in a
+	# different World3D from the world they are pointing at.
+	_move_attention_to(viewport)
 
 	# Built immediately after the world enters the tree, since World3D —
 	# the context's identity — only exists once it has a viewport.

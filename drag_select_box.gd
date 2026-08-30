@@ -85,15 +85,24 @@ func _draw() -> void:
 ## preview highlight accordingly. Purely visual — never touches
 ## SelectionManager or is_selected.
 func _update_box_hover_preview() -> void:
-	var camera: Camera3D = get_viewport().get_camera_3d()
+	# The focused world's camera, not this Control's own viewport's — this
+	# node lives on the HUD canvas, whose viewport is the root one and has
+	# no 3D camera at all now that worlds render into their own.
+	var camera: Camera3D = WorldManager.focused_camera()
 	if not camera:
 		return
+	# Box-select is a question about what the player can SEE, so it stops
+	# at the focused world's edge. UnitQuery.all_units is deliberately the
+	# global form (see its own header) and spans every resident world.
+	var context: WorldContext = WorldManager.context()
 
 	var rect := Rect2(_drag_start, Vector2.ZERO).expand(_drag_end)
 	var current: Array[Unit] = []
 
 	for unit in UnitQuery.all_units(get_tree()):
 		if not unit.is_player_controlled():
+			continue
+		if context and not context.contains(unit):
 			continue
 		if camera.is_position_behind(unit.global_position):
 			continue

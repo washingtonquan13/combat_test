@@ -21,6 +21,18 @@ extends Node
 
 func _ready() -> void:
 	WorldManager.register_scene_root($SceneRoot)
+	# Where per-world viewports are instanced. A world needs its own
+	# viewport because World3D is per-viewport — see MainRoot.tscn's own
+	# WorldHost note, and WorldManager's.
+	WorldManager.register_world_host($WorldHost)
+	# The nodes that represent the player LOOKING at the world rather than
+	# anything the world owns. A Node3D only renders in, and only raycasts
+	# against, the World3D of the viewport above it, so these have to ride
+	# along into whichever viewport is being looked at. Registered from
+	# here because knowing MainRoot's own layout is MainRoot's job — the
+	# same reason register_scene_root and register_hud live here.
+	var attention: Array[Node] = [$Indicators, $GroundClickTarget, $DialogueCameraRig]
+	WorldManager.register_attention_nodes(attention)
 	# The TACTICAL HUD subtree, not the CanvasLayer — see
 	# UIStack.register_hud()'s own header for why that distinction is
 	# load-bearing rather than cosmetic.
