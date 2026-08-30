@@ -78,6 +78,14 @@ extends Resource
 ## without another schema change.
 @export var unit_scene: PackedScene
 @export var abilities: Array[Ability] = []
+## This species' tactical role — see AiArchetype. Supplies the behaviors
+## and smartness tier, so a species normally sets this and nothing else
+## AI-related.
+@export var ai_archetype: AiArchetype
+## Behaviors specific to THIS species, on top of whatever ai_archetype
+## already provides (see resolved_ai_behaviors) — a boss bolting its own
+## quirk onto a stock role, not a replacement for one. Leave empty for
+## the common case.
 @export var ai_behaviors: Array[AiBehavior] = []
 ## How many factors CombatAI's scorer weighs when picking this species'
 ## actions — see AiScorer's own header for the tier table. Cascades onto
@@ -113,3 +121,34 @@ func resolve_negotiation_root(actor: Unit) -> DialogueNode:
 		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
 			return option.root
 	return null
+
+
+## This species' full behavior list — the archetype's behaviors first,
+## then any species-specific ones layered on top. Additive rather than
+## either/or, mirroring the cascade-then-override ordering Unit.definition
+## already uses for every other field: the role supplies the defaults, the
+## species keeps the last word.
+##
+## Both halves feed the same candidate pool and are scored identically
+## (see AiScorer.best_plan), so "first" here is only enumeration order,
+## not priority — AiScorer._is_better resolves ties explicitly rather than
+## by position.
+func resolved_ai_behaviors() -> Array[AiBehavior]:
+	if not ai_archetype:
+		return ai_behaviors
+
+	var resolved: Array[AiBehavior] = []
+	resolved.append_array(ai_archetype.behaviors)
+	resolved.append_array(ai_behaviors)
+	return resolved
+
+
+## Smartness tier for this species — the archetype's, unless this
+## definition names its own. Distinguishing "authored 2" from "left at the
+## default 2" isn't possible on a plain int export, so an explicit
+## ai_smartness only wins when it actually differs from the field default;
+## a species wanting a different tier from its role simply sets it.
+func resolved_ai_smartness() -> int:
+	if ai_archetype and ai_smartness == 2:
+		return ai_archetype.smartness
+	return ai_smartness

@@ -29,6 +29,31 @@ var has_destination: bool = false
 ## has no reason to change altitude first.
 var flight_altitude: float = NAN
 
+## Whether this plan's destination is a means or an end.
+##
+##   IF_NEEDED — get into range, and only if not already there.
+##               AiScorer._resolve_reach STRIPS the destination when the
+##               ability can already be used from where the unit stands.
+##   REQUIRED  — the move itself is the point (fleeing, withdrawing after
+##               a strike, gaining altitude); keep it even when in range.
+enum MovementIntent { IF_NEEDED, REQUIRED }
+
+## Defaults to IF_NEEDED because that is what almost every candidate
+## actually wants, and because the alternative failed in production: a
+## flyer set a destination at its preferred altitude without checking
+## whether it could already shoot from where it floated, and the goal
+## (standoff range plus a 2x-cost climb) cost roughly 22 movement against
+## a budget of 5. It never arrived, CombatAI re-asked and re-picked the
+## same unfinishable move after every partial step, and the unit burned
+## every turn drifting backwards without once attacking.
+##
+## Making the SAFE case the default is the whole point: a behavior author
+## who never thinks about this gets "act if you can, move if you must,"
+## and only a behavior that genuinely means "the movement is the action"
+## has to say so. See AiBehavior's plan builders, which pick the right
+## intent per plan kind so subclasses don't set this by hand.
+var movement_intent: MovementIntent = MovementIntent.IF_NEEDED
+
 ## True for a plan that only ever moves and never intends to actually use
 ## `ability` this turn (a Flee — see FleeBehavior) — `ability` on such a
 ## plan is a formality to satisfy AiPlan's own non-null contract, not a

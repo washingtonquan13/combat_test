@@ -17,18 +17,12 @@ extends AiBehavior
 ## when flying buys it nothing — so keep it modest, and reach for it only
 ## when the arithmetic alone reads as too grounded for the fantasy.
 ##
-## Also suppresses MaintainAltitudeBehavior's voluntary landing (see
-## that file's _should_stay_airborne) — a species authored to prefer
-## flight shouldn't spend its turns bobbing down to save FP.
-##
-## Composes with MaintainAltitudeBehavior rather than replacing it: that
-## one owns WHICH altitude band to hold, this one owns whether to be off
-## the ground at all. Both proposing a takeoff on the same turn is
-## harmless and expected — it's the same ability against the same target,
-## so whichever scores higher wins and AiScorer._is_better resolves an
-## exact tie deterministically. A species can carry either alone: this
-## one without MaintainAltitude for "gets airborne, doesn't care how
-## high," MaintainAltitude without this for "flies only when it pays."
+## One job: get off the ground. Which altitude to then hold belongs to
+## HoldRangeBehavior, and coming back down before the FP runs out belongs
+## to LandBeforeExhaustionBehavior — the three compose into an aerial
+## archetype (see data/ai_archetypes/) without any of them knowing about
+## the others. The behavior these replaced did all three at once, and
+## produced a separate bug per job.
 
 ## Added to the takeoff candidate's score. Sized against the same HP
 ## currency everything else in AiScorer uses (see that file's header):
@@ -38,7 +32,7 @@ extends AiBehavior
 @export var flight_preference: float = 3.0
 
 
-func propose(unit: Unit) -> Array[AiPlan]:
+func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	if unit.is_flying():
 		return []
 
@@ -46,7 +40,6 @@ func propose(unit: Unit) -> Array[AiPlan]:
 	if not flight_ability:
 		return []
 
-	var takeoff := AiPlan.new(flight_ability, unit)
-	takeoff.score = flight_preference
+	var takeoff: AiPlan = self_plan(unit, flight_ability, flight_preference)
 	takeoff.reason = "prefers flight"
 	return [takeoff]

@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="AiArchetype" load_steps=11 format=3]
+
+[ext_resource type="Script" uid="uid://bol7w701na4bs" path="res://systems/ai_system/ai_archetype.gd" id="1_arch"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_beh"]
+[ext_resource type="Script" uid="uid://btcpat4035hqc" path="res://systems/ai_system/prefer_flight_behavior.gd" id="b0_prefer_flight"]
+[ext_resource type="Script" uid="uid://havvvgi4nsm1" path="res://systems/ai_system/hold_range_behavior.gd" id="b1_hold_range"]
+[ext_resource type="Script" uid="uid://dsh34hjqknuhi" path="res://systems/ai_system/flee_behavior.gd" id="b2_flee"]
+[ext_resource type="Script" uid="uid://b76hmgsloh3ty" path="res://systems/ai_system/land_before_exhaustion_behavior.gd" id="b9_land"]
+
+[sub_resource type="Resource" id="R_prefer_flight"]
+script = ExtResource("b0_prefer_flight")
+flight_preference = 3.0
+[sub_resource type="Resource" id="R_hold_range"]
+script = ExtResource("b1_hold_range")
+preferred_range = 9.0
+preferred_altitude = 8.0
+range_tolerance = 2.0
+[sub_resource type="Resource" id="R_flee"]
+script = ExtResource("b2_flee")
+hp_threshold = 0.25
+flee_distance = 10.0
+altitude_while_fleeing = 8.0
+
+[sub_resource type="Resource" id="R_land"]
+script = ExtResource("b9_land")
+turns_of_reserve = 2
+
+[resource]
+script = ExtResource("1_arch")
+display_name = "Aerial Artillery"
+role = &"artillery"
+behaviors = Array[ExtResource("2_beh")]([SubResource("R_prefer_flight"), SubResource("R_hold_range"), SubResource("R_flee"), SubResource("R_land")])
+smartness = 2

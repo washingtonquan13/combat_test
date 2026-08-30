@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="AiArchetype" load_steps=13 format=3]
+
+[ext_resource type="Script" uid="uid://bol7w701na4bs" path="res://systems/ai_system/ai_archetype.gd" id="1_arch"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_beh"]
+[ext_resource type="Resource" uid="uid://bmgw6mjv7sps4" path="res://data/abilities/heal.tres" id="a1_heal"]
+[ext_resource type="Resource" uid="uid://bk3h1qlytr0eg" path="res://data/abilities/cure.tres" id="a2_cure"]
+[ext_resource type="Resource" uid="uid://xrcp3khftmgl" path="res://data/abilities/bless.tres" id="a3_bless"]
+[ext_resource type="Resource" uid="uid://c2d5yg20sskb7" path="res://data/abilities/shield.tres" id="a4_shield"]
+[ext_resource type="Script" uid="uid://bi3mhnf4a0usa" path="res://systems/ai_system/support_ally_behavior.gd" id="b0_support"]
+[ext_resource type="Script" uid="uid://havvvgi4nsm1" path="res://systems/ai_system/hold_range_behavior.gd" id="b1_hold_range"]
+[ext_resource type="Script" uid="uid://dsh34hjqknuhi" path="res://systems/ai_system/flee_behavior.gd" id="b2_flee"]
+
+[sub_resource type="Resource" id="R_support"]
+script = ExtResource("b0_support")
+heal_abilities = Array[ExtResource("a1_heal")]([ExtResource("a1_heal")])
+cure_abilities = Array[ExtResource("a1_heal")]([ExtResource("a2_cure")])
+buff_abilities = Array[ExtResource("a1_heal")]([ExtResource("a3_bless"), ExtResource("a4_shield")])
+[sub_resource type="Resource" id="R_hold_range"]
+script = ExtResource("b1_hold_range")
+preferred_range = 9.0
+range_tolerance = 2.0
+[sub_resource type="Resource" id="R_flee"]
+script = ExtResource("b2_flee")
+hp_threshold = 0.35
+
+[resource]
+script = ExtResource("1_arch")
+display_name = "Support"
+role = &"support"
+behaviors = Array[ExtResource("2_beh")]([SubResource("R_support"), SubResource("R_hold_range"), SubResource("R_flee")])
+smartness = 2

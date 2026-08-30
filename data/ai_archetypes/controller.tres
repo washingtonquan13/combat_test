@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="AiArchetype" load_steps=8 format=3]
+
+[ext_resource type="Script" uid="uid://bol7w701na4bs" path="res://systems/ai_system/ai_archetype.gd" id="1_arch"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_beh"]
+[ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://data/abilities/explosive_fireball.tres" id="a1_fireball"]
+[ext_resource type="Script" uid="uid://r8keuod5t30j" path="res://systems/ai_system/area_target_behavior.gd" id="b0_area_target"]
+[ext_resource type="Script" uid="uid://havvvgi4nsm1" path="res://systems/ai_system/hold_range_behavior.gd" id="b1_hold_range"]
+
+[sub_resource type="Resource" id="R_area_target"]
+script = ExtResource("b0_area_target")
+ability = ExtResource("a1_fireball")
+min_targets = 2
+max_allies_caught = 0
+[sub_resource type="Resource" id="R_hold_range"]
+script = ExtResource("b1_hold_range")
+preferred_range = 8.0
+range_tolerance = 2.0
+
+[resource]
+script = ExtResource("1_arch")
+display_name = "Controller"
+role = &"controller"
+behaviors = Array[ExtResource("2_beh")]([SubResource("R_area_target"), SubResource("R_hold_range")])
+smartness = 2

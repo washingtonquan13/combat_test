@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="5_attack"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
 [ext_resource type="Resource" path="res://data/negotiation/conversations/wild/wild_greeting.tres" id="7_greeting"]
+[ext_resource type="Resource" path="res://data/ai_archetypes/brute.tres" id="99_arch"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
@@ -14,6 +15,7 @@ root = ExtResource("7_greeting")
 
 [resource]
 script = ExtResource("1_def")
+ai_archetype = ExtResource("99_arch")
 id = "wargod"
 display_name = "Wargod"
 strength = 18

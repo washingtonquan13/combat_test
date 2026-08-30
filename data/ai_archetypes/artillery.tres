@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="AiArchetype" load_steps=7 format=3]
+
+[ext_resource type="Script" uid="uid://bol7w701na4bs" path="res://systems/ai_system/ai_archetype.gd" id="1_arch"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_beh"]
+[ext_resource type="Script" uid="uid://havvvgi4nsm1" path="res://systems/ai_system/hold_range_behavior.gd" id="b0_hold_range"]
+[ext_resource type="Script" uid="uid://1g1dpsnreut" path="res://systems/ai_system/focus_fire_behavior.gd" id="b1_focus_fire"]
+
+[sub_resource type="Resource" id="R_hold_range"]
+script = ExtResource("b0_hold_range")
+preferred_range = 9.0
+range_tolerance = 2.0
+bias = 0.0
+[sub_resource type="Resource" id="R_focus_fire"]
+script = ExtResource("b1_focus_fire")
+bias_per_ally = 0.5
+
+[resource]
+script = ExtResource("1_arch")
+display_name = "Artillery"
+role = &"artillery"
+behaviors = Array[ExtResource("2_beh")]([SubResource("R_hold_range"), SubResource("R_focus_fire")])
+smartness = 2

@@ -25,3 +25,17 @@ static func find_land_ability(unit: Unit) -> Ability:
 			if effect is LandEffect:
 				return ability
 	return null
+
+
+## FP per turn this unit's active flight actually costs — 0 if it isn't
+## flying, or if whatever grants its flight has no upkeep. Read off the
+## granting statuses rather than assumed, since a species could carry a
+## cheaper or pricier flight status later and a hardcoded 1 would quietly
+## mistime every descent that depends on this.
+static func flight_upkeep(unit: Unit) -> int:
+	var total: int = 0
+	for status in unit.flight_granting_statuses():
+		for behavior in status.behaviors:
+			if behavior is FpDrainBehavior:
+				total += behavior.fp_per_turn
+	return total

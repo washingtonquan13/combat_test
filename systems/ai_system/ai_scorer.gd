@@ -38,7 +38,7 @@ extends RefCounted
 ##              clamping, plus whatever bias the proposing behavior set.
 ##   position — _apply_positional_value: the change in score_position()
 ##              between where the unit stands now and where the plan ends
-##              it up, which is the negated sustained_incoming_threat().
+##              it up — the negated sustained_incoming_threat().
 ##
 ## Both are in the same currency (HP, over KILL_HORIZON_TURNS), and BOTH
 ## are applied by this file to every candidate. A behavior says where it
@@ -69,10 +69,12 @@ extends RefCounted
 ## checking whether a standoff point would land a ranged ability in
 ## range (an approximation of RangedEnemyTargeting's real LoS raycast —
 ## good enough to rank candidates, not to guarantee the final shot
-## connects); ground/area-targeted abilities (Jump, Fireball, ...) are
-## entirely out of scope, same documented limitation
-## GroundPointTargeting's own header already states for the AI this
-## replaces ("an AI unit... would never find a valid target"); "prefers
+## connects); this file's own BASELINE enumeration still covers only
+## unit-targeted melee/ranged abilities, so ground/area-targeted ones
+## (Fireball, Grease) reach the pool solely through AreaTargetBehavior,
+## which supplies the candidate POINTS a blanket enumeration has no way
+## to guess — _resolve_reach_at_current_altitude closes distance to them
+## like any other target; "prefers
 ## targets that are dangerous," from the original design discussion, is
 ## no longer a dropped feature — see threat_output() and its use in
 ## _score_plan's kill-value term, which now prices exactly that.
@@ -80,8 +82,8 @@ extends RefCounted
 ## How many more turns a fight is assumed to last, for pricing "denying an
 ## enemy's future output" (killing it) or "losing this unit's own future
 ## output" (dying) in the same HP currency as every other score — see
-## threat_output() and _score_plan's kill-value term below, and
-## FleeBehavior's death_premium. The one deliberately approximate,
+## threat_output() and _score_plan's kill-value term below, and the
+## survival term in _apply_positional_value. The one deliberately approximate,
 ## honestly-named magic number left in this file, replacing three
 ## unrelated ones (KILL_BONUS, FINISH_WEIGHT, FleeBehavior's flat 100.0)
 ## that each guessed at the same underlying idea in incompatible units.
@@ -101,11 +103,11 @@ const KILL_HORIZON_TURNS: float = 3.0
 const DISTANT_REACHABLE_CREDIT: float = 0.5
 ## Tier 3 (Cunning) only — see that tier's own header line above.
 const FP_RESERVE: int = 1
-## Kept as a flat HP-equivalent estimate of being force-landed (fall
-## damage plus renewed ground exposure) rather than derived — a
-## principled version needs real fall-damage numbers this project
-## doesn't compute yet. Deliberately left approximate; not part of the
-## KILL_HORIZON_TURNS unification above.
+## Tier-3 nudge against spending FP down to nothing. Narrower than its
+## original framing: the expensive half of running dry — the fall itself
+## — is now computed exactly, at every tier, by _forced_descent_cost.
+## What is left here is only the mild "don't cut it that fine"
+## preference, so the two don't double-count.
 const FP_CONSERVE_PENALTY: float = 3.0
 ## Below this, two candidates are considered tied on score and fall
 ## through to source_priority/enumeration_index instead — see
@@ -392,6 +394,8 @@ static func _prepare_plan(unit: Unit, plan: AiPlan) -> bool:
 	return true
 
 
+
+
 ## Adds how much better (or worse) it is to be standing where this plan
 ## ENDS than where the unit stands now — see score_position, which is
 ## safety-only and in the same HP currency as everything else.
@@ -426,6 +430,24 @@ static func _apply_positional_value(unit: Unit, plan: AiPlan) -> void:
 		) * KILL_HORIZON_TURNS
 		gain += offense_gain
 
+	# SURVIVAL. Damage avoided (above) is only half of what moving out of
+	# danger is worth: a unit that dies also stops contributing anything
+	# for the rest of the fight. Exactly symmetric with the kill-value
+	# term in _score_plan — killing an enemy denies its future output, and
+	# dying forfeits your own — so it's priced the same way, over the same
+	# horizon, in the same HP currency.
+	#
+	# This lived in FleeBehavior as a "death_premium" until the behavior
+	# contract was tightened (see AiBehavior's header): it is a fact about
+	# how much this unit stands to lose, not an authored preference, so a
+	# behavior computing it was a behavior pricing its own plan. As a
+	# DELTA it also fixes the flaw that version had — the old absolute
+	# premium was added identically to every flee candidate, so fleeing
+	# beat attacking even when running changed nothing about the danger.
+	gain += threat_output(unit) * KILL_HORIZON_TURNS * (
+		_death_probability(unit, unit.global_position) - _death_probability(unit, end_position)
+	)
+
 	if absf(gain) < SCORE_EPSILON:
 		return
 
@@ -434,6 +456,15 @@ static func _apply_positional_value(unit: Unit, plan: AiPlan) -> void:
 		plan.reason = "reposition: %+.1f position" % gain
 	else:
 		plan.reason += " | %+.1f position" % gain
+
+
+## Rough odds this unit dies before it acts again if it stands at
+## position — sustained incoming damage against remaining HP, clamped to
+## [0,1]. Reads the cached score_position() rather than re-sweeping every
+## hostile, since that is the same figure negated.
+static func _death_probability(unit: Unit, position: Vector3) -> float:
+	var threat: float = -score_position(unit, position)
+	return clampf(threat / max(float(unit.current_hp), 1.0), 0.0, 1.0)
 
 
 ## Whether this plan actually lands an attack this turn, and so has
@@ -463,11 +494,11 @@ static func _realizes_offense_this_turn(unit: Unit, plan: AiPlan) -> bool:
 ##
 ## Landing is modeled too, via the same downward raycast UnitMovement.
 ## land() itself uses — this was left out of the first draft on the
-## reasoning that MaintainAltitudeBehavior's landing branch already gates
-## on nothing being able to reach the unit, so the delta would be ~0 by
+## reasoning that the landing branch of the day already gated on nothing
+## being able to reach the unit, so the delta would be ~0 by
 ## construction. Testing proved that wrong in the obvious way: that guard
-## asks whether anything can reach the unit UP HERE and never what
-## happens once it's down. An Avian hovering two meters over a melee
+## asked whether anything could reach the unit UP HERE and never what
+## happened once it was down. An Avian hovering two meters over a melee
 ## brute reads as perfectly safe, lands directly into the brute's reach,
 ## and is hit for it. Pricing the real landing spot makes the descent
 ## cost what it actually costs.
@@ -488,32 +519,11 @@ static func _plan_end_position(unit: Unit, plan: AiPlan) -> Vector3:
 				)
 				return Vector3(unit.global_position.x, target_y, unit.global_position.z)
 			if effect is LandEffect:
-				return _ground_below(unit)
+				return Vector3(unit.global_position.x, _ground_y_at(unit, unit.global_position), unit.global_position.z)
 
 	return unit.global_position
 
 
-## The surface directly beneath unit — a physics raycast excluding every
-## unit, mirroring UnitMovement.land()'s own query (see that method's
-## header on why a raycast rather than a NavigationGrid lookup: landing
-## needs the true surface at this exact XZ, not the nearest VALID cell,
-## which could be meters off to the side). Falls back to the unit's
-## current position when there's nothing below at all, matching land()'s
-## own "nowhere to land, stay put" behavior — so a landing over a void
-## scores as a no-op rather than as a free escape.
-static func _ground_below(unit: Unit) -> Vector3:
-	var exclude: Array[RID] = []
-	for other in UnitQuery.all_units(unit.get_tree()):
-		exclude.append(other.get_rid())
-
-	var space_state := unit.get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(
-		unit.global_position, unit.global_position + Vector3.DOWN * 200.0)
-	query.exclude = exclude
-	var result: Dictionary = space_state.intersect_ray(query)
-	if result.is_empty():
-		return unit.global_position
-	return result.position
 
 
 ## Whether unit can actually get into range to act on plan this turn —
@@ -528,9 +538,9 @@ static func _ground_below(unit: Unit) -> Vector3:
 ## with what actually happens next.
 static func _resolve_reach(unit: Unit, plan: AiPlan) -> bool:
 	# A plan may name a flight_altitude the unit hasn't actually adopted
-	# yet (see SwoopAttackBehavior — "dive to melee range" only makes
-	# sense planned against the DIVE altitude, not wherever the unit
-	# currently happens to be) — temporarily adopt it for this route
+	# yet (HoldRangeBehavior's dive to melee range only makes sense
+	# planned against the DIVE altitude, not wherever the unit currently
+	# happens to be) — temporarily adopt it for this route
 	# query alone, then restore, so scoring one candidate can never leak
 	# a fake altitude into any other candidate scored in the same pass.
 	# Direct field write, not set_flight_altitude()'s clamped setter: the
@@ -551,6 +561,25 @@ static func _resolve_reach(unit: Unit, plan: AiPlan) -> bool:
 static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool:
 	var budget: float = unit.move_remaining if CombatManager.in_combat else INF
 
+	# ACT IF YOU CAN, MOVE ONLY IF YOU MUST. An IF_NEEDED destination is
+	# just "how I get in range" (see AiPlan.movement_intent), so once the
+	# ability is already usable from here the move is pure cost — and,
+	# worse, a move the unit may not be able to finish, which is exactly
+	# how a flyer spent every turn drifting backwards toward an
+	# unreachable altitude instead of shooting the party in front of it.
+	#
+	# Enforced HERE rather than in each behavior deliberately: this is the
+	# rule every positional behavior has to get right, and the one a new
+	# one will forget. Stripping the destination centrally means a
+	# behavior can only opt OUT of it, by declaring REQUIRED.
+	if (plan.has_destination
+			and plan.movement_intent == AiPlan.MovementIntent.IF_NEEDED
+			and not plan.pure_reposition
+			and plan.ability
+			and plan.target is Unit
+			and plan.ability.is_in_range(unit, plan.target)):
+		plan.has_destination = false
+
 	if plan.has_destination:
 		if unit.global_position.distance_to(plan.destination) <= unit.arrival_tolerance:
 			return true
@@ -564,9 +593,29 @@ static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool
 		return true
 
 	if not plan.target is Unit:
-		# Ground/area-targeted abilities are out of scope — see this
-		# file's own header.
-		return false
+		# Ground/area-targeted: walk toward the point until it's in range.
+		# Nothing produced these candidates until AreaTargetBehavior did
+		# (this file's baseline enumeration covers unit-targeted abilities
+		# only, and says so), so "out of scope" used to be an accurate
+		# description rather than a limitation — now that a behavior
+		# supplies them, refusing to close distance would leave every AoE
+		# unusable unless the caster happened to already be in position.
+		var point: Vector3 = plan.target
+		var approach: float = plan.ability.targeting.approach_range() if plan.ability.targeting else 0.0
+		var toward: Vector3 = point - unit.global_position
+		var gap: float = toward.length()
+		if gap <= 0.001:
+			return true
+		var point_goal: Vector3 = point - (toward / gap) * max(approach - unit.arrival_tolerance, 0.05)
+		var point_route: Dictionary = unit.plan_route(point_goal, budget)
+		if point_route.path.size() < 2:
+			return false
+		var landed: Vector3 = point_route.path[point_route.path.size() - 1]
+		if landed.distance_to(point) > approach + 0.05:
+			return false
+		plan.destination = point_goal
+		plan.has_destination = true
+		return true
 
 	var goal: Vector3 = AiScorer.standoff_goal(unit, plan.target, plan.ability)
 	var planned: Dictionary = unit.plan_route(goal, budget)
@@ -858,9 +907,88 @@ static func score_position(unit: Unit, position: Vector3) -> float:
 	var key: Array = [unit.get_instance_id(), position]
 	if _position_cache.has(key):
 		return _position_cache[key]
-	var value: float = -sustained_incoming_threat(unit, position)
+	var value: float = -(sustained_incoming_threat(unit, position) + _forced_descent_cost(unit, position))
 	_position_cache[key] = value
 	return value
+
+
+## What being airborne at position really costs once you account for not
+## being able to STAY there — the fall when the FP runs out, plus the time
+## spent on the ground afterwards.
+##
+## This is the correction to a comparison the scorer was getting wrong in
+## a way players would read as suicidal. Hovering scores as near-perfectly
+## safe against grounded melee, standing scores as dangerous, so landing
+## always looked like a downgrade and a flyer would sooner take a lethal
+## fall than descend. But the two are not alternatives: a flyer that runs
+## dry is dropped ON THE SPOT (FpDrainBehavior removes the status in
+## place, routing through ForceLandOnExpireBehavior into Unit.land(false)
+## and a full fall-damage roll). It ends up on exactly the ground it was
+## refusing to land on, having paid extra for the privilege.
+##
+## So the ground's danger is not avoided by staying up — only DEFERRED,
+## by however many turns the remaining FP buys. Charging the airborne
+## position for the fall, plus the fraction of the horizon it will spend
+## grounded anyway, makes the two options finally comparable:
+##
+##   land now  = ground threat
+##   stay up   = fall damage + ground threat x (the horizon it can't cover)
+##
+## which leaves landing better by exactly the fall it avoids, except when
+## the ground below is dangerous enough that buying time is worth taking
+## the hit. That is the real tradeoff, and it now falls out of the
+## arithmetic instead of needing a rule.
+static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
+	if not unit.is_flying():
+		return 0.0
+	var upkeep: int = FlightAiUtil.flight_upkeep(unit)
+	if upkeep <= 0:
+		return 0.0
+
+	var turns_aloft: float = float(unit.current_fp) / float(upkeep)
+	if turns_aloft >= KILL_HORIZON_TURNS:
+		return 0.0
+
+	var ground_y: float = _ground_y_at(unit, position)
+	var descent: float = maxf(0.0, position.y - ground_y)
+	# Already at ground level: nothing to fall from, and the threat here is
+	# what sustained_incoming_threat just measured — adding it again would
+	# double-count and make every landing look worse than it is.
+	if descent <= UnitMovement.FLIGHT_RULES.safe_fall_distance:
+		return 0.0
+
+	var cost: float = 0.0
+	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
+	if roll.dice_count > 0:
+		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
+		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
+			cost = maxf(0.0, cost - float(unit.damage_reduction))
+
+	var grounded_fraction: float = 1.0 - turns_aloft / KILL_HORIZON_TURNS
+	cost += sustained_incoming_threat(unit, Vector3(position.x, ground_y, position.z)) * grounded_fraction
+	return cost
+
+
+
+
+## Height of whatever solid surface sits under position — same downward
+## raycast Unit.land() uses to find where a descent actually ends (see
+## UnitMovement.land's own header on why a raycast rather than a
+## NavigationGrid lookup). Returns position.y when there's nothing below,
+## so a flyer out over a void reads as zero descent rather than an
+## infinite one: land() itself refuses to move in that case.
+static func _ground_y_at(unit: Unit, position: Vector3) -> float:
+	var exclude: Array[RID] = []
+	for other in UnitQuery.all_units(unit.get_tree()):
+		exclude.append(other.get_rid())
+
+	var space_state := unit.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(position, position + Vector3.DOWN * 200.0)
+	query.exclude = exclude
+	var result: Dictionary = space_state.intersect_ray(query)
+	if result.is_empty():
+		return position.y
+	return result.position.y
 
 
 ## Attacker's real to-hit target number against target for ability —

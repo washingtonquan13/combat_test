@@ -20,13 +20,13 @@ extends AiBehavior
 @export var score_bonus: float = 0.0
 
 
-func propose(unit: Unit) -> Array[AiPlan]:
+func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	var target: Unit = UnitQuery.nearest_hostile(unit.get_tree(), unit)
 	if not target:
 		return []
 	var chosen: Ability = ability if ability else unit.default_ability()
 	if not chosen:
 		return []
-	var plan := AiPlan.new(chosen, target)
-	plan.score = score_bonus
+	var plan: AiPlan = attack_plan(unit, target, chosen, score_bonus)
+	plan.reason = "authored: %s" % chosen.ability_name
 	return [plan]

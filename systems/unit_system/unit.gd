@@ -38,8 +38,10 @@ extends CharacterBody3D
 			current_fp = definition.max_fp
 			damage_reduction = definition.damage_reduction
 			abilities = definition.abilities
-			ai_behaviors = definition.ai_behaviors
-			ai_smartness = definition.ai_smartness
+			# Resolved, not raw: a species normally names an AiArchetype
+			# and leaves ai_behaviors empty — see UnitDefinition.
+			ai_behaviors = definition.resolved_ai_behaviors()
+			ai_smartness = definition.resolved_ai_smartness()
 			negotiable = definition.negotiable
 ## The name shown to the player — combat log, character sheet, dialogue,
 ## negotiation. Deliberately separate from this node's own scene-tree

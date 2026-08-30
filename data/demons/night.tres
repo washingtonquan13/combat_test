@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=14 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=12 format=3]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
@@ -9,19 +9,14 @@
 [ext_resource type="Resource" path="res://data/negotiation/conversations/sly/sly_greeting.tres" id="7_greeting"]
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="90_fly"]
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="91_land"]
-[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="92_aibehavior"]
-[ext_resource type="Script" path="res://systems/ai_system/maintain_altitude_behavior.gd" id="93_maintainalt"]
-
+[ext_resource type="Resource" path="res://data/ai_archetypes/aerial_artillery.tres" id="99_arch"]
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
 root = ExtResource("7_greeting")
 
-[sub_resource type="Resource" id="Resource_flightai_maintain"]
-script = ExtResource("93_maintainalt")
-preferred_altitude = 3.0
-
 [resource]
 script = ExtResource("1_def")
+ai_archetype = ExtResource("99_arch")
 id = "night"
 display_name = "Night"
 strength = 10
@@ -42,6 +37,5 @@ is_special = false
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("90_fly"), ExtResource("91_land")])
-ai_behaviors = Array[ExtResource("92_aibehavior")]([SubResource("Resource_flightai_maintain")])
 negotiable = true
 negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])

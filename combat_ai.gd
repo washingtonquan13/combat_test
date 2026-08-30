@@ -44,6 +44,7 @@ func _on_turn_started(unit: Unit) -> void:
 		return
 	_acting_unit = unit
 	_move_attempts = 0
+	_free_actions_used = 0
 	_attempt_action(unit)
 
 
@@ -76,9 +77,61 @@ func _attempt_action(unit: Unit) -> void:
 	# _resolve_reach) — this check is belt-and-suspenders against state
 	# changing between scoring and execution (an ally moved into the way,
 	# say), not the primary gate.
-	if plan.ability.is_in_range(unit, plan.target):
-		unit.use_ability(plan.ability, plan.target)
-	CombatManager.end_turn()
+	if not plan.ability.is_in_range(unit, plan.target):
+		CombatManager.end_turn()
+		return
+
+	# A FREE ability must not cost the turn. Landing is the case that
+	# exposed this: land.tres spends no attack action, no movement and no
+	# FP, so a flyer coming down can still shoot afterwards — but ending
+	# the turn here unconditionally meant it couldn't, and the AI was
+	# forced into a false choice between descending safely and doing
+	# anything at all. Faced with that, it reasonably picked the attack
+	# and took a lethal fall for it, which from the player's side reads as
+	# a bird killing itself rather than landing. It was never actually
+	# choosing between those; the turn structure was.
+	#
+	# Re-asking (rather than trying to chain a specific follow-up) keeps
+	# this consistent with how a completed MOVE is already handled — see
+	# _on_movement_finished. The situation genuinely changed, so the right
+	# next action is whatever AiScorer now says it is.
+	var spends_turn: bool = plan.ability.uses_attack_action
+	unit.use_ability(plan.ability, plan.target)
+
+	if spends_turn:
+		CombatManager.end_turn()
+		return
+
+	# Async effects (the landing descent tween, notably) leave the unit
+	# busy — became_idle is the same signal CombatManager itself waits on
+	# before ending a turn requested mid-action, so re-asking on it can't
+	# interleave with an animation still playing.
+	_free_actions_used += 1
+	if _free_actions_used >= MAX_FREE_ACTIONS_PER_TURN or not unit.is_alive():
+		CombatManager.end_turn()
+		return
+
+	if unit.is_busy():
+		unit.became_idle.connect(_on_free_action_finished.bind(unit), CONNECT_ONE_SHOT)
+	else:
+		_attempt_action(unit)
+
+
+## Guards against a free ability that stays proposable after being used —
+## an authored behavior with a precondition the ability itself doesn't
+## clear would otherwise loop for the rest of the frame. Same role
+## MAX_MOVE_ATTEMPTS_PER_TURN plays for movement.
+const MAX_FREE_ACTIONS_PER_TURN: int = 3
+var _free_actions_used: int = 0
+
+
+func _on_free_action_finished(unit: Unit) -> void:
+	if unit != _acting_unit:
+		return
+	if not unit.is_alive():
+		CombatManager.end_turn()
+		return
+	_attempt_action(unit)
 
 
 func _move_toward(unit: Unit, destination: Vector3) -> void:

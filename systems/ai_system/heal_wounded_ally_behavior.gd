@@ -21,7 +21,7 @@ extends AiBehavior
 @export var score_bonus: float = 0.0
 
 
-func propose(unit: Unit) -> Array[AiPlan]:
+func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	if not heal_ability:
 		return []
 
@@ -32,7 +32,7 @@ func propose(unit: Unit) -> Array[AiPlan]:
 		var fraction: float = float(ally.current_hp) / float(ally.maximum_hp)
 		if fraction >= hp_threshold:
 			continue
-		var plan := AiPlan.new(heal_ability, ally)
-		plan.score = score_bonus
+		var plan: AiPlan = attack_plan(unit, ally, heal_ability, score_bonus)
+		plan.reason = "heal ally"
 		plans.append(plan)
 	return plans

@@ -3,7 +3,7 @@ extends AiBehavior
 ## Takes off specifically when the GROUNDED route to the nearest hostile
 ## is meaningfully more expensive than the FLYING one would be — a real
 ## obstacle course, a chasm, a tall wall — rather than on reflex like
-## MaintainAltitudeBehavior's own takeoff candidate (which fires
+## PreferFlightBehavior's own takeoff candidate (which fires
 ## unconditionally whenever grounded). This is what a unit authored with
 ## ONLY this behavior, and not MaintainAltitude, uses flight for: purely
 ## as a shortcut past terrain, never as a standing preference.
@@ -26,7 +26,7 @@ extends AiBehavior
 @export var score_bonus: float = 0.0
 
 
-func propose(unit: Unit) -> Array[AiPlan]:
+func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	if unit.is_flying():
 		return []
 
@@ -48,8 +48,8 @@ func propose(unit: Unit) -> Array[AiPlan]:
 	if flight_cost == INF or ground_cost < flight_cost * cost_advantage_threshold:
 		return []
 
-	var plan := AiPlan.new(flight_ability, unit)
-	plan.score = score_bonus
+	var plan: AiPlan = self_plan(unit, flight_ability, score_bonus)
+	plan.reason = "fly: shortcut past terrain"
 	return [plan]
 
 

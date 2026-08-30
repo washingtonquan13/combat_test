@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="AiArchetype" load_steps=7 format=3]
+
+[ext_resource type="Script" uid="uid://bol7w701na4bs" path="res://systems/ai_system/ai_archetype.gd" id="1_arch"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_beh"]
+[ext_resource type="Script" uid="uid://havvvgi4nsm1" path="res://systems/ai_system/hold_range_behavior.gd" id="b0_hold_range"]
+[ext_resource type="Script" uid="uid://cdx3dyb57ieho" path="res://systems/ai_system/withdraw_after_attack_behavior.gd" id="b1_withdraw"]
+
+[sub_resource type="Resource" id="R_hold_range"]
+script = ExtResource("b0_hold_range")
+preferred_range = 0.5
+range_tolerance = 1.5
+[sub_resource type="Resource" id="R_withdraw"]
+script = ExtResource("b1_withdraw")
+withdraw_distance = 6.0
+
+[resource]
+script = ExtResource("1_arch")
+display_name = "Skirmisher"
+role = &"skirmisher"
+behaviors = Array[ExtResource("2_beh")]([SubResource("R_hold_range"), SubResource("R_withdraw")])
+smartness = 2
