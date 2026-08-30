@@ -132,14 +132,30 @@ func _observers() -> Array[Unit]:
 	if tree == null:
 		return result
 
-	var party: Array[Unit] = []
+	# UnitQuery.living_units is the deliberately GLOBAL form (see that
+	# file's own header) and spans every RESIDENT world, not just the one
+	# on screen. Unscoped, this drew the field of view of NPCs standing in
+	# areas the player cannot see, on top of the area they can — cones
+	# hanging in the air over unrelated ground.
+	#
+	# Scoped by this node's OWN World3D rather than by asking
+	# WorldManager: the overlay is carried into whichever viewport the
+	# player is looking at (see WorldManager attention nodes), so where it
+	# is IS the answer, and it stays right even with no world loaded.
+	var world: World3D = get_world_3d()
+	var here: Array[Unit] = []
 	for unit in UnitQuery.living_units(tree):
+		if unit.get_world_3d() == world:
+			here.append(unit)
+
+	var party: Array[Unit] = []
+	for unit in here:
 		if unit.is_player_controlled():
 			party.append(unit)
 	if party.is_empty():
 		return result
 
-	for unit in UnitQuery.living_units(tree):
+	for unit in here:
 		if unit.is_player_controlled():
 			continue
 		if hostiles_only and not unit.is_hostile_to(party[0]):

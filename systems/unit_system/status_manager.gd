@@ -26,6 +26,41 @@ func _init(owner: Unit) -> void:
 	_owner = owner
 
 
+## Statuses as data: which effect, how long left, how many stacks.
+##
+## The effect itself is a shared Resource, so it is referenced by path
+## rather than written out — what is per-unit is only the remaining
+## duration and the stack count (see ActiveStatus, which exists to draw
+## exactly that line).
+func save_state() -> Array:
+	var out: Array = []
+	for status in active:
+		if status.effect == null or status.effect.resource_path.is_empty():
+			# An effect built at runtime with no path cannot be found again.
+			continue
+		out.append({
+			"effect": status.effect.resource_path,
+			"turns": status.turns_remaining,
+			"stacks": status.stacks,
+		})
+	return out
+
+
+## Rebuilds `active` directly rather than replaying apply(), because
+## these statuses are not being APPLIED — they are being remembered.
+## apply() would reset each duration to the effect's default and fire
+## whatever an application is supposed to announce.
+func load_state(state: Array) -> void:
+	active.clear()
+	for entry in state:
+		var effect: StatusEffect = load(entry.get("effect", ""))
+		if effect == null:
+			continue
+		var status := ActiveStatus.new(effect, int(entry.get("turns", 0)))
+		status.stacks = int(entry.get("stacks", 1))
+		active.append(status)
+
+
 func apply(effect: StatusEffect) -> void:
 	var existing: ActiveStatus = _find(effect)
 

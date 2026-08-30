@@ -21,6 +21,27 @@ extends Node
 
 func _ready() -> void:
 	WorldManager.register_scene_root($SceneRoot)
+	# Where per-world viewports are instanced. A world needs its own
+	# viewport because World3D is per-viewport — see MainRoot.tscn's own
+	# WorldHost note, and WorldManager's.
+	WorldManager.register_world_host($WorldHost)
+	# The nodes that represent the player LOOKING at the world rather than
+	# anything the world owns. A Node3D only renders in, and only raycasts
+	# against, the World3D of the viewport above it, so these have to ride
+	# along into whichever viewport is being looked at. Registered from
+	# here because knowing MainRoot's own layout is MainRoot's job — the
+	# same reason register_scene_root and register_hud live here.
+	# DragSelectBox is in here despite being a Control on the HUD canvas,
+	# and it is why register_attention_nodes remembers a home PER NODE.
+	# It reads the mouse through _unhandled_input, which the world view
+	# container consumes in the root viewport GUI pass — so a tool that
+	# operates on the world has to sit inside the world view to see a
+	# mouse event at all. It draws over the 3D and under the HUD there,
+	# which is where a selection box belongs anyway.
+	var attention: Array[Node] = [
+		$Indicators, $GroundClickTarget, $DialogueCameraRig, $CanvasLayer/DragSelectBox,
+	]
+	WorldManager.register_attention_nodes(attention)
 	# The TACTICAL HUD subtree, not the CanvasLayer — see
 	# UIStack.register_hud()'s own header for why that distinction is
 	# load-bearing rather than cosmetic.

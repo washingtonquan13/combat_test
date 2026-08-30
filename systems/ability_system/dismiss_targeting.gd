@@ -22,7 +22,7 @@ func is_valid_target(attacker: Unit, target) -> bool:
 
 
 func has_any_valid_target(attacker: Unit) -> bool:
-	for unit in UnitQuery.all_units(attacker.get_tree()):
+	for unit in UnitQuery.all_units_near(attacker):
 		if is_valid_target(attacker, unit):
 			return true
 	return false

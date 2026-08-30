@@ -76,7 +76,7 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	# ground beneath it should just land, and will, because this candidate
 	# scores near zero when there's nothing to escape.
 	var hostiles: Array[Unit] = []
-	for other in UnitQuery.living_units(unit.get_tree()):
+	for other in UnitQuery.living_units_near(unit):
 		if unit.is_hostile_to(other):
 			hostiles.append(other)
 	if hostiles.is_empty():

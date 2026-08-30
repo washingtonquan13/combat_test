@@ -1,0 +1,14 @@
+[gd_scene format=3]
+
+[node name="WorldView" type="SubViewportContainer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="."]
+own_world_3d = true
+physics_object_picking = true
+audio_listener_enable_3d = true

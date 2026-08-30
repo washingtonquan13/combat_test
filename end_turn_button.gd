@@ -13,19 +13,42 @@ extends Button
 ## Scene setup: attach to a Button anywhere in your combat UI.
 
 func _ready() -> void:
-	CombatManager.turn_started.connect(_on_turn_started)
-	CombatManager.combat_ended.connect(_on_combat_ended)
+	CombatManager.turn_started.connect(_on_combat_changed)
+	CombatManager.combat_ended.connect(_on_combat_changed)
+	SelectionManager.selection_changed.connect(_on_selection_changed)
 	pressed.connect(_on_pressed)
 	visible = false
 
 
-func _on_turn_started(unit: Unit) -> void:
-	visible = unit.is_player_controlled()
+## The unit whose turn this button would end: the commanded one, if it
+## is in a fight and the fight is waiting on it.
+##
+## Was driven by any relayed turn_started, which meant a turn beginning
+## in ANY encounter toggled this button — including a fight in a world
+## the player is not looking at, offering to end a turn belonging to
+## somebody they cannot see.
+func _acting_unit() -> Unit:
+	for unit in SelectionManager.selected_units:
+		if is_instance_valid(unit) and unit.in_combat() and unit.is_my_turn():
+			return unit
+	return null
 
 
-func _on_combat_ended(_winning_faction: StringName) -> void:
-	visible = false
+func _refresh() -> void:
+	visible = _acting_unit() != null
+
+
+func _on_combat_changed(_arg) -> void:
+	_refresh()
+
+
+func _on_selection_changed(_selected_units: Array[Unit]) -> void:
+	_refresh()
 
 
 func _on_pressed() -> void:
-	CombatManager.end_turn()
+	# That unit's own fight, not the focused encounter's — with a split
+	# party those are not always the same one.
+	var unit: Unit = _acting_unit()
+	if unit:
+		CombatManager.end_turn(unit)

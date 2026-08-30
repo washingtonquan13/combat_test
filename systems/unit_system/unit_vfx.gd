@@ -91,7 +91,7 @@ func _ready() -> void:
 ## agnostic, this only reacts when THIS unit is the one arming), same
 ## enter-then-start-hold shape.
 func _on_ability_armed(ability: Ability) -> void:
-	if CombatManager.current_unit != unit:
+	if unit.in_combat() and not unit.is_my_turn():
 		return
 
 	_stop_hold_vfx()

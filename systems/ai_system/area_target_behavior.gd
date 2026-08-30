@@ -43,7 +43,7 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 
 	var hostiles: Array[Unit] = []
 	var allies: Array[Unit] = UnitQuery.living_allies(unit.get_tree(), unit)
-	for other in UnitQuery.living_units(unit.get_tree()):
+	for other in UnitQuery.living_units_near(unit):
 		if unit.is_hostile_to(other):
 			hostiles.append(other)
 	if hostiles.size() < min_targets:
