@@ -388,21 +388,24 @@ func _embody_into(resident: ResidentWorld, group: PartyGroup) -> void:
 		_disembody(group)
 		return
 
+	# Merge BEFORE embodying, not after. Arriving in an ordinary area is
+	# merging — everyone is embodied together and there is nothing left to
+	# tell two groups apart — and what has to be made real is the whole of
+	# the result. Merging afterwards left anyone absorbed from an abstract
+	# group as records inside an embodied one, which nothing would ever
+	# build.
+	var arrived: PartyGroup = PartyManager.merge_in_area(group.area_id)
+	if arrived == null:
+		arrived = group
+	PartyManager.active_group = arrived
+
 	var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
 
-	if group.embodied:
-		# Already alive somewhere - carry them, do not rebuild them. See
-		# PartyManager.relocate for why that matters beyond tidiness.
-		PartyManager.relocate(group.live_units(), world, spawn_point)
-	else:
-		_is_restoring_party = not group.records.is_empty()
-		if _is_restoring_party:
-			PartyManager.spawn_group(group, world, spawn_point)
-		_is_restoring_party = false
-
-	# In an ordinary area everyone is embodied together and there is no
-	# way left to tell two groups apart, so arriving is merging.
-	PartyManager.merge_in_area(group.area_id)
+	# True while anyone is about to be built here, which is what a world
+	# reads to know not to lay out its own authored bootstrap party.
+	_is_restoring_party = not arrived.records.is_empty() or not arrived.units.is_empty()
+	PartyManager.embody(arrived, world, spawn_point)
+	_is_restoring_party = false
 
 ## Frees a world that has nothing left worth preserving — see
 ## ResidentWorld.is_earned for what counts. Safe to call with null, and

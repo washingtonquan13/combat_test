@@ -726,6 +726,56 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 ## as easily as on solid ground. The leader keeps the party's true
 ## landing point exactly, unmoved — it's the one position every door/
 ## spawn marker was actually authored at.
+## Makes every member of this group exist as a Unit in `world`.
+##
+## The distinction that used to drive this — relocate an EMBODIED group,
+## spawn an ABSTRACT one — assumed a group is wholly one or the other.
+## It is not: absorb() merges an abstract group into an embodied one
+## (that is what happens when a group walks into an area where another
+## is standing), and the result has live units for some members and only
+## records for the rest. Taking the relocate branch then carried the
+## units and silently dropped everyone else — no Unit, so no portrait,
+## nothing selectable, and nothing to find them by.
+##
+## Correlated by id, which is what Phase 1 of the save work made
+## possible: a record whose id matches a live unit is that unit.
+func embody(group: PartyGroup, world: Node, spawn_point: Node3D) -> void:
+	if group == null or not is_instance_valid(world):
+		return
+
+	var live: Array[Unit] = group.live_units()
+	var embodied_ids: Dictionary = {}
+	for unit in live:
+		embodied_ids[unit.persistent_id] = true
+
+	var missing: Array[PartyMemberData] = []
+	for record in group.records:
+		# An un-named record cannot be correlated, so it is only built when
+		# nobody in this group is embodied at all — otherwise it might be a
+		# second copy of somebody already standing here.
+		if record.id == &"":
+			if live.is_empty():
+				missing.append(record)
+			continue
+		if not embodied_ids.has(record.id):
+			missing.append(record)
+
+	group.embodied = true
+
+	for record in missing:
+		var unit: Unit = spawn_member(record, world, spawn_point)
+		if not group.units.has(unit):
+			group.units.append(unit)
+		add_member(unit, group)
+		if record.is_leader:
+			set_leader(unit)
+
+	# Everyone together, so the landing ring is built around the whole
+	# group rather than around whichever half happened to already exist.
+	if spawn_point:
+		relocate(group.live_units(), world, spawn_point)
+
+
 ## Kept as the whole-party form for any caller that means "the party"
 ## without qualification. Everything that travels goes through the
 ## group form below, because who is arriving is the question groups
