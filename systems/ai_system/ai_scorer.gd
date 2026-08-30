@@ -1032,6 +1032,9 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 ## so a flyer out over a void reads as zero descent rather than an
 ## infinite one: land() itself refuses to move in that case.
 static func _ground_y_at(unit: Unit, position: Vector3) -> float:
+	if not unit.is_inside_tree():
+		return position.y
+
 	var exclude: Array[RID] = []
 	for other in UnitQuery.all_units(unit.get_tree()):
 		# Skip anything already on its way out. A queue_free()d unit stays
@@ -1043,8 +1046,6 @@ static func _ground_y_at(unit: Unit, position: Vector3) -> float:
 			continue
 		exclude.append(other.get_rid())
 
-	if not unit.is_inside_tree():
-		return position.y
 	var space_state := unit.get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(position, position + Vector3.DOWN * 200.0)
 	query.exclude = exclude

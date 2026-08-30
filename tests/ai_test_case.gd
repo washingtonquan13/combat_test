@@ -47,6 +47,13 @@ func setup() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 
+	# DetectionManager is an autoload and keeps sweeping every frame
+	# regardless of what a test is doing — which means it scans whatever
+	# units a case happens to have spawned and can start a fight under a
+	# suite that never asked for one. Off for every case; the detection
+	# suites drive scan() directly, which is what they want anyway.
+	DetectionManager.enabled = false
+
 	# NavigationGrid is an engine singleton that rasterises the CURRENT
 	# scene lazily (see WorldManager, which invalidates it on every area
 	# change). Without this it still holds whatever the previous test case
@@ -147,6 +154,15 @@ func free_spawned() -> void:
 func _release(unit: Unit) -> void:
 	if not is_instance_valid(unit):
 		return
+	# Leave the "units" group FIRST. queue_free is deferred, so a unit torn
+	# down here stays in the group — and visible to every UnitQuery scan —
+	# until the frame ends. The next test case then spawns its own units
+	# and finds the previous case's ghosts alongside them, which is subtle
+	# and awful: a detection test had its observer correctly identify a
+	# stale intruder instead of the live one, then refuse to escalate again
+	# because it was already AWARE.
+	if unit.is_in_group("units"):
+		unit.remove_from_group("units")
 	if unit.get_parent():
 		unit.get_parent().remove_child(unit)
 	unit.queue_free()

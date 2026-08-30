@@ -82,7 +82,18 @@ func deselect_all() -> void:
 
 
 func _clear_all_except(keep: Unit) -> void:
-	for u in selected_units.duplicate():
-		if u != keep:
+	# Rebuilt rather than erased-from. Nothing removes a unit from this
+	# list when it leaves the tree, so a unit that dies or despawns while
+	# selected leaves a dangling entry — and a dangling entry is not
+	# merely awkward here: set_selected() on one takes the process down
+	# with a segfault, and erase() on one is itself an error inside a
+	# TypedArray. Filtering sidesteps both.
+	var kept: Array[Unit] = []
+	for u in selected_units:
+		if not is_instance_valid(u):
+			continue
+		if u == keep:
+			kept.append(u)
+		else:
 			u.set_selected(false)
-			selected_units.erase(u)
+	selected_units = kept

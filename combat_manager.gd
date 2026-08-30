@@ -71,6 +71,11 @@ signal phase_changed(phase: Phase)
 ## that initial snapshot, not a reason to re-derive from turn_order on
 ## every turn_started.
 signal unit_joined_combat(unit: Unit)
+## Fired when a combatant leaves the fight alive rather than dying out of
+## it — see _try_disengage. Distinct from unit_died on purpose: UI and
+## quest logic care a great deal about the difference between "it got
+## away" and "it is dead."
+signal unit_left_combat(unit: Unit)
 
 var turn_order: Array[Unit] = []
 ## Counts full passes through turn_order — 1 for the very first turn of
@@ -137,6 +142,19 @@ var current_unit: Unit:
 ## MAX_MOVE_ATTEMPTS_PER_TURN, a global gameplay number with nothing
 ## per-instance to configure.
 const AGGRO_PULL_RADIUS: float = 10.0
+
+## How far from every living hostile a combatant must get — with no clear
+## line of sight back to any of them — before it drops out of the fight.
+## See _try_disengage. Comfortably larger than AGGRO_PULL_RADIUS so that
+## escaping and being pulled back in can't oscillate: a unit that just got
+## away is not immediately close enough to be dragged back.
+const DISENGAGE_DISTANCE: float = 25.0
+
+## The shorter range at which breaking line of sight is enough on its own
+## — ducking behind something counts as getting away without having to
+## outrun anyone. Still comfortably beyond AGGRO_PULL_RADIUS so escaping
+## and being re-noticed can't oscillate.
+const DISENGAGE_WITH_COVER_DISTANCE: float = 14.0
 
 
 ## Builds initiative order from the given combatants and starts combat.
@@ -318,6 +336,7 @@ func end_turn() -> void:
 	# either way).
 	NavigationGrid.update_occupancy(get_tree(), [unit])
 	turn_ended.emit(unit)
+	_try_disengage(unit)
 	_advance_turn.call_deferred()
 
 
@@ -488,6 +507,71 @@ func _log_and_emit_turn_started(unit: Unit) -> void:
 ## auto-ending, since its own faction tag kept alive_factions.size() at 2
 ## even after the real fight was already over. See FactionRelations.
 ## Returns true if combat was ended.
+## Drops unit out of the fight if it has genuinely got away — far enough
+## from every living hostile that none of them can see it. Checked at the
+## end of its own turn, which is the only moment its position is settled.
+##
+## The exact rule BG3 uses, and per-character for the same reason: you
+## leave a fight by putting distance and cover between yourself and
+## everyone in it, and you leave alone rather than dragging the party out
+## with you.
+##
+## This is also what finally makes FleeBehavior mean anything. It has
+## scored retreats correctly for a while, but nothing in the game could
+## end a fight except a total wipe — so a demon that decided to run had
+## nowhere to run TO, and simply jogged in place until something killed
+## it. Escape needed to be a real exit before deciding to escape could be
+## a real decision.
+func _try_disengage(unit: Unit) -> void:
+	if phase == Phase.OUT_OF_COMBAT or not is_instance_valid(unit) or not unit.is_alive():
+		return
+	if turn_order.size() <= 1:
+		return
+
+	for other in turn_order:
+		if other == unit or not is_instance_valid(other) or not other.is_alive():
+			continue
+		if not unit.is_hostile_to(other):
+			continue
+		var distance: float = unit.distance_to(other)
+		if distance >= DISENGAGE_DISTANCE:
+			continue
+		# Short of that, cover finishes the job: broken far enough AND out
+		# of sight is just as gone as simply being distant. Requiring BOTH
+		# at every range was the first version of this rule and it was
+		# wrong — across open ground nobody could ever escape, because a
+		# clear sightline persists long past any sane running distance.
+		if distance >= DISENGAGE_WITH_COVER_DISTANCE and not LineOfSight.has_clear_shot(other, unit):
+			continue
+		return
+
+	SystemLog.print("%s slips away from the fight." % LogFormat.unit_name(unit))
+	remove_unit_from_combat(unit)
+
+
+## Takes unit out of turn_order — the inverse of add_unit_to_combat, with
+## the same _turn_index correction, and the same reason for it: removing
+## an entry AT OR BEFORE the current slot shifts everything after it down
+## one, so without the fix-up current_unit silently starts pointing at the
+## wrong combatant.
+##
+## Deliberately does NOT clear temporary faction hostility (see
+## FactionRelations, which clears it when combat properly ends). Something
+## you ran away from is still angry with you when you come back — escaping
+## a fight is not the same as resolving it.
+func remove_unit_from_combat(unit: Unit) -> void:
+	var index: int = turn_order.find(unit)
+	if index == -1:
+		return
+
+	turn_order.remove_at(index)
+	if index <= _turn_index:
+		_turn_index -= 1
+
+	unit_left_combat.emit(unit)
+	_check_combat_end()
+
+
 func _check_combat_end() -> bool:
 	var living: Array[Unit] = []
 	for unit in turn_order:

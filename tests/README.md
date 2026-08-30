@@ -43,6 +43,20 @@ holds whatever the last scene built, or nothing. `AiTestCase.setup()` calls
 segfaults the whole process — not an error, a signal 11 — the first time
 anything plans a route.
 
+**A sub-test that `await`s must be `await`ed by `run()`.** Call it bare
+and it returns a coroutine, `run()` carries on, and it resumes later into
+a world where a subsequent case's teardown has already freed its units.
+The failure looks like "previously freed" errors in a test that reads
+fine.
+
+**`queue_free()` is deferred, so tear down for the NEXT case, not just
+this one.** `AiTestCase` removes units from the "units" group immediately
+for exactly this reason — a ghost in that group is still returned by every
+`UnitQuery` scan for the rest of the frame, and a detection test duly had
+its observer identify a *previous* case's intruder. Anything else a case
+builds (a wall, say) has to leave the tree the same way, or the next case
+places its units inside it.
+
 **Never `free()` a Unit; `queue_free()` it.** A Unit registers with the
 NavigationGrid extension and wires components to autoloads. Tearing one
 down synchronously mid-frame crashes the process once enough cases run
@@ -64,14 +78,28 @@ entirely the wrong reason.
 | `test_flight_decisions` | every flight bug that reached a player, as a named regression |
 | `test_scoring` | threat/kill value, tie-breaking, positional value, adopt-restore |
 | `test_turn_economy` | a free action must not cost the turn |
+| `test_detection` | sight cone, line of sight, what starts a fight and what doesn't |
+| `test_join_leave_combat` | hearing a fight joins it; escaping one leaves it |
+| `test_sight_cone_indicator` | the drawn cone agrees with the cone detection rolls against |
+| `test_detection_perf` | a detection sweep stays inside its budget |
 
 Every check in `test_flight_decisions` is a bug someone actually saw. The
 comments say which — keep that habit; it's what makes a failure legible a
 year from now.
 
+## Known noise
+
+Runs intermittently print one or two `!is_inside_tree()` / `data.tree is
+null` engine errors during teardown, and always `19 resources still in use
+at exit` (which predates this suite — it happens on a bare game boot too).
+Neither has ever changed a result: the check count and pass/fail are stable
+across repeated runs. Worth fixing if it ever masks something real, not
+worth chasing before that.
+
 ## Not covered
 
-Performance (the scorer is unprofiled — `score_position` fans out over
-every hostile and fires a raycast, once per candidate), and anything
-requiring a real multi-turn fight. `CombatAI`'s turn flow is asserted by
+The AI scorer's performance (still unprofiled — `score_position` fans out
+over every hostile and fires a raycast, once per candidate; detection IS
+measured, see `test_detection_perf`), and anything requiring a real
+multi-turn fight. `CombatAI`'s turn flow is asserted by
 reading its source, which catches deletion but not subtler breakage.

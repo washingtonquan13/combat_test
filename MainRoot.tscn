@@ -1,4 +1,4 @@
-[gd_scene load_steps=35 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=36 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
@@ -30,6 +30,7 @@
 [ext_resource type="Script" uid="uid://dqa8pee2hc1ky" path="res://area_indicator.gd" id="28_areaind"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://aerial_area_indicator.gd" id="29_aerialind"]
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://seeking_indicator.gd" id="30_seekind"]
+[ext_resource type="Script" uid="uid://p8ye5cc6ckt6" path="res://sight_cone_indicator.gd" id="30_sightcone"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://nav_debug_overlay.gd" id="31_navdbg"]
 [ext_resource type="Script" uid="uid://dwxlhcmxv7u8v" path="res://interact_prompt.gd" id="32_interactprompt"]
 [ext_resource type="Script" uid="uid://cu2efa5w2hpro" path="res://debug_combat_harness.gd" id="33_debugharness"]
@@ -69,6 +70,9 @@ script = ExtResource("28_areaind")
 
 [node name="AerialAreaIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("29_aerialind")
+
+[node name="SightConeIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("30_sightcone")
 
 [node name="SeekingIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("30_seekind")

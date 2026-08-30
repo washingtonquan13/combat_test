@@ -15,7 +15,7 @@ extends Node
 ## coupling, and it can't run by accident — the game's own main scene is
 ## untouched.
 
-const TEST_DIRECTORY: String = "res://tests/ai"
+const TEST_ROOT: String = "res://tests"
 
 
 func _ready() -> void:
@@ -74,14 +74,20 @@ func _ready() -> void:
 		get_tree().quit(1)
 
 
+## Every .gd under a SUBDIRECTORY of tests/ — so tests/ai/, tests/detection/
+## and whatever comes next are all picked up without touching this file
+## again. Deliberately skips tests/ itself: ai_test_case.gd and this runner
+## live there and are machinery, not cases.
 func _discover() -> PackedStringArray:
 	var found: PackedStringArray = []
-	for file in DirAccess.get_files_at(TEST_DIRECTORY):
-		# Godot hands back .remap for exported builds; .gd is what matters
-		# and stripping the suffix makes this work either way.
-		if file.ends_with(".gd.remap"):
-			file = file.trim_suffix(".remap")
-		if file.ends_with(".gd"):
-			found.append("%s/%s" % [TEST_DIRECTORY, file])
+	for directory in DirAccess.get_directories_at(TEST_ROOT):
+		var path: String = "%s/%s" % [TEST_ROOT, directory]
+		for file in DirAccess.get_files_at(path):
+			# Godot hands back .remap for exported builds; .gd is what
+			# matters and stripping the suffix works either way.
+			if file.ends_with(".gd.remap"):
+				file = file.trim_suffix(".remap")
+			if file.ends_with(".gd"):
+				found.append("%s/%s" % [path, file])
 	found.sort()
 	return found

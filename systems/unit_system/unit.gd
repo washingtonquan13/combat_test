@@ -43,6 +43,9 @@ extends CharacterBody3D
 			ai_behaviors = definition.resolved_ai_behaviors()
 			ai_smartness = definition.resolved_ai_smartness()
 			negotiable = definition.negotiable
+			vision_cone_degrees = definition.vision_cone_degrees
+			max_sight_range = definition.max_sight_range
+			proximity_radius = definition.proximity_radius
 ## The name shown to the player — combat log, character sheet, dialogue,
 ## negotiation. Deliberately separate from this node's own scene-tree
 ## .name: that's Godot's own structural identifier (what a $NodePath
@@ -69,10 +72,26 @@ extends CharacterBody3D
 @export var will: int = 10
 @export var perception: int = 10
 
+
 @export var maximum_hp: int = 10
 @export var current_hp: int = 10
 @export var maximum_fp: int = 10
 @export var current_fp: int = 10
+
+@export_group("Senses")
+## Total width of this unit's forward vision, in degrees — 120 is a rough
+## human field of view. Detection outside it fails regardless of distance
+## or lighting (see DetectionManager), which is what makes approaching
+## from behind mean something.
+@export var vision_cone_degrees: float = 120.0
+## Furthest this unit can notice anything at all. A hard cutoff before any
+## rolling happens, so the detection scan can reject most pairs cheaply.
+@export var max_sight_range: float = 18.0
+## Close enough that facing stops mattering — someone at your shoulder is
+## heard and felt, not seen. Without this a unit could stand directly
+## behind another indefinitely, which reads as blindness rather than as
+## stealth.
+@export var proximity_radius: float = 2.5
 
 @export_group("Alignment")
 ## Two independent axes, each a plain signed integer — no enum, no
@@ -469,6 +488,7 @@ var _equipment: UnitEquipment
 var _alignment: UnitAlignment
 var _skills: UnitSkills
 var _death: UnitDeath
+var _awareness: UnitAwareness
 
 ## Owns this unit's active status effects (Bleeding, Sleep, Prone, ...) —
 ## see status_manager.gd. Unit exposes the small forwarding API below
@@ -489,6 +509,7 @@ func _ready() -> void:
 	_alignment = UnitAlignment.new(self)
 	_skills = UnitSkills.new(self)
 	_death = UnitDeath.new(self)
+	_awareness = UnitAwareness.new(self)
 	# Relayed rather than replaced — external code (CombatManager's
 	# end_turn/delay_turn deferral, notably) connects to unit.became_idle
 	# directly and must keep working unchanged; the signal's actual
@@ -623,6 +644,12 @@ func resolve_dialogue_root(actor: Unit) -> DialogueNode:
 ## per-faction-pair relationship.
 func is_hostile_to(other: Unit) -> bool:
 	return FactionRelations.is_hostile(faction, other.faction)
+
+
+## What this unit currently knows about anyone else — see UnitAwareness.
+## DetectionManager drives it; everything else only reads.
+func awareness() -> UnitAwareness:
+	return _awareness
 
 
 ## Whether this unit can be selected/commanded by the player at all.

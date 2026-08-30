@@ -28,9 +28,19 @@ extends RefCounted
 ## shared query.
 static func all_units(tree: SceneTree) -> Array[Unit]:
 	var units: Array[Unit] = []
+	# A caller can reach here holding a unit that has already left the
+	# tree — get_tree() on one returns null — and a null tree here used to
+	# take the call down with a "Cannot call method on a null value".
+	if tree == null:
+		return units
 	for node in tree.get_nodes_in_group("units"):
 		var unit := node as Unit
-		if unit:
+		# Group membership outlives the tree by a frame: queue_free is
+		# deferred, and a unit removed from the tree but not yet freed is
+		# still listed here. Every caller immediately reads its
+		# global_position, which errors on a node outside the tree, so
+		# filtering once at the source beats guarding at each call site.
+		if unit and unit.is_inside_tree():
 			units.append(unit)
 	return units
 

@@ -48,6 +48,14 @@ extends Resource
 @export var will: int = 10
 @export var perception: int = 10
 
+## Senses — cascade onto Unit exactly like every other stat here, so a
+## blind burrower and a hawk are the same detection code at different
+## numbers. Defaults match Unit's own, making an unauthored species a
+## true no-op (see this file's own header).
+@export var vision_cone_degrees: float = 120.0
+@export var max_sight_range: float = 18.0
+@export var proximity_radius: float = 2.5
+
 @export var max_hp: int = 10
 @export var max_fp: int = 0
 @export var damage_reduction: int = 0
