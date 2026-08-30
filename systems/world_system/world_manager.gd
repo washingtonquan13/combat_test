@@ -767,8 +767,29 @@ func spawn_parent() -> Node:
 ## to look up: on the overworld its people are records drawn as one
 ## avatar, so focus_world_of has nothing to be handed. Clicking such a
 ## member's portrait is the only way back to them.
+## Whether the player may look at a different world right now.
+##
+## NOT can_load(). That gate asks whether people may LEAVE, and a fight
+## detains the people in it — correct for travel, wrong here, because
+## switching focus moves nobody. Gated on can_load(), commanding a group
+## in a battle meant never being able to look at the rest of the party
+## again until it ended, which defeats the point of the party being able
+## to be in two places.
+##
+## Combat is the one overlay a player can look away FROM: the fight
+## simply waits, and says so (see CombatManager's Attention section).
+## Dialogue, negotiation and looting are modals the player is INSIDE,
+## and walking out of those mid-sentence is a different thing.
+func can_switch_focus() -> bool:
+	if InteractionMenu.is_open():
+		return false
+	if GameMode.can_transition():
+		return true
+	return GameMode.current_mode() == GameMode.Mode.COMBAT
+
+
 func focus_group(group: PartyGroup) -> bool:
-	if group == null or not can_load():
+	if group == null or not can_switch_focus():
 		return false
 
 	var resident: ResidentWorld = _residents.get(group.area_id)
@@ -809,7 +830,7 @@ func focus_world_of(node: Node) -> bool:
 			continue
 		if resident == _focused:
 			return true
-		if not can_load():
+		if not can_switch_focus():
 			return false
 		_leave_focused()
 		_focus(resident)

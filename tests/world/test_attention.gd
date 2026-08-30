@@ -42,6 +42,7 @@ func run() -> void:
 		_indicators_do_not_draw_across_worlds()
 		await _going_there_settles_it()
 		_a_fight_only_detains_the_people_in_it()
+		await _looking_away_from_a_fight_is_allowed()
 
 	_cleanup()
 
@@ -197,6 +198,42 @@ func _a_fight_only_detains_the_people_in_it() -> void:
 	check("but someone who is not in it still can",
 		WorldManager.can_load(free_to_go),
 		"a fight they are not part of refused their travel")
+
+
+## Looking away is not leaving. Switching focus moves nobody, so a fight
+## must not block it — gated on can_load() (which asks whether people may
+## LEAVE, and a fight detains the people in it), commanding a group in a
+## battle meant never being able to look at the rest of the party again
+## until it ended.
+func _looking_away_from_a_fight_is_allowed() -> void:
+	var here: PartyGroup = PartyManager.group_of(_stayer)
+	var elsewhere: PartyGroup = null
+	for group in PartyManager.groups:
+		if group != here and not group.is_empty():
+			elsewhere = group
+			break
+	if elsewhere == null:
+		check("SETUP: a group somewhere else to look at", false)
+		return
+
+	check("a fight the player is IN still refuses to let them leave it",
+		not WorldManager.can_load(),
+		"travel was allowed out of a live battle")
+	check("but they can still look at a group somewhere else",
+		WorldManager.can_switch_focus(),
+		"the fight blocked switching to a group that is not in it")
+
+	var stayer_world: Node = _stayer.get_parent()
+	var switched: bool = WorldManager.focus_group(elsewhere)
+	await get_tree().process_frame
+
+	check("and switching actually works", switched)
+	check("while the fight carries on where it was",
+		is_instance_valid(_fight) and _fight.is_running,
+		"looking away ended it")
+	check("and nobody was carried out of it",
+		is_instance_valid(_stayer) and _stayer.get_parent() == stayer_world,
+		"a combatant moved because the player looked elsewhere")
 
 
 func _spawn_enemy_beside(ally: Unit) -> Unit:
