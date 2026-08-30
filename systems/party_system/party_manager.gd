@@ -33,7 +33,33 @@ signal member_added(unit: Unit)
 signal member_removed(unit: Unit)
 signal leader_changed(unit: Unit)
 
-var members: Array[Unit] = []
+## Every group the party is currently divided into - see PartyGroup. One
+## while the party is together, which is the ordinary case and the only
+## one until somebody walks out of a door without the others.
+var groups: Array[PartyGroup] = []
+
+## The group the player is commanding. Everything that used to mean "the
+## party" without qualification means THIS group now.
+var active_group: PartyGroup = null
+
+## Every live member across every group.
+##
+## Derived, not stored: the groups own their members, and a second copy
+## kept in step by hand is the bug this exists to avoid. It reads exactly
+## as it always did for a party that is together, which is why the eight
+## or so places that consume it needed no changes at all.
+##
+## Because it BUILDS an array, mutating what it returns does nothing.
+## Every writer goes through add_member/remove_member/clear_members,
+## which target a group.
+var members: Array[Unit]:
+	get:
+		var out: Array[Unit] = []
+		for group in groups:
+			for unit in group.units:
+				if is_instance_valid(unit):
+					out.append(unit)
+		return out
 var leader: Unit = null
 
 ## The party's PERSISTENT, canonical form — survives even a world that
@@ -42,7 +68,16 @@ var leader: Unit = null
 ## live PROJECTION of this into real nodes for whichever world is
 ## currently spawning them; roster is what actually endures across a
 ## world swap. capture() writes here, spawn_party() reads from here.
-var roster: Array[PartyMemberData] = []
+## Same derivation as members, over the serializable form. capture() is
+## what refreshes it against whatever is actually live; SaveManager reads
+## it afterwards. Mutating what this returns does nothing - load_state()
+## and capture() write through to the groups.
+var roster: Array[PartyMemberData]:
+	get:
+		var out: Array[PartyMemberData] = []
+		for group in groups:
+			out.append_array(group.records)
+		return out
 
 ## Set by character_creation.gd on Confirm, consumed once by whichever
 ## world first spawns it (today: test_arena.gd's own _build_leader();
@@ -58,13 +93,126 @@ var pending_leader: PartyMemberData = null
 ## applies for "can this unit ever be treated as ours at all." Idempotent
 ## — adding an already-present member is a safe no-op, same convention
 ## SummonDemonEffect/DemonRoster already use elsewhere.
-func add_member(unit: Unit) -> void:
+# --- Groups ----------------------------------------------------------
+
+## The group the player is commanding, made on demand. Everything that
+## predates splitting lands here, so a game that never splits has exactly
+## one group and behaves as it always did.
+func active() -> PartyGroup:
+	if active_group == null or not groups.has(active_group):
+		active_group = PartyGroup.new()
+		groups.append(active_group)
+	return active_group
+
+
+## The group holding this unit, or null.
+func group_of(unit: Unit) -> PartyGroup:
+	for group in groups:
+		if group.has_unit(unit):
+			return group
+	return null
+
+
+## Every group standing in an area. More than one only on the overworld,
+## where each is drawn as its own avatar - in an ordinary area everyone
+## is embodied together and there is nothing left to tell them apart, so
+## arriving groups merge (see merge_in_area).
+func groups_in_area(area_id: StringName) -> Array[PartyGroup]:
+	var found: Array[PartyGroup] = []
+	for group in groups:
+		if group.area_id == area_id:
+			found.append(group)
+	return found
+
+
+## Splits these travellers out of whatever groups hold them into a group
+## of their own. THE operation the whole model exists for: the ones left
+## behind keep their group and their place, and the ones going get a
+## group that can be somewhere else.
+##
+## Returns the group they were already in when they are all of it - a
+## whole group travelling together is not a split.
+func split_off(travellers: Array[Unit]) -> PartyGroup:
+	var going: Array[Unit] = []
+	for unit in travellers:
+		if is_instance_valid(unit) and is_member(unit):
+			going.append(unit)
+	if going.is_empty():
+		return active()
+
+	var origin: PartyGroup = group_of(going[0])
+	if origin and origin.live_units().size() == going.size():
+		var whole: bool = true
+		for unit in going:
+			if not origin.has_unit(unit):
+				whole = false
+				break
+		if whole:
+			return origin
+
+	var split := PartyGroup.new()
+	split.embodied = true
+	split.area_id = origin.area_id if origin else &""
+	for unit in going:
+		var from_group: PartyGroup = group_of(unit)
+		if from_group:
+			from_group.units.erase(unit)
+		split.units.append(unit)
+	groups.append(split)
+	prune_groups()
+	return split
+
+
+## Folds every group in an area into one. Called on arrival: once
+## everyone is embodied in the same world there is no way to tell two
+## groups apart, so keeping them separate would be bookkeeping with
+## nothing behind it.
+func merge_in_area(area_id: StringName) -> PartyGroup:
+	var here: Array[PartyGroup] = groups_in_area(area_id)
+	if here.is_empty():
+		return null
+	# An embodied group makes the better target: everyone ends up in the
+	# form the area actually supports, rather than relying on absorb() to
+	# correct the flag afterwards.
+	var target: PartyGroup = here[0]
+	for candidate in here:
+		if candidate.embodied:
+			target = candidate
+			break
+	for other in here:
+		if other == target:
+			continue
+		target.absorb(other)
+	if active_group in here:
+		active_group = target
+	prune_groups()
+	return target
+
+
+## Drops groups nobody is in any more. A group is a set of people, so an
+## empty one is not a place - it is nothing.
+func prune_groups() -> void:
+	for group in groups.duplicate():
+		if group.is_empty() and group != active_group:
+			groups.erase(group)
+	if active_group and active_group.is_empty() and groups.size() > 1:
+		groups.erase(active_group)
+		active_group = groups[0]
+
+
+# --- Membership ------------------------------------------------------
+
+func add_member(unit: Unit, into: PartyGroup = null) -> void:
 	if not unit.is_player_controlled() or unit.summoned_by != null:
 		push_warning("PartyManager.add_member refused: %s isn't a core party member." % unit.name)
 		return
 	if unit in members:
 		return
-	members.append(unit)
+	var group: PartyGroup = group_of(unit)
+	if group == null:
+		group = into if into else active()
+		group.units.append(unit)
+	group.embodied = true
 	unit.died.connect(_on_member_died)
 	member_added.emit(unit)
 
@@ -79,7 +227,9 @@ func add_member(unit: Unit) -> void:
 func remove_member(unit: Unit) -> void:
 	if unit not in members:
 		return
-	members.erase(unit)
+	var group: PartyGroup = group_of(unit)
+	if group:
+		group.units.erase(unit)
 	if unit.died.is_connected(_on_member_died):
 		unit.died.disconnect(_on_member_died)
 	if leader == unit:
@@ -167,9 +317,14 @@ func set_leader_alignment(value: int) -> void:
 func capture() -> void:
 	if members.is_empty():
 		return
-	roster.clear()
-	for unit in members:
-		roster.append(_capture_one(unit))
+	# Per group, so a split party serializes as a split party rather than
+	# as one flat list that has forgotten where anybody was.
+	for group in groups:
+		if not group.embodied:
+			continue
+		group.records.clear()
+		for unit in group.live_units():
+			group.records.append(_capture_one(unit))
 
 
 func _capture_one(unit: Unit) -> PartyMemberData:
@@ -224,7 +379,9 @@ func clear_members() -> void:
 	for unit in members:
 		if is_instance_valid(unit) and unit.died.is_connected(_on_member_died):
 			unit.died.disconnect(_on_member_died)
-	members.clear()
+	for group in groups:
+		group.units.clear()
+		group.embodied = false
 	leader = null
 
 
@@ -315,9 +472,18 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 ## destination area actually exists, same as an ordinary world
 ## transition.
 func load_state(state: Dictionary) -> void:
-	roster.clear()
+	# A save written before groups existed has one flat member list and no
+	# group data at all. Loading it as a single group IS the migration -
+	# and it is also exactly what a save of an unsplit party looks like, so
+	# there is one path here rather than two.
+	groups.clear()
+	active_group = null
+	var restored := PartyGroup.new()
+	restored.area_id = state.get("area_id", &"")
 	for entry in state.get("members", []):
-		roster.append(_load_one(entry))
+		restored.records.append(_load_one(entry))
+	groups.append(restored)
+	active_group = restored
 
 
 func _load_one(entry: Dictionary) -> PartyMemberData:
@@ -473,17 +639,31 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 ## as easily as on solid ground. The leader keeps the party's true
 ## landing point exactly, unmoved — it's the one position every door/
 ## spawn marker was actually authored at.
+## Kept as the whole-party form for any caller that means "the party"
+## without qualification. Everything that travels goes through the
+## group form below, because who is arriving is the question groups
+## exist to answer.
 func spawn_party(world: Node, spawn_point: Node3D) -> void:
+	spawn_group(active(), world, spawn_point)
+
+
+## Builds this group's records into live Units in `world`. The group
+## becomes embodied; its records stay as the last serialized snapshot
+## until capture() refreshes them.
+func spawn_group(group: PartyGroup, world: Node, spawn_point: Node3D) -> void:
 	var followers: Array[PartyMemberData] = []
-	for record in roster:
+	for record in group.records:
 		if not record.is_leader:
 			followers.append(record)
 
-	for record in roster:
+	group.units.clear()
+	group.embodied = true
+	for record in group.records:
 		var unit: Unit = spawn_member(record, world, spawn_point)
 		place_at_landing(unit, spawn_point,
 			-1 if record.is_leader else followers.find(record), followers.size())
-		add_member(unit)
+		group.units.append(unit)
+		add_member(unit, group)
 		if record.is_leader:
 			set_leader(unit)
 

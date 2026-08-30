@@ -250,7 +250,11 @@ func unload() -> bool:
 	# false: SaveManager is about to overwrite roster from the save file,
 	# so refreshing it from the world being discarded is work undone one
 	# line later.
-	_disembody_all(false)
+	# Every group, not just the active one: SaveManager is about to
+	# replace the whole game state, and a party scattered across three
+	# areas is part of what it is replacing.
+	for group in PartyManager.groups.duplicate():
+		_disembody(group)
 	_leave_focused()
 	# "Nothing is loaded," not "nothing is focused" — so every resident
 	# goes, earned or not. SaveManager is about to replace the whole game
@@ -294,29 +298,32 @@ func _leave_focused() -> void:
 	_focused = null
 
 
-## Turns every embodied party member back into roster data and frees the
-## Units. The party stops having positions at all.
+## Folds one group down to records and frees its Units. The party stops
+## having positions for these people.
 ##
-## Only for a world with no place for Units — the overworld and its single
-## avatar (spawns_party() -> false). It is deliberately ALL-OR-NOTHING:
-## the party cannot be half-abstract, because roster has no notion of who
-## is where, and the correlation needed to re-embody only some of it would
-## be guesswork. A split party going to the overworld is collected.
-func _disembody_all(capture_party: bool = true) -> void:
-	if capture_party:
-		# A no-op when nobody is embodied (members empty) — see
-		# PartyManager.capture()'s own guard for why that is required
-		# rather than merely harmless.
-		PartyManager.capture()
-	_dismiss_fielded_demons()
+## Only for a world with no place for Units - the overworld and its
+## avatar (spawns_party() -> false). Per GROUP, not per party: an
+## earlier version collected EVERYONE here, which quietly made the
+## split unreachable, because every route in this game passes through
+## the overworld and so every route reunited the party.
+func _disembody(group: PartyGroup) -> void:
+	# Refreshes records against whatever is actually live, for this
+	# group and every other embodied one - see PartyManager.capture().
+	PartyManager.capture()
+	_dismiss_fielded_demons(group)
 
-	var leaving: Array[Unit] = PartyManager.members.duplicate()
-	PartyManager.clear_members()
+	var leaving: Array[Unit] = group.live_units()
+	group.units.clear()
+	group.embodied = false
 	for unit in leaving:
 		if not is_instance_valid(unit):
 			continue
+		if unit == PartyManager.leader:
+			PartyManager.leader = null
+		if unit.died.is_connected(PartyManager._on_member_died):
+			unit.died.disconnect(PartyManager._on_member_died)
 		# Out of the group first: a half-freed unit still answering group
-		# queries is the exact shape of bug the suite has caught repeatedly.
+		# queries is a shape of bug the suite has caught repeatedly.
 		if unit.is_in_group("units"):
 			unit.remove_from_group("units")
 		if unit.get_parent():
@@ -324,10 +331,23 @@ func _disembody_all(capture_party: bool = true) -> void:
 		unit.queue_free()
 
 
-## Who is actually travelling. An empty request means everyone embodied in
-## the world being left, which is what every caller meant before the party
-## could split and is still the sane default — walking out of a door with
-## nothing selected takes the people standing there with you.
+## Who is actually travelling, as a GROUP. An empty request means
+## everyone standing in the world being left, which is what walking out
+## of a door with nobody selected should obviously do.
+##
+## Splitting happens here and needs no separate verb: travel with fewer
+## than a whole group and the rest keep their group and their place.
+func _travelling_group(requested: Array[Unit]) -> PartyGroup:
+	var going: Array[Unit] = _resolve_travellers(requested)
+	if going.is_empty():
+		# Nobody embodied here - the party is abstract (the overworld), so
+		# the group the player is commanding is the one that travels.
+		return PartyManager.active()
+	return PartyManager.split_off(going)
+
+
+## Who is actually travelling. An empty request means everyone embodied
+## in the world being left.
 func _resolve_travellers(requested: Array[Unit]) -> Array[Unit]:
 	var going: Array[Unit] = []
 	var here: WorldContext = _focused.context if _focused else null
@@ -346,35 +366,37 @@ func _resolve_travellers(requested: Array[Unit]) -> Array[Unit]:
 	return going
 
 
-## Puts the travelling party into the world now being focused.
+## Puts the travelling group into the world now being focused.
 ##
-## Three cases, and which one applies is a property of the DESTINATION and
-## of whether anyone is embodied at all — not of how the player got here.
-func _embody_into(resident: ResidentWorld, travellers: Array[Unit]) -> void:
+## Which of the two forms applies is a property of the DESTINATION, not
+## of how the player got here: a world that spawns Units embodies the
+## group, one that does not folds it down to an avatar.
+func _embody_into(resident: ResidentWorld, group: PartyGroup) -> void:
+	if group == null:
+		return
 	var world: Node = resident.world
-	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
+	group.area_id = resident.area_id()
+	PartyManager.active_group = group
 
-	if not wants_party:
-		_disembody_all()
+	if world.has_method("spawns_party") and not world.spawns_party():
+		_disembody(group)
 		return
 
 	var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
 
-	if PartyManager.members.is_empty():
-		# Nobody is embodied anywhere, so there is nothing to carry and the
-		# roster is the whole party — build it here, as before.
-		_is_restoring_party = not PartyManager.roster.is_empty()
+	if group.embodied:
+		# Already alive somewhere - carry them, do not rebuild them. See
+		# PartyManager.relocate for why that matters beyond tidiness.
+		PartyManager.relocate(group.live_units(), world, spawn_point)
+	else:
+		_is_restoring_party = not group.records.is_empty()
 		if _is_restoring_party:
-			PartyManager.spawn_party(world, spawn_point)
+			PartyManager.spawn_group(group, world, spawn_point)
 		_is_restoring_party = false
-		return
 
-	# Part of the party is alive somewhere. Carry the travellers across and
-	# leave everyone else standing exactly where they are — which is the
-	# whole of splitting, and works because a unit's world is simply its
-	# parent's (see PartyManager.relocate).
-	PartyManager.relocate(travellers, world, spawn_point)
-
+	# In an ordinary area everyone is embodied together and there is no
+	# way left to tell two groups apart, so arriving is merging.
+	PartyManager.merge_in_area(group.area_id)
 
 ## Frees a world that has nothing left worth preserving — see
 ## ResidentWorld.is_earned for what counts. Safe to call with null, and
@@ -415,7 +437,7 @@ func _retire_unearned() -> void:
 
 ## Points the player at a world that is already loaded and in the tree.
 ## The counterpart to _leave_focused, and the only place _focused is set.
-func _focus(resident: ResidentWorld, travellers: Array[Unit] = []) -> void:
+func _focus(resident: ResidentWorld, group: PartyGroup = null) -> void:
 	_focused = resident
 	resident.set_focused(true)
 	_move_attention_to(resident.viewport())
@@ -432,7 +454,7 @@ func _focus(resident: ResidentWorld, travellers: Array[Unit] = []) -> void:
 			# own viewport at the same time — they do not fight.
 			cam.make_current()
 
-	_embody_into(resident, travellers)
+	_embody_into(resident, group)
 	world_focused.emit(world)
 
 
@@ -468,10 +490,15 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# people are standing in.
 	var outgoing: ResidentWorld = _focused
 	var going: Array[Unit] = _resolve_travellers(travellers)
+	var group: PartyGroup = null
 
 	if not can_load(going):
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
+
+	# After the gate, because splitting the group is a real change and a
+	# refused load must not have made one.
+	group = _travelling_group(travellers)
 
 	world_loading.emit(scene)
 
@@ -489,7 +516,7 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	if existing:
 		_pending_spawn_point_name = _resolve_entry_spawn_point(
 			existing.world, spawn_point_name, from_area_id)
-		_focus(existing, going)
+		_focus(existing, group)
 		# AFTER the handover, not before: the travellers were still
 		# standing in the outgoing world a moment ago, and a world with
 		# party members in it has earned its keep (ResidentWorld.is_earned).
@@ -555,7 +582,7 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	if area:
 		_residents[area.id] = resident
 
-	_focus(resident, going)
+	_focus(resident, group)
 	_retire_if_unearned(outgoing)
 	_retire_unearned()
 	world_loaded.emit(world)
@@ -783,8 +810,14 @@ func is_restoring_party() -> bool:
 ## PartyManager member (add_member() refuses anything with summoned_by
 ## set), so capture()/clear_members() above never see it at all — this is
 ## the separate cleanup that actually has to happen for it.
-func _dismiss_fielded_demons() -> void:
+## Only this group's demons. Before groups there was one party and so
+## one answer; now dismissing every fielded demon in the game because
+## one group stepped onto the overworld would reach into worlds the
+## player is not even in.
+func _dismiss_fielded_demons(group: PartyGroup = null) -> void:
 	for unit in UnitQuery.all_units(get_tree()):
+		if group and not group.has_unit(unit.summoned_by if unit.summoned_by else unit):
+			continue
 		if unit.is_alive() and unit.owned_demon:
 			unit.owned_demon.current_hp = unit.current_hp
 			unit.owned_demon.current_fp = unit.current_fp

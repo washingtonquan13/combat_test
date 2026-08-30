@@ -40,7 +40,7 @@ func run() -> void:
 	await _a_member_left_behind_stays_behind()
 	await _the_world_holding_them_cannot_be_freed()
 	await _going_to_a_companion_moves_nobody()
-	await _collecting_everyone_again()
+	await _the_overworld_takes_only_the_travellers()
 
 	WorldManager.unload()
 	await get_tree().process_frame
@@ -151,27 +151,47 @@ func _going_to_a_companion_moves_nobody() -> void:
 		"looking away freed it: %s" % str(WorldManager.resident_area_ids()))
 
 
-## Going somewhere the party cannot be embodied at all (the overworld and
-## its single avatar) collects everyone, wherever they were standing —
-## roster has no notion of who is where, so it has to be all or nothing.
-func _collecting_everyone_again() -> void:
+## Going somewhere the party cannot be embodied at all (the overworld
+## and its avatar) folds the TRAVELLING GROUP down to records - and
+## only that group.
+##
+## An earlier pass collected everyone here, which is what made the
+## split unreachable in the actual game: every route in this game runs
+## through the overworld, so every route reunited the party. This suite
+## asserted that rule, which is why it passed while the feature did not
+## work.
+func _the_overworld_takes_only_the_travellers() -> void:
 	var split_across: int = WorldManager.resident_area_ids().size()
 	check("SETUP: the party really is split across two worlds",
 		split_across == 2, "%d resident" % split_across)
+	if not is_instance_valid(_stayer) or not is_instance_valid(_traveller):
+		check("SETUP: both halves still alive", false)
+		return
+
+	# The player is standing with _stayer (see the previous case), so
+	# they are who travels.
+	var stayer_group: PartyGroup = PartyManager.group_of(_stayer)
+	var other_group: PartyGroup = PartyManager.group_of(_traveller)
+	check("SETUP: the two halves really are different groups",
+		stayer_group != null and other_group != null and stayer_group != other_group)
 
 	WorldManager.load_area(&"overworld")
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	check("a world with no place for units abstracts the whole party away",
-		PartyManager.members.is_empty(),
-		"%d still embodied" % PartyManager.members.size())
-	check("and nobody is lost doing it — they are all in the roster",
-		PartyManager.roster.size() >= 2,
-		"roster holds %d" % PartyManager.roster.size())
-	check("the world that was only being kept for them is gone too",
-		not WorldManager.is_area_resident(HOME))
-
+	check("the group that travelled is folded down to records",
+		stayer_group != null and not stayer_group.embodied
+			and not stayer_group.records.is_empty(),
+		"the travellers did not abstract")
+	check("and the group that did NOT travel is still standing where it was",
+		other_group != null and other_group.embodied
+			and is_instance_valid(_traveller),
+		"the overworld reached into another world and collected them")
+	check("so the world holding them is still loaded",
+		WorldManager.is_area_resident(AWAY),
+		"freed - the member waiting in it went with it")
+	check("and nobody was lost: everyone is in a group somewhere",
+		PartyManager.members.size() + PartyManager.roster.size() >= 2)
 
 # --- helpers ---------------------------------------------------------
 
