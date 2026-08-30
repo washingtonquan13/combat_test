@@ -31,6 +31,7 @@
 #include <godot_cpp/classes/node.hpp>
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
+#include <godot_cpp/classes/world3d.hpp>
 #include <godot_cpp/classes/static_body3d.hpp>
 #include <godot_cpp/classes/collision_shape3d.hpp>
 #include <godot_cpp/classes/shape3d.hpp>
@@ -78,12 +79,54 @@ struct NavChunk {
 	bool has_flyable = false;
 };
 
+// One world's worth of grid state, parked here while some OTHER world is
+// the active one. See NavigationGrid::activate_world.
+//
+// Deliberately mirrors the identically-named members on NavigationGrid
+// rather than replacing them. The class keeps operating on its own members
+// exactly as it always has — every algorithm below (a_star, smooth_path,
+// the whole chunk lifecycle) is untouched by multi-world support, which is
+// the entire point: code that doesn't change can't regress. Only the
+// public entry points swap the right world's state in first.
+struct ParkedWorld {
+	Vector3 bounds_origin;
+	Vector3i grid_size;
+	Vector3i chunk_grid_size;
+	bool baked = false;
+	bool any_occupied = false;
+	std::vector<std::unique_ptr<NavChunk>> chunks;
+	std::vector<float> astar_g_score;
+	std::vector<int> astar_g_gen;
+	std::vector<int> astar_came_from;
+	std::vector<int> astar_closed_gen;
+	int astar_search_id = 0;
+	std::vector<int> smooth_valid_gen;
+	std::vector<uint8_t> smooth_valid_result;
+	int smooth_search_id = 0;
+	std::vector<CollisionShape3D *> all_shapes;
+	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
+	std::vector<uint8_t> chunk_occupancy_nearby;
+	// The node this world's geometry is scanned from. A World3D can't be
+	// walked back to a node, so the root has to be remembered when the
+	// world registers itself.
+	Node *root = nullptr;
+};
+
 class NavigationGrid : public Object {
 	GDCLASS(NavigationGrid, Object)
 
 public:
 	NavigationGrid();
 	~NavigationGrid();
+
+	// --- Multi-world -------------------------------------------------
+	// A world announces itself (WorldContext does this on construction)
+	// and is forgotten when it goes. Until any world registers, this
+	// behaves exactly as the single-grid version did, scanning the
+	// current scene — which is what keeps the editor, tools and every
+	// existing call path working unchanged.
+	void register_world(Node *root);
+	void unregister_world(Node *root);
 
 	void ensure_baked(SceneTree *tree);
 	// Drops every cached reference to the currently-loaded world's geometry
@@ -97,8 +140,8 @@ public:
 	// which is a real crash this project shipped (native segfault, no
 	// preceding GDScript error — see WorldManager's own note on this).
 	void invalidate();
-	void update_occupancy(SceneTree *tree, Array movers);
-	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells);
+	void update_occupancy(SceneTree *tree, Array movers, Object *world_ref = nullptr);
+	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref = nullptr);
 	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying);
 	Vector3i world_to_cell(Vector3 pos) const;
 
@@ -134,6 +177,33 @@ private:
 	// visibly suboptimal path — smooth_path's post-hoc string-pulling also
 	// cleans up most of any minor raggedness this could introduce.
 	static constexpr float HEURISTIC_WEIGHT = 1.3f;
+
+	// --- Multi-world registry ----------------------------------------
+	// Every world EXCEPT the active one, parked. The active world's state
+	// lives in the plain members below, which is what lets every
+	// algorithm stay oblivious to any of this.
+	std::unordered_map<uint64_t, ParkedWorld> parked_worlds;
+	// World3D object id of whichever world's state is currently loaded
+	// into those members. 0 means "none / the legacy current-scene grid."
+	uint64_t active_world_id = 0;
+	// Where the ACTIVE world's geometry is scanned from — see
+	// ensure_project_scanned. Parked alongside the rest in ParkedWorld.
+	Node *active_root = nullptr;
+
+	// Parks the active world's state and loads world_id's in its place.
+	// O(1) despite moving a dozen containers — every one is a vector or
+	// map, so std::swap is a pointer exchange, not a copy. Cheap enough to
+	// call at the top of every public entry point, which is exactly what
+	// makes the swap trick viable at all.
+	void activate_world(uint64_t world_id);
+	// The World3D id a node belongs to, or 0 if it isn't a Node3D in a
+	// tree. The one place node -> world resolution happens.
+	static uint64_t world_id_of(Object *obj);
+	bool in_active_world(Node3D *node);
+	// Resolves which world a call means from whatever it was handed, in
+	// priority order, and activates it. Falls back to the single
+	// registered world, then to the legacy no-world grid.
+	void activate_for(Object *primary, Object *fallback = nullptr);
 
 	Vector3 bounds_origin;
 	Vector3i grid_size;

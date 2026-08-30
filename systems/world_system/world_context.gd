@@ -41,20 +41,32 @@ var surfaces: Array[ActiveSurface] = []
 var world_3d: World3D = null
 
 
+## The node this world's geometry is scanned from — held because a World3D
+## cannot be walked back to a node, so the navigation grid has to be TOLD
+## where its world starts.
+var world_root: Node3D = null
+
+
 func _init(root: Node3D = null) -> void:
 	if root and root.is_inside_tree():
+		world_root = root
 		world_3d = root.get_world_3d()
+		# Announces this world to the navigation extension, which keeps one
+		# grid per registered world. Until something registers, the grid
+		# behaves exactly as its single-world self did (scanning the current
+		# scene) — which is what keeps the editor and any pre-registration
+		# call path working.
+		NavigationGrid.register_world(root)
 
 
 ## The navigation grid serving this world.
 ##
-## Returns the engine singleton today, because there is only one world and
-## the extension holds one grid. It exists as an accessor anyway so that
-## making the grid per-world is a change HERE plus a C++ change, rather
-## than a hunt through 52 call sites — see gdextension/src/navigation_grid.h,
-## whose state is already entirely per-instance member variables. Nothing
-## about it is static; it is a singleton only because register_types.cpp
-## constructs exactly one.
+## Still the engine singleton, but it is no longer one grid: it now keeps
+## one per REGISTERED WORLD (see register_world above, and
+## NavigationGrid::activate_world in the extension), swapping the right
+## world's state in based on whichever node a call was handed. So this
+## accessor is the object to talk to, and which world it answers about is
+## decided by the arguments rather than by this handle.
 func navigation_grid() -> Object:
 	return NavigationGrid
 
@@ -78,6 +90,14 @@ func dispose() -> void:
 		if is_instance_valid(encounter) and encounter.is_running:
 			encounter.finish(&"")
 	encounters.clear()
+
+	# Hands this world's grid back before the geometry it points into is
+	# freed. all_shapes/shapes_by_chunk hold raw CollisionShape3D pointers
+	# into the world, and a grid outliving them is the exact native
+	# segfault the extension's invalidate() was written to paper over.
+	if world_root:
+		NavigationGrid.unregister_world(world_root)
+	world_root = null
 
 	# Cleared, not expired. _expire() reaches for WorldManager.spawn_parent()
 	# to detach visuals, and by this point that is either the outgoing world

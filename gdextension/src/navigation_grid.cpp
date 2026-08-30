@@ -25,8 +25,10 @@ NavigationGrid::~NavigationGrid() {}
 void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("ensure_baked", "tree"), &NavigationGrid::ensure_baked);
 	ClassDB::bind_method(D_METHOD("invalidate"), &NavigationGrid::invalidate);
-	ClassDB::bind_method(D_METHOD("update_occupancy", "tree", "movers"), &NavigationGrid::update_occupancy);
-	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12));
+	ClassDB::bind_method(D_METHOD("register_world", "root"), &NavigationGrid::register_world);
+	ClassDB::bind_method(D_METHOD("unregister_world", "root"), &NavigationGrid::unregister_world);
+	ClassDB::bind_method(D_METHOD("update_occupancy", "tree", "movers", "world_ref"), &NavigationGrid::update_occupancy, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying"), &NavigationGrid::find_path);
 	ClassDB::bind_method(D_METHOD("world_to_cell", "pos"), &NavigationGrid::world_to_cell);
 
@@ -42,6 +44,203 @@ void NavigationGrid::_bind_methods() {
 float NavigationGrid::get_cell_size() const { return CELL_SIZE; }
 float NavigationGrid::get_flight_min_altitude() const { return FLIGHT_MIN_ALTITUDE; }
 float NavigationGrid::get_flight_ceiling_height() const { return FLIGHT_CEILING_HEIGHT; }
+
+// --- Multi-world registry --------------------------------------------
+//
+// The active world's state lives in this object's own members; every other
+// registered world's is parked in `parked_worlds`. Switching worlds swaps
+// the two. That is deliberately the whole mechanism: not one line of the
+// pathfinding below knows worlds exist, so making the grid per-world could
+// not regress a_star, smooth_path, or the chunk lifecycle — the code that
+// would have had to change is the code that didn't.
+//
+// Cheap despite appearances. Every parked member is a vector or an
+// unordered_map, so std::swap on each is a pointer exchange rather than a
+// copy; activate_world is O(1) and safe to call at the top of every public
+// entry point.
+
+void NavigationGrid::register_world(Node *root) {
+	if (!root) {
+		return;
+	}
+	uint64_t id = world_id_of(root);
+	if (id == 0) {
+		return;
+	}
+	// Fresh state for a world we haven't seen, and remember the root —
+	// a World3D cannot be walked back to a node, so the only chance to
+	// capture where this world's geometry is scanned from is now.
+	if (id != active_world_id && parked_worlds.find(id) == parked_worlds.end()) {
+		ParkedWorld fresh;
+		fresh.root = root;
+		parked_worlds.emplace(id, std::move(fresh));
+	} else if (id == active_world_id) {
+		active_root = root;
+	} else {
+		parked_worlds[id].root = root;
+	}
+}
+
+void NavigationGrid::unregister_world(Node *root) {
+	uint64_t id = world_id_of(root);
+	if (id == 0) {
+		return;
+	}
+	if (id == active_world_id) {
+		// Drop the active world's state outright rather than parking it.
+		// all_shapes/shapes_by_chunk hold raw CollisionShape3D* into
+		// geometry that is about to be freed; keeping them is precisely
+		// the dangling-pointer crash invalidate() existed to paper over.
+		all_shapes.clear();
+		shapes_by_chunk.clear();
+		chunks.clear();
+		chunk_occupancy_nearby.clear();
+		baked = false;
+		any_occupied = false;
+		active_world_id = 0;
+		active_root = nullptr;
+		return;
+	}
+	parked_worlds.erase(id);
+}
+
+uint64_t NavigationGrid::world_id_of(Object *obj) {
+	Node3D *node = Object::cast_to<Node3D>(obj);
+	if (!node || !node->is_inside_tree()) {
+		return 0;
+	}
+	Ref<World3D> world = node->get_world_3d();
+	if (world.is_null()) {
+		return 0;
+	}
+	return world->get_instance_id();
+}
+
+// True when a node belongs to the world currently loaded.
+//
+// Occupancy scans the WHOLE tree, because "units" and "blocking_corpses"
+// are single global groups with no world in them. Without this filter a
+// unit standing in one world stamps its cells into another world's grid —
+// the same origin-overlap problem the geometry scan has, and worse for
+// being invisible: no crash, just a route that swerves around something
+// that isn't there.
+//
+// With no world registered (active_world_id == 0) this accepts
+// everything, which is exactly the single-world behaviour that shipped.
+bool NavigationGrid::in_active_world(Node3D *node) {
+	if (active_world_id == 0) {
+		return true;
+	}
+	if (!node || !node->is_inside_tree()) {
+		return false;
+	}
+	Ref<World3D> world = node->get_world_3d();
+	return world.is_valid() && world->get_instance_id() == active_world_id;
+}
+
+void NavigationGrid::activate_world(uint64_t world_id) {
+	if (world_id == active_world_id) {
+		return;
+	}
+
+	// Park what's loaded, unless it's the legacy no-world grid (id 0),
+	// which nothing will ever ask for again once real worlds register.
+	if (active_world_id != 0) {
+		ParkedWorld &out = parked_worlds[active_world_id];
+		out.bounds_origin = bounds_origin;
+		out.grid_size = grid_size;
+		out.chunk_grid_size = chunk_grid_size;
+		out.baked = baked;
+		out.any_occupied = any_occupied;
+		out.astar_search_id = astar_search_id;
+		out.smooth_search_id = smooth_search_id;
+		out.root = active_root;
+		std::swap(out.chunks, chunks);
+		std::swap(out.astar_g_score, astar_g_score);
+		std::swap(out.astar_g_gen, astar_g_gen);
+		std::swap(out.astar_came_from, astar_came_from);
+		std::swap(out.astar_closed_gen, astar_closed_gen);
+		std::swap(out.smooth_valid_gen, smooth_valid_gen);
+		std::swap(out.smooth_valid_result, smooth_valid_result);
+		std::swap(out.all_shapes, all_shapes);
+		std::swap(out.shapes_by_chunk, shapes_by_chunk);
+		std::swap(out.chunk_occupancy_nearby, chunk_occupancy_nearby);
+	} else {
+		// Leaving the legacy grid behind for good — clear rather than
+		// park, so its shape pointers can't outlive their scene.
+		chunks.clear();
+		all_shapes.clear();
+		shapes_by_chunk.clear();
+		chunk_occupancy_nearby.clear();
+	}
+
+	active_world_id = world_id;
+
+	auto it = parked_worlds.find(world_id);
+	if (it == parked_worlds.end()) {
+		// Unknown world: start empty and unbaked. The next ensure_baked
+		// scans it for real.
+		bounds_origin = Vector3();
+		grid_size = Vector3i();
+		chunk_grid_size = Vector3i();
+		baked = false;
+		any_occupied = false;
+		astar_search_id = 0;
+		smooth_search_id = 0;
+		active_root = nullptr;
+		chunks.clear();
+		astar_g_score.clear();
+		astar_g_gen.clear();
+		astar_came_from.clear();
+		astar_closed_gen.clear();
+		smooth_valid_gen.clear();
+		smooth_valid_result.clear();
+		all_shapes.clear();
+		shapes_by_chunk.clear();
+		chunk_occupancy_nearby.clear();
+		return;
+	}
+
+	ParkedWorld &in = it->second;
+	bounds_origin = in.bounds_origin;
+	grid_size = in.grid_size;
+	chunk_grid_size = in.chunk_grid_size;
+	baked = in.baked;
+	any_occupied = in.any_occupied;
+	astar_search_id = in.astar_search_id;
+	smooth_search_id = in.smooth_search_id;
+	active_root = in.root;
+	std::swap(in.chunks, chunks);
+	std::swap(in.astar_g_score, astar_g_score);
+	std::swap(in.astar_g_gen, astar_g_gen);
+	std::swap(in.astar_came_from, astar_came_from);
+	std::swap(in.astar_closed_gen, astar_closed_gen);
+	std::swap(in.smooth_valid_gen, smooth_valid_gen);
+	std::swap(in.smooth_valid_result, smooth_valid_result);
+	std::swap(in.all_shapes, all_shapes);
+	std::swap(in.shapes_by_chunk, shapes_by_chunk);
+	std::swap(in.chunk_occupancy_nearby, chunk_occupancy_nearby);
+	parked_worlds.erase(it);
+}
+
+void NavigationGrid::activate_for(Object *primary, Object *fallback) {
+	uint64_t id = world_id_of(primary);
+	if (id == 0) {
+		id = world_id_of(fallback);
+	}
+	if (id == 0 && parked_worlds.size() == 1 && active_world_id == 0) {
+		// Exactly one world registered and nothing loaded yet — the
+		// single-world case, which is every call the game makes today.
+		id = parked_worlds.begin()->first;
+	}
+	if (id == 0) {
+		// Nothing identifiable: stay on whatever is loaded. Keeps the
+		// editor, tools and any pre-registration call working exactly as
+		// they did before worlds existed.
+		return;
+	}
+	activate_world(id);
+}
 
 // --- Setup / project scan (cheap — NOT a full bake anymore) ----------------
 
@@ -65,7 +264,12 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	all_shapes.clear();
 	shapes_by_chunk.clear();
 
-	Node *root = tree->get_current_scene();
+	// The registered world's own root, falling back to the current scene
+	// for the pre-registration/editor case. Scanning get_current_scene()
+	// unconditionally is what would bake every resident world's geometry
+	// into one grid — and since every area here is authored around the
+	// origin, that geometry would interleave into nonsense.
+	Node *root = active_root ? active_root : tree->get_current_scene();
 	if (root) {
 		collect_static_shapes(root, all_shapes);
 	}
@@ -586,7 +790,10 @@ void NavigationGrid::set_occupant(const Vector3i &cell, Object *obj) {
 	slot->has_occupancy = true;
 }
 
-void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
+void NavigationGrid::update_occupancy(SceneTree *tree, Array movers, Object *world_ref) {
+	// movers usually holds the unit whose turn it is, which identifies the
+	// world; world_ref covers the empty-array case.
+	activate_for(movers.size() > 0 ? (Object *)movers[0] : nullptr, world_ref);
 	ensure_baked(tree);
 	for (auto &slot : chunks) {
 		if (slot) {
@@ -616,7 +823,7 @@ void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
 		}
 
 		Node3D *n3d = Object::cast_to<Node3D>(node);
-		if (!n3d) {
+		if (!n3d || !in_active_world(n3d)) {
 			continue;
 		}
 		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
@@ -650,7 +857,7 @@ void NavigationGrid::update_occupancy(SceneTree *tree, Array movers) {
 			continue;
 		}
 		Node3D *n3d = Object::cast_to<Node3D>(node);
-		if (!n3d) {
+		if (!n3d || !in_active_world(n3d)) {
 			continue;
 		}
 		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
@@ -891,7 +1098,10 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 
 // --- Nearest-valid-point utility --------------------------------------------
 
-Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells) {
+Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref) {
+	// exclude_unit is optional here (see _bind_methods' DEFVAL), so
+	// world_ref is the fallback for callers that pass neither.
+	activate_for(exclude_unit, world_ref);
 	ensure_baked(tree);
 	const std::vector<Vector3i> &offsets = disc_offsets(clearance);
 	// height comes off exclude_unit the same duck-typed way find_path()
@@ -938,6 +1148,9 @@ NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vecto
 // --- Pathfinding -------------------------------------------------------------
 
 PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying) {
+	// unit is always supplied here, so the world is never ambiguous — which
+	// is why none of find_path's 24 call sites needed to change.
+	activate_for(unit);
 	ensure_baked(tree);
 
 	float clearance = get_float_prop(unit, "radius") + get_float_prop(unit, "avoidance_margin");

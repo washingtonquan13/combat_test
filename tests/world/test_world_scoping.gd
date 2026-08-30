@@ -33,7 +33,7 @@ func run() -> void:
 	_global_forms_still_see_everything()
 	_context_owns_world_state()
 	_managers_delegate_to_the_context()
-	_nav_grid_has_a_named_seam()
+	_nav_grid_is_owned_by_the_context()
 
 	_teardown_worlds()
 
@@ -213,15 +213,32 @@ func _managers_delegate_to_the_context() -> void:
 		CombatManager.encounters == context.encounters)
 
 
-## The nav grid is reached through the context even though it is still the
-## one global singleton — that accessor is the single place a later pass
-## makes it per-world, instead of 52 scattered call sites.
-func _nav_grid_has_a_named_seam() -> void:
+## The nav grid is reached through the context, and since rung 3a it is
+## genuinely per-world rather than one shared grid. The proof of THAT
+## needs two live worlds with different geometry and lives in
+## tests/world/test_nav_grid_worlds.gd.
+##
+## What belongs here is the half that suite cannot show: a context
+## registers its world on construction and hands it back on dispose. That
+## symmetry is what makes a grid die with the world whose geometry it
+## points into, rather than outliving it holding raw CollisionShape3D
+## pointers — the native crash invalidate() was written to paper over.
+func _nav_grid_is_owned_by_the_context() -> void:
 	var root := Node3D.new()
 	_root.add_child(root)
 	var context := WorldContext.new(root)
+
 	check("the context exposes a navigation grid", context.navigation_grid() != null)
-	check("which is the engine singleton for now",
+	check("still the engine singleton object, now keeping one grid per world",
 		context.navigation_grid() == NavigationGrid)
+	# Held because a World3D cannot be walked back to a node, so this is
+	# the only record of where this world's geometry gets scanned from.
+	check("and it remembers the root its grid is scanned from",
+		context.world_root == root)
+
+	context.dispose()
+	check("disposing hands the world back, leaving nothing pointing into it",
+		context.world_root == null)
+
 	context.free()
 	root.queue_free()

@@ -171,15 +171,15 @@ func _teardown_current_world(capture_party: bool) -> void:
 	_current_world.queue_free()
 	_current_world = null
 
-	# NavigationGrid is an Engine singleton (see its own header) — it
-	# outlives every world and caches raw CollisionShape3D* pointers
-	# into whichever world it last scanned. Without this, those
-	# pointers dangle into the geometry just freed above, and the next
-	# query that lazily rasterizes a not-yet-touched chunk dereferences
-	# freed memory — a real native crash this project shipped (no
-	# GDScript error precedes it; shows as a bare signal 11). This
-	# forces the next ensure_baked() call to do a real re-scan instead
-	# of trusting stale state.
+	# Belt and braces. WorldContext.dispose() above is what actually
+	# retires this world's grid now (it calls NavigationGrid
+	# .unregister_world, which drops the raw CollisionShape3D* into the
+	# geometry freed just above — the dangling pointers behind a real
+	# native crash this project shipped, a bare signal 11 with no
+	# GDScript error before it). This line covers the one path that
+	# misses: a world that never got a context, because it wasn't a
+	# Node3D. Harmless otherwise — it only forces the next query to
+	# re-scan.
 	NavigationGrid.invalidate()
 
 
