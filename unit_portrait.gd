@@ -44,6 +44,11 @@ extends Button
 ## isn't currently spawned as a real Unit at all (the overworld's party
 ## display, e.g. — see PartyManager.roster).
 @export var data: PartyMemberData
+## The group this portrait belongs to. Set by whatever built the row.
+## For a member with no live Unit it is the ONLY way back to them —
+## they exist as a record inside a group and as part of an avatar on
+## the overworld, and neither is a node this portrait could point at.
+var group: PartyGroup = null
 @export var overlay_color: Color = Color(1, 0, 0, 0.5)
 ## Border thickness, in pixels — the color itself comes from
 ## unit.selected_color (see _setup_outline), not a separate field, so a
@@ -122,20 +127,25 @@ func _ready() -> void:
 
 
 func _on_pressed() -> void:
-	if not unit:
+	if unit:
+		# A member standing in another world cannot be selected there — the
+		# selection drives orders in the world on screen. Clicking them
+		# means "go to them", so that is what it does, and the selection
+		# follows once they are in front of the player.
+		var context: WorldContext = WorldManager.context()
+		if context and not context.contains(unit):
+			if not WorldManager.focus_group(PartyManager.group_of(unit)):
+				return
+		var additive: bool = Input.is_action_pressed("select_additive")
+		SelectionManager.select(unit, additive)
 		return
 
-	# A member standing in another world can't be selected there — the
-	# selection drives orders in the world on screen. Clicking them means
-	# "go to them", so that is what it does, and the selection follows once
-	# they are actually in front of the player.
-	var context: WorldContext = WorldManager.context()
-	if context and not context.contains(unit):
-		if not WorldManager.focus_world_of(unit):
-			return
-
-	var additive: bool = Input.is_action_pressed("select_additive")
-	SelectionManager.select(unit, additive)
+	# No live Unit: this member is abstract, standing on the overworld as
+	# part of an avatar. There is nothing to select, so clicking can only
+	# mean "go to them" — and this is the one route back to a group that
+	# has no Units to click in the world either.
+	if group:
+		WorldManager.focus_group(group)
 
 
 ## How a member standing in another world reads. Purely a readout — the

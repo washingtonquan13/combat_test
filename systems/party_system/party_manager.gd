@@ -200,6 +200,26 @@ func prune_groups() -> void:
 		active_group = groups[0]
 
 
+## Everyone in the party, in whichever form their group is currently
+## in: live Units for an embodied group, records for an abstract one.
+##
+## Untyped on purpose — it is deliberately a mix, and which of the two
+## a group contributes is a property of where that group is standing,
+## not of the member. Anything that has to show or count THE WHOLE
+## PARTY wants this rather than members or roster, both of which see
+## only half of a split one.
+func everyone() -> Array:
+	var out: Array = []
+	for group in groups:
+		if group.embodied:
+			for unit in group.live_units():
+				out.append(unit)
+		else:
+			for record in group.records:
+				out.append(record)
+	return out
+
+
 # --- Membership ------------------------------------------------------
 
 func add_member(unit: Unit, into: PartyGroup = null) -> void:

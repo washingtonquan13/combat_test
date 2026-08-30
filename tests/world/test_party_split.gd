@@ -42,6 +42,7 @@ func run() -> void:
 	await _going_to_a_companion_moves_nobody()
 	await _the_overworld_takes_only_the_travellers()
 	await _two_groups_stand_on_the_overworld()
+	await _the_whole_party_stays_reachable()
 
 	WorldManager.unload()
 	await get_tree().process_frame
@@ -247,6 +248,83 @@ func _two_groups_stand_on_the_overworld() -> void:
 	check("two groups on the overworld do NOT merge",
 		PartyManager.groups_in_area(&"overworld").size() == 2,
 		"merged into %d" % PartyManager.groups_in_area(&"overworld").size())
+
+
+## Nobody vanishes from the party just because they are somewhere the
+## player is not, and there is always a way back to them.
+##
+## Both halves of this shipped broken. The party panel listed live Units
+## only, so a split party showed NOTHING — a group left behind produces
+## no member_added (it was never removed) and the fall-back that drew
+## records only ran when nobody at all was embodied. With no rows there
+## was nothing to click, and so no way back to the half left behind.
+func _the_whole_party_stays_reachable() -> void:
+	# Reunite first, so this case does not inherit whatever shape the
+	# previous one left the party in. Each group is commanded in turn and
+	# walked to the same area, where arriving merges them.
+	for group in PartyManager.groups.duplicate():
+		if WorldManager.focus_group(group):
+			WorldManager.load_area(HOME)
+			await get_tree().process_frame
+	await get_tree().process_frame
+
+	var everyone: Array = PartyManager.everyone()
+	check("SETUP: a party to lose track of", everyone.size() >= 2,
+		"%d member(s)" % everyone.size())
+	if everyone.size() < 2:
+		return
+
+	var live: Array[Unit] = []
+	for unit in PartyManager.members:
+		if is_instance_valid(unit):
+			live.append(unit)
+	if live.size() < 2:
+		check("SETUP: two embodied members to split", false)
+		return
+
+	var going: Array[Unit] = [live[0]]
+	var left_behind: Unit = live[1]
+	WorldManager.load_area(&"overworld", &"", going)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var after: Array = PartyManager.everyone()
+	check("a split party still accounts for everybody",
+		after.size() == everyone.size(),
+		"%d before, %d after" % [everyone.size(), after.size()])
+
+	# The panel rendered from members alone, which is exactly the half
+	# that is empty in the direction that broke.
+	var has_record: bool = false
+	var has_unit: bool = false
+	for entry in after:
+		if entry is Unit:
+			has_unit = true
+		else:
+			has_record = true
+	check("and reports BOTH forms, not just the embodied half",
+		has_unit and has_record,
+		"units=%s records=%s" % [has_unit, has_record])
+
+	# The way back to an abstract group: it has no Unit anywhere, so
+	# nothing in the world can be clicked to reach it.
+	var abstract_group: PartyGroup = null
+	for group in PartyManager.groups:
+		if not group.embodied and not group.records.is_empty():
+			abstract_group = group
+			break
+	check("the travelling group really did abstract", abstract_group != null)
+
+	check("and the one left behind is still embodied where it was",
+		is_instance_valid(left_behind) and PartyManager.is_member(left_behind))
+
+	if is_instance_valid(left_behind):
+		var back: bool = WorldManager.focus_group(PartyManager.group_of(left_behind))
+		await get_tree().process_frame
+		check("a group can be reached by group alone, with no node to click",
+			back and WorldManager.context() != null
+				and WorldManager.context().contains(left_behind),
+			"no route back to the half left behind")
 
 
 # --- helpers ---------------------------------------------------------

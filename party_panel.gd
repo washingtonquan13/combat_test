@@ -89,16 +89,64 @@ func _ready() -> void:
 	_rebuild_core.call_deferred()
 
 
+## Every member of every group, in whichever form each group is in.
+##
+## Was "every live Unit", which silently emptied the panel the moment
+## the party could split: a group left behind in another world is still
+## a member but produces no member_added (it was never removed), and the
+## abstract branch below only ran when NOBODY was embodied. So a split
+## party showed nothing at all — and with nothing to click, no way back
+## to the half you left.
 func _rebuild_core() -> void:
-	for unit in PartyManager.members:
-		_add_core_slot(unit)
+	for entry in PartyManager.everyone():
+		if entry is Unit:
+			_add_core_slot(entry)
+		else:
+			_add_data_slot(entry)
 	_sort_rows()
 	_update_visibility()
 	_mark_absent_members()
 
 
-func _on_world_focused(_world: Node) -> void:
+## Reconciles the rows against PartyManager.everyone() without tearing
+## down the ones already right — a full rebuild would destroy each
+## summoner's live fan of chips, which nothing would rebuild.
+func _sync_rows() -> void:
+	var wanted: Array = PartyManager.everyone()
+
+	for key in _core_rows.keys():
+		if not wanted.has(key):
+			_drop_row(key)
+
+	for entry in wanted:
+		if entry in _core_rows:
+			continue
+		if entry is Unit:
+			_add_core_slot(entry)
+		else:
+			_add_data_slot(entry)
+
+	_sort_rows()
+	_update_visibility()
 	_mark_absent_members()
+
+
+## Untyped key: a row is keyed by a Unit or by a PartyMemberData, and
+## _remove_core_slot only accepts the first.
+func _drop_row(key) -> void:
+	if key not in _core_rows:
+		return
+	var row: Control = _core_rows[key]
+	if is_instance_valid(row):
+		row.queue_free()
+	_core_rows.erase(key)
+	_summon_fans.erase(key)
+
+
+func _on_world_focused(_world: Node) -> void:
+	# Not just a re-marking: a focus switch changes which groups are
+	# embodied and which are abstract, so rows appear and disappear.
+	_sync_rows()
 
 
 ## Dims the members who are standing in some other world. With the party
@@ -107,8 +155,12 @@ func _on_world_focused(_world: Node) -> void:
 ## everyone is rather than having to remember.
 func _mark_absent_members() -> void:
 	var context: WorldContext = WorldManager.context()
+	var area: AreaDefinition = WorldManager.current_area()
 	for key in _core_rows:
 		if not (key is Unit) or not is_instance_valid(key):
+			# A record row: whether it is "elsewhere" is a question about
+			# its GROUP, since it has no node to locate.
+			_mark_record_row(key, area)
 			continue
 		var row: Node = _core_rows[key]
 		if not is_instance_valid(row) or row.get_child_count() == 0:
@@ -145,11 +197,7 @@ func _on_leader_changed(_unit: Unit) -> void:
 ## of spawning (spawns_party() -> false, the overworld) and this is the
 ## ONLY signal telling the panel to render data-only rows instead.
 func _on_world_loaded(_world: Node) -> void:
-	if PartyManager.members.is_empty() and not PartyManager.roster.is_empty():
-		for record in PartyManager.roster:
-			_add_data_slot(record)
-		_sort_rows()
-		_update_visibility()
+	_sync_rows()
 
 
 ## PartyManager.clear_members() deliberately emits no per-unit signals
@@ -204,6 +252,7 @@ func _add_core_slot(unit: Unit) -> void:
 	# reads unit immediately (portrait texture, signal hookups). Same
 	# requirement initiative_row.gd's own _add_slot already follows.
 	portrait.unit = unit
+	portrait.group = PartyManager.group_of(unit)
 	row.add_child(portrait)
 	portrait.set_fit_scale(0.5)
 
@@ -231,6 +280,8 @@ func _add_data_slot(record: PartyMemberData) -> void:
 
 	var portrait: Button = slot_scene.instantiate()
 	portrait.data = record
+	# The route back to a member with no Unit anywhere to click.
+	portrait.group = _group_holding(record)
 	row.add_child(portrait)
 	portrait.set_fit_scale(0.5)
 
@@ -307,3 +358,23 @@ func _on_summon_died(summon: Unit) -> void:
 
 func _update_visibility() -> void:
 	visible = not _core_rows.is_empty()
+
+
+func _mark_record_row(key, area: AreaDefinition) -> void:
+	var row: Node = _core_rows.get(key)
+	if not is_instance_valid(row) or row.get_child_count() == 0:
+		return
+	var portrait: Node = row.get_child(0)
+	if not portrait.has_method("set_elsewhere"):
+		return
+	var group: PartyGroup = portrait.group
+	portrait.set_elsewhere(area == null or group == null or group.area_id != area.id)
+
+
+## Which group currently holds this record. Records live in exactly one
+## group, so the first match is the answer.
+func _group_holding(record: PartyMemberData) -> PartyGroup:
+	for group in PartyManager.groups:
+		if group.records.has(record):
+			return group
+	return null

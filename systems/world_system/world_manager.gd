@@ -717,6 +717,34 @@ func spawn_parent() -> Node:
 ## this from inside its own _ready(). False outside of an active
 ## load_world() call, for the very first load (nothing to restore yet),
 ## and for a world that opts out via spawns_party() -> false.
+## Moves the player's attention to a GROUP, wherever it is standing,
+## and makes it the one being commanded. Moves nobody.
+##
+## The group form matters because a group that is ABSTRACT has no node
+## to look up: on the overworld its people are records drawn as one
+## avatar, so focus_world_of has nothing to be handed. Clicking such a
+## member's portrait is the only way back to them.
+func focus_group(group: PartyGroup) -> bool:
+	if group == null or not can_load():
+		return false
+
+	var resident: ResidentWorld = _residents.get(group.area_id)
+	if not is_instance_valid(resident):
+		return false
+
+	PartyManager.active_group = group
+	if resident == _focused:
+		# Already looking at their world, but which group is being
+		# commanded just changed, and that is what draws the overworld.
+		world_focused.emit(resident.world)
+		return true
+
+	_leave_focused()
+	# No travellers: looking at people is not travelling to them.
+	_focus(resident)
+	return true
+
+
 ## Moves the player's attention to whichever resident world contains
 ## `node`, moving nobody. Returns false if that world isn't loaded, or if
 ## a switch isn't allowed right now.
