@@ -90,6 +90,15 @@ func _a_loaded_world_gets_its_own_viewport() -> void:
 	check("and carries a 3D audio listener",
 		(viewport as SubViewport).audio_listener_enable_3d)
 
+	# Regression: the container defaults to STOP, which consumes the mouse
+	# event in the ROOT viewport's GUI pass — so anything outside the world
+	# view stops receiving _unhandled_input at all. That silently killed
+	# drag-select, which is a HUD Control by design. Nothing else in the
+	# game noticed, which is exactly why this is worth an assertion.
+	check("the view passes the mouse on instead of swallowing it",
+		_current_view_container().mouse_filter == Control.MOUSE_FILTER_PASS,
+		"root-viewport _unhandled_input would be starved of mouse events")
+
 	check("the world's own camera is the focused camera",
 		WorldManager.focused_camera() != null,
 		"no camera reachable — HUD raycasts would all miss")
@@ -134,3 +143,10 @@ func _restore_host() -> void:
 		_indicator.queue_free()
 	if is_instance_valid(_host):
 		_host.queue_free()
+
+
+## The SubViewportContainer showing the focused world — the viewport's own
+## parent, reached without WorldManager having to expose it.
+func _current_view_container() -> SubViewportContainer:
+	var viewport: Viewport = WorldManager.focused_viewport()
+	return viewport.get_parent() as SubViewportContainer if viewport else null

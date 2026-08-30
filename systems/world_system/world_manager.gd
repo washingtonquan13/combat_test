@@ -42,6 +42,25 @@ extends Node
 signal world_loading(scene: PackedScene)
 signal world_loaded(world: Node)
 
+## One world's viewport, as a scene so its settings stay editable rather
+## than buried in code. Three of them are load-bearing and none is the
+## default, so they are recorded here — .tscn has no comment syntax to
+## hold the reasoning itself:
+##
+## - own_world_3d: the whole point. World3D is per-viewport, and it is
+##   what every world-scoped system in this project keys off.
+## - physics_object_picking: unit click-select is CollisionObject3D
+##   input_event (see unit.gd), which is per-viewport. Off means units
+##   silently stop being clickable.
+## - mouse_filter = PASS, not the SubViewportContainer default of STOP.
+##   STOP consumes the mouse event in the ROOT viewport's GUI pass, so
+##   nothing outside the world view ever reaches _unhandled_input again —
+##   which broke drag-select, the one mouse tool that legitimately lives
+##   on the HUD canvas rather than inside the world. PASS forwards into
+##   the SubViewport exactly the same way (forwarding is only skipped for
+##   IGNORE) while leaving the event unhandled for the root, restoring
+##   the pre-viewport behaviour where the click router and the drag box
+##   both saw the same event.
 const WORLD_VIEW_SCENE: PackedScene = preload("res://systems/world_system/world_view.tscn")
 
 var _scene_root: Node = null
