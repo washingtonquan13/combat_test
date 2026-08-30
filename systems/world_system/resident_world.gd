@@ -65,6 +65,14 @@ func is_earned() -> bool:
 		if is_instance_valid(encounter) and encounter.is_running:
 			return true
 
+	# By GROUP, not by live Units. A group standing on the overworld is
+	# ABSTRACT - drawn as an avatar, with no Units for contains() to find
+	# - so counting units alone freed the very world the player had to go
+	# back to in order to reach them, and stranded them.
+	for group in PartyManager.groups:
+		if group.area_id == area_id() and not group.is_empty():
+			return true
+
 	for unit in PartyManager.members:
 		if is_instance_valid(unit) and context.contains(unit):
 			return true

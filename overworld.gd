@@ -106,6 +106,15 @@ func sync_avatars() -> void:
 	# camera is jumping to different people somewhere else on the map, and
 	# sliding across the whole overworld to get there reads as a glitch
 	# rather than as a move.
+	# Groups standing around are scenery to each other, not obstacles.
+	# Without this, walking the active group past the one waiting on the
+	# overworld means shoving it across the map.
+	var bodies: Array = _avatars.values()
+	for i in bodies.size():
+		for j in range(i + 1, bodies.size()):
+			if is_instance_valid(bodies[i]) and is_instance_valid(bodies[j]):
+				bodies[i].add_collision_exception_with(bodies[j])
+
 	if active and _camera.target != active:
 		_camera.target = active
 		_camera.snap_to_target()

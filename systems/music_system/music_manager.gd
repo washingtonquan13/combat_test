@@ -129,6 +129,11 @@ func _ready() -> void:
 	# registration order, and referencing an autoload that doesn't exist
 	# yet here would be a hard error.
 	WorldManager.world_loaded.connect(_on_world_loaded)
+	# Re-entering a world that stayed loaded emits world_focused and NOT
+	# world_loaded, and so does switching to a group standing somewhere
+	# else. Both change which area the player is in, which is the only
+	# thing this manager was ever reacting to.
+	WorldManager.world_focused.connect(_on_world_focused)
 
 
 ## Fires on every real world load — see WorldManager.load_world()'s own
@@ -142,12 +147,42 @@ func _on_world_loaded(_world: Node) -> void:
 	start_exploration_theme()
 
 
+## The player is now looking at a different world, which may be one
+## with a fight already running in it. Picks the track that world
+## deserves rather than assuming exploration — play_track()'s own
+## already-playing guard makes this free when nothing really changed.
+func _on_world_focused(_world: Node) -> void:
+	if CombatManager.in_combat:
+		_play_area_or_fallback(func(area): return area.combat_track, COMBAT_TRACK_ID)
+	else:
+		start_exploration_theme()
+
+
 func start_exploration_theme() -> void:
 	_play_area_or_fallback(func(area): return area.exploration_track, EXPLORATION_TRACK_ID)
 
 
-func _on_combat_started(_turn_order: Array[Unit]) -> void:
+## Only a fight in the world on SCREEN. Fights run in worlds the player
+## is not looking at now (see WorldManager residency), and scoring an
+## unseen skirmish over the area the player is actually walking around
+## in is the audible half of the same mistake combat mode was making.
+func _on_combat_started(turn_order: Array[Unit]) -> void:
+	if not _is_on_screen(turn_order):
+		return
 	_play_area_or_fallback(func(area): return area.combat_track, COMBAT_TRACK_ID)
+
+
+## True when any of these units is in the world being looked at. No
+## world loaded means nowhere else to be, so everything counts — which
+## keeps a fight staged outside the world system behaving as it did.
+func _is_on_screen(units: Array[Unit]) -> bool:
+	var context: WorldContext = WorldManager.context()
+	if context == null:
+		return true
+	for unit in units:
+		if is_instance_valid(unit) and context.contains(unit):
+			return true
+	return false
 
 
 ## Resumes the exploration theme rather than stopping outright — see
@@ -159,6 +194,10 @@ func _on_combat_started(_turn_order: Array[Unit]) -> void:
 ## arrive in, so there's only ever one caller starting it back up, never
 ## two racing each other.
 func _on_combat_ended(_winning_faction: StringName) -> void:
+	# Some other fight the player IS in is still going — a split party can
+	# be in two at once, and the one that ended may not be theirs at all.
+	if CombatManager.in_combat:
+		return
 	_play_area_or_fallback(func(area): return area.exploration_track, EXPLORATION_TRACK_ID)
 
 

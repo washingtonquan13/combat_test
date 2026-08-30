@@ -326,6 +326,22 @@ func _the_whole_party_stays_reachable() -> void:
 				and WorldManager.context().contains(left_behind),
 			"no route back to the half left behind")
 
+		# THE STRANDING BUG, and it needs a real TRAVEL to reproduce:
+		# unearned worlds are retired by load_world, not by looking away,
+		# so merely focusing elsewhere never tested it. Residency counted
+		# live Units, and a group on the overworld has none — it is an
+		# avatar drawn from records — so the first trip through a door
+		# freed the very world the player had to return to to reach them.
+		WorldManager.load_area(AWAY)
+		await get_tree().process_frame
+		check("the world holding the ABSTRACT group survives a trip elsewhere",
+			WorldManager.is_area_resident(&"overworld"),
+			"freed - the group standing on it was stranded")
+		check("and it earned that without anyone pinning it",
+			not WorldManager.is_area_pinned(&"overworld"))
+		check("so they can still be reached",
+			abstract_group != null and WorldManager.focus_group(abstract_group))
+
 
 # --- helpers ---------------------------------------------------------
 

@@ -39,6 +39,7 @@ func run() -> void:
 		await _a_stalled_fight_asks_for_the_player()
 		_it_does_not_drag_the_player_there()
 		_combat_mode_belongs_to_the_fight_on_screen()
+		_indicators_do_not_draw_across_worlds()
 		await _going_there_settles_it()
 		_a_fight_only_detains_the_people_in_it()
 
@@ -132,6 +133,32 @@ func _combat_mode_belongs_to_the_fight_on_screen() -> void:
 	check("so they are free to go and answer it",
 		WorldManager.can_load(),
 		"locked out of travelling to the fight that wants them")
+
+
+## Indicators draw for "the active unit", which OUT of combat is the
+## selection (cleared on a focus switch) but IN combat is the focused
+## encounter's current unit — and that encounter can be running in a
+## world the player has looked away from. A line of sight, a movement
+## range or a jump arc for somebody in another area then keeps being
+## drawn over the area now on screen, pointing at geometry that is not
+## there.
+##
+## Asserted at the shared base rather than per indicator: every 3D
+## indicator inherits _get_active_unit, so this is the one place the
+## guard can live and the one place it can be checked.
+func _indicators_do_not_draw_across_worlds() -> void:
+	check("SETUP: the fight the player is not watching owns current_unit",
+		CombatManager.in_combat and CombatManager.current_unit == _stayer,
+		"current_unit is %s" % str(CombatManager.current_unit))
+
+	var probe := IndicatorBase.new()
+	_root.add_child(probe)
+	var drawn_for: Unit = probe._get_active_unit()
+	probe.queue_free()
+
+	check("indicators draw for nobody while their unit is in another world",
+		drawn_for == null,
+		"drawing for %s, who is not in the world on screen" % str(drawn_for))
 
 
 func _going_there_settles_it() -> void:
