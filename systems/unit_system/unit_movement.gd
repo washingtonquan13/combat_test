@@ -567,7 +567,7 @@ func ground_if_flying() -> void:
 ## exact shape.
 func land(controlled: bool = false) -> void:
 	var exclude: Array[RID] = []
-	for unit in UnitQuery.all_units(_owner.get_tree()):
+	for unit in UnitQuery.all_units_near(_owner):
 		exclude.append(unit.get_rid())
 
 	var space_state := _owner.get_world_3d().direct_space_state

@@ -41,8 +41,20 @@ signal unit_left_combat(unit: Unit)
 ## combat_ai.gd's MAX_MOVE_ATTEMPTS_PER_TURN.
 const AGGRO_PULL_RADIUS: float = 10.0
 
-## Every fight currently running.
-var encounters: Array[Encounter] = []
+## Every fight currently running IN THE LOADED WORLD — backed by its
+## WorldContext rather than stored here, so fights belong to a world and
+## end with it. Arrays are references in GDScript, so append/erase through
+## this property mutate the context's own list; no writer changes.
+##
+## Falls back to a local array when no world is loaded, which is both the
+## main menu and the headless test harness — neither has a world, and both
+## legitimately start fights.
+var encounters: Array[Encounter]:
+	get:
+		var context: WorldContext = WorldManager.context()
+		return context.encounters if context else _detached_encounters
+
+var _detached_encounters: Array[Encounter] = []
 
 ## The one the player is currently commanding, and what every legacy
 ## accessor below reports on. Set when an encounter the player is part of
@@ -123,7 +135,7 @@ func start_combat_from_hostile_act(attacker: Unit, target: Unit) -> Encounter:
 		return null
 
 	var roster: Array[Unit] = [attacker, target]
-	for unit in UnitQuery.living_units(attacker.get_tree(), roster):
+	for unit in UnitQuery.living_units_near(attacker, roster):
 		if unit.in_combat():
 			continue
 		var joins_attacker: bool = unit.faction == attacker.faction and unit.distance_to(attacker) <= AGGRO_PULL_RADIUS

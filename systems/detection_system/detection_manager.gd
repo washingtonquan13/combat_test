@@ -107,6 +107,13 @@ func scan() -> void:
 		for subject in units:
 			if subject == observer or not subject.is_player_controlled():
 				continue
+			# Same world only. The sweep itself is global (one manager for
+			# however many worlds are loaded), but perception is not — an
+			# NPC in one area has no business noticing someone in another,
+			# and with two worlds authored around the same origin they can
+			# be metres apart in raw coordinates.
+			if subject.get_world_3d() != observer.get_world_3d():
+				continue
 			if _consider(observer, subject):
 				break
 

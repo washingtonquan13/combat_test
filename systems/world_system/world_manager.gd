@@ -44,6 +44,9 @@ signal world_loaded(world: Node)
 
 var _scene_root: Node = null
 var _current_world: Node = null
+## Per-world state (fights, surfaces, nav grid) — see WorldContext. Built
+## with the world, disposed with it.
+var _context: WorldContext = null
 ## The AreaDefinition behind the currently loaded world, if it was loaded
 ## via load_area() — null for a world loaded through the raw load_world()
 ## primitive (nothing calls that directly anymore, but it stays a valid
@@ -132,6 +135,14 @@ func unload() -> bool:
 func _teardown_current_world(capture_party: bool) -> void:
 	if not _current_world:
 		return
+
+	# BEFORE anything else touches the outgoing world. Ends its fights and
+	# drops its surfaces while the nodes they reference are still valid —
+	# see WorldContext.dispose(), and the leak it exists to close.
+	if _context:
+		_context.dispose()
+		_context.queue_free()
+		_context = null
 
 	if capture_party:
 		# A no-op when the outgoing world never spawned the party in the
@@ -237,6 +248,12 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 
 	_scene_root.add_child(world)
 	_current_world = world
+
+	# Built immediately after the world enters the tree, since World3D —
+	# the context's identity — only exists once it has a viewport.
+	_context = WorldContext.new(world if world is Node3D else null)
+	_context.name = "WorldContext"
+	add_child(_context)
 	if world.has_method("get_base_mode"):
 		GameMode.set_base_mode(world.get_base_mode())
 
@@ -341,6 +358,21 @@ func pending_spawn_point_name() -> StringName:
 ## get_avatar() the CURRENT world happens to expose.
 func current_world() -> Node:
 	return _current_world
+
+
+## The loaded world's own state — its fights, its surfaces, its navigation
+## grid. Null when nothing is loaded (the main menu). See WorldContext.
+func context() -> WorldContext:
+	return _context
+
+
+## The context owning `node`, or the current one. A single-world lookup
+## today; the shape a later multi-world pass needs, and the reason callers
+## should reach for this instead of context() where a node is in hand.
+func context_for(node: Node) -> WorldContext:
+	if _context and _context.contains(node):
+		return _context
+	return _context
 
 
 ## Where a spawned Node belongs — the loaded world if one exists, the

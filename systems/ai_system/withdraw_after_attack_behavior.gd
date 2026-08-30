@@ -36,7 +36,7 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 		return []
 
 	var hostiles: Array[Unit] = []
-	for other in UnitQuery.living_units(unit.get_tree()):
+	for other in UnitQuery.living_units_near(unit):
 		if unit.is_hostile_to(other):
 			hostiles.append(other)
 	if hostiles.is_empty():

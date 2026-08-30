@@ -265,7 +265,7 @@ static func _enumerate_baseline_candidates(unit: Unit, tree: SceneTree) -> Array
 	var candidates: Array[AiPlan] = []
 
 	var hostiles: Array[Unit] = []
-	for other in UnitQuery.living_units(tree):
+	for other in UnitQuery.living_units_near(unit):
 		if unit.is_hostile_to(other):
 			hostiles.append(other)
 	if hostiles.is_empty():
@@ -771,7 +771,7 @@ static func incoming_threat(unit: Unit, position: Vector3) -> float:
 	unit.global_position = position
 
 	var threat: float = 0.0
-	for hostile in UnitQuery.living_units(unit.get_tree()):
+	for hostile in UnitQuery.living_units_near(unit):
 		if not unit.is_hostile_to(hostile):
 			continue
 
@@ -820,7 +820,7 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 	unit.global_position = position
 
 	var threat: float = 0.0
-	for hostile in UnitQuery.living_units(unit.get_tree()):
+	for hostile in UnitQuery.living_units_near(unit):
 		if not unit.is_hostile_to(hostile):
 			continue
 
@@ -1036,7 +1036,7 @@ static func _ground_y_at(unit: Unit, position: Vector3) -> float:
 		return position.y
 
 	var exclude: Array[RID] = []
-	for other in UnitQuery.all_units(unit.get_tree()):
+	for other in UnitQuery.all_units_near(unit):
 		# Skip anything already on its way out. A queue_free()d unit stays
 		# in its group for the rest of the frame but its physics RID is
 		# already gone, and handing a dangling RID to the physics server
