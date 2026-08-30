@@ -62,7 +62,7 @@ var enabled: bool = true
 
 
 func _ready() -> void:
-	CombatManager.combat_ended.connect(_on_combat_ended)
+	CombatManager.combat_ended_in_world.connect(_on_combat_ended_in_world)
 
 
 func _process(delta: float) -> void:
@@ -316,6 +316,15 @@ func _react_to(observer: Unit, subject: Unit, state: UnitAwareness.State) -> voi
 ## Everyone forgets when the fight is over, so the next encounter starts
 ## fresh instead of with every survivor permanently alerted to everyone
 ## they have ever seen.
-func _on_combat_ended(_winning_faction: StringName) -> void:
+## Only where the fight was. Every unit in every world forgetting
+## because a battle ended somewhere else means an ambush two areas away
+## is quietly undone by an unrelated skirmish finishing.
+##
+## Scoped by the ENDED FIGHT's world, not the focused one: the fight
+## that ended may well be in a world nobody was watching, which is the
+## whole reason the encounter has to remember where it was.
+func _on_combat_ended_in_world(world: World3D) -> void:
 	for unit in UnitQuery.living_units(get_tree()):
+		if world != null and unit.is_inside_tree() and unit.get_world_3d() != world:
+			continue
 		unit.awareness().reset()

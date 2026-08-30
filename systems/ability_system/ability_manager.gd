@@ -80,8 +80,13 @@ func set_aim_height_override(y: float) -> void:
 	has_aim_height_override = true
 
 
+## Follows the COMMANDED unit, the same one every indicator and the
+## hotbar follow (see PlayerInteractionState.get_active_unit). Reading
+## CombatManager.current_unit meant watching the focused encounter's
+## combatant — nobody at all out of combat, and somebody in another
+## world once the party could be in two places.
 func _watch_current_unit() -> void:
-	var unit: Unit = CombatManager.current_unit
+	var unit: Unit = PlayerInteractionState.get_active_unit()
 	if unit == _watched_unit:
 		return
 	_unwatch_unit()

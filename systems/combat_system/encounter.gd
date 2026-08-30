@@ -109,6 +109,10 @@ var current_unit: Unit:
 			return turn_order[_turn_index]
 		return null
 
+## See world_3d(). Set from the first combatant adopted and never
+## cleared, since a fight does not move worlds.
+var _world: World3D = null
+
 var _turn_index: int = -1
 var _pending_delay_positions: int = -1
 
@@ -212,7 +216,16 @@ func begin(combatants: Array[Unit], skip_first_action_for: Unit = null) -> void:
 ## Claims a unit for this encounter — the per-unit signal wiring plus the
 ## back-reference that lets any code holding a Unit ask which fight it is
 ## in without searching every encounter (see Unit.encounter).
+## The world this fight is happening in, remembered rather than derived
+## on demand: finish() releases and CLEARS turn_order before announcing
+## the end, so by the time anyone reacts there is nobody left to ask.
+func world_3d() -> World3D:
+	return _world
+
+
 func _adopt(unit: Unit) -> void:
+	if _world == null and unit.is_inside_tree():
+		_world = unit.get_world_3d()
 	unit.encounter = self
 	if not unit.died.is_connected(_on_unit_died):
 		unit.died.connect(_on_unit_died)

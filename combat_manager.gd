@@ -40,6 +40,12 @@ signal unit_left_combat(unit: Unit)
 ## fight visible instead of silently stalled.
 signal attention_changed()
 
+## Where a fight just ended. combat_ended carries only the winner, and
+## anything reacting per-world needs to know WHICH world — asking the
+## encounter is too late, since finish() clears its combatants before
+## announcing (see Encounter.world_3d).
+signal combat_ended_in_world(world: World3D)
+
 ## How close another unit needs to be to the attacker OR the target (same
 ## faction as whichever one it's near) to get pulled into a freshly
 ## triggered fight. A plain tunable constant, same convention as
@@ -274,10 +280,12 @@ func restore_combat(state: Dictionary) -> Encounter:
 ## "is anything happening anywhere", which was the same question while
 ## there was one world and is a different one now: a battle two areas
 ## away is no reason for nothing to be able to start here.
-func combat_running_in_world_of(unit: Unit) -> bool:
-	if not is_instance_valid(unit) or not unit.is_inside_tree():
+## Takes any Node3D, not just a Unit: an overlay drawn into a world wants
+## the same question about the world it is drawn in.
+func combat_running_in_world_of(node: Node3D) -> bool:
+	if not is_instance_valid(node) or not node.is_inside_tree():
 		return false
-	var world: World3D = unit.get_world_3d()
+	var world: World3D = node.get_world_3d()
 	for encounter in all_encounters():
 		if not is_instance_valid(encounter) or not encounter.is_running:
 			continue
@@ -374,7 +382,9 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 	# This fight ending can change nothing else, but focus may have been
 	# waiting on it — re-check the rest either way.
 	_refresh_mode_claims()
+	var where: World3D = encounter.world_3d()
 	combat_ended.emit(winning_faction)
+	combat_ended_in_world.emit(where)
 	encounter.queue_free()
 
 

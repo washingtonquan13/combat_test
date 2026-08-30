@@ -150,8 +150,18 @@ func find_assisting_companion(skill_name: String) -> Unit:
 ## defined interaction with the turn/initiative state machine yet, and
 ## nothing about talking to an ally requires it to work mid-fight.
 func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -> void:
-	if CombatManager.in_combat or StashManager.is_active() or not root:
+	if not root or StashManager.is_active():
 		return
+
+	# THE SPEAKER, not the world. Asked as CombatManager.in_combat, a
+	# battle anywhere silenced everyone everywhere — so a group standing
+	# in a quiet area could not talk to anybody while another group was
+	# fighting two areas away. The reason to refuse is that a full-screen
+	# conversation has no defined interaction with a turn/initiative state
+	# machine, and that reason is about the people in the conversation.
+	for participant in conversation_participants.values():
+		if participant is Unit and (participant as Unit).in_combat():
+			return
 
 	transcript.clear()
 	used_choices.clear()
