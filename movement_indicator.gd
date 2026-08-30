@@ -195,7 +195,10 @@ func _handle_altitude_input(active_unit: Unit) -> void:
 func _flying_units_for_altitude_control(active_unit: Unit) -> Array[Unit]:
 	if not active_unit:
 		return []
-	if CombatManager.in_combat:
+	# The COMMANDED unit's own situation, not whether a fight exists
+	# somewhere: a flier standing outside a battle should still be
+	# adjustable along with the rest of the selection.
+	if active_unit.in_combat():
 		var solo: Array[Unit] = []
 		if active_unit.is_flying():
 			solo.append(active_unit)

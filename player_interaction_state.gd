@@ -42,21 +42,25 @@ extends RefCounted
 ## unit-targeted ability casting — none of which has any OTHER
 ## combat-only gate, which is what makes widening this one function
 ## enough to make all of them correctly work out of combat too.
+## The selection, always — the global in_combat branch that used to sit
+## here is gone.
+##
+## It was redundant with machinery that already exists: SelectionManager
+## auto-selects on turn_started, so during a fight the selection IS the
+## current unit. What the branch actually did was make a party member
+## standing OUTSIDE a fight unselectable in every sense that matters —
+## their abilities, their indicators and their targeting all silently
+## belonged to whoever was taking a turn somewhere else.
+##
+## Still null during an enemy turn, as before: the player's own selected
+## unit is in that fight and it is not their turn, so is_commandable()
+## refuses it. Same answer, reached by asking about the unit rather than
+## about the world.
 static func get_active_unit() -> Unit:
-	var unit: Unit
-	if CombatManager.in_combat:
-		unit = CombatManager.current_unit
-	else:
-		unit = SelectionManager.selected_units[0] if not SelectionManager.selected_units.is_empty() else null
-
-	if not unit or not is_instance_valid(unit) or not unit.is_alive():
-		return null
-	if not unit.is_player_controlled():
-		return null
-	if not unit.can_act():
-		return null
-
-	return unit
+	for unit in SelectionManager.selected_units:
+		if is_instance_valid(unit) and unit.is_commandable():
+			return unit
+	return null
 
 
 ## Whether ANY ability is currently armed via AbilityManager — used by

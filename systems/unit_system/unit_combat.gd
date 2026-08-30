@@ -254,6 +254,9 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		"attacker": _owner,
 		"target": target,
 		"ability": ability,
+		# can_act(), the STRICT form, which still counts walking: a unit
+		# mid-path cannot also swing. Only being ORDERED is permissive
+		# while moving (see UnitActionState.can_be_commanded).
 		"busy": not _owner.can_act(),
 		"invalid_target": false,
 		"in_range": false,
@@ -266,6 +269,22 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	}
 
 	if result.busy:
+		return result
+
+	# Turn order, as a hard precondition rather than a UI convention.
+	#
+	# There was no check here at all: out-of-turn use was prevented only
+	# because the hotbar never showed a non-current unit's abilities. Now
+	# that the bar follows the SELECTION, that accident is gone and this
+	# has to be real — and it should have been anyway, since every AI
+	# attack comes through this same path and nothing else was stopping a
+	# misbehaving caller from acting out of turn.
+	#
+	# Only binding on a unit actually IN a fight, the same way move_to()
+	# treats it: standing outside a battle means acting freely while it
+	# rages.
+	if _owner.in_combat() and not _owner.is_my_turn():
+		result["busy"] = true
 		return result
 
 	# A structural mismatch, independent of range or turn economy — an

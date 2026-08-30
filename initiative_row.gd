@@ -44,18 +44,62 @@ func _ready() -> void:
 	CombatManager.turn_started.connect(_on_turn_started)
 	CombatManager.combat_ended.connect(_on_combat_ended)
 	CombatManager.unit_joined_combat.connect(_on_unit_joined_combat)
+	# Which fight this row is about changes when the SELECTION changes,
+	# not only when a fight starts — commanding a party member who is not
+	# in the battle should not leave somebody else's initiative order on
+	# screen, and with a split party that order can belong to another
+	# world entirely.
+	SelectionManager.selection_changed.connect(_on_selection_changed)
 
 
-func _on_combat_started(turn_order: Array[Unit]) -> void:
-	_clear_all()
-	for unit in turn_order:
-		_add_slot(unit)
+## The fight the COMMANDED unit is in, or null when it is not in one.
+##
+## Unit.encounter, not CombatManager.turn_order: the latter is the
+## FOCUSED encounter's order, which has nothing to do with whoever the
+## player is actually directing. Reads the selection rather than
+## PlayerInteractionState.get_active_unit() on purpose — during an enemy
+## turn there is no commandable unit, but the player is still watching
+## that fight and the row should stay.
+func _commanded_encounter() -> Encounter:
+	for unit in SelectionManager.selected_units:
+		if is_instance_valid(unit) and unit.encounter and unit.encounter.is_running:
+			return unit.encounter
+	return null
+
+
+func _refresh() -> void:
+	var encounter: Encounter = _commanded_encounter()
+	if encounter == null:
+		_clear_all()
+		visible = false
+		return
+
+	for unit in _slots.keys():
+		if not encounter.turn_order.has(unit):
+			var stale: Control = _slots[unit]
+			_slots.erase(unit)
+			if is_instance_valid(stale):
+				stale.queue_free()
+
+	for unit in encounter.turn_order:
+		if not _slots.has(unit):
+			_add_slot(unit)
+
+	visible = true
 	_sync_order()
+	_update_highlight()
+
+
+func _on_selection_changed(_selected_units: Array[Unit]) -> void:
+	_refresh()
+
+
+func _on_combat_started(_turn_order: Array[Unit]) -> void:
+	_refresh()
 
 
 func _on_turn_started(_unit: Unit) -> void:
-	_sync_order()
-	_update_highlight()
+	_refresh()
 
 
 func _on_combat_ended(_winning_faction: StringName) -> void:
@@ -141,8 +185,11 @@ func _update_fit_scale() -> void:
 
 
 func _sync_order() -> void:
-	for i in CombatManager.turn_order.size():
-		var unit: Unit = CombatManager.turn_order[i]
+	var encounter: Encounter = _commanded_encounter()
+	if encounter == null:
+		return
+	for i in encounter.turn_order.size():
+		var unit: Unit = encounter.turn_order[i]
 		if unit in _slots:
 			move_child(_slots[unit], i)
 
@@ -152,7 +199,8 @@ func _update_highlight() -> void:
 		var slot: Control = _slots[unit]
 		if not is_instance_valid(slot):
 			continue
-		slot.set_highlighted(unit == CombatManager.current_unit)
+		var encounter: Encounter = _commanded_encounter()
+		slot.set_highlighted(encounter != null and unit == encounter.current_unit)
 
 
 func _clear_all() -> void:

@@ -29,7 +29,22 @@ func _ready() -> void:
 	# turn starts — turn_started is CombatManager's one authoritative
 	# "a unit's turn is now live" signal, fired from both normal turn
 	# advance and the delay_turn path (see combat_manager.gd).
-	CombatManager.turn_started.connect(select)
+	#
+	# Via a handler rather than connecting select directly, because
+	# turn_started is relayed from EVERY encounter — including fights in
+	# worlds the player is not looking at, which would otherwise yank the
+	# selection to somebody on the other side of the map.
+	CombatManager.turn_started.connect(_on_turn_started)
+
+
+## Only a turn in the world on screen takes the selection. A fight
+## elsewhere runs without stealing what the player is commanding — it
+## asks for attention instead (see CombatManager's Attention section).
+func _on_turn_started(unit: Unit) -> void:
+	var context: WorldContext = WorldManager.context()
+	if context and not context.contains(unit):
+		return
+	select(unit)
 
 
 ## additive = true (e.g. shift-click) adds to the current selection instead

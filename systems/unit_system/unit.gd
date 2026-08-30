@@ -900,6 +900,37 @@ func can_act() -> bool:
 	return _action_state.can_act()
 
 
+## See UnitActionState.is_acting/can_be_commanded — a walking unit can
+## still be told to walk somewhere else.
+func is_acting() -> bool:
+	return _action_state.is_acting()
+
+
+func can_be_commanded() -> bool:
+	return _action_state.can_be_commanded()
+
+
+## Whether the PLAYER can direct this unit right now. The single answer
+## to a question that used to have two.
+##
+## It was split between SelectionManager (out of combat) and
+## CombatManager.current_unit (in combat), switched on a global
+## in_combat flag — which cannot mean anything sensible once several
+## fights can run in several worlds at once. Turn order binds a unit
+## only while it is actually IN a fight, exactly as movement already
+## treats it (see ground_click_target._command_move, the model this
+## follows): a member standing outside a battle is commandable while it
+## rages, and a combatant is not commandable off its own turn.
+func is_commandable() -> bool:
+	if not is_alive() or not is_player_controlled():
+		return false
+	if not can_be_commanded():
+		return false
+	if in_combat() and not is_my_turn():
+		return false
+	return true
+
+
 ## Sum of every active status's to-hit modifier against an incoming
 ## attack, from this unit being the DEFENDER — see
 ## StatusBehavior.modify_incoming_attack_to_hit.

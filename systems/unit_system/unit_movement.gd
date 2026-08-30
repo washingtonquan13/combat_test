@@ -113,8 +113,21 @@ func is_moving() -> bool:
 ## orders both already do this.
 ##
 func move_to(destination: Vector3) -> bool:
-	if not _owner.can_act():
+	# can_be_commanded(), not can_act(): a unit that is already walking is
+	# precisely when the player most wants to say something else. can_act()
+	# counts walking as busy, so opening with it meant every click during a
+	# walk was refused and silently dropped — no redirect, no cancel, no
+	# feedback, just a unit finishing an order the player had changed their
+	# mind about.
+	if not _owner.can_be_commanded():
 		return false
+
+	# The order in flight is REPLACED, not queued behind. Ended without
+	# announcing, since it did not finish — but still charged for the
+	# distance actually walked, which _finish_move already measures for a
+	# move cut short rather than trusting the abandoned plan's cost.
+	if _moving:
+		_finish_move(false)
 
 	var budget: float = INF
 
@@ -449,7 +462,12 @@ func physics_process(delta: float) -> void:
 	_owner.move_and_slide()
 
 
-func _finish_move() -> void:
+## announce = false ends the move without emitting movement_finished:
+## the move did not finish, it was REPLACED by a new order (see
+## move_to). The budget is still charged for the distance actually
+## walked; only the "I am done" announcement is withheld, because
+## listeners treat it as a completed step and act on it.
+func _finish_move(announce: bool = true) -> void:
 	_moving = false
 	_owner.velocity = Vector3.ZERO
 
@@ -493,7 +511,8 @@ func _finish_move() -> void:
 		_ladder_stage = 0
 		_ladder = null
 
-	_owner.movement_finished.emit(_owner)
+	if announce:
+		_owner.movement_finished.emit(_owner)
 	# _moving just flipped to false above — is_busy()'s answer may have
 	# changed as a result, but UnitActionState has no way to learn that
 	# on its own (is_moving() is polled, not pushed), so this explicitly
