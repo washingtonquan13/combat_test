@@ -12,7 +12,7 @@ func is_available(actor: Unit, target) -> bool:
 	if not target is Unit:
 		return false
 	var unit_target: Unit = target
-	return CombatManager.in_combat and actor.is_hostile_to(unit_target) and unit_target.negotiable
+	return actor.in_combat() and actor.is_hostile_to(unit_target) and unit_target.negotiable
 
 
 func execute(actor: Unit, target) -> void:

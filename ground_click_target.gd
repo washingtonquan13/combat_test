@@ -161,13 +161,36 @@ func _spawn_debug_unit() -> void:
 ## wasn't consumed by an armed ground-targeted ability — see
 ## _unhandled_input.
 func _command_move(destination: Vector3) -> void:
-	if CombatManager.in_combat:
-		# Only the acting unit may move, and only on its own turn — a
-		# ground click while other units are selected (or it's not your
-		# turn) is silently ignored rather than moving the wrong unit.
-		var unit: Unit = CombatManager.current_unit
-		if unit and unit in SelectionManager.selected_units:
-			unit.move_to(destination)
+	# Gated per COMMANDED UNIT, not on whether a fight exists somewhere.
+	#
+	# This used to check the global CombatManager.in_combat and then permit
+	# only CombatManager.current_unit to move, which meant any running fight
+	# anywhere froze every other party member solid. A unit deliberately
+	# held out of a battle could not be walked anywhere — so ambushes,
+	# flanking and held reserves were impossible rather than merely fiddly,
+	# and DetectionManager's join-in-progress had nothing that could ever
+	# carry a straggler into range.
+	#
+	# Now: units in the fight obey turn order; units outside it move freely,
+	# even while it rages. Splitting selected units into the two groups
+	# rather than picking one lets a mixed selection do the sensible thing
+	# — the free ones go, the busy ones don't.
+	var movers: Array[Unit] = []
+	for unit in SelectionManager.selected_units:
+		if not is_instance_valid(unit) or not unit.is_alive():
+			continue
+		if unit.in_combat():
+			# Combat movement stays strictly one unit on its own turn.
+			if unit.is_my_turn() and unit.has_move_remaining():
+				movers.append(unit)
+		else:
+			movers.append(unit)
+
+	if movers.is_empty():
+		return
+
+	if movers.size() == 1 and movers[0].in_combat():
+		movers[0].move_to(destination)
 		return
 
 	# Free-roam moves aren't gated by turn order the way combat is — every
@@ -178,8 +201,8 @@ func _command_move(destination: Vector3) -> void:
 	# live positions until the next update — an accepted approximation
 	# outside combat, where "only one unit ever moves at a time" doesn't
 	# hold in the first place.
-	NavigationGrid.update_occupancy(get_tree(), SelectionManager.selected_units)
+	NavigationGrid.update_occupancy(get_tree(), movers)
 
 	# Leader/follower formation math lives on FormationPlanner, not here —
 	# see that file for why it's leader-driven but fully deterministic.
-	FormationPlanner.command_group_move(SelectionManager.selected_units, destination)
+	FormationPlanner.command_group_move(movers, destination)

@@ -33,7 +33,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	if not target is Vector3:
 		return {}
 
-	if CombatManager.in_combat and not attacker.has_move_remaining():
+	if attacker.in_combat() and not attacker.has_move_remaining():
 		return {}
 
 	var destination: Vector3 = clamp_to_budget(attacker, target)
@@ -41,7 +41,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 
 	_animate_jump(attacker, destination)
 
-	if CombatManager.in_combat:
+	if attacker.in_combat():
 		attacker.spend_move(distance)
 
 	return {"jumped_distance": distance}
@@ -51,7 +51,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 ## left this turn — unchanged if out of combat, or if there's enough
 ## budget to cover the full distance already.
 func clamp_to_budget(attacker: Unit, destination: Vector3) -> Vector3:
-	if not CombatManager.in_combat:
+	if not attacker.in_combat():
 		return destination
 
 	var distance: float = attacker.global_position.distance_to(destination)

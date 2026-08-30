@@ -646,6 +646,29 @@ func is_hostile_to(other: Unit) -> bool:
 	return FactionRelations.is_hostile(faction, other.faction)
 
 
+## Which fight this unit is currently in, or null. Set by Encounter as it
+## adopts and releases units — never assigned from outside.
+##
+## The field that makes "is this unit under combat rules" a read rather
+## than a global assumption. Everything that used to ask
+## CombatManager.in_combat about a specific unit's turn economy asks here
+## instead, which is what lets one unit fight while another walks around
+## freely (see CombatManager's own header).
+var encounter: Encounter = null
+
+
+## Whether combat rules apply to THIS unit — a move budget, a spent attack
+## action. Deliberately not the same question as CombatManager.in_combat,
+## which asks what the PLAYER is looking at.
+func in_combat() -> bool:
+	return encounter != null and encounter.is_running
+
+
+## Whether it is this unit's turn in whatever fight it is in.
+func is_my_turn() -> bool:
+	return encounter != null and encounter.current_unit == self
+
+
 ## What this unit currently knows about anyone else — see UnitAwareness.
 ## DetectionManager drives it; everything else only reads.
 func awareness() -> UnitAwareness:

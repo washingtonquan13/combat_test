@@ -174,7 +174,7 @@ func _escaping_leaves_the_fight() -> void:
 	# irrelevant at this range — distance alone should carry it.
 	runner.global_position = Vector3(0.0, 0.0, 400.0)
 	await get_tree().physics_frame
-	CombatManager._try_disengage(runner)
+	runner.encounter._try_disengage(runner)
 
 	check("a combatant that got clean away drops out of the turn order",
 		not CombatManager.turn_order.has(runner))
@@ -198,7 +198,7 @@ func _last_one_out_ends_it() -> void:
 
 	lone_enemy.global_position = Vector3(0.0, 0.0, 400.0)
 	await get_tree().physics_frame
-	CombatManager._try_disengage(lone_enemy)
+	lone_enemy.encounter._try_disengage(lone_enemy)
 
 	check("the fight ends once the last hostile has escaped",
 		not CombatManager.in_combat)

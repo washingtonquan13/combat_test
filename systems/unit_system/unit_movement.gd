@@ -118,8 +118,11 @@ func move_to(destination: Vector3) -> bool:
 
 	var budget: float = INF
 
-	if CombatManager.in_combat:
-		if CombatManager.current_unit != _owner:
+	# Turn order binds a unit only while it is actually IN a fight. A unit
+	# standing outside one moves freely even while a battle rages nearby —
+	# which is what makes walking a straggler into an ambush possible.
+	if _owner.in_combat():
+		if not _owner.is_my_turn():
 			return false
 		if not _owner.has_move_remaining():
 			return false
@@ -248,7 +251,7 @@ func _begin_ladder_journey(route: Dictionary, final_destination: Vector3) -> boo
 		_climb_ladder()
 		return true
 
-	if _start_walk(route.near, _owner.move_remaining if CombatManager.in_combat else INF):
+	if _start_walk(route.near, _owner.move_remaining if _owner.in_combat() else INF):
 		_ladder_stage = 1
 		return true
 
@@ -285,7 +288,7 @@ func _climb_ladder() -> void:
 	var ladder: Ladder = _ladder
 
 	_owner.begin_busy()
-	if CombatManager.in_combat:
+	if _owner.in_combat():
 		_owner.spend_move(ladder.required_move)
 
 	var waypoints: PackedVector3Array = Ladder.climb_waypoints(ladder.base_position(), ladder.top_position())
@@ -326,7 +329,7 @@ func _on_climb_finished() -> void:
 	_ladder = null
 	var final_destination: Vector3 = _ladder_final_destination
 
-	if not _start_walk(final_destination, _owner.move_remaining if CombatManager.in_combat else INF):
+	if not _start_walk(final_destination, _owner.move_remaining if _owner.in_combat() else INF):
 		# Nothing left to walk (already there, or no valid path onward) —
 		# the journey still completed successfully; emit completion
 		# directly instead of waiting on a walk leg that was never going
@@ -458,7 +461,7 @@ func _finish_move() -> void:
 	# happened to stop.
 	var completed_fully: bool = _path_index >= _current_path.size()
 
-	if CombatManager.in_combat:
+	if _owner.in_combat():
 		# The plan completed fully (walked every point) → charge its
 		# exact known cost, not a re-measurement — that cost IS what was
 		# spent, by construction, since nothing deviated from the plan.

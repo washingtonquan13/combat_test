@@ -62,7 +62,7 @@ func _attempt_action(unit: Unit) -> void:
 	# never carries a real ability to use, only somewhere to go; every
 	# other plan still needs one.
 	if not plan or plan.target == null or (not plan.has_destination and not plan.ability):
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 
 	if not is_nan(plan.flight_altitude):
@@ -78,7 +78,7 @@ func _attempt_action(unit: Unit) -> void:
 	# changing between scoring and execution (an ally moved into the way,
 	# say), not the primary gate.
 	if not plan.ability.is_in_range(unit, plan.target):
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 
 	# A FREE ability must not cost the turn. Landing is the case that
@@ -99,7 +99,7 @@ func _attempt_action(unit: Unit) -> void:
 	unit.use_ability(plan.ability, plan.target)
 
 	if spends_turn:
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 
 	# Async effects (the landing descent tween, notably) leave the unit
@@ -108,7 +108,7 @@ func _attempt_action(unit: Unit) -> void:
 	# interleave with an animation still playing.
 	_free_actions_used += 1
 	if _free_actions_used >= MAX_FREE_ACTIONS_PER_TURN or not unit.is_alive():
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 
 	if unit.is_busy():
@@ -129,7 +129,7 @@ func _on_free_action_finished(unit: Unit) -> void:
 	if unit != _acting_unit:
 		return
 	if not unit.is_alive():
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 	_attempt_action(unit)
 
@@ -141,11 +141,11 @@ func _move_toward(unit: Unit, destination: Vector3) -> void:
 		# nothing to attack either (a has_destination plan never doubles
 		# as an attack — see AiScorer._fallback_plan's own header), so the
 		# turn is simply over.
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 
 	if not unit.has_move_remaining() or _move_attempts >= MAX_MOVE_ATTEMPTS_PER_TURN:
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 
 	_move_attempts += 1
@@ -159,7 +159,7 @@ func _move_toward(unit: Unit, destination: Vector3) -> void:
 		# try this turn.
 		if unit.movement_finished.is_connected(_on_movement_finished):
 			unit.movement_finished.disconnect(_on_movement_finished)
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 
 
 func _on_movement_finished(unit: Unit) -> void:
@@ -167,7 +167,7 @@ func _on_movement_finished(unit: Unit) -> void:
 		return
 
 	if not unit.is_alive():
-		CombatManager.end_turn()
+		CombatManager.end_turn(unit)
 		return
 
 	_attempt_action(unit)

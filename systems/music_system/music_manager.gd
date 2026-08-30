@@ -178,7 +178,7 @@ func _on_negotiation_started(_demon: Unit) -> void:
 ## if combat HAS already ended, this deliberately does nothing further;
 ## combat_ended's own handler already started the exploration theme.
 func _on_negotiation_ended(_outcome: int) -> void:
-	if not CombatManager.in_combat:
+	if not CombatManager.any_combat_running():
 		return
 	_play_area_or_fallback(func(area): return area.combat_track, COMBAT_TRACK_ID)
 

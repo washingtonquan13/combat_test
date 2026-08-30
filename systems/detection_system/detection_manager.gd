@@ -86,7 +86,7 @@ func scan() -> void:
 	if units.size() < 2:
 		return
 
-	if CombatManager.in_combat:
+	if CombatManager.any_combat_running():
 		_draw_in_latecomers(units)
 
 	for observer in units:
@@ -99,7 +99,9 @@ func scan() -> void:
 		# _draw_in_latecomers for joining one, which applies to both sides.
 		if observer.is_player_controlled():
 			continue
-		if CombatManager.in_combat and CombatManager.turn_order.has(observer):
+		# Already fighting — its perception is that encounter's problem,
+		# not this sweep's.
+		if observer.in_combat():
 			continue
 
 		for subject in units:
@@ -125,21 +127,31 @@ func scan() -> void:
 ## sits outside the perception machinery rather than inside it.
 func _draw_in_latecomers(units: Array[Unit]) -> void:
 	for unit in units:
-		if CombatManager.turn_order.has(unit):
+		if unit.in_combat():
 			continue
 
-		for combatant in CombatManager.turn_order:
-			if not is_instance_valid(combatant) or not combatant.is_alive():
+		# Whichever fight it actually walked into — not "the" fight, since
+		# there may be several running and joining the wrong one would drop
+		# a unit into a battle happening somewhere else entirely.
+		for encounter in CombatManager.encounters:
+			if not encounter.is_running:
 				continue
-			# Only somebody's enemy joins. A neutral bystander standing in
-			# the middle of a fight it has no stake in stays a bystander.
-			if not unit.is_hostile_to(combatant):
-				continue
-			if unit.distance_to(combatant) > HEARING_RADIUS:
-				continue
-			SystemLog.print("%s joins the fight." % LogFormat.unit_name(unit))
-			CombatManager.add_unit_to_combat(unit)
-			break
+			var joined: bool = false
+			for combatant in encounter.turn_order:
+				if not is_instance_valid(combatant) or not combatant.is_alive():
+					continue
+				# Only somebody's enemy joins. A neutral bystander standing
+				# in the middle of a fight it has no stake in stays one.
+				if not unit.is_hostile_to(combatant):
+					continue
+				if unit.distance_to(combatant) > HEARING_RADIUS:
+					continue
+				SystemLog.print("%s joins the fight." % LogFormat.unit_name(unit))
+				CombatManager.add_unit_to_combat(unit, null, encounter)
+				joined = true
+				break
+			if joined:
+				break
 
 
 ## Resolves one observer/subject pair, returning true if awareness
@@ -221,9 +233,7 @@ func _within_cone(observer: Unit, subject: Unit) -> bool:
 ## Only ever produces SUSPICIOUS, never AWARE: hearing tells you where,
 ## not who.
 func _hears_disturbance(observer: Unit, subject: Unit) -> bool:
-	if not CombatManager.in_combat:
-		return false
-	if not CombatManager.turn_order.has(subject):
+	if not subject.in_combat():
 		return false
 	return observer.distance_to(subject) <= HEARING_RADIUS
 
@@ -265,7 +275,7 @@ func _react_to(observer: Unit, subject: Unit, state: UnitAwareness.State) -> voi
 		# keeps a town from erupting because a guard looked at you.
 		return
 
-	if CombatManager.in_combat:
+	if CombatManager.any_combat_running():
 		# Joining an ongoing fight is _draw_in_latecomers' job now — it
 		# covers both sides and runs before this, so anything close enough
 		# is already in by the time perception gets a look. Nothing to do

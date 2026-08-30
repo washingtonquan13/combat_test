@@ -293,7 +293,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# "half cast." Out of combat, budget is effectively unlimited (same
 	# convention UnitMovement.move_to() uses), so this only ever applies
 	# mid-combat.
-	result["cant_afford_move_cost"] = CombatManager.in_combat and ability.move_cost > 0.0 and _owner.move_remaining < ability.move_cost
+	result["cant_afford_move_cost"] = _owner.in_combat() and ability.move_cost > 0.0 and _owner.move_remaining < ability.move_cost
 	# NOT wrapped in CombatManager.in_combat, unlike move_cost above — FP
 	# is a persistent resource that exists whether or not a fight is
 	# happening (move_remaining is meaningless out of combat; current_fp
@@ -313,10 +313,10 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if result.cant_afford_fp_cost:
 		return result
 
-	if CombatManager.in_combat and ability.uses_attack_action:
+	if _owner.in_combat() and ability.uses_attack_action:
 		_owner.has_attacked = true
 
-	if CombatManager.in_combat and ability.move_cost > 0.0:
+	if _owner.in_combat() and ability.move_cost > 0.0:
 		_owner.spend_move(ability.move_cost)
 
 	if ability.fp_cost > 0.0:
@@ -416,7 +416,9 @@ func _apply_effects(target, ability: Ability, is_critical: bool) -> Dictionary:
 ## Unit) — AoE/ground-targeted hostile abilities deliberately don't
 ## trigger combat yet; see CombatManager.start_combat_from_hostile_act.
 func _maybe_trigger_combat(target) -> void:
-	if CombatManager.in_combat:
+	# THIS unit, not the world. Another fight running somewhere else is no
+	# reason for an attack over here not to start its own.
+	if _owner.in_combat():
 		return
 	if not target is Unit or not target.is_alive():
 		return

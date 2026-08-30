@@ -354,7 +354,7 @@ static func _prepare_plan(unit: Unit, plan: AiPlan) -> bool:
 		var ability: Ability = plan.ability
 		if ability.attack_action_spent_by(unit):
 			return false
-		if CombatManager.in_combat and ability.move_cost > 0.0 and unit.move_remaining < ability.move_cost:
+		if unit.in_combat() and ability.move_cost > 0.0 and unit.move_remaining < ability.move_cost:
 			return false
 		if ability.fp_cost > 0.0 and unit.current_fp < ability.fp_cost:
 			return false
@@ -561,7 +561,7 @@ static func _resolve_reach(unit: Unit, plan: AiPlan) -> bool:
 
 
 static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool:
-	var budget: float = unit.move_remaining if CombatManager.in_combat else INF
+	var budget: float = unit.move_remaining if unit.in_combat() else INF
 
 	# ACT IF YOU CAN, MOVE ONLY IF YOU MUST. An IF_NEEDED destination is
 	# just "how I get in range" (see AiPlan.movement_intent), so once the
