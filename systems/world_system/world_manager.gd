@@ -262,6 +262,7 @@ func unload() -> bool:
 	# it is replacing.
 	for resident in _residents.values():
 		if is_instance_valid(resident):
+			_capture_area_state(resident)
 			resident.dispose()
 	_residents.clear()
 	NavigationGrid.invalidate()
@@ -405,6 +406,10 @@ func _retire_if_unearned(resident: ResidentWorld) -> void:
 	if resident == null or not is_instance_valid(resident) or resident.is_earned():
 		return
 
+	# Recorded before it is freed — this is the only moment its contents
+	# still exist to be asked.
+	_capture_area_state(resident)
+
 	if _residents.get(resident.area_id()) == resident:
 		_residents.erase(resident.area_id())
 	resident.dispose()
@@ -465,7 +470,13 @@ func _resident_for(area: AreaDefinition) -> ResidentWorld:
 	if area == null:
 		return null
 	var resident: ResidentWorld = _residents.get(area.id)
-	return resident if is_instance_valid(resident) else null
+	# The WORLD too, not just the record. A resident whose world node has
+	# been freed out from under it is not resident — and handing that freed
+	# node on is an error at the CALL, since every consumer takes a typed
+	# Node.
+	if not is_instance_valid(resident) or not is_instance_valid(resident.world):
+		return null
+	return resident
 
 
 ## Puts `scene`'s world on screen, building it only if it isn't already
@@ -587,6 +598,30 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	_retire_unearned()
 	world_loaded.emit(world)
 	return world
+
+
+## The write half of _reconcile_area_state, and the half that was
+## missing: before a world is freed, everything persistent in it records
+## what it currently is. Without this, AreaState knew only who had died,
+## so every other difference — wounds, positions, statuses — was lost the
+## moment a world stopped being resident.
+##
+## Uses the same walk as reconciliation, and the same duck-typed
+## save_state()-on-the-node-or-a-child convention, so a component that
+## already answers load_state() is captured too.
+func _capture_area_state(resident: ResidentWorld) -> void:
+	if resident == null or resident.area == null or not is_instance_valid(resident.world):
+		return
+
+	for node in _collect_persistent_nodes(resident.world):
+		var target: Node = node
+		if not target.has_method("save_state"):
+			for child in node.get_children():
+				if child.has_method("save_state"):
+					target = child
+					break
+		if target.has_method("save_state"):
+			AreaState.store_state(resident.area.id, node.persistent_id, target.save_state())
 
 
 ## Applies AreaState against a just-instantiated, not-yet-in-tree world —
@@ -823,7 +858,8 @@ func is_area_pinned(area_id: StringName) -> bool:
 ## Whether an area is currently loaded — the question load_area() asks
 ## itself before deciding to build anything.
 func is_area_resident(area_id: StringName) -> bool:
-	return is_instance_valid(_residents.get(area_id))
+	var resident: ResidentWorld = _residents.get(area_id)
+	return is_instance_valid(resident) and is_instance_valid(resident.world)
 
 
 func is_restoring_party() -> bool:

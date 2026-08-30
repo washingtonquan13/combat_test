@@ -349,6 +349,15 @@ func capture() -> void:
 
 func _capture_one(unit: Unit) -> PartyMemberData:
 	var data := PartyMemberData.new()
+	# The id travels with the record, so a captured-and-respawned member
+	# is still the same person to anything that wrote their name down.
+	# Minted here, on first capture, for a member who arrived without one
+	# (an area's authored bootstrap party) — the record is what will carry
+	# it from now on, which is what makes it stable in a way a scene unit's
+	# generated id could never be.
+	if unit.persistent_id == &"":
+		unit.persistent_id = Unit.generate_persistent_id()
+	data.id = unit.persistent_id
 	data.definition = unit.definition
 	data.display_name = unit.display_name
 	data.portrait_texture = unit.portrait_texture
@@ -598,6 +607,14 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	var unit: Unit = scene.instantiate()
 	world.add_child(unit)
 	unit.global_transform = spawn_point.global_transform
+
+	# Stamped after add_child, so it wins over the one _ready generates
+	# for a unit that arrived without any. A record built before ids
+	# existed adopts whatever its unit was given.
+	if record.id == &"":
+		record.id = unit.persistent_id
+	else:
+		unit.persistent_id = record.id
 
 	if record.definition:
 		unit.definition = record.definition
