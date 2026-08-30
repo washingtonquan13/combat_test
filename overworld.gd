@@ -23,13 +23,25 @@ const AVATAR_SCENE: PackedScene = preload("res://overworld_avatar.tscn")
 
 @onready var _camera: OverworldCamera = $OverworldCamera
 
-var _avatar: OverworldAvatar
+## One avatar per group standing here, by group. The overworld is a
+## VIEW of PartyManager.groups rather than the owner of an avatar —
+## which is what lets a split party be in two places on it instead of
+## being collected on arrival.
+var _avatars: Dictionary = {}
 
 
 func _ready() -> void:
-	_spawn_avatar()
-	_camera.target = _avatar
+	# Re-synced on focus too, not only here: this world stays resident
+	# while a group is standing in it, so coming back does not rebuild it
+	# and _ready does not run again.
+	WorldManager.world_focused.connect(_on_world_focused)
+	sync_avatars()
 	_camera.snap_to_target()
+
+
+func _on_world_focused(world: Node) -> void:
+	if world == self:
+		sync_avatars()
 
 
 func get_base_mode() -> GameMode.Mode:
@@ -51,13 +63,76 @@ func spawns_party() -> bool:
 ## into the private _avatar field from outside, same as this file's
 ## other duck-typed accessors (get_tactical_camera, get_spawn_point).
 func get_avatar() -> OverworldAvatar:
-	return _avatar
+	return _active_avatar()
 
 
-func _spawn_avatar() -> void:
-	_avatar = AVATAR_SCENE.instantiate()
-	add_child(_avatar)
-	_avatar.camera = _camera
+## Rebuilds the avatars from PartyManager.groups: one per group standing
+## in this overworld, the active one driveable and followed by the
+## camera, the rest standing where they were left.
+##
+## Idempotent, and called on every focus — a group can arrive or leave
+## while this world stays resident, and there is no signal for "the
+## groups changed" worth adding when re-deriving is this cheap.
+func sync_avatars() -> void:
+	var area: AreaDefinition = WorldManager.area_of(self)
+	var here: Array[PartyGroup] = []
+	if area:
+		here = PartyManager.groups_in_area(area.id)
 
-	var spawn_point: Node3D = get_spawn_point(WorldManager.pending_spawn_point_name())
-	_avatar.global_position = spawn_point.global_position
+	for group in _avatars.keys().duplicate():
+		if group in here and not group.embodied:
+			continue
+		# Left, or was embodied somewhere else: its avatar is not standing
+		# here any more.
+		var stale: Node = _avatars[group]
+		_avatars.erase(group)
+		if is_instance_valid(stale):
+			stale.queue_free()
+
+	for group in here:
+		if group.embodied:
+			continue
+		if not _avatars.has(group) or not is_instance_valid(_avatars[group]):
+			_avatars[group] = _make_avatar(group)
+
+	var active: OverworldAvatar = null
+	for group in _avatars:
+		var avatar: OverworldAvatar = _avatars[group]
+		avatar.active = group == PartyManager.active_group
+		if avatar.active:
+			active = avatar
+
+	# Snapped, not lerped, when the group being commanded changes: the
+	# camera is jumping to different people somewhere else on the map, and
+	# sliding across the whole overworld to get there reads as a glitch
+	# rather than as a move.
+	if active and _camera.target != active:
+		_camera.target = active
+		_camera.snap_to_target()
+
+
+## Null when no group here is the active one — which happens the
+## instant before sync_avatars runs, and while the player is commanding
+## a group in some other world entirely.
+func _active_avatar() -> OverworldAvatar:
+	for group in _avatars:
+		if group == PartyManager.active_group and is_instance_valid(_avatars[group]):
+			return _avatars[group]
+	return null
+
+
+## A group with no remembered position has just walked in, so it lands
+## at whichever door this load resolved to. One that has been here
+## before stands where it was left.
+func _make_avatar(group: PartyGroup) -> OverworldAvatar:
+	var avatar: OverworldAvatar = AVATAR_SCENE.instantiate()
+	avatar.group = group
+	add_child(avatar)
+	avatar.camera = _camera
+
+	if group.overworld_position == Vector3.ZERO:
+		var spawn_point: Node3D = get_spawn_point(WorldManager.pending_spawn_point_name())
+		if spawn_point:
+			group.overworld_position = spawn_point.global_position
+	avatar.global_position = group.overworld_position
+	return avatar

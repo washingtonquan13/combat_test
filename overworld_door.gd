@@ -33,7 +33,10 @@ func _ready() -> void:
 
 
 func _on_body_entered(body: Node3D) -> void:
-	if not body is OverworldAvatar:
+	# The ACTIVE avatar only. With one avatar per group, a group left
+	# standing on a doorstep would otherwise keep offering the prompt for
+	# a door the player is nowhere near.
+	if not body is OverworldAvatar or not (body as OverworldAvatar).active:
 		return
 	_prompt = get_tree().get_first_node_in_group(PROMPT_GROUP)
 	if _prompt:

@@ -41,6 +41,7 @@ func run() -> void:
 	await _the_world_holding_them_cannot_be_freed()
 	await _going_to_a_companion_moves_nobody()
 	await _the_overworld_takes_only_the_travellers()
+	await _two_groups_stand_on_the_overworld()
 
 	WorldManager.unload()
 	await get_tree().process_frame
@@ -192,6 +193,61 @@ func _the_overworld_takes_only_the_travellers() -> void:
 		"freed - the member waiting in it went with it")
 	check("and nobody was lost: everyone is in a group somewhere",
 		PartyManager.members.size() + PartyManager.roster.size() >= 2)
+
+## The overworld draws one avatar PER GROUP standing in it. This is what
+## makes a split party representable at all: with a single avatar there
+## was nothing a second group could be, which is why travelling there
+## used to collect everyone.
+##
+## Worth asserting headlessly even though the real gate is visual — the
+## first version of sync_avatars threw on a typed-array assignment and
+## built no avatars whatsoever, and every check in this suite still
+## passed.
+func _two_groups_stand_on_the_overworld() -> void:
+	if not is_instance_valid(_traveller):
+		check("SETUP: the other half is still alive", false)
+		return
+
+	# One group is already abstract on the overworld; bring the other one
+	# out to join it, so there are genuinely two.
+	if not WorldManager.focus_world_of(_traveller):
+		check("SETUP: could reach the other group", false)
+		return
+	await get_tree().process_frame
+	WorldManager.load_area(&"overworld")
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var overworld: Node = WorldManager.current_world()
+	var avatars: Array[Node] = []
+	if overworld:
+		for child in overworld.get_children():
+			if child is OverworldAvatar:
+				avatars.append(child)
+
+	check("the overworld draws one avatar per group standing in it",
+		avatars.size() == 2, "%d avatar(s) for 2 groups" % avatars.size())
+
+	var active_count: int = 0
+	var groups_seen: Array[PartyGroup] = []
+	for avatar in avatars:
+		if avatar.active:
+			active_count += 1
+			check("the driveable avatar is the group the player is commanding",
+				avatar.group == PartyManager.active_group)
+		if avatar.group and not groups_seen.has(avatar.group):
+			groups_seen.append(avatar.group)
+
+	# Two avatars reading the same WASD is the failure mode here, and it
+	# looks like the party walking in lockstep while claiming to be apart.
+	check("exactly one of them takes input",
+		active_count == 1, "%d avatars are active" % active_count)
+	check("and they stand for different groups",
+		groups_seen.size() == avatars.size())
+	check("two groups on the overworld do NOT merge",
+		PartyManager.groups_in_area(&"overworld").size() == 2,
+		"merged into %d" % PartyManager.groups_in_area(&"overworld").size())
+
 
 # --- helpers ---------------------------------------------------------
 
