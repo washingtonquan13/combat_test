@@ -33,11 +33,26 @@ func run() -> void:
 
 	await _the_reported_sequence()
 	await _time_passing_in_an_unfocused_world()
+	await _two_avatars_then_one_goes_in()
 	await _a_failed_snap_still_separates_them()
+	await _nobody_lands_on_an_occupant()
 
+	# Put the party back together before leaving. These suites share one
+	# PartyManager, and members only counts the EMBODIED half — a suite that
+	# exits with the party scattered across three groups hands the next one
+	# a party of one and fails its setup, not its subject.
 	WorldManager.unload()
 	await get_tree().process_frame
+	_collapse_to_one_group()
 	_restore_host()
+
+
+func _collapse_to_one_group() -> void:
+	while PartyManager.groups.size() > 1:
+		PartyManager.groups[0].absorb(PartyManager.groups[1])
+		PartyManager.groups.remove_at(1)
+	if not PartyManager.groups.is_empty():
+		PartyManager.active_group = PartyManager.groups[0]
 
 
 func _install_synthetic_host() -> bool:
@@ -156,6 +171,88 @@ func _time_passing_in_an_unfocused_world() -> void:
 ## Forced rather than hoped for: the marker is put far out over nothing,
 ## where no snap can succeed, because with a working snap this fallback
 ## never runs and the check would pass without testing anything.
+## The reported trigger, narrowed by the user: TWO avatars standing on
+## the overworld, and then one of them walks into an area. The single-
+## avatar version of the same journey does not do it.
+func _two_avatars_then_one_goes_in() -> void:
+	# Everyone back together first, so this does not inherit the shape the
+	# previous case left the party in.
+	for group in PartyManager.groups.duplicate():
+		if WorldManager.focus_group(group):
+			WorldManager.load_area(HOME)
+			await get_tree().process_frame
+	await get_tree().process_frame
+
+	var party: Array[Unit] = _live_members()
+	if party.size() < 3:
+		check("SETUP: three members to make two avatars and a straggler",
+			false, "%d member(s)" % party.size())
+		return
+
+	# First avatar: one member out to the overworld.
+	var first: Array[Unit] = [party[0]]
+	WorldManager.load_area(&"overworld", &"", first)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# Second avatar: back to the others, send another one out separately.
+	if not WorldManager.focus_group(PartyManager.group_of(party[1])):
+		check("SETUP: could get back to the others", false)
+		return
+	await get_tree().process_frame
+	var second: Array[Unit] = [party[1]]
+	WorldManager.load_area(&"overworld", &"", second)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var avatars: int = PartyManager.groups_in_area(&"overworld").size()
+	check("SETUP: two groups really are standing on the overworld",
+		avatars == 2, "%d group(s) on the overworld" % avatars)
+
+	# And now one of the two walks in.
+	WorldManager.load_area(CATHEDRAL)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check_heights("after one of two overworld avatars walks into an area")
+
+	var context: WorldContext = WorldManager.context()
+	var arrived: int = 0
+	for unit in _live_members():
+		if context and context.contains(unit):
+			arrived += 1
+	check("the group that walked in is actually in there",
+		arrived >= 1, "nobody arrived")
+
+
+## Nobody lands on top of somebody already standing there.
+##
+## The leader used to be put on the marker unconditionally, and that was
+## safe only while a world was rebuilt on every visit: nobody could
+## already be on it. Now worlds keep running, so the marker is very often
+## occupied by whoever arrived last and never moved — and two bodies on
+## one spot do not stay on one spot. They shove each other apart every
+## physics frame, upward, which is what a party member at y=8000 is.
+func _nobody_lands_on_an_occupant() -> void:
+	var marker := Node3D.new()
+	_root.add_child(marker)
+	marker.global_position = Vector3(0.0, 0.5, 0.0)
+
+	var resident: Unit = spawn_brute(0.0)
+	PartyManager.place_at_landing(resident, marker, -1, 0)
+	await get_tree().physics_frame
+
+	var arriving: Unit = spawn_brute(0.0)
+	PartyManager.place_at_landing(arriving, marker, -1, 0)
+	await get_tree().physics_frame
+
+	var gap: float = resident.global_position.distance_to(arriving.global_position)
+	check("an arrival does not land on whoever is already standing there",
+		gap > 0.3,
+		"%.2f apart - they will shove each other skyward" % gap)
+
+	marker.queue_free()
+
+
 func _a_failed_snap_still_separates_them() -> void:
 	var marker := Node3D.new()
 	_root.add_child(marker)

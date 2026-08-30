@@ -699,18 +699,33 @@ func spawn_group(group: PartyGroup, world: Node, spawn_point: Node3D) -> void:
 ## party lands rather than each doing its own arithmetic.
 func place_at_landing(unit: Unit, spawn_point: Node3D, follower_index: int, follower_count: int) -> void:
 	unit.global_transform = spawn_point.global_transform
-	if follower_index < 0 or follower_count <= 0:
-		return
 
-	var offset: Vector3 = FormationPlanner.ring_offset(
-		follower_index, follower_count, unit.formation_spread_radius)
-	var target: Vector3 = spawn_point.global_position + offset
+	# The leader wants the marker itself — it is the one position every
+	# door and spawn point was actually authored at — and followers want a
+	# ring slot around it.
+	var target: Vector3 = spawn_point.global_position
+	if follower_index >= 0 and follower_count > 0:
+		target += FormationPlanner.ring_offset(
+			follower_index, follower_count, unit.formation_spread_radius)
+
+	# Refreshed HERE, per unit, because the answer changes with every
+	# placement in this loop and because worlds now outlive the player:
+	# whoever arrived last is very likely still standing on the marker,
+	# and before residency there was never anybody there to stand on it.
+	# The unit being placed is passed as the mover so it does not block
+	# its own landing cell, and so the query resolves the DESTINATION's
+	# grid rather than whichever world was last active.
+	var movers: Array = [unit]
+	NavigationGrid.update_occupancy(get_tree(), movers, unit)
 	var clearance: float = unit.radius + unit.avoidance_margin
-	# unit, not null: it is the one being placed, so it must not block its
-	# own landing cell — and since the grid resolves which world a query
-	# means from the unit it is handed (see NavigationGrid.activate_for),
-	# passing it is also what aims this at the DESTINATION's grid rather
-	# than whichever world happened to be active.
+	# The LEADER goes through this too, which it did not before. Landing it
+	# on the marker unconditionally was fine while a world was rebuilt on
+	# every visit — nobody could already be there. Now the marker is a spot
+	# in a world that kept running, and two people on one spot do not stay
+	# on one spot: they shove each other apart every physics frame, upward,
+	# for as long as they overlap. A snap that finds the marker free
+	# returns the marker, so the authored position is still honoured
+	# whenever honouring it is possible.
 	var resolved: Dictionary = NavigationGrid.nearest_valid_point(
 		get_tree(), target, clearance, false, unit)
 	if resolved.found:
