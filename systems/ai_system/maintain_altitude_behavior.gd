@@ -12,19 +12,21 @@ extends AiBehavior
 ## have (see combat_ai.gd's own header) — except now that's one candidate
 ## among many instead of an unconditional reflex, so a unit that can't
 ## afford it, or for which some other action scores better, correctly
-## doesn't bother. Scored by how much incoming threat (see AiScorer.
-## incoming_threat) climbing to preferred_altitude would avoid — a
-## melee-only battlefield makes this decisive, an all-ranged one
-## correctly leaves the unit grounded.
+## doesn't bother.
 ##
-## Airborne: proposes landing instead of attacking once nothing can
-## reach this unit anymore (mirrors the takeoff decision — no reason left
-## to keep paying flight's FP upkeep), otherwise this unit's normal
-## attack against the nearest hostile, insisting on preferred_altitude
-## rather than whatever altitude the standoff-goal math would otherwise
-## leave it at — see AiScorer._resolve_reach's flight_altitude override
-## for how a temporarily-adopted altitude gets planned against without
-## touching the unit's real state until the plan is actually chosen.
+## Airborne: proposes landing (when nothing else wants this unit kept
+## aloft — see _should_stay_airborne) and this unit's normal attack.
+## The attack carries a destination ONLY when the unit can't already
+## reach its target from where it floats; if it can shoot from here, it
+## shoots and merely nudges its held altitude. See the long comment on
+## that branch for the three-way compounding failure that rule fixes.
+##
+## Every score set here is just the authored bias. What being at
+## preferred_altitude is actually WORTH — the threat it avoids, the
+## downward-fire bonus it earns — is priced once, for every candidate, by
+## AiScorer._apply_positional_value. This file used to compute those
+## deltas itself in three places; see AiScorer's own header for why that
+## duplication had to go.
 
 @export var preferred_altitude: float = 8.0
 ## Added on top of whatever the takeoff candidate would otherwise score
@@ -43,59 +45,123 @@ func propose(unit: Unit) -> Array[AiPlan]:
 		var flight_ability: Ability = FlightAiUtil.find_flight_ability(unit)
 		if not flight_ability:
 			return []
-		var current_threat: float = AiScorer.incoming_threat(unit, unit.global_position)
-		var airborne_position: Vector3 = Vector3(unit.global_position.x, preferred_altitude, unit.global_position.z)
-		var airborne_threat: float = AiScorer.incoming_threat(unit, airborne_position)
 		var takeoff := AiPlan.new(flight_ability, unit)
-		takeoff.score = takeoff_score_bonus + (current_threat - airborne_threat)
+		takeoff.score = takeoff_score_bonus
+		takeoff.reason = "takeoff"
 		return [takeoff]
 
 	var target: Unit = UnitQuery.nearest_hostile(unit.get_tree(), unit)
 	if not target:
 		return []
 
-	# Nothing left that can reach this unit up here and FP is finite —
-	# come back down rather than draining it for no reason (see this
+	var plans: Array[AiPlan] = []
+
+	# Coming back down rather than draining FP for no reason (see this
 	# file's own header on the mirror problem this was leaving unsolved:
 	# nothing ever told a flyer to land before FpDrainBehavior forced it).
+	#
+	# PROPOSED, not returned. An earlier version returned the landing
+	# outright whenever nothing could reach the unit at its current
+	# altitude, which is a behavior deciding rather than proposing — and
+	# it was wrong in a way testing caught immediately: an Avian hovering
+	# two meters above a melee brute is genuinely unreachable up there,
+	# so the guard fired, and it landed straight into the brute's reach.
+	# Whether descending is a good idea depends on what's waiting at the
+	# BOTTOM, which is precisely what AiScorer._apply_positional_value
+	# prices (see AiScorer._plan_end_position, which raycasts for the
+	# real landing spot). Offering it as one candidate among several lets
+	# that arithmetic answer, instead of this branch pre-empting it.
 	var land_ability: Ability = FlightAiUtil.find_land_ability(unit)
-	if land_ability and unit.maximum_fp > 0:
-		var threat_here: float = AiScorer.incoming_threat(unit, unit.global_position)
-		if threat_here <= 0.01:
-			var land_plan := AiPlan.new(land_ability, unit)
-			land_plan.score = takeoff_score_bonus
-			return [land_plan]
+	if land_ability and unit.maximum_fp > 0 and not _should_stay_airborne(unit):
+		var land_plan := AiPlan.new(land_ability, unit)
+		land_plan.score = takeoff_score_bonus
+		land_plan.reason = "land"
+		plans.append(land_plan)
 
 	var ability: Ability = unit.default_ability()
 	if not ability:
-		return []
+		return plans
 
 	var plan := AiPlan.new(ability, target)
-	var goal_xz: Vector3 = AiScorer.standoff_goal(unit, target, ability)
-	var goal: Vector3 = Vector3(goal_xz.x, preferred_altitude, goal_xz.z)
-	if unit.global_position.distance_to(goal) > unit.arrival_tolerance:
-		plan.with_destination(goal, preferred_altitude)
-	else:
-		# Already close enough to attack from here — just nudge the
-		# unit's held altitude toward preferred_altitude for NEXT time
-		# without spending a move this turn (see AiPlan.flight_altitude's
-		# own header: has_destination false means this attacks
-		# immediately if in range, same as any other candidate).
+	# IN RANGE WINS. If this unit can already shoot from where it floats,
+	# it shoots — it does not spend the turn perfecting its altitude
+	# first. The old condition compared against the standoff GOAL rather
+	# than asking whether the attack was possible, and the three effects
+	# compounded into a unit that never attacked at all:
+	#
+	#   - standoff_goal backs a ranged attacker off to its MAXIMUM range,
+	#     so for an Avian already close the goal sits behind it — the
+	#     "climb" was also a retreat.
+	#   - Climbing costs FlightRules.ascend_cost_multiplier (2x) per
+	#     meter, so reaching preferred_altitude from a fresh takeoff cost
+	#     ~22 movement against a budget of 5. It could never arrive.
+	#   - CombatAI re-asks for a plan after every completed move (see
+	#     combat_ai._on_movement_finished), so it picked this same
+	#     unfinishable climb again and again until the move budget ran
+	#     out, and the turn ended with no attack. Every turn. It read as
+	#     a bird endlessly fleeing a party it was never in danger from.
+	#
+	# Position serves attacking, not the reverse — the same priority
+	# Solasta's own AI describes for its melee units, which pick spots
+	# they can ENGAGE from rather than spots that are merely good.
+	if ability.is_in_range(unit, target):
+		# Nudge the held altitude anyway, so the next move this unit
+		# genuinely needs to make carries it toward preferred_altitude
+		# (see AiPlan.flight_altitude's own header: has_destination false
+		# means this attacks immediately, same as any other candidate).
 		plan.flight_altitude = preferred_altitude
+	else:
+		var goal_xz: Vector3 = AiScorer.standoff_goal(unit, target, ability)
+		plan.with_destination(Vector3(goal_xz.x, preferred_altitude, goal_xz.z), preferred_altitude)
 
-	# Without a threat-based bias, this candidate scores IDENTICALLY to
-	# the plain baseline-enumerated attack (same ability/target/expected
-	# damage — see AiScorer._enumerate_baseline_candidates), and
-	# AiScorer.best_plan only replaces its running best on a strict `>`,
-	# so a tie always loses to whichever candidate was enumerated first.
-	# That silently discarded every climb: a unit could take off (see
-	# this file's grounded branch) and then never actually reach
-	# preferred_altitude, hovering wherever the takeoff ability happened
-	# to leave it. Scoring the same way takeoff does — by how much
-	# incoming threat holding preferred_altitude avoids versus the
-	# current position — gives an actual reason to climb instead of
-	# relying on a tie to break the right way.
-	var current_threat: float = AiScorer.incoming_threat(unit, unit.global_position)
-	var preferred_threat: float = AiScorer.incoming_threat(unit, Vector3(goal_xz.x, preferred_altitude, goal_xz.z))
-	plan.score = reposition_score_bonus + (current_threat - preferred_threat)
-	return [plan]
+	# Only the authored bias is set here. The reason this climb is worth
+	# anything — that holding preferred_altitude is safer than sitting
+	# where the standoff math would otherwise leave the unit — is priced
+	# by AiScorer._apply_positional_value from the destination set above,
+	# for every candidate, rather than being re-derived in each behavior
+	# that happens to care. This branch used to compute that delta
+	# itself, in a copy of arithmetic MaintainAltitude repeated three
+	# times and FleeBehavior twice; the copies competed against each
+	# other on an unstated scale, which is what let a wounded flyer
+	# ground-flee (see AiScorer.sustained_incoming_threat's own header).
+	plan.score = reposition_score_bonus
+	if plan.has_destination:
+		plan.reason = "climb to %.1fm" % preferred_altitude
+	else:
+		plan.reason = "hold %.1fm" % preferred_altitude
+	plans.append(plan)
+	return plans
+
+
+## Whether some OTHER behavior on this unit has a standing reason to stay
+## off the ground, which the voluntary landing above must not fight
+## against. Two cases, both discovered the same way — by the landing
+## branch undoing another behavior's work on the very next turn:
+##
+##   FleeBehavior below its hp_threshold — its takeoff climbs
+##   specifically to escape incoming threat, and the instant that
+##   succeeds the threat reading drops to ~0, which is precisely this
+##   behavior's own cue to come straight back down. A unit fleeing for
+##   its life should stay up until it recovers, not because anything in
+##   the air changed but because landing defeats the point of fleeing.
+##
+##   PreferFlightBehavior — a species authored to prefer being airborne
+##   at all shouldn't spend its turns bobbing down to save FP, which is
+##   the only thing the landing branch is for.
+##
+## Deliberately a read of sibling behaviors rather than a shared flag on
+## Unit: it's a question about this unit's AUTHORING, answerable from the
+## behavior list itself, and adding runtime state for it would mean
+## keeping that state in sync with a resource that already says the same
+## thing.
+func _should_stay_airborne(unit: Unit) -> bool:
+	for behavior in unit.ai_behaviors:
+		if behavior is PreferFlightBehavior:
+			return true
+		if behavior is FleeBehavior:
+			if unit.maximum_hp <= 0:
+				continue
+			var fraction: float = float(unit.current_hp) / float(unit.maximum_hp)
+			if fraction <= behavior.hp_threshold:
+				return true
+	return false

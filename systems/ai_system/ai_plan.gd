@@ -41,6 +41,28 @@ var flight_altitude: float = NAN
 var pure_reposition: bool = false
 
 var score: float = 0.0
+
+## Which half of the candidate pool this plan came from — the FIRST
+## tie-break after score itself (see AiScorer._is_better). 0 for
+## AiScorer's own blanket enumeration, BEHAVIOR_PRIORITY for anything an
+## authored AiBehavior proposed; AiScorer.best_plan stamps the latter in
+## its behavior loop, so no behavior has to remember to set it.
+##
+## An authored behavior proposing a specific (ability, target, position)
+## is strictly better informed than "every attack ability against every
+## hostile," so on a genuine tie it should win. This exists because it
+## DIDN'T: MaintainAltitudeBehavior's climb-to-altitude candidate and the
+## baseline attack scored identically (same ability, same target, a 0.0
+## reposition bonus), the old comparison replaced its running best only
+## on strict `>`, and the climb lost every turn purely for being
+## appended second — a flyer took off and then hovered in place forever.
+var source_priority: int = 0
+
+## Order this plan was pooled in — the FINAL tie-break, so a decision
+## between two otherwise indistinguishable candidates is at least stated
+## and reproducible rather than silently inheriting array order (which is
+## exactly the failure source_priority above documents).
+var enumeration_index: int = 0
 ## Short label for the combat log / debug overlay — "expected kill",
 ## "swoop attack", "flee, low FP" — not shown to the player today, but
 ## cheap to carry and useful the first time this needs debugging.
