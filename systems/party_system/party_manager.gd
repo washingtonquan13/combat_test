@@ -426,12 +426,36 @@ func clear_members() -> void:
 ## this session's actual HP/equipment/position changes. Correctly a
 ## no-op in the overworld (capture()'s own members-empty guard), where
 ## roster is already the party's only representation.
+## GROUPS, not one flat list. A flat list cannot say where anybody is,
+## so saving a split party and loading it reunited everyone in one
+## place — nobody lost, but where they were standing gone.
+##
+## "members" is still written alongside, as the union, so a save from
+## this build stays readable by anything that only knows the old shape
+## (the save LISTING reads meta only, but the symmetry is cheap).
 func save_state() -> Dictionary:
 	capture()
-	var records: Array[Dictionary] = []
-	for record in roster:
-		records.append(_save_one(record))
-	return {"members": records}
+
+	var group_entries: Array = []
+	var flat: Array[Dictionary] = []
+	for group in groups:
+		var records: Array = []
+		for record in group.records:
+			var written: Dictionary = _save_one(record)
+			records.append(written)
+			flat.append(written)
+		group_entries.append({
+			"area_id": String(group.area_id),
+			"embodied": group.embodied,
+			"overworld_position": group.overworld_position,
+			"members": records,
+		})
+
+	return {
+		"groups": group_entries,
+		"active": maxi(0, groups.find(active_group)),
+		"members": flat,
+	}
 
 
 func _save_one(record: PartyMemberData) -> Dictionary:
@@ -466,6 +490,10 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 	return {
 		"definition_id": record.definition.id if record.definition else "",
 		"is_leader": record.is_leader,
+		# WITHOUT this the id does not survive the file, every record loads
+		# nameless, and anything that wrote a unit down — a turn order, a
+		# saved position, which group somebody is in — finds nobody.
+		"id": String(record.id),
 		"display_name": record.display_name,
 		# The one unavoidable path-not-id exception — Texture2D has no id
 		# field and no database (see SaveManager's own header on this).
@@ -501,18 +529,39 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 ## destination area actually exists, same as an ordinary world
 ## transition.
 func load_state(state: Dictionary) -> void:
-	# A save written before groups existed has one flat member list and no
-	# group data at all. Loading it as a single group IS the migration -
-	# and it is also exactly what a save of an unsplit party looks like, so
-	# there is one path here rather than two.
 	groups.clear()
 	active_group = null
-	var restored := PartyGroup.new()
-	restored.area_id = state.get("area_id", &"")
-	for entry in state.get("members", []):
-		restored.records.append(_load_one(entry))
-	groups.append(restored)
-	active_group = restored
+
+	var entries: Array = state.get("groups", [])
+	if entries.is_empty():
+		# A save written before groups existed: one flat member list, no
+		# group data. Loading it as a single group IS the migration, and it
+		# is also exactly what an unsplit party looks like, so there is one
+		# path rather than two.
+		var restored := PartyGroup.new()
+		restored.area_id = StringName(state.get("area_id", ""))
+		for entry in state.get("members", []):
+			restored.records.append(_load_one(entry))
+		groups.append(restored)
+		active_group = restored
+		return
+
+	for entry in entries:
+		var group := PartyGroup.new()
+		group.area_id = StringName(entry.get("area_id", ""))
+		# Always false on load: records are the truth until somebody spawns
+		# them, and a group claiming to be embodied with no Units would be
+		# rebuilt from a snapshot it thinks it does not need.
+		group.embodied = false
+		group.overworld_position = entry.get("overworld_position", Vector3.ZERO)
+		for member in entry.get("members", []):
+			group.records.append(_load_one(member))
+		groups.append(group)
+
+	if groups.is_empty():
+		groups.append(PartyGroup.new())
+	var index: int = clampi(int(state.get("active", 0)), 0, groups.size() - 1)
+	active_group = groups[index]
 
 
 func _load_one(entry: Dictionary) -> PartyMemberData:
@@ -523,6 +572,7 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 		record.definition = SpawnableUnitDatabase.find(definition_id)
 
 	record.is_leader = entry.get("is_leader", false)
+	record.id = StringName(entry.get("id", ""))
 	record.display_name = entry.get("display_name", "")
 
 	var portrait_path: String = entry.get("portrait_path", "")

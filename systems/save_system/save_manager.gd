@@ -52,7 +52,13 @@ const FORMAT_VERSION: int = 1
 ## overworld save — consumed and cleared the moment world_loaded fires
 ## for that load. See _on_world_loaded()'s own header for why this can't
 ## just be a local variable inside load_file().
-var _pending_party_transforms: Array[Transform3D] = []
+## Where each party member was standing, BY ID rather than by position
+## in a list. Index-matching worked only while there was one party in
+## one place; with a split party the list spans groups and areas, and
+## the units present in the world being loaded are some arbitrary
+## subset of it. Keyed by persistent_id, only the ones actually here
+## match, and the rest are simply not applied.
+var _pending_party_transforms: Dictionary = {}
 var _pending_avatar_transform: Variant = null
 var _awaiting_position_restore: bool = false
 
@@ -90,6 +96,13 @@ func save(save_name: String) -> bool:
 		push_warning("SaveManager.save refused: no area currently loaded.")
 		return false
 
+	# Before anything is written. capture() is what MINTS a party member an
+	# id (see PartyManager._capture_one), and the transform table below is
+	# keyed by id — captured first, every key would be the empty string and
+	# every position would collapse onto a single entry. save_state() calls
+	# it again harmlessly; what matters is that it has happened by now.
+	PartyManager.capture()
+
 	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 
 	var timestamp: int = int(Time.get_unix_time_from_system())
@@ -102,6 +115,11 @@ func save(save_name: String) -> bool:
 	cfg.set_value("meta", "leader_name", _current_leader_name())
 	cfg.set_value("meta", "format_version", FORMAT_VERSION)
 
+	# The area the player is LOOKING at, which is the one a load rebuilds.
+	# Every other group carries its own area_id (see
+	# PartyManager.save_state), and its world is rebuilt from authored
+	# content plus AreaState when the player next travels there — which,
+	# now that units remember, means rebuilt as it was left.
 	cfg.set_value("world", "area_id", area.id)
 	cfg.set_value("world", "party_transforms", _capture_party_transforms())
 	# Only written when non-null (an overworld save) — see load_file()'s
@@ -176,7 +194,7 @@ func load_file(path: String) -> bool:
 	# save: _capture_avatar_transform() only ever writes a real value
 	# when the world being saved has get_avatar(), so passing null
 	# through as "the default" doesn't mean what it looks like it means).
-	_pending_party_transforms = cfg.get_value("world", "party_transforms", [])
+	_pending_party_transforms = cfg.get_value("world", "party_transforms", {})
 	if cfg.has_section_key("world", "avatar_transform"):
 		_pending_avatar_transform = cfg.get_value("world", "avatar_transform")
 	else:
@@ -259,10 +277,11 @@ func _current_leader_name() -> String:
 ## Empty array for the overworld (spawns_party() == false, nothing in
 ## PartyManager.members to capture) — avatar_transform below is what
 ## carries a position there instead.
-func _capture_party_transforms() -> Array[Transform3D]:
-	var transforms: Array[Transform3D] = []
+func _capture_party_transforms() -> Dictionary:
+	var transforms: Dictionary = {}
 	for unit in PartyManager.members:
-		transforms.append(unit.global_transform)
+		if is_instance_valid(unit) and unit.persistent_id != &"":
+			transforms[String(unit.persistent_id)] = unit.global_transform
 	return transforms
 
 
@@ -291,9 +310,11 @@ func _on_world_loaded(world: Node) -> void:
 		return
 	_awaiting_position_restore = false
 
-	for i in range(min(_pending_party_transforms.size(), PartyManager.members.size())):
-		PartyManager.members[i].global_transform = _pending_party_transforms[i]
-	_pending_party_transforms = []
+	for unit in PartyManager.members:
+		var key: String = String(unit.persistent_id)
+		if _pending_party_transforms.has(key):
+			unit.global_transform = _pending_party_transforms[key]
+	_pending_party_transforms = {}
 
 	if _pending_avatar_transform != null and world.has_method("get_avatar"):
 		var avatar: Node3D = world.get_avatar()

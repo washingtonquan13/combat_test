@@ -29,6 +29,7 @@ func run() -> void:
 
 	if _install_synthetic_host():
 		await _an_area_remembers_what_happened_in_it()
+		await _a_split_party_round_trips()
 		# Before the host goes: freeing it frees every world mounted under it,
 		# and WorldManager would still be holding records that name them.
 		WorldManager.unload()
@@ -160,6 +161,76 @@ func _an_area_remembers_what_happened_in_it() -> void:
 	check("and still where they had moved to",
 		again.global_position.distance_to(moved_to) < 1.0,
 		"back at their authored spot")
+
+
+## A save used to write one flat member list and one area id, so splitting
+## the party, saving and loading reunited everyone in one place. Nobody was
+## lost — every record was written — but where they were standing was.
+##
+## Round-tripped through PartyManager's own save_state/load_state rather
+## than a file: what is under test is whether the SHAPE carries a split,
+## and going through disk would only add ConfigFile to the things that
+## could be wrong.
+func _a_split_party_round_trips() -> void:
+	WorldManager.load_area(HOME)
+	await get_tree().process_frame
+
+	var party: Array[Unit] = []
+	for unit in PartyManager.members:
+		if is_instance_valid(unit):
+			party.append(unit)
+	if party.size() < 2:
+		check("SETUP: a party to split", false, "%d member(s)" % party.size())
+		return
+
+	var going: Array[Unit] = [party[0]]
+	WorldManager.load_area(AWAY, &"", going)
+	await get_tree().process_frame
+
+	var before_groups: int = PartyManager.groups.size()
+	check("SETUP: the party really is split", before_groups == 2,
+		"%d group(s)" % before_groups)
+
+	# capture() first: a party member has no id until then (ids are minted
+	# for records, not for every unit), so reading them before would key
+	# everybody on the empty string and collapse them into one entry.
+	PartyManager.capture()
+	var expected: Dictionary = {}
+	for group in PartyManager.groups:
+		for record in group.records:
+			expected[String(record.id)] = String(group.area_id)
+
+	var state: Dictionary = PartyManager.save_state()
+	check("the save writes one entry per group",
+		state.get("groups", []).size() == before_groups,
+		"%d group(s) written for %d" % [state.get("groups", []).size(), before_groups])
+
+	PartyManager.load_state(state)
+
+	check("and loading gets the same number back",
+		PartyManager.groups.size() == before_groups,
+		"%d group(s) after load" % PartyManager.groups.size())
+
+	var restored: Dictionary = {}
+	for group in PartyManager.groups:
+		for record in group.records:
+			restored[String(record.id)] = String(group.area_id)
+
+	check("everybody is accounted for",
+		restored.size() == expected.size(),
+		"%d of %d" % [restored.size(), expected.size()])
+
+	var misplaced: int = 0
+	for id in expected:
+		if restored.get(id, "") != expected[id]:
+			misplaced += 1
+	check("and everybody is still in the area they were in",
+		misplaced == 0,
+		"%d member(s) came back somewhere else" % misplaced)
+
+	check("a group standing in an area with no Units is ABSTRACT on load",
+		not PartyManager.groups[0].embodied,
+		"a group claims to be embodied with nothing to be")
 
 
 func _an_npc_here() -> Unit:
