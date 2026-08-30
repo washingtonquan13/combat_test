@@ -30,6 +30,7 @@ func run() -> void:
 	if _install_synthetic_host():
 		await _an_area_remembers_what_happened_in_it()
 		await _a_split_party_round_trips()
+		await _a_fight_resumes_where_it_was_left()
 		# Before the host goes: freeing it frees every world mounted under it,
 		# and WorldManager would still be holding records that name them.
 		WorldManager.unload()
@@ -231,6 +232,111 @@ func _a_split_party_round_trips() -> void:
 	check("a group standing in an area with no Units is ABSTRACT on load",
 		not PartyManager.groups[0].embodied,
 		"a group claims to be embodied with nothing to be")
+
+
+## can_save() refused mid-combat, and its own comment named exactly why:
+## turn order, initiative and status effects were things nothing wrote.
+## Now a fight is written down as who is in it, in what order, and how far
+## through — every combatant's own state travelling with the unit rather
+## than with the encounter.
+##
+## Round-tripped through the encounter's own save_state and
+## CombatManager.restore_combat rather than through a file, for the same
+## reason as the split test above: what is under test is the shape, not
+## ConfigFile.
+func _a_fight_resumes_where_it_was_left() -> void:
+	var saved_factions: Array = CombatAi.ai_factions.duplicate()
+	CombatAi.ai_factions = []
+
+	WorldManager.load_area(HOME)
+	await get_tree().process_frame
+	PartyManager.capture()
+
+	var ally: Unit = null
+	for unit in PartyManager.members:
+		if is_instance_valid(unit):
+			ally = unit
+			break
+	var foe: Unit = _an_npc_here()
+	if ally == null or foe == null:
+		check("SETUP: two named combatants", false)
+		CombatAi.ai_factions = saved_factions
+		return
+
+	check("SETUP: both combatants are named",
+		ally.persistent_id != &"" and foe.persistent_id != &"",
+		"an unnamed combatant cannot be written down at all")
+
+	var combatants: Array[Unit] = [ally, foe]
+	var fight: Encounter = CombatManager.start_combat(combatants)
+	await get_tree().process_frame
+
+	if not is_instance_valid(fight) or not fight.is_running:
+		check("SETUP: the fight started and is running", false)
+		CombatAi.ai_factions = saved_factions
+		return
+
+	# Put it partway through DIRECTLY rather than by advancing turns. What
+	# is under test is whether this state survives being written down, and
+	# driving real turn advancement to reach it only adds a way for the
+	# fight to end underneath the test instead.
+	fight._turn_index = 1
+	fight.round_number = 3
+	fight.current_unit.move_remaining = 1.75
+
+	var expected_order: Array = []
+	for unit in fight.turn_order:
+		expected_order.append(String(unit.persistent_id))
+	var expected_current: StringName = fight.current_unit.persistent_id
+	var expected_round: int = fight.round_number
+	var expected_move: float = fight.current_unit.move_remaining
+
+	# The headline. can_save() refused mid-combat for exactly as long as
+	# nothing could write a fight down.
+	check("a save is allowed while a battle is running",
+		SaveManager.can_save(),
+		"still refused, so none of the rest of this is reachable")
+
+	var state: Dictionary = fight.save_state()
+	check("the fight writes down everyone in it, in order",
+		state.get("turn_order", []) == expected_order,
+		str(state.get("turn_order", [])))
+
+	# End it and rebuild from the record, which is what a load does.
+	fight.finish(&"")
+	await get_tree().process_frame
+	check("SETUP: the original fight is over", not CombatManager.in_combat)
+
+	var resumed: Encounter = CombatManager.restore_combat(state)
+	await get_tree().process_frame
+
+	check("the fight comes back", resumed != null and resumed.is_running,
+		"nothing resumed")
+	if resumed == null:
+		CombatAi.ai_factions = saved_factions
+		return
+
+	var order: Array = []
+	for unit in resumed.turn_order:
+		order.append(String(unit.persistent_id))
+	check("with the same initiative order", order == expected_order,
+		"%s, expected %s" % [str(order), str(expected_order)])
+	check("on the same unit's turn",
+		resumed.current_unit != null
+			and resumed.current_unit.persistent_id == expected_current,
+		"resumed on somebody else")
+	check("in the same round", resumed.round_number == expected_round,
+		"round %d, expected %d" % [resumed.round_number, expected_round])
+
+	# Turn economy belongs to the UNIT, not the encounter — the point of
+	# keeping it out of save_state is that it comes back anyway.
+	check("and the turn already partly spent is still partly spent",
+		is_equal_approx(resumed.current_unit.move_remaining, expected_move),
+		"%.2f, expected %.2f" % [resumed.current_unit.move_remaining, expected_move])
+
+	resumed.finish(&"")
+	await get_tree().process_frame
+	CombatAi.ai_factions = saved_factions
 
 
 func _an_npc_here() -> Unit:

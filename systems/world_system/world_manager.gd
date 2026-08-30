@@ -241,8 +241,13 @@ func _any_traveller_fighting(travellers: Array[Unit]) -> bool:
 ## where SaveManager.load_file() can also be called from. Returns false,
 ## refused exactly like load_world(), if a load isn't currently allowed
 ## (mid-combat/dialogue/loot).
-func unload() -> bool:
-	if not can_load():
+## force skips the can_load() gate, and only SaveManager.load_file()
+## passes it. That gate exists to stop a world being swapped out from
+## under a live fight during PLAY; loading a save is not a transition,
+## it is discarding everything — including the fight — and refusing it
+## would make a save taken mid-combat impossible to load back.
+func unload(force: bool = false) -> bool:
+	if not force and not can_load():
 		push_warning("WorldManager.unload refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return false
 
@@ -823,6 +828,27 @@ func area_of(node: Node) -> AreaDefinition:
 ## Every loaded world's context, focused or not — for the few systems
 ## that must reason about ALL worlds rather than the one on screen. A
 ## fight running where the player isn't looking is still a fight.
+## Every running fight, by the area it is happening in.
+##
+## By AREA rather than by resident world, because that is what survives:
+## a save records where a fight is, and it is rebuilt when that area is
+## next loaded — which means a battle the player was not watching does
+## not need its world kept alive to come back.
+func encounters_by_area() -> Dictionary:
+	var out: Dictionary = {}
+	for id in _residents:
+		var resident: ResidentWorld = _residents[id]
+		if not is_instance_valid(resident) or resident.context == null:
+			continue
+		var states: Array = []
+		for encounter in resident.context.encounters:
+			if is_instance_valid(encounter) and encounter.is_running:
+				states.append(encounter.save_state())
+		if not states.is_empty():
+			out[String(id)] = states
+	return out
+
+
 func all_contexts() -> Array[WorldContext]:
 	var out: Array[WorldContext] = []
 	for resident in _residents.values():

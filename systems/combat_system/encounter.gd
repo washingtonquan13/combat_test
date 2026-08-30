@@ -127,6 +127,63 @@ var _skip_first_action_for: Unit = null
 ## for the same pair, and one that re-rolls each call gives inconsistent
 ## answers, which Godot flags as a bad comparison function and can leave
 ## the sort broken.
+## A fight as data: who is in it, in order, and how far through it is.
+##
+## Units by persistent_id, which is what makes a turn order writable at
+## all. A combatant nobody named cannot be written down — an empty id
+## means "not persistent" throughout this project — so it is dropped
+## here and the fight comes back without it. Named party members and
+## authored NPCs survive; an unnamed debug spawn does not.
+##
+## Per-unit state (hp, statuses, move already spent) is NOT here. That
+## belongs to the units and travels with them through AreaState, which
+## is what keeps this to the thing only the encounter knows.
+func save_state() -> Dictionary:
+	var ids: Array = []
+	var unnamed: int = 0
+	for unit in turn_order:
+		if not is_instance_valid(unit):
+			continue
+		if unit.persistent_id == &"":
+			unnamed += 1
+			continue
+		ids.append(String(unit.persistent_id))
+	if unnamed > 0:
+		push_warning("Encounter.save_state: %d combatant(s) have no persistent_id and will not come back." % unnamed)
+
+	return {
+		"turn_order": ids,
+		"turn_index": _turn_index,
+		"round": round_number,
+	}
+
+
+## Picks a fight back up where it was left, rather than starting one.
+##
+## Deliberately not begin(): that rolls initiative, resets the index and
+## the round, and announces a beginning. Everything here is already
+## decided — the order was rolled once, the round is however far along it
+## got, and the unit whose turn it is has already spent whatever it spent
+## (restored onto the unit itself, not from here).
+func resume(units: Array[Unit], at_index: int, at_round: int) -> void:
+	turn_order = units.filter(func(u): return is_instance_valid(u) and u.is_alive())
+	if turn_order.is_empty():
+		return
+
+	for unit in turn_order:
+		_adopt(unit)
+
+	_turn_index = clampi(at_index, 0, turn_order.size() - 1)
+	round_number = at_round
+	phase = Phase.ACTIVE
+
+	SystemLog.print("[b]--- Combat resumed ---[/b]")
+	combat_started.emit(turn_order)
+	# No reset_turn_actions(): the turn is CONTINUING, and what it has
+	# left came back with the unit.
+	turn_started.emit(current_unit)
+
+
 func begin(combatants: Array[Unit], skip_first_action_for: Unit = null) -> void:
 	turn_order = combatants.filter(func(u): return is_instance_valid(u) and u.is_alive())
 

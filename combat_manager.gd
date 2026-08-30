@@ -229,6 +229,57 @@ func add_unit_to_combat(unit: Unit, after_unit: Unit = null, encounter: Encounte
 		_refresh_mode_claims()
 
 
+## Rebuilds a saved fight in whatever world is now loaded, and picks it
+## up where it was. Returns null when it cannot be rebuilt.
+##
+## A fight needs at least two sides present to still be a fight: if the
+## save named combatants who are not here — an unnamed one that could
+## not be written down, or one that has since died — restoring a
+## one-sided battle would leave the player stuck in a fight with nobody.
+## Better to let it not resume.
+func restore_combat(state: Dictionary) -> Encounter:
+	var units: Array[Unit] = []
+	for id in state.get("turn_order", []):
+		var unit: Unit = _find_by_id(StringName(id))
+		if unit:
+			units.append(unit)
+
+	var factions: Array[StringName] = []
+	for unit in units:
+		if not factions.has(unit.faction):
+			factions.append(unit.faction)
+	if units.size() < 2 or factions.size() < 2:
+		if not units.is_empty():
+			push_warning("CombatManager.restore_combat: only %d combatant(s) found; not resuming." % units.size())
+		return null
+
+	var encounter := Encounter.new()
+	encounter.name = "Encounter%d" % (encounters.size() + 1)
+	add_child(encounter)
+	_encounter_list_for(units).append(encounter)
+	_relay(encounter)
+
+	if _involves_player(units):
+		focused_encounter = encounter
+
+	encounter.resume(units, int(state.get("turn_index", 0)), int(state.get("round", 1)))
+	_refresh_mode_claims()
+	return encounter
+
+
+## In the world on screen, which is the one a restore is rebuilding.
+func _find_by_id(id: StringName) -> Unit:
+	if id == &"":
+		return null
+	var context: WorldContext = WorldManager.context()
+	for unit in UnitQuery.living_units(get_tree()):
+		if context and not context.contains(unit):
+			continue
+		if unit.persistent_id == id:
+			return unit
+	return null
+
+
 func remove_unit_from_combat(unit: Unit) -> void:
 	if unit.encounter:
 		unit.encounter.remove_unit(unit)
