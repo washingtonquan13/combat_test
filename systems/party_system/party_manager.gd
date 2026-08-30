@@ -715,6 +715,23 @@ func place_at_landing(unit: Unit, spawn_point: Node3D, follower_index: int, foll
 		get_tree(), target, clearance, false, unit)
 	if resolved.found:
 		unit.global_position = resolved.point
+		return
+
+	# The unsnapped ring slot, NOT the marker.
+	#
+	# Leaving a follower where it started means leaving it exactly on the
+	# marker — on top of the leader, and on top of every other follower
+	# whose snap also failed. Stacked CharacterBody3Ds resolve the overlap
+	# by shoving each other apart every physics frame, and with gravity
+	# pinning them together the resolution goes UP: the stack climbs, a
+	# few units per second, for as long as it exists. That is how a party
+	# member ends up thousands of units above a floor it never walked off
+	# — and why it looked like a placement bug when it is really a
+	# placement that never happened.
+	#
+	# An unsnapped slot may be somewhere imperfect. Everyone occupying one
+	# point is not imperfect, it is broken.
+	unit.global_position = target
 
 
 ## Moves party members that are ALREADY EMBODIED from whatever world they
