@@ -67,6 +67,27 @@ func _commanded_encounter() -> Encounter:
 	return null
 
 
+## turn_order, minus anyone already freed, as a PLAIN array.
+##
+## turn_order can hold a combatant freed but not yet pruned — a death
+## and the fight's own bookkeeping need not land in the same frame. Two
+## hazards follow, and both are errors at the CALL rather than something
+## a guard inside could catch: _add_slot takes a typed Unit, which
+## rejects a freed object before its body runs, and TypedArray.has()
+## rejects one outright. Reported from play as a crash while clicking
+## quickly during a fight.
+##
+## Plain Array, not Array[Unit], on purpose: the point is to stop the
+## static Unit type travelling with these values into calls that will
+## re-validate it.
+func _live_turn_order(encounter: Encounter) -> Array:
+	var live: Array = []
+	for unit in encounter.turn_order:
+		if is_instance_valid(unit):
+			live.append(unit)
+	return live
+
+
 func _refresh() -> void:
 	var encounter: Encounter = _commanded_encounter()
 	if encounter == null:
@@ -74,14 +95,17 @@ func _refresh() -> void:
 		visible = false
 		return
 
-	for unit in _slots.keys():
-		if not encounter.turn_order.has(unit):
-			var stale: Control = _slots[unit]
-			_slots.erase(unit)
-			if is_instance_valid(stale):
-				stale.queue_free()
+	var live: Array = _live_turn_order(encounter)
 
-	for unit in encounter.turn_order:
+	for unit in _slots.keys():
+		if is_instance_valid(unit) and live.has(unit):
+			continue
+		var stale: Control = _slots[unit]
+		_slots.erase(unit)
+		if is_instance_valid(stale):
+			stale.queue_free()
+
+	for unit in live:
 		if not _slots.has(unit):
 			_add_slot(unit)
 
@@ -190,14 +214,14 @@ func _sync_order() -> void:
 		return
 	for i in encounter.turn_order.size():
 		var unit: Unit = encounter.turn_order[i]
-		if unit in _slots:
+		if is_instance_valid(unit) and unit in _slots:
 			move_child(_slots[unit], i)
 
 
 func _update_highlight() -> void:
 	for unit in _slots:
 		var slot: Control = _slots[unit]
-		if not is_instance_valid(slot):
+		if not is_instance_valid(slot) or not is_instance_valid(unit):
 			continue
 		var encounter: Encounter = _commanded_encounter()
 		slot.set_highlighted(encounter != null and unit == encounter.current_unit)

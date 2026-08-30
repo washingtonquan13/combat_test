@@ -18,6 +18,7 @@ var _bystander: Unit
 var _enemy: Unit
 var _fight: Encounter = null
 var _saved_factions: Array = []
+var _refreshed: bool = false
 
 
 func run() -> void:
@@ -35,6 +36,7 @@ func run() -> void:
 	_the_commanded_unit_is_the_selected_one()
 	await _acting_out_of_turn_is_refused()
 	await _a_move_order_replaces_the_one_in_flight()
+	await _the_initiative_row_survives_a_freed_combatant()
 
 	_restore()
 
@@ -149,6 +151,64 @@ func _a_move_order_replaces_the_one_in_flight() -> void:
 	check("while an ability mid-walk is still refused",
 		not walker.can_act(),
 		"can_act stopped counting movement, which ability use relies on")
+
+
+## The initiative row rebuilds itself from the commanded unit's
+## turn_order, and that list can hold a combatant already freed but not
+## yet pruned. Passing one to _add_slot, whose parameter is a typed
+## Unit, is an error AT THE CALL — the body never runs, so no guard
+## inside could have helped. Reported from play as a crash while
+## clicking quickly during a fight.
+func _the_initiative_row_survives_a_freed_combatant() -> void:
+	var row: HBoxContainer = load("res://initiative_row.gd").new()
+	_root.add_child(row)
+
+	# A fight whose turn_order holds one live unit and one freed one.
+	var doomed: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], Vector3(4.0, 0.0, 0.0))
+	var encounter := Encounter.new()
+	_root.add_child(encounter)
+	encounter.phase = Encounter.Phase.ACTIVE
+	var order: Array[Unit] = [_bystander, doomed]
+	encounter.turn_order = order
+	_bystander.encounter = encounter
+	SelectionManager.select(_bystander)
+
+	# Out of the harness list BEFORE freeing: teardown walks _spawned as an
+	# Array[Unit], and a freed element in a typed array is an error to read,
+	# never mind to pass on.
+	_spawned.erase(doomed)
+	if doomed.is_in_group("units"):
+		doomed.remove_from_group("units")
+	doomed.get_parent().remove_child(doomed)
+	doomed.free()
+
+	# Asserted on the FILTER rather than on surviving the call. The
+	# "invalid type" error prints and returns rather than aborting, so a
+	# did-it-survive flag is set either way and proves nothing — which a
+	# sabotage run is exactly how I found out.
+	var live: Array = row._live_turn_order(encounter)
+	check("a combatant already freed is dropped before anything is built",
+		live.size() == 1,
+		"%d of 2 survived the filter" % live.size())
+
+	_refreshed = false
+	_try_refresh(row)
+	check("and the row rebuilds past it", _refreshed)
+	_bystander.encounter = null
+	# Emptied before freeing: this fixture deliberately left a freed unit in
+	# turn_order, and Encounter.finish() walks that list.
+	encounter.turn_order.clear()
+	encounter.queue_free()
+	row.queue_free()
+
+
+## Separated so an error inside aborts only THIS call and leaves the
+## flag false, rather than taking the assertion down with it — a script
+## error makes checks vanish rather than fail, which is how a run goes
+## quietly green while something is badly wrong.
+func _try_refresh(row: Node) -> void:
+	row._refresh()
+	_refreshed = true
 
 
 func _restore() -> void:
