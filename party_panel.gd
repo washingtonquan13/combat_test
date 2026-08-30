@@ -76,6 +76,10 @@ func _ready() -> void:
 	PartyManager.leader_changed.connect(_on_leader_changed)
 	WorldManager.world_loading.connect(_on_world_loading)
 	WorldManager.world_loaded.connect(_on_world_loaded)
+	# Re-entering a world that stayed loaded emits world_focused and NOT
+	# world_loaded (nothing was loaded), and a focus switch is exactly when
+	# "who is here" changes — so the panel has to listen for both.
+	WorldManager.world_focused.connect(_on_world_focused)
 	# Deferred, same reasoning as before: safe even if this panel is ever
 	# constructed after members already exist (e.g. a future scene that
 	# doesn't boot through MainRoot at all).
@@ -87,6 +91,28 @@ func _rebuild_core() -> void:
 		_add_core_slot(unit)
 	_sort_rows()
 	_update_visibility()
+	_mark_absent_members()
+
+
+func _on_world_focused(_world: Node) -> void:
+	_mark_absent_members()
+
+
+## Dims the members who are standing in some other world. With the party
+## together this does nothing at all, which is the normal case — it is the
+## readout for a party that has been split up, so the player can see where
+## everyone is rather than having to remember.
+func _mark_absent_members() -> void:
+	var context: WorldContext = WorldManager.context()
+	for key in _core_rows:
+		if not (key is Unit) or not is_instance_valid(key):
+			continue
+		var row: Node = _core_rows[key]
+		if not is_instance_valid(row) or row.get_child_count() == 0:
+			continue
+		var portrait: Node = row.get_child(0)
+		if portrait.has_method("set_elsewhere"):
+			portrait.set_elsewhere(context != null and not context.contains(key))
 
 
 func _on_member_added(unit: Unit) -> void:

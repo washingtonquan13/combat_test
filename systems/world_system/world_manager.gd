@@ -224,7 +224,11 @@ func unload() -> bool:
 		return false
 
 	world_loading.emit(null)
-	_leave_focused(false)
+	# false: SaveManager is about to overwrite roster from the save file,
+	# so refreshing it from the world being discarded is work undone one
+	# line later.
+	_disembody_all(false)
+	_leave_focused()
 	# "Nothing is loaded," not "nothing is focused" — so every resident
 	# goes, earned or not. SaveManager is about to replace the whole game
 	# state, and a fight still running in some other area is part of what
@@ -245,11 +249,9 @@ func unload() -> bool:
 ## capture_party controls only whether PartyManager.capture() runs first —
 ## SaveManager.load_file() is about to overwrite the roster anyway (see
 ## unload()). Everything else happens either way.
-func _leave_focused(capture_party: bool) -> void:
+func _leave_focused() -> void:
 	if not _focused:
 		return
-
-	_release_party_from(_focused, capture_party)
 
 	SelectionManager.deselect_all()
 	InteractionMenu.close()
@@ -269,22 +271,19 @@ func _leave_focused(capture_party: bool) -> void:
 	_focused = null
 
 
-## The party leaves a world when the player does.
+## Turns every embodied party member back into roster data and frees the
+## Units. The party stops having positions at all.
 ##
-## Residency preserves what the WORLD owns — its fights, its dead, its
-## surfaces — not where your party happens to be standing. The party still
-## travels as one; leaving members behind is phase 3, and this function is
-## where that changes.
-##
-## They must be FREED, not merely forgotten. clear_members() drops
-## references only, and the Units are children of the world — so a world
-## that stays resident would keep them standing there while the next world
-## spawned a second copy of every one of them from the same roster.
-func _release_party_from(resident: ResidentWorld, capture_party: bool) -> void:
+## Only for a world with no place for Units — the overworld and its single
+## avatar (spawns_party() -> false). It is deliberately ALL-OR-NOTHING:
+## the party cannot be half-abstract, because roster has no notion of who
+## is where, and the correlation needed to re-embody only some of it would
+## be guesswork. A split party going to the overworld is collected.
+func _disembody_all(capture_party: bool = true) -> void:
 	if capture_party:
-		# A no-op when this world never spawned the party in the first
-		# place (members is empty) — see PartyManager.capture()'s own guard
-		# for why that's required rather than merely harmless.
+		# A no-op when nobody is embodied (members empty) — see
+		# PartyManager.capture()'s own guard for why that is required
+		# rather than merely harmless.
 		PartyManager.capture()
 	_dismiss_fielded_demons()
 
@@ -294,13 +293,64 @@ func _release_party_from(resident: ResidentWorld, capture_party: bool) -> void:
 		if not is_instance_valid(unit):
 			continue
 		# Out of the group first: a half-freed unit still answering group
-		# queries is the exact shape of bug the test suite has caught
-		# repeatedly (see UnitQuery's own guards).
+		# queries is the exact shape of bug the suite has caught repeatedly.
 		if unit.is_in_group("units"):
 			unit.remove_from_group("units")
 		if unit.get_parent():
 			unit.get_parent().remove_child(unit)
 		unit.queue_free()
+
+
+## Who is actually travelling. An empty request means everyone embodied in
+## the world being left, which is what every caller meant before the party
+## could split and is still the sane default — walking out of a door with
+## nothing selected takes the people standing there with you.
+func _resolve_travellers(requested: Array[Unit]) -> Array[Unit]:
+	var going: Array[Unit] = []
+	var here: WorldContext = _focused.context if _focused else null
+
+	if not requested.is_empty():
+		for unit in requested:
+			if is_instance_valid(unit) and PartyManager.is_member(unit):
+				going.append(unit)
+		return going
+
+	for unit in PartyManager.members:
+		if not is_instance_valid(unit):
+			continue
+		if here == null or here.contains(unit):
+			going.append(unit)
+	return going
+
+
+## Puts the travelling party into the world now being focused.
+##
+## Three cases, and which one applies is a property of the DESTINATION and
+## of whether anyone is embodied at all — not of how the player got here.
+func _embody_into(resident: ResidentWorld, travellers: Array[Unit]) -> void:
+	var world: Node = resident.world
+	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
+
+	if not wants_party:
+		_disembody_all()
+		return
+
+	var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
+
+	if PartyManager.members.is_empty():
+		# Nobody is embodied anywhere, so there is nothing to carry and the
+		# roster is the whole party — build it here, as before.
+		_is_restoring_party = not PartyManager.roster.is_empty()
+		if _is_restoring_party:
+			PartyManager.spawn_party(world, spawn_point)
+		_is_restoring_party = false
+		return
+
+	# Part of the party is alive somewhere. Carry the travellers across and
+	# leave everyone else standing exactly where they are — which is the
+	# whole of splitting, and works because a unit's world is simply its
+	# parent's (see PartyManager.relocate).
+	PartyManager.relocate(travellers, world, spawn_point)
 
 
 ## Frees a world that has nothing left worth preserving — see
@@ -324,9 +374,25 @@ func _retire_if_unearned(resident: ResidentWorld) -> void:
 	NavigationGrid.invalidate()
 
 
+## Sweeps every world that is not being looked at and frees the ones with
+## nothing left to preserve.
+##
+## A sweep rather than only checking the world just left, because a world
+## can stop being earned for reasons that have nothing to do with the
+## player's route: collecting the party out of a distant area (see
+## _disembody_all) removes the only thing keeping it, and so does its last
+## fight ending. Cheap — there are never many residents, and the check is
+## a couple of array walks.
+func _retire_unearned() -> void:
+	for resident in _residents.values().duplicate():
+		if resident == _focused:
+			continue
+		_retire_if_unearned(resident)
+
+
 ## Points the player at a world that is already loaded and in the tree.
 ## The counterpart to _leave_focused, and the only place _focused is set.
-func _focus(resident: ResidentWorld) -> void:
+func _focus(resident: ResidentWorld, travellers: Array[Unit] = []) -> void:
 	_focused = resident
 	resident.set_focused(true)
 	_move_attention_to(resident.viewport())
@@ -343,21 +409,8 @@ func _focus(resident: ResidentWorld) -> void:
 			# own viewport at the same time — they do not fight.
 			cam.make_current()
 
-	_spawn_party_into(resident)
+	_embody_into(resident, travellers)
 	world_focused.emit(world)
-
-
-## Projects PartyManager.roster into live Units in this world, if it wants
-## them. A world that opts out via spawns_party() (the overworld, with its
-## single avatar) gets none regardless of what roster holds.
-func _spawn_party_into(resident: ResidentWorld) -> void:
-	var world: Node = resident.world
-	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
-	_is_restoring_party = wants_party and not PartyManager.roster.is_empty()
-	if _is_restoring_party:
-		var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
-		PartyManager.spawn_party(world, spawn_point)
-	_is_restoring_party = false
 
 
 ## The resident world for an area, or null. Null for a null area on
@@ -385,7 +438,7 @@ func _resident_for(area: AreaDefinition) -> ResidentWorld:
 ## _resolve_entry_spawn_point()); area is the AreaDefinition behind scene,
 ## or null for a world with no area data at all — which is also what makes
 ## a world un-resident, since there is no id to find it by again.
-func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: AreaDefinition = null) -> Node:
+func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: AreaDefinition = null, travellers: Array[Unit] = []) -> Node:
 	if not can_load():
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
@@ -398,12 +451,14 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# true: an ordinary area transition, so PartyManager.roster must stay
 	# current against whatever was actually live. See unload() for the
 	# false case (SaveManager.load_file()).
+	# Resolved BEFORE leaving, while _focused still says which world these
+	# people are standing in.
 	var outgoing: ResidentWorld = _focused
-	_leave_focused(true)
+	var going: Array[Unit] = _resolve_travellers(travellers)
+
+	_leave_focused()
 
 	var existing: ResidentWorld = _resident_for(area)
-	if existing != outgoing:
-		_retire_if_unearned(outgoing)
 
 	# Already loaded: step back into it rather than rebuilding. This is the
 	# whole point of residency — the world kept running while the player
@@ -412,7 +467,14 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	if existing:
 		_pending_spawn_point_name = _resolve_entry_spawn_point(
 			existing.world, spawn_point_name, from_area_id)
-		_focus(existing)
+		_focus(existing, going)
+		# AFTER the handover, not before: the travellers were still
+		# standing in the outgoing world a moment ago, and a world with
+		# party members in it has earned its keep (ResidentWorld.is_earned).
+		# Retiring first would have counted them as reasons to stay.
+		if existing != outgoing:
+			_retire_if_unearned(outgoing)
+		_retire_unearned()
 		return existing.world
 
 	var world: Node = scene.instantiate()
@@ -441,8 +503,13 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# Set before the world enters the tree, because a world's _ready() runs
 	# synchronously inside add_child() and may need to know a real party
 	# spawn is about to follow (see test_arena.gd, and is_restoring_party).
+	# "A real party is about to arrive here" — whether it arrives by being
+	# built from roster or by walking in from another world. Either way a
+	# world must not also lay out its own authored bootstrap party (see
+	# test_arena.gd, which reads this from inside its _ready).
 	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
-	_is_restoring_party = wants_party and not PartyManager.roster.is_empty()
+	_is_restoring_party = wants_party and (
+		not PartyManager.roster.is_empty() or not PartyManager.members.is_empty())
 
 	var resident := ResidentWorld.new()
 	resident.name = "Resident_%s" % (area.id if area else &"anonymous")
@@ -466,7 +533,9 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	if area:
 		_residents[area.id] = resident
 
-	_focus(resident)
+	_focus(resident, going)
+	_retire_if_unearned(outgoing)
+	_retire_unearned()
 	world_loaded.emit(world)
 	return world
 
@@ -532,13 +601,13 @@ func _collect_persistent_nodes(node: Node) -> Array[Node]:
 ## derives the right answer on its own. Which area is being LEFT is derived
 ## by load_world() itself from current_area(), whatever's still loaded at
 ## the moment of the call; callers never track or supply it.
-func load_area(area_id: StringName, spawn_point_name: StringName = &"") -> Node:
+func load_area(area_id: StringName, spawn_point_name: StringName = &"", travellers: Array[Unit] = []) -> Node:
 	var area: AreaDefinition = AreaDatabase.find(area_id)
 	if not area:
 		push_warning("WorldManager.load_area: unknown area id '%s'" % area_id)
 		return null
 
-	return load_world(area.world_scene, spawn_point_name, area)
+	return load_world(area.world_scene, spawn_point_name, area, travellers)
 
 
 ## The area behind the FOCUSED world, or null with nothing loaded. Read
@@ -599,6 +668,35 @@ func spawn_parent() -> Node:
 ## this from inside its own _ready(). False outside of an active
 ## load_world() call, for the very first load (nothing to restore yet),
 ## and for a world that opts out via spawns_party() -> false.
+## Moves the player's attention to whichever resident world contains
+## `node`, moving nobody. Returns false if that world isn't loaded, or if
+## a switch isn't allowed right now.
+##
+## This is what clicking an absent companion's portrait does. It is NOT
+## travel: no traveller list, so _embody_into carries nobody and everyone
+## stays exactly where they are — the player looks somewhere else, and
+## that is all that happens.
+##
+## Gated on can_load() for the same reason travel is: a fight or a
+## conversation in the world being left is not something to walk out of
+## mid-sentence. Knowing when to ASK is a later problem; refusing is the
+## honest answer until then.
+func focus_world_of(node: Node) -> bool:
+	for resident in _residents.values():
+		if not is_instance_valid(resident) or resident.context == null:
+			continue
+		if not resident.context.contains(node):
+			continue
+		if resident == _focused:
+			return true
+		if not can_load():
+			return false
+		_leave_focused()
+		_focus(resident)
+		return true
+	return false
+
+
 ## Every area currently loaded, focused or not. Debug and diagnostics —
 ## nothing in the game should be enumerating worlds to find something; ask
 ## context_for() with the node in hand instead.

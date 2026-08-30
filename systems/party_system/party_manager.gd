@@ -481,16 +481,82 @@ func spawn_party(world: Node, spawn_point: Node3D) -> void:
 
 	for record in roster:
 		var unit: Unit = spawn_member(record, world, spawn_point)
-
-		if not record.is_leader:
-			var index: int = followers.find(record)
-			var offset: Vector3 = FormationPlanner.ring_offset(index, followers.size(), unit.formation_spread_radius)
-			var target: Vector3 = spawn_point.global_position + offset
-			var clearance: float = unit.radius + unit.avoidance_margin
-			var resolved: Dictionary = NavigationGrid.nearest_valid_point(get_tree(), target, clearance, false, null)
-			if resolved.found:
-				unit.global_position = resolved.point
-
+		place_at_landing(unit, spawn_point,
+			-1 if record.is_leader else followers.find(record), followers.size())
 		add_member(unit)
 		if record.is_leader:
 			set_leader(unit)
+
+
+## Puts a unit down at the party's landing point. follower_index of -1
+## means the leader, who lands exactly on the marker — it is the one
+## position every door and spawn point was actually authored at. Everyone
+## else takes a ring slot around it, snapped to a valid cell so raw trig
+## can't drop them inside a wall or off a ledge.
+##
+## Shared by spawn_party (building units from roster) and relocate (moving
+## units that already exist between worlds), so the two agree on where a
+## party lands rather than each doing its own arithmetic.
+func place_at_landing(unit: Unit, spawn_point: Node3D, follower_index: int, follower_count: int) -> void:
+	unit.global_transform = spawn_point.global_transform
+	if follower_index < 0 or follower_count <= 0:
+		return
+
+	var offset: Vector3 = FormationPlanner.ring_offset(
+		follower_index, follower_count, unit.formation_spread_radius)
+	var target: Vector3 = spawn_point.global_position + offset
+	var clearance: float = unit.radius + unit.avoidance_margin
+	# unit, not null: it is the one being placed, so it must not block its
+	# own landing cell — and since the grid resolves which world a query
+	# means from the unit it is handed (see NavigationGrid.activate_for),
+	# passing it is also what aims this at the DESTINATION's grid rather
+	# than whichever world happened to be active.
+	var resolved: Dictionary = NavigationGrid.nearest_valid_point(
+		get_tree(), target, clearance, false, unit)
+	if resolved.found:
+		unit.global_position = resolved.point
+
+
+## Moves party members that are ALREADY EMBODIED from whatever world they
+## are in into `world`, landing them like a fresh spawn.
+##
+## This is what travel does now, instead of capture-into-roster and
+## rebuild-from-roster on the other side. That round trip was lossy by
+## construction — _capture_one copies a fixed list of fields, so anything
+## added to Unit and not to that list silently vanished on every area
+## transition — and it could only ever move the party as a whole, since
+## roster has no notion of who is going. Reparenting carries the real
+## thing: buffs, in-flight state, equipment, everything.
+##
+## Rungs 2 and 3a are what make this work rather than merely compile:
+## every query, AI check, detection sweep and navigation query derives its
+## world from the unit's own get_world_3d(), so a unit that changes parent
+## is simply, immediately, in the other world.
+func relocate(units: Array[Unit], world: Node, spawn_point: Node3D) -> void:
+	var movers: Array[Unit] = []
+	for unit in units:
+		if is_instance_valid(unit) and unit.is_inside_tree():
+			movers.append(unit)
+	if movers.is_empty() or not is_instance_valid(world) or spawn_point == null:
+		return
+
+	# Leader first, so the ring is built around whoever holds the marker.
+	movers.sort_custom(func(a: Unit, b: Unit) -> bool:
+		return is_leader(a) and not is_leader(b))
+
+	var has_leader: bool = is_leader(movers[0])
+	var follower_count: int = movers.size() - (1 if has_leader else 0)
+	var follower_index: int = 0
+
+	for unit in movers:
+		# A half-finished walk carries a destination in the OLD world's
+		# coordinates and a path through its navigation grid. Neither
+		# means anything here.
+		unit.force_stop_movement()
+		unit.reparent(world, false)
+
+		if is_leader(unit):
+			place_at_landing(unit, spawn_point, -1, follower_count)
+		else:
+			place_at_landing(unit, spawn_point, follower_index, follower_count)
+			follower_index += 1

@@ -101,34 +101,48 @@ func _a_pinned_world_is_re_entered_not_rebuilt() -> void:
 	WorldManager.set_area_pinned(HOME, false)
 
 
-## Residency preserves what the WORLD owns, not where the party stands.
-## The party still travels as one, so it has to be genuinely REMOVED from
-## the world left behind — dropping the references alone would leave the
-## units standing there while the next world spawned a second set of them
-## from the same roster.
+## Travelling must not multiply the party. Before splitting this was
+## guaranteed by force — the whole world was freed — and now that a world
+## can outlive the player, a member left standing in it while a copy is
+## rebuilt somewhere else is a live possibility.
 func _the_party_does_not_double_up() -> void:
-	if PartyManager.roster.is_empty():
-		# No chargen has run in this harness, so there is no party to
-		# duplicate. Assert the invariant that makes that safe rather than
-		# silently skipping.
-		check("with an empty roster, no world spawns party units",
-			PartyManager.members.is_empty())
-		return
+	WorldManager.load_area(HOME)
+	await get_tree().process_frame
+	var before: int = _party_units_everywhere()
 
 	WorldManager.set_area_pinned(HOME, true)
 	WorldManager.load_area(AWAY)
 	await get_tree().process_frame
+	check("travelling out does not multiply the party",
+		_party_units_everywhere() == before,
+		"%d before, %d after" % [before, _party_units_everywhere()])
 
-	var strays: int = 0
-	for unit in UnitQuery.all_units(get_tree()):
-		if unit.is_player_controlled() and not WorldManager.context().contains(unit):
-			strays += 1
-	check("no party units are left standing in the world just left",
-		strays == 0, "%d stranded" % strays)
-	check("and the party is live in exactly one world",
-		PartyManager.members.size() <= PartyManager.roster.size())
+	WorldManager.load_area(HOME)
+	await get_tree().process_frame
+	check("and neither does coming back to a world that stayed loaded",
+		_party_units_everywhere() == before,
+		"%d before, %d after" % [before, _party_units_everywhere()])
+	check("everyone the manager thinks is live really is",
+		_all_members_valid(), "PartyManager.members holds a freed unit")
 
 	WorldManager.set_area_pinned(HOME, false)
+
+
+## Across every resident world, not just the focused one — the whole point
+## is that a copy could be hiding in the world nobody is looking at.
+func _party_units_everywhere() -> int:
+	var count: int = 0
+	for unit in UnitQuery.all_units(get_tree()):
+		if is_instance_valid(unit) and unit.is_player_controlled():
+			count += 1
+	return count
+
+
+func _all_members_valid() -> bool:
+	for unit in PartyManager.members:
+		if not is_instance_valid(unit):
+			return false
+	return true
 
 
 ## unload() means "nothing is loaded", not "nothing is focused" —

@@ -124,8 +124,25 @@ func _ready() -> void:
 func _on_pressed() -> void:
 	if not unit:
 		return
+
+	# A member standing in another world can't be selected there — the
+	# selection drives orders in the world on screen. Clicking them means
+	# "go to them", so that is what it does, and the selection follows once
+	# they are actually in front of the player.
+	var context: WorldContext = WorldManager.context()
+	if context and not context.contains(unit):
+		if not WorldManager.focus_world_of(unit):
+			return
+
 	var additive: bool = Input.is_action_pressed("select_additive")
 	SelectionManager.select(unit, additive)
+
+
+## Dims a member who is somewhere the player isn't looking. Purely a
+## readout — the portrait stays clickable, and clicking it is how you go
+## to them (see _on_pressed).
+func set_elsewhere(value: bool) -> void:
+	modulate = Color(0.45, 0.45, 0.55, 1.0) if value else Color(1, 1, 1, 1)
 
 
 ## Called by initiative_row.gd — grows the slot's actual RESERVED height

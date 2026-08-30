@@ -51,18 +51,24 @@ func area_id() -> StringName:
 ## with nothing running in it is not cheaper to keep than to rebuild, and
 ## AreaState already carries the differences that outlive a reload.
 ##
-## A live fight qualifies. Party members deliberately do not, yet: the
-## party still travels as one and is released from a world as the player
-## leaves it (see WorldManager._release_party_from). That is what changes
-## when the party can genuinely split, and this is where it changes.
+## A live fight qualifies. So does a party member left standing here —
+## that one IS the point of splitting the party, and it is what stops a
+## companion you walked away from being quietly deleted along with the
+## area they were waiting in.
 func is_earned() -> bool:
 	if pinned:
 		return true
 	if context == null:
 		return false
+
 	for encounter in context.encounters:
 		if is_instance_valid(encounter) and encounter.is_running:
 			return true
+
+	for unit in PartyManager.members:
+		if is_instance_valid(unit) and context.contains(unit):
+			return true
+
 	return false
 
 
