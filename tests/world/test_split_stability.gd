@@ -42,6 +42,7 @@ func run() -> void:
 		await _the_wanderers_leave_one_at_a_time()
 		_the_fight_is_still_running()
 		_everybody_is_still_reachable()
+		await _a_second_fight_can_start_elsewhere()
 		await _a_half_abstract_group_is_embodied_whole()
 
 	_restore()
@@ -248,6 +249,82 @@ func _a_half_abstract_group_is_embodied_whole() -> void:
 		unit.queue_free()
 	PartyManager.groups.erase(group)
 	marker.queue_free()
+
+
+## A second battle can start in another world while the first runs.
+##
+## Reported from play: with two members fighting, a hostile spawned in
+## another area could be attacked over and over and no fight ever began.
+##
+## Two global rules did it, both correct while there was one world.
+## _draw_in_latecomers measured raw distance with no world check — and
+## every area here is authored around the origin, so a unit two areas away
+## is standing on top of the fight and gets dragged into it. Already
+## "fighting", it can never start a fight where it actually is. And
+## perception refused to START one whenever ANY combat was running
+## anywhere, deferring to a join that could not apply.
+func _a_second_fight_can_start_elsewhere() -> void:
+	if not is_instance_valid(_fight) or not _fight.is_running:
+		check("SETUP: the first fight is still running", false)
+		return
+	if not is_instance_valid(_wanderers[0]):
+		check("SETUP: a member in another area", false)
+		return
+
+	# The player is commanding the group that walked away, in its own world.
+	if not WorldManager.focus_group(PartyManager.group_of(_wanderers[0])):
+		check("SETUP: could reach the group in the other area", false)
+		return
+	await get_tree().process_frame
+
+	var wanderer: Unit = _wanderers[0]
+	var world: Node = wanderer.get_parent()
+	var victim: Unit = spawn_unit(&"enemy", 10, 10, 30, [melee()],
+		wanderer.global_position + Vector3(1.5, 0.0, 0.0))
+	victim.reparent(world, false)
+	await get_tree().physics_frame
+
+	# The sweep runs constantly in play, and it is what dragged the newcomer
+	# into the wrong world's battle.
+	DetectionManager.enabled = true
+	DetectionManager.scan()
+	DetectionManager.enabled = false
+	await get_tree().process_frame
+
+	check("a unit in another world is not dragged into the first fight",
+		not _fight.turn_order.has(victim),
+		"pulled into a battle it is nowhere near")
+	# Perception starting a fight HERE is the fix working, not a problem —
+	# so provoke one only if it has not already.
+	if not wanderer.in_combat():
+		var ability: Ability = wanderer.default_ability()
+		if ability == null:
+			check("SETUP: something to attack with", false)
+			return
+		var _result: Dictionary = await wanderer.use_ability(ability, victim)
+		await get_tree().process_frame
+
+	check("a second fight is running in this world",
+		wanderer.in_combat(),
+		"no fight ever began — free hits out of combat, as reported")
+	check("which is a different fight from the first",
+		wanderer.encounter != _fight,
+		"joined the battle in the other area")
+	check("and the first fight is still running, untouched",
+		is_instance_valid(_fight) and _fight.is_running)
+
+	if is_instance_valid(wanderer.encounter):
+		wanderer.encounter.finish(&"")
+	await get_tree().process_frame
+	if is_instance_valid(victim):
+		# Out of the harness list before freeing: teardown walks _spawned as
+		# a typed array, and a freed element there is an error to read.
+		_spawned.erase(victim)
+		if victim.is_in_group("units"):
+			victim.remove_from_group("units")
+		if victim.get_parent():
+			victim.get_parent().remove_child(victim)
+		victim.queue_free()
 
 
 func _restore() -> void:

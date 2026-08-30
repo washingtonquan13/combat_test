@@ -268,6 +268,26 @@ func restore_combat(state: Dictionary) -> Encounter:
 
 
 ## In the world on screen, which is the one a restore is rebuilding.
+## Whether a fight is running in this unit's own world.
+##
+## The question any_combat_running() used to be asked for. That one is
+## "is anything happening anywhere", which was the same question while
+## there was one world and is a different one now: a battle two areas
+## away is no reason for nothing to be able to start here.
+func combat_running_in_world_of(unit: Unit) -> bool:
+	if not is_instance_valid(unit) or not unit.is_inside_tree():
+		return false
+	var world: World3D = unit.get_world_3d()
+	for encounter in all_encounters():
+		if not is_instance_valid(encounter) or not encounter.is_running:
+			continue
+		for combatant in encounter.turn_order:
+			if is_instance_valid(combatant) and combatant.is_inside_tree() \
+					and combatant.get_world_3d() == world:
+				return true
+	return false
+
+
 func _find_by_id(id: StringName) -> Unit:
 	if id == &"":
 		return null
