@@ -50,6 +50,12 @@ func _ready() -> void:
 	# screen, and with a split party that order can belong to another
 	# world entirely.
 	SelectionManager.selection_changed.connect(_on_selection_changed)
+	# And when the world on screen changes. Every other panel already
+	# listened to this — party_panel, interact_prompt, the overworld, the
+	# music manager — the initiative row was the one that did not, so
+	# looking away from a battle left its turn order sitting on screen
+	# until something else happened to fire a refresh.
+	WorldManager.world_focused.connect(_on_world_focused)
 
 
 ## The fight the COMMANDED unit is in, or null when it is not in one.
@@ -65,10 +71,26 @@ func _commanded_encounter() -> Encounter:
 	# row is about their fight, and about nothing if they are not in one.
 	# That is what keeps commanding a straggler mid-battle from leaving
 	# somebody else's initiative order on screen.
-	if not SelectionManager.selected_units.is_empty():
-		for unit in SelectionManager.selected_units:
-			if is_instance_valid(unit) and unit.encounter and unit.encounter.is_running:
-				return unit.encounter
+	#
+	# Scoped to the world ON SCREEN, because that rule was written when
+	# there was one world. Focusing another does not deselect whoever was
+	# selected in the one you left, so an unscoped read keeps reporting a
+	# fight the player is no longer looking at.
+	var context: WorldContext = WorldManager.context()
+	var selected_here: bool = false
+	for unit in SelectionManager.selected_units:
+		if not is_instance_valid(unit):
+			continue
+		if context and not context.contains(unit):
+			continue
+		selected_here = true
+		if unit.encounter and unit.encounter.is_running:
+			return unit.encounter
+
+	# An opinion about THIS world: they picked somebody here and that
+	# person is not fighting, so there is no row. A selection left behind
+	# in another world is not an opinion about this one, and falls through.
+	if selected_here:
 		return null
 
 	# NO selection is no opinion, which is not the same thing. Travelling
@@ -139,6 +161,10 @@ func _refresh() -> void:
 	visible = true
 	_sync_order()
 	_update_highlight()
+
+
+func _on_world_focused(_world: Node) -> void:
+	_refresh()
 
 
 func _on_selection_changed(_selected_units: Array[Unit]) -> void:
