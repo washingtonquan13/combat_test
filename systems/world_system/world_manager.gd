@@ -381,7 +381,9 @@ func _embody_into(resident: ResidentWorld, group: PartyGroup) -> void:
 	if group == null:
 		return
 	var world: Node = resident.world
-	group.area_id = resident.area_id()
+	# Remembered for when this group is folded down to records and has no
+	# members left to derive it from.
+	group.abstract_area_id = resident.area_id()
 	PartyManager.active_group = group
 
 	if world.has_method("spawns_party") and not world.spawns_party():
@@ -394,7 +396,10 @@ func _embody_into(resident: ResidentWorld, group: PartyGroup) -> void:
 	# the result. Merging afterwards left anyone absorbed from an abstract
 	# group as records inside an embodied one, which nothing would ever
 	# build.
-	var arrived: PartyGroup = PartyManager.merge_in_area(group.area_id)
+	# The DESTINATION, named outright. Not the group's derived current area:
+	# at this moment its members are still standing in the world they are
+	# leaving, so deriving would merge them with whoever is back there.
+	var arrived: PartyGroup = PartyManager.merge_in_area(resident.area_id())
 	if arrived == null:
 		arrived = group
 	PartyManager.active_group = arrived
@@ -792,7 +797,7 @@ func focus_group(group: PartyGroup) -> bool:
 	if group == null or not can_switch_focus():
 		return false
 
-	var resident: ResidentWorld = _residents.get(group.area_id)
+	var resident: ResidentWorld = _residents.get(group.current_area_id())
 	if not is_instance_valid(resident):
 		return false
 

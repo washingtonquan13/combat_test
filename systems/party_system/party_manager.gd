@@ -120,7 +120,9 @@ func group_of(unit: Unit) -> PartyGroup:
 func groups_in_area(area_id: StringName) -> Array[PartyGroup]:
 	var found: Array[PartyGroup] = []
 	for group in groups:
-		if group.area_id == area_id:
+		# Derived, so a group whose bookkeeping drifted still answers about
+		# where its people actually are.
+		if group.current_area_id() == area_id:
 			found.append(group)
 	return found
 
@@ -152,7 +154,9 @@ func split_off(travellers: Array[Unit]) -> PartyGroup:
 
 	var split := PartyGroup.new()
 	split.embodied = true
-	split.area_id = origin.area_id if origin else &""
+	# The remembered value only; the split is embodied, so its real answer
+	# comes from its members.
+	split.abstract_area_id = origin.abstract_area_id if origin else &""
 	for unit in going:
 		var from_group: PartyGroup = group_of(unit)
 		if from_group:
@@ -445,7 +449,10 @@ func save_state() -> Dictionary:
 			records.append(written)
 			flat.append(written)
 		group_entries.append({
-			"area_id": String(group.area_id),
+			# Where they ARE, derived — a save should record reality, not the
+			# last thing anybody wrote down. The on-disk key keeps its old
+			# name so saves written before this still load.
+			"area_id": String(group.current_area_id()),
 			"embodied": group.embodied,
 			"overworld_position": group.overworld_position,
 			"members": records,
@@ -539,7 +546,7 @@ func load_state(state: Dictionary) -> void:
 		# is also exactly what an unsplit party looks like, so there is one
 		# path rather than two.
 		var restored := PartyGroup.new()
-		restored.area_id = StringName(state.get("area_id", ""))
+		restored.abstract_area_id = StringName(state.get("area_id", ""))
 		for entry in state.get("members", []):
 			restored.records.append(_load_one(entry))
 		groups.append(restored)
@@ -548,7 +555,7 @@ func load_state(state: Dictionary) -> void:
 
 	for entry in entries:
 		var group := PartyGroup.new()
-		group.area_id = StringName(entry.get("area_id", ""))
+		group.abstract_area_id = StringName(entry.get("area_id", ""))
 		# Always false on load: records are the truth until somebody spawns
 		# them, and a group claiming to be embodied with no Units would be
 		# rebuilt from a snapshot it thinks it does not need.

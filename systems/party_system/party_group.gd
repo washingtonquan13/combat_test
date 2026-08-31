@@ -22,9 +22,38 @@ extends RefCounted
 ## truth — an empty `units` does not, since a wiped-out group is still
 ## embodied, just dead.
 
-## Where this group is, as an area id. The empty name means "nowhere yet",
-## which is the state between chargen and the first world load.
-var area_id: StringName = &""
+## The LAST KNOWN area, and meaningful ONLY while this group is
+## abstract. The empty name means "nowhere yet", which is the state
+## between chargen and the first world load.
+##
+## Where an EMBODIED member is standing is not stored anywhere: it is
+## unit.get_world_3d(), derived from the scene tree, and it cannot go
+## stale. This field is only the answer for a group with no units to
+## ask, which is the overworld case and nothing else.
+##
+## Named awkwardly on purpose. It was `area_id`, and reading it for an
+## embodied group is precisely the mistake that made a member
+## unclickable three times over: a second record of a fact the unit
+## already carries, kept in step by hand across embody/split/merge/load,
+## and wrong the moment that bookkeeping missed a step. Use
+## current_area_id() unless you specifically mean the remembered one.
+var abstract_area_id: StringName = &""
+
+
+## Where this group IS.
+##
+## Derived from a live member whenever there is one, so it cannot
+## disagree with where anybody is actually standing; falls back to the
+## remembered area only when nobody is embodied to ask.
+func current_area_id() -> StringName:
+	if embodied:
+		for unit in units:
+			if not is_instance_valid(unit) or not unit.is_inside_tree():
+				continue
+			var area: AreaDefinition = WorldManager.area_of(unit)
+			if area:
+				return area.id
+	return abstract_area_id
 
 ## True while this group's members exist as Units in the world named by
 ## area_id. False while they are folded down to records.

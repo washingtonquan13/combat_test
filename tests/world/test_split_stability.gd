@@ -178,8 +178,8 @@ func _everybody_is_still_reachable() -> void:
 		var group: PartyGroup = PartyManager.group_of(unit)
 		if group == null:
 			unreachable.append("%s: no group" % unit.name)
-		elif not WorldManager.is_area_resident(group.area_id):
-			unreachable.append("%s: area %s gone" % [unit.name, group.area_id])
+		elif not WorldManager.is_area_resident(group.current_area_id()):
+			unreachable.append("%s: area %s gone" % [unit.name, group.current_area_id()])
 
 	check("every member can still be reached from their portrait",
 		unreachable.is_empty(), ", ".join(unreachable))
@@ -205,7 +205,7 @@ func _a_half_abstract_group_is_embodied_whole() -> void:
 	world.add_child(marker)
 
 	var group := PartyGroup.new()
-	group.area_id = area.id
+	group.abstract_area_id = area.id
 	group.embodied = true
 	PartyManager.groups.append(group)
 
