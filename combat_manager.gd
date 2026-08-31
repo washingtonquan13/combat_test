@@ -221,8 +221,20 @@ func add_unit_to_combat(unit: Unit, after_unit: Unit = null, encounter: Encounte
 	if target == null and after_unit != null:
 		target = after_unit.encounter
 	if target == null:
-		target = focused_encounter
+		# The fight where this unit IS, not the one on screen. Falling back
+		# to focused_encounter enrolled a unit in a battle in another area
+		# entirely — the debug spawner did exactly this.
+		target = running_encounter_in_world_of(unit)
 	if not target:
+		return
+
+	# The choke point, guarded so no caller can do it again. ONE
+	# cross-world member is enough to poison an encounter: from then on
+	# _draw_in_latecomers finds a legitimately same-world combatant inside
+	# it and pulls in more, and two areas' fights become one — which looks
+	# exactly like "the system only supports a single combat".
+	if not _shares_world_with(unit, target):
+		push_warning("CombatManager.add_unit_to_combat refused: %s is not in that fight's world." % unit.name)
 		return
 	target.add_unit(unit, after_unit)
 	# A fight can BECOME the player's after it started — walking into an
@@ -306,6 +318,38 @@ func _find_by_id(id: StringName) -> Unit:
 		if unit.persistent_id == id:
 			return unit
 	return null
+
+
+## The running fight in this unit's own world, or null.
+##
+## What "which fight should this unit join" actually means. It used to
+## be answered with focused_encounter, which is "the fight the player is
+## looking at" — the same answer while there was one world, and a
+## different question once there was more than one.
+func running_encounter_in_world_of(unit: Unit) -> Encounter:
+	if not is_instance_valid(unit) or not unit.is_inside_tree():
+		return null
+	for candidate in all_encounters():
+		if not is_instance_valid(candidate) or not candidate.is_running:
+			continue
+		if _shares_world_with(unit, candidate):
+			return candidate
+	return null
+
+
+## Whether this fight is happening where this unit is standing.
+func _shares_world_with(unit: Unit, encounter: Encounter) -> bool:
+	if not is_instance_valid(unit) or not unit.is_inside_tree():
+		return false
+	if not is_instance_valid(encounter):
+		return false
+	var world: World3D = unit.get_world_3d()
+	for combatant in encounter.turn_order:
+		if is_instance_valid(combatant) and combatant.is_inside_tree() \
+				and combatant.get_world_3d() == world:
+			return true
+	# A fight with nobody left in a world cannot be joined in one.
+	return encounter.world_3d() == world
 
 
 func remove_unit_from_combat(unit: Unit) -> void:

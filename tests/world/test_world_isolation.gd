@@ -38,7 +38,10 @@ func run() -> void:
 
 	await _a_fight_stays_in_its_own_world()
 	await _the_sweep_does_not_reach_across()
+	# Before the awareness case, which is what finishes world A's fight.
+	_a_unit_only_joins_a_fight_where_it_stands()
 	await _ending_a_fight_only_clears_its_own_world()
+
 	_ladders_belong_to_a_world()
 
 	_teardown()
@@ -155,6 +158,52 @@ func _ending_a_fight_only_clears_its_own_world() -> void:
 	check("a fight ending in A does not make B's enemy forget",
 		is_instance_valid(_foe_b) and _foe_b.awareness().is_aware_of(_ally_b),
 		"an unrelated skirmish finishing wiped an ambush two areas away")
+
+## A unit can only join a fight happening where it is standing.
+##
+## Reported from play as "we only have one combat": two areas' fights
+## showed as a single initiative row and units in one area were
+## controllable from the other. The debug spawner called
+## add_unit_to_combat with no encounter, which fell back to
+## focused_encounter — the fight ON SCREEN, not the fight where the unit
+## was. ONE such member is enough to poison an encounter: from then on
+## _draw_in_latecomers finds a legitimately same-world combatant inside it
+## and pulls in more, until the two are one.
+func _a_unit_only_joins_a_fight_where_it_stands() -> void:
+	if not is_instance_valid(_fight_a):
+		check("SETUP: world A had a fight", false)
+		return
+
+	var newcomer: Unit = _spawn_in(_viewport_b, &"enemy", Vector3(4.0, 0.0, 0.0))
+
+	# Staged, not assumed: the reported condition is the player LOOKING at
+	# one area's fight while a unit appears in another. The sweep above may
+	# have started a fight in B and taken focus with it, which would make the
+	# fallback check below pass without testing anything.
+	CombatManager.focused_encounter = _fight_a
+	check("SETUP: the fight on screen is world A's",
+		CombatManager.focused_encounter == _fight_a)
+
+	# Exactly what the debug spawner did: no encounter, no reference unit.
+	CombatManager.add_unit_to_combat(newcomer)
+
+	check("a unit is not enrolled in a fight in another world",
+		not _fight_a.turn_order.has(newcomer),
+		"joined a battle it is nowhere near, which merges the two")
+
+	# And the guard holds even when the wrong fight is named outright.
+	CombatManager.add_unit_to_combat(newcomer, null, _fight_a)
+	check("and not even when that fight is named explicitly",
+		not _fight_a.turn_order.has(newcomer),
+		"the choke point let a caller poison the encounter anyway")
+
+	if is_instance_valid(newcomer):
+		if newcomer.is_in_group("units"):
+			newcomer.remove_from_group("units")
+		if newcomer.get_parent():
+			newcomer.get_parent().remove_child(newcomer)
+		newcomer.queue_free()
+
 
 ## "ladders" is one global group with no world in it, and both worlds sit
 ## on the origin.
