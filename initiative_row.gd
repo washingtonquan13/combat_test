@@ -61,9 +61,36 @@ func _ready() -> void:
 ## turn there is no commandable unit, but the player is still watching
 ## that fight and the row should stay.
 func _commanded_encounter() -> Encounter:
-	for unit in SelectionManager.selected_units:
-		if is_instance_valid(unit) and unit.encounter and unit.encounter.is_running:
-			return unit.encounter
+	# A SELECTION is an opinion: if the player has picked somebody, this
+	# row is about their fight, and about nothing if they are not in one.
+	# That is what keeps commanding a straggler mid-battle from leaving
+	# somebody else's initiative order on screen.
+	if not SelectionManager.selected_units.is_empty():
+		for unit in SelectionManager.selected_units:
+			if is_instance_valid(unit) and unit.encounter and unit.encounter.is_running:
+				return unit.encounter
+		return null
+
+	# NO selection is no opinion, which is not the same thing. Travelling
+	# clears the selection, so a group that walks into a fight and joins it
+	# had nothing selected and no row appeared until the player clicked
+	# somebody — with a battle already running in front of them.
+	return _party_fight_on_screen()
+
+
+## A running fight in the world on screen that the party is actually in.
+## Deliberately not "any fight here": a brawl between two NPC factions
+## the player is watching is not their initiative order.
+func _party_fight_on_screen() -> Encounter:
+	var context: WorldContext = WorldManager.context()
+	for unit in PartyManager.members:
+		if not is_instance_valid(unit) or unit.encounter == null:
+			continue
+		if not unit.encounter.is_running:
+			continue
+		if context and not context.contains(unit):
+			continue
+		return unit.encounter
 	return null
 
 
@@ -136,9 +163,12 @@ func _on_combat_ended(_winning_faction: StringName) -> void:
 ## actually landed in turn_order, so _sync_order() runs right after to
 ## place it correctly immediately rather than leaving it visually
 ## misordered until whatever the next natural turn_started happens to be.
-func _on_unit_joined_combat(unit: Unit) -> void:
-	_add_slot(unit)
-	_sync_order()
+## A full refresh, not just a slot. Somebody joining can be the moment
+## this row becomes relevant at all — a group walking into a fight makes
+## it the party's fight — and adding one portrait to a row that is not
+## being shown changes nothing.
+func _on_unit_joined_combat(_unit: Unit) -> void:
+	_refresh()
 
 
 func _add_slot(unit: Unit) -> void:

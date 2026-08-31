@@ -37,6 +37,7 @@ func run() -> void:
 	await _acting_out_of_turn_is_refused()
 	await _a_move_order_replaces_the_one_in_flight()
 	await _the_initiative_row_survives_a_freed_combatant()
+	_the_row_shows_a_fight_nobody_selected()
 
 	_restore()
 
@@ -209,6 +210,33 @@ func _the_initiative_row_survives_a_freed_combatant() -> void:
 func _try_refresh(row: Node) -> void:
 	row._refresh()
 	_refreshed = true
+
+
+## A selection is an opinion; NO selection is not the same as an opinion
+## that there is nothing to show.
+##
+## Reported from play: a group travelled into another area, joined the
+## fight running there, and no initiative portraits appeared until the
+## player clicked somebody. Travelling clears the selection, so the row
+## had nothing to key on while a battle was going on in front of them.
+func _the_row_shows_a_fight_nobody_selected() -> void:
+	var row: HBoxContainer = load("res://initiative_row.gd").new()
+	_root.add_child(row)
+
+	SelectionManager.deselect_all()
+	check("with nothing selected, the row shows the fight the party is in",
+		row._commanded_encounter() == _fight,
+		"a battle in front of the player and no initiative order")
+
+	# But an explicit choice still wins: commanding somebody who is not
+	# fighting must not leave another fight on screen.
+	SelectionManager.select(_bystander)
+	check("but selecting a member who is not in it hides the row again",
+		row._commanded_encounter() == null,
+		"a straggler was commanded and somebody else's order stayed up")
+
+	SelectionManager.deselect_all()
+	row.queue_free()
 
 
 func _restore() -> void:
