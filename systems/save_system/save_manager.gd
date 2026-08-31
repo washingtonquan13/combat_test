@@ -222,9 +222,43 @@ func load_file(path: String) -> bool:
 	_awaiting_position_restore = true
 
 	var area_id: StringName = cfg.get_value("world", "area_id", &"")
+
+	# Every area a group is standing in, not just the one on screen.
+	#
+	# Residency here is EARNED, and party presence earns it — so a load that
+	# built only the focused world put the game in a state the rest of the
+	# engine treats as impossible: members listed in the party panel whose
+	# area nothing was holding. Clicking one answered "somewhere not
+	# currently loaded", and the only way to reach them was to walk another
+	# unit over, which is not travel, it is repair. They are standing there
+	# in the save; they should be standing there when it opens.
+	for other in _areas_holding_party(area_id):
+		var claimant: PartyGroup = _group_claiming(other)
+		if claimant == null:
+			continue
+		# Named BEFORE the call. load_area with no travellers embodies the
+		# ACTIVE group and rewrites its remembered area to wherever it is
+		# sent, so leaving this alone would drag one group through every
+		# other group's area in turn and end with the party merged.
+		PartyManager.active_group = claimant
+		if WorldManager.load_area(other) == null:
+			push_warning("SaveManager.load_file: could not restore area '%s'." % other)
+
+	# The saved area LAST, so the player ends up looking at the world they
+	# saved in and commanding the group that was there.
+	var homecoming: PartyGroup = _group_claiming(area_id)
+	if homecoming:
+		PartyManager.active_group = homecoming
 	var world: Node = WorldManager.load_area(area_id)
+
+	# Every world_loaded this load will ever emit has now been handled
+	# (world_loaded is emitted synchronously inside load_area), so the
+	# restore window closes here rather than on the first world to arrive.
+	_awaiting_position_restore = false
+	_pending_party_transforms = {}
+	_pending_avatar_transform = null
+
 	if not world:
-		_awaiting_position_restore = false
 		push_warning("SaveManager.load_file: load_area('%s') failed after state was already injected." % area_id)
 		return false
 
@@ -329,13 +363,18 @@ func _on_world_loaded(world: Node) -> void:
 	if not _awaiting_position_restore:
 		_restore_encounters_here()
 		return
-	_awaiting_position_restore = false
 
+	# The window stays OPEN across this whole load, and the table is not
+	# emptied wholesale: one load_file now builds every area the party is
+	# standing in, and each arrives in its own world_loaded. Closing on the
+	# first would leave everyone in the second area at their spawn point.
+	# Only what was actually applied is removed; load_file clears the rest
+	# once there are no more worlds coming.
 	for unit in PartyManager.members:
 		var key: String = String(unit.persistent_id)
 		if _pending_party_transforms.has(key):
 			unit.global_transform = _pending_party_transforms[key]
-	_pending_party_transforms = {}
+			_pending_party_transforms.erase(key)
 
 	if _pending_avatar_transform != null and world.has_method("get_avatar"):
 		var avatar: Node3D = world.get_avatar()
@@ -346,6 +385,32 @@ func _on_world_loaded(world: Node) -> void:
 	# Last: a turn order is meaningless until the units it names exist and
 	# are where they belong.
 	_restore_encounters_here()
+
+
+## Every area a party group is standing in, minus one — the caller loads
+## that one last so the player ends up looking at it.
+##
+## Collected UP FRONT, because loading an area merges the groups that
+## claim it, and iterating the live list while that happens would walk a
+## collection being rewritten underneath.
+func _areas_holding_party(except: StringName) -> Array[StringName]:
+	var areas: Array[StringName] = []
+	for group in PartyManager.groups:
+		var id: StringName = group.current_area_id()
+		if id == &"" or id == except or areas.has(id):
+			continue
+		areas.append(id)
+	return areas
+
+
+## The group standing in an area. At this point in a load nobody is
+## embodied anywhere, so every group answers with the area it was saved
+## with, which is exactly the question being asked.
+func _group_claiming(area_id: StringName) -> PartyGroup:
+	for group in PartyManager.groups:
+		if group.current_area_id() == area_id:
+			return group
+	return null
 
 
 ## Rebuilds any saved fight belonging to the area now on screen, and
