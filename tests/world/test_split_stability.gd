@@ -294,19 +294,49 @@ func _a_second_fight_can_start_elsewhere() -> void:
 	check("a unit in another world is not dragged into the first fight",
 		not _fight.turn_order.has(victim),
 		"pulled into a battle it is nowhere near")
-	# Perception starting a fight HERE is the fix working, not a problem —
-	# so provoke one only if it has not already.
+	# HOW the fight starts here is not the property, and it varies between
+	# runs: perception fires only when the wanderer happens to be facing the
+	# newcomer, and its facing depends on the path it walked in an earlier
+	# phase. Both routes satisfy the property, so take either — but report
+	# ONE check for it either way, so the suite total does not move and the
+	# route taken is visible when something below fails.
+	var refusals: Array[String] = []
+	var waited: int = 0
+	var route: String = "perception started it"
+
 	if not wanderer.in_combat():
+		route = "provoked by hand"
 		var ability: Ability = wanderer.default_ability()
 		if ability == null:
 			check("SETUP: something to attack with", false)
 			return
-		var _result: Dictionary = await wanderer.use_ability(ability, victim)
+
+		# can_act() counts WALKING, and this wanderer walked here. Swinging
+		# mid-path is refused as "busy", no fight starts, and the check below
+		# then blames the regression for an attack that never happened.
+		while not wanderer.can_act() and waited < 120:
+			await get_tree().process_frame
+			waited += 1
+
+		var result: Dictionary = await wanderer.use_ability(ability, victim)
 		await get_tree().process_frame
+
+		for reason in ["busy", "invalid_target", "already_acted",
+				"cant_afford_move_cost", "cant_afford_fp_cost"]:
+			if result.get(reason, false):
+				refusals.append(reason)
+		if not result.get("in_range", false):
+			refusals.append("out of range")
+
+	# The swing is SETUP for the property below, so a refused swing has to
+	# name itself rather than be read as "no fight ever began".
+	check("SETUP: a fight could be started here (%s)" % route,
+		refusals.is_empty(),
+		"refused: %s (waited %d frames to act)" % [", ".join(refusals), waited])
 
 	check("a second fight is running in this world",
 		wanderer.in_combat(),
-		"no fight ever began — free hits out of combat, as reported")
+		"no fight ever began — free hits out of combat, as reported (%s)" % route)
 	check("which is a different fight from the first",
 		wanderer.encounter != _fight,
 		"joined the battle in the other area")
