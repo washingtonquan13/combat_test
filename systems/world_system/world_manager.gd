@@ -765,26 +765,90 @@ func spawn_parent() -> Node:
 ## this from inside its own _ready(). False outside of an active
 ## load_world() call, for the very first load (nothing to restore yet),
 ## and for a world that opts out via spawns_party() -> false.
-## Moves the player's attention to a GROUP, wherever it is standing,
-## and makes it the one being commanded. Moves nobody.
+## Why a reveal() call did or did not go anywhere. A bool cannot say
+## which precondition failed, and four indistinguishable false-returns
+## swallowed by a caller is why "a member became unclickable" has looked
+## like a brand new bug each of the three times it happened.
+enum Reveal {
+	ALREADY_THERE,   ## Their world is the one on screen; nothing moved.
+	MOVED,           ## Focus switched to their world.
+	REFUSED_MODAL,   ## A conversation, negotiation or menu is open.
+	AREA_NOT_LOADED, ## Nobody is holding their area in memory.
+	NOT_FOUND,       ## Neither a live unit nor a group that knows where.
+}
+
+
+## Take the player to this member. The ONE way to reach somebody.
 ##
-## The group form matters because a group that is ABSTRACT has no node
-## to look up: on the overworld its people are records drawn as one
-## avatar, so focus_world_of has nothing to be handed. Clicking such a
-## member's portrait is the only way back to them.
+## A live unit resolves through its OWN world — the lookup that cannot
+## go stale, because it asks the scene tree rather than a record kept in
+## step by hand. Only a member with no unit falls back to the group's
+## remembered area, which is the one case where nothing else can answer.
+##
+## Never returns silently: every refusal names itself, and callers are
+## expected to say so rather than swallow it.
+func reveal(unit: Unit, group: PartyGroup = null) -> Reveal:
+	if is_instance_valid(unit) and unit.is_inside_tree():
+		for resident in _residents.values():
+			if not is_instance_valid(resident) or resident.context == null:
+				continue
+			if not resident.context.contains(unit):
+				continue
+			return _reveal_resident(resident, group)
+		# A live unit whose world nobody is holding. Its group may still
+		# know an area, so fall through rather than giving up here.
+
+	if group != null:
+		var area: StringName = group.current_area_id()
+		if area == &"":
+			push_warning("WorldManager.reveal: that group does not know where it is.")
+			return Reveal.NOT_FOUND
+		var by_area: ResidentWorld = _residents.get(area)
+		if not is_instance_valid(by_area) or not is_instance_valid(by_area.world):
+			push_warning("WorldManager.reveal: area '%s' is not loaded." % area)
+			return Reveal.AREA_NOT_LOADED
+		return _reveal_resident(by_area, group)
+
+	push_warning("WorldManager.reveal: nothing to go to — no live unit and no group.")
+	return Reveal.NOT_FOUND
+
+
+func _reveal_resident(resident: ResidentWorld, group: PartyGroup) -> Reveal:
+	if resident == _focused:
+		if group != null:
+			PartyManager.active_group = group
+		# Already looking at it, but which group is being commanded may
+		# have changed, and that is what draws the overworld.
+		world_focused.emit(resident.world)
+		return Reveal.ALREADY_THERE
+
+	# Checked BEFORE anything is applied: a refusal must leave the world
+	# exactly as it found it, not half-commit a new active group.
+	if not can_switch_focus():
+		push_warning("WorldManager.reveal refused: %s is open." % GameMode.Mode.keys()[GameMode.current_mode()])
+		return Reveal.REFUSED_MODAL
+
+	if group != null:
+		PartyManager.active_group = group
+	_leave_focused()
+	_focus(resident)
+	return Reveal.MOVED
+
+
+## Whether a reveal actually put the player in front of them.
+static func revealed(result: Reveal) -> bool:
+	return result == Reveal.ALREADY_THERE or result == Reveal.MOVED
+
+
 ## Whether the player may look at a different world right now.
 ##
 ## NOT can_load(). That gate asks whether people may LEAVE, and a fight
 ## detains the people in it — correct for travel, wrong here, because
-## switching focus moves nobody. Gated on can_load(), commanding a group
-## in a battle meant never being able to look at the rest of the party
-## again until it ended, which defeats the point of the party being able
-## to be in two places.
+## switching focus moves nobody.
 ##
-## Combat is the one overlay a player can look away FROM: the fight
-## simply waits, and says so (see CombatManager's Attention section).
-## Dialogue, negotiation and looting are modals the player is INSIDE,
-## and walking out of those mid-sentence is a different thing.
+## Combat is the one overlay a player can look away FROM: the fight simply
+## waits, and says so (see CombatManager's Attention section). Dialogue,
+## negotiation and looting are modals the player is INSIDE.
 func can_switch_focus() -> bool:
 	if InteractionMenu.is_open():
 		return false
@@ -793,66 +857,39 @@ func can_switch_focus() -> bool:
 	return GameMode.current_mode() == GameMode.Mode.COMBAT
 
 
-func focus_group(group: PartyGroup) -> bool:
-	if group == null or not can_switch_focus():
-		return false
-
-	var resident: ResidentWorld = _residents.get(group.current_area_id())
-	if not is_instance_valid(resident):
-		return false
-
-	PartyManager.active_group = group
-	if resident == _focused:
-		# Already looking at their world, but which group is being
-		# commanded just changed, and that is what draws the overworld.
-		world_focused.emit(resident.world)
-		return true
-
-	_leave_focused()
-	# No travellers: looking at people is not travelling to them.
-	_focus(resident)
-	return true
-
-
-## Moves the player's attention to whichever resident world contains
-## `node`, moving nobody. Returns false if that world isn't loaded, or if
-## a switch isn't allowed right now.
-##
-## This is what clicking an absent companion's portrait does. It is NOT
-## travel: no traveller list, so _embody_into carries nobody and everyone
-## stays exactly where they are — the player looks somewhere else, and
-## that is all that happens.
-##
-## Gated on can_load() for the same reason travel is: a fight or a
-## conversation in the world being left is not something to walk out of
-## mid-sentence. Knowing when to ASK is a later problem; refusing is the
-## honest answer until then.
-func focus_world_of(node: Node) -> bool:
-	for resident in _residents.values():
-		if not is_instance_valid(resident) or resident.context == null:
-			continue
-		if not resident.context.contains(node):
-			continue
-		if resident == _focused:
-			return true
-		if not can_switch_focus():
-			return false
-		_leave_focused()
-		_focus(resident)
-		return true
-	return false
-
-
-## The area whose world contains `node`, or null. The counterpart to
-## context_for() for anything that needs to NAME where something is —
-## "Kael is waiting for orders in the Arena" needs the area, not the
-## context.
+## The area whose world contains this node, or null. The counterpart to
+## context_for() for anything that needs to NAME where something is.
 func area_of(node: Node) -> AreaDefinition:
 	for resident in _residents.values():
 		if is_instance_valid(resident) and resident.context and resident.context.contains(node):
 			return resident.area
 	return null
 
+
+## Thin wrappers over reveal(), kept because they read well at call sites.
+## The switching itself lives in ONE place now — three implementations of
+## "go and look at that" is how they drifted apart in the first place.
+##
+## Prefers a live member as the anchor so the group takes the robust path:
+## a unit knows its own world, a remembered area id only claims to.
+func focus_group(group: PartyGroup) -> bool:
+	if group == null:
+		return false
+	var anchor: Unit = null
+	for unit in group.live_units():
+		anchor = unit
+		break
+	return revealed(reveal(anchor, group))
+
+
+## Takes any Node, for callers holding something that is not a Unit.
+func focus_world_of(node: Node) -> bool:
+	for resident in _residents.values():
+		if not is_instance_valid(resident) or resident.context == null:
+			continue
+		if resident.context.contains(node):
+			return revealed(_reveal_resident(resident, null))
+	return false
 
 ## Every loaded world's context, focused or not — for the few systems
 ## that must reason about ALL worlds rather than the one on screen. A
