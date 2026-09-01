@@ -69,7 +69,6 @@ script = ExtResource("25_moveind")
 
 [node name="LineOfSightIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("26_losind")
-height_offset = 2.0
 
 [node name="JumpIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("27_jumpind")

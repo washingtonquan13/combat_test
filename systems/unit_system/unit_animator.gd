@@ -116,6 +116,26 @@ var _pending_armed_enter_clip: String = ""
 var _pending_armed_hold: String = ""
 
 
+## Rebinds this driver onto a body it was not authored against.
+##
+## Called by Unit._enter_tree(), which is BEFORE this node's own _ready —
+## and that ordering is the whole trick. Nothing has connected to the
+## outgoing AnimationPlayer yet, and the clip names assigned here are read
+## by _ready a moment later, so no rewiring or teardown is needed.
+##
+## The names come from the BODY because that is what they describe. A
+## dragon whose loop is called Fly_Idle should not need a different Unit
+## scene to say so.
+func adopt_model(model: CharacterModel) -> void:
+	animation_player = model.resolve_animation_player()
+	idle_animation = model.idle_animation
+	walk_animation = model.walk_animation
+	hit_animation = model.hit_animation
+	death_animation = model.death_animation
+	default_armed_enter_animation = model.armed_enter_animation
+	default_armed_hold_animation = model.armed_hold_animation
+
+
 func _ready() -> void:
 	if not unit or not animation_player:
 		push_warning("unit_animator.gd needs both `unit` and `animation_player` assigned in the Inspector.")
@@ -154,6 +174,15 @@ func _ready() -> void:
 ## applied at runtime, unlike abilities, which are a fixed roster
 ## sitting on unit.abilities from the start.
 func _validate_animation_names() -> void:
+	# A body with NO clips at all is a whitebox, and that is a supported
+	# state rather than a broken one — every ability's sequence would
+	# report every phase, several warnings per unit per spawn, and warning
+	# noise is precisely what hides the real ones. A body that HAS a
+	# library and is missing one clip from it still reports, because that
+	# genuinely is a mistake.
+	if animation_player.get_animation_list().is_empty():
+		return
+
 	_check_clip(idle_animation, "idle_animation")
 	_check_clip(walk_animation, "walk_animation")
 	_check_clip(hit_animation, "hit_animation")

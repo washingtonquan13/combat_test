@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
 [ext_resource type="Resource" path="res://data/negotiation/conversations/wild/wild_greeting.tres" id="7_greeting"]
 [ext_resource type="Resource" path="res://data/ai_archetypes/brute.tres" id="99_arch"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
@@ -35,6 +36,7 @@ rank = 1
 is_special = false
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
 negotiable = true
 negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])

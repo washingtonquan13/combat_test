@@ -61,6 +61,10 @@ func run() -> void:
 		"would now be skipped")
 
 	# --- strip the library, then the same shape must COMPLETE ---------
+	# Stopped first: pulling a library out from under a PLAYING mixer makes
+	# it error trying to re-resolve the clip it is mid-way through, which
+	# is suite noise of our own making rather than anything under test.
+	player.stop()
 	for library in player.get_animation_library_list():
 		player.remove_animation_library(library)
 

@@ -85,6 +85,17 @@ extends Resource
 ## than hardcoded so a distinct body archetype remains possible later
 ## without another schema change.
 @export var unit_scene: PackedScene
+## The BODY this creature wears, adopted by Unit._enter_tree(). Null means
+## "keep whatever body unit_scene was authored with", which is what every
+## existing demon does — so adding this changed nothing until a definition
+## opts in.
+##
+## Deliberately separate from unit_scene. Varying the look by giving each
+## creature its own unit_scene would duplicate the entire component wiring
+## — animator, VFX, SFX, skills, equipment, collision — per creature, when
+## the only thing that actually differs is the body. One unit, many
+## bodies. See CharacterModel.
+@export var model_scene: PackedScene
 @export var abilities: Array[Ability] = []
 ## This species' tactical role — see AiArchetype. Supplies the behaviors
 ## and smartness tier, so a species normally sets this and nothing else

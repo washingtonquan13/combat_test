@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=13 format=3 uid="uid://c2ocs8andnhho"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=14 format=3 uid="uid://c2ocs8andnhho"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
@@ -11,6 +11,7 @@
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="91_land"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="92_aibehavior"]
 [ext_resource type="Resource" uid="uid://k4eu775myauh" path="res://data/ai_archetypes/aerial_artillery.tres" id="99_arch"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
@@ -40,6 +41,7 @@ personality = &"Foolish"
 is_special = false
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("90_fly"), ExtResource("91_land")])
 ai_archetype = ExtResource("99_arch")
 ai_behaviors = Array[ExtResource("92_aibehavior")]([])

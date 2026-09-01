@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=14 format=3 uid="uid://dlnha8gm6xjsk"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=15 format=3 uid="uid://dlnha8gm6xjsk"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_najan"]
@@ -13,6 +13,7 @@
 [ext_resource type="Resource" uid="uid://bmgw6mjv7sps4" path="res://data/abilities/heal.tres" id="6_8u5r3"]
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="7_wv3hj"]
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="8_4udr4"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 
 [resource]
 script = ExtResource("1_def")
@@ -38,6 +39,7 @@ personality = &""
 is_special = false
 portrait_texture = ExtResource("4_u1mfq")
 unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
 abilities = Array[ExtResource("1_najan")]([ExtResource("2_nnanp"), ExtResource("3_4udr4"), ExtResource("4_7gonc"), ExtResource("5_bct0c"), ExtResource("6_8u5r3"), ExtResource("7_wv3hj"), ExtResource("8_4udr4")])
 ai_behaviors = Array[ExtResource("2_t245h")]([])
 ai_smartness = 2

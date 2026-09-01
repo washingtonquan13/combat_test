@@ -97,6 +97,16 @@ func spawn_brute(x: float, z: float = 0.0) -> Unit:
 func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 		abilities: Array, position: Vector3) -> Unit:
 	var unit: Unit = load("res://unit.tscn").instantiate()
+	# Through a definition, because that is how every unit in the game is
+	# built now — all 32 UnitDefinitions name a body, and unit.tscn no
+	# longer carries one. A harness that skipped this would be exercising
+	# a path production does not have, and would spawn bodiless units with
+	# no animation library for suites that need one.
+	#
+	# Assigned BEFORE add_child so Unit._enter_tree sees it, and before the
+	# explicit stats below so those still win over the definition cascade —
+	# the same order debug_spawn_panel uses.
+	unit.definition = _harness_definition()
 	_root.add_child(unit)
 	var typed: Array[Ability] = []
 	for ability in abilities:
@@ -119,8 +129,12 @@ func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 func spawn_demon(id: String, position: Vector3, flying: bool = false, fp: int = -1) -> Unit:
 	var definition: UnitDefinition = load("res://data/demons/%s.tres" % id)
 	var unit: Unit = definition.unit_scene.instantiate()
-	_root.add_child(unit)
+	# BEFORE add_child. This was the other way round, so _enter_tree ran
+	# with no definition and every demon spawned by this harness came up
+	# with no body at all — silently, because a bodiless unit still walks,
+	# fights and dies perfectly well.
 	unit.definition = definition
+	_root.add_child(unit)
 	unit.faction = &"enemy"
 	unit.global_position = position
 	if flying:
@@ -204,3 +218,17 @@ func melee() -> Ability:
 
 func ranged() -> Ability:
 	return load("res://data/abilities/basic_attack_ranged.tres")
+
+
+## A blank definition that names the placeholder body, shared by every
+## spawn_unit() call. Blank on purpose: the stats are set explicitly by the
+## caller right after, and a definition with opinions of its own would
+## quietly become a second source for them.
+static var _shared_harness_definition: UnitDefinition = null
+
+
+func _harness_definition() -> UnitDefinition:
+	if _shared_harness_definition == null:
+		_shared_harness_definition = UnitDefinition.new()
+		_shared_harness_definition.model_scene = load("res://scenes/character_models/placeholder_model.tscn")
+	return _shared_harness_definition

@@ -22,6 +22,14 @@ extends CharacterBody3D
 	set(value):
 		definition = value
 		if definition:
+			# A body is adopted in _enter_tree, so a definition arriving
+			# after that point brings one nothing will ever read. It fails
+			# SILENTLY — a bodiless unit still walks, fights and dies — so
+			# it says so here instead. Assign the definition before
+			# add_child(), the way debug_spawn_panel and PartyManager do.
+			if _model_adopted and definition.model_scene and not Engine.is_editor_hint():
+				push_warning(("Unit '%s': definition assigned after it entered the tree, " +
+					"so its body was never adopted. Set definition before add_child().") % name)
 			display_name = definition.display_name
 			portrait_texture = definition.portrait_texture
 			faction = definition.faction
@@ -524,6 +532,132 @@ static func generate_persistent_id() -> StringName:
 
 
 static var _id_counter: int = 0
+
+
+## Guards against re-adopting on every tree entry. Units are REPARENTED —
+## WorldManager moves them between worlds — and _enter_tree fires again
+## each time, which without this would free the body and build another.
+var _model_adopted: bool = false
+
+
+## Swaps in the body this unit's definition names, before any child of
+## this scene has readied.
+##
+## _enter_tree is the only safe window, and it is safe for a precise
+## reason: the scene's children already exist structurally, and none of
+## them has run _ready yet. So UnitAnimator has not bound itself to the
+## outgoing AnimationPlayer and UnitSelection has not cached the outgoing
+## meshes — there is nothing to tear down, only something to replace.
+## Same detached-window trick WorldManager.load_world() uses on a freshly
+## instantiated world for the same kind of reason.
+func _enter_tree() -> void:
+	if _model_adopted:
+		return
+	_model_adopted = true
+	if definition and definition.model_scene:
+		_swap_model(definition.model_scene)
+	# Bound either way. unit.tscn's own body is a CharacterModel too now,
+	# so there is ONE path here rather than an authored case wired by
+	# NodePath and a swapped case wired in code — which is what let the
+	# two drift apart in the first place.
+	_bind_model()
+
+
+## The outgoing body takes its own parts with it.
+##
+## That is not tidiness. The outline mesh is SKINNED to the outgoing
+## skeleton, so leaving it behind welds one creature's silhouette to
+## another creature's bones, and the highlight ring is sized to a
+## footprint that is about to stop existing. A body is all of its pieces
+## or none of them.
+func _swap_model(scene: PackedScene) -> void:
+	var model: Node = scene.instantiate()
+	if not (model is CharacterModel):
+		push_warning("Unit '%s': model_scene '%s' is not a CharacterModel; keeping the authored body." % [
+			name, scene.resource_path])
+		model.queue_free()
+		return
+
+	for outgoing in [get_node_or_null("CharacterModel"), outline_mesh, highlight_mesh]:
+		if is_instance_valid(outgoing):
+			remove_child(outgoing)
+			outgoing.queue_free()
+
+	# Named, so anything still looking the old body up by name finds the
+	# new one rather than nothing.
+	model.name = "CharacterModel"
+	add_child(model)
+
+
+## Points this unit at the parts of whatever body it is now wearing.
+##
+## Runs for the authored body as well as a swapped one. Those meshes and
+## the animator's player used to be wired by NodePath in unit.tscn,
+## reaching across into the model subtree — which is exactly what could
+## not survive a swap, and exactly what made the outline mesh a silhouette
+## welded to one specific skeleton from outside it.
+func _bind_model() -> void:
+	var body := get_node_or_null("CharacterModel") as CharacterModel
+	if body == null:
+		return
+
+	# Either may be null, and that is allowed — UnitSelection guards both.
+	# A body that wants a selection ring or an outline declares one.
+	outline_mesh = body.outline_mesh
+	highlight_mesh = body.highlight_mesh
+
+	radius = body.radius
+	avoidance_margin = body.avoidance_margin
+	height = body.height
+	_wear_shape(body.collision_shape)
+
+	var animator: Node = get_node_or_null("UnitAnimator")
+	if animator and animator.has_method("adopt_model"):
+		animator.adopt_model(body)
+
+
+## Copies the body's authored shape onto the Unit's own direct-child
+## CollisionShape3D, which is the only place Godot will honour it.
+##
+## Shipped together with the extent numbers above on purpose: a unit that
+## PLANS as a dragon and COLLIDES as a demon is worse than one that does
+## neither, because the planner routes around a body the physics does not
+## have and nothing in the game reports the disagreement.
+##
+## The Shape3D itself is shared rather than duplicated. Nothing mutates a
+## shape at runtime, and every unit wearing one body should be the same
+## size — if that ever stops being true, this is the line to change.
+## A named point on this unit's body, in world space — see
+## CharacterModel.Anchor.
+##
+## Everything that needs to aim at part of a creature should ask here
+## rather than adding an offset of its own. A unit with no body at all
+## still answers, from the same proportions the body would have used, so
+## no caller needs to handle a missing model.
+func anchor(kind: CharacterModel.Anchor) -> Vector3:
+	var body := get_node_or_null("CharacterModel") as CharacterModel
+	if body:
+		return body.anchor_position(kind)
+	return global_position + Vector3(0.0, height * _anchor_fallback(kind), 0.0)
+
+
+func _anchor_fallback(kind: CharacterModel.Anchor) -> float:
+	match kind:
+		CharacterModel.Anchor.HEAD: return 0.85
+		CharacterModel.Anchor.EYE: return 0.75
+		CharacterModel.Anchor.CHEST: return 0.55
+		CharacterModel.Anchor.GROUND: return 0.0
+	return 0.0
+
+
+func _wear_shape(template: CollisionShape3D) -> void:
+	if template == null:
+		return
+	var own := get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if own == null:
+		return
+	own.shape = template.shape
+	own.transform = template.transform
 
 
 func _ready() -> void:

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=8 format=3 uid="uid://ccc386jmoy5wn"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=9 format=3 uid="uid://ccc386jmoy5wn"]
 
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_p1ekw"]
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_species"]
@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="3_rootopt"]
 [ext_resource type="Resource" path="res://data/negotiation/conversations/foolish/foolish_greeting.tres" id="4_greeting"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("3_rootopt")
@@ -31,6 +32,7 @@ personality = &"Foolish"
 rank = 2
 is_special = false
 unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
 abilities = Array[ExtResource("1_p1ekw")]([])
 ai_behaviors = Array[ExtResource("2_bmdmi")]([])
 negotiable = false
