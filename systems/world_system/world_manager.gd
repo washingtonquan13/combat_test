@@ -25,9 +25,10 @@ extends Node
 ## backdrop is an ordinary world loaded independently underneath it.
 ##
 ## A world may implement up to three duck-typed methods:
-## - get_base_mode() -> GameMode.Mode, forwarded to GameMode.set_base_mode().
-##   A backdrop world with no gameplay of its own simply doesn't implement
-##   it, leaving whatever mode its screen already set intact.
+## - get_base_mode() -> GameMode.Mode, READ BY GameMode whenever it is
+##   asked what the base mode is. A backdrop world with no gameplay of its
+##   own simply doesn't implement it, and the mode then falls through to
+##   the front end exactly as if no world were loaded.
 ## - spawns_party() -> bool, defaulting to true when absent. A world like
 ##   the overworld — one controllable avatar, not four tactical Units —
 ##   returns false; PartyManager.roster survives untouched either way,
@@ -504,8 +505,10 @@ func _focus(resident: ResidentWorld, group: PartyGroup = null) -> void:
 	_move_attention_to(resident.viewport())
 
 	var world: Node = resident.world
-	if world.has_method("get_base_mode"):
-		GameMode.set_base_mode(world.get_base_mode())
+	# Nothing sets the mode here any more. GameMode asks current_world()
+	# for its get_base_mode(), so focusing a world IS the mode changing —
+	# and the old set_base_mode() call is what used to wipe a live COMBAT
+	# overlay on its way past (see game_mode.gd's header).
 
 	if world.has_method("get_tactical_camera"):
 		var cam: Camera3D = world.get_tactical_camera()

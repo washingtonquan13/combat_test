@@ -168,7 +168,10 @@ func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -
 	_used_interjections.clear()
 	_narrated_node_ids.clear()
 	participants = conversation_participants
-	GameMode.push_mode(GameMode.Mode.DIALOGUE)
+	# No mode to push: GameMode reads current_node through is_active(), and
+	# _show_node() below is what sets it. The mode therefore turns DIALOGUE
+	# one line after dialogue_started rather than one line before it —
+	# checked, and no listener of that signal reads the mode.
 	dialogue_started.emit(root)
 	_show_node(_resolve_interjection(root))
 
@@ -213,7 +216,6 @@ func end_dialogue() -> void:
 	current_node = null
 	participants = {}
 	_visible_choices = []
-	GameMode.pop_mode()
 	dialogue_ended.emit()
 
 

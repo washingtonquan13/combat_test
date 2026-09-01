@@ -90,7 +90,8 @@ func _on_main_menu_pressed() -> void:
 	if not WorldManager.unload():
 		return
 	close()
-	GameMode.set_base_mode(GameMode.Mode.MAIN_MENU)
+	# unload() above left no world focused, so GameMode is already back to
+	# MAIN_MENU by the time this screen goes up.
 	UIStack.push(get_tree().get_first_node_in_group("main_menu"))
 
 

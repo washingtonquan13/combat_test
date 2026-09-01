@@ -133,7 +133,8 @@ func start_negotiation(actor: Unit, demon: Unit) -> void:
 	var rank: int = demon.definition.rank
 	current_gold_amount = randi_range(rank * 10, rank * 20)
 
-	GameMode.push_mode(GameMode.Mode.NEGOTIATION)
+	# Nothing to push: current_demon was assigned well above, so GameMode
+	# has been answering NEGOTIATION since then.
 	negotiation_started.emit(demon)
 	_show_node(root)
 
@@ -263,7 +264,6 @@ func end_negotiation(outcome: Outcome) -> void:
 	current_actor = null
 	current_node = null
 	_visible_choices = []
-	GameMode.pop_mode()
 	negotiation_ended.emit(outcome)
 
 

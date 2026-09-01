@@ -16,7 +16,7 @@ func run() -> void:
 	await _a_unit_outside_a_fight_is_free()
 	await _a_unit_inside_a_fight_is_not()
 	await _legacy_accessors_follow_the_focus()
-	await _game_mode_stack_stays_balanced()
+	await _the_mode_follows_the_fights_that_are_running()
 	await _joining_picks_the_right_fight()
 
 	CombatAi.ai_factions = _saved_ai_factions
@@ -134,14 +134,24 @@ func _legacy_accessors_follow_the_focus() -> void:
 	free_spawned()
 
 
-## GameMode is a STACK. Pushing COMBAT per encounter and popping per
-## encounter-end leaves it unbalanced the moment two overlap — the mode
-## would still read COMBAT after both finished. Easiest thing here to get
-## subtly wrong, so asserted in both completion orders.
-func _game_mode_stack_stays_balanced() -> void:
+## The mode reads COMBAT for exactly as long as a watched fight is
+## running, and goes back to the base mode when the last one ends.
+##
+## This used to be a balance test, and the thing it guarded against was
+## real: GameMode was a stack, CombatManager pushed COMBAT per encounter
+## and popped per encounter-end against its own depth counter, and two
+## overlapping fights left it unbalanced — the mode still reading COMBAT
+## after both had finished. It was the easiest thing in the file to get
+## subtly wrong, so it was asserted in both completion orders.
+##
+## There is nothing left to balance: the mode is derived, and asks
+## CombatManager whether a watched fight is running (see
+## a_watched_fight_is_running). A count that cannot drift is better than a
+## count asserted to be correct. The BEHAVIOUR is still worth pinning, and
+## both completion orders are still worth walking, so the shape stays.
+func _the_mode_follows_the_fights_that_are_running() -> void:
 	_clear_encounters()
 	await get_tree().process_frame
-	var depth_before: int = CombatManager._combat_mode_depth
 	var mode_before: GameMode.Mode = GameMode.current_mode()
 
 	var a1: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], Vector3.ZERO)
@@ -154,21 +164,28 @@ func _game_mode_stack_stays_balanced() -> void:
 	var fight_a: Encounter = CombatManager.start_combat(roster_a)
 	var fight_b: Encounter = CombatManager.start_combat(roster_b)
 	await get_tree().process_frame
-	check("two overlapping fights push COMBAT once, not twice",
-		CombatManager._combat_mode_depth == depth_before + 2
-			and GameMode.current_mode() == GameMode.Mode.COMBAT)
+	check("two overlapping fights read as COMBAT",
+		GameMode.current_mode() == GameMode.Mode.COMBAT)
 
 	# Finish in the opposite order to the one they started in.
 	fight_b.finish(&"player")
 	await get_tree().process_frame
-	check("the first to end does not pop the mode while one still runs",
+	check("the first to end leaves the mode alone while one still runs",
 		GameMode.current_mode() == GameMode.Mode.COMBAT)
 
 	fight_a.finish(&"player")
 	await get_tree().process_frame
-	check("the last to end restores the mode exactly",
-		GameMode.current_mode() == mode_before
-			and CombatManager._combat_mode_depth == depth_before)
+	check("the last to end returns the mode to what it was",
+		GameMode.current_mode() == mode_before,
+		"left as %s, was %s" % [
+			GameMode.Mode.keys()[GameMode.current_mode()],
+			GameMode.Mode.keys()[mode_before]])
+
+	# The derived form makes one more thing assertable that a stack could
+	# only ever be trusted about: with no fight running, the mode IS the
+	# base mode, so nothing is left overlaid on it.
+	check("and nothing is left overlaid once every fight is over",
+		GameMode.can_transition())
 
 	_clear_encounters()
 	await get_tree().process_frame

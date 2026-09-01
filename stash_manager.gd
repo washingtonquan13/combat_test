@@ -27,13 +27,16 @@ func is_active() -> bool:
 func open_stash(stash: StashComponent, actor: Unit) -> void:
 	if not stash or DialogueManager.is_active() or is_active():
 		return
+	# GameMode reads current_stash through is_active(); the mode becomes
+	# LOOTING on the line above and needs telling nothing.
 	current_stash = stash
-	GameMode.push_mode(GameMode.Mode.LOOTING)
 	stash_opened.emit(stash, actor)
 
 
-## Idempotent — a close with nothing open is a no-op, not an unbalanced
-## GameMode.pop_mode() that would eat a mode this file never pushed.
+## Idempotent — a close with nothing open is a no-op. That used to matter
+## for a second reason too: an unbalanced GameMode.pop_mode() would eat a
+## mode this file never pushed. Nothing is pushed or popped now, so the
+## worst an extra close can do is emit stash_closed twice.
 ## Reachable for real now that StashPanel routes EVERY close back through
 ## here (see its own _on_visibility_changed): the Close button both pops
 ## the screen and calls this, so one of the two arrivals always finds the
@@ -50,7 +53,6 @@ func close_stash() -> void:
 	var closing_stash: StashComponent = current_stash
 
 	current_stash = null
-	GameMode.pop_mode()
 	stash_closed.emit()
 
 	_persist_stash_state(closing_stash)

@@ -301,14 +301,14 @@ func _on_confirm_pressed() -> void:
 	PartyManager.pending_leader = record
 
 	# The one place the front end actually loads a world — this is the
-	# moment the game proper begins. load_area() sets the base mode
-	# itself off test_arena.gd's own get_base_mode(), so nothing here
-	# needs to touch GameMode.
+	# moment the game proper begins. Nothing here touches GameMode: once a
+	# world is focused, the mode reads that world's own get_base_mode().
 	close()
 	WorldManager.load_area(&"test_arena")
 
 
 func _on_back_pressed() -> void:
-	GameMode.set_base_mode(GameMode.Mode.MAIN_MENU)
+	# close() first: with no world loaded the mode is read off which front
+	# end screen is open, so closing this one is what makes it MAIN_MENU.
 	close()
 	UIStack.push(get_tree().get_first_node_in_group("main_menu"))
