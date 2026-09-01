@@ -10,3 +10,10 @@ gdextension/godot-cpp/
 gdextension/src/*.o
 gdextension/.sconsign*.dblite
 gdextension/.sconf_temp/
+
+# Windows leftovers from replacing a DLL that a running Godot editor holds
+# open: the rebuild cannot overwrite libnavigationgrid.dll, so Windows drops
+# a ~-prefixed copy beside it. Committed by accident twice (4fa6a53,
+# 71202de) — 1.2MB of build junk each time.
+bin/win64/~*
+*.TMP
