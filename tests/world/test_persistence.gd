@@ -121,7 +121,7 @@ func _install_synthetic_host() -> bool:
 	WorldManager.register_world_host(_host)
 	var none: Array[Node] = []
 	WorldManager.register_attention_nodes(none)
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 ## The in-play acceptance, headless: wound somebody, leave so their world

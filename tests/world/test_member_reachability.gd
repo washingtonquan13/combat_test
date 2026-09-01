@@ -53,7 +53,7 @@ func _install_synthetic_host() -> bool:
 	WorldManager.register_world_host(_host)
 	var none: Array[Node] = []
 	WorldManager.register_attention_nodes(none)
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 # --- the property ------------------------------------------------------
@@ -277,7 +277,7 @@ func _collapse_to_one_group() -> void:
 
 
 func _restore() -> void:
-	WorldManager.unload(true)
+	WorldManager.discard_worlds()
 	_collapse_to_one_group()
 	CombatAi.ai_factions = _saved_factions
 	WorldManager._world_host = _saved_host

@@ -181,7 +181,7 @@ func _install_synthetic_host() -> bool:
 	WorldManager.register_world_host(_host)
 	var none: Array[Node] = []
 	WorldManager.register_attention_nodes(none)
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 func _live_members() -> Array[Unit]:
@@ -213,7 +213,7 @@ func _group_claiming(area_id: StringName) -> PartyGroup:
 func _restore() -> void:
 	if _save_path != "":
 		DirAccess.remove_absolute(_save_path)
-	WorldManager.unload(true)
+	WorldManager.discard_worlds()
 	_restore_globals()
 	while PartyManager.groups.size() > 1:
 		PartyManager.groups[0].absorb(PartyManager.groups[1])

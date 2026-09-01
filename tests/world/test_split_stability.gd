@@ -73,7 +73,7 @@ func _install_synthetic_host() -> bool:
 	WorldManager.register_world_host(_host)
 	var none: Array[Node] = []
 	WorldManager.register_attention_nodes(none)
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 ## Four members in one area, two of them in a fight.
@@ -367,7 +367,7 @@ func _restore() -> void:
 			_enemy.get_parent().remove_child(_enemy)
 		_enemy.queue_free()
 
-	WorldManager.unload(true)
+	WorldManager.discard_worlds()
 	CombatAi.ai_factions = _saved_factions
 	WorldManager._world_host = _saved_host
 	WorldManager._attention_nodes = _saved_attention

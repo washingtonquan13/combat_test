@@ -201,7 +201,14 @@ func _move_attention_to(parent: Node) -> void:
 ## context menu, not a real mode transition). Naturally always true
 ## during the menu/chargen hops (nothing has started either of those
 ## things yet).
-func can_load(travellers: Array[Unit] = []) -> bool:
+##
+## Named for WHO it is about, not for what it happens to gate. It used to
+## be can_load(), which read as "may a world be built" — so the save
+## restore path asked it, got told a fight was in progress, and refused to
+## rebuild the very world that fight lives in. Rebuilding from disk is not
+## travel; it asks can_rebuild() instead. Same split, and the same
+## reasoning, as can_switch_focus() further down.
+func can_travel(travellers: Array[Unit] = []) -> bool:
 	if InteractionMenu.is_open():
 		return false
 	if GameMode.can_transition():
@@ -216,6 +223,27 @@ func can_load(travellers: Array[Unit] = []) -> bool:
 	if GameMode.current_mode() != GameMode.Mode.COMBAT:
 		return false
 	return not _any_traveller_fighting(travellers)
+
+
+## Whether the engine can build a world at all — a STRUCTURAL question,
+## deliberately with no opinion about what the player is doing.
+##
+## The restore path asks this. Loading a save is not a journey: nobody is
+## walking anywhere, every world is about to be discarded and rebuilt from
+## disk, and the fight the travel gate would refuse over is itself part of
+## what is being replaced. Asking can_travel() there produced a genuine
+## deadlock — a restored fight claimed COMBAT, the next rebuild was
+## refused because those units were "travelling out of a fight", and the
+## claim only clears when focus moves, which the refusal prevented.
+##
+## Asks for the world host and NOT the scene root, because the host is what
+## a world is actually built into (see _enter_world: the view goes to
+## _world_host, the world into its viewport). _scene_root is only
+## spawn_parent()'s fallback for when nothing is focused. Requiring it here
+## refused every restore in the test harness, which registers a host and no
+## scene root — correctly, since it never needed one.
+func can_rebuild() -> bool:
+	return _world_host != null
 
 
 ## Whether anyone actually going is tied up in a fight. An empty list
@@ -237,20 +265,35 @@ func _any_traveller_fighting(travellers: Array[Unit]) -> bool:
 ## the same teardown with capture_party=true — this does not change that
 ## path at all.
 ##
-## No-op (returns true) when nothing is loaded — the main menu, e.g.,
-## where SaveManager.load_file() can also be called from. Returns false,
-## refused exactly like load_world(), if a load isn't currently allowed
-## (mid-combat/dialogue/loot).
-## force skips the can_load() gate, and only SaveManager.load_file()
-## passes it. That gate exists to stop a world being swapped out from
-## under a live fight during PLAY; loading a save is not a transition,
-## it is discarding everything — including the fight — and refusing it
-## would make a save taken mid-combat impossible to load back.
-func unload(force: bool = false) -> bool:
-	if not force and not can_load():
+## No-op (returns true) when nothing is loaded — the main menu, e.g.
+## Refused exactly like load_world() when the player may not currently
+## leave (mid-combat/dialogue/loot).
+##
+## The restore path wants discard_worlds() below, not this. Both do the
+## same teardown; they differ only in which question they ask first, and
+## that difference used to be a `force` boolean whose honest meaning was
+## "ignore a rule that should not have applied to me".
+func unload() -> bool:
+	if not can_travel():
 		push_warning("WorldManager.unload refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return false
+	return _tear_down_worlds()
 
+
+## Frees every world so a save can be rebuilt over the top of it. The
+## restore counterpart to unload(), gated on can_rebuild() rather than on
+## whether the player may travel — see can_rebuild() for why a fight in
+## progress must not refuse this.
+func discard_worlds() -> bool:
+	if not can_rebuild():
+		push_warning("WorldManager.discard_worlds refused: no scene root or world host registered.")
+		return false
+	return _tear_down_worlds()
+
+
+## The teardown itself, shared by both entry points above. Permission is
+## settled before this is reached and is never re-asked here.
+func _tear_down_worlds() -> bool:
 	world_loading.emit(null)
 	# false: SaveManager is about to overwrite roster from the save file,
 	# so refreshing it from the world being discarded is work undone one
@@ -512,17 +555,49 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# it, so whether this load is allowed depends on who is leaving. Also
 	# before _leave_focused, while _focused still says which world these
 	# people are standing in.
-	var outgoing: ResidentWorld = _focused
 	var going: Array[Unit] = _resolve_travellers(travellers)
-	var group: PartyGroup = null
 
-	if not can_load(going):
+	if not can_travel(going):
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
 
+	return _enter_world(scene, spawn_point_name, area, travellers)
+
+
+## Rebuilds one area from a save file and puts the player in front of it.
+##
+## The restore counterpart to load_area(). Identical work — it shares
+## _enter_world() — differing only in which permission question it asks:
+## can_rebuild() rather than can_travel(). Nobody is travelling during a
+## restore, so the travel gate has nothing true to say about it, and what
+## it did say deadlocked the load (see can_rebuild()).
+##
+## No spawn point and no travellers on purpose: a rebuilt world places its
+## occupants from the save file, not from a doorway they walked through.
+func rebuild_area(area_id: StringName) -> Node:
+	var area: AreaDefinition = AreaDatabase.find(area_id)
+	if not area:
+		push_warning("WorldManager.rebuild_area: unknown area id '%s'" % area_id)
+		return null
+
+	if not can_rebuild():
+		push_warning("WorldManager.rebuild_area refused: no scene root or world host registered.")
+		return null
+
+	return _enter_world(area.world_scene, &"", area, [])
+
+
+## Everything entering a world does once permission is settled. Shared by
+## load_world() and rebuild_area(); neither gate is re-asked in here, so
+## this must not be called without passing one of them first.
+func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDefinition, travellers: Array[Unit]) -> Node:
+	# Read before _leave_focused, while _focused still says which world
+	# these people are standing in.
+	var outgoing: ResidentWorld = _focused
+
 	# After the gate, because splitting the group is a real change and a
 	# refused load must not have made one.
-	group = _travelling_group(travellers)
+	var group: PartyGroup = _travelling_group(travellers)
 
 	world_loading.emit(scene)
 
@@ -842,9 +917,10 @@ static func revealed(result: Reveal) -> bool:
 
 ## Whether the player may look at a different world right now.
 ##
-## NOT can_load(). That gate asks whether people may LEAVE, and a fight
+## NOT can_travel(). That gate asks whether people may LEAVE, and a fight
 ## detains the people in it — correct for travel, wrong here, because
-## switching focus moves nobody.
+## switching focus moves nobody. The third question in the same family is
+## can_rebuild(), for a restore that moves nobody either.
 ##
 ## Combat is the one overlay a player can look away FROM: the fight simply
 ## waits, and says so (see CombatManager's Attention section). Dialogue,

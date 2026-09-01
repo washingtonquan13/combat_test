@@ -93,7 +93,7 @@ func _restore() -> void:
 		PartyManager.groups.erase(_away)
 	if is_instance_valid(_panel):
 		_panel.queue_free()
-	WorldManager.unload(true)
+	WorldManager.discard_worlds()
 	WorldManager._world_host = _saved_host
 	WorldManager._attention_nodes = _saved_attention
 	if is_instance_valid(_host):

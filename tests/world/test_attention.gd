@@ -60,7 +60,7 @@ func _install_synthetic_host() -> bool:
 	WorldManager.register_world_host(_host)
 	var none: Array[Node] = []
 	WorldManager.register_attention_nodes(none)
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 ## One member stays in HOME; everyone else goes to AWAY, which is where
@@ -132,7 +132,7 @@ func _combat_mode_belongs_to_the_fight_on_screen() -> void:
 		GameMode.current_mode() != GameMode.Mode.COMBAT,
 		"the visible world was frozen by an invisible fight")
 	check("so they are free to go and answer it",
-		WorldManager.can_load(),
+		WorldManager.can_travel(),
 		"locked out of travelling to the fight that wants them")
 
 
@@ -176,13 +176,13 @@ func _going_there_settles_it() -> void:
 
 
 ## A fight detains the people IN it, not everyone who happens to be
-## nearby. can_load() used to refuse every load whenever anything on
+## nearby. can_travel() used to refuse every load whenever anything on
 ## screen was fighting, which with a split party meant half of it could
 ## not walk out of a room the other half was brawling in.
 func _a_fight_only_detains_the_people_in_it() -> void:
 	var detained: Array[Unit] = [_stayer]
 	check("someone in the fight cannot travel out of it",
-		not WorldManager.can_load(detained),
+		not WorldManager.can_travel(detained),
 		"walked out mid-turn")
 
 	var bystander: Unit = null
@@ -196,12 +196,12 @@ func _a_fight_only_detains_the_people_in_it() -> void:
 
 	var free_to_go: Array[Unit] = [bystander]
 	check("but someone who is not in it still can",
-		WorldManager.can_load(free_to_go),
+		WorldManager.can_travel(free_to_go),
 		"a fight they are not part of refused their travel")
 
 
 ## Looking away is not leaving. Switching focus moves nobody, so a fight
-## must not block it — gated on can_load() (which asks whether people may
+## must not block it — gated on can_travel() (which asks whether people may
 ## LEAVE, and a fight detains the people in it), commanding a group in a
 ## battle meant never being able to look at the rest of the party again
 ## until it ended.
@@ -217,7 +217,7 @@ func _looking_away_from_a_fight_is_allowed() -> void:
 		return
 
 	check("a fight the player is IN still refuses to let them leave it",
-		not WorldManager.can_load(),
+		not WorldManager.can_travel(),
 		"travel was allowed out of a live battle")
 	check("but they can still look at a group somewhere else",
 		WorldManager.can_switch_focus(),

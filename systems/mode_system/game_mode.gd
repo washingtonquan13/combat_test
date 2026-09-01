@@ -48,7 +48,7 @@ func current_mode() -> Mode:
 ## Called by WorldManager.load_world() — replaces the BASE of the stack
 ## (discarding anything overlaid on the old one) with the newly loaded
 ## world's own mode. Safe to assume nothing is overlaid at this point:
-## WorldManager.can_load() already refuses a load whenever can_transition()
+## WorldManager.can_travel() already refuses a load whenever can_transition()
 ## is false, and UIStack.close_all() runs before every load too.
 func set_base_mode(mode: Mode) -> void:
 	_stack = [mode]
@@ -69,7 +69,7 @@ func pop_mode() -> void:
 
 
 ## Whether nothing is currently overlaid on the base mode — i.e. a world
-## transition is safe (see WorldManager.can_load()). True during
+## transition is safe (see WorldManager.can_travel()). True during
 ## MAIN_MENU/CHARACTER_CREATION/EXPLORATION with nothing stacked on top;
 ## false the instant COMBAT/DIALOGUE/NEGOTIATION/LOOTING/CUTSCENE is
 ## pushed. Deliberately distinct from CameraDirector.has_control() — that

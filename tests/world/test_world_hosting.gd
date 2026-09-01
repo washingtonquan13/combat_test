@@ -50,7 +50,7 @@ func _install_synthetic_host() -> bool:
 	var attention: Array[Node] = [_indicator]
 	WorldManager.register_attention_nodes(attention)
 
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 func _a_loaded_world_gets_its_own_viewport() -> void:

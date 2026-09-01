@@ -101,7 +101,7 @@ func _install_synthetic_host() -> bool:
 	WorldManager.register_world_host(_host)
 	var none: Array[Node] = []
 	WorldManager.register_attention_nodes(none)
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 func _live_members() -> Array[Unit]:
@@ -125,7 +125,7 @@ func _restore() -> void:
 		if _foe.get_parent():
 			_foe.get_parent().remove_child(_foe)
 		_foe.queue_free()
-	WorldManager.unload(true)
+	WorldManager.discard_worlds()
 	while PartyManager.groups.size() > 1:
 		PartyManager.groups[0].absorb(PartyManager.groups[1])
 		PartyManager.groups.remove_at(1)

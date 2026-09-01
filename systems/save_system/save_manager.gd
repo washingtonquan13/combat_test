@@ -72,7 +72,7 @@ func _ready() -> void:
 	WorldManager.world_loaded.connect(_on_world_loaded)
 
 
-## Mirrors WorldManager.can_load()'s own reasoning at one level up: a
+## Mirrors WorldManager.can_travel()'s own reasoning at one level up: a
 ## save mid-combat would need to capture turn order, initiative and
 ## status effects, none of which any save_state() here writes — refusing
 ## up front is honest about that gap rather than writing a save that
@@ -158,19 +158,24 @@ func save(save_name: String) -> bool:
 	return true
 
 
-## Load order matters and is the whole reason unload() exists as a
-## separate WorldManager entry point from load_world(): load_world()
-## calls PartyManager.capture() on whatever world it's REPLACING, which
-## would immediately overwrite the roster this function is about to
-## inject from the save file with a fresh (and wrong) capture of the
-## OLD world. unload() frees the current world without capturing, so by
-## the time PartyManager.load_state() runs, there is nothing left for
-## anything to capture over it.
+## Load order matters, and is the whole reason the restore path has its
+## own WorldManager entry points. An ordinary load_world() calls
+## PartyManager.capture() on whatever world it is REPLACING, which would
+## immediately overwrite the roster this function is about to inject from
+## the save file with a fresh (and wrong) capture of the OLD world.
+## discard_worlds() frees everything without capturing, so by the time
+## PartyManager.load_state() runs there is nothing left to capture over
+## it.
 ##
-## Sequence: unload (no capture) -> inject state into every system ->
-## load_area (now safe: _current_world is null, so load_world()'s own
-## teardown captures nothing) -> apply saved positions once world_loaded
-## fires for THIS load.
+## The restore entry points also ask a different permission question than
+## travel does — can_rebuild() rather than can_travel(). That is not a
+## convenience: asking the travel gate here deadlocked the load outright,
+## because a fight restored into the first area rebuilt then refused every
+## rebuild after it. See WorldManager.can_rebuild().
+##
+## Sequence: discard_worlds (no capture) -> inject state into every system
+## -> rebuild_area per area, focused one last -> apply saved positions once
+## world_loaded fires for THIS load.
 func load_file(path: String) -> bool:
 	if not FileAccess.file_exists(path):
 		push_warning("SaveManager.load_file: no file at '%s'" % path)
@@ -182,10 +187,12 @@ func load_file(path: String) -> bool:
 		push_warning("SaveManager.load_file failed reading '%s': %s" % [path, error_string(err)])
 		return false
 
-	# Forced: a save taken mid-combat has to be loadable, and the ordinary
-	# gate refuses to swap worlds under a live fight.
-	if not WorldManager.unload(true):
-		push_warning("SaveManager.load_file refused: WorldManager.unload() was refused.")
+	# discard_worlds(), not unload(): a restore is not the player leaving
+	# somewhere, so the travel gate has no jurisdiction here. It used to be
+	# unload(true), where the `true` meant exactly that and said so only in
+	# a comment.
+	if not WorldManager.discard_worlds():
+		push_warning("SaveManager.load_file refused: WorldManager.discard_worlds() was refused.")
 		return false
 
 	FlagManager.load_state(cfg.get_value("flags", "data", {}))
@@ -241,7 +248,7 @@ func load_file(path: String) -> bool:
 		# sent, so leaving this alone would drag one group through every
 		# other group's area in turn and end with the party merged.
 		PartyManager.active_group = claimant
-		if WorldManager.load_area(other) == null:
+		if WorldManager.rebuild_area(other) == null:
 			push_warning("SaveManager.load_file: could not restore area '%s'." % other)
 
 	# The saved area LAST, so the player ends up looking at the world they
@@ -249,7 +256,7 @@ func load_file(path: String) -> bool:
 	var homecoming: PartyGroup = _group_claiming(area_id)
 	if homecoming:
 		PartyManager.active_group = homecoming
-	var world: Node = WorldManager.load_area(area_id)
+	var world: Node = WorldManager.rebuild_area(area_id)
 
 	# Every world_loaded this load will ever emit has now been handled
 	# (world_loaded is emitted synchronously inside load_area), so the
@@ -259,7 +266,7 @@ func load_file(path: String) -> bool:
 	_pending_avatar_transform = null
 
 	if not world:
-		push_warning("SaveManager.load_file: load_area('%s') failed after state was already injected." % area_id)
+		push_warning("SaveManager.load_file: rebuild_area('%s') failed after state was already injected." % area_id)
 		return false
 
 	load_completed.emit(path)
