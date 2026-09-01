@@ -35,10 +35,14 @@ extends IndicatorBase
 @export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
 @export var out_of_range_color: Color = Color(0.5, 0.5, 0.5, 0.6)
 @export var no_target_color: Color = Color(0.7, 0.7, 0.7, 0.35)
-## Roughly chest/eye height — a line drawn at ground level reads poorly
-## against 3D geometry; this matches LineOfSight's own default eye_height
-## so the drawn line reflects where the raycast actually checks.
-@export var height_offset: float = 1.5
+## Where the line is drawn is no longer a number here at all: it comes from
+## the same eye anchor LineOfSight traces from, so the two cannot disagree.
+##
+## They DID disagree. This was 1.5 to match LineOfSight's default, said so
+## in its own comment — and MainRoot.tscn then overrode it to 2.0, so the
+## line every player saw was half a metre above the ray actually being
+## tested. Exactly the kind of drift a shared constant invites and an
+## anchor makes impossible.
 
 var _line_mesh: MeshInstance3D
 var _line_immediate: ImmediateMesh
@@ -100,8 +104,10 @@ func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Abi
 	else:
 		color = clear_color
 
-	var from: Vector3 = unit.global_position + Vector3(0, height_offset, 0)
-	var to: Vector3 = aim_point + Vector3(0, height_offset, 0)
+	var eye: Vector3 = unit.anchor(CharacterModel.Anchor.EYE)
+	var lift: float = eye.y - unit.global_position.y
+	var from: Vector3 = unit.global_position + Vector3(0, lift, 0)
+	var to: Vector3 = aim_point + Vector3(0, lift, 0)
 
 	_line_immediate.clear_surfaces()
 	_line_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)

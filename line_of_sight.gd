@@ -18,7 +18,7 @@ static func has_clear_shot(
 	attacker: Unit,
 	target: Unit,
 	obstruction_mask: int = 1,
-	eye_height: float = 1.5
+	eye_height: float = NAN
 ) -> bool:
 	return has_clear_shot_to_point(attacker, target.global_position, obstruction_mask, eye_height, [target.get_rid()])
 
@@ -27,11 +27,24 @@ static func has_clear_shot_to_point(
 	attacker: Unit,
 	point: Vector3,
 	obstruction_mask: int = 1,
-	eye_height: float = 1.5,
+	eye_height: float = NAN,
 	extra_exclude: Array = []
 ) -> bool:
-	var from: Vector3 = attacker.global_position + Vector3(0, eye_height, 0)
-	var to: Vector3 = point + Vector3(0, eye_height, 0)
+	# NAN means "ask the body where its eyes are" — see
+	# CharacterModel.Anchor. An explicit height still wins, because some
+	# callers genuinely mean a fixed one (DetectionManager's EYE_HEIGHT, an
+	# ability's own AreaTargeting.eye_height) rather than "wherever this
+	# creature happens to look from".
+	#
+	# The lift is applied to BOTH ends, which is what it has always done:
+	# the destination of a shot is a point on the ground raised to roughly
+	# where a body would be, not a second creature's eye.
+	var lift: float = eye_height
+	if is_nan(lift):
+		lift = attacker.anchor(CharacterModel.Anchor.EYE).y - attacker.global_position.y
+
+	var from: Vector3 = attacker.global_position + Vector3(0, lift, 0)
+	var to: Vector3 = point + Vector3(0, lift, 0)
 
 	var space_state := attacker.get_world_3d().direct_space_state
 	var query := PhysicsRayQueryParameters3D.create(from, to)

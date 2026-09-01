@@ -115,16 +115,6 @@ var _attention_nodes: Array[Node] = []
 var _attention_homes: Dictionary = {}
 
 
-## Set for the duration of a single load_world() call, the instant the
-## incoming world is known to be about to have PartyManager.roster spawned
-## into it — see is_restoring_party() below. Exists because a world's own
-## _ready() runs SYNCHRONOUSLY inside _scene_root.add_child(world), before
-## spawn_party() ever gets called (spawn_party needs the world already in
-## the tree) — so a world that wants to skip its own hardcoded bootstrap
-## content on a reload (see test_arena.gd) has no other way to know a real
-## spawn is about to follow.
-var _is_restoring_party: bool = false
-
 ## Which named spawn point THIS load_world() call resolved to — set once,
 ## right after the incoming world is instantiated (see load_world()),
 ## read by a world that needs it at _ready() time but doesn't spawn a
@@ -450,11 +440,7 @@ func _embody_into(resident: ResidentWorld, group: PartyGroup) -> void:
 
 	var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
 
-	# True while anyone is about to be built here, which is what a world
-	# reads to know not to lay out its own authored bootstrap party.
-	_is_restoring_party = not arrived.records.is_empty() or not arrived.units.is_empty()
 	PartyManager.embody(arrived, world, spawn_point)
-	_is_restoring_party = false
 
 ## Frees a world that has nothing left worth preserving — see
 ## ResidentWorld.is_earned for what counts. Safe to call with null, and
@@ -651,17 +637,6 @@ func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDe
 	if area:
 		_reconcile_area_state(world, area.id)
 
-	# Set before the world enters the tree, because a world's _ready() runs
-	# synchronously inside add_child() and may need to know a real party
-	# spawn is about to follow (see test_arena.gd, and is_restoring_party).
-	# "A real party is about to arrive here" — whether it arrives by being
-	# built from roster or by walking in from another world. Either way a
-	# world must not also lay out its own authored bootstrap party (see
-	# test_arena.gd, which reads this from inside its _ready).
-	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
-	_is_restoring_party = wants_party and (
-		not PartyManager.roster.is_empty() or not PartyManager.members.is_empty())
-
 	var resident := ResidentWorld.new()
 	resident.name = "Resident_%s" % (area.id if area else &"anonymous")
 	resident.area = area
@@ -837,12 +812,6 @@ func spawn_parent() -> Node:
 	return _focused.world if _focused else _scene_root
 
 
-## Whether the world currently being loaded (mid-load_world() call) is
-## about to have PartyManager.roster spawned into it — see this file's
-## own _is_restoring_party header for why a world needs to be able to ask
-## this from inside its own _ready(). False outside of an active
-## load_world() call, for the very first load (nothing to restore yet),
-## and for a world that opts out via spawns_party() -> false.
 ## Why a reveal() call did or did not go anywhere. A bool cannot say
 ## which precondition failed, and four indistinguishable false-returns
 ## swallowed by a caller is why "a member became unclickable" has looked
@@ -1032,9 +1001,6 @@ func is_area_resident(area_id: StringName) -> bool:
 	var resident: ResidentWorld = _residents.get(area_id)
 	return is_instance_valid(resident) and is_instance_valid(resident.world)
 
-
-func is_restoring_party() -> bool:
-	return _is_restoring_party
 
 
 ## Withdraws every currently-fielded demon through the same path a

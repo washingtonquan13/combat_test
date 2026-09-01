@@ -25,7 +25,7 @@ func _all_load() -> void:
 
 
 func _cascade() -> void:
-	var definition: UnitDefinition = load("res://data/demons/avian.tres")
+	var definition: UnitDefinition = load("res://data/units/demons/avian.tres")
 	check("a migrated demon names an archetype", definition.ai_archetype != null)
 	check("and no longer hand-lists behaviors", definition.ai_behaviors.is_empty(),
 		"%d left" % definition.ai_behaviors.size())
@@ -47,7 +47,7 @@ func _roster_coverage() -> void:
 	for file in DirAccess.get_files_at("res://data/demons"):
 		if not file.ends_with(".tres"):
 			continue
-		var definition: UnitDefinition = load("res://data/demons/%s" % file)
+		var definition: UnitDefinition = load("res://data/units/demons/%s" % file)
 		if definition and not definition.abilities.is_empty() and definition.ai_archetype == null:
 			uncovered.append(file)
 	check("every demon with abilities has a role", uncovered.is_empty(), ", ".join(uncovered))

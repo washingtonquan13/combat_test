@@ -3,7 +3,7 @@
 [ext_resource type="Script" uid="uid://cgkwhh1u5fo4r" path="res://systems/world_system/game_area.gd" id="1_ofwmf"]
 [ext_resource type="PackedScene" path="res://proto_block.tscn" id="2_te5ke"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="8_18ohf"]
-[ext_resource type="Resource" uid="uid://c2ocs8andnhho" path="res://data/demons/avian.tres" id="9_n4uks"]
+[ext_resource type="Resource" uid="uid://c2ocs8andnhho" path="res://data/units/demons/avian.tres" id="9_n4uks"]
 [ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://interaction_option.gd" id="35_0qb30"]
 [ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="44_6jrqs"]
 [ext_resource type="Resource" path="res://data/interactions/travel.tres" id="46_hpx3w"]

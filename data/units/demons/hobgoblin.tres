@@ -1,0 +1,55 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=13 format=3 uid="uid://cwui8dpvb33cf"]
+
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="3_g88m1"]
+[ext_resource type="Texture2D" uid="uid://cbcv6cepoupv1" path="res://assets/portraits/hobgoblin.jpg" id="3_portrait"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
+[ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="5_attack"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
+[ext_resource type="Resource" uid="uid://dr8fpplh8yovg" path="res://data/negotiation/conversations/wild/wild_greeting.tres" id="7_greeting"]
+[ext_resource type="Script" uid="uid://2l5kece6i6sd" path="res://systems/party_system/party_skill_record.gd" id="10_1ug8k"]
+[ext_resource type="PackedScene" uid="uid://btnqexsmk20xa" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
+[ext_resource type="Resource" uid="uid://ccb0sfp6xq6b2" path="res://data/ai_archetypes/brute.tres" id="99_arch"]
+
+[sub_resource type="Resource" id="Resource_negotiation_root"]
+script = ExtResource("6_root_option")
+root = ExtResource("7_greeting")
+
+[resource]
+script = ExtResource("1_def")
+id = "hobgoblin"
+display_name = "Hobgoblin"
+strength = 16
+dexterity = 12
+intelligence = 10
+health = 20
+move = 5
+will = 10
+perception = 10
+vision_cone_degrees = 120.0
+max_sight_range = 18.0
+proximity_radius = 2.5
+max_hp = 20
+max_fp = 20
+damage_reduction = 2
+faction = &"enemy"
+order = &"Fairy"
+rank = 1
+personality = &"Wild"
+is_special = false
+portrait_texture = ExtResource("3_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
+abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
+ai_archetype = ExtResource("99_arch")
+ai_behaviors = Array[ExtResource("3_g88m1")]([])
+ai_smartness = 2
+alignment = 0
+tendency = 0
+move_speed = 4.0
+selected_color = Color(1, 0.85, 0.2, 0.9)
+dialogue_options = Array[ExtResource("6_root_option")]([])
+skills = Array[ExtResource("10_1ug8k")]([])
+negotiable = true
+negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])
