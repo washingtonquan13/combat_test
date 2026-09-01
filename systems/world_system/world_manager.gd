@@ -25,9 +25,10 @@ extends Node
 ## backdrop is an ordinary world loaded independently underneath it.
 ##
 ## A world may implement up to three duck-typed methods:
-## - get_base_mode() -> GameMode.Mode, forwarded to GameMode.set_base_mode().
-##   A backdrop world with no gameplay of its own simply doesn't implement
-##   it, leaving whatever mode its screen already set intact.
+## - get_base_mode() -> GameMode.Mode, READ BY GameMode whenever it is
+##   asked what the base mode is. A backdrop world with no gameplay of its
+##   own simply doesn't implement it, and the mode then falls through to
+##   the front end exactly as if no world were loaded.
 ## - spawns_party() -> bool, defaulting to true when absent. A world like
 ##   the overworld — one controllable avatar, not four tactical Units —
 ##   returns false; PartyManager.roster survives untouched either way,
@@ -114,16 +115,6 @@ var _attention_nodes: Array[Node] = []
 var _attention_homes: Dictionary = {}
 
 
-## Set for the duration of a single load_world() call, the instant the
-## incoming world is known to be about to have PartyManager.roster spawned
-## into it — see is_restoring_party() below. Exists because a world's own
-## _ready() runs SYNCHRONOUSLY inside _scene_root.add_child(world), before
-## spawn_party() ever gets called (spawn_party needs the world already in
-## the tree) — so a world that wants to skip its own hardcoded bootstrap
-## content on a reload (see test_arena.gd) has no other way to know a real
-## spawn is about to follow.
-var _is_restoring_party: bool = false
-
 ## Which named spawn point THIS load_world() call resolved to — set once,
 ## right after the incoming world is instantiated (see load_world()),
 ## read by a world that needs it at _ready() time but doesn't spawn a
@@ -201,7 +192,14 @@ func _move_attention_to(parent: Node) -> void:
 ## context menu, not a real mode transition). Naturally always true
 ## during the menu/chargen hops (nothing has started either of those
 ## things yet).
-func can_load(travellers: Array[Unit] = []) -> bool:
+##
+## Named for WHO it is about, not for what it happens to gate. It used to
+## be can_load(), which read as "may a world be built" — so the save
+## restore path asked it, got told a fight was in progress, and refused to
+## rebuild the very world that fight lives in. Rebuilding from disk is not
+## travel; it asks can_rebuild() instead. Same split, and the same
+## reasoning, as can_switch_focus() further down.
+func can_travel(travellers: Array[Unit] = []) -> bool:
 	if InteractionMenu.is_open():
 		return false
 	if GameMode.can_transition():
@@ -216,6 +214,27 @@ func can_load(travellers: Array[Unit] = []) -> bool:
 	if GameMode.current_mode() != GameMode.Mode.COMBAT:
 		return false
 	return not _any_traveller_fighting(travellers)
+
+
+## Whether the engine can build a world at all — a STRUCTURAL question,
+## deliberately with no opinion about what the player is doing.
+##
+## The restore path asks this. Loading a save is not a journey: nobody is
+## walking anywhere, every world is about to be discarded and rebuilt from
+## disk, and the fight the travel gate would refuse over is itself part of
+## what is being replaced. Asking can_travel() there produced a genuine
+## deadlock — a restored fight claimed COMBAT, the next rebuild was
+## refused because those units were "travelling out of a fight", and the
+## claim only clears when focus moves, which the refusal prevented.
+##
+## Asks for the world host and NOT the scene root, because the host is what
+## a world is actually built into (see _enter_world: the view goes to
+## _world_host, the world into its viewport). _scene_root is only
+## spawn_parent()'s fallback for when nothing is focused. Requiring it here
+## refused every restore in the test harness, which registers a host and no
+## scene root — correctly, since it never needed one.
+func can_rebuild() -> bool:
+	return _world_host != null
 
 
 ## Whether anyone actually going is tied up in a fight. An empty list
@@ -237,20 +256,35 @@ func _any_traveller_fighting(travellers: Array[Unit]) -> bool:
 ## the same teardown with capture_party=true — this does not change that
 ## path at all.
 ##
-## No-op (returns true) when nothing is loaded — the main menu, e.g.,
-## where SaveManager.load_file() can also be called from. Returns false,
-## refused exactly like load_world(), if a load isn't currently allowed
-## (mid-combat/dialogue/loot).
-## force skips the can_load() gate, and only SaveManager.load_file()
-## passes it. That gate exists to stop a world being swapped out from
-## under a live fight during PLAY; loading a save is not a transition,
-## it is discarding everything — including the fight — and refusing it
-## would make a save taken mid-combat impossible to load back.
-func unload(force: bool = false) -> bool:
-	if not force and not can_load():
+## No-op (returns true) when nothing is loaded — the main menu, e.g.
+## Refused exactly like load_world() when the player may not currently
+## leave (mid-combat/dialogue/loot).
+##
+## The restore path wants discard_worlds() below, not this. Both do the
+## same teardown; they differ only in which question they ask first, and
+## that difference used to be a `force` boolean whose honest meaning was
+## "ignore a rule that should not have applied to me".
+func unload() -> bool:
+	if not can_travel():
 		push_warning("WorldManager.unload refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return false
+	return _tear_down_worlds()
 
+
+## Frees every world so a save can be rebuilt over the top of it. The
+## restore counterpart to unload(), gated on can_rebuild() rather than on
+## whether the player may travel — see can_rebuild() for why a fight in
+## progress must not refuse this.
+func discard_worlds() -> bool:
+	if not can_rebuild():
+		push_warning("WorldManager.discard_worlds refused: no scene root or world host registered.")
+		return false
+	return _tear_down_worlds()
+
+
+## The teardown itself, shared by both entry points above. Permission is
+## settled before this is reached and is never re-asked here.
+func _tear_down_worlds() -> bool:
 	world_loading.emit(null)
 	# false: SaveManager is about to overwrite roster from the save file,
 	# so refreshing it from the world being discarded is work undone one
@@ -381,28 +415,32 @@ func _embody_into(resident: ResidentWorld, group: PartyGroup) -> void:
 	if group == null:
 		return
 	var world: Node = resident.world
-	group.area_id = resident.area_id()
+	# Remembered for when this group is folded down to records and has no
+	# members left to derive it from.
+	group.abstract_area_id = resident.area_id()
 	PartyManager.active_group = group
 
 	if world.has_method("spawns_party") and not world.spawns_party():
 		_disembody(group)
 		return
 
+	# Merge BEFORE embodying, not after. Arriving in an ordinary area is
+	# merging — everyone is embodied together and there is nothing left to
+	# tell two groups apart — and what has to be made real is the whole of
+	# the result. Merging afterwards left anyone absorbed from an abstract
+	# group as records inside an embodied one, which nothing would ever
+	# build.
+	# The DESTINATION, named outright. Not the group's derived current area:
+	# at this moment its members are still standing in the world they are
+	# leaving, so deriving would merge them with whoever is back there.
+	var arrived: PartyGroup = PartyManager.merge_in_area(resident.area_id())
+	if arrived == null:
+		arrived = group
+	PartyManager.active_group = arrived
+
 	var spawn_point: Node3D = _resolve_spawn_point(world, _pending_spawn_point_name)
 
-	if group.embodied:
-		# Already alive somewhere - carry them, do not rebuild them. See
-		# PartyManager.relocate for why that matters beyond tidiness.
-		PartyManager.relocate(group.live_units(), world, spawn_point)
-	else:
-		_is_restoring_party = not group.records.is_empty()
-		if _is_restoring_party:
-			PartyManager.spawn_group(group, world, spawn_point)
-		_is_restoring_party = false
-
-	# In an ordinary area everyone is embodied together and there is no
-	# way left to tell two groups apart, so arriving is merging.
-	PartyManager.merge_in_area(group.area_id)
+	PartyManager.embody(arrived, world, spawn_point)
 
 ## Frees a world that has nothing left worth preserving — see
 ## ResidentWorld.is_earned for what counts. Safe to call with null, and
@@ -453,8 +491,10 @@ func _focus(resident: ResidentWorld, group: PartyGroup = null) -> void:
 	_move_attention_to(resident.viewport())
 
 	var world: Node = resident.world
-	if world.has_method("get_base_mode"):
-		GameMode.set_base_mode(world.get_base_mode())
+	# Nothing sets the mode here any more. GameMode asks current_world()
+	# for its get_base_mode(), so focusing a world IS the mode changing —
+	# and the old set_base_mode() call is what used to wipe a live COMBAT
+	# overlay on its way past (see game_mode.gd's header).
 
 	if world.has_method("get_tactical_camera"):
 		var cam: Camera3D = world.get_tactical_camera()
@@ -504,17 +544,49 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# it, so whether this load is allowed depends on who is leaving. Also
 	# before _leave_focused, while _focused still says which world these
 	# people are standing in.
-	var outgoing: ResidentWorld = _focused
 	var going: Array[Unit] = _resolve_travellers(travellers)
-	var group: PartyGroup = null
 
-	if not can_load(going):
+	if not can_travel(going):
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
 
+	return _enter_world(scene, spawn_point_name, area, travellers)
+
+
+## Rebuilds one area from a save file and puts the player in front of it.
+##
+## The restore counterpart to load_area(). Identical work — it shares
+## _enter_world() — differing only in which permission question it asks:
+## can_rebuild() rather than can_travel(). Nobody is travelling during a
+## restore, so the travel gate has nothing true to say about it, and what
+## it did say deadlocked the load (see can_rebuild()).
+##
+## No spawn point and no travellers on purpose: a rebuilt world places its
+## occupants from the save file, not from a doorway they walked through.
+func rebuild_area(area_id: StringName) -> Node:
+	var area: AreaDefinition = AreaDatabase.find(area_id)
+	if not area:
+		push_warning("WorldManager.rebuild_area: unknown area id '%s'" % area_id)
+		return null
+
+	if not can_rebuild():
+		push_warning("WorldManager.rebuild_area refused: no scene root or world host registered.")
+		return null
+
+	return _enter_world(area.world_scene, &"", area, [])
+
+
+## Everything entering a world does once permission is settled. Shared by
+## load_world() and rebuild_area(); neither gate is re-asked in here, so
+## this must not be called without passing one of them first.
+func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDefinition, travellers: Array[Unit]) -> Node:
+	# Read before _leave_focused, while _focused still says which world
+	# these people are standing in.
+	var outgoing: ResidentWorld = _focused
+
 	# After the gate, because splitting the group is a real change and a
 	# refused load must not have made one.
-	group = _travelling_group(travellers)
+	var group: PartyGroup = _travelling_group(travellers)
 
 	world_loading.emit(scene)
 
@@ -564,17 +636,6 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 	# it again would re-apply a saved state over live changes.
 	if area:
 		_reconcile_area_state(world, area.id)
-
-	# Set before the world enters the tree, because a world's _ready() runs
-	# synchronously inside add_child() and may need to know a real party
-	# spawn is about to follow (see test_arena.gd, and is_restoring_party).
-	# "A real party is about to arrive here" — whether it arrives by being
-	# built from roster or by walking in from another world. Either way a
-	# world must not also lay out its own authored bootstrap party (see
-	# test_arena.gd, which reads this from inside its _ready).
-	var wants_party: bool = not world.has_method("spawns_party") or world.spawns_party()
-	_is_restoring_party = wants_party and (
-		not PartyManager.roster.is_empty() or not PartyManager.members.is_empty())
 
 	var resident := ResidentWorld.new()
 	resident.name = "Resident_%s" % (area.id if area else &"anonymous")
@@ -751,79 +812,132 @@ func spawn_parent() -> Node:
 	return _focused.world if _focused else _scene_root
 
 
-## Whether the world currently being loaded (mid-load_world() call) is
-## about to have PartyManager.roster spawned into it — see this file's
-## own _is_restoring_party header for why a world needs to be able to ask
-## this from inside its own _ready(). False outside of an active
-## load_world() call, for the very first load (nothing to restore yet),
-## and for a world that opts out via spawns_party() -> false.
-## Moves the player's attention to a GROUP, wherever it is standing,
-## and makes it the one being commanded. Moves nobody.
+## Why a reveal() call did or did not go anywhere. A bool cannot say
+## which precondition failed, and four indistinguishable false-returns
+## swallowed by a caller is why "a member became unclickable" has looked
+## like a brand new bug each of the three times it happened.
+enum Reveal {
+	ALREADY_THERE,   ## Their world is the one on screen; nothing moved.
+	MOVED,           ## Focus switched to their world.
+	REFUSED_MODAL,   ## A conversation, negotiation or menu is open.
+	AREA_NOT_LOADED, ## Nobody is holding their area in memory.
+	NOT_FOUND,       ## Neither a live unit nor a group that knows where.
+}
+
+
+## Take the player to this member. The ONE way to reach somebody.
 ##
-## The group form matters because a group that is ABSTRACT has no node
-## to look up: on the overworld its people are records drawn as one
-## avatar, so focus_world_of has nothing to be handed. Clicking such a
-## member's portrait is the only way back to them.
-func focus_group(group: PartyGroup) -> bool:
-	if group == null or not can_load():
-		return false
+## A live unit resolves through its OWN world — the lookup that cannot
+## go stale, because it asks the scene tree rather than a record kept in
+## step by hand. Only a member with no unit falls back to the group's
+## remembered area, which is the one case where nothing else can answer.
+##
+## Never returns silently: every refusal names itself, and callers are
+## expected to say so rather than swallow it.
+func reveal(unit: Unit, group: PartyGroup = null) -> Reveal:
+	if is_instance_valid(unit) and unit.is_inside_tree():
+		for resident in _residents.values():
+			if not is_instance_valid(resident) or resident.context == null:
+				continue
+			if not resident.context.contains(unit):
+				continue
+			return _reveal_resident(resident, group)
+		# A live unit whose world nobody is holding. Its group may still
+		# know an area, so fall through rather than giving up here.
 
-	var resident: ResidentWorld = _residents.get(group.area_id)
-	if not is_instance_valid(resident):
-		return false
+	if group != null:
+		var area: StringName = group.current_area_id()
+		if area == &"":
+			push_warning("WorldManager.reveal: that group does not know where it is.")
+			return Reveal.NOT_FOUND
+		var by_area: ResidentWorld = _residents.get(area)
+		if not is_instance_valid(by_area) or not is_instance_valid(by_area.world):
+			push_warning("WorldManager.reveal: area '%s' is not loaded." % area)
+			return Reveal.AREA_NOT_LOADED
+		return _reveal_resident(by_area, group)
 
-	PartyManager.active_group = group
+	push_warning("WorldManager.reveal: nothing to go to — no live unit and no group.")
+	return Reveal.NOT_FOUND
+
+
+func _reveal_resident(resident: ResidentWorld, group: PartyGroup) -> Reveal:
 	if resident == _focused:
-		# Already looking at their world, but which group is being
-		# commanded just changed, and that is what draws the overworld.
+		if group != null:
+			PartyManager.active_group = group
+		# Already looking at it, but which group is being commanded may
+		# have changed, and that is what draws the overworld.
 		world_focused.emit(resident.world)
-		return true
+		return Reveal.ALREADY_THERE
 
+	# Checked BEFORE anything is applied: a refusal must leave the world
+	# exactly as it found it, not half-commit a new active group.
+	if not can_switch_focus():
+		push_warning("WorldManager.reveal refused: %s is open." % GameMode.Mode.keys()[GameMode.current_mode()])
+		return Reveal.REFUSED_MODAL
+
+	if group != null:
+		PartyManager.active_group = group
 	_leave_focused()
-	# No travellers: looking at people is not travelling to them.
 	_focus(resident)
-	return true
+	return Reveal.MOVED
 
 
-## Moves the player's attention to whichever resident world contains
-## `node`, moving nobody. Returns false if that world isn't loaded, or if
-## a switch isn't allowed right now.
+## Whether a reveal actually put the player in front of them.
+static func revealed(result: Reveal) -> bool:
+	return result == Reveal.ALREADY_THERE or result == Reveal.MOVED
+
+
+## Whether the player may look at a different world right now.
 ##
-## This is what clicking an absent companion's portrait does. It is NOT
-## travel: no traveller list, so _embody_into carries nobody and everyone
-## stays exactly where they are — the player looks somewhere else, and
-## that is all that happens.
+## NOT can_travel(). That gate asks whether people may LEAVE, and a fight
+## detains the people in it — correct for travel, wrong here, because
+## switching focus moves nobody. The third question in the same family is
+## can_rebuild(), for a restore that moves nobody either.
 ##
-## Gated on can_load() for the same reason travel is: a fight or a
-## conversation in the world being left is not something to walk out of
-## mid-sentence. Knowing when to ASK is a later problem; refusing is the
-## honest answer until then.
-func focus_world_of(node: Node) -> bool:
-	for resident in _residents.values():
-		if not is_instance_valid(resident) or resident.context == null:
-			continue
-		if not resident.context.contains(node):
-			continue
-		if resident == _focused:
-			return true
-		if not can_load():
-			return false
-		_leave_focused()
-		_focus(resident)
+## Combat is the one overlay a player can look away FROM: the fight simply
+## waits, and says so (see CombatManager's Attention section). Dialogue,
+## negotiation and looting are modals the player is INSIDE.
+func can_switch_focus() -> bool:
+	if InteractionMenu.is_open():
+		return false
+	if GameMode.can_transition():
 		return true
-	return false
+	return GameMode.current_mode() == GameMode.Mode.COMBAT
 
 
-## The area whose world contains `node`, or null. The counterpart to
-## context_for() for anything that needs to NAME where something is —
-## "Kael is waiting for orders in the Arena" needs the area, not the
-## context.
+## The area whose world contains this node, or null. The counterpart to
+## context_for() for anything that needs to NAME where something is.
 func area_of(node: Node) -> AreaDefinition:
 	for resident in _residents.values():
 		if is_instance_valid(resident) and resident.context and resident.context.contains(node):
 			return resident.area
 	return null
 
+
+## Thin wrappers over reveal(), kept because they read well at call sites.
+## The switching itself lives in ONE place now — three implementations of
+## "go and look at that" is how they drifted apart in the first place.
+##
+## Prefers a live member as the anchor so the group takes the robust path:
+## a unit knows its own world, a remembered area id only claims to.
+func focus_group(group: PartyGroup) -> bool:
+	if group == null:
+		return false
+	var anchor: Unit = null
+	for unit in group.live_units():
+		anchor = unit
+		break
+	return revealed(reveal(anchor, group))
+
+
+## Takes any Node, for callers holding something that is not a Unit.
+func focus_world_of(node: Node) -> bool:
+	for resident in _residents.values():
+		if not is_instance_valid(resident) or resident.context == null:
+			continue
+		if resident.context.contains(node):
+			return revealed(_reveal_resident(resident, null))
+	return false
 
 ## Every loaded world's context, focused or not — for the few systems
 ## that must reason about ALL worlds rather than the one on screen. A
@@ -887,9 +1001,6 @@ func is_area_resident(area_id: StringName) -> bool:
 	var resident: ResidentWorld = _residents.get(area_id)
 	return is_instance_valid(resident) and is_instance_valid(resident.world)
 
-
-func is_restoring_party() -> bool:
-	return _is_restoring_party
 
 
 ## Withdraws every currently-fielded demon through the same path a

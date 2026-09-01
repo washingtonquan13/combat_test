@@ -150,15 +150,28 @@ func find_assisting_companion(skill_name: String) -> Unit:
 ## defined interaction with the turn/initiative state machine yet, and
 ## nothing about talking to an ally requires it to work mid-fight.
 func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -> void:
-	if CombatManager.in_combat or StashManager.is_active() or not root:
+	if not root or StashManager.is_active():
 		return
+
+	# THE SPEAKER, not the world. Asked as CombatManager.in_combat, a
+	# battle anywhere silenced everyone everywhere — so a group standing
+	# in a quiet area could not talk to anybody while another group was
+	# fighting two areas away. The reason to refuse is that a full-screen
+	# conversation has no defined interaction with a turn/initiative state
+	# machine, and that reason is about the people in the conversation.
+	for participant in conversation_participants.values():
+		if participant is Unit and (participant as Unit).in_combat():
+			return
 
 	transcript.clear()
 	used_choices.clear()
 	_used_interjections.clear()
 	_narrated_node_ids.clear()
 	participants = conversation_participants
-	GameMode.push_mode(GameMode.Mode.DIALOGUE)
+	# No mode to push: GameMode reads current_node through is_active(), and
+	# _show_node() below is what sets it. The mode therefore turns DIALOGUE
+	# one line after dialogue_started rather than one line before it —
+	# checked, and no listener of that signal reads the mode.
 	dialogue_started.emit(root)
 	_show_node(_resolve_interjection(root))
 
@@ -203,7 +216,6 @@ func end_dialogue() -> void:
 	current_node = null
 	participants = {}
 	_visible_choices = []
-	GameMode.pop_mode()
 	dialogue_ended.emit()
 
 

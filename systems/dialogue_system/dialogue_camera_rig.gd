@@ -85,8 +85,8 @@ func _frame_speaker(unit: Unit) -> void:
 	_camera.look_at(anchor, Vector3.UP)
 
 
+## Asked of the BODY rather than searched for by name. A dragon's face is
+## not at 85% of its height, and this used to be the only caller that even
+## tried — everything else aiming at part of a creature used a constant.
 func _get_face_anchor(unit: Unit) -> Vector3:
-	var anchor: Node3D = unit.find_child("FaceAnchor", true, false) as Node3D
-	if anchor:
-		return anchor.global_position
-	return unit.global_position + Vector3(0, unit.height * 0.85, 0)
+	return unit.anchor(CharacterModel.Anchor.HEAD)

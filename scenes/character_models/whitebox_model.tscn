@@ -1,0 +1,43 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_wb"]
+radius = 0.25
+height = 2.0
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_wb"]
+albedo_color = Color(0.545098, 0.580392, 0.627451, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_wb"]
+top_radius = 0.45
+bottom_radius = 0.45
+height = 0.02
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_wb"]
+radius = 0.25
+
+[node name="CharacterModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "collision_shape", "head_anchor")]
+script = ExtResource("1_cm")
+animation_player = NodePath("AnimationPlayer")
+collision_shape = NodePath("CollisionTemplate")
+highlight_mesh = NodePath("HighlightMesh")
+head_anchor = NodePath("FaceAnchor")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+mesh = SubResource("CapsuleMesh_wb")
+surface_material_override/0 = SubResource("StandardMaterial3D_wb")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+mesh = SubResource("CylinderMesh_wb")
+
+[node name="CollisionTemplate" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
+shape = SubResource("CapsuleShape3D_wb")
+
+[node name="FaceAnchor" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.7, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]

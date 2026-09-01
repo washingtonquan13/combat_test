@@ -30,6 +30,18 @@ var _prompt: Node
 func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	body_exited.connect(_on_body_exited)
+	# Switching focus clears every prompt (see interact_prompt), and
+	# body_entered will not fire again for an avatar that never left — so
+	# a door the player was already standing in has to offer itself again
+	# when they come back to this world.
+	WorldManager.world_focused.connect(_on_world_focused)
+
+
+func _on_world_focused(_world: Node) -> void:
+	for body in get_overlapping_bodies():
+		if body is OverworldAvatar and (body as OverworldAvatar).active:
+			_on_body_entered(body)
+			return
 
 
 func _on_body_entered(body: Node3D) -> void:

@@ -513,6 +513,11 @@ func _required_distance_reduction(from: Vector3, forward: Vector3, distance: flo
 	query.motion = -forward * distance
 	query.collision_mask = collision_mask
 
+	# Global on purpose, and harmlessly so: this builds an EXCLUSION list
+	# for a shape cast, and a unit in another world has no body in this
+	# world's physics space to exclude. Excluding more than exists costs
+	# nothing; excluding too few would let the camera collide with the
+	# party, so the safe direction is the wide one.
 	var excluded: Array = []
 	for unit in UnitQuery.all_units(get_tree()):
 		excluded.append(unit.get_rid())

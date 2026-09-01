@@ -39,6 +39,7 @@ func _ready() -> void:
 	# under a candidate — clear proactively on every load instead of
 	# trusting every candidate to unregister itself first.
 	WorldManager.world_loading.connect(_on_world_loading)
+	WorldManager.world_focused.connect(_on_world_focused)
 
 
 func register(candidate: Node, text: String) -> void:
@@ -61,6 +62,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	if is_instance_valid(candidate) and candidate.has_method("activate"):
 		candidate.activate()
 	get_viewport().set_input_as_handled()
+
+
+## Switching to a group somewhere else changes which world is on screen
+## without loading anything, so world_loading never fires — and the
+## prompt for a door in the world just left stayed up, offering to enter
+## somewhere the player is no longer standing.
+##
+## A prompt always belongs to the world being looked at, so the honest
+## rule is that changing worlds clears it. Anything still genuinely
+## under the player re-offers itself (see overworld_door).
+func _on_world_focused(_world: Node) -> void:
+	_candidates.clear()
+	_texts.clear()
+	_refresh()
 
 
 func _on_world_loading(_scene: PackedScene) -> void:

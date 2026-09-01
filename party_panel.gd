@@ -368,7 +368,10 @@ func _mark_record_row(key, area: AreaDefinition) -> void:
 	if not portrait.has_method("set_elsewhere"):
 		return
 	var group: PartyGroup = portrait.group
-	portrait.set_elsewhere(area == null or group == null or group.area_id != area.id)
+	# Derived: a record can sit in a group whose live members have since
+	# walked elsewhere, and the remembered area would then dim the wrong row.
+	portrait.set_elsewhere(area == null or group == null
+		or group.current_area_id() != area.id)
 
 
 ## Which group currently holds this record. Records live in exactly one

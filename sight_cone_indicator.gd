@@ -125,7 +125,11 @@ func _observers() -> Array[Unit]:
 	var result: Array[Unit] = []
 	if not enabled:
 		return result
-	if hide_in_combat and CombatManager.in_combat:
+	# A fight in THIS world. CombatManager.in_combat is the focused
+	# encounter, which after a focus switch can be a battle somewhere the
+	# player is no longer looking — hiding the cones of the world they
+	# actually are in.
+	if hide_in_combat and CombatManager.combat_running_in_world_of(self):
 		return result
 
 	var tree: SceneTree = get_tree()

@@ -120,6 +120,24 @@ func _physics_process(delta: float) -> void:
 ## assigns rotation.y ABSOLUTELY each frame rather than accumulating a
 ## sine on top of it — accumulating would drift into a slow spin of its
 ## own instead of staying a true wobble around the origin.
+##
+## The Neutral wobble swings about the direction of the CAMERA rather than
+## about the avatar's own zero. Without that, where the wobble sits
+## depends on which way the player happens to have swung the camera: the
+## indicator can rest on the far side of the capsule and swing behind it,
+## so the one alignment that is supposed to read as "not committed either
+## way" is the one you cannot see. Facing it at the viewer means the rest
+## position is always the readable one and the swing is symmetric on
+## screen.
+##
+## The Law/Chaos branch deliberately does NOT get this. It looks like it
+## would be free — a constant offset added to something already spinning
+## is invisible — but the offset is not constant: it tracks the camera,
+## and the player can rotate the camera at 90 deg/sec, the same order as
+## the spin itself. Adding it would make swinging the camera one way
+## visibly stall the spin and the other way double it. A spin has no
+## meaningful rest orientation to aim anywhere, so there is nothing to
+## gain against that.
 func _apply_alignment_spin(delta: float) -> void:
 	var alignment: int = PartyManager.leader_alignment()
 	var category: int = UnitAlignment.category_for(alignment)
@@ -128,7 +146,8 @@ func _apply_alignment_spin(delta: float) -> void:
 		var extremity: float = clampf(absf(alignment) / float(UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD), 0.0, 1.0)
 		var amplitude_degrees: float = lerpf(neutral_wobble_min_degrees, neutral_wobble_max_degrees, extremity)
 		var elapsed: float = Time.get_ticks_msec() / 1000.0
-		_spin_pivot.rotation.y = deg_to_rad(amplitude_degrees) * sin(elapsed * neutral_wobble_frequency)
+		var wobble: float = deg_to_rad(amplitude_degrees) * sin(elapsed * neutral_wobble_frequency)
+		_spin_pivot.rotation.y = _yaw_facing_camera() + wobble
 		return
 
 	var threshold: float = float(UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD)
@@ -137,6 +156,24 @@ func _apply_alignment_spin(delta: float) -> void:
 	var speed_degrees: float = base_spin_degrees * lerpf(mild_spin_scale, extreme_spin_scale, extremity)
 	var direction_sign: float = law_spin_sign if category > 0 else -law_spin_sign
 	_spin_pivot.rotate_y(direction_sign * deg_to_rad(speed_degrees) * delta)
+
+
+## The SpinPivot yaw that points its +X at the camera, in the pivot's own
+## parent space. +X because that is where the indicator bar actually is
+## (IndicatorMesh sits at x=0.45 in overworld_avatar.tscn) — the pivot's
+## -Z "forward" has nothing on it to look at.
+##
+## Worked out through to_local() rather than from world positions, so it
+## stays correct if the avatar body is ever rotated by anything; today it
+## never is (see this file's header). 0.0 with no camera assigned, which
+## is the pre-overworld state and every headless test.
+func _yaw_facing_camera() -> float:
+	if not is_instance_valid(camera):
+		return 0.0
+	var local_camera: Vector3 = to_local(camera.global_position)
+	# Rotating by t about Y sends local +X to (cos t, 0, -sin t), so
+	# aiming it along (x, z) wants atan2(-z, x).
+	return atan2(-local_camera.z, local_camera.x)
 
 
 func _ready() -> void:

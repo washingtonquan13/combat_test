@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=7 format=3 uid="uid://b11lx408uq8sx"]
+
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_7hvs0"]
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_species"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_sdj2u"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="3_v3rvx"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
+
+[resource]
+script = ExtResource("1_species")
+id = "test_sprite"
+display_name = "Sprite"
+strength = 10
+dexterity = 10
+intelligence = 10
+health = 10
+move = 5
+will = 10
+perception = 10
+max_hp = 11
+max_fp = 10
+damage_reduction = 0
+faction = &"player"
+order = &"Fairy"
+rank = 3
+is_special = false
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
+abilities = Array[ExtResource("1_7hvs0")]([])
+ai_behaviors = Array[ExtResource("2_sdj2u")]([])
+negotiation_options = Array[ExtResource("3_v3rvx")]([])

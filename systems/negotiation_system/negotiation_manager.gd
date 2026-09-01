@@ -101,7 +101,11 @@ func is_active() -> bool:
 ## combat-EXCLUDED), so a hostile demon Unit is never accidentally both
 ## "in a conversation" and "being negotiated with" at once.
 func start_negotiation(actor: Unit, demon: Unit) -> void:
-	if not CombatManager.any_combat_running() or is_active() or DialogueManager.is_active() or StashManager.is_active():
+	# The ACTOR's own fight. any_combat_running() asks whether anything is
+	# happening anywhere, which was the same question while there was one
+	# world — and became "a demon in no fight at all is negotiable, as long
+	# as somebody somewhere is fighting".
+	if not actor.in_combat() or is_active() or DialogueManager.is_active() or StashManager.is_active():
 		return
 	if not demon.negotiable or not demon.is_alive() or not demon.definition:
 		return
@@ -129,7 +133,8 @@ func start_negotiation(actor: Unit, demon: Unit) -> void:
 	var rank: int = demon.definition.rank
 	current_gold_amount = randi_range(rank * 10, rank * 20)
 
-	GameMode.push_mode(GameMode.Mode.NEGOTIATION)
+	# Nothing to push: current_demon was assigned well above, so GameMode
+	# has been answering NEGOTIATION since then.
 	negotiation_started.emit(demon)
 	_show_node(root)
 
@@ -259,7 +264,6 @@ func end_negotiation(outcome: Outcome) -> void:
 	current_actor = null
 	current_node = null
 	_visible_choices = []
-	GameMode.pop_mode()
 	negotiation_ended.emit(outcome)
 
 

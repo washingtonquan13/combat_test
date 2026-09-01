@@ -40,6 +40,12 @@ signal unit_left_combat(unit: Unit)
 ## fight visible instead of silently stalled.
 signal attention_changed()
 
+## Where a fight just ended. combat_ended carries only the winner, and
+## anything reacting per-world needs to know WHICH world — asking the
+## encounter is too late, since finish() clears its combatants before
+## announcing (see Encounter.world_3d).
+signal combat_ended_in_world(world: World3D)
+
 ## How close another unit needs to be to the attacker OR the target (same
 ## faction as whichever one it's near) to get pulled into a freshly
 ## triggered fight. A plain tunable constant, same convention as
@@ -154,9 +160,6 @@ func start_combat(combatants: Array[Unit], skip_first_action_for: Unit = null) -
 		focused_encounter = encounter
 
 	encounter.begin(combatants, skip_first_action_for)
-	# After begin(), which is what fills turn_order — and what the claim is
-	# computed from.
-	_refresh_mode_claims()
 	return encounter
 
 
@@ -215,8 +218,20 @@ func add_unit_to_combat(unit: Unit, after_unit: Unit = null, encounter: Encounte
 	if target == null and after_unit != null:
 		target = after_unit.encounter
 	if target == null:
-		target = focused_encounter
+		# The fight where this unit IS, not the one on screen. Falling back
+		# to focused_encounter enrolled a unit in a battle in another area
+		# entirely — the debug spawner did exactly this.
+		target = running_encounter_in_world_of(unit)
 	if not target:
+		return
+
+	# The choke point, guarded so no caller can do it again. ONE
+	# cross-world member is enough to poison an encounter: from then on
+	# _draw_in_latecomers finds a legitimately same-world combatant inside
+	# it and pulls in more, and two areas' fights become one — which looks
+	# exactly like "the system only supports a single combat".
+	if not _shares_world_with(unit, target):
+		push_warning("CombatManager.add_unit_to_combat refused: %s is not in that fight's world." % unit.name)
 		return
 	target.add_unit(unit, after_unit)
 	# A fight can BECOME the player's after it started — walking into an
@@ -226,7 +241,6 @@ func add_unit_to_combat(unit: Unit, after_unit: Unit = null, encounter: Encounte
 	if unit.is_player_controlled():
 		if focused_encounter == null:
 			focused_encounter = target
-		_refresh_mode_claims()
 
 
 ## Rebuilds a saved fight in whatever world is now loaded, and picks it
@@ -263,11 +277,32 @@ func restore_combat(state: Dictionary) -> Encounter:
 		focused_encounter = encounter
 
 	encounter.resume(units, int(state.get("turn_index", 0)), int(state.get("round", 1)))
-	_refresh_mode_claims()
 	return encounter
 
 
 ## In the world on screen, which is the one a restore is rebuilding.
+## Whether a fight is running in this unit's own world.
+##
+## The question any_combat_running() used to be asked for. That one is
+## "is anything happening anywhere", which was the same question while
+## there was one world and is a different one now: a battle two areas
+## away is no reason for nothing to be able to start here.
+## Takes any Node3D, not just a Unit: an overlay drawn into a world wants
+## the same question about the world it is drawn in.
+func combat_running_in_world_of(node: Node3D) -> bool:
+	if not is_instance_valid(node) or not node.is_inside_tree():
+		return false
+	var world: World3D = node.get_world_3d()
+	for encounter in all_encounters():
+		if not is_instance_valid(encounter) or not encounter.is_running:
+			continue
+		for combatant in encounter.turn_order:
+			if is_instance_valid(combatant) and combatant.is_inside_tree() \
+					and combatant.get_world_3d() == world:
+				return true
+	return false
+
+
 func _find_by_id(id: StringName) -> Unit:
 	if id == &"":
 		return null
@@ -278,6 +313,38 @@ func _find_by_id(id: StringName) -> Unit:
 		if unit.persistent_id == id:
 			return unit
 	return null
+
+
+## The running fight in this unit's own world, or null.
+##
+## What "which fight should this unit join" actually means. It used to
+## be answered with focused_encounter, which is "the fight the player is
+## looking at" — the same answer while there was one world, and a
+## different question once there was more than one.
+func running_encounter_in_world_of(unit: Unit) -> Encounter:
+	if not is_instance_valid(unit) or not unit.is_inside_tree():
+		return null
+	for candidate in all_encounters():
+		if not is_instance_valid(candidate) or not candidate.is_running:
+			continue
+		if _shares_world_with(unit, candidate):
+			return candidate
+	return null
+
+
+## Whether this fight is happening where this unit is standing.
+func _shares_world_with(unit: Unit, encounter: Encounter) -> bool:
+	if not is_instance_valid(unit) or not unit.is_inside_tree():
+		return false
+	if not is_instance_valid(encounter):
+		return false
+	var world: World3D = unit.get_world_3d()
+	for combatant in encounter.turn_order:
+		if is_instance_valid(combatant) and combatant.is_inside_tree() \
+				and combatant.get_world_3d() == world:
+			return true
+	# A fight with nobody left in a world cannot be joined in one.
+	return encounter.world_3d() == world
 
 
 func remove_unit_from_combat(unit: Unit) -> void:
@@ -350,11 +417,9 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 				focused_encounter = other
 				break
 
-	_release_combat_mode(encounter)
-	# This fight ending can change nothing else, but focus may have been
-	# waiting on it — re-check the rest either way.
-	_refresh_mode_claims()
+	var where: World3D = encounter.world_3d()
 	combat_ended.emit(winning_faction)
+	combat_ended_in_world.emit(where)
 	encounter.queue_free()
 
 
@@ -365,16 +430,13 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 # finished. One push when the first fight starts, one pop when the last
 # ends.
 
-## Which encounters are holding COMBAT mode up. Membership, not a bare
-## count, because claiming has to be idempotent: a second player unit
-## walking into the same fight must not push a second time, and the pop
-## on that fight ending must match however many pushes it really made.
-var _mode_claims: Array[Encounter] = []
-
-var _combat_mode_depth: int = 0
-
-
-## COMBAT mode is about the fight the player is LOOKING AT.
+## Whether a fight the player is both PART OF and LOOKING AT is running.
+##
+## This is what makes the game's mode COMBAT. GameMode asks it; nothing
+## tells GameMode anything. It used to be pushed — _mode_claims tracked
+## which encounters held the mode, _combat_mode_depth counted the pushes,
+## and GameMode kept a third copy in its stack. All three could disagree,
+## and reliably did (see game_mode.gd's own header).
 ##
 ## Two conditions, and both were learned the hard way. It must involve a
 ## player unit — two NPCs going at it never put the player in combat mode,
@@ -385,19 +447,17 @@ var _combat_mode_depth: int = 0
 ## cannot see would freeze the world they can — including refusing to let
 ## them travel to the fight that wants them.
 ##
-## Recomputed rather than toggled at each event, because the answer
-## changes for reasons that are not events on the encounter at all: the
-## player looking somewhere else changes it without anything happening in
-## the fight.
-func _refresh_mode_claims() -> void:
+## Answered fresh on every call, because the answer changes for reasons
+## that are not events on any encounter at all: the player looking
+## somewhere else changes it without anything happening in the fight. That
+## is precisely what a pushed mode could not express.
+func a_watched_fight_is_running() -> bool:
 	for encounter in all_encounters():
 		if not is_instance_valid(encounter):
 			continue
-		var want: bool = encounter.is_running 			and _involves_player(encounter.turn_order) 			and _is_in_focused_world(encounter)
-		if want:
-			_claim_combat_mode(encounter)
-		else:
-			_release_combat_mode(encounter)
+		if encounter.is_running 				and _involves_player(encounter.turn_order) 				and _is_in_focused_world(encounter):
+			return true
+	return false
 
 
 func _is_in_focused_world(encounter: Encounter) -> bool:
@@ -412,34 +472,6 @@ func _is_in_focused_world(encounter: Encounter) -> bool:
 		if is_instance_valid(unit) and context.contains(unit):
 			return true
 	return false
-
-
-func _claim_combat_mode(encounter: Encounter) -> void:
-	if _mode_claims.has(encounter):
-		return
-	_mode_claims.append(encounter)
-	_push_combat_mode()
-
-
-func _release_combat_mode(encounter: Encounter) -> void:
-	if not _mode_claims.has(encounter):
-		return
-	_mode_claims.erase(encounter)
-	_pop_combat_mode()
-
-
-func _push_combat_mode() -> void:
-	_combat_mode_depth += 1
-	if _combat_mode_depth == 1:
-		GameMode.push_mode(GameMode.Mode.COMBAT)
-
-
-func _pop_combat_mode() -> void:
-	if _combat_mode_depth <= 0:
-		return
-	_combat_mode_depth -= 1
-	if _combat_mode_depth == 0:
-		GameMode.pop_mode()
 
 
 # --- Attention --------------------------------------------------------
@@ -508,13 +540,14 @@ func _note_attention(encounter: Encounter, unit: Unit) -> void:
 
 
 func _on_world_focused(_world: Node) -> void:
-	# Which fight the player is looking at just changed, and that is half
-	# of what decides combat mode.
-	_refresh_mode_claims()
-
 	var changed: bool = false
 	for encounter in _awaiting.duplicate():
-		if not is_instance_valid(encounter) or _is_watched(encounter.current_unit):
+		# current_unit is validated HERE and not left to _is_watched's own
+		# guard: a typed Unit parameter rejects a previously-freed object
+		# at the call boundary, so the check inside it never gets to run.
+		# A fight whose unit was freed while it waited for attention
+		# crashed this loop outright.
+		if not is_instance_valid(encounter) 				or not is_instance_valid(encounter.current_unit) 				or _is_watched(encounter.current_unit):
 			_awaiting.erase(encounter)
 			changed = true
 	if changed:
@@ -524,6 +557,10 @@ func _on_world_focused(_world: Node) -> void:
 ## Whether the player can actually see this unit right now. Not "is it in
 ## the focused world" spelled out at every call site — a unit with no
 ## context at all (no world loaded) counts as unwatched.
+##
+## The is_instance_valid guard below only catches a null. A FREED unit
+## never reaches it: the typed parameter rejects the object first. Callers
+## holding a unit that may have been freed have to check before calling.
 func _is_watched(unit: Unit) -> bool:
 	if not is_instance_valid(unit):
 		return true

@@ -63,7 +63,20 @@ static func all_units(tree: SceneTree) -> Array[Unit]:
 		# still listed here. Every caller immediately reads its
 		# global_position, which errors on a node outside the tree, so
 		# filtering once at the source beats guarding at each call site.
-		if unit and unit.is_inside_tree():
+		#
+		# is_queued_for_deletion is the OTHER half of that, and it was
+		# missing. queue_free does not remove a node — is_inside_tree stays
+		# true right up until the frame ends — so a unit on its way out was
+		# still being returned, and returned FIRST if it happened to sit
+		# earlier in the group.
+		#
+		# That is not merely untidy. CombatManager._find_by_id takes the
+		# first unit carrying an id, and a replacement stamped with a freed
+		# unit's id (see PartyManager.spawn_member, which does exactly that
+		# when an area rebuilds its party) then loses the lookup to the
+		# corpse. The fight resumes around a lookalike whose turn state is
+		# still at its untouched defaults.
+		if unit and unit.is_inside_tree() and not unit.is_queued_for_deletion():
 			units.append(unit)
 	return units
 

@@ -44,6 +44,27 @@ extends Node
 signal save_completed(path: String)
 signal load_completed(path: String)
 
+## Emitted on EVERY exit from load_file(), successful or not — `ok` says
+## which. load_completed only ever fires for a load that worked, which is
+## right for anything acting ON the loaded game and wrong for anything
+## cleaning up after the ATTEMPT.
+##
+## That gap had a visible cost. The title screen closed itself on
+## load_completed, so a refused load left it sitting over a world that had
+## already loaded and started its music, with no way forward but to load
+## again. Five paths through load_file() return false, and every one of
+## them was invisible to a listener: a push_warning is not an event.
+##
+## `reason` is a player-readable explanation, empty on success. It travels
+## WITH the event rather than being parked on a `last_load_error` property
+## for a listener to fetch afterwards — that would be a second copy of the
+## same fact, which is the shape of defect this whole pass exists to
+## remove.
+##
+## Emitted from the wrapper rather than at each exit, so a future early
+## return cannot forget to fire it.
+signal load_finished(path: String, ok: bool, reason: String)
+
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".save"
 const FORMAT_VERSION: int = 1
@@ -72,7 +93,7 @@ func _ready() -> void:
 	WorldManager.world_loaded.connect(_on_world_loaded)
 
 
-## Mirrors WorldManager.can_load()'s own reasoning at one level up: a
+## Mirrors WorldManager.can_travel()'s own reasoning at one level up: a
 ## save mid-combat would need to capture turn order, initiative and
 ## status effects, none of which any save_state() here writes — refusing
 ## up front is honest about that gap rather than writing a save that
@@ -158,35 +179,63 @@ func save(save_name: String) -> bool:
 	return true
 
 
-## Load order matters and is the whole reason unload() exists as a
-## separate WorldManager entry point from load_world(): load_world()
-## calls PartyManager.capture() on whatever world it's REPLACING, which
-## would immediately overwrite the roster this function is about to
-## inject from the save file with a fresh (and wrong) capture of the
-## OLD world. unload() frees the current world without capturing, so by
-## the time PartyManager.load_state() runs, there is nothing left for
-## anything to capture over it.
+## Load order matters, and is the whole reason the restore path has its
+## own WorldManager entry points. An ordinary load_world() calls
+## PartyManager.capture() on whatever world it is REPLACING, which would
+## immediately overwrite the roster this function is about to inject from
+## the save file with a fresh (and wrong) capture of the OLD world.
+## discard_worlds() frees everything without capturing, so by the time
+## PartyManager.load_state() runs there is nothing left to capture over
+## it.
 ##
-## Sequence: unload (no capture) -> inject state into every system ->
-## load_area (now safe: _current_world is null, so load_world()'s own
-## teardown captures nothing) -> apply saved positions once world_loaded
-## fires for THIS load.
+## The restore entry points also ask a different permission question than
+## travel does — can_rebuild() rather than can_travel(). That is not a
+## convenience: asking the travel gate here deadlocked the load outright,
+## because a fight restored into the first area rebuilt then refused every
+## rebuild after it. See WorldManager.can_rebuild().
+##
+## Sequence: discard_worlds (no capture) -> inject state into every system
+## -> rebuild_area per area, focused one last -> apply saved positions once
+## world_loaded fires for THIS load.
 func load_file(path: String) -> bool:
+	var reason: String = _perform_load(path)
+	var ok: bool = reason == ""
+	if ok:
+		load_completed.emit(path)
+	else:
+		push_warning("SaveManager.load_file failed: %s" % reason)
+	load_finished.emit(path, ok, reason)
+	return ok
+
+
+## The load itself. Returns "" on success, or WHY it did not happen.
+##
+## A reason rather than a bool, so each exit states its own case once and
+## the wrapper above does the reporting — both the warning and the signal.
+## Phrased for a player reading it on the load screen, not for a log.
+func _perform_load(path: String) -> String:
 	if not FileAccess.file_exists(path):
-		push_warning("SaveManager.load_file: no file at '%s'" % path)
-		return false
+		return "That save file is missing."
 
 	var cfg := ConfigFile.new()
 	var err: Error = cfg.load(path)
 	if err != OK:
-		push_warning("SaveManager.load_file failed reading '%s': %s" % [path, error_string(err)])
-		return false
+		return "That save file could not be read (%s)." % error_string(err)
 
-	# Forced: a save taken mid-combat has to be loadable, and the ordinary
-	# gate refuses to swap worlds under a live fight.
-	if not WorldManager.unload(true):
-		push_warning("SaveManager.load_file refused: WorldManager.unload() was refused.")
-		return false
+	# EVERYTHING THAT CAN REFUSE, BEFORE ANYTHING THAT WRITES. Below this
+	# line the game is being taken apart and rebuilt; a failure past it
+	# leaves the save's flags, party, demons and purse live with no world
+	# to stand in, which is a worse state than the refusal it reports.
+	var refusal: String = _why_load_would_fail(cfg)
+	if refusal != "":
+		return "That save cannot be opened: %s. Nothing was changed." % refusal
+
+	# discard_worlds(), not unload(): a restore is not the player leaving
+	# somewhere, so the travel gate has no jurisdiction here. It used to be
+	# unload(true), where the `true` meant exactly that and said so only in
+	# a comment.
+	if not WorldManager.discard_worlds():
+		return "The current worlds could not be cleared, so the save was not opened."
 
 	FlagManager.load_state(cfg.get_value("flags", "data", {}))
 	PartyManager.load_state(cfg.get_value("party", "data", {}))
@@ -222,14 +271,46 @@ func load_file(path: String) -> bool:
 	_awaiting_position_restore = true
 
 	var area_id: StringName = cfg.get_value("world", "area_id", &"")
-	var world: Node = WorldManager.load_area(area_id)
-	if not world:
-		_awaiting_position_restore = false
-		push_warning("SaveManager.load_file: load_area('%s') failed after state was already injected." % area_id)
-		return false
 
-	load_completed.emit(path)
-	return true
+	# Every area a group is standing in, not just the one on screen.
+	#
+	# Residency here is EARNED, and party presence earns it — so a load that
+	# built only the focused world put the game in a state the rest of the
+	# engine treats as impossible: members listed in the party panel whose
+	# area nothing was holding. Clicking one answered "somewhere not
+	# currently loaded", and the only way to reach them was to walk another
+	# unit over, which is not travel, it is repair. They are standing there
+	# in the save; they should be standing there when it opens.
+	for other in _areas_holding_party(area_id):
+		var claimant: PartyGroup = _group_claiming(other)
+		if claimant == null:
+			continue
+		# Named BEFORE the call. load_area with no travellers embodies the
+		# ACTIVE group and rewrites its remembered area to wherever it is
+		# sent, so leaving this alone would drag one group through every
+		# other group's area in turn and end with the party merged.
+		PartyManager.active_group = claimant
+		if WorldManager.rebuild_area(other) == null:
+			push_warning("SaveManager.load_file: could not restore area '%s'." % other)
+
+	# The saved area LAST, so the player ends up looking at the world they
+	# saved in and commanding the group that was there.
+	var homecoming: PartyGroup = _group_claiming(area_id)
+	if homecoming:
+		PartyManager.active_group = homecoming
+	var world: Node = WorldManager.rebuild_area(area_id)
+
+	# Every world_loaded this load will ever emit has now been handled
+	# (world_loaded is emitted synchronously inside load_area), so the
+	# restore window closes here rather than on the first world to arrive.
+	_awaiting_position_restore = false
+	_pending_party_transforms = {}
+	_pending_avatar_transform = null
+
+	if not world:
+		return "Area '%s' could not be built. The game is part-way through loading and should be loaded again." % area_id
+
+	return ""
 
 
 ## Newest first. Reads only the [meta] section of each file — a full
@@ -329,13 +410,18 @@ func _on_world_loaded(world: Node) -> void:
 	if not _awaiting_position_restore:
 		_restore_encounters_here()
 		return
-	_awaiting_position_restore = false
 
+	# The window stays OPEN across this whole load, and the table is not
+	# emptied wholesale: one load_file now builds every area the party is
+	# standing in, and each arrives in its own world_loaded. Closing on the
+	# first would leave everyone in the second area at their spawn point.
+	# Only what was actually applied is removed; load_file clears the rest
+	# once there are no more worlds coming.
 	for unit in PartyManager.members:
 		var key: String = String(unit.persistent_id)
 		if _pending_party_transforms.has(key):
 			unit.global_transform = _pending_party_transforms[key]
-	_pending_party_transforms = {}
+			_pending_party_transforms.erase(key)
 
 	if _pending_avatar_transform != null and world.has_method("get_avatar"):
 		var avatar: Node3D = world.get_avatar()
@@ -346,6 +432,68 @@ func _on_world_loaded(world: Node) -> void:
 	# Last: a turn order is meaningless until the units it names exist and
 	# are where they belong.
 	_restore_encounters_here()
+
+
+## Every area a party group is standing in, minus one — the caller loads
+## that one last so the player ends up looking at it.
+##
+## Collected UP FRONT, because loading an area merges the groups that
+## claim it, and iterating the live list while that happens would walk a
+## collection being rewritten underneath.
+## Why this save cannot be opened, or "" if it can.
+##
+## STRICTLY READ-ONLY. Its entire purpose is to run before the first thing
+## that writes, so anything added here must not change state — including
+## indirectly, which is why the area id is read off the ConfigFile rather
+## than out of PartyManager. Injecting the party to find out where it is
+## standing would be the very mutation this exists to avoid.
+##
+## Only conditions that would ABORT the load belong here. A SECONDARY area
+## that no longer exists is deliberately not one: further down it warns and
+## leaves that group abstract, which is degraded but still playable, and
+## failing the whole load over it would strand the player on the title
+## screen for a problem they can walk away from.
+func _why_load_would_fail(cfg: ConfigFile) -> String:
+	if not WorldManager.can_rebuild():
+		return "no world host is registered to build a world into"
+
+	# _party_inventory() calls straight through this node with no guard, so
+	# without it the load crashes — and it crashes AFTER the party, flags,
+	# demons and purse have already been overwritten.
+	if get_tree().get_first_node_in_group("party_overview") == null:
+		return "no party overview in the tree, so the shared inventory cannot be reached"
+
+	var area_id: StringName = StringName(cfg.get_value("world", "area_id", ""))
+	if area_id == &"":
+		return "the save names no area to open in"
+
+	var area: AreaDefinition = AreaDatabase.find(area_id)
+	if area == null:
+		return "it was taken in area '%s', which no longer exists" % area_id
+	if area.world_scene == null:
+		return "area '%s' has no world scene to build" % area_id
+
+	return ""
+
+
+func _areas_holding_party(except: StringName) -> Array[StringName]:
+	var areas: Array[StringName] = []
+	for group in PartyManager.groups:
+		var id: StringName = group.current_area_id()
+		if id == &"" or id == except or areas.has(id):
+			continue
+		areas.append(id)
+	return areas
+
+
+## The group standing in an area. At this point in a load nobody is
+## embodied anywhere, so every group answers with the area it was saved
+## with, which is exactly the question being asked.
+func _group_claiming(area_id: StringName) -> PartyGroup:
+	for group in PartyManager.groups:
+		if group.current_area_id() == area_id:
+			return group
+	return null
 
 
 ## Rebuilds any saved fight belonging to the area now on screen, and

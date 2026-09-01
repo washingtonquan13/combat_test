@@ -258,6 +258,18 @@ func _on_confirm_pressed() -> void:
 		return
 
 	var record := PartyMemberData.new()
+	# A body, like every other unit in the game has. Every stat below is
+	# applied over the top of this definition's cascade by
+	# PartyManager.spawn_member, so what it actually supplies is the model —
+	# which is the whole reason a chargen character had no visuals at all.
+	#
+	# One body today. When there is more than one to pick from, this is the
+	# line chargen chooses between, which is how Solasta does it: the race
+	# you select supplies the body. Mass Effect adds a head morph on top of
+	# a fixed base; BG3 goes furthest and assembles the visual from separate
+	# race/head/hair parts. All three keep the definition — none of them
+	# lets a character exist without one.
+	record.definition = load("res://data/units/companions/player_character.tres")
 	record.is_leader = true
 	record.display_name = _name_edit.text.strip_edges()
 	record.portrait_texture = load(_selected_portrait_path)
@@ -301,14 +313,14 @@ func _on_confirm_pressed() -> void:
 	PartyManager.pending_leader = record
 
 	# The one place the front end actually loads a world — this is the
-	# moment the game proper begins. load_area() sets the base mode
-	# itself off test_arena.gd's own get_base_mode(), so nothing here
-	# needs to touch GameMode.
+	# moment the game proper begins. Nothing here touches GameMode: once a
+	# world is focused, the mode reads that world's own get_base_mode().
 	close()
 	WorldManager.load_area(&"test_arena")
 
 
 func _on_back_pressed() -> void:
-	GameMode.set_base_mode(GameMode.Mode.MAIN_MENU)
+	# close() first: with no world loaded the mode is read off which front
+	# end screen is open, so closing this one is what makes it MAIN_MENU.
 	close()
 	UIStack.push(get_tree().get_first_node_in_group("main_menu"))

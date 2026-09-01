@@ -47,5 +47,7 @@ func _ready() -> void:
 	# load-bearing rather than cosmetic.
 	UIStack.register_hud($CanvasLayer/TacticalUI)
 
-	GameMode.set_base_mode(GameMode.Mode.MAIN_MENU)
+	# No mode to set. With no world loaded and character creation not open,
+	# GameMode already answers MAIN_MENU — that is its floor, and booting
+	# is exactly the state it describes.
 	UIStack.push($CanvasLayer/MainMenu)

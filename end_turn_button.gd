@@ -28,9 +28,23 @@ func _ready() -> void:
 ## the player is not looking at, offering to end a turn belonging to
 ## somebody they cannot see.
 func _acting_unit() -> Unit:
-	for unit in SelectionManager.selected_units:
-		if is_instance_valid(unit) and unit.in_combat() and unit.is_my_turn():
-			return unit
+	# Same rule as the initiative row: a selection is an opinion, no
+	# selection is no opinion. Travel clears the selection, so without the
+	# fall-back a group that walked into a fight and got a turn had no way
+	# to end it until the player clicked somebody.
+	if not SelectionManager.selected_units.is_empty():
+		for unit in SelectionManager.selected_units:
+			if is_instance_valid(unit) and unit.in_combat() and unit.is_my_turn():
+				return unit
+		return null
+
+	var context: WorldContext = WorldManager.context()
+	for unit in PartyManager.members:
+		if not is_instance_valid(unit) or not unit.in_combat() or not unit.is_my_turn():
+			continue
+		if context and not context.contains(unit):
+			continue
+		return unit
 	return null
 
 

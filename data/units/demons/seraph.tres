@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=13 format=3]
+
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
+[ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="5_attack"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
+[ext_resource type="Resource" path="res://data/negotiation/conversations/scary/scary_greeting.tres" id="7_greeting"]
+[ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="90_fly"]
+[ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="91_land"]
+[ext_resource type="Resource" path="res://data/ai_archetypes/aerial_artillery.tres" id="99_arch"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
+[sub_resource type="Resource" id="Resource_negotiation_root"]
+script = ExtResource("6_root_option")
+root = ExtResource("7_greeting")
+
+[resource]
+script = ExtResource("1_def")
+ai_archetype = ExtResource("99_arch")
+id = "seraph"
+display_name = "Seraph"
+strength = 10
+dexterity = 10
+intelligence = 14
+health = 10
+move = 5
+will = 18
+perception = 14
+max_hp = 10
+max_fp = 10
+damage_reduction = 1
+faction = &"enemy"
+order = &"Seraph"
+personality = &"Scary"
+rank = 1
+is_special = false
+portrait_texture = ExtResource("3_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
+abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("90_fly"), ExtResource("91_land")])
+negotiable = true
+negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])
