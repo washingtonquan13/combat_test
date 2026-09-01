@@ -44,6 +44,21 @@ extends Node
 signal save_completed(path: String)
 signal load_completed(path: String)
 
+## Emitted on EVERY exit from load_file(), successful or not — `ok` says
+## which. load_completed only ever fires for a load that worked, which is
+## right for anything acting ON the loaded game and wrong for anything
+## cleaning up after the ATTEMPT.
+##
+## That gap had a visible cost. The title screen closed itself on
+## load_completed, so a refused load left it sitting over a world that had
+## already loaded and started its music, with no way forward but to load
+## again. Five paths through load_file() return false, and every one of
+## them was invisible to a listener: a push_warning is not an event.
+##
+## Emitted from the wrapper rather than at each exit, so a future early
+## return cannot forget to fire it.
+signal load_finished(path: String, ok: bool)
+
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".save"
 const FORMAT_VERSION: int = 1
@@ -177,6 +192,16 @@ func save(save_name: String) -> bool:
 ## -> rebuild_area per area, focused one last -> apply saved positions once
 ## world_loaded fires for THIS load.
 func load_file(path: String) -> bool:
+	var ok: bool = _perform_load(path)
+	if ok:
+		load_completed.emit(path)
+	load_finished.emit(path, ok)
+	return ok
+
+
+## The load itself. Every `return false` in here is reported by the
+## wrapper above; none of them needs to remember to say so.
+func _perform_load(path: String) -> bool:
 	if not FileAccess.file_exists(path):
 		push_warning("SaveManager.load_file: no file at '%s'" % path)
 		return false
@@ -185,6 +210,15 @@ func load_file(path: String) -> bool:
 	var err: Error = cfg.load(path)
 	if err != OK:
 		push_warning("SaveManager.load_file failed reading '%s': %s" % [path, error_string(err)])
+		return false
+
+	# EVERYTHING THAT CAN REFUSE, BEFORE ANYTHING THAT WRITES. Below this
+	# line the game is being taken apart and rebuilt; a failure past it
+	# leaves the save's flags, party, demons and purse live with no world
+	# to stand in, which is a worse state than the refusal it reports.
+	var refusal: String = _why_load_would_fail(cfg)
+	if refusal != "":
+		push_warning("SaveManager.load_file refused, nothing changed: %s" % refusal)
 		return false
 
 	# discard_worlds(), not unload(): a restore is not the player leaving
@@ -269,7 +303,6 @@ func load_file(path: String) -> bool:
 		push_warning("SaveManager.load_file: rebuild_area('%s') failed after state was already injected." % area_id)
 		return false
 
-	load_completed.emit(path)
 	return true
 
 
@@ -400,6 +433,42 @@ func _on_world_loaded(world: Node) -> void:
 ## Collected UP FRONT, because loading an area merges the groups that
 ## claim it, and iterating the live list while that happens would walk a
 ## collection being rewritten underneath.
+## Why this save cannot be opened, or "" if it can.
+##
+## STRICTLY READ-ONLY. Its entire purpose is to run before the first thing
+## that writes, so anything added here must not change state — including
+## indirectly, which is why the area id is read off the ConfigFile rather
+## than out of PartyManager. Injecting the party to find out where it is
+## standing would be the very mutation this exists to avoid.
+##
+## Only conditions that would ABORT the load belong here. A SECONDARY area
+## that no longer exists is deliberately not one: further down it warns and
+## leaves that group abstract, which is degraded but still playable, and
+## failing the whole load over it would strand the player on the title
+## screen for a problem they can walk away from.
+func _why_load_would_fail(cfg: ConfigFile) -> String:
+	if not WorldManager.can_rebuild():
+		return "no world host is registered to build a world into"
+
+	# _party_inventory() calls straight through this node with no guard, so
+	# without it the load crashes — and it crashes AFTER the party, flags,
+	# demons and purse have already been overwritten.
+	if get_tree().get_first_node_in_group("party_overview") == null:
+		return "no party overview in the tree, so the shared inventory cannot be reached"
+
+	var area_id: StringName = StringName(cfg.get_value("world", "area_id", ""))
+	if area_id == &"":
+		return "the save names no area to open in"
+
+	var area: AreaDefinition = AreaDatabase.find(area_id)
+	if area == null:
+		return "it was taken in area '%s', which no longer exists" % area_id
+	if area.world_scene == null:
+		return "area '%s' has no world scene to build" % area_id
+
+	return ""
+
+
 func _areas_holding_party(except: StringName) -> Array[StringName]:
 	var areas: Array[StringName] = []
 	for group in PartyManager.groups:
