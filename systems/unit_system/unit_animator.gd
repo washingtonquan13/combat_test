@@ -240,11 +240,17 @@ func _on_ability_armed(ability: Ability) -> void:
 	var enter: String = ability.armed_enter_animation if ability.armed_enter_animation != "" else default_armed_enter_animation
 	var hold: String = ability.armed_hold_animation if ability.armed_hold_animation != "" else default_armed_hold_animation
 
-	if enter != "":
+	if enter != "" and _play(enter):
 		_pending_armed_enter_clip = enter
 		_pending_armed_hold = hold
-		_play(enter)
-	elif hold != "":
+		return
+
+	# Either there is no enter clip, or it could not start — and in that
+	# second case the finish that was supposed to begin the hold is never
+	# coming. Either way the hold is what should be on screen now.
+	_pending_armed_enter_clip = ""
+	_pending_armed_hold = ""
+	if hold != "":
 		_play(hold)
 
 
@@ -422,11 +428,25 @@ func _rest_on_base_animation() -> void:
 			animation_player.seek(animation_player.current_animation_length, true)
 
 
-func _play(anim_name: String) -> void:
-	if animation_player.has_animation(anim_name):
-		animation_player.play(anim_name)
-	else:
+## Returns whether a clip actually started playing.
+##
+## The answer matters because two callers WAIT on animation_finished, and
+## a clip that never started will never send one. Both now treat "did not
+## start" as "already finished" rather than waiting forever — see
+## _advance_to_next_phase and _on_ability_armed.
+##
+## An empty name is not an error and warns about nothing: a phase may
+## legitimately carry only steps and no clip, and a body may declare no
+## animations at all. Only a name that was asked for by name and could not
+## be found is worth complaining about.
+func _play(anim_name: String) -> bool:
+	if anim_name == "":
+		return false
+	if not animation_player.has_animation(anim_name):
 		push_warning("unit_animator.gd: tried to play unknown animation \"%s\" on %s." % [anim_name, unit.name])
+		return false
+	animation_player.play(anim_name)
+	return true
 
 
 ## --- Cast animation phase player ---
@@ -445,7 +465,12 @@ func _play_sequence(sequence: AnimationSequence) -> void:
 	_external_advance_pending = false
 	_active_sequence = sequence
 	_active_phase_index = -1
-	_advance_to_next_phase()
+	# The whole sequence can now finish inside this one call, when every
+	# phase skips for want of a clip. The rest-on-base that normally
+	# happens as the last clip ends therefore has to happen here too —
+	# same shape as _on_timer_phase_done's own check.
+	if not _advance_to_next_phase() and not unit.is_moving():
+		_rest_on_base_animation()
 
 
 ## Moves to the next phase and starts playing its clip, or clears the
@@ -469,9 +494,22 @@ func _advance_to_next_phase() -> bool:
 		_active_phase_index = -1
 		return false
 
-	_play(next.animation_name)
+	var started: bool = _play(next.animation_name)
 
 	match next.advance_trigger:
+		AnimationPhase.AdvanceTrigger.ON_FINISH:
+			# Nothing is playing, so animation_finished is never coming. A
+			# phase whose clip is missing — or which carries no clip at all
+			# — is already as finished as it is ever going to be.
+			#
+			# ON_TIMER has always had its timer and EXTERNAL its pending
+			# flag; ON_FINISH, the DEFAULT trigger, had no backstop of any
+			# kind. A single absent clip stranded the whole sequence, and
+			# with it the turn. This is what lets a body with no animation
+			# library run a sequence through instead of hanging on its
+			# first phase.
+			if not started:
+				return _advance_to_next_phase()
 		AnimationPhase.AdvanceTrigger.ON_TIMER:
 			var token: int = _sequence_token
 			get_tree().create_timer(next.duration).timeout.connect(
