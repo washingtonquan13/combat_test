@@ -91,3 +91,10 @@ unique_name_in_owner = true
 layout_mode = 2
 modulate = Color(1, 1, 1, 0.6)
 text = "No saves yet."
+
+[node name="StatusLabel" type="Label" parent="ContentArea/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+modulate = Color(1, 0.55, 0.45, 1)
+autowrap_mode = 3

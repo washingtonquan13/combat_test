@@ -34,6 +34,7 @@ var _save_path: String = ""
 var _overview: Node = null
 var _snapshot: Dictionary = {}
 var _finished: Array = []
+var _reason: String = ""
 var _completed: int = 0
 
 
@@ -97,6 +98,13 @@ func run() -> void:
 		"load_finished fired %d time(s)%s" % [
 			_finished.size(),
 			"" if _finished.is_empty() else " with ok=%s" % str(_finished[0])])
+	# A bool says something went wrong; a reason is what the load screen can
+	# actually put in front of the player. It rides along with the event so
+	# there is no second place to go and ask.
+	check("and it says why, in words a player could read",
+		_reason.findn("no longer exists") != -1,
+		"reason was %s" % ("empty" if _reason.is_empty() else "'%s'" % _reason))
+
 	check("and load_completed stays quiet, because nothing completed",
 		_completed == 0,
 		"load_completed fired %d time(s)" % _completed)
@@ -123,8 +131,9 @@ func run() -> void:
 	_restore()
 
 
-func _on_finished(_path: String, ok: bool) -> void:
+func _on_finished(_path: String, ok: bool, reason: String) -> void:
 	_finished.append(ok)
+	_reason = reason
 
 
 func _on_completed(_path: String) -> void:

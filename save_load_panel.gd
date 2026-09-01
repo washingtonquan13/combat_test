@@ -24,12 +24,20 @@ enum Mode { SAVE, LOAD }
 @onready var _save_button: Button = %SaveButton
 @onready var _row_list: VBoxContainer = %RowList
 @onready var _empty_label: Label = %EmptyLabel
+@onready var _status_label: Label = %StatusLabel
 
 var _mode: Mode = Mode.LOAD
 
 
 func _ready() -> void:
 	visible = false
+	# load_finished, not load_completed: this panel is the thing the player
+	# is looking at when a load fails, and a failure used to reach them as
+	# nothing at all — a push_warning that a release build never shows. The
+	# panel deliberately STAYS OPEN on failure (see _on_load_pressed, which
+	# only closes on success), so there is somewhere for this to be read
+	# and another save to pick.
+	SaveManager.load_finished.connect(_on_load_finished)
 	%CloseButton.pressed.connect(func(): close())
 	_save_button.pressed.connect(_on_save_pressed)
 	_name_edit.text_submitted.connect(func(_text): _on_save_pressed())
@@ -45,6 +53,7 @@ func open_for(mode: Mode) -> void:
 	if mode == Mode.SAVE:
 		_name_edit.text = _default_save_name()
 	_refresh_list()
+	_clear_status()
 	open()
 
 
@@ -123,6 +132,23 @@ func _on_save_pressed() -> void:
 func _on_load_pressed(path: String) -> void:
 	if SaveManager.load_file(path):
 		close()
+
+
+## Says why, in the player's words. Fires for every load attempt anywhere,
+## including one started from the esc menu while this panel is shut — hence
+## the visibility guard, the same shape main_menu.gd applies to its own
+## load handler.
+func _on_load_finished(_path: String, ok: bool, reason: String) -> void:
+	if ok or not visible:
+		return
+	_status_label.text = reason
+	_status_label.visible = true
+	_refresh_list()
+
+
+func _clear_status() -> void:
+	_status_label.text = ""
+	_status_label.visible = false
 
 
 func _on_delete_pressed(path: String) -> void:

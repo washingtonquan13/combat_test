@@ -55,9 +55,15 @@ signal load_completed(path: String)
 ## again. Five paths through load_file() return false, and every one of
 ## them was invisible to a listener: a push_warning is not an event.
 ##
+## `reason` is a player-readable explanation, empty on success. It travels
+## WITH the event rather than being parked on a `last_load_error` property
+## for a listener to fetch afterwards — that would be a second copy of the
+## same fact, which is the shape of defect this whole pass exists to
+## remove.
+##
 ## Emitted from the wrapper rather than at each exit, so a future early
 ## return cannot forget to fire it.
-signal load_finished(path: String, ok: bool)
+signal load_finished(path: String, ok: bool, reason: String)
 
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".save"
@@ -192,25 +198,29 @@ func save(save_name: String) -> bool:
 ## -> rebuild_area per area, focused one last -> apply saved positions once
 ## world_loaded fires for THIS load.
 func load_file(path: String) -> bool:
-	var ok: bool = _perform_load(path)
+	var reason: String = _perform_load(path)
+	var ok: bool = reason == ""
 	if ok:
 		load_completed.emit(path)
-	load_finished.emit(path, ok)
+	else:
+		push_warning("SaveManager.load_file failed: %s" % reason)
+	load_finished.emit(path, ok, reason)
 	return ok
 
 
-## The load itself. Every `return false` in here is reported by the
-## wrapper above; none of them needs to remember to say so.
-func _perform_load(path: String) -> bool:
+## The load itself. Returns "" on success, or WHY it did not happen.
+##
+## A reason rather than a bool, so each exit states its own case once and
+## the wrapper above does the reporting — both the warning and the signal.
+## Phrased for a player reading it on the load screen, not for a log.
+func _perform_load(path: String) -> String:
 	if not FileAccess.file_exists(path):
-		push_warning("SaveManager.load_file: no file at '%s'" % path)
-		return false
+		return "That save file is missing."
 
 	var cfg := ConfigFile.new()
 	var err: Error = cfg.load(path)
 	if err != OK:
-		push_warning("SaveManager.load_file failed reading '%s': %s" % [path, error_string(err)])
-		return false
+		return "That save file could not be read (%s)." % error_string(err)
 
 	# EVERYTHING THAT CAN REFUSE, BEFORE ANYTHING THAT WRITES. Below this
 	# line the game is being taken apart and rebuilt; a failure past it
@@ -218,16 +228,14 @@ func _perform_load(path: String) -> bool:
 	# to stand in, which is a worse state than the refusal it reports.
 	var refusal: String = _why_load_would_fail(cfg)
 	if refusal != "":
-		push_warning("SaveManager.load_file refused, nothing changed: %s" % refusal)
-		return false
+		return "That save cannot be opened: %s. Nothing was changed." % refusal
 
 	# discard_worlds(), not unload(): a restore is not the player leaving
 	# somewhere, so the travel gate has no jurisdiction here. It used to be
 	# unload(true), where the `true` meant exactly that and said so only in
 	# a comment.
 	if not WorldManager.discard_worlds():
-		push_warning("SaveManager.load_file refused: WorldManager.discard_worlds() was refused.")
-		return false
+		return "The current worlds could not be cleared, so the save was not opened."
 
 	FlagManager.load_state(cfg.get_value("flags", "data", {}))
 	PartyManager.load_state(cfg.get_value("party", "data", {}))
@@ -300,10 +308,9 @@ func _perform_load(path: String) -> bool:
 	_pending_avatar_transform = null
 
 	if not world:
-		push_warning("SaveManager.load_file: rebuild_area('%s') failed after state was already injected." % area_id)
-		return false
+		return "Area '%s' could not be built. The game is part-way through loading and should be loaded again." % area_id
 
-	return true
+	return ""
 
 
 ## Newest first. Reads only the [meta] section of each file — a full
