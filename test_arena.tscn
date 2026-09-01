@@ -1,40 +1,16 @@
-[gd_scene load_steps=59 format=3 uid="uid://c2eymxqvi7vu1"]
+[gd_scene load_steps=30 format=3 uid="uid://c2eymxqvi7vu1"]
 
 [ext_resource type="Script" uid="uid://22gse85gkv76" path="res://test_arena.gd" id="1_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
 [ext_resource type="PackedScene" path="res://crpg_camera.tscn" id="3_h2yge"]
-[ext_resource type="Texture2D" uid="uid://nguaiexl5e8a" path="res://assets/portraits/barbarian.jpg" id="5_efxa6"]
-[ext_resource type="Texture2D" uid="uid://cxnwr1ibqbqe5" path="res://assets/portraits/dwarf_fighter_1.jpg" id="6_dg77c"]
 [ext_resource type="Texture2D" uid="uid://bu36twcw6g0tx" path="res://assets/portraits/elf_archer.jpg" id="7_ycdy4"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="9_vivmo"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="10_yaehf"]
 [ext_resource type="Resource" uid="uid://cb3k1n2puqron" path="res://data/abilities/basic_attack_ranged.tres" id="13_074og"]
 [ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://data/abilities/jump.tres" id="16_getpj"]
-[ext_resource type="Resource" uid="uid://dh51y4swh78rh" path="res://data/abilities/explosive_fireball.tres" id="20_0odxb"]
-[ext_resource type="Resource" uid="uid://polrlhck5ycm" path="res://data/abilities/sleep_dart.tres" id="21_a6jrf"]
-[ext_resource type="Texture2D" uid="uid://caua8wslo4n0e" path="res://assets/portraits/tiefling_wizard.jpg" id="21_lswn8"]
-[ext_resource type="Resource" uid="uid://8t1yvopu728x" path="res://data/abilities/grease.tres" id="29_4k2k6"]
 [ext_resource type="PackedScene" path="res://proto_block.tscn" id="29_pjyto"]
-[ext_resource type="Resource" uid="uid://bmgw6mjv7sps4" path="res://data/abilities/heal.tres" id="30_heal"]
-[ext_resource type="Resource" uid="uid://c2d5yg20sskb7" path="res://data/abilities/shield.tres" id="31_shield"]
-[ext_resource type="Resource" uid="uid://xrcp3khftmgl" path="res://data/abilities/bless.tres" id="32_bless"]
-[ext_resource type="Resource" uid="uid://b6b42e1tuow5" path="res://data/abilities/weaken.tres" id="33_weaken"]
-[ext_resource type="Resource" uid="uid://c0qppy4xryydr" path="res://data/abilities/shove.tres" id="34_shove"]
-[ext_resource type="Resource" uid="uid://bk3h1qlytr0eg" path="res://data/abilities/cure.tres" id="35_cure"]
-[ext_resource type="Resource" uid="uid://qvfwynd2l033" path="res://data/abilities/summon_spirit.tres" id="36_4lmeg"]
-[ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="37_0cp0l"]
-[ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="38_d2t1y"]
-[ext_resource type="Resource" uid="uid://dnpp2x27ui1ou" path="res://data/abilities/magic_missile.tres" id="42_qnost"]
-[ext_resource type="Resource" uid="uid://k88n0qe7hax7" path="res://data/abilities/summon_demon_template.tres" id="49_jx0wj"]
-[ext_resource type="Resource" uid="uid://7h8i2qfohe2g" path="res://data/abilities/dismiss_summon.tres" id="50_kkkcx"]
 [ext_resource type="PackedScene" uid="uid://n66235nv62a8" path="res://ladder.tscn" id="50_ladder"]
-[ext_resource type="Script" uid="uid://b3gvuamt478hc" path="res://systems/skill_system/skill_instance.gd" id="50_sm6fg"]
-[ext_resource type="Resource" uid="uid://bybjpwdtyimg6" path="res://data/skills/arcana.tres" id="51_b17eg"]
-[ext_resource type="Resource" uid="uid://c2jjtj71ljycn" path="res://data/skills/insight.tres" id="52_cyx1q"]
-[ext_resource type="Resource" uid="uid://cxye1dh2856fy" path="res://data/skills/acrobatics.tres" id="52_ntx8l"]
-[ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="53_uatky"]
 [ext_resource type="PackedScene" uid="uid://cxd7mqmay70in" path="res://interactable_prop.tscn" id="54_prop"]
-[ext_resource type="Resource" uid="uid://du5jbw4pgw8ub" path="res://data/dialogue/test_npc/greeting.tres" id="58_testdlg"]
 [ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://interaction_option.gd" id="58_uatky"]
 [ext_resource type="Resource" path="res://data/interactions/talk.tres" id="59_rqtf5"]
 [ext_resource type="Resource" path="res://data/interactions/examine.tres" id="60_1vm84"]
@@ -48,21 +24,7 @@
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
 [ext_resource type="Resource" path="res://data/interactions/travel.tres" id="75_travel"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="76_exit"]
-[ext_resource type="Resource" path="res://data/companions/tiefling_wizard.tres" id="cmp_tiefling_wizard"]
-[ext_resource type="Resource" path="res://data/companions/human_barbarian.tres" id="cmp_human_barbarian"]
-[ext_resource type="Resource" path="res://data/companions/dwarf_fighter.tres" id="cmp_dwarf_fighter"]
-[ext_resource type="Resource" path="res://data/companions/elf_ranger.tres" id="cmp_elf_ranger"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
-resource_local_to_scene = true
-render_priority = 0
-shader = ExtResource("53_uatky")
-shader_parameter/outline_color = Color(1, 0.85, 0.2, 1)
-shader_parameter/outline_width = 0.02
-
-[sub_resource type="Resource" id="Resource_testnpc_dlgopt"]
-script = ExtResource("63_dlgrootopt")
-root = ExtResource("58_testdlg")
+[ext_resource type="Resource" path="res://data/npcs/townsperson.tres" id="npc_town"]
 
 [sub_resource type="Resource" id="Resource_raids_resolved"]
 script = ExtResource("65_flagcheck")
@@ -148,6 +110,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 1)
 
 [node name="Scared Townperson" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.5, -23.5)
+definition = ExtResource("npc_town")
 display_name = "Scared Townperson"
 dexterity = 18
 move = 27
@@ -214,5 +177,3 @@ environment = SubResource("Environment_movement_glow")
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)
 
 [editable path="LevelGeometry/Ladder"]
-[editable path="TieflingWizard"]
-[editable path="TieflingWizard/CharacterModel"]

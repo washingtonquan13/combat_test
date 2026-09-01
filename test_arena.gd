@@ -28,12 +28,15 @@ const COMPANION_OFFSETS: Array[Vector3] = [
 func _ready() -> void:
 	_watch_goblinoid_raid_quest()
 
-	# There is nothing to free any more. The starting party used to be four
-	# hand-placed nodes in this scene, which meant every reload had to
-	# delete them before spawn_party() could rebuild the captured roster
-	# over the top — see this file's history. They are data now, so a
-	# reload simply does not build them.
-	if WorldManager.is_restoring_party():
+	# Built unconditionally. This used to be guarded on
+	# WorldManager.is_restoring_party(), because the starting party WAS this
+	# scene — four hand-placed nodes that every reload had to delete before
+	# spawn_party() could rebuild the captured roster over the top. They are
+	# data now, so there is nothing to lay out twice and nothing to free.
+	#
+	# A reload never reaches here at all: PartyManager still holds the
+	# roster, so this area is re-entered rather than rebuilt.
+	if not PartyManager.members.is_empty() or not PartyManager.roster.is_empty():
 		return
 
 	var leader: Unit = _build_leader()

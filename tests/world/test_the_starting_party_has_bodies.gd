@@ -36,12 +36,12 @@ func run() -> void:
 	_snapshot_globals()
 
 	# THE STARTING party, which means the bootstrap path — and reaching it
-	# requires an empty slate. test_arena only lays out its four authored
-	# companions when WorldManager.is_restoring_party() is false, and that
-	# is false only when both the roster and the live members are empty.
-	# Earlier suites leave records behind, so without this the area rebuilds
-	# whatever they left and this suite quietly measures somebody else's
-	# party instead of the one the game starts with.
+	# requires an empty slate. test_arena only builds the party from
+	# data/companions when both the roster and the live members are empty;
+	# otherwise the party already exists and it leaves it alone. Earlier
+	# suites leave records behind, so without this the suite quietly
+	# measures somebody else's party instead of the one the game starts
+	# with.
 	PartyManager.clear_members()
 	PartyManager.load_state({})
 
@@ -92,6 +92,7 @@ func run() -> void:
 		mute.is_empty(), "no clips: %s" % ", ".join(mute))
 
 	_the_companions_kept_who_they_are(party)
+	await _a_created_character_has_a_body()
 	_restore()
 
 
@@ -132,6 +133,53 @@ func _the_companions_kept_who_they_are(party: Array[Unit]) -> void:
 	check("and the ranger can still be talked to",
 		not ranger.dialogue_options.is_empty(),
 		"her conversation went missing with her node")
+
+
+## The character chargen makes, which is nobody's authored content.
+##
+## It reported as invisible: character_creation built a PartyMemberData and
+## never gave it a definition, so PartyManager.spawn_member had no body to
+## adopt. Every other unit in the game gets its body from a definition, and
+## a player character is not an exception to that — it is the case where
+## the definition is CHOSEN rather than authored. One body today; the line
+## chargen picks becomes a choice the moment there is more than one.
+func _a_created_character_has_a_body() -> void:
+	WorldManager.discard_worlds()
+	PartyManager.clear_members()
+	PartyManager.load_state({})
+
+	var record := PartyMemberData.new()
+	record.is_leader = true
+	record.display_name = "Created Character"
+	record.faction = Unit.PLAYER_FACTION
+	record.definition = load("res://data/companions/player_character.tres")
+	PartyManager.pending_leader = record
+
+	WorldManager.load_area(HOME)
+	await get_tree().process_frame
+
+	var made: Unit = _member_named(_live_party(), "Created Character")
+	check("the character chargen made is really in the party",
+		made != null, "the leader chargen produced never arrived")
+	if made == null:
+		return
+
+	check("and has a body you can see",
+		_visible_mesh_under(made) != null,
+		"invisible — a created character gets no body from anywhere else")
+	check("and an animation library, like everyone else",
+		made.get_node_or_null("CharacterModel") != null
+			and not (made.get_node("CharacterModel") as CharacterModel)
+				.resolve_animation_player().get_animation_list().is_empty(),
+		"no clips")
+
+
+func _live_party() -> Array[Unit]:
+	var live: Array[Unit] = []
+	for member in PartyManager.members:
+		if is_instance_valid(member):
+			live.append(member)
+	return live
 
 
 func _member_named(party: Array[Unit], display: String) -> Unit:

@@ -258,6 +258,18 @@ func _on_confirm_pressed() -> void:
 		return
 
 	var record := PartyMemberData.new()
+	# A body, like every other unit in the game has. Every stat below is
+	# applied over the top of this definition's cascade by
+	# PartyManager.spawn_member, so what it actually supplies is the model —
+	# which is the whole reason a chargen character had no visuals at all.
+	#
+	# One body today. When there is more than one to pick from, this is the
+	# line chargen chooses between, which is how Solasta does it: the race
+	# you select supplies the body. Mass Effect adds a head morph on top of
+	# a fixed base; BG3 goes furthest and assembles the visual from separate
+	# race/head/hair parts. All three keep the definition — none of them
+	# lets a character exist without one.
+	record.definition = load("res://data/companions/player_character.tres")
 	record.is_leader = true
 	record.display_name = _name_edit.text.strip_edges()
 	record.portrait_texture = load(_selected_portrait_path)
