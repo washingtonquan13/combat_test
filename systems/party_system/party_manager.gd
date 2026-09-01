@@ -120,7 +120,9 @@ func group_of(unit: Unit) -> PartyGroup:
 func groups_in_area(area_id: StringName) -> Array[PartyGroup]:
 	var found: Array[PartyGroup] = []
 	for group in groups:
-		if group.area_id == area_id:
+		# Derived, so a group whose bookkeeping drifted still answers about
+		# where its people actually are.
+		if group.current_area_id() == area_id:
 			found.append(group)
 	return found
 
@@ -152,7 +154,9 @@ func split_off(travellers: Array[Unit]) -> PartyGroup:
 
 	var split := PartyGroup.new()
 	split.embodied = true
-	split.area_id = origin.area_id if origin else &""
+	# The remembered value only; the split is embodied, so its real answer
+	# comes from its members.
+	split.abstract_area_id = origin.abstract_area_id if origin else &""
 	for unit in going:
 		var from_group: PartyGroup = group_of(unit)
 		if from_group:
@@ -445,7 +449,10 @@ func save_state() -> Dictionary:
 			records.append(written)
 			flat.append(written)
 		group_entries.append({
-			"area_id": String(group.area_id),
+			# Where they ARE, derived — a save should record reality, not the
+			# last thing anybody wrote down. The on-disk key keeps its old
+			# name so saves written before this still load.
+			"area_id": String(group.current_area_id()),
 			"embodied": group.embodied,
 			"overworld_position": group.overworld_position,
 			"members": records,
@@ -539,7 +546,7 @@ func load_state(state: Dictionary) -> void:
 		# is also exactly what an unsplit party looks like, so there is one
 		# path rather than two.
 		var restored := PartyGroup.new()
-		restored.area_id = StringName(state.get("area_id", ""))
+		restored.abstract_area_id = StringName(state.get("area_id", ""))
 		for entry in state.get("members", []):
 			restored.records.append(_load_one(entry))
 		groups.append(restored)
@@ -548,7 +555,7 @@ func load_state(state: Dictionary) -> void:
 
 	for entry in entries:
 		var group := PartyGroup.new()
-		group.area_id = StringName(entry.get("area_id", ""))
+		group.abstract_area_id = StringName(entry.get("area_id", ""))
 		# Always false on load: records are the truth until somebody spawns
 		# them, and a group claiming to be embodied with no Units would be
 		# rebuilt from a snapshot it thinks it does not need.
@@ -726,6 +733,56 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 ## as easily as on solid ground. The leader keeps the party's true
 ## landing point exactly, unmoved — it's the one position every door/
 ## spawn marker was actually authored at.
+## Makes every member of this group exist as a Unit in `world`.
+##
+## The distinction that used to drive this — relocate an EMBODIED group,
+## spawn an ABSTRACT one — assumed a group is wholly one or the other.
+## It is not: absorb() merges an abstract group into an embodied one
+## (that is what happens when a group walks into an area where another
+## is standing), and the result has live units for some members and only
+## records for the rest. Taking the relocate branch then carried the
+## units and silently dropped everyone else — no Unit, so no portrait,
+## nothing selectable, and nothing to find them by.
+##
+## Correlated by id, which is what Phase 1 of the save work made
+## possible: a record whose id matches a live unit is that unit.
+func embody(group: PartyGroup, world: Node, spawn_point: Node3D) -> void:
+	if group == null or not is_instance_valid(world):
+		return
+
+	var live: Array[Unit] = group.live_units()
+	var embodied_ids: Dictionary = {}
+	for unit in live:
+		embodied_ids[unit.persistent_id] = true
+
+	var missing: Array[PartyMemberData] = []
+	for record in group.records:
+		# An un-named record cannot be correlated, so it is only built when
+		# nobody in this group is embodied at all — otherwise it might be a
+		# second copy of somebody already standing here.
+		if record.id == &"":
+			if live.is_empty():
+				missing.append(record)
+			continue
+		if not embodied_ids.has(record.id):
+			missing.append(record)
+
+	group.embodied = true
+
+	for record in missing:
+		var unit: Unit = spawn_member(record, world, spawn_point)
+		if not group.units.has(unit):
+			group.units.append(unit)
+		add_member(unit, group)
+		if record.is_leader:
+			set_leader(unit)
+
+	# Everyone together, so the landing ring is built around the whole
+	# group rather than around whichever half happened to already exist.
+	if spawn_point:
+		relocate(group.live_units(), world, spawn_point)
+
+
 ## Kept as the whole-party form for any caller that means "the party"
 ## without qualification. Everything that travels goes through the
 ## group form below, because who is arriving is the question groups

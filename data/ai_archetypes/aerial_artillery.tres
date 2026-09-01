@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AiArchetype" load_steps=11 format=3]
+[gd_resource type="Resource" script_class="AiArchetype" load_steps=11 format=3 uid="uid://k4eu775myauh"]
 
 [ext_resource type="Script" uid="uid://bol7w701na4bs" path="res://systems/ai_system/ai_archetype.gd" id="1_arch"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_beh"]
@@ -10,20 +10,26 @@
 [sub_resource type="Resource" id="R_prefer_flight"]
 script = ExtResource("b0_prefer_flight")
 flight_preference = 3.0
+
 [sub_resource type="Resource" id="R_hold_range"]
 script = ExtResource("b1_hold_range")
 preferred_range = 9.0
 preferred_altitude = 8.0
 range_tolerance = 2.0
+bias = 0.0
+
 [sub_resource type="Resource" id="R_flee"]
 script = ExtResource("b2_flee")
 hp_threshold = 0.25
 flee_distance = 10.0
 altitude_while_fleeing = 8.0
+bias = 0.0
 
 [sub_resource type="Resource" id="R_land"]
 script = ExtResource("b9_land")
 turns_of_reserve = 2
+clear_distance = 8.0
+bias = 0.0
 
 [resource]
 script = ExtResource("1_arch")

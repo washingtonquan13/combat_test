@@ -121,7 +121,7 @@ func _install_synthetic_host() -> bool:
 	WorldManager.register_world_host(_host)
 	var none: Array[Node] = []
 	WorldManager.register_attention_nodes(none)
-	return WorldManager.can_load()
+	return WorldManager.can_travel()
 
 
 ## The in-play acceptance, headless: wound somebody, leave so their world
@@ -199,7 +199,7 @@ func _a_split_party_round_trips() -> void:
 	var expected: Dictionary = {}
 	for group in PartyManager.groups:
 		for record in group.records:
-			expected[String(record.id)] = String(group.area_id)
+			expected[String(record.id)] = String(group.current_area_id())
 
 	var state: Dictionary = PartyManager.save_state()
 	check("the save writes one entry per group",
@@ -215,7 +215,7 @@ func _a_split_party_round_trips() -> void:
 	var restored: Dictionary = {}
 	for group in PartyManager.groups:
 		for record in group.records:
-			restored[String(record.id)] = String(group.area_id)
+			restored[String(record.id)] = String(group.current_area_id())
 
 	check("everybody is accounted for",
 		restored.size() == expected.size(),

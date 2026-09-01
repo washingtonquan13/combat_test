@@ -14,7 +14,7 @@ func execute(_actor: Unit, target) -> void:
 	var exit: AreaExit = AreaExit.find_on(target)
 	if not exit:
 		return
-	# Must close BEFORE travel() fires — WorldManager.can_load() refuses
+	# Must close BEFORE travel() fires — WorldManager.can_travel() refuses
 	# a load for as long as InteractionMenu.is_open() is true, and
 	# _on_id_pressed dispatches this execute() without closing first.
 	InteractionMenu.close()

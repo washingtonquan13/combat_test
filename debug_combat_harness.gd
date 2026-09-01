@@ -66,11 +66,20 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _start_test_combat() -> void:
-	if CombatManager.in_combat:
-		print("Combat already in progress.")
-		return
+	# The world on screen, not the game. Unscoped, this built one fight
+	# out of every unit in every loaded area — which is not a test of
+	# anything, and leaves units enrolled in a battle they are nowhere
+	# near.
+	var context: WorldContext = WorldManager.context()
 
-	var units: Array[Unit] = UnitQuery.living_units(get_tree())
+	var units: Array[Unit] = []
+	for unit in UnitQuery.living_units(get_tree()):
+		if context and not context.contains(unit):
+			continue
+		if unit.in_combat():
+			print("Combat already in progress here.")
+			return
+		units.append(unit)
 
 	if units.is_empty():
 		print("No units found in the 'units' group — nothing to fight with.")

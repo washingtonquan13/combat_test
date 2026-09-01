@@ -68,6 +68,12 @@ func is_owned(owned_demon: OwnedDemon) -> bool:
 ## UnitQuery already reads rather than DemonRoster tracking its own
 ## separate fielded-set — Unit.owned_demon is already the one source of
 ## truth for "is this entry out right now."
+## Global on purpose. "Is this entry out right now" is a question about
+## the ROSTER, not about a place: a demon fielded in an area the player
+## is not looking at is still fielded, and scoping this to the focused
+## world would let the same OwnedDemon be summoned a second time
+## somewhere else — the exact double-summon this function exists to
+## prevent.
 func is_fielded(owned_demon: OwnedDemon) -> bool:
 	for unit in UnitQuery.all_units(get_tree()):
 		if unit.is_alive() and unit.owned_demon == owned_demon:

@@ -10,7 +10,7 @@
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="90_fly"]
 [ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="91_land"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="92_aibehavior"]
-[ext_resource type="Resource" path="res://data/ai_archetypes/aerial_artillery.tres" id="99_arch"]
+[ext_resource type="Resource" uid="uid://k4eu775myauh" path="res://data/ai_archetypes/aerial_artillery.tres" id="99_arch"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
@@ -27,6 +27,9 @@ health = 8
 move = 5
 will = 10
 perception = 14
+vision_cone_degrees = 120.0
+max_sight_range = 18.0
+proximity_radius = 2.5
 max_hp = 8
 max_fp = 8
 damage_reduction = 0

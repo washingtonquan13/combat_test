@@ -62,7 +62,7 @@ var enabled: bool = true
 
 
 func _ready() -> void:
-	CombatManager.combat_ended.connect(_on_combat_ended)
+	CombatManager.combat_ended_in_world.connect(_on_combat_ended_in_world)
 
 
 func _process(delta: float) -> void:
@@ -140,8 +140,10 @@ func _draw_in_latecomers(units: Array[Unit]) -> void:
 		# Whichever fight it actually walked into — not "the" fight, since
 		# there may be several running and joining the wrong one would drop
 		# a unit into a battle happening somewhere else entirely.
-		for encounter in CombatManager.encounters:
-			if not encounter.is_running:
+		# ALL of them, not the focused world's: a unit standing in a world
+		# nobody is watching still walks into its own fights.
+		for encounter in CombatManager.all_encounters():
+			if not is_instance_valid(encounter) or not encounter.is_running:
 				continue
 			var joined: bool = false
 			for combatant in encounter.turn_order:
@@ -149,6 +151,17 @@ func _draw_in_latecomers(units: Array[Unit]) -> void:
 					continue
 				# Only somebody's enemy joins. A neutral bystander standing
 				# in the middle of a fight it has no stake in stays one.
+				# Same world FIRST, before any distance is measured. Every
+				# area in this project is authored around the origin, so raw
+				# distance says a unit two areas away is standing on top of
+				# the fight — and it would be pulled into a battle in a world
+				# it is not in, which then makes it impossible for a fight to
+				# start where it actually is, since it already counts as
+				# fighting.
+				if not combatant.is_inside_tree() or not unit.is_inside_tree():
+					continue
+				if combatant.get_world_3d() != unit.get_world_3d():
+					continue
 				if not unit.is_hostile_to(combatant):
 					continue
 				if unit.distance_to(combatant) > HEARING_RADIUS:
@@ -282,11 +295,15 @@ func _react_to(observer: Unit, subject: Unit, state: UnitAwareness.State) -> voi
 		# keeps a town from erupting because a guard looked at you.
 		return
 
-	if CombatManager.any_combat_running():
-		# Joining an ongoing fight is _draw_in_latecomers' job now — it
-		# covers both sides and runs before this, so anything close enough
-		# is already in by the time perception gets a look. Nothing to do
-		# here but stay out of its way.
+	if CombatManager.combat_running_in_world_of(observer):
+		# Joining an ongoing fight is _draw_in_latecomers' job — it covers
+		# both sides and runs before this, so anything close enough is
+		# already in by the time perception gets a look.
+		#
+		# IN THIS WORLD, not anywhere. Asked globally, a battle in one area
+		# stopped anything from ever starting a fight in any other — the
+		# sandbox turning a local rule into a global one without the rule
+		# changing.
 		return
 
 	# STARTING one is a higher bar. A half-heard noise is not grounds to
@@ -299,6 +316,15 @@ func _react_to(observer: Unit, subject: Unit, state: UnitAwareness.State) -> voi
 ## Everyone forgets when the fight is over, so the next encounter starts
 ## fresh instead of with every survivor permanently alerted to everyone
 ## they have ever seen.
-func _on_combat_ended(_winning_faction: StringName) -> void:
+## Only where the fight was. Every unit in every world forgetting
+## because a battle ended somewhere else means an ambush two areas away
+## is quietly undone by an unrelated skirmish finishing.
+##
+## Scoped by the ENDED FIGHT's world, not the focused one: the fight
+## that ended may well be in a world nobody was watching, which is the
+## whole reason the encounter has to remember where it was.
+func _on_combat_ended_in_world(world: World3D) -> void:
 	for unit in UnitQuery.living_units(get_tree()):
+		if world != null and unit.is_inside_tree() and unit.get_world_3d() != world:
+			continue
 		unit.awareness().reset()

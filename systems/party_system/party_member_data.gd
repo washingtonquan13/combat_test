@@ -15,7 +15,7 @@ extends Resource
 ##
 ## Deliberately NOT captured: active status effects (every status in this
 ## project is turn-duration combat state, and world travel only ever
-## happens out of combat — see WorldManager.can_load()) and world
+## happens out of combat — see WorldManager.can_travel()) and world
 ## position (a saved position from a different level is meaningless, and
 ## could spawn the party inside geometry; a loaded world's own named spawn
 ## point is what actually places the party — see PartyManager.spawn_into).

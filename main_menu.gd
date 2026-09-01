@@ -62,10 +62,11 @@ func _on_visibility_changed() -> void:
 
 
 ## Straight screen-to-screen handoff within the front end: no world is
-## loaded or unloaded, only the mode and which screen is up. Character
-## creation is likewise a screen, not a world (see character_creation.gd).
+## loaded or unloaded, only which screen is up — and the mode follows from
+## that on its own, since with no world loaded GameMode reads the front end
+## to tell CHARACTER_CREATION from MAIN_MENU. Character creation is
+## likewise a screen, not a world (see character_creation.gd).
 func _on_start_pressed() -> void:
-	GameMode.set_base_mode(GameMode.Mode.CHARACTER_CREATION)
 	close()
 	UIStack.push(get_tree().get_first_node_in_group("character_creation"))
 

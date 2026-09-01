@@ -104,9 +104,15 @@ func top_position() -> Vector3:
 ##     precondition. Always true outside combat (move is unlimited there,
 ##     same as ordinary movement's own budget = INF rule).
 static func find_route(unit: Unit, destination: Vector3) -> Dictionary:
+	# "ladders" is one global group with no world in it, and every area
+	# here is authored around the origin — so a ladder two areas away sits
+	# at coordinates this unit could plausibly route to, and would be
+	# climbed in a world it is not in.
 	for node in unit.get_tree().get_nodes_in_group("ladders"):
 		var ladder := node as Ladder
-		if not ladder:
+		if not ladder or not ladder.is_inside_tree():
+			continue
+		if ladder.get_world_3d() != unit.get_world_3d():
 			continue
 
 		var top: Vector3 = ladder.top_position()

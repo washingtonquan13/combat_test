@@ -134,7 +134,11 @@ func _on_pressed() -> void:
 		# follows once they are in front of the player.
 		var context: WorldContext = WorldManager.context()
 		if context and not context.contains(unit):
-			if not WorldManager.focus_group(PartyManager.group_of(unit)):
+			# By the UNIT. Routing this through the group meant asking a
+			# second-hand record where somebody standing right there was.
+			var result := WorldManager.reveal(unit, PartyManager.group_of(unit))
+			if not WorldManager.revealed(result):
+				_report_unreachable(unit.display_name, result)
 				return
 		var additive: bool = Input.is_action_pressed("select_additive")
 		SelectionManager.select(unit, additive)
@@ -145,7 +149,22 @@ func _on_pressed() -> void:
 	# mean "go to them" — and this is the one route back to a group that
 	# has no Units to click in the world either.
 	if group:
-		WorldManager.focus_group(group)
+		var result := WorldManager.reveal(null, group)
+		if not WorldManager.revealed(result):
+			_report_unreachable(data.display_name if data else "That member", result)
+
+
+## A click that goes nowhere has to say so. Swallowing the refusal is
+## what made this feel like an unexplained dead portrait rather than a
+## world that is simply not loaded right now.
+func _report_unreachable(who: String, result: int) -> void:
+	match result:
+		WorldManager.Reveal.REFUSED_MODAL:
+			SystemLog.print("Can't go to %s right now." % who)
+		WorldManager.Reveal.AREA_NOT_LOADED:
+			SystemLog.print("%s is somewhere not currently loaded." % who)
+		_:
+			SystemLog.print("Can't find %s." % who)
 
 
 ## How a member standing in another world reads. Purely a readout — the

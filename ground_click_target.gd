@@ -147,7 +147,11 @@ func _spawn_debug_unit() -> void:
 	WorldManager.spawn_parent().add_child(spawned)
 	spawned.global_position = click_position
 
-	CombatManager.add_unit_to_combat(spawned)
+	# Whatever fight is running where it was spawned, if any. Passed
+	# nothing, this used to fall back to the fight on screen and enrol a
+	# freshly spawned unit in a battle in a completely different area.
+	CombatManager.add_unit_to_combat(
+		spawned, null, CombatManager.running_encounter_in_world_of(spawned))
 
 	if faction == &"player":
 		# party_panel.gd listens to PartyManager.member_added directly and

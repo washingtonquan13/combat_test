@@ -70,7 +70,7 @@ func is_earned() -> bool:
 	# - so counting units alone freed the very world the player had to go
 	# back to in order to reach them, and stranded them.
 	for group in PartyManager.groups:
-		if group.area_id == area_id() and not group.is_empty():
+		if group.current_area_id() == area_id() and not group.is_empty():
 			return true
 
 	for unit in PartyManager.members:
