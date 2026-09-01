@@ -12,10 +12,10 @@ var _goblinoids_remaining: Array[Unit] = []
 ## PartySpawnPoint. The offsets reproduce exactly the positions the
 ## hand-placed nodes used to occupy.
 const COMPANIONS: Array[String] = [
-	"res://data/companions/tiefling_wizard.tres",
-	"res://data/companions/human_barbarian.tres",
-	"res://data/companions/dwarf_fighter.tres",
-	"res://data/companions/elf_ranger.tres",
+	"res://data/units/companions/tiefling_wizard.tres",
+	"res://data/units/companions/human_barbarian.tres",
+	"res://data/units/companions/dwarf_fighter.tres",
+	"res://data/units/companions/elf_ranger.tres",
 ]
 const COMPANION_OFFSETS: Array[Vector3] = [
 	Vector3(0.0, 0.0, 0.0),

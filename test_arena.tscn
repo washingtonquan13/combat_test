@@ -19,12 +19,12 @@
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="63_dlgrootopt"]
 [ext_resource type="Resource" uid="uid://b0g3uyinnv5km" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="64_resolveddlg"]
 [ext_resource type="Script" uid="uid://xpa6x3shfo80" path="res://systems/skill_system/flag_prerequisite.gd" id="65_flagcheck"]
-[ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/demons/goblin_rogue.tres" id="71_goblinrogue"]
-[ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/demons/hobgoblin.tres" id="72_hobgoblin"]
-[ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
+[ext_resource type="Resource" uid="uid://cq4j1lx0pvp1k" path="res://data/units/demons/goblin_rogue.tres" id="71_goblinrogue"]
+[ext_resource type="Resource" uid="uid://cwui8dpvb33cf" path="res://data/units/demons/hobgoblin.tres" id="72_hobgoblin"]
+[ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/units/demons/goblin_shaman.tres" id="73_goblinshaman"]
 [ext_resource type="Resource" path="res://data/interactions/travel.tres" id="75_travel"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="76_exit"]
-[ext_resource type="Resource" path="res://data/npcs/townsperson.tres" id="npc_town"]
+[ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="npc_town"]
 
 [sub_resource type="Resource" id="Resource_raids_resolved"]
 script = ExtResource("65_flagcheck")

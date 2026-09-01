@@ -127,7 +127,7 @@ func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 ## A real demon from data/, so these tests exercise authored content
 ## rather than a synthetic stand-in that could drift away from it.
 func spawn_demon(id: String, position: Vector3, flying: bool = false, fp: int = -1) -> Unit:
-	var definition: UnitDefinition = load("res://data/demons/%s.tres" % id)
+	var definition: UnitDefinition = load("res://data/units/demons/%s.tres" % id)
 	var unit: Unit = definition.unit_scene.instantiate()
 	# BEFORE add_child. This was the other way round, so _enter_tree ran
 	# with no definition and every demon spawned by this harness came up

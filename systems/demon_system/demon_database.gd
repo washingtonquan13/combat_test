@@ -1,7 +1,7 @@
 class_name DemonDatabase
 extends RefCounted
 ## Resolves a unit definition id to its UnitDefinition resource by
-## scanning res://data/demons/* once and caching the result — same
+## scanning res://data/units/demons/* once and caching the result — same
 ## "index a data folder once, cache by id" idiom as SkillDatabase (see
 ## that file's own header), reused here for the same reason: a
 ## UnitDefinition is one self-contained .tres, never split across linked
@@ -16,7 +16,7 @@ extends RefCounted
 ## here needs to persist across scenes, just a cache that outlives one
 ## call.
 
-const DEMONS_DIR: String = "res://data/demons/"
+const DEMONS_DIR: String = "res://data/units/demons/"
 
 static var _by_id: Dictionary = {}
 

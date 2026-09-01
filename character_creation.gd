@@ -269,7 +269,7 @@ func _on_confirm_pressed() -> void:
 	# a fixed base; BG3 goes furthest and assembles the visual from separate
 	# race/head/hair parts. All three keep the definition — none of them
 	# lets a character exist without one.
-	record.definition = load("res://data/companions/player_character.tres")
+	record.definition = load("res://data/units/companions/player_character.tres")
 	record.is_leader = true
 	record.display_name = _name_edit.text.strip_edges()
 	record.portrait_texture = load(_selected_portrait_path)

@@ -152,7 +152,7 @@ func _a_created_character_has_a_body() -> void:
 	record.is_leader = true
 	record.display_name = "Created Character"
 	record.faction = Unit.PLAYER_FACTION
-	record.definition = load("res://data/companions/player_character.tres")
+	record.definition = load("res://data/units/companions/player_character.tres")
 	PartyManager.pending_leader = record
 
 	WorldManager.load_area(HOME)
