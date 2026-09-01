@@ -1,0 +1,63 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=30 format=3]
+
+[ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="3_model"]
+[ext_resource type="Texture2D" path="res://assets/portraits/tiefling_wizard.jpg" id="4_portrait"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="5_ability"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="a0"]
+[ext_resource type="Resource" path="res://data/abilities/jump.tres" id="a1"]
+[ext_resource type="Resource" path="res://data/abilities/explosive_fireball.tres" id="a2"]
+[ext_resource type="Resource" path="res://data/abilities/sleep_dart.tres" id="a3"]
+[ext_resource type="Resource" path="res://data/abilities/grease.tres" id="a4"]
+[ext_resource type="Resource" path="res://data/abilities/heal.tres" id="a5"]
+[ext_resource type="Resource" path="res://data/abilities/shield.tres" id="a6"]
+[ext_resource type="Resource" path="res://data/abilities/bless.tres" id="a7"]
+[ext_resource type="Resource" path="res://data/abilities/weaken.tres" id="a8"]
+[ext_resource type="Resource" path="res://data/abilities/shove.tres" id="a9"]
+[ext_resource type="Resource" path="res://data/abilities/cure.tres" id="a10"]
+[ext_resource type="Resource" path="res://data/abilities/summon_spirit.tres" id="a11"]
+[ext_resource type="Resource" path="res://data/abilities/fly.tres" id="a12"]
+[ext_resource type="Resource" path="res://data/abilities/land.tres" id="a13"]
+[ext_resource type="Resource" path="res://data/abilities/magic_missile.tres" id="a14"]
+[ext_resource type="Resource" path="res://data/abilities/summon_demon_template.tres" id="a15"]
+[ext_resource type="Resource" path="res://data/abilities/dismiss_summon.tres" id="a16"]
+[ext_resource type="Script" path="res://systems/party_system/party_skill_record.gd" id="rec"]
+[ext_resource type="Resource" path="res://data/skills/arcana.tres" id="sk0"]
+[ext_resource type="Resource" path="res://data/skills/acrobatics.tres" id="sk1"]
+[ext_resource type="Resource" path="res://data/skills/insight.tres" id="sk2"]
+
+[sub_resource type="Resource" id="rec0"]
+script = ExtResource("rec")
+skill = ExtResource("sk0")
+levels_purchased = 1
+
+[sub_resource type="Resource" id="rec1"]
+script = ExtResource("rec")
+skill = ExtResource("sk1")
+levels_purchased = 1
+
+[sub_resource type="Resource" id="rec2"]
+script = ExtResource("rec")
+skill = ExtResource("sk2")
+levels_purchased = 7
+
+[resource]
+script = ExtResource("1_def")
+id = "tiefling_wizard"
+display_name = "Tiefling Wizard"
+dexterity = 18
+intelligence = 16
+move = 24
+max_fp = 10
+faction = &"player"
+portrait_texture = ExtResource("4_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("3_model")
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a13"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16")])
+
+alignment = -100
+tendency = 100
+move_speed = 5.0
+selected_color = Color(0.156863, 1, 1, 0.627451)
+skills = Array[ExtResource("rec")]([SubResource("rec0"), SubResource("rec1"), SubResource("rec2")])

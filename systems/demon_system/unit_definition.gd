@@ -120,6 +120,39 @@ extends Resource
 ## being left negotiable=true is harmless — NegotiationManager's own
 ## guard already requires resolve_negotiation_root() to return something
 ## before a conversation can start.
+@export_group("Character")
+## Law/Chaos and the neutral tendency behind it — read by the alignment
+## grid, by AlignmentPrerequisite, and by the overworld avatar, whose whole
+## spin is derived from the leader's. A companion carrying 0 here when the
+## scene said -100 is a visibly different character.
+@export var alignment: int = 0
+@export var tendency: int = 0
+## Real-time speed while walking an order, distinct from `move`, which is
+## the per-turn budget.
+@export var move_speed: float = 4.0
+## Defaults match Unit's own, so a definition that says nothing about them
+## changes nothing. hover_color is deliberately absent: unit.tscn overrides
+## it scene-wide, so a definition default would have to duplicate that
+## value to avoid re-tinting every unit in the game — the same trap max_fp
+## sets, and not worth walking into for a field nothing authors per
+## character.
+@export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
+## Conversations this character offers. Empty for anything that cannot be
+## talked to, which is most of them.
+@export var dialogue_options: Array[DialogueRootOption] = []
+## Trained skills, as data rather than as scene-tree children.
+##
+## Reuses PartySkillRecord rather than declaring a parallel type: it is
+## already the (Skill, levels_purchased) pair a live SkillInstance carries,
+## already a Resource, and already what a party snapshot round-trips. Two
+## shapes for one fact is how they drift.
+##
+## Applied in Unit._ready rather than in the definition cascade, because a
+## SkillInstance has to be reparented by UnitSkills and that does not exist
+## until _ready. See Unit._apply_definition_skills.
+@export var skills: Array[PartySkillRecord] = []
+
+@export_group("Negotiation")
 @export var negotiable: bool = false
 
 ## Candidate entry points into this species' negotiation conversation —

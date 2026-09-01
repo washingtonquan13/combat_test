@@ -1,4 +1,4 @@
-[gd_scene load_steps=55 format=3 uid="uid://c2eymxqvi7vu1"]
+[gd_scene load_steps=59 format=3 uid="uid://c2eymxqvi7vu1"]
 
 [ext_resource type="Script" uid="uid://22gse85gkv76" path="res://test_arena.gd" id="1_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="3_7mycd"]
@@ -48,6 +48,10 @@
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/demons/goblin_shaman.tres" id="73_goblinshaman"]
 [ext_resource type="Resource" path="res://data/interactions/travel.tres" id="75_travel"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="76_exit"]
+[ext_resource type="Resource" path="res://data/companions/tiefling_wizard.tres" id="cmp_tiefling_wizard"]
+[ext_resource type="Resource" path="res://data/companions/human_barbarian.tres" id="cmp_human_barbarian"]
+[ext_resource type="Resource" path="res://data/companions/dwarf_fighter.tres" id="cmp_dwarf_fighter"]
+[ext_resource type="Resource" path="res://data/companions/elf_ranger.tres" id="cmp_elf_ranger"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_rqtf5"]
 resource_local_to_scene = true
@@ -141,79 +145,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0.5)
 
 [node name="Top" parent="LevelGeometry/Ladder" index="2"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 1)
-
-[node name="TieflingWizard" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0.5, -8)
-display_name = "Tiefling Wizard"
-dexterity = 18
-intelligence = 16
-alignment = -100
-tendency = 100
-move = 24
-move_speed = 5.0
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf"), ExtResource("16_getpj"), ExtResource("20_0odxb"), ExtResource("21_a6jrf"), ExtResource("29_4k2k6"), ExtResource("30_heal"), ExtResource("31_shield"), ExtResource("32_bless"), ExtResource("33_weaken"), ExtResource("34_shove"), ExtResource("35_cure"), ExtResource("36_4lmeg"), ExtResource("37_0cp0l"), ExtResource("38_d2t1y"), ExtResource("42_qnost"), ExtResource("49_jx0wj"), ExtResource("50_kkkcx")])
-selected_color = Color(0.156863, 1, 1, 0.627451)
-portrait_texture = ExtResource("21_lswn8")
-
-[node name="SkillInstance" type="Node" parent="TieflingWizard/Skills" index="0"]
-script = ExtResource("50_sm6fg")
-skill_data = ExtResource("51_b17eg")
-metadata/_custom_type_script = "uid://b3gvuamt478hc"
-
-[node name="SkillInstance2" type="Node" parent="TieflingWizard/Skills" index="1"]
-script = ExtResource("50_sm6fg")
-skill_data = ExtResource("52_ntx8l")
-metadata/_custom_type_script = "uid://b3gvuamt478hc"
-
-[node name="SkillInstance3" type="Node" parent="TieflingWizard/Skills" index="2"]
-script = ExtResource("50_sm6fg")
-skill_data = ExtResource("52_cyx1q")
-levels_purchased = 7
-metadata/_custom_type_script = "uid://b3gvuamt478hc"
-
-[node name="OutlineMesh" parent="TieflingWizard" index="2"]
-material_override = SubResource("ShaderMaterial_rqtf5")
-
-[node name="HumanBarbarian" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.5, -8)
-display_name = "Human Barbarian"
-strength = 16
-dexterity = 16
-health = 16
-current_hp = 16
-maximum_fp = 16
-current_fp = 16
-move = 27
-move_speed = 5.0
-damage_reduction = 1
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf")])
-selected_color = Color(0.156863, 1, 1, 0.627451)
-portrait_texture = ExtResource("5_efxa6")
-
-[node name="DwarfFighter" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0.5, -8)
-display_name = "Dwarf Fighter"
-strength = 14
-dexterity = 16
-maximum_hp = 14
-current_hp = 14
-move = 27
-move_speed = 5.0
-damage_reduction = 1
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("10_yaehf")])
-selected_color = Color(0.156863, 1, 1, 0.627451)
-portrait_texture = ExtResource("6_dg77c")
-
-[node name="ElfRanger" parent="." instance=ExtResource("3_7mycd")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.5, -8)
-display_name = "Elf Ranger"
-dexterity = 18
-move = 27
-move_speed = 5.0
-abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])
-dialogue_options = Array[ExtResource("63_dlgrootopt")]([SubResource("Resource_testnpc_dlgopt")])
-selected_color = Color(0.156863, 1, 1, 0.627451)
-portrait_texture = ExtResource("7_ycdy4")
 
 [node name="Scared Townperson" parent="." instance=ExtResource("3_7mycd")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.5, -23.5)

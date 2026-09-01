@@ -8,67 +8,73 @@ extends GameArea
 var _goblinoids_remaining: Array[Unit] = []
 
 
-## Bootstrap content, not a permanent architectural constraint — the 3
-## non-leader companions are hand-placed today because that's how every
-## unit in this project has been authored so far, not because
-## PartyManager.members requires it. A future debug add/remove menu can
-## add to (or remove from) this same roster at runtime without needing a
-## party member to have ever been placed in this scene at all — see
-## _build_leader() below, which already proves that shape for real.
+## The four the game starts with, and where they stand relative to
+## PartySpawnPoint. The offsets reproduce exactly the positions the
+## hand-placed nodes used to occupy.
+const COMPANIONS: Array[String] = [
+	"res://data/companions/tiefling_wizard.tres",
+	"res://data/companions/human_barbarian.tres",
+	"res://data/companions/dwarf_fighter.tres",
+	"res://data/companions/elf_ranger.tres",
+]
+const COMPANION_OFFSETS: Array[Vector3] = [
+	Vector3(0.0, 0.0, 0.0),
+	Vector3(-9.0, 0.0, 0.0),
+	Vector3(-6.0, 0.0, 0.0),
+	Vector3(-3.0, 0.0, 0.0),
+]
+
+
 func _ready() -> void:
 	_watch_goblinoid_raid_quest()
 
-	# Bootstrap-only: on a genuinely fresh load (nothing captured from a
-	# prior world), this scene builds the starting roster from its own
-	# hand-placed content, same as before WorldManager existed. On a
-	# RELOAD of this same scene, WorldManager is about to spawn_party() a
-	# captured roster the instant this _ready() returns (spawn_party()
-	# needs this scene already in the tree, so it can't run any earlier)
-	# — is_restoring_party() is what lets this scene tell the difference.
-	# The 4 hand-placed party nodes below are a ONE-TIME bootstrap, not
-	# permanent scene content: on a reload they'd otherwise sit in the
-	# tree as unregistered duplicates of whatever spawn_party() is about
-	# to create from the captured data, so they're freed instead.
+	# There is nothing to free any more. The starting party used to be four
+	# hand-placed nodes in this scene, which meant every reload had to
+	# delete them before spawn_party() could rebuild the captured roster
+	# over the top — see this file's history. They are data now, so a
+	# reload simply does not build them.
 	if WorldManager.is_restoring_party():
-		$TieflingWizard.queue_free()
-		$HumanBarbarian.queue_free()
-		$DwarfFighter.queue_free()
-		$ElfRanger.queue_free()
-	else:
-		var leader: Unit = _build_leader()
-		PartyManager.add_member(leader)
-		PartyManager.add_member($HumanBarbarian)
-		PartyManager.add_member($DwarfFighter)
-		PartyManager.add_member($ElfRanger)
-		PartyManager.set_leader(leader)
+		return
+
+	var leader: Unit = _build_leader()
+	PartyManager.add_member(leader)
+	for i in range(1, COMPANIONS.size()):
+		PartyManager.add_member(_spawn_companion(i))
+	PartyManager.set_leader(leader)
 
 
-## Returns the real leader Unit for this session — deliberately NOT the
-## same thing as "reuse whatever's already hand-placed in the scene."
-## If a character was actually created (see PartyManager.pending_leader,
-## written by character_creation.gd on Confirm), this spawns a genuinely
-## FRESH unit via PartyManager.spawn_member() (the same instantiate-and-
-## cascade path a full world reload uses — see PartyManager's own capture/
-## spawn header) and frees the hand-placed TieflingWizard node outright —
-## she was only ever a bootstrap placeholder standing in for "the
-## leader," never a specific story character, so keeping her around
-## unused once a real one exists would just be a second, silent unit
-## nobody asked for.
+## The real leader for this session: the character chargen produced if
+## there is one, and the authored wizard otherwise.
 ##
-## Falls back to the hand-placed TieflingWizard, completely untouched,
-## if chargen was never run (loading straight into this scene for a
-## headless test, e.g.) — that fallback has to keep working exactly as
-## it did before this existed.
+## The fallback is not a placeholder standing in for a story character any
+## more — it is a companion definition like the other three, spawned the
+## same way. That fallback has to keep working: a headless test loading
+## straight into this scene never runs chargen.
 func _build_leader() -> Unit:
-	var placeholder: Unit = $TieflingWizard
+	if PartyManager.pending_leader:
+		var made: Unit = PartyManager.spawn_member(
+			PartyManager.pending_leader, self, $PartySpawnPoint)
+		PartyManager.pending_leader = null
+		return made
+	return _spawn_companion(0)
 
-	if not PartyManager.pending_leader:
-		return placeholder
 
-	var leader: Unit = PartyManager.spawn_member(PartyManager.pending_leader, self, placeholder)
-	placeholder.queue_free()
-	PartyManager.pending_leader = null
-	return leader
+## One companion, built from its definition.
+##
+## persistent_id is stamped from the definition's own id rather than left
+## to be minted at first capture. An authored party member that arrives
+## without one is exactly the case PartyManager.capture() calls out, and
+## leaving it to chance is how two units ended up answering to the same id.
+func _spawn_companion(index: int) -> Unit:
+	var definition: UnitDefinition = load(COMPANIONS[index])
+	var unit: Unit = definition.unit_scene.instantiate()
+	# BEFORE add_child: Unit._enter_tree is what adopts the body a
+	# definition names.
+	unit.definition = definition
+	unit.persistent_id = StringName("companion_%s" % definition.id)
+	add_child(unit)
+	unit.position = ($PartySpawnPoint as Node3D).position + COMPANION_OFFSETS[index]
+	return unit
 
 
 ## Connected unconditionally at scene start, NOT through the debug combat

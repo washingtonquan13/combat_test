@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=4 uid="uid://dfjhg20p6pvxm"]
+[gd_scene load_steps=7 format=3 uid="uid://dfjhg20p6pvxm"]
 
 [ext_resource type="Script" uid="uid://dp2k8mbhvm6v0" path="res://systems/unit_system/unit.gd" id="1_ctwoc"]
 [ext_resource type="Script" uid="uid://dilgwwepmjg6q" path="res://systems/unit_system/unit_animator.gd" id="3_5wnup"]
@@ -36,4 +36,3 @@ unit = NodePath("..")
 [node name="UnitSFX" type="Node" parent="." node_paths=PackedStringArray("unit")]
 script = ExtResource("6_74e6i")
 unit = NodePath("..")
-

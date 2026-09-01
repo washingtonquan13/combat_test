@@ -54,6 +54,11 @@ extends CharacterBody3D
 			vision_cone_degrees = definition.vision_cone_degrees
 			max_sight_range = definition.max_sight_range
 			proximity_radius = definition.proximity_radius
+			alignment = definition.alignment
+			tendency = definition.tendency
+			move_speed = definition.move_speed
+			selected_color = definition.selected_color
+			dialogue_options = definition.dialogue_options
 ## The name shown to the player — combat log, character sheet, dialogue,
 ## negotiation. Deliberately separate from this node's own scene-tree
 ## .name: that's Godot's own structural identifier (what a $NodePath
@@ -682,6 +687,8 @@ func _ready() -> void:
 	if not _pending_state.is_empty():
 		_apply_pending_state()
 
+	_apply_definition_skills()
+
 	_action_state.became_idle.connect(func(): became_idle.emit())
 	_selection.hover_started.connect(func(): hover_started.emit(self))
 	_selection.hover_ended.connect(func(): hover_ended.emit(self))
@@ -982,6 +989,40 @@ func notify_movement_idle_check() -> void:
 
 ## Called by CombatManager when this unit's turn begins. Refills the move
 ## budget from the `move` stat and clears the attack flag.
+## Gives this unit the skills its definition lists, once the machinery
+## that can hold them exists.
+##
+## Not part of the definition cascade, and it cannot be: a SkillInstance is
+## a NODE that UnitSkills reparents, and UnitSkills is built in _ready —
+## while the cascade runs the moment `definition` is assigned, usually on a
+## unit that is not in the tree yet.
+##
+## Skipped entirely when the unit already has skills of its own. During the
+## migration away from hand-placed party members, a scene can still author
+## SkillInstance children directly (test_arena's wizard has three), and a
+## definition listing the same ones would hand her a second copy of each
+## rather than replacing them. The scene wins while it still has an
+## opinion; when those nodes go, the definition is all that is left.
+func _apply_definition_skills() -> void:
+	if definition == null or definition.skills.is_empty():
+		return
+
+	var home: Node = get_node_or_null("Skills")
+	if home == null or home.get_child_count() > 0:
+		return
+
+	for record in definition.skills:
+		if record == null or record.skill == null:
+			continue
+		var instance := SkillInstance.new()
+		instance.skill_data = record.skill
+		instance.levels_purchased = record.levels_purchased
+		# Parented before add_skill, which reparents it — the same order
+		# PartyManager.spawn_member uses, and for the same reason.
+		add_child(instance)
+		add_skill(instance)
+
+
 func reset_turn_actions() -> void:
 	_action_state.reset_turn_actions(float(move))
 

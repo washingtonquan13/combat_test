@@ -283,6 +283,12 @@ func _a_fight_resumes_where_it_was_left() -> void:
 	fight._turn_index = 1
 	fight.round_number = 3
 	fight.current_unit.move_remaining = 1.75
+	# Held on to so the resume can be checked for IDENTITY and not just for
+	# a matching id. CombatManager._find_by_id returns the FIRST unit in the
+	# tree carrying an id, so a duplicate resolves silently to the wrong
+	# instance — one that has never had a turn, and whose move_remaining is
+	# therefore its untouched 0.0 default.
+	var acting: Unit = fight.current_unit
 
 	var expected_order: Array = []
 	for unit in fight.turn_order:
@@ -327,6 +333,10 @@ func _a_fight_resumes_where_it_was_left() -> void:
 		"resumed on somebody else")
 	check("in the same round", resumed.round_number == expected_round,
 		"round %d, expected %d" % [resumed.round_number, expected_round])
+
+	check("and it comes back around the same unit, not a lookalike",
+		resumed.current_unit == acting,
+		"same persistent_id, different instance — two units are answering to it")
 
 	# Turn economy belongs to the UNIT, not the encounter — the point of
 	# keeping it out of save_state is that it comes back anyway.

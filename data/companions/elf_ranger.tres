@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="3_model"]
+[ext_resource type="Texture2D" path="res://assets/portraits/elf_archer.jpg" id="4_portrait"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="5_ability"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_ranged.tres" id="a0"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="a1"]
+[ext_resource type="Resource" path="res://data/abilities/jump.tres" id="a2"]
+[ext_resource type="Script" path="res://systems/dialogue_system/dialogue_root_option.gd" id="dlgopt"]
+[ext_resource type="Resource" path="res://data/dialogue/test_npc/greeting.tres" id="dlgroot"]
+
+[sub_resource type="Resource" id="dlg0"]
+script = ExtResource("dlgopt")
+root = ExtResource("dlgroot")
+
+[resource]
+script = ExtResource("1_def")
+id = "elf_ranger"
+display_name = "Elf Ranger"
+dexterity = 18
+move = 27
+max_fp = 10
+faction = &"player"
+portrait_texture = ExtResource("4_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("3_model")
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2")])
+
+move_speed = 5.0
+selected_color = Color(0.156863, 1, 1, 0.627451)
+dialogue_options = Array[ExtResource("dlgopt")]([SubResource("dlg0")])

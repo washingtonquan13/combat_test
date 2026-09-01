@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="3_model"]
+[ext_resource type="Texture2D" path="res://assets/portraits/barbarian.jpg" id="4_portrait"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="5_ability"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="a0"]
+
+[resource]
+script = ExtResource("1_def")
+id = "human_barbarian"
+display_name = "Human Barbarian"
+strength = 16
+dexterity = 16
+health = 16
+move = 27
+max_fp = 16
+damage_reduction = 1
+faction = &"player"
+portrait_texture = ExtResource("4_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("3_model")
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0")])
+
+max_hp = 16
+move_speed = 5.0
+selected_color = Color(0.156863, 1, 1, 0.627451)

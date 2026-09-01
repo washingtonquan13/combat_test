@@ -76,8 +76,3 @@ move = 14
 abilities = Array[ExtResource("2_4uwdf")]([ExtResource("3_iyx1s"), ExtResource("4_m3o4p"), ExtResource("5_4oheh"), ExtResource("6_f6t7d"), ExtResource("7_tl1uc"), ExtResource("8_4oheh"), ExtResource("9_f6t7d")])
 portrait_texture = ExtResource("8_iyx1s")
 
-[node name="OutlineMesh" parent="." index="2"]
-material_override = SubResource("ShaderMaterial_5vvy1")
-mesh = SubResource("ArrayMesh_liq4q")
-
-[editable path="CharacterModel"]

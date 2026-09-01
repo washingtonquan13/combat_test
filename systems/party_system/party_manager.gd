@@ -662,6 +662,15 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 		scene = record.definition.unit_scene
 
 	var unit: Unit = scene.instantiate()
+	# BEFORE add_child. Unit._enter_tree is what adopts the body a
+	# definition names, so assigning it afterwards hands over a body
+	# nothing will ever read — and every party member restored from a
+	# roster came back with no mesh at all. Invisible, through world
+	# travel, every save load, and every reload of the same area, and
+	# nothing reported it: a bodiless unit walks and fights normally.
+	if record.definition:
+		unit.definition = record.definition
+
 	world.add_child(unit)
 	unit.global_transform = spawn_point.global_transform
 
@@ -673,9 +682,9 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	else:
 		unit.persistent_id = record.id
 
-	if record.definition:
-		unit.definition = record.definition
-
+	# The record's own values are applied after the definition cascade
+	# above, so an explicitly recorded stat still wins over the species
+	# default — which is the same order this has always used.
 	unit.display_name = record.display_name
 	unit.portrait_texture = record.portrait_texture
 	unit.faction = record.faction
