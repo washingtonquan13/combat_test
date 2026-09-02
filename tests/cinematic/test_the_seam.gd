@@ -35,9 +35,7 @@ func run() -> void:
 		"play(null) either returned true or left the director active")
 
 	# --- the mode claim ------------------------------------------------
-	var scene := CinematicScene.new()
-	scene.id = &"test_seam"
-	scene.hold_seconds = HOLD
+	var scene := _holding(&"test_seam", HOLD)
 
 	var before: GameMode.Mode = GameMode.current_mode()
 	_drive(scene)
@@ -114,11 +112,9 @@ func run() -> void:
 ## anyone listening is emit world_loading(null) on its first line, which is
 ## what is reproduced here.
 func _a_world_teardown_releases_the_caller() -> void:
-	var scene := CinematicScene.new()
-	scene.id = &"test_interrupted"
 	# Long enough that returning promptly can only mean it was cut short,
 	# never that it simply finished.
-	scene.hold_seconds = 5.0
+	var scene := _holding(&"test_interrupted", 5.0)
 
 	_returned = false
 	_drive(scene)
@@ -142,6 +138,18 @@ func _a_world_teardown_releases_the_caller() -> void:
 	check("and nothing is left holding the mode",
 		not CinematicDirector.is_active() and GameMode.current_mode() != GameMode.Mode.CUTSCENE,
 		"the director still claims the screen after aborting")
+
+
+## A scene that occupies time and does nothing else — one phase, no steps.
+## The seam is about claiming and releasing the screen, not about what
+## happens while it is claimed.
+func _holding(id: StringName, seconds: float) -> CinematicScene:
+	var beat := ScenePhase.new()
+	beat.duration_seconds = seconds
+	var scene := CinematicScene.new()
+	scene.id = id
+	scene.phases = [beat]
+	return scene
 
 
 ## Starts play() without awaiting it, so the test can look at the game

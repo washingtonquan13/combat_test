@@ -1,7 +1,7 @@
 [gd_scene load_steps=36 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
-[ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
 [ext_resource type="Script" uid="uid://bwtn55jbtliv4" path="res://systems/selection_system/drag_select_box.gd" id="3_lquwl"]
 [ext_resource type="PackedScene" uid="uid://caf7q4n41fgu5" path="res://ui/unit_portrait.tscn" id="4_272bh"]
 [ext_resource type="Script" uid="uid://dco3xcx22f26n" path="res://systems/combat_system/initiative_row.gd" id="5_dg77c"]
@@ -50,8 +50,8 @@ mouse_filter = 2
 
 [node name="SceneRoot" type="Node3D" parent="."]
 
-[node name="DialogueCameraRig" type="Node3D" parent="."]
-script = ExtResource("2_dlgcamrig")
+[node name="CinematicCamera" type="Node3D" parent="."]
+script = ExtResource("2_cinecam")
 
 [node name="GroundClickTarget" type="Node3D" parent="."]
 script = ExtResource("23_groundclick")

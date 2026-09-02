@@ -39,7 +39,7 @@ func _ready() -> void:
 	# mouse event at all. It draws over the 3D and under the HUD there,
 	# which is where a selection box belongs anyway.
 	var attention: Array[Node] = [
-		$Indicators, $GroundClickTarget, $DialogueCameraRig, $CanvasLayer/DragSelectBox,
+		$Indicators, $GroundClickTarget, $CinematicCamera, $CanvasLayer/DragSelectBox,
 	]
 	WorldManager.register_attention_nodes(attention)
 	# Heads turn toward whoever is speaking. Created here rather than
@@ -49,6 +49,12 @@ func _ready() -> void:
 	# editor and nothing else. Move it into the scene if that visibility
 	# ever turns out to be worth having.
 	add_child(DialogueGaze.new())
+	# Frames the speaker, by asking the cinematic director like any other
+	# caller. Created here for the same reason as DialogueGaze: it renders
+	# nothing and owns no transform. The CAMERA it drives is a real node
+	# above, because that one does have a transform and has to ride into
+	# whichever viewport is being looked at.
+	add_child(DialogueStaging.new())
 
 	# The TACTICAL HUD subtree, not the CanvasLayer — see
 	# UIStack.register_hud()'s own header for why that distinction is

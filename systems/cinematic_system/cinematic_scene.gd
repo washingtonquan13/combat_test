@@ -7,16 +7,33 @@ extends Resource
 ## means a .tscn, and a Resource called Scene that is not a PackedScene
 ## would read as one at every call site.
 ##
-## PHASE 0 STUB. The plan (see the cinematic director build plan, draft 3)
-## gives this roles and an Array[ScenePhase], each phase carrying steps at
-## offsets and a duration source of vfx/clip/fixed/line. None of that is
-## here yet, because phase 0 is only the seam — the point of building it
-## alone is that a wrong seam is invisible and expensive later.
-##
-## `hold_seconds` is the one concession: a scene that occupies no time
-## cannot be caught in CUTSCENE mode by any test, so the seam would be
-## unobservable and phase 0 would prove nothing. It is the degenerate case
-## of a fixed-duration phase and phase 1 subsumes it.
+## Ordered phases, each with its own span of time and steps at offsets
+## inside it (see ScenePhase for why the phase is the atom rather than the
+## step). A conversation is the degenerate case: one phase, no duration,
+## one camera step at offset zero — which is how dialogue gets staging
+## without a bypass around this file.
 
 @export var id: StringName = &""
-@export var hold_seconds: float = 0.0
+@export var phases: Array[ScenePhase] = []
+
+
+## Steps that can never fire, across the whole scene. Empty is correct.
+func unreachable_steps() -> Array[SceneStep]:
+	var lost: Array[SceneStep] = []
+	for phase in phases:
+		if phase:
+			lost.append_array(phase.unreachable_steps())
+	return lost
+
+
+func describe() -> String:
+	var parts: PackedStringArray = []
+	for phase in phases:
+		if phase == null:
+			continue
+		var beats: PackedStringArray = []
+		for step in phase.steps:
+			if step:
+				beats.append(step.describe())
+		parts.append("[%.2fs: %s]" % [phase.duration_seconds, ", ".join(beats)])
+	return "%s %s" % [id, " -> ".join(parts)]
