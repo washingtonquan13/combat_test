@@ -129,6 +129,42 @@ enum Anchor { HEAD, EYE, CHEST, GROUND }
 ## The feet. Selection rings, decals, anything that sits on the floor.
 @export var ground_anchor: Node3D
 
+@export_group("Gaze")
+## The bone modifier that turns this body's head toward what it is looking
+## at. Optional, and null is a real answer meaning "this body does not
+## track anything" — a floating orb has no neck to turn.
+##
+## DECLARE ONE for any body whose rig is not a Godot humanoid. bone_name
+## and forward_axis are per-rig facts: the bone may not be called "Head",
+## and a body's head can face down any axis its artist chose. The fallback
+## below guesses both, and a guess is exactly what anchor_position's own
+## header warns against for the same reason.
+@export var look_at_modifier: LookAtModifier3D
+
+## What the fallback drives, when the body has not declared a modifier.
+## The standard name in Godot's humanoid bone profile.
+const FALLBACK_GAZE_BONE: StringName = &"Head"
+## How long the head takes to come around. Handled by the modifier itself
+## rather than by a Tween here.
+const GAZE_TURN_SECONDS: float = 0.25
+## How far the head may turn before it stops following.
+##
+## LookAtModifier3D enables no limit by default — use_angle_limitation is
+## off, and turning it on alone changes nothing because both limit angles
+## sit at 2*PI. Left that way, someone speaking from behind rotates a head
+## the full way round. It never shows in a two-person conversation where
+## the participants face each other, which is exactly why it would ship.
+##
+## A neck manages roughly 70 degrees of yaw and 45 of pitch before the
+## shoulders have to help. Past that the gaze simply stops following,
+## which reads as "they cannot see you" rather than as an owl.
+const GAZE_YAW_LIMIT_DEGREES: float = 70.0
+const GAZE_PITCH_LIMIT_DEGREES: float = 45.0
+
+var _gaze_modifier: LookAtModifier3D = null
+var _gaze_resolved: bool = false
+var _gaze_point: Node3D = null
+
 
 ## The AnimationPlayer to drive, falling back to a search when the export
 ## is unset.
@@ -188,3 +224,111 @@ func _fallback_ratio(kind: Anchor) -> float:
 		Anchor.CHEST: return 0.55
 		Anchor.GROUND: return 0.0
 	return 0.0
+
+
+## Turn this body's head toward `target`. Returns whether it could.
+##
+## False is normal, not an error: a body with no rig, no Head bone and no
+## declared modifier simply does not track, and every caller is expected to
+## carry on without it. That is the whole degradation story — no warning,
+## no fallback rotation applied to the root, nothing that would make a
+## bodyless unit spin.
+func gaze_at(target: Node3D) -> bool:
+	var modifier: LookAtModifier3D = _resolve_gaze_modifier()
+	if modifier == null or not is_instance_valid(target):
+		return false
+	modifier.target_node = modifier.get_path_to(target)
+	modifier.influence = 1.0
+	return true
+
+
+## Release the head back to whatever the animation is doing.
+##
+## Influence drops in one step rather than easing, so a body holding a
+## strong turn will snap. Acceptable today because gaze ends when a
+## conversation does, and the camera cuts away on the same frame — but it
+## is the first thing to fix if a gaze ever ends while the shot holds.
+func stop_gazing() -> void:
+	if is_instance_valid(_gaze_modifier):
+		_gaze_modifier.influence = 0.0
+
+
+## The node OTHER bodies should aim at to look this one in the face.
+##
+## A Node3D rather than a position, because LookAtModifier3D tracks a node
+## and re-reads it every frame — which is what lets a gaze follow someone
+## who is walking. Prefers the declared head anchor; otherwise places a
+## marker at the same fallback proportion anchor_position uses, so the two
+## can never disagree about where a face is.
+func gaze_point() -> Node3D:
+	if is_instance_valid(head_anchor):
+		return head_anchor
+	if is_instance_valid(_gaze_point):
+		return _gaze_point
+	_gaze_point = Marker3D.new()
+	_gaze_point.name = "GazePoint"
+	add_child(_gaze_point)
+	_gaze_point.position = Vector3(0.0, height * _fallback_ratio(Anchor.HEAD), 0.0)
+	return _gaze_point
+
+
+## Resolved once and cached, including the null answer — a body with no
+## skeleton must not re-walk its whole subtree on every line of dialogue.
+func _resolve_gaze_modifier() -> LookAtModifier3D:
+	if _gaze_resolved:
+		return _gaze_modifier
+	_gaze_resolved = true
+	if is_instance_valid(look_at_modifier):
+		_gaze_modifier = look_at_modifier
+	else:
+		_gaze_modifier = _build_fallback_gaze()
+	return _gaze_modifier
+
+
+## Built at runtime rather than authored, and never saved to the scene.
+##
+## A SkeletonModifier3D has to be a child of the Skeleton3D it drives, so
+## this cannot live on CharacterModel itself — and adding it here rather
+## than in every model scene is what makes the capability arrive for free
+## on bodies nobody has hand-edited. Same standing as anchor_position's
+## proportions: right for a humanoid, wrong for anything else, and
+## overruled by declaring a real modifier.
+func _build_fallback_gaze() -> LookAtModifier3D:
+	var skeleton: Skeleton3D = _find_skeleton(self)
+	if skeleton == null or skeleton.find_bone(FALLBACK_GAZE_BONE) == -1:
+		return null
+	var made := LookAtModifier3D.new()
+	made.name = "FallbackGaze"
+	skeleton.add_child(made)
+	# THE BONE INDEX, NOT THE NAME — defensively, not as a bug fix.
+	#
+	# A SkeletonModifier3D resolves bone_name through get_skeleton(), and
+	# get_skeleton() is null until the modifier's own tree entry has been
+	# processed. When the skeleton is ALREADY in the tree, as it is here,
+	# add_child() fires that synchronously and bone_name resolves fine —
+	# measured, not assumed. It comes back -1 only when the skeleton is
+	# itself still entering, which this path never does.
+	#
+	# The index is nonetheless what gets assigned, because it cannot depend
+	# on that timing at all and it is already in hand from the guard above.
+	made.bone = skeleton.find_bone(FALLBACK_GAZE_BONE)
+	made.duration = GAZE_TURN_SECONDS
+	# primary is yaw (rotation about Y, the modifier's own default) and
+	# secondary is pitch. symmetry_limitation is already true, so one angle
+	# covers turning both ways.
+	made.use_angle_limitation = true
+	made.primary_limit_angle = deg_to_rad(GAZE_YAW_LIMIT_DEGREES)
+	made.secondary_limit_angle = deg_to_rad(GAZE_PITCH_LIMIT_DEGREES)
+	# Inert until something actually asks for a gaze.
+	made.influence = 0.0
+	return made
+
+
+func _find_skeleton(node: Node) -> Skeleton3D:
+	for child in node.get_children():
+		if child is Skeleton3D:
+			return child
+		var deeper: Skeleton3D = _find_skeleton(child)
+		if deeper:
+			return deeper
+	return null

@@ -646,6 +646,28 @@ func anchor(kind: CharacterModel.Anchor) -> Vector3:
 	return global_position + Vector3(0.0, height * _anchor_fallback(kind), 0.0)
 
 
+## Turn this unit's head toward `target`, if its body can. See
+## CharacterModel.gaze_at — false simply means this body does not track,
+## which is a normal answer and not worth reporting.
+func gaze_at(target: Node3D) -> bool:
+	var body := get_node_or_null("CharacterModel") as CharacterModel
+	return body.gaze_at(target) if body else false
+
+
+func stop_gazing() -> void:
+	var body := get_node_or_null("CharacterModel") as CharacterModel
+	if body:
+		body.stop_gazing()
+
+
+## What someone looking at THIS unit should aim at, or null if it has no
+## body to aim at. A node rather than a point, so a gaze keeps following
+## while its subject walks.
+func gaze_point() -> Node3D:
+	var body := get_node_or_null("CharacterModel") as CharacterModel
+	return body.gaze_point() if body else null
+
+
 func _anchor_fallback(kind: CharacterModel.Anchor) -> float:
 	match kind:
 		CharacterModel.Anchor.HEAD: return 0.85

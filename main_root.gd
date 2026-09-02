@@ -42,6 +42,14 @@ func _ready() -> void:
 		$Indicators, $GroundClickTarget, $DialogueCameraRig, $CanvasLayer/DragSelectBox,
 	]
 	WorldManager.register_attention_nodes(attention)
+	# Heads turn toward whoever is speaking. Created here rather than
+	# authored into MainRoot.tscn because it renders nothing and owns no
+	# transform — it only reads DialogueManager's signals and sets a bone
+	# modifier's influence, so a scene node would buy visibility in the
+	# editor and nothing else. Move it into the scene if that visibility
+	# ever turns out to be worth having.
+	add_child(DialogueGaze.new())
+
 	# The TACTICAL HUD subtree, not the CanvasLayer — see
 	# UIStack.register_hud()'s own header for why that distinction is
 	# load-bearing rather than cosmetic.
