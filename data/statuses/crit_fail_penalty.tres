@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="StatusEffect" load_steps=5 format=3 uid="uid://c1dsybofjhajv"]
 
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="1_behavior"]
-[ext_resource type="Script" path="res://systems/ability_system/outgoing_attack_modifier_behavior.gd" id="2_penalty"]
+[ext_resource type="Script" uid="uid://bl6ho0f6egol0" path="res://systems/ability_system/outgoing_attack_modifier_behavior.gd" id="2_penalty"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="3_status"]
 
 [sub_resource type="Resource" id="Resource_penalty"]
