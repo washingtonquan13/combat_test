@@ -196,7 +196,9 @@ func _on_leader_changed(_unit: Unit) -> void:
 ## members being empty and roster non-empty means the new world opted out
 ## of spawning (spawns_party() -> false, the overworld) and this is the
 ## ONLY signal telling the panel to render data-only rows instead.
-func _on_world_loaded(_world: Node) -> void:
+## Ignores `reason`: the rows describe who is in the party and what world
+## they landed in, which is the same question however the world got here.
+func _on_world_loaded(_world: Node, _reason: WorldManager.Entry) -> void:
 	_sync_rows()
 
 

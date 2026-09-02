@@ -357,7 +357,12 @@ func _on_combat_ended(_winning_faction: StringName) -> void:
 ## let the existing anchor/yaw/distance easing carry the camera to them
 ## (the "swagger" glide, not a snap), then hand control back once
 ## _physics_process below detects it's actually arrived.
-func _on_world_loaded(world: Node) -> void:
+## Ignores `reason` on purpose: the ancestor check below already scopes
+## this to the camera inside the world that was built, so a restore that
+## builds several worlds still only moves each one's own camera — and a
+## world arrived at out of a save deserves the same framing on its leader
+## as one walked into.
+func _on_world_loaded(world: Node, _reason: WorldManager.Entry) -> void:
 	if not world.is_ancestor_of(self):
 		return
 	if not PartyManager.leader:
