@@ -81,7 +81,7 @@ extends Resource
 
 @export var portrait_texture: Texture2D
 ## A Unit-derived scene — almost always the one shared, generic
-## res://unit.tscn (see this file's own header); kept as a field rather
+## res://systems/unit_system/unit.tscn (see this file's own header); kept as a field rather
 ## than hardcoded so a distinct body archetype remains possible later
 ## without another schema change.
 @export var unit_scene: PackedScene

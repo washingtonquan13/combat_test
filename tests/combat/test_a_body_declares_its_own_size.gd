@@ -125,7 +125,7 @@ func _spawn_wearing(model: PackedScene) -> Unit:
 	definition.max_hp = 20
 	definition.faction = &"player"
 
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	unit.definition = definition
 	_root.add_child(unit)
 	var abilities: Array[Ability] = [melee()]

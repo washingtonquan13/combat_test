@@ -1,0 +1,162 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/character_creation_system/character_creation.gd" id="1_charcreate"]
+
+[node name="CharacterCreation" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_charcreate")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.08, 0.08, 0.1, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 24
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Margin/Root"]
+layout_mode = 2
+text = "CREATE YOUR CHARACTER"
+
+[node name="Tabs" type="TabContainer" parent="Margin/Root"]
+custom_minimum_size = Vector2(0, 520)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Basics" type="VBoxContainer" parent="Margin/Root/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NameRow" type="HBoxContainer" parent="Margin/Root/Tabs/Basics"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="Margin/Root/Tabs/Basics/NameRow"]
+layout_mode = 2
+text = "Name:"
+
+[node name="NameEdit" type="LineEdit" parent="Margin/Root/Tabs/Basics/NameRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+placeholder_text = "Enter a name"
+
+[node name="Portrait" type="HBoxContainer" parent="Margin/Root/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="PortraitGridScroll" type="ScrollContainer" parent="Margin/Root/Tabs/Portrait"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="PortraitGrid" type="GridContainer" parent="Margin/Root/Tabs/Portrait/PortraitGridScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 5
+
+[node name="PreviewPanel" type="VBoxContainer" parent="Margin/Root/Tabs/Portrait"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="PreviewLabel" type="Label" parent="Margin/Root/Tabs/Portrait/PreviewPanel"]
+layout_mode = 2
+text = "Selected"
+
+[node name="PreviewFrame" type="Control" parent="Margin/Root/Tabs/Portrait/PreviewPanel"]
+custom_minimum_size = Vector2(160, 200)
+layout_mode = 2
+
+[node name="PreviewTexture" type="TextureRect" parent="Margin/Root/Tabs/Portrait/PreviewPanel/PreviewFrame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Attributes" type="VBoxContainer" parent="Margin/Root/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AttributesHeader" type="Label" parent="Margin/Root/Tabs/Attributes"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ATTRIBUTES"
+
+[node name="AttributesList" type="VBoxContainer" parent="Margin/Root/Tabs/Attributes"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Skills" type="VBoxContainer" parent="Margin/Root/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SkillsHeader" type="Label" parent="Margin/Root/Tabs/Skills"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "SKILLS"
+
+[node name="SkillsScroll" type="ScrollContainer" parent="Margin/Root/Tabs/Skills"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SkillsList" type="VBoxContainer" parent="Margin/Root/Tabs/Skills/SkillsScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="ButtonRow" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="BackButton" type="Button" parent="Margin/Root/ButtonRow"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+text = "BACK"
+
+[node name="ConfirmButton" type="Button" parent="Margin/Root/ButtonRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 36)
+layout_mode = 2
+disabled = true
+text = "BEGIN ADVENTURE"
+
+[connection signal="text_changed" from="Margin/Root/Tabs/Basics/NameRow/NameEdit" to="." method="_on_name_text_changed"]
+[connection signal="pressed" from="Margin/Root/ButtonRow/BackButton" to="." method="_on_back_pressed"]
+[connection signal="pressed" from="Margin/Root/ButtonRow/ConfirmButton" to="." method="_on_confirm_pressed"]

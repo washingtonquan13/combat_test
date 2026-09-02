@@ -26,7 +26,7 @@ const CARDINALS := [
 
 
 func run() -> void:
-	var avatar: OverworldAvatar = preload("res://overworld_avatar.tscn").instantiate()
+	var avatar: OverworldAvatar = preload("res://world/overworld_avatar.tscn").instantiate()
 	_root.add_child(avatar)
 	var camera := OverworldCamera.new()
 	_root.add_child(camera)

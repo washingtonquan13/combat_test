@@ -161,7 +161,7 @@ func _a_move_order_replaces_the_one_in_flight() -> void:
 ## inside could have helped. Reported from play as a crash while
 ## clicking quickly during a fight.
 func _the_initiative_row_survives_a_freed_combatant() -> void:
-	var row: HBoxContainer = load("res://initiative_row.gd").new()
+	var row: HBoxContainer = load("res://systems/combat_system/initiative_row.gd").new()
 	_root.add_child(row)
 
 	# A fight whose turn_order holds one live unit and one freed one.
@@ -220,7 +220,7 @@ func _try_refresh(row: Node) -> void:
 ## player clicked somebody. Travelling clears the selection, so the row
 ## had nothing to key on while a battle was going on in front of them.
 func _the_row_shows_a_fight_nobody_selected() -> void:
-	var row: HBoxContainer = load("res://initiative_row.gd").new()
+	var row: HBoxContainer = load("res://systems/combat_system/initiative_row.gd").new()
 	_root.add_child(row)
 
 	SelectionManager.deselect_all()

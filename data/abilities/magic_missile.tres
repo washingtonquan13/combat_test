@@ -6,11 +6,11 @@
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://systems/ability_system/ranged_enemy_targeting.gd" id="3_targ"]
 [ext_resource type="Script" uid="uid://l0qndk2gae1o" path="res://systems/ability_system/damage_effect.gd" id="4_dmg"]
 [ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="5_time"]
-[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://vfx_effect.gd" id="6_vfxe"]
-[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://vfx_step.gd" id="7_step"]
-[ext_resource type="Script" uid="uid://cj6o5nktqa6n8" path="res://pathed_projectile_step.gd" id="8_path"]
-[ext_resource type="PackedScene" path="res://magic_missile_projectile.tscn" id="9_proj"]
-[ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://impact_signal_step.gd" id="10_imp"]
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="6_vfxe"]
+[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="7_step"]
+[ext_resource type="Script" uid="uid://cj6o5nktqa6n8" path="res://systems/ability_system/pathed_projectile_step.gd" id="8_path"]
+[ext_resource type="PackedScene" path="res://systems/ability_system/magic_missile_projectile.tscn" id="9_proj"]
+[ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://systems/ability_system/impact_signal_step.gd" id="10_imp"]
 
 [sub_resource type="Resource" id="Resource_path"]
 script = ExtResource("8_path")

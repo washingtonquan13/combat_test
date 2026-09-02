@@ -226,7 +226,7 @@ func _restore_globals() -> void:
 
 
 func _install_party_overview() -> void:
-	_overview = preload("res://party_overview.tscn").instantiate()
+	_overview = preload("res://ui/party_overview.tscn").instantiate()
 	_root.add_child(_overview)
 
 

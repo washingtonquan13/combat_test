@@ -2,7 +2,7 @@
 
 [ext_resource type="Resource" uid="uid://byp3tywn7mkxg" path="res://data/music/tokyo_smt4.tres" id="1_4m4rh"]
 [ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_jj0ks"]
-[ext_resource type="PackedScene" uid="uid://cshmjyky7xnal" path="res://cathedral_of_shadows.tscn" id="2_scene"]
+[ext_resource type="PackedScene" uid="uid://cshmjyky7xnal" path="res://world/cathedral_of_shadows.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_jj0ks")

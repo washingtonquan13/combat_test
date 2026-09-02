@@ -103,7 +103,7 @@ func _the_scene_still_wins_while_it_has_an_opinion() -> void:
 	var trained: Array[PartySkillRecord] = [record]
 	definition.skills = trained
 
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	unit.definition = definition
 
 	# Authored by hand, before the unit is ever in the tree — which is what
@@ -127,7 +127,7 @@ func _the_scene_still_wins_while_it_has_an_opinion() -> void:
 
 func _spawn(definition: UnitDefinition) -> Unit:
 	definition.model_scene = load("res://scenes/character_models/placeholder_model.tscn")
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	unit.definition = definition
 	_root.add_child(unit)
 	_units.append(unit)

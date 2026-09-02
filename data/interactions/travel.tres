@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="TravelInteraction" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://travel_interaction.gd" id="1_travel"]
+[ext_resource type="Script" path="res://systems/interaction_system/travel_interaction.gd" id="1_travel"]
 
 [resource]
 script = ExtResource("1_travel")

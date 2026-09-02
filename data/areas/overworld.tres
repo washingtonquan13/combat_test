@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_def"]
 [ext_resource type="Resource" uid="uid://dgicil3b28tsc" path="res://data/music/long_time_way.tres" id="1_i8wpp"]
-[ext_resource type="PackedScene" uid="uid://bhr1cmca51c75" path="res://overworld.tscn" id="2_scene"]
+[ext_resource type="PackedScene" uid="uid://bhr1cmca51c75" path="res://world/overworld.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_def")

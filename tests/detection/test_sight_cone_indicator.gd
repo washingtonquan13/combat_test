@@ -159,7 +159,7 @@ func _cones_stop_at_the_world_on_screen() -> void:
 	_root.add_child(elsewhere)
 	await get_tree().process_frame
 
-	var foreign: Unit = load("res://unit.tscn").instantiate()
+	var foreign: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	elsewhere.add_child(foreign)
 	foreign.faction = &"enemy"
 	foreign.strength = 10

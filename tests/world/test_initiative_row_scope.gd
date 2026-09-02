@@ -58,8 +58,8 @@ func run() -> void:
 	SelectionManager.select(fighter)
 	await get_tree().process_frame
 
-	_row = load("res://initiative_row.gd").new()
-	_row.portrait_scene = load("res://unit_portrait.tscn")
+	_row = load("res://systems/combat_system/initiative_row.gd").new()
+	_row.portrait_scene = load("res://ui/unit_portrait.tscn")
 	_root.add_child(_row)
 	await get_tree().process_frame
 

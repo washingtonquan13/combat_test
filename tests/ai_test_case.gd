@@ -96,7 +96,7 @@ func spawn_brute(x: float, z: float = 0.0) -> Unit:
 
 func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 		abilities: Array, position: Vector3) -> Unit:
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	# Through a definition, because that is how every unit in the game is
 	# built now — all 32 UnitDefinitions name a body, and unit.tscn no
 	# longer carries one. A harness that skipped this would be exercising

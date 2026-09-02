@@ -65,7 +65,7 @@ func _make_world_viewport() -> SubViewport:
 
 
 func _spawn_in(viewport: SubViewport, faction: StringName, position: Vector3) -> Unit:
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	viewport.add_child(unit)
 	unit.faction = faction
 	unit.strength = 12

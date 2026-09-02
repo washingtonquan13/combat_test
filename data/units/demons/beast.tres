@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="UnitDefinition" load_steps=12 format=3 uid="uid://grn80sn4wmie"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
-[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://unit.tscn" id="2_scene"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="3_75u7k"]
 [ext_resource type="Texture2D" uid="uid://c10vrr2spytr7" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]

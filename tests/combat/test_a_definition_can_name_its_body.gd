@@ -143,7 +143,7 @@ func _a_real_demon_wears_the_placeholder() -> void:
 ## one — it is the whitebox case by another route — and it must degrade
 ## rather than crash.
 func _a_unit_with_no_definition_still_works() -> void:
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	_root.add_child(unit)
 	_units.append(unit)
 
@@ -162,7 +162,7 @@ func _spawn_wearing(model_path: String) -> Unit:
 	definition.max_hp = 20
 	definition.faction = &"player"
 
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	# BEFORE add_child, because _enter_tree is what reads it — the same
 	# order debug_spawn_panel and PartyManager already use.
 	unit.definition = definition
@@ -197,7 +197,7 @@ func _cleanup() -> void:
 ## dies perfectly while playing no animation at all — which every other
 ## check in this file would happily pass.
 func _the_default_body_kept_its_clips() -> void:
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	_root.add_child(unit)
 	_units.append(unit)
 
