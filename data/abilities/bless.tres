@@ -4,9 +4,9 @@
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://systems/ability_system/ranged_enemy_targeting.gd" id="2_targeting"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://systems/ability_system/apply_status_effect.gd" id="4_applystatus"]
-[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="5_status"]
-[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="6_behavior"]
-[ext_resource type="Script" path="res://outgoing_attack_modifier_behavior.gd" id="7_outgoing"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="5_status"]
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="6_behavior"]
+[ext_resource type="Script" path="res://systems/ability_system/outgoing_attack_modifier_behavior.gd" id="7_outgoing"]
 [ext_resource type="Texture2D" uid="uid://d23sxrfn4ew0a" path="res://assets/ability_icon/bless_icon.png" id="8_icon"]
 
 [sub_resource type="Resource" id="Resource_outgoing"]

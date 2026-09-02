@@ -237,7 +237,7 @@ func _looking_away_from_a_fight_is_allowed() -> void:
 
 
 func _spawn_enemy_beside(ally: Unit) -> Unit:
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	ally.get_parent().add_child(unit)
 	unit.faction = &"enemy"
 	unit.strength = 10

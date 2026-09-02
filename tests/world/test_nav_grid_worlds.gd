@@ -109,7 +109,7 @@ func _add_box(parent: Node3D, position: Vector3, size: Vector3) -> void:
 
 
 func _spawn_in(root: Node3D, position: Vector3) -> Unit:
-	var unit: Unit = load("res://unit.tscn").instantiate()
+	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	root.add_child(unit)
 	unit.faction = &"player"
 	unit.strength = 12
@@ -285,7 +285,7 @@ func _teardown_worlds() -> void:
 ## looks. Constructed the way the game constructs it: a WorldContext over
 ## the area root, which is what registers the world.
 func _a_real_authored_area_still_bakes() -> void:
-	var area: Node3D = load("res://test_arena.tscn").instantiate()
+	var area: Node3D = load("res://world/test_arena.tscn").instantiate()
 	_root.add_child(area)
 	# Its own units come with it and land in the global "units" group;
 	# they are harmless here (nothing calls update_occupancy) but must not

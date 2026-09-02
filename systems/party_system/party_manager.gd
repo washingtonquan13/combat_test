@@ -27,7 +27,7 @@ extends Node
 ## world loading possible without losing the party.
 
 const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
-const UNIT_SCENE: PackedScene = preload("res://unit.tscn")
+const UNIT_SCENE: PackedScene = preload("res://systems/unit_system/unit.tscn")
 
 signal member_added(unit: Unit)
 signal member_removed(unit: Unit)

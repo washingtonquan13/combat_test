@@ -1,0 +1,164 @@
+[gd_scene load_steps=27 format=3 uid="uid://dwu2y8j3sei5i"]
+
+[ext_resource type="Script" uid="uid://cxn1voxy5ge5j" path="res://systems/interaction_system/interactable_prop.gd" id="1_prop"]
+[ext_resource type="Resource" path="res://data/interactions/loot.tres" id="2_loot"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="3_examine"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="4_opt"]
+[ext_resource type="PackedScene" path="res://systems/inventory_system/stash_component.tscn" id="5_stash"]
+[ext_resource type="PackedScene" uid="uid://c6cftiltyv5xo" path="res://systems/inventory_system/item.tscn" id="6_item"]
+[ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="8_1uvcd"]
+[ext_resource type="Resource" path="res://data/items/healing_potion.tres" id="9_potion"]
+[ext_resource type="Texture2D" uid="uid://b7oi6ye8v7p0" path="res://assets/test_item_icons/test_shield.png" id="10_blaql"]
+[ext_resource type="Texture2D" uid="uid://d1bjg6rqr22fb" path="res://assets/test_item_icons/test_chest.png" id="12_v3ymt"]
+[ext_resource type="Texture2D" uid="uid://dinqj6wkwp5tw" path="res://assets/test_item_icons/test_boots.png" id="14_oruln"]
+[ext_resource type="Resource" path="res://data/items/mana_potion.tres" id="15_manapotion"]
+[ext_resource type="Texture2D" uid="uid://cuq7x56612mx2" path="res://assets/test_item_icons/test_gloves.png" id="16_nf456"]
+[ext_resource type="Resource" uid="uid://cing3w35sxrnh" path="res://data/items/iron_sword.tres" id="16_sword"]
+[ext_resource type="Resource" uid="uid://cafritp41dkl" path="res://data/items/wooden_shield.tres" id="17_shield"]
+[ext_resource type="Texture2D" uid="uid://1rjqfvy3hsiu" path="res://assets/test_item_icons/test_helmet.png" id="18_bb5mh"]
+[ext_resource type="Resource" uid="uid://bd7kfsr27y1h2" path="res://data/items/leather_chestpiece.tres" id="18_chest"]
+[ext_resource type="Resource" uid="uid://berbrd1fq2o80" path="res://data/items/leather_boots.tres" id="19_boots"]
+[ext_resource type="Texture2D" uid="uid://b22mv7hnxmeyi" path="res://assets/test_item_icons/test_belt.png" id="20_5tffd"]
+[ext_resource type="Resource" uid="uid://bb34qidy0wm14" path="res://data/items/leather_gloves.tres" id="20_gloves"]
+[ext_resource type="Resource" uid="uid://fo6f8ulop317" path="res://data/items/leather_helmet.tres" id="21_helmet"]
+[ext_resource type="Resource" uid="uid://c63mejhpeqvgo" path="res://data/items/leather_belt.tres" id="22_belt"]
+[ext_resource type="Texture2D" uid="uid://u8puvbqkit5k" path="res://assets/test_item_icons/test_healing_potion.png" id="22_dxdcv"]
+[ext_resource type="Texture2D" uid="uid://bor7ucx1k3nh1" path="res://assets/test_item_icons/test_mana_potion.png" id="24_hh7vn"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_chest"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chest"]
+
+[node name="Chest" type="StaticBody3D"]
+script = ExtResource("1_prop")
+interactions = Array[ExtResource("4_opt")]([ExtResource("2_loot"), ExtResource("3_examine")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_chest")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_chest")
+
+[node name="StashComponent" parent="." instance=ExtResource("5_stash")]
+display_name = "Chest"
+
+[node name="Inventory" parent="StashComponent" index="0"]
+custom_minimum_size = Vector2(192, 192)
+offset_right = 192.0
+
+[node name="ScrollContainer" parent="StashComponent/Inventory" index="0"]
+offset_right = 192.0
+
+[node name="ItemLayer" parent="StashComponent/Inventory/ScrollContainer" index="0"]
+custom_minimum_size = Vector2(192, 192)
+
+[node name="TestSword" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="1" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_right = 64.0
+offset_bottom = 96.0
+tooltip_text = "Item (2×3)  Stack: 1"
+definition = ExtResource("16_sword")
+icon = ExtResource("8_1uvcd")
+width = 2
+height = 3
+
+[node name="TestShield" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="2" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 64.0
+offset_right = 128.0
+offset_bottom = 96.0
+tooltip_text = "Item (2×3)  Stack: 1"
+definition = ExtResource("17_shield")
+icon = ExtResource("10_blaql")
+width = 2
+height = 3
+
+[node name="TestChestpiece" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="3" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 128.0
+offset_right = 192.0
+offset_bottom = 96.0
+tooltip_text = "Item (2×3)  Stack: 1"
+definition = ExtResource("18_chest")
+icon = ExtResource("12_v3ymt")
+width = 2
+height = 3
+
+[node name="TestBoots" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="4" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_top = 96.0
+offset_right = 64.0
+offset_bottom = 160.0
+tooltip_text = "Item (2×2)  Stack: 1"
+definition = ExtResource("19_boots")
+icon = ExtResource("14_oruln")
+width = 2
+height = 2
+
+[node name="TestGloves" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="5" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 64.0
+offset_top = 96.0
+offset_right = 128.0
+offset_bottom = 160.0
+tooltip_text = "Item (2×2)  Stack: 1"
+definition = ExtResource("20_gloves")
+icon = ExtResource("16_nf456")
+width = 2
+height = 2
+
+[node name="TestHelmet" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="6" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 128.0
+offset_top = 96.0
+offset_right = 192.0
+offset_bottom = 160.0
+tooltip_text = "Item (2×2)  Stack: 1"
+definition = ExtResource("21_helmet")
+icon = ExtResource("18_bb5mh")
+width = 2
+height = 2
+
+[node name="TestBelt" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="7" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_top = 160.0
+offset_right = 64.0
+offset_bottom = 192.0
+tooltip_text = "Item (2×1)  Stack: 1"
+definition = ExtResource("22_belt")
+icon = ExtResource("20_5tffd")
+width = 2
+
+[node name="TestPotion" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="8" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 64.0
+offset_top = 160.0
+offset_right = 96.0
+offset_bottom = 192.0
+tooltip_text = "Item (1×1)  Stack: 3"
+definition = ExtResource("9_potion")
+icon = ExtResource("22_dxdcv")
+current_stack_count = 3
+
+[node name="TestManaPotion" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="9" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 96.0
+offset_top = 160.0
+offset_right = 128.0
+offset_bottom = 192.0
+definition = ExtResource("15_manapotion")
+icon = ExtResource("24_hh7vn")
+
+[node name="VScrollBar" parent="StashComponent/Inventory" index="1"]
+visible = false
+offset_left = 192.0
+offset_right = 206.0
+max_value = 192.0
+
+[node name="HScrollBar" parent="StashComponent/Inventory" index="2"]
+offset_right = 192.0
+max_value = 192.0
+page = 192.0
+
+[editable path="StashComponent"]
+[editable path="StashComponent/Inventory"]

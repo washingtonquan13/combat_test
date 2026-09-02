@@ -42,7 +42,7 @@ func _landing_leaves_the_turn_intact() -> void:
 ## have nothing to do with whether the code is right — which is exactly
 ## what happened to the first version of this suite.
 func _combat_ai_respects_free_actions() -> void:
-	var source: String = FileAccess.get_file_as_string("res://combat_ai.gd")
+	var source: String = FileAccess.get_file_as_string("res://systems/combat_system/combat_ai.gd")
 	check("CombatAI checks uses_attack_action before ending the turn",
 		source.contains("plan.ability.uses_attack_action") and source.contains("if spends_turn:"))
 	check("CombatAI re-asks for a plan after a free action",

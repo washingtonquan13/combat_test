@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://d1bjg6rqr22fb" path="res://assets/test_item_icons/test_chest.png" id="2_icon"]
-[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://stat_modifier_behavior.gd" id="3_statmod"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_statmod"]
 
 [sub_resource type="Resource" id="Resource_statmod"]
 script = ExtResource("3_statmod")

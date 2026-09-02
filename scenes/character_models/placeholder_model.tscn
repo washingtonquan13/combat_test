@@ -1,7 +1,7 @@
 [gd_scene load_steps=13 format=4 uid="uid://btnqexsmk20xa"]
 
 [ext_resource type="Script" uid="uid://ee0ub37ip226" path="res://systems/unit_system/character_model.gd" id="1_cm"]
-[ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://outline.gdshader" id="2_outline"]
+[ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://systems/unit_system/outline.gdshader" id="2_outline"]
 [ext_resource type="PackedScene" uid="uid://bsk4jx2fxytqm" path="res://assets/UAL1_Standard.glb" id="3_glb"]
 [ext_resource type="AnimationLibrary" uid="uid://cqnay5mbp4o52" path="res://assets/unit_animations.tres" id="4_anims"]
 [ext_resource type="AnimationLibrary" uid="uid://dljalqhwbvg6h" path="res://assets/UAL2_Standard.glb" id="5_ual2"]

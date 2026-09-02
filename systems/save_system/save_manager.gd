@@ -69,10 +69,6 @@ const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".save"
 const FORMAT_VERSION: int = 1
 
-## Non-empty only for the duration of a load_file() call that named an
-## overworld save — consumed and cleared the moment world_loaded fires
-## for that load. See _on_world_loaded()'s own header for why this can't
-## just be a local variable inside load_file().
 ## Where each party member was standing, BY ID rather than by position
 ## in a list. Index-matching worked only while there was one party in
 ## one place; with a split party the list spans groups and areas, and
@@ -80,8 +76,6 @@ const FORMAT_VERSION: int = 1
 ## subset of it. Keyed by persistent_id, only the ones actually here
 ## match, and the rest are simply not applied.
 var _pending_party_transforms: Dictionary = {}
-var _pending_avatar_transform: Variant = null
-var _awaiting_position_restore: bool = false
 
 ## Fights from the save that have not been rebuilt yet, by area id.
 ## Outlives the load itself: a battle in an area the player was not in
@@ -154,13 +148,6 @@ func save(save_name: String) -> bool:
 	# now that units remember, means rebuilt as it was left.
 	cfg.set_value("world", "area_id", area.id)
 	cfg.set_value("world", "party_transforms", _capture_party_transforms())
-	# Only written when non-null (an overworld save) — see load_file()'s
-	# own has_section_key() check on the read side for why "the key is
-	# absent" needs to actually mean absent, not present-with-value-NIL.
-	var avatar_transform: Variant = _capture_avatar_transform()
-	if avatar_transform != null:
-		cfg.set_value("world", "avatar_transform", avatar_transform)
-
 	cfg.set_value("flags", "data", FlagManager.save_state())
 	cfg.set_value("party", "data", PartyManager.save_state())
 	cfg.set_value("demons", "data", DemonRoster.save_state())
@@ -195,8 +182,11 @@ func save(save_name: String) -> bool:
 ## rebuild after it. See WorldManager.can_rebuild().
 ##
 ## Sequence: discard_worlds (no capture) -> inject state into every system
-## -> rebuild_area per area, focused one last -> apply saved positions once
-## world_loaded fires for THIS load.
+## -> rebuild_area per area, focused one last -> apply saved positions as
+## each world arrives. "As each world arrives" is safe because every world
+## built this way announces itself as WorldManager.Entry.REBUILD, so
+## _on_world_loaded can tell them from an ordinary walk through a door
+## without this having to remember that a load is in progress.
 func load_file(path: String) -> bool:
 	var reason: String = _perform_load(path)
 	var ok: bool = reason == ""
@@ -241,34 +231,20 @@ func _perform_load(path: String) -> String:
 	PartyManager.load_state(cfg.get_value("party", "data", {}))
 	DemonRoster.load_state(cfg.get_value("demons", "data", {}))
 	CurrencyManager.load_state(cfg.get_value("currency", "data", {}))
-	# Not gated on _current_world/area the way party_transforms/
-	# avatar_transform are below — the party's shared Inventory is a
+	# Not gated on _current_world/area the way party_transforms is below — the party's shared Inventory is a
 	# permanent CanvasLayer child, not something a destination world
 	# creates, so there's no "wait for world_loaded" step needed here.
 	_party_inventory().load_state(cfg.get_value("inventory", "data", {}))
 
 	# Consumed by _on_world_loaded() the moment the area below finishes
 	# loading — can't apply these here, since the destination world (and
-	# therefore the Units/avatar to apply them TO) doesn't exist until
+	# therefore the Units to apply them TO) doesn't exist until
 	# load_area() below actually finishes instantiating it.
-	#
-	# has_section_key() before reading avatar_transform, not
-	# get_value(..., null) — ConfigFile treats a NIL-typed default as
-	# "no default was given" and raises an error when the key is
-	# genuinely absent (which it always is for an ordinary, non-overworld
-	# save: _capture_avatar_transform() only ever writes a real value
-	# when the world being saved has get_avatar(), so passing null
-	# through as "the default" doesn't mean what it looks like it means).
 	_pending_party_transforms = cfg.get_value("world", "party_transforms", {})
-	if cfg.has_section_key("world", "avatar_transform"):
-		_pending_avatar_transform = cfg.get_value("world", "avatar_transform")
-	else:
-		_pending_avatar_transform = null
 	# Kept until each area is actually visited, NOT consumed in one go:
 	# only the area being loaded now can have its fight rebuilt, and the
 	# others are rebuilt whenever the player travels to them.
 	_pending_encounters = cfg.get_value("combat", "encounters", {})
-	_awaiting_position_restore = true
 
 	var area_id: StringName = cfg.get_value("world", "area_id", &"")
 
@@ -285,12 +261,14 @@ func _perform_load(path: String) -> String:
 		var claimant: PartyGroup = _group_claiming(other)
 		if claimant == null:
 			continue
-		# Named BEFORE the call. load_area with no travellers embodies the
-		# ACTIVE group and rewrites its remembered area to wherever it is
-		# sent, so leaving this alone would drag one group through every
-		# other group's area in turn and end with the party merged.
+		# Handed over outright rather than steered into place. This used to
+		# set active_group and hope: rebuild_area inferred who was coming
+		# from whoever was embodied in the previously focused world, so each
+		# iteration could sweep up the people the last one had just put
+		# down. Naming the group is the fix; the assignment below only says
+		# who the player is commanding.
 		PartyManager.active_group = claimant
-		if WorldManager.rebuild_area(other) == null:
+		if WorldManager.rebuild_area(other, claimant) == null:
 			push_warning("SaveManager.load_file: could not restore area '%s'." % other)
 
 	# The saved area LAST, so the player ends up looking at the world they
@@ -298,14 +276,17 @@ func _perform_load(path: String) -> String:
 	var homecoming: PartyGroup = _group_claiming(area_id)
 	if homecoming:
 		PartyManager.active_group = homecoming
-	var world: Node = WorldManager.rebuild_area(area_id)
+	# May legitimately be null — the saved area need not be one anybody is
+	# standing in — and rebuild_area now has a way to be told that, rather
+	# than reading it as "bring whoever is around".
+	var world: Node = WorldManager.rebuild_area(area_id, homecoming)
 
-	# Every world_loaded this load will ever emit has now been handled
-	# (world_loaded is emitted synchronously inside load_area), so the
-	# restore window closes here rather than on the first world to arrive.
-	_awaiting_position_restore = false
+	# Every world this load will ever build has been built (world_loaded
+	# is emitted synchronously inside rebuild_area), so anything still
+	# sitting here belongs to a member in an area nothing rebuilt. Dropped
+	# rather than kept: a transform left in the table would otherwise be
+	# waiting to land on somebody during an unrelated load later.
 	_pending_party_transforms = {}
-	_pending_avatar_transform = null
 
 	if not world:
 		return "Area '%s' could not be built. The game is part-way through loading and should be loaded again." % area_id
@@ -375,9 +356,11 @@ func _current_leader_name() -> String:
 	return ""
 
 
-## Empty array for the overworld (spawns_party() == false, nothing in
-## PartyManager.members to capture) — avatar_transform below is what
-## carries a position there instead.
+## Empty for the overworld: spawns_party() == false there, so there is
+## nothing in PartyManager.members to capture. A group standing on the
+## overworld carries its own position in PartyGroup.overworld_position,
+## which PartyManager saves and restores PER GROUP — this only ever
+## describes embodied Units.
 func _capture_party_transforms() -> Dictionary:
 	var transforms: Dictionary = {}
 	for unit in PartyManager.members:
@@ -386,48 +369,35 @@ func _capture_party_transforms() -> Dictionary:
 	return transforms
 
 
-## null when the current world isn't the overworld (an ordinary area has
-## no avatar to ask) — get_avatar() is duck-typed the same way
-## get_tactical_camera()/spawns_party() already are (see overworld.gd).
-func _capture_avatar_transform() -> Variant:
-	var world: Node = WorldManager.current_world()
-	if world and world.has_method("get_avatar"):
-		var avatar: Node3D = world.get_avatar()
-		if is_instance_valid(avatar):
-			return avatar.global_transform
-	return null
 
-
-## world_loaded fires for EVERY area load, not just one triggered by
-## load_file() above — an ordinary door/travel transition must NOT try
-## to apply stale (or absent) saved positions, which is exactly what
-## _awaiting_position_restore guards against; it's true for only the one
-## world_loaded firing that load_file() itself caused, and is cleared
-## unconditionally below regardless of whether either array/value was
-## actually present, so a save file with no avatar position (an ordinary
-## area save) can't leave this latched on for the NEXT unrelated load.
-func _on_world_loaded(world: Node) -> void:
-	if not _awaiting_position_restore:
+## world_loaded fires for EVERY world built, an ordinary walk through a
+## door included — and one of those must not try to apply stale saved
+## positions to whoever went through it. The reason says which is which,
+## and it arrives WITH the signal rather than being remembered here.
+##
+## This used to be _awaiting_position_restore: a bool set true in
+## _perform_load and false some forty lines later, guarding this exact
+## branch. It was correct, but correct by inspection rather than by
+## construction — a single early return added anywhere inside that span
+## would have left it latched true, and the next unrelated door
+## transition would have moved the party to positions out of an old save.
+## A reason carried on the call has no span to leave open.
+func _on_world_loaded(_world: Node, reason: WorldManager.Entry) -> void:
+	if reason != WorldManager.Entry.REBUILD:
 		_restore_encounters_here()
 		return
 
-	# The window stays OPEN across this whole load, and the table is not
-	# emptied wholesale: one load_file now builds every area the party is
-	# standing in, and each arrives in its own world_loaded. Closing on the
-	# first would leave everyone in the second area at their spawn point.
-	# Only what was actually applied is removed; load_file clears the rest
-	# once there are no more worlds coming.
+	# Not emptied wholesale: one load builds every area the party is
+	# standing in, and each arrives in its own world_loaded. Clearing on
+	# the first would leave everyone in the second area at their spawn
+	# point. Only what was actually applied is removed here; _perform_load
+	# drops the rest once there are no more worlds coming.
 	for unit in PartyManager.members:
 		var key: String = String(unit.persistent_id)
 		if _pending_party_transforms.has(key):
 			unit.global_transform = _pending_party_transforms[key]
 			_pending_party_transforms.erase(key)
 
-	if _pending_avatar_transform != null and world.has_method("get_avatar"):
-		var avatar: Node3D = world.get_avatar()
-		if is_instance_valid(avatar):
-			avatar.global_transform = _pending_avatar_transform
-	_pending_avatar_transform = null
 
 	# Last: a turn order is meaningless until the units it names exist and
 	# are where they belong.

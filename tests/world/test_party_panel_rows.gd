@@ -45,7 +45,7 @@ func run() -> void:
 	await get_tree().process_frame
 
 	_panel = PartyPanel.new()
-	_panel.slot_scene = load("res://unit_portrait.tscn")
+	_panel.slot_scene = load("res://ui/unit_portrait.tscn")
 	# _core_container is @onready on $CoreContainer, so the child has to
 	# exist before the panel enters the tree.
 	var core := VBoxContainer.new()

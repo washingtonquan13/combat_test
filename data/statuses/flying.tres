@@ -1,23 +1,23 @@
 [gd_resource type="Resource" script_class="StatusEffect" load_steps=9 format=3 uid="uid://dwarcbw0o48hl"]
 
-[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://status_behavior.gd" id="1_xtugy"]
-[ext_resource type="Script" uid="uid://cp37tt8ahehq4" path="res://flight_behavior.gd" id="2_26ayu"]
-[ext_resource type="Script" uid="uid://c5uo8sjvlhniq" path="res://force_land_on_expire_behavior.gd" id="3_ybjf0"]
-[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://status_effect.gd" id="5_wwfy6"]
-[ext_resource type="Script" uid="uid://c6hxim0ueop5g" path="res://fp_drain_behavior.gd" id="6_fpdrain"]
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="1_xtugy"]
+[ext_resource type="Script" uid="uid://cp37tt8ahehq4" path="res://systems/ability_system/flight_behavior.gd" id="2_26ayu"]
+[ext_resource type="Script" uid="uid://c5uo8sjvlhniq" path="res://systems/ability_system/force_land_on_expire_behavior.gd" id="3_ybjf0"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="5_wwfy6"]
+[ext_resource type="Script" uid="uid://c6hxim0ueop5g" path="res://systems/ability_system/fp_drain_behavior.gd" id="6_fpdrain"]
 
 [sub_resource type="Resource" id="Resource_flight"]
 script = ExtResource("2_26ayu")
-metadata/_custom_type_script = "res://flight_behavior.gd"
+metadata/_custom_type_script = "res://systems/ability_system/flight_behavior.gd"
 
 [sub_resource type="Resource" id="Resource_land"]
 script = ExtResource("3_ybjf0")
-metadata/_custom_type_script = "res://force_land_on_expire_behavior.gd"
+metadata/_custom_type_script = "res://systems/ability_system/force_land_on_expire_behavior.gd"
 
 [sub_resource type="Resource" id="Resource_fpdrain"]
 script = ExtResource("6_fpdrain")
 fp_per_turn = 1
-metadata/_custom_type_script = "res://fp_drain_behavior.gd"
+metadata/_custom_type_script = "res://systems/ability_system/fp_drain_behavior.gd"
 
 [resource]
 script = ExtResource("5_wwfy6")

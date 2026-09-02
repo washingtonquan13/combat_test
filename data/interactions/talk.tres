@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="TalkInteraction" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://talk_interaction.gd" id="1_talk"]
+[ext_resource type="Script" path="res://systems/interaction_system/talk_interaction.gd" id="1_talk"]
 
 [resource]
 script = ExtResource("1_talk")

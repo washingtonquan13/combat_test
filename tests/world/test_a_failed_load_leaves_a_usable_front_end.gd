@@ -29,9 +29,9 @@ func run() -> void:
 	_layer = CanvasLayer.new()
 	_root.add_child(_layer)
 
-	_menu = preload("res://main_menu.tscn").instantiate()
+	_menu = preload("res://ui/main_menu.tscn").instantiate()
 	_layer.add_child(_menu)
-	_panel = preload("res://save_load_panel.tscn").instantiate()
+	_panel = preload("res://ui/save_load_panel.tscn").instantiate()
 	_layer.add_child(_panel)
 	await get_tree().process_frame
 

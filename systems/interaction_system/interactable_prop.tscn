@@ -1,0 +1,19 @@
+[gd_scene load_steps=6 format=3 uid="uid://cxd7mqmay70in"]
+
+[ext_resource type="Script" uid="uid://cxn1voxy5ge5j" path="res://systems/interaction_system/interactable_prop.gd" id="1_prop"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="2_examine"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="2_q8epv"]
+
+[sub_resource type="PrismMesh" id="PrismMesh_djq4g"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_prop"]
+
+[node name="InteractableProp" type="StaticBody3D"]
+script = ExtResource("1_prop")
+interactions = Array[ExtResource("2_q8epv")]([ExtResource("2_examine")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("PrismMesh_djq4g")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_prop")

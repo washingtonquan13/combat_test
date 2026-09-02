@@ -78,7 +78,7 @@ func _a_modal_over_a_fight_wins() -> void:
 	# names an Inventory child it does not build for itself, and a
 	# hand-made one errors twice on every open. Suite noise is what hid
 	# two false greens while this phase was being written.
-	var stash: StashComponent = preload("res://stash_component.tscn").instantiate()
+	var stash: StashComponent = preload("res://systems/inventory_system/stash_component.tscn").instantiate()
 	_root.add_child(stash)
 	StashManager.open_stash(stash, ally)
 	await get_tree().process_frame
@@ -111,7 +111,7 @@ func _leaving_the_modal_returns_to_the_fight() -> void:
 	# names an Inventory child it does not build for itself, and a
 	# hand-made one errors twice on every open. Suite noise is what hid
 	# two false greens while this phase was being written.
-	var stash: StashComponent = preload("res://stash_component.tscn").instantiate()
+	var stash: StashComponent = preload("res://systems/inventory_system/stash_component.tscn").instantiate()
 	_root.add_child(stash)
 	StashManager.open_stash(stash, ally)
 	await get_tree().process_frame

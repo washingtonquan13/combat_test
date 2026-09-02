@@ -1,0 +1,230 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/stats_column.gd" id="1_stats"]
+
+[node name="StatsColumn" type="MarginContainer"]
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 16
+script = ExtResource("1_stats")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="."]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="NameLabel" type="Label" parent="ScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HSeparator" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="HPHeader" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/HPHeader"]
+layout_mode = 2
+text = "HP"
+
+[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/HPHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="HPValue" type="Label" parent="ScrollContainer/VBoxContainer/HPHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HPBar" type="Control" parent="ScrollContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+
+[node name="Bg" type="ColorRect" parent="ScrollContainer/VBoxContainer/HPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(1, 1, 1, 0.12)
+
+[node name="HPFill" type="ColorRect" parent="ScrollContainer/VBoxContainer/HPBar"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_bottom = 1.0
+grow_vertical = 2
+color = Color(0.85, 0.3, 0.3, 1)
+
+[node name="FPHeader" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/FPHeader"]
+layout_mode = 2
+text = "FP"
+
+[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/FPHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="FPValue" type="Label" parent="ScrollContainer/VBoxContainer/FPHeader"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="FPBar" type="Control" parent="ScrollContainer/VBoxContainer"]
+custom_minimum_size = Vector2(0, 6)
+layout_mode = 2
+
+[node name="Bg" type="ColorRect" parent="ScrollContainer/VBoxContainer/FPBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(1, 1, 1, 0.12)
+
+[node name="FPFill" type="ColorRect" parent="ScrollContainer/VBoxContainer/FPBar"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = -1
+anchor_bottom = 1.0
+grow_vertical = 2
+color = Color(0.3, 0.55, 0.85, 1)
+
+[node name="HSeparator2" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="AttributeGrid" type="GridContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/v_separation = 6
+columns = 2
+
+[node name="STLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+text = "ST"
+
+[node name="STValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="DXLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+text = "DX"
+
+[node name="DXValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="IQLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+text = "IQ"
+
+[node name="IQValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="HTLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+text = "HT"
+
+[node name="HTValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="WillLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+text = "Will"
+
+[node name="WillValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="PerLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+text = "Per"
+
+[node name="PerValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="HSeparator3" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="DRRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/DRRow"]
+layout_mode = 2
+text = "DR"
+
+[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/DRRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DRValue" type="Label" parent="ScrollContainer/VBoxContainer/DRRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="MoveRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/MoveRow"]
+layout_mode = 2
+text = "Move"
+
+[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/MoveRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MoveValue" type="Label" parent="ScrollContainer/VBoxContainer/MoveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="HSeparator4" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ThrustRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/ThrustRow"]
+layout_mode = 2
+text = "Thrust"
+
+[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/ThrustRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ThrustValue" type="Label" parent="ScrollContainer/VBoxContainer/ThrustRow"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SwingRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/SwingRow"]
+layout_mode = 2
+text = "Swing"
+
+[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/SwingRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SwingValue" type="Label" parent="ScrollContainer/VBoxContainer/SwingRow"]
+unique_name_in_owner = true
+layout_mode = 2

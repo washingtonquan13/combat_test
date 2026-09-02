@@ -143,7 +143,14 @@ func _ready() -> void:
 ## replaces was written to dodge. Individual levels no longer call this
 ## themselves (see test_arena.gd's own history) — one hook here covers
 ## every area a door/exit can ever lead to.
-func _on_world_loaded(_world: Node) -> void:
+## Ignores `reason`, and it is worth saying why rather than leaving it to
+## look accidental: a restore builds every area the party is standing in,
+## so this fires once per area rather than once. That is harmless only
+## because play_track()'s own already-playing guard makes the repeats
+## free and _perform_load builds the focused area LAST — not because the
+## repeats are wanted. If either of those stops being true, this is the
+## line that needs the reason.
+func _on_world_loaded(_world: Node, _reason: WorldManager.Entry) -> void:
 	start_exploration_theme()
 
 

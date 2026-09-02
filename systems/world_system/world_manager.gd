@@ -40,8 +40,52 @@ extends Node
 ## only ever be a DIRECT child of the true tree root, and everything
 ## loaded here sits under MainRoot/SceneRoot, two levels deep).
 
+## Why a world is being entered. Passed to _enter_world() and carried on
+## world_loaded, because it is the one thing about a load that cannot be
+## worked out after the fact.
+##
+## TRAVEL and REBUILD differ on more than permission, and every one of
+## those differences was found the same way — as a bug. The gate was the
+## first (can_travel vs can_rebuild, which deadlocked loading outright).
+## Who is coming was the second: inferred from whoever was embodied in
+## the focused world, so restoring areas one at a time swept up the
+## people the previous iteration had just put down, and a party split
+## between an area and the overworld came back standing in one place.
+## Where they land was the third.
+##
+## What those share is that _enter_world had no way to know which
+## operation it was performing, so each decision reconstructed the answer
+## out of whatever ambient state was nearest — _focused, current_area(),
+## an empty array. Ambient state always holds SOMETHING, which is why a
+## wrong reconstruction reads exactly like a right one at the point it is
+## made, and why all three surfaced as play reports rather than as
+## failures here.
+##
+## A PARAMETER, deliberately, and not a flag anybody sets: it cannot
+## outlive its call, so there is no window to close, and it cannot be
+## omitted, so the next axis on which these two operations differ has to
+## be answered while the line is being written.
+enum Entry {
+	## The player went somewhere. There is a world being left, the people
+	## leaving it are the ones who were standing in it, and they arrive at
+	## a door.
+	TRAVEL,
+	## A save file is being rebuilt. Nobody is travelling, there is no
+	## world being "come from", and the save — not a doorway — says where
+	## everyone stands.
+	REBUILD,
+}
+
 signal world_loading(scene: PackedScene)
-signal world_loaded(world: Node)
+## `reason` says which operation built this world (see Entry).
+##
+## Carried ON the signal rather than left readable on the manager for
+## listeners to fetch afterwards. A property would have a lifetime, and a
+## fact with a lifetime is a window somebody eventually forgets to close
+## — GameMode's mode stack was one, this manager's own deleted
+## _is_restoring_party was another, and both were removed for that
+## reason. An argument has a scope instead.
+signal world_loaded(world: Node, reason: Entry)
 ## The player's attention moved to a different resident world. Distinct
 ## from world_loaded, which fires only when a world is newly built —
 ## re-entering a world that stayed loaded emits this and not that.
@@ -550,20 +594,48 @@ func load_world(scene: PackedScene, spawn_point_name: StringName = &"", area: Ar
 		push_warning("WorldManager.load_world refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return null
 
-	return _enter_world(scene, spawn_point_name, area, travellers)
+	# AFTER the gate, because splitting a group is a real change and a
+	# refused load must not have made one.
+	return _enter_world(scene, spawn_point_name, area, _travelling_group(travellers), Entry.TRAVEL)
 
 
 ## Rebuilds one area from a save file and puts the player in front of it.
 ##
-## The restore counterpart to load_area(). Identical work — it shares
-## _enter_world() — differing only in which permission question it asks:
-## can_rebuild() rather than can_travel(). Nobody is travelling during a
-## restore, so the travel gate has nothing true to say about it, and what
-## it did say deadlocked the load (see can_rebuild()).
+## The restore counterpart to load_area(). Shares _enter_world() and
+## differs from travelling on exactly three things, each of which was
+## found as a bug before it was found as a difference:
 ##
-## No spawn point and no travellers on purpose: a rebuilt world places its
-## occupants from the save file, not from a doorway they walked through.
-func rebuild_area(area_id: StringName) -> Node:
+## 1. THE GATE. can_rebuild() rather than can_travel(). Nobody is
+##    travelling during a restore, so the travel gate has nothing true to
+##    say about it, and what it did say deadlocked the load outright (see
+##    can_rebuild()).
+## 2. WHO COMES. The group is NAMED by the caller, never inferred — see
+##    below.
+## 3. WHERE THEY LAND. Nothing is derived; the save places people. Passing
+##    Entry.REBUILD is what stops _enter_world deriving a doorway from
+##    whichever area the restore loop happened to reach last.
+##
+## The list is expected to grow, which is the point of naming the reason
+## rather than adding a fourth parameter each time: a new decision inside
+## _enter_world has the reason in scope and has to answer for it.
+##
+## On (2), and it is not a convenience:
+## _resolve_travellers() defines an empty list as "everyone embodied in the
+## world being left", which is right for walking out of a door and
+## catastrophic here. Restoring areas one at a time means an earlier
+## iteration has already embodied somebody in the previously focused world
+## — so rebuilding the NEXT area with "no travellers" swept them up and
+## carried them along. A party split between an ordinary area and the
+## overworld came back with the ordinary-world group standing on the
+## overworld, because the overworld is restored last.
+##
+## `null` is a real answer and means nobody: an area no group claims is
+## rebuilt empty rather than inheriting whoever happens to be standing
+## around. That sentence could not be said at all before this.
+##
+## No spawn point either: a rebuilt world places its occupants from the
+## save file, not from a doorway they walked through.
+func rebuild_area(area_id: StringName, group: PartyGroup = null) -> Node:
 	var area: AreaDefinition = AreaDatabase.find(area_id)
 	if not area:
 		push_warning("WorldManager.rebuild_area: unknown area id '%s'" % area_id)
@@ -573,25 +645,36 @@ func rebuild_area(area_id: StringName) -> Node:
 		push_warning("WorldManager.rebuild_area refused: no scene root or world host registered.")
 		return null
 
-	return _enter_world(area.world_scene, &"", area, [])
+	return _enter_world(area.world_scene, &"", area, group, Entry.REBUILD)
 
 
 ## Everything entering a world does once permission is settled. Shared by
 ## load_world() and rebuild_area(); neither gate is re-asked in here, so
 ## this must not be called without passing one of them first.
-func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDefinition, travellers: Array[Unit]) -> Node:
+##
+## `reason` is how it knows which of the two it is performing. Before it
+## existed, every decision in here that differs between them reconstructed
+## the answer from ambient state — and got it wrong three times, each one
+## reaching you as a play report rather than as a failing test. Anything
+## added below that would differ between a journey and a restore must
+## consult it rather than reading _focused or current_area().
+func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDefinition, group: PartyGroup, reason: Entry) -> Node:
 	# Read before _leave_focused, while _focused still says which world
 	# these people are standing in.
 	var outgoing: ResidentWorld = _focused
 
-	# After the gate, because splitting the group is a real change and a
-	# refused load must not have made one.
-	var group: PartyGroup = _travelling_group(travellers)
-
 	world_loading.emit(scene)
 
-	# "The area being left," read once, up front — before leaving clears it.
-	var from_area_id: StringName = current_area().id if current_area() else &""
+	# "The area being left," read once, up front — before leaving clears
+	# it. Only TRAVEL has one. A rebuild is not coming FROM anywhere, and
+	# current_area() during a restore is whichever area the loop happened
+	# to build last — an arbitrary answer that _resolve_entry_spawn_point
+	# would then dutifully find a door back to. The question is not asked
+	# rather than asked and discarded, so there is no branch further down
+	# that has to remember to ignore it.
+	var from_area_id: StringName = &""
+	if reason == Entry.TRAVEL and current_area():
+		from_area_id = current_area().id
 
 	_leave_focused()
 
@@ -662,7 +745,7 @@ func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDe
 	_focus(resident, group)
 	_retire_if_unearned(outgoing)
 	_retire_unearned()
-	world_loaded.emit(world)
+	world_loaded.emit(world, reason)
 	return world
 
 
@@ -771,11 +854,8 @@ func pending_spawn_point_name() -> StringName:
 	return _pending_spawn_point_name
 
 
-## Null when nothing is loaded (the main menu, e.g.). Pre-existing —
-## SaveManager's own _capture_avatar_transform() is a new caller that
-## needs the live world node directly rather than just its
-## AreaDefinition, since a saved position has to be read off whatever
-## get_avatar() the CURRENT world happens to expose.
+## Null when nothing is loaded (the main menu, e.g.). For anything that
+## needs the live world node itself rather than just its AreaDefinition.
 func current_world() -> Node:
 	return _focused.world if _focused else null
 
