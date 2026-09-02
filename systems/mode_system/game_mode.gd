@@ -33,10 +33,10 @@ extends Node
 ## WorldManager.current_area() reads whatever is focused, and the mode
 ## reads all of them. There is nothing left to keep in sync.
 ##
-## Dependency direction is one-way on purpose: GameMode asks CombatManager,
-## the three modal managers, WorldManager and UIStack, and none of them
-## asks GameMode back. It is registered after all of them in the autoload
-## list, which is what makes that safe.
+## Dependency direction is one-way on purpose: GameMode asks
+## CinematicDirector, CombatManager, the three modal managers, WorldManager
+## and UIStack, and none of them asks GameMode back. It is registered after
+## all of them in the autoload list, which is what makes that safe.
 ##
 ## OVERWORLD is deliberately its OWN base mode, not folded into
 ## EXPLORATION — the overworld has no tactical camera and nothing
@@ -53,9 +53,9 @@ enum Mode {
 ## DECISION should call current_mode() directly, which is always current
 ## rather than waiting for the next frame.
 ##
-## CUTSCENE is in the enum and nothing produces it. Left in place rather
-## than deleted because the mode is never serialised — only read — so an
-## unused value costs nothing, and a cutscene system is a stated goal.
+## CUTSCENE is produced by CinematicDirector.is_active(), and is asked
+## FIRST — see current_mode() for why that position is load-bearing rather
+## than arbitrary.
 signal mode_changed(mode: Mode)
 
 var _last_emitted: Mode = Mode.MAIN_MENU
@@ -63,14 +63,25 @@ var _last_emitted: Mode = Mode.MAIN_MENU
 
 ## What owns input and the camera right now.
 ##
-## Overlays are asked before the base, and in a fixed order. The order
-## barely matters in practice: the three modal managers already refuse to
-## start over one another (see NegotiationManager.can_negotiate and
-## DialogueManager.start_dialogue's matching guards), so at most one of
-## them is ever active. COMBAT is asked LAST of the overlays because it is
-## the one that genuinely coexists with them — negotiating mid-fight means
-## NEGOTIATION, with the fight still running underneath.
+## Overlays are asked before the base, and in a fixed order.
+##
+## CUTSCENE IS ASKED FIRST, and that position matters. A cutscene can be
+## staged FROM a dialogue — the dialogue is still running underneath, so
+## DialogueManager.is_active() is still true — and if DIALOGUE were asked
+## first a locked cinematic would report DIALOGUE and keep running
+## dialogue's input rules. Nothing outranks the director while it holds
+## the screen, which is the point of it holding the screen.
+##
+## Among the rest the order barely matters: the three modal managers
+## already refuse to start over one another (see
+## NegotiationManager.can_negotiate and DialogueManager.start_dialogue's
+## matching guards), so at most one of them is ever active. COMBAT is
+## asked LAST of the overlays because it is the one that genuinely
+## coexists with them — negotiating mid-fight means NEGOTIATION, with the
+## fight still running underneath.
 func current_mode() -> Mode:
+	if CinematicDirector.is_active():
+		return Mode.CUTSCENE
 	if NegotiationManager.is_active():
 		return Mode.NEGOTIATION
 	if DialogueManager.is_active():
