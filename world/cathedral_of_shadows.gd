@@ -49,9 +49,19 @@ func spawns_party() -> bool:
 ## Closing it again is nobody's job here. UIStack.close_all() runs when a
 ## world is loaded, so leaving the room takes the menu with it.
 func _present_the_menu() -> void:
-	var menu := get_tree().get_first_node_in_group(&"cathedral_menu") as CathedralMenu
-	if menu:
-		menu.present()
+	var found: Node = get_tree().get_first_node_in_group(&"cathedral_menu")
+	var menu := found as CathedralMenu
+	if menu == null:
+		# Loud, permanently. This room has no player character and no other
+		# interface — without the menu there is nothing to press and no way
+		# out, so failing silently strands the player in a box.
+		push_warning("Cathedral: no CathedralMenu found (group had %s). " % (
+			"nothing" if found == null else found.get_class()) +
+			"The room has no interface and cannot be left.")
+		return
+	menu.present()
+	if OS.is_debug_build():
+		print("Cathedral: menu presented (visible=%s)." % str(menu.is_visible_in_tree()))
 
 
 ## Points the camera at the device rather than authoring a basis by hand.

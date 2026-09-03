@@ -138,6 +138,28 @@ func _the_camera_yields_to_the_menu() -> void:
 		"the menu was never presented, so the room shows the ordinary HUD " +
 		"and offers no way out")
 
+	# THE PLAYER'S ACTUAL ROUTE. The check above loads the cathedral from
+	# nothing, which is not how anyone reaches it — arriving from another
+	# world runs _leave_focused() first, and that calls UIStack.close_all().
+	# And leaving and coming back re-enters a RESIDENT world, which does not
+	# run the area's _ready() again at all.
+	WorldManager.load_area(&"overworld")
+	await get_tree().process_frame
+	WorldManager.load_area(AREA_ID)
+	await get_tree().process_frame
+	check("arriving from another world still shows the menu",
+		menu_instance.is_visible_in_tree(),
+		"the menu is not on screen after travelling in from the overworld")
+
+	WorldManager.load_area(&"overworld")
+	await get_tree().process_frame
+	WorldManager.load_area(AREA_ID)
+	await get_tree().process_frame
+	check("and so does coming back a second time",
+		menu_instance.is_visible_in_tree(),
+		"the menu is missing on re-entry — a resident world is re-focused " +
+		"rather than rebuilt, so the area's _ready() never runs again")
+
 	menu_instance.queue_free()
 	WorldManager.discard_worlds()
 	WorldManager._world_host = saved_host
