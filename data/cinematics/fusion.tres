@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="CinematicScene" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_scene.gd" id="1_scene"]
+[ext_resource type="PackedScene" path="res://cinematics/fusion.tscn" id="2_stage"]
+
+[resource]
+script = ExtResource("1_scene")
+id = &"fusion"
+stage = ExtResource("2_stage")
+animation = &"scene"

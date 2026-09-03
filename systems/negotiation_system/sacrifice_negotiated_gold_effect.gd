@@ -11,3 +11,13 @@ extends DialogueEffect
 
 func apply(_actor: Unit, _target: Unit) -> void:
 	CurrencyManager.spend_gold(NegotiationManager.current_gold_amount)
+
+
+## Reads the same live NegotiationManager.current_gold_amount apply()
+## spends — rolled once per negotiation, before either the offering or
+## the demand choice is ever shown, so previewing it here can't disagree
+## with what actually gets spent.
+func cost_tag() -> String:
+	if NegotiationManager.current_gold_amount <= 0:
+		return ""
+	return "-%d gold" % NegotiationManager.current_gold_amount

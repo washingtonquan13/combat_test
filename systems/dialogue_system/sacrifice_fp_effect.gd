@@ -16,3 +16,9 @@ func apply(actor: Unit, _target: Unit) -> void:
 		return
 	actor.current_fp = maxi(actor.current_fp - amount, 0)
 	SystemLog.print("%s spends %d FP." % [LogFormat.unit_name(actor), amount])
+
+
+func cost_tag() -> String:
+	if amount <= 0:
+		return ""
+	return "-%d FP" % amount

@@ -1,0 +1,92 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
+[ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
+[ext_resource type="Script" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
+
+[sub_resource type="Animation" id="Animation_scene"]
+resource_name = "scene"
+length = 2.2
+step = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("FramingRig:subject_role")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [&"leader"]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("FramingRig:distance")
+tracks/1/interp = 2
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.3, 1.9),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [9.0, 9.0, 4.0]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("FramingRig:elevation_degrees")
+tracks/2/interp = 2
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 0.3, 1.9),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [28.0, 28.0, 12.0]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("FramingRig:fov_degrees")
+tracks/3/interp = 2
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 0.3, 1.9),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [55.0, 55.0, 48.0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_arrival"]
+_data = {
+"scene": SubResource("Animation_scene")
+}
+
+[node name="TestArenaArrival" type="Node3D"]
+script = ExtResource("1_stage")
+anchor_mark = &""
+props = {}
+
+[node name="Roles" type="Node3D" parent="."]
+
+[node name="leader" type="Marker3D" parent="Roles"]
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="FramingRig" type="Node3D" parent="."]
+script = ExtResource("3_rig")
+subject_role = &"leader"
+subject_mark = &""
+distance = 9.0
+azimuth_degrees = 20.0
+elevation_degrees = 28.0
+fov_degrees = 55.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="Timeline" type="AnimationPlayer" parent="."]
+libraries = {
+"": SubResource("AnimationLibrary_arrival")
+}

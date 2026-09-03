@@ -3,14 +3,22 @@ extends AiTestCase
 ##
 ## THE QUESTION: does adding a caller cost anything? Everything built so
 ## far was built against fusion — the one scene the vocabulary was designed
-## for — and phase 2 added three step types to serve it. That is legitimate
-## (fusion genuinely creates and destroys actors) but it means nothing yet
-## has shown that the NEXT caller is free. If an establishing shot or a
-## fight's opening had needed its own step, the vocabulary would have been
-## fitted too tightly to one scene, and that would have been the finding.
+## for — and it means nothing yet has shown that the NEXT caller is free.
+## If an establishing shot or a fight's opening had needed machinery of its
+## own, the vocabulary would have been fitted too tightly to one scene, and
+## that would have been the finding.
 ##
-## So the load-bearing check here is not "the intro plays". It is that both
-## new callers are composed entirely of step types that already existed.
+## THE LOAD-BEARING CHECK WAS RESTATED when fusion moved onto a timeline.
+## It used to read "the arrival scene needed no step type that did not
+## already exist", which counted SceneStep subclasses — and six of those no
+## longer exist, so the check was measuring a vocabulary that had been
+## deleted rather than a cost that had been avoided. What it means now is
+## the same claim in the surface that replaced it: the arrival scene is an
+## authored timeline, and it does not reach for a single method key. Camera
+## work is value tracks on a FramingRig; a method key is the escape hatch
+## for the things that reach OUT of the stage, and an establishing shot
+## needs none of them. A method key appearing here would say an ordinary
+## arrival had started needing what fusion needs.
 ##
 ## The second half is the flag, which is what stops an establishing shot
 ## from replaying every time the player walks back through a door.
@@ -44,14 +52,17 @@ func run() -> void:
 		"test_arena has no entry_scene, so this phase demonstrates nothing")
 
 	if arrival:
-		var kinds: Array[String] = _step_kinds(arrival)
-		check("and it needed NO step type that did not already exist",
-			kinds == ["CameraShotStep"],
-			"uses %s. Anything beyond CameraShotStep means the vocabulary " % ", ".join(kinds) +
-			"was fitted to fusion and a new caller costs a new step")
-		check("and every step in it can actually fire",
-			arrival.unreachable_steps().is_empty(),
-			"steps sit past the end of their phase")
+		check("and it is an authored timeline, not a hand-built phase list",
+			arrival.is_timed(),
+			"the arrival scene has no stage, so it is still assembled in " +
+			"code and an author cannot see the shot while making it")
+		var keys: int = _method_keys(arrival)
+		check("and it is a timeline with NO method keys",
+			arrival.is_timed() and keys == 0,
+			"%d method key(s). Camera work is value tracks on a " % keys +
+			"FramingRig; a method key means an ordinary arrival has " +
+			"started needing what fusion needs, and a new caller is no " +
+			"longer free")
 	room.queue_free()
 	await get_tree().process_frame
 
@@ -97,24 +108,30 @@ func run() -> void:
 	_cleanup()
 
 
-## Every distinct SceneStep subclass a scene uses.
-func _step_kinds(scene: CinematicScene) -> Array[String]:
-	var kinds: Array[String] = []
-	for phase in scene.phases:
-		if phase == null:
-			continue
-		for step in phase.steps:
-			if step == null:
-				continue
-			var kind: String = step.get_script().resource_path.get_file().get_basename()
-			# spawn_actor_step -> SpawnActorStep
-			var pretty: String = ""
-			for part in kind.split("_"):
-				pretty += part.capitalize()
-			if not kinds.has(pretty):
-				kinds.append(pretty)
-	kinds.sort()
-	return kinds
+## How many method-track keys the scene's timeline carries, across every
+## animation on it — not just the one it plays, because a variant that
+## reached for one would be the same finding.
+##
+## Instantiated rather than read as text: the animation is a sub-resource
+## of the stage .tscn, and parsing the file for "type = \"method\"" would
+## pass on a stage that keyed a method through an AnimationLibrary saved
+## beside it.
+func _method_keys(scene: CinematicScene) -> int:
+	if scene.stage == null:
+		return -1
+	var built: Node = scene.stage.instantiate()
+	var player: AnimationPlayer = built.get_node_or_null(NodePath("Timeline")) as AnimationPlayer
+	var found: int = 0
+	if player:
+		for library_name in player.get_animation_library_list():
+			var library: AnimationLibrary = player.get_animation_library(library_name)
+			for animation_name in library.get_animation_list():
+				var animation: Animation = library.get_animation(animation_name)
+				for track in animation.get_track_count():
+					if animation.track_get_type(track) == Animation.TYPE_METHOD:
+						found += animation.track_get_key_count(track)
+	built.free()
+	return found
 
 
 func _note(scene: CinematicScene) -> void:

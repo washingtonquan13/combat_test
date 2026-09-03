@@ -14,3 +14,9 @@ extends DialogueEffect
 
 func apply(actor: Unit, _target: Unit) -> void:
 	actor.take_damage(amount)
+
+
+func cost_tag() -> String:
+	if amount <= 0:
+		return ""
+	return "-%d HP" % amount

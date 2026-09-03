@@ -47,20 +47,44 @@ static func speaker_line(speaker_name: String, text: String) -> String:
 	return "%s\n%s" % [speaker_name_tag(speaker_name), text]
 
 
-## target/can_use turn this into the DC/modifier preview — this is a
-## roll-UNDER system (SuccessRoll: 3d6 <= target succeeds), so target
-## IS the full number to beat, not a DC alongside a separate modifier —
-## just the plain skill name and that number, "untrained" instead of a
-## misleading 0 if there's no way to attempt it at all. No separate
-## assist marker: a present companion's bonus (see
+## target/attemptable turn this into the DC/modifier preview — this is a
+## roll-UNDER system (SuccessRoll: 3d6 <= target succeeds), so target IS
+## the full number to beat, not a DC alongside a separate modifier.
+## No separate assist marker: a present companion's bonus (see
 ## DialogueManager.find_assisting_companion) is already folded into
 ## target by the caller, so the number shown is already the real one —
 ## a "+" suffix here would misread as d20-style "need 12 or higher,"
 ## backwards for a system where lower rolls are better.
-static func skill_tag(skill_name: String, target: int, can_use: bool) -> String:
+##
+## 2026-09 rework (the one approved-mockup change: "untrained skills
+## should show skill levels like trained skills do") — three cases, not
+## the old two:
+## - attemptable && is_trained: plain number, exactly as before.
+## - attemptable && !is_trained: the number IS shown now (this is the
+##   actual fix), annotated "(untrained)" rather than replaced by the
+##   word — SkillCalculator.get_skill_level already computes a real,
+##   honest target for a default-derived attempt; hiding it behind a
+##   word was the bug, per the user's own request.
+## - !attemptable: skill_level is a pure floor with zero information
+##   behind it (see SkillCheckResult.attemptable) — printing it as a
+##   number would be the misleading-0 this file's old comment already
+##   worried about, just reached a different way. "cannot attempt" is
+##   the honest word for THIS case; it's deliberately not "untrained"
+##   any more, now that "untrained" means something more specific above.
+## is_trained defaults to true so a 3-arg call (attemptable standing in
+## for the old can_use) renders exactly as before — nothing outside this
+## file currently calls skill_tag directly, but the signature stays
+## backward-compatible on purpose.
+static func skill_tag(skill_name: String, target: int, attemptable: bool, is_trained: bool = true) -> String:
 	if skill_name == "":
 		return ""
-	var target_text: String = "%d" % target if can_use else "untrained"
+	var target_text: String
+	if not attemptable:
+		target_text = "cannot attempt"
+	elif is_trained:
+		target_text = "%d" % target
+	else:
+		target_text = "%d (untrained)" % target
 	return "[color=#%s]|%s %s|[/color]" % [skill_tag_color.to_html(false), skill_name, target_text]
 
 
@@ -88,14 +112,98 @@ static func choice_label(choice: DialogueChoice) -> String:
 ## deliberately not previewed here — unknown information going in,
 ## same as the player never sees an enemy's exact defenses ahead of an
 ## attack roll.
+##
+## Routes through _resolve_skill_preview() — the same private resolver
+## skill_parts() below calls — so this BBCode tag and that Dictionary
+## can never disagree about the number.
 static func _skill_preview_tag(choice: DialogueChoice) -> String:
+	var raw: Dictionary = _resolve_skill_preview(choice)
+	if raw.skill == "":
+		return ""
+	if raw.hidden:
+		return skill_tag(raw.skill, 0, false)
+	return skill_tag(raw.skill, raw.target, raw.attemptable, raw.is_trained)
+
+
+## Full internal resolution for one choice's skill-check preview —
+## everything both _skill_preview_tag (BBCode, for the response button/
+## transcript) and skill_parts (raw Dictionary, for a discrete Control
+## row) need, computed exactly once so neither can drift from the
+## other. Not part of the public API: skill_parts strips this down to
+## the 6 keys a view actually needs (an assistant Unit, not just its
+## name; is_trained, which skill_parts intentionally does not expose —
+## see that function's own header).
+static func _resolve_skill_preview(choice: DialogueChoice) -> Dictionary:
+	var is_check: bool = choice is SkillCheckChoice or choice is QuickContestChoice
+	if not is_check:
+		return {"skill": "", "target": 0, "can_use": false, "attemptable": false,
+			"is_trained": false, "assistant": null, "hidden": false}
+
+	var hidden: bool = not choice.show_to_player
 	var actor: Unit = DialogueManager.participants.get("player")
 	if not actor:
-		return skill_tag(choice.skill_name, 0, false)
+		return {"skill": choice.skill_name, "target": 0, "can_use": false, "attemptable": false,
+			"is_trained": false, "assistant": null, "hidden": hidden}
+
 	var result: SkillCheckResult = SkillCalculator.get_skill_level(actor, choice.skill_name)
 	var assistant: Unit = DialogueManager.find_assisting_companion(choice.skill_name)
 	var target: int = result.skill_level + (DialogueManager.ASSIST_BONUS if assistant else 0)
-	return skill_tag(choice.skill_name, target, result.can_use_skill)
+	return {
+		"skill": choice.skill_name,
+		"target": target,
+		"can_use": result.can_use_skill,
+		"attemptable": result.attemptable,
+		"is_trained": result.is_trained,
+		"assistant": assistant,
+		"hidden": hidden,
+	}
+
+
+## Non-BBCode view of the same "what does this choice's check look
+## like" data _skill_preview_tag renders as a string — the discrete-
+## Control rewrite needs raw fields to lay out and color itself, not a
+## baked BBCode fragment it would have to re-parse. Reuses
+## _resolve_skill_preview() (same resolution _skill_preview_tag itself
+## now routes through), so the number shown here can never disagree
+## with the one still baked into choice_label's BBCode string.
+##
+## Returns exactly:
+## - skill: String — "" when choice isn't a check at all (LineChoice,
+##   NegotiationLineChoice, etc.), the "this isn't a check" case.
+## - target: int — the roll-under target, assist bonus already folded
+##   in, same value skill_result()/skill_check_choice.gd will actually
+##   roll against.
+## - can_use: bool — SkillCalculator's own can_use_skill: the roll can
+##   actually be attempted at this target, even when that target is an
+##   honest 0.
+## - attemptable: bool — strictly narrower than can_use (see
+##   SkillCheckResult.attemptable); false only in the rare case where
+##   can_use is true purely because the skill isn't learned_only and
+##   lists some defaults, but none of them actually resolved. A row
+##   should treat !attemptable as "cannot attempt," not as a defaulted
+##   0 — see skill_tag's own header for the full 3-case rendering this
+##   mirrors.
+## - assistant: String — the assisting companion's display name, or ""
+##   with no one helping. Surfaced as its own field, not folded into a
+##   BBCode aside the way skill_result()'s assist_note is, because the
+##   approved row design names who's helping ON the row itself, before
+##   the roll — today that name only appears afterward, in the result
+##   line.
+## - hidden: bool — true when show_to_player is false (SkillCheckChoice/
+##   QuickContestChoice); a discrete row still needs to know to render
+##   "???" in place of the real preview, same as choice_label already
+##   does inline for the BBCode path.
+static func skill_parts(choice: DialogueChoice) -> Dictionary:
+	var raw: Dictionary = _resolve_skill_preview(choice)
+	var assistant: Unit = raw.assistant
+	return {
+		"skill": raw.skill,
+		"target": raw.target,
+		"can_use": raw.can_use,
+		"attemptable": raw.attemptable,
+		"assistant": assistant.get_display_name() if assistant else "",
+		"hidden": raw.hidden,
+	}
 
 
 ## roll is the full SuccessRoll.roll_vs() Dictionary — surfaces the

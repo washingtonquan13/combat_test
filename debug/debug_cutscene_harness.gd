@@ -24,6 +24,10 @@ extends Node
 ## — the pauses are reserved for spectacle that does not exist yet, and
 ## judging the pacing without it is judging half the thing.
 ##
+## The scene itself is cinematics/fusion.tscn now, so re-timing what this
+## key plays is a matter of dragging keys in the editor rather than editing
+## numbers in a builder and running this again to see what they did.
+##
 ## The marks are dropped relative to where you are standing, because no
 ## area declares staging of its own yet. The real version puts them in the
 ## Cathedral of Shadows around an actual device.
@@ -84,8 +88,13 @@ func _play_fusion() -> void:
 	print("Fusing %s + %s -> %s" % [
 		species_a.display_name, species_b.display_name, result.display_name])
 
-	var built: Dictionary = FusionCinematic.build(parent_a, parent_b, result)
-	await CinematicDirector.play(built["scene"], built["cast"])
+	var cast := SceneCast.new()
+	cast.hold(FusionRitual.PARENT_A, parent_a)
+	cast.hold(FusionRitual.PARENT_B, parent_b)
+	await CinematicDirector.play(
+		load(FusionRitual.CUTSCENE_PATH) as CinematicScene,
+		cast,
+		{FusionRitual.RESULT: result})
 
 	# The camera is deliberately LEFT on the result. Beat 8 is the demon
 	# introducing itself, which is a dialogue the caller starts — so the
@@ -111,10 +120,10 @@ func _drop_marks(stage: Node, origin: Vector3) -> void:
 	stage.add_child(_marks)
 
 	var placements: Dictionary = {
-		FusionCinematic.DEVICE_MARK: origin,
-		FusionCinematic.LEFT_MARK: origin + Vector3(-PAIR_SPREAD, 0.0, 0.0),
-		FusionCinematic.RIGHT_MARK: origin + Vector3(PAIR_SPREAD, 0.0, 0.0),
-		FusionCinematic.RESULT_MARK: origin,
+		FusionRitual.DEVICE_MARK: origin,
+		FusionRitual.LEFT_MARK: origin + Vector3(-PAIR_SPREAD, 0.0, 0.0),
+		FusionRitual.RIGHT_MARK: origin + Vector3(PAIR_SPREAD, 0.0, 0.0),
+		FusionRitual.RESULT_MARK: origin,
 	}
 	for mark_name in placements:
 		var mark := Marker3D.new()

@@ -62,6 +62,22 @@ func resolve(actor: Unit, target: Unit) -> String:
 	return await _resolve_next_node_id(actor, target)
 
 
+## Aggregates every non-empty DialogueEffect.cost_tag() across effects,
+## in array order — presentation metadata for the same fairness gap
+## cost_tag() itself documents: a choice that costs HP/FP/gold/an item
+## shows nothing today until AFTER it's picked, since resolve() above
+## only echoes what happened, never what it will cost. A plain LineChoice
+## or one whose effects are all non-cost (GiveItemEffect, mood shifts)
+## returns an empty array, not a padded one — nothing to warn about.
+func cost_tags() -> PackedStringArray:
+	var tags: PackedStringArray = []
+	for effect in effects:
+		var tag: String = effect.cost_tag()
+		if tag != "":
+			tags.append(tag)
+	return tags
+
+
 ## Not actually async on the base class or LineChoice — GDScript
 ## doesn't require a function to declare await just because SOME
 ## override (SkillCheckChoice/QuickContestChoice, awaiting

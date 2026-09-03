@@ -26,6 +26,18 @@ extends Control
 ## conversation or a loot screen blocks; a log/journal-style overlay
 ## usually shouldn't.
 @export var blocks_input_below: bool = false
+## Only meaningful when hides_hud is true. Normally hides_hud takes the
+## WHOLE gameplay HUD down together, party rail included (see
+## UIStack._update_hud_visibility()) — right for a full takeover like
+## the main menu or character creation. Set this true on a screen that
+## hides the rest of the HUD but still wants the party rail (portraits,
+## click-to-select) left up and clickable — DialogueOverlay is the one
+## screen so far that does: a conversation blanks the initiative row,
+## hotbar, end-turn button and system log, but the party is still meant
+## to be reachable while it's up (see PartyPanel/unit_portrait.gd — the
+## click handler already has no dialogue-awareness at all, it just
+## wasn't on screen to click).
+@export var keeps_party_visible: bool = false
 ## Whether Escape closes this screen when it's the topmost closes_on_cancel
 ## screen open (see UIStack's own _unhandled_input). False for screens
 ## that shouldn't be casually dismissed mid-flow (dialogue, negotiation).

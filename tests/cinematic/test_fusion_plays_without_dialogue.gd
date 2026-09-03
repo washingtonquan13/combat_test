@@ -6,15 +6,35 @@ extends AiTestCase
 ## dialogue is one caller. If it cannot, the spine is still dialogue and
 ## every later phase inherits that. Drafts 1 and 2 of the plan would have
 ## failed this — not on dependencies, which were already fine, but because
-## their step vocabulary had no way to create an actor, destroy one, or
-## hold one whose owner had let go.
+## their vocabulary had no way to create an actor, destroy one, or hold one
+## whose owner had let go.
 ##
 ## What it exercises that no conversation ever will: actors CONSUMED
 ## partway through, an actor that does not exist when the scene starts, and
 ## staging measured from a thing rather than a face.
+##
+## NOW PLAYED FROM THE AUTHORED FILE. The scene used to be assembled by a
+## FusionCinematic builder, and this suite used to assert that it was —
+## that its five beats were there and that every step it contained could
+## fire. Those checks went with the builder. The scene is
+## cinematics/fusion.tscn, driven by a timeline anyone can scrub, and what
+## replaces them is the same claim one layer down: the file loads, it is a
+## timed scene, and the performance it names is on it.
+##
+## THE ONE THING THE TIMELINE COULD NOT SWALLOW is the result demon. It is
+## computed from the two going in, and a method track key cannot carry a
+## Resource — so the caller hands the DEFINITION to the director as props
+## and the spawn key names the slot. The "result appears" check below is
+## the only thing that proves that route works end to end.
 
 const DEMON_A := "res://data/units/demons/test_pixie.tres"
 const DEMON_B := "res://data/units/demons/test_wolf.tres"
+
+## Capped in FRAMES, never in accumulated delta. A headless frame is
+## however long the machine managed, so a seconds budget is not a bound —
+## and the animation is advancing on the same clock the budget would be
+## spending, which makes the two indistinguishable when something stalls.
+const FRAME_CAP := 12000
 
 var _saved_root: Node = null
 var _saved_camera: CinematicCamera = null
@@ -41,19 +61,33 @@ func run() -> void:
 	var parent_b: Unit = _body(species_b)
 	await get_tree().process_frame
 
-	var built: Dictionary = FusionCinematic.build(parent_a, parent_b, species_a)
-	var scene: CinematicScene = built["scene"]
-	var cast: SceneCast = built["cast"]
+	var scene: CinematicScene = load(FusionRitual.CUTSCENE_PATH) as CinematicScene
+	check("the fusion cutscene is an authored file, not something code assembles",
+		scene != null and scene.is_timed(),
+		"loaded %s — with no stage there is no timeline, and the beats " % str(scene) +
+		"are back to being numbers nobody can see")
+	if scene == null or not scene.is_timed():
+		_cleanup()
+		return
 
-	check("the scene is assembled from its participants, not authored",
-		scene.phases.size() >= 5,
-		"%d phases — the beats are missing" % scene.phases.size())
-	check("and every step it contains can actually fire",
-		scene.unreachable_steps().is_empty(),
-		"steps sit past the end of their phase: %s" % _names(scene.unreachable_steps()))
+	check("and the performance it names is actually on its stage",
+		_has_performance(scene),
+		"'%s' is not an animation on a 'Timeline' player in %s" % [
+			scene.animation, scene.stage.resource_path])
+
+	# The cast the ritual builds: both parents HELD, the result absent
+	# because it does not exist yet. Built here rather than through
+	# FusionRitual.perform() so the roster release below can be driven at
+	# the exact moment a confirmation would drive it.
+	var cast := SceneCast.new()
+	cast.hold(FusionRitual.PARENT_A, parent_a)
+	cast.hold(FusionRitual.PARENT_B, parent_b)
 
 	# --- play it --------------------------------------------------------
-	_drive(scene, cast)
+	# The third argument is the whole point of props: species_a stands in
+	# for a computed fusion result, which is a Resource, which is the one
+	# thing a method track key cannot carry.
+	_drive(scene, cast, {FusionRitual.RESULT: species_a})
 	await get_tree().process_frame
 
 	check("it holds the screen",
@@ -70,8 +104,8 @@ func run() -> void:
 	DemonRoster.release(owned_b)
 
 	check("the parents survive their owner letting go of them",
-		cast.unit(FusionCinematic.PARENT_A) == parent_a
-			and cast.unit(FusionCinematic.PARENT_B) == parent_b,
+		cast.unit(FusionRitual.PARENT_A) == parent_a
+			and cast.unit(FusionRitual.PARENT_B) == parent_b,
 		"the cast lost one of them the moment the roster released it — a " +
 		"held role is owned by the SCENE until it says otherwise")
 	check("and they are still on screen",
@@ -85,7 +119,7 @@ func run() -> void:
 		"DialogueManager.current_node is %s — the cutscene reached for " % str(DialogueManager.current_node) +
 		"dialogue, which means the spine is still dialogue")
 
-	await _until_returned(20.0)
+	await _until_returned()
 	check("the sequence runs to the end",
 		_returned and _result,
 		"returned=%s completed=%s" % [str(_returned), str(_result)])
@@ -93,18 +127,35 @@ func run() -> void:
 	# --- what it left behind ---------------------------------------------
 	check("the parents are gone once their dissolve beat has passed",
 		not is_instance_valid(parent_a) and not is_instance_valid(parent_b),
-		"a parent is still in the world after the whole sequence")
+		"a parent is still in the world after the whole sequence — the " +
+		"despawn keys at 3.2 either did not fire or are not on the track")
 
-	var born: Unit = cast.unit(FusionCinematic.RESULT)
+	var born: Unit = cast.unit(FusionRitual.RESULT)
 	check("the result was created mid-scene and is in the world",
 		born != null and born.is_inside_tree(),
-		"nothing is cast as the result — a scene cannot ask an authority " +
-		"for a thing that did not exist when it started, so the step that " +
-		"makes it must also hold it")
+		"nothing is cast as the result. The scene cannot ask an authority " +
+		"for a thing that did not exist when it started, so the key that " +
+		"makes it must also hold it — and the DEFINITION only reaches that " +
+		"key through the props the caller handed the director")
 
 	if born:
+		# ON THE GROUND PLAN, not in three dimensions. The result is a
+		# CharacterBody3D and the mark is 1 m up, so by the time the scene
+		# ends it has fallen most of that metre under its own gravity —
+		# which is the body behaving correctly, not the key placing it
+		# wrongly. Where it was PUT is the horizontal answer.
+		var spot: Node3D = cast.mark(FusionRitual.RESULT_MARK)
+		var drift: float = -1.0
+		if spot:
+			var here := Vector2(born.global_position.x, born.global_position.z)
+			var there := Vector2(spot.global_position.x, spot.global_position.z)
+			drift = here.distance_to(there)
+		check("and it appears on the result mark",
+			spot != null and drift < 0.05,
+			"the result stands %.2fm from FusionResult on the ground plan" % drift)
+
 		var reveal := CameraFraming.new()
-		reveal.subject_role = FusionCinematic.RESULT
+		reveal.subject_role = FusionRitual.RESULT
 		reveal.distance = 2.2
 		reveal.elevation_degrees = 6.0
 		check("and the camera ends on it",
@@ -121,8 +172,8 @@ func run() -> void:
 
 ## Marks, a camera, and somewhere for a spawned actor to go. The AI harness
 ## has no world, and WorldManager.spawn_parent() falls back to the scene
-## root — so without registering one, SpawnActorStep has nowhere to put the
-## demon it makes and the reveal would silently never happen.
+## root — so without registering one, the stage's spawn key has nowhere to
+## put the demon it makes and the reveal would silently never happen.
 func _stand_up_a_stage() -> bool:
 	_saved_root = WorldManager._scene_root
 	_saved_camera = CinematicDirector.camera()
@@ -134,10 +185,10 @@ func _stand_up_a_stage() -> bool:
 	_marks = Node3D.new()
 	_root.add_child(_marks)
 	var placements: Dictionary = {
-		FusionCinematic.DEVICE_MARK: Vector3(0.0, 0.0, 0.0),
-		FusionCinematic.LEFT_MARK: Vector3(-1.2, 1.0, 0.0),
-		FusionCinematic.RIGHT_MARK: Vector3(1.2, 1.0, 0.0),
-		FusionCinematic.RESULT_MARK: Vector3(0.0, 1.0, 0.0),
+		FusionRitual.DEVICE_MARK: Vector3(0.0, 0.0, 0.0),
+		FusionRitual.LEFT_MARK: Vector3(-1.2, 1.0, 0.0),
+		FusionRitual.RIGHT_MARK: Vector3(1.2, 1.0, 0.0),
+		FusionRitual.RESULT_MARK: Vector3(0.0, 1.0, 0.0),
 	}
 	for mark_name in placements:
 		var mark := Marker3D.new()
@@ -151,6 +202,17 @@ func _stand_up_a_stage() -> bool:
 	return true
 
 
+## Whether the stage really carries the animation the scene names. Cheap,
+## and it turns "the reveal never happened" into a setup failure that says
+## why rather than a mysterious missing demon.
+func _has_performance(scene: CinematicScene) -> bool:
+	var built: Node = scene.stage.instantiate()
+	var player: AnimationPlayer = built.get_node_or_null(NodePath("Timeline")) as AnimationPlayer
+	var found: bool = player != null and player.has_animation(scene.animation)
+	built.free()
+	return found
+
+
 func _body(species: UnitDefinition) -> Unit:
 	var unit: Unit = species.unit_scene.instantiate()
 	unit.definition = species
@@ -158,24 +220,17 @@ func _body(species: UnitDefinition) -> Unit:
 	return unit
 
 
-func _drive(scene: CinematicScene, cast: SceneCast) -> void:
+func _drive(scene: CinematicScene, cast: SceneCast, props: Dictionary) -> void:
 	_returned = false
-	_result = await CinematicDirector.play(scene, cast)
+	_result = await CinematicDirector.play(scene, cast, props)
 	_returned = true
 
 
-func _until_returned(timeout_seconds: float) -> void:
-	var waited: float = 0.0
-	while not _returned and waited < timeout_seconds:
+func _until_returned() -> void:
+	var spent: int = 0
+	while not _returned and spent < FRAME_CAP:
 		await get_tree().process_frame
-		waited += get_process_delta_time()
-
-
-func _names(steps: Array[SceneStep]) -> String:
-	var out: PackedStringArray = []
-	for step in steps:
-		out.append(step.describe())
-	return ", ".join(out)
+		spent += 1
 
 
 func _cleanup() -> void:

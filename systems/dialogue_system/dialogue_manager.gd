@@ -183,6 +183,26 @@ func start_dialogue(root: DialogueNode, conversation_participants: Dictionary) -
 ## doesn't need to) just lets it run as a detached coroutine; every
 ## state change it makes still lands via the usual signals whenever it
 ## actually finishes.
+## Shows the dice for an already-decided roll and waits for the
+## presentation to finish. Returns immediately when nothing is listening.
+##
+## THE GUARD IS THE POINT. The dice popup is the only listener for
+## dice_roll_requested AND the only emitter of dice_roll_finished, so with
+## no popup in the tree — a test scene, a stripped export, a frame before
+## it is ready — an unguarded `await dice_roll_finished` never returns and
+## the conversation hangs forever with no timeout. Both callers used to
+## emit and await directly, which is exactly that hazard; this is the one
+## place that knows the pair can be unattended.
+##
+## The roll is already final before this is called. Nothing here decides
+## anything; the dice only ever play back a result.
+func present_dice_roll(skill_name: String, roll: Dictionary) -> void:
+	if dice_roll_requested.get_connections().is_empty():
+		return
+	dice_roll_requested.emit(skill_name, roll)
+	await dice_roll_finished
+
+
 func choose(index: int) -> void:
 	if not current_node or index < 0 or index >= _visible_choices.size():
 		return

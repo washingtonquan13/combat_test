@@ -56,6 +56,10 @@ func _ready() -> void:
 	CombatManager.combat_ended.connect(_on_combat_ended)
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	SelectionManager.selection_changed.connect(_on_selection_changed)
+	# And when the world on screen changes — see _in_view. Without this,
+	# a unit whose abilities are on the bar stays on it after the player
+	# walks away from the fight it is standing in.
+	WorldManager.world_focused.connect(_on_world_focused)
 
 	_wire_divider(_divider_common_abilities, _common_grid, _abilities_grid)
 	_wire_divider(_divider_abilities_custom, _abilities_grid, _custom_grid)
@@ -87,7 +91,28 @@ func _on_divider_dragged(delta: int, divider: HotbarDivider, left_grid: GridCont
 	right_grid.columns = start.y - clamped
 
 
+## Whether the player is actually looking at the world this unit stands
+## in. CombatManager relays turn_started for EVERY encounter, including
+## fights in worlds nobody is watching (see its _relay), so without this
+## a distant fight taking a player turn put that unit's abilities on the
+## bar while the player was somewhere else entirely.
+##
+## A unit with no context at all — the headless harness, a fight staged
+## outside the world system — counts as in view, matching
+## CombatManager._is_watched.
+func _in_view(unit: Unit) -> bool:
+	if not is_instance_valid(unit):
+		return false
+	var context: WorldContext = WorldManager.context()
+	return context == null or context.contains(unit)
+
+
 func _on_turn_started(unit: Unit) -> void:
+	# Somebody else's fight, somewhere the player is not. Leave the bar
+	# showing whatever it shows for THIS world rather than clearing it.
+	if not _in_view(unit):
+		return
+
 	AbilityManager.disarm()
 	_disconnect_current_unit()
 
@@ -131,7 +156,14 @@ func _on_selection_changed(_selected_units: Array[Unit]) -> void:
 ## question about whether a fight exists somewhere.
 func _refresh_out_of_combat_unit() -> void:
 
-	var unit: Unit = SelectionManager.selected_units[0] if not SelectionManager.selected_units.is_empty() else null
+	# The first selected unit IN THIS WORLD. An unscoped read of
+	# selected_units[0] put a unit the player had left behind back on the
+	# bar, offering abilities they cannot reach.
+	var unit: Unit = null
+	for candidate in SelectionManager.selected_units:
+		if _in_view(candidate):
+			unit = candidate
+			break
 	if unit == _current_unit:
 		return  # same displayed unit already — don't disturb an in-progress arm
 
@@ -190,6 +222,18 @@ func _add_slot(grid: GridContainer, unit: Unit, ability: Ability, custom_index: 
 	slot.custom_slot_index = custom_index
 	grid.add_child(slot)
 	_slots.append(slot)
+
+
+## The world on screen changed. Whoever the bar was showing may now be
+## somewhere the player cannot see; fall back to this world's selection.
+func _on_world_focused(_world: Node) -> void:
+	if _current_unit != null and _in_view(_current_unit):
+		return
+	AbilityManager.disarm()
+	_disconnect_current_unit()
+	_clear()
+	visible = false
+	_refresh_out_of_combat_unit()
 
 
 func _on_ability_armed(_ability: Ability) -> void:

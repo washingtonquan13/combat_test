@@ -28,6 +28,7 @@ extends Node
 
 var _stack: Array[UIScreen] = []
 var _hud: Control = null
+var _party_rail: Control = null
 
 
 ## Called once by MainRoot's own script with the TACTICAL HUD subtree
@@ -37,11 +38,42 @@ var _hud: Control = null
 ## hidden. That was a real shipped bug: DialogueOverlay/NegotiationPanel
 ## set hides_hud=true, UIStack hid the whole CanvasLayer, and the dialogue
 ## and negotiation panels never appeared at all. "The HUD" means the
-## gameplay chrome (initiative row, hotbar, party panel, end-turn button,
-## system log, menu button) — a SIBLING of every screen, never their
-## ancestor.
+## gameplay chrome (initiative row, hotbar, end-turn button, system log,
+## menu button) — a SIBLING of every screen, never their ancestor. The
+## party rail is deliberately NOT part of this node anymore — see
+## register_party_rail().
 func register_hud(hud: Control) -> void:
 	_hud = hud
+	_update_hud_visibility()
+
+
+## Called once by MainRoot's own script with PartyRail — a bare full-rect
+## wrapper Control, SIBLING of TacticalUI (see MainRoot.tscn), that holds
+## PartyPanel as its one child. Registered separately from register_hud()
+## because the party rail's visibility rule is finer than the rest of the
+## HUD's: most hides_hud screens (main menu, character creation) should
+## take it down too, but a screen can opt out via UIScreen.
+## keeps_party_visible — DialogueOverlay does, so a conversation still
+## shows clickable party portraits while the initiative row, hotbar,
+## end-turn button and system log are gone. Nesting PartyPanel under
+## TacticalUI could never express that: a Control whose ANCESTOR is
+## invisible is invisible in the tree no matter what its own `visible`
+## flag says.
+##
+## It's PartyRail, a plain wrapper, that gets registered here — NOT
+## PartyPanel directly — because PartyPanel already drives its OWN
+## `visible` independently (hidden whenever the party has no rows; see
+## party_panel.gd's _update_visibility()). Writing to PartyPanel.visible
+## from here too would make two owners fight over the same flag: this
+## rule would force it back on after a conversation even if the party
+## happened to be empty at that exact moment, or the emptiness check
+## could stomp a value this rule had just set. A wrapper Control this
+## file toggles, with PartyPanel toggling its OWN visible independently
+## underneath it, means is_visible_in_tree() is correctly the AND of
+## both reasons — exactly how TacticalUI already relates to everything
+## inside IT, just for one specific child instead of all of them.
+func register_party_rail(rail: Control) -> void:
+	_party_rail = rail
 	_update_hud_visibility()
 
 
@@ -124,11 +156,26 @@ func _pop_topmost_cancelable() -> bool:
 
 
 func _update_hud_visibility() -> void:
-	if not _hud:
-		return
-	var hidden: bool = false
+	if _hud:
+		_hud.visible = not _any_screen_hides_hud()
+	if _party_rail:
+		_party_rail.visible = not _any_screen_hides_party_rail()
+
+
+func _any_screen_hides_hud() -> bool:
 	for screen in _stack:
 		if screen.hides_hud:
-			hidden = true
-			break
-	_hud.visible = not hidden
+			return true
+	return false
+
+
+## True only when some open screen wants the party rail down TOO — a
+## hides_hud screen that has NOT opted it back in via keeps_party_visible.
+## Deliberately independent of _any_screen_hides_hud(): a stack holding
+## only DialogueOverlay (hides_hud, keeps_party_visible) hides the rest of
+## the HUD while this stays false, which is the entire point of the split.
+func _any_screen_hides_party_rail() -> bool:
+	for screen in _stack:
+		if screen.hides_hud and not screen.keeps_party_visible:
+			return true
+	return false

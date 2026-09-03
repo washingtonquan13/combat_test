@@ -75,7 +75,7 @@ func _aim_the_camera() -> void:
 	var camera: Camera3D = device_view if device_view else get_tactical_camera()
 	if camera == null:
 		return
-	var device: Node3D = find_child(String(FusionCinematic.DEVICE_MARK), true, false) as Node3D
+	var device: Node3D = find_child(String(FusionRitual.DEVICE_MARK), true, false) as Node3D
 	if device == null:
 		return
 	camera.look_at_from_position(camera.global_position, device.global_position, Vector3.UP)

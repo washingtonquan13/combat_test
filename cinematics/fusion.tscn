@@ -1,0 +1,144 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
+[ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
+[ext_resource type="Script" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
+
+[sub_resource type="Animation" id="Animation_scene"]
+resource_name = "scene"
+length = 5.2
+step = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("FramingRig:subject_mark")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 4.9),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [&"FusionDevice", &""]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("FramingRig:subject_role")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 4.9),
+"transitions": PackedFloat32Array(1, 1),
+"update": 1,
+"values": [&"", &"result"]
+}
+tracks/2/type = "value"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("FramingRig:distance")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0, 1.2, 4.9),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 1,
+"values": [6.0, 4.0, 2.2]
+}
+tracks/3/type = "value"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("FramingRig:elevation_degrees")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0, 1.2, 4.9),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 1,
+"values": [4.0, 12.0, 6.0]
+}
+tracks/4/type = "value"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("FramingRig:look_offset")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0, 0.12, 1.08, 1.1, 1.2),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 0,
+"values": [Vector3(0, 0, 0), Vector3(0, 0, 0), Vector3(0, 4, 0), Vector3(0, 4, 0), Vector3(0, 0, 0)]
+}
+tracks/5/type = "method"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath(".")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(1.2, 1.21, 3.2, 3.21, 4.9),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"values": [{
+"args": [&"parent_a", &"FusionLeft"],
+"method": &"place"
+}, {
+"args": [&"parent_b", &"FusionRight"],
+"method": &"place"
+}, {
+"args": [&"parent_a"],
+"method": &"despawn"
+}, {
+"args": [&"parent_b"],
+"method": &"despawn"
+}, {
+"args": [&"result", "result", &"FusionResult"],
+"method": &"spawn"
+}]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_fusion"]
+_data = {
+"scene": SubResource("Animation_scene")
+}
+
+[node name="Fusion" type="Node3D"]
+script = ExtResource("1_stage")
+anchor_mark = &"FusionDevice"
+props = {}
+
+[node name="Roles" type="Node3D" parent="."]
+
+[node name="parent_a" type="Marker3D" parent="Roles"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -2)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="parent_b" type="Marker3D" parent="Roles"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, -2)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="result" type="Marker3D" parent="Roles"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 2)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="FramingRig" type="Node3D" parent="."]
+script = ExtResource("3_rig")
+subject_role = &""
+subject_mark = &"FusionDevice"
+distance = 6.0
+azimuth_degrees = 20.0
+elevation_degrees = 4.0
+fov_degrees = 40.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="Timeline" type="AnimationPlayer" parent="."]
+callback_mode_method = 1
+libraries = {
+"": SubResource("AnimationLibrary_fusion")
+}

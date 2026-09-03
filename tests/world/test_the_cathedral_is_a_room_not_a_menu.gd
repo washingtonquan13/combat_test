@@ -46,8 +46,8 @@ func run() -> void:
 
 	# --- the staging the cutscene looks for ------------------------------
 	var wanted: Array[StringName] = [
-		FusionCinematic.DEVICE_MARK, FusionCinematic.LEFT_MARK,
-		FusionCinematic.RIGHT_MARK, FusionCinematic.RESULT_MARK,
+		FusionRitual.DEVICE_MARK, FusionRitual.LEFT_MARK,
+		FusionRitual.RIGHT_MARK, FusionRitual.RESULT_MARK,
 	]
 	var missing: Array[String] = []
 	var sunken: Array[String] = []

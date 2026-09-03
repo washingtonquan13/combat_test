@@ -60,6 +60,15 @@ func _ready() -> void:
 	# UIStack.register_hud()'s own header for why that distinction is
 	# load-bearing rather than cosmetic.
 	UIStack.register_hud($CanvasLayer/TacticalUI)
+	# PartyRail is a SIBLING of TacticalUI (see MainRoot.tscn), a bare
+	# full-rect wrapper around PartyPanel — registered, not PartyPanel
+	# itself, so its own visibility rule (UIScreen.keeps_party_visible)
+	# can differ from the rest of the HUD's WITHOUT fighting PartyPanel's
+	# own visible flag, which party_panel.gd already drives independently
+	# (hidden when the party is empty) — see UIStack.register_party_rail()
+	# and PartyPanel's own header for why a bare wrapper, not PartyPanel
+	# directly, is what gets registered here.
+	UIStack.register_party_rail($CanvasLayer/PartyRail)
 
 	# No mode to set. With no world loaded and character creation not open,
 	# GameMode already answers MAIN_MENU — that is its floor, and booting

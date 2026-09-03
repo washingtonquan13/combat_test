@@ -18,3 +18,9 @@ func apply(actor: Unit, _target: Unit) -> void:
 		return
 	if not party_overview.get_inventory().consume_item(gear_data):
 		push_warning("SacrificeItemEffect: party inventory has no %s to consume." % gear_data.item_name)
+
+
+func cost_tag() -> String:
+	if not gear_data:
+		return ""
+	return "-1 %s" % gear_data.item_name

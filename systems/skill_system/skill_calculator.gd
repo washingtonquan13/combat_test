@@ -61,7 +61,15 @@ static func get_skill_level(unit: Unit, skill_name: String, depth: int = 0) -> S
 		or has_valid_default
 		or (not skill_data.learned_only and not skill_data.defaults.is_empty())
 	)
-	return SkillCheckResult.new(best_level, is_usable)
+	# is_usable's own third clause can go true with NO default having
+	# actually resolved (every listed default is itself unusable, e.g. a
+	# SKILL-type default chasing an unusable skill) — the roll is still
+	# allowed to happen, at best_level's untouched floor of 0, but that 0
+	# is not a computed value in the way a resolved default's is. attemptable
+	# is deliberately narrower than is_usable for exactly that gap — see
+	# SkillCheckResult.attemptable.
+	var attemptable: bool = instance != null or has_valid_default
+	return SkillCheckResult.new(best_level, is_usable, instance != null, attemptable)
 
 
 ## {found: bool, value: int} — found=false means this particular default

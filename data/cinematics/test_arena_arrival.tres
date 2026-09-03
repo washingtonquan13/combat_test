@@ -1,55 +1,12 @@
-[gd_resource type="Resource" script_class="CinematicScene" load_steps=11 format=3 uid="uid://dd1l1dh8ptyjj"]
+[gd_resource type="Resource" script_class="CinematicScene" load_steps=4 format=3 uid="uid://dd1l1dh8ptyjj"]
 
 [ext_resource type="Script" uid="uid://1mqfkmfryqw7" path="res://systems/cinematic_system/cinematic_scene.gd" id="1_scene"]
-[ext_resource type="Script" uid="uid://bcub4b10qqtsp" path="res://systems/cinematic_system/scene_phase.gd" id="2_phase"]
-[ext_resource type="Script" uid="uid://bplx0a6xjhuse" path="res://systems/cinematic_system/scene_step.gd" id="3_step"]
-[ext_resource type="Script" uid="uid://cjsqwrusr2tui" path="res://systems/cinematic_system/camera_shot_step.gd" id="4_shot"]
-[ext_resource type="Script" uid="uid://bbl7wr53opoux" path="res://systems/cinematic_system/camera_framing.gd" id="5_framing"]
-
-[sub_resource type="Resource" id="Resource_wide_framing"]
-script = ExtResource("5_framing")
-subject_role = &"leader"
-subject_mark = &""
-distance = 9.0
-azimuth_degrees = 20.0
-elevation_degrees = 28.0
-fov_degrees = 55.0
-look_role = &""
-look_mark = &""
-look_offset = Vector3(0, 0, 0)
-
-[sub_resource type="Resource" id="Resource_open_wide"]
-script = ExtResource("4_shot")
-framing = SubResource("Resource_wide_framing")
-transit_seconds = 0.0
-ease_curve = -2.0
-offset = 0.0
-
-[sub_resource type="Resource" id="Resource_close_framing"]
-script = ExtResource("5_framing")
-subject_role = &"leader"
-subject_mark = &""
-distance = 4.0
-azimuth_degrees = 20.0
-elevation_degrees = 12.0
-fov_degrees = 48.0
-look_role = &""
-look_mark = &""
-look_offset = Vector3(0, 0, 0)
-
-[sub_resource type="Resource" id="Resource_push_in"]
-script = ExtResource("4_shot")
-framing = SubResource("Resource_close_framing")
-transit_seconds = 1.6
-ease_curve = -2.0
-offset = 0.3
-
-[sub_resource type="Resource" id="Resource_arrival_beat"]
-script = ExtResource("2_phase")
-duration_seconds = 2.2
-steps = Array[ExtResource("3_step")]([SubResource("Resource_open_wide"), SubResource("Resource_push_in")])
+[ext_resource type="Script" uid="uid://bcub4b10qqtsp" path="res://systems/cinematic_system/scene_phase.gd" id="1_vl8gg"]
+[ext_resource type="PackedScene" path="res://cinematics/test_arena_arrival.tscn" id="6_stage"]
 
 [resource]
 script = ExtResource("1_scene")
 id = &"test_arena_arrival"
-phases = Array[ExtResource("2_phase")]([SubResource("Resource_arrival_beat")])
+phases = Array[ExtResource("1_vl8gg")]([])
+stage = ExtResource("6_stage")
+animation = &"scene"

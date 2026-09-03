@@ -22,6 +22,30 @@ extends RefCounted
 ## asked for and spent two demons on.
 
 const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
+## The authored cutscene. A .tscn with a timeline that anyone can open and
+## scrub, plus the one-line CinematicScene that names which animation on it
+## is the performance — see cinematics/fusion.tscn.
+const CUTSCENE_PATH: String = "res://data/cinematics/fusion.tres"
+
+## THE STAGING VOCABULARY, and it lives HERE rather than on the cutscene,
+## because it is the FUSION that requires it. An area declares it can host
+## a fusion by carrying these four marks in group scene_marks (see
+## world/cathedral_of_shadows.tscn); the timeline names them on its keys;
+## and this file probes for one of them to decide whether there is anywhere
+## to play. Three unrelated things agree on four names, so the names are a
+## constant on the system that owns the ritual.
+const DEVICE_MARK: StringName = &"FusionDevice"
+const LEFT_MARK: StringName = &"FusionLeft"
+const RIGHT_MARK: StringName = &"FusionRight"
+const RESULT_MARK: StringName = &"FusionResult"
+
+## Cast roles, matching the StageRole markers under cinematics/fusion.tscn.
+const PARENT_A: StringName = &"parent_a"
+const PARENT_B: StringName = &"parent_b"
+## Also the props key the timeline's spawn key names — the result demon is
+## computed here and handed to the stage, because a method track key cannot
+## carry a Resource.
+const RESULT: StringName = &"result"
 
 
 ## What `a` and `b` would produce, or null if they produce nothing.
@@ -55,11 +79,27 @@ static func perform(a: OwnedDemon, b: OwnedDemon) -> OwnedDemon:
 	var born: OwnedDemon = DemonRoster.recruit(result)
 
 	if not staging.is_empty():
-		var built: Dictionary = FusionCinematic.build(
-			staging["parent_a"], staging["parent_b"], result)
-		await CinematicDirector.play(built["scene"], built["cast"])
+		await CinematicDirector.play(
+			load(CUTSCENE_PATH) as CinematicScene, _cast(staging), {RESULT: result})
 
 	return born
+
+
+## The two parents, HELD rather than tracked, and that is the whole reason
+## held roles exist: DemonRoster.release() consumes them as roster entries
+## when the fusion is confirmed, several beats before they dissolve on
+## screen. Asking the roster for either one after that returns nothing, so
+## a tracked role would blank out mid-cutscene.
+##
+## The RESULT is not in here at all. It does not exist as a body yet — the
+## timeline's spawn key makes it, at the moment the reveal wants it, and
+## the stage holds it from there. What this call site supplies is only the
+## DEFINITION, through the director's props.
+static func _cast(staging: Dictionary) -> SceneCast:
+	var players := SceneCast.new()
+	players.hold(PARENT_A, staging["parent_a"])
+	players.hold(PARENT_B, staging["parent_b"])
+	return players
 
 
 ## Two bodies to dissolve, or nothing if this world has no fusion staging.
@@ -73,7 +113,7 @@ static func _stage(species_a: UnitDefinition, species_b: UnitDefinition) -> Dict
 		return {}
 	var probe := SceneCast.new()
 	probe.tree = stage.get_tree()
-	if not probe.has_mark(FusionCinematic.DEVICE_MARK):
+	if not probe.has_mark(DEVICE_MARK):
 		return {}
 
 	var parent_a: Unit = _body(stage, species_a)

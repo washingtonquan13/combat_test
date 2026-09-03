@@ -1,0 +1,47 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/dialogue_system/choice_row.gd" id="1_choicerow"]
+
+[node name="ChoiceRow" type="Button"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 3
+size_flags_horizontal = 3
+focus_mode = 2
+flat = true
+text = ""
+script = ExtResource("1_choicerow")
+
+[node name="Content" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="IndexLabel" type="Label" parent="Content"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+mouse_filter = 2
+horizontal_alignment = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = "01"
+
+[node name="TextLabel" type="RichTextLabel" parent="Content"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false
+autowrap_mode = 3
+
+[node name="TagsLabel" type="RichTextLabel" parent="Content"]
+layout_mode = 2
+size_flags_horizontal = 0
+mouse_filter = 2
+bbcode_enabled = true
+fit_content = true
+scroll_active = false

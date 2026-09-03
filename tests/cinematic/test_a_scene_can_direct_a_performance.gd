@@ -2,9 +2,10 @@ extends AiTestCase
 ## A scene can make an actor DO something, and gameplay stops arguing with
 ## it while it does.
 ##
-## Before these three step types the system could compose shots and slide
-## bodies between marks, and nothing else — every scene was statues while
-## the camera did the work. That is a staging system, not a cutscene one.
+## Before a scene could direct a performance the system could compose shots
+## and slide bodies between marks, and nothing else — every scene was
+## statues while the camera did the work. That is a staging system, not a
+## cutscene one.
 ##
 ## THE CLAIM IS THE INTERESTING HALF. Gameplay animates units reactively:
 ## damage plays a hit clip, movement plays a walk, arming plays a pose. Any
@@ -12,6 +13,15 @@ extends AiTestCase
 ## shot and NOTHING REPORTS IT — the animation just changes, and the scene
 ## reads as badly directed rather than as broken. That is the failure this
 ## suite exists to catch, because no other kind of test would.
+##
+## DIRECTED THROUGH THE STAGE NOW. ActorClipStep is gone; a performance is
+## a method key on a timeline, calling CinematicStage.clip(). The stage
+## below is mounted and bound by hand rather than through a .tscn, which is
+## exactly what a method key does when it fires — the key is only a way of
+## saying WHEN. What matters is unchanged and is asserted unchanged: the
+## claim is taken, gameplay cannot animate over it, death still gets
+## through, and the DIRECTOR hands the actor back on every exit path
+## including an abort.
 
 const CLIP := "Idle"
 
@@ -31,14 +41,14 @@ func run() -> void:
 	cast.tree = get_tree()
 
 	# --- a scene can direct a performance --------------------------------
-	var clip := ActorClipStep.new()
-	clip.role = &"actor"
-	clip.animation_name = CLIP
-	clip.apply(cast)
+	var stage := CinematicStage.new()
+	_root.add_child(stage)
+	stage.bind(cast)
+	stage.clip(&"actor", CLIP)
 
 	check("a scene can make an actor play a clip",
 		animator.is_claimed_for_cutscene(),
-		"the step ran but never claimed the actor")
+		"the stage ran but never claimed the actor")
 
 	# --- and gameplay stops arguing --------------------------------------
 	# ASSERTED ON THE ANIMATION, not on the claim flag. The first version of
@@ -68,39 +78,51 @@ func run() -> void:
 		"the claim swallows the death animation too, which leaves a unit " +
 		"standing after it dies — a worse lie than an interrupted shot")
 
+	stage.unbind()
+	stage.queue_free()
+
 	# --- and the director always hands the actor back ---------------------
 	await _the_actor_is_given_back_however_the_scene_ends(actor, animator)
 
-	# --- the other two steps decline rather than throw --------------------
-	var effect := SceneEffectStep.new()
-	effect.from_role = &"actor"
-	effect.apply(cast)
-	var sound := SceneSoundStep.new()
-	sound.at_role = &"actor"
-	sound.apply(cast)
-	check("an effect and a sound step with nothing assigned do nothing quietly",
+	# --- the other two reach-outward methods decline rather than throw ----
+	var quiet := CinematicStage.new()
+	_root.add_child(quiet)
+	quiet.bind(cast)
+	quiet.effect(&"no_such_prop", &"actor")
+	quiet.sound(&"no_such_prop", &"actor")
+	check("an effect and a sound naming a prop that is not there do nothing quietly",
 		true,
-		"reaching this line at all is the assertion — neither threw")
+		"reaching this line at all is the assertion — neither threw, and a " +
+		"method key that throws abandons the rest of the track mid-shot")
+	quiet.unbind()
+	quiet.queue_free()
 
 
 ## The claim must survive a scene being ABORTED, not just finishing. An
 ## actor left claimed is a unit that never reacts to being hit again, for
 ## the rest of the session, and nothing would ever report it.
+##
+## THE STAGE IS BOUND TO THE DIRECTOR'S OWN CAST, which is the whole point:
+## clip() notes the claim on the cast it was bound to, and release_claims()
+## is called by the director on that same cast however the scene ends. A
+## stage bound to a cast the director never saw would prove nothing.
 func _the_actor_is_given_back_however_the_scene_ends(actor: Unit, animator: UnitAnimator) -> void:
-	var clip := ActorClipStep.new()
-	clip.role = &"actor"
-	clip.animation_name = CLIP
+	var cast := SceneCast.new().track_unit(&"actor", actor)
 
+	# Long enough that nothing here can be a scene quietly finishing.
 	var beat := ScenePhase.new()
 	beat.duration_seconds = 30.0
-	beat.steps = [clip]
 	var scene := CinematicScene.new()
 	scene.id = &"test_performance"
 	scene.phases = [beat]
 
-	var cast := SceneCast.new().track_unit(&"actor", actor)
 	CinematicDirector.play(scene, cast)
 	await get_tree().process_frame
+
+	var stage := CinematicStage.new()
+	_root.add_child(stage)
+	stage.bind(cast)
+	stage.clip(&"actor", CLIP)
 	check("SETUP: the scene claimed the actor",
 		animator.is_claimed_for_cutscene(),
 		"nothing was claimed, so releasing it proves nothing")
@@ -115,6 +137,9 @@ func _the_actor_is_given_back_however_the_scene_ends(actor: Unit, animator: Unit
 		not animator.is_claimed_for_cutscene(),
 		"the actor is still claimed after the scene was cut short — it " +
 		"will never react to anything again")
+
+	stage.unbind()
+	stage.queue_free()
 
 
 ## Reads the source rather than triggering a death, which would tear down

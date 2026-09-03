@@ -18,3 +18,19 @@ extends Resource
 ## in each subclass.
 func apply(_actor: Unit, _target: Unit) -> void:
 	push_error("%s doesn't implement apply() yet" % get_script().resource_path)
+
+
+## Presentation metadata only — a short human string for whatever this
+## effect takes from the player (e.g. "-50 gold"), so a response row can
+## show the price BEFORE the player commits to it. "" on the base and on
+## every non-cost effect (GiveItemEffect, TriggerCombatEffect, the mood
+## effects): a choice that costs health, focus, gold or an item
+## currently shows nothing on the button, and the price only appears in
+## the echo line AFTER it's already been paid — a fairness problem, not
+## a styling one. Override in each SUBCLASS THAT TAKES SOMETHING (the
+## Sacrifice* family) built from that subclass's own exported fields, so
+## this can never drift from what apply() actually does — it reads the
+## same numbers, it just doesn't spend them. Does not change WHEN
+## effects apply or what they do.
+func cost_tag() -> String:
+	return ""

@@ -66,7 +66,47 @@ func shares_subject_with(other: CameraFraming) -> bool:
 
 
 func resolve_position(cast: SceneCast) -> Vector3:
-	var source: Dictionary = _read_source(cast, subject_mark, subject_role)
+	return position_of(_read_source(cast, subject_mark, subject_role))
+
+
+func resolve_look(cast: SceneCast) -> Vector3:
+	var aim: Array = look_target()
+	return look_of(_read_source(cast, aim[0], aim[1]))
+
+
+## The same two answers, from a source that is NOT a cast.
+##
+## FramingRig's editor preview is the reason these exist: there is no cast
+## in the editor, only sibling markers, and a preview that reimplemented
+## the polar maths would be a SECOND camera vocabulary that could silently
+## disagree with the one that ships. `source` is asked (mark, role) and
+## answers {"origin": Vector3, "facing": Vector3}, or {} for unresolved —
+## exactly the shape _read_source returns.
+##
+## Note what is factored and what is not: the CALLABLE is only the lookup,
+## and the maths below is reached by both paths as one function rather
+## than as two that happen to agree today.
+func position_from(source: Callable) -> Vector3:
+	return position_of(source.call(subject_mark, subject_role))
+
+
+func look_from(source: Callable) -> Vector3:
+	var aim: Array = look_target()
+	return look_of(source.call(aim[0], aim[1]))
+
+
+## Which (mark, role) the camera aims at. Falls back to the SUBJECT, not
+## to nothing: a framing that says only where the camera is means "look at
+## what you are orbiting", which is every ordinary shot.
+func look_target() -> Array:
+	if look_mark == &"" and look_role == &"":
+		return [subject_mark, subject_role]
+	return [look_mark, look_role]
+
+
+## THE polar maths. One copy, reached by the cast path and the editor
+## path alike.
+func position_of(source: Dictionary) -> Vector3:
 	if source.is_empty():
 		return Vector3.ZERO
 	var elevation: float = deg_to_rad(elevation_degrees)
@@ -76,16 +116,7 @@ func resolve_position(cast: SceneCast) -> Vector3:
 	return (source["origin"] as Vector3) + direction * distance
 
 
-func resolve_look(cast: SceneCast) -> Vector3:
-	var mark_name: StringName = look_mark
-	var role: StringName = look_role
-	# Falls back to the SUBJECT, not to nothing: a framing that says only
-	# where the camera is means "look at what you are orbiting", which is
-	# every ordinary shot.
-	if mark_name == &"" and role == &"":
-		mark_name = subject_mark
-		role = subject_role
-	var source: Dictionary = _read_source(cast, mark_name, role)
+func look_of(source: Dictionary) -> Vector3:
 	if source.is_empty():
 		return Vector3.ZERO
 	return (source["origin"] as Vector3) + look_offset

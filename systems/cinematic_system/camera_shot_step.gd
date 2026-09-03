@@ -1,7 +1,14 @@
 class_name CameraShotStep
 extends SceneStep
-## Puts the camera somewhere. The only step type phase 1 has, and between
-## it and CameraFraming it covers the whole move vocabulary.
+## Puts the camera somewhere, immediately.
+##
+## THE LAST STEP TYPE, and deliberately so. On a timeline a shot is value
+## tracks on a FramingRig — keyed, scrubbable, and interpolated in polar
+## space so the move vocabulary falls out of the interpolation. This is the
+## same framing asked for in one call, with no timeline to hang it on:
+## dialogue_staging.gd re-framing a speaker mid-conversation, where a
+## mounted stage per line would be absurd. Anything with a second beat in
+## it belongs on a timeline.
 
 @export var framing: CameraFraming
 

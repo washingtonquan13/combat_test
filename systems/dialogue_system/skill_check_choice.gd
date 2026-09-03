@@ -33,8 +33,7 @@ func _resolve_next_node_id(actor: Unit, _target: Unit) -> String:
 	# anything — dice_roll_requested only ever plays back a result
 	# that's already final, never determines one.
 	var roll: Dictionary = actor.roll_vs(target)
-	DialogueManager.dice_roll_requested.emit(skill_name, roll)
-	await DialogueManager.dice_roll_finished
+	await DialogueManager.present_dice_roll(skill_name, roll)
 
 	DialogueManager.record_line(DialogueFormat.skill_result(skill_name, roll, assistant))
 	return success_node_id if roll.success else failure_node_id

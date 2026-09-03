@@ -2,6 +2,15 @@ class_name SceneStep
 extends Resource
 ## One instruction inside a phase, fired at its offset.
 ##
+## THE IMMEDIATE FORM ONLY. Steps were once how a scene was AUTHORED; they
+## are not any more. A cutscene with a shape is a .tscn with a timeline
+## (see CinematicStage), and the six step types that expressed shape —
+## spawn, despawn, place, clip, effect, sound — were deleted when fusion
+## moved onto one. What is left is the degenerate case a timeline would be
+## silly for: one cut, right now, no time in it. CameraShotStep is the only
+## subclass, dialogue_staging.gd is the only caller, and a new step type is
+## almost certainly a key on a timeline instead.
+##
 ## NON-BLOCKING BY DESIGN, unlike VfxStep, whose play() is awaited so a
 ## projectile genuinely delays the next step. A phase already owns time —
 ## its duration is the clock, and steps mark positions on it — so a step

@@ -29,12 +29,45 @@ extends VBoxContainer
 ## component initiative_row.gd uses, instanced directly with no wrapper
 ## scene around it, for BOTH the core portrait and every summon chip in
 ## its fan.
+##
+## Lives inside PartyRail — a bare full-rect Control, SIBLING of
+## TacticalUI (see MainRoot.tscn) — rather than inside TacticalUI itself.
+## PartyRail, not this node, is what UIStack.register_party_rail()
+## receives and toggles: the rest of the tactical HUD (initiative row,
+## hotbar, end-turn button, system log) goes down whenever any open
+## UIScreen sets hides_hud, but the party rail only goes down when that
+## screen does NOT also set keeps_party_visible — see UIStack's own
+## _any_screen_hides_party_rail(). DialogueOverlay sets hides_hud=true
+## AND keeps_party_visible=true in MainRoot.tscn, so a conversation
+## blanks the rest of the HUD while this panel stays visible and
+## clickable.
+##
+## THIS PANEL'S OWN `visible` IS NOT WHAT UIStack TOGGLES. This node
+## already drives its own visible flag independently — see
+## _update_visibility() below, hidden whenever the party has no rows at
+## all. If UIStack wrote to THIS node's visible instead of PartyRail's,
+## that would be two independent owners of one flag: a conversation
+## ending could force this panel back on even if the party happened to
+## be empty at that instant, or the emptiness check could stomp
+## whatever UIStack had just set. Toggling an ANCESTOR (PartyRail)
+## instead means is_visible_in_tree() is correctly the AND of both
+## reasons — the same relationship TacticalUI already has to everything
+## nested inside it, just narrowed to this one child via its own wrapper
+## rather than applying to the whole HUD.
 
 @export var slot_scene: PackedScene
+## Uniform size multiplier for a core member's own portrait, relative to
+## its authored size in unit_portrait.tscn (Vector2(80, 100)) — 0.52
+## lands right at the approved mockup's 52px-tall portrait for this rail.
+## Kept as its own export (rather than the old bare 0.5 literal in
+## _add_core_slot/_add_data_slot) so the rail's portrait size can be
+## tuned live in the inspector the same way summon_chip_scale already is.
+@export var core_portrait_scale: float = 0.52
 ## Uniform size multiplier for summon chips relative to their authored
 ## size in unit_portrait.tscn — deliberately smaller than the core
-## portrait's own 0.5 (see _add_core_slot) so a fan of chips reads as
-## subordinate to the party member that owns it, card-hand style.
+## portrait's own core_portrait_scale (see _add_core_slot) so a fan of
+## chips reads as subordinate to the party member that owns it,
+## card-hand style.
 @export var summon_chip_scale: float = 0.35
 ## How many pixels each summon chip overlaps the previous one by, via
 ## negative separation on the fan HBoxContainer — Godot's own container
@@ -83,10 +116,59 @@ func _ready() -> void:
 	# A fight elsewhere reaching one of our units is the other thing that
 	# changes how a row should read — see CombatManager's Attention section.
 	CombatManager.attention_changed.connect(_mark_absent_members)
+	# The speaking marker — see _on_dialogue_line_shown(). Disconnected in
+	# _exit_tree(): this project has a recorded bug class where a widget
+	# that connects itself to an AUTOLOAD's signal outlives its own owner,
+	# because nothing ever tears the connection down (see
+	# refcounted_component_autoload_signal_leak in project memory). No
+	# dialogue_started listener needed: it fires before the first line, and
+	# every row is already keyed by Unit/PartyMemberData by the time any
+	# line_shown reaches _set_speaking_unit() below.
+	DialogueManager.line_shown.connect(_on_dialogue_line_shown)
+	DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
 	# Deferred, same reasoning as before: safe even if this panel is ever
 	# constructed after members already exist (e.g. a future scene that
 	# doesn't boot through MainRoot at all).
 	_rebuild_core.call_deferred()
+
+
+## See the connect calls in _ready(): a Node that outlives being removed
+## from the tree (queue_free's deferred window) would otherwise still be
+## a live listener on DialogueManager's signals, and a freed node reached
+## through a signal callback is exactly the crash this disconnect exists
+## to prevent.
+func _exit_tree() -> void:
+	if DialogueManager.line_shown.is_connected(_on_dialogue_line_shown):
+		DialogueManager.line_shown.disconnect(_on_dialogue_line_shown)
+	if DialogueManager.dialogue_ended.is_connected(_on_dialogue_ended):
+		DialogueManager.dialogue_ended.disconnect(_on_dialogue_ended)
+
+
+## Moves the speaking marker (see unit_portrait.gd's set_speaking) to
+## whoever's line just showed. DialogueManager.participants maps a
+## speaker token ("player"/"npc"/...) to a Unit — resolved fresh per line
+## rather than cached, since who "npc" even IS can change conversation to
+## conversation. A token with no live Unit (an echo line — see
+## DialogueManager.record_line) or a speaker who isn't a party member
+## both resolve to null here, which correctly clears every marker instead
+## of leaving a stale one lit.
+func _on_dialogue_line_shown(_text: String, speaker_token: String) -> void:
+	_set_speaking_unit(DialogueManager.participants.get(speaker_token))
+
+
+## Conversation over — nobody in the party is "speaking" anymore.
+func _on_dialogue_ended() -> void:
+	_set_speaking_unit(null)
+
+
+func _set_speaking_unit(speaker) -> void:
+	for key in _core_rows:
+		var row: Control = _core_rows[key]
+		if not is_instance_valid(row) or row.get_child_count() == 0:
+			continue
+		var portrait: Node = row.get_child(0)
+		if portrait.has_method("set_speaking"):
+			portrait.set_speaking(speaker != null and key == speaker)
 
 
 ## Every member of every group, in whichever form each group is in.
@@ -256,7 +338,7 @@ func _add_core_slot(unit: Unit) -> void:
 	portrait.unit = unit
 	portrait.group = PartyManager.group_of(unit)
 	row.add_child(portrait)
-	portrait.set_fit_scale(0.5)
+	portrait.set_fit_scale(core_portrait_scale)
 
 	var fan := HBoxContainer.new()
 	fan.add_theme_constant_override("separation", -summon_fan_overlap)
@@ -285,7 +367,7 @@ func _add_data_slot(record: PartyMemberData) -> void:
 	# The route back to a member with no Unit anywhere to click.
 	portrait.group = _group_holding(record)
 	row.add_child(portrait)
-	portrait.set_fit_scale(0.5)
+	portrait.set_fit_scale(core_portrait_scale)
 
 	_core_rows[record] = row
 

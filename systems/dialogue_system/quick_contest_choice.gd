@@ -37,8 +37,7 @@ func _resolve_next_node_id(actor: Unit, target: Unit) -> String:
 	# the text readout below, not the dice popup).
 	var actor_roll: Dictionary = actor.roll_vs(actor_target)
 	var npc_roll: Dictionary = target.roll_vs(npc_target)
-	DialogueManager.dice_roll_requested.emit(skill_name, actor_roll)
-	await DialogueManager.dice_roll_finished
+	await DialogueManager.present_dice_roll(skill_name, actor_roll)
 
 	var actor_wins: bool = _wins_contest(actor_roll, npc_roll)
 	DialogueManager.record_line(DialogueFormat.contest_result(skill_name, actor_roll, npc_skill_name, npc_roll, actor_wins))

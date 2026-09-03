@@ -5,10 +5,15 @@ extends AiTestCase
 ## overworld left the battle's turn order sitting on screen.
 ##
 ## Two things caused it, and both are the same shape as the rest of this
-## pass — a rule that was right while there was one world. The row was the
-## ONLY panel not connected to world_focused (party_panel, interact_prompt,
-## the overworld and the music manager all were), so nothing told it to
-## look again. And focusing another world does not deselect whoever was
+## pass — a rule that was right while there was one world. The row was not
+## connected to world_focused (party_panel, interact_prompt, the overworld
+## and the music manager all were), so nothing told it to look again — and
+## it was not the last panel in that state, whatever this header said when
+## it was written: the End Turn button and the ability hotbar had the same
+## gap and were fixed afterwards, in
+## tests/world/test_the_hud_follows_the_eye.gd.
+##
+## And focusing another world does not deselect whoever was
 ## selected in the one you left, so its "a selection is an opinion" rule
 ## kept answering with a fight the player had walked away from.
 ##

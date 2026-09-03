@@ -48,6 +48,26 @@ const STAGGER_STEP: float = 0.4
 ## fixed value so the idle pose is camera-facing instead of whatever
 ## identity/last-landed rotation the die happened to have.
 const IDLE_FACE_VALUE: int = 1
+## Bottom-right, in a small footprint above the conversation band, rather
+## than the old dead-centre placement — dead centre sat directly over the
+## speaker, which is exactly what the lower-third layout keeps clear.
+##
+## Anchored to the BOTTOM of the screen, not to a fractional line. An
+## earlier version pinned to 0.65 to track the old overlay's own
+## anchor_top, but the new band is sized to its CONTENT and pinned to the
+## bottom, so there is no fractional line left to track. _BAND_CLEARANCE
+## is the room that band needs: its own height plus a gap. If the band
+## ever grows past it (a very long choice list), the dice will overlap it
+## rather than the speaker, which is the better of the two failures.
+##
+## Both anchors on each axis are equal, so Godot's anchor-spread sizing
+## does not apply: the size is exactly offset_right minus offset_left by
+## offset_bottom minus offset_top, a fixed 150x150 pinned to that corner
+## as the window resizes.
+const _CORNER_SIZE: float = 150.0
+const _CORNER_MARGIN: float = 20.0
+## Height the conversation band needs at the bottom, plus a gap above it.
+const _BAND_CLEARANCE: float = 170.0
 
 var _camera: Camera3D
 var _dice: Array[Node3D] = []
@@ -62,8 +82,15 @@ func _ready() -> void:
 
 
 func _build_scene() -> void:
-	custom_minimum_size = Vector2(420, 280)
-	set_anchors_preset(Control.PRESET_CENTER)
+	anchor_left = 1.0
+	anchor_top = 1.0
+	anchor_right = 1.0
+	anchor_bottom = 1.0
+	offset_left = -(_CORNER_SIZE + _CORNER_MARGIN)
+	offset_top = -(_CORNER_SIZE + _BAND_CLEARANCE)
+	offset_right = -_CORNER_MARGIN
+	offset_bottom = -_BAND_CLEARANCE
+	custom_minimum_size = Vector2(_CORNER_SIZE, _CORNER_SIZE)
 
 	var panel := PanelContainer.new()
 	add_child(panel)
@@ -71,14 +98,20 @@ func _build_scene() -> void:
 	var vbox := VBoxContainer.new()
 	panel.add_child(vbox)
 
+	# 130x55 rather than the old 400x170 — scaled down to fit the 150x150
+	# corner box, but kept at (almost exactly) the SAME aspect ratio
+	# (400:170 ≈ 2.35, 130:55 ≈ 2.36) on purpose: _face_toward_camera_euler
+	# and the camera's own position/FOV below are untouched, so a viewport
+	# with a different aspect would crop the two outer dice instead of just
+	# rendering the same framing at a lower resolution.
 	var viewport_container := SubViewportContainer.new()
 	vbox.add_child(viewport_container)
-	viewport_container.custom_minimum_size = Vector2(400, 170)
+	viewport_container.custom_minimum_size = Vector2(130, 55)
 	viewport_container.stretch = true
 
 	var viewport := SubViewport.new()
 	viewport_container.add_child(viewport)
-	viewport.size = Vector2i(400, 170)
+	viewport.size = Vector2i(130, 55)
 	viewport.own_world_3d = true
 	viewport.transparent_bg = true
 
@@ -100,7 +133,12 @@ func _build_scene() -> void:
 	_result_label = Label.new()
 	vbox.add_child(_result_label)
 	_result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_result_label.add_theme_font_size_override("font_size", 20)
+	_result_label.add_theme_font_size_override("font_size", 12)
+	# Word-wraps ("Critical success! — 14 vs 10" etc.) inside the 130px
+	# viewport width above instead of forcing the whole popup wider than
+	# the 150x150 corner box it's now anchored into.
+	_result_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+	_result_label.custom_minimum_size = Vector2(130, 0)
 
 	_continue_button = Button.new()
 	vbox.add_child(_continue_button)

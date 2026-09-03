@@ -63,7 +63,8 @@ func hold(role: StringName, unit: Unit) -> SceneCast:
 
 
 ## Gives the role back. The actor itself is untouched — a scene that also
-## wants it gone from the world uses DespawnActorStep.
+## wants it gone from the world keys CinematicStage.despawn(), which does
+## both.
 func release_role(role: StringName) -> void:
 	_held.erase(role)
 

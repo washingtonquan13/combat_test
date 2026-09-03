@@ -1,78 +1,153 @@
-[gd_scene load_steps=3 format=3 uid="uid://divqi7putsgwu"]
+[gd_scene load_steps=4 format=3 uid="uid://divqi7putsgwu"]
 
 [ext_resource type="Script" uid="uid://dtgvg6hkvogcw" path="res://systems/dialogue_system/dialogue_overlay.gd" id="1_overlay"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
-bg_color = Color(0, 0, 0, 0.55)
+[sub_resource type="Gradient" id="Gradient_scrim"]
+colors = PackedColorArray(0, 0, 0, 0, 0, 0, 0, 0.72)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_scrim"]
+gradient = SubResource("Gradient_scrim")
+width = 8
+height = 256
+fill_to = Vector2(0, 1)
 
 [node name="DialogueOverlay" type="Control"]
 layout_mode = 3
-anchor_top = 0.65
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_overlay")
+
+[node name="Scrim" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = -1
+anchor_top = 0.56
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 0
-script = ExtResource("1_overlay")
+mouse_filter = 2
+texture = SubResource("GradientTexture2D_scrim")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="Layout" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 4
+mouse_filter = 2
+theme_override_constants/separation = 0
 
-[node name="HeaderBar" type="HBoxContainer" parent="VBoxContainer"]
+[node name="TopSpacer" type="Control" parent="Layout"]
 layout_mode = 2
-theme_override_constants/separation = 8
+size_flags_vertical = 3
+mouse_filter = 2
 
-[node name="ContinueButton" type="Button" parent="VBoxContainer/HeaderBar"]
+[node name="Band" type="MarginContainer" parent="Layout"]
+layout_mode = 2
+theme_override_constants/margin_left = 104
+theme_override_constants/margin_top = 0
+theme_override_constants/margin_right = 104
+theme_override_constants/margin_bottom = 29
+
+[node name="Content" type="VBoxContainer" parent="Layout/Band"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AsideLabel" type="Label" parent="Layout/Band/Content"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.62, 0.62, 1)
+theme_override_font_sizes/font_size = 14
+
+[node name="MainRow" type="HBoxContainer" parent="Layout/Band/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Portrait" type="TextureRect" parent="Layout/Band/Content/MainRow"]
+visible = false
+clip_contents = true
+custom_minimum_size = Vector2(58, 58)
+layout_mode = 2
+stretch_mode = 6
+
+[node name="TextColumn" type="VBoxContainer" parent="Layout/Band/Content/MainRow"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="SpeakerNameLabel" type="Label" parent="Layout/Band/Content/MainRow/TextColumn"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.7, 0.32, 1)
+theme_override_font_sizes/font_size = 13
+
+[node name="LineLabel" type="Label" parent="Layout/Band/Content/MainRow/TextColumn"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+autowrap_mode = 3
+
+[node name="ChoiceArea" type="MarginContainer" parent="Layout/Band/Content"]
+layout_mode = 2
+theme_override_constants/margin_left = 70
+theme_override_constants/margin_top = 6
+
+[node name="ChoiceStack" type="VBoxContainer" parent="Layout/Band/Content/ChoiceArea"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ChoiceList" type="VBoxContainer" parent="Layout/Band/Content/ChoiceArea/ChoiceStack"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="ContinueButton" type="Button" parent="Layout/Band/Content/ChoiceArea/ChoiceStack"]
 visible = false
 layout_mode = 2
 size_flags_horizontal = 0
+theme_override_colors/font_color = Color(0.85, 0.7, 0.32, 1)
 text = "Continue"
+flat = true
 
-[node name="HeaderSpacer" type="Control" parent="VBoxContainer/HeaderBar"]
+[node name="TopRightChips" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_top = 16.0
+offset_right = -16.0
+offset_bottom = 46.0
+grow_horizontal = 0
+theme_override_constants/separation = 6
+
+[node name="LogChip" type="Button" parent="TopRightChips"]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "L O G"
+flat = true
 
-[node name="LogButton" type="Button" parent="VBoxContainer/HeaderBar"]
+[node name="HistoryChip" type="Button" parent="TopRightChips"]
 layout_mode = 2
-size_flags_horizontal = 0
-text = "Log"
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "H I S T O R Y"
+flat = true
 
-[node name="PanelContainer" type="PanelContainer" parent="VBoxContainer"]
-clip_contents = true
+[node name="SettingsChip" type="Button" parent="TopRightChips"]
 layout_mode = 2
-size_flags_vertical = 3
-theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "S E T T I N G S"
+flat = true
 
-[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/PanelContainer"]
+[node name="LeaveChip" type="Button" parent="TopRightChips"]
 layout_mode = 2
-theme_override_constants/margin_left = 48
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 48
-theme_override_constants/margin_bottom = 24
-
-[node name="BodyVBox" type="VBoxContainer" parent="VBoxContainer/PanelContainer/MarginContainer"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="SpeakerLabel" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
-layout_mode = 2
-bbcode_enabled = true
-fit_content = true
-scroll_active = false
-
-[node name="LineText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
-custom_minimum_size = Vector2(0, 80)
-layout_mode = 2
-size_flags_vertical = 3
-bbcode_enabled = true
-
-[node name="ChoicesText" type="RichTextLabel" parent="VBoxContainer/PanelContainer/MarginContainer/BodyVBox"]
-custom_minimum_size = Vector2(0, 80)
-layout_mode = 2
-size_flags_vertical = 3
-bbcode_enabled = true
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 11
+text = "L E A V E"
+flat = true

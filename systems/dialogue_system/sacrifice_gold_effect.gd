@@ -15,3 +15,9 @@ extends DialogueEffect
 
 func apply(_actor: Unit, _target: Unit) -> void:
 	CurrencyManager.spend_gold(amount)
+
+
+func cost_tag() -> String:
+	if amount <= 0:
+		return ""
+	return "-%d gold" % amount

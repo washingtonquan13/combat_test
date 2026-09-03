@@ -4,12 +4,13 @@ extends Node
 ## them: arriving somewhere for the first time, and a fight beginning.
 ##
 ## PHASE 3, AND ITS OWN ACCEPTANCE TEST. The question this phase exists to
-## answer is whether a NEW caller costs anything — whether the step
-## vocabulary was quietly fitted to fusion, the one scene it was built
-## against. Both callers here are a few lines and neither needed a new step
-## type; an establishing shot and a fight's opening are camera work, and
-## CameraShotStep already does camera work. If a third caller had needed
-## its own step, that would have been the finding.
+## answer is whether a NEW caller costs anything — whether the vocabulary
+## was quietly fitted to fusion, the one scene it was built against. Both
+## callers here are a few lines and neither needed anything new: an
+## establishing shot and a fight's opening are camera work, and the arrival
+## scene is now an authored timeline that keys a FramingRig, which is what
+## every scene with a shape is. If a third caller had needed its own
+## machinery, that would have been the finding.
 ##
 ## A presentation listener, in the same family as DialogueStaging and
 ## DialogueGaze: it reads signals and never gets called back into. One node
