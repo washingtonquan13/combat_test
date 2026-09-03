@@ -28,6 +28,11 @@ extends Resource
 ## Whose orbit the camera sits on. A role name resolved through the cast,
 ## never a node, so one framing plays with whoever is cast in it.
 @export var subject_role: StringName = &"speaker"
+## Orbit a fixed point in the world instead of a person. Takes precedence
+## over subject_role when set. This is what lets a shot open on a THING —
+## the fusion device, an altar, a door — rather than on somebody's face,
+## and it is why position is a SOURCE rather than always a subject.
+@export var subject_mark: StringName = &""
 ## Metres from the subject's head.
 @export var distance: float = 1.4
 ## Degrees around the subject's own facing. The default is the slight
@@ -42,6 +47,8 @@ extends Resource
 ## Who the camera looks at. Empty means the subject — the common case, and
 ## the only one a conversation needs.
 @export var look_role: StringName = &""
+## Look at a fixed point instead. Takes precedence over look_role.
+@export var look_mark: StringName = &""
 ## Shifts the aim point without moving the camera, in world axes. This is
 ## the pan/tilt knob: same position, different look.
 @export var look_offset: Vector3 = Vector3.ZERO
@@ -55,26 +62,57 @@ extends Resource
 ## camera through the space between two faces, which is the disorienting
 ## swoop that coverage exists to avoid.
 func shares_subject_with(other: CameraFraming) -> bool:
-	return other != null and other.subject_role == subject_role
+	return other != null and other.subject_role == subject_role 		and other.subject_mark == subject_mark
 
 
 func resolve_position(cast: SceneCast) -> Vector3:
-	var subject: Unit = cast.unit(subject_role)
-	if subject == null:
+	var source: Dictionary = _read_source(cast, subject_mark, subject_role)
+	if source.is_empty():
 		return Vector3.ZERO
 	var elevation: float = deg_to_rad(elevation_degrees)
-	var horizontal: Vector3 = subject.visual_forward().rotated(
+	var horizontal: Vector3 = (source["facing"] as Vector3).rotated(
 		Vector3.UP, deg_to_rad(azimuth_degrees))
 	var direction: Vector3 = (horizontal * cos(elevation) + Vector3.UP * sin(elevation)).normalized()
-	return subject.anchor(CharacterModel.Anchor.HEAD) + direction * distance
+	return (source["origin"] as Vector3) + direction * distance
 
 
 func resolve_look(cast: SceneCast) -> Vector3:
-	var role: StringName = look_role if look_role != &"" else subject_role
-	var looked_at: Unit = cast.unit(role)
-	if looked_at == null:
+	var mark_name: StringName = look_mark
+	var role: StringName = look_role
+	# Falls back to the SUBJECT, not to nothing: a framing that says only
+	# where the camera is means "look at what you are orbiting", which is
+	# every ordinary shot.
+	if mark_name == &"" and role == &"":
+		mark_name = subject_mark
+		role = subject_role
+	var source: Dictionary = _read_source(cast, mark_name, role)
+	if source.is_empty():
 		return Vector3.ZERO
-	return looked_at.anchor(CharacterModel.Anchor.HEAD) + look_offset
+	return (source["origin"] as Vector3) + look_offset
+
+
+## Where a framing measures from, and which way that thing faces — from a
+## mark if one is named, otherwise from the unit in `role`.
+##
+## Returns a Dictionary rather than filling parameters because GDScript
+## passes Vector3 by VALUE; an out-parameter version of this compiles,
+## runs, and silently leaves both vectors at zero.
+##
+## Empty is a normal answer, not an error: a scene can be framed before its
+## cast is complete, and the camera simply holds where it was.
+func _read_source(cast: SceneCast, mark_name: StringName, role: StringName) -> Dictionary:
+	if mark_name != &"":
+		var spot: Node3D = cast.mark(mark_name)
+		if spot == null:
+			return {}
+		return {"origin": spot.global_position, "facing": -spot.global_transform.basis.z}
+	var actor: Unit = cast.unit(role)
+	if actor == null:
+		return {}
+	return {
+		"origin": actor.anchor(CharacterModel.Anchor.HEAD),
+		"facing": actor.visual_forward(),
+	}
 
 
 ## A framing partway between this one and `to`.
@@ -85,7 +123,9 @@ func resolve_look(cast: SceneCast) -> Vector3:
 func blended_toward(to: CameraFraming, t: float) -> CameraFraming:
 	var mid := CameraFraming.new()
 	mid.subject_role = to.subject_role
+	mid.subject_mark = to.subject_mark
 	mid.look_role = to.look_role
+	mid.look_mark = to.look_mark
 	mid.distance = lerpf(distance, to.distance, t)
 	mid.azimuth_degrees = rad_to_deg(lerp_angle(
 		deg_to_rad(azimuth_degrees), deg_to_rad(to.azimuth_degrees), t))

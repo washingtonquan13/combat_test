@@ -1,7 +1,12 @@
 extends AiTestCase
 ## Units arrive standing on the ground, not in the sky.
 ##
-## Reproduces a reported sequence: one member walks into the cathedral, two
+## The destination used to be the Cathedral of Shadows, which is where the
+## bug below was originally reported. It moved to test_area_2 when the
+## cathedral became a menu-room that spawns no party at all — an area with
+## nobody in it cannot demonstrate anything about where arrivals land.
+##
+## Reproduces a reported sequence: one member walks into the far area, two
 ## more are sent to the overworld, and when those two then travel to the
 ## cathedral they are nowhere to be found — their Y is in the thousands.
 ##
@@ -14,7 +19,7 @@ extends AiTestCase
 ## that fails loudly; it just returns a point.
 
 const HOME := &"test_arena"
-const CATHEDRAL := &"cathedral_of_shadows"
+const DESTINATION := &"test_area_2"
 
 ## Every area in this project is authored around the origin and none is
 ## remotely this tall, so anything past it is not a placement, it is a
@@ -76,11 +81,11 @@ func _the_reported_sequence() -> void:
 			"%d member(s)" % party.size())
 		return
 
-	# One walks into the cathedral on their own.
+	# One walks into the far area on their own.
 	var first: Array[Unit] = [party[0]]
-	WorldManager.load_area(CATHEDRAL, &"", first)
+	WorldManager.load_area(DESTINATION, &"", first)
 	await get_tree().process_frame
-	_check_heights("after one member enters the cathedral alone")
+	_check_heights("after one member enters the far area alone")
 
 	# Back to the rest, and two of them go out to the overworld together.
 	if not WorldManager.focus_group(PartyManager.group_of(party[1])):
@@ -94,11 +99,11 @@ func _the_reported_sequence() -> void:
 	await get_tree().process_frame
 	_check_heights("after two are sent out to the overworld")
 
-	# And then those two follow the first into the cathedral.
-	WorldManager.load_area(CATHEDRAL)
+	# And then those two follow the first into the far area.
+	WorldManager.load_area(DESTINATION)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check_heights("after the pair follows them into the cathedral")
+	_check_heights("after the pair follows them into the far area")
 
 	# The whole point of the report: they were nowhere to be seen.
 	var context: WorldContext = WorldManager.context()
@@ -106,7 +111,7 @@ func _the_reported_sequence() -> void:
 	for unit in _live_members():
 		if context and context.contains(unit):
 			present += 1
-	check("everyone who travelled is actually in the cathedral",
+	check("everyone who travelled is actually in the far area",
 		present >= 3, "only %d of 3 arrived" % present)
 
 
@@ -210,7 +215,7 @@ func _two_avatars_then_one_goes_in() -> void:
 		avatars == 2, "%d group(s) on the overworld" % avatars)
 
 	# And now one of the two walks in.
-	WorldManager.load_area(CATHEDRAL)
+	WorldManager.load_area(DESTINATION)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check_heights("after one of two overworld avatars walks into an area")

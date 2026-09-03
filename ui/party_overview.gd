@@ -263,6 +263,14 @@ func _swap_equipment(unit: Unit) -> void:
 			slot.display_item(stored_item)
 
 
+## Opens this screen already showing one tab, for a caller that knows
+## which part of it the player asked for — the Cathedral's Fuse option
+## wants the demons tab, not whatever was last looked at.
+func open_on_tab(tab_name: String) -> void:
+	open()
+	_show_tab(tab_name)
+
+
 func _show_tab(tab_name: String) -> void:
 	for panel in _panels.values():
 		panel.visible = false

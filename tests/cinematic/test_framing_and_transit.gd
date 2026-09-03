@@ -79,11 +79,17 @@ func run() -> void:
 
 	var tilt := CameraFraming.new()
 	tilt.look_offset = Vector3(0.0, 3.0, 0.0)
+	# Both resolved in the same breath. Comparing against a position taken
+	# earlier in the suite made this a settling test rather than a tilt
+	# test — a unit sinking three centimetres under gravity read as the
+	# camera moving.
+	var held: Vector3 = default_shot.resolve_position(cast)
+	var tilted: Vector3 = tilt.resolve_position(cast)
 	check("a tilt holds position and moves only the look target",
-		tilt.resolve_position(cast).is_equal_approx(resolved)
+		tilted.is_equal_approx(held)
 			and not tilt.resolve_look(cast).is_equal_approx(default_shot.resolve_look(cast)),
 		"position moved by %.3fm during what should be a pure tilt" %
-			tilt.resolve_position(cast).distance_to(resolved))
+			tilted.distance_to(held))
 
 	# --- transit ---------------------------------------------------------
 	await _a_cut_is_instant_and_a_transit_is_not(cast, subject)

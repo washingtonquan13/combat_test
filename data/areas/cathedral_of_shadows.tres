@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="AreaDefinition" load_steps=4 format=3 uid="uid://c241t4wslhoek"]
 
-[ext_resource type="Resource" uid="uid://byp3tywn7mkxg" path="res://data/music/tokyo_smt4.tres" id="1_4m4rh"]
+[ext_resource type="Resource" uid="uid://bcj2ssed82by0" path="res://data/music/negotiation.tres" id="1_4m4rh"]
 [ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_jj0ks"]
 [ext_resource type="PackedScene" uid="uid://cshmjyky7xnal" path="res://world/cathedral_of_shadows.tscn" id="2_scene"]
 

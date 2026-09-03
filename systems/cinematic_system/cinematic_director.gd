@@ -89,6 +89,7 @@ func play(scene: CinematicScene, cast: SceneCast = null) -> bool:
 	_generation += 1
 	var mine: int = _generation
 	var players: SceneCast = cast if cast != null else SceneCast.new()
+	players.tree = get_tree()
 	scene_started.emit(scene)
 
 	for phase in scene.phases:

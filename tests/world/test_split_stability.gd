@@ -16,7 +16,10 @@ extends AiTestCase
 
 const HOME := &"test_arena"
 const AWAY := &"test_area_2"
-const FAR := &"cathedral_of_shadows"
+## Was the cathedral until that became a menu-room with no party in it —
+## which left only two ordinary areas, so this needed a third to stay a
+## test about a party scattered across SEPARATE places.
+const FAR := &"test_area_3"
 
 var _host: Control
 var _saved_host: Control = null

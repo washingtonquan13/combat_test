@@ -33,9 +33,7 @@ extends Control
 ## demon orders, same reasoning a future "fusion accident" or "fusion
 ## while cursed" chart would want its own file in the same folder
 ## rather than getting mixed in with the demons themselves.
-const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
 
-var _fusion_chart: FusionChart
 ## ItemList items are just text/index — these are the actual OwnedDemon
 ## each row refers to, index-for-index, same pattern party_overview.gd
 ## already uses for its Journal's quest list.
@@ -46,7 +44,6 @@ var _grant_species: Array[UnitDefinition] = []
 
 
 func _ready() -> void:
-	_fusion_chart = load(FUSION_CHART_PATH) as FusionChart
 	_debug_grant_row.visible = OS.is_debug_build()
 	_debug_summon_cap_row.visible = OS.is_debug_build()
 
@@ -99,7 +96,7 @@ func _update_fusion_preview() -> void:
 		_fuse_button.disabled = true
 		return
 
-	var result: UnitDefinition = FusionCalculator.compute_fusion(_fusion_chart, a.species, b.species)
+	var result: UnitDefinition = FusionRitual.preview(a, b)
 	if not result:
 		_fusion_result_label.text = "These two don't fuse into anything."
 		_fuse_button.disabled = true
@@ -115,14 +112,33 @@ func _on_fuse_pressed() -> void:
 	if not a or not b or a == b:
 		return
 
-	var result: UnitDefinition = FusionCalculator.compute_fusion(_fusion_chart, a.species, b.species)
-	if not result:
+	if FusionRitual.preview(a, b) == null:
 		return
 
-	DemonRoster.release(a)
-	DemonRoster.release(b)
-	DemonRoster.recruit(result)
+	# The screen holding this tab closes first. The cutscene stages in the
+	# world the player is standing in, and a compendium sheet over the top
+	# of it would be the same "menu still up with the world underneath"
+	# bug this project has already shipped once.
+	#
+	# Asked of the ANCESTOR rather than of self: this panel is a tab's
+	# content and does not own its own visibility, so it has no close() of
+	# its own to call.
+	var screen: UIScreen = _owning_screen()
+	if screen and UIStack.is_open(screen):
+		UIStack.pop(screen)
+	await FusionRitual.perform(a, b)
 	refresh()
+
+
+## The UIScreen this tab lives inside, or null if it is being shown some
+## other way.
+func _owning_screen() -> UIScreen:
+	var node: Node = get_parent()
+	while node != null:
+		if node is UIScreen:
+			return node
+		node = node.get_parent()
+	return null
 
 
 func _selected_entry(list: ItemList, entries: Array[OwnedDemon]) -> OwnedDemon:

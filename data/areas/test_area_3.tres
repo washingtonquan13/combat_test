@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="AreaDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://world/test_area_3.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"test_area_3"
+display_name = "Test Area 3"
+world_scene = ExtResource("2_scene")
+metadata/_custom_type_script = "uid://dxjfu3gj225jt"

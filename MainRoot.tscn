@@ -1,7 +1,7 @@
-[gd_scene load_steps=36 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=38 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
-[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
+[ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
 [ext_resource type="Script" uid="uid://bwtn55jbtliv4" path="res://systems/selection_system/drag_select_box.gd" id="3_lquwl"]
 [ext_resource type="PackedScene" uid="uid://caf7q4n41fgu5" path="res://ui/unit_portrait.tscn" id="4_272bh"]
 [ext_resource type="Script" uid="uid://dco3xcx22f26n" path="res://systems/combat_system/initiative_row.gd" id="5_dg77c"]
@@ -34,7 +34,9 @@
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://debug/nav_debug_overlay.gd" id="31_navdbg"]
 [ext_resource type="Script" uid="uid://dwxlhcmxv7u8v" path="res://systems/interaction_system/interact_prompt.gd" id="32_interactprompt"]
 [ext_resource type="Script" uid="uid://cu2efa5w2hpro" path="res://debug/debug_combat_harness.gd" id="33_debugharness"]
+[ext_resource type="Script" uid="uid://dsbvnm08kyv1h" path="res://debug/debug_cutscene_harness.gd" id="34_cutsceneharness"]
 [ext_resource type="PackedScene" path="res://ui/save_load_panel.tscn" id="34_saveloadpanel"]
+[ext_resource type="PackedScene" uid="uid://dypeuvgfr3s4j" path="res://ui/cathedral_menu.tscn" id="35_cathedralmenu"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -58,6 +60,9 @@ script = ExtResource("23_groundclick")
 
 [node name="DebugCombatHarness" type="Node" parent="."]
 script = ExtResource("33_debugharness")
+
+[node name="DebugCutsceneHarness" type="Node" parent="."]
+script = ExtResource("34_cutsceneharness")
 
 [node name="Indicators" type="Node3D" parent="."]
 
@@ -343,6 +348,10 @@ closes_on_cancel = false
 
 [node name="SaveLoadPanel" parent="CanvasLayer" instance=ExtResource("34_saveloadpanel")]
 blocks_input_below = true
+
+[node name="CathedralMenu" parent="CanvasLayer" node_paths=PackedStringArray("party_overview") instance=ExtResource("35_cathedralmenu")]
+visible = false
+party_overview = NodePath("../PartyOverview")
 
 [connection signal="pressed" from="CanvasLayer/TacticalUI/MenuButton" to="CanvasLayer/TacticalUI/MenuButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer/EscMenu/ExitButton" to="CanvasLayer/EscMenu" method="_on_exit_button_pressed"]

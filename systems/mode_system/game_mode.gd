@@ -42,9 +42,19 @@ extends Node
 ## EXPLORATION — the overworld has no tactical camera and nothing
 ## selectable, so CameraDirector.has_control() (EXPLORATION/COMBAT only)
 ## correctly excludes it without needing a special case.
+##
+## FACILITY is the same trick for a room whose interaction is a MENU: the
+## Cathedral of Shadows, and whatever shop or temple follows it. You are
+## standing in a place and looking at it, but a list owns your input and
+## the camera is composed rather than flown. It was EXPLORATION at first,
+## on the reasoning that looking around a cathedral is harmless — that was
+## wrong, because a pushed UIScreen deliberately does NOT take camera
+## control (see UIScreen's own header), so the menu and the pan would have
+## fought. Excluding the mode is what settles it, and it costs one enum
+## entry.
 
 enum Mode {
-	MAIN_MENU, CHARACTER_CREATION, EXPLORATION, OVERWORLD,
+	MAIN_MENU, CHARACTER_CREATION, EXPLORATION, OVERWORLD, FACILITY,
 	COMBAT, DIALOGUE, NEGOTIATION, LOOTING, CUTSCENE,
 }
 

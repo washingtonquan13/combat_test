@@ -1,0 +1,93 @@
+[gd_scene load_steps=3 format=3 uid="uid://dypeuvgfr3s4j"]
+
+[ext_resource type="Script" path="res://ui/cathedral_menu.gd" id="1_menu"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_speaker"]
+font_size = 20
+
+[node name="CathedralMenu" type="Control" groups=["cathedral_menu"]]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_menu")
+hides_hud = true
+closes_on_cancel = false
+
+[node name="Options" type="PanelContainer" parent="."]
+layout_mode = 1
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 264.0
+offset_bottom = 200.0
+
+[node name="Margin" type="MarginContainer" parent="Options"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 8
+
+[node name="List" type="VBoxContainer" parent="Options/Margin"]
+layout_mode = 2
+
+[node name="FuseButton" type="Button" parent="Options/Margin/List"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Fuse"
+alignment = 0
+
+[node name="CompendiumButton" type="Button" parent="Options/Margin/List"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Demonic Compendium"
+alignment = 0
+
+[node name="TalkButton" type="Button" parent="Options/Margin/List"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Talk"
+alignment = 0
+
+[node name="LeaveButton" type="Button" parent="Options/Margin/List"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Leave"
+alignment = 0
+
+[node name="Speech" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 48.0
+offset_top = -152.0
+offset_right = -48.0
+offset_bottom = -32.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="Margin" type="MarginContainer" parent="Speech"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="Lines" type="VBoxContainer" parent="Speech/Margin"]
+layout_mode = 2
+
+[node name="SpeakerName" type="Label" parent="Speech/Margin/Lines"]
+layout_mode = 2
+text = "Minister"
+
+[node name="SpeakerLine" type="Label" parent="Speech/Margin/Lines"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "This is the Cathedral of Shadows... What is your bidding?"
+label_settings = SubResource("LabelSettings_speaker")
+autowrap_mode = 3
