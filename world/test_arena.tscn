@@ -1,5 +1,6 @@
 [gd_scene load_steps=30 format=3 uid="uid://c2eymxqvi7vu1"]
 
+[ext_resource type="Resource" path="res://data/cinematics/test_arena_arrival.tres" id="99_arrival"]
 [ext_resource type="Script" uid="uid://22gse85gkv76" path="res://world/test_arena.gd" id="1_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="3_7mycd"]
 [ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="3_h2yge"]
@@ -47,6 +48,7 @@ glow_enabled = true
 
 [node name="TestArena" type="Node3D"]
 script = ExtResource("1_7mycd")
+entry_scene = ExtResource("99_arrival")
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 

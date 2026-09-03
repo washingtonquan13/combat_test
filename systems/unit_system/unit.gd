@@ -646,6 +646,16 @@ func anchor(kind: CharacterModel.Anchor) -> Vector3:
 	return global_position + Vector3(0.0, height * _anchor_fallback(kind), 0.0)
 
 
+## This unit's animator, or null if it has no body.
+##
+## Named rather than reached for by node path at every call site — the
+## cinematic system needs it and should not have to know what the node is
+## called, the same reason anchor() exists rather than everyone searching
+## for a FaceAnchor.
+func animator() -> UnitAnimator:
+	return get_node_or_null("UnitAnimator") as UnitAnimator
+
+
 ## Turn this unit's head toward `target`, if its body can. See
 ## CharacterModel.gaze_at — false simply means this body does not track,
 ## which is a normal answer and not worth reporting.

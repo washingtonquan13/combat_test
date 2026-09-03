@@ -99,6 +99,9 @@ func play(scene: CinematicScene, cast: SceneCast = null) -> bool:
 			await _run_phase(phase, players, mine)
 
 	var completed: bool = mine == _generation
+	# Before anything else, and on EVERY exit including an abort: an actor
+	# left claimed is a unit that no longer reacts to being hit, forever.
+	players.release_claims()
 	_running = null
 	scene_finished.emit(scene, completed)
 	return completed

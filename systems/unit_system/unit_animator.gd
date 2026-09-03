@@ -1,3 +1,4 @@
+class_name UnitAnimator
 extends Node
 ## Drives this unit's AnimationPlayer in response to existing Unit/
 ## ability signals — a thin translation layer between "game state
@@ -221,6 +222,8 @@ func _check_clip(anim_name: String, label: String) -> void:
 ## trying to play a recovery animation for a pose the unit already
 ## visually got up out of by walking away.
 func _on_movement_started(_u: Unit) -> void:
+	if _cutscene_claimed:
+		return
 	unit.posed_status = null
 	unit.visual_state = Unit.VisualState.STANDING
 	_base_animation = idle_animation
@@ -236,6 +239,8 @@ func _on_movement_started(_u: Unit) -> void:
 ## whatever's currently held alone; _on_status_removed is what's
 ## actually responsible for transitioning off it.
 func _on_movement_finished(_u: Unit) -> void:
+	if _cutscene_claimed:
+		return
 	if unit.posed_status:
 		return
 	_play(idle_animation)
@@ -252,6 +257,8 @@ func _on_movement_finished(_u: Unit) -> void:
 ## correctly resume the held pose afterward instead of needing its own
 ## separate interrupt/resume bookkeeping.
 func _on_ability_armed(ability: Ability) -> void:
+	if _cutscene_claimed:
+		return
 	if unit.in_combat() and not unit.is_my_turn():
 		return
 
@@ -296,6 +303,8 @@ func _on_ability_armed(ability: Ability) -> void:
 ## for their own hold moments — regardless of whether it was
 ## specifically the armed ability that fired.
 func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void:
+	if _cutscene_claimed:
+		return
 	_pending_armed_enter_clip = ""
 	_pending_armed_hold = ""
 	var sequence: AnimationSequence = ability.cast_animation if ability.cast_animation else default_cast_animation
@@ -308,6 +317,8 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 ## actually returns to its pose afterward doesn't depend on this choice
 ## at all, see _on_animation_finished's fallback.
 func _on_took_damage(_u: Unit, _amount: int) -> void:
+	if _cutscene_claimed:
+		return
 	if not unit.is_alive():
 		return
 
@@ -468,6 +479,39 @@ func _rest_on_base_animation() -> void:
 ## legitimately carry only steps and no clip, and a body may declare no
 ## animations at all. Only a name that was asked for by name and could not
 ## be found is worth complaining about.
+## --- Cutscene claim ---
+##
+## While a scene owns this actor, GAMEPLAY must not animate it. A hit
+## reaction landing mid-performance replaces the clip out from under the
+## shot, and nothing reports it — the animation simply changes and the
+## scene looks wrong rather than broken.
+##
+## DEATH IS DELIBERATELY NOT BLOCKED. Everything else here is reactive and
+## can wait; a unit that dies and keeps standing is a worse lie than a
+## performance interrupted, and a scene where an actor dies has bigger
+## problems than its animation.
+var _cutscene_claimed: bool = false
+
+
+func claim_for_cutscene() -> void:
+	_cutscene_claimed = true
+
+
+func release_cutscene() -> void:
+	_cutscene_claimed = false
+
+
+func is_claimed_for_cutscene() -> bool:
+	return _cutscene_claimed
+
+
+## Plays a clip AS a scene, ignoring the claim — this is the one caller the
+## claim exists to protect, so it must not be blocked by it.
+func play_cutscene_clip(anim_name: String) -> bool:
+	_base_animation = anim_name
+	return _play(anim_name)
+
+
 func _play(anim_name: String) -> bool:
 	if anim_name == "":
 		return false

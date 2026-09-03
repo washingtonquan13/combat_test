@@ -91,6 +91,46 @@ func has(role: StringName) -> bool:
 	return _held.has(role) or _tracked.has(role)
 
 
+## A point in the world, from a mark if one is named and otherwise from
+## the actor in `role`. Vector3.ZERO when neither resolves.
+##
+## Deliberately simpler than CameraFraming's own resolution, which also
+## needs a FACING and therefore cannot share this. Effects and sounds only
+## ever need somewhere to happen.
+func point(mark_name: StringName, role: StringName) -> Vector3:
+	if mark_name != &"":
+		var spot: Node3D = mark(mark_name)
+		return spot.global_position if spot else Vector3.ZERO
+	var actor: Unit = unit(role)
+	return actor.anchor(CharacterModel.Anchor.CHEST) if actor else Vector3.ZERO
+
+
+## Actors this scene has taken over the animation of, so the director can
+## give them back when the scene ends.
+##
+## Held here rather than by the director because it is per-play state and
+## the cast already is exactly that — the director plays shared scene
+## resources and must not accumulate anything itself.
+var _claimed: Array[Unit] = []
+
+
+func note_claim(actor: Unit) -> void:
+	if is_instance_valid(actor) and not _claimed.has(actor):
+		_claimed.append(actor)
+
+
+## Hands every claimed actor back to gameplay. Called by the director when
+## a scene ends, however it ends — a scene that aborted must not leave a
+## unit frozen mid-performance and deaf to its own hit reactions.
+func release_claims() -> void:
+	for actor in _claimed:
+		if is_instance_valid(actor):
+			var animator: UnitAnimator = actor.animator()
+			if animator:
+				animator.release_cutscene()
+	_claimed.clear()
+
+
 ## A named staging point in the world, or null.
 ##
 ## LOUD WHEN MISSING. A scene naming a mark its area does not have is an
