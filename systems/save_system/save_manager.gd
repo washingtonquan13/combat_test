@@ -85,6 +85,18 @@ signal load_completed(path: String)
 ## return cannot forget to fire it.
 signal load_finished(path: String, ok: bool, reason: String)
 
+## A brand new game has just been started: every registered system is
+## empty, every world is gone, and nothing of the previous game is live.
+##
+## OBSERVERS ONLY. new_game() emits it last and does not await it, and
+## nothing handling it can refuse or amend the new game — by the time it
+## fires the old game is already gone. It exists for the screens that keep
+## state of their own outside the registry (the character-creation screen's
+## part-built character being the one that matters today), so they can
+## reset themselves without this file, or the menu, having to know they
+## exist.
+signal new_game_started
+
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".save"
 const FORMAT_VERSION: int = 1
@@ -483,6 +495,140 @@ func _perform_load(path: String) -> String:
 	return ""
 
 
+## Begins a NEW game: every registered system emptied, every world torn
+## down, and the live leftovers no section of a save owns cleared with
+## them. Returns false — having changed nothing — when the game shell
+## cannot host a game right now.
+##
+## Here, and not in WorldManager or in the menu, for the same reason
+## _perform_load is here.
+##
+## This file owns the registry, so it is the only thing that knows WHAT a
+## game's state IS — and, since the registry, knows it without naming the
+## holders (see the header). WorldManager owns worlds, which is a strict
+## subset of a game: it can free every last one and leave a party roster, a
+## purse, a stock of demons and a wall of flags standing behind it. And the
+## menu owns the BUTTON, which is exactly as much as it should know; the
+## order below is knowledge, and a second copy of it on a screen is a
+## second thing to get wrong.
+##
+## That absence was the bug. Starting a game was a pure screen change
+## (`close(); push(character_creation)`), so there was no new-game
+## operation ANYWHERE, and a second New Game resumed the first: Esc → main
+## menu runs WorldManager.unload(), whose teardown calls
+## PartyManager.capture() and folds the live party into group.records, and
+## nothing ever cleared what that wrote. The starting-area bootstrap guards
+## on roster.is_empty(), so it early-returned, pending_leader was never
+## consumed, and the OLD party was respawned around the OLD flags and the
+## OLD dead enemies.
+##
+## A new game is a LOAD OF NOTHING, and is sequenced exactly like one
+## (refuse → discard worlds → inject state), for exactly the same reasons.
+## The one thing it deliberately does not do is touch the disk: no save
+## file is deleted and no setting is written. Starting a game is about LIVE
+## state only, and a player who starts one has not asked to lose the ones
+## they already have.
+func new_game() -> bool:
+	# EVERYTHING THAT CAN REFUSE, BEFORE ANYTHING THAT WRITES — the same
+	# bargain _perform_load makes above, and the same two structural
+	# questions, asked through the same function so the two cannot drift.
+	# Past this line the game is being emptied, and a refusal after it
+	# would leave a half-cleared game with no world to stand in.
+	var refusal: String = _structural_refusal()
+	if refusal != "":
+		push_warning("SaveManager.new_game refused: %s. Nothing was changed." % refusal)
+		return false
+
+	# WORLDS FIRST. Not a preference — the teardown WRITES to the party.
+	# _tear_down_worlds() calls _disembody() on every group, and _disembody()
+	# opens with PartyManager.capture(), which folds the live party straight
+	# back into group.records. Empty the party first and tear down second
+	# and that capture lands on the far side of the wipe, restoring the old
+	# party into the roster this function just cleared: precisely the defect
+	# being fixed, reintroduced one step later. discard_worlds() rather than
+	# unload() for the same reason a load uses it — this is not the player
+	# travelling, so the travel gate has no jurisdiction, and a fight in
+	# progress is part of what is being replaced (see WorldManager.
+	# can_rebuild()).
+	if not WorldManager.discard_worlds():
+		push_warning("SaveManager.new_game refused: the current worlds could not be cleared. The game may be part-way torn down.")
+		return false
+
+	# Told to become empty, every one of them, in the same dependency order
+	# a real load uses. {} is not a special case invented here: it is this
+	# file's own standing contract, stated in _perform_load above —
+	# "load_state() means 'become what this save says', and a save that says
+	# nothing about a system means that system was empty". A new game is a
+	# save that says nothing about anything.
+	#
+	# So nothing is special-cased below. A registered target whose
+	# load_state({}) does not leave it empty is a bug in that TARGET, and
+	# teaching this loop about it would put the fix in the wrong file and
+	# hide the next one. Iterating the registry rather than a list of names
+	# is also what makes this stay correct: whatever is in the table on the
+	# day is what a new game clears, with no second list to update.
+	for key in _load_order():
+		var target: Object = _persistables[key]["target"]
+		if not is_instance_valid(target):
+			push_warning("SaveManager.new_game: '%s' was freed without unregistering; it was not cleared." % key)
+			continue
+		target.load_state({})
+
+	# The live leftovers the registry does not own. A LOAD never had to
+	# clear any of these, because a load overwrites them on the way in with
+	# the save's own values; a new game has nothing to overwrite them WITH,
+	# which is why this block exists here and nowhere else.
+
+	# This file's OWN two, and the easiest pair to forget because a load
+	# does not clear them either — deliberately. _pending_encounters
+	# outlives the load that filled it (see its declaration): a fight in an
+	# area nobody visited waits there until somebody walks in. Across a new
+	# game that patience becomes a haunting, rebuilding the previous game's
+	# battle the first time the player enters that area, so both are dropped
+	# with everything else that game consisted of.
+	_pending_party_transforms = {}
+	_pending_encounters = {}
+
+	# A character that was confirmed in creation but never spawned — an
+	# abandoned run, or the one being superseded right now. Left standing,
+	# it is consumed by the next world that spawns a party, so the new game
+	# would begin as the previous game's would-be leader.
+	PartyManager.pending_leader = null
+
+	# Already empty by construction: discard_worlds() above ran _disembody()
+	# over EVERY group (embodied or not), which clears group.units, and
+	# PartyManager.members is derived from those. Called anyway for the one
+	# thing it does unconditionally that _disembody() does not — nulling
+	# PartyManager.leader, which _disembody() only clears for a unit it
+	# actually found in a group.
+	PartyManager.clear_members()
+
+	# An ability still armed from the world just discarded, and a selection
+	# pointing at units that no longer exist. WorldManager's teardown
+	# deselects too, but only if a world was FOCUSED; from the main menu
+	# (with nothing focused) that branch never runs, and the main menu is
+	# where New Game is pressed.
+	AbilityManager.disarm()
+	SelectionManager.deselect_all()
+
+	# The combat log is a transcript of the game that just ended.
+	SystemLog.clear_log()
+
+	# Deliberately NO separate FlagManager call, and deliberately no
+	# AreaState.clear_area(). FlagManager is REGISTERED, so the loop above
+	# already handed it {} — and that single assignment takes quest flags,
+	# cinematic play-once flags and every "areastate/" record with it,
+	# because AreaState is stored INSIDE FlagManager's dictionary rather
+	# than beside it (see area_state.gd's header). The previous game's dead
+	# enemies and looted chests are gone with the flags. Clearing areas by
+	# hand here would be a second path to state that already has exactly one
+	# home, and it would need a list of every area to walk.
+
+	# Last, and awaited by nobody: see the signal's own doc.
+	new_game_started.emit()
+	return true
+
+
 ## Newest first. Reads only the [meta] section of each file — a full
 ## ConfigFile.load() still parses the file syntactically (ConfigFile has
 ## no partial-read mode), but this never calls a single system's
@@ -580,12 +726,37 @@ func _on_world_loaded(_world: Node, reason: WorldManager.Entry) -> void:
 	_restore_encounters_here()
 
 
-## Every area a party group is standing in, minus one — the caller loads
-## that one last so the player ends up looking at it.
+## Whether the game SHELL can host a game being taken apart and rebuilt
+## into it, or WHY it cannot ("" when it can).
 ##
-## Collected UP FRONT, because loading an area merges the groups that
-## claim it, and iterating the live list while that happens would walk a
-## collection being rewritten underneath.
+## Shared by _why_load_would_fail() (a load) and new_game() (a load of
+## nothing). Both operations empty every registered system before building
+## anything back, so both have exactly the same two things to establish
+## first, and neither may ask them of a particular save file — nothing
+## here reads a ConfigFile.
+##
+## STRICTLY READ-ONLY, for the same reason its caller is: it runs before
+## the first thing that writes.
+func _structural_refusal() -> String:
+	if not WorldManager.can_rebuild():
+		return "no world host is registered to build a world into"
+
+	# The one by-name check that outlives the by-name save/load calls, and
+	# it is a check on the game SHELL rather than on any system: the party's
+	# shared Inventory is the only persistable that belongs to a scene, and
+	# PartyOverview is what registers it (see party_overview.gd). With no
+	# PartyOverview in the tree the registry simply has no [inventory]
+	# entry, so a load would warn and carry on — quietly dropping every item
+	# the party is carrying, AFTER the flags, party, demons and purse had
+	# already been overwritten, and a new game would just as quietly start
+	# holding the last game's inventory. Refusing up front is the same
+	# bargain every other clause here makes.
+	if get_tree().get_first_node_in_group("party_overview") == null:
+		return "no party overview in the tree, so the shared inventory cannot be reached"
+
+	return ""
+
+
 ## Why this save cannot be opened, or "" if it can.
 ##
 ## STRICTLY READ-ONLY. Its entire purpose is to run before the first thing
@@ -600,20 +771,13 @@ func _on_world_loaded(_world: Node, reason: WorldManager.Entry) -> void:
 ## failing the whole load over it would strand the player on the title
 ## screen for a problem they can walk away from.
 func _why_load_would_fail(cfg: ConfigFile) -> String:
-	if not WorldManager.can_rebuild():
-		return "no world host is registered to build a world into"
-
-	# The one by-name check that outlives the by-name save/load calls, and
-	# it is a check on the game SHELL rather than on any system: the party's
-	# shared Inventory is the only persistable that belongs to a scene, and
-	# PartyOverview is what registers it (see party_overview.gd). With no
-	# PartyOverview in the tree the registry simply has no [inventory]
-	# entry, so the loop above would warn and carry on — quietly dropping
-	# every item the party is carrying, AFTER the flags, party, demons and
-	# purse had already been overwritten. Refusing up front is the same
-	# bargain every other clause here makes.
-	if get_tree().get_first_node_in_group("party_overview") == null:
-		return "no party overview in the tree, so the shared inventory cannot be reached"
+	# The two clauses that are not about this save file at all live in
+	# _structural_refusal(), because new_game() has to ask exactly the same
+	# two questions and two copies of a refusal is how the two answers
+	# drift apart.
+	var structural: String = _structural_refusal()
+	if structural != "":
+		return structural
 
 	var area_id: StringName = StringName(cfg.get_value("world", "area_id", ""))
 	if area_id == &"":
@@ -628,6 +792,12 @@ func _why_load_would_fail(cfg: ConfigFile) -> String:
 	return ""
 
 
+## Every area a party group is standing in, minus one — the caller loads
+## that one last so the player ends up looking at it.
+##
+## Collected UP FRONT, because loading an area merges the groups that
+## claim it, and iterating the live list while that happens would walk a
+## collection being rewritten underneath.
 func _areas_holding_party(except: StringName) -> Array[StringName]:
 	var areas: Array[StringName] = []
 	for group in PartyManager.groups:

@@ -26,6 +26,14 @@ extends Node
 
 var _owned: Array[OwnedDemon] = []
 
+## Default (and new-game/empty-save) value for max_active_summons — see
+## load_state() below. Before this was a named constant,
+## `max_active_summons = state.get("max_active_summons", max_active_summons)`
+## made a save whose "demons" section is {} a no-op instead of a reset, so
+## a debug-adjusted cap (see the compendium panel's debug row) survived
+## past a new game.
+const DEFAULT_MAX_ACTIVE_SUMMONS: int = 3
+
 ## Party-wide cap on how many demons can be actively fielded at once —
 ## read by SummonDemonEffect.apply(). Debug-adjustable for now (see the
 ## demon compendium panel's debug row) — the real long-term driver is
@@ -33,7 +41,7 @@ var _owned: Array[OwnedDemon] = []
 ## XP system yet. Whatever eventually computes that should assign
 ## directly into this field rather than adding a parallel value; nothing
 ## else needs to change.
-var max_active_summons: int = 3
+var max_active_summons: int = DEFAULT_MAX_ACTIVE_SUMMONS
 
 
 ## Registered from HERE rather than named by SaveManager: adding a system
@@ -142,4 +150,4 @@ func load_state(state: Dictionary) -> void:
 		owned.current_fp = entry.get("current_fp", species.max_fp)
 		owned.has_been_summoned = entry.get("has_been_summoned", false)
 		_owned.append(owned)
-	max_active_summons = state.get("max_active_summons", max_active_summons)
+	max_active_summons = state.get("max_active_summons", DEFAULT_MAX_ACTIVE_SUMMONS)

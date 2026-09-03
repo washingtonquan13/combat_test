@@ -16,21 +16,18 @@ extends Button
 ## feedback for free.
 ##
 ## Scene setup — a Button root sized to your portrait dimensions, with
-## five children, the first three full-rect-anchored (unchanged from the
-## original Control version) and two thin edge bars added for the party
+## four children, the first three full-rect-anchored (unchanged from the
+## original Control version) and one thin edge bar added for the party
 ## rail:
 ##   - TextureRect named "Portrait"       — the unit's art
 ##   - ColorRect named "DamageOverlay"    — semi-transparent red; grows
 ##     upward from the bottom as the unit loses HP
 ##   - Panel named "OutlineFrame"         — colored border, see
 ##     _setup_outline.
-##   - ColorRect named "HealthStrip"      — thin bar pinned to the
-##     bottom edge, green-to-red, current-HP-fraction wide. See
-##     _update_overlay().
 ##   - ColorRect named "SpeakingMarker"   — thin bar pinned to the top
 ##     edge, hidden unless set_speaking(true). Last child (drawn on top
-##     of everything, HealthStrip and OutlineFrame included) so neither
-##     a full health bar nor the border can ever cover it up.
+##     of everything, OutlineFrame included) so neither the outline nor
+##     the damage overlay can ever cover it up.
 ##
 ## Put one instance of this scene per unit inside an HBoxContainer (the
 ## initiative strip) or add directly to any Container (the party panel)
@@ -79,14 +76,6 @@ var group: PartyGroup = null
 @onready var portrait: TextureRect = $Portrait
 @onready var damage_overlay: ColorRect = $DamageOverlay
 @onready var outline_frame: Panel = $OutlineFrame
-## Thin bottom-edge bar, current-HP-fraction wide, green to red — the
-## approved party-rail mockup's "health strip along the bottom edge."
-## Deliberately separate from damage_overlay above: that one is a
-## whole-portrait damage TINT (grows upward from the bottom as a wash
-## over the art), this one is a slim, at-a-glance meter. Both read from
-## the same current_hp/maximum_hp in _update_overlay() — there is no
-## second source of truth, just two different renderings of it.
-@onready var health_strip: ColorRect = $HealthStrip
 ## Small top-edge bar, shown only while this portrait's unit is the
 ## current speaker in a conversation — see set_speaking() and
 ## party_panel.gd's _set_speaking_unit(). Not used by initiative_row.gd
@@ -145,7 +134,6 @@ func _ready() -> void:
 		_setup_outline(data.selected_color)
 		# No live HP to show for a record that isn't spawned right now.
 		damage_overlay.visible = false
-		health_strip.visible = false
 
 
 func _on_pressed() -> void:
@@ -269,13 +257,6 @@ func _update_overlay() -> void:
 	damage_fraction = clamp(damage_fraction, 0.0, 1.0)
 
 	damage_overlay.anchor_top = 1.0 - damage_fraction
-
-	var hp_fraction: float = 1.0 - damage_fraction
-	health_strip.anchor_right = hp_fraction
-	# Green at full HP down to red at empty — same two-stop read as the
-	# damage_overlay tint, just carried by the strip's own color instead
-	# of a wash over the art.
-	health_strip.color = Color(0.85, 0.2, 0.2).lerp(Color(0.2, 0.85, 0.3), hp_fraction)
 
 
 ## Toggles the top-edge speaking marker — see the SpeakingMarker export

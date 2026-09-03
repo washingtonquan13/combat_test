@@ -1,47 +1,75 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://systems/dialogue_system/choice_row.gd" id="1_choicerow"]
 
-[node name="ChoiceRow" type="Button"]
-custom_minimum_size = Vector2(0, 28)
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_normal"]
+resource_local_to_scene = true
+bg_color = Color(0, 0, 0, 0)
+content_margin_left = 8.0
+content_margin_top = 3.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hover"]
+resource_local_to_scene = true
+bg_color = Color(1, 1, 1, 0.06)
+content_margin_left = 8.0
+content_margin_top = 3.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+border_width_left = 3
+border_color = Color(0.85, 0.7, 0.32, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_focus"]
+resource_local_to_scene = true
+bg_color = Color(1, 1, 1, 0.14)
+content_margin_left = 8.0
+content_margin_top = 3.0
+content_margin_right = 8.0
+content_margin_bottom = 3.0
+border_width_left = 3
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.7, 0.32, 1)
+
+[node name="ChoiceRow" type="PanelContainer"]
 layout_mode = 3
 size_flags_horizontal = 3
 focus_mode = 2
-flat = true
-text = ""
+mouse_filter = 0
+mouse_default_cursor_shape = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_normal")
 script = ExtResource("1_choicerow")
+normal_style = SubResource("StyleBoxFlat_normal")
+hover_style = SubResource("StyleBoxFlat_hover")
+focus_style = SubResource("StyleBoxFlat_focus")
 
 [node name="Content" type="HBoxContainer" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
+layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="IndexLabel" type="Label" parent="Content"]
+[node name="Index" type="Label" parent="Content"]
 custom_minimum_size = Vector2(26, 0)
 layout_mode = 2
+size_flags_vertical = 0
 mouse_filter = 2
 horizontal_alignment = 2
 theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
 text = "01"
 
-[node name="TextLabel" type="RichTextLabel" parent="Content"]
+[node name="Text" type="Label" parent="Content"]
 layout_mode = 2
 size_flags_horizontal = 3
 mouse_filter = 2
-bbcode_enabled = true
-fit_content = true
-scroll_active = false
 autowrap_mode = 3
 
-[node name="TagsLabel" type="RichTextLabel" parent="Content"]
+[node name="Tags" type="RichTextLabel" parent="Content"]
 layout_mode = 2
-size_flags_horizontal = 0
+size_flags_vertical = 0
 mouse_filter = 2
 bbcode_enabled = true
 fit_content = true
 scroll_active = false
+autowrap_mode = 0

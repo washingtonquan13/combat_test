@@ -15,7 +15,16 @@ extends Node
 
 signal gold_changed(new_amount: int)
 
-var gold: int = 50
+## Starting purse for a new game — also load_state()'s default for a save
+## whose "currency" section is {} (see SaveManager: an empty section means
+## "become empty", not "keep whatever this autoload already had"). Before
+## this was a named constant, `gold = state.get("gold", gold)` made {} a
+## no-op, so a save file with no currency section carried the LIVE purse
+## across a load instead of resetting it — most visibly a new_game() that
+## loads {} into every registered target.
+const STARTING_GOLD: int = 50
+
+var gold: int = STARTING_GOLD
 
 
 ## Registered from HERE rather than named by SaveManager: adding a system
@@ -48,7 +57,7 @@ func save_state() -> Dictionary:
 ## any gold-display UI needs to react to, same as add_gold()/spend_gold()
 ## already do for an ordinary in-session change.
 func load_state(state: Dictionary) -> void:
-	gold = state.get("gold", gold)
+	gold = state.get("gold", STARTING_GOLD)
 	gold_changed.emit(gold)
 
 

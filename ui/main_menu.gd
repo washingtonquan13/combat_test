@@ -61,12 +61,33 @@ func _on_visibility_changed() -> void:
 			MusicManager.play_track(track)
 
 
-## Straight screen-to-screen handoff within the front end: no world is
-## loaded or unloaded, only which screen is up — and the mode follows from
-## that on its own, since with no world loaded GameMode reads the front end
-## to tell CHARACTER_CREATION from MAIN_MENU. Character creation is
-## likewise a screen, not a world (see character_creation.gd).
+## NOT a pure screen change any more, and that is the point. This used to
+## be `close(); push(character_creation)` — a handoff between two screens
+## and nothing else — which meant no code anywhere ever started a game, so
+## a second New Game quietly RESUMED the first: the party, flags, gold,
+## demons and dead enemies of the previous run were all still live, and the
+## starting area's bootstrap skips itself when a roster already exists.
+##
+## SaveManager.new_game() is what makes it a real operation, and it is
+## asked FIRST: it refuses (changing nothing) when the shell cannot host a
+## game, and there is no point opening character creation for a game that
+## will not exist. Everything after it is the same screen handoff as
+## before — no world is loaded or unloaded here, and the mode still follows
+## from which screen is up, since with no world loaded GameMode reads the
+## front end to tell CHARACTER_CREATION from MAIN_MENU. Character creation
+## is likewise a screen, not a world (see character_creation.gd).
+##
+## The visible consequence is that BACK, from character creation, now
+## returns to a title screen whose previous game is gone. That is correct,
+## not a regression: nothing on this screen reads live state. CONTINUE
+## resolves a PATH (most_recent(), which lists the save DIRECTORY) and
+## hands it to load_file(); LOAD GAME opens save_load_panel, whose list is
+## built from SaveManager.list_saves() off disk. new_game() deletes no save
+## file, so both offer exactly what they offered a moment ago — including
+## the game the player just walked away from, if they had saved it.
 func _on_start_pressed() -> void:
+	if not SaveManager.new_game():
+		return
 	close()
 	UIStack.push(get_tree().get_first_node_in_group("character_creation"))
 

@@ -64,6 +64,7 @@ var _overlay: UIScreen
 var _a: Unit
 var _b: Unit
 
+var _saved_window_size: Vector2i = Vector2i.ZERO
 var _saved_hud: Control = null
 var _saved_party_rail: Control = null
 var _saved_participants: Dictionary = {}
@@ -91,6 +92,12 @@ func run() -> void:
 		return
 	var portrait_a: Button = row_a.get_child(0)
 	var portrait_b: Button = row_b.get_child(0)
+
+	check("SETUP: PartyRail sits BEFORE DialogueOverlay under the shared CanvasLayer (mirrors MainRoot.tscn)",
+		_party_rail.get_index() < _overlay.get_index(),
+		"PartyRail is at child index %d, DialogueOverlay at %d — the rail is on TOP, so the " % [
+			_party_rail.get_index(), _overlay.get_index()] +
+		"negative-control click test below would prove nothing about real click-blocking")
 
 	# --- baseline: nobody talking, the whole HUD is up -----------------
 	check("SETUP: the party rail is visible before any conversation",
@@ -130,13 +137,89 @@ func run() -> void:
 		"to dialogue_started, or open()/UIStack.push() is broken")
 
 	# --- a portrait still selects its unit while talking ----------------
+	# 2026-09-03 hardening (user requirement: "the background needs to
+	# allow clicking portraits through it"). Calling portrait_a.pressed
+	# .emit() by hand bypasses hit-testing entirely — a scrim or some
+	# other Control sitting on top and swallowing every click would leave
+	# this check green while a real player could never actually click the
+	# portrait, which is exactly the bug class this whole file exists to
+	# catch (see the header's own "32-of-32 green" note). Kept only as a
+	# SETUP sanity check — does the portrait's own press handler select
+	# the unit at all, wiring aside — the real proof is the hit-tested
+	# click below.
 	SelectionManager.deselect_all()
 	portrait_a.pressed.emit()
-	check("clicking a portrait during the conversation selects its unit",
+	check("SETUP: the portrait's own press handler selects its unit (direct call, not hit-tested)",
 		SelectionManager.selected_units.has(_a),
 		"SelectionManager.selected_units is %s after the portrait's own " % [str(SelectionManager.selected_units)] +
 		"pressed signal fired — the click either didn't reach _on_pressed " +
 		"or _on_pressed itself got dialogue-gated")
+
+	# REAL hit test: a synthesised click through the viewport's own input
+	# pipeline (press then a matching release, both at the portrait's
+	# actual global rect centre) — see
+	# tests/interaction/test_intent_has_one_owner.gd's
+	# _the_router_runs_before_the_indicators_it_drives for the same
+	# push_input() pattern. This is what actually proves the background
+	# (the overlay, its band, whatever the other agent lands) is not
+	# sitting on top of the party rail eating the click before it reaches
+	# the portrait — pressed.emit() above could never have caught that.
+	#
+	# Counted via a Dictionary rather than a plain bool: GDScript lambdas
+	# capture outer locals BY VALUE, so a `var fired := false` closed over
+	# by the connected lambda would never be visible to the check
+	# afterward — only a container (Dictionary here), mutated in place
+	# from inside the closure, actually is.
+	SelectionManager.deselect_all()
+	var press_count: Dictionary = {"count": 0}
+	var on_pressed: Callable = func() -> void:
+		press_count["count"] += 1
+	portrait_a.pressed.connect(on_pressed)
+
+	var portrait_center: Vector2 = portrait_a.get_global_rect().get_center()
+	_click_at(portrait_center)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	check("a real, hit-tested click at the portrait's own rect centre reaches it through the viewport's input pipeline",
+		press_count["count"] == 1,
+		("portrait.pressed fired %d times from a synthesised click+release at its own global rect " +
+			"centre (%s) — 0 means something above it is eating the click. Capturing controls " +
+			"under that point, deepest last: %s") % [
+			press_count["count"], str(portrait_center), _capturing_controls_at(portrait_center)])
+	check("...and that real click selects its unit",
+		SelectionManager.selected_units.has(_a),
+		"SelectionManager.selected_units is %s after a real hit-tested click on the portrait" % str(SelectionManager.selected_units))
+	portrait_a.pressed.disconnect(on_pressed)
+
+	# Negative control, so the check above cannot pass vacuously (e.g. a
+	# stray event.position of (0,0) that happens to land on SOMETHING
+	# clickable regardless of where it was aimed): the same click+release
+	# sequence aimed at the overlay's own BAND — comfortably away from the
+	# party rail — must NOT reach the portrait at all.
+	var band: Control = _overlay.find_child("Band", true, false)
+	if band == null:
+		check("SETUP: the overlay's Band exists for the negative-control click", false)
+	else:
+		SelectionManager.deselect_all()
+		var band_press_count: Dictionary = {"count": 0}
+		var on_pressed_band: Callable = func() -> void:
+			band_press_count["count"] += 1
+		portrait_a.pressed.connect(on_pressed_band)
+
+		var band_center: Vector2 = band.get_global_rect().get_center()
+		_click_at(band_center)
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await get_tree().process_frame
+
+		check("a click aimed at the overlay's own band does NOT reach the portrait (negative control)",
+			band_press_count["count"] == 0,
+			("portrait.pressed fired %d times from a click aimed at the band's centre (%s), not the " +
+				"portrait — the positive hit-test check above would be meaningless if this weren't 0") % [
+				band_press_count["count"], str(band_center)])
+		portrait_a.pressed.disconnect(on_pressed_band)
 
 	# --- the speaking marker follows the speaker ------------------------
 	check("the NPC's line lights the NPC's own marker",
@@ -218,16 +301,111 @@ func run() -> void:
 	_restore()
 
 
+## A real left-click, press then release, both synthesised at `pos` and
+## delivered through the actual viewport input pipeline (Control
+## hit-testing, mouse_filter, z-order all included) — not a direct
+## `.pressed.emit()` call. See the pressed-through-hit-test checks above
+## for why that distinction is the entire point of this hardening pass.
+## Every visible Control anywhere in the tree that would capture a click at
+## `point` (mouse_filter STOP or PASS, rect contains the point), as a
+## path list. Walks the WHOLE tree from the root, not this suite's shell,
+## because a stale node another suite left behind is exactly the kind of
+## thing that eats a click in a full run and not in a solo one.
+func _capturing_controls_at(point: Vector2) -> String:
+	var found: PackedStringArray = []
+	var stack: Array[Node] = [get_tree().root]
+	while not stack.is_empty():
+		var node: Node = stack.pop_back()
+		for child in node.get_children():
+			stack.append(child)
+		if node is Control and node.is_visible_in_tree() \
+				and node.mouse_filter != Control.MOUSE_FILTER_IGNORE \
+				and node.get_global_rect().has_point(point):
+			found.append("%s[%s]" % [node.get_path(), "STOP" if node.mouse_filter == 0 else "PASS"])
+	# A popup is a Window, not a Control, and an exclusive one steals every
+	# input event without ever appearing in the list above. Likewise a
+	# mouse press some earlier suite never released pins the viewport's
+	# mouse focus to whatever it pressed on. Both are viewport state, not
+	# tree geometry, so name them explicitly.
+	var windows: PackedStringArray = []
+	for child in get_tree().root.get_children():
+		if child is Window and child != get_tree().root and child.visible:
+			windows.append("%s(exclusive=%s)" % [child.get_path(), str(child.exclusive)])
+	var focus: Control = get_viewport().gui_get_focus_owner()
+	var summary: String = ", ".join(found) if not found.is_empty() else "(none)"
+	summary += " | visible windows: %s" % (", ".join(windows) if not windows.is_empty() else "(none)")
+	summary += " | key focus: %s" % (str(focus.get_path()) if focus else "(none)")
+	summary += " | dragging: %s" % str(get_viewport().gui_is_dragging())
+	summary += " | hovered: %s" % str(get_viewport().gui_get_hovered_control())
+	return summary
+
+
+func _click_at(pos: Vector2) -> void:
+	# Motion first, so the viewport's hover state resolves at this point
+	# the way it would under a real mouse before a real click. A bare
+	# press with no prior motion is legal but is not what a player does,
+	# and it leaves gui_get_hovered_control() null in the diagnostic.
+	var motion := InputEventMouseMotion.new()
+	motion.position = pos
+	motion.global_position = pos
+	get_viewport().push_input(motion)
+
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = pos
+	press.global_position = pos
+	get_viewport().push_input(press)
+
+	var release := InputEventMouseButton.new()
+	release.button_index = MOUSE_BUTTON_LEFT
+	release.pressed = false
+	release.position = pos
+	release.global_position = pos
+	get_viewport().push_input(release)
+
+
 ## Stand-in shell for the slice of MainRoot.tscn this suite needs — see
 ## the header for exactly what is real (PartyPanel, DialogueOverlay) and
 ## what is a stand-in (TacticalUI and its two named children).
+##
+## Child ORDER under _canvas deliberately mirrors MainRoot.tscn:
+## PartyRail is added BEFORE DialogueOverlay, so the overlay is the LATER
+## sibling — later CanvasItem siblings sit on top and are hit-tested
+## first, same as in the real scene. A suite that put the rail on top of
+## the overlay here would prove nothing about the negative-control click
+## test below: a click aimed at the band could only ever miss the
+## portrait for the wrong reason (the rail simply wasn't underneath it).
 func _build_shell() -> void:
+	# The ROOT WINDOW is resized to the design size, not just a host
+	# Control inside it. The headless runner's window is 64px tall, and a
+	# synthesised mouse event outside the window rect is discarded before
+	# any hit-test runs. In a solo run the portrait happened to sit at
+	# y=26 and the click landed; after a full run's worth of roster
+	# records the rail was taller, the portrait sat at y=250, and the very
+	# same click silently vanished. Restored in _restore().
+	_saved_window_size = get_tree().root.size
+	get_tree().root.size = Vector2i(1600, 900)
+
 	_canvas = CanvasLayer.new()
 	_root.add_child(_canvas)
 
+	# A screen at the game's real design size, and everything anchors to
+	# it. The headless runner's own viewport is 64px tall; hung straight
+	# off the CanvasLayer, the overlay's content-sized band (~260px, pinned
+	# 29px up) spanned that whole viewport and its choice rows sat over
+	# the portrait at (20, 26). The hit-test then reported the overlay
+	# eating the click, which was true in that geometry and false in the
+	# game's, where the rail is at mid-height and the band at the bottom.
+	var screen := Control.new()
+	screen.name = "Screen"
+	screen.size = Vector2(1600, 900)
+	_canvas.add_child(screen)
+
 	_tactical = Control.new()
 	_tactical.name = "TacticalUI"
-	_canvas.add_child(_tactical)
+	_tactical.set_anchors_preset(Control.PRESET_FULL_RECT)
+	screen.add_child(_tactical)
 
 	_initiative_row = Control.new()
 	_initiative_row.name = "InitiativeRow"
@@ -239,7 +417,8 @@ func _build_shell() -> void:
 
 	_party_rail = Control.new()
 	_party_rail.name = "PartyRail"
-	_canvas.add_child(_party_rail)
+	_party_rail.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_tactical.get_parent().add_child(_party_rail)
 
 	_panel = PartyPanel.new()
 	_panel.name = "PartyPanel"
@@ -256,7 +435,8 @@ func _build_shell() -> void:
 	_overlay.blocks_input_below = true
 	_overlay.closes_on_cancel = false
 	_overlay.keeps_party_visible = true
-	_canvas.add_child(_overlay)
+	# Added AFTER _party_rail — see this function's own header comment.
+	_party_rail.get_parent().add_child(_overlay)
 
 	UIStack.register_hud(_tactical)
 	# PartyRail, not _panel — see main_root.gd's own register_party_rail
@@ -266,6 +446,8 @@ func _build_shell() -> void:
 
 
 func _restore() -> void:
+	if _saved_window_size != Vector2i.ZERO:
+		get_tree().root.size = _saved_window_size
 	if DialogueManager.is_active():
 		DialogueManager.end_dialogue()
 	DialogueManager.participants = _saved_participants

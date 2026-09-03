@@ -26,9 +26,19 @@ extends UIScreen
 ## pending_leader as a plain PartyMemberData instead, and whichever world
 ## first spawns (test_arena.gd's own _build_leader(), today) consumes it.
 ##
-## State deliberately survives backing out to the title screen and
-## returning (this screen is instanced once, not rebuilt per visit) — a
-## player who steps back shouldn't lose an in-progress build.
+## Persistent across visits — this screen is instanced once under
+## MainRoot's CanvasLayer and never rebuilt — but it resets to a blank
+## form every time it becomes visible (see reset() below), not just
+## once at boot. Without that, all of a previous build's state
+## (_attribute_values, _skill_values, the name field, the portrait
+## selection/preview, the open tab) stayed exactly as the last visit
+## left it, and _update_confirm_state() recomputed off that stale data
+## and left BEGIN ADVENTURE enabled — one click from silently
+## re-committing the PREVIOUS character. Follows the same reset-on-show
+## idiom main_menu.gd/esc_menu.gd/stash_panel.gd's own visibility_changed
+## handlers already use. This still does NOT read PartyManager.
+## pending_leader back in to pre-fill on open — this screen's only
+## contact with PartyManager stays writing to it on Confirm.
 
 const ATTRIBUTE_TABLE: PointBuyTable = preload("res://data/character_creation/attribute_costs.tres")
 const SKILL_TABLE: PointBuyTable = preload("res://data/character_creation/skill_costs.tres")
@@ -55,6 +65,10 @@ const PORTRAIT_PREVIEW_SCALE: float = 2.0  # 160x200
 const PORTRAITS_DIR: String = "res://assets/portraits/"
 const PORTRAIT_EXTENSIONS: Array[String] = ["jpg", "jpeg", "png"]
 
+## Not unique_name_in_owner (no other node under this scene needed that
+## flag added) — a plain relative NodePath from this script's own root
+## reaches it just as reliably.
+@onready var _tabs: TabContainer = $Margin/Root/Tabs
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _portrait_grid: GridContainer = %PortraitGrid
 @onready var _preview_texture: TextureRect = %PreviewTexture
@@ -81,19 +95,78 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	# Structural, one-time only: builds the rows/grid and connects their
+	# +/-/portrait pressed signals. Must NOT live in reset() — reset() runs
+	# on every open, and re-running this would double-connect every one of
+	# those signals (or duplicate the rows/buttons outright).
 	for attr in ATTRIBUTE_NAMES:
-		_attribute_values[attr] = ATTRIBUTE_TABLE.default_value
 		_build_row(_attributes_list, ATTRIBUTE_LABELS[attr], attr, _attribute_rows, _on_attribute_step)
 
 	for skill in SkillDatabase.get_all():
-		_skill_values[skill.skill_name] = SKILL_TABLE.default_value
 		_build_row(_skills_list, skill.skill_name, skill.skill_name, _skill_rows, _on_skill_step)
 
 	_build_portrait_grid()
 
+	# Same reset-on-show idiom as main_menu.gd/esc_menu.gd/stash_panel.gd's
+	# own visibility_changed handlers — see this file's header for why a
+	# once-at-boot _ready() seed alone isn't enough.
+	visibility_changed.connect(_on_visibility_changed)
+
+	# SaveManager.new_game_started is landing in parallel elsewhere in this
+	# codebase; guarded both ways (has_signal here, is_connected in
+	# _exit_tree) so this file parses and runs whether or not that signal
+	# exists yet, and so this persistent screen doesn't leak a connection
+	# to an autoload after being freed — see the recorded RefCounted-
+	# component/autoload-signal-leak bug class in project memory.
+	if SaveManager.has_signal("new_game_started"):
+		SaveManager.new_game_started.connect(_on_new_game_started)
+
+	reset()
+
+
+## Restores every piece of this screen's state to its boot default —
+## called once from _ready() (after the structural setup above) and again
+## every time the screen becomes visible (_on_visibility_changed below),
+## so a second open never shows the previous visit's build. Only ever
+## ASSIGNS state; never connects a signal or creates a node — those are
+## _ready()'s job, exactly once.
+func reset() -> void:
+	_name_edit.text = ""
+
+	for attr in ATTRIBUTE_NAMES:
+		_attribute_values[attr] = ATTRIBUTE_TABLE.default_value
+
+	for skill in SkillDatabase.get_all():
+		_skill_values[skill.skill_name] = SKILL_TABLE.default_value
+
+	if _selected_portrait_path in _portrait_buttons:
+		_portrait_buttons[_selected_portrait_path].button_pressed = false
+	_selected_portrait_path = ""
+	_preview_texture.texture = null
+
+	_tabs.current_tab = 0
+
+	# Recomputes every row's label/cost/disabled state off the values just
+	# reset above, and _update_confirm_state() off all of it together —
+	# same refresh calls _on_attribute_step/_on_skill_step already use, so
+	# there's no separate "blank state" rendering path to keep in sync.
 	_refresh_attributes()
 	_refresh_skills()
 	_update_confirm_state()
+
+
+func _on_visibility_changed() -> void:
+	if visible:
+		reset()
+
+
+func _on_new_game_started() -> void:
+	reset()
+
+
+func _exit_tree() -> void:
+	if SaveManager.has_signal("new_game_started") and SaveManager.new_game_started.is_connected(_on_new_game_started):
+		SaveManager.new_game_started.disconnect(_on_new_game_started)
 
 
 func _build_row(parent: VBoxContainer, label_text: String, key: String, row_registry: Dictionary, step_callback: Callable) -> void:
