@@ -38,6 +38,20 @@ extends Node3D
 ## name.
 @export var party_spawn_point: Node3D
 
+@export_group("Staged moments")
+## Played the FIRST time the player arrives here, and never again — the
+## flag that remembers it is derived from the area's own id, so nothing has
+## to be authored twice or kept in step.
+##
+## Data, not behaviour: this area declares what it wants shown, and
+## CinematicCues is what notices and asks the director for it. An area
+## should no more know how to run a camera than it knows how to run a
+## conversation.
+@export var entry_scene: CinematicScene
+## Played when a fight starts here. Optional, and null — nothing — is the
+## right default: most fights should simply begin.
+@export var combat_intro_scene: CinematicScene
+
 
 func get_base_mode() -> GameMode.Mode:
 	return GameMode.Mode.EXPLORATION

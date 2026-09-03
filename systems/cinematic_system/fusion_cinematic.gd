@@ -3,11 +3,36 @@ extends RefCounted
 ## Builds the fusion cutscene from the two demons going into it and the one
 ## coming out.
 ##
-## ASSEMBLED, NOT AUTHORED. There are hundreds of pairs across the roster
-## and the result is computed, so there is no .tres to write — the scene is
-## made from its participants every time. That is the property that broke
-## drafts 1 and 2 of the plan: a design fitted to conversation assumes a
-## fixed cast known at authoring time, and fusion has neither.
+## ASSEMBLED, NOT AUTHORED — and the reason is not the obvious one.
+##
+## The obvious reason, which this file used to give, is that hundreds of
+## demon pairs and a computed result mean there is no single .tres to
+## write. THAT IS WRONG, and it was tested: the participants vary, the
+## SHAPE does not, so an authored file with a varying cast works fine.
+## The migration was built, it passed, and it was reverted.
+##
+## The real reasons it stays here:
+##
+##   - A .tres cannot carry comments AT ALL — a `##` in one silently breaks
+##     loading. The beat notes below (which beats are real, which are held
+##     time waiting on shader work) have nowhere to live in that format,
+##     and they are the most valuable thing about this file.
+##   - It got BIGGER: 166 lines became 200 across two files.
+##   - The .tres reads as SubResource ids cross-referencing each other. In
+##     the inspector it is navigable; as text it is unreadable.
+##
+## Authoring suits SIMPLE, STATIC scenes — see test_arena_arrival.tres,
+## four steps and perfectly legible as a file. Forcing an intricate,
+## parameterised sequence into the same format was false consistency.
+##
+## WHAT WOULD CHANGE THE ANSWER: a real scene editor, or an actual need to
+## re-stage fusion without touching code. Neither exists, and fusion is not
+## reached through SceneBinding — it holds its scene directly — so the
+## content/presentation split that justifies binding does not apply here.
+##
+## Fusion is still what broke drafts 1 and 2 of the plan, for a different
+## reason: a design fitted to conversation assumes a cast fixed at
+## authoring time, and this one creates and destroys actors mid-scene.
 ##
 ## The beats follow the reference (see the 2026-08-25 brainstorm), and two
 ## of them are structure without spectacle yet:

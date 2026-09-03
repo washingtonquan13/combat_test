@@ -1,4 +1,4 @@
-[gd_scene load_steps=38 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=39 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
@@ -37,6 +37,7 @@
 [ext_resource type="Script" uid="uid://dsbvnm08kyv1h" path="res://debug/debug_cutscene_harness.gd" id="34_cutsceneharness"]
 [ext_resource type="PackedScene" path="res://ui/save_load_panel.tscn" id="34_saveloadpanel"]
 [ext_resource type="PackedScene" uid="uid://dypeuvgfr3s4j" path="res://ui/cathedral_menu.tscn" id="35_cathedralmenu"]
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -54,6 +55,9 @@ mouse_filter = 2
 
 [node name="CinematicCamera" type="Node3D" parent="."]
 script = ExtResource("2_cinecam")
+
+[node name="CinematicCues" type="Node" parent="."]
+script = ExtResource("36_cues")
 
 [node name="GroundClickTarget" type="Node3D" parent="."]
 script = ExtResource("23_groundclick")

@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://systems/ability_system/apply_status_effect.gd" id="4_applystatus"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="5_status"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="6_behavior"]
-[ext_resource type="Script" path="res://systems/ability_system/outgoing_attack_modifier_behavior.gd" id="7_outgoing"]
+[ext_resource type="Script" uid="uid://bl6ho0f6egol0" path="res://systems/ability_system/outgoing_attack_modifier_behavior.gd" id="7_outgoing"]
 [ext_resource type="Texture2D" uid="uid://d23sxrfn4ew0a" path="res://assets/ability_icon/bless_icon.png" id="8_icon"]
 
 [sub_resource type="Resource" id="Resource_outgoing"]
