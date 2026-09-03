@@ -151,6 +151,35 @@ func is_in_range(attacker: Unit, target) -> bool:
 	return targeting.is_valid_target(attacker, target)
 
 
+## Which preview overlays belong to THIS ability while it is being aimed
+## (see IndicatorBase.serves(), AimingIntent.indicator_ids()) — the
+## targeting shape's own ids, plus the ones that follow from what the
+## ability DOES rather than what it targets.
+##
+## Both effect-derived cases were previously guards inside the
+## indicators, keyed on the same facts from the other end:
+##
+## - a seeking ability replaces the straight aim line with a real
+##   NavigationGrid route preview, so it takes &"seeking" INSTEAD of
+##   &"line_of_sight" (line_of_sight_indicator hand-excluded these; that
+##   exclusion is the erase below). Keyed on VFX composition, not on
+##   targeting type, because "seeking" is a property of how a thing
+##   travels — nothing stops a future one from targeting differently;
+## - the jump arc belongs to a ground-point ability that actually MOVES
+##   its caster, which is a fact about its effects list.
+func indicator_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	if targeting:
+		ids.append_array(targeting.indicator_ids())
+	if has_pathed_projectile():
+		ids.erase(&"line_of_sight")
+		if not ids.has(&"seeking"):
+			ids.append(&"seeking")
+	if targeting is GroundPointTargeting and has_move_caster_effect():
+		ids.append(&"jump")
+	return ids
+
+
 ## The PathedProjectileStep in cast_vfx.steps, if this ability has one
 ## — used by seeking_indicator.gd (via PlayerInteractionState) to decide
 ## whether to preview the real NavigationGrid route instead of

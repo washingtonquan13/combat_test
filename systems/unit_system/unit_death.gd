@@ -34,10 +34,11 @@ func expire() -> void:
 	SystemLog.print("%s fades away." % LogFormat.unit_name(_owner))
 	_owner.current_hp = 0
 	# _owner.handle_death(), not a same-class handle_death() call — routes
-	# through Unit's own wrapper (see unit.gd) so this path picks up
-	# _selection.teardown() too, not just this file's own cleanup. Both
-	# calls land on this exact same UnitDeath instance either way; this
-	# only changes which entry point gets there.
+	# through Unit's own public wrapper (see unit.gd), which is the entry
+	# point every other death path uses too, so anything that wrapper ever
+	# grows applies here as well. Both calls land on this exact same
+	# UnitDeath instance either way; this only changes which entry point
+	# gets there.
 	_owner.handle_death()
 	_owner.died.emit(_owner)
 

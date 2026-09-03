@@ -21,7 +21,12 @@ var _line_mesh: MeshInstance3D
 var _line_immediate: ImmediateMesh
 
 
+func serves() -> StringName:
+	return &"jump"
+
+
 func _ready() -> void:
+	super()
 	var built: Dictionary = _create_line_mesh()
 	_line_mesh = built.mesh_instance
 	_line_immediate = built.immediate
@@ -29,7 +34,8 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var unit := _get_active_unit()
-	var move_effect := _get_armed_move_effect()
+	var ability: Ability = AbilityManager.armed_ability
+	var move_effect: MoveCasterEffect = ability.get_move_caster_effect() if ability else null
 
 	if not unit or not move_effect:
 		_line_mesh.visible = false
@@ -40,19 +46,8 @@ func _process(_delta: float) -> void:
 		_line_mesh.visible = false
 		return
 
-	_draw_arc(unit, AbilityManager.armed_ability, move_effect, hover_point)
+	_draw_arc(unit, ability, move_effect, hover_point)
 	_line_mesh.visible = true
-
-
-## The armed ability's own MoveCasterEffect instance (not a new one) —
-## calling ITS arc_point()/clamp_to_budget() is what guarantees the
-## preview matches whatever jump_duration/arc_height that SPECIFIC
-## ability was actually configured with.
-func _get_armed_move_effect() -> MoveCasterEffect:
-	var ability: Ability = PlayerInteractionState.get_armed_ability_of_targeting_type(GroundPointTargeting)
-	if not ability:
-		return null
-	return ability.get_move_caster_effect()
 
 
 func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hover_point: Vector3) -> void:

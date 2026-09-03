@@ -37,7 +37,7 @@
 [ext_resource type="Script" uid="uid://dsbvnm08kyv1h" path="res://debug/debug_cutscene_harness.gd" id="34_cutsceneharness"]
 [ext_resource type="PackedScene" path="res://ui/save_load_panel.tscn" id="34_saveloadpanel"]
 [ext_resource type="PackedScene" uid="uid://dypeuvgfr3s4j" path="res://ui/cathedral_menu.tscn" id="35_cathedralmenu"]
-[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
+[ext_resource type="Script" uid="uid://figtunvhfhvk" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")

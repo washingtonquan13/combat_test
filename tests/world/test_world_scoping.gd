@@ -20,6 +20,17 @@ var _b1: Unit
 var _b2: Unit
 
 
+## Opted in so _managers_delegate_to_the_context() below finally runs its
+## real branch. Its no-world half was never wrong, it was just the only
+## half that ever executed: headless runs load no world, so the two lines
+## asserting that SurfaceManager and CombatManager read THROUGH the
+## context were dead code guarded by an early return. The two SubViewports
+## this suite builds are its own and are unaffected by a world being
+## loaded alongside them.
+func wants_world() -> bool:
+	return true
+
+
 func run() -> void:
 	await _build_two_worlds()
 	if _a1 == null:
@@ -208,9 +219,9 @@ func _managers_delegate_to_the_context() -> void:
 		return
 
 	check("SurfaceManager reads the context's surfaces",
-		SurfaceManager.active_surfaces == context.surfaces)
+		is_same(SurfaceManager.active_surfaces, context.surfaces))
 	check("CombatManager reads the context's encounters",
-		CombatManager.encounters == context.encounters)
+		is_same(CombatManager.encounters, context.encounters))
 
 
 ## The nav grid is reached through the context, and since rung 3a it is

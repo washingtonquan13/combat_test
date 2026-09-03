@@ -36,6 +36,29 @@ var _owned: Array[OwnedDemon] = []
 var max_active_summons: int = 3
 
 
+## Registered from HERE rather than named by SaveManager: adding a system
+## that persists should never be an edit to the save system again, and a
+## hand-maintained list somewhere else is a second place to remember
+## something.
+##
+## DEFERRED because this autoload is created BEFORE SaveManager (see
+## project.godot's [autoload] order) — the `SaveManager` identifier cannot
+## be resolved yet while this _ready() runs. A deferred call lands once
+## every autoload is up, which is still long before anything can ask for a
+## save.
+func _ready() -> void:
+	_register_persistence.call_deferred()
+
+
+## No `after`: load_state() below resolves each entry's species through
+## SpawnableUnitDatabase — a resource database, not a saved system — and
+## reads nothing that FlagManager, PartyManager, CurrencyManager or the
+## party Inventory restore. Ownership and party membership are separate
+## records with no reference between them in the save file.
+func _register_persistence() -> void:
+	SaveManager.register(&"demons", self)
+
+
 ## Creates a fresh, full-HP/FP OwnedDemon and adds it to the roster —
 ## used by both a fusion result and negotiation's Recruit outcome.
 func recruit(species: UnitDefinition) -> OwnedDemon:

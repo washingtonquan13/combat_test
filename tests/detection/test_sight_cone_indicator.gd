@@ -6,14 +6,31 @@ extends AiTestCase
 ##
 ## So these check the indicator against DetectionManager's OWN predicates
 ## rather than against hardcoded numbers.
+##
+## wants_world(): true. _observers() gates on
+## CombatManager.combat_running_in_world_of(self) (see sight_cone_indicator.gd)
+## — a real per-world lookup keyed on the INDICATOR's own World3D, not just
+## the units it draws for. The indicator is parented via _spawn_parent()
+## rather than _root for exactly that reason: left under _root while a
+## world is loaded, the indicator would sit in the SceneTree root's default
+## World3D while the fight it should be hiding for runs in the fixture's
+## own SubViewport World3D, and _hidden_when_it_should_be's "hidden during
+## combat" check would pass for the wrong reason (or fail outright).
+## _cones_stop_at_the_world_on_screen's own "elsewhere" SubViewport stays
+## under _root — it is deliberately a THIRD, isolated world, not part of
+## the loaded fixture.
 
 
 var _indicator: SightConeIndicator
 
 
+func wants_world() -> bool:
+	return true
+
+
 func run() -> void:
 	_indicator = SightConeIndicator.new()
-	_root.add_child(_indicator)
+	_spawn_parent().add_child(_indicator)
 
 	_reads_geometry_off_the_unit()
 	_colour_tracks_awareness()

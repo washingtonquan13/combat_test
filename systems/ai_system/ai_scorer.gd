@@ -288,7 +288,7 @@ static func _damaging_abilities(unit: Unit) -> Array[Ability]:
 	for ability in unit.abilities:
 		if not ability.targeting:
 			continue
-		if not (ability.targeting is MeleeEnemyTargeting or ability.targeting is RangedEnemyTargeting):
+		if not ability.targeting.targets_single_enemy():
 			continue
 
 		var total_damage: float = 0.0

@@ -161,6 +161,20 @@ func _ready() -> void:
 	# file's header for why a group, not a direct reference.
 	add_to_group("party_overview")
 
+	# The party's shared Inventory is the one thing the save file holds that
+	# belongs to a SCENE rather than to an autoload, so it registers and
+	# unregisters with this node's own lifetime instead of being reached for
+	# by name from SaveManager (see save_manager.gd's registry).
+	#
+	# Directly, not deferred like the autoloads' own registrations: this
+	# node is not an autoload, so SaveManager already exists by the time
+	# this runs, and a deferred call here would leave a window — one frame
+	# wide, and exactly the window a test that installs this scene and
+	# saves in the same frame would fall into — where the party's items
+	# have nowhere to be written.
+	if is_instance_valid(_inventory):
+		SaveManager.register(&"inventory", _inventory)
+
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
 	%TabSpawn.visible = OS.is_debug_build()
@@ -183,6 +197,15 @@ func _ready() -> void:
 		_grant_ability_button.pressed.connect(_on_grant_ability_pressed)
 
 	_show_tab("inventory")
+
+
+## Named explicitly rather than unregistering the key outright: queue_free()
+## runs this LATE, so a PartyOverview on its way out must not be able to
+## delete the entry a replacement has already claimed (see
+## SaveManager.unregister).
+func _exit_tree() -> void:
+	if is_instance_valid(_inventory):
+		SaveManager.unregister(&"inventory", _inventory)
 
 
 func _unhandled_input(event: InputEvent) -> void:

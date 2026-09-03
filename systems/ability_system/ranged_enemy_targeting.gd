@@ -28,6 +28,14 @@ func approach_range() -> float:
 	return max_range
 
 
+func targets_single_enemy() -> bool:
+	return true
+
+
+func indicator_ids() -> Array[StringName]:
+	return [&"line_of_sight"]
+
+
 func describe() -> String:
 	var s := "Ranged, range %.1f" % max_range
 	if requires_line_of_sight:

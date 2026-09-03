@@ -148,9 +148,9 @@ func _combat_mode_belongs_to_the_fight_on_screen() -> void:
 ## indicator inherits _get_active_unit, so this is the one place the
 ## guard can live and the one place it can be checked.
 func _indicators_do_not_draw_across_worlds() -> void:
-	check("SETUP: the fight the player is not watching owns current_unit",
-		CombatManager.in_combat and CombatManager.current_unit == _stayer,
-		"current_unit is %s" % str(CombatManager.current_unit))
+	check("SETUP: the fight the player is not watching owns focus",
+		CombatManager.focused_encounter == _fight and _fight.current_unit == _stayer,
+		"current_unit is %s" % str(_fight.current_unit if is_instance_valid(_fight) else null))
 
 	var probe := IndicatorBase.new()
 	_root.add_child(probe)

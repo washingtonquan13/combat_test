@@ -24,6 +24,27 @@ extends Node
 var _flags: Dictionary = {}
 
 
+## Registered from HERE rather than named by SaveManager: adding a system
+## that persists should never be an edit to the save system again, and a
+## hand-maintained list somewhere else is a second place to remember
+## something.
+##
+## DEFERRED because this autoload is created BEFORE SaveManager (see
+## project.godot's [autoload] order) — the `SaveManager` identifier cannot
+## be resolved yet while this _ready() runs. A deferred call lands once
+## every autoload is up, which is still long before anything can ask for a
+## save.
+func _ready() -> void:
+	_register_persistence.call_deferred()
+
+
+## No `after`: load_state() below is a single assignment off the save's own
+## dictionary and reads no other system's restored state, so nothing but
+## registration order orders it.
+func _register_persistence() -> void:
+	SaveManager.register(&"flags", self)
+
+
 ## duplicate(true) — a DEEP copy, not the live dictionary. AreaState's
 ## own values are themselves Dictionaries (a stash's item list, e.g.),
 ## so a shallow copy would hand the caller (SaveManager, about to write

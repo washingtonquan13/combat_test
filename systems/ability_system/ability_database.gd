@@ -8,16 +8,23 @@ extends RefCounted
 ##
 ## Stateless from the outside — static, no instances — same reasoning
 ## SkillDatabase/DemonDatabase already give for themselves.
+##
+## The scan-and-cache itself is ResourceCatalog (see that file's header
+## for the full behaviour matrix); this file only supplies its directory,
+## its id field (ability_name, since Ability has no dedicated id), and
+## the non-recursive/first-wins/no-dedupe shape that matches the original
+## hand-written loader exactly.
 
 const ABILITIES_DIR: String = "res://data/abilities/"
 
-static var _all: Array[Ability] = []
+static var _catalog: ResourceCatalog
 
 
 static func get_all() -> Array[Ability]:
-	if _all.is_empty():
-		_load_all()
-	return _all
+	var result: Array[Ability] = []
+	for resource in _get_catalog().all():
+		result.append(resource as Ability)
+	return result
 
 
 ## Null if no ability with this name exists. Keyed on ability_name, not a
@@ -27,16 +34,20 @@ static func get_all() -> Array[Ability]:
 ## custom_slots are saved as name arrays (see SaveManager), same
 ## resource-by-id convention every other saved reference uses.
 static func find(ability_name: String) -> Ability:
-	for ability in get_all():
-		if ability.ability_name == ability_name:
-			return ability
-	return null
+	return _get_catalog().find(ability_name) as Ability
 
 
-static func _load_all() -> void:
-	for file_name in DirAccess.get_files_at(ABILITIES_DIR):
-		if not file_name.ends_with(".tres"):
-			continue
-		var ability := load(ABILITIES_DIR + file_name) as Ability
-		if ability:
-			_all.append(ability)
+## Forces a re-scan — same escape hatch SkillDatabase/DemonDatabase
+## expose, for a dev/modding workflow that adds or edits an ability
+## .tres at runtime. Ordinary play never calls this.
+static func refresh() -> void:
+	_get_catalog().refresh()
+
+
+static func _get_catalog() -> ResourceCatalog:
+	if not _catalog:
+		var extract_id := func(resource: Resource) -> Variant:
+			var ability := resource as Ability
+			return ability.ability_name if ability else null
+		_catalog = ResourceCatalog.new(ABILITIES_DIR, false, extract_id, true, false, false)
+	return _catalog

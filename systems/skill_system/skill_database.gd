@@ -13,28 +13,31 @@ extends RefCounted
 ## Stateless from the outside — static, no instances — but the cache
 ## itself has to live somewhere, hence `static var` rather than a plain
 ## const table.
+##
+## The scan-and-cache itself is ResourceCatalog (see that file's header
+## for the full behaviour matrix); this file only supplies its directory,
+## its id field (skill_name, since Skill is keyed by name), and the
+## non-recursive/last-wins/dedupe shape that matches the original
+## hand-written loader exactly (get_all() was always built from a dict's
+## values, so a duplicate name collapsed to one entry).
 
 const SKILLS_DIR: String = "res://data/skills/"
 
-static var _by_name: Dictionary = {}
+static var _catalog: ResourceCatalog
 
 
 ## Null if no skill with this name has ever been saved under SKILLS_DIR.
 static func find(skill_name: String) -> Skill:
-	if _by_name.is_empty():
-		_load_all()
-	return _by_name.get(skill_name)
+	return _get_catalog().find(skill_name) as Skill
 
 
 ## Every skill in the game — the character-creation skill list's own
 ## source, same "index once, cache by id, also expose get_all() for a
 ## picker UI" idiom MusicTrackDatabase/DemonDatabase already use.
 static func get_all() -> Array[Skill]:
-	if _by_name.is_empty():
-		_load_all()
 	var result: Array[Skill] = []
-	for skill in _by_name.values():
-		result.append(skill)
+	for resource in _get_catalog().all():
+		result.append(resource as Skill)
 	return result
 
 
@@ -42,14 +45,13 @@ static func get_all() -> Array[Skill]:
 ## at runtime (e.g. a modding/dev workflow); ordinary play never needs
 ## this, since the roster of skill FILES doesn't change mid-session.
 static func refresh() -> void:
-	_by_name.clear()
-	_load_all()
+	_get_catalog().refresh()
 
 
-static func _load_all() -> void:
-	for file_name in DirAccess.get_files_at(SKILLS_DIR):
-		if not file_name.ends_with(".tres"):
-			continue
-		var skill := load(SKILLS_DIR + file_name) as Skill
-		if skill:
-			_by_name[skill.skill_name] = skill
+static func _get_catalog() -> ResourceCatalog:
+	if not _catalog:
+		var extract_id := func(resource: Resource) -> Variant:
+			var skill := resource as Skill
+			return skill.skill_name if skill else null
+		_catalog = ResourceCatalog.new(SKILLS_DIR, false, extract_id, false, true, false)
+	return _catalog

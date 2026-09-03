@@ -15,27 +15,30 @@ extends RefCounted
 ## matching SkillDatabase/SkillCalculator rather than FlagManager/
 ## DialogueManager: nothing here needs to persist across scenes or live
 ## in the tree, just a cache that outlives one call.
+##
+## The scan-and-cache itself is ResourceCatalog (see that file's header
+## for the full behaviour matrix); this file only supplies its directory,
+## its id field, and the non-recursive/last-wins/dedupe shape that
+## matches the original hand-written loader exactly (get_all() was
+## always built from a dict's values, so a duplicate id collapsed to one
+## entry).
 
 const QUESTS_DIR: String = "res://data/quests/"
 
-static var _by_id: Dictionary = {}
+static var _catalog: ResourceCatalog
 
 
 ## Null if no quest with this id has ever been saved under QUESTS_DIR.
 static func find(quest_id: String) -> Quest:
-	if _by_id.is_empty():
-		_load_all()
-	return _by_id.get(quest_id)
+	return _get_catalog().find(quest_id) as Quest
 
 
 ## Every indexed quest, in no particular guaranteed order — the Journal
 ## panel is the one caller that needs "all of them," to build its list.
 static func get_all() -> Array[Quest]:
-	if _by_id.is_empty():
-		_load_all()
 	var result: Array[Quest] = []
-	for quest in _by_id.values():
-		result.append(quest)
+	for resource in _get_catalog().all():
+		result.append(resource as Quest)
 	return result
 
 
@@ -43,14 +46,13 @@ static func get_all() -> Array[Quest]:
 ## a dev/modding workflow that adds or edits a quest .tres at runtime.
 ## Ordinary play never calls this.
 static func refresh() -> void:
-	_by_id.clear()
-	_load_all()
+	_get_catalog().refresh()
 
 
-static func _load_all() -> void:
-	for file_name in DirAccess.get_files_at(QUESTS_DIR):
-		if not file_name.ends_with(".tres"):
-			continue
-		var quest := load(QUESTS_DIR + file_name) as Quest
-		if quest:
-			_by_id[quest.id] = quest
+static func _get_catalog() -> ResourceCatalog:
+	if not _catalog:
+		var extract_id := func(resource: Resource) -> Variant:
+			var quest := resource as Quest
+			return quest.id if quest else null
+		_catalog = ResourceCatalog.new(QUESTS_DIR, false, extract_id, false, true, false)
+	return _catalog

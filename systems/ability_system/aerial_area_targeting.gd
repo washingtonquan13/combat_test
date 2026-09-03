@@ -36,3 +36,11 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 	if AbilityManager.has_aim_height_override:
 		click_position.y = AbilityManager.aim_height_override
 	return click_position
+
+
+## The three-ring aerial overlay REPLACES the flat one it would otherwise
+## inherit from AreaTargeting — an aerial blast is aimed in the air, and
+## drawing the floor ring under it as well says the wrong thing about
+## where it lands.
+func indicator_ids() -> Array[StringName]:
+	return [&"aerial_area"]

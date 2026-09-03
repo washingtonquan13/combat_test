@@ -48,7 +48,12 @@ var _line_mesh: MeshInstance3D
 var _line_immediate: ImmediateMesh
 
 
+func serves() -> StringName:
+	return &"line_of_sight"
+
+
 func _ready() -> void:
+	super()
 	var built: Dictionary = _create_line_mesh()
 	_line_mesh = built.mesh_instance
 	_line_immediate = built.immediate
@@ -56,9 +61,12 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var unit := _get_active_unit()
-	var ability := _get_armed_ranged_ability()
+	var ability: Ability = AbilityManager.armed_ability
 
-	if not unit or not ability:
+	# `as`, not a typed assignment: the router applies a new intent on
+	# ITS _process, and this node can run first in the same frame with a
+	# freshly armed non-ranged ability still in hand.
+	if not unit or not ability or (ability.targeting as RangedEnemyTargeting) == null:
 		_line_mesh.visible = false
 		return
 
@@ -72,27 +80,8 @@ func _process(_delta: float) -> void:
 	_line_mesh.visible = true
 
 
-## Excludes seeking abilities (see Ability.has_pathed_projectile) even
-## though they're RangedEnemyTargeting too — seeking_indicator.gd shows
-## the real bent NavigationGrid route for those instead of this straight
-## aim line, and the two would otherwise both draw for the same armed
-## ability.
-func _get_armed_ranged_ability() -> Ability:
-	var ability := PlayerInteractionState.get_armed_ability_of_targeting_type(RangedEnemyTargeting)
-	if ability and ability.has_pathed_projectile():
-		return null
-	return ability
-
-
-## Reads range/LoS off ability.targeting directly (cast to
-## RangedEnemyTargeting — safe since _get_armed_ranged_ability already
-## confirmed it's that type). This is a legitimate, narrow exception to
-## staying fully generic about targeting components: this indicator's
-## whole purpose is showing distinct visual states an "is it valid" bool
-## can't distinguish, so it needs the concrete field values, not just a
-## yes/no.
 func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Ability) -> void:
-	var targeting: RangedEnemyTargeting = ability.targeting
+	var targeting := ability.targeting as RangedEnemyTargeting
 
 	var color: Color
 	if hovered_unit == null:

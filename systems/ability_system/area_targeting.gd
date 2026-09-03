@@ -44,6 +44,10 @@ func expects_point_target() -> bool:
 	return true
 
 
+func indicator_ids() -> Array[StringName]:
+	return [&"area"]
+
+
 func describe() -> String:
 	var s := "Area target, range %.1f, radius %.1f" % [max_range, radius]
 	if requires_line_of_sight:

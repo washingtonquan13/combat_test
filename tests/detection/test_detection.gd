@@ -97,12 +97,13 @@ func _starts_combat_on_sight() -> void:
 	var intruder: Unit = spawn_unit(&"player", 10, 12, 20, [melee()], Vector3(0.0, 0.0, -5.0))
 	guard.snap_face_point(intruder.global_position)
 
-	check("no combat before anyone is spotted", not CombatManager.in_combat)
+	check("no combat before anyone is spotted", not CombatManager.any_combat_running())
 	var noticed: bool = _sweep_until_aware(guard, intruder)
 	check("spotting a hostile starts combat without a blow being struck",
-		noticed and CombatManager.in_combat)
+		noticed and guard.in_combat())
 	check("and both are in the turn order",
-		CombatManager.turn_order.has(guard) and CombatManager.turn_order.has(intruder))
+		guard.encounter != null and guard.encounter.turn_order.has(guard)
+			and guard.encounter.turn_order.has(intruder))
 
 	CombatManager.end_combat(&"")
 	free_spawned()
@@ -117,9 +118,9 @@ func _neutral_observer_does_not_attack() -> void:
 
 	var noticed: bool = _sweep_until_aware(bystander, passerby)
 	check("a neutral still notices you", noticed)
-	check("but noticing a neutral does not start a fight", not CombatManager.in_combat)
+	check("but noticing a neutral does not start a fight", not CombatManager.any_combat_running())
 
-	if CombatManager.in_combat:
+	if CombatManager.any_combat_running():
 		CombatManager.end_combat(&"")
 	free_spawned()
 
@@ -138,9 +139,14 @@ func _obscurity_is_a_real_input() -> void:
 ## Detection genuinely starts fights, so a case that asserts on combat
 ## state has to know it begins from a clean one — otherwise it inherits
 ## whatever the previous case left running and fails for the wrong reason.
+## Clears every running encounter, not just the focused one — a fight left
+## running unfocused (from a prior case, or one that never involved the
+## player) would previously be invisible to CombatManager.in_combat and
+## silently survive into the next case.
 func _ensure_out_of_combat() -> void:
-	if CombatManager.in_combat:
-		CombatManager.end_combat(&"")
+	for encounter in CombatManager.encounters.duplicate():
+		if is_instance_valid(encounter) and encounter.is_running:
+			encounter.finish(&"")
 
 
 ## Sweeps until the observer identifies the subject, or gives up. Returns

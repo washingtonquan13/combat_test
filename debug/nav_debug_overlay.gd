@@ -57,6 +57,7 @@ var _has_last_center: bool = false
 
 
 func _ready() -> void:
+	super()
 	var box := BoxMesh.new()
 	box.size = Vector3.ONE * cell_visual_size
 

@@ -13,14 +13,20 @@ extends Node
 ## bound by its turn order and could not be commanded at all, so ambushes,
 ## flanking and held reserves were unreachable rather than awkward.
 ##
-## THE DELEGATING ACCESSORS BELOW ARE LOAD-BEARING, not convenience.
-## in_combat/current_unit/turn_order/phase/round_number all forward to the
-## focused encounter, which is what lets every UI reader — initiative_row,
-## player_interaction_state, ability_manager, ability_hotbar,
-## movement_indicator — keep working completely unchanged. Code that means
-## "is THIS unit fighting" should ask the unit instead (Unit.in_combat()).
-## The distinction is the whole point: those two questions were the same
-## question before, and conflating them is what caused the bug above.
+## ENCOUNTER IS THE ONLY HOLDER OF TURN STATE. This autoload used to also
+## expose in_combat/current_unit/turn_order/phase/round_number as
+## properties forwarding to focused_encounter — a second way to ask a
+## question Encounter already answers, and the two could disagree the
+## moment more than one fight was running (a unit fighting in an
+## unfocused/unwatched encounter still reads in_combat()==true on itself
+## while the deleted CombatManager.in_combat could read false, or vice
+## versa). They are gone now. Code that means "is THIS unit fighting"
+## asks the unit (Unit.in_combat()/Unit.is_my_turn()), or the unit's own
+## unit.encounter directly. Code that means "the fight the player is
+## looking at" asks focused_encounter (with a null check) or, when the
+## question is only "is there one", a_watched_fight_is_running(). Code
+## that means "is anything happening anywhere" asks any_combat_running().
+## There is no fourth way to ask.
 
 ## Emitted for every encounter, relayed from whichever one fired it — so
 ## the ~26 existing connections keep working without learning that
@@ -107,33 +113,10 @@ func _encounter_list_for(combatants: Array[Unit]) -> Array[Encounter]:
 var focused_encounter: Encounter = null
 
 
-# --- Legacy accessors ------------------------------------------------
-# Every one of these answers "what is the player looking at," which is what
-# the UI has always been asking even when it read like a global.
-
-var in_combat: bool:
-	get: return focused_encounter != null and focused_encounter.is_running
-
-
-var turn_order: Array[Unit]:
-	get: return focused_encounter.turn_order if focused_encounter else ([] as Array[Unit])
-
-
-var current_unit: Unit:
-	get: return focused_encounter.current_unit if focused_encounter else null
-
-
-var round_number: int:
-	get: return focused_encounter.round_number if focused_encounter else 0
-
-
-var phase: Encounter.Phase:
-	get: return focused_encounter.phase if focused_encounter else Encounter.Phase.OUT_OF_COMBAT
-
-
-## True while ANY fight is running, focused or not — distinct from
-## in_combat, which is specifically about the player's view. Used for
-## global concerns like music that shouldn't care which fight it is.
+## True while ANY fight is running, focused or not — distinct from asking
+## about a single unit or the focused encounter, which are both about ONE
+## fight specifically. Used for global concerns like music that shouldn't
+## care which fight it is.
 func any_combat_running() -> bool:
 	for encounter in all_encounters():
 		# An encounter is queue_free()d as it ends, so it can briefly be

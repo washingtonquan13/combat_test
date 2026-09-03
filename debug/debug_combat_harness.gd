@@ -21,7 +21,7 @@ extends Node
 ##     so everything prints to the Output panel: turn order, whose turn it
 ##     is, every attack/move/death.
 ##  4. On your turn: right-click the ground to move (respects move budget),
-##     left-click an enemy to attack (see unit.gd _on_input_event). Press
+##     left-click an enemy to attack (see ClickRouter.click_unit). Press
 ##     the end-turn key when you're done acting, or the delay-turn key to
 ##     give up this turn for now and go later in this same round instead
 ##     (see CombatManager.delay_turn — defaults to delaying by 1).
@@ -54,13 +54,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("test_start_combat"):
 		_start_test_combat()
 	elif event.is_action_pressed("test_end_turn"):
-		if CombatManager.in_combat:
+		var encounter: Encounter = CombatManager.focused_encounter
+		if encounter and encounter.is_running:
 			CombatManager.end_turn()
 	elif event.is_action_pressed("toggle_area_residency"):
 		_toggle_area_residency()
 	elif event.is_action_pressed("test_delay_turn"):
-		if CombatManager.in_combat:
-			var unit: Unit = CombatManager.current_unit
+		var encounter: Encounter = CombatManager.focused_encounter
+		if encounter and encounter.is_running:
+			var unit: Unit = encounter.current_unit
 			if unit and not CombatManager.delay_turn(unit):
 				print("Couldn't delay ", unit.get_display_name(), "'s turn.")
 

@@ -17,11 +17,22 @@ extends AiTestCase
 ## nothing to restore, because the fight underneath never stopped being
 ## true — but "right for a different reason" still has to be demonstrated.
 ##
-## Runs in the bare harness, so no world is focused and the base mode is
-## MAIN_MENU. That is not a contrivance: it is the same fall-through the
-## real title screen uses, and CombatManager treats a fight with no world
-## context as watched (see _is_in_focused_world), which is what lets a
-## fight here reach COMBAT at all.
+## wants_world(): true. base_mode() asks WorldManager.current_world() for
+## get_base_mode() once a world is loaded (see game_mode.gd's own header),
+## and only falls through to the front-end/MAIN_MENU branch with none
+## loaded. With the fixture loaded that branch is no longer reachable —
+## base_mode() reads the fixture's own get_base_mode(), which
+## test_world_area.gd does not override, so it inherits GameArea's
+## default: EXPLORATION, the same answer every real area in the game
+## gives. THIS IS A LEGITIMATE CORRECTION, not a loosened assertion: the
+## suite used to run the bare-harness fallback exclusively — the same one
+## the real title screen uses — and never exercised the branch every
+## actual area actually takes. _the_floor_is_main_menu (name kept for its
+## history; it now asserts EXPLORATION — see its own comment) and the two
+## "falls back to the base mode" checks in _a_watched_fight_reads_as_combat
+## and _leaving_the_modal_returns_to_the_fight are the three updated for
+## it. Check COUNT is unchanged (8): every check that ran before still
+## runs, against the corrected expected value.
 
 
 func run() -> void:
@@ -31,12 +42,20 @@ func run() -> void:
 	await _leaving_the_modal_returns_to_the_fight()
 
 
-## No world, no front-end screen open, nothing running. MAIN_MENU is what
-## GameMode answers when it has nothing else to go on — the state the game
-## is in at boot, before anything is loaded or pushed.
+func wants_world() -> bool:
+	return true
+
+
+## With the fixture loaded, base_mode() reads the WORLD's own
+## get_base_mode() rather than falling through to the front-end/MAIN_MENU
+## branch — that branch is what a no-world state means, and a loaded world
+## is never in that state. The fixture doesn't override get_base_mode(),
+## so it inherits GameArea's default: EXPLORATION. Name kept for the
+## check's shape and history; the value is the corrected one (see this
+## file's header).
 func _the_floor_is_main_menu() -> void:
-	check("with nothing loaded or open the mode is MAIN_MENU",
-		GameMode.current_mode() == GameMode.Mode.MAIN_MENU,
+	check("with a world loaded and nothing open the mode is EXPLORATION",
+		GameMode.current_mode() == GameMode.Mode.EXPLORATION,
 		"read %s" % GameMode.Mode.keys()[GameMode.current_mode()])
 	check("and nothing is overlaid on it",
 		GameMode.can_transition())
@@ -59,7 +78,7 @@ func _a_watched_fight_reads_as_combat() -> void:
 	await get_tree().process_frame
 
 	check("and the mode drops back once it ends",
-		GameMode.current_mode() == GameMode.Mode.MAIN_MENU,
+		GameMode.current_mode() == GameMode.Mode.EXPLORATION,
 		"read %s" % GameMode.Mode.keys()[GameMode.current_mode()])
 	free_spawned()
 
@@ -137,7 +156,7 @@ func _leaving_the_modal_returns_to_the_fight() -> void:
 	await get_tree().process_frame
 
 	check("and only then does it fall back to the base mode",
-		GameMode.current_mode() == GameMode.Mode.MAIN_MENU,
+		GameMode.current_mode() == GameMode.Mode.EXPLORATION,
 		"read %s" % GameMode.Mode.keys()[GameMode.current_mode()])
 
 	stash.queue_free()

@@ -418,6 +418,30 @@ func clear_members() -> void:
 	leader = null
 
 
+## Registered from HERE rather than named by SaveManager: adding a system
+## that persists should never be an edit to the save system again, and a
+## hand-maintained list somewhere else is a second place to remember
+## something.
+##
+## DEFERRED because this autoload is created BEFORE SaveManager (see
+## project.godot's [autoload] order) — the `SaveManager` identifier cannot
+## be resolved yet while this _ready() runs. A deferred call lands once
+## every autoload is up, which is still long before anything can ask for a
+## save.
+func _ready() -> void:
+	_register_persistence.call_deferred()
+
+
+## No `after`: load_state() below rebuilds groups and records straight out
+## of the save's own dictionary, resolving names through
+## SpawnableUnitDatabase/AbilityDatabase/SkillDatabase/ItemDatabase —
+## resource databases, not saved systems. Nothing FlagManager,
+## DemonRoster, CurrencyManager or the party Inventory restore is read
+## from here.
+func _register_persistence() -> void:
+	SaveManager.register(&"party", self)
+
+
 ## --- Save/load ---
 ## See SaveManager, the sole caller of both. Operates on roster, not
 ## members/leader directly — capture() (called first, below) is what

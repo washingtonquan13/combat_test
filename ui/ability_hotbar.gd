@@ -10,7 +10,7 @@ extends HBoxContainer
 ##
 ## Casting works out of combat too, not just display/arm — see
 ## PlayerInteractionState.get_active_unit() (resolves the first selected
-## unit out of combat, the acting unit in combat) and Unit._on_input_event,
+## unit out of combat, the acting unit in combat) and ClickRouter,
 ## both of which route through that one function rather than checking
 ## CombatManager.in_combat separately. No turn economy applies out of
 ## combat (UnitCombat.use_ability's already_acted/has_attacked gating is

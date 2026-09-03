@@ -2,6 +2,17 @@ extends AiTestCase
 ## Encounters as instances: more than one fight at a time, and — the point
 ## of the whole exercise — a unit in NO fight being free to act while one
 ## runs.
+##
+## wants_world(): true. With a world loaded, CombatManager.encounters reads
+## through WorldContext.encounters rather than the detached _encounters
+## fallback (see combat_manager.gd's `encounters` getter), and
+## Encounter.world_3d() resolves to the fixture's real World3D instead of
+## the bare harness's default one. That is the branch every check in this
+## file exercises now instead of the "no world loaded" path.
+
+
+func wants_world() -> bool:
+	return true
 
 
 func run() -> void:
@@ -15,7 +26,7 @@ func run() -> void:
 	await _two_fights_at_once()
 	await _a_unit_outside_a_fight_is_free()
 	await _a_unit_inside_a_fight_is_not()
-	await _legacy_accessors_follow_the_focus()
+	await _focused_encounter_follows_the_focus()
 	await _the_mode_follows_the_fights_that_are_running()
 	await _joining_picks_the_right_fight()
 
@@ -76,14 +87,14 @@ func _a_unit_outside_a_fight_is_free() -> void:
 	CombatManager.start_combat(roster)
 	await get_tree().process_frame
 
-	check("a fight is running", CombatManager.in_combat)
+	check("a fight is running", CombatManager.any_combat_running())
 	check("the reserve is not in it", not reserve.in_combat())
 	check("so combat rules do not bind it — it has unlimited movement",
 		not reserve.in_combat() and not reserve.is_my_turn())
-	# The distinction the whole refactor turns on: the manager says a fight
-	# is happening, the unit says it isn't in one.
+	# The distinction the whole refactor turns on: a fight IS happening
+	# somewhere, the unit says it isn't in one.
 	check("global 'a fight is running' and per-unit 'I am fighting' disagree, correctly",
-		CombatManager.in_combat and not reserve.in_combat())
+		CombatManager.any_combat_running() and not reserve.in_combat())
 
 	_clear_encounters()
 	await get_tree().process_frame
@@ -110,10 +121,16 @@ func _a_unit_inside_a_fight_is_not() -> void:
 	free_spawned()
 
 
-## The delegating accessors are what let every UI reader keep working
-## untouched — if they drift from the focused encounter, the UI silently
-## reports on the wrong fight.
-func _legacy_accessors_follow_the_focus() -> void:
+## focused_encounter is the one fact CombatManager still holds an opinion
+## about — which fight the player is looking at. It used to also forward
+## current_unit/turn_order/phase/round_number as properties mirroring the
+## focused encounter's own fields, and this case asserted all four stayed
+## in sync. Those properties are gone (deleted along with in_combat in the
+## same pass that removed CombatManager's other four forwarding accessors
+## — see combat_manager.gd's own header): there is nothing left to drift,
+## because there is nothing left forwarding. Checks dropped from 6 to 2
+## accordingly — what remains is the one thing still worth pinning.
+func _focused_encounter_follows_the_focus() -> void:
 	_clear_encounters()
 	var enemy: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], Vector3.ZERO)
 	var fighter: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3(1.5, 0.0, 0.0))
@@ -122,15 +139,11 @@ func _legacy_accessors_follow_the_focus() -> void:
 	await get_tree().process_frame
 
 	check("a fight the player is in takes focus", CombatManager.focused_encounter == fight)
-	check("current_unit delegates", CombatManager.current_unit == fight.current_unit)
-	check("turn_order delegates", CombatManager.turn_order.size() == fight.turn_order.size())
-	check("phase delegates", CombatManager.phase == fight.phase)
-	check("round_number delegates", CombatManager.round_number == fight.round_number)
 
 	_clear_encounters()
 	await get_tree().process_frame
-	check("and with nothing running, in_combat is false again",
-		not CombatManager.in_combat)
+	check("and with nothing running, focus clears too",
+		CombatManager.focused_encounter == null)
 	free_spawned()
 
 

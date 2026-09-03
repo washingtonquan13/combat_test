@@ -181,7 +181,8 @@ func default_ability() -> Ability:
 
 ## Whichever ability would fire if `acting_unit` left-clicks this unit
 ## right now, or null if the click should fall through to normal
-## selection instead — called from this unit's own _on_input_event.
+## selection instead — called by ClickRouter.click_unit, through
+## Unit.click_ability_for.
 ## Lives on the CLICKED unit's _combat (answering "if acting_unit clicked
 ## ME, what fires") rather than the acting unit's, matching the existing
 ## defender-perspective shape incoming_attack_to_hit_modifier() already

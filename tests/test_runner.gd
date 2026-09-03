@@ -90,4 +90,20 @@ func _discover() -> PackedStringArray:
 			if file.ends_with(".gd"):
 				found.append("%s/%s" % [path, file])
 	found.sort()
+	# `./tests/run.sh --suite=<substring>` (any number of them) runs only the
+	# suites whose file name contains one of the substrings. A full run
+	# takes minutes now that suites stand up real worlds; a sabotage check
+	# needs one suite, not all of them.
+	var wanted: PackedStringArray = []
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--suite="):
+			wanted.append(arg.trim_prefix("--suite="))
+	if not wanted.is_empty():
+		var kept: PackedStringArray = []
+		for path in found:
+			for want in wanted:
+				if path.get_file().contains(want):
+					kept.append(path)
+					break
+		found = kept
 	return found

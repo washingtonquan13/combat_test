@@ -33,7 +33,10 @@ extends Node
 ##   the overworld — one controllable avatar, not four tactical Units —
 ##   returns false; PartyManager.roster survives untouched either way,
 ##   only whether it gets projected into live Units for THIS world varies.
-## - get_spawn_point(name: StringName) -> Node3D, same as it's always been.
+## - get_spawn_point(name: StringName) -> Node3D — no longer duck-typed:
+##   it is called through the GameArea base class (see _resolve_spawn_point),
+##   because every world with gameplay of its own extends GameArea.
+##   Only the two above are still discovered with has_method().
 ##
 ## Does NOT touch SceneTree.current_scene — see MainRoot.tscn's own note
 ## for why that's a hard, unavoidable Godot constraint (current_scene can
@@ -1105,17 +1108,20 @@ func _dismiss_fielded_demons(group: PartyGroup = null) -> void:
 			unit.expire()
 
 
-## Duck-typed, same convention as get_tactical_camera(): a world that
-## cares about naming its own spawn points implements this; one that
-## doesn't (or is being loaded for the very first time, with nothing to
-## respawn) never needs it called at all. Falls back to the world's own
-## root as a last resort so a missing/misnamed spawn point degrades to
-## "everyone lands at the origin" instead of a hard error.
+## Every world that reaches here is a GameArea (get_spawn_point() is
+## defined there, not duck-typed like get_tactical_camera()/spawns_party()
+## below it — those still tolerate a non-GameArea world such as a future
+## backdrop-only scene; get_spawn_point() does not need to, since nothing
+## calls this on a world with no gameplay of its own). Falls back to the
+## world's own root as a last resort so a missing/misnamed spawn point
+## degrades to "everyone lands at the origin" instead of a hard error.
 func _resolve_spawn_point(world: Node, spawn_point_name: StringName) -> Node3D:
-	if world.has_method("get_spawn_point"):
+	if world is GameArea:
 		var point: Node3D = world.get_spawn_point(spawn_point_name)
 		if point:
 			return point
+	else:
+		push_warning("WorldManager: %s is not a GameArea, so it cannot name a spawn point." % world.name)
 	push_warning("WorldManager: %s has no spawn point '%s' — spawning at world origin." % [world.name, spawn_point_name])
 	return world
 

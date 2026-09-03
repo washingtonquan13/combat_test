@@ -227,7 +227,7 @@ var _pending_state: Dictionary = {}
 @export var damage_reduction: int = 0
 ## Units with a different faction than the acting unit are valid attack
 ## targets when clicked during that unit's turn; same-faction clicks still
-## select as normal (see _on_input_event / is_hostile_to).
+## select as normal (see ClickRouter.click_unit / is_hostile_to).
 @export var faction: StringName = &"player"
 ## The canonical "this is the player's own side" tag — named here so
 ## is_player_controlled() and anything else that cares "is this MY unit"
@@ -701,7 +701,22 @@ func _ready() -> void:
 	_status_manager = StatusManager.new(self)
 	_action_state = UnitActionState.new(self)
 	_facing = UnitFacing.new(self)
+	# A real child Node, not a RefCounted field like its neighbours — see
+	# unit_selection.gd's header for why it moved and what the engine
+	# gives it in exchange. Built in the same slot in the same order as
+	# before, so nothing about WHEN it comes into being changes; the
+	# add_child() runs its _enter_tree and _ready synchronously right
+	# here, between them doing what the _selection.setup() call at the
+	# bottom of this function used to. Safe at this point for a precise
+	# reason: everything that setup read (highlight_mesh, outline_mesh)
+	# is bound in _enter_tree (see _bind_model), long before any of this.
+	#
+	# Created from code rather than authored into unit.tscn so every unit
+	# scene gains it without a scene edit, and so a unit assembled purely
+	# in code still has one.
 	_selection = UnitSelection.new(self)
+	_selection.name = "Selection"
+	add_child(_selection)
 	_movement = UnitMovement.new(self)
 	_combat = UnitCombat.new(self)
 	_stat_modifiers = UnitStatModifiers.new()
@@ -730,33 +745,30 @@ func _ready() -> void:
 	_status_manager.status_removed.connect(func(effect): status_removed.emit(self, effect))
 	_status_manager.status_ticked.connect(func(effect, _active): status_ticked.emit(self, effect))
 	# CollisionObject3D (CharacterBody3D's base) already provides
-	# mouse_entered/mouse_exited/input_event signals once this is on and
-	# Project Settings > Physics > Common > Enable Object Picking is on
-	# (it is by default).
+	# mouse_entered/mouse_exited signals once this is on and Project
+	# Settings > Physics > Common > Enable Object Picking is on (it is by
+	# default). HOVER ONLY: clicking a unit belongs to ClickRouter, which
+	# raycasts for itself and marks the event handled, so a click never
+	# reaches physics picking here at all. A unit deciding what a click on
+	# it means was one of the eight places player intent used to live.
 	add_to_group("units")
 
 	input_ray_pickable = true
 	mouse_entered.connect(_on_mouse_entered)
 	mouse_exited.connect(_on_mouse_exited)
-	input_event.connect(_on_input_event)
-
-	_selection.setup()
 
 
-## Releases _selection's DialogueManager connections whenever this unit
-## stops being part of the live tree — not just on death (see
-## handle_death()'s own call to the same teardown()). Without this, an
-## ordinary world reload (WorldManager.load_world() freeing the outgoing
-## world) leaked one UnitSelection per party member per reload: nothing
-## else ever disconnected it, so DialogueManager's own strong Callable
-## reference kept each one alive, silently calling update_highlight()
-## against an already-freed Unit on the next conversation anywhere in the
-## game — see UnitSelection.teardown()'s own comment for the full shape
-## of the bug and why teardown() has to be idempotent because of this.
-func _exit_tree() -> void:
-	_selection.teardown()
-
-
+## This used to be followed by an _exit_tree() whose entire body was
+## _selection.teardown() — releasing the component's GameMode connection
+## whenever the unit stopped being part of the live tree, because a
+## RefCounted component connected to an autoload outlives its owner
+## (the Callable holds a strong reference) and the next mode change
+## anywhere in the game then ran update_highlight() against a freed Unit.
+## An ordinary world reload leaked one per party member, before anything
+## had died. UnitSelection is a child Node now, so it exits the tree with
+## this unit and disconnects itself in its own _exit_tree — the engine
+## does the bookkeeping a hand-written teardown() used to, and there is
+## no longer a caller that can forget it.
 func _on_mouse_entered() -> void:
 	_selection.on_mouse_entered()
 
@@ -765,47 +777,20 @@ func _on_mouse_exited() -> void:
 	_selection.on_mouse_exited()
 
 
-## Left-clicking a unit while your own unit is both selected and the
-## currently active one (PlayerInteractionState.get_active_unit() — the
-## acting unit in combat, or the first selected unit out of combat) uses
-## an ability against it instead of selecting it — see
-## UnitCombat.resolve_click_ability() for which ability, if any, that
-## turns out to be. Every other click falls through to normal selection
-## — a safe no-op for non-player units regardless, since SelectionManager
-## itself refuses anything that isn't is_player_controlled().
+## Which ability, if any, fires when actor clicks THIS unit — see
+## UnitCombat.resolve_click_ability for the rule (the armed ability
+## first, otherwise actor's default, routed by whether it wants an ally
+## or an enemy). A plain forward so ClickRouter, which owns that click
+## now, does not have to reach into another unit's private component.
 ##
-## Right-click has no handler here at all — ground_click_target.gd is the
-## sole global right-click router (disarm-if-armed, else open a context
-## menu for whatever's under the cursor via _get_hovered_interactable()),
-## so every interactable (this unit included) only needs to implement
-## get_interactions() below, not its own input_event wiring too.
-func _on_input_event(_camera: Node, event: InputEvent, _position: Vector3, _normal: Vector3, _shape_idx: int) -> void:
-	# Same reasoning as ground_click_target.gd's own guard — a live
-	# conversation owns the screen, clicking a unit underneath it
-	# shouldn't attack/select it.
-	if DialogueManager.is_active():
-		return
-	# A debug spawn click claims the world entirely — a click landing on
-	# an existing unit's own collision body while armed must not ALSO
-	# select/attack that unit on the same click (Godot physics picking
-	# and _unhandled_input both fire independently on one press — see
-	# ground_click_target.gd's header). That file's debug-spawn branch is
-	# what actually consumes this click.
-	if PlayerInteractionState.is_debug_spawn_armed():
-		return
-
-	if not event.is_action_pressed("left_click"):
-		return
-
-	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
-	if acting_unit and acting_unit != self and acting_unit in SelectionManager.selected_units:
-		var ability: Ability = _combat.resolve_click_ability(acting_unit)
-		if ability:
-			acting_unit.use_ability(ability, self)
-			return
-
-	var additive: bool = Input.is_action_pressed("select_additive")
-	SelectionManager.select(self, additive)
+## The click handling itself used to live here, on every unit, reached by
+## per-object physics picking — which meant each unit carried its own
+## copy of the player's targeting rules and its own guard about whether
+## the player was even in control (it checked for a running conversation,
+## and only that, so a click during a negotiation or a loot screen still
+## went through). It lives in one place now.
+func click_ability_for(actor: Unit) -> Ability:
+	return _combat.resolve_click_ability(actor)
 
 
 ## Right-click verb list, filtered to whichever of `interactions` are
@@ -823,14 +808,15 @@ func get_interactions(actor: Unit) -> Array[InteractionOption]:
 ## First dialogue_options entry whose prerequisite is satisfied (or has
 ## none at all), null if nothing currently applies. Takes actor rather
 ## than checking self — every other DialogueChoice.prerequisites check
-## already evaluates against the PLAYER (see DialogueManager._show_node,
-## which always passes participants.get("player")), so a root-selection
+## already evaluates against the PLAYER (see the dialogue manager's own
+## _show_node, which always passes participants.get("player")), so a
+## root-selection
 ## prerequisite follows the same convention for consistency: "does the
 ## PLAYER'S state make this the right conversation," not the NPC's own.
-## Called both by talk_interaction.gd's initial Talk click and by
-## DialogueManager.resolve_root_id() for an in-conversation "return to
-## hub" choice — the one shared resolver both need, so neither can ever
-## disagree about which conversation phase is current.
+## Called both by talk_interaction.gd's initial Talk click and by the
+## dialogue manager's resolve_root_id() for an in-conversation "return
+## to hub" choice — the one shared resolver both need, so neither can
+## ever disagree about which conversation phase is current.
 func resolve_dialogue_root(actor: Unit) -> DialogueNode:
 	for option in dialogue_options:
 		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
@@ -886,7 +872,7 @@ func awareness() -> UnitAwareness:
 ## future ones, can put a non-player unit into a "selected" state.
 ## Interacting with an enemy (attacking, eventually talking to) stays a
 ## direct contextual action triggered by a click, not a persistent
-## selection — see _on_input_event's attack routing.
+## selection — see ClickRouter.click_unit's attack routing.
 func is_player_controlled() -> bool:
 	return faction == PLAYER_FACTION
 
@@ -1471,10 +1457,13 @@ func expire() -> void:
 ## both by expire() above and by UnitCombat.take_damage() when this
 ## unit's HP reaches 0 through an actual hit.
 ##
-## _selection.teardown() lives here rather than inside
-## UnitDeath.handle_death() itself — UnitDeath and UnitSelection stay
-## unaware of each other, same as everywhere else in this file; Unit is
-## the one place that already legitimately holds both.
+## This used to also call _selection.teardown() — a dying unit releasing
+## its own autoload connection early, because nothing else would. It does
+## not need to any more: UnitSelection is a child Node, so the connection
+## goes when the node does (queue_free, here or after
+## death_cleanup_delay). The window in between is harmless — handle_death
+## already deselects and clears the box hover, so a mode change during a
+## corpse's death animation recomputes a highlight that is off, against a
+## unit that is still perfectly valid.
 func handle_death() -> void:
 	_death.handle_death()
-	_selection.teardown()

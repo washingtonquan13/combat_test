@@ -42,7 +42,12 @@ var _ring_mesh: MeshInstance3D
 var _ring_immediate: ImmediateMesh
 
 
+func serves() -> StringName:
+	return &"area"
+
+
 func _ready() -> void:
+	super()
 	var line_built: Dictionary = _create_line_mesh()
 	_line_mesh = line_built.mesh_instance
 	_line_immediate = line_built.immediate
@@ -54,7 +59,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var unit := _get_active_unit()
-	var ability := _get_armed_area_ability()
+	var ability: Ability = AbilityManager.armed_ability
 
 	if not unit or not ability:
 		_hide_all()
@@ -76,19 +81,11 @@ func _hide_all() -> void:
 		_ring_mesh.visible = false
 
 
-## Excludes AerialAreaTargeting even though it IS an AreaTargeting (see
-## this file's header) — aerial_area_indicator.gd shows the 3D-aware
-## preview for those instead, and the two would otherwise both draw for
-## the same armed ability.
-func _get_armed_area_ability() -> Ability:
-	var ability := PlayerInteractionState.get_armed_ability_of_targeting_type(AreaTargeting)
-	if ability and ability.targeting is AerialAreaTargeting:
-		return null
-	return ability
-
-
 func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
-	var targeting: AreaTargeting = ability.targeting
+	var targeting := ability.targeting as AreaTargeting
+	if not targeting:
+		_line_mesh.visible = false
+		return
 
 	var color: Color
 	if unit.global_position.distance_to(hover_point) > targeting.max_range:

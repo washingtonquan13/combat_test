@@ -103,7 +103,12 @@ var _altitude_dragging: bool = false
 var _altitude_drag_anchor_xz: Vector2 = Vector2.ZERO
 
 
+func serves() -> StringName:
+	return &"movement"
+
+
 func _ready() -> void:
+	super()
 	var built: Dictionary = _create_line_mesh()
 	_path_mesh = built.mesh_instance
 	_path_immediate = built.immediate
@@ -123,16 +128,6 @@ func _process(_delta: float) -> void:
 
 	_handle_altitude_input(unit)
 	_update_path_preview(unit)
-
-
-## Delegates the shared "is the player currently free to act" condition
-## to PlayerInteractionState, plus this script's own specific rule: hide
-## whenever ANY ability is armed, since a click in that state uses the
-## ability instead of moving (see ground_click_target.gd).
-func _get_active_unit() -> Unit:
-	if PlayerInteractionState.has_any_ability_armed():
-		return null
-	return PlayerInteractionState.get_active_unit()
 
 
 func _hide_all() -> void:

@@ -20,5 +20,9 @@ func approach_range() -> float:
 	return melee_range
 
 
+func targets_single_enemy() -> bool:
+	return true
+
+
 func describe() -> String:
 	return "Melee, range %.1f" % melee_range

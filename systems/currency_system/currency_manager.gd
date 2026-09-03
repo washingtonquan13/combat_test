@@ -18,6 +18,28 @@ signal gold_changed(new_amount: int)
 var gold: int = 50
 
 
+## Registered from HERE rather than named by SaveManager: adding a system
+## that persists should never be an edit to the save system again, and a
+## hand-maintained list somewhere else is a second place to remember
+## something.
+##
+## DEFERRED because this autoload is created BEFORE SaveManager (see
+## project.godot's [autoload] order) — the `SaveManager` identifier cannot
+## be resolved yet while this _ready() runs. A deferred call lands once
+## every autoload is up, which is still long before anything can ask for a
+## save.
+func _ready() -> void:
+	_register_persistence.call_deferred()
+
+
+## No `after`: load_state() below sets one int and emits gold_changed,
+## whose only listener is a label in PartyOverview (see
+## party_overview.gd's _on_gold_changed) — nothing that reads another
+## system's restored state.
+func _register_persistence() -> void:
+	SaveManager.register(&"currency", self)
+
+
 func save_state() -> Dictionary:
 	return {"gold": gold}
 

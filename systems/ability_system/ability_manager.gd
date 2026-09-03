@@ -5,7 +5,7 @@ extends Node
 ## Tracks which ability is currently "armed" for click-to-target — the
 ## hook the ability hotbar drives (arm an ability by clicking its hotbar
 ## slot, then click a target). When nothing's armed, click routing
-## (Unit._on_input_event) falls back to whichever unit is acting and
+## (ClickRouter.click_unit) falls back to whichever unit is acting and
 ## uses ITS OWN default ability.
 ##
 ## Auto-disarms whenever the armed ability becomes unusable by the
@@ -106,7 +106,7 @@ func _unwatch_unit() -> void:
 ## ability (e.g. the unit's default melee attack, if the player clicked
 ## an enemy while something else happened to be armed... though in
 ## practice armed_ability always takes priority when set, see
-## Unit._on_input_event) can still spend the SAME shared attack-action
+## UnitCombat.resolve_click_ability) can still spend the SAME shared attack-action
 ## budget the armed ability depends on, so it's the right thing to
 ## re-check regardless of which ability actually fired the signal.
 func _on_watched_unit_ability_used(attacker: Unit, _target, _result: Dictionary) -> void:

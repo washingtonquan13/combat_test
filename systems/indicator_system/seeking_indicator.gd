@@ -52,7 +52,12 @@ var _last_query_dest_cell: Vector3i
 var _last_waypoints: PackedVector3Array = PackedVector3Array()
 
 
+func serves() -> StringName:
+	return &"seeking"
+
+
 func _ready() -> void:
+	super()
 	var built: Dictionary = _create_line_mesh()
 	_line_mesh = built.mesh_instance
 	_line_immediate = built.immediate
@@ -60,9 +65,9 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var unit := _get_active_unit()
-	var ability := PlayerInteractionState.get_armed_seeking_ability()
+	var ability: Ability = AbilityManager.armed_ability
 
-	if not unit or not ability:
+	if not unit or not ability or ability.get_pathed_projectile_step() == null:
 		_line_mesh.visible = false
 		return
 

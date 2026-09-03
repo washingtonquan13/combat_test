@@ -9,31 +9,40 @@ extends RefCounted
 ##
 ## Stateless from the outside — static, no instances, not an autoload —
 ## same reasoning as SpawnableUnitDatabase/DemonDatabase.
+##
+## The scan-and-cache itself is ResourceCatalog (see that file's header
+## for the full behaviour matrix); this file only supplies its directory,
+## its id field, and the non-recursive/last-wins/no-dedupe shape that
+## matches the original hand-written loader exactly.
 
 const TRACKS_DIR: String = "res://data/music/"
 
-static var _all: Array[MusicTrack] = []
-static var _by_id: Dictionary = {}
+static var _catalog: ResourceCatalog
 
 
 static func get_all() -> Array[MusicTrack]:
-	if _all.is_empty():
-		_load_all()
-	return _all
+	var result: Array[MusicTrack] = []
+	for resource in _get_catalog().all():
+		result.append(resource as MusicTrack)
+	return result
 
 
 ## Null if no track with this id has ever been saved under TRACKS_DIR.
 static func find(id: String) -> MusicTrack:
-	if _all.is_empty():
-		_load_all()
-	return _by_id.get(id)
+	return _get_catalog().find(id) as MusicTrack
 
 
-static func _load_all() -> void:
-	for file_name in DirAccess.get_files_at(TRACKS_DIR):
-		if not file_name.ends_with(".tres"):
-			continue
-		var track := load(TRACKS_DIR + file_name) as MusicTrack
-		if track:
-			_all.append(track)
-			_by_id[track.id] = track
+## Forces a re-scan — same escape hatch SkillDatabase/DemonDatabase
+## expose, for a dev/modding workflow that adds or edits a track .tres
+## at runtime. Ordinary play never calls this.
+static func refresh() -> void:
+	_get_catalog().refresh()
+
+
+static func _get_catalog() -> ResourceCatalog:
+	if not _catalog:
+		var extract_id := func(resource: Resource) -> Variant:
+			var track := resource as MusicTrack
+			return track.id if track else null
+		_catalog = ResourceCatalog.new(TRACKS_DIR, false, extract_id, false, false, false)
+	return _catalog

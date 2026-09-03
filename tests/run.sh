@@ -14,6 +14,6 @@ fi
 
 # "no debug info in PE/COFF executable" is crash-handler noise from the
 # console build and says nothing about the tests.
-"$GODOT" --path "$ROOT" --headless res://tests/test_runner.tscn 2>&1 \
+"$GODOT" --path "$ROOT" --headless res://tests/test_runner.tscn -- "$@" 2>&1 \
   | grep -v "no debug info in PE/COFF executable"
 exit "${PIPESTATUS[0]}"

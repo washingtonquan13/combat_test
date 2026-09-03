@@ -1,31 +1,51 @@
 extends Node
 ## Autoload singleton. Register as "SaveManager" under
 ## Project > Project Settings > AutoLoad. Must be registered AFTER
-## WorldManager and every system it coordinates (autoload _ready() runs
-## in registration order) — nothing here calls another autoload from its
-## own _ready(), but load_file()/save() below assume every system it
-## reaches for already exists.
+## WorldManager — this file's own _ready() connects to it.
 ##
-## Coordinates, but never itself HOLDS, game state — every actual value
+## Being LAST has one consequence worth stating. Autoload _ready() runs in
+## registration order, so while FlagManager, DemonRoster, CurrencyManager
+## and PartyManager run theirs, this autoload does not exist yet and the
+## `SaveManager` identifier cannot be resolved from them at all. Each of
+## them therefore registers itself with a DEFERRED call, which lands once
+## every autoload is up and still long before anything can ask for a save.
+## The other half of that bargain is here: _persistables below is
+## initialised at its declaration, not in _ready(), so register() works on
+## an instance whose own _ready() has not run.
+##
+## Coordinates, but never itself HOLDS, game state — and, since the
+## registry below, does not NAME the holders either. Every actual value
 ## lives in exactly one place already (FlagManager, PartyManager,
 ## DemonRoster, CurrencyManager, WorldManager, and the party's own shared
 ## Inventory), each carrying a duck-typed save_state()/load_state() pair
 ## (see those files, and Inventory's own — that pair now lives there
-## rather than on StashComponent, specifically so this file can reuse it
-## for the party's Inventory too, instead of a second, parallel
-## implementation). This file's only job is: gather those six
-## Dictionaries, write them to one ConfigFile, and do the reverse in an
-## order that doesn't stomp itself (see load_file()'s own header on the
-## capture trap that ordering exists to avoid).
+## rather than on StashComponent, specifically so the party's Inventory
+## could reuse it instead of a second, parallel implementation).
 ##
-## The party's shared Inventory (see _party_inventory()) is a PERMANENT
-## child of MainRoot's CanvasLayer, inside party_overview.tscn — not part
-## of any world, and therefore never captured/cleared by anything
-## WorldManager's own teardown does. Without saving it explicitly here,
-## items taken from a chest into it would silently vanish the moment the
-## application actually restarts (a real, shipped bug this comment
-## exists to keep from happening again): the chest correctly persists
-## having lost them, and nothing correctly persists where they went.
+## Each of those systems calls register() on ITSELF, naming the section it
+## owns. This file's only job is: walk the registry, write what each
+## target hands back to one ConfigFile, and do the reverse in an order
+## that doesn't stomp itself (see load_file()'s own header on the capture
+## trap that ordering exists to avoid). Adding a persistent system is a
+## register() call in that system and no edit here — which is the whole
+## point: the hand-maintained list this file used to carry was a second
+## place to remember something, and forgetting it was silent.
+##
+## [meta], [world] and [combat] stay hand-written below. Those are
+## DERIVED — read off WorldManager and off the save's own metadata —
+## rather than any one system's own state, so there is nothing to
+## register them from.
+##
+## The party's shared Inventory (registered by PartyOverview, see
+## party_overview.gd) is a PERMANENT child of MainRoot's CanvasLayer,
+## inside party_overview.tscn — not part of any world, and therefore
+## never captured/cleared by anything WorldManager's own teardown does.
+## Without it being saved, items taken from a chest into it would
+## silently vanish the moment the application actually restarts (a real,
+## shipped bug this comment exists to keep from happening again): the
+## chest correctly persists having lost them, and nothing correctly
+## persists where they went. It is also the only registered target that
+## is not an autoload, which is what unregister() exists for.
 ##
 ## FlagManager's own Dictionary carries quest progress AND all of
 ## AreaState's per-area records along for free — see that file's header.
@@ -82,6 +102,160 @@ var _pending_party_transforms: Dictionary = {}
 ## waits here until they go there.
 var _pending_encounters: Dictionary = {}
 
+
+# --- The registry -------------------------------------------------------
+
+## Every system that persists itself, keyed by the save-file section it
+## owns. Values are {"target": Object, "after": Array[StringName]}.
+##
+## THE single table. Registration order is insertion order (Godot
+## Dictionaries preserve it, and re-assigning an existing key keeps that
+## key's place), and registration order is the tiebreak _load_order()
+## falls back to wherever nothing declares a dependency.
+##
+## Initialised HERE at its declaration rather than in _ready(), because
+## this autoload is created last and a system registering itself as early
+## as it can must find a table already standing (see this file's header).
+var _persistables: Dictionary = {}
+
+## Sections save() writes itself, derived rather than owned by any system.
+## Listed so a load can tell "a section whose system is gone" from "a
+## section that never had one".
+const DERIVED_SECTIONS: Array = ["meta", "world", "combat"]
+
+
+## Adds a system to the save file, under `key` as its section name.
+##
+## `key` is part of the save FORMAT, not an implementation detail:
+## renaming one orphans that system's data in every save already written.
+##
+## `target` must implement save_state() -> Variant and load_state(state)
+## -> void. Duck-typed rather than against an interface because the
+## implementors have nothing else in common — four autoloads extending
+## Node, a Control living in the UI scene, and (through AreaState's own
+## reconciliation pass, which duck-types against the same pair) a
+## StashComponent.
+##
+## `after` names keys this one must load AFTER. Declare one only where
+## load_state() genuinely READS another system's restored state; anything
+## else is left to registration order, which _load_order() preserves.
+func register(key: StringName, target: Object, after: Array[StringName] = []) -> void:
+	if key == &"":
+		push_error("SaveManager.register: a persistable needs a section name.")
+		return
+	if not is_instance_valid(target):
+		push_error("SaveManager.register('%s'): the target is not a valid object." % key)
+		return
+	# BOTH halves, checked at registration rather than discovered at save
+	# time — a target that can be written and not read back is a save file
+	# that looks fine until somebody opens it.
+	if not target.has_method("save_state") or not target.has_method("load_state"):
+		push_error("SaveManager.register('%s'): a %s must implement both save_state() and load_state()." % [
+			key, target.get_class()])
+		return
+
+	if _persistables.has(key):
+		var held: Object = _persistables[key]["target"]
+		if held == target:
+			# Re-registering the same object is how a target revises its own
+			# declared dependencies. Not an error, and it keeps its place.
+			_persistables[key]["after"] = after.duplicate()
+			return
+		if is_instance_valid(held) and not _is_departing(held):
+			push_error("SaveManager.register('%s'): already held by a live %s. Unregister it first." % [
+				key, held.get_class()])
+			return
+
+	_persistables[key] = {"target": target, "after": after.duplicate()}
+
+
+## For a target that does not outlive the game. The party's shared
+## Inventory belongs to a scene, and a freed node left in the table would
+## be called on the next save.
+##
+## `target` is optional and guards a HANDOVER: a node unregisters in
+## _exit_tree(), which for a queue_free() runs late, and without this it
+## would cheerfully delete the entry its own replacement had already
+## claimed.
+func unregister(key: StringName, target: Object = null) -> void:
+	if not _persistables.has(key):
+		return
+	if target != null and _persistables[key]["target"] != target:
+		return
+	_persistables.erase(key)
+
+
+func is_registered(key: StringName) -> bool:
+	return _persistables.has(key)
+
+
+## The registered keys in the order they are saved and loaded in:
+## registration order, with every `after` respected.
+##
+## Stable by construction — each pass walks the table in registration
+## order and appends every key whose dependencies are already placed — so
+## keys that declare nothing come out exactly as they went in.
+func _load_order() -> Array[StringName]:
+	var ordered: Array[StringName] = []
+	var pending: Array[StringName] = []
+	for key in _persistables:
+		pending.append(key)
+
+	while not pending.is_empty():
+		var placed: int = 0
+		var index: int = 0
+		while index < pending.size():
+			if _dependencies_placed(pending[index], ordered):
+				ordered.append(pending[index])
+				pending.remove_at(index)
+				placed += 1
+			else:
+				index += 1
+		if placed == 0:
+			# A cycle. Reported rather than hung, and the remainder is kept
+			# in registration order so the save is still written — a wrong
+			# order beats losing the data while somebody untangles the loop.
+			push_error("SaveManager: circular load-order dependency among %s." % str(pending))
+			ordered.append_array(pending)
+			break
+
+	return ordered
+
+
+## An `after` naming a key nobody registered is treated as SATISFIED, not
+## as blocking: a system can legitimately declare an order against one
+## that only some builds have, and blocking would strand the whole load
+## over an absence.
+func _dependencies_placed(key: StringName, ordered: Array[StringName]) -> bool:
+	for dependency in _persistables[key]["after"]:
+		if _persistables.has(dependency) and not ordered.has(dependency):
+			return false
+	return true
+
+
+## A Node stays is_instance_valid() until the frame it was queue_free()d
+## in actually ends, and its _exit_tree() has not run yet either — so a
+## replacement arriving in the same frame (a test suite tearing down one
+## PartyOverview and standing the next one up) would otherwise be refused
+## as a duplicate of something already on its way out.
+func _is_departing(target: Object) -> bool:
+	var node: Node = target as Node
+	return node != null and node.is_queued_for_deletion()
+
+
+## Names every section of a save file that no registered system will
+## read. A WARNING and not a refusal: a save written by a build that had
+## a system this one no longer does is still a perfectly good save of
+## everything else in it.
+func _warn_about_unclaimed_sections(cfg: ConfigFile) -> void:
+	for section in cfg.get_sections():
+		if DERIVED_SECTIONS.has(section):
+			continue
+		if not _persistables.has(StringName(section)):
+			push_warning("SaveManager: nothing is registered for save section '%s'; it was not loaded." % section)
+
+
+# --- Lifecycle ----------------------------------------------------------
 
 func _ready() -> void:
 	WorldManager.world_loaded.connect(_on_world_loaded)
@@ -148,11 +322,15 @@ func save(save_name: String) -> bool:
 	# now that units remember, means rebuilt as it was left.
 	cfg.set_value("world", "area_id", area.id)
 	cfg.set_value("world", "party_transforms", _capture_party_transforms())
-	cfg.set_value("flags", "data", FlagManager.save_state())
-	cfg.set_value("party", "data", PartyManager.save_state())
-	cfg.set_value("demons", "data", DemonRoster.save_state())
-	cfg.set_value("currency", "data", CurrencyManager.save_state())
-	cfg.set_value("inventory", "data", _party_inventory().save_state())
+	# Every registered system, in dependency order. The section name IS the
+	# key it registered under — which is why those keys are part of the
+	# save format and not an implementation detail (see register()).
+	for key in _load_order():
+		var target: Object = _persistables[key]["target"]
+		if not is_instance_valid(target):
+			push_warning("SaveManager.save: '%s' was freed without unregistering; its state is not in this save." % key)
+			continue
+		cfg.set_value(String(key), "data", target.save_state())
 	# By area, so a fight nobody was watching comes back when the player
 	# next walks into it rather than needing its world kept alive.
 	cfg.set_value("combat", "encounters", WorldManager.encounters_by_area())
@@ -227,14 +405,25 @@ func _perform_load(path: String) -> String:
 	if not WorldManager.discard_worlds():
 		return "The current worlds could not be cleared, so the save was not opened."
 
-	FlagManager.load_state(cfg.get_value("flags", "data", {}))
-	PartyManager.load_state(cfg.get_value("party", "data", {}))
-	DemonRoster.load_state(cfg.get_value("demons", "data", {}))
-	CurrencyManager.load_state(cfg.get_value("currency", "data", {}))
-	# Not gated on _current_world/area the way party_transforms is below — the party's shared Inventory is a
-	# permanent CanvasLayer child, not something a destination world
-	# creates, so there's no "wait for world_loaded" step needed here.
-	_party_inventory().load_state(cfg.get_value("inventory", "data", {}))
+	_warn_about_unclaimed_sections(cfg)
+
+	# Not gated on _current_world/area the way party_transforms is below.
+	# Every registered target is either an autoload or a permanent
+	# CanvasLayer child (the party's shared Inventory) — never something a
+	# destination world creates — so no "wait for world_loaded" step is
+	# needed for any of them.
+	#
+	# A section the file does not have loads as {} rather than being
+	# skipped, which is deliberate and is exactly what the named calls this
+	# replaced already did: load_state() means "become what this save says",
+	# and a save that says nothing about a system means that system was
+	# empty.
+	for key in _load_order():
+		var target: Object = _persistables[key]["target"]
+		if not is_instance_valid(target):
+			push_warning("SaveManager: '%s' was freed without unregistering; that section of the save was not loaded." % key)
+			continue
+		target.load_state(cfg.get_value(String(key), "data", {}))
 
 	# Consumed by _on_world_loaded() the moment the area below finishes
 	# loading — can't apply these here, since the destination world (and
@@ -334,19 +523,6 @@ func most_recent() -> String:
 	return saves[0]["path"] if not saves.is_empty() else ""
 
 
-## Found by role rather than a direct reference, same group-lookup idiom
-## GiveItemEffect (give_item_effect.gd) already uses to reach this exact
-## node — this file is an autoload with no scene-tree position of its
-## own to hold a NodePath against, and PartyOverview isn't an autoload
-## either. Never null in practice: PartyOverview is a permanent child of
-## MainRoot's CanvasLayer, present from boot regardless of GameMode or
-## whether a world is loaded (the main menu, e.g., where load_file() is
-## a legitimate caller).
-func _party_inventory() -> Inventory:
-	var party_overview: Node = get_tree().get_first_node_in_group("party_overview")
-	return party_overview.get_inventory()
-
-
 func _current_leader_name() -> String:
 	if PartyManager.leader:
 		return PartyManager.leader.display_name
@@ -427,9 +603,15 @@ func _why_load_would_fail(cfg: ConfigFile) -> String:
 	if not WorldManager.can_rebuild():
 		return "no world host is registered to build a world into"
 
-	# _party_inventory() calls straight through this node with no guard, so
-	# without it the load crashes — and it crashes AFTER the party, flags,
-	# demons and purse have already been overwritten.
+	# The one by-name check that outlives the by-name save/load calls, and
+	# it is a check on the game SHELL rather than on any system: the party's
+	# shared Inventory is the only persistable that belongs to a scene, and
+	# PartyOverview is what registers it (see party_overview.gd). With no
+	# PartyOverview in the tree the registry simply has no [inventory]
+	# entry, so the loop above would warn and carry on — quietly dropping
+	# every item the party is carrying, AFTER the flags, party, demons and
+	# purse had already been overwritten. Refusing up front is the same
+	# bargain every other clause here makes.
 	if get_tree().get_first_node_in_group("party_overview") == null:
 		return "no party overview in the tree, so the shared inventory cannot be reached"
 

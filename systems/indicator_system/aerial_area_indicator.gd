@@ -61,9 +61,13 @@ var _height_dragging: bool = false
 var _height_drag_anchor_xz: Vector2 = Vector2.ZERO
 
 
+func serves() -> StringName:
+	return &"aerial_area"
+
+
 func _process(_delta: float) -> void:
 	var unit := _get_active_unit()
-	var ability := _get_armed_aerial_ability()
+	var ability: Ability = AbilityManager.armed_ability
 
 	if not unit or not ability:
 		_hide_all()
@@ -109,20 +113,6 @@ func _handle_height_input(hover_point: Vector3) -> void:
 		AbilityManager.set_aim_height_override(sampled_height)
 
 
-func _get_armed_aerial_ability() -> Ability:
-	return PlayerInteractionState.get_armed_ability_of_targeting_type(AerialAreaTargeting)
-
-
-## Three mutually perpendicular rings (XZ, XY, ZY) sharing one center —
-## see this file's header for why a single flat ring stopped being
-## enough once the center can float in midair. Each ring is its own
-## ImmediateMesh surface (three separate surface_begin/end pairs after
-## one shared clear_surfaces()), not one continuous strip through all
-## three — a shared strip would draw an unwanted connecting line from
-## the end of one ring to the start of the next. Overrides
-## AreaIndicator's own single-ring _draw_ring() — the inherited
-## _update_ring() still calls this virtually, so it draws three rings
-## here without needing its own copy of that wrapper.
 func _draw_ring(center: Vector3, radius: float) -> void:
 	var lifted: Vector3 = center + Vector3(0, ring_height_offset, 0)
 	_ring_immediate.clear_surfaces()

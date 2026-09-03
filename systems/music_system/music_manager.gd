@@ -159,7 +159,7 @@ func _on_world_loaded(_world: Node, _reason: WorldManager.Entry) -> void:
 ## deserves rather than assuming exploration — play_track()'s own
 ## already-playing guard makes this free when nothing really changed.
 func _on_world_focused(_world: Node) -> void:
-	if CombatManager.in_combat:
+	if CombatManager.a_watched_fight_is_running():
 		_play_area_or_fallback(func(area): return area.combat_track, COMBAT_TRACK_ID)
 	else:
 		start_exploration_theme()
@@ -201,9 +201,10 @@ func _is_on_screen(units: Array[Unit]) -> bool:
 ## arrive in, so there's only ever one caller starting it back up, never
 ## two racing each other.
 func _on_combat_ended(_winning_faction: StringName) -> void:
-	# Some other fight the player IS in is still going — a split party can
-	# be in two at once, and the one that ended may not be theirs at all.
-	if CombatManager.in_combat:
+	# Some other fight the player IS in and IS LOOKING AT is still going — a
+	# split party can be in two at once, and the one that ended may not be
+	# theirs, or may not be the world on screen, at all.
+	if CombatManager.a_watched_fight_is_running():
 		return
 	_play_area_or_fallback(func(area): return area.exploration_track, EXPLORATION_TRACK_ID)
 
@@ -212,8 +213,8 @@ func _on_negotiation_started(_demon: Unit) -> void:
 	_play_area_or_fallback(func(area): return area.negotiation_track, NEGOTIATION_TRACK_ID)
 
 
-## Guarded on CombatManager.in_combat specifically because negotiation
-## ending doesn't always mean combat is still going — a RECRUIT/FLEE/
+## Guarded on CombatManager.any_combat_running() specifically because
+## negotiation ending doesn't always mean combat is still going — a RECRUIT/FLEE/
 ## HEAL_PLAYER outcome can remove the last hostile unit and end combat
 ## in the same beat negotiation itself ends. Without this check, a
 ## negotiation_ended arriving after combat_ended already returned things

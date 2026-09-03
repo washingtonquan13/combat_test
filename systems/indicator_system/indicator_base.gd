@@ -29,6 +29,69 @@ extends Node3D
 ## this can't grow unbounded either.
 static var _raycast_cache: Dictionary = {}
 
+## Every MeshInstance3D this indicator built through _create_line_mesh(),
+## so set_live(false) can put ALL of them away without each subclass
+## hand-writing its own _hide_all() for the router to call. Subclasses
+## still hide their own meshes mid-frame for their own reasons ("nothing
+## under the cursor"); this is only for the router switching an indicator
+## off wholesale.
+var _owned_meshes: Array[MeshInstance3D] = []
+
+
+## Joins the group the ClickRouter walks, and stands down until that
+## router says otherwise — see serves() for which indicators that applies
+## to and why the rest are left alone.
+##
+## Subclasses that define their own _ready() MUST call super() — Godot
+## calls only the most-derived _ready, so an override without it silently
+## opts that indicator out of the router entirely (it would keep
+## processing forever, back to polling by another name).
+func _ready() -> void:
+	add_to_group(&"indicators")
+	if serves() != &"":
+		set_process(false)
+
+
+## The intent id this indicator answers to — the id PlayerIntent.
+## indicator_ids() names when this indicator should be live. One id per
+## indicator, declared once here instead of re-derived every frame from
+## the armed ability's targeting type (which is what "am I the one?"
+## polling was).
+##
+## &"" means "not intent-driven": the sight cones and the nav overlay are
+## development views with their own toggles, and unit facing follows the
+## armed ability rather than any one indicator's shape. The router skips
+## anything returning &"" and never touches its processing — see
+## ClickRouter._apply_intent.
+func serves() -> StringName:
+	return &""
+
+
+## Called by ClickRouter whenever the derived intent changes — the ONLY
+## writer of an intent-driven indicator's processing state. Puts the
+## visuals away on the way out so a line drawn for a since-abandoned
+## intent can't be left hanging on screen by a stopped _process.
+func set_live(live: bool) -> void:
+	set_process(live)
+	if not live:
+		hide_visuals()
+
+
+func hide_visuals() -> void:
+	for mesh in _owned_meshes:
+		if is_instance_valid(mesh):
+			mesh.visible = false
+
+
+## Whether anything this indicator owns is currently drawn. Exists for
+## the suite that asserts an indicator really goes dark rather than
+## merely stopping — see tests/interaction/test_intent_has_one_owner.gd.
+func is_showing_anything() -> bool:
+	for mesh in _owned_meshes:
+		if is_instance_valid(mesh) and mesh.visible:
+			return true
+	return false
+
 
 ## The one raycast every helper below needs, differing only in mask and
 ## what's done with the result — see _raycast_cache's own doc comment
@@ -80,6 +143,7 @@ func _create_line_mesh() -> Dictionary:
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	mesh_instance.material_override = mat
 	mesh_instance.visible = false
+	_owned_meshes.append(mesh_instance)
 
 	return {"mesh_instance": mesh_instance, "immediate": immediate}
 
@@ -98,10 +162,7 @@ func _get_mouse_ground_point():
 ## per indicator). Returns null if nothing's there or whatever's there
 ## isn't a Unit.
 func _get_hovered_unit() -> Unit:
-	var result := _raycast_from_mouse(unit_collision_mask)
-	if result.is_empty():
-		return null
-	return result.get("collider") as Unit
+	return _pickable_collider(_raycast_from_mouse(unit_collision_mask)) as Unit
 
 
 ## The interactable currently under the mouse cursor, or null — same
@@ -112,13 +173,35 @@ func _get_hovered_unit() -> Unit:
 ## its existing callers genuinely want a real Unit, not anything
 ## interactable.
 func _get_hovered_interactable() -> Node:
-	var result := _raycast_from_mouse(unit_collision_mask)
-	if result.is_empty():
-		return null
-	var collider = result.get("collider")
+	var collider: Object = _pickable_collider(_raycast_from_mouse(unit_collision_mask))
 	if collider is Node and collider.has_method("get_interactions"):
 		return collider
 	return null
+
+
+## What a ray hit, but only if that body would have accepted a click.
+##
+## intersect_ray filters by collision LAYER and nothing else, while
+## Godot's own physics picking (which used to deliver every click on a
+## unit, before ClickRouter raycast for itself) additionally skips any
+## CollisionObject3D with input_ray_pickable off. Honouring it here keeps
+## hovering and clicking agreeing with each other AND with what picking
+## did: unit_death.gd turns pickability off on death, so a corpse that
+## still blocks movement — and so still carries its collision layer —
+## stops being hoverable and clickable the way it always was.
+##
+## Anything that is not a CollisionObject3D is passed straight through:
+## pickability is a property only that class has, and inventing an answer
+## for other colliders would be a rule this function has no business
+## making up.
+func _pickable_collider(result: Dictionary) -> Object:
+	if result.is_empty():
+		return null
+	var collider = result.get("collider")
+	var body := collider as CollisionObject3D
+	if body and not body.input_ray_pickable:
+		return null
+	return collider
 
 
 ## The hovered unit (see _get_hovered_unit), filtered to "alive and

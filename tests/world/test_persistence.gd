@@ -311,7 +311,10 @@ func _a_fight_resumes_where_it_was_left() -> void:
 	# End it and rebuild from the record, which is what a load does.
 	fight.finish(&"")
 	await get_tree().process_frame
-	check("SETUP: the original fight is over", not CombatManager.in_combat)
+	# fight is freed by now — finish() queue_frees it (via CombatManager's
+	# combat_ended relay) and the frame just awaited is enough for that
+	# deferred free to land.
+	check("SETUP: the original fight is over", not is_instance_valid(fight) or not fight.is_running)
 
 	var resumed: Encounter = CombatManager.restore_combat(state)
 	await get_tree().process_frame

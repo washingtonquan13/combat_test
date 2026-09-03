@@ -12,7 +12,7 @@ extends Control
 ##
 ## Picking a unit + a faction + Arm Spawn hands both to
 ## DebugSpawner.arm(); actual placement happens on the next world click
-## (see ground_click_target.gd's debug-spawn branch, which — same as
+## (see debug_spawner.gd's own spawn_at and SpawningIntent, which — same as
 ## Add to Party below — also calls PartyManager.add_member() for a
 ## friendly placement, so both spawn paths keep the roster in sync
 ## instead of one silently drifting from what party_panel shows).
@@ -98,7 +98,7 @@ func _update_status() -> void:
 ## toggle above (a "hostile party member" isn't a real concept), and
 ## deliberately does NOT go through .definition's faction cascade for
 ## that reason — same override-after-cascade ordering
-## ground_click_target.gd's own _spawn_debug_unit already uses.
+## debug_spawner.gd's own spawn_at already uses.
 func _on_add_to_party_pressed() -> void:
 	var selected: PackedInt32Array = _unit_list.get_selected_items()
 	if selected.is_empty():

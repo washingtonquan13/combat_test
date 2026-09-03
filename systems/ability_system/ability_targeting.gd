@@ -31,7 +31,8 @@ func has_any_valid_target(_attacker: Unit) -> bool:
 
 
 ## Whether this ability expects to be aimed at a UNIT ON THE SAME FACTION
-## rather than a hostile one — a heal, a buff. Read by Unit._on_input_event
+## rather than a hostile one — a heal, a buff. Read by UnitCombat.
+## resolve_click_ability (see ClickRouter.click_unit, the one caller)
 ## to decide whether clicking a friendly unit should cast this ability at
 ## them instead of just selecting them (the default, and the only
 ## behavior before this field existed). Lives here rather than as a
@@ -49,6 +50,21 @@ func has_any_valid_target(_attacker: Unit) -> bool:
 
 func requires_ally_target() -> bool:
 	return requires_ally
+
+
+## Whether this targeting shape's target is a single hostile Unit — true
+## for exactly MeleeEnemyTargeting/RangedEnemyTargeting, the two shapes
+## AiScorer's baseline "attack nearest hostile" enumeration considers a
+## candidate (see AiScorer._damaging_abilities) and the only two whose
+## target is even the right TYPE to score against a hostile unit at all
+## (GroundPointTargeting/AreaTargeting target a Vector3; SelfTargeting
+## and DismissTargeting don't target an enemy). Named for what the check
+## actually selects, not "is offensive" — requires_ally could just as
+## well be false on a point-targeting utility ability, and this says
+## nothing about damage (see _damaging_abilities' separate
+## expected_damage filter for that). Override to true in each subclass.
+func targets_single_enemy() -> bool:
+	return false
 
 
 ## Whether this targeting shape needs no click at all — the target is
@@ -93,6 +109,21 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 ## doesn't override this.
 func approach_range() -> float:
 	return 0.0
+
+
+## The preview overlays this targeting shape wants live while an ability
+## using it is being aimed — see IndicatorBase.serves() and
+## Ability.indicator_ids(), which unions this with the ones implied by
+## the ability's own effects.
+##
+## Declared here, once per shape, instead of five indicators each asking
+## "is the armed ability's targeting an instance of MY class" every
+## frame. That question had exactly one right answer and five places
+## keeping it, which is how area_indicator ended up hand-excluding
+## AerialAreaTargeting (a subclass of the one it wants) in a guard of its
+## own — that exclusion is now simply an override below.
+func indicator_ids() -> Array[StringName]:
+	return []
 
 
 ## Human-readable summary for tooltips (see hotbar_slot.gd). Override in

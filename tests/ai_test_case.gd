@@ -17,11 +17,25 @@ extends Node
 ## report "nothing below," every descent looks free, and the flight tests
 ## pass for entirely the wrong reason.
 
+## The world a suite gets when it asks for one — see wants_world(). Lives
+## under tests/fixtures rather than data/areas on purpose: AreaDatabase
+## scans data/areas, so an area file there would show up in the game's own
+## travel destinations and in every suite that walks the area list.
+const WORLD_FIXTURE_SCENE: PackedScene = preload("res://tests/fixtures/test_world.tscn")
+const WORLD_FIXTURE_AREA: Resource = preload("res://tests/fixtures/test_world.tres")
+
 var passes: int = 0
 var failures: PackedStringArray = []
 
 var _root: Node3D
 var _spawned: Array[Unit] = []
+
+## World-path bookkeeping. Untouched, and every one of them null/empty,
+## for a suite that does not ask for a world.
+var _world_host: Control = null
+var _saved_world_host: Control = null
+var _saved_attention_nodes: Array[Node] = []
+var _saved_party: Dictionary = {}
 
 
 ## Override. May await; the runner awaits whatever this returns.
@@ -29,18 +43,34 @@ func run() -> void:
 	pass
 
 
+## Override to true for a suite that needs a REAL loaded world — a
+## WorldManager context, a World3D minted by a viewport, a per-world
+## navigation grid, SurfaceManager and CombatManager reading through the
+## context instead of their detached fallbacks.
+##
+## Opt-in rather than the default because it is not free and it is not
+## neutral: standing a world up puts every spawned unit inside a
+## SubViewport, gives the autoloads a context to delegate to, and drags
+## PartyManager/GameMode through a real load. The other suites want the
+## bare battlefield they were written against, and a world would change
+## what they are testing without changing a line of them.
+##
+## What it does NOT do is make a suite "more realistic" for free. A world
+## here is a fixture like any other; the reason to want one is that the
+## code under test reads WorldManager, and today every such branch takes
+## the "no world loaded" fallback and is therefore never executed at all.
+func wants_world() -> bool:
+	return false
+
+
 func setup() -> void:
 	_root = Node3D.new()
 	add_child(_root)
 
-	var floor_body := StaticBody3D.new()
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(400.0, 1.0, 400.0)
-	shape.shape = box
-	floor_body.add_child(shape)
-	_root.add_child(floor_body)
-	floor_body.global_position = Vector3(0.0, -0.5, 0.0)
+	if wants_world():
+		await _stand_up_world()
+	else:
+		_build_bare_floor()
 
 	# Two physics frames, not process frames: the collider has to be live
 	# in the physics server before any raycast can find it.
@@ -62,8 +92,93 @@ func setup() -> void:
 	await get_tree().physics_frame
 
 
+## The floor the bare path has always built. Not scenery — see this
+## file's header.
+func _build_bare_floor() -> void:
+	var floor_body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(400.0, 1.0, 400.0)
+	shape.shape = box
+	floor_body.add_child(shape)
+	_root.add_child(floor_body)
+	floor_body.global_position = Vector3(0.0, -0.5, 0.0)
+
+
+## Loads the fixture area through the real WorldManager entry point.
+##
+## The synthetic host is the whole trick, and it was already written twice
+## in tests/world before it was hoisted here: WorldManager mounts each
+## world into a SubViewportContainer parented to a Control that MainRoot
+## registers, and MainRoot does not exist in a headless run. A bare
+## Control stands in for it, and can_rebuild()/discard_worlds() start
+## answering yes purely because one is registered.
+##
+## The attention nodes are emptied for the same reason from the other
+## side: _move_attention_to() reparents whatever MainRoot handed over
+## into each world's viewport, and there is nothing here to hand over.
+## An empty list is a real answer, not a stub — no world is being looked
+## at by a player.
+func _stand_up_world() -> void:
+	_saved_world_host = WorldManager._world_host
+	_saved_attention_nodes = WorldManager._attention_nodes.duplicate()
+	_world_host = Control.new()
+	_root.add_child(_world_host)
+	WorldManager.register_world_host(_world_host)
+	var none: Array[Node] = []
+	WorldManager.register_attention_nodes(none)
+
+	# Entering a world is a real party operation — the fixture does not
+	# spawn a party, so _embody_into() folds whatever group is active down
+	# to records and dismisses its fielded demons. Harmless to this suite
+	# and destructive to the next one, which is why the state is put back
+	# in _tear_down_world() rather than left as it lands.
+	_saved_party = {
+		"party": PartyManager.save_state(),
+		"demons": DemonRoster.save_state(),
+	}
+
+	WorldManager.load_world(WORLD_FIXTURE_SCENE, &"", WORLD_FIXTURE_AREA)
+	# A process frame, matching what every tests/world suite awaits after
+	# a load: the world enters the tree synchronously inside load_world(),
+	# but its _ready() cascade and the viewport's first update do not.
+	await get_tree().process_frame
+
+
+## Puts WorldManager back the way it was found. Order matters: the worlds
+## go first, while the synthetic host is still registered — discard_worlds()
+## is gated on can_rebuild(), which is exactly "a host is registered," so
+## restoring the saved host first would make the teardown refuse itself and
+## leave the fixture world resident for the next suite.
+func _tear_down_world() -> void:
+	WorldManager.discard_worlds()
+
+	if not _saved_party.is_empty():
+		PartyManager.load_state(_saved_party["party"])
+		DemonRoster.load_state(_saved_party["demons"])
+		# load_state restores the records; the GROUPS a split left behind
+		# are separate, and one per world would otherwise accumulate.
+		while PartyManager.groups.size() > 1:
+			PartyManager.groups[0].absorb(PartyManager.groups[1])
+			PartyManager.groups.remove_at(1)
+		if not PartyManager.groups.is_empty():
+			PartyManager.active_group = PartyManager.groups[0]
+	_saved_party = {}
+
+	WorldManager._world_host = _saved_world_host
+	WorldManager._attention_nodes = _saved_attention_nodes
+	_saved_world_host = null
+	_saved_attention_nodes = []
+	if is_instance_valid(_world_host):
+		_world_host.queue_free()
+	_world_host = null
+
+
 func teardown() -> void:
 	free_spawned()
+	if wants_world():
+		_tear_down_world()
+		await get_tree().process_frame
 	if is_instance_valid(_root):
 		_root.queue_free()
 	# Let the deferred frees actually happen before the next case builds
@@ -107,7 +222,7 @@ func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 	# explicit stats below so those still win over the definition cascade —
 	# the same order debug_spawn_panel uses.
 	unit.definition = _harness_definition()
-	_root.add_child(unit)
+	_spawn_parent().add_child(unit)
 	var typed: Array[Ability] = []
 	for ability in abilities:
 		typed.append(ability)
@@ -134,7 +249,7 @@ func spawn_demon(id: String, position: Vector3, flying: bool = false, fp: int = 
 	# with no body at all — silently, because a bodiless unit still walks,
 	# fights and dies perfectly well.
 	unit.definition = definition
-	_root.add_child(unit)
+	_spawn_parent().add_child(unit)
 	unit.faction = &"enemy"
 	unit.global_position = position
 	if flying:
@@ -144,6 +259,21 @@ func spawn_demon(id: String, position: Vector3, flying: bool = false, fp: int = 
 		unit.current_fp = fp
 	_spawned.append(unit)
 	return unit
+
+
+## Where a spawned unit belongs. _root for the bare path, exactly as
+## before; the loaded world for a suite that asked for one — via
+## WorldManager.spawn_parent(), the same call every one-off spawn in the
+## game itself goes through. Parenting into _root with a world loaded
+## would put the unit OUTSIDE the viewport that mints the World3D, so
+## every world-scoped query would correctly refuse to see it and the suite
+## would be testing the fallback it opted out of.
+func _spawn_parent() -> Node:
+	if wants_world():
+		var parent: Node = WorldManager.spawn_parent()
+		if parent:
+			return parent
+	return _root
 
 
 ## Removes one unit early, for a test that needs the battlefield to
