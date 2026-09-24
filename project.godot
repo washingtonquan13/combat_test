@@ -33,6 +33,7 @@ NegotiationManager="*res://systems/negotiation_system/negotiation_manager.gd"
 DebugSpawner="*res://debug/debug_spawner.gd"
 CurrencyManager="*res://systems/currency_system/currency_manager.gd"
 WorldManager="*res://systems/world_system/world_manager.gd"
+Music="*res://addons/sfzplayer/runtime/music_director.gd"
 MusicManager="*res://systems/music_system/music_manager.gd"
 FactionRelations="*res://systems/faction_system/faction_relations.gd"
 PartyManager="*res://systems/party_system/party_manager.gd"
@@ -49,7 +50,7 @@ window/size/viewport_height=900
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/animation_sequence_tools/plugin.cfg")
+enabled=PackedStringArray("res://addons/animation_sequence_tools/plugin.cfg", "res://addons/sfzplayer/plugin.cfg")
 
 [input]
 

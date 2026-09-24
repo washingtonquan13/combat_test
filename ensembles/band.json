@@ -1,0 +1,155 @@
+{
+  "format": 2,
+  "id": "band",
+  "name": "Low End",
+  "description": "A rock band, done properly: Unreal Instruments' METAL-GTX, a DI guitar double-tracked through an amp that lives inside its SFZ and a real 4x12 of Vintage 30s, miked with an SM57 in two different places for the two takes (impulse responses from Jester Dyne's CC0 Brutal Pack); Unreal Instruments' Standard Bass, a DI-recorded five-string with 1,400 samples, eighteen alternating round robins and keyswitched articulations, put through an amp that lives inside its own SFZ; and SM Drums, a public-domain rock kit with up to 48 velocity layers and eight round robins a piece, split into five pieces that each have their own EQ and compression. Over them, three synths sfizz generates itself with no samples at all: Veil, a dark supersaw pad with an open-vowel formant inside it that carries the thirds and sevenths the power chords leave out, Glass, a filter pluck with a struck-bar bell under it for the arpeggios; and Wire, a singing lead of narrow detuned saws over a square an octave down, with a vibrato the score opens on held notes, for the hook.",
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "synth/wire-lead",
+          "name": "wire"
+        }
+      ],
+      "voices": 8,
+      "gain_source": "measured",
+      "gain_db": 3.5,
+      "defaults": {
+        "vibrato_depth": 0,
+        "brightness": 0
+      }
+    },
+    "harmony": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "synth/wire-lead",
+          "name": "harmony"
+        }
+      ],
+      "voices": 8,
+      "gain_source": "measured",
+      "gain_db": 3.5,
+      "defaults": {
+        "vibrato_depth": 0,
+        "brightness": 0
+      }
+    },
+    "guitar": {
+      "family": "guitar",
+      "layers": [
+        {
+          "instrument": "metal-gtx/head",
+          "name": "left",
+          "take": {
+            "timing": 0.005,
+            "velocity": 6
+          },
+          "cabinet": "cab/jester-brutal/Impulses/48kHz/14_Cathode_Ray_Fleshburn.wav",
+          "defaults": {
+            "pan": 24
+          }
+        },
+        {
+          "instrument": "metal-gtx/head-turned",
+          "name": "right",
+          "gain_db": -1.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.005,
+            "velocity": 6
+          },
+          "cabinet": "cab/jester-brutal/Impulses/48kHz/12_World_Collider.wav",
+          "defaults": {
+            "pan": 104,
+            "picking": 92,
+            "mute_time": 60
+          }
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -5.0,
+      "defaults": {
+        "volume": 100,
+        "pan": 64,
+        "vibrato_depth": 0,
+        "vibrato_speed": 95,
+        "mute_time": 51,
+        "long": 0,
+        "rel_shape": 40,
+        "rel_level": 108,
+        "resonance": 44,
+        "picking": 75,
+        "tension": 0,
+        "magnet": 64
+      },
+      "keyswitch_default": "sustain_alt"
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "synth/glass-arp",
+          "name": "glass"
+        }
+      ],
+      "voices": 32,
+      "gain_source": "by-ear",
+      "gain_db": -11.0
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "standard-bass/amped",
+          "name": "picked"
+        }
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -8.5,
+      "defaults": {
+        "volume": 100,
+        "pan": 64,
+        "vibrato_depth": 0,
+        "vibrato_speed": 95,
+        "mute_time": 127,
+        "rel_shape": 13,
+        "rel_level": 114,
+        "magnet": 64,
+        "sub": 100,
+        "slide_speed": 24
+      },
+      "keyswitch_default": "sustain_alt"
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "synth/veil-pad",
+          "name": "veil"
+        }
+      ],
+      "voices": 24,
+      "gain_source": "by-ear",
+      "gain_db": -3.0,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "sm-drums/kit"
+        }
+      ],
+      "voices": 48,
+      "preload": 4096,
+      "gain_source": "guessed",
+      "gain_db": -1.5
+    }
+  }
+}

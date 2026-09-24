@@ -36,7 +36,6 @@ script = ExtResource("1_overlay")
 layout_mode = 1
 anchors_preset = -1
 anchor_left = 0.065
-anchor_top = 0.0
 anchor_right = 0.935
 anchor_bottom = 1.0
 grow_horizontal = 2
@@ -62,30 +61,27 @@ theme_override_constants/separation = 6
 [node name="Aside" type="Label" parent="Stack/BandMargin/Band/BandContent"]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
-mouse_filter = 2
 size_flags_horizontal = 3
-autowrap_mode = 3
 theme_override_colors/font_color = Color(0.62, 0.62, 0.62, 1)
 theme_override_font_sizes/font_size = 14
+autowrap_mode = 3
 
 [node name="Speaker" type="Label" parent="Stack/BandMargin/Band/BandContent"]
 layout_mode = 2
-mouse_filter = 2
 size_flags_horizontal = 3
-autowrap_mode = 3
 theme_override_font_sizes/font_size = 13
+autowrap_mode = 3
 
 [node name="Line" type="Label" parent="Stack/BandMargin/Band/BandContent"]
 layout_mode = 2
-mouse_filter = 2
 size_flags_horizontal = 3
 theme_override_font_sizes/font_size = 18
 autowrap_mode = 3
 
 [node name="Choices" type="VBoxContainer" parent="Stack/BandMargin/Band/BandContent"]
 layout_mode = 2
-mouse_filter = 2
 size_flags_horizontal = 3
+mouse_filter = 2
 theme_override_constants/separation = 2
 
 [node name="Continue" type="Button" parent="Stack/BandMargin/Band/BandContent"]
@@ -115,25 +111,25 @@ text = "Log"
 flat = true
 
 [node name="HistoryChip" type="Button" parent="Chips"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-tooltip_text = "Not implemented yet."
 modulate = Color(1, 1, 1, 0.5)
+layout_mode = 2
+tooltip_text = "Not implemented yet."
+theme_override_font_sizes/font_size = 11
 text = "History"
 flat = true
 
 [node name="SettingsChip" type="Button" parent="Chips"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-tooltip_text = "Not implemented yet."
 modulate = Color(1, 1, 1, 0.5)
+layout_mode = 2
+tooltip_text = "Not implemented yet."
+theme_override_font_sizes/font_size = 11
 text = "Settings"
 flat = true
 
 [node name="LeaveChip" type="Button" parent="Chips"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-tooltip_text = "Not implemented yet."
 modulate = Color(1, 1, 1, 0.5)
+layout_mode = 2
+tooltip_text = "Not implemented yet."
+theme_override_font_sizes/font_size = 11
 text = "Leave"
 flat = true

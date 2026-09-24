@@ -1,0 +1,84 @@
+{
+  "format": 2,
+  "id": "ritual",
+  "name": "Ritual",
+  "description": "An ensemble for the shrines and the old gods: a Kunitsukami's grove, a ceremony under Ginza, anywhere the music should sound older than the city on top of it. Everything but the choir comes from the Versilian Community Sample Library. The keys are a dan tranh, a Vietnamese zither plucked close, for pentatonic lines that ring and fade; the pad is Virtual Playing Orchestra's male choir held low, like monks; the bass is VCSL's Kenyan kalimba two octaves down for a soft wooden pulse. The kit is a set of hand drums and metal - a concert bass drum, a large and a small frame drum, a darbuka, a slit drum, a gong with its scrape, Nepalese hand bells and finger cymbals. VCSL maps each of those around middle C, so tools/build_ritual_sfz.py copies them into one kit, each moved to a block of eight keys of its own.",
+  "buses": {
+    "keys": {
+      "space": "hall",
+      "wet": 0.24
+    },
+    "bass": {
+      "wet": 0.16
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.34,
+      "predelay": 30.0
+    },
+    "perc": {
+      "space": "hall",
+      "wet": 0.28,
+      "predelay": 20.0
+    }
+  },
+  "parts": {
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "vcsl/dan-tranh",
+          "name": "dan-tranh"
+        }
+      ],
+      "voices": 16,
+      "gain_source": "measured",
+      "gain_db": 11.0
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "vcsl/kalimba",
+          "name": "kalimba",
+          "transpose": 24
+        }
+      ],
+      "range": [
+        36,
+        60
+      ],
+      "voices": 8,
+      "gain_source": "measured",
+      "gain_db": 14.0
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-male",
+          "name": "monks"
+        }
+      ],
+      "voices": 24,
+      "gain_source": "measured",
+      "gain_db": 0.0
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "vcsl/ritual-kit",
+          "name": "kit",
+          "take": {
+            "timing": 0.007,
+            "velocity": 6
+          }
+        }
+      ],
+      "voices": 24,
+      "gain_source": "measured",
+      "gain_db": 0.0
+    }
+  }
+}

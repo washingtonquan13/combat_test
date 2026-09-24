@@ -1,0 +1,165 @@
+{
+  "format": 2,
+  "id": "sfc",
+  "name": "SFC",
+  "description": "The Super Famicom palette of the first two Megami Tensei games, synthesized by tools/build_homebuilt_sfz.py. The lead is a 25% pulse, with the 12.5% and 50% duties as its 'thin' and 'hollow' voices. Keys are two-operator FM brass, with Toll, the synthesized tubular bell, as the 'bell' voice and a thin pulse as the 'arp' voice. The bass is a 4-bit stepped triangle, with a two-operator FM slap bass as the 'slap' voice. The kit is LFSR noise and stepped triangles, envelopes moving in sixteen steps at 60 Hz.",
+  "buses": {
+    "lead": {
+      "space": "room",
+      "wet": 0.14,
+      "predelay": 12.0
+    },
+    "keys": {
+      "space": "room",
+      "wet": 0.18,
+      "predelay": 12.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "homebuilt/chip-pulse25",
+          "name": "pulse25"
+        }
+      ],
+      "range": [
+        48,
+        96
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": -14.0
+    },
+    "thin": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "homebuilt/chip-pulse12",
+          "name": "pulse12"
+        }
+      ],
+      "range": [
+        48,
+        96
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": -14.0
+    },
+    "hollow": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "homebuilt/chip-pulse50",
+          "name": "pulse50"
+        }
+      ],
+      "range": [
+        48,
+        96
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": -14.0
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "homebuilt/fm-brass",
+          "name": "brass"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -18.0
+    },
+    "bell": {
+      "family": "bells",
+      "layers": [
+        {
+          "instrument": "homebuilt/toll",
+          "name": "bell",
+          "gain_db": 2.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -18.0
+    },
+    "arp": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "homebuilt/chip-pulse12",
+          "name": "arp",
+          "gain_db": -4.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -18.0
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "homebuilt/chip-tri",
+          "name": "triangle"
+        }
+      ],
+      "range": [
+        24,
+        72
+      ],
+      "voices": 6,
+      "gain_source": "guessed",
+      "gain_db": -14.5
+    },
+    "slap": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "homebuilt/fm-slap",
+          "name": "slap",
+          "gain_db": 4.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "range": [
+        24,
+        72
+      ],
+      "voices": 6,
+      "gain_source": "guessed",
+      "gain_db": -14.5
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "homebuilt/chip-kit"
+        }
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": -11.5
+    }
+  }
+}

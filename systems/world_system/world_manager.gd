@@ -847,7 +847,7 @@ func load_area(area_id: StringName, spawn_point_name: StringName = &"", travelle
 
 
 ## The area behind the FOCUSED world, or null with nothing loaded. Read
-## by MusicManager to resolve per-area tracks; it and current_world()
+## by MusicManager to name the area's music; it and current_world()
 ## always describe the same world, because both now read the same record.
 func current_area() -> AreaDefinition:
 	return _focused.area if _focused else null

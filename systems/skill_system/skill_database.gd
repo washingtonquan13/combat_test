@@ -33,7 +33,7 @@ static func find(skill_name: String) -> Skill:
 
 ## Every skill in the game — the character-creation skill list's own
 ## source, same "index once, cache by id, also expose get_all() for a
-## picker UI" idiom MusicTrackDatabase/DemonDatabase already use.
+## picker UI" idiom DemonDatabase already uses.
 static func get_all() -> Array[Skill]:
 	var result: Array[Skill] = []
 	for resource in _get_catalog().all():

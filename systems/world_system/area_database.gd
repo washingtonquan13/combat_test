@@ -1,7 +1,7 @@
 class_name AreaDatabase
 extends RefCounted
 ## Every AreaDefinition under res://data/areas/*.tres — same flat-
-## directory-scan idiom as MusicTrackDatabase/SkillDatabase/DemonDatabase/
+## directory-scan idiom as SkillDatabase/DemonDatabase/
 ## SpawnableUnitDatabase. Stateless from the outside — static, no
 ## instances, not an autoload.
 ##

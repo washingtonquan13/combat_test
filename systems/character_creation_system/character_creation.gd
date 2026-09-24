@@ -275,7 +275,7 @@ func _refresh_skills() -> void:
 ## all resources already" was the whole point (per the user's own
 ## framing): a new file dropped in that folder shows up here with no
 ## code change, same "theoretically infinite by scanning a folder"
-## convention SkillDatabase/DemonDatabase/MusicTrackDatabase already use.
+## convention SkillDatabase/DemonDatabase already use.
 func _build_portrait_grid() -> void:
 	for file_name in DirAccess.get_files_at(PORTRAITS_DIR):
 		var extension: String = file_name.get_extension().to_lower()

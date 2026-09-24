@@ -1,0 +1,344 @@
+// Decadence - the main theme from Giten Megami Tensei (1995), reimagined.
+// The original is a General MIDI file; this keeps its notes, its form and
+// its mood, and changes what plays them.
+//
+// What the original is. D minor with a raised fourth - G# against the D -
+// at 120 beats a minute, thirty-two bars and then round again. It is two
+// halves that never share a chord:
+//
+//   A  a choir drones on D for sixteen bars. Over it a "voice" synth builds
+//      one chord a note at a time, D, then A, then G#, then B, each held
+//      while the next arrives, the whole stack let go every two bars and
+//      built again. A bright synth plays the melody, a handful of notes
+//      each held nearly two bars: C, a G# pickup, A; D, G#, A; then a
+//      phrase that climbs D C D E F G# A C. The G# is the colour of the
+//      piece - a raised fourth in D minor, Hungarian rather than aeolian,
+//      the sound of somewhere old and wrong.
+//   B  the melody stops. The bass walks a semitone down and back, D C# C
+//      C#, two bars each; the voice rocks on every beat between two-note
+//      chords a semitone apart; and a warm pad builds a chord from the
+//      bottom up over eight bars, A C F C - then again on G Bb Eb Bb, an Eb
+//      major over the D, the flat second, the darkest chord in the key.
+//
+//   drums  a kick and a ride together, once every two bars, with a kick
+//          and an open hat snatched in just before every other downbeat; in
+//          the second half, on every half note. A toll more than a beat.
+//
+// What changes. The sounds, and the second time round.
+//
+//   The melody is Halo, a glassy synth with a bell's inharmonic strike in
+//   it, doubled by tubular bells: what the old "brightness" patch was, a
+//   pad with a struck edge, and a church in it. The drone is a male choir
+//   over a sub, the building chord a synthetic voice with a real choir
+//   inside it, the rocking chords the synthetic voice alone - a sampled
+//   choir cannot speak on every beat. The warm pad is the full string
+//   section. The ride is an acoustic ride among electronic drums, because
+//   the toll is the one thing in the old kit that has to ring.
+//
+//   The loop is the original's thirty-two bars played twice. The first
+//   time is the original, instrument for instrument. The second time the
+//   beat comes in under it - half-time, a clap on three - and when the
+//   melody returns, sopranos sing it an octave above the bells.
+//
+// Form. A short intro of the drone and the tolls plays once; `end` lets the
+// melody's C fall to A over the built chord, and rings off.
+//
+// What a General MIDI transcription cannot carry. The notes came across
+// faithfully and the spectrum did not, because in 1995 "bass" was a thin GM
+// patch and the kick was a thin GM drum. Neither carried real sub, so writing
+// them on the same beats cost nothing. Played on Drift and on Circuit's kick
+// they are both full-bandwidth in the bottom octave, and the same rhythm now
+// means two sources fighting for it - measured at 60.3 dB against 59.6 below
+// 120 Hz, and 65-84% of the energy in every window the limiter pulled down.
+// That is the distortion, and it is not a bug anywhere in the engine: it is
+// an arrangement that was never asked who owns the low end at a given moment.
+// The answer here is the drone. See `toll` for where the kick went instead.
+//
+// The other half of the same problem is that every lane attacked on the same
+// grid. Correlated attacks sum linearly - at the worst instant, 100% of the
+// amplitude was lanes pushing the same direction, nothing opposing - so the
+// mix peaked far above what any of it sounded like. The pockets spread the
+// mid and high attacks across about twenty-eight milliseconds: the lead ahead
+// at -8, the choir's built chord at +6, the bass at +12, the strings latest
+// at +20. It is not swing and it is not meant to be heard as timing; it is
+// the difference between a chord and a click. `pulse` is deliberately
+// left out of it, at feel:tight - it is a machine, and it should sound like
+// one against everything around it that breathes.
+//
+// `keys.root` also moved up an octave, d3 to d4. The bass role's male choir
+// is transposed +12 and was already singing d3; the built chord was doubling
+// it rather than sitting over it.
+
+title: Decadence
+ensemble: decadence
+parts: lead high:choir@lead keys pulse:keys@keys bass pad perc metal:perc@perc
+tempo: 120
+meter: 4/4
+key: d minor
+order: intro [a b a2 b2] end
+
+// Bars the sections share. A pattern plays as if written out where it is used.
+pattern toll        // the kick: a bar on, a bar off, a push into the next
+  | kick:4! | r:4 | kick:4! | r:3.75 kick:0.25. |
+pattern lift        // the open hat that lifts into every fourth bar
+  | r:4 | r:4 | r:4 | r:3.75 hat_open:0.25 |
+// What the second time round adds. Every one of them is the toll made heavier
+// and never the toll made busier: nothing in this piece subdivides. The ride
+// goes from every other bar to every bar and then to half notes, and a clap
+// arrives on three. The kick does not change at all, and that is deliberate.
+//
+// It used to. A `knell` put it on every downbeat under both repeats, and that
+// is what was driving the limiter. Below 120 Hz the kick and the sub are the
+// same size - 60.3 dB against 59.6 across b2 - and 65-84% of the energy in
+// every window the limiter pulled down was under 120 Hz. `toll` puts the kick
+// on the bar the bass turns over and leaves the bar between it alone, so the
+// transient lands while the sub's envelope is still climbing rather than on
+// top of it at full sustain. The weight the repeats gain is all above the
+// kick: ride, clap, crash, and one boom a section.
+pattern tolling     // one ride a bar, the bell on the first of every four
+  | ride_bell:4! | ride:4 | ride:4 | ride:4 |
+pattern tolling2    // half notes, the bell still only every fourth bar
+  | ride_bell:2! ride:2 | ride:2 ride:2 | % | % |
+pattern three       // a clap on three and nothing else: the half-time backbeat
+  | r:2 clap:2! | % | % | % |
+pattern melody
+  | c5:7_ g#4:1 | a4:8_ |
+  | d4:7_ g#4:1 | a4:8_ |
+  | c5:7_ g#4:1 | a4:4_ d4:3_ c4:1 |
+  | d4:3_ e4:1 f4:3_ g#4:1 | a4:4_ c5:4_ |
+// The same melody, sung rather than struck. Every note the bells hold for a
+// bar or more is bowed instead of laid flat; the passing notes of the climb
+// keep their tenuto, because a voice does not swell on a quarter note. Not a
+// note and not an onset differs from `melody` - only what happens to a note
+// after it starts. The sopranos take this and the bells keep the original,
+// so the second statement is the same tune stated twice at once, once struck
+// and once breathed.
+pattern melody2
+  | c5:7^ g#4:1 | a4:8^ |
+  | d4:7^ g#4:1 | a4:8^ |
+  | c5:7^ g#4:1 | a4:4^ d4:3_ c4:1 |
+  | d4:3_ e4:1 f4:3_ g#4:1 | a4:4^ c5:4^ |
+
+
+// The drone swells in and the ride tolls; in the last two bars the root of
+// the voice's chord joins, so the A section's first build arrives mid-breath.
+section intro bars:4
+  bass dyn:pp..mf pocket:12
+    | d2:16^ |
+  keys.root dyn:pp..p feel:loose pocket:6
+    | r:4 | r:4 | d4:8 |
+  perc.feet dyn:p..mp feel:tight
+    | toll |
+  metal dyn:p..mp feel:tight
+    | ride:4 | r:4 | ride:4 | r:4 |
+  perc.right dyn:p..mp feel:tight
+    | lift |
+  perc.drop dyn:mp
+    | boom:4! | r:4 | r:4 | r:4 |
+
+
+// The original's first half, instrument for instrument: drone, built chord,
+// the melody on bells, the toll.
+section a bars:16
+  bass dyn:mp pocket:12
+    | d2:64 |
+  // The original lets the whole stack go every two bars and builds it again.
+  // On the synth it was written for that is a gesture; on a sampled choir it
+  // is a hole. All four voices used to release on the same beat, and with a
+  // 1.25s release and a 0.32s attack the chord faded out, left about a
+  // quarter of a second of nothing, and swelled back - four times a section.
+  // That is the unnatural pause.
+  //
+  // So the choir stagger-breathes, which is what a choir does. The root never
+  // rests at all; it re-takes the D every four bars under the others and
+  // there is no gap to hear. The three above it leave one at a time, an
+  // eighth apart, and come back one at a time, so the stack still empties to
+  // the ground and rebuilds from it - the gesture survives, the hole does
+  // not. The sixth's notes are also longer than they were: at a beat and a
+  // half the old b3 was released before it had finished arriving, and what
+  // came out was not a note but a bump.
+  keys.root dyn:mp feel:loose pocket:6
+    | d4:16 | % | % | % |
+  keys.fifth dyn:mp feel:loose pocket:6
+    | r:2 a3:6 r:3 a3:5 | % | % | % |
+  keys.raised dyn:mp feel:loose pocket:6
+    | r:4 g#3:4.5 r:3.5 g#3:4 | % | % | % |
+  keys.sixth dyn:mp feel:loose pocket:6
+    | r:6 b3:3 r:4 b3:3 | % | % | % |
+  lead dyn:mp..mf pocket:-8
+    | melody |
+  perc.feet dyn:mp feel:tight
+    | toll*4 |
+  metal dyn:mp feel:tight
+    | ride:4 r:4 | % | % | % | % | % | % | % |
+  perc.right dyn:mp feel:tight
+    | lift*4 |
+
+
+// The second half: the bass walks, the voice rocks, the strings build A C F C
+// and then the Eb chord over D.
+section b bars:16
+  bass dyn:mf pocket:12
+    | d2:8 | c#2:8 | c2:8 | c#2:8 |
+    | d2:8 | c#2:8 | c2:8 | c#2:8 |
+  pulse dyn:mp feel:tight
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+  // The build, bowed. Each voice enters two bars after the one below it and
+  // holds to the end of its half, so the four notes are already a staircase;
+  // what they were not was played. `^` takes a note under its written level,
+  // up past it and back before it releases, and the strings can only do that
+  // now that they are sent expression rather than the mod wheel, which the
+  // Virtual Playing Orchestra patches declare nothing for - see the layer
+  // controls in decadence.json.
+  //
+  // The swell peaks at four fifths of a note's length, so the later a voice
+  // enters the later it crests: the floor at 12.8s into its eight bars, the
+  // third at 13.6, the fifth at 14.4, the top at 15.2. The chord does not
+  // arrive all at once, it arrives from the bottom up over the last three
+  // seconds, which is what the entries were always spelling and what a flat
+  // hold could not say. The floor is the exception in the first half - it is
+  // the ground the others are measured against, so it is held, not bowed.
+  //
+  // Second time the chord is Eb over D, the flat second, the darkest thing in
+  // the key. Everything bows there, the floor included, and the Eb itself is
+  // the one note taken with an accent. Not louder - the written level does
+  // not change - but arrived at rather than appearing.
+  pad.floor dyn:mp..mf feel:loose pocket:20
+    | a3:32_ | g3:32^ |
+  pad.third dyn:mp..mf feel:loose pocket:20
+    | r:8 | c4:24^ | r:8 | bb3:24^ |
+  pad.fifth dyn:mp..mf feel:loose pocket:20
+    | r:16 | f4:16^ | r:16 | eb4:16!^ |
+  pad.top dyn:mp..mf feel:loose pocket:20
+    | r:24 | c5:8^ | r:24 | bb4:8^ |
+  perc.feet dyn:mp feel:tight
+    | toll*4 |
+  metal dyn:mf feel:tight
+    | ride:2*2 | % | % | % | % | % | % | % | % | % | % | % | % | % | % | % |
+  perc.right dyn:mf feel:tight
+    | r:4 r:3.75 hat_open:0.25 | % | % | % | % | % | % | % |
+
+
+// The first half again, with the beat under it, and sopranos an octave over
+// the bells.
+section a2 bars:16
+  bass dyn:mf pocket:12
+    | d2:64 |
+  // The same four entries, breathing. In `a` the built chord appears: each
+  // note arrives at its written level and stays there until the stack is let
+  // go. Here each note is bowed in, so the chord is never at rest - it is
+  // always either arriving or leaving, and it rebuilds eight times across the
+  // section instead of standing still four times. The sopranos over the bells
+  // swell too, but the bells sit on top of them and the ear mostly hears the
+  // strike; this is the lane where the second statement can actually be heard
+  // to be a second statement. Again: same notes, same entries, same written
+  // level as `a`. Only what happens after each note starts.
+  keys.root dyn:mf feel:loose pocket:6
+    | d4:16^ | % | % | % |
+  keys.fifth dyn:mf feel:loose pocket:6
+    | r:2 a3:6^ r:3 a3:5^ | % | % | % |
+  keys.raised dyn:mf feel:loose pocket:6
+    | r:4 g#3:4.5^ r:3.5 g#3:4^ | % | % | % |
+  keys.sixth dyn:mf feel:loose pocket:6
+    | r:6 b3:3^ r:4 b3:3^ | % | % | % |
+  lead.main dyn:mf pocket:-8
+    | melody |
+  high dyn:mp..mf pocket:-8
+    | melody2 |
+  perc.fx dyn:mf
+    | crash:4! |
+    | r:4 | % | % | % | % | % | % | % | % | % | % | % | % | % | % |
+  perc.drop dyn:mf
+    | boom:4! |
+    | r:4 | % | % | % | % | % | % | % | % | % | % | % | % | % | % |
+  perc.feet dyn:mp feel:tight
+    | toll*4 |
+  perc.left dyn:mf feel:tight
+    | three*4 |
+  perc.right dyn:mf feel:tight
+    | lift*4 |
+  metal dyn:mf feel:tight
+    | tolling*4 |
+
+
+// The second half with everything.
+section b2 bars:16
+  bass dyn:f pocket:12
+    | d2:8 | c#2:8 | c2:8 | c#2:8 |
+    | d2:8 | c#2:8 | c2:8 | c#2:8 |
+  pulse dyn:mf feel:tight
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+    | [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 [a3 c4]:1 [g#3 b3]:1 |
+    | [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 [g3 bb3]:1 [f#3 a3]:1 |
+  // The build again, and this is where the two halves of the piece part. In
+  // `b` the floor is held while the three voices above it bow - it is the
+  // ground the staircase is measured against. Here nothing is ground: the
+  // floor bows too, in both halves, so the whole chord is moving the entire
+  // time and there is no fixed thing to stand on. Every voice above it takes
+  // its entry with an accent, so the staircase is climbed rather than
+  // revealed.
+  //
+  // The written levels sit at mp..mf, under `b`'s, and that is deliberate.
+  // Four voices bowing together crest together, and at mf..f they crested
+  // seven decibels above the rest of the piece and took the limiter down
+  // with them - which pulled the drums and the melody down too, so the
+  // loudest passage arrived as the most congested one. What makes this the
+  // second time round is the bowing and the accents, not the level. Strip
+  // the dynamics out and `b2` would still be the more frightening of the
+  // two, because the chord under it will not hold still. It does not need
+  // to be louder as well, and the mix cannot afford it.
+  pad.floor dyn:mp..mf feel:loose pocket:20
+    | a3:32^ | g3:32^ |
+  pad.third dyn:mp..mf feel:loose pocket:20
+    | r:8 | c4:24!^ | r:8 | bb3:24!^ |
+  pad.fifth dyn:mp..mf feel:loose pocket:20
+    | r:16 | f4:16!^ | r:16 | eb4:16!^ |
+  pad.top dyn:mp..mf feel:loose pocket:20
+    | r:24 | c5:8!^ | r:24 | bb4:8!^ |
+  perc.fx dyn:f
+    | crash:4! |
+    | r:4 | % | % | % | % | % | % | % | % | % | % | % | % | % | % |
+  perc.drop dyn:f
+    | boom:4! |
+    | r:4 | % | % | % | % | % | % | % | % | % | % | % | % | % | % |
+  perc.feet dyn:mf feel:tight
+    | toll*4 |
+  perc.left dyn:f feel:tight
+    | three*4 |
+  perc.right dyn:f feel:tight
+    | r:4 r:3.75 hat_open:0.25 | % | % | % | % | % | % | % |
+  metal dyn:f feel:tight
+    | tolling2*4 |
+
+
+// The way out: back to D, the chord built once more under the melody's C,
+// which falls to A and rings off with the ride.
+section end bars:4
+  bass dyn:mf..p pocket:12
+    | d2:16 |
+  keys.root dyn:mf..p feel:loose pocket:6
+    | d4:16 |
+  keys.fifth dyn:mf..p feel:loose pocket:6
+    | r:1 a3:15 |
+  keys.raised dyn:mf..p feel:loose pocket:6
+    | r:2 g#3:14 |
+  keys.sixth dyn:mf..p feel:loose pocket:6
+    | r:3 b3:13 |
+  lead dyn:mf..p pocket:-8
+    | c5:3_ g#4:1 | a4:12 |
+  metal dyn:mf
+    | ride:4 | r:4 | r:4 | r:4 |
+  perc.drop dyn:mf
+    | boom:4! | r:4 | r:4 | r:4 |

@@ -1,0 +1,40 @@
+{
+  "library": "karoryfer.bigrustydrums",
+  "instruments": {
+    "basic": {
+      "layers": [
+        {
+          "sfz": "karoryfer.bigrustydrums/Programs/02-basic.sfz"
+        }
+      ],
+      "range": [
+        34,
+        58
+      ],
+      "bend_range": 1200,
+      "drums": {
+        "hat_return": 34,
+        "kick": 36,
+        "sidestick": 37,
+        "snare": 38,
+        "snare_edge": 39,
+        "rim": 40,
+        "hat": 42,
+        "tom_low": 43,
+        "hat_pedal": 44,
+        "tom_mid": 45,
+        "hat_open": 46,
+        "tom_high": 47,
+        "crash": 49,
+        "crash_choke": 50,
+        "ride": 51,
+        "ride_crash": 52,
+        "ride_bell": 53,
+        "hat_shank": 54,
+        "ride_choke": 55,
+        "hat_pedal_open": 56,
+        "hat_open_shank": 58
+      }
+    }
+  }
+}

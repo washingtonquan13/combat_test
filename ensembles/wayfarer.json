@@ -1,0 +1,191 @@
+{
+  "format": 2,
+  "id": "wayfarer",
+  "name": "Long Time Way",
+  "description": "A modern exploration ensemble for Long Time Way. Under everything, Tide: a pulsing synth bass sfizz generates itself, two detuned saws through a filter that ticks open on every sixteenth over a sine for the weight, made for an ostinato that never stops, doubled by plucked strings from Virtual Playing Orchestra - a solo double bass on the notes and a solo cello an octave up, both damped short - for the pulse the 1995 acoustic bass gave it; and beneath them Drift, a slow triangle bass that swells in on the held roots. Over them, Virtual Playing Orchestra's string sections, first violins and violas carrying the melody in thirds with Veil, the band ensemble's supersaw pad, shimmering behind the violins, and its mixed choir holding the chords, again with Veil underneath. Glass, the band ensemble's pluck, plays the one new line. The kit is Circuit, an electronic kit made from oscillators and noise, with a sub drop and a darkening wash for the section downbeats.",
+  "buses": {
+    "lead": {
+      "wet": 0.13
+    },
+    "keys": {
+      "space": "hall",
+      "wet": 0.26,
+      "predelay": 30.0
+    },
+    "bass": {
+      "wet": 0.09
+    },
+    "perc": {
+      "space": "hall",
+      "wet": 0.24,
+      "predelay": 16.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "vpo/violins",
+          "name": "violins"
+        },
+        {
+          "instrument": "synth/veil-pad",
+          "name": "shimmer",
+          "gain_db": -13.0,
+          "gain_source": "guessed",
+          "delay": 0.012,
+          "voices": 12
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "voices": 16,
+      "gain_source": "by-ear",
+      "gain_db": -7.0,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "lower": {
+      "family": "strings",
+      "bus": "lead",
+      "layers": [
+        {
+          "instrument": "vpo/violas",
+          "name": "violas",
+          "gain_db": -1.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "voices": 16,
+      "gain_source": "by-ear",
+      "gain_db": -7.0
+    },
+    "cry": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "synth/keen-lead",
+          "name": "keen",
+          "gain_db": 2.5,
+          "gain_source": "guessed",
+          "voices": 4
+        }
+      ],
+      "range": [
+        48,
+        96
+      ],
+      "voices": 16,
+      "gain_source": "by-ear",
+      "gain_db": -7.0,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "synth/glass-arp",
+          "name": "glass"
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -9.0
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "synth/tide-bass",
+          "name": "tide"
+        },
+        {
+          "instrument": "vpo/upright-pizz",
+          "name": "pluck",
+          "gain_db": -21.0,
+          "gain_source": "guessed",
+          "voices": 8
+        },
+        {
+          "instrument": "vpo/cello-pizz",
+          "name": "cellos",
+          "gain_db": -17.0,
+          "gain_source": "guessed",
+          "transpose": 12,
+          "voices": 8
+        }
+      ],
+      "range": [
+        24,
+        60
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": 6.0,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "root": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "synth/drift-sub",
+          "name": "drift",
+          "voices": 6
+        }
+      ],
+      "range": [
+        24,
+        60
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": 6.0
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-mixed",
+          "name": "choir"
+        },
+        {
+          "instrument": "synth/veil-pad",
+          "name": "veil",
+          "gain_db": -10.0,
+          "gain_source": "guessed",
+          "delay": 0.02
+        }
+      ],
+      "range": [
+        36,
+        84
+      ],
+      "voices": 32,
+      "gain_source": "by-ear",
+      "gain_db": -7.0,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "synth/circuit-kit",
+          "name": "circuit"
+        }
+      ],
+      "voices": 24,
+      "gain_source": "by-ear",
+      "gain_db": 0.0
+    }
+  }
+}

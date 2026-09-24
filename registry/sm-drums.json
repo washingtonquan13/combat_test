@@ -1,0 +1,84 @@
+{
+  "library": "sm-drums",
+  "description": "SM Drums, as five shaped programs - kick, snare, hats, toms, cymbals - that one drum map covers.",
+  "instruments": {
+    "kit": {
+      "layers": [
+        {
+          "name": "kick",
+          "sfz": "sm-drums/Programs/shaped-kick.sfz",
+          "take": {
+            "timing": 0.003,
+            "velocity": 3
+          }
+        },
+        {
+          "name": "snare",
+          "sfz": "sm-drums/Programs/shaped-snare.sfz",
+          "take": {
+            "timing": 0.004,
+            "velocity": 5
+          }
+        },
+        {
+          "name": "hats",
+          "sfz": "sm-drums/Programs/shaped-hats.sfz",
+          "take": {
+            "timing": 0.006,
+            "velocity": 7
+          }
+        },
+        {
+          "name": "toms",
+          "sfz": "sm-drums/Programs/shaped-toms.sfz",
+          "take": {
+            "timing": 0.005,
+            "velocity": 6
+          }
+        },
+        {
+          "name": "cymbals",
+          "sfz": "sm-drums/Programs/shaped-cymbals.sfz",
+          "take": {
+            "timing": 0.007,
+            "velocity": 6
+          }
+        }
+      ],
+      "range": [
+        36,
+        65
+      ],
+      "drums": {
+        "kick": 36,
+        "snare": 64,
+        "snare_dry": 52,
+        "sidestick": 37,
+        "rim": 65,
+        "hat": 42,
+        "hat_loose": 44,
+        "hat_open": 46,
+        "hat_pedal": 50,
+        "hat_pedal_open": 49,
+        "hat_open_close": 51,
+        "tom_floor": 43,
+        "tom_low": 45,
+        "tom_mid": 47,
+        "tom_high": 48,
+        "crash": 56,
+        "crash_small": 54,
+        "crash_mid": 55,
+        "crash_big": 57,
+        "china": 58,
+        "ride": 62,
+        "ride_bell": 63,
+        "ride_small": 60,
+        "ride_small_bell": 61,
+        "snare_hy1": 41,
+        "snare_hy2": 40,
+        "snare_hy3": 38,
+        "rim_hy": 39
+      }
+    }
+  }
+}

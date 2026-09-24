@@ -53,12 +53,9 @@ func _ready() -> void:
 func _on_visibility_changed() -> void:
 	if visible:
 		_continue_button.visible = SaveManager.most_recent() != ""
-		# play_track() no-ops when this is already the playing track (see
-		# music_manager.gd), so re-showing this screen without leaving it
-		# (a stray visibility_changed toggle) doesn't restart the intro.
-		var track: MusicTrack = MusicTrackDatabase.find("level_up_groovy")
-		if track:
-			MusicManager.play_track(track)
+		# The director does nothing when this piece is already playing, so
+		# a stray visibility_changed toggle does not restart it.
+		MusicManager.play_main_menu()
 
 
 ## NOT a pure screen change any more, and that is the point. This used to

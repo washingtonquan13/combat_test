@@ -1,0 +1,266 @@
+{
+  "format": 2,
+  "id": "tonewheel",
+  "name": "Tonewheel",
+  "description": "The palette for the walking parts of the setting: a district under occupation, a sealed ward, a road you are on for forty minutes. Measured against the MIDI of the era, those tracks are a rock band playing a machine part, with just enough church behind them to place it. The lead is now HamOrg's tonewheel organ at two registrations, the lower drawn full and dark and the upper thin and percussive a few milliseconds behind it, which is the organ sound of the idiom rather than the organ sound of a cathedral. The riff instrument is METAL-GTX, double-tracked hard left and right with the palm mute as its default articulation. Karoryfer's Swagbass holds the ostinato, the clavinet is the other keyboard, and the kit is the shaped sm-drums set - a real rock kit with a proper hat vocabulary - because the groove is the thing that was missing. The cathedral survives as colour, not as lead: Virtual Playing Orchestra's choir sits well under everything with a quiet flue rank beneath it, and the tubular bells and timpani are transposed clear of the kit's keys so one percussion role can hold a drum kit and a bell tower at once.",
+  "buses": {
+    "pad": {
+      "space": "hall",
+      "wet": 0.3,
+      "predelay": 30.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "hamorg/lead",
+          "name": "lower",
+          "gain_db": 0.0,
+          "gain_source": "guessed",
+          "defaults": {
+            "drawbar1": 127,
+            "drawbar2": 127,
+            "drawbar3": 127,
+            "drawbar4": 0,
+            "drawbar5": 0,
+            "drawbar6": 0,
+            "drawbar7": 0,
+            "drawbar8": 0,
+            "drawbar9": 0,
+            "percussion": 0
+          }
+        },
+        {
+          "instrument": "hamorg/lead",
+          "name": "upper",
+          "gain_db": -5.0,
+          "gain_source": "guessed",
+          "delay": 0.009,
+          "defaults": {
+            "drawbar1": 0,
+            "drawbar2": 0,
+            "drawbar3": 48,
+            "drawbar4": 127,
+            "drawbar5": 0,
+            "drawbar6": 111,
+            "drawbar7": 80,
+            "drawbar8": 80,
+            "drawbar9": 111,
+            "percussion": 127,
+            "pan": 58
+          }
+        }
+      ],
+      "range": [
+        36,
+        91
+      ],
+      "voices": 16,
+      "gain_source": "by-ear",
+      "gain_db": 5.0,
+      "defaults": {
+        "dynamics": 92,
+        "volume": 100,
+        "pan": 82,
+        "rotary": 0,
+        "attack": 0,
+        "release": 0
+      }
+    },
+    "guitar": {
+      "family": "guitar",
+      "layers": [
+        {
+          "instrument": "metal-gtx/head",
+          "name": "left",
+          "gain_db": 0.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.006,
+            "velocity": 6
+          },
+          "cabinet": "cab/jester-brutal/Impulses/48kHz/14_Cathode_Ray_Fleshburn.wav",
+          "defaults": {
+            "pan": 30
+          }
+        },
+        {
+          "instrument": "metal-gtx/head-turned",
+          "name": "right",
+          "gain_db": -1.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.006,
+            "velocity": 6
+          },
+          "cabinet": "cab/jester-brutal/Impulses/48kHz/12_World_Collider.wav",
+          "defaults": {
+            "pan": 98,
+            "picking": 92,
+            "vibrato_speed": 88
+          }
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -5.0,
+      "defaults": {
+        "volume": 100,
+        "pan": 64,
+        "vibrato_depth": 0,
+        "vibrato_speed": 95,
+        "mute_time": 51,
+        "long": 0,
+        "rel_shape": 40,
+        "rel_level": 108,
+        "interval_a": 19,
+        "interval_b": 82,
+        "resonance": 44,
+        "picking": 75,
+        "tension": 0,
+        "magnet": 64
+      },
+      "keyswitch_default": "mute"
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "clavinet/placed",
+          "name": "clavinet"
+        },
+        {
+          "instrument": "vpo/celesta",
+          "name": "celesta",
+          "gain_db": -18.0,
+          "gain_source": "guessed",
+          "delay": 0.008,
+          "velocity": [
+            92,
+            127
+          ],
+          "transpose": 12,
+          "voices": 12
+        }
+      ],
+      "range": [
+        29,
+        88
+      ],
+      "voices": 24,
+      "gain_source": "by-ear",
+      "gain_db": 8.0,
+      "defaults": {
+        "volume": 100,
+        "sustain": 0,
+        "pan": 48
+      }
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "standard-bass/amped",
+          "name": "picked",
+          "take": {
+            "timing": 0.005,
+            "velocity": 7
+          }
+        }
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -8.5,
+      "defaults": {
+        "volume": 100,
+        "pan": 64,
+        "vibrato_depth": 0,
+        "vibrato_speed": 95,
+        "mute_time": 127,
+        "rel_shape": 13,
+        "rel_level": 114,
+        "magnet": 64,
+        "sub": 100,
+        "slide_speed": 24
+      },
+      "keyswitch_default": "sustain_alt"
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-and-brass",
+          "name": "voices"
+        },
+        {
+          "instrument": "vsco2/organ-quiet",
+          "name": "flue",
+          "gain_db": -10.0,
+          "gain_source": "guessed",
+          "delay": 0.02,
+          "voices": 16,
+          "defaults": {
+            "pan": 52
+          }
+        }
+      ],
+      "range": [
+        43,
+        84
+      ],
+      "voices": 48,
+      "gain_source": "by-ear",
+      "gain_db": -29.0,
+      "defaults": {
+        "dynamics": 80,
+        "volume": 100,
+        "sustain": 0,
+        "legato_attack": 0,
+        "vibrato_depth": 10,
+        "pan": 64
+      }
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "sm-drums/kit"
+        },
+        {
+          "instrument": "vsco2/tubular-bells",
+          "name": "bells",
+          "gain_db": -4.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.006,
+            "velocity": 5
+          },
+          "transpose": -24,
+          "voices": 6
+        },
+        {
+          "instrument": "vsco2/timpani",
+          "name": "timpani",
+          "gain_db": -2.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.004,
+            "velocity": 4
+          },
+          "transpose": -68,
+          "voices": 6
+        }
+      ],
+      "range": [
+        36,
+        118
+      ],
+      "voices": 48,
+      "preload": 4096,
+      "gain_source": "guessed",
+      "gain_db": -1.5
+    }
+  }
+}

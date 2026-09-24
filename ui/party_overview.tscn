@@ -792,7 +792,7 @@ text = "Music"
 [node name="HSeparator" type="HSeparator" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
 layout_mode = 2
 
-[node name="MusicTrackList" type="ItemList" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+[node name="MusicAreaList" type="ItemList" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
@@ -801,13 +801,13 @@ size_flags_vertical = 3
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="PlayTrackButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
+[node name="PlayMusicButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Play"
 
-[node name="StopTrackButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
+[node name="StopMusicButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -818,12 +818,9 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Stopped."
 
-[node name="PositionSlider" type="HSlider" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+[node name="MusicStatsLabel" type="Label" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-max_value = 1.0
-step = 0.01
-editable = false
 
 [node name="AlignmentPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true

@@ -1,8 +1,8 @@
 class_name ResourceCatalog
 extends RefCounted
 ## Shared engine behind AbilityDatabase/AreaDatabase/DemonDatabase/
-## SpawnableUnitDatabase/ItemDatabase/MusicTrackDatabase/QuestDatabase/
-## SkillDatabase — all eight were the same "scan a data folder once, cache
+## SpawnableUnitDatabase/ItemDatabase/QuestDatabase/
+## SkillDatabase — all seven were the same "scan a data folder once, cache
 ## the results, expose all()/find()" idiom copy-pasted with a different
 ## directory and a different id field each time. Each database keeps its
 ## own file (class_name, static wrapper functions, its own DIR const) so
@@ -55,7 +55,7 @@ extends RefCounted
 ## The id extractor Callable takes the freshly `load()`ed Resource and
 ## returns its id (whatever field the caller's find() is keyed on —
 ## ability_name, skill_name, or an id property of varying type: String
-## for UnitDefinition/MusicTrack/Quest, StringName for AreaDefinition/
+## for UnitDefinition/Quest, StringName for AreaDefinition/
 ## ItemDefinition) or "" / null to mean "skip this file" — the same job
 ## the original `load(path) as ConcreteType` + `if concrete:` guard did,
 ## just moved into the caller since this file has no compile-time

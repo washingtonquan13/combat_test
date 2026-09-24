@@ -1,0 +1,37 @@
+{
+  "library": "karoryfer.swagbass",
+  "instruments": {
+    "placed": {
+      "layers": [
+        {
+          "sfz": "karoryfer.swagbass/swagbass-placed.sfz"
+        }
+      ],
+      "range": [
+        21,
+        84
+      ],
+      "bend_range": 1200,
+      "controls": {
+        "volume": 7,
+        "pan": 10
+      }
+    },
+    "shiny": {
+      "layers": [
+        {
+          "sfz": "karoryfer.swagbass/swagbass_shiny.sfz"
+        }
+      ],
+      "range": [
+        21,
+        84
+      ],
+      "bend_range": 1200,
+      "controls": {
+        "volume": 7,
+        "pan": 10
+      }
+    }
+  }
+}

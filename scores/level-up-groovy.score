@@ -1,0 +1,166 @@
+// Level Up Groovy - a faithful transcription of the owner's own piece
+// (combat_test/assets/audio/level_up_groovy_ver3.wav, made in Suno), taken
+// from its stems. No MIDI existed; every note here was read off the audio by
+// pitch detection and then cleaned by hand, so a note that sounds wrong
+// against the original is more likely a transcription error than a choice.
+//
+// What the stems measure: 104.9 BPM in 4/4, an 8-bar loop, E Dorian.
+//
+//   Em9  Dmaj9  Cmaj9  Dmaj9  |  Em7  Dmaj7  Em/A  C6/9
+//
+// The synth is one running line of sixteenths, every note joined to the
+// next - the stem has no attack on any of them. Its signature is a scale
+// falling in pairs - F#6 G6, E6 F#6, D6 E6 ... - that starts in bars 1, 3
+// and 5 and in bars 1-2 and 5-6 runs straight on across the barline. Bars 4
+// and 7 answer it with held notes that slide up (F# to A, G through G# to
+// A). The pad under it holds the chords the run passes through.
+//
+// The drums are four on the floor with a backbeat and quiet hats. The hats
+// drop out for bars 6 and 7 and come back on the turnaround; the intro is
+// the same music with only a light kit, and the outro is the falling run
+// once more, down two octaves onto E.
+
+title: Level Up Groovy
+ensemble: groovy
+parts: lead bass pad choir perc
+tempo: 104.9
+meter: 4/4
+key: e minor
+order: intro [loop] end
+
+section loop bars:8
+  lead dyn:mf feel:tight shape:light
+    // Em9 - the run, falling in pairs
+    | f#6:0.25~ g6:0.25~ e6:0.25~ f#6:0.25~ d6:0.25~ e6:0.25~ c6:0.25~ d6:0.25~ b5:0.25~ c6:0.25~ a5:0.25~ b5:0.25~ g5:0.25~ a5:0.25~ f#5:0.25~ g5:0.25~ |
+    // Dmaj9 - it carries on down in pairs without a break, then the A5 pickup
+    | e5:0.25~ f#5:0.25~ d5:0.25~ e5:0.25~ c5:0.25~ d5:0.25~ b4:0.25~ c5:0.25~ a4:0.25~ b4:0.25~ g4:0.25~ a4:0.25~ f#4:0.25~ g4:0.25~ e4:0.25~ a5:0.25~ |
+    // Cmaj9 - the run again, a step lower
+    | e6:0.25~ f#6:0.25~ d6:0.25~ e6:0.25~ c6:0.25~ d6:0.25~ b5:0.25~ c6:0.25~ a5:0.25~ b5:0.25~ g5:0.25~ a5:0.25~ f#5:0.25~ g5:0.25~ e5:0.25~ g5:0.25~ |
+    // Dmaj9 - no stabs: F#5 held two beats, sliding up into an A5 held to the barline
+    | f#5:2/ a5:2~ |
+    // Em7 - the run from the top, an octave higher than bar 3
+    | c7:0.25~ d7:0.25~ b6:0.25~ c7:0.25~ a6:0.25~ b6:0.25~ g6:0.25~ a6:0.25~ f#6:0.25~ g6:0.25~ e6:0.25~ f#6:0.25~ d6:0.25~ e6:0.25~ c6:0.25~ d6:0.25~ |
+    // Dmaj7 - and on down in pairs without a break, then A into a G tied over the barline
+    | b5:0.25~ c6:0.25~ a5:0.25~ b5:0.25~ g5:0.25~ a5:0.25~ f#5:0.25~ g5:0.25~ e5:0.25~ f#5:0.25~ d5:0.25~ e5:0.25~ c5:0.25~ d5:0.25~ a5:0.25~ g5:4.25/ |
+    // Em/A - that G, arriving a sixteenth early and held right through the bar, sliding up through G# into bar 8's A
+    // C6/9 - A alone, held the whole bar (the D under it in the stem is the bass)
+    | a5:4~ |
+
+  // Two pads, not one. The stem's side channel is almost all pad, and it
+  // holds one chord a bar, level to within a decibel or two, with content
+  // both low and high - so this is a synth holding the chord underneath and
+  // voices singing it above, each its own part.
+  pad dyn:mp feel:tight
+    | [e3 g3 b3 d4]:4 | [d3 f#3 a3 d4]:4 | [c3 e3 g3 b3]:4 | [d3 f#3 a3 d4]:4 |
+    | [e3 g3 b3 d4]:4 | [d3 f#3 a3 c#4]:4 | [b2 e3 g3 b3]:4 | [d3 e3 a3 d4]:4 |
+
+  // The voices sit as high as the choir is sampled: above C6 there are no
+  // samples, and a note written higher folds an octave down and lands under
+  // the chord instead of on top of it.
+  choir dyn:mp feel:tight
+    | [d5 g5 b5]:4 | [f#5 a5 d6]:4 | [g5 b5 e6]:4 | [f#5 a5 d6]:4 |
+    | [d5 g5 b5]:4 | [f#5 a5 c#6]:4 | [g5 b5 e6]:4 | [e5 a5 d6]:4 |
+
+  // Written in bass notation, as the ensemble's samples are named: e2 is the
+  // open low E. Taken from the bass stem sixteenth by sixteenth, two pitch
+  // readings agreeing on each: an unbroken run of sixteenths on the root,
+  // an octave pop on beat 2, a walk up the chord on beat 3 (E F# G B), and
+  // the root and its octave to close the bar. Bar 5 is bar 1 again - the
+  // loop stem's own bar 5 is masked by noise at 11 s, and the intro plays it
+  // clean. Bar 7 is a straight pedal on A; bar 8 sits an octave up on C and
+  // steps back down to E.
+  bass dyn:mf feel:tight shape:light
+    | e2:0.5 e2:0.5 e3:0.5 e2:0.25 e2:0.5 f#2:0.25 g2:0.25 b2:0.25~ e2:0.25 e2:0.25 e3:0.5 |
+    | d2:1 d3:0.75 d2:0.25 d2:0.25 d2:0.25 d2:0.5 d2:0.25 d2:0.75 |
+    | c2:0.5 c2:0.5 c3:0.5 c2:0.25 c2:0.5 b2:0.25 a2:0.25 a2:0.25 c2:0.25 c2:0.25 c3:0.25 e3:0.25 |
+    | d3:0.5 d2:0.5 d3:0.75 d2:0.25 f#2:0.25 g2:0.75 f#2:1 |
+    | e2:0.5 e2:0.5 e3:0.5 e2:0.25 e2:0.5 f#2:0.25 g2:0.25 b2:0.25~ e2:0.25 e2:0.25 e3:0.5~ |
+    | d3:0.5 d2:0.5 d3:0.75 d2:0.25 e2:0.25 e2:0.25~ f#2:0.25 e2:0.25 e2:0.25 e2:0.25 e2:0.25 d2:0.25 |
+    | a2:0.75 a2:0.5 a2:0.25 a2:0.75 a2:0.5 a2:0.75 a2:0.25 b2:0.25 |
+    | c3:0.75 c3:0.5 c3:0.25 c3:0.75 c3:0.5 c3:0.25 e3:0.25 d3:0.25 c3:0.5 |
+
+  perc.feet dyn:mf feel:tight
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:0.75 kick:0.25 kick:0.25 kick:0.75 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:0.75 kick:0.25 kick:0.25 kick:0.75 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:0.25 kick:0.75 |
+    | kick:1! kick:1 kick:1 kick:0.25 kick:0.25 kick:0.25 kick:0.25 |
+  perc.hands dyn:mf feel:tight
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:0.75! snare:0.25. |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:0.75! snare:0.25. |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:0.5! snare:0.25. snare:0.25. |
+  // Sixteenths right through, not eighths: every sixteenth of the stem's
+  // top band has a hat in it. The accents are where it is loudest, and
+  // the soft one on beat 3 is ten decibels under its neighbours.
+  perc.hats dyn:mp feel:tight
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+    | hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25! hat:0.25! hat:0.25. hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. hat:0.25! hat:0.25. |
+
+// The same music with a light kit: a kick on each bar, hats, and a fill
+// into the loop.
+section intro bars:8 from:loop
+  // The intro's bass is the loop's with its own turns: a walk up to G
+  // in bar 2, C-B-C in bar 3, G then B-Bb into the A in bar 6, and a step
+  // down to B before the loop comes in.
+  bass dyn:mf feel:tight shape:light
+    | e2:0.5 e2:0.5 e3:0.25 e3:0.25~ e2:0.25 e2:0.5 f#2:0.25~ g2:0.25 b2:0.25~ e2:0.25 e2:0.25 e3:0.5 |
+    | d2:0.75 d2:0.25 d3:0.25 d3:0.5 d2:0.25 e2:0.25 f#2:0.5 g2:0.25 f#2:0.25 e2:0.25 d2:0.25 d2:0.25 |
+    | c2:0.5 c2:0.25 c2:0.25 c3:0.25 c2:0.25 c2:0.75 b2:0.5 c3:0.25 c3:0.25 c2:0.25 c3:0.5 |
+    | d3:0.5~ d2:0.25 d2:0.25 d3:0.75 d2:0.25 f#2:1 f#2:0.25 f#2:0.75 |
+    | e2:0.5 e2:0.5 e3:0.25 e3:0.25~ e2:0.25 e2:0.5 f#2:0.25~ g2:0.25 b2:0.25~ e2:0.25 e2:0.25 e3:0.5 |
+    | d3:0.5 d2:0.25 d2:0.25 d3:0.25 d3:0.5 d2:0.25 g2:0.75 g2:0.25 e2:0.5 b2:0.25 a#2:0.25 |
+    | a2:0.75 a2:0.5 a2:0.25 a2:0.75 a2:0.5 a2:0.5 a2:0.25 b2:0.25 b2:0.25 |
+    | c3:0.75 c3:0.5 c3:0.25 c3:0.75 b2:0.5 b2:0.25 b2:0.25 c3:0.25 c3:0.5 |
+  // The drums are the loop's, hit for hit: the intro stem is four on the
+  // floor, the backbeat on 2 and 4, and sixteenth hats with the soft one on
+  // beat 3 - and it sits at the loop's own level, within half a decibel bar
+  // for bar. There is no crash at the top either; the cymbal band is as flat
+  // across bar 1 as across bar 7. from:loop already copies those three lanes,
+  // so the way to play them is to write nothing here.
+
+// The run once more, down two octaves onto E, over a low E left to ring.
+section end bars:3
+  lead dyn:mf..ppp feel:tight shape:light
+    // The run from F#6, falling in pairs as in the loop
+    | f#6:0.25~ g6:0.25~ e6:0.25~ f#6:0.25~ d6:0.25~ e6:0.25~ c6:0.25~ d6:0.25~ a5:0.25~ b5:0.25~ f#5:0.25~ g5:0.25~ e5:0.25~ f#5:0.25~ d5:0.25~ e5:0.25~ |
+    // on down, turning at the bottom on B3 D4 A3 B3
+    | b4:0.25~ c5:0.25~ a4:0.25~ b4:0.25~ g4:0.25~ a4:0.25~ f#4:0.25~ g4:0.25~ e4:0.25~ f#4:0.25~ d4:0.25~ e4:0.25~ b3:0.25~ d4:0.25~ a3:0.25~ b3:0.25~ |
+    // landing on G3, one note left to fade (the E above it in the stem is the pad)
+    | g3:4 |
+  // The outro's side channel holds one chord, E G B D with an F# in it, for
+  // all three bars, fading out. The pad and the choir hold it, in their own registers.
+  pad dyn:mp..pp
+    | [e3 g3 b3 d4]:12~ | | |
+
+  choir dyn:mp..pp
+    | [d5 g5 b5]:12~ | | |
+  // One unbroken note for the whole outro: the stem pitch-traces as a single
+  // held E from the first bar to the last, with no second pluck in it. It is
+  // an E1 there, an octave below this - Standard Bass stops at b1, so this E2
+  // and the role's Sub_Bass is as low as the library goes. It fades with the
+  // rest of the band; written flat it was the one lane still at full strength.
+  bass dyn:mf..pp feel:tight
+    | c3:0.25 a2:0.25 e2:11.5 |
+  // The whole outro is one hit - crash and kick together on the downbeat,
+  // and then three bars of it ringing. What reads as a snare roll after it is
+  // the crash's own body: every band falls from the first frame on, and the
+  // loudest sample in the stem is that downbeat.
+  perc.feet dyn:f feel:tight
+    | kick:1! r:3 | r:4 | r:4 |
+
+  perc.hats dyn:f feel:tight
+    | crash:1! r:3 | r:4 | r:4 |

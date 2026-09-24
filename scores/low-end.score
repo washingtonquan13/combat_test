@@ -1,0 +1,745 @@
+// Low End - guitar, bass and a kit on one riff, with three synths layered on as it goes.
+//
+// Written in bass notation: e2 is the open low E, sounding an octave below
+// the page, which is also how Standard Bass names its samples. The library
+// is a five-string, so b1 is there, and the riff uses the notes below E for
+// weight.
+//
+// How it is built, because a riff that flows is not an accident:
+//
+// Harmony first. Eight bars, two four-bar phrases, one chord a bar:
+//
+//   Em  C   D   B7   |   Em  C   Am  B7  -> Em
+//   i   VI  VII V    |   i   VI  iv  V
+//
+// B is the major V from E harmonic minor. Its D# is the leading tone, a half
+// step under E, and that pull home is most of what makes this sound like
+// Megami Tensei and not generic rock. The first phrase ends on V, a question;
+// the second ends on V too, but the turnaround climbs chromatically into the
+// downbeat of E, so the loop answers itself every time it comes round.
+//
+// One motif. Every bar opens with the same two-beat cell on its chord root:
+//
+//   ROOT (dotted eighth, accented)  ghost (muted sixteenth)  OCTAVE (short pop)  root
+//
+// Repetition is what lets a listener lock on. Beats 3 and 4 then change every
+// bar, and they are never decoration: they walk to the next chord's root, by
+// step or by half step. Bar 1 ends on D going to C, bar 2 on C# going to D,
+// bar 3 on C going down to B. That walk is the flow - every bar leans into the
+// next one instead of stopping at the barline.
+//
+// Slides. A slide is how a bass player gets between two frets without
+// picking again, so it belongs where the line already moves by step into a
+// new chord - it joins the two bars into one gesture. It goes on four of the
+// eight changes, not all of them: D to C, C to B, F# to E and Bb to A, all
+// sliding down into the new root. The chromatic lead-ins that climb (C# to D,
+// the final C C# D D# to E) stay picked, because those are meant to push, and
+// a slide would smooth them away. One scoop lifts into the high e3, and the
+// ending falls off the neck.
+//
+// Contour. Phrase one stays low and climbs to the B7 arpeggio (B D# F# A),
+// the only bar that reaches up. Phrase two goes higher (Am up to e3), then the
+// turnaround drops a tenth to low B and climbs back C C# D D# into E, the
+// biggest gesture in the riff, saved for the end of the loop.
+//
+// Variations. A riff played four times the same way stops being heard, so
+// the form is  riff - answer - drive - riff - end, over the same eight chords
+// every time. Change follows one rule: the first bar of each phrase is kept,
+// so the listener always knows where they are, and the variation grows
+// toward the phrase end, where the ear expects something to happen.
+//
+//   answer  the riff, reworded. Bars 1, 3 and 6 are as they were. Bar 2 moves
+//           the octave pop onto the offbeat; bar 4 fills the B7 with a b9 (C)
+//           before it steps down; bar 5 hammers G onto A and slides home; bar 7
+//           reaches F, the flat second of E - the darkest note in the key -
+//           before falling back; bar 8 climbs chromatically in octave jumps.
+//   drive   the same chords in straight eighths on the root, ghosts pushing
+//           beats 1 and 3, the octave on beat 2. Nothing melodic - it is the
+//           riff's engine with the tune taken out, so the tune coming back
+//           afterward sounds like an arrival. Each bar still ends on a note
+//           that walks into the next root.
+//
+// Pocket. Where the line sits against the beat changes with what the section
+// is for. The riff plays on the beat. The answer lays back - it is the
+// reflective half, the one with the dark F in it, and behind the beat is
+// where a line sounds heavy. The drive pushes ahead, which is what makes
+// straight eighths urgent instead of mechanical. Then the riff returns on the
+// beat, and after the push that reads as landing.
+
+// Drums. The kit is written as three voices - right hand, left hand, feet -
+// because that is what a drummer is, and because a hi-hat over a kick is two
+// things at once. What it plays follows from the bass and the form, never
+// from a stock beat:
+//
+//   The kick is the bass's other half. Every kick lands on a bass note, and
+//   mostly on the ones that carry weight: the accented root on 1, the root's
+//   return on the "and" of 2, the start of the walk on 3. It never doubles a
+//   muted ghost, so the ghosts stay ghosts. Where the bass picks a chromatic
+//   approach into the next bar (C# into D), the kick pushes with it.
+//
+//   The snare ghosts on the "a" of 1 and 3, the same sixteenth the bass mutes
+//   - the two instruments share the riff's one syncopation instead of
+//   competing over it.
+//
+//   Cymbals mark the hypermeter. Eight-bar sections are two four-bar
+//   phrases, and bar 1 outranks bar 5, so bar 1 gets the big crash and bar 5
+//   the smaller one. Fills scale with the boundary they cross: one beat at
+//   the end of a phrase, two at the end of a section.
+//
+//   Each fill is the bass's gesture, played on drums. Bar 4's toms fall
+//   high to low as the B7 arpeggio falls back to E. Bar 8's snare runs in
+//   sixteenths and gets louder under the chromatic climb, with a kick on
+//   every climbing note. In the answer, the climb jumps octaves, so the fill
+//   alternates floor tom and high tom - low string, high string.
+//
+//   Each section has its own groove, chosen for what the section does. The
+//   riff is a rock backbeat on the hats. The answer goes half-time on the
+//   ride, with the snare on 3 only: it lays back, and half-time is the
+//   heaviest way to play the same tempo. The drive is four on the floor with
+//   open hats on every offbeat, the dance-rock engine under Persona's
+//   battle themes, and it moves to the china to sound like a different room.
+
+// Guitar. Double-tracked - two takes panned apart - through the amp in
+// tools/build_guitar_sfz.py.
+//
+//   Power chords, root and fifth and octave, never a third. Distortion adds
+//   the sum and difference of every pair of notes it is given: a fifth's
+//   difference tone is the root an octave down, which only makes the chord
+//   bigger, while a third's is a note outside the chord. So the guitar
+//   plays the progression's roots and fifths, and the bass and the B7's
+//   leading tone carry the quality of each chord.
+//
+//   The groove is the 3-3-3-3-2-2 grouping of the bar's sixteen sixteenths:
+//   chords on 1, the "a" of 1, the "and" of 2, the "e" of 3, then 4 and its
+//   "and". Four groups of three against a beat of four is a small
+//   polyrhythm - a dotted-eighth pulse fighting the bar - and the two
+//   groups of two put it back on the grid in time for the next downbeat.
+//   Tension and release, every bar. The first three accents land with the
+//   bass's motif and the kick; the fourth pulls against the bass's straight
+//   walk. Between the accents, palm-muted chugs on the root keep the
+//   sixteenths moving, and the rest on beat 2 leaves the snare alone.
+//
+//   Each section's part follows its drums. In the answer the guitar goes
+//   half-time too - long chords that ring, so the bass's reworded line is
+//   the thing in front. In the drive it plays the bass's own gallop, chords
+//   on its accents: rhythmic unison is the loudest thing three instruments
+//   can do together. At the end of every section all three climb in unison,
+//   C C# D D# into E, since a boundary is where a band plays as one.
+
+// Synths. Both are sfizz's own oscillators - samples/synth/ - and they arrive
+// one at a time, so the form is additive: the first riff is the band alone,
+// the answer adds the pad, the drive adds the arpeggio, and the reprise is
+// the first riff again, note for note (`from:riff`), with both on top. The
+// ear hears the same eight bars get bigger, which is the whole trick of a
+// Kozuka battle loop.
+//
+//   The pad is where the chords get their quality. The guitar has no thirds
+//   and the bass walks, so the pad holds the third, the seventh and the
+//   leading tone, voiced between F#3 and E4 - above the guitar's chords,
+//   below the arpeggio - and led like four-part harmony: G B E, G C E
+//   (B up a half step to C), F# C D (a D7 - the F#-C tritone wants to
+//   resolve, and does, onto B and D#), then F# B D#. The second phrase
+//   swaps D for Am and closes on A B D#, a B7 with the fifth left out so the
+//   A can fall to G and the D# rise to E - the two half steps that make a
+//   dominant resolve. Bars 4 and 8, the turnarounds, swell into the downbeat.
+//
+//   The arpeggio plays the guitar's groove, not its own. Sixteenths in cells
+//   of three - root, third or fifth, octave - grouped 3-3-3-3-2-2 with an
+//   accent on each group, so the pluck's accents land exactly on the
+//   guitar's chords and the polyrhythm is doubled an octave and a half up.
+//   The last bar's second half joins the unison climb in octaves.
+//
+//   The end chord adds F#, the ninth, over E and B: Em(add9), a minor chord
+//   that does not sound finished - the loop's colour, kept to the last.
+
+// The hook. A third synth, Wire (samples/synth/wire-lead.sfz), sings a
+// melody over the reprise only - the last layer of the additive form, and
+// the one the ear takes away. It replaces nothing: under it the reprise is
+// still the first riff, note for note.
+//
+//   It is made of the riff. Bar 1 is the bass's own opening walk, E G A G,
+//   lifted two octaves and given the guitar's dotted-eighth pulse (onsets at
+//   0, 0.75, 1.5 and 2.25 beats - the 3-3-3-3 of the guitar's groove), so the
+//   hook and the riff are heard as one idea at two heights. Bar 3 is the
+//   same shape a step up over D - a sequence, the oldest way to make a
+//   melody memorable: the ear learns bar 1 and then recognises bar 3.
+//   Bar 5 repeats bar 1 exactly, so the second phrase starts where the
+//   first did.
+//
+//   Long notes land on the chord tones that give the chords their colour,
+//   which the guitar leaves out: E, the third of C, in bar 2; D#, the
+//   leading tone, held under the B7 in bars 4 and 8. Short notes move by
+//   step between them.
+//
+//   The second phrase borrows the answer's darkness. Bar 6 falls B Bb into
+//   A with the bass, a chromatic line in octaves. Bar 7 is the peak - up to
+//   C6 over Am - and on the way down it touches F, the flat second, the
+//   note the answer made the darkest in the key. Bar 8 holds D# and then
+//   joins the band's unison climb, C C# D D# into E, so at the section's
+//   end every instrument plays the same gesture.
+//
+//   Then the whole form again. The second time through (riff2 to reprise2)
+//   the riff and the answer are varied around their fixed melodies - see
+//   the sections themselves - and the drive leaves the hint out - the ear knows
+//   the hook by then, and a fragment of something already heard in full is
+//   only a delay - so the second drive is the band and the arpeggio alone,
+//   and the hook's return lands straight out of it.
+//
+//   The last reprise is the only new music: twin leads. A second voice plays
+//   the hook in harmony, mostly a diatonic third above, the way two guitars
+//   harmonise a melody in a Kozuka finale - the tune enhanced, not replaced.
+//   Thirds in E harmonic minor move between major and minor as the scale
+//   dictates, and over D the upper voice takes C natural, the D7's seventh,
+//   which the pad is already holding. Where the melody moves quickly by step
+//   against a long chord (bar 2, the B7 of bar 4) the harmony holds a chord
+//   tone and lets the melody move under it, rather than chase it in
+//   parallel. Bar 6 holds D over the melody's chromatic B Bb, then both fall
+//   to the Am of bar 7, whose peak the harmony tops with E6. In the last bar
+//   the voices split: the harmony holds F#, the B7's fifth, then climbs with
+//   the band an octave above the melody.
+//
+//   A hint comes first. In the drive, twice, the lead plays only bar 1's
+//   four notes, quietly, and stops. Heard there it is a fragment; heard in
+//   full over the reprise it is an arrival, the answer to something the ear
+//   has already been given.
+//
+//   It loops. In a game this is a piece that plays until the player moves
+//   on, so the whole form is in brackets and `end` is the way out. The join
+//   is one the piece already makes: the last reprise ends on the band's
+//   climb to D#, the leading tone over B7, and the riff starts on E - the
+//   dominant resolving to the tonic, every time round.
+
+// The bridge. By the first reprise the loop has played the same eight
+// chords four times over, and everything has been added that can be added.
+// So the one new section takes things away, and it goes somewhere the
+// piece has not been, without leaving its key's darkness:
+//
+//   Harmony. The reprise's climb ends on D#, the leading tone, and every
+//   other time it lands on E. Here it lands on C - a deceptive cadence, V
+//   to bVI, the ear told home is coming and given the dark side of it
+//   instead. From there the bass falls by half steps, C B Bb A: a lament
+//   line, the oldest sound of grief, and the opposite of the riff, whose
+//   lines all climb. The chords over it are C, G/B, then G minor over Bb -
+//   the same chord darkened, the Bb being the tritone of E - and Am. Then
+//   Fmaj7, F being E's flat second, the answer's darkest note made into a
+//   whole chord for two bars, and B7sus4 resolving to B7 to go home.
+//
+//   Texture. A breakdown. The guitar plays one chord to mark the landing and
+//   leaves; the drums are a kick on 1, a sidestick on 3 and a small ride
+//   counting quarters, all quiet. The bass leaves its riff register and
+//   holds long notes an octave up. The arpeggio slows to eighths. That
+//   leaves the pad and the lead in front for the first time.
+//
+//   The lead gets a melody of its own, slow where the hook is busy - long
+//   notes that move when the chord does. It enters on E, the climb's D#
+//   resolving the way a lead line should even as the chord under it
+//   refuses to. Bars 2 and 3 are the same phrase a half step apart, B A G
+//   and Bb A G, so the G minor is heard as the major chord turning. Over
+//   the F it holds E, the major seventh, then touches B, the tritone.
+//
+//   The build. Bars 7 and 8 bring the band back: palm-muted eighths on B,
+//   hats, the snare in eighths then sixteenths, all four drum voices
+//   getting louder across the section, and bar 8 is the riff's own last
+//   bar - the climb, C C# D D#, in unison - so riff2 arrives exactly as the
+//   riff always has. The loop goes riff answer drive reprise, the bridge,
+//   then the whole first half again with the twin leads to finish.
+
+// The ending. `end` is the way out of the loop, and a game can take it at
+// the end of a pass, at the next section or at the next bar - so it has to
+// land from anywhere. It does that by starting where everything already
+// points: a hit on E, the tonic, on a downbeat. After the last reprise that
+// is the climb's D# resolving; cut in mid-riff it is the band stopping dead
+// on the key.
+//
+// Then nothing new. The chord is the loop's own dark one, Em(add9), with no
+// cadence and no turn to major: the piece has been in E minor the whole
+// time, and an ending that suddenly celebrates would change what it was.
+// The band hits once and lets it ring for two bars; the lead holds E and
+// falls off it; and over the decay the arpeggio plays the hook's first four
+// notes, E G A G, quietly - the hint from the drive, heard once more as the
+// thing the room is left with. It stops on G, the minor third.
+
+title: Low End
+ensemble: band
+parts: lead harmony:lead@lead guitar keys bass pad perc
+tempo: 150
+meter: 4/4
+key: e minor
+order: [riff answer drive reprise bridge riff2 answer2 drive2 reprise2] end
+
+section riff bars:8
+  bass dyn:mf..f feel:tight art:marcato
+    // Roots and octaves under the guitar's power chords, locked to the kick
+    // on 1 and the and of 2. No thirds: the guitar has no third either, and
+    // the open fifth is what keeps the harmony from settling.
+    | e2:0.5! e2:0.5 e1:0.5! e2:0.5 b2:0.5 e2:0.5 e1:0.5! e2:0.5/ |
+    // C - the same figure moved, because the riff is the thing that repeats
+    | c2:0.5! c2:0.5 c1:0.5! c2:0.5 g2:0.5 c2:0.5 c1:0.5! c2:0.5/ |
+    // D - and again; the fifth is the only note that is not the root
+    | d2:0.5! d2:0.5 d1:0.5! d2:0.5 a2:0.5 d2:0.5 d1:0.5! d2:0.5/ |
+    // B - the tritone against it, Bb, taken as a stab on the way back to E
+    // rather than a walk: the dominant is coloured, never resolved politely
+    | b1:0.5! b1:0.5 b1:0.5 f#2:0.5 b1:0.5! bb1:0.5! b1:0.5 b1:0.5/ |
+    // Em - unchanged, so the figure is recognised
+    | e2:0.5! e2:0.5 e1:0.5! e2:0.5 b2:0.5 e2:0.5 e1:0.5! e2:0.5/ |
+    | c2:0.5! c2:0.5 c1:0.5! c2:0.5 g2:0.5 c2:0.5 c1:0.5! c2:0.5/ |
+    // Am - the lift, still roots and fifths
+    | a1:0.5! a1:0.5 a2:0.5! a1:0.5 e2:0.5 a1:0.5 a2:0.5! a1:0.5/ |
+    // The turn: sixteenths on B, then the guitar's own chromatic climb
+    // C C# D D# doubled underneath it, driving into the next E
+    | b1:0.25! b1:0.25 b1:0.25 b1:0.25 b1:0.5 b2:0.5! c2:0.5! c#2:0.5! d2:0.5! d#2:0.5! |
+
+  guitar dyn:mf..f feel:tight art:marcato
+    | [e2 b2 e3]:0.5! e2:0.25+ [e2 b2 e3]:0.25! r:0.25 e2:0.25+ [e2 b2 e3]:0.25! e2:0.25+ e2:0.25+ [e2 b2 e3]:0.25! e2:0.25+ e2:0.25+ [e2 b2 e3]:0.5! [e2 b2 e3]:0.25' r:0.25 |
+    | [c3 g3 c4]:0.5! c3:0.25+ [c3 g3 c4]:0.25! r:0.25 c3:0.25+ [c3 g3 c4]:0.25! c3:0.25+ c3:0.25+ [c3 g3 c4]:0.25! c3:0.25+ c3:0.25+ [c3 g3 c4]:0.5! [c3 g3 c4]:0.25' r:0.25 |
+    | [d3 a3 d4]:0.5! d3:0.25+ [d3 a3 d4]:0.25! r:0.25 d3:0.25+ [d3 a3 d4]:0.25! d3:0.25+ d3:0.25+ [d3 a3 d4]:0.25! d3:0.25+ d3:0.25+ [d3 a3 d4]:0.5! [d3 a3 d4]:0.25' r:0.25 |
+    | [b2 f#3 b3]:0.5! b2:0.25+ [b2 f#3 b3]:0.25! r:0.25 b2:0.25+ [b2 f#3 b3]:0.25! b2:0.25+ b2:0.25+ [b2 f#3 b3]:0.25! b2:0.25+ b2:0.25+ [b2 f#3 b3]:0.5! [b2 f#3 b3]:0.25' r:0.25 |
+    | [e2 b2 e3]:0.5! e2:0.25+ [e2 b2 e3]:0.25! r:0.25 e2:0.25+ [e2 b2 e3]:0.25! e2:0.25+ e2:0.25+ [e2 b2 e3]:0.25! e2:0.25+ e2:0.25+ [e2 b2 e3]:0.5! [e2 b2 e3]:0.25' r:0.25 |
+    | [c3 g3 c4]:0.5! c3:0.25+ [c3 g3 c4]:0.25! r:0.25 c3:0.25+ [c3 g3 c4]:0.25! c3:0.25+ c3:0.25+ [c3 g3 c4]:0.25! c3:0.25+ c3:0.25+ [c3 g3 c4]:0.5! [c3 g3 c4]:0.25' r:0.25 |
+    | [a2 e3 a3]:0.5! a2:0.25+ [a2 e3 a3]:0.25! r:0.25 a2:0.25+ [a2 e3 a3]:0.25! a2:0.25+ a2:0.25+ [a2 e3 a3]:0.25! a2:0.25+ a2:0.25+ [a2 e3 a3]:0.5! [a2 e3 a3]:0.25' r:0.25 |
+    | [b2 f#3 b3]:0.5! b2:0.25+ b2:0.25+ [b2 f#3 b3]:0.5' b2:0.25+ b2:0.25+ [c3 g3 c4]:0.5! [c#3 g#3 c#4]:0.5! [d3 a3 d4]:0.5! [d#3 a#3 d#4]:0.5! |
+
+  perc.right dyn:mf..f feel:tight
+    | crash_big:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. r:1 |
+    | crash:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. r:2 |
+  perc.left dyn:mf..f feel:tight
+    | r:0.75 snare:0.25. snare:1! r:0.75 snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:1! r:0.75 snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:1! r:0.75 snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:1! r:1 snare:0.25! tom_high:0.25 tom_mid:0.25 tom_floor:0.25 |
+    | r:0.75 snare:0.25. snare:1! r:0.75 snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:1! r:0.75 snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:1! r:0.75 snare:0.25. snare:1! |
+    | r:0.5 snare:0.25. snare:0.25. snare:1! snare:0.25. snare:0.25. snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25! snare:0.25! |
+  perc.feet dyn:mf..f feel:tight
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:1.5 kick:0.5 |
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+
+  // Barely there, and two notes only: the third and the seventh, which is
+  // all the guitar's fifths leave unsaid. It is the room the riff is played
+  // in rather than a part, and it has somewhere to grow to in `answer`.
+  pad dyn:ppp..pp
+    | [g3 e4]:8 | [g3 e4]:8 |
+    | [f#3 d4]:8 | [f#3 d#4]:8^ |
+
+// The riff, reworded. See "Variations" above.
+section answer bars:8
+  bass dyn:mf..f feel:tight pocket:lay art:marcato
+    // The same roots, said later and with more air: the octave lands on the
+    // and of 2 instead of the downbeat, so the figure leans back.
+    | e2:0.5! e2:0.5 e2:0.25+ e1:0.25! e2:0.5 b2:0.5 e2:0.5 e1:0.5! e2:0.5/ |
+    | c2:0.5! c2:0.5 c2:0.25+ c1:0.25! c2:0.5 g2:0.5 c2:0.5 c1:0.5! c2:0.5/ |
+    | d2:0.5! d2:0.5 d2:0.25+ d1:0.25! d2:0.5 a2:0.5 d2:0.5 d1:0.5! d2:0.5/ |
+    // B, and the tritone twice this time, a bar that will not settle
+    | b1:0.5! b1:0.5 f#2:0.5 b1:0.5 bb1:0.5! b1:0.5 bb1:0.5! b1:0.5/ |
+    | e2:0.5! e2:0.5 e2:0.25+ e1:0.25! e2:0.5 b2:0.5 e2:0.5 e1:0.5! e2:0.5/ |
+    | c2:0.5! c2:0.5 c2:0.25+ c1:0.25! c2:0.5 g2:0.5 c2:0.5 c1:0.5! c2:0.5/ |
+    // Am, the lift, with the fifth answered an octave up
+    | a1:0.5! a1:0.5 a2:0.5! a1:0.5 e2:0.5 e3:0.5' a2:0.5! a1:0.5/ |
+    // The turn, the climb doubled with the guitar, octaves on every step
+    | b1:0.25! b1:0.25 b2:0.25' b1:0.25 b1:0.5 b2:0.5! c2:0.5! c#2:0.5! d2:0.5! d#2:0.5! |
+
+  guitar dyn:mf feel:tight pocket:lay
+    | [e2 b2 e3]:1.5! [e2 b2 e3]:0.5' [e2 b2 e3]:2_ |
+    | [c3 g3 c4]:1.5! [c3 g3 c4]:0.5' [c3 g3 c4]:2_ |
+    | [d3 a3 d4]:1.5! [d3 a3 d4]:0.5' [d3 a3 d4]:2_ |
+    | [b2 f#3 b3]:1.5! [b2 f#3 b3]:0.5' [b2 f#3 b3]:2_ |
+    | [e2 b2 e3]:1.5! [e2 b2 e3]:0.5' [e2 b2 e3]:2_ |
+    | [c3 g3 c4]:1.5! [c3 g3 c4]:0.5' [c3 g3 c4]:2_ |
+    | [a2 e3 a3]:1.5! [a2 e3 a3]:0.5' [a2 e3 a3]:2_ |
+    | [b2 f#3 b3]:2! [c3 g3 c4]:0.5! [c#3 g#3 c#4]:0.5! [d3 a3 d4]:0.5! [d#3 a#3 d#4]:0.5! |
+
+  perc.right dyn:mf..f feel:tight pocket:lay
+    | crash_big:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. r:1 |
+    | crash:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 r:2.5 |
+  perc.left dyn:mf..f feel:tight pocket:lay
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1! tom_high:0.25 tom_mid:0.25 tom_low:0.25 tom_floor:0.25 |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1 snare:0.5! tom_floor:0.25 tom_high:0.25 tom_floor:0.25 tom_high:0.25 tom_floor:0.25 tom_high:0.25 tom_floor:0.25 tom_high:0.25 snare:0.5! |
+  perc.feet dyn:mf..f feel:tight pocket:lay
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. r:2 kick:0.5! |
+
+  pad dyn:p..mp
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [f#3 c4 d4]:4 | [f#3 b3 d#4]:4^ |
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [a3 c4 e4]:4 | [a3 b3 d#4]:4^ |
+
+// The engine: straight eighths on the root. See "Variations" above.
+section drive bars:8
+  bass dyn:f feel:tight pocket:push art:marcato
+    | e2:0.5! e2:0.25+ e2:0.25+ e2:0.5 e3:0.5' e2:0.5! e2:0.25+ e2:0.25+ b2:0.5 e2:0.5/ |
+    | c2:0.5! c2:0.25+ c2:0.25+ c2:0.5 c3:0.5' c2:0.5! c2:0.25+ c2:0.25+ g2:0.5 c2:0.5/ |
+    | d2:0.5! d2:0.25+ d2:0.25+ d2:0.5 d3:0.5' d2:0.5! d2:0.25+ d2:0.25+ a2:0.5 d2:0.5/ |
+    | b1:0.5! b1:0.25+ b1:0.25+ b1:0.5 f#2:0.5! b1:0.5! b1:0.25+ b1:0.25+ f#2:0.5 b1:0.5/ |
+    | e2:0.5! e2:0.25+ e2:0.25+ e2:0.5 e3:0.5' e2:0.5! e2:0.25+ e2:0.25+ b2:0.5 e2:0.5/ |
+    | c2:0.5! c2:0.25+ c2:0.25+ c2:0.5 c3:0.5' c2:0.5! c2:0.25+ c2:0.25+ g2:0.5 c2:0.5/ |
+    | a1:0.5! a1:0.25+ a1:0.25+ a1:0.5 a2:0.5' a1:0.5! a1:0.25+ a1:0.25+ e2:0.5 a1:0.5/ |
+    | b1:0.5! b1:0.25+ b1:0.25+ b2:0.5' b1:0.5 c2:0.5 c#2:0.5 d2:0.5 d#2:0.5! |
+
+  guitar dyn:f feel:tight pocket:push art:marcato
+    | [e2 b2 e3]:0.5! e2:0.25+ e2:0.25+ e2:0.5+ [e2 b2 e3]:0.5' [e2 b2 e3]:0.5! e2:0.25+ e2:0.25+ e2:0.5+ e2:0.5+ |
+    | [c3 g3 c4]:0.5! c3:0.25+ c3:0.25+ c3:0.5+ [c3 g3 c4]:0.5' [c3 g3 c4]:0.5! c3:0.25+ c3:0.25+ c3:0.5+ c3:0.5+ |
+    | [d3 a3 d4]:0.5! d3:0.25+ d3:0.25+ d3:0.5+ [d3 a3 d4]:0.5' [d3 a3 d4]:0.5! d3:0.25+ d3:0.25+ d3:0.5+ d3:0.5+ |
+    | [b2 f#3 b3]:0.5! b2:0.25+ b2:0.25+ b2:0.5+ [b2 f#3 b3]:0.5' [b2 f#3 b3]:0.5! b2:0.25+ b2:0.25+ b2:0.5+ b2:0.5+ |
+    | [e2 b2 e3]:0.5! e2:0.25+ e2:0.25+ e2:0.5+ [e2 b2 e3]:0.5' [e2 b2 e3]:0.5! e2:0.25+ e2:0.25+ e2:0.5+ e2:0.5+ |
+    | [c3 g3 c4]:0.5! c3:0.25+ c3:0.25+ c3:0.5+ [c3 g3 c4]:0.5' [c3 g3 c4]:0.5! c3:0.25+ c3:0.25+ c3:0.5+ c3:0.5+ |
+    | [a2 e3 a3]:0.5! a2:0.25+ a2:0.25+ a2:0.5+ [a2 e3 a3]:0.5' [a2 e3 a3]:0.5! a2:0.25+ a2:0.25+ a2:0.5+ a2:0.5+ |
+    | [b2 f#3 b3]:0.5! b2:0.25+ b2:0.25+ [b2 f#3 b3]:0.5' b2:0.25+ b2:0.25+ [c3 g3 c4]:0.5! [c#3 g#3 c#4]:0.5! [d3 a3 d4]:0.5! [d#3 a#3 d#4]:0.5! |
+
+  perc.right dyn:f feel:tight pocket:push
+    | china:0.5! hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 |
+    | hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 |
+    | hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 |
+    | hat:0.5. hat_open:0.5 hat:0.5. crash_small:0.5! hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 |
+    | china:0.5! hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 |
+    | hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 |
+    | hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 |
+    | hat:0.5. hat_open:0.5 hat:0.5. hat_open:0.5 r:2 |
+  perc.left dyn:f feel:tight pocket:push
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:1 snare:1! r:1 snare:1! |
+    | r:0.5 snare:0.25. snare:0.25. snare:1! snare:0.25. snare:0.25. snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25! snare:0.25! |
+  perc.feet dyn:f feel:tight pocket:push
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1.5! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+
+  pad dyn:mp..mf
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [f#3 c4 d4]:4 | [f#3 b3 d#4]:4^ |
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [a3 c4 e4]:4 | [a3 b3 d#4]:4^ |
+
+  // The hint: bar 1 of the hook, alone, twice. See "The hook" above.
+  lead dyn:mf feel:tight pocket:push
+    | e5:0.75 g5:0.75 a5:0.75 g5:0.75 r:1 | r:4 | r:4 | r:4 |
+    | e5:0.75 g5:0.75 a5:0.75 g5:0.75 r:1 | r:4 | r:4 | r:4 |
+
+  keys dyn:mp feel:tight pocket:push
+    | e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 b4:0.25! e5:0.25 b4:0.25! e5:0.25 |
+    | c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c5:0.25! e5:0.25 c5:0.25! e5:0.25 |
+    | d4:0.25! f#4:0.25 d5:0.25 d4:0.25! f#4:0.25 d5:0.25 d4:0.25! f#4:0.25 d5:0.25 d4:0.25! f#4:0.25 d5:0.25 c5:0.25! d5:0.25 c5:0.25! d5:0.25 |
+    | b3:0.25! f#4:0.25 d#5:0.25 b3:0.25! f#4:0.25 d#5:0.25 b3:0.25! f#4:0.25 d#5:0.25 b3:0.25! f#4:0.25 d#5:0.25 b4:0.25! d#5:0.25 b4:0.25! d#5:0.25 |
+    | e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 b4:0.25! e5:0.25 b4:0.25! e5:0.25 |
+    | c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c5:0.25! e5:0.25 c5:0.25! e5:0.25 |
+    | a3:0.25! a4:0.25 e5:0.25 a3:0.25! a4:0.25 e5:0.25 a3:0.25! a4:0.25 e5:0.25 a3:0.25! a4:0.25 e5:0.25 c5:0.25! e5:0.25 c5:0.25! e5:0.25 |
+    | b3:0.25! a4:0.25 d#5:0.25 b3:0.25! a4:0.25 d#5:0.25 b4:0.25! d#5:0.25 c4:0.25! c5:0.25 c#4:0.25! c#5:0.25 d4:0.25! d5:0.25 d#4:0.25! d#5:0.25! |
+
+// The riff again, the band exactly as it was, with the synths on top.
+section reprise from:riff
+  pad dyn:mf..f
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [f#3 c4 d4]:4 | [f#3 b3 d#4]:4^ |
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [a3 c4 e4]:4 | [a3 b3 d#4]:4^ |
+
+  keys dyn:mf..f feel:tight
+    | e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 b4:0.25! e5:0.25 b4:0.25! e5:0.25 |
+    | c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c5:0.25! e5:0.25 c5:0.25! e5:0.25 |
+    | d4:0.25! f#4:0.25 d5:0.25 d4:0.25! f#4:0.25 d5:0.25 d4:0.25! f#4:0.25 d5:0.25 d4:0.25! f#4:0.25 d5:0.25 c5:0.25! d5:0.25 c5:0.25! d5:0.25 |
+    | b3:0.25! f#4:0.25 d#5:0.25 b3:0.25! f#4:0.25 d#5:0.25 b3:0.25! f#4:0.25 d#5:0.25 b3:0.25! f#4:0.25 d#5:0.25 b4:0.25! d#5:0.25 b4:0.25! d#5:0.25 |
+    | e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 e4:0.25! g4:0.25 e5:0.25 b4:0.25! e5:0.25 b4:0.25! e5:0.25 |
+    | c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c4:0.25! g4:0.25 e5:0.25 c5:0.25! e5:0.25 c5:0.25! e5:0.25 |
+    | a3:0.25! a4:0.25 e5:0.25 a3:0.25! a4:0.25 e5:0.25 a3:0.25! a4:0.25 e5:0.25 a3:0.25! a4:0.25 e5:0.25 c5:0.25! e5:0.25 c5:0.25! e5:0.25 |
+    | b3:0.25! a4:0.25 d#5:0.25 b3:0.25! a4:0.25 d#5:0.25 b4:0.25! d#5:0.25 c4:0.25! c5:0.25 c#4:0.25! c#5:0.25 d4:0.25! d5:0.25 d#4:0.25! d#5:0.25! |
+
+  // The hook. See "The hook" above.
+  lead dyn:mf..f feel:tight vib:warm
+    // Em - the bass's walk, E G A G, on the guitar's dotted-eighth pulse
+    | e5:0.75! g5:0.75 a5:0.75! g5:0.75~ f#5:0.5 d5:0.5 |
+    // C - held on E, the third the guitar leaves out
+    | e5:2_< d5:0.5~ e5:0.5 g5:1' |
+    // D - bar 1 a step higher: the sequence
+    | f#5:0.75! a5:0.75 b5:0.75! a5:0.75~ g5:0.5 e5:0.5 |
+    // B7 - the leading tone, then up to the seventh and back down to E
+    | d#5:1.5_< f#5:0.5/ a5:1! g5:0.5~ f#5:0.5 |
+    // Em - bar 1 again, exactly
+    | e5:0.75! g5:0.75 a5:0.75! g5:0.75~ f#5:0.5 d5:0.5 |
+    // C - up to B, then down Bb into A with the bass
+    | e5:1.5_ g5:0.5/ b5:1! bb5:1~ |
+    // Am - the peak, C6, and the flat second on the way down
+    | a5:0.75!/ c6:0.75 b5:0.75! a5:0.75~ f5:0.5' e5:0.5 |
+    // B7 - the leading tone held, then the band's climb in unison
+    | d#5:2_< c5:0.5! c#5:0.5! d5:0.5! d#5:0.5! |
+
+// The breakdown. See "The bridge" above.
+section bridge bars:8
+  // C G/B Gm/Bb Am | Fmaj7 F B7sus4-B7 B7: the bass falls a half step at a time
+  bass dyn:mp..f feel:tight
+    | c2:4 | b1:4 | bb1:4 | a1:4 |
+    | f1:4 | f1:4 | b1:0.5! b1:0.5 b1:0.5 b1:0.5 b1:0.5! b1:0.5 b1:0.5 b1:0.5 |
+    | b1:0.5! b1:0.25+ b1:0.25+ b2:0.5' b1:0.5 c2:0.5 c#2:0.5 d2:0.5 d#2:0.5! |
+
+  // One chord to mark the landing, then out until the build.
+  guitar dyn:mp..f feel:tight
+    | [c3 g3 c4]:4! | r:4 | r:4 | r:4 |
+    | r:4 | r:4 | b2:0.5+ b2:0.5+ b2:0.5+ b2:0.5+ b2:0.5+ b2:0.5+ b2:0.5+ b2:0.5+ |
+    | [b2 f#3 b3]:0.5! b2:0.25+ b2:0.25+ [b2 f#3 b3]:0.5' b2:0.25+ b2:0.25+ [c3 g3 c4]:0.5! [c#3 g#3 c#4]:0.5! [d3 a3 d4]:0.5! [d#3 a#3 d#4]:0.5! |
+
+  perc.right dyn:p..f feel:tight
+    | crash_mid:1! ride_small:1. ride_small:1. ride_small:1. |
+    | ride_small:1 ride_small:1. ride_small:1. ride_small:1. |
+    | ride_small:1 ride_small:1. ride_small:1. ride_small:1. |
+    | ride_small:1 ride_small:1. ride_small:1. ride_small:1. |
+    | ride_small:1 ride_small:1. ride_small:1. ride_small:1. |
+    | ride_small:1 ride_small:1. ride_small:1. ride_small_bell:1 |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. r:2 |
+  perc.left dyn:p..f feel:tight
+    | r:2 sidestick:2 | r:2 sidestick:2 | r:2 sidestick:2 | r:2 sidestick:2 |
+    | r:2 sidestick:2 | r:2 sidestick:1 sidestick:0.5 sidestick:0.5 |
+    | snare:0.5. snare:0.5. snare:0.5 snare:0.5. snare:0.5 snare:0.5. snare:0.5 snare:0.5 |
+    | snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25! snare:0.25! |
+  perc.feet dyn:p..f feel:tight
+    | kick:4! | kick:4 | kick:4 | kick:4 |
+    | kick:4 | kick:4 | kick:1! kick:1 kick:1 kick:1 |
+    | kick:1.5! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+
+  pad dyn:mp..mf
+    | [g3 c4 e4]:4 | [g3 b3 d4]:4 | [g3 bb3 d4]:4 | [a3 c4 e4]:4 |
+    | [a3 c4 e4]:4 | [a3 c4 f4]:4 | [a3 e4 f#4]:2 [a3 d#4 f#4]:2 | [a3 b3 d#4]:4^ |
+
+  keys dyn:p..mf feel:tight
+    | c4:0.5! g4:0.5 e5:0.5 g4:0.5 c5:0.5 g4:0.5 e5:0.5 g4:0.5 |
+    | b3:0.5! g4:0.5 d5:0.5 g4:0.5 b4:0.5 g4:0.5 d5:0.5 g4:0.5 |
+    | bb3:0.5! g4:0.5 d5:0.5 g4:0.5 bb4:0.5 g4:0.5 d5:0.5 g4:0.5 |
+    | a3:0.5! e4:0.5 c5:0.5 e4:0.5 a4:0.5 e4:0.5 c5:0.5 e4:0.5 |
+    | f3:0.5! c4:0.5 a4:0.5 c4:0.5 e5:0.5 c4:0.5 a4:0.5 c4:0.5 |
+    | f3:0.5! c4:0.5 a4:0.5 c4:0.5 b4:0.5 c4:0.5 a4:0.5 c4:0.5 |
+    | b3:0.5! f#4:0.5 e5:0.5 f#4:0.5 b3:0.5! f#4:0.5 d#5:0.5 f#4:0.5 |
+    | b3:0.25! a4:0.25 d#5:0.25 b3:0.25! a4:0.25 d#5:0.25 b4:0.25! d#5:0.25 c4:0.25! c5:0.25 c#4:0.25! c#5:0.25 d4:0.25! d5:0.25 d#4:0.25! d#5:0.25! |
+
+  lead dyn:mp..f feel:tight vib:warm
+    // C - the climb's D# rises to E, but the chord under it is C
+    | e5:1.5_ g5:1.5 a5:1~ |
+    // G/B, then the same line a half step down as the chord goes minor
+    | b5:3_ a5:0.5 g5:0.5 |
+    | bb5:3_< a5:0.5 g5:0.5 |
+    // Am - up to the top of the section
+    | a5:2_ c6:1 e6:1 |
+    // Fmaj7 - E held over F, then B, the tritone, falling to A
+    | e6:3_ d6:0.5 c6:0.5 |
+    | b5:2_ a5:2_ |
+    // B7sus4 to B7 - E falls to D#, the leading tone
+    | e5:2_ d#5:2_ |
+    | f#5:2_< c5:0.5! c#5:0.5! d5:0.5! d#5:0.5! |
+
+// The second pass. Each section is the first one again, note for note;
+// only the drive and the final reprise change, as "The hook" above says.
+section riff2 from:riff
+  // A second verse is the first one with more in it, never with less, and
+  // never as much as the chorus. The riff, the guitar and the bass's motif
+  // stay note for note - they are what the ear holds on to - and everything
+  // around them moves.
+  //
+  // The pad stays, quietly. The reprise ends with the whole band on a climb
+  // into E, and the first riff began from silence; the second begins from a
+  // full band, and a pad under it at pp is what keeps that from sounding
+  // like the track restarting.
+  pad dyn:pp..p
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [f#3 c4 d4]:4 | [f#3 b3 d#4]:4^ |
+    | [g3 b3 e4]:4 | [g3 c4 e4]:4 | [a3 c4 e4]:4 | [a3 b3 d#4]:4^ |
+
+  bass dyn:mf..f feel:tight
+    | e2:0.75! e2:0.25+ e3:0.5' e2:0.5 g2:0.5 a2:0.5 g2:0.5 d2:0.5/ |
+    | c2:0.75! c2:0.25+ c3:0.5' c2:0.5 e2:0.5 g2:0.5 e2:0.5 c#2:0.5 |
+    | d2:0.75! d2:0.25+ d3:0.5' d2:0.5 f#2:0.5 a2:0.5 f#2:0.5 c2:0.5/ |
+    // B7 - the one new bar: up the chord from its fifth, F# A B, to D#, then
+    // back down B F# into E. The same notes as before in a new order, so it
+    // is a variation and not a different line.
+    | b1:0.75! b1:0.25+ b2:0.5' f#2:0.25' a2:0.25 b2:0.5 d#3:0.5! b2:0.5 f#2:0.5/ |
+    | e2:0.75! e2:0.25+ e3:0.5' e2:0.5 g2:0.5 a2:0.5 g2:0.5 d2:0.5 |
+    | c2:0.75! c2:0.25+ c3:0.5' c2:0.5 e2:0.5 g2:0.5 b2:0.5 bb2:0.5/ |
+    | a2:0.75! a2:0.25+ a3:0.5' a2:0.5 c3:0.5 e3:0.5< d3:0.5 c3:0.5 |
+    | b1:0.5! b1:0.25+ b1:0.25+ b2:0.5' b1:0.5 c2:0.5 c#2:0.5 d2:0.5 d#2:0.5! |
+
+  // The kit is where a second verse is most easily heard. Hats as before for
+  // the first phrase, with an open hat into bars 3 and 4; then half open for
+  // the second phrase, which is the same pattern with more wash - the energy
+  // goes up without the part changing.
+  perc.right dyn:mf..f feel:tight
+    | crash_big:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 |
+    | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. r:1 |
+    | crash:0.5! hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. |
+    | hat_loose:0.5! hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. hat_loose:0.5 hat_open:0.5 |
+    | hat_loose:0.5! hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. hat_loose:0.5 hat_open:0.5 |
+    | hat_loose:0.5! hat_loose:0.5. hat_loose:0.5 hat_loose:0.5. r:2 |
+  // Ghost notes between the backbeats: the same two accents on 2 and 4,
+  // with the hand filling in quietly around them. The bar-4 fill now runs
+  // down the toms in pairs instead of once each.
+  perc.left dyn:mf..f feel:tight
+    | r:0.75 snare:0.25. snare:0.75! snare:0.25. r:0.5 snare:0.25. snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:0.75! snare:0.25. r:0.5 snare:0.25. snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:0.75! snare:0.25. r:0.5 snare:0.25. snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:1! r:0.5 tom_high:0.25 tom_high:0.25 tom_mid:0.25 tom_mid:0.25 tom_floor:0.25 tom_floor:0.25 |
+    | r:0.75 snare:0.25. snare:0.75! snare:0.25. r:0.5 snare:0.25. snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:0.75! snare:0.25. r:0.5 snare:0.25. snare:0.25. snare:1! |
+    | r:0.75 snare:0.25. snare:0.75! snare:0.25. r:0.5 snare:0.25. snare:0.25. snare:1! |
+    | r:0.5 snare:0.25. snare:0.25. snare:1! snare:0.25. snare:0.25. snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25! snare:0.25! |
+  // And in the second phrase a double-kick flick after the "and" of 2, a
+  // taste of the gallop the drive makes constant.
+  perc.feet dyn:mf..f feel:tight
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:1.5 kick:0.5 |
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.5 kick:2 |
+    | kick:1.5! kick:0.25 kick:0.25 kick:2 |
+    | kick:1.5! kick:0.25 kick:0.25 kick:1.5 kick:0.5 |
+    | kick:1.5! kick:0.25 kick:0.25 kick:2 |
+    | kick:1.5! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+
+section answer2 from:answer
+  // The answer's first phrase is left alone; its second is where the second
+  // pass starts to lean toward the drive.
+  //
+  // The guitar's held chords get two stabs at the end of bars 5-7, the last
+  // one accented on the "and" of 4, pulling each bar into the next.
+  guitar dyn:mf feel:tight pocket:lay
+    | [e2 b2 e3]:1.5! [e2 b2 e3]:0.5' [e2 b2 e3]:2_ |
+    | [c3 g3 c4]:1.5! [c3 g3 c4]:0.5' [c3 g3 c4]:2_ |
+    | [d3 a3 d4]:1.5! [d3 a3 d4]:0.5' [d3 a3 d4]:2_ |
+    | [b2 f#3 b3]:1.5! [b2 f#3 b3]:0.5' [b2 f#3 b3]:2_ |
+    | [e2 b2 e3]:1.5! [e2 b2 e3]:0.5' [e2 b2 e3]:1_ [e2 b2 e3]:0.5' [e2 b2 e3]:0.5! |
+    | [c3 g3 c4]:1.5! [c3 g3 c4]:0.5' [c3 g3 c4]:1_ [c3 g3 c4]:0.5' [c3 g3 c4]:0.5! |
+    | [a2 e3 a3]:1.5! [a2 e3 a3]:0.5' [a2 e3 a3]:1_ [a2 e3 a3]:0.5' [a2 e3 a3]:0.5! |
+    | [b2 f#3 b3]:2! [c3 g3 c4]:0.5! [c#3 g#3 c#4]:0.5! [d3 a3 d4]:0.5! [d#3 a#3 d#4]:0.5! |
+
+  // The ride moves its bell onto every beat for the second phrase - the
+  // quarter-note pulse a band plays when it is about to go up a gear.
+  perc.right dyn:mf..f feel:tight pocket:lay
+    | crash_big:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride:0.5 ride:0.5. |
+    | ride:0.5! ride:0.5. ride:0.5 ride:0.5. ride_bell:0.5 ride:0.5. r:1 |
+    | crash_mid:0.5! ride:0.5. ride_bell:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride_bell:0.5 ride:0.5. |
+    | ride_bell:0.5! ride:0.5. ride_bell:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride_bell:0.5 ride:0.5. |
+    | ride_bell:0.5! ride:0.5. ride_bell:0.5 ride:0.5. ride_bell:0.5 ride:0.5. ride_bell:0.5 ride:0.5. |
+    | ride_bell:0.5! ride:0.5. ride_bell:0.5 r:2.5 |
+  perc.left dyn:mf..f feel:tight pocket:lay
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    // A new fill: a snare pair, then one stroke on each tom, high to floor.
+    | r:1.75 snare:0.25. snare:0.5! snare:0.25 snare:0.25 tom_high:0.25 tom_mid:0.25 tom_low:0.25 tom_floor:0.25 |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1.75 snare:0.25. snare:1.5! snare:0.25. snare:0.25. |
+    | r:1 snare:0.5! tom_floor:0.25 tom_high:0.25 tom_floor:0.25 tom_high:0.25 tom_floor:0.25 tom_high:0.25 tom_floor:0.25 tom_high:0.25 snare:0.5! |
+  perc.feet dyn:mf..f feel:tight pocket:lay
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1.5 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1 kick:0.25 kick:0.25 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1 kick:0.25 kick:0.25 kick:1 |
+    | kick:1! hat_pedal:0.5. kick:1 kick:0.25 kick:0.25 kick:1 |
+    | kick:1! hat_pedal:0.5. r:2 kick:0.5! |
+
+  // And Glass comes in early. The drive's arpeggio is sixteenths; this is
+  // the same idea in eighths, an octave higher and quiet, over the second
+  // phrase only - so when the drive arrives its arpeggio is one already
+  // playing, doubling its speed, rather than a new part. Root, fifth or
+  // octave, third: chord tones only. In the last bar it joins the climb
+  // with everyone else.
+  keys dyn:pp..p feel:tight pocket:lay
+    | r:4 | r:4 | r:4 | r:4 |
+    | e5:0.5! b5:0.5 g5:0.5 b5:0.5 e5:0.5! b5:0.5 g5:0.5 b5:0.5 |
+    | e5:0.5! c6:0.5 g5:0.5 c6:0.5 e5:0.5! c6:0.5 g5:0.5 c6:0.5 |
+    | e5:0.5! c6:0.5 a5:0.5 c6:0.5 e5:0.5! c6:0.5 a5:0.5 c6:0.5 |
+    | d#5:0.5! b5:0.5 f#5:0.5 b5:0.5 c6:0.5! c#6:0.5! d6:0.5! d#6:0.5! |
+
+section drive2 from:drive
+  // No hint this time: the lead rests.
+  lead
+    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
+
+section reprise2 from:reprise
+  // Twin leads: the hook as before, and a harmony above it. The ensemble gives
+  // the harmony part a Wire of its own (its "harmony" layer), so it has
+  // its own dynamic - a step under the tune,
+  // which is how a harmony part is balanced - and its own vibrato, opening
+  // on its own held notes rather than on the melody's.
+  lead.melody dyn:mf..f feel:tight vib:warm
+    | e5:0.75! g5:0.75 a5:0.75! g5:0.75~ f#5:0.5 d5:0.5 |
+    | e5:2_< d5:0.5~ e5:0.5 g5:1' |
+    | f#5:0.75! a5:0.75 b5:0.75! a5:0.75~ g5:0.5 e5:0.5 |
+    | d#5:1.5_< f#5:0.5/ a5:1! g5:0.5~ f#5:0.5 |
+    | e5:0.75! g5:0.75 a5:0.75! g5:0.75~ f#5:0.5 d5:0.5 |
+    | e5:1.5_ g5:0.5/ b5:1! bb5:1~ |
+    | a5:0.75!/ c6:0.75 b5:0.75! a5:0.75~ f5:0.5' e5:0.5 |
+    | d#5:2_< c5:0.5! c#5:0.5! d5:0.5! d#5:0.5! |
+  harmony dyn:mp..mf feel:tight vib:warm
+    // Em - a third above: G B C B A F#
+    | g5:0.75! b5:0.75 c6:0.75! b5:0.75~ a5:0.5 f#5:0.5 |
+    // C - G held while the melody turns E D E, then B over its G
+    | g5:3_< b5:1' |
+    // D - a third above, with C natural: the D7 the pad is holding
+    | a5:0.75! c6:0.75 d6:0.75! c6:0.75~ b5:0.5 g5:0.5 |
+    // B7 - F# A, then B held over the melody's A G, falling to A
+    | f#5:1.5_< a5:0.5/ b5:1.5! a5:0.5 |
+    // Em - as bar 1
+    | g5:0.75! b5:0.75 c6:0.75! b5:0.75~ a5:0.5 f#5:0.5 |
+    // C - G B, then D held over the melody's chromatic B Bb
+    | g5:1.5_ b5:0.5/ d6:2!~ |
+    // Am - a third above, peaking on E6
+    | c6:0.75!/ e6:0.75 d6:0.75! c6:0.75~ a5:0.5' g5:0.5 |
+    // B7 - the fifth held, then the climb an octave above the melody
+    | f#5:2_< c6:0.5! c#6:0.5! d6:0.5! d#6:0.5! |
+
+// The way out. See "The ending" above.
+section end bars:2
+  bass dyn:f feel:tight
+    | e1:4_!> r:4 |
+  guitar dyn:f feel:tight art:marcato
+    | [e2 b2 e3]:6! r:2 |
+
+  perc.right dyn:f feel:tight
+    | crash_big:8! |
+  perc.left dyn:f feel:tight
+    | snare:8! |
+  perc.feet dyn:f feel:tight
+    | kick:8! |
+  pad dyn:mf..p
+    | [g3 b3 f#4]:7 r:1 |
+  // The hook's first four notes, quietly, over the ring: the hint again.
+  keys dyn:mp..p feel:tight
+    | r:1 e5:0.75 g5:0.75 a5:0.75 g5:1.5 r:3.25 |
+  lead dyn:f vib:warm
+    | e5:6_> r:2 |

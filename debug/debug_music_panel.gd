@@ -1,43 +1,33 @@
 class_name DebugMusicPanel
 extends Control
-## The Music tab's content — debug-only "listen to a MusicTrack and
-## watch its phase/position live" tool, for manually confirming the
-## intro->loop->outro handoff sounds right (see music_manager.gd's own
-## header for the bugs that transition has had). Root-level like
+## The Music tab's content — debug-only "play any area of the transitions
+## table and watch the director" tool. Root-level like
 ## DemonCompendiumPanel/DebugSpawnPanel, referenced via @onready from
 ## party_overview.gd the same way.
 ##
-## The whole tab is debug-only: party_overview.gd hides %TabMusic
-## itself, and this script's own _ready()/_process() additionally no-op
-## outside a debug build as defense in depth — same belt-and-suspenders
-## reasoning DebugSpawnPanel already uses.
+## The whole tab is debug-only: party_overview.gd hides %TabMusic itself,
+## and this script's own _ready()/_process() additionally no-op outside a
+## debug build as defense in depth — same reasoning DebugSpawnPanel uses.
 ##
-## Shows time-to-loop-boundary specifically so you can deliberately
-## time a Stop press to exercise EITHER of stop()'s two branches (quick
-## fade vs. wait-for-boundary-then-outro), rather than only ever hitting
-## whichever one luck lands on.
+## Play goes through Music.go_to(), so it exercises the table's real rule
+## from whatever is playing now — the way to hear a transition without
+## starting a fight. There is no scrubber: the music is generated as it
+## plays, so there is no file position to seek to.
 
-@onready var _track_list: ItemList = %MusicTrackList
-@onready var _play_button: Button = %PlayTrackButton
-@onready var _stop_button: Button = %StopTrackButton
+@onready var _area_list: ItemList = %MusicAreaList
+@onready var _play_button: Button = %PlayMusicButton
+@onready var _stop_button: Button = %StopMusicButton
 @onready var _status_label: Label = %MusicStatusLabel
-@onready var _position_slider: HSlider = %PositionSlider
+@onready var _stats_label: Label = %MusicStatsLabel
 
-var _tracks: Array[MusicTrack] = []
-## While true, _process() leaves the slider's value alone instead of
-## snapping it back to the real playback position every frame — without
-## this, dragging would fight _process()'s own per-frame update and
-## never actually move.
-var _scrubbing: bool = false
+var _areas: Array[String] = []
 
 
 func _ready() -> void:
 	if not OS.is_debug_build():
 		return
 	_play_button.pressed.connect(_on_play_pressed)
-	_stop_button.pressed.connect(MusicManager.stop)
-	_position_slider.drag_started.connect(func(): _scrubbing = true)
-	_position_slider.drag_ended.connect(_on_slider_drag_ended)
+	_stop_button.pressed.connect(Music.silence)
 	_populate_list()
 	_update_status()
 
@@ -46,22 +36,6 @@ func _process(_delta: float) -> void:
 	if not OS.is_debug_build() or not is_visible_in_tree():
 		return
 	_update_status()
-	if not _scrubbing:
-		_update_slider()
-
-
-func _on_slider_drag_ended(value_changed: bool) -> void:
-	_scrubbing = false
-	if value_changed:
-		MusicManager.seek(_position_slider.value)
-
-
-func _update_slider() -> void:
-	var playing: bool = MusicManager.get_phase() != MusicManager.Phase.STOPPED
-	_position_slider.editable = playing
-	var length: float = MusicManager.get_length()
-	_position_slider.max_value = length if length > 0.0 else 1.0
-	_position_slider.value = MusicManager.get_position() if playing else 0.0
 
 
 func refresh() -> void:
@@ -72,44 +46,46 @@ func refresh() -> void:
 
 
 func _populate_list() -> void:
-	_tracks = MusicTrackDatabase.get_all()
-	_track_list.clear()
-	for track in _tracks:
-		_track_list.add_item(track.id)
+	_areas.clear()
+	_area_list.clear()
+	if Music.table == null:
+		return
+	for area in Music.table.areas:
+		_areas.append(area)
+	_areas.sort()
+	for area in _areas:
+		var entry: Dictionary = Music.table.areas[area]
+		_area_list.add_item("%s  —  %s (%s)" % [area, entry["score"], entry["ensemble"]])
 
 
 func _on_play_pressed() -> void:
-	var selected: PackedInt32Array = _track_list.get_selected_items()
+	var selected: PackedInt32Array = _area_list.get_selected_items()
 	if selected.is_empty():
 		return
-	MusicManager.play_track(_tracks[selected[0]])
+	Music.go_to(_areas[selected[0]])
 
 
 func _update_status() -> void:
-	var phase: int = MusicManager.get_phase()
-	var track: MusicTrack = MusicManager.get_current_track()
-
-	if phase == MusicManager.Phase.STOPPED or not track:
-		_status_label.text = "Stopped."
-		return
-
-	var position: float = MusicManager.get_position()
-	var length: float = MusicManager.get_length()
-	var text: String = "%s — %s — %.1fs / %.1fs" % [track.id, _phase_label(phase), position, length]
-
-	if phase == MusicManager.Phase.LOOP:
-		text += "  (%.1fs to boundary)" % (length - position)
-
+	var state: Dictionary = Music.state()
+	var text: String
+	if Music.is_playing():
+		text = "%s — %.1fs, intensity %d" % [state["area"], Music.position(), state["intensity"]]
+	else:
+		text = "Stopped."
+	if Music.is_busy():
+		text += "  (transition under way)"
+	if Music.preloaded() != "":
+		text += "  [preloaded: %s]" % Music.preloaded()
 	_status_label.text = text
+	_stats_label.text = _format_stats(Music.stats()) if Music.is_playing() else ""
 
 
-func _phase_label(phase: int) -> String:
-	match phase:
-		MusicManager.Phase.INTRO:
-			return "Intro"
-		MusicManager.Phase.LOOP:
-			return "Loop"
-		MusicManager.Phase.OUTRO:
-			return "Outro"
-		_:
-			return "Stopped"
+## One line per part. late_frames above zero means a note was dispatched
+## after it should have sounded — the number that has to stay at 0.
+func _format_stats(stats: Dictionary) -> String:
+	var lines: PackedStringArray = []
+	for part in stats:
+		var row: Dictionary = stats[part]
+		lines.append("%-10s voices %3d  late %d  dropped %d  starved %d  peak %.2f" % [
+			part, row["voices"], row["late_frames"], row["dropped"], row["starved"], row["peak"]])
+	return "\n".join(lines)

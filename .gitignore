@@ -17,3 +17,11 @@ gdextension/.sconf_temp/
 # 71202de) — 1.2MB of build junk each time.
 bin/win64/~*
 *.TMP
+
+# SFZ sample libraries (22 GB, several not redistributable); shipped beside the exe, never in git
+/samples/
+
+# sfzplayer debug symbols (13 MB per build) and the ~-prefixed copies Windows
+# leaves when a rebuild replaces a DLL the editor holds open.
+addons/sfzplayer/bin/*.pdb
+addons/sfzplayer/bin/~*

@@ -1,0 +1,219 @@
+{
+  "format": 2,
+  "id": "decadence",
+  "name": "Decadence",
+  "description": "A modern main-theme ensemble for Decadence. The melody is Halo, a crystalline synth with a bell's inharmonic strike inside it, doubled by Virtual Playing Orchestra's tubular bells, with VPO's female choir an octave above when the theme returns. The voice part - a chord built note by note, then two-note chords rocking a semitone apart - is Vox, a synth voice with an 'ah' filtered into it, joined by VPO's mixed choir wherever it holds. The drone and the chromatic bass under the second half are VPO's male choir over Drift, the slow sub from the Long Time Way ensemble. The building chords are VPO's full string section with Veil behind them. The kit is hybrid: Circuit, the electronic kit, for the kick, hats and claps, and the Salamander kit's acoustic ride for the toll the 1995 original is built on.",
+  "buses": {
+    "lead": {
+      "wet": 0.24,
+      "predelay": 30.0
+    },
+    "keys": {
+      "space": "hall",
+      "wet": 0.26,
+      "predelay": 30.0
+    },
+    "bass": {
+      "space": "hall",
+      "wet": 0.18,
+      "predelay": 30.0
+    },
+    "perc": {
+      "space": "hall",
+      "wet": 0.24,
+      "predelay": 16.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "synth/halo-lead",
+          "name": "halo",
+          "gain_db": -6.0,
+          "gain_source": "measured"
+        },
+        {
+          "instrument": "vpo/tubular-bells",
+          "name": "bells",
+          "gain_db": -1.7,
+          "gain_source": "measured",
+          "voices": 12
+        }
+      ],
+      "range": [
+        48,
+        84
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": 4.5
+    },
+    "high": {
+      "family": "choir",
+      "bus": "lead",
+      "layers": [
+        {
+          "instrument": "vpo/choir-female",
+          "name": "sopranos",
+          "gain_db": -3.7,
+          "gain_source": "measured",
+          "transpose": 12
+        }
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": 4.5
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "synth/vox-pad",
+          "name": "vox"
+        },
+        {
+          "instrument": "vpo/choir-mixed",
+          "name": "choir",
+          "gain_db": 5.0,
+          "gain_source": "measured"
+        }
+      ],
+      "range": [
+        36,
+        84
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -4.0,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "pulse": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "synth/vox-pad",
+          "name": "vox_pulse",
+          "gain_db": 4.0,
+          "gain_source": "by-ear"
+        },
+        {
+          "instrument": "vpo/choir-mixed",
+          "name": "choir_pulse",
+          "gain_db": 10.0,
+          "gain_source": "by-ear"
+        }
+      ],
+      "range": [
+        36,
+        84
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -4.0,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "synth/drift-sub",
+          "name": "sub"
+        },
+        {
+          "instrument": "vpo/choir-male",
+          "name": "monks",
+          "gain_db": 6.3,
+          "gain_source": "measured",
+          "transpose": 12
+        }
+      ],
+      "range": [
+        24,
+        60
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": -2.0
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/all-strings",
+          "name": "strings",
+          "gain_db": 6.7,
+          "gain_source": "measured"
+        },
+        {
+          "instrument": "synth/veil-pad",
+          "name": "veil",
+          "gain_db": -12.0,
+          "gain_source": "guessed",
+          "delay": 0.02
+        }
+      ],
+      "range": [
+        36,
+        88
+      ],
+      "voices": 32,
+      "gain_source": "guessed",
+      "gain_db": -7.5,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "synth/circuit-kit",
+          "name": "circuit"
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -2.0
+    },
+    "metal": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "salamander.drums/kit",
+          "name": "ride",
+          "take": {
+            "timing": 0.007,
+            "velocity": 6
+          },
+          "voices": 16
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -2.0,
+      "defaults": {
+        "pan": 64
+      },
+      "drums": {
+        "boom": 35,
+        "kick": 36,
+        "rim": 37,
+        "snare": 38,
+        "clap": 39,
+        "hat": 42,
+        "hat_pedal": 44,
+        "hat_open": 46,
+        "crash": 49,
+        "ride": 51,
+        "ride_bell": 53,
+        "splash": 55
+      }
+    }
+  }
+}

@@ -1,7 +1,7 @@
 class_name ItemDatabase
 extends RefCounted
 ## Every ItemDefinition (GearItem or plain) under res://data/items/*.tres —
-## same flat-directory-scan idiom as AreaDatabase/MusicTrackDatabase/
+## same flat-directory-scan idiom as AreaDatabase/
 ## SkillDatabase/DemonDatabase/SpawnableUnitDatabase. Stateless from the
 ## outside — static, no instances, not an autoload.
 ##

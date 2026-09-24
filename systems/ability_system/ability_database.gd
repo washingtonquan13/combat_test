@@ -2,7 +2,7 @@ class_name AbilityDatabase
 extends RefCounted
 ## Resolves every Ability under res://data/abilities/* — same
 ## "theoretically infinite by scanning a folder" idiom
-## SkillDatabase/DemonDatabase/MusicTrackDatabase already use, so a new
+## SkillDatabase/DemonDatabase already use, so a new
 ## ability dropped in that folder shows up in the debug grant list (see
 ## party_overview.gd's AbilitiesColumn) with no code change.
 ##

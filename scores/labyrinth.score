@@ -1,0 +1,64 @@
+// Labyrinth - a dungeon loop on the SFC ensemble, after the first two Megami
+// Tensei games.
+//
+// The Super Famicom dungeons are small machines of dread: a steady arpeggio
+// that never resolves, a bass in long notes, a melody that climbs and falls
+// back, and very little drum. This is written the way those chips were:
+// every part is one voice, and nothing is thicker than the channels allow.
+//
+// Harmony. D minor, with the flat-six and the Neapolitan pulling down onto
+// the dominant: Dm Dm Bb A | Dm Gm Eb A. The Eb is the flat second of D, the
+// darkest chord in the key, and the melody leans on its Eb the same way.
+// The A major at the end of each phrase is the question the loop keeps
+// asking.
+//
+// The arpeggio is the thin 12.5% pulse in eighths, up and back down over
+// each chord; the bass is the stepped triangle. The melody is the 25%
+// pulse. In b the FM brass takes the chords under it in whole notes, the
+// melody moves to the hollow 50% pulse and climbs an octave in its second
+// phrase, the bass becomes the FM slap, and the kit comes in - the second
+// pass has to feel deeper into the maze. The bell marks the phrase starts.
+
+title: Labyrinth
+ensemble: sfc
+parts: lead hollow:lead@lead keys arp:keys@keys bell:bells@keys bass slap:bass@bass perc
+tempo: 116
+meter: 4/4
+key: d minor
+order: [a b]
+
+section a bars:8
+  arp dyn:mp
+    | d4:0.5 f4:0.5 a4:0.5 d5:0.5 a4:0.5 f4:0.5 d4:0.5 a3:0.5 | d4:0.5 f4:0.5 a4:0.5 d5:0.5 a4:0.5 f4:0.5 d4:0.5 a3:0.5 | bb3:0.5 d4:0.5 f4:0.5 bb4:0.5 f4:0.5 d4:0.5 bb3:0.5 f3:0.5 | a3:0.5 c#4:0.5 e4:0.5 a4:0.5 e4:0.5 c#4:0.5 a3:0.5 e3:0.5 |
+    | d4:0.5 f4:0.5 a4:0.5 d5:0.5 a4:0.5 f4:0.5 d4:0.5 a3:0.5 | g3:0.5 bb3:0.5 d4:0.5 g4:0.5 d4:0.5 bb3:0.5 g3:0.5 d3:0.5 | eb4:0.5 g4:0.5 bb4:0.5 eb5:0.5 bb4:0.5 g4:0.5 eb4:0.5 bb3:0.5 | a3:0.5 c#4:0.5 e4:0.5 a4:0.5 e4:0.5 c#4:0.5 a3:0.5 e3:0.5 |
+  bell dyn:mp
+    | d5:4 | r:4 | r:4 | r:4 | d5:4 | r:4 | r:4 | a4:4 |
+  bass.tri dyn:mf
+    | d2:1.5! d2:0.5 a2:1 d2:1 | d2:1.5! d2:0.5 a2:1 c2:1 | bb1:1.5! bb1:0.5 f2:1 bb1:1 | a1:1.5! a1:0.5 e2:1 c#2:1 |
+    | d2:1.5! d2:0.5 a2:1 d2:1 | g1:1.5! g1:0.5 d2:1 g1:1 | eb2:1.5! eb2:0.5 bb2:1 eb2:1 | a1:1.5! a1:0.5 e2:1 c#2:1 |
+  lead.main dyn:mf
+    | d5:3 e5:1 | f5:2 e5:1 d5:1 | d5:2 c5:1 bb4:1 | a4:4 |
+    | d5:1.5 f5:0.5 a5:2 | g5:2 f5:1 e5:1 | eb5:2 d5:1 c5:1 | c#5:4 |
+  perc.hat dyn:p
+    | hat:1 hat:1 hat:1 hat:1 | hat:1 hat:1 hat:1 hat:1 | hat:1 hat:1 hat:1 hat:1 | hat:1 hat:1 hat:1 hat_open:1 |
+    | hat:1 hat:1 hat:1 hat:1 | hat:1 hat:1 hat:1 hat:1 | hat:1 hat:1 hat:1 hat:1 | tom_high:0.5 tom_mid:0.5 tom_low:1 r:2 |
+
+section b from:a
+  keys.brass dyn:mp
+    | [d4 f4 a4]:4 | [d4 f4 a4]:4 | [d4 f4 bb4]:4 | [c#4 e4 a4]:4 | [d4 f4 a4]:4 | [d4 g4 bb4]:4 | [eb4 g4 bb4]:4 | [c#4 e4 a4]:4 |
+  bass.tri
+    | r:16 | r:16 |
+  slap dyn:mf
+    | d2:1.5! d2:0.5 a2:1 d2:1 | d2:1.5! d2:0.5 a2:1 c2:1 | bb1:1.5! bb1:0.5 f2:1 bb1:1 | a1:1.5! a1:0.5 e2:1 c#2:1 |
+    | d2:1.5! d2:0.5 a2:1 d2:1 | g1:1.5! g1:0.5 d2:1 g1:1 | eb2:1.5! eb2:0.5 bb2:1 eb2:1 | a1:1.5! a1:0.5 e2:1 c#2:1 |
+  lead.main
+    | r:16 | r:16 |
+  hollow dyn:mf
+    | a4:3 bb4:1 | a4:2 g4:1 f4:1 | f4:2 e4:1 d4:1 | e4:4 |
+    | d5:1.5 f5:0.5 a5:2 | bb5:2 a5:1 g5:1 | g5:2 f5:1 eb5:1 | e5:4 |
+  perc.feet dyn:mf
+    | kick:2! kick:2 | kick:2! kick:1.5 kick:0.5 | kick:2! kick:2 | kick:2! kick:1.5 kick:0.5 |
+    | kick:2! kick:2 | kick:2! kick:1.5 kick:0.5 | kick:2! kick:2 | kick:1! kick:1 kick:1 kick:1 |
+  perc.left dyn:mf
+    | r:1 snare:1 r:1 snare:1 | r:1 snare:1 r:1 snare:1 | r:1 snare:1 r:1 snare:1 | r:1 snare:1 r:1 snare:0.5 zap:0.5 |
+    | r:1 snare:1 r:1 snare:1 | r:1 snare:1 r:1 snare:1 | r:1 snare:1 r:1 snare:1 | snare:0.5 snare:0.5 snare:0.5 snare:0.5 snare:1! crash:1 |
