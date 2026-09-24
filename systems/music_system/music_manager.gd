@@ -41,6 +41,11 @@ func _ready() -> void:
 	# world_loaded, and so does switching to a group standing somewhere
 	# else. Both change which area the player is in.
 	WorldManager.world_focused.connect(_on_world_focused)
+	# The game opens on the title screen, which only asks for its music once
+	# MainRoot has been built - seconds of scene loading. Loading the title's
+	# ensemble now runs alongside that instead of after it.
+	if Music.table and Music.table.has_area(MAIN_MENU):
+		Music.preload_area(MAIN_MENU)
 
 
 ## The director's name for an area's music at a moment. The one place the
@@ -128,6 +133,10 @@ func _next_likely(area_id: StringName, moment: StringName) -> String:
 			return music_area(area_id, COMBAT)
 		COMBAT:
 			return music_area(area_id, NEGOTIATION)
+		NEGOTIATION:
+			# Loading the negotiation's ensemble unloaded the fight's, and a
+			# negotiation mostly ends back in the fight.
+			return music_area(area_id, COMBAT)
 	return ""
 
 

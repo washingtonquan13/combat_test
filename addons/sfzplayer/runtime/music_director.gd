@@ -109,6 +109,7 @@ var _mode := PROCESS_MODE_ALWAYS   # what pause() puts back
 var _ramps := {}                   # "_duck_db"/"_pause_db" -> its Tween
 var _intensity := 0
 var _scores := {}                  # path -> SfzScore, parsed ahead by preload_area()
+var _prepared := {}                # path -> SfzScorePlayer, compiled ahead by preload_area()
 var _last_read := {}
 
 
@@ -197,6 +198,7 @@ func preload_area(new_area: String) -> bool:
 		push_error("MusicDirector: cannot preload mid-transition")
 		return false
 	_busy = true
+	_free_prepared()
 	# The score and the stings the table would play on the way in are read
 	# first, and compiled: what they switch to is all of the ensemble that is
 	# loaded (SfzConductor.load_ensemble). They are kept, so the go_to() that
@@ -220,7 +222,9 @@ func preload_area(new_area: String) -> bool:
 				var player := _player(back)
 				await player.prepare(_scores[path], ensemble)
 				_merge_articulations(articulations, player.articulations())
-				player.queue_free()
+				# Kept compiled: the go_to() that follows plays it as it is.
+				# Compiling is most of a transition that has nothing to load.
+				_prepared[path] = player
 		ok = await _load(back, ensemble, articulations)
 	_preloaded = new_area if ok else ""
 	_free()
@@ -304,6 +308,8 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 	# Kept no longer than the transition they were read for: a score edited
 	# on disk is read again next time.
 	_scores.clear()
+	var prepared := _prepared
+	_prepared = {}
 	_last_read = {"parsed": read["parsed"], "cached": wanted.size() - read["parsed"],
 		"on_main_thread": read["on_main_thread"]}
 	var score: SfzScore = scores[score_path]
@@ -318,14 +324,21 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 	# Compiled on a thread, before anything is loaded: what the piece and its
 	# sting switch to is all of the ensemble that is loaded, and the exit is
 	# chosen against what has already been sent.
-	var incoming := _player(back)
-	await incoming.prepare(score, ensemble)
+	var incoming: SfzScorePlayer = prepared.get(score_path)
+	if incoming == null:
+		incoming = _player(back)
+		await incoming.prepare(score, ensemble)
 	var sting_player: SfzScorePlayer = null
 	var articulations := incoming.articulations()
 	if sting != null:
-		sting_player = _player(back)
-		await sting_player.prepare(sting, ensemble)
+		sting_player = prepared.get(sting_path)
+		if sting_player == null:
+			sting_player = _player(back)
+			await sting_player.prepare(sting, ensemble)
 		_merge_articulations(articulations, sting_player.articulations())
+	for path: String in prepared:
+		if prepared[path] != incoming and prepared[path] != sting_player:
+			prepared[path].queue_free()
 	var warm := _preloaded == new_area and _conductors[back].is_loaded() \
 		and _conductors[back].ensemble.id == ensemble.id \
 		and _conductors[back].covers(articulations)
@@ -542,6 +555,12 @@ func _wait_turn() -> bool:
 # of them must queue behind the waiter (and so replace it), not jump it.
 func _queued() -> bool:
 	return _busy or _waiting != 0
+
+
+func _free_prepared() -> void:
+	for path: String in _prepared:
+		_prepared[path].queue_free()
+	_prepared = {}
 
 
 func _free() -> void:

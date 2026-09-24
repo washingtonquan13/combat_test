@@ -147,6 +147,7 @@ var _loop_end := 0.0        # where the first pass ends
 var _lead_in := 0.0         # how far before a pass its earliest event falls
 var _loop_start := 0.0      # where the first pass starts
 var _marks := {}            # exit -> its boundaries in the first pass, in seconds
+var _intro_marks := {}      # "section", "bar", "beat" -> the intro's own, before the loop
 
 # What is scheduled so far: {events, next, offset[, stop]} per part, in the
 # order they were committed. Several run at once near a join. `stop` is where
@@ -704,7 +705,7 @@ func _build(new_score: SfzScore, against: SfzEnsemble) -> Dictionary:
 	compiler.ensemble = against
 	var plan := {"score": new_score, "head": [], "bodies": [] as Array[Array],
 		"tail": [], "loop_length": 0.0, "loop_end": 0.0, "lead_in": 0.0,
-		"loop_start": 0.0, "end": INF, "marks": {}, "unmapped": {}, "findings": {},
+		"loop_start": 0.0, "end": INF, "marks": {}, "intro_marks": {}, "unmapped": {}, "findings": {},
 		"ensemble": "" if against == null else against.id,
 		"cast": {} if against == null else against.cast(new_score.parts)}
 
@@ -784,6 +785,10 @@ func _build(new_score: SfzScore, against: SfzEnsemble) -> Dictionary:
 	# are the same a loop length on.
 	plan["loop_start"] = float(new_score.timeline()[new_score.loop_from]["at"])
 	plan["marks"] = _marks_of(new_score, new_score.loop_from, new_score.loop_to)
+	# The intro plays once, so its boundaries are not a loop length apart:
+	# kept apart, and only the plain kinds - "section:NAME" names the loop.
+	var intro := _marks_of(new_score, 0, new_score.loop_from)
+	plan["intro_marks"] = {"section": intro["section"], "bar": intro["bar"], "beat": intro["beat"]}
 	return plan
 
 
@@ -809,6 +814,7 @@ func _install(plan: Dictionary) -> void:
 	_lead_in = plan["lead_in"]
 	_loop_start = plan["loop_start"]
 	_marks = plan["marks"]
+	_intro_marks = plan["intro_marks"]
 	_unmapped = plan["unmapped"]
 	_findings = plan["findings"]
 	_cast = plan["cast"]
@@ -1132,6 +1138,10 @@ func _next_mark(kind: String, earliest: float) -> float:
 			if float(m) >= earliest:
 				return float(m)
 		return INF
+	# Still in the intro: a game that cannot wait for the loop leaves from it.
+	for m in _intro_marks.get(kind, []):
+		if float(m) >= earliest:
+			return float(m)
 	var p := maxi(0, floori((earliest - _loop_start) / _loop_length))
 	while true:
 		for m in marks:
