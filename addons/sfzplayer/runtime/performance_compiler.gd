@@ -242,7 +242,62 @@ func compile(score: SfzScore) -> Array:
 			tag_lane(out, first, lane)
 		tag_section(out, section_first, at)
 
-	return sorted(out)
+	return _switched(sorted(out))
+
+
+# Keeps only the keyswitches that change something. A lane asks for every
+# note's articulation, because a keyswitch is sent to the part's channel and
+# the part may have other lanes: a fill written `guitar.fx art:pinch` leaves
+# the channel on pinch, and a lane that tracked only its own last switch sent
+# nothing for its next plain note, which then squealed too. Which switch is
+# redundant can only be told here, with every lane of the part in time order.
+#
+# Kept per section, so each section's first notes still send their switches
+# and a player seeking or looping to it hears it as written. A lane given a layer
+# switches that layer alone; a switch to the whole part changes every layer.
+#
+# Two lanes of one part cannot both be heard as written when one switches
+# the channel after the other has switched it and before that lane's note has
+# sounded: the note plays on the later key. That is reported, for the score to
+# move one of them. Lanes that make the same switch (a line doubled an octave
+# down) are not in each other's way.
+func _switched(events: Array) -> Array:
+	var on := {}
+	var by := {}
+	var kept: Array = []
+	for ev: Dictionary in events:
+		if ev["kind"] == "note":
+			var sounding := "%s|%s|" % [ev.get("section", -1), ev["part"]]
+			for k: String in by.keys():
+				if k.begins_with(sounding) and ev.get("perf", "") in by[k]["perfs"]:
+					by[k]["waiting"].erase(ev.get("perf", ""))
+		if ev["kind"] != "art":
+			kept.append(ev)
+			continue
+		var part := "%s|%s" % [ev.get("section", -1), ev["part"]]
+		var layer: String = str(ev.get("layer", []))
+		var key := part + "|" + layer
+		var last: Dictionary = by.get(key, {})
+		if on.get(key, "") == ev["art"]:
+			if last.get("art", "") == ev["art"]:
+				last["perfs"].append(ev.get("perf", ""))
+				last["waiting"].append(ev.get("perf", ""))
+			continue
+		var waiting: Array = last.get("waiting", [])
+		if not waiting.is_empty() and not ev.get("perf", "") in waiting:
+			note_fallback(ev["part"], "clash:" + ev["art"],
+					"before %s's '%s' note has sounded; one key plays both notes"
+					% [waiting[0], last["art"]], ev.get("perf", ""))
+		by[key] = {"perfs": [ev.get("perf", "")], "waiting": [ev.get("perf", "")], "art": ev["art"]}
+		if ev.get("layer", []).is_empty():
+			for k: String in on.keys():
+				if k.begins_with(part + "|"):
+					on.erase(k)
+		else:
+			on.erase(part + "|" + str([]))
+		on[key] = ev["art"]
+		kept.append(ev)
+	return kept
 
 
 # --- One lane ------------------------------------------------------------
@@ -256,7 +311,14 @@ func _lane(out: Array, lane: SfzScore.Lane, part: String, origin: float,
 	_lane_end = beats
 	_spans = _phrases(lane, beats) if _shaping > 0.0 else []
 
-	if lane.art != "":
+	# Every note sends its own switch, so the lane's articulation needs no
+	# switch of its own at the top of the section - and one there was wrong:
+	# a note the pocket plays early switches ahead of the downbeat, and the
+	# lane's switch then landed after it; another lane of the part had its
+	# opening switch land between this lane's switch and its note. An
+	# articulation the part cannot switch to is still sent, so prepare()
+	# reports the lane that asked for it.
+	if lane.art != "" and not has_keyswitch(part, lane.art):
 		emit_art(out, part, origin - SETUP_LEAD, lane.art)
 
 	if lane.rot != "":
@@ -270,7 +332,6 @@ func _lane(out: Array, lane: SfzScore.Lane, part: String, origin: float,
 		note_fallback(part, "control:dynamics", FLAT_DYNAMICS)
 	_dynamic_curve(out, part, origin, spb, beats, from, to)
 
-	var current_art := lane.art
 	var previous_slurred := false
 	var previous: SfzScore.Event = null
 
@@ -288,6 +349,22 @@ func _lane(out: Array, lane: SfzScore.Lane, part: String, origin: float,
 			previous = e
 			continue
 
+		# A muted note where the part has no mute samples but can play each
+		# string dead: the thud of the string it sits on, not the pitched note
+		# cut short that the staccato fallback would give (dead_string()).
+		if e.muted and not e.keys.is_empty() and not has_keyswitch(part, "mute"):
+			var dead := {}
+			for key in e.keys:
+				var drum := dead_string(part, key)
+				if drum != "":
+					dead[drum] = true
+			if not dead.is_empty():
+				for drum: String in dead:
+					emit_hit(out, part, t, drum, velocity)
+				previous_slurred = false
+				previous = e
+				continue
+
 		var duration := _duration(lane, part, i, e, spb)
 
 		# An articulation the note itself asks for, where the ensemble has one.
@@ -299,9 +376,11 @@ func _lane(out: Array, lane: SfzScore.Lane, part: String, origin: float,
 			_bend(out, part, lane, i, t, spb, duration, previous if slid_into else null)
 		# Asked of the lane's part, as the conductor plays it: a part of
 		# layers with no keys is sent no keyswitch, not an idle tap it skips.
-		if want != current_art and has_keyswitch(part, want):
+		# Sent for every note, and the ones that change nothing dropped once
+		# every lane is in (_switched()): another lane of the part may have
+		# switched the channel since this lane's last note.
+		if has_keyswitch(part, want):
 			emit_art(out, part, t - 0.03, want)
-			current_art = want
 
 		if e.swell:
 			if not has_control(part, "dynamics"):
@@ -332,7 +411,6 @@ func _lane(out: Array, lane: SfzScore.Lane, part: String, origin: float,
 
 		if e.fall and not e.keys.is_empty() and has_keyswitch(part, "slide_out"):
 			_fall(out, part, lane, i, t, spb, velocity, duration)
-			current_art = "slide_out"
 		elif e.fall and not e.keys.is_empty():
 			note_fallback(part, "art:slide", BENT)
 
@@ -965,7 +1043,8 @@ func _bend(out: Array, part: String, lane: SfzScore.Lane, i: int, t: float,
 	elif not lane.bend.is_empty():
 		_shape(out, part, lane, i, t, spb, duration)
 		return
-	if e.fall:
+	# A part with slide_out samples falls on those (_fall), not on the wheel too.
+	if e.fall and not has_keyswitch(part, "slide_out"):
 		var length := FALL_TIME
 		var room := INF
 		if i + 1 < lane.events.size():

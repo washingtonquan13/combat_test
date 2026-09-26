@@ -241,7 +241,7 @@ uses can go there. But the compiler only ever asks for these by itself:
 
 | Asked for | when |
 | --- | --- |
-| `mute` | a note marked `+`; where the part has no `mute`, `staccato` instead |
+| `mute` | a note marked `+`; where the part has no `mute`, its dead strings if it has them (below), otherwise `staccato` |
 | `staccato` | a note marked `'` |
 | `legato` | a note the previous note slurred (`~`) into |
 | `marcato` | a note marked `!` |
@@ -285,8 +285,18 @@ it was playing. A misspelled `art:susatin` is therefore silent in the log and
 audible only as the wrong sound, so check the spelling against the ensemble when
 a lane sounds like the instrument ignored you.
 
-**What the ensembles here can honour.** In `band.json` and `tonewheel.json` only
-`guitar` and `bass` carry keyswitches. Both declare `sustain`,
+**Dead strings.** Some basses have no mute articulation but record each string
+played dead - the fretting hand damping it, a thud with no pitch. The registry
+maps those as drums named `dead_<open string>` (Swag Bass: `dead_c1`,
+`dead_g1`, `dead_d2`, `dead_a2`), and on a part without `mute` a `+` note plays
+the dead thud of the string it sits on - the highest string whose open pitch is
+at or under it - instead of the pitched note cut short. That is what a ghost
+note in a bass line is, so on such a part `+` is the mark for ghosts.
+
+**What the ensembles here can honour.** In `band.json` only `guitar` and
+`bass` carry keyswitches, and in `tonewheel.json` only `guitar` (and `pad`,
+below) - its bass is Swag Bass, which has none and plays `+` as dead strings.
+`band`'s guitar and bass both declare `sustain`,
 `fret_mute`, `legato`, `marcato`, `mute`, `slide_up`, `slide_down`,
 `slide_in`, `slide_out`, and `sustain_up`/`sustain_alt`,
 `mute_up`/`mute_alt` - the `_up` and `_alt` names are the library's

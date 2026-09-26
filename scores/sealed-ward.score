@@ -123,7 +123,7 @@ pattern offbeat
 
 section intro bars:4
   // The cell twice, alone but for the foot. Nothing to hear but the ghosts.
-  bass dyn:mp..mf feel:tight art:marcato pocket:on
+  bass dyn:mp..mf feel:tight pocket:on
     | cell | cell |
   perc.feet dyn:mp feel:tight
     | r:4 | r:4 | feet | feet |
@@ -133,7 +133,7 @@ section intro bars:4
 section riff bars:8
   // The engine starts. Still no tune, no cymbals, no chord change for two bars
   // at a time - the ear is being given the pedal to hold on to.
-  bass dyn:mf feel:tight art:marcato pocket:on
+  bass dyn:mf feel:tight pocket:on
     | cell | cell | cell | cell |
   guitar dyn:mf..f feel:tight art:sustain pocket:on
     | chug | chug | chug | chug |
@@ -156,7 +156,7 @@ section verse bars:8
     // The rotor is turning slowly when the tune arrives - chorale, the speed a
     // Hammond idles at. It has somewhere to go later.
     | hook |
-  bass dyn:mf feel:tight art:marcato pocket:lay
+  bass dyn:mf feel:tight pocket:lay
     | cell | cell | cell | cell |
   guitar dyn:mf feel:tight art:sustain pocket:lay
     | chug | chug | chug | chug |
@@ -198,7 +198,7 @@ section rite bars:8
     // to go when it is halfway through.
     | r:4 | r:4 | r:4 | r:4 |
     | bright | bright |
-  bass dyn:f feel:tight art:marcato pocket:push
+  bass dyn:f feel:tight pocket:push
     | cell | cell | cell | cell |
   guitar dyn:mf..ff feel:tight art:sustain pocket:push
     | chug-4 | chug-2 | chug | chug-5 |
@@ -231,7 +231,7 @@ section break bars:8
   // sixteenths never leave room for.
   //
   // The kit comes back alone in the last two bars and drags the band in with it.
-  bass dyn:mp feel:loose art:marcato pocket:lay
+  bass dyn:mp feel:loose pocket:lay
     | cell | cell | cell | cell |
   lead dyn:p..mf feel:loose pocket:lay rot:slow
     | d5:2_ c5:2_ |
@@ -281,7 +281,7 @@ section reprise from:verse
 section out bars:4
   // Back to D, which after the rite is the only thing that sounds like relief.
   // The cell runs one last time and stops on its own first note.
-  bass dyn:f..mf feel:tight art:marcato pocket:on
+  bass dyn:f..mf feel:tight pocket:on
     | cell |
     | d2:0.25! d2:0.25+ d2:0.25 d2:0.25+ f2:0.25! d2:0.25+ c2:0.25 d2:0.25+ a1:0.25! a1:0.25+ c2:0.25 d2:0.25+ a1:0.5! a1:0.5/ |
     | d2:4! |

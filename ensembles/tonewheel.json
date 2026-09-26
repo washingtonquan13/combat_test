@@ -162,8 +162,8 @@
       "family": "bass",
       "layers": [
         {
-          "instrument": "standard-bass/amped",
-          "name": "picked",
+          "instrument": "karoryfer.swagbass/placed",
+          "name": "fingered",
           "take": {
             "timing": 0.005,
             "velocity": 7
@@ -172,20 +172,7 @@
       ],
       "voices": 16,
       "gain_source": "guessed",
-      "gain_db": -8.5,
-      "defaults": {
-        "volume": 100,
-        "pan": 64,
-        "vibrato_depth": 0,
-        "vibrato_speed": 95,
-        "mute_time": 127,
-        "rel_shape": 13,
-        "rel_level": 114,
-        "magnet": 64,
-        "sub": 100,
-        "slide_speed": 24
-      },
-      "keyswitch_default": "sustain_alt"
+      "gain_db": 5.8
     },
     "pad": {
       "family": "pad",

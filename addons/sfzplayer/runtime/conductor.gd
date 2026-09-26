@@ -41,6 +41,10 @@ const START_TIMEOUT := 2.0
 # finished in this long is a library that is not coming.
 const LOAD_TIMEOUT := 120.0
 
+# What unload() let go of is gone in a few mix steps and a reaper pass; a
+# slot that is still not freed after this long is loaded over anyway.
+const FREE_TIMEOUT := 2.0
+
 var ensemble: SfzEnsemble
 
 # Where the five players end up. Each one actually plays into its own
@@ -66,6 +70,8 @@ var _stacks: Dictionary = {}
 var _reference: SfzInstrument = null
 var _warned: Dictionary = {}       # "part/control" -> true, so we nag once
 var _loaded := false
+# The instruments unload() let go of, until freed() has seen the last of them.
+var _dying: Array[SfzInstrument] = []
 
 # What went wrong on the way to the instruments since load_ensemble(), for stats()
 # and for the once-per-conductor warnings (see _watch()): events moved later
@@ -275,6 +281,9 @@ func load_ensemble(new_ensemble: SfzEnsemble, articulations: Variant = null) -> 
 	if not SfzConductor._on_main("SfzConductor.load_ensemble"):
 		return false
 	unload()
+	# The old ensemble's memory back before the new one's is asked for, or the
+	# two are resident together for as long as the load takes.
+	await freed()
 	if new_ensemble == null:
 		return false
 	ensemble = new_ensemble
@@ -438,6 +447,9 @@ func covers(articulations: Dictionary) -> bool:
 	return true
 
 
+# Lets go of the ensemble. Its memory goes later - the players at the end of
+# the frame, their playbacks when the audio server next drops them, the synths
+# on SfzInstrument's reaper thread - and freed() is how to wait for that.
 func unload() -> void:
 	if not SfzConductor._on_main("SfzConductor.unload"):
 		return
@@ -448,7 +460,11 @@ func unload() -> void:
 				continue
 			player.stop()
 			player.queue_free()
+			_dying.append(entry.instrument)
 	_stacks.clear()
+	# A held slot unloaded is not held: the next ensemble's players start
+	# mixing as they are added.
+	process_mode = PROCESS_MODE_INHERIT
 	_warned.clear()
 	_moved.clear()
 	_heard_frame = -1
@@ -456,6 +472,64 @@ func unload() -> void:
 	_reference = null
 	_loaded = false
 	ensemble = null
+
+
+# Awaits until everything unload() let go of has been freed: no playback of
+# its instruments left alive and nothing on the reaper - then hands the freed
+# heap back to the system, which a crossfade's worth of samples otherwise
+# stays counted against the game long after it is gone. Returns at once with
+# nothing unloaded since the last call.
+func freed() -> void:
+	if _dying.is_empty():
+		return
+	var deadline := Time.get_ticks_msec() + int(FREE_TIMEOUT * 1000.0)
+	while Time.get_ticks_msec() < deadline and not _all_freed():
+		await get_tree().process_frame
+	if _dying.is_empty():
+		return   # another caller saw it through
+	_dying.clear()
+	SfzInstrument.trim_heap()
+
+
+# A playback is destroyed before its instrument stops answering is_ready(), and
+# its synth is on the reaper by then (SfzInstrumentPlayback's destructor), so
+# the two together leave nothing between them.
+func _all_freed() -> bool:
+	for instrument in _dying:
+		if instrument.is_ready():
+			return false
+	return SfzInstrument.get_pending_frees() == 0
+
+
+# A loaded ensemble nothing plays yet - a director's preloaded slot - still
+# costs a render of silence every block, most of a core on a small machine.
+# Held, its players are stream-paused: the audio server skips them, sfizz
+# renders nothing, and every clock of the ensemble stops. All in one mix step,
+# with the audio server locked, so the clocks stop on the same frame and the
+# offsets measured at load still hold when release() starts them together.
+# Disabling the conductor is what pauses them, as SfzMusicDirector.pause()
+# does the whole director; a pause and resume of the director above leaves a
+# held slot held.
+func hold() -> void:
+	if not _loaded or offline != null or process_mode == PROCESS_MODE_DISABLED:
+		return
+	AudioServer.lock()
+	process_mode = PROCESS_MODE_DISABLED
+	AudioServer.unlock()
+
+
+# Starts a held ensemble's clocks again, on one frame. now() stood still while
+# it was held, so schedule against it only after this.
+func release() -> void:
+	if process_mode != PROCESS_MODE_DISABLED:
+		return
+	AudioServer.lock()
+	process_mode = PROCESS_MODE_INHERIT
+	AudioServer.unlock()
+
+
+func is_held() -> bool:
+	return process_mode == PROCESS_MODE_DISABLED
 
 
 # --- Playing -------------------------------------------------------------
@@ -794,12 +868,13 @@ func stats() -> Dictionary:
 	return out
 
 
-# How much sample audio this ensemble is holding in memory, in bytes. Layers
-# loading the same files share one copy of each (sfizz-shared-samples.patch)
-# and each counts its share, so the two slots of a director add up to what is
-# held once, not once per ensemble. sfizz's per-region bookkeeping and the
-# streamed tails of playing notes are not counted, so the real figure is
-# higher.
+# How much preloaded sample audio - the heads of the files - this ensemble is
+# holding in memory, in bytes. Layers loading the same files share one copy of
+# each (sfizz-shared-samples.patch) and each counts its share, so the two slots
+# of a director add up to what is held once, not once per ensemble. sfizz's
+# per-region bookkeeping and the streamed files of playing notes are not
+# counted (SfzInstrument.get_streamed_bytes() is the second), so the real
+# figure is higher.
 func memory_estimate() -> int:
 	var total := 0
 	for part_name in _stacks:

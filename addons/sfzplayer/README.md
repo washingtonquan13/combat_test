@@ -33,10 +33,10 @@ the settings UI.
 | `sfzplayer/paths/scores`      | `res://scores`                 | `<id>.score` scores, stings included |
 | `sfzplayer/paths/transitions` | `res://music/transitions.json` | areas and the rules between them |
 | `sfzplayer/audio/bus`         | `Music`                        | the bus all the music ends up on, sending to Master; the master chain (EQ, glue, limiter) goes on it, and volume, ducking and pausing act on it |
-| `sfzplayer/memory/preload_scale` | `1.0`                       | how much of the head of every sample is held in memory, against what the ensembles ask for; the rest streams from disk |
+| `sfzplayer/memory/preload_scale` | `0.5`                       | how much of the head of every sample is held in memory, against what the ensembles ask for; the rest streams from disk |
 
 Every setting takes a feature-tag override, so a platform can differ:
-`sfzplayer/memory/preload_scale.mobile = 0.25` quarters the resident sample
+`sfzplayer/memory/preload_scale.mobile = 0.25` halves the resident sample
 memory on phones and leaves desktops alone.
 
 Put an empty `.gdignore` in the samples folder. sfizz reads the samples from

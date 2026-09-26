@@ -16,8 +16,12 @@ extends RefCounted
 #                                Master: the one fader for a volume slider
 #   sfzplayer/memory/preload_scale
 #                                how much of each sample's head is held in
-#                                memory, against what the ensembles ask for: 1.0
-#                                on a desktop, less where memory is short
+#                                memory, against what the ensembles ask for.
+#                                0.5: with sfizz streaming a file only a window
+#                                ahead of each voice, half the heads the
+#                                ensembles were written for kept band's 156
+#                                voices unstarved on a warm cache (2026-09-25;
+#                                a cold cache or an HDD is not measured)
 #
 # The editor plugin registers them with these defaults, so they show up in
 # Project Settings; a project that never enables the plugin still gets the
@@ -42,7 +46,7 @@ const DEFAULTS := {
 	TRANSITIONS: "res://music/transitions.json",
 	LOUDNESS: "res://scores/loudness.json",
 	BUS: "Music",
-	PRELOAD_SCALE: 1.0,
+	PRELOAD_SCALE: 0.5,
 }
 
 # sfizz's streaming has nothing to fall back on below this: a voice that

@@ -11,7 +11,10 @@
 //   roots   a synth bass holds a root for four bars at a time, D A Bb C -
 //           i, v, bVI, bVII, the aeolian loop that every long road in a
 //           game is paved with. The figure never changes to follow it, so
-//           over Bb and C it rubs, which is most of the mood.
+//           over Bb and C it rubs, which is most of the mood. From the
+//           second statement the same roots gallop - an eighth and two
+//           sixteenths on every beat - and that, with the kit, is the whole
+//           of the lift.
 //   voices  a choir holds the chords, voiced low: D F A D, E G C over A
 //           (an Am7 with the root in the bass), D F Bb, and E A C over C.
 //   melody  a bowed pad, first as a single held D, then D F, then D F A,
@@ -20,8 +23,10 @@
 //           over C. Over D that is the ninth and the eleventh, never the
 //           triad - the melody floats over the chord rather than sitting in
 //           it. It is played three times.
-//   drums   nothing for forty bars, then sixteenth hats with the open hat
-//           on every third note, then a kit.
+//   drums   nothing for forty bars, then four bars of sixteenth hats
+//           alone over a held D and F, a snare fill, and a plain backbeat -
+//           kick on 1 and 3, snare on 2 and 4 - with a fill every fourth
+//           bar, arriving with the second statement and the gallop.
 //
 // What changes. The sounds, and only as far as the mood allows:
 //
@@ -42,12 +47,16 @@
 //   "bowed pad" patch was reaching for. The choir is a sampled choir, with
 //   the same pad behind it.
 //
-//   The kit is electronic, and it keeps the original's patience: nothing
-//   until the melody's first statement is ending, then the hats alone, then
-//   a half-time beat - kick on 1 and the "and" of 2, a clap on 3 - under
-//   the hats' open-on-every-third pattern, which is the one thing kept from
-//   the 1995 kit because it is the one thing in it with a personality.
-//   Before the drums, a shaker, quietly, from the moment the choir arrives.
+//   The kit is acoustic, the Salamander kit, and it keeps the original's
+//   patience and its beat: nothing until the melody's first statement is
+//   ending, then the hats alone for four bars, then the backbeat and its
+//   fills as written. The hats are the kit's second part, `hats`, so they
+//   have a fader of their own and sit under the backbeat the way a mixed
+//   record's hats do. The shaker and the crashes are a third, `fx`, on
+//   Circuit, a kit sfizz synthesizes.
+//   The roots' gallop is Tide, the ostinato's own synth bass, as a part of
+//   its own; Drift cannot gallop, it has no attack. Before the drums, a
+//   shaker, quietly, from the moment the choir arrives.
 //
 //   The high Bb that turns into the melody - the original's one gesture, a
 //   bowed synth wrenched up a tone on the pitch wheel and let sag back -
@@ -64,17 +73,19 @@
 //   the melody goes up an octave. A third time through the same sixteen
 //   bars needs something to be different; that is all it gets.
 //
-// Form. The intro plays once; everything from the choir's entrance loops,
-// so a player who stays in the area hears the roots and choir arrive again
-// each time round, and `end` lands the figure on D.
+// Form. Everything up to the drums plays once: the intro, the choir, the
+// Bb that sets out, the first statement and the four bars of hats. That is
+// the start of the journey, and it is never revisited. The loop is the
+// journey itself - the second and third statements, with the gallop and
+// the kit, bars 45 to 76 of the original. `home` and `end` are the way out.
 
 title: Long Time Way
 ensemble: wayfarer
-parts: lead cry:lead@lead lower:strings@lead keys bass root:bass@bass pad perc
+parts: lead cry:lead@lead lower:strings@lead keys bass root:bass@bass gallop:bass@bass pad perc hats:perc@perc fx:perc@perc
 tempo: 120
 meter: 4/4
 key: d minor
-order: intro [rise turn theme open theme2 theme3 home] end
+order: intro rise turn theme open [theme2 theme3] home end
 
 // The ostinato alone - plucked from the first note, as the original is,
 // with the synth under it opening - and one held D over it.
@@ -112,7 +123,7 @@ section rise bars:12
     | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 | [d3 f3 bb3]:8 [d3 f3 bb3 d4]:8 |
   lead dyn:mp
     | d5:16 | [d5 f5]:16 | [d5 f5 a5]:16^ |
-  perc.fx dyn:p..mp
+  fx dyn:p..mp
     | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
@@ -120,7 +131,8 @@ section rise bars:12
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
 
 // C, and the held chord opens to A C E; then high Bb, the flat sixth,
-// alone for a bar - the darkest note in the piece, as the pickup. It is the
+// over the held chord for a bar - the darkest note in the piece, as the
+// pickup. It is the
 // original's signature, and it is not played straight: struck hard, bent up
 // a whole tone at once, held on the C, then let sag back through the Bb to
 // just under it as the melody arrives. The shape is the 1995 file's own
@@ -137,17 +149,44 @@ section turn bars:4
   pad dyn:mp
     | [e3 a3 c4]:8 [e3 a3 c4 e4]:8 |
   lead.hold dyn:mp..mf
-    | [a4 c5 e5]:12 r:4 |
+    | [a4 c5 e5]:16 |
   cry dyn:f bend:+200@0.4,+200@2,0@3.56,-40@3.9
     | r:12 bb5:4! |
-  perc.fx dyn:mp
+  fx dyn:mp
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
 
+// The second and third statements' rhythm section, as the original has it.
+// A root gallops for four bars; the kit plays a backbeat and fills every
+// fourth bar, with a longer fill at the end of a phrase.
+pattern trot
+  | d2:0.5 d2:0.25*2 d2:0.5 d2:0.25*2 d2:0.5 d2:0.25*2 d2:0.5 d2:0.25*2 |
+pattern beat_feet
+  | kick:2! kick:2 |
+pattern beat_hands
+  | r:1 snare:1! r:1 snare:1! |
+pattern fill_feet
+  | kick:2! kick:1 kick:1 |
+pattern fill_hands
+  | r:1 snare:1.25! snare:0.5 snare:0.75 snare:0.25 snare:0.25! |
+pattern roll_feet
+  | kick:2! kick:0.5 kick:0.5 kick:1 |
+pattern roll_hands
+  | r:1 snare:1.25! snare:0.5 snare:0.5 snare:0.25 snare:0.25 snare:0.25! |
+// The hats as the original plays them: a texture under the backbeat, not
+// beside it - the loudest of them two thirds of a snare. The closed hat
+// leans on each beat, the open hat falls on the third, sixth, tenth,
+// thirteenth and fifteenth sixteenths. `hats_in` is their first two bars,
+// before the last two opens arrive.
+pattern hats
+  | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25. hat:0.25. hat_open:0.25 hat:0.25. hat_open:0.25 hat:0.25. |
+pattern hats_in
+  | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
+
 // The melody: two voices a third apart, a whole note a bar. No drums yet
-// but the shaker, and a build in the last two bars.
+// but the shaker, and the hats coming in over the last two bars.
 section theme bars:16
   bass.figure dyn:mf feel:tight
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
@@ -183,18 +222,20 @@ section theme bars:16
   // taken with the bow already moving. The two voices sit behind the beat
   // and not by the same amount - the inner part leans later still, because
   // a section that speaks in perfect unison is one instrument rather than a
-  // desk of players.
+  // desk of players. The first note is the exception to the bow: it is taken
+  // at level, because it answers the Bb and a swell from under it reads as
+  // a gap.
   lead.upper dyn:mp..mf art:sustain feel:loose pocket:lay
-    | g4:4^ | f4:4_ | g4:4^ | f4:4. |
+    | g4:4_ | f4:4_ | g4:4^ | f4:4. |
     | e4:4_ | f4:4_ | g4:4^ | e4:4. |
     | a4:4!^ | f4:4_ | g4:4^ | a4:4^ |
     | g4:4_ | f4:4_ | e4:4. | g4:4^ |
   lower dyn:mp..mf art:sustain feel:loose pocket:22
-    | e4:4^ | d4:4_ | e4:4_ | d4:4. |
+    | e4:4_ | d4:4_ | e4:4_ | d4:4. |
     | c4:4_ | d4:4_ | e4:4^ | c4:4. |
     | f4:4!^ | d4:4_ | e4:4_ | f4:4^ |
     | e4:4_ | d4:4_ | c4:4. | e4:4^ |
-  perc.fx dyn:mp
+  fx dyn:mp
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
@@ -211,18 +252,12 @@ section theme bars:16
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
     | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
-  perc.right dyn:p..mf feel:tight
+  hats dyn:pp..p feel:tight
     | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
-    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-  perc.left dyn:p..mf feel:tight
-    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
-    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
-    | r:2 snare:0.25. snare:0.25. snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25! snare:0.25! |
+    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | hats_in | % |
 
-// The beat arrives with nothing else changing: no root, the voices holding
-// D and F, and the kit for the first time.
+// Four bars of breath before the journey: no root, the voices holding D
+// and F, the hats alone, and a snare fill in the last bar into the kit.
 section open bars:4
   bass.figure dyn:mf feel:tight
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
@@ -233,33 +268,14 @@ section open bars:4
     | [d4 f4]:16^ |
   pad dyn:mp
     | [d3 f3 a3 d4]:16 |
-  perc.right dyn:mf feel:tight
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
+  hats dyn:p feel:tight
+    | hats | % | % | % |
   perc.left dyn:mf feel:tight
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
+    | r:4 | r:4 | r:4 | r:2.25 snare:0.75 snare:0.5 snare:0.25 snare:0.25! |
   perc.feet dyn:mf feel:tight
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-  perc.fx dyn:mf
-    | crash:4! |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-  perc.drop dyn:mf
-    | boom:4! |
-    | r:4 |
-    | r:4 |
-    | r:4 |
+    | r:4 | r:4 | r:4 | r:2 kick:2! |
 
-// The melody again, over the whole kit.
+// The journey: the melody again, over the kit and the galloping roots.
 section theme2 bars:16
   bass.figure dyn:mf..f feel:tight
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
@@ -278,8 +294,9 @@ section theme2 bars:16
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 f2:0.25 e2:0.25 d2:0.25 c2:0.25 |
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 f2:0.25 e2:0.25 d2:0.25 c2:0.25 |
-  root dyn:mf
-    | d2:16 | a1:16 | bb1:16 | c2:16 |
+  gallop dyn:mf feel:tight
+    | trot | % | % | % | trot-5 | % | % | % |
+    | trot-4 | % | % | % | trot-2 | % | % | % |
   pad dyn:mf
     | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 |
     | [d3 f3 bb3]:16 | [e3 a3 c4]:16 |
@@ -299,91 +316,21 @@ section theme2 bars:16
     | c4:4_ | d4:4_ | e4:4^ | c4:4. |
     | f4:4!^ | d4:4_ | e4:4_ | f4:4^ |
     | e4:4_ | d4:4_ | c4:4. | e4:4^ |
-  perc.right dyn:mf feel:tight
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
+  hats dyn:p feel:tight
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
   perc.left dyn:mf feel:tight
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
   perc.feet dyn:mf feel:tight
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-  perc.fx dyn:mf
-    | crash:4! |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-  perc.drop dyn:mf
-    | boom:4! |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | roll_feet |
 
 // The third time: the upper voice an octave higher, and a pluck on the
 // kit's three-three-two in the gaps.
@@ -405,26 +352,29 @@ section theme3 bars:16
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 f2:0.25 e2:0.25 d2:0.25 c2:0.25 |
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 f2:0.25 e2:0.25 d2:0.25 c2:0.25 |
-  root dyn:f
-    | d2:16 | a1:16 | bb1:16 | c2:16 |
+  gallop dyn:f feel:tight
+    | trot | % | % | % | trot-5 | % | % | % |
+    | trot-4 | % | % | % | trot-2 | % | % | % |
   pad dyn:mf..f
     | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 |
     | [d3 f3 bb3]:16 | [e3 a3 c4]:16 |
   // Third statement: both voices tremolo, an octave apart, which is as far
   // as this scoring goes. The melody is where it always was - the octave is
   // the original's, not ours - but nothing is held any more, and with the
-  // kick and the crash under it the pair sit on the beat rather than behind
-  // it. The accents are on the peaks only; a tremolo already supplies the
-  // motion a swell would otherwise have to write.
-  lead.upper dyn:mf..f art:tremolo feel:loose pocket:on
-    | g5:4!^ | f5:4_ | g5:4^ | f5:4_ |
+  // kit under it the pair sit on the beat rather than behind
+  // it. It is no louder than the second statement: the octave and the
+  // tremolo are the whole climb, and on top of them a crescendo and
+  // marcato accents were too much. So no `!` here - on strings it is a
+  // switch to the marcato samples, not just an accent.
+  lead.upper dyn:mp..mf art:tremolo feel:loose pocket:on
+    | g5:4^ | f5:4_ | g5:4^ | f5:4_ |
     | e5:4_ | f5:4_ | g5:4^ | e5:4. |
-    | a5:4!^ | f5:4_ | g5:4^ | a5:4!^ |
+    | a5:4^ | f5:4_ | g5:4^ | a5:4^ |
     | g5:4_ | f5:4_ | e5:4. | g5:4^ |
-  lower dyn:mf..f art:tremolo feel:loose pocket:on
-    | e4:4!^ | d4:4_ | e4:4_ | d4:4_ |
+  lower dyn:mf art:tremolo feel:loose pocket:on
+    | e4:4^ | d4:4_ | e4:4_ | d4:4_ |
     | c4:4_ | d4:4_ | e4:4^ | c4:4. |
-    | f4:4!^ | d4:4_ | e4:4_ | f4:4^ |
+    | f4:4^ | d4:4_ | e4:4_ | f4:4^ |
     | e4:4_ | d4:4_ | c4:4. | e4:4^ |
   keys dyn:mp..mf feel:tight
     | d5:1.5! a5:1.5 e6:1 |
@@ -443,94 +393,23 @@ section theme3 bars:16
     | c5:1.5! g5:1.5 e6:1 |
     | c5:1.5! g5:1.5 e6:1 |
     | c5:1.5! g5:1.5 e6:1 |
-  perc.right dyn:f feel:tight
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
-    | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25. hat:0.25 hat_open:0.25 hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
+  hats dyn:mp feel:tight
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
   perc.left dyn:f feel:tight
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1.5! rim:0.25. r:0.25 |
-    | r:0.75 rim:0.25. r:1 clap:1! snare:0.25. snare:0.25 snare:0.25! snare:0.25! |
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
   perc.feet dyn:f feel:tight
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-    | kick:1.5! kick:1 kick:1.5 |
-    | kick:1.5! kick:0.75 kick:0.75 kick:1 |
-  perc.fx dyn:mf
-    | crash:4! |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-  perc.drop dyn:mf
-    | boom:4! |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
-    | r:4 |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | roll_feet |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | roll_feet |
 
-// Back to where it started: the kit stops, the held D returns, and the
-// loop goes round to the roots and the choir.
+// The way out: the kit stops and the held D returns, as the original ends.
 section home bars:4
   bass.figure dyn:f..mp feel:tight
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
@@ -541,7 +420,7 @@ section home bars:4
     | d5:16 |
   pad dyn:mp..p
     | [d3 f3 a3 d4]:16 |
-  perc.fx dyn:mf
+  fx dyn:mf
     | crash:4! | r:4 | r:4 | r:4 |
 
 // The way out: the figure lands on D and everything else lets go.
@@ -554,5 +433,5 @@ section end bars:2
     | [d3 f3 a3 d4]:8 |
   lead dyn:mp..p
     | [d4 f4 a4 d5]:8 |
-  perc.fx dyn:mp
+  fx dyn:mp
     | crash:4! r:4 |

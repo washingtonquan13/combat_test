@@ -337,6 +337,36 @@ func release_cuts(part: String) -> bool:
 	return part_for(part).cuts_on_release()
 
 
+# The drum that plays `key` dead on this part - the string damped by the
+# fretting hand, the pitch gone - or "" where the part has no such sounds.
+# A library that records dead notes as one noise per string (Swag Bass) is
+# mapped with drums named dead_<open string>, so the part's drum map says
+# both which strings there are and where each one's thud sits. A note is on
+# the highest string whose open pitch is at or under it, which is the string
+# a player in the lowest position would fret it on; a note under every string
+# goes to the lowest one.
+func dead_string(part: String, key: int) -> String:
+	if ensemble == null:
+		return ""
+	var on := ""
+	var on_open := -1
+	var lowest := ""
+	var lowest_open := 128
+	for drum: String in part_for(part).drums:
+		if not drum.begins_with("dead_"):
+			continue
+		var open := SfzScore.parse_note(drum.substr(5))
+		if open < 0:
+			continue
+		if open <= key and open > on_open:
+			on = drum
+			on_open = open
+		if open < lowest_open:
+			lowest = drum
+			lowest_open = open
+	return on if on != "" else lowest
+
+
 # The articulation a part plays when nothing asks for another, as the ensemble
 # names it; "" if the ensemble has none.
 func resting_art(part: String) -> String:

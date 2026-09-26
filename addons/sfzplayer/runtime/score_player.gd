@@ -200,6 +200,9 @@ var _from: float = 0.0      # seconds in the piece began from; nothing before so
 # What prepare() built, for play_at() with the same score to install: see
 # _build(). Empty when there is none.
 var _plan: Dictionary = {}
+# The thread prepare() compiles on, while it runs: joined on free, since it
+# runs this script's code and must not outlive it.
+var _compiling: Thread
 # "part|drum" for every drum this score hits that the ensemble's kit does not map.
 # Those hits are skipped, as the conductor would skip them, so the conductor's
 # own once-per-call warning is kept for a game's direct hit() - this piece
@@ -340,11 +343,12 @@ func prepare(new_score: SfzScore, against: SfzEnsemble = null) -> void:
 	if against == null and (conductor == null or not conductor.is_loaded()):
 		push_error("ScorePlayer: no ensemble loaded")
 		return
-	var thread := Thread.new()
-	thread.start(_build.bind(new_score, against if against != null else conductor.ensemble))
-	while thread.is_alive():
+	_compiling = Thread.new()
+	_compiling.start(_build.bind(new_score, against if against != null else conductor.ensemble))
+	while _compiling.is_alive():
 		await get_tree().process_frame
-	_plan = thread.wait_to_finish()
+	_plan = _compiling.wait_to_finish()
+	_compiling = null
 
 
 # Every articulation the prepared piece switches each part to, at any
@@ -670,6 +674,14 @@ func length() -> float:
 		var join := _loop_end + (_passes - 1) * _loop_length
 		return join if _bare else score.duration() + (_passes - 1) * _loop_length
 	return INF
+
+
+# Freed mid-prepare() - the game quitting, a preload dropped - the awaiting
+# prepare() is dropped with it, and the thread would run on into a script
+# already torn down.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _compiling != null:
+		_compiling.wait_to_finish()
 
 
 func _process(_delta: float) -> void:
@@ -1030,6 +1042,10 @@ func _finding_text(who: String, ensemble: SfzEnsemble, f: Dictionary, cast_as: S
 			return "%s: %s %s no '%s' articulation in ensemble %s; %s %s" % [
 				who, subject, "have" if lanes.size() > 1 and not part_name in lanes else "has",
 				name, ensemble.id, art_instead, count]
+		"clash":
+			return "%s: %s switch%s %s to '%s' %s %s" % [
+				who, subject, "" if lanes.size() > 1 and not part_name in lanes else "es",
+				part_name, name, f["fallback"], count]
 		"control":
 			var control_instead: String = f["fallback"]
 			if control_instead == "":

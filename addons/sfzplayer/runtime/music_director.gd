@@ -29,7 +29,9 @@ extends Node
 # for the areas it can see coming - the battle a random
 # encounter may start, the room behind a door the player is walking towards:
 # the idle slot loads it in the background, and go_to() for that area starts
-# from the next bar.
+# from the next bar. Loaded, the idle slot is held (SfzConductor.hold()): it
+# renders nothing until the go_to() that plays it, which releases it before a
+# note is placed on its clock.
 #
 # The rest is what a game does to its music without changing it: a volume
 # for its options menu (volume_db), ducking under dialogue (duck/unduck),
@@ -58,8 +60,10 @@ const BUSES: Array[StringName] = [&"MusicA", &"MusicB"]
 # jump from digital silence.
 const SILENT_DB := -60.0
 
-# Past this, loading another ensemble alongside the current one is a decision
-# rather than an accident. Two of the ensembles on the roster are large.
+# Past this much sample audio in memory - the heads both slots preload and the
+# files sfizz streams for the notes playing - loading another ensemble
+# alongside the current one is a decision rather than an accident. Two of the
+# ensembles on the roster are large.
 var memory_budget: int = 768 << 20
 
 # The crossfade for go_to_piece() without a rule, and for silence().
@@ -111,6 +115,15 @@ var _intensity := 0
 var _scores := {}                  # path -> SfzScore, parsed ahead by preload_area()
 var _prepared := {}                # path -> SfzScorePlayer, compiled ahead by preload_area()
 var _last_read := {}
+var _reading: Thread             # _read()'s thread while it runs, joined on free
+
+
+# Freed while _read() waits - the game quitting mid-preload - the awaiting
+# _read() is dropped with it, and its thread would run on into scripts already
+# torn down.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE and _reading != null:
+		_reading.wait_to_finish()
 
 
 func _ready() -> void:
@@ -226,6 +239,10 @@ func preload_area(new_area: String) -> bool:
 				# Compiling is most of a transition that has nothing to load.
 				_prepared[path] = player
 		ok = await _load(back, ensemble, articulations)
+	if ok:
+		# Nothing plays it until go_to(): it waits without rendering.
+		_conductors[back].hold()
+		_meter("preloaded '%s'" % new_area, heads_memory())
 	_preloaded = new_area if ok else ""
 	_free()
 	return ok
@@ -349,6 +366,13 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 				player.queue_free()
 		_free()
 		return false
+	# A preloaded slot's clocks stood still while it was held. Started again
+	# here, before the offset is read and before anything is placed on its
+	# clock, the exit and the downbeat are on the grid exactly as they are for
+	# a slot that never stopped: both clocks count frames mixed in the same
+	# step from here on, and the offset is measured after.
+	_conductors[back].release()
+	var loaded_heads := heads_memory()
 	incoming.set_intensity(_intensity)   # moved while it compiled?
 
 	# Everything below is in musical time, and quick: the exit is chosen
@@ -403,10 +427,7 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 	await _until(_conductors[back], handoff)
 	var fade: float = rule["fade"]
 	var falling := _fade(front, SILENT_DB, maxf(fade, 0.01))
-	if fade_in > 0.0:
-		var rising := _fade(back, 0.0, fade_in)
-		if fade_in > fade:
-			falling = rising
+	var rising: Tween = _fade(back, 0.0, fade_in) if fade_in > 0.0 else null
 	await falling.finished
 
 	# The offset again, both clocks having run through the handoff: if it has
@@ -415,9 +436,14 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 		_last["drift"] = _clock_offset(_conductors[front], _conductors[back]) - offset
 
 	# Only now is the old ensemble unreachable, and only now is its memory worth
-	# giving back.
+	# giving back - at once, not when a longer fade in has finished: silent, it
+	# still renders, and sfizz lets go of the files it streamed only as it does.
 	_drop(front)
 	_conductors[front].unload()
+	await _conductors[front].freed()
+	if rising != null and rising.is_running():
+		await rising.finished
+	_meter("landed '%s'" % new_area, loaded_heads)
 
 	_busy = false
 	transition_finished.emit(new_area)
@@ -440,6 +466,8 @@ func silence() -> void:
 	_conductors[_front].unload()
 	if _conductors[1 - _front].is_loaded():
 		_conductors[1 - _front].unload()
+	for c in _conductors:
+		await c.freed()
 	_preloaded = ""
 	area = ""
 	_free()
@@ -502,8 +530,10 @@ func restore(saved: Dictionary) -> bool:
 	return await go_to(saved_area, false, float(positions.get(saved_area, 0.0)))
 
 
-# Bytes of sample data the two slots are holding between them.
-func memory() -> int:
+# Bytes of preloaded sample heads the two slots are holding between them
+# (SfzConductor.memory_estimate()): not the files streamed for the notes
+# playing, and not sfizz's own bookkeeping. _meter() logs those beside it.
+func heads_memory() -> int:
 	var total := 0
 	for c in _conductors:
 		if c.is_loaded():
@@ -570,13 +600,10 @@ func _free() -> void:
 
 # Loads an ensemble into `slot`, replacing whatever is there, with only the
 # `articulations` (see SfzConductor.load_ensemble) the pieces it is for play.
+# load_ensemble() unloads what was there first and waits for it to be freed,
+# so a stale preload is gone before the new ensemble is read.
 func _load(slot: int, ensemble: SfzEnsemble, articulations: Dictionary) -> bool:
-	if _conductors[slot].is_loaded():
-		_conductors[slot].unload()
-	var ok: bool = await _conductors[slot].load_ensemble(ensemble, articulations)
-	if ok:
-		_check_budget(ensemble)
-	return ok
+	return await _conductors[slot].load_ensemble(ensemble, articulations)
 
 
 # Adds `more`'s articulations (part -> names) to `into`'s.
@@ -599,11 +626,13 @@ func _uncached(paths: Array) -> Array:
 func _read(score_paths: Array, ensemble_path: String) -> Dictionary:
 	if score_paths.is_empty() and ensemble_path == "":
 		return {"scores": {}, "ensemble": null, "parsed": 0, "on_main_thread": 0}
-	var thread := Thread.new()
-	thread.start(_read_files.bind(score_paths, ensemble_path))
-	while thread.is_alive():
+	_reading = Thread.new()
+	_reading.start(_read_files.bind(score_paths, ensemble_path))
+	while _reading.is_alive():
 		await get_tree().process_frame
-	return thread.wait_to_finish()
+	var read: Dictionary = _reading.wait_to_finish()
+	_reading = null
+	return read
 
 
 # `on_main_thread` counts the scores parsed where the game would wait for
@@ -730,12 +759,23 @@ func _ensure_bus(name: StringName) -> void:
 	SfzMixer.ensure(name)
 
 
-# A budget is not a limit - refusing to load the area the player just walked
-# into would be worse than the memory. It is a place for the number to be
-# noticed, with the per-part preload sizes that would bring it down.
-func _check_budget(incoming: SfzEnsemble) -> void:
-	var used := memory()
-	if used <= memory_budget:
-		return
-	push_warning("MusicDirector: %.0f MB resident loading '%s', over the %.0f MB budget" % [
-		used / 1048576.0, incoming.id, memory_budget / 1048576.0])
+# One line per preload and per transition landed: the sample audio in memory
+# - heads and streamed files, while the extension can count the second - and
+# the process's private bytes, which is what the machine actually gives up.
+# `peak_heads` is the heads while both slots were loaded. A budget is not a
+# limit - refusing to load the area the player just walked into would be worse
+# than the memory. It is a place for the number to be noticed, with the
+# per-part preload sizes that would bring it down.
+func _meter(what: String, peak_heads: int) -> void:
+	var heads := heads_memory()
+	var streamed: int = SfzInstrument.get_streamed_bytes()
+	var samples := heads + maxi(streamed, 0)
+	var line := "MusicDirector: %s - heads %.0f MB (%.0f MB with both slots)" % [
+		what, heads / 1048576.0, peak_heads / 1048576.0]
+	if streamed >= 0:
+		line += ", streamed %.0f MB" % (streamed / 1048576.0)
+	line += ", process private %.0f MB" % (SfzInstrument.get_process_private_bytes() / 1048576.0)
+	print(line)
+	if maxi(samples, peak_heads) > memory_budget:
+		push_warning("MusicDirector: %.0f MB of samples resident at %s, over the %.0f MB budget" % [
+			maxi(samples, peak_heads) / 1048576.0, what, memory_budget / 1048576.0])

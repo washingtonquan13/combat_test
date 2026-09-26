@@ -1,21 +1,21 @@
 {
 	"areas": {
 		"main_menu": {"ensemble": "groovy", "score": "level-up-groovy"},
-		"test_arena.exploration": {"ensemble": "tonewheel", "score": "sealed-ward"},
+		"test_arena.exploration": {"ensemble": "tonewheel", "score": "sealed-ward-lament"},
 		"test_arena.combat": {"ensemble": "band", "score": "low-end"},
-		"test_arena.negotiation": {"ensemble": "decadence", "score": "decadence-rite"},
-		"cathedral_of_shadows.exploration": {"ensemble": "decadence", "score": "decadence-rite"},
+		"test_arena.negotiation": {"ensemble": "decadence", "score": "decadence"},
+		"cathedral_of_shadows.exploration": {"ensemble": "decadence", "score": "decadence"},
 		"cathedral_of_shadows.combat": {"ensemble": "band", "score": "low-end"},
-		"cathedral_of_shadows.negotiation": {"ensemble": "decadence", "score": "decadence-rite"},
+		"cathedral_of_shadows.negotiation": {"ensemble": "decadence", "score": "decadence"},
 		"overworld.exploration": {"ensemble": "wayfarer", "score": "long-time-way"},
 		"overworld.combat": {"ensemble": "band", "score": "low-end"},
-		"overworld.negotiation": {"ensemble": "decadence", "score": "decadence-rite"},
+		"overworld.negotiation": {"ensemble": "decadence", "score": "decadence"},
 		"test_area_2.exploration": {"ensemble": "decadence", "score": "decadence"},
 		"test_area_2.combat": {"ensemble": "band", "score": "low-end"},
-		"test_area_2.negotiation": {"ensemble": "decadence", "score": "decadence-rite"},
-		"test_area_3.exploration": {"ensemble": "tonewheel", "score": "sealed-ward"},
+		"test_area_2.negotiation": {"ensemble": "decadence", "score": "decadence"},
+		"test_area_3.exploration": {"ensemble": "tonewheel", "score": "sealed-ward-lament"},
 		"test_area_3.combat": {"ensemble": "band", "score": "low-end"},
-		"test_area_3.negotiation": {"ensemble": "decadence", "score": "decadence-rite"}
+		"test_area_3.negotiation": {"ensemble": "decadence", "score": "decadence"}
 	},
 	"rules": [
 		{"from": "*", "to": "*", "exit": "now", "fade": 1.5, "fade_in": 1.0},

@@ -26,6 +26,12 @@ const COMBAT: StringName = &"combat"
 const NEGOTIATION: StringName = &"negotiation"
 const MAIN_MENU: String = "main_menu"
 
+## Seconds between a transition landing and the next likely music starting
+## to load. An ensemble load is every layer parsing at once, and landing is
+## when the area or the fight it scores is starting too: the two together are
+## a hitch on a small machine that either alone is not.
+const PRELOAD_DELAY := 3.0
+
 ## Names already reported missing. An area without music asks again on
 ## every world load and fight, and the first warning says all there is.
 var _reported_missing: Dictionary[String, bool] = {}
@@ -41,11 +47,9 @@ func _ready() -> void:
 	# world_loaded, and so does switching to a group standing somewhere
 	# else. Both change which area the player is in.
 	WorldManager.world_focused.connect(_on_world_focused)
-	# The game opens on the title screen, which only asks for its music once
-	# MainRoot has been built - seconds of scene loading. Loading the title's
-	# ensemble now runs alongside that instead of after it.
-	if Music.table and Music.table.has_area(MAIN_MENU):
-		Music.preload_area(MAIN_MENU)
+	# The title's music is not preloaded here: its ensemble is hundreds of MB
+	# held from boot, alongside everything else the game is loading, for a
+	# screen that asks for it seconds later anyway. It loads when asked.
 
 
 ## The director's name for an area's music at a moment. The one place the
@@ -142,7 +146,9 @@ func _next_likely(area_id: StringName, moment: StringName) -> String:
 
 ## go_to() queues behind a transition under way and only the latest request
 ## waits, so this is fire-and-forget. The preload follows the transition
-## rather than racing it: the director refuses to preload mid-transition.
+## rather than racing it: the director refuses to preload mid-transition. It
+## also waits PRELOAD_DELAY, and does not happen at all if the music has
+## moved on meanwhile - the preload is for what may follow this music.
 func _go(music: String, urgent: bool = false, preload_next: String = "") -> void:
 	if not Music.table or not Music.table.has_area(music):
 		if not _reported_missing.has(music):
@@ -151,5 +157,8 @@ func _go(music: String, urgent: bool = false, preload_next: String = "") -> void
 		return
 	if not await Music.go_to(music, urgent):
 		return
-	if preload_next != "" and Music.table.has_area(preload_next) and not Music.is_busy():
+	if preload_next == "" or not Music.table.has_area(preload_next):
+		return
+	await get_tree().create_timer(PRELOAD_DELAY).timeout
+	if Music.area == music and not Music.is_busy():
 		Music.preload_area(preload_next)

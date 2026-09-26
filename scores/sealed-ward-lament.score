@@ -1,0 +1,269 @@
+// Sealed Ward (Lament) - the same ward, with the bass leading the harmony
+// instead of pedalling under it. A second track beside sealed-ward, not a
+// replacement: that one is an ostinato piece, this one is a progression.
+//
+// Riff and verse:  Dm | C | Bb | A7 | Gm | Bb C | Dm Bb | A
+// A lament descent in the bass (D C Bb A), one chord a bar, then the harmonic
+// rhythm doubles into the cadence and the last bar walks up chromatically into
+// D. The bass is written as a player would: the root on the downbeat, the other
+// chord tones and passing notes between, rests, and ghosts marked `+` - on this
+// ensemble's Swag Bass those are the dead thud of the string, not a short note.
+//
+// Rite:  Bb | C | Am | Dm | Gm | Eb | Bb C | A
+// The Eb is the flat second, the darkest chord in the key, set up by Gm and
+// falling onto the dominant. The bass pumps octaves here.
+//
+// The bridge (`break`) is sealed-ward itself: its pedal cell, unmoving, under
+// chords that only darken, the hook's head an octave down on the organ, and a
+// second half that adds weight rather than light. It stays in D minor - a
+// semitone lift and celesta answers were tried there and changed the tone of
+// the piece.
+
+title: Sealed Ward (Lament)
+ensemble: tonewheel
+parts: lead guitar keys bass pad perc
+tempo: 132
+meter: 4/4
+key: d minor
+order: intro [riff verse rite break reprise] out
+
+pattern descent
+  | d2:0.5! d2:0.25+ d2:0.25 r:0.25 d2:0.25+ a2:0.25 d2:0.25 f2:0.5! d2:0.25+ c2:0.25 d2:0.25 r:0.25 a1:0.25+ d2:0.25/ |
+  | c2:0.75! c2:0.25+ r:0.25 g1:0.25 c2:0.25 e2:0.25 g2:0.5! e2:0.25+ c2:0.25 bb1:0.25+ c2:0.25 d2:0.25 c2:0.25/ |
+  | bb1:0.5! bb1:0.25+ bb1:0.25 d2:0.25 f2:0.25+ bb1:0.25 r:0.25 bb1:0.5! f1:0.25+ bb1:0.25 c2:0.25+ bb1:0.25 a1:0.5! |
+  | r:0.25 a1:0.25+ e2:0.25 a1:0.25 r:0.25 a1:0.25+ e2:0.25 a1:0.25 c#2:0.5! a1:0.25+ e1:0.25 g1:0.25 a1:0.25+ c#2:0.25 a1:0.25/ |
+
+pattern turn
+  | g1:0.5! g1:0.25+ g1:0.25 bb1:0.25 d2:0.25+ g2:0.25 d2:0.25 r:0.25 g1:0.25+ g1:0.25 bb1:0.25 d2:0.5! c2:0.25+ a1:0.25/ |
+  | bb1:0.5! bb1:0.25+ f2:0.25 bb1:0.25 a1:0.25+ bb1:0.25 b1:0.25 c2:0.5! c2:0.25+ g2:0.25 c2:0.25 e2:0.25+ c2:0.25 c#2:0.25 |
+  | d2:0.5! d2:0.25+ a2:0.25 d2:0.25+ c2:0.25 d2:0.25 f2:0.25 bb1:0.5! bb1:0.25+ f2:0.25 bb1:0.25 d2:0.25+ c2:0.25 bb1:0.25 |
+  | a1:0.75! a1:0.25+ a1:0.25+ e2:0.25 a1:0.25 g1:0.25 a1:0.5! bb1:0.25 a1:0.25+ a1:0.25 bb1:0.25 b1:0.25 c#2:0.25 |
+
+pattern lift
+  | bb1:0.25! bb1:0.25+ bb2:0.25 bb1:0.25 f2:0.25! bb1:0.25+ bb2:0.25 bb1:0.25 d2:0.25! bb1:0.25+ bb2:0.25 bb1:0.25 f2:0.25! f2:0.25+ bb1:0.25 b1:0.25 |
+  | c2:0.25! c2:0.25+ c3:0.25 c2:0.25 g2:0.25! c2:0.25+ c3:0.25 c2:0.25 e2:0.25! c2:0.25+ c3:0.25 c2:0.25 g2:0.25! g2:0.25+ c2:0.25 b1:0.25/ |
+  | a1:0.5! a1:0.25+ a2:0.25 e2:0.25 a1:0.25+ c2:0.25 e2:0.25 a2:0.5! g2:0.25+ e2:0.25 c2:0.25+ a1:0.25 b1:0.25 c#2:0.25 |
+  | d2:0.5! d2:0.25+ d3:0.25 a2:0.25 d2:0.25+ f2:0.25 a2:0.25 d3:0.5! c3:0.25+ a2:0.25 f2:0.25 d2:0.25+ bb1:0.25 a1:0.25/ |
+  | g1:0.25! g1:0.25+ g2:0.25 g1:0.25 d2:0.25! g1:0.25+ g2:0.25 g1:0.25 bb1:0.25! g1:0.25+ g2:0.25 g1:0.25 d2:0.25! c2:0.25+ d2:0.25 d2:0.25/ |
+  | eb2:0.5! eb2:0.25+ eb2:0.25 bb1:0.25 eb2:0.25+ g2:0.25 eb2:0.25 bb2:0.5! g2:0.25+ eb2:0.25 bb1:0.25+ eb2:0.25 d2:0.25 c2:0.25/ |
+  | bb1:0.25! bb1:0.25+ bb2:0.25 bb1:0.25 f2:0.25! bb1:0.25+ a1:0.25 bb1:0.25 c2:0.25! c2:0.25+ c3:0.25 c2:0.25 g2:0.25! c2:0.25+ b1:0.25 bb1:0.25 |
+  | a1:1! a1:0.25+ a1:0.25+ a1:0.25+ a1:0.25+ a1:0.5! e2:0.5 g2:0.5! c#2:0.25 a1:0.25 |
+
+pattern bare
+  | d2:1.5! d2:0.25+ d2:0.25+ a1:1 r:0.5 c2:0.25+ c2:0.25 |
+  | c2:1.5! c2:0.25+ c2:0.25+ g1:1 r:0.5 bb1:0.25+ bb1:0.25 |
+  | bb1:1.5! bb1:0.25+ bb1:0.25+ f1:1 r:0.5 a1:0.25+ a1:0.25 |
+  | a1:1.5! a1:0.25+ a1:0.25+ e1:1 c#2:0.5 e2:0.25+ g1:0.25 |
+  | g1:1.5! g1:0.25+ g1:0.25+ d2:1 r:0.5 a1:0.25+ bb1:0.25 |
+  | bb1:1.5! bb1:0.25+ b1:0.25 c2:1.5! c2:0.25+ c#2:0.25 |
+  | d2:1.5! d2:0.25+ c2:0.25 bb1:1.5! bb1:0.25+ bb1:0.25 |
+  | a1:1! a1:0.25+ a1:0.25+ a1:0.25 a1:0.25 a1:0.5! e2:0.5 a1:0.25 bb1:0.25 b1:0.25 c#2:0.25 |
+
+pattern cell
+  | d2:0.25! d2:0.25+ d2:0.25 d2:0.25+ f2:0.25! d2:0.25+ c2:0.25 d2:0.25+ a1:0.25! a1:0.25+ c2:0.25 d2:0.25+ f2:0.25! g2:0.25+ f2:0.25 d2:0.25/ |
+  | d2:0.25! d2:0.25+ d2:0.25 f2:0.25+ g2:0.25! f2:0.25+ d2:0.25 c2:0.25+ d2:0.25! e2:0.25+ f2:0.25 g2:0.25+ a2:0.25! g2:0.25+ f2:0.25 e2:0.25/ |
+
+pattern chug
+  | d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ [d3 a3 d4]:1! |
+pattern push
+  | d3:0.25+ d3:0.25+ [d3 a3 d4]:0.5! d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ [d3 a3 d4]:0.5! d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ r:0.5 |
+pattern to_c
+  | bb2:0.25+ bb2:0.25+ bb2:0.25+ bb2:0.25+ [bb2 f3 bb3]:1! c3:0.25+ c3:0.25+ c3:0.25+ c3:0.25+ [c3 g3 c4]:1! |
+pattern to_bb
+  | d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ [d3 a3 d4]:1! bb2:0.25+ bb2:0.25+ bb2:0.25+ bb2:0.25+ [bb2 f3 bb3]:1! |
+pattern engine
+  | chug | chug-2 | chug-4 | push-5 | chug-7 | to_c | to_bb | push-5 |
+
+pattern chords
+  | [f4 a4]:4 | [e4 g4]:4 | [d4 f4]:4 | [c#4 g4]:4^ |
+  | [d4 bb4]:4 | [d4 f4]:2 [e4 g4]:2 | [f4 a4]:2 [f4 bb4]:2 | [c#4 g4]:4^ |
+
+pattern glint
+  | d5:0.25! f5:0.25 a5:0.25 d6:0.25 a5:0.25! f5:0.25 d5:0.25 f5:0.25 a5:0.25! d6:0.25 a5:0.25 f5:0.25 d5:0.25! f5:0.25 a5:0.25 d6:0.25 |
+  | c5:0.25! e5:0.25 g5:0.25 c6:0.25 g5:0.25! e5:0.25 c5:0.25 e5:0.25 g5:0.25! c6:0.25 g5:0.25 e5:0.25 c5:0.25! e5:0.25 g5:0.25 c6:0.25 |
+  | bb4:0.25! d5:0.25 f5:0.25 bb5:0.25 f5:0.25! d5:0.25 bb4:0.25 d5:0.25 f5:0.25! bb5:0.25 f5:0.25 d5:0.25 bb4:0.25! d5:0.25 f5:0.25 bb5:0.25 |
+  | a4:0.25! c#5:0.25 e5:0.25 a5:0.25 e5:0.25! c#5:0.25 a4:0.25 c#5:0.25 e5:0.25! a5:0.25 e5:0.25 c#5:0.25 a4:0.25! c#5:0.25 e5:0.25 a5:0.25 |
+  | g4:0.25! bb4:0.25 d5:0.25 g5:0.25 d5:0.25! bb4:0.25 g4:0.25 bb4:0.25 d5:0.25! g5:0.25 d5:0.25 bb4:0.25 g4:0.25! bb4:0.25 d5:0.25 g5:0.25 |
+  | bb4:0.25! d5:0.25 f5:0.25 bb5:0.25 f5:0.25! d5:0.25 bb4:0.25 d5:0.25 c5:0.25! e5:0.25 g5:0.25 c6:0.25 g5:0.25! e5:0.25 c5:0.25 e5:0.25 |
+  | d5:0.25! f5:0.25 a5:0.25 d6:0.25 a5:0.25! f5:0.25 d5:0.25 f5:0.25 bb4:0.25! d5:0.25 f5:0.25 bb5:0.25 f5:0.25! d5:0.25 bb4:0.25 d5:0.25 |
+  | a4:0.25! c#5:0.25 e5:0.25 a5:0.25 e5:0.25! c#5:0.25 a4:0.25 c#5:0.25 e5:0.25! a5:0.25 e5:0.25 c#5:0.25 a4:0.25! c#5:0.25 e5:0.25 a5:0.25 |
+
+pattern hook
+  | d4:0.75! f4:0.75 g4:0.5 a4:0.25 c5:0.25 a4:0.5 g4:0.5 f4:0.5 |
+  | e5:1.5_ d5:0.5 c5:1 g4:1 |
+  | f4:0.75! bb4:0.75 c5:0.5 d5:0.25 f5:0.25 d5:0.5 c5:0.5 bb4:0.5 |
+  | e5:1.5_ d5:0.5 c#5:1 a4:1 |
+  | g4:0.75! bb4:0.75 c5:0.5 d5:0.25 g5:0.25 f5:0.5 d5:0.5 bb4:0.5 |
+  | d5:1.5_ c5:0.5 e5:1.5_ g5:0.5 |
+  | f5:1! e5:0.5 d5:0.5 d5:1 bb4:0.5 d5:0.5 |
+  | c#5:2! e5:0.5 g5:0.5 a5:0.5 g5:0.5 |
+
+pattern feet
+  | kick:1! kick:0.5 kick:0.5 kick:1! kick:0.75 kick:0.25 |
+pattern back
+  | r:1 snare_dry:0.75! snare_dry:0.25. r:1 snare_dry:1! |
+pattern hats
+  | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+pattern four
+  | kick:1! kick:1 kick:1! kick:1 |
+pattern offbeat
+  | r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 |
+
+section intro bars:4
+  bass dyn:mp..mf feel:tight pocket:on
+    | descent |
+  perc.feet dyn:mp feel:tight
+    | r:4 | r:4 | feet | feet |
+  pad dyn:pp
+    | [f4 a4]:4 | [e4 g4]:4 | [d4 f4]:4 | [c#4 g4]:4^ |
+
+section riff bars:8
+  bass dyn:mf feel:tight pocket:on
+    | descent | turn |
+  guitar dyn:mf..f feel:tight art:sustain pocket:on
+    | engine |
+  perc.feet dyn:mf feel:tight
+    | feet | feet | feet | feet | feet | feet | feet |
+    | kick:1! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+  perc.left dyn:mf feel:tight
+    | back | back | back | back | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+  pad dyn:pp..p
+    | chords |
+
+section verse bars:8
+  lead dyn:mf..f feel:tight pocket:lay rot:slow
+    | hook |
+  bass dyn:mf feel:tight pocket:lay
+    | descent | turn |
+  guitar dyn:mf feel:tight art:sustain pocket:lay
+    | engine |
+  perc.feet dyn:mf feel:tight
+    | feet | feet | feet | feet | feet | feet | feet |
+    | kick:1! kick:0.5 kick:0.5 kick:1! kick:0.5 kick:0.5 |
+  perc.left dyn:mf feel:tight
+    | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. r:1 snare_dry:0.5! tom_floor:0.5 |
+    | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. tom_high:0.5 tom_high:0.5 tom_mid:0.5 tom_floor:0.5 |
+  pad dyn:p
+    | chords |
+
+section rite bars:8
+  lead dyn:mf..ff feel:tight pocket:push rot:fast
+    | bb4:0.5! d5:0.5 f5:1! d5:0.5 c5:0.5 bb4:1 |
+    | c5:0.5! e5:0.5 g5:1! e5:0.5 d5:0.5 c5:1 |
+    | e5:1.5_ g5:0.5 a5:1 e5:1 |
+    | f5:1.5_ e5:0.5 d5:1 a4:1 |
+    | g4:0.5! bb4:0.5 d5:1! g5:0.5 f5:0.5 d5:1 |
+    | eb5:1.5_ g5:0.5 bb5:1 g5:1 |
+    | f5:1! d5:1 e5:1! g5:1 |
+    | c#5:1! e5:1 g5:0.5 a5:0.5 bb5:0.5! a5:0.5 |
+  keys dyn:mf..f feel:tight pocket:push
+    | r:4 | r:4 | r:4 | r:4 |
+    | g4:0.25! bb4:0.25 d5:0.25 g5:0.25 d5:0.25! bb4:0.25 g4:0.25 bb4:0.25 d5:0.25! g5:0.25 d5:0.25 bb4:0.25 g4:0.25! bb4:0.25 d5:0.25 g5:0.25 |
+    | eb5:0.25! g5:0.25 bb5:0.25 eb6:0.25 bb5:0.25! g5:0.25 eb5:0.25 g5:0.25 bb5:0.25! eb6:0.25 bb5:0.25 g5:0.25 eb5:0.25! g5:0.25 bb5:0.25 eb6:0.25 |
+    | bb4:0.25! d5:0.25 f5:0.25 bb5:0.25 f5:0.25! d5:0.25 bb4:0.25 d5:0.25 c5:0.25! e5:0.25 g5:0.25 c6:0.25 g5:0.25! e5:0.25 c5:0.25 e5:0.25 |
+    | a4:0.25! c#5:0.25 e5:0.25 a5:0.25 e5:0.25! c#5:0.25 a4:0.25 c#5:0.25 e5:0.25! a5:0.25 e5:0.25 c#5:0.25 a4:0.25! c#5:0.25 e5:0.25 a5:0.25 |
+  bass dyn:f feel:tight pocket:push
+    | lift |
+  guitar dyn:mf..ff feel:tight art:sustain pocket:push
+    | chug-4 | chug-2 | chug-5 | chug | chug-7 | chug+1 | to_c | push-5 |
+  perc.right dyn:mf..ff feel:tight
+    | crash_big:0.5! r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 |
+    | offbeat | offbeat |
+    | r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:2 |
+    | crash:0.5! r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 |
+    | offbeat | offbeat |
+    | crash_big:0.5! r:1.5 crash:0.5! r:1.5 |
+  perc.feet dyn:mf..ff feel:tight
+    | feet | feet | feet | feet |
+    | four | four | four |
+    | kick:0.5! kick:0.5 kick:0.5 kick:0.5 kick:0.5! kick:0.5 kick:0.5! kick:0.5! |
+  perc.left dyn:mf..ff feel:tight
+    | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. r:0.5 snare_dry:0.5! snare_dry:0.5 snare_dry:0.5! |
+    | back | back | back |
+    | snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+  pad dyn:p..mf
+    | [d4 f4]:4 | [e4 g4]:4 | [e4 c5]:4 | [f4 a4]:4^ |
+    | [d4 bb4]:4 | [eb4 g4]:4 | [d4 f4]:2 [e4 g4]:2 | [c#4 g4]:4^ |
+
+section break bars:8
+  // The bridge is the first draft of this piece: the D pedal cell, unmoving,
+  // with the chords only above it. After sixteen bars of a bass that walks
+  // every change, a bass that refuses to move is the contrast. The chords over
+  // it only darken - Dm, Bb, Gm, then A grinding its C# against the D - and the
+  // organ sings the head of the hook an octave down. The second half adds
+  // weight, not light: the chug returns on D and the kit comes in at half time.
+  bass dyn:mp..mf feel:loose pocket:lay
+    | cell | cell | cell | cell |
+  lead dyn:p..mf feel:loose pocket:lay rot:slow
+    | d4:1.5_ f4:0.5 g4:1 a4:1 |
+    | a4:3_ f4:1 |
+    | bb4:1.5_ a4:0.5 g4:1 f4:1 |
+    | d4:3_ f4:1 |
+    | g4:1.5_ bb4:0.5 d5:1 c5:1 |
+    | bb4:3_ a4:1 |
+    | a4:1.5! c#5:0.5 e5:1 g5:1 |
+    | f5:1.5! e5:0.5 d5:1 c#5:1 |
+  guitar dyn:p..mf feel:tight art:sustain pocket:lay
+    | r:4 | r:4 | r:4 | r:4 |
+    | d3:0.25+*16 | d3:0.25+*12 [bb2 f3 bb3]:1! |
+    | d3:0.25+*16 | d3:0.25+*12 [a2 e3 a3]:1! |
+  perc.feet dyn:p..f feel:tight
+    | r:4 | r:4 | r:4 | r:4 |
+    | kick:2! r:2 | kick:1.5! kick:0.5 r:2 |
+    | kick:2! r:2 |
+    | kick:1! kick:1 kick:1! kick:0.5 kick:0.5 |
+  perc.left dyn:p..f feel:tight
+    | r:4 | r:4 | r:4 | r:4 |
+    | r:2 snare_dry:2! | r:2 snare_dry:2! |
+    | r:2 snare_dry:0.5. snare_dry:0.5 snare_dry:0.5. snare_dry:0.5 |
+    | snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25 snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+  pad dyn:p..mf
+    | [f4 a4]:4 | [f4 a4]:4 | [d4 f4]:4 | [d4 f4]:4^ |
+    | [d4 bb4]:4 | [d4 bb4]:4 | [c#4 g4]:4 | [c#4 g4]:4^ |
+
+section reprise from:verse
+  lead dyn:f..ff feel:tight pocket:lay rot:fast
+    | hook |
+  guitar dyn:f..ff feel:tight art:sustain pocket:on
+    | engine |
+  keys dyn:mf..f feel:tight pocket:on
+    | glint |
+  perc.right dyn:f..ff feel:tight
+    | crash_big:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hats | hats | hats |
+    | crash:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hats | hats |
+    | crash_big:0.5! r:1.5 crash:0.5! r:1.5 |
+
+section out bars:4
+  bass dyn:f..mf feel:tight pocket:on
+    | d2:0.5! d2:0.25+ d2:0.25 r:0.25 d2:0.25+ a2:0.25 d2:0.25 f2:0.5! d2:0.25+ c2:0.25 d2:0.25 r:0.25 c2:0.25+ c2:0.25 |
+    | bb1:0.5! bb1:0.25+ f2:0.25 bb1:0.25 a1:0.25+ bb1:0.25 bb1:0.25 a1:0.5! a1:0.25+ e2:0.25 a1:0.25 g1:0.25+ g1:0.25 g1:0.25 |
+    | g1:1! g1:0.25+ g1:0.25 bb1:0.5 a1:1! a1:0.25+ bb1:0.25 b1:0.25 c#2:0.25 |
+    | d2:4! |
+  guitar dyn:f..mf feel:tight art:sustain pocket:on
+    | chug |
+    | bb2:0.25+ bb2:0.25+ bb2:0.25+ bb2:0.25+ [bb2 f3 bb3]:1! a2:0.25+ a2:0.25+ a2:0.25+ a2:0.25+ [a2 e3 a3]:1! |
+    | g2:0.25+ g2:0.25+ g2:0.25+ g2:0.25+ [g2 d3 g3]:1! a2:0.25+ a2:0.25+ a2:0.25+ a2:0.25+ [a2 e3 a3]:1! |
+    | [d3 a3 d4]:4! |
+  lead dyn:f..mf feel:tight
+    | d5:1! a4:1 f4:1 d4:1 |
+    | f4:1.5! d4:0.5 e4:1 c#4:1 |
+    | bb4:2_ c#5:1.5! e5:0.5 |
+    | d5:4_ |
+  perc.right dyn:f..mf feel:tight
+    | crash:0.5! r:3.5 | r:4 | r:2 crash_small:0.5! r:1.5 | crash_big:4! |
+  perc.feet dyn:f..mf feel:tight
+    | feet | feet |
+    | kick:1! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+    | kick:4! |
+  perc.left dyn:f..mf feel:tight
+    | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+    | r:4 |
+  pad dyn:mf..p
+    | [f4 a4]:4 | [d4 f4]:2 [c#4 e4]:2 | [d4 bb4]:2 [c#4 g4]:2^ | [d4 f4 a4]:4 |
