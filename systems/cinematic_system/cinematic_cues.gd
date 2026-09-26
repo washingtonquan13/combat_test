@@ -60,7 +60,7 @@ func _maybe_introduce(world: Node) -> void:
 	var area: AreaDefinition = WorldManager.area_of(world)
 	if area == null:
 		return
-	var scene: CinematicScene = (world as GameArea).entry_scene
+	var scene: PackedScene = (world as GameArea).entry_scene
 	if scene == null:
 		return
 
@@ -81,7 +81,7 @@ func _on_combat_started(turn_order: Array[Unit]) -> void:
 	var world: Node = WorldManager.current_world()
 	if not (world is GameArea):
 		return
-	var scene: CinematicScene = (world as GameArea).combat_intro_scene
+	var scene: PackedScene = (world as GameArea).combat_intro_scene
 	if scene == null:
 		return
 	await _play(scene, _cast_for_combat(turn_order))
@@ -89,7 +89,7 @@ func _on_combat_started(turn_order: Array[Unit]) -> void:
 
 ## Plays, then hands the camera back — see the header on why that is here
 ## rather than in the director.
-func _play(scene: CinematicScene, cast: SceneCast) -> void:
+func _play(scene: PackedScene, cast: SceneCast) -> void:
 	if not await CinematicDirector.play(scene, cast):
 		# REFUSED, OR CUT SHORT — release nothing. Something else owns the
 		# screen, and the obvious case is fusion, whose reveal deliberately

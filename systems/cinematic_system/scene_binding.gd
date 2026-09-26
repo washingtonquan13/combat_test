@@ -19,15 +19,16 @@ extends Resource
 ## is how ONE caller locates its scenes. Fusion, area arrivals and combat
 ## openings never look here; they hold their scene directly.
 
-## Dialogue node id -> the scene to stage for it.
+## Dialogue node id -> the cutscene (.tscn, root CinematicStage) to play
+## for it.
 @export var scenes: Dictionary = {}
 
 
-func scene_for(node_id: String) -> CinematicScene:
+func scene_for(node_id: String) -> PackedScene:
 	if node_id == "":
 		return null
 	var found: Variant = scenes.get(node_id)
-	return found if found is CinematicScene else null
+	return found if found is PackedScene else null
 
 
 func binds(node_id: String) -> bool:

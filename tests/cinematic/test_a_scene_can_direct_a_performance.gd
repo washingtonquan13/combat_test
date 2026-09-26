@@ -14,16 +14,16 @@ extends AiTestCase
 ## reads as badly directed rather than as broken. That is the failure this
 ## suite exists to catch, because no other kind of test would.
 ##
-## DIRECTED THROUGH THE STAGE NOW. ActorClipStep is gone; a performance is
-## a method key on a timeline, calling CinematicStage.clip(). The stage
-## below is mounted and bound by hand rather than through a .tscn, which is
-## exactly what a method key does when it fires — the key is only a way of
-## saying WHEN. What matters is unchanged and is asserted unchanged: the
+## DIRECTED THROUGH THE STAGE. A performance is a ClipBeat keyed on a
+## timeline, calling CinematicStage.clip(). The stage below is mounted and
+## bound by hand rather than through a .tscn, which is exactly what the
+## beat does when it fires — the key is only a way of saying WHEN. What matters is unchanged and is asserted unchanged: the
 ## claim is taken, gameplay cannot animate over it, death still gets
 ## through, and the DIRECTOR hands the actor back on every exit path
 ## including an abort.
 
 const CLIP := "Idle"
+const StageFixture := preload("res://tests/fixtures/stage_fixture.gd")
 
 
 func run() -> void:
@@ -88,9 +88,9 @@ func run() -> void:
 	var quiet := CinematicStage.new()
 	_root.add_child(quiet)
 	quiet.bind(cast)
-	quiet.effect(&"no_such_prop", &"actor")
-	quiet.sound(&"no_such_prop", &"actor")
-	check("an effect and a sound naming a prop that is not there do nothing quietly",
+	quiet.effect(null, &"actor")
+	quiet.sound(null, &"actor")
+	check("an effect and a sound with nothing assigned do nothing quietly",
 		true,
 		"reaching this line at all is the assertion — neither threw, and a " +
 		"method key that throws abandons the rest of the track mid-shot")
@@ -110,18 +110,20 @@ func _the_actor_is_given_back_however_the_scene_ends(actor: Unit, animator: Unit
 	var cast := SceneCast.new().track_unit(&"actor", actor)
 
 	# Long enough that nothing here can be a scene quietly finishing.
-	var beat := ScenePhase.new()
-	beat.duration_seconds = 30.0
-	var scene := CinematicScene.new()
-	scene.id = &"test_performance"
-	scene.phases = [beat]
-
-	CinematicDirector.play(scene, cast)
+	# Mounted under the test root: without a world, spawn_parent() falls
+	# back to the scene root, and the director needs somewhere to put it.
+	var saved_scene_root: Node = WorldManager._scene_root
+	WorldManager.register_scene_root(_root)
+	CinematicDirector.play(StageFixture.make(30.0), cast)
 	await get_tree().process_frame
 
-	var stage := CinematicStage.new()
-	_root.add_child(stage)
-	stage.bind(cast)
+	var stage: CinematicStage = CinematicDirector.current_stage()
+	check("SETUP: the director mounted the scene",
+		stage != null and stage.cast() == cast,
+		"no stage bound to the director's cast, so nothing below tests anything")
+	if stage == null:
+		WorldManager._scene_root = saved_scene_root
+		return
 	stage.clip(&"actor", CLIP)
 	check("SETUP: the scene claimed the actor",
 		animator.is_claimed_for_cutscene(),
@@ -137,9 +139,7 @@ func _the_actor_is_given_back_however_the_scene_ends(actor: Unit, animator: Unit
 		not animator.is_claimed_for_cutscene(),
 		"the actor is still claimed after the scene was cut short — it " +
 		"will never react to anything again")
-
-	stage.unbind()
-	stage.queue_free()
+	WorldManager._scene_root = saved_scene_root
 
 
 ## Reads the source rather than triggering a death, which would tear down

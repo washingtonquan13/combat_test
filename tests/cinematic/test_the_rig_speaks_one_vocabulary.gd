@@ -120,7 +120,7 @@ func run() -> void:
 		"fov is %.1f, expected %.1f" % [_camera.camera().fov, FOV])
 
 	check("and the rig owns no camera of its own at runtime",
-		rig.get_node_or_null(NodePath(FramingRig.PREVIEW_NAME)) == null,
+		rig.find_children("*", "Camera3D", true, false).is_empty(),
 		"there is a Camera3D under the rig outside the editor — a second " +
 		"camera in the world, and Camera3D.current is first-come")
 

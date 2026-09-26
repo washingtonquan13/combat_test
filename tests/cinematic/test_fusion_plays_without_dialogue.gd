@@ -18,8 +18,8 @@ extends AiTestCase
 ## that its five beats were there and that every step it contained could
 ## fire. Those checks went with the builder. The scene is
 ## cinematics/fusion.tscn, driven by a timeline anyone can scrub, and what
-## replaces them is the same claim one layer down: the file loads, it is a
-## timed scene, and the performance it names is on it.
+## replaces them is the same claim one layer down: the file loads, its root
+## is a stage, and the performance is on its Timeline.
 ##
 ## THE ONE THING THE TIMELINE COULD NOT SWALLOW is the result demon. It is
 ## computed from the two going in, and a method track key cannot carry a
@@ -61,19 +61,15 @@ func run() -> void:
 	var parent_b: Unit = _body(species_b)
 	await get_tree().process_frame
 
-	var scene: CinematicScene = load(FusionRitual.CUTSCENE_PATH) as CinematicScene
-	check("the fusion cutscene is an authored file, not something code assembles",
-		scene != null and scene.is_timed(),
-		"loaded %s — with no stage there is no timeline, and the beats " % str(scene) +
-		"are back to being numbers nobody can see")
-	if scene == null or not scene.is_timed():
+	var scene: PackedScene = load(FusionRitual.CUTSCENE_PATH) as PackedScene
+	check("the fusion cutscene is an authored stage with a performance on its Timeline",
+		_has_performance(scene),
+		"loaded %s — its root is not a CinematicStage with a '%s' " % [
+			str(scene), CinematicStage.DEFAULT_ANIMATION] +
+		"animation on a 'Timeline' player, so the reveal can never happen")
+	if not _has_performance(scene):
 		_cleanup()
 		return
-
-	check("and the performance it names is actually on its stage",
-		_has_performance(scene),
-		"'%s' is not an animation on a 'Timeline' player in %s" % [
-			scene.animation, scene.stage.resource_path])
 
 	# The cast the ritual builds: both parents HELD, the result absent
 	# because it does not exist yet. Built here rather than through
@@ -166,8 +162,73 @@ func run() -> void:
 	check("and the mode is handed back",
 		GameMode.current_mode() != GameMode.Mode.CUTSCENE,
 		"the director still holds the screen after the scene ended")
+	if born:
+		born.queue_free()
 
+	await _a_skip_lands_on_the_end_state(scene, species_a, species_b)
 	_cleanup()
+
+
+## Skipped before anything has happened, the fusion must still END as it
+## ends: parents gone, result standing on its mark. A skip that only
+## jumped the playhead would leave both parents in the world with nobody
+## holding them and no demon to show for it — the despawn and spawn keys
+## never fire on a seek, so settling them is skip_to_end()'s job alone.
+##
+## THE SKIP IS A REAL INPUT EVENT, so this also covers the director reading
+## cinematic_skip in the first place.
+func _a_skip_lands_on_the_end_state(scene: PackedScene, species_a: UnitDefinition,
+		species_b: UnitDefinition) -> void:
+	var parent_a: Unit = _body(species_a)
+	var parent_b: Unit = _body(species_b)
+	await get_tree().process_frame
+	var cast := SceneCast.new()
+	cast.hold(FusionRitual.PARENT_A, parent_a)
+	cast.hold(FusionRitual.PARENT_B, parent_b)
+
+	_drive(scene, cast, {FusionRitual.RESULT: species_b})
+	var spent: int = 0
+	var at: float = -1.0
+	while not _returned and spent < FRAME_CAP:
+		var stage: CinematicStage = CinematicDirector.current_stage()
+		var timeline: AnimationPlayer = stage.timeline() if stage else null
+		if timeline and timeline.is_playing():
+			at = timeline.current_animation_position
+			if at >= 0.5:
+				break
+		await get_tree().process_frame
+		spent += 1
+	check("SETUP: the skip lands before the first beat has fired",
+		not _returned and at >= 0.0 and at < 1.2,
+		"playhead at %.2fs when the skip was sent — the parents are " % at +
+		"placed at 1.2s, so a later skip is testing a half-played scene")
+
+	var press := InputEventAction.new()
+	press.action = &"cinematic_skip"
+	press.pressed = true
+	Input.parse_input_event(press)
+	await _until_returned()
+	await get_tree().process_frame
+
+	check("a skipped fusion still counts as finished",
+		_returned and _result,
+		"returned=%s completed=%s" % [str(_returned), str(_result)])
+	check("and the parents are gone, though their despawn keys never played",
+		not is_instance_valid(parent_a) and not is_instance_valid(parent_b),
+		"a parent is still in the world after skipping — skip_to_end() " +
+		"jumped the playhead without settling the despawn beats")
+
+	var born: Unit = cast.unit(FusionRitual.RESULT)
+	var spot: Node3D = cast.mark(FusionRitual.RESULT_MARK)
+	var drift: float = -1.0
+	if born and spot:
+		drift = Vector2(born.global_position.x, born.global_position.z).distance_to(
+			Vector2(spot.global_position.x, spot.global_position.z))
+	check("and the result stands on its mark",
+		born != null and born.is_inside_tree() and drift >= 0.0 and drift < 0.05,
+		"result=%s, %.2fm from FusionResult on the ground plan" % [str(born), drift])
+	if born:
+		born.queue_free()
 
 
 ## Marks, a camera, and somewhere for a spawned actor to go. The AI harness
@@ -205,10 +266,12 @@ func _stand_up_a_stage() -> bool:
 ## Whether the stage really carries the animation the scene names. Cheap,
 ## and it turns "the reveal never happened" into a setup failure that says
 ## why rather than a mysterious missing demon.
-func _has_performance(scene: CinematicScene) -> bool:
-	var built: Node = scene.stage.instantiate()
-	var player: AnimationPlayer = built.get_node_or_null(NodePath("Timeline")) as AnimationPlayer
-	var found: bool = player != null and player.has_animation(scene.animation)
+func _has_performance(scene: PackedScene) -> bool:
+	if scene == null:
+		return false
+	var built: Node = scene.instantiate()
+	var stage := built as CinematicStage
+	var found: bool = stage != null and stage.timeline() != null 		and stage.timeline().has_animation(CinematicStage.DEFAULT_ANIMATION)
 	built.free()
 	return found
 
@@ -220,7 +283,7 @@ func _body(species: UnitDefinition) -> Unit:
 	return unit
 
 
-func _drive(scene: CinematicScene, cast: SceneCast, props: Dictionary) -> void:
+func _drive(scene: PackedScene, cast: SceneCast, props: Dictionary) -> void:
 	_returned = false
 	_result = await CinematicDirector.play(scene, cast, props)
 	_returned = true

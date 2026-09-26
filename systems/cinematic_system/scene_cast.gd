@@ -38,6 +38,12 @@ var _held: Dictionary = {}
 ## are handed — the same reasoning that makes VfxEffect pass a `context`
 ## node down to every VfxStep.
 var tree: SceneTree = null
+## name -> Node3D: the Marks/ of the stage this cast is bound to. Set by
+## CinematicStage.bind() and cleared by unbind(). Here rather than only on
+## the stage because CameraFraming resolves marks through the cast, and a
+## shot aimed at a stage-local mark would otherwise preview correctly in
+## the editor and frame nothing in play.
+var _stage_marks: Dictionary = {}
 
 
 ## Binds a role to a question. The Callable is asked every time the role is
@@ -81,11 +87,11 @@ func is_held(role: StringName) -> bool:
 func unit(role: StringName) -> Unit:
 	if _held.has(role):
 		var kept: Variant = _held[role]
-		return kept if kept is Unit and is_instance_valid(kept) else null
+		return kept if is_instance_valid(kept) and kept is Unit else null
 	if not _tracked.has(role):
 		return null
 	var found: Variant = (_tracked[role] as Callable).call()
-	return found if found is Unit and is_instance_valid(found) else null
+	return found if is_instance_valid(found) and found is Unit else null
 
 
 func has(role: StringName) -> bool:
@@ -147,6 +153,8 @@ func release_claims() -> void:
 ## allowed, it just has nowhere to show a cutscene — and routing that
 ## through mark() would fill the log with errors on every correct use.
 func has_mark(mark_name: StringName) -> bool:
+	if _stage_mark(mark_name) != null:
+		return true
 	if tree == null:
 		return false
 	for node in tree.get_nodes_in_group(MARK_GROUP):
@@ -156,6 +164,9 @@ func has_mark(mark_name: StringName) -> bool:
 
 
 func mark(mark_name: StringName) -> Node3D:
+	var local: Node3D = _stage_mark(mark_name)
+	if local:
+		return local
 	if tree == null:
 		push_error("SceneCast: asked for mark '%s' before a tree was set." % mark_name)
 		return null
@@ -164,3 +175,15 @@ func mark(mark_name: StringName) -> Node3D:
 			return node
 	push_error("SceneCast: no mark named '%s' in group '%s'." % [mark_name, MARK_GROUP])
 	return null
+
+
+## Stage-local marks win over world marks of the same name, matching
+## CinematicStage.spot(): an area sharing a name with a scene's own staging
+## must not silently retarget it.
+func use_stage_marks(marks: Dictionary) -> void:
+	_stage_marks = marks
+
+
+func _stage_mark(mark_name: StringName) -> Node3D:
+	var found: Variant = _stage_marks.get(mark_name)
+	return found if is_instance_valid(found) and found is Node3D else null

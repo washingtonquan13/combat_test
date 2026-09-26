@@ -23,7 +23,6 @@ var _saved_camera: CinematicCamera = null
 var _saved_participants: Dictionary = {}
 var _camera: CinematicCamera = null
 var _staging: DialogueStaging = null
-var _scenes_played: int = 0
 
 
 func run() -> void:
@@ -167,10 +166,10 @@ func _crossing_to_another_subject_never_sweeps(cast: SceneCast) -> void:
 
 ## The two rules DialogueCameraRig enforced, now enforced by DialogueStaging.
 ##
-## Counted through scene_started rather than through camera position,
-## because the camera re-resolves its framing every frame and therefore
-## follows a moving subject — position alone cannot tell "it re-cut" from
-## "it kept up".
+## Observed by RELEASING the camera before each line and asking whether
+## that line framed it again, rather than through camera position: the
+## camera re-resolves its framing every frame and so follows a moving
+## subject, and position alone cannot tell "it re-cut" from "it kept up".
 ##
 ## A BYSTANDER IS BOUND TO THE EMPTY TOKEN, exactly as in
 ## test_gaze_follows_the_speaker and for the same reason: with no
@@ -181,35 +180,29 @@ func _the_rules_that_outlived_the_rig(a: Unit, b: Unit, bystander: Unit) -> void
 	DialogueManager.participants = {&"npc": a, &"player": b, &"": bystander}
 	_staging = DialogueStaging.new()
 	_root.add_child(_staging)
-	CinematicDirector.scene_started.connect(_count_scene)
 	await get_tree().process_frame
 
-	_scenes_played = 0
+	_camera.release()
 	DialogueManager.line_shown.emit("One.", "npc")
 	check("a line frames its speaker",
-		_scenes_played == 1,
-		"%d scenes played for one line" % _scenes_played)
+		_camera.is_framing(),
+		"the first line of a conversation left the camera unframed")
 
+	_camera.release()
 	DialogueManager.line_shown.emit("Two.", "npc")
 	check("consecutive lines from the same speaker hold the shot",
-		_scenes_played == 1,
-		"%d scenes played — the camera re-cut on a line from the person " % _scenes_played +
-		"it was already framing")
+		not _camera.is_framing(),
+		"the camera re-cut on a line from the person it was already framing")
 
 	DialogueManager.line_shown.emit("(you feel uneasy)", "")
 	check("an echo line with no speaker never re-cuts",
-		_scenes_played == 1,
-		"%d scenes played — an alignment message or skill-check result " % _scenes_played +
-		"moved the camera")
+		not _camera.is_framing(),
+		"an alignment message or skill-check result moved the camera")
 
 	DialogueManager.line_shown.emit("My turn.", "player")
 	check("and a change of speaker does cut",
-		_scenes_played == 2,
-		"%d scenes played — the reverse shot never happened" % _scenes_played)
-
-
-func _count_scene(_scene: CinematicScene) -> void:
-	_scenes_played += 1
+		_camera.is_framing(),
+		"the reverse shot never happened")
 
 
 ## DialogueCameraRig's formula, reproduced verbatim as the reference.
@@ -221,8 +214,6 @@ func _the_old_rigs_formula(subject: Unit) -> Vector3:
 
 
 func _cleanup() -> void:
-	if CinematicDirector.scene_started.is_connected(_count_scene):
-		CinematicDirector.scene_started.disconnect(_count_scene)
 	if is_instance_valid(_staging):
 		_staging.queue_free()
 	if is_instance_valid(_camera):

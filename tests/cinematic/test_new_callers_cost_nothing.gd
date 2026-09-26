@@ -25,6 +25,7 @@ extends AiTestCase
 
 const ARENA := &"test_arena"
 const ENTRY_FLAG := "cinematic.entered.test_arena"
+const ARRIVAL_PATH := "res://cinematics/test_arena_arrival.tscn"
 
 var _saved_host: Control = null
 var _saved_attention: Array[Node] = []
@@ -33,7 +34,7 @@ var _saved_flags: Dictionary = {}
 var _host: Control = null
 var _camera: CinematicCamera = null
 var _cues: CinematicCues = null
-var _played: Array[StringName] = []
+var _played: Array[String] = []
 
 
 func run() -> void:
@@ -46,19 +47,19 @@ func run() -> void:
 	_root.add_child(room)
 	await get_tree().process_frame
 
-	var arrival: CinematicScene = (room as GameArea).entry_scene
+	var arrival: PackedScene = (room as GameArea).entry_scene
 	check("an ordinary area declares an arrival scene",
 		arrival != null,
 		"test_arena has no entry_scene, so this phase demonstrates nothing")
 
 	if arrival:
-		check("and it is an authored timeline, not a hand-built phase list",
-			arrival.is_timed(),
-			"the arrival scene has no stage, so it is still assembled in " +
-			"code and an author cannot see the shot while making it")
 		var keys: int = _method_keys(arrival)
+		check("and it is an authored stage with a Timeline",
+			keys >= 0,
+			"the arrival scene's root is not a CinematicStage with a " +
+			"Timeline, so an author cannot see the shot while making it")
 		check("and it is a timeline with NO method keys",
-			arrival.is_timed() and keys == 0,
+			keys == 0,
 			"%d method key(s). Camera work is value tracks on a " % keys +
 			"FramingRig; a method key means an ordinary arrival has " +
 			"started needing what fusion needs, and a new caller is no " +
@@ -77,7 +78,7 @@ func run() -> void:
 	await get_tree().process_frame
 
 	check("arriving somewhere for the first time stages it",
-		_played.has(&"test_arena_arrival"),
+		_played.has(ARRIVAL_PATH),
 		"nothing played — played: %s" % str(_played))
 
 	check("and arriving is remembered",
@@ -95,7 +96,7 @@ func run() -> void:
 	await get_tree().process_frame
 
 	check("but coming back does not stage it again",
-		not _played.has(&"test_arena_arrival"),
+		not _played.has(ARRIVAL_PATH),
 		"the establishing shot replayed on a return visit — played: %s" % str(_played))
 
 	# --- the camera goes back --------------------------------------------
@@ -116,12 +117,11 @@ func run() -> void:
 ## of the stage .tscn, and parsing the file for "type = \"method\"" would
 ## pass on a stage that keyed a method through an AnimationLibrary saved
 ## beside it.
-func _method_keys(scene: CinematicScene) -> int:
-	if scene.stage == null:
-		return -1
-	var built: Node = scene.stage.instantiate()
-	var player: AnimationPlayer = built.get_node_or_null(NodePath("Timeline")) as AnimationPlayer
-	var found: int = 0
+## -1 when the scene is not a stage with a Timeline at all.
+func _method_keys(scene: PackedScene) -> int:
+	var built: Node = scene.instantiate()
+	var player: AnimationPlayer = (built as CinematicStage).timeline() 		if built is CinematicStage else null
+	var found: int = 0 if player else -1
 	if player:
 		for library_name in player.get_animation_library_list():
 			var library: AnimationLibrary = player.get_animation_library(library_name)
@@ -134,8 +134,8 @@ func _method_keys(scene: CinematicScene) -> int:
 	return found
 
 
-func _note(scene: CinematicScene) -> void:
-	_played.append(scene.id)
+func _note(scene: PackedScene) -> void:
+	_played.append(scene.resource_path)
 
 
 ## Capped by FRAMES, not by accumulated delta. A headless frame's delta is

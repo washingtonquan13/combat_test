@@ -19,7 +19,7 @@ extends Resource
 ##   zoom              fov changes
 ##   dolly zoom        distance and fov, inversely
 ##   pan / tilt        position held, look_offset changes
-##   cut               the transit takes no time (see CameraShotStep)
+##   cut               the transit takes no time, or a new shot is keyed
 ##
 ## Interpolating azimuth in polar space IS the arc. A tween between two
 ## world positions would cut the chord instead, passing closer to the

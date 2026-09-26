@@ -22,10 +22,10 @@ extends RefCounted
 ## asked for and spent two demons on.
 
 const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
-## The authored cutscene. A .tscn with a timeline that anyone can open and
-## scrub, plus the one-line CinematicScene that names which animation on it
-## is the performance — see cinematics/fusion.tscn.
-const CUTSCENE_PATH: String = "res://data/cinematics/fusion.tres"
+## The authored cutscene: a .tscn whose root is a CinematicStage, with a
+## timeline anyone can open and scrub. The file IS the cutscene; its
+## "scene" animation is the performance.
+const CUTSCENE_PATH: String = "res://cinematics/fusion.tscn"
 
 ## THE STAGING VOCABULARY, and it lives HERE rather than on the cutscene,
 ## because it is the FUSION that requires it. An area declares it can host
@@ -80,7 +80,7 @@ static func perform(a: OwnedDemon, b: OwnedDemon) -> OwnedDemon:
 
 	if not staging.is_empty():
 		await CinematicDirector.play(
-			load(CUTSCENE_PATH) as CinematicScene, _cast(staging), {RESULT: result})
+			load(CUTSCENE_PATH) as PackedScene, _cast(staging), {RESULT: result})
 
 	return born
 

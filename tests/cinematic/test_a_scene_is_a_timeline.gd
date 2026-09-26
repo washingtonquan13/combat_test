@@ -25,11 +25,9 @@ extends AiTestCase
 ## re-times the scene in the editor, which is the thing the timeline exists
 ## to make easy.
 
-const SCENE_PATH := "res://data/cinematics/test_arena_arrival.tres"
-## A definition path that LOADS and is not a UnitDefinition, so the
-## unresolved-argument check exercises the stage's own guard instead of
-## filling the log with a missing-file error.
-const NOT_A_DEFINITION := "res://data/cinematics/test_arena_arrival.tres"
+const SCENE_PATH := "res://cinematics/test_arena_arrival.tscn"
+const ANIMATION := CinematicStage.DEFAULT_ANIMATION
+const StageFixture := preload("res://tests/fixtures/stage_fixture.gd")
 
 ## Whichever comes first — the scene is 2.2 s and headless frames are
 ## short, but "short" is not a guarantee, so nothing here is measured in
@@ -72,38 +70,35 @@ func run() -> void:
 	var leader: Unit = spawn_brute(LEADER_AT.x, LEADER_AT.z)
 	await get_tree().process_frame
 
-	var scene: CinematicScene = load(SCENE_PATH) as CinematicScene
-	check("the authored arrival scene loads and is a TIMED scene",
-		scene != null and scene.is_timed(),
-		"loaded %s — a scene with no stage is still driven by phases, so " % str(scene) +
-		"nothing below is testing the timeline path")
-	if scene == null or not scene.is_timed():
+	var scene: PackedScene = load(SCENE_PATH) as PackedScene
+	check("the authored arrival scene loads as a stage with a performance",
+		_is_performable(scene),
+		"loaded %s — its root is not a CinematicStage with a '%s' " % [str(scene), ANIMATION] +
+		"animation on its Timeline, so nothing below is testing anything")
+	if not _is_performable(scene):
 		_cleanup()
 		return
 
-	check("and it says so when asked to describe itself",
-		scene.describe().contains("timed"),
-		"describe() says '%s'" % scene.describe())
-
 	await _it_plays_through_to_the_end(scene, leader)
 	await _an_abort_leaves_nothing_behind(scene, leader)
+	await _a_held_timeline_is_not_a_finished_one()
 	_a_method_track_survives_an_unresolved_role(leader)
 	_cleanup()
 
 
 ## The whole path, once: mount, bind, run the timeline, return true.
-func _it_plays_through_to_the_end(scene: CinematicScene, leader: Unit) -> void:
+func _it_plays_through_to_the_end(scene: PackedScene, leader: Unit) -> void:
 	var cast := SceneCast.new().track_unit(&"leader", leader)
 	_drive(scene, cast)
 	await get_tree().process_frame
 
-	check("a timed scene claims the screen like any other",
+	check("a staged scene claims the screen",
 		CinematicDirector.is_active()
 			and GameMode.current_mode() == GameMode.Mode.CUTSCENE,
 		"active=%s, mode=%s — the stage path does not reach the same " % [
 			CinematicDirector.is_active(),
 			GameMode.Mode.keys()[GameMode.current_mode()]] +
-		"claim the phase path does, so nothing yields to it")
+		"claim, so nothing yields to it")
 
 	var stage: CinematicStage = _mounted_stage()
 	check("and the authored stage is standing in the world",
@@ -135,8 +130,8 @@ func _it_plays_through_to_the_end(scene: CinematicScene, leader: Unit) -> void:
 
 	var timeline: AnimationPlayer = stage.timeline()
 	check("SETUP: the stage's Timeline holds the named animation",
-		timeline != null and timeline.has_animation(scene.animation),
-		"no '%s' on a player named 'Timeline'" % scene.animation)
+		timeline != null and timeline.has_animation(ANIMATION),
+		"no '%s' on a player named 'Timeline'" % ANIMATION)
 	if timeline == null:
 		await _until_returned()
 		return
@@ -186,7 +181,7 @@ func _it_plays_through_to_the_end(scene: CinematicScene, leader: Unit) -> void:
 
 ## An abort has to unwind the same way, and this is the path that would
 ## hang: a stopped AnimationPlayer emits nothing.
-func _an_abort_leaves_nothing_behind(scene: CinematicScene, leader: Unit) -> void:
+func _an_abort_leaves_nothing_behind(scene: PackedScene, leader: Unit) -> void:
 	var cast := SceneCast.new().track_unit(&"leader", leader)
 	_drive(scene, cast)
 	await get_tree().process_frame
@@ -255,23 +250,80 @@ func _a_method_track_survives_an_unresolved_role(leader: Unit) -> void:
 	cast.tree = get_tree()
 	stage.bind(cast)
 
-	stage.spawn(&"nobody_at_all", NOT_A_DEFINITION, &"nowhere")
-	stage.place(&"nobody_at_all", &"nowhere")
+	stage.spawn(&"nobody_at_all", null, &"nowhere")
+	stage.put(&"nobody_at_all", Transform3D.IDENTITY)
 	stage.clip(&"nobody_at_all", "Idle")
 	stage.despawn(&"nobody_at_all")
-	stage.effect(&"no_such_prop", &"nobody_at_all")
-	stage.sound(&"no_such_prop", &"nobody_at_all")
+	stage.effect(null, &"nobody_at_all")
+	stage.sound(null, &"nobody_at_all")
 
 	check("every stage method declines an unresolved role instead of throwing",
 		true,
 		"reaching this line at all is the assertion")
 
 	check("and a role that WAS bound still resolves on the same stage",
-		stage._actor(&"leader") == leader,
+		stage.actor(&"leader") == leader,
 		"the guards above swallowed the working case too")
 
 	stage.unbind()
 	stage.queue_free()
+
+
+## A line that waits for the player holds the timeline — and a held
+## timeline is NOT a finished one. The scene is far shorter than the wait
+## below, so a director that mistook "not advancing" for "done" returns
+## long before the click; and the click has to be what lets it go.
+##
+## THE CLICK IS A REAL INPUT EVENT, not the director's flag set by hand,
+## so the check also covers the director reading cinematic_advance at all.
+func _a_held_timeline_is_not_a_finished_one() -> void:
+	var line := LineBeat.new()
+	line.name = &"Line"
+	line.text = "Wait for me."
+	var scene := StageFixture.make(0.3, [[line, 0.05]])
+
+	_drive(scene, SceneCast.new())
+	var spent: int = 0
+	while _mounted_stage() == null and spent < FRAME_CAP:
+		await get_tree().process_frame
+		spent += 1
+	var stage: CinematicStage = _mounted_stage()
+	check("SETUP: the held scene was mounted",
+		stage != null,
+		"no stage in the world, so nothing below tests a hold")
+	if stage == null:
+		CinematicDirector.abort()
+		await _until_returned()
+		return
+	# A director that reads the hold as the end returns the SAME frame the
+	# line fires, so returning is a result here, never a setup failure.
+	while not _returned and not stage.is_waiting() and spent < FRAME_CAP:
+		await get_tree().process_frame
+		spent += 1
+
+	# Several times the scene's whole length, in the game's own time.
+	var waited: float = 0.0
+	spent = 0
+	while waited < 1.5 and not _returned and spent < FRAME_CAP:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+		spent += 1
+	check("a timeline held for the player is not treated as finished",
+		not _returned and CinematicDirector.is_active()
+			and is_instance_valid(stage) and stage.is_waiting(),
+		"play() returned=%s after %.2fs on a 0.3s scene held on a line — " % [
+			_returned, waited] + "the pause was read as the end")
+	if _returned:
+		return
+
+	var click := InputEventAction.new()
+	click.action = &"cinematic_advance"
+	click.pressed = true
+	Input.parse_input_event(click)
+	await _until_returned()
+	check("and advancing releases it to finish",
+		_returned and _result,
+		"returned=%s result=%s after the advance input" % [_returned, _result])
 
 
 # --- driving -------------------------------------------------------
@@ -279,7 +331,7 @@ func _a_method_track_survives_an_unresolved_role(leader: Unit) -> void:
 
 ## Starts play() without awaiting it, so the suite can look at the game
 ## WHILE a scene runs rather than only after.
-func _drive(scene: CinematicScene, cast: SceneCast) -> void:
+func _drive(scene: PackedScene, cast: SceneCast) -> void:
 	_returned = false
 	_result = await CinematicDirector.play(scene, cast)
 	_returned = true
@@ -302,7 +354,7 @@ func _sample_at(timeline: AnimationPlayer, stage: CinematicStage, leader: Unit,
 			and spent < FRAME_CAP:
 		await get_tree().process_frame
 		spent += 1
-	var rig: FramingRig = stage.get_node_or_null(NodePath("FramingRig")) as FramingRig
+	var rig: FramingRig = stage.get_node_or_null(NodePath("Shots/wide")) as FramingRig
 	if rig == null:
 		return
 	var head: Vector3 = leader.anchor(CharacterModel.Anchor.HEAD)
@@ -313,6 +365,16 @@ func _sample_at(timeline: AnimationPlayer, stage: CinematicStage, leader: Unit,
 	else:
 		_late_distance = where
 		_late_keyed = rig.distance
+
+
+func _is_performable(scene: PackedScene) -> bool:
+	if scene == null:
+		return false
+	var built: Node = scene.instantiate()
+	var stage := built as CinematicStage
+	var ok: bool = stage != null and stage.timeline() != null 		and stage.timeline().has_animation(ANIMATION)
+	built.free()
+	return ok
 
 
 func _note_animation_finished(_name: StringName) -> void:

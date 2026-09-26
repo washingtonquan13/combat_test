@@ -9,7 +9,12 @@ extends Node
 ## file is a monument to.
 ##
 ## SETUP: Project Settings > Input Map already carries "test_fusion_cutscene"
-## (J). Load any area, stand somewhere with room in front of you, press it.
+## (J) and "test_demo_cutscene" (K). Load any area, stand somewhere with
+## room in front of you, press one.
+##
+## K plays cinematics/demo_conversation.tscn, the reference scene that uses
+## every kind of beat and cut: open it in the editor next to watching it
+## here to see what each track does.
 ##
 ## WHAT YOU ARE LOOKING AT, and what you are not:
 ##   - the beats, their order, and their pacing            REAL
@@ -32,6 +37,12 @@ extends Node
 ## area declares staging of its own yet. The real version puts them in the
 ## Cathedral of Shadows around an actual device.
 
+const DEMO_PATH: String = "res://cinematics/demo_conversation.tscn"
+## The world mark the demo stage anchors on. Must match the demo stage's
+## anchor_mark; it is a world mark because only the harness knows where
+## the leader is standing.
+const DEMO_ANCHOR: StringName = &"DemoConversation"
+
 const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
 const PARENT_A_PATH: String = "res://data/units/demons/test_pixie.tres"
 const PARENT_B_PATH: String = "res://data/units/demons/test_wolf.tres"
@@ -49,6 +60,40 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("test_fusion_cutscene"):
 		_play_fusion()
+	elif event.is_action_pressed("test_demo_cutscene"):
+		_play_demo()
+
+
+## The demo stages itself around the leader: the anchor is dropped on the
+## leader, facing where they face, so the stage's local -Z is "ahead".
+func _play_demo() -> void:
+	if CinematicDirector.is_active():
+		print("A scene is already playing.")
+		return
+	var stage: Node = WorldManager.spawn_parent()
+	var leader: Unit = PartyManager.leader
+	if stage == null or not is_instance_valid(leader):
+		print("No world or no leader — nowhere to stage the demo.")
+		return
+
+	_clear_marks()
+	_marks = Node3D.new()
+	_marks.name = "DebugDemoMarks"
+	stage.add_child(_marks)
+	var anchor := Marker3D.new()
+	anchor.name = DEMO_ANCHOR
+	_marks.add_child(anchor)
+	anchor.global_position = leader.global_position
+	var ahead: Vector3 = leader.visual_forward()
+	ahead.y = 0.0
+	if ahead.length_squared() > 0.0001:
+		anchor.look_at(leader.global_position + ahead, Vector3.UP)
+	anchor.add_to_group(SceneCast.MARK_GROUP)
+
+	var cast := SceneCast.new().track_unit(CinematicCues.LEADER_ROLE, leader)
+	var completed: bool = await CinematicDirector.play(load(DEMO_PATH) as PackedScene, cast)
+	print("Demo cutscene %s." % ("finished" if completed else "aborted"))
+	_clear_marks()
 
 
 func _play_fusion() -> void:
@@ -92,7 +137,7 @@ func _play_fusion() -> void:
 	cast.hold(FusionRitual.PARENT_A, parent_a)
 	cast.hold(FusionRitual.PARENT_B, parent_b)
 	await CinematicDirector.play(
-		load(FusionRitual.CUTSCENE_PATH) as CinematicScene,
+		load(FusionRitual.CUTSCENE_PATH) as PackedScene,
 		cast,
 		{FusionRitual.RESULT: result})
 

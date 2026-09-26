@@ -70,6 +70,13 @@ func _ready() -> void:
 	# directly, is what gets registered here.
 	UIStack.register_party_rail($CanvasLayer/PartyRail)
 
+	# The cutscene letterbox/subtitle screen, on its own CanvasLayer above
+	# the HUD's. Handed to the director the way the cinematic camera is, so
+	# the director never needs to know MainRoot's layout. It is a UIScreen
+	# with hides_hud set, so the HUD goes down through UIStack's own rule
+	# while a scene is on screen — see CinematicOverlay's header.
+	CinematicDirector.register_overlay($CinematicLayer/CinematicOverlay)
+
 	# No mode to set. With no world loaded and character creation not open,
 	# GameMode already answers MAIN_MENU — that is its floor, and booting
 	# is exactly the state it describes.

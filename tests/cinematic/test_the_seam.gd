@@ -17,14 +17,20 @@ extends AiTestCase
 ## prove that a cutscene OUTRANKS a conversation.
 
 const HOLD := 0.25
+const StageFixture := preload("res://tests/fixtures/stage_fixture.gd")
 
 var _returned: bool = false
 var _result: bool = false
 var _saved_node: DialogueNode = null
+var _saved_scene_root: Node = null
 
 
 func run() -> void:
 	_saved_node = DialogueManager.current_node
+	# No world in this suite, so the stage is mounted under the test root —
+	# the director puts it wherever WorldManager.spawn_parent() says.
+	_saved_scene_root = WorldManager._scene_root
+	WorldManager.register_scene_root(_root)
 
 	check("SETUP: nothing is playing to begin with",
 		not CinematicDirector.is_active())
@@ -35,7 +41,7 @@ func run() -> void:
 		"play(null) either returned true or left the director active")
 
 	# --- the mode claim ------------------------------------------------
-	var scene := _holding(&"test_seam", HOLD)
+	var scene := StageFixture.make(HOLD)
 
 	var before: GameMode.Mode = GameMode.current_mode()
 	_drive(scene)
@@ -77,8 +83,7 @@ func run() -> void:
 	DialogueManager.current_node = _saved_node
 
 	# --- one at a time --------------------------------------------------
-	var second := CinematicScene.new()
-	second.id = &"test_second"
+	var second := StageFixture.make(HOLD)
 	check("a second scene is refused while one is playing",
 		not await CinematicDirector.play(second),
 		"two scenes ran at once, so nothing owns the screen")
@@ -109,12 +114,13 @@ func run() -> void:
 ## call refuses and emits nothing — a version of this test that called it
 ## passed its setup and then failed three checks for a reason that had
 ## nothing to do with the director. What a real teardown actually does to
-## anyone listening is emit world_loading(null) on its first line, which is
-## what is reproduced here.
+## anyone listening is emit world_loading(null) on its first line and then
+## free the world, stage and all — both reproduced here, because the stage
+## vanishing under the director's loop is the half that can strand it.
 func _a_world_teardown_releases_the_caller() -> void:
 	# Long enough that returning promptly can only mean it was cut short,
 	# never that it simply finished.
-	var scene := _holding(&"test_interrupted", 5.0)
+	var scene := StageFixture.make(5.0)
 
 	_returned = false
 	_drive(scene)
@@ -123,7 +129,10 @@ func _a_world_teardown_releases_the_caller() -> void:
 		check("SETUP: the long scene started", false)
 		return
 
+	var mounted: CinematicStage = CinematicDirector.current_stage()
 	WorldManager.world_loading.emit(null)
+	if mounted:
+		mounted.queue_free()
 	await _until_returned(1.0)
 
 	check("a world teardown releases the caller instead of stranding it",
@@ -140,21 +149,9 @@ func _a_world_teardown_releases_the_caller() -> void:
 		"the director still claims the screen after aborting")
 
 
-## A scene that occupies time and does nothing else — one phase, no steps.
-## The seam is about claiming and releasing the screen, not about what
-## happens while it is claimed.
-func _holding(id: StringName, seconds: float) -> CinematicScene:
-	var beat := ScenePhase.new()
-	beat.duration_seconds = seconds
-	var scene := CinematicScene.new()
-	scene.id = id
-	scene.phases = [beat]
-	return scene
-
-
 ## Starts play() without awaiting it, so the test can look at the game
 ## WHILE a scene is running rather than only after.
-func _drive(scene: CinematicScene) -> void:
+func _drive(scene: PackedScene) -> void:
 	_returned = false
 	_result = await CinematicDirector.play(scene)
 	_returned = true
@@ -170,3 +167,4 @@ func _until_returned(timeout_seconds: float) -> void:
 func _cleanup() -> void:
 	CinematicDirector.abort()
 	DialogueManager.current_node = _saved_node
+	WorldManager._scene_root = _saved_scene_root

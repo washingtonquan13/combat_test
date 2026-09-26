@@ -24,7 +24,7 @@
 [ext_resource type="Resource" uid="uid://bpig3gd3ljdoj" path="res://data/units/demons/goblin_shaman.tres" id="73_goblinshaman"]
 [ext_resource type="Resource" path="res://data/interactions/travel.tres" id="75_travel"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="76_exit"]
-[ext_resource type="Resource" uid="uid://dd1l1dh8ptyjj" path="res://data/cinematics/test_arena_arrival.tres" id="99_arrival"]
+[ext_resource type="PackedScene" path="res://cinematics/test_arena_arrival.tscn" id="99_arrival"]
 [ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="npc_town"]
 
 [sub_resource type="Resource" id="Resource_raids_resolved"]

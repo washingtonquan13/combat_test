@@ -47,14 +47,25 @@ extends Marker3D
 ## not have owns that actor's position for the whole scene.
 @export var drives_actor: bool = false
 
-## Roughly a person, so an author laying out a shot sees bodies rather than
-## three-axis crosses. Editor-only and NEVER SAVED — added without an
+## Roughly a person, so an author laying out a shot sees bodies rather
+## than three-axis crosses. Editor-only and NEVER SAVED — added without an
 ## owner, which is what keeps it out of the .tscn.
+##
+## THE STAND-IN, NOT THE MARKER, IS WHAT A PREVIEW MOVES. A beat previewing
+## a walk or a spawn has to move and hide a body while the timeline is
+## scrubbed, and the marker's own transform is saved into the .tscn — a
+## preview that moved the marker would rewrite the scene every time
+## someone scrubbed and saved. The stand-in is an unowned Node3D at the
+## marker's feet with the capsule under it; the stage resets it before
+## each preview pass (reset_preview) and beats move stand_in() only.
 const PLACEHOLDER_HEIGHT: float = 2.0
 const PLACEHOLDER_RADIUS: float = 0.35
 const PLACEHOLDER_NAME: StringName = &"__StageRolePlaceholder"
+## Where a previewed line floats, above the stand-in's head.
+const LABEL_HEIGHT: float = PLACEHOLDER_HEIGHT + 0.4
 
-var _placeholder: MeshInstance3D = null
+var _placeholder: Node3D = null
+var _label: Label3D = null
 
 
 func _ready() -> void:
@@ -65,6 +76,51 @@ func _ready() -> void:
 ## The role this marker plays, falling back to its node name.
 func role_name() -> StringName:
 	return role if role != &"" else StringName(name)
+
+
+## Where an editor preview READS this role from — the preview camera
+## framing it: the stand-in, or the marker itself when there is none (at
+## runtime, or in a headless tool). Read-only; see stand_in() for writing.
+func preview_body() -> Node3D:
+	return _placeholder if is_instance_valid(_placeholder) else self
+
+
+## The stand-in alone, or null when there is none. What a BEAT previews
+## on: unlike preview_body() it never falls back to the marker, because a
+## beat moving the marker would be moving something saved.
+func stand_in() -> Node3D:
+	return _placeholder if is_instance_valid(_placeholder) else null
+
+
+## A line of text over the stand-in's head, for a previewed LineBeat. Made
+## on first use, unowned like the stand-in, and hidden by reset_preview().
+## Null when there is no stand-in.
+func preview_label() -> Label3D:
+	if not is_instance_valid(_placeholder):
+		return null
+	if is_instance_valid(_label):
+		return _label
+	_label = Label3D.new()
+	_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	_label.no_depth_test = true
+	_label.pixel_size = 0.004
+	_label.width = 600.0
+	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_label.position = Vector3(0.0, LABEL_HEIGHT, 0.0)
+	_placeholder.add_child(_label)
+	return _label
+
+
+## Puts the stand-in back on the marker, shown, with nothing said. Called
+## by the stage before every preview pass, so a preview is a function of
+## the time alone.
+func reset_preview() -> void:
+	if not is_instance_valid(_placeholder):
+		return
+	_placeholder.transform = Transform3D.IDENTITY
+	_placeholder.visible = true
+	if is_instance_valid(_label):
+		_label.visible = false
 
 
 func _build_placeholder() -> void:
@@ -79,15 +135,18 @@ func _build_placeholder() -> void:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 
-	_placeholder = MeshInstance3D.new()
-	_placeholder.name = PLACEHOLDER_NAME
-	_placeholder.mesh = capsule
-	_placeholder.material_override = material
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = capsule
+	mesh.material_override = material
 	# Feet on the marker, which is where a mark means. A capsule's origin
 	# is its middle, so it rises by half its height.
-	_placeholder.position = Vector3(0.0, PLACEHOLDER_HEIGHT * 0.5, 0.0)
+	mesh.position = Vector3(0.0, PLACEHOLDER_HEIGHT * 0.5, 0.0)
+
+	_placeholder = Node3D.new()
+	_placeholder.name = PLACEHOLDER_NAME
+	_placeholder.add_child(mesh)
 	# No owner is set on purpose: an unowned child is not packed, so the
-	# whitebox exists in the editor viewport and in no saved file.
+	# stand-in exists in the editor viewport and in no saved file.
 	add_child(_placeholder)
 
 
