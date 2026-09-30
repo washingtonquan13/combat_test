@@ -24,3 +24,16 @@ func is_satisfied(unit: Unit) -> bool:
 			if satisfied >= needed:
 				return true
 	return satisfied >= needed
+
+
+## Same count, but each subrule is asked in the conversation too, so a
+## conversation-reading leaf (mood, presence) nested inside still sees it.
+func is_satisfied_in(c: Conversation) -> bool:
+	var needed: int = subrules.size() if required_count < 0 else required_count
+	var satisfied: int = 0
+	for rule in subrules:
+		if rule.is_satisfied_in(c):
+			satisfied += 1
+			if satisfied >= needed:
+				return true
+	return satisfied >= needed

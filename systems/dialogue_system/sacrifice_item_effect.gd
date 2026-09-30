@@ -11,7 +11,8 @@ extends DialogueEffect
 @export var gear_data: GearItem
 
 
-func apply(actor: Unit, _target: Unit) -> void:
+func apply(c: Conversation) -> void:
+	var actor: Unit = c.cast.get("player") as Unit
 	var party_overview: PartyOverview = actor.get_tree().get_first_node_in_group("party_overview")
 	if not party_overview:
 		push_error("SacrificeItemEffect: no PartyOverview in the 'party_overview' group.")
@@ -20,7 +21,7 @@ func apply(actor: Unit, _target: Unit) -> void:
 		push_warning("SacrificeItemEffect: party inventory has no %s to consume." % gear_data.item_name)
 
 
-func cost_tag() -> String:
+func cost_tag(_c: Conversation) -> String:
 	if not gear_data:
 		return ""
 	return "-1 %s" % gear_data.item_name

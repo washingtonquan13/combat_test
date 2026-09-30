@@ -17,8 +17,7 @@ const NODE_ID := "test_bound_node"
 const OTHER_ID := "test_unbound_node"
 const StageFixture := preload("res://tests/fixtures/stage_fixture.gd")
 
-var _saved_participants: Dictionary = {}
-var _saved_node: DialogueNode = null
+var _conversation: Conversation = null
 var _saved_camera: CinematicCamera = null
 var _saved_scene_root: Node = null
 var _camera: CinematicCamera = null
@@ -53,8 +52,6 @@ func run() -> void:
 
 
 func _a_bound_node_stages_its_own_scene() -> void:
-	_saved_participants = DialogueManager.participants.duplicate()
-	_saved_node = DialogueManager.current_node
 	_saved_camera = CinematicDirector.camera()
 	# No world here, so the bound scene mounts under the test root.
 	_saved_scene_root = WorldManager._scene_root
@@ -77,13 +74,18 @@ func _a_bound_node_stages_its_own_scene() -> void:
 	binding.scenes = {NODE_ID: staged}
 	_staging._bindings = binding
 
-	DialogueManager.participants = {&"npc": speaker, &"player": listener}
 	CinematicDirector.scene_started.connect(_note)
 
-	# A node with nothing bound to it.
-	DialogueManager.current_node = _node_with_id(OTHER_ID)
+	# A real conversation, opened on a node with nothing bound to it. Its
+	# node narrates only an empty aside, which never stages anything, so
+	# every line below is one this suite records itself, against whichever
+	# node the conversation is on.
+	_conversation = Conversation.new(_node_with_id(OTHER_ID), {"npc": speaker, "player": listener})
+	check("SETUP: the conversation began",
+		Conversations.begin(_conversation),
+		"refused — something already holds the player's input")
 	_played.clear()
-	DialogueManager.line_shown.emit("Ordinary.", "npc")
+	_conversation.record("npc", "Ordinary.")
 	check("an unbound node gets the default conversation shot, framed directly",
 		_played.is_empty() and _camera.is_framing(),
 		"played %s, camera framing=%s — an ordinary line should frame the " % [
@@ -91,16 +93,16 @@ func _a_bound_node_stages_its_own_scene() -> void:
 		"speaker with no scene at all")
 
 	# A node with a scene bound to it.
-	DialogueManager.current_node = _node_with_id(NODE_ID)
+	_conversation.current_node = _node_with_id(NODE_ID)
 	_played.clear()
-	DialogueManager.line_shown.emit("Staged.", "player")
+	_conversation.record("player", "Staged.")
 	check("a bound node gets its own scene instead",
 		_played == [staged],
 		"played %s — the binding was not consulted" % str(_played))
 
 	# And only once, however many lines that node has.
 	_played.clear()
-	DialogueManager.line_shown.emit("Still staged.", "npc")
+	_conversation.record("npc", "Still staged.")
 	check("and it stages once per node, not once per line",
 		not _played.has(staged),
 		"the staged scene replayed mid-node — played %s" % str(_played))
@@ -119,6 +121,8 @@ func _note(scene: PackedScene) -> void:
 func _cleanup() -> void:
 	if CinematicDirector.scene_started.is_connected(_note):
 		CinematicDirector.scene_started.disconnect(_note)
+	if _conversation:
+		_conversation.end()
 	CinematicDirector.abort()
 	if is_instance_valid(_staging):
 		_staging.queue_free()
@@ -126,6 +130,4 @@ func _cleanup() -> void:
 		_camera.release()
 		_camera.queue_free()
 	CinematicDirector.register_camera(_saved_camera)
-	DialogueManager.participants = _saved_participants
-	DialogueManager.current_node = _saved_node
 	WorldManager._scene_root = _saved_scene_root

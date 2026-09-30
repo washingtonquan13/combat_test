@@ -1,23 +1,24 @@
 class_name SacrificeNegotiatedGoldEffect
 extends DialogueEffect
-## Pays whatever this encounter's own rolled gold amount is — see
-## NegotiationManager.current_gold_amount, computed once per negotiation
-## from the demon's rank. Used for BOTH directions of the same
-## mechanic: the player offering gold to end things peacefully, or
-## paying a demon's own demand — same amount either way, just authored
-## into different choices. Negotiation-specific by nature (reads
-## NegotiationManager directly), unlike the generic, fixed-amount
+## Pays whatever this encounter's own rolled gold amount is — the
+## conversation's gold variable, rolled once per negotiation from the
+## demon's rank by NegotiationOpeningEffect. Used for BOTH directions of
+## the same mechanic: the player offering gold to end things peacefully,
+## or paying a demon's own demand — same amount either way, just authored
+## into different choices. Unlike the generic, fixed-amount
 ## SacrificeGoldEffect in systems/dialogue_system/.
 
-func apply(_actor: Unit, _target: Unit) -> void:
-	CurrencyManager.spend_gold(NegotiationManager.current_gold_amount)
+
+func apply(c: Conversation) -> void:
+	CurrencyManager.spend_gold(int(c.vars.get("gold", 0)))
 
 
-## Reads the same live NegotiationManager.current_gold_amount apply()
-## spends — rolled once per negotiation, before either the offering or
-## the demand choice is ever shown, so previewing it here can't disagree
-## with what actually gets spent.
-func cost_tag() -> String:
-	if NegotiationManager.current_gold_amount <= 0:
+## Reads the same gold variable apply() spends — rolled at the start of
+## the negotiation, before either the offering or the demand choice is
+## ever shown, so previewing it here can't disagree with what actually
+## gets spent.
+func cost_tag(c: Conversation) -> String:
+	var gold: int = int(c.vars.get("gold", 0))
+	if gold <= 0:
 		return ""
-	return "-%d gold" % NegotiationManager.current_gold_amount
+	return "-%d gold" % gold

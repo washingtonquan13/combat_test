@@ -3,17 +3,17 @@ extends RefCounted
 ## Resolves a quest id to its Quest resource by scanning
 ## res://data/quests/* once and caching the result — same "index a data
 ## folder once, cache by id" idiom as SkillDatabase (see that file's
-## header), reused here rather than DialogueManager's recursive-
+## header), reused here rather than DialogueNodeIndex's recursive-
 ## directory version: a Quest is one self-contained .tres (id + title +
 ## stages), never split across several linked files the way a
 ## DialogueNode tree is, so a flat, non-recursive scan
 ## (DirAccess.get_files_at, exactly like SkillDatabase) matches the
-## shape of the data — not the deeper walk DialogueManager needs for
+## shape of the data — not the deeper walk DialogueNodeIndex needs for
 ## res://data/dialogue's per-NPC subfolders.
 ##
 ## Stateless from the outside — static, no instances, not an autoload —
 ## matching SkillDatabase/SkillCalculator rather than FlagManager/
-## DialogueManager: nothing here needs to persist across scenes or live
+## Conversations: nothing here needs to persist across scenes or live
 ## in the tree, just a cache that outlives one call.
 ##
 ## The scan-and-cache itself is ResourceCatalog (see that file's header

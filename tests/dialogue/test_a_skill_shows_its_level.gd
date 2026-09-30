@@ -12,26 +12,22 @@ extends AiTestCase
 ## default that never resolves). See skill_tag's own header for the
 ## resulting 3-case rendering this suite exercises directly.
 ##
-## Also covers Task 2's two new non-BBCode surfaces: DialogueFormat
-## .skill_parts() (the raw Dictionary a discrete Control row needs) and
-## DialogueEffect.cost_tag()/DialogueChoice.cost_tags() (the "what does
-## this choice cost me" preview that today only ever appears AFTER the
-## player has already committed to a choice).
+## Also covers Task 2's two new non-BBCode surfaces: the check preview in
+## Conversation.describe_choice() (the raw Dictionary a discrete Control
+## row needs) and DialogueEffect.cost_tag()/DialogueChoice.cost_tags() (the
+## "what does this choice cost me" preview that today only ever appears
+## AFTER the player has already committed to a choice).
 ##
 ## wants_world() is not overridden — every check here goes through
-## SkillCalculator/DialogueFormat/DialogueChoice directly, none of it
+## SkillCalculator/DialogueFormat/Conversation directly, none of it
 ## touches WorldManager or navigation.
 ##
-## DialogueManager.participants is real autoload state, shared with
-## every other dialogue suite — saved and restored around this run the
-## same way test_gaze_follows_the_speaker.gd already does.
-
-var _saved_participants: Dictionary = {}
+## Each preview is asked of a Conversation this suite builds and never
+## begins: the cast is the conversation's own, so there is no shared
+## autoload state to save and restore around the run.
 
 
 func run() -> void:
-	_saved_participants = DialogueManager.participants.duplicate()
-
 	var actor: Unit = spawn_unit(&"player", 10, 12, 20, [melee()], Vector3.ZERO)
 	var companion: Unit = spawn_unit(&"player", 10, 10, 20, [melee()], Vector3(2.0, 0.0, 0.0))
 	companion.display_name = "Helper"
@@ -53,7 +49,7 @@ func run() -> void:
 	_root.add_child(stealth_instance)
 	actor.add_skill(stealth_instance)
 
-	DialogueManager.participants = {"player": actor}
+	var alone := Conversation.new(null, {"player": actor})
 
 	# --- case 1: trained shows its level, plainly -----------------------
 	var trained_choice: SkillCheckChoice = SkillCheckChoice.new()
@@ -68,16 +64,16 @@ func run() -> void:
 		trained_calc.skill_level == 11,
 		"got %d" % trained_calc.skill_level)
 
-	var trained_parts: Dictionary = DialogueFormat.skill_parts(trained_choice)
+	var trained_parts: Dictionary = alone.describe_choice(trained_choice).check
 	check("a trained skill's target is the real computed level",
 		trained_parts.target == 11,
 		"got %d" % trained_parts.target)
-	check("skill_parts.can_use is true for a trained skill",
+	check("the preview's can_use is true for a trained skill",
 		trained_parts.can_use)
-	check("skill_parts.attemptable is true for a trained skill",
+	check("the preview's attemptable is true for a trained skill",
 		trained_parts.attemptable)
 
-	var trained_label: String = DialogueFormat.choice_label(trained_choice)
+	var trained_label: String = DialogueFormat.choice_label(alone.describe_choice(trained_choice))
 	check("the trained skill's BBCode label shows the plain number",
 		trained_label.contains("Stealth 11"),
 		"label was: %s" % trained_label)
@@ -101,7 +97,7 @@ func run() -> void:
 		untrained_calc.skill_level == 6,
 		"got %d" % untrained_calc.skill_level)
 
-	var untrained_parts: Dictionary = DialogueFormat.skill_parts(untrained_choice)
+	var untrained_parts: Dictionary = alone.describe_choice(untrained_choice).check
 	check("an untrained-but-defaulted skill still reports can_use",
 		untrained_parts.can_use)
 	check("and attemptable, since a real default resolved",
@@ -110,7 +106,7 @@ func run() -> void:
 		untrained_parts.target == 6,
 		"got %d" % untrained_parts.target)
 
-	var untrained_label: String = DialogueFormat.choice_label(untrained_choice)
+	var untrained_label: String = DialogueFormat.choice_label(alone.describe_choice(untrained_choice))
 	check("THE FIX: an untrained-but-attemptable skill shows a NUMBER, not the bare word",
 		untrained_label.contains("Acrobatics 6"),
 		"label was: %s" % untrained_label)
@@ -123,7 +119,7 @@ func run() -> void:
 	# read "Acrobatics untrained" with no number at all, failing the
 	# "shows a NUMBER" check above.
 
-	check("skill_parts and the BBCode tag never disagree about the untrained number",
+	check("the check preview and the BBCode tag never disagree about the untrained number",
 		untrained_label.contains("Acrobatics %d" % untrained_parts.target),
 		"parts.target=%d but label was: %s" % [untrained_parts.target, untrained_label])
 
@@ -140,13 +136,13 @@ func run() -> void:
 		"can_use=%s attemptable=%s — SkillDatabase found something unexpected" % [
 			impossible_calc.can_use_skill, impossible_calc.attemptable])
 
-	var impossible_parts: Dictionary = DialogueFormat.skill_parts(impossible_choice)
+	var impossible_parts: Dictionary = alone.describe_choice(impossible_choice).check
 	check("a genuinely impossible skill is not attemptable",
 		not impossible_parts.attemptable)
 	check("and not usable",
 		not impossible_parts.can_use)
 
-	var impossible_label: String = DialogueFormat.choice_label(impossible_choice)
+	var impossible_label: String = DialogueFormat.choice_label(alone.describe_choice(impossible_choice))
 	check("the impossible case's chosen honest treatment renders",
 		impossible_label.contains("cannot attempt"),
 		"label was: %s" % impossible_label)
@@ -160,31 +156,29 @@ func run() -> void:
 
 	# --- assist: a present companion's bonus is folded into the number
 	# AND the assistant is named on the row -------------------------------
-	DialogueManager.participants = {"player": actor, "ally": companion}
+	var helped := Conversation.new(null, {"player": actor, "ally": companion})
 
-	var assisted_parts: Dictionary = DialogueFormat.skill_parts(trained_choice)
+	var assisted_parts: Dictionary = helped.describe_choice(trained_choice).check
 	check("a present, qualifying companion is named as the assistant",
 		assisted_parts.assistant == "Helper",
 		"assistant was: '%s'" % assisted_parts.assistant)
 	check("...and their flat bonus is folded into the target",
-		assisted_parts.target == trained_parts.target + DialogueManager.ASSIST_BONUS,
+		assisted_parts.target == trained_parts.target + Conversation.ASSIST_BONUS,
 		"was %d, now %d, expected %d" % [
-			trained_parts.target, assisted_parts.target, trained_parts.target + DialogueManager.ASSIST_BONUS])
+			trained_parts.target, assisted_parts.target, trained_parts.target + Conversation.ASSIST_BONUS])
 
-	var assisted_label: String = DialogueFormat.choice_label(trained_choice)
-	check("skill_parts and skill_tag agree on the assisted number too",
+	var assisted_label: String = DialogueFormat.choice_label(helped.describe_choice(trained_choice))
+	check("the check preview and skill_tag agree on the assisted number too",
 		assisted_label.contains("Stealth %d" % assisted_parts.target),
 		"parts.target=%d but label was: %s" % [assisted_parts.target, assisted_label])
 	check("with no companion present, no one is named",
 		trained_parts.assistant == "",
-		"assistant was '%s' with no companion in participants" % trained_parts.assistant)
+		"assistant was '%s' with no companion in the cast" % trained_parts.assistant)
 	# SABOTAGE PROPOSAL: have find_assisting_companion's bonus keep
-	# folding into skill_parts.target but stop populating the assistant
+	# folding into the preview's target but stop populating the assistant
 	# field (leave it ""). Caught here — the assistant-name check goes
 	# red even though the numeric target check alone would still pass,
 	# which is why both are asserted rather than just the number.
-
-	DialogueManager.participants = {"player": actor}
 
 	# --- Task 2b: cost previews ------------------------------------------
 	var priced_choice: LineChoice = LineChoice.new()
@@ -193,7 +187,7 @@ func run() -> void:
 	hp_cost.amount = 5
 	priced_choice.effects.append(hp_cost)
 
-	var priced_tags: PackedStringArray = priced_choice.cost_tags()
+	var priced_tags: PackedStringArray = priced_choice.cost_tags(alone)
 	check("a choice with a sacrifice effect reports a non-empty cost tag",
 		priced_tags.size() == 1,
 		"got %d tags: %s" % [priced_tags.size(), priced_tags])
@@ -207,8 +201,8 @@ func run() -> void:
 	pricier_hp_cost.amount = 12
 	pricier_choice.effects.append(pricier_hp_cost)
 	check("the cost tag actually reflects the effect's own amount, not a fixed string",
-		pricier_choice.cost_tags()[0] == "-12 HP" and pricier_choice.cost_tags()[0] != priced_tags[0],
-		"5-cost tag: %s, 12-cost tag: %s" % [priced_tags[0], pricier_choice.cost_tags()[0]])
+		pricier_choice.cost_tags(alone)[0] == "-12 HP" and pricier_choice.cost_tags(alone)[0] != priced_tags[0],
+		"5-cost tag: %s, 12-cost tag: %s" % [priced_tags[0], pricier_choice.cost_tags(alone)[0]])
 	# SABOTAGE PROPOSAL: hardcode SacrificeHpEffect.cost_tag() to return
 	# "-5 HP" unconditionally instead of using `amount`. Caught here — the
 	# 12-cost choice would report "-5 HP" too, failing the inequality half
@@ -217,77 +211,76 @@ func run() -> void:
 	var plain_choice: LineChoice = LineChoice.new()
 	plain_choice.text = "Just talk."
 	check("a plain choice with no effects reports no cost at all",
-		plain_choice.cost_tags().is_empty(),
-		"got: %s" % plain_choice.cost_tags())
+		plain_choice.cost_tags(alone).is_empty(),
+		"got: %s" % plain_choice.cost_tags(alone))
 
 	var give_choice: LineChoice = LineChoice.new()
 	give_choice.text = "Receive a gift."
 	var grant: GiveItemEffect = GiveItemEffect.new()
 	give_choice.effects.append(grant)
 	check("a GRANTING effect (not a cost) reports no cost tag either",
-		give_choice.cost_tags().is_empty(),
-		"got: %s" % give_choice.cost_tags())
+		give_choice.cost_tags(alone).is_empty(),
+		"got: %s" % give_choice.cost_tags(alone))
 	# SABOTAGE PROPOSAL: make DialogueEffect's base cost_tag() return a
 	# non-empty placeholder like "?" instead of "". Caught here — both the
 	# plain-choice and the granting-effect checks above go red.
 
-	_cleanup()
 
-
-func _cleanup() -> void:
-	DialogueManager.participants = _saved_participants
 
 
 ## A skill check must not hang when nothing is presenting the dice.
 ##
-## The popup is the only listener for dice_roll_requested and the only
-## emitter of dice_roll_finished. Both choice types used to emit and then
-## await that pair directly, so in any scene with no popup — this one, a
-## stripped export, a frame before the popup is ready — the await never
+## A check pauses on Conversation.show(&"dice", ...) until a presenter
+## calls complete(). Before the guard, a check awaited a signal pair whose
+## only other end was the popup, so in any scene with no popup — this one,
+## a stripped export, a frame before the popup is ready — the await never
 ## returned and the conversation stopped forever with no timeout. The
-## guard lives in DialogueManager.present_dice_roll.
+## guard is that show() returns at once when no dice presenter is
+## attached.
 ##
 ## Asserted in BOTH directions, because a guard that always skips the wait
 ## would pass the first check on its own.
 func _the_dice_never_hang_without_a_popup() -> void:
-	check("SETUP: nothing in this scene is presenting dice",
-		DialogueManager.dice_roll_requested.get_connections().is_empty(),
-		"something is connected, so the unattended case is not what is " +
+	var c := Conversation.new()
+	check("SETUP: nothing is presenting dice for this conversation",
+		not c._has_presenter(&"dice"),
+		"a presenter is attached, so the unattended case is not what is " +
 		"being tested here")
 
 	var unattended: Dictionary = {"done": false}
-	_present(unattended)
+	_present(c, unattended)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	check("a check resolves with no dice popup in the tree",
 		unattended["done"],
-		"present_dice_roll never returned — this is the hang: an await on " +
-		"a signal whose only emitter does not exist")
+		"show() never returned — this is the hang: an await on a wait " +
+		"nobody is there to complete")
 
-	# Positive control: a listener that answers must still be waited for.
-	var answered: Dictionary = {"done": false, "saw": false}
-	var listener: Callable = func(_skill: String, _roll: Dictionary) -> void:
-		answered["saw"] = true
-	DialogueManager.dice_roll_requested.connect(listener)
-	_present(answered)
+	# Positive control: an attached presenter must still be waited for.
+	var presenter := Node.new()
+	_root.add_child(presenter)
+	c.attach(&"dice", presenter)
+	var answered: Dictionary = {"done": false}
+	_present(c, answered)
 	await get_tree().process_frame
-	check("SETUP: the listener was reached",
-		answered["saw"],
-		"the emit never got to a connected listener")
+	check("SETUP: the presenter was asked",
+		c.waiting.get("kind") == &"dice",
+		"nothing is waiting, so the presenter was never reached")
 	check("and a presented roll is actually waited for",
 		not answered["done"],
-		"present_dice_roll returned without waiting even though something " +
-		"was listening, so the guard is skipping unconditionally")
-	DialogueManager.dice_roll_finished.emit()
+		"show() returned without waiting even though a presenter was " +
+		"attached, so the guard is skipping unconditionally")
+	c.complete()
 	await get_tree().process_frame
 	check("until the presentation reports finished",
 		answered["done"],
-		"the wait never ended after dice_roll_finished")
-	DialogueManager.dice_roll_requested.disconnect(listener)
+		"the wait never ended after complete()")
+	c.detach(&"dice", presenter)
+	presenter.queue_free()
 
 
 ## Started, deliberately not awaited: the point is whether it comes back.
-func _present(flag: Dictionary) -> void:
-	await DialogueManager.present_dice_roll("Stealth", {
-		"success": true, "roll": 9, "target": 11, "margin": 2})
+func _present(c: Conversation, flag: Dictionary) -> void:
+	await c.show(&"dice", {"skill": "Stealth", "roll": {
+		"success": true, "roll": 9, "target": 11, "margin": 2}})
 	flag["done"] = true

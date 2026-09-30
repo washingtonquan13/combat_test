@@ -45,7 +45,9 @@ extends PanelContainer
 ## border in the accent colour on hover OR keyboard focus, nothing on
 ## disabled (so a frozen row still reads as inert, not just unclickable).
 
-signal chosen(index: int)
+## Carries the snapshot choice id (see Conversation.choose), not a position
+## in a list, so a row can never fire a different choice than it shows.
+signal chosen(id: StringName)
 
 @export var normal_style: StyleBoxFlat
 @export var hover_style: StyleBoxFlat
@@ -56,7 +58,7 @@ signal chosen(index: int)
 @onready var _text_label: Label = $Content/Text
 @onready var _tags_label: RichTextLabel = $Content/Tags
 
-var _index: int = -1
+var _id: StringName = &""
 var _hovering: bool = false
 
 ## External API, same contract the old Button-based row had:
@@ -91,87 +93,52 @@ func set_accent_color(color: Color) -> void:
 	_refresh_style()
 
 
-## row_index is the position in DialogueManager's own FILTERED choices
-## list (what choices_shown emitted) — stored as-is and handed straight
-## back on chosen, never remapped. See dialogue_manager.gd's own comment
-## on _visible_choices for why a lookup here would be a real, previously-
-## shipped bug.
-##
-## Guards both new-format APIs (DialogueFormat.skill_parts,
-## DialogueChoice.cost_tags) with has_method()/call() on real INSTANCES
-## rather than calling them directly — a direct `DialogueFormat.skill_parts(...)`
-## would be a compile-time error the instant that static method doesn't
-## exist yet, which has_method()/call() on an Object instance never is.
-## Falls back to the old single-string DialogueFormat.choice_label() (the
-## alignment/skill-preview/"???"-collapse formatting the previous overlay
-## build already used) if either API isn't there yet.
-func setup(row_index: int, choice: DialogueChoice) -> void:
-	_index = row_index
+## entry is one snapshot choice (see Conversation.describe_choice): the
+## stable choice id to hand back on chosen, the formatted text, and the
+## display data for the tags — already computed by the conversation with
+## the same code that rolls, so this row never touches SkillCalculator or
+## the DialogueChoice resource itself. row_index only numbers the row.
+func setup(row_index: int, entry: Dictionary) -> void:
+	_id = entry.get("id", &"")
 	disabled = false
 	_index_label.text = "%02d" % (row_index + 1)
-
-	var format_probe: RefCounted = DialogueFormat.new()
-	var has_skill_parts: bool = format_probe.has_method("skill_parts")
-	var has_cost_tags: bool = choice.has_method("cost_tags")
-
-	if not has_skill_parts or not has_cost_tags:
-		# choice_label() returns a BBCode-formatted string (alignment/skill
-		# tags baked in as [color=...] fragments) meant for the old
-		# RichTextLabel-based Text — Text is a plain Label now (see F2/F16),
-		# which would render those brackets as literal characters instead
-		# of parsing them. This fallback only exists for version skew
-		# between this file and DialogueFormat/DialogueChoice (see the doc
-		# comment above); as of this rebuild both guarded methods already
-		# exist, so choice.text alone (no tag preview, same as a hidden
-		# check collapsing to plain text) is the safe degrade — a missing
-		# preview reads as incomplete, not as a rendering bug.
-		_text_label.text = choice.text
-		_tags_label.text = ""
-		return
-
-	_text_label.text = choice.text
-	_tags_label.text = " ".join(_build_tags(format_probe, choice))
+	_text_label.text = entry.get("text", "")
+	_tags_label.text = " ".join(_build_tags(entry))
 
 
-func _build_tags(format_probe: RefCounted, choice: DialogueChoice) -> Array[String]:
+func _build_tags(entry: Dictionary) -> Array[String]:
 	var tags: Array[String] = []
 
-	# Pre-existing API (not one of the two guarded ones above) — safe to
-	# call directly.
-	var alignment_bb: String = DialogueFormat.alignment_tag(choice.alignment_name)
+	var alignment_bb: String = DialogueFormat.alignment_tag(entry.get("alignment", ""))
 	if alignment_bb != "":
 		tags.append(alignment_bb)
 
-	var parts: Dictionary = format_probe.call("skill_parts", choice)
-	if not parts.is_empty():
-		if parts.get("hidden", false):
+	var check: Dictionary = entry.get("check", {})
+	if not check.is_empty():
+		if check.get("hidden", false):
 			# A neutral marker rather than collapsing the whole row to
-			# "???" (the old choice_label behaviour) — the response text
-			# itself still reads normally; only the skill preview is
+			# "???" (DialogueFormat.choice_label's behaviour) — the response
+			# text itself still reads normally; only the skill preview is
 			# withheld, same as BG3 not revealing a passive check's DC.
 			tags.append("[color=#808080]?[/color]")
 		else:
-			var skill: String = parts.get("skill", "")
-			if skill != "":
-				var target: int = parts.get("target", 0)
-				var can_use: bool = parts.get("can_use", false)
-				var attemptable: bool = parts.get("attemptable", false)
-				if can_use:
-					tags.append("[color=#%s]|%s %d|[/color]" % [
-						DialogueFormat.skill_tag_color.to_html(false), skill, target])
-				elif attemptable:
-					# The one requested deviation from the mockup: still
-					# the real number, just styled untrained (muted grey)
-					# instead of the word "untrained".
-					tags.append("[color=#909090]|%s %d|[/color]" % [skill, target])
-				# can_use == false and attemptable == false: nothing to
-				# preview at all, no tag shown.
-				var assistant: String = parts.get("assistant", "")
-				if assistant != "":
-					tags.append("[color=#CFCFCF](%s)[/color]" % assistant)
+			var skill: String = check.get("skill", "")
+			var target: int = check.get("target", 0)
+			if check.get("can_use", false):
+				tags.append("[color=#%s]|%s %d|[/color]" % [
+					DialogueFormat.skill_tag_color.to_html(false), skill, target])
+			elif check.get("attemptable", false):
+				# The one requested deviation from the mockup: still the
+				# real number, just styled untrained (muted grey) instead
+				# of the word "untrained".
+				tags.append("[color=#909090]|%s %d|[/color]" % [skill, target])
+			# can_use == false and attemptable == false: nothing to
+			# preview at all, no tag shown.
+			var assistant: String = check.get("assistant", "")
+			if assistant != "":
+				tags.append("[color=#CFCFCF](%s)[/color]" % assistant)
 
-	var cost_list: PackedStringArray = choice.call("cost_tags")
-	for cost in cost_list:
+	for cost in entry.get("costs", PackedStringArray()):
 		tags.append("[color=#D4AF37]%s[/color]" % cost)
 
 	return tags
@@ -192,10 +159,10 @@ func _on_gui_input(event: InputEvent) -> void:
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		accept_event()
-		chosen.emit(_index)
+		chosen.emit(_id)
 	elif event.is_action_pressed("ui_accept"):
 		accept_event()
-		chosen.emit(_index)
+		chosen.emit(_id)
 
 
 func _refresh_style() -> void:

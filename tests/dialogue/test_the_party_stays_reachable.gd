@@ -67,13 +67,12 @@ var _b: Unit
 var _saved_window_size: Vector2i = Vector2i.ZERO
 var _saved_hud: Control = null
 var _saved_party_rail: Control = null
-var _saved_participants: Dictionary = {}
+var _conversation: Conversation = null
 
 
 func run() -> void:
 	_saved_hud = UIStack._hud
 	_saved_party_rail = UIStack._party_rail
-	_saved_participants = DialogueManager.participants.duplicate()
 
 	_build_shell()
 	await get_tree().process_frame
@@ -112,12 +111,13 @@ func run() -> void:
 	root_node.id = "root"
 	root_node.speaker = "npc"
 	root_node.text_block = "Hold up a moment."
-	DialogueManager.start_dialogue(root_node, {"player": _a, "npc": _b})
+	_conversation = Conversation.new(root_node, {"player": _a, "npc": _b})
+	var began: bool = Conversations.begin(_conversation)
 	await get_tree().process_frame
 
 	check("SETUP: the conversation actually started",
-		DialogueManager.is_active(),
-		"start_dialogue() was refused (in combat? StashManager active?) " +
+		began and Conversations.current == _conversation,
+		"begin() was refused (another conversation? StashManager active?) " +
 		"— every check below would be vacuous")
 
 	# --- the party rail stays up, the rest of the HUD does not ---------
@@ -224,35 +224,35 @@ func run() -> void:
 	# --- the speaking marker follows the speaker ------------------------
 	check("the NPC's line lights the NPC's own marker",
 		portrait_b.speaking_marker.is_visible_in_tree(),
-		"speaker_token 'npc' resolves to _b via participants, but its " +
+		"speaker_token 'npc' resolves to _b via the cast, but its " +
 		"marker never lit")
 	check("and NOT the other party member's",
 		not portrait_a.speaking_marker.is_visible_in_tree(),
 		"both markers are lit at once — _set_speaking_unit isn't clearing " +
 		"the ones that aren't the current speaker")
 
-	DialogueManager.line_shown.emit("My turn to answer.", "player")
+	_conversation.record("player", "My turn to answer.")
 	await get_tree().process_frame
 	check("and the marker MOVES when the speaker changes",
 		portrait_a.speaking_marker.is_visible_in_tree()
 			and not portrait_b.speaking_marker.is_visible_in_tree(),
 		"marker stayed on the old speaker (or lit both) after a new " +
-		"line_shown for a different token")
+		"line for a different token")
 
 	# --- ending the conversation restores the full HUD -------------------
-	DialogueManager.end_dialogue()
+	_conversation.end()
 	await get_tree().process_frame
 
 	check("ending the conversation brings the initiative row back",
 		_initiative_row.is_visible_in_tree(),
-		"the rest of the HUD stayed hidden after dialogue_ended")
+		"the rest of the HUD stayed hidden after the conversation ended")
 	check("and the ability hotbar",
 		_ability_hotbar.is_visible_in_tree())
 	check("and the party panel is still visible (never actually left)",
 		_panel.is_visible_in_tree())
 	check("and the overlay itself closes",
 		not _overlay.is_visible_in_tree(),
-		"DialogueOverlay is still open after dialogue_ended")
+		"DialogueOverlay is still open after the conversation ended")
 	check("and the speaking marker clears with nobody talking",
 		not portrait_a.speaking_marker.is_visible_in_tree()
 			and not portrait_b.speaking_marker.is_visible_in_tree(),
@@ -448,9 +448,8 @@ func _build_shell() -> void:
 func _restore() -> void:
 	if _saved_window_size != Vector2i.ZERO:
 		get_tree().root.size = _saved_window_size
-	if DialogueManager.is_active():
-		DialogueManager.end_dialogue()
-	DialogueManager.participants = _saved_participants
+	if _conversation:
+		_conversation.end()
 	for unit in [_a, _b]:
 		if is_instance_valid(unit) and PartyManager.is_member(unit):
 			PartyManager.remove_member(unit)

@@ -25,3 +25,6 @@ bin/win64/~*
 # leaves when a rebuild replaces a DLL the editor holds open.
 addons/sfzplayer/bin/*.pdb
 addons/sfzplayer/bin/~*
+
+# Rendered audio for listening checks: derived from the ensembles and scores, not source.
+renders/

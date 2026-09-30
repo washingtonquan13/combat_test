@@ -122,7 +122,7 @@ func is_top(screen: UIScreen) -> bool:
 
 ## Whether anything currently open should refuse a NEW screen from
 ## opening — the generalized replacement for the ad hoc
-## "DialogueManager.is_active() or StashManager.is_active()" guard
+## "is a dialogue or a stash active" guard
 ## party_overview.gd used to hand-roll. UI-to-UI blocking only — this
 ## does NOT gate CameraDirector.has_control()/3D-world input; that
 ## integration is separate, later work.

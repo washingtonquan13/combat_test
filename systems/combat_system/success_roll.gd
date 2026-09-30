@@ -18,8 +18,12 @@ extends RefCounted
 ## 3/4 always crit-succeed; 5 crit-succeeds at skill 15+; 6 at skill 16+;
 ## 18 always crit-fails; 17 crit-fails unless skill 16+; anything 10+
 ## over skill crit-fails.
-static func roll_vs(target_number: int) -> Dictionary:
-	var dice: Array[int] = [randi_range(1, 6), randi_range(1, 6), randi_range(1, 6)]
+##
+## rng is optional so combat keeps using the global generator. A
+## conversation passes its own (see Conversation.rng), which is what lets
+## a test pin one seed and reach a chosen outcome on purpose.
+static func roll_vs(target_number: int, rng: RandomNumberGenerator = null) -> Dictionary:
+	var dice: Array[int] = [_d6(rng), _d6(rng), _d6(rng)]
 	var roll: int = dice[0] + dice[1] + dice[2]
 	var critical_success: bool = roll == 3 or roll == 4 \
 		or (roll == 5 and target_number >= 15) \
@@ -42,3 +46,7 @@ static func roll_vs(target_number: int) -> Dictionary:
 		"critical_success": critical_success,
 		"critical_failure": critical_failure,
 	}
+
+
+static func _d6(rng: RandomNumberGenerator) -> int:
+	return rng.randi_range(1, 6) if rng else randi_range(1, 6)

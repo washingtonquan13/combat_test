@@ -3,7 +3,7 @@ extends AiTestCase
 ## screen overlay whose root Control defaulted to Godot's own
 ## MOUSE_FILTER_STOP and silently ate every click across the whole bottom
 ## third of the screen — band content or not. This suite asserts the
-## RENDERED shape of the new band, not DialogueManager's own state (see
+## RENDERED shape of the new band, not the conversation's own state (see
 ## sabotage_checks_caught_two_false_greens.md and the 2026-09-02 audit
 ## that found dialogue UI covered by zero suites while a fully green run
 ## had already shipped an invisible panel once).
@@ -19,24 +19,14 @@ extends AiTestCase
 ## _check_layout_is_anchor_driven and _check_resize_ratchet_with_rows_present.
 ##
 ## Instantiates dialogue_overlay.tscn directly and drives it the same way
-## test_gaze_follows_the_speaker.gd drives DialogueGaze: real
-## DialogueManager signals, emitted by hand, against a
-## DialogueManager.participants table this suite owns and restores —
-## never a full DialogueManager.start_dialogue() conversation, since
-## nothing here needs a real DialogueNode tree.
+## test_gaze_follows_the_speaker.gd drives DialogueGaze: one real
+## Conversation this suite begins and ends, with lines recorded into it
+## and nodes shown on it by hand (_show), so each check stages exactly the
+## rows it measures without authoring a DialogueNode tree on disk.
 ##
-## THE SKILL-CHECK CHECKS ARE A CROSS-AGENT CONTRACT, NOT JUST THIS
-## FILE'S OWN CODE. DialogueFormat.skill_parts() and
-## DialogueChoice.cost_tags() are being built in parallel by another
-## agent — choice_row.gd guards both with has_method()/call() on real
-## instances and falls back to the old DialogueFormat.choice_label()
-## string if either is missing, so THIS SUITE never crashes regardless of
-## landing order. But the untrained-still-shows-a-number check below can
-## only go green once skill_parts() actually exists — if it's still
-## missing, choice_row.gd's fallback path renders the OLD literal word
-## "untrained" instead, and that specific check fails on purpose: a red
-## light here means the two halves haven't integrated yet, which is
-## exactly the information the orchestrator needs.
+## The skill-check rows read the check preview the conversation computes
+## (Conversation.describe_choice) — the same code that rolls — so the
+## number a row shows cannot drift from the number rolled against.
 ##
 ## 2026-09-03 hardening pass (adversarial review): every node lookup below
 ## goes through find_child(name, true, false) from the overlay root (or
@@ -69,7 +59,7 @@ extends AiTestCase
 ##         off-screen at a huge negative x used to still satisfy the old
 ##         "not wider than the host" check.
 ##   F10 — _settle(): three process frames after every layout-affecting
-##         change (resize, choices_shown, line_shown), not two, used
+##         change (resize, a node shown, a line recorded), not two, used
 ##         everywhere this suite used to await a bare frame or two.
 ##   F18 — (a) _check_band_shape/_check_overlay_and_band_are_actually_visible
 ##         assert is_visible_in_tree(), not just a manager flag; (b)
@@ -78,15 +68,17 @@ extends AiTestCase
 ##         bottom edge; (c) _check_band_tracks_host_height varies the
 ##         host's HEIGHT (900 -> 720) and asserts the band's bottom edge
 ##         tracks it while the top edge moves too, not just clips; (d)
-##         setup now pushes the overlay through UIStack.push() (mirroring
-##         real game usage — see dialogue_overlay.gd's own open()) instead
-##         of setting `visible` by hand, so _cleanup's UIStack.pop() is
-##         popping something that was actually pushed.
+##         setup now opens the overlay by beginning a real conversation,
+##         which pushes it through UIStack exactly as the game does (see
+##         dialogue_overlay.gd's own open()), instead of setting `visible`
+##         by hand.
 
 const PLAYER := &"player"
 const NPC := &"npc"
 
-var _saved_participants: Dictionary = {}
+var _conversation: Conversation = null
+## Makes each node _show() stages distinct, so every one is a new visit.
+var _shown_nodes: int = 0
 ## Typed as UIScreen (not just Control) so _cleanup() can hand it straight
 ## to UIStack.pop(), which requires exactly that type — dialogue_overlay.gd
 ## itself extends UIScreen, so this is the instance's real type, not a
@@ -108,8 +100,6 @@ var _host: Control = null
 
 
 func run() -> void:
-	_saved_participants = DialogueManager.participants.duplicate()
-
 	var scene: PackedScene = load("res://systems/dialogue_system/dialogue_overlay.tscn")
 	# A fixed-size Control as the parent, not a SubViewport: a full-rect
 	# Control anchors against its Control parent's rect deterministically,
@@ -120,13 +110,16 @@ func run() -> void:
 	_root.add_child(_host)
 	_overlay = scene.instantiate()
 	_host.add_child(_overlay)
-	# F18(d): pushed through UIStack rather than setting `visible` by hand —
-	# this is exactly how the real game shows this screen (see
-	# dialogue_overlay.gd's open(), which is just UIStack.push(self)), and
-	# it means _cleanup()'s UIStack.pop(_overlay) below is popping
-	# something that was actually pushed, instead of popping a screen
-	# UIStack never knew was open.
-	UIStack.push(_overlay)
+	# F18(d): opened by a real conversation beginning rather than by
+	# setting `visible` by hand — this is exactly how the real game shows
+	# this screen (the overlay follows Conversations.began and calls its
+	# open(), which is just UIStack.push(self)). Its root narrates only an
+	# empty aside, so the only lines are the ones the checks record
+	# themselves.
+	_conversation = Conversation.new(_node([]), {})
+	check("SETUP: the conversation began",
+		Conversations.begin(_conversation),
+		"refused — something already holds the player's input")
 	await _settle()
 
 	_check_the_root_lets_clicks_through()
@@ -178,9 +171,9 @@ func _check_the_root_lets_clicks_through() -> void:
 ## is the one query that fails if ANY ancestor (including a container this
 ## suite doesn't even know the name of) is hidden.
 func _check_overlay_and_band_are_actually_visible() -> void:
-	check("F18: the overlay is actually visible in the tree after UIStack.push()",
+	check("F18: the overlay is actually visible in the tree once a conversation begins",
 		_overlay.is_visible_in_tree(),
-		"overlay.is_visible_in_tree() is false even though it was pushed")
+		"overlay.is_visible_in_tree() is false even though a conversation began")
 
 	var band: Control = _overlay.find_child("Band", true, false)
 	check("F18: the Band is actually visible in the tree too",
@@ -294,7 +287,7 @@ func _check_layout_is_anchor_driven() -> void:
 ## one alone would pass if the two were simply always kept in sync.
 func _check_speaker_vs_aside_routing() -> void:
 	var npc: Unit = spawn_brute(0.0, 0.0)
-	DialogueManager.participants = {NPC: npc}
+	_conversation.cast = {String(NPC): npc}
 
 	var speaker_label: Label = _overlay.find_child("Speaker", true, false)
 	var line_label: Label = _overlay.find_child("Line", true, false)
@@ -303,7 +296,7 @@ func _check_speaker_vs_aside_routing() -> void:
 		check("SETUP: speaker/line/aside labels exist to inspect", false)
 		return
 
-	DialogueManager.line_shown.emit("Well met, traveler.", String(NPC))
+	_conversation.record(String(NPC), "Well met, traveler.")
 	await _settle()
 	check("a line with a speaker renders into the speaker row",
 		speaker_label.text != "" and line_label.text == "Well met, traveler.",
@@ -312,7 +305,7 @@ func _check_speaker_vs_aside_routing() -> void:
 		aside_label.text == "",
 		"aside label picked up '%s' from a line that had a real speaker" % aside_label.text)
 
-	DialogueManager.line_shown.emit("(you feel a chill)", "")
+	_conversation.record("", "(you feel a chill)")
 	await _settle()
 	check("an empty-token line renders into the aside instead",
 		aside_label.text == "(you feel a chill)",
@@ -322,19 +315,24 @@ func _check_speaker_vs_aside_routing() -> void:
 		"line label changed to '%s' from a line nobody spoke" % line_label.text)
 
 
-## choices_shown's index space is DialogueManager's own FILTERED list
-## (see dialogue_manager.gd's own comment on _visible_choices) — a
-## previously-shipped bug remapped this through the node's raw choices
-## array instead. Asserts the row count matches AND that each row's
-## stored index is the position handed to it, unchanged.
+## A row hands back the stable id of the choice it shows, never its
+## position in the list: a previously-shipped bug mapped a position in
+## the FILTERED list back through the node's raw choices array, so once an
+## earlier choice was hidden every later row fired the wrong choice. One
+## choice here is hidden by a prerequisite that never holds, so a row
+## carrying a position instead of an id reads off by one from there on.
+## Asserts the row count, each row's id, and its displayed number.
 func _check_choice_rows_carry_the_emitted_index() -> void:
 	var choices: Array[DialogueChoice] = []
-	for label in ["Ask about the road", "Ask about the ruins", "Leave"]:
+	for label in ["Ask about the road", "A choice nobody sees", "Ask about the ruins", "Leave"]:
 		var choice := LineChoice.new()
 		choice.text = label
 		choices.append(choice)
+	var never := FlagPrerequisite.new()
+	never.flag_name = "__band_suite_never_set__"
+	choices[1].prerequisites = never
 
-	DialogueManager.choices_shown.emit(choices)
+	var shown: DialogueNode = _show(choices)
 	await _settle()
 
 	# Read the overlay's OWN _choice_rows bookkeeping (via Object.get() —
@@ -344,22 +342,27 @@ func _check_choice_rows_carry_the_emitted_index() -> void:
 	# rather than counting Choices' raw scene-tree children:
 	# _clear_choice_rows() calls queue_free() on the previous batch, which
 	# is DEFERRED (see tests/README.md's own "queue_free() is deferred"
-	# warning) — a row from an earlier choices_shown can still be a live
+	# warning) — a row from an earlier shown node can still be a live
 	# child for the rest of the frame it was freed in, sitting BEFORE the
 	# freshly add_child()'d ones in child order. _choice_rows is updated
 	# synchronously in the same call, so it always names exactly the
 	# CURRENT batch regardless of whether the previous batch has
 	# physically left the tree yet.
 	var rows: Array[ChoiceRow] = _overlay.get("_choice_rows")
-	check("one row per emitted choice",
+	check("one row per visible choice",
 		rows.size() == 3,
 		"expected 3 rows, found %d" % rows.size())
 
-	for i in rows.size():
+	var authored: Array[int] = [0, 2, 3]
+	for i in mini(rows.size(), authored.size()):
 		var row: ChoiceRow = rows[i]
-		check("row %d carries index %d, unchanged" % [i, i],
-			row._index == i,
-			"row %d stored index %d instead" % [i, row._index])
+		var expected: StringName = StringName("%s:%d" % [shown.id, authored[i]])
+		check("row %d carries the id of authored choice %d" % [i, authored[i]],
+			row._id == expected,
+			"row %d carries id '%s' instead of '%s'" % [i, row._id, expected])
+		check("and is numbered %d on screen" % (i + 1),
+			row._index_label.text == "%02d" % (i + 1),
+			"row %d reads '%s'" % [i, row._index_label.text])
 
 
 ## The structural guard against the rebuild's own bugs coming back:
@@ -376,7 +379,7 @@ func _check_no_pixel_widths_survive() -> void:
 	var choice := LineChoice.new()
 	choice.text = "A single response, just to populate one real ChoiceRow to walk."
 	var choices: Array[DialogueChoice] = [choice]
-	DialogueManager.choices_shown.emit(choices)
+	_show(choices)
 	await _settle()
 
 	var band: Control = _overlay.find_child("Band", true, false)
@@ -445,7 +448,7 @@ func _check_choice_row_grows_with_wrapped_text() -> void:
 	long_choice.text = "This response is deliberately long enough that it has to wrap across multiple lines at the band's current width, which should make this row's own minimum height noticeably taller than a short one-line row's."
 
 	var short_list: Array[DialogueChoice] = [short_choice]
-	DialogueManager.choices_shown.emit(short_list)
+	_show(short_list)
 	await _settle()
 	var short_rows: Array[ChoiceRow] = _overlay.get("_choice_rows")
 	if short_rows.is_empty():
@@ -458,7 +461,7 @@ func _check_choice_row_grows_with_wrapped_text() -> void:
 		"short row width %.1fpx vs Choices container width %.1fpx" % [short_width, choices_container.size.x])
 
 	var long_list: Array[DialogueChoice] = [long_choice]
-	DialogueManager.choices_shown.emit(long_list)
+	_show(long_list)
 	await _settle()
 	var long_rows: Array[ChoiceRow] = _overlay.get("_choice_rows")
 	if long_rows.is_empty():
@@ -504,7 +507,7 @@ func _check_resize_ratchet_with_rows_present() -> void:
 	var short_choice := LineChoice.new()
 	short_choice.text = "No."
 	var rows_choices: Array[DialogueChoice] = [short_choice, wrap_choice]
-	DialogueManager.choices_shown.emit(rows_choices)
+	_show(rows_choices)
 	await _settle()
 
 	var rows: Array[ChoiceRow] = _overlay.get("_choice_rows")
@@ -601,14 +604,6 @@ func _check_skill_check_rows_show_a_number() -> void:
 	choice.failure_node_id = "y"
 	choice.show_to_player = true
 
-	var format_probe: RefCounted = DialogueFormat.new()
-	if not format_probe.has_method("skill_parts") or not choice.has_method("cost_tags"):
-		check("SKIPPED (integration not landed yet): DialogueFormat.skill_parts()/DialogueChoice.cost_tags() " +
-			"don't exist on this run — choice_row.gd falls back to the old choice_label() string instead of " +
-			"crashing, which is the only thing this file can promise until the other agent's half lands",
-			true)
-		return
-
 	# The exact computed levels, read straight from SkillCalculator — the
 	# same source of truth test_a_skill_shows_its_level.gd asserts against
 	# — rather than any placeholder. If choice_row.gd or DialogueFormat
@@ -619,8 +614,8 @@ func _check_skill_check_rows_show_a_number() -> void:
 
 	var single_choice: Array[DialogueChoice] = [choice]
 
-	DialogueManager.participants = {PLAYER: trained_actor}
-	DialogueManager.choices_shown.emit(single_choice)
+	_conversation.cast = {String(PLAYER): trained_actor}
+	_show(single_choice)
 	await _settle()
 	# See _check_choice_rows_carry_the_emitted_index's comment on why this
 	# reads _choice_rows rather than Choices' first raw child.
@@ -635,8 +630,8 @@ func _check_skill_check_rows_show_a_number() -> void:
 		"parsed tags text was '%s' (raw bbcode: '%s'), expected to contain 'Persuasion %d'" % [
 			trained_parsed, trained_tags_label.text if trained_tags_label else "<missing Tags node>", trained_level])
 
-	DialogueManager.participants = {PLAYER: untrained_actor}
-	DialogueManager.choices_shown.emit(single_choice)
+	_conversation.cast = {String(PLAYER): untrained_actor}
+	_show(single_choice)
 	await _settle()
 	var untrained_rows: Array[ChoiceRow] = _overlay.get("_choice_rows")
 	if untrained_rows.is_empty():
@@ -732,8 +727,25 @@ func _check_chips_are_plain_text_and_fit() -> void:
 		"chips right edge %.1f vs host right edge %.1f (host width %.1f)" % [chips_rect.end.x, host_rect.end.x, host_rect.size.x])
 
 
+## Shows a fresh node offering `choices` on the running conversation,
+## through the same path a real choice takes to reach its next node.
+func _show(choices: Array[DialogueChoice]) -> DialogueNode:
+	var n: DialogueNode = _node(choices)
+	_conversation._show_node(n)
+	return n
+
+
+func _node(choices: Array[DialogueChoice]) -> DialogueNode:
+	_shown_nodes += 1
+	var n := DialogueNode.new()
+	n.id = "band_node_%d" % _shown_nodes
+	n.choices = choices
+	return n
+
+
 func _cleanup() -> void:
+	if _conversation:
+		_conversation.end()
 	if is_instance_valid(_overlay):
 		UIStack.pop(_overlay)
 		_overlay.queue_free()
-	DialogueManager.participants = _saved_participants

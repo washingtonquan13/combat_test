@@ -9,9 +9,10 @@ extends Node
 ## who looks at whom, which is what this node does.
 ##
 ## A PRESENTATION LISTENER, in the same family as dialogue_overlay.gd,
-## dialogue_camera_rig.gd and skill_check_dice_popup.gd: it reads
-## DialogueManager's signals and never calls back into it. DialogueManager
-## stays "deliberately dumb about PRESENTATION" (see its own header).
+## dialogue_camera_rig.gd and skill_check_dice_popup.gd: it follows a
+## conversation's `changed` signal and reads its transcript and cast, and
+## never calls back into it. Only a conversation presented as dialogue is
+## followed; a negotiation is a menu panel with nobody staged to look.
 ##
 ## ONE node, not a component per unit. A Unit-owned listener connected to
 ## an autoload signal outlives its own freed owner — that exact leak has
@@ -22,43 +23,70 @@ extends Node
 ## gaze becomes an ordinary scene step and this node is absorbed along
 ## with dialogue_camera_rig.gd. It is written to be deleted.
 
-## Who was aimed by the last line, so gazes can be released even if the
-## participant table has already been cleared by the time dialogue ends.
+## Who was aimed by the last line, so gazes can be released however the
+## conversation ended.
 var _aimed: Array[Unit] = []
+## The conversation being followed, or null between conversations.
+var _conversation: Conversation = null
+## How many of its transcript entries have already been looked at.
+var _seen: int = 0
 
 
 func _ready() -> void:
-	DialogueManager.line_shown.connect(_on_line_shown)
-	DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
+	Conversations.follow(self, _on_conversation_began)
+
+
+func _exit_tree() -> void:
+	_forget()
+	_release()
+
+
+func _on_conversation_began(c: Conversation) -> void:
+	if c.presentation != &"dialogue":
+		return
+	_forget()
+	_conversation = c
+	_seen = 0
+	c.changed.connect(_on_changed)
+	_on_changed()
 
 
 ## Mirrors dialogue_camera_rig.gd's rule exactly, and for the same reason:
-## an empty speaker_token is one of the small echo lines DialogueChoice
-## produces — an alignment message, an echoed response, a skill-check
-## result — and re-aiming every head at those would make the whole cast
-## twitch at moments nobody is talking.
-func _on_line_shown(_text: String, speaker_token: String) -> void:
-	if speaker_token == "":
+## only a spoken line re-aims. An aside — an alignment note, an echoed
+## response, a skill-check result — has no speaker, and re-aiming every
+## head at those would make the whole cast twitch at moments nobody is
+## talking.
+func _on_changed() -> void:
+	var c: Conversation = _conversation
+	if c == null:
 		return
-	var speaker: Unit = DialogueManager.participants.get(speaker_token) as Unit
-	if not is_instance_valid(speaker):
+	if c.ended:
+		_forget()
+		_release()
 		return
-	aim_at(speaker)
+	while _seen < c.transcript.size():
+		var entry: Dictionary = c.transcript[_seen]
+		_seen += 1
+		if entry.get("kind") != &"line":
+			continue
+		var speaker: Unit = c.cast.get(entry.speaker) as Unit
+		if is_instance_valid(speaker):
+			aim_at(speaker, c.cast)
 
 
-## Aims every live participant. The speaker is not excluded — they look at
-## whoever they are addressing, which is what stops the person talking
+## Aims every live member of cast. The speaker is not excluded — they look
+## at whoever they are addressing, which is what stops the person talking
 ## from being the only one in the scene staring into space.
 ##
 ## Public so a test can drive it without standing up a real conversation.
-func aim_at(speaker: Unit) -> void:
+func aim_at(speaker: Unit, cast: Dictionary) -> void:
 	_release()
 
-	var addressee: Node3D = _someone_other_than(speaker)
+	var addressee: Node3D = _someone_other_than(speaker, cast)
 	var speaker_face: Node3D = speaker.gaze_point()
 
-	for token in DialogueManager.participants:
-		var unit: Unit = DialogueManager.participants[token] as Unit
+	for token in cast:
+		var unit: Unit = cast[token] as Unit
 		if not is_instance_valid(unit):
 			continue
 		var target: Node3D = addressee if unit == speaker else speaker_face
@@ -66,8 +94,10 @@ func aim_at(speaker: Unit) -> void:
 			_aimed.append(unit)
 
 
-func _on_dialogue_ended() -> void:
-	_release()
+func _forget() -> void:
+	if _conversation and _conversation.changed.is_connected(_on_changed):
+		_conversation.changed.disconnect(_on_changed)
+	_conversation = null
 
 
 func _release() -> void:
@@ -77,12 +107,12 @@ func _release() -> void:
 	_aimed.clear()
 
 
-## The first live participant who is not the speaker, as something to look
+## The first live cast member who is not the speaker, as something to look
 ## at. Null in a monologue, which is why gaze_at's result is checked
 ## rather than assumed — a lone speaker simply keeps their animated pose.
-func _someone_other_than(speaker: Unit) -> Node3D:
-	for token in DialogueManager.participants:
-		var unit: Unit = DialogueManager.participants[token] as Unit
+func _someone_other_than(speaker: Unit, cast: Dictionary) -> Node3D:
+	for token in cast:
+		var unit: Unit = cast[token] as Unit
 		if is_instance_valid(unit) and unit != speaker:
 			return unit.gaze_point()
 	return null

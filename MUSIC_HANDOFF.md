@@ -72,7 +72,7 @@ in sfpp_test `docs/GOALS.md` (the spec), `docs/SYSTEM.md` and
 	 `negotiation_track` to name director areas instead of `MusicTrack`
 	 resources, and update the four `data/areas/*.tres` files.
    - `MusicManager` becomes a thin layer that turns the `WorldManager`,
-	 `CombatManager` and `NegotiationManager` signals into `Music.go_to()`
+	 `CombatManager` and `Conversations` signals into `Music.go_to()`
 	 calls. The hardcoded fallback ids at `music_manager.gd:113-119` become
 	 area names.
    - Rebuild the debug Music tab (`debug/debug_music_panel.gd`,

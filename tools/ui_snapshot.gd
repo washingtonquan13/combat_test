@@ -9,7 +9,7 @@ extends Node
 ##
 ## Run via tools/snap.sh — this scene must be run with a real rendering
 ## driver (--headless cannot render), as a SCENE (not --script) so the
-## project's autoloads (DialogueManager, UIStack, ...) are alive. See
+## project's autoloads (Conversations, UIStack, ...) are alive. See
 ## tools/README.md.
 ##
 ## Deliberately does not depend on MainRoot.tscn or anything under ui/ —
@@ -46,16 +46,15 @@ func _ready() -> void:
 	layer.add_child(overlay)
 
 	# One frame so DialogueOverlay._ready() has connected to
-	# DialogueManager's signals before start_dialogue() below fires them.
+	# Conversations.began before begin() below fires it.
 	await get_tree().process_frame
 
-	DialogueManager.start_dialogue(_build_sample_node(), {"player": actor, "npc": npc})
-
-	if not DialogueManager.is_active():
-		_fail("DialogueManager.start_dialogue() did not open a conversation (is_active() is false) — check StashManager.is_active()/Unit.in_combat() guards in dialogue_manager.gd")
+	var conversation := Conversation.new(_build_sample_node(), {"player": actor, "npc": npc})
+	if not Conversations.begin(conversation):
+		_fail("Conversations.begin() refused the sample conversation — check GameMode.input_is_taken() (another conversation or a stash already open)")
 		return
 	if not overlay.visible:
-		_fail("DialogueOverlay never became visible after dialogue_started — its _on_dialogue_started/open()/UIStack.push path did not run as expected")
+		_fail("DialogueOverlay never became visible after Conversations.began — its _on_conversation_began/open()/UIStack.push path did not run as expected")
 		return
 
 	# At least 4 process frames plus one real render, per the brief.

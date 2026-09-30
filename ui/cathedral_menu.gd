@@ -8,7 +8,7 @@ extends UIScreen
 ## and ends, and this does neither. It stands while you are in the room:
 ## you pick Fuse, the fusion happens, and you come back to the same list.
 ## The Minister's line is flavour beside it, not a node the options hang
-## off, which is also why it does not go through DialogueManager and does
+## off, which is also why it does not go through Conversations and does
 ## not put the game in DIALOGUE mode.
 ##
 ## Deliberately does NOT close on cancel. It is the only interface in a

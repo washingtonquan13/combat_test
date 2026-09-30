@@ -32,7 +32,7 @@ extends Node
 ## (ability_used/died) are connected fresh each time combat starts,
 ## against whichever Units are alive THEN. A transient Unit taking its
 ## own connections with it when freed is the normal, safe case; this is
-## the mirror image of the UnitSelection/DialogueManager leak (a
+## the mirror image of the old UnitSelection/dialogue-manager leak (a
 ## persistent listener holding a strong ref INTO a transient object),
 ## not a repeat of it.
 

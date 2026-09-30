@@ -12,11 +12,11 @@ extends DialogueEffect
 @export var amount: int = 5
 
 
-func apply(actor: Unit, _target: Unit) -> void:
-	actor.take_damage(amount)
+func apply(c: Conversation) -> void:
+	(c.cast.get("player") as Unit).take_damage(amount)
 
 
-func cost_tag() -> String:
+func cost_tag(_c: Conversation) -> String:
 	if amount <= 0:
 		return ""
 	return "-%d HP" % amount

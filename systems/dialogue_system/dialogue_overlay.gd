@@ -61,9 +61,8 @@ extends UIScreen
 ## scene's instance in MainRoot.tscn (owned by another agent) — see
 ## UIScreen's own header.
 
-## Fallback when no "player" participant has resolved yet (should not
-## happen mid-conversation, but _accent_color() has to return SOMETHING
-## before the first line_shown/choices_shown lands).
+## Fallback when no "player" is in the cast (should not happen
+## mid-conversation, but _accent_color() has to return SOMETHING).
 const DEFAULT_ACCENT_COLOR: Color = Color(0.85, 0.7, 0.32)
 
 const ChoiceRowScene: PackedScene = preload("res://systems/dialogue_system/choice_row.tscn")
@@ -80,6 +79,18 @@ const ChoiceRowScene: PackedScene = preload("res://systems/dialogue_system/choic
 @onready var _leave_chip: Button = $Chips/LeaveChip
 
 var _choice_rows: Array[ChoiceRow] = []
+## The conversation this band is showing, or null. Held only between
+## Conversations.began and its end.
+var _conversation: Conversation = null
+## How many transcript entries have already been drawn — the band reads
+## only the new ones on each `changed`.
+var _seen: int = 0
+## The visit whose choices are on screen. Rows are rebuilt only when the
+## conversation shows a node again, never on every `changed`, so keyboard
+## focus survives an aside landing mid-choice.
+var _shown_visit: int = -1
+## The id the Continue button chooses: &"continue" or &"end".
+var _builtin_id: StringName = &""
 
 
 func _ready() -> void:
@@ -98,34 +109,68 @@ func _ready() -> void:
 	# three chips, not set here, so it's visible/editable in the inspector
 	# instead of only discoverable by reading this script.
 
-	DialogueManager.dialogue_started.connect(_on_dialogue_started)
-	DialogueManager.line_shown.connect(_on_line_shown)
-	DialogueManager.choices_shown.connect(_on_choices_shown)
-	DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
-	DialogueManager.dice_roll_requested.connect(_on_dice_roll_requested)
+	# A band created while a conversation is already running (a scene
+	# reload, a test) picks it up rather than waiting for the next one.
+	Conversations.follow(self, _on_conversation_began)
 
 
-func _on_dialogue_started(_root: DialogueNode) -> void:
-	open()
+func _exit_tree() -> void:
+	_release()
+
+
+## Only an ordinary dialogue is shown here; a negotiation has its own panel
+## (see negotiation_panel.gd), and both decide that from the conversation's
+## presentation hint, never from which manager started it.
+func _on_conversation_began(c: Conversation) -> void:
+	if c.presentation != &"dialogue":
+		return
+	_release()
+	_conversation = c
+	_seen = 0
+	_shown_visit = -1
 	_clear_choice_rows()
 	_continue_button.visible = false
 	_aside_label.text = ""
+	c.changed.connect(_on_changed)
+	open()
+	_on_changed()
 
 
-## speaker_token == "" is a system echo (alignment shift, roll result, who
-## assisted) — goes to the dimmed aside line above the row, never the
-## speaker row itself, same distinction the old build made. A real
-## speaker's name only updates when a real token is given, so consecutive
-## lines from the SAME speaker leave the name alone (nothing here
-## re-triggers on an unchanged token — there is no per-line enter
-## animation to restart in the first place).
-func _on_line_shown(text: String, speaker_token: String) -> void:
-	if speaker_token == "":
-		_aside_label.text = text
+func _on_changed() -> void:
+	var c: Conversation = _conversation
+	if c == null:
+		return
+	if c.ended:
+		_on_conversation_ended()
 		return
 
-	var unit: Unit = DialogueManager.participants.get(speaker_token)
-	var speaker_name: String = unit.get_display_name() if unit else speaker_token.capitalize()
+	while _seen < c.transcript.size():
+		_draw_entry(c.transcript[_seen])
+		_seen += 1
+
+	var snap: Dictionary = c.snapshot()
+	if snap.visit != _shown_visit:
+		_shown_visit = snap.visit
+		_show_choices(snap.choices)
+	# Frozen, not cleared, while a choice resolves or the dice play out
+	# under skill_check_dice_popup.gd — a second click can't pick again
+	# (Conversation.choose refuses it anyway), and nothing has to restore
+	# the rows: the next node's `changed` rebuilds them.
+	_set_choices_interactive(not snap.busy and snap.waiting.is_empty())
+
+
+## An aside (speaker "" — an alignment note, a roll result, who assisted)
+## goes to the dimmed line above the rows, never the speaker row itself.
+## Plain text: the transcript carries no BBCode, and this is a Label, so
+## the "(Lawful)" in an alignment note reads as written instead of showing
+## raw color tags. A real speaker's name only updates on a real line, so
+## consecutive lines from the SAME speaker leave the name alone.
+func _draw_entry(entry: Dictionary) -> void:
+	if entry.kind != &"line":
+		_aside_label.text = entry.text
+		return
+
+	var speaker_name: String = entry.name if entry.name != "" else String(entry.speaker).capitalize()
 	_speaker_name_label.text = speaker_name.to_upper()
 	# Overridden here every line, not left to a static .tscn value: the
 	# real source of truth is the PLAYER unit's own selected_color (see
@@ -135,22 +180,31 @@ func _on_line_shown(text: String, speaker_token: String) -> void:
 	# the instant the first line renders, and worse, would silently read
 	# as "the" colour to anyone editing the .tscn.
 	_speaker_name_label.add_theme_color_override("font_color", _accent_color())
-	_line_label.text = text
+	_line_label.text = entry.text
 
 
-func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
+func _show_choices(entries: Array) -> void:
 	_clear_choice_rows()
+	_builtin_id = &""
 
-	if choices.is_empty():
-		_continue_button.visible = true
-		_continue_button.disabled = false
-		_continue_button.text = "End Conversation" if DialogueManager.current_node.next_node_id == "" else "Continue"
-		_continue_button.grab_focus()
+	var authored: Array[Dictionary] = []
+	for entry in entries:
+		if entry.get("builtin", false):
+			_builtin_id = entry.id
+		else:
+			authored.append(entry)
+
+	if authored.is_empty():
+		_continue_button.visible = _builtin_id != &""
+		if _builtin_id != &"":
+			_continue_button.disabled = false
+			_continue_button.text = entries[entries.size() - 1].text
+			_continue_button.grab_focus()
 		return
 
 	_continue_button.visible = false
 	var accent: Color = _accent_color()
-	for i in choices.size():
+	for i in authored.size():
 		var row: ChoiceRow = ChoiceRowScene.instantiate()
 		# Width comes from choice_row.tscn's own size_flags_horizontal = 3
 		# (EXPAND_FILL) on the row root, not set here — uniform width
@@ -158,13 +212,10 @@ func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
 		# is what keeps the right-aligned tags lined up down the column.
 		_choice_list.add_child(row)
 		row.set_accent_color(accent)
-		# i is the position in the FILTERED list DialogueManager just
-		# emitted — passed straight through to DialogueManager.choose()
-		# unchanged. choose() indexes THIS list, not the node's raw
-		# choices array (see dialogue_manager.gd's own load-bearing
-		# comment on _visible_choices) — a lookup or remap here would
-		# silently reintroduce the exact bug that comment describes.
-		row.setup(i, choices[i])
+		# The row carries the choice's stable id, not its position here —
+		# a position in a filtered list is exactly what used to fire the
+		# wrong choice once an earlier one had been hidden on a revisit.
+		row.setup(i, authored[i])
 		row.chosen.connect(_on_choice_chosen)
 		_choice_rows.append(row)
 
@@ -174,32 +225,28 @@ func _on_choices_shown(choices: Array[DialogueChoice]) -> void:
 	_choice_rows[0].grab_focus()
 
 
-## The choice that was just picked is already committed on the manager
-## side; what's still on screen here is the OLD choice list/Continue
-## button, left visible but frozen for as long as the roll takes to play
-## out under skill_check_dice_popup.gd. Disabling every row (rather than
-## clearing them, the old build's approach) is what keeps a second click
-## from firing DialogueManager.choose() again into a resolution that's
-## still awaiting dice_roll_finished. Nothing restores these — the
-## resolution already running emits a fresh choices_shown/line_shown once
-## it actually finishes, same as any other node transition.
-func _on_dice_roll_requested(_skill_name: String, _roll: Dictionary) -> void:
-	_set_choices_interactive(false)
-
-
-func _on_dialogue_ended() -> void:
+func _on_conversation_ended() -> void:
+	_release()
 	close()
 	var log: UIScreen = get_tree().get_first_node_in_group("conversation_log")
 	if log:
 		UIStack.pop(log)
 
 
-func _on_choice_chosen(index: int) -> void:
-	DialogueManager.choose(index)
+func _release() -> void:
+	if _conversation and _conversation.changed.is_connected(_on_changed):
+		_conversation.changed.disconnect(_on_changed)
+	_conversation = null
+
+
+func _on_choice_chosen(id: StringName) -> void:
+	if _conversation:
+		_conversation.choose(id)
 
 
 func _on_continue_pressed() -> void:
-	DialogueManager.advance()
+	if _conversation and _builtin_id != &"":
+		_conversation.choose(_builtin_id)
 
 
 func _on_log_pressed() -> void:
@@ -234,7 +281,7 @@ func _clear_choice_rows() -> void:
 ## unit's own selected_color — the same per-unit accent unit_portrait.gd
 ## already draws as a selection outline, rather than a second hardcoded
 ## palette entry this file would own on its own. Falls back to a neutral
-## gold before any participant has resolved.
+## gold before any cast has resolved.
 func _accent_color() -> Color:
-	var player: Unit = DialogueManager.participants.get("player")
-	return player.selected_color if player else DEFAULT_ACCENT_COLOR
+	var player: Unit = _conversation.cast.get("player") as Unit if _conversation else null
+	return player.selected_color if is_instance_valid(player) else DEFAULT_ACCENT_COLOR

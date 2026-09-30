@@ -9,7 +9,7 @@ extends UIScreen
 ## show/hide (owned by UIScreen/UIStack below) and stays exactly as-is.
 ##
 ## Purely reactive to StashManager's signals, same split DialogueOverlay
-## already uses with DialogueManager — this file owns "what the screen
+## already uses with Conversation — this file owns "what the screen
 ## looks like while looting," StashManager owns "is a stash open."
 ##
 ## Also owns making the stash's Inventory visible/invisible — it's not

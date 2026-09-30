@@ -117,9 +117,9 @@ extends Resource
 ## Unit.negotiable (see that field), still overridable per-instance for
 ## a specific encounter that wants an exception either way. A species
 ## with no real negotiation content authored (negotiation_options empty)
-## being left negotiable=true is harmless — NegotiationManager's own
-## guard already requires resolve_negotiation_root() to return something
-## before a conversation can start.
+## being left negotiable=true is harmless — Conversations.begin refuses a
+## conversation with no root, so resolve_negotiation_root() has to return
+## something before a negotiation can start.
 @export_group("Character")
 ## Law/Chaos and the neutral tendency behind it — read by the alignment
 ## grid, by AlignmentPrerequisite, and by the overworld avatar, whose whole
@@ -167,10 +167,11 @@ extends Resource
 
 ## First negotiation_options entry whose prerequisite is satisfied (or
 ## has none), null if nothing currently applies — see
-## Unit.resolve_dialogue_root(), the pattern this mirrors exactly.
-func resolve_negotiation_root(actor: Unit) -> DialogueNode:
+## Unit.resolve_dialogue_root(), the pattern this mirrors exactly,
+## including being asked in the conversation the root is for.
+func resolve_negotiation_root(c: Conversation) -> DialogueNode:
 	for option in negotiation_options:
-		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
+		if not option.prerequisite or option.prerequisite.is_satisfied_in(c):
 			return option.root
 	return null
 

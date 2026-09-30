@@ -2,7 +2,7 @@ extends AiTestCase
 ## Heads turn toward whoever is talking.
 ##
 ## The first suite in tests/dialogue/ at all. The 2026-09-02 audit found
-## DialogueManager referenced by ZERO of 41 suites while carrying a
+## the dialogue manager of the day referenced by ZERO of 41 suites while carrying a
 ## documented history of failing silently — a 32-of-32 green UI run once
 ## passed while the dialogue and negotiation panels rendered invisible. So
 ## this asserts the rendered fact (a modifier actually aimed at a node)
@@ -14,8 +14,8 @@ extends AiTestCase
 ## throwing, and that gazes are released when the conversation ends.
 ##
 ## WHY THERE IS A BYSTANDER BOUND TO "". The first version of this suite
-## tested the echo-line rule by emitting an empty speaker token against a
-## two-participant table — and that check could not fail. An empty token
+## tested the echo-line rule by recording an empty speaker token against a
+## two-member cast — and that check could not fail. An empty token
 ## finds no participant, so DialogueGaze's own is_instance_valid guard
 ## returns early whether or not the rule it is meant to prove exists.
 ## Sabotaging the rule left the suite green. Binding a real unit to ""
@@ -27,7 +27,7 @@ const LISTENER := &"player"
 ## Deliberately the empty token — see the header.
 const ECHO := &""
 
-var _saved_participants: Dictionary = {}
+var _conversation: Conversation = null
 var _gaze: DialogueGaze = null
 
 
@@ -37,14 +37,18 @@ func run() -> void:
 	var bystander: Unit = spawn_brute(0.0, 3.0)
 	await get_tree().process_frame
 
-	_saved_participants = DialogueManager.participants.duplicate()
-	DialogueManager.participants = {
-		SPEAKER: speaker, LISTENER: listener, ECHO: bystander,
-	}
-
 	_gaze = DialogueGaze.new()
 	_root.add_child(_gaze)
 	await get_tree().process_frame
+
+	# A real conversation whose root narrates only an empty aside, which
+	# aims nobody, so the only lines are the ones recorded below.
+	_conversation = Conversation.new(DialogueNode.new(), {
+		String(SPEAKER): speaker, String(LISTENER): listener, String(ECHO): bystander,
+	})
+	check("SETUP: the conversation began",
+		Conversations.begin(_conversation),
+		"refused — something already holds the player's input")
 
 	# --- the body can be looked at at all ------------------------------
 	var point: Node3D = speaker.gaze_point()
@@ -61,7 +65,7 @@ func run() -> void:
 			"every head stare at the floor")
 
 	# --- the decision --------------------------------------------------
-	DialogueManager.line_shown.emit("Hello.", String(SPEAKER))
+	_conversation.record(String(SPEAKER), "Hello.")
 	await get_tree().process_frame
 
 	var listener_gaze: LookAtModifier3D = _modifier_of(listener)
@@ -85,7 +89,7 @@ func run() -> void:
 	# --- the aim follows a change of speaker ---------------------------
 	# The positive half of the echo rule. Without this, a DialogueGaze that
 	# aimed once and then ignored every later line would still pass.
-	DialogueManager.line_shown.emit("My turn.", String(LISTENER))
+	_conversation.record(String(LISTENER), "My turn.")
 	await get_tree().process_frame
 
 	var speaker_gaze: LookAtModifier3D = _modifier_of(speaker)
@@ -95,7 +99,7 @@ func run() -> void:
 
 	# --- and does not follow a line nobody spoke -----------------------
 	var before: NodePath = speaker_gaze.target_node if speaker_gaze else NodePath()
-	DialogueManager.line_shown.emit("(you feel uneasy)", String(ECHO))
+	_conversation.record(String(ECHO), "(you feel uneasy)")
 	await get_tree().process_frame
 	check("an echo line with no speaker does not re-aim anyone",
 		speaker_gaze == null or speaker_gaze.target_node == before,
@@ -103,7 +107,7 @@ func run() -> void:
 		"dialogue_camera_rig.gd already follows for shot changes")
 
 	# --- release -------------------------------------------------------
-	DialogueManager.dialogue_ended.emit()
+	_conversation.end()
 	await get_tree().process_frame
 	check("ending the conversation releases the gaze",
 		listener_gaze == null or listener_gaze.influence == 0.0,
@@ -213,6 +217,7 @@ func _find_modifier(node: Node) -> LookAtModifier3D:
 
 
 func _cleanup() -> void:
+	if _conversation:
+		_conversation.end()
 	if is_instance_valid(_gaze):
 		_gaze.queue_free()
-	DialogueManager.participants = _saved_participants

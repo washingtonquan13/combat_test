@@ -2,7 +2,7 @@ extends AiTestCase
 ## Phase 2, and the acceptance test for the whole inversion.
 ##
 ## THE CRITERION IS THE TITLE. If the fusion cutscene can play end to end
-## without DialogueManager being involved, cinematics are the spine and
+## without a conversation being involved, cinematics are the spine and
 ## dialogue is one caller. If it cannot, the spine is still dialogue and
 ## every later phase inherits that. Drafts 1 and 2 of the plan would have
 ## failed this — not on dependencies, which were already fine, but because
@@ -38,7 +38,7 @@ const FRAME_CAP := 12000
 
 var _saved_root: Node = null
 var _saved_camera: CinematicCamera = null
-var _saved_dialogue: DialogueNode = null
+var _saved_dialogue: Conversation = null
 var _camera: CinematicCamera = null
 var _marks: Node3D = null
 var _returned: bool = false
@@ -109,10 +109,10 @@ func run() -> void:
 			and is_instance_valid(parent_b) and parent_b.is_inside_tree(),
 		"a parent left the world before its dissolve beat")
 
-	# --- and DialogueManager is never involved ---------------------------
+	# --- and no conversation is ever involved ---------------------------
 	check("no conversation is running at any point",
-		not DialogueManager.is_active() and DialogueManager.current_node == null,
-		"DialogueManager.current_node is %s — the cutscene reached for " % str(DialogueManager.current_node) +
+		Conversations.current == null,
+		"Conversations.current is %s — the cutscene reached for " % str(Conversations.current) +
 		"dialogue, which means the spine is still dialogue")
 
 	await _until_returned()
@@ -238,8 +238,8 @@ func _a_skip_lands_on_the_end_state(scene: PackedScene, species_a: UnitDefinitio
 func _stand_up_a_stage() -> bool:
 	_saved_root = WorldManager._scene_root
 	_saved_camera = CinematicDirector.camera()
-	_saved_dialogue = DialogueManager.current_node
-	DialogueManager.current_node = null
+	_saved_dialogue = Conversations.current
+	Conversations.current = null
 
 	WorldManager.register_scene_root(_root)
 
@@ -305,4 +305,4 @@ func _cleanup() -> void:
 		_marks.queue_free()
 	CinematicDirector.register_camera(_saved_camera)
 	WorldManager.register_scene_root(_saved_root)
-	DialogueManager.current_node = _saved_dialogue
+	Conversations.current = _saved_dialogue

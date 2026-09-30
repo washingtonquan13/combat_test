@@ -1,7 +1,8 @@
 extends Control
 ## Shows a real 3d6 tumble for a dialogue skill check, landing on the
-## exact faces SuccessRoll.roll_vs() already rolled — see
-## DialogueManager.dice_roll_requested. The roll is fully decided
+## exact faces SuccessRoll.roll_vs() already rolled — a check asks for it
+## with Conversation.show(&"dice", {skill, roll}), which parks the choice
+## until this calls Conversation.complete(). The roll is fully decided
 ## before this ever runs; this only ever plays back an already-final
 ## result, same "decide first, animate second" principle proven out in
 ## dice_roll_prototype.gd/dice_roll_2d_prototype.gd earlier, now wired
@@ -73,12 +74,81 @@ var _camera: Camera3D
 var _dice: Array[Node3D] = []
 var _result_label: Label
 var _continue_button: Button
+## The conversation this is attached to as its &"dice" presenter, and the
+## serial of the last wait it started playing, so one wait plays once even
+## though `changed` fires many times while it is up.
+var _conversation: Conversation = null
+var _played_serial: int = -1
+## Bumped by every roll that starts and by _forget. A roll coroutine checks
+## it after each wait and stops the moment it has changed, so a roll whose
+## conversation ended (or moved on) mid-tumble or while waiting on a press
+## neither stays on screen nor shares the next roll's button press.
+var _play_token: int = 0
+
+## One step of a roll: the button was pressed, or the roll was abandoned.
+## The coroutine waits on this rather than on the button itself so _forget
+## can wake it up to leave.
+signal _step
 
 
 func _ready() -> void:
 	visible = false
 	_build_scene()
-	DialogueManager.dice_roll_requested.connect(_on_dice_roll_requested)
+	Conversations.follow(self, _on_conversation_began)
+
+
+func _exit_tree() -> void:
+	_forget()
+
+
+## Attached to every conversation, whatever its presentation — a skill
+## check asks for dice, not for a dialogue. Attaching is what makes a
+## check wait at all; with nothing attached Conversation.show returns at
+## once, which is what a test with no UI relies on.
+func _on_conversation_began(c: Conversation) -> void:
+	_forget()
+	_conversation = c
+	_played_serial = -1
+	c.attach(&"dice", self)
+	c.changed.connect(_on_changed)
+	# Picked up mid-conversation, a wait may already be up.
+	_on_changed()
+
+
+func _on_changed() -> void:
+	var c: Conversation = _conversation
+	if c == null:
+		return
+	if c.ended:
+		_forget()
+		return
+	if c.waiting.get("kind") != &"dice" or c.waiting.serial == _played_serial:
+		return
+	_played_serial = c.waiting.serial
+	var data: Dictionary = c.waiting.data
+	await _on_dice_roll_requested(data.skill, data.roll)
+	# Only the wait this played is completed: if the conversation ended or
+	# moved on while the dice were up, completing now would release a
+	# different wait.
+	if c == _conversation and c.waiting.get("serial") == _played_serial:
+		c.complete()
+
+
+## Also abandons a roll still on screen: the conversation it was for is
+## gone, so nothing will ever complete it, and a parked coroutine left
+## waiting on the button would otherwise be released by the NEXT
+## conversation's roll along with its own.
+func _forget() -> void:
+	if _conversation:
+		_conversation.detach(&"dice", self)
+		if _conversation.changed.is_connected(_on_changed):
+			_conversation.changed.disconnect(_on_changed)
+	_conversation = null
+	_play_token += 1
+	visible = false
+	if _continue_button:
+		_continue_button.visible = false
+	_step.emit()
 
 
 func _build_scene() -> void:
@@ -144,6 +214,7 @@ func _build_scene() -> void:
 	vbox.add_child(_continue_button)
 	_continue_button.text = "Continue"
 	_continue_button.visible = false
+	_continue_button.pressed.connect(_step.emit)
 
 
 ## A real numeral per face — no texture asset exists, but Label3D
@@ -217,6 +288,8 @@ func _face_toward_camera_euler(die: Node3D, face_value: int) -> Vector3:
 
 
 func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
+	_play_token += 1
+	var token: int = _play_token
 	visible = true
 	# Without this, a die sits at whatever rotation it was last left in
 	# (identity on the very first roll ever) instead of presenting a
@@ -228,7 +301,9 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	_result_label.text = "%s check" % skill_name
 	_continue_button.text = "Roll"
 	_continue_button.visible = true
-	await _continue_button.pressed
+	await _step
+	if token != _play_token:
+		return
 
 	_continue_button.visible = false
 	_result_label.text = "Rolling %s..." % skill_name
@@ -253,6 +328,8 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 
 	for tween in tweens:
 		await tween.finished
+	if token != _play_token:
+		return
 	# Normalize off the extra full turns now that every die has landed.
 	for i in 3:
 		_dice[i].rotation = _face_toward_camera_euler(_dice[i], roll.dice[i])
@@ -268,6 +345,7 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 
 	_continue_button.text = "Continue"
 	_continue_button.visible = true
-	await _continue_button.pressed
+	await _step
+	if token != _play_token:
+		return
 	visible = false
-	DialogueManager.dice_roll_finished.emit()

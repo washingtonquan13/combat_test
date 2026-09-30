@@ -44,7 +44,7 @@ func _ready() -> void:
 	WorldManager.register_attention_nodes(attention)
 	# Heads turn toward whoever is speaking. Created here rather than
 	# authored into MainRoot.tscn because it renders nothing and owns no
-	# transform — it only reads DialogueManager's signals and sets a bone
+	# transform — it only reads the live conversation and sets a bone
 	# modifier's influence, so a scene node would buy visibility in the
 	# editor and nothing else. Move it into the scene if that visibility
 	# ever turns out to be worth having.

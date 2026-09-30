@@ -12,7 +12,7 @@ extends AiTestCase
 ## the acceptance criterion, not an incidental detail: drafts 1 and 2 of
 ## the plan had cinematics hanging off dialogue, and the tell that the
 ## spine was still wrong was that every example began with a dialogue node.
-## If this suite ever needs DialogueManager to stage a scene, the
+## If this suite ever needs a conversation to stage a scene, the
 ## inversion has quietly come undone. It appears once below, and only to
 ## prove that a cutscene OUTRANKS a conversation.
 
@@ -21,12 +21,12 @@ const StageFixture := preload("res://tests/fixtures/stage_fixture.gd")
 
 var _returned: bool = false
 var _result: bool = false
-var _saved_node: DialogueNode = null
+var _saved_conversation: Conversation = null
 var _saved_scene_root: Node = null
 
 
 func run() -> void:
-	_saved_node = DialogueManager.current_node
+	_saved_conversation = Conversations.current
 	# No world in this suite, so the stage is mounted under the test root —
 	# the director puts it wherever WorldManager.spawn_parent() says.
 	_saved_scene_root = WorldManager._scene_root
@@ -71,16 +71,16 @@ func run() -> void:
 
 	# --- precedence: the one place dialogue appears --------------------
 	# A cutscene staged FROM a conversation leaves that conversation
-	# running underneath, so DialogueManager.is_active() is still true. If
+	# running underneath, so Conversations.current is still set. If
 	# DIALOGUE were asked first, a locked cinematic would report DIALOGUE
 	# and keep running dialogue's input rules.
-	DialogueManager.current_node = DialogueNode.new()
+	Conversations.current = Conversation.new()
 	check("SETUP: a dialogue really is active underneath",
-		DialogueManager.is_active())
+		Conversations.current != null)
 	check("a cutscene outranks a conversation running underneath it",
 		GameMode.current_mode() == GameMode.Mode.CUTSCENE,
 		"mode is %s — CUTSCENE is not being asked first" % GameMode.Mode.keys()[GameMode.current_mode()])
-	DialogueManager.current_node = _saved_node
+	Conversations.current = _saved_conversation
 
 	# --- one at a time --------------------------------------------------
 	var second := StageFixture.make(HOLD)
@@ -166,5 +166,5 @@ func _until_returned(timeout_seconds: float) -> void:
 
 func _cleanup() -> void:
 	CinematicDirector.abort()
-	DialogueManager.current_node = _saved_node
+	Conversations.current = _saved_conversation
 	WorldManager._scene_root = _saved_scene_root

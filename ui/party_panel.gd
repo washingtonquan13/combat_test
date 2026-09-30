@@ -88,6 +88,10 @@ extends VBoxContainer
 var _core_rows: Dictionary = {}  # (Unit | PartyMemberData) -> HBoxContainer
 var _summon_fans: Dictionary = {}  # Unit (summoner) -> HBoxContainer (its fan, inside its own row) -- live units only
 var _summon_chips: Dictionary = {}  # Unit (summon) -> the unit_portrait Button instance in its summoner's fan
+## The dialogue whose speaker the marker follows, and how many of its
+## transcript entries have already moved it.
+var _conversation: Conversation = null
+var _seen_entries: int = 0
 
 
 ## Reactive to PartyManager's own membership signals rather than a one-
@@ -116,16 +120,15 @@ func _ready() -> void:
 	# A fight elsewhere reaching one of our units is the other thing that
 	# changes how a row should read — see CombatManager's Attention section.
 	CombatManager.attention_changed.connect(_mark_absent_members)
-	# The speaking marker — see _on_dialogue_line_shown(). Disconnected in
-	# _exit_tree(): this project has a recorded bug class where a widget
-	# that connects itself to an AUTOLOAD's signal outlives its own owner,
-	# because nothing ever tears the connection down (see
-	# refcounted_component_autoload_signal_leak in project memory). No
-	# dialogue_started listener needed: it fires before the first line, and
-	# every row is already keyed by Unit/PartyMemberData by the time any
-	# line_shown reaches _set_speaking_unit() below.
-	DialogueManager.line_shown.connect(_on_dialogue_line_shown)
-	DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
+	# The speaking marker — see _on_conversation_changed(). Followed
+	# through Conversations.follow, which undoes the autoload connection
+	# when this leaves the tree: this project has a recorded bug class
+	# where a widget that connects itself to an AUTOLOAD's signal outlives
+	# its own owner, because nothing ever tears the connection down (see
+	# refcounted_component_autoload_signal_leak in project memory). Every
+	# row is already keyed by Unit/PartyMemberData by the time any
+	# transcript entry reaches _set_speaking_unit() below.
+	Conversations.follow(self, _on_conversation_began)
 	# Deferred, same reasoning as before: safe even if this panel is ever
 	# constructed after members already exist (e.g. a future scene that
 	# doesn't boot through MainRoot at all).
@@ -134,31 +137,51 @@ func _ready() -> void:
 
 ## See the connect calls in _ready(): a Node that outlives being removed
 ## from the tree (queue_free's deferred window) would otherwise still be
-## a live listener on DialogueManager's signals, and a freed node reached
+## a live listener on the conversation's signal, and a freed node reached
 ## through a signal callback is exactly the crash this disconnect exists
-## to prevent.
+## to prevent. The autoload's `began` is undone by Conversations.follow.
 func _exit_tree() -> void:
-	if DialogueManager.line_shown.is_connected(_on_dialogue_line_shown):
-		DialogueManager.line_shown.disconnect(_on_dialogue_line_shown)
-	if DialogueManager.dialogue_ended.is_connected(_on_dialogue_ended):
-		DialogueManager.dialogue_ended.disconnect(_on_dialogue_ended)
+	_forget_conversation()
+
+
+## Only a conversation presented as dialogue lights the marker; a
+## negotiation's panel hides the party, as it always has.
+func _on_conversation_began(c: Conversation) -> void:
+	if c.presentation != &"dialogue":
+		return
+	_forget_conversation()
+	_conversation = c
+	_seen_entries = 0
+	c.changed.connect(_on_conversation_changed)
+	_on_conversation_changed()
 
 
 ## Moves the speaking marker (see unit_portrait.gd's set_speaking) to
-## whoever's line just showed. DialogueManager.participants maps a
-## speaker token ("player"/"npc"/...) to a Unit — resolved fresh per line
+## whoever's entry was just recorded. The conversation's cast maps a
+## speaker token ("player"/"npc"/...) to a Unit — resolved fresh per entry
 ## rather than cached, since who "npc" even IS can change conversation to
-## conversation. A token with no live Unit (an echo line — see
-## DialogueManager.record_line) or a speaker who isn't a party member
-## both resolve to null here, which correctly clears every marker instead
-## of leaving a stale one lit.
-func _on_dialogue_line_shown(_text: String, speaker_token: String) -> void:
-	_set_speaking_unit(DialogueManager.participants.get(speaker_token))
+## conversation. An aside (speaker "") or a speaker who isn't a party
+## member both resolve to null here, which correctly clears every marker
+## instead of leaving a stale one lit. Conversation over — nobody in the
+## party is "speaking" anymore.
+func _on_conversation_changed() -> void:
+	var c: Conversation = _conversation
+	if c == null:
+		return
+	if c.ended:
+		_forget_conversation()
+		_set_speaking_unit(null)
+		return
+	while _seen_entries < c.transcript.size():
+		var entry: Dictionary = c.transcript[_seen_entries]
+		_seen_entries += 1
+		_set_speaking_unit(c.cast.get(entry.speaker))
 
 
-## Conversation over — nobody in the party is "speaking" anymore.
-func _on_dialogue_ended() -> void:
-	_set_speaking_unit(null)
+func _forget_conversation() -> void:
+	if _conversation and _conversation.changed.is_connected(_on_conversation_changed):
+		_conversation.changed.disconnect(_on_conversation_changed)
+	_conversation = null
 
 
 func _set_speaking_unit(speaker) -> void:

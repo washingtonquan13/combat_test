@@ -20,14 +20,13 @@ const OLD_AZIMUTH := 20.0
 const OLD_HEIGHT := 0.05
 
 var _saved_camera: CinematicCamera = null
-var _saved_participants: Dictionary = {}
+var _conversation: Conversation = null
 var _camera: CinematicCamera = null
 var _staging: DialogueStaging = null
 
 
 func run() -> void:
 	_saved_camera = CinematicDirector.camera()
-	_saved_participants = DialogueManager.participants.duplicate()
 
 	_camera = CinematicCamera.new()
 	_root.add_child(_camera)
@@ -177,29 +176,35 @@ func _crossing_to_another_subject_never_sweeps(cast: SceneCast) -> void:
 ## lookup returns null and a later guard catches it whether or not the rule
 ## exists. Sabotaging the rule left the first version of this green.
 func _the_rules_that_outlived_the_rig(a: Unit, b: Unit, bystander: Unit) -> void:
-	DialogueManager.participants = {&"npc": a, &"player": b, &"": bystander}
 	_staging = DialogueStaging.new()
 	_root.add_child(_staging)
 	await get_tree().process_frame
 
+	# A real conversation whose root narrates only an empty aside, which
+	# never frames anyone, so the only lines are the ones recorded below.
+	_conversation = Conversation.new(DialogueNode.new(), {"npc": a, "player": b, "": bystander})
+	check("SETUP: the conversation began",
+		Conversations.begin(_conversation),
+		"refused — something already holds the player's input")
+
 	_camera.release()
-	DialogueManager.line_shown.emit("One.", "npc")
+	_conversation.record("npc", "One.")
 	check("a line frames its speaker",
 		_camera.is_framing(),
 		"the first line of a conversation left the camera unframed")
 
 	_camera.release()
-	DialogueManager.line_shown.emit("Two.", "npc")
+	_conversation.record("npc", "Two.")
 	check("consecutive lines from the same speaker hold the shot",
 		not _camera.is_framing(),
 		"the camera re-cut on a line from the person it was already framing")
 
-	DialogueManager.line_shown.emit("(you feel uneasy)", "")
+	_conversation.record("", "(you feel uneasy)")
 	check("an echo line with no speaker never re-cuts",
 		not _camera.is_framing(),
 		"an alignment message or skill-check result moved the camera")
 
-	DialogueManager.line_shown.emit("My turn.", "player")
+	_conversation.record("player", "My turn.")
 	check("and a change of speaker does cut",
 		_camera.is_framing(),
 		"the reverse shot never happened")
@@ -214,10 +219,11 @@ func _the_old_rigs_formula(subject: Unit) -> Vector3:
 
 
 func _cleanup() -> void:
+	if _conversation:
+		_conversation.end()
 	if is_instance_valid(_staging):
 		_staging.queue_free()
 	if is_instance_valid(_camera):
 		_camera.release()
 		_camera.queue_free()
 	CinematicDirector.register_camera(_saved_camera)
-	DialogueManager.participants = _saved_participants

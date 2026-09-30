@@ -51,7 +51,7 @@ static func speaker_line(speaker_name: String, text: String) -> String:
 ## roll-UNDER system (SuccessRoll: 3d6 <= target succeeds), so target IS
 ## the full number to beat, not a DC alongside a separate modifier.
 ## No separate assist marker: a present companion's bonus (see
-## DialogueManager.find_assisting_companion) is already folded into
+## Conversation.find_assisting_companion) is already folded into
 ## target by the caller, so the number shown is already the real one —
 ## a "+" suffix here would misread as d20-style "need 12 or higher,"
 ## backwards for a system where lower rolls are better.
@@ -88,151 +88,106 @@ static func skill_tag(skill_name: String, target: int, attemptable: bool, is_tra
 	return "[color=#%s]|%s %s|[/color]" % [skill_tag_color.to_html(false), skill_name, target_text]
 
 
-## The full response-button label for one choice — alignment tag (if
-## any) + skill tag/DC preview (if any, and only if that check isn't
-## hidden) + the response text itself. A hidden SkillCheckChoice/
-## QuickContestChoice (show_to_player == false) collapses to "???"
-## instead, same as the old system.
-static func choice_label(choice: DialogueChoice) -> String:
-	if (choice is SkillCheckChoice or choice is QuickContestChoice) and not choice.show_to_player:
+## The full response label for one snapshot choice entry (see
+## Conversation.describe_choice) — alignment tag (if any) + skill tag/
+## target preview (if any, and only if that check isn't hidden) + the
+## response text itself. A hidden check collapses to "???", same as the
+## old system. Works from display data, not from the DialogueChoice
+## resource: the conversation already computed the number with the same
+## code that rolls, so nothing here touches SkillCalculator.
+static func choice_label(entry: Dictionary) -> String:
+	var check: Dictionary = entry.get("check", {})
+	if check.get("hidden", false):
 		return "???"
 
 	var tags: Array[String] = []
-	var alignment: String = alignment_tag(choice.alignment_name)
+	var alignment: String = alignment_tag(entry.get("alignment", ""))
 	if alignment != "":
 		tags.append(alignment)
-	if choice is SkillCheckChoice or choice is QuickContestChoice:
-		tags.append(_skill_preview_tag(choice))
-	tags.append(choice.text)
+	if not check.is_empty():
+		tags.append(skill_tag(check.skill, check.target, check.attemptable, check.is_trained))
+	tags.append(entry.get("text", ""))
 	return " ".join(tags)
 
 
-## Shared by SkillCheckChoice and QuickContestChoice — both just need
-## "what's MY side's number." A contest's NPC-side target is
-## deliberately not previewed here — unknown information going in,
-## same as the player never sees an enemy's exact defenses ahead of an
-## attack roll.
-##
-## Routes through _resolve_skill_preview() — the same private resolver
-## skill_parts() below calls — so this BBCode tag and that Dictionary
-## can never disagree about the number.
-static func _skill_preview_tag(choice: DialogueChoice) -> String:
-	var raw: Dictionary = _resolve_skill_preview(choice)
-	if raw.skill == "":
-		return ""
-	if raw.hidden:
-		return skill_tag(raw.skill, 0, false)
-	return skill_tag(raw.skill, raw.target, raw.attemptable, raw.is_trained)
-
-
-## Full internal resolution for one choice's skill-check preview —
-## everything both _skill_preview_tag (BBCode, for the response button/
-## transcript) and skill_parts (raw Dictionary, for a discrete Control
-## row) need, computed exactly once so neither can drift from the
-## other. Not part of the public API: skill_parts strips this down to
-## the 6 keys a view actually needs (an assistant Unit, not just its
-## name; is_trained, which skill_parts intentionally does not expose —
-## see that function's own header).
-static func _resolve_skill_preview(choice: DialogueChoice) -> Dictionary:
-	var is_check: bool = choice is SkillCheckChoice or choice is QuickContestChoice
-	if not is_check:
-		return {"skill": "", "target": 0, "can_use": false, "attemptable": false,
-			"is_trained": false, "assistant": null, "hidden": false}
-
-	var hidden: bool = not choice.show_to_player
-	var actor: Unit = DialogueManager.participants.get("player")
-	if not actor:
-		return {"skill": choice.skill_name, "target": 0, "can_use": false, "attemptable": false,
-			"is_trained": false, "assistant": null, "hidden": hidden}
-
-	var result: SkillCheckResult = SkillCalculator.get_skill_level(actor, choice.skill_name)
-	var assistant: Unit = DialogueManager.find_assisting_companion(choice.skill_name)
-	var target: int = result.skill_level + (DialogueManager.ASSIST_BONUS if assistant else 0)
-	return {
-		"skill": choice.skill_name,
-		"target": target,
-		"can_use": result.can_use_skill,
-		"attemptable": result.attemptable,
-		"is_trained": result.is_trained,
-		"assistant": assistant,
-		"hidden": hidden,
-	}
-
-
-## Non-BBCode view of the same "what does this choice's check look
-## like" data _skill_preview_tag renders as a string — the discrete-
-## Control rewrite needs raw fields to lay out and color itself, not a
-## baked BBCode fragment it would have to re-parse. Reuses
-## _resolve_skill_preview() (same resolution _skill_preview_tag itself
-## now routes through), so the number shown here can never disagree
-## with the one still baked into choice_label's BBCode string.
-##
-## Returns exactly:
-## - skill: String — "" when choice isn't a check at all (LineChoice,
-##   NegotiationLineChoice, etc.), the "this isn't a check" case.
-## - target: int — the roll-under target, assist bonus already folded
-##   in, same value skill_result()/skill_check_choice.gd will actually
-##   roll against.
-## - can_use: bool — SkillCalculator's own can_use_skill: the roll can
-##   actually be attempted at this target, even when that target is an
-##   honest 0.
-## - attemptable: bool — strictly narrower than can_use (see
-##   SkillCheckResult.attemptable); false only in the rare case where
-##   can_use is true purely because the skill isn't learned_only and
-##   lists some defaults, but none of them actually resolved. A row
-##   should treat !attemptable as "cannot attempt," not as a defaulted
-##   0 — see skill_tag's own header for the full 3-case rendering this
-##   mirrors.
-## - assistant: String — the assisting companion's display name, or ""
-##   with no one helping. Surfaced as its own field, not folded into a
-##   BBCode aside the way skill_result()'s assist_note is, because the
-##   approved row design names who's helping ON the row itself, before
-##   the roll — today that name only appears afterward, in the result
-##   line.
-## - hidden: bool — true when show_to_player is false (SkillCheckChoice/
-##   QuickContestChoice); a discrete row still needs to know to render
-##   "???" in place of the real preview, same as choice_label already
-##   does inline for the BBCode path.
-static func skill_parts(choice: DialogueChoice) -> Dictionary:
-	var raw: Dictionary = _resolve_skill_preview(choice)
-	var assistant: Unit = raw.assistant
-	return {
-		"skill": raw.skill,
-		"target": raw.target,
-		"can_use": raw.can_use,
-		"attemptable": raw.attemptable,
-		"assistant": assistant.get_display_name() if assistant else "",
-		"hidden": raw.hidden,
-	}
-
-
-## roll is the full SuccessRoll.roll_vs() Dictionary — surfaces the
-## critical success/failure GURPS already computes there (the old
-## signature took separate rolled/target/success values and silently
-## dropped that information). assistant is whoever's
-## find_assisting_companion() bonus applied, if any, credited by name.
-static func skill_result(skill_name: String, roll: Dictionary, assistant: Unit = null) -> String:
-	var color: Color = success_color if roll.success else failure_color
-	var verdict: String = "Failed"
+## The verdict word for a finished roll — shared by the transcript's
+## result aside and anything else that names a roll's outcome.
+static func skill_verdict(roll: Dictionary) -> String:
 	if roll.critical_success:
-		verdict = "Critically succeeded"
-	elif roll.critical_failure:
-		verdict = "Critically failed"
-	elif roll.success:
-		verdict = "Succeeded"
+		return "Critically succeeded"
+	if roll.critical_failure:
+		return "Critically failed"
+	return "Succeeded" if roll.success else "Failed"
+
+
+## Plain text, no BBCode: this goes into the structured transcript, and
+## entry_bbcode() colors the verdict and the skill name when a presenter
+## wants them colored. roll is the full SuccessRoll.roll_vs() Dictionary,
+## so a critical success/failure is named rather than dropped. assistant
+## is whoever's assist bonus applied, credited by name.
+static func skill_result(skill_name: String, roll: Dictionary, assistant: Unit = null) -> String:
 	var assist_note: String = " (%s helped)" % assistant.get_display_name() if assistant else ""
-	return "[color=#%s]%s[/color] at a [color=#FFFFFF]%s[/color] check%s — rolled %d vs target %d" % [
-		color.to_html(false), verdict, skill_name, assist_note, roll.roll, roll.target
+	return "%s at a %s check%s — rolled %d vs target %d" % [
+		skill_verdict(roll), skill_name, assist_note, roll.roll, roll.target
 	]
 
 
 ## The GURPS Quick Contest readout — both sides' own roll vs their own
-## target, side by side, so a loss against a strong NPC reads as
-## exactly that rather than a bare pass/fail. See
-## QuickContestChoice._wins_contest for how actor_wins gets decided.
+## target, side by side, so a loss against a strong NPC reads as exactly
+## that rather than a bare pass/fail. Plain text, same reason as
+## skill_result(). See QuickContestChoice._wins_contest for how
+## actor_wins gets decided.
 static func contest_result(actor_skill_name: String, actor_roll: Dictionary, npc_skill_name: String, npc_roll: Dictionary, actor_wins: bool) -> String:
-	var color: Color = success_color if actor_wins else failure_color
 	var verdict: String = "You win the contest" if actor_wins else "You lose the contest"
-	return "[color=#%s]%s[/color] — your [color=#FFFFFF]%s[/color] rolled %d vs %d, their [color=#FFFFFF]%s[/color] rolled %d vs %d" % [
-		color.to_html(false), verdict, actor_skill_name, actor_roll.roll, actor_roll.target, npc_skill_name, npc_roll.roll, npc_roll.target
+	return "%s — your %s rolled %d vs %d, their %s rolled %d vs %d" % [
+		verdict, actor_skill_name, actor_roll.roll, actor_roll.target, npc_skill_name, npc_roll.roll, npc_roll.target
 	]
+
+
+## One transcript entry (see Conversation.record) as BBCode — the single
+## place the transcript's look is decided, shared by the conversation log
+## and by the negotiation's echo to SystemLog. The transcript itself
+## holds no BBCode, so a different presenter can style it differently.
+##   line: bold speaker name on its own line, then the text
+##   alignment aside: the "(Lawful)" part in that alignment's color
+##   check aside: the verdict in success/failure color, and each skill
+##     named in the entry's skills extra in white
+##   any other aside (a mood note, a pardon): the text as-is
+static func entry_bbcode(entry: Dictionary) -> String:
+	var text: String = entry.get("text", "")
+	if entry.get("kind", &"aside") == &"line":
+		return speaker_line(entry.get("name", ""), text)
+
+	match entry.get("tag", &""):
+		&"alignment":
+			var alignment: String = entry.get("alignment", "")
+			return text.replace("(%s)" % alignment, alignment_tag(alignment))
+		&"check":
+			var verdict: String = entry.get("verdict", "")
+			var color: Color = success_color if entry.get("success", false) else failure_color
+			var styled: String = text
+			if verdict != "" and styled.begins_with(verdict):
+				styled = "[color=#%s]%s[/color]%s" % [color.to_html(false), verdict, styled.substr(verdict.length())]
+			# Each skill name named in the extras, in order, in white — the
+			# cursor keeps "Persuasion vs Persuasion" from whitening one
+			# occurrence twice.
+			var cursor: int = verdict.length()
+			for skill in entry.get("skills", []):
+				var at: int = styled.find(skill, cursor)
+				if at < 0:
+					continue
+				var white: String = "[color=#FFFFFF]%s[/color]" % skill
+				styled = styled.substr(0, at) + white + styled.substr(at + skill.length())
+				cursor = at + white.length()
+			return styled
+	return text
+
+
+## One transcript entry as the conversation log shows it: a line as
+## entry_bbcode() renders it, an aside additionally dimmed and italic so
+## the log reads spoken words apart from the system's own notes.
+static func log_bbcode(entry: Dictionary) -> String:
+	var styled: String = entry_bbcode(entry)
+	if entry.get("kind", &"aside") == &"line":
+		return styled
+	return "[color=#A0A0A0][i]%s[/i][/color]" % styled

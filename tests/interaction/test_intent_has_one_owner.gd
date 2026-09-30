@@ -336,8 +336,10 @@ func _a_pushed_intent_outranks_aiming() -> void:
 ## has_control(), not from a second copy of the same list — and it wins
 ## over everything, armed abilities included.
 func _losing_the_screen_locks_everything() -> void:
-	var saved: DialogueNode = DialogueManager.current_node
-	DialogueManager.current_node = DialogueNode.new()
+	# Set as current without begin(), so no presenter opens for it: this
+	# check is about who owns the screen, not about what shows on it.
+	var saved: Conversation = Conversations.current
+	Conversations.current = Conversation.new()
 
 	check("precondition: the screen really was taken",
 		not CameraDirector.has_control())
@@ -359,7 +361,7 @@ func _losing_the_screen_locks_everything() -> void:
 		_live_ids().is_empty(),
 		"live: %s" % [_live_ids()])
 
-	DialogueManager.current_node = saved
+	Conversations.current = saved
 	_router._process(0.0)
 	check("handing the screen back restores the aiming overlays",
 		_router.intent().kind() == &"aiming"
@@ -655,7 +657,7 @@ func _the_router_runs_before_the_indicators_it_drives() -> void:
 ## `func _on_input_event`, not the bare name — the declaration is code,
 ## and a check that fires on the substring anywhere in the file is a
 ## check on comment prose, which is not a thing a suite gets to dictate.
-## (A prose check on "DialogueManager." lived here and has been removed
+## (A prose check on the old dialogue manager lived here and has been removed
 ## for that reason; the behaviour it was standing in for — a click during
 ## a conversation doing nothing — is asserted for real in
 ## _losing_the_screen_locks_everything, and against every screen-owning

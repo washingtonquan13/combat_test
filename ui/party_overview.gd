@@ -45,8 +45,8 @@ extends UIScreen
 ## blocks_input_below=true is authored on this scene's instance in
 ## MainRoot.tscn (see UIScreen's own header) — what makes UIStack.
 ## can_open() correctly refuse a new C-key open while a stash is up,
-## replacing the old hand-rolled "DialogueManager.is_active() or
-## StashManager.is_active()" guard this file used to check directly.
+## replacing the old hand-rolled "is a dialogue or a stash active"
+## guard this file used to check directly.
 ## hides_hud/closes_on_cancel stay at UIScreen's own defaults.
 
 @onready var _tab_buttons: Dictionary = {

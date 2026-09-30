@@ -11,14 +11,15 @@ extends DialogueEffect
 @export var amount: int = 5
 
 
-func apply(actor: Unit, _target: Unit) -> void:
+func apply(c: Conversation) -> void:
 	if amount <= 0:
 		return
+	var actor: Unit = c.cast.get("player") as Unit
 	actor.current_fp = maxi(actor.current_fp - amount, 0)
 	SystemLog.print("%s spends %d FP." % [LogFormat.unit_name(actor), amount])
 
 
-func cost_tag() -> String:
+func cost_tag(_c: Conversation) -> String:
 	if amount <= 0:
 		return ""
 	return "-%d FP" % amount

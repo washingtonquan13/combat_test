@@ -34,9 +34,12 @@ extends Node
 ## reads all of them. There is nothing left to keep in sync.
 ##
 ## Dependency direction is one-way on purpose: GameMode asks
-## CinematicDirector, CombatManager, the three modal managers, WorldManager
-## and UIStack, and none of them asks GameMode back. It is registered after
-## all of them in the autoload list, which is what makes that safe.
+## CinematicDirector, CombatManager, Conversations, StashManager,
+## WorldManager and UIStack for their state, and none of them asks GameMode
+## back for its own. It is registered after all of them in the autoload
+## list, which is what makes that safe. The one call the other way is
+## input_is_taken(), which Conversations.begin and StashManager.open_stash
+## ask at call time, never from _ready, so load order does not touch it.
 ##
 ## OVERWORLD is deliberately its OWN base mode, not folded into
 ## EXPLORATION — the overworld has no tactical camera and nothing
@@ -77,25 +80,24 @@ var _last_emitted: Mode = Mode.MAIN_MENU
 ##
 ## CUTSCENE IS ASKED FIRST, and that position matters. A cutscene can be
 ## staged FROM a dialogue — the dialogue is still running underneath, so
-## DialogueManager.is_active() is still true — and if DIALOGUE were asked
+## Conversations.current is still set — and if DIALOGUE were asked
 ## first a locked cinematic would report DIALOGUE and keep running
 ## dialogue's input rules. Nothing outranks the director while it holds
 ## the screen, which is the point of it holding the screen.
 ##
-## Among the rest the order barely matters: the three modal managers
-## already refuse to start over one another (see
-## NegotiationManager.can_negotiate and DialogueManager.start_dialogue's
-## matching guards), so at most one of them is ever active. COMBAT is
+## Among the rest the order barely matters: a conversation and a stash
+## both ask input_is_taken() before they open, so at most one of them is
+## ever active. Whether a conversation reads as DIALOGUE or NEGOTIATION
+## is the conversation's own presentation, not a second manager. COMBAT is
 ## asked LAST of the overlays because it is the one that genuinely
 ## coexists with them — negotiating mid-fight means NEGOTIATION, with the
 ## fight still running underneath.
 func current_mode() -> Mode:
 	if CinematicDirector.is_active():
 		return Mode.CUTSCENE
-	if NegotiationManager.is_active():
-		return Mode.NEGOTIATION
-	if DialogueManager.is_active():
-		return Mode.DIALOGUE
+	var conversation: Conversation = Conversations.current
+	if conversation != null:
+		return Mode.NEGOTIATION if conversation.presentation == &"negotiation" else Mode.DIALOGUE
 	if StashManager.is_active():
 		return Mode.LOOTING
 	if CombatManager.a_watched_fight_is_running():
@@ -113,6 +115,21 @@ func current_mode() -> Mode:
 ## the one place the mode looks at the UI layer. MAIN_MENU is the floor:
 ## it is what the game is before anything has been loaded or opened, which
 ## is exactly the state at boot.
+## The one start check every modal screen asks — a conversation
+## (Conversations.begin) and a stash (StashManager.open_stash) both
+## refuse to open while this is true, instead of each naming the others.
+## A new modal screen adds itself HERE, and every starter learns about it
+## at once; the pairwise version needed one new guard per existing
+## manager, and it had already drifted (the stash never checked for a
+## negotiation).
+##
+## A cutscene is deliberately not in it: a cinematic can stage a dialogue
+## (see CUTSCENE above), so the director holding the screen must not stop
+## the conversation it is staging from starting.
+func input_is_taken() -> bool:
+	return Conversations.current != null or StashManager.is_active()
+
+
 func base_mode() -> Mode:
 	var world: Node = WorldManager.current_world()
 	if is_instance_valid(world) and world.has_method("get_base_mode"):
@@ -150,7 +167,7 @@ func _front_end_screen_open(group: StringName) -> bool:
 ## is no call site anyone can forget to add when a new thing starts
 ## affecting the mode.
 ##
-## Cheap: four is_active() reads and a walk of the (never many) running
+## Cheap: a few is_active() reads and a walk of the (never many) running
 ## encounters, once a frame.
 func _process(_delta: float) -> void:
 	var now: Mode = current_mode()

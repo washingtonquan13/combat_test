@@ -46,7 +46,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# actually owns the screen — the same single predicate that already
 	# governs camera input, rather than this file keeping its own list of
 	# things that should suppress it. Previously an is_active() check
-	# against DialogueManager alone, which covered conversations but not
+	# against the dialogue manager alone, which covered dialogue but not
 	# negotiation, looting, the title screen, or character creation.
 	if not CameraDirector.has_control():
 		return

@@ -93,8 +93,8 @@ func _enter_tree() -> void:
 	# something else owns the screen, so nothing would naturally
 	# re-trigger it on the way back out either.
 	#
-	# This was two connections, to DialogueManager's dialogue_started and
-	# dialogue_ended, which is a narrower question than the one being
+	# This was two connections, to the old dialogue manager's started and
+	# ended signals, which is a narrower question than the one being
 	# asked: a conversation is one of several things that can take the
 	# screen (a negotiation, a loot screen, a cutscene, a menu), and the
 	# ring should recompute on any of them. GameMode already derives

@@ -10,7 +10,7 @@ extends Node
 ## conversation game, and this one is not. Most of the fusion cutscene has
 ## nobody talking.
 ##
-## It follows that this file must never reference DialogueManager.
+## It follows that this file must never reference Conversations.
 ##
 ## A CUTSCENE IS A .tscn. There is no resource wrapping it: the stage scene
 ## (root CinematicStage) is the whole authored thing, and play() takes the
@@ -19,10 +19,11 @@ extends Node
 ## first, so the animation name became an argument instead.
 ##
 ## AN AWAITED CALL, NOT A SIGNAL PAIR. The obvious shape here is
-## scene_requested/scene_finished, mirroring DialogueManager's dice-roll
-## pair — and that pair can hang: skill_check_choice.gd awaits
-## dice_roll_finished, exactly one thing anywhere emits it, and there is no
-## timeout. A cutscene is far more interruptible than a dice roll (a world
+## scene_requested/scene_finished, mirroring the old dialogue manager's
+## dice-roll pair — and that pair could hang: skill_check_choice.gd awaited
+## dice_roll_finished, exactly one thing anywhere emitted it, and there was
+## no timeout (Conversation.show now returns at once when nothing is
+## attached to present). A cutscene is far more interruptible than a dice roll (a world
 ## unload, a load from the menu, an actor dying), so the same shape here
 ## would be a hang waiting to happen. play() is a call that RETURNS, so an
 ## abort is a return value rather than a signal that never arrives.

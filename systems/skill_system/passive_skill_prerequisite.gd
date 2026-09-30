@@ -15,8 +15,8 @@ extends PrerequisiteRule
 ##
 ## is_satisfied() writing on a cache miss is a real departure from
 ## every sibling PrerequisiteRule (all pure reads) — deliberately kept
-## anyway rather than split into a separate action step: DialogueManager
-## only ever calls is_satisfied() once per choice, synchronously, from
+## anyway rather than split into a separate action step: a conversation
+## only ever calls is_satisfied_in() once per choice, synchronously, from
 ## _show_node()'s own filter loop, so there's no speculative or
 ## concurrent call path for the write to race against. Splitting it out
 ## traded a real bug (see above) and a less discoverable data shape for
@@ -33,10 +33,20 @@ extends PrerequisiteRule
 
 
 func is_satisfied(unit: Unit) -> bool:
+	return _check(unit, null)
+
+
+## Inside a conversation the roll uses that conversation's own dice, so a
+## test that pins the seed pins this roll too.
+func is_satisfied_in(c: Conversation) -> bool:
+	return _check(c.cast.get("player") as Unit, c.rng)
+
+
+func _check(unit: Unit, rng: RandomNumberGenerator) -> bool:
 	if FlagManager.has_flag(flag_name):
 		return FlagManager.get_flag(flag_name)
 
 	var result: SkillCheckResult = SkillCalculator.get_skill_level(unit, skill_name)
-	var passed: bool = result.can_use_skill and unit.roll_vs(result.skill_level).success
+	var passed: bool = result.can_use_skill and unit.roll_vs(result.skill_level, rng).success
 	FlagManager.set_flag(flag_name, passed)
 	return passed

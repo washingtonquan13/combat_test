@@ -21,7 +21,7 @@ extends Node
 ##
 ## WHAT DOESN'T BELONG HERE, and why. SelectionManager.selected_units,
 ## UIStack, GameMode's mode stack, CombatManager.focused_encounter and
-## DialogueManager's live conversation are all PLAYER-scoped, not
+## Conversations.current are all PLAYER-scoped, not
 ## world-scoped — there is one player, so there is one of each no matter
 ## how many worlds exist. Putting them here would be a category error that
 ## only shows up later, as duplicated UI state fighting over one screen.

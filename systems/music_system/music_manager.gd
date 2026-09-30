@@ -40,8 +40,8 @@ var _reported_missing: Dictionary[String, bool] = {}
 func _ready() -> void:
 	CombatManager.combat_started.connect(_on_combat_started)
 	CombatManager.combat_ended.connect(_on_combat_ended)
-	NegotiationManager.negotiation_started.connect(_on_negotiation_started)
-	NegotiationManager.negotiation_ended.connect(_on_negotiation_ended)
+	Conversations.began.connect(_on_conversation_began)
+	Conversations.ended.connect(_on_conversation_ended)
 	WorldManager.world_loaded.connect(_on_world_loaded)
 	# Re-entering a world that stayed loaded emits world_focused and NOT
 	# world_loaded, and so does switching to a group standing somewhere
@@ -96,7 +96,7 @@ func _is_on_screen(units: Array[Unit]) -> bool:
 	return false
 
 
-## A negotiation_ended that also ends combat does not start the
+## A negotiation ending that also ends combat does not start the
 ## exploration music itself; this handler does, whichever order the two
 ## signals arrive in, so there is only ever one caller.
 func _on_combat_ended(_winning_faction: StringName) -> void:
@@ -107,15 +107,20 @@ func _on_combat_ended(_winning_faction: StringName) -> void:
 	_play_moment(EXPLORATION)
 
 
-func _on_negotiation_started(_demon: Unit) -> void:
-	_play_moment(NEGOTIATION)
+## Only a negotiation has music of its own; an ordinary dialogue leaves
+## whatever is playing alone, as it always did.
+func _on_conversation_began(c: Conversation) -> void:
+	if c.presentation == &"negotiation":
+		_play_moment(NEGOTIATION)
 
 
-## A RECRUIT/FLEE/HEAL_PLAYER outcome can remove the last hostile and end
+## A recruit/flee/heal outcome can remove the last hostile and end
 ## combat in the same beat, so this reads live state rather than trusting
 ## signal order: no fight left means combat_ended already went back to
 ## exploration.
-func _on_negotiation_ended(_outcome: int) -> void:
+func _on_conversation_ended(c: Conversation) -> void:
+	if c.presentation != &"negotiation":
+		return
 	if not CombatManager.any_combat_running():
 		return
 	_play_moment(COMBAT)

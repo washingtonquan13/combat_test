@@ -14,7 +14,7 @@ extends PlayerIntent
 ##
 ## This is the one that used to be a bare `return` at the top of the
 ## router's _unhandled_input, with Unit._on_input_event separately
-## checking only DialogueManager.is_active() — so a click on a unit
+## checking only whether a dialogue was active — so a click on a unit
 ## during a NEGOTIATION, a loot screen or a cutscene still selected or
 ## attacked it. Deriving the lock in one place is what closes that.
 

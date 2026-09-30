@@ -5,7 +5,7 @@ extends InteractionOption
 ## lootable corpse or a barrel later — see stash_component.gd). Hands
 ## off to StashManager rather than touching any UI directly, same
 ## division of responsibility TalkInteraction already uses with
-## DialogueManager: this just decides WHETHER and starts it.
+## Conversations: this just decides WHETHER and starts it.
 
 func is_available(_actor: Unit, target) -> bool:
 	return target is Node and StashComponent.find_on(target) != null

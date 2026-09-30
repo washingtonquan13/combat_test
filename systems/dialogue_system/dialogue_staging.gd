@@ -23,9 +23,8 @@ extends Node
 ##
 ##   - consecutive lines from one speaker HOLD the shot; only a change of
 ##     speaker re-frames.
-##   - an empty speaker token is one of the small echo lines
-##     DialogueChoice produces (an alignment message, an echoed response, a
-##     skill-check result) and never re-cuts.
+##   - an aside (an alignment message, an echoed response, a skill-check
+##     result) has no speaker and never re-cuts.
 var _speaker: Unit = null
 ## Built once and reframed with, not rebuilt per line — the only thing
 ## that varies between lines is who is cast as the speaker, which the cast
@@ -39,6 +38,11 @@ var _bindings: SceneBinding = null
 ## Which node's bound scene has already been played, so a bound scene
 ## fires once per node rather than once per line.
 var _staged_node: String = ""
+## The conversation being staged, or null. Only one presented as dialogue
+## is followed; a negotiation is a menu panel with no speaker to frame.
+var _conversation: Conversation = null
+## How many of its transcript entries have already been staged.
+var _seen: int = 0
 
 
 const BINDINGS_PATH: String = "res://cinematics/dialogue_bindings.tres"
@@ -50,18 +54,50 @@ func _ready() -> void:
 	_cast = SceneCast.new().track(&"speaker", _current_speaker)
 	if ResourceLoader.exists(BINDINGS_PATH):
 		_bindings = load(BINDINGS_PATH) as SceneBinding
-	DialogueManager.line_shown.connect(_on_line_shown)
-	DialogueManager.dialogue_ended.connect(_on_dialogue_ended)
+	Conversations.follow(self, _on_conversation_began)
+
+
+func _exit_tree() -> void:
+	_forget()
+
+
+func _on_conversation_began(c: Conversation) -> void:
+	if c.presentation != &"dialogue":
+		return
+	_forget()
+	_conversation = c
+	_seen = 0
+	c.changed.connect(_on_changed)
+	_on_changed()
+
+
+func _on_changed() -> void:
+	var c: Conversation = _conversation
+	if c == null:
+		return
+	if c.ended:
+		_forget()
+		_on_conversation_ended()
+		return
+	while _seen < c.transcript.size():
+		var entry: Dictionary = c.transcript[_seen]
+		_seen += 1
+		if entry.get("kind") == &"line":
+			_on_line(entry, c.cast)
+
+
+func _forget() -> void:
+	if _conversation and _conversation.changed.is_connected(_on_changed):
+		_conversation.changed.disconnect(_on_changed)
+	_conversation = null
 
 
 func _current_speaker() -> Unit:
 	return _speaker
 
 
-func _on_line_shown(_text: String, speaker_token: String) -> void:
-	if speaker_token == "":
-		return
-	var speaking: Unit = DialogueManager.participants.get(speaker_token) as Unit
+func _on_line(entry: Dictionary, cast: Dictionary) -> void:
+	var speaking: Unit = cast.get(entry.speaker) as Unit
 	if not is_instance_valid(speaking) or speaking == _speaker:
 		return
 	_speaker = speaking
@@ -70,7 +106,7 @@ func _on_line_shown(_text: String, speaker_token: String) -> void:
 	# default shot — once, on the first line of the node. Not awaited: the
 	# conversation carries on underneath, and the scene holds the screen
 	# until it ends.
-	var staged: PackedScene = _staged_scene()
+	var staged: PackedScene = _staged_scene(entry.get("node", ""))
 	if staged != null:
 		CinematicDirector.play(staged, _cast)
 		return
@@ -85,11 +121,11 @@ func _on_line_shown(_text: String, speaker_token: String) -> void:
 
 
 ## The bound scene for the node being spoken, or null — including null on
-## every line after the first, so a staged moment plays once.
-func _staged_scene() -> PackedScene:
-	if _bindings == null or DialogueManager.current_node == null:
+## every line after the first, so a staged moment plays once. node_id is
+## the node the transcript entry was recorded under.
+func _staged_scene(node_id: String) -> PackedScene:
+	if _bindings == null or node_id == "":
 		return null
-	var node_id: String = DialogueManager.current_node.id
 	if node_id == _staged_node:
 		return null
 	var scene: PackedScene = _bindings.scene_for(node_id)
@@ -99,7 +135,7 @@ func _staged_scene() -> PackedScene:
 	return scene
 
 
-func _on_dialogue_ended() -> void:
+func _on_conversation_ended() -> void:
 	_staged_node = ""
 	_speaker = null
 	var camera: CinematicCamera = CinematicDirector.camera()

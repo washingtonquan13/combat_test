@@ -22,7 +22,8 @@ const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tsc
 @export var gear_data: GearItem
 
 
-func apply(actor: Unit, _target: Unit) -> void:
+func apply(c: Conversation) -> void:
+	var actor: Unit = c.cast.get("player") as Unit
 	var party_overview: PartyOverview = actor.get_tree().get_first_node_in_group("party_overview")
 	if not party_overview:
 		push_error("GiveItemEffect: no PartyOverview in the 'party_overview' group.")

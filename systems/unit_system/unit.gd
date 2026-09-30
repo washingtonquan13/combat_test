@@ -806,20 +806,19 @@ func get_interactions(actor: Unit) -> Array[InteractionOption]:
 
 
 ## First dialogue_options entry whose prerequisite is satisfied (or has
-## none at all), null if nothing currently applies. Takes actor rather
-## than checking self — every other DialogueChoice.prerequisites check
-## already evaluates against the PLAYER (see the dialogue manager's own
-## _show_node, which always passes participants.get("player")), so a
-## root-selection
-## prerequisite follows the same convention for consistency: "does the
-## PLAYER'S state make this the right conversation," not the NPC's own.
-## Called both by talk_interaction.gd's initial Talk click and by the
-## dialogue manager's resolve_root_id() for an in-conversation "return
-## to hub" choice — the one shared resolver both need, so neither can
-## ever disagree about which conversation phase is current.
-func resolve_dialogue_root(actor: Unit) -> DialogueNode:
+## none at all), null if nothing currently applies. Asked in c, the
+## conversation the root is for: its "player" is the actor every
+## prerequisite's default reads (see PrerequisiteRule.is_satisfied_in), so
+## "does the PLAYER'S state make this the right conversation," not the
+## NPC's own, and a rule that reads the conversation itself (who is
+## present, say) sees its cast. Called both by talk_interaction.gd's
+## initial Talk click, with the cast about to begin, and by
+## LineChoice.resolve for an in-conversation "return to hub" choice, with
+## the live conversation — the one shared resolver both need, so neither
+## can ever disagree about which conversation phase is current.
+func resolve_dialogue_root(c: Conversation) -> DialogueNode:
 	for option in dialogue_options:
-		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
+		if not option.prerequisite or option.prerequisite.is_satisfied_in(c):
 			return option.root
 	return null
 
@@ -1326,9 +1325,9 @@ func edge_distance_to(other: Unit) -> float:
 ## SkillCheckChoice's dialogue rolls just feed it a target number. Kept
 ## as a Unit method anyway (rather than callers reaching SuccessRoll
 ## directly) purely so neither existing caller needed to change when
-## this moved out of UnitCombat.
-func roll_vs(target_number: int) -> Dictionary:
-	return SuccessRoll.roll_vs(target_number)
+## this moved out of UnitCombat. rng: see SuccessRoll.roll_vs.
+func roll_vs(target_number: int, rng: RandomNumberGenerator = null) -> Dictionary:
+	return SuccessRoll.roll_vs(target_number, rng)
 
 
 func attack_skill() -> int:
