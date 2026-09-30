@@ -217,7 +217,7 @@
     "hats": {
       "family": "perc",
       "voices": 12,
-      "gain_db": -9.0,
+      "gain_db": -12.0,
       "gain_source": "guessed",
       "defaults": {
         "pan": 64
