@@ -20,6 +20,9 @@ extends BeatNode
 ## wrong for the moment ("???" before an introduction), or for narration
 ## with a voice.
 @export var speaker_name: String = ""
+## {key} is replaced by the stage prop of that name when the line plays —
+## fusion's greeting says {name} and {order}. The editor preview shows the
+## tokens as written.
 @export_multiline var text: String = "":
 	set(value):
 		text = value
@@ -45,7 +48,7 @@ func _validate_property(property: Dictionary) -> void:
 
 func _fire(owner_stage: CinematicStage) -> void:
 	_elapsed = 0.0
-	owner_stage.show_line(self, _speaker(owner_stage), text)
+	owner_stage.show_line(self, _speaker(owner_stage), owner_stage.fill(text))
 	if wait_for_advance:
 		owner_stage.wait_for_advance()
 		owner_stage.run(self)

@@ -20,14 +20,13 @@ extends Node
 ##   - the beats, their order, and their pacing            REAL
 ##   - the camera tilt, the cut to the pair, the reveal    REAL
 ##   - the fusion result, computed by the real calculator  REAL
-##   - lightning, dissolve, coalescing energy, the flash   NOT BUILT
+##   - blobs, orb, strike, flashes, silhouettes            REAL, but plain
+##                                                         keyed nodes
+##   - lightning tendrils, the floating trickle            NOT BUILT
 ##   - the demons themselves                               placeholder bodies
 ##
-## Beats 3 and 4 need shader techniques the imported VFX pack does not
-## provide (see the 2026-08-26 asset audit), so those beats are currently
-## held time with nothing in them. If the sequence feels slow, that is why
-## — the pauses are reserved for spectacle that does not exist yet, and
-## judging the pacing without it is judging half the thing.
+## The shot-by-shot map to the reference footage, and what was left out
+## on purpose, is systems/demon_system/FUSION.md.
 ##
 ## The scene itself is cinematics/fusion.tscn now, so re-timing what this
 ## key plays is a matter of dragging keys in the editor rather than editing
@@ -124,27 +123,20 @@ func _play_fusion() -> void:
 	var origin: Vector3 = _stage_origin()
 	_drop_marks(stage, origin)
 
-	var parent_a: Unit = _spawn(stage, species_a)
-	var parent_b: Unit = _spawn(stage, species_b)
-	if parent_a == null or parent_b == null:
-		_clear_marks()
-		return
-
 	print("Fusing %s + %s -> %s" % [
 		species_a.display_name, species_b.display_name, result.display_name])
 
-	var cast := SceneCast.new()
-	cast.hold(FusionRitual.PARENT_A, parent_a)
-	cast.hold(FusionRitual.PARENT_B, parent_b)
+	# The parents are spawned by the scene's own keys, from the species in
+	# the props, exactly as FusionRitual.perform() hands them over.
 	await CinematicDirector.play(
 		load(FusionRitual.CUTSCENE_PATH) as PackedScene,
-		cast,
-		{FusionRitual.RESULT: result})
+		null,
+		FusionRitual.props_for(result, species_a, species_b))
 
-	# The camera is deliberately LEFT on the result. Beat 8 is the demon
-	# introducing itself, which is a dialogue the caller starts — so the
-	# shot holding afterwards is the behaviour, not a leak. Press the key
-	# again, or start a conversation, to move it.
+	# The camera is deliberately LEFT on the result: the real caller
+	# (FusionRitual.perform) releases it, and this harness shows what the
+	# scene ends on. Press the key again, or start a conversation, to move
+	# it.
 	print("Fusion cutscene finished. Camera is holding the reveal.")
 	_clear_marks()
 
@@ -183,14 +175,3 @@ func _clear_marks() -> void:
 		_marks.queue_free()
 	_marks = null
 
-
-func _spawn(stage: Node, species: UnitDefinition) -> Unit:
-	if species.unit_scene == null:
-		print("%s has no unit_scene." % species.display_name)
-		return null
-	var unit: Unit = species.unit_scene.instantiate()
-	# BEFORE add_child — Unit adopts its body in _enter_tree, and a
-	# definition assigned afterwards leaves it with no model at all.
-	unit.definition = species
-	stage.add_child(unit)
-	return unit

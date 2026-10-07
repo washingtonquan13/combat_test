@@ -1,0 +1,123 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://ui/compendium_menu.gd" id="1_menu"]
+[ext_resource type="PackedScene" path="res://ui/demon_sheet.tscn" id="2_sheet"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_step"]
+font_size = 20
+
+[node name="CompendiumMenu" type="Control"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_menu")
+hides_hud = true
+closes_on_cancel = false
+
+[node name="Columns" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = -168.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 16
+
+[node name="ListPanel" type="PanelContainer" parent="Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.5
+
+[node name="Margin" type="MarginContainer" parent="Columns/ListPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Rows" type="VBoxContainer" parent="Columns/ListPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="HBoxContainer" parent="Columns/ListPanel/Margin/Rows"]
+layout_mode = 2
+
+[node name="StepLabel" type="Label" parent="Columns/ListPanel/Margin/Rows/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Demonic Compendium"
+label_settings = SubResource("LabelSettings_step")
+
+[node name="GoldLabel" type="Label" parent="Columns/ListPanel/Margin/Rows/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Gold: 0"
+
+[node name="DemonList" type="Tree" parent="Columns/ListPanel/Margin/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+columns = 4
+column_titles_visible = true
+hide_root = true
+select_mode = 1
+
+[node name="Buttons" type="HBoxContainer" parent="Columns/ListPanel/Margin/Rows"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SummonButton" type="Button" parent="Columns/ListPanel/Margin/Rows/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Summon"
+
+[node name="RegisterButton" type="Button" parent="Columns/ListPanel/Margin/Rows/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Record a demon..."
+
+[node name="RecordButton" type="Button" parent="Columns/ListPanel/Margin/Rows/Buttons"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Record"
+
+[node name="BackButton" type="Button" parent="Columns/ListPanel/Margin/Rows/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Back"
+
+[node name="HintLabel" type="Label" parent="Columns/ListPanel/Margin/Rows"]
+modulate = Color(1, 1, 1, 0.6)
+layout_mode = 2
+text = "Enter or double-click: choose      Esc: back"
+
+[node name="PreviewPanel" type="PanelContainer" parent="Columns"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Scroll" type="ScrollContainer" parent="Columns/PreviewPanel"]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Sheet" parent="Columns/PreviewPanel/Scroll" instance=ExtResource("2_sheet")]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Confirm" type="ConfirmationDialog" parent="."]
+unique_name_in_owner = true
+title = "Summon"
+ok_button_text = "Yes"
+dialog_text = "Are you sure?"
+cancel_button_text = "No"

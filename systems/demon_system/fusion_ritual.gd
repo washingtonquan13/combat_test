@@ -10,10 +10,16 @@ extends RefCounted
 ## fusion the player did not get to watch, rather than one they paid for
 ## and did not receive.
 ##
-## That order is also exactly why held roles exist. By the time the camera
-## first sees the two parents, DemonRoster has already let go of them:
-## asking the roster for either one returns nothing, several beats before
-## they dissolve on screen. The scene owns them.
+## That order is also why the parents are SPAWNED BY THE SCENE rather than
+## handed to it. By the time the camera first sees them, DemonRoster has
+## already let go: asking the roster for either one returns nothing. So the
+## ritual hands over only their SPECIES, as props, and the timeline's spawn
+## keys make the bodies on their pads, the same way it makes the result.
+##
+## Bodies made here and handed over would exist before the scene placed
+## them, somewhere: at the world origin, inside the floor, being pushed out
+## of it by the physics. That is what made the parents fly off the pads,
+## because a placement moves a body but does not stop it.
 ##
 ## DEGRADES TO NO CUTSCENE. Fusing somewhere with no staging — the
 ## overworld, a test harness, anywhere that is not the Cathedral — still
@@ -26,6 +32,8 @@ const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
 ## timeline anyone can open and scrub. The file IS the cutscene; its
 ## "scene" animation is the performance.
 const CUTSCENE_PATH: String = "res://cinematics/fusion.tscn"
+## What the result says when it wakes. See fusion_greetings.gd.
+const GREETINGS_PATH: String = "res://data/fusion_greetings/fusion_greetings.tres"
 
 ## THE STAGING VOCABULARY, and it lives HERE rather than on the cutscene,
 ## because it is the FUSION that requires it. An area declares it can host
@@ -39,13 +47,25 @@ const LEFT_MARK: StringName = &"FusionLeft"
 const RIGHT_MARK: StringName = &"FusionRight"
 const RESULT_MARK: StringName = &"FusionResult"
 
-## Cast roles, matching the StageRole markers under cinematics/fusion.tscn.
+## Cast roles, matching the StageRole markers under cinematics/fusion.tscn,
+## and the props keys their spawn keys name.
 const PARENT_A: StringName = &"parent_a"
 const PARENT_B: StringName = &"parent_b"
 ## Also the props key the timeline's spawn key names — the result demon is
 ## computed here and handed to the stage, because a method track key cannot
 ## carry a Resource.
 const RESULT: StringName = &"result"
+## Text props the greeting LineBeat fills its {tokens} from.
+const NAME: StringName = &"name"
+const ORDER: StringName = &"order"
+const GREETING: StringName = &"greeting"
+
+## The Minister's role in the cutscene, and the group a room puts its
+## Minister in. He belongs to the ROOM, not to the scene: he presides over
+## the menu before any fusion and is still standing there after one, so the
+## scene borrows him (tracked) rather than making its own.
+const MINISTER: StringName = &"minister"
+const MINISTER_GROUP: StringName = &"fusion_minister"
 
 
 ## What `a` and `b` would produce, or null if they produce nothing.
@@ -70,69 +90,69 @@ static func perform(a: OwnedDemon, b: OwnedDemon) -> OwnedDemon:
 	if result == null:
 		return null
 
-	# Bodies BEFORE the roster releases them, because the scene needs
-	# something to show and their species is about to stop being anybody's.
-	var staging: Dictionary = _stage(a.species, b.species)
+	# Read BEFORE the roster releases them: their species is about to stop
+	# being anybody's.
+	var props: Dictionary = props_for(result, a.species, b.species)
 
 	DemonRoster.release(a)
 	DemonRoster.release(b)
 	var born: OwnedDemon = DemonRoster.recruit(result)
 
-	if not staging.is_empty():
-		await CinematicDirector.play(
-			load(CUTSCENE_PATH) as PackedScene, _cast(staging), {RESULT: result})
+	if _can_stage():
+		await CinematicDirector.play(load(CUTSCENE_PATH) as PackedScene,
+			cast_for(WorldManager.spawn_parent()), props)
+		# The cinematic camera holds its last shot until told otherwise, so
+		# whoever comes next (the Cathedral's menu) sees the room it expects.
+		var showing: CinematicCamera = CinematicDirector.camera()
+		if showing:
+			showing.release()
 
 	return born
 
 
-## The two parents, HELD rather than tracked, and that is the whole reason
-## held roles exist: DemonRoster.release() consumes them as roster entries
-## when the fusion is confirmed, several beats before they dissolve on
-## screen. Asking the roster for either one after that returns nothing, so
-## a tracked role would blank out mid-cutscene.
+## Everything the cutscene is handed: the two going in and the result to
+## spawn, and the words its greeting line fills in. A parent left null is
+## not spawned (the spawn key warns), which is all a caller that only wants
+## the reveal needs.
+static func props_for(result: UnitDefinition, parent_a: UnitDefinition = null,
+		parent_b: UnitDefinition = null) -> Dictionary:
+	var greetings: FusionGreetings = load(GREETINGS_PATH) as FusionGreetings
+	return {
+		PARENT_A: parent_a,
+		PARENT_B: parent_b,
+		RESULT: result,
+		NAME: result.display_name,
+		ORDER: String(result.order),
+		GREETING: greetings.greeting_for(result) if greetings else "",
+	}
+
+
+## The cast a fusion plays with: the Minister of the world under `world`,
+## if it has one. Only the Minister — the demons are made by the scene.
 ##
-## The RESULT is not in here at all. It does not exist as a body yet — the
-## timeline's spawn key makes it, at the moment the reveal wants it, and
-## the stage holds it from there. What this call site supplies is only the
-## DEFINITION, through the director's props.
-static func _cast(staging: Dictionary) -> SceneCast:
-	var players := SceneCast.new()
-	players.hold(PARENT_A, staging["parent_a"])
-	players.hold(PARENT_B, staging["parent_b"])
-	return players
+## Searched under `world` rather than taken as the first in the group, so a
+## resident Cathedral parked in another viewport cannot lend its Minister to
+## a fusion staged somewhere else.
+static func cast_for(world: Node) -> SceneCast:
+	var cast := SceneCast.new()
+	if world == null or not world.is_inside_tree():
+		return cast
+	for candidate in world.get_tree().get_nodes_in_group(MINISTER_GROUP):
+		if candidate is Unit and world.is_ancestor_of(candidate):
+			cast.track_unit(MINISTER, candidate)
+			break
+	return cast
 
 
-## Two bodies to dissolve, or nothing if this world has no fusion staging.
+## Whether this world has fusion staging.
 ##
 ## Checked by looking for the device mark rather than by asking which area
 ## is loaded: an area either declares the marks a fusion needs or it does
 ## not, and nothing else should have to know the Cathedral by name.
-static func _stage(species_a: UnitDefinition, species_b: UnitDefinition) -> Dictionary:
+static func _can_stage() -> bool:
 	var stage: Node = WorldManager.spawn_parent()
 	if stage == null or not stage.is_inside_tree():
-		return {}
+		return false
 	var probe := SceneCast.new()
 	probe.tree = stage.get_tree()
-	if not probe.has_mark(DEVICE_MARK):
-		return {}
-
-	var parent_a: Unit = _body(stage, species_a)
-	var parent_b: Unit = _body(stage, species_b)
-	if parent_a == null or parent_b == null:
-		if parent_a:
-			parent_a.queue_free()
-		if parent_b:
-			parent_b.queue_free()
-		return {}
-	return {"parent_a": parent_a, "parent_b": parent_b}
-
-
-static func _body(stage: Node, species: UnitDefinition) -> Unit:
-	if species == null or species.unit_scene == null:
-		return null
-	var unit: Unit = species.unit_scene.instantiate()
-	# BEFORE add_child — Unit adopts its body in _enter_tree, and a
-	# definition assigned afterwards leaves it with no model at all.
-	unit.definition = species
-	stage.add_child(unit)
-	return unit
+	return probe.has_mark(DEVICE_MARK)

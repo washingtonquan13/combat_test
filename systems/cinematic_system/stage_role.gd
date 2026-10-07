@@ -119,8 +119,19 @@ func reset_preview() -> void:
 		return
 	_placeholder.transform = Transform3D.IDENTITY
 	_placeholder.visible = true
+	paint_stand_in(Color(0, 0, 0, 0))
 	if is_instance_valid(_label):
 		_label.visible = false
+
+
+## A SilhouetteBeat's preview: the stand-in painted one flat colour. A
+## fully transparent colour takes the paint off.
+func paint_stand_in(paint_color: Color) -> void:
+	if not is_instance_valid(_placeholder):
+		return
+	var paint: Material = null if paint_color.a <= 0.0 else SilhouetteBeat.overlay_for(paint_color)
+	for mesh in _placeholder.find_children("*", "MeshInstance3D", true, false):
+		(mesh as MeshInstance3D).material_overlay = paint
 
 
 func _build_placeholder() -> void:

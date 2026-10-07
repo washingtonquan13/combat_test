@@ -17,6 +17,8 @@ extends AiTestCase
 const AREA_ID := &"cathedral_of_shadows"
 ## Every platform is 10 tall and centred at y=5.5, so its top face is here.
 const PLATFORM_TOP := 10.5
+## The top of the room's floor, where the Minister stands.
+const GROUND_TOP := 0.5
 
 
 func run() -> void:
@@ -71,6 +73,29 @@ func run() -> void:
 		"%s, below the platform top at y=%.2f — a demon placed there is " % [
 			", ".join(sunken), PLATFORM_TOP] +
 		"standing in the stone")
+
+	# --- the Minister presides over the menu ------------------------------
+	# He is part of the room's interface, so he is there before any fusion,
+	# on the ground floor, and the menu camera is looking at him.
+	var minister: Unit = null
+	for candidate in get_tree().get_nodes_in_group(FusionRitual.MINISTER_GROUP):
+		if room.is_ancestor_of(candidate):
+			minister = candidate as Unit
+	check("the Minister stands in the room before any fusion",
+		minister != null and minister.is_visible_in_tree(),
+		"no visible Unit in group %s under the room" % FusionRitual.MINISTER_GROUP)
+	check("on the ground floor, not on a platform",
+		minister != null and absf(minister.global_position.y - GROUND_TOP) < 0.3,
+		"he is at y=%.2f" % (minister.global_position.y if minister else NAN))
+	var view: Camera3D = room.get(&"device_view") as Camera3D
+	check("and the menu camera has him in frame, from in front",
+		minister != null and view != null
+			and view.is_position_in_frustum(minister.anchor(CharacterModel.Anchor.CHEST))
+			and (view.global_position - minister.global_position).dot(minister.visual_forward()) > 0.0,
+		"the menu is shown over a room that does not show the Minister")
+	check("and the cast a fusion plays with is him",
+		minister != null and FusionRitual.cast_for(room).unit(FusionRitual.MINISTER) == minister,
+		"the cutscene would open on an empty floor")
 
 	check("its base mode is FACILITY, not EXPLORATION",
 		room.get_base_mode() == GameMode.Mode.FACILITY,

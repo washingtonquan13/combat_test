@@ -123,7 +123,7 @@ func _apply() -> void:
 		return  # nobody is cast in this framing's roles yet
 	_camera.global_position = eye
 	if not eye.is_equal_approx(target):
-		_camera.look_at(target, Vector3.UP)
+		_camera.look_at(target, CameraFraming.up_for(eye, target))
 	_camera.fov = showing.fov_degrees
 
 

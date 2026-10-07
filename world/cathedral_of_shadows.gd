@@ -24,6 +24,11 @@ extends GameArea
 ## origins — a proto_block is centred on its transform, so a mark placed at
 ## the platform's own position would put a demon inside the stone.
 @export var device_view: Camera3D
+## What the menu camera looks at: the Minister, standing on the ground floor
+## in front of the platforms. The camera is placed where the cutscene's
+## opening shot starts, so confirming a fusion fades in on the same picture
+## the menu was showing. Left empty, the camera looks at the device.
+@export var device_view_target: Node3D
 
 
 func _ready() -> void:
@@ -64,7 +69,7 @@ func _present_the_menu() -> void:
 		print("Cathedral: menu presented (visible=%s)." % str(menu.is_visible_in_tree()))
 
 
-## Points the camera at the device rather than authoring a basis by hand.
+## Points the camera at its target rather than authoring a basis by hand.
 ##
 ## look_at needs the node to be in the tree, which is why this is _ready()
 ## work and not a value baked into the .tscn — and a hand-computed
@@ -75,7 +80,9 @@ func _aim_the_camera() -> void:
 	var camera: Camera3D = device_view if device_view else get_tactical_camera()
 	if camera == null:
 		return
-	var device: Node3D = find_child(String(FusionRitual.DEVICE_MARK), true, false) as Node3D
-	if device == null:
+	var target: Node3D = device_view_target
+	if target == null:
+		target = find_child(String(FusionRitual.DEVICE_MARK), true, false) as Node3D
+	if target == null:
 		return
-	camera.look_at_from_position(camera.global_position, device.global_position, Vector3.UP)
+	camera.look_at_from_position(camera.global_position, target.global_position, Vector3.UP)

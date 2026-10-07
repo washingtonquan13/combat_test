@@ -68,6 +68,7 @@ const BEATS_NAME: StringName = &"Beats"
 ## The editor-only preview camera. Added without an owner so it is never
 ## packed — the same trick StageRole's stand-in uses.
 const PREVIEW_NAME: StringName = &"__StagePreviewCamera"
+const PREVIEW_SET_NAME: StringName = &"__StagePreviewSet"
 ## The animation a stage is assumed to perform when nothing has named one
 ## yet — the editor before anything is selected, and play()'s default.
 const DEFAULT_ANIMATION: StringName = &"scene"
@@ -92,6 +93,16 @@ const PREVIEW_REFRESH_FRAMES: int = 15
 ## Offered as a dropdown (see _validate_property), and keyed on a discrete
 ## track to cut.
 @export var shot: StringName = &""
+## The room this scene plays in, shown in the EDITOR only, so scrubbing
+## shows the shot against the walls it will really have. Instanced
+## unowned (never saved into this .tscn) at the stage origin, which is
+## where the stage is anchored at runtime — so a set built around its own
+## origin lines up with anchor_mark. At runtime the real area is there and
+## this is ignored.
+@export var preview_set: PackedScene = null:
+	set(value):
+		preview_set = value
+		_rebuild_preview_set()
 ## Selects the preview camera so the 3D viewport's Preview toggle appears
 ## for it. Needed because the camera is unsaved and so never listed in the
 ## Scene dock, which is the only other way to select it.
@@ -109,6 +120,7 @@ var _active: Array[BeatNode] = []
 ## The beat whose line is in the subtitle band. See show_line().
 var _line_owner: BeatNode = null
 var _preview: Camera3D = null
+var _preview_set_node: Node = null
 var _previewed_at: float = -1.0
 var _preview_countdown: int = 0
 
@@ -116,6 +128,7 @@ var _preview_countdown: int = 0
 func _ready() -> void:
 	if Engine.is_editor_hint():
 		set_process(true)
+		_rebuild_preview_set()
 		return
 	set_process(false)
 
@@ -643,6 +656,20 @@ func clear_line(beat: BeatNode) -> void:
 		screen.clear_line()
 
 
+## `text` with every {key} replaced by the prop of that name — how a line
+## says the result's name without a beat per demon. Only plain values (a
+## String, a StringName, a number) fill a token; a token naming anything
+## else, or nothing, is left as written so the gap is visible on screen
+## rather than silently blank.
+func fill(text: String) -> String:
+	var values := {}
+	for key in props:
+		var value: Variant = props[key]
+		if value is String or value is StringName or value is int or value is float:
+			values[String(key)] = str(value)
+	return text.format(values)
+
+
 ## A runtime value by key. Both key types are tried because a Dictionary
 ## does NOT treat &"result" and "result" as the same key, and the two ends
 ## are written by different hands.
@@ -810,7 +837,23 @@ func _preview_shot() -> void:
 		return  # nothing on this stage answers to the shot's roles yet
 	camera.global_position = eye
 	if not eye.is_equal_approx(target):
-		camera.look_at(target, Vector3.UP)
+		camera.look_at(target, CameraFraming.up_for(eye, target))
+
+
+## The editor's copy of preview_set, rebuilt when the field changes. Only
+## in the editor, and only for the scene being edited: a stage instanced
+## inside something else must not drag its room along.
+func _rebuild_preview_set() -> void:
+	if not Engine.is_editor_hint() or not is_inside_tree():
+		return
+	if is_instance_valid(_preview_set_node):
+		_preview_set_node.queue_free()
+		_preview_set_node = null
+	if preview_set == null or not _in_edited_scene():
+		return
+	_preview_set_node = preview_set.instantiate()
+	_preview_set_node.name = PREVIEW_SET_NAME
+	add_child(_preview_set_node)
 
 
 ## Made on first use and never owned, so it is never packed.

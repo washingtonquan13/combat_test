@@ -1,16 +1,20 @@
-[gd_scene load_steps=4 format=3 uid="uid://cshmjyky7xnal"]
+[gd_scene load_steps=7 format=3 uid="uid://cshmjyky7xnal"]
 
 [ext_resource type="Script" uid="uid://c2guq5bo38rsq" path="res://world/cathedral_of_shadows.gd" id="1_ac70m"]
 [ext_resource type="PackedScene" path="res://world/proto_block.tscn" id="2_6wee1"]
+[ext_resource type="PackedScene" path="res://world/fusion_chamber.tscn" id="3_chamber"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="4_unit"]
+[ext_resource type="Resource" path="res://data/units/npcs/minister.tres" id="5_minister"]
 
 [sub_resource type="Environment" id="Environment_movement_glow"]
 background_mode = 1
 background_color = Color(0.09, 0.1, 0.13, 1)
 glow_enabled = true
 
-[node name="Cathedral" type="Node3D" node_paths=PackedStringArray("device_view")]
+[node name="Cathedral" type="Node3D" node_paths=PackedStringArray("device_view", "device_view_target")]
 script = ExtResource("1_ac70m")
 device_view = NodePath("DeviceView")
+device_view_target = NodePath("MenuFocus")
 
 [node name="LevelGeometry" type="Node3D" parent="."]
 
@@ -35,6 +39,9 @@ size = Vector3(4, 10, 4)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 5.5, 4)
 size = Vector3(4, 10, 4)
 
+[node name="FusionChamber" parent="." instance=ExtResource("3_chamber")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 10.5, 6)
+
 [node name="Start" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, -6)
 
@@ -51,4 +58,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 10.5, 4)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 10.5, 4)
 
 [node name="DeviceView" type="Camera3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12, -5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 2.7, -9.5)
+
+[node name="Minister" parent="." groups=["fusion_minister"] instance=ExtResource("4_unit")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.5, 0.5, -0.5)
+definition = ExtResource("5_minister")
+
+[node name="MenuFocus" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 1.9, -0.5)

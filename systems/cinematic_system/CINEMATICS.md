@@ -220,6 +220,11 @@ Each beat has two behaviours:
 | **ClipBeat** | `role`, `animation_name` (typed)<br>`claims` (default on) | Plays the named clip on the actor's model. With `claims`, gameplay stops animating it until the scene ends. | Nothing | Nothing |
 | **EffectBeat** | `vfx` (a VfxEffect)<br>`from`, `to` (`to` empty = at `from`) | Plays the effect. On a role it plays at the chest. | Nothing | Nothing |
 | **SoundBeat** | `cue` (an SfxCue), `at` | Plays the sound at the role's chest or at the mark. | Nothing | Nothing |
+| **SilhouetteBeat** | `role`, `color`<br>`clear` | Paints every mesh of the actor's model one flat, unlit colour (black parents and the white newborn in fusion). With `clear`, takes the paint off. | Same as fire | Stand-in takes the colour |
+
+### Filling in words: `{tokens}`
+
+A LineBeat's `text` can contain `{key}`. When the line plays, `{key}` is replaced by the prop of that name the scene was played with (the third argument of `CinematicDirector.play`). Fusion plays with `name`, `order` and `greeting`, so its greeting line's text is just `{greeting}`. The editor preview shows the tokens as written.
 
 ### LineBeat timing
 
@@ -259,6 +264,10 @@ A **FramingRig** under `Shots/` is one shot. It has no camera of its own. It des
 | `look_offset` | Shift the aim point without moving the camera, in world axes (x, y, z). This is the pan and tilt control. |
 
 Empty look fields mean "look at the subject", which is what most shots want.
+
+### Looking straight up or down
+
+A rig with `distance` 0 under a mark, looking at a mark directly above it, is a straight-up shot (fusion's `ceiling_up`). That works: when the camera looks along the vertical, "up" on screen becomes the world's -z (north) instead of the sky. If a straight-up shot looks rotated the wrong way, turn the stage's anchor rather than the rig.
 
 ### Cuts
 
@@ -342,6 +351,10 @@ To make a world mark:
 2. With it selected, open the **Node** dock > **Groups** tab, type `scene_marks` and click **Add**.
 
 If a stage mark and a world mark share a name, the **stage mark wins**.
+
+### preview_set: seeing the room while you author
+
+A stage file has no walls; the room it plays in lives in the world. Set `preview_set` on the stage root to a scene of that room (fusion uses `world/fusion_chamber.tscn`) and the editor shows it under the stage, so you can see what each shot actually looks at. It is editor-only: it is never saved into the stage and never appears in game, where the real room is already there. Line the set up so that its origin sits where `anchor_mark` puts the stage.
 
 ### anchor_mark: where the stage sits
 
@@ -510,5 +523,7 @@ These appear while the game runs, not in the editor:
 **Some asset-pack effects are broken.** `vfx_hit_03`, `04`, `06`, `07` and `08` reference missing textures and error when loaded. `vfx_hit_05` works.
 
 **The camera holds after the scene.** A caller that starts a scene from code must release the camera itself if play should resume.
+
+**Screen effects are in the 2D view.** A CanvasLayer under the stage (fusion's `Effects/Screen` with its fade rectangle) does not draw in the 3D viewport. Switch to the 2D tab to see it while scrubbing, or play the scene.
 
 **Timeline method mode is Immediate.** The Timeline's **Callback Mode > Method** is set to Immediate in every existing scene and by the `new_cinematic` tool. Leave it that way.

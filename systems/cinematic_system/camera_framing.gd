@@ -146,6 +146,20 @@ func _read_source(cast: SceneCast, mark_name: StringName, role: StringName) -> D
 	}
 
 
+## The "up" to hand look_at() for a camera at `eye` aiming at `target`.
+##
+## look_at() cannot face straight along the up vector it is given: the
+## direction and the up are parallel, there is no roll left to solve for,
+## and Godot errors and leaves the camera where it was. A shot looking
+## straight up at a ceiling (fusion's) or straight down at a floor is
+## exactly that case. Then the top of the screen points to world -Z (the
+## way a stage's "front" faces) instead, which is an arbitrary but STABLE
+## choice: a shot that tilts through vertical does not spin.
+static func up_for(eye: Vector3, target: Vector3) -> Vector3:
+	var direction: Vector3 = (target - eye).normalized()
+	return Vector3.FORWARD if absf(direction.dot(Vector3.UP)) > 0.999 else Vector3.UP
+
+
 ## A framing partway between this one and `to`.
 ##
 ## Only meaningful when both share a subject — see shares_subject_with.
