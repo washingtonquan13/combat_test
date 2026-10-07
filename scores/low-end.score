@@ -254,10 +254,8 @@
 // Then nothing new. The chord is the loop's own dark one, Em(add9), with no
 // cadence and no turn to major: the piece has been in E minor the whole
 // time, and an ending that suddenly celebrates would change what it was.
-// The band hits once and lets it ring for two bars; the lead holds E and
-// falls off it; and over the decay the arpeggio plays the hook's first four
-// notes, E G A G, quietly - the hint from the drive, heard once more as the
-// thing the room is left with. It stops on G, the minor third.
+// The band hits once and lets it ring for two bars, and the lead holds E
+// and falls off it. Nothing plays over the decay.
 
 title: Low End
 ensemble: band
@@ -738,8 +736,5 @@ section end bars:2
     | kick:8! |
   pad dyn:mf..p
     | [g3 b3 f#4]:7 r:1 |
-  // The hook's first four notes, quietly, over the ring: the hint again.
-  keys dyn:mp..p feel:tight
-    | r:1 e5:0.75 g5:0.75 a5:0.75 g5:1.5 r:3.25 |
   lead dyn:f vib:warm
     | e5:6_> r:2 |
