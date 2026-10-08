@@ -230,15 +230,17 @@ func preload_area(new_area: String) -> bool:
 	var ok := ensemble != null
 	if ok:
 		var articulations := {}
+		var played := {}
 		for path: String in paths:
 			if _scores.has(path):
 				var player := _player(back)
 				await player.prepare(_scores[path], ensemble)
 				_merge_articulations(articulations, player.articulations())
+				_merge_played(played, player.played())
 				# Kept compiled: the go_to() that follows plays it as it is.
 				# Compiling is most of a transition that has nothing to load.
 				_prepared[path] = player
-		ok = await _load(back, ensemble, articulations)
+		ok = await _load(back, ensemble, articulations, played)
 	if ok:
 		# Nothing plays it until go_to(): it waits without rendering.
 		_conductors[back].hold()
@@ -347,20 +349,22 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 		await incoming.prepare(score, ensemble)
 	var sting_player: SfzScorePlayer = null
 	var articulations := incoming.articulations()
+	var played := incoming.played()
 	if sting != null:
 		sting_player = prepared.get(sting_path)
 		if sting_player == null:
 			sting_player = _player(back)
 			await sting_player.prepare(sting, ensemble)
 		_merge_articulations(articulations, sting_player.articulations())
+		_merge_played(played, sting_player.played())
 	for path: String in prepared:
 		if prepared[path] != incoming and prepared[path] != sting_player:
 			prepared[path].queue_free()
 	var warm := _preloaded == new_area and _conductors[back].is_loaded() \
 		and _conductors[back].ensemble.id == ensemble.id \
-		and _conductors[back].covers(articulations)
+		and _conductors[back].covers(articulations, played)
 	_preloaded = ""
-	if not warm and not await _load(back, ensemble, articulations):
+	if not warm and not await _load(back, ensemble, articulations, played):
 		for player: SfzScorePlayer in [incoming, sting_player]:
 			if player != null:
 				player.queue_free()
@@ -599,11 +603,13 @@ func _free() -> void:
 
 
 # Loads an ensemble into `slot`, replacing whatever is there, with only the
-# `articulations` (see SfzConductor.load_ensemble) the pieces it is for play.
+# `articulations` and `played` keys (see SfzConductor.load_ensemble) the
+# pieces it is for play.
 # load_ensemble() unloads what was there first and waits for it to be freed,
 # so a stale preload is gone before the new ensemble is read.
-func _load(slot: int, ensemble: SfzEnsemble, articulations: Dictionary) -> bool:
-	return await _conductors[slot].load_ensemble(ensemble, articulations)
+func _load(slot: int, ensemble: SfzEnsemble, articulations: Dictionary,
+		played: Dictionary) -> bool:
+	return await _conductors[slot].load_ensemble(ensemble, articulations, played)
 
 
 # Adds `more`'s articulations (part -> names) to `into`'s.
@@ -613,6 +619,16 @@ static func _merge_articulations(into: Dictionary, more: Dictionary) -> void:
 		for articulation: String in more[part_name]:
 			if not arts.has(articulation):
 				arts.append(articulation)
+
+
+# Adds `more`'s played keys and drums (part -> {"keys", "drums"}) to `into`'s.
+static func _merge_played(into: Dictionary, more: Dictionary) -> void:
+	for part_name: String in more:
+		var plays: Dictionary = into.get_or_add(part_name, {"keys": [], "drums": []})
+		for list: String in ["keys", "drums"]:
+			for what: Variant in more[part_name][list]:
+				if not (plays[list] as Array).has(what):
+					(plays[list] as Array).append(what)
 
 
 func _uncached(paths: Array) -> Array:

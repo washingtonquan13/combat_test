@@ -397,17 +397,18 @@ func cc_from_velocity(velocity: int) -> int:
 # tie went whichever way the sort happened to fall, which moved whenever
 # anything was added anywhere else in the score: a synth lead written into
 # its own section, seconds later, changed how the pad at the top started.
+#
+# Sorted as [t, index] pairs by the native sort rather than sort_custom: arrays
+# compare element by element, so the index is the same tiebreak, and a
+# GDScript lambda called per comparison was most of the cost of a load.
 func sorted(out: Array) -> Array:
 	var order: Array = []
 	order.resize(out.size())
 	for i in out.size():
-		order[i] = i
-	order.sort_custom(func(a, b):
-		var ta := float(out[a]["t"])
-		var tb := float(out[b]["t"])
-		return ta < tb or (ta == tb and a < b))
+		order[i] = [float(out[i]["t"]), i]
+	order.sort()
 	var result: Array = []
 	result.resize(out.size())
 	for i in order.size():
-		result[i] = out[order[i]]
+		result[i] = out[order[i][1]]
 	return result

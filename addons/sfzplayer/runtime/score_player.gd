@@ -203,6 +203,11 @@ var _plan: Dictionary = {}
 # The thread prepare() compiles on, while it runs: joined on free, since it
 # runs this script's code and must not outlive it.
 var _compiling: Thread
+# The thread prepare() says the plan's findings on, joined as _compiling is.
+# Saying a line is a console or editor write, 4 to 30 ms each on Windows, and
+# the title piece has four to say: a tenth of a second the music would wait
+# for, after the compile it needs, for words it does not.
+var _saying: Thread
 # "part|drum" for every drum this score hits that the ensemble's kit does not map.
 # Those hits are skipped, as the conductor would skip them, so the conductor's
 # own once-per-call warning is kept for a game's direct hit() - this piece
@@ -349,6 +354,11 @@ func prepare(new_score: SfzScore, against: SfzEnsemble = null) -> void:
 		await get_tree().process_frame
 	_plan = _compiling.wait_to_finish()
 	_compiling = null
+	if not _plan["said"].is_empty():
+		if _saying != null:
+			_saying.wait_to_finish()
+		_saying = Thread.new()
+		_saying.start(_say_all.bind(_plan["said"]))
 
 
 # Every articulation the prepared piece switches each part to, at any
@@ -360,18 +370,52 @@ func articulations() -> Dictionary:
 	if _plan.is_empty():
 		push_error("ScorePlayer: articulations() before prepare()")
 		return found
-	var cast: Dictionary = _plan["cast"]
-	var events: Array = _plan["head"] + _plan["tail"]
-	for body: Array in _plan["bodies"]:
-		events.append_array(body)
-	for event: Dictionary in events:
+	for event: Dictionary in _planned():
 		if event["kind"] != "art":
 			continue
-		var part_name: String = cast[event["part"]]["part"] if cast.has(event["part"]) 			else event["part"]
-		var arts: Array = found.get_or_add(part_name, [])
+		var arts: Array = found.get_or_add(_planned_cast(event["part"]), [])
 		if not arts.has(event["art"]):
 			arts.append(event["art"])
 	return found
+
+
+# Every key the prepared piece presses on each part, at any intensity and on
+# every pass of the loop: ensemble part -> {"keys": Array of keys as the score
+# writes them, "drums": Array of drum names}. A part that plays nothing is
+# absent. What SfzConductor.load_ensemble() is given beside articulations(),
+# so the layers load no sample this piece never plays.
+func played() -> Dictionary:
+	var found := {}
+	if _plan.is_empty():
+		push_error("ScorePlayer: played() before prepare()")
+		return found
+	for event: Dictionary in _planned():
+		var kind: String = event["kind"]
+		if kind != "note" and kind != "hit":
+			continue
+		var part_name := _planned_cast(event["part"])
+		if part_name == "":
+			continue
+		var plays: Dictionary = found.get_or_add(part_name, {"keys": [], "drums": []})
+		var list: Array = plays["keys"] if kind == "note" else plays["drums"]
+		var what: Variant = int(event["key"]) if kind == "note" else event["drum"]
+		if not list.has(what):
+			list.append(what)
+	return found
+
+
+# Every event of the prepared piece: head, tail and each body.
+func _planned() -> Array:
+	var events: Array = _plan["head"] + _plan["tail"]
+	for body: Array in _plan["bodies"]:
+		events.append_array(body)
+	return events
+
+
+# _cast_of() for the prepared piece, which may not be installed yet.
+func _planned_cast(part_name: String) -> String:
+	var cast: Dictionary = _plan["cast"]
+	return cast[part_name]["part"] if cast.has(part_name) else part_name
 
 
 # Conductor time the piece's first downbeat is at - or would have been,
@@ -680,8 +724,12 @@ func length() -> float:
 # prepare() is dropped with it, and the thread would run on into a script
 # already torn down.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_PREDELETE and _compiling != null:
+	if what != NOTIFICATION_PREDELETE:
+		return
+	if _compiling != null:
 		_compiling.wait_to_finish()
+	if _saying != null:
+		_saying.wait_to_finish()
 
 
 func _process(_delta: float) -> void:
@@ -704,7 +752,9 @@ func _process(_delta: float) -> void:
 # Compiles `new_score` and installs it: what play_at() does with a score
 # prepare() has not built, and what an offline render and the tests call.
 func _prepare(new_score: SfzScore) -> void:
-	_install(_build(new_score, conductor.ensemble))
+	var plan := _build(new_score, conductor.ensemble)
+	_say_all(plan["said"])
+	_install(plan)
 
 
 # Everything compiling `new_score` produces, as a Dictionary nothing else
@@ -717,7 +767,7 @@ func _build(new_score: SfzScore, against: SfzEnsemble) -> Dictionary:
 	compiler.ensemble = against
 	var plan := {"score": new_score, "head": [], "bodies": [] as Array[Array],
 		"tail": [], "loop_length": 0.0, "loop_end": 0.0, "lead_in": 0.0,
-		"loop_start": 0.0, "end": INF, "marks": {}, "intro_marks": {}, "unmapped": {}, "findings": {},
+		"loop_start": 0.0, "end": INF, "marks": {}, "intro_marks": {}, "unmapped": {}, "findings": {}, "said": [],
 		"ensemble": "" if against == null else against.id,
 		"cast": {} if against == null else against.cast(new_score.parts)}
 
@@ -878,13 +928,16 @@ func _install(plan: Dictionary) -> void:
 # the report is new. A part cast on nothing says that and nothing else about
 # itself; everything else it would have said is part of it.
 #
-# Returns {unmapped, findings} for the plan (see _unmapped and _findings) and
-# sets nothing of this player's: _build() calls it, on prepare()'s worker
-# while another piece may still be playing, and _install() takes them.
+# Returns {unmapped, findings, said} for the plan (see _unmapped and
+# _findings; `said` is the texts of the findings no player has said yet in
+# this run, for prepare() or _prepare() to say) and sets nothing of this
+# player's: _build() calls it, on prepare()'s worker while another piece may
+# still be playing, and _install() takes them.
 func _report(for_score: SfzScore, events: Array, ensemble: SfzEnsemble) -> Dictionary:
 	var unmapped := {}
 	var findings := {}
-	var result := {"unmapped": unmapped, "findings": findings}
+	var said: Array = []
+	var result := {"unmapped": unmapped, "findings": findings, "said": said}
 	if ensemble == null:
 		return result
 	var cast := ensemble.cast(for_score.parts)
@@ -963,12 +1016,18 @@ func _report(for_score: SfzScore, events: Array, ensemble: SfzEnsemble) -> Dicti
 		_reported[record] = true
 		_reported_mutex.unlock()
 		if fresh:
-			_say(text)
+			said.append(text)
 	return result
 
 
-# Says one finding. push_warning, from whichever thread prepared; a tool
-# that prints the findings itself (tools/check.gd) overrides it to keep quiet.
+func _say_all(texts: Array) -> void:
+	for text: String in texts:
+		_say(text)
+
+
+# Says one finding. push_warning, on prepare()'s saying thread, or the
+# caller's for _prepare(); a tool that prints the findings itself
+# (tools/check.gd) overrides it to keep quiet.
 func _say(text: String) -> void:
 	push_warning(text)
 

@@ -277,7 +277,14 @@ func _anchor_heard() -> void:
 # of the memory and most of the load. A part it leaves out plays only its
 # default. null loads every articulation, for a caller that cannot know what
 # it will ask for; see covers() for whether a load will do for another piece.
-func load_ensemble(new_ensemble: SfzEnsemble, articulations: Variant = null) -> bool:
+#
+# `played` (ensemble part -> {"keys", "drums"}, as SfzScorePlayer.played()
+# gives them) does the same for the keys: each layer loads only the samples
+# those notes and drums press on it, with its keyswitches. A kit played on
+# four of its forty keys loads four. A part it leaves out loads everything,
+# as does null.
+func load_ensemble(new_ensemble: SfzEnsemble, articulations: Variant = null,
+		played: Variant = null) -> bool:
 	if not SfzConductor._on_main("SfzConductor.load_ensemble"):
 		return false
 	unload()
@@ -301,8 +308,11 @@ func load_ensemble(new_ensemble: SfzEnsemble, articulations: Variant = null) -> 
 		var arts: Variant = null
 		if articulations != null:
 			arts = (articulations as Dictionary).get(part.name, [])
+		var plays: Variant = null
+		if played != null:
+			plays = (played as Dictionary).get(part.name)
 		for layer: SfzEnsemble.Layer in part.layers:
-			var entry := _attach(part, layer, arts)
+			var entry := _attach(part, layer, arts, plays)
 			if entry.is_empty():
 				unload()
 				return false
@@ -342,11 +352,14 @@ func load_ensemble(new_ensemble: SfzEnsemble, articulations: Variant = null) -> 
 # goes through _press, _lift, _tap, _send_cc or _send_wheel, so a conductor
 # that overrides those six hears all that this one sends an instrument, in
 # order, with no instrument at all (scripts/golden_test.gd --dest).
-func _attach(part: SfzEnsemble.Part, layer: SfzEnsemble.Layer, arts: Variant) -> Dictionary:
+func _attach(part: SfzEnsemble.Part, layer: SfzEnsemble.Layer, arts: Variant,
+		plays: Variant = null) -> Dictionary:
 	var instrument := SfzInstrument.new()
 	instrument.sfz_path = layer.sfz_path
 	var keyswitches := _keyswitches(part, layer, arts)
 	instrument.keyswitches = keyswitches
+	var notes := _notes(part, layer, plays, keyswitches)
+	instrument.notes = notes
 	instrument.cabinet_path = layer.cabinet_path
 	instrument.max_voices = layer.voices
 	# The same preload offline as live. This used to ask for every
@@ -399,6 +412,7 @@ func _attach(part: SfzEnsemble.Part, layer: SfzEnsemble.Layer, arts: Variant) ->
 		"instrument": instrument,
 		"offset": 0.0,
 		"keyswitches": keyswitches,
+		"notes": notes,
 	}
 	# play() starts the SFZ parse on a thread of its own and returns
 	# at once, so every layer of the ensemble loads at the same time and
@@ -427,12 +441,47 @@ func _keyswitches(part: SfzEnsemble.Part, layer: SfzEnsemble.Layer, arts: Varian
 	return keys
 
 
-# Whether what is loaded plays every articulation in `articulations` (as
-# load_ensemble() takes them): a preloaded ensemble can only stand in for a
-# fresh load if nothing the new piece switches to was left out of it.
-func covers(articulations: Dictionary) -> bool:
+# The keys `layer` is loaded for: those `plays` (one part of what
+# load_ensemble() takes as `played`) presses on it, as note() and hit() would,
+# and its `keyswitches`, which may be notes too. Empty, which loads every key,
+# for no `plays`.
+func _notes(part: SfzEnsemble.Part, layer: SfzEnsemble.Layer, plays: Variant,
+		keyswitches: PackedInt32Array) -> PackedInt32Array:
+	var keys := PackedInt32Array()
+	if plays == null:
+		return keys
+	for key: int in (plays as Dictionary).get("keys", []):
+		var pitch := clampi(part.fit(key) + layer.transpose, 0, 127)
+		if not keys.has(pitch):
+			keys.append(pitch)
+	for drum: String in (plays as Dictionary).get("drums", []):
+		var key := part.key_for(drum)
+		if key >= 0 and not keys.has(key):
+			keys.append(key)
+	for key: int in keyswitches:
+		if not keys.has(key):
+			keys.append(key)
+	# Empty only when nothing reaches this layer: then it loads everything,
+	# which costs memory but is never silent.
+	return keys
+
+
+# Whether what is loaded plays every articulation in `articulations` and every
+# key in `played` (as load_ensemble() takes them): a preloaded ensemble can only
+# stand in for a fresh load if nothing the new piece switches to or presses
+# was left out of it.
+func covers(articulations: Dictionary, played: Dictionary = {}) -> bool:
 	if not _loaded:
 		return false
+	for part_name: String in played:
+		var part := ensemble.part(part_name)
+		for entry in _stacks.get(part_name, []):
+			var loaded: PackedInt32Array = entry.notes
+			if loaded.is_empty():
+				continue
+			for key: int in _notes(part, entry.layer, played[part_name], PackedInt32Array()):
+				if not loaded.has(key):
+					return false
 	for part_name: String in articulations:
 		var part := ensemble.part(part_name)
 		for entry in _stacks.get(part_name, []):
@@ -575,6 +624,7 @@ func note(part_name: String, key: int, velocity: int, at: float, duration: float
 		if not layer.takes(velocity):
 			continue
 		var pitch := clampi(folded + layer.transpose, 0, 127)
+		_check_loaded(entry, part_name, pitch)
 		var t: float = at + entry.offset + layer.delay + (0.0 if exact else layer.take_offset(take))
 		var played := clampi(velocity + (0 if exact else layer.take_velocity_offset(take)), 1, 127)
 		_press(entry, pitch, played, t)
@@ -603,6 +653,7 @@ func note_on(part_name: String, key: int, velocity: int, at: float,
 		if not layer.takes(velocity):
 			continue
 		var pitch := clampi(folded + layer.transpose, 0, 127)
+		_check_loaded(entry, part_name, pitch)
 		var t: float = at + entry.offset + layer.delay + (0.0 if exact else layer.take_offset(take))
 		var played := clampi(velocity + (0 if exact else layer.take_velocity_offset(take)), 1, 127)
 		_press(entry, pitch, played, t)
@@ -672,6 +723,7 @@ func hit(part_name: String, drum: String, velocity: int, at: float,
 		# the one thing a second layer exists not to do, and the whole kit
 		# lands on the grid to the sample - a drum machine playing a score
 		# that has been written for a drummer everywhere else.
+		_check_loaded(entry, part_name, key)
 		var t: float = at + entry.offset + layer.delay + (0.0 if exact else layer.take_offset(take))
 		var played := clampi(velocity + (0 if exact else layer.take_velocity_offset(take)), 1, 127)
 		_press(entry, key, played, t)
@@ -754,6 +806,20 @@ func articulate(part_name: String, articulation: String, at: float = -1.0) -> vo
 					part_name, articulation])
 			continue
 		_tap(entry, key, at)
+
+
+# A key load_ensemble() was not given has no samples to play: that is an
+# error, said once per part and key. It is still pressed, as every other key
+# is, so the instrument hears what it would have heard.
+func _check_loaded(entry: Dictionary, part_name: String, key: int) -> void:
+	var loaded: PackedInt32Array = entry.notes
+	if loaded.is_empty() or loaded.has(key):
+		return
+	var tag := "%s/key:%d" % [part_name, key]
+	if not _warned.has(tag):
+		_warned[tag] = true
+		push_error("Conductor: %s was loaded without key %d; load_ensemble() was not told it would be played" % [
+			part_name, key])
 
 
 # One keyswitch tap on one player: now for a negative `at`, else held from
