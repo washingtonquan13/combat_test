@@ -4,137 +4,137 @@
   "name": "Level Up Groovy",
   "description": "An ensemble for Level Up Groovy, the owner's own Suno piece, rebuilt one instrument at a time against its stems. Bass: Standard Bass DI in three layers - one centred and full range, and two copies high-passed at 180 Hz and panned apart, because the original's bass is near-mono at its fundamental and wide above it, which a plain double-track cannot do. Its Sub_Bass control is mapped, which is what undoes the library's own -12 dB at 64 Hz; left unmapped the bass has no bottom and no gain change will give it one. Synth line: HamOrg, drawbars set from the stem's harmonics (the note, its octave near level, a little of the next two), its rotary cabinet stopped so held notes stay level, and sent further into the hall than a lead usually is - the stem's line is wide, and a mono organ with a stopped rotor has no width of its own. Pad and choir: two parts, a lane each - Veil holding the chord low and VPO's female choir singing it high, which is what the stem's side channel has. Kit: sm-drums, shaped.",
   "buses": {
-	"lead": {
-	  "space": "hall",
-	  "wet": 0.3
-	},
-	"pad": {
-	  "space": "hall",
-	  "wet": 0.3,
-	  "predelay": 30.0
-	}
+    "lead": {
+      "space": "hall",
+      "wet": 0.3
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.3,
+      "predelay": 30.0
+    }
   },
   "parts": {
-	"lead": {
-	  "family": "lead",
-	  "layers": [
-		{
-		  "instrument": "hamorg/lead-still",
-		  "name": "organ",
-		  "defaults": {
-			"drawbar1": 0,
-			"drawbar2": 0,
-			"drawbar3": 127,
-			"drawbar4": 112,
-			"drawbar5": 40,
-			"drawbar6": 40,
-			"drawbar7": 0,
-			"drawbar8": 0,
-			"drawbar9": 0,
-			"percussion": 0
-		  }
-		}
-	  ],
-	  "voices": 16,
-	  "gain_source": "by-ear",
-	  "gain_db": 7.2,
-	  "defaults": {
-		"dynamics": 92,
-		"volume": 100,
-		"pan": 64,
-		"attack": 0,
-		"release": 0
-	  }
-	},
-	"bass": {
-	  "family": "bass",
-	  "voices": 16,
-	  "gain_source": "by-ear",
-	  "gain_db": -3.4,
-	  "defaults": {
-		"volume": 100,
-		"pan": 64,
-		"sub": 48
-	  },
-	  "layers": [
-		{
-		  "instrument": "standard-bass/ksop",
-		  "name": "di"
-		},
-		{
-		  "instrument": "standard-bass/wide-top",
-		  "name": "left",
-		  "gain_source": "by-ear",
-		  "gain_db": -4.0,
-		  "take": {
-			"timing": 0.007,
-			"velocity": 5
-		  },
-		  "defaults": {
-			"pan": 22
-		  }
-		},
-		{
-		  "instrument": "standard-bass/wide-top",
-		  "name": "right",
-		  "gain_source": "by-ear",
-		  "gain_db": -4.0,
-		  "take": {
-			"timing": 0.007,
-			"velocity": 5
-		  },
-		  "defaults": {
-			"pan": 106
-		  }
-		}
-	  ],
-	  "keyswitch_default": "sustain_alt"
-	},
-	"pad": {
-	  "family": "pad",
-	  "layers": [
-		{
-		  "instrument": "synth/veil-pad",
-		  "name": "veil"
-		}
-	  ],
-	  "range": [
-		36,
-		96
-	  ],
-	  "voices": 48,
-	  "gain_source": "by-ear",
-	  "gain_db": -7.8,
-	  "defaults": {
-		"brightness": 0
-	  }
-	},
-	"choir": {
-	  "family": "choir",
-	  "bus": "pad",
-	  "layers": [
-		{
-		  "instrument": "vpo/choir-female",
-		  "name": "voices",
-		  "gain_source": "guessed",
-		  "gain_db": 0.0
-		}
-	  ],
-	  "voices": 48,
-	  "gain_source": "by-ear",
-	  "gain_db": -7.8
-	},
-	"perc": {
-	  "family": "perc",
-	  "layers": [
-		{
-		  "instrument": "sm-drums/kit"
-		}
-	  ],
-	  "voices": 48,
-	  "preload": 4096,
-	  "gain_source": "by-ear",
-	  "gain_db": 2.2
-	}
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "hamorg/lead-still",
+          "name": "organ",
+          "defaults": {
+            "drawbar1": 0,
+            "drawbar2": 0,
+            "drawbar3": 127,
+            "drawbar4": 112,
+            "drawbar5": 40,
+            "drawbar6": 40,
+            "drawbar7": 0,
+            "drawbar8": 0,
+            "drawbar9": 0,
+            "percussion": 0
+          }
+        }
+      ],
+      "voices": 16,
+      "gain_source": "by-ear",
+      "gain_db": 7.2,
+      "defaults": {
+        "dynamics": 92,
+        "volume": 100,
+        "pan": 64,
+        "attack": 0,
+        "release": 0
+      }
+    },
+    "bass": {
+      "family": "bass",
+      "voices": 16,
+      "gain_source": "by-ear",
+      "gain_db": -3.4,
+      "defaults": {
+        "volume": 100,
+        "pan": 64,
+        "sub": 48
+      },
+      "layers": [
+        {
+          "instrument": "standard-bass/ksop",
+          "name": "di"
+        },
+        {
+          "instrument": "standard-bass/wide-top",
+          "name": "left",
+          "gain_source": "by-ear",
+          "gain_db": -4.0,
+          "take": {
+            "timing": 0.007,
+            "velocity": 5
+          },
+          "defaults": {
+            "pan": 22
+          }
+        },
+        {
+          "instrument": "standard-bass/wide-top",
+          "name": "right",
+          "gain_source": "by-ear",
+          "gain_db": -4.0,
+          "take": {
+            "timing": 0.007,
+            "velocity": 5
+          },
+          "defaults": {
+            "pan": 106
+          }
+        }
+      ],
+      "keyswitch_default": "sustain_alt"
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "synth/veil-pad",
+          "name": "veil"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "voices": 48,
+      "gain_source": "by-ear",
+      "gain_db": -7.8,
+      "defaults": {
+        "brightness": 0
+      }
+    },
+    "choir": {
+      "family": "choir",
+      "bus": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-female",
+          "name": "voices",
+          "gain_source": "guessed",
+          "gain_db": 0.0
+        }
+      ],
+      "voices": 48,
+      "gain_source": "by-ear",
+      "gain_db": -7.8
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "sm-drums/kit"
+        }
+      ],
+      "voices": 48,
+      "preload": 4096,
+      "gain_source": "by-ear",
+      "gain_db": 2.2
+    }
   }
 }

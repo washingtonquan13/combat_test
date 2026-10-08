@@ -53,6 +53,11 @@ extends Node
 #   --intensity 2               (the level the piece plays at: lanes written
 #                                layer:N come in from N; default 0)
 #   --realtime                  (the audio server, at 1x)
+#   --as-game                   (offline only: load only the articulations
+#                                and keys the piece plays, as the game's
+#                                MusicDirector does, into -as-game.wav; the
+#                                same take as without it, or the filter
+#                                left something out)
 #   --compare                   (both of them, side by side)
 #
 # Two flags that make no sound at all, and quit before anything is loaded:
@@ -112,6 +117,7 @@ var _reading := "performance"
 var _out_dir := "res://renders"
 var _realtime := false
 var _compare := false
+var _as_game := false
 
 # Soloing is here rather than in the mixer because it is a measuring tool, not
 # a mix control: balancing buses against each other means knowing what each
@@ -208,6 +214,7 @@ func _ready() -> void:
 		else:
 			await _render_offline(score, id, "")
 
+	print("midi event growths: %d" % SfzInstrument.get_midi_event_growths())
 	print("\nrender done")
 	get_tree().quit()
 
@@ -304,6 +311,8 @@ func _read_args() -> void:
 				_realtime = true
 			"--compare":
 				_compare = true
+			"--as-game":
+				_as_game = true
 			"--only":
 				i += 1
 				while i < args.size() and not args[i].begins_with("--"):
@@ -356,6 +365,8 @@ func _path_for(score: SfzScore, id: String, suffix: String) -> String:
 	if not _from.is_empty() or not _to.is_empty():
 		stem += "-%s..%s" % [_from if not _from.is_empty() else "start",
 			_to if not _to.is_empty() else "end"]
+	if _as_game:
+		stem += "-as-game"
 	return "%s/%s%s.wav" % [_out_dir, stem, suffix]
 
 
@@ -418,7 +429,19 @@ func _render_offline(score: SfzScore, id: String, suffix: String) -> void:
 			ProjectSettings.globalize_path(path.get_basename() + "-g%s.wav" % _gain_name(g)))
 
 	conductor.offline = renderer
-	var loaded: bool = await conductor.load_ensemble(ensemble)
+	var articulations: Variant = null
+	var played: Variant = null
+	if _as_game:
+		# Read as the take below reads it, or it plans a different piece.
+		var planner := SfzScorePlayer.new(conductor)
+		planner.compiler = SfzPerformanceCompiler.new() if _reading == "performance" else SfzScoreCompiler.new()
+		planner.intensity = _intensity
+		add_child(planner)
+		await planner.prepare(score, ensemble)
+		articulations = planner.articulations()
+		played = planner.played()
+		planner.queue_free()
+	var loaded: bool = await conductor.load_ensemble(ensemble, articulations, played)
 	if not loaded:
 		conductor.offline = null
 		return

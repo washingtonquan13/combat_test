@@ -85,6 +85,9 @@ func _ready() -> void:
 	SaveManager.load_started.connect(_on_load_started.unbind(1))
 	SaveManager.load_finished.connect(_on_load_finished.unbind(3))
 	Music.preload_hold = SfzMusicDirector.Hold.SCORES
+	# The game's target for resident sample audio, so the director's meter
+	# warns when a load goes past it (its own default is 768 MB).
+	Music.memory_budget = 256 << 20
 	# The title's music is not preloaded here: its ensemble is hundreds of MB
 	# held from boot, alongside everything else the game is loading, for a
 	# screen that asks for it seconds later anyway. It loads when asked.
