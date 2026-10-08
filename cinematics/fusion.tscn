@@ -1,60 +1,60 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=24 format=3 uid="uid://c0e451o6fpync"]
 
-[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
-[ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
-[ext_resource type="Script" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
-[ext_resource type="Script" path="res://systems/cinematic_system/beats/despawn_beat.gd" id="5_despawn"]
-[ext_resource type="Script" path="res://systems/cinematic_system/beats/spawn_beat.gd" id="6_spawn"]
-[ext_resource type="Script" path="res://systems/cinematic_system/beats/silhouette_beat.gd" id="7_silhouette"]
-[ext_resource type="Script" path="res://systems/cinematic_system/beats/line_beat.gd" id="8_line"]
+[ext_resource type="Script" uid="uid://b5nqb3cfvle35" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
+[ext_resource type="Script" uid="uid://chagsms5f1ljc" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
+[ext_resource type="Script" uid="uid://bqvqbm0ye0blo" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
+[ext_resource type="Script" uid="uid://iet3jj8p2tfw" path="res://systems/cinematic_system/beats/despawn_beat.gd" id="5_despawn"]
+[ext_resource type="Script" uid="uid://caf5jj61k7vhb" path="res://systems/cinematic_system/beats/spawn_beat.gd" id="6_spawn"]
+[ext_resource type="Script" uid="uid://b5w0adf0csmqn" path="res://systems/cinematic_system/beats/silhouette_beat.gd" id="7_silhouette"]
+[ext_resource type="Script" uid="uid://basdyxkl4amw1" path="res://systems/cinematic_system/beats/line_beat.gd" id="8_line"]
 [ext_resource type="PackedScene" path="res://world/fusion_chamber.tscn" id="9_set"]
 
 [sub_resource type="StandardMaterial3D" id="Mat_tip"]
 shading_mode = 0
 albedo_color = Color(0.55, 0.75, 1, 1)
 
+[sub_resource type="SphereMesh" id="Mesh_tip"]
+radius = 0.3
+height = 0.6
+
 [sub_resource type="StandardMaterial3D" id="Mat_column"]
 transparency = 1
 shading_mode = 0
 albedo_color = Color(0.8, 0.9, 1, 0.55)
-
-[sub_resource type="StandardMaterial3D" id="Mat_blob"]
-shading_mode = 0
-albedo_color = Color(0.04, 0.03, 0.06, 1)
-
-[sub_resource type="StandardMaterial3D" id="Mat_core"]
-shading_mode = 0
-albedo_color = Color(0, 0, 0, 1)
-
-[sub_resource type="StandardMaterial3D" id="Mat_rim"]
-shading_mode = 0
-albedo_color = Color(0.3, 0.55, 1, 1)
-cull_mode = 1
-
-[sub_resource type="StandardMaterial3D" id="Mat_strike"]
-shading_mode = 0
-albedo_color = Color(0.85, 0.93, 1, 1)
-
-[sub_resource type="SphereMesh" id="Mesh_tip"]
-radius = 0.3
-height = 0.6
 
 [sub_resource type="CylinderMesh" id="Mesh_column"]
 top_radius = 0.9
 bottom_radius = 0.9
 height = 14.0
 
+[sub_resource type="StandardMaterial3D" id="Mat_blob"]
+shading_mode = 0
+albedo_color = Color(0.04, 0.03, 0.06, 1)
+
 [sub_resource type="SphereMesh" id="Mesh_blob"]
 radius = 0.3
 height = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_core"]
+shading_mode = 0
+albedo_color = Color(0, 0, 0, 1)
 
 [sub_resource type="SphereMesh" id="Mesh_core"]
 radius = 1.2
 height = 2.4
 
+[sub_resource type="StandardMaterial3D" id="Mat_rim"]
+cull_mode = 1
+shading_mode = 0
+albedo_color = Color(0.3, 0.55, 1, 1)
+
 [sub_resource type="SphereMesh" id="Mesh_rim"]
 radius = 1.35
 height = 2.7
+
+[sub_resource type="StandardMaterial3D" id="Mat_strike"]
+shading_mode = 0
+albedo_color = Color(0.85, 0.93, 1, 1)
 
 [sub_resource type="CylinderMesh" id="Mesh_strike"]
 top_radius = 0.3
@@ -342,7 +342,7 @@ tracks/22/keys = {
 
 [sub_resource type="Animation" id="Animation_scene"]
 resource_name = "scene"
-length = 33
+length = 33.0
 step = 0.05
 tracks/0/type = "value"
 tracks/0/imported = false
@@ -770,7 +770,6 @@ _data = {
 [node name="Fusion" type="Node3D"]
 script = ExtResource("1_stage")
 anchor_mark = &"FusionDevice"
-props = {}
 world_marks = PackedStringArray("FusionDevice", "FusionLeft", "FusionRight", "FusionResult")
 shot = &"opening"
 preview_set = ExtResource("9_set")
@@ -819,9 +818,6 @@ distance = 9.0
 azimuth_degrees = 0.0
 elevation_degrees = 5.0
 fov_degrees = 50.0
-look_role = &""
-look_mark = &""
-look_offset = Vector3(0, 0, 0)
 
 [node name="ceiling_up" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
@@ -831,9 +827,7 @@ distance = 0.0
 azimuth_degrees = 0.0
 elevation_degrees = 0.0
 fov_degrees = 75.0
-look_role = &""
 look_mark = &"Ceiling"
-look_offset = Vector3(0, 0, 0)
 
 [node name="pads_wide" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
@@ -843,9 +837,6 @@ distance = 6.0
 azimuth_degrees = 0.0
 elevation_degrees = 10.0
 fov_degrees = 45.0
-look_role = &""
-look_mark = &""
-look_offset = Vector3(0, 0, 0)
 
 [node name="ceiling_gather" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
@@ -855,9 +846,7 @@ distance = 5.0
 azimuth_degrees = 180.0
 elevation_degrees = 25.0
 fov_degrees = 65.0
-look_role = &""
 look_mark = &"Ceiling"
-look_offset = Vector3(0, 0, 0)
 
 [node name="orb_close" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
@@ -867,9 +856,6 @@ distance = 7.0
 azimuth_degrees = 0.0
 elevation_degrees = -55.0
 fov_degrees = 45.0
-look_role = &""
-look_mark = &""
-look_offset = Vector3(0, 0, 0)
 
 [node name="strike" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
@@ -879,21 +865,14 @@ distance = 6.0
 azimuth_degrees = 0.0
 elevation_degrees = 8.0
 fov_degrees = 50.0
-look_role = &""
-look_mark = &""
 look_offset = Vector3(0, 1.5, 0)
 
 [node name="reveal" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")
 subject_role = &"result"
-subject_mark = &""
 distance = 3.2
 azimuth_degrees = 0.0
 elevation_degrees = 6.0
-fov_degrees = 40.0
-look_role = &""
-look_mark = &""
-look_offset = Vector3(0, 0, 0)
 
 [node name="Effects" type="Node3D" parent="."]
 
@@ -913,43 +892,43 @@ visible = false
 
 [node name="Tip1" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0813, 12.7, 2.1048)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="Tip2" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1048, 12.7, 5.0813)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="Tip3" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1048, 12.7, 5.0813)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="Tip4" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0813, 12.7, 2.1048)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="Tip5" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0813, 12.7, -2.1048)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="Tip6" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1048, 12.7, -5.0813)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="Tip7" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1048, 12.7, -5.0813)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="Tip8" type="MeshInstance3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0813, 12.7, -2.1048)
-mesh = SubResource("Mesh_tip")
 material_override = SubResource("Mat_tip")
+mesh = SubResource("Mesh_tip")
 
 [node name="TipLight" type="OmniLight3D" parent="Effects/TipGlow"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 12.7, 0)
@@ -968,15 +947,15 @@ visible = false
 
 [node name="ColumnL" type="MeshInstance3D" parent="Effects/Columns"]
 transform = Transform3D(1, 0, 0, 0, 0.01, 0, 0, 0, 1, -2, 7, -2)
+material_override = SubResource("Mat_column")
 cast_shadow = 0
 mesh = SubResource("Mesh_column")
-material_override = SubResource("Mat_column")
 
 [node name="ColumnR" type="MeshInstance3D" parent="Effects/Columns"]
 transform = Transform3D(1, 0, 0, 0, 0.01, 0, 0, 0, 1, 2, 7, -2)
+material_override = SubResource("Mat_column")
 cast_shadow = 0
 mesh = SubResource("Mesh_column")
-material_override = SubResource("Mat_column")
 
 [node name="Blobs" type="Node3D" parent="Effects"]
 visible = false
@@ -985,81 +964,79 @@ visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.8, -2)
 
 [node name="Blob1" type="MeshInstance3D" parent="Effects/Blobs/BlobsL"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob2" type="MeshInstance3D" parent="Effects/Blobs/BlobsL"]
 transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0.35, 0.3, 0.1)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob3" type="MeshInstance3D" parent="Effects/Blobs/BlobsL"]
 transform = Transform3D(0.7, 0, 0, 0, 0.7, 0, 0, 0, 0.7, -0.3, 0.5, -0.2)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob4" type="MeshInstance3D" parent="Effects/Blobs/BlobsL"]
 transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, 0.1, 0.9, 0.3)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob5" type="MeshInstance3D" parent="Effects/Blobs/BlobsL"]
 transform = Transform3D(0.75, 0, 0, 0, 0.75, 0, 0, 0, 0.75, -0.2, -0.3, 0.3)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="BlobsR" type="Node3D" parent="Effects/Blobs"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.8, -2)
 
 [node name="Blob1" type="MeshInstance3D" parent="Effects/Blobs/BlobsR"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob2" type="MeshInstance3D" parent="Effects/Blobs/BlobsR"]
 transform = Transform3D(0.8, 0, 0, 0, 0.8, 0, 0, 0, 0.8, 0.35, 0.3, 0.1)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob3" type="MeshInstance3D" parent="Effects/Blobs/BlobsR"]
 transform = Transform3D(0.7, 0, 0, 0, 0.7, 0, 0, 0, 0.7, -0.3, 0.5, -0.2)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob4" type="MeshInstance3D" parent="Effects/Blobs/BlobsR"]
 transform = Transform3D(0.6, 0, 0, 0, 0.6, 0, 0, 0, 0.6, 0.1, 0.9, 0.3)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Blob5" type="MeshInstance3D" parent="Effects/Blobs/BlobsR"]
 transform = Transform3D(0.75, 0, 0, 0, 0.75, 0, 0, 0, 0.75, -0.2, -0.3, 0.3)
+material_override = SubResource("Mat_blob")
 cast_shadow = 0
 mesh = SubResource("Mesh_blob")
-material_override = SubResource("Mat_blob")
 
 [node name="Orb" type="Node3D" parent="Effects"]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 11, 0)
 visible = false
 
 [node name="Core" type="MeshInstance3D" parent="Effects/Orb"]
+material_override = SubResource("Mat_core")
 cast_shadow = 0
 mesh = SubResource("Mesh_core")
-material_override = SubResource("Mat_core")
 
 [node name="Rim" type="MeshInstance3D" parent="Effects/Orb"]
+material_override = SubResource("Mat_rim")
 cast_shadow = 0
 mesh = SubResource("Mesh_rim")
-material_override = SubResource("Mat_rim")
 
 [node name="RoomLight" type="OmniLight3D" parent="Effects"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 6, 0)
@@ -1070,9 +1047,9 @@ omni_range = 25.0
 [node name="Strike" type="MeshInstance3D" parent="Effects"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, 2)
 visible = false
+material_override = SubResource("Mat_strike")
 cast_shadow = 0
 mesh = SubResource("Mesh_strike")
-material_override = SubResource("Mat_strike")
 
 [node name="ResultGlow" type="OmniLight3D" parent="Effects"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 2)
@@ -1097,12 +1074,10 @@ at = &"FusionRight"
 [node name="BlackenParentA" type="Node" parent="Beats"]
 script = ExtResource("7_silhouette")
 role = &"parent_a"
-color = Color(0, 0, 0, 1)
 
 [node name="BlackenParentB" type="Node" parent="Beats"]
 script = ExtResource("7_silhouette")
 role = &"parent_b"
-color = Color(0, 0, 0, 1)
 
 [node name="DespawnParentA" type="Node" parent="Beats"]
 script = ExtResource("5_despawn")
@@ -1132,11 +1107,10 @@ clear = true
 script = ExtResource("8_line")
 role = &"result"
 text = "{greeting}"
-wait_for_advance = true
 auto_seconds = 8.0
 
 [node name="Timeline" type="AnimationPlayer" parent="."]
 callback_mode_method = 1
 libraries = {
-"": SubResource("AnimationLibrary_fusion")
+&"": SubResource("AnimationLibrary_fusion")
 }
