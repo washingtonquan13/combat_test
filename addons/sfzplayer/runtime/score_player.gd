@@ -135,13 +135,14 @@ const LAYER_EARLY := 0.05
 var intensity: int = 0
 
 # The three parts of a compiled piece, each sorted by "t", seconds from the top
-# of the piece. Without a loop, everything is in _head.
-var _head: Array = []       # the intro and the loop's first pass
+# of the piece, and packed (see SfzEventList). Without a loop, everything is
+# in _head.
+var _head := SfzEventList.new()  # the intro and the loop's first pass
 # Later passes of the loop, each performed coming out of the one before,
 # each timed as the pass it was compiled as: _bodies[k] sits a further loop
 # length on. They are played in order and then from the start again.
-var _bodies: Array[Array] = []
-var _tail: Array = []       # the outro, timed as if it followed the last body
+var _bodies: Array[SfzEventList] = []
+var _tail := SfzEventList.new()  # the outro, timed as if it followed the last body
 var _loop_length := 0.0
 var _loop_end := 0.0        # where the first pass ends
 var _lead_in := 0.0         # how far before a pass its earliest event falls
@@ -370,12 +371,14 @@ func articulations() -> Dictionary:
 	if _plan.is_empty():
 		push_error("ScorePlayer: articulations() before prepare()")
 		return found
-	for event: Dictionary in _planned():
-		if event["kind"] != "art":
-			continue
-		var arts: Array = found.get_or_add(_planned_cast(event["part"]), [])
-		if not arts.has(event["art"]):
-			arts.append(event["art"])
+	for list in _planned():
+		for i in list.size():
+			if list.kind_at(i) != "art":
+				continue
+			var event := list.at(i)
+			var arts: Array = found.get_or_add(_planned_cast(event["part"]), [])
+			if not arts.has(event["art"]):
+				arts.append(event["art"])
 	return found
 
 
@@ -389,27 +392,32 @@ func played() -> Dictionary:
 	if _plan.is_empty():
 		push_error("ScorePlayer: played() before prepare()")
 		return found
-	for event: Dictionary in _planned():
-		var kind: String = event["kind"]
-		if kind != "note" and kind != "hit":
-			continue
-		var part_name := _planned_cast(event["part"])
-		if part_name == "":
-			continue
-		var plays: Dictionary = found.get_or_add(part_name, {"keys": [], "drums": []})
-		var list: Array = plays["keys"] if kind == "note" else plays["drums"]
-		var what: Variant = int(event["key"]) if kind == "note" else event["drum"]
-		if not list.has(what):
-			list.append(what)
+	for list in _planned():
+		for i in list.size():
+			var kind := list.kind_at(i)
+			if kind != "note" and kind != "hit":
+				continue
+			_add_played(found, kind, list.at(i))
 	return found
 
 
-# Every event of the prepared piece: head, tail and each body.
-func _planned() -> Array:
-	var events: Array = _plan["head"] + _plan["tail"]
-	for body: Array in _plan["bodies"]:
-		events.append_array(body)
-	return events
+# One note or hit of the prepared piece, added to played()'s `found`.
+func _add_played(found: Dictionary, kind: String, event: Dictionary) -> void:
+	var part_name := _planned_cast(event["part"])
+	if part_name == "":
+		return
+	var plays: Dictionary = found.get_or_add(part_name, {"keys": [], "drums": []})
+	var list: Array = plays["keys"] if kind == "note" else plays["drums"]
+	var what: Variant = int(event["key"]) if kind == "note" else event["drum"]
+	if not list.has(what):
+		list.append(what)
+
+
+# Every part of the prepared piece: head, tail and each body.
+func _planned() -> Array[SfzEventList]:
+	var lists: Array[SfzEventList] = [_plan["head"], _plan["tail"]]
+	lists.append_array(_plan["bodies"])
+	return lists
 
 
 # _cast_of() for the prepared piece, which may not be installed yet.
@@ -444,9 +452,9 @@ func stop() -> void:
 	while not _offs.is_empty():
 		_release(_offs.pop_front())
 	_parts.clear()
-	_head = []
+	_head = SfzEventList.new()
 	_bodies = []
-	_tail = []
+	_tail = SfzEventList.new()
 
 
 # Moves the piece to intensity `level`, and says when, in seconds from the
@@ -765,15 +773,15 @@ func _prepare(new_score: SfzScore) -> void:
 # is used nowhere else, is set up for the run.
 func _build(new_score: SfzScore, against: SfzEnsemble) -> Dictionary:
 	compiler.ensemble = against
-	var plan := {"score": new_score, "head": [], "bodies": [] as Array[Array],
-		"tail": [], "loop_length": 0.0, "loop_end": 0.0, "lead_in": 0.0,
+	var plan := {"score": new_score, "head": SfzEventList.new(), "bodies": [] as Array[SfzEventList],
+		"tail": SfzEventList.new(), "loop_length": 0.0, "loop_end": 0.0, "lead_in": 0.0,
 		"loop_start": 0.0, "end": INF, "marks": {}, "intro_marks": {}, "unmapped": {}, "findings": {}, "said": [],
 		"ensemble": "" if against == null else against.id,
 		"cast": {} if against == null else against.cast(new_score.parts)}
 
 	if not new_score.has_loop():
 		var events := compiler.compile(new_score)
-		plan["head"] = events
+		plan["head"] = SfzEventList.pack(events)
 		plan.merge(_report(new_score, events, against), true)
 		plan["end"] = new_score.duration()
 		plan["marks"] = _marks_of(new_score, 0, new_score.order.size())
@@ -837,9 +845,12 @@ func _build(new_score: SfzScore, against: SfzEnsemble) -> Dictionary:
 		lead_in = maxf(lead_in, loop_end + loop_variations * loop_length
 				- float(tail[0]["t"]))
 
-	plan["head"] = head
-	plan["bodies"] = bodies
-	plan["tail"] = tail
+	plan["head"] = SfzEventList.pack(head)
+	var packed: Array[SfzEventList] = []
+	for body in bodies:
+		packed.append(SfzEventList.pack(body))
+	plan["bodies"] = packed
+	plan["tail"] = SfzEventList.pack(tail)
 	plan["loop_length"] = loop_length
 	plan["loop_end"] = loop_end
 	plan["lead_in"] = lead_in
@@ -1239,7 +1250,7 @@ func _cut(exit: float, outro: bool = true) -> void:
 	for off: Dictionary in _offs:
 		off["end"] = _clamped(off)
 	_offs.sort_custom(_sooner)
-	_parts.append({"events": [{"kind": "rest", "t": stop}], "next": 0, "offset": 0.0})
+	_parts.append({"events": SfzEventList.pack([{"kind": "rest", "t": stop}]), "next": 0, "offset": 0.0})
 	for item: Dictionary in _sounding:
 		if float(item["note_end"]) > stop:
 			var early := item.duplicate()
@@ -1277,11 +1288,11 @@ func _pump(horizon: float) -> void:
 		var best_at := INF
 		for k in _parts.size():
 			var part: Dictionary = _parts[k]
-			var events: Array = part["events"]
+			var events: SfzEventList = part["events"]
 			var i: int = part["next"]
 			if i >= events.size():
 				continue
-			var at: float = float(events[i]["t"]) + float(part["offset"])
+			var at: float = events.t_at(i) + float(part["offset"])
 			if at >= float(part.get("stop", INF)):
 				# Cut: the rest of this part never plays.
 				part["next"] = events.size()
@@ -1295,7 +1306,7 @@ func _pump(horizon: float) -> void:
 		if best < 0 or best_at > horizon:
 			break
 		var part: Dictionary = _parts[best]
-		var event: Dictionary = part["events"][part["next"]]
+		var event: Dictionary = (part["events"] as SfzEventList).at(part["next"])
 		part["next"] = int(part["next"]) + 1
 		_send(event, part, best_at)
 
@@ -1311,7 +1322,7 @@ func _pump(horizon: float) -> void:
 	# Parts that are done are dropped, so a loop can run for hours.
 	var live: Array = []
 	for part: Dictionary in _parts:
-		if int(part["next"]) < (part["events"] as Array).size():
+		if int(part["next"]) < (part["events"] as SfzEventList).size():
 			live.append(part)
 	_parts = live
 
@@ -1489,7 +1500,7 @@ func _change_level(when: float, level: int) -> void:
 	if int(_levels[-1][1]) == level:
 		return
 	_levels.append([when, level])
-	_parts.append({"events": [{"kind": "layers", "t": when}], "next": 0, "offset": 0.0})
+	_parts.append({"events": SfzEventList.pack([{"kind": "layers", "t": when}]), "next": 0, "offset": 0.0})
 
 
 # What set_intensity() lands on: next_boundary(), or `earliest` itself when
