@@ -76,6 +76,8 @@ func _update_status() -> void:
 		text += "  (transition under way)"
 	if Music.preloaded() != "":
 		text += "  [preloaded: %s]" % Music.preloaded()
+	elif Music.prepared_area() != "":
+		text += "  [scores ready: %s]" % Music.prepared_area()
 	_status_label.text = text
 	_stats_label.text = _format_stats(Music.stats()) if Music.is_playing() else ""
 

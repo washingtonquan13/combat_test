@@ -20,6 +20,16 @@ extends Node
 ## combat music only for a fight in the world on SCREEN, the fight's music
 ## comes back after a negotiation, and the title screen has its own piece
 ## (see main_menu.gd).
+##
+## What is held in memory ahead of time is decided here too. Preloading
+## stops at compiled scores (no samples): a whole ensemble held in the
+## background for a fight that may never come doubled the music's memory.
+## The one exception is a fight that is plausibly about to start - a hostile
+## within its own sight range of the party, in the world on screen. Then the
+## area's combat ensemble is loaded, so the fight's music still starts on the
+## next bar, and let go again once no hostile has been in range for
+## RELEASE_AFTER. Detection itself gives no warning: becoming AWARE of a
+## hostile starts the fight in the same scan.
 
 ## Every piece of music asked of the director, in order, before it is
 ## checked against the table. What the game wanted, whatever the director
@@ -41,6 +51,21 @@ const PRELOAD_DELAY := 3.0
 ## every world load and fight, and the first warning says all there is.
 var _reported_missing: Dictionary[String, bool] = {}
 
+## How often the party's surroundings are checked for a likely fight. Slower
+## than DetectionManager's sweep on purpose: a load takes longer than this.
+const THREAT_POLL := 0.5
+## Seconds with no hostile in range before a held combat ensemble is let go.
+## Long enough that walking along the edge of a camp does not load and
+## unload it over and over.
+const RELEASE_AFTER := 10.0
+## Once held, the range that keeps it held: a little past the range that
+## loaded it, for the same reason.
+const RELEASE_REACH := 1.25
+
+var _poll_elapsed := 0.0
+## When a hostile was last in range, in ticks_msec.
+var _threat_seen_msec := 0
+
 
 ## Between SaveManager.load_started and load_finished: the game is passing
 ## through states nobody saved, and none of them is asked for.
@@ -59,9 +84,61 @@ func _ready() -> void:
 	WorldManager.world_focused.connect(_reconcile.unbind(1))
 	SaveManager.load_started.connect(_on_load_started.unbind(1))
 	SaveManager.load_finished.connect(_on_load_finished.unbind(3))
+	Music.preload_hold = SfzMusicDirector.Hold.SCORES
 	# The title's music is not preloaded here: its ensemble is hundreds of MB
 	# held from boot, alongside everything else the game is loading, for a
 	# screen that asks for it seconds later anyway. It loads when asked.
+
+
+func _process(delta: float) -> void:
+	_poll_elapsed += delta
+	if _poll_elapsed < THREAT_POLL:
+		return
+	_poll_elapsed = 0.0
+	_hold_combat_if_near()
+
+
+## Holds the area's combat ensemble while a fight is plausibly about to
+## start, and lets go of it once one is not (see the header). Only while
+## exploring: in a fight or a negotiation, _go() owns what is preloaded.
+func _hold_combat_if_near() -> void:
+	if _loading or wanted_moment() != EXPLORATION or Music.is_busy():
+		return
+	var area: AreaDefinition = WorldManager.current_area()
+	if area == null or not Music.table:
+		return
+	var combat := music_area(area.id, COMBAT)
+	if not Music.table.has_area(combat):
+		return
+	var held := Music.preloaded() == combat
+	var now := Time.get_ticks_msec()
+	if a_hostile_is_in_range(RELEASE_REACH if held else 1.0):
+		_threat_seen_msec = now
+		if not held:
+			Music.preload_area(combat, SfzMusicDirector.Hold.ENSEMBLE)
+	elif held and now - _threat_seen_msec > RELEASE_AFTER * 1000.0:
+		Music.release_preload()
+
+
+## Whether any living hostile in the world on screen is within its own sight
+## range (times `reach`) of a party member there: the distance at which
+## DetectionManager starts rolling, so the earliest a fight can begin.
+func a_hostile_is_in_range(reach: float = 1.0) -> bool:
+	var context: WorldContext = WorldManager.context()
+	var party: Array[Unit] = []
+	var others: Array[Unit] = []
+	for unit in UnitQuery.living_units(get_tree()):
+		if context != null and not context.contains(unit):
+			continue
+		if unit.is_player_controlled():
+			party.append(unit)
+		else:
+			others.append(unit)
+	for other in others:
+		for member in party:
+			if other.get_world_3d() == member.get_world_3d() and other.is_hostile_to(member) 					and other.distance_to(member) <= other.max_sight_range * reach:
+				return true
+	return false
 
 
 ## The director's name for an area's music at a moment. The one place the

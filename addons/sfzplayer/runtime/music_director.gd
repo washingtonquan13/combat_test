@@ -33,6 +33,14 @@ extends Node
 # renders nothing until the go_to() that plays it, which releases it before a
 # note is placed on its clock.
 #
+# A held ensemble is all of its memory, for as long as it waits. So a preload
+# has two depths. Hold.ENSEMBLE is the above. Hold.SCORES reads and compiles
+# the score and stings and keeps them, and loads nothing: the go_to() that
+# follows still loads the ensemble, and its exit waits for that, but it
+# compiles nothing. A game holds SCORES for what might come and asks for
+# ENSEMBLE when it is about to - preload_area() again, which reuses the
+# compile - and release_preload() when it no longer is.
+#
 # The rest is what a game does to its music without changing it: a volume
 # for its options menu (volume_db), ducking under dialogue (duck/unduck),
 # stopping it dead for a pause menu or a cutscene (pause/resume), and saving
@@ -54,6 +62,9 @@ signal transition_finished(area: String)
 # finished, or the queue has moved on. What a queued request waits on.
 signal _turn
 
+# How deep a preload goes: see the header.
+enum Hold { SCORES, ENSEMBLE }
+
 const BUSES: Array[StringName] = [&"MusicA", &"MusicB"]
 
 # Quiet enough to be inaudible, loud enough that the fade back up is not a
@@ -65,6 +76,9 @@ const SILENT_DB := -60.0
 # alongside the current one is a decision rather than an accident. Two of the
 # ensembles on the roster are large.
 var memory_budget: int = 768 << 20
+
+# What preload_area() does when it is not told.
+var preload_hold: Hold = Hold.ENSEMBLE
 
 # The crossfade for go_to_piece() without a rule, and for silence().
 var fade_time: float = 2.5
@@ -114,6 +128,8 @@ var _ramps := {}                   # "_duck_db"/"_pause_db" -> its Tween
 var _intensity := 0
 var _scores := {}                  # path -> SfzScore, parsed ahead by preload_area()
 var _prepared := {}                # path -> SfzScorePlayer, compiled ahead by preload_area()
+var _prepared_area := ""           # the area _prepared was compiled for
+var _prepared_ensemble: SfzEnsemble    # and the manifest it was compiled against
 var _last_read := {}
 var _reading: Thread             # _read()'s thread while it runs, joined on free
 
@@ -199,55 +215,65 @@ func set_intensity(level: int, at: String = "bar") -> float:
 	return soonest
 
 
-# The area's ensemble, loaded into the idle slot ahead of time, in the background.
-# Returns whether it is there.
-func preload_area(new_area: String) -> bool:
+# The area's music, made ready in the background: to `hold` (Hold; -1 for
+# preload_hold). Returns whether it is ready to that depth or deeper.
+func preload_area(new_area: String, hold: int = -1) -> bool:
 	if not _has(new_area):
 		return false
+	if hold < 0:
+		hold = preload_hold
 	var back := 1 - _front
 	if _preloaded == new_area and _conductors[back].is_loaded():
+		return true
+	if hold == Hold.SCORES and _prepared_area == new_area:
 		return true
 	if _busy:
 		push_error("MusicDirector: cannot preload mid-transition")
 		return false
 	_busy = true
-	_free_prepared()
-	# The score and the stings the table would play on the way in are read
-	# first, and compiled: what they switch to is all of the ensemble that is
-	# loaded (SfzConductor.load_ensemble). They are kept, so the go_to() that
-	# follows starts from what is already in memory.
-	var from := area if is_playing() else ""
-	var paths := [table.score_path(new_area)]
-	for urgent in [false, true]:
-		var sting: String = table.rule(from, new_area, urgent)["sting"]
-		if sting != "":
-			paths.append(SfzTransitions.sting_path(sting))
-	var read := await _read(_uncached(paths), table.ensemble_path(new_area))
-	for path: String in read["scores"]:
-		if read["scores"][path] != null:
-			_scores[path] = read["scores"][path]
-	var ensemble: SfzEnsemble = read["ensemble"]
-	var ok := ensemble != null
-	if ok:
+	var ok := true
+	if _prepared_area != new_area:
+		ok = await _prepare(new_area, back)
+	if ok and hold == Hold.ENSEMBLE:
 		var articulations := {}
 		var played := {}
-		for path: String in paths:
-			if _scores.has(path):
-				var player := _player(back)
-				await player.prepare(_scores[path], ensemble)
-				_merge_articulations(articulations, player.articulations())
-				_merge_played(played, player.played())
-				# Kept compiled: the go_to() that follows plays it as it is.
-				# Compiling is most of a transition that has nothing to load.
-				_prepared[path] = player
-		ok = await _load(back, ensemble, articulations, played)
-	if ok:
-		# Nothing plays it until go_to(): it waits without rendering.
-		_conductors[back].hold()
-		_meter("preloaded '%s'" % new_area, heads_memory())
-	_preloaded = new_area if ok else ""
+		for path: String in _prepared:
+			_merge_articulations(articulations, _prepared[path].articulations())
+			_merge_played(played, _prepared[path].played())
+		ok = await _load(back, _prepared_ensemble, articulations, played)
+		if ok:
+			# Nothing plays it until go_to(): it waits without rendering.
+			_conductors[back].hold()
+			_meter("preloaded '%s'" % new_area, heads_memory())
+		_preloaded = new_area if ok else ""
+	elif ok:
+		# An ensemble held for some other area is not what comes next.
+		await _unload_back()
+		_meter("prepared '%s' (scores only)" % new_area, heads_memory())
 	_free()
 	return ok
+
+
+# Lets go of a preloaded ensemble, keeping the compiled scores: the area is
+# still prepared, to the SCORES depth. False, and nothing done, mid-transition
+# or with a request waiting.
+func release_preload() -> bool:
+	if _queued():
+		return false
+	if _preloaded == "":
+		return true
+	_busy = true
+	var was := _preloaded
+	await _unload_back()
+	_meter("released '%s'" % was, heads_memory())
+	_free()
+	return true
+
+
+# The area whose scores are compiled ahead, if any; preloaded() says whether
+# its ensemble is held too.
+func prepared_area() -> String:
+	return _prepared_area
 
 
 # Where the preloaded slot is, if anywhere.
@@ -329,6 +355,8 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 	_scores.clear()
 	var prepared := _prepared
 	_prepared = {}
+	_prepared_area = ""
+	_prepared_ensemble = null
 	_last_read = {"parsed": read["parsed"], "cached": wanted.size() - read["parsed"],
 		"on_main_thread": read["on_main_thread"]}
 	var score: SfzScore = scores[score_path]
@@ -473,6 +501,7 @@ func silence() -> void:
 	for c in _conductors:
 		await c.freed()
 	_preloaded = ""
+	_free_prepared()
 	area = ""
 	_free()
 
@@ -595,6 +624,47 @@ func _free_prepared() -> void:
 	for path: String in _prepared:
 		_prepared[path].queue_free()
 	_prepared = {}
+	_prepared_area = ""
+	_prepared_ensemble = null
+
+
+# Reads and compiles `new_area`'s score and the stings the table would play
+# on the way in, keeping them: what they switch to is all of the ensemble
+# that is loaded (SfzConductor.load_ensemble), and the go_to() that follows
+# plays them as they are. Compiling is most of a transition that has nothing
+# to load.
+func _prepare(new_area: String, back: int) -> bool:
+	_free_prepared()
+	var from := area if is_playing() else ""
+	var paths := [table.score_path(new_area)]
+	for urgent in [false, true]:
+		var sting: String = table.rule(from, new_area, urgent)["sting"]
+		if sting != "":
+			paths.append(SfzTransitions.sting_path(sting))
+	var read := await _read(_uncached(paths), table.ensemble_path(new_area))
+	for path: String in read["scores"]:
+		if read["scores"][path] != null:
+			_scores[path] = read["scores"][path]
+	var ensemble: SfzEnsemble = read["ensemble"]
+	if ensemble == null:
+		return false
+	for path: String in paths:
+		if _scores.has(path):
+			var player := _player(back)
+			await player.prepare(_scores[path], ensemble)
+			_prepared[path] = player
+	_prepared_area = new_area
+	_prepared_ensemble = ensemble
+	return true
+
+
+# Empties the idle slot, if it holds anything.
+func _unload_back() -> void:
+	var back := 1 - _front
+	if _conductors[back].is_loaded():
+		_conductors[back].unload()
+		await _conductors[back].freed()
+	_preloaded = ""
 
 
 func _free() -> void:
