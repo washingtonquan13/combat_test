@@ -91,12 +91,24 @@ func run() -> void:
 		return
 	_save_path = saves[0]["path"]
 
+	var asked: Array[String] = []
+	var listen := func(music: String) -> void: asked.append(music)
+	MusicManager.requested.connect(listen)
 	if not SaveManager.load_file(_save_path):
+		MusicManager.requested.disconnect(listen)
 		check("SETUP: the save loads", false)
 		_restore()
 		return
 	await get_tree().process_frame
 	await get_tree().process_frame
+	MusicManager.requested.disconnect(listen)
+
+	# Reported from play: the restore builds and focuses every area the
+	# party stands in, one after another, and each one's music was asked
+	# for and played in turn before the saved area's.
+	check("the load asks for the saved area's music and nothing else",
+		asked == [MusicManager.music_area(HOME, MusicManager.EXPLORATION)],
+		"asked for %s" % [asked])
 
 	# --- the actual question -----------------------------------------
 	check("the party comes back as two groups, not one",

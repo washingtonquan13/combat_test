@@ -85,6 +85,14 @@ signal load_completed(path: String)
 ## return cannot forget to fire it.
 signal load_finished(path: String, ok: bool, reason: String)
 
+## A load is starting. Between this and load_finished the game passes through
+## states nobody saved: every area the party stands in is built and focused
+## in turn, the saved one last. Anything whose response to a state is costly
+## and cannot be taken back (the music) waits for load_finished and looks at
+## where the load left the game, rather than answering each step of it.
+## Always followed by load_finished, from the same wrapper.
+signal load_started(path: String)
+
 ## A brand new game has just been started: every registered system is
 ## empty, every world is gone, and nothing of the previous game is live.
 ##
@@ -378,6 +386,7 @@ func save(save_name: String) -> bool:
 ## _on_world_loaded can tell them from an ordinary walk through a door
 ## without this having to remember that a load is in progress.
 func load_file(path: String) -> bool:
+	load_started.emit(path)
 	var reason: String = _perform_load(path)
 	var ok: bool = reason == ""
 	if ok:

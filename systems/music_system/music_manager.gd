@@ -4,10 +4,10 @@ extends Node
 ##
 ## Decides WHAT plays and WHEN; the sfzplayer director (the `Music`
 ## autoload) and music/transitions.json decide HOW. This file never fades,
-## times or loads anything itself: it turns the moments the game already
-## announces (a world on screen, a fight starting, a negotiation) into
-## Music.go_to() calls, and the table says whether that lands on the next
-## bar, the next section, or through the outgoing piece's ending.
+## times or loads anything itself: it turns where the game has settled (the
+## world on screen, a fight in it, a negotiation) into Music.go_to() calls,
+## and the table says whether that lands on the next bar, the next section,
+## or through the outgoing piece's ending.
 ##
 ## Music is named per game area and moment — "<area id>.<moment>" — and
 ## derived, never stored: an AreaDefinition does not say what it plays,
@@ -20,6 +20,11 @@ extends Node
 ## combat music only for a fight in the world on SCREEN, the fight's music
 ## comes back after a negotiation, and the title screen has its own piece
 ## (see main_menu.gd).
+
+## Every piece of music asked of the director, in order, before it is
+## checked against the table. What the game wanted, whatever the director
+## then does with it.
+signal requested(music: String)
 
 const EXPLORATION: StringName = &"exploration"
 const COMBAT: StringName = &"combat"
@@ -37,16 +42,23 @@ const PRELOAD_DELAY := 3.0
 var _reported_missing: Dictionary[String, bool] = {}
 
 
+## Between SaveManager.load_started and load_finished: the game is passing
+## through states nobody saved, and none of them is asked for.
+var _loading := false
+
+
 func _ready() -> void:
 	CombatManager.combat_started.connect(_on_combat_started)
-	CombatManager.combat_ended.connect(_on_combat_ended)
-	Conversations.began.connect(_on_conversation_began)
-	Conversations.ended.connect(_on_conversation_ended)
-	WorldManager.world_loaded.connect(_on_world_loaded)
-	# Re-entering a world that stayed loaded emits world_focused and NOT
-	# world_loaded, and so does switching to a group standing somewhere
-	# else. Both change which area the player is in.
-	WorldManager.world_focused.connect(_on_world_focused)
+	CombatManager.combat_ended.connect(_reconcile.unbind(1))
+	Conversations.began.connect(_reconcile.unbind(1))
+	Conversations.ended.connect(_reconcile.unbind(1))
+	# Every change of the world on screen emits this: a door walked through,
+	# a world that stayed loaded re-entered, a switch to a group standing
+	# somewhere else. world_loaded comes after it for a new world and says
+	# nothing more about where the player is.
+	WorldManager.world_focused.connect(_reconcile.unbind(1))
+	SaveManager.load_started.connect(_on_load_started.unbind(1))
+	SaveManager.load_finished.connect(_on_load_finished.unbind(3))
 	# The title's music is not preloaded here: its ensemble is hundreds of MB
 	# held from boot, alongside everything else the game is loading, for a
 	# screen that asks for it seconds later anyway. It loads when asked.
@@ -62,26 +74,26 @@ func play_main_menu() -> void:
 	_go(MAIN_MENU)
 
 
-## A restore builds every area the party stands in and fires this once per
-## area, focused area last. Harmless: the director queues requests and only
-## the latest one waiting goes, so the focused area is what plays.
-func _on_world_loaded(_world: Node, _reason: WorldManager.Entry) -> void:
-	_play_moment(EXPLORATION)
+## A restore builds and focuses every area the party stands in, one after
+## another, the saved one last. Answered step by step, each of those areas'
+## music was asked for in turn - and the director never takes back a
+## transition it has begun, so each one played before the next. None of them
+## is where the player is until the load says so.
+func _on_load_started() -> void:
+	_loading = true
 
 
-## The player is now looking at a different world, which may already have
-## a fight running in it.
-func _on_world_focused(_world: Node) -> void:
-	_play_moment(COMBAT if CombatManager.a_watched_fight_is_running() else EXPLORATION)
+## Successful or not, the load is over and the game is wherever it left it.
+func _on_load_finished() -> void:
+	_loading = false
+	_reconcile()
 
 
-## Only a fight in the world on SCREEN. Fights run in worlds the player is
-## not looking at (see WorldManager residency), and scoring an unseen
-## skirmish over the area the player is walking around in is wrong.
+## Only a fight in the world on SCREEN cannot wait for a phrase to end. Fights
+## run in worlds the player is not looking at (see WorldManager residency),
+## and wanted_moment() already leaves those out.
 func _on_combat_started(turn_order: Array[Unit]) -> void:
-	if not _is_on_screen(turn_order):
-		return
-	_play_moment(COMBAT, true)
+	_reconcile(_is_on_screen(turn_order))
 
 
 ## True when any of these units is in the world being looked at. No world
@@ -96,41 +108,31 @@ func _is_on_screen(units: Array[Unit]) -> bool:
 	return false
 
 
-## A negotiation ending that also ends combat does not start the
-## exploration music itself; this handler does, whichever order the two
-## signals arrive in, so there is only ever one caller.
-func _on_combat_ended(_winning_faction: StringName) -> void:
-	# A split party can be in two fights at once, and the one that ended
-	# may not be the one on screen.
-	if CombatManager.a_watched_fight_is_running():
+## The music the game wants, derived from where it is, never from which signal
+## arrived: so the order signals arrive in cannot matter (a negotiation that
+## ends a fight reports the fight's end first), and the same state asked twice
+## is the same music, which the director leaves playing.
+func _reconcile(urgent: bool = false) -> void:
+	if _loading:
 		return
-	_play_moment(EXPLORATION)
-
-
-## Only a negotiation has music of its own; an ordinary dialogue leaves
-## whatever is playing alone, as it always did.
-func _on_conversation_began(c: Conversation) -> void:
-	if c.presentation == &"negotiation":
-		_play_moment(NEGOTIATION)
-
-
-## A recruit/flee/heal outcome can remove the last hostile and end
-## combat in the same beat, so this reads live state rather than trusting
-## signal order: no fight left means combat_ended already went back to
-## exploration.
-func _on_conversation_ended(c: Conversation) -> void:
-	if c.presentation != &"negotiation":
-		return
-	if not CombatManager.any_combat_running():
-		return
-	_play_moment(COMBAT)
-
-
-func _play_moment(moment: StringName, urgent: bool = false) -> void:
 	var area: AreaDefinition = WorldManager.current_area()
 	if area == null:
 		return
+	var moment := wanted_moment()
 	_go(music_area(area.id, moment), urgent, _next_likely(area.id, moment))
+
+
+## The moment the game is in, from live state alone. Only a negotiation has
+## music of its own; an ordinary dialogue leaves whatever the moment is. A
+## split party can be in two fights at once, and only one in the world on
+## screen is scored.
+func wanted_moment() -> StringName:
+	var c: Conversation = Conversations.current
+	if c != null and c.presentation == &"negotiation":
+		return NEGOTIATION
+	if CombatManager.a_watched_fight_is_running():
+		return COMBAT
+	return EXPLORATION
 
 
 ## What the game may ask for next from here, loaded in the background so it
@@ -155,6 +157,7 @@ func _next_likely(area_id: StringName, moment: StringName) -> String:
 ## also waits PRELOAD_DELAY, and does not happen at all if the music has
 ## moved on meanwhile - the preload is for what may follow this music.
 func _go(music: String, urgent: bool = false, preload_next: String = "") -> void:
+	requested.emit(music)
 	if not Music.table or not Music.table.has_area(music):
 		if not _reported_missing.has(music):
 			_reported_missing[music] = true
