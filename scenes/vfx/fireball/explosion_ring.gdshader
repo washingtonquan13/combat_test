@@ -2,8 +2,8 @@ shader_type spatial;
 // The shockwave of a fireball's blast: a ring of fire racing out across the
 // ground, torn by noise, with a glow on the ground inside it. Made for a
 // flat PlaneMesh; animate `progress` from 0 (at the centre) to 1 (at the
-// plane's edge).
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
+// plane's edge). Crisp-edged, in flat bands.
+render_mode unshaded, blend_mix, depth_draw_never, cull_disabled;
 
 uniform vec4 ring_color : source_color = vec4(1.0, 0.55, 0.15, 1.0);
 uniform vec4 glow_color : source_color = vec4(1.0, 0.3, 0.05, 1.0);
@@ -36,7 +36,8 @@ void fragment() {
 	ring *= 0.4 + n * 0.9;
 	float inside = (1.0 - smoothstep(0.0, progress, d)) * glow * n;
 	float fade = 1.0 - progress;
-	vec3 col = ring_color.rgb * ring + glow_color.rgb * inside;
-	ALBEDO = col * intensity;
-	ALPHA = clamp((ring + inside) * fade, 0.0, 1.0) * step(d, 1.0);
+	float r = step(0.35, ring * fade);
+	float g = step(0.3, inside * fade);
+	ALBEDO = mix(glow_color.rgb, ring_color.rgb, r) * intensity;
+	ALPHA = max(r, g * 0.6) * step(d, 1.0);
 }

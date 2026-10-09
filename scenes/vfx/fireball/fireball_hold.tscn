@@ -1,30 +1,32 @@
-[gd_scene load_steps=35 format=3]
+[gd_scene load_steps=32 format=3]
 
 [ext_resource type="Shader" path="res://scenes/vfx/fireball/fireball_core.gdshader" id="1_rjw0t"]
+[ext_resource type="Shader" path="res://scenes/vfx/fireball/toon_fire.gdshader" id="2_6dhl1"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_6dhl1"]
 render_priority = 0
 shader = ExtResource("1_rjw0t")
-shader_parameter/hot_color = null
-shader_parameter/rim_color = null
-shader_parameter/intensity = null
+shader_parameter/hot_color = Color(1, 0.95, 0.65, 1)
+shader_parameter/rim_color = Color(1, 0.38, 0.05, 1)
+shader_parameter/intensity = 1.3
 shader_parameter/churn_speed = null
 shader_parameter/churn_amount = null
 shader_parameter/churn_scale = null
+shader_parameter/bands = 3.0
 
 [sub_resource type="SphereMesh" id="SphereMesh_cq3h6"]
 material = SubResource("ShaderMaterial_6dhl1")
-radius = 0.07
-height = 0.14
+radius = 0.1
+height = 0.2
 radial_segments = 24
 rings = 12
 
-[sub_resource type="Gradient" id="Gradient_wx1xy"]
-offsets = PackedFloat32Array(0, 0.25, 0.6, 1)
-colors = PackedColorArray(1.6, 1.3, 0.8, 1, 1.5, 0.7, 0.15, 0.9, 1, 0.25, 0.03, 0.55, 0.4, 0.05, 0, 0)
+[sub_resource type="Gradient" id="Gradient_cq3h6"]
+offsets = PackedFloat32Array(0, 0.3, 0.7, 1)
+colors = PackedColorArray(1, 0.72, 0.18, 1, 1, 0.4, 0.06, 0.85, 0.85, 0.16, 0.03, 0.5, 0.4, 0.05, 0.02, 0)
 
-[sub_resource type="GradientTexture1D" id="GradientTexture1D_ea2si"]
-gradient = SubResource("Gradient_wx1xy")
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_wx1xy"]
+gradient = SubResource("Gradient_cq3h6")
 
 [sub_resource type="Curve" id="Curve_me8b0"]
 _limits = [0.0, 2.0, 0.0, 1.0]
@@ -36,7 +38,7 @@ curve = SubResource("Curve_me8b0")
 
 [sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_t0t4a"]
 emission_shape = 1
-emission_sphere_radius = 0.05
+emission_sphere_radius = 0.08
 angle_min = -180.0
 angle_max = 180.0
 direction = Vector3(0, 1, 0)
@@ -49,38 +51,29 @@ damping_max = 1.0
 scale_min = 0.7
 scale_max = 1.2
 scale_curve = SubResource("CurveTexture_xlm5q")
-color_ramp = SubResource("GradientTexture1D_ea2si")
+color_ramp = SubResource("GradientTexture1D_wx1xy")
 turbulence_enabled = true
 turbulence_noise_strength = 1.2
 turbulence_noise_scale = 2.0
 turbulence_influence_min = 0.05
 turbulence_influence_max = 0.15
 
-[sub_resource type="Gradient" id="Gradient_u78cq"]
-offsets = PackedFloat32Array(0, 0.35, 1)
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.75, 1, 1, 1, 0)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ea2si"]
+render_priority = 0
+shader = ExtResource("2_6dhl1")
+shader_parameter/core_color = null
+shader_parameter/core_amount = null
+shader_parameter/core_size = 0.5
+shader_parameter/core_boost = null
+shader_parameter/rim_boost = null
+shader_parameter/wobble = null
+shader_parameter/wobble_scale = null
+shader_parameter/wobble_speed = null
+shader_parameter/edge = null
 
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_6gnma"]
-gradient = SubResource("Gradient_u78cq")
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(0.5, 0)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_avpe1"]
-transparency = 1
-blend_mode = 1
-depth_draw_mode = 2
-shading_mode = 0
-vertex_color_use_as_albedo = true
-albedo_texture = SubResource("GradientTexture2D_6gnma")
-billboard_mode = 3
-particles_anim_h_frames = 1
-particles_anim_v_frames = 1
-particles_anim_loop = false
-
-[sub_resource type="QuadMesh" id="QuadMesh_1ky5v"]
-material = SubResource("StandardMaterial3D_avpe1")
-size = Vector2(0.13, 0.13)
+[sub_resource type="QuadMesh" id="QuadMesh_me8b0"]
+material = SubResource("ShaderMaterial_ea2si")
+size = Vector2(0.2, 0.2)
 
 [sub_resource type="Gradient" id="Gradient_ov4tm"]
 offsets = PackedFloat32Array(0, 0.7, 1)
@@ -127,12 +120,12 @@ particles_anim_loop = false
 material = SubResource("StandardMaterial3D_m5usu")
 size = Vector2(0.018, 0.018)
 
-[sub_resource type="Gradient" id="Gradient_ir61h"]
-offsets = PackedFloat32Array(0, 0.15, 1)
-colors = PackedColorArray(0.35, 0.33, 0.32, 0, 0.35, 0.33, 0.32, 0.2, 0.5, 0.5, 0.5, 0)
+[sub_resource type="Gradient" id="Gradient_xlm5q"]
+offsets = PackedFloat32Array(0, 0.4, 1)
+colors = PackedColorArray(0.16, 0.12, 0.12, 0.7, 0.22, 0.2, 0.2, 0.595, 0.3, 0.3, 0.3, 0)
 
-[sub_resource type="GradientTexture1D" id="GradientTexture1D_m2qo3"]
-gradient = SubResource("Gradient_ir61h")
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_t0t4a"]
+gradient = SubResource("Gradient_xlm5q")
 
 [sub_resource type="Curve" id="Curve_6vkg1"]
 _limits = [0.0, 2.0, 0.0, 1.0]
@@ -153,35 +146,27 @@ initial_velocity_min = 0.15
 initial_velocity_max = 0.35
 gravity = Vector3(0, 0.3, 0)
 scale_curve = SubResource("CurveTexture_nqkqa")
-color_ramp = SubResource("GradientTexture1D_m2qo3")
+color_ramp = SubResource("GradientTexture1D_t0t4a")
 turbulence_enabled = true
 turbulence_noise_strength = 1.5
 turbulence_noise_scale = 1.5
 
-[sub_resource type="Gradient" id="Gradient_wwu5a"]
-offsets = PackedFloat32Array(0, 0.35, 1)
-colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.75, 1, 1, 1, 0)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_u78cq"]
+render_priority = 0
+shader = ExtResource("2_6dhl1")
+shader_parameter/core_color = Color(0.42, 0.38, 0.36, 1)
+shader_parameter/core_amount = 0.6
+shader_parameter/core_size = 0.35
+shader_parameter/core_boost = 1.0
+shader_parameter/rim_boost = 1.0
+shader_parameter/wobble = 0.55
+shader_parameter/wobble_scale = null
+shader_parameter/wobble_speed = 0.8
+shader_parameter/edge = null
 
-[sub_resource type="GradientTexture2D" id="GradientTexture2D_rac2f"]
-gradient = SubResource("Gradient_wwu5a")
-fill = 1
-fill_from = Vector2(0.5, 0.5)
-fill_to = Vector2(0.5, 0)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_la4ao"]
-transparency = 1
-depth_draw_mode = 2
-shading_mode = 0
-vertex_color_use_as_albedo = true
-albedo_texture = SubResource("GradientTexture2D_rac2f")
-billboard_mode = 3
-particles_anim_h_frames = 1
-particles_anim_v_frames = 1
-particles_anim_loop = false
-
-[sub_resource type="QuadMesh" id="QuadMesh_5dk44"]
-material = SubResource("StandardMaterial3D_la4ao")
-size = Vector2(0.22, 0.22)
+[sub_resource type="QuadMesh" id="QuadMesh_6gnma"]
+material = SubResource("ShaderMaterial_u78cq")
+size = Vector2(0.24, 0.24)
 
 [sub_resource type="Animation" id="Animation_t3l3e"]
 tracks/0/type = "value"
@@ -396,11 +381,12 @@ mesh = SubResource("SphereMesh_cq3h6")
 
 [node name="Flames" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.11, 0)
-amount = 36
+amount = 48
 lifetime = 0.45
 visibility_aabb = AABB(-1, -1, -1, 2, 3, 2)
+draw_order = 3
 process_material = SubResource("ParticleProcessMaterial_t0t4a")
-draw_pass_1 = SubResource("QuadMesh_1ky5v")
+draw_pass_1 = SubResource("QuadMesh_me8b0")
 
 [node name="Embers" type="GPUParticles3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.11, 0)
@@ -417,8 +403,9 @@ lifetime = 1.4
 one_shot = true
 explosiveness = 0.25
 visibility_aabb = AABB(-1, -1, -1, 2, 3, 2)
+draw_order = 3
 process_material = SubResource("ParticleProcessMaterial_5w6qp")
-draw_pass_1 = SubResource("QuadMesh_5dk44")
+draw_pass_1 = SubResource("QuadMesh_6gnma")
 
 [node name="Glow" type="OmniLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.11, 0)

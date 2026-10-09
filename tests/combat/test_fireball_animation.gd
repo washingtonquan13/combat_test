@@ -159,8 +159,20 @@ func _launched_from_the_stance() -> void:
 		"%d projectiles, flame playing %s" % [flying.size(),
 			flame_player.current_animation if is_instance_valid(flame) else "<freed>"])
 
-	# 6 m at 11 m/s: landed after about 0.55 s.
-	await get_tree().create_timer(0.75).timeout
+	# Launched, not lobbed: midway it is still on the straight line from
+	# where it left the hand to where it lands.
+	var shot: Node3D = flying[0] if flying.size() == 1 else null
+	var launched_at := shot.global_position if shot else Vector3.ZERO
+	await get_tree().create_timer(0.12).timeout
+	var off_line := -1.0
+	if is_instance_valid(shot):
+		var along := Geometry3D.get_closest_point_to_segment(shot.global_position, launched_at, aim)
+		off_line = shot.global_position.distance_to(along)
+	check("it flies straight at the target", off_line >= 0.0 and off_line < 0.03,
+		"%.2f m off the line" % off_line)
+
+	# 6 m at 18 m/s: landed after about 0.35 s.
+	await get_tree().create_timer(0.63).timeout
 	var landed: Node = flying[0] if flying.size() == 1 else null
 	check("landed, its smoke trail hangs on", is_instance_valid(landed)
 		and not landed.get_node("Core").visible)
