@@ -7,14 +7,19 @@ it, so the distance is baked from the water triangles instead.
     python -I tools/blockout/shore_field.py data/blockouts/<name> [--res 5]
 
 Reads city.json and the ground tiles, writes shore.png and adds a "shore"
-entry to city.json. Needs numpy and Pillow. Both channels are metres,
-capped at 255:
+entry to city.json. Needs numpy and Pillow. --res defaults to 5 m, or
+coarser for a map so big the field would pass PIXELS. Both channels are
+metres, capped at 255:
   red    distance to the nearest bank.
   green  how open the water around this point is: the largest red value
          within WIDE metres, reached through water. A canal stays at its
          half-width all along, a pond at its radius, while even the bank of
          a river reads as open water. The shader calms the small bodies by
          it.
+
+If city.json has a boundary, it also writes edge.png and an "edge" entry,
+for the fog at the edge of the map: one channel, the signed distance to
+the boundary, inside positive, as 128 + metres / EDGE_STEP.
 """
 import argparse
 import json
@@ -27,16 +32,21 @@ from PIL import Image, ImageDraw
 WATER = 7
 RANGE = 255.0
 WIDE = RANGE
+PIXELS = 30e6
+EDGE_RES = 20.0
+EDGE_STEP = 8.0
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("dir")
-    ap.add_argument("--res", type=float, default=5.0, help="metres per pixel")
+    ap.add_argument("--res", type=float, help="metres per pixel")
     args = ap.parse_args()
     with open(os.path.join(args.dir, "city.json"), encoding="utf-8") as f:
         meta = json.load(f)
     cx, cz = meta["corner"]
+    if args.res is None:
+        args.res = max(5.0, float(np.ceil(np.sqrt(meta["extent"][0] * meta["extent"][1] / PIXELS))))
     w = int(np.ceil(meta["extent"][0] / args.res))
     h = int(np.ceil(meta["extent"][1] / args.res))
     mask = Image.new("L", (w, h), 0)
@@ -57,9 +67,32 @@ def main():
     out = np.clip(out, 0.0, RANGE).astype(np.uint8)
     Image.fromarray(out, "RGB").save(os.path.join(args.dir, "shore.png"))
     meta["shore"] = {"file": "shore.png", "res": args.res, "range": RANGE}
+    if meta.get("boundary"):
+        meta["edge"] = _edge(args.dir, meta)
     with open(os.path.join(args.dir, "city.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, indent=1)
     print(f"shore: {count} water triangles, {w}x{h} px at {args.res} m")
+
+
+def _edge(out_dir, meta):
+    cx, cz = meta["corner"]
+    w = int(np.ceil(meta["extent"][0] / EDGE_RES))
+    h = int(np.ceil(meta["extent"][1] / EDGE_RES))
+    mask = Image.new("L", (w, h), 0)
+    draw = ImageDraw.Draw(mask)
+    # Shells wind counter-clockwise and holes clockwise, each hole after
+    # its shell, so filling in order by winding cuts the holes.
+    for ring in meta["boundary"]:
+        pts = [((x - cx) / EDGE_RES, (z - cz) / EDGE_RES) for x, z in ring]
+        area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1]))
+        draw.polygon(pts, fill=255 if area > 0 else 0)
+    inside = np.asarray(mask) > 0
+    reach = 128 * EDGE_STEP / EDGE_RES
+    signed = (_distance(~inside, reach) - _distance(inside, reach)) * EDGE_RES
+    out = np.clip(128.0 + signed / EDGE_STEP, 0.0, 255.0).astype(np.uint8)
+    Image.fromarray(out, "L").save(os.path.join(out_dir, "edge.png"))
+    print(f"edge: {w}x{h} px at {EDGE_RES} m")
+    return {"file": "edge.png", "res": EDGE_RES, "step": EDGE_STEP}
 
 
 def _water_tris(path):

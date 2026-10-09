@@ -23,12 +23,22 @@ const GROUND_COLORS := [
 const BUILDING_COLORS := [Color(0.80, 0.78, 0.74), Color(0.55, 0.54, 0.52)]
 const BLOCKS_SHADER := "res://world/city_blocks.gdshader"
 const WATER_SHADER := "res://world/city_water.gdshader"
+const FOG_SHADER := "res://world/city_fog.gdshader"
 ## The ground class osm_city.py gives water.
 const WATER := 7
 ## Real metres of one storey (as in osm_city.py) and one window bay.
 const LEVEL_HEIGHT := 3.4
 const BAY_WIDTH := 3.6
 const EDGE_WALL := 4.0
+## The fog past the city's boundary: sheets at these heights in world
+## units, the metres inside the boundary where each starts to thicken,
+## less for higher sheets so the bank rises outward, and the world units
+## the sheets run on past the map so its edge never shows.
+const FOG_HEIGHTS := [0.6, 3.0, 7.0]
+const FOG_REACH := [260.0, 170.0, 90.0]
+const FOG_MARGIN := 600.0
+## The scene's haze, which the fog matches.
+const HAZE := Color(0.72, 0.76, 0.80)
 ## The SMT IV framing: steep, far back, the avatar small against the
 ## city. CAMERA_RANGE is metres from camera to avatar along the view.
 const CAMERA_PITCH := 70.0
@@ -77,11 +87,15 @@ func _ready() -> void:
 		# The data directory is .gdignore'd, so the file is read as plain
 		# image data and embedded in the geometry scene.
 		var shore := Image.load_from_file(src + "/" + meta.shore.file)
+		# Two channels are all the shader reads; half the memory of RGBA.
+		shore.convert(Image.FORMAT_RG8)
 		shore.generate_mipmaps()
 		water_mat.set_shader_parameter("shore_tex", ImageTexture.create_from_image(shore))
 		water_mat.set_shader_parameter("shore_origin", corner)
 		water_mat.set_shader_parameter("shore_size", Vector2(shore.get_width(), shore.get_height()) * meta.shore.res * _scale)
 		water_mat.set_shader_parameter("has_shore", true)
+	if meta.has("boundary"):
+		_build_boundary(geometry, meta, src, corner, size)
 	var tris := 0
 	for tile in meta.tiles:
 		var body := StaticBody3D.new()
@@ -146,6 +160,54 @@ func _build_ground(parent: Node3D, corner: Vector2, size: Vector2) -> void:
 	_add_box(floor_body, Vector3(0, h * 0.5, size.y * 0.5), Vector3(size.x, h, 1.0))
 	_add_box(floor_body, Vector3(-size.x * 0.5, h * 0.5, 0), Vector3(1.0, h, size.y))
 	_add_box(floor_body, Vector3(size.x * 0.5, h * 0.5, 0), Vector3(1.0, h, size.y))
+
+
+## The edge of a city with a boundary: a wall along it, and the fog that
+## hides everything past it.
+func _build_boundary(parent: Node3D, meta: Dictionary, src: String, corner: Vector2, size: Vector2) -> void:
+	var faces := PackedVector3Array()
+	for ring in meta.boundary:
+		for i in ring.size():
+			var a := Vector3(ring[i][0], 0.0, ring[i][1]) * _scale
+			var b := Vector3(ring[(i + 1) % ring.size()][0], 0.0, ring[(i + 1) % ring.size()][1]) * _scale
+			var up := Vector3(0.0, EDGE_WALL, 0.0)
+			faces.append_array([a, b, b + up, a, b + up, a + up])
+	var shape := ConcavePolygonShape3D.new()
+	shape.backface_collision = true
+	shape.set_faces(faces)
+	var wall := StaticBody3D.new()
+	wall.name = "BoundaryWall"
+	parent.add_child(wall)
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	wall.add_child(col)
+
+	if not meta.has("edge"):
+		return
+	var edge := Image.load_from_file(src + "/" + meta.edge.file)
+	var edge_tex := ImageTexture.create_from_image(edge)
+	var fog := Node3D.new()
+	fog.name = "BoundaryFog"
+	parent.add_child(fog)
+	var plane := PlaneMesh.new()
+	plane.size = size + Vector2.ONE * FOG_MARGIN * 2.0
+	for i in FOG_HEIGHTS.size():
+		var mat := ShaderMaterial.new()
+		mat.shader = load(FOG_SHADER)
+		mat.set_shader_parameter("fog_color", HAZE)
+		mat.set_shader_parameter("edge_tex", edge_tex)
+		mat.set_shader_parameter("edge_origin", corner)
+		mat.set_shader_parameter("edge_size", Vector2(edge.get_width(), edge.get_height()) * meta.edge.res * _scale)
+		mat.set_shader_parameter("edge_step", meta.edge.step)
+		mat.set_shader_parameter("units_per_metre", _scale)
+		mat.set_shader_parameter("reach_in", FOG_REACH[i])
+		mat.set_shader_parameter("seed", float(i))
+		# Higher sheets draw over lower ones.
+		mat.render_priority = i
+		var sheet := _mesh_instance("Sheet%d" % i, plane, mat)
+		sheet.position = Vector3(corner.x + size.x * 0.5, FOG_HEIGHTS[i], corner.y + size.y * 0.5)
+		sheet.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		fog.add_child(sheet)
 
 
 func _add_box(body: StaticBody3D, at: Vector3, size: Vector3) -> void:
@@ -294,7 +356,7 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	# A hazy afternoon: the far city fades into the sky colour, contact
 	# shadows ground the blocks, and filmic tonemapping keeps the pale
 	# concrete from clipping.
-	var haze := Color(0.72, 0.76, 0.80)
+	var haze := HAZE
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = haze

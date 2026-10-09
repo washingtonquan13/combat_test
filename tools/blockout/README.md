@@ -37,24 +37,39 @@ with water as impassable collision. Everything stays a polygon from the
 OSM data (shapely, `pip install shapely`), so edges keep their real angles.
 
 ```bash
-python -I tools/blockout/fetch_osm_city.py <raw dir> --bbox S,W,N,E
-python -I tools/blockout/osm_city.py <raw dir> data/blockouts/<name> --bbox S,W,N,E --water-seeds "LAT,LON;LAT,LON"
+python -I tools/blockout/fetch_osm_city.py <raw dir> --boundary "Orleans Parish"
+python -I tools/blockout/osm_city.py <raw dir> data/blockouts/<name> --water-seeds "LAT,LON;LAT,LON"
 godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res://data/blockouts/<name> --out=res://world/<name> --scale=0.125
 ```
 
-- `osm_city.py` takes about 12 minutes for New Orleans, almost all of it
-  merging the footprints of the two lowest height steps.
-- Keep the raw download outside the project. It is large (New Orleans is
-  about 70 MB) and only `osm_city.py` reads it.
+- `--boundary` names an administrative boundary relation. The map is
+  clipped to it: buildings stop short of it, a wall runs along it, and fog
+  past it (`world/city_fog.gdshader`, driven by the signed distance field
+  `edge.png` that `shore_field.py` bakes) hides the rest of the world.
+  Give `--bbox S,W,N,E` to both scripts instead for a plain rectangle with
+  no fog.
+- `osm_city.py` takes about 13 minutes for all of Orleans Parish, almost
+  all of it merging the footprints of the two lowest height steps.
+- Keep the raw download outside the project. It is large (Orleans Parish
+  is about 250 MB) and only `osm_city.py` reads it.
 - `data/blockouts/<name>/` needs a `.gdignore`, because its tile files are
   not Godot resources.
-- The download runs on public Overpass servers, which often rate-limit or
-  time out. The fetcher retries and skips the files it already has, so
-  re-run it until it finishes.
-- `--water-seeds` gives one point inside each water body that the bbox cuts
-  open. For New Orleans (`29.900,-90.140,30.035,-89.960`) the seeds are
-  `29.9535,-90.0590` (the Mississippi) and `30.033,-90.08` (Lake
-  Pontchartrain).
+- The download runs on overpass-api.de, a volunteer-run server. The
+  fetcher asks its `/api/status` for a free query slot before every query,
+  backs off after a failure, and skips the files it already has, so a
+  re-run costs the server nothing for what is done. Keep it that way: no
+  mirror rotation, no tight retry loops. A tile of buildings that still
+  times out is split into quarters.
+- `--water-seeds` gives one point inside each water body that the map edge
+  cuts open: a lake or river polygon that crosses the boundary (Lake
+  Pontchartrain, the Mississippi) keeps only its banks, and water outlined
+  by `natural=coastline` (`coast.json`) has no polygon at all. Water wholly
+  inside the map needs no seed. The point must be inside the boundary. For
+  Orleans Parish the seeds are `30.10,-90.05` (Lake Pontchartrain),
+  `29.9535,-90.0590` (the Mississippi), `30.165,-89.70` (the Rigolets) and
+  `30.0777,-89.6828` (the strip of Lake Borgne inside the parish line).
+  For the old rectangle (`29.900,-90.140,30.035,-89.960`) they were
+  `29.9535,-90.0590` and `30.033,-90.08`.
 - `osm_city.py` ends by running `shore_field.py`, which bakes `shore.png`,
   each water pixel's distance to the bank and how open the water around it
   is, for the water shader's shallows, shore foam and calm small water. Re-bake it alone with

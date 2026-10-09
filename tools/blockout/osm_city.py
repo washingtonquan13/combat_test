@@ -3,16 +3,23 @@ footprints merged into block masses with their taller buildings rising out
 of them, ground meshes coloured by what the ground is, and impassable
 water. build_osm_city.gd then turns the result into a scene.
 
-    python -I tools/blockout/osm_city.py <raw dir> <out dir> --bbox S,W,N,E \
+    python -I tools/blockout/osm_city.py <raw dir> <out dir> [--bbox S,W,N,E] \
         --water-seeds LAT,LON;LAT,LON
 
 <raw dir> is what fetch_osm_city.py writes: any number of bld_*.json with
-buildings, and features.json with water, roads, green space and rail.
+buildings, features.json with water, roads, green space and rail, and
+optionally coast.json with the coastline and boundary.json with the city's
+boundary.
 
-The bbox cuts big water open (a river crossing the map, a lake past its
-edge), leaving no ring to fill. --water-seeds names one point inside each
-such body; its shorelines, run out to the map edge, cut the map into
-pieces, and the piece holding the seed is water.
+With a boundary.json the map is the city: everything is clipped to its
+outline, and the bbox, if not given, is the outline's. Without one the map
+is the bbox.
+
+The map's edge cuts big water open (a river crossing the map, a lake past
+it, the sea, which OSM maps only as coastline), leaving no ring to fill.
+--water-seeds names one point inside each such body; its shorelines, run
+out to the map edge, cut the map into pieces, and the piece holding the
+seed is water.
 
 Everything stays a polygon, so edges keep their real angles. A city has far
 too many buildings for one node each, and an overworld wants blocks, not
@@ -28,7 +35,8 @@ Writes into <out dir>:
   tiles/b_X_Z.bin  buildings of one tile, in real metres
   tiles/g_X_Z.bin  the ground of one tile, flat at y 0, every class
   tiles/w_X_Z.bin  the water of one tile, extruded, for collision only
-  city.json        extent, tile size, origin, tiles
+  city.json        extent, tile size, origin, tiles, and the boundary's
+                   rings in metres
 
 A tile file is an int32 triangle count, then three float32 xyz corners per
 triangle (counter-clockwise seen from outside, so the normal is
@@ -51,6 +59,7 @@ import zlib
 
 import numpy as np
 import shapely
+import shapely.ops
 from shapely.geometry import LineString, Point, Polygon, box
 
 TILE = 1024.0  # metres per tile side
@@ -73,6 +82,11 @@ SIMPLIFY = 1.0
 WATER_WALL = 3.0
 ## A shoreline the bbox cut is run out to the map edge from this close.
 SHORE_REACH = 400.0
+## Buildings keep this far inside the boundary, so none stands in the fog
+## at the edge of the map; and the boundary outline loses detail smaller
+## than BOUNDARY_SIMPLIFY.
+BOUNDARY_MARGIN = 60.0
+BOUNDARY_SIMPLIFY = 10.0
 
 ROAD_WIDTHS = {
     "motorway": 26.0, "trunk": 22.0, "primary": 18.0, "secondary": 16.0, "tertiary": 14.0,
@@ -99,12 +113,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("raw")
     ap.add_argument("out")
-    ap.add_argument("--bbox", required=True)
+    ap.add_argument("--bbox")
     ap.add_argument("--water-seeds", default="",
                     help="lat,lon;lat,lon points inside water bodies the bbox cuts open")
     args = ap.parse_args()
     t0 = time.time()
-    s, w, n, e = (float(v) for v in args.bbox.split(","))
+    boundary_path = os.path.join(args.raw, "boundary.json")
+    rel = None
+    if os.path.exists(boundary_path):
+        rel = json.load(open(boundary_path, encoding="utf-8"))["elements"][0]
+    if args.bbox:
+        s, w, n, e = (float(v) for v in args.bbox.split(","))
+    elif rel:
+        pts = [p for m in rel["members"] if m["type"] == "way" for p in m.get("geometry") or [] if p]
+        s, w = min(p["lat"] for p in pts), min(p["lon"] for p in pts)
+        n, e = max(p["lat"] for p in pts), max(p["lon"] for p in pts)
+    else:
+        raise SystemExit("give --bbox or a boundary.json")
     lat0, lon0 = (s + n) / 2, (w + e) / 2
     m_lat = 111_320.0
     m_lon = 111_320.0 * math.cos(math.radians(lat0))
@@ -122,6 +147,16 @@ def main():
 
     def log(msg):
         print("%6.1fs %s" % (time.time() - t0, msg), flush=True)
+
+    region = real
+    if rel:
+        ways = [m for m in rel["members"] if m["type"] == "way"]
+        outer = _join([m["geometry"] for m in ways if m.get("role") != "inner"])[0]
+        inner = _join([m["geometry"] for m in ways if m.get("role") == "inner"])[0]
+        region = _area([ring(r) for r in outer], [ring(r) for r in inner])
+        region = shapely.simplify(region, BOUNDARY_SIMPLIFY, preserve_topology=True)
+        log("boundary %.1f km2" % (region.area / 1e6))
+    shapely.prepare(region)
 
     # --- Buildings ---------------------------------------------------------
     footprints, heights = [], []
@@ -143,6 +178,9 @@ def main():
 
     # --- Ground ------------------------------------------------------------
     feats = json.load(open(os.path.join(args.raw, "features.json"), encoding="utf-8"))["elements"]
+    coast_path = os.path.join(args.raw, "coast.json")
+    if os.path.exists(coast_path):
+        feats += json.load(open(coast_path, encoding="utf-8"))["elements"]
     areas = {MARSH: [], PARK: [], GRAVES: [], WATER: []}
     roads, rails, canals, shores = [], [], [], []
     for el in feats:
@@ -159,6 +197,9 @@ def main():
             poly = _area([ring(r) for r in outer_rings], [ring(r) for r in inner_rings])
         elif "geometry" in el:
             geom = el["geometry"]
+            if tags.get("natural") == "coastline":
+                shores.append(geom)
+                continue
             if not (len(geom) > 2 and geom[0] == geom[-1]):
                 line = ring(geom)
                 if len(line) < 2:
@@ -205,13 +246,18 @@ def main():
         for seed in args.water_seeds.split(";"):
             lat, lon = (float(v) for v in seed.split(","))
             seeds.append(Point(xz({"lat": lat, "lon": lon})))
-        flooded = _flood([LineString(ring(c)) for c in shores if len(ring(c)) > 1], real, seeds)
+        rings, cut = _join(shores)
+        flooded = _flood([LineString(ring(c)) for c in rings + cut if len(ring(c)) > 1], region, seeds)
         log("flooded water %.1f km2" % (flooded.area / 1e6))
         water.append(flooded)
     cover[WATER] = shapely.union_all(water)
     log("ground classes")
 
     # --- Block masses ------------------------------------------------------
+    inside = shapely.buffer(region, -BOUNDARY_MARGIN, join_style="mitre")
+    shapely.prepare(inside)
+    keep = shapely.intersects(inside, footprints)
+    footprints, heights = footprints[keep], heights[keep]
     open_ground = shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER]])
     open_ground = shapely.buffer(open_ground, SIDEWALK, join_style="mitre")
     shapely.prepare(open_ground)
@@ -224,6 +270,7 @@ def main():
         r = MERGE if level <= LOW_RISE else TOWER_MERGE
         mass = _close(shapely.union_all(tall), r)
         mass = shapely.difference(mass, open_ground)
+        mass = shapely.intersection(mass, inside)
         if below is not None:
             mass = shapely.intersection(mass, below)
         mass = _clean(mass)
@@ -260,12 +307,15 @@ def main():
                 bucket(key, "b").append(_flat(roof, level, ROOF, tint))
 
     # Each ground class without the ones that cover it, so nothing overlaps.
+    # Past the boundary there is no ground at all.
+    for k in cover:
+        cover[k] = shapely.intersection(cover[k], region)
     covered = Polygon()
     layers = {}
     for k in (WATER, MAJOR, ROAD, RAIL, GRAVES, PARK, MARSH):
         layers[k] = shapely.difference(cover[k], covered)
         covered = shapely.union(covered, cover[k])
-    layers[GROUND] = shapely.difference(extent, covered)
+    layers[GROUND] = shapely.difference(region, covered)
     shapely.prepare(cover[WATER])
     for tz in range(nz):
         for tx in range(nx):
@@ -295,6 +345,8 @@ def main():
         "attribution": "Map data (c) OpenStreetMap contributors, ODbL 1.0. https://www.openstreetmap.org/copyright",
         "bbox": [s, w, n, e], "origin": [lat0, lon0], "tile": TILE,
         "corner": [-half_x, -half_z], "extent": [2 * half_x, 2 * half_z], "tiles": tiles,
+        "boundary": [np.round(shapely.get_coordinates(r), 1).tolist()
+                     for p in shapely.get_parts(shapely.orient_polygons(region)) for r in [p.exterior] + list(p.interiors)],
     }
     with open(os.path.join(args.out, "city.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, indent=1)
@@ -362,19 +414,21 @@ def _clean(geom):
     return shapely.union_all(parts) if parts else Polygon()
 
 
-def _flood(shores, real, seeds):
-    """The water the bbox cut open. Each shoreline end close to the map
+def _flood(shores, region, seeds):
+    """The water the map edge cut open. Each shoreline end close to the
     edge is run out to it; the edge and shorelines then cut the map into
-    pieces, and every piece holding a seed is water."""
-    edge = real.exterior
+    pieces, and every piece holding a seed is water. A shoreline running on
+    past the edge is cut there, and its ends outside, leading nowhere, are
+    dropped."""
+    edge = shapely.boundary(region)
     lines = [edge]
     for line in shores:
         coords = list(line.coords)
         for end in (0, -1):
             p = Point(coords[end])
             d = edge.distance(p)
-            if 0 < d <= SHORE_REACH:
-                q = edge.interpolate(edge.project(p))
+            if 0 < d <= SHORE_REACH and region.contains(p):
+                q = shapely.ops.nearest_points(edge, p)[0]
                 if end == 0:
                     coords.insert(0, (q.x, q.y))
                 else:
@@ -383,7 +437,7 @@ def _flood(shores, real, seeds):
     noded = shapely.union_all(lines)
     pieces = shapely.get_parts(shapely.polygonize(shapely.get_parts(noded)))
     wet = [p for p in pieces if any(p.contains(s) for s in seeds)]
-    return shapely.union_all(wet) if wet else Polygon()
+    return shapely.intersection(shapely.union_all(wet), region) if wet else Polygon()
 
 
 def _flat(geom, y, kind, tint):
