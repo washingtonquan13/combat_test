@@ -8,8 +8,9 @@ extends SceneTree
 # The fireball is not thrown. It is called up above the shoulder and sent out
 # by will, the arm only aiming it:
 #
-#   Arm      standing -> the hand rises above the shoulder, fingers curled,
-#            and a flick of the wrist snaps them open: the flame lights
+#   Arm      standing -> the hand rises loosely closed, and as it comes up
+#            over the shoulder the palm turns to the sky and the fingers
+#            open around the flame
 #   Hold     the flame held above the shoulder, palm up, looping
 #   Disarm   the hand closes on the flame, snuffing it, and drops to standing
 #   Cast     a small draw back, then the arm extends straight at the target,
@@ -109,34 +110,24 @@ func _hold(t: float, length: float) -> Dictionary:
 	return pose
 
 
-# The hand come up to the shoulder, the wrist cocked down and the fingers
-# curled in, ready to snap.
-func _cocked_pose() -> Dictionary:
+# Partway up: the hand at the chest, loosely closed, the wrist still
+# nearly straight and only starting to turn back. The eyes go to the hand.
+# No joint passes beyond where it ends in the hold, so the hand settles
+# into the hold rather than swinging past it and back.
+func _rising_pose() -> Dictionary:
 	var pose := _ready_pose()
-	pose["RightUpperArm"] = Vector3(-10, 0, -56)
-	pose["RightLowerArm"] = Vector3(-6, 0, -110)
-	pose["RightHand"] = Vector3(0, 0, 35)
-	pose["Head"] = Vector3(4, 10, 0)
-	_right_fingers(pose, 0.85)
-	return pose
-
-
-# The flick: the wrist snaps over past the hold and the fingers fly open,
-# splayed.
-func _flick_pose() -> Dictionary:
-	var pose := _ready_pose()
-	pose["RightUpperArm"] = Vector3(-14, 0, -66)
-	pose["RightHand"] = Vector3(0, 0, -100)
-	pose["Head"] = Vector3(0, 8, 0)
-	_right_fingers(pose, -0.3)
+	pose["RightUpperArm"] = Vector3(-10, 0, -40)
+	pose["RightLowerArm"] = Vector3(-6, 0, -85)
+	pose["RightHand"] = Vector3(0, 0, -25)
+	pose["Head"] = Vector3(4, 8, 0)
+	_right_fingers(pose, 0.5)
 	return pose
 
 
 func _arm(t: float, _length: float) -> Dictionary:
 	return _poses.keyed(t, [
 		[0.0, _poses.standing()],
-		[0.3, _cocked_pose()],
-		[0.4, _flick_pose()],
+		[0.35, _rising_pose()],
 		[0.75, _hold(0.0, HOLD_LENGTH)],
 	])
 
