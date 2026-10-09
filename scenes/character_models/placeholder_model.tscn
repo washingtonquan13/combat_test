@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=4 uid="uid://btnqexsmk20xa"]
+[gd_scene load_steps=15 format=4 uid="uid://btnqexsmk20xa"]
 
 [ext_resource type="Script" uid="uid://ee0ub37ip226" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://systems/unit_system/outline.gdshader" id="2_outline"]
@@ -6,6 +6,7 @@
 [ext_resource type="AnimationLibrary" uid="uid://cqnay5mbp4o52" path="res://assets/unit_animations.tres" id="4_anims"]
 [ext_resource type="AnimationLibrary" uid="uid://dljalqhwbvg6h" path="res://assets/UAL2_Standard.glb" id="5_ual2"]
 [ext_resource type="AnimationLibrary" uid="uid://xsona7iw7lk2" path="res://assets/flight_animations.tres" id="6_flight"]
+[ext_resource type="AnimationLibrary" path="res://assets/fireball_animations.tres" id="7_fireball"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]
 resource_local_to_scene = true
@@ -69,7 +70,7 @@ height = 0.001
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.25
 
-[node name="PlaceholderModel" type="Node3D" node_paths=PackedStringArray("animation_player", "outline_mesh", "highlight_mesh", "collision_shape", "head_anchor")]
+[node name="PlaceholderModel" type="Node3D" node_paths=PackedStringArray("animation_player", "outline_mesh", "highlight_mesh", "collision_shape", "head_anchor", "hand_anchor")]
 script = ExtResource("1_cm")
 animation_player = NodePath("Body/AnimationPlayer")
 idle_animation = "Idle"
@@ -84,6 +85,7 @@ outline_mesh = NodePath("OutlineMesh")
 highlight_mesh = NodePath("HighlightMesh")
 collision_shape = NodePath("CollisionTemplate")
 head_anchor = NodePath("FaceAnchor")
+hand_anchor = NodePath("Body/Armature/GeneralSkeleton/HandAnchor")
 
 [node name="Body" parent="." instance=ExtResource("3_glb")]
 
@@ -145,9 +147,14 @@ bones/61/rotation = Quaternion(5.28461e-09, 1, -3.83006e-06, 2.7047e-10)
 bones/62/rotation = Quaternion(-3.02326e-09, 0.707105, -0.707108, 3.22905e-09)
 bones/63/rotation = Quaternion(4.41173e-08, 1, 5.96046e-08, 1.94734e-08)
 
+[node name="HandAnchor" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton"]
+bone_name = "RightMiddleProximal"
+bone_idx = 39
+
 [node name="AnimationPlayer" parent="Body" index="1"]
 libraries = {
 &"": ExtResource("4_anims"),
+&"Fireball": ExtResource("7_fireball"),
 &"Flight": ExtResource("6_flight"),
 &"UAL2_Standard": ExtResource("5_ual2")
 }

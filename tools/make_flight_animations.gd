@@ -5,55 +5,39 @@ extends SceneTree
 #
 #   godot --headless --path . -s res://tools/make_flight_animations.gd
 #
-# Every pose is a base with some bones turned. The base is NEUTRAL - the rest
-# pose with the arms lowered, symmetric - except where a clip meets the ground
-# animations: standing (the first frame of Takeoff, the last of Land) is the
-# Idle clip's first frame exactly, so they join it without a pop. Idle itself
-# is no base for the rest: it stands mid weight-shift, one foot forward and one
-# back, and every pose built on it inherited a stride. A turn is
-# given in the CHARACTER's frame, not the bone's: +X pitches about the
-# character's left-right axis (an upward bone tips forward, a downward one
-# swings back), +Z rolls toward the character's left, +Y yaws to its left.
-# The model faces +Z. Each turn is relative to the bone's parent, so a shin's
-# bend is a bend at the knee wherever the thigh has gone.
+# Poses are built with tools/pose_builder.gd, whose header explains the
+# bases and how a turn is given. Standing (the first frame of Takeoff, the
+# last of Land) is the Idle clip's first frame exactly, so they join it
+# without a pop.
 #
 # Retune by editing the poses below and running this again; the clips are
 # data the game reads, so nothing else needs rebuilding.
 
+const PoseBuilder := preload("res://tools/pose_builder.gd")
+
 const OUT := "res://assets/flight_animations.tres"
-const MODEL := "res://scenes/character_models/placeholder_model.tscn"
-const FPS := 30.0
 
-# The arms' turn down from the rest T-pose to hang at the sides.
-const ARMS_DOWN := 72.0
-
-var _skeleton: Skeleton3D
-# base name -> {"local": bone -> Quaternion, "global": bone -> Basis in model
-# space, "hips": the Hips position}
-var _bases := {}
+var _poses: PoseBuilder
 
 
 func _init() -> void:
-	var model: Node3D = load(MODEL).instantiate()
-	_skeleton = model.find_child("GeneralSkeleton", true, false)
-	var player: AnimationPlayer = model.find_child("AnimationPlayer", true, false)
-	_read_bases(player.get_animation("Idle"))
+	_poses = PoseBuilder.new()
 
 	var library := AnimationLibrary.new()
-	library.add_animation("Takeoff", _clip(0.8, false, _takeoff))
-	library.add_animation("Hover", _clip(3.0, true, _hover))
-	library.add_animation("Fly_Fwd", _clip(1.6, true, _fly_fwd))
-	library.add_animation("Land", _clip(0.7, false, _land))
+	library.add_animation("Takeoff", _poses.clip(0.8, false, _takeoff))
+	library.add_animation("Hover", _poses.clip(3.0, true, _hover))
+	library.add_animation("Fly_Fwd", _poses.clip(1.6, true, _fly_fwd))
+	library.add_animation("Land", _poses.clip(0.7, false, _land))
 	var err := ResourceSaver.save(library, OUT)
 	print("flight animations: saved %s (%s)" % [OUT, error_string(err)])
-	model.free()
+	_poses.free_model()
 	quit(0 if err == OK else 1)
 
 
 # --- Poses -------------------------------------------------------------
 
 func _standing() -> Dictionary:
-	return {"_base": "idle"}
+	return _poses.standing()
 
 
 # Upright, weight hanging from the chest: thighs a little forward so the
@@ -80,15 +64,15 @@ func _hover(t: float, length: float) -> Dictionary:
 	var pose := _hover_pose()
 	var w := TAU * t / length
 	pose["_hips"] = Vector3(0, 0.035 * sin(w), 0)
-	_add(pose, "Spine", Vector3(1.5 * sin(w - 0.4), 0, 0))
-	_add(pose, "LeftUpperLeg", Vector3(4 * sin(w - 0.7), 0, 0))
-	_add(pose, "LeftLowerLeg", Vector3(5 * sin(w - 1.2), 0, 0))
-	_add(pose, "RightUpperLeg", Vector3(3 * sin(w - 1.0), 0, 0))
-	_add(pose, "RightLowerLeg", Vector3(5 * sin(w - 1.6), 0, 0))
-	_add(pose, "LeftUpperArm", Vector3(0, 0, 4 * sin(w - 0.9)))
-	_add(pose, "RightUpperArm", Vector3(0, 0, -4 * sin(w - 0.9)))
-	_add(pose, "LeftLowerArm", Vector3(-4 * sin(w - 1.4), 0, 0))
-	_add(pose, "RightLowerArm", Vector3(-4 * sin(w - 1.4), 0, 0))
+	PoseBuilder.add(pose, "Spine", Vector3(1.5 * sin(w - 0.4), 0, 0))
+	PoseBuilder.add(pose, "LeftUpperLeg", Vector3(4 * sin(w - 0.7), 0, 0))
+	PoseBuilder.add(pose, "LeftLowerLeg", Vector3(5 * sin(w - 1.2), 0, 0))
+	PoseBuilder.add(pose, "RightUpperLeg", Vector3(3 * sin(w - 1.0), 0, 0))
+	PoseBuilder.add(pose, "RightLowerLeg", Vector3(5 * sin(w - 1.6), 0, 0))
+	PoseBuilder.add(pose, "LeftUpperArm", Vector3(0, 0, 4 * sin(w - 0.9)))
+	PoseBuilder.add(pose, "RightUpperArm", Vector3(0, 0, -4 * sin(w - 0.9)))
+	PoseBuilder.add(pose, "LeftLowerArm", Vector3(-4 * sin(w - 1.4), 0, 0))
+	PoseBuilder.add(pose, "RightLowerArm", Vector3(-4 * sin(w - 1.4), 0, 0))
 	return pose
 
 
@@ -115,13 +99,13 @@ func _fly_fwd(t: float, length: float) -> Dictionary:
 		"RightUpperArm": Vector3(55, 0, -12),
 		"RightLowerArm": Vector3(-8, 0, 0),
 	}
-	_add(pose, "LeftUpperLeg", Vector3(3 * sin(w), 0, 0))
-	_add(pose, "LeftLowerLeg", Vector3(5 * sin(w - 0.8), 0, 0))
-	_add(pose, "RightUpperLeg", Vector3(3 * sin(w + PI), 0, 0))
-	_add(pose, "RightLowerLeg", Vector3(5 * sin(w + PI - 0.8), 0, 0))
-	_add(pose, "LeftUpperArm", Vector3(3 * sin(2 * w - 0.5), 0, 0))
-	_add(pose, "RightUpperArm", Vector3(3 * sin(2 * w - 0.5), 0, 0))
-	_add(pose, "Spine", Vector3(1.5 * sin(2 * w - 0.3), 0, 0))
+	PoseBuilder.add(pose, "LeftUpperLeg", Vector3(3 * sin(w), 0, 0))
+	PoseBuilder.add(pose, "LeftLowerLeg", Vector3(5 * sin(w - 0.8), 0, 0))
+	PoseBuilder.add(pose, "RightUpperLeg", Vector3(3 * sin(w + PI), 0, 0))
+	PoseBuilder.add(pose, "RightLowerLeg", Vector3(5 * sin(w + PI - 0.8), 0, 0))
+	PoseBuilder.add(pose, "LeftUpperArm", Vector3(3 * sin(2 * w - 0.5), 0, 0))
+	PoseBuilder.add(pose, "RightUpperArm", Vector3(3 * sin(2 * w - 0.5), 0, 0))
+	PoseBuilder.add(pose, "Spine", Vector3(1.5 * sin(2 * w - 0.3), 0, 0))
 	return pose
 
 
@@ -163,7 +147,7 @@ func _launch_pose() -> Dictionary:
 
 
 func _takeoff(t: float, _length: float) -> Dictionary:
-	return _keyed(t, [
+	return _poses.keyed(t, [
 		[0.0, _standing()],
 		[0.18, _crouch_pose(1.0)],
 		[0.36, _launch_pose()],
@@ -183,115 +167,8 @@ func _land(t: float, _length: float) -> Dictionary:
 	var absorb := _crouch_pose(0.75)
 	absorb["LeftUpperArm"] = Vector3(-6, 0, 24)
 	absorb["RightUpperArm"] = Vector3(-6, 0, -24)
-	return _keyed(t, [
+	return _poses.keyed(t, [
 		[0.0, reach],
 		[0.16, absorb],
 		[0.7, _standing()],
 	])
-
-
-# --- Building --------------------------------------------------------------
-
-func _add(pose: Dictionary, bone: String, turn: Vector3) -> void:
-	pose[bone] = pose.get(bone, Vector3.ZERO) + turn
-
-
-# Eases from each key pose to the next. Keys are resolved first, so a key on
-# the Idle base blends with one on the neutral base.
-func _keyed(t: float, keys: Array) -> Dictionary:
-	for i in range(keys.size() - 1):
-		var a: Array = keys[i]
-		var b: Array = keys[i + 1]
-		if t <= b[0] or i == keys.size() - 2:
-			var f := clampf((t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
-			return _blend(_resolve(a[1]), _resolve(b[1]), smoothstep(0.0, 1.0, f))
-	return _resolve(keys[-1][1])
-
-
-func _blend(a: Dictionary, b: Dictionary, f: float) -> Dictionary:
-	var out := {"_resolved": true, "_hips": (a["_hips"] as Vector3).lerp(b["_hips"], f)}
-	for bone: String in a:
-		if not bone.begins_with("_"):
-			out[bone] = (a[bone] as Quaternion).slerp(b[bone], f)
-	return out
-
-
-# A pose as every bone's local rotation and the Hips position.
-func _resolve(pose: Dictionary) -> Dictionary:
-	if pose.has("_resolved"):
-		return pose
-	var base: Dictionary = _bases[pose.get("_base", "neutral")]
-	var out := {"_resolved": true, "_hips": base["hips"] + pose.get("_hips", Vector3.ZERO)}
-	for bone: String in base["local"]:
-		out[bone] = _turned(base, bone, pose.get(bone, Vector3.ZERO))
-	return out
-
-
-func _clip(length: float, loops: bool, pose_at: Callable) -> Animation:
-	var anim := Animation.new()
-	anim.length = length
-	anim.loop_mode = Animation.LOOP_LINEAR if loops else Animation.LOOP_NONE
-	var frames := int(round(length * FPS))
-	var hips_track := anim.add_track(Animation.TYPE_POSITION_3D)
-	anim.track_set_path(hips_track, NodePath("%GeneralSkeleton:Hips"))
-	var tracks := {}
-	for i in _skeleton.get_bone_count():
-		var bone := _skeleton.get_bone_name(i)
-		var track := anim.add_track(Animation.TYPE_ROTATION_3D)
-		anim.track_set_path(track, NodePath("%GeneralSkeleton:" + bone))
-		tracks[bone] = track
-	# A loop's last frame is its first again; writing it would double it.
-	var last := frames - 1 if loops else frames
-	for f in range(last + 1):
-		var t := minf(f / FPS, length)
-		var pose := _resolve(pose_at.call(t, length))
-		anim.position_track_insert_key(hips_track, t, pose["_hips"])
-		for bone: String in tracks:
-			anim.rotation_track_insert_key(tracks[bone], t, pose[bone])
-	return anim
-
-
-# The bone's local rotation, relative to its parent, once turned `deg` from
-# `base` about the character-frame axes described at the top.
-func _turned(base: Dictionary, bone: String, deg: Vector3) -> Quaternion:
-	var local: Quaternion = base["local"][bone]
-	if deg == Vector3.ZERO:
-		return local
-	var turn := Basis.from_euler(Vector3(deg_to_rad(deg.x), deg_to_rad(deg.y), deg_to_rad(deg.z)))
-	var g: Basis = base["global"][bone]
-	return (Basis(local) * (g.inverse() * turn * g)).get_rotation_quaternion().normalized()
-
-
-func _read_bases(idle: Animation) -> void:
-	var idle_local := {}
-	var rest_local := {}
-	for i in _skeleton.get_bone_count():
-		var bone := _skeleton.get_bone_name(i)
-		rest_local[bone] = _skeleton.get_bone_rest(i).basis.get_rotation_quaternion()
-		idle_local[bone] = rest_local[bone]
-		var track := idle.find_track(NodePath("%GeneralSkeleton:" + bone), Animation.TYPE_ROTATION_3D)
-		if track >= 0:
-			idle_local[bone] = idle.rotation_track_interpolate(track, 0.0)
-	var rest_hips := _skeleton.get_bone_rest(_skeleton.find_bone("Hips")).origin
-	var idle_hips := rest_hips
-	var hips_track := idle.find_track(NodePath("%GeneralSkeleton:Hips"), Animation.TYPE_POSITION_3D)
-	if hips_track >= 0:
-		idle_hips = idle.position_track_interpolate(hips_track, 0.0)
-	_bases["idle"] = _base(idle_local, idle_hips)
-	# Neutral: the rest pose, symmetric, with the arms brought down to hang a
-	# little out from the sides. Idle's hips height keeps the feet on the floor
-	# the same way.
-	var rest := _base(rest_local, Vector3(rest_hips.x, idle_hips.y, rest_hips.z))
-	rest_local["LeftUpperArm"] = _turned(rest, "LeftUpperArm", Vector3(0, 0, -ARMS_DOWN))
-	rest_local["RightUpperArm"] = _turned(rest, "RightUpperArm", Vector3(0, 0, ARMS_DOWN))
-	_bases["neutral"] = _base(rest_local, rest["hips"])
-
-
-func _base(local: Dictionary, hips: Vector3) -> Dictionary:
-	var global := {}
-	for i in _skeleton.get_bone_count():
-		var bone := _skeleton.get_bone_name(i)
-		var parent := _skeleton.get_bone_parent(i)
-		var parent_basis: Basis = global[_skeleton.get_bone_name(parent)] if parent >= 0 else Basis()
-		global[bone] = parent_basis * Basis(local[bone])
-	return {"local": local, "global": global, "hips": hips}

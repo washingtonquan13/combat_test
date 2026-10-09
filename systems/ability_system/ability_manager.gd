@@ -28,6 +28,13 @@ signal ability_armed(ability: Ability)
 
 var armed_ability: Ability = null
 
+## Who armed_ability is armed FOR - the commanded unit at arm() time. The
+## signal itself is global, so this is how each unit's armed-stance
+## presentation (UnitAnimator, UnitSfx, UnitVfx) tells whether the arming
+## is its own. Still set while ability_armed(null) is emitted, so the unit
+## that was armed can put its stance away; cleared right after.
+var armed_unit: Unit = null
+
 ## The unit whose ability_used signal we're currently listening to, so we
 ## know when to re-check whether armed_ability is still usable. Tracked
 ## explicitly rather than assumed to always equal CombatManager.
@@ -53,7 +60,13 @@ var has_aim_height_override: bool = false
 
 
 func arm(ability: Ability) -> void:
+	var unit: Unit = PlayerInteractionState.get_active_unit()
+	if armed_ability and armed_unit != unit:
+		# Arming for someone else: the unit that was armed puts its stance
+		# away first, or nothing would ever tell it to.
+		disarm()
 	armed_ability = ability
+	armed_unit = unit
 	has_aim_height_override = false
 	_watch_current_unit()
 	ability_armed.emit(ability)
@@ -66,6 +79,7 @@ func disarm() -> void:
 		return
 	armed_ability = null
 	ability_armed.emit(null)
+	armed_unit = null
 
 
 ## Called by area_indicator.gd each frame the player drags height with

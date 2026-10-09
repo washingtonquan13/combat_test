@@ -120,6 +120,7 @@ enum Category { COMMON, ABILITIES }
 @export var armed_hold_vfx: PackedScene
 @export var armed_enter_animation: String = ""
 @export var armed_hold_animation: String = ""
+@export var armed_exit_animation: String = ""
 
 @export_group("Cast SFX")
 ## Optional composable sound (see SfxCue) played the instant this

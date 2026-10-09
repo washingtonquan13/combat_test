@@ -64,11 +64,18 @@ extends Node
 
 @export_group("Armed Animation")
 ## Fallback clip names for any ability that doesn't set its own
-## armed_enter_animation/armed_hold_animation — same fallback shape
-## unit_sfx.gd/unit_vfx.gd already use for their own armed moments. See
-## _on_ability_armed() for how the two chain together.
+## armed_enter_animation/armed_hold_animation/armed_exit_animation — same
+## fallback shape unit_sfx.gd/unit_vfx.gd already use for their own armed
+## moments. See _on_ability_armed() for how they chain together.
 @export var default_armed_enter_animation: String = ""
 @export var default_armed_hold_animation: String = ""
+@export var default_armed_exit_animation: String = ""
+## The crossfade into a stance clip (an armed enter, hold or exit) and into
+## the cast that launches from it. Those are the clips that start while
+## something else is mid-motion - arming from partway through the idle
+## loop, disarming or casting from partway through the hold - so a hard
+## cut would pop. Everything else still cuts, as it always has.
+@export var stance_blend_time: float = 0.15
 
 @export_group("Flight Animation")
 ## See CharacterModel's own Flight Animation group; empty falls back to
@@ -124,6 +131,14 @@ var _external_advance_pending: bool = false
 var _pending_armed_enter_clip: String = ""
 var _pending_armed_hold: String = ""
 
+## The stance this unit is showing for its armed ability - the enter and
+## hold clips it played, and the exit to play when it disarms. Disarming
+## only puts the stance away if one of those clips is still what's on
+## screen: the auto-disarm after a cast arrives while the cast is playing,
+## and must not cut it.
+var _armed_stance_clips: Array[String] = []
+var _armed_exit_clip: String = ""
+
 ## Whether the body is off the ground, which is not quite unit.is_flying():
 ## the flying status is gone the moment a landing starts, but the body is
 ## still in the air until the descent ends (Unit.touched_down). Set by
@@ -150,6 +165,7 @@ func adopt_model(model: CharacterModel) -> void:
 	death_animation = model.death_animation
 	default_armed_enter_animation = model.armed_enter_animation
 	default_armed_hold_animation = model.armed_hold_animation
+	default_armed_exit_animation = model.armed_exit_animation
 	fly_idle_animation = model.fly_idle_animation
 	fly_move_animation = model.fly_move_animation
 	takeoff_animation = model.takeoff_animation
@@ -219,6 +235,7 @@ func _validate_animation_names() -> void:
 	_check_sequence(default_cast_animation, "default_cast_animation")
 	_check_clip(default_armed_enter_animation, "default_armed_enter_animation")
 	_check_clip(default_armed_hold_animation, "default_armed_hold_animation")
+	_check_clip(default_armed_exit_animation, "default_armed_exit_animation")
 
 	for ability in unit.abilities:
 		if not ability:
@@ -226,6 +243,7 @@ func _validate_animation_names() -> void:
 		_check_sequence(ability.cast_animation, "%s.cast_animation" % ability.ability_name)
 		_check_clip(ability.armed_enter_animation, "%s.armed_enter_animation" % ability.ability_name)
 		_check_clip(ability.armed_hold_animation, "%s.armed_hold_animation" % ability.ability_name)
+		_check_clip(ability.armed_exit_animation, "%s.armed_exit_animation" % ability.ability_name)
 
 
 func _check_sequence(sequence: AnimationSequence, label: String) -> void:
@@ -275,8 +293,8 @@ func _on_movement_finished(_u: Unit) -> void:
 
 
 ## Mirrors unit_sfx.gd's/unit_vfx.gd's own _on_ability_armed exactly —
-## same CombatManager.current_unit guard (AbilityManager is global/
-## unit-agnostic, this only reacts when THIS unit is the one arming).
+## same AbilityManager.armed_unit guard (the signal is global, this only
+## reacts when THIS unit is the one arming or disarming).
 ##
 ## Doesn't touch unit.posed_status/visual_state at all — same choice
 ## _on_ability_use_started already makes for cast animation (see that
@@ -287,24 +305,22 @@ func _on_movement_finished(_u: Unit) -> void:
 func _on_ability_armed(ability: Ability) -> void:
 	if _cutscene_claimed:
 		return
-	if unit.in_combat() and not unit.is_my_turn():
+	if AbilityManager.armed_unit != unit:
 		return
 
 	_pending_armed_enter_clip = ""
 	_pending_armed_hold = ""
 
 	if not ability:
-		# disarmed — same "what should I actually be showing right now"
-		# fallback every other one-shot completion already funnels
-		# through, rather than a bespoke "just play idle" special case.
-		if not unit.is_moving():
-			_rest_on_base_animation()
+		_put_stance_away()
 		return
 
 	var enter: String = ability.armed_enter_animation if ability.armed_enter_animation != "" else default_armed_enter_animation
 	var hold: String = ability.armed_hold_animation if ability.armed_hold_animation != "" else default_armed_hold_animation
+	_armed_stance_clips = [enter, hold]
+	_armed_exit_clip = ability.armed_exit_animation if ability.armed_exit_animation != "" else default_armed_exit_animation
 
-	if enter != "" and _play(enter):
+	if enter != "" and _play(enter, stance_blend_time):
 		_pending_armed_enter_clip = enter
 		_pending_armed_hold = hold
 		return
@@ -315,7 +331,24 @@ func _on_ability_armed(ability: Ability) -> void:
 	_pending_armed_enter_clip = ""
 	_pending_armed_hold = ""
 	if hold != "":
-		_play(hold)
+		_play(hold, stance_blend_time)
+
+
+## Disarmed. If the stance is still on screen, the exit clip lowers it (its
+## finish then rests on the base like any one-shot); with no exit clip it
+## goes straight back to the base. If something else has since taken the
+## player - the cast that caused this disarm, a hit, a walk - that clip
+## already left the stance behind and is left to finish.
+func _put_stance_away() -> void:
+	var showing: bool = animation_player.current_animation != "" \
+		and String(animation_player.current_animation) in _armed_stance_clips
+	var exit: String = _armed_exit_clip
+	_armed_stance_clips = []
+	_armed_exit_clip = ""
+	if not showing or unit.is_moving():
+		return
+	if not _play(exit, stance_blend_time):
+		_rest_on_base_animation()
 
 
 ## Fires the instant an ability use is confirmed to happen — before
@@ -338,7 +371,9 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 	if not ability.plays_cast_animation:
 		return
 	var sequence: AnimationSequence = ability.cast_animation if ability.cast_animation else default_cast_animation
-	_play_sequence(sequence)
+	# Launched out of the stance: blend from wherever the hold loop is.
+	var from_stance: bool = String(animation_player.current_animation) in _armed_stance_clips
+	_play_sequence(sequence, stance_blend_time if from_stance else -1.0)
 
 
 ## Reads the currently-held status's own hit_reaction_animation if it
@@ -364,6 +399,8 @@ func _on_died(_u: Unit) -> void:
 	_active_phase_index = -1
 	_pending_armed_enter_clip = ""
 	_pending_armed_hold = ""
+	_armed_stance_clips = []
+	_armed_exit_clip = ""
 	unit.posed_status = null
 	unit.visual_state = Unit.VisualState.STANDING
 	_play(death_animation)
@@ -599,13 +636,15 @@ func play_cutscene_clip(anim_name: String) -> bool:
 	return _play(anim_name)
 
 
-func _play(anim_name: String) -> bool:
+## `blend` is the crossfade from the current clip; -1 is the player's own
+## default (none, unless a body sets one).
+func _play(anim_name: String, blend: float = -1.0) -> bool:
 	if anim_name == "":
 		return false
 	if not animation_player.has_animation(anim_name):
 		push_warning("unit_animator.gd: tried to play unknown animation \"%s\" on %s." % [anim_name, unit.name])
 		return false
-	animation_player.play(anim_name)
+	animation_player.play(anim_name, blend)
 	return true
 
 
@@ -620,7 +659,8 @@ func _active_phase() -> AnimationPhase:
 	return _active_sequence.phases[_active_phase_index]
 
 
-func _play_sequence(sequence: AnimationSequence) -> void:
+## `blend` crossfades into the first clip that plays; see _play.
+func _play_sequence(sequence: AnimationSequence, blend: float = -1.0) -> void:
 	_sequence_token += 1
 	_external_advance_pending = false
 	_active_sequence = sequence
@@ -629,7 +669,7 @@ func _play_sequence(sequence: AnimationSequence) -> void:
 	# phase skips for want of a clip. The rest-on-base that normally
 	# happens as the last clip ends therefore has to happen here too —
 	# same shape as _on_timer_phase_done's own check.
-	if not _advance_to_next_phase() and not unit.is_moving():
+	if not _advance_to_next_phase(blend) and not unit.is_moving():
 		_rest_on_base_animation()
 
 
@@ -646,7 +686,7 @@ func _play_sequence(sequence: AnimationSequence) -> void:
 ## it via a self-recursive call rather than sitting on a clip that's
 ## already visually stale (the unit already physically landed; showing
 ## the airborne loop at this point would be wrong, not just late).
-func _advance_to_next_phase() -> bool:
+func _advance_to_next_phase(blend: float = -1.0) -> bool:
 	_active_phase_index += 1
 	var next: AnimationPhase = _active_phase()
 	if not next:
@@ -654,7 +694,7 @@ func _advance_to_next_phase() -> bool:
 		_active_phase_index = -1
 		return false
 
-	var started: bool = _play(next.animation_name)
+	var started: bool = _play(next.animation_name, blend)
 
 	match next.advance_trigger:
 		AnimationPhase.AdvanceTrigger.ON_FINISH:
@@ -669,7 +709,7 @@ func _advance_to_next_phase() -> bool:
 			# library run a sequence through instead of hanging on its
 			# first phase.
 			if not started:
-				return _advance_to_next_phase()
+				return _advance_to_next_phase(blend)
 		AnimationPhase.AdvanceTrigger.ON_TIMER:
 			var token: int = _sequence_token
 			get_tree().create_timer(next.duration).timeout.connect(
@@ -679,7 +719,7 @@ func _advance_to_next_phase() -> bool:
 		AnimationPhase.AdvanceTrigger.EXTERNAL:
 			if _external_advance_pending:
 				_external_advance_pending = false
-				return _advance_to_next_phase()
+				return _advance_to_next_phase(blend)
 	return true
 
 

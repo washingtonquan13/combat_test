@@ -42,11 +42,18 @@ extends VfxStep
 ## original, untouched local transform exactly as authored, and only
 ## the wrapper ever points toward the target.
 @export var facing_offset_degrees: float = 0.0
+## Which point on the caster the projectile leaves from, read when this
+## step starts - so a DelayStep before it lets the cast animation get the
+## hand out first (see Unit.anchor). GROUND, the default, is the position
+## the sequence was played from, as it always was.
+@export var launch_from: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
 
 
-func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _caster: Unit = null) -> void:
+func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, caster: Unit = null) -> void:
 	if not projectile_scene:
 		return
+	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
+		from = caster.anchor(launch_from)
 
 	var wrapper := Node3D.new()
 	WorldManager.spawn_parent().add_child(wrapper)

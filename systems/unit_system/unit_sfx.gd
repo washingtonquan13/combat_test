@@ -121,7 +121,7 @@ func _ready() -> void:
 
 
 func _on_ability_armed(ability: Ability) -> void:
-	if unit.in_combat() and not unit.is_my_turn():
+	if AbilityManager.armed_unit != unit:
 		return
 
 	_stop_hold_loop()

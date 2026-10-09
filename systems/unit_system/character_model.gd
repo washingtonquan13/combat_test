@@ -53,6 +53,7 @@ extends Node3D
 @export_group("Armed Animation")
 @export var armed_enter_animation: String = ""
 @export var armed_hold_animation: String = ""
+@export var armed_exit_animation: String = ""
 
 @export_group("Flight Animation")
 ## While the unit is in the air these stand in for idle and walk; empty
@@ -127,7 +128,7 @@ extends Node3D
 ## A dragon does not see from 1.5 m, and no formula gets a dragon and a
 ## pixie right at once. Naming the points and letting the body place them
 ## is the only thing that does.
-enum Anchor { HEAD, EYE, CHEST, GROUND }
+enum Anchor { HEAD, EYE, CHEST, GROUND, HAND }
 
 @export_group("Anchors")
 ## Where a camera frames the face, and where floating UI belongs.
@@ -138,6 +139,10 @@ enum Anchor { HEAD, EYE, CHEST, GROUND }
 @export var chest_anchor: Node3D
 ## The feet. Selection rings, decals, anything that sits on the floor.
 @export var ground_anchor: Node3D
+## The casting hand - where a spell leaves the body. Put it on a
+## BoneAttachment3D so it follows the hand through the cast; read at the
+## moment of release, it is wherever the animation has put the hand.
+@export var hand_anchor: Node3D
 
 @export_group("Gaze")
 ## The bone modifier that turns this body's head toward what it is looking
@@ -224,6 +229,7 @@ func _declared(kind: Anchor) -> Node3D:
 		Anchor.EYE: return eye_anchor
 		Anchor.CHEST: return chest_anchor
 		Anchor.GROUND: return ground_anchor
+		Anchor.HAND: return hand_anchor
 	return null
 
 
@@ -233,6 +239,7 @@ func _fallback_ratio(kind: Anchor) -> float:
 		Anchor.EYE: return 0.75    # 1.50 at height 2.0 — the old eye_height
 		Anchor.CHEST: return 0.55
 		Anchor.GROUND: return 0.0
+		Anchor.HAND: return 0.55   # no hand declared: the chest
 	return 0.0
 
 
