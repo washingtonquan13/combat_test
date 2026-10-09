@@ -17,10 +17,14 @@ extends Node
 
 ## Vertex colours by triangle kind, in osm_city.py's order.
 const GROUND_COLORS := [
-	Color8(178, 168, 150), Color8(100, 120, 96), Color8(112, 140, 92), Color8(170, 170, 160),
-	Color8(110, 100, 92), Color8(122, 120, 118), Color8(96, 94, 96), Color8(64, 92, 112),
+	Color8(150, 150, 146), Color8(92, 108, 88), Color8(98, 124, 84), Color8(150, 150, 144),
+	Color8(92, 86, 80), Color8(78, 80, 84), Color8(64, 66, 70), Color8(52, 78, 96),
 ]
 const BUILDING_COLORS := [Color(0.80, 0.78, 0.74), Color(0.55, 0.54, 0.52)]
+const BLOCKS_SHADER := "res://world/city_blocks.gdshader"
+## Real metres of one storey (as in osm_city.py) and one window bay.
+const LEVEL_HEIGHT := 3.4
+const BAY_WIDTH := 3.6
 const EDGE_WALL := 4.0
 ## The SMT IV framing: steep, far back, the avatar small against the
 ## city. CAMERA_RANGE is metres from camera to avatar along the view.
@@ -55,10 +59,10 @@ func _ready() -> void:
 	var corner := Vector2(meta.corner[0], meta.corner[1]) * _scale
 	_build_ground(geometry, corner, size)
 
-	var blocks_mat := StandardMaterial3D.new()
-	blocks_mat.vertex_color_use_as_albedo = true
-	blocks_mat.vertex_color_is_srgb = true
-	blocks_mat.roughness = 0.9
+	var blocks_mat := ShaderMaterial.new()
+	blocks_mat.shader = load(BLOCKS_SHADER)
+	blocks_mat.set_shader_parameter("storey", LEVEL_HEIGHT * _vscale)
+	blocks_mat.set_shader_parameter("bay", BAY_WIDTH * _scale)
 	var ground_mat := StandardMaterial3D.new()
 	ground_mat.vertex_color_use_as_albedo = true
 	ground_mat.vertex_color_is_srgb = true
@@ -234,12 +238,33 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	root.add_child(camera)
 	camera.owner = root
 
+	# A hazy afternoon: the far city fades into the sky colour, contact
+	# shadows ground the blocks, and filmic tonemapping keeps the pale
+	# concrete from clipping.
+	var haze := Color(0.72, 0.76, 0.80)
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.09, 0.1, 0.13)
+	env.background_color = haze
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color.WHITE
-	env.ambient_light_energy = 0.6
+	env.ambient_light_color = Color(0.78, 0.84, 0.95)
+	env.ambient_light_energy = 0.55
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 1.05
+	env.tonemap_white = 6.0
+	env.ssao_enabled = true
+	env.ssao_radius = 2.5
+	env.ssao_intensity = 2.5
+	env.ssao_detail = 0.5
+	env.fog_enabled = true
+	env.fog_mode = Environment.FOG_MODE_DEPTH
+	env.fog_light_color = haze
+	env.fog_depth_begin = CAMERA_RANGE * 1.5
+	env.fog_depth_end = CAMERA_RANGE * 9.0
+	env.fog_depth_curve = 1.6
+	env.fog_sky_affect = 1.0
+	env.adjustment_enabled = true
+	env.adjustment_contrast = 1.08
+	env.adjustment_saturation = 0.92
 	var world_env := WorldEnvironment.new()
 	world_env.name = "WorldEnvironment"
 	world_env.environment = env
@@ -248,8 +273,11 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 
 	var sun := DirectionalLight3D.new()
 	sun.name = "DirectionalLight3D"
-	sun.rotation_degrees = Vector3(-55, 30, 0)
+	sun.rotation_degrees = Vector3(-50, -40, 0)
+	sun.light_color = Color(1.0, 0.94, 0.84)
+	sun.light_energy = 1.25
 	sun.shadow_enabled = true
+	sun.shadow_blur = 1.5
 	sun.directional_shadow_max_distance = CAMERA_RANGE * 3.0
 	root.add_child(sun)
 	sun.owner = root
