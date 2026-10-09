@@ -11,6 +11,10 @@
 //    and foam near the bank, with foam lines rolling in. It usually reads
 //    the depth buffer; here it reads shore_tex, metres to the nearest bank
 //    baked by tools/blockout/shore_field.py.
+//  - Size: none of that suits a canal or a pond, where surf lines and a
+//    shallow ring squeezed into a few metres read as noise. shore_tex's
+//    green channel says how open the water is; small bodies go still,
+//    dark and mirror-like, and only the river and the lake get surf.
 shader_type spatial;
 render_mode cull_back;
 
@@ -40,6 +44,12 @@ uniform float foam_edge = 6.0;
 uniform float foam_spacing = 14.0;
 uniform float foam_reach = 40.0;
 uniform float foam_speed = 0.35;
+// Small bodies: their colour, and the openness, in metres of water to the
+// nearest bank, over which water turns from still to open. Surf lines and
+// the shallow ring need more room again.
+uniform vec3 still_color : source_color = vec3(0.13, 0.17, 0.15);
+uniform vec2 still_range = vec2(15.0, 120.0);
+uniform vec2 surf_range = vec2(150.0, 240.0);
 
 uniform sampler2D shore_tex : filter_linear_mipmap, repeat_disable, hint_default_black;
 // Where shore_tex lies, in world units, and world units per metre.
@@ -81,15 +91,15 @@ float crests(vec2 p, float sharp) {
 
 // Height in units of wave_height, 0 to about 1. pixel is world units per
 // screen pixel; an octave fades out as its waves near that size.
-float waves(vec2 xz, float t, float pixel) {
-	vec2 p = xz / wave_size;
+float waves(vec2 xz, float t, float pixel, float size) {
+	vec2 p = xz / size;
 	float freq = 1.0;
 	float amp = 1.0;
 	float sharp = choppy;
 	float h = 0.0;
 	float total = 0.0;
 	for (int i = 0; i < 4; i++) {
-		float keep = 1.0 - smoothstep(0.15, 0.5, pixel * freq / wave_size);
+		float keep = 1.0 - smoothstep(0.15, 0.5, pixel * freq / size);
 		vec2 q = p * freq;
 		float d = crests(q + flow * t, sharp) + crests(q - flow.yx * t * 0.8, sharp);
 		h += d * 0.5 * amp * keep;
@@ -106,27 +116,41 @@ void fragment() {
 	vec2 xz = world_pos.xz;
 	float t = TIME * flow_speed;
 	float pixel = max(length(fwidth(xz)), 1e-4);
-	float e = max(pixel, wave_size * 0.01);
-	float h = waves(xz, t, pixel);
-	vec2 grad = vec2(waves(xz + vec2(e, 0.0), t, pixel) - h, waves(xz + vec2(0.0, e), t, pixel) - h) / e;
-	vec3 n = normalize(vec3(-grad.x * wave_height, 1.0, -grad.y * wave_height));
+
+	float metres = shallow_reach * 4.0;
+	float open = 255.0;
+	if (has_shore) {
+		vec2 suv = (xz - shore_origin) / shore_size;
+		vec2 s = texture(shore_tex, suv).rg * 255.0;
+		metres = s.x;
+		open = s.y;
+	}
+	float still = 1.0 - smoothstep(still_range.x, still_range.y, open);
+	float surf = smoothstep(surf_range.x, surf_range.y, open);
+
+	// Still water: a fine, low ripple, slower, the wind barely reaching it.
+	float size = wave_size * mix(1.0, 0.45, still);
+	float tt = t * mix(1.0, 0.4, still);
+	float e = max(pixel, size * 0.01);
+	float h = waves(xz, tt, pixel, size);
+	vec2 grad = vec2(waves(xz + vec2(e, 0.0), tt, pixel, size) - h, waves(xz + vec2(0.0, e), tt, pixel, size) - h) / e;
+	float lift = wave_height * mix(1.0, 0.3, still);
+	vec3 n = normalize(vec3(-grad.x * lift, 1.0, -grad.y * lift));
 
 	vec3 eye = normalize(world_pos - CAMERA_POSITION_WORLD);
 	float facing = clamp(dot(n, -eye), 0.0, 1.0);
 	// Seascape's softer cube rather than Schlick's fifth power, so the
 	// overhead camera still sees some sky in the water.
-	float fresnel = clamp(0.04 + 0.96 * pow(1.0 - facing, 3.0), 0.0, 1.0) * reflect_strength;
+	float fresnel = clamp(0.04 + 0.96 * pow(1.0 - facing, 3.0), 0.0, 1.0) * mix(reflect_strength, 1.0, still);
 	vec3 r = reflect(eye, n);
 	vec3 sky = mix(sky_horizon, sky_zenith, sqrt(clamp(r.y, 0.0, 1.0)));
 
-	float metres = shallow_reach * 4.0;
-	if (has_shore) {
-		vec2 suv = (xz - shore_origin) / shore_size;
-		metres = texture(shore_tex, suv).r * 255.0;
-	}
-	vec3 body = mix(shallow_color, deep_color, smoothstep(0.0, shallow_reach, metres));
+	// The shallow ring only where there is room for one; a pond is one
+	// colour, slightly lighter at its middle rather than its edge.
+	vec3 body = mix(deep_color, shallow_color, (1.0 - smoothstep(0.0, shallow_reach, metres)) * surf);
+	body = mix(body, still_color, still);
 	body = mix(body, body * 1.25, noise(xz / patch_size + TIME * 0.01) * 0.5 + 0.5);
-	body += (crest_color - deep_color) * clamp(h - 0.45, 0.0, 1.0) * 0.6;
+	body += (crest_color - deep_color) * clamp(h - 0.45, 0.0, 1.0) * 0.6 * (1.0 - still);
 
 	// Foam: solid at the bank, then lines rolling in, broken up by noise so
 	// each reads as a ragged band rather than a contour.
@@ -135,8 +159,10 @@ void fragment() {
 	float line = fract(m / foam_spacing + TIME * foam_speed);
 	float lw = fwidth(m / foam_spacing) + 1e-4;
 	float band = smoothstep(0.0, lw, line) * (1.0 - smoothstep(0.18 - lw, 0.18, line));
-	float lines = band * (1.0 - smoothstep(foam_reach * 0.3, foam_reach, metres)) * step(0.35, rag + h * 0.4);
-	float edge = 1.0 - smoothstep(foam_edge * 0.5, foam_edge + rag * foam_edge, metres);
+	float lines = band * (1.0 - smoothstep(foam_reach * 0.3, foam_reach, metres)) * step(0.35, rag + h * 0.4) * surf;
+	// Small water keeps no foam at all; mid-sized a thin rim.
+	float rim = foam_edge * mix(0.35, 1.0, surf);
+	float edge = (1.0 - smoothstep(rim * 0.5, rim + rag * rim, metres)) * (1.0 - still);
 	foam_cover = has_shore ? clamp(max(edge, lines * 0.8), 0.0, 1.0) : 0.0;
 
 	// The reflection is emitted, not lit, so at grazing angles the water

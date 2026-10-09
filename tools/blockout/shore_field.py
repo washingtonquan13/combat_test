@@ -6,9 +6,15 @@ it, so the distance is baked from the water triangles instead.
 
     python -I tools/blockout/shore_field.py data/blockouts/<name> [--res 5]
 
-Reads city.json and the ground tiles, writes shore.png (8-bit, metres to
-the nearest non-water point, capped at 255) and adds a "shore" entry to
-city.json. Needs numpy and Pillow.
+Reads city.json and the ground tiles, writes shore.png and adds a "shore"
+entry to city.json. Needs numpy and Pillow. Both channels are metres,
+capped at 255:
+  red    distance to the nearest bank.
+  green  how open the water around this point is: the largest red value
+         within WIDE metres, reached through water. A canal stays at its
+         half-width all along, a pond at its radius, while even the bank of
+         a river reads as open water. The shader calms the small bodies by
+         it.
 """
 import argparse
 import json
@@ -20,6 +26,7 @@ from PIL import Image, ImageDraw
 
 WATER = 7
 RANGE = 255.0
+WIDE = RANGE
 
 
 def main():
@@ -44,8 +51,11 @@ def main():
             count += 1
     water = np.asarray(mask) > 0
     dist = _distance(~water, RANGE / args.res) * args.res
-    out = np.clip(np.where(water, dist, 0.0), 0.0, RANGE).astype(np.uint8)
-    Image.fromarray(out, "L").save(os.path.join(args.dir, "shore.png"))
+    dist = np.where(water, dist, 0.0)
+    wide = _open_water(dist, water, int(round(WIDE / args.res)))
+    out = np.stack([dist, wide, np.zeros_like(dist)], axis=-1)
+    out = np.clip(out, 0.0, RANGE).astype(np.uint8)
+    Image.fromarray(out, "RGB").save(os.path.join(args.dir, "shore.png"))
     meta["shore"] = {"file": "shore.png", "res": args.res, "range": RANGE}
     with open(os.path.join(args.dir, "city.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, indent=1)
@@ -90,6 +100,20 @@ def _distance(seed, reach):
                 nx = np.where(better, sx, nx)
                 best = np.where(better, d, best)
     return np.sqrt(best)
+
+
+def _open_water(dist, water, steps):
+    """Spreads each water pixel's distance to the bank over its neighbours,
+    steps pixels through water, keeping the largest."""
+    out = dist
+    for _ in range(steps):
+        grown = out
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy or dx:
+                    grown = np.maximum(grown, _shift(out, dy, dx, 0.0))
+        out = np.where(water, grown, 0.0)
+    return out
 
 
 def _shift(a, dy, dx, fill):
