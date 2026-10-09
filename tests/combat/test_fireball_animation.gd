@@ -171,7 +171,7 @@ func _launched_from_the_stance() -> void:
 	check("it flies straight at the target", off_line >= 0.0 and off_line < 0.03,
 		"%.2f m off the line" % off_line)
 
-	# 6 m at 11 m/s: landed after about 0.55 s.
+	# 6 m at 18 m/s: landed after about 0.35 s.
 	await get_tree().create_timer(0.63).timeout
 	var landed: Node = flying[0] if flying.size() == 1 else null
 	check("landed, its smoke trail hangs on", is_instance_valid(landed)
