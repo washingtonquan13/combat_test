@@ -25,6 +25,7 @@ const EDGE_WALL := 4.0
 const CAMERA_PITCH := 70.0
 const CAMERA_RANGE := 170.0
 const AVATAR_SPEED_SCALE := 2.0
+const AVATAR_ICON_SCALE := 12.0
 
 var _scale := 0.125
 var _vscale := 0.25
@@ -189,6 +190,7 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	root.set_script(load("res://world/overworld.gd"))
 	root.set_meta("osm_attribution", meta.attribution)
 	root.avatar_speed_scale = AVATAR_SPEED_SCALE
+	root.avatar_icon_scale = AVATAR_ICON_SCALE
 
 	var city: Node3D = load(geometry_path).instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
 	root.add_child(city)

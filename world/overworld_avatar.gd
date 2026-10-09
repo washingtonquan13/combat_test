@@ -65,6 +65,10 @@ var active: bool = false
 ## header on the ambiguous "0.005 * time" source spec; this assumes
 ## milliseconds (~5 rad/sec, a ~1.25s wobble period), tune freely.
 @export var neutral_wobble_frequency: float = 5.0
+## Draws the icon this many times larger, standing on the same feet. The
+## body does not grow, so a big icon still fits down the streets; a map
+## seen from far up sets it so the player can still be found.
+@export var icon_scale: float = 1.0
 
 ## Set by overworld.gd right after instancing — the avatar reads this
 ## every physics frame to know which way "forward" currently means.
@@ -182,6 +186,8 @@ func _ready() -> void:
 	input_ray_pickable = true
 	if not input_event.is_connected(_on_input_event):
 		input_event.connect(_on_input_event)
+	_spin_pivot.scale = Vector3.ONE * icon_scale
+	_spin_pivot.position.y *= icon_scale
 
 
 ## Clicking an avatar commands that group. The counterpart to clicking
