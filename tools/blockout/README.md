@@ -32,16 +32,18 @@ re-run the builder.
 ## Whole-city overworld
 
 A second pipeline builds a city-sized overworld map: block masses instead
-of buildings, scaled down, with water as impassable collision.
+of buildings, with their tall buildings rising out of them, scaled down,
+with water as impassable collision. Everything stays a polygon from the
+OSM data (shapely, `pip install shapely`), so edges keep their real angles.
 
 ```bash
 python -I tools/blockout/fetch_osm_city.py <raw dir> --bbox S,W,N,E
 python -I tools/blockout/osm_city.py <raw dir> data/blockouts/<name> --bbox S,W,N,E --water-seeds "LAT,LON;LAT,LON"
-cp data/blockouts/<name>/ground.png world/<name>/ground.png
-godot --headless --path . --import
 godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res://data/blockouts/<name> --out=res://world/<name> --scale=0.125
 ```
 
+- `osm_city.py` takes about 12 minutes for New Orleans, almost all of it
+  merging the footprints of the two lowest height steps.
 - Keep the raw download outside the project. It is large (New Orleans is
   about 70 MB) and only `osm_city.py` reads it.
 - `data/blockouts/<name>/` needs a `.gdignore`, because its tile files are

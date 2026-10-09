@@ -9,16 +9,18 @@ extends Node
 ## editable area that instances it, but only when that scene does not
 ## exist yet: doors and spawn points placed by hand survive a rebuild.
 ##
-## The ground texture is read through the importer, so copy ground.png to
-## <out>/ground.png and run `godot --headless --import` before this.
-##
 ## --scale shrinks the city horizontally (0.125 is 1:8); --vscale is the
 ## scale for heights, larger than --scale so blocks still read as
 ## buildings and not kerbs once the streets are a few metres wide.
 ##
 ## Map data (c) OpenStreetMap contributors, ODbL 1.0.
 
-const NORMALS := [Vector3.UP, Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
+## Vertex colours by triangle kind, in osm_city.py's order.
+const GROUND_COLORS := [
+	Color8(178, 168, 150), Color8(100, 120, 96), Color8(112, 140, 92), Color8(170, 170, 160),
+	Color8(110, 100, 92), Color8(122, 120, 118), Color8(96, 94, 96), Color8(64, 92, 112),
+]
+const BUILDING_COLORS := [Color(0.80, 0.78, 0.74), Color(0.55, 0.54, 0.52)]
 const EDGE_WALL := 4.0
 ## The SMT IV framing: steep, far back, the avatar small against the
 ## city. CAMERA_RANGE is metres from camera to avatar along the view.
@@ -49,31 +51,36 @@ func _ready() -> void:
 	geometry.set_meta("osm_bbox", meta.bbox)
 	geometry.set_meta("scale", _scale)
 
-	var cell: float = meta.cell
-	var size := Vector2(meta.size[0], meta.size[1]) * cell * _scale
+	var size := Vector2(meta.extent[0], meta.extent[1]) * _scale
 	var corner := Vector2(meta.corner[0], meta.corner[1]) * _scale
-	_build_ground(geometry, out, corner, size)
+	_build_ground(geometry, corner, size)
 
 	var blocks_mat := StandardMaterial3D.new()
-	blocks_mat.albedo_color = Color(0.80, 0.78, 0.74)
+	blocks_mat.vertex_color_use_as_albedo = true
+	blocks_mat.vertex_color_is_srgb = true
 	blocks_mat.roughness = 0.9
-	var quads := 0
+	var ground_mat := StandardMaterial3D.new()
+	ground_mat.vertex_color_use_as_albedo = true
+	ground_mat.vertex_color_is_srgb = true
+	ground_mat.roughness = 1.0
+	var tris := 0
 	for tile in meta.tiles:
 		var body := StaticBody3D.new()
 		body.name = "Tile_%d_%d" % [tile.x, tile.z]
 		geometry.add_child(body)
 		var faces := PackedVector3Array()
+		if tile.has("ground"):
+			var ground := _load_tris(src + "/tiles/" + tile.ground, GROUND_COLORS)
+			body.add_child(_mesh_instance("Ground", ground.mesh, ground_mat))
 		if tile.has("blocks"):
-			var mesh := _load_quads(src + "/tiles/" + tile.blocks)
-			quads += mesh.quads
-			var mi := MeshInstance3D.new()
-			mi.name = "Blocks"
-			mi.mesh = mesh.mesh
-			mi.material_override = blocks_mat
-			body.add_child(mi)
-			faces.append_array(mesh.faces)
+			var blocks := _load_tris(src + "/tiles/" + tile.blocks, BUILDING_COLORS)
+			tris += blocks.count
+			body.add_child(_mesh_instance("Blocks", blocks.mesh, blocks_mat))
+			faces.append_array(blocks.faces)
 		if tile.has("water"):
-			faces.append_array(_load_quads(src + "/tiles/" + tile.water).faces)
+			faces.append_array(_load_tris(src + "/tiles/" + tile.water, []).faces)
+		if faces.is_empty():
+			continue
 		var shape := ConcavePolygonShape3D.new()
 		shape.set_faces(faces)
 		var col := CollisionShape3D.new()
@@ -88,7 +95,7 @@ func _ready() -> void:
 	var geometry_path := out + "/city_geometry.scn"
 	if err == OK:
 		err = ResourceSaver.save(scene, geometry_path, ResourceSaver.FLAG_COMPRESS)
-	print("city: %d tiles, %d quads -> %s (%s)" % [meta.tiles.size(), quads, geometry_path, error_string(err)])
+	print("city: %d tiles, %d building triangles -> %s (%s)" % [meta.tiles.size(), tris, geometry_path, error_string(err)])
 	geometry.free()
 
 	var area_path := out.get_base_dir() + "/" + out.get_file() + "_overworld.tscn"
@@ -103,22 +110,10 @@ func _own(node: Node, owner_node: Node) -> void:
 		_own(child, owner_node)
 
 
-## One plane coloured by ground.png, a slab under it to stand on, and a
-## wall round the edge of the map.
-func _build_ground(parent: Node3D, out: String, corner: Vector2, size: Vector2) -> void:
+## A slab under the ground meshes to stand on, and a wall round the edge
+## of the map.
+func _build_ground(parent: Node3D, corner: Vector2, size: Vector2) -> void:
 	var centre := corner + size * 0.5
-	var mat := StandardMaterial3D.new()
-	mat.albedo_texture = load(out + "/ground.png")
-	mat.roughness = 1.0
-	var plane := PlaneMesh.new()
-	plane.size = size
-	var ground := MeshInstance3D.new()
-	ground.name = "Ground"
-	ground.mesh = plane
-	ground.material_override = mat
-	ground.position = Vector3(centre.x, 0.0, centre.y)
-	parent.add_child(ground)
-
 	var floor_body := StaticBody3D.new()
 	floor_body.name = "Floor"
 	floor_body.position = Vector3(centre.x, -0.5, centre.y)
@@ -140,46 +135,67 @@ func _add_box(body: StaticBody3D, at: Vector3, size: Vector3) -> void:
 	body.add_child(col)
 
 
+func _mesh_instance(node_name: String, mesh: Mesh, mat: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = mesh
+	mi.material_override = mat
+	return mi
+
+
 ## A tile file as a mesh and as collision faces, both already scaled.
-func _load_quads(path: String) -> Dictionary:
+## colors maps a triangle's kind to its vertex colour; UV2 carries the
+## kind and tint themselves for shaders.
+func _load_tris(path: String, colors: Array) -> Dictionary:
 	var bytes := FileAccess.get_file_as_bytes(path)
 	var n := bytes.decode_s32(0)
-	var floats := bytes.slice(4, 4 + n * 48).to_float32_array()
-	var normal_ids := bytes.slice(4 + n * 48)
+	var floats := bytes.slice(4, 4 + n * 36).to_float32_array()
+	var kinds := bytes.slice(4 + n * 36, 4 + n * 37)
+	var tints := bytes.slice(4 + n * 37, 4 + n * 38)
 	var verts := PackedVector3Array()
-	var normals := PackedVector3Array()
-	var indices := PackedInt32Array()
+	verts.resize(n * 3)
+	for v in n * 3:
+		verts[v] = Vector3(floats[v * 3] * _scale, floats[v * 3 + 1] * _vscale, floats[v * 3 + 2] * _scale)
+	# The file winds counter-clockwise from outside; Godot's front faces
+	# are clockwise.
 	var faces := PackedVector3Array()
-	verts.resize(n * 4)
-	normals.resize(n * 4)
-	indices.resize(n * 6)
-	faces.resize(n * 6)
-	for q in n:
-		var nrm: Vector3 = NORMALS[normal_ids[q]]
-		for k in 4:
-			var f := (q * 4 + k) * 3
-			verts[q * 4 + k] = Vector3(floats[f] * _scale, floats[f + 1] * _vscale, floats[f + 2] * _scale)
-			normals[q * 4 + k] = nrm
-		# The file winds counter-clockwise from outside; Godot's front
-		# faces are clockwise.
-		var v := q * 4
-		var i := q * 6
-		indices[i] = v
-		indices[i + 1] = v + 2
-		indices[i + 2] = v + 1
-		indices[i + 3] = v
-		indices[i + 4] = v + 3
-		indices[i + 5] = v + 2
-		for k in 6:
-			faces[i + k] = verts[indices[i + k]]
+	faces.resize(n * 3)
+	var normals := PackedVector3Array()
+	normals.resize(n * 3)
+	var cols := PackedColorArray()
+	var uv2 := PackedVector2Array()
+	if not colors.is_empty():
+		cols.resize(n * 3)
+		uv2.resize(n * 3)
+	for t in n:
+		var a := verts[t * 3]
+		var b := verts[t * 3 + 1]
+		var c := verts[t * 3 + 2]
+		var nrm := (b - a).cross(c - a).normalized()
+		faces[t * 3] = a
+		faces[t * 3 + 1] = c
+		faces[t * 3 + 2] = b
+		for k in 3:
+			normals[t * 3 + k] = nrm
+		if not colors.is_empty():
+			var col: Color = colors[kinds[t]]
+			var uv := Vector2(kinds[t], tints[t] / 255.0)
+			for k in 3:
+				cols[t * 3 + k] = col
+				uv2[t * 3 + k] = uv
+	var result := {"faces": faces, "count": n}
+	if colors.is_empty():
+		return result
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_VERTEX] = faces
 	arrays[Mesh.ARRAY_NORMAL] = normals
-	arrays[Mesh.ARRAY_INDEX] = indices
+	arrays[Mesh.ARRAY_COLOR] = cols
+	arrays[Mesh.ARRAY_TEX_UV2] = uv2
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	return {"mesh": mesh, "faces": faces, "quads": n}
+	result.mesh = mesh
+	return result
 
 
 ## The editable overworld: the shared overworld script, its camera framed

@@ -1,31 +1,40 @@
 """Turns a city-sized OpenStreetMap extract into a stylised overworld: building
-footprints merged into block masses, a ground colour map, and impassable water.
-build_osm_city.gd then turns the result into a scene.
+footprints merged into block masses with their taller buildings rising out
+of them, ground meshes coloured by what the ground is, and impassable
+water. build_osm_city.gd then turns the result into a scene.
 
-    python -I tools/blockout/osm_city.py <raw dir> <out dir> --bbox S,W,N,E         --water-seeds LAT,LON;LAT,LON
+    python -I tools/blockout/osm_city.py <raw dir> <out dir> --bbox S,W,N,E \
+        --water-seeds LAT,LON;LAT,LON
 
 <raw dir> is what fetch_osm_city.py writes: any number of bld_*.json with
 buildings, and features.json with water, roads, green space and rail.
 
 The bbox cuts big water open (a river crossing the map, a lake past its
 edge), leaving no ring to fill. --water-seeds names one point inside each
-such body; its shorelines become walls and the seed floods its side.
+such body; its shorelines, run out to the map edge, cut the map into
+pieces, and the piece holding the seed is water.
 
-Everything is rasterised at CELL metres (real scale) rather than kept as
-polygons. A city has far too many buildings for one node each, and an
-overworld wants blocks, not buildings: closing the building mask merges
-the houses of one block, and cutting the streets back out keeps the blocks
-apart. The block masses are then meshed as flat-topped columns per tile.
+Everything stays a polygon, so edges keep their real angles. A city has far
+too many buildings for one node each, and an overworld wants blocks, not
+buildings: closing the union of the footprints merges the houses of one
+block, and cutting the streets back out keeps the blocks apart. Heights are
+stepped: the mass of each step is every footprint at least that tall,
+closed, and kept inside the step below, so a block is one prism with its
+tall buildings standing on it as prisms of their own. Low steps close wide
+enough to merge a row of houses; high ones only a little, so towers keep
+their shapes.
 
 Writes into <out dir>:
-  ground.png       one pixel per cell, coloured by what the ground is
-  tiles/t_X_Z.bin  block masses of one tile, in real metres
+  tiles/b_X_Z.bin  buildings of one tile, in real metres
+  tiles/g_X_Z.bin  the ground of one tile, flat at y 0, every class
   tiles/w_X_Z.bin  the water of one tile, extruded, for collision only
-  city.json        grid size, cell, origin, tiles
+  city.json        extent, tile size, origin, tiles
 
-A tile file is an int32 quad count, then four float32 xyz corners per quad
-(counter-clockwise seen from outside), then one uint8 normal per quad:
-0 up, 1 north (-z), 2 south (+z), 3 west (-x), 4 east (+x).
+A tile file is an int32 triangle count, then three float32 xyz corners per
+triangle (counter-clockwise seen from outside, so the normal is
+(b - a) x (c - a)), then one uint8 kind per triangle, then one uint8 tint
+per triangle. Kinds: building wall 0 and roof 1; ground the classes below.
+The tint is a per-building random byte, for varying the palette.
 
 Coordinates: x is east, z is south, metres from the bbox centre, the same
 frame as osm_to_local.py. Map data (c) OpenStreetMap contributors, ODbL.
@@ -35,21 +44,33 @@ import glob
 import json
 import math
 import os
+import time
+import zlib
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+import shapely
+from shapely.geometry import LineString, Point, Polygon, box
 
-CELL = 4.0
-TILE = 256  # cells per tile side
+TILE = 1024.0  # metres per tile side
 ## Houses without a height tag. Most of the city is one- and two-storey.
 DEFAULT_HEIGHT = 7.0
 LEVEL_HEIGHT = 3.4
 ## Heights are rounded to this so a block reads as a few flat plateaus
 ## instead of every roofline.
 HEIGHT_STEP = 4.0
-## Buildings closer than about this merge into one mass.
-MERGE_CELLS = 5
+## Footprints closer than twice this merge into one mass, up to LOW_RISE.
+MERGE = 8.0
+LOW_RISE = 12.0
+## Above LOW_RISE only near-touching buildings merge.
+TOWER_MERGE = 2.0
+## Kept clear between a block and the street, and the smallest piece kept.
+SIDEWALK = 1.5
+MIN_AREA = 60.0
+## Outlines lose detail smaller than this.
+SIMPLIFY = 1.0
 WATER_WALL = 3.0
+## A shoreline the bbox cut is run out to the map edge from this close.
+SHORE_REACH = 400.0
 
 ROAD_WIDTHS = {
     "motorway": 26.0, "trunk": 22.0, "primary": 18.0, "secondary": 16.0, "tertiary": 14.0,
@@ -57,19 +78,19 @@ ROAD_WIDTHS = {
     "residential": 11.0, "unclassified": 11.0, "living_street": 9.0, "pedestrian": 9.0,
     "service": 0.0,
 }
+MINOR_ROADS = ("residential", "unclassified", "living_street", "pedestrian")
+RAIL_WIDTH = 8.0
+CANAL_WIDTH = 24.0
+
 GREEN = {("leisure", "park"), ("leisure", "golf_course"), ("leisure", "pitch"),
          ("landuse", "grass"), ("landuse", "meadow"), ("landuse", "recreation_ground"),
          ("landuse", "forest"), ("natural", "wood"), ("natural", "scrub")}
 WETLAND = {("natural", "wetland")}
 CEMETERY = {("landuse", "cemetery")}
 
-# Ground classes and their colours in ground.png.
-GROUND, ROAD, MAJOR, PARK, MARSH, GRAVES, WATER, RAIL = range(8)
-PALETTE = {
-    GROUND: (178, 168, 150), ROAD: (122, 120, 118), MAJOR: (96, 94, 96),
-    PARK: (112, 140, 92), MARSH: (100, 120, 96), GRAVES: (170, 170, 160),
-    WATER: (64, 92, 112), RAIL: (110, 100, 92),
-}
+# Ground classes. Each one covers the ones before it.
+GROUND, MARSH, PARK, GRAVES, RAIL, ROAD, MAJOR, WATER = range(8)
+WALL, ROOF = 0, 1
 
 
 def main():
@@ -80,178 +101,202 @@ def main():
     ap.add_argument("--water-seeds", default="",
                     help="lat,lon;lat,lon points inside water bodies the bbox cuts open")
     args = ap.parse_args()
+    t0 = time.time()
     s, w, n, e = (float(v) for v in args.bbox.split(","))
     lat0, lon0 = (s + n) / 2, (w + e) / 2
     m_lat = 111_320.0
     m_lon = 111_320.0 * math.cos(math.radians(lat0))
-    half_x = (e - w) / 2 * m_lon
-    half_z = (n - s) / 2 * m_lat
-    cols = int(math.ceil(2 * half_x / CELL / TILE)) * TILE
-    rows = int(math.ceil(2 * half_z / CELL / TILE)) * TILE
+    half_x = math.ceil((e - w) / 2 * m_lon / (TILE / 2)) * (TILE / 2)
+    half_z = math.ceil((n - s) / 2 * m_lat / (TILE / 2)) * (TILE / 2)
+    # The map is the bbox, but the tile grid and ground cover whole tiles.
+    real = box(-(e - w) / 2 * m_lon, -(n - s) / 2 * m_lat, (e - w) / 2 * m_lon, (n - s) / 2 * m_lat)
+    extent = box(-half_x, -half_z, half_x, half_z)
 
-    def px(g):
-        """Lat/lon to raster pixel coordinates."""
-        return ((g["lon"] - lon0) * m_lon + half_x) / CELL, (-(g["lat"] - lat0) * m_lat + half_z) / CELL
+    def xz(g):
+        return (g["lon"] - lon0) * m_lon, -(g["lat"] - lat0) * m_lat
 
-    def ring_px(geom):
-        return [px(g) for g in geom if g]
+    def ring(geom):
+        return [xz(g) for g in geom if g]
+
+    def log(msg):
+        print("%6.1fs %s" % (time.time() - t0, msg), flush=True)
 
     # --- Buildings ---------------------------------------------------------
-    heights = Image.new("I", (cols, rows), 0)
-    hdraw = ImageDraw.Draw(heights)
-    count = 0
+    footprints, heights = [], []
     for path in sorted(glob.glob(os.path.join(args.raw, "bld_*.json"))):
         for el in json.load(open(path, encoding="utf-8"))["elements"]:
             if el["type"] != "way" or "geometry" not in el:
                 continue
-            ring = ring_px(el["geometry"])
-            if len(ring) < 3:
+            r = ring(el["geometry"])
+            if len(r) < 3:
                 continue
-            h = _height(el.get("tags", {}))
-            hdraw.polygon(ring, fill=int(round(h)))
-            count += 1
-    print("buildings", count)
-    h = np.array(heights, dtype=np.float32)
+            footprints.append(Polygon(r))
+            heights.append(_height(el.get("tags", {})))
+    footprints = shapely.make_valid(np.array(footprints, dtype=object))
+    heights = np.maximum(HEIGHT_STEP, np.round(np.array(heights) / HEIGHT_STEP) * HEIGHT_STEP)
+    # make_valid can hand back lines for a degenerate ring; keep area only.
+    keep = shapely.area(footprints) > 1.0
+    footprints, heights = footprints[keep], heights[keep]
+    log("buildings %d" % len(footprints))
 
     # --- Ground ------------------------------------------------------------
     feats = json.load(open(os.path.join(args.raw, "features.json"), encoding="utf-8"))["elements"]
-    ground = Image.new("L", (cols, rows), GROUND)
-    gdraw = ImageDraw.Draw(ground)
-    water_rings, green_rings, marsh_rings, grave_rings = [], [], [], []
-    roads, rails, canals = [], [], []
-    shores = []
+    areas = {MARSH: [], PARK: [], GRAVES: [], WATER: []}
+    roads, rails, canals, shores = [], [], [], []
     for el in feats:
         tags = el.get("tags", {})
         if el["type"] == "relation":
             outers = [m["geometry"] for m in el.get("members", []) if m.get("role") == "outer" and "geometry" in m]
             inners = [m["geometry"] for m in el.get("members", []) if m.get("role") == "inner" and "geometry" in m]
             outer_rings, cut = _join(outers)
-            polys = [(r, False) for r in outer_rings] + [(r, True) for r in _join(inners)[0]]
+            inner_rings = _join(inners)[0]
             if tags.get("natural") == "water" or tags.get("waterway") == "riverbank":
                 shores.extend(cut)
             else:
-                polys += [(c, False) for c in cut if len(c) > 2]
+                outer_rings += [c for c in cut if len(c) > 2]
+            poly = _area([ring(r) for r in outer_rings], [ring(r) for r in inner_rings])
         elif "geometry" in el:
             geom = el["geometry"]
-            closed = len(geom) > 2 and geom[0] == geom[-1]
-            polys = [(geom, False)] if closed else []
-            if not closed:
+            if not (len(geom) > 2 and geom[0] == geom[-1]):
+                line = ring(geom)
+                if len(line) < 2:
+                    continue
                 if tags.get("highway") in ROAD_WIDTHS:
-                    roads.append((geom, tags["highway"]))
+                    roads.append((line, tags["highway"]))
                 elif tags.get("railway") == "rail":
-                    rails.append(geom)
+                    rails.append(line)
                 elif tags.get("waterway") in ("canal", "river"):
-                    canals.append((geom, tags.get("width")))
+                    canals.append((line, tags.get("width")))
                 continue
+            poly = _area([ring(geom)], [])
         else:
             continue
         kind = None
         if tags.get("natural") == "water" or tags.get("waterway") == "riverbank":
-            kind = water_rings
+            kind = WATER
         elif any((k, tags.get(k)) in GREEN for k in ("leisure", "landuse", "natural")):
-            kind = green_rings
-        elif any((k, tags.get(k)) in WETLAND for k in ("natural",)):
-            kind = marsh_rings
-        elif any((k, tags.get(k)) in CEMETERY for k in ("landuse",)):
-            kind = grave_rings
+            kind = PARK
+        elif tags.get("natural") in ("wetland",):
+            kind = MARSH
+        elif tags.get("landuse") == "cemetery":
+            kind = GRAVES
         elif tags.get("highway") in ROAD_WIDTHS and tags.get("area") != "yes":
-            roads.append((el["geometry"], tags["highway"]))
+            roads.append((ring(el["geometry"]), tags["highway"]))
             continue
-        if kind is not None:
-            kind.extend(polys)
+        if kind is not None and poly is not None:
+            areas[kind].append(poly)
 
-    def fill(rings, value):
-        for geom, hole in rings:
-            ring = ring_px(geom)
-            if len(ring) >= 3 and not hole:
-                gdraw.polygon(ring, fill=value)
-        for geom, hole in rings:
-            ring = ring_px(geom)
-            if len(ring) >= 3 and hole:
-                gdraw.polygon(ring, fill=GROUND)
-
-    fill(marsh_rings, MARSH)
-    fill(green_rings, PARK)
-    fill(grave_rings, GRAVES)
-    for geom in rails:
-        gdraw.line(ring_px(geom), fill=RAIL, width=max(1, int(8 / CELL)))
-    for geom, kind in roads:
-        width = ROAD_WIDTHS[kind]
-        if width <= 0:
-            continue
-        major = kind not in ("residential", "unclassified", "living_street", "pedestrian")
-        gdraw.line(ring_px(geom), fill=MAJOR if major else ROAD, width=max(1, int(round(width / CELL))), joint="curve")
-    fill(water_rings, WATER)
-    # Water the bbox cuts open has no ring to fill. Its shorelines become
-    # walls, the map edge closes them, and each seed floods its own side.
-    if args.water_seeds:
-        barrier = Image.new("L", (cols, rows), 0)
-        bdraw = ImageDraw.Draw(barrier)
-        for chain in shores:
-            if len(chain) > 1:
-                bdraw.line(ring_px(chain), fill=1, width=2)
-        for seed in args.water_seeds.split(";"):
-            lat, lon = (float(v) for v in seed.split(","))
-            x, y = px({"lat": lat, "lon": lon})
-            if barrier.getpixel((int(x), int(y))) == 0:
-                ImageDraw.floodfill(barrier, (int(x), int(y)), 2, border=1)
-        flooded = np.array(barrier) > 0
-        print("flooded water cells", int(flooded.sum()))
-        ground = Image.fromarray(np.where(flooded, WATER, np.array(ground)).astype(np.uint8), "L")
-        gdraw = ImageDraw.Draw(ground)
-    for geom, width in canals:
+    cover = {k: shapely.union_all(v) if v else Polygon() for k, v in areas.items()}
+    cover[RAIL] = _strokes([(line, RAIL_WIDTH) for line in rails])
+    cover[ROAD] = _strokes([(line, ROAD_WIDTHS[k]) for line, k in roads if k in MINOR_ROADS])
+    cover[MAJOR] = _strokes([(line, ROAD_WIDTHS[k]) for line, k in roads if k not in MINOR_ROADS])
+    canal_strokes = []
+    for line, width in canals:
         try:
             wm = float(str(width).split()[0])
         except ValueError:
-            wm = 24.0
-        gdraw.line(ring_px(geom), fill=WATER, width=max(2, int(round(wm / CELL))), joint="curve")
-    g = np.array(ground, dtype=np.uint8)
+            wm = CANAL_WIDTH
+        canal_strokes.append((line, wm))
+    water = [cover[WATER], _strokes(canal_strokes)]
+    if args.water_seeds:
+        seeds = []
+        for seed in args.water_seeds.split(";"):
+            lat, lon = (float(v) for v in seed.split(","))
+            seeds.append(Point(xz({"lat": lat, "lon": lon})))
+        flooded = _flood([LineString(ring(c)) for c in shores if len(ring(c)) > 1], real, seeds)
+        log("flooded water %.1f km2" % (flooded.area / 1e6))
+        water.append(flooded)
+    cover[WATER] = shapely.union_all(water)
+    log("ground classes")
 
     # --- Block masses ------------------------------------------------------
-    built = Image.fromarray(((h > 0) * 255).astype(np.uint8))
-    size = MERGE_CELLS | 1
-    closed = built.filter(ImageFilter.MaxFilter(size)).filter(ImageFilter.MinFilter(size))
-    # Open away specks a single shed would leave on a lawn.
-    closed = closed.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(3))
-    mass = np.array(closed) > 0
-    open_ground = np.isin(g, (ROAD, MAJOR, WATER, RAIL))
-    mass &= ~open_ground
-    # A mass is as tall as the tallest building near it, in steps.
-    hmax = np.array(Image.fromarray(np.clip(h, 0, 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(size + 2)), dtype=np.float32)
-    block_h = np.where(mass, np.maximum(HEIGHT_STEP, np.round(hmax / HEIGHT_STEP) * HEIGHT_STEP), 0.0)
+    open_ground = shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER]])
+    open_ground = shapely.buffer(open_ground, SIDEWALK, join_style="mitre")
+    shapely.prepare(open_ground)
+    steps = []  # (height, mass)
+    below = None
+    for level in np.unique(heights):
+        tall = footprints[heights >= level]
+        if len(tall) == 0:
+            break
+        r = MERGE if level <= LOW_RISE else TOWER_MERGE
+        mass = _close(shapely.union_all(tall), r)
+        mass = shapely.difference(mass, open_ground)
+        if below is not None:
+            mass = shapely.intersection(mass, below)
+        mass = _clean(mass)
+        if mass.is_empty:
+            break
+        steps.append((float(level), mass))
+        below = mass
+        log("step %3d m: %d parts" % (level, shapely.get_num_geometries(mass)))
 
     # --- Write -------------------------------------------------------------
     os.makedirs(os.path.join(args.out, "tiles"), exist_ok=True)
-    rgb = np.zeros((rows, cols, 3), dtype=np.uint8)
-    for k, c in PALETTE.items():
-        rgb[g == k] = c
-    Image.fromarray(rgb).save(os.path.join(args.out, "ground.png"), optimize=True)
-    water_h = np.where(g == WATER, WATER_WALL, 0.0)
+    for old in glob.glob(os.path.join(args.out, "tiles", "*.bin")):
+        os.remove(old)
+    nx, nz = int(round(2 * half_x / TILE)), int(round(2 * half_z / TILE))
+    buckets = {}  # (tx, tz) -> {"b": [tri arrays], ...}
 
-    ox, oz = -half_x, -half_z
+    def bucket(key, layer):
+        return buckets.setdefault(key, {}).setdefault(layer, [])
+
+    def tile_of(geom):
+        p = shapely.get_coordinates(geom.representative_point())[0]
+        return (min(nx - 1, max(0, int((p[0] + half_x) // TILE))),
+                min(nz - 1, max(0, int((p[1] + half_z) // TILE))))
+
+    for i, (level, mass) in enumerate(steps):
+        floor = steps[i - 1][0] if i else 0.0
+        above = steps[i + 1][1] if i + 1 < len(steps) else None
+        for part in shapely.get_parts(mass):
+            tint = zlib.crc32(np.round(shapely.get_coordinates(part.representative_point())).tobytes()) & 0xFF
+            key = tile_of(part)
+            bucket(key, "b").append(_walls(part, floor, level, WALL, tint))
+            roof = part if above is None else shapely.difference(part, above)
+            if not roof.is_empty:
+                bucket(key, "b").append(_flat(roof, level, ROOF, tint))
+
+    # Each ground class without the ones that cover it, so nothing overlaps.
+    covered = Polygon()
+    layers = {}
+    for k in (WATER, MAJOR, ROAD, RAIL, GRAVES, PARK, MARSH):
+        layers[k] = shapely.difference(cover[k], covered)
+        covered = shapely.union(covered, cover[k])
+    layers[GROUND] = shapely.difference(extent, covered)
+    shapely.prepare(cover[WATER])
+    for tz in range(nz):
+        for tx in range(nx):
+            cell = box(-half_x + tx * TILE, -half_z + tz * TILE, -half_x + (tx + 1) * TILE, -half_z + (tz + 1) * TILE)
+            for k, geom in layers.items():
+                piece = shapely.intersection(geom, cell)
+                if not piece.is_empty:
+                    bucket((tx, tz), "g").append(_flat(piece, 0.0, k, 0))
+            wet = shapely.intersection(cover[WATER], cell)
+            if not wet.is_empty:
+                bucket((tx, tz), "w").append(_walls(wet, 0.0, WATER_WALL, WATER, 0))
+                bucket((tx, tz), "w").append(_flat(wet, WATER_WALL, WATER, 0))
+
     tiles = []
-    quads_total = 0
-    for tz in range(rows // TILE):
-        for tx in range(cols // TILE):
-            sl = (slice(tz * TILE, (tz + 1) * TILE), slice(tx * TILE, (tx + 1) * TILE))
-            x0, z0 = ox + tx * TILE * CELL, oz + tz * TILE * CELL
-            entry = {"x": tx, "z": tz}
-            q = _write_tile(os.path.join(args.out, "tiles", "t_%d_%d.bin" % (tx, tz)), block_h[sl], x0, z0)
-            if q:
-                entry["blocks"] = "t_%d_%d.bin" % (tx, tz)
-                quads_total += q
-            if _write_tile(os.path.join(args.out, "tiles", "w_%d_%d.bin" % (tx, tz)), water_h[sl], x0, z0):
-                entry["water"] = "w_%d_%d.bin" % (tx, tz)
-            if len(entry) > 2:
-                tiles.append(entry)
+    totals = {"b": 0, "g": 0, "w": 0}
+    for (tx, tz), layers_ in sorted(buckets.items(), key=lambda kv: (kv[0][1], kv[0][0])):
+        entry = {"x": tx, "z": tz}
+        for layer, name in (("b", "blocks"), ("g", "ground"), ("w", "water")):
+            parts = [p for p in layers_.get(layer, []) if len(p[0])]
+            if not parts:
+                continue
+            fname = "%s_%d_%d.bin" % (layer, tx, tz)
+            totals[layer] += _write(os.path.join(args.out, "tiles", fname), parts)
+            entry[name] = fname
+        tiles.append(entry)
     meta = {
         "attribution": "Map data (c) OpenStreetMap contributors, ODbL 1.0. https://www.openstreetmap.org/copyright",
-        "bbox": [s, w, n, e], "origin": [lat0, lon0], "cell": CELL, "tile": TILE,
-        "size": [cols, rows], "corner": [ox, oz], "tiles": tiles,
+        "bbox": [s, w, n, e], "origin": [lat0, lon0], "tile": TILE,
+        "corner": [-half_x, -half_z], "extent": [2 * half_x, 2 * half_z], "tiles": tiles,
     }
     with open(os.path.join(args.out, "city.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, indent=1)
-    print("grid %dx%d cells, %d tiles, %d quads" % (cols, rows, len(tiles), quads_total))
+    log("%d tiles; triangles: %d buildings, %d ground, %d water" % (len(tiles), totals["b"], totals["g"], totals["w"]))
 
 
 def _height(tags):
@@ -263,6 +308,143 @@ def _height(tags):
         return float(tags["building:levels"]) * LEVEL_HEIGHT + 1.0
     except (KeyError, ValueError):
         return DEFAULT_HEIGHT
+
+
+def _area(outers, inners):
+    """A multipolygon from outer and inner rings, or None if nothing is left."""
+    outer = [Polygon(r) for r in outers if len(r) >= 3]
+    if not outer:
+        return None
+    geom = shapely.union_all(shapely.make_valid(np.array(outer, dtype=object)))
+    holes = [Polygon(r) for r in inners if len(r) >= 3]
+    if holes:
+        geom = shapely.difference(geom, shapely.union_all(shapely.make_valid(np.array(holes, dtype=object))))
+    geom = _polygonal(geom)
+    return None if geom.is_empty else geom
+
+
+def _polygonal(geom):
+    """Only the polygons of a geometry; make_valid and overlays can leave
+    stray lines and points behind."""
+    parts = shapely.get_parts(geom)
+    keep = [p for p in parts if p.geom_type in ("Polygon", "MultiPolygon")]
+    return shapely.union_all(keep) if keep else Polygon()
+
+
+def _strokes(lines):
+    """Lines of the given widths as one polygon, round where they meet."""
+    lines = [(l, wd) for l, wd in lines if wd > 0 and len(l) > 1]
+    if not lines:
+        return Polygon()
+    geoms = [LineString(l) for l, _ in lines]
+    widths = np.array([wd for _, wd in lines]) / 2
+    return shapely.union_all(shapely.buffer(np.array(geoms, dtype=object), widths, quad_segs=4))
+
+
+def _close(geom, r):
+    """Morphological closing: fills gaps and inlets narrower than 2r and
+    keeps right-angled corners right-angled."""
+    grown = shapely.buffer(geom, r, join_style="mitre", mitre_limit=2.0)
+    return shapely.buffer(grown, -r, join_style="mitre", mitre_limit=2.0)
+
+
+def _clean(geom):
+    """Drops slivers and specks, and simplifies the outline."""
+    geom = shapely.buffer(shapely.buffer(geom, -1.0, join_style="mitre"), 1.0, join_style="mitre")
+    geom = shapely.simplify(geom, SIMPLIFY, preserve_topology=True)
+    geom = _polygonal(shapely.make_valid(geom))
+    parts = [p for p in shapely.get_parts(geom) if p.area >= MIN_AREA]
+    return shapely.union_all(parts) if parts else Polygon()
+
+
+def _flood(shores, real, seeds):
+    """The water the bbox cut open. Each shoreline end close to the map
+    edge is run out to it; the edge and shorelines then cut the map into
+    pieces, and every piece holding a seed is water."""
+    edge = real.exterior
+    lines = [edge]
+    for line in shores:
+        coords = list(line.coords)
+        for end in (0, -1):
+            p = Point(coords[end])
+            d = edge.distance(p)
+            if 0 < d <= SHORE_REACH:
+                q = edge.interpolate(edge.project(p))
+                if end == 0:
+                    coords.insert(0, (q.x, q.y))
+                else:
+                    coords.append((q.x, q.y))
+        lines.append(LineString(coords))
+    noded = shapely.union_all(lines)
+    pieces = shapely.get_parts(shapely.polygonize(shapely.get_parts(noded)))
+    wet = [p for p in pieces if any(p.contains(s) for s in seeds)]
+    return shapely.union_all(wet) if wet else Polygon()
+
+
+def _flat(geom, y, kind, tint):
+    """A polygon's area as upward-facing triangles at height y."""
+    tris = shapely.get_parts(shapely.constrained_delaunay_triangles(geom))
+    if len(tris) == 0:
+        return _empty()
+    c = shapely.get_coordinates(tris).reshape(-1, 4, 2)[:, :3]
+    pos = np.empty((len(c), 3, 3), dtype=np.float32)
+    pos[:, :, 0] = c[:, :, 0]
+    pos[:, :, 1] = y
+    pos[:, :, 2] = c[:, :, 1]
+    return _facing(pos, np.array([0.0, 1.0, 0.0])), _bytes(len(pos), kind), _bytes(len(pos), tint)
+
+
+def _walls(geom, y0, y1, kind, tint):
+    """The outline of a polygon extruded from y0 to y1, facing out."""
+    geom = shapely.orient_polygons(geom)  # shells counter-clockwise in x, z
+    quads = []
+    for poly in shapely.get_parts(geom):
+        for r in [poly.exterior] + list(poly.interiors):
+            p = np.asarray(r.coords)
+            quads.append(np.concatenate([p[:-1], p[1:]], axis=1))
+    if not quads:
+        return _empty()
+    q = np.concatenate(quads)  # x0 z0 x1 z1
+    q = q[np.hypot(q[:, 2] - q[:, 0], q[:, 3] - q[:, 1]) > 1e-6]
+    n = len(q)
+    a = np.stack([q[:, 0], np.full(n, y0), q[:, 1]], axis=1)
+    b = np.stack([q[:, 2], np.full(n, y0), q[:, 3]], axis=1)
+    c = np.stack([q[:, 2], np.full(n, y1), q[:, 3]], axis=1)
+    d = np.stack([q[:, 0], np.full(n, y1), q[:, 1]], axis=1)
+    pos = np.concatenate([np.stack([a, b, c], axis=1), np.stack([a, c, d], axis=1)]).astype(np.float32)
+    # Shells run counter-clockwise in (x, z), so outside is to the right.
+    dx, dz = q[:, 2] - q[:, 0], q[:, 3] - q[:, 1]
+    out = np.stack([dz, np.zeros(n), -dx], axis=1)
+    out = np.concatenate([out, out])
+    return _facing(pos, out), _bytes(len(pos), kind), _bytes(len(pos), tint)
+
+
+def _facing(pos, normal):
+    """Reorders each triangle so (b - a) x (c - a) points along normal."""
+    cross = np.cross(pos[:, 1] - pos[:, 0], pos[:, 2] - pos[:, 0])
+    flip = (cross * normal).sum(axis=-1) < 0
+    pos[flip] = pos[flip][:, [0, 2, 1]]
+    return pos
+
+
+def _bytes(n, value):
+    return np.full(n, value, dtype=np.uint8)
+
+
+def _empty():
+    return np.empty((0, 3, 3), dtype=np.float32), _bytes(0, 0), _bytes(0, 0)
+
+
+def _write(path, parts):
+    pos = np.concatenate([p[0] for p in parts])
+    kind = np.concatenate([p[1] for p in parts])
+    tint = np.concatenate([p[2] for p in parts])
+    with open(path, "wb") as f:
+        f.write(np.int32(len(pos)).tobytes())
+        f.write(pos.astype(np.float32).tobytes())
+        f.write(kind.tobytes())
+        f.write(tint.tobytes())
+    return len(pos)
 
 
 def _join(chains):
@@ -306,95 +488,6 @@ def _join(chains):
                 break
         (rings if len(ring) > 3 and ring[0] == ring[-1] else cut).append(ring)
     return rings, cut
-
-
-def _runs(mask_row):
-    """(start, end) of each run of True in a 1D bool array."""
-    d = np.diff(np.concatenate(([0], mask_row.astype(np.int8), [0])))
-    return np.flatnonzero(d == 1), np.flatnonzero(d == -1)
-
-
-def _write_tile(path, hm, x0, z0):
-    """Meshes a height grid as flat-topped columns: one quad per merged
-    rectangle of equal height on top, one per run of equal step on the sides.
-    Returns the quad count, and writes nothing for an empty grid."""
-    if not hm.any():
-        if os.path.exists(path):
-            os.remove(path)
-        return 0
-    rows, cols = hm.shape
-    quads = []  # (4 corners, normal index)
-
-    # Tops: runs per row, merged downward while the run below matches.
-    open_runs = {}
-    tops = []
-    for r in range(rows + 1):
-        cur = {}
-        if r < rows:
-            row = hm[r]
-            for hv in np.unique(row[row > 0]):
-                a, b = _runs(row == hv)
-                for s_, e_ in zip(a, b):
-                    cur[(int(s_), int(e_), float(hv))] = r
-        for key, start in open_runs.items():
-            if key in cur:
-                cur[key] = start
-            else:
-                tops.append((start, r) + key)
-        open_runs = cur
-    for r0, r1, c0, c1, hv in tops:
-        quads.append((((c0, hv, r0), (c0, hv, r1), (c1, hv, r1), (c1, hv, r0)), 0))
-
-    # Sides between rows (faces looking north or south).
-    pad = np.pad(hm, 1)
-    for r in range(rows + 1):
-        above, below = pad[r, 1:-1], pad[r + 1, 1:-1]
-        _sides(quads, above, below, lambda c, y, r=r: (c, y, r), 1, 2, False)
-    # Sides between columns (faces looking west or east).
-    for c in range(cols + 1):
-        left, right = pad[1:-1, c], pad[1:-1, c + 1]
-        _sides(quads, left, right, lambda rr, y, c=c: (c, y, rr), 3, 4, True)
-
-    pos = np.empty((len(quads), 4, 3), dtype=np.float32)
-    nrm = np.empty(len(quads), dtype=np.uint8)
-    for k, (corners, ni) in enumerate(quads):
-        pos[k] = [(x0 + cx * CELL, y, z0 + cz * CELL) for cx, y, cz in corners]
-        nrm[k] = ni
-    with open(path, "wb") as f:
-        f.write(np.int32(len(quads)).tobytes())
-        f.write(pos.tobytes())
-        f.write(nrm.tobytes())
-    return len(quads)
-
-
-def _sides(quads, a, b, corner, n_neg, n_pos, mirrored):
-    """Wall quads along one grid line between strips a and b. Where a is
-    taller the wall faces b's way, and the other way round. Winding is
-    counter-clockwise seen from the side the normal points to; along a
-    column line the corner order runs the mirrored way, so it flips."""
-    diff = a != b
-    if not diff.any():
-        return
-    lo = np.minimum(a, b)
-    hi = np.maximum(a, b)
-    facing_b = a > b
-    i = 0
-    n = len(a)
-    while i < n:
-        if not diff[i]:
-            i += 1
-            continue
-        j = i + 1
-        while j < n and diff[j] and lo[j] == lo[i] and hi[j] == hi[i] and facing_b[j] == facing_b[i]:
-            j += 1
-        y0, y1 = float(lo[i]), float(hi[i])
-        p = [corner(i, y0), corner(j, y0), corner(j, y1), corner(i, y1)]
-        # n_pos is the direction from a toward b.
-        if facing_b[i] != mirrored:
-            quads.append((tuple(p), n_pos if facing_b[i] else n_neg))
-        else:
-            quads.append((tuple(reversed(p)), n_pos if facing_b[i] else n_neg))
-        i = j
 
 
 if __name__ == "__main__":
