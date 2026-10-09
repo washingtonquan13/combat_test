@@ -8,9 +8,11 @@ extends SceneTree
 # The fireball is not thrown. It is called up above the shoulder and sent out
 # by will, the arm only aiming it:
 #
-#   Arm      standing -> the hand rises loosely closed, and as it comes up
-#            over the shoulder the palm turns to the sky and the fingers
-#            open around the flame
+#   Arm      standing -> the elbow bends and the hand comes up in front of
+#            the chest, loosely closed; then the elbow lifts, carrying the
+#            hand up beside the head, and the palm turns to the sky and
+#            opens around the flame. One unbroken movement: the shoulder
+#            leads, the wrist and fingers trail it
 #   Hold     the flame held above the shoulder, palm up, looping
 #   Disarm   the hand closes on the flame, snuffing it, and drops to standing
 #   Cast     a small draw back, then the arm extends straight at the target,
@@ -33,6 +35,7 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 
 const OUT := "res://assets/fireball_animations.tres"
 
+const ARM_LENGTH := 0.8
 const HOLD_LENGTH := 2.4
 # When the arm reaches full extension, in seconds into Cast.
 const RELEASE := 0.3
@@ -45,7 +48,7 @@ var _poses: PoseBuilder
 func _init() -> void:
 	_poses = PoseBuilder.new()
 	var library := AnimationLibrary.new()
-	library.add_animation("Arm", _poses.clip(0.75, false, _arm))
+	library.add_animation("Arm", _poses.clip(ARM_LENGTH, false, _arm))
 	library.add_animation("Hold", _poses.clip(HOLD_LENGTH, true, _hold))
 	library.add_animation("Disarm", _poses.clip(0.55, false, _disarm))
 	library.add_animation("Cast", _poses.clip(1.25, false, _cast))
@@ -110,26 +113,52 @@ func _hold(t: float, length: float) -> Dictionary:
 	return pose
 
 
-# Partway up: the hand at the chest, loosely closed, the wrist still
-# nearly straight and only starting to turn back. The eyes go to the hand.
-# No joint passes beyond where it ends in the hold, so the hand settles
-# into the hold rather than swinging past it and back.
-func _rising_pose() -> Dictionary:
+# The elbow bent and the hand come up in front of the chest, close to the
+# body, palm in and loosely closed; the eyes drop to it.
+func _gather_pose() -> Dictionary:
 	var pose := _ready_pose()
-	pose["RightUpperArm"] = Vector3(-10, 0, -40)
-	pose["RightLowerArm"] = Vector3(-6, 0, -85)
-	pose["RightHand"] = Vector3(0, 0, -25)
-	pose["Head"] = Vector3(4, 8, 0)
+	pose["RightUpperArm"] = Vector3(-30, 0, -14)
+	pose["RightLowerArm"] = Vector3(-105, 0, -10)
+	pose["RightHand"] = Vector3(0, 0, -8)
+	pose["Chest"] = Vector3(0, -3, 0)
+	pose["Head"] = Vector3(10, -6, 0)
 	_right_fingers(pose, 0.5)
 	return pose
 
 
-func _arm(t: float, _length: float) -> Dictionary:
-	return _poses.keyed(t, [
+# The elbow lifting out to the side carries the hand up past the face; the
+# chest opens and the eyes follow the hand up. The palm has begun to turn
+# and the fingers to loosen.
+func _lift_pose() -> Dictionary:
+	var pose := _ready_pose()
+	pose["RightUpperArm"] = Vector3(-20, 0, -50)
+	pose["RightLowerArm"] = Vector3(-50, 0, -80)
+	pose["RightHand"] = Vector3(0, 0, -35)
+	pose["Chest"] = Vector3(-4, 0, 0)
+	pose["Head"] = Vector3(-6, 0, 0)
+	_right_fingers(pose, 0.4)
+	return pose
+
+
+# How long each part trails the movement: the eyes go first, the shoulder
+# leads the arm, and the wrist and fingers follow.
+func _arm_lags() -> Dictionary:
+	var lags := {"Head": -0.06, "Neck": -0.04, "RightLowerArm": 0.04, "RightHand": 0.08}
+	for finger: String in FINGERS:
+		for joint: String in ["Proximal", "Intermediate", "Distal"]:
+			lags["Right%s%s" % [finger, joint]] = 0.12
+	lags["RightThumbProximal"] = 0.12
+	lags["RightThumbDistal"] = 0.12
+	return lags
+
+
+func _arm(t: float, length: float) -> Dictionary:
+	return _poses.flowing(t, length, [
 		[0.0, _poses.standing()],
-		[0.35, _rising_pose()],
-		[0.75, _hold(0.0, HOLD_LENGTH)],
-	])
+		[0.3, _gather_pose()],
+		[0.55, _lift_pose()],
+		[ARM_LENGTH, _hold(0.0, HOLD_LENGTH)],
+	], _arm_lags())
 
 
 func _disarm(t: float, _length: float) -> Dictionary:

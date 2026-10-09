@@ -61,6 +61,67 @@ func keyed(t: float, keys: Array) -> Dictionary:
 	return resolve(keys[-1][1])
 
 
+# One continuous movement through the key poses, for a gesture that should
+# not stop at each one the way keyed() does. The whole span follows a
+# minimum-jerk profile (the speed curve of a human reach: no pause between
+# keys, slow only at the ends), and each bone is splined through its keys
+# rather than eased key to key. `lags` delays bones by name, in seconds, so
+# the shoulder can lead and the wrist and fingers follow; a negative lag
+# leads. Every bone still starts on the first key and ends on the last.
+func flowing(t: float, length: float, keys: Array, lags := {}) -> Dictionary:
+	var poses: Array[Dictionary] = []
+	var times: Array[float] = []
+	for key: Array in keys:
+		poses.append(resolve(key[1]))
+		times.append(key[0] / length)
+	var out := {"_resolved": true, "_hips": _spline_hips(poses, times, _reach(t / length))}
+	for bone: String in poses[0]:
+		if bone.begins_with("_"):
+			continue
+		var lag: float = lags.get(bone, 0.0)
+		var u := (t - lag) / (length - lag) if lag >= 0.0 else t / (length + lag)
+		out[bone] = _spline_bone(poses, times, bone, _reach(clampf(u, 0.0, 1.0)))
+	return out
+
+
+# Minimum jerk: the position curve of a smooth human reach.
+static func _reach(u: float) -> float:
+	u = clampf(u, 0.0, 1.0)
+	return u * u * u * (10.0 + u * (-15.0 + 6.0 * u))
+
+
+static func _segment(times: Array[float], s: float) -> int:
+	for i in range(times.size() - 1):
+		if s <= times[i + 1]:
+			return i
+	return times.size() - 2
+
+
+func _spline_bone(poses: Array[Dictionary], times: Array[float], bone: String, s: float) -> Quaternion:
+	var i := _segment(times, s)
+	var n := poses.size()
+	var a: Quaternion = poses[i][bone]
+	var b: Quaternion = poses[i + 1][bone]
+	var pre: Quaternion = poses[maxi(i - 1, 0)][bone]
+	var post: Quaternion = poses[mini(i + 2, n - 1)][bone]
+	var span := times[i + 1] - times[i]
+	var pre_t := (times[maxi(i - 1, 0)] - times[i]) / span if i > 0 else -1.0
+	var post_t := (times[mini(i + 2, n - 1)] - times[i]) / span if i + 2 < n else 2.0
+	var f := clampf((s - times[i]) / span, 0.0, 1.0)
+	return a.spherical_cubic_interpolate_in_time(b, pre, post, f, 1.0, pre_t, post_t).normalized()
+
+
+func _spline_hips(poses: Array[Dictionary], times: Array[float], s: float) -> Vector3:
+	var i := _segment(times, s)
+	var n := poses.size()
+	var span := times[i + 1] - times[i]
+	var pre_t := (times[maxi(i - 1, 0)] - times[i]) / span if i > 0 else -1.0
+	var post_t := (times[mini(i + 2, n - 1)] - times[i]) / span if i + 2 < n else 2.0
+	var f := clampf((s - times[i]) / span, 0.0, 1.0)
+	return (poses[i]["_hips"] as Vector3).cubic_interpolate_in_time(poses[i + 1]["_hips"],
+		poses[maxi(i - 1, 0)]["_hips"], poses[mini(i + 2, n - 1)]["_hips"], f, 1.0, pre_t, post_t)
+
+
 func _blend(a: Dictionary, b: Dictionary, f: float) -> Dictionary:
 	var out := {"_resolved": true, "_hips": (a["_hips"] as Vector3).lerp(b["_hips"], f)}
 	for bone: String in a:

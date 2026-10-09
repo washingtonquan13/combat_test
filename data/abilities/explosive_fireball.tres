@@ -29,7 +29,7 @@
 [sub_resource type="Resource" id="Resource_iownq"]
 script = ExtResource("1_tsbd3")
 stream = ExtResource("2_ldoga")
-delay = 0.45
+delay = 0.55
 volume_db = 0.0
 pitch_scale = 1.0
 metadata/_custom_type_script = "uid://ctxyvb7k718wy"
