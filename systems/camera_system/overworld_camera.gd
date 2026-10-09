@@ -26,10 +26,14 @@ extends Camera3D
 @export var zoom_step: float = 2.0
 
 var _yaw: float = 0.0
+## height per unit of distance, from the authored pair, so zooming moves
+## along the line of sight and the target stays where the pitch puts it.
+var _height_per_distance: float = 1.5
 
 
 func _ready() -> void:
 	rotation.x = -deg_to_rad(pitch_degrees)
+	_height_per_distance = height / distance
 	snap_to_target()
 
 
@@ -66,6 +70,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		distance = clamp(distance - zoom_step, min_distance, max_distance)
 	elif event.is_action_pressed("camera_zoom_out"):
 		distance = clamp(distance + zoom_step, min_distance, max_distance)
+	else:
+		return
+	height = distance * _height_per_distance
 
 
 ## Read by OverworldAvatar every physics frame so WASD input maps to

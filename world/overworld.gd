@@ -21,6 +21,10 @@ extends GameArea
 
 const AVATAR_SCENE: PackedScene = preload("res://world/overworld_avatar.tscn")
 
+## Multiplies the avatar's speed and acceleration. A map built at a
+## smaller scale is crossed faster, so the walk still feels the same.
+@export var avatar_speed_scale: float = 1.0
+
 @onready var _camera: OverworldCamera = $OverworldCamera
 
 ## One avatar per group standing here, by group. The overworld is a
@@ -127,6 +131,8 @@ func _active_avatar() -> OverworldAvatar:
 func _make_avatar(group: PartyGroup) -> OverworldAvatar:
 	var avatar: OverworldAvatar = AVATAR_SCENE.instantiate()
 	avatar.group = group
+	avatar.move_speed *= avatar_speed_scale
+	avatar.acceleration *= avatar_speed_scale
 	add_child(avatar)
 	avatar.camera = _camera
 

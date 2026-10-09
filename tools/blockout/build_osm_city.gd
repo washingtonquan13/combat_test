@@ -20,6 +20,11 @@ extends Node
 
 const NORMALS := [Vector3.UP, Vector3.FORWARD, Vector3.BACK, Vector3.LEFT, Vector3.RIGHT]
 const EDGE_WALL := 4.0
+## The SMT IV framing: steep, far back, the avatar small against the
+## city. CAMERA_RANGE is metres from camera to avatar along the view.
+const CAMERA_PITCH := 70.0
+const CAMERA_RANGE := 170.0
+const AVATAR_SPEED_SCALE := 2.0
 
 var _scale := 0.125
 var _vscale := 0.25
@@ -176,13 +181,14 @@ func _load_quads(path: String) -> Dictionary:
 	return {"mesh": mesh, "faces": faces, "quads": n}
 
 
-## The editable overworld: the shared overworld script, its camera, light,
-## and a Start spawn in Jackson Square. Doors are placed by hand.
+## The editable overworld: the shared overworld script, its camera framed
+## the SMT IV way, light, and a Start spawn in Jackson Square. Doors are placed by hand.
 func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error:
 	var root := Node3D.new()
 	root.name = path.get_file().get_basename().to_pascal_case()
 	root.set_script(load("res://world/overworld.gd"))
 	root.set_meta("osm_attribution", meta.attribution)
+	root.avatar_speed_scale = AVATAR_SPEED_SCALE
 
 	var city: Node3D = load(geometry_path).instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
 	root.add_child(city)
@@ -199,6 +205,14 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	start.owner = root
 
 	var camera: Node = load("res://systems/camera_system/overworld_camera.tscn").instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
+	camera.pitch_degrees = CAMERA_PITCH
+	var slope := tan(deg_to_rad(CAMERA_PITCH))
+	var along := cos(deg_to_rad(CAMERA_PITCH))
+	camera.distance = CAMERA_RANGE * along
+	camera.height = camera.distance * slope
+	camera.min_distance = CAMERA_RANGE * 0.5 * along
+	camera.max_distance = CAMERA_RANGE * 1.5 * along
+	camera.zoom_step = CAMERA_RANGE * 0.125 * along
 	root.add_child(camera)
 	camera.owner = root
 
@@ -218,6 +232,7 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	sun.name = "DirectionalLight3D"
 	sun.rotation_degrees = Vector3(-55, 30, 0)
 	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = CAMERA_RANGE * 3.0
 	root.add_child(sun)
 	sun.owner = root
 
