@@ -22,6 +22,9 @@ const GROUND_COLORS := [
 ]
 const BUILDING_COLORS := [Color(0.80, 0.78, 0.74), Color(0.55, 0.54, 0.52)]
 const BLOCKS_SHADER := "res://world/city_blocks.gdshader"
+const WATER_SHADER := "res://world/city_water.gdshader"
+## The ground class osm_city.py gives water.
+const WATER := 7
 ## Real metres of one storey (as in osm_city.py) and one window bay.
 const LEVEL_HEIGHT := 3.4
 const BAY_WIDTH := 3.6
@@ -67,6 +70,18 @@ func _ready() -> void:
 	ground_mat.vertex_color_use_as_albedo = true
 	ground_mat.vertex_color_is_srgb = true
 	ground_mat.roughness = 1.0
+	var water_mat := ShaderMaterial.new()
+	water_mat.shader = load(WATER_SHADER)
+	water_mat.set_shader_parameter("units_per_metre", _scale)
+	if meta.has("shore"):
+		# The data directory is .gdignore'd, so the file is read as plain
+		# image data and embedded in the geometry scene.
+		var shore := Image.load_from_file(src + "/" + meta.shore.file)
+		shore.generate_mipmaps()
+		water_mat.set_shader_parameter("shore_tex", ImageTexture.create_from_image(shore))
+		water_mat.set_shader_parameter("shore_origin", corner)
+		water_mat.set_shader_parameter("shore_size", Vector2(shore.get_width(), shore.get_height()) * meta.shore.res * _scale)
+		water_mat.set_shader_parameter("has_shore", true)
 	var tris := 0
 	for tile in meta.tiles:
 		var body := StaticBody3D.new()
@@ -74,8 +89,11 @@ func _ready() -> void:
 		geometry.add_child(body)
 		var faces := PackedVector3Array()
 		if tile.has("ground"):
-			var ground := _load_tris(src + "/tiles/" + tile.ground, GROUND_COLORS)
-			body.add_child(_mesh_instance("Ground", ground.mesh, ground_mat))
+			var ground := _load_tris(src + "/tiles/" + tile.ground, GROUND_COLORS, WATER)
+			var mi := _mesh_instance("Ground", ground.mesh, null)
+			for i in ground.mesh.get_surface_count():
+				mi.set_surface_override_material(i, water_mat if i == ground.get("apart_surface", -1) else ground_mat)
+			body.add_child(mi)
 		if tile.has("blocks"):
 			var blocks := _load_tris(src + "/tiles/" + tile.blocks, BUILDING_COLORS)
 			tris += blocks.count
@@ -149,8 +167,9 @@ func _mesh_instance(node_name: String, mesh: Mesh, mat: Material) -> MeshInstanc
 
 ## A tile file as a mesh and as collision faces, both already scaled.
 ## colors maps a triangle's kind to its vertex colour; UV2 carries the
-## kind and tint themselves for shaders.
-func _load_tris(path: String, colors: Array) -> Dictionary:
+## kind and tint themselves for shaders. Triangles of kind apart go in a
+## surface of their own, whose index is apart_surface.
+func _load_tris(path: String, colors: Array, apart := -1) -> Dictionary:
 	var bytes := FileAccess.get_file_as_bytes(path)
 	var n := bytes.decode_s32(0)
 	var floats := bytes.slice(4, 4 + n * 36).to_float32_array()
@@ -190,16 +209,50 @@ func _load_tris(path: String, colors: Array) -> Dictionary:
 	var result := {"faces": faces, "count": n}
 	if colors.is_empty():
 		return result
+	var keep := PackedInt32Array()
+	var split := PackedInt32Array()
+	for t in n:
+		if kinds[t] == apart:
+			split.append(t)
+		else:
+			keep.append(t)
+	var mesh := ArrayMesh.new()
+	if split.is_empty():
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _arrays(faces, normals, cols, uv2))
+	else:
+		for tris in [keep, split]:
+			if tris.is_empty():
+				continue
+			if tris == split:
+				result.apart_surface = mesh.get_surface_count()
+			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _pick(tris, faces, normals, cols, uv2))
+	result.mesh = mesh
+	return result
+
+
+func _arrays(faces: PackedVector3Array, normals: PackedVector3Array, cols: PackedColorArray, uv2: PackedVector2Array) -> Array:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = faces
 	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_COLOR] = cols
 	arrays[Mesh.ARRAY_TEX_UV2] = uv2
-	var mesh := ArrayMesh.new()
-	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
-	result.mesh = mesh
-	return result
+	return arrays
+
+
+## The surface arrays of only the triangles tris.
+func _pick(tris: PackedInt32Array, faces: PackedVector3Array, normals: PackedVector3Array, cols: PackedColorArray, uv2: PackedVector2Array) -> Array:
+	var f := PackedVector3Array()
+	var nr := PackedVector3Array()
+	var c := PackedColorArray()
+	var u := PackedVector2Array()
+	for t in tris:
+		for k in 3:
+			f.append(faces[t * 3 + k])
+			nr.append(normals[t * 3 + k])
+			c.append(cols[t * 3 + k])
+			u.append(uv2[t * 3 + k])
+	return _arrays(f, nr, c, u)
 
 
 ## The editable overworld: the shared overworld script, its camera framed

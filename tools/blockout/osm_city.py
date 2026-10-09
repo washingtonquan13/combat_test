@@ -44,6 +44,8 @@ import glob
 import json
 import math
 import os
+import subprocess
+import sys
 import time
 import zlib
 
@@ -297,6 +299,9 @@ def main():
     with open(os.path.join(args.out, "city.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, indent=1)
     log("%d tiles; triangles: %d buildings, %d ground, %d water" % (len(tiles), totals["b"], totals["g"], totals["w"]))
+    # The water shader's distance-to-shore field. A separate script so it
+    # can be re-baked without re-running this one.
+    subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(__file__), "shore_field.py"), args.out], check=True)
 
 
 def _height(tags):
