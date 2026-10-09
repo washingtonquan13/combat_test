@@ -128,6 +128,10 @@ func _launched_from_the_stance() -> void:
 	var held := caster.anchor(CharacterModel.Anchor.HAND)
 	check("held, the hand is above the shoulder", held.y > 1.45, "hand y=%.2f" % held.y)
 
+	var flame := caster.get_node_or_null("FireballHold")
+	check("SETUP: the flame is in the hand", flame != null)
+	var flame_player: AnimationPlayer = flame.get_node("AnimationPlayer") if flame else null
+
 	caster.ability_use_started.emit(caster, caster.global_position + caster.visual_forward() * 6.0, _fireball())
 	check("casting launches from the stance", player.current_animation == "Fireball/Cast",
 		player.current_animation)
@@ -136,12 +140,36 @@ func _launched_from_the_stance() -> void:
 	check("the disarm that follows the cast does not cut it", player.current_animation == "Fireball/Cast",
 		player.current_animation)
 
-	await get_tree().create_timer(0.32).timeout
+	await get_tree().create_timer(0.15).timeout
+	check("drawing back, the flame still burns in the hand",
+		is_instance_valid(flame) and not flame_player.current_animation in ["release", "extinguish"]
+		and _projectiles().is_empty(),
+		"playing %s, %d projectiles" % [flame_player.current_animation if is_instance_valid(flame) else "<freed>",
+			_projectiles().size()])
+
+	await get_tree().create_timer(0.17).timeout
 	var released := caster.anchor(CharacterModel.Anchor.HAND)
 	var reach := (released - chest).dot(caster.visual_forward())
 	check("at release the hand is out in front, where the fireball leaves from", reach > 0.4,
 		"%.2f m ahead of the chest" % reach)
+	var flying := _projectiles()
+	check("the fireball leaves as the held flame lets go",
+		flying.size() == 1 and is_instance_valid(flame) and flame_player.current_animation == "release",
+		"%d projectiles, flame playing %s" % [flying.size(),
+			flame_player.current_animation if is_instance_valid(flame) else "<freed>"])
 
-	await get_tree().create_timer(1.1).timeout
+	# 6 m at 11 m/s: landed after about 0.55 s.
+	await get_tree().create_timer(0.75).timeout
+	var landed: Node = flying[0] if flying.size() == 1 else null
+	check("landed, its smoke trail hangs on", is_instance_valid(landed)
+		and not landed.get_node("Core").visible)
+	check("and the released flame is gone", not is_instance_valid(flame))
+	await get_tree().create_timer(1.8).timeout
+	check("and then the trail clears", _projectiles().is_empty(), "%d left" % _projectiles().size())
+
 	check("after the cast it stands at rest", player.current_animation == "Idle", player.current_animation)
 	free_spawned()
+
+
+func _projectiles() -> Array[Node]:
+	return WorldManager.spawn_parent().find_children("FireballProjectile", "", true, false)

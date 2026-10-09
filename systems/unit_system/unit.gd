@@ -412,6 +412,12 @@ signal died(unit: Unit)
 ## should actually call.
 signal impact_triggered()
 
+## Fired when a cast lets go of what its stance was holding: a VFX
+## sequence's ProjectileStep, the moment the projectile leaves. UnitVfx
+## keeps a held flame burning in the hand until then, so the flame that
+## was held is the one that flies. See notify_release().
+signal cast_released()
+
 ## Relayed from _status_manager (see status_manager.gd) — same
 ## relay-not-replace convention as the selection signals below. Consumed
 ## by unit_vfx.gd/unit_sfx.gd to play StatusEffect's apply/tick/remove
@@ -1452,6 +1458,12 @@ func notify_status_of_damage(amount: int) -> void:
 ## (an AnimationPlayer track, a VfxStep), not another owned component.
 func notify_impact() -> void:
 	impact_triggered.emit()
+
+
+## Called by a VFX sequence's ProjectileStep as the projectile leaves -
+## see cast_released.
+func notify_release() -> void:
+	cast_released.emit()
 
 
 func expire() -> void:

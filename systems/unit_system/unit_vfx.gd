@@ -69,6 +69,12 @@ var _hold_instance: Node = null
 ## following its position but never the bone's turn. A finished hold stays in
 ## here while its extinguish animation plays, so it goes out in the hand.
 var _carried := {}
+## Hold effects still burning after a cast started, waiting for the cast to
+## let go of them (Unit.cast_released) to play their release animation.
+var _awaiting_release := []
+## A release that never comes (a cast_vfx with no ProjectileStep) still
+## lets go of the flame after this long.
+const RELEASE_TIMEOUT := 1.5
 ## Played instead of nothing at all when this unit takes damage while
 ## visual_state == POSED (see Unit.visual_state) and the held status
 ## doesn't set its own StatusEffect.hit_reaction_vfx — left unset (the
@@ -84,6 +90,7 @@ func _ready() -> void:
 
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.ability_use_started.connect(_on_ability_use_started)
+	unit.cast_released.connect(_on_cast_released)
 	unit.took_damage.connect(_on_took_damage)
 	unit.died.connect(_on_died)
 	unit.status_applied.connect(_on_status_applied)
@@ -116,7 +123,7 @@ func _on_ability_armed(ability: Ability) -> void:
 ## unit_sfx.gd's own _on_ability_use_started for why this isn't
 ## conditional on which ability specifically armed.
 func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
-	_stop_hold_vfx()
+	_hold_until_released()
 
 	var target_position: Vector3 = _get_target_position(target, attacker)
 	var sequence: VfxEffect = ability.cast_vfx if ability.cast_vfx else default_cast_vfx
@@ -151,18 +158,56 @@ func _process(_delta: float) -> void:
 func _stop_hold_vfx() -> void:
 	var instance := _hold_instance
 	_hold_instance = null
+	_go_out(instance, &"extinguish")
+
+
+## Casting: a hold scene with a "release" animation keeps burning in the
+## hand until the cast lets go of it (the projectile leaving), then plays
+## release, so the flame held is the flame thrown. One without is stopped
+## at once, as any other ending.
+func _hold_until_released() -> void:
+	var instance := _hold_instance
+	if not _has_animation(instance, &"release"):
+		_stop_hold_vfx()
+		return
+	_hold_instance = null
+	_awaiting_release.append(instance)
+	get_tree().create_timer(RELEASE_TIMEOUT).timeout.connect(_let_go.bind(instance))
+
+
+func _on_cast_released() -> void:
+	for instance in _awaiting_release.duplicate():
+		_let_go(instance)
+
+
+func _let_go(instance) -> void:
+	if not _awaiting_release.has(instance):
+		return
+	_awaiting_release.erase(instance)
+	_go_out(instance, &"release")
+
+
+## Plays the named animation if the scene has it, then frees it.
+func _go_out(instance, animation: StringName) -> void:
 	if not (instance and is_instance_valid(instance)):
 		return
-	var player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
-	if not (player and player.has_animation("extinguish")):
+	if not _has_animation(instance, animation):
 		_carried.erase(instance)
 		instance.queue_free()
 		return
-	player.play("extinguish")
+	var player: AnimationPlayer = instance.get_node("AnimationPlayer")
+	player.play(animation)
 	await player.animation_finished
 	_carried.erase(instance)
 	if is_instance_valid(instance):
 		instance.queue_free()
+
+
+func _has_animation(instance, animation: StringName) -> bool:
+	if not (instance and is_instance_valid(instance)):
+		return false
+	var player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	return player != null and player.has_animation(animation)
 
 
 ## Reads the currently-held status's own hit_reaction_vfx if it set one

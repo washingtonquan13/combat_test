@@ -48,12 +48,21 @@ extends VfxStep
 ## the sequence was played from, as it always was.
 @export var launch_from: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
 
+## A projectile scene with an "arrive" animation on a child AnimationPlayer
+## plays it on arrival instead of vanishing: the core goes out, emitters
+## stop, and the smoke and sparks already in the air drift on. The step
+## still ends on arrival, so the impact is not held up; the scene is
+## freed when the animation ends.
+const ARRIVE_ANIMATION := &"arrive"
+
 
 func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, caster: Unit = null) -> void:
 	if not projectile_scene:
 		return
 	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
 		from = caster.anchor(launch_from)
+	if is_instance_valid(caster):
+		caster.notify_release()
 
 	var wrapper := Node3D.new()
 	WorldManager.spawn_parent().add_child(wrapper)
@@ -73,7 +82,18 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, c
 	await tween.finished
 
 	if is_instance_valid(wrapper):
-		wrapper.queue_free()  # frees the instance too, as its child
+		_arrive(wrapper, instance)
+
+
+## Frees the wrapper (and the instance, its child), after the instance's
+## arrive animation if it has one. Not awaited by play().
+func _arrive(wrapper: Node3D, instance: Node) -> void:
+	var player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if player and player.has_animation(ARRIVE_ANIMATION):
+		player.play(ARRIVE_ANIMATION)
+		await player.animation_finished
+	if is_instance_valid(wrapper):
+		wrapper.queue_free()
 
 
 ## Updates position AND rotation together each frame — rotation follows
