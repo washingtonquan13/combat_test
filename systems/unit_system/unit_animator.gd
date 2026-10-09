@@ -74,8 +74,15 @@ extends Node
 ## the cast that launches from it. Those are the clips that start while
 ## something else is mid-motion - arming from partway through the idle
 ## loop, disarming or casting from partway through the hold - so a hard
-## cut would pop. Everything else still cuts, as it always has.
+## cut would pop. Cast sequences have their own, phase_blend_time.
 @export var stance_blend_time: float = 0.15
+## The crossfade into each phase of a cast sequence, and from its last
+## phase back to rest. A cast starts from wherever the idle loop happens to
+## be, and a phase that advances on a timer or on an outside event (Jump's
+## wind-up and its airborne hold) is cut off mid-motion, so with no
+## crossfade the body snaps to the next clip's pose - Jump's knee turned
+## 90 degrees in a single frame at each of its three changes.
+@export var phase_blend_time: float = 0.2
 
 @export_group("Flight Animation")
 ## See CharacterModel's own Flight Animation group; empty falls back to
@@ -373,7 +380,7 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 	var sequence: AnimationSequence = ability.cast_animation if ability.cast_animation else default_cast_animation
 	# Launched out of the stance: blend from wherever the hold loop is.
 	var from_stance: bool = String(animation_player.current_animation) in _armed_stance_clips
-	_play_sequence(sequence, stance_blend_time if from_stance else -1.0)
+	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time)
 
 
 ## Reads the currently-held status's own hit_reaction_animation if it
@@ -541,11 +548,13 @@ func _on_animation_finished(anim_name: StringName) -> void:
 			_rest_on_base_animation()
 		return
 
+	var blend := -1.0
 	var phase: AnimationPhase = _active_phase()
 	if phase and anim_name == phase.animation_name:
 		if phase.advance_trigger == AnimationPhase.AdvanceTrigger.ON_FINISH:
-			if _advance_to_next_phase():
+			if _advance_to_next_phase(phase_blend_time):
 				return
+			blend = phase_blend_time
 			# last phase just finished — fall through to the same
 			# rest-on-base check below, same as any other one-shot clip
 			# finishing with nothing queued after it.
@@ -568,7 +577,7 @@ func _on_animation_finished(anim_name: StringName) -> void:
 			return
 
 	if not unit.is_moving():
-		_rest_on_base_animation()
+		_rest_on_base_animation(blend)
 
 
 ## Returning to a plain idle is a normal fresh play. Returning to a HELD
@@ -584,8 +593,8 @@ func _on_animation_finished(anim_name: StringName) -> void:
 ## breathing" idle) sets that field, and this just lets it keep playing
 ## normally rather than freezing it mid-loop, which would look wrong the
 ## other way around.
-func _rest_on_base_animation() -> void:
-	_play(_base_animation)
+func _rest_on_base_animation(blend: float = -1.0) -> void:
+	_play(_base_animation, blend)
 	var posed: StatusEffect = unit.posed_status
 	if posed and _base_animation == posed.apply_animation and not posed.apply_animation_loops:
 		if animation_player.has_animation(_base_animation):
@@ -726,8 +735,8 @@ func _advance_to_next_phase(blend: float = -1.0) -> bool:
 func _on_timer_phase_done(token: int) -> void:
 	if token != _sequence_token:
 		return  # a newer play-through has since started; this timer is stale
-	if not _advance_to_next_phase() and not unit.is_moving():
-		_rest_on_base_animation()
+	if not _advance_to_next_phase(phase_blend_time) and not unit.is_moving():
+		_rest_on_base_animation(phase_blend_time)
 
 
 ## Whether the active sequence is currently sitting on an EXTERNAL
@@ -768,7 +777,7 @@ func _is_awaiting_external() -> bool:
 ## events actually arrive in.
 func advance_external() -> void:
 	if _is_awaiting_external():
-		if not _advance_to_next_phase() and not unit.is_moving():
-			_rest_on_base_animation()
+		if not _advance_to_next_phase(phase_blend_time) and not unit.is_moving():
+			_rest_on_base_animation(phase_blend_time)
 	else:
 		_external_advance_pending = true
