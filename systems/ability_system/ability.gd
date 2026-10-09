@@ -118,6 +118,11 @@ enum Category { COMMON, ABILITIES }
 @export var armed_hold_sfx: AudioStream
 @export var armed_enter_vfx: VfxEffect
 @export var armed_hold_vfx: PackedScene
+## Where on the body armed_hold_vfx rides. GROUND, the default, parents it
+## to the unit as it always was. Any other point (HAND for a flame held in
+## the palm) carries it there every frame, following the point but not the
+## bone's turn, so the scene is authored with +Y as up whatever the hand does.
+@export var armed_hold_vfx_at: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
 @export var armed_enter_animation: String = ""
 @export var armed_hold_animation: String = ""
 @export var armed_exit_animation: String = ""

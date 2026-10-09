@@ -89,12 +89,22 @@ func _arm_hold_and_put_away() -> void:
 
 	await get_tree().create_timer(0.9).timeout
 	check("then it holds the flame", player.current_animation == "Fireball/Hold", player.current_animation)
+	var flame := caster.get_node_or_null("FireballHold") as Node3D
+	check("a fireball burns in the caster's hand", flame != null)
+	check("and none in the hand of a unit that did not arm", bystander.get_node_or_null("FireballHold") == null)
+	if flame:
+		var gap := flame.global_position.distance_to(caster.anchor(CharacterModel.Anchor.HAND))
+		check("the fireball sits on the hand", gap < 0.01, "%.3f m off" % gap)
 
 	AbilityManager.disarm()
 	check("disarming snuffs it and lowers the hand", player.current_animation == "Fireball/Disarm",
 		player.current_animation)
+	await get_tree().process_frame
+	check("the fireball dies out rather than vanishing", is_instance_valid(flame))
 	await get_tree().create_timer(0.7).timeout
 	check("and then it stands at rest", player.current_animation == "Idle", player.current_animation)
+	await get_tree().create_timer(0.4).timeout
+	check("and the snuffed fireball is gone", not is_instance_valid(flame))
 
 	# Disarming with the stance already gone leaves alone what replaced it.
 	AbilityManager.arm(_fireball())

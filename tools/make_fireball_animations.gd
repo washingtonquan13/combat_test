@@ -29,7 +29,10 @@ extends SceneTree
 # bases and how a turn is given. Retune by editing the poses below and
 # running this again; the clips are data the game reads. Moving RELEASE means
 # moving the matching delay in explosive_fireball.tres too (its cast_vfx
-# DelayStep and the launch sound's delay).
+# DelayStep and the launch sound's delay). Retiming Arm's palm opening, or
+# Disarm's closing fist, means moving the keys of the flame that lights and
+# goes out in that hand: the ignite and extinguish animations in
+# scenes/vfx/fireball/fireball_hold.tscn.
 
 const PoseBuilder := preload("res://tools/pose_builder.gd")
 

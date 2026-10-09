@@ -64,6 +64,11 @@ extends Node
 ## casting — that reasoning doesn't apply to a hold effect, there's
 ## nothing left to finish once the unit holding the stance is gone.
 var _hold_instance: Node = null
+## Hold effects that ride a body point, each -> the CharacterModel.Anchor
+## it rides. Still the unit's children; _process moves them onto the point,
+## following its position but never the bone's turn. A finished hold stays in
+## here while its extinguish animation plays, so it goes out in the hand.
+var _carried := {}
 ## Played instead of nothing at all when this unit takes damage while
 ## visual_state == POSED (see Unit.visual_state) and the held status
 ## doesn't set its own StatusEffect.hit_reaction_vfx — left unset (the
@@ -84,6 +89,7 @@ func _ready() -> void:
 	unit.status_applied.connect(_on_status_applied)
 	unit.status_ticked.connect(_on_status_ticked)
 	unit.status_removed.connect(_on_status_removed)
+	set_process(false)
 
 
 ## Mirrors unit_sfx.gd's _on_ability_armed exactly — same
@@ -103,7 +109,7 @@ func _on_ability_armed(ability: Ability) -> void:
 	_play(enter_vfx, unit.global_position, unit.global_position, ability, unit)
 
 	var hold_scene: PackedScene = ability.armed_hold_vfx if ability.armed_hold_vfx else default_armed_hold_vfx
-	_start_hold_vfx(hold_scene)
+	_start_hold_vfx(hold_scene, ability.armed_hold_vfx_at if ability.armed_hold_vfx else CharacterModel.Anchor.GROUND)
 
 
 ## Launching ANY ability ends the "holding a stance" state — see
@@ -117,17 +123,46 @@ func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 	_play(sequence, attacker.global_position, target_position, ability, attacker)
 
 
-func _start_hold_vfx(scene: PackedScene) -> void:
+func _start_hold_vfx(scene: PackedScene, at: CharacterModel.Anchor) -> void:
 	if not scene:
 		return
 	_hold_instance = scene.instantiate()
+	if at != CharacterModel.Anchor.GROUND and _hold_instance is Node3D:
+		_carried[_hold_instance] = at
+		set_process(true)
 	unit.add_child(_hold_instance)
+	_process(0.0)
 
 
+func _process(_delta: float) -> void:
+	for instance: Node3D in _carried.keys():
+		if not is_instance_valid(instance):
+			_carried.erase(instance)
+		elif instance.is_inside_tree():
+			instance.global_position = unit.anchor(_carried[instance])
+	if _carried.is_empty():
+		set_process(false)
+
+
+## A hold scene with an "extinguish" animation on its AnimationPlayer plays
+## it on the way out (the flame closed in the fist) and is freed when it
+## ends; one without is freed at once, as before. The scene still follows
+## the body point while it goes out.
 func _stop_hold_vfx() -> void:
-	if _hold_instance and is_instance_valid(_hold_instance):
-		_hold_instance.queue_free()
+	var instance := _hold_instance
 	_hold_instance = null
+	if not (instance and is_instance_valid(instance)):
+		return
+	var player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if not (player and player.has_animation("extinguish")):
+		_carried.erase(instance)
+		instance.queue_free()
+		return
+	player.play("extinguish")
+	await player.animation_finished
+	_carried.erase(instance)
+	if is_instance_valid(instance):
+		instance.queue_free()
 
 
 ## Reads the currently-held status's own hit_reaction_vfx if it set one
