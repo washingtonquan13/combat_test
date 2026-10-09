@@ -56,8 +56,8 @@ godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res:
   `29.9535,-90.0590` (the Mississippi) and `30.033,-90.08` (Lake
   Pontchartrain).
 - `osm_city.py` ends by running `shore_field.py`, which bakes `shore.png`,
-  each water pixel's distance to the bank, for the water shader's shallows
-  and shore foam. Re-bake it alone with
+  each water pixel's distance to the bank and how open the water around it
+  is, for the water shader's shallows, shore foam and calm small water. Re-bake it alone with
   `python -I tools/blockout/shore_field.py data/blockouts/<name>`.
 - The builder writes `world/<name>/city_geometry.scn` every time. It writes
   `world/<name>_overworld.tscn`, the editable area with spawn, camera and
