@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://bsk4jx2fxytqm" path="res://assets/UAL1_Standard.glb" id="3_glb"]
 [ext_resource type="AnimationLibrary" uid="uid://cqnay5mbp4o52" path="res://assets/unit_animations.tres" id="4_anims"]
 [ext_resource type="AnimationLibrary" uid="uid://dljalqhwbvg6h" path="res://assets/UAL2_Standard.glb" id="5_ual2"]
-[ext_resource type="AnimationLibrary" path="res://assets/flight_animations.tres" id="6_flight"]
+[ext_resource type="AnimationLibrary" uid="uid://xsona7iw7lk2" path="res://assets/flight_animations.tres" id="6_flight"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]
 resource_local_to_scene = true
@@ -148,8 +148,8 @@ bones/63/rotation = Quaternion(4.41173e-08, 1, 5.96046e-08, 1.94734e-08)
 [node name="AnimationPlayer" parent="Body" index="1"]
 libraries = {
 &"": ExtResource("4_anims"),
-&"UAL2_Standard": ExtResource("5_ual2"),
-&"Flight": ExtResource("6_flight")
+&"Flight": ExtResource("6_flight"),
+&"UAL2_Standard": ExtResource("5_ual2")
 }
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]

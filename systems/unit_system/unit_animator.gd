@@ -335,6 +335,8 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 		return
 	_pending_armed_enter_clip = ""
 	_pending_armed_hold = ""
+	if not ability.plays_cast_animation:
+		return
 	var sequence: AnimationSequence = ability.cast_animation if ability.cast_animation else default_cast_animation
 	_play_sequence(sequence)
 

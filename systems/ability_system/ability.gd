@@ -138,6 +138,10 @@ enum Category { COMMON, ABILITIES }
 ## generic default sequence, same fallback shape as cast_vfx/cast_sfx
 ## above. Plays on the same ability_use_started moment as those two.
 @export var cast_animation: AnimationSequence
+## Off for an ability whose effect is its own body motion (Fly's takeoff,
+## Land's descent): no cast clip at all, not even the fallback, so the
+## motion's clips play from the moment of use.
+@export var plays_cast_animation: bool = true
 
 
 ## Whether target is a legal target for this ability from attacker's

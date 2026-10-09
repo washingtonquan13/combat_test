@@ -19,7 +19,9 @@ func run() -> void:
 
 
 func _lifts_hovers_glides_and_lands() -> void:
-	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3.ZERO)
+	var fly: Ability = load("res://data/abilities/fly.tres")
+	var land: Ability = load("res://data/abilities/land.tres")
+	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), fly, land], Vector3.ZERO)
 	await get_tree().process_frame
 	var animator: Node = unit.get_node("UnitAnimator")
 	var player: AnimationPlayer = animator.animation_player
@@ -32,9 +34,11 @@ func _lifts_hovers_glides_and_lands() -> void:
 			and player.has_animation("Flight/Fly_Fwd") and player.has_animation("Flight/Land"))
 	check("on the ground it idles", player.current_animation == "Idle", player.current_animation)
 
-	var fly: Ability = load("res://data/abilities/fly.tres")
-	(fly.effects[0] as AbilityEffect).apply(unit, null, fly, false)
-	check("taking off plays the takeoff", player.current_animation == "Flight/Takeoff",
+	unit.maximum_fp = 20
+	unit.current_fp = 20
+	var used: Dictionary = await unit.use_ability(fly, unit)
+	check("SETUP: Fly was really used", unit.is_flying(), str(used))
+	check("taking off plays the takeoff, with no cast clip first", player.current_animation == "Flight/Takeoff",
 		player.current_animation)
 	check("and it rests on the hover after", animator._base_animation == "Flight/Hover",
 		animator._base_animation)
@@ -53,8 +57,10 @@ func _lifts_hovers_glides_and_lands() -> void:
 	check("stopping in the air goes back to the hover", player.current_animation == "Flight/Hover",
 		player.current_animation)
 
-	unit.ground_if_flying()
+	unit.use_ability(land, unit)
 	check("SETUP: the flying status is gone as the descent starts", not unit.is_flying())
+	check("landing comes down in the hover, with no cast clip",
+		player.current_animation == "Flight/Hover", player.current_animation)
 	unit.movement_finished.emit(unit)
 	check("on the way down it still hovers, though no longer 'flying'",
 		player.current_animation == "Flight/Hover", player.current_animation)
