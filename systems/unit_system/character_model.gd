@@ -54,6 +54,16 @@ extends Node3D
 @export var armed_enter_animation: String = ""
 @export var armed_hold_animation: String = ""
 
+@export_group("Flight Animation")
+## While the unit is in the air these stand in for idle and walk; empty
+## means the ground clip plays in the air too. Takeoff plays as the unit
+## lifts off and land as it touches down, each then resting on whichever
+## idle is current.
+@export var fly_idle_animation: String = ""
+@export var fly_move_animation: String = ""
+@export var takeoff_animation: String = ""
+@export var land_animation: String = ""
+
 @export_group("Presentation")
 ## The silhouette drawn behind the body when hovered or selected. Skinned
 ## to THIS body's skeleton, which is the whole reason it cannot live on

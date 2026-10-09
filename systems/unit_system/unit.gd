@@ -426,6 +426,12 @@ signal visual_state_changed(unit: Unit, state: VisualState)
 
 signal movement_started(unit: Unit)
 signal movement_finished(unit: Unit)
+## The body leaving the ground (GrantFlightEffect) and arriving back on it
+## (the end of UnitMovement.land's descent) — moments, for presentation.
+## Whether the unit counts as flying is is_flying(), which changes at
+## neither: it turns on before the climb and off before the descent.
+signal took_off(unit: Unit)
+signal touched_down(unit: Unit)
 ## Fired the instant this unit has nothing left in flight — no move in
 ## progress, no async ability effect (e.g. Jump's arc animation) still
 ## running. This is what CombatManager waits on before actually ending a

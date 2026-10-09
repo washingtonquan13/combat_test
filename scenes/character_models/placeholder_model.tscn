@@ -1,10 +1,11 @@
-[gd_scene load_steps=13 format=4 uid="uid://btnqexsmk20xa"]
+[gd_scene load_steps=14 format=4 uid="uid://btnqexsmk20xa"]
 
 [ext_resource type="Script" uid="uid://ee0ub37ip226" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://systems/unit_system/outline.gdshader" id="2_outline"]
 [ext_resource type="PackedScene" uid="uid://bsk4jx2fxytqm" path="res://assets/UAL1_Standard.glb" id="3_glb"]
 [ext_resource type="AnimationLibrary" uid="uid://cqnay5mbp4o52" path="res://assets/unit_animations.tres" id="4_anims"]
 [ext_resource type="AnimationLibrary" uid="uid://dljalqhwbvg6h" path="res://assets/UAL2_Standard.glb" id="5_ual2"]
+[ext_resource type="AnimationLibrary" path="res://assets/flight_animations.tres" id="6_flight"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]
 resource_local_to_scene = true
@@ -75,6 +76,10 @@ idle_animation = "Idle"
 walk_animation = "Jog_Fwd"
 hit_animation = "Hit_Chest"
 death_animation = "Death01"
+fly_idle_animation = "Flight/Hover"
+fly_move_animation = "Flight/Fly_Fwd"
+takeoff_animation = "Flight/Takeoff"
+land_animation = "Flight/Land"
 outline_mesh = NodePath("OutlineMesh")
 highlight_mesh = NodePath("HighlightMesh")
 collision_shape = NodePath("CollisionTemplate")
@@ -143,7 +148,8 @@ bones/63/rotation = Quaternion(4.41173e-08, 1, 5.96046e-08, 1.94734e-08)
 [node name="AnimationPlayer" parent="Body" index="1"]
 libraries = {
 &"": ExtResource("4_anims"),
-&"UAL2_Standard": ExtResource("5_ual2")
+&"UAL2_Standard": ExtResource("5_ual2"),
+&"Flight": ExtResource("6_flight")
 }
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]

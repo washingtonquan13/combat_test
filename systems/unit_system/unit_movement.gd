@@ -613,6 +613,7 @@ func land(controlled: bool = false) -> void:
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(_owner, "global_position:y", result.position.y, duration)
+	tween.finished.connect(func(): _owner.touched_down.emit(_owner))
 	tween.finished.connect(_owner.end_busy)
 	SystemLog.print("%s lands." % LogFormat.unit_name(_owner))
 

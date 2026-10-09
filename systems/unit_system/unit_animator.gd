@@ -70,6 +70,14 @@ extends Node
 @export var default_armed_enter_animation: String = ""
 @export var default_armed_hold_animation: String = ""
 
+@export_group("Flight Animation")
+## See CharacterModel's own Flight Animation group; empty falls back to
+## the ground clip.
+@export var fly_idle_animation: String = ""
+@export var fly_move_animation: String = ""
+@export var takeoff_animation: String = ""
+@export var land_animation: String = ""
+
 ## What a one-shot clip (a hit reaction, most commonly) returns to once
 ## it finishes — idle_animation normally, or the held status's
 ## apply_animation while unit.visual_state == POSED. The single source
@@ -116,6 +124,13 @@ var _external_advance_pending: bool = false
 var _pending_armed_enter_clip: String = ""
 var _pending_armed_hold: String = ""
 
+## Whether the body is off the ground, which is not quite unit.is_flying():
+## the flying status is gone the moment a landing starts, but the body is
+## still in the air until the descent ends (Unit.touched_down). Set by
+## took_off, or by a flight status turning up without one (a unit spawned
+## or loaded already flying); cleared only by touched_down.
+var _aloft: bool = false
+
 
 ## Rebinds this driver onto a body it was not authored against.
 ##
@@ -135,6 +150,10 @@ func adopt_model(model: CharacterModel) -> void:
 	death_animation = model.death_animation
 	default_armed_enter_animation = model.armed_enter_animation
 	default_armed_hold_animation = model.armed_hold_animation
+	fly_idle_animation = model.fly_idle_animation
+	fly_move_animation = model.fly_move_animation
+	takeoff_animation = model.takeoff_animation
+	land_animation = model.land_animation
 
 
 func _ready() -> void:
@@ -151,12 +170,17 @@ func _ready() -> void:
 	unit.became_idle.connect(_on_unit_became_idle)
 	unit.status_applied.connect(_on_status_applied)
 	unit.status_removed.connect(_on_status_removed)
+	unit.took_off.connect(_on_took_off)
+	unit.touched_down.connect(_on_touched_down)
 	animation_player.animation_finished.connect(_on_animation_finished)
 
 	_validate_animation_names()
 
-	_base_animation = idle_animation
-	_play(idle_animation)
+	# Not unit.is_flying(): this runs before Unit._ready has built its
+	# statuses. A unit that starts flying gets its status after this, and
+	# _on_status_applied lifts the body then.
+	_base_animation = _idle()
+	_play(_base_animation)
 
 
 ## Warns about every clip name referenced by this unit's own animation
@@ -186,6 +210,10 @@ func _validate_animation_names() -> void:
 
 	_check_clip(idle_animation, "idle_animation")
 	_check_clip(walk_animation, "walk_animation")
+	_check_clip(fly_idle_animation, "fly_idle_animation")
+	_check_clip(fly_move_animation, "fly_move_animation")
+	_check_clip(takeoff_animation, "takeoff_animation")
+	_check_clip(land_animation, "land_animation")
 	_check_clip(hit_animation, "hit_animation")
 	_check_clip(death_animation, "death_animation")
 	_check_sequence(default_cast_animation, "default_cast_animation")
@@ -226,8 +254,8 @@ func _on_movement_started(_u: Unit) -> void:
 		return
 	unit.posed_status = null
 	unit.visual_state = Unit.VisualState.STANDING
-	_base_animation = idle_animation
-	_play(walk_animation)
+	_base_animation = _idle()
+	_play(_walk())
 
 
 ## Does NOT touch idle_animation while a pose is being held — this is
@@ -243,7 +271,7 @@ func _on_movement_finished(_u: Unit) -> void:
 		return
 	if unit.posed_status:
 		return
-	_play(idle_animation)
+	_play(_idle())
 
 
 ## Mirrors unit_sfx.gd's/unit_vfx.gd's own _on_ability_armed exactly —
@@ -349,6 +377,8 @@ func _on_died(_u: Unit) -> void:
 ## still active. Good enough for a cosmetic pose; revisit only if a
 ## status's visual needs to survive the unit taking other actions.
 func _on_status_applied(_affected_unit: Unit, effect: StatusEffect) -> void:
+	if not _aloft and unit.is_flying():
+		_lift_without_takeoff()
 	if effect.apply_animation == "":
 		return
 	if unit.posed_status != null:
@@ -364,15 +394,70 @@ func _on_status_removed(_affected_unit: Unit, effect: StatusEffect) -> void:
 		return
 	unit.posed_status = null
 	unit.visual_state = Unit.VisualState.STANDING
-	_base_animation = idle_animation
+	_base_animation = _idle()
 	if effect.remove_animation != "":
 		_play(effect.remove_animation)
 	else:
-		_play(idle_animation)
+		_play(_base_animation)
 
 
 func _on_unit_became_idle() -> void:
 	advance_external()
+
+
+## --- Flight ---
+
+func _idle() -> String:
+	return fly_idle_animation if _aloft and fly_idle_animation != "" else idle_animation
+
+
+func _walk() -> String:
+	return fly_move_animation if _aloft and fly_move_animation != "" else walk_animation
+
+
+## None of these touch a dead unit: a body that dies in the air still
+## comes down, and the landing must not stand it back up.
+##
+## Takeoff replaces whatever the ability's cast sequence was doing: the
+## lift IS the cast. The sequence is dropped rather than left to advance,
+## or a timer phase of it would fire mid-climb and take the clip back.
+func _on_took_off(_u: Unit) -> void:
+	_aloft = true
+	if _cutscene_claimed or unit.posed_status or not unit.is_alive():
+		return
+	_abandon_sequence()
+	_base_animation = _idle()
+	if not _play(takeoff_animation):
+		_play(_base_animation)
+
+
+func _on_touched_down(_u: Unit) -> void:
+	_aloft = false
+	if _cutscene_claimed or unit.posed_status or not unit.is_alive():
+		return
+	_abandon_sequence()
+	_base_animation = _idle()
+	if not _play(land_animation):
+		_play(_base_animation)
+
+
+## Already flying with no takeoff to show for it. Swaps the ground idle
+## for the flying one if that is what's showing, and nothing else.
+func _lift_without_takeoff() -> void:
+	_aloft = true
+	if _cutscene_claimed or unit.posed_status or not unit.is_alive():
+		return
+	var was_idle: bool = _base_animation == idle_animation
+	_base_animation = _idle()
+	if was_idle and animation_player.current_animation == idle_animation:
+		_play(_base_animation)
+
+
+func _abandon_sequence() -> void:
+	_sequence_token += 1
+	_external_advance_pending = false
+	_active_sequence = null
+	_active_phase_index = -1
 
 
 ## Sequences the cast-animation phase player by chaining off each

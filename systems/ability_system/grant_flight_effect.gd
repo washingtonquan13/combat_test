@@ -28,6 +28,10 @@ extends AbilityEffect
 ## constant velocity — it only guards against an unusually large
 ## takeoff_height set on some future ability.
 @export var max_ascend_duration: float = 4.0
+## Seconds on the ground between the cast and the climb: room for a
+## takeoff clip's crouch to read as the push that lifts the body, rather
+## than as a crouch performed already in the air.
+@export var lift_delay: float = 0.0
 
 
 func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Dictionary:
@@ -35,6 +39,7 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	attacker.apply_status(flying_status)
+	attacker.took_off.emit(attacker)
 	# Clamped to the same flight envelope every other altitude write in
 	# this project already respects (Unit.set_flight_altitude(),
 	# UnitMovement.plan_route(), movement_indicator.gd's own preview) —
@@ -72,6 +77,8 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	var tween: Tween = attacker.create_tween()
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
+	if lift_delay > 0.0:
+		tween.tween_interval(lift_delay)
 	tween.tween_property(attacker, "global_position:y", target_y, duration)
 	tween.finished.connect(attacker.end_busy)
 
