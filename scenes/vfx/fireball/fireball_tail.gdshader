@@ -1,9 +1,8 @@
 shader_type spatial;
 // The streak of fire behind a flying fireball: a cone trailing off the
 // core, burning hot at its root and tearing into ragged tongues toward the
-// tip, in crisp cel-shaded bands. Made for a CylinderMesh whose UV.y runs
-// from root (0) to tip (1).
-render_mode unshaded, blend_mix, depth_draw_never, cull_disabled;
+// tip. Made for a CylinderMesh whose UV.y runs from root (0) to tip (1).
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled;
 
 uniform vec4 hot_color : source_color = vec4(1.0, 0.85, 0.5, 1.0);
 uniform vec4 tail_color : source_color = vec4(1.0, 0.25, 0.03, 1.0);
@@ -37,9 +36,7 @@ void fragment() {
 	float body = pow(1.0 - along, 1.4);
 	float torn = smoothstep(along * raggedness, along * raggedness + 0.35, n);
 	float facing = abs(dot(NORMAL, VIEW));
-	float heat = body * torn * (0.35 + facing * 0.65);
-	// Two flat bands: a hot inner streak inside a coloured flame.
-	float inner = step(0.55, heat + (n - 0.5) * 0.3);
-	ALBEDO = mix(tail_color.rgb, hot_color.rgb, inner) * intensity;
-	ALPHA = step(0.22, heat);
+	vec3 col = mix(hot_color.rgb, tail_color.rgb, clamp(along * 1.6 + (1.0 - n) * 0.3, 0.0, 1.0));
+	ALBEDO = col * intensity;
+	ALPHA = clamp(body * torn * (0.35 + facing * 0.65), 0.0, 1.0);
 }

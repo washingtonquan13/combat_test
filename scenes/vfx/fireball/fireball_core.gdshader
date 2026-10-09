@@ -1,8 +1,7 @@
 shader_type spatial;
 // The burning heart of a held or flying fireball: a sphere whose surface
-// churns, white-hot where it faces you and reddening toward the rim, in
-// flat cel-shaded bands.
-render_mode unshaded, blend_mix, cull_back;
+// churns, white-hot where it faces you and reddening toward the rim.
+render_mode unshaded, blend_add, depth_draw_never, cull_back;
 
 uniform vec4 hot_color : source_color = vec4(1.0, 0.92, 0.65, 1.0);
 uniform vec4 rim_color : source_color = vec4(1.0, 0.32, 0.04, 1.0);
@@ -12,8 +11,6 @@ uniform float intensity = 2.2;
 uniform float churn_speed = 1.6;
 uniform float churn_amount = 0.18;
 uniform float churn_scale = 7.0;
-// How many flat colour bands from hot to rim; 0 shades smoothly.
-uniform float bands = 3.0;
 
 float hash(vec3 p) {
 	p = fract(p * 0.3183099 + 0.1);
@@ -42,9 +39,7 @@ void vertex() {
 void fragment() {
 	float facing = clamp(dot(NORMAL, VIEW), 0.0, 1.0);
 	float rim = pow(1.0 - facing, 1.6);
-	float t = clamp(rim * 1.4 + (1.0 - churn) * 0.45, 0.0, 1.0);
-	if (bands > 0.5) {
-		t = min(floor(t * bands) / max(bands - 1.0, 1.0), 1.0);
-	}
-	ALBEDO = mix(hot_color.rgb, rim_color.rgb, t) * intensity;
+	vec3 col = mix(hot_color.rgb, rim_color.rgb, clamp(rim * 1.4 + (1.0 - churn) * 0.45, 0.0, 1.0));
+	ALBEDO = col * intensity;
+	ALPHA = clamp(facing * 1.5, 0.0, 1.0);
 }
