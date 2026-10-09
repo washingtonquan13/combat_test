@@ -132,7 +132,8 @@ func _launched_from_the_stance() -> void:
 	check("SETUP: the flame is in the hand", flame != null)
 	var flame_player: AnimationPlayer = flame.get_node("AnimationPlayer") if flame else null
 
-	caster.ability_use_started.emit(caster, caster.global_position + caster.visual_forward() * 6.0, _fireball())
+	var aim := caster.global_position + caster.visual_forward() * 6.0
+	caster.ability_use_started.emit(caster, aim, _fireball())
 	check("casting launches from the stance", player.current_animation == "Fireball/Cast",
 		player.current_animation)
 	# The auto-disarm after a use arrives mid-cast.
@@ -164,11 +165,23 @@ func _launched_from_the_stance() -> void:
 	check("landed, its smoke trail hangs on", is_instance_valid(landed)
 		and not landed.get_node("Core").visible)
 	check("and the released flame is gone", not is_instance_valid(flame))
+	var blasts := _explosions()
+	var blast: Node3D = blasts[0] if blasts.size() == 1 else null
+	check("it explodes where it lands", blast != null and blast.global_position.distance_to(aim) < 0.5,
+		"%d explosions%s" % [blasts.size(),
+			", %.2f m from the aim point" % blast.global_position.distance_to(aim) if blast else ""])
 	await get_tree().create_timer(1.8).timeout
 	check("and then the trail clears", _projectiles().is_empty(), "%d left" % _projectiles().size())
+	check("while the blast's smoke still hangs", is_instance_valid(blast))
+	await get_tree().create_timer(3.5).timeout
+	check("and then the blast clears too", _explosions().is_empty(), "%d left" % _explosions().size())
 
 	check("after the cast it stands at rest", player.current_animation == "Idle", player.current_animation)
 	free_spawned()
+
+
+func _explosions() -> Array[Node]:
+	return WorldManager.spawn_parent().find_children("FireballExplosion", "", true, false)
 
 
 func _projectiles() -> Array[Node]:

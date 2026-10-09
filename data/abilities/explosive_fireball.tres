@@ -20,7 +20,7 @@
 [ext_resource type="Script" uid="uid://dcgjthqwkn30" path="res://systems/ability_system/spawn_particle_step.gd" id="12_woc63"]
 [ext_resource type="AudioStream" uid="uid://btymytoka47j5" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_IMPACT_01.wav" id="16_y636c"]
 [ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="18_a73or"]
-[ext_resource type="PackedScene" uid="uid://2eq2j53sic1i" path="res://scenes/vfx/BinbunVFX/impact_explosions/effects/impact/vfx_impact_04.tscn" id="18_mme6j"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/fireball/fireball_explosion.tscn" id="18_mme6j"]
 [ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="22_tsbd3"]
 [ext_resource type="Script" uid="uid://cxw1fgu62vv5i" path="res://systems/ability_system/delay_step.gd" id="23_delay"]
 [ext_resource type="Resource" path="res://data/animation_sequences/fireball_cast.tres" id="24_castanim"]
@@ -79,8 +79,8 @@ at = 1
 force_one_shot = true
 fallback_lifetime = 2.0
 scale_to_ability_radius = true
-authored_radius = 1.0
-height_scale_factor = 0.05
+authored_radius = 3.0
+height_scale_factor = 1.0
 metadata/_custom_type_script = "uid://dcgjthqwkn30"
 
 [sub_resource type="Resource" id="Resource_xtw6w"]
