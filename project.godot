@@ -186,3 +186,10 @@ cinematic_advance={
 , Object(InputEventJoypadButton,"resource_local_to_scene":false,"resource_name":"","device":-1,"button_index":0,"pressure":0.0,"pressed":false,"script":null)
 ]
 }
+
+[shader_globals]
+
+player_position={
+"type": "vec3",
+"value": Vector3(1e+06, 0, 1e+06)
+}

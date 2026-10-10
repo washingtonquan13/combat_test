@@ -115,6 +115,10 @@ func _physics_process(delta: float) -> void:
 	# door it came in by.
 	if group:
 		group.overworld_position = global_position
+	# Where the player is, for shaders that clear the view to them: the
+	# city's bridge decks cut a hole round an avatar walking under one.
+	if active:
+		RenderingServer.global_shader_parameter_set(&"player_position", global_position)
 
 	_apply_alignment_spin(delta)
 

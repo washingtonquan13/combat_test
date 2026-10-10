@@ -35,6 +35,7 @@ Writes into <out dir>:
   tiles/b_X_Z.bin  buildings of one tile, in real metres
   tiles/g_X_Z.bin  the ground of one tile, flat at y 0, every class
   tiles/w_X_Z.bin  the water of one tile, extruded, for collision only
+  tiles/d_X_Z.bin  bridge decks and their ramps, from bridges.py
   city.json        extent, tile size, origin, tiles, and the boundary's
                    rings in metres
 
@@ -205,10 +206,13 @@ def main():
                 if len(line) < 2:
                     continue
                 if tags.get("highway") in ROAD_WIDTHS:
-                    roads.append((line, tags["highway"]))
+                    roads.append((line, tags["highway"], tags.get("bridge", "no") != "no"))
                 elif tags.get("railway") == "rail":
                     rails.append(line)
-                elif tags.get("waterway") in ("canal", "river"):
+                elif tags.get("waterway") in ("canal", "river") and tags.get("tunnel", "no") == "no"                         and not tags.get("layer", "0").lstrip().startswith("-"):
+                    # A culverted ditch (a tunnel, or a layer below ground)
+                    # runs under the road; open water there would wall the
+                    # road off.
                     canals.append((line, tags.get("width")))
                 continue
             poly = _area([ring(geom)], [])
@@ -224,15 +228,18 @@ def main():
         elif tags.get("landuse") == "cemetery":
             kind = GRAVES
         elif tags.get("highway") in ROAD_WIDTHS and tags.get("area") != "yes":
-            roads.append((ring(el["geometry"]), tags["highway"]))
+            roads.append((ring(el["geometry"]), tags["highway"], False))
             continue
         if kind is not None and poly is not None:
             areas[kind].append(poly)
 
     cover = {k: shapely.union_all(v) if v else Polygon() for k, v in areas.items()}
     cover[RAIL] = _strokes([(line, RAIL_WIDTH) for line in rails])
-    cover[ROAD] = _strokes([(line, ROAD_WIDTHS[k]) for line, k in roads if k in MINOR_ROADS])
-    cover[MAJOR] = _strokes([(line, ROAD_WIDTHS[k]) for line, k in roads if k not in MINOR_ROADS])
+    # A bridge is a deck of its own (bridges.py), not paint on the ground
+    # under it; but it still keeps the buildings out from under itself.
+    cover[ROAD] = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k in MINOR_ROADS and not up])
+    cover[MAJOR] = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k not in MINOR_ROADS and not up])
+    decks = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if up])
     canal_strokes = []
     for line, width in canals:
         try:
@@ -258,7 +265,7 @@ def main():
     shapely.prepare(inside)
     keep = shapely.intersects(inside, footprints)
     footprints, heights = footprints[keep], heights[keep]
-    open_ground = shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER]])
+    open_ground = shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER], decks])
     open_ground = shapely.buffer(open_ground, SIDEWALK, join_style="mitre")
     shapely.prepare(open_ground)
     steps = []  # (height, mass)
@@ -354,6 +361,8 @@ def main():
     # The water shader's distance-to-shore field. A separate script so it
     # can be re-baked without re-running this one.
     subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(__file__), "shore_field.py"), args.out], check=True)
+    # The bridges, which add their own tiles to city.json.
+    subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(__file__), "bridges.py"), args.raw, args.out], check=True)
 
 
 def _height(tags):

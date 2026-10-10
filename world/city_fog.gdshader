@@ -1,8 +1,9 @@
 // The fog at the edge of the city overworld: the map ends where the city
 // does, and past its boundary there is only fog. Each layer is a flat sheet
-// above the ground, see-through inside the city and solid past its edge,
-// with a ragged, drifting margin between. A few sheets stacked at rising
-// heights, each reaching a little less far in, read as a bank of fog
+// above the ground, clear everywhere inside the city and solid past its
+// edge, with a ragged, drifting margin out beyond the line: the fog hides
+// what is off the map and never a road on it. A few sheets stacked at
+// rising heights, each starting a little farther out, read as a bank of fog
 // rather than a painted line.
 //
 // edge_tex holds the signed distance to the boundary, inside positive,
@@ -17,13 +18,13 @@ uniform vec2 edge_origin = vec2(0.0);
 uniform vec2 edge_size = vec2(1.0);
 uniform float edge_step = 8.0;
 uniform float units_per_metre = 0.25;
-// Metres inside the boundary where this sheet starts to thicken, and
-// metres outside it where it turns solid.
-uniform float reach_in = 240.0;
-uniform float reach_out = 60.0;
-// Metres the ragged margin wanders in and out, and world units across
-// one wisp.
-uniform float wander = 140.0;
+// Metres outside the boundary where this sheet starts to thicken, and
+// metres more over which it turns solid.
+uniform float start_out = 0.0;
+uniform float band = 120.0;
+// Metres the ragged margin wanders outward, and world units across one
+// wisp.
+uniform float wander = 100.0;
 uniform float wisp_size = 30.0;
 uniform float drift_speed = 0.6;
 uniform vec2 drift = vec2(1.0, 0.35);
@@ -73,11 +74,13 @@ void fragment() {
 	// wisps curl rather than slide.
 	float warp = fbm(p * 0.35 - flow * 0.5);
 	float n = fbm(p + flow + warp * 1.5) * 0.65 + fbm(p * 2.3 - flow * 1.3) * 0.35;
-	float m = metres + (n - 0.5) * 2.0 * wander;
-	float thick = 1.0 - smoothstep(-reach_out, reach_in, m);
+	// Only ever pushed outward, so inside the boundary m stays above 0
+	// and the sheet stays clear.
+	float m = metres + start_out + n * wander;
+	float thick = 1.0 - smoothstep(-band, 0.0, m);
 	// Denser cores inside the wisps, and solid well past the edge.
 	thick *= mix(0.7, 1.15, n);
-	thick = mix(thick, 1.0, 1.0 - smoothstep(-reach_out * 4.0, -reach_out, metres));
+	thick = mix(thick, 1.0, 1.0 - smoothstep(-(start_out + wander + band * 3.0), -(start_out + wander + band), metres));
 	ALBEDO = fog_color * mix(0.96, 1.04, n);
 	ALPHA = clamp(thick, 0.0, 1.0);
 }

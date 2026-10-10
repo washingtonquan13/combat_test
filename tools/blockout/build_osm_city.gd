@@ -21,6 +21,9 @@ const GROUND_COLORS := [
 	Color8(92, 86, 80), Color8(78, 80, 84), Color8(64, 66, 70), Color8(52, 78, 96),
 ]
 const BUILDING_COLORS := [Color(0.80, 0.78, 0.74), Color(0.55, 0.54, 0.52)]
+## Bridge decks (bridges.py): road surface, side, pier, rail.
+const DECK_COLORS := [Color8(70, 72, 76), Color8(156, 154, 148), Color8(138, 136, 130), Color8(176, 174, 166)]
+const DECK_SHADER := "res://world/city_deck.gdshader"
 const BLOCKS_SHADER := "res://world/city_blocks.gdshader"
 const WATER_SHADER := "res://world/city_water.gdshader"
 const FOG_SHADER := "res://world/city_fog.gdshader"
@@ -31,11 +34,11 @@ const LEVEL_HEIGHT := 3.4
 const BAY_WIDTH := 3.6
 const EDGE_WALL := 4.0
 ## The fog past the city's boundary: sheets at these heights in world
-## units, the metres inside the boundary where each starts to thicken,
-## less for higher sheets so the bank rises outward, and the world units
+## units, the metres outside the boundary where each starts to thicken,
+## more for higher sheets so the bank rises outward, and the world units
 ## the sheets run on past the map so its edge never shows.
 const FOG_HEIGHTS := [0.6, 3.0, 7.0]
-const FOG_REACH := [260.0, 170.0, 90.0]
+const FOG_START := [0.0, 60.0, 140.0]
 const FOG_MARGIN := 600.0
 ## The scene's haze, which the fog matches.
 const HAZE := Color(0.72, 0.76, 0.80)
@@ -76,6 +79,8 @@ func _ready() -> void:
 	blocks_mat.shader = load(BLOCKS_SHADER)
 	blocks_mat.set_shader_parameter("storey", LEVEL_HEIGHT * _vscale)
 	blocks_mat.set_shader_parameter("bay", BAY_WIDTH * _scale)
+	var deck_mat := ShaderMaterial.new()
+	deck_mat.shader = load(DECK_SHADER)
 	var ground_mat := StandardMaterial3D.new()
 	ground_mat.vertex_color_use_as_albedo = true
 	ground_mat.vertex_color_is_srgb = true
@@ -113,6 +118,10 @@ func _ready() -> void:
 			tris += blocks.count
 			body.add_child(_mesh_instance("Blocks", blocks.mesh, blocks_mat))
 			faces.append_array(blocks.faces)
+		if tile.has("decks"):
+			var decks := _load_tris(src + "/tiles/" + tile.decks, DECK_COLORS)
+			body.add_child(_mesh_instance("Decks", decks.mesh, deck_mat))
+			faces.append_array(decks.faces)
 		if tile.has("water"):
 			faces.append_array(_load_tris(src + "/tiles/" + tile.water, []).faces)
 		if faces.is_empty():
@@ -200,7 +209,7 @@ func _build_boundary(parent: Node3D, meta: Dictionary, src: String, corner: Vect
 		mat.set_shader_parameter("edge_size", Vector2(edge.get_width(), edge.get_height()) * meta.edge.res * _scale)
 		mat.set_shader_parameter("edge_step", meta.edge.step)
 		mat.set_shader_parameter("units_per_metre", _scale)
-		mat.set_shader_parameter("reach_in", FOG_REACH[i])
+		mat.set_shader_parameter("start_out", FOG_START[i])
 		mat.set_shader_parameter("seed", float(i))
 		# Higher sheets draw over lower ones.
 		mat.render_priority = i
@@ -355,7 +364,14 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 
 	# A hazy afternoon: the far city fades into the sky colour, contact
 	# shadows ground the blocks, and filmic tonemapping keeps the pale
-	# concrete from clipping.
+	# concrete from clipping. The haze starts past the farthest ground the
+	# camera can frame, a top corner at full zoom out, so it colours only
+	# the horizon of wider views and never a road in play; the edge of the
+	# map is the boundary fog's job.
+	var fov_tan := tan(deg_to_rad(camera.fov * 0.5))
+	var pitch := deg_to_rad(CAMERA_PITCH)
+	var corner_ray := Vector3(fov_tan * 16.0 / 9.0, fov_tan, 1.0).length()
+	var farthest := CAMERA_RANGE * 1.5 * sin(pitch) * corner_ray / (sin(pitch) - fov_tan * cos(pitch))
 	var haze := HAZE
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -373,8 +389,8 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	env.fog_enabled = true
 	env.fog_mode = Environment.FOG_MODE_DEPTH
 	env.fog_light_color = haze
-	env.fog_depth_begin = CAMERA_RANGE * 1.5
-	env.fog_depth_end = CAMERA_RANGE * 9.0
+	env.fog_depth_begin = farthest * 1.1
+	env.fog_depth_end = farthest * 6.6
 	env.fog_depth_curve = 1.6
 	env.fog_sky_affect = 1.0
 	env.adjustment_enabled = true

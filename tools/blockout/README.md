@@ -39,13 +39,16 @@ OSM data (shapely, `pip install shapely`), so edges keep their real angles.
 ```bash
 python -I tools/blockout/fetch_osm_city.py <raw dir> --boundary "Orleans Parish"
 python -I tools/blockout/osm_city.py <raw dir> data/blockouts/<name> --water-seeds "LAT,LON;LAT,LON"
-godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res://data/blockouts/<name> --out=res://world/<name> --scale=0.125
+godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res://data/blockouts/<name> --out=res://world/<name> --scale=0.25 --vscale=0.3
 ```
 
 - `--boundary` names an administrative boundary relation. The map is
   clipped to it: buildings stop short of it, a wall runs along it, and fog
   past it (`world/city_fog.gdshader`, driven by the signed distance field
   `edge.png` that `shore_field.py` bakes) hides the rest of the world.
+  The fog is clear everywhere inside the line, so it never covers a road
+  the player can reach, and the builder starts the depth haze past the
+  farthest ground the camera frames at full zoom out.
   Give `--bbox S,W,N,E` to both scripts instead for a plain rectangle with
   no fog.
 - `osm_city.py` takes about 13 minutes for all of Orleans Parish, almost
@@ -70,6 +73,16 @@ godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res:
   `30.0777,-89.6828` (the strip of Lake Borgne inside the parish line).
   For the old rectangle (`29.900,-90.140,30.035,-89.960`) they were
   `29.9535,-90.0590` and `30.033,-90.08`.
+- Bridges, overpasses and their ramps are walkable decks. `osm_city.py`
+  leaves bridges off the ground and runs `bridges.py`, which makes up
+  their heights (OSM has only a layer) and writes `tiles/d_X_Z.bin`; its
+  docstring has the rules. Re-run it alone, in seconds, with
+  `python -I tools/blockout/bridges.py <raw dir> data/blockouts/<name>`.
+  Its heights are real metres, and `CLEAR` assumes `--vscale 0.3`.
+  `world/city_deck.gdshader` cuts a hole in any deck above the player, so
+  the camera can see them under an overpass.
+- Culverted waterways (`tunnel=culvert`) are left out of the water: water
+  is solid collision, and a ditch under a road would wall the road off.
 - `osm_city.py` ends by running `shore_field.py`, which bakes `shore.png`,
   each water pixel's distance to the bank and how open the water around it
   is, for the water shader's shallows, shore foam and calm small water. Re-bake it alone with
