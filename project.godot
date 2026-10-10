@@ -193,3 +193,7 @@ player_position={
 "type": "vec3",
 "value": Vector3(1e+06, 0, 1e+06)
 }
+deck_cutaway_radius={
+"type": "float",
+"value": 7.0
+}

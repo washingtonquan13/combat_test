@@ -27,6 +27,10 @@ const AVATAR_SCENE: PackedScene = preload("res://world/overworld_avatar.tscn")
 ## How many times larger the avatar's icon is drawn; see
 ## OverworldAvatar.icon_scale.
 @export var avatar_icon_scale: float = 1.0
+## World units round the avatar where bridge decks above it are cut away
+## so a steep camera can still see it; 0 for a low camera that looks
+## under the decks instead.
+@export var deck_cutaway_radius: float = 7.0
 
 @onready var _camera: OverworldCamera = $OverworldCamera
 
@@ -42,12 +46,15 @@ func _ready() -> void:
 	# while a group is standing in it, so coming back does not rebuild it
 	# and _ready does not run again.
 	WorldManager.world_focused.connect(_on_world_focused)
+	RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius)
 	sync_avatars()
 	_camera.snap_to_target()
 
 
 func _on_world_focused(world: Node) -> void:
 	if world == self:
+		# Global to every world, so set again whenever this one comes back.
+		RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius)
 		sync_avatars()
 
 

@@ -8,8 +8,10 @@ render_mode cull_back;
 
 // Set every frame by the active OverworldAvatar.
 global uniform vec3 player_position;
+// Set by the overworld scene: a steep camera needs the hole, a low one
+// looking under the deck must not have it, so 0 turns it off.
+global uniform float deck_cutaway_radius;
 uniform float clearance = 2.6;
-uniform float radius = 7.0;
 uniform float feather = 2.0;
 
 varying vec3 world_pos;
@@ -19,9 +21,9 @@ void vertex() {
 }
 
 void fragment() {
-	if (world_pos.y > player_position.y + clearance) {
+	if (deck_cutaway_radius > 0.0 && world_pos.y > player_position.y + clearance) {
 		float d = distance(world_pos.xz, player_position.xz);
-		float keep = clamp((d - radius + feather) / feather, 0.0, 1.0);
+		float keep = clamp((d - deck_cutaway_radius + feather) / feather, 0.0, 1.0);
 		// A 4x4 Bayer threshold, so the edge dissolves instead of
 		// sorting as transparency.
 		ivec2 p = ivec2(FRAGCOORD.xy) % 4;
