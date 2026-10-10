@@ -101,7 +101,26 @@ func _physics_process(delta: float) -> void:
 
 	var yaw: float = camera.get_yaw() if camera else 0.0
 	var basis := Basis(Vector3.UP, yaw)
-	var direction: Vector3 = basis * Vector3(input_dir.x, 0.0, input_dir.y)
+	walk(basis * Vector3(input_dir.x, 0.0, input_dir.y), delta)
+
+	# Written back every frame so the group remembers where it is
+	# standing — the overworld is rebuilt from groups, not the other way
+	# round, and a group that forgot its position would snap back to the
+	# door it came in by.
+	if group:
+		group.overworld_position = global_position
+	# Where the player is, for shaders that clear the view to them: the
+	# city's bridge decks cut a hole round an avatar walking under one.
+	if active:
+		RenderingServer.global_shader_parameter_set(&"player_position", global_position)
+
+	_apply_alignment_spin(delta)
+
+
+## One physics step of walking toward a flat direction (length 0 to 1),
+## over whatever ground is underfoot. Split from the input reading so
+## anything that drives the avatar along a route walks it the same way.
+func walk(direction: Vector3, delta: float) -> void:
 	var target_velocity: Vector3 = direction * move_speed
 
 	velocity.x = move_toward(velocity.x, target_velocity.x, acceleration * delta)
@@ -118,19 +137,6 @@ func _physics_process(delta: float) -> void:
 	var step: float = Vector2(velocity.x, velocity.z).length() * delta
 	floor_snap_length = maxf(0.1, step * tan(floor_max_angle) + 0.05)
 	move_and_slide()
-
-	# Written back every frame so the group remembers where it is
-	# standing — the overworld is rebuilt from groups, not the other way
-	# round, and a group that forgot its position would snap back to the
-	# door it came in by.
-	if group:
-		group.overworld_position = global_position
-	# Where the player is, for shaders that clear the view to them: the
-	# city's bridge decks cut a hole round an avatar walking under one.
-	if active:
-		RenderingServer.global_shader_parameter_set(&"player_position", global_position)
-
-	_apply_alignment_spin(delta)
 
 
 ## Independent of movement/facing entirely — see this file's own header.
