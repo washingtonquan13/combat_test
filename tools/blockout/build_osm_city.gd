@@ -43,11 +43,13 @@ const FOG_MARGIN := 600.0
 ## The scene's haze, which the fog matches.
 const HAZE := Color(0.72, 0.76, 0.80)
 ## The SMT IV framing: steep, far back, the avatar small against the
-## city. CAMERA_RANGE is metres from camera to avatar along the view.
-const CAMERA_PITCH := 70.0
-const CAMERA_RANGE := 170.0
-const AVATAR_SPEED_SCALE := 2.0
-const AVATAR_ICON_SCALE := 12.0
+## city. The range is world units from camera to avatar along the view.
+## Each can be set per build (--pitch, --range, --icon, --speed), since
+## how the city is framed is a choice separate from the city's own scale.
+var _pitch := 70.0
+var _range := 170.0
+var _speed_scale := 2.0
+var _icon_scale := 12.0
 
 var _scale := 0.125
 var _vscale := 0.25
@@ -62,6 +64,10 @@ func _ready() -> void:
 	var out: String = args.get("out", "")
 	_scale = float(args.get("scale", str(_scale)))
 	_vscale = float(args.get("vscale", str(_vscale)))
+	_pitch = float(args.get("pitch", str(_pitch)))
+	_range = float(args.get("range", str(_range)))
+	_speed_scale = float(args.get("speed", str(_speed_scale)))
+	_icon_scale = float(args.get("icon", str(_icon_scale)))
 	var meta: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(src + "/city.json"))
 	DirAccess.make_dir_recursive_absolute(out)
 
@@ -333,8 +339,8 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	root.name = path.get_file().get_basename().to_pascal_case()
 	root.set_script(load("res://world/overworld.gd"))
 	root.set_meta("osm_attribution", meta.attribution)
-	root.avatar_speed_scale = AVATAR_SPEED_SCALE
-	root.avatar_icon_scale = AVATAR_ICON_SCALE
+	root.avatar_speed_scale = _speed_scale
+	root.avatar_icon_scale = _icon_scale
 
 	var city: Node3D = load(geometry_path).instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
 	root.add_child(city)
@@ -351,14 +357,14 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	start.owner = root
 
 	var camera: Node = load("res://systems/camera_system/overworld_camera.tscn").instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
-	camera.pitch_degrees = CAMERA_PITCH
-	var slope := tan(deg_to_rad(CAMERA_PITCH))
-	var along := cos(deg_to_rad(CAMERA_PITCH))
-	camera.distance = CAMERA_RANGE * along
+	camera.pitch_degrees = _pitch
+	var slope := tan(deg_to_rad(_pitch))
+	var along := cos(deg_to_rad(_pitch))
+	camera.distance = _range * along
 	camera.height = camera.distance * slope
-	camera.min_distance = CAMERA_RANGE * 0.5 * along
-	camera.max_distance = CAMERA_RANGE * 1.5 * along
-	camera.zoom_step = CAMERA_RANGE * 0.125 * along
+	camera.min_distance = _range * 0.5 * along
+	camera.max_distance = _range * 1.5 * along
+	camera.zoom_step = _range * 0.125 * along
 	root.add_child(camera)
 	camera.owner = root
 
@@ -369,9 +375,9 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	# the horizon of wider views and never a road in play; the edge of the
 	# map is the boundary fog's job.
 	var fov_tan := tan(deg_to_rad(camera.fov * 0.5))
-	var pitch := deg_to_rad(CAMERA_PITCH)
+	var pitch := deg_to_rad(_pitch)
 	var corner_ray := Vector3(fov_tan * 16.0 / 9.0, fov_tan, 1.0).length()
-	var farthest := CAMERA_RANGE * 1.5 * sin(pitch) * corner_ray / (sin(pitch) - fov_tan * cos(pitch))
+	var farthest := _range * 1.5 * sin(pitch) * corner_ray / (sin(pitch) - fov_tan * cos(pitch))
 	var haze := HAZE
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
@@ -409,7 +415,7 @@ func _write_area(path: String, geometry_path: String, meta: Dictionary) -> Error
 	sun.light_energy = 1.25
 	sun.shadow_enabled = true
 	sun.shadow_blur = 1.5
-	sun.directional_shadow_max_distance = CAMERA_RANGE * 3.0
+	sun.directional_shadow_max_distance = _range * 3.0
 	root.add_child(sun)
 	sun.owner = root
 
