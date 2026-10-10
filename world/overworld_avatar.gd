@@ -47,6 +47,11 @@ var active: bool = false
 @export var move_speed: float = 6.0
 @export var acceleration: float = 24.0
 @export var gravity: float = 18.0
+## Anything up to this steep is ground the avatar walks on. The city's
+## ramps are drawn far steeper than real ones, the way its roads are drawn
+## far wider, so the avatar takes them as ground; the walls it must stop at
+## (buildings, deck sides, rails) all stand near vertical.
+@export_range(0.0, 89.0) var max_slope_degrees: float = 75.0
 
 @export_group("Alignment Spin")
 ## Degrees/sec at the neutral threshold's own edge (extremity 0.0) for
@@ -107,6 +112,11 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.y -= gravity * delta
 
+	# The ground can fall away by this much under one step down the
+	# steepest slope it may be; snapping no less than that keeps the avatar
+	# walking down a ramp instead of launching off its crest and falling.
+	var step: float = Vector2(velocity.x, velocity.z).length() * delta
+	floor_snap_length = maxf(0.1, step * tan(floor_max_angle) + 0.05)
 	move_and_slide()
 
 	# Written back every frame so the group remembers where it is
@@ -188,6 +198,10 @@ func _ready() -> void:
 	# Clickable the same way a Unit is (see unit.gd) — picking is per
 	# viewport and the world view already enables it.
 	input_ray_pickable = true
+	floor_max_angle = deg_to_rad(max_slope_degrees)
+	# The same pace up a ramp as along the street; a slope is ground here,
+	# not an obstacle that slows the walk.
+	floor_constant_speed = true
 	if not input_event.is_connected(_on_input_event):
 		input_event.connect(_on_input_event)
 	_spin_pivot.scale = Vector3.ONE * icon_scale
