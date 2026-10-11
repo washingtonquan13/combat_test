@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="AreaDefinition" load_steps=3 format=3 uid="uid://u017ijglekyo"]
 
 [ext_resource type="Script" uid="uid://dxjfu3gj225jt" path="res://systems/world_system/area_definition.gd" id="1_def"]
-[ext_resource type="PackedScene" uid="uid://bhr1cmca51c75" path="res://world/overworld.tscn" id="2_scene"]
+[ext_resource type="PackedScene" path="res://world/city_overworld.tscn" id="2_scene"]
 
 [resource]
 script = ExtResource("1_def")

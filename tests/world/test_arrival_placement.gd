@@ -238,8 +238,9 @@ func _two_avatars_then_one_goes_in() -> void:
 ## one spot do not stay on one spot. They shove each other apart every
 ## physics frame, upward, which is what a party member at y=8000 is.
 func _nobody_lands_on_an_occupant() -> void:
+	var pad := _a_world_of_its_own()
 	var marker := Node3D.new()
-	_root.add_child(marker)
+	pad.add_child(marker)
 	marker.global_position = Vector3(0.0, 0.5, 0.0)
 
 	var resident: Unit = spawn_brute(0.0)
@@ -256,11 +257,13 @@ func _nobody_lands_on_an_occupant() -> void:
 		"%.2f apart - they will shove each other skyward" % gap)
 
 	marker.queue_free()
+	_dispose_world(pad)
 
 
 func _a_failed_snap_still_separates_them() -> void:
+	var pad := _a_world_of_its_own()
 	var marker := Node3D.new()
-	_root.add_child(marker)
+	pad.add_child(marker)
 	# Well outside anything the grid has scanned.
 	marker.global_position = Vector3(5000.0, 0.0, 5000.0)
 
@@ -282,6 +285,34 @@ func _a_failed_snap_still_separates_them() -> void:
 			% stacked)
 
 	marker.queue_free()
+	_dispose_world(pad)
+
+
+## A registered world for the cases that place units by hand. Without one
+## their grid queries name no world, and the extension falls back to
+## scanning the whole scene tree, every resident world included; with the
+## city overworld resident that is a grid three kilometres across.
+func _a_world_of_its_own() -> Node3D:
+	var pad := Node3D.new()
+	_root.add_child(pad)
+	var ground := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20.0, 1.0, 20.0)
+	shape.shape = box
+	ground.add_child(shape)
+	pad.add_child(ground)
+	ground.position = Vector3(0.0, -0.5, 0.0)
+	var context := WorldContext.new(pad)
+	pad.set_meta(&"context", context)
+	return pad
+
+
+func _dispose_world(pad: Node3D) -> void:
+	var context: WorldContext = pad.get_meta(&"context")
+	context.dispose()
+	context.free()
+	pad.queue_free()
 
 
 func _check_heights(when: String) -> void:

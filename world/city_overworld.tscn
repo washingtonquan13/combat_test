@@ -1,0 +1,91 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://world/overworld.gd" id="1_u8hh0"]
+[ext_resource type="PackedScene" path="res://world/city_overworld/city_geometry.scn" id="2_7b773"]
+[ext_resource type="PackedScene" path="res://systems/camera_system/overworld_camera.tscn" id="3_xhpe8"]
+[ext_resource type="PackedScene" uid="uid://b826s0f7pql2r" path="res://world/overworld_door.tscn" id="4_door"]
+[ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="5_exit"]
+
+[sub_resource type="Environment" id="Environment_l34i8"]
+background_mode = 1
+background_color = Color(0.72, 0.76, 0.8, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.78, 0.84, 0.95, 1)
+ambient_light_energy = 0.55
+tonemap_mode = 2
+tonemap_exposure = 1.05
+tonemap_white = 6.0
+ssao_enabled = true
+ssao_radius = 2.5
+ssao_intensity = 2.5
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0.72, 0.76, 0.8, 1)
+fog_density = 1.0
+fog_depth_curve = 1.6
+fog_depth_begin = 1500.0
+fog_depth_end = 9000.0
+adjustment_enabled = true
+adjustment_contrast = 1.08
+adjustment_saturation = 0.92
+
+[node name="CityOverworld" type="Node3D"]
+script = ExtResource("1_u8hh0")
+avatar_speed_scale = 3.0
+avatar_icon_scale = 10.0
+deck_cutaway_radius = 14.0
+metadata/osm_attribution = "Map data (c) OpenStreetMap contributors, ODbL 1.0. https://www.openstreetmap.org/copyright"
+
+[node name="CityGeometry" parent="." instance=ExtResource("2_7b773")]
+
+[node name="SpawnPoints" type="Node3D" parent="."]
+
+[node name="Start" type="Marker3D" parent="SpawnPoints"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 927.559, 0.5, 850.596)
+
+[node name="CongoSquare" parent="SpawnPoints" instance=ExtResource("4_door")]
+transform = Transform3D(6.5, 0, 0, 0, 6.5, 0, 0, 0, 6.5, 398, 0, 468)
+
+[node name="AreaExit" type="Node" parent="SpawnPoints/CongoSquare"]
+script = ExtResource("5_exit")
+target_area = &"test_arena"
+
+[node name="StLouisCathedral" parent="SpawnPoints" instance=ExtResource("4_door")]
+transform = Transform3D(6.5, 0, 0, 0, 6.5, 0, 0, 0, 6.5, 899.249, 0, 814)
+
+[node name="AreaExit" type="Node" parent="SpawnPoints/StLouisCathedral"]
+script = ExtResource("5_exit")
+target_area = &"cathedral_of_shadows"
+
+[node name="WashingtonSquare" parent="SpawnPoints" instance=ExtResource("4_door")]
+transform = Transform3D(6.5, 0, 0, 0, 6.5, 0, 0, 0, 6.5, 1468, 0, 49)
+
+[node name="AreaExit" type="Node" parent="SpawnPoints/WashingtonSquare"]
+script = ExtResource("5_exit")
+target_area = &"test_area_2"
+
+[node name="LafayetteSquare" parent="SpawnPoints" instance=ExtResource("4_door")]
+transform = Transform3D(6.5, 0, 0, 0, 6.5, 0, 0, 0, 6.5, 205.553, 0, 1813.8)
+
+[node name="AreaExit" type="Node" parent="SpawnPoints/LafayetteSquare"]
+script = ExtResource("5_exit")
+target_area = &"test_area_3"
+
+[node name="OverworldCamera" parent="." instance=ExtResource("3_xhpe8")]
+height = 103.923
+distance = 60.0
+pitch_degrees = 60.0
+min_distance = 30.0
+max_distance = 90.0
+zoom_step = 7.5
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_l34i8")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.766044, 0.492404, -0.413176, 0, 0.642788, 0.766044, 0.642788, -0.586824, 0.492404, 0, 0, 0)
+light_color = Color(1, 0.94, 0.84, 1)
+light_energy = 1.25
+shadow_enabled = true
+shadow_blur = 1.5
+directional_shadow_max_distance = 360.0

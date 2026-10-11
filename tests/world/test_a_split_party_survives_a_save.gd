@@ -22,7 +22,7 @@ const HOME := &"test_arena"
 const OVERWORLD := &"overworld"
 ## Somewhere the arrival point is not, so "restored" cannot be mistaken for
 ## "spawned at the door".
-const MARKER := Vector3(18.0, 0.0, -14.0)
+const MARKER := Vector3(940.0, 0.0, 862.0)
 
 var _host: Control
 var _saved_host: Control = null
