@@ -76,9 +76,10 @@ godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res:
 - Bridges, overpasses and their ramps are walkable decks. `osm_city.py`
   leaves bridges off the ground and runs `bridges.py`, which makes up
   their heights (OSM has only a layer) and writes `tiles/d_X_Z.bin`; its
-  docstring has the rules. Re-run it alone, in seconds, with
+  docstring has the rules, and `heights.py` solves the heights. Re-run it
+  alone, in about ten minutes for the parish, with
   `python -I tools/blockout/bridges.py <raw dir> data/blockouts/<name>`.
-  Its heights are real metres, and `CLEAR` assumes `--vscale 0.3`.
+  Its heights are real metres, for `--scale 1 --vscale 1`.
   `world/city_deck.gdshader` cuts a hole in any deck above the player, so
   the camera can see them under an overpass.
 - Culverted waterways (`tunnel=culvert`) are left out of the water: water

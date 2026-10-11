@@ -78,6 +78,9 @@ TOWER_MERGE = 2.0
 ## Kept clear between a block and the street, and the smallest piece kept.
 SIDEWALK = 1.5
 MIN_AREA = 60.0
+FILL_DENSITY = 0.15
+FILL_TO = 8.0
+BLOCK_WALL = 8.0
 ## Outlines lose detail smaller than this.
 SIMPLIFY = 1.0
 WATER_WALL = 3.0
@@ -90,9 +93,9 @@ BOUNDARY_MARGIN = 60.0
 BOUNDARY_SIMPLIFY = 10.0
 
 ROAD_WIDTHS = {
-    "motorway": 26.0, "trunk": 22.0, "primary": 18.0, "secondary": 16.0, "tertiary": 14.0,
-    "motorway_link": 10.0, "trunk_link": 10.0, "primary_link": 10.0,
-    "residential": 11.0, "unclassified": 11.0, "living_street": 9.0, "pedestrian": 9.0,
+    "motorway": 24.0, "trunk": 22.0, "primary": 18.0, "secondary": 14.0, "tertiary": 11.0,
+    "motorway_link": 8.0, "trunk_link": 8.0, "primary_link": 8.0,
+    "residential": 8.0, "unclassified": 8.0, "living_street": 6.0, "pedestrian": 5.0,
     "service": 0.0,
 }
 MINOR_ROADS = ("residential", "unclassified", "living_street", "pedestrian")
@@ -110,18 +113,45 @@ GROUND, MARSH, PARK, GRAVES, RAIL, ROAD, MAJOR, WATER = range(8)
 WALL, ROOF = 0, 1
 
 
+for _k in ("motorway_link", "trunk_link", "primary_link"):
+    ROAD_WIDTHS[_k] = 8.0  # a ramp or crossover is narrower than a carriageway
+MEDIAN = 6.0  # the two sides of a divided road closer than 2x this read as one
+HALVED = ("motorway", "trunk", "primary", "secondary", "tertiary")
+for _k in HALVED:
+    ROAD_WIDTHS[_k + "~half"] = ROAD_WIDTHS[_k] / 2
+
+
+def road_class(tags):
+    """A one-way carriageway of a divided road is half of it."""
+    hw = tags.get("highway")
+    if hw in HALVED and (tags.get("oneway") in ("yes", "1", "-1") or hw == "motorway"):
+        return hw + "~half"
+    return hw
+
+
+def join_medians(lines):
+    """Divided carriageways as one road: their median is closed in."""
+    half = [(l, w) for l, w in lines if w > 0]
+    if not half:
+        return Polygon()
+    surf = _strokes(half)
+    return _clean(shapely.buffer(shapely.buffer(surf, MEDIAN, quad_segs=4), -MEDIAN, quad_segs=4))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("raw")
     ap.add_argument("out")
     ap.add_argument("--bbox")
+    ap.add_argument("--iv", action="store_true")
+    ap.add_argument("--nofill", action="store_true")
     ap.add_argument("--water-seeds", default="",
                     help="lat,lon;lat,lon points inside water bodies the bbox cuts open")
     args = ap.parse_args()
     t0 = time.time()
     boundary_path = os.path.join(args.raw, "boundary.json")
     rel = None
-    if os.path.exists(boundary_path):
+    if os.path.exists(boundary_path) and not args.bbox:
         rel = json.load(open(boundary_path, encoding="utf-8"))["elements"][0]
     if args.bbox:
         s, w, n, e = (float(v) for v in args.bbox.split(","))
@@ -206,7 +236,7 @@ def main():
                 if len(line) < 2:
                     continue
                 if tags.get("highway") in ROAD_WIDTHS:
-                    roads.append((line, tags["highway"], tags.get("bridge", "no") != "no"))
+                    roads.append((line, road_class(tags), tags.get("bridge", "no") != "no"))
                 elif tags.get("railway") == "rail":
                     rails.append(line)
                 elif tags.get("waterway") in ("canal", "river") and tags.get("tunnel", "no") == "no"                         and not tags.get("layer", "0").lstrip().startswith("-"):
@@ -228,7 +258,7 @@ def main():
         elif tags.get("landuse") == "cemetery":
             kind = GRAVES
         elif tags.get("highway") in ROAD_WIDTHS and tags.get("area") != "yes":
-            roads.append((ring(el["geometry"]), tags["highway"], False))
+            roads.append((ring(el["geometry"]), road_class(tags), False))
             continue
         if kind is not None and poly is not None:
             areas[kind].append(poly)
@@ -238,7 +268,7 @@ def main():
     # A bridge is a deck of its own (bridges.py), not paint on the ground
     # under it; but it still keeps the buildings out from under itself.
     cover[ROAD] = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k in MINOR_ROADS and not up])
-    cover[MAJOR] = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k not in MINOR_ROADS and not up])
+    cover[MAJOR] = shapely.union_all([_strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k not in MINOR_ROADS and not k.endswith("~half") and not up]), join_medians([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k.endswith("~half") and not up])])
     decks = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if up])
     canal_strokes = []
     for line, width in canals:
@@ -268,6 +298,23 @@ def main():
     open_ground = shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER], decks])
     open_ground = shapely.buffer(open_ground, SIDEWALK, join_style="mitre")
     shapely.prepare(open_ground)
+    fill = Polygon()
+    if args.iv and not args.nofill:
+        # A superblock is what the kept roads, rail and water enclose. A
+        # dense one is filled solid up to house height, one closed region.
+        hard = shapely.buffer(shapely.union_all([cover[MAJOR], cover[RAIL], cover[WATER], decks]), SIDEWALK, join_style="mitre")
+        open_space = shapely.union_all([cover[PARK], cover[GRAVES]])
+        blocks = shapely.difference(inside, hard)
+        bld = shapely.union_all(footprints)
+        dense = []
+        for sb in shapely.get_parts(blocks):
+            if sb.area < MIN_AREA:
+                continue
+            cov = shapely.intersection(bld, sb).area / sb.area
+            if cov >= FILL_DENSITY:
+                dense.append(sb)
+        fill = shapely.difference(shapely.union_all(dense), open_space) if dense else Polygon()
+        log("superblocks %d, filled %d" % (shapely.get_num_geometries(blocks), len(dense)))
     steps = []  # (height, mass)
     below = None
     for level in np.unique(heights):
@@ -276,6 +323,8 @@ def main():
             break
         r = MERGE if level <= LOW_RISE else TOWER_MERGE
         mass = _close(shapely.union_all(tall), r)
+        if level <= FILL_TO:
+            mass = shapely.union(mass, fill)
         mass = shapely.difference(mass, open_ground)
         mass = shapely.intersection(mass, inside)
         if below is not None:
@@ -336,6 +385,16 @@ def main():
                 bucket((tx, tz), "w").append(_walls(wet, 0.0, WATER_WALL, WATER, 0))
                 bucket((tx, tz), "w").append(_flat(wet, WATER_WALL, WATER, 0))
 
+    walk = shapely.union_all([cover[MAJOR], decks, cover[PARK], cover[GRAVES], cover[WATER]])
+    blocked = _clean(shapely.difference(region, walk))
+    log("blocked %.2f km2 of %.2f" % (blocked.area / 1e6, region.area / 1e6))
+    for tz in range(nz):
+        for tx in range(nx):
+            cell = box(-half_x + tx * TILE, -half_z + tz * TILE, -half_x + (tx + 1) * TILE, -half_z + (tz + 1) * TILE)
+            piece = _polygonal(shapely.intersection(blocked, cell))
+            if not piece.is_empty:
+                bucket((tx, tz), "w").append(_walls(piece, 0.0, BLOCK_WALL, WATER, 0))
+                bucket((tx, tz), "w").append(_flat(piece, BLOCK_WALL, WATER, 0))
     tiles = []
     totals = {"b": 0, "g": 0, "w": 0}
     for (tx, tz), layers_ in sorted(buckets.items(), key=lambda kv: (kv[0][1], kv[0][0])):
@@ -360,9 +419,9 @@ def main():
     log("%d tiles; triangles: %d buildings, %d ground, %d water" % (len(tiles), totals["b"], totals["g"], totals["w"]))
     # The water shader's distance-to-shore field. A separate script so it
     # can be re-baked without re-running this one.
-    subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(__file__), "shore_field.py"), args.out], check=True)
+    subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "shore_field.py"), args.out], check=True)
     # The bridges, which add their own tiles to city.json.
-    subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(__file__), "bridges.py"), args.raw, args.out], check=True)
+    subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridges.py"), args.raw, args.out], check=True)
 
 
 def _height(tags):
