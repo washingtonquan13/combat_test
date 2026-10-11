@@ -29,9 +29,6 @@ const WATER_SHADER := "res://world/city_water.gdshader"
 const FOG_SHADER := "res://world/city_fog.gdshader"
 ## The ground class osm_city.py gives water.
 const WATER := 7
-## Real metres of one storey (as in osm_city.py) and one window bay.
-const LEVEL_HEIGHT := 3.4
-const BAY_WIDTH := 3.6
 const EDGE_WALL := 4.0
 ## The fog past the city's boundary: sheets at these heights in world
 ## units, the metres outside the boundary where each starts to thicken,
@@ -83,8 +80,6 @@ func _ready() -> void:
 
 	var blocks_mat := ShaderMaterial.new()
 	blocks_mat.shader = load(BLOCKS_SHADER)
-	blocks_mat.set_shader_parameter("storey", LEVEL_HEIGHT * _vscale)
-	blocks_mat.set_shader_parameter("bay", BAY_WIDTH * _scale)
 	var deck_mat := ShaderMaterial.new()
 	deck_mat.shader = load(DECK_SHADER)
 	var ground_mat := StandardMaterial3D.new()
