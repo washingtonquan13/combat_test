@@ -99,6 +99,46 @@ Verify: plot the points over the OSM road lines for three known spots
 (Pontchartrain Expressway at K1, the CCC approach, the (-88, -63) ramp pair);
 deck returns must sit on the drawn roads and ground returns beside them.
 
+LiDAR fetched 2026-10-11 (`lidar_fetch.py fetch` / `plot`):
+
+- Inventory from the full `new_orleans` raw: **1035** deck ways (275.3 km;
+  562 bridge, 563 layer>0, 785 express) plus 636 approach stubs (150 m of
+  each road that shares a node with a deck way, 84 km). Strip = width/2 +
+  10 m, clipped to the city region + 60 m runout: **8.17 km²**.
+- Datasets from `hobuinc/usgs-lidar` `resources.geojson`, newest first:
+  **LA_2021GNO_1_C22** covers 7.89 km² of the strip and supersedes
+  LA_CoastalLouisiana_1_2020 and ARRA-LA_Coastal-Z16_2011 entirely.
+  0.28 km² is in no dataset: the open lake (I-10 Twin Spans, Maestri Bridge).
+  SRS is **EPSG:3857** horizontally (not UTM 15N), vertical unstated in
+  `ept.json`; reprojected by hand. Heights are plausible: ground median
+  −0.5 m, deck median 7.5 m, 99th percentile 50.8 m.
+- Depth 11 (0.74 m spacing), 4835 nodes. Estimate printed before the bulk
+  download: 1.47 GB (per-depth bytes/point from 34 HEADs). Actual:
+  **1472 MB**, 4697 requests, sequential on one kept-alive connection,
+  ~17 min, cached under `scratchpad/lidar/`. Rerun from the cache: 0 requests,
+  identical npz.
+- `data/blockouts/new_orleans_lidar/lidar_decks.npz` (not inside
+  `new_orleans`): **20.8 M points**: 17 = 13.0 M (all kept), 2 = 1.60 M
+  (lowest per 2 m), 1 = 6.20 M (lowest per 1 m). It is in the
+  `new_orleans` frame; `lidar_fetch.load(path, city)` moves it into another
+  `city.json` frame (the trouble spots are in `nola_test_c`'s).
+- Coverage (`lidar_coverage.json`, within 5 m of a class-17 point):
+  length-weighted 52.3 %; 460 ways under half. Most of these are at-grade
+  expressways, which correctly have no deck returns. Bridge ways are 89.7 %
+  covered; 31 are under half: the lake bridges (no data), part of the
+  Westbank Expressway, and short canal bridges classified as ground.
+  Step 3 needs the solver for these.
+- Plots (`nola_test_c` frame): K1 (−812, 2040), the CCC approach
+  (450, 2900) and the (−88, −63) ramp pair all show class 17 on the drawn
+  deck lines and ground beside them. At the ramp pair the 17 stops where
+  the legs come down to grade.
+- Sabotage of the coverage measure: deleting 17 within 150 m of K1 drops
+  its three ways from 1.00 to 0.33 / 0.09 / 0.43. Shifting all 17 by
+  20 m drops the weighted coverage 52.3 → 37.7 %. A 3 m or 8 m shift is
+  **not** visible in the totals (52.2 / 51.0 %) because parallel decks
+  cover each other. Coverage is a presence check; registration is checked
+  by the plots.
+
 ### 3. `decks.json`: one authored record per elevated way (1 session)
 
 `tools/blockout/decks_seed.py <raw> <out> [--from solver|lidar]` writes
