@@ -1,7 +1,8 @@
 """Authored elevated decks: one record per elevated way, its heights measured.
 
     python -I tools/blockout/decks_seed.py <raw dir> <out dir> [--from lidar|solver]
-        [--lidar data/blockouts/new_orleans_lidar/lidar_decks.npz]
+        [--lidar <lidar_decks.npz>: default <raw dir>/lidar_decks.npz if there is one,
+                 else data/blockouts/new_orleans_lidar/lidar_decks.npz]
         [--plot name,x,z,r ... --png-dir <dir>]
 
 Writes <out>/decks.json, the records the deck mesher draws from and the
@@ -734,10 +735,13 @@ def main():
     p.add_argument("raw")
     p.add_argument("out")
     p.add_argument("--from", dest="src", choices=("lidar", "solver"), default="lidar")
-    p.add_argument("--lidar", default=LIDAR)
+    p.add_argument("--lidar", help="lidar_decks.npz; default the raw dir's own (compress.py writes one), else the parish's")
     p.add_argument("--plot", action="append", default=[], help="name,x,z,r: height profiles near a spot")
     p.add_argument("--png-dir")
     a = p.parse_args()
+    if a.lidar is None:
+        own = os.path.join(a.raw, "lidar_decks.npz")
+        a.lidar = own if os.path.exists(own) else LIDAR
     if os.path.normcase(os.path.abspath(a.out)) == os.path.normcase(os.path.join(ROOT, "data", "blockouts", "new_orleans")):
         sys.exit("decks: never write into data/blockouts/new_orleans")
     meta = json.load(open(os.path.join(a.out, "city.json"), encoding="utf-8"))
