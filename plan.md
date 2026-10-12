@@ -576,6 +576,34 @@ as `tools/blockout/decks_nola.json` (data/blockouts is not committed).
 Pass-3 as agreed: sign-off sheet, overworld suites, commit, record and send
 the flyover MP4, re-rate the map against the step-1 baseline.
 
+Done 2026-10-12 (no geometry change since 7473b96):
+
+- Overworld suites: **90** checks across **6** suites, rc=0, no script
+  errors - the same count as step 1.
+- Mesh numbers (step 6, unchanged): stubs **0** (p2d 107 at 13 sites), rail
+  discontinuities **0** (p2d 13, 87.4 m); cracks 220.1 m in 52 clusters,
+  30 holes, 1 FLICKER (j31). Hidden seam segments with no partner: 17,
+  32.3 m, largest 1.13 m at (-634.3, 2183.2). Reversed side segments: 6,
+  0.1 m, piece 16 near (1710, -2005).
+- Sweep: the sign-off list plus 10 random elevated spots (seed 20261012,
+  h > 3 m, 300 m apart), two yaws each, all looked at. Clean except:
+  - R01 (1574.4, -1913.6): a dark opening under the structure where an
+    embankment side wall ends (struct/embankment transition, 3.1 m
+    clearance). 47 of the 51 transitions have under 2 m below the
+    structure, so this is the visible case. Cosmetic, not fixed.
+  - R04 (1227.2, -1542.8): dark parallelograms on the median wall; no
+    transition within 70 m; cause not found.
+  - R05 (-2004.7, 723.0): dark crack line from the gore nose across the
+    deck. R02 sparkle dots, R07 shadow aliasing on the median rail, G1
+    hairline crack. A1-A3 fogged as designed.
+- Flyover: `tools/_probe/step7/flyover` (the old `city_tour` still loads
+  `nola_test_overworld`, a different frame), 66 s, 1280x720 H.264.
+- Rating as a base for the SMT IV-style ruin: **8.5/10** (baseline 8). Up
+  for stubs and rail falls gone and every deck now a record in
+  `decks.json` that the mesher draws, so a collapsed span is a data edit;
+  held back by the crack clusters, R04 unexplained, no ground relief and
+  box buildings.
+
 ## Verification policy
 
 - Sabotage every step: feed `decks_mesh.py` a record with a 1 m step between
