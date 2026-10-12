@@ -65,7 +65,7 @@ from shapely.geometry import LineString, Polygon
 
 sys.path.insert(0, os.path.dirname(__file__))
 import heights  # noqa: E402
-from osm_city import road_class, ROAD_WIDTHS, RAIL_WIDTH, _bytes, _empty, _facing, _walls, _write  # noqa: E402
+from osm_city import road_class, ROAD_WIDTHS, RAIL_WIDTH, MEDIAN, _bytes, _empty, _facing, _walls, _write  # noqa: E402
 
 ## Overlays beside a deck snap to this many metres, since GEOS's floating
 ## overlay cannot always place thin wedges cut against a far-off plane.
@@ -83,6 +83,11 @@ NAMED_HEIGHTS = {"Crescent City Connection": 45.0, "High Rise Bridge": 38.0}
 ## How far a deck stands over a road it crosses: a lorry's height under a
 ## deck THICK deep, and a margin.
 CLEAR = 7.0
+## Two decks this far apart in height or more pass over and under each
+## other; nearer, side by side they divide the ground between them. Below
+## CLEAR, so a pair the solve holds at exactly CLEAR is never cut piece by
+## piece on rounding.
+CLEAR_SPLIT = CLEAR - 0.5
 ## A bridge clears a road this far past where its footprint ends along the
 ## road: about a lane's width.
 CLEAR_PAD = 2.0
@@ -131,22 +136,46 @@ RAIL_THICK = 0.4
 ## RAIL_JOIN above, a wall faced, not a fall.
 RAIL_MIN = 1.0
 RAIL_JOIN = 2.0
-## Rails are tested this often along a deck edge, so one starts and stops
-## within this of where the deck beside it does.
-RAIL_STEP = 0.5
+## Whether deck carries on past an edge is asked of the ground this far
+## out past it: past the GRID decks are cut to, so a deck cut from another
+## finds it, and short of any gap the eye could see.
+RAIL_PROBE = 0.005
 ## Where two edges of decks meet within this, a rail runs on round the
-## corner as one piece.
+## corner as one piece, at any turn short of a hairpin;
 RAIL_WELD = 0.05
-## and where they miss each other by less than this, still.
+## and where they miss each other by less than this, still, carrying on
+## within 60 degrees, unless the link would stand on deck RAIL_OPEN out
+## past it.
 RAIL_GAP = 1.0
+RAIL_OPEN = 0.05
+## A rail shorter than this all told is a speck, where an edge only just
+## leaves the deck beside it, and is left out.
+RAIL_SPECK = 0.1
+## Sides of the disc where a way ends, even, so a corner falls on each
+## side of the road.
+DISC_SIDES = 24
 PIER_MIN = 5.0
 ## Gaps between decks narrower than this, the avatar's width, are filled
 ## where the decks either side of them stand less than STEP_MAX apart.
 GAP_FILL = 1.0
+## They are looked for a slab this many metres deep at a time, among the
+## decks within GAP_PAD of it: past STEP_MAX and the rise of a ramp across
+## a gap, and well short of a deck crossing over another.
+GAP_SLAB = 2.0
+GAP_PAD = 1.0
+## A hole in the decks smaller across than this is filled like a gap,
+## where the decks round it are level: a slot a split leaves inside a deck,
+## too small to be anything but a pit with a rail round it.
+HOLE_FILL = 4.0
 PIER_STEP = 40.0
 PIER_DEPTH = 2.5
 ## Piers stay this far clear of the roads and railways under a deck.
 PIER_CLEAR = 2.0
+## A pier the spacing puts in a road moves along the deck by these, nearest
+## first, to the first clear spot, so a long span keeps its support.
+PIER_SLIDE = (5.0, 10.0, 15.0)
+## Decks run on this far past the map's boundary, into the fog.
+RUNOUT = 60.0
 ## Classes that never meet a street at grade, so their junctions are not
 ## pinned to the ground and their bridges stand a full layer.
 EXPRESS = ("motorway", "motorway_link", "trunk", "trunk_link")
@@ -172,6 +201,10 @@ def main():
         hw, rail = tags.get("highway"), tags.get("railway") == "rail"
         if not (hw or rail):
             continue
+        if hw and (tags.get("building", "no") != "no" or tags.get("area") == "yes"):
+            # An enclosed skywalk is a building, drawn with the others; a
+            # plaza's outline is not a road down its middle.
+            continue
         keys = [(round(g["lat"], 7), round(g["lon"], 7)) for g in geom]
         pts = np.array([((g["lon"] - lon0) * m_lon, -(g["lat"] - lat0) * m_lat) for g in geom])
         bridge = tags.get("bridge", "no") != "no"
@@ -189,7 +222,9 @@ def main():
             if name in tags.get("name", "") or name in tags.get("bridge:name", ""):
                 named = h
         ways.append({"keys": keys, "pts": pts, "cls": hw, "width": ROAD_WIDTHS[road_class(tags)],
-                     "bridge": bridge, "layer": max(1, layer), "named": named, "osm": el.get("id"), "raw_layer": layer})
+                     "bridge": bridge, "layer": max(1, layer), "named": named, "osm": el.get("id"), "raw_layer": layer,
+                     "name": tags.get("name", ""), "ref": tags.get("ref", ""),
+                     "oneway": tags.get("oneway") in ("yes", "1", "true", "-1") or hw == "motorway"})
     print("bridges: %d roads, %d bridges" % (len(ways), sum(w["bridge"] for w in ways)), flush=True)
 
     # --- Heights -----------------------------------------------------------
@@ -231,6 +266,10 @@ def main():
     den = np.bincount(ea, ew, n) + np.bincount(eb, ew, n)
     free = (den > 0)
     free[pinned] = False
+    # How high each node could stand on its own roads alone, before any
+    # rung ties it to a road beside it.
+    adj0 = [list(a) for a in adj]
+    foot0 = np.maximum(0.0, _dijkstra(adj0, {i: 0.0 for i in pinned}, n) - FOOT) * GRADE
     # Rungs only now: counted as arms above, they would pin the end of
     # every bridge running beside another to the ground.
     for a, b in rungs:
@@ -265,6 +304,13 @@ def main():
     order = np.maximum(0.0, -_dijkstra(adj, {i: -min(t, foot[i]) / GRADE for i, t in wanted.items()}, n) * GRADE)
     pairs = heights.pairs_for(crossings, lambda side, xy, reach: _stretch(side, xy, reach, ways, cum, pos)[0], pos, order, CLEAR_PAD,
                               lambda up, lo: (ways[up[3]]["osm"], ways[lo[3]]["osm"] if lo[3] >= 0 else "rail"))
+    # A street under a bridge's edge is cleared too, where the bridge alone
+    # would clear it, so a ramp tied beside it cannot pull it down onto
+    # the street: the tie gives way first.
+    own = np.maximum(0.0, -_dijkstra(adj0, {i: -min(t, foot0[i]) / GRADE for i, t in wanted.items()}, n) * GRADE)
+    under = _under(ways, pos, own)
+    print("bridges: %d streets under a bridge's edge, %d node pairs" % (len(under), sum(len(pp) for _, pp in under)), flush=True)
+    pairs += under
     height, clear, cap = heights.solve(adj, pinned, wanted, pairs, n, GRADE, GRADE_MAX, CLEAR, FOOT, SMOOTH,
                                        log=lambda m: print("bridges: " + m, flush=True), ties=rungs)
     height[height < 0.05] = 0.0
@@ -286,10 +332,11 @@ def main():
                 fall[i] = max(fall[i], (height[i] - height[j]) / d)
 
     # --- Geometry ----------------------------------------------------------
-    region = _region(meta["boundary"])
+    # Decks run on past the boundary into the fog that hides it, so none
+    # ends in plain sight at the edge of the map.
+    region = shapely.buffer(_region(meta["boundary"]), RUNOUT)
     shapely.prepare(region)
-    segs = []  # (x0, z0, x1, z1, y0, y1) of every deck segment's centre line
-    quads = []  # its footprint, for finding where decks meet
+    segs = 0  # deck segments drawn
     ribbons = []
     reach = _junctions(ways)
     for wi, w in enumerate(ways):
@@ -311,11 +358,7 @@ def main():
             continue
         off = _offsets(p, w["width"] / 2)
         ribbons.append((wi, w, p, h, ids, off, high))
-        for i in np.flatnonzero(high):
-            segs.append((p[i][0], p[i][1], p[i + 1][0], p[i + 1][1], h[i], h[i + 1]))
-            quads.append(shapely.convex_hull(shapely.multipoints([p[i] + off[i], p[i + 1] + off[i + 1], p[i + 1] - off[i + 1], p[i] - off[i]])))
-    segs = np.array(segs)
-    tree = shapely.STRtree(quads)
+        segs += int(high.sum())
 
     # Every road's segments, on the ground or not, for the decks beside them.
     lane_info, ends, widths = [], [], []
@@ -346,6 +389,7 @@ def main():
     # first: a rail is laid along the outline of all the decks together,
     # not one segment's side at a time, so it turns corners unbroken.
     rail_edges, discs = [], []
+    piers = moved = blocked = 0
     for wi, w, p, h, ids, off, high in ribbons:
         cut_at = {}
         raised = np.zeros(len(high), bool)  # on a structure, not an embankment
@@ -355,7 +399,14 @@ def main():
             ya, yb = h[i], h[i + 1]
             cx, cz = (a + b) / 2
             foot = shapely.make_valid(Polygon([la, lb, rb, ra]))
-            cut, dividers, aloft = _beside(wi, a, b, ya, yb, foot, lanes, lane_info, lane_tree)
+            # Thin only across the road counts as a sliver: run on its
+            # own, a segment shorter than SLIVER, as one a node tied
+            # beside another road leaves, would go whole, a slit across
+            # the deck. So it is judged drawn SLIVER on past both ends,
+            # and what passes is clipped back to it.
+            on = (b - a) / max(float(np.hypot(*(b - a))), 1e-9) * SLIVER
+            ext = shapely.make_valid(Polygon([la - on, lb + on, rb + on, ra - on]))
+            cut, dividers, aloft = _beside(wi, a, b, ya, yb, foot, ext, lanes, lane_info, lane_tree)
             cut_at[i] = cut
             raised[i] = w["bridge"] or aloft
             if cut is None:
@@ -363,13 +414,6 @@ def main():
                 edges = [(la, lb, ya, yb, off[i] + off[i + 1]), (rb, ra, yb, ya, -(off[i] + off[i + 1]))]
             else:
                 split += 1
-                # Thin only across the road counts as a sliver: run on its
-                # own, a segment shorter than SLIVER, as one a node tied
-                # beside another road leaves, would go whole, a slit
-                # across the deck. So the test runs on it drawn SLIVER on
-                # past both ends, and what passes is clipped back to it.
-                on = (b - a) / max(float(np.hypot(*(b - a))), 1e-9) * SLIVER
-                ext = shapely.make_valid(Polygon([la - on, lb + on, rb + on, ra - on]))
                 deck = _and(foot, _solid(_area(shapely.difference(ext, cut, grid_size=GRID))))
                 y = _between(la, ra, lb, rb, ya, yb)
                 put(cx, cz, _top(deck, y))
@@ -390,7 +434,7 @@ def main():
         for i in (0, len(p) - 1):
             k = min(i, len(high) - 1)
             if high[k]:
-                disc = shapely.buffer(shapely.points(p[i]), w["width"] / 2, quad_segs=3)
+                disc = _disc(p[i], off[i])
                 if cut_at.get(k) is not None:
                     disc = shapely.difference(disc, cut_at[k])
                 c, top, slope = p[i], h[i], fall[ids[i]]
@@ -399,32 +443,34 @@ def main():
                 discs.append((c, w["width"] / 2, top, slope))
                 rail_edges += _edges(disc, None, cone)
         if raised.any():
-            for c, d, y in _along(p, h, raised, PIER_STEP):
-                if y - THICK < PIER_MIN:
+            cum = np.concatenate([[0.0], np.cumsum(np.hypot(*(p[1:] - p[:-1]).T))])
+            for at in _along(cum, raised, PIER_STEP):
+                spot = _spot(p, h, cum, raised, at)
+                if spot[2] - THICK < PIER_MIN:
                     continue
-                across = np.array([-d[1], d[0]]) * min(w["width"] * 0.35, 5.0)
-                along = d * PIER_DEPTH / 2
-                pier = Polygon([c + across + along, c - across + along, c - across - along, c + across - along])
-                if len(ground_tree.query(pier, predicate="intersects")):
-                    continue
-                put(c[0], c[1], _walls(pier, 0.0, y - THICK, PIER, 0))
+                for shift in (0.0,) + tuple(x for m in PIER_SLIDE for x in (-m, m)):
+                    spot = _spot(p, h, cum, raised, at + shift)
+                    if spot is None or spot[2] - THICK < PIER_MIN:
+                        continue
+                    c, d, y = spot
+                    across = np.array([-d[1], d[0]]) * min(w["width"] * 0.35, 5.0)
+                    along = d * PIER_DEPTH / 2
+                    pier = Polygon([c + across + along, c - across + along, c - across - along, c + across - along])
+                    if _blocked(pier, c, y - THICK, wi, ground_tree, lane_info, lane_tree):
+                        continue
+                    put(c[0], c[1], _walls(pier, 0.0, y - THICK, PIER, 0))
+                    piers += 1
+                    moved += shift != 0.0
+                    break
+                else:
+                    blocked += 1
 
-    # The road surface exactly as drawn, for the rails to read.
+    print("bridges: %d piers (%d moved along their deck clear of a road), %d spots with no clear place for one" % (piers, moved, blocked), flush=True)
+    # The road surface exactly as drawn, for the gap fill and rails to read.
     drawn = [part[0][part[1] == DECK] for parts in buckets.values() for part in parts if len(part[0])]
     drawn = np.concatenate(drawn).astype(float)
     drawn = drawn[np.abs(np.cross(drawn[:, 1] - drawn[:, 0], drawn[:, 2] - drawn[:, 0])[:, 1]) > 1e-9]
-    # OSM draws each road its own width, so two decks side by side at one
-    # height, twin carriageways tied flush or a ramp beside a motorway, can
-    # leave a slit between them, its rail coming and going wherever the
-    # slit narrows. A gap narrower than GAP_FILL is deck too, where the
-    # decks either side of it are less than STEP_MAX apart.
-    filled, kept_open = _fill_gaps(drawn)
-    for at, part in filled:
-        put(at[0], at[1], part)
-        drawn = np.concatenate([drawn, part[0].astype(float)])
-    print("bridges: %d gaps between decks filled, %d left open between decks STEP_MAX apart" % (len(filled), kept_open), flush=True)
-    for at, part in _rails(rail_edges, drawn):
-        put(at[0], at[1], part)
+    _finish(drawn, rail_edges, put)
 
     total = 0
     tiles = {(t["x"], t["z"]): t for t in meta["tiles"]}
@@ -440,7 +486,7 @@ def main():
     meta["tiles"] = sorted(tiles.values(), key=lambda t: (t["z"], t["x"]))
     with open(meta_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, indent=1)
-    print("bridges: %d deck segments (%d split beside another road), %d triangles in %d tiles" % (len(segs), split, total, len(buckets)), flush=True)
+    print("bridges: %d deck segments (%d split beside another road), %d triangles in %d tiles" % (segs, split, total, len(buckets)), flush=True)
 
 
 def _dijkstra(adj, sources, n):
@@ -517,17 +563,72 @@ def _level_junctions(ways, uses, pos):
         w["level"] = [any(lo - 1e-3 <= m <= hi + 1e-3 for lo, hi in zones) for m in mids]
 
 
+def _finish(drawn, rail_edges, put):
+    """The gaps between decks filled and the rails laid, each part handed to
+    put(x, z, part): drawn is every road-surface triangle as drawn,
+    rail_edges every deck edge a rail may stand on."""
+    # OSM draws each road its own width, so two decks side by side at one
+    # height, twin carriageways tied flush or a ramp beside a motorway, can
+    # leave a slit between them, its rail coming and going wherever the
+    # slit narrows. A gap narrower than GAP_FILL is deck too, where the
+    # decks either side of it are less than STEP_MAX apart.
+    filled, kept_open = _fill_gaps(drawn)
+    rail_edges = list(rail_edges)
+    for at, part, patch, y in filled:
+        put(at[0], at[1], part)
+        # A patch's own outline takes a rail where it is open: across the
+        # mouth of a V it closes, or where it stops short of a step.
+        rail_edges += _edges(patch, None, y)
+    if filled:
+        drawn = np.concatenate([drawn] + [part[0].astype(float) for _, part, _, _ in filled])
+    print("bridges: %d patches fill gaps between decks, %d gaps left open in whole or part between decks STEP_MAX apart" % (len(filled), kept_open), flush=True)
+    for at, part in _rails(rail_edges, drawn):
+        put(at[0], at[1], part)
+
+
 def _fill_gaps(drawn):
-    """The gaps narrower than GAP_FILL between decks less than STEP_MAX
-    apart across them, as (where, part), each at the height of the deck
-    nearest each of its corners; and how many gaps were left open, the
-    decks either side of them apart."""
-    flat = shapely.polygons(drawn[:, :, [0, 2]])
+    """The gaps narrower than GAP_FILL between decks, filled where the
+    decks either side are less than STEP_MAX apart across them, as (where,
+    part, polygon, height): each patch at the height of the deck nearest
+    each of its corners; and how many gaps were left open in whole or in
+    part, the decks either side of them apart. A gap is judged along its
+    rim, so one running from between decks level to between decks apart
+    is filled as far as GAP_FILL short of where they part.
+
+    Gaps are found a slab of height at a time, among the decks near that
+    height alone: seen from above, a slit between two decks over a road
+    is no gap at all, the road below covering it, and a deck far below
+    is not across a gap from the one above it."""
+    out, kept_open = [], 0
+    ys = drawn[:, :, 1]
+    for k in range(int(np.floor(ys.min() / GAP_SLAB)), int(np.floor(ys.max() / GAP_SLAB)) + 1):
+        found, n = _fill_slab(drawn, k * GAP_SLAB, (k + 1) * GAP_SLAB)
+        out += found
+        kept_open += n
+    return out, kept_open
+
+
+def _fill_slab(drawn, lo, hi):
+    """_fill_gaps for the gaps whose height is from lo to hi: found among the
+    decks within GAP_PAD of it, and only where no deck within twice that
+    covers them, so where a slab cuts a ramp the ramp's other side still
+    counts."""
+    idx, flat = _slab(drawn, lo - GAP_PAD, hi + GAP_PAD)
+    if not len(flat):
+        return [], 0
+    _, cover = _slab(drawn, lo - 2 * GAP_PAD, hi + 2 * GAP_PAD)
     tree = shapely.STRtree(flat)
-    whole = shapely.union_all(flat, grid_size=GRID)
     r = GAP_FILL / 2
+    whole = shapely.union_all(flat, grid_size=GRID)
     closed = shapely.buffer(shapely.buffer(whole, r, quad_segs=2), -r, quad_segs=2)
-    gaps = shapely.get_parts(_area(shapely.difference(closed, whole, grid_size=GRID)))
+    # A hole the decks close round is a gap however wide, up to HOLE_FILL:
+    # past GAP_FILL across, the closing leaves it open, ringed in rail.
+    # Judged on what the closing leaves, so a slot's wide end counts alone.
+    holes = [Polygon(h) for part in shapely.get_parts(closed) for h in part.interiors]
+    holes = [h for h in holes if 2 * shapely.minimum_bounding_radius(h) < HOLE_FILL]
+    if holes:
+        closed = shapely.union_all([closed] + holes, grid_size=GRID)
+    gaps = shapely.get_parts(_area(shapely.difference(closed, shapely.union_all(cover, grid_size=GRID), grid_size=GRID)))
 
     def on(t, q):
         """The height of triangle t's plane over the points q."""
@@ -538,31 +639,83 @@ def _fill_gaps(drawn):
             return np.full(len(q), np.nan)
         return t[0, 1] + u * (t[1, 1] - t[0, 1]) + v * (t[2, 1] - t[0, 1])
 
-    out, kept_open = [], 0
-    for g in gaps:
-        if g.area < 1e-3:
-            continue
-        rim = shapely.get_coordinates(shapely.segmentize(g.exterior, 0.25))
-        # Every deck within a gap's width of each point of its rim: the
-        # one it borders and the one across it.
-        level = True
-        for q in rim:
-            hs = [on(drawn[ti], q[None])[0] for ti in tree.query(shapely.points(q), predicate="dwithin", distance=GAP_FILL + 0.05)]
-            hs = [x for x in hs if np.isfinite(x)]
-            if hs and max(hs) - min(hs) >= STEP_MAX:
-                level = False
-                break
-        if not level:
-            kept_open += 1
-            continue
+    def y(c):
+        pts = c.reshape(-1, 2)
+        near = tree.nearest(shapely.points(pts))
+        return np.array([on(drawn[idx[ti]], p[None])[0] for ti, p in zip(near, pts)]).reshape(c.shape[:-1])
 
-        def y(c, g=g):
-            pts = c.reshape(-1, 2)
-            near = tree.nearest(shapely.points(pts))
-            return np.array([on(drawn[ti], p[None])[0] for ti, p in zip(near, pts)]).reshape(c.shape[:-1])
-        c = np.array(g.centroid.coords[0])
-        out.append((c, _top(g, y)))
+    def own(g):
+        """The part of gap g whose nearest deck is from lo to hi: a gap can run
+        from between decks in this slab on to between decks above or below
+        it, and judged whole by one point it is skipped here and cut short
+        as apart there. Split along the rim, each stretch going with the
+        deck nearest it."""
+        pts = np.concatenate([shapely.get_coordinates(shapely.segmentize(r, 0.25))[:-1] for r in [g.exterior, *g.interiors]])
+        hs = y(pts)
+        mine = (hs >= lo) & (hs < hi)
+        if mine.all() or not mine.any():
+            return g if mine.all() else None
+        cells = shapely.voronoi_polygons(shapely.multipoints(pts), extend_to=g, ordered=True)
+        return _area(shapely.intersection(g, shapely.union_all(shapely.get_parts(cells)[mine], grid_size=GRID), grid_size=GRID))
+
+    out, kept_open = [], 0
+    for whole_gap in gaps:
+        if whole_gap.area < 1e-3:
+            continue
+        # Each part of a gap once, in the slab of the deck nearest it.
+        mine = own(whole_gap)
+        for g in shapely.get_parts(mine) if mine is not None else []:
+            if g.area < 1e-3:
+                continue
+            kept_open += _fill_gap(g, drawn, idx, tree, on, y, out)
     return out, kept_open
+
+
+def _fill_gap(g, drawn, idx, tree, on, y, out):
+    """One gap of _fill_slab filled into out, short of where the decks either
+    side of it are apart: 1 if that kept it open in whole or in part, else 0."""
+    rim = shapely.get_coordinates(shapely.segmentize(g.exterior, 0.25))
+    # Every deck within a gap's width of each point of its rim: the
+    # one it borders and the one across it.
+    apart = []
+    for q in rim:
+        hs = [on(drawn[idx[ti]], q[None])[0] for ti in tree.query(shapely.points(q), predicate="dwithin", distance=GAP_FILL + 0.05)]
+        hs = [x for x in hs if np.isfinite(x)]
+        if hs and max(hs) - min(hs) >= STEP_MAX:
+            apart.append(q)
+    if apart:
+        g = _area(shapely.difference(g, shapely.buffer(shapely.multipoints(apart), GAP_FILL, quad_segs=4), grid_size=GRID))
+    for patch in shapely.get_parts(g):
+        if patch.area < 1e-3:
+            continue
+        c = np.array(patch.centroid.coords[0])
+        out.append((c, _top(patch, y), patch, y))
+    return 1 if apart else 0
+
+
+def _slab(drawn, lo, hi):
+    """The parts of the triangles drawn between heights lo and hi, seen from
+    above: which triangle each is of, and its polygon."""
+    ymin, ymax = drawn[:, :, 1].min(axis=1), drawn[:, :, 1].max(axis=1)
+    inside = np.flatnonzero((ymin >= lo) & (ymax <= hi))
+    idx, polys = list(inside), list(shapely.polygons(drawn[inside][:, :, [0, 2]]))
+    for ti in np.flatnonzero((ymax > lo) & (ymin < hi) & ~((ymin >= lo) & (ymax <= hi))):
+        pts = list(drawn[ti])
+        for side in (lambda p: p[1] - lo, lambda p: hi - p[1]):
+            cut = []
+            for a, b in zip(pts[-1:] + pts[:-1], pts):
+                fa, fb = side(a), side(b)
+                if (fa >= 0) != (fb >= 0):
+                    cut.append(a + (b - a) * (fa / (fa - fb)))
+                if fb >= 0:
+                    cut.append(b)
+            pts = cut
+        if len(pts) >= 3:
+            poly = shapely.polygons(np.array(pts)[:, [0, 2]])
+            if poly.area > 1e-6:
+                idx.append(ti)
+                polys.append(poly)
+    return np.array(idx, dtype=int), np.array(polys, dtype=object)
 
 
 def _key(a, b):
@@ -574,9 +727,10 @@ def _couple(ways, pos):
     each node of one, within the two half widths of the other's centre line
     and heading its way, gets a node right beside it on the other, and a
     rung of no length between the two. Two bridges on one OSM layer, or two
-    roads on the ground, are tied wherever they run so; others only along
-    the run from a node they share, where one leaves the other. Roads that
-    cross, and roads heading opposite ways, are not tied. New nodes are
+    roads on the ground, or the two carriageways of a divided road (see
+    _twins), are tied wherever they run so; others only along the run from
+    a node they share, where one leaves the other. Roads that cross, and
+    roads heading opposite ways other than twins, are not tied. New nodes are
     appended to pos. Returns the rungs, the pairs of ways tied, and the
     nodes they share."""
     cand = [wi for wi, w in enumerate(ways) if w["bridge"] or w["cls"] in EXPRESS]
@@ -593,7 +747,8 @@ def _couple(ways, pos):
                 continue
             o = ways[oi]
             shared = set(w["ids"]) & set(o["ids"])
-            same = (w["bridge"] and o["bridge"] and w["raw_layer"] == o["raw_layer"]) or not (w["bridge"] or o["bridge"])
+            twin = _twins(w, o)
+            same = (w["bridge"] and o["bridge"] and w["raw_layer"] == o["raw_layer"]) or not (w["bridge"] or o["bridge"]) or twin
             if not (same or shared):
                 continue
             meet = [np.asarray(pos[i]) for i in shared]
@@ -609,13 +764,16 @@ def _couple(ways, pos):
                     if i in shared:
                         continue
                     q = shapely.points(pts[k])
-                    if shapely.distance(lb, q) >= (A["width"] + B["width"]) / 2 + 0.5:
+                    # Twins read as one road across a median as wide as
+                    # osm_city.py closes up on the ground.
+                    if shapely.distance(lb, q) >= (A["width"] + B["width"]) / 2 + (2 * MEDIAN if twin else 0.5):
                         continue
                     da = pts[min(k + 1, len(pts) - 1)] - pts[max(k - 1, 0)]
                     t = float(shapely.line_locate_point(lb, q))
                     m = int(np.clip(np.searchsorted(cb, t), 1, len(cb) - 1))
                     db = B["pts"][m] - B["pts"][m - 1]
-                    if float(da @ db) < SPLIT_COS * float(np.hypot(*da) * np.hypot(*db)):
+                    along = float(da @ db)
+                    if (abs(along) if twin else along) < SPLIT_COS * float(np.hypot(*da) * np.hypot(*db)):
                         continue  # heading another way, or the opposite one
                     near[k] = t
                 if not same:
@@ -672,23 +830,40 @@ def _couple(ways, pos):
     return sorted(rungs), pairs, shared_nodes
 
 
+def _twins(w, o):
+    """Whether two ways are the two carriageways of one divided road: one
+    class of main road, each one way, sharing a name or a route number.
+    They run opposite ways and OSM may give them different layers, but
+    they are one road and are tied wherever they run side by side. Ramps
+    and links are never twins."""
+    if w["cls"] != o["cls"] or w["cls"].endswith("_link") or not (w["oneway"] and o["oneway"]):
+        return False
+    return bool(w["name"] and w["name"] == o["name"]) or bool(w["ref"] and set(w["ref"].split(";")) & set(o["ref"].split(";")))
+
+
 def _densify(ways, uses, pos):
     """Cuts every edge longer than STEP on the elevated ways and the roads
-    meeting them into equal pieces, so their heights can curve. New nodes
-    are appended to pos."""
-    near = set()
+    meeting them into equal pieces, so their heights can curve, and every
+    edge of another road under an elevated one's footprint, so a deck over
+    it has nodes below to clear. New nodes are appended to pos."""
+    near, high = set(), []
     for w in ways:
         if w["bridge"] or w["cls"] in EXPRESS:
+            high.append(shapely.buffer(LineString(w["pts"]), w["width"] / 2))
             for i in w["ids"]:
                 for o in uses.get(i, ()):
                     near.add(id(o))
+    tree = shapely.STRtree(high)
     for w in ways:
-        if id(w) not in near:
+        whole = id(w) in near
+        if not whole and not len(tree.query(shapely.buffer(LineString(w["pts"]), w["width"] / 2), predicate="intersects")):
             continue
         pts, ids, level = [w["pts"][0]], [w["ids"][0]], []
         for k in range(1, len(w["ids"])):
             a, b = w["pts"][k - 1], w["pts"][k]
-            parts = max(1, int(math.ceil(float(np.hypot(*(b - a))) / STEP)))
+            parts = 1
+            if whole or len(tree.query(shapely.buffer(LineString([a, b]), w["width"] / 2), predicate="intersects")):
+                parts = max(1, int(math.ceil(float(np.hypot(*(b - a))) / STEP)))
             for m in range(1, parts):
                 pts.append(a + (b - a) * (m / parts))
                 ids.append(len(pos))
@@ -734,6 +909,41 @@ def _crossings(ways, rails, pos):
             a, b = b, a
         out.append((a, b, (x.x, x.y), sin))
     print("bridges: %d crossings under bridges" % len(out), flush=True)
+    return out
+
+
+def _under(ways, pos, own):
+    """Clearance pairs, as heights.pairs_for gives them, for the streets
+    under a bridge's footprint, which _crossings misses where they pass
+    under its edge without crossing its centre line: each node of the
+    bridge whose deck reaches over the street with each node of the street
+    near it, wherever the bridge on its own (own: heights with no ties and
+    no crossings) stands CLEAR over the street. A street sharing a node
+    with the bridge meets it rather than passing under."""
+    streets = [w for w in ways if not w["bridge"] and w["cls"] not in EXPRESS]
+    feet = [shapely.buffer(LineString(w["pts"]), w["width"] / 2) for w in streets]
+    tree = shapely.STRtree(feet)
+    out = []
+    for b in ways:
+        if not b["bridge"]:
+            continue
+        deck = shapely.buffer(LineString(b["pts"]), b["width"] / 2)
+        bi = np.asarray(b["ids"])
+        for si in tree.query(deck, predicate="intersects"):
+            s = streets[si]
+            if set(b["ids"]) & set(s["ids"]):
+                continue
+            over = shapely.intersection(deck, feet[si])
+            if over.area < 1.0:
+                continue
+            sj = np.asarray(s["ids"])
+            ui = bi[shapely.distance(over, shapely.points(pos[bi])) <= b["width"] / 2 + CLEAR_PAD]
+            li = sj[shapely.distance(over, shapely.points(pos[sj])) <= s["width"] / 2 + CLEAR_PAD]
+            r = (b["width"] + s["width"]) / 2 + CLEAR_PAD + STEP / 2
+            pp = [(int(j), int(i)) for i in ui for j in li
+                  if own[i] - own[j] >= CLEAR - 1e-6 and float(np.hypot(*(pos[i] - pos[j]))) <= r]
+            if pp:
+                out.append(((b["osm"], s["osm"]), pp))
     return out
 
 
@@ -814,16 +1024,18 @@ def _level(p, h, ids, wi, reach, coupled=()):
     return out_p, np.interp(src, s, h), out_ids
 
 
-def _beside(wi, a, b, ya, yb, foot, lanes, info, tree):
+def _beside(wi, a, b, ya, yb, foot, ext, lanes, info, tree):
     """What a deck segment a-b gives up to the roads beside it: where one
     overlaps its footprint side by side, the part of that road's footprint
     nearer its centre line than this one's, wherever the two stand less
-    than CLEAR apart in height; the lines dividing them, as point pairs,
-    where they stand STEP_MAX apart somewhere; and whether it passes
-    CLEAR over a road beside it, and so stands on piers there. None and
-    no lines when no road takes any of it."""
+    than CLEAR_SPLIT apart in height; the lines dividing them, as point
+    pairs, where they stand STEP_MAX apart somewhere; and whether it passes
+    CLEAR_SPLIT over a road beside it, and so stands on piers there. None and
+    no lines when no road takes any of it. How much a road beside it
+    overlaps is judged over ext, the segment drawn SLIVER on past its ends."""
     da = (b - a) / max(float(np.hypot(*(b - a))), 1e-9)
     cuts, dividers, aloft = [], [], False
+    near, total = [], {}
     for j in tree.query(foot, predicate="intersects"):
         wj, c, d, yc, yd, _ = info[j]
         if wj == wi:
@@ -832,8 +1044,21 @@ def _beside(wi, a, b, ya, yb, foot, lanes, info, tree):
         if abs(float(da @ db)) < SPLIT_COS or shapely.crosses(LineString([a, b]), LineString([c, d])):
             continue  # crossing, which the heights already clear
         over = _and(foot, lanes[j])
-        if over.area < 1.0:
+        if over.area < 1e-3:
             continue
+        near.append((j, over))
+        total[wj] = total.get(wj, 0.0) + _and(ext, lanes[j]).area
+    for j, over in near:
+        wj, c, d, yc, yd, _ = info[j]
+        # A road beside this one counts by all it overlaps here, never piece
+        # by piece: a piece of it whose joint falls by this one's can
+        # overlap only a corner, which left standing is a tooth. And over
+        # ext, not the footprint alone: a short segment between longer ones
+        # overlaps a road beside them all as little as its length, and
+        # left whole it stands out past their cut, a tooth in the rail.
+        if total[wj] < 1.0:
+            continue
+        db = (d - c) / max(float(np.hypot(*(d - c))), 1e-9)
         m = np.array(over.centroid.coords[0])
         qa, _ = _closest(a, b, m)
         qb, _ = _closest(c, d, m)
@@ -859,14 +1084,14 @@ def _beside(wi, a, b, ya, yb, foot, lanes, info, tree):
                 if where.is_empty:
                     continue
                 g, r0 = fa - fb, ra - rb
-                # Where this one rises CLEAR above the other it passes over
-                # it, on a structure whatever OSM says; where it is CLEAR
-                # below, under it. Neither gives anything up there; nearer
+                # Where this one rises CLEAR_SPLIT above the other it passes
+                # over it, on a structure whatever OSM says; where it is
+                # CLEAR_SPLIT below, under it. Neither gives anything up there; nearer
                 # than that each keeps its own side of the line between
                 # them, which is a divider once they are STEP_MAX apart.
-                if _and(_and(over, where), _half(g, r0 - CLEAR, at, big)).area >= 1.0:
+                if _and(_and(over, where), _half(g, r0 - CLEAR_SPLIT, at, big)).area >= 1.0:
                     aloft = True
-                mine = _and(nearer, _and(where, _and(_half(-g, CLEAR - r0, at, big), _half(g, r0 + CLEAR, at, big))))
+                mine = _and(nearer, _and(where, _and(_half(-g, CLEAR_SPLIT - r0, at, big), _half(g, r0 + CLEAR_SPLIT, at, big))))
                 cut = _or(cut, mine)
                 apart = apart or not _and(mine, _or(_half(g, r0 - STEP_MAX, at, big), _half(-g, -r0 - STEP_MAX, at, big))).is_empty
         if not cut.is_empty:
@@ -993,7 +1218,10 @@ def _edges(deck, sides, y):
         if poly.geom_type != "Polygon":
             continue
         for r in [poly.exterior] + list(poly.interiors):
-            q = np.asarray(r.coords)
+            q = _despike(np.asarray(r.coords)[:-1])
+            if len(q) < 3:
+                continue
+            q = np.concatenate([q, q[:1]])
             for s0, s1 in zip(q[:-1], q[1:]):
                 if np.hypot(*(s1 - s0)) < 1e-6 or sides is not None and not any(_on(s0, *e) and _on(s1, *e) for e in sides):
                     continue
@@ -1002,6 +1230,30 @@ def _edges(deck, sides, y):
                 # to the right.
                 out.append((s0, s1, y0, y1, np.array([s1[1] - s0[1], -(s1[0] - s0[0])])))
     return out
+
+
+def _despike(q):
+    """Ring q (unclosed) without the parts of it with no width: a corner
+    its outline doubles straight back from, within GRID of the way it came,
+    as cutting decks on a grid leaves, encloses no deck, and a rail laid on
+    both its sides would stand as a box in the open."""
+    q = list(q)
+    k = 0
+    while len(q) >= 3 and k < len(q):
+        a, b, c = q[k - 1], q[k], q[(k + 1) % len(q)]
+        ab, bc = b - a, c - b
+        lab, lbc = float(np.hypot(*ab)), float(np.hypot(*bc))
+        if lab < 1e-6 or lbc < 1e-6:
+            del q[k]
+            k = max(0, k - 1)
+            continue
+        off = abs(float(ab[0] * bc[1] - ab[1] * bc[0])) / max(lab, lbc)
+        if float(ab @ bc) < 0 and off <= GRID:
+            del q[k]
+            k = max(0, k - 1)
+            continue
+        k += 1
+    return np.array(q)
 
 
 def _on(q, e0, e1):
@@ -1017,6 +1269,15 @@ def _region(rings):
     for r in rings:
         region = shapely.symmetric_difference(region, shapely.make_valid(Polygon(r)))
     return region
+
+
+def _disc(c, off):
+    """The disc where a way ends at c, its sides at c + off and c - off: a
+    DISC_SIDES-gon with a corner on each side, so its outline leaves the
+    road's sides exactly where they end, never a chord short of them."""
+    r = float(np.hypot(*off))
+    a = math.atan2(float(off[1]), float(off[0])) + np.arange(DISC_SIDES) * (2 * math.pi / DISC_SIDES)
+    return Polygon(np.asarray(c, float) + r * np.stack([np.cos(a), np.sin(a)], axis=1))
 
 
 def _offsets(p, half):
@@ -1046,81 +1307,21 @@ def _quad(xz, y, normal, kind, fan=False):
 
 
 def _rails(edges, deck):
-    """Rails along the outline of every deck, as (where, part): the edges
-    (s0, s1, y0, y1, outward) chained end to end into lines wherever they
-    meet, so a rail runs round a bend or on into the next segment as one
-    mitred piece; broken only where the deck is low, or where the ground
-    just past the edge is another deck at about the same height, so the
-    road carries on there. Each piece is capped at its ends.
+    """Rails along the outline of every deck, as (where, part). Of each edge
+    (s0, s1, y0, y1, outward) a rail keeps what stands high enough and
+    open: where the ground RAIL_PROBE past it is no deck carrying on from
+    it, one less than STEP_MAX below or up to RAIL_JOIN above, a wall
+    faced, not a fall. What is kept is chained end to end into lines
+    wherever pieces meet, so a rail runs round a bend or on into the next
+    segment as one mitred piece, capped at its ends.
 
     deck is every road-surface triangle as drawn: the test is asked of the
     surface itself, never of the footprint a segment or disc started from,
     since cutting one road where another runs beside it leaves holes that
-    footprint still covers, and a rail left out there leaves an open V."""
-    lines = _chain(edges)
-    if not lines:
-        return []
-    tree = shapely.STRtree(shapely.polygons(deck[:, :, [0, 2]]))
-
-    def deck_near(pts, y):
-        """Per point, whether some deck there carries on from height y."""
-        hit = np.zeros(len(pts), bool)
-        pairs = tree.query(shapely.points(pts), predicate="intersects")
-        for pi, ti in zip(*pairs):
-            if hit[pi]:
-                continue
-            t = deck[ti]
-            m = np.array([[t[1, 0] - t[0, 0], t[2, 0] - t[0, 0]], [t[1, 2] - t[0, 2], t[2, 2] - t[0, 2]]])
-            try:
-                u, v = np.linalg.solve(m, pts[pi] - t[0, [0, 2]])
-            except np.linalg.LinAlgError:
-                continue
-            there = t[0, 1] + u * (t[1, 1] - t[0, 1]) + v * (t[2, 1] - t[0, 1])
-            hit[pi] = -STEP_MAX < there - y[pi] < RAIL_JOIN
-        return hit
-
-    # Sample every line finely at once: a sample keeps its rail where the
-    # deck is high enough and neither the ground just past the edge nor a
-    # step beyond it is another deck at the same height.
-    samples = []
-    for li, (pts, ys, outs) in enumerate(lines):
-        cum = np.concatenate([[0.0], np.cumsum(np.hypot(*(pts[1:] - pts[:-1]).T))])
-        k = max(1, int(math.ceil(cum[-1] / RAIL_STEP)))
-        t = (np.arange(k) + 0.5) / k * cum[-1]
-        seg = np.clip(np.searchsorted(cum, t, side="right") - 1, 0, len(pts) - 2)
-        f = ((t - cum[seg]) / np.maximum(cum[seg + 1] - cum[seg], 1e-9))[:, None]
-        samples.append((cum, k, pts[seg] + (pts[seg + 1] - pts[seg]) * f, ys[seg] + (ys[seg + 1] - ys[seg]) * f[:, 0], outs[seg]))
-    mid = np.concatenate([s[2] for s in samples])
-    y = np.concatenate([s[3] for s in samples])
-    out = np.concatenate([s[4] for s in samples])
-    n05, n08 = deck_near(mid + out * 0.05, y), deck_near(mid + out * 0.8, y)
-    keep = (y > RAIL_MIN + LIFT) & ~n05 & ~n08
-
-    parts, at = [], 0
-    for (pts, ys, outs), (cum, k, _, _, _) in zip(lines, samples):
-        mask = keep[at:at + k]
-        at += k
-        closed = len(pts) > 2 and np.hypot(*(pts[-1] - pts[0])) < RAIL_WELD
-        if closed and mask.all():
-            parts.append(((pts[0][0], pts[0][1]), _ribbon(pts, ys, outs, closed=True)))
-            continue
-        for r0, r1 in _runs(mask):
-            t0, t1 = r0 / k * cum[-1], (r1 + 1) / k * cum[-1]
-            if t1 - t0 < RAIL_STEP * 1.5:
-                continue  # a speck where two decks only just part
-            p, yy, oo = _slice(pts, ys, outs, cum, t0, t1)
-            parts.append(((p[0][0], p[0][1]), _ribbon(p, yy, oo)))
-    return parts
-
-
-def _chain(edges):
-    """The edges joined end to end into lines, each (points, heights,
-    outward per piece), turned so outside is on the right. An edge's end
-    joins the start of the one carrying on most nearly straight from it
-    within RAIL_GAP at the same height, each start taken once, nearest
-    first; so the edges of two ways meeting, which miss each other by the
-    width of their mitres, still make one rail, and at a fork the rail
-    follows the straighter way."""
+    footprint still covers, and a rail left out there leaves an open V.
+    Each edge is clipped against each triangle exactly, so a rail stops
+    where the deck beside it starts, and only what is kept is ever
+    chained: no link between pieces stands where the rail was dropped."""
     e = []
     for s0, s1, y0, y1, side in edges:
         s0, s1 = np.asarray(s0, float), np.asarray(s1, float)
@@ -1129,35 +1330,164 @@ def _chain(edges):
             continue
         if float(side[0] * d[1] - side[1] * d[0]) < 0:  # outside on the left
             s0, s1, y0, y1 = s1, s0, y1, y0
-            d = -d
-        d = d / float(np.hypot(*d))
-        e.append((s0, s1, float(y0), float(y1), np.array([d[1], -d[0]]), d))
+        e.append((s0[0], s0[1], s1[0], s1[1], float(y0), float(y1)))
     if not e:
         return []
+    e = np.array(e)
+    a, d, ya, rise = e[:, 0:2], e[:, 2:4] - e[:, 0:2], e[:, 4], e[:, 5] - e[:, 4]
+    length = np.hypot(*d.T)
+    tiny = 2 * GRID  # the most two decks cut from each other miss by
+
+    # The stretch of each edge high enough for a rail, as t from 0 to 1.
+    floor = RAIL_MIN + LIFT
+    lo, hi = np.zeros(len(e)), np.ones(len(e))
+    up, down = rise > 0, rise < 0
+    t = (floor - ya) / np.where(up | down, rise, 1.0)
+    lo[up] = np.maximum(0.0, t[up])
+    hi[down] = np.minimum(1.0, t[down])
+    hi[~up & ~down & (ya <= floor)] = 0.0
+    sel = np.flatnonzero((hi - lo) * length > tiny)
+    a, d, ya, rise, length, lo, hi = (x[sel] for x in (a, d, ya, rise, length, lo, hi))
+
+    # Each edge's probe, RAIL_PROBE outside it, clipped to every triangle
+    # it crosses: the stretch of it inside the triangle, t0 + t * b >= 0
+    # for each side, where the triangle also stands within the band.
+    v, h0, g = _plane(deck)
+    tree = shapely.STRtree(shapely.polygons(v))
+    p0 = a + np.stack([d[:, 1], -d[:, 0]], axis=1) / length[:, None] * RAIL_PROBE
+    ei, ti = tree.query(shapely.linestrings(np.stack([p0, p0 + d], axis=1)), predicate="intersects")
+    cross = lambda p, q: p[:, 0] * q[:, 1] - p[:, 1] * q[:, 0]
+    P, D, V = p0[ei], d[ei], v[ti]
+    c0, c1 = np.zeros(len(ei)), np.ones(len(ei))
+
+    def within(t0, b):
+        t = -t0 / np.where(b == 0, 1.0, b)
+        c0[:] = np.where(b > 0, np.maximum(c0, t), c0)
+        c1[:] = np.where(b < 0, np.minimum(c1, t), np.where((b == 0) & (t0 < 0), -1.0, c1))
+
+    for k in range(3):
+        side = V[:, (k + 1) % 3] - V[:, k]
+        within(cross(side, P - V[:, k]), cross(side, D))
+    rel0 = h0[ti] + ((P - V[:, 0]) * g[ti]).sum(axis=1) - ya[ei]
+    rel1 = (D * g[ti]).sum(axis=1) - rise[ei]
+    within(rel0 + STEP_MAX, rel1)
+    within(RAIL_JOIN - rel0, -rel1)
+    hit = c1 > c0
+    ei, c0, c1 = ei[hit], c0[hit], c1[hit]
+    order = np.lexsort((c0, ei))
+    ei, c0, c1 = ei[order], c0[order], c1[order]
+    bounds = np.searchsorted(ei, np.arange(len(sel) + 1))
+
+    # What of each edge no deck carries on past.
+    pieces = []
+    for k in range(len(sel)):
+        at, stretches = lo[k], []
+        for t0, t1 in zip(c0[bounds[k]:bounds[k + 1]], c1[bounds[k]:bounds[k + 1]]):
+            if t0 > at:
+                stretches.append((at, min(t0, hi[k])))
+            at = max(at, t1)
+            if at >= hi[k]:
+                break
+        if at < hi[k]:
+            stretches.append((at, hi[k]))
+        for t0, t1 in stretches:
+            if (t1 - t0) * length[k] > tiny:
+                pieces.append((a[k] + d[k] * t0, a[k] + d[k] * t1, ya[k] + rise[k] * t0, ya[k] + rise[k] * t1))
+    if not pieces:
+        return []
+
+    def carried(q, y):
+        """Per point q, whether deck there carries on from height y."""
+        out = np.zeros(len(q), bool)
+        qi, qt = tree.query(shapely.points(q), predicate="intersects")
+        rel = h0[qt] + ((q[qi] - v[qt, 0]) * g[qt]).sum(axis=1) - y[qi]
+        out[qi[(-STEP_MAX < rel) & (rel < RAIL_JOIN)]] = True
+        return out
+
+    parts = []
+    for pts, ys, outs, closed in _chain(pieces, carried):
+        if float(np.hypot(*(pts[1:] - pts[:-1]).T).sum()) < RAIL_SPECK:
+            continue
+        pts, ys, outs = _smooth(pts, ys, closed)
+        parts.append(((pts[0][0], pts[0][1]), _ribbon(pts, ys, outs, closed)))
+    return parts
+
+
+def _plane(t):
+    """Per triangle of t (n, 3, 3): its corners in plan (n, 3, 2), turned
+    counter-clockwise; the height at the first; and its plane's gradient in
+    plan (n, 2)."""
+    v = t[:, :, [0, 2]].copy()
+    e1, e2 = v[:, 1] - v[:, 0], v[:, 2] - v[:, 0]
+    det = e1[:, 0] * e2[:, 1] - e1[:, 1] * e2[:, 0]
+    r1, r2 = t[:, 1, 1] - t[:, 0, 1], t[:, 2, 1] - t[:, 0, 1]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        g = np.stack([(r1 * e2[:, 1] - r2 * e1[:, 1]) / det, (r2 * e1[:, 0] - r1 * e2[:, 0]) / det], axis=1)
+    cw = det < 0
+    v[cw] = v[cw][:, [0, 2, 1]]
+    return v, t[:, 0, 1].copy(), np.nan_to_num(g)
+
+
+def _chain(pieces, carried):
+    """The pieces (s0, s1, y0, y1), outside on the right, joined end to end
+    into lines, each (points, heights, outward per piece, closed). A
+    piece's end joins the start of the one carrying on most nearly straight
+    from it at the same height, each start taken once, nearest first: one
+    within RAIL_WELD round any corner short of a hairpin; one within
+    RAIL_GAP carrying on ahead within 60 degrees, so the edges of two ways
+    meeting, which miss each other by the width of their mitres, still
+    make one rail, but only where the link stands clear of deck, carried
+    (points, heights) false RAIL_OPEN out past it, and so runs along the
+    edge of the road, not across it. At a fork the rail follows the
+    straighter way."""
+    s0 = np.array([q[0] for q in pieces])
+    s1 = np.array([q[1] for q in pieces])
+    y0 = np.array([q[2] for q in pieces])
+    y1 = np.array([q[3] for q in pieces])
+    di = s1 - s0
+    di /= np.hypot(*di.T)[:, None]
+    n = len(pieces)
 
     starts = {}
-    for j, (s0, _, _, _, _, _) in enumerate(e):
-        starts.setdefault((int(s0[0] // RAIL_GAP), int(s0[1] // RAIL_GAP)), []).append(j)
-    pairs = []
-    for i, (_, s1, _, y1, _, di) in enumerate(e):
-        cx, cz = int(s1[0] // RAIL_GAP), int(s1[1] // RAIL_GAP)
+    for j in range(n):
+        starts.setdefault((int(s0[j][0] // RAIL_GAP), int(s0[j][1] // RAIL_GAP)), []).append(j)
+    pairs, maybe = [], []
+    for i in range(n):
+        cx, cz = int(s1[i][0] // RAIL_GAP), int(s1[i][1] // RAIL_GAP)
         for dx in (-1, 0, 1):
             for dz in (-1, 0, 1):
                 for j in starts.get((cx + dx, cz + dz), ()):
-                    if j == i:
+                    if j == i or abs(y0[j] - y1[i]) >= 0.3:
                         continue
-                    s0, _, y0, _, _, dj = e[j]
-                    gap = float(np.hypot(*(s0 - s1)))
-                    turn = float(di @ dj)
-                    if gap < RAIL_GAP and abs(y0 - y1) < 0.3 and turn > 0.5:
-                        pairs.append((round(gap / RAIL_WELD), -turn, i, j))
+                    g = s0[j] - s1[i]
+                    gap = float(np.hypot(*g))
+                    turn = float(di[i] @ di[j])
+                    if gap < RAIL_WELD:
+                        if turn > -0.5:
+                            pairs.append((round(gap / RAIL_WELD), -turn, i, j))
+                    elif gap < RAIL_GAP and turn > 0.5 and float(g @ (di[i] + di[j])) > 0:
+                        maybe.append((round(gap / RAIL_WELD), -turn, i, j))
+    if maybe:
+        q, y = [], []
+        for _, _, i, j in maybe:
+            m = di[i] + di[j]
+            out = np.array([m[1], -m[0]]) / float(np.hypot(*m)) * RAIL_OPEN
+            for f in (0.25, 0.5, 0.75):
+                q.append(s1[i] + (s0[j] - s1[i]) * f + out)
+                y.append(y1[i] + (y0[j] - y1[i]) * f)
+        on = carried(np.array(q), np.array(y)).reshape(-1, 3).any(axis=1)
+        pairs += [pair for pair, o in zip(maybe, on) if not o]
     pairs.sort()
-    nxt, has_prev = [-1] * len(e), [False] * len(e)
+    nxt, has_prev = [-1] * n, [False] * n
     for _, _, i, j in pairs:
         if nxt[i] == -1 and not has_prev[j]:
             nxt[i], has_prev[j] = j, True
 
-    lines, used = [], [False] * len(e)
+    lines, used = [], [False] * n
+
+    def link(a, b):
+        g = (b - a) / float(np.hypot(*(b - a)))
+        return np.array([g[1], -g[0]])
 
     def walk(i):
         order = []
@@ -1165,49 +1495,63 @@ def _chain(edges):
             used[i] = True
             order.append(i)
             i = nxt[i]
-        pts, ys, outs = [e[order[0]][0]], [e[order[0]][2]], []
+        pts, ys, outs = [s0[order[0]]], [y0[order[0]]], []
         for j in order:
-            s0, s1, y0, y1, n, _ = e[j]
-            if np.hypot(*(s0 - pts[-1])) > 1e-6:  # bridge the gap
-                g = s0 - pts[-1]
-                g = g / float(np.hypot(*g))
-                pts.append(s0)
-                ys.append(y0)
-                outs.append(np.array([g[1], -g[0]]))
-            pts.append(s1)
-            ys.append(y1)
-            outs.append(n)
-        if nxt[order[-1]] == order[0] and np.hypot(*(pts[0] - pts[-1])) > 1e-6:
-            g = pts[0] - pts[-1]
-            g = g / float(np.hypot(*g))
+            if np.hypot(*(s0[j] - pts[-1])) > 1e-6:  # bridge the gap
+                outs.append(link(pts[-1], s0[j]))
+                pts.append(s0[j])
+                ys.append(y0[j])
+            pts.append(s1[j])
+            ys.append(y1[j])
+            outs.append(np.array([di[j][1], -di[j][0]]))
+        closed = nxt[order[-1]] == order[0]
+        if closed and np.hypot(*(pts[0] - pts[-1])) > 1e-6:
+            outs.append(link(pts[-1], pts[0]))
             pts.append(pts[0])
             ys.append(ys[0])
-            outs.append(np.array([g[1], -g[0]]))
-        return np.array(pts), np.array(ys), np.array(outs)
+        return np.array(pts), np.array(ys), np.array(outs), closed
 
-    for i in range(len(e)):
+    for i in range(n):
         if not has_prev[i] and not used[i]:
             lines.append(walk(i))
-    for i in range(len(e)):
+    for i in range(n):
         if not used[i]:
             lines.append(walk(i))  # a closed loop
     return lines
 
 
-def _slice(pts, ys, outs, cum, t0, t1):
-    """The part of a line from distance t0 to t1 along it."""
-    i0 = int(np.clip(np.searchsorted(cum, t0, side="right") - 1, 0, len(pts) - 2))
-    i1 = int(np.clip(np.searchsorted(cum, t1, side="left") - 1, 0, len(pts) - 2))
+def _smooth(p, y, closed):
+    """Line p at heights y with no piece shorter than RAIL_THICK, and its
+    outward per piece: a rail cannot follow a jog finer than it is thick,
+    where two ways meet with their sides a little apart, without its inner
+    face folding back over itself, so of the corners either side of each
+    such piece the one standing least out of line goes, until none is left
+    or the line is one piece."""
+    p, y = [np.asarray(q, float) for q in p], list(y)
+    if closed:
+        p, y = p[:-1], y[:-1]
 
-    def at(t, i):
-        f = (t - cum[i]) / max(cum[i + 1] - cum[i], 1e-9)
-        return pts[i] + (pts[i + 1] - pts[i]) * f, ys[i] + (ys[i + 1] - ys[i]) * f
+    def bend(i):
+        a, b, c = p[i - 1], p[i], p[(i + 1) % len(p)]
+        ac = c - a
+        return abs(float(ac[0] * (b - a)[1] - ac[1] * (b - a)[0])) / max(float(np.hypot(*ac)), 1e-9)
 
-    a, ya = at(t0, i0)
-    b, yb = at(t1, i1)
-    p = [a] + [pts[j] for j in range(i0 + 1, i1 + 1)] + [b]
-    yy = [ya] + [ys[j] for j in range(i0 + 1, i1 + 1)] + [yb]
-    return np.array(p), np.array(yy), outs[i0:i1 + 1]
+    while len(p) > (3 if closed else 2):
+        n = len(p)
+        short = [i for i in range(n if closed else n - 1) if np.hypot(*(p[(i + 1) % n] - p[i])) < RAIL_THICK]
+        ends = {(i + k) % n for i in short for k in (0, 1)}
+        if not closed:
+            ends -= {0, n - 1}
+        if not ends:
+            break
+        k = min(ends, key=bend)
+        del p[k], y[k]
+    if closed:
+        p, y = p + p[:1], y + y[:1]
+    p, y = np.array(p), np.array(y)
+    d = p[1:] - p[:-1]
+    d /= np.maximum(np.hypot(*d.T), 1e-9)[:, None]
+    return p, y, np.stack([d[:, 1], -d[:, 0]], axis=1)
 
 
 def _ribbon(p, y, outs, closed=False):
@@ -1259,23 +1603,43 @@ def _runs(mask):
     return runs
 
 
-def _along(p, h, high, step):
-    """Points every step along the high segments of a polyline: (centre,
-    direction, height)."""
-    out, carry = [], step / 2
-    for i in range(len(p) - 1):
-        d = p[i + 1] - p[i]
-        length = float(np.hypot(*d))
-        if not high[i]:
-            carry = step / 2
-            continue
-        s = carry
-        while s < length:
-            u = s / length
-            out.append((p[i] + d * u, d / length, h[i] + (h[i + 1] - h[i]) * u))
-            s += step
-        carry = s - length
+def _along(cum, high, step):
+    """Distances along a polyline, its nodes at cum, every step along each
+    run of its high segments, the first step / 2 into the run."""
+    out = []
+    for r0, r1 in _runs(high):
+        out += list(np.arange(cum[r0] + step / 2, cum[r1 + 1], step))
     return out
+
+
+def _spot(p, h, cum, high, s):
+    """(centre, direction, height) at distance s along a polyline, its
+    nodes at cum, or None off its high segments."""
+    i = int(np.searchsorted(cum, s, side="right")) - 1
+    if i < 0 or i >= len(p) - 1 or not high[i]:
+        return None
+    d = p[i + 1] - p[i]
+    length = cum[i + 1] - cum[i]
+    u = (s - cum[i]) / length
+    return p[i] + d * u, d / length, h[i] + (h[i + 1] - h[i]) * u
+
+
+def _blocked(pier, c, top, wi, ground_tree, info, tree):
+    """Whether a pier of way wi's deck, its footprint centred at c, standing
+    up to top, would stand in a road or railway on the ground or come down
+    through another road's deck lower than its top, or PIER_CLEAR from
+    either."""
+    if len(ground_tree.query(pier, predicate="intersects")):
+        return True
+    for j in tree.query(shapely.buffer(pier, PIER_CLEAR), predicate="intersects"):
+        o, a, b, ya, yb, _ = info[j]
+        if o == wi:
+            continue
+        ab = b - a
+        t = min(1.0, max(0.0, float(np.dot(c - a, ab)) / max(float(np.dot(ab, ab)), 1e-9)))
+        if ya + (yb - ya) * t < top:
+            return True
+    return False
 
 
 if __name__ == "__main__":

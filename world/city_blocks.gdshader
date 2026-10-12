@@ -1,8 +1,10 @@
 // The city overworld's buildings: a concrete palette that drifts across
 // districts, a little variation per building, and darker roofs.
-// UV2 is (kind, tint) from osm_city.py: kind 0 wall, 1 roof.
+// UV2 is (kind, tint) from osm_city.py: kind 0 wall, 1 roof. Under the
+// fog at the map's edge, city_edge_fog.gdshaderinc.
 shader_type spatial;
 render_mode cull_back;
+#include "res://world/city_edge_fog.gdshaderinc"
 
 uniform vec3 district_a : source_color = vec3(0.86, 0.83, 0.77);
 uniform vec3 district_b : source_color = vec3(0.74, 0.76, 0.78);
@@ -47,4 +49,8 @@ void fragment() {
 		ROUGHNESS = 0.95;
 	}
 	ALBEDO = col;
+	float fog = edge_fog(world_pos);
+	ALBEDO *= 1.0 - fog;
+	SPECULAR *= 1.0 - fog;
+	EMISSION = edge_fog_color * fog;
 }

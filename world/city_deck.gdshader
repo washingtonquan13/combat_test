@@ -2,9 +2,11 @@
 // vertex colours, with a hole cut round the player: the camera looks
 // steeply down, so a deck above the avatar would hide it. Everything more
 // than `clearance` above the avatar's feet and within `radius` of it
-// across the ground is dithered away, the edge soft.
+// across the ground is dithered away, the edge soft. Under the fog at the
+// map's edge, city_edge_fog.gdshaderinc.
 shader_type spatial;
 render_mode cull_back;
+#include "res://world/city_edge_fog.gdshaderinc"
 
 // Set every frame by the active OverworldAvatar.
 global uniform vec3 player_position;
@@ -35,4 +37,8 @@ void fragment() {
 	// The builder's vertex colours are sRGB.
 	ALBEDO = pow(COLOR.rgb, vec3(2.2));
 	ROUGHNESS = 0.95;
+	float fog = edge_fog(world_pos);
+	ALBEDO *= 1.0 - fog;
+	SPECULAR *= 1.0 - fog;
+	EMISSION = edge_fog_color * fog;
 }

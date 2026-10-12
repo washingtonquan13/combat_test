@@ -235,7 +235,7 @@ def main():
                 line = ring(geom)
                 if len(line) < 2:
                     continue
-                if tags.get("highway") in ROAD_WIDTHS:
+                if tags.get("highway") in ROAD_WIDTHS and tags.get("building", "no") == "no":
                     roads.append((line, road_class(tags), tags.get("bridge", "no") != "no"))
                 elif tags.get("railway") == "rail":
                     rails.append(line)
@@ -257,7 +257,7 @@ def main():
             kind = MARSH
         elif tags.get("landuse") == "cemetery":
             kind = GRAVES
-        elif tags.get("highway") in ROAD_WIDTHS and tags.get("area") != "yes":
+        elif tags.get("highway") in ROAD_WIDTHS and tags.get("area") != "yes" and tags.get("building", "no") == "no":
             roads.append((ring(el["geometry"]), road_class(tags), False))
             continue
         if kind is not None and poly is not None:

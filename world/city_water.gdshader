@@ -15,8 +15,11 @@
 //    shallow ring squeezed into a few metres read as noise. shore_tex's
 //    green channel says how open the water is; small bodies go still,
 //    dark and mirror-like, and only the river and the lake get surf.
+//  - Edge: under the fog at the map's edge, city_edge_fog.gdshaderinc,
+//    the sun's highlight with it.
 shader_type spatial;
 render_mode cull_back;
+#include "res://world/city_edge_fog.gdshaderinc"
 
 uniform vec3 deep_color : source_color = vec3(0.07, 0.15, 0.20);
 uniform vec3 shallow_color : source_color = vec3(0.20, 0.33, 0.33);
@@ -62,6 +65,7 @@ const mat2 OCTAVE_TURN = mat2(vec2(1.6, 1.2), vec2(-1.2, 1.6));
 
 varying vec3 world_pos;
 varying float foam_cover;
+varying float edge_cover;
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
@@ -172,6 +176,9 @@ void fragment() {
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
 	ROUGHNESS = 1.0;
 	SPECULAR = 0.0;
+	edge_cover = edge_fog(world_pos);
+	ALBEDO *= 1.0 - edge_cover;
+	EMISSION = mix(EMISSION, edge_fog_color, edge_cover);
 }
 
 void light() {
@@ -182,5 +189,5 @@ void light() {
 	vec3 half_dir = normalize(LIGHT + VIEW);
 	float spec = pow(clamp(dot(NORMAL, half_dir), 0.0, 1.0), sun_shine);
 	spec *= (sun_shine + 8.0) / (8.0 * PI);
-	SPECULAR_LIGHT += LIGHT_COLOR * ATTENUATION * spec * sun_strength * 0.02 * (1.0 - foam_cover);
+	SPECULAR_LIGHT += LIGHT_COLOR * ATTENUATION * spec * sun_strength * 0.02 * (1.0 - foam_cover) * (1.0 - edge_cover);
 }

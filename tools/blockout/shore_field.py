@@ -17,9 +17,12 @@ metres, capped at 255:
          a river reads as open water. The shader calms the small bodies by
          it.
 
-If city.json has a boundary, it also writes edge.png and an "edge" entry,
-for the fog at the edge of the map: one channel, the signed distance to
-the boundary, inside positive, as 128 + metres / EDGE_STEP.
+If city.json has a boundary, it also writes edge.bin and an "edge" entry,
+for the fog at the edge of the map: the signed distance in metres from
+each pixel's centre to the boundary, inside positive, as raw little-endian
+half floats, row by row from the corner. Half floats hold a metre to
+within a millimetre near the line, where the fog fades, so the fade has no
+bands; and Godot reads them straight into a filterable texture.
 """
 import argparse
 import json
@@ -27,6 +30,7 @@ import os
 import struct
 
 import numpy as np
+import shapely
 from PIL import Image, ImageDraw
 
 WATER = 7
@@ -34,7 +38,6 @@ RANGE = 255.0
 WIDE = RANGE
 PIXELS = 30e6
 EDGE_RES = 20.0
-EDGE_STEP = 8.0
 
 
 def main():
@@ -78,21 +81,19 @@ def _edge(out_dir, meta):
     cx, cz = meta["corner"]
     w = int(np.ceil(meta["extent"][0] / EDGE_RES))
     h = int(np.ceil(meta["extent"][1] / EDGE_RES))
-    mask = Image.new("L", (w, h), 0)
-    draw = ImageDraw.Draw(mask)
-    # Shells wind counter-clockwise and holes clockwise, each hole after
-    # its shell, so filling in order by winding cuts the holes.
-    for ring in meta["boundary"]:
-        pts = [((x - cx) / EDGE_RES, (z - cz) / EDGE_RES) for x, z in ring]
-        area = sum(a[0] * b[1] - b[0] * a[1] for a, b in zip(pts, pts[1:] + pts[:1]))
-        draw.polygon(pts, fill=255 if area > 0 else 0)
-    inside = np.asarray(mask) > 0
-    reach = 128 * EDGE_STEP / EDGE_RES
-    signed = (_distance(~inside, reach) - _distance(inside, reach)) * EDGE_RES
-    out = np.clip(128.0 + signed / EDGE_STEP, 0.0, 255.0).astype(np.uint8)
-    Image.fromarray(out, "L").save(os.path.join(out_dir, "edge.png"))
-    print(f"edge: {w}x{h} px at {EDGE_RES} m")
-    return {"file": "edge.png", "res": EDGE_RES, "step": EDGE_STEP}
+    # Measured from the boundary itself, not a mask drawn from it, so the
+    # line falls where it is and not on a pixel's edge: a point is inside
+    # when it is inside an odd number of the rings.
+    rings = [shapely.LinearRing(r) for r in meta["boundary"]]
+    zz, xx = np.mgrid[0:h, 0:w]
+    x, z = cx + (xx.ravel() + 0.5) * EDGE_RES, cz + (zz.ravel() + 0.5) * EDGE_RES
+    dist = np.min([shapely.distance(r, shapely.points(x, z)) for r in rings], axis=0)
+    inside = np.sum([shapely.contains_xy(shapely.Polygon(r), x, z) for r in rings], axis=0) % 2 == 1
+    signed = np.where(inside, dist, -dist).reshape(h, w)
+    with open(os.path.join(out_dir, "edge.bin"), "wb") as f:
+        f.write(signed.astype("<f2").tobytes())
+    print(f"edge: {w}x{h} px at {EDGE_RES} m, {signed.min():.0f} to {signed.max():.0f} m")
+    return {"file": "edge.bin", "res": EDGE_RES, "size": [w, h], "format": "half"}
 
 
 def _water_tris(path):

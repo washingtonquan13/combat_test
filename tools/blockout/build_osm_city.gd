@@ -26,16 +26,20 @@ const DECK_COLORS := [Color8(70, 72, 76), Color8(156, 154, 148), Color8(138, 136
 const DECK_SHADER := "res://world/city_deck.gdshader"
 const BLOCKS_SHADER := "res://world/city_blocks.gdshader"
 const WATER_SHADER := "res://world/city_water.gdshader"
+const GROUND_SHADER := "res://world/city_ground.gdshader"
 const FOG_SHADER := "res://world/city_fog.gdshader"
 ## The ground class osm_city.py gives water.
 const WATER := 7
 const EDGE_WALL := 4.0
-## The fog past the city's boundary: sheets at these heights in world
+## Every city surface turns to fog over this many metres inside the
+## boundary, and is nothing but fog past it.
+const EDGE_FADE := 80.0
+## The drifting fog over that fade: sheets at these heights in world
 ## units, the metres outside the boundary where each starts to thicken,
-## more for higher sheets so the bank rises outward, and the world units
-## the sheets run on past the map so its edge never shows.
+## negative for inside, the low ones reaching farthest in so the bank
+## rises outward, and the world units the sheets run on past the map.
 const FOG_HEIGHTS := [0.6, 3.0, 7.0]
-const FOG_START := [0.0, 60.0, 140.0]
+const FOG_START := [-70.0, -40.0, -10.0]
 const FOG_MARGIN := 600.0
 ## The scene's haze, which the fog matches.
 const HAZE := Color(0.72, 0.76, 0.80)
@@ -82,10 +86,8 @@ func _ready() -> void:
 	blocks_mat.shader = load(BLOCKS_SHADER)
 	var deck_mat := ShaderMaterial.new()
 	deck_mat.shader = load(DECK_SHADER)
-	var ground_mat := StandardMaterial3D.new()
-	ground_mat.vertex_color_use_as_albedo = true
-	ground_mat.vertex_color_is_srgb = true
-	ground_mat.roughness = 1.0
+	var ground_mat := ShaderMaterial.new()
+	ground_mat.shader = load(GROUND_SHADER)
 	var water_mat := ShaderMaterial.new()
 	water_mat.shader = load(WATER_SHADER)
 	water_mat.set_shader_parameter("units_per_metre", _scale)
@@ -100,8 +102,14 @@ func _ready() -> void:
 		water_mat.set_shader_parameter("shore_origin", corner)
 		water_mat.set_shader_parameter("shore_size", Vector2(shore.get_width(), shore.get_height()) * meta.shore.res * _scale)
 		water_mat.set_shader_parameter("has_shore", true)
+	var edge_tex: ImageTexture = null
+	if meta.has("edge"):
+		edge_tex = _edge_texture(src, meta.edge)
+	if edge_tex:
+		for mat in [blocks_mat, deck_mat, ground_mat, water_mat]:
+			_set_edge(mat, edge_tex, meta.edge, corner)
 	if meta.has("boundary"):
-		_build_boundary(geometry, meta, src, corner, size)
+		_build_boundary(geometry, meta, edge_tex, corner, size)
 	var tris := 0
 	for tile in meta.tiles:
 		var body := StaticBody3D.new()
@@ -172,9 +180,30 @@ func _build_ground(parent: Node3D, corner: Vector2, size: Vector2) -> void:
 	_add_box(floor_body, Vector3(size.x * 0.5, h * 0.5, 0), Vector3(1.0, h, size.y))
 
 
-## The edge of a city with a boundary: a wall along it, and the fog that
-## hides everything past it.
-func _build_boundary(parent: Node3D, meta: Dictionary, src: String, corner: Vector2, size: Vector2) -> void:
+## The signed distance to the boundary that shore_field.py bakes, as a
+## texture the city's materials turn to fog by.
+func _edge_texture(src: String, edge: Dictionary) -> ImageTexture:
+	if edge.get("format", "") != "half":
+		push_warning("%s: an edge field from before half floats; rerun shore_field.py for the fog at the map's edge" % src)
+		return null
+	var data := FileAccess.get_file_as_bytes(src + "/" + edge.file)
+	var image := Image.create_from_data(int(edge.size[0]), int(edge.size[1]), false, Image.FORMAT_RH, data)
+	return ImageTexture.create_from_image(image)
+
+
+## Points a material using city_edge_fog.gdshaderinc at the edge field.
+func _set_edge(mat: ShaderMaterial, edge_tex: ImageTexture, edge: Dictionary, corner: Vector2) -> void:
+	mat.set_shader_parameter("edge_tex", edge_tex)
+	mat.set_shader_parameter("edge_origin", corner)
+	mat.set_shader_parameter("edge_size", Vector2(edge.size[0], edge.size[1]) * edge.res * _scale)
+	mat.set_shader_parameter("edge_fade", EDGE_FADE)
+	mat.set_shader_parameter("edge_fog_color", HAZE)
+	mat.set_shader_parameter("has_edge", true)
+
+
+## The edge of a city with a boundary: a wall along it, and the fog
+## drifting over it.
+func _build_boundary(parent: Node3D, meta: Dictionary, edge_tex: ImageTexture, corner: Vector2, size: Vector2) -> void:
 	var faces := PackedVector3Array()
 	for ring in meta.boundary:
 		for i in ring.size():
@@ -192,10 +221,8 @@ func _build_boundary(parent: Node3D, meta: Dictionary, src: String, corner: Vect
 	col.shape = shape
 	wall.add_child(col)
 
-	if not meta.has("edge"):
+	if not edge_tex:
 		return
-	var edge := Image.load_from_file(src + "/" + meta.edge.file)
-	var edge_tex := ImageTexture.create_from_image(edge)
 	var fog := Node3D.new()
 	fog.name = "BoundaryFog"
 	parent.add_child(fog)
@@ -204,11 +231,7 @@ func _build_boundary(parent: Node3D, meta: Dictionary, src: String, corner: Vect
 	for i in FOG_HEIGHTS.size():
 		var mat := ShaderMaterial.new()
 		mat.shader = load(FOG_SHADER)
-		mat.set_shader_parameter("fog_color", HAZE)
-		mat.set_shader_parameter("edge_tex", edge_tex)
-		mat.set_shader_parameter("edge_origin", corner)
-		mat.set_shader_parameter("edge_size", Vector2(edge.get_width(), edge.get_height()) * meta.edge.res * _scale)
-		mat.set_shader_parameter("edge_step", meta.edge.step)
+		_set_edge(mat, edge_tex, meta.edge, corner)
 		mat.set_shader_parameter("units_per_metre", _scale)
 		mat.set_shader_parameter("start_out", FOG_START[i])
 		mat.set_shader_parameter("seed", float(i))
