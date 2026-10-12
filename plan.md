@@ -343,9 +343,8 @@ Status 2026-10-12 (review fixes): the step-4 review's 10 findings were fixed
 at their cause, rebuilt, re-measured, re-shot and sabotage-checked.
 
 - Departures, now declared:
-  - The rail post-pass (`_rail_runs`) is kept. Rails are not part of the
-    profile, because whether an edge carries a rail depends on what lies
-    beside it, and that is only known after the seams are decided.
+  - The rail post-pass (`_rail_runs`) was kept here. Reversed in step 8:
+    rails are now part of the profile, decided from the seam flags.
   - There is no kerb. A 0.15 m kerb would put a lip on every welded seam,
     and steps below WELD are already drawn as one surface.
   - `bridges.py` keeps `_couple`, `_twins`, `_level_junctions`, `SPLIT_COS`,
@@ -603,6 +602,25 @@ Done 2026-10-12 (no geometry change since 7473b96):
   `decks.json` that the mesher draws, so a collapsed span is a data edit;
   held back by the crack clusters, R04 unexplained, no ground relief and
   box buildings.
+
+Step 8, 2026-10-12: rails in the sweep profile.
+
+- `_rails` decides each edge sample from the model's flags (seam, onto,
+  cleared at joins and gores, fill rims). `_join_cuts` gives every edge
+  crossing at a join its own sample, so a rail stops exactly there. The
+  rail is swept with the deck. `_rail_runs` and its outward probes are gone.
+- The probes had hidden seam holes. Without them, an edge whose seam was
+  missing got a rail standing on the partner deck: 6 rail-block sites, two
+  big (76 and 40 faces). Cause: `_across_third` counted a ramp's joined end
+  as a deck between twins. Seams run before `_trim`, so a ramp merging at
+  a shallow angle still lies over the pair for 30-40 m. Now a third whose
+  run to its joined end keeps both edges over the pair does not part them.
+  An edge out over the median still does (a centre-line test opened a
+  1.2 m hole at (-1168, 1539), where a ramp runs in the median).
+- Result: 0 rail gaps, rail-block sites 6 to 5. All 5 are the tip of a V
+  where two decks join and their rails meet; the audit's 0.8 m probe
+  reaches across the tip. Sabotage (exemption off) brings the 76 and 40
+  back.
 
 ## Verification policy
 
