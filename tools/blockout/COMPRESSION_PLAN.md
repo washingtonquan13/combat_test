@@ -62,7 +62,7 @@ uncompressed, or hiding it behind the fog.
 ## Pipeline
 
 ```
-new_orleans_parish_raw ─► segment ─► score ─► budget ─► thin (per patch)
+new_orleans_parish_raw ─► segment ─► score ─► target ─► thin (per patch)
      ─► layout (global) ─► seams ─► expressways / water / lidar ─► anchors
      ─► checks ──fail──► adjust params, retry (bounded) ─► fallback per patch
              └─pass──► raw dir ─► osm_city.py … city_gltf.py (tiled) ─► suites
@@ -111,20 +111,53 @@ Each block and each way gets a score from tags. No hand list is needed.
   footprint variety, so that rows of near-identical houses score lowest.
 - **Patch score:** the sum of its block scores, divided by its area.
 
-### 3. Budget
+### 3. Size target (SMT IV's Tokyo, by content)
 
-There is one knob, **T**: the walking time, at the live 64 m/s, between the
-two farthest kept landmarks. The default is 150 s, about 9.6 km. For scale,
-the current 5 km square crosses in about 80 s.
+The map is sized to match SMT IV's Tokyo by **content**, not by walk time.
+Walk speed is a feel setting that will keep changing, and the map should not
+change size when it does. Speed is tuned to the finished map, not the other
+way round.
 
-- Each patch gets a linear keep ratio between `k_min` and 1, scaled by its
-  patch score. The core (Quarter, CBD, Marigny, Tremé) lands at about 1. The
-  residential grids land at about 0.5–0.6 per axis.
-- A bisection on one global multiplier hits T.
-- Irregular patches cannot thin. If budget pressure would require them to,
-  they become **frontier**: kept at 1 if they are near a landmark, or else
-  dropped behind the fog wall, which is the map edge the user already wants.
-  The lake shore and most of New Orleans East are expected to land there.
+"The same size as IV" has to mean the same content, because IV and this map
+are built at different scales. IV shrinks its city (miniature buildings, wide
+roads, a large avatar) as well as deleting ground. This map stays at a
+uniform 1×. A footprint copied in metres would therefore delete far more of
+New Orleans than IV deleted of Tokyo. So the target is taken from IV as
+measures that do not depend on scale:
+
+- **N**, the number of districts. A district is a named area with its own
+  landmarks, the unit IV's map is built from.
+- **ρ**, the ratio of connective ground to district ground: how much city
+  lies between IV's districts compared with how much lies inside them.
+- **The district span in blocks**: how many blocks a typical IV district
+  measures across. This checks that our districts aren't drawn far larger or
+  smaller than IV's.
+
+These come from one measurement of a full IV overworld map image (phase 0b).
+Until then they are **unmeasured**, and the code takes them as parameters
+with placeholder values, never as constants.
+
+How the target is applied:
+
+- **Pick the districts.** Group the protected landmarks into districts by
+  patch adjacency and score, then keep the top N. The Quarter, CBD, Marigny
+  and Tremé are always among them. A kept district's landmark blocks are at
+  keep ratio 1, and its filler is thinned lightly.
+- **Pick the connective ground.** Keep the patches lying on the shortest
+  routes between kept districts (the river, the arterials, the expressways),
+  and thin them hard, at about 0.5–0.6 per axis.
+- **Hit the footprint.** The footprint is A = (kept district area) × (1 + ρ).
+  A bisection on one global thinning multiplier brings the connective ground
+  to that share.
+- **Everything else is frontier.** Patches that are neither district nor
+  connective ground, including irregular patches that would need thinning,
+  become **frontier**. A frontier patch is kept at scale 1 if it borders a
+  district, and otherwise goes behind the fog wall, which is the map edge the
+  user already wants. The lake shore and most of New Orleans East are
+  expected to land there.
+- **Crossing time is reported, not constrained.** The report prints the
+  crossing time at the current avatar speed as information only, as the
+  starting point for tuning speed and camera afterwards.
 
 ### 4. Thin each patch (strip removal)
 
@@ -242,7 +275,7 @@ response, so no step needs a human.
 | Landmark geometry | for each pair of the top 60 landmarks within 3 km: bearing change ≤ 20°, distance ratio within 0.35–1.0 | raise both patches' keep ratio |
 | Order | river order of riverfront landmarks preserved; neighbour order of patches preserved | raise keep ratio, re-solve layout |
 | Landmark scale | every landmark block at exactly scale 1 | (cannot fail by construction; asserted anyway) |
-| Budget | farthest kept landmark pair ≤ T at 64 m/s | multiplier down, bisection continues |
+| Size target | N districts kept; non-fog footprint within 5% of A | bisection on the multiplier continues; if it cannot converge, the lowest-score connective patch goes frontier |
 | Existing suites | all overworld suites green, using anchors | stop, report; this is a real bug, not tuning |
 
 - The retry loop is bounded at **6 rounds per patch**. A patch that still
@@ -253,7 +286,7 @@ response, so no step needs a human.
   aim is a run that always finishes and tells the user exactly where it gave
   ground.
 - **The contact sheet is optional, and no one has to look at it.** One GL
-  render per seam, from the 64 m/s play camera (`tools/_probe/nola_snap.tscn`
+  render per seam, from the play camera (`tools/_probe/nola_snap.tscn`
   shots, so it reuses the existing tool), is tiled into one image for the
   user if they want to look.
 
@@ -265,6 +298,7 @@ further until the gate passes.
 | # | Phase | Gate |
 |---|---|---|
 | 0 | Persist the raw download | **Done 2026-10-12**: `data/blockouts/new_orleans_parish_raw/` |
+| 0b | Measure IV's Tokyo from one full overworld map image: N, ρ, district span in blocks | the three numbers written into the plan, with the image's source and how each was counted |
 | 1 | Segment + score, debug PNG only | ≥ 90% of street length in non-irregular patches; the Quarter, CBD, Lower Garden District and Mid-City come out as recognisable patches; ≥ 95% of wikidata items flagged protected |
 | 2 | **Go/no-go:** thin one patch (an Uptown grid), build it in a 5 km square, GL renders vs uncompressed | 0 chords, 0 new dead ends, every landmark intact, decks untouched. **If this gate fails, stop and fall back.** The core claim is that strip removal is exact |
 | 3 | Two patches and one seam (CBD ↔ Lower Garden District across the Pontchartrain Expressway, the hardest real case) | every seam check passes with no fallback |
@@ -274,8 +308,10 @@ further until the gate passes.
 
 ## Risks
 
-- **Size.** `city.glb` is 73 MB for 26 km². A compressed parish of roughly
-  60–80 km² would be about 170–230 MB as one file. The dev PC is the target
+- **Size.** `city.glb` is 73 MB for 26 km², about 2.8 MB/km². Once phase 0b
+  fixes A, multiplying the two gives the size of the export before any build.
+  The previous walk-time guess of 60–80 km² would be about 170–230 MB as one
+  file. The dev PC is the target
   hardware, so phase 5 has to split the export into tiles (one glb per
   1 km cell, with visibility ranges) before the full build. It can't be done
   afterwards.
@@ -290,6 +326,13 @@ further until the gate passes.
 - **Seam density.** Hard boundaries are close together in Mid-City (rail,
   canals, the I-10), so seams can run into each other. The layout's overlap
   penalty covers this in principle, and phase 4 measures it in practice.
+- **IV's numbers are a reading, not a spec.** District boundaries on IV's
+  map are partly a judgement call, so N and ρ carry some error. The pipeline
+  only consumes them as parameters, so a recount costs one rerun.
+- **New Orleans isn't spread out like Tokyo.** Central Tokyo has dense
+  districts everywhere. Here the interest is packed along the river, so N
+  districts at 1× will crowd the river and leave a thin ring behind them. The
+  frontier will be large, and that is expected.
 - **Re-fetch.** If the raw dir is lost, the parish has to be re-fetched as 16
   tiles from Overpass, slowly and politely, with slot waits. The persisted
   copy exists to avoid that.
