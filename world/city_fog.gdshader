@@ -11,7 +11,7 @@ render_mode unshaded, cull_disabled, depth_draw_never, blend_mix;
 #include "res://world/city_edge_fog.gdshaderinc"
 
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
-uniform float units_per_metre = 0.25;
+uniform float units_per_metre = 1.0;
 // Metres outside the boundary where this sheet starts to thicken,
 // negative for inside it, and metres more over which it turns solid.
 uniform float start_out = 0.0;

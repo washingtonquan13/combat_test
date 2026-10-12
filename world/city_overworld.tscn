@@ -1,10 +1,14 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://world/overworld.gd" id="1_u8hh0"]
-[ext_resource type="PackedScene" path="res://world/city_overworld/city_geometry.scn" id="2_7b773"]
+[ext_resource type="PackedScene" path="res://world/city_overworld/city.glb" id="2_7b773"]
+[ext_resource type="Script" path="res://world/city_geometry.gd" id="2_geometry"]
 [ext_resource type="PackedScene" path="res://systems/camera_system/overworld_camera.tscn" id="3_xhpe8"]
 [ext_resource type="PackedScene" uid="uid://b826s0f7pql2r" path="res://world/overworld_door.tscn" id="4_door"]
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="5_exit"]
+[ext_resource type="Material" path="res://world/materials/city_fog_0.tres" id="6_fog0"]
+[ext_resource type="Material" path="res://world/materials/city_fog_1.tres" id="7_fog1"]
+[ext_resource type="Material" path="res://world/materials/city_fog_2.tres" id="8_fog2"]
 
 [sub_resource type="Environment" id="Environment_l34i8"]
 background_mode = 1
@@ -29,6 +33,9 @@ adjustment_enabled = true
 adjustment_contrast = 1.08
 adjustment_saturation = 0.92
 
+[sub_resource type="PlaneMesh" id="PlaneMesh_fog"]
+size = Vector2(6320, 6320)
+
 [node name="CityOverworld" type="Node3D"]
 script = ExtResource("1_u8hh0")
 avatar_speed_scale = 10.666667
@@ -37,6 +44,27 @@ deck_cutaway_radius = 14.0
 metadata/osm_attribution = "Map data (c) OpenStreetMap contributors, ODbL 1.0. https://www.openstreetmap.org/copyright"
 
 [node name="CityGeometry" parent="." instance=ExtResource("2_7b773")]
+script = ExtResource("2_geometry")
+
+[node name="BoundaryFog" type="Node3D" parent="."]
+
+[node name="Sheet0" type="MeshInstance3D" parent="BoundaryFog"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_fog")
+surface_material_override/0 = ExtResource("6_fog0")
+
+[node name="Sheet1" type="MeshInstance3D" parent="BoundaryFog"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_fog")
+surface_material_override/0 = ExtResource("7_fog1")
+
+[node name="Sheet2" type="MeshInstance3D" parent="BoundaryFog"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 7, 0)
+cast_shadow = 0
+mesh = SubResource("PlaneMesh_fog")
+surface_material_override/0 = ExtResource("8_fog2")
 
 [node name="SpawnPoints" type="Node3D" parent="."]
 

@@ -5,7 +5,8 @@ coupling, split-deck cutting, slab gap fill, rail post-pass) with the way shippe
 city games do it: measured heights, one authored record per elevated road, a
 mesh swept along a spline, and junction pieces where roads meet. The rest of the
 pipeline (`osm_city.py` streets/blocks/buildings, `shore_field.py`, fog edge,
-`build_osm_city.gd`) stays as it is.
+`build_osm_city.gd`) stays as it is. (The Godot builder was retired on
+2026-10-12 for `city_gltf.py`; see the glTF export note after step 8.)
 
 ## Why
 
@@ -621,6 +622,14 @@ Step 8, 2026-10-12: rails in the sweep profile.
   where two decks join and their rails meet; the audit's 0.8 m probe
   reaches across the tip. Sabotage (exemption off) brings the 76 and 40
   back.
+
+glTF export, 2026-10-12: `tools/blockout/city_gltf.py` replaces
+`build_osm_city.gd`. The city is now `world/city_overworld/city.glb`, a
+model Godot imports on its own, with its materials mapped to
+`world/materials/city_*.tres` and the shore and edge fields as textures
+beside it. `world/city_geometry.gd` hands the fields to the shaders as
+global shader parameters. `city_geometry.scn` is gone. References to it
+and to `build_osm_city.gd` above are history.
 
 ## Verification policy
 

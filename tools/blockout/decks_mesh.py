@@ -75,8 +75,7 @@ decks.json, not here.
     above PIER_MIN, slid along the deck up to PIER_SLIDE clear of the
     roads and railways below.
 
-Heights here are real metres; build_osm_city.gd scales them by --vscale
-like everything else. Kinds: deck 0, deck side 1, pier 2, rail 3.
+Heights here are real metres, and city_gltf.py exports them unscaled. Kinds: deck 0, deck side 1, pier 2, rail 3.
 
 Map data (c) OpenStreetMap contributors, ODbL.
 """

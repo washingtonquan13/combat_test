@@ -1,0 +1,33 @@
+{
+ "attribution": "Map data (c) OpenStreetMap contributors, ODbL 1.0. https://www.openstreetmap.org/copyright",
+ "corner": [
+  -2560.0,
+  -2560.0
+ ],
+ "extent": [
+  5120.0,
+  5120.0
+ ],
+ "shore": {
+  "file": "shore.png",
+  "origin": [
+   -2560.0,
+   -2560.0
+  ],
+  "size": [
+   5120.0,
+   5120.0
+  ]
+ },
+ "edge": {
+  "file": "edge.exr",
+  "origin": [
+   -2560.0,
+   -2560.0
+  ],
+  "size": [
+   5120.0,
+   5120.0
+  ]
+ }
+}

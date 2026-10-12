@@ -39,16 +39,20 @@ OSM data (shapely, `pip install shapely`), so edges keep their real angles.
 ```bash
 python -I tools/blockout/fetch_osm_city.py <raw dir> --boundary "Orleans Parish"
 python -I tools/blockout/osm_city.py <raw dir> data/blockouts/<name> --water-seeds "LAT,LON;LAT,LON"
-godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res://data/blockouts/<name> --out=res://world/<name> --scale=0.25 --vscale=0.3
+python -I tools/blockout/city_gltf.py data/blockouts/<name> world/<name>
+godot --headless --path . --import
 ```
 
 - `--boundary` names an administrative boundary relation. The map is
   clipped to it: buildings stop short of it, a wall runs along it, and fog
   past it (`world/city_fog.gdshader`, driven by the signed distance field
-  `edge.png` that `shore_field.py` bakes) hides the rest of the world.
+  `edge.bin` that `shore_field.py` bakes) hides the rest of the world.
   The fog is clear everywhere inside the line, so it never covers a road
   the player can reach, and the builder starts the depth haze past the
-  farthest ground the camera frames at full zoom out.
+  farthest ground the camera frames at full zoom out. The fields reach
+  the shaders as global shader parameters (`city_edge_*`, `city_shore_*`
+  in `project.godot`), set by `world/city_geometry.gd` on the glb's
+  instance for whichever city is in play.
   Give `--bbox S,W,N,E` to both scripts instead for a plain rectangle with
   no fog.
 - `osm_city.py` takes about 13 minutes for all of Orleans Parish, almost
@@ -87,7 +91,7 @@ godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res:
   them alone with `python -I tools/blockout/decks_seed.py <raw dir>
   data/blockouts/<name>` (about six minutes for the parish) and
   `python -I tools/blockout/decks_mesh.py <raw dir> data/blockouts/<name>`.
-  Heights are real metres, for `--scale 1 --vscale 1`.
+  Heights are real metres.
   `world/city_deck.gdshader` cuts a hole in any deck above the player, so
   the camera can see them under an overpass.
 - Culverted waterways (`tunnel=culvert`) are left out of the water: water
@@ -96,10 +100,46 @@ godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res:
   each water pixel's distance to the bank and how open the water around it
   is, for the water shader's shallows, shore foam and calm small water. Re-bake it alone with
   `python -I tools/blockout/shore_field.py data/blockouts/<name>`.
-- The builder writes `world/<name>/city_geometry.scn` every time. It writes
-  `world/<name>_overworld.tscn`, the editable area with spawn, camera and
-  light, only if that file is missing, so doors placed by hand survive a
-  rebuild.
+- `city_gltf.py` writes `world/<name>/city.glb` every time, with
+  `shore.png`, `edge.exr` and `city.json` beside it and `.import` files
+  for all three, so `godot --headless --import` (or opening the editor)
+  brings it in as a scene: ground, buildings and decks per tile, the
+  buildings and decks walkable through glTF's `-col` node suffix, water
+  walled off through `-colonly`. The glb's four materials are mapped to
+  `world/materials/city_*.tres`, so the city's look is edited there and
+  survives a rebuild. The script writes `world/<name>_overworld.tscn`,
+  the editable area with spawn, camera, fog sheets and light, only if that
+  file is missing, so doors placed by hand survive a rebuild. The live
+  city is `world/city_overworld/`, instanced by `world/city_overworld.tscn`;
+  rebuild it with `--scene world/city_overworld.tscn`.
+  Framing options: `--pitch`, `--range` (metres camera to avatar), `--icon`,
+  `--speed`, `--cutaway`.
+- `compress.py` shortens the city the SMT way, before `osm_city.py` runs:
+  it cuts bands of filler out of the raw download and slides everything
+  past each band in to close the gap, so districts and landmarks keep
+  their arrangement and the walk between them shortens.
+
+  ```bash
+  python -I tools/blockout/compress.py <cuts.json> <raw dir> <out raw dir> --decks data/blockouts/<name>/decks.json --decks-out data/blockouts/<new name>
+  python -I tools/blockout/osm_city.py <out raw dir> data/blockouts/<new name> --water-seeds "LAT,LON"
+  ```
+
+  `cuts.json` names the frame (a built city's `city.json`) its bands are
+  measured in and lists them: `{"centre": [x, z], "angle": deg, "width": m,
+  "keep": 0}` for a band along a line (angle 0 runs east-west, 90
+  north-south), or `{"axis": "z", "from": z0, "to": z1}` for one across
+  the map; `keep` 0 deletes, 0.3 squeezes to 30%, 1 changes nothing.
+  Bands apply in order, each measured in the map as earlier ones left it.
+  Cut along the local cross streets, not across the map: a band askew to
+  the grid shears every street crossing it sideways. The output raw dir
+  carries a `boundary.json` for the new map edge and a `lidar_decks.npz`
+  cropped and warped to match, which `decks_seed.py` picks up by default.
+  Hand deck records are carried when no band touches them. The report
+  counts the street ends left on each cut line, met, snapped (ends of one
+  street within 80 m of each other, `--snap`) or loose, and the height
+  step where elevated decks meet; `--mark name=x,z` reports where a point
+  lands. The new map's `osm_city.py` run needs no `--bbox`: the carried
+  `boundary.json` is the map.
 
 ## Attribution
 

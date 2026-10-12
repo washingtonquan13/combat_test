@@ -54,12 +54,14 @@ uniform vec3 still_color : source_color = vec3(0.13, 0.17, 0.15);
 uniform vec2 still_range = vec2(15.0, 120.0);
 uniform vec2 surf_range = vec2(150.0, 240.0);
 
-uniform sampler2D shore_tex : filter_linear_mipmap, repeat_disable, hint_default_black;
-// Where shore_tex lies, in world units, and world units per metre.
-uniform vec2 shore_origin = vec2(0.0);
-uniform vec2 shore_size = vec2(1.0);
-uniform float units_per_metre = 0.25;
-uniform bool has_shore = false;
+// The shore field and where it lies in world units, set by
+// world/city_geometry.gd for the city in play.
+global uniform sampler2D city_shore_tex;
+global uniform vec2 city_shore_origin;
+global uniform vec2 city_shore_size;
+global uniform bool city_has_shore;
+// World units per metre.
+uniform float units_per_metre = 1.0;
 
 const mat2 OCTAVE_TURN = mat2(vec2(1.6, 1.2), vec2(-1.2, 1.6));
 
@@ -123,9 +125,9 @@ void fragment() {
 
 	float metres = shallow_reach * 4.0;
 	float open = 255.0;
-	if (has_shore) {
-		vec2 suv = (xz - shore_origin) / shore_size;
-		vec2 s = texture(shore_tex, suv).rg * 255.0;
+	if (city_has_shore) {
+		vec2 suv = clamp((xz - city_shore_origin) / city_shore_size, vec2(0.0), vec2(1.0));
+		vec2 s = texture(city_shore_tex, suv).rg * 255.0;
 		metres = s.x;
 		open = s.y;
 	}
@@ -167,7 +169,7 @@ void fragment() {
 	// Small water keeps no foam at all; mid-sized a thin rim.
 	float rim = foam_edge * mix(0.35, 1.0, surf);
 	float edge = (1.0 - smoothstep(rim * 0.5, rim + rag * rim, metres)) * (1.0 - still);
-	foam_cover = has_shore ? clamp(max(edge, lines * 0.8), 0.0, 1.0) : 0.0;
+	foam_cover = city_has_shore ? clamp(max(edge, lines * 0.8), 0.0, 1.0) : 0.0;
 
 	// The reflection is emitted, not lit, so at grazing angles the water
 	// meets the haze at exactly the colour the environment shows.

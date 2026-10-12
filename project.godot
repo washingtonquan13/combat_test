@@ -197,3 +197,35 @@ deck_cutaway_radius={
 "type": "float",
 "value": 7.0
 }
+city_edge_tex={
+"type": "sampler2D",
+"value": ""
+}
+city_edge_origin={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+city_edge_size={
+"type": "vec2",
+"value": Vector2(1, 1)
+}
+city_has_edge={
+"type": "bool",
+"value": false
+}
+city_shore_tex={
+"type": "sampler2D",
+"value": ""
+}
+city_shore_origin={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+city_shore_size={
+"type": "vec2",
+"value": Vector2(1, 1)
+}
+city_has_shore={
+"type": "bool",
+"value": false
+}

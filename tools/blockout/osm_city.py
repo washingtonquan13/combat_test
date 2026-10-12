@@ -1,7 +1,7 @@
 """Turns a city-sized OpenStreetMap extract into a stylised overworld: building
 footprints merged into block masses with their taller buildings rising out
 of them, ground meshes coloured by what the ground is, and impassable
-water. build_osm_city.gd then turns the result into a scene.
+water. city_gltf.py then writes the result as a glTF for Godot.
 
     python -I tools/blockout/osm_city.py <raw dir> <out dir> [--bbox S,W,N,E] \
         --water-seeds LAT,LON;LAT,LON
