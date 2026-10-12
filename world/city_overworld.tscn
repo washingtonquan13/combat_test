@@ -31,7 +31,7 @@ adjustment_saturation = 0.92
 
 [node name="CityOverworld" type="Node3D"]
 script = ExtResource("1_u8hh0")
-avatar_speed_scale = 3.0
+avatar_speed_scale = 10.666667
 avatar_icon_scale = 10.0
 deck_cutaway_radius = 14.0
 metadata/osm_attribution = "Map data (c) OpenStreetMap contributors, ODbL 1.0. https://www.openstreetmap.org/copyright"

@@ -1,7 +1,7 @@
 class_name OverworldCamera
 extends Camera3D
 ## Fixed-pitch follow camera for the overworld — orbits target at a
-## constant downward pitch, smoothly following its position, with
+## constant downward pitch, locked to its position, with
 ## player-driven yaw rotation and zoom. Satisfies WorldManager's
 ## duck-typed get_tactical_camera() contract exactly like crpg_camera.gd
 ## does for test_arena.tscn, so CameraDirector registration is unchanged.
@@ -19,7 +19,6 @@ extends Camera3D
 @export var height: float = 12.0
 @export var distance: float = 8.0
 @export var pitch_degrees: float = 55.0
-@export var follow_speed: float = 6.0
 @export var rotate_speed_degrees: float = 90.0
 @export var min_distance: float = 4.0
 @export var max_distance: float = 16.0
@@ -47,7 +46,13 @@ func snap_to_target() -> void:
 		global_position = _desired_position()
 
 
-func _process(delta: float) -> void:
+## Locked to the target with no easing: a camera that trails and then
+## drifts in after the avatar stops reads as the avatar itself building up
+## and bleeding off speed, which the overworld walk deliberately does not
+## do (see OverworldAvatar.move_speed). Run on the physics tick because the
+## avatar moves on it; following per render frame would judder against a
+## body that only moves 60 times a second.
+func _physics_process(delta: float) -> void:
 	if not target:
 		return
 
@@ -59,7 +64,7 @@ func _process(delta: float) -> void:
 	if Input.is_action_pressed("camera_rotate_right"):
 		_yaw -= deg_to_rad(rotate_speed_degrees) * delta
 
-	global_position = global_position.lerp(_desired_position(), 1.0 - exp(-follow_speed * delta))
+	global_position = _desired_position()
 	rotation.y = _yaw
 
 

@@ -44,8 +44,10 @@ var group: PartyGroup = null
 ## to be in different places.
 var active: bool = false
 
+## Full speed from the first frame a key is held, and dead still the
+## frame it is let go: crossing the map is getting somewhere, not
+## steering a body with weight, so there is no ramp up or down.
 @export var move_speed: float = 6.0
-@export var acceleration: float = 24.0
 @export var gravity: float = 18.0
 ## Anything up to this steep is ground the avatar walks on. The city's
 ## ramps are drawn far steeper than real ones, the way its roads are drawn
@@ -121,10 +123,8 @@ func _physics_process(delta: float) -> void:
 ## over whatever ground is underfoot. Split from the input reading so
 ## anything that drives the avatar along a route walks it the same way.
 func walk(direction: Vector3, delta: float) -> void:
-	var target_velocity: Vector3 = direction * move_speed
-
-	velocity.x = move_toward(velocity.x, target_velocity.x, acceleration * delta)
-	velocity.z = move_toward(velocity.z, target_velocity.z, acceleration * delta)
+	velocity.x = direction.x * move_speed
+	velocity.z = direction.z * move_speed
 
 	if is_on_floor():
 		velocity.y = 0.0
