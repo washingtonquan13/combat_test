@@ -42,6 +42,14 @@ decks.json, not here.
     is at the ground: a ramp toe, never a mid-air end. Where it ends on
     another deck (a merge or split), it stops at the last profile that
     lies wholly on the other deck.
+  - Gores: where a record merges or splits (decks.json "merges" /
+    "splits"), the V between the branch's inner edge and the trunk's edge
+    is filled with deck, from the apex, where the two edges part, to the
+    nose (see GORE_NOSE). The gore's edges are the two pieces' own edge
+    points, apex and nose inserted into both, so its edge heights are
+    theirs. Rails along those edges start at the nose, and a rail closes
+    the nose. A join with no V to fill (the two decks a step apart at the
+    apex, or the branch running on end to end) is listed and left alone.
   - Piers stand every PIER_STEP along a bridge where its underside is
     above PIER_MIN, slid along the deck up to PIER_SLIDE clear of the
     roads and railways below.
@@ -141,6 +149,21 @@ MEET = 0.7
 # to its own height over this distance: a step, not a stretch of edge too
 # high to leave open and too low for a rail.
 CUT = 0.4
+# A gore: where a deck merges into or splits from another (decks.json
+# "merges" / "splits"), the V between the branch's inner edge and the
+# trunk's edge, from where the two edges part to the nose, is deck, its
+# edges the two pieces' own edge points and heights. The nose is where
+# the edges are GORE_NOSE apart (narrower, the slot between two rails is a
+# crack, as NEAR_GAP says for a seam), or their heights part by GORE_DH
+# (the gore is one surface, as a weld is), or GORE_MAX along the branch,
+# whichever comes first walking either edge. The two edges' rails start at
+# the nose, joined by a rail across it.
+GORE_NOSE = NEAR_GAP
+GORE_DH = WELD
+GORE_MAX = 120.0
+# A gore whose nose is closer than this to its apex is not drawn: the two
+# edges part at once, and there is no V to fill.
+GORE_MIN = 0.3
 PIER_MIN = 5.0
 PIER_STEP = 40.0
 PIER_DEPTH = 2.5
@@ -175,12 +198,13 @@ def _records(decks):
         if len(p) < 2:
             continue
         length = d["nodes"][-1]["s"]
-        ends = set()
+        ends, rels = set(), []
         for rel in d.get("merges", []) + d.get("splits", []):
             ends.add(0 if rel["at_s"] < length / 2 else 1)
+            rels.append((rel.get("into", rel.get("from")), 0 if rel["at_s"] < length / 2 else 1))
         recs.append({"way": d["way"], "p": p, "h": h, "width": float(d["width"]), "bridge": bool(d["bridge"]),
                      "twins": list(d.get("twin_of") or []), "continues": [c["way"] for c in d.get("continues", [])],
-                     "joined": ends})
+                     "joined": ends, "rels": rels})
     return recs
 
 
@@ -417,7 +441,7 @@ class Piece:
 
 
 def draw(meta, meta_path, out, decks, ways, others):
-    recs, pieces, tree = build(meta, decks)
+    recs, pieces, tree, gores = build(meta, decks)
 
     corner, tile = meta["corner"], meta["tile"]
     nx, nz = int(round(meta["extent"][0] / tile)), int(round(meta["extent"][1] / tile))
@@ -446,6 +470,12 @@ def draw(meta, meta_path, out, decks, ways, others):
             runs += len(rails)
             for pts, ys, inward in rails:
                 put_each(_rail(pts, ys, inward, side), RAIL)
+    for g in gores:
+        put_each(g["tris"], DECK)
+        put_each(_gore_sides(g), SIDE)
+        if max(g["nose_y"]) >= RAIL_DROP:
+            put_each(_rail(g["nose"], g["nose_y"], np.repeat(g["toward"][None], 2, axis=0), 0), RAIL)
+            runs += 1
     print("decks_mesh: %d rail runs" % runs, flush=True)
 
     piers, moved, blocked = _piers(pieces, recs, ways, others, put)
@@ -531,7 +561,11 @@ def build(meta, decks):
             cut += c_
         tree = _Tops(pieces)
         print("decks_mesh: pass %d: %d edge samples brought down onto a deck less than %.1f m below, %d steps cut sharp" % (npass + 1, met, MEET, cut), flush=True)
-    return recs, pieces, tree
+    gores, skipped = _gores(recs, pieces)
+    tree = _Tops(pieces, gores)
+    print("decks_mesh: %d gores filled where a deck merges or splits, %d joins with none (%s)" % (
+        len(gores), len(skipped), ", ".join("%d/%d %s" % s_ for s_ in skipped)), flush=True)
+    return recs, pieces, tree, gores
 
 
 def _meet(pc, tree):
@@ -1135,15 +1169,247 @@ def _edges(pc):
         pc.edge[side], pc.ey[side] = e, ey
 
 
-class _Tops:
-    """Every piece's deck top, for asking what deck lies beside an edge."""
+def _gores(recs, pieces):
+    """Each merge's or split's gore (see GORE_NOSE), its apex and nose first
+    inserted into both pieces' edges, so the gore's edges are theirs, point
+    for point. Returns (gores, skipped), skipped as (way, other way, why)."""
+    lines = [shapely.linestrings(pc.c) for pc in pieces]
+    found, skipped = [], []
+    for r, rec in enumerate(recs):
+        for other, rend in rec["rels"]:
+            q = rec["p"][-1 if rend else 0]
+            ends = [(float(np.hypot(*(pc.c[-1 if e else 0] - q))), bi, e) for bi, pc in enumerate(pieces)
+                    for e in (0, 1) if not pc.free[e] and pc.rec[-1 if e else 0] == r]
+            if not ends:
+                skipped.append((rec["way"], other, "branch end not drawn"))
+                continue
+            _, bi, end = min(ends)
+            at = shapely.points(pieces[bi].c[-1 if end else 0])
+            trunks = [ti for ti, pc in enumerate(pieces) if ti != bi and any(recs[x]["way"] == other for x in pc.rec)]
+            if not trunks:
+                skipped.append((rec["way"], other, "trunk not drawn"))
+                continue
+            ti = min(trunks, key=lambda t: float(shapely.distance(lines[t], at)))
+            g = _gore(pieces, bi, end, ti)
+            if isinstance(g, str):
+                skipped.append((rec["way"], other, g))
+            else:
+                g.update(way=rec["way"], other=other)
+                found.append(g)
+    # Meshed once every gore's points are in: a point one gore puts on an
+    # edge another gore runs along is a point of that gore's edge too.
+    return [_gore_mesh(pieces, g) for g in found], skipped
 
-    def __init__(self, pieces):
+
+def _gore(pieces, bi, end, ti):
+    """One gore between branch piece bi, joined at end, and trunk piece ti:
+    {"b": (piece, side, apex, nose), "t": (...)}, the apex and nose
+    inserted into both edges; or why there is none."""
+    pb, pt = pieces[bi], pieces[ti]
+    tpoly = shapely.union_all(shapely.polygons(_top_tris(pt)[:, :, [0, 2]]))
+    shapely.prepare(tpoly)
+    order = np.arange(len(pb.c))[::-1] if end else np.arange(len(pb.c))
+    off = ~shapely.contains_xy(tpoly, pb.c[order, 0], pb.c[order, 1])
+    if not off.any():
+        return "never leaves the trunk"
+    # The two sides that face each other, where the branch's centre line is
+    # first off the trunk.
+    i = order[int(np.argmax(off))]
+    tl = shapely.linestrings(pt.c)
+    qt = shapely.get_coordinates(shapely.line_interpolate_point(tl, shapely.line_locate_point(tl, shapely.points(pb.c[i]))))[0]
+    j = int(np.argmin(np.hypot(*(pt.c - qt).T)))
+    st = 0 if float((pb.c[i] - qt) @ pt.n[j]) > 0 else 1
+    s = 0 if float((qt - pb.c[i]) @ pb.n[i]) > 0 else 1
+    T = shapely.linestrings(pt.edge[st])
+    E = pb.edge[s]
+    on = shapely.contains_xy(tpoly, E[order, 0], E[order, 1]) | (shapely.distance(T, shapely.points(E[order])) < 0.01)
+    on |= pb.seam[s][order] & (pb.partner[s][order] == ti)
+    if not on[0]:
+        return "end not on the trunk"
+    if on.all():
+        return "edge never leaves the trunk"
+    p = int(np.argmin(on))
+    a, b = E[order[p - 1]], E[order[p]]
+    # The apex: the last point of the segment leaving the trunk that lies on
+    # the trunk's edge.
+    x = shapely.get_coordinates(shapely.intersection(shapely.linestrings([a, b]), T))
+    apex = x[int(np.argmax(np.hypot(*(x - a).T)))] if len(x) else a
+    ia, it = _insert(pb, s, apex), _insert(pt, st, apex)
+    if ia is None or it is None:
+        return "apex off the trunk's edge"
+    E, Y = pb.edge[s], pb.ey[s]
+    T, TY = pt.edge[st], pt.ey[st]
+    seq_b = range(ia, -1, -1) if end else range(ia, len(E))
+    nb = _parting(E, Y, seq_b, T, TY, lambda i: bool(pb.seam[s][i]) and pb.partner[s][i] != ti)
+    if isinstance(nb, str):
+        return nb
+    # The trunk's edge walked too: a step in it beside the branch's edge
+    # parts the two as surely as one in the branch's does.
+    nxt = E[seq_b[1]] if len(seq_b) > 1 else apex
+    tl = shapely.linestrings(T)
+    tcum = _cum(T)
+    up = float(shapely.line_locate_point(tl, shapely.points(nxt))) >= tcum[it]
+    tn = _parting(T, TY, range(it, len(T)) if up else range(it, -1, -1), E, Y, lambda j: False)
+    if nb is None and not isinstance(tn, np.ndarray):
+        return "no nose before the branch ends"
+    bl = shapely.linestrings(E[list(seq_b)])
+    nose = nt = None
+    if isinstance(tn, np.ndarray):
+        at = float(shapely.line_locate_point(bl, shapely.points(tn)))
+        if nb is None or at < float(shapely.line_locate_point(bl, shapely.points(nb))):
+            nose = shapely.get_coordinates(shapely.line_interpolate_point(bl, at))[0]
+            nt = tn
+    if nose is None:
+        nose = nb
+        nt = shapely.get_coordinates(shapely.line_interpolate_point(tl, shapely.line_locate_point(tl, shapely.points(nose))))[0]
+    if float(np.hypot(*(nose - apex))) < GORE_MIN:
+        return "edges part at once"
+    ib, jt = _insert(pb, s, nose), _insert(pt, st, nt)
+    if ib is None or jt is None:
+        return "nose off an edge"
+    it = _near(pt.edge[st], apex, jt)
+    lo, hi = sorted((it, jt))
+    if (pt.seam[st][lo:hi + 1] & (pt.partner[st][lo:hi + 1] != bi)).any():
+        return "trunk edge seamed to a third deck"
+    return {"b": (bi, s, apex, nose), "t": (ti, st, apex, nt)}
+
+
+def _parting(E, Y, seq, O, OY, third):
+    """Walking edge E (heights Y) by its samples seq from the apex beside
+    edge O (heights OY): the first point where the two have parted, by
+    GORE_NOSE across or GORE_DH in height, or the last sample before
+    GORE_MAX or before third(i), a third deck beside E; None where E ends
+    first, or why there is no gore where they are a step apart at the apex."""
+    ol, ocum = shapely.linestrings(O), _cum(O)
+    prev = None
+    run = g0 = d0 = 0.0
+    for i in seq:
+        u = float(shapely.line_locate_point(ol, shapely.points(E[i])))
+        gap = float(np.hypot(*(E[i] - shapely.get_coordinates(shapely.line_interpolate_point(ol, u))[0])))
+        dh = abs(float(Y[i] - np.interp(u, ocum, OY)))
+        if prev is None:
+            if dh >= GORE_DH:
+                return "a step of %.2f m at the apex" % dh
+        else:
+            run += float(np.hypot(*(E[i] - E[prev])))
+            if gap >= GORE_NOSE or dh >= GORE_DH or run >= GORE_MAX or third(i):
+                f = 1.0
+                if gap >= GORE_NOSE:
+                    f = min(f, (GORE_NOSE - g0) / max(gap - g0, 1e-9))
+                if dh >= GORE_DH:
+                    f = min(f, (GORE_DH - d0) / max(dh - d0, 1e-9))
+                if third(i) or (gap < GORE_NOSE and dh < GORE_DH):
+                    # Past GORE_MAX, or a third deck beside the edge: the
+                    # nose is the last sample before it.
+                    f = 0.0
+                return E[prev] + (E[i] - E[prev]) * float(np.clip(f, 0.0, 1.0))
+        prev, g0, d0 = i, gap, dh
+    return None
+
+
+def _insert(pc, side, P):
+    """The index of pc's sample whose edge on side is at P, one inserted
+    where P falls part way along a segment of that edge; None where P is
+    not on the edge (within 1 cm)."""
+    e = pc.edge[side]
+    dist = np.hypot(*(e - P).T)
+    j = int(np.argmin(dist))
+    if dist[j] < 0.01:
+        return j
+    a, ab = e[:-1], e[1:] - e[:-1]
+    t = np.clip(((P - a) * ab).sum(axis=1) / np.maximum((ab * ab).sum(axis=1), 1e-12), 0.0, 1.0)
+    off = np.hypot(*(a + ab * t[:, None] - P).T)
+    k = int(np.argmin(off))
+    if off[k] > 0.01:
+        return None
+    ey = pc.ey[side]
+    _cut(pc, k, [float(t[k])], side, [float(ey[k] + (ey[k + 1] - ey[k]) * t[k])])
+    return k + 1
+
+
+def _near(e, P, toward):
+    """Of the edge samples at P (a point doubled for a step has two), the
+    one nearest index toward."""
+    at = np.flatnonzero(np.hypot(*(e - P).T) < 0.01)
+    return int(at[np.argmin(np.abs(at - toward))])
+
+
+def _gore_mesh(pieces, g):
+    """A gore's top: the strip between its two edges, each the piece's own
+    edge points from apex to nose, zipped by the fraction along each; its
+    nose, and the way off the nose into the gore."""
+    sides = []
+    for key in ("b", "t"):
+        pi, side, apex, nose = g[key]
+        e, ey = pieces[pi].edge[side], pieces[pi].ey[side]
+        ja = _near(e, apex, _near(e, nose, 0))
+        jn = _near(e, nose, ja)
+        idx = np.arange(ja, jn + 1) if jn >= ja else np.arange(ja, jn - 1, -1)
+        sides.append(_xyz(e[idx], ey[idx]))
+    B, T = sides
+    Bs, Ts = B, T
+    B0, T0 = B[0], T[0]
+    tris, wall = [], np.zeros((0, 3, 3))
+    if abs(float(B0[1] - T0[1])) > 1e-3 and len(B) > 1 and len(T) > 1:
+        # Where the edges cross, the apex is one point at two heights, each
+        # deck's own: each edge's first stretch gets a triangle of its own
+        # to a point X on the strip's first rung, and a wall closes the
+        # step between them at the apex.
+        X = (B[1] + T[1]) / 2
+        tris += [[B0, B[1], X], [T0, X, T[1]]]
+        wall = np.array([[B0, X, T0]])
+        B, T = B[1:], T[1:]
+    ub, ut = _cum(B[:, [0, 2]]), _cum(T[:, [0, 2]])
+    ub, ut = ub / max(ub[-1], 1e-9), ut / max(ut[-1], 1e-9)
+    i, j = 0, 0
+    while i < len(B) - 1 or j < len(T) - 1:
+        if j == len(T) - 1 or (i < len(B) - 1 and ub[i + 1] <= ut[j + 1]):
+            tris.append([B[i], B[i + 1], T[j]])
+            i += 1
+        else:
+            tris.append([B[i], T[j + 1], T[j]])
+            j += 1
+    tris = np.array(tris, np.float32).reshape(-1, 3, 3)
+    area = np.linalg.norm(np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0]), axis=1)
+    tris = tris[area > 1e-6]
+    tris = _facing(tris, np.tile([0.0, 1.0, 0.0], (len(tris), 1)))
+    nose = np.array([T[-1][[0, 2]], B[-1][[0, 2]]])
+    along = _unit(nose[1] - nose[0])
+    toward = np.array([-along[1], along[0]])
+    if float((B0[[0, 2]] - nose[0]) @ toward) < 0:
+        toward = -toward
+    return dict(g, tris=tris, wall=wall, B=Bs, T=Ts, nose=nose, nose_y=np.array([T[-1][1], B[-1][1]]), toward=toward)
+
+
+def _gore_sides(g):
+    """A gore's underside, THICK below its top, the wall across its nose
+    down to it, and the step at its apex closed, seen from either side."""
+    under = g["tris"].copy()
+    under[:, :, 1] = np.maximum(0.0, under[:, :, 1] - THICK)
+    out = [_facing(under, np.tile([0.0, -1.0, 0.0], (len(under), 1)))]
+    (a, b), (ya, yb) = g["nose"], g["nose_y"]
+    wall = np.array([[_xyz(a, max(0.0, ya - THICK)), _xyz(b, max(0.0, yb - THICK)), _xyz(b, yb), _xyz(a, ya)]])
+    away = -g["toward"]
+    out.append(_tris(wall, np.array([[away[0], 0.0, away[1]]])))
+    if len(g["wall"]):
+        n = np.cross(g["wall"][:, 1] - g["wall"][:, 0], g["wall"][:, 2] - g["wall"][:, 0])
+        out += [_facing(g["wall"].astype(np.float32), n), _facing(g["wall"].astype(np.float32), -n)]
+    return np.concatenate(out)
+
+
+class _Tops:
+    """Every piece's deck top, and every gore's, for asking what deck lies
+    beside an edge. A gore is another deck to both of the pieces it joins."""
+
+    def __init__(self, pieces, gores=()):
         tris, owner = [], []
         for pi, pc in enumerate(pieces):
             t = _top_tris(pc)
             tris.append(t)
             owner.append(np.full(len(t), pi))
+        for g in gores:
+            tris.append(g["tris"])
+            owner.append(np.full(len(g["tris"]), -1))
         self.tris = np.concatenate(tris).astype(float)
         self.owner = np.concatenate(owner)
         self.tree = shapely.STRtree(shapely.polygons(self.tris[:, :, [0, 2]]))

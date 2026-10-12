@@ -428,6 +428,62 @@ Where `merges` / `splits` say two ribbons join:
 Verify: shots at every merge (list them from `decks.json`); no inner rail
 inside a gore; the gore's edge heights match both ribbons within 0.05 m.
 
+Status, 2026-10-12: built (`decks_mesh.py` `_gores`).
+
+- Departures from the plan above:
+  - The gore is not `over` long. It runs from the apex, where the branch's
+    inner edge leaves the trunk, to the nose, where the two edges are
+    `GORE_NOSE` (= `NEAR_GAP`, 2 m) apart, or `GORE_DH` (= `WELD`,
+    0.5 m) apart in height, or `GORE_MAX` (120 m) along, or a third deck
+    is met. `over` is the overlap before the apex, already drawn by step 4.
+  - The nose is searched along both edges and the earlier one wins. A step
+    in the trunk's edge beside the gore parts the two as surely as one in
+    the branch's.
+  - The gore's edges are the two pieces' own edge points: apex and nose
+    are inserted into both edges, so the heights are theirs, not sampled.
+  - Where the edges cross at the apex, the apex has two heights. Each edge
+    gets its own first triangle and a wall closes the step between them.
+  - The gore has no outer rail; a rail across the nose closes it. Inner
+    rails start at the nose because the gore is a deck to the rail probe.
+  - A join with no V is listed and skipped, not forced: 19 of 54. 14 are
+    a step of 0.76-8.03 m at the apex (a ramp still above or below the
+    trunk), 4 have the branch end off the trunk (end-to-end runs on), 1
+    never leaves the trunk, 1 has its apex off the trunk's edge.
+- Measures (`nola_spline`, scripted `verify.py`):
+  - 35 gores, 336 probes at edge vertices and midpoints: worst gore/ribbon
+    height difference **0.0174 m**; 0 gores over 0.05 m or unprobed.
+  - Twist (one edge against the other beside it): worst 0.510 m, 0 over
+    `GORE_DH` + 0.02.
+  - Rail triangles within 0.5 m of a gore, apex side of its nose: **0**.
+  - Rail runs 223 to 258 (+35 nose rails); piers 465, unchanged;
+    triangles 253054 to 255240.
+  - Stubs 0; rail discontinuities 0; FLICKER 1, the same site
+    (-879.05, 1104.42). Cracks 428.5 m in 99 clusters to 285.3 m in 67.
+- Sabotage. Each fix was removed in turn and the counts read.
+
+  | Fix removed | Result |
+  | --- | --- |
+  | One `merges` entry (31678110 into 1076293558) | gores 35 to 34; the notch and its inner rails are back in the shot |
+  | Gore heights from the branch alone | gores over 0.05 m 0 to 28; worst 0.017 to 0.510 m |
+  | Nose searched on the trunk's edge | twist over limit 0 to 2 (0.556 m) |
+  | Apex split | gores over 0.05 m 0 to 6; worst 0.293 m |
+  | Gores in the rail probe | rail triangles at gores 0 to 618, at 34 of 35 gores |
+
+- Shots: all 54 joins, two yaws each, in the installed overworld; top-down
+  before/after pairs of all 35 gores. j45 and j47 are fogged in the 3D
+  shots (the map-edge wall); their top-downs are fine.
+- Step-6 candidates, worst first:
+  - j29, 89752721 into 1076357014 (-640.5, 2190.7): a hexagonal hole
+    between three decks, railed round. It was there before step 5.
+  - j50, 929869791 into 1076321093 (433.4, -533.4): a closed railed slot
+    between the branch end and the trunk. It was there before step 5.
+  - j49, 682521447 / 118807749 (-1362.7, 1194.6): the V is left open; the
+    apex falls off the trunk's edge.
+  - j31, 118807820 / 161590919 (-877.2, 1097.6): the FLICKER site; the
+    branch end is off the trunk.
+  - Also complex but not a gore: j10, 12688778 (-1191.3, 1641.6), an 8 m
+    step between levels.
+
 ### 6. Hand pass on the interchanges (½–1 session each)
 
 From the step-3 report and the shots, expect four to six: Pontchartrain
