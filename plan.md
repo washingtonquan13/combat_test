@@ -339,6 +339,81 @@ flicker only at a split mouth.
   show only fog. TC (-2062, 814) shows its short toe rail at ground level.
   D2, D3, S7 and the flicker mouth are unchanged.
 
+Status 2026-10-12 (review fixes): the step-4 review's 10 findings were fixed
+at their cause, rebuilt, re-measured, re-shot and sabotage-checked.
+
+- Departures, now declared:
+  - The rail post-pass (`_rail_runs`) is kept. Rails are not part of the
+    profile, because whether an edge carries a rail depends on what lies
+    beside it, and that is only known after the seams are decided.
+  - There is no kerb. A 0.15 m kerb would put a lip on every welded seam,
+    and steps below WELD are already drawn as one surface.
+  - `bridges.py` keeps `_couple`, `_twins`, `_level_junctions`, `SPLIT_COS`,
+    `FOOT` and `SMOOTH`. They are live: `solve()` uses them, and
+    `decks_seed.py`'s fallback calls `solve()`.
+  - `RAIL_DROP 1.0`: a rail run whose edge nowhere stands 1 m above the
+    ground is not drawn. Rail runs go from 275 to 250; none of the six
+    near-ground pieces (12687193, 24784028, 24784033, 27763857, 27763887,
+    181653842, h max 0.36-0.81 m) keeps a rail.
+- Seams are decided once per pair (`_pair_seams`):
+  - One shared polyline of knots. Each seam sample of either deck is
+    inserted into the other's edge, and samples closer than `KNOT_SNAP 0.5`
+    merge.
+  - Weld/step uses hysteresis `WELD 0.5 +- WELD_HYST 0.15`. Each
+    weld-to-step change is a doubled point.
+  - Knot order: consecutive knots closer than `KNOT_SNAP`, or stepping back
+    along either deck in that deck's own order, are put at one place.
+  - `_resample` reads a point that only the other side placed off its own
+    side's line.
+  - `pc.toe` is carried through `_cut`, `_trim` and `_resample`.
+- Third-deck rule (`_across_third`, `BETWEEN 1.0`): there is no seam across
+  a third deck whose centre line passes between the two at a similar height.
+  This does not apply within half the third deck's width of its own end. A
+  ramp starting at a split mouth is not between the two decks, and dropping
+  the seam there left 3 rail-stub faces at 2 sites, (-1364, 1380) and
+  (-602, 2198).
+- Measures on the final build. Totals are 67 pieces, 223 rail runs, 465
+  piers and 253054 triangles.
+  - `stubs.py` 0; `gaps.py` 0 discontinuities, FLICKER 1 (the step-5 mouth).
+  - The independent `cracks.py` (deck-top boundary edges probed outward):
+    - Crack length: 3374.7 m (step-4 commit), then 537.9, now **428.5 m**.
+    - Clusters: 157, then **99**.
+    - Smallest bins (0.05 / 0.1 m): 8159 / 3183, now 462 / 414.
+  - Folds (seam segments stepping back over 5 cm): 246 without the order
+    rule, 7 with it (each at most 0.1 m).
+  - `weldscan`, welded edge gaps of 0.05-1 m: 580, now 3. Stepped blips
+    under 3 m: 4, now 0.
+  - Unequal-width twins, synthetic, widths 8/14 m at 9.5/11/12.5 m apart:
+    - The seam is on the midline: 5.34-5.50 m from both centres at 11 m.
+    - 230 of 236 seam vertices are shared with the other deck.
+    - The 6 unshared vertices are at the toe steps, as in the equal-width
+      control.
+- Sabotage. Each fix was removed in turn and the counts read.
+
+  | Fix removed | Result |
+  | --- | --- |
+  | Order rule | folds 7 to 246 |
+  | `RAIL_DROP` | rail runs 250 to 275 |
+  | Hysteresis | weld/step transitions 28 to 77; blips 0 to 5; steps 231 to 307 |
+  | Own-point interpolation | folds 7 to 40 |
+  | Third-deck rule | seams 5091 to 5344; 4 pairs one-sided |
+  | Toe carry | toe samples 230 to 218; seam samples at a toe 57 to 45 |
+  | Third-deck end exclusion | stubs 0 to 3 faces at 2 sites |
+
+- Shots: R1-R6, S01-S11, B1-B3, the sign-off list and the two stub sites.
+  - R5 has no rails or U stub.
+  - The B1 sparkling seam is gone.
+  - The stub sites show continuous seams.
+- Residuals, open:
+  - `_meet` and `_trim` still act per piece. They leave unshared points at
+    toe steps and coplanar overlap outlines at trimmed merge ends:
+    - R1 2.6 m;
+    - (-2067.6, 822.3) 8.5 m;
+    - faint dotted lines at B1, S05, S07 and S10.
+  - weldscan has 3 gaps of 0.76-0.96 m: (95, -121), (-1018, 1351) and
+    (-1332, 1201).
+  - R5's staggered toes leave a ground notch and a water sliver.
+
 ### 5. Junction gores (1–2 sessions)
 
 Where `merges` / `splits` say two ribbons join:

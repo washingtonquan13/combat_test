@@ -30,7 +30,8 @@ decks.json, not here.
     surface slopes across from one carriageway's height to the other's
     (crossfall), never a step. twin_of says the two are one road;
     decks_seed.py keeps only pairs LiDAR measures within TWIN_STEP.
-  - Rails stand only on an edge with no other deck beside it: an edge
+  - Rails stand only on an edge with no other deck beside it, and only
+    along a run of edge that somewhere stands RAIL_DROP above the ground: an edge
     with a deck at COVER outward, STEP_MAX below to RAIL_JOIN above it,
     is a deck going on, not a drop. Where an edge goes under or comes out
     of another deck, the rail ends at the point found by bisection to
@@ -78,6 +79,10 @@ RAIL_THICK = 0.4
 # below the edge to RAIL_JOIN above it.
 COVER = (0.05, 0.3, 0.4, 0.8)
 RAIL_JOIN = 2.0
+# A rail run whose edge nowhere stands this far above the ground is not
+# drawn: a deck that low (a bridge a hand's height over a canal, a ramp's
+# toe) is a kerb's step off, and a 2 m wall along it walls the street in.
+RAIL_DROP = 1.0
 # Where a rail starts or ends inside a segment, found to within this.
 RAIL_TO = 0.15
 # Each edge segment is probed for a deck beside it this far apart.
@@ -102,6 +107,10 @@ TWIN_PARALLEL = 0.9
 # Two decks that are not twins meet at a seam when their edges come this
 # close: a crack an avatar could not cross is no place for two rails.
 NEAR_GAP = 2.0
+# Two decks do not meet across a third whose centre line passes within this
+# of the line between their centres, at a height within RAIL_JOIN of theirs:
+# a ramp leaving between a twin pair takes the twins' seam apart there.
+BETWEEN = 1.0
 # Seamed edges this close in height meet at their mean, no step drawn. A
 # step any lower would need a rail (it drops more than STEP_MAX) standing
 # within reach of the deck in front of it, a rail in the road.
@@ -113,6 +122,15 @@ WELD = 0.5
 # edge leaves the mean by more than a kerb at once.
 FADE_GRADE = 0.1
 FADE_MIN = 5.0
+# Where the two decks of a seam hover about WELD apart, a step is drawn only
+# where they part by more than WELD + WELD_HYST somewhere along it, and a
+# weld between two steps only where they come within WELD - WELD_HYST.
+WELD_HYST = 0.15
+# Seam samples of the two decks of a pair closer than this along are one
+# point of their shared seam.
+KNOT_SNAP = 0.5
+# Seam points of a pair further apart than this along are separate seams.
+KNOT_GAP = 2 * STEP + 1.0
 # An edge with no deck beside it within STEP_MAX, but one less than MEET
 # below, comes down onto that deck: a drop that small is too high to leave
 # open and too low for a rail, which would stand in the road below it.
@@ -371,6 +389,12 @@ def _xyz(xz, y):
 class Piece:
     """A run of one chain's samples drawn as one deck."""
 
+    # Every per-sample array, and every per-side per-sample array: anything
+    # that inserts or drops samples goes through these lists, so no array
+    # is left a different length from the rest.
+    SAMPLE = ("c", "h", "rec", "d", "w", "n", "toe")
+    SIDE = ("edge", "ey", "seam", "weld", "mid", "twin_h", "fade", "partner")
+
     def __init__(self, chain_id, c, h, rec, d, w, struct, free):
         self.chain = chain_id
         self.c, self.h, self.rec, self.d, self.w = c, h, rec, d, w
@@ -385,6 +409,7 @@ class Piece:
         self.twin_h = [h.copy(), h.copy()]  # the mean of the two heights there
         self.fade = [np.zeros(len(c)), np.zeros(len(c))]  # an unwelded twin edge's lean towards the mean, 0..1
         self.toe = np.zeros(len(c), bool)  # brought down towards a free end by _toes, not measured
+        self.partner = [np.full(len(c), -1), np.full(len(c), -1)]  # the piece a seam sample meets
 
     @property
     def y(self):
@@ -487,9 +512,9 @@ def build(meta, decks):
     print("decks_mesh: %d records in %d chains, %d pieces, %d samples" % (
         len(recs), len(chains), len(pieces), sum(len(pc.c) for pc in pieces)), flush=True)
 
-    _twin_seams(recs, pieces)
+    info = _twin_seams(recs, pieces)
+    _pair_seams(pieces, info)
     for pc in pieces:
-        _weld_ends(pc)
         _edges(pc)
     tree = _Tops(pieces)
     trimmed = 0
@@ -614,6 +639,7 @@ def _cut(pc, k, fracs, side, ys):
     for name in ("c", "h", "w"):
         setattr(pc, name, ins(getattr(pc, name)))
     pc.rec = ins(pc.rec, v=pc.rec[k])
+    pc.toe = ins(pc.toe, v=bool(pc.toe[k] or pc.toe[k + 1]))
     pc.d = np.concatenate([pc.d[:k + 1], np.array([_unit(lerp(pc.d, x)) for x in fracs]), pc.d[k + 1:]])
     pc.n = np.concatenate([pc.n[:k + 1], np.array([_unit(lerp(pc.n, x)) for x in fracs]), pc.n[k + 1:]])
     pc.struct = np.concatenate([pc.struct[:k + 1], [pc.struct[k]] * len(fracs), pc.struct[k + 1:]])
@@ -623,6 +649,8 @@ def _cut(pc, k, fracs, side, ys):
         for name in ("seam", "weld"):
             a = getattr(pc, name)
             a[s_] = ins(a[s_], v=bool(a[s_][k] and a[s_][k + 1]))
+        p_ = pc.partner[s_]
+        pc.partner[s_] = ins(p_, v=p_[k] if p_[k] == p_[k + 1] else -1)
     pc.ey[side][k + 1:k + 1 + len(fracs)] = ys
 
 
@@ -666,11 +694,14 @@ def _twin_seams(recs, pieces):
     record saying the two are one road, of their measured heights, so not
     where either is a toe coming down to the ground. Any other pair meets
     at the mean within WELD of each other in height; further apart the seam
-    is a step."""
+    is a step. Only finds each seam sample's partner, midline point and the
+    partner's height there: what the seam is, welded or a step, is decided
+    once per pair by _pair_seams. Returns per piece and side the partner's
+    heights and whether it is a twin there."""
     lines = [shapely.linestrings(pc.c) for pc in pieces]
     tree = shapely.STRtree(lines)
     reach = max(float(pc.w.max()) for pc in pieces) + 2 * MEDIAN
-    welded = stepped = crossfall = toes = faded = 0
+    info = []
     for pi, pc in enumerate(pieces):
         best = [np.full(len(pc.c), np.inf), np.full(len(pc.c), np.inf)]
         mids = [np.zeros((len(pc.c), 2)), np.zeros((len(pc.c), 2))]
@@ -678,10 +709,10 @@ def _twin_seams(recs, pieces):
         tw = [np.zeros(len(pc.c), bool), np.zeros(len(pc.c), bool)]
         rt = [np.zeros(len(pc.c), bool), np.zeros(len(pc.c), bool)]
         bp = [np.full(len(pc.c), -1), np.full(len(pc.c), -1)]
+        qs = [np.zeros((len(pc.c), 2)), np.zeros((len(pc.c), 2))]
         own = np.array([recs[r]["way"] for r in pc.rec])
         twin_ways = [set(recs[r]["twins"]) for r in pc.rec]
         pts = shapely.points(pc.c)
-        s_along = np.concatenate([[0.0], np.cumsum(np.hypot(*(pc.c[1:] - pc.c[:-1]).T))])
         for pj in tree.query(shapely.buffer(lines[pi], reach)):
             if pj == pi:
                 continue
@@ -721,33 +752,52 @@ def _twin_seams(recs, pieces):
                 tw[side][take] = twin[take] & ~ttoe[take]
                 rt[side][take] = twin[take]
                 bp[side][take] = pj
+                qs[side][take] = q[take]
+        sides = []
         for side in (0, 1):
+            _across_third(pieces, lines, tree, pi, pc, best[side], qs[side], mh[side], bp[side])
             _lone(best[side], mids[side], mh[side], tw[side], rt[side], bp[side])
             m = np.isfinite(best[side])
             pc.seam[side] = m
             pc.mid[side] = mids[side]
-            dh = np.abs(mh[side] - pc.h)
-            near = dh <= WELD
-            cross = m & tw[side] & ~near
-            # Crossfall leans off towards each stretch that is a step.
-            hard = m & ~near & ~tw[side]
-            fade = np.ones(len(pc.c))
-            if hard.any():
-                sh = s_along[hard]
-                i = np.clip(np.searchsorted(sh, s_along), 1, len(sh) - 1) if len(sh) > 1 else np.zeros(len(pc.c), int)
-                dist = np.minimum(np.abs(s_along - sh[i]), np.abs(s_along - sh[np.maximum(i - 1, 0)]))
-                fade = np.clip(dist / np.maximum(FADE_MIN, dh / FADE_GRADE), 0.0, 1.0)
-            pc.weld[side] = m & (near | (cross & (fade >= 1.0)))
-            pc.fade[side] = np.where(cross & (fade < 1.0), fade, 0.0)
-            pc.twin_h[side] = (pc.h + mh[side]) / 2
-            welded += int(pc.weld[side].sum())
-            stepped += int((m & ~pc.weld[side] & ~cross).sum())
-            faded += int((cross & (fade < 1.0)).sum())
-            crossfall += int((cross & (fade >= 1.0)).sum())
-            toes += int((m & rt[side] & ~pc.weld[side] & ~cross).sum())
-    print("decks_mesh: seams at %d samples, %d of them steps of more than %.1f m (%d between twins, at a toe); "
-          "%d twin samples further apart than that drawn as crossfall, %d leaning off it towards a step"
-          % (welded + stepped + faded, stepped, WELD, toes, crossfall, faded), flush=True)
+            pc.partner[side] = np.where(m, bp[side], -1)
+            pc.twin_h[side] = np.where(m, (pc.h + mh[side]) / 2, pc.h)
+            pc.weld[side] = np.zeros(len(pc.c), bool)
+            pc.fade[side] = np.zeros(len(pc.c))
+            sides.append({"mh": mh[side], "tw": tw[side], "rt": rt[side]})
+        info.append(sides)
+    return info
+
+
+def _across_third(pieces, lines, tree, pi, pc, best, q, mh, bp):
+    """No seam across a third deck: where the line from a sample to its
+    partner's centre line passes within BETWEEN of another deck's centre
+    line at a height within RAIL_JOIN of the two, the two decks are not
+    side by side there, the third is between them. Not where that is the
+    third's own end, within half its width of it: a deck that starts or
+    ends in the gap (a ramp leaving at a split mouth) has its end on the
+    seam, it does not run between the two, and with the seam dropped there
+    the rail drawn along either deck stands with deck on both sides of it."""
+    i = np.flatnonzero(np.isfinite(best))
+    if not len(i):
+        return
+    segs = shapely.linestrings(np.stack([pc.c[i], q[i]], axis=1))
+    si, pk = tree.query(segs, predicate="dwithin", distance=BETWEEN)
+    keep = (pk != pi) & (pk != bp[i[si]])
+    si, pk = si[keep], pk[keep]
+    if not len(si):
+        return
+    mid = shapely.points((pc.c[i[si]] + q[i[si]]) / 2)
+    hit = np.zeros(len(si), bool)
+    for n_, (a, k) in enumerate(zip(i[si], pk)):
+        o = pieces[k]
+        s = float(shapely.line_locate_point(lines[k], mid[n_]))
+        cum = np.concatenate([[0.0], np.cumsum(np.hypot(*(o.c[1:] - o.c[:-1]).T))])
+        inside = o.w[0] / 2 < s < cum[-1] - o.w[-1] / 2
+        hit[n_] = inside and abs(float(np.interp(s, cum, o.h)) - (pc.h[a] + mh[a]) / 2) < RAIL_JOIN
+    drop = np.unique(i[si[hit]])
+    best[drop] = np.inf
+    bp[drop] = -1
 
 
 def _lone(best, mids, mh, tw, rt, bp):
@@ -777,67 +827,283 @@ def _lone(best, mids, mh, tw, rt, bp):
     bp[j] = -1
 
 
-def _weld_ends(pc):
-    """Where a seam goes from welded to stepped, the weld ends where the two
-    decks part by WELD, found along the segment, not at either sample: a
-    sample is added there twice, the first welded and the second stepped,
-    so the step rises from nothing to its full height in no distance. Both
-    decks of the seam find the same point, so neither edge is left welded
-    to a mean the other no longer meets (an edge that, held up off the
-    other deck, the next pass brings down onto it). The step there is half
-    of WELD on each side, a kerb; spread over a segment it would pass
-    through heights a rail cannot serve, too high to leave open and too low
-    for a rail to stand on."""
-    for side in (0, 1):
-        seam, wl = pc.seam[side], pc.weld[side]
-        apart = 2.0 * np.abs(pc.twin_h[side] - pc.h)
-        spec, weld = [], [[], []]
-        for j in range(len(pc.c)):
-            spec.append((j, 0.0))
-            weld[0].append(pc.weld[0][j])
-            weld[1].append(pc.weld[1][j])
-            k = j + 1
-            if k == len(pc.c) or not (seam[j] and seam[k]) or wl[j] == wl[k]:
+def _pair_seams(pieces, info):
+    """Each pair of decks seamed together is decided once, for both. Their
+    seam is one polyline of shared points: every seam sample of either deck
+    is a point of the other's edge too, inserted where it falls part way
+    along a segment of the other (an edge ending part way along another's
+    segment, or two edges each straight between their own samples, leave a
+    crack or a T in the mesh that sparkles). Each point lies on the midline
+    at the mean of the two heights, two points of the two decks closer than
+    KNOT_SNAP along are one, and each point is welded or a step for both
+    decks alike. Where the seam goes from welded to a step, a point is
+    added twice at the same place on both decks, where the two part by
+    WELD, the first welded and the second stepped, so the step rises from
+    nothing to its height in no distance (half of WELD on each side, a
+    kerb). Twins weld wherever neither is a toe (crossfall), leaning off
+    towards a stretch that is a step over FADE_GRADE, at least FADE_MIN;
+    any other pair welds within WELD of each other in height, with
+    WELD_HYST either way so a seam whose heights hover about WELD does not
+    flick between a weld and a step every few metres."""
+    lines = [shapely.linestrings(pc.c) for pc in pieces]
+    cums = [_cum(pc.c) for pc in pieces]
+    specs = [{} for _ in pieces]
+    stats = {"welded": 0, "stepped": 0, "toes": 0, "crossfall": 0, "faded": 0, "inserted": 0, "one_sided": 0}
+    done = set()
+    for a, pa in enumerate(pieces):
+        for sa in (0, 1):
+            for b in np.unique(pa.partner[sa][pa.partner[sa] >= 0]).tolist():
+                pb = pieces[b]
+                count = [int((pb.partner[x] == a).sum()) for x in (0, 1)]
+                sb = int(np.argmax(count)) if max(count) else None
+                key = frozenset([(a, sa), (b, sb)]) if sb is not None else (a, sa, b)
+                if key in done:
+                    continue
+                done.add(key)
+                _pair(pieces, info, lines, cums, specs, (a, sa), (b, sb), stats)
+    for pi, pc in enumerate(pieces):
+        if specs[pi]:
+            _resample(pc, specs[pi])
+    print("decks_mesh: seams at %d points (%d added so both decks share them; %d pairs one-sided), %d of them steps "
+          "of more than %.1f m (%d between twins, at a toe); %d twin points further apart than that drawn as "
+          "crossfall, %d leaning off it towards a step" % (
+              stats["welded"] + stats["stepped"] + stats["faded"], stats["inserted"], stats["one_sided"],
+              stats["stepped"], WELD, stats["toes"], stats["crossfall"], stats["faded"]), flush=True)
+
+
+def _cum(c):
+    return np.concatenate([[0.0], np.cumsum(np.hypot(*(c[1:] - c[:-1]).T))])
+
+
+def _pair(pieces, info, lines, cums, specs, A, B, stats):
+    """One pair's seam (see _pair_seams), written into specs: per piece,
+    {(sample, fraction along the segment after it, order): {side: fields}}."""
+    (a, sa), (b, sb) = A, B
+    pa, pb = pieces[a], pieces[b]
+    # The seam's points in one order for both decks: each deck's own
+    # samples in its own order, the two lists merged by where each falls
+    # along A. A point is placed on the other deck no further back than the
+    # one before it, nor further on than the one after, so the two edges
+    # pass through the same points in the same order (ordered by where each
+    # projects, a deck meeting the other at an angle puts two points in
+    # opposite orders on the two, and its edge zigzags back across the
+    # other's).
+    ia = np.flatnonzero(pa.partner[sa] == b)
+    va = shapely.line_locate_point(lines[b], shapely.points(pa.c[ia]))
+    ka = [{"u": cums[a][i], "v": float(va[n_]), "ia": int(i), "ib": None, "P": pa.mid[sa][i],
+           "ha": pa.h[i], "hb": info[a][sa]["mh"][i], "tw": bool(info[a][sa]["tw"][i]),
+           "rt": bool(info[a][sa]["rt"][i])} for n_, i in enumerate(ia)]
+    kb = []
+    if sb is None:
+        stats["one_sided"] += 1
+    else:
+        ib = np.flatnonzero(pb.partner[sb] == a)
+        ub = shapely.line_locate_point(lines[a], shapely.points(pb.c[ib]))
+        kb = [{"u": float(ub[n_]), "v": cums[b][j], "ia": None, "ib": int(j), "P": pb.mid[sb][j],
+               "ha": info[b][sb]["mh"][j], "hb": pb.h[j], "tw": bool(info[b][sb]["tw"][j]),
+               "rt": bool(info[b][sb]["rt"][j])} for n_, j in enumerate(ib)]
+    vdir = 1.0
+    if len(ka) > 1:
+        vdir = 1.0 if ka[-1]["v"] >= ka[0]["v"] else -1.0
+    elif len(kb) > 1:
+        vdir = 1.0 if kb[-1]["u"] >= kb[0]["u"] else -1.0
+    if vdir < 0:
+        kb.reverse()
+    knots, i_, j_ = [], 0, 0
+    while i_ < len(ka) or j_ < len(kb):
+        if j_ == len(kb) or (i_ < len(ka) and ka[i_]["u"] <= kb[j_]["u"]):
+            knots.append(ka[i_])
+            i_ += 1
+        else:
+            knots.append(kb[j_])
+            j_ += 1
+    for own, free in (("ia", "u"), ("ib", "v")):
+        sgn = 1.0 if free == "u" else vdir
+        fixed = [n_ for n_, k in enumerate(knots) if k[own] is not None]
+        for n_, k in enumerate(knots):
+            if k[own] is not None:
                 continue
-            # A twin edge leaning off the weld parts from it gradually.
-            if pc.fade[side][j] > 0.0 or pc.fade[side][k] > 0.0:
-                continue
-            if np.hypot(*(pc.c[k] - pc.c[j])) < 1e-6:
-                continue
-            w, s = (j, k) if wl[j] else (k, j)
-            span = apart[s] - apart[w]
-            f = float(np.clip((WELD - apart[w]) / span, 0.0, 1.0)) if span > 1e-9 else 0.0
-            if w == k:
-                f = 1.0 - f
-            other = pc.weld[1 - side][j if f < 0.5 else k]
-            for held in ((True, False) if w == j else (False, True)):
-                spec.append((j, f))
-                weld[side].append(held)
-                weld[1 - side].append(other)
-        if len(spec) == len(pc.c):
+            lo = [knots[m][free] for m in fixed if m < n_]
+            hi = [knots[m][free] for m in fixed if m > n_]
+            x = k[free] * sgn
+            if lo:
+                x = max(x, lo[-1] * sgn)
+            if hi:
+                x = min(x, hi[0] * sgn)
+            k[free] = x * sgn
+    merged = []
+    for k in knots:
+        m = merged[-1] if merged else None
+        if m is not None and abs(k["u"] - m["u"]) < KNOT_SNAP and (m["ia"] is None) != (k["ia"] is None)                 and (m["ia"] is None or m["ib"] is None) and (k["ia"] is None or k["ib"] is None):
+            ka_, kb_ = (m, k) if m["ia"] is not None else (k, m)
+            merged[-1] = {"u": ka_["u"], "v": kb_["v"], "ia": ka_["ia"], "ib": kb_["ib"],
+                          "P": (ka_["P"] + kb_["P"]) / 2, "ha": (ka_["ha"] + kb_["ha"]) / 2,
+                          "hb": (ka_["hb"] + kb_["hb"]) / 2, "tw": ka_["tw"] and kb_["tw"], "rt": ka_["rt"] or kb_["rt"]}
+        else:
+            merged.append(k)
+    knots = merged
+    if not knots:
+        return
+    # Where each knot sits on each piece: an existing sample, or a segment
+    # and the fraction along it; None where that piece has no seam with the
+    # other on that segment to put it in.
+    for k in knots:
+        k["pa"] = (k["ia"], 0.0) if k["ia"] is not None else _slot(pa, sa, b, cums[a], k["u"])
+        k["pb"] = None if sb is None else ((k["ib"], 0.0) if k["ib"] is not None else _slot(pb, sb, a, cums[b], k["v"]))
+    # Two points of the seam closer than KNOT_SNAP on the ground, or the
+    # second behind the first along either deck in the order that deck
+    # takes them (two samples of a deck at one corner, each with its own
+    # midline point, paired the other way round with the other deck's), are
+    # put at one place: else the seam steps back between them, and its two
+    # decks fold over each other there, a hairline that sparkles.
+    for key, pc in (("pa", pa), ("pb", pb)):
+        for _ in range(2):
+            on = sorted((k for k in knots if k[key] is not None), key=lambda k: k[key][0] + k[key][1])
+            for p, q in zip(on[:-1], on[1:]):
+                step = q["P"] - p["P"]
+                if float(np.hypot(*step)) < KNOT_SNAP or float(step @ pc.d[p[key][0]]) < 0.0:
+                    mid = (p["P"] + q["P"]) / 2
+                    p["P"], q["P"] = mid, mid.copy()
+    u = np.array([k["u"] for k in knots])
+    dh = np.abs(np.array([k["ha"] - k["hb"] for k in knots]))
+    tw = np.array([k["tw"] for k in knots])
+    run = np.concatenate([[0], np.cumsum(np.diff(u) > KNOT_GAP)])
+    high = dh > WELD
+    for r0, r1 in _runs(high):
+        if dh[r0:r1 + 1].max() <= WELD + WELD_HYST:
+            high[r0:r1 + 1] = False
+    for r0, r1 in _runs(~high):
+        inside = r0 > 0 and r1 < len(high) - 1 and run[r0 - 1] == run[r0] and run[r1] == run[r1 + 1] \
+            and high[r0 - 1] and high[r1 + 1]
+        if inside and dh[r0:r1 + 1].min() >= WELD - WELD_HYST:
+            high[r0:r1 + 1] = True
+    near = ~high
+    cross = tw & ~near
+    hard = ~near & ~tw
+    fade = np.ones(len(u))
+    if hard.any():
+        dist = np.min(np.abs(u[:, None] - u[hard][None, :]), axis=1)
+        fade = np.clip(dist / np.maximum(FADE_MIN, dh / FADE_GRADE), 0.0, 1.0)
+    weld = near | (cross & (fade >= 1.0))
+    lean = np.where(cross & (fade < 1.0), fade, 0.0)
+    stats["welded"] += int(weld.sum())
+    stats["stepped"] += int((~weld & ~cross).sum())
+    stats["toes"] += int((~weld & ~cross & np.array([k["rt"] for k in knots])).sum())
+    stats["faded"] += int((cross & (fade < 1.0)).sum())
+    stats["crossfall"] += int((cross & (fade >= 1.0)).sum())
+    pts = []  # (knot fields, welded, lean, order)
+    for n_, k in enumerate(knots):
+        pts.append((k, bool(weld[n_]), float(lean[n_]), 0))
+        m = n_ + 1
+        if m == len(knots) or run[m] != run[n_] or weld[n_] == weld[m] or lean[n_] > 0.0 or lean[m] > 0.0:
             continue
-        j = np.array([q[0] for q in spec])
-        f = np.array([q[1] for q in spec])
-        k = np.minimum(j + 1, len(pc.c) - 1)
+        # The weld ends where the two part by WELD, both decks at one place.
+        w_, s_ = (n_, m) if weld[n_] else (m, n_)
+        span = dh[s_] - dh[w_]
+        f = float(np.clip((WELD - dh[w_]) / span, 0.05, 0.95)) if span > 1e-9 else 0.5
+        if w_ == m:
+            f = 1.0 - f
+        q = {key: k[key] + (knots[m][key] - k[key]) * f for key in ("u", "v", "P", "ha", "hb")}
+        q["pa"] = _between(k["pa"], knots[m]["pa"], pa, sa, b, cums[a], q["u"])
+        q["pb"] = _between(k["pb"], knots[m]["pb"], pb, sb, a, cums[b], q["v"]) if sb is not None else None
+        pts.append((q, bool(weld[n_]), 0.0, 1))
+        pts.append((q, bool(weld[m]), 0.0, 2))
+    # The two copies of a doubled point go in the order each piece runs.
+    for k, wl, ln, order in pts:
+        fields = {"seam": True, "weld": wl, "mid": k["P"], "twin_h": (k["ha"] + k["hb"]) / 2, "fade": ln}
+        for pi, slot, side, other, flip in ((a, k["pa"], sa, b, False), (b, k["pb"], sb, a, vdir < 0)):
+            if slot is None:
+                continue
+            j, f = slot
+            o = 3 - order if (flip and order) else order
+            specs[pi].setdefault((int(j), float(f), o), {})[side] = dict(fields, partner=other)
+            if f > 0.0 and order < 2:
+                stats["inserted"] += 1
 
-        def at(v):
-            ff = f.reshape((-1,) + (1,) * (v.ndim - 1))
-            return v[j] + (v[k] - v[j]) * ff
 
-        u = j + f
-        seg = np.minimum(np.floor(np.minimum(u[:-1], u[1:])).astype(int), len(pc.struct) - 1)
-        d = at(pc.d)
-        pc.d = d / np.maximum(np.hypot(*d.T), 1e-9)[:, None]
-        pc.n = np.stack([-pc.d[:, 1], pc.d[:, 0]], axis=1)
-        pc.c, pc.h, pc.w = at(pc.c), at(pc.h), at(pc.w)
-        pc.rec = pc.rec[np.where(f < 1.0, j, k)]
-        pc.struct = pc.struct[seg]
-        for sd in (0, 1):
-            pc.seam[sd] = np.where(f > 0.0, pc.seam[sd][j] & pc.seam[sd][k], pc.seam[sd][j])
-            pc.mid[sd] = at(pc.mid[sd])
-            pc.twin_h[sd] = at(pc.twin_h[sd])
-            pc.fade[sd] = at(pc.fade[sd])
-            pc.weld[sd] = np.array(weld[sd])
+def _slot(pc, side, other, cum, x):
+    """Where distance x along pc's centre line falls: (segment, fraction),
+    if a sample at either end of that segment is seamed with other on this
+    side, else None."""
+    if not (1e-6 < x < cum[-1] - 1e-6):
+        return None
+    k = int(np.clip(np.searchsorted(cum, x, side="right") - 1, 0, len(cum) - 2))
+    if pc.partner[side][k] != other and pc.partner[side][k + 1] != other:
+        return None
+    f = (x - cum[k]) / max(cum[k + 1] - cum[k], 1e-9)
+    return k, float(np.clip(f, 1e-3, 1.0 - 1e-3))
+
+
+def _between(p, q, pc, side, other, cum, x):
+    """The slot of a point between two knots with slots p and q, or None if
+    either has none."""
+    if p is None or q is None:
+        return None
+    return _slot(pc, side, other, cum, x)
+
+
+def _resample(pc, spec):
+    """The piece resampled: every existing sample, plus each (sample,
+    fraction, order) in spec inserted along the segment after it,
+    everything interpolated, then each entry's per-side fields set. The
+    entries at existing samples are set first, so a point added on one side
+    takes its other side from the seam as decided there, not as it was
+    before any pair was decided."""
+    n = len(pc.c)
+    for (j0, f0, o0), sides in spec.items():
+        if f0 == 0.0 and o0 == 0:
+            for sd, fields in sides.items():
+                for name, val in fields.items():
+                    getattr(pc, name)[sd][j0] = val
+    keys = sorted(set(spec) | {(j, 0.0, 0) for j in range(n)})
+    j = np.array([k_[0] for k_ in keys])
+    f = np.array([k_[1] for k_ in keys])
+    k = np.minimum(j + 1, n - 1)
+
+    def at(v):
+        ff = f.reshape((-1,) + (1,) * (v.ndim - 1))
+        return v[j] + (v[k] - v[j]) * ff
+
+    u = j + f
+    seg = np.minimum(np.floor(np.minimum(u[:-1], u[1:])).astype(int), len(pc.struct) - 1)
+    d = at(pc.d)
+    pc.d = d / np.maximum(np.hypot(*d.T), 1e-9)[:, None]
+    pc.n = np.stack([-pc.d[:, 1], pc.d[:, 0]], axis=1)
+    pc.c, pc.h, pc.w = at(pc.c), at(pc.h), at(pc.w)
+    pc.rec = pc.rec[j]
+    pc.toe = np.where(f > 0.0, pc.toe[j] | pc.toe[k], pc.toe[j])
+    pc.struct = pc.struct[seg]
+    for sd in (0, 1):
+        # Each side's own decided points: the samples, and what spec puts on
+        # this side. A point spec puts only on the other side lies between
+        # two of them and is read off the line between those two (the
+        # partner's edge runs straight between the same two points), welded
+        # as the one before it is (a weld ends at its own doubled point).
+        own = np.array([f[i] == 0.0 or sd in spec.get(key, {}) for i, key in enumerate(keys)])
+        oi = np.flatnonzero(own)
+        prev = oi[np.clip(np.searchsorted(oi, np.arange(len(keys)), side="right") - 1, 0, len(oi) - 1)]
+        nxt = oi[np.clip(np.searchsorted(oi, np.arange(len(keys)), side="left"), 0, len(oi) - 1)]
+        span = u[nxt] - u[prev]
+        t = np.where(span > 1e-12, (u - u[prev]) / np.where(span > 1e-12, span, 1.0), 0.0)
+        src = {name: getattr(pc, name)[sd] for name in ("seam", "weld", "mid", "twin_h", "fade", "partner")}
+        vals = {name: v[j] for name, v in src.items()}
+        for idx, key in enumerate(keys):
+            for name, val in spec.get(key, {}).get(sd, {}).items():
+                vals[name][idx] = val
+        for name in ("mid", "twin_h", "fade"):
+            v = vals[name]
+            tt = t.reshape((-1,) + (1,) * (v.ndim - 1))
+            v[~own] = (v[prev] + (v[nxt] - v[prev]) * tt)[~own]
+        vals["seam"][~own] = (vals["seam"][prev] & vals["seam"][nxt])[~own]
+        vals["weld"][~own] = vals["weld"][prev][~own] & vals["seam"][~own]
+        same = vals["partner"][prev] == vals["partner"][nxt]
+        vals["partner"][~own] = np.where(same, vals["partner"][prev], -1)[~own]
+        for name, v in vals.items():
+            getattr(pc, name)[sd] = v
+        for name in ("edge", "ey"):
+            arr = getattr(pc, name)
+            if arr[sd] is not None:
+                arr[sd] = at(arr[sd])
 
 
 def _edges(pc):
@@ -1003,17 +1269,13 @@ def _trim(pc, tree):
     if keep.all() or keep.sum() < 2:
         return 0
     seg_keep = keep[:-1] & keep[1:]
-    for name in ("c", "h", "rec", "d", "w", "n"):
+    for name in Piece.SAMPLE:
         setattr(pc, name, getattr(pc, name)[keep])
     pc.struct = pc.struct[seg_keep]
-    for side in (0, 1):
-        pc.edge[side] = pc.edge[side][keep]
-        pc.ey[side] = pc.ey[side][keep]
-        pc.seam[side] = pc.seam[side][keep]
-        pc.weld[side] = pc.weld[side][keep]
-        pc.mid[side] = pc.mid[side][keep]
-        pc.twin_h[side] = pc.twin_h[side][keep]
-        pc.fade[side] = pc.fade[side][keep]
+    for name in Piece.SIDE:
+        arr = getattr(pc, name)
+        for side in (0, 1):
+            arr[side] = arr[side][keep]
     return trimmed
 
 
@@ -1164,7 +1426,7 @@ def _rail_runs(pc, side, tree):
             cur = None
     if cur:
         runs.append(cur)
-    return [(np.array(p), np.array(y), np.array(i)) for p, y, i in runs]
+    return [(np.array(p), np.array(y), np.array(i)) for p, y, i in runs if max(y) >= RAIL_DROP]
 
 
 def _inner_holes(pc, side, tree, e, ey, seg_out):
