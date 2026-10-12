@@ -388,7 +388,7 @@ at their cause, rebuilt, re-measured, re-shot and sabotage-checked.
     - 230 of 236 seam vertices are shared with the other deck.
     - The 6 unshared vertices are at the toe steps, as in the equal-width
       control.
-- Sabotage. Each fix was removed in turn and the counts read.
+- Sabotage. Each fix was removed in turn and the counts read. All rows but the last were measured against the build before the end exclusion.
 
   | Fix removed | Result |
   | --- | --- |
