@@ -21,7 +21,7 @@ const GROUND_COLORS := [
 	Color8(92, 86, 80), Color8(78, 80, 84), Color8(64, 66, 70), Color8(52, 78, 96),
 ]
 const BUILDING_COLORS := [Color(0.80, 0.78, 0.74), Color(0.55, 0.54, 0.52)]
-## Bridge decks (bridges.py): road surface, side, pier, rail.
+## Bridge decks (decks_mesh.py): road surface, side, pier, rail.
 const DECK_COLORS := [Color8(70, 72, 76), Color8(156, 154, 148), Color8(138, 136, 130), Color8(176, 174, 166)]
 const DECK_SHADER := "res://world/city_deck.gdshader"
 const BLOCKS_SHADER := "res://world/city_blocks.gdshader"

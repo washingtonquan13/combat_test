@@ -35,7 +35,8 @@ Writes into <out dir>:
   tiles/b_X_Z.bin  buildings of one tile, in real metres
   tiles/g_X_Z.bin  the ground of one tile, flat at y 0, every class
   tiles/w_X_Z.bin  the water of one tile, extruded, for collision only
-  tiles/d_X_Z.bin  bridge decks and their ramps, from bridges.py
+  tiles/d_X_Z.bin  bridge decks and their ramps, from decks_mesh.py
+  decks.json       the decks' heights and relations, from decks_seed.py
   city.json        extent, tile size, origin, tiles, and the boundary's
                    rings in metres
 
@@ -420,8 +421,11 @@ def main():
     # The water shader's distance-to-shore field. A separate script so it
     # can be re-baked without re-running this one.
     subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "shore_field.py"), args.out], check=True)
-    # The bridges, which add their own tiles to city.json.
-    subprocess.run([sys.executable, "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "bridges.py"), args.raw, args.out], check=True)
+    # The bridges: decks.json seeded (hand edits kept), then drawn, which
+    # adds their own tiles to city.json.
+    here = os.path.dirname(os.path.abspath(__file__))
+    subprocess.run([sys.executable, "-I", os.path.join(here, "decks_seed.py"), args.raw, args.out], check=True)
+    subprocess.run([sys.executable, "-I", os.path.join(here, "decks_mesh.py"), args.raw, args.out], check=True)
 
 
 def _height(tags):

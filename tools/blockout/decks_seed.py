@@ -33,7 +33,13 @@ Heights ("h", metres above the local ground, the frame bridges.py draws in;
   - interp: a node with no layer chosen between two that have one, less than
     INTERP_MAX apart along the way (a deck hidden under one crossing it), on
     the straight line between them;
-  - solver: anything else: the solve's height.
+  - solver: anything else: the solve's height, moved by the offset (h - hs)
+    the measured nodes put on the solve, spread over the solver nodes as
+    the smoothest offset that meets every measured node (_anchor): along a
+    run, the straight line between the offsets either side, carried on past
+    the last; through joins into the records sharing a node. The solve's
+    profile keeps its shape but meets the deck LiDAR measured, rather than
+    jumping from one to the other at the seam. Never below the ground.
 LiDAR heights are smoothed over SMOOTH_R along the way, and only among
 themselves. The grade is not enforced: where a node needs more than
 GRADE_MAX to reach the next, the pair is listed (report "steep", "seam"
@@ -49,14 +55,20 @@ tapers out over TAPER towards them, so junctions stay joined.
 Relations:
   - twin_of: the ways bridges._couple ties side by side that bridges._twins
     calls one divided road, kept only where LiDAR measures the two within
-    STEP_MAX of each other over TWIN_AGREE of the length both are measured
-    side by side (with --from solver, kept as seeded). A list: OSM cuts a
+    TWIN_STEP of each other over TWIN_AGREE of the length both are measured
+    side by side (with --from solver, kept as seeded). TWIN_STEP is wider
+    than a step: two carriageways of one road differ by their crossfall
+    and superelevation (0.3 to 1.2 m measured), and decks_mesh.py draws a
+    kept pair as one surface sloping across between their heights. A list: OSM cuts a
     carriageway into several ways.
   - merges / splits: where a way's end lands on another deck way that
     carries on through the node: "into"/"from" the way, "at_s" along this
     one, "into_s"/"from_s" along that one, "over" how far back from the
     join the two run within their half widths (the gore), at most FLAT_MAX.
-    A way ending at the end of a way that carries it on is "continues".
+    A way ending at the end of a way that carries it on is "continues",
+    where the two put the shared node within STEP_MAX of each other; one
+    further apart is a join (report "joins"), not a continuation: one of
+    them measured the wrong deck, and drawn as one deck it is a cliff.
   - source: "lidar" when at least half the record's nodes are lidar or
     interp, else "solver"; "hand" for a record edited by hand. A re-seed
     keeps every "hand" record as it is and replaces only the rest.
@@ -99,6 +111,7 @@ BIN = 1.0  # deck runs beside the line, in bins this wide
 BIN_N = 3
 TAPER = 20.0
 TWIN_AGREE = 0.8
+TWIN_STEP = 1.5
 UNDER = 2.0  # a deck the solve puts this much above a node is over it
 EDGE = 0.5
 CELL = 8.0
@@ -323,8 +336,8 @@ def measure(lidar, recs, deck_tree, deck_lines, wi_of_line, shared):
     """Moves each record's nodes onto the measured deck and measures them;
     fills rec["h"], rec["src"], rec["cands"] (relative), rec["shift"].
 
-    LiDAR sees the top deck. Where the solve puts another deck over a node,
-    the returns on that deck's footprint are dropped from the node's band,
+    LiDAR sees the top deck. Where the solve puts another deck over a node
+    (where the node lies once moved onto its deck), the returns on that deck's footprint are dropped from the node's band,
     and so is any layer left at the height that deck measures there (its
     deck reaching past its footprint): the deck over a node is never the
     node's own."""
@@ -340,6 +353,11 @@ def measure(lidar, recs, deck_tree, deck_lines, wi_of_line, shared):
         masks = [tuple((line, half) for _, line, half, _ in o) for o in over]
         off = _shift(lidar, p, t, r["width"], pinned, own, deck_tree, deck_lines, wi_of_line, r["wi"], masks)
         p = p + off[:, None] * np.stack([-t[:, 1], t[:, 0]], axis=1)
+        if off.any():
+            # Measured where it now lies: a node moved towards another deck
+            # can come under it.
+            over = _over_it(r, p, deck_tree, deck_lines, deck_hs, recs)
+            masks = [tuple((line, half) for _, line, half, _ in o) for o in over]
         r["p"], r["shift"], r["over"] = p, off, over
         t = tangents(p)
         cands = []
@@ -379,6 +397,78 @@ def measure(lidar, recs, deck_tree, deck_lines, wi_of_line, shared):
                 w = np.maximum(0.0, 1.0 - np.abs(s[j] - s[k]) / SMOOTH_R)
                 sm[k] = float((w * h[j]).sum() / w.sum())
         r["h"], r["src"] = sm, src
+    _anchor(recs)
+
+
+def _anchor(recs):
+    """The solver nodes' heights moved onto the measured ones. Over the deck
+    nodes as one graph (records joined at the nodes they share, each pair of
+    neighbours along a record an edge weighted 1 / its length), the offset
+    h - hs is fixed at every measured node, 0 at every node the solve
+    leaves on the ground (off a bridge), and harmonic at every other solver
+    node: on the straight line along s between the measured nodes either
+    side of a run, the one offset carried on where a run has measured nodes
+    on one side only, through the joins into the records it shares nodes
+    with. A solver node with no measured node anywhere on its connected
+    decks keeps the solve's height. Heights never go below the ground."""
+    key, fixed, c0 = {}, [], []
+    vid = []
+    for r in recs:
+        vs = []
+        for k, i in enumerate(r["ids"]):
+            if i not in key:
+                key[i] = len(key)
+                fixed.append(False)
+                c0.append(0.0)
+            v = key[i]
+            if r["src"][k] != "solver" and not fixed[v]:
+                fixed[v], c0[v] = True, float(r["h"][k] - r["hs"][k])
+            elif r["hs"][k] <= MIN_HEIGHT and not r["bridge"]:
+                fixed[v] = True  # the solve's ground: offset 0, unless measured
+            vs.append(v)
+        vid.append(vs)
+    n = len(key)
+    fixed, c0 = np.array(fixed), np.array(c0)
+    nbr = [dict() for _ in range(n)]
+    for r, vs in zip(recs, vid):
+        s = cumlen(r["p"])
+        for k in range(len(vs) - 1):
+            a, b = vs[k], vs[k + 1]
+            if a != b:
+                w = 1.0 / max(s[k + 1] - s[k], 1e-3)
+                nbr[a][b] = nbr[a].get(b, 0.0) + w
+                nbr[b][a] = nbr[b].get(a, 0.0) + w
+    comp = np.full(n, -1)
+    for v0 in range(n):  # components; one with no measured node keeps hs
+        if comp[v0] >= 0:
+            continue
+        comp[v0], stack, members = v0, [v0], [v0]
+        while stack:
+            v = stack.pop()
+            for u in nbr[v]:
+                if comp[u] < 0:
+                    comp[u] = v0
+                    stack.append(u)
+                    members.append(u)
+        if not fixed[members].any():
+            fixed[members] = True
+    free = np.flatnonzero(~fixed)
+    c = c0.copy()
+    if len(free):
+        at = {int(v): m for m, v in enumerate(free)}
+        A, rhs = np.zeros((len(free), len(free))), np.zeros(len(free))
+        for m, v in enumerate(free):
+            for u, w in nbr[v].items():
+                A[m, m] += w
+                if u in at:
+                    A[m, at[u]] -= w
+                else:
+                    rhs[m] += w * c0[u]
+        c[free] = np.linalg.solve(A, rhs)
+    for r, vs in zip(recs, vid):
+        for k, v in enumerate(vs):
+            if r["src"][k] == "solver":
+                r["h"][k] = max(0.0, float(r["hs"][k] + c[v]))
 
 
 def steep(r):
@@ -441,7 +531,9 @@ def _over(r, k, step, line, half):
 
 
 def relations(recs):
-    """merges / splits / continues from the nodes records share."""
+    """merges / splits / continues from the nodes records share; continues
+    only where the two records agree on the shared node (see the module
+    docstring)."""
     at = {}
     for ri, r in enumerate(recs):
         for k, i in enumerate(r["ids"]):
@@ -449,6 +541,9 @@ def relations(recs):
     lines = [LineString(r["p"]) for r in recs]
     for r in recs:
         r["merges"], r["splits"], r["continues"] = [], [], []
+
+    def level(ra, ka, rb, kb):
+        return abs(float(recs[ra]["h"][ka]) - float(recs[rb]["h"][kb])) <= STEP_MAX
     for i, users in at.items():
         if len(users) < 2 or not any(k in (0, len(recs[ri]["ids"]) - 1) for ri, k in users):
             continue
@@ -461,7 +556,7 @@ def relations(recs):
                 arms.append((ri, k, _dir(recs[ri]["p"], k, 1), k == 0))
         if len(arms) == 2:
             (ra, ka, _, ea), (rb, kb, _, eb) = arms
-            if ra != rb and ea and eb:
+            if ra != rb and ea and eb and level(ra, ka, rb, kb):
                 recs[ra]["continues"].append({"way": recs[rb]["way"], "at_s": round(float(cumlen(recs[ra]["p"])[ka]), 1)})
                 recs[rb]["continues"].append({"way": recs[ra]["way"], "at_s": round(float(cumlen(recs[rb]["p"])[kb]), 1)})
             continue
@@ -471,7 +566,7 @@ def relations(recs):
         if not pairs:
             continue
         ta, tb = max(pairs, key=lambda q: -float(arms[q[0]][2] @ arms[q[1]][2]))
-        if arms[ta][0] != arms[tb][0]:
+        if arms[ta][0] != arms[tb][0] and level(arms[ta][0], arms[ta][1], arms[tb][0], arms[tb][1]):
             for x, y in ((ta, tb), (tb, ta)):
                 ri, k = arms[x][0], arms[x][1]
                 recs[ri]["continues"].append({"way": recs[arms[y][0]]["way"], "at_s": round(float(cumlen(recs[ri]["p"])[k]), 1)})
@@ -522,7 +617,7 @@ def twins(recs, coupled, ways, by_wi, measured):
                 f = (t - sb[m - 1]) / max(sb[m] - sb[m - 1], 1e-9)
                 hb = B["h"][m - 1] + (B["h"][m] - B["h"][m - 1]) * f
                 shared += wgt[k]
-                agree += wgt[k] * (abs(A["h"][k] - hb) < STEP_MAX)
+                agree += wgt[k] * (abs(A["h"][k] - hb) < TWIN_STEP)
         kept = shared > 0 and agree >= TWIN_AGREE * shared
         if kept:
             ra["twin_of"].append(rb["way"])

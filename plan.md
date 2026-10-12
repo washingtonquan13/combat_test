@@ -163,7 +163,8 @@ LiDAR fetched 2026-10-11 (`lidar_fetch.py fetch` / `plot`):
   clamp, not as a solver: a node that would need a steeper grade than that to
   reach its neighbours is listed, not moved.
 - `twin_of` seeded from `_couple`'s pairing but only kept where LiDAR shows the
-  two decks within 0.4 m (`STEP_MAX`) over 80 % of their shared length.
+  two decks within 1.5 m (`TWIN_STEP`; was 0.4 m `STEP_MAX`, changed in
+  step 4) over 80 % of their shared length.
 - `merges` / `splits` from shared end nodes between ways of the deck set.
 - Hand edits live in this file; `source: "hand"` entries are never overwritten
   by a re-seed (re-seed merges, does not replace).
@@ -261,6 +262,82 @@ Verify: `stubs.py` and `gaps.py` on the build — expected **0** stub faces and
 **0** gap stretches (they become regression assertions from here on); shots at
 the full sign-off list (`audit/signoff/spots.txt`) plus S7, H2, K1, E8;
 underside clearance report unchanged from step 3.
+
+Status 2026-10-12: built, measured and committed. Rule layer deleted from
+`bridges.py` (1669 to 597 lines). Bar met: 0 stubs, 0 rail discontinuities,
+flicker only at a split mouth.
+
+- Built: `decks_mesh.py` meshes `nola_spline` into 193 records, 66 chains,
+  67 pieces, 246 rail runs, 464 piers, 226354 triangles in 13 tiles.
+  `world/nola_spline` is built and installed in `city_overworld`
+  (scn 16.4 MB). `osm_city.py` runs `decks_seed.py` and then `decks_mesh.py`.
+  The full 13-minute `osm_city.py` run has not been re-run end to end.
+- Twins are now one surface:
+  - `decks_seed.py` keeps a pair where LiDAR puts the two within
+    `TWIN_STEP 1.5 m` over 80 % of their shared length (`STEP_MAX 0.4` was
+    stricter than the crossfall). Kept: 75 to **110** of 130.
+  - The mesher draws a kept pair as one profile. The seam is at the mean, so
+    the surface slopes across (crossfall), with no step and no median rail.
+    Where a twin stretch meets a real step, a fade leans the edges apart
+    over `FADE_GRADE 0.1` (at least `FADE_MIN 5 m`).
+  - A twin is drawn wherever its pair is: a piece's `high` test uses the
+    larger of its own and its pair's height. One carriageway dipping to the
+    ground beside the other is crossfall, not a ramp toe.
+  - Stepped seam samples (> 0.5 m): **861 to 424**. 419 of them are between
+    non-twins, which is correct. 5 are between twins at a toe, where one
+    carriageway leaves the deck and the other carries on:
+    - 1050679315/316 at (-2330, 1196): 4 samples, up to 1.75 m. The data
+      ends are staggered; 315 ends free at 1.9 m. Hand pass in step 6.
+    - 31678150/118807768 at (-2062, 814): 1 sample, 0.51 m, just over the
+      0.5 m weld.
+
+    A twin toe keeps its step and rail: drawing it as crossfall leaves a
+    0.91 m GAP at (-2330, 1198).
+  - Crossfall: 1488 samples, 12 of them leaning off it towards a step.
+- Measures on `nola_spline`:
+  - `stubs.py`: 0.
+  - `gaps.py`: 0 discontinuities, 0 m (open 50271 m, of it guarded
+    50270 m).
+  - FLICKER: 1, at a split/merge mouth only. It is 2.71 m at (-879.05,
+    1104.42), the split mouth of 118807820 off 161590919. It moves to
+    step 5 as gore work.
+  - Clearance: 88 crossings under 7 m. Steep stretches listed: 54
+    (step 3 had 91).
+- Rule-layer trim: the full seed with the untrimmed `bridges.py` and the
+  full seed with the trimmed one produce the same `decks.json`. The trimmed
+  seed is also byte-identical to the cached-solve seed. Meshing with either
+  `bridges.py` gives byte-identical tiles.
+- Departures from the plan:
+  - A continue's height comes from the record.
+  - `_over_it` is re-run after `_shift`.
+  - Twin seams end in a kerb at the exact crossing.
+  - `heights.py` and the solve are kept, because the `decks_seed` fallback
+    needs them.
+  - `edge.bin` was re-baked.
+  - E8 has no recorded coordinates; the SEAM pair was shot instead.
+  - Twin agreement is `TWIN_STEP 1.5`, not `STEP_MAX 0.4`.
+- Sabotage on the final mesher and seed (each fix removed in turn, counts
+  read):
+
+  | Fix removed | Result |
+  | --- | --- |
+  | rail at a genuine non-twin step | 19 discontinuities, 293.9 m |
+  | meet | stubs 95 faces at 16 sites; FLICKER 1 to 7 (14.3 m) |
+  | fade | 1 DANGLING, 2.4 m |
+  | square rail inward | 2 GAP_FALL, 10.4 m |
+  | lone | stubs 2 faces at 1 site |
+  | pair rule | twin-toe steps 5 to 22; A (-1640, 1180) comes back, 2.0 m |
+  | twin toe exclusion | GAP 0.91 m at (-2330, 1198) |
+
+  - Twin forced 1 m apart: all nodes of 682521418 raised 1.0 m. The pair
+    draws 206 welded samples and **0 stepped**; crossfall rises from 1488
+    to 1695, and `gaps.py` stays 0/0. `twin_of` wins, by design.
+- Shots: the sign-off list plus S7, H2, K1, the seam pair, the flicker
+  mouth and the twin-toe spots. K1's long median rail is gone: that LiDAR
+  step was a twin, and it is now crossfall. The short K1 rails that remain
+  are non-twin steps. TB (-2330, 1196) is past the fog edge, and A1 to A3
+  show only fog. TC (-2062, 814) shows its short toe rail at ground level.
+  D2, D3, S7 and the flicker mouth are unchanged.
 
 ### 5. Junction gores (1–2 sessions)
 

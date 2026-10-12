@@ -74,12 +74,20 @@ godot --headless --path . res://tools/blockout/build_osm_city.tscn -- --src=res:
   For the old rectangle (`29.900,-90.140,30.035,-89.960`) they were
   `29.9535,-90.0590` and `30.033,-90.08`.
 - Bridges, overpasses and their ramps are walkable decks. `osm_city.py`
-  leaves bridges off the ground and runs `bridges.py`, which makes up
-  their heights (OSM has only a layer) and writes `tiles/d_X_Z.bin`; its
-  docstring has the rules, and `heights.py` solves the heights. Re-run it
-  alone, in about ten minutes for the parish, with
-  `python -I tools/blockout/bridges.py <raw dir> data/blockouts/<name>`.
-  Its heights are real metres, for `--scale 1 --vscale 1`.
+  leaves bridges off the ground and runs `decks_seed.py`, which writes
+  `decks.json`: one record per elevated way, its heights measured from
+  LiDAR (`lidar_fetch.py`) where there are returns and from the
+  `bridges.py` / `heights.py` solve where there are not. Records marked
+  `"source": "hand"` survive a re-seed. Then `decks_mesh.py` draws
+  `decks.json` as swept ribbons and writes `tiles/d_X_Z.bin`. Twin
+  carriageways (`twin_of`, kept where LiDAR puts them within 1.5 m of
+  each other over 80% of their shared length) are drawn flush, one
+  surface with crossfall and no median rail; any other step between
+  decks is railed. Re-run
+  them alone with `python -I tools/blockout/decks_seed.py <raw dir>
+  data/blockouts/<name>` (about six minutes for the parish) and
+  `python -I tools/blockout/decks_mesh.py <raw dir> data/blockouts/<name>`.
+  Heights are real metres, for `--scale 1 --vscale 1`.
   `world/city_deck.gdshader` cuts a hole in any deck above the player, so
   the camera can see them under an overpass.
 - Culverted waterways (`tunnel=culvert`) are left out of the water: water
