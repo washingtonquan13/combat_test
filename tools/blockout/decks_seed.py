@@ -71,7 +71,11 @@ Relations:
     them measured the wrong deck, and drawn as one deck it is a cliff.
   - source: "lidar" when at least half the record's nodes are lidar or
     interp, else "solver"; "hand" for a record edited by hand. A re-seed
-    keeps every "hand" record as it is and replaces only the rest.
+    keeps every "hand" record as it is and replaces only the rest, and the
+    report is computed with those hand heights, so it lists what is drawn.
+  - "fills" (optional, top level): hand-placed seeds {id, x, z, note} for
+    junction holes no gore closes; decks_mesh fills the enclosed hole that
+    contains each seed. A re-seed keeps them as they are.
 
 LiDAR: U.S. Geological Survey 3D Elevation Program, public domain.
 Map data (c) OpenStreetMap contributors, ODbL.
@@ -716,10 +720,13 @@ def _record_json(r):
     return "\n".join(lines)
 
 
-def write_decks(path, meta, records):
+def write_decks(path, meta, records, fills=()):
     body = ",\n".join(_record_json(r) for r in records)
+    tail = ""
+    if fills:
+        tail = ',\n "fills": [\n' + ",\n".join("  " + json.dumps(f) for f in fills) + "\n ]"
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write("{" + json.dumps(meta)[1:-1] + ',\n "decks": [\n' + body + "\n ]}\n")
+        f.write("{" + json.dumps(meta)[1:-1] + ',\n "decks": [\n' + body + "\n ]" + tail + "}\n")
 
 
 def main():
@@ -800,6 +807,16 @@ def main():
     by_wi = {r["wi"]: r for r in recs}
     checks = twins(recs, coupled, ways, by_wi, measured)
     relations(recs)
+    # The report lists what is drawn: a hand record's heights stand in for
+    # the seed's on the same line, so a crossing fixed by hand is not
+    # listed again on the next seed.
+    path = os.path.join(a.out, "decks.json")
+    old = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {}
+    for r in recs:
+        d = next((d for d in old.get("decks", []) if d["way"] == r["way"] and d.get("source") == "hand"), None)
+        if d and len(d["nodes"]) == len(r["p"]) and np.allclose([[n["x"], n["z"]] for n in d["nodes"]], r["p"], atol=0.05):
+            r["h"] = np.array([n["h"] for n in d["nodes"]], float)
+            r["src"] = [n["src"] for n in d["nodes"]]
     steeps = [x for r in recs for x in steep(r)]
     joined = joins(recs)
     clear = clearance(recs, ways, deck_wi, rails)
@@ -821,14 +838,15 @@ def main():
         r["record"] = records[-1]
 
     path = os.path.join(a.out, "decks.json")
-    kept = 0
+    kept, fills = 0, []
     if os.path.exists(path):
         old = json.load(open(path, encoding="utf-8"))
         hand = {d["way"]: d for d in old.get("decks", []) if d.get("source") == "hand"}
         kept = len(hand)
         records = [hand.pop(d["way"], d) for d in records] + sorted(hand.values(), key=lambda d: d["way"])
+        fills = old.get("fills", [])
     write_decks(path, {"format": 1, "origin": meta["origin"], "seeded_from": a.src,
-                       "lidar": os.path.basename(a.lidar) if measured else None}, records)
+                       "lidar": os.path.basename(a.lidar) if measured else None}, records, fills)
 
     srcs = {}
     for r in recs:

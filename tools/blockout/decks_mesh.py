@@ -50,6 +50,12 @@ decks.json, not here.
     theirs. Rails along those edges start at the nose, and a rail closes
     the nose. A join with no V to fill (the two decks a step apart at the
     apex, or the branch running on end to end) is listed and left alone.
+  - Hand fills: a point listed in decks.json "fills" inside a hole the
+    decks leave enclosed (a slot between a gore and a split, a ring where
+    three decks meet) fills that hole with deck at its rim's own heights;
+    the rim's rails go, since a fill is another deck beside them. Found
+    afresh on every run, so a fill outlives a change to the decks around
+    it.
   - Piers stand every PIER_STEP along a bridge where its underside is
     above PIER_MIN, slid along the deck up to PIER_SLIDE clear of the
     roads and railways below.
@@ -161,6 +167,12 @@ CUT = 0.4
 GORE_NOSE = NEAR_GAP
 GORE_DH = WELD
 GORE_MAX = 120.0
+# A hand fill (decks.json "fills") looks for its hole among the deck tops
+# within FILL_REACH of its point, each grown by FILL_GROW so tops that only
+# touch close up; a hole larger than FILL_MAX is open ground, not a slot.
+FILL_REACH = 80.0
+FILL_GROW = 0.03
+FILL_MAX = 3000.0
 # A gore whose nose is closer than this to its apex is not drawn: the two
 # edges part at once, and there is no V to fill.
 GORE_MIN = 0.3
@@ -179,9 +191,9 @@ def main():
         sys.exit("decks_mesh: refusing to write into data/blockouts/new_orleans")
     meta_path = os.path.join(out, "city.json")
     meta = json.load(open(meta_path, encoding="utf-8"))
-    decks = json.load(open(os.path.join(out, "decks.json"), encoding="utf-8"))["decks"]
+    doc = json.load(open(os.path.join(out, "decks.json"), encoding="utf-8"))
     ways, others, _ = bridges.read(raw, meta)
-    draw(meta, meta_path, out, decks, ways, others)
+    draw(meta, meta_path, out, doc["decks"], ways, others, doc.get("fills", []))
 
 
 # ---------------------------------------------------------------- chains
@@ -440,8 +452,8 @@ class Piece:
         return self.h + LIFT
 
 
-def draw(meta, meta_path, out, decks, ways, others):
-    recs, pieces, tree, gores = build(meta, decks)
+def draw(meta, meta_path, out, decks, ways, others, fills=()):
+    recs, pieces, tree, gores, patches = build(meta, decks, fills)
 
     corner, tile = meta["corner"], meta["tile"]
     nx, nz = int(round(meta["extent"][0] / tile)), int(round(meta["extent"][1] / tile))
@@ -470,10 +482,13 @@ def draw(meta, meta_path, out, decks, ways, others):
             runs += len(rails)
             for pts, ys, inward in rails:
                 put_each(_rail(pts, ys, inward, side), RAIL)
+    for p in patches:
+        put_each(p["tris"], DECK)
+        put_each(_fill_under(p), SIDE)
     for g in gores:
         put_each(g["tris"], DECK)
         put_each(_gore_sides(g), SIDE)
-        if max(g["nose_y"]) >= RAIL_DROP:
+        if max(g["nose_y"]) >= RAIL_DROP and not _filled(g, patches):
             put_each(_rail(g["nose"], g["nose_y"], np.repeat(g["toward"][None], 2, axis=0), 0), RAIL)
             runs += 1
     print("decks_mesh: %d rail runs" % runs, flush=True)
@@ -502,9 +517,9 @@ def draw(meta, meta_path, out, decks, ways, others):
     print("decks_mesh: %d triangles in %d tiles" % (total, len(buckets)), flush=True)
 
 
-def build(meta, decks):
-    """The decks as pieces, their edges found and ends trimmed, and the
-    tree of their tops."""
+def build(meta, decks, fills=()):
+    """The decks as pieces, their edges found and ends trimmed, the gores,
+    the hand fills (decks.json "fills"), and the tree of all their tops."""
     region = shapely.buffer(bridges._region(meta["boundary"]), RUNOUT)
     shapely.prepare(region)
     recs = _records(decks)
@@ -562,10 +577,13 @@ def build(meta, decks):
         tree = _Tops(pieces)
         print("decks_mesh: pass %d: %d edge samples brought down onto a deck less than %.1f m below, %d steps cut sharp" % (npass + 1, met, MEET, cut), flush=True)
     gores, skipped = _gores(recs, pieces)
-    tree = _Tops(pieces, gores)
     print("decks_mesh: %d gores filled where a deck merges or splits, %d joins with none (%s)" % (
         len(gores), len(skipped), ", ".join("%d/%d %s" % s_ for s_ in skipped)), flush=True)
-    return recs, pieces, tree, gores
+    patches, missed = _fills(pieces, gores, fills)
+    tree = _Tops(pieces, list(gores) + patches)
+    print("decks_mesh: %d hand fills of %d drawn%s" % (
+        len(patches), len(fills), "; no hole found at " + ", ".join(missed) if missed else ""), flush=True)
+    return recs, pieces, tree, gores, patches
 
 
 def _meet(pc, tree):
@@ -1397,9 +1415,64 @@ def _gore_sides(g):
     return np.concatenate(out)
 
 
+def _fills(pieces, gores, fills):
+    """The hand fills: each a point in decks.json ("fills": id, x, z) inside a
+    hole the decks leave enclosed, a slot or a ring no gore reaches. The
+    hole is found among the deck tops (pieces and gores) within FILL_REACH,
+    each grown by FILL_GROW so tops that touch close up, and filled with
+    deck: its outline, grown back out onto the deck edges, triangulated
+    (constrained Delaunay, no new points), each corner at the height of the
+    nearest deck-top corner, so the fill meets the rim at the rim's own
+    heights. A point no hole of at most FILL_MAX holds is listed and drawn
+    as nothing. Returns (fills drawn, ids missed)."""
+    if not fills:
+        return [], []
+    T = np.concatenate([_top_tris(pc) for pc in pieces] + [g["tris"] for g in gores]).astype(float)
+    flat = shapely.polygons(T[:, :, [0, 2]])
+    tree = shapely.STRtree(flat)
+    out, missed = [], []
+    for f in fills:
+        P = shapely.Point(f["x"], f["z"])
+        near = tree.query(P.buffer(FILL_REACH))
+        U = shapely.union_all(shapely.buffer(flat[near], FILL_GROW, join_style="mitre"))
+        hole = None
+        for poly in getattr(U, "geoms", [U]):
+            for ring in getattr(poly, "interiors", []):
+                h = Polygon(ring)
+                if h.contains(P) and h.area <= FILL_MAX:
+                    hole = h
+        if hole is None:
+            missed.append(str(f.get("id", (f["x"], f["z"]))))
+            continue
+        hole = shapely.buffer(hole, FILL_GROW, join_style="mitre")
+        cdt = shapely.get_parts(shapely.constrained_delaunay_triangles(hole))
+        xz = np.array([np.asarray(t.exterior.coords)[:3] for t in cdt])
+        V = T[near].reshape(-1, 3)
+        d = ((xz[:, :, None, 0] - V[None, None, :, 0]) ** 2 + (xz[:, :, None, 1] - V[None, None, :, 2]) ** 2)
+        y = V[d.argmin(axis=2), 1]
+        tris = np.stack([xz[:, :, 0], y, xz[:, :, 1]], axis=2).astype(np.float32)
+        tris = _facing(tris, np.tile([0.0, 1.0, 0.0], (len(tris), 1)))
+        out.append({"id": f.get("id"), "tris": tris, "poly": hole})
+    return out, missed
+
+
+def _fill_under(p):
+    """A fill's underside, THICK below its top, seen from below."""
+    under = p["tris"].copy()
+    under[:, :, 1] = np.maximum(0.0, under[:, :, 1] - THICK)
+    return _facing(under, np.tile([0.0, -1.0, 0.0], (len(under), 1)))
+
+
+def _filled(g, patches):
+    """Whether a hand fill lies off a gore's nose, so its nose is no drop."""
+    mid = g["nose"].mean(axis=0) - g["toward"] * COVER[1]
+    return any(p["poly"].contains(shapely.Point(*mid)) for p in patches)
+
+
 class _Tops:
-    """Every piece's deck top, and every gore's, for asking what deck lies
-    beside an edge. A gore is another deck to both of the pieces it joins."""
+    """Every piece's deck top, and every gore's and hand fill's, for asking
+    what deck lies beside an edge. A gore or a fill is another deck to every
+    piece it touches."""
 
     def __init__(self, pieces, gores=()):
         tris, owner = [], []

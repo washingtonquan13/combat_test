@@ -494,6 +494,83 @@ I-510. For each: fix heights and `twin_of` / `merges` in `decks.json`, mark
 give, place a hand-made mesh in `city_overworld.tscn` and note it in the
 record (`"junction_scene": "res://world/junctions/<name>.tscn"`).
 
+**Status: done 2026-10-12.** Edits live in `nola_spline/decks.json`, versioned
+as `tools/blockout/decks_nola.json` (data/blockouts is not committed).
+
+- Departures, declared:
+  - **Fills, not junction scenes.** Every hole no gore closes was an
+    enclosed gap between decks, not a shape a gore lacks. A top-level
+    `"fills"` list of seeds `{id, x, z, note}` replaces the hand `.tscn`:
+    `decks_mesh` unions the deck tops within 80 m, takes the enclosed ring
+    (≤ 3000 m²) holding the seed, and triangulates it, each corner at the
+    height of the nearest top vertex. Fills are tops to the rail probe
+    (the island rails go) and close a gore's nose rail they cover. They
+    rebuild with the decks, so a height edit cannot leave a stale mesh.
+    6 fills: j29, j50a, j50b, i10_20, I1, C2.
+  - **Heights by one rule, applied by hand.** The cause at j10 and the
+    knot: the solve raised at-grade, non-bridge, layer-0 motorway_links
+    over bare ground; one "lidar" node (-1171.2, 1649.4, h 12.00) was read
+    off the deck overhead. LiDAR class 2 shows ground at 0-0.5 m along
+    them. 19 records set to `source: "hand"` (changed nodes `src: "hand"`,
+    a `hand` note per record): a node with ≥ 3 ground returns under 0.8 m
+    goes to h 0; a lidar node with its own class-17 support keeps its h;
+    the rest interpolate along the way under a ramp envelope (grade 0.08)
+    from the unchanged records they share nodes with. Shared-node heights
+    checked: 0 joins broken.
+  - `decks_seed` now keeps `fills` on a re-seed and computes its report
+    with the hand heights, so the report lists what is drawn.
+- Interchanges. In the map: Pontchartrain / I-10 (the knot, j10, j49),
+  Claiborne (K1, j29), the east CCC approach (C1, C2, R1; fogged at the
+  south edge), Elysian Fields at the fog edge. Skipped, outside the built
+  map (z ±2315 + 60), not widened: I-610 (z -3457 to -2844), Chef Menteur
+  (z ≤ -4184), I-510 (x ≈ 12800), the CCC river span and west bank.
+- Measures, before → after (`verify.py`, cracks, `holes6`, `clearance.py`
+  = 1 m grid points where two deck tops stack 0.4-4.5 m apart):
+
+  | Measure | Before | After |
+  | --- | --- | --- |
+  | Stubs / rail discontinuities | 0 / 0 | 0 / 0 |
+  | FLICKER | 1 | 1 (same site, j31) |
+  | Cracks | 285.3 m, 67 clusters | 220.1 m, 52 clusters |
+  | Gores (worst dh, twist, rails inside) | 35 (0.0174, 0.510, 0) | unchanged |
+  | Enclosed holes | 50 | 30 |
+  | Low-headroom points | 832 in 18 clusters | 72 in 8 clusters |
+  | Rail runs / piers / triangles | 258 / 465 / 255240 | 230 / 465 / 244650 |
+
+  Fills: every seed on deck; worst step across a fill's rim 0.090 m (j29),
+  others 0.003-0.037 m; rail triangles over the six holes 90/108/44/0/10/0
+  → 0. The j10 clusters, 0.43 m at (-1190, 1641) and 1.66 m at
+  (-1224, 1618), are gone.
+- Sabotage:
+
+  | Fix removed | Result |
+  | --- | --- |
+  | The j29 fill | j29 a hole again (53.4 m²), 90 rail triangles; rail runs 233 |
+  | Fills left out of the rail probe | fills drawn, island rails back (90/108/44/10); rail runs 239 |
+  | Four knot ways reverted to the seed | low-headroom 72 → 445; the two j10 clusters back (184, 175 points) |
+  | Report override in `decks_seed` (the re-seed before it) | report lists j10 crossings at 0.25 m (-1157.9, 1653.2) and 1.08 m (-1199.1, 1636.1) |
+
+  Re-seed into a copy: 19/19 hand records identical, 6 fills kept.
+  With the override the report has 0 joins and its lowest clearance is
+  4.40 m over a street; (-1199.1, 1636.1) reads 6.47 m and (-1157.9,
+  1653.2) is not listed.
+- Shots: 22 spots, two yaws, before and after in the installed overworld,
+  plus the I1 and i10_20 fills after. Islands gone at j29, j50, C2; the
+  knot ramps lie on the ground under the decks; K1's slit rails gone.
+- Residuals, not fixed here:
+  - C1 (-2119.4, 894.2): 38 points at 1.97 m, ramp 181653821 descending
+    beside the 10.2-10.5 m decks. There before.
+  - (1165.4, -1491.7): 16 points at 0.41 m.
+  - (-834.6, 2018.1): 8 points at 2.95 m, new: the toe of 104572168 now
+    runs under the edge of 595991564.
+  - j31 FLICKER (-879.05, 1104.42) and j49's open V: unchanged.
+  - Judged real and kept: the K1 slits (a level step, 4 vs 1.9 m), the
+    (-1332.8, 1405.5) slot, the medians at (1137.7, -1438.6) and
+    (1280.1, -1574.7), the knot's gaps between levels.
+- Open (the cause, at seed level): the solver should pin at-grade nodes
+  where class 2 shows bare ground, so a re-seed of a fresh city does not
+  need the hand rule.
+
 ### 7. Fresh-eyes sweep, suites, commit, flyover (½ session)
 
 Pass-3 as agreed: sign-off sheet, overworld suites, commit, record and send
