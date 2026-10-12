@@ -172,6 +172,67 @@ Verify: per-way height profiles plotted LiDAR vs solver for the five known
 interchanges; clearance report (every crossing under 7 m, by coordinate) — a
 list to edit, not a thing to solve.
 
+Seeded 2026-10-11 (`decks_seed.py`, `bridges.py` split into
+`read` / `solve` / `draw` so the seed reuses the solve; the `nola_test_c`
+rebuild from the refactored `bridges.py` is byte-identical to `nola_test_p2d`):
+
+- `data/blockouts/nola_spline` (copy of `nola_test_c`) now has `decks.json`
+  and `decks_report.json`. Seeding takes about 6 min, mostly the solve.
+  Deck set in the region: **193 ways** (133 bridges), **15307 nodes**.
+  Node `src`: lidar 11210, solver 1394 (< 20 returns), interp 143 (a gap of
+  60 m or less between measured nodes on one way). Records: lidar 144,
+  solver 49.
+- Departures from the format above:
+  - `twin_of` is a list, because a carriageway pairs with several ways along
+    its length.
+  - Each node also carries `src` and `hs` (the solver height).
+  - Merges and splits also give `into_s` / `from_s`.
+  - A `continues` list holds shared end nodes where the two ways meet at the
+    same height and direction.
+  - The steep, join, twin, shift and clearance lists are in
+    `decks_report.json`.
+- Occlusion: the solve stacks a lower deck under I-10, and LiDAR sees only
+  the top deck. Each node therefore masks the footprint of every deck the
+  solve puts more than 2 m above it, and drops candidates within 1.5 m of that
+  deck's measured height. Without this, Claiborne under I-10 measured
+  I-10's 10 m.
+- Layers: a Viterbi pass per way picks one LiDAR layer per node, with a grade
+  penalty, so stacked decks do not swap.
+- x,z: **79 nodes on 7 ways** moved onto the measured deck centroid (most
+  5.5 m). A node moves only where the OSM line has fewer than 10 deck returns
+  within 1.5 m. Moves are tapered over 20 m, and shared nodes are pinned.
+- Heights: LiDAR reads I-10 at K1 as 5–8 m above ground; the solve had
+  14–30 m. Measured raised nodes (h > 3 m): median 8.2 m, 10th–90th
+  percentile 5.4–12.2 m.
+- `twin_of`: 130 pairs seeded from `_couple`, **75 kept**. The 55 rejected
+  pairs mostly differ by 0.3–1.2 m (crossfall and superelevation), so a
+  0.4 m tolerance is strict.
+- Relations: merges 27, splits 27, continues 258.
+- GRADE_MAX: **91** stretches steeper than 0.12 are listed, not moved. 67 of
+  them are seams where measured LiDAR hands over to a solver toe; 24 are
+  measured only. **4** shared nodes have heights more than 0.4 m apart. The
+  worst is 12.6 m at (−1292, 1416): ways 122263297/8, the
+  Claiborne/Pontchartrain knot.
+- Clearance report: **96 crossings under 7 m**, 35 of them deck over deck.
+  1 is under 1 m and 5 are under 3 m, all in the Claiborne/Pontchartrain
+  interchange around (−1190, 1490), where hidden lower decks fall back to
+  solver heights. Most of the rest are 6.5–7 m streets under I-10.
+- Re-seed: records marked `source: "hand"` are kept in place by way id, and
+  orphans are appended. Tested with one marked way plus one way that has no
+  OSM match: 2 kept.
+- Plots: S7 (−115, −28), the ramp pair (−88, −63), K1 (−812, 2040), H2
+  (−669, 882) and the gap (−2333, 1213) via `--plot name,x,z,r --png-dir`.
+  They are in the scratchpad, not the repo.
+- Sabotage (each went red, counts read):
+  - Occlusion mask off: clearance under 1 m 1 → 44, joins 4 → 17,
+    measured-only steep 24 → 41.
+  - Viterbi off (highest layer): steep 91 → 164.
+  - Twin agreement off: kept 75 → 126.
+  - Hand match broken: 2 → 0 kept.
+  - LiDAR moved 10 m east near H2: moved nodes 79 → 145 on 11 ways.
+  - LiDAR moved 3 m east: only 79 → 84, because a 3 m misregistration stays
+    on an 8–12 m deck and is below what the shift can detect.
+
 ### 4. Swept-ribbon mesher (2–3 sessions)
 
 `tools/blockout/decks_mesh.py <out>` replaces the drawing half of `bridges.py`:

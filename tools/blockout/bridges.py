@@ -186,6 +186,16 @@ def main():
     raw, out = sys.argv[1], sys.argv[2]
     meta_path = os.path.join(out, "city.json")
     meta = json.load(open(meta_path, encoding="utf-8"))
+    ways, others, rails = read(raw, meta)
+    pos, height, fall, couple_nodes, _ = solve(ways, others, rails)
+    draw(meta, meta_path, out, ways, others, height, fall, couple_nodes)
+
+
+def read(raw, meta):
+    """The roads of <raw>/features.json in meta's frame: the ways that can
+    be decks (each with its OSM way id, "osm", and its OSM node ids,
+    "nodes", one per point), every road and railway for crossings, and the
+    railways on the ground."""
     lat0, lon0 = meta["origin"]
     m_lat = 111_320.0
     m_lon = 111_320.0 * math.cos(math.radians(lat0))
@@ -195,6 +205,7 @@ def main():
     rails = []  # railways on the ground, which bridges clear
     for el in feats:
         tags = el.get("tags", {})
+        nodes = [n for n, g in zip(el.get("nodes") or [], el.get("geometry") or []) if g]
         geom = [g for g in el.get("geometry") or [] if g]
         if el["type"] != "way" or len(geom) < 2:
             continue
@@ -224,10 +235,18 @@ def main():
         ways.append({"keys": keys, "pts": pts, "cls": hw, "width": ROAD_WIDTHS[road_class(tags)],
                      "bridge": bridge, "layer": max(1, layer), "named": named, "osm": el.get("id"), "raw_layer": layer,
                      "name": tags.get("name", ""), "ref": tags.get("ref", ""),
+                     "nodes": nodes if len(nodes) == len(geom) else [None] * len(geom),
                      "oneway": tags.get("oneway") in ("yes", "1", "true", "-1") or hw == "motorway"})
     print("bridges: %d roads, %d bridges" % (len(ways), sum(w["bridge"] for w in ways)), flush=True)
+    return ways, others, rails
 
-    # --- Heights -----------------------------------------------------------
+
+def solve(ways, others, rails):
+    """Every road's height, solved at once (see the module's docstring). The
+    ways gain "ids" (indices into pos, nodes added along them included) and
+    "level". Returns pos, the height of each, how steeply each node's roads
+    fall away from it, the nodes ways tied side by side share, and the
+    pairs of ways tied side by side (indices into ways)."""
     node_id, pos, uses = {}, [], {}
     for w in ways:
         ids = []
@@ -330,8 +349,12 @@ def main():
         for j, d in adj[i]:
             if d > 0:
                 fall[i] = max(fall[i], (height[i] - height[j]) / d)
+    return pos, height, fall, couple_nodes, coupled
 
-    # --- Geometry ----------------------------------------------------------
+
+def draw(meta, meta_path, out, ways, others, height, fall, couple_nodes):
+    """The decks, their sides, piers and rails at the solved heights, written
+    to <out>/tiles/d_X_Z.bin, and city.json's tiles updated."""
     # Decks run on past the boundary into the fog that hides it, so none
     # ends in plain sight at the edge of the map.
     region = shapely.buffer(_region(meta["boundary"]), RUNOUT)
