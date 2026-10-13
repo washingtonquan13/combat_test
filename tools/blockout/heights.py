@@ -24,6 +24,8 @@ import heapq
 import math
 
 import numpy as np
+import scipy.sparse
+import scipy.sparse.csgraph
 
 
 def _key(a, b):
@@ -42,120 +44,34 @@ def solve(adj, pinned, wanted, pairs, n, grade, grade_max, clear, foot, smooth_r
     ties come out of adj itself.
     Returns (height, clear per crossing, report lines)."""
     pinned = list(pinned)
-    ties = {_key(a, b) for a, b in ties}
-    g = {}  # relaxed grade per edge, (a, b) -> rise over run
-    land = {}  # metres of an edge that are landing, (a, b) -> m
-
-    def landing():
-        # How far each node is from the nearest pinned one along the roads:
-        # the first FOOT metres off an intersection are its landing, and
-        # climb nothing.
-        dpin = _dist(adj, {i: 0.0 for i in pinned}, n)
-        land.clear()
-        for a in range(n):
-            for b, d in adj[a]:
-                if a < b and d > 0:
-                    far = max(dpin[a], dpin[b])
-                    land[(a, b)] = d - min(d, max(0.0, far - foot)) if np.isfinite(far) else 0.0
-    landing()
-    clr = [clear] * len(pairs)
-    ups = {}  # upper node -> [(k, lower)]
-    for k, (_, pp) in enumerate(pairs):
-        for lo, up in pp:
-            ups.setdefault(up, []).append((k, lo))
-    downs = {}  # lower node -> [(k, upper)]
-    for k, (_, pp) in enumerate(pairs):
-        for lo, up in pp:
-            if lo >= 0:
-                downs.setdefault(lo, []).append((k, up))
-
-    def weight(a, b, d):
-        e = _key(a, b)
-        return g.get(e, grade) * (d - land.get(e, 0.0))
-
-    def greatest():
-        """The greatest heights under every upper bound, not clamped at the
-        ground, and for each node the bound that set it."""
-        U = np.full(n, np.inf)
-        pred = [None] * n
-        for i in pinned:
-            U[i] = 0.0
-        heap = [(0.0, i) for i in pinned]
-        heapq.heapify(heap)
-        while heap:
-            u, i = heapq.heappop(heap)
-            if u > U[i]:
-                continue
-            if u < -1e-6:
-                break  # below the ground: the rules contradict each other here
-            for j, d in adj[i]:
-                v = u + weight(i, j, d)
-                if v < U[j] - 1e-9:
-                    U[j] = v
-                    pred[j] = ("g", i, d)
-                    heapq.heappush(heap, (v, j))
-            # A road over this one holds it down; this one, over a road,
-            # holds that one down.
-            for k, lo in ups.get(i, ()):
-                if lo >= 0:
-                    v = u - clr[k]
-                    if v < U[lo] - 1e-9:
-                        U[lo] = v
-                        pred[lo] = ("c", i, k)
-                        heapq.heappush(heap, (v, lo))
-        return U, pred
-
-    def certificate(j, U, pred):
-        """The chain of bounds that forced node j below the ground: grade
-        edges [(a, b, metres)], crossings [k], and its deficit."""
-        path, seen, c = [], {}, j
-        while pred[c] is not None and c not in seen:
-            seen[c] = len(path)
-            kind, i, x = pred[c]
-            path.append((kind, i, c, x))
-            c = i
-        if c in seen:
-            path = path[seen[c]:]
-            total = sum(weight(a, b, x) if k == "g" else -clr[x] for k, a, b, x in path)
-            deficit = max(-total, 0.05)
-        else:
-            deficit = -U[j]
-        edges = [(a, b, x) for k, a, b, x in path if k == "g"]
-        cross = sorted({x for k, _, _, x in path if k == "c"})
-        return edges, cross, deficit
-
-    report, untied = [], []
-    for it in range(2000):
-        U, pred = greatest()
-        low = np.flatnonzero(U < -1e-6)
-        if not len(low):
-            break
-        j = int(low[np.argmin(U[low])])
-        edges, cross, deficit = certificate(j, U, pred)
-        cut = {_key(a, b) for a, b, d in edges if d == 0 and _key(a, b) in ties}
-        if cut:
-            # A ramp held flush beside its road has no length left to climb
-            # before a crossing: it climbs beside it instead.
-            for a, b in cut:
-                adj[a].remove((b, 0.0))
-                adj[b].remove((a, 0.0))
-            ties -= cut
-            untied.extend(cut)
-            landing()
-            continue
-        run = sum(d - land.get(_key(a, b), 0.0) for a, b, d in edges)
-        now = max((g.get(_key(a, b), grade) for a, b, _ in edges), default=grade)
-        new = min(grade_max, now + deficit / run) if run > 0 else now
-        for a, b, _ in edges:
-            g[_key(a, b)] = max(g.get(_key(a, b), grade), new)
-        rest = deficit - (new - now) * run
-        if rest > 1e-6:
-            if not cross:
-                log("heights: a pinned node is held below the ground with no crossing to blame, at node %d" % j)
-                break
-            for k in cross:
-                clr[k] = max(0.0, clr[k] - rest / len(cross))
-        report.append((deficit, run, new, rest, [pairs[k][0] for k in cross]))
+    pinset = set(pinned)
+    ties = list(ties)
+    g, clr, report, untied = {}, [clear] * len(pairs), [], []
+    # Every chain of bounds that forces a node below the ground runs
+    # through a crossing, and pinned nodes stand still, so the network
+    # falls apart at its pinned nodes into parts that relax alone, and a
+    # part with no crossing never needs to. Relaxing the whole network once
+    # per contradiction made the parish take hours.
+    for nodes, ks in _parts(adj, pinned, pairs, n):
+        at = {v: m for m, v in enumerate(nodes)}
+        sadj = [[(at[b], d) for b, d in adj[v] if b in at] for v in nodes]
+        spairs = [(pairs[k][0], [(at[lo] if lo >= 0 else -1, at[up]) for lo, up in pairs[k][1]]) for k in ks]
+        sties = [(at[a], at[b]) for a, b in ties if a in at and b in at]
+        sg, sclr, srep, sun = _relax(sadj, [at[v] for v in nodes if v in pinset], spairs, len(nodes),
+                                     grade, grade_max, clear, foot, sties, log)
+        g.update({_key(nodes[a], nodes[b]): v for (a, b), v in sg.items()})
+        for k, c in zip(ks, sclr):
+            clr[k] = c
+        report.extend(srep)
+        for a, b in sun:
+            a, b = nodes[a], nodes[b]
+            adj[a].remove((b, 0.0))
+            adj[b].remove((a, 0.0))
+            untied.append((a, b))
+    land = _landing(adj, pinned, n, foot)
+    ups = _uppers(pairs)
+    U, _ = _greatest(adj, pinned, n, _uppers(pairs), clr,
+                     lambda a, b, d: g.get(_key(a, b), grade) * (d - land.get(_key(a, b), 0.0)))
     steep = sum(1 for v in g.values() if v > grade + 1e-9)
     if untied:
         log("heights: %d ties side by side dropped, each on a chain of bounds that could not be met" % len(untied))
@@ -336,6 +252,191 @@ def solve(adj, pinned, wanted, pairs, n, grade, grade_max, clear, foot, smooth_r
     return h, clr, U
 
 
+
+def _relax(adj, pinned, pairs, n, grade, grade_max, clear, foot, ties, log):
+    """The contradiction loop of solve() on one part of the network: the
+    relaxed grades, the clearances, the report and the ties dropped."""
+    pinned = list(pinned)
+    ties = {_key(a, b) for a, b in ties}
+    g = {}  # relaxed grade per edge, (a, b) -> rise over run
+    land = {}  # metres of an edge that are landing, (a, b) -> m
+
+    ea, eb, ed = _edges(adj, n)
+    alive = np.ones(len(ea), bool)
+    flush = {}  # (a, b) -> indices of that 0 m edge, in adj's order
+    for e in np.flatnonzero(ed == 0).tolist():
+        flush.setdefault((int(ea[e]), int(eb[e])), []).append(e)
+
+    def landing():
+        land.clear()
+        land.update(_landing(adj, pinned, n, foot, (ea[alive], eb[alive], ed[alive])))
+    landing()
+    clr = [clear] * len(pairs)
+    ups = _uppers(pairs)
+
+    def weight(a, b, d):
+        e = _key(a, b)
+        return g.get(e, grade) * (d - land.get(e, 0.0))
+
+    def greatest():
+        return _greatest(adj, pinned, n, ups, clr, weight)
+
+    def certificate(j, U, pred):
+        """The chain of bounds that forced node j below the ground: grade
+        edges [(a, b, metres)], crossings [k], and its deficit."""
+        path, seen, c = [], {}, j
+        while pred[c] is not None and c not in seen:
+            seen[c] = len(path)
+            kind, i, x = pred[c]
+            path.append((kind, i, c, x))
+            c = i
+        if c in seen:
+            path = path[seen[c]:]
+            total = sum(weight(a, b, x) if k == "g" else -clr[x] for k, a, b, x in path)
+            deficit = max(-total, 0.05)
+        else:
+            deficit = -U[j]
+        edges = [(a, b, x) for k, a, b, x in path if k == "g"]
+        cross = sorted({x for k, _, _, x in path if k == "c"})
+        return edges, cross, deficit
+
+    report, untied = [], []
+    for it in range(2000):
+        U, pred = greatest()
+        low = np.flatnonzero(U < -1e-6)
+        if not len(low):
+            break
+        j = int(low[np.argmin(U[low])])
+        edges, cross, deficit = certificate(j, U, pred)
+        cut = {_key(a, b) for a, b, d in edges if d == 0 and _key(a, b) in ties}
+        if cut:
+            # A ramp held flush beside its road has no length left to climb
+            # before a crossing: it climbs beside it instead.
+            for a, b in cut:
+                adj[a].remove((b, 0.0))
+                adj[b].remove((a, 0.0))
+                for e in (a, b), (b, a):
+                    alive[next(i for i in flush[e] if alive[i])] = False
+            ties -= cut
+            untied.extend(cut)
+            landing()
+            continue
+        run = sum(d - land.get(_key(a, b), 0.0) for a, b, d in edges)
+        now = max((g.get(_key(a, b), grade) for a, b, _ in edges), default=grade)
+        new = min(grade_max, now + deficit / run) if run > 0 else now
+        for a, b, _ in edges:
+            g[_key(a, b)] = max(g.get(_key(a, b), grade), new)
+        rest = deficit - (new - now) * run
+        if rest > 1e-6:
+            if not cross:
+                log("heights: a pinned node is held below the ground with no crossing to blame, at node %d" % j)
+                break
+            for k in cross:
+                clr[k] = max(0.0, clr[k] - rest / len(cross))
+        report.append((deficit, run, new, rest, [pairs[k][0] for k in cross]))
+    return g, clr, report, untied
+
+
+def _parts(adj, pinned, pairs, n):
+    """The parts of the network that hold a crossing, each as (its nodes,
+    its crossings): nodes joined by a road with no pinned node between,
+    or by a crossing, plus the pinned nodes at its edge."""
+    pin = np.zeros(n, bool)
+    pin[list(pinned)] = True
+    root = list(range(n))
+
+    def find(i):
+        while root[i] != i:
+            root[i] = root[root[i]]
+            i = root[i]
+        return i
+
+    def join(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            root[max(ra, rb)] = min(ra, rb)
+
+    for a in range(n):
+        if not pin[a]:
+            for b, _ in adj[a]:
+                if not pin[b]:
+                    join(a, b)
+    for _, pp in pairs:
+        for lo, up in pp:
+            if lo >= 0:
+                join(lo, up)
+    ks = {}
+    for k, (_, pp) in enumerate(pairs):
+        if pp:
+            ks.setdefault(find(pp[0][1]), []).append(k)
+    members = {r: [] for r in ks}
+    for v in range(n):
+        r = find(v)
+        if r in members:
+            members[r].append(v)
+    out = []
+    for r, mem in members.items():
+        edge = {b for v in mem if not pin[v] for b, _ in adj[v] if pin[b]}
+        out.append((sorted(set(mem) | edge), ks[r]))
+    return out
+
+
+def _uppers(pairs):
+    """Per upper node, [(crossing, lower node)]."""
+    ups = {}
+    for k, (_, pp) in enumerate(pairs):
+        for lo, up in pp:
+            ups.setdefault(up, []).append((k, lo))
+    return ups
+
+
+def _landing(adj, pinned, n, foot, edges=None):
+    """How far each edge's first FOOT metres off an intersection reach
+    into it: the landing, which climbs nothing. (a, b) -> metres. edges is
+    adj as _edges() arrays, if the caller keeps them."""
+    a, b, d = _edges(adj, n) if edges is None else edges
+    dpin = _dist(adj, {i: 0.0 for i in pinned}, n, (a, b, d))
+    keep = (a < b) & (d > 0)
+    a, b, d = a[keep], b[keep], d[keep]
+    far = np.maximum(dpin[a], dpin[b])
+    with np.errstate(invalid="ignore"):
+        land = np.where(np.isfinite(far), d - np.minimum(d, np.maximum(0.0, far - foot)), 0.0)
+    return dict(zip(zip(a.tolist(), b.tolist()), land.tolist()))
+
+
+def _greatest(adj, pinned, n, ups, clr, weight):
+    """The greatest heights under every upper bound, not clamped at the
+    ground, and for each node the bound that set it. Stops at the first
+    node forced below the ground."""
+    U = np.full(n, np.inf)
+    pred = [None] * n
+    for i in pinned:
+        U[i] = 0.0
+    heap = [(0.0, i) for i in pinned]
+    heapq.heapify(heap)
+    while heap:
+        u, i = heapq.heappop(heap)
+        if u > U[i]:
+            continue
+        if u < -1e-6:
+            break  # below the ground: the rules contradict each other here
+        for j, d in adj[i]:
+            v = u + weight(i, j, d)
+            if v < U[j] - 1e-9:
+                U[j] = v
+                pred[j] = ("g", i, d)
+                heapq.heappush(heap, (v, j))
+        # A road over this one holds it down; this one, over a road,
+        # holds that one down.
+        for k, lo in ups.get(i, ()):
+            if lo >= 0:
+                v = u - clr[k]
+                if v < U[lo] - 1e-9:
+                    U[lo] = v
+                    pred[lo] = ("c", i, k)
+                    heapq.heappush(heap, (v, lo))
+    return U, pred
+
 def pairs_for(crossings, stretch, pos, order, pad, label):
     """Per crossing, its label and the (lower, upper) node pairs it bounds:
     each node of the lower road under the upper's footprint, with each node
@@ -364,18 +465,28 @@ def _near(h, ids, pos, xy):
     return float(np.mean([h[i] for i in ids]))
 
 
-def _dist(adj, sources, n):
-    dist = np.full(n, np.inf)
-    heap = [(d, i) for i, d in sources.items()]
-    for d, i in heap:
-        dist[i] = min(dist[i], d)
-    heapq.heapify(heap)
-    while heap:
-        d, i = heapq.heappop(heap)
-        if d > dist[i]:
-            continue
-        for j, step in adj[i]:
-            if d + step < dist[j]:
-                dist[j] = d + step
-                heapq.heappush(heap, (d + step, j))
-    return dist
+def _edges(adj, n):
+    """The network as arrays: from, to, metres, in adj's own order."""
+    cnt = np.fromiter((len(x) for x in adj), np.int64, n)
+    flat = [e for x in adj for e in x]
+    b = np.fromiter((e[0] for e in flat), np.int64, len(flat))
+    d = np.fromiter((e[1] for e in flat), float, len(flat))
+    return np.repeat(np.arange(n), cnt), b, d
+
+
+def _dist(adj, sources, n, edges=None):
+    """Shortest distance from any source, each starting at its own offset
+    (scipy's Dijkstra, through one extra node joined to every source)."""
+    a, b, d = _edges(adj, n) if edges is None else edges
+    src = np.fromiter(sources.keys(), np.int64, len(sources))
+    off = np.fromiter(sources.values(), float, len(sources))
+    if not len(src):
+        return np.full(n, np.inf)
+    base = off.min()
+    rows = np.concatenate([a, np.full(len(src), n)])
+    cols = np.concatenate([b, src])
+    data = np.concatenate([d, off - base])
+    order = np.argsort(rows, kind="stable")
+    indptr = np.searchsorted(rows[order], np.arange(n + 2))
+    g = scipy.sparse.csr_matrix((data[order], cols[order], indptr), shape=(n + 1, n + 1))
+    return scipy.sparse.csgraph.dijkstra(g, directed=True, indices=n)[:n] + base
