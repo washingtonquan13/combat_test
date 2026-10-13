@@ -82,6 +82,7 @@ var active: bool = false
 @export var camera: OverworldCamera
 
 @onready var _spin_pivot: Node3D = $SpinPivot
+var _pivot_height: float
 
 
 func _physics_process(delta: float) -> void:
@@ -210,8 +211,16 @@ func _ready() -> void:
 	floor_constant_speed = true
 	if not input_event.is_connected(_on_input_event):
 		input_event.connect(_on_input_event)
-	_spin_pivot.scale = Vector3.ONE * icon_scale
-	_spin_pivot.position.y *= icon_scale
+	_pivot_height = _spin_pivot.position.y
+	set_view_scale(1.0)
+
+
+## Draws the icon f times larger again, on top of icon_scale, for a
+## camera that has pulled f times farther away (the tactical view), so
+## the avatar stays the same size on screen.
+func set_view_scale(f: float) -> void:
+	_spin_pivot.scale = Vector3.ONE * icon_scale * f
+	_spin_pivot.position.y = _pivot_height * icon_scale * f
 
 
 ## Clicking an avatar commands that group. The counterpart to clicking

@@ -39,6 +39,15 @@ const AVATAR_SCENE: PackedScene = preload("res://world/overworld_avatar.tscn")
 const DISTRICT_POLL := 0.2
 
 @onready var _camera: OverworldCamera = $OverworldCamera
+@onready var _environment: WorldEnvironment = get_node_or_null(^"WorldEnvironment")
+@onready var _sun: DirectionalLight3D = get_node_or_null(^"DirectionalLight3D")
+
+## What the scene authored for the follow view, which the tactical view
+## scales out from; see _apply_view_scale.
+var _fog_begin := 0.0
+var _fog_end := 0.0
+var _shadow_distance := 0.0
+var _view_scale := 1.0
 
 ## One avatar per group standing here, by group. The overworld is a
 ## VIEW of PartyManager.groups rather than the owner of an avatar —
@@ -60,6 +69,13 @@ func _ready() -> void:
 	# and _ready does not run again.
 	WorldManager.world_focused.connect(_on_world_focused)
 	RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius)
+	if _environment and _environment.environment:
+		# Its own copy: the scene's is shared by every load of it.
+		_environment.environment = _environment.environment.duplicate()
+		_fog_begin = _environment.environment.fog_depth_begin
+		_fog_end = _environment.environment.fog_depth_end
+	if _sun:
+		_shadow_distance = _sun.directional_shadow_max_distance
 	sync_avatars()
 	_camera.snap_to_target()
 
@@ -69,12 +85,16 @@ func _on_world_focused(world: Node) -> void:
 		# Global to every world, so set again whenever this one comes back.
 		RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius)
 		sync_avatars()
+		_apply_view_scale(_view_scale)
 		# The label cleared itself when another world took focus; the
 		# next poll puts the name back, quietly.
 		_district = null
 
 
 func _process(delta: float) -> void:
+	var view := _camera.view_scale()
+	if not is_equal_approx(view, _view_scale) and WorldManager.current_world() == self:
+		_apply_view_scale(view)
 	_poll += delta
 	if _poll < DISTRICT_POLL:
 		return
@@ -100,6 +120,25 @@ func _process(delta: float) -> void:
 	_district = here
 	_candidate = null
 	get_tree().call_group(&"area_label", &"show_area", here.display_name, announce)
+
+
+## Everything sized for the follow view grows with the camera's distance
+## (OverworldCamera.view_scale): the distance haze moves out with it, so
+## the tactical view looks down through clear air at the whole map, the
+## sun's shadows reach as far as it can see, and the avatar's icon and the
+## cutaway of the decks over it stay the same size on screen. The fog at
+## the map's edge is not scaled; it is the end of the world, not haze.
+func _apply_view_scale(f: float) -> void:
+	_view_scale = f
+	if _environment and _fog_end > 0.0:
+		_environment.environment.fog_depth_begin = _fog_begin * f
+		_environment.environment.fog_depth_end = _fog_end * f
+	if _sun and _shadow_distance > 0.0:
+		_sun.directional_shadow_max_distance = _shadow_distance * f
+	RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius * f)
+	for avatar in _avatars.values():
+		if is_instance_valid(avatar):
+			avatar.set_view_scale(f)
 
 
 ## The smallest district holding p, or null outside them all.
@@ -201,6 +240,7 @@ func _make_avatar(group: PartyGroup) -> OverworldAvatar:
 	avatar.move_speed *= avatar_speed_scale
 	avatar.icon_scale = avatar_icon_scale
 	add_child(avatar)
+	avatar.set_view_scale(_view_scale)
 	avatar.camera = _camera
 
 	if group.overworld_position == Vector3.ZERO:
