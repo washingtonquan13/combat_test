@@ -540,9 +540,10 @@ def _inside(rings, x, z):
 
 
 def _start(meta):
-    """Jackson Square, or, for a build that does not reach it, the point
-    inside the city line farthest from it (on a 50 x 50 grid)."""
-    start = _local(meta, 29.9574, -90.0630)
+    """Jackson Square (where a warp moved it, if the build is warped), or,
+    for a build that does not reach it, the point inside the city line
+    farthest from it (on a 50 x 50 grid)."""
+    start = _local(meta, *meta.get("marks", {}).get("Jackson Square", (29.9574, -90.0630)))
     rings = meta.get("boundary")
     if not rings or _inside(rings, np.array(start[0]), np.array(start[1])):
         return start

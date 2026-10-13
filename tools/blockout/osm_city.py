@@ -37,8 +37,8 @@ Writes into <out dir>:
   tiles/w_X_Z.bin  the water of one tile, extruded, for collision only
   tiles/d_X_Z.bin  bridge decks and their ramps, from decks_mesh.py
   decks.json       the decks' heights and relations, from decks_seed.py
-  city.json        extent, tile size, origin, tiles, and the boundary's
-                   rings in metres
+  city.json        extent, tile size, origin, tiles, the boundary's rings
+                   in metres, and the raw dir's warped marks (lat/lon) if any
 
 A tile file is an int32 triangle count, then three float32 xyz corners per
 triangle (counter-clockwise seen from outside, so the normal is
@@ -415,6 +415,10 @@ def main():
         "boundary": [np.round(shapely.get_coordinates(r), 1).tolist()
                      for p in shapely.get_parts(shapely.orient_polygons(region)) for r in [p.exterior] + list(p.interiors)],
     }
+    # A warped raw dir (parish_warp.py) says where its landmarks moved to.
+    warp_path = os.path.join(args.raw, "warp.json")
+    if os.path.exists(warp_path):
+        meta["marks"] = json.load(open(warp_path, encoding="utf-8"))["marks_latlon"]
     with open(os.path.join(args.out, "city.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(meta, f, indent=1)
     log("%d tiles; triangles: %d buildings, %d ground, %d water" % (len(tiles), totals["b"], totals["g"], totals["w"]))

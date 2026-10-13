@@ -1,0 +1,499 @@
+"""Continuous warp of COMPRESSION_PLAN.md: the whole city into one rounded rectangle.
+
+    python -I tools/blockout/parish_warp.py <segment dir> [--raw <raw dir> --out <out raw dir>]
+        [--area 100] [--aniso 2] [--png out.png]
+
+The source is a rounded rectangle around parish_districts.py's districts
+(plus MARGIN, clipped to the download); the target is the same outline
+scaled to --area km2 about its centre. A triangle mesh on a grid of H m
+covers it; triangles whose centroid lies outside the outline are dead, and
+the live ones' outer vertices are pinned onto the target outline. A
+weighted as-rigid-as-possible solve (local/global, CG) then moves the mesh
+so that:
+
+  - every district triangle keeps its true shape at one shared scale D
+    (weight W_STIFF, ramping down to 1 over RAMP m outside a district);
+  - every other triangle takes whatever it needs within bounds: neither
+    axis grows, neither shrinks below MIN_SCALE, and no squeeze is more
+    than ANISO one way than the other. Triangles that break a bound get
+    their weight raised (BOOST) until they keep it.
+
+D starts at 1; if the gates fail there, DMIN is tried and then D is
+bisected between them, so the districts stay as close to true size as the
+area allows.
+
+The map is piecewise affine over the mesh, so it is one continuous,
+one-to-one deformation whenever no triangle flips: streets stay joined,
+nothing tears, and there are no seams. Outside the rectangle points move
+with the nearest edge point, so osm_city.py's clip to boundary.json cuts
+whole features.
+
+With --raw/--out every lat/lon of the raw dir goes through the map (the
+compress.py Mover: buildings that fit a rigid move to within 1 m keep
+their shape exactly), the LiDAR with them, and boundary.json is the
+rounded rectangle. Writes warp.json (the gates, marks) to --out.
+
+Gates: no flipped triangle; district scale within 1 +- DIST_TOL over 95% of
+district area; nowhere scaled below MIN_SCALE; nowhere stretched more than
+ANISO times one way than the other.
+"""
+import argparse
+import json
+import math
+import os
+import sys
+
+import numpy as np
+import shapely
+from shapely.geometry import Polygon
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import compress  # noqa: E402
+from compress import DP, LIDAR, LIDAR_MARGIN, Frame, Mover, move_file, write_file  # noqa: E402
+
+H = 100.0  # m: mesh spacing
+MARGIN = 1500.0  # m: source rectangle past the districts' bounds
+RAMP = 500.0  # m: weight blends from W_STIFF to 1 over this far outside a district
+W_STIFF = 100.0  # weight of a district triangle against a soft one
+DMIN = 0.75  # smallest scale the districts may take when the map cannot fit them at 1
+D_STEPS = 5  # bisection steps for that scale
+AIM = 1.05  # the solve aims this far inside the bounds, since it lands on what it aims at
+BOOST = 1.5  # weight factor, per iteration, on a triangle breaking the bounds
+BOOST_MAX = 1e4
+CORNER = 0.2  # corner radius, as a fraction of the target's short side
+CLOSE = 10.0  # m: closing radius that turns a district's blocks into one area
+ITERS = 120
+CG_ITERS = 400
+PIN = 1e3  # weight pulling an edge vertex onto the rounded rectangle
+DIST_TOL = 0.05
+MIN_SCALE = 0.35
+ANISO = 2.0
+MARKS = {"Jackson Square": (29.9574, -90.0630), "Congo Square": (29.9606, -90.0681),
+         "St Louis Cathedral": (29.9580, -90.0637), "Washington Square": (29.9644, -90.0566),
+         "Lafayette Square": (29.9488, -90.0705)}
+
+
+class Outline:
+    """A rounded rectangle: centre c, half sizes a, b, corner radius r."""
+
+    def __init__(self, c, a, b, r):
+        self.c, self.a, self.b, self.r = np.asarray(c, float), a, b, r
+
+    def area(self):
+        return 4 * self.a * self.b - (4 - math.pi) * self.r ** 2
+
+    def inset(self, d):
+        return Outline(self.c, self.a - d, self.b - d, max(self.r - d, 0.0))
+
+    def contains(self, p):
+        q = p - self.c
+        ia, ib = self.a - self.r, self.b - self.r
+        k = np.c_[np.clip(q[:, 0], -ia, ia), np.clip(q[:, 1], -ib, ib)]
+        return np.hypot(*(q - k).T) <= self.r
+
+    def project(self, p):
+        """Nearest point of the outline to each point of p (n, 2)."""
+        q = p - self.c
+        ia, ib = self.a - self.r, self.b - self.r
+        k = np.c_[np.clip(q[:, 0], -ia, ia), np.clip(q[:, 1], -ib, ib)]
+        d = q - k
+        n = np.hypot(d[:, 0], d[:, 1])
+        out = k + self.r * d / np.maximum(n, 1e-12)[:, None]
+        box = n < 1e-9  # inside the inner box: straight onto the nearer side
+        if box.any():
+            qb = q[box]
+            side_x = self.a - np.abs(qb[:, 0]) < self.b - np.abs(qb[:, 1])
+            ob = qb.copy()
+            ob[side_x, 0] = np.sign(qb[side_x, 0]) * self.a
+            ob[~side_x, 1] = np.sign(qb[~side_x, 1]) * self.b
+            out[box] = ob
+        return out + self.c
+
+    def ring(self, step=50.0):
+        pts = []
+        ia, ib = self.a - self.r, self.b - self.r
+        for cx, cz, a0 in ((ia, -ib, -90), (ia, ib, 0), (-ia, ib, 90), (-ia, -ib, 180)):
+            n = max(4, int(self.r * math.pi / 2 / step))
+            for t in np.linspace(a0, a0 + 90, n + 1)[:-1]:
+                pts.append((cx + self.r * math.cos(math.radians(t)), cz + self.r * math.sin(math.radians(t))))
+            ex, ez = cx + self.r * math.cos(math.radians(a0 + 90)), cz + self.r * math.sin(math.radians(a0 + 90))
+            nx_, nz_ = [(ia, ib), (-ia, ib), (-ia, -ib), (ia, -ib)][[-90, 0, 90, 180].index(a0)]
+            m = max(1, int(math.hypot(nx_ - cx, nz_ - cz) / step))
+            for t in np.linspace(0, 1, m + 1)[:-1]:
+                pts.append((ex + (nx_ - cx) * t, ez + (nz_ - cz) * t))
+        return np.array(pts) + self.c
+
+
+class Mesh:
+    """A grid of vertices over the source rectangle, two triangles a cell."""
+
+    def __init__(self, x0, z0, x1, z1):
+        self.nx = int(math.ceil((x1 - x0) / H)) + 1
+        self.nz = int(math.ceil((z1 - z0) / H)) + 1
+        self.x0, self.z0 = x0, z0
+        self.hx = (x1 - x0) / (self.nx - 1)
+        self.hz = (z1 - z0) / (self.nz - 1)
+        gx, gz = np.meshgrid(x0 + self.hx * np.arange(self.nx), z0 + self.hz * np.arange(self.nz))
+        self.P = np.c_[gx.ravel(), gz.ravel()]
+        v = lambda i, j: j * self.nx + i
+        i, j = np.meshgrid(np.arange(self.nx - 1), np.arange(self.nz - 1))
+        i, j = i.ravel(), j.ravel()
+        lower = np.c_[v(i, j), v(i + 1, j), v(i, j + 1)]
+        upper = np.c_[v(i + 1, j + 1), v(i, j + 1), v(i + 1, j)]
+        self.T = np.vstack([lower, upper])  # triangle k and k + ncell share cell k
+        self.ncell = len(lower)
+        e = np.zeros((self.nz, self.nx), bool)
+        e[0, :] = e[-1, :] = e[:, 0] = e[:, -1] = True
+        self.edge = e.ravel()
+        p = self.P[self.T]
+        E = np.stack([p[:, 1] - p[:, 0], p[:, 2] - p[:, 0]], axis=2)  # columns
+        Ei = np.linalg.inv(E)
+        self.g = np.stack([-(Ei[:, 0] + Ei[:, 1]), Ei[:, 0], Ei[:, 1]], axis=1)  # (T, 3, 2)
+        self.area = 0.5 * np.abs(np.linalg.det(E))
+        self.cen = p.mean(1)
+
+    def clip(self, src):
+        """Keep the triangles inside the source outline src: live, the ones
+        the solve moves; ring, their vertices on or past src, which slide
+        onto the target outline; dead, vertices no live triangle uses."""
+        self.src = src
+        self.live = src.contains(self.cen)
+        used = np.zeros(len(self.P), bool)
+        used[self.T[self.live].ravel()] = True
+        self.ring = used & (~src.inset(1e-6).contains(self.P) | self.edge)
+        self.dead = ~used
+
+    def jac(self, Q):
+        return np.einsum("tik,tij->tkj", Q[self.T], self.g)
+
+    def locate(self, x, z):
+        """Triangle and barycentric weights of points inside the rectangle."""
+        u = (x - self.x0) / self.hx
+        v = (z - self.z0) / self.hz
+        i = np.clip(np.floor(u).astype(int), 0, self.nx - 2)
+        j = np.clip(np.floor(v).astype(int), 0, self.nz - 2)
+        fu, fv = u - i, v - j
+        cell = j * (self.nx - 1) + i
+        up = fu + fv > 1
+        t = np.where(up, cell + self.ncell, cell)
+        w = np.where(up[:, None], np.c_[fu + fv - 1, 1 - fu, 1 - fv], np.c_[1 - fu - fv, fu, fv])
+        return t, w
+
+
+class Warp:
+    """compress.Cuts' interface for one continuous map, so Mover can use it."""
+
+    bands = []
+    parallel = False
+    rigid = True
+
+    def __init__(self, mesh, Q, s_edge):
+        self.m, self.Q, self.s_edge = mesh, Q, s_edge
+        self.inner = mesh.src.inset(1.5 * H)  # every point inside lies in a live triangle
+        self.lo = mesh.P.min(0)
+        self.hi = mesh.P.max(0)
+
+    def warp(self, x, z):
+        """Inside the source outline, the mesh; past it, a point moves with
+        the nearest point just inside, at the uniform scale s_edge."""
+        x, z = np.array(x, float, ndmin=1), np.array(z, float, ndmin=1)
+        p = np.c_[x, z]
+        b = p.copy()
+        out = ~self.inner.contains(p)
+        if out.any():
+            b[out] = self.inner.project(p[out])
+        t, w = self.m.locate(b[:, 0], b[:, 1])
+        q = np.einsum("ti,tik->tk", w, self.Q[self.m.T[t]])
+        q += self.s_edge * (p - b)
+        return q[:, 0], q[:, 1]
+
+    def deleted(self, x, z):
+        return np.zeros(np.shape(np.array(x, ndmin=1)), bool)
+
+    def line(self, x, z, mode):
+        wx, wz = self.warp(x, z)
+        n = len(wx)
+        return np.ones(n, bool), wx, wz, np.zeros((n, 0), int), np.full(n, -1), []
+
+
+def stiffness(mesh, districts):
+    d = shapely.distance(shapely.points(mesh.cen), districts)
+    t = np.clip(d / RAMP, 0.0, 1.0)
+    t = t * t * (3 - 2 * t)
+    return W_STIFF + (1.0 - W_STIFF) * t, d
+
+
+def measure(mesh, Q, did, names, D):
+    """The gates for one solve: (gate dict, per district (name, scale, worst shape distortion))."""
+    J = mesh.jac(Q)
+    S = np.linalg.svd(J, compute_uv=False)
+    det = np.linalg.det(J)
+    inside = did >= 0
+    shape = S[:, 0] / np.maximum(S[:, 1], 1e-12) - 1  # 0 for an undistorted triangle
+    dmiss = shape[inside]
+    order = np.argsort(dmiss)
+    cum = np.cumsum(mesh.area[inside][order]) / mesh.area[inside].sum()
+    d95 = float(dmiss[order][np.searchsorted(cum, 0.95)])
+    per = []
+    for k_, nm in enumerate(names):
+        m = did == k_
+        if m.any():
+            per.append((nm, float((mesh.area[m] * np.sqrt(np.clip(det[m], 0, None))).sum() / mesh.area[m].sum()),
+                        float(shape[m].max())))
+    soft = ~inside & mesh.live
+    gate = {"district_scale": round(D, 3), "flipped": int((det[mesh.live] <= 0).sum()),
+            "district_shape_95": round(d95, 4), "district_shape_max": round(float(dmiss.max()), 4),
+            "district_scale_min": round(min(p_[1] for p_ in per), 3),
+            "min_scale": round(float(S[soft, 1].min()), 3),
+            "max_aniso": round(float((S[soft, 0] / np.maximum(S[soft, 1], 1e-12)).max()), 3)}
+    gate["pass"] = gate["flipped"] == 0 and d95 <= DIST_TOL and gate["min_scale"] >= MIN_SCALE         and gate["max_aniso"] <= ANISO
+    return gate, per
+
+
+def solve(mesh, out, did, w, D, Q0, log, iters=ITERS):
+    n = len(mesh.P)
+    wa = w * mesh.area * mesh.live
+    rows = np.repeat(mesh.T, 3, axis=1).ravel()
+    cols = np.tile(mesh.T, (1, 3)).ravel()
+    gg = np.einsum("tik,tjk->tij", mesh.g, mesh.g)
+    key, inv = np.unique(rows.astype(np.int64) * n + cols, return_inverse=True)
+    kr, kc = key // n, key % n
+    dg = kr == kc
+    kv = np.bincount(inv, (wa[:, None, None] * gg).ravel())
+    pin = np.where(mesh.ring | mesh.dead, PIN * kv[dg].mean(), 0.0)
+    boost = np.ones(len(mesh.T))
+
+    def K(x):
+        return np.stack([np.bincount(kr, kv * x[kc, k], minlength=n) for k in range(2)], 1) + pin[:, None] * x
+
+    Q = Q0.copy()
+    for it in range(iters):
+        J = mesh.jac(Q)
+        U, S, Vt = np.linalg.svd(J)
+        R = U @ Vt
+        bad = np.linalg.det(R) < 0
+        U[bad, :, 1] *= -1
+        R[bad] = U[bad] @ Vt[bad]
+        # a district keeps its shape exactly, at the one scale D; ground
+        # between districts takes whatever squeeze it is given, within the
+        # gate's bounds
+        Sb = np.clip(S, MIN_SCALE * AIM, 1.0)
+        Sb[:, 1] = np.maximum(Sb[:, 1], Sb[:, 0] * AIM / ANISO)
+        Sb[did >= 0] = D
+        # a triangle that breaks the bounds (folded, squeezed past the floor,
+        # stretched past ANISO) counts for more next time, so the squeeze it
+        # cannot take moves to ground that can
+        det = np.linalg.det(J)
+        worse = mesh.live & ((det <= 0) | (S[:, 1] < MIN_SCALE) | (S[:, 0] > ANISO * S[:, 1]))
+        boost = np.where(worse, np.minimum(boost * BOOST, BOOST_MAX), boost)
+        wb = wa * boost
+        kv = np.bincount(inv, (wb[:, None, None] * gg).ravel())
+        diag = np.bincount(kr[dg], kv[dg], minlength=n) + pin
+        M = np.einsum("tij,tj,tjk->tik", U, Sb, Vt)
+        contrib = wb[:, None, None] * np.einsum("tkj,tij->tik", M, mesh.g)  # (T, 3, 2)
+        b = np.stack([np.bincount(mesh.T.ravel(), contrib[..., k].ravel(), minlength=n) for k in range(2)], 1)
+        tgt = out.project(Q[mesh.ring])
+        b[mesh.ring] += pin[mesh.ring, None] * tgt
+        b[mesh.dead] += pin[mesh.dead, None] * Q0[mesh.dead]
+        r = b - K(Q)
+        z = r / diag[:, None]
+        p = z.copy()
+        rz = (r * z).sum(0)
+        b2 = np.sqrt((b * b).sum(0))
+        for _ in range(CG_ITERS):
+            Ap = K(p)
+            alpha = rz / np.maximum((p * Ap).sum(0), 1e-30)
+            Q += alpha * p
+            r -= alpha * Ap
+            if (np.sqrt((r * r).sum(0)) < 1e-7 * b2).all():
+                break
+            z = r / diag[:, None]
+            rz2 = (r * z).sum(0)
+            p = z + (rz2 / np.maximum(rz, 1e-30)) * p
+            rz = rz2
+        if it == iters - 1:
+            log("  %d iterations, edge off outline %.2f m" % (iters, float(np.hypot(*(Q[mesh.ring] - tgt).T).max())))
+    Q[mesh.ring] = out.project(Q[mesh.ring])
+    return Q
+
+
+def district_union(seg, dist):
+    B = seg["blocks"]
+    polys = []
+    for d in dist["districts"]:
+        u = shapely.union_all([Polygon(B[b]["ring"]) for b in d["blocks"]])
+        polys.append(u.buffer(CLOSE).buffer(-CLOSE))
+    return polys
+
+
+def main():
+    global ANISO
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("segment")
+    ap.add_argument("--raw")
+    ap.add_argument("--out")
+    ap.add_argument("--area", type=float, default=100.0, help="km2 of the rounded rectangle")
+    ap.add_argument("--lidar", default=LIDAR)
+    ap.add_argument("--png")
+    ap.add_argument("--aniso", type=float, default=ANISO, help="most a squeezed triangle may stretch one way more than the other")
+    a = ap.parse_args()
+    ANISO = a.aniso
+    lines = []
+
+    def log(msg):
+        print(msg, flush=True)
+        lines.append(msg)
+
+    seg = json.load(open(os.path.join(a.segment, "segment.json"), encoding="utf-8"))
+    dist = json.load(open(os.path.join(a.segment, "districts.json"), encoding="utf-8"))
+    fr = Frame(*seg["frame"])
+    polys = district_union(seg, dist)
+    names = [d["name"] for d in dist["districts"]]
+    dunion = shapely.union_all(polys)
+    shapely.prepare(dunion)
+    s, w, n, e = seg["bbox"]
+    bx0, bz0 = fr.xz(w, n)
+    bx1, bz1 = fr.xz(e, s)
+    lo = np.array(dunion.bounds[:2]) - MARGIN
+    hi = np.array(dunion.bounds[2:]) + MARGIN
+    x0, z0 = max(lo[0], float(bx0)), max(lo[1], float(bz0))
+    x1, z1 = min(hi[0], float(bx1)), min(hi[1], float(bz1))
+    mesh = Mesh(x0, z0, x1, z1)
+    A_src = (x1 - x0) * (z1 - z0)
+    A = a.area * 1e6
+    W0, H0 = x1 - x0, z1 - z0
+    k = math.sqrt(A / (W0 * H0 - (4 - math.pi) * (CORNER * min(W0, H0) / 2) ** 2))
+    c = np.array([(x0 + x1) / 2, (z0 + z1) / 2])
+    out = Outline(c, k * W0 / 2, k * H0 / 2, k * CORNER * min(W0, H0) / 2)
+    log("source %.0f x %.0f m (%.1f km2), %d vertices; target %.0f x %.0f m rounded r %.0f (%.1f km2)"
+        % (W0, H0, A_src / 1e6, len(mesh.P), 2 * out.a, 2 * out.b, out.r, out.area() / 1e6))
+    wt, dd = stiffness(mesh, dunion)
+    did = np.full(len(mesh.T), -1)
+    for k_, p in enumerate(polys):
+        did[shapely.contains_xy(p, mesh.cen[:, 0], mesh.cen[:, 1])] = k_
+    mesh.clip(Outline(c, W0 / 2, H0 / 2, CORNER * min(W0, H0) / 2))
+    Q0 = c + k * (mesh.P - c)
+    log("districts %.2f km2; searching the largest district scale that fits" % (dunion.area / 1e6))
+    Q = solve(mesh, out, did, wt, 1.0, Q0, log)
+    gate, per = measure(mesh, Q, did, names, 1.0)
+    log("  scale 1.000: %s" % json.dumps(gate))
+    if not gate["pass"]:
+        lo_d, hi_d, best = DMIN, 1.0, None
+        Qd = solve(mesh, out, did, wt, DMIN, Q0, log)
+        g, pr = measure(mesh, Qd, did, names, DMIN)
+        log("  scale %.3f: %s" % (DMIN, json.dumps(g)))
+        if g["pass"]:
+            best = (Qd, g, pr)
+            for _ in range(D_STEPS):
+                mid = (lo_d + hi_d) / 2
+                Qm = solve(mesh, out, did, wt, mid, Q0, log)
+                g, pr = measure(mesh, Qm, did, names, mid)
+                log("  scale %.3f: %s" % (mid, json.dumps(g)))
+                if g["pass"]:
+                    lo_d, best = mid, (Qm, g, pr)
+                else:
+                    hi_d = mid
+            Q, gate, per = best
+        else:
+            Q, gate, per = Qd, g, pr
+    J = mesh.jac(Q)
+    S = np.linalg.svd(J, compute_uv=False)
+    for nm, sm, mx in per:
+        log("  %-26s scale %.3f, worst shape distortion %.3f" % (nm, sm, mx))
+    gate["area_km2"] = round(out.area() / 1e6, 2)
+    log("gate " + json.dumps(gate))
+    warp = Warp(mesh, Q, k)
+    marks = {}
+    for nm, (lat, lon) in MARKS.items():
+        x, z = fr.xz(lon, lat)
+        wx, wz = warp.warp(x, z)
+        marks[nm] = [float(np.round(v, DP)) for v in fr.lonlat(wx[0], wz[0])[::-1]]
+    if a.png:
+        png(a.png, mesh, Q, polys, out, warp, S)
+    if a.raw and a.out:
+        write_raw(a, fr, warp, out, log)
+        with open(os.path.join(a.out, "warp.json"), "w", encoding="utf-8", newline="\n") as f:
+            json.dump({"segment": a.segment, "source_rect": [x0, z0, x1, z1], "outline": [c.tolist(), out.a, out.b, out.r],
+                       "gate": gate, "marks_latlon": marks, "report": lines}, f, indent=1)
+    sys.exit(0 if gate["pass"] else 1)
+
+
+def write_raw(a, fr, warp, out, log):
+    if os.path.normcase(os.path.abspath(a.out)) == os.path.normcase(os.path.abspath(a.raw)):
+        sys.exit("parish_warp: out must not be the raw dir")
+    os.makedirs(a.out, exist_ok=True)
+    ring = out.ring()
+    lon, lat = fr.lonlat(ring[:, 0], ring[:, 1])
+    geom = [{"lat": float(round(la, DP)), "lon": float(round(lo, DP))} for la, lo in zip(lat, lon)]
+    geom.append(dict(geom[0]))
+    rel = {"type": "relation", "id": -1, "tags": {"boundary": "administrative", "name": "warped map"},
+           "members": [{"type": "way", "ref": -1, "role": "outer", "geometry": geom}]}
+    with open(os.path.join(a.out, "boundary.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"elements": [rel]}, f)
+    nb = (min(lat), min(lon), max(lat), max(lon))
+    new = Frame.of_bbox(*nb)
+    mover = Mover(fr, warp)
+    mover.plan_blocks(a.raw)
+    st = mover.block_stats
+    log("building blocks: %d, %d moved rigidly, %d follow the warp" % (st["blocks"], st["rigid"], st["warped"]))
+    for name in sorted(os.listdir(a.raw)):
+        if not name.endswith(".json") or name == "boundary.json":
+            continue
+        data, n0, n1 = move_file(os.path.join(a.raw, name), mover)
+        write_file(os.path.join(a.out, name), data)
+        log("%-18s %7d elements -> %7d" % (name, n0, n1))
+    if a.lidar:
+        d = np.load(a.lidar)
+        meta = json.loads(str(d["meta"]))
+        src = Frame(*meta["origin"])
+        lo_, la_ = src.lonlat(d["x"].astype(np.float64), d["z"].astype(np.float64))
+        x, z = fr.xz(lo_, la_)
+        keep = (x >= warp.lo[0] - LIDAR_MARGIN) & (x <= warp.hi[0] + LIDAR_MARGIN) \
+            & (z >= warp.lo[1] - LIDAR_MARGIN) & (z <= warp.hi[1] + LIDAR_MARGIN)
+        wx, wz = warp.warp(x[keep], z[keep])
+        nx_, nz_ = new.xz(*fr.lonlat(wx, wz))
+        meta["origin"] = [new.lat0, new.lon0]
+        meta["warped"] = {"from": os.path.basename(a.lidar), "kept": int(keep.sum())}
+        np.savez_compressed(os.path.join(a.out, "lidar_decks.npz"), x=nx_.astype(np.float32), z=nz_.astype(np.float32),
+                            h=d["h"][keep], cls=d["cls"][keep], meta=json.dumps(meta))
+        log("lidar: %d of %d returns kept" % (int(keep.sum()), len(d["x"])))
+    log("next: python -I tools/blockout/osm_city.py %s data/blockouts/<name>" % a.out)
+
+
+def png(path, mesh, Q, polys, out, warp, S):
+    from PIL import Image, ImageDraw
+    allp = np.vstack([mesh.P, Q])
+    lo, hi = allp.min(0) - 300, allp.max(0) + 300
+    ppm = 1000.0 / (hi - lo).max()
+    Wd = int((hi[0] - lo[0]) * ppm)
+    Hd = int((hi[1] - lo[1]) * ppm)
+    im = Image.new("RGB", (2 * Wd + 20, Hd), (246, 244, 238))
+    dr = ImageDraw.Draw(im, "RGBA")
+    px = lambda q, off=0: [((x - lo[0]) * ppm + off, (z - lo[1]) * ppm) for x, z in np.asarray(q)]
+    lin = np.sqrt(np.clip(np.linalg.det(mesh.jac(Q)), 0, None))
+    for t in range(0, len(mesh.T)):
+        v = lin[t]
+        col = (int(255 * min(1, v)), int(160 + 95 * min(1, v)), 255 - int(200 * min(1, v)))
+        dr.polygon(px(Q[mesh.T[t]], Wd + 20), fill=col)
+    for p in polys:
+        for g in shapely.get_parts(p):
+            r = np.asarray(g.exterior.coords)
+            dr.polygon(px(r), fill=(67, 147, 195, 160))
+            wx, wz = warp.warp(r[:, 0], r[:, 1])
+            dr.polygon(px(np.c_[wx, wz], Wd + 20), outline=(20, 20, 20, 255))
+    step = max(1, mesh.nx // 30)
+    G = Q.reshape(mesh.nz, mesh.nx, 2)
+    P = mesh.P.reshape(mesh.nz, mesh.nx, 2)
+    for i in range(0, mesh.nx, step):
+        dr.line(px(P[:, i]), fill=(120, 120, 120, 120))
+        dr.line(px(G[:, i], Wd + 20), fill=(60, 60, 60, 160))
+    for j in range(0, mesh.nz, step):
+        dr.line(px(P[j]), fill=(120, 120, 120, 120))
+        dr.line(px(G[j], Wd + 20), fill=(60, 60, 60, 160))
+    dr.polygon(px(out.ring(), Wd + 20), outline=(200, 30, 30, 255))
+    im.save(path)
+    print("wrote", path, im.size)
+
+
+if __name__ == "__main__":
+    main()
