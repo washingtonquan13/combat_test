@@ -139,8 +139,29 @@ measures that do not depend on scale:
   smaller than IV's.
 
 These come from one measurement of a full IV overworld map image (phase 0b).
-Until then they are **unmeasured**, and the code takes them as parameters
-with placeholder values, never as constants.
+The code takes them as parameters, never as constants.
+
+**Measured 2026-10-12** from the GameFAQs "Tokyo Underworld Map" by
+just-craig (v1.1, map 16940, a fan tracing of IV's overworld with its rock
+border; GIF 1799×2309, kept untracked under `data/blockouts/iv_map/`). Its
+layout is near true scale: Ikebukuro–Shibuya and Ikebukuro–Tennozu both come
+out at about 95 px/km.
+
+- **N = 8 strict, 11 central (10–12).** 8 is the page's own "Settlements"
+  markers (Ikebukuro, Shinjuku, Shibuya, Ueno, Kasumigaseki, Ginza, Tennozu,
+  Toyosu). 11 adds the three multi-landmark clusters with no settlement
+  (Roppongi; Ichigaya–Tokyo Dome–Kanda; Sumida). Harajuku is the judgement
+  call for a 12th. Lone edge landmarks are not counted.
+- **ρ ≈ 1.5–2 (range 1.1–2.7).** No district borders are drawn, so each
+  district is a disc around its landmark cluster, sized from the drawn grids
+  (radius 162–196 px). Land is everything inside the border minus water and
+  boulders, buildings included. N = 8 gives 1.6–2.7, N = 11 gives 1.1–1.8.
+  Counting walkable ground only would give about 2× more, because much of
+  IV's connective ground is open lots.
+- **District span: 3–4 drawn blocks.** The map draws arterials only, so a
+  drawn block is a superblock of about 1 km, and a district is 3–4 km
+  across. Compare spans in arterial-bounded superblocks or in km, never in
+  city blocks.
 
 How the target is applied:
 
@@ -303,9 +324,9 @@ further until the gate passes.
 | # | Phase | Gate |
 |---|---|---|
 | 0 | Persist the raw download | **Done 2026-10-12**: `data/blockouts/new_orleans_parish_raw/` |
-| 0b | Measure IV's Tokyo from one full overworld map image: N, ρ, district span in blocks | the three numbers written into the plan, with the image's source and how each was counted |
+| 0b | Measure IV's Tokyo from one full overworld map image: N, ρ, district span in blocks | the three numbers written into the plan, with the image's source and how each was counted. **Passed 2026-10-12**: N 11 (8–12), ρ 1.5–2, span 3–4 superblocks; see "How big" |
 | 1 | Segment + score, debug PNG only | ≥ 90% of street length within 8 km of Jackson Square in non-irregular patches (the parish-wide share is reported, not gated: the East is expected to be irregular and go frontier); the Quarter, CBD, Lower Garden District and Mid-City come out as recognisable patches; ≥ 95% of the wikidata items inside the parish flagged protected. **Passed 2026-10-12**: core 92.3%, parish 85.6%, wikidata 145/145, 291 patches (122 irregular); the Quarter shares a patch with Tremé (same grid) |
-| 2 | **Go/no-go:** thin one patch (an Uptown grid), build it in a 5 km square, GL renders vs uncompressed | 0 chords, 0 new dead ends, every landmark intact, decks untouched. **If this gate fails, stop and fall back.** The core claim is that strip removal is exact |
+| 2 | **Go/no-go:** thin one patch (an Uptown grid), build it in a 5 km square, GL renders vs uncompressed | 0 chords, 0 new dead ends, every landmark intact, decks untouched. **If this gate fails, stop and fall back.** The core claim is that strip removal is exact. **Failed 2026-10-12** (`parish_thin.py`, see below) |
 | 3 | Two patches and one seam (CBD ↔ Lower Garden District across the Pontchartrain Expressway, the hardest real case) | every seam check passes with no fallback |
 | 4 | Whole-parish layout, expressways, river, anchors; build only the 5 km square around the core first | all checks pass; existing suites green with anchors |
 | 5 | Tiled glTF export and streaming; full parish build | see risks; overworld loads and walks on the dev PC |
@@ -341,6 +362,29 @@ further until the gate passes.
 - **Re-fetch.** If the raw dir is lost, the parish has to be re-fetched as 16
   tiles from Overpass, slowly and politely, with slot waits. The persisted
   copy exists to avoid that.
+
+## Phase 2 result: strip removal is not exact here
+
+`parish_thin.py` fits one straight `compress.py` band per removed row, with
+its edges in the row's gaps and its angle searched for the most room. On
+patch 206 (Uptown, Napoleon area, 382 blocks):
+
+- The river-parallel streets are not straight: Annunciation, Magazine,
+  Loyola and others bend 43–77 m from their best straight line over
+  1–2 km. The avenues are straighter (7 m) but fan, so their rows are
+  wedges, and a straight band fits only 4 of the 16.
+- Cutting those 4 rows gives 7 chords (cross streets jogging up to 13 m:
+  Loyola, Clara, S Claiborne, Willow), 1 new dead end, and keep 0.79 across
+  against a target of 0.6. Landmarks and decks pass.
+
+Control patch 154 (Carrollton) could not be tested: the NOSWB railroad
+curves through it, so every row is blocked. That also shows that phase 1
+leaves rail lines inside "regular" patches.
+
+The claim fails on the grid it was chosen for, so the fallback below
+applies. A street-following (curvilinear) warp is the alternative that
+could make row removal exact on bent and fanned grids. It is a new
+`compress.py` mode, not a parameter.
 
 ## Fallback: automated bands
 
