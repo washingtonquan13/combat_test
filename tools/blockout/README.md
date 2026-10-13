@@ -105,12 +105,13 @@ godot --headless --path . --import
   each water pixel's distance to the bank and how open the water around it
   is, for the water shader's shallows, shore foam and calm small water. Re-bake it alone with
   `python -I tools/blockout/shore_field.py data/blockouts/<name>`.
-- `city_gltf.py` writes `world/<name>/city.glb` every time, with
-  `shore.png`, `edge.exr` and `city.json` beside it and `.import` files
-  for all three, so `godot --headless --import` (or opening the editor)
+- `city_gltf.py` writes `world/<name>/city_0.glb`, `city_1.glb`, ...
+  every time, the city cut between tiles into parts under GitHub's 100 MB
+  file limit, and `city.tscn` instancing them all, with `shore.png`,
+  `edge.exr` and `city.json` beside them and `.import` files for each, so `godot --headless --import` (or opening the editor)
   brings it in as a scene: ground, buildings and decks per tile, the
   buildings and decks walkable through glTF's `-col` node suffix, water
-  walled off through `-colonly`. The glb's four materials are mapped to
+  walled off through `-colonly`. Each glb's four materials are mapped to
   `world/materials/city_*.tres`, so the city's look is edited there and
   survives a rebuild. The script writes `world/<name>_overworld.tscn`,
   the editable area with spawn, camera, fog sheets and light, only if that

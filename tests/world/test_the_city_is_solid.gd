@@ -5,7 +5,7 @@ extends AiTestCase
 ##
 ## The other overworld suites load this scene but never touch its ground,
 ## so they stay green with the city taken out of it. This suite does not.
-## The city is world/city_overworld/city.glb, written by
+## The city is world/city_overworld/city.tscn, its parts city_N.glb, written by
 ## tools/blockout/city_gltf.py, made solid by Godot's import through the
 ## glTF "-col" and "-colonly" node suffixes.
 
@@ -13,10 +13,10 @@ const SCENE := "res://world/city_overworld.tscn"
 ## Above everything in New Orleans.
 const SKY: float = 400.0
 ## The street slab under the start spawn is the top of Floor, at y = 0.
-const START_XZ := Vector2(927.559, 850.596)
+const START_XZ := Vector2(182.031, 797.997)
 ## A motorway link at the I-10 / Pontchartrain Expressway interchange,
 ## measured by LiDAR at 18.85 m (way 12687925).
-const DECK_XZ := Vector2(-1365.95, 1459.48)
+const DECK_XZ := Vector2(-1475.2, 1238.1)
 const DECK_HEIGHT: float = 18.85
 
 
@@ -28,7 +28,7 @@ func run() -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	var city: Node = area.get_node_or_null("CityGeometry")
-	check("the overworld instances the city model", city != null and city.scene_file_path.ends_with(".glb"),
+	check("the overworld instances the city model", city != null and city.scene_file_path.ends_with("city.tscn"),
 		"CityGeometry is %s" % (city.scene_file_path if city else "missing"))
 	if city == null:
 		area.free()

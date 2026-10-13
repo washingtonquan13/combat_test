@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://b38o2hxoojqm4"
-path="res://.godot/imported/city.glb-c79395fe12d2dcc2d1181b592fc71d5f.scn"
+uid="uid://c0o41cp5sn57o"
+path="res://.godot/imported/city_1.glb-82742d303cbf09b41a14f6d10d5ead61.scn"
 
 [deps]
 
-source_file="res://world/city_overworld/city.glb"
-dest_files=["res://.godot/imported/city.glb-c79395fe12d2dcc2d1181b592fc71d5f.scn"]
+source_file="res://world/city_overworld/city_1.glb"
+dest_files=["res://.godot/imported/city_1.glb-82742d303cbf09b41a14f6d10d5ead61.scn"]
 
 [params]
 

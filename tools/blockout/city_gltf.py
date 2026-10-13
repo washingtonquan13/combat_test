@@ -6,14 +6,18 @@ textures beside it.
         [--pitch 60 --range 120 --icon 10 --speed 10.67]
 
 Into <dir>, every time:
-  city.glb      one node per tile: Ground_X_Z (the ground and the water
-                surface, no collision), Tile_X_Z-col (blocks and decks,
-                drawn and walked on), Water_X_Z-colonly (the water's
-                sides, collision only), and Floor-colonly, the slab under
-                the ground with a wall at the map's four edges, and
-                BoundaryWall-colonly along the city line. Godot reads the
-                -col suffixes itself and makes the bodies.
-  city.glb.import  maps the glb's materials (ground, water, blocks, deck)
+  city_0.glb, city_1.glb, ...  the city in parts, each under GitHub's
+                100 MB file limit, cut between tiles. One node per tile:
+                Ground_X_Z (the ground and the water surface, no
+                collision), Tile_X_Z-col (blocks and decks, drawn and
+                walked on), Water_X_Z-colonly (the water's sides,
+                collision only); and in the first part Floor-colonly, the
+                slab under the ground with a wall at the map's four edges,
+                and BoundaryWall-colonly along the city line. Godot reads
+                the -col suffixes itself and makes the bodies. Parts from
+                an earlier build, and an old single city.glb, are removed.
+  city.tscn     the parts as one scene, which the overworld instances.
+  city_N.glb.import  maps each glb's materials (ground, water, blocks, deck)
                 to the project's world/materials/city_*.tres, so the
                 city's look is edited there, never in a generated file.
   shore.png, edge.exr  the water and edge fields from shore_field.py as
@@ -22,7 +26,7 @@ Into <dir>, every time:
                 which hands them to the shaders as global uniforms.
 
 And once, <dir>_overworld.tscn beside <dir> (or --scene): the editable area that
-instances the glb, with its spawn, camera, fog sheets, light and
+instances city.tscn, with its spawn, camera, fog sheets, light and
 environment. Doors and spawn points placed by hand survive a rebuild
 because the file is never written again.
 
@@ -33,9 +37,11 @@ as UV2, for the shaders that colour by kind. Map data (c) OpenStreetMap
 contributors, ODbL.
 """
 import argparse
+import glob
 import json
 import math
 import os
+import re
 import shutil
 import struct
 
@@ -60,6 +66,8 @@ EDGE_WALL = 100.0
 ## and how far the sheets run on past the map.
 FOG_HEIGHTS = [0.6, 3.0, 7.0]
 FOG_MARGIN = 600.0
+PART_INPUT = 25e6  # bytes of tile data per part; a glb comes out about 3x that
+PART_LIMIT_MB = 95
 ## The scene's haze, which the fog matches.
 HAZE = (0.72, 0.76, 0.80)
 MATERIALS = {
@@ -91,12 +99,26 @@ def main():
         meta = json.load(f)
     os.makedirs(args.out, exist_ok=True)
 
-    gltf = Gltf()
     corner = np.array(meta["corner"], dtype=np.float64)
     size = np.array(meta["extent"], dtype=np.float64)
+    # GitHub refuses a file over 100 MB, so the city is cut into parts by
+    # how much tile data each takes in; the slabs ride in the first.
+    gltf = Gltf()
+    parts = [gltf]
+    gltf.node("Floor-colonly", gltf.mesh([_prim(_floor(corner, size), None, None, None, "collision")]))
+    if "boundary" in meta:
+        gltf.node("BoundaryWall-colonly", gltf.mesh([_prim(_boundary(meta["boundary"]), None, None, None, "collision")]))
+    taken = 0
     tris = 0
     for tile in meta["tiles"]:
         name = "%d_%d" % (tile["x"], tile["z"])
+        weight = sum(os.path.getsize(os.path.join(args.src, "tiles", tile[k]))
+                     for k in ("ground", "blocks", "decks", "water") if k in tile)
+        if taken and taken + weight > PART_INPUT:
+            gltf = Gltf()
+            parts.append(gltf)
+            taken = 0
+        taken += weight
         prims = []
         if "ground" in tile:
             pos, kind, tint = _read(os.path.join(args.src, "tiles", tile["ground"]))
@@ -123,12 +145,20 @@ def main():
             pos, kind, tint = _read(os.path.join(args.src, "tiles", tile["water"]))
             if len(pos):
                 gltf.node("Water_%s-colonly" % name, gltf.mesh([_prim(pos, kind, tint, GROUND_COLORS, "collision")]))
-    gltf.node("Floor-colonly", gltf.mesh([_prim(_floor(corner, size), None, None, None, "collision")]))
-    if "boundary" in meta:
-        gltf.node("BoundaryWall-colonly", gltf.mesh([_prim(_boundary(meta["boundary"]), None, None, None, "collision")]))
-    glb = os.path.join(args.out, "city.glb")
-    gltf.write(glb)
-    _write_text(glb + ".import", _glb_import(args.out))
+    for old in glob.glob(os.path.join(args.out, "city*.glb")) + glob.glob(os.path.join(args.out, "city*.glb.import")):
+        if re.fullmatch(r"city(_\d+)?\.glb(\.import)?", os.path.basename(old)):
+            os.remove(old)
+    names = []
+    for k, part in enumerate(parts):
+        name = "city_%d.glb" % k
+        part.write(os.path.join(args.out, name))
+        mb = os.path.getsize(os.path.join(args.out, name)) / 1e6
+        if mb >= PART_LIMIT_MB:
+            raise SystemExit("%s is %.0f MB, over %d; lower PART_INPUT" % (name, mb, PART_LIMIT_MB))
+        _write_text(os.path.join(args.out, name + ".import"), _glb_import(args.out, name))
+        names.append(name)
+    glb = os.path.join(args.out, "city.tscn")
+    _write_text(glb, _city_scene(args.out, names))
 
     sidecar = {"attribution": meta["attribution"], "corner": meta["corner"], "extent": meta["extent"]}
     if "shore" in meta:
@@ -148,7 +178,8 @@ def main():
                            "size": [edge["size"][0] * edge["res"], edge["size"][1] * edge["res"]]}
     with open(os.path.join(args.out, "city.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(sidecar, f, indent=1)
-    print("city: %d tiles, %d building triangles, %d vertices -> %s" % (len(meta["tiles"]), tris, gltf.vertices, glb))
+    print("city: %d tiles, %d building triangles, %d vertices in %d part(s) -> %s"
+          % (len(meta["tiles"]), tris, sum(p.vertices for p in parts), len(parts), glb))
 
     area = args.scene or os.path.normpath(args.out).rstrip("/\\") + "_overworld.tscn"
     if not os.path.exists(area):
@@ -350,7 +381,16 @@ def _res(out, name):
     return "res://" + rel
 
 
-def _glb_import(out):
+def _city_scene(out, names):
+    """The city as one scene: a Node3D instancing every part."""
+    ext = "".join('[ext_resource type="PackedScene" path="%s" id="%d"]\n' % (_res(out, n), k)
+                  for k, n in enumerate(names))
+    nodes = "".join('\n[node name="Part%d" parent="." instance=ExtResource("%d")]\n' % (k, k)
+                    for k in range(len(names)))
+    return '[gd_scene load_steps=%d format=3]\n\n%s\n[node name="City" type="Node3D"]\n%s' % (len(names) + 1, ext, nodes)
+
+
+def _glb_import(out, name):
     materials = ",\n".join('"%s": {\n"use_external/enabled": true,\n"use_external/path": "%s"\n}' % (k, v)
                            for k, v in MATERIALS.items())
     return """[remap]
@@ -391,7 +431,7 @@ _subresources={
 }
 gltf/naming_version=1
 gltf/embedded_image_handling=1
-""" % (_res(out, "city.glb"), materials)
+""" % (_res(out, name), materials)
 
 
 def _texture_import(out, name, mipmaps):
@@ -524,7 +564,7 @@ light_energy = 1.25
 shadow_enabled = true
 shadow_blur = 1.5
 directional_shadow_max_distance = %g
-""" % (_res(args.out, "city.glb"), fog_ext, haze, haze, farthest * 1.1, farthest * 6.6, sheet[0], sheet[1],
+""" % (_res(args.out, "city.tscn"), fog_ext, haze, haze, farthest * 1.1, farthest * 6.6, sheet[0], sheet[1],
        root, args.speed, args.icon, args.cutaway, json.dumps(meta["attribution"]), sheets,
        start[0], start[1], height, distance, args.pitch, distance * 0.5, distance * 1.5, distance * 0.125,
        math.radians(-50.0), math.radians(-40.0), args.range * 3.0)
