@@ -509,6 +509,8 @@ def _crossings(ways, rails, pos):
             info.append((-1, -1, -99, -1, -1, RAIL_WIDTH))
     tree = shapely.STRtree(segs)
     mine = [i for i, f in enumerate(info) if f[2] != -99]
+    if not mine:
+        return []  # a map with no bridges
     left, right = tree.query([segs[i] for i in mine], predicate="intersects")
     out = []
     for li, j in zip(left, right):

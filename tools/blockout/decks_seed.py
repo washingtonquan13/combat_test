@@ -658,6 +658,8 @@ def clearance(recs, ways, deck_wi, rails):
             info.append((None, k))
     tree = shapely.STRtree(segs)
     nrec = sum(len(r["p"]) - 1 for r in recs)
+    if not nrec:
+        return []  # a map with no decks
     left, right = tree.query(segs[:nrec], predicate="intersects")
     cums = [cumlen(r["p"]) for r in recs]
     out = []
@@ -781,7 +783,7 @@ def main():
     print("decks: %d ways in the deck set (%d bridges), %d nodes" % (len(recs), sum(r["bridge"] for r in recs),
                                                                     sum(len(r["p"]) for r in recs)), flush=True)
 
-    measured = a.src == "lidar"
+    measured = a.src == "lidar" and bool(recs)  # a map with no decks has nothing to measure
     if measured:
         lo = np.min([r["p"].min(0) for r in recs], axis=0) - 200
         hi = np.max([r["p"].max(0) for r in recs], axis=0) + 200

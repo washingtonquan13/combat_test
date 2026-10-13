@@ -476,6 +476,16 @@ class Piece:
 
 
 def draw(meta, meta_path, out, decks, ways, others, fills=()):
+    if not decks and not fills:  # a map with no decks: only clear an earlier run's
+        for t in meta["tiles"]:
+            t.pop("decks", None)
+        for name in os.listdir(os.path.join(out, "tiles")):
+            if name.startswith("d_") and name.endswith(".bin"):
+                os.remove(os.path.join(out, "tiles", name))
+        with open(meta_path, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(meta, f, indent=1)
+        print("decks_mesh: no decks", flush=True)
+        return
     recs, pieces, tree, gores, patches = build(meta, decks, fills)
 
     corner, tile = meta["corner"], meta["tile"]
