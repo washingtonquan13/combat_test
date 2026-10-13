@@ -18,9 +18,8 @@ decks.json, not here.
     nodes do not kink it), heights carried by the same spline. It is
     sampled at every node and at most STEP apart between them.
   - The profile at each sample: the deck top width/2 either side of the
-    centre, a rail RAIL_HEIGHT tall and RAIL_THICK deep on each edge, the
-    side down THICK (to the ground for a way that is not a bridge, an
-    embankment) and the underside. Width changes between ways taper over
+    centre, the side down THICK (to the ground for a way that is not a
+    bridge, an embankment) and the underside. Width changes between ways taper over
     TAPER, and the inside of a bend is held to BEND of its radius so the
     edge never folds back on itself.
   - Twins (a record's "twin_of") are one profile of their combined width:
@@ -30,41 +29,38 @@ decks.json, not here.
     surface slopes across from one carriageway's height to the other's
     (crossfall), never a step. twin_of says the two are one road;
     decks_seed.py keeps only pairs LiDAR measures within TWIN_STEP.
-  - Rails are part of the profile: at each edge sample the model says
-    whether the edge there is the deck's own, and the rail stands wherever
-    it is, sample to sample, its foot the deck's own edge points. It is not
-    the deck's own where the edge is a seam (the deck meets another there,
-    welded or a step; the upper side of a step taller than STEP_MAX keeps
-    its rail, a kerb a fall high), where _meet brought it down onto a deck
-    below, at an end trimmed onto another deck wherever the edge lies on
-    that deck (and that deck's edge wherever it lies under this one: the
-    join's taper is one surface, and the outermost edge of the two is the
-    railed one), along a gore from a merged or split end to its nose, and
-    round the rim of a hand fill. A seam's last sample carries the rail
-    on, so the stretch back out from the seam to the deck's own line is
-    railed, unless a join cleared that sample. Where a joined end's edge
-    crosses the outline of the deck carrying it (its edges or its end
-    lines), both edges get a sample at the crossing and their rails run
-    to it and meet there, the caps mitred where the two edges turn a
-    corner, flush with the end wall where it is an end line. A run of
-    rail nowhere RAIL_DROP above the ground is not drawn. Nothing is
-    probed for a rail: an edge with
-    another deck beside it that no record declares gets a rail standing in
-    that deck, and the fix is the record.
+  - Rails are drawn after the decks, from the walkable outline they
+    leave: every deck edge and every gore's nose is probed every
+    RAIL_STEP, RAIL_PROBE outward, and a rail stands wherever there is no
+    deck top there within reach (a seam, a weld, a twin, a join's taper, a
+    gore or a hand fill beside it is the deck going on) and the drop
+    beyond is more than RAIL_LOW. Its height follows the drop, all of
+    RAIL_HEIGHT from RAIL_FULL, so a ramp's rail grows out of its toe and
+    a free end's rail tapers off over RAIL_END. Railed stretches are
+    linked end to end across pieces (within RAIL_LINK, RAIL_LINK_DY and
+    RAIL_LINK_TURN) into one line, resampled and smoothed so it reads as
+    one concrete barrier, not a string of segments. Nothing in decks.json
+    says where a rail goes: an edge with a deck beside it that no record
+    declares still finds it, and an edge with nothing beside it gets a
+    rail, so a rail standing where it should not means a record is
+    wrong.
   - A deck is drawn where it stands above MIN_HEIGHT, or is a bridge, and
     inside the map boundary plus RUNOUT. Where it comes down to the
     ground, or is cut at the map's edge, or simply ends, its last profile
     is at the ground: a ramp toe, never a mid-air end. Where it ends on
     another deck (a merge or split), it stops at the last profile that
-    lies wholly on the other deck.
+    lies wholly on the other deck. An end another deck merges into or
+    splits from (within LANDED of it) is not free either: it stays up,
+    under the deck that lands on it.
   - Gores: where a record merges or splits (decks.json "merges" /
     "splits"), the V between the branch's inner edge and the trunk's edge
     is filled with deck, from the apex, where the two edges part, to the
     nose (see GORE_NOSE). The gore's edges are the two pieces' own edge
     points, apex and nose inserted into both, so its edge heights are
-    theirs. Rails along those edges start at the nose, and a rail closes
-    the nose. A join with no V to fill (the two decks a step apart at the
-    apex, or the branch running on end to end) is listed and left alone.
+    theirs. To the rails a gore is deck like any other: the edges it
+    fills between are covered, and its nose is probed like an edge. A
+    join with no V to fill (the two decks a step apart at the apex, or
+    the branch running on end to end) is listed and left alone.
   - Hand fills: a point listed in decks.json "fills" inside a hole the
     decks leave enclosed (a slot between a gore and a split, a ring where
     three decks meet) fills that hole with deck at its rim's own heights;
@@ -87,6 +83,8 @@ import sys
 
 import numpy as np
 import shapely
+from scipy.ndimage import gaussian_filter1d
+from scipy.spatial import cKDTree
 from shapely.geometry import Polygon
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -97,20 +95,50 @@ from osm_city import MEDIAN, _bytes, _empty, _facing, _walls, _write  # noqa: E4
 DECK, SIDE, PIER, RAIL = range(4)
 # Samples along the centre line at most this far apart.
 STEP = 5.0
+# A merge or split this close to another deck's end lands on that end.
+LANDED = 1.0
 # A deck's top stands this far above its height, clear of the ground road.
 LIFT = 0.15
 # A structure's depth below its deck top.
 THICK = 1.5
-RAIL_HEIGHT = 2.0
-RAIL_THICK = 0.4
+# The rail, a concrete barrier: its height where the drop beyond is
+# RAIL_FULL or more, its depth across, how far in from the deck edge its
+# outer face stands (a rail smoothed off the edge's chords stays on the
+# deck) and how far down into the deck its foot goes.
+RAIL_HEIGHT = 1.1
+RAIL_THICK = 0.35
+RAIL_INSET = 0.05
+RAIL_SINK = 0.15
+# A rail stands where the drop beyond the edge is more than RAIL_LOW,
+# rising with it to all of RAIL_HEIGHT at RAIL_FULL: a ramp's rail grows
+# out of its toe. At a free end it comes down to nothing over RAIL_END.
+RAIL_LOW = 0.5
+RAIL_FULL = 3.0
+RAIL_END = 3.0
+# Edges are probed for the drop every RAIL_STEP, at these distances
+# outward: a deck top within them is the edge going on (the gap to it a
+# crack, as NEAR_GAP says for a seam).
+RAIL_STEP = 1.0
+RAIL_PROBE = (0.3, 0.8, 1.4, 2.0)
+# Railed stretches whose ends lie within RAIL_LINK in plan and RAIL_LINK_DY
+# in height, turning less than RAIL_LINK_TURN degrees, are one rail.
+RAIL_LINK = 2.0
+RAIL_LINK_DY = 0.6
+RAIL_LINK_TURN = 120.0
+# A rail is resampled every RAIL_RES and smoothed over RAIL_SMOOTH (a
+# Gaussian's sigma), then drawn with a point wherever it has turned
+# RAIL_TURN degrees, gone RAIL_SEG, or its height or foot changed RAIL_DH
+# since the last; stretches lower than RAIL_MIN are not drawn.
+RAIL_RES = 0.5
+RAIL_SMOOTH = 1.5
+RAIL_TURN = 2.0
+RAIL_SEG = 4.0
+RAIL_DH = 0.1
+RAIL_MIN = 0.03
 # An edge is carried by another deck found this far outward, from STEP_MAX
 # below the edge to RAIL_JOIN above it.
 COVER = (0.05, 0.3, 0.4, 0.8)
 RAIL_JOIN = 2.0
-# A rail run whose edge nowhere stands this far above the ground is not
-# drawn: a deck that low (a bridge a hand's height over a canal, a ramp's
-# toe) is a kerb's step off, and a 2 m wall along it walls the street in.
-RAIL_DROP = 1.0
 # Where an edge comes down onto a deck part way along a segment (_meet),
 # the point is found to within this.
 RAIL_TO = 0.15
@@ -123,9 +151,6 @@ PROBE = 0.25
 REACH_PAD = 0.01
 # The bucket size of the grid _Tops finds the deck tops over a point with.
 TOPS_CELL = 2.0
-# An edge crossing closer than this fraction of a segment to one of its
-# samples is that sample (_join_cuts).
-CROSS_EPS = 1e-3
 # A free end comes down to the ground over this run, or longer where its
 # height would make that steeper than TOE_GRADE.
 TOE_RUN = 5.0
@@ -187,8 +212,8 @@ CUT = 0.4
 # the edges are GORE_NOSE apart (narrower, the slot between two rails is a
 # crack, as NEAR_GAP says for a seam), or their heights part by GORE_DH
 # (the gore is one surface, as a weld is), or GORE_MAX along the branch,
-# whichever comes first walking either edge. The two edges' rails start at
-# the nose, joined by a rail across it.
+# whichever comes first walking either edge. The nose is probed for a rail
+# like any edge, so where it is a drop its rail links the two edges'.
 GORE_NOSE = NEAR_GAP
 GORE_DH = WELD
 GORE_MAX = 120.0
@@ -225,7 +250,18 @@ def main():
 
 def _records(decks):
     """Each record's centre line (n, 2), heights (n,), and its fields, with
-    nodes closer than 5 cm to the one before dropped."""
+    nodes closer than 5 cm to the one before dropped. An end is joined
+    where the record merges or splits there, or another lands on it."""
+    length_of = {d["way"]: d["nodes"][-1]["s"] for d in decks}
+    landed = {}
+    for d in decks:
+        for rel, s in [(m["into"], m["into_s"]) for m in d.get("merges", [])] + \
+                [(p["from"], p["from_s"]) for p in d.get("splits", [])]:
+            if rel in length_of:
+                if s < LANDED:
+                    landed.setdefault(rel, set()).add(0)
+                elif s > length_of[rel] - LANDED:
+                    landed.setdefault(rel, set()).add(1)
     recs = []
     for d in decks:
         p = np.array([(n["x"], n["z"]) for n in d["nodes"]], float)
@@ -241,7 +277,7 @@ def _records(decks):
             rels.append((rel.get("into", rel.get("from")), 0 if rel["at_s"] < length / 2 else 1))
         recs.append({"way": d["way"], "p": p, "h": h, "width": float(d["width"]), "bridge": bool(d["bridge"]),
                      "twins": list(d.get("twin_of") or []), "continues": [c["way"] for c in d.get("continues", [])],
-                     "joined": ends, "rels": rels})
+                     "joined": ends | landed.get(d["way"], set()), "rels": rels})
     return recs
 
 
@@ -472,7 +508,7 @@ class Piece:
     # that inserts or drops samples goes through these lists, so no array
     # is left a different length from the rest.
     SAMPLE = ("c", "h", "rec", "d", "w", "n", "toe")
-    SIDE = ("edge", "ey", "seam", "weld", "mid", "twin_h", "fade", "partner", "onto", "rail", "cross", "xdir")
+    SIDE = ("edge", "ey", "seam", "weld", "mid", "twin_h", "fade", "partner", "onto")
 
     def __init__(self, chain_id, c, h, rec, d, w, struct, free):
         self.chain = chain_id
@@ -490,9 +526,6 @@ class Piece:
         self.toe = np.zeros(len(c), bool)  # brought down towards a free end by _toes, not measured
         self.partner = [np.full(len(c), -1), np.full(len(c), -1)]  # the piece a seam sample meets
         self.onto = [np.zeros(len(c), bool), np.zeros(len(c), bool)]  # brought down onto a deck below by _meet
-        self.rail = [np.zeros(len(c), bool), np.zeros(len(c), bool)]  # a rail stands on this edge sample (_rails)
-        self.cross = [np.zeros(len(c), bool), np.zeros(len(c), bool)]  # where this edge crosses the outline of a deck it joins (_join_cuts)
-        self.xdir = [np.zeros((len(c), 2)), np.zeros((len(c), 2))]  # at a crossing, the line the rail's inner corner lies on (_join_cuts, _inward)
 
     @property
     def y(self):
@@ -510,7 +543,7 @@ def draw(meta, meta_path, out, decks, ways, others, fills=()):
             json.dump(meta, f, indent=1)
         print("decks_mesh: no decks", flush=True)
         return
-    recs, pieces, tree, gores, patches = build(meta, decks, fills)
+    recs, pieces, tree, gores, patches, lines = build(meta, decks, fills)
 
     corner, tile = meta["corner"], meta["tile"]
     nx, nz = int(round(meta["extent"][0] / tile)), int(round(meta["extent"][1] / tile))
@@ -530,21 +563,17 @@ def draw(meta, meta_path, out, decks, ways, others, fills=()):
             m = (tx == key[0]) & (tz == key[1])
             buckets.setdefault(key, []).append((tris[m], _bytes(int(m.sum()), kind), _bytes(int(m.sum()), 0)))
 
-    runs = 0
     for pc in pieces:
         for kind, tris in _profile(pc):
             put_each(tris, kind)
-        runs += sum(len(_runs(pc.rail[side][:-1] & pc.rail[side][1:])) for side in (0, 1))
     for p in patches:
         put_each(p["tris"], DECK)
         put_each(_fill_under(p), SIDE)
     for g in gores:
         put_each(g["tris"], DECK)
         put_each(_gore_sides(g), SIDE)
-        if max(g["nose_y"]) >= RAIL_DROP and not _filled(g, patches):
-            put_each(_nose_rail(g), RAIL)
-            runs += 1
-    print("decks_mesh: %d rail runs" % runs, flush=True)
+    for ln in lines:
+        put_each(_rail_mesh(ln), RAIL)
 
     piers, moved, blocked = _piers(pieces, recs, ways, others, put)
     print("decks_mesh: %d piers (%d moved along their deck clear of a road), %d spots with no clear place for one" % (piers, moved, blocked), flush=True)
@@ -636,12 +665,11 @@ def build(meta, decks, fills=()):
     tree = _Tops(pieces, list(gores) + patches)
     print("decks_mesh: %d hand fills of %d drawn%s" % (
         len(patches), len(fills), "; no hole found at " + ", ".join(missed) if missed else ""), flush=True)
-    crossed = _join_cuts(pieces, tree)
-    tree = _Tops(pieces, list(gores) + patches)
-    print("decks_mesh: %d edge crossings at joins given a sample" % crossed, flush=True)
-    railed, low = _rails(pieces, gores, patches, tree)
-    print("decks_mesh: rails on %d edge samples, %d runs too low to draw" % (railed, low), flush=True)
-    return recs, pieces, tree, gores, patches
+    lines = _rail_lines(pieces, gores, tree)
+    print("decks_mesh: %d rails, %.1f km, %d of them closed loops" % (
+        len(lines), sum(float(np.hypot(*np.diff(ln["p"], axis=0).T).sum()) for ln in lines) / 1000.0,
+        sum(ln["closed"] for ln in lines)), flush=True)
+    return recs, pieces, tree, gores, patches, lines
 
 
 def _meet(pc, tree):
@@ -775,11 +803,9 @@ def _cut(pc, k, fracs, side, ys):
     for s_ in (0, 1):
         for name in ("edge", "ey", "mid", "twin_h", "fade"):
             getattr(pc, name)[s_] = ins(getattr(pc, name)[s_])
-        for name in ("seam", "weld", "onto", "rail"):
+        for name in ("seam", "weld", "onto"):
             a = getattr(pc, name)
             a[s_] = ins(a[s_], v=bool(a[s_][k] and a[s_][k + 1]))
-        pc.cross[s_] = ins(pc.cross[s_], v=False)
-        pc.xdir[s_] = ins(pc.xdir[s_], v=np.zeros(2))
         p_ = pc.partner[s_]
         pc.partner[s_] = ins(p_, v=p_[k] if p_[k] == p_[k + 1] else -1)
     pc.ey[side][k + 1:k + 1 + len(fracs)] = ys
@@ -1248,7 +1274,7 @@ def _resample(pc, spec):
         nxt = oi[np.clip(np.searchsorted(oi, np.arange(len(keys)), side="left"), 0, len(oi) - 1)]
         span = u[nxt] - u[prev]
         t = np.where(span > 1e-12, (u - u[prev]) / np.where(span > 1e-12, span, 1.0), 0.0)
-        src = {name: getattr(pc, name)[sd] for name in ("seam", "weld", "mid", "twin_h", "fade", "partner", "onto", "rail", "cross", "xdir")}
+        src = {name: getattr(pc, name)[sd] for name in ("seam", "weld", "mid", "twin_h", "fade", "partner", "onto")}
         vals = {name: v[j] for name, v in src.items()}
         for idx, key in enumerate(keys):
             for name, val in spec.get(key, {}).get(sd, {}).items():
@@ -1259,10 +1285,7 @@ def _resample(pc, spec):
             v[~own] = (v[prev] + (v[nxt] - v[prev]) * tt)[~own]
         vals["seam"][~own] = (vals["seam"][prev] & vals["seam"][nxt])[~own]
         vals["weld"][~own] = vals["weld"][prev][~own] & vals["seam"][~own]
-        for name in ("onto", "rail"):
-            vals[name][~own] = (vals[name][prev] & vals[name][nxt])[~own]
-        vals["cross"][~own] = False
-        vals["xdir"][~own] = 0.0
+        vals["onto"][~own] = (vals["onto"][prev] & vals["onto"][nxt])[~own]
         same = vals["partner"][prev] == vals["partner"][nxt]
         vals["partner"][~own] = np.where(same, vals["partner"][prev], -1)[~own]
         for name, v in vals.items():
@@ -1586,12 +1609,6 @@ def _fill_under(p):
     return _facing(under, np.tile([0.0, -1.0, 0.0], (len(under), 1)))
 
 
-def _filled(g, patches):
-    """Whether a hand fill lies off a gore's nose, so its nose is no drop."""
-    mid = g["nose"].mean(axis=0) - g["toward"] * COVER[1]
-    return any(p["poly"].contains(shapely.Point(*mid)) for p in patches)
-
-
 class _Tops:
     """Every piece's deck top, and every gore's and hand fill's, for asking
     what deck lies beside an edge. A gore or a fill is another deck to every
@@ -1729,13 +1746,37 @@ class _Tops:
         hit = (rel > -STEP_MAX) & (rel < RAIL_JOIN) & (who >= 0)
         return sorted(set(who[hit].tolist()))
 
+    def beside(self, skip, pts, y, outward):
+        """Per edge point (n, 2) at heights y, outward the unit vectors off
+        the deck there: (covered, drop). covered: a deck top (any but piece
+        skip's; a gore's or a fill's too) lies over a point RAIL_PROBE
+        outward, STEP_MAX below to RAIL_JOIN above y, so the edge goes on
+        onto it. drop: how far y stands above the highest deck top lower
+        than that under any of those points, or above the ground."""
+        n, k = len(pts), len(RAIL_PROBE)
+        q = np.concatenate([pts + outward * t for t in RAIL_PROBE])
+        pi, _, rel = self._rels_of(skip, q, np.tile(y, k))
+        covered = np.zeros(len(q), bool)
+        covered[pi[(rel > -STEP_MAX) & (rel < RAIL_JOIN)]] = True
+        below = np.full(len(q), -np.inf)
+        low = rel <= -STEP_MAX
+        np.maximum.at(below, pi[low], rel[low])
+        below = below.reshape(k, n).max(axis=0)
+        drop = np.where(np.isfinite(below), -below, y)
+        return covered.reshape(k, n).any(axis=0), np.minimum(drop, y)
+
     def _rels(self, pc, pts, y):
         """(point index, owner, height relative to y) of every other
         piece's deck top over points (n, 2)."""
+        return self._rels_of(self.index[id(pc)], pts, y)
+
+    def _rels_of(self, skip, pts, y):
+        """_rels, piece skip's own top left out (none, if skip is no
+        piece's index)."""
         if not len(pts):
             return np.zeros(0, int), np.zeros(0, int), np.zeros(0)
-        pi, ti = self._over(np.asarray(pts, float), self.index[id(pc)])
-        keep = self.owner[ti] != self.index[id(pc)]
+        pi, ti = self._over(np.asarray(pts, float), skip)
+        keep = self.owner[ti] != skip
         pi, ti = pi[keep], ti[keep]
         t = self.tris[ti]
         q = pts[pi]
@@ -1907,267 +1948,183 @@ def _profile(pc):
         quads = np.stack([w_[0] for w_ in walls])
         nrm = np.array([w_[1] for w_ in walls])
         out.append((SIDE, _tris(quads, nrm)))
-    for side in (0, 1):
-        r = pc.rail[side]
-        if (r[:-1] & r[1:]).any():
-            out.append((RAIL, _rail(pc.edge[side], pc.ey[side], _inward(pc, side), _seg_out(pc, side), r)))
     return out
-
-
-def _inward(pc, side):
-    """Per sample, the way from the edge to the rail's inner face at
-    RAIL_THICK: square to the edge, per segment its own inward normal, at a
-    sample the mitre of the two either side (lengthened so each face keeps
-    its thickness, to at most twice). Not towards the centre line: where an
-    edge runs across the deck, as it does from a seam back out to its own
-    edge, that direction lies along the edge and the rail top would be a
-    sliver."""
-    seg_in = -_seg_out(pc, side)
-    inward = -_outward(pc, side)
-    sq = np.full(len(inward), 1.0)
-    sq[:-1] = np.minimum(sq[:-1], (inward[:-1] * seg_in).sum(axis=1))
-    sq[1:] = np.minimum(sq[1:], (inward[1:] * seg_in).sum(axis=1))
-    res = inward / np.maximum(sq, 0.5)[:, None]
-    # Where a rail run ends at a crossing with another deck's outline, its
-    # cap lies along the line _join_cuts found there: the mitre with the
-    # rail that carries on along the other deck's edge, or the other
-    # deck's end line, flush with its end wall.
-    r = pc.rail[side]
-    before = np.concatenate([[False], r[:-1]])
-    after = np.concatenate([r[1:], [False]])
-    for i in np.flatnonzero(pc.cross[side] & r & (before != after)):
-        line = pc.xdir[side][i]
-        n1 = seg_in[i - 1] if before[i] else seg_in[i]
-        along = float(np.dot(line, n1))
-        if abs(along) < 1e-6:
-            continue
-        m = line * (1.0 if along > 0 else -1.0)
-        res[i] = m / max(abs(along), 0.5)
-    return res
 
 
 def _unit(v):
     return v / max(float(np.hypot(*v)), 1e-9)
 
 
-def _rail(p, y, inward, seg_out, on):
-    """The rail along edge points p at heights y, over each segment whose
-    two samples on[] both carry it: its outer face standing on the edge
-    points themselves (the deck's own vertices there, so no crack can open
-    between the two), inner face RAIL_THICK along inward (per sample, see _inward), top,
-    and a cap wherever a run starts or stops; seg_out is each segment's
-    outward normal."""
-    inner = p + inward * RAIL_THICK
-    top = y + RAIL_HEIGHT
-    o0, o1 = _xyz(p, y), _xyz(p, top)
-    i0, i1 = _xyz(inner, y), _xyz(inner, top)
-    seg = on[:-1] & on[1:]
-    out3 = np.stack([seg_out[:, 0], np.zeros(len(seg_out)), seg_out[:, 1]], axis=1)[seg]
+# ---------------------------------------------------------------- rails
+
+def _rail_lines(pieces, gores, tree):
+    """The rails, each a smooth line along the outline of the walkable decks
+    wherever stepping off it is a fall (see the module docstring): every
+    deck edge, and every gore's nose, probed every RAIL_STEP for the drop
+    beyond it, the railed stretches linked end to end across pieces into
+    lines, each line resampled and smoothed. Returns a list of dicts:
+    p (n, 2), y (n,) the foot's height, h (n,) the rail's height there, o (n, 2)
+    outward."""
+    runs = []
+    edges = [(pc.edge[side], pc.ey[side], _outward(pc, side), pi) for pi, pc in enumerate(pieces) for side in (0, 1)]
+    edges += [(g["nose"], g["nose_y"], np.repeat(-g["toward"][None], 2, axis=0), -2) for g in gores]
+    for p, y, o, skip in edges:
+        if len(p) < 2:
+            continue
+        p, y, o = _densify(p, y, o, RAIL_STEP)
+        covered, drop = tree.beside(skip, p, y, o)
+        on = ~covered & (drop > RAIL_LOW)
+        for a, b in _runs(on):
+            if b > a:
+                runs.append(dict(p=p[a:b + 1], y=y[a:b + 1], o=o[a:b + 1], d=drop[a:b + 1]))
+    return [_rail_line(runs, seq, closed) for seq, closed in _link(runs)]
+
+
+def _densify(p, y, o, step):
+    """Polyline p, heights y and outward unit vectors o, with points added
+    so none are more than step apart."""
+    seg = np.hypot(*(p[1:] - p[:-1]).T)
+    k = np.maximum(1, np.ceil(seg / step).astype(int))
+    i = np.repeat(np.arange(len(seg)), k)
+    f = (np.arange(int(k.sum())) - np.repeat(np.cumsum(k) - k, k)) / np.repeat(k, k)
+
+    def lerp(a):
+        ff = f.reshape((-1,) + (1,) * (a.ndim - 1))
+        return np.concatenate([a[i] + (a[i + 1] - a[i]) * ff, a[-1:]])
+
+    oo = lerp(o)
+    return lerp(p), lerp(y), oo / np.maximum(np.hypot(*oo.T), 1e-9)[:, None]
+
+
+def _link(runs):
+    """The runs as chains: ([(run, reversed), ...], closed). Two run ends
+    join where they lie RAIL_LINK apart in plan and RAIL_LINK_DY in height,
+    and the rail turns less than RAIL_LINK_TURN between them, nearest
+    first, each end at most once."""
+    n = len(runs)
+    if not n:
+        return []
+    ends = np.array([r["p"][0] for r in runs] + [r["p"][-1] for r in runs])
+    ys = np.array([r["y"][0] for r in runs] + [r["y"][-1] for r in runs])
+    # The way out of each end, away from its run.
+    out = np.array([_unit(r["p"][0] - r["p"][1]) for r in runs] + [_unit(r["p"][-1] - r["p"][-2]) for r in runs])
+    pairs = cKDTree(ends).query_pairs(RAIL_LINK, output_type="ndarray")
+    if len(pairs):
+        a, b = pairs[:, 0], pairs[:, 1]
+        ok = (a % n != b % n) & (np.abs(ys[a] - ys[b]) < RAIL_LINK_DY) & ((out[a] * -out[b]).sum(axis=1) > math.cos(math.radians(RAIL_LINK_TURN)))
+        a, b = a[ok], b[ok]
+        order = np.argsort(np.hypot(*(ends[a] - ends[b]).T), kind="stable")
+        a, b = a[order], b[order]
+    else:
+        a = b = np.zeros(0, int)
+    partner = {}
+    for x, y_ in zip(a.tolist(), b.tolist()):
+        if x not in partner and y_ not in partner:
+            partner[x], partner[y_] = y_, x
+    seen = np.zeros(n, bool)
+    chains = []
+
+    def walk(r, enter):
+        # enter: the end (0 or 1) the chain comes into run r by.
+        seq, start = [], r
+        while True:
+            seen[r] = True
+            seq.append((r, enter == 1))
+            nxt = partner.get((1 - enter) * n + r)
+            if nxt is None:
+                return seq, False
+            r, enter = nxt % n, nxt // n
+            if seen[r]:
+                return seq, r == start
+    for r in range(n):
+        for e in (0, 1):
+            if not seen[r] and e * n + r not in partner:
+                chains.append(walk(r, e))
+    for r in range(n):
+        if not seen[r]:
+            chains.append(walk(r, 0))
+    return chains
+
+
+def _rail_line(runs, seq, closed):
+    """A chain of runs as one line: resampled every RAIL_RES along it,
+    smoothed over RAIL_SMOOTH, its height from the drop beyond (none at
+    RAIL_LOW, all of RAIL_HEIGHT from RAIL_FULL) and, on an open line,
+    down to nothing over RAIL_END at each end."""
+    parts = [{k: v[::-1] if rev else v for k, v in runs[r].items()} for r, rev in seq]
+    P = np.concatenate([q["p"] for q in parts])
+    cols = np.column_stack([P, np.concatenate([q["y"] for q in parts]), np.concatenate([q["d"] for q in parts]),
+                            np.concatenate([q["o"] for q in parts])])
+    if closed:
+        cols = np.vstack([cols, cols[:1]])
+    s = np.concatenate([[0.0], np.cumsum(np.hypot(*(cols[1:, :2] - cols[:-1, :2]).T))])
+    keep = np.concatenate([[True], np.diff(s) > 1e-6])
+    cols, s = cols[keep], s[keep]
+    length = s[-1]
+    m = max(2, int(math.ceil(length / RAIL_RES)) + 1)
+    u = np.linspace(0.0, length, m)
+    v = np.column_stack([np.interp(u, s, cols[:, j]) for j in range(cols.shape[1])])
+    if closed:
+        v, u = v[:-1], u[:-1]
+    v = gaussian_filter1d(v, RAIL_SMOOTH / max(length / (m - 1), 1e-9), axis=0, mode="wrap" if closed else "nearest")
+    x = np.clip((v[:, 3] - RAIL_LOW) / (RAIL_FULL - RAIL_LOW), 0.0, 1.0)
+    h = RAIL_HEIGHT * x * x * (3.0 - 2.0 * x)
+    if not closed:
+        e = np.clip(np.minimum(u, length - u) / RAIL_END, 0.0, 1.0)
+        h *= e * e * (3.0 - 2.0 * e)
+    o = v[:, 4:6]
+    return dict(p=v[:, :2], y=v[:, 2], h=h, o=o / np.maximum(np.hypot(*o.T), 1e-9)[:, None], closed=closed)
+
+
+def _rail_mesh(ln):
+    """A rail line as a solid: its outer face RAIL_INSET in from the deck
+    edge, RAIL_THICK deep, from RAIL_SINK under the foot to the line's
+    height, top, and a cap wherever a stretch of it tall enough to draw
+    starts or stops. Points are kept where the line has turned RAIL_TURN,
+    gone RAIL_SEG, or its height changed RAIL_DH since the last kept."""
+    p, y, h, o = ln["p"], ln["y"], ln["h"], ln["o"]
+    if ln["closed"]:
+        p, y, h, o = (np.concatenate([a, a[:1]]) for a in (p, y, h, o))
+    if len(p) < 2:
+        return np.zeros((0, 3, 3), np.float32)
+    seg = p[1:] - p[:-1]
+    ang = np.unwrap(np.arctan2(seg[:, 1], seg[:, 0]))
+    turn = np.concatenate([[0.0], np.cumsum(np.abs(np.diff(ang)))])
+    turn = np.concatenate([turn, turn[-1:]])
+    s = np.concatenate([[0.0], np.cumsum(np.hypot(*seg.T))])
+    keys = np.stack([np.floor(turn / math.radians(RAIL_TURN)), np.floor(s / RAIL_SEG), np.floor(h / RAIL_DH),
+                     np.floor(y / RAIL_DH), h > RAIL_MIN], axis=1)
+    keep = np.concatenate([[True], (keys[1:] != keys[:-1]).any(axis=1)])
+    keep[-1] = True
+    p, y, h, o = p[keep], y[keep], h[keep], o[keep]
+    # Square to the line, on the deck's side of the edge.
+    t = np.gradient(p, axis=0)
+    nrm = np.stack([-t[:, 1], t[:, 0]], axis=1)
+    nrm /= np.maximum(np.hypot(*nrm.T), 1e-9)[:, None]
+    nrm *= np.where((nrm * o).sum(axis=1) < 0, -1.0, 1.0)[:, None]
+    outer = p - nrm * RAIL_INSET
+    inner = p - nrm * (RAIL_INSET + RAIL_THICK)
+    foot, top = y - RAIL_SINK, y + h
+    o0, o1, i0, i1 = _xyz(outer, foot), _xyz(outer, top), _xyz(inner, foot), _xyz(inner, top)
+    draw = np.maximum(h[:-1], h[1:]) > RAIL_MIN
+    if not draw.any():
+        return np.zeros((0, 3, 3), np.float32)
+    sn = nrm[:-1] + nrm[1:]
+    out3 = np.stack([sn[:, 0], np.zeros(len(sn)), sn[:, 1]], axis=1)[draw]
     faces = [
-        (np.stack([o0[:-1], o0[1:], o1[1:], o1[:-1]], axis=1)[seg], out3),
-        (np.stack([i0[:-1], i0[1:], i1[1:], i1[:-1]], axis=1)[seg], -out3),
-        (np.stack([o1[:-1], o1[1:], i1[1:], i1[:-1]], axis=1)[seg], np.tile([0.0, 1.0, 0.0], (int(seg.sum()), 1))),
+        (np.stack([o0[:-1], o0[1:], o1[1:], o1[:-1]], axis=1)[draw], out3),
+        (np.stack([i0[:-1], i0[1:], i1[1:], i1[:-1]], axis=1)[draw], -out3),
+        (np.stack([o1[:-1], o1[1:], i1[1:], i1[:-1]], axis=1)[draw], np.tile([0.0, 1.0, 0.0], (int(draw.sum()), 1))),
     ]
-    caps, nrm = [], []
-    for a, b in _runs(seg):
-        # Segments a..b drawn: a cap at sample a facing back, one at sample
-        # b + 1 facing on.
-        d0, d1 = p[a] - p[a + 1], p[b + 1] - p[b]
-        caps += [[o0[a], i0[a], i1[a], o1[a]], [o0[b + 1], i0[b + 1], i1[b + 1], o1[b + 1]]]
-        nrm += [[d0[0], 0.0, d0[1]], [d1[0], 0.0, d1[1]]]
-    faces.append((np.array(caps), np.array(nrm)))
-    return np.concatenate([_tris(q, n) for q, n in faces])
-
-
-def _nose_rail(g):
-    """The rail across a gore's nose, joining its two edges' rails."""
-    inward = np.repeat(g["toward"][None], 2, axis=0)
-    return _rail(g["nose"], g["nose_y"], inward, -g["toward"][None], np.ones(2, bool))
-
-
-def _carriers(pc, end, tree):
-    """The pieces carrying piece pc's end (0 or 1): those under its end's
-    section across, edge to edge, probed every PROBE as _trim probed it."""
-    k = -1 if end else 0
-    f = np.linspace(0.0, 1.0, max(3, int(math.ceil(float(np.hypot(*(pc.edge[1][k] - pc.edge[0][k]))) / PROBE)) + 1))
-    pts = pc.edge[0][k] + (pc.edge[1][k] - pc.edge[0][k]) * f[:, None]
-    ys = pc.ey[0][k] + (pc.ey[1][k] - pc.ey[0][k]) * f
-    return tree.decks_under(pc, pts, ys)
-
-
-def _join_cuts(pieces, tree):
-    """Where a joined end's edge crosses an edge of the deck carrying it
-    (and where that deck's edge crosses the joined deck's), a sample at
-    the crossing on both edges, marked cross: each edge's rail runs to
-    that sample and the two meet there, instead of each stopping at its
-    last sample off the other deck and leaving the stretch between open.
-    Only a stretch of edge that enters or leaves the other deck between
-    two samples is looked at, and the crossing is where the edge line meets
-    the other deck's outline (its edges and its end lines) in plan. Where
-    two crossings are neighbours with the other deck between them (an edge
-    passing right under a joined end), a plain sample between them keeps
-    the rail off that stretch. Returns the number of samples added."""
-    # (piece index, side) -> segment -> [(fraction along it, the line the
-    # rail's inner corner lies on there: the other edge's inward normal, to
-    # mitre with; or a deck's end line, True, to cut flush with)]
-    asks = {}
-    seg_in = [[-_seg_out(pc, side) for side in (0, 1)] for pc in pieces]
-    for pi, pc in enumerate(pieces):
-        for end in (0, 1):
-            if pc.free[end]:
-                continue
-            for ti in _carriers(pc, end, tree):
-                for a, b in ((pi, ti), (ti, pi)):
-                    pa, pb = pieces[a], pieces[b]
-                    ends = [np.stack([pb.edge[0][k], pb.edge[1][k]]) for k in (0, -1)]
-                    for sa in (0, 1):
-                        on = tree.on(pa, pa.edge[sa], pa.ey[sa], b)
-                        for j in np.flatnonzero(on[:-1] != on[1:]):
-                            seg = shapely.linestrings(pa.edge[sa][j:j + 2][None])[0]
-                            v = pa.edge[sa][j + 1] - pa.edge[sa][j]
-                            for sb, eb in ((0, pb.edge[0]), (1, pb.edge[1]), (None, ends[0]), (None, ends[1])):
-                                line = shapely.linestrings(eb)
-                                for X in shapely.get_coordinates(shapely.intersection(seg, line)):
-                                    fa = float(np.dot(X - pa.edge[sa][j], v) / max(float(np.dot(v, v)), 1e-12))
-                                    if sb is None:  # an end line has no samples along it
-                                        asks.setdefault((a, sa), {}).setdefault(int(j), []).append((fa, _unit(eb[1] - eb[0]), True))
-                                        continue
-                                    cum = np.concatenate([[0.0], np.cumsum(np.hypot(*(eb[1:] - eb[:-1]).T))])
-                                    at = float(shapely.line_locate_point(line, shapely.points(X)))
-                                    m = int(np.clip(np.searchsorted(cum, at, side="right") - 1, 0, len(cum) - 2))
-                                    fb = (at - cum[m]) / max(cum[m + 1] - cum[m], 1e-12)
-                                    asks.setdefault((a, sa), {}).setdefault(int(j), []).append((fa, seg_in[b][sb][m], False))
-                                    asks.setdefault((b, sb), {}).setdefault(m, []).append((fb, seg_in[a][sa][j], False))
-    added = 0
-    for pi in sorted({a for a, _ in asks}):
-        pc = pieces[pi]
-        per = [asks.get((pi, 0), {}), asks.get((pi, 1), {})]
-        for k in sorted(set(per[0]) | set(per[1]), reverse=True):
-            fr = [np.clip(np.array([x[0] for x in per[side].get(k, [])]), 0.0, 1.0) for side in (0, 1)]
-            mid = np.unique(np.round(np.concatenate([f[(f > CROSS_EPS) & (f < 1.0 - CROSS_EPS)] for f in fr]), 6))
-            if len(mid):
-                _cut(pc, k, mid, 0, pc.ey[0][k] + (pc.ey[0][k + 1] - pc.ey[0][k]) * mid)
-                added += len(mid)
-            for side in (0, 1):
-                si = -_seg_out(pc, side)
-                for f, line, is_end in zip(fr[side], (x[1] for x in per[side].get(k, [])), (x[2] for x in per[side].get(k, []))):
-                    if f <= CROSS_EPS:
-                        i = k
-                    elif f >= 1.0 - CROSS_EPS:
-                        i = k + 1 + len(mid)
-                    else:
-                        i = k + 1 + int(np.searchsorted(mid, round(f, 6)))
-                    pc.cross[side][i] = True
-                    if not is_end:
-                        # The mitre's line: between this edge's inward normal
-                        # at the sample and the other edge's.
-                        n1 = si[max(i - 1, 0)] + si[min(i, len(si) - 1)]
-                        line = n1 / max(float(np.hypot(*n1)), 1e-9) + line
-                        # A turn past a right angle is no corner to mitre:
-                        # two rails converging on a wedge's apex end square.
-                        if float(np.hypot(*line)) < 1.4:
-                            continue
-                        line = _unit(line)
-                    pc.xdir[side][i] = line
-    for pi in sorted({a for a, _ in asks}):
-        pc = pieces[pi]
-        both = (pc.cross[0][:-1] & pc.cross[0][1:]) | (pc.cross[1][:-1] & pc.cross[1][1:])
-        for k in np.flatnonzero(both)[::-1]:
-            on = False
-            for side in (0, 1):
-                if pc.cross[side][k] and pc.cross[side][k + 1]:
-                    m = (pc.edge[side][k] + pc.edge[side][k + 1]) / 2
-                    y = (pc.ey[side][k] + pc.ey[side][k + 1]) / 2
-                    on |= bool(tree.decks_under(pc, m[None], np.array([y])))
-            if on:
-                _cut(pc, k, np.array([0.5]), 0, np.array([(pc.ey[0][k] + pc.ey[0][k + 1]) / 2]))
-                added += 1
-    return added
-
-
-def _rails(pieces, gores, patches, tree):
-    """Each piece's rail per edge sample, decided from the model (see the
-    module docstring): the deck's own edge, not a seam (but the upper side
-    of a step taller than STEP_MAX), not brought down onto a deck below,
-    not where an end trimmed onto another deck lies on it (nor that deck's
-    edge where it lies under this one), not along a gore from the joined
-    end to its nose, not round a hand fill's rim; a seam's last sample
-    carries the rail on unless a join cleared it. A run nowhere RAIL_DROP
-    above the ground is dropped. Returns (samples railed, runs dropped as
-    too low)."""
-    cleared = []
-    for pc in pieces:
-        cleared.append([np.zeros(len(pc.c), bool), np.zeros(len(pc.c), bool)])
-        for side in (0, 1):
-            ey = pc.ey[side]
-            seam, weld, partner, onto = pc.seam[side], pc.weld[side], pc.partner[side], pc.onto[side]
-            own = ~seam & (partner < 0) & ~onto
-            # At a stepped seam the two decks' edges part by twice this
-            # edge's lean off their mean: the upper one's is a kerb.
-            step_up = seam & ~weld & (2.0 * (ey - LIFT - pc.twin_h[side]) > STEP_MAX)
-            pc.rail[side] = own | step_up
-    for pi, pc in enumerate(pieces):
-        for end in (0, 1):
-            if pc.free[end]:
-                continue
-            # An end _trim left on another deck (on two at a three-way
-            # junction): this deck's edge wherever it lies on that deck is
-            # that deck's, and that deck's edge wherever this one lies over
-            # it is this one's: the two are one surface there, the join's
-            # taper. The end's section across, edge to edge, says which
-            # decks carry it, as _trim asked.
-            k = -1 if end else 0
-            tis = _carriers(pc, end, tree)
-            if not tis:
-                for side in (0, 1):
-                    cleared[pi][side][k] = True
-                continue
-            # A seam the two share is their declared relation, not the
-            # taper: its samples keep the seam rules (no rail, the kerb
-            # of a step, the carry at its end).
-            for ti in tis:
-                pt = pieces[ti]
-                for side in (0, 1):
-                    cleared[pi][side] |= tree.on(pc, pc.edge[side], pc.ey[side], ti) & ~(pc.seam[side] & (pc.partner[side] == ti))
-                    cleared[ti][side] |= tree.on(pt, pt.edge[side], pt.ey[side], pi) & ~(pt.seam[side] & (pt.partner[side] == pi))
-    for g in gores:
-        for key in ("b", "t"):
-            pi, side, apex, nose = g[key]
-            pc = pieces[pi]
-            e = pc.edge[side]
-            ja = _near(e, apex, _near(e, nose, 0))
-            jn = _near(e, nose, ja)
-            # The branch's edge lies on the trunk from its joined end to the
-            # apex, and the gore runs from the apex to the nose, where the
-            # rail starts.
-            if jn >= ja:
-                cleared[pi][side][0 if key == "b" else ja:jn] = True
-            else:
-                cleared[pi][side][jn + 1:len(e) if key == "b" else ja + 1] = True
-    for p in patches:
-        rim = shapely.boundary(p["poly"])
-        for pi, pc in enumerate(pieces):
-            for side in (0, 1):
-                cleared[pi][side] |= shapely.dwithin(rim, shapely.points(pc.edge[side]), 2 * FILL_GROW)
-    railed = low = 0
-    for pi, pc in enumerate(pieces):
-        for side in (0, 1):
-            r, seam, ey = pc.rail[side], pc.seam[side], pc.ey[side]
-            # A crossing sample (_join_cuts) is where this edge's rail and
-            # the other deck's meet: railed, whatever cleared it.
-            r &= ~cleared[pi][side] | pc.cross[side]
-            # The seam's last sample carries the rail on: a seam sample
-            # beside a railed own sample, unless the join cleared it (then
-            # the rail ends at the own sample, and the gore's nose rail or
-            # the other deck's rail takes over).
-            own = r & ~seam
-            r |= seam & ~cleared[pi][side] & (np.concatenate([[False], own[:-1]]) | np.concatenate([own[1:], [False]]))
-            for a, b in _runs(r):
-                if ey[a:b + 1].max() < RAIL_DROP:
-                    r[a:b + 1] = False
-                    low += 1
-            railed += int(r.sum())
-    return railed, low
+    caps, cn = [], []
+    for a, b in _runs(draw):
+        for k, d in ((a, p[a] - p[a + 1]), (b + 1, p[b + 1] - p[b])):
+            if h[k] > RAIL_MIN:
+                caps.append([o0[k], i0[k], i1[k], o1[k]])
+                cn.append([d[0], 0.0, d[1]])
+    if caps:
+        faces.append((np.array(caps), np.array(cn)))
+    return np.concatenate([_tris(q, n_) for q, n_ in faces])
 
 
 # ---------------------------------------------------------------- piers
