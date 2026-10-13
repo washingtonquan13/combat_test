@@ -42,8 +42,10 @@ import json
 import math
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
+import scipy.sparse as sp
 import shapely
 from shapely.geometry import Polygon
 
@@ -71,6 +73,33 @@ ANISO = 2.0
 MARKS = {"Jackson Square": (29.9574, -90.0630), "Congo Square": (29.9606, -90.0681),
          "St Louis Cathedral": (29.9580, -90.0637), "Washington Square": (29.9644, -90.0566),
          "Lafayette Square": (29.9488, -90.0705)}
+
+
+THREADS = max(1, min(8, os.cpu_count() or 1))  # per-triangle work is split over this many threads
+_pool = None
+
+
+def _threads():
+    global _pool
+    if _pool is None:
+        _pool = ThreadPoolExecutor(THREADS)
+    return _pool
+
+
+def _chunked(f, J):
+    """f over a stack of 2x2 matrices, the stack split across threads.
+    numpy's linalg loops release the GIL and solve each matrix on its own,
+    so the result is the same bits as f(J) in one call."""
+    if THREADS == 1 or len(J) < 4096:
+        return f(J)
+    parts = list(_threads().map(f, np.array_split(J, THREADS)))
+    if isinstance(parts[0], tuple):
+        return tuple(np.concatenate(p) for p in zip(*parts))
+    return np.concatenate(parts)
+
+
+def svd(J, compute_uv=True):
+    return _chunked(lambda j: np.linalg.svd(j, compute_uv=compute_uv), J)
 
 
 class Outline:
@@ -163,21 +192,27 @@ class Mesh:
         self.ring = used & (~src.inset(1e-6).contains(self.P) | self.edge)
         self.dead = ~used
 
-    def jac(self, Q):
-        return np.einsum("tik,tij->tkj", Q[self.T], self.g)
+    def jac(self, Q, sl=slice(None)):
+        # the einsum "tik,tij->tkj" written out: the same products summed in
+        # the same order, so the same bits, at half the time
+        q, g = Q[self.T[sl]], self.g[sl]
+        return q[:, 0, :, None] * g[:, 0, None, :] + q[:, 1, :, None] * g[:, 1, None, :] \
+            + q[:, 2, :, None] * g[:, 2, None, :]
 
     def locate(self, x, z):
-        """Triangle and barycentric weights of points inside the rectangle."""
+        """Triangle and barycentric weights (three arrays) of points inside
+        the rectangle. Called once per OSM way, so it is kept to a few array
+        operations: the cost is per call, not per point."""
         u = (x - self.x0) / self.hx
         v = (z - self.z0) / self.hz
-        i = np.clip(np.floor(u).astype(int), 0, self.nx - 2)
-        j = np.clip(np.floor(v).astype(int), 0, self.nz - 2)
+        i = np.minimum(np.maximum(np.floor(u).astype(int), 0), self.nx - 2)
+        j = np.minimum(np.maximum(np.floor(v).astype(int), 0), self.nz - 2)
         fu, fv = u - i, v - j
         cell = j * (self.nx - 1) + i
-        up = fu + fv > 1
+        s = fu + fv
+        up = s > 1
         t = np.where(up, cell + self.ncell, cell)
-        w = np.where(up[:, None], np.c_[fu + fv - 1, 1 - fu, 1 - fv], np.c_[1 - fu - fv, fu, fv])
-        return t, w
+        return t, np.where(up, s - 1, 1 - fu - fv), np.where(up, 1 - fu, fu), np.where(up, 1 - fv, fv)
 
 
 class Warp:
@@ -192,20 +227,40 @@ class Warp:
         self.inner = mesh.src.inset(1.5 * H)  # every point inside lies in a live triangle
         self.lo = mesh.P.min(0)
         self.hi = mesh.P.max(0)
+        # Outline.contains' constants, and each triangle's corners per axis,
+        # so warp() is a handful of array operations per call
+        o = self.inner
+        self._c0, self._c1, self._ia, self._ib, self._r = o.c[0], o.c[1], o.a - o.r, o.b - o.r, o.r
+        QT = Q[mesh.T]
+        self._qx = [np.ascontiguousarray(QT[:, i, 0]) for i in range(3)]
+        self._qz = [np.ascontiguousarray(QT[:, i, 1]) for i in range(3)]
 
     def warp(self, x, z):
         """Inside the source outline, the mesh; past it, a point moves with
-        the nearest point just inside, at the uniform scale s_edge."""
+        the nearest point just inside, at the uniform scale s_edge.
+
+        The same arithmetic as Outline.contains/project and an einsum over
+        the barycentric weights, column by column, in the same order: it is
+        called once per OSM way, hundreds of thousands of times, so the
+        per-call overhead is what it costs."""
         x, z = np.array(x, float, ndmin=1), np.array(z, float, ndmin=1)
-        p = np.c_[x, z]
-        b = p.copy()
-        out = ~self.inner.contains(p)
+        qx, qz = x - self._c0, z - self._c1
+        dx = qx - np.minimum(np.maximum(qx, -self._ia), self._ia)
+        dz = qz - np.minimum(np.maximum(qz, -self._ib), self._ib)
+        out = ~(np.hypot(dx, dz) <= self._r)
         if out.any():
-            b[out] = self.inner.project(p[out])
-        t, w = self.m.locate(b[:, 0], b[:, 1])
-        q = np.einsum("ti,tik->tk", w, self.Q[self.m.T[t]])
-        q += self.s_edge * (p - b)
-        return q[:, 0], q[:, 1]
+            bp = self.inner.project(np.c_[x[out], z[out]])
+            bx, bz = x.copy(), z.copy()
+            bx[out], bz[out] = bp[:, 0], bp[:, 1]
+        else:
+            bx, bz = x, z
+        t, w0, w1, w2 = self.m.locate(bx, bz)
+        X, Z = self._qx, self._qz
+        wx = w0 * X[0][t] + w1 * X[1][t] + w2 * X[2][t]
+        wz = w0 * Z[0][t] + w1 * Z[1][t] + w2 * Z[2][t]
+        wx += self.s_edge * (x - bx)
+        wz += self.s_edge * (z - bz)
+        return wx, wz
 
     def deleted(self, x, z):
         return np.zeros(np.shape(np.array(x, ndmin=1)), bool)
@@ -226,7 +281,7 @@ def stiffness(mesh, districts):
 def measure(mesh, Q, did, names, D):
     """The gates for one solve: (gate dict, per district (name, scale, worst shape distortion))."""
     J = mesh.jac(Q)
-    S = np.linalg.svd(J, compute_uv=False)
+    S = svd(J, compute_uv=False)
     det = np.linalg.det(J)
     inside = did >= 0
     shape = S[:, 0] / np.maximum(S[:, 1], 1e-12) - 1  # 0 for an undistorted triangle
@@ -250,8 +305,25 @@ def measure(mesh, Q, did, names, D):
     return gate, per
 
 
+def _summer(idx, nbins, vals=None, cols=None):
+    """A CSR matrix whose product with v is np.bincount(idx, v, nbins) to the
+    bit: row b holds the entries with idx == b in their input order, and
+    scipy's row loop adds them in that order from 0, as bincount does.
+    vals/cols replace the 1s and the entry numbers (a weight folded in)."""
+    order = np.argsort(idx, kind="stable")
+    indptr = np.r_[0, np.cumsum(np.bincount(idx, minlength=nbins))]
+    data = np.ones(len(idx)) if vals is None else vals[order]
+    return sp.csr_matrix((data, order if cols is None else cols[order], indptr),
+                         shape=(nbins, len(idx) if cols is None else int(cols.max()) + 1))
+
+
 def solve(mesh, out, did, w, D, Q0, log, iters=ITERS):
+    """The local/global ARAP solve. Same arithmetic, in the same order, as
+    the plain numpy version it replaced (bincounts, einsums, CG), so the
+    same bits: the per-triangle local step runs in THREADS slices, and the
+    sums run as sparse products whose row loops add in bincount's order."""
     n = len(mesh.P)
+    nt = len(mesh.T)
     wa = w * mesh.area * mesh.live
     rows = np.repeat(mesh.T, 3, axis=1).ravel()
     cols = np.tile(mesh.T, (1, 3)).ravel()
@@ -261,37 +333,79 @@ def solve(mesh, out, did, w, D, Q0, log, iters=ITERS):
     dg = kr == kc
     kv = np.bincount(inv, (wa[:, None, None] * gg).ravel())
     pin = np.where(mesh.ring | mesh.dead, PIN * kv[dg].mean(), 0.0)
-    boost = np.ones(len(mesh.T))
+    boost = np.ones(nt)
+    # kv = bincount(inv, (wb * gg).ravel()) as G @ wb: entry e of the
+    # stiffness is gg[e] times its triangle's weight wb[e // 9]
+    G = _summer(inv, len(key), vals=gg.ravel(), cols=np.arange(9 * nt) // 9)
+    # b = bincount(T.ravel(), contrib[..., k].ravel()) as ST @ contrib
+    ST = _summer(mesh.T.ravel(), n)
+    # K as a CSR matrix with the same entries in the same order (rows from
+    # the sorted keys, columns ascending in a row)
+    indptr = np.r_[0, np.cumsum(np.bincount(kr, minlength=n))].astype(np.int32)
+    kc32 = kc.astype(np.int32)
+    A = None
 
     def K(x):
-        return np.stack([np.bincount(kr, kv * x[kc, k], minlength=n) for k in range(2)], 1) + pin[:, None] * x
+        return A @ x + pin[:, None] * x
 
-    Q = Q0.copy()
-    for it in range(iters):
-        J = mesh.jac(Q)
-        U, S, Vt = np.linalg.svd(J)
-        R = U @ Vt
-        bad = np.linalg.det(R) < 0
+    wb = np.empty(nt)
+    contrib = np.empty((nt, 3, 2))
+    step = -(-nt // THREADS)
+    slices = [slice(s, min(s + step, nt)) for s in range(0, nt, step)]
+    live, dist = mesh.live, did >= 0
+
+    Jall = np.empty((nt, 2, 2))
+    Uall, Sall, Vall = np.empty((nt, 2, 2)), np.empty((nt, 2)), np.empty((nt, 2, 2))
+    det = None
+
+    def local_svd(sl):
+        Jall[sl] = J = mesh.jac(Q, sl)
+        Uall[sl], Sall[sl], Vall[sl] = np.linalg.svd(J)
+
+    def local(sl):
+        """The local step for triangles sl: each triangle's best rotation
+        and bounded scale, its boost, and its pull on its corners."""
+        U, S, Vt = Uall[sl], Sall[sl], Vall[sl]
+        # U @ Vt is a rotation or a reflection, det +-1 to rounding, so its
+        # sign is the sign of det U * det Vt (the rotation itself is not used)
+        bad = (U[:, 0, 0] * U[:, 1, 1] - U[:, 0, 1] * U[:, 1, 0]) \
+            * (Vt[:, 0, 0] * Vt[:, 1, 1] - Vt[:, 0, 1] * Vt[:, 1, 0]) < 0
         U[bad, :, 1] *= -1
-        R[bad] = U[bad] @ Vt[bad]
         # a district keeps its shape exactly, at the one scale D; ground
         # between districts takes whatever squeeze it is given, within the
         # gate's bounds
         Sb = np.clip(S, MIN_SCALE * AIM, 1.0)
         Sb[:, 1] = np.maximum(Sb[:, 1], Sb[:, 0] * AIM / ANISO)
-        Sb[did >= 0] = D
+        Sb[dist[sl]] = D
         # a triangle that breaks the bounds (folded, squeezed past the floor,
         # stretched past ANISO) counts for more next time, so the squeeze it
         # cannot take moves to ground that can
-        det = np.linalg.det(J)
-        worse = mesh.live & ((det <= 0) | (S[:, 1] < MIN_SCALE) | (S[:, 0] > ANISO * S[:, 1]))
-        boost = np.where(worse, np.minimum(boost * BOOST, BOOST_MAX), boost)
-        wb = wa * boost
-        kv = np.bincount(inv, (wb[:, None, None] * gg).ravel())
+        worse = live[sl] & ((det[sl] <= 0) | (S[:, 1] < MIN_SCALE) | (S[:, 0] > ANISO * S[:, 1]))
+        bo = boost[sl]
+        boost[sl] = bo = np.where(worse, np.minimum(bo * BOOST, BOOST_MAX), bo)
+        wb[sl] = wbs = wa[sl] * bo
+        # the einsums "tij,tj,tjk->tik" and "tkj,tij->tik" written out, same
+        # products in the same order
+        M = (U[:, :, 0, None] * Sb[:, 0, None, None]) * Vt[:, 0, None, :] \
+            + (U[:, :, 1, None] * Sb[:, 1, None, None]) * Vt[:, 1, None, :]
+        g = mesh.g[sl]
+        contrib[sl] = wbs[:, None, None] * (M[:, None, :, 0] * g[:, :, 0, None] + M[:, None, :, 1] * g[:, :, 1, None])
+
+    Q = Q0.copy()
+    for it in range(iters):
+        # the svds in threads (numpy's loop releases the GIL); det holds the
+        # GIL, so it runs once over the whole stack between the two rounds
+        for f in (local_svd, local):
+            if len(slices) > 1:
+                list(_threads().map(f, slices))
+            else:
+                f(slices[0])
+            if f is local_svd:
+                det = np.linalg.det(Jall)
+        kv = G @ wb
+        A = sp.csr_matrix((kv, kc32, indptr), shape=(n, n))
         diag = np.bincount(kr[dg], kv[dg], minlength=n) + pin
-        M = np.einsum("tij,tj,tjk->tik", U, Sb, Vt)
-        contrib = wb[:, None, None] * np.einsum("tkj,tij->tik", M, mesh.g)  # (T, 3, 2)
-        b = np.stack([np.bincount(mesh.T.ravel(), contrib[..., k].ravel(), minlength=n) for k in range(2)], 1)
+        b = ST @ contrib.reshape(-1, 2)
         tgt = out.project(Q[mesh.ring])
         b[mesh.ring] += pin[mesh.ring, None] * tgt
         b[mesh.dead] += pin[mesh.dead, None] * Q0[mesh.dead]
@@ -397,7 +511,7 @@ def main():
         else:
             Q, gate, per = Qd, g, pr
     J = mesh.jac(Q)
-    S = np.linalg.svd(J, compute_uv=False)
+    S = svd(J, compute_uv=False)
     for nm, sm, mx in per:
         log("  %-26s scale %.3f, worst shape distortion %.3f" % (nm, sm, mx))
     gate["area_km2"] = round(out.area() / 1e6, 2)
