@@ -4,7 +4,7 @@ of them, ground meshes coloured by what the ground is, and impassable
 water. city_gltf.py then writes the result as a glTF for Godot.
 
     python -I tools/blockout/osm_city.py <raw dir> <out dir> [--bbox S,W,N,E] \
-        --water-seeds LAT,LON;LAT,LON
+        --water-seeds LAT,LON;LAT,LON [--simplify moderate|aggressive|hyper         --drop-ways <decks.json>]
 
 <raw dir> is what fetch_osm_city.py writes: any number of bld_*.json with
 buildings, features.json with water, roads, green space and rail, and
@@ -23,6 +23,13 @@ seed is water. Seeds also come from <raw dir>/water_seeds.json, which a
 tool that moves a raw (parish_warp.py, compress.py) writes, so a build from
 it cannot forget them. A cut body that no seed reaches stays dry ground,
 and the build says so.
+
+--simplify takes decks down (decks_simplify.py) between seeding them and
+drawing them. A ramp it takes out at aggressive or hyper has no ground road
+under it either (nor does the dead-end road it leaves on the ground), but
+the ground is drawn before the decks are seeded: --drop-ways names a
+decks.json from decks_simplify.py (the same raw seeds the same decks)
+whose taken-out ways get none.
 
 Everything stays a polygon, so edges keep their real angles. A city has far
 too many buildings for one node each, and an overworld wants blocks, not
@@ -96,6 +103,9 @@ FILL_TO = 8.0
 BLOCK_WALL = 8.0
 ## Outlines lose detail smaller than this.
 SIMPLIFY = 1.0
+## A street's centreline loses wiggles smaller than this before it is drawn,
+## so a straight street is drawn straight.
+STREET_SIMPLIFY = 2.0
 WATER_WALL = 3.0
 ## A shoreline the bbox cut is run out to the map edge from this close.
 SHORE_REACH = 400.0
@@ -166,8 +176,7 @@ def join_medians(lines):
     half = [(l, w) for l, w in lines if w > 0]
     if not half:
         return Polygon()
-    surf = _strokes(half)
-    return _clean(shapely.buffer(shapely.buffer(surf, MEDIAN, quad_segs=4), -MEDIAN, quad_segs=4))
+    return _clean(_close(_crisp(half), MEDIAN))
 
 
 def main():
@@ -179,7 +188,12 @@ def main():
     ap.add_argument("--nofill", action="store_true")
     ap.add_argument("--water-seeds", default="",
                     help="lat,lon;lat,lon points inside water bodies the bbox cuts open")
+    ap.add_argument("--simplify", choices=("moderate", "aggressive", "hyper"))
+    ap.add_argument("--drop-ways", help="a decks.json whose simplified.dropped ways get no ground road")
     args = ap.parse_args()
+    drop_ways = set()
+    if args.drop_ways:
+        drop_ways = set(json.load(open(args.drop_ways, encoding="utf-8"))["simplified"]["dropped"])
     t0 = time.time()
     boundary_path = os.path.join(args.raw, "boundary.json")
     rel = None
@@ -277,6 +291,8 @@ def main():
                 if len(line) < 2:
                     continue
                 if tags.get("highway") in ROAD_WIDTHS and tags.get("building", "no") == "no":
+                    if el.get("id") in drop_ways:
+                        continue
                     roads.append((line, road_class(tags), tags.get("bridge", "no") != "no", tags.get("name")))
                 elif tags.get("railway") == "rail":
                     rails.append(line)
@@ -305,7 +321,7 @@ def main():
             areas[kind].append(poly)
 
     cover = {k: shapely.union_all(v) if v else Polygon() for k, v in areas.items()}
-    cover[RAIL] = _strokes([(line, RAIL_WIDTH) for line in rails])
+    cover[RAIL] = _crisp([(line, RAIL_WIDTH) for line in rails])
     # A bridge is a deck of its own (bridges.py), not paint on the ground
     # under it; but it still keeps the buildings out from under itself.
     # The minor streets thinned to through-streets around big blocks
@@ -314,10 +330,10 @@ def main():
     network = [line for line, k, up, _ in roads if k not in MINOR_ROADS and ROAD_WIDTHS[k] > 0 and not up]
     kept, dropped, faces, n_before, n_after = streets.prune(network + rails + [line for line, _ in canals],
                                             [line for line, _ in minor], [name for _, name in minor])
-    cover[ROAD] = _strokes([(line, STREET) for line in kept])
+    cover[ROAD] = _crisp([(line, STREET) for line in kept])
     log("minor streets: blocks %d -> %d, %d alleys" % (n_before, n_after, len(dropped)))
-    alleys = _strokes([(line, ALLEY) for line in dropped])
-    cover[MAJOR] = shapely.union_all([_strokes([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k not in MINOR_ROADS and not k.endswith("~half") and not up]), join_medians([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k.endswith("~half") and not up])])
+    alleys = _crisp([(line, ALLEY) for line in dropped])
+    cover[MAJOR] = shapely.union_all([_crisp([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k not in MINOR_ROADS and not k.endswith("~half") and not up]), join_medians([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k.endswith("~half") and not up])])
     decks = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if up])
     canal_strokes = []
     for line, width in canals:
@@ -326,7 +342,7 @@ def main():
         except ValueError:
             wm = CANAL_WIDTH
         canal_strokes.append((line, wm))
-    water = [cover[WATER], _strokes(canal_strokes)]
+    water = [cover[WATER], _crisp(canal_strokes)]
     seeds = [tuple(float(v) for v in seed.split(",")) for seed in filter(None, args.water_seeds.split(";"))]
     seeds_path = os.path.join(args.raw, "water_seeds.json")
     if os.path.exists(seeds_path):
@@ -395,11 +411,11 @@ def main():
              for tz in range(nz) for tx in range(nx)}
     ground = work.main.submit(_ground, cover, region, decks, cells, work.sub)
     fill = Polygon()
+    open_space = shapely.union_all([cover[PARK], cover[GRAVES]])
     if args.iv and not args.nofill:
         # A superblock is what the kept roads, rail and water enclose. A
         # dense one is filled solid up to house height, one closed region.
         hard = shapely.buffer(shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER], decks]), SIDEWALK, join_style="mitre")
-        open_space = shapely.union_all([cover[PARK], cover[GRAVES]])
         blocks = shapely.difference(inside, hard)
         bld = shapely.union_all(footprints)
         dense = []
@@ -411,7 +427,11 @@ def main():
                 dense.append(sb)
         fill = shapely.difference(shapely.union_all(dense), open_space) if dense else Polygon()
         log("superblocks %d, filled %d" % (shapely.get_num_geometries(blocks), len(dense)))
-    finished = [work.finish.submit(_finish, c, level, fill, open_ground, alleys, inside) for c, level in zip(closed, levels)]
+    # Every street's centre line, the ones the thinning dropped too: a hole
+    # in the mass one of them runs into is that street's, not a backyard.
+    street_lines = shapely.STRtree([LineString(line) for line, k, up, _ in roads if ROAD_WIDTHS[k] > 0 and not up])
+    finished = [work.finish.submit(_finish, c, level, fill, open_space, open_ground, alleys, inside, street_lines)
+                for c, level in zip(closed, levels)]
 
     def tile_of(geom):
         p = shapely.get_coordinates(geom.representative_point())[0]
@@ -503,6 +523,9 @@ def main():
     # adds their own tiles to city.json.
     here = os.path.dirname(os.path.abspath(__file__))
     subprocess.run([sys.executable, "-I", os.path.join(here, "decks_seed.py"), args.raw, args.out], check=True)
+    if args.simplify:
+        subprocess.run([sys.executable, "-I", os.path.join(here, "decks_simplify.py"), args.out, args.out,
+                        "--level", args.simplify, "--raw", args.raw], check=True)
     subprocess.run([sys.executable, "-I", os.path.join(here, "decks_mesh.py"), args.raw, args.out], check=True)
 
 
@@ -550,6 +573,51 @@ def _strokes(lines):
     geoms = [LineString(l) for l, _ in lines]
     widths = np.array([wd for _, wd in lines]) / 2
     return shapely.union_all(shapely.buffer(np.array(geoms, dtype=object), widths, quad_segs=4))
+
+
+def _crisp(lines):
+    """Lines of the given widths as one polygon, drawn the way a map draws
+    streets: straight sides, mitred bends, a dead end cut square across,
+    and every junction filled out square to the sides of the roads meeting
+    there. _strokes' round ends and joins left a knob at every dead end
+    and a bulge at every bend, which reads as blobby, not built."""
+    lines = [(np.asarray(l, float), wd) for l, wd in lines if wd > 0 and len(l) > 1]
+    if not lines:
+        return Polygon()
+    # Where two or more lines share a point, it is a junction (or one way
+    # handing over to the next); an end anywhere else is a dead end.
+    pts = np.round(np.concatenate([l for l, _ in lines]), 2)
+    uniq, count = np.unique(pts, axis=0, return_counts=True)
+    shared = {tuple(p) for p in uniq[count > 1]}
+    geoms, widths = [], []
+    for wd in sorted({wd for _, wd in lines}):
+        # One way handing over to the next of the same width is one line,
+        # so the bend between them is mitred rather than notched.
+        merged = shapely.line_merge(shapely.MultiLineString([l for l, w in lines if w == wd]))
+        parts = shapely.simplify(shapely.get_parts(merged), STREET_SIMPLIFY)
+        geoms.append(parts)
+        widths.append(np.full(len(parts), wd))
+    geoms, widths = np.concatenate(geoms), np.concatenate(widths)
+    bodies = shapely.buffer(geoms, widths / 2, cap_style="flat", join_style="mitre", mitre_limit=2.0)
+    # A square half a width deep on each end at a junction, along the end's
+    # last segment: it fills the corner the flat end leaves open there.
+    caps = []
+    for g, wd in zip(geoms, widths):
+        c = shapely.get_coordinates(g)
+        if len(c) < 2:
+            continue
+        for end, prev in ((c[-1], c[-2]), (c[0], c[1])):
+            if tuple(np.round(end, 2)) not in shared:
+                continue
+            u = end - prev
+            n = np.hypot(*u)
+            if n < 1e-6:
+                continue
+            u = u / n * wd / 2
+            v = np.array([-u[1], u[0]])
+            caps.append([end - v, end + v, end + u + v, end + u - v])
+    squares = shapely.polygons(np.array(caps)) if caps else []
+    return shapely.union_all(np.concatenate([bodies, squares]) if len(caps) else bodies)
 
 
 def _close(geom, r):
@@ -602,11 +670,22 @@ def _open_ground(geoms):
     return shapely.buffer(shapely.union_all(geoms), SIDEWALK, join_style="mitre")
 
 
-def _finish(closed, level, fill, open_ground, alleys, inside):
+def _finish(closed, level, fill, open_space, open_ground, alleys, inside, street_lines):
     """One step's mass up to where it is cut by the step below it."""
     mass = closed.result()
     if level <= FILL_TO:
         mass = shapely.union(mass, fill)
+    # A block whose houses stand round its edge closes into a ring, and its
+    # backyards are a hole in the middle of it: seen from above that reads
+    # as a building with a hole in it, not a block. Every hole no street
+    # runs into is filled (a cul-de-sac the thinning dropped still owns the
+    # gap down its middle), and what is really open (parks, cemeteries;
+    # then below the open ground, the alleys) cut back out.
+    shells = shapely.polygons(shapely.get_exterior_ring(shapely.get_parts(mass)))
+    holes = shapely.get_parts(shapely.difference(shapely.union_all(shells), mass))
+    streets = np.zeros(len(holes), bool)
+    streets[street_lines.query(holes, predicate="intersects")[0]] = True
+    mass = shapely.union(mass, shapely.difference(shapely.union_all(holes[~streets]), open_space))
     mass = shapely.difference(mass, shapely.union(open_ground.result(), alleys))
     return shapely.intersection(mass, inside)
 
