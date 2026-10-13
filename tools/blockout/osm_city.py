@@ -93,10 +93,14 @@ SHORE_REACH = 400.0
 BOUNDARY_MARGIN = 60.0
 BOUNDARY_SIMPLIFY = 10.0
 
+## Two widths only: an avenue or a street. Finer steps do not read from
+## overworld height and make every junction messier.
+AVENUE = 18.0
+STREET = 8.0
 ROAD_WIDTHS = {
-    "motorway": 24.0, "trunk": 22.0, "primary": 18.0, "secondary": 14.0, "tertiary": 11.0,
-    "motorway_link": 8.0, "trunk_link": 8.0, "primary_link": 8.0,
-    "residential": 8.0, "unclassified": 8.0, "living_street": 6.0, "pedestrian": 5.0,
+    "motorway": AVENUE, "trunk": AVENUE, "primary": AVENUE, "secondary": AVENUE, "tertiary": STREET,
+    "motorway_link": STREET, "trunk_link": STREET, "primary_link": STREET,
+    "residential": STREET, "unclassified": STREET, "living_street": STREET, "pedestrian": STREET,
     "service": 0.0,
 }
 MINOR_ROADS = ("residential", "unclassified", "living_street", "pedestrian")
@@ -114,8 +118,6 @@ GROUND, MARSH, PARK, GRAVES, RAIL, ROAD, MAJOR, WATER = range(8)
 WALL, ROOF = 0, 1
 
 
-for _k in ("motorway_link", "trunk_link", "primary_link"):
-    ROAD_WIDTHS[_k] = 8.0  # a ramp or crossover is narrower than a carriageway
 MEDIAN = 6.0  # the two sides of a divided road closer than 2x this read as one
 HALVED = ("motorway", "trunk", "primary", "secondary", "tertiary")
 for _k in HALVED:
