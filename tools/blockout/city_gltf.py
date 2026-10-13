@@ -50,7 +50,10 @@ BUILDING_COLORS = [(204, 199, 189), (140, 138, 133)]
 DECK_COLORS = [(70, 72, 76), (156, 154, 148), (138, 136, 130), (176, 174, 166)]
 ## The ground class osm_city.py gives water.
 WATER = 7
-EDGE_WALL = 4.0
+## The invisible wall round the map stands above every deck: decks run on
+## past the city line into the fog (bridges.RUNOUT), and a wall any lower
+## lets the avatar walk out along one and drop off its end.
+EDGE_WALL = 100.0
 ## The drifting fog over the edge fade: sheets at these heights in metres,
 ## the metres outside the boundary where each starts to thicken, negative
 ## for inside, the low ones reaching farthest in so the bank rises outward,
@@ -111,6 +114,8 @@ def main():
             prims.append(_prim(pos, kind, tint, BUILDING_COLORS, "blocks"))
         if "decks" in tile:
             pos, kind, tint = _read(os.path.join(args.src, "tiles", tile["decks"]))
+            if len(pos) and pos[..., 1].max() > EDGE_WALL - 2.0:
+                raise SystemExit("a deck in tile %s stands %.0f m up, over EDGE_WALL" % (name, pos[..., 1].max()))
             prims.append(_prim(pos, kind, tint, DECK_COLORS, "deck"))
         if prims:
             gltf.node("Tile_%s-col" % name, gltf.mesh(prims))
