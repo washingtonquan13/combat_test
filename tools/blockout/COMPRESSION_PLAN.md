@@ -386,6 +386,36 @@ applies. A street-following (curvilinear) warp is the alternative that
 could make row removal exact on bent and fanned grids. It is a new
 `compress.py` mode, not a parameter.
 
+## Phase 2, option 2: the curvilinear warp passes
+
+The user chose the street-following warp over the fallback (2026-10-12).
+`compress.py` gained a curve band: the row's two bounding streets are
+its near and far edges, and each cross street is shifted by its own
+sample, carried past the far edge along that street. Where a cross
+street ends, its shift blends into its neighbours', so there is no jump.
+Three rules fix what the first runs broke:
+
+- An end inside a band follows its own line to the band edge (chords).
+- A loose end that lands within 1 m of the road the cut closed onto is
+  spliced into that road (T-junctions became dead ends without it).
+- Buildings within 1.5 m of each other move as one block, by the
+  rotation and translation that best fit the warp. Where that fit misses
+  by more than 1 m (377 of 3198 blocks on patch 206), the block follows
+  the warp corner by corner instead. Moving each building by its own
+  centre pulled touching neighbours into each other.
+
+Patch 206 (`parish_thin.py ... 206 --family 176.9`, c775c29): **gate
+passes**. 0 chords, 0 new dead ends, 0 new overlaps, 0 landmarks bent,
+0 decks touched; 4 rows cut, 2892 m to 2525 m across. Breaking each of
+the three rules turns the gate red.
+
+Still open: keep across is 0.856 against 0.6. Only 6 rows are eligible:
+protected blocks, and strain over 0.15 on the bent river-side rows,
+rule out the rest, and two adjacent pairs do not join into one band.
+Reaching the target needs looser row rules (strain, protection) or more
+removal per patch elsewhere. Patch 154 still waits on rails as patch
+boundaries (phase 1 gap).
+
 ## Fallback: automated bands
 
 If phase 2's gate fails, `compress.py` stays the engine. A new search picks
