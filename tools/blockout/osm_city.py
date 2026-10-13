@@ -24,7 +24,10 @@ seed is water.
 Everything stays a polygon, so edges keep their real angles. A city has far
 too many buildings for one node each, and an overworld wants blocks, not
 buildings: closing the union of the footprints merges the houses of one
-block, and cutting the streets back out keeps the blocks apart. Heights are
+block, and cutting the streets back out keeps the blocks apart. The minor
+streets thinned away for walking (streets.py) still part the mass as narrow
+alleys, and every house in one of those old blocks stands at that block's
+height, so a superblock reads as a few blocks of a few heights. Heights are
 stepped: the mass of each step is every footprint at least that tall,
 closed, and kept inside the step below, so a block is one prism with its
 tall buildings standing on it as prisms of their own. Low steps close wide
@@ -111,12 +114,20 @@ ROAD_WIDTHS = {
 }
 MINOR_ROADS = ("residential", "unclassified", "living_street", "pedestrian")
 ## A building under this height is one of the city's houses and stands at
-## FILL_TO, unless LANDMARKS tags it; the rest keep their own heights.
+## its block's height (CHUNK_HEIGHTS), unless LANDMARKS tags it; the rest
+## keep their own heights.
 LANDMARK_HEIGHT = 20.0
 LANDMARKS = {("amenity", "place_of_worship"), ("amenity", "theatre"), ("amenity", "townhall"),
              ("amenity", "hospital"), ("tourism", "museum"), ("leisure", "stadium"),
              ("building", "church"), ("building", "cathedral"), ("building", "chapel"),
              ("building", "stadium"), ("building", "grandstand")}
+## The houses of one of the city's real blocks stand at one of these
+## heights, picked from where the block is so every build picks the same.
+CHUNK_HEIGHTS = (4.0, 8.0, 12.0)
+## A minor street the thinning dropped from between two real blocks is
+## left as a gap this wide through the mass, to see only: the ground under
+## it is not walkable.
+ALLEY = 3.0
 ## Every building's tint: the palette's own colour, no per-building variation.
 TINT = 128
 RAIL_WIDTH = 8.0
@@ -224,36 +235,17 @@ def main():
     footprints = shapely.polygons(shapely.linearrings(
         np.array(coords, dtype=float).reshape(-1, 2), indices=np.repeat(np.arange(len(sizes)), sizes)))
     footprints = shapely.make_valid(footprints)
-    # Only landmarks and tall buildings rise out of the one house height,
-    # and nothing stands lower than it.
-    heights = np.array(heights)
-    heights = np.where(np.array(landmark) | (heights >= LANDMARK_HEIGHT), np.maximum(heights, FILL_TO), FILL_TO)
-    heights = np.maximum(HEIGHT_STEP, np.round(heights / HEIGHT_STEP) * HEIGHT_STEP)
+    heights, landmark = np.array(heights), np.array(landmark)
     # make_valid can hand back lines for a degenerate ring; keep area only.
     keep = shapely.area(footprints) > 1.0
-    footprints, heights = footprints[keep], heights[keep]
+    footprints, heights, landmark = footprints[keep], heights[keep], landmark[keep]
     log("buildings %d" % len(footprints))
 
-    # The heavy part of each height step, the union of its footprints and
-    # its closing, needs nothing but the buildings, so every step starts on
-    # it now, side by side, while the ground is read (see _Work).
     work = _Work()
     inside = shapely.buffer(region, -BOUNDARY_MARGIN, join_style="mitre")
     shapely.prepare(inside)
     keep = shapely.intersects(inside, footprints)
-    footprints, heights = footprints[keep], heights[keep]
-    levels = np.unique(heights)
-    closed = []
-    for level in levels:
-        tall = footprints[heights >= level]
-        r = MERGE if level <= LOW_RISE else TOWER_MERGE
-        # The steps over most of the city go one at a time to another
-        # process (see _Work); the lowest starts now, the next once the open
-        # ground has gone ahead of it.
-        if len(tall) >= len(footprints) / 4:
-            closed.append((tall, r) if closed else work.procs.submit(_closed, tall, r))
-        else:
-            closed.append(work.main.submit(_closed, tall, r))
+    footprints, heights, landmark = footprints[keep], heights[keep], landmark[keep]
 
     # --- Ground ------------------------------------------------------------
     feats = json.load(open(os.path.join(args.raw, "features.json"), encoding="utf-8"))["elements"]
@@ -319,10 +311,11 @@ def main():
     # (streets.py), all one width.
     minor = [(line, name) for line, k, up, name in roads if k in MINOR_ROADS and not up]
     network = [line for line, k, up, _ in roads if k not in MINOR_ROADS and ROAD_WIDTHS[k] > 0 and not up]
-    kept, n_before, n_after = streets.prune(network + rails + [line for line, _ in canals],
+    kept, dropped, faces, n_before, n_after = streets.prune(network + rails + [line for line, _ in canals],
                                             [line for line, _ in minor], [name for _, name in minor])
     cover[ROAD] = _strokes([(line, STREET) for line in kept])
-    log("minor streets: blocks %d -> %d" % (n_before, n_after))
+    log("minor streets: blocks %d -> %d, %d alleys" % (n_before, n_after, len(dropped)))
+    alleys = _strokes([(line, ALLEY) for line in dropped])
     cover[MAJOR] = shapely.union_all([_strokes([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k not in MINOR_ROADS and not k.endswith("~half") and not up]), join_medians([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k.endswith("~half") and not up])])
     decks = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if up])
     canal_strokes = []
@@ -344,6 +337,39 @@ def main():
         water.append(flooded)
     cover[WATER] = shapely.union_all(water)
     log("ground classes")
+
+    # --- Heights -----------------------------------------------------------
+    # Landmarks and tall buildings keep their own heights, never under a
+    # house's; every other house stands at its real block's height, or at
+    # FILL_TO outside every block.
+    chunk = np.full(len(footprints), FILL_TO)
+    if len(faces):
+        at = shapely.get_coordinates(shapely.point_on_surface(faces))
+        ix, iz = np.floor(at).astype(np.int64).T
+        pick = ((ix * 73856093) ^ (iz * 19349663)) & 0x7fffffff
+        face_height = np.array(CHUNK_HEIGHTS)[pick % len(CHUNK_HEIGHTS)]
+        fi, bi = shapely.STRtree(faces).query(shapely.point_on_surface(footprints), predicate="within")
+        chunk[fi] = face_height[bi]
+    own = landmark | (heights >= LANDMARK_HEIGHT)
+    heights = np.where(own, np.maximum(heights, FILL_TO), chunk)
+    heights = np.maximum(HEIGHT_STEP, np.round(heights / HEIGHT_STEP) * HEIGHT_STEP)
+    log("houses by block height: %s" % ", ".join("%d m %d" % (h, n) for h, n in zip(*np.unique(heights[~own], return_counts=True))))
+
+    # The heavy part of each height step, the union of its footprints and
+    # its closing, needs nothing but the buildings and their heights, so
+    # every step starts on it now, side by side (see _Work).
+    levels = np.unique(heights)
+    closed = []
+    for level in levels:
+        tall = footprints[heights >= level]
+        r = MERGE if level <= LOW_RISE else TOWER_MERGE
+        # The steps over most of the city go one at a time to another
+        # process (see _Work); the lowest starts now, the next once the open
+        # ground has gone ahead of it.
+        if len(tall) >= len(footprints) / 4:
+            closed.append((tall, r) if closed else work.procs.submit(_closed, tall, r))
+        else:
+            closed.append(work.main.submit(_closed, tall, r))
 
     # --- Block masses ------------------------------------------------------
     # The open ground and the ground tiles need only the ground; they run
@@ -371,7 +397,7 @@ def main():
                 dense.append(sb)
         fill = shapely.difference(shapely.union_all(dense), open_space) if dense else Polygon()
         log("superblocks %d, filled %d" % (shapely.get_num_geometries(blocks), len(dense)))
-    finished = [work.finish.submit(_finish, c, level, fill, open_ground, inside) for c, level in zip(closed, levels)]
+    finished = [work.finish.submit(_finish, c, level, fill, open_ground, alleys, inside) for c, level in zip(closed, levels)]
 
     def tile_of(geom):
         p = shapely.get_coordinates(geom.representative_point())[0]
@@ -562,12 +588,12 @@ def _open_ground(geoms):
     return shapely.buffer(shapely.union_all(geoms), SIDEWALK, join_style="mitre")
 
 
-def _finish(closed, level, fill, open_ground, inside):
+def _finish(closed, level, fill, open_ground, alleys, inside):
     """One step's mass up to where it is cut by the step below it."""
     mass = closed.result()
     if level <= FILL_TO:
         mass = shapely.union(mass, fill)
-    mass = shapely.difference(mass, open_ground.result())
+    mass = shapely.difference(mass, shapely.union(open_ground.result(), alleys))
     return shapely.intersection(mass, inside)
 
 

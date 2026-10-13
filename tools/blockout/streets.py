@@ -10,6 +10,10 @@ loses the run on its edge to its smallest neighbour, merging the two, until
 no block is under it or none has a minor street left to lose. Last, every
 piece with one block on both sides (a dead end, or a street to nowhere) and
 every piece not joined to the kept network goes.
+
+Also handed back: the streets that went from between two of the blocks
+they started as, and those blocks, so the buildings can still show the
+city's real blocks where the walkable streets no longer do.
 """
 import heapq
 
@@ -23,12 +27,14 @@ MIN_BLOCK = 300.0 * 300.0  # m2: a block smaller than this loses a street
 
 def prune(fixed, minor, names, min_block=MIN_BLOCK):
     """fixed, minor: lists of coordinate lists; names: per minor line its
-    street name or None. Returns the minor streets kept, as coordinate
-    arrays, and the number of blocks before and after."""
+    street name or None. Returns the minor streets kept and those dropped
+    from between two blocks, as coordinate arrays; the blocks as they were
+    before any merging, as polygons; and the number of blocks before and
+    after."""
     nf = len(fixed)
     src = np.array([shapely.LineString(l) for l in list(fixed) + list(minor)], dtype=object)
     if not len(minor):
-        return [], 0, 0
+        return [], [], np.array([], dtype=object), 0, 0
     edges = shapely.get_parts(shapely.node(shapely.multilinestrings(src)))
     edges = edges[shapely.length(edges) > 1e-6]
     ne = len(edges)
@@ -163,6 +169,15 @@ def prune(fixed, minor, names, min_block=MIN_BLOCK):
         keep[run_edges[r]] = True
     keep &= roots[side[0]] != roots[side[1]]
     after = len(np.unique(roots[:outside]))
-    kept = shapely.line_merge(shapely.multilinestrings(edges[keep])) if keep.any() else None
-    out = [shapely.get_coordinates(p) for p in shapely.get_parts(kept)] if kept is not None else []
-    return out, before, after
+    gone = np.zeros(ne, bool)
+    gone[mi] = True
+    gone &= ~keep & (side[0] != side[1]) & (side[0] != outside) & (side[1] != outside)
+    return _lines(edges[keep]), _lines(edges[gone]), faces, before, after
+
+
+def _lines(pieces):
+    """Pieces joined end to end where they meet, as coordinate arrays."""
+    if not len(pieces):
+        return []
+    merged = shapely.line_merge(shapely.multilinestrings(pieces))
+    return [shapely.get_coordinates(p) for p in shapely.get_parts(merged)]
