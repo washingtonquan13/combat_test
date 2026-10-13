@@ -27,6 +27,8 @@ import numpy as np
 import scipy.sparse
 import scipy.sparse.csgraph
 
+CHECK = False  # reland() checks itself against a full _landing()
+
 
 def _key(a, b):
     return (a, b) if a < b else (b, a)
@@ -266,20 +268,110 @@ def _relax(adj, pinned, pairs, n, grade, grade_max, clear, foot, ties, log):
     flush = {}  # (a, b) -> indices of that 0 m edge, in adj's order
     for e in np.flatnonzero(ed == 0).tolist():
         flush.setdefault((int(ea[e]), int(eb[e])), []).append(e)
+    # Per edge, its pair of nodes; the grade and landing are kept per pair,
+    # as arrays, so a pass of greatest() is plain list arithmetic.
+    pkey = np.minimum(ea, eb) * n + np.maximum(ea, eb)
+    ukey, pid = np.unique(pkey, return_inverse=True)
+    pid_of = dict(zip(zip((ukey // n).tolist(), (ukey % n).tolist()), range(len(ukey))))
+    gr = np.full(len(ukey), float(grade))
+    landp = np.zeros(len(ukey))
+    ptr = np.searchsorted(ea, np.arange(n + 1)).tolist()
+    nbr = eb.tolist()
+    dist = ed.tolist()
+
+    # Per pair, its edges, to refresh their bounds when its grade changes.
+    by = np.argsort(pid, kind="stable")
+    pedges = np.split(by, np.searchsorted(pid[by], np.arange(1, len(ukey))))
+    w = []
+    tree = None  # the pinned nodes' shortest-path tree, per node its parent
+    dpin = None  # and the distance along it
 
     def landing():
+        nonlocal w, tree, dpin
+        lk, tree, dpin = _landing(adj, pinned, n, foot, (ea[alive], eb[alive], ed[alive]), tree=True)
         land.clear()
-        land.update(_landing(adj, pinned, n, foot, (ea[alive], eb[alive], ed[alive])))
+        land.update(lk)
+        landp[:] = 0.0
+        if land:
+            ks = np.fromiter((pid_of[k] for k in land), np.int64, len(land))
+            landp[ks] = np.fromiter(land.values(), float, len(land))
+        x = gr[pid] * (ed - landp[pid])
+        x[~alive] = np.inf
+        w = x.tolist()
     landing()
     clr = [clear] * len(pairs)
     ups = _uppers(pairs)
 
+    def reland(cut):
+        """The landing after the 0 m edges cut are gone. Off the shortest
+        paths from the pinned nodes such an edge shortens no distance;
+        on one, only the nodes it led to are reached anew, from the rest."""
+        tops = [b if tree[b] == a else a for a, b in cut if tree[a] == b or tree[b] == a]
+        if not tops:
+            return
+        sub = set(tops)
+        todo = list(tops)
+        while todo:
+            u = todo.pop()
+            for e in range(ptr[u], ptr[u + 1]):
+                v = nbr[e]
+                if alive[e] and tree[v] == u and v not in sub:
+                    sub.add(v)
+                    todo.append(v)
+        heap = []
+        for v in sub:
+            dpin[v] = math.inf
+            tree[v] = -1
+        for v in sub:
+            for e in range(ptr[v], ptr[v + 1]):
+                u = nbr[e]
+                if alive[e] and u not in sub:
+                    x = dpin[u] + dist[e]
+                    if x < dpin[v]:
+                        dpin[v] = x
+                        tree[v] = u
+        heap = [(dpin[v], v) for v in sub if dpin[v] < math.inf]
+        heapq.heapify(heap)
+        while heap:
+            x, u = heapq.heappop(heap)
+            if x > dpin[u]:
+                continue
+            for e in range(ptr[u], ptr[u + 1]):
+                v = nbr[e]
+                if alive[e] and v in sub:
+                    y = x + dist[e]
+                    if y < dpin[v]:
+                        dpin[v] = y
+                        tree[v] = u
+                        heapq.heappush(heap, (y, v))
+        # The landing of every road edge at a node reached anew.
+        ps = set()
+        for v in sub:
+            for e in range(ptr[v], ptr[v + 1]):
+                if dist[e] > 0:
+                    ps.add(pid[e])
+        for p in ps:
+            es = pedges[p].tolist()
+            for e in es:
+                a, b, d = int(ea[e]), nbr[e], dist[e]
+                if a < b and d > 0:
+                    far = max(dpin[a], dpin[b])
+                    land[(a, b)] = d - min(d, max(0.0, far - foot)) if far < math.inf else 0.0
+            k = (int(ukey[p] // n), int(ukey[p] % n))
+            landp[p] = land.get(k, 0.0)
+            for e in es:
+                if alive[e]:
+                    w[e] = float(gr[p] * (ed[e] - landp[p]))
+        if CHECK:
+            lk = _landing(adj, pinned, n, foot, (ea[alive], eb[alive], ed[alive]))
+            assert lk == land, "reland"
+
     def weight(a, b, d):
-        e = _key(a, b)
-        return g.get(e, grade) * (d - land.get(e, 0.0))
+        e = pid_of[_key(a, b)]
+        return gr[e] * (d - landp[e])
 
     def greatest():
-        return _greatest(adj, pinned, n, ups, clr, weight)
+        return _greatest_csr(ptr, nbr, dist, w, pinned, n, ups, clr)
 
     def certificate(j, U, pred):
         """The chain of bounds that forced node j below the ground: grade
@@ -316,16 +408,23 @@ def _relax(adj, pinned, pairs, n, grade, grade_max, clear, foot, ties, log):
                 adj[a].remove((b, 0.0))
                 adj[b].remove((a, 0.0))
                 for e in (a, b), (b, a):
-                    alive[next(i for i in flush[e] if alive[i])] = False
+                    i = next(i for i in flush[e] if alive[i])
+                    alive[i] = False
+                    w[i] = math.inf
             ties -= cut
             untied.extend(cut)
-            landing()
+            reland(cut)
             continue
         run = sum(d - land.get(_key(a, b), 0.0) for a, b, d in edges)
         now = max((g.get(_key(a, b), grade) for a, b, _ in edges), default=grade)
         new = min(grade_max, now + deficit / run) if run > 0 else now
         for a, b, _ in edges:
             g[_key(a, b)] = max(g.get(_key(a, b), grade), new)
+            p = pid_of[_key(a, b)]
+            gr[p] = g[_key(a, b)]
+            for e in pedges[p].tolist():
+                if alive[e]:
+                    w[e] = float(gr[p] * (ed[e] - landp[p]))
         rest = deficit - (new - now) * run
         if rest > 1e-6:
             if not cross:
@@ -390,18 +489,23 @@ def _uppers(pairs):
     return ups
 
 
-def _landing(adj, pinned, n, foot, edges=None):
+def _landing(adj, pinned, n, foot, edges=None, tree=False):
     """How far each edge's first FOOT metres off an intersection reach
     into it: the landing, which climbs nothing. (a, b) -> metres. edges is
-    adj as _edges() arrays, if the caller keeps them."""
+    adj as _edges() arrays, if the caller keeps them. With tree, also the
+    pinned nodes' shortest-path tree, per node its parent (-1 for none)."""
     a, b, d = _edges(adj, n) if edges is None else edges
-    dpin = _dist(adj, {i: 0.0 for i in pinned}, n, (a, b, d))
+    dpin = _dist(adj, {i: 0.0 for i in pinned}, n, (a, b, d), tree)
+    if tree:
+        dpin, par = dpin
+        dl = dpin.tolist()
     keep = (a < b) & (d > 0)
     a, b, d = a[keep], b[keep], d[keep]
     far = np.maximum(dpin[a], dpin[b])
     with np.errstate(invalid="ignore"):
         land = np.where(np.isfinite(far), d - np.minimum(d, np.maximum(0.0, far - foot)), 0.0)
-    return dict(zip(zip(a.tolist(), b.tolist()), land.tolist()))
+    out = dict(zip(zip(a.tolist(), b.tolist()), land.tolist()))
+    return (out, par.tolist(), dl) if tree else out
 
 
 def _greatest(adj, pinned, n, ups, clr, weight):
@@ -436,6 +540,41 @@ def _greatest(adj, pinned, n, ups, clr, weight):
                     pred[lo] = ("c", i, k)
                     heapq.heappush(heap, (v, lo))
     return U, pred
+
+def _greatest_csr(ptr, nbr, dist, w, pinned, n, ups, clr):
+    """_greatest() over the network as lists: per node, its edges are
+    ptr[i]:ptr[i + 1] of nbr (the other node), dist (metres) and w (the bound; inf for an
+    edge that is gone), in adj's order, so the result is the same."""
+    inf = math.inf
+    U = [inf] * n
+    pred = [None] * n
+    for i in pinned:
+        U[i] = 0.0
+    heap = [(0.0, i) for i in pinned]
+    heapq.heapify(heap)
+    push, pop = heapq.heappush, heapq.heappop
+    while heap:
+        u, i = pop(heap)
+        if u > U[i]:
+            continue
+        if u < -1e-6:
+            break
+        for e in range(ptr[i], ptr[i + 1]):
+            j = nbr[e]
+            v = u + w[e]
+            if v < U[j] - 1e-9:
+                U[j] = v
+                pred[j] = ("g", i, dist[e])
+                push(heap, (v, j))
+        for k, lo in ups.get(i, ()):
+            if lo >= 0:
+                v = u - clr[k]
+                if v < U[lo] - 1e-9:
+                    U[lo] = v
+                    pred[lo] = ("c", i, k)
+                    push(heap, (v, lo))
+    return np.array(U), pred
+
 
 def pairs_for(crossings, stretch, pos, order, pad, label):
     """Per crossing, its label and the (lower, upper) node pairs it bounds:
@@ -474,14 +613,16 @@ def _edges(adj, n):
     return np.repeat(np.arange(n), cnt), b, d
 
 
-def _dist(adj, sources, n, edges=None):
+def _dist(adj, sources, n, edges=None, tree=False):
     """Shortest distance from any source, each starting at its own offset
-    (scipy's Dijkstra, through one extra node joined to every source)."""
+    (scipy's Dijkstra, through one extra node joined to every source).
+    With tree, also each node's parent on its path (-1 for a source or
+    none)."""
     a, b, d = _edges(adj, n) if edges is None else edges
     src = np.fromiter(sources.keys(), np.int64, len(sources))
     off = np.fromiter(sources.values(), float, len(sources))
     if not len(src):
-        return np.full(n, np.inf)
+        return (np.full(n, np.inf), np.full(n, -1)) if tree else np.full(n, np.inf)
     base = off.min()
     rows = np.concatenate([a, np.full(len(src), n)])
     cols = np.concatenate([b, src])
@@ -489,4 +630,10 @@ def _dist(adj, sources, n, edges=None):
     order = np.argsort(rows, kind="stable")
     indptr = np.searchsorted(rows[order], np.arange(n + 2))
     g = scipy.sparse.csr_matrix((data[order], cols[order], indptr), shape=(n + 1, n + 1))
+    if tree:
+        out, par = scipy.sparse.csgraph.dijkstra(g, directed=True, indices=n, return_predecessors=True)
+        par = par[:n]
+        par[par == n] = -1
+        par[par < 0] = -1
+        return out[:n] + base, par
     return scipy.sparse.csgraph.dijkstra(g, directed=True, indices=n)[:n] + base
