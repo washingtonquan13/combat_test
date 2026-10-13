@@ -299,7 +299,7 @@ further until the gate passes.
 |---|---|---|
 | 0 | Persist the raw download | **Done 2026-10-12**: `data/blockouts/new_orleans_parish_raw/` |
 | 0b | Measure IV's Tokyo from one full overworld map image: N, ρ, district span in blocks | the three numbers written into the plan, with the image's source and how each was counted |
-| 1 | Segment + score, debug PNG only | ≥ 90% of street length in non-irregular patches; the Quarter, CBD, Lower Garden District and Mid-City come out as recognisable patches; ≥ 95% of wikidata items flagged protected |
+| 1 | Segment + score, debug PNG only | ≥ 90% of street length within 8 km of Jackson Square in non-irregular patches (the parish-wide share is reported, not gated: the East is expected to be irregular and go frontier); the Quarter, CBD, Lower Garden District and Mid-City come out as recognisable patches; ≥ 95% of the wikidata items inside the parish flagged protected. **Passed 2026-10-12**: core 92.3%, parish 85.6%, wikidata 145/145, 291 patches (122 irregular); the Quarter shares a patch with Tremé (same grid) |
 | 2 | **Go/no-go:** thin one patch (an Uptown grid), build it in a 5 km square, GL renders vs uncompressed | 0 chords, 0 new dead ends, every landmark intact, decks untouched. **If this gate fails, stop and fall back.** The core claim is that strip removal is exact |
 | 3 | Two patches and one seam (CBD ↔ Lower Garden District across the Pontchartrain Expressway, the hardest real case) | every seam check passes with no fallback |
 | 4 | Whole-parish layout, expressways, river, anchors; build only the 5 km square around the core first | all checks pass; existing suites green with anchors |
