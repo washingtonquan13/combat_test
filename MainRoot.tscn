@@ -1,4 +1,4 @@
-[gd_scene load_steps=41 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=42 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
@@ -40,6 +40,15 @@
 [ext_resource type="Script" uid="uid://figtunvhfhvk" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
 [ext_resource type="PackedScene" path="res://systems/cinematic_system/cinematic_overlay.tscn" id="37_cineoverlay"]
 [ext_resource type="Script" path="res://ui/area_label.gd" id="38_arealabel"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_areaplate"]
+content_margin_left = 14.0
+content_margin_top = 4.0
+content_margin_right = 18.0
+content_margin_bottom = 4.0
+bg_color = Color(0.05, 0.05, 0.07, 0.72)
+border_width_left = 3
+border_color = Color(0.85, 0.72, 0.45, 1)
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -265,12 +274,13 @@ script = ExtResource("38_arealabel")
 layout_mode = 0
 offset_left = 20.0
 offset_top = 14.0
-offset_right = 420.0
-offset_bottom = 44.0
+offset_right = 20.0
+offset_bottom = 14.0
 theme_override_colors/font_color = Color(0.95, 0.92, 0.82, 1)
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_areaplate")
 text = "French Quarter"
 
 [node name="Banner" type="PanelContainer" parent="CanvasLayer/AreaLabel"]
@@ -285,6 +295,7 @@ offset_right = 260.0
 offset_bottom = 124.0
 grow_horizontal = 2
 mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_areaplate")
 
 [node name="Label" type="Label" parent="CanvasLayer/AreaLabel/Banner"]
 layout_mode = 2

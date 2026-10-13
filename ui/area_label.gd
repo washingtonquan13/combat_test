@@ -33,6 +33,9 @@ func _ready() -> void:
 ## than arriving on the overworld or coming back to it.
 func show_area(display_name: String, announce: bool) -> void:
 	_corner.text = display_name
+	# Its plate is the label's own stylebox, so shrink it back to the new
+	# name; a Label grows to fit its text but never shrinks on its own.
+	_corner.reset_size()
 	_refresh()
 	if not announce:
 		return
