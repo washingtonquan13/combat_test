@@ -513,6 +513,74 @@ Options (decision for the user):
    whose row runs straight to the map edge. This is simple, and the yield
    is small.
 
+**Decision 2026-10-12:** the user chose row chains, with districts and
+corridors as the fallback if the yield turned out poor. It did.
+
+Upper bound on the row-chain yield (`$TMP/claude/p3/chains.py`):
+
+- Every non-hard street piece in grid patches qualifies if it is 150 m or
+  longer, has no protected block within 15 m, and has both ends within 40 m
+  of an absorber.
+- Absorbers are parks, cemeteries, industrial land, water, woods, grass over
+  5000 m², irregular patches, and the fog beyond radius R.
+- Each piece removes its row width, between 30 and 200 m.
+- The 1-in-2 rule is applied as ×0.5.
+
+| R | Grid area | Removable, every chain | With 1-in-2 | Area keep |
+|---|---|---|---|---|
+| 4 km | 39.5 km² | 29.8% | 14.9% | 0.85 |
+| 6 km | 79.8 km² | 25.8% | 12.9% | 0.87 |
+| 8 km | 113 km² | 21.8% | 10.9% | 0.89 |
+
+This bound is generous. It ignores how much shear an absorber can actually
+take (a 5000 m² lawn cannot take 100 m), chains of the two families crossing
+each other, and crossing angles. It also lets avenues like Napoleon go.
+Even so, the target is an area keep of 0.25 to 0.36. **Row chains are
+dropped. Option 2 follows.**
+
+## Option 2: districts, ribbons and rubble
+
+Nothing is warped in two dimensions any more, so shear cannot arise
+anywhere.
+
+1. **Districts.** N = 11 clusters of grid patches around the highest
+   interest scores. Each is about 2 to 3 km², at scale 1, and rigid.
+   Landmarks come with them.
+2. **Layout.**
+   - District centres keep their true bearings from each other.
+   - Distances between them shrink by one factor c, found by bisection so
+     the footprint reaches A = (district area) × (1 + ρ).
+   - Overlap is resolved by pushing pairs apart along their joining line.
+   - The river order is kept.
+3. **Ribbons.** Each pair of neighbouring districts (the Delaunay edges of
+   the layout, pruned by length) gets one ribbon: the real best road between
+   them (a shortest path weighted by road class) and its frontage blocks,
+   one block deep on each side.
+   - A ribbon is shortened only along its length. Whole cross-blocks come
+     out in curve mode, which is the phase 2 machinery that passed.
+   - Its sides face rubble or fog, not city, so nothing can shear.
+   - It is then bent onto a smooth spline between its two attach points,
+     which are the points where the real road enters each district.
+   - Expressways run as ribbons with their decks, re-splined as in
+     section 7.
+4. **Rubble.** All the ground between districts and ribbons is the ruin
+   layer: impassable debris fields, with the fog wall at the outer edge. A
+   cross street that ends at the side of a ribbon ends in rubble, which is
+   not a dead end in the game sense.
+5. **Seams** exist only where a ribbon meets a district. That is one road
+   end against one road end, a rebuilt connector, plus T-junctions.
+
+Gates:
+
+- **3a, selection:** 11 districts within the parish core. The Quarter,
+  CBD, Garden District, Mid-City and Marigny/Bywater must be among them.
+  Total district area 20–35 km².
+- **3b, one ribbon:** one ribbon between two districts, shortened and bent.
+  Requirements: 0 chords, 0 new dead ends inside the ribbon, the seam
+  checks pass at both ends, and the build loads in Godot.
+- **3c, the whole layout:** the footprint is within 5% of A, and all the
+  automatic checks pass.
+
 ## Fallback: automated bands
 
 If phase 2's gate fails, `compress.py` stays the engine. A new search picks
