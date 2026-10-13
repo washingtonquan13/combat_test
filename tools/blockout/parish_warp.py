@@ -31,7 +31,10 @@ whole features.
 With --raw/--out every lat/lon of the raw dir goes through the map (the
 compress.py Mover: buildings that fit a rigid move to within 1 m keep
 their shape exactly), the LiDAR with them, and boundary.json is the
-rounded rectangle. Writes warp.json (the gates, marks) to --out.
+rounded rectangle. Writes warp.json (the gates, marks) to --out, and
+water_seeds.json: a point inside each piece of the water the map's edge
+cuts open (WATER_SEEDS, flooded in the source, where the whole of it is
+known), carried through the warp for osm_city.py.
 
 With --raw, the streets that run straight in the source (Lines) are held
 straight: each pulls its samples onto its own best-fit line, refitted every
@@ -59,6 +62,7 @@ from shapely.geometry import Polygon
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import compress  # noqa: E402
 from compress import DP, LIDAR, LIDAR_MARGIN, Frame, Mover, move_file, write_file  # noqa: E402
+import osm_city  # noqa: E402
 
 H = 100.0  # m: mesh spacing
 MARGIN = 1500.0  # m: source rectangle past the districts' bounds
@@ -88,6 +92,14 @@ LINE_SHARE = 0.99  # gate: share of straight-stroke length that must stay within
 MARKS = {"Jackson Square": (29.9574, -90.0630), "Congo Square": (29.9606, -90.0681),
          "St Louis Cathedral": (29.9580, -90.0637), "Washington Square": (29.9644, -90.0566),
          "Lafayette Square": (29.9488, -90.0705)}
+
+# One point inside each water body big enough for an edge to cut it open,
+# anywhere in the download (README.md lists the parish's): the river at the
+# French Quarter, the middle of the lake, the Rigolets, Lake Borgne.
+WATER_SEEDS = {"Mississippi River": (29.9545, -90.0585), "Lake Pontchartrain": (30.15, -90.05),
+               "The Rigolets": (30.165, -89.70), "Lake Borgne": (30.0777, -89.6828)}
+SEED_INSET = 30.0  # m: seeds stay this far inside the source outline, clear of its edge
+SEED_MIN = 100.0  # m2: smaller slivers of cut water are left dry
 
 
 THREADS = max(1, min(8, os.cpu_count() or 1))  # per-triangle work is split over this many threads
@@ -658,7 +670,8 @@ def main():
     did = np.full(len(mesh.T), -1)
     for k_, p in enumerate(polys):
         did[shapely.contains_xy(p, mesh.cen[:, 0], mesh.cen[:, 1])] = k_
-    mesh.clip(Outline(c, W0 / 2, H0 / 2, CORNER * min(W0, H0) / 2))
+    src_outline = Outline(c, W0 / 2, H0 / 2, CORNER * min(W0, H0) / 2)
+    mesh.clip(src_outline)
     Q0 = c + k * (mesh.P - c)
     strokes = None
     if a.raw:
@@ -703,6 +716,7 @@ def main():
         png(a.png, mesh, Q, polys, out, warp, S)
     if a.raw and a.out:
         write_raw(a, fr, warp, out, log)
+        water_seeds(a, seg, fr, warp, Polygon(src_outline.ring()), log)
         with open(os.path.join(a.out, "warp.json"), "w", encoding="utf-8", newline="\n") as f:
             json.dump({"segment": a.segment, "source_rect": [x0, z0, x1, z1], "outline": [c.tolist(), out.a, out.b, out.r],
                        "gate": gate, "marks_latlon": marks, "report": lines}, f, indent=1)
@@ -728,7 +742,7 @@ def write_raw(a, fr, warp, out, log):
     st = mover.block_stats
     log("building blocks: %d, %d moved rigidly, %d follow the warp" % (st["blocks"], st["rigid"], st["warped"]))
     for name in sorted(os.listdir(a.raw)):
-        if not name.endswith(".json") or name == "boundary.json":
+        if not name.endswith(".json") or name in ("boundary.json", "water_seeds.json"):
             continue
         data, n0, n1 = move_file(os.path.join(a.raw, name), mover)
         write_file(os.path.join(a.out, name), data)
@@ -749,6 +763,43 @@ def write_raw(a, fr, warp, out, log):
                             h=d["h"][keep], cls=d["cls"][keep], meta=json.dumps(meta))
         log("lidar: %d of %d returns kept" % (int(keep.sum()), len(d["x"])))
     log("next: python -I tools/blockout/osm_city.py %s data/blockouts/<name>" % a.out)
+
+
+def water_seeds(a, seg, fr, warp, outline, log):
+    """Writes <out>/water_seeds.json. The water the edge cuts open is
+    flooded in the source, over the whole download, from WATER_SEEDS; each
+    piece of it inside the map then gives one seed, warped. A seed far out
+    in the lake would be pinned to the map's edge by the warp, so the
+    seeds are chosen after the cut, not carried from before it."""
+    feats = []
+    for name in ("features.json", "coast.json"):
+        path = os.path.join(a.raw, name)
+        if os.path.exists(path):
+            feats += json.load(open(path, encoding="utf-8"))["elements"]
+
+    def line(chain):
+        g = [p for p in chain if p]
+        x, z = fr.xz(np.array([p["lon"] for p in g]), np.array([p["lat"] for p in g]))
+        return shapely.LineString(np.c_[x, z]) if len(g) > 1 else None
+
+    shores = []
+    for name in dict.fromkeys(nm for _, nm in osm_city.cut_water(feats)):
+        rings, cut = osm_city._join([c for c, nm in osm_city.cut_water(feats) if nm == name])
+        shores += [ln for ln in map(line, rings + cut) if ln is not None]
+    s, w, n, e = seg["bbox"]
+    (x0, x1), (z0, z1) = zip(fr.xz(w, n), fr.xz(e, s))
+    download = shapely.box(min(x0, x1), min(z0, z1), max(x0, x1), max(z0, z1))
+    sx, sz = fr.xz(np.array([lon for _, lon in WATER_SEEDS.values()]), np.array([lat for lat, _ in WATER_SEEDS.values()]))
+    wet = osm_city._flood(shores, download, list(shapely.points(np.c_[sx, sz])))
+    parts = [p for p in shapely.get_parts(shapely.intersection(wet, shapely.buffer(outline, -SEED_INSET))) if p.area >= SEED_MIN]
+    at = shapely.get_coordinates(shapely.point_on_surface(parts)) if parts else np.empty((0, 2))
+    wx, wz = warp.warp(at[:, 0], at[:, 1])
+    lon, lat = fr.lonlat(wx, wz)
+    seeds = [[round(float(la), DP), round(float(lo), DP)] for la, lo in zip(lat, lon)]
+    log("water seeds: %.1f km2 of cut water in the source (%s), %d piece%s on the map"
+        % (wet.area / 1e6, ", ".join(WATER_SEEDS), len(seeds), "" if len(seeds) == 1 else "s"))
+    with open(os.path.join(a.out, "water_seeds.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"seeds": seeds}, f, indent=1)
 
 
 def png(path, mesh, Q, polys, out, warp, S):

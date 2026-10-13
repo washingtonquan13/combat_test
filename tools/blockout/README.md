@@ -77,6 +77,11 @@ godot --headless --path . --import
   `30.0777,-89.6828` (the strip of Lake Borgne inside the parish line).
   For the old rectangle (`29.900,-90.140,30.035,-89.960`) they were
   `29.9535,-90.0590` and `30.033,-90.08`.
+  `osm_city.py` also reads seeds from `water_seeds.json` in the raw dir,
+  which `parish_warp.py` and `compress.py` write, already moved, into the
+  raw they make: a build from a moved raw needs no `--water-seeds`. Water
+  the edge cuts open with no seed inside stays dry ground, and the build
+  prints a WARNING naming it.
 - Bridges, overpasses and their ramps are walkable decks. `osm_city.py`
   leaves bridges off the ground and runs `decks_seed.py`, which writes
   `decks.json`: one record per elevated way, its heights measured from
@@ -121,7 +126,7 @@ godot --headless --path . --import
 
   ```bash
   python -I tools/blockout/compress.py <cuts.json> <raw dir> <out raw dir> --decks data/blockouts/<name>/decks.json --decks-out data/blockouts/<new name>
-  python -I tools/blockout/osm_city.py <out raw dir> data/blockouts/<new name> --water-seeds "LAT,LON"
+  python -I tools/blockout/osm_city.py <out raw dir> data/blockouts/<new name>
   ```
 
   `cuts.json` names the frame (a built city's `city.json`) its bands are

@@ -1008,7 +1008,7 @@ def main():
             % (st["blocks"], st["rigid"], st["worst_m"], st["warped"], RIGID_TOL))
     moved = []
     for name in sorted(os.listdir(a.raw)):
-        if not name.endswith(".json") or name == "boundary.json":
+        if not name.endswith(".json") or name in ("boundary.json", "water_seeds.json"):
             continue
         data, n0, n1 = move_file(os.path.join(a.raw, name), mover)
         moved.append((name, data))
@@ -1090,10 +1090,11 @@ def main():
         nx, nz = to_new(frame, new, *cuts.warp(x, z))
         marks[name] = [round(float(nx), 1), round(float(nz), 1)]
         log("mark %s (%g, %g) -> (%.1f, %.1f)" % (name, x, z, nx, nz))
-    cmd = "python -I tools/blockout/osm_city.py %s data/blockouts/<name>" % a.out
-    if seeds:
-        cmd += ' --water-seeds "%s"' % ";".join(seeds)
-    log("next: " + cmd + "  (no --bbox: boundary.json is the map)")
+    # The seeds go with the raw, so a build from it cannot forget them.
+    with open(os.path.join(a.out, "water_seeds.json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"seeds": [[float(v) for v in s.split(",")] for s in seeds]}, f, indent=1)
+    log("next: python -I tools/blockout/osm_city.py %s data/blockouts/<name>  (no --bbox: boundary.json is the map;"
+        " the water seeds are in water_seeds.json)" % a.out)
     with open(os.path.join(a.out, "compress.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"frame": spec["frame"], "bbox": list(bbox), "cuts": spec["cuts"], "new_bbox": list(nbbox),
                    "new_origin": [new.lat0, new.lon0], "water_seeds": seeds, "marks": marks, "report": lines}, f, indent=1)

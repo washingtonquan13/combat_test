@@ -19,7 +19,10 @@ The map's edge cuts big water open (a river crossing the map, a lake past
 it, the sea, which OSM maps only as coastline), leaving no ring to fill.
 --water-seeds names one point inside each such body; its shorelines, run
 out to the map edge, cut the map into pieces, and the piece holding the
-seed is water.
+seed is water. Seeds also come from <raw dir>/water_seeds.json, which a
+tool that moves a raw (parish_warp.py, compress.py) writes, so a build from
+it cannot forget them. A cut body that no seed reaches stays dry ground,
+and the build says so.
 
 Everything stays a polygon, so edges keep their real angles. A city has far
 too many buildings for one node each, and an overworld wants blocks, not
@@ -253,7 +256,8 @@ def main():
     if os.path.exists(coast_path):
         feats += json.load(open(coast_path, encoding="utf-8"))["elements"]
     areas = {MARSH: [], PARK: [], GRAVES: [], WATER: []}
-    roads, rails, canals, shores = [], [], [], []
+    roads, rails, canals = [], [], []
+    shores = cut_water(feats)
     for el in feats:
         tags = el.get("tags", {})
         if el["type"] == "relation":
@@ -261,15 +265,12 @@ def main():
             inners = [m["geometry"] for m in el.get("members", []) if m.get("role") == "inner" and "geometry" in m]
             outer_rings, cut = _join(outers)
             inner_rings = _join(inners)[0]
-            if tags.get("natural") == "water" or tags.get("waterway") == "riverbank":
-                shores.extend(cut)
-            else:
+            if not (tags.get("natural") == "water" or tags.get("waterway") == "riverbank"):
                 outer_rings += [c for c in cut if len(c) > 2]
             poly = _area([ring(r) for r in outer_rings], [ring(r) for r in inner_rings])
         elif "geometry" in el:
             geom = el["geometry"]
             if tags.get("natural") == "coastline":
-                shores.append(geom)
                 continue
             if not (len(geom) > 2 and geom[0] == geom[-1]):
                 line = ring(geom)
@@ -326,15 +327,28 @@ def main():
             wm = CANAL_WIDTH
         canal_strokes.append((line, wm))
     water = [cover[WATER], _strokes(canal_strokes)]
-    if args.water_seeds:
-        seeds = []
-        for seed in args.water_seeds.split(";"):
-            lat, lon = (float(v) for v in seed.split(","))
-            seeds.append(Point(xz({"lat": lat, "lon": lon})))
-        rings, cut = _join(shores)
-        flooded = _flood([LineString(ring(c)) for c in rings + cut if len(ring(c)) > 1], region, seeds)
-        log("flooded water %.1f km2" % (flooded.area / 1e6))
+    seeds = [tuple(float(v) for v in seed.split(",")) for seed in filter(None, args.water_seeds.split(";"))]
+    seeds_path = os.path.join(args.raw, "water_seeds.json")
+    if os.path.exists(seeds_path):
+        seeds += [tuple(s) for s in json.load(open(seeds_path, encoding="utf-8"))["seeds"]]
+    # A body's chains join end to end first (a coast arrives as many ways),
+    # so only its true ends are run out to the map edge.
+    shore_lines = []
+    for name in dict.fromkeys(name for _, name in shores):
+        rings, cut = _join([c for c, nm in shores if nm == name])
+        shore_lines += [(LineString(ring(c)), name) for c in rings + cut if len(ring(c)) > 1]
+    flooded = Polygon()
+    if seeds:
+        flooded = _flood([line for line, _ in shore_lines], region,
+                         [Point(xz({"lat": lat, "lon": lon})) for lat, lon in seeds])
+        log("flooded water %.1f km2 from %d seed%s" % (flooded.area / 1e6, len(seeds), "" if len(seeds) == 1 else "s"))
         water.append(flooded)
+    dry = sorted({name for line, name in shore_lines
+                  if shapely.intersection(line, region).length > 0
+                  and not shapely.intersects(flooded, shapely.buffer(shapely.intersection(line, region), 2.0))})
+    if dry:
+        log("WARNING: water the map edge cuts open stays dry ground, no seed inside it: %s "
+            "(give --water-seeds, or a water_seeds.json in the raw)" % ", ".join(dry))
     cover[WATER] = shapely.union_all(water)
     log("ground classes")
 
@@ -697,6 +711,22 @@ def _simplify(geom, tol):
             return shapely.simplify(geom, tol, preserve_topology=True)
         out[ix] = simple
     return shapely.multipolygons(out)
+
+
+def cut_water(feats):
+    """The shorelines of water the download's edge cut open, which no ring
+    can fill: (chain, name) per open chain of a water multipolygon, and
+    every coastline way (OSM maps the sea only as its coast)."""
+    out = []
+    for el in feats:
+        tags = el.get("tags", {})
+        if el["type"] == "relation" and (tags.get("natural") == "water" or tags.get("waterway") == "riverbank"):
+            outers = [m["geometry"] for m in el.get("members", []) if m.get("role") == "outer" and "geometry" in m]
+            name = tags.get("name") or "water relation %d" % el["id"]
+            out += [(c, name) for c in _join(outers)[1]]
+        elif "geometry" in el and tags.get("natural") == "coastline":
+            out.append((el["geometry"], "coastline"))
+    return out
 
 
 def _flood(shores, region, seeds):
