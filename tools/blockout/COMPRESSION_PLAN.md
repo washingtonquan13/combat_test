@@ -581,6 +581,25 @@ Gates:
 - **3c, the whole layout:** the footprint is within 5% of A, and all the
   automatic checks pass.
 
+## Current method: one continuous warp (open note)
+
+The user rejected islands plus ribbons: the map must fill one continuous
+shape. `parish_warp.py` now maps a 193 km² core into a 100 km² rounded
+rectangle with an ARAP mesh warp. `junctions.py` then runs over the warped
+raw dir (medians, one ramp per direction, 15 m junction snapping).
+
+Measured on 2026-10-13, the result is effectively a uniform 0.72 shrink.
+A single scale fits the road nodes inside the map to a median of 1 m. The
+districts were meant to stay larger than the filler, but they got
+0.746–0.762 before the straight-streets term (d8152fd) and 0.724–0.730
+after it. The gate's `district_scale` is the scale the solver aimed for,
+not the one it reached, so it passes regardless.
+
+The user judged the map fine as it is (recognizably Orleans Parish), so this
+is parked rather than fixed. Revisit only if districts feel too small in
+play. The fix would be to gate on the achieved district scale, then find
+why stiffness loses to the line term.
+
 ## Fallback: automated bands
 
 If phase 2's gate fails, `compress.py` stays the engine. A new search picks
