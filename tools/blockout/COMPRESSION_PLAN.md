@@ -416,6 +416,45 @@ Reaching the target needs looser row rules (strain, protection) or more
 removal per patch elsewhere. Patch 154 still waits on rails as patch
 boundaries (phase 1 gap).
 
+## Phase 3 scoping: a second patch, and what thinning really yields
+
+The CBD/LGD seam across the Pontchartrain Expressway is really patch 156
+(CBD) against patch 205 (Central City side), with patch 192 (the 47 blocks
+under the deck) as the seam ground between them. Patch 169 (Coliseum
+Square) only touches the CBD at a corner by the bridge ramps.
+
+Thinning both, before the seam work:
+
+- **156 (CBD): nothing eligible** in either family. That is acceptable: it
+  is a kept district, and those are held at keep 1.
+- **205 failed the phase 2 gate** (2 chords on South Claiborne, 3 new dead
+  ends, 1 overlap). Cause: grid lines were identified by **name**, and
+  Melpomene Street becomes Martin Luther King Jr Boulevard partway along. So
+  "Melpomene" was a 430 m street, and for 1522 m of the cut row the band's
+  far edge was a held line with no street under it. By Claiborne it had
+  drifted onto the slip-lane junction.
+- Two fixes, both in `parish_thin.py`:
+  - **Invariant:** a row is cut only where both edges are real streets
+    inside the patch. More than 10 m of held edge inside the patch rejects
+    the row; gaps under 40 m count as intersections. Sabotage (limit off)
+    brings back 2 chords and 8 dead ends.
+  - **Identity:** a grid line is a stroke, not a name. Where one name ends
+    and another begins at the same node running straight on (within 25°),
+    and that pair is the only one, they are one street. Decks are never
+    joined.
+- With both fixes, 205 has **no honest row to cut**. Its streets dead-end
+  inside the patch at Claiborne and at the expressway. 206 is unchanged:
+  passes, keep 0.856.
+
+**Consequence for the size target.** Over three real patches, per-patch
+thinning yields keep 0.86, 1.0 and 1.0 per axis, not the 0.5–0.6 that
+section 3 assumed for connective ground. The footprint A is still reached,
+because it is set by selection. But fewer connective patches fit inside it,
+so more of the city between districts goes behind the fog. Whether to
+loosen thinning (partial rows ending in a T onto the cross street, or rows
+cut across a patch boundary in both patches at once) is a decision for
+after phase 3.
+
 ## Fallback: automated bands
 
 If phase 2's gate fails, `compress.py` stays the engine. A new search picks

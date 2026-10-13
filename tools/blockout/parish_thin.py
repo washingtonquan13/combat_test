@@ -179,6 +179,64 @@ def write_boundary(path, fr, ring_xz):
 
 
 # --- grid lines -------------------------------------------------------------------
+RENAME_TOL = 25.0  # deg: a street renamed where it runs straight on
+
+
+def line_key(t, el):
+    """A street's line identity: its stroke (see strokes), else its name."""
+    return t.get("_line") or t.get("name") or "#%d" % el["id"]
+
+
+def strokes(feats):
+    """Tag every named street with the stroke it belongs to, in "_line":
+    where one name's way ends and another name's way begins at the same
+    node, running straight on, they are one street renamed (Melpomene
+    becomes Martin Luther King Jr Boulevard) and form one grid line."""
+    ends = defaultdict(list)  # node -> (name, unit direction leaving the node)
+    for el in feats:
+        t = el.get("tags", {})
+        g = [q for q in el.get("geometry") or [] if q]
+        if el["type"] != "way" or not is_street(t) or not t.get("name") or is_deck(t) or len(g) < 2:
+            continue
+        for a, b in ((g[0], g[1]), (g[-1], g[-2])):
+            d = np.array([b["lon"] - a["lon"], (b["lat"] - a["lat"]) / math.cos(math.radians(a["lat"]))])
+            ends[(round(a["lat"], 7), round(a["lon"], 7))].append((t["name"], d / max(np.hypot(*d), 1e-12)))
+    parent = {}
+    def root(x):
+        while parent.get(x, x) != x:
+            x = parent[x]
+        return x
+    cos_tol = math.cos(math.radians(180.0 - RENAME_TOL))
+    for es in ends.values():
+        names = defaultdict(list)
+        for nm, d in es:
+            names[nm].append(d)
+        # Only names that end here can be renamed here; a name that carries
+        # on through is a cross street. Of those, a pair leaving in opposite
+        # directions runs straight on; join it only if it is the one pair.
+        once = [(nm, ds[0]) for nm, ds in names.items() if len(ds) == 1]
+        straight = [(a, b) for i, (a, da) in enumerate(once) for b, db in once[i + 1:] if float(da @ db) <= cos_tol]
+        if len(straight) != 1:
+            continue
+        a, b = straight[0]
+        ra, rb = root(a), root(b)
+        if ra != rb:
+            parent[max(ra, rb)] = min(ra, rb)
+    groups = defaultdict(set)
+    for nm in list(parent):
+        groups[root(nm)].add(nm)
+    label = {}
+    for r, ms in groups.items():
+        ms.add(r)
+        for nm in ms:
+            label[nm] = " / ".join(sorted(ms))
+    for el in feats:
+        t = el.get("tags", {})
+        if el["type"] == "way" and t.get("name") in label:
+            t["_line"] = label[t["name"]]
+    return sorted(set(label.values()))
+
+
 def grid_lines(feats, fr, P, family):
     """The streets of one family inside P: name -> densified points."""
     Pb = P.buffer(5.0)
@@ -193,7 +251,7 @@ def grid_lines(feats, fr, P, family):
             continue
         for part in shapely.get_parts(shapely.intersection(LineString(xz), Pb)):
             if part.geom_type == "LineString" and part.length > 1:
-                parts[t.get("name") or "#%d" % el["id"]].append(np.asarray(part.coords))
+                parts[line_key(t, el)].append(np.asarray(part.coords))
     lines = {}
     for name, ps in parts.items():
         d = np.vstack([np.diff(q, axis=0) for q in ps])
@@ -244,6 +302,8 @@ STEP = 2.0  # m: edge table spacing along the band
 PAIR_NAMED, PAIR_UNNAMED = 40.0, 15.0  # m: how far apart in s one street's two crossings may be
 STRAIN_MAX = 0.15  # change in shift per metre along the band, inside the patch (a fan stretches the far blocks)
 CUT_MAX = 2  # buildings an edge may cut
+GAP_MAX = 40.0  # m: a gap in an edge street this short is an intersection, not an end
+HELD_MAX = 10.0  # m: edge inside the patch with no street under it
 
 
 def family_parts(feats, fr, C, name, family):
@@ -253,7 +313,7 @@ def family_parts(feats, fr, C, name, family):
     out = []
     for el in feats:
         t = el.get("tags", {})
-        if el["type"] != "way" or not is_street(t) or (t.get("name") or "#%d" % el["id"]) != name:
+        if el["type"] != "way" or not is_street(t) or line_key(t, el) != name:
             continue
         _, xz = xz_of(fr, el.get("geometry") or [])
         if len(xz) < 2:
@@ -274,6 +334,21 @@ def family_parts(feats, fr, C, name, family):
                 out.append(q)
             i = j + 1
     return out
+
+
+def real(parts, t, S):
+    """Where along S an edge street actually exists: inside some part's s
+    range, or in a gap under GAP_MAX between two parts (an intersection
+    where the street jinks). Past the ends the envelope is only held."""
+    m = np.zeros(len(S), bool)
+    for q in parts:
+        s = q @ t
+        m |= (S >= s.min()) & (S <= s.max())
+    idx = np.flatnonzero(m)
+    for i, j in zip(idx[:-1], idx[1:]):
+        if j > i + 1 and S[j] - S[i] <= GAP_MAX:
+            m[i:j] = True
+    return m
 
 
 def envelope(parts, t, n, S):
@@ -343,6 +418,13 @@ def curve_row(k, names, feats, fr, C, family, cross, S0, Pin, span=1):
         return None, "the two streets meet"
     nc = LineString(np.outer(S, t) + np.outer(near, n))
     fc = LineString(np.outer(S, t) + np.outer(far, n))
+    held = 0.0
+    for parts, c in ((pk, nc), (pf, fc)):
+        q = np.asarray(c.coords)
+        fake = ~real(parts, t, S) & shapely.contains_xy(Pin, q[:, 0], q[:, 1])
+        held = max(held, float(np.diff(S)[fake[1:] & fake[:-1]].sum()))
+    if held > HELD_MAX:
+        return None, "an edge street ends inside the patch (%.0f m held)" % held
     samples, unpaired = [], []
     for key, g in cross:
         if key in names[k:k + span + 1]:
@@ -408,8 +490,8 @@ def curve_main(a, fr, P, C, feats, blds, B, bidx, blocks, patch):
             decks.append(g)
         if is_street(t):
             if t.get("name"):
-                cross_named[t["name"]].append(g)
-                hw_of[t["name"]].add(t["highway"])
+                cross_named[line_key(t, el)].append(g)
+                hw_of[line_key(t, el)].add(t["highway"])
             else:
                 cross_ways.append(("#%d" % el["id"], g))
     cross = [(k, shapely.line_merge(shapely.union_all(np.array(v, dtype=object)))) for k, v in cross_named.items()]
@@ -745,6 +827,9 @@ def main():
     log("clipped: %s" % ", ".join("%s %d" % kv for kv in counts.items() if kv[1]))
 
     feats = json.load(open(os.path.join(orig, "features.json"), encoding="utf-8"))["elements"]
+    renamed = strokes(feats)
+    if renamed:
+        log("renamed streets joined: " + "; ".join(renamed))
     blds = []
     for path in sorted(glob.glob(os.path.join(orig, "bld_*.json"))):
         for el in json.load(open(path, encoding="utf-8"))["elements"]:
