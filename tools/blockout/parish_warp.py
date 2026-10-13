@@ -33,9 +33,15 @@ compress.py Mover: buildings that fit a rigid move to within 1 m keep
 their shape exactly), the LiDAR with them, and boundary.json is the
 rounded rectangle. Writes warp.json (the gates, marks) to --out.
 
+With --raw, the streets that run straight in the source (Lines) are held
+straight: each pulls its samples onto its own best-fit line, refitted every
+iteration, so a straight street may move and turn but not bow. Streets
+that truly curve are left to the warp.
+
 Gates: no flipped triangle; district scale within 1 +- DIST_TOL over 95% of
 district area; nowhere scaled below MIN_SCALE; nowhere stretched more than
-ANISO times one way than the other.
+ANISO times one way than the other; with --raw, LINE_SHARE of the straight
+streets' length bowing no more than LINE_TOL.
 """
 import argparse
 import json
@@ -46,6 +52,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import scipy.sparse as sp
+from scipy.sparse import csgraph
 import shapely
 from shapely.geometry import Polygon
 
@@ -70,6 +77,14 @@ PIN = 1e3  # weight pulling an edge vertex onto the rounded rectangle
 DIST_TOL = 0.05
 MIN_SCALE = 0.35
 ANISO = 2.0
+LINE_CLASSES = ("motorway", "trunk", "primary", "secondary", "tertiary", "residential", "unclassified", "living_street")
+TURN = 8.0  # degrees: a way turning more than this starts a new piece; ends straighter than this continue a stroke
+LINE_MIN = 400.0  # m: shortest stroke kept straight (shorter ones cannot bend at the mesh's scale)
+LINE_DEV = 4.0  # m: farthest a source point may lie off its stroke's line for the stroke to count as straight
+LINE_STEP = 25.0  # m: sample spacing along a stroke
+LINE_W = 1.0  # weight of a sample, per m of stroke and per m of mesh spacing, pulling it onto its stroke's line
+LINE_TOL = 5.0  # m: gate, farthest a warped straight stroke may bow
+LINE_SHARE = 0.99  # gate: share of straight-stroke length that must stay within LINE_TOL
 MARKS = {"Jackson Square": (29.9574, -90.0630), "Congo Square": (29.9606, -90.0681),
          "St Louis Cathedral": (29.9580, -90.0637), "Washington Square": (29.9644, -90.0566),
          "Lafayette Square": (29.9488, -90.0705)}
@@ -278,7 +293,7 @@ def stiffness(mesh, districts):
     return W_STIFF + (1.0 - W_STIFF) * t, d
 
 
-def measure(mesh, Q, did, names, D):
+def measure(mesh, Q, did, names, D, lines=None):
     """The gates for one solve: (gate dict, per district (name, scale, worst shape distortion))."""
     J = mesh.jac(Q)
     S = svd(J, compute_uv=False)
@@ -301,7 +316,9 @@ def measure(mesh, Q, did, names, D):
             "district_scale_min": round(min(p_[1] for p_ in per), 3),
             "min_scale": round(float(S[soft, 1].min()), 3),
             "max_aniso": round(float((S[soft, 0] / np.maximum(S[soft, 1], 1e-12)).max()), 3)}
-    gate["pass"] = gate["flipped"] == 0 and d95 <= DIST_TOL and gate["min_scale"] >= MIN_SCALE         and gate["max_aniso"] <= ANISO
+    if lines is not None:
+        gate["lines"] = lines.gate(Q)
+    gate["pass"] = gate["flipped"] == 0 and d95 <= DIST_TOL and gate["min_scale"] >= MIN_SCALE         and gate["max_aniso"] <= ANISO and (lines is None or gate["lines"]["straight_share"] >= LINE_SHARE)
     return gate, per
 
 
@@ -317,7 +334,7 @@ def _summer(idx, nbins, vals=None, cols=None):
                          shape=(nbins, len(idx) if cols is None else int(cols.max()) + 1))
 
 
-def solve(mesh, out, did, w, D, Q0, log, iters=ITERS):
+def solve(mesh, out, did, w, D, Q0, log, iters=ITERS, lines=None, line_w=LINE_W):
     """The local/global ARAP solve. Same arithmetic, in the same order, as
     the plain numpy version it replaced (bincounts, einsums, CG), so the
     same bits: the per-triangle local step runs in THREADS slices, and the
@@ -344,6 +361,15 @@ def solve(mesh, out, did, w, D, Q0, log, iters=ITERS):
     indptr = np.r_[0, np.cumsum(np.bincount(kr, minlength=n))].astype(np.int32)
     kc32 = kc.astype(np.int32)
     A = None
+    if lines is not None and line_w > 0:
+        # each sample pulls toward the nearest point of its stroke's current
+        # line: a constant extra stiffness B^T W B, and a target refit per
+        # iteration
+        lw = line_w * H * lines.w
+        LB = (lines.B.T @ sp.diags(lw) @ lines.B).tocsr()
+        LBd = LB.diagonal()
+    else:
+        lines = None
 
     def K(x):
         return A @ x + pin[:, None] * x
@@ -406,6 +432,10 @@ def solve(mesh, out, did, w, D, Q0, log, iters=ITERS):
         A = sp.csr_matrix((kv, kc32, indptr), shape=(n, n))
         diag = np.bincount(kr[dg], kv[dg], minlength=n) + pin
         b = ST @ contrib.reshape(-1, 2)
+        if lines is not None:
+            A = A + LB
+            diag = diag + LBd
+            b += lines.B.T @ (lw[:, None] * lines.fit(lines.B @ Q)[0])
         tgt = out.project(Q[mesh.ring])
         b[mesh.ring] += pin[mesh.ring, None] * tgt
         b[mesh.dead] += pin[mesh.dead, None] * Q0[mesh.dead]
@@ -431,6 +461,148 @@ def solve(mesh, out, did, w, D, Q0, log, iters=ITERS):
     return Q
 
 
+class Lines:
+    """The source-straight streets as solve() constraints. A stroke is a
+    chain of road pieces that continue straight on through their junctions
+    (a piece is a way split where it turns more than TURN); a stroke is
+    kept if it runs at least LINE_MIN and no point of it is more than
+    LINE_DEV off its best-fit line. Streets that truly curve are not kept,
+    so the warp leaves them free. Each stroke is sampled every LINE_STEP m;
+    a sample is its triangle's barycentric row of B."""
+
+    def __init__(self, raw, fr, mesh, inner):
+        d = json.load(open(os.path.join(raw, "features.json"), encoding="utf-8"))
+        ways = [e for e in d["elements"] if e["type"] == "way" and e.get("tags", {}).get("highway") in LINE_CLASSES
+                and len(e.get("nodes", ())) == len(e.get("geometry", ())) >= 2 and all(e["geometry"])]  # None: past the download
+        n_of = np.array([len(w["nodes"]) for w in ways])
+        wid = np.repeat(np.arange(len(ways)), n_of)
+        nid = np.fromiter((v for w in ways for v in w["nodes"]), np.int64, n_of.sum())
+        ll = np.fromiter((c for w in ways for g in w["geometry"] for c in (g["lon"], g["lat"])), float, 2 * n_of.sum())
+        x, z = fr.xz(ll[0::2], ll[1::2])
+        P = np.c_[x, z]
+        start = np.r_[0, np.cumsum(n_of)[:-1]]
+        last = start + n_of - 1
+        # segment k joins point k to k + 1 within a way
+        sk = np.setdiff1d(np.arange(len(P) - 1), last)
+        dv = P[sk + 1] - P[sk]
+        ang = np.arctan2(dv[:, 1], dv[:, 0])
+        # a vertex where the way turns more than TURN starts a new piece
+        same = wid[sk[1:]] == wid[sk[:-1]]
+        turn = np.abs(np.angle(np.exp(1j * (ang[1:][same] - ang[:-1][same]))))
+        cut = np.zeros(len(P), bool)
+        cut[sk[1:][same][turn > math.radians(TURN)]] = True
+        # piece of each segment: new at every way start and every cut vertex
+        brk = np.zeros(len(P), bool)
+        brk[start] = True
+        brk |= cut
+        piece_pt = np.cumsum(brk) - 1  # piece a point starts or continues
+        seg_piece = piece_pt[sk]
+        npc = int(piece_pt.max()) + 1
+        # each piece's two ends: node id and outward direction
+        first = np.full(npc, len(P))
+        np.minimum.at(first, seg_piece, sk)
+        lastp = np.zeros(npc, int)
+        np.maximum.at(lastp, seg_piece, sk)
+        e_node = np.r_[nid[first], nid[lastp + 1]]
+        e_dir = np.r_[ang[np.searchsorted(sk, first)] + math.pi, ang[np.searchsorted(sk, lastp)]]
+        e_pc = np.r_[np.arange(npc), np.arange(npc)]
+        # pairs of ends at one node pointing straight away from each other,
+        # each end with its best partner, kept when the choice is mutual
+        o = np.argsort(e_node, kind="stable")
+        en, ed = e_node[o], e_dir[o]
+        best = np.full(len(o), -1)
+        bdev = np.full(len(o), np.inf)
+        for s in range(1, 8):
+            i = np.arange(len(o) - s)
+            j = i + s
+            m = en[i] == en[j]
+            if not m.any():
+                break
+            i, j = i[m], j[m]
+            dev = np.abs(np.angle(np.exp(1j * (ed[i] - ed[j] - math.pi))))
+            for a_, b_ in ((i, j), (j, i)):
+                better = dev < bdev[a_]
+                # several candidates for one end in one pass cannot happen:
+                # a_ values are distinct for a fixed shift s
+                bdev[a_[better]] = dev[better]
+                best[a_[better]] = b_[better]
+        ok = (best >= 0) & (bdev < math.radians(TURN))
+        mutual = ok & (best[np.where(ok, best, 0)] == np.arange(len(o))) & (np.arange(len(o)) < np.where(ok, best, -1))
+        pa, pb = e_pc[o[mutual]], e_pc[o[best[mutual]]]
+        g = sp.coo_matrix((np.ones(len(pa)), (pa, pb)), shape=(npc, npc))
+        _, comp = csgraph.connected_components(g, directed=False)
+        # the straightness test on every point of each stroke
+        sc = comp[seg_piece]
+        X = np.r_[P[sk], P[sk + 1]]
+        C = np.r_[sc, sc]
+        nc = int(comp.max()) + 1
+        cnt = np.bincount(C, minlength=nc)
+        mx = np.bincount(C, X[:, 0], nc) / np.maximum(cnt, 1)
+        mz = np.bincount(C, X[:, 1], nc) / np.maximum(cnt, 1)
+        dx_, dz_ = X[:, 0] - mx[C], X[:, 1] - mz[C]
+        cxx = np.bincount(C, dx_ * dx_, nc)
+        czz = np.bincount(C, dz_ * dz_, nc)
+        cxz = np.bincount(C, dx_ * dz_, nc)
+        th = 0.5 * np.arctan2(2 * cxz, cxx - czz)
+        ux, uz = np.cos(th), np.sin(th)
+        along = dx_ * ux[C] + dz_ * uz[C]
+        perp = np.abs(-dx_ * uz[C] + dz_ * ux[C])
+        dev = np.zeros(nc)
+        np.maximum.at(dev, C, perp)
+        amin = np.full(nc, np.inf)
+        amax = np.full(nc, -np.inf)
+        np.minimum.at(amin, C, along)
+        np.maximum.at(amax, C, along)
+        span = amax - amin
+        keep = (span >= LINE_MIN) & (dev <= LINE_DEV)
+        # samples every LINE_STEP m along each kept segment
+        sm = keep[sc]
+        a0, a1, s_c = P[sk[sm]], P[sk[sm] + 1], sc[sm]
+        L = np.hypot(*(a1 - a0).T)
+        k = np.maximum(1, np.ceil(L / LINE_STEP).astype(int))
+        rep = np.repeat(np.arange(len(L)), k)
+        t = (np.arange(k.sum()) - np.repeat(np.cumsum(k) - k, k) + 0.5) / k[rep]
+        S = a0[rep] + t[:, None] * (a1 - a0)[rep]
+        sw = (L / k)[rep]
+        sid = s_c[rep]
+        live = inner.contains(S)
+        S, sw, sid = S[live], sw[live], sid[live]
+        _, sid = np.unique(sid, return_inverse=True)
+        self.src, self.w, self.sid, self.n = S, sw, sid, int(sid.max()) + 1 if len(sid) else 0
+        self.src_dev = dev[keep]
+        self.length_km = float(sw.sum() / 1000)
+        t_, w0, w1, w2 = mesh.locate(S[:, 0], S[:, 1])
+        T = mesh.T[t_]
+        r = np.repeat(np.arange(len(S)), 3)
+        self.B = sp.csr_matrix((np.c_[w0, w1, w2].ravel(), (r, T.ravel())), shape=(len(S), len(mesh.P)))
+
+    def fit(self, L):
+        """Each stroke's best-fit line through its samples L: the nearest
+        point of it to each sample, and each sample's distance off it."""
+        n, sid, w = self.n, self.sid, self.w
+        ws = np.bincount(sid, w, n)
+        mx = np.bincount(sid, w * L[:, 0], n) / ws
+        mz = np.bincount(sid, w * L[:, 1], n) / ws
+        dx, dz = L[:, 0] - mx[sid], L[:, 1] - mz[sid]
+        th = 0.5 * np.arctan2(2 * np.bincount(sid, w * dx * dz, n),
+                              np.bincount(sid, w * dx * dx, n) - np.bincount(sid, w * dz * dz, n))
+        ux, uz = np.cos(th)[sid], np.sin(th)[sid]
+        a = dx * ux + dz * uz
+        tgt = np.c_[mx[sid] + a * ux, mz[sid] + a * uz]
+        return tgt, np.abs(-dx * uz + dz * ux)
+
+    def gate(self, Q):
+        """Per stroke, the farthest its warped samples lie off a straight
+        line: the share of stroke length within LINE_TOL, and the worst."""
+        _, off = self.fit(self.B @ Q)
+        worst = np.zeros(self.n)
+        np.maximum.at(worst, self.sid, off)
+        ln = np.bincount(self.sid, self.w, self.n)
+        return {"strokes": self.n, "km": round(self.length_km, 1),
+                "straight_share": round(float(ln[worst <= LINE_TOL].sum() / ln.sum()), 4),
+                "worst_m": round(float(worst.max()), 2), "p95_m": round(float(np.percentile(worst, 95)), 2)}
+
+
 def district_union(seg, dist):
     B = seg["blocks"]
     polys = []
@@ -449,6 +621,7 @@ def main():
     ap.add_argument("--area", type=float, default=100.0, help="km2 of the rounded rectangle")
     ap.add_argument("--lidar", default=LIDAR)
     ap.add_argument("--png")
+    ap.add_argument("--line-w", type=float, default=LINE_W, help="pull of the source-straight streets onto straight lines (0: off)")
     ap.add_argument("--aniso", type=float, default=ANISO, help="most a squeezed triangle may stretch one way more than the other")
     a = ap.parse_args()
     ANISO = a.aniso
@@ -487,21 +660,25 @@ def main():
         did[shapely.contains_xy(p, mesh.cen[:, 0], mesh.cen[:, 1])] = k_
     mesh.clip(Outline(c, W0 / 2, H0 / 2, CORNER * min(W0, H0) / 2))
     Q0 = c + k * (mesh.P - c)
+    strokes = None
+    if a.raw:
+        strokes = Lines(a.raw, fr, mesh, mesh.src.inset(1.5 * H))
+        log("straight streets: %d strokes, %.1f km sampled" % (strokes.n, strokes.length_km))
     log("districts %.2f km2; searching the largest district scale that fits" % (dunion.area / 1e6))
-    Q = solve(mesh, out, did, wt, 1.0, Q0, log)
-    gate, per = measure(mesh, Q, did, names, 1.0)
+    Q = solve(mesh, out, did, wt, 1.0, Q0, log, lines=strokes, line_w=a.line_w)
+    gate, per = measure(mesh, Q, did, names, 1.0, strokes)
     log("  scale 1.000: %s" % json.dumps(gate))
     if not gate["pass"]:
         lo_d, hi_d, best = DMIN, 1.0, None
-        Qd = solve(mesh, out, did, wt, DMIN, Q0, log)
-        g, pr = measure(mesh, Qd, did, names, DMIN)
+        Qd = solve(mesh, out, did, wt, DMIN, Q0, log, lines=strokes, line_w=a.line_w)
+        g, pr = measure(mesh, Qd, did, names, DMIN, strokes)
         log("  scale %.3f: %s" % (DMIN, json.dumps(g)))
         if g["pass"]:
             best = (Qd, g, pr)
             for _ in range(D_STEPS):
                 mid = (lo_d + hi_d) / 2
-                Qm = solve(mesh, out, did, wt, mid, Q0, log)
-                g, pr = measure(mesh, Qm, did, names, mid)
+                Qm = solve(mesh, out, did, wt, mid, Q0, log, lines=strokes, line_w=a.line_w)
+                g, pr = measure(mesh, Qm, did, names, mid, strokes)
                 log("  scale %.3f: %s" % (mid, json.dumps(g)))
                 if g["pass"]:
                     lo_d, best = mid, (Qm, g, pr)
