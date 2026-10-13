@@ -44,7 +44,8 @@ A tile file is an int32 triangle count, then three float32 xyz corners per
 triangle (counter-clockwise seen from outside, so the normal is
 (b - a) x (c - a)), then one uint8 kind per triangle, then one uint8 tint
 per triangle. Kinds: building wall 0 and roof 1; ground the classes below.
-The tint is a per-building random byte, for varying the palette.
+The tint is one neutral byte, TINT, for every building (the shader can
+vary the palette by it).
 
 Coordinates: x is east, z is south, metres from the bbox centre, the same
 frame as osm_to_local.py. Map data (c) OpenStreetMap contributors, ODbL.
@@ -57,7 +58,6 @@ import os
 import subprocess
 import sys
 import time
-import zlib
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import numpy as np
@@ -66,6 +66,9 @@ from scipy.sparse.csgraph import connected_components
 import shapely
 import shapely.ops
 from shapely.geometry import LineString, Point, Polygon, box
+
+sys.path.insert(0, os.path.dirname(__file__))
+import streets  # noqa: E402
 
 TILE = 1024.0  # metres per tile side
 ## Houses without a height tag. Most of the city is one- and two-storey.
@@ -107,6 +110,15 @@ ROAD_WIDTHS = {
     "service": 0.0,
 }
 MINOR_ROADS = ("residential", "unclassified", "living_street", "pedestrian")
+## A building under this height is one of the city's houses and stands at
+## FILL_TO, unless LANDMARKS tags it; the rest keep their own heights.
+LANDMARK_HEIGHT = 20.0
+LANDMARKS = {("amenity", "place_of_worship"), ("amenity", "theatre"), ("amenity", "townhall"),
+             ("amenity", "hospital"), ("tourism", "museum"), ("leisure", "stadium"),
+             ("building", "church"), ("building", "cathedral"), ("building", "chapel"),
+             ("building", "stadium"), ("building", "grandstand")}
+## Every building's tint: the palette's own colour, no per-building variation.
+TINT = 128
 RAIL_WIDTH = 8.0
 CANAL_WIDTH = 24.0
 
@@ -196,7 +208,7 @@ def main():
     shapely.prepare(region)
 
     # --- Buildings ---------------------------------------------------------
-    coords, sizes, heights = [], [], []
+    coords, sizes, heights, landmark = [], [], [], []
     for path in sorted(glob.glob(os.path.join(args.raw, "bld_*.json"))):
         for el in json.load(open(path, encoding="utf-8"))["elements"]:
             if el["type"] != "way" or "geometry" not in el:
@@ -207,11 +219,16 @@ def main():
             coords += r
             sizes.append(len(r))
             heights.append(_height(el.get("tags", {})))
+            landmark.append(_landmark(el.get("tags", {})))
     # One call builds every footprint, each ring closed as Polygon(r) would.
     footprints = shapely.polygons(shapely.linearrings(
         np.array(coords, dtype=float).reshape(-1, 2), indices=np.repeat(np.arange(len(sizes)), sizes)))
     footprints = shapely.make_valid(footprints)
-    heights = np.maximum(HEIGHT_STEP, np.round(np.array(heights) / HEIGHT_STEP) * HEIGHT_STEP)
+    # Only landmarks and tall buildings rise out of the one house height,
+    # and nothing stands lower than it.
+    heights = np.array(heights)
+    heights = np.where(np.array(landmark) | (heights >= LANDMARK_HEIGHT), np.maximum(heights, FILL_TO), FILL_TO)
+    heights = np.maximum(HEIGHT_STEP, np.round(heights / HEIGHT_STEP) * HEIGHT_STEP)
     # make_valid can hand back lines for a degenerate ring; keep area only.
     keep = shapely.area(footprints) > 1.0
     footprints, heights = footprints[keep], heights[keep]
@@ -267,7 +284,7 @@ def main():
                 if len(line) < 2:
                     continue
                 if tags.get("highway") in ROAD_WIDTHS and tags.get("building", "no") == "no":
-                    roads.append((line, road_class(tags), tags.get("bridge", "no") != "no"))
+                    roads.append((line, road_class(tags), tags.get("bridge", "no") != "no", tags.get("name")))
                 elif tags.get("railway") == "rail":
                     rails.append(line)
                 elif tags.get("waterway") in ("canal", "river") and tags.get("tunnel", "no") == "no"                         and not tags.get("layer", "0").lstrip().startswith("-"):
@@ -289,7 +306,7 @@ def main():
         elif tags.get("landuse") == "cemetery":
             kind = GRAVES
         elif tags.get("highway") in ROAD_WIDTHS and tags.get("area") != "yes" and tags.get("building", "no") == "no":
-            roads.append((ring(el["geometry"]), road_class(tags), False))
+            roads.append((ring(el["geometry"]), road_class(tags), False, tags.get("name")))
             continue
         if kind is not None and poly is not None:
             areas[kind].append(poly)
@@ -298,9 +315,16 @@ def main():
     cover[RAIL] = _strokes([(line, RAIL_WIDTH) for line in rails])
     # A bridge is a deck of its own (bridges.py), not paint on the ground
     # under it; but it still keeps the buildings out from under itself.
-    cover[ROAD] = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k in MINOR_ROADS and not up])
-    cover[MAJOR] = shapely.union_all([_strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k not in MINOR_ROADS and not k.endswith("~half") and not up]), join_medians([(line, ROAD_WIDTHS[k]) for line, k, up in roads if k.endswith("~half") and not up])])
-    decks = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up in roads if up])
+    # The minor streets thinned to through-streets around big blocks
+    # (streets.py), all one width.
+    minor = [(line, name) for line, k, up, name in roads if k in MINOR_ROADS and not up]
+    network = [line for line, k, up, _ in roads if k not in MINOR_ROADS and ROAD_WIDTHS[k] > 0 and not up]
+    kept, n_before, n_after = streets.prune(network + rails + [line for line, _ in canals],
+                                            [line for line, _ in minor], [name for _, name in minor])
+    cover[ROAD] = _strokes([(line, STREET) for line in kept])
+    log("minor streets: blocks %d -> %d" % (n_before, n_after))
+    cover[MAJOR] = shapely.union_all([_strokes([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k not in MINOR_ROADS and not k.endswith("~half") and not up]), join_medians([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if k.endswith("~half") and not up])])
+    decks = _strokes([(line, ROAD_WIDTHS[k]) for line, k, up, _ in roads if up])
     canal_strokes = []
     for line, width in canals:
         try:
@@ -334,7 +358,7 @@ def main():
     if args.iv and not args.nofill:
         # A superblock is what the kept roads, rail and water enclose. A
         # dense one is filled solid up to house height, one closed region.
-        hard = shapely.buffer(shapely.union_all([cover[MAJOR], cover[RAIL], cover[WATER], decks]), SIDEWALK, join_style="mitre")
+        hard = shapely.buffer(shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER], decks]), SIDEWALK, join_style="mitre")
         open_space = shapely.union_all([cover[PARK], cover[GRAVES]])
         blocks = shapely.difference(inside, hard)
         bld = shapely.union_all(footprints)
@@ -453,6 +477,10 @@ def _height(tags):
         return DEFAULT_HEIGHT
 
 
+def _landmark(tags):
+    return any((k, tags.get(k)) in LANDMARKS for k in ("amenity", "tourism", "leisure", "building"))
+
+
 def _area(outers, inners):
     """A multipolygon from outer and inner rings, or None if nothing is left."""
     outer = [Polygon(r) for r in outers if len(r) >= 3]
@@ -553,7 +581,7 @@ def _step(sub, mass, floor, level, above, tile_of):
         roofs = [r for rs in sub.map(lambda c: shapely.difference(c, above), chunks) for r in rs]
     out = []
     for part, roof in zip(parts, roofs):
-        tint = zlib.crc32(np.round(shapely.get_coordinates(part.representative_point())).tobytes()) & 0xFF
+        tint = TINT
         pieces = [_walls(part, floor, level, WALL, tint)]
         if not roof.is_empty:
             pieces.append(_flat(roof, level, ROOF, tint))
@@ -568,7 +596,7 @@ def _ground(cover, region, decks, cells, sub):
     # Past the boundary there is no ground at all.
     keys = list(cover)
     cov = dict(zip(keys, sub.map(lambda k: shapely.intersection(cover[k], region), keys)))
-    walk = sub.submit(lambda: shapely.union_all([cov[MAJOR], decks, cov[PARK], cov[GRAVES], cov[WATER]]))
+    walk = sub.submit(lambda: shapely.union_all([cov[ROAD], cov[MAJOR], decks, cov[PARK], cov[GRAVES], cov[WATER]]))
     covered = Polygon()
     layers = {}
     for k in (WATER, MAJOR, ROAD, RAIL, GRAVES, PARK, MARSH):
