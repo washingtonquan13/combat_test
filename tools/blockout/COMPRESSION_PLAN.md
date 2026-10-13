@@ -102,9 +102,14 @@ Each block and each way gets a score from tags. No hand list is needed.
   - anything carrying `wikidata`, `historic` or `tourism`
   - `leisure=park|stadium` over 1 ha
   - cemeteries
-  - buildings taller than 40 m, or in the top 1% by footprint
+  - buildings taller than 40 m, or in the top 0.1% by footprint (the top
+    1% is 1383 m2 here, every corner pharmacy, and blocked nearly every
+    Uptown row in phase 2's first count)
   - every deck and bridge
   A protected item's block row can never be removed.
+  A block an arterial runs through (a median polygon) is flagged
+  `arterial`, not protected: a strip the arterial crosses square-on only
+  shortens it, and the 10° crossing rule below already covers it.
 - **Arterial (protected):** secondary and above, plus every named boulevard
   with a median polygon. This is the Loyola lesson.
 - **Filler:** everything else, scored by named-building density and by

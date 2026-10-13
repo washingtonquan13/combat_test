@@ -7,8 +7,8 @@ of blocks sharing one street grid) and score them by what is worth keeping.
 boundary.json). <out dir> gets:
 
   segment.json   the frame, every block (ring, bearing, spread, patch,
-      score, landmarks), every patch (blocks, bearing, irregular, area,
-      score) and the gate numbers below.
+      score, protected, arterial, landmarks), every patch (blocks,
+      bearing, irregular, area, score) and the gate numbers below.
   segment.png    patches in colour by bearing, irregular ones grey, hard
       boundaries black, landmarks red.
 
@@ -51,6 +51,10 @@ STREETS = HARD_ROADS + ("secondary", "tertiary", "secondary_link", "tertiary_lin
 ARTERIAL = ("motorway", "trunk", "primary", "secondary")
 TALL = 40.0  # m: a building this tall is a landmark
 PARK_MIN = 10_000.0  # m2: a park or stadium this big is a landmark
+# Footprint percentile that makes a building a landmark. At the top 1%
+# (1383 m2 in the parish) every corner pharmacy qualifies, and Uptown has
+# one in nearly every row; the top 0.1% is hospitals, malls, terminals.
+BIG_PCT = 99.9
 
 # A few places a reader knows, to check the segmentation against.
 PLACES = {
@@ -203,7 +207,7 @@ def main():
                 h = 0.0
             blds.append((p, t, h))
             areas.append(abs(p.area))
-    big = np.percentile(areas, 99)
+    big = np.percentile(areas, BIG_PCT)
     for p, t, h in blds:
         c = p.representative_point() if p.is_valid else p.centroid
         why = ("wikidata" if "wikidata" in t else "historic" if "historic" in t else
@@ -213,7 +217,7 @@ def main():
         if "name" in t:
             bld_named.append(c)
         bld_pts.append(c)
-    log("buildings %d (top-1%% footprint %.0f m2), landmarks now %d" % (len(blds), big, len(landmarks)))
+    log("buildings %d (top-%g%% footprint %.0f m2), landmarks now %d" % (len(blds), 100 - BIG_PCT, big, len(landmarks)))
     del blds
 
     # --- Blocks: faces of the street + hard-line graph --------------------
@@ -377,11 +381,12 @@ def main():
             bscore[b] += WEIGHT.get(why, 2.0)
             protected[b] = True
             blm[int(b)].append([name, why])
-    # A block an arterial runs through (not along its edge) is protected too:
-    # the arterial must survive whole, and a median polygon is a face too.
+    # A block an arterial runs through (not along its edge), such as a median
+    # polygon, is flagged apart from the landmarks: a strip the arterial
+    # crosses square-on only shortens it, so thinning may still take that
+    # row; what it must never do is run a band along it.
     art_u = shapely.union_all(np.array(art, dtype=object))
-    crossing = shapely.length(shapely.intersection(faces, art_u)) > 20.0
-    protected |= crossing
+    arterial = shapely.length(shapely.intersection(faces, art_u)) > 20.0
     pscore = np.bincount(patch, weights=bscore, minlength=npatch) / np.maximum(pa_, 1.0) * 1e4
     log("landmarks placed %d/%d; protected blocks %d" % (int((lm_block >= 0).sum()), len(landmarks), int(protected.sum())))
 
@@ -432,7 +437,7 @@ def main():
                     for p in range(npatch)],
         "blocks": [{"ring": np.round(np.asarray(f.exterior.coords), 2).tolist(), "bearing": round(bear[i], 2),
                     "spread": round(spread[i], 2), "patch": int(patch[i]), "score": round(float(bscore[i]), 2),
-                    "protected": bool(protected[i]), "landmarks": blm.get(i, [])}
+                    "protected": bool(protected[i]), "arterial": bool(arterial[i]), "landmarks": blm.get(i, [])}
                    for i, f in enumerate(faces)],
     }
     with open(os.path.join(args.out, "segment.json"), "w", encoding="utf-8") as f:
