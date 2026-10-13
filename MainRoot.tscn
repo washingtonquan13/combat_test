@@ -1,4 +1,4 @@
-[gd_scene load_steps=40 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=41 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
@@ -39,6 +39,7 @@
 [ext_resource type="PackedScene" uid="uid://dypeuvgfr3s4j" path="res://ui/cathedral_menu.tscn" id="35_cathedralmenu"]
 [ext_resource type="Script" uid="uid://figtunvhfhvk" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
 [ext_resource type="PackedScene" path="res://systems/cinematic_system/cinematic_overlay.tscn" id="37_cineoverlay"]
+[ext_resource type="Script" path="res://ui/area_label.gd" id="38_arealabel"]
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -249,6 +250,51 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Enter"
 horizontal_alignment = 1
+
+[node name="AreaLabel" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("38_arealabel")
+
+[node name="Corner" type="Label" parent="CanvasLayer/AreaLabel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 14.0
+offset_right = 420.0
+offset_bottom = 44.0
+theme_override_colors/font_color = Color(0.95, 0.92, 0.82, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 20
+text = "French Quarter"
+
+[node name="Banner" type="PanelContainer" parent="CanvasLayer/AreaLabel"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -260.0
+offset_top = 64.0
+offset_right = 260.0
+offset_bottom = 124.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="Label" type="Label" parent="CanvasLayer/AreaLabel/Banner"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.96, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "French Quarter"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="PartyOverview" parent="CanvasLayer" instance=ExtResource("14_partyoverview")]
 blocks_input_below = true

@@ -31,6 +31,12 @@ const AVATAR_SCENE: PackedScene = preload("res://world/overworld_avatar.tscn")
 ## so a steep camera can still see it; 0 for a low camera that looks
 ## under the decks instead.
 @export var deck_cutaway_radius: float = 7.0
+## Seconds the avatar has to stay in a new district before the area
+## label changes, so walking along a border does not flicker the name.
+@export var district_settle_time: float = 1.0
+
+## How often the avatar's district is looked up, in seconds.
+const DISTRICT_POLL := 0.2
 
 @onready var _camera: OverworldCamera = $OverworldCamera
 
@@ -39,6 +45,13 @@ const AVATAR_SCENE: PackedScene = preload("res://world/overworld_avatar.tscn")
 ## which is what lets a split party be in two places on it instead of
 ## being collected on arrival.
 var _avatars: Dictionary = {}
+
+## The district the label shows, and the one the avatar has been
+## standing in for _candidate_time without it showing yet.
+var _district: OverworldDistrict
+var _candidate: OverworldDistrict
+var _candidate_time := 0.0
+var _poll := 0.0
 
 
 func _ready() -> void:
@@ -56,6 +69,50 @@ func _on_world_focused(world: Node) -> void:
 		# Global to every world, so set again whenever this one comes back.
 		RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius)
 		sync_avatars()
+		# The label cleared itself when another world took focus; the
+		# next poll puts the name back, quietly.
+		_district = null
+
+
+func _process(delta: float) -> void:
+	_poll += delta
+	if _poll < DISTRICT_POLL:
+		return
+	var step := _poll
+	_poll = 0.0
+	var avatar := _active_avatar()
+	if avatar == null or WorldManager.current_world() != self:
+		return
+	var here := _district_at(avatar.global_position)
+	if here == null or here == _district:
+		_candidate = null
+		return
+	# The first name after arriving shows at once; a change waits until
+	# the avatar has really crossed.
+	if _district != null:
+		if here != _candidate:
+			_candidate = here
+			_candidate_time = 0.0
+		_candidate_time += step
+		if _candidate_time < district_settle_time:
+			return
+	var announce := _district != null
+	_district = here
+	_candidate = null
+	get_tree().call_group(&"area_label", &"show_area", here.display_name, announce)
+
+
+## The smallest district holding p, or null outside them all.
+func _district_at(p: Vector3) -> OverworldDistrict:
+	var districts := get_node_or_null(^"Districts")
+	if districts == null:
+		return null
+	var best: OverworldDistrict = null
+	for child in districts.get_children():
+		var district := child as OverworldDistrict
+		if district and district.has_point(p) and (best == null or district.area() < best.area()):
+			best = district
+	return best
 
 
 func get_base_mode() -> GameMode.Mode:
