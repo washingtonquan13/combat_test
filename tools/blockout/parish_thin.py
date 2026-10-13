@@ -33,8 +33,8 @@ more than 2 of any 3 in a row, until the removed width reaches
 (1 - keep) of the patch's extent across the family.
 
 Gate (the plan's go/no-go, all in thin.json):
-  chords      cross-street joins whose bearing turns more than CHORD_DEG
-              with a jog longer than JOG_MIN: must be 0.
+  chords      streets rejoined across a band whose moved far part misses
+              the near node by more than JOG_MIN: must be 0.
   dead ends   street nodes of degree 1 inside the patch, after vs before:
               no new ones.
   landmarks   every protected block moved by one rigid translation.
@@ -63,8 +63,7 @@ FAMILY_MIN = 300.0  # m: a street this long inside the patch defines a grid line
 FAMILY_TOL = 15.0  # deg: mean deviation from the family bearing that still counts
 CROSS_MAX = 10.0  # deg: a street crossing a removed row must be this close to square
 EDGE_CLEAR = 3.0  # m: a band edge stays this far from the streets either side of it
-CHORD_DEG = 3.0
-JOG_MIN = 2.0  # m
+JOG_MIN = 1.0  # m: a rejoined street this far off its own line is a chord
 SKIP = ("service", "footway", "path", "cycleway", "steps", "track", "bridleway", "corridor",
         "construction", "proposed", "pedestrian")
 HARD_HW = ("motorway", "trunk", "primary", "motorway_link", "trunk_link", "primary_link")
@@ -240,6 +239,298 @@ def along(g, n):
     return tot
 
 
+# --- curve bands ----------------------------------------------------------------
+STEP = 2.0  # m: edge table spacing along the band
+PAIR_NAMED, PAIR_UNNAMED = 40.0, 15.0  # m: how far apart in s one street's two crossings may be
+STRAIN_MAX = 0.15  # change in shift per metre along the band, inside the patch (a fan stretches the far blocks)
+CUT_MAX = 2  # buildings an edge may cut
+
+
+def family_parts(feats, fr, C, name, family):
+    """The runs of the named street that go with the family: every node the
+    clip kept, not just those inside C, so the edge covers the whole street
+    and none of the deleted one survives past it."""
+    out = []
+    for el in feats:
+        t = el.get("tags", {})
+        if el["type"] != "way" or not is_street(t) or (t.get("name") or "#%d" % el["id"]) != name:
+            continue
+        _, xz = xz_of(fr, el.get("geometry") or [])
+        if len(xz) < 2:
+            continue
+        v = np.diff(xz, axis=0)
+        off = (np.degrees(np.arctan2(v[:, 1], v[:, 0])) - family + 90) % 180 - 90
+        ok = np.abs(off) < 30
+        i = 0
+        while i < len(ok):
+            if not ok[i]:
+                i += 1
+                continue
+            j = i
+            while j + 1 < len(ok) and ok[j + 1]:
+                j += 1
+            q = xz[i:j + 2]
+            if LineString(q).length >= 1:
+                out.append(q)
+            i = j + 1
+    return out
+
+
+def envelope(parts, t, n, S):
+    """u of the parts' highest-u point at each s, interpolated across gaps
+    and held past the ends; None if a part doubles back along s."""
+    u = np.full(len(S), -np.inf)
+    for q in parts:
+        s, w = q @ t, q @ n
+        if np.all(np.diff(s) < 0):
+            s, w = s[::-1], w[::-1]
+        if np.any(np.diff(s) <= 0):
+            return None
+        m = (S >= s[0]) & (S <= s[-1])
+        u[m] = np.maximum(u[m], np.interp(S[m], s, w))
+    ok = np.isfinite(u)
+    if not ok.any():
+        return None
+    return np.interp(S, S[ok], u[ok])
+
+
+def crossings(g, curve):
+    """Points where line g crosses the curve (a LineString)."""
+    out = []
+    for p in shapely.get_parts(shapely.intersection(g, curve)):
+        if p.is_empty:
+            continue
+        if p.geom_type == "Point":
+            out.append(np.array(p.coords[0]))
+        elif p.geom_type == "LineString":
+            out.append(np.asarray(p.coords).mean(0))
+    return out
+
+
+def ray(g, pb, t, n):
+    """The cross street g past its far crossing pb, as (u, s) with u rising:
+    followed from pb while it keeps moving away from the band."""
+    part = min(shapely.get_parts(g), key=lambda p: p.distance(shapely.Point(pb)))
+    q = np.asarray(part.segmentize(5.0).coords)
+    i = int(np.argmin(np.hypot(*(q - pb).T)))
+    u = q @ n
+    step = 1 if (i + 1 < len(q) and u[i + 1] > u[i]) or i == 0 else -1
+    if i + step < 0 or i + step >= len(q) or u[i + step] <= u[i]:
+        step = -step
+    out = [(float(pb @ n), float(pb @ t))]
+    k = i + step
+    while 0 <= k < len(q) and u[k] > out[-1][0] + 0.01:
+        out.append((float(u[k]), float(q[k] @ t)))
+        k += step
+    return out
+
+
+def curve_row(k, names, feats, fr, C, family, cross, S0, Pin, span=1):
+    """Row k as a curve band: near edge = line k, far edge = line k+span,
+    which goes with any between. Returns (spec, info) or (None, reason)."""
+    t = np.array([math.cos(math.radians(family)), math.sin(math.radians(family))])
+    n = across(family)
+    pk = family_parts(feats, fr, C, names[k], family)
+    pf = family_parts(feats, fr, C, names[k + span], family)
+    if not pk or not pf:
+        return None, "street not found in the clip"
+    S = np.unique(np.concatenate([S0] + [q @ t for q in pk + pf]))
+    S = S[np.concatenate([[True], np.diff(S) > 0.05])]
+    near, far = envelope(pk, t, n, S), envelope(pf, t, n, S)
+    if near is None or far is None:
+        return None, "a street doubles back along the band"
+    if np.any(far - near < 1.0):
+        return None, "the two streets meet"
+    nc = LineString(np.outer(S, t) + np.outer(near, n))
+    fc = LineString(np.outer(S, t) + np.outer(far, n))
+    samples, unpaired = [], []
+    for key, g in cross:
+        if key in names[k:k + span + 1]:
+            continue
+        a = crossings(g, nc)
+        b = crossings(g, fc)
+        if not a or not b:
+            continue  # ends in the row: nothing to pair
+        lim = PAIR_UNNAMED if key.startswith("#") else PAIR_NAMED
+        sa = np.array([p @ t for p in a])
+        for pb in b:
+            j = int(np.argmin(np.abs(sa - pb @ t)))
+            if abs(sa[j] - pb @ t) > lim:
+                unpaired.append(key)
+                continue
+            d = a[j] - pb
+            samples.append((float(pb @ t), float(d[0]), float(d[1]), bool(Pin.contains(shapely.Point(pb))),
+                            ray(g, pb, t, n)))
+    if not samples:
+        return None, "no cross street pairs"
+    samples.sort()
+    merged = []
+    for s_, dx, dz, ins, ln in samples:
+        if merged and s_ - merged[-1][0][-1] < 1.0:
+            for lst, v in zip(merged[-1], (s_, dx, dz, ins, ln)):
+                lst.append(v)
+        else:
+            merged.append(([s_], [dx], [dz], [ins], [ln]))
+    sh = np.array([[np.mean(m[0]), np.mean(m[1]), np.mean(m[2])] for m in merged])
+    rays = [m[4][0] for m in merged]
+    ins = np.array([all(m[3]) for m in merged])
+    strain = 0.0
+    if len(sh) > 1:
+        st = np.hypot(np.diff(sh[:, 1]), np.diff(sh[:, 2])) / np.maximum(np.diff(sh[:, 0]), 1e-6)
+        both = ins[:-1] & ins[1:]
+        strain = float(st[both].max()) if both.any() else 0.0
+    region = shapely.intersection(Polygon(np.r_[np.asarray(nc.coords), np.asarray(fc.coords)[::-1]]).buffer(0), C)
+    spec = {"name": "%s row" % names[k + span][:24],
+            "curve": {"angle": round(family, 4), "s": [round(float(v), 3) for v in S],
+                      "near": [round(float(v), 3) for v in near], "far": [round(float(v), 3) for v in far],
+                      "shift": [[round(float(v), 3) for v in r] for r in sh],
+                      "rays": [[[round(float(v), 2) for v in p] for p in r] for r in rays]}}
+    info = {"region": region, "strain": round(strain, 4), "unpaired": sorted(set(unpaired)), "samples": len(sh),
+            "near_line": nc}
+    return spec, info
+
+
+def curve_main(a, fr, P, C, feats, blds, B, bidx, blocks, patch):
+    """Rows as curve bands, for both families; the one removing more wins.
+    Returns (family, extent, specs far first, bands, rows)."""
+    hard, decks, cross_named, cross_ways, hw_of = [], [], defaultdict(list), [], defaultdict(set)
+    for el in feats:
+        t = el.get("tags", {})
+        if el["type"] != "way":
+            continue
+        _, xz = xz_of(fr, el.get("geometry") or [])
+        if len(xz) < 2:
+            continue
+        g = LineString(xz)
+        if t.get("highway") in HARD_HW or t.get("railway") == "rail" or t.get("waterway") in ("canal", "river"):
+            hard.append(g)
+        if is_deck(t):
+            decks.append(g)
+        if is_street(t):
+            if t.get("name"):
+                cross_named[t["name"]].append(g)
+                hw_of[t["name"]].add(t["highway"])
+            else:
+                cross_ways.append(("#%d" % el["id"], g))
+    cross = [(k, shapely.line_merge(shapely.union_all(np.array(v, dtype=object)))) for k, v in cross_named.items()]
+    cross += cross_ways
+    hard_u = shapely.union_all(np.array(hard, dtype=object)) if hard else None
+    deck_u = shapely.union_all(np.array(decks, dtype=object)) if decks else None
+    prot = [Polygon(B[i]["ring"]) for i in bidx if B[i]["protected"]]
+    prot_u = shapely.union_all(np.array(prot, dtype=object)) if prot else None
+    bscore = {i: B[i]["score"] for i in bidx}
+    b_tree = shapely.STRtree(blocks)
+    bld_polys = np.array([Polygon(q) for q in blds if len(q) >= 4], dtype=object)
+    bld_tree = shapely.STRtree(bld_polys)
+    Pin = P.buffer(-5.0)
+
+    results = []
+    for family in ([a.family] if a.family is not None else [patch["bearing"], (patch["bearing"] + 90.0) % 180.0]):
+        lines = grid_lines(feats, fr, P, family)
+        n = across(family)
+        t = np.array([math.cos(math.radians(family)), math.sin(math.radians(family))])
+        order = sorted(lines, key=lambda k: float(np.median(lines[k] @ n)))
+        if len(order) < 4:
+            log("family %.1f: %d lines, too few" % (family, len(order)))
+            continue
+        extent = float(np.median(lines[order[-1]] @ n) - np.median(lines[order[0]] @ n))
+        cs = np.asarray(C.exterior.coords) @ t
+        S0 = np.arange(cs.min() - STEP, cs.max() + STEP, STEP)
+        rows = []
+        for k in range(len(order) - 2):
+            r = {"k": k, "near": order[k], "gone": order[k + 1], "why": []}
+            spec, info = curve_row(k, order, feats, fr, C, family, cross, S0, Pin)
+            if spec is None:
+                r["why"].append(info)
+                rows.append(r)
+                continue
+            region = info["region"]
+            band = compress.CurveBand(spec)
+            if k == 0 or k == len(order) - 3:
+                r["why"].append("touches the patch edge")
+            if prot_u is not None and shapely.intersection(region, prot_u).area > 1.0:
+                r["why"].append("protected block")
+            if hw_of[order[k + 1]] & set(HARD_HW):
+                r["why"].append("the deleted street is a hard way")
+            elif hard_u is not None and along(shapely.intersection(region, hard_u), n) > 20.0:
+                r["why"].append("hard way runs along it")
+            if deck_u is not None and shapely.intersection(region, deck_u).length > 1.0:
+                r["why"].append("a deck crosses it")
+            if info["unpaired"]:
+                r["why"].append("unpaired crossing: " + ", ".join(x[:16] for x in info["unpaired"][:3]))
+            if info["strain"] > STRAIN_MAX:
+                r["why"].append("strain %.3f" % info["strain"])
+            cut = 0
+            for j in bld_tree.query(region, predicate="intersects"):
+                q = np.asarray(bld_polys[j].exterior.coords)
+                sd = band.side(q[:, 0], q[:, 1])
+                if sd.min() != sd.max() and Pin.contains(bld_polys[j].centroid):
+                    cut += 1
+            if cut > CUT_MAX:
+                r["why"].append("%d buildings cut" % cut)
+            pts = np.asarray(info["near_line"].coords)
+            inside = shapely.contains_xy(Pin, pts[:, 0], pts[:, 1])
+            w = np.array(spec["curve"]["far"]) - np.array(spec["curve"]["near"])
+            r["width"] = float(np.median(w[inside] if inside.any() else w))
+            hit = b_tree.query(region, predicate="intersects")
+            r["score"] = float(sum(bscore[bidx[i]] * shapely.intersection(blocks[i], region).area / blocks[i].area for i in hit))
+            r.update(strain=info["strain"], samples=info["samples"], cut_buildings=cut, spec=spec,
+                     near_med=float(np.median(spec["curve"]["near"])))
+            rows.append(r)
+        target = (1.0 - a.keep) * extent
+        eligible = sorted([r for r in rows if not r["why"]], key=lambda r: r["score"])
+        chosen, removed = set(), 0.0
+        for r in eligible:
+            if removed >= target:
+                break
+            k = r["k"]
+            if any({k + d, k + d + 1, k + d + 2} - {k} <= chosen for d in (-2, -1, 0)):
+                continue  # would make 3 consecutive removed rows
+            chosen.add(k)
+            removed += r["width"]
+        log("family %.1f: %d lines, %d rows, eligible %d, chosen %d; removing %.0f of %.0f m (target %.0f)"
+            % (family, len(order), len(rows), len(eligible), len(chosen), removed, extent, target))
+        for r in rows:
+            log("  row %2d %-24s %s %s" % (r["k"], r["gone"][:24], "CUT " if r["k"] in chosen else "    ",
+                                           "; ".join(r["why"]) or "ok (score %.1f, width %.0f, strain %.3f, %d pairs, %d cut)"
+                                           % (r["score"], r["width"], r["strain"], r["samples"], r["cut_buildings"])))
+        results.append((removed, family, extent, rows, chosen, order, S0))
+    if not results:
+        sys.exit("parish_thin: no family has rows")
+    removed, family, extent, rows, chosen, order, S0 = max(results, key=lambda x: x[0])
+    if not chosen:
+        sys.exit("parish_thin: nothing to cut")
+    log("family %.1f chosen" % family)
+    # Two neighbouring rows are one band from the first's near street to the
+    # second's far one: two bands sharing an edge would each claim the
+    # street on it, and the shift across both is measured in one go.
+    by_k = {r["k"]: r for r in rows}
+    specs, bands = [], []
+    for k in sorted(chosen):
+        if k - 1 in chosen:
+            continue
+        run = [k] + ([k + 1] if k + 1 in chosen else [])
+        if len(run) == 2:
+            spec, info = curve_row(k, order, feats, fr, C, family, cross, S0, Pin, span=2)
+            why = info if spec is None else "; ".join(
+                (["unpaired " + ", ".join(info["unpaired"])] if info["unpaired"] else [])
+                + (["strain %.3f" % info["strain"]] if info["strain"] > STRAIN_MAX else []))
+            if why:
+                # The pair does not hold as one band: keep the cheaper row.
+                drop = max(run, key=lambda j: by_k[j]["score"])
+                log("  rows %d+%d do not join (%s): row %d stays" % (k, k + 1, why, drop))
+                run.remove(drop)
+            else:
+                strain = info["strain"]
+                log("  rows %d+%d as one band: strain %.3f, %d pairs" % (k, k + 1, strain, info["samples"]))
+        if len(run) == 1:
+            spec, strain = by_k[run[0]]["spec"], by_k[run[0]]["strain"]
+        specs.append(spec)
+        bands.append({"rows": run, "gone": [by_k[j]["gone"] for j in run], "width": sum(by_k[j]["width"] for j in run),
+                      "cut_buildings": sum(by_k[j]["cut_buildings"] for j in run), "strain": strain})
+    return family, extent, specs, bands, [{k: v for k, v in r.items() if k != "spec"} for r in rows]
+
+
 # --- bands --------------------------------------------------------------------
 def fit_band(keep_lo, gone, keep_hi, bld_edges, family):
     """A band deleting every line in `gone` and none of keep_lo/keep_hi:
@@ -276,45 +567,8 @@ def fit_band(keep_lo, gone, keep_hi, bld_edges, family):
     return {"angle": float(ang), "a": a, "b": b, "slack": float(slack), "cut_buildings": ca + cb}
 
 
-def main():
-    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("segment")
-    ap.add_argument("raw")
-    ap.add_argument("patch", type=int)
-    ap.add_argument("out")
-    ap.add_argument("--keep", type=float, default=0.6)
-    ap.add_argument("--family", type=float, help="bearing of the family whose rows go (default: the straighter)")
-    a = ap.parse_args()
-    if not 0.0 < a.keep <= 1.0:
-        sys.exit("parish_thin: keep must be in (0, 1]")
-    seg = json.load(open(os.path.join(a.segment, "segment.json"), encoding="utf-8"))
-    fr = Frame(*seg["frame"])
-    patch = seg["patches"][a.patch]
-    if patch["irregular"]:
-        sys.exit("parish_thin: patch %d is irregular; those are never thinned" % a.patch)
-    B = seg["blocks"]
-    bidx = patch["blocks"]
-    blocks = np.array([Polygon(B[i]["ring"]) for i in bidx], dtype=object)
-    P = shapely.union_all(blocks).buffer(1.0).buffer(-1.0)
-    C = P.buffer(MARGIN)
-    log("patch %d: %d blocks, %.2f km2, bearing %.1f" % (a.patch, len(bidx), P.area / 1e6, patch["bearing"]))
-
-    # Clip.
-    orig = os.path.join(a.out, "orig")
-    counts = clip_raw(a.raw, orig, fr, C)
-    ring = np.asarray(P.buffer(BOUNDARY).exterior.segmentize(25.0).coords)
-    write_boundary(os.path.join(orig, "boundary.json"), fr, ring)
-    log("clipped: %s" % ", ".join("%s %d" % kv for kv in counts.items() if kv[1]))
-
-    feats = json.load(open(os.path.join(orig, "features.json"), encoding="utf-8"))["elements"]
-    blds = []
-    for path in sorted(glob.glob(os.path.join(orig, "bld_*.json"))):
-        for el in json.load(open(path, encoding="utf-8"))["elements"]:
-            if el["type"] == "way" and el.get("geometry"):
-                _, xz = xz_of(fr, el["geometry"])
-                if len(xz) >= 3:
-                    blds.append(xz)
-
+def straight_main(a, fr, P, C, feats, blds, B, bidx, blocks, patch):
+    """Rows as straight compress.py bands (the first phase 2 attempt)."""
     # Family: the straighter of the two.
     fams = [a.family] if a.family is not None else [patch["bearing"], (patch["bearing"] + 90.0) % 180.0]
     scored = []
@@ -442,6 +696,7 @@ def main():
             continue
         band["rows"] = run
         band["gone"] = [order[k] for k in range(k0 + 1, k1 + 2)]
+        band["width"] = band["b"] - band["a"]
         bands.append(band)
     if not bands:
         sys.exit("parish_thin: nothing to cut")
@@ -455,6 +710,53 @@ def main():
         cen = mid * n
         specs.append({"name": "/".join(g[:14] for g in b["gone"]), "centre": [round(float(cen[0]), 3), round(float(cen[1]), 3)],
                       "angle": round(b["angle"], 4), "width": round(b["b"] - b["a"], 3), "keep": 0.0})
+    return family, extent, specs, bands, [{k: v for k, v in r.items() if k != "region"} for r in rows]
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("segment")
+    ap.add_argument("raw")
+    ap.add_argument("patch", type=int)
+    ap.add_argument("out")
+    ap.add_argument("--keep", type=float, default=0.6)
+    ap.add_argument("--mode", choices=("curve", "straight"), default="curve")
+    ap.add_argument("--family", type=float, help="bearing of the family whose rows go (default: the straighter)")
+    a = ap.parse_args()
+    if not 0.0 < a.keep <= 1.0:
+        sys.exit("parish_thin: keep must be in (0, 1]")
+    seg = json.load(open(os.path.join(a.segment, "segment.json"), encoding="utf-8"))
+    fr = Frame(*seg["frame"])
+    patch = seg["patches"][a.patch]
+    if patch["irregular"]:
+        sys.exit("parish_thin: patch %d is irregular; those are never thinned" % a.patch)
+    B = seg["blocks"]
+    bidx = patch["blocks"]
+    blocks = np.array([Polygon(B[i]["ring"]) for i in bidx], dtype=object)
+    P = shapely.union_all(blocks).buffer(1.0).buffer(-1.0)
+    C = P.buffer(MARGIN)
+    log("patch %d: %d blocks, %.2f km2, bearing %.1f" % (a.patch, len(bidx), P.area / 1e6, patch["bearing"]))
+
+    # Clip.
+    orig = os.path.join(a.out, "orig")
+    counts = clip_raw(a.raw, orig, fr, C)
+    ring = np.asarray(P.buffer(BOUNDARY).exterior.segmentize(25.0).coords)
+    write_boundary(os.path.join(orig, "boundary.json"), fr, ring)
+    log("clipped: %s" % ", ".join("%s %d" % kv for kv in counts.items() if kv[1]))
+
+    feats = json.load(open(os.path.join(orig, "features.json"), encoding="utf-8"))["elements"]
+    blds = []
+    for path in sorted(glob.glob(os.path.join(orig, "bld_*.json"))):
+        for el in json.load(open(path, encoding="utf-8"))["elements"]:
+            if el["type"] == "way" and el.get("geometry"):
+                _, xz = xz_of(fr, el["geometry"])
+                if len(xz) >= 3:
+                    blds.append(xz)
+
+    if a.mode == "curve":
+        family, extent, specs, bands, rows = curve_main(a, fr, P, C, feats, blds, B, bidx, blocks, patch)
+    else:
+        family, extent, specs, bands, rows = straight_main(a, fr, P, C, feats, blds, B, bidx, blocks, patch)
     xs, zs = np.asarray(C.exterior.coords).T
     w, s_ = fr.lonlat(xs.min(), zs.max())
     e, n_ = fr.lonlat(xs.max(), zs.min())
@@ -474,19 +776,19 @@ def main():
     keep, wx, wz, _, _, _ = cuts.line(ring[:, 0], ring[:, 1], "closed")
     write_boundary(os.path.join(thin, "boundary.json"), fr, np.c_[wx[keep], wz[keep]])
 
-    gate = check(feats, os.path.join(thin, "features.json"), fr, cuts, P, [B[i] for i in bidx if B[i]["protected"]])
-    gate["removed_m"] = round(sum(b["b"] - b["a"] for b in bands), 1)
+    gate = check(feats, thin, fr, cuts, P, [B[i] for i in bidx if B[i]["protected"]], orig)
+    gate["removed_m"] = round(sum(b["width"] for b in bands), 1)
     gate["extent_m"] = round(extent, 1)
     gate["keep_across"] = round(1 - gate["removed_m"] / extent, 3)
     gate["buildings_cut"] = sum(b["cut_buildings"] for b in bands)
-    gate["pass"] = gate["chords"] == 0 and gate["new_dead_ends"] <= 0 and gate["landmarks_bent"] == 0 and gate["decks_touched"] == 0
+    gate["pass"] = gate["chords"] == 0 and gate["new_dead_ends"] <= 0 and gate["landmarks_bent"] == 0 and gate["decks_touched"] == 0 and gate["new_overlaps"] == 0
     log("gate " + json.dumps({k: v for k, v in gate.items() if k not in ("chord_list",)}, indent=1))
     for c in gate["chord_list"][:15]:
-        log("  chord %-28s turn %5.1f deg, jog %5.1f m" % (c[0][:28], c[1], c[2]))
+        log("  chord %-28s length %5.1f m, jog %5.1f m" % (c[0][:28], c[1], c[2]))
     with open(os.path.join(a.out, "thin.json"), "w", encoding="utf-8", newline="\n") as f:
-        json.dump({"patch": a.patch, "family": family, "straightness_m": resid, "keep": a.keep,
-                   "rows": [{k: v for k, v in r.items() if k != "region"} for r in rows],
-                   "bands": bands, "cuts": specs, "gate": gate}, f, indent=1)
+        json.dump({"patch": a.patch, "mode": a.mode, "family": family, "keep": a.keep,
+                   "rows": [{k: v for k, v in r.items() if k not in ("region", "spec")} for r in rows],
+                   "bands": bands, "gate": gate}, f, indent=1)
 
 
 def degree1(feats, fr, P):
@@ -512,8 +814,10 @@ def degree1(feats, fr, P):
     return {n for n, ok in zip(ends, shapely.contains_xy(P, x, z)) if ok}
 
 
-def check(feats, thin_path, fr, cuts, P, prot_blocks):
-    # Chords: every street whose nodes a band deleted, rejoined across it.
+def check(feats, thin_dir, fr, cuts, P, prot_blocks, orig_dir):
+    # Chords: a street rejoined across a band is exact when its far part,
+    # moved, still points straight at the near node it now meets. The jog
+    # is how far off that line the near node is.
     chords = []
     decks = 0
     for el in feats:
@@ -534,39 +838,62 @@ def check(feats, thin_path, fr, cuts, P, prot_blocks):
         for i, j in zip(kept, kept[1:]):
             if j == i + 1:
                 continue
-            new = np.array([px[j] - px[i], pz[j] - pz[i]])
-            jog_len = float(np.hypot(*new))
-            if jog_len < JOG_MIN:
+            # The far part is the one that moved more.
+            mi, mj = (np.hypot(px[q] - xz[q, 0], pz[q] - xz[q, 1]) for q in (i, j))
+            near, far, prev = (i, j, j - 1) if mj >= mi else (j, i, i + 1)
+            v = xz[far] - xz[prev]
+            L = float(np.hypot(*v))
+            if L < 0.5:
                 continue
-            # The street's own direction either side of the gap.
-            v0 = xz[i] - xz[max(0, i - 1)] if i > 0 else xz[j] - xz[i]
-            v1 = xz[min(len(xz) - 1, j + 1)] - xz[j] if j < len(xz) - 1 else v0
-            ref = v0 / max(1e-9, np.hypot(*v0)) + v1 / max(1e-9, np.hypot(*v1))
-            turn = math.degrees(math.acos(min(1.0, abs(new @ ref) / max(1e-9, np.hypot(*ref) * jog_len))))
-            if turn > CHORD_DEG:
-                jog = jog_len * math.sin(math.radians(turn))
-                if jog > JOG_MIN:
-                    chords.append((t.get("name") or t["highway"], round(turn, 1), round(jog, 1)))
+            w = np.array([px[near] - px[far], pz[near] - pz[far]])
+            jog = abs(w[0] * v[1] - w[1] * v[0]) / L
+            if jog > JOG_MIN:
+                chords.append((t.get("name") or t["highway"], round(float(np.hypot(*w)), 1), round(jog, 1)))
     # Dead ends inside the patch, before and after (the thinned patch is
     # P moved through the cuts).
     before = degree1(feats, fr, P)
     pr = np.asarray(P.exterior.coords)
     k, wx, wz, _, _, _ = cuts.line(pr[:, 0], pr[:, 1], "closed")
     Pn = Polygon(np.c_[wx[k], wz[k]]).buffer(0)
-    after = degree1(json.load(open(thin_path, encoding="utf-8"))["elements"], fr, Pn)
-    # Landmarks: one translation per protected block.
-    bent = []
+    after = degree1(json.load(open(os.path.join(thin_dir, "features.json"), encoding="utf-8"))["elements"], fr, Pn)
+    # Landmarks: no protected block loses ground; how far each is stretched.
+    bent, stretch = [], 0.0
     for b in prot_blocks:
         r = np.asarray(b["ring"])
         k, wx, wz, _, _, _ = cuts.line(r[:, 0], r[:, 1], "closed")
         d = np.c_[wx - r[:, 0], wz - r[:, 1]]
-        if not k.all() or np.ptp(d[:, 0]) > 0.01 or np.ptp(d[:, 1]) > 0.01:
+        if not k.all():
             bent.append([n for n, _ in b["landmarks"]][:2])
+        stretch = max(stretch, float(np.hypot(np.ptp(d[:, 0]), np.ptp(d[:, 1]))))
+    # Buildings that overlap after and did not before.
+    def polys(d):
+        out = {}
+        for path in sorted(glob.glob(os.path.join(d, "bld_*.json"))):
+            for el in json.load(open(path, encoding="utf-8"))["elements"]:
+                if el["type"] == "way" and el.get("geometry"):
+                    _, xz = xz_of(fr, el["geometry"])
+                    if len(xz) >= 4:
+                        out[el["id"]] = Polygon(xz).buffer(0)
+        return out
+    pa, pb = polys(thin_dir), polys(orig_dir)
+    ids = list(pa)
+    geo = np.array([pa[i] for i in ids], dtype=object)
+    tree = shapely.STRtree(geo)
+    overlaps = 0
+    for x, y in zip(*tree.query(geo, predicate="intersects")):
+        if x >= y:
+            continue
+        if shapely.intersection(geo[x], geo[y]).area <= 1.0:
+            continue
+        o0, o1 = pb.get(ids[x]), pb.get(ids[y])
+        if o0 is not None and o1 is not None and shapely.intersection(o0, o1).area > 1.0:
+            continue
+        overlaps += 1
     chords.sort(key=lambda c: -c[2])
     return {"chords": len(chords), "max_jog_m": chords[0][2] if chords else 0.0, "chord_list": chords,
             "dead_ends_before": len(before), "dead_ends_after": len(after), "new_dead_ends": len(after) - len(before),
-            "landmarks": len(prot_blocks), "landmarks_bent": len(bent), "bent": bent[:10], "decks_touched": decks}
-
+            "landmarks": len(prot_blocks), "landmarks_bent": len(bent), "bent": bent[:10],
+            "landmark_stretch_m": round(stretch, 2), "new_overlaps": overlaps, "decks_touched": decks}
 
 if __name__ == "__main__":
     main()

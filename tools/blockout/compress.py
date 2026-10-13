@@ -23,7 +23,34 @@ north-south strip between those x, "axis" "z" an east-west one. Cut
 across the street grid, not across the map: a band whose line runs with
 the local cross streets takes a run of blocks out and the through streets
 meet again on the line; a band askew to the grid shears every street that
-crosses it sideways by the band's width times the skew. "keep" is what
+crosses it sideways by the band's width times the skew. A band with "curve" instead has a street's own shape for
+each edge, for grids whose streets bend or fan:
+
+    {"name": "Laurel row", "curve": {"angle": 176.7,
+     "s": [...], "near": [...], "far": [...], "shift": [[s, dx, dz], ...], "rays": [[[u, s], ...], ...]}}
+
+"angle" is the band's rough direction; s is the distance along it
+(x*cos(angle) + z*sin(angle)) and u the distance across, measured as for a
+straight band. "near" and "far" are the u of the band's two edges at each
+s (held flat past the ends), so the band is the ground between two
+streets: the near street stays and the far one goes with the row between
+them. Everything past the far edge moves by "shift" at its own s, linear
+between the samples and held past the ends: each sample is a cross street,
+moved from where it crosses the far edge onto where it crosses the near
+one, so it closes up across the gap with no chord, and the ground between
+two cross streets takes the small difference between their shifts.
+"rays" (optional), one per shift sample, is that cross street past the
+far edge as (u, s) with u rising, as far as it runs: a point takes the
+shift of where it sits between the two rays either side of it at its own
+u, so a cross street that leans or bends moves as one piece however far
+it runs; past a ray's end its place is kept between its neighbours that
+run on and its shift blends into theirs, so the shift never jumps where a
+street stops. Curve
+bands of one angle are all measured in the source map and their shifts
+add (order does not matter); any other mix applies in order as below.
+Ground past the far edge is not cut, so a building is moved whole by the
+shift at its centre instead of point by point (only with curve bands).
+"keep" is what
 fraction of the width survives: 0 (the default) deletes it, 0.3 squeezes
 it to 30%, 1 changes nothing. Bands apply in order, each measured in the map as the earlier
 ones left it. Everything past a band slides in by what the band lost, so
@@ -88,6 +115,9 @@ M_LAT = 111_320.0
 DP = 7  # OSM's own lat/lon precision
 LIDAR_MARGIN = 300.0
 SNAP = 80.0  # metres: ends of one street this far apart on the line are joined
+TEE = 1.0  # metres: a loose end this close to another road is spliced into it
+TOUCH = 1.5  # metres: buildings this close move as one block under a curve cut
+RIGID_TOL = 1.0  # metres: a block whose best rigid move misses the warp by more follows the warp
 ROADS = ("motorway", "trunk", "primary", "secondary", "tertiary", "motorway_link", "trunk_link",
          "primary_link", "residential", "unclassified", "living_street", "pedestrian", "service")
 MAJOR = set(ROADS[:8]) | {"rail"}
@@ -157,6 +187,178 @@ class Band:
 
 
 
+class CurveBand:
+    """A band between two streets: see the module doc. Deletes what lies
+    between the edges (a point on the near edge stays, one on the far edge
+    goes), moves what lies past the far edge by the shift at its s, and
+    puts a kept end inside onto the near edge, at the s its shift gives it
+    when it is nearer the far edge, so an end that met a far street meets
+    the near one."""
+
+    EPS = 0.3  # m: a point this close to an edge is on it
+
+    def __init__(self, spec):
+        c = spec["curve"]
+        self.name = spec.get("name", "")
+        self.keep = 0.0
+        ang = math.radians(float(c["angle"]))
+        self.tx, self.tz = math.cos(ang), math.sin(ang)
+        self.c, self.s = math.cos(ang + math.pi / 2), math.sin(ang + math.pi / 2)
+        self.S = np.asarray(c["s"], float)
+        self.near = np.asarray(c["near"], float)
+        self.far = np.asarray(c["far"], float)
+        sh = np.asarray(c["shift"], float).reshape(-1, 3)
+        o = np.argsort(sh[:, 0])
+        sh = sh[o]
+        self.ss, self.dx, self.dz = sh[:, 0], sh[:, 1], sh[:, 2]
+        rays = c.get("rays")
+        if rays is not None and len(rays) != len(o):
+            raise SystemExit("compress: curve band %r has %d rays for %d shifts" % (self.name, len(rays), len(o)))
+        self.rays = [np.asarray(rays[i], float).reshape(-1, 2) for i in o] if rays is not None else None
+        if self.rays:
+            self._ray_table()
+        if len(self.S) < 2 or np.any(np.diff(self.S) <= 0) or len(self.near) != len(self.S) \
+                or len(self.far) != len(self.S) or not len(self.ss) or np.any(self.far <= self.near):
+            raise SystemExit("compress: bad curve band %r" % self.name)
+        self.a, self.b = float(np.median(self.near)), float(np.median(self.far))
+        self.desc = "curve at %g deg, %d shift samples, %.0f m wide (median)" % (float(c["angle"]), len(self.ss), self.b - self.a)
+        if not self.name:
+            self.name = self.desc
+
+    def _ray_table(self):
+        """Every ray's s and shift at every u any ray has a vertex at (self.U;
+        self.RS, self.DX, self.DZ). Past its end a ray goes on as a ghost
+        that keeps its place between the two rays either side of it that
+        still run (the same fraction of the way from one to the other), or
+        its distance from the one ray on its side, or its s when none runs;
+        its shift blends into what its neighbours give at that place over as
+        far as it is from the nearer of them (a street ending on another
+        hands over at once). So the shift never jumps where a street stops."""
+        self.U = np.unique(np.concatenate([r[:, 0] for r in self.rays]))
+        n = len(self.rays)
+        end = np.array([r[-1, 0] for r in self.rays])
+        RS = np.array([np.interp(self.U, r[:, 0], r[:, 1]) for r in self.rays]).T  # rows u, columns rays
+        DX = np.tile(self.dx, (len(self.U), 1))
+        DZ = np.tile(self.dz, (len(self.U), 1))
+        for i in np.argsort(-end, kind="stable"):
+            past = self.U > end[i]
+            if not past.any():
+                continue
+            se = self.rays[i][-1, 1]
+            run = [j for j in range(n) if end[j] > end[i]]  # placed already: they end later
+            at = {j: float(np.interp(end[i], self.U, RS[:, j])) for j in run}
+            lo = max((j for j in run if at[j] <= se), key=lambda j: at[j], default=None)
+            hi = min((j for j in run if at[j] > se), key=lambda j: at[j], default=None)
+            if lo is not None and hi is not None:
+                f = (se - at[lo]) / (at[hi] - at[lo])
+                RS[past, i] = RS[past, lo] + f * (RS[past, hi] - RS[past, lo])
+                nx = DX[past, lo] + f * (DX[past, hi] - DX[past, lo])
+                nz = DZ[past, lo] + f * (DZ[past, hi] - DZ[past, lo])
+                gap = min(se - at[lo], at[hi] - se)
+            elif lo is not None or hi is not None:
+                j = lo if lo is not None else hi
+                RS[past, i] = RS[past, j] + (se - at[j])
+                nx, nz, gap = DX[past, j], DZ[past, j], abs(se - at[j])
+            else:
+                RS[past, i] = se
+                continue
+            w = np.clip((self.U[past] - end[i]) / max(gap, 1e-6), 0.0, 1.0)
+            DX[past, i] = self.dx[i] + w * (nx - self.dx[i])
+            DZ[past, i] = self.dz[i] + w * (nz - self.dz[i])
+        self.RS, self.DX, self.DZ = RS, DX, DZ
+
+    def _su(self, x, z):
+        x, z = np.asarray(x, float), np.asarray(z, float)
+        return x * self.tx + z * self.tz, x * self.c + z * self.s
+
+    def side(self, x, z):
+        s, u = self._su(x, z)
+        un, uf = np.interp(s, self.S, self.near), np.interp(s, self.S, self.far)
+        return np.where(u <= un + self.EPS, -1, np.where(u < uf + self.EPS, 0, 1))
+
+    def deletes(self, x, z):
+        return self.side(x, z) == 0
+
+    def shift(self, x, z):
+        s, u = self._su(x, z)
+        if not self.rays:
+            return np.interp(s, self.ss, self.dx), np.interp(s, self.ss, self.dz)
+        # With rays: the two cross streets (or their ghosts) either side of
+        # the point at its own u, and the point's place between them.
+        shape = s.shape
+        s, u = s.reshape(-1), u.reshape(-1)
+        j = np.clip(np.searchsorted(self.U, u), 1, max(len(self.U) - 1, 1))
+        if len(self.U) > 1:
+            t = np.clip((u - self.U[j - 1]) / (self.U[j] - self.U[j - 1]), 0.0, 1.0)[:, None]
+            row = lambda T: (T[j - 1] + t * (T[j] - T[j - 1])).T
+        else:
+            row = lambda T: np.repeat(T[:1].T, s.size, axis=1)
+        R, DX, DZ = row(self.RS), row(self.DX), row(self.DZ)
+        Rl = np.where(R <= s, R, -np.inf)
+        Rh = np.where(R > s, R, np.inf)
+        lo, hi = Rl.argmax(0), Rh.argmin(0)
+        cols = np.arange(s.size)
+        has_lo, has_hi = np.isfinite(Rl[lo, cols]), np.isfinite(Rh[hi, cols])
+        lo = np.where(has_lo, lo, hi)
+        hi = np.where(has_hi, hi, lo)
+        rl, rh = R[lo, cols], R[hi, cols]
+        f = np.where(rh > rl, (s - rl) / np.where(rh > rl, rh - rl, 1.0), 0.0)
+        dx = DX[lo, cols] + f * (DX[hi, cols] - DX[lo, cols])
+        dz = DZ[lo, cols] + f * (DZ[hi, cols] - DZ[lo, cols])
+        return dx.reshape(shape), dz.reshape(shape)
+
+    def warp(self, x, z):
+        x, z = np.asarray(x, float), np.asarray(z, float)
+        s, u = self._su(x, z)
+        un, uf = np.interp(s, self.S, self.near), np.interp(s, self.S, self.far)
+        dx, dz = self.shift(x, z)
+        side = np.where(u <= un + self.EPS, -1, np.where(u < uf + self.EPS, 0, 1))
+        ix, iz = self.inside(s, u) if self.rays else self.across(x, z, s, u, un, uf, dx, dz)
+        return (np.where(side == 1, x + dx, np.where(side == 0, ix, x)),
+                np.where(side == 1, z + dz, np.where(side == 0, iz, z)))
+
+    def across(self, x, z, s, u, un, uf, dx, dz):
+        """Inside, without rays: onto the near edge, carried along by the
+        shift if nearer the far one."""
+        late = (u - un) > (uf - u)
+        ix, iz = x + np.where(late, dx, 0.0), z + np.where(late, dz, 0.0)
+        s2, u2 = self._su(ix, iz)
+        drop = u2 - np.interp(s2, self.S, self.near)
+        return ix - drop * self.c, iz - drop * self.s
+
+    def inside(self, s, u):
+        """Inside, with rays: each shift sample is a cross street running
+        straight from its far crossing b (on the far edge at its s) to its
+        near crossing a = b + shift. A point goes to the near edge where it
+        sits between the two either side of it at its own u, so a street
+        ending inside meets its cross street's near crossing exactly."""
+        shape = s.shape
+        s, u = s.reshape(-1), u.reshape(-1)
+        bs = self.ss
+        bu = np.interp(bs, self.S, self.far)
+        as_ = bs + self.dx * self.tx + self.dz * self.tz
+        au = bu + self.dx * self.c + self.dz * self.s
+        w = np.clip((u[None, :] - au[:, None]) / np.maximum(bu - au, 1e-6)[:, None], 0.0, 1.0)
+        R = as_[:, None] + w * (bs - as_)[:, None]  # chord s at each point's u
+        Rl = np.where(R <= s, R, -np.inf)
+        Rh = np.where(R > s, R, np.inf)
+        lo, hi = Rl.argmax(0), Rh.argmin(0)
+        cols = np.arange(s.size)
+        has_lo, has_hi = np.isfinite(Rl[lo, cols]), np.isfinite(Rh[hi, cols])
+        lo, hi = np.where(has_lo, lo, hi), np.where(has_hi, hi, lo)
+        rl, rh = R[lo, cols], R[hi, cols]
+        f = np.where(rh > rl, (s - rl) / np.where(rh > rl, rh - rl, 1.0), 0.0)
+        st = as_[lo] + f * (as_[hi] - as_[lo]) + np.where(has_lo & has_hi, 0.0, s - rl)
+        ut = np.interp(st, self.S, self.near)
+        ix = st * self.tx + ut * self.c
+        iz = st * self.tz + ut * self.s
+        return ix.reshape(shape), iz.reshape(shape)
+
+
+def make_band(spec):
+    return CurveBand(spec) if "curve" in spec else Band(spec)
+
+
 def survivors(gone, mode):
     """Which points of a line survive its deleted nodes. "closed": every
     deleted node goes and the ring closes across the gap. "open": a run of
@@ -183,7 +385,13 @@ def survivors(gone, mode):
 
 class Cuts:
     def __init__(self, spec):
-        self.bands = [Band(s) for s in spec]
+        self.bands = [make_band(s) for s in spec]
+        self.rigid = any(isinstance(b, CurveBand) for b in self.bands)
+        # Curve bands of one family side by side are all measured in the
+        # source map and their moves add: band order then changes nothing,
+        # and a cross street leans through each band as it really does.
+        self.parallel = all(isinstance(b, CurveBand) for b in self.bands) and \
+            len({round(b.tx, 9) for b in self.bands}) == 1
         if not self.bands:
             raise SystemExit("compress: no cuts")
 
@@ -193,10 +401,18 @@ class Cuts:
         gone = np.zeros(x.shape, bool)
         for band in self.bands:
             gone |= band.deletes(x, z)
-            x, z = band.warp(x, z)
+            if not self.parallel:
+                x, z = band.warp(x, z)
         return gone
 
     def warp(self, x, z):
+        if self.parallel:
+            x, z = np.asarray(x, float), np.asarray(z, float)
+            ox, oz = x.copy(), z.copy()
+            for band in self.bands:
+                wx, wz = band.warp(x, z)
+                ox, oz = ox + (wx - x), oz + (wz - z)
+            return ox, oz
         for band in self.bands:
             x, z = band.warp(x, z)
         return x, z
@@ -227,8 +443,37 @@ class Cuts:
             keep[dead] = False
             deleted_by[dead] = bi
             alive = np.flatnonzero(keep)
-            px[alive], pz[alive] = band.warp(px[alive], pz[alive])
+            if not self.parallel:
+                px[alive], pz[alive] = band.warp(px[alive], pz[alive])
+        if self.parallel:
+            alive = np.flatnonzero(keep)
+            px[alive], pz[alive] = self.warp(px[alive], pz[alive])
         ends = [e for e in ends if keep[e[0]]]
+        if self.parallel:
+            # An end inside goes where its own line leaves the band on the
+            # anchor's side, then moves as that spot does: on the near
+            # edge it stays, just past the far one it takes its cross
+            # street's shift, so either way it meets the street it left.
+            x0, z0 = np.asarray(x, float), np.asarray(z, float)
+            for e, bi, side, anchor in ends:
+                band = self.bands[bi]
+                step = 1 if e > anchor else -1
+                k = anchor
+                while k != e and band.side(x0[k + step], z0[k + step]) == side:
+                    k += step
+                if k == e:
+                    continue
+                lo, hi = 0.0, 1.0  # fraction from node k to k+step still on the anchor's side
+                for _ in range(40):
+                    m = (lo + hi) / 2
+                    if band.side(x0[k] + m * (x0[k + step] - x0[k]), z0[k] + m * (z0[k + step] - z0[k])) == side:
+                        lo = m
+                    else:
+                        hi = m
+                qx = np.array([x0[k] + lo * (x0[k + step] - x0[k])])
+                qz = np.array([z0[k] + lo * (z0[k + step] - z0[k])])
+                wx, wz = self.warp(qx, qz)
+                px[e], pz[e] = wx[0], wz[0]
         return keep, px, pz, sides, deleted_by, ends
 
 
@@ -255,6 +500,8 @@ class Mover:
         self.buildings = {"kept": 0, "clipped": 0, "removed": 0}
         self.members_dropped = 0
         self.parent = {}  # node id -> node id: roads joined through deleted nodes
+        self.blocks = {}  # building way id -> (cos, sin, cx, cz, tx, tz): its block's rigid move
+        self.block_stats = {"blocks": 0, "rigid": 0, "warped": 0, "worst_m": 0.0}
 
     def points(self, geom, mode, cls=None, name=None, nodes=None):
         """A list of {lat, lon} (None for a point outside the download)
@@ -365,6 +612,52 @@ class Mover:
         loose = [e for e in ends if e.node not in taken]
         return len(ends), shared, snapped, longest, loose
 
+    def tee(self, moved, loose):
+        """Loose ends that landed on another road join it: a street that
+        met the deleted one at a T meets the road the cut closed onto, so
+        its end node is put on that road's line and spliced into its nodes.
+        Returns the ends joined."""
+        segs = []  # (way element, segment index, ax, az, bx, bz)
+        for _, data in moved:
+            for el in data["elements"]:
+                if el.get("type") != "way" or el.get("tags", {}).get("highway") not in ROADS:
+                    continue
+                g, nodes = el.get("geometry") or [], el.get("nodes") or []
+                if len(g) < 2 or len(nodes) != len(g) or not all(g):
+                    continue
+                x, z = self.frame.xz([q["lon"] for q in g], [q["lat"] for q in g])
+                for i in range(len(g) - 1):
+                    segs.append((el, i, x[i], z[i], x[i + 1], z[i + 1]))
+        if not segs or not loose:
+            return []
+        A = np.array([q[2:4] for q in segs])
+        D = np.array([q[4:6] for q in segs]) - A
+        L2 = np.maximum((D ** 2).sum(1), 1e-12)
+        splice, joined = {}, []
+        for e in loose:
+            if e.node is None:
+                continue
+            t = np.clip(((e.x - A[:, 0]) * D[:, 0] + (e.z - A[:, 1]) * D[:, 1]) / L2, 0.0, 1.0)
+            q = A + D * t[:, None]
+            d = np.hypot(q[:, 0] - e.x, q[:, 1] - e.z)
+            for j in np.argsort(d)[:8]:
+                if d[j] > TEE:
+                    break
+                el, i = segs[j][0], segs[j][1]
+                if e.node in el["nodes"] or not 0.0 < t[j] < 1.0:
+                    continue  # its own road, or a vertex: that node already is a junction
+                e.x, e.z = float(q[j, 0]), float(q[j, 1])
+                lon, lat = self.frame.lonlat(e.x, e.z)
+                e.point["lon"], e.point["lat"] = float(np.round(lon, DP)), float(np.round(lat, DP))
+                splice.setdefault(id(el), (el, []))[1].append((i, float(t[j]), e))
+                joined.append(e)
+                break
+        for el, ins in splice.values():
+            for i, _, e in sorted(ins, key=lambda r: (r[0], r[1]), reverse=True):
+                el["nodes"].insert(i + 1, e.node)
+                el["geometry"].insert(i + 1, dict(e.point))
+        return joined
+
     def way(self, el):
         """A way element moved; None when nothing of it is left."""
         geom = el.get("geometry") or []
@@ -374,6 +667,8 @@ class Mover:
         tags = el.get("tags", {})
         cls = tags.get("highway") or ("rail" if tags.get("railway") == "rail" else None)
         pts, survived = self.points(geom, "closed" if closed else "open", cls, tags.get("name"), el.get("nodes"))
+        if self.cuts.rigid and "building" in tags and closed and survived.all() and el.get("id") in self.blocks:
+            pts = self.rigid(geom, self.blocks[el["id"]])
         if "building" in tags and closed:
             self.buildings["kept" if survived.all() else "removed" if not pts else "clipped"] += 1
         if closed and pts and pts[0] != pts[-1]:
@@ -387,6 +682,73 @@ class Mover:
         if "bounds" in el:
             out["bounds"] = _bounds(pts)
         return out
+
+    def rigid(self, geom, move):
+        """A ring moved by its block's rotation and translation."""
+        c, sn, cx, cz, tx, tz = move
+        lon = np.array([g["lon"] for g in geom])
+        lat = np.array([g["lat"] for g in geom])
+        x, z = self.frame.xz(lon, lat)
+        x, z = x - cx, z - cz
+        lon, lat = self.frame.lonlat(c * x - sn * z + tx, sn * x + c * z + tz)
+        lon, lat = np.round(lon, DP), np.round(lat, DP)
+        return [{"lat": float(a), "lon": float(o)} for a, o in zip(lat, lon)]
+
+    def plan_blocks(self, raw):
+        """Under curve cuts the shift varies from place to place, so each
+        building moving by its own centre's shift would pull touching
+        neighbours into each other. Buildings within TOUCH m of each other
+        form a block, and a block moves as one: the rotation and
+        translation that best fit the warp over all its kept corners. A
+        block that fit misses by more than RIGID_TOL m is left out, and
+        its buildings follow the warp corner by corner, which is
+        continuous, so they still cannot tear apart."""
+        import shapely
+        rings, ids = [], []
+        for name in sorted(os.listdir(raw)):
+            if not name.endswith(".json") or name == "boundary.json":
+                continue
+            for el in json.load(open(os.path.join(raw, name), encoding="utf-8")).get("elements", []):
+                g = el.get("geometry") or []
+                if el.get("type") != "way" or "building" not in el.get("tags", {}) or len(g) < 4                         or g[0] != g[-1] or not all(g):
+                    continue
+                x, z = self.frame.xz(np.array([q["lon"] for q in g]), np.array([q["lat"] for q in g]))
+                keep = self.cuts.line(x, z, "closed")[0]
+                if keep.all():
+                    rings.append(np.c_[x, z][:-1])
+                    ids.append(el["id"])
+        if not rings:
+            return
+        polys = np.array([shapely.Polygon(r).buffer(0) for r in rings], dtype=object)
+        a, b = shapely.STRtree(polys).query(polys, predicate="dwithin", distance=TOUCH)
+        root = list(range(len(rings)))
+        def find(i):
+            while root[i] != i:
+                root[i] = root[root[i]]
+                i = root[i]
+            return i
+        for i, j in zip(a, b):
+            root[find(i)] = find(j)
+        groups = {}
+        for i in range(len(rings)):
+            groups.setdefault(find(i), []).append(i)
+        for members in groups.values():
+            P = np.vstack([rings[i] for i in members])
+            wx, wz = self.cuts.warp(P[:, 0], P[:, 1])
+            W = np.c_[wx, wz]
+            pc, wc = P.mean(0), W.mean(0)
+            A, B = P - pc, W - wc
+            th = math.atan2((A[:, 0] * B[:, 1] - A[:, 1] * B[:, 0]).sum(), (A * B).sum())
+            c, sn = math.cos(th), math.sin(th)
+            miss = np.hypot(c * A[:, 0] - sn * A[:, 1] - B[:, 0], sn * A[:, 0] + c * A[:, 1] - B[:, 1]).max()
+            self.block_stats["blocks"] += 1
+            self.block_stats["worst_m"] = max(self.block_stats["worst_m"], float(miss)) if miss <= RIGID_TOL                 else self.block_stats["worst_m"]
+            if miss > RIGID_TOL:
+                self.block_stats["warped"] += 1
+                continue
+            self.block_stats["rigid"] += 1
+            for i in members:
+                self.blocks[ids[i]] = (c, sn, float(pc[0]), float(pc[1]), float(wc[0]), float(wc[1]))
 
     def relation(self, el):
         members = []
@@ -639,6 +1001,11 @@ def main():
     log("map %.0f x %.0f m -> %.0f x %.0f m" % (w0, h0, w1, h1))
 
     mover = Mover(frame, cuts)
+    if cuts.rigid:
+        mover.plan_blocks(a.raw)
+        st = mover.block_stats
+        log("building blocks: %d, %d moved rigidly (worst fit %.2f m), %d follow the warp (fit off by more than %g m)"
+            % (st["blocks"], st["rigid"], st["worst_m"], st["warped"], RIGID_TOL))
     moved = []
     for name in sorted(os.listdir(a.raw)):
         if not name.endswith(".json") or name == "boundary.json":
@@ -647,6 +1014,8 @@ def main():
         moved.append((name, data))
         log("%-18s %7d elements -> %7d" % (name, n0, n1))
     joins = {bi: mover.snap(bi) for bi, band in enumerate(cuts.bands) if band.keep == 0.0}
+    teed = {id(e) for e in mover.tee(moved, [e for j in joins.values() for e in j[4]])}
+    joins = {bi: (*j[:4], [e for e in j[4] if id(e) not in teed], sum(id(e) in teed for e in j[4])) for bi, j in joins.items()}
     for name, data in moved:
         write_file(os.path.join(a.out, name), data)
     log("buildings: %d kept, %d clipped, %d removed; %d multipolygon members dropped"
@@ -661,9 +1030,9 @@ def main():
         log("band %s: removed: %s" % (band.name, fmt(rm) or "nothing"))
         if band.keep != 0.0:
             continue
-        total, shared, snapped, longest, loose = joins[bi]
-        log("band %s: %d street ends on the line, %d met at a shared node, %d snapped together (longest %.0f m), %d left loose"
-            % (band.name, total, shared, snapped, longest, len(loose)))
+        total, shared, snapped, longest, loose, nteed = joins[bi]
+        log("band %s: %d street ends on the line, %d met at a shared node, %d snapped together (longest %.0f m), "
+            "%d joined the road the cut closed onto, %d left loose" % (band.name, total, shared, snapped, longest, nteed, len(loose)))
         for e in sorted(loose, key=lambda e: (rank(e.cls), e.x)):
             if e.cls in MAJOR:
                 log("  loose %-14s %-24s %s side at (%.0f, %.0f)" % (e.cls, (e.name or "")[:24], "near" if e.side == -1 else "far", e.x, e.z))
