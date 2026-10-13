@@ -130,6 +130,11 @@ func view_scale() -> float:
 	return exp(lerpf(0.0, log(tactical_range / Vector2(distance, height).length()), _eased()))
 
 
+## 0 in the follow view, 1 in the tactical view, eased through the swing.
+func tactical_blend() -> float:
+	return _eased()
+
+
 func _eased() -> float:
 	return smoothstep(0.0, 1.0, _blend)
 

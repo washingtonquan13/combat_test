@@ -76,6 +76,9 @@ var active: bool = false
 ## body does not grow, so a big icon still fits down the streets; a map
 ## seen from far up sets it so the player can still be found.
 @export var icon_scale: float = 1.0
+## Seconds the icon takes to shrink down into a door it enters, SMT
+## style, before the trip starts.
+@export var enter_time: float = 0.45
 
 ## Set by overworld.gd right after instancing — the avatar reads this
 ## every physics frame to know which way "forward" currently means.
@@ -83,13 +86,17 @@ var active: bool = false
 
 @onready var _spin_pivot: Node3D = $SpinPivot
 var _pivot_height: float
+var _view_scale := 1.0
+## 1 standing, falling to 0 as the icon shrinks into a door; see enter().
+var _shrink := 1.0
+var _entering := false
 
 
 func _physics_process(delta: float) -> void:
 	# An inactive avatar still falls and still spins — it is standing
 	# somewhere, not paused — it just is not being driven.
 	var input_dir := Vector2.ZERO
-	if not active:
+	if not active or _entering:
 		input_dir = Vector2.ZERO
 	else:
 		if Input.is_action_pressed("camera_pan_forward"):
@@ -117,7 +124,9 @@ func _physics_process(delta: float) -> void:
 	if active:
 		RenderingServer.global_shader_parameter_set(&"player_position", global_position)
 
-	_apply_alignment_spin(delta)
+	# enter() spins the icon itself on the way down.
+	if not _entering:
+		_apply_alignment_spin(delta)
 
 
 ## One physics step of walking toward a flat direction (length 0 to 1),
@@ -219,8 +228,43 @@ func _ready() -> void:
 ## camera that has pulled f times farther away (the tactical view), so
 ## the avatar stays the same size on screen.
 func set_view_scale(f: float) -> void:
-	_spin_pivot.scale = Vector3.ONE * icon_scale * f
-	_spin_pivot.position.y = _pivot_height * icon_scale * f
+	_view_scale = f
+	_apply_icon_scale()
+
+
+func _apply_icon_scale() -> void:
+	var s := icon_scale * _view_scale
+	# Shrunk toward its feet: the icon sinks into the ground it stands on.
+	_spin_pivot.scale = Vector3.ONE * maxf(s * _shrink, 0.0001)
+	_spin_pivot.position.y = _pivot_height * s * _shrink
+
+
+## The classic SMT way into a place: the avatar slides onto the door and
+## its icon shrinks away into it, spinning faster as it goes, and
+## then_travel runs. Input is ignored meanwhile, so a held key does not
+## walk it off the door.
+func enter(at: Vector3, then_travel: Callable) -> void:
+	if _entering:
+		return
+	_entering = true
+	velocity = Vector3.ZERO
+	var tween := create_tween().set_parallel()
+	tween.tween_property(self, "global_position", Vector3(at.x, global_position.y, at.z), enter_time * 0.5) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_method(_set_shrink, 1.0, 0.0, enter_time).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	tween.tween_property(_spin_pivot, "rotation:y", _spin_pivot.rotation.y + TAU * 1.5, enter_time) 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(then_travel)
+
+
+## Standing at full size again, for an avatar still here after its trip
+## did not happen.
+func stand() -> void:
+	_entering = false
+	_set_shrink(1.0)
+
+
+func _set_shrink(v: float) -> void:
+	_shrink = v
+	_apply_icon_scale()
 
 
 ## Clicking an avatar commands that group. The counterpart to clicking

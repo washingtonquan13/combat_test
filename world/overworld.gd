@@ -27,6 +27,10 @@ const AVATAR_SCENE: PackedScene = preload("res://world/overworld_avatar.tscn")
 ## How many times larger the avatar's icon is drawn; see
 ## OverworldAvatar.icon_scale.
 @export var avatar_icon_scale: float = 1.0
+## The avatar's icon in the tactical view, as a fraction of its size on
+## screen in the follow view: the map is the subject there, the icon only
+## marks where you are on it.
+@export_range(0.05, 1.0) var tactical_icon_size: float = 0.35
 ## World units round the avatar where bridge decks above it are cut away
 ## so a steep camera can still see it; 0 for a low camera that looks
 ## under the decks instead.
@@ -85,6 +89,11 @@ func _on_world_focused(world: Node) -> void:
 		# Global to every world, so set again whenever this one comes back.
 		RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius)
 		sync_avatars()
+		# One that shrank into a door and is still here never left (its
+		# trip was refused, or went nowhere): it stands up again.
+		for avatar in _avatars.values():
+			if is_instance_valid(avatar):
+				avatar.stand()
 		_apply_view_scale(_view_scale)
 		# The label cleared itself when another world took focus; the
 		# next poll puts the name back, quietly.
@@ -125,8 +134,9 @@ func _process(delta: float) -> void:
 ## Everything sized for the follow view grows with the camera's distance
 ## (OverworldCamera.view_scale): the distance haze moves out with it, so
 ## the tactical view looks down through clear air at the whole map, the
-## sun's shadows reach as far as it can see, and the avatar's icon and the
-## cutaway of the decks over it stay the same size on screen. The fog at
+## sun's shadows reach as far as it can see, and the cutaway of the decks
+## over the avatar stays the same size on screen; its icon shrinks on
+## screen to tactical_icon_size of what it was. The fog at
 ## the map's edge is not scaled; it is the end of the world, not haze.
 func _apply_view_scale(f: float) -> void:
 	_view_scale = f
@@ -138,7 +148,14 @@ func _apply_view_scale(f: float) -> void:
 	RenderingServer.global_shader_parameter_set(&"deck_cutaway_radius", deck_cutaway_radius * f)
 	for avatar in _avatars.values():
 		if is_instance_valid(avatar):
-			avatar.set_view_scale(f)
+			avatar.set_view_scale(_icon_view_scale())
+
+
+
+## What the avatar's icon is scaled by for the current view: the camera's
+## pull-back, shrunk to tactical_icon_size of it through the swing.
+func _icon_view_scale() -> float:
+	return _view_scale * lerpf(1.0, tactical_icon_size, _camera.tactical_blend())
 
 
 ## The smallest district holding p, or null outside them all.
@@ -240,7 +257,7 @@ func _make_avatar(group: PartyGroup) -> OverworldAvatar:
 	avatar.move_speed *= avatar_speed_scale
 	avatar.icon_scale = avatar_icon_scale
 	add_child(avatar)
-	avatar.set_view_scale(_view_scale)
+	avatar.set_view_scale(_icon_view_scale())
 	avatar.camera = _camera
 
 	if group.overworld_position == Vector3.ZERO:
