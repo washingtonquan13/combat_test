@@ -327,7 +327,7 @@ further until the gate passes.
 | 0b | Measure IV's Tokyo from one full overworld map image: N, ρ, district span in blocks | the three numbers written into the plan, with the image's source and how each was counted. **Passed 2026-10-12**: N 11 (8–12), ρ 1.5–2, span 3–4 superblocks; see "How big" |
 | 1 | Segment + score, debug PNG only | ≥ 90% of street length within 8 km of Jackson Square in non-irregular patches (the parish-wide share is reported, not gated: the East is expected to be irregular and go frontier); the Quarter, CBD, Lower Garden District and Mid-City come out as recognisable patches; ≥ 95% of the wikidata items inside the parish flagged protected. **Passed 2026-10-12**: core 92.3%, parish 85.6%, wikidata 145/145, 291 patches (122 irregular); the Quarter shares a patch with Tremé (same grid) |
 | 2 | **Go/no-go:** thin one patch (an Uptown grid), build it in a 5 km square, GL renders vs uncompressed | 0 chords, 0 new dead ends, every landmark intact, decks untouched. **If this gate fails, stop and fall back.** The core claim is that strip removal is exact. **Failed 2026-10-12** (`parish_thin.py`, see below) |
-| 3 | Two patches and one seam (CBD ↔ Lower Garden District across the Pontchartrain Expressway, the hardest real case) | every seam check passes with no fallback |
+| 3 | Two patches and one seam (CBD ↔ Lower Garden District across the Pontchartrain Expressway, the hardest real case) | every seam check passes with no fallback. **Blocked 2026-10-12**: the planned pair thins to nothing, and a thinned patch cannot be met by rigid neighbours (see "Phase 3 finding") |
 | 4 | Whole-parish layout, expressways, river, anchors; build only the 5 km square around the core first | all checks pass; existing suites green with anchors |
 | 5 | Tiled glTF export and streaming; full parish build | see risks; overworld loads and walks on the dev PC |
 | 6 | Ruin layer over the compressed city | separate plan (built as its own generator layer over the intact city) |
@@ -454,6 +454,64 @@ so more of the city between districts goes behind the fog. Whether to
 loosen thinning (partial rows ending in a T onto the cross street, or rows
 cut across a patch boundary in both patches at once) is a decision for
 after phase 3.
+
+## Phase 3 finding: rigid patches cannot close around a thinned one
+
+The planned phase 3 pair (156 CBD | 205 Central City) tests nothing:
+neither patch thins, so after layout the seam is the original corridor.
+The only thinned patch so far is 206, so its border was measured instead
+(`cuts.line` over the patch ring, 10 m steps):
+
+| Neighbour | Where | 206's border moves |
+|---|---|---|
+| 286 | beside the cut rows | 0 to 388 m along one border |
+| 199 | beside the cut rows | 94 to 386 m |
+| 232 | corner | 0 to 172 m |
+| 278, 282, 250 | past the far edge | 369 to 388 m, uniform |
+| 28, 11 | before the near edge | 0 m |
+
+The neighbours before and past the cut rows are fine: each takes one rigid
+translation. **The neighbours beside them are not.** 206's border with 286
+gets 388 m shorter while 286 does not. No rigid placement of 286 fits, and
+section 5 budgeted 0 to 60 m of seam ground. The mismatch is the removed
+width itself, so the problem is structural. Tuning cannot fix it.
+
+A cut row therefore cannot stop at its own patch's edge. It has to run on
+until it reaches ground that can absorb the shear. The four streets cut in
+206 cross a lot of the city before that happens:
+
+| Street | Length | Patches it crosses | Protected blocks touching it |
+|---|---|---|---|
+| Laurel | 6.9 km | 8 | 2 |
+| S Liberty | 4.3 km | 9 | 6 |
+| Clara | 3.6 km | 11 | 3 |
+
+A row that hits a landmark has to stop, and the shear comes back at that
+point.
+
+Ground that can absorb shear honestly, because it has no grid to break:
+
+- the fog edge;
+- the river;
+- parks and cemeteries (non-protected ones only);
+- rail yards;
+- irregular patches;
+- as a last resort, rubble strips from the ruin layer.
+
+Options (decision for the user):
+
+1. **Row chains between absorbers.** A cut runs from one absorber to the
+   next, through every grid patch on the way, and is refused if a landmark
+   sits on it. The absorbers deform elastically. Yield depends on how
+   densely absorbers are spread and is unmeasured.
+2. **No thinning; rebuilt corridors.** Districts stay rigid at scale 1 and
+   are placed closer together than in reality. A few rebuilt arterials and
+   expressways connect them, and everything else between them is fog or
+   rubble. There is no shear anywhere. This is closer to IV's ruined
+   Tokyo, but the continuous street fabric between districts is lost.
+3. **Thinning only where shear ends at fog.** Rows are cut only in patches
+   whose row runs straight to the map edge. This is simple, and the yield
+   is small.
 
 ## Fallback: automated bands
 
