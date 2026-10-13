@@ -58,8 +58,11 @@ import subprocess
 import sys
 import time
 import zlib
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
 
 import numpy as np
+import scipy.sparse
+from scipy.sparse.csgraph import connected_components
 import shapely
 import shapely.ops
 from shapely.geometry import LineString, Point, Polygon, box
@@ -193,7 +196,7 @@ def main():
     shapely.prepare(region)
 
     # --- Buildings ---------------------------------------------------------
-    footprints, heights = [], []
+    coords, sizes, heights = [], [], []
     for path in sorted(glob.glob(os.path.join(args.raw, "bld_*.json"))):
         for el in json.load(open(path, encoding="utf-8"))["elements"]:
             if el["type"] != "way" or "geometry" not in el:
@@ -201,14 +204,39 @@ def main():
             r = ring(el["geometry"])
             if len(r) < 3:
                 continue
-            footprints.append(Polygon(r))
+            coords += r
+            sizes.append(len(r))
             heights.append(_height(el.get("tags", {})))
-    footprints = shapely.make_valid(np.array(footprints, dtype=object))
+    # One call builds every footprint, each ring closed as Polygon(r) would.
+    footprints = shapely.polygons(shapely.linearrings(
+        np.array(coords, dtype=float).reshape(-1, 2), indices=np.repeat(np.arange(len(sizes)), sizes)))
+    footprints = shapely.make_valid(footprints)
     heights = np.maximum(HEIGHT_STEP, np.round(np.array(heights) / HEIGHT_STEP) * HEIGHT_STEP)
     # make_valid can hand back lines for a degenerate ring; keep area only.
     keep = shapely.area(footprints) > 1.0
     footprints, heights = footprints[keep], heights[keep]
     log("buildings %d" % len(footprints))
+
+    # The heavy part of each height step, the union of its footprints and
+    # its closing, needs nothing but the buildings, so every step starts on
+    # it now, side by side, while the ground is read (see _Work).
+    work = _Work()
+    inside = shapely.buffer(region, -BOUNDARY_MARGIN, join_style="mitre")
+    shapely.prepare(inside)
+    keep = shapely.intersects(inside, footprints)
+    footprints, heights = footprints[keep], heights[keep]
+    levels = np.unique(heights)
+    closed = []
+    for level in levels:
+        tall = footprints[heights >= level]
+        r = MERGE if level <= LOW_RISE else TOWER_MERGE
+        # The steps over most of the city go one at a time to another
+        # process (see _Work); the lowest starts now, the next once the open
+        # ground has gone ahead of it.
+        if len(tall) >= len(footprints) / 4:
+            closed.append((tall, r) if closed else work.procs.submit(_closed, tall, r))
+        else:
+            closed.append(work.main.submit(_closed, tall, r))
 
     # --- Ground ------------------------------------------------------------
     feats = json.load(open(os.path.join(args.raw, "features.json"), encoding="utf-8"))["elements"]
@@ -294,13 +322,14 @@ def main():
     log("ground classes")
 
     # --- Block masses ------------------------------------------------------
-    inside = shapely.buffer(region, -BOUNDARY_MARGIN, join_style="mitre")
-    shapely.prepare(inside)
-    keep = shapely.intersects(inside, footprints)
-    footprints, heights = footprints[keep], heights[keep]
-    open_ground = shapely.union_all([cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER], decks])
-    open_ground = shapely.buffer(open_ground, SIDEWALK, join_style="mitre")
-    shapely.prepare(open_ground)
+    # The open ground and the ground tiles need only the ground; they run
+    # beside the steps, and their results are taken in the original order.
+    open_ground = work.procs.submit(_open_ground, [cover[ROAD], cover[MAJOR], cover[RAIL], cover[WATER], decks])
+    closed = [work.procs.submit(_closed, *c) if isinstance(c, tuple) else c for c in closed]
+    nx, nz = int(round(2 * half_x / TILE)), int(round(2 * half_z / TILE))
+    cells = {(tx, tz): box(-half_x + tx * TILE, -half_z + tz * TILE, -half_x + (tx + 1) * TILE, -half_z + (tz + 1) * TILE)
+             for tz in range(nz) for tx in range(nx)}
+    ground = work.main.submit(_ground, cover, region, decks, cells, work.sub)
     fill = Polygon()
     if args.iv and not args.nofill:
         # A superblock is what the kept roads, rail and water enclose. A
@@ -318,24 +347,34 @@ def main():
                 dense.append(sb)
         fill = shapely.difference(shapely.union_all(dense), open_space) if dense else Polygon()
         log("superblocks %d, filled %d" % (shapely.get_num_geometries(blocks), len(dense)))
+    finished = [work.finish.submit(_finish, c, level, fill, open_ground, inside) for c, level in zip(closed, levels)]
+
+    def tile_of(geom):
+        p = shapely.get_coordinates(geom.representative_point())[0]
+        return (min(nx - 1, max(0, int((p[0] + half_x) // TILE))),
+                min(nz - 1, max(0, int((p[1] + half_z) // TILE))))
+
+    def build(i):
+        # A step's walls and roofs, once the step above it is known.
+        floor = steps[i - 1][0] if i else 0.0
+        above = steps[i + 1][1] if i + 1 < len(steps) else None
+        return work.main.submit(_step, work.sub, steps[i][1], floor, steps[i][0], above, tile_of)
+
     steps = []  # (height, mass)
+    built = []
     below = None
-    for level in np.unique(heights):
-        tall = footprints[heights >= level]
-        if len(tall) == 0:
+    for level, mass in zip(levels, finished):
+        if not (heights >= level).any():
             break
-        r = MERGE if level <= LOW_RISE else TOWER_MERGE
-        mass = _close(shapely.union_all(tall), r)
-        if level <= FILL_TO:
-            mass = shapely.union(mass, fill)
-        mass = shapely.difference(mass, open_ground)
-        mass = shapely.intersection(mass, inside)
+        mass = mass.result()
         if below is not None:
             mass = shapely.intersection(mass, below)
         mass = _clean(mass)
         if mass.is_empty:
             break
         steps.append((float(level), mass))
+        if len(steps) > 1:
+            built.append(build(len(steps) - 2))
         below = mass
         log("step %3d m: %d parts" % (level, shapely.get_num_geometries(mass)))
 
@@ -343,61 +382,30 @@ def main():
     os.makedirs(os.path.join(args.out, "tiles"), exist_ok=True)
     for old in glob.glob(os.path.join(args.out, "tiles", "*.bin")):
         os.remove(old)
-    nx, nz = int(round(2 * half_x / TILE)), int(round(2 * half_z / TILE))
     buckets = {}  # (tx, tz) -> {"b": [tri arrays], ...}
 
     def bucket(key, layer):
         return buckets.setdefault(key, {}).setdefault(layer, [])
 
-    def tile_of(geom):
-        p = shapely.get_coordinates(geom.representative_point())[0]
-        return (min(nx - 1, max(0, int((p[0] + half_x) // TILE))),
-                min(nz - 1, max(0, int((p[1] + half_z) // TILE))))
+    if steps:
+        built.append(build(len(steps) - 1))
+    for job in built:
+        for key, pieces in job.result():
+            for piece in pieces:
+                bucket(key, "b").append(piece)
 
-    for i, (level, mass) in enumerate(steps):
-        floor = steps[i - 1][0] if i else 0.0
-        above = steps[i + 1][1] if i + 1 < len(steps) else None
-        for part in shapely.get_parts(mass):
-            tint = zlib.crc32(np.round(shapely.get_coordinates(part.representative_point())).tobytes()) & 0xFF
-            key = tile_of(part)
-            bucket(key, "b").append(_walls(part, floor, level, WALL, tint))
-            roof = part if above is None else shapely.difference(part, above)
-            if not roof.is_empty:
-                bucket(key, "b").append(_flat(roof, level, ROOF, tint))
-
-    # Each ground class without the ones that cover it, so nothing overlaps.
-    # Past the boundary there is no ground at all.
-    for k in cover:
-        cover[k] = shapely.intersection(cover[k], region)
-    covered = Polygon()
-    layers = {}
-    for k in (WATER, MAJOR, ROAD, RAIL, GRAVES, PARK, MARSH):
-        layers[k] = shapely.difference(cover[k], covered)
-        covered = shapely.union(covered, cover[k])
-    layers[GROUND] = shapely.difference(region, covered)
-    shapely.prepare(cover[WATER])
-    for tz in range(nz):
-        for tx in range(nx):
-            cell = box(-half_x + tx * TILE, -half_z + tz * TILE, -half_x + (tx + 1) * TILE, -half_z + (tz + 1) * TILE)
-            for k, geom in layers.items():
-                piece = shapely.intersection(geom, cell)
-                if not piece.is_empty:
-                    bucket((tx, tz), "g").append(_flat(piece, 0.0, k, 0))
-            wet = shapely.intersection(cover[WATER], cell)
-            if not wet.is_empty:
-                bucket((tx, tz), "w").append(_walls(wet, 0.0, WATER_WALL, WATER, 0))
-                bucket((tx, tz), "w").append(_flat(wet, WATER_WALL, WATER, 0))
-
-    walk = shapely.union_all([cover[MAJOR], decks, cover[PARK], cover[GRAVES], cover[WATER]])
-    blocked = _clean(shapely.difference(region, walk))
+    # The ground tiles, then the blocked ground's walls, as _ground made them.
+    tile_pieces, blocked, blocked_pieces = ground.result()
+    for key, (flats, wets) in tile_pieces.items():
+        for piece in flats:
+            bucket(key, "g").append(piece)
+        for piece in wets:
+            bucket(key, "w").append(piece)
     log("blocked %.2f km2 of %.2f" % (blocked.area / 1e6, region.area / 1e6))
-    for tz in range(nz):
-        for tx in range(nx):
-            cell = box(-half_x + tx * TILE, -half_z + tz * TILE, -half_x + (tx + 1) * TILE, -half_z + (tz + 1) * TILE)
-            piece = _polygonal(shapely.intersection(blocked, cell))
-            if not piece.is_empty:
-                bucket((tx, tz), "w").append(_walls(piece, 0.0, BLOCK_WALL, WATER, 0))
-                bucket((tx, tz), "w").append(_flat(piece, BLOCK_WALL, WATER, 0))
+    for key, pieces in blocked_pieces.items():
+        for piece in pieces:
+            bucket(key, "w").append(piece)
+    work.close()
     tiles = []
     totals = {"b": 0, "g": 0, "w": 0}
     for (tx, tz), layers_ in sorted(buckets.items(), key=lambda kv: (kv[0][1], kv[0][0])):
@@ -486,10 +494,155 @@ def _close(geom, r):
 def _clean(geom):
     """Drops slivers and specks, and simplifies the outline."""
     geom = shapely.buffer(shapely.buffer(geom, -1.0, join_style="mitre"), 1.0, join_style="mitre")
-    geom = shapely.simplify(geom, SIMPLIFY, preserve_topology=True)
+    geom = _simplify(geom, SIMPLIFY)
     geom = _polygonal(shapely.make_valid(geom))
     parts = [p for p in shapely.get_parts(geom) if p.area >= MIN_AREA]
     return shapely.union_all(parts) if parts else Polygon()
+
+
+# --- Parallel work -------------------------------------------------------------
+# GEOS lets go of the GIL, so threads run the overlays side by side. Each
+# operation still runs on exactly the inputs it had when this ran in order, so
+# the output is the same. Three thread pools so nothing waits on its own pool:
+# "sub" tasks wait on nothing, "main" tasks wait only on "sub", "finish" tasks
+# only on "main" and "procs".
+#
+# The overlays of the whole city (the lowest steps' closings, the open ground)
+# are bound by memory, not by the cores: two at once in threads of one process
+# take about as long as one after the other, while in two processes they take
+# 1.4 times as long as one. So those go to two worker processes, which hand
+# geometry back and forth as WKB, exactly.
+
+class _Work:
+    def __init__(self):
+        n = os.cpu_count() or 4
+        self.main = ThreadPoolExecutor(n)
+        self.finish = ThreadPoolExecutor(n)
+        self.sub = ThreadPoolExecutor(n)
+        self.procs = ProcessPoolExecutor(2)
+
+    def close(self):
+        for pool in (self.finish, self.main, self.sub, self.procs):
+            pool.shutdown()
+
+
+def _closed(tall, r):
+    return _close(shapely.union_all(tall), r)
+
+
+def _open_ground(geoms):
+    return shapely.buffer(shapely.union_all(geoms), SIDEWALK, join_style="mitre")
+
+
+def _finish(closed, level, fill, open_ground, inside):
+    """One step's mass up to where it is cut by the step below it."""
+    mass = closed.result()
+    if level <= FILL_TO:
+        mass = shapely.union(mass, fill)
+    mass = shapely.difference(mass, open_ground.result())
+    return shapely.intersection(mass, inside)
+
+
+def _step(sub, mass, floor, level, above, tile_of):
+    """Each part of a step's mass: the tile it goes in, and its walls and
+    roof, the roof being what the step above leaves uncovered."""
+    parts = shapely.get_parts(mass)
+    roofs = parts
+    if above is not None:
+        chunks = [parts[i:i + 64] for i in range(0, len(parts), 64)]
+        roofs = [r for rs in sub.map(lambda c: shapely.difference(c, above), chunks) for r in rs]
+    out = []
+    for part, roof in zip(parts, roofs):
+        tint = zlib.crc32(np.round(shapely.get_coordinates(part.representative_point())).tobytes()) & 0xFF
+        pieces = [_walls(part, floor, level, WALL, tint)]
+        if not roof.is_empty:
+            pieces.append(_flat(roof, level, ROOF, tint))
+        out.append((tile_of(part), pieces))
+    return out
+
+
+def _ground(cover, region, decks, cells, sub):
+    """The ground tiles and the blocked ground. Returns {tile: (flats, wets)},
+    the blocked ground, and {tile: blocked pieces}."""
+    # Each ground class without the ones that cover it, so nothing overlaps.
+    # Past the boundary there is no ground at all.
+    keys = list(cover)
+    cov = dict(zip(keys, sub.map(lambda k: shapely.intersection(cover[k], region), keys)))
+    walk = sub.submit(lambda: shapely.union_all([cov[MAJOR], decks, cov[PARK], cov[GRAVES], cov[WATER]]))
+    covered = Polygon()
+    layers = {}
+    for k in (WATER, MAJOR, ROAD, RAIL, GRAVES, PARK, MARSH):
+        layers[k] = shapely.difference(cov[k], covered)
+        covered = shapely.union(covered, cov[k])
+    layers[GROUND] = shapely.difference(region, covered)
+
+    def tile(cell):
+        flats, wets = [], []
+        for k, geom in layers.items():
+            piece = shapely.intersection(geom, cell)
+            if not piece.is_empty:
+                flats.append(_flat(piece, 0.0, k, 0))
+        wet = shapely.intersection(cov[WATER], cell)
+        if not wet.is_empty:
+            wets.append(_walls(wet, 0.0, WATER_WALL, WATER, 0))
+            wets.append(_flat(wet, WATER_WALL, WATER, 0))
+        return flats, wets
+
+    keys = list(cells)
+    tiles = [sub.submit(tile, cells[key]) for key in keys]
+    blocked = _clean(shapely.difference(region, walk.result()))
+
+    def blocked_tile(cell):
+        piece = _polygonal(shapely.intersection(blocked, cell))
+        if piece.is_empty:
+            return []
+        return [_walls(piece, 0.0, BLOCK_WALL, WATER, 0), _flat(piece, BLOCK_WALL, WATER, 0)]
+
+    walls = list(sub.map(blocked_tile, [cells[key] for key in keys]))
+    return ({key: t.result() for key, t in zip(keys, tiles)}, blocked,
+            {key: w for key, w in zip(keys, walls) if w})
+
+
+_SIMPLIFY_POOL = None
+
+
+def _simplify(geom, tol):
+    """shapely.simplify(geom, tol, preserve_topology=True), in parallel.
+
+    Topology-preserving simplification only looks at segments near each
+    other; parts further apart than 2 tol cannot touch whatever either
+    becomes. So clusters of near parts are simplified on their own and the
+    parts put back where they were, which gives the same multipolygon."""
+    global _SIMPLIFY_POOL
+    parts = shapely.get_parts(geom)
+    if shapely.get_type_id(geom) != 6 or len(parts) < 256:
+        return shapely.simplify(geom, tol, preserve_topology=True)
+    reach = 2 * tol + 1.0
+    b = shapely.bounds(parts)
+    boxes = shapely.box(b[:, 0] - reach, b[:, 1] - reach, b[:, 2] + reach, b[:, 3] + reach)
+    i, j = shapely.STRtree(boxes).query(boxes, predicate="intersects")
+    n = len(parts)
+    ncomp, label = connected_components(scipy.sparse.coo_matrix((np.ones(len(i)), (i, j)), shape=(n, n)), directed=False)
+    # Clusters into groups of about equal size, biggest first.
+    weight = np.bincount(label, weights=shapely.get_num_coordinates(parts), minlength=ncomp)
+    ngroups = 4 * (os.cpu_count() or 4)
+    group_of, load = np.zeros(ncomp, dtype=int), np.zeros(ngroups)
+    for c in np.argsort(-weight, kind="stable"):
+        k = int(np.argmin(load))
+        group_of[c] = k
+        load[k] += weight[c]
+    group = group_of[label]
+    index = [np.flatnonzero(group == k) for k in range(ngroups) if (group == k).any()]
+    if _SIMPLIFY_POOL is None:
+        _SIMPLIFY_POOL = ThreadPoolExecutor(os.cpu_count() or 4)
+    done = _SIMPLIFY_POOL.map(lambda ix: shapely.get_parts(shapely.simplify(
+        shapely.multipolygons(parts[ix]), tol, preserve_topology=True)), index)
+    out = np.empty(n, dtype=object)
+    for ix, simple in zip(index, done):
+        if len(simple) != len(ix):
+            return shapely.simplify(geom, tol, preserve_topology=True)
+        out[ix] = simple
+    return shapely.multipolygons(out)
 
 
 def _flood(shores, region, seeds):
