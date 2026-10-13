@@ -425,7 +425,8 @@ detect_3d/compress_to=0
 
 def _area_scene(file_name, args, meta, corner, size):
     """The editable overworld, framed the SMT IV way: the shared overworld
-    script, a Start spawn in Jackson Square, the camera at --pitch and
+    script, a Start spawn in Jackson Square (or inside the city line when
+    the build does not reach it), the camera at --pitch and
     --range, the fog sheets, haze and sun."""
     root = "".join(w.capitalize() for w in file_name[:-len(".tscn")].split("_"))
     pitch = math.radians(args.pitch)
@@ -438,7 +439,7 @@ def _area_scene(file_name, args, meta, corner, size):
     fov_tan = math.tan(math.radians(75.0 * 0.5))
     corner_ray = math.sqrt((fov_tan * 16.0 / 9.0) ** 2 + fov_tan ** 2 + 1.0)
     farthest = args.range * 1.5 * math.sin(pitch) * corner_ray / (math.sin(pitch) - fov_tan * math.cos(pitch))
-    start = _local(meta, 29.9574, -90.0630)
+    start = _start(meta)
     centre = corner + size * 0.5
     sheet = size + FOG_MARGIN * 2.0
     haze = "Color(%g, %g, %g, 1)" % HAZE
@@ -522,6 +523,44 @@ directional_shadow_max_distance = %g
        root, args.speed, args.icon, args.cutaway, json.dumps(meta["attribution"]), sheets,
        start[0], start[1], height, distance, args.pitch, distance * 0.5, distance * 1.5, distance * 0.125,
        math.radians(-50.0), math.radians(-40.0), args.range * 3.0)
+
+
+def _inside(rings, x, z):
+    """Even-odd test of points (x, z) against the city line's rings."""
+    hit = np.zeros(np.shape(x), bool)
+    for ring in rings:
+        r = np.asarray(ring, dtype=np.float64)
+        a, b = r, np.roll(r, -1, axis=0)
+        for (ax, az), (bx, bz) in zip(a, b):
+            cross = (az > z) != (bz > z)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                xs = ax + (z - az) * (bx - ax) / (bz - az)
+            hit ^= cross & (x < xs)
+    return hit
+
+
+def _start(meta):
+    """Jackson Square, or, for a build that does not reach it, the point
+    inside the city line farthest from it (on a 50 x 50 grid)."""
+    start = _local(meta, 29.9574, -90.0630)
+    rings = meta.get("boundary")
+    if not rings or _inside(rings, np.array(start[0]), np.array(start[1])):
+        return start
+    pts = np.vstack(rings)
+    lo, hi = pts.min(0), pts.max(0)
+    gx, gz = np.meshgrid(np.linspace(lo[0], hi[0], 50), np.linspace(lo[1], hi[1], 50))
+    gx, gz = gx.ravel(), gz.ravel()
+    ok = _inside(rings, gx, gz)
+    gx, gz = gx[ok], gz[ok]
+    clear = np.full(len(gx), np.inf)
+    for ring in rings:
+        r = np.asarray(ring, dtype=np.float64)
+        a, d = r, np.roll(r, -1, axis=0) - r
+        q = np.stack([gx, gz], 1)[:, None, :] - a[None]
+        t = np.clip((q * d[None]).sum(2) / np.maximum((d * d).sum(1), 1e-9)[None], 0.0, 1.0)
+        clear = np.minimum(clear, np.hypot(*(q - t[..., None] * d[None]).transpose(2, 0, 1)).min(1))
+    k = int(np.argmax(clear))
+    return float(gx[k]), float(gz[k])
 
 
 def _local(meta, lat, lon):
