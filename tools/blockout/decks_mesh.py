@@ -117,6 +117,12 @@ RAIL_TO = 0.15
 # A piece's section across is probed for the deck under it this far apart
 # (_trim).
 PROBE = 0.25
+# Slack on the reach within which _pair_heights and _twin_seams look a
+# sample's neighbour up: far beyond any rounding, so no sample that could
+# pair is left out.
+REACH_PAD = 0.01
+# The bucket size of the grid _Tops finds the deck tops over a point with.
+TOPS_CELL = 2.0
 # An edge crossing closer than this fraction of a segment to one of its
 # samples is that sample (_join_cuts).
 CROSS_EPS = 1e-3
@@ -356,6 +362,7 @@ def _pair_heights(recs, chain_samples):
             owner.append(ci)
     tree = shapely.STRtree(lines)
     widest = max(r["width"] for r in recs)
+    prepped = [None] * len(lines)
     out = []
     for ci, smp in enumerate(chain_samples):
         if smp is None:
@@ -375,8 +382,16 @@ def _pair_heights(recs, chain_samples):
             if cj == ci:
                 continue
             oc, oh, orec = chain_samples[cj]
+            # Only samples within reach of the other line can pass the sep
+            # test below (q lies on that line, so sep is at least the
+            # distance to it): the others are left at t = 0 and kept out.
+            ow = max(recs[r]["width"] for r in orec)
+            near = shapely.dwithin(_prepared(prepped, lines, lj), pts, (w + ow) / 2 + 2 * MEDIAN + REACH_PAD)
+            if not near.any():
+                continue
             cum = np.concatenate([[0.0], np.cumsum(np.hypot(*(oc[1:] - oc[:-1]).T))])
-            t = shapely.line_locate_point(lines[lj], pts)
+            t = np.zeros(len(c))
+            t[near] = shapely.line_locate_point(lines[lj], pts[near])
             k = np.clip(np.searchsorted(cum, t, side="right") - 1, 0, len(cum) - 2)
             u = np.clip((t - cum[k]) / np.maximum(cum[k + 1] - cum[k], 1e-9), 0, 1)
             q = oc[k] + (oc[k + 1] - oc[k]) * u[:, None]
@@ -388,10 +403,19 @@ def _pair_heights(recs, chain_samples):
             twin = np.array([qway[i] in twin_ways[i] for i in range(len(c))])
             sep = np.hypot(*(q - c).T)
             ok = twin & (sep <= (w + qw) / 2 + 2 * MEDIAN) & (np.abs((d * qd).sum(axis=1)) > TWIN_PARALLEL)
-            ok &= (t > 1e-6) & (t < cum[-1] - 1e-6)
+            ok &= (t > 1e-6) & (t < cum[-1] - 1e-6) & near
             ph = np.where(ok, np.maximum(ph, qh), ph)
         out.append(ph)
     return out
+
+
+def _prepared(cache, lines, i):
+    """A prepared copy of lines[i], made once, for the reach tests: a copy,
+    so lines[i] itself stays unprepared for every other query made of it."""
+    if cache[i] is None:
+        cache[i] = shapely.linestrings(shapely.get_coordinates(lines[i]))
+        shapely.prepare(cache[i])
+    return cache[i]
 
 
 def _tangents(c, s):
@@ -632,11 +656,14 @@ def _meet(pc, tree):
     def probe(pts, ys, outward):
         carried = np.zeros(len(pts), bool)
         drop = np.full(len(pts), -np.inf)
-        for t in COVER:
-            pi, rel = tree.rels(pc, pts + outward * t, ys)
-            carried[pi[(rel > -STEP_MAX) & (rel < RAIL_JOIN)]] = True
-            band = (rel > -MEET) & (rel <= -STEP_MAX)
-            np.maximum.at(drop, pi[band], rel[band])
+        # Every COVER distance in one query: point k at the i-th distance
+        # is entry i * n + k.
+        n = len(pts)
+        pi, rel = tree.rels(pc, np.concatenate([pts + outward * t for t in COVER]), np.tile(ys, len(COVER)))
+        pi = pi % n if n else pi
+        carried[pi[(rel > -STEP_MAX) & (rel < RAIL_JOIN)]] = True
+        band = (rel > -MEET) & (rel <= -STEP_MAX)
+        np.maximum.at(drop, pi[band], rel[band])
         return ~carried & np.isfinite(drop), drop, carried
 
     moved = cuts = 0
@@ -650,6 +677,8 @@ def _meet(pc, tree):
         need, _, carried = probe(e, ey, out)
         state = np.where(carried, 0, np.where(need, 1, 2))
         found = []
+        # Every stretch's samples probed in one query, then taken apart.
+        segs = []
         for k in np.flatnonzero((state[:-1] != state[1:]) | ((state[:-1] == 0) & (state[1:] == 0))):
             n_ = int(math.ceil(float(np.hypot(*(e[k + 1] - e[k]))) / RAIL_TO))
             if n_ < 2:
@@ -657,7 +686,12 @@ def _meet(pc, tree):
             f = (np.arange(n_) + 0.5) / n_
             pts = e[k] + (e[k + 1] - e[k]) * f[:, None]
             ys = ey[k] + (ey[k + 1] - ey[k]) * f
-            nd = probe(pts, ys, np.repeat(so[k][None], n_, axis=0))[0]
+            segs.append((k, f, pts, ys, np.repeat(so[k][None], n_, axis=0)))
+        if segs:
+            nds = probe(np.concatenate([g[2] for g in segs]), np.concatenate([g[3] for g in segs]),
+                        np.concatenate([g[4] for g in segs]))[0]
+            nds = np.split(nds, np.cumsum([len(g[1]) for g in segs])[:-1])
+        for (k, f, pts, ys, _), nd in zip(segs, nds if segs else ()):
             if not nd.any():
                 continue
             ends = np.flatnonzero(np.diff(np.concatenate([[0], nd.astype(int), [0]])))
@@ -675,22 +709,30 @@ def _meet(pc, tree):
             continue
         # Cuts: (segment, fraction, depth there, whether the low copy comes first).
         inserts = []
+        # Every segment's bisection run side by side, one query a step:
+        # each segment's steps are its own, as if run alone.
+        jobs = []
         for k in np.flatnonzero(need[:-1] != need[1:]):
             m, o = (k, k + 1) if need[k] else (k + 1, k)
             if carried[o]:
                 continue
-            lo, hi = 0.0, 1.0  # fraction from m towards o
             length = float(np.hypot(*(e[o] - e[m])))
-            dep = drop[m]
-            for _ in range(int(math.ceil(math.log2(max(1.0, length / RAIL_TO))))):
-                t = (lo + hi) / 2
-                pt = e[m] + (e[o] - e[m]) * t
-                yt = ey[m] + (ey[o] - ey[m]) * t
-                nd, dr, _ = probe(pt[None], np.array([yt]), so[k][None])
-                if nd[0]:
-                    lo, dep = t, float(dr[0])
+            steps = int(math.ceil(math.log2(max(1.0, length / RAIL_TO))))
+            jobs.append([k, m, o, 0.0, 1.0, length, drop[m], steps])  # lo, hi: fraction from m towards o
+        for step in range(max((j[7] for j in jobs), default=0)):
+            act = [j for j in jobs if step < j[7]]
+            t = np.array([(j[3] + j[4]) / 2 for j in act])
+            M = np.array([j[1] for j in act])
+            O = np.array([j[2] for j in act])
+            pt = e[M] + (e[O] - e[M]) * t[:, None]
+            yt = ey[M] + (ey[O] - ey[M]) * t
+            nd, dr, _ = probe(pt, yt, so[np.array([j[0] for j in act])])
+            for i, j in enumerate(act):
+                if nd[i]:
+                    j[3], j[6] = float(t[i]), float(dr[i])
                 else:
-                    hi = t
+                    j[4] = float(t[i])
+        for k, m, o, lo, hi, length, dep, _ in jobs:
             # Cut just past the last point that comes down, so the copy at
             # the edge's own height is one that needs no deck under it.
             # The edge climbs off the deck below over CUT, so the rail's
@@ -790,6 +832,7 @@ def _twin_seams(recs, pieces):
     lines = [shapely.linestrings(pc.c) for pc in pieces]
     tree = shapely.STRtree(lines)
     reach = max(float(pc.w.max()) for pc in pieces) + 2 * MEDIAN
+    prepped = [None] * len(lines)
     info = []
     for pi, pc in enumerate(pieces):
         best = [np.full(len(pc.c), np.inf), np.full(len(pc.c), np.inf)]
@@ -806,8 +849,16 @@ def _twin_seams(recs, pieces):
             if pj == pi:
                 continue
             other = pieces[pj]
-            s = shapely.line_locate_point(lines[pj], pts)
-            q = shapely.get_coordinates(shapely.line_interpolate_point(lines[pj], s))
+            # Only samples within reach of the other line can pass either
+            # sep test below (q lies on that line): the others are left at
+            # s = 0, q = 0 and kept out.
+            within = shapely.dwithin(_prepared(prepped, lines, pj), pts, (pc.w + float(other.w.max())) / 2 + max(2 * MEDIAN, NEAR_GAP) + REACH_PAD)
+            if not within.any():
+                continue
+            s = np.zeros(len(pc.c))
+            q = np.zeros((len(pc.c), 2))
+            s[within] = shapely.line_locate_point(lines[pj], pts[within])
+            q[within] = shapely.get_coordinates(shapely.line_interpolate_point(lines[pj], s[within]))
             cum = np.concatenate([[0.0], np.cumsum(np.hypot(*(other.c[1:] - other.c[:-1]).T))])
             k = np.clip(np.searchsorted(cum, s, side="right") - 1, 0, len(cum) - 2)
             u = np.clip((s - cum[k]) / np.maximum(cum[k + 1] - cum[k], 1e-9), 0, 1)
@@ -832,7 +883,7 @@ def _twin_seams(recs, pieces):
             ok &= np.abs(across) > TWIN_SQUARE * sep
             ok &= np.abs((pc.d * qd).sum(axis=1)) > TWIN_PARALLEL
             # Not past either end of the other's drawn deck.
-            ok &= (s > 1e-6) & (s < cum[-1] - 1e-6)
+            ok &= (s > 1e-6) & (s < cum[-1] - 1e-6) & within
             for side, sel in ((0, ok & (across > 0)), (1, ok & (across < 0))):
                 take = sel & (sep < best[side])
                 best[side][take] = sep[take]
@@ -1257,6 +1308,7 @@ def _gores(recs, pieces):
     for point. Returns (gores, skipped), skipped as (way, other way, why)."""
     lines = [shapely.linestrings(pc.c) for pc in pieces]
     found, skipped = [], []
+    tops = {}
     for r, rec in enumerate(recs):
         for other, rend in rec["rels"]:
             q = rec["p"][-1 if rend else 0]
@@ -1272,7 +1324,7 @@ def _gores(recs, pieces):
                 skipped.append((rec["way"], other, "trunk not drawn"))
                 continue
             ti = min(trunks, key=lambda t: float(shapely.distance(lines[t], at)))
-            g = _gore(pieces, bi, end, ti)
+            g = _gore(pieces, bi, end, ti, tops)
             if isinstance(g, str):
                 skipped.append((rec["way"], other, g))
             else:
@@ -1283,13 +1335,20 @@ def _gores(recs, pieces):
     return [_gore_mesh(pieces, g) for g in found], skipped
 
 
-def _gore(pieces, bi, end, ti):
+def _gore(pieces, bi, end, ti, tops):
     """One gore between branch piece bi, joined at end, and trunk piece ti:
     {"b": (piece, side, apex, nose), "t": (...)}, the apex and nose
-    inserted into both edges; or why there is none."""
+    inserted into both edges; or why there is none. tops keeps each
+    trunk's top outline with the triangles it was made from, reused while
+    they are unchanged (a gore inserting points into the trunk's edge
+    changes them)."""
     pb, pt = pieces[bi], pieces[ti]
-    tpoly = shapely.union_all(shapely.polygons(_top_tris(pt)[:, :, [0, 2]]))
-    shapely.prepare(tpoly)
+    tt = _top_tris(pt)[:, :, [0, 2]]
+    key = (tt.shape, tt.tobytes())
+    if ti not in tops or tops[ti][0] != key:
+        tops[ti] = (key, shapely.union_all(shapely.polygons(tt)))
+        shapely.prepare(tops[ti][1])
+    tpoly = tops[ti][1]
     order = np.arange(len(pb.c))[::-1] if end else np.arange(len(pb.c))
     off = ~shapely.contains_xy(tpoly, pb.c[order, 0], pb.c[order, 1])
     if not off.any():
@@ -1549,8 +1608,95 @@ class _Tops:
             owner.append(np.full(len(g["tris"]), -1))
         self.tris = np.concatenate(tris).astype(float)
         self.owner = np.concatenate(owner)
-        self.tree = shapely.STRtree(shapely.polygons(self.tris[:, :, [0, 2]]))
         self.index = {id(pc): pi for pi, pc in enumerate(pieces)}
+        self._grid()
+
+    def _grid(self):
+        """A bucket grid over the triangles' boxes, for finding the ones
+        over a point: each triangle is listed in every TOPS_CELL square its
+        box touches, the squares that hold any kept sorted by key."""
+        xz = self.tris[:, :, [0, 2]]
+        self.lo, self.hi = xz.min(axis=1), xz.max(axis=1)
+        good = np.isfinite(xz).all(axis=(1, 2))
+        # A triangle with a coordinate not finite has no box to bucket: it
+        # is asked of shapely for every point (there are none in practice).
+        self.odd = np.flatnonzero(~good)
+        tid = np.flatnonzero(good)
+        self.x0 = self.lo[tid].min(axis=0) if len(tid) else np.zeros(2)
+        c0 = np.floor((self.lo[tid] - self.x0) / TOPS_CELL).astype(np.int64)
+        c1 = np.floor((self.hi[tid] - self.x0) / TOPS_CELL).astype(np.int64)
+        self.nx = int(c1[:, 0].max()) + 1 if len(tid) else 1
+        span = c1 - c0 + 1
+        cnt = span[:, 0] * span[:, 1]
+        k = np.arange(int(cnt.sum())) - np.repeat(np.cumsum(cnt) - cnt, cnt)
+        sx = np.repeat(span[:, 0], cnt)
+        cell = (np.repeat(c0[:, 1], cnt) + k // sx) * self.nx + np.repeat(c0[:, 0], cnt) + k % sx
+        order = np.argsort(cell, kind="stable")
+        cell = cell[order]
+        self.cell_tri = np.repeat(tid, cnt)[order]
+        self.keys, self.start = np.unique(cell, return_index=True)
+        self.stop = np.append(self.start[1:], len(cell))
+
+    def _over(self, pts, skip):
+        """(point index, triangle index) of every triangle whose closed
+        top, seen from above, holds a point of pts (n, 2), piece skip's
+        own left out: exactly
+        shapely's intersects of the point and the triangle's polygon.
+        Orientation tests decide every pair whose sign is certain
+        (inside all three edges, or outside one and inside another); a pair
+        too near an edge to tell, and any point or triangle not finite, is
+        left to shapely."""
+        n = len(pts)
+        fin = np.isfinite(pts).all(axis=1)
+        q = np.where(fin[:, None], pts, 0.0)
+        c = np.floor((q - self.x0) / TOPS_CELL)
+        inside = fin & (c[:, 0] >= 0) & (c[:, 1] >= 0) & (c[:, 0] < self.nx)
+        key = np.where(inside, c[:, 1] * self.nx + c[:, 0], -1).astype(np.int64)
+        at = np.minimum(np.searchsorted(self.keys, key), len(self.keys) - 1)
+        hit = inside & (self.keys[at] == key) if len(self.keys) else np.zeros(n, bool)
+        pidx = np.flatnonzero(hit)
+        a, b = self.start[at[pidx]], self.stop[at[pidx]]
+        cnt = b - a
+        pi = np.repeat(pidx, cnt)
+        ti = self.cell_tri[np.repeat(a, cnt) + np.arange(int(cnt.sum())) - np.repeat(np.cumsum(cnt) - cnt, cnt)]
+        qp = q[pi]
+        own = self.owner[ti] != skip
+        pi, ti, qp = pi[own], ti[own], qp[own]
+        box = ((qp >= self.lo[ti]) & (qp <= self.hi[ti])).all(axis=1)
+        pi, ti, qp = pi[box], ti[box], qp[box]
+        t = self.tris[ti][:, :, [0, 2]]
+        pos = np.zeros(len(pi), np.int8)
+        neg = np.zeros(len(pi), np.int8)
+        for i, j in ((0, 1), (1, 2), (2, 0)):
+            l = (t[:, j, 0] - t[:, i, 0]) * (qp[:, 1] - t[:, i, 1])
+            r = (t[:, j, 1] - t[:, i, 1]) * (qp[:, 0] - t[:, i, 0])
+            d = l - r
+            # Far beyond any rounding in l, r and their differences.
+            e = 1e-12 * (np.abs(l) + np.abs(r))
+            pos += d > e
+            neg += d < -e
+        yes = (pos == 3) | (neg == 3)
+        unsure = ~yes & ~((pos > 0) & (neg > 0))
+        if unsure.any():
+            u = np.flatnonzero(unsure)
+            yes[u] = shapely.intersects(shapely.points(qp[u]), shapely.polygons(t[u]))
+        pi, ti = pi[yes], ti[yes]
+        rest = np.flatnonzero(~fin)
+        if len(rest) or len(self.odd):
+            # Shapely alone for whatever the grid cannot hold.
+            extra = []
+            if len(rest):
+                tree = shapely.STRtree(shapely.polygons(self.tris[:, :, [0, 2]]))
+                ep, et = tree.query(shapely.points(pts[rest]), predicate="intersects")
+                extra.append((rest[ep], et))
+            if len(self.odd):
+                ok_pts = np.flatnonzero(fin)
+                ep, et = np.nonzero(shapely.intersects(
+                    shapely.points(pts[ok_pts])[:, None], shapely.polygons(self.tris[self.odd][:, :, [0, 2]])[None, :]))
+                extra.append((ok_pts[ep], self.odd[et]))
+            pi = np.concatenate([pi] + [e_[0] for e_ in extra])
+            ti = np.concatenate([ti] + [e_[1] for e_ in extra])
+        return pi, ti
 
     def carried(self, pc, pts, y):
         """Per point (n, 2) at height y: whether another piece's deck top
@@ -1588,7 +1734,7 @@ class _Tops:
         piece's deck top over points (n, 2)."""
         if not len(pts):
             return np.zeros(0, int), np.zeros(0, int), np.zeros(0)
-        pi, ti = self.tree.query(shapely.points(pts), predicate="intersects")
+        pi, ti = self._over(np.asarray(pts, float), self.index[id(pc)])
         keep = self.owner[ti] != self.index[id(pc)]
         pi, ti = pi[keep], ti[keep]
         t = self.tris[ti]
@@ -1605,10 +1751,9 @@ class _Tops:
 
     def covered(self, pc, e, ey, outward):
         """Per edge point: carried at any of the COVER distances outward."""
-        res = np.zeros(len(e), bool)
-        for t in COVER:
-            res |= self.carried(pc, e + outward * t, ey)
-        return res
+        n = len(e)
+        hit = self.carried(pc, np.concatenate([e + outward * t for t in COVER]), np.tile(ey, len(COVER)))
+        return hit.reshape(len(COVER), n).any(axis=0)
 
 
 def _top_tris(pc):
@@ -1666,12 +1811,15 @@ def _trim(pc, tree):
     cov = np.ones(len(pc.c), bool)
     width = np.hypot(*(pc.edge[1] - pc.edge[0]).T)
     m = max(2, int(math.ceil(float(width.max()) / PROBE)))
+    # Every probe across in one query, a block of len(pc.c) points each.
+    pts, ys = [], []
     for f in (np.arange(1, m) / m):
         for side in (0, 1):
-            pts = pc.c + (pc.edge[side] - pc.c) * f
-            ys = pc.y + (pc.ey[side] - pc.y) * f
-            cov &= tree.carried(pc, pts, ys)
-    cov &= tree.carried(pc, pc.c, pc.y)
+            pts.append(pc.c + (pc.edge[side] - pc.c) * f)
+            ys.append(pc.y + (pc.ey[side] - pc.y) * f)
+    pts.append(pc.c)
+    ys.append(pc.y)
+    cov &= tree.carried(pc, np.concatenate(pts), np.concatenate(ys)).reshape(len(pts), len(pc.c)).all(axis=0)
     for side in (0, 1):
         cov &= tree.covered(pc, pc.edge[side], pc.ey[side], _outward(pc, side)) | pc.seam[side]
     keep = np.ones(len(pc.c), bool)

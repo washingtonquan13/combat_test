@@ -161,6 +161,7 @@ class Lidar:
         self.gx, self.gz, self.gh = x[g], z[g], h[g]
         self.deck, self.ground = Grid(self.dx, self.dz), Grid(self.gx, self.gz)
         self.ground_all = float(np.median(self.gh)) if len(self.gh) else 0.0
+        self._segs = {}  # id(line) -> its vertices and per-segment boxes (_near_part)
         print("decks: lidar %d deck returns, %d ground in the map (ground median %.2f m)"
               % (len(self.dx), len(self.gx), self.ground_all), flush=True)
 
@@ -176,10 +177,41 @@ class Lidar:
         a, c = vx * t[0] + vz * t[1], -vx * t[1] + vz * t[0]
         m = (np.abs(a) <= along) & (np.abs(c) <= half_across)
         if under and m.any():
-            pts = shapely.points(self.dx[i], self.dz[i])
+            # Only the returns still in the band are tested, each against
+            # only the stretch of the line that can come within half of
+            # it: a line's distance to a point is the least of its
+            # segments', so dropping segments that cannot be the nearest
+            # leaves every distance as it was.
+            sel = np.flatnonzero(m)
+            pts = shapely.points(self.dx[i[sel]], self.dz[i[sel]])
+            keep = np.ones(len(sel), bool)
             for line, half in under:
-                m &= shapely.distance(line, pts) > half
+                part = self._near_part(line, p, r + half + 1.0)
+                if part is not None:
+                    keep &= shapely.distance(part, pts) > half
+            m[sel] = keep
         return c[m], self.dh[i][m]
+
+    def _near_part(self, line, p, reach):
+        """The segments of line whose bounding boxes come within reach of
+        p, as one geometry (None where there are none): every segment
+        that can be the nearest to a point within reach - half of p."""
+        seg = self._segs.get(id(line))
+        if seg is None:
+            xy = shapely.get_coordinates(line)
+            a, b = xy[:-1], xy[1:]
+            seg = (xy, np.minimum(a, b), np.maximum(a, b), line)  # line kept so its id stays its own
+            self._segs[id(line)] = seg
+        xy, lo, hi, _ = seg
+        gx = np.maximum(np.maximum(lo[:, 0] - p[0], p[0] - hi[:, 0]), 0.0)
+        gz = np.maximum(np.maximum(lo[:, 1] - p[1], p[1] - hi[:, 1]), 0.0)
+        k = np.flatnonzero(gx * gx + gz * gz <= reach * reach)
+        if not len(k):
+            return None
+        if k[-1] - k[0] + 1 == len(k):
+            return shapely.linestrings(xy[k[0]:k[-1] + 2])
+        cut = np.flatnonzero(np.diff(k) > 1) + 1
+        return shapely.multilinestrings([shapely.linestrings(xy[g[0]:g[-1] + 2]) for g in np.split(k, cut)])
 
     def ground_at(self, p):
         r = GROUND_R
@@ -460,16 +492,27 @@ def _anchor(recs):
     free = np.flatnonzero(~fixed)
     c = c0.copy()
     if len(free):
+        # The system is sparse (a node's row holds its few neighbours), so
+        # it is solved as one: the same entries, summed in the same order.
+        from scipy.sparse import csc_matrix
+        from scipy.sparse.linalg import spsolve
         at = {int(v): m for m, v in enumerate(free)}
-        A, rhs = np.zeros((len(free), len(free))), np.zeros(len(free))
+        diag, rhs = np.zeros(len(free)), np.zeros(len(free))
+        rows, cols, vals = [], [], []
         for m, v in enumerate(free):
             for u, w in nbr[v].items():
-                A[m, m] += w
+                diag[m] += w
                 if u in at:
-                    A[m, at[u]] -= w
+                    rows.append(m)
+                    cols.append(at[u])
+                    vals.append(-w)
                 else:
                     rhs[m] += w * c0[u]
-        c[free] = np.linalg.solve(A, rhs)
+        idx = np.arange(len(free))
+        A = csc_matrix((np.concatenate([diag, vals]), (np.concatenate([idx, rows]).astype(np.int64),
+                                                     np.concatenate([idx, cols]).astype(np.int64))),
+                       shape=(len(free), len(free)))
+        c[free] = spsolve(A, rhs)
     for r, vs in zip(recs, vid):
         for k, v in enumerate(vs):
             if r["src"][k] == "solver":
