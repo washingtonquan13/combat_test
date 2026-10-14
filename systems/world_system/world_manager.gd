@@ -173,6 +173,14 @@ var _attention_homes: Dictionary = {}
 ## "default" fallback) that produced it.
 var _pending_spawn_point_name: StringName = &"default"
 
+## Seconds the screen takes to go black before a journey's load, and to come
+## back after it. The music settles over the same time (see travel_area()).
+const TRAVEL_FADE := 0.4
+## Frames the new world runs behind the black before it is shown: the first
+## frames after a load still hitch (music attaching, first draws).
+const TRAVEL_SETTLE_FRAMES := 3
+var _journeying := false
+
 
 ## Called once by MainRoot's own script. SceneRoot boots empty (see
 ## MainRoot.tscn's own header) — MainRoot kicks off the very first
@@ -844,6 +852,54 @@ func load_area(area_id: StringName, spawn_point_name: StringName = &"", travelle
 		return null
 
 	return load_world(area.world_scene, spawn_point_name, area, travellers)
+
+
+## A journey through an exit, as the player sees it: the screen goes
+## black and the music settles, the area loads behind the black, and the
+## screen comes back. Every journey the player starts goes through here:
+## an AreaExit, the new game leaving character creation, a menu-room's way
+## out. load_area() itself stays immediate, for restores and tests.
+##
+## Any screen the journey was started from (character creation, a menu)
+## closes behind the black, not before it, so the player never sees a
+## hard cut to whatever was underneath.
+##
+## The music has to settle BEFORE the load, not on world_loading: that
+## signal fires on the frame the load starts, and the load then holds the
+## game thread for seconds, so a fade begun there never runs (see
+## MusicManager.before_travel()).
+##
+## A trip the gate refuses is refused before anything fades. One that
+## becomes refused during the fade (a fight starts) uncovers again with
+## load_area()'s own warning. A second trip asked for mid-journey is
+## dropped: the first is already taking everyone.
+##
+## The gate is can_travel() alone, not AreaDatabase.find() too: the first
+## find() in a session loads every area's world scene (see AreaDatabase),
+## seconds of work that would land before the black with the music still
+## playing. An unknown id is still caught, by load_area() behind the black.
+func travel_area(area_id: StringName, spawn_point_name: StringName = &"", travellers: Array[Unit] = []) -> void:
+	if _journeying:
+		return
+	if not can_travel(_resolve_travellers(travellers)):
+		load_area(area_id, spawn_point_name, travellers)   # warns why
+		return
+	_journeying = true
+	var cover: Tween = ScreenFade.cover(TRAVEL_FADE)
+	await MusicManager.before_travel(area_id, TRAVEL_FADE)
+	if cover.is_running():
+		await cover.finished
+	var going: Array[Unit] = []
+	for unit in travellers:
+		if is_instance_valid(unit):
+			going.append(unit)
+	UIStack.close_all()
+	load_area(area_id, spawn_point_name, going)
+	for i in TRAVEL_SETTLE_FRAMES:
+		await get_tree().process_frame
+	MusicManager.after_travel(TRAVEL_FADE)
+	ScreenFade.uncover(TRAVEL_FADE)
+	_journeying = false
 
 
 ## The area behind the FOCUSED world, or null with nothing loaded. Read

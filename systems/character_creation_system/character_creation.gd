@@ -434,8 +434,8 @@ func _on_confirm_pressed() -> void:
 	# The one place the front end actually loads a world — this is the
 	# moment the game proper begins. Nothing here touches GameMode: once a
 	# world is focused, the mode reads that world's own get_base_mode().
-	close()
-	WorldManager.load_area(&"test_arena")
+	# Not close(): travel_area() closes this screen behind the fade.
+	WorldManager.travel_area(&"test_arena")
 
 
 ## Debug: a valid build in every field, through the same step and

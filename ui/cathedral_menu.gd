@@ -102,5 +102,4 @@ func _on_talk() -> void:
 ## point is derived from the overworld's own door back here — nothing has
 ## to remember the way.
 func _on_leave() -> void:
-	close()
-	WorldManager.load_area(&"overworld")
+	WorldManager.travel_area(&"overworld")

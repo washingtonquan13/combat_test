@@ -8,7 +8,7 @@ extends Node
 ## an InteractableProp share no common base below Node, so this can't
 ## live as a shared method on either.
 ##
-## Purely DATA — travel() only forwards to WorldManager.load_area(),
+## Purely DATA — travel() only forwards to WorldManager.travel_area(),
 ## which does the real work, including WHICH spawn point to land on in
 ## the destination (see WorldManager._resolve_entry_spawn_point() and its
 ## back-link derivation). This component doesn't remember anything about
@@ -88,5 +88,7 @@ func travel() -> void:
 	call_deferred("_load", target_area, target_spawn_point, travellers)
 
 
+## travel_area(), not load_area(): a journey goes through the fade to
+## black. Not awaited - the load frees this node.
 func _load(area_id: StringName, spawn_point: StringName, travellers: Array[Unit]) -> void:
-	WorldManager.load_area(area_id, spawn_point, travellers)
+	WorldManager.travel_area(area_id, spawn_point, travellers)

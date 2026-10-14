@@ -42,6 +42,7 @@ CinematicDirector="*res://systems/cinematic_system/cinematic_director.gd"
 GameMode="*res://systems/mode_system/game_mode.gd"
 SaveManager="*res://systems/save_system/save_manager.gd"
 DetectionManager="*res://systems/detection_system/detection_manager.gd"
+ScreenFade="*res://ui/screen_fade.tscn"
 
 [display]
 

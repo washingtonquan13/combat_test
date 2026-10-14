@@ -483,17 +483,19 @@ func go_to_piece(new_area: String, ensemble_path: String, score_path: String,
 	return true
 
 
-# Fades the foreground out and unloads it. The director is left with nothing
-# playing and both ensembles gone. Mid-transition it waits for the transition to
-# land, as go_to() would, and replaces any request waiting behind it.
-func silence() -> void:
+# Fades the foreground out over `seconds` (fade_time when negative) and unloads
+# it. The director is left with nothing playing and both ensembles gone.
+# Mid-transition it waits for the transition to land, as go_to() would, and
+# replaces any request waiting behind it.
+func silence(seconds: float = -1.0) -> void:
+	var fade := fade_time if seconds < 0.0 else seconds
 	if _queued() and not await _wait_turn():
 		return
 	_busy = true
 	var player: SfzScorePlayer = _players[_front]
 	if player != null:
-		player.window = fade_time + SfzScorePlayer.WINDOW
-	await _fade(_front, SILENT_DB, fade_time).finished
+		player.window = fade + SfzScorePlayer.WINDOW
+	await _fade(_front, SILENT_DB, fade).finished
 	_drop(_front)
 	_conductors[_front].unload()
 	if _conductors[1 - _front].is_loaded():

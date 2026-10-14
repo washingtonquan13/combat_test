@@ -69,8 +69,7 @@ func _on_exit_button_pressed() -> void:
 ## Debug-only escape hatch, kept alongside the real one (see
 ## OverworldExit/travel_interaction.gd in test_arena.tscn).
 func _on_debug_exit_pressed() -> void:
-	close()
-	WorldManager.load_area(HOME_AREA)
+	WorldManager.travel_area(HOME_AREA)
 
 
 func _on_save_pressed() -> void:
