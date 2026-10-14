@@ -78,7 +78,10 @@ var active: bool = false
 @export var icon_scale: float = 1.0
 ## Seconds the icon takes to shrink down into a door it enters, SMT
 ## style, before the trip starts.
-@export var enter_time: float = 0.45
+@export var enter_time: float = 0.8
+## Seconds the door stands empty after the icon has gone, before the trip
+## (and its fade to black) starts, so the eye sees it go.
+const ENTER_HOLD := 0.15
 
 ## Set by overworld.gd right after instancing — the avatar reads this
 ## every physics frame to know which way "forward" currently means.
@@ -250,8 +253,11 @@ func enter(at: Vector3, then_travel: Callable) -> void:
 	velocity = Vector3.ZERO
 	var tween := create_tween().set_parallel()
 	tween.tween_property(self, "global_position", Vector3(at.x, global_position.y, at.z), enter_time * 0.5) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tween.tween_method(_set_shrink, 1.0, 0.0, enter_time).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_IN)
+	# Smaller every frame from the first: an overshoot (TRANS_BACK) spent
+	# half the time growing and left the shrink itself a blink.
+	tween.tween_method(_set_shrink, 1.0, 0.0, enter_time).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.tween_property(_spin_pivot, "rotation:y", _spin_pivot.rotation.y + TAU * 1.5, enter_time) 		.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.chain().tween_interval(ENTER_HOLD)
 	tween.chain().tween_callback(then_travel)
 
 

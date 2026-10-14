@@ -26,7 +26,12 @@ func run() -> void:
 	# Entered twice, as a double press would: still one trip.
 	avatar.enter(Vector3(3.0, 0.0, 4.0), func() -> void: trips[0] += 1)
 	Input.action_press("camera_pan_forward")
-	await get_tree().create_timer(avatar.enter_time * 0.8).timeout
+	# Smaller from early on, not growing first: an overshoot that does
+	# leaves the shrink itself too quick to see before the fade.
+	await get_tree().create_timer(avatar.enter_time * 0.4).timeout
+	check("the icon is already smaller part way in", pivot.scale.x < standing * 0.97,
+		"%.3f of %.3f" % [pivot.scale.x, standing])
+	await get_tree().create_timer(avatar.enter_time * 0.4).timeout
 	check("the icon is shrinking on the way in", pivot.scale.x < standing * 0.9,
 		"%.3f of %.3f" % [pivot.scale.x, standing])
 	check("and the trip has not started yet", trips[0] == 0)
