@@ -1977,7 +1977,8 @@ def _rail_lines(pieces, gores, tree):
         for a, b in _runs(on):
             if b > a:
                 runs.append(dict(p=p[a:b + 1], y=y[a:b + 1], o=o[a:b + 1], d=drop[a:b + 1]))
-    return [_rail_line(runs, seq, closed) for seq, closed in _link(runs)]
+    lines = (_rail_line(runs, seq, closed) for seq, closed in _link(runs))
+    return [ln for ln in lines if ln is not None]
 
 
 def _densify(p, y, o, step):
@@ -2050,7 +2051,8 @@ def _rail_line(runs, seq, closed):
     """A chain of runs as one line: resampled every RAIL_RES along it,
     smoothed over RAIL_SMOOTH, its height from the drop beyond (none at
     RAIL_LOW, all of RAIL_HEIGHT from RAIL_FULL) and, on an open line,
-    down to nothing over RAIL_END at each end."""
+    down to nothing over RAIL_END at each end. None for a chain shorter
+    than RAIL_RES (runs met end to end on one spot): no rail to draw."""
     parts = [{k: v[::-1] if rev else v for k, v in runs[r].items()} for r, rev in seq]
     P = np.concatenate([q["p"] for q in parts])
     cols = np.column_stack([P, np.concatenate([q["y"] for q in parts]), np.concatenate([q["d"] for q in parts]),
@@ -2061,6 +2063,8 @@ def _rail_line(runs, seq, closed):
     keep = np.concatenate([[True], np.diff(s) > 1e-6])
     cols, s = cols[keep], s[keep]
     length = s[-1]
+    if length < RAIL_RES:
+        return None
     m = max(2, int(math.ceil(length / RAIL_RES)) + 1)
     u = np.linspace(0.0, length, m)
     v = np.column_stack([np.interp(u, s, cols[:, j]) for j in range(cols.shape[1])])
