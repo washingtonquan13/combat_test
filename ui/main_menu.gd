@@ -100,7 +100,8 @@ func _on_quit_pressed() -> void:
 func _on_continue_pressed() -> void:
 	var path: String = SaveManager.most_recent()
 	if path != "":
-		SaveManager.load_file(path)
+		# Behind the black, like every load the player starts.
+		WorldManager.behind_black("", SaveManager.load_file.bind(path))
 
 
 func _on_load_pressed() -> void:

@@ -157,8 +157,10 @@ static func music_area(area_id: StringName, moment: StringName) -> String:
 	return "%s.%s" % [area_id, moment]
 
 
+## The title screen calls this when it shows. The music itself comes from
+## _reconcile(), which knows to wait out a load or a fade.
 func play_main_menu() -> void:
-	_go(MAIN_MENU)
+	_reconcile()
 
 
 ## A restore builds and focuses every area the party stands in, one after
@@ -186,12 +188,14 @@ func _on_load_finished() -> void:
 ## from the same sample afterwards. Anything else fades out and is
 ## unloaded, and the new area's music starts once the screen is back. A
 ## transition still under way is paused too, rather than waited out.
-func before_travel(area_id: StringName, seconds: float) -> void:
+##
+## `next` is the director's name for what plays afterwards, "" when that is
+## not known yet; unknown music never counts as kept.
+func before_travel(next: String, seconds: float) -> void:
 	_travelling = true
 	if not Music.is_playing():
 		return
-	var next := music_area(area_id, EXPLORATION)
-	var keeps := next == Music.area or not Music.table or not Music.table.has_area(next)
+	var keeps := next != "" and (next == Music.area or not Music.table or not Music.table.has_area(next))
 	if keeps or Music.is_busy():
 		if not Music.is_paused():
 			_paused_for_travel = true
@@ -237,6 +241,10 @@ func _reconcile(urgent: bool = false) -> void:
 		return
 	var area: AreaDefinition = WorldManager.current_area()
 	if area == null:
+		# No world: the front end. The title has music of its own;
+		# character creation keeps whatever was playing.
+		if GameMode.current_mode() == GameMode.Mode.MAIN_MENU:
+			_go(MAIN_MENU)
 		return
 	var moment := wanted_moment()
 	_go(music_area(area.id, moment), urgent, _next_likely(area.id, moment))
