@@ -52,8 +52,9 @@ func run() -> void:
 	check("the haze moves out with it", is_equal_approx(env.fog_depth_end, fog_end * f),
 		"fog end %.0f, follow view %.0f, scale %.2f" % [env.fog_depth_end, fog_end, f])
 	check("the camera sees as far", is_equal_approx(camera.far, far * f), "far %.0f" % camera.far)
-	check("the avatar's icon grows to stay the same size on screen",
-		avatar._spin_pivot.scale.is_equal_approx(icon * f), "scale %s" % avatar._spin_pivot.scale)
+	check("the avatar's icon grows to tactical_icon_size of its size on screen",
+		avatar._spin_pivot.scale.is_equal_approx(icon * f * world.tactical_icon_size),
+		"scale %s" % avatar._spin_pivot.scale)
 
 	_toggle(camera)
 	await _wait(camera.tactical_blend_time + 0.3)

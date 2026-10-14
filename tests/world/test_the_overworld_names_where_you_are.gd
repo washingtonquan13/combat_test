@@ -19,24 +19,29 @@ const OVERWORLD := &"overworld"
 ## which the generator gave to the French Quarter.
 const ARRIVAL_NAME := "French Quarter"
 ## Inside the CBD, well away from its borders.
-const ELSEWHERE := Vector3(-1298.2, 0.5, 1348.2)
+const ELSEWHERE := Vector3(-4238.1, 0.5, 3390.3)
 const ELSEWHERE_NAME := "CBD"
 
 ## A point well inside each district on the live map, from the
 ## generator's own districts.json. If the borders are moved by hand,
 ## these may need moving with them.
 const INTERIOR := {
-	"French Quarter": Vector3(-15.1, 0.5, 495.6),
-	"CBD": Vector3(-1298.2, 0.5, 1348.2),
-	"Marigny and Bywater": Vector3(1416.1, 0.5, -799.4),
-	"Garden District": Vector3(-1337.8, 0.5, 3624.6),
-	"Uptown and Audubon": Vector3(-3925.9, 0.5, 3524.0),
-	"Carrollton and Riverbend": Vector3(-4243.3, 0.5, 800.5),
-	"Mid-City": Vector3(-2859.9, 0.5, -669.5),
-	"Bayou St. John": Vector3(-630.4, 0.5, -2033.5),
-	"Lakeview": Vector3(-3547.2, 0.5, -3268.3),
-	"Algiers Point": Vector3(1928.1, 0.5, 3066.4),
-	"Holy Cross": Vector3(3781.8, 0.5, 233.1),
+	"French Quarter": Vector3(-3174.8, 0.5, 2131.4),
+	"CBD": Vector3(-4238.1, 0.5, 3390.3),
+	"Marigny and Bywater": Vector3(-1857.2, 0.5, 1339.2),
+	"Garden District": Vector3(-4249.5, 0.5, 5494.2),
+	"Uptown and Audubon": Vector3(-7128.8, 0.5, 4988.1),
+	"Carrollton and Riverbend": Vector3(-7454.1, 0.5, 2401.6),
+	"Mid-City": Vector3(-6123.7, 0.5, 1246.8),
+	"Bayou St. John": Vector3(-4070.2, 0.5, 315.8),
+	"Lakeview": Vector3(-6318.5, 0.5, -3553.3),
+	"Algiers Point": Vector3(-1651.3, 0.5, 4046.3),
+	"Holy Cross": Vector3(59.0, 0.5, 2606.5),
+	"Gentilly": Vector3(-2321.6, 0.5, -3382.4),
+	"Lower Ninth Ward": Vector3(2646.4, 0.5, 861.4),
+	"Lake Forest": Vector3(1836.2, 0.5, -4007.1),
+	"Village de l'Est": Vector3(6445.3, 0.5, -2412.1),
+	"Lower Algiers": Vector3(3617.6, 0.5, 5235.9),
 }
 
 var _host: Control

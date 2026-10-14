@@ -13,11 +13,11 @@ const SCENE := "res://world/city_overworld.tscn"
 ## Above everything in New Orleans.
 const SKY: float = 400.0
 ## The street slab under the start spawn is the top of Floor, at y = 0.
-const START_XZ := Vector2(182.031, 797.997)
-## A motorway link at the I-10 / Pontchartrain Expressway interchange,
-## measured by LiDAR at 18.85 m (way 12687925).
-const DECK_XZ := Vector2(-1475.2, 1238.1)
-const DECK_HEIGHT: float = 18.85
+const START_XZ := Vector2(-3071.37, 2443.99)
+## The I-10 motorway at the Pontchartrain Expressway interchange,
+## measured by LiDAR at 13.31 m (way 607711821).
+const DECK_XZ := Vector2(-4630.8, 2956.55)
+const DECK_HEIGHT: float = 13.31
 
 
 func run() -> void:
