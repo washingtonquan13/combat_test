@@ -12,6 +12,12 @@ extends UIScreen
 ## reflow of an ever-more-crowded single screen. Back/Confirm live
 ## OUTSIDE the tabs, at the bottom, since Confirm's validity depends on
 ## every tab at once regardless of which one is currently showing.
+## For the same reason a character sheet (portrait, name, attribute
+## summary, a checklist of what Confirm is waiting for) sits beside the
+## tabs and stays visible whichever tab is open. The Origin tab and the
+## sheet's derived-stats line are deliberate placeholders: disabled
+## controls laid out for choices that are not built yet. The DEBUG
+## Auto-Fill/Quick Create buttons show in debug builds only.
 ##
 ## A UIScreen living permanently under MainRoot's CanvasLayer, NOT a
 ## world — same reasoning as main_menu.gd's own header. Reached from the
@@ -65,13 +71,39 @@ const PORTRAIT_PREVIEW_SCALE: float = 2.0  # 160x200
 const PORTRAITS_DIR: String = "res://assets/portraits/"
 const PORTRAIT_EXTENSIONS: Array[String] = ["jpg", "jpeg", "png"]
 
-## Not unique_name_in_owner (no other node under this scene needed that
-## flag added) — a plain relative NodePath from this script's own root
-## reaches it just as reliably.
-@onready var _tabs: TabContainer = $Margin/Root/Tabs
+const POINT_BUY_ROW: PackedScene = preload("res://systems/character_creation_system/point_buy_row.tscn")
+
+## GURPS-style short tags for the sheet summary and each skill's "DX/A"
+## tag. The attribute keys are this screen's own; the difficulty letters
+## are GURPS's.
+const ATTRIBUTE_TAGS: Dictionary = {
+	"strength": "ST",
+	"dexterity": "DX",
+	"intelligence": "IQ",
+	"health": "HT",
+}
+const DIFFICULTY_TAGS: Dictionary = {
+	Skill.Difficulty.EASY: "E",
+	Skill.Difficulty.AVERAGE: "A",
+	Skill.Difficulty.HARD: "H",
+	Skill.Difficulty.VERY_HARD: "VH",
+}
+
+## What the debug fill spends skill points on, round-robin. Any name not
+## in SkillDatabase is skipped, and an empty result falls back to every
+## skill, so renaming a skill degrades this to a different build rather
+## than breaking it.
+const QUICK_CREATE_SKILLS: Array[String] = ["Basic Attack", "Athletics", "Perception", "Stealth", "Persuasion"]
+const QUICK_CREATE_NAME: String = "Debug Hero"
+
+@onready var _tabs: TabContainer = %Tabs
 @onready var _name_edit: LineEdit = %NameEdit
 @onready var _portrait_grid: GridContainer = %PortraitGrid
 @onready var _preview_texture: TextureRect = %PreviewTexture
+@onready var _portrait_placeholder: Control = %PortraitPlaceholder
+@onready var _attribute_summary: Label = %AttributeSummary
+@onready var _checklist: Label = %Checklist
+@onready var _debug_tools: Control = %DebugTools
 @onready var _attributes_header: Label = %AttributesHeader
 @onready var _attributes_list: VBoxContainer = %AttributesList
 @onready var _skills_header: Label = %SkillsHeader
@@ -100,10 +132,15 @@ func _ready() -> void:
 	# on every open, and re-running this would double-connect every one of
 	# those signals (or duplicate the rows/buttons outright).
 	for attr in ATTRIBUTE_NAMES:
-		_build_row(_attributes_list, ATTRIBUTE_LABELS[attr], attr, _attribute_rows, _on_attribute_step)
+		_build_row(_attributes_list, ATTRIBUTE_LABELS[attr], ATTRIBUTE_TAGS[attr], "", attr, _attribute_rows, _on_attribute_step)
 
 	for skill in SkillDatabase.get_all():
-		_build_row(_skills_list, skill.skill_name, skill.skill_name, _skill_rows, _on_skill_step)
+		var tag: String = "%s/%s" % [skill.controlling_attribute, DIFFICULTY_TAGS.get(skill.difficulty_level, "?")]
+		_build_row(_skills_list, skill.skill_name, tag, skill.description, skill.skill_name, _skill_rows, _on_skill_step)
+
+	# Debug builds only (editor runs and debug exports): a release build
+	# must not be able to skip character creation.
+	_debug_tools.visible = OS.is_debug_build()
 
 	_build_portrait_grid()
 
@@ -143,6 +180,7 @@ func reset() -> void:
 		_portrait_buttons[_selected_portrait_path].button_pressed = false
 	_selected_portrait_path = ""
 	_preview_texture.texture = null
+	_portrait_placeholder.visible = true
 
 	_tabs.current_tab = 0
 
@@ -169,37 +207,25 @@ func _exit_tree() -> void:
 		SaveManager.new_game_started.disconnect(_on_new_game_started)
 
 
-func _build_row(parent: VBoxContainer, label_text: String, key: String, row_registry: Dictionary, step_callback: Callable) -> void:
-	var row := HBoxContainer.new()
+## One row per attribute/skill, instanced from point_buy_row.tscn so its
+## look is edited in the editor, not here. Only the per-row text and the
+## +/- wiring are set from code.
+func _build_row(parent: VBoxContainer, label_text: String, tag_text: String, tooltip: String, key: String, row_registry: Dictionary, step_callback: Callable) -> void:
+	var row: HBoxContainer = POINT_BUY_ROW.instantiate()
 	parent.add_child(row)
 
-	var name_label := Label.new()
+	var name_label: Label = row.get_node("NameLabel")
 	name_label.text = label_text
-	name_label.custom_minimum_size = Vector2(120, 0)
-	row.add_child(name_label)
+	name_label.tooltip_text = tooltip
+	var tag_label: Label = row.get_node("TagLabel")
+	tag_label.text = tag_text
 
-	var minus := Button.new()
-	minus.text = "-"
-	minus.custom_minimum_size = Vector2(28, 0)
+	var minus: Button = row.get_node("Minus")
 	minus.pressed.connect(step_callback.bind(key, -1))
-	row.add_child(minus)
-
-	var value_label := Label.new()
-	value_label.custom_minimum_size = Vector2(40, 0)
-	value_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	row.add_child(value_label)
-
-	var plus := Button.new()
-	plus.text = "+"
-	plus.custom_minimum_size = Vector2(28, 0)
+	var plus: Button = row.get_node("Plus")
 	plus.pressed.connect(step_callback.bind(key, 1))
-	row.add_child(plus)
 
-	var cost_label := Label.new()
-	cost_label.custom_minimum_size = Vector2(70, 0)
-	row.add_child(cost_label)
-
-	row_registry[key] = {"minus": minus, "plus": plus, "value_label": value_label, "cost_label": cost_label}
+	row_registry[key] = {"minus": minus, "plus": plus, "value_label": row.get_node("ValueLabel"), "cost_label": row.get_node("CostLabel")}
 
 
 func _on_attribute_step(attr: String, delta: int) -> void:
@@ -253,6 +279,10 @@ func _refresh_attributes() -> void:
 		row["plus"].disabled = value >= ATTRIBUTE_TABLE.max_value or next_step_cost > remaining
 
 	_attributes_header.text = "ATTRIBUTES  —  Points remaining: %d" % remaining
+	var parts: PackedStringArray = []
+	for attr in ATTRIBUTE_NAMES:
+		parts.append("%s %d" % [ATTRIBUTE_TAGS[attr], _attribute_values[attr]])
+	_attribute_summary.text = "   ".join(parts)
 	_update_confirm_state()
 
 
@@ -313,13 +343,29 @@ func _on_portrait_selected(path: String) -> void:
 	_selected_portrait_path = path
 	_portrait_buttons[path].button_pressed = true
 	_preview_texture.texture = load(path)
+	_portrait_placeholder.visible = false
 	_update_confirm_state()
 
 
+## Also writes the sheet's checklist, from the same four conditions, so
+## a disabled BEGIN ADVENTURE always says what it is waiting for.
 func _update_confirm_state() -> void:
 	var name_given: bool = not _name_edit.text.strip_edges().is_empty()
 	var portrait_given: bool = not _selected_portrait_path.is_empty()
-	_confirm_button.disabled = not (name_given and portrait_given and ATTRIBUTE_TABLE.is_valid(_attribute_values) and SKILL_TABLE.is_valid(_skill_values))
+	var attributes_done: bool = ATTRIBUTE_TABLE.is_valid(_attribute_values)
+	var skills_done: bool = SKILL_TABLE.is_valid(_skill_values)
+	_confirm_button.disabled = not (name_given and portrait_given and attributes_done and skills_done)
+
+	var lines: PackedStringArray = []
+	lines.append(_checklist_line(name_given, "Name"))
+	lines.append(_checklist_line(portrait_given, "Portrait"))
+	lines.append(_checklist_line(attributes_done, "Attributes (%d points left)" % ATTRIBUTE_TABLE.points_remaining(_attribute_values)))
+	lines.append(_checklist_line(skills_done, "Skills (%d points left)" % SKILL_TABLE.points_remaining(_skill_values)))
+	_checklist.text = "\n".join(lines)
+
+
+func _checklist_line(done: bool, text: String) -> String:
+	return ("[x]  " if done else "[  ]  ") + text
 
 
 func _on_name_text_changed(_new_text: String) -> void:
@@ -390,6 +436,54 @@ func _on_confirm_pressed() -> void:
 	# world is focused, the mode reads that world's own get_base_mode().
 	close()
 	WorldManager.load_area(&"test_arena")
+
+
+## Debug: a valid build in every field, through the same step and
+## selection functions the buttons use, so it can never produce a
+## character the UI itself could not. Starts from reset() so it is
+## deterministic regardless of what was typed before.
+func _on_auto_fill_pressed() -> void:
+	reset()
+	_name_edit.text = QUICK_CREATE_NAME
+	if not _portrait_buttons.is_empty():
+		_on_portrait_selected(_portrait_buttons.keys()[0])
+
+	var attributes: Array[String] = []
+	attributes.assign(ATTRIBUTE_NAMES)
+	_spend_round_robin(attributes, _on_attribute_step, ATTRIBUTE_TABLE, _attribute_values)
+
+	var skills: Array[String] = []
+	for skill_name in QUICK_CREATE_SKILLS:
+		if skill_name in _skill_values:
+			skills.append(skill_name)
+	if skills.is_empty():
+		skills.assign(_skill_values.keys())
+	_spend_round_robin(skills, _on_skill_step, SKILL_TABLE, _skill_values)
+
+	_update_confirm_state()
+
+
+## +1 to each key in turn until the pool is empty or nothing more is
+## affordable. Spreads points evenly instead of maxing one stat.
+func _spend_round_robin(keys: Array[String], step: Callable, table: PointBuyTable, values: Dictionary) -> void:
+	var progressed: bool = true
+	while progressed and table.points_remaining(values) > 0:
+		progressed = false
+		for key in keys:
+			if table.points_remaining(values) <= 0:
+				break
+			if _can_afford_step(table, values, key, 1):
+				step.call(key, 1)
+				progressed = true
+
+
+## Debug: auto-fill, then straight into the game.
+func _on_quick_create_pressed() -> void:
+	_on_auto_fill_pressed()
+	if _confirm_button.disabled:
+		push_warning("Quick create: auto-fill did not produce a valid build — %s" % _checklist.text.replace("\n", "; "))
+		return
+	_on_confirm_pressed()
 
 
 func _on_back_pressed() -> void:
