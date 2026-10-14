@@ -70,13 +70,6 @@ var _threat_seen_msec := 0
 ## Between SaveManager.load_started and load_finished: the game is passing
 ## through states nobody saved, and none of them is asked for.
 var _loading := false
-## Between before_travel() and after_travel(): the same, for a journey
-## through an exit. The world being left is still focused, then the new
-## one is, mid-load, and neither is asked for until the screen comes back.
-var _travelling := false
-## Whether before_travel() paused the music rather than silencing it, so
-## after_travel() resumes it.
-var _paused_for_travel := false
 
 
 func _ready() -> void:
@@ -112,7 +105,7 @@ func _process(delta: float) -> void:
 ## start, and lets go of it once one is not (see the header). Only while
 ## exploring: in a fight or a negotiation, _go() owns what is preloaded.
 func _hold_combat_if_near() -> void:
-	if _loading or _travelling or wanted_moment() != EXPLORATION or Music.is_busy():
+	if _loading or wanted_moment() != EXPLORATION or Music.is_busy():
 		return
 	var area: AreaDefinition = WorldManager.current_area()
 	if area == null or not Music.table:
@@ -158,7 +151,7 @@ static func music_area(area_id: StringName, moment: StringName) -> String:
 
 
 ## The title screen calls this when it shows. The music itself comes from
-## _reconcile(), which knows to wait out a load or a fade.
+## _reconcile(), which knows to wait out a load.
 func play_main_menu() -> void:
 	_reconcile()
 
@@ -176,65 +169,6 @@ func _on_load_started() -> void:
 func _on_load_finished() -> void:
 	_loading = false
 	_reconcile()
-
-
-## Settles the music before a journey's load, over `seconds`, and returns
-## once it has. A load holds the game thread for seconds on a first visit,
-## and the conductor sends each note from that thread a frame or two ahead:
-## music still running into the load holds whatever notes were sounding,
-## with nothing to release them, until the load is over. So nothing may be
-## left running. Music the destination keeps (the same piece, or none of
-## its own in the table) is paused - every clock stops, and it carries on
-## from the same sample afterwards. Anything else fades out and is
-## unloaded, and the new area's music starts once the screen is back. A
-## transition still under way, or a preload, is paused too, rather than
-## waited out; after_travel() decides whether that music is ever heard again.
-##
-## `next` is the director's name for what plays afterwards, "" when that is
-## not known yet; unknown music never counts as kept.
-func before_travel(next: String, seconds: float) -> void:
-	_travelling = true
-	if not Music.is_playing():
-		return
-	if (next != "" and _keeps(next)) or Music.is_busy():
-		if not Music.is_paused():
-			_paused_for_travel = true
-			await Music.pause(seconds)
-	else:
-		await Music.silence(seconds)
-
-
-## The load before_travel() prepared for is over, done or refused.
-##
-## What plays now is decided before the music paused for the load moves: it
-## is resumed only if it is still what the game wants. Otherwise it is let go
-## of while still silent, so the place just left is never heard in the new
-## one, and the wanted music starts from silence.
-func after_travel(seconds: float) -> void:
-	_travelling = false
-	if _paused_for_travel:
-		_paused_for_travel = false
-		if _keeps(wanted_music()):
-			Music.resume(seconds)
-		else:
-			await Music.stop_paused()
-	_reconcile()
-
-
-## Whether `music` playing next leaves what plays now as it is: the same
-## piece, or music the table does not have (which plays nothing new).
-func _keeps(music: String) -> bool:
-	return music == Music.area or not Music.table or not Music.table.has_area(music)
-
-
-## The director's name for the music the game wants now, from live state
-## alone. With no world, the title's music on the title screen, and on any
-## other front-end screen (character creation) whatever is playing.
-func wanted_music() -> String:
-	var area: AreaDefinition = WorldManager.current_area()
-	if area == null:
-		return MAIN_MENU if GameMode.current_mode() == GameMode.Mode.MAIN_MENU else Music.area
-	return music_area(area.id, wanted_moment())
 
 
 ## Only a fight in the world on SCREEN cannot wait for a phrase to end. Fights
@@ -261,7 +195,7 @@ func _is_on_screen(units: Array[Unit]) -> bool:
 ## ends a fight reports the fight's end first), and the same state asked twice
 ## is the same music, which the director leaves playing.
 func _reconcile(urgent: bool = false) -> void:
-	if _loading or _travelling:
+	if _loading:
 		return
 	var area: AreaDefinition = WorldManager.current_area()
 	if area == null:

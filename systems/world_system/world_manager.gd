@@ -174,10 +174,10 @@ var _attention_homes: Dictionary = {}
 var _pending_spawn_point_name: StringName = &"default"
 
 ## Seconds the screen takes to go black before a load, and to come back
-## after it. The music settles over the same time (see behind_black()).
+## after it.
 const TRAVEL_FADE := 0.4
 ## Frames the new world runs behind the black before it is shown: the first
-## frames after a load still hitch (music attaching, first draws).
+## frames after a load still hitch (first draws).
 const TRAVEL_SETTLE_FRAMES := 3
 ## True from the start of behind_black() to the end of its fade-in.
 var _journeying := false
@@ -856,8 +856,7 @@ func load_area(area_id: StringName, spawn_point_name: StringName = &"", travelle
 
 
 ## A journey through an exit, as the player sees it: the screen goes
-## black and the music settles, the area loads behind the black, and the
-## screen comes back (see behind_black()). Every journey the player starts
+## black, the area loads behind the black, and the screen comes back (see behind_black()). Every journey the player starts
 ## goes through here: an AreaExit, the new game leaving character
 ## creation, a menu-room's way out. load_area() itself stays immediate,
 ## for restores and tests.
@@ -872,13 +871,12 @@ func load_area(area_id: StringName, spawn_point_name: StringName = &"", travelle
 ##
 ## The gate is can_travel() alone, not AreaDatabase.find() too: the first
 ## find() in a session loads every area's world scene (see AreaDatabase),
-## seconds of work that would land before the black with the music still
-## playing. An unknown id is still caught, by load_area() behind the black.
+## seconds of work that would land before the black, on screen. An unknown id is still caught, by load_area() behind the black.
 func travel_area(area_id: StringName, spawn_point_name: StringName = &"", travellers: Array[Unit] = []) -> void:
 	if not can_travel(_resolve_travellers(travellers)):
 		load_area(area_id, spawn_point_name, travellers)   # warns why
 		return
-	await behind_black(MusicManager.music_area(area_id, MusicManager.EXPLORATION), func() -> void:
+	await behind_black(func() -> void:
 		var going: Array[Unit] = []
 		for unit in travellers:
 			if is_instance_valid(unit):
@@ -887,34 +885,30 @@ func travel_area(area_id: StringName, spawn_point_name: StringName = &"", travel
 		load_area(area_id, spawn_point_name, going))
 
 
-## Runs `work` on a black screen with the music settled, and returns what
-## it returned. For anything that holds the game thread for seconds while
-## the player is watching: a journey, a save being opened, the way back to
-## the title.
+## Runs `work` on a black screen, and returns what it returned. For
+## anything that holds the game thread for seconds while the player is
+## watching: a journey, a save being opened, the way back to the title.
 ##
-## The music has to settle BEFORE the work, not on world_loading: that
-## signal fires on the frame the load starts, and the load then holds the
-## game thread for seconds, so a fade begun there never runs (see
-## MusicManager.before_travel()). `next_music` is the director's name for
-## what plays afterwards, or "" when it is not known yet (a save says
-## where the party is only once it is open), which fades the music out.
+## The music is not touched here. It plays on the audio thread from a
+## timeline the conductor uploaded ahead (see SfzTimeline), so a stall of
+## any length neither holds a note nor delays one; what plays next is
+## MusicManager's decision, made from state when the new world is focused,
+## and is a musical transition like any other.
 ##
 ## So all the slow work goes inside `work`, never before the call: a
 ## refusal decided up front is fine, but loading anything up front is the
 ## stall this exists to hide. A second call while one is under way is
 ## dropped and returns null: the first is already changing everything.
-func behind_black(next_music: String, work: Callable) -> Variant:
+func behind_black(work: Callable) -> Variant:
 	if _journeying:
 		return null
 	_journeying = true
 	var cover: Tween = ScreenFade.cover(TRAVEL_FADE)
-	await MusicManager.before_travel(next_music, TRAVEL_FADE)
 	if cover.is_running():
 		await cover.finished
 	var result: Variant = work.call()
 	for i in TRAVEL_SETTLE_FRAMES:
 		await get_tree().process_frame
-	MusicManager.after_travel(TRAVEL_FADE)
 	ScreenFade.uncover(TRAVEL_FADE)
 	_journeying = false
 	return result

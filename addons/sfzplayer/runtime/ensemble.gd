@@ -201,36 +201,109 @@ class Layer extends RefCounted:
 	func takes(velocity: int) -> bool:
 		return velocity >= lovel and velocity <= hivel
 
-	# Where this take's note at `at` lands against the written one, in
-	# seconds, and how much harder or softer it is picked.
+	# Whether this layer is a take at all: a layer that is not plays the part
+	# exactly, and its rows carry no take.
+	func has_take() -> bool:
+		return take_timing > 0.0 or take_velocity > 0
+
+	# What this take's noise is fixed by: the layer, and the SFZ as the
+	# ensemble names it. The "seed" of a timeline's take (native/src/
+	# timeline.h, "Takes").
+	func take_seed() -> int:
+		return hash([name, take_key if take_key != "" else sfz_path])
+
+	# Where this take's note at piece frame `frame` lands against the written
+	# one, in frames at `rate`, and how much harder or softer it is picked.
 	#
 	# Most of a player's difference from their own previous take is slow -
 	# they sit a little ahead through one phrase and a little behind through
 	# the next - so three fifths of the reach is a wander that moves over
-	# TAKE_WANDER, about a beat and a half at a rock tempo, and the rest is per note on top. It is a
-	# function of the time and nothing else, hashed rather than drawn from a
-	# generator, so every key of a chord moves together (one pick stroke), a
-	# note's offset does not depend on what was scheduled before it, and a
-	# piece takes the same way on every run, live or offline.
+	# TAKE_WANDER, about a beat and a half at a rock tempo, and the rest is per
+	# note on top. It is a function of the frame and nothing else, hashed
+	# rather than drawn from a generator, so every key of a chord moves
+	# together (one pick stroke), a note's offset does not depend on what was
+	# scheduled before it, and a piece takes the same way on every run, live or
+	# offline. Integer frames and a portable hash, so the timeline cursor
+	# (native/src/timeline.h, "Takes") reads the same take to the frame: see
+	# SfzEnsemble.take_frames().
+	func take_frames(frame: int, rate: float) -> int:
+		return SfzEnsemble.take_frames(take_seed(), take_timing, frame, rate)
+
+	func take_velocity_at(frame: int, rate: float) -> int:
+		return SfzEnsemble.take_velocity_at(take_seed(), take_velocity, frame, rate)
+
+	# take_frames() in seconds, for a game's own note on the conductor's clock.
 	func take_offset(at: float) -> float:
-		if take_timing <= 0.0:
-			return 0.0
-		var cell := at / TAKE_WANDER
-		var i := floori(cell)
-		var f := smoothstep(0.0, 1.0, cell - float(i))
-		var wander := lerpf(_noise(i, 1), _noise(i + 1, 1), f)
-		var pick := _noise(roundi(at * 1000.0), 2)
-		return take_timing * (0.6 * wander + 0.4 * pick)
+		var rate := AudioServer.get_mix_rate()
+		return float(take_frames(roundi(at * rate), rate)) / rate
 
 	func take_velocity_offset(at: float) -> int:
-		if take_velocity <= 0:
-			return 0
-		return roundi(float(take_velocity) * _noise(roundi(at * 1000.0), 3))
+		var rate := AudioServer.get_mix_rate()
+		return take_velocity_at(roundi(at * rate), rate)
 
-	# -1..1, fixed by this layer, the cell and the stream.
-	func _noise(cell: int, stream: int) -> float:
-		var h := hash([name, take_key if take_key != "" else sfz_path, cell, stream])
-		return float(posmod(h, 20001)) / 10000.0 - 1.0
+
+# --- Takes ------------------------------------------------------------------
+#
+# A take's noise, on integer piece frames, exactly as native/src/timeline.h
+# ("Takes") has it, so this file and the timeline cursor agree bit for bit.
+# The one place it is written in GDScript: Layer.take_frames() and the score
+# player's timelines both come here.
+
+# splitmix64's constants, as signed 64-bit ints: a hex literal past 2^63 is
+# not one GDScript can write.
+const _MIX_1 := -4658895280553007687   # 0xBF58476D1CE4E5B9
+const _MIX_2 := -7723592293110705685   # 0x94D049BB133111EB
+const _CELL := -7046029254386353131    # 0x9E3779B97F4A7C15
+const _STREAM := -3335678366873096957  # 0xD1B54A32D192ED03
+
+
+# z >> n as uint64 would shift it: GDScript's >> keeps the sign.
+static func _shr(z: int, n: int) -> int:
+	return (z >> n) & ((1 << (64 - n)) - 1)
+
+
+# splitmix64's finaliser. GDScript's int multiply wraps as uint64's does.
+static func _mix(z: int) -> int:
+	z = z ^ _shr(z, 30)
+	z = z * _MIX_1
+	z = z ^ _shr(z, 27)
+	z = z * _MIX_2
+	return z ^ _shr(z, 31)
+
+
+# -1..1, fixed by the seed, the cell and the stream.
+static func take_noise(seed_value: int, cell: int, stream: int) -> float:
+	var h := _shr(_mix(seed_value + cell * _CELL + stream * _STREAM), 1)
+	return float(h % 20001) / 10000.0 - 1.0
+
+
+# `a` divided by `b` (> 0), rounded down, as C++'s floor of the quotient.
+static func _floor_div(a: int, b: int) -> int:
+	var q := a / b
+	if a % b != 0 and a < 0:
+		q -= 1
+	return q
+
+
+# A take's timing at piece frame `frame`, in frames: see Layer.take_frames().
+static func take_frames(seed_value: int, timing: float, frame: int, rate: float) -> int:
+	if timing <= 0.0:
+		return 0
+	var w := roundi(Layer.TAKE_WANDER * rate)
+	var i := _floor_div(frame, w)
+	var x := float(frame - i * w) / float(w)
+	var a := take_noise(seed_value, i, 1)
+	var b := take_noise(seed_value, i + 1, 1)
+	var wander := a + (b - a) * (x * x * (3.0 - 2.0 * x))
+	var pick := take_noise(seed_value, _floor_div(frame * 1000, roundi(rate)), 2)
+	return roundi(timing * (0.6 * wander + 0.4 * pick) * rate)
+
+
+# A take's velocity offset at piece frame `frame`.
+static func take_velocity_at(seed_value: int, velocity: int, frame: int, rate: float) -> int:
+	if velocity <= 0:
+		return 0
+	return roundi(float(velocity) * take_noise(seed_value, _floor_div(frame * 1000, roundi(rate)), 3))
 
 
 # One part of the ensemble, with the lookups a player needs.

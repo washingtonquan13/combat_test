@@ -451,10 +451,31 @@ func _render_offline(score: SfzScore, id: String, suffix: String) -> void:
 	add_child(player)
 	player.loop_passes = 0 if _leave_at >= 0.0 else _loops
 	player.intensity = _intensity
-	var events := player.dispatch_all(score, _leave_at, _leave_how)
+	# The game's own calls, in the game's order: play() uploads each layer's
+	# timeline and sends PLAY, and leave_loop() decides the way out as it would
+	# at --leave's moment, with the conductor's offline clock standing at it.
+	# The conductor hands both to the renderer rather than to a playback, and
+	# the timeline cursors in it play the piece as the audio thread would.
+	conductor.offline_time = 0.0
+	if not player.play(score):
+		player.queue_free()
+		conductor.unload()
+		conductor.offline = null
+		return
 	if _leave_at >= 0.0 and score.has_loop():
+		conductor.offline_time = _leave_at
 		print("  asked to leave at %.1fs, left at %.2fs (%s)" % [
-			_leave_at, player.exit_time(), _leave_how])
+			_leave_at, player.leave_loop(_leave_how), _leave_how])
+	# Where the music ends, as the player has decided it: the outro's end, or a
+	# loop's after its --loops passes. A loop left nowhere has no end.
+	var music := player.next_boundary("end", 0.0)
+	if is_inf(music) or is_nan(music):
+		push_error("%s: the piece has no end to render to" % id)
+		player.queue_free()
+		conductor.unload()
+		conductor.offline = null
+		return
+	var events := player.event_count()
 	print("\n%s: %d events, %s reading, offline%s" % [ensemble.id, events,
 		player.compiler.describe(),
 		"" if _only.is_empty() else ", solo %s" % ", ".join(_only)])
@@ -469,8 +490,26 @@ func _render_offline(score: SfzScore, id: String, suffix: String) -> void:
 			float(score.timeline()[score.loop_from]["at"]), " ".join(joins),
 			score.loop_end() + (_loops - 1) * score.loop_length()])
 
-	var result: Dictionary = renderer.render(player.length() + TAIL,
+	var result: Dictionary = renderer.render(music + TAIL,
 		ProjectSettings.globalize_path(path))
+	conductor.offline_time = 0.0
+	# Every timeline row on time, and every cursor done no sooner than the
+	# player said the music ends and inside the file: anything else is the
+	# cursor and the player disagreeing, or the file cutting rows off. A
+	# cursor ends after its last row, so releases ringing past the written
+	# end are expected. Rows the take or a layer delay moved ahead of the top
+	# are expected too: PLAY is at frame 0 with no lead, so they go out at
+	# frame 0, as the old scheduler clamped them.
+	if int(result.get("late_emits", 0)) != 0 or int(result.get("starved_rows", 0)) != 0:
+		push_error("%s: %d late, %d starved timeline rows" % [id,
+			int(result.get("late_emits", 0)), int(result.get("starved_rows", 0))])
+	if int(result.get("ahead_of_start", 0)) != 0:
+		print("  %d rows ahead of the top, sent at it" % int(result.get("ahead_of_start", 0)))
+	var ended := int(result.get("ended_frame", -1))
+	var rate := float(renderer.get_sample_rate())
+	if ended < 0 or ended / rate < music - 0.01 or ended / rate > music + TAIL:
+		push_warning("%s: the timelines ended at %.3fs; the music ends at %.3fs and the file at %.3fs" % [
+			id, ended / rate, music, music + TAIL])
 
 	# One read at the end rather than one a frame: there are no frames here,
 	# and take_peak() has been accumulating across the whole render.

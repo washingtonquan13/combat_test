@@ -66,8 +66,22 @@ var bus: StringName = &""
 # a second set of bugs, it is this one, without the wait.
 var offline: SfzOfflineRenderer = null
 
+# now() offline, in seconds: there is no mix to count, so the render sets the
+# clock itself - to the moment a decision is made at (tools/render.gd sets it
+# to --leave's time before leave_loop()), exactly as the game makes it at
+# now() live. Everything else offline is placed by frame and never reads it.
+var offline_time := 0.0
+
 var _stacks: Dictionary = {}
 var _reference: SfzInstrument = null
+# Every score timeline uploaded to this ensemble's instruments and not yet
+# ended: SfzScorePlayer's records, {entry, slot, voice, player (weakref), part,
+# ended}. See claim_timeline().
+var _timelines: Array = []
+# True when the instruments could not agree on a shared frame count at load
+# (set_reference() never reported an offset): ops then carry each
+# instrument's own frames, from the offsets _measure_offsets() reads.
+var _local_frames := false
 var _warned: Dictionary = {}       # "part/control" -> true, so we nag once
 var _loaded := false
 # The instruments unload() let go of, until freed() has seen the last of them.
@@ -110,7 +124,18 @@ func lead() -> float:
 func now() -> float:
 	if not _loaded:
 		return 0.0
+	if offline != null:
+		return offline_time
 	return _reference.get_playback_time()
+
+
+# Frames per second of every timeline frame on this conductor: the offline
+# render's own rate when there is one (what it was configured with, which is
+# what its synths run at), else the audio server's.
+func rate() -> float:
+	if offline != null:
+		return float((offline as Object).call("get_sample_rate"))
+	return AudioServer.get_mix_rate()
 
 
 # Offline there is no driver and no mix block to miss, so nothing needs to be
@@ -191,6 +216,7 @@ func _starved_voices() -> int:
 
 func _process(_delta: float) -> void:
 	_watch()
+	_poll_timelines()
 
 
 # The game time - Time.get_ticks_usec() / 1e6, what _process reads - at which
@@ -332,9 +358,12 @@ func load_ensemble(new_ensemble: SfzEnsemble, articulations: Variant = null,
 			push_error("Conductor: ensemble '%s' never started mixing" % ensemble.id)
 			unload()
 			return false
-		_measure_offsets()
+		await _share_reference()
+		if ensemble != new_ensemble:
+			return false   # unloaded, or another load, while it waited
 	else:
 		_reference = _first_instrument()
+		_local_frames = false
 	_apply_defaults()
 	_clamped = {}
 	_moved = {}
@@ -413,6 +442,9 @@ func _attach(part: SfzEnsemble.Part, layer: SfzEnsemble.Layer, arts: Variant,
 		"offset": 0.0,
 		"keyswitches": keyswitches,
 		"notes": notes,
+		# Its voice in the offline render, which the render's timeline calls
+		# name it by; -1 live. Untyped: an older native build has no such call.
+		"voice": (instrument as Object).call("get_offline_voice") if offline != null else -1,
 	}
 	# play() starts the SFZ parse on a thread of its own and returns
 	# at once, so every layer of the ensemble loads at the same time and
@@ -519,6 +551,11 @@ func unload() -> void:
 	_heard_frame = -1
 	_heard_last = -INF
 	_reference = null
+	# The instruments go with their timelines: nothing is left to report.
+	for record: Dictionary in _timelines:
+		record["ended"] = true
+	_timelines = []
+	_local_frames = false
 	_loaded = false
 	ensemble = null
 
@@ -857,6 +894,156 @@ func _send_wheel(entry: Dictionary, value: int, when: float) -> void:
 	entry.instrument.schedule_pitch_wheel(value, when)
 
 
+# --- Score timelines -------------------------------------------------------
+#
+# A score player hands each layer its whole piece (SfzTimeline, interface A in
+# native/src/timeline.h) and then only decides: these are the calls it makes,
+# and the conductor owns the slots, the clocks and the reports. The native
+# calls are made untyped, so this script still loads against a native build
+# that does not have them yet.
+
+# `timeline` uploaded to a free slot of `entry`'s instrument for `player`, the
+# score part `part_name` names in errors. Returns the record every later call
+# takes, or {} when every slot is busy or the upload is refused (an error is
+# pushed either way). A key the timeline presses that load_ensemble() was not
+# given is an error, once, as a direct note() is; a keyswitch it was not
+# given is left out, as articulate() would have had nothing to switch to.
+func claim_timeline(player: Object, entry: Dictionary, timeline: Dictionary,
+		part_name: String) -> Dictionary:
+	var slot := -1
+	for candidate in SfzTimeline.SLOTS:
+		var taken := false
+		for record: Dictionary in _timelines:
+			if is_same(record["entry"]["instrument"], entry.instrument) \
+					and record["slot"] == candidate:
+				taken = true
+				break
+		if not taken:
+			slot = candidate
+			break
+	if slot < 0:
+		push_error("Conductor: %s has no free timeline slot; the piece is not played on it" % part_name)
+		return {}
+	for key: int in timeline.get("keys", PackedInt32Array()):
+		_check_loaded(entry, part_name, key)
+	var loaded: PackedInt32Array = entry.keyswitches
+	if not loaded.is_empty():
+		var missing := PackedInt32Array()
+		for key: int in timeline.get("ks_keys", PackedInt32Array()):
+			if not loaded.has(key):
+				missing.append(key)
+		if not missing.is_empty():
+			timeline = _without_keyswitches(timeline, missing)
+	var ok: bool
+	if offline != null:
+		ok = (offline as Object).call("attach_timeline", entry.voice, slot, timeline)
+	else:
+		ok = (entry.instrument as Object).call("upload_timeline", slot, timeline)
+	if not ok:
+		return {}
+	var record := {"entry": entry, "slot": slot, "voice": entry.voice,
+		"player": weakref(player), "part": part_name, "ended": false}
+	_timelines.append(record)
+	return record
+
+
+# One decision (SfzTimeline.OP_*) to a record's cursor: `b` and `when` as
+# timeline.h's interface B has them, `arg` the extra word.
+func decide_timeline(record: Dictionary, op: int, b: int, when: int, arg: int = 0) -> bool:
+	if record["ended"]:
+		return false
+	if offline != null:
+		return (offline as Object).call("decide", record["voice"], op, record["slot"], b, when, arg)
+	return (record["entry"]["instrument"] as Object).call("decide", op, record["slot"], b, when, arg)
+
+
+# Conductor time `t` as the frame a PLAY for `record` is sent at: a frame of
+# the shared count, or, when the instruments never agreed on one, of the
+# record's own instrument's.
+func timeline_frame(record: Dictionary, t: float) -> int:
+	var frames_per_second := rate()
+	if offline == null and _local_frames:
+		return roundi((t + float(record["entry"]["offset"])) * frames_per_second)
+	return roundi(t * frames_per_second)
+
+
+# What a record's cursor last said of itself (interface C); {} offline.
+func timeline_state(record: Dictionary) -> Dictionary:
+	if offline != null or record["ended"]:
+		return {}
+	return (record["entry"]["instrument"] as Object).call("timeline_state", record["slot"])
+
+
+# A record that never got its PLAY, given back: its slot free at once.
+func forget_timeline(record: Dictionary) -> void:
+	if record["ended"]:
+		return
+	record["ended"] = true
+	_timelines.erase(record)
+	if offline == null:
+		(record["entry"]["instrument"] as Object).call("drop_timeline", record["slot"])
+
+
+# Every cursor's reports since the last frame, to the player that owns it;
+# a cursor that has ended gives its slot back.
+func _poll_timelines() -> void:
+	if _timelines.is_empty():
+		return
+	for record: Dictionary in _timelines.duplicate():
+		var reports: PackedInt64Array
+		if offline != null:
+			reports = (offline as Object).call("poll_timeline", record["voice"], record["slot"])
+		else:
+			reports = (record["entry"]["instrument"] as Object).call("poll_timeline", record["slot"])
+		var player: Object = (record["player"] as WeakRef).get_ref()
+		for i in range(0, reports.size() - 2, 3):
+			var kind := int(reports[i])
+			if kind == SfzTimeline.REPORT_STARVED and not _warned.has("!timeline_starved"):
+				_warned["!timeline_starved"] = true
+				push_warning("conductor: a score timeline on %s ran out of time to commit its next pass; see stats()" % record["part"])
+			if kind == SfzTimeline.REPORT_ENDED:
+				record["ended"] = true
+			if player != null:
+				player.call("_timeline_report", record, kind, int(reports[i + 1]), int(reports[i + 2]))
+		if record["ended"]:
+			_timelines.erase(record)
+			if offline == null:
+				(record["entry"]["instrument"] as Object).call("drop_timeline", record["slot"])
+
+
+# `timeline` without the rows that tap the keyswitches in `missing`: a copy,
+# the original left as the plan has it.
+static func _without_keyswitches(timeline: Dictionary, missing: PackedInt32Array) -> Dictionary:
+	var out := timeline.duplicate()
+	out["head"] = _segment_without(timeline["head"], missing)
+	out["tail"] = _segment_without(timeline["tail"], missing)
+	var bodies: Array = []
+	for body: Dictionary in timeline["bodies"]:
+		bodies.append(_segment_without(body, missing))
+	out["bodies"] = bodies
+	return out
+
+
+static func _segment_without(segment: Dictionary, missing: PackedInt32Array) -> Dictionary:
+	var ks: PackedByteArray = segment["ks"]
+	var a: PackedByteArray = segment["a"]
+	var keep := PackedInt32Array()
+	for i in ks.size():
+		if ks[i] == 0 or not missing.has(a[i]):
+			keep.append(i)
+	if keep.size() == ks.size():
+		return segment
+	var out := {}
+	for column: String in segment:
+		var source: Variant = segment[column]
+		var copy: Variant = source.duplicate()
+		copy.resize(keep.size())
+		for j in keep.size():
+			copy[j] = source[keep[j]]
+		out[column] = copy
+	return out
+
+
 # The ensemble part a call names: `part_name` where it is one of this
 # ensemble's, else what a score's part of that name would be cast on
 # (SfzEnsemble.resolve) - "" for nothing, which reaches no player.
@@ -1006,6 +1193,49 @@ func _first_instrument() -> SfzInstrument:
 const CLOCK_READ_TRIES := 64
 
 
+# Every instrument told to count frames as the reference does (interface D in
+# native/src/timeline.h), and each entry's offset read back from it: ops
+# then carry one frame count for the whole ensemble. Instruments that never
+# report one in START_TIMEOUT fall back to _measure_offsets() and their own
+# counts (risk R1), with a warning.
+func _share_reference() -> void:
+	_reference = _first_instrument()
+	_local_frames = false
+	var others: Array = []
+	for part_name in _stacks:
+		for entry in _stacks[part_name]:
+			(entry.instrument as Object).call("set_reference", _reference)
+			if not is_same(entry.instrument, _reference):
+				others.append(entry)
+			else:
+				entry.offset = 0.0
+	var deadline := Time.get_ticks_msec() + int(START_TIMEOUT * 1000.0)
+	var known := false
+	while true:
+		known = true
+		for entry: Dictionary in others:
+			if not (entry.instrument as Object).call("has_reference_offset"):
+				known = false
+				break
+		if known or Time.get_ticks_msec() >= deadline or not is_inside_tree():
+			break
+		await get_tree().process_frame
+	if known:
+		var rate := AudioServer.get_mix_rate()
+		for entry: Dictionary in others:
+			entry.offset = -float((entry.instrument as Object).call("get_reference_offset")) / rate
+		return
+	push_warning("conductor: ensemble %s's instruments never shared a frame count; measuring offsets instead" % ensemble.id)
+	for part_name in _stacks:
+		for entry in _stacks[part_name]:
+			(entry.instrument as Object).call("set_reference", null)
+	_measure_offsets()
+	_local_frames = true
+
+
+# The fallback for _share_reference() (risk R1), and how every offset was read
+# before it: each instrument's clock against the first, read between mix
+# steps.
 func _measure_offsets() -> void:
 	_reference = _first_instrument()
 	# Between two mix steps rather than holding one off - see the same read in

@@ -102,8 +102,43 @@ var _verbose := false
 class Recorder extends SfzScorePlayer:
 	var log: Array = []
 
-	func _dispatch(event: Dictionary, at: float) -> void:
-		log.append(event)
+	# Every event the piece plays from the top through `passes` passes of the
+	# loop and its outro, as the timeline cursor plays them at the starting
+	# intensity: the head, the bodies in the order passes take them, then the
+	# tail. Before the top only what a start from the top keeps is kept (a
+	# note with CATCH left or placed, a control, a keyswitch, a placed hit),
+	# and a layered lane only at a level it plays at - what the player's own
+	# streaming used to send, which this log was once recorded from.
+	func record(passes: int) -> void:
+		log = []
+		var lists: Array = [_head]
+		if score.has_loop():
+			for p in range(2, passes + 1):
+				lists.append(_bodies[(p - 2) % _bodies.size()])
+			lists.append(_tail)
+		for list: SfzEventList in lists:
+			for i in list.size():
+				var event := list.at(i)
+				var t := float(event["t"])
+				if t < 0.0:
+					var placed := t >= -PLACED_EARLY
+					match event["kind"]:
+						"note":
+							var left := t + float(event["duration"])
+							if left <= 0.0 or (left < CATCH and not placed):
+								continue
+						"cc", "art":
+							pass
+						"hit":
+							if not placed:
+								continue
+						_:
+							continue
+				if event.has("layer"):
+					var level := intensity_at(maxf(t, 0.0))
+					if level < int(event["layer"][0]) or level > int(event["layer"][1]):
+						continue
+				log.append(event)
 
 	# The player's per-ensemble warnings are printed from _findings instead, every
 	# time they are asked for rather than once a run.
@@ -314,7 +349,7 @@ func _judge(ensemble: SfzEnsemble, score: SfzScore) -> Verdict:
 	for key: String in player._findings:
 		var text: String = player._findings[key]["text"]
 		v.warnings.append(text.trim_prefix(who))
-	player._pump(INF)
+	player.record(PASSES)
 
 	# The cast the player sends by: SfzEnsemble.cast, once, as prepare() does.
 	var cast := ensemble.cast(score.parts)

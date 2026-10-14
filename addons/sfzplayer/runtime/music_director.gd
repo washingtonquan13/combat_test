@@ -492,9 +492,6 @@ func silence(seconds: float = -1.0) -> void:
 	if _queued() and not await _wait_turn():
 		return
 	_busy = true
-	var player: SfzScorePlayer = _players[_front]
-	if player != null:
-		player.window = fade + SfzScorePlayer.WINDOW
 	await _fade(_front, SILENT_DB, fade).finished
 	_drop(_front)
 	_conductors[_front].unload()
@@ -541,19 +538,6 @@ func resume(seconds: float = 0.12) -> void:
 	_paused = false
 	process_mode = _mode
 	_ramp("_pause_db", 0.0, seconds)
-
-
-# Lets go of paused music without it ever being heard again: the clocks run
-# once more with the volume still down, whatever was under way (a preload, a
-# transition) finishes unheard, and the director is left as silence() leaves
-# it, with the volume back up for whatever plays next.
-func stop_paused() -> void:
-	if not _paused:
-		return
-	_paused = false
-	process_mode = _mode
-	await silence(0.0)
-	_ramp("_pause_db", 0.0, 0.0)
 
 
 func is_paused() -> bool:

@@ -85,14 +85,13 @@ func _on_load_pressed() -> void:
 ## own header on why it exists as a separate entry point from
 ## load_world()), not load_area(), since there is no destination WORLD
 ## here, only a screen.
-## Behind the black, so the teardown's stall is not on screen and the
-## title's music starts once it is shown. The refusal is asked first, so a
+## Behind the black, so the teardown's stall is not on screen. The refusal is asked first, so a
 ## refused exit never fades.
 func _on_main_menu_pressed() -> void:
 	if not WorldManager.can_travel():
 		WorldManager.unload()   # warns why
 		return
-	WorldManager.behind_black(MusicManager.MAIN_MENU, func() -> void:
+	WorldManager.behind_black(func() -> void:
 		if not WorldManager.unload():
 			return
 		close()

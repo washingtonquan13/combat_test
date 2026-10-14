@@ -26,29 +26,24 @@ extends Node
 # repeats; the outro was performed coming out of that. Seeds come from the
 # lanes rather than from the clock, so the copies are otherwise identical.
 #
-# Events are streamed rather than dumped: the C++ side takes 2048 queued
-# events and 4096 pending ones, and a five minute piece is bigger than that.
-# Everything inside WINDOW seconds of now goes out each frame, which keeps
-# the queue shallow and lets stop() actually stop.
+# The whole piece goes to the instruments before it starts. At prepare, every
+# compiled event is resolved into the rows each layer's instrument plays
+# (SfzTimeline, _resolve()), and at play_at() those rows are uploaded to a
+# timeline slot on each instrument, whose cursor plays them on the audio
+# thread (native/src/timeline.h). What is left on this side is decisions -
+# start, leave the loop, change the intensity, stop - each sent as an op for
+# a frame of the piece. A game thread that stalls delays a decision, never a
+# note.
 #
 # Lanes written `layer:N` are intensity layers: the game raises and lowers
 # the intensity and they come in and drop out, on a bar, without the piece
 # changing under them - see set_intensity(). Nothing is recompiled for it.
-# Every lane is compiled and streamed as always, and the ones outside the
-# level are held back at the moment they would have been sent, so a layer
-# that comes in is exactly where it would have been had it played all along.
+# Every lane is resolved as always, each row carrying the levels it plays at,
+# and the cursor holds back what is outside the level, so a layer that comes
+# in is exactly where it would have been had it played all along.
 
 signal finished
 
-
-# Events are handed to the scheduler this far in advance. Comfortably more
-# than a frame, comfortably less than the queue depth.
-const WINDOW := 0.75
-
-# The live value. Widened while something expensive is about to happen on
-# the game thread - loading the next area's ensemble, most of all - so the music
-# is already in the audio thread's hands before the frames stop arriving.
-var window: float = WINDOW
 
 var conductor: SfzConductor
 var score: SfzScore
@@ -150,53 +145,39 @@ var _loop_start := 0.0      # where the first pass starts
 var _marks := {}            # exit -> its boundaries in the first pass, in seconds
 var _intro_marks := {}      # "section", "bar", "beat" -> the intro's own, before the loop
 
-# What is scheduled so far: {events, next, offset[, stop]} per part, in the
-# order they were committed. Several run at once near a join. `stop` is where
-# a cut ends a part; nothing in it at or after that time is sent.
-var _parts: Array = []
+# The cursors' decisions, followed here so the ones still to make are made
+# the way the cursor will take them (native/src/timeline.h, TimelineCursor,
+# which keeps the same bookkeeping): see _track().
 var _passes := 0            # passes of the loop committed, the first included
 var _leaving := false
 var _bare := false          # leaving without the outro: the piece just stops
 var _closed := false        # the outro, or the whole piece, is committed
 var _decided := false       # the way out is settled; nothing can be cut now
 var _exit := INF            # where the loop is left, once it is decided
-var _horizon := -INF        # everything up to here has been sent
-
-# Releases not sent yet, earliest first: {end, seq, start, note_end, event,
-# part}. While a loop can still be cut, a note that could be ringing at the cut
-# has its release held back until its own time, which is what lets a cut move
-# it earlier; every other release goes out with its press.
-var _offs: Array = []
-var _seq := 0
-
-# A piece without a loop sends every release with its press, as it always
-# has - holding them back reorders ties the renderer resolves by arrival. So a
-# cut there cannot move a release; instead it remembers what is sounding and
-# lets it go with a second, earlier release. The written one then finds
-# nothing to stop.
-var _sounding: Array = []
-
-# The last value sent for each control, "part|control" -> the event, so
-# a cut knows what it is leaving away from rest.
-var _cc_last: Dictionary = {}
 
 # The intensity over time: [seconds from the top, level] pairs, in order,
 # the first at -INF. A change is a pair at its boundary.
 var _levels: Array = []
 
-# What a layer held back, for when it comes in: its notes, while they could
-# still be sounding at a later boundary ({event, start, end}), and the last
-# control and articulation each silent lane sent ("part|control" ->
-# event), so it comes in with the dynamics and the keyswitch it would have had.
-var _held_notes: Array = []
-var _held_state: Dictionary = {}
+# The installed piece resolved for this ensemble: ensemble part -> Array, per
+# layer of the part's stack, of interface A timelines ({} for a layer that
+# plays nothing). See _resolve().
+var _timelines: Dictionary = {}
+# The slots the piece is uploaded to, one per layer that plays anything: the
+# conductor's records (SfzConductor.claim_timeline()).
+var _slots: Array = []
+# Between play_at() and the end of its frame the PLAY op is not sent yet, so a
+# set_intensity() in the same frame still sets the level the piece starts at,
+# as it did when nothing went out before the first _process(). Ops made
+# meanwhile wait in _queued, [op, b, when, arg], and go after it.
+var _pending := false
+var _queued: Array = []
+var _play_id := 0
 
 var _origin: float = 0.0    # conductor time the piece starts at
-# Seconds from the top of the event _dispatch() is sending - of its press, for
-# a release - which is what a layer's take is read at (SfzConductor.note).
-# Read off the piece rather than the conductor's clock, so the same note takes
-# the same way wherever the piece is placed, live or offline.
-var _take_at: float = 0.0
+# The playback rate, frames per second: what piece time is counted in once it
+# reaches an instrument (SfzTimeline).
+var _rate: float = 44100.0
 var _from: float = 0.0      # seconds in the piece began from; nothing before sounds
 # What prepare() built, for play_at() with the same score to install: see
 # _build(). Empty when there is none.
@@ -234,7 +215,6 @@ var _findings: Dictionary = {}
 static var _reported: Dictionary = {}
 static var _reported_mutex := Mutex.new()
 var _end: float = 0.0
-var _count := 0
 var _playing := false
 
 
@@ -292,6 +272,9 @@ func play_at(new_score: SfzScore, origin: float, from: float = 0.0,
 	if refused != "":
 		push_error("ScorePlayer: play_at refused: " + refused)
 		return false
+	# A piece already playing on this player is let go first, as the old one
+	# would have been by the plan it was streamed from being replaced.
+	_stop_slots()
 	if not _plan.is_empty() and _plan["score"] == new_score 			and _plan["ensemble"] == conductor.ensemble.id:
 		_install(_plan)
 	else:
@@ -314,9 +297,81 @@ func play_at(new_score: SfzScore, origin: float, from: float = 0.0,
 	# The first note sits one measured lead ahead of the clock; everything
 	# after it is relative to that, so this is the only place latency enters.
 	_origin = maxf(origin, conductor.now() + conductor.lead() + extra_lead) - _from
+	_upload()
 	_playing = true
+	_pending = true
+	_queued = []
+	_play_id += 1
+	# Live, PLAY goes at the end of the frame (see _pending). Offline there are
+	# no frames: a render decides everything before it renders a sample.
+	if conductor.is_offline():
+		_start(_play_id)
+	else:
+		_start.call_deferred(_play_id)
 	set_process(true)
 	return true
+
+
+# The installed piece on every layer that plays anything: a slot claimed and
+# the timeline uploaded, the loop's count as it stands now.
+func _upload() -> void:
+	_slots = []
+	for part_name: String in _timelines:
+		var stack: Array = conductor._stacks.get(part_name, [])
+		var per_layer: Array = _timelines[part_name]
+		for li in mini(stack.size(), per_layer.size()):
+			var timeline: Dictionary = per_layer[li]
+			if timeline.is_empty():
+				continue
+			timeline["loop_passes"] = maxi(loop_passes, 0)
+			var record := conductor.claim_timeline(self, stack[li], timeline, part_name)
+			if not record.is_empty():
+				_slots.append(record)
+
+
+# Sends PLAY to every slot of play number `id`, at the piece's top, and then
+# whatever was decided before it went.
+func _start(id: int) -> void:
+	if id != _play_id or not _pending:
+		return
+	_pending = false
+	for record: Dictionary in _slots:
+		conductor.decide_timeline(record, SfzTimeline.OP_PLAY, intensity,
+			conductor.timeline_frame(record, _origin), _frames(_from))
+	var queued := _queued
+	_queued = []
+	for op: Array in queued:
+		_op(op[0], op[1], op[2], op[3])
+
+
+# One decision to every slot of the piece, or to the queue while PLAY waits.
+func _op(op: int, b: int, when: int, arg: int = 0) -> void:
+	if _pending:
+		_queued.append([op, b, when, arg])
+		return
+	for record: Dictionary in _slots:
+		conductor.decide_timeline(record, op, b, when, arg)
+
+
+# Lets go of every slot the piece is on: STOP to the ones started (the
+# conductor frees each when its cursor says it has ended), the rest given
+# back as they are.
+func _stop_slots() -> void:
+	for record: Dictionary in _slots:
+		if _pending:
+			conductor.forget_timeline(record)
+		else:
+			conductor.decide_timeline(record, SfzTimeline.OP_STOP, 0, 0)
+	_slots = []
+	_pending = false
+	_queued = []
+
+
+# A report from one of this piece's cursors (SfzConductor._poll_timelines()):
+# `kind` a SfzTimeline.REPORT_*, `arg` as timeline.h has it.
+func _timeline_report(_record: Dictionary, kind: int, _frame: int, arg: int) -> void:
+	if kind == SfzTimeline.REPORT_PASS_STARTED and not _closed and not _leaving:
+		_passes = maxi(_passes, arg)
 
 
 # Why play_at() cannot keep a call, or "" when it can. Reads nothing it would
@@ -448,10 +503,10 @@ func stop() -> void:
 		return
 	_playing = false
 	set_process(false)
-	# Every note already pressed still gets its release, or it would hang.
-	while not _offs.is_empty():
-		_release(_offs.pop_front())
-	_parts.clear()
+	# Every note already pressed still gets its release, or it would hang: the
+	# cursor releases what is sounding when it stops.
+	_stop_slots()
+	_timelines = {}
 	_head = SfzEventList.new()
 	_bodies = []
 	_tail = SfzEventList.new()
@@ -482,13 +537,16 @@ func set_intensity(level: int, at: String = "bar") -> float:
 	if level < 0:
 		push_error("ScorePlayer: intensity %d is below 0" % level)
 		return -1.0
-	if score == null or _horizon == -INF:
+	if score == null or not _playing or _pending:
 		intensity = level
 		_levels = [[-INF, level]]
 		return 0.0
-	var earliest := maxf(_horizon, _from) + _lead_in + 0.05 + LAYER_EARLY
+	var earliest := maxf(_reached(), _from) + _lead_in + 0.05 + LAYER_EARLY
 	var when := earliest if at == "now" else _next_boundary(at, earliest)
 	_change_level(when, level)
+	# Always sent, even when the level in force does not change: a change
+	# still to come that this one supersedes has to go from the cursor too.
+	_op(SfzTimeline.OP_SET_LEVEL, level, _frames(when))
 	return when
 
 
@@ -541,26 +599,44 @@ func leave_loop(at: String = "pass", outro: bool = true, not_before: float = -IN
 		return _exit
 	if _leaving:
 		return _loop_end + (_passes - 1) * _loop_length
+	_track()
+	if _decided:
+		return _exit
+	if _leaving:
+		return _loop_end + (_passes - 1) * _loop_length
 	var exit := peek_exit(at, outro, not_before)
+	if exit < 0.0 or is_inf(exit):
+		return exit
 	if not score.has_loop():
+		# Without an outro the piece stops there, the notes let go CUT_LIFT
+		# before it; with one it is already on its way to its ending.
 		if exit < _end:
-			_cut(exit, false)
+			_end = exit
 		_decided = true
 		_exit = exit
+		_op(SfzTimeline.OP_LEAVE, 0, _frames(exit))
 		return exit
-	var join := _loop_end + (_passes - 1) * _loop_length
-	if exit > join and exit < INF and at.begins_with("section:"):
+	if exit > _loop_end + (_passes - 1) * _loop_length and at.begins_with("section:"):
 		# The section comes round again only in a later pass: the passes up to
-		# it are committed now, so the cut below has them to cut. peek_exit()
-		# has already kept it inside `loop_passes`.
-		while _loop_end + (_passes - 1) * _loop_length < exit:
-			_add_pass()
-		join = _loop_end + (_passes - 1) * _loop_length
-	if exit < join:
-		_cut(exit, outro)
+		# it are committed now, as the cursor commits them when LEAVE reaches
+		# it. peek_exit() has already kept it inside `loop_passes`.
+		while _join_frames(_passes) < _frames(exit) - JOIN_SLACK:
+			_passes += 1
+	var join := _loop_end + (_passes - 1) * _loop_length
+	if _frames(exit) < _join_frames(_passes) - JOIN_SLACK:
+		# A cut: the cursor lets go CUT_LIFT early, rests the controls and
+		# lays the outro from `exit`.
+		_closed = true
+		_decided = true
+		_exit = exit
+		_end = exit if not outro else exit + score.duration() - _loop_end
+		_op(SfzTimeline.OP_LEAVE, 1 if outro else 0, _frames(exit))
 		return exit
+	# At the join: sent as the cursor's own frame for it, so a boundary that
+	# is the join in seconds is the join to the frame, not a cut beside it.
 	_leaving = true
 	_bare = not outro
+	_op(SfzTimeline.OP_LEAVE, 1 if outro else 0, _join_frames(_passes))
 	return join
 
 
@@ -579,7 +655,7 @@ func peek_exit(at: String = "pass", outro: bool = true, not_before: float = -INF
 		return _exit
 	if _leaving:
 		return _loop_end + (_passes - 1) * _loop_length
-	var earliest := maxf(maxf(_horizon, 0.0) + _lead_in + 0.05, not_before)
+	var earliest := maxf(maxf(_reached(), 0.0) + _lead_in + 0.05, not_before)
 	if not score.has_loop():
 		if outro or at == "pass":
 			return _end
@@ -743,15 +819,17 @@ func _notification(what: int) -> void:
 func _process(_delta: float) -> void:
 	if not _playing:
 		return
-
-	_pump(conductor.now() + window - _origin)
-
+	_track()
 	# The tail: the last note still has to ring out, and the longest release
-	# on the roster is a couple of seconds.
-	if _closed and _parts.is_empty() and _offs.is_empty() \
-			and conductor.now() > _origin + _end + 2.0:
+	# on the roster is a couple of seconds. Every cursor has to have ended too:
+	# until then something can still sound.
+	if _closed and not _pending and conductor.now() > _origin + _end + 2.0:
+		for record: Dictionary in _slots:
+			if not record["ended"]:
+				return
 		_playing = false
 		set_process(false)
+		_slots = []
 		finished.emit()
 
 
@@ -785,6 +863,7 @@ func _build(new_score: SfzScore, against: SfzEnsemble) -> Dictionary:
 		plan.merge(_report(new_score, events, against), true)
 		plan["end"] = new_score.duration()
 		plan["marks"] = _marks_of(new_score, 0, new_score.order.size())
+		_resolve(plan, against, _plan_rate())
 		return plan
 
 	var loop_length := new_score.loop_length()
@@ -862,7 +941,156 @@ func _build(new_score: SfzScore, against: SfzEnsemble) -> Dictionary:
 	# kept apart, and only the plain kinds - "section:NAME" names the loop.
 	var intro := _marks_of(new_score, 0, new_score.loop_from)
 	plan["intro_marks"] = {"section": intro["section"], "bar": intro["bar"], "beat": intro["beat"]}
+	_resolve(plan, against, _plan_rate())
 	return plan
+
+
+# --- Resolving ----------------------------------------------------------------
+
+# The rate a plan is resolved at: the conductor's (an offline render's own
+# rate offline), or the audio server's for a plan built with no conductor.
+func _plan_rate() -> float:
+	return conductor.rate() if conductor != null else AudioServer.get_mix_rate()
+
+
+# `plan`'s events resolved for `against` at `rate` frames per second, into
+# plan["timelines"] (see _timelines) and plan["rate"]. Called by _build(), so
+# on prepare()'s worker; reads the plan and the ensemble and nothing of this
+# player's. Each layer's timeline is interface A (native/src/timeline.h): the
+# head, every body and the tail as rows in the order the conductor used to
+# send them - events in time order, each event's rows as SfzTimeline.rows_of()
+# makes them - with the loop's frames, the layer's take, and where each
+# control the piece moves comes to rest.
+static func _resolve(plan: Dictionary, against: SfzEnsemble, rate: float) -> void:
+	plan["rate"] = rate
+	var timelines := {}
+	plan["timelines"] = timelines
+	if against == null:
+		return
+	var for_score: SfzScore = plan["score"]
+	var cast: Dictionary = plan["cast"]
+	var segments: Array = [plan["head"]]
+	segments.append_array(plan["bodies"])
+	segments.append(plan["tail"])
+	# Ensemble part -> Array per layer of Array per segment of columns.
+	var built := {}
+	# Ensemble part -> {control: rest value}, for every control it is sent.
+	var controls := {}
+	for si in segments.size():
+		var list: SfzEventList = segments[si]
+		for i in list.size():
+			var event := list.at(i)
+			var part_name: String = cast[event["part"]]["part"] if cast.has(event["part"]) else event["part"]
+			if part_name == "" or not against.parts.has(part_name):
+				continue
+			var part := against.part(part_name)
+			if part.layers.is_empty():
+				continue
+			if not built.has(part_name):
+				built[part_name] = _empty_part(part.layers.size(), segments.size())
+			if event["kind"] == "cc":
+				var used: Dictionary = controls.get_or_add(part_name, {})
+				if not used.has(event["control"]):
+					used[event["control"]] = _resting_on(part, event["control"])
+			var t_f := roundi(float(event["t"]) * rate)
+			var lo := 255
+			var hi := 255
+			if event.has("layer"):
+				lo = clampi(int(event["layer"][0]), 0, 254)
+				hi = clampi(int(event["layer"][1]), 0, 254)
+			var art := 1 if event["kind"] == "art" else 0
+			for row: Array in SfzTimeline.rows_of(event, part, rate):
+				var columns: Dictionary = built[part_name][row[SfzTimeline.ROW_LAYER]][si]
+				columns["t"].append(t_f)
+				columns["when"].append(row[SfzTimeline.ROW_WHEN])
+				columns["ord"].append(t_f)
+				columns["shift"].append(row[SfzTimeline.ROW_SHIFT])
+				columns["cls"].append(row[SfzTimeline.ROW_CLS])
+				columns["a"].append(row[SfzTimeline.ROW_A])
+				columns["b"].append(row[SfzTimeline.ROW_B])
+				columns["take"].append(0 if row[SfzTimeline.ROW_TAKE] else SfzTimeline.NO_TAKE)
+				columns["lo"].append(lo)
+				columns["hi"].append(hi)
+				columns["ks"].append(art)
+
+	var has_loop := for_score.has_loop()
+	var loop_length := roundi(float(plan["loop_length"]) * rate) if has_loop else 0
+	var loop_end := roundi(float(plan["loop_end"]) * rate) if has_loop else 0
+	var bodies: int = (plan["bodies"] as Array).size()
+	var duration := roundi((for_score.duration() if has_loop else float(plan["end"])) * rate)
+	for part_name: String in built:
+		var part := against.part(part_name)
+		var used: Dictionary = controls.get(part_name, {})
+		var per_layer: Array = []
+		for li in part.layers.size():
+			var layer: SfzEnsemble.Layer = part.layers[li]
+			var columns: Array = built[part_name][li]
+			var rows := 0
+			for c: Dictionary in columns:
+				rows += (c["when"] as PackedInt64Array).size()
+			if rows == 0:
+				per_layer.append({})
+				continue
+			var rest := PackedInt32Array()
+			var rested := {}
+			for control: String in used:
+				var value: int = used[control]
+				if value < 0:
+					continue
+				var triple := SfzTimeline.rest_of(part, li, control, value)
+				if triple.is_empty():
+					continue
+				var key := "%d|%d" % [triple[0], triple[1]]
+				if rested.has(key):
+					continue
+				rested[key] = true
+				rest.append_array(PackedInt32Array(triple))
+			var takes: Array = []
+			if layer.has_take():
+				takes.append({"seed": layer.take_seed(), "timing": layer.take_timing,
+					"velocity": layer.take_velocity})
+			var body_list: Array = []
+			for k in bodies:
+				body_list.append(columns[1 + k])
+			# The keys it presses and the keyswitches it taps, for the conductor
+			# to check against what the layer was loaded with.
+			var keys := {}
+			var ks_keys := {}
+			for c: Dictionary in columns:
+				var cls: PackedByteArray = c["cls"]
+				var a: PackedByteArray = c["a"]
+				for i in cls.size():
+					if cls[i] == SfzTimeline.NOTE_ON or cls[i] == SfzTimeline.HIT:
+						keys[a[i]] = true
+					elif cls[i] == SfzTimeline.ART_ON:
+						ks_keys[a[i]] = true
+			per_layer.append({
+				"head": columns[0], "bodies": body_list, "tail": columns[-1],
+				"loop_length": loop_length, "loop_end": loop_end,
+				"lead_in": roundi(float(plan["lead_in"]) * rate),
+				"tail_base": loop_end + bodies * loop_length,
+				"duration": duration, "takes": takes, "has_loop": has_loop,
+				"loop_passes": 0, "rest": rest,
+				"keys": PackedInt32Array(keys.keys()), "ks_keys": PackedInt32Array(ks_keys.keys()),
+			})
+		timelines[part_name] = per_layer
+
+
+# One part's empty columns: per layer, per segment. "ks" marks a keyswitch's
+# rows, which the conductor drops on a layer loaded without that key (see
+# SfzConductor.claim_timeline()); the native side does not read it.
+static func _empty_part(layers: int, segments: int) -> Array:
+	var out: Array = []
+	for _li in layers:
+		var per_segment: Array = []
+		for _si in segments:
+			per_segment.append({"t": PackedInt64Array(), "when": PackedInt64Array(),
+				"ord": PackedInt64Array(), "shift": PackedInt64Array(),
+				"cls": PackedByteArray(), "a": PackedByteArray(), "b": PackedByteArray(),
+				"take": PackedByteArray(), "lo": PackedByteArray(), "hi": PackedByteArray(),
+				"ks": PackedByteArray()})
+		out.append(per_segment)
+	return out
 
 
 # A shallow copy of `source` playing `order`: the sections and lanes are the
@@ -891,20 +1119,17 @@ func _install(plan: Dictionary) -> void:
 	_unmapped = plan["unmapped"]
 	_findings = plan["findings"]
 	_cast = plan["cast"]
-	_count = 0
+	_rate = _plan_rate()
+	if float(plan.get("rate", 0.0)) != _rate:
+		# Built against another rate (the output device changed meanwhile):
+		# every frame in it is wrong, so it is resolved again.
+		_resolve(plan, conductor.ensemble, _rate)
+	_timelines = plan["timelines"]
 	_leaving = false
 	_bare = false
 	_decided = false
-	_horizon = -INF
-	_offs = []
-	_sounding = []
-	_seq = 0
-	_cc_last = {}
 	_from = 0.0
 	_levels = [[-INF, intensity]]
-	_held_notes = []
-	_held_state = {}
-	_parts = [{"events": _head, "next": 0, "offset": 0.0}]
 	if score.has_loop():
 		_passes = 1
 		_closed = false
@@ -1176,18 +1401,33 @@ func _seek_point(from: float) -> float:
 	return bar
 
 
-# Commits whatever follows the last committed pass, once its join is close
-# enough that the decision cannot wait: another pass, unless the loop has
-# been left or has played its count, and otherwise the outro.
-func _commit(horizon: float) -> void:
-	while not _closed:
+# Piece time everything up to which the cursors may already have committed:
+# the clock, plus the lead the mix runs ahead by. A decision is only made
+# for a moment past this, as one used to be for a moment past what had been
+# sent.
+func _reached() -> float:
+	if not _playing:
+		return -INF
+	return conductor.now() + conductor.lead() - _origin
+
+
+# Follows the cursor's commits: whatever follows the last committed pass,
+# once its join is close enough that the cursor has decided it - another
+# pass, unless the loop has been left or has played its count, and otherwise
+# the outro. Run ahead of the cursor rather than behind it (_reached() is
+# past the cursor's own horizon), and corrected by what it reports
+# (_timeline_report()), so a decision made here never assumes a pass the
+# cursor has gone past.
+func _track() -> void:
+	var horizon := _reached()
+	while not _closed and score != null and score.has_loop():
 		# The join after pass `_passes`, in seconds from the top.
 		var join := _loop_end + (_passes - 1) * _loop_length
 		if horizon < join - _lead_in - 0.05:
 			return
 		var again := not _leaving and (loop_passes <= 0 or _passes < loop_passes)
 		if again:
-			_add_pass()
+			_passes += 1
 		elif _bare:
 			# No outro: the pass is the last thing, and it ends at the join.
 			_closed = true
@@ -1195,23 +1435,20 @@ func _commit(horizon: float) -> void:
 			_exit = join
 			_end = join
 		else:
-			# _tail is timed as if it followed the last variation.
-			var offset := (_passes - 1 - _bodies.size()) * _loop_length
-			_parts.append({"events": _tail, "next": 0, "offset": offset})
 			_closed = true
 			_decided = true
 			_exit = join
 			_end = score.duration() + (_passes - 1) * _loop_length
 
 
-# Commits the next pass of the loop. Round the variations and back to the
-# first: body k is timed as the (k + 2)th pass, so playing it as pass
-# _passes + 1 moves it by the difference.
-func _add_pass() -> void:
-	var k := (_passes - 1) % _bodies.size()
-	_parts.append({"events": _bodies[k], "next": 0,
-		"offset": (_passes - 1 - k) * _loop_length})
-	_passes += 1
+# A frame further than this from a join is not that join (leave_loop()):
+# seconds rounded twice can land a frame either side of it.
+const JOIN_SLACK := 2
+
+
+# The frame of the join after pass `passes`, as the cursor counts it.
+func _join_frames(passes: int) -> int:
+	return _frames(_loop_end) + (passes - 1) * _frames(_loop_length)
 
 
 # The first boundary of this kind at or after `earliest`, in any pass.
@@ -1238,207 +1475,11 @@ func _next_mark(kind: String, earliest: float) -> float:
 	return INF
 
 
-# Ends the loop at `exit`, mid-pass. Everything playing stops CUT_LIFT
-# before it - releases moved up, the rest of the pass dropped - a marker at
-# that moment puts the controls back to rest, and the outro, if there is to
-# be one, is laid so that its first downbeat is `exit`. The window that decided this has already been
-# sent, and `exit` was chosen to be past it, so nothing here needs taking back.
-func _cut(exit: float, outro: bool = true) -> void:
-	var stop := exit - CUT_LIFT
-	for part: Dictionary in _parts:
-		part["stop"] = minf(float(part.get("stop", INF)), stop)
-	for off: Dictionary in _offs:
-		off["end"] = _clamped(off)
-	_offs.sort_custom(_sooner)
-	_parts.append({"events": SfzEventList.pack([{"kind": "rest", "t": stop}]), "next": 0, "offset": 0.0})
-	for item: Dictionary in _sounding:
-		if float(item["note_end"]) > stop:
-			var early := item.duplicate()
-			early["event"] = (item["event"] as Dictionary).duplicate()
-			early["end"] = _clamped(item)
-			_release(early)
-	_sounding = []
-	_closed = true
-	_decided = true
-	_exit = exit
-	if not outro:
-		_end = exit
-		return
-	# _tail is timed as if it followed the last variation.
-	_parts.append({"events": _tail, "next": 0,
-		"offset": exit - (_loop_end + _bodies.size() * _loop_length)})
-	_end = exit + score.duration() - _loop_end
-
-
-# Hands out every event up to `horizon` (seconds from the top), earliest
-# first across the parts that are playing. Two events at the same instant go
-# in the order their parts were committed, so the end of one pass is always
-# dispatched before the start of the next - the next section's setup has to
-# be the last word, as it is between any two sections.
-#
-# A release goes out just before the first event that is not earlier than it,
-# which puts it exactly where it sat when a note's release was sent with its
-# press: after everything before it, and ahead of a new press at the same
-# instant.
-func _pump(horizon: float) -> void:
-	_horizon = maxf(_horizon, horizon)
-	_commit(horizon)
-	while true:
-		var best := -1
-		var best_at := INF
-		for k in _parts.size():
-			var part: Dictionary = _parts[k]
-			var events: SfzEventList = part["events"]
-			var i: int = part["next"]
-			if i >= events.size():
-				continue
-			var at: float = events.t_at(i) + float(part["offset"])
-			if at >= float(part.get("stop", INF)):
-				# Cut: the rest of this part never plays.
-				part["next"] = events.size()
-				continue
-			if at < best_at:
-				best = k
-				best_at = at
-		if not _offs.is_empty() and float(_offs[0]["end"]) <= minf(best_at, horizon):
-			_release(_offs.pop_front())
-			continue
-		if best < 0 or best_at > horizon:
-			break
-		var part: Dictionary = _parts[best]
-		var event: Dictionary = (part["events"] as SfzEventList).at(part["next"])
-		part["next"] = int(part["next"]) + 1
-		_send(event, part, best_at)
-
-	# Releases already past cannot be cut short any more.
-	if not _sounding.is_empty():
-		_sounding = _sounding.filter(func(item: Dictionary) -> bool:
-			return float(item["note_end"]) >= _horizon)
-
-	if not _held_notes.is_empty():
-		_held_notes = _held_notes.filter(func(item: Dictionary) -> bool:
-			return float(item["end"]) >= _horizon)
-
-	# Parts that are done are dropped, so a loop can run for hours.
-	var live: Array = []
-	for part: Dictionary in _parts:
-		if int(part["next"]) < (part["events"] as SfzEventList).size():
-			live.append(part)
-	_parts = live
-
-
-# One compiled event, at `at` seconds from the top.
-func _send(event: Dictionary, part: Dictionary, at: float) -> void:
-	if at < _from:
-		var placed := at >= _from - PLACED_EARLY
-		match event["kind"]:
-			"note":
-				var left := at + float(event["duration"]) - _from
-				if left <= 0.0 or (left < CATCH and not placed):
-					return
-				event = event.duplicate()
-				event["duration"] = left
-				at = _from
-			"cc", "art":
-				at = _from
-			"hit":
-				if not placed:
-					return
-				at = _from
-			_:
-				return
-	if event.has("layer") and not _in_layer(event, _level_at(at + LAYER_EARLY)):
-		_hold_back(event, at)
-		return
-	_take_at = at
-	match event["kind"]:
-		"rest":
-			_rest(at)
-			return
-		"layers":
-			_land(at)
-			return
-		"note":
-			_dispatch(event, _origin + at)
-			var off := event.duplicate()
-			off["kind"] = "off"
-			off["at"] = _origin + at
-			_seq += 1
-			var item := {"event": off, "start": at, "part": part, "seq": _seq,
-				"note_end": at + float(event["duration"])}
-			item["end"] = _clamped(item)
-			# A release no cut can reach any more goes out with its press, as a
-			# whole note's does - the renderer orders two events on the same
-			# sample by arrival, so this keeps every such tie where it was.
-			# Only a piece that can still be cut holds releases back, and only
-			# those that end beyond the nearest point a cut could still land.
-			if _decided or not score.has_loop() 					or float(item["end"]) <= _horizon + _lead_in + 0.05 - CUT_LIFT:
-				if not _decided and not score.has_loop():
-					_sounding.append(item)
-				_release(item)
-				_count += 1
-				return
-			var i := _offs.size()
-			while i > 0 and _sooner(item, _offs[i - 1]):
-				i -= 1
-			_offs.insert(i, item)
-		"cc":
-			_dispatch(event, _origin + at)
-			var key := "%s|%s" % [event["part"], event["control"]]
-			_cc_last[key] = event
-			_held_state.erase(key)
-		"art":
-			_dispatch(event, _origin + at)
-			_held_state.erase("%s|art" % event["part"])
-		_:
-			_dispatch(event, _origin + at)
-	_count += 1
-
-
-func _release(item: Dictionary) -> void:
-	var off: Dictionary = item["event"]
-	# Only a moved release is re-measured: the written one goes out with the
-	# duration it was compiled with, to the bit.
-	if float(item["end"]) < float(item["note_end"]):
-		off["duration"] = float(item["end"]) - float(item["start"])
-	_take_at = float(item["start"])
-	_dispatch(off, _origin + float(item["end"]))
-
-
-# A note's release, pulled in to its part's stop if a cut has set one - but
-# never to before the note has had a moment to sound.
-func _clamped(item: Dictionary) -> float:
-	var end: float = item["note_end"]
-	var stop := float((item["part"] as Dictionary).get("stop", INF))
-	if end <= stop:
-		return end
-	return maxf(stop, float(item["start"]) + 0.01)
-
-
-func _sooner(a: Dictionary, b: Dictionary) -> bool:
-	return float(a["end"]) < float(b["end"]) \
-		or (float(a["end"]) == float(b["end"]) and int(a["seq"]) < int(b["seq"]))
-
-
-# The controls a cut leaves away from rest, put back.
-func _rest(at: float) -> void:
-	for key in _cc_last.keys():
-		var last: Dictionary = _cc_last[key]
-		var rest := _resting(last["part"], last["control"])
-		if rest < 0 or int(last["value"]) == rest:
-			continue
-		var event := {"kind": "cc", "t": at, "part": last["part"],
-			"control": last["control"], "value": rest, "perf": last.get("perf", last["part"])}
-		_dispatch(event, _origin + at)
-		_cc_last[key] = event
-
-
-# Where a score part's control rests: the default of the part it is cast on.
-func _resting(part_name: String, control: String) -> int:
-	if conductor != null and conductor.ensemble != null:
-		var part := conductor.ensemble.part(_cast_of(part_name))
-		if part.defaults.has(control):
-			return int(part.defaults[control])
+# Where a control comes to rest on an ensemble part: the part's default, else
+# RESTING; -1 for one a cut leaves where it is.
+static func _resting_on(part: SfzEnsemble.Part, control: String) -> int:
+	if part.defaults.has(control):
+		return int(part.defaults[control])
 	return int(RESTING.get(control, -1))
 
 
@@ -1450,36 +1491,11 @@ func _cast_of(part_name: String) -> String:
 	return part_name
 
 
-func _dispatch(event: Dictionary, at: float) -> void:
-	var part_name := _cast_of(event["part"])
-	# Cast on nothing: reported at prepare, and nothing would hear it.
-	if part_name == "":
-		return
-	match event["kind"]:
-		"note":
-			conductor.note_on(part_name, event["key"], event["velocity"], at,
-				false, _take_at)
-		"off":
-			conductor.note_off(part_name, event["key"], event["velocity"],
-				float(event["at"]), float(event["duration"]), false, _take_at)
-		"hit":
-			# Reported at prepare; the conductor would skip it too.
-			if _unmapped.has("%s|%s" % [event["part"], event["drum"]]):
-				return
-			conductor.hit(part_name, event["drum"], event["velocity"], at,
-				false, _take_at)
-		"art":
-			conductor.articulate(part_name, event["art"], at)
-		"cc":
-			conductor.cc(part_name, event["control"], event["value"], at)
+func _frames(seconds: float) -> int:
+	return roundi(seconds * _rate)
 
 
 # --- Intensity -------------------------------------------------------------
-
-func _in_layer(event: Dictionary, level: int) -> bool:
-	var layer: Array = event["layer"]
-	return level >= int(layer[0]) and level <= int(layer[1])
-
 
 func _level_at(t: float) -> int:
 	for i in range(_levels.size() - 1, -1, -1):
@@ -1488,19 +1504,18 @@ func _level_at(t: float) -> int:
 	return intensity
 
 
-# A change to `level` at `when`. Any change still to come at or after it is
-# superseded; the event that would have landed it finds nothing to do.
+# A change to `level` at `when`, as the cursor makes it (SET_LEVEL). Any
+# change still to come at or after it is superseded.
 func _change_level(when: float, level: int) -> void:
 	while _levels.size() > 1 and float(_levels[-1][0]) >= when:
 		_levels.pop_back()
 	# Changes long past are kept only as far as the one in force.
-	while _levels.size() > 1 and float(_levels[1][0]) < _horizon - 10.0:
+	while _levels.size() > 1 and float(_levels[1][0]) < _reached() - 10.0:
 		_levels.pop_front()
 	intensity = level
 	if int(_levels[-1][1]) == level:
 		return
 	_levels.append([when, level])
-	_parts.append({"events": SfzEventList.pack([{"kind": "layers", "t": when}]), "next": 0, "offset": 0.0})
 
 
 # What set_intensity() lands on: next_boundary(), or `earliest` itself when
@@ -1508,121 +1523,6 @@ func _change_level(when: float, level: int) -> void:
 func _next_boundary(kind: String, earliest: float) -> float:
 	var t := next_boundary(kind, earliest)
 	return earliest if is_inf(t) else t
-
-
-# A change landing, at `at` seconds from the top.
-func _land(at: float) -> void:
-	var before := _level_at(at - 1e-6)
-	var after := _level_at(at)
-	if before == after:
-		return
-	# Leaving: what the lane is holding is let go at the boundary.
-	for off: Dictionary in _offs:
-		var off_event: Dictionary = off["event"]
-		if off_event.has("layer") and not _in_layer(off_event, after) \
-				and float(off["note_end"]) > at:
-			off["note_end"] = maxf(at, float(off["start"]) + 0.01)
-			off_event["duration"] = float(off["note_end"]) - float(off["start"])
-			off["end"] = _clamped(off)
-	_offs.sort_custom(_sooner)
-	var still: Array = []
-	for item: Dictionary in _sounding:
-		var item_event: Dictionary = item["event"]
-		if item_event.has("layer") and not _in_layer(item_event, after) \
-				and float(item["note_end"]) > at:
-			var early := item.duplicate()
-			early["event"] = item_event.duplicate()
-			early["end"] = maxf(at, float(item["start"]) + 0.01)
-			_release(early)
-		else:
-			still.append(item)
-	_sounding = still
-
-	# Joining: controls first, so the notes speak at the level they should.
-	var part := {"events": [], "next": 0, "offset": 0.0}
-	for key in _held_state.keys():
-		var held: Dictionary = _held_state[key]
-		if _in_layer(held, after):
-			_held_state.erase(key)
-			_send(held, part, at)
-	var waiting: Array = []
-	for item: Dictionary in _held_notes:
-		var note: Dictionary = item["event"]
-		if not _in_layer(note, after):
-			waiting.append(item)
-			continue
-		var left := float(item["end"]) - at
-		if float(item["start"]) < at and left >= CATCH:
-			var caught := note.duplicate()
-			caught["duration"] = left
-			_send(caught, part, at)
-	_held_notes = waiting
-
-
-# An event a silent layer would have sent: kept, for as long as it could still
-# matter to the layer coming in.
-func _hold_back(event: Dictionary, at: float) -> void:
-	match event["kind"]:
-		"note":
-			_held_notes.append({"event": event, "start": at,
-				"end": at + float(event["duration"])})
-		"cc":
-			_held_state["%s|%s" % [event["part"], event["control"]]] = event
-		"art":
-			_held_state["%s|art" % event["part"]] = event
-
-
-# Every event at once, for an offline render.
-#
-# The streaming above exists because the audio thread's queue is shallow and
-# a five minute piece is bigger than it. Offline there is no queue - the
-# renderer holds the whole sorted list and walks it - so the window, the lead
-# and the tail all drop out and what is left is the same _dispatch() over the
-# same compiled events. Returns how many went out.
-#
-# A loop has to end for that, so it plays `loop_passes` times, or once if that
-# is 0; length() then says how long the render has to be. Or, given
-# `leave_at`, it plays as a game would that called leave_loop(`leave_how`)
-# at that many seconds in, with the window already sent.
-func dispatch_all(new_score: SfzScore, leave_at: float = -1.0,
-		leave_how: String = "pass", outro: bool = true) -> int:
-	if conductor == null or not conductor.is_loaded():
-		push_error("ScorePlayer: no ensemble loaded")
-		return 0
-	var passes := loop_passes
-	if passes <= 0 and leave_at < 0.0:
-		loop_passes = 1
-	if leave_at >= 0.0 and (new_score.has_loop() or not outro):
-		dispatch_until(new_score, leave_at)
-		leave_loop(leave_how, outro)
-	else:
-		dispatch_until(new_score, -INF)
-	dispatch_rest()
-	loop_passes = passes
-	return _count
-
-
-# dispatch_all() in two halves, for a caller that decides the way out itself:
-# everything a game would have sent `until` seconds in, with the piece's top
-# at `origin` on the renderer's timeline...
-func dispatch_until(new_score: SfzScore, until: float, origin: float = 0.0) -> void:
-	if conductor == null or not conductor.is_loaded():
-		push_error("ScorePlayer: no ensemble loaded")
-		return
-	_prepare(new_score)
-	# Absolute seconds, which is what the renderer means by a time. There is
-	# nothing to be late for, so there is no lead.
-	_origin = origin
-	if until > -INF:
-		_pump(until + window)
-
-
-# ...and then the rest. A loop nobody has left plays `loop_passes` times.
-func dispatch_rest() -> int:
-	if score != null and score.has_loop() and not _leaving and not _decided 			and loop_passes <= 0:
-		loop_passes = 1
-	_pump(INF)
-	return _count
 
 
 # Where the loop is left, in seconds from the top, once that is decided.
