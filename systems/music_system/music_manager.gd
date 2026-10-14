@@ -187,7 +187,8 @@ func _on_load_finished() -> void:
 ## its own in the table) is paused - every clock stops, and it carries on
 ## from the same sample afterwards. Anything else fades out and is
 ## unloaded, and the new area's music starts once the screen is back. A
-## transition still under way is paused too, rather than waited out.
+## transition still under way, or a preload, is paused too, rather than
+## waited out; after_travel() decides whether that music is ever heard again.
 ##
 ## `next` is the director's name for what plays afterwards, "" when that is
 ## not known yet; unknown music never counts as kept.
@@ -195,8 +196,7 @@ func before_travel(next: String, seconds: float) -> void:
 	_travelling = true
 	if not Music.is_playing():
 		return
-	var keeps := next != "" and (next == Music.area or not Music.table or not Music.table.has_area(next))
-	if keeps or Music.is_busy():
+	if (next != "" and _keeps(next)) or Music.is_busy():
 		if not Music.is_paused():
 			_paused_for_travel = true
 			await Music.pause(seconds)
@@ -205,12 +205,36 @@ func before_travel(next: String, seconds: float) -> void:
 
 
 ## The load before_travel() prepared for is over, done or refused.
+##
+## What plays now is decided before the music paused for the load moves: it
+## is resumed only if it is still what the game wants. Otherwise it is let go
+## of while still silent, so the place just left is never heard in the new
+## one, and the wanted music starts from silence.
 func after_travel(seconds: float) -> void:
 	_travelling = false
 	if _paused_for_travel:
 		_paused_for_travel = false
-		Music.resume(seconds)
+		if _keeps(wanted_music()):
+			Music.resume(seconds)
+		else:
+			await Music.stop_paused()
 	_reconcile()
+
+
+## Whether `music` playing next leaves what plays now as it is: the same
+## piece, or music the table does not have (which plays nothing new).
+func _keeps(music: String) -> bool:
+	return music == Music.area or not Music.table or not Music.table.has_area(music)
+
+
+## The director's name for the music the game wants now, from live state
+## alone. With no world, the title's music on the title screen, and on any
+## other front-end screen (character creation) whatever is playing.
+func wanted_music() -> String:
+	var area: AreaDefinition = WorldManager.current_area()
+	if area == null:
+		return MAIN_MENU if GameMode.current_mode() == GameMode.Mode.MAIN_MENU else Music.area
+	return music_area(area.id, wanted_moment())
 
 
 ## Only a fight in the world on SCREEN cannot wait for a phrase to end. Fights
