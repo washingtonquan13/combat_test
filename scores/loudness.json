@@ -54,7 +54,7 @@
 		},
 		"long-time-way": {
 			"ensemble": "wayfarer",
-			"gain_db": 0.8,
+			"gain_db": 1.4,
 			"lufs": -16.0,
 			"true_peak": -1.3
 		},

@@ -66,12 +66,12 @@
 //   The original drenches everything in reverb (every channel sends 110 of
 //   127, the drums 120), and a synth kit next to a sampled choir sounds as
 //   if it is in another building unless it has air of its own; so this ensemble
-//   puts the kit and the pluck in the hall and sends everything more.
+//   puts the kit in the hall and sends everything more.
 //
-//   One line is new: in the third statement a pluck plays the chord in the
-//   hats' three-three-two, root, fifth and ninth, and the upper voice of
-//   the melody goes up an octave. A third time through the same sixteen
-//   bars needs something to be different; that is all it gets.
+//   One line is new: in the third statement the upper voice of the melody
+//   goes up an octave. A third time through the same sixteen bars needs
+//   something to be different; that is all it gets. (A bright pluck on
+//   the chord used to join it, and was cut: it made the end overwhelming.)
 //
 // Form. Everything up to the drums plays once: the intro, the choir, the
 // Bb that sets out, the first statement and the four bars of hats. That is
@@ -81,7 +81,7 @@
 
 title: Long Time Way
 ensemble: wayfarer
-parts: lead cry:lead@lead lower:strings@lead keys bass root:bass@bass gallop:bass@bass pad perc hats:perc@perc fx:perc@perc
+parts: lead cry:lead@lead lower:strings@lead bass root:bass@bass gallop:bass@bass pad perc hats:perc@perc fx:perc@perc
 tempo: 120
 meter: 4/4
 key: d minor
@@ -332,8 +332,7 @@ section theme2 bars:16
     | beat_feet | % | % | fill_feet |
     | beat_feet | % | % | roll_feet |
 
-// The third time: the upper voice an octave higher, and a pluck on the
-// kit's three-three-two in the gaps.
+// The third time: the upper voice an octave higher.
 section theme3 bars:16
   bass.figure dyn:f feel:tight
     | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
@@ -358,15 +357,15 @@ section theme3 bars:16
   pad dyn:mf..f
     | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 |
     | [d3 f3 bb3]:16 | [e3 a3 c4]:16 |
-  // Third statement: both voices tremolo, an octave apart, which is as far
-  // as this scoring goes. The melody is where it always was - the octave is
-  // the original's, not ours - but nothing is held any more, and with the
-  // kit under it the pair sit on the beat rather than behind
-  // it. It is no louder than the second statement: the octave and the
-  // tremolo are the whole climb, and on top of them a crescendo and
+  // Third statement: the violins an octave up - the octave is the
+  // original's, not ours - bowed and held as in the second statement, and
+  // only the inner voice in tremolo; both voices trembling up there grated
+  // every time the loop came round. With the kit under it the pair sit on
+  // the beat rather than behind it. It is no louder than the second
+  // statement: the octave is the climb, and on top of it a crescendo and
   // marcato accents were too much. So no `!` here - on strings it is a
   // switch to the marcato samples, not just an accent.
-  lead.upper dyn:mp..mf art:tremolo feel:loose pocket:on
+  lead.upper dyn:mp..mf art:sustain feel:loose pocket:on
     | g5:4^ | f5:4_ | g5:4^ | f5:4_ |
     | e5:4_ | f5:4_ | g5:4^ | e5:4. |
     | a5:4^ | f5:4_ | g5:4^ | a5:4^ |
@@ -376,23 +375,6 @@ section theme3 bars:16
     | c4:4_ | d4:4_ | e4:4^ | c4:4. |
     | f4:4^ | d4:4_ | e4:4_ | f4:4^ |
     | e4:4_ | d4:4_ | c4:4. | e4:4^ |
-  keys dyn:mp..mf feel:tight
-    | d5:1.5! a5:1.5 e6:1 |
-    | d5:1.5! a5:1.5 e6:1 |
-    | d5:1.5! a5:1.5 e6:1 |
-    | d5:1.5! a5:1.5 e6:1 |
-    | c5:1.5! g5:1.5 e6:1 |
-    | c5:1.5! g5:1.5 e6:1 |
-    | c5:1.5! g5:1.5 e6:1 |
-    | c5:1.5! g5:1.5 e6:1 |
-    | bb4:1.5! f5:1.5 a5:1 |
-    | bb4:1.5! f5:1.5 a5:1 |
-    | bb4:1.5! f5:1.5 a5:1 |
-    | bb4:1.5! f5:1.5 a5:1 |
-    | c5:1.5! g5:1.5 e6:1 |
-    | c5:1.5! g5:1.5 e6:1 |
-    | c5:1.5! g5:1.5 e6:1 |
-    | c5:1.5! g5:1.5 e6:1 |
   hats dyn:mp feel:tight
     | hats | % | % | % |
     | hats | % | % | % |
