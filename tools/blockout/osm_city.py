@@ -190,6 +190,8 @@ def main():
                     help="lat,lon;lat,lon points inside water bodies the bbox cuts open")
     ap.add_argument("--simplify", choices=("moderate", "aggressive", "hyper"))
     ap.add_argument("--drop-ways", help="a decks.json whose simplified.dropped ways get no ground road")
+    ap.add_argument("--min-block", type=float, default=300,
+                    help="metres per side: minor streets merge blocks until each is at least this square")
     args = ap.parse_args()
     drop_ways = set()
     if args.drop_ways:
@@ -329,7 +331,8 @@ def main():
     minor = [(line, name) for line, k, up, name in roads if k in MINOR_ROADS and not up]
     network = [line for line, k, up, _ in roads if k not in MINOR_ROADS and ROAD_WIDTHS[k] > 0 and not up]
     kept, dropped, faces, n_before, n_after = streets.prune(network + rails + [line for line, _ in canals],
-                                            [line for line, _ in minor], [name for _, name in minor])
+                                            [line for line, _ in minor], [name for _, name in minor],
+                                            min_block=args.min_block ** 2)
     cover[ROAD] = _crisp([(line, STREET) for line in kept])
     log("minor streets: blocks %d -> %d, %d alleys" % (n_before, n_after, len(dropped)))
     alleys = _crisp([(line, ALLEY) for line in dropped])
@@ -629,7 +632,11 @@ def _close(geom, r):
 
 def _clean(geom):
     """Drops slivers and specks, and simplifies the outline."""
-    geom = shapely.buffer(shapely.buffer(geom, -1.0, join_style="mitre"), 1.0, join_style="mitre")
+    # The mitre limit as in _close: at the default 5 an acute corner's
+    # spike crossed a neighbouring edge, the buffer came back invalid, and
+    # make_valid filled a 0.25 km2 median hole at Carrollton solid.
+    geom = shapely.buffer(shapely.buffer(geom, -1.0, join_style="mitre", mitre_limit=2.0), 1.0,
+                          join_style="mitre", mitre_limit=2.0)
     geom = _simplify(geom, SIMPLIFY)
     geom = _polygonal(shapely.make_valid(geom))
     parts = [p for p in shapely.get_parts(geom) if p.area >= MIN_AREA]
