@@ -192,6 +192,8 @@ def main():
     ap.add_argument("--drop-ways", help="a decks.json whose simplified.dropped ways get no ground road")
     ap.add_argument("--min-block", type=float, default=300,
                     help="metres per side: minor streets merge blocks until each is at least this square")
+    ap.add_argument("--decks-from", choices=("lidar", "solver"), default="lidar",
+                    help="decks_seed --from: solver for a map that has no LiDAR of its own")
     args = ap.parse_args()
     drop_ways = set()
     if args.drop_ways:
@@ -525,7 +527,8 @@ def main():
     # The bridges: decks.json seeded (hand edits kept), then drawn, which
     # adds their own tiles to city.json.
     here = os.path.dirname(os.path.abspath(__file__))
-    subprocess.run([sys.executable, "-I", os.path.join(here, "decks_seed.py"), args.raw, args.out], check=True)
+    subprocess.run([sys.executable, "-I", os.path.join(here, "decks_seed.py"), args.raw, args.out,
+                    "--from", args.decks_from], check=True)
     if args.simplify:
         subprocess.run([sys.executable, "-I", os.path.join(here, "decks_simplify.py"), args.out, args.out,
                         "--level", args.simplify, "--raw", args.raw], check=True)
