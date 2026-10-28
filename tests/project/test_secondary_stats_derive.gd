@@ -11,7 +11,7 @@ func wants_world() -> bool:
 func run() -> void:
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	# Authored before derivation as HP 14, FP 14, Will 8, Per 12, Basic
-	# Move 5 (30 m over a 6-second turn).
+	# Move 5 (30 m over a 6-second turn, through its bonus).
 	unit.definition = load("res://data/units/demons/beast.tres")
 	var before := [unit.maximum_hp, unit.maximum_fp, unit.will, unit.perception, unit.move]
 	check("a migrated species keeps its authored secondaries",

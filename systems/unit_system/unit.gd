@@ -155,7 +155,7 @@ var maximum_fp: int:
 @onready var _equipped_items_home: Node = $EquippedItems
 
 @export_group("Movement")
-## Bonus over Basic Move — see the derived block above.
+## Bonus over Move, in meters — see the derived block above.
 @export var move_bonus: int = 0
 var move: int:
 	get: return DerivedStats.move(dexterity, health, move_bonus)

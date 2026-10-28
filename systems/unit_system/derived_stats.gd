@@ -24,14 +24,9 @@ static func perception(iq: int, bonus: int) -> int:
 	return iq + bonus
 
 
-## A combat turn here is 6 seconds, not GURPS's 1, so Move is the distance
-## covered in one: Basic Move over a whole turn. A GURPS yard is taken as
-## one meter of world, not converted.
-const TURN_SECONDS := 6
-
-
-## Basic Move = Basic Speed, (DX + HT) / 4, with the fraction dropped. The
-## bonus is in levels of Basic Move, as GURPS buys it, so Basic Move 5 is
-## 30 m a turn.
+## Meters covered in a 6-second turn. GURPS's (DX + HT) / 4 is a speed for
+## its 1-second turns; over 6 seconds, with a yard taken as a meter, that is
+## (DX + HT) * 1.5, so DX 10 HT 10 is 30 m and every point of either adds
+## 1.5 m. The bonus is in meters.
 static func move(dx: int, ht: int, bonus: int) -> int:
-	return (floori((dx + ht) / 4.0) + bonus) * TURN_SECONDS
+	return floori((dx + ht) * 1.5) + bonus
