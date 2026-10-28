@@ -14,7 +14,6 @@ display_name = "Human Barbarian"
 strength = 16
 dexterity = 16
 health = 16
-move_bonus = 19
 damage_reduction = 1
 faction = &"player"
 portrait_texture = ExtResource("4_portrait")

@@ -48,7 +48,6 @@ id = "tiefling_wizard"
 display_name = "Tiefling Wizard"
 dexterity = 18
 intelligence = 16
-move_bonus = 17
 faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
