@@ -242,7 +242,7 @@ func _spawn_enemy_beside(ally: Unit) -> Unit:
 	unit.faction = &"enemy"
 	unit.strength = 10
 	unit.dexterity = 10
-	unit.maximum_hp = 20
+	unit.hp_bonus = 20 - unit.strength
 	unit.current_hp = 20
 	var abilities: Array[Ability] = [melee()]
 	unit.abilities = abilities

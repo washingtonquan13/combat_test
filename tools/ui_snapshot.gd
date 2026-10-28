@@ -97,7 +97,7 @@ func _make_unit(shown_name: String) -> Unit:
 	unit.faction = &"player"
 	unit.strength = 12
 	unit.dexterity = 12
-	unit.maximum_hp = 20
+	unit.hp_bonus = 20 - unit.strength
 	unit.current_hp = 20
 	unit.reset_turn_actions()
 	return unit

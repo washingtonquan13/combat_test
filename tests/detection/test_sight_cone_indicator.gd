@@ -181,7 +181,7 @@ func _cones_stop_at_the_world_on_screen() -> void:
 	foreign.faction = &"enemy"
 	foreign.strength = 10
 	foreign.dexterity = 10
-	foreign.maximum_hp = 20
+	foreign.hp_bonus = 20 - foreign.strength
 	foreign.current_hp = 20
 	var abilities: Array[Ability] = [melee()]
 	foreign.abilities = abilities

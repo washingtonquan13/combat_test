@@ -158,12 +158,12 @@ layout_mode = 2
 text = "ST 10   DX 10   IQ 10   HT 10"
 horizontal_alignment = 1
 
-[node name="DerivedPlaceholder" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
-modulate = Color(0.55, 0.57, 0.64, 1)
+[node name="DerivedSummary" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
+unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Placeholder: secondary attributes are not derived from the primaries yet."
+tooltip_text = "HP = ST, FP = HT, Will = IQ, Per = IQ, Move = (DX + HT) / 4, rounded down."
 mouse_filter = 0
-text = "HP —   FP —   Will —   Per —   Move —"
+text = "HP 10   FP 10   Will 10   Per 10   Move 5"
 horizontal_alignment = 1
 
 [node name="ChecklistSeparator" type="HSeparator" parent="Margin/Root/Body/Sheet/SheetBox"]

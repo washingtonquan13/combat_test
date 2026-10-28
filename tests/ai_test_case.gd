@@ -229,7 +229,7 @@ func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 	unit.faction = faction
 	unit.strength = strength
 	unit.dexterity = dexterity
-	unit.maximum_hp = max_hp
+	unit.hp_bonus = max_hp - unit.strength
 	unit.current_hp = max_hp
 	unit.abilities = typed
 	unit.ai_smartness = 2

@@ -44,9 +44,19 @@ extends Resource
 @export var dexterity: int = 10
 @export var intelligence: int = 10
 @export var health: int = 10
-@export var move: int = 5
-@export var will: int = 10
-@export var perception: int = 10
+## Bonuses over the derived secondaries, not the secondaries themselves —
+## see DerivedStats and Unit's own derived block.
+@export var hp_bonus: int = 0
+@export var fp_bonus: int = 0
+@export var will_bonus: int = 0
+@export var perception_bonus: int = 0
+@export var move_bonus: int = 0
+
+## Read by the compendium and roster, which show a species without a Unit.
+var max_hp: int:
+	get: return DerivedStats.hp(strength, hp_bonus)
+var max_fp: int:
+	get: return DerivedStats.fp(health, fp_bonus)
 
 ## Senses — cascade onto Unit exactly like every other stat here, so a
 ## blind burrower and a hawk are the same detection code at different
@@ -56,8 +66,6 @@ extends Resource
 @export var max_sight_range: float = 18.0
 @export var proximity_radius: float = 2.5
 
-@export var max_hp: int = 10
-@export var max_fp: int = 0
 @export var damage_reduction: int = 0
 
 @export var faction: StringName = &"player"

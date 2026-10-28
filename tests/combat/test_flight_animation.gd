@@ -34,7 +34,7 @@ func _lifts_hovers_glides_and_lands() -> void:
 			and player.has_animation("Flight/Fly_Fwd") and player.has_animation("Flight/Land"))
 	check("on the ground it idles", player.current_animation == "Idle", player.current_animation)
 
-	unit.maximum_fp = 20
+	unit.fp_bonus = 20 - unit.health
 	unit.current_fp = 20
 	var used: Dictionary = await unit.use_ability(fly, unit)
 	check("SETUP: Fly was really used", unit.is_flying(), str(used))

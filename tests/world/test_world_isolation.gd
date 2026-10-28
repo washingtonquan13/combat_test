@@ -76,7 +76,7 @@ func _spawn_in(viewport: SubViewport, faction: StringName, position: Vector3) ->
 	unit.faction = faction
 	unit.strength = 12
 	unit.dexterity = 12
-	unit.maximum_hp = 30
+	unit.hp_bonus = 30 - unit.strength
 	unit.current_hp = 30
 	var abilities: Array[Ability] = [melee()]
 	unit.abilities = abilities

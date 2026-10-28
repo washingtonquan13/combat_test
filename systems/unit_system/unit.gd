@@ -37,13 +37,13 @@ extends CharacterBody3D
 			dexterity = definition.dexterity
 			intelligence = definition.intelligence
 			health = definition.health
-			will = definition.will
-			perception = definition.perception
-			move = definition.move
-			maximum_hp = definition.max_hp
-			current_hp = definition.max_hp
-			maximum_fp = definition.max_fp
-			current_fp = definition.max_fp
+			hp_bonus = definition.hp_bonus
+			fp_bonus = definition.fp_bonus
+			will_bonus = definition.will_bonus
+			perception_bonus = definition.perception_bonus
+			move_bonus = definition.move_bonus
+			current_hp = maximum_hp
+			current_fp = maximum_fp
 			damage_reduction = definition.damage_reduction
 			abilities = definition.abilities
 			# Resolved, not raw: a species normally names an AiArchetype
@@ -88,13 +88,33 @@ var _pending_state: Dictionary = {}
 @export var dexterity: int = 10
 @export var intelligence: int = 10
 @export var health: int = 10
-@export var will: int = 10
-@export var perception: int = 10
 
+## The secondary characteristics are derived, never stored — see
+## DerivedStats. What a unit authors is only its bonus over the formula
+## (a GURPS bought or sold level), so a change to an attribute carries
+## through. These are the unmodified values; get_stat() is the one that
+## adds status and gear modifiers, and derives from the modified
+## attributes. Assigning one is a mistake (it would silently do nothing),
+## so the setter says so.
+@export var hp_bonus: int = 0
+@export var fp_bonus: int = 0
+@export var will_bonus: int = 0
+@export var perception_bonus: int = 0
 
-@export var maximum_hp: int = 10
+var will: int:
+	get: return DerivedStats.will(intelligence, will_bonus)
+	set(_value): _refuse_derived_write("will", "will_bonus")
+var perception: int:
+	get: return DerivedStats.perception(intelligence, perception_bonus)
+	set(_value): _refuse_derived_write("perception", "perception_bonus")
+var maximum_hp: int:
+	get: return DerivedStats.hp(strength, hp_bonus)
+	set(_value): _refuse_derived_write("maximum_hp", "hp_bonus")
+var maximum_fp: int:
+	get: return DerivedStats.fp(health, fp_bonus)
+	set(_value): _refuse_derived_write("maximum_fp", "fp_bonus")
+
 @export var current_hp: int = 10
-@export var maximum_fp: int = 10
 @export var current_fp: int = 10
 
 @export_group("Senses")
@@ -135,7 +155,11 @@ var _pending_state: Dictionary = {}
 @onready var _equipped_items_home: Node = $EquippedItems
 
 @export_group("Movement")
-@export var move: int = 5
+## Bonus over Basic Move — see the derived block above.
+@export var move_bonus: int = 0
+var move: int:
+	get: return DerivedStats.move(dexterity, health, move_bonus)
+	set(_value): _refuse_derived_write("move", "move_bonus")
 ## Real-time speed (world units/sec) while executing a move order. Distinct
 ## from `move`, which is the per-turn distance budget in combat.
 @export var move_speed: float = 4.0
@@ -1223,6 +1247,10 @@ func get_attribute_value(attribute_name: String) -> int:
 	return get_stat(attribute_name)
 
 
+func _refuse_derived_write(stat: String, bonus: String) -> void:
+	push_error("Unit '%s': %s is derived from the attributes; set %s instead." % [name, stat, bonus])
+
+
 ## Effective value of a named stat — base field plus every currently
 ## active modifier (status effects today, equipment later once it grants
 ## any — see stat_modifier() below). The base fields themselves
@@ -1237,10 +1265,10 @@ func get_stat(stat_name: String) -> int:
 		"DX": base = dexterity
 		"IQ": base = intelligence
 		"HT": base = health
-		"Will": base = will
-		"Per": base = perception
+		"Will": base = DerivedStats.will(get_stat("IQ"), will_bonus)
+		"Per": base = DerivedStats.perception(get_stat("IQ"), perception_bonus)
 		"DR": base = damage_reduction
-		"Move": base = move
+		"Move": base = DerivedStats.move(get_stat("DX"), get_stat("HT"), move_bonus)
 	return base + stat_modifier(stat_name)
 
 

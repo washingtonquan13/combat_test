@@ -370,13 +370,13 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	data.dexterity = unit.dexterity
 	data.intelligence = unit.intelligence
 	data.health = unit.health
-	data.will = unit.will
-	data.perception = unit.perception
-	data.move = unit.move
+	data.hp_bonus = unit.hp_bonus
+	data.fp_bonus = unit.fp_bonus
+	data.will_bonus = unit.will_bonus
+	data.perception_bonus = unit.perception_bonus
+	data.move_bonus = unit.move_bonus
 	data.move_speed = unit.move_speed
-	data.maximum_hp = unit.maximum_hp
 	data.current_hp = unit.current_hp
-	data.maximum_fp = unit.maximum_fp
 	data.current_fp = unit.current_fp
 	data.damage_reduction = unit.damage_reduction
 	data.alignment = unit.alignment
@@ -536,13 +536,13 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 		"dexterity": record.dexterity,
 		"intelligence": record.intelligence,
 		"health": record.health,
-		"will": record.will,
-		"perception": record.perception,
-		"move": record.move,
+		"hp_bonus": record.hp_bonus,
+		"fp_bonus": record.fp_bonus,
+		"will_bonus": record.will_bonus,
+		"perception_bonus": record.perception_bonus,
+		"move_bonus": record.move_bonus,
 		"move_speed": record.move_speed,
-		"maximum_hp": record.maximum_hp,
 		"current_hp": record.current_hp,
-		"maximum_fp": record.maximum_fp,
 		"current_fp": record.current_fp,
 		"damage_reduction": record.damage_reduction,
 		"alignment": record.alignment,
@@ -617,13 +617,13 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 	record.dexterity = entry.get("dexterity", record.dexterity)
 	record.intelligence = entry.get("intelligence", record.intelligence)
 	record.health = entry.get("health", record.health)
-	record.will = entry.get("will", record.will)
-	record.perception = entry.get("perception", record.perception)
-	record.move = entry.get("move", record.move)
+	record.hp_bonus = entry.get("hp_bonus", record.hp_bonus)
+	record.fp_bonus = entry.get("fp_bonus", record.fp_bonus)
+	record.will_bonus = entry.get("will_bonus", record.will_bonus)
+	record.perception_bonus = entry.get("perception_bonus", record.perception_bonus)
+	record.move_bonus = entry.get("move_bonus", record.move_bonus)
 	record.move_speed = entry.get("move_speed", record.move_speed)
-	record.maximum_hp = entry.get("maximum_hp", record.maximum_hp)
 	record.current_hp = entry.get("current_hp", record.current_hp)
-	record.maximum_fp = entry.get("maximum_fp", record.maximum_fp)
 	record.current_fp = entry.get("current_fp", record.current_fp)
 	record.damage_reduction = entry.get("damage_reduction", record.damage_reduction)
 	record.alignment = entry.get("alignment", record.alignment)
@@ -716,13 +716,13 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	unit.dexterity = record.dexterity
 	unit.intelligence = record.intelligence
 	unit.health = record.health
-	unit.will = record.will
-	unit.perception = record.perception
-	unit.move = record.move
+	unit.hp_bonus = record.hp_bonus
+	unit.fp_bonus = record.fp_bonus
+	unit.will_bonus = record.will_bonus
+	unit.perception_bonus = record.perception_bonus
+	unit.move_bonus = record.move_bonus
 	unit.move_speed = record.move_speed
-	unit.maximum_hp = record.maximum_hp
 	unit.current_hp = record.current_hp
-	unit.maximum_fp = record.maximum_fp
 	unit.current_fp = record.current_fp
 	unit.damage_reduction = record.damage_reduction
 	unit.alignment = record.alignment

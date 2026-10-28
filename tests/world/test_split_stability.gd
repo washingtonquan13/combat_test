@@ -223,7 +223,7 @@ func _a_half_abstract_group_is_embodied_whole() -> void:
 	absent.id = &"probe_absent"
 	absent.display_name = "Absent"
 	absent.faction = &"player"
-	absent.maximum_hp = 10
+	absent.hp_bonus = 10 - absent.strength
 	absent.current_hp = 10
 	group.records.append(absent)
 

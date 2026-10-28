@@ -53,9 +53,12 @@ extends Resource
 @export var dexterity: int = 10
 @export var intelligence: int = 10
 @export var health: int = 10
-@export var will: int = 10
-@export var perception: int = 10
-@export var move: int = 5
+## Bonuses over the derived secondaries — see DerivedStats.
+@export var hp_bonus: int = 0
+@export var fp_bonus: int = 0
+@export var will_bonus: int = 0
+@export var perception_bonus: int = 0
+@export var move_bonus: int = 0
 ## Real-time physical movement speed — distinct from move (the tactical
 ## move-budget stat) the same way it's distinct on Unit itself. Missing
 ## this was a silent bug of the exact same shape selected_color's own doc
@@ -66,9 +69,11 @@ extends Resource
 ## hand-placed node.
 @export var move_speed: float = 4.0
 
-@export var maximum_hp: int = 10
+var maximum_hp: int:
+	get: return DerivedStats.hp(strength, hp_bonus)
+var maximum_fp: int:
+	get: return DerivedStats.fp(health, fp_bonus)
 @export var current_hp: int = 10
-@export var maximum_fp: int = 10
 @export var current_fp: int = 10
 @export var damage_reduction: int = 0
 

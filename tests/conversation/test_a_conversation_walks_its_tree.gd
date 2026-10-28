@@ -276,7 +276,7 @@ func _costs() -> void:
 	await d.choose("Pay 3.")
 	check("gold it can afford is spent", CurrencyManager.gold == 2)
 
-	ada.maximum_fp = 10
+	ada.fp_bonus = 10 - ada.health
 	ada.current_fp = 3
 	await d.choose("Again.")
 	d.clear_events()

@@ -14,9 +14,10 @@ extends UIScreen
 ## every tab at once regardless of which one is currently showing.
 ## For the same reason a character sheet (portrait, name, attribute
 ## summary, a checklist of what Confirm is waiting for) sits beside the
-## tabs and stays visible whichever tab is open. The Origin tab and the
-## sheet's derived-stats line are deliberate placeholders: disabled
-## controls laid out for choices that are not built yet. The DEBUG
+## tabs and stays visible whichever tab is open; its derived-stats line
+## follows the attribute steppers through DerivedStats, the same formulas
+## the spawned unit uses. The Origin tab is a deliberate placeholder:
+## disabled controls laid out for choices that are not built yet. The DEBUG
 ## Auto-Fill/Quick Create buttons show in debug builds only.
 ##
 ## A UIScreen living permanently under MainRoot's CanvasLayer, NOT a
@@ -102,6 +103,7 @@ const QUICK_CREATE_NAME: String = "Debug Hero"
 @onready var _preview_texture: TextureRect = %PreviewTexture
 @onready var _portrait_placeholder: Control = %PortraitPlaceholder
 @onready var _attribute_summary: Label = %AttributeSummary
+@onready var _derived_summary: Label = %DerivedSummary
 @onready var _checklist: Label = %Checklist
 @onready var _debug_tools: Control = %DebugTools
 @onready var _attributes_header: Label = %AttributesHeader
@@ -283,6 +285,13 @@ func _refresh_attributes() -> void:
 	for attr in ATTRIBUTE_NAMES:
 		parts.append("%s %d" % [ATTRIBUTE_TAGS[attr], _attribute_values[attr]])
 	_attribute_summary.text = "   ".join(parts)
+	var st: int = _attribute_values["strength"]
+	var dx: int = _attribute_values["dexterity"]
+	var iq: int = _attribute_values["intelligence"]
+	var ht: int = _attribute_values["health"]
+	_derived_summary.text = "HP %d   FP %d   Will %d   Per %d   Move %d" % [
+		DerivedStats.hp(st, 0), DerivedStats.fp(ht, 0), DerivedStats.will(iq, 0),
+		DerivedStats.perception(iq, 0), DerivedStats.move(dx, ht, 0)]
 	_update_confirm_state()
 
 
@@ -397,6 +406,10 @@ func _on_confirm_pressed() -> void:
 	record.dexterity = _attribute_values["dexterity"]
 	record.intelligence = _attribute_values["intelligence"]
 	record.health = _attribute_values["health"]
+	# A new character starts whole. The record's own current values default
+	# to 10, which only matched an ST 10, HT 10 character.
+	record.current_hp = record.maximum_hp
+	record.current_fp = record.maximum_fp
 	# Matches the other 3 hand-placed party members' own shared color,
 	# authored directly on each of them in test_arena.tscn — visual party
 	# consistency, not a Unit-script default. Belongs on the record itself
