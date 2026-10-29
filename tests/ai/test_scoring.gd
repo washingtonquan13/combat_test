@@ -36,9 +36,11 @@ func _threat_output() -> void:
 
 
 func _kill_value() -> void:
-	var attacker: Unit = spawn_unit(&"enemy", 12, 12, 10, [melee()], Vector3.ZERO)
-	var dangerous: Unit = spawn_unit(&"player", 16, 10, 1, [melee()], Vector3(1.0, 0.0, 0.0))
-	var harmless: Unit = spawn_unit(&"player", 8, 10, 1, [], Vector3(1.0, 0.0, 1.0))
+	# Targets on the enemy side: the party goes Downed below 0 instead of
+	# dying, so a 1-HP party member is not a kill.
+	var attacker: Unit = spawn_unit(&"player", 12, 12, 10, [melee()], Vector3.ZERO)
+	var dangerous: Unit = spawn_unit(&"enemy", 16, 10, 1, [melee()], Vector3(1.0, 0.0, 0.0))
+	var harmless: Unit = spawn_unit(&"enemy", 8, 10, 1, [], Vector3(1.0, 0.0, 1.0))
 
 	var against_dangerous := AiPlan.new(melee(), dangerous)
 	AiScorer._score_plan(attacker, against_dangerous)

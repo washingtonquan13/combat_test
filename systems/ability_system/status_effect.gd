@@ -22,6 +22,11 @@ enum StackMode {
 
 @export var behaviors: Array[StatusBehavior] = []
 
+## Whether a RemoveStatusEffect (a cure, a dispel) can take this off.
+## False for a status the rules own entering and leaving — Downed only
+## ends by being picked up, stabilized, or dying.
+@export var curable: bool = true
+
 @export_group("Apply FX")
 ## Optional VFX/SFX played the instant this status is first applied (not
 ## replayed on a REFRESH/STACK re-application — mirrors StatusBehavior.

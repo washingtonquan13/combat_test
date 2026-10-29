@@ -54,7 +54,9 @@ func handle_death() -> void:
 	# A unit on the downed rule is still is_alive() at 0 HP and below, so
 	# death is its own flag rather than read off current_hp.
 	_owner.has_died = true
-	_owner.downed_turns_left = 0
+	# Dead, not Downed. has_died is already set, so the status coming off
+	# neither counts as running out nor plays the get-up clip.
+	_owner.remove_status(UnitCombat.downed_status())
 	# Recorded first, before any of the teardown below — this is a real
 	# death (handle_death(), not expire(): a despawning summon never
 	# carries a persistent_id, since only hand-placed content does — see

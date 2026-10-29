@@ -45,13 +45,16 @@ func _minus_five_hp_is_death() -> void:
 func _hits_drain_the_timer() -> void:
 	var unit: Unit = spawn_unit(&"player", 10, 10, 10, [melee()], Vector3.ZERO)
 	unit.current_hp = -3
-	unit.downed_turns_left = 3
+	unit.apply_status(UnitCombat.downed_status())
 	unit.take_damage(1)
-	check("a hit takes a turn off the timer", unit.is_downed() and unit.downed_turns_left == 2)
+	check("a hit takes a turn off the timer", unit.is_downed() and unit.downed_turns_left() == 2)
 	check("picked up at negative HP", unit.pick_up() and not unit.is_downed() and unit.current_hp == -4)
-	unit.downed_turns_left = 1
+	unit.apply_status(UnitCombat.downed_status())
+	unit.take_damage(1)
+	unit.take_damage(1)
 	unit.take_damage(1)
 	check("the last turn running out is death", not unit.is_alive())
+	check("a cure can't take Downed off", not UnitCombat.downed_status().curable)
 
 
 func _fight_end_stabilizes() -> void:
@@ -62,7 +65,7 @@ func _fight_end_stabilizes() -> void:
 	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 	downed.current_hp = -12
-	downed.downed_turns_left = 3
+	downed.apply_status(UnitCombat.downed_status())
 	downed.downed_changed.emit(downed)
 	check("one ally down doesn't end the fight", fight.phase != Encounter.Phase.OUT_OF_COMBAT)
 	enemy.take_damage(50)

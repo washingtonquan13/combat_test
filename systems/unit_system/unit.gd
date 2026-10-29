@@ -117,9 +117,6 @@ var maximum_fp: int:
 @export var current_hp: int = 10
 @export var current_fp: int = 10
 
-## How many more of this unit's own turns it can lie Downed before it
-## dies — 0 means not Downed. See UnitCombat.take_damage for the rule.
-var downed_turns_left: int = 0
 ## Set once by UnitDeath.handle_death. Needed because a player-side unit
 ## can be alive below 0 HP, so HP alone no longer answers is_alive().
 var has_died: bool = false
@@ -1108,6 +1105,11 @@ func has_status(effect: StatusEffect) -> bool:
 	return _status_manager.has(effect)
 
 
+## 0 when the status isn't active.
+func status_turns_remaining(effect: StatusEffect) -> int:
+	return _status_manager.turns_remaining(effect)
+
+
 ## Whether any active status currently grants this unit flight — see
 ## FlightBehavior/StatusManager.grants_flight(). UnitMovement.move_to()
 ## checks this to switch NavigationGrid.find_path()'s traversal rule from
@@ -1150,7 +1152,7 @@ func tick_statuses() -> void:
 ## turn (Sleep, Stun, ...) — checked directly by move_to()/use_ability(),
 ## not just advisory.
 func status_prevents_turn() -> bool:
-	return is_downed() or _status_manager.prevents_turn()
+	return _status_manager.prevents_turn()
 
 
 ## Whether this unit is currently free to take a NEW action at all — not
@@ -1245,8 +1247,15 @@ func uses_downed_rule() -> bool:
 	return is_player_controlled() and (summoned_by == null or owned_demon != null)
 
 
+## Downed is a status (UnitCombat.downed_status) — having it is being
+## Downed.
 func is_downed() -> bool:
-	return downed_turns_left > 0 and not has_died
+	return not has_died and has_status(UnitCombat.downed_status())
+
+
+## Turns left before a Downed unit dies; 0 when not Downed.
+func downed_turns_left() -> int:
+	return _combat.downed_turns_left()
 
 
 ## Damage this unit can still take before it is dead — current_hp for
@@ -1261,10 +1270,10 @@ func pick_up() -> bool:
 	return _combat.pick_up()
 
 
-## Takes one turn off the Downed timer — the encounter calls this at the
-## start of each of a Downed unit's own turns instead of giving it one.
-func tick_downed() -> void:
-	_combat.lose_downed_turn()
+## Death by any cause other than damage — Downed's timer running out
+## (DieOnExpireBehavior).
+func die() -> void:
+	_combat._die()
 
 
 ## Combat ended with this unit Downed: up at 1 HP.
@@ -1476,7 +1485,6 @@ func save_state() -> Dictionary:
 		"flight_altitude": flight_target_altitude,
 		"move_remaining": move_remaining,
 		"has_attacked": has_attacked,
-		"downed_turns": downed_turns_left,
 		"statuses": _status_manager.save_state(),
 	}
 
@@ -1496,7 +1504,6 @@ func _apply_pending_state() -> void:
 
 	current_hp = int(state.get("hp", current_hp))
 	current_fp = int(state.get("fp", current_fp))
-	downed_turns_left = int(state.get("downed_turns", 0))
 	flight_target_altitude = float(state.get("flight_altitude", flight_target_altitude))
 	move_remaining = float(state.get("move_remaining", move_remaining))
 	has_attacked = bool(state.get("has_attacked", has_attacked))

@@ -478,12 +478,13 @@ func _advance_turn() -> void:
 		_advance_turn.call_deferred()
 		return
 
-	# A Downed unit's turn is just its timer running down — it never gets
-	# turn_started, so nothing (player input, CombatAI) tries to act.
+	# A Downed unit's turn is just its timer running down (tick_statuses
+	# above already took the turn off, and killed it if that was the
+	# last) — it never gets turn_started, so nothing (player input,
+	# CombatAI) tries to act.
 	if unit.is_downed():
-		unit.tick_downed()
-		if phase == Phase.OUT_OF_COMBAT:
-			return
+		SystemLog.print("%s is down — %d turn%s left to be picked up." % [
+			LogFormat.unit_name(unit), unit.downed_turns_left(), "" if unit.downed_turns_left() == 1 else "s"])
 		_advance_turn.call_deferred()
 		return
 

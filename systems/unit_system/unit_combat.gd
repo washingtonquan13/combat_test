@@ -38,10 +38,6 @@ const CRIT_FAIL_PENALTY: StatusEffect = preload("res://data/statuses/crit_fail_p
 ## own header for why it used to be Flying-status-only and no longer is.
 const PICK_UP: Ability = preload("res://data/abilities/pick_up.tres")
 
-## How many of its own turns a Downed unit lies there before it dies.
-## Each hit it takes while Downed also takes one off.
-const DOWNED_TURNS: int = 3
-
 ## Multiples of HP below zero at which a unit on the downed rule is dead
 ## outright, no roll — GURPS's -5x HP.
 const DEATH_DEPTH: int = 5
@@ -556,7 +552,7 @@ func heal(amount: int) -> int:
 ## HP. Each time a hit carries it past a threshold — 0, -1x HP, -2x HP,
 ## -3x HP, -4x HP — it rolls HT once, at the deepest threshold reached,
 ## or goes Downed. -5x HP is death outright. GURPS's negative-HP death
-## checks, turned into a downed state: see DOWNED_TURNS.
+## checks, turned into a downed state: see downed_status().
 ##
 ## A Downed unit has no further rolls; every hit on it instead takes a
 ## turn off its timer, on top of the damage.
@@ -568,12 +564,17 @@ func take_damage(amount: int) -> void:
 	_owner.current_hp = max(before - amount, floor_hp)
 	_owner.took_damage.emit(_owner, amount)
 	SystemLog.print(_damage_log_line(amount))
+	var was_downed: bool = _owner.is_downed()
+	# Downed's own behaviors take the hit off its timer here — and can
+	# kill outright, if that was the last turn.
 	_owner.notify_status_of_damage(amount)
+	if _owner.has_died:
+		return
 
 	if _owner.current_hp <= floor_hp:
 		_die()
-	elif _owner.is_downed():
-		lose_downed_turn()
+	elif was_downed:
+		_log_downed_turns_left()
 	else:
 		var crossed: int = _thresholds_crossed(before, _owner.current_hp)
 		if crossed > 0:
@@ -591,22 +592,33 @@ func hp_to_death() -> int:
 func pick_up() -> bool:
 	if not _owner.is_downed():
 		return false
-	_owner.downed_turns_left = 0
+	_owner.remove_status(downed_status())
 	SystemLog.print("%s is back on their feet at %d HP." % [LogFormat.unit_name(_owner), _owner.current_hp])
 	_owner.downed_changed.emit(_owner)
 	return true
 
 
-func lose_downed_turn() -> void:
-	if not _owner.is_downed():
-		return
-	_owner.downed_turns_left -= 1
-	if _owner.downed_turns_left <= 0:
-		SystemLog.print("%s was not picked up in time." % LogFormat.unit_name(_owner))
-		_die()
-	else:
+## The Downed status (data/statuses/downed.tres) is the only record of
+## being Downed: its turns_remaining is the timer, its behaviors drain it
+## on hits and kill on expiry. Loaded rather than preloaded — the .tres's
+## behavior scripts name Unit, which names this.
+static var _downed_status: StatusEffect
+
+static func downed_status() -> StatusEffect:
+	if _downed_status == null:
+		_downed_status = load("res://data/statuses/downed.tres")
+	return _downed_status
+
+
+func downed_turns_left() -> int:
+	return _owner.status_turns_remaining(downed_status())
+
+
+func _log_downed_turns_left() -> void:
+	var left: int = downed_turns_left()
+	if left > 0:
 		SystemLog.print("%s is down — %d turn%s left to be picked up." % [
-			LogFormat.unit_name(_owner), _owner.downed_turns_left, "" if _owner.downed_turns_left == 1 else "s"])
+			LogFormat.unit_name(_owner), left, "" if left == 1 else "s"])
 
 
 func stabilize() -> void:
@@ -614,7 +626,7 @@ func stabilize() -> void:
 		return
 	var before: int = _owner.current_hp
 	_owner.current_hp = 1
-	_owner.downed_turns_left = 0
+	_owner.remove_status(downed_status())
 	SystemLog.print("%s is stabilized at 1 HP." % LogFormat.unit_name(_owner))
 	_owner.healed.emit(_owner, _owner.current_hp - before)
 	_owner.downed_changed.emit(_owner)
@@ -644,9 +656,8 @@ func _roll_to_stay_up(crossed: int) -> void:
 		LogFormat.unit_name(_owner), penalty, roll["roll"], roll["target"], verdict])
 	if roll["success"]:
 		return
-	_owner.downed_turns_left = DOWNED_TURNS
-	_owner.ground_if_flying()
-	SystemLog.print("[b]%s is Downed![/b] %d turns to be picked up." % [LogFormat.unit_name(_owner), DOWNED_TURNS])
+	_owner.apply_status(downed_status())
+	SystemLog.print("[b]%s is Downed![/b] %d turns to be picked up." % [LogFormat.unit_name(_owner), downed_turns_left()])
 	_owner.downed_changed.emit(_owner)
 
 

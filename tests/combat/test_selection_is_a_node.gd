@@ -232,7 +232,7 @@ func _a_dead_unit_is_deselected_and_unhighlighted() -> void:
 	# Through real damage, the same path UnitCombat takes to reach
 	# handle_death. death_cleanup_delay is 2.0s on unit.tscn, so the node
 	# is still here to be asked these questions.
-	unit.take_damage(unit.current_hp)
+	unit.take_damage(unit.hp_to_death())
 
 	check("a dead unit is not selected", not unit.is_selected)
 	check("a dead unit is out of SelectionManager's list",

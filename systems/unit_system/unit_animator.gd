@@ -436,7 +436,8 @@ func _on_status_applied(_affected_unit: Unit, effect: StatusEffect) -> void:
 
 
 func _on_status_removed(_affected_unit: Unit, effect: StatusEffect) -> void:
-	if effect != unit.posed_status:
+	# A dead unit's statuses coming off is no recovery — keep the death clip.
+	if effect != unit.posed_status or not unit.is_alive():
 		return
 	unit.posed_status = null
 	unit.visual_state = Unit.VisualState.STANDING

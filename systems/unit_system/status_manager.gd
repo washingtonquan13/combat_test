@@ -109,6 +109,11 @@ func has(effect: StatusEffect) -> bool:
 	return _find(effect) != null
 
 
+func turns_remaining(effect: StatusEffect) -> int:
+	var existing: ActiveStatus = _find(effect)
+	return existing.turns_remaining if existing else 0
+
+
 func _find(effect: StatusEffect) -> ActiveStatus:
 	for a in active:
 		if a.effect == effect:
