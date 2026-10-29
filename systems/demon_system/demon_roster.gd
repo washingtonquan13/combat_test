@@ -130,6 +130,7 @@ func save_state() -> Dictionary:
 			"current_hp": owned.current_hp,
 			"current_fp": owned.current_fp,
 			"has_been_summoned": owned.has_been_summoned,
+			"is_dead": owned.is_dead,
 		})
 	return {
 		"owned": entries,
@@ -149,5 +150,6 @@ func load_state(state: Dictionary) -> void:
 		owned.current_hp = entry.get("current_hp", species.max_hp)
 		owned.current_fp = entry.get("current_fp", species.max_fp)
 		owned.has_been_summoned = entry.get("has_been_summoned", false)
+		owned.is_dead = entry.get("is_dead", false)
 		_owned.append(owned)
 	max_active_summons = state.get("max_active_summons", DEFAULT_MAX_ACTIVE_SUMMONS)

@@ -24,3 +24,6 @@ extends Resource
 ## is built. Still real per-instance state, which is exactly why this
 ## whole class exists instead of a bare species reference.
 @export var has_been_summoned: bool = false
+## Died in battle. Stays in the roster rather than being released so it
+## can be revived later; until then it can't be summoned.
+@export var is_dead: bool = false

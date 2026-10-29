@@ -36,6 +36,16 @@ const CRIT_FAIL_PENALTY: StatusEffect = preload("res://data/statuses/crit_fail_p
 ## applied directly here rather than through StatusManager's per-status
 ## aggregation the way Prone/Bless/etc. are. See AltitudeAdvantageBehavior's
 ## own header for why it used to be Flying-status-only and no longer is.
+const PICK_UP: Ability = preload("res://data/abilities/pick_up.tres")
+
+## How many of its own turns a Downed unit lies there before it dies.
+## Each hit it takes while Downed also takes one off.
+const DOWNED_TURNS: int = 3
+
+## Multiples of HP below zero at which a unit on the downed rule is dead
+## outright, no roll — GURPS's -5x HP.
+const DEATH_DEPTH: int = 5
+
 const ALTITUDE_ADVANTAGE: AltitudeAdvantageBehavior = preload("res://data/altitude_advantage.tres")
 
 
@@ -198,7 +208,12 @@ func default_ability() -> Ability:
 ## ability before checking hostility (rather than after) is what makes
 ## that possible — the routing decision depends on which ability would
 ## actually be used, not a fixed rule.
+##
+## A Downed ally takes priority over all of that: clicking one with
+## nothing armed picks it up (PICK_UP).
 func resolve_click_ability(acting_unit: Unit) -> Ability:
+	if not AbilityManager.armed_ability and _owner.is_downed() 			and acting_unit != _owner and not acting_unit.is_hostile_to(_owner):
+		return PICK_UP
 	var ability: Ability = AbilityManager.armed_ability if AbilityManager.armed_ability else acting_unit.default_ability()
 	if not ability:
 		return null
@@ -537,28 +552,114 @@ func heal(amount: int) -> int:
 	return applied
 
 
+## A unit on the downed rule (Unit.uses_downed_rule) keeps going below 0
+## HP. Each time a hit carries it past a threshold — 0, -1x HP, -2x HP,
+## -3x HP, -4x HP — it rolls HT once, at the deepest threshold reached,
+## or goes Downed. -5x HP is death outright. GURPS's negative-HP death
+## checks, turned into a downed state: see DOWNED_TURNS.
+##
+## A Downed unit has no further rolls; every hit on it instead takes a
+## turn off its timer, on top of the damage.
 func take_damage(amount: int) -> void:
 	if amount <= 0:
 		return
-	_owner.current_hp = max(_owner.current_hp - amount, 0)
+	var before: int = _owner.current_hp
+	var floor_hp: int = -DEATH_DEPTH * _hp_step() if _owner.uses_downed_rule() else 0
+	_owner.current_hp = max(before - amount, floor_hp)
 	_owner.took_damage.emit(_owner, amount)
 	SystemLog.print(_damage_log_line(amount))
 	_owner.notify_status_of_damage(amount)
-	if _owner.current_hp == 0:
-		SystemLog.print(_death_log_line())
-		# A demon reduced to 0 HP by real damage is permanently lost, not
-		# just off the field — unlike DismissEffect (a deliberate
-		# withdrawal, which syncs state back and leaves the roster entry
-		# intact) or UnitDeath.expire() (a timed summon's own tracking
-		# running out). Both of those still emit this exact same died
-		# signal, so this can only be decided at THIS call site, not by
-		# listening to died generically.
-		if _owner.owned_demon:
-			DemonRoster.release(_owner.owned_demon)
-		# Cleanup BEFORE the signal, not after — died listeners (e.g.
-		# CombatManager's navmesh rebake, which needs to see whether this
-		# corpse still carves — see UnitDeath.handle_death) should observe
-		# the unit's final post-death state, not catch it mid-death since
-		# signal emission is synchronous.
-		_owner.handle_death()
-		_owner.died.emit(_owner)
+
+	if _owner.current_hp <= floor_hp:
+		_die()
+	elif _owner.is_downed():
+		lose_downed_turn()
+	else:
+		var crossed: int = _thresholds_crossed(before, _owner.current_hp)
+		if crossed > 0:
+			_roll_to_stay_up(crossed)
+
+
+func hp_to_death() -> int:
+	if _owner.uses_downed_rule():
+		return _owner.current_hp + DEATH_DEPTH * _hp_step()
+	return _owner.current_hp
+
+
+## Clears Downed and leaves HP negative — getting back up does not heal
+## anything. No roll until the next threshold.
+func pick_up() -> bool:
+	if not _owner.is_downed():
+		return false
+	_owner.downed_turns_left = 0
+	SystemLog.print("%s is back on their feet at %d HP." % [LogFormat.unit_name(_owner), _owner.current_hp])
+	_owner.downed_changed.emit(_owner)
+	return true
+
+
+func lose_downed_turn() -> void:
+	if not _owner.is_downed():
+		return
+	_owner.downed_turns_left -= 1
+	if _owner.downed_turns_left <= 0:
+		SystemLog.print("%s was not picked up in time." % LogFormat.unit_name(_owner))
+		_die()
+	else:
+		SystemLog.print("%s is down — %d turn%s left to be picked up." % [
+			LogFormat.unit_name(_owner), _owner.downed_turns_left, "" if _owner.downed_turns_left == 1 else "s"])
+
+
+func stabilize() -> void:
+	if not _owner.is_downed():
+		return
+	var before: int = _owner.current_hp
+	_owner.current_hp = 1
+	_owner.downed_turns_left = 0
+	SystemLog.print("%s is stabilized at 1 HP." % LogFormat.unit_name(_owner))
+	_owner.healed.emit(_owner, _owner.current_hp - before)
+	_owner.downed_changed.emit(_owner)
+
+
+## Thresholds sit at 0 and every negative multiple of HP above the death
+## line. Reaching one exactly counts as crossing it.
+func _thresholds_crossed(before: int, after: int) -> int:
+	var crossed: int = 0
+	for depth in DEATH_DEPTH:
+		var threshold: int = -depth * _hp_step()
+		if before > threshold and after <= threshold:
+			crossed += 1
+	return crossed
+
+
+## HT, minus 1 per full multiple of HP below zero (the GURPS depth
+## penalty), minus 1 more per threshold this one hit crossed — a single
+## blow that goes through several is that much harder to stay standing
+## through.
+func _roll_to_stay_up(crossed: int) -> void:
+	var depth: int = -_owner.current_hp / _hp_step() if _owner.current_hp < 0 else 0
+	var penalty: int = depth + crossed
+	var roll: Dictionary = SuccessRoll.roll_vs(_owner.health - penalty)
+	var verdict: String = "stays up" if roll["success"] else "goes down"
+	SystemLog.print("%s rolls HT-%d to stay up: %d vs %d — %s." % [
+		LogFormat.unit_name(_owner), penalty, roll["roll"], roll["target"], verdict])
+	if roll["success"]:
+		return
+	_owner.downed_turns_left = DOWNED_TURNS
+	_owner.ground_if_flying()
+	SystemLog.print("[b]%s is Downed![/b] %d turns to be picked up." % [LogFormat.unit_name(_owner), DOWNED_TURNS])
+	_owner.downed_changed.emit(_owner)
+
+
+func _hp_step() -> int:
+	return maxi(_owner.maximum_hp, 1)
+
+
+## A dead owned demon stays in the roster, marked dead, rather than being
+## released — so it can be revived.
+func _die() -> void:
+	SystemLog.print(_death_log_line())
+	if _owner.owned_demon:
+		_owner.owned_demon.current_hp = _owner.current_hp
+		_owner.owned_demon.is_dead = true
+	_owner.handle_death()
+	_owner.died.emit(_owner)

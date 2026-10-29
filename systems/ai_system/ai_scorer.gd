@@ -466,7 +466,7 @@ static func _apply_positional_value(unit: Unit, plan: AiPlan) -> void:
 ## hostile, since that is the same figure negated.
 static func _death_probability(unit: Unit, position: Vector3) -> float:
 	var threat: float = -score_position(unit, position)
-	return clampf(threat / max(float(unit.current_hp), 1.0), 0.0, 1.0)
+	return clampf(threat / max(float(unit.hp_to_death()), 1.0), 0.0, 1.0)
 
 
 ## Whether this plan actually lands an attack this turn, and so has
@@ -687,9 +687,9 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 		# wants "expected damage," which means clamping overkill from the
 		# very first tier that reasons about damage at all, not something
 		# gated to a later tier.
-		value = minf(hit_value, float(plan.target.current_hp))
+		value = minf(hit_value, float(plan.target.hp_to_death()))
 
-		if tier >= 2 and hit_value >= float(plan.target.current_hp):
+		if tier >= 2 and hit_value >= float(plan.target.hp_to_death()):
 			# Denying the target its own future turns — priced in the
 			# same HP currency as everything else via threat_output,
 			# rather than a flat guess. A dangerous target is now worth
@@ -701,7 +701,7 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 			# for free instead of being double-counted.
 			value += threat_output(plan.target) * KILL_HORIZON_TURNS
 		if plan.reason == "":
-			plan.reason = "attack: %.1f dmg%s" % [value, " (kills)" if hit_value >= float(plan.target.current_hp) else ""]
+			plan.reason = "attack: %.1f dmg%s" % [value, " (kills)" if hit_value >= float(plan.target.hp_to_death()) else ""]
 	elif expected_heal > 0.0 and plan.target is Unit:
 		var missing_hp: float = float(plan.target.maximum_hp - plan.target.current_hp)
 		value = minf(expected_heal, missing_hp)

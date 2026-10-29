@@ -117,6 +117,13 @@ var maximum_fp: int:
 @export var current_hp: int = 10
 @export var current_fp: int = 10
 
+## How many more of this unit's own turns it can lie Downed before it
+## dies — 0 means not Downed. See UnitCombat.take_damage for the rule.
+var downed_turns_left: int = 0
+## Set once by UnitDeath.handle_death. Needed because a player-side unit
+## can be alive below 0 HP, so HP alone no longer answers is_alive().
+var has_died: bool = false
+
 @export_group("Senses")
 ## Total width of this unit's forward vision, in degrees — 120 is a rough
 ## human field of view. Detection outside it fails regardless of distance
@@ -426,6 +433,9 @@ signal ability_used(attacker: Unit, target, result: Dictionary)
 signal took_damage(unit: Unit, amount: int)
 signal healed(unit: Unit, amount: int)
 signal died(unit: Unit)
+## Fired when this unit goes Downed and again when it stops being Downed
+## (picked up, stabilized). Not fired on death — died covers that.
+signal downed_changed(unit: Unit)
 
 ## Fired by an attack animation's Call Method Track (at the frame a
 ## weapon actually connects) or a VFX sequence's ImpactSignalStep
@@ -1140,7 +1150,7 @@ func tick_statuses() -> void:
 ## turn (Sleep, Stun, ...) — checked directly by move_to()/use_ability(),
 ## not just advisory.
 func status_prevents_turn() -> bool:
-	return _status_manager.prevents_turn()
+	return is_downed() or _status_manager.prevents_turn()
 
 
 ## Whether this unit is currently free to take a NEW action at all — not
@@ -1225,7 +1235,41 @@ func has_move_remaining() -> bool:
 
 
 func is_alive() -> bool:
-	return current_hp > 0
+	return not has_died and (current_hp > 0 or uses_downed_rule())
+
+
+## Party members and their owned demons fight on below 0 HP and go
+## Downed instead of dying — everyone else (enemies, plain summons) dies
+## at 0. See UnitCombat.take_damage.
+func uses_downed_rule() -> bool:
+	return is_player_controlled() and (summoned_by == null or owned_demon != null)
+
+
+func is_downed() -> bool:
+	return downed_turns_left > 0 and not has_died
+
+
+## Damage this unit can still take before it is dead — current_hp for
+## anyone who dies at 0, down to -5x HP for anyone on the downed rule.
+func hp_to_death() -> int:
+	return _combat.hp_to_death()
+
+
+## Clears Downed, leaving HP where it is. Returns whether the unit was
+## Downed at all.
+func pick_up() -> bool:
+	return _combat.pick_up()
+
+
+## Takes one turn off the Downed timer — the encounter calls this at the
+## start of each of a Downed unit's own turns instead of giving it one.
+func tick_downed() -> void:
+	_combat.lose_downed_turn()
+
+
+## Combat ended with this unit Downed: up at 1 HP.
+func stabilize() -> void:
+	_combat.stabilize()
 
 
 ## The name to actually show the player — display_name if one's been
@@ -1432,6 +1476,7 @@ func save_state() -> Dictionary:
 		"flight_altitude": flight_target_altitude,
 		"move_remaining": move_remaining,
 		"has_attacked": has_attacked,
+		"downed_turns": downed_turns_left,
 		"statuses": _status_manager.save_state(),
 	}
 
@@ -1451,6 +1496,7 @@ func _apply_pending_state() -> void:
 
 	current_hp = int(state.get("hp", current_hp))
 	current_fp = int(state.get("fp", current_fp))
+	downed_turns_left = int(state.get("downed_turns", 0))
 	flight_target_altitude = float(state.get("flight_altitude", flight_target_altitude))
 	move_remaining = float(state.get("move_remaining", move_remaining))
 	has_attacked = bool(state.get("has_attacked", has_attacked))

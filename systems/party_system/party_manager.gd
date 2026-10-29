@@ -87,6 +87,11 @@ var roster: Array[PartyMemberData]:
 ## PartyMemberData instead of a parallel set of loose ad hoc fields.
 var pending_leader: PartyMemberData = null
 
+## Members who died, captured at the moment of death and kept so they
+## can be revived later. Not in any group: they aren't travelling with
+## anyone.
+var fallen: Array[PartyMemberData] = []
+
 
 ## Silently refused (with a warning) for anything that isn't a core party
 ## unit — mirrors the exact guard SelectionManager.select() already
@@ -263,6 +268,7 @@ func remove_member(unit: Unit) -> void:
 
 
 func _on_member_died(unit: Unit) -> void:
+	fallen.append(_capture_one(unit))
 	remove_member(unit)
 
 
@@ -486,6 +492,7 @@ func save_state() -> Dictionary:
 		"groups": group_entries,
 		"active": maxi(0, groups.find(active_group)),
 		"members": flat,
+		"fallen": fallen.map(_save_one),
 	}
 
 
@@ -562,6 +569,9 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 func load_state(state: Dictionary) -> void:
 	groups.clear()
 	active_group = null
+	fallen.clear()
+	for entry in state.get("fallen", []):
+		fallen.append(_load_one(entry))
 
 	var entries: Array = state.get("groups", [])
 	if entries.is_empty():

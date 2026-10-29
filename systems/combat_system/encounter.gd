@@ -229,6 +229,8 @@ func _adopt(unit: Unit) -> void:
 	unit.encounter = self
 	if not unit.died.is_connected(_on_unit_died):
 		unit.died.connect(_on_unit_died)
+	if not unit.downed_changed.is_connected(_on_unit_downed_changed):
+		unit.downed_changed.connect(_on_unit_downed_changed)
 	# Anything that displaces a unit mid-turn (Knockback, Shove, Jump's
 	# move_caster_effect) finishes by emitting ability_used and none of them
 	# go through Unit.move_to(), so none trigger an occupancy update alone.
@@ -249,6 +251,8 @@ func _release(unit) -> void:
 		unit.encounter = null
 	if unit.died.is_connected(_on_unit_died):
 		unit.died.disconnect(_on_unit_died)
+	if unit.downed_changed.is_connected(_on_unit_downed_changed):
+		unit.downed_changed.disconnect(_on_unit_downed_changed)
 	if unit.ability_used.is_connected(_on_ability_used):
 		unit.ability_used.disconnect(_on_ability_used)
 
@@ -313,6 +317,9 @@ func finish(winning_faction: StringName = &"") -> void:
 
 	phase = Phase.OUT_OF_COMBAT
 	for unit in turn_order:
+		# Anyone still Downed when the fight ends survives it.
+		if is_instance_valid(unit) and unit.is_downed():
+			unit.stabilize()
 		_release(unit)
 	turn_order.clear()
 	_turn_index = -1
@@ -471,6 +478,15 @@ func _advance_turn() -> void:
 		_advance_turn.call_deferred()
 		return
 
+	# A Downed unit's turn is just its timer running down — it never gets
+	# turn_started, so nothing (player input, CombatAI) tries to act.
+	if unit.is_downed():
+		unit.tick_downed()
+		if phase == Phase.OUT_OF_COMBAT:
+			return
+		_advance_turn.call_deferred()
+		return
+
 	_log_and_emit_turn_started(unit)
 
 
@@ -502,6 +518,9 @@ func _try_disengage(unit: Unit) -> void:
 
 	for other in turn_order:
 		if other == unit or not is_instance_valid(other) or not other.is_alive():
+			continue
+		# Someone lying Downed isn't watching anybody.
+		if other.is_downed():
 			continue
 		if not unit.is_hostile_to(other):
 			continue
@@ -536,12 +555,19 @@ func _check_combat_end() -> bool:
 		if is_instance_valid(unit) and unit.is_alive():
 			living.append(unit)
 
+	# A Downed unit can't fight but can still be finished off, so a pair
+	# keeps the fight going as long as at least one of them is standing.
+	# Two Downed units can't do anything to each other.
 	for i in living.size():
 		for j in range(i + 1, living.size()):
+			if living[i].is_downed() and living[j].is_downed():
+				continue
 			if living[i].is_hostile_to(living[j]):
 				return false  # somebody here still wants to fight somebody else here
 
-	finish(living[0].faction if not living.is_empty() else &"")
+	var standing: Array[Unit] = living.filter(func(u): return not u.is_downed())
+	var winners: Array[Unit] = standing if not standing.is_empty() else living
+	finish(winners[0].faction if not winners.is_empty() else &"")
 	return true
 
 
@@ -574,6 +600,18 @@ func _on_unit_died(_unit: Unit) -> void:
 	# Confirmed by testing summon expiry — not hypothetical.
 	if phase == Phase.ACTIVE and current_unit != null and not current_unit.is_alive():
 		_advance_turn.call_deferred()
+
+
+## Going Downed can end the fight (the last one standing on a side just
+## went down) and, mid-turn, ends that unit's turn. Getting picked up
+## needs nothing here: a picked-up unit simply gets its next turn.
+func _on_unit_downed_changed(unit: Unit) -> void:
+	if phase == Phase.OUT_OF_COMBAT or not unit.is_downed():
+		return
+	if _check_combat_end():
+		return
+	if phase == Phase.ACTIVE and unit == current_unit:
+		end_turn.call_deferred()
 
 
 ## Knockback, Shove, Jump's move_caster_effect and anything else that

@@ -137,9 +137,9 @@ func _show_demon_picker() -> void:
 		SystemLog.print("No demons in your roster yet.")
 		return
 
-	var available: Array[OwnedDemon] = owned.filter(func(entry: OwnedDemon): return not DemonRoster.is_fielded(entry))
+	var available: Array[OwnedDemon] = owned.filter(func(entry: OwnedDemon): return not entry.is_dead and not DemonRoster.is_fielded(entry))
 	if available.is_empty():
-		SystemLog.print("All your demons are already in the field.")
+		SystemLog.print("None of your demons can be summoned right now.")
 		return
 
 	var popup := PopupMenu.new()

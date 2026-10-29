@@ -30,6 +30,9 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 		# Defensive only — the roster entry could theoretically have been
 		# consumed by fusion between the picker opening and this resolving.
 		return {}
+	if owned_demon.is_dead:
+		SystemLog.print("%s is dead." % owned_demon.species.display_name)
+		return {}
 	if DemonRoster.is_fielded(owned_demon):
 		# The authoritative check, not just the picker's filtering below —
 		# this is what actually stops the same OwnedDemon from being
