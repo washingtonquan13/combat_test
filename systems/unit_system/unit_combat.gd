@@ -108,8 +108,9 @@ func describe_damage(damage_type: DamageType, bonus: int) -> String:
 	return text
 
 
+## Whole ST: Exhausted halves ST, but not the damage it deals (B426).
 func _damage_dice(damage_type: DamageType) -> Dictionary:
-	var st: int = floori(_owner.get_stat(StatIds.ST))
+	var st: int = floori(_owner.get_stat_unhalved(StatIds.ST))
 	return _swing_dice(st) if damage_type == DamageType.SWING else _thrust_dice(st)
 
 

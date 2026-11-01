@@ -1373,6 +1373,12 @@ func get_stat(id: StringName) -> float:
 	return _unit_stats().get_value(id)
 
 
+## get_stat before Bloodied's and Exhausted's halvings — see
+## UnitStats.get_unhalved.
+func get_stat_unhalved(id: StringName) -> float:
+	return _unit_stats().get_unhalved(id)
+
+
 ## Alias for skill_system's DefaultRule/AttributePrerequisite, which name
 ## an attribute off a .tres.
 func get_attribute_value(attribute_name: StringName) -> int:

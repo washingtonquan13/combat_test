@@ -72,7 +72,9 @@ static func evaluate(definition: StatDefinition, values: Dictionary) -> float:
 ## over its inputs' full values plus its own bonus — then, either way,
 ## its modifiers, then its multiplier (multiplier_of(id) -> float, left
 ## out where nothing can multiply — a species with no unit, chargen),
-## rounded up. base_of(id) -> int and modifier_of(id) -> int supply
+## rounded up. A multiplier is a halving of the stat itself (B419,
+## B426), so a derived stat reads its inputs whole: Exhausted halves ST
+## but not the HP that ST sets. base_of(id) -> int and modifier_of(id) -> int supply
 ## the per-unit numbers, so the same arithmetic serves a live unit
 ## (UnitStats) and a species with no unit at all (UnitDefinition).
 ## Recomputed on every read, never cached: a status landing or a gear
@@ -89,7 +91,7 @@ static func value_of(id: StringName, base_of: Callable, modifier_of: Callable, m
 	if definition.is_derived():
 		var inputs: Dictionary = {}
 		for input_id in inputs_of(definition):
-			inputs[StringName(input_id)] = value_of(StringName(input_id), base_of, modifier_of, multiplier_of)
+			inputs[StringName(input_id)] = value_of(StringName(input_id), base_of, modifier_of)
 		value += evaluate(definition, inputs)
 	value += int(modifier_of.call(id))
 	if multiplier_of.is_valid():

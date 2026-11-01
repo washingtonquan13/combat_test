@@ -45,6 +45,13 @@ func get_value(id: StringName) -> float:
 	return StatDatabase.value_of(id, _base_of, _modifier_of, _multiplier_of)
 
 
+## The value before any multiplier — flat modifiers in, halvings out.
+## What ST-based quantities read: Exhausted halves ST, but not the
+## damage it deals (B426).
+func get_unhalved(id: StringName) -> float:
+	return StatDatabase.value_of(id, _base_of, _modifier_of)
+
+
 ## Unmodified base — a primary's authored value, a derived stat's bonus.
 func get_base(id: StringName) -> int:
 	var instance := _instance(id)
