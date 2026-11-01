@@ -108,6 +108,13 @@ signal new_game_started
 const SAVE_DIR: String = "user://saves/"
 const SAVE_EXTENSION: String = ".save"
 const FORMAT_VERSION: int = 1
+## The autosave slots. Each is one file, overwritten every time, so
+## autosaves never pile up in the save list.
+const FIGHT_AUTOSAVE: String = "autosave_fight"
+const AREA_AUTOSAVE: String = "autosave_area"
+## Off for the test runner, whose fights and area loads would otherwise
+## write over the player's own autosaves.
+var autosaves_enabled: bool = true
 
 ## Where each party member was standing, BY ID rather than by position
 ## in a list. Index-matching worked only while there was one party in
@@ -297,6 +304,10 @@ func can_save() -> bool:
 	# negotiation and looting still refuse — those are live conversations
 	# and open panels with nothing serializing them, and they need their
 	# own review before that changes.
+	# A lost game is never written down: the game over screen is up, and a
+	# save of it would be a save nobody can play on from.
+	if PartyManager.is_defeated():
+		return false
 	return mode == GameMode.Mode.EXPLORATION \
 		or mode == GameMode.Mode.OVERWORLD \
 		or mode == GameMode.Mode.COMBAT
@@ -306,7 +317,10 @@ func can_save() -> bool:
 ## the filename. The filename is generated from the timestamp, so two
 ## saves named identically by the player never collide and saves sort
 ## by filename exactly as they sort by their own recorded timestamp.
-func save(save_name: String) -> bool:
+##
+## slot names a fixed file instead (see FIGHT_AUTOSAVE), overwritten by
+## the next save to the same slot.
+func save(save_name: String, slot: String = "") -> bool:
 	if not can_save():
 		push_warning("SaveManager.save refused (current_mode=%s)" % GameMode.Mode.keys()[GameMode.current_mode()])
 		return false
@@ -327,6 +341,8 @@ func save(save_name: String) -> bool:
 
 	var timestamp: int = int(Time.get_unix_time_from_system())
 	var path: String = "%s%d%s" % [SAVE_DIR, timestamp, SAVE_EXTENSION]
+	if slot != "":
+		path = SAVE_DIR + slot + SAVE_EXTENSION
 
 	var cfg := ConfigFile.new()
 	cfg.set_value("meta", "name", save_name)
@@ -334,6 +350,7 @@ func save(save_name: String) -> bool:
 	cfg.set_value("meta", "area_display_name", area.display_name)
 	cfg.set_value("meta", "leader_name", _current_leader_name())
 	cfg.set_value("meta", "format_version", FORMAT_VERSION)
+	cfg.set_value("meta", "slot", slot)
 
 	# The area the player is LOOKING at, which is the one a load rebuilds.
 	# Every other group carries its own area_id (see
@@ -660,6 +677,7 @@ func list_saves() -> Array[Dictionary]:
 			"timestamp": cfg.get_value("meta", "timestamp", 0),
 			"area_display_name": cfg.get_value("meta", "area_display_name", ""),
 			"leader_name": cfg.get_value("meta", "leader_name", ""),
+			"slot": cfg.get_value("meta", "slot", ""),
 		})
 
 	results.sort_custom(func(a, b): return a["timestamp"] > b["timestamp"])
@@ -676,6 +694,34 @@ func delete_save(path: String) -> void:
 func most_recent() -> String:
 	var saves: Array[Dictionary] = list_saves()
 	return saves[0]["path"] if not saves.is_empty() else ""
+
+
+## Saves to an autosave slot if saving is allowed right now, and quietly
+## skips it if not: a fight that starts out of a conversation has no
+## autosave of its own, and Retry falls back to the one before.
+func autosave(slot: String, save_name: String) -> void:
+	if autosaves_enabled and can_save() and WorldManager.current_area():
+		save(save_name, slot)
+
+
+## The newest save, skipping the given slot. "" when there is none.
+func most_recent_except(slot: String) -> String:
+	for entry in list_saves():
+		if entry["slot"] != slot:
+			return entry["path"]
+	return ""
+
+
+## The slot's file, or "" when it was never written.
+func slot_path(slot: String) -> String:
+	var path: String = SAVE_DIR + slot + SAVE_EXTENSION
+	return path if FileAccess.file_exists(path) else ""
+
+
+func _autosave_on_entry() -> void:
+	var area: AreaDefinition = WorldManager.current_area()
+	if area:
+		autosave(AREA_AUTOSAVE, "Autosave: %s" % area.display_name)
 
 
 func _current_leader_name() -> String:
@@ -716,6 +762,9 @@ func _capture_party_transforms() -> Dictionary:
 func _on_world_loaded(_world: Node, reason: WorldManager.Entry) -> void:
 	if reason != WorldManager.Entry.REBUILD:
 		_restore_encounters_here()
+		# Deferred, so every other listener on this signal has finished
+		# setting the new world up before it is written down.
+		_autosave_on_entry.call_deferred()
 		return
 
 	# Not emptied wholesale: one load builds every area the party is

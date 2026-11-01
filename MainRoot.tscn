@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=43 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
@@ -40,6 +40,7 @@
 [ext_resource type="Script" uid="uid://figtunvhfhvk" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
 [ext_resource type="PackedScene" path="res://systems/cinematic_system/cinematic_overlay.tscn" id="37_cineoverlay"]
 [ext_resource type="Script" path="res://ui/area_label.gd" id="38_arealabel"]
+[ext_resource type="PackedScene" path="res://ui/game_over.tscn" id="40_gameover"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_areaplate"]
 content_margin_left = 14.0
@@ -413,6 +414,12 @@ closes_on_cancel = false
 
 [node name="CharacterCreation" parent="CanvasLayer" instance=ExtResource("22_charcreate")]
 visible = false
+hides_hud = true
+blocks_input_below = true
+closes_on_cancel = false
+
+[node name="GameOver" parent="CanvasLayer" node_paths=PackedStringArray("save_load_panel") instance=ExtResource("40_gameover")]
+save_load_panel = NodePath("../SaveLoadPanel")
 hides_hud = true
 blocks_input_below = true
 closes_on_cancel = false

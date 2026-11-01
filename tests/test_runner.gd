@@ -23,6 +23,9 @@ func _ready() -> void:
 	# needs (CombatManager.in_combat, SystemLog, ...). One process frame
 	# lets them finish their own _ready before anything is asked of them.
 	await get_tree().process_frame
+	# Suites start fights and load areas; neither may write over the
+	# player's real autosaves, or be taken for the save a suite just made.
+	SaveManager.autosaves_enabled = false
 
 	var total_passes: int = 0
 	var total_failures: PackedStringArray = []

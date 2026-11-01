@@ -32,6 +32,10 @@ const UNIT_SCENE: PackedScene = preload("res://systems/unit_system/unit.tscn")
 signal member_added(unit: Unit)
 signal member_removed(unit: Unit)
 signal leader_changed(unit: Unit)
+## Nobody in the party is left standing: every member is Downed or dead.
+## Checked after a member dies or goes Downed, a frame later, so a hit
+## that downs one member and the AoE that drops the next both land first.
+signal defeated()
 
 ## Every group the party is currently divided into - see PartyGroup. One
 ## while the party is together, which is the ordinary case and the only
@@ -243,6 +247,7 @@ func add_member(unit: Unit, into: PartyGroup = null) -> void:
 		group.units.append(unit)
 	group.embodied = true
 	unit.died.connect(_on_member_died)
+	unit.downed_changed.connect(_on_member_downed_changed)
 	member_added.emit(unit)
 
 
@@ -261,6 +266,8 @@ func remove_member(unit: Unit) -> void:
 		group.units.erase(unit)
 	if unit.died.is_connected(_on_member_died):
 		unit.died.disconnect(_on_member_died)
+	if unit.downed_changed.is_connected(_on_member_downed_changed):
+		unit.downed_changed.disconnect(_on_member_downed_changed)
 	if leader == unit:
 		leader = null
 		leader_changed.emit(null)
@@ -270,6 +277,32 @@ func remove_member(unit: Unit) -> void:
 func _on_member_died(unit: Unit) -> void:
 	fallen.append(_capture_one(unit))
 	remove_member(unit)
+	_check_defeat.call_deferred()
+
+
+func _on_member_downed_changed(unit: Unit) -> void:
+	if unit.is_downed():
+		_check_defeat.call_deferred()
+
+
+## Whether nobody in the party is standing. A group off in another area
+## (not embodied) is out of harm's way, so it still counts as standing.
+## The party's summoned demons do not: losing is about the party itself.
+func is_defeated() -> bool:
+	for group in groups:
+		if not group.embodied:
+			if not group.records.is_empty():
+				return false
+			continue
+		for unit in group.units:
+			if is_instance_valid(unit) and unit.is_alive() and not unit.is_downed():
+				return false
+	return true
+
+
+func _check_defeat() -> void:
+	if is_defeated():
+		defeated.emit()
 
 
 func is_member(unit: Unit) -> bool:
@@ -407,6 +440,8 @@ func clear_members() -> void:
 	for unit in members:
 		if is_instance_valid(unit) and unit.died.is_connected(_on_member_died):
 			unit.died.disconnect(_on_member_died)
+		if is_instance_valid(unit) and unit.downed_changed.is_connected(_on_member_downed_changed):
+			unit.downed_changed.disconnect(_on_member_downed_changed)
 	for group in groups:
 		group.units.clear()
 		group.embodied = false

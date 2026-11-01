@@ -133,6 +133,11 @@ func any_combat_running() -> bool:
 ## Returns it, so a caller that needs to keep track of a specific fight
 ## can.
 func start_combat(combatants: Array[Unit], skip_first_action_for: Unit = null) -> Encounter:
+	# Before anything changes, so Retry on the game over screen puts the
+	# party back just before this fight.
+	if _involves_player(combatants):
+		SaveManager.autosave(SaveManager.FIGHT_AUTOSAVE, "Autosave: fight")
+
 	var encounter := Encounter.new()
 	encounter.name = "Encounter%d" % (encounters.size() + 1)
 	add_child(encounter)
