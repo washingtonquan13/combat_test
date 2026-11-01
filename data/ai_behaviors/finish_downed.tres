@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="FinishDownedBehavior" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/ai_system/finish_downed_behavior.gd" id="1_finish"]
+
+[resource]
+script = ExtResource("1_finish")
+bias_by_personality = Dictionary[StringName, float]({
+&"Cryptic": 1.0,
+&"Moody": 2.0,
+&"Scary": 6.0,
+&"Sly": 3.0,
+&"Wild": 4.0
+})
+default_bias = 0.0

@@ -308,7 +308,17 @@ static func _damaging_abilities(unit: Unit) -> Array[Ability]:
 ## credited for the attacks it will make BETTER from somewhere else, e.g.
 ## a flyer gaining AltitudeAdvantageBehavior's downward-fire bonus. Pass
 ## nothing for "from here."
+## A Downed unit threatens nothing — it can't act until picked up (see
+## latent_threat_output for what it WOULD threaten).
 static func threat_output(unit: Unit, position = null) -> float:
+	if unit.is_downed():
+		return 0.0
+	return latent_threat_output(unit, position)
+
+
+## threat_output regardless of being Downed: what this unit would do once
+## back on its feet. The stake in finishing a Downed unit off.
+static func latent_threat_output(unit: Unit, position = null) -> float:
 	var previous_position: Vector3 = unit.global_position
 	if position != null:
 		unit.global_position = position
@@ -677,25 +687,30 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 		unit.global_position = previous_position
 
 		var hit_value: float = expected_damage * chance
-		# Tier 0 never reaches here (see _feral_plan) — tier 1 already
-		# wants "expected damage," which means clamping overkill from the
-		# very first tier that reasons about damage at all, not something
-		# gated to a later tier.
-		value = minf(hit_value, float(plan.target.hp_to_death()))
+		if tier >= 2 and plan.target.is_downed():
+			value = _downed_hit_value(plan.target, hit_value, chance)
+			if plan.reason == "":
+				plan.reason = "attack downed: %.1f" % value
+		else:
+			# Tier 0 never reaches here (see _feral_plan) — tier 1 already
+			# wants "expected damage," which means clamping overkill from the
+			# very first tier that reasons about damage at all, not something
+			# gated to a later tier.
+			value = minf(hit_value, float(plan.target.hp_to_death()))
 
-		if tier >= 2 and hit_value >= float(plan.target.hp_to_death()):
-			# Denying the target its own future turns — priced in the
-			# same HP currency as everything else via threat_output,
-			# rather than a flat guess. A dangerous target is now worth
-			# more to kill than a harmless one, and a target already
-			# close to death collects this MORE OFTEN (less damage is
-			# needed to cross current HP) — the same "prefer finishing a
-			# nearly-dead target" preference FINISH_WEIGHT used to
-			# approximate by multiplying the base value, now falling out
-			# for free instead of being double-counted.
-			value += threat_output(plan.target) * KILL_HORIZON_TURNS
-		if plan.reason == "":
-			plan.reason = "attack: %.1f dmg%s" % [value, " (kills)" if hit_value >= float(plan.target.hp_to_death()) else ""]
+			if tier >= 2 and hit_value >= float(plan.target.hp_to_death()):
+				# Denying the target its own future turns — priced in the
+				# same HP currency as everything else via threat_output,
+				# rather than a flat guess. A dangerous target is now worth
+				# more to kill than a harmless one, and a target already
+				# close to death collects this MORE OFTEN (less damage is
+				# needed to cross current HP) — the same "prefer finishing a
+				# nearly-dead target" preference FINISH_WEIGHT used to
+				# approximate by multiplying the base value, now falling out
+				# for free instead of being double-counted.
+				value += threat_output(plan.target) * KILL_HORIZON_TURNS
+			if plan.reason == "":
+				plan.reason = "attack: %.1f dmg%s" % [value, " (kills)" if hit_value >= float(plan.target.hp_to_death()) else ""]
 	elif expected_heal > 0.0 and plan.target is Unit:
 		var missing_hp: float = float(plan.target.get_stat(StatIds.HP) - plan.target.get_pool(StatIds.HP))
 		value = minf(expected_heal, missing_hp)
@@ -710,6 +725,24 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 
 	if tier >= 3 and plan.ability.fp_cost > 0.0 and float(unit.get_pool(StatIds.FP)) - plan.ability.fp_cost < float(FP_RESERVE):
 		plan.score -= FP_CONSERVE_PENALTY
+
+
+## A hit on a Downed unit, priced by what it does to the death track
+## rather than to HP: every hit marks death (DeathRollsBehavior) and the
+## third mark kills. The kill is worth what any kill is — the turns it
+## denies, here the target's latent threat once picked up — and a hit
+## that only marks earns that kill's share for the marks still needed,
+## so the last mark is worth the whole kill. A stable unit's tracks reset
+## before the mark, so it's back to needing all of them. Critical hits'
+## double marks aren't modeled, same spirit as this file's other
+## approximations.
+static func _downed_hit_value(target: Unit, hit_value: float, chance: float) -> float:
+	var kill_value: float = latent_threat_output(target) * KILL_HORIZON_TURNS
+	if hit_value >= float(target.hp_to_death()):
+		return kill_value
+	var marked: int = 0 if target.is_stable() else int(target.downed_tally().get("death", 0))
+	var needed: int = maxi(DeathRollsBehavior.TO_END - marked, 1)
+	return kill_value * chance / float(needed)
 
 
 ## Nothing scored as usable this turn — rather than end the turn having
@@ -766,7 +799,8 @@ static func incoming_threat(unit: Unit, position: Vector3) -> float:
 
 	var threat: float = 0.0
 	for hostile in UnitQuery.living_units_near(unit):
-		if not unit.is_hostile_to(hostile):
+		# A Downed hostile can't attack anyone.
+		if not unit.is_hostile_to(hostile) or hostile.is_downed():
 			continue
 
 		var best_hit_value: float = 0.0
@@ -815,7 +849,8 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 
 	var threat: float = 0.0
 	for hostile in UnitQuery.living_units_near(unit):
-		if not unit.is_hostile_to(hostile):
+		# A Downed hostile can't attack anyone.
+		if not unit.is_hostile_to(hostile) or hostile.is_downed():
 			continue
 
 		var best_hit_value: float = 0.0
