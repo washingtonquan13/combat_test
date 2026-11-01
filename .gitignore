@@ -28,3 +28,20 @@ addons/sfzplayer/bin/~*
 
 # Rendered audio for listening checks: derived from the ensembles and scores, not source.
 renders/
+
+# Generated city blockouts (several GB of pipeline output, rebuilt by
+# tools/blockout): never versioned. Only the hand-kept jackson_square
+# files in data/blockouts are tracked.
+/data/blockouts/*/
+/world/new_orleans/
+/world/new_orleans_overworld.tscn
+/world/nola_*
+
+# Scratch probes, their renders, and Git Bash crash dumps
+/tools/_probe/
+*.stackdump
+/tools/_tmp_probe/
+# Demo videos rendered into the project root
+/*.mp4
+__pycache__/
+tools/blockout/*.pkl
