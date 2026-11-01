@@ -161,7 +161,7 @@ horizontal_alignment = 1
 [node name="DerivedSummary" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "HP = ST, FP = HT, Will = IQ, Per = IQ, Move = (DX + HT) x 1.5 meters per 6-second turn."
+tooltip_text = "HP = ST, FP = HT, Will = IQ, Per = IQ, Basic Speed = (DX + HT) / 4, Move = Basic Speed without the fraction (meters per turn), Air Move = Basic Speed x 2 without the fraction, Dodge = Move + 3."
 mouse_filter = 0
 text = "HP 10   FP 10   Will 10   Per 10   Move 30"
 horizontal_alignment = 1

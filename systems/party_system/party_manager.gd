@@ -372,19 +372,8 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	data.display_name = unit.display_name
 	data.portrait_texture = unit.portrait_texture
 	data.faction = unit.faction
-	data.strength = unit.strength
-	data.dexterity = unit.dexterity
-	data.intelligence = unit.intelligence
-	data.health = unit.health
-	data.hp_bonus = unit.hp_bonus
-	data.fp_bonus = unit.fp_bonus
-	data.will_bonus = unit.will_bonus
-	data.perception_bonus = unit.perception_bonus
-	data.move_bonus = unit.move_bonus
+	data.stats = unit.stats_to_dict()
 	data.move_speed = unit.move_speed
-	data.current_hp = unit.current_hp
-	data.current_fp = unit.current_fp
-	data.damage_reduction = unit.damage_reduction
 	data.alignment = unit.alignment
 	data.tendency = unit.tendency
 	data.abilities = unit.abilities.duplicate()
@@ -539,19 +528,8 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 		"faction": record.faction,
 		"selected_color": record.selected_color,
 		"hover_color": record.hover_color,
-		"strength": record.strength,
-		"dexterity": record.dexterity,
-		"intelligence": record.intelligence,
-		"health": record.health,
-		"hp_bonus": record.hp_bonus,
-		"fp_bonus": record.fp_bonus,
-		"will_bonus": record.will_bonus,
-		"perception_bonus": record.perception_bonus,
-		"move_bonus": record.move_bonus,
+		"stats": record.stats,
 		"move_speed": record.move_speed,
-		"current_hp": record.current_hp,
-		"current_fp": record.current_fp,
-		"damage_reduction": record.damage_reduction,
 		"alignment": record.alignment,
 		"tendency": record.tendency,
 		"abilities": abilities,
@@ -623,19 +601,8 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 	record.faction = entry.get("faction", &"player")
 	record.selected_color = entry.get("selected_color", record.selected_color)
 	record.hover_color = entry.get("hover_color", record.hover_color)
-	record.strength = entry.get("strength", record.strength)
-	record.dexterity = entry.get("dexterity", record.dexterity)
-	record.intelligence = entry.get("intelligence", record.intelligence)
-	record.health = entry.get("health", record.health)
-	record.hp_bonus = entry.get("hp_bonus", record.hp_bonus)
-	record.fp_bonus = entry.get("fp_bonus", record.fp_bonus)
-	record.will_bonus = entry.get("will_bonus", record.will_bonus)
-	record.perception_bonus = entry.get("perception_bonus", record.perception_bonus)
-	record.move_bonus = entry.get("move_bonus", record.move_bonus)
+	record.stats = entry.get("stats", {})
 	record.move_speed = entry.get("move_speed", record.move_speed)
-	record.current_hp = entry.get("current_hp", record.current_hp)
-	record.current_fp = entry.get("current_fp", record.current_fp)
-	record.damage_reduction = entry.get("damage_reduction", record.damage_reduction)
 	record.alignment = entry.get("alignment", record.alignment)
 	record.tendency = entry.get("tendency", record.tendency)
 
@@ -688,7 +655,7 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 ## first, when present, fires Unit's own cascading setter before every
 ## recorded field is written on top of it — the same cascade-then-
 ## override order Unit.definition's own setter documents, so anything
-## individually progressed (current_hp after damage, a trained skill)
+## individually progressed (HP after damage, a trained skill)
 ## always wins over the species baseline it started from.
 func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> Unit:
 	var scene: PackedScene = UNIT_SCENE
@@ -722,19 +689,10 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	unit.display_name = record.display_name
 	unit.portrait_texture = record.portrait_texture
 	unit.faction = record.faction
-	unit.strength = record.strength
-	unit.dexterity = record.dexterity
-	unit.intelligence = record.intelligence
-	unit.health = record.health
-	unit.hp_bonus = record.hp_bonus
-	unit.fp_bonus = record.fp_bonus
-	unit.will_bonus = record.will_bonus
-	unit.perception_bonus = record.perception_bonus
-	unit.move_bonus = record.move_bonus
+	# One dict, every stat — a stat added to res://data/stats/ travels
+	# with the record without anyone listing it here.
+	unit.stats_from_dict(record.stats)
 	unit.move_speed = record.move_speed
-	unit.current_hp = record.current_hp
-	unit.current_fp = record.current_fp
-	unit.damage_reduction = record.damage_reduction
 	unit.alignment = record.alignment
 	unit.tendency = record.tendency
 	unit.abilities = record.abilities.duplicate()

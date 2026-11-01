@@ -42,6 +42,8 @@ func save_state() -> Array:
 			"effect": status.effect.resource_path,
 			"turns": status.turns_remaining,
 			"stacks": status.stacks,
+			"stopped": status.stopped,
+			"tally": status.tally.duplicate(),
 		})
 	return out
 
@@ -58,6 +60,8 @@ func load_state(state: Array) -> void:
 			continue
 		var status := ActiveStatus.new(effect, int(entry.get("turns", 0)))
 		status.stacks = int(entry.get("stacks", 1))
+		status.stopped = bool(entry.get("stopped", false))
+		status.tally = entry.get("tally", {}).duplicate()
 		active.append(status)
 
 
@@ -101,7 +105,7 @@ func remove(effect: StatusEffect, voluntary: bool = false) -> void:
 	for behavior in effect.behaviors:
 		behavior.on_remove(_owner, existing, voluntary)
 		if behavior is StatModifierBehavior:
-			_owner.unregister_stat_modifier(behavior)
+			_owner.unregister_stat_modifier(behavior, effect.status_name)
 	status_removed.emit(effect)
 
 
@@ -112,6 +116,13 @@ func has(effect: StatusEffect) -> bool:
 func turns_remaining(effect: StatusEffect) -> int:
 	var existing: ActiveStatus = _find(effect)
 	return existing.turns_remaining if existing else 0
+
+
+## The live tally, for a caller to read or change — empty when the
+## status isn't active.
+func tally(effect: StatusEffect) -> Dictionary:
+	var existing: ActiveStatus = _find(effect)
+	return existing.tally if existing else {}
 
 
 func _find(effect: StatusEffect) -> ActiveStatus:
@@ -132,6 +143,8 @@ func tick_turn_start() -> void:
 			behavior.on_turn_start(_owner, a)
 		status_ticked.emit(a.effect, a)
 
+		if a.stopped:
+			continue
 		a.turns_remaining -= 1
 		if a.turns_remaining <= 0:
 			remove(a.effect)
@@ -150,10 +163,10 @@ func prevents_turn() -> bool:
 
 ## Notifies every active status's behaviors that this unit took damage —
 ## lets e.g. RemoveOnDamageBehavior react (waking from Sleep).
-func notify_damage_taken(amount: int) -> void:
+func notify_damage_taken(amount: int, critical: bool = false) -> void:
 	for a in active.duplicate():
 		for behavior in a.effect.behaviors:
-			behavior.on_damage_taken(_owner, amount, a)
+			behavior.on_damage_taken(_owner, amount, a, critical)
 
 
 ## Whether ANY active status grants this unit flight right now — see

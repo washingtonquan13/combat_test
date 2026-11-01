@@ -1155,8 +1155,8 @@ func is_area_resident(area_id: StringName) -> bool:
 
 
 ## Withdraws every currently-fielded demon through the same path a
-## voluntary Dismiss uses (see DismissEffect) — syncing current_hp/
-## current_fp back onto its OwnedDemon roster entry first, so a demon
+## voluntary Dismiss uses (see DismissEffect) — syncing its HP/FP
+## pools back onto its OwnedDemon roster entry first, so a demon
 ## standing in the world at the moment it unloads doesn't leave
 ## DemonRoster thinking it's still out. A summoned demon is never a
 ## PartyManager member (add_member() refuses anything with summoned_by
@@ -1171,8 +1171,7 @@ func _dismiss_fielded_demons(group: PartyGroup = null) -> void:
 		if group and not group.has_unit(unit.summoned_by if unit.summoned_by else unit):
 			continue
 		if unit.is_alive() and unit.owned_demon:
-			unit.owned_demon.current_hp = unit.current_hp
-			unit.owned_demon.current_fp = unit.current_fp
+			unit.owned_demon.capture_pools(unit)
 			unit.expire()
 
 

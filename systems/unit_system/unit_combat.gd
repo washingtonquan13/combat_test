@@ -4,9 +4,8 @@ extends RefCounted
 ## by that Unit (see Unit._combat), same pattern as StatusManager/
 ## UnitActionState/UnitFacing/UnitSelection/UnitMovement.
 ##
-## Owns NO data fields at all — every stat this touches (strength,
-## dexterity, current_hp, damage_reduction, abilities, ...) is @export
-## and stays directly on Unit, same editor-safety reasoning as every
+## Owns NO data fields at all — every stat this touches (read through
+## Unit.get_stat()/get_pool(), abilities, ...) stays on Unit, same editor-safety reasoning as every
 ## previous component's exports. This is purely the LOGIC that resolves
 ## against those fields through the owner reference — same shape as
 ## UnitFacing, which also owns nothing of its own.
@@ -45,46 +44,21 @@ const DEATH_DEPTH: int = 5
 const ALTITUDE_ADVANTAGE: AltitudeAdvantageBehavior = preload("res://data/altitude_advantage.tres")
 
 
-## GURPS ST-based swing/thrust damage — computed from a formula rather
-## than looking up the official table — approximates the real
-## (N+1)d-1/+0/+1/+2 progression ST 10-22 is built on (1d, 1d+1, 1d+2,
-## 2d-1, 2d, ...):
+## GURPS ST-based swing/thrust damage: the Basic Set damage table (B16)
+## as a formula, for any ST. Ported from GCS's BasicSet progression
+## (github.com/richardwilkes/gcs, model/gurps/enums/progression), which
+## matches the table through ST 100 and the book's +1d per 10 ST past it.
 ##
-##   swing dice  = ((ST - 10) + 4) / 4
-##   thrust dice = ((ST - 10) + 4) / 8
+## Damage climbs a ladder of quarter-dice — 1d-1, 1d, 1d+1, 1d+2, 2d-1 —
+## and ST climbs it more slowly the higher it goes: swing a step per ST
+## to 27, then roughly a step per 2 ST; thrust a step per 2 ST to 50;
+## both slower again past that. The odd constants in _damage_dice are
+## those breakpoints. Below 1 die the table never drops to 0d: it keeps
+## stacking a penalty on a single d6 (thrust 1d-6 at ST 1).
 ##
-## That division produces a fractional die count; the fractional part
-## becomes an adjustment on the floored whole-die count:
-##   fraction == 0             -> no adjustment
-##   fraction <= 0.25          -> +1 flat
-##   0.25 < fraction <= 0.5    -> +2 flat
-##   0.5  < fraction <= 0.75   -> +1 extra die, with a flat -1 ("1d-1")
-##   fraction >  0.75          -> +1 extra die, no flat modifier
-##                                 ("1d+0") — rolls over to the next
-##                                 full die, continuing the same
-##                                 -1/+0/+1/+2 cycle.
-##
-## That bucketing only applies once the floored die count is already
-## >= 1. Thrust's divisor (8, vs. swing's 4) keeps raw below 1.0 all the
-## way up to ST13 — including the default ST10 — so it only "just
-## works" for swing, by accident of where its divisor happens to cross
-## 1.0. GURPS itself never drops below 1 die; a weak thrust keeps
-## stacking flat penalty on a single d6 instead (1d-6 at the low end),
-## so below the tier-1 threshold _damage_dice pins the count at 1 and
-## derives flat_bonus straight from raw, rather than flooring the die
-## count to 0 (or negative) and bucketing a fractional adjustment on
-## top of it — which is what the code did before, and is how a default
-## ST10 unit's thrust ended up rolling a fixed "0d+2" (a constant,
-## un-rolled +2) instead of the correct "1d-2".
-##
-## Lives here rather than on either caller (StDamageEffect,
-## GearDamageEffect) since neither actually owns it — it's this unit's
-## own ST-derived capability, independent of whichever ability or
-## weapon happens to be delivering it. Already had to be pried loose
-## from StDamageEffect once (when GearDamageEffect needed the identical
-## math for equipped weapons); stats_column.gd's character-sheet display
-## needs the same numbers a third time, with no ability involved at all
-## — the clearest sign this belongs on the unit, not an effect.
+## Lives on the unit, not on StDamageEffect or GearDamageEffect: it is
+## this unit's own ST-derived capability, and the character sheet reads
+## it too.
 enum DamageType { SWING, THRUST }
 
 
@@ -135,34 +109,37 @@ func describe_damage(damage_type: DamageType, bonus: int) -> String:
 
 
 func _damage_dice(damage_type: DamageType) -> Dictionary:
-	var divisor: int = 4 if damage_type == DamageType.SWING else 8
-	var raw: float = float((_owner.get_stat("ST") - 10) + 4) / divisor
+	var st: int = floori(_owner.get_stat(StatIds.ST))
+	return _swing_dice(st) if damage_type == DamageType.SWING else _thrust_dice(st)
 
-	var dice_count: int = int(floor(raw))
-	var flat_bonus: int = 0
 
-	if dice_count < 1:
-		# Never fewer than 1 die — see this method's doc comment above.
-		# flat_bonus is derived directly from raw (not from a fraction
-		# against a floor that's already 0 or negative) so it keeps
-		# decreasing by 1 every quarter-die below the tier-1 threshold,
-		# with no discontinuity at the boundary: this formula and the
-		# bucket logic below agree exactly at raw == 1.0.
-		dice_count = 1
-		flat_bonus = int(ceil(4.0 * (raw - 1.0)))
-	else:
-		var fraction: float = raw - dice_count
-		if fraction > 0.75:
-			dice_count += 1
-		elif fraction > 0.5:
-			dice_count += 1
-			flat_bonus = -1
-		elif fraction > 0.25:
-			flat_bonus = 2
-		elif fraction > 0.0:
-			flat_bonus = 1
+static func _thrust_dice(st: int) -> Dictionary:
+	if st < 19:
+		return {"count": 1, "flat_bonus": -(6 - (st - 1) / 2)}
+	var steps: int = st - 11
+	if st > 50:
+		steps -= 1
+		if st > 79:
+			steps -= 1 + (st - 80) / 5
+	return _ladder(steps)
 
-	return {"count": dice_count, "flat_bonus": flat_bonus}
+
+static func _swing_dice(st: int) -> Dictionary:
+	if st < 10:
+		return {"count": 1, "flat_bonus": -(5 - (st - 1) / 2)}
+	if st < 28:
+		return {"count": (st - 9) / 4 + 1, "flat_bonus": (st - 9) % 4 - 1}
+	var steps: int = st
+	if st > 40:
+		steps -= (st - 40) / 5
+	if st > 59:
+		steps += 1
+	return _ladder(steps + 9)
+
+
+## Half-steps to dice: every 8 is a die, the rest walk -1, +0, +1, +2.
+static func _ladder(steps: int) -> Dictionary:
+	return {"count": steps / 8 + 1, "flat_bonus": steps % 8 / 2 - 1}
 
 
 ## Every attack — melee, ranged, any weapon — resolves against this one
@@ -327,10 +304,10 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	result["cant_afford_move_cost"] = _owner.in_combat() and ability.move_cost > 0.0 and _owner.move_remaining < ability.move_cost
 	# NOT wrapped in CombatManager.in_combat, unlike move_cost above — FP
 	# is a persistent resource that exists whether or not a fight is
-	# happening (move_remaining is meaningless out of combat; current_fp
+	# happening (move_remaining is meaningless out of combat; the FP pool
 	# isn't), so casting an FP-costing ability outside combat still has
 	# to be affordable. See Ability.fp_cost's own header.
-	result["cant_afford_fp_cost"] = ability.fp_cost > 0.0 and _owner.current_fp < ability.fp_cost
+	result["cant_afford_fp_cost"] = ability.fp_cost > 0.0 and _owner.get_pool(StatIds.FP) < ability.fp_cost
 
 	if result.already_acted:
 		return result
@@ -351,7 +328,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		_owner.spend_move(ability.move_cost)
 
 	if ability.fp_cost > 0.0:
-		_owner.current_fp = maxi(_owner.current_fp - int(ability.fp_cost), 0)
+		_owner.set_pool(StatIds.FP, maxi(_owner.get_pool(StatIds.FP) - int(ability.fp_cost), 0))
 
 	_owner.ability_use_started.emit(_owner, target, ability)
 
@@ -382,6 +359,18 @@ func use_ability(ability: Ability, target) -> Dictionary:
 			_owner.ability_used.emit(_owner, target, result)
 			_maybe_trigger_combat(target)
 			return result
+		# Every hit but a critical one meets the defender's best defense
+		# before anything lands — see best_defense.
+		var defense: Dictionary = {} if to_hit.critical_success or not target is Unit 			else target.best_defense(_owner, ability)
+		if not defense.is_empty():
+			target.spend_defense(defense.kind)
+			var roll := SuccessRoll.roll_vs(defense.target)
+			result["defense"] = defense.merged(roll)
+			if roll.success:
+				SystemLog.print(_defense_log_line(target, ability, defense.kind))
+				_owner.ability_used.emit(_owner, target, result)
+				_maybe_trigger_combat(target)
+				return result
 
 	result["hit"] = true
 
@@ -413,16 +402,151 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 ## Attacker's to-hit target number against target for ability — own
 ## skill plus outgoing modifiers, defender's incoming modifiers and
-## altitude advantage if target is a Unit — then rolled. Pure
-## computation; use_ability() still owns deciding what a miss DOES
+## altitude advantage if target is a Unit. The one place that sum is
+## built: the roll, the AI's expected damage and the player's hit-chance
+## readout all start here.
+func to_hit_target(target, ability: Ability) -> int:
+	var number: int = attack_skill()
+	number += _owner.outgoing_attack_to_hit_modifier(target, ability)
+	if target is Unit:
+		number += floori(target.get_stat(StatIds.SM))
+		number += target.incoming_attack_to_hit_modifier(_owner, ability)
+		number += ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, _owner, ability)
+	return number
+
+
+## Pure computation; use_ability() still owns deciding what a miss DOES
 ## (crit-fail status, log, signal, early return).
 func _roll_to_hit(target, ability: Ability) -> Dictionary:
-	var to_hit_target: int = attack_skill()
-	to_hit_target += _owner.outgoing_attack_to_hit_modifier(target, ability)
-	if target is Unit:
-		to_hit_target += target.incoming_attack_to_hit_modifier(_owner, ability)
-		to_hit_target += ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, _owner, ability)
-	return SuccessRoll.roll_vs(to_hit_target)
+	return SuccessRoll.roll_vs(to_hit_target(target, ability))
+
+
+## Chance, 0..1, that ability lands on target: the to-hit roll, then the
+## defender's best defense against every hit but a critical one. Exactly
+## what use_ability() rolls, as odds — an ability that does not roll to
+## hit always lands.
+func hit_chance(target, ability: Ability) -> float:
+	if not ability.requires_to_hit:
+		return 1.0
+	var attack: Dictionary = SuccessRoll.chances(to_hit_target(target, ability))
+	var defense: Dictionary = target.best_defense(_owner, ability) if target is Unit else {}
+	if defense.is_empty():
+		return attack.success
+	var defended: float = SuccessRoll.chances(defense.target).success
+	return attack.critical_success + (attack.success - attack.critical_success) * (1.0 - defended)
+
+
+## Whether this unit defends at all. A Downed unit is on the ground, and
+## one whose status stops its turn (Sleep, Stun, ...) cannot react
+## either.
+func can_dodge() -> bool:
+	return _owner.is_alive() and not _owner.is_downed() and not _owner.status_prevents_turn()
+
+
+# --- Active defenses (B374-376) ---------------------------------------
+# One defense per attack, the highest this unit has right now. Dodge has
+# no limit. Parry is 3 + half Basic Attack, -4 for each parry already
+# made; Block the same number, once, and only with a shield in hand. Both
+# limits run until this unit's own next turn (reset_defenses).
+
+const PARRY_PENALTY: int = -4
+## Parrying a weapon with an empty hand.
+const BARE_HAND_PARRY: int = -3
+
+var parries: int = 0
+var blocked: bool = false
+
+
+func reset_defenses() -> void:
+	parries = 0
+	blocked = false
+
+
+## The defense this unit would roll against ability from attacker:
+## {kind: &"dodge"/&"parry"/&"block", target: int}, or {} when it cannot
+## defend. The highest target wins; a tie goes to Dodge, then Parry, which
+## leave Block for later. Parry is melee only: nothing here is thrown.
+func best_defense(attacker: Unit, ability: Ability) -> Dictionary:
+	if not can_dodge():
+		return {}
+	var best: Dictionary = {"kind": &"dodge", "target": floori(_owner.get_stat(StatIds.DODGE))}
+	if ability.targeting is MeleeEnemyTargeting and parry_target(attacker) > best.target:
+		best = {"kind": &"parry", "target": parry_target(attacker)}
+	if not blocked and holds_shield() and block_target() > best.target:
+		best = {"kind": &"block", "target": block_target()}
+	return best
+
+
+## Counts a defense against its limit — attempted, not only succeeded.
+func spend_defense(kind: StringName) -> void:
+	if kind == &"parry":
+		parries += 1
+	elif kind == &"block":
+		blocked = true
+
+
+func parry_target(attacker: Unit) -> int:
+	var number: int = _half_skill_defense() + PARRY_PENALTY * parries
+	if not _holds_melee_weapon(_owner) and _holds_melee_weapon(attacker):
+		number += BARE_HAND_PARRY
+	return number
+
+
+func block_target() -> int:
+	return _half_skill_defense()
+
+
+func holds_shield() -> bool:
+	for slot in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND]:
+		var item: Item = _owner.get_equipped_item(slot)
+		if item and item.gear_data and item.gear_data.is_shield:
+			return true
+	return false
+
+
+func _half_skill_defense() -> int:
+	return 3 + floori(attack_skill() / 2.0) + floori(_owner.get_stat(StatIds.DB))
+
+
+static func _holds_melee_weapon(unit: Unit) -> bool:
+	for slot in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND]:
+		var item: Item = unit.get_equipped_item(slot)
+		if item and item.gear_data and item.gear_data.weapon_data:
+			return true
+	return false
+
+
+## Whether this unit shrugs off status as it lands, by a roll against
+## the stat the status names (StatusEffect.resisted_by). Asleep or Downed
+## still rolls: resisting is the body or the mind, not a reaction.
+func resists(status: StatusEffect, source: Unit) -> bool:
+	if not _rolls_to_resist(status, source):
+		return false
+	var roll: Dictionary = SuccessRoll.roll_vs(resistance_target(status))
+	if roll.success:
+		SystemLog.print(_resist_log_line(status))
+	return roll.success
+
+
+## The chance status lands on this unit from source, 0..1 — the same
+## odds resists() rolls, for the readout.
+func status_land_chance(status: StatusEffect, source: Unit) -> float:
+	if not _rolls_to_resist(status, source):
+		return 1.0
+	return 1.0 - SuccessRoll.chances(resistance_target(status)).success
+
+
+func resistance_target(status: StatusEffect) -> int:
+	return floori(_owner.get_stat(status.resisted_by)) + status.resistance_modifier
+
+
+## Nothing to roll for a status that names no stat, or one from this
+## unit itself or an ally: a willing target never resists. No source at
+## all (a surface) is rolled against like a hostile one.
+func _rolls_to_resist(status: StatusEffect, source: Unit) -> bool:
+	if status.resisted_by == &"":
+		return false
+	return source == null or not is_instance_valid(source) or source.is_hostile_to(_owner)
 
 
 ## Applies every one of ability's effects against target in order,
@@ -509,6 +633,17 @@ func _miss_log_line(target, ability: Ability) -> String:
 	return "%s [i]misses[/i] %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name]
 
 
+const _DEFENSE_VERBS: Dictionary = {&"dodge": "dodges", &"parry": "parries", &"block": "blocks"}
+
+
+func _defense_log_line(target, ability: Ability, kind: StringName) -> String:
+	return "%s [i]%s[/i] %s's %s." % [_log_target_desc(target), _DEFENSE_VERBS[kind], LogFormat.unit_name(_owner), ability.ability_name]
+
+
+func _resist_log_line(status: StatusEffect) -> String:
+	return "%s [i]resists[/i] %s." % [LogFormat.unit_name(_owner), status.status_name]
+
+
 func _hit_log_line(target, ability: Ability) -> String:
 	return "%s hits %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name]
 
@@ -525,26 +660,30 @@ func _death_log_line() -> String:
 	return "[b]%s has died.[/b]" % LogFormat.unit_name(_owner)
 
 
-## Restores amount HP, clamped at maximum_hp — the positive-direction
+## Restores amount HP, clamped at maximum HP — the positive-direction
 ## counterpart to take_damage() below. Emits healed() so anything
 ## watching for an HP change (unit_portrait.gd's live overlay, notably)
 ## refreshes on the way up too, not just the way down — take_damage()
 ## already emitted took_damage() for that; nothing on the heal side ever
 ## emitted its own equivalent, which is why healing correctly changed
-## current_hp but never visibly showed it: HealEffect/AreaHealEffect/
-## HealOverTimeBehavior each mutated current_hp directly, with no
+## HP but never visibly showed it: HealEffect/AreaHealEffect/
+## HealOverTimeBehavior each mutated HP directly, with no
 ## caller-side way to know it needed to redraw anything. Returns the
 ## amount ACTUALLY restored (may be less than amount once near/at
-## maximum_hp) so callers can log/report exactly how much landed without
+## maximum) so callers can log/report exactly how much landed without
 ## re-deriving before/after themselves.
+##
+## Any heal that lands on a Downed unit is also a pick-up from range,
+## however small — HP stays wherever the heal left it, negative or not.
 func heal(amount: int) -> int:
 	if amount <= 0:
 		return 0
-	var before: int = _owner.current_hp
-	_owner.current_hp = min(_owner.current_hp + amount, _owner.maximum_hp)
-	var applied: int = _owner.current_hp - before
+	var before: int = _owner.get_pool(StatIds.HP)
+	_owner.set_pool(StatIds.HP, mini(_owner.get_pool(StatIds.HP) + amount, floori(_owner.get_stat(StatIds.HP))))
+	var applied: int = _owner.get_pool(StatIds.HP) - before
 	if applied > 0:
 		_owner.healed.emit(_owner, applied)
+		pick_up()
 	return applied
 
 
@@ -554,53 +693,52 @@ func heal(amount: int) -> int:
 ## or goes Downed. -5x HP is death outright. GURPS's negative-HP death
 ## checks, turned into a downed state: see downed_status().
 ##
-## A Downed unit has no further rolls; every hit on it instead takes a
-## turn off its timer, on top of the damage.
-func take_damage(amount: int) -> void:
+## A Downed unit has no further threshold rolls; every hit on it is
+## instead a mark toward death (DeathRollsBehavior), on top of the
+## damage.
+func take_damage(amount: int, critical: bool = false) -> void:
 	if amount <= 0:
 		return
-	var before: int = _owner.current_hp
+	var before: int = _owner.get_pool(StatIds.HP)
 	var floor_hp: int = -DEATH_DEPTH * _hp_step() if _owner.uses_downed_rule() else 0
-	_owner.current_hp = max(before - amount, floor_hp)
+	_owner.set_pool(StatIds.HP, max(before - amount, floor_hp))
 	_owner.took_damage.emit(_owner, amount)
 	SystemLog.print(_damage_log_line(amount))
 	var was_downed: bool = _owner.is_downed()
-	# Downed's own behaviors take the hit off its timer here — and can
-	# kill outright, if that was the last turn.
-	_owner.notify_status_of_damage(amount)
+	# Downed's own behaviors mark the hit here — and kill, if it was the
+	# third mark toward death.
+	_owner.notify_status_of_damage(amount, critical)
 	if _owner.has_died:
 		return
 
-	if _owner.current_hp <= floor_hp:
+	if _owner.get_pool(StatIds.HP) <= floor_hp:
 		_die()
-	elif was_downed:
-		_log_downed_turns_left()
-	else:
-		var crossed: int = _thresholds_crossed(before, _owner.current_hp)
+	elif not was_downed:
+		var crossed: int = _thresholds_crossed(before, _owner.get_pool(StatIds.HP))
 		if crossed > 0:
 			_roll_to_stay_up(crossed)
 
 
 func hp_to_death() -> int:
 	if _owner.uses_downed_rule():
-		return _owner.current_hp + DEATH_DEPTH * _hp_step()
-	return _owner.current_hp
+		return _owner.get_pool(StatIds.HP) + DEATH_DEPTH * _hp_step()
+	return _owner.get_pool(StatIds.HP)
 
 
 ## Clears Downed and leaves HP negative — getting back up does not heal
-## anything. No roll until the next threshold.
+## anything. No roll until the next threshold. Healing calls this too.
 func pick_up() -> bool:
 	if not _owner.is_downed():
 		return false
 	_owner.remove_status(downed_status())
-	SystemLog.print("%s is back on their feet at %d HP." % [LogFormat.unit_name(_owner), _owner.current_hp])
+	SystemLog.print("%s is back on their feet at %d HP." % [LogFormat.unit_name(_owner), _owner.get_pool(StatIds.HP)])
 	_owner.downed_changed.emit(_owner)
 	return true
 
 
 ## The Downed status (data/statuses/downed.tres) is the only record of
-## being Downed: its turns_remaining is the timer, its behaviors drain it
-## on hits and kill on expiry. Loaded rather than preloaded — the .tres's
+## being Downed: its tally is the two tracks, its behaviors roll and
+## mark them. Loaded rather than preloaded — the .tres's
 ## behavior scripts name Unit, which names this.
 static var _downed_status: StatusEffect
 
@@ -610,26 +748,12 @@ static func downed_status() -> StatusEffect:
 	return _downed_status
 
 
-func downed_turns_left() -> int:
-	return _owner.status_turns_remaining(downed_status())
-
-
-func _log_downed_turns_left() -> void:
-	var left: int = downed_turns_left()
-	if left > 0:
-		SystemLog.print("%s is down — %d turn%s left to be picked up." % [
-			LogFormat.unit_name(_owner), left, "" if left == 1 else "s"])
-
-
 func stabilize() -> void:
-	if not _owner.is_downed():
+	if not _owner.is_downed() or _owner.is_stable():
 		return
-	var before: int = _owner.current_hp
-	_owner.current_hp = 1
-	_owner.remove_status(downed_status())
-	SystemLog.print("%s is stabilized at 1 HP." % LogFormat.unit_name(_owner))
-	_owner.healed.emit(_owner, _owner.current_hp - before)
-	_owner.downed_changed.emit(_owner)
+	_owner.downed_tally()["stable"] = DeathRollsBehavior.TO_END
+	_owner.downed_tally_changed.emit(_owner)
+	SystemLog.print("%s is stable, but still down at %d HP." % [LogFormat.unit_name(_owner), _owner.get_pool(StatIds.HP)])
 
 
 ## Thresholds sit at 0 and every negative multiple of HP above the death
@@ -648,21 +772,39 @@ func _thresholds_crossed(before: int, after: int) -> int:
 ## blow that goes through several is that much harder to stay standing
 ## through.
 func _roll_to_stay_up(crossed: int) -> void:
-	var depth: int = -_owner.current_hp / _hp_step() if _owner.current_hp < 0 else 0
-	var penalty: int = depth + crossed
-	var roll: Dictionary = SuccessRoll.roll_vs(_owner.health - penalty)
+	var penalty: int = _depth() + crossed
+	var roll: Dictionary = SuccessRoll.roll_vs(floori(_owner.get_stat(StatIds.HT)) - penalty)
 	var verdict: String = "stays up" if roll["success"] else "goes down"
 	SystemLog.print("%s rolls HT-%d to stay up: %d vs %d — %s." % [
 		LogFormat.unit_name(_owner), penalty, roll["roll"], roll["target"], verdict])
 	if roll["success"]:
 		return
 	_owner.apply_status(downed_status())
-	SystemLog.print("[b]%s is Downed![/b] %d turns to be picked up." % [LogFormat.unit_name(_owner), downed_turns_left()])
+	SystemLog.print("[b]%s is Downed![/b]" % LogFormat.unit_name(_owner))
 	_owner.downed_changed.emit(_owner)
 
 
+## Each Downed turn's roll (DeathRollsBehavior): HT minus the same depth
+## penalty as staying up.
+func roll_while_downed() -> Dictionary:
+	var penalty: int = _depth()
+	var roll: Dictionary = SuccessRoll.roll_vs(floori(_owner.get_stat(StatIds.HT)) - penalty)
+	var verdict: String = "success" if roll["success"] else "failure"
+	if roll["critical_success"] or roll["critical_failure"]:
+		verdict = "critical " + verdict
+	SystemLog.print("%s rolls HT-%d while down: %d vs %d — %s." % [
+		LogFormat.unit_name(_owner), penalty, roll["roll"], roll["target"], verdict])
+	return roll
+
+
+## Full multiples of HP below zero.
+func _depth() -> int:
+	var hp: int = _owner.get_pool(StatIds.HP)
+	return -hp / _hp_step() if hp < 0 else 0
+
+
 func _hp_step() -> int:
-	return maxi(_owner.maximum_hp, 1)
+	return maxi(floori(_owner.get_stat(StatIds.HP)), 1)
 
 
 ## A dead owned demon stays in the roster, marked dead, rather than being
@@ -670,7 +812,7 @@ func _hp_step() -> int:
 func _die() -> void:
 	SystemLog.print(_death_log_line())
 	if _owner.owned_demon:
-		_owner.owned_demon.current_hp = _owner.current_hp
+		_owner.owned_demon.capture_pools(_owner)
 		_owner.owned_demon.is_dead = true
 	_owner.handle_death()
 	_owner.died.emit(_owner)

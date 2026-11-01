@@ -156,15 +156,13 @@ func _on_remove_from_party_pressed() -> void:
 ## restores it). Covers BOTH halves of where FP/HP can currently live:
 ## PartyManager.members (live Units, present or not depending on
 ## spawns_party() — see WorldManager) AND DemonRoster's own OwnedDemon
-## entries, whose current_hp/current_fp persist independently of any
+## entries, whose HP/FP pools persist independently of any
 ## live Unit (a dismissed demon isn't in members at all — see
 ## OwnedDemon's own header). Restoring only one half would silently miss
 ## the other.
 func _on_restore_pressed() -> void:
 	for unit in PartyManager.members:
-		unit.current_hp = unit.maximum_hp
-		unit.current_fp = unit.maximum_fp
+		unit.fill_pools()
 
 	for owned in DemonRoster.all_owned():
-		owned.current_hp = owned.species.max_hp
-		owned.current_fp = owned.species.max_fp
+		owned.fill_pools()

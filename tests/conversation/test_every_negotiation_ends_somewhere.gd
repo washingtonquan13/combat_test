@@ -120,7 +120,7 @@ func _recruit() -> void:
 	var owned: Array = DemonRoster.all_owned()
 	check("the roster gains one of the species, at the species' full HP, not the unit's",
 		owned.size() == owned_before + 1 and owned.back().species == imp.definition
-		and owned.back().current_hp == imp.definition.max_hp, str(owned.size()))
+		and owned.back().get_pool(StatIds.HP) == imp.definition.stat_value(StatIds.HP), str(owned.size()))
 	check("logged as joining, then fading", d.log_has("Imp joins your demon roster.") and d.log_has("Imp fades away.")
 		and d.log_lines().find("Imp joins your demon roster.") < d.log_lines().find("Imp fades away."), str(d.log_lines()))
 	await get_tree().process_frame
@@ -161,13 +161,13 @@ func _heal() -> void:
 	var root: DialogueNode = d.node("hl_root", "Hurt?", [d.neg_outcome("Heal me.", "heal")])
 	d.register_negotiation([root])
 	var imp: Unit = await _demon_on(root)
-	ada.current_hp = 3
+	ada.set_pool(StatIds.HP, 3)
 	d.start_negotiation(ada, imp)
 	d.clear_events()
 	d.pin_outcome_roll(false)
 	await d.choose("Heal me.")
 	check("a losing heal roll is a FLEE and heals nothing",
-		d.events.back() == "negotiation_ended:FLEE" and ada.current_hp == 3, str(d.events))
+		d.events.back() == "negotiation_ended:FLEE" and ada.get_pool(StatIds.HP) == 3, str(d.events))
 	await _tidy(imp)
 
 	imp = await _demon_on(root)
@@ -175,8 +175,8 @@ func _heal() -> void:
 	d.clear_events()
 	d.pin_outcome_roll(true)
 	await d.choose("Heal me.")
-	check("a winning one heals the actor to full", d.events.back() == "negotiation_ended:HEAL" and ada.current_hp == ada.maximum_hp,
-		"%s hp %d" % [str(d.events), ada.current_hp])
+	check("a winning one heals the actor to full", d.events.back() == "negotiation_ended:HEAL" and ada.get_pool(StatIds.HP) == ada.get_stat(StatIds.HP),
+		"%s hp %d" % [str(d.events), ada.get_pool(StatIds.HP)])
 	check("logged", d.log_has("Imp heals Ada and departs peacefully."), str(d.log_lines()))
 	await get_tree().process_frame
 	check("and the demon departs", _gone(imp))
@@ -197,7 +197,7 @@ func _flee_and_expire() -> void:
 	check("it logs the flight, then the fade",
 		d.log_lines().find("Imp breaks off and flees.") >= 0
 		and d.log_lines().find("Imp breaks off and flees.") < d.log_lines().find("Imp fades away."), str(d.log_lines()))
-	check("expiring zeroes HP and says died", deaths.size() >= 1 and (not is_instance_valid(imp) or imp.current_hp == 0))
+	check("expiring zeroes HP and says died", deaths.size() >= 1 and (not is_instance_valid(imp) or imp.get_pool(StatIds.HP) == 0))
 	check("and takes it out of the fight", not is_instance_valid(imp) or not imp.in_combat() or not imp.is_alive())
 	await _tidy(imp)
 
@@ -209,13 +209,13 @@ func _attack_off_turn() -> void:
 	var imp: Unit = await _demon_on(root, ada.global_position + Vector3(0, 0, 1))
 	check("setup: Ada's turn, not the demon's, and it is in reach",
 		ada.is_my_turn() and not imp.is_my_turn() and imp.default_ability().is_in_range(imp, ada))
-	var hp: int = ada.current_hp
+	var hp: int = ada.get_pool(StatIds.HP)
 	d.start_negotiation(ada, imp)
 	d.clear_events()
 	await d.choose("Fight me.")
 	await get_tree().process_frame
 	check("ATTACK is logged as a trick", d.log_has("Imp was a trick — it attacks!"), str(d.log_lines()))
-	check("the free strike goes through turn order, so off its turn it does nothing", ada.current_hp == hp)
+	check("the free strike goes through turn order, so off its turn it does nothing", ada.get_pool(StatIds.HP) == hp)
 	check("the demon stays in the fight", imp.is_alive() and imp.in_combat())
 	await _tidy(imp)
 
@@ -236,7 +236,7 @@ func _attack_on_the_demons_turn() -> void:
 	check("and it is over once the choice returns", not d.negotiation_active())
 	await _give_turn_to(ada)
 	check("setup: back to Ada", ada.is_my_turn())
-	ada.current_hp = ada.maximum_hp
+	ada.set_pool(StatIds.HP, floori(ada.get_stat(StatIds.HP)))
 	await _tidy(imp)
 
 

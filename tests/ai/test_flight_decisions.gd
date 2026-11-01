@@ -69,7 +69,7 @@ func _flees_by_air() -> void:
 	# running ten metres is exactly as safe as flying — the tie was then
 	# broken by a 0.003 ability-cost term.
 	var avian: Unit = spawn_demon("avian", Vector3.ZERO, false, 8)
-	avian.current_hp = 1
+	avian.set_pool(StatIds.HP, 1)
 	var brute: Unit = spawn_brute(1.5)
 
 	var flee: AiBehavior = behavior_of(avian, func(b): return b is FleeBehavior)

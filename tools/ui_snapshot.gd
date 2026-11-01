@@ -95,10 +95,10 @@ func _make_unit(shown_name: String) -> Unit:
 	_units_root.add_child(unit)
 	unit.display_name = shown_name
 	unit.faction = &"player"
-	unit.strength = 12
-	unit.dexterity = 12
-	unit.hp_bonus = 20 - unit.strength
-	unit.current_hp = 20
+	unit.set_base_stat(StatIds.ST, 12)
+	unit.set_base_stat(StatIds.DX, 12)
+	unit.set_base_stat(StatIds.HP, 20 - 12)
+	unit.set_pool(StatIds.HP, 20)
 	unit.reset_turn_actions()
 	return unit
 

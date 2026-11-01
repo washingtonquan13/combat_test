@@ -3,7 +3,7 @@ extends CharacterBody3D
 
 @export_group("Identity")
 ## Which kind of unit this is — cascades display_name/portrait_texture/
-## faction/the full stat block/damage_reduction/abilities/ai_behaviors/
+## faction/the full stat block/abilities/ai_behaviors/
 ## negotiable onto this instance the moment it's assigned, same "data
 ## resource separate from the presentation node" convention
 ## Item.gear_data already uses (see that file). Declared FIRST, ahead
@@ -15,7 +15,7 @@ extends CharacterBody3D
 ## icon/width/height. Also set on a live SUMMONED demon —
 ## SummonDemonEffect assigns owned_demon.species here so a summon goes
 ## through the same cascade as every other unit, then explicitly
-## overrides faction/current_hp/current_fp afterward (a recruited demon
+## overrides faction and its HP/FP pools afterward (a recruited demon
 ## fights for whoever fielded it, and re-summoning isn't free healing —
 ## see that file's own comment).
 @export var definition: UnitDefinition = null:
@@ -33,18 +33,7 @@ extends CharacterBody3D
 			display_name = definition.display_name
 			portrait_texture = definition.portrait_texture
 			faction = definition.faction
-			strength = definition.strength
-			dexterity = definition.dexterity
-			intelligence = definition.intelligence
-			health = definition.health
-			hp_bonus = definition.hp_bonus
-			fp_bonus = definition.fp_bonus
-			will_bonus = definition.will_bonus
-			perception_bonus = definition.perception_bonus
-			move_bonus = definition.move_bonus
-			current_hp = maximum_hp
-			current_fp = maximum_fp
-			damage_reduction = definition.damage_reduction
+			_unit_stats().reset(definition.stats)
 			abilities = definition.abilities
 			# Resolved, not raw: a species normally names an AiArchetype
 			# and leaves ai_behaviors empty — see UnitDefinition.
@@ -84,38 +73,17 @@ extends CharacterBody3D
 ## than every component this state describes.
 var _pending_state: Dictionary = {}
 
-@export var strength: int = 10
-@export var dexterity: int = 10
-@export var intelligence: int = 10
-@export var health: int = 10
-
-## The secondary characteristics are derived, never stored — see
-## DerivedStats. What a unit authors is only its bonus over the formula
-## (a GURPS bought or sold level), so a change to an attribute carries
-## through. These are the unmodified values; get_stat() is the one that
-## adds status and gear modifiers, and derives from the modified
-## attributes. Assigning one is a mistake (it would silently do nothing),
-## so the setter says so.
-@export var hp_bonus: int = 0
-@export var fp_bonus: int = 0
-@export var will_bonus: int = 0
-@export var perception_bonus: int = 0
-
-var will: int:
-	get: return DerivedStats.will(intelligence, will_bonus)
-	set(_value): _refuse_derived_write("will", "will_bonus")
-var perception: int:
-	get: return DerivedStats.perception(intelligence, perception_bonus)
-	set(_value): _refuse_derived_write("perception", "perception_bonus")
-var maximum_hp: int:
-	get: return DerivedStats.hp(strength, hp_bonus)
-	set(_value): _refuse_derived_write("maximum_hp", "hp_bonus")
-var maximum_fp: int:
-	get: return DerivedStats.fp(health, fp_bonus)
-	set(_value): _refuse_derived_write("maximum_fp", "fp_bonus")
-
-@export var current_hp: int = 10
-@export var current_fp: int = 10
+## Per-placement stat bases over the definition's — a hand-placed unit
+## that should be quicker than its species (test_arena's Scared
+## Townperson, DX 18). Declared after `definition` so it lands after the
+## definition's own reset; ids are StatDefinition ids, same as
+## UnitDefinition.stats.
+@export var stat_overrides: Dictionary[StringName, int] = {}:
+	set(value):
+		stat_overrides = value
+		if not stat_overrides.is_empty():
+			_unit_stats().from_dict({"stats": stat_overrides})
+			_unit_stats().fill_pools()
 
 ## Set once by UnitDeath.handle_death. Needed because a player-side unit
 ## can be alive below 0 HP, so HP alone no longer answers is_alive().
@@ -159,13 +127,8 @@ var has_died: bool = false
 @onready var _equipped_items_home: Node = $EquippedItems
 
 @export_group("Movement")
-## Bonus over Move, in meters — see the derived block above.
-@export var move_bonus: int = 0
-var move: int:
-	get: return DerivedStats.move(dexterity, health, move_bonus)
-	set(_value): _refuse_derived_write("move", "move_bonus")
 ## Real-time speed (world units/sec) while executing a move order. Distinct
-## from `move`, which is the per-turn distance budget in combat.
+## from the Move stat, which is the per-turn distance budget in combat.
 @export var move_speed: float = 4.0
 ## This unit's rough collision radius — used for range calculations
 ## (see edge_distance_to and Ability.is_in_range: edge-to-edge, not
@@ -252,7 +215,6 @@ var move: int:
 @export var max_land_duration: float = 4.0
 
 @export_group("Combat")
-@export var damage_reduction: int = 0
 ## Units with a different faction than the acting unit are valid attack
 ## targets when clicked during that unit's turn; same-faction clicks still
 ## select as normal (see ClickRouter.click_unit / is_hostile_to).
@@ -310,9 +272,9 @@ const PLAYER_FACTION: StringName = &"player"
 ## "is this unit a demon" marker throughout the whole feature; nothing
 ## else checks a separate flag or scene type.
 ##
-## A live Unit's own current_hp/current_fp are the source of truth WHILE
+## A live Unit's own HP/FP pools are the source of truth WHILE
 ## it's summoned — this only gets synced back into owned_demon's own
-## current_hp/current_fp at the moment it leaves the field (see
+## pools at the moment it leaves the field (see
 ## DismissEffect), or read from when first fielding it (see
 ## SummonDemonEffect). UnitCombat.take_damage() checks this on a real
 ## death to permanently release the roster entry (see DemonRoster.release)
@@ -428,11 +390,19 @@ signal attacked_non_hostile_unit(attacker: Unit, target: Unit)
 ## abilities target a point instead of a unit — see GroundPointTargeting.
 signal ability_used(attacker: Unit, target, result: Dictionary)
 signal took_damage(unit: Unit, amount: int)
+## A stat's own parts changed — its base, a status or gear modifier.
+## Stats derived from it may have changed too.
+signal stat_changed(unit: Unit, id: StringName)
+## A pool's current or maximum may have changed — HP bars, FP pips.
+signal pool_changed(unit: Unit, id: StringName, current: int, maximum: int)
 signal healed(unit: Unit, amount: int)
 signal died(unit: Unit)
 ## Fired when this unit goes Downed and again when it stops being Downed
 ## (picked up, stabilized). Not fired on death — died covers that.
 signal downed_changed(unit: Unit)
+## Downed's two tracks moved — a roll, a hit, or the fight's end making
+## the unit stable (DeathRollsBehavior). The overhead DownedTracker.
+signal downed_tally_changed(unit: Unit)
 
 ## Fired by an attack animation's Call Method Track (at the frame a
 ## weapon actually connects) or a VFX sequence's ImpactSignalStep
@@ -545,7 +515,9 @@ var _facing: UnitFacing
 var _selection: UnitSelection
 var _movement: UnitMovement
 var _combat: UnitCombat
-var _stat_modifiers: UnitStatModifiers
+## Built on first use, not in _ready — the definition setter writes
+## stats while the scene is still instantiating. See _unit_stats().
+var _stats: UnitStats
 var _equipment: UnitEquipment
 var _alignment: UnitAlignment
 var _skills: UnitSkills
@@ -763,7 +735,6 @@ func _ready() -> void:
 	add_child(_selection)
 	_movement = UnitMovement.new(self)
 	_combat = UnitCombat.new(self)
-	_stat_modifiers = UnitStatModifiers.new()
 	_equipment = UnitEquipment.new(self)
 	_alignment = UnitAlignment.new(self)
 	_skills = UnitSkills.new(self)
@@ -787,6 +758,8 @@ func _ready() -> void:
 	_selection.deselected.connect(func(): deselected.emit(self))
 	_status_manager.status_applied.connect(func(effect, _active): status_applied.emit(self, effect))
 	_status_manager.status_removed.connect(func(effect): status_removed.emit(self, effect))
+	_status_manager.status_applied.connect(func(_effect, _active): _on_flight_maybe_changed())
+	_status_manager.status_removed.connect(func(_effect): _on_flight_maybe_changed())
 	_status_manager.status_ticked.connect(func(effect, _active): status_ticked.emit(self, effect))
 	# CollisionObject3D (CharacterBody3D's base) already provides
 	# mouse_entered/mouse_exited signals once this is on and Project
@@ -1084,8 +1057,46 @@ func _apply_definition_skills() -> void:
 		add_skill(instance)
 
 
+## Meters this unit can cover in one turn: Basic Move, or Air Move while
+## flying. A GURPS yard is taken as one meter of world.
+func move_per_turn() -> float:
+	return _move_per_turn(is_flying())
+
+
+func _move_per_turn(flying: bool) -> float:
+	return get_stat(StatIds.AIR_MOVE if flying else StatIds.MOVE)
+
+
 func reset_turn_actions() -> void:
-	_action_state.reset_turn_actions(float(move))
+	_budget_flying = is_flying()
+	_action_state.reset_turn_actions(move_per_turn())
+	_combat.reset_defenses()
+
+
+## Which Move move_remaining is measured in. Taking off or landing mid-turn
+## keeps the share of the turn left, not the meters: half a turn walked
+## leaves half a turn of Air Move.
+var _budget_flying: bool = false
+
+
+func _on_flight_maybe_changed() -> void:
+	var flying: bool = is_flying()
+	if flying == _budget_flying:
+		return
+	var was: float = _move_per_turn(_budget_flying)
+	_budget_flying = flying
+	if was > 0.0:
+		move_remaining *= _move_per_turn(flying) / was
+
+
+## Whether any of this unit's abilities can put it in the air.
+func can_fly() -> bool:
+	for ability in abilities:
+		if ability:
+			for effect in ability.effects:
+				if effect is GrantFlightEffect:
+					return true
+	return false
 
 
 ## --- Status effects — thin forwarding API over _status_manager, see
@@ -1093,6 +1104,17 @@ func reset_turn_actions() -> void:
 
 func apply_status(effect: StatusEffect) -> void:
 	_status_manager.apply(effect)
+
+
+## A status put on this unit by an ability or a surface, which it may
+## resist (UnitCombat.resists). apply_status is for the ones the rules
+## put on — Downed, Flying, a summon's timer — which always land.
+## Returns whether it landed.
+func inflict_status(effect: StatusEffect, source: Unit) -> bool:
+	if _combat.resists(effect, source):
+		return false
+	apply_status(effect)
+	return true
 
 
 ## voluntary forwarded straight to StatusManager.remove() — see that
@@ -1108,6 +1130,11 @@ func has_status(effect: StatusEffect) -> bool:
 ## 0 when the status isn't active.
 func status_turns_remaining(effect: StatusEffect) -> int:
 	return _status_manager.turns_remaining(effect)
+
+
+## The status's live tally (ActiveStatus.tally); empty when not active.
+func status_tally(effect: StatusEffect) -> Dictionary:
+	return _status_manager.tally(effect)
 
 
 ## Whether any active status currently grants this unit flight — see
@@ -1237,7 +1264,7 @@ func has_move_remaining() -> bool:
 
 
 func is_alive() -> bool:
-	return not has_died and (current_hp > 0 or uses_downed_rule())
+	return not has_died and (get_pool(StatIds.HP) > 0 or uses_downed_rule())
 
 
 ## Party members and their owned demons fight on below 0 HP and go
@@ -1253,12 +1280,24 @@ func is_downed() -> bool:
 	return not has_died and has_status(UnitCombat.downed_status())
 
 
-## Turns left before a Downed unit dies; 0 when not Downed.
-func downed_turns_left() -> int:
-	return _combat.downed_turns_left()
+## Downed's two tracks — {"stable": n, "death": n}, each out of
+## DeathRollsBehavior.TO_END. Empty when not Downed.
+func downed_tally() -> Dictionary:
+	return status_tally(UnitCombat.downed_status())
 
 
-## Damage this unit can still take before it is dead — current_hp for
+## Downed and done rolling — safe until the next hit, which makes it
+## unstable again.
+func is_stable() -> bool:
+	return is_downed() and downed_tally().get("stable", 0) >= DeathRollsBehavior.TO_END
+
+
+## One turn's roll while Downed — the SuccessRoll.roll_vs result.
+func roll_while_downed() -> Dictionary:
+	return _combat.roll_while_downed()
+
+
+## Damage this unit can still take before it is dead — current HP for
 ## anyone who dies at 0, down to -5x HP for anyone on the downed rule.
 func hp_to_death() -> int:
 	return _combat.hp_to_death()
@@ -1270,13 +1309,14 @@ func pick_up() -> bool:
 	return _combat.pick_up()
 
 
-## Death by any cause other than damage — Downed's timer running out
-## (DieOnExpireBehavior).
+## Death by any cause other than damage — Downed's third mark toward
+## death (DeathRollsBehavior).
 func die() -> void:
 	_combat._die()
 
 
-## Combat ended with this unit Downed: up at 1 HP.
+## Combat ended with this unit Downed: stable where it lies, HP
+## untouched, until picked up or healed.
 func stabilize() -> void:
 	_combat.stabilize()
 
@@ -1290,70 +1330,104 @@ func get_display_name() -> String:
 	return display_name if display_name != "" else name
 
 
-## String-keyed so skill_system's DefaultRule/AttributePrerequisite (and
-## anything else that names an attribute generically off a .tres) can
-## resolve one without needing a match/if-chain of their own — same role
-## as Character.get_attribute_value() in the gurps project this was
-## ported from. Kept as a thin alias over get_stat() rather than renamed,
-## so skill_system's existing callers need no changes.
-func get_attribute_value(attribute_name: String) -> int:
-	return get_stat(attribute_name)
+## A stat's value with everything applied — formula, bought bonus,
+## statuses, gear. id is a StatDefinition id (StatIds names the ones
+## rules use); the list of stats is res://data/stats/, not this class.
+## For a pool this is its MAXIMUM — get_pool() is the current value.
+## Fractions are kept (Basic Speed 5.25): drop them with floori where a
+## whole number is the rule.
+func get_stat(id: StringName) -> float:
+	return _unit_stats().get_value(id)
 
 
-func _refuse_derived_write(stat: String, bonus: String) -> void:
-	push_error("Unit '%s': %s is derived from the attributes; set %s instead." % [name, stat, bonus])
+## Alias for skill_system's DefaultRule/AttributePrerequisite, which name
+## an attribute off a .tres.
+func get_attribute_value(attribute_name: StringName) -> int:
+	return floori(get_stat(attribute_name))
 
 
-## Effective value of a named stat — base field plus every currently
-## active modifier (status effects today, equipment later once it grants
-## any — see stat_modifier() below). The base fields themselves
-## (strength, damage_reduction, ...) are never mutated by a modifier
-## anymore; each read recomputes fresh, the same "sum every active
-## source at query time" shape incoming_attack_to_hit_modifier already
-## uses for to-hit instead of mutating anything.
-func get_stat(stat_name: String) -> int:
-	var base: int = 0
-	match stat_name:
-		"ST": base = strength
-		"DX": base = dexterity
-		"IQ": base = intelligence
-		"HT": base = health
-		"Will": base = DerivedStats.will(get_stat("IQ"), will_bonus)
-		"Per": base = DerivedStats.perception(get_stat("IQ"), perception_bonus)
-		"DR": base = damage_reduction
-		"Move": base = DerivedStats.move(get_stat("DX"), get_stat("HT"), move_bonus)
-	return base + stat_modifier(stat_name)
+## Unmodified base — a primary's authored value, a derived stat's bought
+## bonus. What chargen and the debug spawner write.
+func get_base_stat(id: StringName) -> int:
+	return _unit_stats().get_base(id)
 
 
-## Sum of every currently registered modifier to a named stat — see
-## UnitStatModifiers. Source-agnostic: StatusManager is the only
-## registrant today (see register_stat_modifier below), but this has no
-## idea statuses exist, only that something registered a modifier.
-func stat_modifier(stat_name: String) -> int:
-	return _stat_modifiers.stat_modifier(stat_name)
+func set_base_stat(id: StringName, value: int) -> void:
+	_unit_stats().set_base(id, value)
 
 
-## Registers/unregisters one StatModifierBehavior with this unit's stat
-## system — called by StatusManager.apply()/remove() today, and by
-## whatever wires up equipment later, each on its own equivalent of
-## apply/remove. source is a display label for attribution (e.g. a
-## StatusEffect's status_name) — see ActiveStatModifier for why it's
-## passed in per-registration rather than read off the (shared) modifier
-## resource. Thin forwarders rather than exposing _stat_modifiers
-## directly, same reasoning as every other composed-helper forward on
-## this class.
+## The value with no status or gear applied.
+func get_unmodified_stat(id: StringName) -> float:
+	return _unit_stats().get_unmodified(id)
+
+
+## A pool's current value — HP, FP. Its maximum is get_stat(id).
+func get_pool(id: StringName) -> int:
+	return _unit_stats().get_current(id)
+
+
+## Sets a pool, capped at its maximum, never floored (HP below 0 is
+## Downed). Damage and healing go through take_damage()/heal(), which
+## also run the death and Downed rules; this is the raw write.
+func set_pool(id: StringName, value: int) -> void:
+	_unit_stats().set_current(id, value)
+
+
+func spend_pool(id: StringName, amount: int) -> void:
+	_unit_stats().damage(id, amount)
+
+
+func restore_pool(id: StringName, amount: int) -> void:
+	_unit_stats().restore(id, amount)
+
+
+func fill_pools() -> void:
+	_unit_stats().fill_pools()
+
+
+## Sum of every modifier currently on a stat.
+func stat_modifier(id: StringName) -> int:
+	return _unit_stats().modifier_total(id)
+
+
+## Registers/unregisters one StatModifierBehavior — StatusManager on
+## apply/remove, UnitEquipment on equip/unequip. source is a display
+## label (a status_name, an item_name), passed per registration because
+## the modifier resource is shared — see ActiveStatModifier. Unregister
+## names the source too, so two sources sharing one modifier resource
+## stay independent.
 func register_stat_modifier(modifier: StatModifierBehavior, source: String) -> void:
-	_stat_modifiers.register_modifier(modifier, source)
+	_unit_stats().add_modifier(modifier, source)
 
 
-func unregister_stat_modifier(modifier: StatModifierBehavior) -> void:
-	_stat_modifiers.unregister_modifier(modifier)
+func unregister_stat_modifier(modifier: StatModifierBehavior, source: String) -> void:
+	_unit_stats().remove_modifier(modifier, source)
 
 
-## Every currently active contribution to a named stat, with its source —
-## see UnitStatModifiers.stat_modifier_sources.
-func stat_modifier_sources(stat_name: String) -> Array[ActiveStatModifier]:
-	return _stat_modifiers.stat_modifier_sources(stat_name)
+## The sources of every modifier currently on a stat.
+func stat_modifier_sources(id: StringName) -> Array[String]:
+	return _unit_stats().modifier_sources(id)
+
+
+## Every stat base and pool current — see UnitStats.to_dict. The only way
+## stats leave a unit.
+func stats_to_dict() -> Dictionary:
+	return _unit_stats().to_dict()
+
+
+## Merges what the dict carries — see UnitStats.from_dict. The only way
+## stats enter a unit.
+func stats_from_dict(data: Dictionary) -> void:
+	_unit_stats().from_dict(data)
+
+
+func _unit_stats() -> UnitStats:
+	if _stats == null:
+		_stats = UnitStats.new(self)
+		_stats.stat_changed.connect(func(id: StringName) -> void: stat_changed.emit(self, id))
+		_stats.pool_changed.connect(func(id: StringName, current: int, maximum: int) -> void:
+			pool_changed.emit(self, id, current, maximum))
+	return _stats
 
 
 ## Which Item (if any) this unit currently has equipped in the named
@@ -1428,6 +1502,31 @@ func attack_skill() -> int:
 	return _combat.attack_skill()
 
 
+## See UnitCombat.hit_chance / to_hit_target / can_dodge.
+func hit_chance(target, ability: Ability) -> float:
+	return _combat.hit_chance(target, ability)
+
+
+func to_hit_target(target, ability: Ability) -> int:
+	return _combat.to_hit_target(target, ability)
+
+
+func can_dodge() -> bool:
+	return _combat.can_dodge()
+
+
+func best_defense(attacker: Unit, ability: Ability) -> Dictionary:
+	return _combat.best_defense(attacker, ability)
+
+
+func spend_defense(kind: StringName) -> void:
+	_combat.spend_defense(kind)
+
+
+func status_land_chance(effect: StatusEffect, source: Unit) -> float:
+	return _combat.status_land_chance(effect, source)
+
+
 func default_ability() -> Ability:
 	return _combat.default_ability()
 
@@ -1479,12 +1578,13 @@ func use_ability(ability: Ability, target) -> Dictionary:
 
 func save_state() -> Dictionary:
 	return {
-		"hp": current_hp,
-		"fp": current_fp,
+		"stats": stats_to_dict(),
 		"transform": global_transform,
 		"flight_altitude": flight_target_altitude,
 		"move_remaining": move_remaining,
 		"has_attacked": has_attacked,
+		"parries": _combat.parries,
+		"blocked": _combat.blocked,
 		"statuses": _status_manager.save_state(),
 	}
 
@@ -1502,23 +1602,26 @@ func _apply_pending_state() -> void:
 	var state: Dictionary = _pending_state
 	_pending_state = {}
 
-	current_hp = int(state.get("hp", current_hp))
-	current_fp = int(state.get("fp", current_fp))
+	stats_from_dict(state.get("stats", {}))
 	flight_target_altitude = float(state.get("flight_altitude", flight_target_altitude))
 	move_remaining = float(state.get("move_remaining", move_remaining))
 	has_attacked = bool(state.get("has_attacked", has_attacked))
+	_combat.parries = int(state.get("parries", 0))
+	_combat.blocked = bool(state.get("blocked", false))
 	_status_manager.load_state(state.get("statuses", []))
+	_budget_flying = is_flying()
 
 	if state.has("transform"):
 		global_transform = state["transform"]
 
 
-func take_damage(amount: int) -> void:
-	_combat.take_damage(amount)
+## critical: a critical hit, which counts double against a Downed unit.
+func take_damage(amount: int, critical: bool = false) -> void:
+	_combat.take_damage(amount, critical)
 
 
-## Restores amount HP, clamped at maximum_hp. Returns the amount
-## ACTUALLY restored (may be less than amount once near/at maximum_hp)
+## Restores amount HP, clamped at maximum HP. Returns the amount
+## ACTUALLY restored (may be less than amount once near/at maximum)
 ## — see UnitCombat.heal().
 func heal(amount: int) -> int:
 	return _combat.heal(amount)
@@ -1528,8 +1631,8 @@ func heal(amount: int) -> int:
 ## than UnitCombat reaching into _status_manager directly, same
 ## component-talks-to-owner-only rule as UnitMovement's
 ## notify_movement_idle_check().
-func notify_status_of_damage(amount: int) -> void:
-	_status_manager.notify_damage_taken(amount)
+func notify_status_of_damage(amount: int, critical: bool = false) -> void:
+	_status_manager.notify_damage_taken(amount, critical)
 
 
 ## Called by an attack animation's Call Method Track or a VFX sequence's

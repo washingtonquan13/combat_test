@@ -146,7 +146,7 @@ func _show_demon_picker() -> void:
 	add_child(popup)
 	for i in available.size():
 		var entry: OwnedDemon = available[i]
-		popup.add_item("%s (HP %d/%d)" % [entry.species.display_name, entry.current_hp, entry.species.max_hp], i)
+		popup.add_item("%s (HP %d/%d)" % [entry.species.display_name, entry.get_pool(StatIds.HP), entry.species.stat_value(StatIds.HP)], i)
 	popup.id_pressed.connect(func(id: int): _on_demon_picked(available[id]))
 	popup.popup_hide.connect(popup.queue_free)
 	popup.popup(Rect2(get_screen_position(), Vector2.ZERO))

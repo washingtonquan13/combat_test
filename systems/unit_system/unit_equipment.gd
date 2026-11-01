@@ -18,7 +18,7 @@ extends RefCounted
 ##
 ## Takes owner: Unit because equip()/unequip() call back into
 ## register_stat_modifier()/unregister_stat_modifier() — same
-## composition shape as UnitCombat/UnitMovement, unlike UnitStatModifiers
+## composition shape as UnitCombat/UnitMovement, unlike UnitStats
 ## (which never needs to reach into Unit at all).
 
 var _owner: Unit
@@ -59,6 +59,6 @@ func unequip(slot_key: EquipSlot.Slot) -> Item:
 	var item: Item = _equipped.get(slot_key)
 	if item and item.gear_data:
 		for modifier in item.gear_data.stat_modifiers:
-			_owner.unregister_stat_modifier(modifier)
+			_owner.unregister_stat_modifier(modifier, item.gear_data.item_name)
 	_equipped.erase(slot_key)
 	return item

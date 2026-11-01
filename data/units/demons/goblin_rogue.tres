@@ -20,16 +20,14 @@ root = ExtResource("6_greeting")
 script = ExtResource("1_def")
 id = "goblin_rogue"
 display_name = "Goblin Rogue"
-strength = 10
-dexterity = 14
-intelligence = 10
-health = 10
-move_bonus = -6
-hp_bonus = -2
+stats = Dictionary[StringName, int]({
+&"DX": 14,
+&"HP": -2,
+&"Move": -1
+})
 vision_cone_degrees = 120.0
 max_sight_range = 18.0
 proximity_radius = 2.5
-damage_reduction = 0
 faction = &"enemy"
 order = &"Fairy"
 rank = 1

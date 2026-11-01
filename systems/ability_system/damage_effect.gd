@@ -1,6 +1,6 @@
 class_name DamageEffect
 extends AbilityEffect
-## Deals dice-rolled damage, minus target's damage_reduction. To-hit is
+## Deals dice-rolled damage, minus target's DR. To-hit is
 ## NOT rolled here — that's Ability/Unit.use_ability()'s job, resolved
 ## once before ANY of an ability's effects run (see use_ability's doc
 ## comment for why: a missed attack should skip every effect, not just
@@ -17,7 +17,7 @@ func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	var raw_damage: int = roll_damage()
-	var applied: int = max(raw_damage - target.get_stat("DR"), 0)
+	var applied: int = maxi(raw_damage - floori(target.get_stat(StatIds.DR)), 0)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}

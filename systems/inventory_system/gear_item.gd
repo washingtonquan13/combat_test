@@ -26,9 +26,13 @@ enum SlotType {
 ## Applied to the wearer via Unit.register_stat_modifier()/
 ## unregister_stat_modifier() on equip/unequip (see UnitEquipment) —
 ## the exact same StatModifierBehavior class status effects already
-## use, summed by the same UnitStatModifiers registry regardless of
+## use, summed by the same UnitStats registry regardless of
 ## source. Empty for an item with no mechanical stat effect.
 @export var stat_modifiers: Array[StatModifierBehavior] = []
+
+## Held in either melee hand, lets the holder Block (UnitCombat). Its
+## Defense Bonus is an ordinary DB entry in stat_modifiers.
+@export var is_shield: bool = false
 
 ## Null for armor/accessories — only set when this GearItem is a weapon.
 @export var weapon_data: WeaponData = null

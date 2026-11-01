@@ -37,9 +37,9 @@ extends AiBehavior
 
 
 func _propose_candidates(unit: Unit) -> Array[AiPlan]:
-	if unit.maximum_hp <= 0:
+	if unit.get_stat(StatIds.HP) <= 0:
 		return []
-	if float(unit.current_hp) / float(unit.maximum_hp) > hp_threshold:
+	if float(unit.get_pool(StatIds.HP)) / float(unit.get_stat(StatIds.HP)) > hp_threshold:
 		return []
 
 	var hostiles: Array[Unit] = []

@@ -122,7 +122,7 @@ func _shape_of(unit: Unit) -> Shape3D:
 func _spawn_wearing(model: PackedScene) -> Unit:
 	var definition := UnitDefinition.new()
 	definition.model_scene = model
-	definition.max_hp = 20
+	definition.stats[StatIds.HP] = 20 - 10  # HP 20 at the default ST 10
 	definition.faction = &"player"
 
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()

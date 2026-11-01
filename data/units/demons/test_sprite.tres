@@ -11,12 +11,7 @@
 script = ExtResource("1_species")
 id = "test_sprite"
 display_name = "Sprite"
-strength = 10
-dexterity = 10
-intelligence = 10
-health = 10
-hp_bonus = 1
-damage_reduction = 0
+stats = Dictionary[StringName, int]({&"HP": 1})
 faction = &"player"
 order = &"Fairy"
 rank = 3

@@ -74,10 +74,10 @@ func _spawn_in(viewport: SubViewport, faction: StringName, position: Vector3) ->
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	viewport.add_child(unit)
 	unit.faction = faction
-	unit.strength = 12
-	unit.dexterity = 12
-	unit.hp_bonus = 30 - unit.strength
-	unit.current_hp = 30
+	unit.set_base_stat(StatIds.ST, 12)
+	unit.set_base_stat(StatIds.DX, 12)
+	unit.set_base_stat(StatIds.HP, 30 - floori(unit.get_stat(StatIds.ST)))
+	unit.set_pool(StatIds.HP, 30)
 	var abilities: Array[Ability] = [melee()]
 	unit.abilities = abilities
 	unit.global_position = position

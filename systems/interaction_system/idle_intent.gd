@@ -50,7 +50,7 @@ func handle_right_click(_router, hit: ClickHit) -> bool:
 ## per-frame "is anything armed?" poll used to say from the other
 ## direction, once per indicator.
 func indicator_ids() -> Array[StringName]:
-	return [&"movement"]
+	return [&"movement", &"hit_chance"]
 
 
 func describe() -> String:

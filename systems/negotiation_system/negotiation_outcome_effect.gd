@@ -78,7 +78,7 @@ static func conclude(c: Conversation, resolved: Outcome) -> void:
 			SystemLog.print("%s breaks off and flees." % LogFormat.unit_name(demon))
 			demon.expire()
 		Outcome.HEAL:
-			actor.current_hp = actor.maximum_hp
+			actor.set_pool(StatIds.HP, floori(actor.get_stat(StatIds.HP)))
 			SystemLog.print("%s heals %s and departs peacefully." % [LogFormat.unit_name(demon), LogFormat.unit_name(actor)])
 			demon.expire()
 		Outcome.ATTACK:

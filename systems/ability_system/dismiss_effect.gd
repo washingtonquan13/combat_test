@@ -20,8 +20,7 @@ func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	var unit_target: Unit = target
-	unit_target.owned_demon.current_hp = unit_target.current_hp
-	unit_target.owned_demon.current_fp = unit_target.current_fp
+	unit_target.owned_demon.capture_pools(unit_target)
 	unit_target.expire()
 	return {"dismissed": unit_target}
 

@@ -24,7 +24,7 @@ func _init(owner: Unit) -> void:
 ## pruning, initiative UI, the animator/VFX death reactions — already
 ## listens to died; a summon leaving combat this way is exactly that,
 ## just not caused by damage, so it gets its own log line instead of
-## "has died". current_hp is zeroed (not left as whatever it was) so
+## "has died". The HP pool is zeroed (not left as whatever it was) so
 ## is_alive() agrees with everything else — CombatManager._advance_turn(),
 ## notably, which decides whether to keep giving this unit turns purely
 ## off is_alive(), same as an ordinary death; without this, a summon
@@ -32,7 +32,7 @@ func _init(owner: Unit) -> void:
 ## a moment before its queue_free() actually takes effect.
 func expire() -> void:
 	SystemLog.print("%s fades away." % LogFormat.unit_name(_owner))
-	_owner.current_hp = 0
+	_owner.set_pool(StatIds.HP, 0)
 	# _owner.handle_death(), not a same-class handle_death() call — routes
 	# through Unit's own public wrapper (see unit.gd), which is the entry
 	# point every other death path uses too, so anything that wrapper ever
@@ -52,7 +52,7 @@ func expire() -> void:
 ## animation.
 func handle_death() -> void:
 	# A unit on the downed rule is still is_alive() at 0 HP and below, so
-	# death is its own flag rather than read off current_hp.
+	# death is its own flag rather than read off the HP pool.
 	_owner.has_died = true
 	# Dead, not Downed. has_died is already set, so the status coming off
 	# neither counts as running out nor plays the get-up clip.

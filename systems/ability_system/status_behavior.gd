@@ -45,8 +45,9 @@ func prevents_turn() -> bool:
 
 ## Called whenever unit takes damage from any source, AFTER the damage is
 ## applied — lets a behavior react, e.g. RemoveOnDamageBehavior clearing
-## the whole status (not just itself) when its owner is hit.
-func on_damage_taken(_unit: Unit, _amount: int, _active: ActiveStatus) -> void:
+## the whole status (not just itself) when its owner is hit. critical:
+## the hit was a critical one.
+func on_damage_taken(_unit: Unit, _amount: int, _active: ActiveStatus, _critical: bool = false) -> void:
 	pass
 
 

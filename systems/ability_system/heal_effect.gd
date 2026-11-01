@@ -1,6 +1,6 @@
 class_name HealEffect
 extends AbilityEffect
-## Restores dice-rolled HP, clamped at target's maximum_hp — the
+## Restores dice-rolled HP, clamped at target's maximum HP — the
 ## positive-direction counterpart to DamageEffect, kept as a separate
 ## sibling class rather than DamageEffect with a "heal" flag, same
 ## sibling-class-per-shape reasoning as StDamageEffect existing alongside

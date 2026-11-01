@@ -55,7 +55,7 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	# arithmetic. Withholding the candidate keeps the knob honest instead
 	# of tuning its number down until it happens to lose.
 	var upkeep: int = FlightAiUtil.prospective_flight_upkeep(flight_ability)
-	if upkeep > 0 and float(unit.current_fp) - flight_ability.fp_cost < float(upkeep):
+	if upkeep > 0 and float(unit.get_pool(StatIds.FP)) - flight_ability.fp_cost < float(upkeep):
 		return []
 
 	var takeoff: AiPlan = self_plan(unit, flight_ability, flight_preference)

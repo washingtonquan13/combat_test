@@ -1,27 +1,23 @@
-[gd_resource type="Resource" script_class="StatusEffect" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=6 format=3]
 
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="1_base"]
 [ext_resource type="Script" uid="uid://c13klrwq84gxl" path="res://systems/ability_system/incapacitate_behavior.gd" id="2_incap"]
-[ext_resource type="Script" path="res://systems/ability_system/shorten_on_damage_behavior.gd" id="3_shorten"]
-[ext_resource type="Script" path="res://systems/ability_system/die_on_expire_behavior.gd" id="4_die"]
+[ext_resource type="Script" path="res://systems/ability_system/death_rolls_behavior.gd" id="6_rolls"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="5_effect"]
 
 [sub_resource type="Resource" id="Resource_incap"]
 script = ExtResource("2_incap")
 
-[sub_resource type="Resource" id="Resource_shorten"]
-script = ExtResource("3_shorten")
-
-[sub_resource type="Resource" id="Resource_die"]
-script = ExtResource("4_die")
+[sub_resource type="Resource" id="Resource_rolls"]
+script = ExtResource("6_rolls")
 
 [resource]
 script = ExtResource("5_effect")
 status_name = "Downed"
-default_duration = 3
+default_duration = 1
 stack_mode = 0
 max_stacks = 1
-behaviors = Array[ExtResource("1_base")]([SubResource("Resource_incap"), SubResource("Resource_shorten"), SubResource("Resource_die")])
+behaviors = Array[ExtResource("1_base")]([SubResource("Resource_incap"), SubResource("Resource_rolls")])
 curable = false
 apply_animation = "UAL2_Standard/Hit_Knockback"
 apply_animation_loops = false

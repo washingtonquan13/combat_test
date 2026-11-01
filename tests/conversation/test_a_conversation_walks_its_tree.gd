@@ -276,18 +276,18 @@ func _costs() -> void:
 	await d.choose("Pay 3.")
 	check("gold it can afford is spent", CurrencyManager.gold == 2)
 
-	ada.fp_bonus = 10 - ada.health
-	ada.current_fp = 3
+	ada.set_base_stat(StatIds.FP, 10 - floori(ada.get_stat(StatIds.HT)))
+	ada.set_pool(StatIds.FP, 3)
 	await d.choose("Again.")
 	d.clear_events()
 	await d.choose("Spend FP.")
-	check("an FP cost never takes FP below zero", ada.current_fp == 0, str(ada.current_fp))
+	check("an FP cost never takes FP below zero", ada.get_pool(StatIds.FP) == 0, str(ada.get_pool(StatIds.FP)))
 	check("and is logged", d.log_has("Ada spends 4 FP."), str(d.log_lines()))
 
 	await d.choose("Again.")
-	ada.current_fp = 5
+	ada.set_pool(StatIds.FP, 5)
 	await d.choose("Bleed out.")
-	check("a lethal cost kills the actor", ada.current_hp <= 0)
-	check("but dialogue has no lethal stop: later effects still apply", ada.current_fp == 4)
+	check("a lethal cost kills the actor", ada.get_pool(StatIds.HP) <= 0)
+	check("but dialogue has no lethal stop: later effects still apply", ada.get_pool(StatIds.FP) == 4)
 	check("and it still routes on", d.dialogue_active() and d.current_node_id() == "w_paid")
 	d.end_dialogue()

@@ -250,10 +250,10 @@ func _setup_outline(color: Color) -> void:
 
 
 func _update_overlay() -> void:
-	if not unit or unit.maximum_hp <= 0:
+	if not unit or unit.get_stat(StatIds.HP) <= 0:
 		return
 
-	var damage_fraction: float = 1.0 - float(unit.current_hp) / float(unit.maximum_hp)
+	var damage_fraction: float = 1.0 - float(unit.get_pool(StatIds.HP)) / float(unit.get_stat(StatIds.HP))
 	damage_fraction = clamp(damage_fraction, 0.0, 1.0)
 
 	damage_overlay.anchor_top = 1.0 - damage_fraction

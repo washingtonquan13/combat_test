@@ -17,12 +17,13 @@ extends MarginContainer
 @onready var _race: Label = %RaceLabel
 @onready var _vitals: Label = %VitalsLabel
 @onready var _skills: Label = %SkillsLabel
-@onready var _attributes: Array = [
-	[%StBar, %StValue],
-	[%DxBar, %DxValue],
-	[%IqBar, %IqValue],
-	[%HtBar, %HtValue],
-]
+## Stat id -> [bar, value label].
+@onready var _attributes: Dictionary = {
+	StatIds.ST: [%StBar, %StValue],
+	StatIds.DX: [%DxBar, %DxValue],
+	StatIds.IQ: [%IqBar, %IqValue],
+	StatIds.HT: [%HtBar, %HtValue],
+}
 
 
 ## Fills the sheet. A null species shows the empty text instead.
@@ -34,14 +35,16 @@ func show_demon(species: UnitDefinition, owned: OwnedDemon = null) -> void:
 	_name.text = species.display_name
 	var race: String = String(species.order) if species.order != &"" else "No race"
 	_race.text = "%s   Rank %d" % [race, species.rank]
-	var hp: int = owned.current_hp if owned else species.max_hp
-	var fp: int = owned.current_fp if owned else species.max_fp
+	var max_hp: int = floori(species.stat_value(StatIds.HP))
+	var max_fp: int = floori(species.stat_value(StatIds.FP))
+	var hp: int = owned.get_pool(StatIds.HP) if owned else max_hp
+	var fp: int = owned.get_pool(StatIds.FP) if owned else max_fp
 	_vitals.text = "HP %d/%d   FP %d/%d   DR %d" % [
-		hp, species.max_hp, fp, species.max_fp, species.damage_reduction]
-	var values: Array[int] = [species.strength, species.dexterity, species.intelligence, species.health]
-	for i in _attributes.size():
-		(_attributes[i][0] as ProgressBar).value = values[i]
-		(_attributes[i][1] as Label).text = str(values[i])
+		hp, max_hp, fp, max_fp, species.stat_value(StatIds.DR)]
+	for id in _attributes:
+		var value: float = species.stat_value(id)
+		(_attributes[id][0] as ProgressBar).value = value
+		(_attributes[id][1] as Label).text = StatDefinition.format(value)
 	var names: PackedStringArray = []
 	for ability in species.abilities:
 		if ability:

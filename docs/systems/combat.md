@@ -1,6 +1,6 @@
 # Combat (CombatManager + Encounter)
 
-**Files:** `systems/combat_system/` — `combat_manager.gd` (559), `encounter.gd` (622), `initiative_row.gd` (291), `end_turn_button.gd` (106), `line_of_sight.gd` (58), `success_roll.gd` (52). `combat_ai.gd` (175) is covered in `ai.md`.
+**Files:** `systems/combat_system/` — `combat_manager.gd` (559), `encounter.gd` (622), `initiative_row.gd` (291), `end_turn_button.gd` (106), `line_of_sight.gd` (58), `success_roll.gd` — `roll_vs` plus `chances(target)`, exact odds over all 216 rolls, cached, sharing `_outcome` with the roll. `combat_ai.gd` (175) is covered in `ai.md`.
 **Autoloads owned:** `CombatManager` (project.godot:21)
 
 ## Purpose
@@ -84,7 +84,7 @@ Each fight is an `Encounter` Node. It owns its turn order, round counter, phase 
 - `LineOfSight.has_clear_shot` (line_of_sight.gd) and `SuccessRoll` (success_roll.gd) are static helpers that combat and detection share.
 
 ## Assumptions and invariants
-- Initiative is DX descending, with a d6 tiebreak rolled up front (encounter.gd:198-202). It is fixed for the whole fight; joiners are inserted by `add_unit` (268-288).
+- Initiative is exact Basic Speed (fraction kept) descending, then DX (GURPS's own tie rule), then a d6 tiebreak rolled up front (encounter.gd `begin`; uncommitted). It is fixed for the whole fight; joiners are inserted by `add_unit` (268-288).
 - Turns always advance deferred (encounter.gd:213, 361, 602-603). This is reentrancy-safe only if nothing ends the next turn in the same frame. Issue 1 breaks this.
 - The round increments when `_turn_index` wraps to 0 (encounter.gd:456-458). Downed units skip their turn (485-489).
 - A fight ends when no two remaining units are pairwise hostile (encounter.gd:553-572).

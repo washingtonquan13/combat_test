@@ -117,18 +117,12 @@ const FP_CONSERVE_PENALTY: float = 3.0
 ## difference.
 const SCORE_EPSILON: float = 0.0001
 
-## _success_probability(target_number) memoized across calls within a
-## single turn's worth of scoring (many candidates share the same
-## attacker skill and often the same target) — 216 outcomes enumerated
-## is cheap regardless, but the cache costs nothing either.
-static var _success_cache: Dictionary = {}
-
 ## score_position() memoized WITHIN a single best_plan() pass only —
 ## many candidates share a destination (every attack against the same
 ## target resolves to the same standoff point), and each miss costs a
-## full sweep over every hostile's abilities. Unlike _success_cache,
-## which is keyed on a target number and stays valid forever, this is
-## keyed on world positions that change the moment anything moves, so
+## full sweep over every hostile's abilities. Unlike SuccessRoll's odds
+## cache, which is keyed on a target number and stays valid forever,
+## this is keyed on world positions that change the moment anything moves, so
 ## best_plan()/describe_candidates() clear it on entry rather than
 ## letting it persist across turns.
 static var _position_cache: Dictionary = {}
@@ -356,7 +350,7 @@ static func _prepare_plan(unit: Unit, plan: AiPlan) -> bool:
 			return false
 		if unit.in_combat() and ability.move_cost > 0.0 and unit.move_remaining < ability.move_cost:
 			return false
-		if ability.fp_cost > 0.0 and unit.current_fp < ability.fp_cost:
+		if ability.fp_cost > 0.0 and unit.get_pool(StatIds.FP) < ability.fp_cost:
 			return false
 		if ability.targeting and ability.targeting.requires_ally_target() and plan.target is Unit and unit.is_hostile_to(plan.target):
 			return false
@@ -695,7 +689,7 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 			# rather than a flat guess. A dangerous target is now worth
 			# more to kill than a harmless one, and a target already
 			# close to death collects this MORE OFTEN (less damage is
-			# needed to cross current_hp) — the same "prefer finishing a
+			# needed to cross current HP) — the same "prefer finishing a
 			# nearly-dead target" preference FINISH_WEIGHT used to
 			# approximate by multiplying the base value, now falling out
 			# for free instead of being double-counted.
@@ -703,7 +697,7 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 		if plan.reason == "":
 			plan.reason = "attack: %.1f dmg%s" % [value, " (kills)" if hit_value >= float(plan.target.hp_to_death()) else ""]
 	elif expected_heal > 0.0 and plan.target is Unit:
-		var missing_hp: float = float(plan.target.maximum_hp - plan.target.current_hp)
+		var missing_hp: float = float(plan.target.get_stat(StatIds.HP) - plan.target.get_pool(StatIds.HP))
 		value = minf(expected_heal, missing_hp)
 		if plan.reason == "":
 			plan.reason = "heal: %.1f hp" % value
@@ -714,7 +708,7 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 	# _prepare_plan so pure_reposition candidates are charged under the
 	# same rule instead of being silently exempt — see that method.
 
-	if tier >= 3 and plan.ability.fp_cost > 0.0 and float(unit.current_fp) - plan.ability.fp_cost < float(FP_RESERVE):
+	if tier >= 3 and plan.ability.fp_cost > 0.0 and float(unit.get_pool(StatIds.FP)) - plan.ability.fp_cost < float(FP_RESERVE):
 		plan.score -= FP_CONSERVE_PENALTY
 
 
@@ -839,7 +833,7 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 			# next three. Floored at 1.0 so a move-0 hostile that's
 			# already in range still counts (it attacks from where it
 			# stands) instead of dividing by zero.
-			var move_per_turn: float = maxf(float(hostile.move), 1.0)
+			var move_per_turn: float = maxf(hostile.move_per_turn(), 1.0)
 			var approach: float = ability.targeting.approach_range()
 			var edge_distance: float = hostile.global_position.distance_to(position) - hostile.radius - unit.radius
 			var turns_to_reach: float = ceilf(maxf(0.0, edge_distance - approach) / move_per_turn)
@@ -939,7 +933,7 @@ static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: V
 	if upkeep <= 0:
 		return 0.0
 
-	var remaining: float = float(unit.current_fp) - plan.ability.fp_cost
+	var remaining: float = float(unit.get_pool(StatIds.FP)) - plan.ability.fp_cost
 	var turns_aloft: float = remaining / float(upkeep)
 	if turns_aloft >= KILL_HORIZON_TURNS:
 		return 0.0
@@ -952,7 +946,7 @@ static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: V
 	if roll.dice_count > 0:
 		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
 		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
-			cost = maxf(0.0, cost - float(unit.damage_reduction))
+			cost = maxf(0.0, cost - float(unit.get_stat(StatIds.DR)))
 
 	# And the safety it's buying is only rented. _apply_positional_value
 	# has already credited this takeoff with escaping everything that
@@ -999,7 +993,7 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 	if upkeep <= 0:
 		return 0.0
 
-	var turns_aloft: float = float(unit.current_fp) / float(upkeep)
+	var turns_aloft: float = float(unit.get_pool(StatIds.FP)) / float(upkeep)
 	if turns_aloft >= KILL_HORIZON_TURNS:
 		return 0.0
 
@@ -1016,7 +1010,7 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 	if roll.dice_count > 0:
 		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
 		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
-			cost = maxf(0.0, cost - float(unit.damage_reduction))
+			cost = maxf(0.0, cost - float(unit.get_stat(StatIds.DR)))
 
 	var grounded_fraction: float = 1.0 - turns_aloft / KILL_HORIZON_TURNS
 	cost += sustained_incoming_threat(unit, Vector3(position.x, ground_y, position.z)) * grounded_fraction
@@ -1055,59 +1049,19 @@ static func _ground_y_at(unit: Unit, position: Vector3) -> float:
 	return result.position.y
 
 
-## Attacker's real to-hit target number against target for ability —
-## same formula UnitCombat._roll_to_hit builds (own skill, outgoing
-## modifiers, defender's incoming modifiers, altitude advantage), just
-## converted to a probability instead of actually rolled. The to-hit term
-## this produces DOES shift with altitude (AltitudeAdvantageBehavior caps
-## at +4 — see altitude_advantage_behavior.gd), but that shift alone is
-## second-order: against an already-likely-to-hit ranged attacker, +4
-## buys only a few points of probability, nowhere near enough to justify
-## a takeoff's cost on its own. The decisive reason to fly is captured
-## separately, in incoming_threat() above — melee-only hostiles simply
-## can't reach a unit that isn't on the ground.
+## Chance that unit's ability lands on target — UnitCombat.hit_chance,
+## the to-hit roll and the defender's Dodge as exact odds, so the AI
+## prices an attack with the same numbers the roll and the player's
+## readout use. The to-hit term DOES shift with altitude
+## (AltitudeAdvantageBehavior caps at +4 — see
+## altitude_advantage_behavior.gd), but that shift alone is second-order:
+## against an already-likely-to-hit ranged attacker, +4 buys only a few
+## points of probability, nowhere near enough to justify a takeoff's cost
+## on its own. The decisive reason to fly is captured separately, in
+## incoming_threat() above — melee-only hostiles simply can't reach a
+## unit that isn't on the ground.
 static func _chance_to_hit(unit: Unit, target, ability: Ability) -> float:
-	var target_number: int = unit.attack_skill()
-	target_number += unit.outgoing_attack_to_hit_modifier(target, ability)
-	if target is Unit:
-		target_number += target.incoming_attack_to_hit_modifier(unit, ability)
-		target_number += UnitCombat.ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, unit, ability)
-	return _success_probability(target_number)
-
-
-## Exact 3d6-roll-under success probability against target_number —
-## enumerates all 216 equally-likely outcomes rather than sampling, so
-## this scorer's own decisions are deterministic and independent of RNG
-## (a real roll still happens later, in UnitCombat.use_ability(), when
-## the chosen plan is actually executed). Mirrors SuccessRoll.roll_vs's
-## critical-success/critical-failure thresholds exactly — see that
-## file's own doc comment for what each threshold means; duplicated
-## here rather than refactored into one shared helper because
-## SuccessRoll rolls dice and returns the roll, and this needs the
-## opposite: a closed-form probability with no roll at all.
-static func _success_probability(target_number: int) -> float:
-	if _success_cache.has(target_number):
-		return _success_cache[target_number]
-
-	var success_count: int = 0
-	for d1 in range(1, 7):
-		for d2 in range(1, 7):
-			for d3 in range(1, 7):
-				var roll: int = d1 + d2 + d3
-				var critical_success: bool = roll == 3 or roll == 4 \
-					or (roll == 5 and target_number >= 15) \
-					or (roll == 6 and target_number >= 16)
-				var critical_failure: bool = not critical_success and (
-					roll == 18
-					or (roll == 17 and target_number <= 15)
-					or roll >= target_number + 10
-				)
-				if critical_success or (not critical_failure and roll <= target_number):
-					success_count += 1
-
-	var probability: float = float(success_count) / 216.0
-	_success_cache[target_number] = probability
-	return probability
+	return unit.hit_chance(target, ability)
 
 
 ## The point a unit trying to act on target with ability should move to:

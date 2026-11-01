@@ -10,14 +10,14 @@ Owns which demons the player has recruited (stock), which species are registered
 | State | Where (file:line) | Persisted? (save key) |
 |---|---|---|
 | Owned demons list | demon_roster.gd:27 | Yes `demons` (:125-138) |
-| Per demon: species, current_hp, current_fp, has_been_summoned, is_dead | owned_demon.gd:19-29 | Yes, those five fields only |
+| Per demon: species, `stats` (pool currents; empty = full), has_been_summoned, is_dead | owned_demon.gd | Yes |
 | max_active_summons (default) | demon_roster.gd:35, :44 | Yes (in `demons`) |
 | Compendium registered species | demon_compendium.gd:32 | Yes `compendium` (:42) |
 | Species definitions | res://data/units/demons/ via demon_database.gd:32-53 | No (authored data) |
 
 ## Derived / cached state
 - `is_fielded` is a global scan of live units, not stored (demon_roster.gd:108-112).
-- A summoned Unit copies hp/fp from OwnedDemon at summon (summon_demon_effect.gd:63-66); during the fight the Unit is the truth, synced back only on `_dismiss_fielded_demons` (world_manager.gd:1169-1175). Two truths while fielded.
+- A summoned Unit takes `stats_from_dict(owned.stats)` at summon (summon_demon_effect.gd); during the fight the Unit is the truth, synced back by `capture_pools` only on dismiss and `_dismiss_fielded_demons` (world_manager.gd). Two truths while fielded.
 - Compendium cost is derived, 50 x rank^2 (demon_compendium.gd:28, :59-60).
 - `ui/demon_compendium_panel.gd:59-70` reads the roster once per refresh; no signal to refresh on change.
 

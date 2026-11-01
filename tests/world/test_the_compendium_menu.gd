@@ -163,9 +163,9 @@ func _summoning(pixie: UnitDefinition) -> void:
 		"%d gold left of %d after a %d-gold summon" % [CurrencyManager.gold, cost + 7, cost])
 	check("and adds one demon of that species, whole",
 		DemonRoster.all_owned().size() == roster_before + 1 and newest.species == pixie
-			and newest.current_hp == pixie.max_hp,
+			and newest.get_pool(StatIds.HP) == pixie.stat_value(StatIds.HP),
 		"roster %d -> %d, newest %s at %d HP" % [
-			roster_before, DemonRoster.all_owned().size(), newest.species.display_name, newest.current_hp])
+			roster_before, DemonRoster.all_owned().size(), newest.species.display_name, newest.get_pool(StatIds.HP)])
 	check("and the Minister says so",
 		_line() == _book.summoned_line % pixie.display_name,
 		"the line was '%s'" % _line())

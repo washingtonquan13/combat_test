@@ -473,7 +473,7 @@ func _clicks_actually_command_the_world() -> void:
 	SelectionManager.select(player)
 	started.clear()
 	var corpse: Unit = spawn_unit(&"enemy", 10, 10, 20, [melee()], Vector3(1.0, 0.0, 1.0))
-	corpse.current_hp = 0
+	corpse.set_pool(StatIds.HP, 0)
 	corpse.input_ray_pickable = false
 	check("a click on a dead unit is refused",
 		not _router.intent().handle_left_click(_router, _hit_on(corpse)),

@@ -102,7 +102,7 @@ func _connect_unit_signals(units: Array[Unit]) -> void:
 func _on_combat_started(turn_order: Array[Unit]) -> void:
 	print("--- Combat started ---")
 	for unit in turn_order:
-		print("  ", unit.get_display_name(), " (", unit.faction, ") DX ", unit.get_stat("DX"), " HP ", unit.current_hp)
+		print("  ", unit.get_display_name(), " (", unit.faction, ") DX ", StatDefinition.format(unit.get_stat(StatIds.DX)), " HP ", unit.get_pool(StatIds.HP))
 
 
 func _on_turn_started(unit: Unit) -> void:
@@ -125,7 +125,7 @@ func _on_unit_ability_used(attacker: Unit, target, result: Dictionary) -> void:
 				" (rolled ", result.to_hit.roll, " vs ", result.to_hit.target, ")")
 	elif target is Unit:
 		print("   ", attacker.get_display_name(), " hits ", target_desc, " with ", result.ability.ability_name,
-				" for ", result.damage, " damage (", target.current_hp, " HP left)")
+				" for ", result.damage, " damage (", target.get_pool(StatIds.HP), " HP left)")
 	else:
 		print("   ", attacker.get_display_name(), " uses ", result.ability.ability_name, " at ", target_desc)
 

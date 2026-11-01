@@ -179,10 +179,10 @@ func _cones_stop_at_the_world_on_screen() -> void:
 	var foreign: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	elsewhere.add_child(foreign)
 	foreign.faction = &"enemy"
-	foreign.strength = 10
-	foreign.dexterity = 10
-	foreign.hp_bonus = 20 - foreign.strength
-	foreign.current_hp = 20
+	foreign.set_base_stat(StatIds.ST, 10)
+	foreign.set_base_stat(StatIds.DX, 10)
+	foreign.set_base_stat(StatIds.HP, 20 - floori(foreign.get_stat(StatIds.ST)))
+	foreign.set_pool(StatIds.HP, 20)
 	var abilities: Array[Ability] = [melee()]
 	foreign.abilities = abilities
 	foreign.global_position = Vector3.ZERO

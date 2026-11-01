@@ -1,3 +1,4 @@
+@tool
 class_name Skill
 extends Resource
 ## One skill's definition — difficulty, what it defaults from, and what's
@@ -19,7 +20,8 @@ enum Difficulty {
 }
 
 @export var skill_name: String = "Unnamed Skill"
-@export var controlling_attribute: String = "DX"
+## A stat id — the Inspector suggests the ids in res://data/stats/.
+@export var controlling_attribute: StringName = &"DX"
 @export var difficulty_level: Difficulty = Difficulty.AVERAGE
 @export var defaults: Array[DefaultRule] = []
 ## Single top-level requirement, or null for none. Compose multiple
@@ -31,3 +33,8 @@ enum Difficulty {
 @export var prerequisites: PrerequisiteRule = null
 @export var learned_only: bool = false
 @export_multiline var description: String = ""
+
+
+func _validate_property(property: Dictionary) -> void:
+	if property.name == "controlling_attribute":
+		StatDatabase.suggest_ids(property)

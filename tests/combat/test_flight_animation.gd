@@ -34,8 +34,8 @@ func _lifts_hovers_glides_and_lands() -> void:
 			and player.has_animation("Flight/Fly_Fwd") and player.has_animation("Flight/Land"))
 	check("on the ground it idles", player.current_animation == "Idle", player.current_animation)
 
-	unit.fp_bonus = 20 - unit.health
-	unit.current_fp = 20
+	unit.set_base_stat(StatIds.FP, 20 - floori(unit.get_stat(StatIds.HT)))
+	unit.set_pool(StatIds.FP, 20)
 	var used: Dictionary = await unit.use_ability(fly, unit)
 	check("SETUP: Fly was really used", unit.is_flying(), str(used))
 	check("taking off plays the takeoff, with no cast clip first", player.current_animation == "Flight/Takeoff",

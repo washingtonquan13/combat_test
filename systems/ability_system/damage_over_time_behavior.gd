@@ -10,7 +10,7 @@ extends StatusBehavior
 @export var dice_count: int = 1
 @export var dice_sides: int = 6
 @export var dice_bonus: int = 0
-## Whether this bypasses damage_reduction entirely (bleeding/poison
+## Whether this bypasses DR entirely (bleeding/poison
 ## often ignores armor in many systems) or is mitigated the same as
 ## ordinary combat damage — your call per status.
 @export var ignores_damage_reduction: bool = true
@@ -21,7 +21,7 @@ func on_turn_start(unit: Unit, active: ActiveStatus) -> void:
 	for _i in active.stacks:
 		raw += roll_damage()
 
-	var applied: int = raw if ignores_damage_reduction else max(raw - unit.get_stat("DR"), 0)
+	var applied: int = raw if ignores_damage_reduction else maxi(raw - floori(unit.get_stat(StatIds.DR)), 0)
 	unit.take_damage(applied)
 
 

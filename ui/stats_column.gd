@@ -6,9 +6,8 @@ extends MarginContainer
 ## needed" precedent rather than two copies of the same onready refs
 ## silently drifting out of sync with each other).
 ##
-## Combat design goals (see memory: combat_design_goals): only
-## ST/DX/IQ/HT/Will/Per, HP/FP, DR, and Move are shown — no GURPS active
-## defenses (Dodge/Parry/Block/SM/Basic Lift/Speed).
+## ST/DX/IQ/HT/Will/Per, HP/FP, DR, and Move (with Air Move for a unit
+## that can fly).
 
 @onready var _name_label: Label = %NameLabel
 @onready var _hp_value: Label = %HPValue
@@ -30,20 +29,22 @@ extends MarginContainer
 func refresh(unit: Unit) -> void:
 	_name_label.text = unit.get_display_name()
 
-	_hp_value.text = "%d / %d" % [unit.current_hp, unit.maximum_hp]
-	_hp_fill.anchor_right = _fraction(unit.current_hp, unit.maximum_hp)
-	_fp_value.text = "%d / %d" % [unit.current_fp, unit.maximum_fp]
-	_fp_fill.anchor_right = _fraction(unit.current_fp, unit.maximum_fp)
+	_hp_value.text = "%d / %d" % [unit.get_pool(StatIds.HP), unit.get_stat(StatIds.HP)]
+	_hp_fill.anchor_right = _fraction(unit.get_pool(StatIds.HP), floori(unit.get_stat(StatIds.HP)))
+	_fp_value.text = "%d / %d" % [unit.get_pool(StatIds.FP), unit.get_stat(StatIds.FP)]
+	_fp_fill.anchor_right = _fraction(unit.get_pool(StatIds.FP), floori(unit.get_stat(StatIds.FP)))
 
-	_st_value.text = str(unit.get_stat("ST"))
-	_dx_value.text = str(unit.get_stat("DX"))
-	_iq_value.text = str(unit.get_stat("IQ"))
-	_ht_value.text = str(unit.get_stat("HT"))
-	_will_value.text = str(unit.get_stat("Will"))
-	_per_value.text = str(unit.get_stat("Per"))
+	_st_value.text = StatDefinition.format(unit.get_stat(StatIds.ST))
+	_dx_value.text = StatDefinition.format(unit.get_stat(StatIds.DX))
+	_iq_value.text = StatDefinition.format(unit.get_stat(StatIds.IQ))
+	_ht_value.text = StatDefinition.format(unit.get_stat(StatIds.HT))
+	_will_value.text = StatDefinition.format(unit.get_stat(StatIds.WILL))
+	_per_value.text = StatDefinition.format(unit.get_stat(StatIds.PER))
 
-	_dr_value.text = str(unit.get_stat("DR"))
-	_move_value.text = str(unit.get_stat("Move"))
+	_dr_value.text = StatDefinition.format(unit.get_stat(StatIds.DR))
+	_move_value.text = StatDefinition.format(unit.get_stat(StatIds.MOVE))
+	if unit.can_fly():
+		_move_value.text += ", Air %s" % StatDefinition.format(unit.get_stat(StatIds.AIR_MOVE))
 
 	_thrust_value.text = unit.describe_damage(UnitCombat.DamageType.THRUST, 0)
 	_swing_value.text = unit.describe_damage(UnitCombat.DamageType.SWING, 0)

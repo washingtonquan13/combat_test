@@ -136,7 +136,7 @@ func _on_body_entered(body: Node3D, active: ActiveSurface) -> void:
 		return
 	if not active.surface.status_effect:
 		return
-	body.apply_status(active.surface.status_effect)
+	body.inflict_status(active.surface.status_effect, null)
 
 
 ## Read by RoutePlanner.plan (via a Callable passed in by
@@ -173,7 +173,7 @@ func _on_turn_started(unit: Unit) -> void:
 			continue
 		var edge_dist: float = active.position.distance_to(unit.global_position) - unit.radius
 		if edge_dist <= active.radius:
-			unit.apply_status(active.surface.status_effect)
+			unit.inflict_status(active.surface.status_effect, null)
 
 
 ## Combat ending doesn't leave battlefield hazards lingering into

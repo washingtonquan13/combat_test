@@ -28,9 +28,9 @@ extends Resource
 ## classic Megaten fusion charts use in place of a level system this
 ## project doesn't have.
 ##
-## max_hp/max_fp are authored here explicitly rather than read off
-## unit_scene at runtime, so OwnedDemon never needs to instantiate a
-## scene just to know a fresh recruit's starting stats.
+## Stats are authored here (`stats`) rather than read off unit_scene
+## at runtime, so OwnedDemon and the compendium never need to instantiate
+## a scene just to know a species' numbers — see stat_value().
 ##
 ## Every field below that Unit also carries defaults to EXACTLY the same
 ## value Unit's own script declares — see Unit.definition's setter. That
@@ -40,23 +40,12 @@ extends Resource
 @export var id: String = ""
 @export var display_name: String = ""
 
-@export var strength: int = 10
-@export var dexterity: int = 10
-@export var intelligence: int = 10
-@export var health: int = 10
-## Bonuses over the derived secondaries, not the secondaries themselves —
-## see DerivedStats and Unit's own derived block.
-@export var hp_bonus: int = 0
-@export var fp_bonus: int = 0
-@export var will_bonus: int = 0
-@export var perception_bonus: int = 0
-@export var move_bonus: int = 0
-
-## Read by the compendium and roster, which show a species without a Unit.
-var max_hp: int:
-	get: return DerivedStats.hp(strength, hp_bonus)
-var max_fp: int:
-	get: return DerivedStats.fp(health, fp_bonus)
+## Stat bases this species differs from the defaults by — StatDefinition
+## id -> base (a primary's value, a derived stat's bought bonus over its
+## formula). Only the differences: a stat left out takes its file's
+## default_value, so a new stat added to res://data/stats/ needs no edit
+## here, and a species reads as what makes it unusual.
+@export var stats: Dictionary[StringName, int] = {}
 
 ## Senses — cascade onto Unit exactly like every other stat here, so a
 ## blind burrower and a hawk are the same detection code at different
@@ -66,7 +55,6 @@ var max_fp: int:
 @export var max_sight_range: float = 18.0
 @export var proximity_radius: float = 2.5
 
-@export var damage_reduction: int = 0
 
 @export var faction: StringName = &"player"
 
@@ -141,8 +129,8 @@ var max_fp: int:
 ## Defaults match Unit's own, so a definition that says nothing about them
 ## changes nothing. hover_color is deliberately absent: unit.tscn overrides
 ## it scene-wide, so a definition default would have to duplicate that
-## value to avoid re-tinting every unit in the game — the same trap max_fp
-## sets, and not worth walking into for a field nothing authors per
+## value to avoid re-tinting every unit in the game — the trap every
+## hand-mirrored default sets, and not worth walking into for a field nothing authors per
 ## character.
 @export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
 ## Conversations this character offers. Empty for anything that cannot be
@@ -213,3 +201,16 @@ func resolved_ai_smartness() -> int:
 	if ai_archetype and ai_smartness == 2:
 		return ai_archetype.smartness
 	return ai_smartness
+
+
+## A stat's value for this species with nothing applied — what the
+## compendium and roster show, and a fresh recruit's pool maximums.
+func stat_value(id: StringName) -> float:
+	return StatDatabase.value_of(id, _base_of, func(_id: StringName) -> int: return 0)
+
+
+func _base_of(id: StringName) -> int:
+	if stats.has(id):
+		return stats[id]
+	var definition := StatDatabase.find(id)
+	return definition.default_value if definition else 0

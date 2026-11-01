@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"Dodge"
+display_name = "Dodge"
+abbreviation = "Dodge"
+description = "Rolled against after every hit except a critical one; a success turns the hit into a miss."
+order = 85
+kind = 1
+formula = "floori(BasicSpeed) + 3 + DB"
+default_value = 0

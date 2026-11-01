@@ -14,7 +14,7 @@ Point-buy screen for the player character: attributes and skills bought from cos
 | Built leader record (handoff) | written to PartyManager.pending_leader (character_creation.gd:445; party_manager.gd:88) | No - consumed on spawn, then persisted as the leader's party data by the party system |
 
 ## Derived / cached state
-- Remaining points / affordability computed from tables (character_creation.gd:255-263, :272-310); derived stats via DerivedStats (:292-294).
+- Remaining points / affordability computed from tables (character_creation.gd:255-263, :272-310); attribute rows from `StatDatabase.get_bought()`; derived-stat preview via `StatDatabase.value_of` (`_preview_value`); the record carries a `stats` dict.
 - Skill rows built once from SkillDatabase in `_ready` (:139-141); portrait grid built once from disk (:147, :318-344).
 - `PartyManager.pending_leader` is a cache between this screen and test_arena's `_build_leader` (world/test_arena.gd:57-60).
 
@@ -24,7 +24,7 @@ Point-buy screen for the player character: attributes and skills bought from cos
 - **Signals in**: `visibility_changed` (:152), `SaveManager.new_game_started` (:160-161; disconnected in _exit_tree :207-209).
 
 ## Depends on
-- SkillDatabase (character_creation.gd:139-141), DerivedStats (:292-294), PartyManager.pending_leader (:445), WorldManager.travel_area (:451), SaveManager signal (:160-161), UIStack back to main_menu (:502-506), DirAccess on `res://assets/portraits/` (:72, :318-344).
+- SkillDatabase (character_creation.gd:139-141), StatDatabase (stats.md), PartyManager.pending_leader (:445), WorldManager.travel_area (:451), SaveManager signal (:160-161), UIStack back to main_menu (:502-506), DirAccess on `res://assets/portraits/` (:72, :318-344).
 - GameMode reports CHARACTER_CREATION while the screen is open (group `character_creation` :128; game_mode.gd:137-138, :159-161).
 
 ## Assumptions and invariants

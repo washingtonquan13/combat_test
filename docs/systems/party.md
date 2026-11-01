@@ -17,7 +17,7 @@ Owns who is in the player's party, how it is split into groups (embodied in a wo
 | pending_leader (chargen handoff) | party_manager.gd:88 | No (cleared by new_game, save_manager.gd:605) |
 | fallen (members who died) | party_manager.gd:93 | No |
 | Leader alignment | party_manager.gd:303-319 | Yes |
-| PartyMemberData fields (attrs, hp/fp, skills, gear paths, alignment, model) | party_member_data.gd:30-92 | Yes, fixed field list |
+| PartyMemberData fields (`stats` dict, skills, gear paths, alignment, model) | party_member_data.gd:30-92 | Yes, fixed field list |
 
 ## Derived / cached state
 - `members` and `roster` are derived getters over groups (party_manager.gd:55-62, :75-80) — no separate list to drift.
@@ -51,7 +51,7 @@ Owns who is in the player's party, how it is split into groups (embodied in a wo
 | # | Issue | Evidence (file:line) | Status |
 |---|---|---|---|
 | 1 | `embody`/`spawn_group` append the unit to `group.units` before `add_member`, whose `if unit in members: return` then skips the `died` connection and `member_added` | party_manager.gd:817-819, :852-853, :238 vs :245-246 | CONFIRMED (UI masks it via party_panel.gd:303-306; `fallen`/`member_removed` never fire for world-spawned members; party_panel.gd:401 assumes the connection) |
-| 2 | Save/capture use a fixed field list: statuses (incl. Downed), buffs, move_remaining, has_attacked dropped; Unit.save_state has statuses but isn't used | party_manager.gd:499-561, :360-407; unit.gd:1480-1489 | CONFIRMED |
+| 2 | Save/capture use a fixed field list: statuses (incl. Downed), buffs, move_remaining, has_attacked dropped; Unit.save_state has statuses but isn't used | party_manager.gd:499-561, :360-407; unit.gd:1480-1489 | CONFIRMED; stats half FIXED (data-driven stats, uncommitted) — every stat base and pool travels as `record.stats` (`stats_to_dict`/`stats_from_dict`) |
 | 3 | `leader = null` without `leader_changed` | world_manager.gd:417-418; party_manager.gd:424 | CONFIRMED |
 | 4 | `_disembody` frees members without `member_removed` | world_manager.gd:405-427 | CONFIRMED |
 | 5 | `load_state` emits no signals | party_manager.gd:569-605 | CONFIRMED |

@@ -37,6 +37,7 @@ metadata/_custom_type_script = "uid://08b8exry67bf"
 [sub_resource type="Resource" id="Resource_qnicf"]
 script = ExtResource("4_0585o")
 status_name = "Sleep"
+resisted_by = &"HT"
 icon = ExtResource("3_21ej2")
 default_duration = 3
 stack_mode = 0

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"SM"
+display_name = "Size Modifier"
+abbreviation = "SM"
+description = "Added to every attack against this unit: big things are easier to hit, small things harder. 0 is human-sized."
+order = 95
+kind = 0
+default_value = 0

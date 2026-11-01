@@ -72,8 +72,6 @@ func _register_persistence() -> void:
 func recruit(species: UnitDefinition) -> OwnedDemon:
 	var owned := OwnedDemon.new()
 	owned.species = species
-	owned.current_hp = species.max_hp
-	owned.current_fp = species.max_fp
 	_owned.append(owned)
 	return owned
 
@@ -127,8 +125,7 @@ func save_state() -> Dictionary:
 	for owned in _owned:
 		entries.append({
 			"species_id": owned.species.id if owned.species else "",
-			"current_hp": owned.current_hp,
-			"current_fp": owned.current_fp,
+			"stats": owned.stats,
 			"has_been_summoned": owned.has_been_summoned,
 			"is_dead": owned.is_dead,
 		})
@@ -147,8 +144,7 @@ func load_state(state: Dictionary) -> void:
 			continue
 		var owned := OwnedDemon.new()
 		owned.species = species
-		owned.current_hp = entry.get("current_hp", species.max_hp)
-		owned.current_fp = entry.get("current_fp", species.max_fp)
+		owned.stats = entry.get("stats", {})
 		owned.has_been_summoned = entry.get("has_been_summoned", false)
 		owned.is_dead = entry.get("is_dead", false)
 		_owned.append(owned)

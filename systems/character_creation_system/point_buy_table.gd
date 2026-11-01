@@ -13,8 +13,9 @@ extends Resource
 ## the table's own upper end "campaign power" knobs meant to be tuned,
 ## not a fixed, closed set of concepts.
 ##
-## The secondary attributes (HP/FP/Will/Perception/Move) are not bought
-## here: they derive from these four — see DerivedStats.
+## Which stats are bought against a table is set on the stat: a
+## StatDefinition's point_buy (res://data/stats/). Derived stats (HP, FP,
+## Will, Per, Move) have none — they follow from the ones bought.
 
 ## value -> cost. Godot's typed-Dictionary export shows as a real
 ## Inspector table, not a blob of text to hand-edit blind.

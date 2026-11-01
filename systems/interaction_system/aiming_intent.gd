@@ -49,10 +49,11 @@ func handle_right_click(_router, _hit: ClickHit) -> bool:
 
 
 ## Whatever the ability itself says (see Ability.indicator_ids), plus the
-## facing overlay, which follows any armed ability regardless of shape.
+## facing overlay and the hit-chance readout, which follow any armed
+## ability regardless of shape.
 ## No movement preview: a click while armed casts rather than walks.
 func indicator_ids() -> Array[StringName]:
-	var ids: Array[StringName] = [&"aim_facing"]
+	var ids: Array[StringName] = [&"aim_facing", &"hit_chance"]
 	if ability:
 		ids.append_array(ability.indicator_ids())
 	return ids

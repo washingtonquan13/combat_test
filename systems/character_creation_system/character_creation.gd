@@ -15,8 +15,9 @@ extends UIScreen
 ## For the same reason a character sheet (portrait, name, attribute
 ## summary, a checklist of what Confirm is waiting for) sits beside the
 ## tabs and stays visible whichever tab is open; its derived-stats line
-## follows the attribute steppers through DerivedStats, the same formulas
-## the spawned unit uses. The Origin tab is a deliberate placeholder:
+## follows the attribute steppers through StatDatabase, the same formulas
+## the spawned unit uses. Which attributes are bought is data too: every
+## stat file with a point_buy table gets a row. The Origin tab is a deliberate placeholder:
 ## disabled controls laid out for choices that are not built yet. The DEBUG
 ## Auto-Fill/Quick Create buttons show in debug builds only.
 ##
@@ -47,16 +48,11 @@ extends UIScreen
 ## pending_leader back in to pre-fill on open — this screen's only
 ## contact with PartyManager stays writing to it on Confirm.
 
+## The one budget every bought stat is spent from. Each bought stat's
+## file names this same table as its point_buy; a stat naming a different
+## one would need its own pool, which nothing here supports yet.
 const ATTRIBUTE_TABLE: PointBuyTable = preload("res://data/character_creation/attribute_costs.tres")
 const SKILL_TABLE: PointBuyTable = preload("res://data/character_creation/skill_costs.tres")
-
-const ATTRIBUTE_NAMES: Array[String] = ["strength", "dexterity", "intelligence", "health"]
-const ATTRIBUTE_LABELS: Dictionary = {
-	"strength": "Strength",
-	"dexterity": "Dexterity",
-	"intelligence": "Intelligence",
-	"health": "Health",
-}
 
 ## Matches unit_portrait.tscn's own authored ratio exactly (80x100) —
 ## see that scene for why: a TextureRect using expand_mode=EXPAND_IGNORE_
@@ -74,15 +70,7 @@ const PORTRAIT_EXTENSIONS: Array[String] = ["jpg", "jpeg", "png"]
 
 const POINT_BUY_ROW: PackedScene = preload("res://systems/character_creation_system/point_buy_row.tscn")
 
-## GURPS-style short tags for the sheet summary and each skill's "DX/A"
-## tag. The attribute keys are this screen's own; the difficulty letters
-## are GURPS's.
-const ATTRIBUTE_TAGS: Dictionary = {
-	"strength": "ST",
-	"dexterity": "DX",
-	"intelligence": "IQ",
-	"health": "HT",
-}
+## Each skill's "DX/A" tag — the difficulty letters are GURPS's.
 const DIFFICULTY_TAGS: Dictionary = {
 	Skill.Difficulty.EASY: "E",
 	Skill.Difficulty.AVERAGE: "A",
@@ -112,7 +100,9 @@ const QUICK_CREATE_NAME: String = "Debug Hero"
 @onready var _skills_list: VBoxContainer = %SkillsList
 @onready var _confirm_button: Button = %ConfirmButton
 
-var _attribute_values: Dictionary = {}  # String -> int
+## Stat ids with a point_buy table, in display order — the rows.
+var _attribute_ids: Array[String] = []
+var _attribute_values: Dictionary = {}  # String (stat id) -> int
 var _skill_values: Dictionary = {}  # String (skill name) -> int (relative level)
 var _attribute_rows: Dictionary = {}  # String -> Dictionary (row's own widgets)
 var _skill_rows: Dictionary = {}
@@ -133,8 +123,10 @@ func _ready() -> void:
 	# +/-/portrait pressed signals. Must NOT live in reset() — reset() runs
 	# on every open, and re-running this would double-connect every one of
 	# those signals (or duplicate the rows/buttons outright).
-	for attr in ATTRIBUTE_NAMES:
-		_build_row(_attributes_list, ATTRIBUTE_LABELS[attr], ATTRIBUTE_TAGS[attr], "", attr, _attribute_rows, _on_attribute_step)
+	for definition in StatDatabase.get_bought():
+		var id: String = String(definition.id)
+		_attribute_ids.append(id)
+		_build_row(_attributes_list, definition.display_name, definition.abbreviation, definition.description, id, _attribute_rows, _on_attribute_step)
 
 	for skill in SkillDatabase.get_all():
 		var tag: String = "%s/%s" % [skill.controlling_attribute, DIFFICULTY_TAGS.get(skill.difficulty_level, "?")]
@@ -172,8 +164,8 @@ func _ready() -> void:
 func reset() -> void:
 	_name_edit.text = ""
 
-	for attr in ATTRIBUTE_NAMES:
-		_attribute_values[attr] = ATTRIBUTE_TABLE.default_value
+	for id in _attribute_ids:
+		_attribute_values[id] = ATTRIBUTE_TABLE.default_value
 
 	for skill in SkillDatabase.get_all():
 		_skill_values[skill.skill_name] = SKILL_TABLE.default_value
@@ -271,9 +263,9 @@ func _can_afford_step(table: PointBuyTable, values: Dictionary, key: String, del
 ## itself cause an overspend.
 func _refresh_attributes() -> void:
 	var remaining: int = ATTRIBUTE_TABLE.points_remaining(_attribute_values)
-	for attr in ATTRIBUTE_NAMES:
-		var value: int = _attribute_values[attr]
-		var row: Dictionary = _attribute_rows[attr]
+	for id in _attribute_ids:
+		var value: int = _attribute_values[id]
+		var row: Dictionary = _attribute_rows[id]
 		row["value_label"].text = str(value)
 		row["cost_label"].text = "cost %d" % ATTRIBUTE_TABLE.cost_for(value)
 		row["minus"].disabled = value <= ATTRIBUTE_TABLE.min_value
@@ -282,17 +274,24 @@ func _refresh_attributes() -> void:
 
 	_attributes_header.text = "ATTRIBUTES  —  Points remaining: %d" % remaining
 	var parts: PackedStringArray = []
-	for attr in ATTRIBUTE_NAMES:
-		parts.append("%s %d" % [ATTRIBUTE_TAGS[attr], _attribute_values[attr]])
+	for id in _attribute_ids:
+		parts.append("%s %d" % [StatDatabase.find(StringName(id)).label(), _attribute_values[id]])
 	_attribute_summary.text = "   ".join(parts)
-	var st: int = _attribute_values["strength"]
-	var dx: int = _attribute_values["dexterity"]
-	var iq: int = _attribute_values["intelligence"]
-	var ht: int = _attribute_values["health"]
-	_derived_summary.text = "HP %d   FP %d   Will %d   Per %d   Move %d" % [
-		DerivedStats.hp(st, 0), DerivedStats.fp(ht, 0), DerivedStats.will(iq, 0),
-		DerivedStats.perception(iq, 0), DerivedStats.move(dx, ht, 0)]
+	var derived: PackedStringArray = []
+	for definition in StatDatabase.get_all():
+		if definition.is_derived():
+			derived.append("%s %s" % [definition.label(), StatDefinition.format(_preview_value(definition.id))])
+	_derived_summary.text = "   ".join(derived)
 	_update_confirm_state()
+
+
+## A stat's value for the build so far — the bought values, every other
+## stat at its default, nothing applied. What the unit will spawn with.
+func _preview_value(id: StringName) -> float:
+	var base_of := func(stat_id: StringName) -> int:
+		var definition := StatDatabase.find(stat_id)
+		return _attribute_values.get(String(stat_id), definition.default_value if definition else 0)
+	return StatDatabase.value_of(id, base_of, func(_id: StringName) -> int: return 0)
 
 
 func _refresh_skills() -> void:
@@ -402,14 +401,13 @@ func _on_confirm_pressed() -> void:
 	record.display_name = _name_edit.text.strip_edges()
 	record.portrait_texture = load(_selected_portrait_path)
 	record.faction = Unit.PLAYER_FACTION
-	record.strength = _attribute_values["strength"]
-	record.dexterity = _attribute_values["dexterity"]
-	record.intelligence = _attribute_values["intelligence"]
-	record.health = _attribute_values["health"]
-	# A new character starts whole. The record's own current values default
-	# to 10, which only matched an ST 10, HT 10 character.
-	record.current_hp = record.maximum_hp
-	record.current_fp = record.maximum_fp
+	# A new character starts whole: every pool at the maximum this build
+	# gives it, not the species' — an ST 14 character is not born at 10 HP.
+	var pools: Dictionary = {}
+	for definition in StatDatabase.get_all():
+		if definition.is_pool:
+			pools[String(definition.id)] = floori(_preview_value(definition.id))
+	record.stats = {"stats": _attribute_values.duplicate(), "pools": pools}
 	# Matches the other 3 hand-placed party members' own shared color,
 	# authored directly on each of them in test_arena.tscn — visual party
 	# consistency, not a Unit-script default. Belongs on the record itself
@@ -462,7 +460,7 @@ func _on_auto_fill_pressed() -> void:
 		_on_portrait_selected(_portrait_buttons.keys()[0])
 
 	var attributes: Array[String] = []
-	attributes.assign(ATTRIBUTE_NAMES)
+	attributes.assign(_attribute_ids)
 	_spend_round_robin(attributes, _on_attribute_step, ATTRIBUTE_TABLE, _attribute_values)
 
 	var skills: Array[String] = []

@@ -25,6 +25,7 @@ metadata/_custom_type_script = "uid://c13klrwq84gxl"
 [sub_resource type="Resource" id="Resource_efyr5"]
 script = ExtResource("7_oyg0r")
 status_name = "Slipped"
+resisted_by = &"DX"
 icon = ExtResource("8_5hn5t")
 default_duration = 3
 stack_mode = 0

@@ -9,13 +9,15 @@ extends AbilityEffect
 ## hardcoded on this effect; Fixed weapons roll their own dice entirely,
 ## ignoring the attacker's ST.
 ##
-## Nothing equipped in either hand for this category: falls back to
-## bare-handed ST damage (roll_damage with bonus 0) rather than dealing
-## zero — a simplification, not a real unarmed-combat model.
+## Nothing equipped in either hand for this category: a GURPS punch,
+## thrust-1 (B271). Kicks and natural weapons (claws, teeth)
+## aren't modelled, so a weaponless demon punches.
 
 enum WeaponCategory { MELEE, RANGED }
 
 @export var category: WeaponCategory = WeaponCategory.MELEE
+
+const PUNCH_BONUS: int = -1
 
 
 func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dictionary:
@@ -27,8 +29,8 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# Critical hit: ignores DR entirely and deals guaranteed max damage
 	# (see UnitCombat.max_damage) — no second roll, staying consistent
 	# with this project's fast/not-roll-heavy combat goal.
-	var applied: int = raw_damage if is_critical else max(raw_damage - target.get_stat("DR"), 0)
-	target.take_damage(applied)
+	var applied: int = raw_damage if is_critical else maxi(raw_damage - floori(target.get_stat(StatIds.DR)), 0)
+	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
 
@@ -55,8 +57,8 @@ func _find_weapon(attacker: Unit) -> GearItem:
 
 func _roll(attacker: Unit, weapon: GearItem, is_critical: bool) -> int:
 	if not weapon:
-		return attacker.max_damage(UnitCombat.DamageType.SWING, 0) if is_critical \
-			else attacker.roll_damage(UnitCombat.DamageType.SWING, 0)
+		return attacker.max_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS) if is_critical \
+			else attacker.roll_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS)
 
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:
@@ -81,7 +83,7 @@ func describe() -> String:
 
 
 ## Mirrors _roll()'s own branching without rolling — see AbilityEffect.
-## expected_damage's own header. No weapon (bare-handed) and THRUST/SWING
+## expected_damage's own header. No weapon (a punch) and THRUST/SWING
 ## weapons both delegate to attacker.average_damage exactly as _roll()
 ## delegates to attacker.roll_damage/max_damage; only FIXED weapons need
 ## their own average-of-dice math since they bypass the attacker's ST
@@ -89,7 +91,7 @@ func describe() -> String:
 func expected_damage(attacker: Unit) -> float:
 	var weapon: GearItem = _find_weapon(attacker)
 	if not weapon:
-		return attacker.average_damage(UnitCombat.DamageType.SWING, 0)
+		return attacker.average_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS)
 
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:

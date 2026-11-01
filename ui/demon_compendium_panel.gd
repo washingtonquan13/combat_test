@@ -79,7 +79,7 @@ func refresh() -> void:
 func _populate_demon_list(list: ItemList, entries: Array[OwnedDemon]) -> void:
 	list.clear()
 	for owned in entries:
-		list.add_item("%s (HP %d/%d)" % [owned.species.display_name, owned.current_hp, owned.species.max_hp])
+		list.add_item("%s (HP %d/%d)" % [owned.species.display_name, owned.get_pool(StatIds.HP), owned.species.stat_value(StatIds.HP)])
 
 
 func _update_fusion_preview() -> void:

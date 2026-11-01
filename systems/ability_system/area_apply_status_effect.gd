@@ -33,8 +33,8 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	var affected: Array[Unit] = []
 
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
-		unit.apply_status(status)
-		affected.append(unit)
+		if unit.inflict_status(status, attacker):
+			affected.append(unit)
 
 	return {"affected_with_status": affected}
 

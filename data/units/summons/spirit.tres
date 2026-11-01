@@ -19,16 +19,10 @@
 script = ExtResource("1_def")
 id = "spirit"
 display_name = "Spirit"
-strength = 10
-dexterity = 10
-intelligence = 10
-health = 10
-move_bonus = -12
-hp_bonus = -8
+stats = Dictionary[StringName, int]({&"HP": -8, &"Move": -2})
 vision_cone_degrees = 120.0
 max_sight_range = 18.0
 proximity_radius = 2.5
-damage_reduction = 0
 faction = &"player"
 order = &""
 rank = 1

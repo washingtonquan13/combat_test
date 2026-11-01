@@ -20,7 +20,7 @@ Drives the turn of every unit whose faction is AI-controlled: asks `AiScorer.bes
 
 ## Derived / cached state
 - `_acting_unit` is a copy of "whose turn is it", whose truth is `Encounter.current_unit` — per encounter. One global copy vs N encounters (see issue 1).
-- `_success_probability` re-implements `SuccessRoll.roll_vs` crit rules (ai_scorer.gd:1088-1110 vs success_roll.gd:25-34) — two truths for crit thresholds.
+- ~~`_success_probability` re-implements `SuccessRoll.roll_vs` crit rules~~ FIXED (uncommitted): `_chance_to_hit` is `Unit.hit_chance`, which reads `SuccessRoll.chances` (same `_outcome` as the real roll) and includes the defender's Dodge — the AI and the player's hit-chance readout share one number.
 - `_plan_end_position` re-derives `GrantFlightEffect.apply()`'s altitude clamp (ai_scorer.gd:513-522) and LandEffect's ground (523-524).
 - `_unsustainable_flight_cost` / `_forced_descent_cost` re-derive fall damage as `dice*3.5+bonus` from `FLIGHT_RULES` (ai_scorer.gd:951-955, 1015-1019).
 - `_position_cache` caches threat per position for one `best_plan` call; valid only while no unit moves mid-scoring.

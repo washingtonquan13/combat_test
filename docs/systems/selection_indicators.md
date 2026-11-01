@@ -12,8 +12,9 @@
   - aerial_area_indicator.gd (131)
   - line_of_sight_indicator.gd (107)
   - jump_indicator.gd (72)
+  - hit_chance_indicator.gd — serves `hit_chance` (idle and aiming intents): "NN%" beside the cursor over a unit the click would attack with a to-hit roll, from `Unit.hit_chance`, plus one line per resistible status the ability applies ("Sleep NN%" = hit chance × `status_land_chance`). Its Label is TacticalUI/HitChanceLabel in MainRoot, styled there (uncommitted)
   - alignment_grid.gd (62)
-- Scene nodes: MainRoot.tscn:82-108. The Indicators parent holds UnitAimFacing, Movement, LineOfSight, Jump, Area, AerialArea, SightCone, Seeking and NavDebugOverlay.
+- Scene nodes: MainRoot.tscn:82-108. The Indicators parent holds UnitAimFacing, Movement, LineOfSight, Jump, Area, AerialArea, SightCone, Seeking, HitChance and NavDebugOverlay.
 
 **Autoloads owned:** SelectionManager (project.godot autoload list, first entry).
 

@@ -11,6 +11,7 @@ Mapped 2026-10-29 at commit 28ba573. Issue counts are rows in each doc's Known i
 | Layer | System | Doc | Issues |
 |---|---|---|---|
 | **Core rules** | Unit (stats, combat, movement, death, statuses on a unit) | [unit.md](unit.md) | 20 |
+| | Stats (definitions, per-unit instances) | [stats.md](stats.md) | 3 |
 | | Abilities & effects | [abilities.md](abilities.md) | 9 |
 | | Status effects (definitions, behaviors) | [statuses.md](statuses.md) | 7 |
 | | Skills | [skills.md](skills.md) | 8 |
@@ -122,7 +123,7 @@ Encounters became per-instance and worlds became resident, but these places stil
 - Cinematic cancel lands a frame late; `behind_black` returns null silently on a second call (cinematics.md, world.md)
 
 ### R4. Two answers to one question
-- `move` and `maximum_hp` read raw stats while `get_stat` applies modifiers; the HT stay-up roll uses raw HT (unit.md #17-18)
+- ~~`move` and `maximum_hp` read raw stats while `get_stat` applies modifiers; the HT stay-up roll uses raw HT (unit.md #17-18)~~ FIXED: one `get_stat` (stats.md)
 - `downed_changed` emitted by hand at 3 sites, not from the status (unit.md #9)
 - `abilities` aliases the shared `UnitDefinition` array, and the party screen mutates it (unit.md #16)
 - Leader set to null without `leader_changed` (party.md)

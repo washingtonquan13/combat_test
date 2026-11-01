@@ -114,7 +114,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 5, 1)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.5, 0.5, -23.5)
 definition = ExtResource("npc_town")
 display_name = "Scared Townperson"
-dexterity = 18
+stat_overrides = Dictionary[StringName, int]({
+&"DX": 18
+})
 move_speed = 5.0
 faction = &"neutral"
 abilities = Array[ExtResource("9_vivmo")]([ExtResource("13_074og"), ExtResource("10_yaehf"), ExtResource("16_getpj")])

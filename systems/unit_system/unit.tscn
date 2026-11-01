@@ -1,9 +1,10 @@
-[gd_scene load_steps=7 format=3 uid="uid://dfjhg20p6pvxm"]
+[gd_scene load_steps=8 format=3 uid="uid://dfjhg20p6pvxm"]
 
 [ext_resource type="Script" uid="uid://dp2k8mbhvm6v0" path="res://systems/unit_system/unit.gd" id="1_ctwoc"]
 [ext_resource type="Script" uid="uid://dilgwwepmjg6q" path="res://systems/unit_system/unit_animator.gd" id="3_5wnup"]
 [ext_resource type="Script" uid="uid://dnh7j3tbx8iv1" path="res://systems/unit_system/unit_vfx.gd" id="5_of1k5"]
 [ext_resource type="Script" uid="uid://ck5pdrnkh24um" path="res://systems/unit_system/unit_sfx.gd" id="6_74e6i"]
+[ext_resource type="PackedScene" path="res://ui/downed_tracker.tscn" id="7_downed"]
 [ext_resource type="Resource" uid="uid://rybmi15rabro" path="res://data/animation_sequences/spell_cast.tres" id="castanim_spell"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_5wnup"]
@@ -36,3 +37,5 @@ unit = NodePath("..")
 [node name="UnitSFX" type="Node" parent="." node_paths=PackedStringArray("unit")]
 script = ExtResource("6_74e6i")
 unit = NodePath("..")
+
+[node name="DownedTracker" parent="." instance=ExtResource("7_downed")]

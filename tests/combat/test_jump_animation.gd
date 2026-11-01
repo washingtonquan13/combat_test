@@ -31,8 +31,8 @@ func run() -> void:
 	check("SETUP: the body has the jump clips", player.has_animation("Jump_Start")
 		and player.has_animation("Jump") and player.has_animation("Jump_Land"))
 
-	unit.fp_bonus = 20 - unit.health
-	unit.current_fp = 20
+	unit.set_base_stat(StatIds.FP, 20 - floori(unit.get_stat(StatIds.HT)))
+	unit.set_pool(StatIds.FP, 20)
 	# Let the idle pose land on the skeleton before measuring from it.
 	for i in 5:
 		await get_tree().process_frame

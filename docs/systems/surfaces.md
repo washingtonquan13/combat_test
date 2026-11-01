@@ -43,7 +43,7 @@ Spawns ground-area effects, for example grease. Each one gets a detection Area3D
 - `WorldManager.spawn_parent()` parents the visual and area into the focused world (surface_manager.gd:57-61; world_manager.gd:962-963).
 - `WorldManager` focused context provides the list storage (surface_manager.gd:40-43).
 - CombatManager relayed signals (48-51); see `combat.md`, issues 4-6.
-- Unit status application through the surface's `status_effect` (surface.gd:43; surface_manager.gd:134-139, 168-176).
+- Unit status application through the surface's `status_effect` (surface.gd:43; surface_manager.gd:134-139, 168-176), via `inflict_status(..., null)`, so a resistible status is rolled again on entry and each turn start inside (uncommitted).
 
 ## Assumptions and invariants
 - Surfaces age only in rounds. Outside combat they never tick down; only `combat_ended` or world disposal removes them (159-165, 182-184; world_context.gd:88-107).

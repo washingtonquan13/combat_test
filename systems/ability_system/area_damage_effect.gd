@@ -48,7 +48,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
-		var applied: int = max(raw_damage - unit.get_stat("DR"), 0)
+		var applied: int = maxi(raw_damage - floori(unit.get_stat(StatIds.DR)), 0)
 		unit.take_damage(applied)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})
 

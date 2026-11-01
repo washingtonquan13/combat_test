@@ -112,10 +112,10 @@ func _spawn_in(root: Node3D, position: Vector3) -> Unit:
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	root.add_child(unit)
 	unit.faction = &"player"
-	unit.strength = 12
-	unit.dexterity = 12
-	unit.hp_bonus = 20 - unit.strength
-	unit.current_hp = 20
+	unit.set_base_stat(StatIds.ST, 12)
+	unit.set_base_stat(StatIds.DX, 12)
+	unit.set_base_stat(StatIds.HP, 20 - floori(unit.get_stat(StatIds.ST)))
+	unit.set_pool(StatIds.HP, 20)
 	var abilities: Array[Ability] = [melee()]
 	unit.abilities = abilities
 	unit.global_position = position

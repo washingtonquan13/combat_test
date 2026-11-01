@@ -227,10 +227,10 @@ func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 	for ability in abilities:
 		typed.append(ability)
 	unit.faction = faction
-	unit.strength = strength
-	unit.dexterity = dexterity
-	unit.hp_bonus = max_hp - unit.strength
-	unit.current_hp = max_hp
+	unit.set_base_stat(StatIds.ST, strength)
+	unit.set_base_stat(StatIds.DX, dexterity)
+	unit.set_base_stat(StatIds.HP, max_hp - floori(unit.get_stat(StatIds.ST)))
+	unit.set_pool(StatIds.HP, max_hp)
 	unit.abilities = typed
 	unit.ai_smartness = 2
 	unit.global_position = position
@@ -256,7 +256,7 @@ func spawn_demon(id: String, position: Vector3, flying: bool = false, fp: int = 
 		unit.apply_status(load("res://data/statuses/flying.tres"))
 	unit.reset_turn_actions()
 	if fp >= 0:
-		unit.current_fp = fp
+		unit.set_pool(StatIds.FP, fp)
 	_spawned.append(unit)
 	return unit
 

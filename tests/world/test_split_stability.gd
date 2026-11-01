@@ -223,8 +223,8 @@ func _a_half_abstract_group_is_embodied_whole() -> void:
 	absent.id = &"probe_absent"
 	absent.display_name = "Absent"
 	absent.faction = &"player"
-	absent.hp_bonus = 10 - absent.strength
-	absent.current_hp = 10
+	absent.set_base_stat(StatIds.HP, 10 - floori(absent.get_stat(StatIds.ST)))
+	absent.set_pool(StatIds.HP, 10)
 	group.records.append(absent)
 
 	PartyManager.embody(group, world, marker)

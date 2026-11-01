@@ -125,12 +125,6 @@ var _pending_delay_positions: int = -1
 var _skip_first_action_for: Unit = null
 
 
-## Builds initiative order and starts. Initiative = dexterity, highest
-## first; ties broken by a value rolled once per unit BEFOREHAND, not
-## inside the comparator — a sort comparator can be called more than once
-## for the same pair, and one that re-rolls each call gives inconsistent
-## answers, which Godot flags as a bad comparison function and can leave
-## the sort broken.
 ## A fight as data: who is in it, in order, and how far through it is.
 ##
 ## Units by persistent_id, which is what makes a turn order writable at
@@ -188,6 +182,12 @@ func resume(units: Array[Unit], at_index: int, at_round: int) -> void:
 	turn_started.emit(current_unit)
 
 
+## Builds initiative order and starts. Highest Basic Speed first, then
+## the higher DX (GURPS's own tie rule), then a value rolled once per
+## unit BEFOREHAND, not inside the comparator — a sort comparator can be
+## called more than once for the same pair, and one that re-rolls each
+## call gives inconsistent answers, which Godot flags as a bad comparison
+## function and can leave the sort broken.
 func begin(combatants: Array[Unit], skip_first_action_for: Unit = null) -> void:
 	turn_order = combatants.filter(func(u): return is_instance_valid(u) and u.is_alive())
 
@@ -196,8 +196,9 @@ func begin(combatants: Array[Unit], skip_first_action_for: Unit = null) -> void:
 		tiebreak[unit] = randi_range(1, 6)
 
 	turn_order.sort_custom(func(a: Unit, b: Unit) -> bool:
-		if a.get_stat("DX") != b.get_stat("DX"):
-			return a.get_stat("DX") > b.get_stat("DX")
+		for id in [StatIds.BASIC_SPEED, StatIds.DX]:
+			if a.get_stat(id) != b.get_stat(id):
+				return a.get_stat(id) > b.get_stat(id)
 		return tiebreak[a] > tiebreak[b]
 	)
 
@@ -317,7 +318,8 @@ func finish(winning_faction: StringName = &"") -> void:
 
 	phase = Phase.OUT_OF_COMBAT
 	for unit in turn_order:
-		# Anyone still Downed when the fight ends survives it.
+		# Anyone still Downed when the fight ends survives it, stable but
+		# still down.
 		if is_instance_valid(unit) and unit.is_downed():
 			unit.stabilize()
 		_release(unit)
@@ -478,13 +480,14 @@ func _advance_turn() -> void:
 		_advance_turn.call_deferred()
 		return
 
-	# A Downed unit's turn is just its timer running down (tick_statuses
-	# above already took the turn off, and killed it if that was the
-	# last) — it never gets turn_started, so nothing (player input,
-	# CombatAI) tries to act.
+	# A Downed unit's turn is just its roll (tick_statuses above already
+	# made it, and killed it on the third mark toward death) — it never
+	# gets turn_started, so nothing (player input, CombatAI) tries to act.
+	if unit.is_stable():
+		SystemLog.print("%s is down, but stable." % LogFormat.unit_name(unit))
+		_advance_turn.call_deferred()
+		return
 	if unit.is_downed():
-		SystemLog.print("%s is down — %d turn%s left to be picked up." % [
-			LogFormat.unit_name(unit), unit.downed_turns_left(), "" if unit.downed_turns_left() == 1 else "s"])
 		_advance_turn.call_deferred()
 		return
 

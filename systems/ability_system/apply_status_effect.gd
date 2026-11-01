@@ -12,11 +12,12 @@ extends AbilityEffect
 @export var status: StatusEffect
 
 
-func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit or not status:
 		return {}
 
-	target.apply_status(status)
+	if not target.inflict_status(status, attacker):
+		return {"resisted_status": status.status_name}
 	return {"applied_status": status.status_name}
 
 
