@@ -1,7 +1,7 @@
 """Continuous warp of COMPRESSION_PLAN.md: the whole city into one rounded rectangle.
 
     python -I tools/blockout/parish_warp.py <segment dir> [--raw <raw dir> --out <out raw dir>]
-        [--area 100] [--aniso 2] [--png out.png]
+        [--area 100] [--aniso 2] [--dmin 0.75] [--png out.png]
 
 The source is a rounded rectangle around parish_districts.py's districts
 (plus MARGIN, clipped to the download); the target is the same outline
@@ -18,9 +18,10 @@ so that:
     than ANISO one way than the other. Triangles that break a bound get
     their weight raised (BOOST) until they keep it.
 
-D starts at 1; if the gates fail there, DMIN is tried and then D is
-bisected between them, so the districts stay as close to true size as the
-area allows.
+D starts at 1; if the gates fail there, DMIN (--dmin) is tried and then D
+is bisected between them, so the districts stay as close to true size as
+the area allows. A map much smaller than its source (the whole parish into
+100 km2) needs a lower --dmin.
 
 The map is piecewise affine over the mesh, so it is one continuous,
 one-to-one deformation whenever no triangle flips: streets stay joined,
@@ -634,6 +635,7 @@ def main():
     ap.add_argument("--lidar", default=LIDAR)
     ap.add_argument("--png")
     ap.add_argument("--line-w", type=float, default=LINE_W, help="pull of the source-straight streets onto straight lines (0: off)")
+    ap.add_argument("--dmin", type=float, default=DMIN, help="smallest district scale tried when 1 fails")
     ap.add_argument("--aniso", type=float, default=ANISO, help="most a squeezed triangle may stretch one way more than the other")
     a = ap.parse_args()
     ANISO = a.aniso
@@ -682,10 +684,10 @@ def main():
     gate, per = measure(mesh, Q, did, names, 1.0, strokes)
     log("  scale 1.000: %s" % json.dumps(gate))
     if not gate["pass"]:
-        lo_d, hi_d, best = DMIN, 1.0, None
-        Qd = solve(mesh, out, did, wt, DMIN, Q0, log, lines=strokes, line_w=a.line_w)
-        g, pr = measure(mesh, Qd, did, names, DMIN, strokes)
-        log("  scale %.3f: %s" % (DMIN, json.dumps(g)))
+        lo_d, hi_d, best = a.dmin, 1.0, None
+        Qd = solve(mesh, out, did, wt, a.dmin, Q0, log, lines=strokes, line_w=a.line_w)
+        g, pr = measure(mesh, Qd, did, names, a.dmin, strokes)
+        log("  scale %.3f: %s" % (a.dmin, json.dumps(g)))
         if g["pass"]:
             best = (Qd, g, pr)
             for _ in range(D_STEPS):

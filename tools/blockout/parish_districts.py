@@ -1,6 +1,6 @@
 """Phase 3a of COMPRESSION_PLAN.md (option 2): pick the districts.
 
-    python -I tools/blockout/parish_districts.py <segment dir> [--area 2.5] [--png out.png]
+    python -I tools/blockout/parish_districts.py <segment dir> [--area 2.5] [--whole] [--png out.png]
 
 A district grows from a seed point over whole blocks, nearest first, through
 neighbouring blocks only (so it never jumps the river), until it reaches
@@ -10,13 +10,15 @@ industry) and blocks another district already took are skipped.
 The seeds are neighbourhoods, not score peaks: the raw download has no place
 names, and the score surface outside the core is flat enough that its peaks
 land on motel strips and a naval base. SEEDS is the one list a person may
-want to edit.
+want to edit. --whole adds WHOLE_SEEDS, the rest of the parish (Gentilly,
+the Lower Ninth, New Orleans East, lower Algiers), for a map of all of it.
 
 Writes <segment dir>/districts.json: per district its name, seed, blocks,
 area, and wikidata landmarks; plus the gate below.
 
 Gate 3a: every seed grows a district of one part, the required five are
-present, and the total area is 20-35 km2.
+present, and the total area is 20-35 km2 (scaled by the seed count with
+--whole).
 """
 import argparse
 import heapq
@@ -45,6 +47,16 @@ SEEDS = [
     ("Algiers Point", 29.9530, -90.0520),
     ("Holy Cross", 29.9600, -90.0180),
 ]
+# The rest of Orleans Parish: with --whole, these grow after SEEDS, and
+# over irregular patches too, since the East's suburbs are all curved
+# streets.
+WHOLE_SEEDS = [
+    ("Gentilly", 30.0000, -90.0550),
+    ("Lower Ninth Ward", 29.9720, -90.0030),
+    ("Lake Forest", 30.0400, -89.9750),
+    ("Village de l'Est", 30.0470, -89.9350),
+    ("Lower Algiers", 29.9180, -90.0100),
+]
 REQUIRED = ("French Quarter", "CBD", "Marigny and Bywater", "Garden District", "Mid-City")
 BLOCK_MAX = 2e5  # m2: bigger blocks are yards, parks, industry
 TOUCH = 20.0  # m: blocks this close are neighbours (across one street)
@@ -54,8 +66,10 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("segment")
     ap.add_argument("--area", type=float, default=2.5, help="km2 per district")
+    ap.add_argument("--whole", action="store_true", help="seed the rest of the parish too (WHOLE_SEEDS)")
     ap.add_argument("--png")
     a = ap.parse_args()
+    seeds = SEEDS + (WHOLE_SEEDS if a.whole else [])
     seg = json.load(open(os.path.join(a.segment, "segment.json"), encoding="utf-8"))
     fr = Frame(*seg["frame"])
     B, P = seg["blocks"], seg["patches"]
@@ -63,7 +77,8 @@ def main():
     poly = [Polygon(b["ring"]) for b in B]
     area = np.array([p.area for p in poly])
     cen = np.array([p.centroid.coords[0] for p in poly])
-    ok = np.array([b["patch"] not in irr for b in B]) & (area < BLOCK_MAX)
+    small = area < BLOCK_MAX
+    regular = np.array([b["patch"] not in irr for b in B])
     tree = shapely.STRtree(poly)
     nbr = [[] for _ in B]
     ii, jj = tree.query([p.buffer(TOUCH) for p in poly], predicate="intersects")
@@ -73,7 +88,8 @@ def main():
 
     taken = np.zeros(len(B), bool)
     out = []
-    for name, lat, lon in SEEDS:
+    for k, (name, lat, lon) in enumerate(seeds):
+        ok = small & (regular | (k >= len(SEEDS)))
         x, z = fr.xz([lon], [lat])
         s = np.array([float(x[0]), float(z[0])])
         d = np.hypot(*(cen - s).T)
@@ -102,7 +118,7 @@ def main():
     gate = {"districts": len(out), "total_km2": round(total, 2),
             "missing_required": [r for r in REQUIRED if r not in names],
             "split": [o["name"] for o in out if o["parts"] != 1]}
-    gate["pass"] = not gate["missing_required"] and not gate["split"] and 20.0 <= total <= 35.0
+    gate["pass"] = not gate["missing_required"] and not gate["split"] and 20.0 <= total * len(SEEDS) / len(seeds) <= 35.0
     print("gate", json.dumps(gate))
     with open(os.path.join(a.segment, "districts.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"frame": seg["frame"], "area_km2": a.area, "districts": out, "gate": gate}, f, indent=1)

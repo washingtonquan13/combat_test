@@ -6,7 +6,7 @@
 [ext_resource type="AnimationLibrary" uid="uid://cqnay5mbp4o52" path="res://assets/unit_animations.tres" id="4_anims"]
 [ext_resource type="AnimationLibrary" uid="uid://dljalqhwbvg6h" path="res://assets/UAL2_Standard.glb" id="5_ual2"]
 [ext_resource type="AnimationLibrary" uid="uid://xsona7iw7lk2" path="res://assets/flight_animations.tres" id="6_flight"]
-[ext_resource type="AnimationLibrary" path="res://assets/fireball_animations.tres" id="7_fireball"]
+[ext_resource type="AnimationLibrary" uid="uid://cvojeprtllue0" path="res://assets/fireball_animations.tres" id="7_fireball"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]
 resource_local_to_scene = true
@@ -147,7 +147,7 @@ bones/61/rotation = Quaternion(5.28461e-09, 1, -3.83006e-06, 2.7047e-10)
 bones/62/rotation = Quaternion(-3.02326e-09, 0.707105, -0.707108, 3.22905e-09)
 bones/63/rotation = Quaternion(4.41173e-08, 1, 5.96046e-08, 1.94734e-08)
 
-[node name="HandAnchor" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton"]
+[node name="HandAnchor" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="1"]
 bone_name = "RightMiddleProximal"
 bone_idx = 39
 

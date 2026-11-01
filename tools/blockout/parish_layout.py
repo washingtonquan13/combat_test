@@ -11,9 +11,10 @@ line joining them. c is found by bisection so the footprint, the convex
 hull of the placed districts (rubble inside it, fog outside), is
 A = (total district area) * (1 + rho).
 
-Neighbours are the Delaunay edges between the placed centroids, dropping
-any edge that runs through a third district or is longer than EDGE_MAX
-times the shortest edge of either end. Each neighbour pair gets a ribbon
+Districts truly closer than KEEP keep their real offset. Neighbours are
+the Delaunay edges between the placed centroids (within a cluster only if
+the two do not touch), dropping any edge that runs through a third
+district or is longer than EDGE_MAX times the shortest edge of either end. Each neighbour pair gets a ribbon
 (parish_ribbon.py).
 
 Writes <segment dir>/layout.json: c, the footprint, and per district its
@@ -30,6 +31,8 @@ import shapely.affinity
 from shapely.geometry import LineString, Polygon
 
 GAP_MIN = 120.0  # m: closest two districts may come, unless they were truly closer
+KEEP = 500.0  # m: districts truly closer than this keep their real offset (a few cross-blocks cannot be cut)
+TOUCH = 30.0  # m: districts this close share their streets and need no ribbon
 CLOSE = 10.0  # m: closing radius that turns a district's blocks into one area
 EDGE_MAX = 1.8  # an edge this many times the shortest at either end is not a neighbour
 PUSH_ROUNDS = 400
@@ -45,7 +48,8 @@ def district_polys(seg, dist):
 
 
 def clusters(polys):
-    """Districts truly closer than GAP_MIN move as one: their shared streets are real."""
+    """Districts truly closer than KEEP move as one: a ribbon that short has
+    too few cross-blocks to cut, so it stays real."""
     root = list(range(len(polys)))
     def find(i):
         while root[i] != i:
@@ -54,7 +58,7 @@ def clusters(polys):
         return i
     for i in range(len(polys)):
         for j in range(i + 1, len(polys)):
-            if polys[i].distance(polys[j]) < GAP_MIN:
+            if polys[i].distance(polys[j]) < KEEP:
                 root[find(i)] = find(j)
     ids = sorted({find(i) for i in range(len(polys))})
     return [ids.index(find(i)) for i in range(len(polys))]
@@ -87,8 +91,9 @@ def footprint(polys, t):
 
 
 def neighbours(polys, cen, t, cl):
-    """Delaunay edges between districts of different clusters, pruned, then
-    the shortest pruned edges put back until every cluster is reachable."""
+    """Delaunay edges between districts, pruned, then the shortest pruned
+    edges put back until every cluster is reachable. Two districts of one
+    cluster need an edge (an unmoved ribbon) only if they do not touch."""
     pc = cen + t
     tri = shapely.delaunay_triangles(shapely.MultiPoint(pc), only_edges=True)
     placed = [shapely.affinity.translate(p, *v) for p, v in zip(polys, t)]
@@ -97,7 +102,7 @@ def neighbours(polys, cen, t, cl):
         a, b = np.asarray(e.coords)
         i = int(np.argmin(np.hypot(*(pc - a).T)))
         j = int(np.argmin(np.hypot(*(pc - b).T)))
-        if cl[i] != cl[j]:
+        if cl[i] != cl[j] or polys[i].distance(polys[j]) > TOUCH:
             edges.add((min(i, j), max(i, j)))
     L = {e: float(np.hypot(*(pc[e[0]] - pc[e[1]]))) for e in edges}
     short = np.full(len(polys), np.inf)

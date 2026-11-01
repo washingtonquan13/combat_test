@@ -1,4 +1,4 @@
-[gd_scene load_steps=43 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=44 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
@@ -39,7 +39,8 @@
 [ext_resource type="PackedScene" uid="uid://dypeuvgfr3s4j" path="res://ui/cathedral_menu.tscn" id="35_cathedralmenu"]
 [ext_resource type="Script" uid="uid://figtunvhfhvk" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
 [ext_resource type="PackedScene" path="res://systems/cinematic_system/cinematic_overlay.tscn" id="37_cineoverlay"]
-[ext_resource type="Script" path="res://ui/area_label.gd" id="38_arealabel"]
+[ext_resource type="Script" uid="uid://dexhga3bpptng" path="res://ui/area_label.gd" id="38_arealabel"]
+[ext_resource type="Script" uid="uid://bmxsyci41mrsj" path="res://systems/indicator_system/hit_chance_indicator.gd" id="39_hitchance"]
 [ext_resource type="PackedScene" path="res://ui/game_over.tscn" id="40_gameover"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_areaplate"]
@@ -108,6 +109,10 @@ script = ExtResource("30_seekind")
 
 [node name="NavDebugOverlay" type="Node3D" parent="Indicators"]
 script = ExtResource("31_navdbg")
+
+[node name="HitChanceIndicator" type="Node3D" parent="Indicators" node_paths=PackedStringArray("label")]
+script = ExtResource("39_hitchance")
+label = NodePath("../../CanvasLayer/TacticalUI/HitChanceLabel")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
@@ -212,6 +217,16 @@ offset_bottom = 8.0
 grow_horizontal = 0
 icon = ExtResource("12_seu75")
 script = ExtResource("13_htxhm")
+
+[node name="HitChanceLabel" type="Label" parent="CanvasLayer/TacticalUI"]
+visible = false
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 18
+text = "0%"
 
 [node name="PartyRail" type="Control" parent="CanvasLayer"]
 layout_mode = 3

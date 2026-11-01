@@ -86,6 +86,10 @@ JOG_MIN = 1.0  # m
 COST = {"trunk": 1.0, "primary": 1.0, "secondary": 1.15, "tertiary": 1.3, "primary_link": 1.5,
         "secondary_link": 1.5, "tertiary_link": 1.5, "residential": 1.7, "unclassified": 1.7,
         "living_street": 2.0}
+TURN = 150.0  # m of cost per radian a path turns past BEND_FREE
+BEND_FREE = 0.35  # rad: a turn this small is the road curving, free
+BRIDGE_MAX = 400.0  # m: a bridge this short (a canal) carries a ribbon; longer ones are expressways
+NO_ROAD = "parish_ribbon: no road joins the two districts"
 
 
 def log(msg):
@@ -158,19 +162,22 @@ def smooth(pts, window):
 
 # --- road ------------------------------------------------------------------------
 def best_road(feats, fr, DA, DB, box):
-    """Shortest path from district A's area to B's, by COST per metre.
-    Returns (node ids, xz, way ids along it)."""
+    """Cheapest path from district A's area to B's: COST per metre plus TURN
+    per radian of every turn past BEND_FREE, so it follows one street rather
+    than zigzagging over the grid. Returns (node ids, xz, way ids along it)."""
     adj = defaultdict(list)
     pos = {}
     for el in feats:
         t = el.get("tags", {})
-        if el["type"] != "way" or not is_street(t) or is_deck(t) or t["highway"] not in COST:
+        if el["type"] != "way" or not is_street(t) or t["highway"] not in COST:
             continue
         geom, nodes = el.get("geometry") or [], el.get("nodes") or []
         if len(nodes) != len(geom) or len(nodes) < 2 or not all(geom):
             continue
         idx, xz = xz_of(fr, geom)
         if not shapely.intersects(box, LineString(xz)):
+            continue
+        if is_deck(t) and LineString(xz).length > BRIDGE_MAX:
             continue
         w = COST[t["highway"]]
         oneway = t.get("oneway") in ("yes", "1", "true")
@@ -185,32 +192,45 @@ def best_road(feats, fr, DA, DB, box):
     P = np.array([pos[i] for i in ids])
     inA = shapely.contains_xy(DA, P[:, 0], P[:, 1])
     inB = set(np.array(ids)[shapely.contains_xy(DB, P[:, 0], P[:, 1])].tolist())
+
+    def turn(p, a, b):
+        if p is None:
+            return 0.0
+        u, v = pos[a] - pos[p], pos[b] - pos[a]
+        nu, nv = np.hypot(*u), np.hypot(*v)
+        if nu < 1e-6 or nv < 1e-6:
+            return 0.0
+        ang = math.acos(max(-1.0, min(1.0, float(u @ v) / (nu * nv))))
+        return TURN * max(0.0, ang - BEND_FREE)
     dist, prev, h = {}, {}, []
     for i, ok in zip(ids, inA):
         if ok:
-            dist[i] = 0.0
-            heapq.heappush(h, (0.0, i))
+            dist[(i, None)] = 0.0
+            heapq.heappush(h, (0.0, i, None))
     end = None
     while h:
-        d, a = heapq.heappop(h)
-        if d > dist.get(a, math.inf):
+        d, a, p = heapq.heappop(h)
+        if d > dist.get((a, p), math.inf):
             continue
         if a in inB:
-            end = a
+            end = (a, p)
             break
         for b, c, wid in adj[a]:
-            if d + c < dist.get(b, math.inf):
-                dist[b] = d + c
-                prev[b] = (a, wid)
-                heapq.heappush(h, (d + c, b))
+            if b == p:
+                continue
+            nd = d + c + turn(p, a, b)
+            if nd < dist.get((b, a), math.inf):
+                dist[(b, a)] = nd
+                prev[(b, a)] = ((a, p), wid)
+                heapq.heappush(h, (nd, b, a))
     if end is None:
-        sys.exit("parish_ribbon: no road joins the two districts")
+        sys.exit(NO_ROAD)
     seq, ways = [end], []
     while seq[-1] in prev:
-        a, wid = prev[seq[-1]]
-        seq.append(a)
+        st, wid = prev[seq[-1]]
+        seq.append(st)
         ways.append(wid)
-    seq.reverse()
+    seq = [st[0] for st in reversed(seq)]
     ways.reverse()
     return seq, np.array([pos[i] for i in seq]), ways
 
@@ -743,7 +763,8 @@ def main():
         return u.buffer(CLOSE).buffer(-CLOSE)
     PA, PB = dpoly(a.a), dpoly(a.b)
     DA, DB = PA.buffer(EDGE), PB.buffer(EDGE)
-    others = [dpoly(n) for n in dist if n not in (a.a, a.b)]
+    other_names = [n for n in dist if n not in (a.a, a.b)]
+    others = [dpoly(n) for n in other_names]
     tA, tB = (np.zeros(2), np.zeros(2)) if a.identity else (np.array(lay[a.a]["t"]), np.array(lay[a.b]["t"]))
 
     log("loading features")
@@ -765,7 +786,7 @@ def main():
     road_cls = sorted({el["tags"]["highway"] for el in feats if el["type"] == "way" and el["id"] in set(road_ways[k0:k1])},
                       key=lambda h: COST.get(h, 9))[0]
     log("road: %s (%s), %.0f m between the districts" % (" / ".join(names), road_cls, mid.length))
-    through = [n for n, o in zip(dist, others) if mid.intersects(o)]
+    through = [n for n, o in zip(other_names, others) if mid.intersects(o)]
     if through:
         sys.exit("parish_ribbon: the road runs through %s" % ", ".join(through))
 
@@ -988,7 +1009,9 @@ def main():
         (sa, sb), (ua, ub) = F.su(np.array([o[3], o[4]]))
         ca = asm.classify(np.array([o[3], o[4]]))[0]
         log("  overlap %.1f m2: source s %.0f/%.0f u %.0f/%.0f, %s" % (o[2], sa, sb, ua, ub, "".join(ca)))
-    rmin = max(RADIUS_MIN.get(road_cls.replace("_link", ""), 15.0), FOLD * umax)
+    # The real road's own curvature is never a fault (identity passes); only
+    # curvature the bend adds is held to the class minimum and the fold.
+    rmin = min(max(RADIUS_MIN.get(road_cls.replace("_link", ""), 15.0), FOLD * umax), 0.9 * rF)
     gate = {"road": names, "class": road_cls, "road_m": round(M, 1), "chord_m": round(chord, 1),
             "removed_m": round(removed, 1), "cross_blocks_out": len(cuts), "new_line_m": round(new_len, 1), "scale_e": round(float(hm[5]), 4),
             "radius_m": round(float(hm[3]), 1), "bend_stretch": round(stretch, 4), "radius_min_m": round(rmin, 1), "depth_m": round(umax, 1),

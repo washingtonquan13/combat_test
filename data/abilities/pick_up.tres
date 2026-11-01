@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=7 format=3 uid="uid://cpa7yeuykkuis"]
 
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
 [ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://systems/ability_system/melee_enemy_targeting.gd" id="2_targeting"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
-[ext_resource type="Script" path="res://systems/ability_system/pick_up_effect.gd" id="4_pick_up"]
+[ext_resource type="Script" uid="uid://fgiyfvvrjfdd" path="res://systems/ability_system/pick_up_effect.gd" id="4_pick_up"]
 
 [sub_resource type="Resource" id="Resource_pick_up"]
 script = ExtResource("4_pick_up")
@@ -23,3 +23,8 @@ requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
