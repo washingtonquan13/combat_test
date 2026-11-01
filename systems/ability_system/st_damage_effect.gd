@@ -14,6 +14,10 @@ extends AbilityEffect
 ## GURPS damage type (B379): what DR lets through is multiplied by its
 ## wounding multiplier.
 @export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
+## GURPS armor divisor (B378): the target's DR is divided by it. 1 is
+## none; (2), (3), (5), (10) penetrate; (0.5), (0.2), (0.1) are stopped
+## more easily than usual.
+@export var armor_divisor: float = 1.0
 
 
 func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dictionary:
@@ -25,7 +29,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# with this project's fast/not-roll-heavy combat goal.
 	var raw_damage: int = attacker.max_damage(damage_type, bonus) if is_critical \
 		else attacker.roll_damage(damage_type, bonus)
-	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, is_critical)
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, is_critical)
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -33,8 +37,8 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 
 func describe() -> String:
 	var label := "Swing" if damage_type == UnitCombat.DamageType.SWING else "Thrust"
-	return "%s %s damage (ST-based)" % [label, DamageResolver.describe(wound_type)]
+	return "%s %s damage (ST-based)" % [label, DamageResolver.describe(wound_type, armor_divisor)]
 
 
 func expected_damage(attacker: Unit, target: Unit = null) -> float:
-	return attacker.expected_damage(damage_type, bonus, target, wound_type)
+	return attacker.expected_damage(damage_type, bonus, target, wound_type, armor_divisor)

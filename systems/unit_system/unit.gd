@@ -1588,8 +1588,8 @@ func max_damage(damage_type: UnitCombat.DamageType, bonus: int) -> int:
 
 ## Expected value of roll_damage() without rolling — see UnitCombat.
 ## expected_damage's own doc comment (AiScorer's reason for existing).
-func expected_damage(damage_type: UnitCombat.DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING) -> float:
-	return _combat.expected_damage(damage_type, bonus, target, wound_type)
+func expected_damage(damage_type: UnitCombat.DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0) -> float:
+	return _combat.expected_damage(damage_type, bonus, target, wound_type, armor_divisor)
 
 
 ## Also a coroutine now, same as UnitCombat.use_ability() — it has to

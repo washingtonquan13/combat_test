@@ -30,7 +30,7 @@ func run() -> void:
 	var priced: float = swing.expected_damage(armored, armored)
 	check("1d against DR 2 is priced at 10/6, not 3.5 - 2", is_equal_approx(priced, 10.0 / 6.0), "got %.3f" % priced)
 	var cr := DamageResolver.WoundType.CRUSHING
-	check("a hit through DR 2 takes 2 off", DamageResolver.injury(5, armored) == 3 and DamageResolver.injury(5, armored, cr, true) == 5)
+	check("a hit through DR 2 takes 2 off", DamageResolver.injury(5, armored) == 3 and DamageResolver.injury(5, armored, cr, 1.0, true) == 5)
 	# B379: what gets through is multiplied, rounded down, at least 1.
 	var cut: int = DamageResolver.injury(5, armored, DamageResolver.WoundType.CUTTING)
 	var imp: int = DamageResolver.injury(5, armored, DamageResolver.WoundType.IMPALING)
@@ -40,6 +40,15 @@ func run() -> void:
 	swing.wound_type = DamageResolver.WoundType.IMPALING
 	priced = swing.expected_damage(armored, armored)
 	check("the AI prices the multiplier too", is_equal_approx(priced, 20.0 / 6.0), "got %.3f" % priced)
+	# B378: DR 4 against (2) is 2, against (0.5) is 8.
+	armored.set_base_stat(StatIds.DR, 4)
+	var halved: int = DamageResolver.injury(5, armored, cr, 2.0)
+	var doubled: int = DamageResolver.injury(9, armored, cr, 0.5)
+	check("armor divisor (2) halves DR, (0.5) doubles it", halved == 3 and doubled == 1, "(2) %d, (0.5) %d" % [halved, doubled])
+	swing.wound_type = cr
+	swing.armor_divisor = 2.0
+	priced = swing.expected_damage(armored, armored)
+	check("the AI prices the divisor too", is_equal_approx(priced, 10.0 / 6.0), "got %.3f" % priced)
 	var sword: GearItem = load("res://data/items/iron_sword.tres")
 	var fireball: Ability = load("res://data/abilities/explosive_fireball.tres")
 	var burns: bool = fireball.effects.any(func(e): return "wound_type" in e and e.wound_type == DamageResolver.WoundType.BURNING)

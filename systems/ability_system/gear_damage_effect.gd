@@ -29,7 +29,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# Critical hit: ignores DR entirely and deals guaranteed max damage
 	# (see UnitCombat.max_damage) — no second roll, staying consistent
 	# with this project's fast/not-roll-heavy combat goal.
-	var applied: int = DamageResolver.injury(raw_damage, target, _wound_type(weapon), is_critical)
+	var applied: int = DamageResolver.injury(raw_damage, target, _wound_type(weapon), _armor_divisor(weapon), is_critical)
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -82,6 +82,10 @@ func _wound_type(weapon: GearItem) -> DamageResolver.WoundType:
 	return weapon.weapon_data.wound_type if weapon else DamageResolver.WoundType.CRUSHING
 
 
+func _armor_divisor(weapon: GearItem) -> float:
+	return weapon.weapon_data.armor_divisor if weapon else 1.0
+
+
 func describe() -> String:
 	var label := "Melee" if category == WeaponCategory.MELEE else "Ranged"
 	return "%s weapon damage" % label
@@ -101,8 +105,8 @@ func expected_damage(attacker: Unit, target: Unit = null) -> float:
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:
 		WeaponData.DamageType.FIXED:
-			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target, weapon_data.wound_type)
+			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor)
 		WeaponData.DamageType.THRUST:
-			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target, weapon_data.wound_type)
+			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor)
 		_:
-			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target, weapon_data.wound_type)
+			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor)

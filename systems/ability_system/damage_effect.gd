@@ -13,6 +13,10 @@ extends AbilityEffect
 ## GURPS damage type (B379): what DR lets through is multiplied by its
 ## wounding multiplier.
 @export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
+## GURPS armor divisor (B378): the target's DR is divided by it. 1 is
+## none; (2), (3), (5), (10) penetrate; (0.5), (0.2), (0.1) are stopped
+## more easily than usual.
+@export var armor_divisor: float = 1.0
 
 
 func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
@@ -20,7 +24,7 @@ func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	var raw_damage: int = roll_damage()
-	var applied: int = DamageResolver.injury(raw_damage, target, wound_type)
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -34,8 +38,8 @@ func roll_damage() -> int:
 
 
 func describe() -> String:
-	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type)]
+	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type, armor_divisor)]
 
 
 func expected_damage(_attacker: Unit, target: Unit = null) -> float:
-	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type)
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor)

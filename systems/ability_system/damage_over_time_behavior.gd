@@ -13,6 +13,10 @@ extends StatusBehavior
 ## GURPS damage type (B379): what DR lets through is multiplied by its
 ## wounding multiplier.
 @export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
+## GURPS armor divisor (B378): the target's DR is divided by it. 1 is
+## none; (2), (3), (5), (10) penetrate; (0.5), (0.2), (0.1) are stopped
+## more easily than usual.
+@export var armor_divisor: float = 1.0
 ## Whether this bypasses DR entirely (bleeding/poison
 ## often ignores armor in many systems) or is mitigated the same as
 ## ordinary combat damage — your call per status.
@@ -24,7 +28,7 @@ func on_turn_start(unit: Unit, active: ActiveStatus) -> void:
 	for _i in active.stacks:
 		raw += roll_damage()
 
-	var applied: int = DamageResolver.injury(raw, unit, wound_type, false, ignores_damage_reduction)
+	var applied: int = DamageResolver.injury(raw, unit, wound_type, armor_divisor, false, ignores_damage_reduction)
 	unit.take_damage(applied)
 
 
@@ -36,4 +40,4 @@ func roll_damage() -> int:
 
 
 func describe() -> String:
-	return "%dd%d+%d %s damage per turn" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type)]
+	return "%dd%d+%d %s damage per turn" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type, armor_divisor)]

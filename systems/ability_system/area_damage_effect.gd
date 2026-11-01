@@ -33,6 +33,10 @@ extends AbilityEffect
 ## GURPS damage type (B379): what DR lets through is multiplied by its
 ## wounding multiplier.
 @export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
+## GURPS armor divisor (B378): the target's DR is divided by it. 1 is
+## none; (2), (3), (5), (10) penetrate; (0.5), (0.2), (0.1) are stopped
+## more easily than usual.
+@export var armor_divisor: float = 1.0
 @export var affects_hostiles: bool = true
 @export var affects_allies: bool = false
 
@@ -51,7 +55,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
-		var applied: int = DamageResolver.injury(raw_damage, unit, wound_type)
+		var applied: int = DamageResolver.injury(raw_damage, unit, wound_type, armor_divisor)
 		unit.take_damage(applied)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})
 
@@ -70,7 +74,7 @@ func roll_damage() -> int:
 
 
 func describe() -> String:
-	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type)]
+	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type, armor_divisor)]
 
 
 ## Per-target average, NOT scaled by how many units the blast would
@@ -80,4 +84,4 @@ func describe() -> String:
 ## would ONE hit unit expect to take," same shape as every sibling
 ## damage effect's expected_damage().
 func expected_damage(_attacker: Unit, target: Unit = null) -> float:
-	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type)
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor)

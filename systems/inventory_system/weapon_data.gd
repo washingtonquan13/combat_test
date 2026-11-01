@@ -23,6 +23,10 @@ enum DamageType { SWING, THRUST, FIXED }
 ## thrust impaling. Separate from damage_type, which is only which dice
 ## table the roll reads.
 @export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
+## GURPS armor divisor (B378): the target's DR is divided by it. 1 is
+## none; (2), (3), (5), (10) penetrate; (0.5), (0.2), (0.1) are stopped
+## more easily than usual.
+@export var armor_divisor: float = 1.0
 
 @export_group("Fixed Damage")
 ## Only read when damage_type == FIXED.
