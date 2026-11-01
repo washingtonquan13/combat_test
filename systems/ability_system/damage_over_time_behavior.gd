@@ -21,7 +21,7 @@ func on_turn_start(unit: Unit, active: ActiveStatus) -> void:
 	for _i in active.stacks:
 		raw += roll_damage()
 
-	var applied: int = raw if ignores_damage_reduction else maxi(raw - floori(unit.get_stat(StatIds.DR)), 0)
+	var applied: int = DamageResolver.injury(raw, unit, false, ignores_damage_reduction)
 	unit.take_damage(applied)
 
 

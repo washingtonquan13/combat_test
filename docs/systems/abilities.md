@@ -35,7 +35,7 @@ Defines what an ability IS: a data-only `Ability` Resource composed of one targe
 
 ## Depends on
 - `PlayerInteractionState.get_active_unit()` — `ability_manager.gd:63,103`.
-- `Unit` API: `in_combat`, `has_attacked`, `has_move_remaining` (`ability.gd:249`, `ability_manager.gd:141`); `take_damage`, `get_stat("DR")`, `heal`, `apply_status` from effects (e.g. `damage_effect.gd:20-21`, `heal_effect.gd:19`, `apply_status_effect.gd:19`).
+- `Unit` API: `in_combat`, `has_attacked`, `has_move_remaining` (`ability.gd:249`, `ability_manager.gd:141`); `take_damage`, `heal`, `apply_status` from effects; DR is read only by `DamageResolver.injury` (`systems/combat_system/damage_resolver.gd`), which every damaging effect calls (e.g. `damage_effect.gd:20-21`, `heal_effect.gd:19`, `apply_status_effect.gd:19`).
 - `UnitCombat.DamageType` / `WeaponData.DamageType` / `EquipSlot.Slot` — `gear_damage_effect.gd:42-43,58-75`, `st_damage_effect.gd:8`.
 - `UnitQuery.area_affected` — `area_damage_effect.gd:49`, `area_heal_effect.gd:34`, `area_apply_status_effect.gd:35`.
 - `NavigationGrid.nearest_valid_point` — `knockback_effect.gd:66`.

@@ -29,7 +29,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# Critical hit: ignores DR entirely and deals guaranteed max damage
 	# (see UnitCombat.max_damage) — no second roll, staying consistent
 	# with this project's fast/not-roll-heavy combat goal.
-	var applied: int = raw_damage if is_critical else maxi(raw_damage - floori(target.get_stat(StatIds.DR)), 0)
+	var applied: int = DamageResolver.injury(raw_damage, target, is_critical)
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -84,20 +84,20 @@ func describe() -> String:
 
 ## Mirrors _roll()'s own branching without rolling — see AbilityEffect.
 ## expected_damage's own header. No weapon (a punch) and THRUST/SWING
-## weapons both delegate to attacker.average_damage exactly as _roll()
+## weapons both delegate to attacker.expected_damage exactly as _roll()
 ## delegates to attacker.roll_damage/max_damage; only FIXED weapons need
 ## their own average-of-dice math since they bypass the attacker's ST
 ## entirely.
-func expected_damage(attacker: Unit) -> float:
+func expected_damage(attacker: Unit, target: Unit = null) -> float:
 	var weapon: GearItem = _find_weapon(attacker)
 	if not weapon:
-		return attacker.average_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS)
+		return attacker.expected_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS, target)
 
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:
 		WeaponData.DamageType.FIXED:
-			return float(weapon_data.fixed_dice_count) * (float(weapon_data.fixed_dice_sides) + 1.0) / 2.0 + float(weapon_data.fixed_dice_bonus)
+			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target)
 		WeaponData.DamageType.THRUST:
-			return attacker.average_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus)
+			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target)
 		_:
-			return attacker.average_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus)
+			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target)

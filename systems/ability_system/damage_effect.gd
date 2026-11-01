@@ -17,7 +17,7 @@ func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	var raw_damage: int = roll_damage()
-	var applied: int = maxi(raw_damage - floori(target.get_stat(StatIds.DR)), 0)
+	var applied: int = DamageResolver.injury(raw_damage, target)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -34,5 +34,5 @@ func describe() -> String:
 	return "%dd%d+%d damage" % [dice_count, dice_sides, dice_bonus]
 
 
-func expected_damage(_attacker: Unit) -> float:
-	return float(dice_count) * (float(dice_sides) + 1.0) / 2.0 + float(dice_bonus)
+func expected_damage(_attacker: Unit, target: Unit = null) -> float:
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target)

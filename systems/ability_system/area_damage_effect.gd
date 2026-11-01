@@ -48,7 +48,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
-		var applied: int = maxi(raw_damage - floori(unit.get_stat(StatIds.DR)), 0)
+		var applied: int = DamageResolver.injury(raw_damage, unit)
 		unit.take_damage(applied)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})
 
@@ -76,5 +76,5 @@ func describe() -> String:
 ## generation is out of scope for this pass), so this answers "how much
 ## would ONE hit unit expect to take," same shape as every sibling
 ## damage effect's expected_damage().
-func expected_damage(_attacker: Unit) -> float:
-	return float(dice_count) * (float(dice_sides) + 1.0) / 2.0 + float(dice_bonus)
+func expected_damage(_attacker: Unit, target: Unit = null) -> float:
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target)

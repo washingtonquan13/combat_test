@@ -629,9 +629,7 @@ func _apply_fall_damage(descent: float) -> void:
 	if raw_damage <= 0:
 		return
 
-	var applied: int = raw_damage
-	if FLIGHT_RULES.fall_damage_reduced_by_dr:
-		applied = maxi(raw_damage - floori(_owner.get_stat(StatIds.DR)), 0)
+	var applied: int = DamageResolver.injury(raw_damage, _owner, false, not FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	if applied > 0:
 		SystemLog.print("%s takes %d fall damage." % [LogFormat.unit_name(_owner), applied])

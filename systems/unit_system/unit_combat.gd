@@ -85,13 +85,14 @@ func max_damage(damage_type: DamageType, bonus: int) -> int:
 	return int(dice.count) * 6 + int(dice.flat_bonus) + bonus
 
 
-## Expected value of roll_damage() without actually rolling — each d6
-## averages 3.5 — used by AiScorer to rank candidate actions by expected
-## damage rather than sampling a live roll (which would make the AI's
-## own decision non-deterministic and untestable independent of RNG).
-func average_damage(damage_type: DamageType, bonus: int) -> float:
+## Expected injury of roll_damage() against target without actually
+## rolling (DamageResolver.expected_injury; no target is the raw roll) —
+## used by AiScorer to rank candidate actions by expected damage rather
+## than sampling a live roll (which would make the AI's own decision
+## non-deterministic and untestable independent of RNG).
+func expected_damage(damage_type: DamageType, bonus: int, target: Unit = null) -> float:
 	var dice: Dictionary = _damage_dice(damage_type)
-	return float(dice.count) * 3.5 + float(dice.flat_bonus) + float(bonus)
+	return DamageResolver.expected_injury(int(dice.count), 6, int(dice.flat_bonus) + bonus, target)
 
 
 ## Same formula as roll_damage(), without rolling — e.g. "1d+2" — for

@@ -26,14 +26,16 @@ func describe() -> String:
 	return ""
 
 
-## Expected damage this effect would deal to ONE target if attacker used
-## it right now, without actually rolling or requiring a real target —
+## Expected injury this effect would deal to ONE target if attacker used
+## it right now, without actually rolling — through DamageResolver, so
+## the target's armor is priced exactly as a real hit would meet it. No
+## target is the raw damage, for "is this a damaging ability at all" —
 ## AiScorer's own building block for ranking candidate actions before
 ## committing to one. Base default 0.0 covers every non-damaging effect
 ## (a buff, a status application) for free. Override in each damage-
 ## dealing subclass; see DamageEffect for the plain-dice case and
 ## StDamageEffect for the attacker-ST-derived one.
-func expected_damage(_attacker: Unit) -> float:
+func expected_damage(_attacker: Unit, _target: Unit = null) -> float:
 	return 0.0
 
 

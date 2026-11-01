@@ -328,7 +328,7 @@ static func latent_threat_output(unit: Unit, position = null) -> float:
 	for ability in _damaging_abilities(unit):
 		var total_damage: float = 0.0
 		for effect in ability.effects:
-			total_damage += effect.expected_damage(unit)
+			total_damage += effect.expected_damage(unit, representative)
 		var chance: float = 1.0
 		if ability.requires_to_hit and representative:
 			chance = _chance_to_hit(unit, representative, ability)
@@ -663,8 +663,9 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 
 	var expected_damage: float = 0.0
 	var expected_heal: float = 0.0
+	var target_unit: Unit = plan.target if plan.target is Unit else null
 	for effect in plan.ability.effects:
-		expected_damage += effect.expected_damage(unit)
+		expected_damage += effect.expected_damage(unit, target_unit)
 		expected_heal += effect.expected_heal(unit)
 
 	var value: float = 0.0
@@ -807,7 +808,7 @@ static func incoming_threat(unit: Unit, position: Vector3) -> float:
 		for ability in _damaging_abilities(hostile):
 			var total_damage: float = 0.0
 			for effect in ability.effects:
-				total_damage += effect.expected_damage(hostile)
+				total_damage += effect.expected_damage(hostile, unit)
 
 			var reach: float = hostile.move_remaining + ability.targeting.approach_range()
 			var edge_distance: float = hostile.global_position.distance_to(position) - hostile.radius - unit.radius
@@ -860,7 +861,7 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 
 			var total_damage: float = 0.0
 			for effect in ability.effects:
-				total_damage += effect.expected_damage(hostile)
+				total_damage += effect.expected_damage(hostile, unit)
 
 			# Movement per turn, not move_remaining: this is a
 			# multi-turn question, and whatever the hostile has left
@@ -979,9 +980,8 @@ static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: V
 	var cost: float = 0.0
 	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
 	if roll.dice_count > 0:
-		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
-		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
-			cost = maxf(0.0, cost - float(unit.get_stat(StatIds.DR)))
+		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
+			unit, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	# And the safety it's buying is only rented. _apply_positional_value
 	# has already credited this takeoff with escaping everything that
@@ -1043,9 +1043,8 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 	var cost: float = 0.0
 	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
 	if roll.dice_count > 0:
-		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
-		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
-			cost = maxf(0.0, cost - float(unit.get_stat(StatIds.DR)))
+		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
+			unit, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	var grounded_fraction: float = 1.0 - turns_aloft / KILL_HORIZON_TURNS
 	cost += sustained_incoming_threat(unit, Vector3(position.x, ground_y, position.z)) * grounded_fraction

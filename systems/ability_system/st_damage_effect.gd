@@ -22,7 +22,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# with this project's fast/not-roll-heavy combat goal.
 	var raw_damage: int = attacker.max_damage(damage_type, bonus) if is_critical \
 		else attacker.roll_damage(damage_type, bonus)
-	var applied: int = raw_damage if is_critical else maxi(raw_damage - floori(target.get_stat(StatIds.DR)), 0)
+	var applied: int = DamageResolver.injury(raw_damage, target, is_critical)
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -33,5 +33,5 @@ func describe() -> String:
 	return "%s damage (ST-based)" % label
 
 
-func expected_damage(attacker: Unit) -> float:
-	return attacker.average_damage(damage_type, bonus)
+func expected_damage(attacker: Unit, target: Unit = null) -> float:
+	return attacker.expected_damage(damage_type, bonus, target)
