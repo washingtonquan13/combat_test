@@ -42,7 +42,7 @@ func _init(owner: Node) -> void:
 ## The stat's value with everything applied — formula, bonus, statuses,
 ## gear. 0 (with an error) for an id no stat file declares.
 func get_value(id: StringName) -> float:
-	return StatDatabase.value_of(id, _base_of, _modifier_of)
+	return StatDatabase.value_of(id, _base_of, _modifier_of, _multiplier_of)
 
 
 ## Unmodified base — a primary's authored value, a derived stat's bonus.
@@ -173,6 +173,11 @@ func _base_of(id: StringName) -> int:
 func _modifier_of(id: StringName) -> int:
 	var instance: StatInstance = _instances.get(id)
 	return instance.modifier_total() if instance else 0
+
+
+func _multiplier_of(id: StringName) -> float:
+	var instance: StatInstance = _instances.get(id)
+	return instance.modifier_multiplier() if instance else 1.0
 
 
 func _on_instance_changed(instance: StatInstance) -> void:

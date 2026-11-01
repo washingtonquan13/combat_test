@@ -20,6 +20,12 @@ signal status_ticked(effect: StatusEffect, active_status: ActiveStatus)
 
 var _owner: Unit
 var active: Array[ActiveStatus] = []
+## Above 0 while apply/remove/load_state are partway through a status —
+## listed but its modifiers not all on, or the reverse. A stat change
+## from one of those modifiers can set off a rule that reads statuses
+## (Unit._update_low_pool_statuses); it waits on this, and runs again
+## once the change is whole.
+var busy: int = 0
 
 
 func _init(owner: Unit) -> void:
@@ -51,8 +57,13 @@ func save_state() -> Array:
 ## Rebuilds `active` directly rather than replaying apply(), because
 ## these statuses are not being APPLIED — they are being remembered.
 ## apply() would reset each duration to the effect's default and fire
-## whatever an application is supposed to announce.
+## whatever an application is supposed to announce. Stat modifiers are
+## the exception: they live on the unit's stats, not here, so they are
+## taken off with the old list and put back with the new one.
 func load_state(state: Array) -> void:
+	busy += 1
+	for status in active:
+		_set_stat_modifiers(status.effect, false)
 	active.clear()
 	for entry in state:
 		var effect: StatusEffect = load(entry.get("effect", ""))
@@ -63,6 +74,17 @@ func load_state(state: Array) -> void:
 		status.stopped = bool(entry.get("stopped", false))
 		status.tally = entry.get("tally", {}).duplicate()
 		active.append(status)
+		_set_stat_modifiers(effect, true)
+	busy -= 1
+
+
+func _set_stat_modifiers(effect: StatusEffect, on: bool) -> void:
+	for behavior in effect.behaviors:
+		if behavior is StatModifierBehavior:
+			if on:
+				_owner.register_stat_modifier(behavior, effect.status_name)
+			else:
+				_owner.unregister_stat_modifier(behavior, effect.status_name)
 
 
 func apply(effect: StatusEffect) -> void:
@@ -81,11 +103,13 @@ func apply(effect: StatusEffect) -> void:
 				return
 
 	var new_active := ActiveStatus.new(effect, effect.default_duration)
+	busy += 1
 	active.append(new_active)
 	for behavior in effect.behaviors:
 		behavior.on_apply(_owner, new_active)
 		if behavior is StatModifierBehavior:
 			_owner.register_stat_modifier(behavior, effect.status_name)
+	busy -= 1
 	status_applied.emit(effect, new_active)
 
 
@@ -101,11 +125,13 @@ func remove(effect: StatusEffect, voluntary: bool = false) -> void:
 	var existing: ActiveStatus = _find(effect)
 	if not existing:
 		return
+	busy += 1
 	active.erase(existing)
 	for behavior in effect.behaviors:
 		behavior.on_remove(_owner, existing, voluntary)
 		if behavior is StatModifierBehavior:
 			_owner.unregister_stat_modifier(behavior, effect.status_name)
+	busy -= 1
 	status_removed.emit(effect)
 
 

@@ -22,6 +22,12 @@ extends StatusBehavior
 
 @export var stat_name: StringName = &"DR"
 @export var amount: int = 0
+## Scales the finished stat, after every amount is added — 0.5 halves
+## it, as Bloodied and Exhausted halve Move and Dodge. The result is
+## rounded up, as GURPS rounds a halving. Multipliers do not compound:
+## only the strongest one on a stat applies, so two halvings are still a
+## half.
+@export var multiplier: float = 1.0
 
 
 func _validate_property(property: Dictionary) -> void:
@@ -30,4 +36,6 @@ func _validate_property(property: Dictionary) -> void:
 
 
 func describe() -> String:
+	if amount == 0 and multiplier != 1.0:
+		return "x%s %s" % [String.num(multiplier), stat_name]
 	return "%s%d %s" % ["+" if amount >= 0 else "", amount, stat_name]

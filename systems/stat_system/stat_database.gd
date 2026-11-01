@@ -70,7 +70,9 @@ static func evaluate(definition: StatDefinition, values: Dictionary) -> float:
 
 ## One stat's full value: a primary's base, or a derived stat's formula
 ## over its inputs' full values plus its own bonus — then, either way,
-## its modifiers. base_of(id) -> int and modifier_of(id) -> int supply
+## its modifiers, then its multiplier (multiplier_of(id) -> float, left
+## out where nothing can multiply — a species with no unit, chargen),
+## rounded up. base_of(id) -> int and modifier_of(id) -> int supply
 ## the per-unit numbers, so the same arithmetic serves a live unit
 ## (UnitStats) and a species with no unit at all (UnitDefinition).
 ## Recomputed on every read, never cached: a status landing or a gear
@@ -78,7 +80,7 @@ static func evaluate(definition: StatDefinition, values: Dictionary) -> float:
 ## Fractions are kept (Basic Speed 5.25); a caller that needs a whole
 ## number — a roll target, DR against whole damage — drops it with floori,
 ## as GURPS does.
-static func value_of(id: StringName, base_of: Callable, modifier_of: Callable) -> float:
+static func value_of(id: StringName, base_of: Callable, modifier_of: Callable, multiplier_of: Callable = Callable()) -> float:
 	var definition := find(id)
 	if definition == null:
 		push_error("No stat '%s' — see res://data/stats/." % id)
@@ -87,9 +89,14 @@ static func value_of(id: StringName, base_of: Callable, modifier_of: Callable) -
 	if definition.is_derived():
 		var inputs: Dictionary = {}
 		for input_id in inputs_of(definition):
-			inputs[StringName(input_id)] = value_of(StringName(input_id), base_of, modifier_of)
+			inputs[StringName(input_id)] = value_of(StringName(input_id), base_of, modifier_of, multiplier_of)
 		value += evaluate(definition, inputs)
-	return value + int(modifier_of.call(id))
+	value += int(modifier_of.call(id))
+	if multiplier_of.is_valid():
+		var multiplier: float = multiplier_of.call(id)
+		if multiplier != 1.0:
+			value = ceilf(value * multiplier)
+	return value
 
 
 ## The ids a derived stat's formula reads.

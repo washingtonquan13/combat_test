@@ -227,6 +227,13 @@ var has_died: bool = false
 ## an ordinary faction tag like any other; this is purely about who the
 ## player controls, a separate question from who's hostile to whom.
 const PLAYER_FACTION: StringName = &"player"
+## Below a third of its maximum, each pool puts its status on (GURPS
+## B419 and B426: Move and Dodge halved); back at a third or more, it
+## comes off. See _update_low_pool_statuses.
+const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
+	StatIds.HP: preload("res://data/statuses/bloodied.tres"),
+	StatIds.FP: preload("res://data/statuses/exhausted.tres"),
+}
 ## Abilities this unit currently has available. abilities[0] is used as
 ## the default (see default_ability) when nothing's explicitly armed via
 ## AbilityManager — that's what makes click-to-attack keep working before
@@ -761,6 +768,10 @@ func _ready() -> void:
 	_status_manager.status_applied.connect(func(_effect, _active): _on_flight_maybe_changed())
 	_status_manager.status_removed.connect(func(_effect): _on_flight_maybe_changed())
 	_status_manager.status_ticked.connect(func(effect, _active): status_ticked.emit(self, effect))
+	pool_changed.connect(func(_unit, _id, _current, _maximum): _update_low_pool_statuses())
+	_status_manager.status_applied.connect(func(_effect, _active): _update_low_pool_statuses())
+	_status_manager.status_removed.connect(func(_effect): _update_low_pool_statuses())
+	_update_low_pool_statuses()
 	# CollisionObject3D (CharacterBody3D's base) already provides
 	# mouse_entered/mouse_exited signals once this is on and Project
 	# Settings > Physics > Common > Enable Object Picking is on (it is by
@@ -1115,6 +1126,28 @@ func inflict_status(effect: StatusEffect, source: Unit) -> bool:
 		return false
 	apply_status(effect)
 	return true
+
+
+## Bloodied and Exhausted follow their pools, both ways, on every pool
+## change — damage, healing, FP spent, a maximum moving. Every unit, not
+## just the party. Never partway through a status change (see
+## StatusManager.busy): one that removed a status while its modifiers
+## were still going on would strand the rest on the unit. Any status
+## change runs this again once it is whole.
+func _update_low_pool_statuses() -> void:
+	if _status_manager.busy > 0 or not is_alive():
+		return
+	for id in LOW_POOL_STATUSES:
+		var effect: StatusEffect = LOW_POOL_STATUSES[id]
+		var low: bool = get_pool(id) * 3 < floori(get_stat(id))
+		if low == has_status(effect):
+			continue
+		if low:
+			apply_status(effect)
+			SystemLog.print("%s is %s." % [LogFormat.unit_name(self), effect.status_name])
+		else:
+			remove_status(effect)
+			SystemLog.print("%s is no longer %s." % [LogFormat.unit_name(self), effect.status_name])
 
 
 ## voluntary forwarded straight to StatusManager.remove() — see that
@@ -1609,6 +1642,8 @@ func _apply_pending_state() -> void:
 	_combat.parries = int(state.get("parries", 0))
 	_combat.blocked = bool(state.get("blocked", false))
 	_status_manager.load_state(state.get("statuses", []))
+	if is_node_ready():
+		_update_low_pool_statuses()
 	_budget_flying = is_flying()
 
 	if state.has("transform"):

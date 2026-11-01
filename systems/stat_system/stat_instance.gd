@@ -70,6 +70,18 @@ func modifier_total() -> int:
 	return total
 
 
+## The strongest multiplier on this stat — the lowest under 1, else the
+## highest over it — and 1.0 with none. Never a product: two halvings
+## are still a half.
+func modifier_multiplier() -> float:
+	var lowest: float = 1.0
+	var highest: float = 1.0
+	for active in _modifiers:
+		lowest = minf(lowest, active.modifier.multiplier)
+		highest = maxf(highest, active.modifier.multiplier)
+	return lowest if lowest < 1.0 else highest
+
+
 func modifier_sources() -> Array[String]:
 	var sources: Array[String] = []
 	for active in _modifiers:
