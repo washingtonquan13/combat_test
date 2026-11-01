@@ -62,13 +62,22 @@ func _readout_under_cursor() -> String:
 	var hit: float = acting.hit_chance(hovered, ability)
 	var lines: PackedStringArray = []
 	if ability.requires_to_hit:
-		lines.append(_percent(hit))
+		lines.append(_percent(hit) + _aim_suffix(acting, ability))
 	for effect in ability.effects:
 		var status: StatusEffect = effect.status if effect is ApplyStatusEffect else null
 		if status and status.resisted_by != &"":
 			lines.append("%s %s" % [status.status_name, _percent(hit * hovered.status_land_chance(status, acting))])
 	return "
 ".join(lines)
+
+
+## " vitals" when the attack goes where it is aimed, " torso" when an aim
+## is on but this attack can't take it there, nothing when not aiming.
+func _aim_suffix(acting: Unit, ability: Ability) -> String:
+	if acting.aim() == null:
+		return ""
+	var location: HitLocation = acting.hit_location_for(ability)
+	return " " + (location.display_name.to_lower() if location else "torso")
 
 
 func _percent(chance: float) -> String:

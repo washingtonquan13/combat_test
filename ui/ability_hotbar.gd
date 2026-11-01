@@ -121,8 +121,7 @@ func _on_turn_started(unit: Unit) -> void:
 		_clear()
 		return
 
-	_current_unit = unit
-	unit.ability_used.connect(_on_ability_used)
+	_connect_current_unit(unit)
 	_rebuild(unit)
 	visible = true
 
@@ -175,20 +174,27 @@ func _refresh_out_of_combat_unit() -> void:
 		_clear()
 		return
 
-	_current_unit = unit
-	unit.ability_used.connect(_on_ability_used)
+	_connect_current_unit(unit)
 	_rebuild(unit)
 	visible = true
+
+
+func _connect_current_unit(unit: Unit) -> void:
+	_current_unit = unit
+	unit.ability_used.connect(_on_ability_used)
+	unit.toggles_changed.connect(_on_toggles_changed)
 
 
 func _disconnect_current_unit() -> void:
 	if _current_unit and is_instance_valid(_current_unit) and _current_unit.ability_used.is_connected(_on_ability_used):
 		_current_unit.ability_used.disconnect(_on_ability_used)
+		_current_unit.toggles_changed.disconnect(_on_toggles_changed)
 	_current_unit = null
 
 
 ## Filters unit.abilities into CommonGrid/AbilitiesGrid by
-## Ability.category, then fills CustomGrid from unit.custom_slots
+## Ability.category, adds the aim toggles every unit has to the end of
+## CommonGrid (UnitCombat.AIM_TOGGLES), then fills CustomGrid from unit.custom_slots
 ## index-for-index, including null entries (an empty Custom slot is
 ## still a real slot — see hotbar_slot.gd). Never touches any grid's
 ## `columns` — section widths are a layout preference, not rebuild state.
@@ -200,6 +206,8 @@ func _rebuild(unit: Unit) -> void:
 	for ability in unit.abilities:
 		var target_grid: GridContainer = _common_grid if ability.category == Ability.Category.COMMON else _abilities_grid
 		_add_slot(target_grid, unit, ability, -1)
+	for toggle in UnitCombat.AIM_TOGGLES:
+		_add_slot(_common_grid, unit, toggle, -1)
 
 	for i in unit.custom_slots.size():
 		_add_slot(_custom_grid, unit, unit.custom_slots[i], i)
@@ -243,6 +251,10 @@ func _on_ability_armed(_ability: Ability) -> void:
 func _on_ability_used(_attacker: Unit, _target, _result: Dictionary) -> void:
 	# Using one ability can make OTHERS unusable too (has_attacked), so
 	# refresh every slot's disabled state, not just the one that fired.
+	_update_slot_states()
+
+
+func _on_toggles_changed(_unit: Unit) -> void:
 	_update_slot_states()
 
 

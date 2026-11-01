@@ -400,6 +400,9 @@ signal took_damage(unit: Unit, amount: int)
 ## A stat's own parts changed — its base, a status or gear modifier.
 ## Stats derived from it may have changed too.
 signal stat_changed(unit: Unit, id: StringName)
+## A toggle ability was switched on or off (UnitCombat.set_toggled) — the
+## hotbar's lit borders.
+signal toggles_changed(unit: Unit)
 ## A pool's current or maximum may have changed — HP bars, FP pips.
 signal pool_changed(unit: Unit, id: StringName, current: int, maximum: int)
 signal healed(unit: Unit, amount: int)
@@ -1588,8 +1591,29 @@ func max_damage(damage_type: UnitCombat.DamageType, bonus: int) -> int:
 
 ## Expected value of roll_damage() without rolling — see UnitCombat.
 ## expected_damage's own doc comment (AiScorer's reason for existing).
-func expected_damage(damage_type: UnitCombat.DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0) -> float:
-	return _combat.expected_damage(damage_type, bonus, target, wound_type, armor_divisor)
+func expected_damage(damage_type: UnitCombat.DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0, location: HitLocation = null) -> float:
+	return _combat.expected_damage(damage_type, bonus, target, wound_type, armor_divisor, location)
+
+
+## See UnitCombat's Toggles section.
+func is_toggled(toggle: Ability) -> bool:
+	return _combat.is_toggled(toggle)
+
+
+func set_toggled(toggle: Ability, on: bool) -> void:
+	_combat.set_toggled(toggle, on)
+
+
+func aim() -> Ability:
+	return _combat.aim()
+
+
+func set_aim(toggle: Ability, notify: bool = true) -> void:
+	_combat.set_aim(toggle, notify)
+
+
+func hit_location_for(ability: Ability) -> HitLocation:
+	return _combat.hit_location_for(ability)
 
 
 ## Also a coroutine now, same as UnitCombat.use_ability() — it has to

@@ -93,6 +93,11 @@ var enumeration_index: int = 0
 ## cheap to carry and useful the first time this needs debugging.
 var reason: String = ""
 
+## Where to aim the attack (an aim toggle in UnitCombat.AIM_TOGGLES), or
+## null for the torso. AiScorer._score_plan picks it; CombatAI switches
+## it on before using the ability.
+var aim: Ability = null
+
 
 func _init(p_ability: Ability = null, p_target = null) -> void:
 	ability = p_ability

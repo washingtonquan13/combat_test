@@ -83,5 +83,5 @@ func describe() -> String:
 ## generation is out of scope for this pass), so this answers "how much
 ## would ONE hit unit expect to take," same shape as every sibling
 ## damage effect's expected_damage().
-func expected_damage(_attacker: Unit, target: Unit = null) -> float:
+func expected_damage(_attacker: Unit, target: Unit = null, _location: HitLocation = null) -> float:
 	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor)

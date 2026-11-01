@@ -19,12 +19,12 @@ extends AbilityEffect
 @export var armor_divisor: float = 1.0
 
 
-func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
 	var raw_damage: int = roll_damage()
-	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor)
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, false, false, attacker.hit_location_for(ability))
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -41,5 +41,9 @@ func describe() -> String:
 	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type, armor_divisor)]
 
 
-func expected_damage(_attacker: Unit, target: Unit = null) -> float:
-	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor)
+func expected_damage(_attacker: Unit, target: Unit = null, location: HitLocation = null) -> float:
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor, false, location)
+
+
+func located_wound_type(_attacker: Unit) -> int:
+	return wound_type

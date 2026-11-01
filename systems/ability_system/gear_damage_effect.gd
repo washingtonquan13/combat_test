@@ -20,7 +20,7 @@ enum WeaponCategory { MELEE, RANGED }
 const PUNCH_BONUS: int = -1
 
 
-func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
@@ -29,7 +29,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# Critical hit: ignores DR entirely and deals guaranteed max damage
 	# (see UnitCombat.max_damage) — no second roll, staying consistent
 	# with this project's fast/not-roll-heavy combat goal.
-	var applied: int = DamageResolver.injury(raw_damage, target, _wound_type(weapon), _armor_divisor(weapon), is_critical)
+	var applied: int = DamageResolver.injury(raw_damage, target, _wound_type(weapon), _armor_divisor(weapon), is_critical, false, attacker.hit_location_for(ability))
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -82,6 +82,10 @@ func _wound_type(weapon: GearItem) -> DamageResolver.WoundType:
 	return weapon.weapon_data.wound_type if weapon else DamageResolver.WoundType.CRUSHING
 
 
+func located_wound_type(attacker: Unit) -> int:
+	return _wound_type(_find_weapon(attacker))
+
+
 func _armor_divisor(weapon: GearItem) -> float:
 	return weapon.weapon_data.armor_divisor if weapon else 1.0
 
@@ -97,16 +101,16 @@ func describe() -> String:
 ## delegates to attacker.roll_damage/max_damage; only FIXED weapons need
 ## their own average-of-dice math since they bypass the attacker's ST
 ## entirely.
-func expected_damage(attacker: Unit, target: Unit = null) -> float:
+func expected_damage(attacker: Unit, target: Unit = null, location: HitLocation = null) -> float:
 	var weapon: GearItem = _find_weapon(attacker)
 	if not weapon:
-		return attacker.expected_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS, target, DamageResolver.WoundType.CRUSHING)
+		return attacker.expected_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS, target, DamageResolver.WoundType.CRUSHING, 1.0, location)
 
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:
 		WeaponData.DamageType.FIXED:
-			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor)
+			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor, false, location)
 		WeaponData.DamageType.THRUST:
-			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor)
+			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor, location)
 		_:
-			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor)
+			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor, location)

@@ -19,13 +19,20 @@ extends Button
 ## workaround, it's the same mechanism Variant always uses for any
 ## Object-derived reference.
 ##
-## Scene setup: unchanged — a Button sized to your icon dimensions, no
-## child nodes, everything set from code.
+## A toggle ability (Ability.is_toggle) is switched on and off instead
+## of armed; while it is on, the ToggleBorder child shows — a line
+## running round the slot's edge (toggle_border.gdshader).
+##
+## Scene setup: a Button sized to your icon dimensions, with one
+## ToggleBorder ColorRect child covering it; everything else is set from
+## code.
 
 @export var armed_modulate: Color = Color(1, 0.85, 0.2, 1)
 
 var ability: Ability = null
 var unit: Unit = null
+
+@onready var _toggle_border: CanvasItem = $ToggleBorder
 
 ## Set by ability_hotbar.gd right after instantiate(), before add_child.
 ## Together these are the ONLY things distinguishing a Custom-section
@@ -71,6 +78,8 @@ func _build_tooltip() -> String:
 		lines.append(ability.targeting.describe())
 	for effect in ability.effects:
 		lines.append(effect.describe())
+	if ability.hit_location:
+		lines.append(ability.hit_location.describe())
 	return "\n".join(lines)
 
 
@@ -87,6 +96,12 @@ func set_armed(value: bool) -> void:
 func refresh_state() -> void:
 	if not ability or not unit:
 		set_armed(false)
+		_toggle_border.visible = false
+		disabled = false
+		return
+	_toggle_border.visible = ability.is_toggle and unit.is_toggled(ability)
+	if ability.is_toggle:
+		set_armed(false)
 		disabled = false
 		return
 	set_armed(ability == AbilityManager.armed_ability)
@@ -96,6 +111,9 @@ func refresh_state() -> void:
 
 func _on_pressed() -> void:
 	if not ability:
+		return
+	if ability.is_toggle:
+		unit.set_toggled(ability, not unit.is_toggled(ability))
 		return
 	var template_effect: SummonDemonEffect = _get_summon_demon_effect()
 	if template_effect:

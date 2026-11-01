@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="HitLocation" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/combat_system/hit_location.gd" id="1_location"]
+
+[resource]
+script = ExtResource("1_location")
+display_name = "Vitals"
+to_hit_penalty = -3
+wounding_multiplier = 3.0
+extra_dr = 0
+wound_types = Array[int]([2, 3, 4, 5, 6])

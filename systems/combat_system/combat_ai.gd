@@ -96,6 +96,8 @@ func _attempt_action(unit: Unit) -> void:
 	# _on_movement_finished. The situation genuinely changed, so the right
 	# next action is whatever AiScorer now says it is.
 	var spends_turn: bool = plan.ability.uses_attack_action
+	if plan.ability.requires_to_hit:
+		unit.set_aim(plan.aim)
 	unit.use_ability(plan.ability, plan.target)
 
 	if spends_turn:

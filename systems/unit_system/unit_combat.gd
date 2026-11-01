@@ -43,6 +43,18 @@ const DEATH_DEPTH: int = 5
 
 const ALTITUDE_ADVANTAGE: AltitudeAdvantageBehavior = preload("res://data/altitude_advantage.tres")
 
+## Toggles every unit has, whatever its own abilities list: where to aim
+## (hit_location_for). The hotbar shows them beside Common's abilities,
+## and the AI picks among them per attack (AiScorer._score_plan).
+const AIM_TOGGLES: Array[Ability] = [
+	preload("res://data/abilities/target_vitals.tres"),
+	preload("res://data/abilities/target_head.tres"),
+]
+
+## Toggle abilities switched on (Ability.is_toggle), at most one per
+## toggle_group. Not saved: a loaded game starts aiming at the torso.
+var _toggles: Array[Ability] = []
+
 
 ## GURPS ST-based swing/thrust damage: the Basic Set damage table (B16)
 ## as a formula, for any ST. Ported from GCS's BasicSet progression
@@ -90,9 +102,9 @@ func max_damage(damage_type: DamageType, bonus: int) -> int:
 ## used by AiScorer to rank candidate actions by expected damage rather
 ## than sampling a live roll (which would make the AI's own decision
 ## non-deterministic and untestable independent of RNG).
-func expected_damage(damage_type: DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0) -> float:
+func expected_damage(damage_type: DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0, location: HitLocation = null) -> float:
 	var dice: Dictionary = _damage_dice(damage_type)
-	return DamageResolver.expected_injury(int(dice.count), 6, int(dice.flat_bonus) + bonus, target, wound_type, armor_divisor)
+	return DamageResolver.expected_injury(int(dice.count), 6, int(dice.flat_bonus) + bonus, target, wound_type, armor_divisor, false, location)
 
 
 ## Same formula as roll_damage(), without rolling — e.g. "1d+2" — for
@@ -414,7 +426,73 @@ func to_hit_target(target, ability: Ability) -> int:
 		number += floori(target.get_stat(StatIds.SM))
 		number += target.incoming_attack_to_hit_modifier(_owner, ability)
 		number += ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, _owner, ability)
+		var location: HitLocation = hit_location_for(ability)
+		if location:
+			number += location.to_hit_penalty
 	return number
+
+
+# --- Toggles ------------------------------------------------------------
+
+func is_toggled(toggle: Ability) -> bool:
+	return _toggles.has(toggle)
+
+
+## Switches toggle on or off. On switches off every other toggle in its
+## toggle_group — aiming at the head stops aiming at the vitals.
+func set_toggled(toggle: Ability, on: bool, notify: bool = true) -> void:
+	if on == is_toggled(toggle):
+		return
+	if on:
+		if toggle.toggle_group != &"":
+			_toggles = _toggles.filter(func(other: Ability) -> bool: return other.toggle_group != toggle.toggle_group)
+		_toggles.append(toggle)
+	else:
+		_toggles.erase(toggle)
+	if notify:
+		_owner.toggles_changed.emit(_owner)
+
+
+## The aim toggle switched on, or null for the torso.
+func aim() -> Ability:
+	for toggle in _toggles:
+		if toggle.hit_location:
+			return toggle
+	return null
+
+
+## Aims at toggle's location, or at the torso for null. notify off is
+## the AI trying each aim on for size (AiScorer._score_plan) without the
+## hotbar redrawing for every guess.
+func set_aim(toggle: Ability, notify: bool = true) -> void:
+	var current: Ability = aim()
+	if current == toggle:
+		return
+	if toggle:
+		set_toggled(toggle, true, notify)
+	else:
+		set_toggled(current, false, notify)
+
+
+## Where ability lands if it hits: the aimed location, or null for the
+## torso. Only an attack that rolls to hit can be aimed, and only one
+## whose damage the location takes — a cutting blow aimed at the vitals
+## goes to the torso instead, without the penalty. An attack with no
+## damage of a single wound type to aim (an area blast) hits the torso.
+func hit_location_for(ability: Ability) -> HitLocation:
+	var current: Ability = aim()
+	if not (current and ability and ability.requires_to_hit):
+		return null
+	var location: HitLocation = current.hit_location
+	var aimed: bool = false
+	for effect in ability.effects:
+		var wound_type: int = effect.located_wound_type(_owner)
+		if wound_type < 0:
+			continue
+		if not location.allows(wound_type):
+			return null
+		aimed = true
+	return location if aimed else null
 
 
 ## Pure computation; use_ability() still owns deciding what a miss DOES
@@ -654,6 +732,9 @@ func _resist_log_line(status: StatusEffect) -> String:
 
 
 func _hit_log_line(target, ability: Ability) -> String:
+	var location: HitLocation = hit_location_for(ability) if target is Unit else null
+	if location:
+		return "%s hits %s in the %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), location.display_name.to_lower(), ability.ability_name]
 	return "%s hits %s with %s." % [LogFormat.unit_name(_owner), _log_target_desc(target), ability.ability_name]
 
 

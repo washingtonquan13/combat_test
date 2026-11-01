@@ -20,7 +20,7 @@ extends AbilityEffect
 @export var armor_divisor: float = 1.0
 
 
-func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
@@ -29,7 +29,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# with this project's fast/not-roll-heavy combat goal.
 	var raw_damage: int = attacker.max_damage(damage_type, bonus) if is_critical \
 		else attacker.roll_damage(damage_type, bonus)
-	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, is_critical)
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, is_critical, false, attacker.hit_location_for(ability))
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -40,5 +40,9 @@ func describe() -> String:
 	return "%s %s damage (ST-based)" % [label, DamageResolver.describe(wound_type, armor_divisor)]
 
 
-func expected_damage(attacker: Unit, target: Unit = null) -> float:
-	return attacker.expected_damage(damage_type, bonus, target, wound_type, armor_divisor)
+func expected_damage(attacker: Unit, target: Unit = null, location: HitLocation = null) -> float:
+	return attacker.expected_damage(damage_type, bonus, target, wound_type, armor_divisor, location)
+
+
+func located_wound_type(_attacker: Unit) -> int:
+	return wound_type

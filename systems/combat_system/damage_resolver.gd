@@ -5,9 +5,9 @@ extends RefCounted
 ## injury(), and the AI prices the same hit through expected_injury(), so
 ## the two can never disagree about what armor does.
 
-## GURPS damage types (B379). Hit locations are cut, so every hit takes
-## the torso's wounding multiplier. Fatigue damage (FP, not HP) is not
-## modelled.
+## GURPS damage types (B379). A hit takes the torso's wounding
+## multiplier unless it was aimed at a HitLocation. Fatigue damage (FP,
+## not HP) is not modelled.
 enum WoundType {
 	CRUSHING,
 	CUTTING,
@@ -66,27 +66,30 @@ static func effective_dr(dr: float, armor_divisor: float = 1.0) -> int:
 ## What a rolled `raw` does to target: DR off (B378), then the wounding
 ## multiplier, rounded down — but anything that gets through DR does at
 ## least 1 (B379). A critical hit ignores DR, as does damage that
-## bypasses it outright.
-static func injury(raw: int, target: Unit, wound_type: WoundType = WoundType.CRUSHING, armor_divisor: float = 1.0, is_critical: bool = false, ignores_dr: bool = false) -> int:
+## bypasses it outright. A hit aimed at a location adds that location's
+## DR and takes its multiplier instead (B398-399).
+static func injury(raw: int, target: Unit, wound_type: WoundType = WoundType.CRUSHING, armor_divisor: float = 1.0, is_critical: bool = false, ignores_dr: bool = false, location: HitLocation = null) -> int:
 	var penetrating: int = raw
 	if not (is_critical or ignores_dr or target == null):
-		penetrating -= effective_dr(target.get_stat(StatIds.DR), armor_divisor)
+		var dr: float = target.get_stat(StatIds.DR) + (location.extra_dr if location else 0)
+		penetrating -= effective_dr(dr, armor_divisor)
 	if penetrating <= 0:
 		return 0
-	return maxi(floori(penetrating * WOUNDING_MULTIPLIER[wound_type]), 1)
+	var multiplier: float = location.wounding_multiplier if location else WOUNDING_MULTIPLIER[wound_type]
+	return maxi(floori(penetrating * multiplier), 1)
 
 
 ## The mean of injury() over every roll of count d sides + bonus — exact,
 ## not average-minus-DR: 1d-2 against DR 2 still hurts a third of the
 ## time. No target is the roll before armor, for "does this ability deal
 ## damage at all".
-static func expected_injury(count: int, sides: int, bonus: int, target: Unit = null, wound_type: WoundType = WoundType.CRUSHING, armor_divisor: float = 1.0, ignores_dr: bool = false) -> float:
+static func expected_injury(count: int, sides: int, bonus: int, target: Unit = null, wound_type: WoundType = WoundType.CRUSHING, armor_divisor: float = 1.0, ignores_dr: bool = false, location: HitLocation = null) -> float:
 	if count <= 0 or sides <= 0:
-		return float(injury(bonus, target, wound_type, armor_divisor, false, ignores_dr))
+		return float(injury(bonus, target, wound_type, armor_divisor, false, ignores_dr, location))
 	var distribution: PackedFloat64Array = _distribution(count, sides)
 	var expected: float = 0.0
 	for i in distribution.size():
-		expected += distribution[i] * injury(count + i + bonus, target, wound_type, armor_divisor, false, ignores_dr)
+		expected += distribution[i] * injury(count + i + bonus, target, wound_type, armor_divisor, false, ignores_dr, location)
 	return expected
 
 

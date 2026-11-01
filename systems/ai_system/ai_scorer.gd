@@ -658,15 +658,54 @@ static func _would_be_in_range(position: Vector3, unit: Unit, target: Unit, abil
 ## score: the actual expected-damage/expected-heal arithmetic is common
 ## to every candidate regardless of where it came from, so it lives here
 ## once instead of being re-derived per behavior.
+##
+## An attack is priced once per place it could be aimed — the torso and
+## each aim toggle — and plan.aim keeps the best: -7 for the skull is
+## worth it against a target whose armor the torso can't get through.
 static func _score_plan(unit: Unit, plan: AiPlan) -> void:
+	var expected_heal: float = 0.0
+	for effect in plan.ability.effects:
+		expected_heal += effect.expected_heal(unit)
+
+	var aims: Array[Ability] = [null]
+	if plan.target is Unit and plan.ability.requires_to_hit:
+		aims.append_array(UnitCombat.AIM_TOGGLES)
+	var previous_aim: Ability = unit.aim()
+	var reason: String = plan.reason
+	var best: Dictionary = {}
+	for aim in aims:
+		unit.set_aim(aim, false)
+		var location: HitLocation = unit.hit_location_for(plan.ability)
+		if aim and not location:
+			continue  # this attack can't go there; the torso already priced it
+		plan.reason = reason
+		var value: float = _action_value(unit, plan, expected_heal, location)
+		if best.is_empty() or value > best.value:
+			best = {"value": value, "aim": aim, "reason": plan.reason}
+	unit.set_aim(previous_aim, false)
+
+	plan.aim = best.aim
+	plan.reason = best.reason
+	plan.score += best.value
+
+	# The ability-cost tie-breaker used to live here; it now runs in
+	# _prepare_plan so pure_reposition candidates are charged under the
+	# same rule instead of being silently exempt — see that method.
+
+	if unit.ai_smartness >= 3 and plan.ability.fp_cost > 0.0 and float(unit.get_pool(StatIds.FP)) - plan.ability.fp_cost < float(FP_RESERVE):
+		plan.score -= FP_CONSERVE_PENALTY
+
+
+## What plan is worth with unit aimed at location (null: the torso) —
+## the expected damage or healing it does, in HP. Fills in plan.reason
+## if nothing has.
+static func _action_value(unit: Unit, plan: AiPlan, expected_heal: float, location: HitLocation) -> float:
 	var tier: int = unit.ai_smartness
 
 	var expected_damage: float = 0.0
-	var expected_heal: float = 0.0
 	var target_unit: Unit = plan.target if plan.target is Unit else null
 	for effect in plan.ability.effects:
-		expected_damage += effect.expected_damage(unit, target_unit)
-		expected_heal += effect.expected_heal(unit)
+		expected_damage += effect.expected_damage(unit, target_unit, location)
 
 	var value: float = 0.0
 
@@ -711,21 +750,14 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 				# for free instead of being double-counted.
 				value += threat_output(plan.target) * KILL_HORIZON_TURNS
 			if plan.reason == "":
-				plan.reason = "attack: %.1f dmg%s" % [value, " (kills)" if hit_value >= float(plan.target.hp_to_death()) else ""]
+				plan.reason = "attack%s: %.1f dmg%s" % [" " + location.display_name.to_lower() if location else "", value, " (kills)" if hit_value >= float(plan.target.hp_to_death()) else ""]
 	elif expected_heal > 0.0 and plan.target is Unit:
 		var missing_hp: float = float(plan.target.get_stat(StatIds.HP) - plan.target.get_pool(StatIds.HP))
 		value = minf(expected_heal, missing_hp)
 		if plan.reason == "":
 			plan.reason = "heal: %.1f hp" % value
 
-	plan.score += value
-
-	# The ability-cost tie-breaker used to live here; it now runs in
-	# _prepare_plan so pure_reposition candidates are charged under the
-	# same rule instead of being silently exempt — see that method.
-
-	if tier >= 3 and plan.ability.fp_cost > 0.0 and float(unit.get_pool(StatIds.FP)) - plan.ability.fp_cost < float(FP_RESERVE):
-		plan.score -= FP_CONSERVE_PENALTY
+	return value
 
 
 ## A hit on a Downed unit, priced by what it does to the death track

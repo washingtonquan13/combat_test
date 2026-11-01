@@ -34,6 +34,17 @@ enum Category { COMMON, ABILITIES }
 @export var targeting: AbilityTargeting
 @export var effects: Array[AbilityEffect] = []
 
+@export_group("Toggle")
+## A toggle is switched on and off from the hotbar instead of used: it
+## changes how the unit's other abilities work while it is on (see
+## UnitCombat's Toggles section). No targeting or effects of its own.
+@export var is_toggle: bool = false
+## Toggles sharing a group are mutually exclusive: switching one on
+## switches the rest off. Empty is a group of its own.
+@export var toggle_group: StringName = &""
+## Set on an aim toggle: attacks go here instead of the torso.
+@export var hit_location: HitLocation
+
 @export_group("Cost")
 ## Whether landing a hit requires a to-hit roll (Unit.roll_vs) before any
 ## effects apply, or effects just always happen. Resolved ONCE per
