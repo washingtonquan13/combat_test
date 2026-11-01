@@ -469,7 +469,7 @@ func reset_defenses() -> void:
 func best_defense(attacker: Unit, ability: Ability) -> Dictionary:
 	if not can_dodge():
 		return {}
-	var best: Dictionary = {"kind": &"dodge", "target": floori(_owner.get_stat(StatIds.DODGE))}
+	var best: Dictionary = {"kind": &"dodge", "target": dodge_target()}
 	if ability.targeting is MeleeEnemyTargeting and parry_target(attacker) > best.target:
 		best = {"kind": &"parry", "target": parry_target(attacker)}
 	if not blocked and holds_shield() and block_target() > best.target:
@@ -494,6 +494,13 @@ func parry_target(attacker: Unit) -> int:
 
 func block_target() -> int:
 	return _half_skill_defense()
+
+
+## Dodge plus DB. The shield's DB is added here rather than in the Dodge
+## stat so that halving Dodge (Bloodied, Exhausted) leaves it whole —
+## the shield is no smaller for its bearer being hurt.
+func dodge_target() -> int:
+	return floori(_owner.get_stat(StatIds.DODGE)) + floori(_owner.get_stat(StatIds.DB))
 
 
 func holds_shield() -> bool:

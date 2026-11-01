@@ -10,5 +10,5 @@ abbreviation = "Dodge"
 description = "Rolled against after every hit except a critical one; a success turns the hit into a miss."
 order = 85
 kind = 1
-formula = "floori(BasicSpeed) + 3 + DB"
+formula = "floori(BasicSpeed) + 3"
 default_value = 0

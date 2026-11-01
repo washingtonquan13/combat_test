@@ -24,9 +24,8 @@ extends StatusBehavior
 @export var amount: int = 0
 ## Scales the finished stat, after every amount is added — 0.5 halves
 ## it, as Bloodied and Exhausted halve Move and Dodge. The result is
-## rounded up, as GURPS rounds a halving. Multipliers do not compound:
-## only the strongest one on a stat applies, so two halvings are still a
-## half.
+## rounded up, as GURPS rounds a halving. Multipliers compound: Bloodied
+## and Exhausted together quarter the stat.
 @export var multiplier: float = 1.0
 
 

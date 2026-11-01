@@ -1,7 +1,7 @@
 extends AiTestCase
 ## Bloodied (HP below a third) and Exhausted (FP below a third) halve
 ## Move and Dodge, rounding up, and come off when the pool climbs back.
-## Both at once still halve only once.
+## Both at once quarter them.
 
 
 func run() -> void:
@@ -15,8 +15,8 @@ func run() -> void:
 		"Move %d, Dodge %d" % [unit.get_stat(StatIds.MOVE), unit.get_stat(StatIds.DODGE)])
 
 	unit.set_pool(StatIds.FP, 3)
-	check("Bloodied and Exhausted together still halve once",
-		unit.has_status(exhausted) and unit.get_stat(StatIds.MOVE) == 3 and unit.get_stat(StatIds.DODGE) == 4,
+	check("Bloodied and Exhausted together quarter: Move 2, Dodge 2",
+		unit.has_status(exhausted) and unit.get_stat(StatIds.MOVE) == 2 and unit.get_stat(StatIds.DODGE) == 2,
 		"Move %d, Dodge %d" % [unit.get_stat(StatIds.MOVE), unit.get_stat(StatIds.DODGE)])
 
 	unit.set_pool(StatIds.HP, 4)

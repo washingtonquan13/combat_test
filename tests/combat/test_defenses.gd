@@ -29,7 +29,7 @@ func run() -> void:
 	var shield: Item = ITEM_SCENE.instantiate()
 	shield.definition = load("res://data/items/wooden_shield.tres")
 	defender.equip_item(EquipSlot.Slot.MELEE_OFF_HAND, shield)
-	check("a shield's DB raises Dodge too", defender.get_stat(StatIds.DODGE) == 10)
+	check("a shield's DB raises Dodge too", defender._combat.dodge_target() == 10)
 	check("a shield blocks a ranged hit",
 		defender.best_defense(attacker, ranged()) == {"kind": &"block", "target": 11})
 	defender.spend_defense(&"block")
