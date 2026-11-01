@@ -629,7 +629,7 @@ func _apply_fall_damage(descent: float) -> void:
 	if raw_damage <= 0:
 		return
 
-	var applied: int = DamageResolver.injury(raw_damage, _owner, false, not FLIGHT_RULES.fall_damage_reduced_by_dr)
+	var applied: int = DamageResolver.injury(raw_damage, _owner, DamageResolver.WoundType.CRUSHING, false, not FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	if applied > 0:
 		SystemLog.print("%s takes %d fall damage." % [LogFormat.unit_name(_owner), applied])

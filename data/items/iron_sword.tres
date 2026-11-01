@@ -9,6 +9,7 @@
 script = ExtResource("3_weapon")
 damage_type = 0
 damage_bonus = 2
+wound_type = 1
 fixed_dice_count = 1
 fixed_dice_sides = 6
 fixed_dice_bonus = 0

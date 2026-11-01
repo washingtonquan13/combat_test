@@ -29,7 +29,21 @@ func run() -> void:
 	var swing: StDamageEffect = StDamageEffect.new()
 	var priced: float = swing.expected_damage(armored, armored)
 	check("1d against DR 2 is priced at 10/6, not 3.5 - 2", is_equal_approx(priced, 10.0 / 6.0), "got %.3f" % priced)
-	check("a hit through DR 2 takes 2 off", DamageResolver.injury(5, armored) == 3 and DamageResolver.injury(5, armored, true) == 5)
+	var cr := DamageResolver.WoundType.CRUSHING
+	check("a hit through DR 2 takes 2 off", DamageResolver.injury(5, armored) == 3 and DamageResolver.injury(5, armored, cr, true) == 5)
+	# B379: what gets through is multiplied, rounded down, at least 1.
+	var cut: int = DamageResolver.injury(5, armored, DamageResolver.WoundType.CUTTING)
+	var imp: int = DamageResolver.injury(5, armored, DamageResolver.WoundType.IMPALING)
+	var pi_small: int = DamageResolver.injury(3, armored, DamageResolver.WoundType.SMALL_PIERCING)
+	check("cutting x1.5, impaling x2, small piercing still does 1", cut == 4 and imp == 6 and pi_small == 1,
+		"cut %d, imp %d, pi- %d" % [cut, imp, pi_small])
+	swing.wound_type = DamageResolver.WoundType.IMPALING
+	priced = swing.expected_damage(armored, armored)
+	check("the AI prices the multiplier too", is_equal_approx(priced, 20.0 / 6.0), "got %.3f" % priced)
+	var sword: GearItem = load("res://data/items/iron_sword.tres")
+	var fireball: Ability = load("res://data/abilities/explosive_fireball.tres")
+	var burns: bool = fireball.effects.any(func(e): return "wound_type" in e and e.wound_type == DamageResolver.WoundType.BURNING)
+	check("the sword cuts and the fireball burns", sword.weapon_data.wound_type == DamageResolver.WoundType.CUTTING and burns)
 	free_spawned()
 
 

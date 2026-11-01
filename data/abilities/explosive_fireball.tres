@@ -91,6 +91,7 @@ metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
 [sub_resource type="Resource" id="Resource_l62op"]
 script = ExtResource("2_y8mr0")
 dice_count = 2
+wound_type = 7
 dice_sides = 6
 dice_bonus = 0
 affects_hostiles = true
@@ -100,6 +101,7 @@ metadata/_custom_type_script = "uid://dley113smhdn3"
 [sub_resource type="Resource" id="Resource_voctw"]
 script = ExtResource("5_tdje2")
 dice_count = 1
+wound_type = 7
 dice_sides = 6
 dice_bonus = -3
 ignores_damage_reduction = true

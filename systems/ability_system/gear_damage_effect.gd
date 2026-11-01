@@ -10,7 +10,7 @@ extends AbilityEffect
 ## ignoring the attacker's ST.
 ##
 ## Nothing equipped in either hand for this category: a GURPS punch,
-## thrust-1 (B271). Kicks and natural weapons (claws, teeth)
+## thrust-1 crushing (B271). Kicks and natural weapons (claws, teeth)
 ## aren't modelled, so a weaponless demon punches.
 
 enum WeaponCategory { MELEE, RANGED }
@@ -29,7 +29,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# Critical hit: ignores DR entirely and deals guaranteed max damage
 	# (see UnitCombat.max_damage) — no second roll, staying consistent
 	# with this project's fast/not-roll-heavy combat goal.
-	var applied: int = DamageResolver.injury(raw_damage, target, is_critical)
+	var applied: int = DamageResolver.injury(raw_damage, target, _wound_type(weapon), is_critical)
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -77,6 +77,11 @@ func _roll(attacker: Unit, weapon: GearItem, is_critical: bool) -> int:
 				else attacker.roll_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus)
 
 
+## A punch is crushing; a weapon says what it is.
+func _wound_type(weapon: GearItem) -> DamageResolver.WoundType:
+	return weapon.weapon_data.wound_type if weapon else DamageResolver.WoundType.CRUSHING
+
+
 func describe() -> String:
 	var label := "Melee" if category == WeaponCategory.MELEE else "Ranged"
 	return "%s weapon damage" % label
@@ -91,13 +96,13 @@ func describe() -> String:
 func expected_damage(attacker: Unit, target: Unit = null) -> float:
 	var weapon: GearItem = _find_weapon(attacker)
 	if not weapon:
-		return attacker.expected_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS, target)
+		return attacker.expected_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS, target, DamageResolver.WoundType.CRUSHING)
 
 	var weapon_data: WeaponData = weapon.weapon_data
 	match weapon_data.damage_type:
 		WeaponData.DamageType.FIXED:
-			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target)
+			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target, weapon_data.wound_type)
 		WeaponData.DamageType.THRUST:
-			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target)
+			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target, weapon_data.wound_type)
 		_:
-			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target)
+			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target, weapon_data.wound_type)

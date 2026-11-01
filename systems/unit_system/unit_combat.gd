@@ -90,9 +90,9 @@ func max_damage(damage_type: DamageType, bonus: int) -> int:
 ## used by AiScorer to rank candidate actions by expected damage rather
 ## than sampling a live roll (which would make the AI's own decision
 ## non-deterministic and untestable independent of RNG).
-func expected_damage(damage_type: DamageType, bonus: int, target: Unit = null) -> float:
+func expected_damage(damage_type: DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING) -> float:
 	var dice: Dictionary = _damage_dice(damage_type)
-	return DamageResolver.expected_injury(int(dice.count), 6, int(dice.flat_bonus) + bonus, target)
+	return DamageResolver.expected_injury(int(dice.count), 6, int(dice.flat_bonus) + bonus, target, wound_type)
 
 
 ## Same formula as roll_damage(), without rolling — e.g. "1d+2" — for

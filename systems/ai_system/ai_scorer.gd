@@ -981,7 +981,7 @@ static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: V
 	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
 	if roll.dice_count > 0:
 		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
-			unit, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
+			unit, DamageResolver.WoundType.CRUSHING, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	# And the safety it's buying is only rented. _apply_positional_value
 	# has already credited this takeoff with escaping everything that
@@ -1044,7 +1044,7 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
 	if roll.dice_count > 0:
 		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
-			unit, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
+			unit, DamageResolver.WoundType.CRUSHING, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	var grounded_fraction: float = 1.0 - turns_aloft / KILL_HORIZON_TURNS
 	cost += sustained_incoming_threat(unit, Vector3(position.x, ground_y, position.z)) * grounded_fraction

@@ -19,6 +19,10 @@ enum DamageType { SWING, THRUST, FIXED }
 ## Added on top of the ST-derived roll for SWING/THRUST — the "+2" in
 ## sw+2. Unused for FIXED.
 @export var damage_bonus: int = 0
+## GURPS damage type (B379) — a broadsword's swing is cutting, a spear's
+## thrust impaling. Separate from damage_type, which is only which dice
+## table the roll reads.
+@export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
 
 @export_group("Fixed Damage")
 ## Only read when damage_type == FIXED.

@@ -10,6 +10,9 @@ extends AbilityEffect
 @export var dice_count: int = 1
 @export var dice_sides: int = 6
 @export var dice_bonus: int = 0
+## GURPS damage type (B379): what DR lets through is multiplied by its
+## wounding multiplier.
+@export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
 
 
 func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
@@ -17,7 +20,7 @@ func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	var raw_damage: int = roll_damage()
-	var applied: int = DamageResolver.injury(raw_damage, target)
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type)
 	target.take_damage(applied)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -31,8 +34,8 @@ func roll_damage() -> int:
 
 
 func describe() -> String:
-	return "%dd%d+%d damage" % [dice_count, dice_sides, dice_bonus]
+	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type)]
 
 
 func expected_damage(_attacker: Unit, target: Unit = null) -> float:
-	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target)
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type)

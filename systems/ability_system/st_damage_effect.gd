@@ -11,6 +11,9 @@ extends AbilityEffect
 ## formula computes internally, so a weapon modifier never gets silently
 ## absorbed into (or confused with) the ST math's own +1/+2/-1 steps.
 @export var bonus: int = 0
+## GURPS damage type (B379): what DR lets through is multiplied by its
+## wounding multiplier.
+@export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
 
 
 func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dictionary:
@@ -22,7 +25,7 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 	# with this project's fast/not-roll-heavy combat goal.
 	var raw_damage: int = attacker.max_damage(damage_type, bonus) if is_critical \
 		else attacker.roll_damage(damage_type, bonus)
-	var applied: int = DamageResolver.injury(raw_damage, target, is_critical)
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, is_critical)
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
@@ -30,8 +33,8 @@ func apply(attacker: Unit, target, _ability: Ability, is_critical: bool) -> Dict
 
 func describe() -> String:
 	var label := "Swing" if damage_type == UnitCombat.DamageType.SWING else "Thrust"
-	return "%s damage (ST-based)" % label
+	return "%s %s damage (ST-based)" % [label, DamageResolver.describe(wound_type)]
 
 
 func expected_damage(attacker: Unit, target: Unit = null) -> float:
-	return attacker.expected_damage(damage_type, bonus, target)
+	return attacker.expected_damage(damage_type, bonus, target, wound_type)
