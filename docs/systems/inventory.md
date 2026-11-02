@@ -18,6 +18,7 @@ A shared grid inventory (10x13), equipment slots per unit, area stashes, and gol
 ## Derived / cached state
 - Item widgets per ItemInstance (inventory.gd:225 `_widgets`), created, moved and freed from the container's signals (:264-291). Freed with remove_child + queue_free, because a widget can be the drag data of the drop in progress.
 - EquipSlot shows a widget built from the unit's equipped instance (`display_instance`, equip_slot.gd:90). One truth: the unit's UnitEquipment.
+- An empty EquipSlot shows its `empty_icon` (set per slot in party_overview.tscn; outlines in assets/ui_icon/equip_slot/) through the faint `EmptyIcon` TextureRect. It hides while an item or the two-hand ghost is in the slot.
 - Item copies icon/width/height from its definition but not `maximum_stack_count` (item.gd:20-26). Its count label follows `ItemInstance.changed`.
 - Gold label follows `gold_changed`.
 - Party records store copies of the equipped instances; a respawn equips a copy again, so rarity, sockets and runes survive.

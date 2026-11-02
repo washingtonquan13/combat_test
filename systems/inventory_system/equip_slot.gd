@@ -3,6 +3,7 @@ extends MarginContainer
 
 @onready var item_layer: Control = $ItemLayer
 @onready var ghost_preview: ColorRect = $GhostPreview
+@onready var _empty_icon: TextureRect = $EmptyIcon
 
 ## Which kind of GearItem this slot accepts — see accepts_item().
 @export var slot_type: GearItem.SlotType = GearItem.SlotType.HELMET
@@ -22,6 +23,13 @@ enum Slot {
 	MELEE_MAIN_HAND, MELEE_OFF_HAND, RANGED_MAIN_HAND, RANGED_OFF_HAND,
 }
 @export var slot: Slot = Slot.HELMET
+
+## The faint outline an empty slot shows, so it reads as "helmet" or
+## "off hand" before anything is in it. Set per slot in party_overview.tscn.
+@export var empty_icon: Texture2D:
+	set(value):
+		empty_icon = value
+		_refresh_empty_icon()
 
 ## Which unit this slot currently represents — assigned by
 ## party_overview.gd's open_for(), not per-instance in the .tscn (all 16
@@ -53,6 +61,7 @@ const GHOST_TINT := Color(0.8, 0.8, 0.8, 0.55)
 const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
 
 func _ready() -> void:
+	_refresh_empty_icon()
 	if not mouse_exited.is_connected(_on_mouse_exited):
 		mouse_exited.connect(_on_mouse_exited)
 
@@ -145,6 +154,7 @@ func _refresh_ghost() -> void:
 		if _ghost:
 			_ghost.queue_free()
 			_ghost = null
+		_refresh_empty_icon()
 		return
 	if not _ghost:
 		_ghost = TextureRect.new()
@@ -161,6 +171,15 @@ func _refresh_ghost() -> void:
 		item_layer.add_child(_ghost)
 		_ghost.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ghost.texture = weapon.definition.icon
+	_refresh_empty_icon()
+
+
+## Shown only while nothing is in the slot — no item, no two-hand ghost.
+func _refresh_empty_icon() -> void:
+	if not is_node_ready():
+		return
+	_empty_icon.texture = empty_icon
+	_empty_icon.visible = empty_icon != null and equipped_item == null and _ghost == null
 
 func accepts_item(item: Item) -> bool:
 	if not (equipped_item == null or equipped_item == item):
