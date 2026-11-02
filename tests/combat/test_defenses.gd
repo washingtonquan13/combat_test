@@ -3,8 +3,6 @@ extends AiTestCase
 ## loses 4 per parry, Block works once and needs a shield, and both come
 ## back on the defender's own turn.
 
-const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
-
 
 func wants_world() -> bool:
 	return true
@@ -26,8 +24,7 @@ func run() -> void:
 	check("parries come back on the defender's turn",
 		defender.best_defense(attacker, melee()).target == 9)
 
-	var shield: Item = ITEM_SCENE.instantiate()
-	shield.definition = load("res://data/items/wooden_shield.tres")
+	var shield := ItemInstance.new(load("res://data/items/wooden_shield.tres"))
 	defender.equip_item(EquipSlot.Slot.MELEE_OFF_HAND, shield)
 	check("a shield's DB raises Dodge too", defender._combat.dodge_target() == 10)
 	check("a shield blocks a ranged hit",
@@ -35,5 +32,5 @@ func run() -> void:
 	defender.spend_defense(&"block")
 	check("only once per turn",
 		defender.best_defense(attacker, ranged()) == {"kind": &"dodge", "target": 10})
-	defender.unequip_item(EquipSlot.Slot.MELEE_OFF_HAND).free()
+	defender.unequip_item(EquipSlot.Slot.MELEE_OFF_HAND)
 	free_spawned()

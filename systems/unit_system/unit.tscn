@@ -19,8 +19,6 @@ hover_color = Color(0.156863, 1, 1, 0.501961)
 
 [node name="Skills" type="Node" parent="."]
 
-[node name="EquippedItems" type="Node" parent="."]
-
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0)
 shape = SubResource("CapsuleShape3D_5wnup")

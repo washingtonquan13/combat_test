@@ -30,7 +30,7 @@ All autoload registrants call `register` from `_register_persistence`, deferred 
 | `currency` | currency_manager.gd:49 | |
 | `factions` | faction_relations.gd:78 | |
 | `party` | party_manager.gd:448 | |
-| `inventory` | ui/party_overview.gd:176 | A scene node, not an autoload. Registers directly in `_ready`, joins group `party_overview` at :162 and unregisters in `_exit_tree` at :208 |
+| `inventory` | party_manager.gd:478 | `PartyManager.inventory`, an ItemContainer (RefCounted), registered alongside `party`. No screen involved |
 | `meta`, `world`, `combat` | save_manager.gd:144 (derived) | Written inline at :332-356 |
 
 ## Derived / cached state
@@ -102,7 +102,7 @@ All autoload registrants call `register` from `_register_persistence`, deferred 
 |---|---|---|---|
 | S1 | `format_version` is written but never read. Neither `_perform_load` nor `list_saves` checks it, so an incompatible future save loads silently. | save_manager.gd:110, :336, :405-504, :646-666 | CONFIRMED |
 | S2 | Filename is `int(unix_time)`, so two saves in the same second overwrite each other. There is no slot, quicksave or autosave API; `save(name)` is the only entry point. | save_manager.gd:328-329, :309 | CONFIRMED |
-| S3 | The `party_overview` requirement is checked only on load and new_game (`_structural_refusal` :763, called from :546 and :787). `save()` does not check it. A save made without PartyOverview lacks `[inventory]`, and loading that save calls `load_state({})`, which **wipes the inventory**. | save_manager.gd:309-364, :442-447, :749-766; ui/party_overview.gd:176 | PARTLY CONFIRMED (save path unguarded) |
+| S3 | The `party_overview` requirement is checked only on load and new_game (`_structural_refusal` :763, called from :546 and :787). `save()` does not check it. A save made without PartyOverview lacks `[inventory]`, and loading that save calls `load_state({})`, which **wipes the inventory**. | save_manager.gd:309-364, :442-447, :749-766; ui/party_overview.gd:176 | FIXED (item layer): the inventory no longer depends on PartyOverview, and the `party_overview` refusal is removed |
 | S4 | **Esc → Load during dialogue soft-locks.** The chain:<br>1. UIStack pushes the esc menu on ui_cancel without `can_open`, even over DialogueOverlay (`closes_on_cancel=false`).<br>2. The Load button is never gated.<br>3. `load_file` never checks the mode.<br>4. Teardown's `close_all` pops the overlay, but `Conversations.current` is never cleared.<br>5. GameMode stays DIALOGUE, so travel, save and camera control are all refused. | ui_stack.gd:142-145; MainRoot.tscn:397; ui/esc_menu.gd:55-58, :79-80; save_manager.gd:405-504; world_manager.gd:381; conversations.gd:24, ~:96-102; game_mode.gd:98-100 | CONFIRMED |
 | S5 | The same path during a stash or cutscene is safe: stash_panel closes the stash when it is hidden, and CinematicDirector aborts on `world_loading`. | ui/stash_panel.gd:69-71; cinematic_director.gd:79 | NOT REPRODUCED (for stash/cutscene) |
 | S6 | Stale "Being LAST" header. | save_manager.gd:6; project.godot:44-45 | NEW |

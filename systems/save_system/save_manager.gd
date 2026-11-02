@@ -16,11 +16,11 @@ extends Node
 ## Coordinates, but never itself HOLDS, game state — and, since the
 ## registry below, does not NAME the holders either. Every actual value
 ## lives in exactly one place already (FlagManager, PartyManager,
-## DemonRoster, CurrencyManager, WorldManager, and the party's own shared
-## Inventory), each carrying a duck-typed save_state()/load_state() pair
-## (see those files, and Inventory's own — that pair now lives there
-## rather than on StashComponent, specifically so the party's Inventory
-## could reuse it instead of a second, parallel implementation).
+## DemonRoster, CurrencyManager, WorldManager, and the party's shared
+## ItemContainer on PartyManager), each carrying a duck-typed
+## save_state()/load_state() pair (see those files, and ItemContainer's
+## own — a stash's Inventory delegates to the same pair, so the party's
+## bag and a chest's never have two parallel implementations).
 ##
 ## Each of those systems calls register() on ITSELF, naming the section it
 ## owns. This file's only job is: walk the registry, write what each
@@ -36,16 +36,14 @@ extends Node
 ## rather than any one system's own state, so there is nothing to
 ## register them from.
 ##
-## The party's shared Inventory (registered by PartyOverview, see
-## party_overview.gd) is a PERMANENT child of MainRoot's CanvasLayer,
-## inside party_overview.tscn — not part of any world, and therefore
-## never captured/cleared by anything WorldManager's own teardown does.
-## Without it being saved, items taken from a chest into it would
-## silently vanish the moment the application actually restarts (a real,
-## shipped bug this comment exists to keep from happening again): the
-## chest correctly persists having lost them, and nothing correctly
-## persists where they went. It is also the only registered target that
-## is not an autoload, which is what unregister() exists for.
+## The party's shared bag (PartyManager.inventory, an ItemContainer)
+## registers as [inventory]. It belongs to no world, so nothing
+## WorldManager's teardown does captures or clears it. Without it being
+## saved, items taken from a chest into it would silently vanish the
+## moment the application actually restarts (a real, shipped bug this
+## comment exists to keep from happening again): the chest correctly
+## persists having lost them, and nothing correctly persists where they
+## went.
 ##
 ## FlagManager's own Dictionary carries quest progress AND all of
 ## AreaState's per-area records along for free — see that file's header.
@@ -196,9 +194,8 @@ func register(key: StringName, target: Object, after: Array[StringName] = []) ->
 	_persistables[key] = {"target": target, "after": after.duplicate()}
 
 
-## For a target that does not outlive the game. The party's shared
-## Inventory belongs to a scene, and a freed node left in the table would
-## be called on the next save.
+## For a target that does not outlive the game: a freed node left in the
+## table would be called on the next save.
 ##
 ## `target` is optional and guards a HANDOVER: a node unregisters in
 ## _exit_tree(), which for a queue_free() runs late, and without this it
@@ -263,7 +260,7 @@ func _dependencies_placed(key: StringName, ordered: Array[StringName]) -> bool:
 ## A Node stays is_instance_valid() until the frame it was queue_free()d
 ## in actually ends, and its _exit_tree() has not run yet either — so a
 ## replacement arriving in the same frame (a test suite tearing down one
-## PartyOverview and standing the next one up) would otherwise be refused
+## scene-owned target and standing the next one up) would otherwise be refused
 ## as a duplicate of something already on its way out.
 func _is_departing(target: Object) -> bool:
 	var node: Node = target as Node
@@ -446,8 +443,8 @@ func _perform_load(path: String) -> String:
 	_warn_about_unclaimed_sections(cfg)
 
 	# Not gated on _current_world/area the way party_transforms is below.
-	# Every registered target is either an autoload or a permanent
-	# CanvasLayer child (the party's shared Inventory) — never something a
+	# Every registered target is an autoload or something an autoload
+	# owns (the party's shared bag, on PartyManager) — never something a
 	# destination world creates — so no "wait for world_loaded" step is
 	# needed for any of them.
 	#
@@ -789,7 +786,7 @@ func _on_world_loaded(_world: Node, reason: WorldManager.Entry) -> void:
 ##
 ## Shared by _why_load_would_fail() (a load) and new_game() (a load of
 ## nothing). Both operations empty every registered system before building
-## anything back, so both have exactly the same two things to establish
+## anything back, so both have exactly the same thing to establish
 ## first, and neither may ask them of a particular save file — nothing
 ## here reads a ConfigFile.
 ##
@@ -798,19 +795,6 @@ func _on_world_loaded(_world: Node, reason: WorldManager.Entry) -> void:
 func _structural_refusal() -> String:
 	if not WorldManager.can_rebuild():
 		return "no world host is registered to build a world into"
-
-	# The one by-name check that outlives the by-name save/load calls, and
-	# it is a check on the game SHELL rather than on any system: the party's
-	# shared Inventory is the only persistable that belongs to a scene, and
-	# PartyOverview is what registers it (see party_overview.gd). With no
-	# PartyOverview in the tree the registry simply has no [inventory]
-	# entry, so a load would warn and carry on — quietly dropping every item
-	# the party is carrying, AFTER the flags, party, demons and purse had
-	# already been overwritten, and a new game would just as quietly start
-	# holding the last game's inventory. Refusing up front is the same
-	# bargain every other clause here makes.
-	if get_tree().get_first_node_in_group("party_overview") == null:
-		return "no party overview in the tree, so the shared inventory cannot be reached"
 
 	return ""
 

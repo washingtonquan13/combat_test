@@ -1,11 +1,10 @@
 class_name UnitEquipment
 extends RefCounted
-## Owns which Item is equipped in which of this unit's EquipSlots — the
+## Owns which ItemInstance is equipped in which of this unit's EquipSlots — the
 ## per-unit storage that lets the SAME 16 EquipSlot nodes in
 ## party_overview.tscn show a different loadout depending on which
 ## unit's sheet is open (see party_overview.gd's open_for(), which
-## reparents items in/out of storage exactly the way stash_panel.gd
-## already does for a chest's Inventory).
+## rebuilds the slots' widgets from whichever unit is shown).
 ##
 ## Keyed by EquipSlot.Slot — a real, typed per-slot identity distinct
 ## from GearItem.SlotType (which only answers "what kind of item fits
@@ -22,14 +21,14 @@ extends RefCounted
 ## (which never needs to reach into Unit at all).
 
 var _owner: Unit
-var _equipped: Dictionary = {}  # EquipSlot.Slot -> Item
+var _equipped: Dictionary = {}  # EquipSlot.Slot -> ItemInstance
 
 
 func _init(owner: Unit) -> void:
 	_owner = owner
 
 
-func get_item(slot_key: EquipSlot.Slot) -> Item:
+func get_item(slot_key: EquipSlot.Slot) -> ItemInstance:
 	return _equipped.get(slot_key)
 
 
@@ -41,10 +40,10 @@ func equipped_slots() -> Array:
 
 
 ## Records item as equipped in slot_key and registers every stat
-## modifier its GearItem grants — does NOT touch the scene tree (no
-## reparenting here); that's EquipSlot's job, this is just the per-unit
-## bookkeeping of what's currently worn.
-func equip(slot_key: EquipSlot.Slot, item: Item) -> void:
+## modifier its GearItem grants — does NOT touch the scene tree; showing
+## it is EquipSlot's job, this is just the per-unit bookkeeping of what's
+## currently worn.
+func equip(slot_key: EquipSlot.Slot, item: ItemInstance) -> void:
 	_equipped[slot_key] = item
 	if item.gear_data:
 		for modifier in item.gear_data.stat_modifiers:
@@ -53,10 +52,9 @@ func equip(slot_key: EquipSlot.Slot, item: Item) -> void:
 
 ## Clears slot_key and reverts every stat modifier the previously-equipped
 ## item was granting. Returns the item that was there (or null), so the
-## caller can decide where it goes next (back to a slot's item_layer, the
-## party stash, ...).
-func unequip(slot_key: EquipSlot.Slot) -> Item:
-	var item: Item = _equipped.get(slot_key)
+## caller can decide where it goes next (a grid, another slot, ...).
+func unequip(slot_key: EquipSlot.Slot) -> ItemInstance:
+	var item: ItemInstance = _equipped.get(slot_key)
 	if item and item.gear_data:
 		for modifier in item.gear_data.stat_modifiers:
 			_owner.unregister_stat_modifier(modifier, item.gear_data.item_name)

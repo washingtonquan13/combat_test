@@ -44,11 +44,11 @@ func _find_weapon(attacker: Unit) -> GearItem:
 	var main_key: EquipSlot.Slot = EquipSlot.Slot.MELEE_MAIN_HAND if category == WeaponCategory.MELEE else EquipSlot.Slot.RANGED_MAIN_HAND
 	var off_key: EquipSlot.Slot = EquipSlot.Slot.MELEE_OFF_HAND if category == WeaponCategory.MELEE else EquipSlot.Slot.RANGED_OFF_HAND
 
-	var main_item: Item = attacker.get_equipped_item(main_key)
+	var main_item: ItemInstance = attacker.get_equipped_item(main_key)
 	if main_item and main_item.gear_data and main_item.gear_data.weapon_data:
 		return main_item.gear_data
 
-	var off_item: Item = attacker.get_equipped_item(off_key)
+	var off_item: ItemInstance = attacker.get_equipped_item(off_key)
 	if off_item and off_item.gear_data and off_item.gear_data.weapon_data:
 		return off_item.gear_data
 

@@ -33,7 +33,7 @@ Three representations of "a unit's skills" that must be copied by hand:
 - `FlagManager` — `flag_prerequisite.gd:22`, `passive_skill_prerequisite.gd:46-51`.
 - `CurrencyManager.has_gold` — `gold_prerequisite.gd:16`, `negotiated_gold_prerequisite.gd:19`.
 - `Conversation.cast/vars/rng` — `prerequisite_rule.gd:28`, `mood_prerequisite.gd:21`, `passive_skill_prerequisite.gd:42`.
-- UI node `PartyOverview` (group `party_overview`) for inventory — `item_owned_prerequisite.gd:14-15`.
+- `PartyManager.inventory` (ItemContainer) for inventory — `item_owned_prerequisite.gd`.
 - `ResourceCatalog` — `skill_database.gd:56`.
 
 ## Assumptions and invariants
@@ -56,7 +56,7 @@ Three representations of "a unit's skills" that must be copied by hand:
 | 3 | Exported builds: `handle_remap=false`, so `.tres.remap` skills are invisible; `find()` returns null for every saved/defaulted skill | `skill_database.gd:56`; `resource_catalog.gd:21-27,142-145` | NEW |
 | 4 | `Skill.prerequisites` is exported but never evaluated anywhere (only `learned_only` is read) | `skill.gd:31`; only `.prerequisites` reader is `conversation.gd:371` (choices) | NEW |
 | 5 | `AdvantagePrerequisite`, `TagPrerequisite`, `SkillCategoryPrerequisite` have no `is_satisfied`; the base pushes an error and returns false | `advantage_prerequisite.gd:9-11`, `tag_prerequisite.gd:11-12`, `skill_category_prerequisite.gd:9-10`; `prerequisite_rule.gd:17-19` | NEW (documented stubs) |
-| 6 | `ItemOwnedPrerequisite` reads inventory from the PartyOverview UI node via a group lookup; false if the UI is not in the tree | `item_owned_prerequisite.gd:14-15` | NEW |
+| 6 | `ItemOwnedPrerequisite` reads inventory from the PartyOverview UI node via a group lookup; false if the UI is not in the tree | `item_owned_prerequisite.gd` | FIXED (reads PartyManager.inventory) |
 | 7 | Three hand-synced copies of a unit's skills (instances, PartyMemberData, UnitDefinition) | `party_manager.gd:396-400,745-750`; `unit.gd:1067-1084` | NEW |
 | 8 | Unknown skill on load is skipped with no warning | `party_manager.gd:668-670` vs `:654` | NEW (minor) |
 

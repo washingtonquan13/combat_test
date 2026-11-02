@@ -26,7 +26,6 @@ extends Node
 ## bridge between the two, and are what make WorldManager's replace-only
 ## world loading possible without losing the party.
 
-const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
 const UNIT_SCENE: PackedScene = preload("res://systems/unit_system/unit.tscn")
 
 signal member_added(unit: Unit)
@@ -36,6 +35,12 @@ signal leader_changed(unit: Unit)
 ## Checked after a member dies or goes Downed, a frame later, so a hit
 ## that downs one member and the AoE that drops the next both land first.
 signal defeated()
+
+## The party's shared bag. Owned here rather than by PartyOverview's
+## Inventory widget, which only draws it (see Inventory.bind()), so the
+## items exist, save and load whether or not any screen is up. Saved as
+## its own [inventory] section, the same one the widget used to register.
+var inventory := ItemContainer.new(12, 6)
 
 ## Every group the party is currently divided into - see PartyGroup. One
 ## while the party is together, which is the ordinary case and the only
@@ -422,7 +427,7 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 		data.skills.append(record)
 
 	for slot in unit.get_equipped_slots():
-		var item: Item = unit.get_equipped_item(slot)
+		var item: ItemInstance = unit.get_equipped_item(slot)
 		if item and item.gear_data:
 			data.equipment[slot] = item.gear_data
 
@@ -466,10 +471,11 @@ func _ready() -> void:
 ## of the save's own dictionary, resolving names through
 ## SpawnableUnitDatabase/AbilityDatabase/SkillDatabase/ItemDatabase —
 ## resource databases, not saved systems. Nothing FlagManager,
-## DemonRoster, CurrencyManager or the party Inventory restore is read
+## DemonRoster or CurrencyManager restore is read
 ## from here.
 func _register_persistence() -> void:
 	SaveManager.register(&"party", self)
+	SaveManager.register(&"inventory", inventory)
 
 
 ## --- Save/load ---
@@ -743,9 +749,7 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 		unit.add_skill(instance)
 
 	for slot in record.equipment:
-		var item: Item = ITEM_SCENE.instantiate()
-		item.definition = record.equipment[slot]
-		unit.equip_item(slot, item)
+		unit.equip_item(slot, ItemInstance.new(record.equipment[slot]))
 
 	return unit
 

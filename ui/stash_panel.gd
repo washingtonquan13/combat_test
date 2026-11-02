@@ -92,13 +92,14 @@ func _on_stash_closed() -> void:
 
 
 ## Bulk-move convenience — same "one button, one Inventory method" shape
-## as party_overview.gd's own SortButton/sort_items(). auto_place_item
-## already declines anything that doesn't fit, so a full party inventory
+## as party_overview.gd's own SortButton/sort_items(). Only what fits
+## moves, so a full party inventory
 ## just leaves the rest behind in the stash rather than losing anything.
 func _on_take_all_pressed() -> void:
 	if not is_instance_valid(_stash):
 		return
-	var party_inventory: Inventory = party_overview.get_inventory()
-	for item in _stash.inventory.item_layer.get_children().duplicate():
-		if item is Item:
-			party_inventory.auto_place_item(item)
+	var stash_bag: ItemContainer = _stash.inventory.get_container()
+	for item in stash_bag.items():
+		if PartyManager.inventory.first_free_cell(item) != Vector2i(-1, -1):
+			stash_bag.remove(item)
+			PartyManager.inventory.add(item)

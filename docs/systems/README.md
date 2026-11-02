@@ -93,7 +93,7 @@ flowchart TD
 
 Worst upward reaches, each a known issue:
 - **Rules read UI state:** `unit_combat.gd:211-213` reads `AbilityManager.armed_ability` (unit.md #14).
-- **Rules and save depend on a screen:** inventory lives on `ui/party_overview.gd`, so Save refuses to load without it (`save_manager.gd:763`) and the `ItemOwned` skill prerequisite looks it up by group (skills.md, inventory.md).
+- ~~**Rules and save depend on a screen:**~~ FIXED (item layer): the party inventory is `PartyManager.inventory`, an ItemContainer; Save and `ItemOwned` no longer need the party screen (inventory.md).
 - **Unit calls up into combat flow:** `CombatManager.start_combat_from_hostile_act` from `unit_combat.gd:467`.
 
 ## The six root causes
@@ -115,7 +115,7 @@ Encounters became per-instance and worlds became resident, but these places stil
 - Loaded statuses skip `on_apply`/stat modifiers; no stable ids for abilities, statuses or skills; 5 of 10 statuses are inline sub-resources (unit.md, statuses.md, abilities.md, skills.md)
 - Party save uses a fixed field list (statuses, Downed lost); fielded demons dropped from combat saves; temporary hostility and surfaces not saved (party.md, demons.md, factions_flags_quests.md, surfaces.md)
 - Resumed combat: the turn index shifts when units are missing; occupancy and turn-start bookkeeping skipped (combat.md)
-- `FORMAT_VERSION` never read; filenames collide within a second; no inventory section without the party screen, so loading wipes it (save.md)
+- `FORMAT_VERSION` never read; filenames collide within a second (save.md)
 
 ### R3. Leaving a mode isn't guaranteed
 - Load or New Game mid-dialogue leaves `Conversations.current` set, so the game is stuck in DIALOGUE (dialogue.md)
@@ -150,6 +150,6 @@ Each step is one system-scoped change set: fix it, verify it, update its doc, co
 | 3 | Per-encounter combat: AI state per encounter, relays carry the encounter, occupancy per fight, surfaces per world, hostility per encounter, `area_of` for deaths | R1 | combat, ai, surfaces, navigation, factions, camera, ui, unit | The largest cause; do it in that order, Combat first |
 | 4 | Unit has one truth: derived stats via `get_stat`, Downed signal from the status, copy `abilities` on spawn, the Downed rules list in unit.md #7-13 | R4 | unit, statuses | Must precede save work, which serializes this state |
 | 5 | Save foundation: stable ids, statuses as files, `on_restore`, a single `Unit.save_state`, versioned slots, resume bookkeeping | R2 | save, unit, statuses, abilities, skills, party, demons, combat | Content can't grow safely until saves are stable |
-| 6 | Data out of presentation: inventory owned by PartyManager, change signals on load | R2/R4 | inventory, ui, save, skills | Removes the upward reaches in the dependency map |
+| 6 | Data out of presentation: inventory owned by PartyManager, change signals on load (DONE for inventory: ItemContainer) | R2/R4 | inventory, ui, save, skills | Removes the upward reaches in the dependency map |
 | 7 | Export-safe content scans | R6 | world, abilities, skills, dialogue, character_creation | One shared helper; do it before the first export test |
 | 8 | The rest, per system, as content needs it | n/a | each doc's remaining rows | n/a |

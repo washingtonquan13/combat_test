@@ -32,7 +32,7 @@ extends Container
 ## unchanged; only the few WRITE sites (assigning gear_data =) needed to
 ## move to `definition` directly.
 var gear_data: GearItem:
-	get: return definition as GearItem
+	get: return (instance.definition if instance else definition) as GearItem
 @export var icon: Texture2D:
 	set(value):
 		icon = value
@@ -52,8 +52,29 @@ var gear_data: GearItem:
 		height = value
 		_update_size()
 		_update_tooltip_text()
+## Authoring input only, for Items placed by hand in a scene (chest.tscn):
+## Inventory adopts those into its ItemContainer, and from then on the
+## count lives on `instance`.
 @export var current_stack_count: int = 1
 @export var maximum_stack_count: int = 99
+
+## The copy this widget shows. Everything per-copy (the stack count
+## today) is read from here; the widget itself holds nothing that has to
+## survive it being freed — Inventory and EquipSlot free and rebuild
+## widgets freely.
+var instance: ItemInstance:
+	set(value):
+		if instance and instance.changed.is_connected(_on_instance_changed):
+			instance.changed.disconnect(_on_instance_changed)
+		instance = value
+		if instance:
+			instance.changed.connect(_on_instance_changed)
+			definition = instance.definition
+		_on_instance_changed()
+
+## The grid this widget's instance sits in, or null when it's shown in
+## an EquipSlot. Set by Inventory.
+var container: ItemContainer
 
 enum LayoutMode { GRID, EQUIPPED }
 @export var layout: LayoutMode = LayoutMode.GRID:
@@ -68,7 +89,7 @@ func _ready() -> void:
 	if is_instance_valid(icon_rect):
 		icon_rect.texture = icon
 	_update_size()
-	_update_tooltip_text()
+	update_stack_count_label()
 
 func _update_size() -> void:
 	if layout == LayoutMode.GRID:
@@ -117,20 +138,27 @@ func get_parent_equip_slot() -> EquipSlot:
 		return parent.get_parent() as EquipSlot
 	return null
 
-## Leaves wherever the item currently lives (grid or equip slot), including
-## the equip-slot-side bookkeeping, so it's ready to be added somewhere new.
+## Takes this widget's instance out of wherever it lives (a grid or an
+## equip slot, including the unit's stat bookkeeping), so it's ready to
+## be placed somewhere new. The widget itself is freed by whichever view
+## was showing it; the instance is what moves.
 func detach_from_current_location() -> void:
 	var slot := get_parent_equip_slot()
 	if slot:
 		slot.unequip()
+	elif container:
+		container.remove(instance)
+		container = null
 
-	var parent := get_parent()
-	if parent:
-		parent.remove_child(self)
+func _on_instance_changed() -> void:
+	if instance:
+		current_stack_count = instance.count
+	update_stack_count_label()
 
 func update_stack_count_label() -> void:
-	stack_count_label.text = str(current_stack_count)
-	stack_count_label.visible = current_stack_count > 1
+	if is_instance_valid(stack_count_label):
+		stack_count_label.text = str(current_stack_count)
+		stack_count_label.visible = current_stack_count > 1
 	_update_tooltip_text()
 
 func _update_tooltip_text() -> void:

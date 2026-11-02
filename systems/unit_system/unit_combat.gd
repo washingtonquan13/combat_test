@@ -631,7 +631,7 @@ func dodge_target() -> int:
 
 func holds_shield() -> bool:
 	for slot in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND]:
-		var item: Item = _owner.get_equipped_item(slot)
+		var item: ItemInstance = _owner.get_equipped_item(slot)
 		if item and item.gear_data and item.gear_data.is_shield:
 			return true
 	return false
@@ -643,7 +643,7 @@ func _half_skill_defense() -> int:
 
 static func _holds_melee_weapon(unit: Unit) -> bool:
 	for slot in [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND]:
-		var item: Item = unit.get_equipped_item(slot)
+		var item: ItemInstance = unit.get_equipped_item(slot)
 		if item and item.gear_data and item.gear_data.weapon_data:
 			return true
 	return false

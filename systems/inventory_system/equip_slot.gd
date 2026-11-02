@@ -30,7 +30,12 @@ enum Slot {
 ## this is set; display_item()/clear_display() below never do, regardless.
 @export var unit: Unit
 
+## The widget showing whatever unit has in this slot — a view only,
+## built by display_instance() and freed by clear_display(). What's worn
+## lives on the unit (UnitEquipment), as an ItemInstance.
 var equipped_item: Item = null
+
+const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
 
 func _ready() -> void:
 	if not mouse_exited.is_connected(_on_mouse_exited):
@@ -48,56 +53,67 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	if not (data is Item) or not accepts_item(data):
 		return
+	var instance: ItemInstance = data.instance
 	data.detach_from_current_location()
-	equip(data)
+	equip(instance)
 	ghost_preview.visible = false
 
 func _on_mouse_exited() -> void:
 	ghost_preview.visible = false
 
-## Real equip — a drag-and-drop from the inventory grid (see
-## _drop_data). Places the item AND registers its stat modifiers on
-## unit (if set). party_overview.gd's unit-switch swap deliberately
-## does NOT call this — see display_item() below.
-func equip(item: Item) -> void:
+## Real equip — a drag-and-drop or the context menu's Equip. Shows the
+## instance AND registers it on unit (if set), stat modifiers included.
+## party_overview.gd's unit-switch swap deliberately does NOT call this —
+## see display_instance() below.
+func equip(instance: ItemInstance) -> void:
 	if equipped_item:
 		unequip()
-	display_item(item)
+	display_instance(instance)
 	if unit:
-		unit.equip_item(slot, item)
+		unit.equip_item(slot, instance)
 
 
-## Real unequip — counterpart to equip(), same "drag-and-drop only"
-## scope. Reverts unit's stat modifiers before clearing the display.
+## Real unequip — counterpart to equip(). Reverts unit's stat modifiers
+## before clearing the display.
 func unequip() -> void:
 	if unit and equipped_item:
 		unit.unequip_item(slot)
 	clear_display()
 
 
-## Pure visual placement, no stat/storage side effects — reparents item
-## into view with no idea whether it's a NEW equip or just redisplaying
-## something already equipped on unit. party_overview.gd's open_for()
-## uses this (paired with clear_display()) when swapping which unit's
-## sheet is shown: the item's already registered on its owning unit,
-## nothing needs registering again just because it's visible again.
-func display_item(item: Item) -> void:
-	if item.get_parent():
-		item.reparent(item_layer)
-	else:
-		item_layer.add_child(item)
-	equipped_item = item
-
+## Pure visual placement, no stat/storage side effects — builds a widget
+## for instance with no idea whether it's a NEW equip or just showing
+## something already equipped on unit. party_overview.gd's unit switch
+## uses this (paired with clear_display()): the instance is already
+## registered on its unit, nothing needs registering again just because
+## it's visible again.
+func display_instance(instance: ItemInstance) -> void:
+	clear_display()
+	if not instance:
+		return
+	var item: Item = ITEM_SCENE.instantiate()
+	item.instance = instance
 	item.layout = Item.LayoutMode.EQUIPPED
+	item_layer.add_child(item)
 	item.size = item_layer.size
 	item.position = Vector2.ZERO
+	equipped_item = item
 
 
-## Visual-only counterpart to display_item() — see its header.
+## Visual-only counterpart to display_instance() — see its header.
+## Out of the slot at once, freed at the end of the frame (the widget may
+## be the drag data of the drop being handled right now).
 func clear_display() -> void:
+	if equipped_item:
+		if equipped_item.get_parent():
+			equipped_item.get_parent().remove_child(equipped_item)
+		equipped_item.queue_free()
 	equipped_item = null
 
 func accepts_item(item: Item) -> bool:
 	if not (equipped_item == null or equipped_item == item):
 		return false
-	return item.gear_data != null and item.gear_data.slot_type == slot_type
+	return accepts(item.instance)
+
+func accepts(instance: ItemInstance) -> bool:
+	return instance != null and instance.gear_data != null and instance.gear_data.slot_type == slot_type

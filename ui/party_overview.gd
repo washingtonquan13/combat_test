@@ -23,11 +23,10 @@ extends UIScreen
 ##
 ## Still no in-panel character switcher, but the underlying gap that
 ## used to justify deferring one is fixed: equipment now persists per-
-## unit (see UnitEquipment), and _swap_equipment() below reparents the
-## 16 shared EquipSlots' items out to the outgoing unit's storage and in
-## from the incoming unit's, the same pattern StashPanel already uses
-## for a chest's single Inventory, just looped over 16 slots. Close and
-## reopen on a different unit still — nothing calls this mid-session yet.
+## unit (see UnitEquipment), and _swap_equipment() below re-points the
+## 16 shared EquipSlots at the incoming unit and rebuilds their widgets
+## from what it wears. Close and reopen on a different unit still —
+## nothing calls this mid-session yet.
 ##
 ## Alignment display: AlignmentTitle shows the category label (the same
 ## Chaos/Neutral/Law x Dark/Neutral/Light categories Unit itself owns,
@@ -161,19 +160,9 @@ func _ready() -> void:
 	# file's header for why a group, not a direct reference.
 	add_to_group("party_overview")
 
-	# The party's shared Inventory is the one thing the save file holds that
-	# belongs to a SCENE rather than to an autoload, so it registers and
-	# unregisters with this node's own lifetime instead of being reached for
-	# by name from SaveManager (see save_manager.gd's registry).
-	#
-	# Directly, not deferred like the autoloads' own registrations: this
-	# node is not an autoload, so SaveManager already exists by the time
-	# this runs, and a deferred call here would leave a window — one frame
-	# wide, and exactly the window a test that installs this scene and
-	# saves in the same frame would fall into — where the party's items
-	# have nowhere to be written.
-	if is_instance_valid(_inventory):
-		SaveManager.register(&"inventory", _inventory)
+	# The party's items live in PartyManager.inventory, which also saves
+	# them; this widget only draws that container.
+	_inventory.bind(PartyManager.inventory)
 
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
@@ -197,15 +186,6 @@ func _ready() -> void:
 		_grant_ability_button.pressed.connect(_on_grant_ability_pressed)
 
 	_show_tab("inventory")
-
-
-## Named explicitly rather than unregistering the key outright: queue_free()
-## runs this LATE, so a PartyOverview on its way out must not be able to
-## delete the entry a replacement has already claimed (see
-## SaveManager.unregister).
-func _exit_tree() -> void:
-	if is_instance_valid(_inventory):
-		SaveManager.unregister(&"inventory", _inventory)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -263,27 +243,16 @@ func open_for(unit: Unit) -> void:
 	_show_tab("inventory")
 
 
-## Reparents the outgoing unit's (self._unit, still the OLD value at
-## this point) equipped items out to ITS OWN storage, and the incoming
-## unit's already-equipped items in — via EquipSlot.display_item()/
-## clear_display(), the visual-only pair, NOT equip()/unequip(), so
-## nothing gets re-registered or reverted just because it became
-## visible/invisible. See Unit._equipped_items_home's header for why
-## visibility is toggled explicitly here.
+## Re-points the 16 shared EquipSlots at unit and shows what it wears —
+## via EquipSlot.display_instance()/clear_display(), the visual-only pair,
+## NOT equip()/unequip(), so nothing gets re-registered or reverted just
+## because it became visible/invisible. The worn instances live on each
+## unit (UnitEquipment); the widgets are rebuilt every time.
 func _swap_equipment(unit: Unit) -> void:
-	var previous_unit: Unit = _unit
 	for slot in _equip_slots:
-		if previous_unit and slot.equipped_item:
-			var item: Item = slot.equipped_item
-			item.reparent(previous_unit.get_equipped_items_home())
-			item.visible = false
-			slot.clear_display()
-
+		slot.clear_display()
 		slot.unit = unit
-		var stored_item: Item = unit.get_equipped_item(slot.slot)
-		if stored_item:
-			stored_item.visible = true
-			slot.display_item(stored_item)
+		slot.display_instance(unit.get_equipped_item(slot.slot))
 
 
 ## Opens this screen already showing one tab, for a caller that knows

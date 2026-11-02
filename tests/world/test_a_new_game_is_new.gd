@@ -21,8 +21,8 @@ extends AiTestCase
 ## the chargen screen is instanced once and never re-initialised.
 ##
 ## WHAT IS BEING BUILT, and what this asserts against: SaveManager
-## .new_game(), which refuses unless WorldManager.can_rebuild() and a
-## `party_overview` node exists, then discards the worlds FIRST and calls
+## .new_game(), which refuses unless WorldManager.can_rebuild(), then
+## discards the worlds FIRST and calls
 ## load_state({}) on every registered persistable in _load_order() —
 ## "become what a save that says nothing says" — before clearing
 ## pending_leader and emitting new_game_started.
@@ -292,40 +292,8 @@ func run() -> void:
 		"'%s' is still missing — AreaState is FlagManager's dictionary, " % ENEMY_ID +
 		"and a new game that does not clear the flags does not clear the arena")
 
-	_and_it_refuses_without_a_party_overview()
 	await _and_a_new_game_works_from_a_cold_boot()
 	_restore()
-
-
-## NEGATIVE CONTROL. new_game() must refuse rather than half-run when the
-## shell it needs is not there — the same bargain _why_load_would_fail()
-## already makes for a load, and for the same reason: the party's shared
-## Inventory is the one persistable owned by a scene, so with no
-## PartyOverview in the tree the registry has no [inventory] entry and a
-## reset would silently skip it AFTER wiping everything else.
-##
-## Green today for an uninteresting reason — a method that does not exist
-## returns false too — so its detail says which of the two it was.
-func _and_it_refuses_without_a_party_overview() -> void:
-	if not is_instance_valid(_overview):
-		check("SETUP: a party overview to take away", false)
-		return
-	_overview.remove_from_group("party_overview")
-	var others: Node = get_tree().get_first_node_in_group("party_overview")
-	if others != null:
-		check("SETUP: taking ours away really empties the group", false,
-			"a %s is still in it, probably a previous suite's" % others.get_class())
-		_overview.add_to_group("party_overview")
-		return
-
-	var refused: bool = _call_new_game()
-	check("NEGATIVE CONTROL: new_game() refuses with no party overview in the tree",
-		not refused,
-		"it returned true and wiped the game anyway%s" % (
-			"" if SaveManager.has_method("new_game")
-			else " (vacuous today: SaveManager has no new_game())"))
-
-	_overview.add_to_group("party_overview")
 
 
 ## The fresh-boot path: START pressed on a title screen that has never
@@ -520,10 +488,8 @@ func _install_synthetic_host() -> bool:
 	return WorldManager.can_travel()
 
 
-## new_game() refuses without one, exactly as a load already does — the
-## party's shared Inventory is registered by PartyOverview and is the one
-## persistable that belongs to a scene. The real scene, not a stand-in:
-## hand-assembling an Inventory only reproduces it badly, since a bare
+## The game shell as it really runs. The real scene, not a stand-in:
+## hand-assembling one only reproduces it badly, since a bare
 ## Inventory.new() has none of the child nodes its @onready paths name.
 func _install_party_overview() -> void:
 	_overview = preload("res://ui/party_overview.tscn").instantiate()

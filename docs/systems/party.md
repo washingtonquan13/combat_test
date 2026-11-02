@@ -4,7 +4,7 @@
 **Autoloads owned:** `PartyManager`.
 
 ## Purpose
-Owns who is in the player's party, how it is split into groups (embodied in a world vs abstract records), who leads, and the party's save/restore and spawn-from-record paths. It is NOT responsible for the Unit's own runtime state (HP, statuses, turns: see unit.md), for summoned demons (DemonRoster; `add_member` refuses summons, party_manager.gd:235), for inventory contents (party_overview, see inventory.md), or for deciding when travel happens (WorldManager).
+Owns who is in the player's party, how it is split into groups (embodied in a world vs abstract records), who leads, and the party's save/restore and spawn-from-record paths. It is NOT responsible for the Unit's own runtime state (HP, statuses, turns: see unit.md), for summoned demons (DemonRoster; `add_member` refuses summons, party_manager.gd:235), for inventory contents (PartyManager holds the bag as `inventory`, but its rules are inventory.md's), or for deciding when travel happens (WorldManager).
 
 ## State it owns (source of truth)
 | State | Where (file:line) | Persisted? (save key) |

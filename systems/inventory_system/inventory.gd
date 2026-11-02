@@ -63,6 +63,11 @@ func _ready() -> void:
 
 	_update_sizes()
 
+	# Adopt hand-authored Items now, before any of them can be dragged as
+	# a widget with no instance behind it.
+	if not Engine.is_editor_hint():
+		get_container()
+
 func _on_v_scrollbar_changed(value: float) -> void:
 	scroll_container.scroll_vertical = int(value)
 
@@ -148,30 +153,8 @@ func autoscroll_toward_mouse(item: Item) -> void:
 		var strength: float = (mouse_pos.y - (s_size.y - vertical_margin)) / vertical_margin
 		scroll_container.scroll_vertical += int(strength * scroll_speed * delta)
 
-func _fits_without_collision(item: Item, grid_position: Vector2i) -> bool:
-	var item_rect = Rect2i(grid_position, item.get_cell_size())
-	var inventory_bounds = Rect2i(Vector2i.ZERO, Vector2i(width, height))
-
-	if not inventory_bounds.encloses(item_rect):
-		return false
-
-	for existing_item in item_layer.get_children():
-		if existing_item == item:
-			continue
-		if not existing_item is Item:
-			continue
-
-		var local_pos = item_layer.get_global_transform().affine_inverse() * existing_item.global_position
-		var other_pos = (local_pos / cell_size_px).floor()
-		var other_rect = Rect2i(other_pos, existing_item.get_cell_size())
-
-		if item_rect.intersects(other_rect):
-			return false
-
-	return true
-
 func can_place_item(item: Item, grid_position: Vector2i) -> bool:
-	if not _fits_without_collision(item, grid_position):
+	if not can_place_item_logical(item, grid_position):
 		return false
 
 	# Check for on-screen visibility (at least partial)
@@ -187,7 +170,7 @@ func can_place_item(item: Item, grid_position: Vector2i) -> bool:
 
 ## considers the whole itemlayer instead of just the visible itemlayer
 func can_place_item_logical(item: Item, grid_position: Vector2i) -> bool:
-	return _fits_without_collision(item, grid_position)
+	return get_container().fits(item.instance, grid_position)
 
 func update_ghost_preview(item: Item, grid_position: Vector2i) -> void:
 	var is_valid := can_place_item(item, grid_position)
@@ -204,158 +187,138 @@ func update_ghost_preview(item: Item, grid_position: Vector2i) -> void:
 func hide_ghost_preview() -> void:
 	ghost_preview.visible = false
 
+## A drop onto this grid: a move when the item is already here, otherwise
+## the instance leaves wherever it was (another grid, an equip slot) and
+## lands here. The widget follows from the container's signals.
 func request_item_drop(item: Item, grid_position: Vector2i) -> void:
 	if not can_place_item(item, grid_position):
 		return
 
-	item.detach_from_current_location()
-	item.layout = Item.LayoutMode.GRID
-	item.position = grid_position * cell_size_px
-	item_layer.add_child(item)
+	var container := get_container()
+	if not container.has_instance(item.instance):
+		item.detach_from_current_location()
+	container.place(item.instance, grid_position)
 	hide_ghost_preview()
 
 func find_first_valid_slot(item: Item) -> Vector2i:
-	for y in range(height - item.height + 1):
-		for x in range(width - item.width + 1):
-			var pos = Vector2i(x, y)
-			if can_place_item_logical(item, pos):
-				return pos
-	return Vector2i(-1, -1)
+	return get_container().first_free_cell(item.instance)
 
 func auto_place_item(item: Item) -> bool:
-	var pos = find_first_valid_slot(item)
-	if pos != Vector2i(-1, -1):
-		item.detach_from_current_location()
-		item.layout = Item.LayoutMode.GRID
-		item_layer.add_child(item)
-		item.position = pos * cell_size_px
-		return true
-	return false
+	var container := get_container()
+	if container.first_free_cell(item.instance) == Vector2i(-1, -1):
+		return false
+	item.detach_from_current_location()
+	return container.add(item.instance)
 
 func sort_items() -> void:
-	var items := []
-	for child in item_layer.get_children():
-		if child is Item:
-			items.append(child)
-			item_layer.remove_child(child)
+	get_container().sort()
 
-	items.sort_custom(func(a, b):
-		var a_pos = a.position / cell_size_px
-		var b_pos = b.position / cell_size_px
 
-		if a_pos.y != b_pos.y:
-			return a_pos.y < b_pos.y
-		return a_pos.x < b_pos.x
-	)
+## --- The model ---
+## This widget draws an ItemContainer; it doesn't own the contents.
+## bind() points it at one that lives elsewhere (the party's, owned by
+## PartyManager). A stash's Inventory binds nothing and builds its own
+## the first time it's asked, adopting any Items authored by hand under
+## ItemLayer in the scene (chest.tscn) so editor authoring keeps working.
 
-	for item in items:
-		var pos = find_first_valid_slot(item)
-		if pos != Vector2i(-1, -1):
-			item.position = pos * cell_size_px
-			item_layer.add_child(item)
+var _container: ItemContainer
+var _widgets: Dictionary = {}  # ItemInstance -> Item
+
+func bind(container: ItemContainer) -> void:
+	if _container == container:
+		return
+	if _container:
+		_container.item_added.disconnect(_on_item_added)
+		_container.item_removed.disconnect(_on_item_removed)
+		_container.item_moved.disconnect(_on_item_moved)
+	for widget in _widgets.values():
+		_free_widget(widget)
+	_widgets.clear()
+
+	_container = container
+	width = container.width
+	height = container.height
+	container.item_added.connect(_on_item_added)
+	container.item_removed.connect(_on_item_removed)
+	container.item_moved.connect(_on_item_moved)
+	for instance in container.items():
+		_on_item_added(instance)
+
+func get_container() -> ItemContainer:
+	if not _container:
+		var authored: Array[Item] = []
+		for child in _resolve_item_layer().get_children():
+			if child is Item and child.instance == null:
+				authored.append(child)
+		var container := ItemContainer.new(width, height)
+		for item in authored:
+			var cell: Vector2i = (item.position / cell_size_px).floor()
+			_free_widget(item)
+			if not item.definition:
+				continue
+			if not container.place(ItemInstance.new(item.definition, item.current_stack_count), cell):
+				push_warning("Inventory: authored '%s' overlaps or leaves the grid at %s" % [item.name, cell])
+		bind(container)
+	return _container
+
+func _on_item_added(instance: ItemInstance) -> void:
+	var item: Item = ITEM_SCENE.instantiate()
+	item.instance = instance
+	item.container = _container
+	item.layout = Item.LayoutMode.GRID
+	_resolve_item_layer().add_child(item)
+	item.position = _container.cell_of(instance) * cell_size_px
+	_widgets[instance] = item
+
+func _on_item_removed(instance: ItemInstance) -> void:
+	var item: Item = _widgets.get(instance)
+	_widgets.erase(instance)
+	if item:
+		item.container = null
+		_free_widget(item)
+
+func _on_item_moved(instance: ItemInstance) -> void:
+	var item: Item = _widgets.get(instance)
+	if item:
+		item.position = _container.cell_of(instance) * cell_size_px
+
+## Out of the layer at once (so nothing iterating it, or a drop landing
+## this frame, sees a stale widget), freed at the end of the frame (it
+## may be the drag data of the drop being handled right now).
+func _free_widget(item: Item) -> void:
+	if item.get_parent():
+		item.get_parent().remove_child(item)
+	item.queue_free()
 
 func has_item(gear_data: GearItem) -> bool:
-	return _find_item(gear_data) != null
+	return get_container().has(gear_data)
 
-## Decrements the matching item's stack, or removes it entirely once its
-## stack hits zero. False (no-op) if nothing matched — see
-## SacrificeItemEffect, the caller that needs to tell the two apart.
 func consume_item(gear_data: GearItem) -> bool:
-	var item: Item = _find_item(gear_data)
-	if not item:
-		return false
-	if item.current_stack_count > 1:
-		item.current_stack_count -= 1
-		item.update_stack_count_label()
-	else:
-		item.detach_from_current_location()
-		item.queue_free()
-	return true
-
-func _find_item(gear_data: GearItem) -> Item:
-	for child in item_layer.get_children():
-		if child is Item and child.gear_data == gear_data:
-			return child
-	return null
+	return get_container().consume(gear_data)
 
 
 ## --- Save/load ---
 ## Part of the save_state()/load_state() contract WorldManager's
-## reconciliation pass duck-types against (see area_state.gd/
-## world_manager.gd) and SaveManager reuses directly for the party's own
-## shared Inventory (see save_manager.gd's own [inventory] section) — the
-## same "build it once, spend it twice" phase 2's own plan anticipated
-## for this exact pair, now actually collected onto the Inventory that
-## holds the data instead of StashComponent, which only ever delegated to
-## it. An empty Dictionary means "nothing worth recording," so a chest
-## that was never opened is correctly left to rebuild from its authored
-## contents (see AreaState.stored_state()'s own header on why null and
-## "recorded empty" must never be conflated).
+## reconciliation pass duck-types against for a stash (see
+## stash_component.gd). Delegates to the container; the party's own
+## inventory is saved by PartyManager, which owns its container.
 ##
-## Grid position round-trips through cell_size_px, the same convention
-## request_item_drop()/auto_place_item() above already use. Item
-## identity is ItemDefinition.id, not a direct resource reference — the
-## same reason AreaDatabase/ItemDatabase key everything else by id
-## rather than by resource path.
+## May run before this node has entered the tree (WorldManager reconciles
+## a stash before adding its world), which is why everything here goes
+## through _resolve_item_layer() rather than the @onready member.
 func save_state() -> Dictionary:
-	var layer: Node = _resolve_item_layer()
-	var items: Array[Dictionary] = []
-	for child in layer.get_children():
-		if child is Item and child.definition:
-			var grid_pos: Vector2i = child.position / cell_size_px
-			items.append({
-				"id": child.definition.id,
-				"x": grid_pos.x,
-				"y": grid_pos.y,
-				"stack": child.current_stack_count,
-			})
-	return {"items": items}
+	return get_container().save_state()
 
-
-## Rebuilds this Inventory's contents from a previously-saved state,
-## replacing whatever's currently in it. Called from two different
-## timing contexts, both of which _resolve_item_layer() below exists to
-## survive: WorldManager's reconciliation pass on a STASH's Inventory,
-## before the world (and therefore this node) has entered the tree at
-## all, and SaveManager directly on the party's own Inventory, which IS
-## already in the tree (it's a permanent CanvasLayer child) but whose
-## contents still need clearing first the same way.
 func load_state(state: Dictionary) -> void:
-	var layer: Node = _resolve_item_layer()
-
-	# Item children only — layer also holds GhostPreview (see
-	# inventory.tscn), a structural sibling this file's own @onready
-	# ghost_preview member caches a reference to. Freeing it here left
-	# that reference dangling: the next drag over this SAME Inventory
-	# instance (this rebuild never touches the Inventory node itself,
-	# only wipes its contents) crashed on the first ghost_preview.size/
-	# .visible write in update_ghost_preview()/hide_ghost_preview()
-	# above, against an already-freed node.
-	for child in layer.get_children():
-		if child is Item:
-			child.queue_free()
-
-	for entry in state.get("items", []):
-		var definition: ItemDefinition = ItemDatabase.find(entry.get("id", &""))
-		if not definition:
-			push_warning("Inventory.load_state: unknown item id '%s'" % entry.get("id"))
-			continue
-
-		var item: Item = ITEM_SCENE.instantiate()
-		item.definition = definition
-		item.current_stack_count = entry.get("stack", 1)
-		item.layout = Item.LayoutMode.GRID
-		layer.add_child(item)
-		item.position = Vector2i(entry.get("x", 0), entry.get("y", 0)) * cell_size_px
+	get_container().load_state(state)
 
 
 ## The live item_layer member when valid, get_node() otherwise. item_layer
 ## is @onready, unresolved until THIS node's own _ready() has run — untrue
 ## in WorldManager's detached, pre-add_child() reconciliation window (see
-## load_state()'s own header on why that timing has to be survived here,
-## not just avoided by callers). get_node() works regardless, since it
-## walks the already-built child structure rather than depending on
-## tree-entry timing.
+## save_state()'s header). get_node() works regardless, since it walks the
+## already-built child structure rather than depending on tree-entry
+## timing.
 func _resolve_item_layer() -> Node:
 	if is_instance_valid(item_layer):
 		return item_layer

@@ -4,12 +4,12 @@
 **Autoloads owned:** SystemLog (project.godot autoload list). UIStack belongs to mode_and_ui_stack.md.
 
 ## Purpose
-These scripts draw game state and send player intent back to the systems that own that state. The rule is that a screen owns no game state. They are not responsible for screen stacking or HUD hiding (UIStack/UIScreen, see mode_and_ui_stack.md), and they do not own combat HUD widgets such as initiative_row.gd and end_turn_button.gd (see combat.md). One exception breaks the rule: PartyOverview owns the party inventory.
+These scripts draw game state and send player intent back to the systems that own that state. The rule is that a screen owns no game state. They are not responsible for screen stacking or HUD hiding (UIStack/UIScreen, see mode_and_ui_stack.md), and they do not own combat HUD widgets such as initiative_row.gd and end_turn_button.gd (see combat.md). PartyOverview used to own the party inventory; it now only binds its Inventory widget to `PartyManager.inventory`.
 
 ## State it owns (source of truth)
 | State | Where (file:line) | Persisted? (save key) |
 |---|---|---|
-| **Party shared Inventory node** (`%Inventory`), a child of the PartyOverview screen. Anything that needs it reaches it through the `party_overview` group. | ui/party_overview.gd:88, 162, 176, 238 | Yes, `inventory` (SaveManager.register at party_overview.gd:176; unregistered at 206-208) |
+| ~~Party shared Inventory~~ moved: the contents are `PartyManager.inventory`; `%Inventory` here is only a view bound to it (`Inventory.bind`). StashPanel still borrows the widget via `get_inventory()`. | ui/party_overview.gd | Saved by PartyManager, not here |
 | Log transcript `lines`, capped at max_lines 500 | systems/log_system/system_log.gd:28, 35 | No |
 | Hotbar custom slot assignment. The UI writes it, but it is stored on the Unit. | ui/hotbar_slot.gd:54-55 (writes `unit.custom_slots[i]`) | Saved with the unit (unit.md) |
 
@@ -25,7 +25,7 @@ Everything else is view state: the open tab, row caches and the selected slot.
 
 ## Public surface
 - **Calls in**
-  - PartyOverview: `open_for(unit)` (party_overview.gd:248) from the C key (211-232) and from portraits; `get_inventory()` (238) from give_item_effect.gd:27, sacrifice_item_effect.gd:16, item_owned_prerequisite.gd:14 and save_manager.gd:763 (all via the `party_overview` group). `open_on_tab` (292) has no callers.
+  - PartyOverview: `open_for(unit)` (party_overview.gd:248) from the C key (211-232) and from portraits; `get_inventory()` from stash_panel.gd only (the widget, to reparent it). `open_on_tab` (292) has no callers.
   - SystemLog: `print()` (system_log.gd:38-44) and `clear_log()` (47-48), called from everywhere and from SaveManager.new_game (save_manager.gd:624).
   - CompendiumMenu: `begin()` (compendium_menu.gd:82-84), called from CathedralMenu.
   - CathedralMenu: `present()` (cathedral_menu.gd:60), called from cathedral_of_shadows.gd:67.
@@ -53,7 +53,7 @@ Writes that go from a screen straight into a system:
 
 ## Assumptions and invariants
 - **A screen is rebuilt on open, never kept live.** The code is safe after a load only because WorldManager._leave_focused calls UIStack.close_all (world_manager.gd:381, reached from _tear_down_worlds 343-353) and travel_area calls it too (884).
-- **The party inventory lives as long as MainRoot.** It does, because PartyOverview is persistent in MainRoot.tscn:310. A load is refused if the `party_overview` group is missing (save_manager.gd:756-764).
+- **The party inventory lives as long as MainRoot.** No longer a UI assumption: it lives on PartyManager (autoload).
 - **"The hotbar's unit is in the one focused world"** (ability_hotbar.gd:103-107). STALE in part. `_on_combat_ended` (130-139) assumes the only fight is the one on screen. Fights run in non-focused worlds (combat_manager.gd:360 relays every encounter, and combat_ended carries only the faction, 404).
 - `_in_view`'s comment claims it matches CombatManager._is_watched. It does not (issue 2).
 - **The orphaned ui/esc_menu.tscn is unused.** It references res://src/esc_menu.gd. The live EscMenu is inlined in MainRoot.tscn:317.
@@ -62,7 +62,7 @@ Writes that go from a screen straight into a system:
 ## Lifecycle
 - **Boot.** Every screen is a persistent MainRoot.tscn node. main_root.gd:83 pushes MainMenu.
 - **New game.** SaveManager.new_game calls SystemLog.clear_log() (save_manager.gd:624). The log *view* is not cleared (issue 6).
-- **Save.** Only the inventory is saved from here (party_overview.gd:176).
+- **Save.** Nothing is saved from here any more; the inventory moved to PartyManager.
 - **Load.**
   - `_tear_down_worlds` → `_leave_focused` → UIStack.close_all (world_manager.gd:353, 381).
   - EscMenu closes itself on load_completed (esc_menu.gd:362-364).
@@ -80,7 +80,7 @@ Writes that go from a screen straight into a system:
 | 1a | Any fight ending anywhere disarms, clears and hides the hotbar. There is no world guard, so a fight finishing off-screen wipes the on-screen bar. | ability_hotbar.gd:130-139; combat_manager.gd:404 (faction only) | CONFIRMED |
 | 1b | The hotbar does not restore itself after travel or a world switch. `_on_world_focused` re-reads the selection, which travel just emptied. Only a portrait click re-selects. | ability_hotbar.gd:229-236; world_manager.gd:379; unit_portrait.gd:149-154 | CONFIRMED |
 | 2 | `_in_view` returns false for an invalid unit and true for a null context. `_is_watched`, which its comment says it mirrors, does the opposite. The typed `_in_view(candidate: Unit)` call in the refresh loop also errors on a freed unit still in selected_units. | ability_hotbar.gd:103-107, 163-164; combat_manager.gd:547-552 | NEW |
-| 3 | After a load, an equipped Item from the previous game stays parented under the EquipSlot. `_swap_equipment` only moves items out when `previous_unit` is valid, and the world teardown has freed it. Traced, not run. | party_overview.gd:273-286; equip_slot.gd:84-98; world_manager.gd:410-427 | NEW |
+| 3 | After a load, an equipped Item from the previous game stays parented under the EquipSlot. `_swap_equipment` only moves items out when `previous_unit` is valid, and the world teardown has freed it. Traced, not run. | party_overview.gd `_swap_equipment` | FIXED (item layer): slots show views rebuilt per unit; `clear_display` frees the old widget |
 | 4 | PartyOverview or Compendium showing stale data after a load. The code disagrees: close_all pops every screen, and reopening rebuilds. | world_manager.gd:353→381; party_overview.gd:248-263; compendium_menu.gd:82-84 | NOT REPRODUCED |
 | 5 | FIXED (uncommitted): `DownedTracker` (ui/downed_tracker.tscn, a child of unit.tscn) shows the two tracks over a Downed unit — three green bars toward stable, three red toward death — and swaps to a stable icon once stable. Fed by `downed_changed`, `downed_tally_changed`, `status_applied/removed`, `died`. The portrait still shows only the HP fraction. | ui/downed_tracker.gd; death_rolls_behavior.gd `_mark`; unit_combat.gd `stabilize` | FIXED |
 | 6 | `clear_log()` empties `lines` without emitting log_rebuilt, so the on-screen log keeps the old game's transcript after New Game. | system_log.gd:47-48; log.gd:59-62; save_manager.gd:624 | NEW |
