@@ -44,6 +44,10 @@ enum Category { COMMON, ABILITIES }
 @export var toggle_group: StringName = &""
 ## Set on an aim toggle: attacks go here instead of the torso.
 @export var hit_location: HitLocation
+## Above 0, the toggle has levels 1..max_level: clicking it while on
+## steps to the next, wrapping round to 1, and switching it off keeps the
+## level for next time (UnitCombat.toggle_level).
+@export_range(0, 9) var max_level: int = 0
 
 @export_group("Cost")
 ## Whether landing a hit requires a to-hit roll (Unit.roll_vs) before any

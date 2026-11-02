@@ -32,7 +32,7 @@ Drives the turn of every unit whose faction is AI-controlled: asks `AiScorer.bes
   - `AiScorer.standoff_goal` — fly_to_close_gap_behavior.gd:44, ai_scorer.gd:622, 742.
   - `AiScorer.threat_output / incoming_threat / sustained_incoming_threat / score_position` — public static helpers (ai_scorer.gd:317, 769, 818, 908); tests use them.
   - `AiBehavior.propose(unit)` — ai_scorer.gd:158, 200.
-  - Aim: `AiScorer._score_plan` prices a to-hit attack on a Unit once per aim (torso + `UnitCombat.AIM_TOGGLES`) via `_action_value`, keeps the best in `AiPlan.aim`, and restores the unit's aim; `CombatAI` calls `unit.set_aim(plan.aim)` before `use_ability`. Other `expected_damage` callers (threat output, incoming threat) still price the torso.
+  - Aim: `AiScorer._score_plan` prices a to-hit attack on a Unit once per aim (torso + `UnitCombat.AIM_TOGGLES`) via `_action_value`, keeps the best in `AiPlan.aim`, and restores the unit's aim; `CombatAI` calls `unit.set_aim(plan.aim)` before `use_ability`. Against a target that can defend, each aim is also priced at Deceptive Attack levels 0..5, stopping at the first level worth less than the one before; the best goes in `AiPlan.deceptive_level`, `CombatAI` applies it with `unit.set_deceptive_level`, and pricing restores the unit's own on/off and kept level. Other `expected_damage` callers (threat output, incoming threat) still price the torso.
 - **Signals out:** none. Side effects only: `CombatManager.end_turn(unit)` (combat_ai.gd:65, 81, 102, 111, 132, 144, 148, 162, 170), `unit.use_ability` (99), `unit.move_to` (157), `unit.set_flight_altitude` (69).
 - **Signals in**
   - `CombatManager.turn_started(unit)` — combat_ai.gd:39; relayed from EVERY encounter by combat_manager.gd:362-365.

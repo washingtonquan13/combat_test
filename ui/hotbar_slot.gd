@@ -21,18 +21,24 @@ extends Button
 ##
 ## A toggle ability (Ability.is_toggle) is switched on and off instead
 ## of armed; while it is on, the ToggleBorder child shows — a line
-## running round the slot's edge (toggle_border.gdshader).
+## running round the slot's edge (toggle_border.gdshader). A leveled
+## toggle (Ability.max_level) shows its level in the LevelLabel corner,
+## dimmed while off: a left click while it is on steps the level, a right
+## click switches it off and keeps the level.
 ##
-## Scene setup: a Button sized to your icon dimensions, with one
-## ToggleBorder ColorRect child covering it; everything else is set from
-## code.
+## Scene setup: a Button sized to your icon dimensions, with a
+## ToggleBorder ColorRect covering it and a LevelLabel; everything else
+## is set from code.
 
 @export var armed_modulate: Color = Color(1, 0.85, 0.2, 1)
+## LevelLabel's modulate while its toggle is off.
+@export var level_off_modulate: Color = Color(1, 1, 1, 0.4)
 
 var ability: Ability = null
 var unit: Unit = null
 
 @onready var _toggle_border: CanvasItem = $ToggleBorder
+@onready var _level_label: Label = $LevelLabel
 
 ## Set by ability_hotbar.gd right after instantiate(), before add_child.
 ## Together these are the ONLY things distinguishing a Custom-section
@@ -50,6 +56,7 @@ var custom_slot_index: int = -1
 func _ready() -> void:
 	_apply_ability()
 	pressed.connect(_on_pressed)
+	gui_input.connect(_on_gui_input)
 
 
 ## The only place ability is written after initial setup (see
@@ -80,6 +87,10 @@ func _build_tooltip() -> String:
 		lines.append(effect.describe())
 	if ability.hit_location:
 		lines.append(ability.hit_location.describe())
+	if ability == UnitCombat.DECEPTIVE_ATTACK:
+		lines.append("Per level: -2 to your skill, -1 to the target's defense")
+	if ability.max_level > 0:
+		lines.append("Click while on: next level (1-%d). Right click: off" % ability.max_level)
 	return "\n".join(lines)
 
 
@@ -97,9 +108,14 @@ func refresh_state() -> void:
 	if not ability or not unit:
 		set_armed(false)
 		_toggle_border.visible = false
+		_level_label.visible = false
 		disabled = false
 		return
 	_toggle_border.visible = ability.is_toggle and unit.is_toggled(ability)
+	_level_label.visible = ability.is_toggle and ability.max_level > 0
+	if _level_label.visible:
+		_level_label.text = str(unit.toggle_level(ability))
+		_level_label.modulate = Color.WHITE if unit.is_toggled(ability) else level_off_modulate
 	if ability.is_toggle:
 		set_armed(false)
 		disabled = false
@@ -113,7 +129,10 @@ func _on_pressed() -> void:
 	if not ability:
 		return
 	if ability.is_toggle:
-		unit.set_toggled(ability, not unit.is_toggled(ability))
+		if ability.max_level > 0 and unit.is_toggled(ability):
+			unit.set_toggle_level(ability, unit.toggle_level(ability) % ability.max_level + 1)
+		else:
+			unit.set_toggled(ability, not unit.is_toggled(ability))
 		return
 	var template_effect: SummonDemonEffect = _get_summon_demon_effect()
 	if template_effect:
@@ -126,6 +145,16 @@ func _on_pressed() -> void:
 		AbilityManager.disarm()
 	else:
 		AbilityManager.arm(ability)
+
+
+## Right click switches a leveled toggle off; a plain toggle switches
+## off on a left click already.
+func _on_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_RIGHT):
+		return
+	if ability and unit and ability.is_toggle and ability.max_level > 0:
+		unit.set_toggled(ability, false)
+		accept_event()
 
 
 ## Whether `ability` carries a SummonDemonEffect template — a runtime

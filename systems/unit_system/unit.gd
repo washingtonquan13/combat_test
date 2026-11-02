@@ -1616,6 +1616,22 @@ func hit_location_for(ability: Ability) -> HitLocation:
 	return _combat.hit_location_for(ability)
 
 
+func toggle_level(toggle: Ability) -> int:
+	return _combat.toggle_level(toggle)
+
+
+func set_toggle_level(toggle: Ability, level: int) -> void:
+	_combat.set_toggle_level(toggle, level)
+
+
+func deceptive_level() -> int:
+	return _combat.deceptive_level()
+
+
+func set_deceptive_level(level: int, notify: bool = true) -> void:
+	_combat.set_deceptive_level(level, notify)
+
+
 ## Also a coroutine now, same as UnitCombat.use_ability() — it has to
 ## be, to correctly propagate that method's own return value rather
 ## than returning whatever a coroutine call yields when not awaited.

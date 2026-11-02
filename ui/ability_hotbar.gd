@@ -193,8 +193,8 @@ func _disconnect_current_unit() -> void:
 
 
 ## Filters unit.abilities into CommonGrid/AbilitiesGrid by
-## Ability.category, adds the aim toggles every unit has to the end of
-## CommonGrid (UnitCombat.AIM_TOGGLES), then fills CustomGrid from unit.custom_slots
+## Ability.category, adds the toggles every unit has to the end of
+## CommonGrid (UnitCombat.AIM_TOGGLES and DECEPTIVE_ATTACK), then fills CustomGrid from unit.custom_slots
 ## index-for-index, including null entries (an empty Custom slot is
 ## still a real slot — see hotbar_slot.gd). Never touches any grid's
 ## `columns` — section widths are a layout preference, not rebuild state.
@@ -208,6 +208,7 @@ func _rebuild(unit: Unit) -> void:
 		_add_slot(target_grid, unit, ability, -1)
 	for toggle in UnitCombat.AIM_TOGGLES:
 		_add_slot(_common_grid, unit, toggle, -1)
+	_add_slot(_common_grid, unit, UnitCombat.DECEPTIVE_ATTACK, -1)
 
 	for i in unit.custom_slots.size():
 		_add_slot(_custom_grid, unit, unit.custom_slots[i], i)

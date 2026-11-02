@@ -98,6 +98,7 @@ func _attempt_action(unit: Unit) -> void:
 	var spends_turn: bool = plan.ability.uses_attack_action
 	if plan.ability.requires_to_hit:
 		unit.set_aim(plan.aim)
+		unit.set_deceptive_level(plan.deceptive_level)
 	unit.use_ability(plan.ability, plan.target)
 
 	if spends_turn:

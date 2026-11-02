@@ -97,6 +97,9 @@ var reason: String = ""
 ## null for the torso. AiScorer._score_plan picks it; CombatAI switches
 ## it on before using the ability.
 var aim: Ability = null
+## Deceptive Attack's level for the attack, 0 for none - picked and
+## switched on alongside aim.
+var deceptive_level: int = 0
 
 
 func _init(p_ability: Ability = null, p_target = null) -> void:

@@ -51,9 +51,17 @@ const AIM_TOGGLES: Array[Ability] = [
 	preload("res://data/abilities/target_head.tres"),
 ]
 
+## Deceptive Attack (B369): at level N, -2N to the attacker's skill
+## and -N to the defender's Dodge, Parry or Block. Every unit has it,
+## like the aim toggles, and it goes with any of them.
+const DECEPTIVE_ATTACK: Ability = preload("res://data/abilities/deceptive_attack.tres")
+
 ## Toggle abilities switched on (Ability.is_toggle), at most one per
 ## toggle_group. Not saved: a loaded game starts aiming at the torso.
 var _toggles: Array[Ability] = []
+## Level per leveled toggle (Ability.max_level), kept while it is off.
+## Not saved either.
+var _toggle_levels: Dictionary = {}
 
 
 ## GURPS ST-based swing/thrust damage: the Basic Set damage table (B16)
@@ -375,7 +383,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 			return result
 		# Every hit but a critical one meets the defender's best defense
 		# before anything lands — see best_defense.
-		var defense: Dictionary = {} if to_hit.critical_success or not target is Unit 			else target.best_defense(_owner, ability)
+		var defense: Dictionary = {} if to_hit.critical_success or not target is Unit 			else defense_against(target, ability)
 		if not defense.is_empty():
 			target.spend_defense(defense.kind)
 			var roll := SuccessRoll.roll_vs(defense.target)
@@ -429,6 +437,8 @@ func to_hit_target(target, ability: Ability) -> int:
 		var location: HitLocation = hit_location_for(ability)
 		if location:
 			number += location.to_hit_penalty
+		if ability.requires_to_hit:
+			number -= 2 * deceptive_level()
 	return number
 
 
@@ -451,6 +461,33 @@ func set_toggled(toggle: Ability, on: bool, notify: bool = true) -> void:
 		_toggles.erase(toggle)
 	if notify:
 		_owner.toggles_changed.emit(_owner)
+
+
+## A leveled toggle's level, on or off: 1 until it is first changed.
+func toggle_level(toggle: Ability) -> int:
+	return _toggle_levels.get(toggle, 1)
+
+
+func set_toggle_level(toggle: Ability, level: int, notify: bool = true) -> void:
+	level = clampi(level, 1, toggle.max_level)
+	if level == toggle_level(toggle):
+		return
+	_toggle_levels[toggle] = level
+	if notify:
+		_owner.toggles_changed.emit(_owner)
+
+
+## Deceptive Attack's level while it is on, 0 while it is off.
+func deceptive_level() -> int:
+	return toggle_level(DECEPTIVE_ATTACK) if is_toggled(DECEPTIVE_ATTACK) else 0
+
+
+## Deceptive Attack on at level, or off for 0 - set_aim's counterpart,
+## for the AI.
+func set_deceptive_level(level: int, notify: bool = true) -> void:
+	if level > 0:
+		set_toggle_level(DECEPTIVE_ATTACK, level, notify)
+	set_toggled(DECEPTIVE_ATTACK, level > 0, notify)
 
 
 ## The aim toggle switched on, or null for the torso.
@@ -509,11 +546,20 @@ func hit_chance(target, ability: Ability) -> float:
 	if not ability.requires_to_hit:
 		return 1.0
 	var attack: Dictionary = SuccessRoll.chances(to_hit_target(target, ability))
-	var defense: Dictionary = target.best_defense(_owner, ability) if target is Unit else {}
+	var defense: Dictionary = defense_against(target, ability) if target is Unit else {}
 	if defense.is_empty():
 		return attack.success
 	var defended: float = SuccessRoll.chances(defense.target).success
 	return attack.critical_success + (attack.success - attack.critical_success) * (1.0 - defended)
+
+
+## target's best defense against ability from this unit, as it rolls
+## it: less Deceptive Attack's level.
+func defense_against(target: Unit, ability: Ability) -> Dictionary:
+	var defense: Dictionary = target.best_defense(_owner, ability)
+	if not defense.is_empty():
+		defense.target -= deceptive_level()
+	return defense
 
 
 ## Whether this unit defends at all. A Downed unit is on the ground, and

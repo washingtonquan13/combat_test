@@ -662,6 +662,9 @@ static func _would_be_in_range(position: Vector3, unit: Unit, target: Unit, abil
 ## An attack is priced once per place it could be aimed — the torso and
 ## each aim toggle — and plan.aim keeps the best: -7 for the skull is
 ## worth it against a target whose armor the torso can't get through.
+## Each aim is priced again at each Deceptive Attack level, against a
+## target that defends, until a level is worth less than the one before
+## it: past that point every extra -2 to skill only costs more.
 static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 	var expected_heal: float = 0.0
 	for effect in plan.ability.effects:
@@ -670,7 +673,12 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 	var aims: Array[Ability] = [null]
 	if plan.target is Unit and plan.ability.requires_to_hit:
 		aims.append_array(UnitCombat.AIM_TOGGLES)
+	var max_deceptive: int = 0
+	if plan.target is Unit and plan.ability.requires_to_hit and plan.target.can_dodge():
+		max_deceptive = UnitCombat.DECEPTIVE_ATTACK.max_level
 	var previous_aim: Ability = unit.aim()
+	var previous_deceptive: int = unit.deceptive_level()
+	var previous_saved_level: int = unit.toggle_level(UnitCombat.DECEPTIVE_ATTACK)
 	var reason: String = plan.reason
 	var best: Dictionary = {}
 	for aim in aims:
@@ -678,13 +686,22 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 		var location: HitLocation = unit.hit_location_for(plan.ability)
 		if aim and not location:
 			continue  # this attack can't go there; the torso already priced it
-		plan.reason = reason
-		var value: float = _action_value(unit, plan, expected_heal, location)
-		if best.is_empty() or value > best.value:
-			best = {"value": value, "aim": aim, "reason": plan.reason}
+		var last_value: float = -INF
+		for level in max_deceptive + 1:
+			unit.set_deceptive_level(level, false)
+			plan.reason = reason
+			var value: float = _action_value(unit, plan, expected_heal, location)
+			if value < last_value:
+				break
+			last_value = value
+			if best.is_empty() or value > best.value:
+				best = {"value": value, "aim": aim, "deceptive": level, "reason": plan.reason}
 	unit.set_aim(previous_aim, false)
+	unit.set_deceptive_level(previous_saved_level, false)
+	unit.set_deceptive_level(previous_deceptive, false)
 
 	plan.aim = best.aim
+	plan.deceptive_level = best.deceptive
 	plan.reason = best.reason
 	plan.score += best.value
 
