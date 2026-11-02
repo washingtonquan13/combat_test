@@ -66,7 +66,7 @@ extends Node
 ## doesn't add new ones. A channeled ability needing a repeating "tick"
 ## sound, or a multi-hit ability needing a separate impact sound per
 ## hit, would need Unit.impact_triggered itself to support firing more
-## than once per use_ability() call — it currently doesn't. That's a
+## than once per action — it fires once (see AbilityAction.impact). That's a
 ## change to the combat-level sync signals, a separate and larger
 ## question from making the existing moments composable.
 

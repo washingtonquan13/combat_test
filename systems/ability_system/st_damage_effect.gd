@@ -21,6 +21,10 @@ extends AbilityEffect
 
 
 func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+func resolve(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
@@ -30,9 +34,14 @@ func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dicti
 	var raw_damage: int = attacker.max_damage(damage_type, bonus) if is_critical \
 		else attacker.roll_damage(damage_type, bonus)
 	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, is_critical, false, attacker.hit_location_for(ability))
-	target.take_damage(applied, is_critical)
-
 	return {"raw_damage": raw_damage, "damage": applied}
+
+
+func commit(_attacker: Unit, target, _ability: Ability, is_critical: bool, plan: Dictionary) -> Dictionary:
+	if plan.is_empty():
+		return {}
+	target.take_damage(plan.damage, is_critical)
+	return plan
 
 
 func describe() -> String:

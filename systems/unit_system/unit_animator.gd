@@ -24,7 +24,7 @@ extends Node
 ##
 ## Worth knowing: whether damage is actually TIMED to this animation
 ## depends on the ability's own waits_for_impact flag (see Ability). If
-## it's on, Unit.use_ability() genuinely pauses before applying effects
+## it's on, UnitCombat.use_ability() pauses before landing effects
 ## until something calls unit.notify_impact() — typically an
 ## AnimationPlayer Call Method Track placed at the frame a weapon
 ## actually connects (e.g. mid-swing on whichever clip a melee ability's
@@ -33,7 +33,7 @@ extends Node
 ## AnimationPlayer editor, calling unit.notify_impact via the track's
 ## configured target. If waits_for_impact is off (the default), or a
 ## clip never got that track added, effects still resolve — either
-## immediately, or after Ability.impact_timeout elapses as a safety
+## immediately, or after AbilityTiming.impact_timeout elapses as a safety
 ## fallback — so a missing track doesn't hang the turn, it just means
 ## that specific ability isn't actually synced yet.
 ##

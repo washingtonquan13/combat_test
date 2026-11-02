@@ -74,6 +74,11 @@ extends CharacterBody3D
 ## than every component this state describes.
 var _pending_state: Dictionary = {}
 
+## The ability use under way, set from just before ability_use_started
+## until just after ability_used — already decided, for presentation to
+## read (see AbilityAction). Null between actions.
+var current_action: AbilityAction = null
+
 ## Per-placement stat bases over the definition's — a hand-placed unit
 ## that should be quicker than its species (test_arena's Scared
 ## Townperson, DX 18). Declared after `definition` so it lands after the
@@ -409,13 +414,12 @@ signal downed_changed(unit: Unit)
 ## the unit stable (DeathRollsBehavior). The overhead DownedTracker.
 signal downed_tally_changed(unit: Unit)
 
-## Fired by an attack animation's Call Method Track (at the frame a
-## weapon actually connects) or a VFX sequence's ImpactSignalStep
-## (typically right after a projectile arrives) — the signal
-## UnitCombat.use_ability() waits on before applying an ability's
-## effects, when that ability has waits_for_impact set. See
-## notify_impact() below, which is what animation tracks/VFX steps
-## should actually call.
+## Fired when the current action's impact counts — the first
+## notify_impact() during it, from an attack animation's Call Method
+## Track (the frame a weapon connects) or a VFX sequence's
+## ImpactSignalStep (a projectile arriving). Once per action: repeats,
+## and calls with no action under way, are dropped. For presentation
+## (UnitSfx's impact cue); the rules wait on AbilityAction itself.
 signal impact_triggered()
 
 ## Fired when a cast lets go of what its stance was holding: a VFX
@@ -1803,12 +1807,12 @@ func notify_status_of_damage(amount: int, critical: bool = false) -> void:
 
 
 ## Called by an attack animation's Call Method Track or a VFX sequence's
-## ImpactSignalStep — see impact_triggered's doc comment for the full
-## explanation. Public and directly callable (not routed through a
+## ImpactSignalStep: lands current_action's impact (see AbilityAction). Public and directly callable (not routed through a
 ## component) since the callers here are external to Unit entirely
 ## (an AnimationPlayer track, a VfxStep), not another owned component.
 func notify_impact() -> void:
-	impact_triggered.emit()
+	if current_action and current_action.impact():
+		impact_triggered.emit()
 
 
 ## Called by a VFX sequence's ProjectileStep as the projectile leaves -

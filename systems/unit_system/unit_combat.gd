@@ -437,18 +437,16 @@ func resolve_click_ability(acting_unit: Unit) -> Ability:
 ## effects for the individual per-effect results if more detail is
 ## needed than the aggregate.
 ##
-## Emits ability_use_started BEFORE to-hit is even rolled — see that
-## signal's doc comment on Unit for why: animation/VFX need to react to
-## "this is happening" immediately (to start a swing, launch a
-## projectile), not wait for the final outcome. If ability.timing is
-## assigned and its waits_for_impact is set, effects don't actually
-## apply until Unit.notify_impact() fires (or a timeout elapses) AFTER a
-## confirmed hit — see _wait_for_impact_or_timeout. Most abilities have
-## no AbilityTiming at all (see that class), in which case effects apply
-## immediately, same as always. ability_used (the final result, same
-## signal as always) only fires once effects have actually resolved,
-## which may now be meaningfully later than when this method was called
-## for abilities that do wait.
+## Every roll is made up front, in the same frame (see _decide and
+## AbilityAction): to-hit, defense and each effect's dice. Then
+## ability_use_started fires with the decided action on
+## Unit.current_action, for animation/VFX to show. If ability.timing is
+## assigned and its waits_for_impact is set, a hit's effects land on
+## Unit.notify_impact() or the timeout, whichever comes first — a
+## target freed or killed meanwhile takes nothing ("target_lost"). Most
+## abilities have no AbilityTiming at all (see that class), in which
+## case effects apply immediately. ability_used (the final result)
+## fires once, from _finish, on every path — hit, miss or lost target.
 func use_ability(ability: Ability, target) -> Dictionary:
 	var result := {
 		"attacker": _owner,
@@ -545,8 +543,6 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if ability.fp_cost > 0.0:
 		_owner.set_pool(StatIds.FP, maxi(_owner.get_pool(StatIds.FP) - int(ability.fp_cost), 0))
 
-	_owner.ability_use_started.emit(_owner, target, ability)
-
 	# Face the target the instant the action is confirmed to happen, not
 	# gradually — this is what gives CombatAI-driven attacks correct
 	# facing too (AI never goes through mouse-hover aiming at all), and
@@ -555,6 +551,58 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# logic needed in MoveCasterEffect itself).
 	if target is Vector3 or target is Unit:
 		_owner.snap_face_point(target if target is Vector3 else target.global_position)
+
+	# Everything is decided here, in this frame, before anyone sees it:
+	# to-hit, defense, and every effect's dice (see AbilityAction).
+	# Presentation only shows what was decided.
+	var action := AbilityAction.new(_owner, target, ability, result)
+	_decide(action)
+	_owner.current_action = action
+	_owner.ability_use_started.emit(_owner, target, ability)
+
+	if not action.hit:
+		var to_hit: Dictionary = result.get("to_hit", {})
+		if not to_hit.get("success", true):
+			SystemLog.print(_miss_log_line(target, ability))
+			if to_hit.critical_failure:
+				_owner.apply_status(CRIT_FAIL_PENALTY)
+		else:
+			SystemLog.print(_defense_log_line(target, ability, result.defense.kind))
+		_finish(action)
+		return result
+
+	if ability.timing and ability.timing.waits_for_impact:
+		_owner.begin_busy()
+		await action.wait_for_impact(_owner.get_tree(), ability.timing.impact_timeout)
+		_owner.end_busy()
+
+	# The wait is the one stretch where the world moves on without this
+	# attack: a unit target freed or killed meanwhile takes nothing.
+	if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or not target.is_alive()):
+		result["target_lost"] = true
+		_finish(action)
+		return result
+
+	var effect_data: Dictionary = _apply_effects(action)
+	result["effects"] = effect_data.effects
+	result["damage"] = effect_data.damage
+
+	if effect_data.damage > 0:
+		SystemLog.print(_hit_log_line(target, ability))
+	else:
+		SystemLog.print(_use_log_line(target, ability))
+
+	_finish(action)
+	return result
+
+
+## Rolls to hit and to defend and resolves every effect's dice, filling
+## action and its result. Touches nothing but the rounds fired and the
+## defense spent — both are spent the moment the attack is made.
+func _decide(action: AbilityAction) -> void:
+	var ability: Ability = action.ability
+	var target = action.target
+	var result: Dictionary = action.result
 
 	# Rounds leave the magazine whether or not they hit.
 	var gear: GearDamageEffect = _gear_effect(ability)
@@ -581,15 +629,11 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		if row and shots > 1 and to_hit.success:
 			_hits = mini(shots, 1 + maxi(int(to_hit.margin), 0) / maxi(row.recoil, 1))
 		if not to_hit.success:
-			SystemLog.print(_miss_log_line(target, ability))
-			if to_hit.critical_failure:
-				_owner.apply_status(CRIT_FAIL_PENALTY)
-			_owner.ability_used.emit(_owner, target, result)
-			_maybe_trigger_combat(target)
-			return result
+			return
 		# Every hit but a critical one meets the defender's best defense
 		# before anything lands — see best_defense.
-		var defense: Dictionary = {} if to_hit.critical_success or not target is Unit 			else defense_against(target, ability)
+		var defense: Dictionary = {} if to_hit.critical_success or not target is Unit \
+			else defense_against(target, ability)
 		if not defense.is_empty():
 			target.spend_defense(defense.kind)
 			var roll := SuccessRoll.roll_vs(defense.target)
@@ -599,39 +643,30 @@ func use_ability(ability: Ability, target) -> Dictionary:
 			if roll.success:
 				_hits -= 1 + maxi(int(roll.margin), 0)
 			if _hits <= 0:
-				SystemLog.print(_defense_log_line(target, ability, defense.kind))
-				_owner.ability_used.emit(_owner, target, result)
-				_maybe_trigger_combat(target)
-				return result
+				return
 
 	result["hit"] = true
 	result["hits"] = _hits
-
-	if ability.timing and ability.timing.waits_for_impact:
-		_owner.begin_busy()
-		await _wait_for_impact_or_timeout(ability.timing.impact_timeout)
-		_owner.end_busy()
-
+	action.hit = true
 	# Abilities with requires_to_hit=false never populate "to_hit" above,
 	# so they correctly never critical-hit — there's no roll for a crit
 	# to attach to (see this project's ability-by-ability scope check:
 	# only the two GearDamageEffect basic attacks currently roll to-hit
 	# at all).
-	var is_critical: bool = result.get("to_hit", {}).get("critical_success", false)
+	action.is_critical = result.get("to_hit", {}).get("critical_success", false)
+	for effect in ability.effects:
+		action.plans.append(effect.resolve(_owner, target, ability, action.is_critical))
 
-	var effect_data: Dictionary = _apply_effects(target, ability, is_critical)
-	result["effects"] = effect_data.effects
-	result["damage"] = effect_data.damage
 
-	if effect_data.damage > 0:
-		SystemLog.print(_hit_log_line(target, ability))
-	else:
-		SystemLog.print(_use_log_line(target, ability))
-
-	_owner.ability_used.emit(_owner, target, result)
-	_maybe_trigger_combat(target)
-	return result
-
+## Announces the outcome and lets go of the action — every use of an
+## ability ends here, hit, miss or lost target.
+func _finish(action: AbilityAction) -> void:
+	_owner.ability_used.emit(_owner, action.target, action.result)
+	if not action.result.get("target_lost", false):
+		_maybe_trigger_combat(action.target)
+	action.finish()
+	if _owner.current_action == action:
+		_owner.current_action = null
 
 ## Attacker's to-hit target number against target for ability — own
 ## skill plus outgoing modifiers, defender's incoming modifiers and
@@ -1009,21 +1044,21 @@ func _rolls_to_resist(status: StatusEffect, source: Unit) -> bool:
 	return source == null or not is_instance_valid(source) or source.is_hostile_to(_owner)
 
 
-## Applies every one of ability's effects against target in order,
-## aggregating each effect's own "damage" key into one total — usually
-## zero or one DamageEffect, but this doesn't assume that; see effects
-## for the individual per-effect results if more detail is needed than
-## the aggregate.
-func _apply_effects(target, ability: Ability, is_critical: bool) -> Dictionary:
+## Lands every one of the action's effects in order, each from the plan
+## it resolved in _decide, aggregating each effect's own "damage" key
+## into one total — usually zero or one DamageEffect, but this doesn't
+## assume that; see effects for the individual per-effect results if
+## more detail is needed than the aggregate.
+func _apply_effects(action: AbilityAction) -> Dictionary:
 	var effect_results: Array = []
 	var total_damage: int = 0
-	for effect in ability.effects:
-		var effect_result: Dictionary = effect.apply(_owner, target, ability, is_critical)
+	var effects: Array = action.ability.effects
+	for i in effects.size():
+		var effect_result: Dictionary = effects[i].commit(_owner, action.target, action.ability, action.is_critical, action.plans[i])
 		effect_results.append(effect_result)
 		if effect_result.has("damage"):
 			total_damage += effect_result["damage"]
 	return {"effects": effect_results, "damage": total_damage}
-
 
 ## Starts real combat if this was an out-of-combat hostile act against a
 ## living Unit — miss or hit, doesn't matter, an attempted attack is still
@@ -1049,37 +1084,6 @@ func _maybe_trigger_combat(target) -> void:
 		if not _owner.is_hostile_to(target):
 			return
 	CombatManager.start_combat_from_hostile_act(_owner, target)
-
-
-## Awaits Unit.impact_triggered, or `timeout` seconds, whichever comes
-## first. The timeout exists so an ability with waits_for_impact set,
-## but whose animation/VFX ISN'T actually wired up to call
-## notify_impact(), doesn't hang the whole turn forever — it just
-## resolves a little late instead, a far safer failure mode than a
-## stuck game. Polls once per frame rather than trying to build a true
-## signal "race" — simpler to reason about, and the cost is negligible
-## given timeouts here are measured in single-digit seconds at most.
-##
-## `done` is wrapped in a single-element Array rather than a bare bool —
-## GDScript lambda closures capture local PRIMITIVE variables (bool,
-## int, ...) BY VALUE, not by reference, so `done = true` inside the
-## lambda would silently mutate a private copy scoped to the lambda
-## itself, never the polling loop's own variable below, even though the
-## lambda executes correctly and the assignment "succeeds." Arrays are a
-## reference type — the lambda and the loop both hold a reference to the
-## SAME array object, so mutating its contents (not reassigning the
-## variable) actually propagates. This was a real, confirmed bug (found
-## via diagnostic prints — both finish() calls fired exactly as
-## expected, but the loop never saw it), not a hypothetical one.
-func _wait_for_impact_or_timeout(timeout: float) -> void:
-	var done := [false]
-	var finish := func(): done[0] = true
-
-	_owner.impact_triggered.connect(finish, CONNECT_ONE_SHOT)
-	_owner.get_tree().create_timer(timeout).timeout.connect(finish, CONNECT_ONE_SHOT)
-
-	while not done[0]:
-		await _owner.get_tree().process_frame
 
 
 ## Describes an ability's target for log messages — a Unit gets its

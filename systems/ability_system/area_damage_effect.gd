@@ -41,7 +41,12 @@ extends AbilityEffect
 @export var affects_allies: bool = false
 
 
-func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+## Who the blast catches and what each takes, decided when it is cast.
+func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3:
 		return {}
 
@@ -56,7 +61,6 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
 		var applied: int = DamageResolver.injury(raw_damage, unit, wound_type, armor_divisor)
-		unit.take_damage(applied)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})
 
 	var total_damage: int = 0
@@ -64,6 +68,16 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 		total_damage += entry.damage
 
 	return {"affected": affected, "damage": total_damage}
+
+
+## Anyone freed before the blast lands is skipped.
+func commit(_attacker: Unit, _target, _ability: Ability, _is_critical: bool, plan: Dictionary) -> Dictionary:
+	if plan.is_empty():
+		return {}
+	for entry in plan.affected:
+		if is_instance_valid(entry.unit):
+			entry.unit.take_damage(entry.damage)
+	return plan
 
 
 func roll_damage() -> int:

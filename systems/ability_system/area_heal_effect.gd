@@ -19,7 +19,12 @@ extends AbilityEffect
 @export var affects_allies: bool = true
 
 
-func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+## Who the area catches and what each rolls, decided when it is cast.
+func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3:
 		return {}
 
@@ -32,13 +37,23 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	var affected: Array = []
 
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
-		var raw_heal: int = roll_heal()
-		var applied: int = unit.heal(raw_heal)
-		affected.append({"unit": unit, "raw_heal": raw_heal, "healed": applied})
+		affected.append({"unit": unit, "raw_heal": roll_heal()})
+	return {"affected": affected}
 
+
+## Anyone freed before it lands is skipped.
+func commit(attacker: Unit, _target, _ability: Ability, _is_critical: bool, plan: Dictionary) -> Dictionary:
+	if plan.is_empty():
+		return {}
+
+	var affected: Array = []
 	var total_healed: int = 0
-	for entry in affected:
-		total_healed += entry.healed
+	for entry in plan.affected:
+		if not is_instance_valid(entry.unit):
+			continue
+		var applied: int = entry.unit.heal(entry.raw_heal)
+		affected.append({"unit": entry.unit, "raw_heal": entry.raw_heal, "healed": applied})
+		total_healed += applied
 
 	if total_healed > 0:
 		SystemLog.print("%s's area heal restores %s HP." % [LogFormat.unit_name(attacker), LogFormat.heal(total_healed)])

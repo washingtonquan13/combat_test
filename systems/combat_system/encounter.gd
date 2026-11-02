@@ -256,6 +256,21 @@ func _release(unit) -> void:
 		unit.downed_changed.disconnect(_on_unit_downed_changed)
 	if unit.ability_used.is_connected(_on_ability_used):
 		unit.ability_used.disconnect(_on_ability_used)
+	_drop_turn_requests(unit)
+
+
+## Forgets an end_turn or delay_turn that was waiting on unit's
+## became_idle. Such a request belongs to that unit's turn only: once
+## the turn has moved on or the unit has left, firing it would end or
+## delay whoever is acting by then.
+func _drop_turn_requests(unit) -> void:
+	if not is_instance_valid(unit):
+		return
+	if unit.became_idle.is_connected(end_turn):
+		unit.became_idle.disconnect(end_turn)
+	if unit.became_idle.is_connected(_on_unit_idle_for_delay):
+		unit.became_idle.disconnect(_on_unit_idle_for_delay)
+		_pending_delay_positions = -1
 
 
 ## Injects a unit into this running fight — a summon, or someone who walked
@@ -421,6 +436,11 @@ func _begin_unit_turn_actions(unit: Unit) -> void:
 func _advance_turn() -> void:
 	if phase == Phase.OUT_OF_COMBAT:
 		return
+
+	# Read off turn_order, not current_unit: the outgoing unit may have
+	# been freed, and a typed getter can't hand that back.
+	if _turn_index >= 0 and _turn_index < turn_order.size():
+		_drop_turn_requests(turn_order[_turn_index])
 
 	# Captured before turn_order is reassigned — filter() returns a NEW
 	# array, so this keeps the original unfiltered ordering (and the index

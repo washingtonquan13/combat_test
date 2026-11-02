@@ -28,14 +28,20 @@ const PUNCH: AttackRow = preload("res://data/attacks/punch.tres")
 
 
 func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+## One injury per hit in "injuries": rapid fire lands several, and each
+## rolls and meets DR on its own (B379), so armor stops a burst one
+## bullet at a time.
+func resolve(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
 	var attack: AttackRow = row_for(attacker)
 	var halved: bool = attack.is_past_half_damage(attacker, target)
 	var location: HitLocation = attacker.hit_location_for(ability)
-	# Rapid fire lands several hits; each rolls and meets DR on its own
-	# (B379), so armor stops a burst one bullet at a time.
+	var injuries: Array[int] = []
 	var raw_total: int = 0
 	var applied_total: int = 0
 	for _hit in maxi(attacker.attack_hits(), 1):
@@ -46,11 +52,19 @@ func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dicti
 		if halved:
 			raw_damage = raw_damage / 2
 		var applied: int = DamageResolver.injury(raw_damage, target, attack.wound_type, attack.armor_divisor, is_critical, false, location)
-		target.take_damage(applied, is_critical)
+		injuries.append(applied)
 		raw_total += raw_damage
 		applied_total += applied
 
-	return {"raw_damage": raw_total, "damage": applied_total}
+	return {"raw_damage": raw_total, "damage": applied_total, "injuries": injuries}
+
+
+func commit(_attacker: Unit, target, _ability: Ability, is_critical: bool, plan: Dictionary) -> Dictionary:
+	if plan.is_empty():
+		return {}
+	for applied in plan.injuries:
+		target.take_damage(applied, is_critical)
+	return {"raw_damage": plan.raw_damage, "damage": plan.damage}
 
 
 func kind() -> AttackRow.Kind:

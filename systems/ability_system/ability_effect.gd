@@ -20,6 +20,23 @@ func apply(_attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> D
 	return {}
 
 
+## Rolls this effect's dice without touching anyone, so the outcome is
+## known before it is shown (see AbilityAction). The returned plan goes
+## back into commit() when the effect lands; a "damage" key in it is the
+## injury that will be done. Only effects that roll override this — the
+## rest have nothing to decide early and the empty plan just means
+## "apply as usual."
+func resolve(_attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Dictionary:
+	return {}
+
+
+## Applies a plan from resolve(). The default ignores it and applies;
+## effects that override resolve() override this to land exactly what
+## was rolled, and make apply() commit(resolve()).
+func commit(attacker: Unit, target, ability: Ability, is_critical: bool, _plan: Dictionary) -> Dictionary:
+	return apply(attacker, target, ability, is_critical)
+
+
 ## Human-readable summary for tooltips (see hotbar_slot.gd). Override in
 ## each subclass.
 func describe() -> String:

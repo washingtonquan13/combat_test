@@ -11,11 +11,21 @@ extends AbilityEffect
 @export var dice_bonus: int = 0
 
 
-func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+func resolve(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
+	return {"raw_heal": roll_heal()}
 
-	var raw_heal: int = roll_heal()
+
+func commit(attacker: Unit, target, _ability: Ability, _is_critical: bool, plan: Dictionary) -> Dictionary:
+	if plan.is_empty():
+		return {}
+
+	var raw_heal: int = plan.raw_heal
 	var applied: int = target.heal(raw_heal)
 
 	if applied > 0:
