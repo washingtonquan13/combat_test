@@ -71,7 +71,10 @@ func _run() -> void:
 	await _wait(1.0)
 	_check("greatsword in the main hand", hero.get_equipped_item(MAIN) == great)
 	_check("off-hand slot shows its faded ghost", _slot(OFF)._ghost != null and _slot(OFF)._ghost.is_visible_in_tree())
-	await _wait(2.0)
+	await _glide(_center(_slot(OFF)) + Vector2(0, 200), 0)
+	await _wait(1.0)
+	_snapshot_slots()
+	await _wait(1.0)
 
 	_say("The off hand refuses a shield while it's held")
 	await _drag(await _widget_center(inventory, shield), _center(_slot(OFF)))
@@ -123,3 +126,15 @@ func _attacks(unit: Unit) -> Array:
 
 func _names(attacks: Array) -> Array:
 	return attacks.map(func(a): return a.ability_name)
+
+
+## With HANDS_SNAPSHOT set to a .png path, saves the weapon slots, zoomed,
+## while the ghost shows: a still you can inspect, unlike the video.
+func _snapshot_slots() -> void:
+	var path := OS.get_environment("HANDS_SNAPSHOT")
+	if path.is_empty():
+		return
+	var area := _slot(MAIN).get_global_rect().merge(_slot(OFF).get_global_rect()).grow(24.0)
+	var image := get_viewport().get_texture().get_image().get_region(Rect2i(area))
+	image.resize(image.get_width() * 4, image.get_height() * 4, Image.INTERPOLATE_NEAREST)
+	image.save_png(path)

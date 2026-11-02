@@ -46,6 +46,9 @@ var equipped_item: Item = null
 ## hand: shows why the slot is taken. Not an Item, so it can't be
 ## dragged, right-clicked or counted by accepts_item().
 var _ghost: TextureRect = null
+## Grey and half-faded: the icon over a grey wash reads as "taken by the
+## main hand", not as an item in this slot.
+const GHOST_TINT := Color(0.8, 0.8, 0.8, 0.55)
 
 const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
 
@@ -147,7 +150,13 @@ func _refresh_ghost() -> void:
 		_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		_ghost.modulate.a = 0.35
+		_ghost.modulate = GHOST_TINT
+		var wash := ColorRect.new()
+		wash.color = Color(0.6, 0.6, 0.6, 0.5)
+		wash.show_behind_parent = true
+		wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ghost.add_child(wash)
+		wash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 		item_layer.add_child(_ghost)
 		_ghost.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_ghost.texture = weapon.definition.icon
