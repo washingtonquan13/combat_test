@@ -1807,7 +1807,8 @@ func notify_status_of_damage(amount: int, critical: bool = false) -> void:
 
 
 ## Called by an attack animation's Call Method Track or a VFX sequence's
-## ImpactSignalStep: lands current_action's impact (see AbilityAction). Public and directly callable (not routed through a
+## ImpactSignalStep: lands current_action's impact (see AbilityAction).
+## Public and directly callable (not routed through a
 ## component) since the callers here are external to Unit entirely
 ## (an AnimationPlayer track, a VfxStep), not another owned component.
 func notify_impact() -> void:
