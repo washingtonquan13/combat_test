@@ -140,26 +140,23 @@ func save_state() -> Dictionary:
 	for item in _cells:
 		if item.definition:
 			var cell: Vector2i = _cells[item]
-			entries.append({
-				"id": item.definition.id,
-				"x": cell.x,
-				"y": cell.y,
-				"stack": item.count,
-			})
+			var entry: Dictionary = item.to_dict()
+			entry["x"] = cell.x
+			entry["y"] = cell.y
+			entries.append(entry)
 	return {"items": entries}
 
 
 func load_state(state: Dictionary) -> void:
 	clear()
 	for entry in state.get("items", []):
-		var definition: ItemDefinition = ItemDatabase.find(entry.get("id", &""))
-		if not definition:
+		var item := ItemInstance.from_dict(entry)
+		if not item:
 			push_warning("ItemContainer.load_state: unknown item id '%s'" % entry.get("id"))
 			continue
-		var item := ItemInstance.new(definition, entry.get("stack", 1))
 		var cell := Vector2i(entry.get("x", 0), entry.get("y", 0))
 		if not place(item, cell):
-			push_warning("ItemContainer.load_state: '%s' doesn't fit at %s" % [definition.id, cell])
+			push_warning("ItemContainer.load_state: '%s' doesn't fit at %s" % [item.definition.id, cell])
 
 
 func _fits_in(cells: Dictionary, item: ItemInstance, cell: Vector2i) -> bool:

@@ -72,8 +72,7 @@ extends Resource
 
 @export var skills: Array[PartySkillRecord] = []
 
-## EquipSlot.Slot (int) -> GearItem — the data an equipped Item wraps, not
-## the live Item node itself (see PartyManager.spawn_into(), which
-## instantiates a fresh Item from each entry the same way GiveItemEffect
-## already does).
+## EquipSlot.Slot (int) -> ItemInstance — a snapshot copy of what was
+## worn, sockets and runes included; PartyManager.spawn_into() equips a
+## fresh copy of each, so the record is never the live item.
 @export var equipment: Dictionary = {}

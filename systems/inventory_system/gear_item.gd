@@ -51,3 +51,20 @@ func fits(target: SlotType) -> bool:
 	if target == slot_type:
 		return true
 	return weapon_data != null and not weapon_data.two_handed and OFF_HAND_OF.get(slot_type) == target
+
+
+## Most sockets a copy of this kind can have, before the grid-size cap
+## (ItemInstance.max_sockets): what the slot allows, and a third for a
+## weapon that takes both hands.
+func socket_limit() -> int:
+	if weapon_data and weapon_data.two_handed:
+		return 3
+	return SOCKET_LIMITS.get(slot_type, 0)
+
+
+const SOCKET_LIMITS: Dictionary = {
+	SlotType.HELMET: 2, SlotType.CLOAK: 1, SlotType.CHEST_ARMOR: 3,
+	SlotType.BRACERS: 1, SlotType.GLOVES: 2, SlotType.LEGS: 2, SlotType.BOOTS: 2,
+	SlotType.MELEE_MAIN_HAND: 2, SlotType.MELEE_OFF_HAND: 2,
+	SlotType.RANGED_MAIN_HAND: 2, SlotType.RANGED_OFF_HAND: 2,
+}

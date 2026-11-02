@@ -24,3 +24,14 @@ extends Resource
 @export var width: int = 1
 @export var height: int = 1
 @export var maximum_stack_count: int = 99
+
+
+## Crafting items (a rune, a socket tool) are dragged onto another item
+## to use them: whether this one can be used on target, and using it.
+## One is spent per use (see Item._drop_data). A plain item can't.
+func can_apply_to(_target: ItemInstance) -> bool:
+	return false
+
+
+func apply_to(_target: ItemInstance) -> void:
+	pass

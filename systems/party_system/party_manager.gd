@@ -429,7 +429,7 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	for slot in unit.get_equipped_slots():
 		var item: ItemInstance = unit.get_equipped_item(slot)
 		if item and item.gear_data:
-			data.equipment[slot] = item.gear_data
+			data.equipment[slot] = item.copy()
 
 	return data
 
@@ -552,8 +552,8 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 	# no need to stringify the key the way JSON would have forced.
 	var equipment: Dictionary = {}
 	for slot in record.equipment:
-		var gear: GearItem = record.equipment[slot]
-		equipment[slot] = gear.id
+		var item: ItemInstance = record.equipment[slot]
+		equipment[slot] = item.to_dict()
 
 	return {
 		"definition_id": record.definition.id if record.definition else "",
@@ -682,9 +682,10 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 		record.skills.append(skill_record)
 
 	for slot in entry.get("equipment", {}):
-		var gear: GearItem = ItemDatabase.find(entry["equipment"][slot]) as GearItem
-		if gear:
-			record.equipment[slot] = gear
+		# A bare id is a save from before per-copy item state.
+		var item: ItemInstance = ItemInstance.from_dict(entry["equipment"][slot])
+		if item and item.gear_data:
+			record.equipment[slot] = item
 
 	return record
 
@@ -749,7 +750,7 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 		unit.add_skill(instance)
 
 	for slot in record.equipment:
-		unit.equip_item(slot, ItemInstance.new(record.equipment[slot]))
+		unit.equip_item(slot, record.equipment[slot].copy())
 
 	return unit
 

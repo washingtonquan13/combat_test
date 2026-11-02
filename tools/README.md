@@ -16,6 +16,10 @@ A recorded walkthrough of the inventory, run in the real game. It is not a test 
 
 A short recorded walkthrough of attack rows, built on item_layer_demo's helpers: an empty hand shows Punch on the hotbar, the iron sword turns it into Swing and Thrust, unequipping brings Punch back, and a beast's natural rows are captioned. Record it the same way as item_layer_demo, with `res://tools/attack_rows_demo.tscn`.
 
+# sockets_demo
+
+A recorded walkthrough of rarity, sockets and runes, built on item_layer_demo's helpers. It runs 12 checks with real drags. A socket awl adds a socket to the iron sword, an iron rune fills it (+1 damage on its rows), a second rune is refused by the full sword, and the last awl is used up. The rare chest is equipped and a vigor rune socketed into it while worn raises max HP, and the stats column follows. Hovering the sword shows the tooltip in the rarity colour. Record it with `res://tools/sockets_demo.tscn`.
+
 # hands_demo
 
 A recorded walkthrough of hands, also built on item_layer_demo's helpers. It runs 13 checks. A sword in each hand adds off-hand attacks at -4 to the hotbar. A greatsword fills the main hand and shows a faded ghost in the off hand, which refuses a shield. At ST 9 the greatsword (min ST 12) is -3 to hit. With a shield on, the greatsword is refused. Drops back into the bag go to fixed cells, because `_last_free_cell` keeps clear of the grid's scrolling edges and found none here. Record it with `res://tools/hands_demo.tscn`. Set `HANDS_SNAPSHOT=<path>.png` to also save a zoomed still of the weapon slots while the ghost shows.

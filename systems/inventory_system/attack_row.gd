@@ -43,6 +43,9 @@ enum DamageBase { SWING, THRUST, FIXED }
 ## GURPS rolls on Shield skill, where the -4 doesn't apply. Its hotbar
 ## attack then has no "(off hand)" suffix either.
 @export var off_hand_ok: bool = false
+## Added to hit with this row: a rune's or an affix's, never authored on
+## a base weapon (UnitCombat._hands_modifier).
+@export var to_hit_bonus: int = 0
 
 @export_group("Ranged")
 ## GURPS Accuracy (B269): added to hit when the shooter has aimed —

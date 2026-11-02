@@ -5,6 +5,8 @@ extends Container
 @onready var background: ColorRect = $Background
 @onready var icon_rect: TextureRect = $Icon
 @onready var stack_count_label: Label = $StackCount
+@onready var rarity_frame: ReferenceRect = $RarityFrame
+@onready var socket_pips: HBoxContainer = $Sockets
 
 @export var tooltip_scene: PackedScene
 @export var context_menu_scene: PackedScene
@@ -90,6 +92,7 @@ func _ready() -> void:
 		icon_rect.texture = icon
 	_update_size()
 	update_stack_count_label()
+	_show_sockets()
 
 func _update_size() -> void:
 	if layout == LayoutMode.GRID:
@@ -154,6 +157,41 @@ func _on_instance_changed() -> void:
 	if instance:
 		current_stack_count = instance.count
 	update_stack_count_label()
+	_show_sockets()
+
+
+## Rarity frame and one pip per socket: dark when empty, gold when a rune
+## fills it.
+func _show_sockets() -> void:
+	if not is_instance_valid(socket_pips):
+		return
+	rarity_frame.visible = instance != null and instance.rarity != ItemInstance.Rarity.NORMAL
+	if instance:
+		rarity_frame.border_color = instance.rarity_color()
+	for pip in socket_pips.get_children():
+		pip.queue_free()
+	if not instance:
+		return
+	for i in instance.sockets:
+		var pip := ColorRect.new()
+		pip.custom_minimum_size = Vector2(6, 6)
+		pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		pip.color = Color(0.95, 0.75, 0.3) if i < instance.runes.size() else Color(0.08, 0.08, 0.1, 0.9)
+		socket_pips.add_child(pip)
+
+
+## Dropping a usable item on this one — a rune into a free socket, an awl
+## for a new socket — uses one of it on this copy. Anything else falls
+## through to the grid under this widget, as a move.
+func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+	return data is Item and data != self and instance != null and data.instance != null 		and data.definition.can_apply_to(instance)
+
+
+func _drop_data(_at_position: Vector2, data: Variant) -> void:
+	data.definition.apply_to(instance)
+	data.instance.count -= 1
+	if data.instance.count <= 0:
+		data.detach_from_current_location()
 
 func update_stack_count_label() -> void:
 	if is_instance_valid(stack_count_label):
@@ -199,8 +237,10 @@ func _make_custom_tooltip(for_text: String) -> Object:
 		return null
 
 	var tooltip: Control = tooltip_scene.instantiate()
-	if tooltip.has_method("set_text"):
-		tooltip.set_text(for_text)
+	if instance and tooltip.has_method("show_item"):
+		tooltip.ready.connect(tooltip.show_item.bind(instance))
+	elif tooltip.has_method("set_text"):
+		tooltip.ready.connect(tooltip.set_text.bind(for_text))
 	return tooltip
 
 ## Right-click menu, shown via a Window-based Popup — rendered as a top-most

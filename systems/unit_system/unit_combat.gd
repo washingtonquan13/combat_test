@@ -225,8 +225,8 @@ func _held_rows(kind: AttackRow.Kind, off_hand: bool) -> Array[AttackRow]:
 		slots.append(_hand_slot(AttackRow.Kind.MELEE, off_hand))
 	for slot in slots:
 		var item: ItemInstance = _owner.get_equipped_item(slot)
-		if item and item.gear_data and item.gear_data.weapon_data:
-			rows.append_array(item.gear_data.weapon_data.rows_of(kind))
+		if item:
+			rows.append_array(item.rows_of(kind))
 	return rows
 
 
@@ -235,7 +235,7 @@ func _held_rows(kind: AttackRow.Kind, off_hand: bool) -> Array[AttackRow]:
 func item_holding(row: AttackRow) -> ItemInstance:
 	for slot in HAND_SLOTS:
 		var item: ItemInstance = _owner.get_equipped_item(slot)
-		if item and item.gear_data and item.gear_data.weapon_data and item.gear_data.weapon_data.attacks.has(row):
+		if item and item.attacks().has(row):
 			return item
 	return null
 
@@ -678,7 +678,8 @@ static func range_penalty(distance: float) -> int:
 
 ## The weapon's own say in the roll: -1 per point of ST short of the
 ## row's minimum (B270; Exhausted's halved ST counts), -4 in the off
-## hand (B417), Acc when aimed, and the rapid-fire bonus.
+## hand (B417), Acc when aimed, the rapid-fire bonus, and the copy's
+## own bonus from its runes.
 func _hands_modifier(ability: Ability) -> int:
 	var effect: GearDamageEffect = _gear_effect(ability)
 	if not effect:
@@ -686,7 +687,7 @@ func _hands_modifier(ability: Ability) -> int:
 	var row: AttackRow = effect.row_for(_owner)
 	var short: int = row.min_st - floori(_owner.get_stat(StatIds.ST))
 	return -maxi(short, 0) + (OFF_HAND_PENALTY if effect.off_hand else 0) \
-		+ _aim_bonus(row) + _rof_bonus(row.rof)
+		+ _aim_bonus(row) + _rof_bonus(row.rof) + row.to_hit_bonus
 
 
 ## Acc (B269) for a shooter who has aimed. GURPS spends a whole turn on

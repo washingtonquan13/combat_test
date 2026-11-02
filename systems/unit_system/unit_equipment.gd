@@ -64,14 +64,15 @@ func equipped_slots() -> Array:
 
 
 ## Records item as equipped in slot_key and registers every stat
-## modifier its GearItem grants — does NOT touch the scene tree; showing
-## it is EquipSlot's job, this is just the per-unit bookkeeping of what's
-## currently worn.
+## modifier it grants (ItemInstance.stat_modifiers: the definition's plus
+## its runes') — does NOT touch the scene tree; showing it is EquipSlot's
+## job, this is just the per-unit bookkeeping of what's currently worn.
+## A rune socketed into it while worn re-registers (_refresh).
 func equip(slot_key: EquipSlot.Slot, item: ItemInstance) -> void:
 	_equipped[slot_key] = item
-	if item.gear_data:
-		for modifier in item.gear_data.stat_modifiers:
-			_owner.register_stat_modifier(modifier, item.gear_data.item_name)
+	_register(slot_key)
+	_watchers[slot_key] = _refresh.bind(slot_key)
+	item.modifiers_changed.connect(_watchers[slot_key])
 
 
 ## Clears slot_key and reverts every stat modifier the previously-equipped
@@ -79,8 +80,36 @@ func equip(slot_key: EquipSlot.Slot, item: ItemInstance) -> void:
 ## caller can decide where it goes next (a grid, another slot, ...).
 func unequip(slot_key: EquipSlot.Slot) -> ItemInstance:
 	var item: ItemInstance = _equipped.get(slot_key)
-	if item and item.gear_data:
-		for modifier in item.gear_data.stat_modifiers:
-			_owner.unregister_stat_modifier(modifier, item.gear_data.item_name)
+	if item:
+		item.modifiers_changed.disconnect(_watchers[slot_key])
+		_watchers.erase(slot_key)
+		_unregister(slot_key)
 	_equipped.erase(slot_key)
 	return item
+
+
+## What each slot's item registered, so a changed item unregisters
+## exactly what it had — not what it has now.
+var _registered: Dictionary = {}  # EquipSlot.Slot -> Array[StatModifierBehavior]
+var _watchers: Dictionary = {}  # EquipSlot.Slot -> the Callable on modifiers_changed
+
+
+func _register(slot_key: EquipSlot.Slot) -> void:
+	var item: ItemInstance = _equipped[slot_key]
+	var granted: Array[StatModifierBehavior] = item.stat_modifiers()
+	for modifier in granted:
+		_owner.register_stat_modifier(modifier, item.display_name())
+	_registered[slot_key] = granted
+
+
+func _unregister(slot_key: EquipSlot.Slot) -> void:
+	var item: ItemInstance = _equipped[slot_key]
+	for modifier in _registered.get(slot_key, []):
+		_owner.unregister_stat_modifier(modifier, item.display_name())
+	_registered.erase(slot_key)
+
+
+func _refresh(slot_key: EquipSlot.Slot) -> void:
+	_unregister(slot_key)
+	_register(slot_key)
+	_owner.equipment_changed.emit(_owner)

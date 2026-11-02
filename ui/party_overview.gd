@@ -215,6 +215,13 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Lets StashPanel borrow the party's shared Inventory node while a chest
 ## is open (see stash_panel.gd) — reparented out and back rather than a
 ## second Inventory instance, so there's only ever one real set of items.
+## Equipping, or socketing a rune into something worn, changes the
+## shown unit's stats while the sheet is open.
+func _on_equipment_changed(unit: Unit) -> void:
+	_inventory_stats.refresh(unit)
+	_character_stats.refresh(unit)
+
+
 func get_inventory() -> Inventory:
 	return _inventory
 
@@ -227,7 +234,10 @@ func get_inventory_slot() -> VBoxContainer:
 
 func open_for(unit: Unit) -> void:
 	_swap_equipment(unit)
+	if is_instance_valid(_unit) and _unit.equipment_changed.is_connected(_on_equipment_changed):
+		_unit.equipment_changed.disconnect(_on_equipment_changed)
 	_unit = unit
+	unit.equipment_changed.connect(_on_equipment_changed)
 	_inventory_stats.refresh(unit)
 	_character_stats.refresh(unit)
 	_portrait.texture = unit.portrait_texture
