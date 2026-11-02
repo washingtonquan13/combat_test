@@ -35,6 +35,10 @@ enum DamageBase { SWING, THRUST, FIXED }
 ## units as MeleeEnemyTargeting.melee_range (1.0 is the plain attack's
 ## reach).
 @export var reach: float = 1.0
+## GURPS minimum ST (B270): -1 to hit per point the wielder's ST falls
+## short (UnitCombat.to_hit_target). 0 for none. Per row, as in the
+## tables — a spear can need more ST one-handed than two.
+@export var min_st: int = 0
 
 @export_group("Fixed Damage")
 ## Only read when damage_base == FIXED.

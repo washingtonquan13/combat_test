@@ -65,6 +65,27 @@ func run() -> void:
 	check("the thrust row impales", thrust.effects[0].located_wound_type(fighter) == DamageResolver.WoundType.IMPALING)
 	var beast: Unit = spawn_demon("beast", Vector3(8, 0, 0))
 	check("a beast bites and claws", names.call(beast) == ["Bite", "Claws"], "got %s" % [names.call(beast)])
+
+	# Hands: a second sword is its own attacks at -4; a two-handed one
+	# needs the off hand empty, keeps it so, and wants ST 12.
+	var off_hand := EquipSlot.Slot.MELEE_OFF_HAND
+	fighter.equip_item(off_hand, ItemInstance.new(sword))
+	var all: Array[Ability] = fighter.combat_abilities()
+	check("an off-hand sword adds its own swing and thrust", names.call(fighter) == ["Swing", "Thrust", "Swing (off hand)", "Thrust (off hand)"],
+		"got %s" % [names.call(fighter)])
+	check("the off hand is -4 to hit", fighter.to_hit_target(beast, all[2]) == fighter.to_hit_target(beast, all[0]) - 4)
+	var greatsword := ItemInstance.new(load("res://data/items/greatsword.tres"))
+	var main := EquipSlot.Slot.MELEE_MAIN_HAND
+	check("a two-handed weapon won't go in with the off hand full", not fighter.hands_allow(main, greatsword))
+	fighter.unequip_item(off_hand)
+	fighter.unequip_item(main)
+	fighter.equip_item(main, greatsword)
+	var shield := ItemInstance.new(load("res://data/items/wooden_shield.tres"))
+	check("a two-handed weapon keeps the off hand empty", not fighter.hands_allow(off_hand, shield) and fighter.hands_allow(main, greatsword))
+	var plain: int = fighter.to_hit_target(beast, all[0])
+	check("ST 12 wields it freely", fighter.to_hit_target(beast, fighter.combat_abilities()[0]) == plain)
+	fighter.set_base_stat(StatIds.ST, 10)
+	check("ST 10 is -2 to hit with it", fighter.to_hit_target(beast, fighter.combat_abilities()[0]) == plain - 2)
 	free_spawned()
 
 

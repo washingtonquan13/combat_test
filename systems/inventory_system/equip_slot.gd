@@ -28,12 +28,24 @@ enum Slot {
 ## slots are shared UI, re-pointed at whichever unit's sheet is open).
 ## equip()/unequip() only touch the unit's stat modifiers/storage when
 ## this is set; display_item()/clear_display() below never do, regardless.
-@export var unit: Unit
+@export var unit: Unit:
+	set(value):
+		if unit and unit.equipment_changed.is_connected(_on_equipment_changed):
+			unit.equipment_changed.disconnect(_on_equipment_changed)
+		unit = value
+		if unit:
+			unit.equipment_changed.connect(_on_equipment_changed)
+		_refresh_ghost()
 
 ## The widget showing whatever unit has in this slot — a view only,
 ## built by display_instance() and freed by clear_display(). What's worn
 ## lives on the unit (UnitEquipment), as an ItemInstance.
 var equipped_item: Item = null
+
+## An off-hand slot's faded copy of the two-handed weapon in its main
+## hand: shows why the slot is taken. Not an Item, so it can't be
+## dragged, right-clicked or counted by accepts_item().
+var _ghost: TextureRect = null
 
 const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
 
@@ -98,6 +110,7 @@ func display_instance(instance: ItemInstance) -> void:
 	item.size = item_layer.size
 	item.position = Vector2.ZERO
 	equipped_item = item
+	_refresh_ghost()
 
 
 ## Visual-only counterpart to display_instance() — see its header.
@@ -109,11 +122,44 @@ func clear_display() -> void:
 			equipped_item.get_parent().remove_child(equipped_item)
 		equipped_item.queue_free()
 	equipped_item = null
+	_refresh_ghost()
+
+
+func _on_equipment_changed(_unit: Unit) -> void:
+	_refresh_ghost()
+
+
+func _refresh_ghost() -> void:
+	var weapon: ItemInstance = null
+	if unit and not equipped_item and is_node_ready():
+		var main = UnitEquipment.OFF_HAND_OF.find_key(slot)
+		if main != null:
+			var held: ItemInstance = unit.get_equipped_item(main)
+			if UnitEquipment.is_two_handed(held):
+				weapon = held
+	if not weapon:
+		if _ghost:
+			_ghost.queue_free()
+			_ghost = null
+		return
+	if not _ghost:
+		_ghost = TextureRect.new()
+		_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ghost.modulate.a = 0.35
+		item_layer.add_child(_ghost)
+		_ghost.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ghost.texture = weapon.definition.icon
 
 func accepts_item(item: Item) -> bool:
 	if not (equipped_item == null or equipped_item == item):
 		return false
 	return accepts(item.instance)
 
+## Fits this slot's type (GearItem.fits: a one-handed weapon fits the
+## off hand too) and, on a unit, its other hand allows it.
 func accepts(instance: ItemInstance) -> bool:
-	return instance != null and instance.gear_data != null and instance.gear_data.slot_type == slot_type
+	if instance == null or instance.gear_data == null or not instance.gear_data.fits(slot_type):
+		return false
+	return unit == null or unit.hands_allow(slot, instance)

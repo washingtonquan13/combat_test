@@ -20,6 +20,9 @@ enum WeaponCategory { MELEE, RANGED }
 @export var category: WeaponCategory = WeaponCategory.MELEE
 ## Which row this attack is. Null on the generic template — see above.
 @export var row: AttackRow
+## Bound to the off-hand weapon's row: UnitCombat.to_hit_target takes
+## OFF_HAND_PENALTY.
+@export var off_hand: bool = false
 
 const PUNCH: AttackRow = preload("res://data/attacks/punch.tres")
 

@@ -36,3 +36,18 @@ enum SlotType {
 
 ## Null for armor/accessories — only set when this GearItem is a weapon.
 @export var weapon_data: WeaponData = null
+
+
+## Each hand slot's partner, main -> off.
+const OFF_HAND_OF: Dictionary = {
+	SlotType.MELEE_MAIN_HAND: SlotType.MELEE_OFF_HAND,
+	SlotType.RANGED_MAIN_HAND: SlotType.RANGED_OFF_HAND,
+}
+
+
+## Whether this kind of item goes in a slot of type target: its own
+## slot type, and for a one-handed weapon the off hand too.
+func fits(target: SlotType) -> bool:
+	if target == slot_type:
+		return true
+	return weapon_data != null and not weapon_data.two_handed and OFF_HAND_OF.get(slot_type) == target

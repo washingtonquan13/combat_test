@@ -11,6 +11,10 @@ extends Resource
 ## own attack on the hotbar — see Unit.combat_abilities().
 
 @export var attacks: Array[AttackRow] = []
+## Takes both hands (GURPS's dagger mark, B269): while it's held, the
+## paired off-hand slot stays empty — no shield, no second weapon. See
+## UnitEquipment.hands_allow().
+@export var two_handed: bool = false
 
 
 ## This weapon's rows of one kind, in authored order.

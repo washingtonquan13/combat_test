@@ -32,6 +32,30 @@ func get_item(slot_key: EquipSlot.Slot) -> ItemInstance:
 	return _equipped.get(slot_key)
 
 
+## Each hand slot's partner, main -> off.
+const OFF_HAND_OF: Dictionary = {
+	EquipSlot.Slot.MELEE_MAIN_HAND: EquipSlot.Slot.MELEE_OFF_HAND,
+	EquipSlot.Slot.RANGED_MAIN_HAND: EquipSlot.Slot.RANGED_OFF_HAND,
+}
+
+
+## Whether item can go in slot_key given what the other hand holds: a
+## two-handed weapon needs the off hand empty, and while one is held
+## the off hand takes nothing. Refuses rather than moving the other
+## hand's item, so nothing ever leaves a slot the player didn't touch.
+func hands_allow(slot_key: EquipSlot.Slot, item: ItemInstance) -> bool:
+	for main in OFF_HAND_OF:
+		if OFF_HAND_OF[main] == slot_key:
+			return not is_two_handed(get_item(main))
+	if OFF_HAND_OF.has(slot_key) and is_two_handed(item):
+		return get_item(OFF_HAND_OF[slot_key]) == null
+	return true
+
+
+static func is_two_handed(item: ItemInstance) -> bool:
+	return item != null and item.gear_data != null and item.gear_data.weapon_data != null 		and item.gear_data.weapon_data.two_handed
+
+
 ## Every slot currently holding an item — used by PartyMemberData.capture()
 ## to enumerate a unit's loadout without needing to probe all 16 EquipSlot
 ## enum values by hand.

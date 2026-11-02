@@ -1478,6 +1478,11 @@ func get_equipped_slots() -> Array:
 	return _equipment.equipped_slots()
 
 
+## See UnitEquipment.hands_allow().
+func hands_allow(slot_key: EquipSlot.Slot, item: ItemInstance) -> bool:
+	return _equipment.hands_allow(slot_key, item)
+
+
 func equip_item(slot_key: EquipSlot.Slot, item: ItemInstance) -> void:
 	_equipment.equip(slot_key, item)
 	equipment_changed.emit(self)

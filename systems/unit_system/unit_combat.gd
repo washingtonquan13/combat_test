@@ -62,7 +62,11 @@ var _toggles: Array[Ability] = []
 ## Level per leveled toggle (Ability.max_level), kept while it is off.
 ## Not saved either.
 var _toggle_levels: Dictionary = {}
-## Template Ability -> {AttackRow -> its bound copy}. See _bound_to.
+## GURPS off-hand attack penalty (B417). No Ambidexterity here.
+const OFF_HAND_PENALTY: int = -4
+
+## Template Ability -> {[AttackRow, off_hand] -> its bound copy}. See
+## _bound_to.
 var _bound: Dictionary = {}
 
 
@@ -187,24 +191,37 @@ func default_ability() -> Ability:
 	return all[0] if not all.is_empty() else null
 
 
-## Every row this unit can attack with of one kind: the held weapon's
-## (main hand, else off hand), then its body's natural attacks. A melee
-## unit with neither punches. Ranged with neither has none.
+## Every row this unit can attack with of one kind in its main hand:
+## the held weapon's, then its body's natural attacks. A melee unit with
+## neither punches. Ranged with neither has none. The off hand's are
+## off_hand_rows().
 func attack_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
-	var rows: Array[AttackRow] = []
-	var slots: Array = [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND] if kind == AttackRow.Kind.MELEE 		else [EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND]
-	for slot in slots:
-		var item: ItemInstance = _owner.get_equipped_item(slot)
-		if item and item.gear_data and item.gear_data.weapon_data:
-			rows.append_array(item.gear_data.weapon_data.rows_of(kind))
-			if not rows.is_empty():
-				break
+	var rows: Array[AttackRow] = _held_rows(kind, false)
 	for row in _owner.natural_attacks:
 		if row and row.kind == kind:
 			rows.append(row)
 	if rows.is_empty() and kind == AttackRow.Kind.MELEE:
 		rows.append(GearDamageEffect.PUNCH)
 	return rows
+
+
+## The off-hand weapon's rows of one kind, each its own attack at
+## OFF_HAND_PENALTY. A shield has none (bashing is its own thing).
+func off_hand_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
+	return _held_rows(kind, true)
+
+
+func _held_rows(kind: AttackRow.Kind, off_hand: bool) -> Array[AttackRow]:
+	var item: ItemInstance = _owner.get_equipped_item(_hand_slot(kind, off_hand))
+	if item and item.gear_data and item.gear_data.weapon_data:
+		return item.gear_data.weapon_data.rows_of(kind)
+	return []
+
+
+static func _hand_slot(kind: AttackRow.Kind, off_hand: bool) -> EquipSlot.Slot:
+	if kind == AttackRow.Kind.MELEE:
+		return EquipSlot.Slot.MELEE_OFF_HAND if off_hand else EquipSlot.Slot.MELEE_MAIN_HAND
+	return EquipSlot.Slot.RANGED_OFF_HAND if off_hand else EquipSlot.Slot.RANGED_MAIN_HAND
 
 
 ## unit.abilities with each generic weapon attack (an ability carrying an
@@ -217,13 +234,17 @@ func combat_abilities() -> Array[Ability]:
 	for ability in _owner.abilities:
 		var template: GearDamageEffect = _unbound_weapon_effect(ability)
 		var rows: Array[AttackRow] = []
+		var off_rows: Array[AttackRow] = []
 		if template:
 			rows = attack_rows(template.kind())
-		if rows.is_empty():
+			off_rows = off_hand_rows(template.kind())
+		if rows.is_empty() and off_rows.is_empty():
 			result.append(ability)
 			continue
 		for row in rows:
-			result.append(_bound_to(ability, row))
+			result.append(_bound_to(ability, row, false))
+		for row in off_rows:
+			result.append(_bound_to(ability, row, true))
 	return result
 
 
@@ -236,21 +257,23 @@ static func _unbound_weapon_effect(ability: Ability) -> GearDamageEffect:
 	return null
 
 
-## The copy of template bound to row, made once and kept, so the same
-## row is the same Ability every time (armed, on the hotbar, in a
-## custom slot).
-func _bound_to(template: Ability, row: AttackRow) -> Ability:
+## The copy of template bound to row in one hand, made once and kept,
+## so the same row is the same Ability every time (armed, on the
+## hotbar, in a custom slot). A row held in both hands is two attacks.
+func _bound_to(template: Ability, row: AttackRow, off_hand: bool) -> Ability:
 	var per_row: Dictionary = _bound.get_or_add(template, {})
-	if per_row.has(row):
-		return per_row[row]
+	var key: Array = [row, off_hand]
+	if per_row.has(key):
+		return per_row[key]
 	var bound: Ability = template.duplicate()
-	bound.ability_name = row.label
+	bound.ability_name = row.label + (" (off hand)" if off_hand else "")
 	var effects: Array[AbilityEffect] = []
 	for effect in template.effects:
 		if effect is GearDamageEffect and effect.row == null:
 			var bound_effect := GearDamageEffect.new()
 			bound_effect.category = effect.category
 			bound_effect.row = row
+			bound_effect.off_hand = off_hand
 			effects.append(bound_effect)
 		else:
 			effects.append(effect)
@@ -259,7 +282,7 @@ func _bound_to(template: Ability, row: AttackRow) -> Ability:
 		var reach: MeleeEnemyTargeting = template.targeting.duplicate()
 		reach.melee_range = row.reach
 		bound.targeting = reach
-	per_row[row] = bound
+	per_row[key] = bound
 	return bound
 
 
@@ -507,7 +530,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 ## built: the roll, the AI's expected damage and the player's hit-chance
 ## readout all start here.
 func to_hit_target(target, ability: Ability) -> int:
-	var number: int = attack_skill()
+	var number: int = attack_skill() + _hands_modifier(ability)
 	number += _owner.outgoing_attack_to_hit_modifier(target, ability)
 	if target is Unit:
 		number += floori(target.get_stat(StatIds.SM))
@@ -519,6 +542,23 @@ func to_hit_target(target, ability: Ability) -> int:
 		if ability.requires_to_hit:
 			number -= 2 * deceptive_level()
 	return number
+
+
+## The weapon's own say in the roll: -1 per point of ST short of the
+## row's minimum (B270; Exhausted's halved ST counts), and -4 in the
+## off hand (B417).
+func _hands_modifier(ability: Ability) -> int:
+	var effect: GearDamageEffect = null
+	if not ability:
+		return 0
+	for e in ability.effects:
+		if e is GearDamageEffect:
+			effect = e
+			break
+	if not effect:
+		return 0
+	var short: int = effect.row_for(_owner).min_st - floori(_owner.get_stat(StatIds.ST))
+	return -maxi(short, 0) + (OFF_HAND_PENALTY if effect.off_hand else 0)
 
 
 # --- Toggles ------------------------------------------------------------
