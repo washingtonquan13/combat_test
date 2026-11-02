@@ -176,9 +176,27 @@ const GAZE_TURN_SECONDS: float = 0.25
 const GAZE_YAW_LIMIT_DEGREES: float = 70.0
 const GAZE_PITCH_LIMIT_DEGREES: float = 45.0
 
+## A named instant in a clip, from a Call Method key on the clip's
+## method track calling release() or impact() below (track path ".." from
+## an AnimationPlayer under the imported body). The moment is a fact
+## about the motion — the frame the hand comes forward — so it lives in
+## the clip; what it MEANS is UnitAnimator's business, which relays it to
+## the ability under way. Nothing here knows about abilities.
+signal moment(name: StringName)
+
 var _gaze_modifier: LookAtModifier3D = null
 var _gaze_resolved: bool = false
 var _gaze_point: Node3D = null
+
+
+## Method-track target: the cast lets go here (the projectile leaves).
+func release() -> void:
+	moment.emit(&"release")
+
+
+## Method-track target: the blow connects, the feet leave the ground.
+func impact() -> void:
+	moment.emit(&"impact")
 
 
 ## The AnimationPlayer to drive, falling back to a search when the export

@@ -26,6 +26,10 @@ extends Resource
 ## [Start(ON_FINISH), Loop(EXTERNAL), Land(ON_FINISH)], a Sword Attack
 ## is just [Sword_Attack(ON_FINISH)], sharing the same phase TYPE
 ## without either needing bespoke code in the player.
+##
+## When the cast lets go and lands is not a field here: it is a Call
+## Method key in the clip itself (see unit_animator.gd's header), so it
+## moves with the clip. A sequence with no key releases as it ends.
 
 @export var phases: Array[AnimationPhase] = []
 

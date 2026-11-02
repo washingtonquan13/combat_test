@@ -15,6 +15,9 @@ extends RefCounted
 
 ## Fired once, on the first impact() — later calls are ignored.
 signal impacted()
+## Fired once, on the first release() — even after finished, since a
+## missed shot still has to fly.
+signal released()
 ## Fired once, when the action's effects have applied (or it missed) and
 ## ability_used has gone out.
 signal finished()
@@ -35,6 +38,7 @@ var is_critical: bool = false
 ## rolled dice and the injury they will do, before any of it lands.
 var plans: Array[Dictionary] = []
 
+var _released: bool = false
 var _impacted: bool = false
 var _finished: bool = false
 
@@ -57,20 +61,52 @@ func planned_damage() -> int:
 
 
 ## Returns true for the call that counts, false for a repeat.
+func release() -> bool:
+	if _released:
+		return false
+	_released = true
+	released.emit()
+	if is_instance_valid(attacker):
+		attacker.cast_released.emit(self)
+	return true
+
+
+func is_released() -> bool:
+	return _released
+
+
+## The safety net for a caster nothing animates: release() anyway after
+## `seconds`. UnitCombat starts it on every use.
+func release_after(tree: SceneTree, seconds: float) -> void:
+	tree.create_timer(seconds).timeout.connect(_releaser(self))
+
+
+## The timer has to keep the action alive until then — nothing else may
+## hold it — and a Callable to its own method would not; a static
+## lambda's capture does.
+static func _releaser(action: AbilityAction) -> Callable:
+	return func(): action.release()
+
+
+## Returns true for the call that counts, false for a repeat.
 func impact() -> bool:
 	if _impacted or _finished:
 		return false
+	release()
 	_impacted = true
 	impacted.emit()
 	return true
 
 
-## Waits for impact(), or `timeout` seconds. Already impacted (a VFX
-## sequence that signals on its first step does it inside
-## ability_use_started) returns at once.
+## Waits for impact(), or `timeout` seconds after the release — the
+## wind-up isn't flight time. Already impacted returns at once.
 func wait_for_impact(tree: SceneTree, timeout: float) -> void:
 	if _impacted:
 		return
+	if not _released:
+		await released
+		if _impacted:
+			return
 	tree.create_timer(timeout).timeout.connect(_on_timeout)
 	await impacted
 

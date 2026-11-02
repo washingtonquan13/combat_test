@@ -71,10 +71,8 @@ var _hold_instance: Node = null
 var _carried := {}
 ## Hold effects still burning after a cast started, waiting for the cast to
 ## let go of them (Unit.cast_released) to play their release animation.
+## The release always comes — AbilityAction times out on its own.
 var _awaiting_release := []
-## A release that never comes (a cast_vfx with no ProjectileStep) still
-## lets go of the flame after this long.
-const RELEASE_TIMEOUT := 1.5
 ## Played instead of nothing at all when this unit takes damage while
 ## visual_state == POSED (see Unit.visual_state) and the held status
 ## doesn't set its own StatusEffect.hit_reaction_vfx — left unset (the
@@ -121,13 +119,18 @@ func _on_ability_armed(ability: Ability) -> void:
 
 ## Launching ANY ability ends the "holding a stance" state — see
 ## unit_sfx.gd's own _on_ability_use_started for why this isn't
-## conditional on which ability specifically armed.
-func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
+## conditional on which ability specifically armed. The cast_vfx itself
+## waits for the release (_on_cast_released). An ability with no cast
+## animation has released already, inside ability_use_started, before
+## this ran; the hold goes out now instead.
+func _on_ability_use_started(_attacker: Unit, _target, _ability: Ability) -> void:
+	var action: AbilityAction = unit.current_action
+	if not action:
+		_stop_hold_vfx()
+		return
 	_hold_until_released()
-
-	var target_position: Vector3 = _get_target_position(target, attacker)
-	var sequence: VfxEffect = ability.cast_vfx if ability.cast_vfx else default_cast_vfx
-	_play(sequence, attacker.global_position, target_position, ability, attacker)
+	if action.is_released():
+		_let_go_all()
 
 
 func _start_hold_vfx(scene: PackedScene, at: CharacterModel.Anchor) -> void:
@@ -172,10 +175,21 @@ func _hold_until_released() -> void:
 		return
 	_hold_instance = null
 	_awaiting_release.append(instance)
-	get_tree().create_timer(RELEASE_TIMEOUT).timeout.connect(_let_go.bind(instance))
 
 
-func _on_cast_released() -> void:
+## The cast lets go: the held flame plays release as the cast_vfx starts,
+## both from the decided action, whatever this unit is doing by now.
+func _on_cast_released(action: AbilityAction) -> void:
+	_let_go_all()
+	var attacker: Unit = action.attacker
+	if not is_instance_valid(attacker):
+		return
+	var ability: Ability = action.ability
+	var sequence: VfxEffect = ability.cast_vfx if ability.cast_vfx else default_cast_vfx
+	_play(sequence, attacker.global_position, _get_target_position(action.target, attacker), ability, attacker)
+
+
+func _let_go_all() -> void:
 	for instance in _awaiting_release.duplicate():
 		_let_go(instance)
 

@@ -422,11 +422,11 @@ signal downed_tally_changed(unit: Unit)
 ## (UnitSfx's impact cue); the rules wait on AbilityAction itself.
 signal impact_triggered()
 
-## Fired when a cast lets go of what its stance was holding: a VFX
-## sequence's ProjectileStep, the moment the projectile leaves. UnitVfx
-## keeps a held flame burning in the hand until then, so the flame that
-## was held is the one that flies. See notify_release().
-signal cast_released()
+## Fired when current_action's cast lets go (AbilityAction.released):
+## the release key in the cast animation, or the sequence's end. UnitVfx
+## starts the ability's cast_vfx here and lets go of a held flame, so the
+## flame that was held is the one that flies.
+signal cast_released(action: AbilityAction)
 
 ## Relayed from _status_manager (see status_manager.gd) — same
 ## relay-not-replace convention as the selection signals below. Consumed
@@ -1814,12 +1814,6 @@ func notify_status_of_damage(amount: int, critical: bool = false) -> void:
 func notify_impact() -> void:
 	if current_action and current_action.impact():
 		impact_triggered.emit()
-
-
-## Called by a VFX sequence's ProjectileStep as the projectile leaves -
-## see cast_released.
-func notify_release() -> void:
-	cast_released.emit()
 
 
 func expire() -> void:

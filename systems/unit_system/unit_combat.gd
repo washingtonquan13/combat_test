@@ -29,6 +29,11 @@ var _owner: Unit
 ## attacker's own next turn (ticks 2->1, stays active) and expires at
 ## the start of the turn after that (ticks 1->0).
 const CRIT_FAIL_PENALTY: StatusEffect = preload("res://data/statuses/crit_fail_penalty.tres")
+## How long a use waits for its cast animation to release (see
+## AbilityAction.release) before releasing anyway: a unit with no
+## UnitAnimator, or a sequence held on an EXTERNAL phase. The animator
+## otherwise releases by the end of the sequence at the latest.
+const RELEASE_TIMEOUT: float = 3.0
 
 ## General ranged high-ground rule — a live position comparison for
 ## THIS attack, not a persistent condition on either unit, so it's
@@ -558,6 +563,9 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	var action := AbilityAction.new(_owner, target, ability, result)
 	_decide(action)
 	_owner.current_action = action
+	# The cast_vfx starts on the release (Unit.cast_released), which the
+	# cast animation marks — see UnitAnimator.
+	action.release_after(_owner.get_tree(), RELEASE_TIMEOUT)
 	_owner.ability_use_started.emit(_owner, target, ability)
 
 	if not action.hit:
@@ -571,19 +579,26 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		_finish(action)
 		return result
 
-	if ability.timing and ability.timing.waits_for_impact:
+	var waits: bool = ability.timing and ability.timing.waits_for_impact
+	if waits:
 		_owner.begin_busy()
 		await action.wait_for_impact(_owner.get_tree(), ability.timing.impact_timeout)
-		_owner.end_busy()
 
 	# The wait is the one stretch where the world moves on without this
 	# attack: a unit target freed or killed meanwhile takes nothing.
 	if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or not target.is_alive()):
 		result["target_lost"] = true
+		if waits:
+			_owner.end_busy()
 		_finish(action)
 		return result
 
 	var effect_data: Dictionary = _apply_effects(action)
+	# Busy until the effects have applied, so one that holds the unit
+	# busy itself (MoveCasterEffect's jump) takes over without a gap —
+	# a became_idle in between would read as the jump having landed.
+	if waits:
+		_owner.end_busy()
 	result["effects"] = effect_data.effects
 	result["damage"] = effect_data.damage
 

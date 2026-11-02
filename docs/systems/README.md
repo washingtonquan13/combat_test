@@ -131,7 +131,7 @@ Encounters became per-instance and worlds became resident, but these places stil
 - Duplicate names resolve first-wins for abilities and last-wins for skills (skills.md)
 
 ### R5. Objects outlive their owner, or owners outlive their objects
-- `became_idle` ONE_SHOT connections are not released when a unit dies mid-action, so the next unit's turn ends early (combat.md)
+- ~~`became_idle` ONE_SHOT connections are not released when a unit dies mid-action, so the next unit's turn ends early (combat.md)~~ FIXED 1bf3e4c
 - The impact-wait loop in `unit_combat` has no freed-unit guard (unit.md #6)
 - `armed_unit` survives death or Downed; freed units stay selected; the interaction menu doesn't re-check its target (abilities.md, selection_indicators.md, interaction.md)
 - `add_member` returns early, so spawned members never get their death wiring (party.md)
@@ -152,4 +152,4 @@ Each step is one system-scoped change set: fix it, verify it, update its doc, co
 | 5 | Save foundation: stable ids, statuses as files, `on_restore`, a single `Unit.save_state`, versioned slots, resume bookkeeping | R2 | save, unit, statuses, abilities, skills, party, demons, combat | Content can't grow safely until saves are stable |
 | 6 | Data out of presentation: inventory owned by PartyManager, change signals on load (DONE for inventory: ItemContainer) | R2/R4 | inventory, ui, save, skills | Removes the upward reaches in the dependency map |
 | 7 | Export-safe content scans | R6 | world, abilities, skills, dialogue, character_creation | One shared helper; do it before the first export test |
-| 8 | The rest, per system, as content needs it | n/a | each doc's remaining rows | n/a |
+| 8 | The rest, per system, as content needs it (DONE: abilities #14, a cast lets go on its clip's release key) | n/a | each doc's remaining rows | n/a |

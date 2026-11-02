@@ -61,8 +61,6 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, c
 		return
 	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
 		from = caster.anchor(launch_from)
-	if is_instance_valid(caster):
-		caster.notify_release()
 
 	var wrapper := Node3D.new()
 	WorldManager.spawn_parent().add_child(wrapper)

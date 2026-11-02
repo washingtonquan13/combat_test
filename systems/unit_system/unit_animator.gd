@@ -22,20 +22,20 @@ extends Node
 ## _advance_to_next_phase()/_active_phase() near the bottom of this file
 ## for the actual player.
 ##
-## Worth knowing: whether damage is actually TIMED to this animation
-## depends on the ability's own waits_for_impact flag (see Ability). If
-## it's on, UnitCombat.use_ability() pauses before landing effects
-## until something calls unit.notify_impact() — typically an
-## AnimationPlayer Call Method Track placed at the frame a weapon
-## actually connects (e.g. mid-swing on whichever clip a melee ability's
-## cast_animation plays). This script doesn't add that track for you —
-## it has to be placed manually in each relevant clip in the
-## AnimationPlayer editor, calling unit.notify_impact via the track's
-## configured target. If waits_for_impact is off (the default), or a
-## clip never got that track added, effects still resolve — either
-## immediately, or after AbilityTiming.impact_timeout elapses as a safety
-## fallback — so a missing track doesn't hang the turn, it just means
-## that specific ability isn't actually synced yet.
+## Moments: a cast clip marks when the cast lets go and when it lands
+## with Call Method Track keys calling CharacterModel.release() or
+## .impact() (track path ".." from the body's AnimationPlayer). They
+## arrive here as CharacterModel.moment. "release" releases the
+## AbilityAction (the projectile and cast VFX start on
+## Unit.cast_released); "impact" is Unit.notify_impact(), which lands an
+## ability whose AbilityTiming.waits_for_impact is on. Keys are placed by
+## hand in the AnimationPlayer editor, e.g. Spell_Simple_Shoot release
+## 0.2, Jump_Start impact 0.25, fireball Cast release 0.3. The cast
+## always lets go: at the sequence's end if no clip had a key, when the
+## sequence is abandoned or replaced, on a hit reaction or death, at once
+## for an ability with no cast animation, and at UnitCombat's
+## RELEASE_TIMEOUT if all else fails. impact_timeout counts from the
+## release, so a missing impact key doesn't hang the turn either.
 ##
 ## OWNS Unit.visual_state/posed_status — this is the only script that
 ## ever writes to them, same as it's the only thing that ever decides
@@ -109,6 +109,13 @@ var _base_animation: String = ""
 ## own header for the full reasoning.
 var _active_sequence: AnimationSequence = null
 var _active_phase_index: int = -1
+## The ability use the active sequence is showing, until it releases
+## (AbilityAction.release): at the clip's release key (CharacterModel's
+## moment, relayed by _on_model_moment), or else when the sequence ends
+## or is cut short — whichever comes first. Held here, not read off
+## Unit.current_action, because a miss finishes the action in the same
+## frame it starts and the shot still has to fly.
+var _cast_action: AbilityAction = null
 ## Bumped every time _play_sequence starts a new play-through — captured
 ## by ON_TIMER phases so a stale timer from an already-abandoned
 ## play-through recognizes itself as stale at fire time, instead of
@@ -177,6 +184,7 @@ func adopt_model(model: CharacterModel) -> void:
 	fly_move_animation = model.fly_move_animation
 	takeoff_animation = model.takeoff_animation
 	land_animation = model.land_animation
+	model.moment.connect(_on_model_moment)
 
 
 func _ready() -> void:
@@ -370,17 +378,43 @@ func _put_stance_away() -> void:
 ## unit_sfx.gd/unit_vfx.gd's own _on_ability_use_started already does
 ## for their own hold moments — regardless of whether it was
 ## specifically the armed ability that fired.
+##
+## Nothing to show means nothing to wait for: an ability that plays no
+## cast animation releases at once.
 func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void:
+	var action: AbilityAction = unit.current_action
 	if _cutscene_claimed:
+		if action:
+			action.release()
 		return
 	_pending_armed_enter_clip = ""
 	_pending_armed_hold = ""
 	if not ability.plays_cast_animation:
+		if action:
+			action.release()
 		return
 	var sequence: AnimationSequence = ability.cast_animation if ability.cast_animation else default_cast_animation
 	# Launched out of the stance: blend from wherever the hold loop is.
 	var from_stance: bool = String(animation_player.current_animation) in _armed_stance_clips
-	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time)
+	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time, action)
+
+
+## A Call Method key in the playing clip (see CharacterModel.moment).
+## "release" lets the cast go; "impact" lands it, through the same
+## Unit.notify_impact() an ImpactSignalStep uses.
+func _on_model_moment(moment_name: StringName) -> void:
+	match moment_name:
+		&"release":
+			_release_cast()
+		&"impact":
+			unit.notify_impact()
+
+
+func _release_cast() -> void:
+	var action := _cast_action
+	_cast_action = null
+	if action:
+		action.release()
 
 
 ## Reads the currently-held status's own hit_reaction_animation if it
@@ -394,6 +428,9 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 	if not unit.is_alive():
 		return
 
+	# The hit clip replaces the wind-up, and with it the release key the
+	# wind-up was going to reach: let the cast go now.
+	_release_cast()
 	var posed: StatusEffect = unit.posed_status
 	if posed and posed.hit_reaction_animation != "":
 		_play(posed.hit_reaction_animation)
@@ -402,6 +439,7 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 
 
 func _on_died(_u: Unit) -> void:
+	_release_cast()
 	_active_sequence = null
 	_active_phase_index = -1
 	_pending_armed_enter_clip = ""
@@ -501,6 +539,7 @@ func _lift_without_takeoff() -> void:
 
 
 func _abandon_sequence() -> void:
+	_release_cast()
 	_sequence_token += 1
 	_external_advance_pending = false
 	_active_sequence = null
@@ -628,6 +667,7 @@ var _cutscene_claimed: bool = false
 
 
 func claim_for_cutscene() -> void:
+	_release_cast()
 	_cutscene_claimed = true
 
 
@@ -670,7 +710,9 @@ func _active_phase() -> AnimationPhase:
 
 
 ## `blend` crossfades into the first clip that plays; see _play.
-func _play_sequence(sequence: AnimationSequence, blend: float = -1.0) -> void:
+func _play_sequence(sequence: AnimationSequence, blend: float = -1.0, action: AbilityAction = null) -> void:
+	_release_cast()
+	_cast_action = action
 	_sequence_token += 1
 	_external_advance_pending = false
 	_active_sequence = sequence
@@ -700,6 +742,9 @@ func _advance_to_next_phase(blend: float = -1.0) -> bool:
 	_active_phase_index += 1
 	var next: AnimationPhase = _active_phase()
 	if not next:
+		# The fallback for a clip with no release key: the cast lets go
+		# as its sequence ends.
+		_release_cast()
 		_active_sequence = null
 		_active_phase_index = -1
 		return false

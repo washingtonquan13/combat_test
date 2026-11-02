@@ -133,6 +133,10 @@ func _launched_from_the_stance() -> void:
 	var flame_player: AnimationPlayer = flame.get_node("AnimationPlayer") if flame else null
 
 	var aim := caster.global_position + caster.visual_forward() * 6.0
+	# As UnitCombat.use_ability starts it: the decided action, whose
+	# release (the Fireball/Cast key) is what launches the cast_vfx.
+	var action := AbilityAction.new(caster, aim, _fireball(), {})
+	caster.current_action = action
 	caster.ability_use_started.emit(caster, aim, _fireball())
 	check("casting launches from the stance", player.current_animation == "Fireball/Cast",
 		player.current_animation)
