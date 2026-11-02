@@ -117,6 +117,9 @@ func _drag_in_grid(overview: Node) -> void:
 	_check("dragged item now sits at %s" % target, bag.cell_of(item) == target)
 	_check("the grid shows one widget per item",
 		_widgets(inventory).size() == bag.items().size())
+	_check("every widget is drawn at its footprint times the grid's cell size",
+		_widgets(inventory).all(func(w: Item) -> bool:
+			return w.size == Vector2(w.get_cell_size() * inventory.cell_size_px)))
 
 
 func _drag_onto_slot_and_back(overview: Node, hero: Unit) -> void:

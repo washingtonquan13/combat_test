@@ -14,7 +14,8 @@ extends PanelContainer
 @onready var _art: TextureRect = %Art
 @onready var _art_sockets: SocketOverlay = %ArtSockets
 
-## Pixels per grid cell in the tooltip's art: twice the bag's 32.
+## Pixels per grid cell in the tooltip's art: fixed, whatever grid the item
+## is hovered in.
 const ART_CELL := 64.0
 const AFFIX_COLOR := Color(0.55, 0.65, 1.0)
 

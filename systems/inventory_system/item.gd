@@ -40,10 +40,12 @@ var gear_data: GearItem:
 		icon = value
 		if is_instance_valid(icon_rect):
 			icon_rect.texture = value
-@export var cell_size_px: int = 64:
-	set(value):
-		cell_size_px = value
-		_update_size()
+## Pixels per cell of the grid this widget sits in, read from that grid
+## (Inventory.cell_size_px) so the two can't disagree; 0 out of a grid.
+var cell_size_px: int:
+	get:
+		var layer := get_parent() as InventoryGridLayer
+		return layer.cell_size_px if layer else 0
 @export var width: int = 1:
 	set(value):
 		width = value
@@ -96,7 +98,7 @@ func _ready() -> void:
 	_show_sockets()
 
 func _update_size() -> void:
-	if layout == LayoutMode.GRID:
+	if layout == LayoutMode.GRID and cell_size_px > 0:
 		size = Vector2i(width, height) * cell_size_px
 	# EQUIPPED layout size is owned by whichever EquipSlot the item is placed in.
 
@@ -114,6 +116,9 @@ func _physics_process(_delta: float) -> void:
 
 func _notification(what: int) -> void:
 	match what:
+		NOTIFICATION_PARENTED:
+			_update_size()
+			_show_sockets()
 		NOTIFICATION_DRAG_BEGIN:
 			if is_same(get_viewport().gui_get_drag_data(), self):
 				is_being_dragged = true
@@ -130,7 +135,10 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := TextureRect.new()
 	preview.texture = icon
 	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview.size = Vector2i(width, height) * cell_size_px
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# As big as it's drawn where it was picked up: its footprint in a
+	# grid, the slot in an EquipSlot.
+	preview.size = size
 	preview.position = -preview.size / 2
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_drag_preview(preview)

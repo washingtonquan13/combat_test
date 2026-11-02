@@ -14,7 +14,6 @@ script = ExtResource("1_3aprp")
 tooltip_scene = ExtResource("2_6muww")
 context_menu_scene = ExtResource("3_vljjh")
 icon = ExtResource("3_6muww")
-cell_size_px = 32
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 2
