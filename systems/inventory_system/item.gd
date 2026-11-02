@@ -6,7 +6,7 @@ extends Container
 @onready var icon_rect: TextureRect = $Icon
 @onready var stack_count_label: Label = $StackCount
 @onready var rarity_frame: ReferenceRect = $RarityFrame
-@onready var socket_pips: HBoxContainer = $Sockets
+@onready var socket_overlay: SocketOverlay = $Sockets
 
 @export var tooltip_scene: PackedScene
 @export var context_menu_scene: PackedScene
@@ -83,6 +83,7 @@ enum LayoutMode { GRID, EQUIPPED }
 	set(value):
 		layout = value
 		_update_size()
+		_show_sockets()
 
 var is_being_dragged: bool = false
 var context_menu: Window = null
@@ -160,24 +161,17 @@ func _on_instance_changed() -> void:
 	_show_sockets()
 
 
-## Rarity frame and one pip per socket: dark when empty, gold when a rune
-## fills it.
+## Rarity frame, and the sockets over the art — only in the grid, where
+## the art is at its true footprint; the shrunken equipped preview leaves
+## them to the tooltip's full-size art.
 func _show_sockets() -> void:
-	if not is_instance_valid(socket_pips):
+	if not is_instance_valid(socket_overlay):
 		return
 	rarity_frame.visible = instance != null and instance.rarity != ItemInstance.Rarity.NORMAL
 	if instance:
 		rarity_frame.border_color = instance.rarity_color()
-	for pip in socket_pips.get_children():
-		pip.queue_free()
-	if not instance:
-		return
-	for i in instance.sockets:
-		var pip := ColorRect.new()
-		pip.custom_minimum_size = Vector2(6, 6)
-		pip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		pip.color = Color(0.95, 0.75, 0.3) if i < instance.runes.size() else Color(0.08, 0.08, 0.1, 0.9)
-		socket_pips.add_child(pip)
+	socket_overlay.visible = layout == LayoutMode.GRID
+	socket_overlay.show_sockets(instance, cell_size_px)
 
 
 ## Dropping a usable item on this one — a rune into a free socket, an awl

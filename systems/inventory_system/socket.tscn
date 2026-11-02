@@ -1,0 +1,39 @@
+[gd_scene load_steps=2 format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_socket"]
+bg_color = Color(0.04, 0.03, 0.03, 1)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.36, 0.29, 0.2, 1)
+corner_radius_top_left = 21
+corner_radius_top_right = 21
+corner_radius_bottom_right = 21
+corner_radius_bottom_left = 21
+corner_detail = 16
+shadow_color = Color(0, 0, 0, 0.6)
+shadow_size = 2
+shadow_offset = Vector2(1, 1)
+
+[node name="Socket" type="Panel"]
+custom_minimum_size = Vector2(42, 42)
+offset_right = 42.0
+offset_bottom = 42.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_socket")
+
+[node name="Rune" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 4.0
+offset_right = -4.0
+offset_bottom = -4.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
