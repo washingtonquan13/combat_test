@@ -1,116 +1,68 @@
 class_name GearDamageEffect
 extends AbilityEffect
-## Rolls damage from whichever weapon the attacker actually has
-## equipped, instead of a fixed bonus baked into the ability itself
-## (see StDamageEffect) — the ability just says "melee" or "ranged" via
-## category; the equipped weapon (or lack of one) decides the rest.
-## Swing/Thrust weapons share UnitCombat.roll_damage()'s exact GURPS
-## formula, just fed the weapon's damage_bonus instead of a value
-## hardcoded on this effect; Fixed weapons roll their own dice entirely,
-## ignoring the attacker's ST.
+## Rolls damage from one AttackRow — a line of the held weapon's table,
+## or of the body's natural attacks — instead of a fixed bonus baked
+## into the ability itself (see StDamageEffect).
 ##
-## Nothing equipped in either hand for this category: a GURPS punch,
-## thrust-1 crushing (B271). Kicks and natural weapons (claws, teeth)
-## aren't modelled, so a weaponless demon punches.
+## Authored with no row, this is the generic "melee" or "ranged" attack
+## (basic_attack_melee/ranged.tres): Unit.combat_abilities() turns it
+## into one copy per row the unit can actually use, each bound to its
+## row, and those copies are what the hotbar and the AI pick from. Used
+## directly, unbound, it attacks with the unit's first row of its
+## category.
+##
+## Nothing to attack with: a GURPS punch, thr-1 crushing (B271). That
+## includes ranged with no ranged rows, which still punches at range,
+## exactly as before rows existed.
 
 enum WeaponCategory { MELEE, RANGED }
 
 @export var category: WeaponCategory = WeaponCategory.MELEE
+## Which row this attack is. Null on the generic template — see above.
+@export var row: AttackRow
 
-const PUNCH_BONUS: int = -1
+const PUNCH: AttackRow = preload("res://data/attacks/punch.tres")
 
 
 func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
-	var weapon: GearItem = _find_weapon(attacker)
-	var raw_damage: int = _roll(attacker, weapon, is_critical)
+	var attack: AttackRow = row_for(attacker)
 	# Critical hit: ignores DR entirely and deals guaranteed max damage
 	# (see UnitCombat.max_damage) — no second roll, staying consistent
 	# with this project's fast/not-roll-heavy combat goal.
-	var applied: int = DamageResolver.injury(raw_damage, target, _wound_type(weapon), _armor_divisor(weapon), is_critical, false, attacker.hit_location_for(ability))
+	var raw_damage: int = attack.roll(attacker, is_critical)
+	var applied: int = DamageResolver.injury(raw_damage, target, attack.wound_type, attack.armor_divisor, is_critical, false, attacker.hit_location_for(ability))
 	target.take_damage(applied, is_critical)
 
 	return {"raw_damage": raw_damage, "damage": applied}
 
 
-## Main hand first, then off hand — covers a two-handed weapon in the
-## main slot (the common case) as well as an off-hand-only weapon (a
-## dagger paired with a shield in the main slot). Returns null if
-## neither slot holds an actual weapon (empty, or gear with no
-## weapon_data — a shield, say).
-func _find_weapon(attacker: Unit) -> GearItem:
-	var main_key: EquipSlot.Slot = EquipSlot.Slot.MELEE_MAIN_HAND if category == WeaponCategory.MELEE else EquipSlot.Slot.RANGED_MAIN_HAND
-	var off_key: EquipSlot.Slot = EquipSlot.Slot.MELEE_OFF_HAND if category == WeaponCategory.MELEE else EquipSlot.Slot.RANGED_OFF_HAND
-
-	var main_item: ItemInstance = attacker.get_equipped_item(main_key)
-	if main_item and main_item.gear_data and main_item.gear_data.weapon_data:
-		return main_item.gear_data
-
-	var off_item: ItemInstance = attacker.get_equipped_item(off_key)
-	if off_item and off_item.gear_data and off_item.gear_data.weapon_data:
-		return off_item.gear_data
-
-	return null
+func kind() -> AttackRow.Kind:
+	return AttackRow.Kind.MELEE if category == WeaponCategory.MELEE else AttackRow.Kind.RANGED
 
 
-func _roll(attacker: Unit, weapon: GearItem, is_critical: bool) -> int:
-	if not weapon:
-		return attacker.max_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS) if is_critical \
-			else attacker.roll_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS)
-
-	var weapon_data: WeaponData = weapon.weapon_data
-	match weapon_data.damage_type:
-		WeaponData.DamageType.FIXED:
-			if is_critical:
-				return weapon_data.fixed_dice_count * weapon_data.fixed_dice_sides + weapon_data.fixed_dice_bonus
-			var total: int = 0
-			for _i in weapon_data.fixed_dice_count:
-				total += randi_range(1, weapon_data.fixed_dice_sides)
-			return total + weapon_data.fixed_dice_bonus
-		WeaponData.DamageType.THRUST:
-			return attacker.max_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus) if is_critical \
-				else attacker.roll_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus)
-		_:
-			return attacker.max_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus) if is_critical \
-				else attacker.roll_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus)
-
-
-## A punch is crushing; a weapon says what it is.
-func _wound_type(weapon: GearItem) -> DamageResolver.WoundType:
-	return weapon.weapon_data.wound_type if weapon else DamageResolver.WoundType.CRUSHING
+## The bound row, else the attacker's first of this category, else a
+## punch.
+func row_for(attacker: Unit) -> AttackRow:
+	if row:
+		return row
+	var rows: Array[AttackRow] = attacker.attack_rows(kind())
+	return rows[0] if not rows.is_empty() else PUNCH
 
 
 func located_wound_type(attacker: Unit) -> int:
-	return _wound_type(_find_weapon(attacker))
-
-
-func _armor_divisor(weapon: GearItem) -> float:
-	return weapon.weapon_data.armor_divisor if weapon else 1.0
+	return row_for(attacker).wound_type
 
 
 func describe() -> String:
+	if row:
+		return "%s: %s damage" % [row.label, row.describe_damage()]
 	var label := "Melee" if category == WeaponCategory.MELEE else "Ranged"
 	return "%s weapon damage" % label
 
 
-## Mirrors _roll()'s own branching without rolling — see AbilityEffect.
-## expected_damage's own header. No weapon (a punch) and THRUST/SWING
-## weapons both delegate to attacker.expected_damage exactly as _roll()
-## delegates to attacker.roll_damage/max_damage; only FIXED weapons need
-## their own average-of-dice math since they bypass the attacker's ST
-## entirely.
+## Mirrors apply() without rolling — see AbilityEffect.expected_damage.
 func expected_damage(attacker: Unit, target: Unit = null, location: HitLocation = null) -> float:
-	var weapon: GearItem = _find_weapon(attacker)
-	if not weapon:
-		return attacker.expected_damage(UnitCombat.DamageType.THRUST, PUNCH_BONUS, target, DamageResolver.WoundType.CRUSHING, 1.0, location)
-
-	var weapon_data: WeaponData = weapon.weapon_data
-	match weapon_data.damage_type:
-		WeaponData.DamageType.FIXED:
-			return DamageResolver.expected_injury(weapon_data.fixed_dice_count, weapon_data.fixed_dice_sides, weapon_data.fixed_dice_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor, false, location)
-		WeaponData.DamageType.THRUST:
-			return attacker.expected_damage(UnitCombat.DamageType.THRUST, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor, location)
-		_:
-			return attacker.expected_damage(UnitCombat.DamageType.SWING, weapon_data.damage_bonus, target, weapon_data.wound_type, weapon_data.armor_divisor, location)
+	return row_for(attacker).expected_damage(attacker, target, location)

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="AttackRow" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="1_row"]
+
+[resource]
+script = ExtResource("1_row")
+label = "Claws"
+damage_base = 1
+damage_bonus = -1
+wound_type = 1

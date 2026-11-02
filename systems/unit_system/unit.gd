@@ -35,6 +35,7 @@ extends CharacterBody3D
 			faction = definition.faction
 			_unit_stats().reset(definition.stats)
 			abilities = definition.abilities
+			natural_attacks = definition.natural_attacks
 			# Resolved, not raw: a species normally names an AiArchetype
 			# and leaves ai_behaviors empty — see UnitDefinition.
 			ai_behaviors = definition.resolved_ai_behaviors()
@@ -227,6 +228,9 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 ## AbilityManager — that's what makes click-to-attack keep working before
 ## a hotbar exists to actually choose between multiple abilities.
 @export var abilities: Array[Ability] = []
+## This body's own attacks (claws, teeth) — see UnitDefinition.
+## natural_attacks and combat_abilities().
+@export var natural_attacks: Array[AttackRow] = []
 ## Composable AI decision rules, tried in order — see AiBehavior. Empty
 ## (every unit today) falls back to CombatAI's original hardcoded
 ## nearest-hostile/default_ability baseline, so no existing content
@@ -391,6 +395,9 @@ signal stat_changed(unit: Unit, id: StringName)
 ## A toggle ability was switched on or off (UnitCombat.set_toggled) — the
 ## hotbar's lit borders.
 signal toggles_changed(unit: Unit)
+## Something was equipped or taken off — the attacks it offers changed
+## (see combat_abilities()).
+signal equipment_changed(unit: Unit)
 ## A pool's current or maximum may have changed — HP bars, FP pips.
 signal pool_changed(unit: Unit, id: StringName, current: int, maximum: int)
 signal healed(unit: Unit, amount: int)
@@ -1473,10 +1480,23 @@ func get_equipped_slots() -> Array:
 
 func equip_item(slot_key: EquipSlot.Slot, item: ItemInstance) -> void:
 	_equipment.equip(slot_key, item)
+	equipment_changed.emit(self)
 
 
 func unequip_item(slot_key: EquipSlot.Slot) -> ItemInstance:
-	return _equipment.unequip(slot_key)
+	var item: ItemInstance = _equipment.unequip(slot_key)
+	equipment_changed.emit(self)
+	return item
+
+
+## See UnitCombat.combat_abilities().
+func combat_abilities() -> Array[Ability]:
+	return _combat.combat_abilities()
+
+
+## See UnitCombat.attack_rows().
+func attack_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
+	return _combat.attack_rows(kind)
 
 
 func alignment_category() -> int:

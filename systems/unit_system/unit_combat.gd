@@ -62,6 +62,8 @@ var _toggles: Array[Ability] = []
 ## Level per leveled toggle (Ability.max_level), kept while it is off.
 ## Not saved either.
 var _toggle_levels: Dictionary = {}
+## Template Ability -> {AttackRow -> its bound copy}. See _bound_to.
+var _bound: Dictionary = {}
 
 
 ## GURPS ST-based swing/thrust damage: the Basic Set damage table (B16)
@@ -177,11 +179,88 @@ func attack_skill() -> int:
 	return SkillCalculator.get_skill_level(_owner, "Basic Attack").skill_level
 
 
-## abilities[0], or null if this unit has none equipped. Used as the
+## combat_abilities()[0], or null if this unit has none. Used as the
 ## fallback when nothing's explicitly armed via AbilityManager — see that
 ## autoload's doc comment.
 func default_ability() -> Ability:
-	return _owner.abilities[0] if not _owner.abilities.is_empty() else null
+	var all: Array[Ability] = combat_abilities()
+	return all[0] if not all.is_empty() else null
+
+
+## Every row this unit can attack with of one kind: the held weapon's
+## (main hand, else off hand), then its body's natural attacks. A melee
+## unit with neither punches. Ranged with neither has none.
+func attack_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
+	var rows: Array[AttackRow] = []
+	var slots: Array = [EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND] if kind == AttackRow.Kind.MELEE 		else [EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND]
+	for slot in slots:
+		var item: ItemInstance = _owner.get_equipped_item(slot)
+		if item and item.gear_data and item.gear_data.weapon_data:
+			rows.append_array(item.gear_data.weapon_data.rows_of(kind))
+			if not rows.is_empty():
+				break
+	for row in _owner.natural_attacks:
+		if row and row.kind == kind:
+			rows.append(row)
+	if rows.is_empty() and kind == AttackRow.Kind.MELEE:
+		rows.append(GearDamageEffect.PUNCH)
+	return rows
+
+
+## unit.abilities with each generic weapon attack (an ability carrying an
+## unbound GearDamageEffect — basic_attack_melee/ranged.tres) replaced by
+## one attack per row it can use right now: a sword's Swing and Thrust,
+## a beast's Claws and Bite. What the hotbar shows and the AI picks
+## from. unit.abilities itself, and saves, keep the generic one.
+func combat_abilities() -> Array[Ability]:
+	var result: Array[Ability] = []
+	for ability in _owner.abilities:
+		var template: GearDamageEffect = _unbound_weapon_effect(ability)
+		var rows: Array[AttackRow] = []
+		if template:
+			rows = attack_rows(template.kind())
+		if rows.is_empty():
+			result.append(ability)
+			continue
+		for row in rows:
+			result.append(_bound_to(ability, row))
+	return result
+
+
+static func _unbound_weapon_effect(ability: Ability) -> GearDamageEffect:
+	if not ability:
+		return null
+	for effect in ability.effects:
+		if effect is GearDamageEffect and effect.row == null:
+			return effect
+	return null
+
+
+## The copy of template bound to row, made once and kept, so the same
+## row is the same Ability every time (armed, on the hotbar, in a
+## custom slot).
+func _bound_to(template: Ability, row: AttackRow) -> Ability:
+	var per_row: Dictionary = _bound.get_or_add(template, {})
+	if per_row.has(row):
+		return per_row[row]
+	var bound: Ability = template.duplicate()
+	bound.ability_name = row.label
+	var effects: Array[AbilityEffect] = []
+	for effect in template.effects:
+		if effect is GearDamageEffect and effect.row == null:
+			var bound_effect := GearDamageEffect.new()
+			bound_effect.category = effect.category
+			bound_effect.row = row
+			effects.append(bound_effect)
+		else:
+			effects.append(effect)
+	bound.effects = effects
+	if template.targeting is MeleeEnemyTargeting:
+		var reach: MeleeEnemyTargeting = template.targeting.duplicate()
+		reach.melee_range = row.reach
+		bound.targeting = reach
+	per_row[row] = bound
+	return bound
 
 
 ## Whichever ability would fire if `acting_unit` left-clicks this unit

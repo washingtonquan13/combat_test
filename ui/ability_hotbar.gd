@@ -183,16 +183,18 @@ func _connect_current_unit(unit: Unit) -> void:
 	_current_unit = unit
 	unit.ability_used.connect(_on_ability_used)
 	unit.toggles_changed.connect(_on_toggles_changed)
+	unit.equipment_changed.connect(_on_equipment_changed)
 
 
 func _disconnect_current_unit() -> void:
 	if _current_unit and is_instance_valid(_current_unit) and _current_unit.ability_used.is_connected(_on_ability_used):
 		_current_unit.ability_used.disconnect(_on_ability_used)
 		_current_unit.toggles_changed.disconnect(_on_toggles_changed)
+		_current_unit.equipment_changed.disconnect(_on_equipment_changed)
 	_current_unit = null
 
 
-## Filters unit.abilities into CommonGrid/AbilitiesGrid by
+## Filters unit.combat_abilities() into CommonGrid/AbilitiesGrid by
 ## Ability.category, adds the toggles every unit has to the end of
 ## CommonGrid (UnitCombat.AIM_TOGGLES and DECEPTIVE_ATTACK), then fills CustomGrid from unit.custom_slots
 ## index-for-index, including null entries (an empty Custom slot is
@@ -203,7 +205,7 @@ func _rebuild(unit: Unit) -> void:
 	if not slot_scene:
 		return
 
-	for ability in unit.abilities:
+	for ability in unit.combat_abilities():
 		var target_grid: GridContainer = _common_grid if ability.category == Ability.Category.COMMON else _abilities_grid
 		_add_slot(target_grid, unit, ability, -1)
 	for toggle in UnitCombat.AIM_TOGGLES:
@@ -253,6 +255,16 @@ func _on_ability_used(_attacker: Unit, _target, _result: Dictionary) -> void:
 	# Using one ability can make OTHERS unusable too (has_attacked), so
 	# refresh every slot's disabled state, not just the one that fired.
 	_update_slot_states()
+
+
+## A different weapon offers different attacks. An armed attack the new
+## loadout no longer has is disarmed rather than left pointing at a
+## weapon that was put away.
+func _on_equipment_changed(unit: Unit) -> void:
+	var available: Array[Ability] = unit.combat_abilities()
+	if AbilityManager.armed_ability and AbilityManager.armed_ability.effects.any(func(e): return e is GearDamageEffect) 			and not AbilityManager.armed_ability in available:
+		AbilityManager.disarm()
+	_rebuild(unit)
 
 
 func _on_toggles_changed(_unit: Unit) -> void:

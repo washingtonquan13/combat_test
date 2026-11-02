@@ -10,6 +10,8 @@
 [ext_resource type="Resource" path="res://data/ai_archetypes/skirmisher.tres" id="99_arch"]
 [ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="90_row"]
+[ext_resource type="Resource" path="res://data/attacks/claws.tres" id="91_claws"]
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
 root = ExtResource("7_greeting")
@@ -29,5 +31,6 @@ portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("98_model")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
+natural_attacks = Array[ExtResource("90_row")]([ExtResource("91_claws")])
 negotiable = true
 negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])

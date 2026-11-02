@@ -93,6 +93,11 @@ extends Resource
 ## bodies. See CharacterModel.
 @export var model_scene: PackedScene
 @export var abilities: Array[Ability] = []
+## Attacks this species' body makes — claws, teeth, horns (data/attacks/).
+## Each is a row like a weapon's (see AttackRow) and shows up as its own
+## attack beside any weapon the unit holds. Empty means it punches when
+## it has no weapon.
+@export var natural_attacks: Array[AttackRow] = []
 ## This species' tactical role — see AiArchetype. Supplies the behaviors
 ## and smartness tier, so a species normally sets this and nothing else
 ## AI-related.

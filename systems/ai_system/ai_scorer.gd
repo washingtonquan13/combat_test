@@ -279,7 +279,7 @@ static func _enumerate_baseline_candidates(unit: Unit, tree: SceneTree) -> Array
 ## (threat_output below).
 static func _damaging_abilities(unit: Unit) -> Array[Ability]:
 	var abilities: Array[Ability] = []
-	for ability in unit.abilities:
+	for ability in unit.combat_abilities():
 		if not ability.targeting:
 			continue
 		if not ability.targeting.targets_single_enemy():

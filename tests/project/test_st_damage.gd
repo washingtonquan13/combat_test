@@ -52,7 +52,19 @@ func run() -> void:
 	var sword: GearItem = load("res://data/items/iron_sword.tres")
 	var fireball: Ability = load("res://data/abilities/explosive_fireball.tres")
 	var burns: bool = fireball.effects.any(func(e): return "wound_type" in e and e.wound_type == DamageResolver.WoundType.BURNING)
-	check("the sword cuts and the fireball burns", sword.weapon_data.wound_type == DamageResolver.WoundType.CUTTING and burns)
+	check("the sword cuts and the fireball burns", sword.weapon_data.attacks[0].wound_type == DamageResolver.WoundType.CUTTING and burns)
+
+	# Rows: each way to attack is its own ability, and the loadout picks them.
+	var fighter: Unit = spawn_unit(&"player", 12, 10, 10, [melee()], Vector3(4, 0, 0))
+	var names: Callable = func(u: Unit): return u.combat_abilities().map(func(a): return a.ability_name)
+	check("an empty hand offers a punch", names.call(fighter) == ["Punch"], "got %s" % [names.call(fighter)])
+	fighter.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND, ItemInstance.new(sword))
+	check("a sword offers swing and thrust", names.call(fighter) == ["Swing", "Thrust"], "got %s" % [names.call(fighter)])
+	check("the same row is the same ability each time", fighter.combat_abilities()[1] == fighter.combat_abilities()[1])
+	var thrust: Ability = fighter.combat_abilities()[1]
+	check("the thrust row impales", thrust.effects[0].located_wound_type(fighter) == DamageResolver.WoundType.IMPALING)
+	var beast: Unit = spawn_demon("beast", Vector3(8, 0, 0))
+	check("a beast bites and claws", names.call(beast) == ["Bite", "Claws"], "got %s" % [names.call(beast)])
 	free_spawned()
 
 
