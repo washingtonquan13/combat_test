@@ -55,6 +55,7 @@ None of these validate or execute actions. Execution goes to CombatManager, Abil
   - **Indicators:** set_live, hide_visuals and serves (indicator_base.gd:66-83), driven by ClickRouter._apply_intent through the `indicators` group (ground_click_target.gd:188-194; group joined at indicator_base.gd:50).
 - **Signals out**
   - SelectionManager.selection_changed goes to AbilityHotbar (ability_hotbar.gd:55-62) and others.
+  - A non-additive select() of a unit that is already in a group still emits: dropping the others is a change. Before this, the hotbar stayed on whichever unit was first.
 - **Signals in**
   - SelectionManager listens to CombatManager.turn_started, world-scoped (selection_manager.gd:43-47).
   - ClickRouter listens to WorldManager.world_focused, which resets `_last` (ground_click_target.gd:113, 161-162).

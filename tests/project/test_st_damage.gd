@@ -114,6 +114,20 @@ func run() -> void:
 	var far: Unit = spawn_unit(&"enemy", 10, 10, 10, [melee()], Vector3(-25, 0, 0))
 	check("past ½D the damage is halved",
 		is_equal_approx(shoot.effects[0].expected_damage(fighter, far), shoot.effects[0].expected_damage(fighter, near) / 2.0))
+	var bystander: Unit = spawn_unit(&"player", 10, 10, 10, [melee()], Vector3(-10, 0, 0))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check("a unit in the way does not block the shot", LineOfSight.has_clear_shot(fighter, far))
+	# Picking one unit out of a group is a selection change too.
+	SelectionManager.select(bystander)
+	SelectionManager.add(fighter)
+	var emits: Array = [0]
+	var count: Callable = func(_units): emits[0] += 1
+	SelectionManager.selection_changed.connect(count)
+	SelectionManager.select(fighter)
+	SelectionManager.selection_changed.disconnect(count)
+	check("selecting one of a group says so", emits[0] == 1 and SelectionManager.selected_units == [fighter])
+	SelectionManager.deselect_all()
 	fighter.unequip_item(main)
 	fighter.equip_item(main, ItemInstance.new(load("res://data/items/throwing_axe.tres")))
 	check("a throwing axe swings and throws", names.call(fighter) == ["Swing", "Shoot", "Throw"], "got %s" % [names.call(fighter)])

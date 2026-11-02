@@ -82,6 +82,7 @@ Each fight is an `Encounter` Node. It owns its turn order, round counter, phase 
 - `WorldContext.dispose` finishes encounters (world_context.gd:88-92).
 - `UnitQuery.living_units` is used by aggro pull, `AGGRO_PULL_RADIUS` 10 (combat_manager.gd:59, 160-173).
 - `LineOfSight.has_clear_shot` (line_of_sight.gd) and `SuccessRoll` (success_roll.gd) are static helpers that combat and detection share.
+  - Units share physics layer 1 with walls. The LoS ray steps past any Unit it meets, so only the environment blocks a shot. Before this, every unit in the way blocked it.
 
 ## Assumptions and invariants
 - Initiative is exact Basic Speed (fraction kept) descending, then DX (GURPS's own tie rule), then a d6 tiebreak rolled up front (encounter.gd `begin`; uncommitted). It is fixed for the whole fight; joiners are inserted by `add_unit` (268-288).

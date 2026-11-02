@@ -59,7 +59,14 @@ func select(unit: Unit, additive: bool = false) -> void:
 		return
 
 	if not additive:
+		var before: int = selected_units.size()
 		_clear_all_except(unit)
+		# Already selected among others: dropping the others is still a
+		# change, or whoever was first stays on the hotbar.
+		if unit in selected_units:
+			if selected_units.size() != before:
+				selection_changed.emit(selected_units)
+			return
 
 	if unit in selected_units:
 		return

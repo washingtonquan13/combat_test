@@ -54,5 +54,14 @@ static func has_clear_shot_to_point(
 	exclude.append_array(extra_exclude)
 	query.exclude = exclude
 
-	var result := space_state.intersect_ray(query)
-	return result.is_empty()
+	# Units share layer 1 with the walls, so a body met on the way is
+	# stepped past rather than read as cover.
+	while true:
+		var result := space_state.intersect_ray(query)
+		if result.is_empty():
+			return true
+		if not result.collider is Unit:
+			return false
+		exclude.append(result.rid)
+		query.exclude = exclude
+	return true
