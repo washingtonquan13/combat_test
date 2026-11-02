@@ -50,6 +50,18 @@ static func get_bought() -> Array[StatDefinition]:
 	return result
 
 
+## A derived stat's formula as a reader sees it, each input named and
+## valued — "floor(Speed 7.25) + 3" — for a tooltip's breakdown.
+static func describe_formula(definition: StatDefinition, values: Dictionary) -> String:
+	var text: String = definition.formula.replace("floori(", "floor(")
+	for input_id in inputs_of(definition):
+		var input := find(StringName(input_id))
+		var named: String = "%s %s" % [input.label(), StatDefinition.format(values.get(StringName(input_id), 0.0))]
+		var word := RegEx.create_from_string("\\b%s\\b" % input_id)
+		text = word.sub(text, named, true)
+	return text
+
+
 ## A derived stat's formula result for these input values (id -> float),
 ## fraction kept.
 static func evaluate(definition: StatDefinition, values: Dictionary) -> float:

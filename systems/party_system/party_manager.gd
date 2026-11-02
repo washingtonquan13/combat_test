@@ -40,7 +40,7 @@ signal defeated()
 ## Inventory widget, which only draws it (see Inventory.bind()), so the
 ## items exist, save and load whether or not any screen is up. Saved as
 ## its own [inventory] section, the same one the widget used to register.
-var inventory := ItemContainer.new(12, 6)
+var inventory := ItemContainer.new(10, 13)
 
 ## Every group the party is currently divided into - see PartyGroup. One
 ## while the party is together, which is the ordinary case and the only

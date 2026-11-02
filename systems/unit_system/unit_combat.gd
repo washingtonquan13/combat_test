@@ -897,14 +897,27 @@ func spend_defense(kind: StringName) -> void:
 ## A null attacker is taken as an armed one — the character sheet's
 ## number, with no foe in mind.
 func parry_target(attacker: Unit) -> int:
-	var number: int = _half_skill_defense() + PARRY_PENALTY * parries
+	return _sum(parry_parts(attacker))
+
+
+## How parry_target is reached, {label, amount} each — the character
+## sheet's tooltip. parry_target is their sum, so the two can't disagree.
+func parry_parts(attacker: Unit) -> Array[Dictionary]:
+	var parts: Array[Dictionary] = _half_skill_parts()
+	if parries > 0:
+		parts.append({"label": "Parried %d× this turn" % parries, "amount": PARRY_PENALTY * parries})
 	if not _holds_melee_weapon(_owner) and (attacker == null or _holds_melee_weapon(attacker)):
-		number += BARE_HAND_PARRY
-	return number
+		parts.append({"label": "Bare hand against a weapon", "amount": BARE_HAND_PARRY})
+	return parts
 
 
 func block_target() -> int:
-	return _half_skill_defense()
+	return _sum(block_parts())
+
+
+## See parry_parts.
+func block_parts() -> Array[Dictionary]:
+	return _half_skill_parts()
 
 
 ## Dodge plus DB. The shield's DB is added here rather than in the Dodge
@@ -912,6 +925,13 @@ func block_target() -> int:
 ## the shield is no smaller for its bearer being hurt.
 func dodge_target() -> int:
 	return floori(_owner.get_stat(StatIds.DODGE)) + floori(_owner.get_stat(StatIds.DB))
+
+
+## The Dodge stat's own breakdown (Basic Speed, halvings), then DB's.
+## Not summed into dodge_target: a halving applies to the parts before
+## it, so the tooltip shows it as a line where it falls.
+func dodge_parts() -> Array[Dictionary]:
+	return _owner.stat_breakdown(StatIds.DODGE) + _db_parts()
 
 
 func holds_shield() -> bool:
@@ -922,8 +942,30 @@ func holds_shield() -> bool:
 	return false
 
 
-func _half_skill_defense() -> int:
-	return 3 + floori(attack_skill() / 2.0) + floori(_owner.get_stat(StatIds.DB))
+func _half_skill_parts() -> Array[Dictionary]:
+	var skill: int = attack_skill()
+	var parts: Array[Dictionary] = [
+		{"label": "Base", "amount": 3},
+		{"label": "Half of attack skill %d" % skill, "amount": floori(skill / 2.0)},
+	]
+	return parts + _db_parts()
+
+
+## DB by source — what each shield adds. A unit with none has no line.
+func _db_parts() -> Array[Dictionary]:
+	var parts: Array[Dictionary] = []
+	for part in _owner.stat_breakdown(StatIds.DB):
+		if part.get("amount", 0.0) != 0.0:
+			parts.append({"label": "%s (DB)" % part.label if part.label != "Base" else "Defense Bonus",
+					"amount": floori(part.amount)})
+	return parts
+
+
+static func _sum(parts: Array[Dictionary]) -> int:
+	var total: int = 0
+	for part in parts:
+		total += int(part.amount)
+	return total
 
 
 static func _holds_melee_weapon(unit: Unit) -> bool:

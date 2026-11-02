@@ -80,6 +80,10 @@ func modifier_multiplier() -> float:
 	return product
 
 
+func active_modifiers() -> Array[ActiveStatModifier]:
+	return _modifiers
+
+
 func modifier_sources() -> Array[String]:
 	var sources: Array[String] = []
 	for active in _modifiers:

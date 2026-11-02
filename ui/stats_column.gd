@@ -9,7 +9,8 @@ extends MarginContainer
 ## HP/FP, ST/DX/IQ/HT/Will/Per, Basic Speed, Move (with Air Move for a
 ## unit that can fly), Thrust/Swing; the active defenses and DR; every
 ## attack the unit has now, both weapon sets at once since both are
-## always live; and its conditions.
+## always live; and its conditions. Hovering a number shows how it is
+## reached (stat_tip.gd), so the sheet itself carries no footnotes.
 
 @onready var _name_label: Label = %NameLabel
 @onready var _hp_value: Label = %HPValue
@@ -30,7 +31,6 @@ extends MarginContainer
 @onready var _dodge_value: Label = %DodgeValue
 @onready var _parry_value: Label = %ParryValue
 @onready var _block_value: Label = %BlockValue
-@onready var _defense_note: Label = %DefenseNote
 @onready var _attack_list: VBoxContainer = %AttackList
 @onready var _condition_list: HFlowContainer = %ConditionList
 
@@ -64,12 +64,49 @@ func refresh(unit: Unit) -> void:
 	_dodge_value.text = str(unit.dodge_target())
 	_parry_value.text = str(unit.parry_target())
 	_block_value.text = str(unit.block_target()) if unit.holds_shield() else "–"
-	var db: int = floori(unit.get_stat(StatIds.DB))
-	_defense_note.text = "Shield DB +%d included" % db if db > 0 else ""
-	_defense_note.visible = db > 0
 
+	_refresh_tips(unit)
 	_refresh_attacks(unit)
 	_refresh_conditions(unit)
+
+
+## Every hover breakdown. A stat's comes from its own parts; the
+## defenses' from UnitCombat's, which the defense targets are built from.
+func _refresh_tips(unit: Unit) -> void:
+	for pair in [[_hp_value, StatIds.HP], [_fp_value, StatIds.FP], [_st_value, StatIds.ST],
+			[_dx_value, StatIds.DX], [_iq_value, StatIds.IQ], [_ht_value, StatIds.HT],
+			[_will_value, StatIds.WILL], [_per_value, StatIds.PER], [_basic_speed_value, StatIds.BASIC_SPEED],
+			[_move_value, StatIds.MOVE], [_dr_value, StatIds.DR]]:
+		_set_tip(pair[0], _stat_tip(unit, pair[1]))
+	_set_tip(_dodge_value, StatTip.tip_text("Dodge %d" % unit.dodge_target(),
+			StatDatabase.find(StatIds.DODGE).description, unit.dodge_parts()))
+	_set_tip(_parry_value, StatTip.tip_text("Parry %d" % unit.parry_target(),
+			"Against a melee attack: half the attack skill, plus 3. The sheet assumes an armed foe.",
+			unit.parry_parts()))
+	if unit.holds_shield():
+		_set_tip(_block_value, StatTip.tip_text("Block %d" % unit.block_target(),
+				"With a shield, once a turn: half the attack skill, plus 3.", unit.block_parts()))
+	else:
+		_set_tip(_block_value, "Block
+Needs a shield in the melee set.")
+
+
+func _stat_tip(unit: Unit, id: StringName) -> String:
+	var definition := StatDatabase.find(id)
+	return StatTip.tip_text("%s %s" % [definition.display_name, StatDefinition.format(unit.get_stat(id))],
+			definition.description, unit.stat_breakdown(id))
+
+
+## On the hover target the value belongs to: a defense tile, the HP/FP
+## header row, or the value and its name label in the attribute grid.
+func _set_tip(value_label: Label, text: String) -> void:
+	var target: Control = value_label.get_parent()
+	if target is VBoxContainer:
+		target = target.get_parent()
+	if target is GridContainer:
+		value_label.tooltip_text = text
+		target = target.get_child(value_label.get_index() - 1)
+	target.tooltip_text = text
 
 
 ## One row per weapon attack: name, damage, the number to roll against

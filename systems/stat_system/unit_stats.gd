@@ -121,6 +121,35 @@ func remove_modifier(modifier: StatModifierBehavior, source: String) -> void:
 		instance.remove_modifier(modifier, source)
 
 
+## The parts get_value puts together, in its order, for a tooltip:
+## {label, amount} for the formula (or a primary's base), a bought bonus
+## and each modifier; {label, multiplier} for each halving, applied last.
+## The labels are display text: a modifier's is its source.
+func breakdown(id: StringName) -> Array[Dictionary]:
+	var parts: Array[Dictionary] = []
+	var instance := _instance(id)
+	if instance == null:
+		return parts
+	var definition := instance.definition
+	if definition.is_derived():
+		var inputs: Dictionary = {}
+		for input_id in StatDatabase.inputs_of(definition):
+			inputs[StringName(input_id)] = StatDatabase.value_of(StringName(input_id), _base_of, _modifier_of)
+		parts.append({"label": StatDatabase.describe_formula(definition, inputs),
+				"amount": StatDatabase.evaluate(definition, inputs)})
+		if instance.base != 0:
+			parts.append({"label": "Bought", "amount": float(instance.base)})
+	else:
+		parts.append({"label": "Base", "amount": float(instance.base)})
+	for active in instance.active_modifiers():
+		if active.modifier.amount != 0:
+			parts.append({"label": active.source, "amount": float(active.modifier.amount)})
+	for active in instance.active_modifiers():
+		if active.modifier.multiplier != 1.0:
+			parts.append({"label": active.source, "multiplier": active.modifier.multiplier})
+	return parts
+
+
 func modifier_total(id: StringName) -> int:
 	var instance := _instance(id)
 	return instance.modifier_total() if instance else 0

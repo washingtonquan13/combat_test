@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/stats_column.gd" id="1_stats"]
+[ext_resource type="Script" path="res://ui/stat_tip.gd" id="2_tip"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tile"]
 content_margin_top = 8.0
@@ -34,6 +35,7 @@ theme_override_font_sizes/font_size = 26
 
 [node name="HPHeader" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
+script = ExtResource("2_tip")
 
 [node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/HPHeader"]
 layout_mode = 2
@@ -70,6 +72,7 @@ color = Color(0.85, 0.3, 0.3, 1)
 
 [node name="FPHeader" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
+script = ExtResource("2_tip")
 
 [node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/FPHeader"]
 layout_mode = 2
@@ -121,89 +124,121 @@ columns = 4
 
 [node name="STLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "ST"
 
 [node name="STValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="WillLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "Will"
 
 [node name="WillValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="DXLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "DX"
 
 [node name="DXValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="PerLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "Per"
 
 [node name="PerValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="IQLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "IQ"
 
 [node name="IQValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="BasicSpeedLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "Basic Speed"
 
 [node name="BasicSpeedValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="HTLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "HT"
 
 [node name="HTValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="MoveLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 text = "Move"
 
 [node name="MoveValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
@@ -244,6 +279,7 @@ theme_override_constants/separation = 8
 
 [node name="DodgeTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
 layout_mode = 2
+script = ExtResource("2_tip")
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
 
@@ -266,6 +302,7 @@ horizontal_alignment = 1
 
 [node name="ParryTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
 layout_mode = 2
+script = ExtResource("2_tip")
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
 
@@ -288,6 +325,7 @@ horizontal_alignment = 1
 
 [node name="BlockTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
 layout_mode = 2
+script = ExtResource("2_tip")
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
 
@@ -310,6 +348,7 @@ horizontal_alignment = 1
 
 [node name="DRTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
 layout_mode = 2
+script = ExtResource("2_tip")
 size_flags_horizontal = 3
 theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
 
@@ -329,12 +368,6 @@ theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
 theme_override_font_sizes/font_size = 14
 text = "DR"
 horizontal_alignment = 1
-
-[node name="DefenseNote" type="Label" parent="ScrollContainer/VBoxContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
-theme_override_font_sizes/font_size = 13
 
 [node name="AttacksHeader" type="Label" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2

@@ -459,11 +459,11 @@ layout_mode = 2
 [node name="Inventory" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/BagSlot" instance=ExtResource("3_inv")]
 unique_name_in_owner = true
 layout_mode = 2
-cell_size_px = 44
-width = 12
-height = 6
-visible_width = 12
-visible_height = 6
+cell_size_px = 52
+width = 10
+height = 13
+visible_width = 10
+visible_height = 13
 
 [node name="FooterRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
 layout_mode = 2

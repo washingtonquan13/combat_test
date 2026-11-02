@@ -154,9 +154,11 @@ func load_state(state: Dictionary) -> void:
 		if not item:
 			push_warning("ItemContainer.load_state: unknown item id '%s'" % entry.get("id"))
 			continue
+		# A save from before the grid changed shape can name a cell that is
+		# now outside it; the item goes to the first free cell instead.
 		var cell := Vector2i(entry.get("x", 0), entry.get("y", 0))
-		if not place(item, cell):
-			push_warning("ItemContainer.load_state: '%s' doesn't fit at %s" % [item.definition.id, cell])
+		if not place(item, cell) and not add(item):
+			push_warning("ItemContainer.load_state: no room for '%s'" % item.definition.id)
 
 
 func _fits_in(cells: Dictionary, item: ItemInstance, cell: Vector2i) -> bool:

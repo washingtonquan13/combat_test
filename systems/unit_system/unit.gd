@@ -1449,6 +1449,11 @@ func unregister_stat_modifier(modifier: StatModifierBehavior, source: String) ->
 	_unit_stats().remove_modifier(modifier, source)
 
 
+## How a stat's value is reached, part by part — see UnitStats.breakdown.
+func stat_breakdown(id: StringName) -> Array[Dictionary]:
+	return _unit_stats().breakdown(id)
+
+
 ## The sources of every modifier currently on a stat.
 func stat_modifier_sources(id: StringName) -> Array[String]:
 	return _unit_stats().modifier_sources(id)
@@ -1540,6 +1545,20 @@ func dodge_target() -> int:
 ## See UnitCombat.parry_target().
 func parry_target(attacker: Unit = null) -> int:
 	return _combat.parry_target(attacker)
+
+
+## See UnitCombat.dodge_parts() and its siblings — the defenses'
+## breakdowns for the character sheet's tooltips.
+func dodge_parts() -> Array[Dictionary]:
+	return _combat.dodge_parts()
+
+
+func parry_parts(attacker: Unit = null) -> Array[Dictionary]:
+	return _combat.parry_parts(attacker)
+
+
+func block_parts() -> Array[Dictionary]:
+	return _combat.block_parts()
 
 
 ## See UnitCombat.holds_shield().
