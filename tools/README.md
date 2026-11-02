@@ -23,3 +23,11 @@ A recorded walkthrough of rarity, sockets and runes, built on item_layer_demo's 
 # hands_demo
 
 A recorded walkthrough of hands, also built on item_layer_demo's helpers. It runs 13 checks. A sword in each hand adds off-hand attacks at -4 to the hotbar. A greatsword fills the main hand and shows a faded ghost in the off hand, which refuses a shield. At ST 9 the greatsword (min ST 12) is -3 to hit. With a shield on, the greatsword is refused. Drops back into the bag go to fixed cells, because `_last_free_cell` keeps clear of the grid's scrolling edges and found none here. Record it with `res://tools/hands_demo.tscn`. Set `HANDS_SNAPSHOT=<path>.png` to also save a zoomed still of the weapon slots while the ghost shows.
+
+# attack_flow_demo
+
+A recorded walkthrough of the attack flow (1bf3e4c), built on item_layer_demo's helpers. It runs 11 checks. A Magic Missile's damage is rolled at the cast, nothing lands while it flies, and exactly that amount lands when it arrives. A fireball's blast is decided per unit at the cast the same way. A target killed mid-flight takes nothing and the cast still finishes. A caster that ends its turn while busy and then dies mid-action no longer ends the next unit's turn. Record it with `res://tools/attack_flow_demo.tscn`.
+
+# combat_rules_demo
+
+A recorded walkthrough of the combat rules, built on item_layer_demo's helpers. It runs 17 checks against a same-faction dummy in a leather chestpiece. It shows crushing, cutting and impaling after DR, with live Swing and Thrust. It shows Target Vitals and Target Head (to-hit and wounding), and a level-2 Deceptive Attack. Bloodied and Exhausted come on below a third of HP or FP. Stacking heavy gear raises the encumbrance level with the inventory open. Downing the whole party brings up the game over screen. The HT roll to stay up is random, so the demo forces the failure the way test_game_over does. Record it with `res://tools/combat_rules_demo.tscn`.
