@@ -15,3 +15,7 @@ A recorded walkthrough of the inventory, run in the real game. It is not a test 
 # attack_rows_demo
 
 A short recorded walkthrough of attack rows, built on item_layer_demo's helpers: an empty hand shows Punch on the hotbar, the iron sword turns it into Swing and Thrust, unequipping brings Punch back, and a beast's natural rows are captioned. Record it the same way as item_layer_demo, with `res://tools/attack_rows_demo.tscn`.
+
+# hands_demo
+
+A recorded walkthrough of hands, also built on item_layer_demo's helpers. It runs 13 checks. A sword in each hand adds off-hand attacks at -4 to the hotbar. A greatsword fills the main hand and shows a faded ghost in the off hand, which refuses a shield. At ST 9 the greatsword (min ST 12) is -3 to hit. With a shield on, the greatsword is refused. Drops back into the bag go to fixed cells, because `_last_free_cell` keeps clear of the grid's scrolling edges and found none here. Record it with `res://tools/hands_demo.tscn`.
