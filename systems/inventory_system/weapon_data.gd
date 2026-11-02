@@ -15,6 +15,11 @@ extends Resource
 ## paired off-hand slot stays empty — no shield, no second weapon. See
 ## UnitEquipment.hands_allow().
 @export var two_handed: bool = false
+## GURPS Shots: rounds a full magazine holds. Each attack fires up to
+## the row's RoF from it; empty, the weapon can't fire until Reload
+## (data/abilities/reload.tres). 0 is no magazine — a bow, a thrown axe.
+## The rounds left are per copy (ItemInstance.shots_left).
+@export var shots: int = 0
 
 
 ## This weapon's rows of one kind, in authored order.

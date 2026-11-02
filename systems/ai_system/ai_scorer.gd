@@ -356,7 +356,7 @@ static func _prepare_plan(unit: Unit, plan: AiPlan) -> bool:
 
 	if not plan.pure_reposition:
 		var ability: Ability = plan.ability
-		if ability.attack_action_spent_by(unit):
+		if ability.attack_action_spent_by(unit) or ability.out_of_ammo(unit):
 			return false
 		if unit.in_combat() and ability.move_cost > 0.0 and unit.move_remaining < ability.move_cost:
 			return false

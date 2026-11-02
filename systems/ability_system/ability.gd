@@ -262,3 +262,9 @@ func has_move_caster_effect() -> bool:
 ## context, not because it actually encoded the same rule.
 func attack_action_spent_by(unit: Unit) -> bool:
 	return unit.in_combat() and uses_attack_action and unit.has_attacked
+
+
+## Fires from a magazine with nothing left in it (WeaponData.shots).
+## Checked by the same three callers as attack_action_spent_by.
+func out_of_ammo(unit: Unit) -> bool:
+	return unit.shots_left(self) == 0

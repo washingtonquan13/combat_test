@@ -64,6 +64,8 @@ var _toggles: Array[Ability] = []
 var _toggle_levels: Dictionary = {}
 ## GURPS off-hand attack penalty (B417). No Ambidexterity here.
 const OFF_HAND_PENALTY: int = -4
+## See attack_hits().
+var _hits: int = 1
 
 ## Template Ability -> {[AttackRow, off_hand] -> its bound copy}. See
 ## _bound_to.
@@ -95,8 +97,8 @@ func _init(owner: Unit) -> void:
 ## Rolls this unit's ST-derived swing/thrust damage plus bonus (an
 ## ability's own flat bonus, or an equipped weapon's damage_bonus — see
 ## StDamageEffect/GearDamageEffect, the two current callers).
-func roll_damage(damage_type: DamageType, bonus: int) -> int:
-	var dice: Dictionary = _damage_dice(damage_type)
+func roll_damage(damage_type: DamageType, bonus: int, st: int = 0) -> int:
+	var dice: Dictionary = _damage_dice(damage_type, st)
 	var total: int = 0
 	for _i in int(dice.count):
 		total += randi_range(1, 6)  # GURPS damage dice are always d6
@@ -106,8 +108,8 @@ func roll_damage(damage_type: DamageType, bonus: int) -> int:
 ## Maximum possible swing/thrust damage plus bonus — every die at its
 ## highest face — for critical hits (GearDamageEffect/StDamageEffect),
 ## which deal guaranteed max damage instead of rolling.
-func max_damage(damage_type: DamageType, bonus: int) -> int:
-	var dice: Dictionary = _damage_dice(damage_type)
+func max_damage(damage_type: DamageType, bonus: int, st: int = 0) -> int:
+	var dice: Dictionary = _damage_dice(damage_type, st)
 	return int(dice.count) * 6 + int(dice.flat_bonus) + bonus
 
 
@@ -116,16 +118,16 @@ func max_damage(damage_type: DamageType, bonus: int) -> int:
 ## used by AiScorer to rank candidate actions by expected damage rather
 ## than sampling a live roll (which would make the AI's own decision
 ## non-deterministic and untestable independent of RNG).
-func expected_damage(damage_type: DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0, location: HitLocation = null) -> float:
-	var dice: Dictionary = _damage_dice(damage_type)
+func expected_damage(damage_type: DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0, location: HitLocation = null, st: int = 0) -> float:
+	var dice: Dictionary = _damage_dice(damage_type, st)
 	return DamageResolver.expected_injury(int(dice.count), 6, int(dice.flat_bonus) + bonus, target, wound_type, armor_divisor, false, location)
 
 
 ## Same formula as roll_damage(), without rolling — e.g. "1d+2" — for
 ## display (see stats_column.gd's Thrust/Swing rows, shown with bonus 0
 ## for the character's own base capability).
-func describe_damage(damage_type: DamageType, bonus: int) -> String:
-	var dice: Dictionary = _damage_dice(damage_type)
+func describe_damage(damage_type: DamageType, bonus: int, st: int = 0) -> String:
+	var dice: Dictionary = _damage_dice(damage_type, st)
 	var flat: int = int(dice.flat_bonus) + bonus
 	var text: String = "%dd" % int(dice.count)
 	if flat > 0:
@@ -136,8 +138,10 @@ func describe_damage(damage_type: DamageType, bonus: int) -> String:
 
 
 ## Whole ST: Exhausted halves ST, but not the damage it deals (B426).
-func _damage_dice(damage_type: DamageType) -> Dictionary:
-	var st: int = floori(_owner.get_stat_unhalved(StatIds.ST))
+## st > 0 is a bow's own ST instead (AttackRow.weapon_st).
+func _damage_dice(damage_type: DamageType, st: int = 0) -> Dictionary:
+	if st <= 0:
+		st = floori(_owner.get_stat_unhalved(StatIds.ST))
 	return _swing_dice(st) if damage_type == DamageType.SWING else _thrust_dice(st)
 
 
@@ -211,11 +215,61 @@ func off_hand_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
 	return _held_rows(kind, true)
 
 
+## A melee hand's ranged rows count too: that is a thrown weapon (a
+## throwing axe's Throw), fired from the hand that swings it and never
+## used up.
 func _held_rows(kind: AttackRow.Kind, off_hand: bool) -> Array[AttackRow]:
-	var item: ItemInstance = _owner.get_equipped_item(_hand_slot(kind, off_hand))
-	if item and item.gear_data and item.gear_data.weapon_data:
-		return item.gear_data.weapon_data.rows_of(kind)
-	return []
+	var rows: Array[AttackRow] = []
+	var slots: Array = [_hand_slot(kind, off_hand)]
+	if kind == AttackRow.Kind.RANGED:
+		slots.append(_hand_slot(AttackRow.Kind.MELEE, off_hand))
+	for slot in slots:
+		var item: ItemInstance = _owner.get_equipped_item(slot)
+		if item and item.gear_data and item.gear_data.weapon_data:
+			rows.append_array(item.gear_data.weapon_data.rows_of(kind))
+	return rows
+
+
+## The held copy whose weapon has row — whose magazine an attack with
+## row fires from. Null for a natural attack or a punch.
+func item_holding(row: AttackRow) -> ItemInstance:
+	for slot in HAND_SLOTS:
+		var item: ItemInstance = _owner.get_equipped_item(slot)
+		if item and item.gear_data and item.gear_data.weapon_data and item.gear_data.weapon_data.attacks.has(row):
+			return item
+	return null
+
+
+## Rounds left for ability's weapon, or -1 when it has no magazine.
+func shots_left(ability: Ability) -> int:
+	var effect: GearDamageEffect = _gear_effect(ability)
+	var item: ItemInstance = item_holding(effect.row_for(_owner)) if effect else null
+	return item.shots_left() if item else -1
+
+
+## Every held weapon with a magazine, filled. Returns how many were.
+func reload_all() -> int:
+	var reloaded: int = 0
+	for slot in HAND_SLOTS:
+		var item: ItemInstance = _owner.get_equipped_item(slot)
+		if item and item.magazine() > 0 and item.shots_left() < item.magazine():
+			item.reload()
+			reloaded += 1
+	return reloaded
+
+
+func _holds_magazine_weapon() -> bool:
+	for slot in HAND_SLOTS:
+		var item: ItemInstance = _owner.get_equipped_item(slot)
+		if item and item.magazine() > 0:
+			return true
+	return false
+
+
+const HAND_SLOTS: Array[EquipSlot.Slot] = [
+	EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND,
+	EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND,
+]
 
 
 static func _hand_slot(kind: AttackRow.Kind, off_hand: bool) -> EquipSlot.Slot:
@@ -229,9 +283,23 @@ static func _hand_slot(kind: AttackRow.Kind, off_hand: bool) -> EquipSlot.Slot:
 ## one attack per row it can use right now: a sword's Swing and Thrust,
 ## a beast's Claws and Bite. What the hotbar shows and the AI picks
 ## from. unit.abilities itself, and saves, keep the generic one.
+##
+## Holding a weapon is enough: a unit with a bow in its ranged hands but
+## no ranged template among its abilities (most PCs) still gets the bow's
+## attacks, from the shared template of that kind. Both sets are live at
+## once, so switching between melee and ranged costs nothing.
 func combat_abilities() -> Array[Ability]:
 	var result: Array[Ability] = []
-	for ability in _owner.abilities:
+	var abilities: Array[Ability] = _owner.abilities.duplicate()
+	var kinds_covered := {}
+	for ability in abilities:
+		var template: GearDamageEffect = _unbound_weapon_effect(ability)
+		if template:
+			kinds_covered[template.kind()] = true
+	for kind in DEFAULT_TEMPLATES:
+		if not kinds_covered.has(kind) and not (_held_rows(kind, false) + _held_rows(kind, true)).is_empty():
+			abilities.append(load(DEFAULT_TEMPLATES[kind]))
+	for ability in abilities:
 		var template: GearDamageEffect = _unbound_weapon_effect(ability)
 		var rows: Array[AttackRow] = []
 		var off_rows: Array[AttackRow] = []
@@ -245,7 +313,22 @@ func combat_abilities() -> Array[Ability]:
 			result.append(_bound_to(ability, row, false))
 		for row in off_rows:
 			result.append(_bound_to(ability, row, not row.off_hand_ok))
+	if _holds_magazine_weapon():
+		result.append(load(RELOAD))
 	return result
+
+
+## Offered while a held weapon has a magazine. Loaded lazily like
+## DEFAULT_TEMPLATES.
+const RELOAD := "res://data/abilities/reload.tres"
+
+
+## The generic attack a held weapon of each kind falls back to. Loaded
+## lazily, not preloaded: those .tres files reach back into this script.
+const DEFAULT_TEMPLATES := {
+	AttackRow.Kind.MELEE: "res://data/abilities/basic_attack_melee.tres",
+	AttackRow.Kind.RANGED: "res://data/abilities/basic_attack_ranged.tres",
+}
 
 
 static func _unbound_weapon_effect(ability: Ability) -> GearDamageEffect:
@@ -282,6 +365,10 @@ func _bound_to(template: Ability, row: AttackRow, off_hand: bool) -> Ability:
 		var reach: MeleeEnemyTargeting = template.targeting.duplicate()
 		reach.melee_range = row.reach
 		bound.targeting = reach
+	elif template.targeting is RangedEnemyTargeting and row.max_range > 0.0:
+		var span: RangedEnemyTargeting = template.targeting.duplicate()
+		span.max_range = row.max_range
+		bound.targeting = span
 	per_row[key] = bound
 	return bound
 
@@ -432,6 +519,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# isn't), so casting an FP-costing ability outside combat still has
 	# to be affordable. See Ability.fp_cost's own header.
 	result["cant_afford_fp_cost"] = ability.fp_cost > 0.0 and _owner.get_pool(StatIds.FP) < ability.fp_cost
+	result["out_of_ammo"] = ability.out_of_ammo(_owner)
 
 	if result.already_acted:
 		return result
@@ -443,6 +531,9 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		return result
 
 	if result.cant_afford_fp_cost:
+		return result
+
+	if result.out_of_ammo:
 		return result
 
 	if _owner.in_combat() and ability.uses_attack_action:
@@ -465,6 +556,15 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	if target is Vector3 or target is Unit:
 		_owner.snap_face_point(target if target is Vector3 else target.global_position)
 
+	# Rounds leave the magazine whether or not they hit.
+	var gear: GearDamageEffect = _gear_effect(ability)
+	var row: AttackRow = gear.row_for(_owner) if gear else null
+	var shots: int = row.rof if row else 1
+	var item: ItemInstance = item_holding(row) if row else null
+	if item:
+		shots = item.fire(shots)
+	_hits = 1
+
 	if ability.requires_to_hit:
 		# The DEFENDER's active statuses (Prone, etc.) can modify how
 		# easy THEY are to hit — summed onto the attacker's own skill
@@ -476,6 +576,10 @@ func use_ability(ability: Ability, target) -> Dictionary:
 		# for the actual target-number math.
 		var to_hit := _roll_to_hit(target, ability)
 		result["to_hit"] = to_hit
+		# Rapid fire (B373): one hit, plus one per full Rcl of margin,
+		# up to the shots fired.
+		if row and shots > 1 and to_hit.success:
+			_hits = mini(shots, 1 + maxi(int(to_hit.margin), 0) / maxi(row.recoil, 1))
 		if not to_hit.success:
 			SystemLog.print(_miss_log_line(target, ability))
 			if to_hit.critical_failure:
@@ -490,13 +594,18 @@ func use_ability(ability: Ability, target) -> Dictionary:
 			target.spend_defense(defense.kind)
 			var roll := SuccessRoll.roll_vs(defense.target)
 			result["defense"] = defense.merged(roll)
+			# A defense stops one hit, plus one per point it made it by
+			# (B375) — against a single shot, the whole attack.
 			if roll.success:
+				_hits -= 1 + maxi(int(roll.margin), 0)
+			if _hits <= 0:
 				SystemLog.print(_defense_log_line(target, ability, defense.kind))
 				_owner.ability_used.emit(_owner, target, result)
 				_maybe_trigger_combat(target)
 				return result
 
 	result["hit"] = true
+	result["hits"] = _hits
 
 	if ability.timing and ability.timing.waits_for_impact:
 		_owner.begin_busy()
@@ -545,20 +654,51 @@ func to_hit_target(target, ability: Ability) -> int:
 
 
 ## The weapon's own say in the roll: -1 per point of ST short of the
-## row's minimum (B270; Exhausted's halved ST counts), and -4 in the
-## off hand (B417).
+## row's minimum (B270; Exhausted's halved ST counts), -4 in the off
+## hand (B417), Acc when aimed, and the rapid-fire bonus.
 func _hands_modifier(ability: Ability) -> int:
-	var effect: GearDamageEffect = null
-	if not ability:
-		return 0
-	for e in ability.effects:
-		if e is GearDamageEffect:
-			effect = e
-			break
+	var effect: GearDamageEffect = _gear_effect(ability)
 	if not effect:
 		return 0
-	var short: int = effect.row_for(_owner).min_st - floori(_owner.get_stat(StatIds.ST))
-	return -maxi(short, 0) + (OFF_HAND_PENALTY if effect.off_hand else 0)
+	var row: AttackRow = effect.row_for(_owner)
+	var short: int = row.min_st - floori(_owner.get_stat(StatIds.ST))
+	return -maxi(short, 0) + (OFF_HAND_PENALTY if effect.off_hand else 0) \
+		+ _aim_bonus(row) + _rof_bonus(row.rof)
+
+
+## Acc (B269) for a shooter who has aimed. GURPS spends a whole turn on
+## an Aim maneuver; here not moving this turn is the aim, so standing to
+## shoot is rewarded without another button. Out of combat, always aimed.
+func _aim_bonus(row: AttackRow) -> int:
+	if row.kind != AttackRow.Kind.RANGED or row.acc <= 0:
+		return 0
+	if _owner.in_combat() and _owner.move_remaining < _owner.move_per_turn() - 0.001:
+		return 0
+	return row.acc
+
+
+## B373's to-hit bonus for many shots at once: +1 at RoF 5, +2 at 9, ...
+static func _rof_bonus(rof: int) -> int:
+	var bonus: int = 0
+	for step in [5, 9, 13, 17, 25, 50]:
+		if rof >= step:
+			bonus += 1
+	return bonus
+
+
+func _gear_effect(ability: Ability) -> GearDamageEffect:
+	if not ability:
+		return null
+	for e in ability.effects:
+		if e is GearDamageEffect:
+			return e
+	return null
+
+
+## How many hits the attack being resolved landed — more than one only
+## for rapid fire. GearDamageEffect rolls each against DR on its own.
+func attack_hits() -> int:
+	return _hits
 
 
 # --- Toggles ------------------------------------------------------------

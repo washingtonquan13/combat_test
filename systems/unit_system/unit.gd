@@ -1504,6 +1504,26 @@ func attack_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
 	return _combat.attack_rows(kind)
 
 
+## See UnitCombat.attack_hits().
+func attack_hits() -> int:
+	return _combat.attack_hits()
+
+
+## See UnitCombat.shots_left().
+func shots_left(ability: Ability) -> int:
+	return _combat.shots_left(ability)
+
+
+## See UnitCombat.reload_all().
+func reload_all() -> int:
+	return _combat.reload_all()
+
+
+## See UnitCombat.block_target().
+func block_target() -> int:
+	return _combat.block_target()
+
+
 func alignment_category() -> int:
 	return _alignment.alignment_category()
 
@@ -1584,22 +1604,22 @@ func default_ability() -> Ability:
 ## describe_damage for the actual formula. bonus is the caller's own
 ## flat addition (an ability's authored bonus, or an equipped weapon's
 ## damage_bonus) — pass 0 for this unit's bare capability.
-func roll_damage(damage_type: UnitCombat.DamageType, bonus: int) -> int:
-	return _combat.roll_damage(damage_type, bonus)
+func roll_damage(damage_type: UnitCombat.DamageType, bonus: int, st: int = 0) -> int:
+	return _combat.roll_damage(damage_type, bonus, st)
 
 
-func describe_damage(damage_type: UnitCombat.DamageType, bonus: int) -> String:
-	return _combat.describe_damage(damage_type, bonus)
+func describe_damage(damage_type: UnitCombat.DamageType, bonus: int, st: int = 0) -> String:
+	return _combat.describe_damage(damage_type, bonus, st)
 
 
-func max_damage(damage_type: UnitCombat.DamageType, bonus: int) -> int:
-	return _combat.max_damage(damage_type, bonus)
+func max_damage(damage_type: UnitCombat.DamageType, bonus: int, st: int = 0) -> int:
+	return _combat.max_damage(damage_type, bonus, st)
 
 
 ## Expected value of roll_damage() without rolling — see UnitCombat.
 ## expected_damage's own doc comment (AiScorer's reason for existing).
-func expected_damage(damage_type: UnitCombat.DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0, location: HitLocation = null) -> float:
-	return _combat.expected_damage(damage_type, bonus, target, wound_type, armor_divisor, location)
+func expected_damage(damage_type: UnitCombat.DamageType, bonus: int, target: Unit = null, wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING, armor_divisor: float = 1.0, location: HitLocation = null, st: int = 0) -> float:
+	return _combat.expected_damage(damage_type, bonus, target, wound_type, armor_divisor, location, st)
 
 
 ## See UnitCombat's Toggles section.

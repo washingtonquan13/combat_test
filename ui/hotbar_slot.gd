@@ -121,7 +121,7 @@ func refresh_state() -> void:
 		disabled = false
 		return
 	set_armed(ability == AbilityManager.armed_ability)
-	disabled = ability.attack_action_spent_by(unit) \
+	disabled = ability.attack_action_spent_by(unit) or ability.out_of_ammo(unit) \
 			or (ability.targeting and not ability.targeting.has_any_valid_target(unit))
 
 

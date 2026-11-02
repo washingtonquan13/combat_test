@@ -98,6 +98,38 @@ func run() -> void:
 	fighter.unequip_item(off_hand)
 	fighter.equip_item(off_hand, ItemInstance.new(load("res://data/items/tower_shield.tres")))
 	check("a tower shield blocks 1 better than a medium one", fighter.block_target() == block_medium + 1)
+
+	# Ranged: a melee-only unit holding a bow still shoots it; the bow
+	# hits with its own ST; past ½D the roll is halved.
+	fighter.unequip_item(off_hand)
+	fighter.equip_item(main, ItemInstance.new(sword))
+	var ranged_main := EquipSlot.Slot.RANGED_MAIN_HAND
+	fighter.equip_item(ranged_main, ItemInstance.new(load("res://data/items/longbow.tres")))
+	check("sword and bow on a melee-only unit offer both sets", names.call(fighter) == ["Swing", "Thrust", "Shoot"],
+		"got %s" % [names.call(fighter)])
+	var shoot: Ability = fighter.combat_abilities()[2]
+	var bow_hit: float = shoot.effects[0].expected_damage(fighter)
+	check("a bow impales with its own ST 11 (1d+1 x2), not the archer's 10", is_equal_approx(bow_hit, 9.0), "got %.2f" % bow_hit)
+	var near: Unit = spawn_unit(&"enemy", 10, 10, 10, [melee()], Vector3(10, 0, 0))
+	var far: Unit = spawn_unit(&"enemy", 10, 10, 10, [melee()], Vector3(-25, 0, 0))
+	check("past ½D the damage is halved",
+		is_equal_approx(shoot.effects[0].expected_damage(fighter, far), shoot.effects[0].expected_damage(fighter, near) / 2.0))
+	fighter.unequip_item(main)
+	fighter.equip_item(main, ItemInstance.new(load("res://data/items/throwing_axe.tres")))
+	check("a throwing axe swings and throws", names.call(fighter) == ["Swing", "Shoot", "Throw"], "got %s" % [names.call(fighter)])
+
+	# Firearms: a magazine runs dry and Reload fills it; RoF buys to-hit.
+	fighter.unequip_item(ranged_main)
+	var pistol := ItemInstance.new(load("res://data/items/pistol.tres"))
+	fighter.equip_item(ranged_main, pistol)
+	var gun: Ability = fighter.combat_abilities().filter(func(a): return a.ability_name == "Shoot")[0]
+	check("a pistol offers Reload", names.call(fighter).has("Reload"), "got %s" % [names.call(fighter)])
+	check("a fresh pistol holds 9", fighter.shots_left(gun) == 9)
+	check("firing RoF 3 spends 3", pistol.fire(3) == 3 and fighter.shots_left(gun) == 6)
+	pistol.fire(6)
+	check("an empty pistol is out of ammo", gun.out_of_ammo(fighter) and pistol.fire(3) == 0)
+	check("Reload fills it", fighter.reload_all() == 1 and fighter.shots_left(gun) == 9)
+	check("RoF 3 is +0, 10 is +2", UnitCombat._rof_bonus(3) == 0 and UnitCombat._rof_bonus(10) == 2)
 	free_spawned()
 
 

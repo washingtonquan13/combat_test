@@ -15,7 +15,7 @@ enum Kind { MELEE, RANGED }
 ## Which dice table the roll reads. SWING/THRUST are the wielder's own
 ## ST-derived damage (UnitCombat.roll_damage) plus damage_bonus — sw+2,
 ## thr-1 in GURPS notation. FIXED ignores ST and rolls its own dice (a
-## wand, a crossbow).
+## wand, a crossbow, a gun).
 enum DamageBase { SWING, THRUST, FIXED }
 
 ## Shown on the hotbar: "Swing", "Thrust", "Claws".
@@ -44,6 +44,27 @@ enum DamageBase { SWING, THRUST, FIXED }
 ## attack then has no "(off hand)" suffix either.
 @export var off_hand_ok: bool = false
 
+@export_group("Ranged")
+## GURPS Accuracy (B269): added to hit when the shooter has aimed —
+## here, stood still all turn (UnitCombat._aim_bonus). 0 for none.
+@export var acc: int = 0
+## GURPS ½D: past this edge-to-edge distance the damage roll is halved
+## (B378). 0 for no falloff. Ranges are in move units, compressed from
+## the GURPS yards so a bow fits a battle map.
+@export var half_damage_range: float = 0.0
+## GURPS Max: the farthest this row can be fired. 0 keeps the generic
+## ranged attack's own range.
+@export var max_range: float = 0.0
+## A muscle-powered weapon's own ST (a bow's draw weight, B270): SWING/
+## THRUST dice come from this instead of the wielder's ST. 0 is the
+## wielder's own — a thrown axe, a sling.
+@export var weapon_st: int = 0
+## GURPS RoF (B373): shots per attack. Each shot past the first hits for
+## every full `recoil` the to-hit roll succeeded by.
+@export var rof: int = 1
+## GURPS Rcl. Only read when rof > 1.
+@export var recoil: int = 1
+
 @export_group("Fixed Damage")
 ## Only read when damage_base == FIXED.
 @export var fixed_dice_count: int = 1
@@ -62,15 +83,15 @@ func roll(attacker: Unit, is_critical: bool) -> int:
 			return total + fixed_dice_bonus
 		_:
 			var st_type := _st_type()
-			return attacker.max_damage(st_type, damage_bonus) if is_critical \
-				else attacker.roll_damage(st_type, damage_bonus)
+			return attacker.max_damage(st_type, damage_bonus, weapon_st) if is_critical \
+				else attacker.roll_damage(st_type, damage_bonus, weapon_st)
 
 
 ## Mirrors roll() without rolling — see AbilityEffect.expected_damage.
 func expected_damage(attacker: Unit, target: Unit = null, location: HitLocation = null) -> float:
 	if damage_base == DamageBase.FIXED:
 		return DamageResolver.expected_injury(fixed_dice_count, fixed_dice_sides, fixed_dice_bonus, target, wound_type, armor_divisor, false, location)
-	return attacker.expected_damage(_st_type(), damage_bonus, target, wound_type, armor_divisor, location)
+	return attacker.expected_damage(_st_type(), damage_bonus, target, wound_type, armor_divisor, location, weapon_st)
 
 
 ## "sw+2 cutting" / "1d6+0 crushing", for tooltips.
@@ -81,10 +102,16 @@ func describe_damage(attacker: Unit = null) -> String:
 		if fixed_dice_bonus != 0:
 			dice += "%+d" % fixed_dice_bonus
 	elif attacker:
-		dice = attacker.describe_damage(_st_type(), damage_bonus)
+		dice = attacker.describe_damage(_st_type(), damage_bonus, weapon_st)
 	else:
 		dice = ("sw" if damage_base == DamageBase.SWING else "thr") + ("%+d" % damage_bonus if damage_bonus != 0 else "")
 	return "%s %s" % [dice, DamageResolver.describe(wound_type, armor_divisor)]
+
+
+## Ranged and past ½D from target: GURPS halves the damage roll.
+func is_past_half_damage(attacker: Unit, target) -> bool:
+	return kind == Kind.RANGED and half_damage_range > 0.0 and target is Unit \
+		and attacker.edge_distance_to(target) > half_damage_range
 
 
 ## DamageBase's SWING/THRUST share UnitCombat.DamageType's values. Naming

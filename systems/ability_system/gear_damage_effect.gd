@@ -32,14 +32,25 @@ func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dicti
 		return {}
 
 	var attack: AttackRow = row_for(attacker)
-	# Critical hit: ignores DR entirely and deals guaranteed max damage
-	# (see UnitCombat.max_damage) — no second roll, staying consistent
-	# with this project's fast/not-roll-heavy combat goal.
-	var raw_damage: int = attack.roll(attacker, is_critical)
-	var applied: int = DamageResolver.injury(raw_damage, target, attack.wound_type, attack.armor_divisor, is_critical, false, attacker.hit_location_for(ability))
-	target.take_damage(applied, is_critical)
+	var halved: bool = attack.is_past_half_damage(attacker, target)
+	var location: HitLocation = attacker.hit_location_for(ability)
+	# Rapid fire lands several hits; each rolls and meets DR on its own
+	# (B379), so armor stops a burst one bullet at a time.
+	var raw_total: int = 0
+	var applied_total: int = 0
+	for _hit in maxi(attacker.attack_hits(), 1):
+		# Critical hit: ignores DR entirely and deals guaranteed max
+		# damage (see UnitCombat.max_damage) — no second roll, staying
+		# consistent with this project's fast/not-roll-heavy combat goal.
+		var raw_damage: int = attack.roll(attacker, is_critical)
+		if halved:
+			raw_damage = raw_damage / 2
+		var applied: int = DamageResolver.injury(raw_damage, target, attack.wound_type, attack.armor_divisor, is_critical, false, location)
+		target.take_damage(applied, is_critical)
+		raw_total += raw_damage
+		applied_total += applied
 
-	return {"raw_damage": raw_damage, "damage": applied}
+	return {"raw_damage": raw_total, "damage": applied_total}
 
 
 func kind() -> AttackRow.Kind:
@@ -67,5 +78,8 @@ func describe() -> String:
 
 
 ## Mirrors apply() without rolling — see AbilityEffect.expected_damage.
+## One hit's worth: the AI does not count on rapid fire landing more.
 func expected_damage(attacker: Unit, target: Unit = null, location: HitLocation = null) -> float:
-	return row_for(attacker).expected_damage(attacker, target, location)
+	var attack: AttackRow = row_for(attacker)
+	var damage: float = attack.expected_damage(attacker, target, location)
+	return damage / 2.0 if attack.is_past_half_damage(attacker, target) else damage

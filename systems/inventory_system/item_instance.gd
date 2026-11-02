@@ -22,6 +22,11 @@ var count: int = 1:
 		count = value
 		changed.emit()
 
+## Rounds left in this copy's magazine (WeaponData.shots); -1 is a full
+## one, so a fresh copy needs no setup. Not saved: a loaded weapon comes
+## back full (the party record keeps definitions — inventory.md issue 12).
+var _shots_left: int = -1
+
 ## Same name and meaning as Item.gear_data had, so call sites that read
 ## `.gear_data` (UnitCombat, GearDamageEffect, PartyManager) read an
 ## instance exactly the way they read a widget.
@@ -38,3 +43,31 @@ func size() -> Vector2i:
 	if not definition:
 		return Vector2i.ONE
 	return Vector2i(definition.width, definition.height)
+
+
+## Rounds left, or -1 for a weapon with no magazine.
+func shots_left() -> int:
+	var capacity: int = magazine()
+	if capacity <= 0:
+		return -1
+	return capacity if _shots_left < 0 else _shots_left
+
+
+func magazine() -> int:
+	return gear_data.weapon_data.shots if gear_data and gear_data.weapon_data else 0
+
+
+## Fires up to count rounds; returns how many actually went.
+func fire(count: int) -> int:
+	var left: int = shots_left()
+	if left < 0:
+		return count
+	var fired: int = mini(count, left)
+	_shots_left = left - fired
+	changed.emit()
+	return fired
+
+
+func reload() -> void:
+	_shots_left = -1
+	changed.emit()
