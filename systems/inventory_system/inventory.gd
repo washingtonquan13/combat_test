@@ -223,6 +223,18 @@ func sort_items() -> void:
 
 var _container: ItemContainer
 var _widgets: Dictionary = {}  # ItemInstance -> Item
+## Items it rejects are drawn dimmed, still there to drag; see set_filter().
+var _filter: Callable = func(_i: ItemInstance) -> bool: return true
+const FILTERED_OUT := Color(1, 1, 1, 0.25)
+
+## Dims every item filter returns false for, now and as items arrive.
+func set_filter(filter: Callable) -> void:
+	_filter = filter
+	for instance in _widgets:
+		_apply_filter(instance)
+
+func _apply_filter(instance: ItemInstance) -> void:
+	_widgets[instance].modulate = Color.WHITE if _filter.call(instance) else FILTERED_OUT
 
 func bind(container: ItemContainer) -> void:
 	if _container == container:
@@ -269,6 +281,7 @@ func _on_item_added(instance: ItemInstance) -> void:
 	_resolve_item_layer().add_child(item)
 	item.position = _container.cell_of(instance) * cell_size_px
 	_widgets[instance] = item
+	_apply_filter(instance)
 
 func _on_item_removed(instance: ItemInstance) -> void:
 	var item: Item = _widgets.get(instance)
@@ -281,6 +294,8 @@ func _on_item_moved(instance: ItemInstance) -> void:
 	var item: Item = _widgets.get(instance)
 	if item:
 		item.position = _container.cell_of(instance) * cell_size_px
+		# A drag fades the widget and restores it at full alpha.
+		_apply_filter(instance)
 
 ## Out of the layer at once (so nothing iterating it, or a drop landing
 ## this frame, sees a stale widget), freed at the end of the frame (it

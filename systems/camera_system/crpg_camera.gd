@@ -585,6 +585,9 @@ func _handle_rotation_input(delta: float) -> void:
 	# counterclockwise (left) when viewed from above — the opposite of the
 	# usual "E turns right" expectation. Q therefore increases yaw (turn
 	# left) and E decreases it (turn right) to match that expectation.
+	# A blocking screen (the party sheet) has Q/E for itself.
+	if not UIStack.can_open():
+		return
 	if Input.is_action_pressed("camera_rotate_left"):
 		target_yaw += rotation_speed * delta
 	if Input.is_action_pressed("camera_rotate_right"):

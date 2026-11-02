@@ -894,9 +894,11 @@ func spend_defense(kind: StringName) -> void:
 		blocked = true
 
 
+## A null attacker is taken as an armed one — the character sheet's
+## number, with no foe in mind.
 func parry_target(attacker: Unit) -> int:
 	var number: int = _half_skill_defense() + PARRY_PENALTY * parries
-	if not _holds_melee_weapon(_owner) and _holds_melee_weapon(attacker):
+	if not _holds_melee_weapon(_owner) and (attacker == null or _holds_melee_weapon(attacker)):
 		number += BARE_HAND_PARRY
 	return number
 

@@ -78,10 +78,12 @@ func _physics_process(delta: float) -> void:
 	if GameMode.current_mode() != GameMode.Mode.OVERWORLD:
 		return
 
-	if Input.is_action_pressed("camera_rotate_left"):
-		_yaw += deg_to_rad(rotate_speed_degrees) * delta
-	if Input.is_action_pressed("camera_rotate_right"):
-		_yaw -= deg_to_rad(rotate_speed_degrees) * delta
+	# A blocking screen (the party sheet) has Q/E for itself.
+	if UIStack.can_open():
+		if Input.is_action_pressed("camera_rotate_left"):
+			_yaw += deg_to_rad(rotate_speed_degrees) * delta
+		if Input.is_action_pressed("camera_rotate_right"):
+			_yaw -= deg_to_rad(rotate_speed_degrees) * delta
 	_blend = move_toward(_blend, 1.0 if _tactical else 0.0, delta / maxf(tactical_blend_time, 0.001))
 
 	global_position = _desired_position()

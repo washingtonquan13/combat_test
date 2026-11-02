@@ -1158,6 +1158,14 @@ func has_status(effect: StatusEffect) -> bool:
 	return _status_manager.has(effect)
 
 
+## Every status on this unit now, in the order they landed.
+func active_statuses() -> Array[StatusEffect]:
+	var out: Array[StatusEffect] = []
+	for active in _status_manager.active:
+		out.append(active.effect)
+	return out
+
+
 ## 0 when the status isn't active.
 func status_turns_remaining(effect: StatusEffect) -> int:
 	return _status_manager.turns_remaining(effect)
@@ -1522,6 +1530,21 @@ func reload_all() -> int:
 ## See UnitCombat.block_target().
 func block_target() -> int:
 	return _combat.block_target()
+
+
+## See UnitCombat.dodge_target().
+func dodge_target() -> int:
+	return _combat.dodge_target()
+
+
+## See UnitCombat.parry_target().
+func parry_target(attacker: Unit = null) -> int:
+	return _combat.parry_target(attacker)
+
+
+## See UnitCombat.holds_shield().
+func holds_shield() -> bool:
+	return _combat.holds_shield()
 
 
 func alignment_category() -> int:

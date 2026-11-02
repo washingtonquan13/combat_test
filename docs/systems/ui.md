@@ -17,7 +17,8 @@ Everything else is view state: the open tab, row caches and the selected slot.
 
 ## Derived / cached state
 - **PartyPanel rows.** Cached per Unit or PartyMemberData (party_panel.gd:88-90) and rebuilt from PartyManager and WorldManager signals (111-131). `_mark_absent_members` derives which members are "elsewhere" (261-278). Summons are detected by parsing `result["effects"][i]["summoned"]` (423-434). That is a string-keyed dependency on ability result dictionaries.
-- **PartyOverview panels.** These are snapshots taken at open_for(unit) (party_overview.gd:248-263) and are not live. They show gold (CurrencyManager.gold, 189-190), the journal (QuestDatabase/FlagManager, 390-405) and skills (SkillCalculator, 325).
+- **PartyOverview Inventory tab** (layout 2026-11-02, mockup v2): fixed-pixel columns at 1600 wide: party rail 0-96 (one button per `PartyManager.members`, demons excluded; HP bar; gold frame on the shown unit), StatsColumn 96-496 (attributes, Dodge/Parry/Block/DR tiles, attacks, conditions), paperdoll 496-1016 (72px slots, 280x492 portrait, 96px melee/ranged sets, both always live), party bag 1016-end (12x6 at 44px, All/Gear/Use/Runes filter that dims, Sort, gold). Click a rail button or press Q/E to switch member without closing: `show_unit(unit)`; `open_for` = `show_unit` + open. The cameras skip Q/E while a blocking screen is up (`UIStack.can_open()`). The rail is rebuilt on open and on member_added/removed; a switch only re-highlights.
+- **PartyOverview panels.** These are snapshots taken at show_unit(unit) and are not live, except the stat columns, which follow the shown unit's `equipment_changed`. They show gold (CurrencyManager.gold, 189-190), the journal (QuestDatabase/FlagManager, 390-405) and skills (SkillCalculator, 325).
 - **Equip-slot item display.** Equipped Item nodes are reparented under EquipSlot.item_layer (equip_slot.gd:84-98). This puts a second parent for an item in the UI tree (see issue 3).
 - **AbilityHotbar's shown unit.** `_in_view` (ability_hotbar.gd:103-107) and `_refresh_out_of_combat_unit` (157-181) derive it from SelectionManager.selected_units only.
 - **DemonCompendiumPanel summon-cap spinbox.** Set once in _ready (demon_compendium_panel.gd:59) from DemonRoster.max_active_summons.
@@ -25,7 +26,7 @@ Everything else is view state: the open tab, row caches and the selected slot.
 
 ## Public surface
 - **Calls in**
-  - PartyOverview: `open_for(unit)` (party_overview.gd:248) from the C key (211-232) and from portraits; `get_inventory()` from stash_panel.gd only (the widget, to reparent it). `open_on_tab` (292) has no callers.
+  - PartyOverview: `open_for(unit)` from the C key and from portraits; `show_unit(unit)` from the rail and Q/E; `get_inventory()`/`get_inventory_slot()` (`%BagSlot`) from stash_panel.gd only (the widget, to reparent it and put it back). `open_on_tab` (292) has no callers.
   - SystemLog: `print()` (system_log.gd:38-44) and `clear_log()` (47-48), called from everywhere and from SaveManager.new_game (save_manager.gd:624).
   - CompendiumMenu: `begin()` (compendium_menu.gd:82-84), called from CathedralMenu.
   - CathedralMenu: `present()` (cathedral_menu.gd:60), called from cathedral_of_shadows.gd:67.

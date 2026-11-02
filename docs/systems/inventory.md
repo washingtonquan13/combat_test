@@ -55,7 +55,7 @@ A shared grid inventory (12x6), equipment slots per unit, area stashes, and gold
 - Stash keyed by current area (stash_manager.gd:66-78): assumes one focused world.
 
 ## Lifecycle
-PartyManager owns the bag for the whole session; party_overview only binds its Inventory widget to it on ready. New game: `load_state({})` empties the bag and resets gold to 50. Load: `ItemContainer.load_state` clears (emitting item_removed, which frees widgets) and places fresh instances. Stash: open loads from AreaState, close persists (stash_manager.gd:26-78). World travel: inventory unaffected (autoload-owned); equipment rides the party record. Combat/dialogue: dialogue effects give/sacrifice items.
+PartyManager owns the bag for the whole session; party_overview only binds its Inventory widget to it on ready. The widget shows it at 44px cells, 12x6 with no scrolling; `Inventory.set_filter(callable)` dims (modulate) items the filter rejects without hiding or moving them, reapplied on add and move. The bag sits in `%BagSlot`, its own VBox, so StashPanel putting it back can't reorder it past the header or footer. New game: `load_state({})` empties the bag and resets gold to 50. Load: `ItemContainer.load_state` clears (emitting item_removed, which frees widgets) and places fresh instances. Stash: open loads from AreaState, close persists (stash_manager.gd:26-78). World travel: inventory unaffected (autoload-owned); equipment rides the party record. Combat/dialogue: dialogue effects give/sacrifice items.
 
 ## Known issues
 | # | Issue | Evidence (file:line) | Status |
