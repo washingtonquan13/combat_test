@@ -23,6 +23,10 @@ enum SlotType {
 
 @export var slot_type: SlotType = SlotType.HELMET
 
+## In pounds, as GURPS lists it. Only what is worn or wielded counts
+## toward encumbrance (UnitEquipment) — the shared bag weighs nothing.
+@export var weight: float = 0.0
+
 ## Applied to the wearer via Unit.register_stat_modifier()/
 ## unregister_stat_modifier() on equip/unequip (see UnitEquipment) —
 ## the exact same StatModifierBehavior class status effects already

@@ -1,9 +1,10 @@
-[gd_scene load_steps=26 format=3 uid="uid://jfavnc280asx"]
+[gd_scene load_steps=27 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://ui/party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://systems/inventory_system/equip_slot.tscn" id="2_equip"]
 [ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://systems/inventory_system/inventory.tscn" id="3_inv"]
 [ext_resource type="PackedScene" path="res://ui/stats_column.tscn" id="4_stats"]
+[ext_resource type="PackedScene" path="res://ui/encumbrance_bar.tscn" id="4_encumbrance"]
 [ext_resource type="Script" uid="uid://2g8vxoibdf3k" path="res://systems/indicator_system/alignment_grid.gd" id="5_align_grid"]
 [ext_resource type="Script" path="res://ui/demon_compendium_panel.gd" id="6_demon_panel"]
 [ext_resource type="Script" path="res://debug/debug_spawn_panel.gd" id="7_spawn_panel"]
@@ -398,6 +399,10 @@ custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 slot_type = 14
 slot = 15
+
+[node name="EncumbranceBar" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer" instance=ExtResource("4_encumbrance")]
+unique_name_in_owner = true
+layout_mode = 2
 
 [node name="EquipmentRule" type="ColorRect" parent="ContentArea/InventoryPanel"]
 layout_mode = 1

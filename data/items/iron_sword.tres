@@ -27,6 +27,7 @@ attacks = Array[ExtResource("4_row")]([SubResource("Resource_swing"), SubResourc
 [resource]
 script = ExtResource("1_gear")
 slot_type = 11
+weight = 3.0
 stat_modifiers = Array[ExtResource("3_s3sab")]([])
 weapon_data = SubResource("Resource_weapon")
 id = &"iron_sword"

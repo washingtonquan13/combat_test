@@ -84,6 +84,7 @@ extends UIScreen
 @onready var _character_stats: StatsColumn = $ContentArea/CharacterPanel/StatsColumn
 
 @onready var _portrait: TextureRect = %Portrait
+@onready var _encumbrance_bar: EncumbranceBar = %EncumbranceBar
 @onready var _sort_button: Button = %SortButton
 @onready var _inventory: Inventory = %Inventory
 @onready var _gold_label: Label = %GoldLabel
@@ -246,6 +247,7 @@ func _unhandled_input(event: InputEvent) -> void:
 ## shown unit's stats while the sheet is open.
 func _on_equipment_changed(unit: Unit) -> void:
 	_inventory_stats.refresh(unit)
+	_encumbrance_bar.refresh(unit)
 	_character_stats.refresh(unit)
 
 
@@ -274,6 +276,7 @@ func show_unit(unit: Unit) -> void:
 	_unit = unit
 	unit.equipment_changed.connect(_on_equipment_changed)
 	_inventory_stats.refresh(unit)
+	_encumbrance_bar.refresh(unit)
 	_character_stats.refresh(unit)
 	_portrait.texture = unit.portrait_texture
 	_refresh_alignment_grid(unit)

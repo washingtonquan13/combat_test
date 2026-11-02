@@ -12,6 +12,7 @@ amount = 1
 [resource]
 script = ExtResource("1_gear")
 slot_type = 7
+weight = 0.5
 stat_modifiers = Array[ExtResource("3_statmod")]([SubResource("Resource_statmod")])
 id = &"leather_gloves"
 item_name = "Leather Gloves"

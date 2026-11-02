@@ -27,6 +27,7 @@ two_handed = true
 [resource]
 script = ExtResource("1_gear")
 slot_type = 13
+weight = 3.0
 stat_modifiers = Array[ExtResource("3_s3sab")]([])
 weapon_data = SubResource("Resource_weapon")
 id = &"longbow"

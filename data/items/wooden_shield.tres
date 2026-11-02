@@ -24,6 +24,7 @@ attacks = Array[ExtResource("5_row")]([SubResource("Resource_bash")])
 [resource]
 script = ExtResource("1_gear")
 slot_type = 12
+weight = 15.0
 is_shield = true
 stat_modifiers = Array[ExtResource("3_statmod")]([SubResource("Resource_statmod")])
 weapon_data = SubResource("Resource_weapon")

@@ -30,6 +30,7 @@ shots = 30
 [resource]
 script = ExtResource("1_gear")
 slot_type = 13
+weight = 9.0
 stat_modifiers = Array[ExtResource("3_s3sab")]([])
 weapon_data = SubResource("Resource_weapon")
 id = &"rifle"

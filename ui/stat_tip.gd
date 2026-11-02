@@ -35,6 +35,12 @@ static func tip_text(title: String, description: String, parts: Array[Dictionary
 
 
 func _make_custom_tooltip(for_text: String) -> Object:
+	return build(for_text)
+
+
+## The tooltip for tip_text's lines — static so a Control that can't
+## carry this script (a container with its own) can return it too.
+static func build(for_text: String) -> Control:
 	var box := VBoxContainer.new()
 	var grid: GridContainer = null
 	var lines := for_text.split("\n")

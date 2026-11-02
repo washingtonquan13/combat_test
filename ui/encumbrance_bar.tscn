@@ -1,0 +1,195 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://ui/encumbrance_bar.gd" id="1_bar"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_back"]
+bg_color = Color(0.173, 0.184, 0.216, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_None"]
+bg_color = Color(0.42, 0.56, 0.45, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Light"]
+bg_color = Color(0.66, 0.63, 0.36, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Medium"]
+bg_color = Color(0.8, 0.56, 0.26, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_Heavy"]
+bg_color = Color(0.8, 0.38, 0.22, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_ExtraHeavy"]
+bg_color = Color(0.74, 0.22, 0.2, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="EncumbranceBar" type="VBoxContainer"]
+custom_minimum_size = Vector2(448, 0)
+size_flags_horizontal = 4
+theme_override_constants/separation = 6
+script = ExtResource("1_bar")
+
+[node name="HeaderRow" type="HBoxContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="HeaderRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "Encumbrance"
+
+[node name="LevelLabel" type="Label" parent="HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 15
+text = "None"
+
+[node name="Spacer" type="Control" parent="HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="WeightLabel" type="Label" parent="HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+text = "0 / 200 lb"
+
+[node name="Segments" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="None" type="VBoxContainer" parent="Segments"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Bar" type="ProgressBar" parent="Segments/None"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBox_back")
+theme_override_styles/fill = SubResource("StyleBox_None")
+max_value = 1.0
+show_percentage = false
+
+[node name="Name" type="Label" parent="Segments/None"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.83, 0.78, 1)
+theme_override_font_sizes/font_size = 12
+text = "None"
+horizontal_alignment = 1
+
+[node name="Light" type="VBoxContainer" parent="Segments"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Bar" type="ProgressBar" parent="Segments/Light"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBox_back")
+theme_override_styles/fill = SubResource("StyleBox_Light")
+max_value = 1.0
+show_percentage = false
+
+[node name="Name" type="Label" parent="Segments/Light"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.83, 0.78, 1)
+theme_override_font_sizes/font_size = 12
+text = "Light"
+horizontal_alignment = 1
+
+[node name="Medium" type="VBoxContainer" parent="Segments"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Bar" type="ProgressBar" parent="Segments/Medium"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBox_back")
+theme_override_styles/fill = SubResource("StyleBox_Medium")
+max_value = 1.0
+show_percentage = false
+
+[node name="Name" type="Label" parent="Segments/Medium"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.83, 0.78, 1)
+theme_override_font_sizes/font_size = 12
+text = "Medium"
+horizontal_alignment = 1
+
+[node name="Heavy" type="VBoxContainer" parent="Segments"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Bar" type="ProgressBar" parent="Segments/Heavy"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBox_back")
+theme_override_styles/fill = SubResource("StyleBox_Heavy")
+max_value = 1.0
+show_percentage = false
+
+[node name="Name" type="Label" parent="Segments/Heavy"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.83, 0.78, 1)
+theme_override_font_sizes/font_size = 12
+text = "Heavy"
+horizontal_alignment = 1
+
+[node name="ExtraHeavy" type="VBoxContainer" parent="Segments"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Bar" type="ProgressBar" parent="Segments/ExtraHeavy"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBox_back")
+theme_override_styles/fill = SubResource("StyleBox_ExtraHeavy")
+max_value = 1.0
+show_percentage = false
+
+[node name="Name" type="Label" parent="Segments/ExtraHeavy"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.83, 0.78, 1)
+theme_override_font_sizes/font_size = 12
+text = "Extra-Heavy"
+horizontal_alignment = 1
