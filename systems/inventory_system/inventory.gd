@@ -106,6 +106,10 @@ func _update_sizes() -> void:
 	if is_instance_valid(item_layer):
 		item_layer.custom_minimum_size = content_size
 		item_layer.cell_size_px = cell_size_px
+	# Item widgets draw at their own cell size; the grid's is the one that counts.
+	for widget in _widgets.values():
+		widget.cell_size_px = cell_size_px
+		widget.position = _container.cell_of(widget.instance) * cell_size_px
 
 	if is_instance_valid(v_scrollbar):
 		v_scrollbar.visible = needs_vscroll
@@ -278,6 +282,7 @@ func _on_item_added(instance: ItemInstance) -> void:
 	item.instance = instance
 	item.container = _container
 	item.layout = Item.LayoutMode.GRID
+	item.cell_size_px = cell_size_px
 	_resolve_item_layer().add_child(item)
 	item.position = _container.cell_of(instance) * cell_size_px
 	_widgets[instance] = item
