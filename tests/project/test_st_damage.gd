@@ -114,6 +114,11 @@ func run() -> void:
 	var far: Unit = spawn_unit(&"enemy", 10, 10, 10, [melee()], Vector3(-25, 0, 0))
 	check("past ½D the damage is halved",
 		is_equal_approx(shoot.effects[0].expected_damage(fighter, far), shoot.effects[0].expected_damage(fighter, near) / 2.0))
+	var steps: Array = [0.0, 2.0, 3.0, 10.0, 20.0, 21.0, 40.0].map(func(d): return UnitCombat.range_penalty(d))
+	check("range penalty 0 to 2, -1 at 3, -4 at 10, -6 at 20, -7 past it, -8 at 40", steps == [0, 0, -1, -4, -6, -7, -8], "got %s" % [steps])
+	var penalties: int = UnitCombat.range_penalty(fighter.edge_distance_to(far)) - UnitCombat.range_penalty(fighter.edge_distance_to(near))
+	check("the far shot takes the longer range's penalty",
+		fighter.to_hit_target(far, shoot) == fighter.to_hit_target(near, shoot) + penalties and penalties < 0)
 	var bystander: Unit = spawn_unit(&"player", 10, 10, 10, [melee()], Vector3(-10, 0, 0))
 	await get_tree().physics_frame
 	await get_tree().physics_frame

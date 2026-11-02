@@ -25,7 +25,7 @@ func _run() -> void:
 	_hero.set_base_stat(StatIds.DX, 14)
 	# Behind the hero: the arena has cover in front past ~9.
 	var near: Unit = _dummy(-8.0, 0.0)
-	var far: Unit = _dummy(-17.5, 0.0)
+	var far: Unit = _dummy(-24.0, 0.0)
 	SelectionManager.select(_hero)
 	await _wait(1.0)
 
@@ -43,7 +43,7 @@ func _run() -> void:
 	_check("both sets on the hotbar", _names() == ["Swing", "Thrust", "Shield Bash", "Shoot"])
 	var shoot: Ability = _attack("Shoot")
 	var row: AttackRow = shoot.effects[0].row_for(_hero)
-	_say("Longbow: %s from its own ST 11 (hero ST %d), Acc +3, ½D 15, Max 20"
+	_say("Longbow: %s from its own ST 11 (hero ST %d), Acc +3, ½D 20, Max 40"
 		% [row.describe_damage(_hero), floori(_hero.get_stat(StatIds.ST))])
 	_check("bow rolls from its own ST", row.describe_damage(_hero).begins_with("1d+1"))
 	await _wait(3.0)
@@ -51,7 +51,7 @@ func _run() -> void:
 	var near_expected: float = shoot.effects[0].expected_damage(_hero, near)
 	var far_expected: float = shoot.effects[0].expected_damage(_hero, far)
 	_check("past ½D the damage is halved", is_equal_approx(far_expected, near_expected / 2.0))
-	await _fire(shoot, far, "Past ½D (17 > 15): average %.1f instead of %.1f" % [far_expected, near_expected])
+	await _fire(shoot, far, "Past ½D (24 > 20): average %.1f instead of %.1f" % [far_expected, near_expected])
 
 	_say("Crossbow: fixed 1d+3 whatever your ST, one bolt, then Reload")
 	_hero.unequip_item(RANGED)

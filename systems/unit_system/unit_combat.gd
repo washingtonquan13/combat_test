@@ -650,7 +650,30 @@ func to_hit_target(target, ability: Ability) -> int:
 			number += location.to_hit_penalty
 		if ability.requires_to_hit:
 			number -= 2 * deceptive_level()
+		var gear: GearDamageEffect = _gear_effect(ability)
+		if gear and gear.row_for(_owner).kind == AttackRow.Kind.RANGED:
+			number += range_penalty(_owner.edge_distance_to(target))
 	return number
+
+
+## B550's speed/range column for distance alone, in metres as yards: 0
+## out to 2, -1 at 3, -2 at 5, -3 at 7, -4 at 10, -5 at 15, -6 at 20, and
+## on by the same 1-1.5-2-3-5-7 steps. A distance past a step takes the
+## next one.
+static func range_penalty(distance: float) -> int:
+	var penalty: int = 0
+	var step: float = 2.0
+	var mantissas: Array[float] = [2.0, 3.0, 5.0, 7.0, 10.0, 15.0]
+	var i: int = 0
+	var scale: float = 1.0
+	while distance > step + 0.001:
+		penalty -= 1
+		i += 1
+		if i == mantissas.size():
+			i = 0
+			scale *= 10.0
+		step = mantissas[i] * scale
+	return penalty
 
 
 ## The weapon's own say in the roll: -1 per point of ST short of the

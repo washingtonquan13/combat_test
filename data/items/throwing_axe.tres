@@ -23,8 +23,8 @@ damage_bonus = 2
 wound_type = 1
 min_st = 11
 acc = 2
-half_damage_range = 5.0
-max_range = 8.0
+half_damage_range = 10.0
+max_range = 20.0
 
 [sub_resource type="Resource" id="Resource_weapon"]
 script = ExtResource("3_weapon")
