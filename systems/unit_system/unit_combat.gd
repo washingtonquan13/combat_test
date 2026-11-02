@@ -206,7 +206,7 @@ func attack_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
 
 
 ## The off-hand weapon's rows of one kind, each its own attack at
-## OFF_HAND_PENALTY. A shield has none (bashing is its own thing).
+## OFF_HAND_PENALTY — except a row marked off_hand_ok (a shield's bash).
 func off_hand_rows(kind: AttackRow.Kind) -> Array[AttackRow]:
 	return _held_rows(kind, true)
 
@@ -244,7 +244,7 @@ func combat_abilities() -> Array[Ability]:
 		for row in rows:
 			result.append(_bound_to(ability, row, false))
 		for row in off_rows:
-			result.append(_bound_to(ability, row, true))
+			result.append(_bound_to(ability, row, not row.off_hand_ok))
 	return result
 
 

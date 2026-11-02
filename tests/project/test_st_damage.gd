@@ -86,6 +86,18 @@ func run() -> void:
 	check("ST 12 wields it freely", fighter.to_hit_target(beast, fighter.combat_abilities()[0]) == plain)
 	fighter.set_base_stat(StatIds.ST, 10)
 	check("ST 10 is -2 to hit with it", fighter.to_hit_target(beast, fighter.combat_abilities()[0]) == plain - 2)
+
+	# Shields: a bash from the off hand, at no off-hand penalty; DB grows
+	# with size.
+	fighter.unequip_item(main)
+	fighter.equip_item(off_hand, shield)
+	all = fighter.combat_abilities()
+	check("a shield adds a bash beside the punch", names.call(fighter) == ["Punch", "Shield Bash"], "got %s" % [names.call(fighter)])
+	check("a bash takes no off-hand penalty", fighter.to_hit_target(beast, all[1]) == fighter.to_hit_target(beast, all[0]))
+	var block_medium: int = fighter.block_target()
+	fighter.unequip_item(off_hand)
+	fighter.equip_item(off_hand, ItemInstance.new(load("res://data/items/tower_shield.tres")))
+	check("a tower shield blocks 1 better than a medium one", fighter.block_target() == block_medium + 1)
 	free_spawned()
 
 

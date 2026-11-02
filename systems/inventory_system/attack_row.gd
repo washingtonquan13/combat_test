@@ -39,6 +39,10 @@ enum DamageBase { SWING, THRUST, FIXED }
 ## short (UnitCombat.to_hit_target). 0 for none. Per row, as in the
 ## tables — a spear can need more ST one-handed than two.
 @export var min_st: int = 0
+## Takes no off-hand penalty from the off hand: a shield bash, which
+## GURPS rolls on Shield skill, where the -4 doesn't apply. Its hotbar
+## attack then has no "(off hand)" suffix either.
+@export var off_hand_ok: bool = false
 
 @export_group("Fixed Damage")
 ## Only read when damage_base == FIXED.
