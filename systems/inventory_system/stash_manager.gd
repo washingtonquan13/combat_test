@@ -29,6 +29,7 @@ func open_stash(stash: StashComponent, actor: Unit) -> void:
 	# GameMode reads current_stash through is_active(); the mode becomes
 	# LOOTING on the line above and needs telling nothing.
 	current_stash = stash
+	stash.roll_loot()
 	stash_opened.emit(stash, actor)
 
 

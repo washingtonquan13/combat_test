@@ -166,9 +166,11 @@ func accepts_item(item: Item) -> bool:
 		return false
 	return accepts(item.instance)
 
-## Fits this slot's type (GearItem.fits: a one-handed weapon fits the
-## off hand too) and, on a unit, its other hand allows it.
+## Identified, fits this slot's type (GearItem.fits: a one-handed weapon
+## fits the off hand too) and, on a unit, its other hand allows it. An
+## unidentified item can't be worn until a scroll identifies it.
 func accepts(instance: ItemInstance) -> bool:
-	if instance == null or instance.gear_data == null or not instance.gear_data.fits(slot_type):
+	if instance == null or not instance.identified or instance.gear_data == null \
+			or not instance.gear_data.fits(slot_type):
 		return false
 	return unit == null or unit.hands_allow(slot, instance)

@@ -2,8 +2,8 @@ class_name ItemInstance
 extends RefCounted
 ## One copy of an item — the per-copy state that ItemDefinition (shared,
 ## authored, one per kind of item) can't hold: the stack count, rarity,
-## sockets and the runes in them. Where affixes, item level and
-## identified go when those exist.
+## item level, affixes or unique, whether it's identified, and sockets
+## and the runes in them. LootRoller rolls a fresh drop's.
 ##
 ## What the copy does is its definition plus its modifiers (ItemModifier):
 ## attacks() for the local half, stat_modifiers() for the global one.
@@ -23,8 +23,8 @@ signal changed
 ## re-registers a worn copy's stat modifiers on it.
 signal modifiers_changed
 
-## Diablo's colour tiers. Only a name colour for now: magic and rare are
-## what will carry affixes, unique a fixed authored set.
+## Diablo's colour tiers: magic and rare carry rolled affixes, unique a
+## fixed authored set (UniqueItem).
 enum Rarity { NORMAL, MAGIC, RARE, UNIQUE }
 
 const RARITY_COLORS: Dictionary = {
@@ -37,6 +37,19 @@ const RARITY_COLORS: Dictionary = {
 var definition: ItemDefinition
 
 var rarity: Rarity = Rarity.NORMAL
+
+## The level it dropped at: which affix tiers and uniques it could roll.
+var item_level: int = 1
+## Rolled prefixes and suffixes, prefixes first.
+var affixes: Array[Affix] = []
+## The authored unique this copy is, or null.
+var unique: UniqueItem
+## A rare's two-word name, rolled with it.
+var rare_name: String = ""
+## An unidentified copy hides its affixes or unique and gets nothing from
+## them until an IdentifyScroll reveals it — Diablo 2's rule, so a scroll
+## is worth using.
+var identified: bool = true
 
 ## Empty sockets plus filled ones. Never more than max_sockets().
 var sockets: int = 0
@@ -144,9 +157,15 @@ func roll_sockets(rng: RandomNumberGenerator = null) -> void:
 	_modifiers_changed()
 
 
-## Every modifier on this copy, as it applies to this kind of item.
+## Every modifier on this copy, as it applies to this kind of item: its
+## affixes or unique once identified, then its runes.
 func modifiers() -> Array[ItemModifier]:
 	var result: Array[ItemModifier] = []
+	if identified:
+		for affix in affixes:
+			result.append(affix.modifier)
+		if unique:
+			result.append_array(unique.modifiers)
 	for rune in runes:
 		var modifier: ItemModifier = rune.modifier_for(self)
 		if modifier:
@@ -195,8 +214,50 @@ func rows_of(kind: AttackRow.Kind) -> Array[AttackRow]:
 	return rows
 
 
+func prefixes() -> Array[Affix]:
+	return _affixes_of(Affix.Kind.PREFIX)
+
+
+func suffixes() -> Array[Affix]:
+	return _affixes_of(Affix.Kind.SUFFIX)
+
+
+func _affixes_of(kind: Affix.Kind) -> Array[Affix]:
+	var result: Array[Affix] = []
+	for affix in affixes:
+		if affix.kind == kind:
+			result.append(affix)
+	return result
+
+
+func identify() -> void:
+	identified = true
+	_modifiers_changed()
+
+
+## Unidentified, only the base's name. Magic: "Sharp Iron Sword of the
+## Hawk". Rare and unique: their own name (the tooltip adds the base).
 func display_name() -> String:
-	return definition.item_name if definition else ""
+	if not definition:
+		return ""
+	if not identified:
+		return definition.item_name
+	match rarity:
+		Rarity.MAGIC:
+			var words: Array[String] = []
+			for affix in prefixes():
+				words.append(affix.affix_name)
+			words.append(definition.item_name)
+			for affix in suffixes():
+				words.append(affix.affix_name)
+			return " ".join(words)
+		Rarity.RARE:
+			if rare_name != "":
+				return rare_name
+		Rarity.UNIQUE:
+			if unique:
+				return unique.unique_name
+	return definition.item_name
 
 
 func rarity_color() -> Color:
@@ -219,6 +280,16 @@ func to_dict() -> Dictionary:
 		entry["stack"] = count
 	if rarity != Rarity.NORMAL:
 		entry["rarity"] = rarity
+	if item_level != 1:
+		entry["ilvl"] = item_level
+	if not affixes.is_empty():
+		entry["affixes"] = affixes.map(func(a): return a.id)
+	if unique:
+		entry["unique"] = unique.id
+	if rare_name != "":
+		entry["rare_name"] = rare_name
+	if not identified:
+		entry["identified"] = false
 	if sockets > 0:
 		entry["sockets"] = sockets
 	if not runes.is_empty():
@@ -236,6 +307,15 @@ static func from_dict(entry: Variant) -> ItemInstance:
 		return null
 	var item := ItemInstance.new(definition, int(entry.get("stack", 1)))
 	item.rarity = int(entry.get("rarity", Rarity.NORMAL)) as Rarity
+	item.item_level = int(entry.get("ilvl", 1))
+	for id in entry.get("affixes", []):
+		var affix := AffixDatabase.find(id)
+		if affix:
+			item.affixes.append(affix)
+	if entry.has("unique"):
+		item.unique = UniqueDatabase.find(entry["unique"])
+	item.rare_name = entry.get("rare_name", "")
+	item.identified = entry.get("identified", true)
 	item.sockets = int(entry.get("sockets", 0))
 	for id in entry.get("runes", []):
 		var rune := ItemDatabase.find(id) as RuneItem
@@ -248,6 +328,11 @@ static func from_dict(entry: Variant) -> ItemInstance:
 func copy() -> ItemInstance:
 	var twin := ItemInstance.new(definition, count)
 	twin.rarity = rarity
+	twin.item_level = item_level
+	twin.affixes = affixes.duplicate()
+	twin.unique = unique
+	twin.rare_name = rare_name
+	twin.identified = identified
 	twin.sockets = sockets
 	twin.runes = runes.duplicate()
 	twin._shots_left = _shots_left

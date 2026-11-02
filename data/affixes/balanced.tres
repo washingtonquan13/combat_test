@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Affix" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://systems/inventory_system/affix.gd" id="1_affix"]
+[ext_resource type="Script" path="res://systems/inventory_system/item_modifier.gd" id="2_mod"]
+
+[sub_resource type="Resource" id="Resource_mod"]
+script = ExtResource("2_mod")
+label = "+1 to hit"
+to_hit_bonus = 1
+
+[resource]
+script = ExtResource("1_affix")
+id = &"balanced"
+kind = 0
+affix_name = "Balanced"
+group = &"accuracy"
+level = 1
+on_weapons = true
+modifier = SubResource("Resource_mod")

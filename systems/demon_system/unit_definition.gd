@@ -114,6 +114,15 @@ extends Resource
 ## behaves identically whether or not this line exists in its .tres.
 @export var ai_smartness: int = 2
 
+@export_group("Loot")
+## Item level of what it leaves behind when killed. Separate from rank,
+## which only orders a species within its order for fusion.
+@export var level: int = 1
+## Rolls for its remains, each kept on drop_chance. Party members and
+## owned demons never drop anything (Remains.drop_for).
+@export var max_drops: int = 2
+@export_range(0.0, 1.0) var drop_chance: float = 0.5
+
 ## Whether this species is negotiable BY DEFAULT — cascades onto
 ## Unit.negotiable (see that field), still overridable per-instance for
 ## a specific encounter that wants an exception either way. A species

@@ -1,0 +1,25 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" uid="uid://cxn1voxy5ge5j" path="res://systems/interaction_system/interactable_prop.gd" id="1_prop"]
+[ext_resource type="Resource" path="res://data/interactions/loot.tres" id="2_loot"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="3_examine"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="4_opt"]
+[ext_resource type="PackedScene" path="res://systems/inventory_system/stash_component.tscn" id="5_stash"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_chest"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_chest"]
+
+[node name="LootChest" type="StaticBody3D"]
+script = ExtResource("1_prop")
+interactions = Array[ExtResource("4_opt")]([ExtResource("2_loot"), ExtResource("3_examine")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_chest")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_chest")
+
+[node name="StashComponent" parent="." instance=ExtResource("5_stash")]
+display_name = "Chest"
+loot_rolls = 4

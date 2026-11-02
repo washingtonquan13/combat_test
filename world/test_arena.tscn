@@ -1,4 +1,4 @@
-[gd_scene load_steps=31 format=3 uid="uid://c2eymxqvi7vu1"]
+[gd_scene load_steps=32 format=3 uid="uid://c2eymxqvi7vu1"]
 
 [ext_resource type="Script" uid="uid://22gse85gkv76" path="res://world/test_arena.gd" id="1_7mycd"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="3_7mycd"]
@@ -15,6 +15,7 @@
 [ext_resource type="Resource" path="res://data/interactions/talk.tres" id="59_rqtf5"]
 [ext_resource type="Resource" path="res://data/interactions/examine.tres" id="60_1vm84"]
 [ext_resource type="PackedScene" uid="uid://dwu2y8j3sei5i" path="res://systems/inventory_system/chest.tscn" id="60_chest"]
+[ext_resource type="PackedScene" path="res://systems/inventory_system/loot_chest.tscn" id="90_lootchest"]
 [ext_resource type="Resource" uid="uid://dwqtkbnj05wva" path="res://data/dialogue/scared_townsperson/hub.tres" id="62_townsdlg"]
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="63_dlgrootopt"]
 [ext_resource type="Resource" uid="uid://b0g3uyinnv5km" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="64_resolveddlg"]
@@ -153,6 +154,10 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)
 [node name="Chest" parent="." instance=ExtResource("60_chest")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 1, -8)
 persistent_id = &"test_arena_chest"
+
+[node name="LootChest" parent="." instance=ExtResource("90_lootchest")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 1, -8)
+persistent_id = &"test_arena_loot_chest"
 
 [node name="OverworldExit" parent="." instance=ExtResource("54_prop")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12, 1, -8)

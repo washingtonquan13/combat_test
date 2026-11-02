@@ -19,7 +19,32 @@ extends Node
 ## the reparent in/out (see stash_panel.gd).
 
 @export var display_name: String = "Container"
+## Drops LootRoller rolls into it the first time it's opened, at the
+## area's level (AreaDefinition.level). 0 for a stash with only what was
+## placed in it by hand.
+@export var loot_rolls: int = 0
 @onready var inventory: Inventory = $Inventory
+
+## Whether the first-open roll has happened — saved, so a reload doesn't
+## refill a looted chest.
+var _rolled: bool = false
+
+
+## The first-open roll (loot_rolls). Called by StashManager.open_stash.
+## Whatever doesn't fit is lost, as it would be in a full chest.
+func roll_loot() -> void:
+	if _rolled or loot_rolls <= 0:
+		return
+	_rolled = true
+	var area: AreaDefinition = WorldManager.current_area()
+	var rng := RandomNumberGenerator.new()
+	for item in LootRoller.roll_many(area.level if area else 1, loot_rolls, rng):
+		put(item)
+
+
+## Adds item wherever it fits; false when it doesn't.
+func put(item: ItemInstance) -> bool:
+	return _get_inventory().get_container().add(item)
 
 
 ## Thin delegation to this stash's own Inventory, which is where the
@@ -36,11 +61,15 @@ extends Node
 ## method's own header on why save_state()/load_state() can't assume
 ## _ready() has already run.
 func save_state() -> Dictionary:
-	return _get_inventory().save_state()
+	var state: Dictionary = _get_inventory().save_state()
+	if _rolled:
+		state["rolled"] = true
+	return state
 
 
 func load_state(state: Dictionary) -> void:
 	_get_inventory().load_state(state)
+	_rolled = state.get("rolled", false)
 
 
 ## get_node(), not the @onready `inventory` member — that member is only

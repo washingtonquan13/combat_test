@@ -8,3 +8,4 @@ script = ExtResource("1_def")
 id = &"test_arena"
 display_name = "Test Arena"
 world_scene = ExtResource("2_scene")
+level = 2
