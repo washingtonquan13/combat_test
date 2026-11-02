@@ -110,8 +110,9 @@ func display_instance(instance: ItemInstance) -> void:
 	item.instance = instance
 	item.layout = Item.LayoutMode.EQUIPPED
 	item_layer.add_child(item)
-	item.size = item_layer.size
-	item.position = Vector2.ZERO
+	# Anchored, not sized once: on the screen's first open item_layer hasn't
+	# been laid out yet (0x0), and a copied size would stay 0x0.
+	item.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	equipped_item = item
 	_refresh_ghost()
 
