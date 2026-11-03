@@ -27,7 +27,7 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
 ## Grease (data/abilities/grease.tres)
 - Visual: `grease.tscn` is a Decal, so the film drapes over steps and slopes. A Decal can't run a shader, so `grease_surface.gd` renders `grease.gdshader` (canvas_item) into two 512 px SubViewports, one albedo and one normal map, only while the shape changes. Each redraw is read back on `frame_post_draw` and set as a NEW ImageTexture: the decal atlas shows neither a ViewportTexture nor an `ImageTexture.update()`.
 - The outline is fbm noise sampled in meters (`radius_m`), so it differs every cast and detail doesn't stretch with radius; droplets sit just past the edge. The film's average edge is 0.75 of the decal (size 2.6 against authored_radius 1.0), which lands on the cast radius.
-- It spreads in over 0.6 s; `dissipate()` (called by `_expire`) thins it over 1.5 s, thin film first, then frees it. Roughness 0.12 via a flat ORM.
+- It spreads in over 0.6 s; `dissipate()` (called by `_expire`) thins it over 1.5 s, thin film first, then frees it. Roughness 0.12 via a flat ORM. `normal_fade` 0.6 fades it off steep faces (a decal projects straight down, so on a wall the texture smears into vertical streaks); floors and gentle slopes keep it.
 - `cull_mask` leaves out `Unit.RENDER_LAYER` (2); `Unit.wear_render_layer()` puts unit bodies and held weapons on it, so units standing in grease aren't painted.
 - Look demo: `tools/grease_look_demo.tscn` (recorded, not a test).
 

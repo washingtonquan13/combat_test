@@ -5,7 +5,7 @@
 
 [node name="Grease" type="Decal"]
 size = Vector3(2.6, 2.4, 2.6)
-normal_fade = 0.3
+normal_fade = 0.6
 cull_mask = 1048573
 script = ExtResource("1_script")
 shader = ExtResource("2_shader")
