@@ -54,9 +54,12 @@ void fragment() {
 	float n = fbm(UV * 3.0 + seed * 17.0 + vec2(TIME * 0.05, 0.0));
 	// Lumpy edge: the noise eats into a round falloff.
 	float shape = smoothstep(1.0, 0.25, length(centered) + (n - 0.5) * 0.7);
-	// Thin parts go first: the edge and the noise's low spots.
-	float cut = mix(-0.15, 0.9, dissipate);
-	shape *= smoothstep(cut - 0.12, cut + 0.12, shape * 0.4 + n * 0.6) * (1.0 - dissipate * dissipate);
+	// Thin parts go first: the edge and the noise's low spots. Each puff
+	// starts a little later than the last, so the cloud breaks up rather
+	// than thinning in lockstep, and the whole cloud fades with it.
+	float d = clamp(dissipate * 1.5 - seed * 0.5, 0.0, 1.0);
+	float cut = mix(-0.25, 1.0, d);
+	shape *= smoothstep(cut - 0.25, cut + 0.1, shape * 0.4 + n * 0.6) * (1.0 - dissipate);
 
 	float depth = texture(depth_texture, SCREEN_UV).r;
 	vec4 scene = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);

@@ -8,7 +8,7 @@ extends Node3D
 @export var lit_color: Color = Color(0.86, 0.88, 0.9)
 @export var shade_color: Color = Color(0.52, 0.56, 0.62)
 @export var opacity: float = 0.6
-@export var seconds: float = 3.0
+@export var seconds: float = 3.5
 @export var spread: float = 1.35
 @export var lift: float = 0.6
 
@@ -21,14 +21,18 @@ func _ready() -> void:
 	_puffs.set_instance_shader_parameter("opacity", opacity)
 
 
+## The puffs keep living (no emitting = false): their own lifetime fades
+## would run on a clock of their own and pop puffs out mid-drift.
 func dissipate() -> void:
-	_puffs.emitting = false
-	var tween := create_tween().set_parallel()
-	tween.tween_method(_set_dissipate, 0.0, 1.0, seconds).set_ease(Tween.EASE_IN)
-	tween.tween_property(self, "scale", scale * spread, seconds).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
-	tween.tween_property(self, "position:y", position.y + lift * scale.y, seconds).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
-	tween.chain().tween_callback(queue_free)
+	var tween := create_tween()
+	tween.tween_method(_set_progress.bind(scale, position.y), 0.0, 1.0, seconds)
+	tween.tween_callback(queue_free)
 
 
-func _set_dissipate(amount: float) -> void:
-	_puffs.set_instance_shader_parameter("dissipate", amount)
+## Drift decelerates (fast at first, like a gust lifting it) while the
+## shader thins at the same rate, so nothing sits still waiting.
+func _set_progress(t: float, start_scale: Vector3, start_y: float) -> void:
+	var drift: float = 1.0 - (1.0 - t) * (1.0 - t)
+	scale = start_scale * lerpf(1.0, spread, drift)
+	position.y = start_y + lift * start_scale.y * drift
+	_puffs.set_instance_shader_parameter("dissipate", t)
