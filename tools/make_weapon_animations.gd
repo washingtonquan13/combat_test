@@ -30,7 +30,7 @@ extends SceneTree
 #   Claw          Zombie_Scratch
 #   Bite          the head and chest lunge in, the jaw leading
 #   Gore          head down, a charge, then a toss of the head
-#   Pistol_Shot   one hand, up from the low ready to level, three shots
+#   Pistol_Shot   one hand, turned from the idle into a bladed stance, arm raised level, three shots
 #   Rifle_Burst   raised to the shoulder from the stance, ten shots
 #   Crossbow_Shot raised to the shoulder, one shot
 #   Bow_Shot      the bow arm out, the string drawn to the cheek, loosed
@@ -44,7 +44,7 @@ extends SceneTree
 #
 #   Stance_Sword       Sword_Idle
 #   Stance_Shield      Idle_Shield
-#   Stance_Pistol      Spell_Simple_Idle mirrored, one hand, a low ready
+#   Stance_Pistol      the Idle, square, the gun hanging at the right thigh
 #   Stance_Greatsword  both hands on the hilt at the belly, the blade up
 #   Stance_Longgun     AssaultRifle_Aim01 (Kevin Iglesias), refitted to our gun
 #   Stance_Crossbow    the same, the left hand on the crossbow's forestock

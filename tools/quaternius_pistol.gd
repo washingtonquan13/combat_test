@@ -1,24 +1,31 @@
 extends RefCounted
 
 # The pistol's stance, shot and reload, from the Quaternius pack (UAL1),
-# fitted to our pistol. The pistol is held in the right hand alone, in the
-# pack's one-handed stance: Spell_Simple_Idle, which the artist made for the
-# left hand, mirrored - the body bladed, the right shoulder forward, the arm
-# out at shoulder height and the left arm low. Its open hand is closed round
-# the grip as Pistol_Idle's is and given our gun, the barrel along the arm,
-# level. The low ready is that arm swung down about the shoulder; a shot is
-# the arm raised to level with Pistol_Shoot's recoil kick. The reload is two
-# handed, Pistol_Reload with the left hand carried with the gun as the artist
-# held it, blended in from the stance and back out to it.
+# fitted to our pistol, held in the right hand alone. At rest the unit
+# stands square in the pack's Idle, the gun hanging at the right thigh,
+# muzzle down. To fire it shifts into the pack's one-handed stance,
+# Spell_Simple_Idle, which the artist made for the left hand, mirrored - the
+# body bladed, the right shoulder forward, the left arm low - with the arm
+# straight out from the shoulder along the unit's facing, the gun level,
+# kicked up by Pistol_Shoot's recoil. The hand is closed round the grip as
+# Pistol_Idle's is. The reload is two handed, Pistol_Reload with the left
+# hand carried with the gun as the artist held it, blended in from the rest
+# and back out to it.
 
 const PoseBuilder := preload("res://tools/pose_builder.gd")
 
 const UAL1 := "res://assets/unit_animations.tres"
+const REST := "Idle"
 const ONE_HAND := "Spell_Simple_Idle"
-# How far the low ready points the gun down from level, in degrees.
-const READY_DROP := 45.0
-# Where the elbow of the gun arm points: down and out.
+# How far the hanging gun's muzzle is tipped forward from straight down, in
+# degrees.
+const HANG_TIP := 40.0
+# Where the elbow of the gun arm points: down and out when aiming, back and
+# out when hanging.
 const GUN_POLE := Vector3(-0.5, -1.0, 0.0)
+const HANG_POLE := Vector3(-0.3, 0.0, -1.0)
+# The hanging gun's grip moved off the Idle hand, out clear of the thigh.
+const HANG_OUT := Vector3(-0.06, 0.0, 0.03)
 # The left hand is on the gun within NEAR of where the reload clip holds it,
 # off it past FAR.
 const NEAR := 0.05
@@ -62,22 +69,22 @@ func _init(poses: PoseBuilder) -> void:
 	_hinge = upper.inverse() * Vector3.LEFT.cross(Vector3.BACK).normalized()
 
 
-# The low ready, breathing with the one-handed stance.
+# Standing square, the gun hanging at the thigh.
 func stance() -> Animation:
-	var anim := _ual1.get_animation(ONE_HAND)
+	var anim := _ual1.get_animation(REST)
 	return _poses.clip(anim.length, true, func(t: float, _length: float) -> Dictionary:
-		return _one_hand(t, READY_DROP))
+		return _hang(t))
 
 
 # The stance's first frame: where a shot is raised from and lowered to.
 func ready() -> Dictionary:
-	return _one_hand(0.0, READY_DROP)
+	return _hang(0.0)
 
 
-# The arm raised level `since` seconds after a shot, kicked up by the recoil
-# and settled by 0.25.
+# The firing stance `since` seconds after a shot, the arm kicked up by the
+# recoil and settled by 0.25.
 func aimed(since: float) -> Dictionary:
-	return _one_hand(0.0, -(_pitch(clampf(since, 0.0, 0.25)) - _aim_pitch))
+	return _aim(_pitch(clampf(since, 0.0, 0.25)) - _aim_pitch)
 
 
 func reload() -> Animation:
@@ -89,26 +96,39 @@ func reload() -> Animation:
 		return _poses._blend(pose, from, stance_weight))
 
 
-# The one-handed stance at t, the arm level at shoulder height and the gun
-# level along it, then swung `drop` degrees down about the shoulder.
-func _one_hand(t: float, drop: float) -> Dictionary:
-	var anim := _ual1.get_animation(ONE_HAND)
-	var sample := _mirror(_sample(ONE_HAND, fmod(t, anim.length)))
+# The Idle at t, the right hand closed on the gun where it hangs, the
+# muzzle down and tipped a little forward, the top of the gun forward.
+func _hang(t: float) -> Dictionary:
+	var anim := _ual1.get_animation(REST)
+	var sample := _sample(REST, fmod(t, anim.length))
+	sample.merge(_closed, true)
+	var pose := _frame(sample)
+	var hand := _poses.grip_transform(pose, "Right").origin + HANG_OUT
+	var tip := Basis(Vector3.LEFT, deg_to_rad(HANG_TIP))
+	_hold_gun(pose, hand, tip * Vector3.DOWN, tip * Vector3.BACK, HANG_POLE)
+	return pose
+
+
+# The mirrored one-handed stance, the arm straight out from the shoulder
+# along the unit's facing (+Z), the gun level, kicked `kick` degrees up.
+func _aim(kick: float) -> Dictionary:
+	var sample := _mirror(_sample(ONE_HAND, 0.0))
 	sample.merge(_closed, true)
 	var pose := _frame(sample)
 	var shoulder := _poses.bone_transform(_poses.resolve(pose), "RightUpperArm").origin
-	var hand := _poses.grip_transform(pose, "Right").origin
-	var barrel := Vector3(hand.x - shoulder.x, 0, hand.z - shoulder.z).normalized()
-	var x := Vector3.UP.cross(barrel).normalized()
-	# The clip's arm reaches a little above level; level it first.
-	var reach := Vector2(hand.x - shoulder.x, hand.z - shoulder.z).length()
-	var raised := atan2(hand.y - shoulder.y, reach)
-	var swing := Transform3D(Basis(x, raised + deg_to_rad(drop)), shoulder) * Transform3D(Basis(), -shoulder)
-	var gun := swing * Transform3D(Basis(x, Vector3.UP, barrel), hand)
-	_poses.grasp(pose, "Right", gun.origin, gun.basis.z, gun.basis.y, GUN_POLE)
-	_roll_arm(pose, gun.basis.y)
-	_poses.hold(pose, "Right", gun.basis.z, gun.basis.y)
+	var reach := shoulder.distance_to(_poses.grip_transform(pose, "Right").origin)
+	var up := Basis(Vector3.LEFT, deg_to_rad(kick))
+	_hold_gun(pose, shoulder + up * Vector3.BACK * reach, up * Vector3.BACK, up * Vector3.UP, GUN_POLE)
 	return pose
+
+
+# The right hand on the gun's grip at `at`, the barrel along `barrel`, its
+# top toward `top`, the elbow toward `pole`, the arm turned to a handshake
+# on it.
+func _hold_gun(pose: Dictionary, at: Vector3, barrel: Vector3, top: Vector3, pole: Vector3) -> void:
+	_poses.grasp(pose, "Right", at, barrel, top, pole)
+	_roll_arm(pose, top)
+	_poses.hold(pose, "Right", barrel, top)
 
 
 # The arm turned from the Spell clip's open palm-out reach to a handshake
