@@ -1,7 +1,9 @@
 extends RefCounted
 
 # The long gun's stance, aim and reload, from Kevin Iglesias' Human Soldier
-# Animations FREE (assets/kevin_soldier), fitted to our rifle. The clips hold
+# Animations FREE (assets/kevin_soldier), fitted to our rifle: the stance and
+# reload from the assault rifle set, held low; the aim a shot is fired from
+# the rifle set's, the stock at the shoulder and the gun level. The clips hold
 # a gun of their own, turned in the right hand from the way ours sits on the
 # grip, with a longer handguard; so each frame is the artist's pose with both
 # arms bent back onto our gun: the right hand turned to hold it the way the
@@ -14,9 +16,11 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 const DIR := "res://assets/kevin_soldier/"
 # Their hips stand 0.980 high, ours 0.917.
 const HIPS_SCALE := 0.936
-# How the clips' rifle sits in the right hand, turned from ours on the grip,
-# in degrees: measured from where their left palm and the gun's top are.
+# How the assault rifle set's gun sits in the right hand, turned from ours on
+# the grip, in degrees: measured from where their left palm and the gun's top
+# are. The rifle set's hand already holds ours level at the shoulder.
 const GRIP_TURN := Vector3(38.96, 3.81, 0.66)
+const RAISED_TURN := Vector3.ZERO
 # Where the off hand holds the rifle, in the gun's grip space: rifle.tscn's
 # OffHand mark, under the handguard.
 const OFF_HAND := Vector3(0, 0.1, 0.3)
@@ -27,11 +31,13 @@ const FINGERS := ["Index", "Middle", "Ring", "Little"]
 
 var _poses: PoseBuilder
 var _aim: Animation
+var _raised: Animation
 
 
 func _init(poses: PoseBuilder) -> void:
 	_poses = poses
 	_aim = _source("HumanM@AssaultRifle_Aim01")
+	_raised = _source("HumanM@Rifle_Aim01")
 
 
 # The shouldered aim, looping: the stance a unit stands in with a long gun.
@@ -46,12 +52,17 @@ func reload() -> Animation:
 		return _fit(_frame(anim, t)))
 
 
-# The stance's first frame with the chest rocked back `kick` degrees by a
-# shot, the gun carried with it.
-func aimed(kick := 0.0) -> Dictionary:
-	var pose := _frame(_aim, 0.0)
+# The stance's first frame: where a shot is raised from and lowered to.
+func aimed() -> Dictionary:
+	return _fit(_frame(_aim, 0.0))
+
+
+# Shouldered to fire, the chest rocked back `kick` degrees by a shot, the
+# gun carried with it.
+func raised(kick := 0.0) -> Dictionary:
+	var pose := _frame(_raised, 0.0)
 	PoseBuilder.add(pose, "Chest", Vector3(-kick, 0, 0))
-	return _fit(pose)
+	return _fit(pose, RAISED_TURN)
 
 
 func _source(file: String) -> Animation:
@@ -78,9 +89,9 @@ func _frame(anim: Animation, t: float) -> Dictionary:
 	return pose
 
 
-func _fit(pose: Dictionary) -> Dictionary:
+func _fit(pose: Dictionary, grip_turn := GRIP_TURN) -> Dictionary:
 	var resolved := _poses.resolve(pose)
-	var turn := Basis.from_euler(GRIP_TURN * PI / 180.0)
+	var turn := Basis.from_euler(grip_turn * PI / 180.0)
 	var gun := _poses.grip_transform(pose, "Right") * Transform3D(turn, Vector3.ZERO)
 	var left := _poses.grip_transform(pose, "Left")
 	var right_pole := _pole(resolved, "Right")

@@ -31,8 +31,8 @@ extends SceneTree
 #   Bite          the head and chest lunge in, the jaw leading
 #   Gore          head down, a charge, then a toss of the head
 #   Pistol_Shot   Pistol_Shoot's aim, three shots with recoil
-#   Rifle_Burst   the stance's shouldered aim, ten shots
-#   Crossbow_Shot the shouldered aim, one shot
+#   Rifle_Burst   raised to the shoulder from the stance, ten shots
+#   Crossbow_Shot raised to the shoulder, one shot
 #   Bow_Shot      the bow arm out, the string drawn to the cheek, loosed
 #   Dodge         a sidestep to the left, leaning out of the line
 #   Parry         Sword_Block
@@ -232,10 +232,9 @@ func _pistol_aim(since: float) -> Dictionary:
 	return _frame(shoot, clampf(since, 0.0, 0.25) if since < 0.25 else 0.25)
 
 
-# A long gun at the shoulder, the stance's aim, the chest rocked back by
-# the kick.
+# A long gun at the shoulder, the chest rocked back by the kick.
 func _shoulder_aim(since: float) -> Dictionary:
-	return _rifle.aimed(_kick(since) * 6.0)
+	return _rifle.raised(_kick(since) * 6.0)
 
 
 # --- Built clips -----------------------------------------------------------
