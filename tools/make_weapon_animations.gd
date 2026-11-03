@@ -21,10 +21,10 @@ extends SceneTree
 # times or poses below and running this again; the clips are data the game
 # reads. A clip that moves a key moves the moment the game waits on.
 #
-#   Swing         Sword_Regular_A + _Rec, right-to-left slash
+#   Swing         Attack1H01_L (Kevin Iglesias), stepped in, swept across
 #   Heavy_Swing   Attack2H01 (Kevin Iglesias), the two-handed cut, refitted
 #   Heavy_Thrust  CombatIdle2H01 (Kevin Iglesias) driven into a two-handed thrust
-#   Thrust        draw back, lunge with the arm straight out
+#   Thrust        Attack1H01_R (Kevin Iglesias), a lunge, the arm straight out
 #   Bash          Shield_OneShot, the off hand punched forward
 #   Throw         OverhandThrow
 #   Punch         Melee_Hook + _Rec
@@ -43,7 +43,7 @@ extends SceneTree
 # (WeaponData.stance_animation), and the reloads what Reload plays
 # (WeaponData.reload_animation). Built stances breathe, one breath a loop.
 #
-#   Stance_Sword       Sword_Idle
+#   Stance_Sword       CombatIdle1H01 (Kevin Iglesias), the low one-handed guard
 #   Stance_Shield      Idle_Shield
 #   Stance_Pistol      the Idle, square, the gun hanging at the right thigh
 #   Stance_Greatsword  CombatIdle2H01 (Kevin Iglesias), refitted to our sword
@@ -60,6 +60,8 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 const KevinRifle := preload("res://tools/kevin_rifle.gd")
 # The greatsword's stance and cut, from the Kevin Iglesias melee clips.
 const KevinGreatsword := preload("res://tools/kevin_greatsword.gd")
+# The one-handed sword's stance, cut and thrust, from the same pack.
+const KevinSword := preload("res://tools/kevin_sword.gd")
 # The pistol's stance, shot and reload, from the Quaternius clips.
 const QuaterniusPistol := preload("res://tools/quaternius_pistol.gd")
 
@@ -72,9 +74,7 @@ const FORWARD := Vector3(0, 0, 1)
 const FINGERS := ["Index", "Middle", "Ring", "Little"]
 
 # Moments, in seconds into each clip.
-const SWING_IMPACT := 0.23
 const HEAVY_IMPACT := 0.57
-const THRUST_IMPACT := 0.36
 const BASH_IMPACT := 0.12
 const THROW_RELEASE := 0.36
 const PUNCH_IMPACT := 0.27
@@ -121,14 +121,16 @@ func _init() -> void:
 	_standing = _poses.resolve(_poses.standing())
 	var library := AnimationLibrary.new()
 
-	library.add_animation("Swing", _keyed(_joined(["Sword_Regular_A", "Sword_Regular_A_Rec"]), {"impact": [SWING_IMPACT]}))
 	library.add_animation("Bash", _keyed(_joined(["Shield_OneShot"]), {"impact": [BASH_IMPACT]}))
 	library.add_animation("Throw", _keyed(_joined(["OverhandThrow"]), {"release": [THROW_RELEASE]}))
 	library.add_animation("Punch", _keyed(_joined(["Melee_Hook", "Melee_Hook_Rec"]), {"impact": [PUNCH_IMPACT]}))
 	library.add_animation("Claw", _keyed(_joined(["Zombie_Scratch"]), {"impact": [CLAW_IMPACT]}))
 	library.add_animation("Parry", _joined(["Sword_Block"]))
 
-	library.add_animation("Stance_Sword", _looped("Sword_Idle"))
+	var sword := KevinSword.new(_poses)
+	library.add_animation("Stance_Sword", sword.stance())
+	library.add_animation("Swing", _keyed(sword.swing(), {"impact": [KevinSword.SWING_IMPACT]}))
+	library.add_animation("Thrust", _keyed(sword.thrust(), {"impact": [KevinSword.THRUST_IMPACT]}))
 	library.add_animation("Stance_Shield", _looped("Idle_Shield"))
 	_pistol = QuaterniusPistol.new(_poses)
 	library.add_animation("Stance_Pistol", _pistol.stance())
@@ -148,7 +150,6 @@ func _init() -> void:
 	library.add_animation("Reload_Rifle", _rifle.reload())
 	library.add_animation("Reload_Crossbow", _poses.clip(2.0, false, _crossbow_reload))
 
-	library.add_animation("Thrust", _keyed(_poses.clip(0.95, false, _thrust), {"impact": [THRUST_IMPACT]}))
 	library.add_animation("Bite", _keyed(_poses.clip(0.9, false, _bite), {"impact": [BITE_IMPACT]}))
 	library.add_animation("Gore", _keyed(_poses.clip(1.05, false, _gore), {"impact": [GORE_IMPACT]}))
 	library.add_animation("Pistol_Shot", _shots(PISTOL_SHOTS, PISTOL_GAP, _pistol.aimed, _pistol.ready(),
@@ -294,40 +295,6 @@ func _guard() -> Dictionary:
 	_fingers(pose, "Left", 0.5)
 	return pose
 
-
-func _thrust(t: float, length: float) -> Dictionary:
-	# Drawn back: the hand at the hip, point forward, the body coiled.
-	var drawn := _guard()
-	drawn["Hips"] = Vector3(0, -22, 0)
-	drawn["Chest"] = Vector3(0, -6, 0)
-	drawn["RightUpperArm"] = Vector3(25, 0, -12)
-	drawn["RightLowerArm"] = Vector3(-95, 0, 0)
-	drawn["RightHand"] = Vector3(-10, 0, 0)
-	# The lunge: a step in on the left foot, the arm straight out at the
-	# target, shoulder high, the blade level with it.
-	var lunge := _guard()
-	lunge["_hips"] = Vector3(0, -0.09, 0.22)
-	lunge["Hips"] = Vector3(6, 18, 0)
-	lunge["Spine"] = Vector3(10, 6, 0)
-	lunge["Chest"] = Vector3(4, 8, 0)
-	lunge["LeftUpperLeg"] = Vector3(-50, 0, 5)
-	lunge["LeftLowerLeg"] = Vector3(45, 0, 0)
-	lunge["RightUpperLeg"] = Vector3(25, 0, -5)
-	lunge["RightLowerLeg"] = Vector3(15, 0, 0)
-	lunge["RightUpperArm"] = Vector3(-84, 10, -4)
-	lunge["RightLowerArm"] = Vector3(-4, 0, 0)
-	lunge["LeftUpperArm"] = Vector3(20, 0, -20)
-	lunge["LeftLowerArm"] = Vector3(-20, 0, 0)
-	# The blade straight out at the target, edge down.
-	_poses.hold(lunge, "Right", Vector3.DOWN, FORWARD)
-	var rest := _frame(_source("Sword_Idle"), 0.0)
-	return _poses.keyed(t, [
-		[0.0, rest],
-		[0.2, drawn],
-		[THRUST_IMPACT, lunge],
-		[0.52, lunge],
-		[length, rest],
-	])
 
 
 func _bite(t: float, length: float) -> Dictionary:
