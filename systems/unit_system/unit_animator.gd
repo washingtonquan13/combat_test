@@ -55,11 +55,6 @@ extends Node
 @export var walk_animation: String = "Jog_Fwd"
 @export var hit_animation: String = "Hit_Chest"
 @export var death_animation: String = "Death01"
-## A defender's answer to an attack it beat (Unit.defended), by kind.
-## Empty, or a clip the body lacks, shows nothing.
-@export var dodge_animation: String = "Weapon/Dodge"
-@export var parry_animation: String = "Weapon/Parry"
-@export var block_animation: String = "Weapon/Block"
 
 @export_group("Pacing")
 ## The beat after an attack's clip settles before the turn moves on.
@@ -219,7 +214,6 @@ func _ready() -> void:
 	unit.movement_finished.connect(_on_movement_finished)
 	unit.ability_use_started.connect(_on_ability_use_started)
 	unit.took_damage.connect(_on_took_damage)
-	unit.defended.connect(_on_defended)
 	unit.died.connect(_on_died)
 	unit.became_idle.connect(_on_unit_became_idle)
 	unit.status_applied.connect(_on_status_applied)
@@ -273,9 +267,6 @@ func _validate_animation_names() -> void:
 	_check_clip(land_animation, "land_animation")
 	_check_clip(hit_animation, "hit_animation")
 	_check_clip(death_animation, "death_animation")
-	_check_clip(dodge_animation, "dodge_animation")
-	_check_clip(parry_animation, "parry_animation")
-	_check_clip(block_animation, "block_animation")
 	_check_sequence(default_cast_animation, "default_cast_animation")
 	_check_clip(default_armed_enter_animation, "default_armed_enter_animation")
 	_check_clip(default_armed_hold_animation, "default_armed_hold_animation")
@@ -478,23 +469,6 @@ func _end_hold_if(token: int) -> void:
 	_holding_busy = false
 	_hold_token += 1
 	unit.end_busy()
-
-
-## The defense clip: plays at the attack's impact, when the defender
-## beat it (UnitCombat.use_ability).
-func _on_defended(_u: Unit, kind: StringName) -> void:
-	if _cutscene_claimed or not unit.is_alive() or unit.posed_status:
-		return
-	var clip: String
-	match kind:
-		&"dodge":
-			clip = dodge_animation
-		&"parry":
-			clip = parry_animation
-		&"block":
-			clip = block_animation
-	if clip != "" and animation_player.has_animation(clip):
-		_play(clip)
 
 
 ## Reads the currently-held status's own hit_reaction_animation if it

@@ -2,8 +2,7 @@ extends "res://tools/weapons_demo.gd"
 ## Recorded walkthrough of weapon visuals — NOT a test. Each attack row
 ## plays its own clip with the weapon in hand; a melee hit lands on the
 ## clip's impact key, a shot leaves on its release key and lands when
-## the arrow, bolt, axe or bullet arrives, the defender dodges, parries
-## or blocks as the roll said, every round of rapid fire is its own
+## the arrow, bolt, axe or bullet arrives, every round of rapid fire is its own
 ## shot, and the attacker holds the turn through its recovery and a
 ## short gap. Every attack logs use / release / impact / damage / idle
 ## times from the use. Record it the same way as item_layer_demo.
@@ -31,7 +30,6 @@ func _run() -> void:
 	await _wait(1.0)
 
 	await _sword_hits_on_its_key()
-	await _defense_matches_the_roll()
 	await _bow_swaps_and_shoots()
 	await _flights()
 	await _pistol_one_hit_per_round()
@@ -64,33 +62,6 @@ func _sword_hits_on_its_key() -> void:
 	_check("Thrust plays Weapon/Thrust (%s)" % thrust.clip, thrust.clip == "Weapon/Thrust")
 	await _wait(2.0)
 	near.queue_free()
-
-
-func _defense_matches_the_roll() -> void:
-	_say("A quick defender: it dodges, parries or blocks as its roll says")
-	var defender: Unit = _dummy(-1.2, 0.0)
-	defender.set_base_stat(StatIds.DX, 18)
-	defender.set_base_stat(StatIds.HT, 18)
-	defender.equip_item(MAIN, ItemInstance.new(IronSword))
-	defender.equip_item(OFF, ItemInstance.new(load("res://data/items/wooden_shield.tres")))
-	await _wait(2.0)
-	var seen := []
-	defender.defended.connect(func(_u, kind):
-		await get_tree().process_frame
-		seen.append([kind, String(_animator(defender).animation_player.current_animation)]))
-	for i in 6:
-		_hero.reset_turn_actions()
-		var t: Dictionary = await _timed(_attack("Swing"), defender)
-		if t.result.has("defense") and not t.result.get("hit", true):
-			_say("Defended with a %s" % t.result.defense.kind)
-			break
-		await _wait(0.8)
-	_check("the defender defended at least once", not seen.is_empty())
-	if not seen.is_empty():
-		var clip := {&"dodge": "Weapon/Dodge", &"parry": "Weapon/Parry", &"block": "Weapon/Block"}
-		_check("the clip matches the roll (%s -> %s)" % seen[0], seen[0][1] == clip[seen[0][0]])
-	await _wait(2.5)
-	defender.queue_free()
 
 
 func _bow_swaps_and_shoots() -> void:

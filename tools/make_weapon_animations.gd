@@ -1,8 +1,7 @@
 extends SceneTree
 
 # Generates assets/weapon_animations.tres: one clip per kind of attack row,
-# the defender's three answers to it, keyed onto the UAL mannequin's
-# GeneralSkeleton.
+# keyed onto the UAL mannequin's GeneralSkeleton.
 #
 #   godot --headless --path . -s res://tools/make_weapon_animations.gd
 #
@@ -35,9 +34,6 @@ extends SceneTree
 #   Rifle_Burst   raised to the shoulder from the stance, ten shots
 #   Crossbow_Shot raised to the shoulder, one shot
 #   Bow_Shot      BowShot01 Load + Release (Kevin Iglesias), raised from the stance, refitted
-#   Dodge         a sidestep to the left, leaning out of the line
-#   Parry         Sword_Block
-#   Block         the shield brought up across the chest, braced
 #
 # The stances are the looping idles a unit stands in with a weapon drawn
 # (WeaponData.stance_animation), and the reloads what Reload plays
@@ -136,7 +132,6 @@ func _init() -> void:
 	library.add_animation("Throw", _keyed(_joined(["OverhandThrow"]), {"release": [THROW_RELEASE]}))
 	library.add_animation("Punch", _keyed(_joined(["Melee_Hook", "Melee_Hook_Rec"]), {"impact": [PUNCH_IMPACT]}))
 	library.add_animation("Claw", _keyed(_joined(["Zombie_Scratch"]), {"impact": [CLAW_IMPACT]}))
-	library.add_animation("Parry", _joined(["Sword_Block"]))
 
 	var sword := KevinSword.new(_poses)
 	library.add_animation("Stance_Sword", sword.stance())
@@ -169,9 +164,7 @@ func _init() -> void:
 	library.add_animation("Crossbow_Shot", _shots(1, 0.2, func(since: float) -> Dictionary:
 		return _crossbow.raised(_kick(since) * 6.0), _crossbow_rest))
 	library.add_animation("Bow_Shot", _keyed(bow.shot(), {"release": [bow.release_time()]}))
-	library.add_animation("Dodge", _poses.clip(0.6, false, _dodge))
 	library.add_animation("Jump_Start", _keyed(_jump_start(), {"impact": [SINK + LIFT_OFF]}))
-	library.add_animation("Block", _poses.clip(0.75, false, _block))
 
 	var err := ResourceSaver.save(library, OUT)
 	print("weapon animations: saved %s (%s)" % [OUT, error_string(err)])
@@ -377,44 +370,3 @@ func _gore(t: float, length: float) -> Dictionary:
 		[length, _standing],
 	])
 
-
-func _dodge(t: float, length: float) -> Dictionary:
-	# A step to the left, the body leaning out of the line of the blow.
-	var out := {
-		"_hips": Vector3(0.3, -0.06, -0.05),
-		"Hips": Vector3(0, 0, 12),
-		"Spine": Vector3(-4, 0, 10),
-		"Chest": Vector3(-4, 0, 8),
-		"Head": Vector3(0, 0, -10),
-		"LeftUpperLeg": Vector3(0, 0, 25),
-		"LeftLowerLeg": Vector3(20, 0, 0),
-		"RightUpperLeg": Vector3(-10, 0, 5),
-		"RightLowerLeg": Vector3(15, 0, 0),
-		"LeftUpperArm": Vector3(-20, 0, -20),
-		"RightUpperArm": Vector3(-30, 0, 35),
-		"RightLowerArm": Vector3(-60, 0, 0),
-	}
-	return _poses.keyed(t, [
-		[0.0, _standing],
-		[0.18, out],
-		[0.32, out],
-		[length, _standing],
-	])
-
-
-func _block(t: float, length: float) -> Dictionary:
-	# The off hand's shield up across the chest, the body set behind it.
-	var braced := _guard()
-	braced["_hips"] = Vector3(0, -0.06, -0.04)
-	braced["Spine"] = Vector3(8, 0, 0)
-	braced["Chest"] = Vector3(4, 0, 0)
-	braced["Head"] = Vector3(8, 0, 0)
-	braced["LeftUpperArm"] = Vector3(-55, -25, -10)
-	braced["LeftLowerArm"] = Vector3(-15, 0, 85)
-	braced["LeftHand"] = Vector3(0, 0, 0)
-	return _poses.keyed(t, [
-		[0.0, _standing],
-		[0.14, braced],
-		[0.4, braced],
-		[length, _standing],
-	])
