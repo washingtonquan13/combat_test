@@ -1,7 +1,10 @@
 class_name Surface
 extends Resource
-## Data for one surface TYPE (Fire, Grease, Poison Cloud, ...) that can be
-## spawned onto the battlefield — the world-anchored counterpart to
+## Data for one area TYPE (Fire, Grease, Fog Cloud, ...) that can be
+## spawned onto the battlefield. BG3's two kinds are one resource with a
+## shape: a SURFACE is a flat disc on the ground, a CLOUD a sphere that
+## can hang in the air (see shape). Everything else — the status, the
+## lifetime, the world it lives in — is the same either way — the world-anchored counterpart to
 ## StatusEffect (which is unit-anchored). Create instances as .tres files,
 ## assign to a SpawnSurfaceEffect on an ability with AreaTargeting (see
 ## that effect's header for why radius isn't a field here).
@@ -25,7 +28,13 @@ extends Resource
 ## its own. -1 means permanent — it never ages out via round tick and has
 ## to be cleared some other way (a future dispel effect, say).
 @export var duration_rounds: int = 3
-## Vertical extent (meters) of the Area3D collision shape SurfaceManager
+
+enum Shape {
+	DISC,   ## a flat patch on the ground, detection_height tall (Grease)
+	SPHERE, ## a ball of the spawned radius around the center, which may be in the air (Fog)
+}
+@export var shape: Shape = Shape.DISC
+## DISC only. Vertical extent (meters) of the Area3D collision shape SurfaceManager
 ## builds for this surface (see SurfaceManager.spawn) — centered so it
 ## reaches from ground level up to this height, tall enough to reliably
 ## overlap a unit's own collision shape regardless of minor ground
@@ -41,6 +50,18 @@ extends Resource
 ## a fresh entry event. Left unset, the surface exists visually but does
 ## nothing mechanically.
 @export var status_effect: StatusEffect
+
+## The status lasts only while the unit is inside: it comes off when
+## they leave (or the area goes) unless another such area still holds
+## them. Fog's Blinded. Off, it runs its own duration like Grease's
+## Slipped.
+@export var status_only_inside: bool = false
+
+@export_group("Sight")
+## Blocks every sight line that passes through it — into, out of, or
+## across (BG3's Fog Cloud). Read by LineOfSight, so ranged targeting,
+## AoE aiming and detection all see the same wall.
+@export var blocks_sight: bool = false
 
 @export_group("Movement")
 ## Multiplies the BUDGET cost (not the visual walking speed) of
@@ -64,8 +85,8 @@ extends Resource
 ## lifetime. Any scene works as long as it doesn't try to free itself —
 ## SurfaceManager owns that.
 @export var ambient_scene: PackedScene
-## Whether ambient_scene's horizontal (X/Z) scale is stretched to match
-## the surface's actual spawned radius, same reasoning and same default
+## Whether ambient_scene is scaled to match the surface's actual spawned
+## radius — X/Z for a DISC, uniformly for a SPHERE, same reasoning and same default
 ## (no vertical stretch — height_scale_factor is implicitly 0 here) as
 ## SpawnParticleStep.scale_to_ability_radius.
 @export var scale_ambient_to_radius: bool = true

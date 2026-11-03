@@ -199,7 +199,7 @@ func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
 	# existed, since RoutePlanner.plan()'s defaults are a strict no-op.
 	var ascend_multiplier: float = FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
 	var descend_multiplier: float = FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
-	return RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at, ascend_multiplier, descend_multiplier)
+	return RoutePlanner.plan(waypoints, budget, SurfaceManager.cost_sampler(_owner), ascend_multiplier, descend_multiplier)
 
 
 ## Plans a route to raw_destination within budget and starts walking it —

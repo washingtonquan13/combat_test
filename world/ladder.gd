@@ -168,7 +168,7 @@ static func find_route(unit: Unit, destination: Vector3) -> Dictionary:
 			var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, near, unit, false)
 			if waypoints.size() < 2:
 				continue
-			near_planned = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at)
+			near_planned = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.cost_sampler(unit))
 
 		var cost_to_near: float = near_planned.cumulative_cost[near_planned.cumulative_cost.size() - 1] if near_planned.cumulative_cost.size() > 0 else 0.0
 		var affordable: bool = (not unit.in_combat()) or (unit.move_remaining >= cost_to_near + ladder.required_move)

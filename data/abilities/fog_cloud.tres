@@ -1,0 +1,54 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=10 format=3]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="4_surface"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/fog_cloud.tscn" id="5_visual"]
+[ext_resource type="Resource" path="res://data/statuses/blinded.tres" id="6_blinded"]
+[ext_resource type="Texture2D" path="res://assets/ability_icon/fog_cloud_icon.png" id="7_icon"]
+[ext_resource type="Script" uid="uid://b1y7f6ela25ie" path="res://systems/ability_system/aerial_area_targeting.gd" id="8_targeting"]
+
+[sub_resource type="Resource" id="Resource_cloud"]
+script = ExtResource("4_surface")
+surface_name = "Fog Cloud"
+duration_rounds = 10
+shape = 1
+status_effect = ExtResource("6_blinded")
+status_only_inside = true
+blocks_sight = true
+movement_cost_multiplier = 1.0
+ambient_scene = ExtResource("5_visual")
+scale_ambient_to_radius = true
+authored_radius = 1.0
+metadata/_custom_type_script = "uid://cykbj1s0c82e5"
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("3_spawn")
+surface = SubResource("Resource_cloud")
+metadata/_custom_type_script = "uid://5apipwrij8ef"
+
+[sub_resource type="Resource" id="Resource_targeting"]
+script = ExtResource("8_targeting")
+max_range = 18.0
+radius = 4.0
+requires_line_of_sight = false
+los_obstruction_mask = 1
+eye_height = 1.5
+requires_ally = false
+metadata/_custom_type_script = "uid://b1y7f6ela25ie"
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Fog Cloud"
+icon = ExtResource("7_icon")
+category = 1
+targeting = SubResource("Resource_targeting")
+effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+armed_enter_animation = ""
+armed_hold_animation = ""
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

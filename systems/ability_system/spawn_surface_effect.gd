@@ -20,7 +20,7 @@ extends AbilityEffect
 @export var surface: Surface
 
 
-func apply(_attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3 or not surface:
 		return {}
 
@@ -28,7 +28,7 @@ func apply(_attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dic
 	if not targeting:
 		return {}
 
-	SurfaceManager.spawn(surface, target, targeting.radius)
+	SurfaceManager.spawn(surface, target, targeting.radius, attacker)
 	return {"spawned_surface": surface.surface_name}
 
 

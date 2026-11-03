@@ -287,7 +287,7 @@ func _update_path_preview(unit: Unit) -> void:
 	# unit, unchanged from before this fix.
 	var ascend_multiplier: float = UnitMovement.FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
 	var descend_multiplier: float = UnitMovement.FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
-	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at, ascend_multiplier, descend_multiplier)
+	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.cost_sampler(unit), ascend_multiplier, descend_multiplier)
 	var path: PackedVector3Array = planned.path
 
 	if path.size() < 2:
@@ -350,7 +350,7 @@ func _update_ladder_preview(unit: Unit, route: Dictionary, hover_point: Vector3)
 
 	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), route.far, hover_point, unit, false)
 	if tail_waypoints.size() >= 2:
-		var tail_planned: Dictionary = RoutePlanner.plan(tail_waypoints, 9999.0, SurfaceManager.movement_cost_multiplier_at)
+		var tail_planned: Dictionary = RoutePlanner.plan(tail_waypoints, 9999.0, SurfaceManager.cost_sampler(unit))
 		for i in range(1, tail_planned.path.size()):
 			combined_path.append(tail_planned.path[i])
 			combined_cost.append(climb_total + tail_planned.cumulative_cost[i])

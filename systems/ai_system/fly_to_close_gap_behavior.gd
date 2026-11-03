@@ -65,7 +65,7 @@ func _route_cost(unit: Unit, goal: Vector3, flying: bool) -> float:
 		return INF
 	var ascend: float = UnitMovement.FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
 	var descend: float = UnitMovement.FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
-	var planned: Dictionary = RoutePlanner.plan(waypoints, INF, SurfaceManager.movement_cost_multiplier_at, ascend, descend)
+	var planned: Dictionary = RoutePlanner.plan(waypoints, INF, SurfaceManager.cost_sampler(unit), ascend, descend)
 	if planned.cumulative_cost.size() == 0:
 		return INF
 	return planned.cumulative_cost[planned.cumulative_cost.size() - 1]

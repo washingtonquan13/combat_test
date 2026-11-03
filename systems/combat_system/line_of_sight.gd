@@ -59,7 +59,8 @@ static func has_clear_shot_to_point(
 	while true:
 		var result := space_state.intersect_ray(query)
 		if result.is_empty():
-			return true
+			# Clear of walls; a cloud that blocks sight (Fog) still can.
+			return not SurfaceManager.blocks_sight(attacker, from, to)
 		if not result.collider is Unit:
 			return false
 		exclude.append(result.rid)

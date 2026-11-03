@@ -1,0 +1,18 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Shader" path="res://systems/surface_system/fog_cloud.gdshader" id="1_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fog"]
+render_priority = 0
+shader = ExtResource("1_shader")
+
+[sub_resource type="SphereMesh" id="SphereMesh_fog"]
+material = SubResource("ShaderMaterial_fog")
+radius = 1.0
+height = 2.0
+radial_segments = 32
+rings = 16
+
+[node name="FogCloud" type="MeshInstance3D"]
+cast_shadow = 0
+mesh = SubResource("SphereMesh_fog")

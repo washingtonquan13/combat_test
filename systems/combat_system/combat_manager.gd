@@ -52,6 +52,11 @@ signal attention_changed()
 ## announcing (see Encounter.world_3d).
 signal combat_ended_in_world(world: World3D)
 
+## round_started from EVERY running fight, naming it — round_started
+## itself stays focused-only for the HUD. SurfaceManager ages each world's
+## surfaces from this, picking one clock per world itself.
+signal round_started_in(encounter: Encounter, round_number: int)
+
 ## How close another unit needs to be to the attacker OR the target (same
 ## faction as whichever one it's near) to get pulled into a freshly
 ## triggered fight. A plain tunable constant, same convention as
@@ -373,14 +378,10 @@ func _relay(encounter: Encounter) -> void:
 	encounter.unit_joined_combat.connect(func(unit): unit_joined_combat.emit(unit))
 	encounter.unit_left_combat.connect(func(unit): unit_left_combat.emit(unit))
 
-	# round_started is relayed ONLY from the focused encounter. Surfaces are
-	# WORLD state, not encounter state, and SurfaceManager ages every active
-	# surface by one round on this signal — relaying it from every running
-	# fight would age them once per fight per round, so two simultaneous
-	# battles would burn a Grease patch twice as fast as one. The proper
-	# home for surfaces is a per-world context in a later pass; until then
-	# this is the approximation that keeps the common case correct.
+	# round_started is relayed ONLY from the focused encounter, for the
+	# HUD. Anything per-world (SurfaceManager) reads round_started_in.
 	encounter.round_started.connect(func(n):
+		round_started_in.emit(encounter, n)
 		if encounter == focused_encounter:
 			round_started.emit(n)
 	)

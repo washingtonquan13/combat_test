@@ -20,6 +20,9 @@ var visual_node: Node3D
 ## visual_node when the surface expires. Always present, unlike
 ## visual_node, since detection doesn't depend on an optional field.
 var area: Area3D
+## The world this placement lives in — the caster's, not whichever one is
+## on screen. Null only when no world is loaded.
+var context: WorldContext
 
 
 func _init(p_surface: Surface, p_position: Vector3, p_radius: float, p_rounds_remaining: int) -> void:
