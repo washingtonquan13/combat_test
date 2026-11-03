@@ -7,7 +7,7 @@
 [ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/greatsword.tscn" id="w_model"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_heavy_swing.tres" id="seq_heavy_swing"]
-[ext_resource type="Resource" path="res://data/animation_sequences/weapon_thrust.tres" id="seq_thrust"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_heavy_thrust.tres" id="seq_heavy_thrust"]
 
 [sub_resource type="Resource" id="Resource_swing"]
 script = ExtResource("4_row")
@@ -22,7 +22,7 @@ min_st = 12
 [sub_resource type="Resource" id="Resource_thrust"]
 script = ExtResource("4_row")
 label = "Thrust"
-animation = ExtResource("seq_thrust")
+animation = ExtResource("seq_heavy_thrust")
 damage_base = 1
 damage_bonus = 3
 wound_type = 2

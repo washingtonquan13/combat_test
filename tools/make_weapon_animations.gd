@@ -23,6 +23,7 @@ extends SceneTree
 #
 #   Swing         Sword_Regular_A + _Rec, right-to-left slash
 #   Heavy_Swing   Attack2H01 (Kevin Iglesias), the two-handed cut, refitted
+#   Heavy_Thrust  CombatIdle2H01 (Kevin Iglesias) driven into a two-handed thrust
 #   Thrust        draw back, lunge with the arm straight out
 #   Bash          Shield_OneShot, the off hand punched forward
 #   Throw         OverhandThrow
@@ -134,6 +135,7 @@ func _init() -> void:
 	var greatsword := KevinGreatsword.new(_poses)
 	library.add_animation("Stance_Greatsword", greatsword.stance())
 	library.add_animation("Heavy_Swing", _keyed(greatsword.swing(), {"impact": [HEAVY_IMPACT]}))
+	library.add_animation("Heavy_Thrust", _keyed(greatsword.thrust(), {"impact": [KevinGreatsword.THRUST_IMPACT]}))
 	_rifle = KevinRifle.new(_poses, load("res://scenes/weapons/rifle.tscn"))
 	_crossbow = KevinRifle.new(_poses, load("res://scenes/weapons/crossbow.tscn"))
 	_longgun_rest = _rifle.aimed()

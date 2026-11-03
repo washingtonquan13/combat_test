@@ -81,28 +81,52 @@ func hold(pose: Dictionary, side: String, z_to: Vector3, y_to: Vector3) -> void:
 # the arm is bent to bring the wrist where the grip needs it, the elbow
 # swung toward `pole` (default down, back and out). For two hands on one
 # weapon, grasp each side at its own point along the weapon. Call it last.
-func grasp(pose: Dictionary, side: String, at: Vector3, z_to: Vector3, y_to: Vector3, pole := Vector3.ZERO) -> void:
+# `hinged` as reach() has it.
+func grasp(pose: Dictionary, side: String, at: Vector3, z_to: Vector3, y_to: Vector3, pole := Vector3.ZERO, hinged := false) -> void:
 	var grip: Node3D = _model.main_hand_grip if side == "Right" else _model.off_hand_grip
 	var z := z_to.normalized()
 	var x := y_to.cross(z).normalized()
 	var hand := Basis(x, z.cross(x), z) * grip.transform.basis.orthonormalized().inverse()
 	if pole == Vector3.ZERO:
 		pole = Vector3(-0.5 if side == "Right" else 0.5, -1.0, -0.6)
-	reach(pose, side, at - hand * grip.transform.origin, pole)
+	reach(pose, side, at - hand * grip.transform.origin, pole, hinged)
 	hold(pose, side, z_to, y_to)
 
 
 # Bends the `side` arm so its wrist lands on `wrist`, in the skeleton's space,
 # the elbow swung toward `pole`. Out of reach, the arm points at it straight.
-func reach(pose: Dictionary, side: String, wrist: Vector3, pole: Vector3) -> void:
-	var upper := side + "UpperArm"
-	var lower := side + "LowerArm"
+# The upper arm keeps the roll it had unless `hinged`, when it is rolled so
+# the elbow bends the way an elbow does: wanted where the pole is far from
+# where the arm was, or the elbow reads bent backwards.
+func reach(pose: Dictionary, side: String, wrist: Vector3, pole: Vector3, hinged := false) -> void:
+	var hinge := Vector3.ZERO
+	if hinged:
+		# The arm out along X in the rest pose bends the forearm forward.
+		var out := Vector3.LEFT if side == "Right" else Vector3.RIGHT
+		hinge = _skeleton.get_bone_global_rest(_skeleton.find_bone(side + "UpperArm")).basis.orthonormalized().inverse() * out.cross(Vector3.BACK)
+	_limb(pose, side + "UpperArm", side + "LowerArm", side + "Hand", wrist, pole, hinge)
+
+
+# Sets the `side` foot down at `foot` - its transform in the skeleton's space,
+# as another pose had it - the leg bent to reach it, the knee swung toward
+# `pole`. Moving the hips then leaves the feet where they stood.
+func plant(pose: Dictionary, side: String, foot: Transform3D, pole: Vector3) -> void:
+	_limb(pose, side + "UpperLeg", side + "LowerLeg", side + "Foot", foot.origin, pole)
+	var bone := side + "Foot"
+	var parent := _skeleton.get_bone_name(_skeleton.get_bone_parent(_skeleton.find_bone(bone)))
+	pose.erase(bone)
+	_set_local(pose, bone, bone_transform(resolve(pose), parent).basis.inverse() * foot.basis)
+
+
+# `hinge`, in the upper bone's own space, is the joint's axis to roll onto
+# the bend; zero leaves the roll as it was.
+func _limb(pose: Dictionary, upper: String, lower: String, end: String, wrist: Vector3, pole: Vector3, hinge := Vector3.ZERO) -> void:
 	pose.erase(upper)
 	pose.erase(lower)
 	var resolved := resolve(pose)
 	var shoulder := bone_transform(resolved, upper)
 	var len1 := _skeleton.get_bone_rest(_skeleton.find_bone(lower)).origin.length()
-	var len2 := _skeleton.get_bone_rest(_skeleton.find_bone(side + "Hand")).origin.length()
+	var len2 := _skeleton.get_bone_rest(_skeleton.find_bone(end)).origin.length()
 	var to := wrist - shoulder.origin
 	var d := clampf(to.length(), 0.05, (len1 + len2) * 0.999)
 	var dir := to.normalized()
@@ -113,9 +137,15 @@ func reach(pose: Dictionary, side: String, wrist: Vector3, pole: Vector3) -> voi
 	# Each bone swung the shortest way from where it points onto its segment.
 	var upper_global := _aimed(shoulder.basis, _skeleton.get_bone_rest(_skeleton.find_bone(lower)).origin,
 		elbow - shoulder.origin)
+	if hinge != Vector3.ZERO and h > 0.001:
+		var along := (elbow - shoulder.origin).normalized()
+		var across := along.cross(wrist - elbow).normalized()
+		var now := upper_global * hinge
+		now = (now - along * now.dot(along)).normalized()
+		upper_global = (Basis(along, now.signed_angle_to(across, along)) * upper_global).orthonormalized()
 	var lower_local: Basis = Basis(resolved[lower])
 	var lower_global := _aimed(upper_global * lower_local,
-		_skeleton.get_bone_rest(_skeleton.find_bone(side + "Hand")).origin, shoulder.origin + dir * d - elbow)
+		_skeleton.get_bone_rest(_skeleton.find_bone(end)).origin, shoulder.origin + dir * d - elbow)
 	var parent_global := bone_transform(resolved, _skeleton.get_bone_name(
 		_skeleton.get_bone_parent(_skeleton.find_bone(upper)))).basis
 	_set_local(pose, upper, parent_global.inverse() * upper_global)
