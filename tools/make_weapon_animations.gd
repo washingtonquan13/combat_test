@@ -21,7 +21,7 @@ extends SceneTree
 # times or poses below and running this again; the clips are data the game
 # reads. A clip that moves a key moves the moment the game waits on.
 #
-#   Swing         Attack1H01_L (Kevin Iglesias), stepped in, swept across
+#   Swing         Sword_Attack, eased from and back to Kevin Iglesias' guard
 #   Heavy_Swing   Attack2H01 (Kevin Iglesias), the two-handed cut, refitted
 #   Heavy_Thrust  CombatIdle2H01 (Kevin Iglesias) driven into a two-handed thrust
 #   Thrust        Attack1H01_R (Kevin Iglesias), a lunge, the arm straight out
@@ -129,7 +129,7 @@ func _init() -> void:
 
 	var sword := KevinSword.new(_poses)
 	library.add_animation("Stance_Sword", sword.stance())
-	library.add_animation("Swing", _keyed(sword.swing(), {"impact": [KevinSword.SWING_IMPACT]}))
+	library.add_animation("Swing", _keyed(sword.swing(_source("Sword_Attack"), _frame), {"impact": [KevinSword.SWING_IMPACT]}))
 	library.add_animation("Thrust", _keyed(sword.thrust(), {"impact": [KevinSword.THRUST_IMPACT]}))
 	library.add_animation("Stance_Shield", _looped("Idle_Shield"))
 	_pistol = QuaterniusPistol.new(_poses)
