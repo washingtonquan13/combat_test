@@ -30,7 +30,7 @@ extends SceneTree
 #   Claw          Zombie_Scratch
 #   Bite          the head and chest lunge in, the jaw leading
 #   Gore          head down, a charge, then a toss of the head
-#   Pistol_Shot   Pistol_Shoot's aim, three shots with recoil
+#   Pistol_Shot   up from the low ready to Pistol_Shoot's aim, three shots
 #   Rifle_Burst   raised to the shoulder from the stance, ten shots
 #   Crossbow_Shot raised to the shoulder, one shot
 #   Bow_Shot      the bow arm out, the string drawn to the cheek, loosed
@@ -44,12 +44,12 @@ extends SceneTree
 #
 #   Stance_Sword       Sword_Idle
 #   Stance_Shield      Idle_Shield
-#   Stance_Pistol      Pistol_Idle
+#   Stance_Pistol      Pistol_Idle refitted, lowered to a low ready
 #   Stance_Greatsword  both hands on the hilt at the belly, the blade up
 #   Stance_Longgun     AssaultRifle_Aim01 (Kevin Iglesias), refitted to our gun
 #   Stance_Crossbow    the same, the left hand on the crossbow's forestock
 #   Stance_Bow         the bow low in front, an arrow on the string
-#   Reload_Pistol      Pistol_Reload
+#   Reload_Pistol      Pistol_Reload, refitted to our gun
 #   Reload_Rifle       AssaultRifle_Reload01 (Kevin Iglesias), refitted
 #   Reload_Crossbow    muzzle down, the string hauled back, a bolt laid in
 
@@ -57,6 +57,8 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 # The long guns' stance and aim and the rifle's reload, from the Kevin
 # Iglesias soldier clips.
 const KevinRifle := preload("res://tools/kevin_rifle.gd")
+# The pistol's stance, shot and reload, from the Quaternius pistol clips.
+const QuaterniusPistol := preload("res://tools/quaternius_pistol.gd")
 
 const OUT := "res://assets/weapon_animations.tres"
 const UAL1 := "res://assets/unit_animations.tres"
@@ -99,6 +101,7 @@ var _longgun_rest: Dictionary
 var _crossbow_rest: Dictionary
 var _rifle: KevinRifle
 var _crossbow: KevinRifle
+var _pistol: QuaterniusPistol
 
 
 func _init() -> void:
@@ -118,7 +121,8 @@ func _init() -> void:
 
 	library.add_animation("Stance_Sword", _looped("Sword_Idle"))
 	library.add_animation("Stance_Shield", _looped("Idle_Shield"))
-	library.add_animation("Stance_Pistol", _looped("Pistol_Idle"))
+	_pistol = QuaterniusPistol.new(_poses)
+	library.add_animation("Stance_Pistol", _pistol.stance())
 	library.add_animation("Stance_Greatsword", _poses.clip(BREATH, true, func(t: float, _l: float) -> Dictionary:
 		return _greatsword_stance(_breath(t))))
 	_rifle = KevinRifle.new(_poses, load("res://scenes/weapons/rifle.tscn"))
@@ -129,15 +133,14 @@ func _init() -> void:
 	library.add_animation("Stance_Crossbow", _crossbow.stance())
 	library.add_animation("Stance_Bow", _poses.clip(BREATH, true, func(t: float, _l: float) -> Dictionary:
 		return _bow_stance(_breath(t))))
-	library.add_animation("Reload_Pistol", _joined(["Pistol_Reload"]))
+	library.add_animation("Reload_Pistol", _pistol.reload())
 	library.add_animation("Reload_Rifle", _rifle.reload())
 	library.add_animation("Reload_Crossbow", _poses.clip(2.0, false, _crossbow_reload))
 
 	library.add_animation("Thrust", _keyed(_poses.clip(0.95, false, _thrust), {"impact": [THRUST_IMPACT]}))
 	library.add_animation("Bite", _keyed(_poses.clip(0.9, false, _bite), {"impact": [BITE_IMPACT]}))
 	library.add_animation("Gore", _keyed(_poses.clip(1.05, false, _gore), {"impact": [GORE_IMPACT]}))
-	var pistol_rest := _frame(_source("Pistol_Idle"), 0.0)
-	library.add_animation("Pistol_Shot", _shots(PISTOL_SHOTS, PISTOL_GAP, _pistol_aim, pistol_rest))
+	library.add_animation("Pistol_Shot", _shots(PISTOL_SHOTS, PISTOL_GAP, _pistol.aimed, _pistol.ready()))
 	library.add_animation("Rifle_Burst", _shots(RIFLE_SHOTS, RIFLE_GAP, _shoulder_aim, _longgun_rest))
 	library.add_animation("Crossbow_Shot", _shots(1, 0.2, func(since: float) -> Dictionary:
 		return _crossbow.raised(_kick(since) * 6.0), _crossbow_rest))
@@ -231,12 +234,6 @@ func _shots(count: int, gap: float, aim_at: Callable, rest: Dictionary) -> Anima
 # The kick of a shot, `since` seconds after it: back fast, settled by 0.15.
 static func _kick(since: float) -> float:
 	return exp(-since / 0.05) * (1.0 - exp(-since / 0.008))
-
-
-# Pistol_Shoot's aim, the arm out at the target, kicked up by the recoil.
-func _pistol_aim(since: float) -> Dictionary:
-	var shoot := _source("Pistol_Shoot")
-	return _frame(shoot, clampf(since, 0.0, 0.25) if since < 0.25 else 0.25)
 
 
 # A long gun at the shoulder, the chest rocked back by the kick.
