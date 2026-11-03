@@ -20,6 +20,11 @@ extends Node3D
 #     [--times=0,0.5,1.2 | --at-keys] [--interp=stepped|keyed|flowing] \
 #     [--views=front,side,top,quarter,hands] [--main=res://scenes/weapons/rifle.tscn] [--off=...]
 #
+# Run it with --watch=C:/path/request.json instead and it stays open: each
+# time that file changes it reads the same arguments from it as JSON, reloads
+# the keys script from disk, renders the sheet to its "out" and writes
+# "<out>.done". tools/anim_lab/live.sh drives it.
+#
 # A keys script extends RefCounted and has build(poses: PoseBuilder) ->
 # Dictionary: set name -> {"length", "loops", "keys": [[time, label, pose]]},
 # poses as PoseBuilder takes them. The lab interpolates the keys itself so a
@@ -113,7 +118,9 @@ func _ready() -> void:
 	_draw_floor()
 	if not Engine.is_editor_hint():
 		var args := _args()
-		if args.has("out"):
+		if args.has("watch"):
+			_watch.call_deferred(args["watch"])
+		elif args.has("out"):
 			_capture.call_deferred(args)
 
 
@@ -368,6 +375,36 @@ static func _args() -> Dictionary:
 
 
 func _capture(args: Dictionary) -> void:
+	var err := await _render(args)
+	get_tree().quit(0 if err == OK else 1)
+
+
+# Renders each request written to `path` until the lab is closed.
+func _watch(path: String) -> void:
+	print("anim_lab: watching %s" % path)
+	var seen := 0
+	while true:
+		await get_tree().create_timer(0.1).timeout
+		var stamp := FileAccess.get_modified_time(path) if FileAccess.file_exists(path) else 0
+		if stamp == seen:
+			continue
+		seen = stamp
+		var args = JSON.parse_string(FileAccess.get_file_as_string(path))
+		if not args is Dictionary or not args.has("out"):
+			continue
+		if args.has("keys"):
+			var script: GDScript = load(args["keys"])
+			script.source_code = FileAccess.get_file_as_string(args["keys"])
+			script.reload()
+		_sets = {}
+		_poses = null
+		var err: Error = await _render(args)
+		var done := FileAccess.open(args["out"] + ".done", FileAccess.WRITE)
+		done.store_string(error_string(err))
+		done.close()
+
+
+func _render(args: Dictionary) -> Error:
 	if args.has("library"):
 		library = load(args["library"])
 	if args.has("clip"):
@@ -422,7 +459,7 @@ func _capture(args: Dictionary) -> void:
 		print("ROW %d %s\n%s" % [r, _label, _report])
 	var err := sheet.save_png(args["out"])
 	print("anim_lab: wrote %s (%s)" % [args["out"], error_string(err)])
-	get_tree().quit(0 if err == OK else 1)
+	return err
 
 
 func _grab() -> Image:
