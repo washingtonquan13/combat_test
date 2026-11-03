@@ -1,5 +1,6 @@
 [gd_resource type="Resource" script_class="UnitDefinition" load_steps=15 format=3 uid="uid://dlnha8gm6xjsk"]
 
+[ext_resource type="Resource" path="res://data/injury_presets/diffuse.tres" id="97_injury"]
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_najan"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="2_nnanp"]
@@ -17,6 +18,7 @@
 
 [resource]
 script = ExtResource("1_def")
+injury_preset = ExtResource("97_injury")
 id = "spirit"
 display_name = "Spirit"
 stats = Dictionary[StringName, int]({&"HP": -8, &"Move": -2})

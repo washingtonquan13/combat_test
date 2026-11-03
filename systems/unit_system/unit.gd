@@ -1508,10 +1508,10 @@ var _injury_profile_key: Array = []
 ## changes, so DamageResolver can ask on every roll.
 func injury_profile() -> InjuryProfile:
 	var plan: BodyPlan = body_plan if body_plan else BodyPlan.human()
-	var key: Array = [plan, injury_preset]
+	var key: Array = [plan, injury_preset, injury_divisor]
 	key.append_array(missing_locations)
 	if _injury_profile == null or key != _injury_profile_key:
-		_injury_profile = InjuryProfile.build(plan, injury_preset, missing_locations)
+		_injury_profile = InjuryProfile.build(plan, injury_preset, missing_locations, injury_divisor)
 		_injury_profile_key = key
 	return _injury_profile
 

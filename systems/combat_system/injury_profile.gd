@@ -8,6 +8,9 @@ extends RefCounted
 var plan: BodyPlan
 var preset: InjuryPreset
 var torso: BodyRow
+## Damage Reduction (Powers 52): divides injury after the multiplier and
+## the cap. 1 is none.
+var divisor: float = 1.0
 var _rows: Dictionary[HitLocation, BodyRow] = {}
 ## "row index:field:wound type" -> what changed that cell, for the editor
 ## preview. Filled only when build() is asked to.
@@ -16,10 +19,11 @@ var sources: Dictionary[String, String] = {}
 
 ## body_plan, then injury_preset's rules in order, then every location in
 ## missing (and the preset's own) set to the torso's final numbers.
-static func build(body_plan: BodyPlan, injury_preset: InjuryPreset = null, missing: Array[HitLocation] = [], record_sources: bool = false) -> InjuryProfile:
+static func build(body_plan: BodyPlan, injury_preset: InjuryPreset = null, missing: Array[HitLocation] = [], injury_divisor: float = 1.0, record_sources: bool = false) -> InjuryProfile:
 	var profile := InjuryProfile.new()
 	profile.plan = body_plan
 	profile.preset = injury_preset
+	profile.divisor = maxf(injury_divisor, 1.0)
 	var rows: Array[BodyRow] = []
 	for source in body_plan.rows():
 		rows.append(source.duplicate())

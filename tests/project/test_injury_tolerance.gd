@@ -50,4 +50,6 @@ func run() -> void:
 	target.injury_preset = diffuse
 	target.injury_divisor = 2.0
 	check("divisor 2 after diffuse's cap: 20 cutting does 1", DamageResolver.injury(20, target, W.CUTTING) == 1)
+	var foul: UnitDefinition = load("res://data/units/demons/foul.tres")
+	check("foul demons are homogeneous", foul.injury_preset == homogeneous)
 	free_spawned()

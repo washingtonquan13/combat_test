@@ -84,6 +84,7 @@ func _refresh_table() -> void:
 	var plan: BodyPlan = BodyPlan.human()
 	var preset: InjuryPreset
 	var missing: Array[HitLocation] = []
+	var divisor: float = 1.0
 	if _source is BodyPlan:
 		plan = _source
 	elif _source is InjuryPreset:
@@ -93,6 +94,7 @@ func _refresh_table() -> void:
 			plan = _source.body_plan
 		preset = _source.injury_preset
 		missing.assign(_source.missing_locations)
+		divisor = _source.injury_divisor
 	# The rows and the preset are sub-resources; an edit to one doesn't
 	# reach the inspector's property_edited or the source's own changed.
 	var watched: Array[Resource] = [plan, preset]
@@ -107,7 +109,7 @@ func _refresh_table() -> void:
 		_table.columns = 1
 		_table.add_child(_label("No torso row on the plan"))
 		return
-	var profile := InjuryProfile.build(plan, preset, missing, true)
+	var profile := InjuryProfile.build(plan, preset, missing, divisor, true)
 	var rows: Array[BodyRow] = profile.rows()
 	_table.columns = rows.size() + 1
 	_table.add_child(_label(""))
@@ -118,9 +120,9 @@ func _refresh_table() -> void:
 		_table.add_child(_label(DamageResolver.ABBREVIATION[wound_type], true))
 		for index in rows.size():
 			_table.add_child(_cell(profile, rows[index], index, wound_type))
-	_divisor.visible = _source is UnitDefinition and _source.injury_divisor > 1.0
+	_divisor.visible = profile.divisor > 1.0
 	if _divisor.visible:
-		_divisor.text = "Then ÷%s, rounded down, at least 1" % String.num(_source.injury_divisor)
+		_divisor.text = "Then ÷%s, rounded down, at least 1" % String.num(profile.divisor)
 
 
 func _cell(profile: InjuryProfile, row: BodyRow, index: int, wound_type: int) -> Label:
