@@ -34,14 +34,14 @@ extends SceneTree
 #   Pistol_Shot   one hand, turned from the idle into a bladed stance, arm raised level, three shots
 #   Rifle_Burst   raised to the shoulder from the stance, ten shots
 #   Crossbow_Shot raised to the shoulder, one shot
-#   Bow_Shot      the bow arm out, the string drawn to the cheek, loosed
+#   Bow_Shot      BowShot01 Load + Release (Kevin Iglesias), raised from the stance, refitted
 #   Dodge         a sidestep to the left, leaning out of the line
 #   Parry         Sword_Block
 #   Block         the shield brought up across the chest, braced
 #
 # The stances are the looping idles a unit stands in with a weapon drawn
 # (WeaponData.stance_animation), and the reloads what Reload plays
-# (WeaponData.reload_animation). Built stances breathe, one breath a loop.
+# (WeaponData.reload_animation).
 #
 #   Stance_Sword       CombatIdle1H01 (Kevin Iglesias), the low one-handed guard
 #   Stance_Shield      Idle_Shield
@@ -49,7 +49,7 @@ extends SceneTree
 #   Stance_Greatsword  CombatIdle2H01 (Kevin Iglesias), refitted to our sword
 #   Stance_Longgun     AssaultRifle_Aim01 (Kevin Iglesias), refitted to our gun
 #   Stance_Crossbow    the same, the left hand on the crossbow's forestock
-#   Stance_Bow         the bow low in front, an arrow on the string
+#   Stance_Bow         BowIdle02 (Kevin Iglesias), refitted to our bow
 #   Reload_Pistol      Pistol_Reload, two handed, refitted to our gun
 #   Reload_Rifle       AssaultRifle_Reload01 (Kevin Iglesias), refitted
 #   Reload_Crossbow    muzzle down, the string hauled back, a bolt laid in
@@ -64,6 +64,8 @@ const KevinRifle := preload("res://tools/kevin_rifle.gd")
 const KevinGreatsword := preload("res://tools/kevin_greatsword.gd")
 # The one-handed sword's stance, cut and thrust, from the same pack.
 const KevinSword := preload("res://tools/kevin_sword.gd")
+# The longbow's stance and shot, from the Kevin Iglesias archer clips.
+const KevinBow := preload("res://tools/kevin_bow.gd")
 # The pistol's stance, shot and reload, from the Quaternius clips.
 const QuaterniusPistol := preload("res://tools/quaternius_pistol.gd")
 
@@ -100,9 +102,6 @@ const LOWER := 0.45
 const LIFT_AT := 0.22
 const ARM_LAG := 0.1
 const ARM := ["RightShoulder", "RightUpperArm", "RightLowerArm", "RightHand"]
-const BOW_RELEASE := 0.85
-# One breath of a built stance, the length of its loop.
-const BREATH := 2.4
 # The jump. Quaternius' Jump_Start begins at the bottom of its crouch and is
 # up within a few frames, so the way down is Jump_Land's way up run
 # backwards (its frame at CROUCH is Jump_Start's first) from where it has
@@ -156,8 +155,8 @@ func _init() -> void:
 	_crossbow_rest = _crossbow.aimed()
 	library.add_animation("Stance_Longgun", _rifle.stance())
 	library.add_animation("Stance_Crossbow", _crossbow.stance())
-	library.add_animation("Stance_Bow", _poses.clip(BREATH, true, func(t: float, _l: float) -> Dictionary:
-		return _bow_stance(_breath(t))))
+	var bow := KevinBow.new(_poses)
+	library.add_animation("Stance_Bow", bow.stance())
 	library.add_animation("Reload_Pistol", _pistol.reload())
 	library.add_animation("Reload_Rifle", _rifle.reload())
 	library.add_animation("Reload_Crossbow", _poses.clip(2.0, false, _crossbow_reload))
@@ -169,7 +168,7 @@ func _init() -> void:
 	library.add_animation("Rifle_Burst", _shots(RIFLE_SHOTS, RIFLE_GAP, _shoulder_aim, _longgun_rest))
 	library.add_animation("Crossbow_Shot", _shots(1, 0.2, func(since: float) -> Dictionary:
 		return _crossbow.raised(_kick(since) * 6.0), _crossbow_rest))
-	library.add_animation("Bow_Shot", _keyed(_poses.clip(1.45, false, _bow), {"release": [BOW_RELEASE]}))
+	library.add_animation("Bow_Shot", _keyed(bow.shot(), {"release": [bow.release_time()]}))
 	library.add_animation("Dodge", _poses.clip(0.6, false, _dodge))
 	library.add_animation("Jump_Start", _keyed(_jump_start(), {"impact": [SINK + LIFT_OFF]}))
 	library.add_animation("Block", _poses.clip(0.75, false, _block))
@@ -379,48 +378,6 @@ func _gore(t: float, length: float) -> Dictionary:
 	])
 
 
-func _bow(t: float, length: float) -> Dictionary:
-	# Bladed to the target, left side forward, the head turned to it: the
-	# bow arm straight out at shoulder height, the right hand on the string
-	# in front of the chest.
-	var nocked := {
-		"_hips": Vector3(0, -0.02, 0),
-		"Hips": Vector3(0, -70, 0),
-		"Neck": Vector3(0, 30, 0),
-		"Head": Vector3(0, 38, 0),
-		"LeftUpperLeg": Vector3(-6, 70, 10),
-		"RightUpperLeg": Vector3(4, 70, -10),
-		"LeftUpperArm": Vector3(0, -20, 72),
-		"LeftLowerArm": Vector3(0, 0, 0),
-		"RightUpperArm": Vector3(0, 50, -60),
-		"RightLowerArm": Vector3(-100, 0, 0),
-	}
-	_fingers(nocked, "Left", 0.9)
-	_fingers(nocked, "Right", 0.4)
-	# The bow upright, its face to the target.
-	_poses.hold(nocked, "Left", FORWARD, Vector3.UP)
-	# Drawn: the right elbow back level with the shoulder, the string hand
-	# folded in to the cheek.
-	var drawn := nocked.duplicate()
-	drawn["RightUpperArm"] = Vector3(0, 0, -80)
-	drawn["RightLowerArm"] = Vector3(-145, 0, 0)
-	# Loosed: the string hand flies back past the ear, the fingers open.
-	var loosed := drawn.duplicate()
-	loosed["RightUpperArm"] = Vector3(0, -15, -82)
-	loosed["RightLowerArm"] = Vector3(-110, 0, 0)
-	_fingers(loosed, "Right", -0.4)
-	var rest := _bow_stance(0.0)
-	return _poses.keyed(t, [
-		[0.0, rest],
-		[0.3, nocked],
-		[0.75, drawn],
-		[BOW_RELEASE, drawn],
-		[0.95, loosed],
-		[1.1, loosed],
-		[length, rest],
-	])
-
-
 func _dodge(t: float, length: float) -> Dictionary:
 	# A step to the left, the body leaning out of the line of the blow.
 	var out := {
@@ -465,11 +422,6 @@ func _block(t: float, length: float) -> Dictionary:
 
 # --- Stances and reloads ---------------------------------------------------
 
-# Where a breath is at t: 0 out, 1 in, back to 0 at BREATH.
-static func _breath(t: float) -> float:
-	return 0.5 - 0.5 * cos(TAU * t / BREATH)
-
-
 # The chest rising with the breath and the shoulders with it.
 static func _breathe(pose: Dictionary, breath: float) -> void:
 	PoseBuilder.add(pose, "Chest", Vector3(-1.5 * breath, 0, 0))
@@ -511,28 +463,6 @@ func _longgun_body(breath: float) -> Dictionary:
 # Where the right hand holds the gun at the low ready.
 func _low_ready_grip(pose: Dictionary) -> Vector3:
 	return _at(pose, "RightUpperArm") + Vector3(0.08, -0.2, 0.24)
-
-
-# Bladed, the bow low and in front, its face to the target; the string hand
-# on the nocked arrow at the bow.
-func _bow_stance(breath: float) -> Dictionary:
-	var pose := {
-		"_hips": Vector3(0, -0.02, 0),
-		"Hips": Vector3(0, -45, 0),
-		"Neck": Vector3(0, 20, 0),
-		"Head": Vector3(0, 22, 0),
-		"LeftUpperLeg": Vector3(-6, 45, 8),
-		"RightUpperLeg": Vector3(4, 45, -8),
-		"LeftUpperArm": Vector3(-20, -20, 30),
-		"LeftLowerArm": Vector3(-20, 0, 0),
-		"RightUpperArm": Vector3(-20, 40, -20),
-		"RightLowerArm": Vector3(-85, 0, 0),
-	}
-	_fingers(pose, "Left", 0.9)
-	_fingers(pose, "Right", 0.4)
-	_breathe(pose, breath)
-	_poses.hold(pose, "Left", FORWARD + Vector3(0, -0.6, 0), Vector3.UP)
-	return pose
 
 
 # From the carry: the muzzle to the ground and the body bent over it, the
