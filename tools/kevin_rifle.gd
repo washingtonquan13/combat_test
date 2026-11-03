@@ -12,10 +12,9 @@ extends RefCounted
 # where the artist put it.
 
 const PoseBuilder := preload("res://tools/pose_builder.gd")
+const KevinClip := preload("res://tools/kevin_clip.gd")
 
 const DIR := "res://assets/kevin_soldier/"
-# Their hips stand 0.980 high, ours 0.917.
-const HIPS_SCALE := 0.936
 # How the assault rifle set's gun sits in the right hand, turned from ours on
 # the grip, in degrees: measured from where their left palm and the gun's top
 # are. The rifle set's hand already holds ours level at the shoulder.
@@ -71,27 +70,11 @@ func raised(kick := 0.0) -> Dictionary:
 
 
 func _source(file: String) -> Animation:
-	var scene: Node = (load(DIR + file + ".fbx") as PackedScene).instantiate()
-	var player: AnimationPlayer = scene.find_children("*", "AnimationPlayer", true, false)[0]
-	var anim: Animation = player.get_animation(player.get_animation_list()[0]).duplicate(true)
-	scene.free()
-	return anim
+	return KevinClip.source(DIR + file + ".fbx")
 
 
-# The clip's frame at t as a pose.
 func _frame(anim: Animation, t: float) -> Dictionary:
-	var pose := {}
-	for track in anim.get_track_count():
-		var bone := String(anim.track_get_path(track)).get_slice(":", 1)
-		match anim.track_get_type(track):
-			Animation.TYPE_ROTATION_3D:
-				if _poses._skeleton.find_bone(bone) >= 0:
-					_poses._set_local(pose, bone, Basis(anim.rotation_track_interpolate(track, t)))
-			Animation.TYPE_POSITION_3D:
-				if bone == "Hips":
-					pose["_hips"] = anim.position_track_interpolate(track, t) * HIPS_SCALE \
-						- _poses._bases["neutral"]["hips"]
-	return pose
+	return KevinClip.frame(_poses, anim, t)
 
 
 func _fit(pose: Dictionary, grip_turn := GRIP_TURN) -> Dictionary:
@@ -99,25 +82,14 @@ func _fit(pose: Dictionary, grip_turn := GRIP_TURN) -> Dictionary:
 	var turn := Basis.from_euler(grip_turn * PI / 180.0)
 	var gun := _poses.grip_transform(pose, "Right") * Transform3D(turn, Vector3.ZERO)
 	var left := _poses.grip_transform(pose, "Left")
-	var right_pole := _pole(resolved, "Right")
-	var left_pole := _pole(resolved, "Left")
+	var right_pole := KevinClip.pole(_poses, resolved, "Right")
+	var left_pole := KevinClip.pole(_poses, resolved, "Left")
 	var mark := gun * _off_hand
 	var on := 1.0 - smoothstep(NEAR, FAR, left.origin.distance_to(gun * CLIP_OFF_HAND))
 	_poses.grasp(pose, "Right", gun.origin, gun.basis.z, gun.basis.y, right_pole)
 	_curl(pose, on)
 	_poses.grasp(pose, "Left", left.origin.lerp(mark, on), left.basis.z, left.basis.y, left_pole)
 	return pose
-
-
-# Which way the clip bends the `side` elbow: from the shoulder-wrist line out
-# to the elbow.
-func _pole(resolved: Dictionary, side: String) -> Vector3:
-	var shoulder := _poses.bone_transform(resolved, side + "UpperArm").origin
-	var elbow := _poses.bone_transform(resolved, side + "LowerArm").origin
-	var wrist := _poses.bone_transform(resolved, side + "Hand").origin
-	var line := (wrist - shoulder).normalized()
-	var out := elbow - shoulder
-	return out - line * out.dot(line)
 
 
 # The left fingers closed round the handguard, as far as the hand is on it.

@@ -54,10 +54,20 @@ func _melee_stances() -> void:
 	await _wait(2.0)
 	_check_stance("Weapon/Stance_Shield")
 	_bare_handed()
-	_say("Greatsword: both hands on the hilt, the blade up")
+	await _greatsword()
+
+
+func _greatsword() -> void:
+	_say("Greatsword: the two-handed guard, then a cut")
 	_hero.equip_item(MAIN, ItemInstance.new(load("res://data/items/greatsword.tres")))
 	await _wait(2.0)
 	_check_stance("Weapon/Stance_Greatsword")
+	var near: Unit = _dummy(-1.6, 0.0)
+	await _wait(1.0)
+	await _timed(_attack("Swing"), near)
+	await _wait(0.5)
+	_check_stance("Weapon/Stance_Greatsword", "after the cut")
+	near.queue_free()
 	_bare_handed()
 
 

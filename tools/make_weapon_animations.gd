@@ -22,7 +22,7 @@ extends SceneTree
 # reads. A clip that moves a key moves the moment the game waits on.
 #
 #   Swing         Sword_Regular_A + _Rec, right-to-left slash
-#   Heavy_Swing   Sword_Regular_B + _Rec, the two-handed cut
+#   Heavy_Swing   Attack2H01 (Kevin Iglesias), the two-handed cut, refitted
 #   Thrust        draw back, lunge with the arm straight out
 #   Bash          Shield_OneShot, the off hand punched forward
 #   Throw         OverhandThrow
@@ -45,7 +45,7 @@ extends SceneTree
 #   Stance_Sword       Sword_Idle
 #   Stance_Shield      Idle_Shield
 #   Stance_Pistol      the Idle, square, the gun hanging at the right thigh
-#   Stance_Greatsword  both hands on the hilt at the belly, the blade up
+#   Stance_Greatsword  CombatIdle2H01 (Kevin Iglesias), refitted to our sword
 #   Stance_Longgun     AssaultRifle_Aim01 (Kevin Iglesias), refitted to our gun
 #   Stance_Crossbow    the same, the left hand on the crossbow's forestock
 #   Stance_Bow         the bow low in front, an arrow on the string
@@ -57,6 +57,8 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 # The long guns' stance and aim and the rifle's reload, from the Kevin
 # Iglesias soldier clips.
 const KevinRifle := preload("res://tools/kevin_rifle.gd")
+# The greatsword's stance and cut, from the Kevin Iglesias melee clips.
+const KevinGreatsword := preload("res://tools/kevin_greatsword.gd")
 # The pistol's stance, shot and reload, from the Quaternius clips.
 const QuaterniusPistol := preload("res://tools/quaternius_pistol.gd")
 
@@ -70,7 +72,7 @@ const FINGERS := ["Index", "Middle", "Ring", "Little"]
 
 # Moments, in seconds into each clip.
 const SWING_IMPACT := 0.23
-const HEAVY_IMPACT := 0.24
+const HEAVY_IMPACT := 0.57
 const THRUST_IMPACT := 0.36
 const BASH_IMPACT := 0.12
 const THROW_RELEASE := 0.36
@@ -119,7 +121,6 @@ func _init() -> void:
 	var library := AnimationLibrary.new()
 
 	library.add_animation("Swing", _keyed(_joined(["Sword_Regular_A", "Sword_Regular_A_Rec"]), {"impact": [SWING_IMPACT]}))
-	library.add_animation("Heavy_Swing", _keyed(_joined(["Sword_Regular_B", "Sword_Regular_B_Rec"]), {"impact": [HEAVY_IMPACT]}))
 	library.add_animation("Bash", _keyed(_joined(["Shield_OneShot"]), {"impact": [BASH_IMPACT]}))
 	library.add_animation("Throw", _keyed(_joined(["OverhandThrow"]), {"release": [THROW_RELEASE]}))
 	library.add_animation("Punch", _keyed(_joined(["Melee_Hook", "Melee_Hook_Rec"]), {"impact": [PUNCH_IMPACT]}))
@@ -130,8 +131,9 @@ func _init() -> void:
 	library.add_animation("Stance_Shield", _looped("Idle_Shield"))
 	_pistol = QuaterniusPistol.new(_poses)
 	library.add_animation("Stance_Pistol", _pistol.stance())
-	library.add_animation("Stance_Greatsword", _poses.clip(BREATH, true, func(t: float, _l: float) -> Dictionary:
-		return _greatsword_stance(_breath(t))))
+	var greatsword := KevinGreatsword.new(_poses)
+	library.add_animation("Stance_Greatsword", greatsword.stance())
+	library.add_animation("Heavy_Swing", _keyed(greatsword.swing(), {"impact": [HEAVY_IMPACT]}))
 	_rifle = KevinRifle.new(_poses, load("res://scenes/weapons/rifle.tscn"))
 	_crossbow = KevinRifle.new(_poses, load("res://scenes/weapons/crossbow.tscn"))
 	_longgun_rest = _rifle.aimed()
@@ -481,21 +483,6 @@ static func _breathe(pose: Dictionary, breath: float) -> void:
 	PoseBuilder.add(pose, "Chest", Vector3(-1.5 * breath, 0, 0))
 	PoseBuilder.add(pose, "Head", Vector3(1.0 * breath, 0, 0))
 	pose["_hips"] = pose.get("_hips", Vector3.ZERO) + Vector3(0, 0.004 * breath, 0)
-
-
-# Both hands on the hilt in front of the belly, right above left, the blade
-# up and forward between the eyes and the target, the edge to it.
-func _greatsword_stance(breath: float) -> Dictionary:
-	var pose := _guard()
-	pose["Hips"] = Vector3(0, -15, 0)
-	_fingers(pose, "Left", 0.9)
-	_breathe(pose, breath)
-	var hilt := _at(pose, "Spine") + Vector3(-0.03, 0.02, 0.32)
-	var blade := Vector3(0, 1, 0.75)
-	var edge := Vector3(0, -0.75, 1)
-	_poses.grasp(pose, "Right", hilt, edge, blade)
-	_poses.grasp(pose, "Left", hilt - blade.normalized() * 0.11, edge, blade)
-	return pose
 
 
 # Where a bone is in a pose, in the skeleton's space.
