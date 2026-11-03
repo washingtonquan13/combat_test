@@ -2,8 +2,8 @@ extends RefCounted
 
 # The pistol's stance, shot and reload, from the Quaternius pack (UAL1),
 # fitted to our pistol, held in the right hand alone. At rest the unit
-# stands square in the pack's Idle, the gun hanging at the right thigh, the
-# forearm supinated, palm forward, the muzzle down and out from the body. To fire it shifts into the pack's one-handed stance,
+# stands square in the pack's Idle, the gun hanging at the right thigh,
+# muzzle down. To fire it shifts into the pack's one-handed stance,
 # Spell_Simple_Idle, which the artist made for the left hand, mirrored - the
 # body bladed, the right shoulder forward, the left arm low - with the arm
 # straight out from the shoulder along the unit's facing, the gun level,
@@ -17,22 +17,17 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 const UAL1 := "res://assets/unit_animations.tres"
 const REST := "Idle"
 const ONE_HAND := "Spell_Simple_Idle"
-# How far the hanging gun's muzzle is tipped out from straight down, away
-# from the leg, in degrees.
+# How far the hanging gun's muzzle is tipped forward from straight down, in
+# degrees.
 const HANG_TIP := 40.0
-# How much of the hanging hand's turn the upper arm takes, rolled out at the
-# shoulder, in degrees; the forearm supinates the rest.
-const SHOULDER_TURN := 85.0
 # How far below level the arm is on its way up, in degrees.
 const LIFT_DIP := 40.0
 # Where the elbow of the gun arm points: down and out when aiming, back and
 # out when hanging.
 const GUN_POLE := Vector3(-0.5, -1.0, 0.0)
 const HANG_POLE := Vector3(-0.3, 0.0, -1.0)
-# The hanging arm: from the shoulder along HANG_ARM, a little out from the
-# thigh, at HANG_REACH of its full length - straight, the elbow just soft.
-const HANG_ARM := Vector3(-0.18, -1.0, 0.02)
-const HANG_REACH := 0.98
+# The hanging gun's grip moved off the Idle hand, out clear of the thigh.
+const HANG_OUT := Vector3(-0.06, 0.0, 0.03)
 # The left hand is on the gun within NEAR of where the reload clip holds it,
 # off it past FAR.
 const NEAR := 0.05
@@ -115,19 +110,9 @@ func _hang(t: float) -> Dictionary:
 	var sample := _sample(REST, fmod(t, anim.length))
 	sample.merge(_closed, true)
 	var pose := _frame(sample)
-	var resolved := _poses.resolve(pose)
-	var shoulder := _poses.bone_transform(resolved, "RightUpperArm").origin
-	var elbow := _poses.bone_transform(resolved, "RightLowerArm").origin
-	var wrist := _poses.bone_transform(resolved, "RightHand").origin
-	var grip := _poses.grip_transform(pose, "Right").origin
-	var length := shoulder.distance_to(elbow) + elbow.distance_to(wrist) + wrist.distance_to(grip)
-	var hand := shoulder + HANG_ARM.normalized() * length * HANG_REACH
-	# The character's right is -X: the thumb, and the gun's top, turned out
-	# there by the whole arm, the shoulder rolling it out SHOULDER_TURN and
-	# the forearm supinating the rest.
-	var tip := Basis(Vector3.FORWARD, deg_to_rad(HANG_TIP))
-	var neutral := Basis(Vector3.UP, -deg_to_rad(SHOULDER_TURN)) * Vector3.BACK
-	_hold_gun(pose, hand, tip * Vector3.DOWN, tip * Vector3.LEFT, HANG_POLE, neutral)
+	var hand := _poses.grip_transform(pose, "Right").origin + HANG_OUT
+	var tip := Basis(Vector3.LEFT, deg_to_rad(HANG_TIP))
+	_hold_gun(pose, hand, tip * Vector3.DOWN, tip * Vector3.BACK, HANG_POLE)
 	return pose
 
 
@@ -146,12 +131,10 @@ func _aim(kick: float) -> Dictionary:
 
 # The right hand on the gun's grip at `at`, the barrel along `barrel`, its
 # top toward `top`, the elbow toward `pole`, the arm turned to a handshake
-# on it - or, given `neutral`, to where the thumb would point in a handshake,
-# the rest of the hand's turn taken by the forearm.
-func _hold_gun(pose: Dictionary, at: Vector3, barrel: Vector3, top: Vector3, pole: Vector3,
-		neutral := Vector3.ZERO) -> void:
+# on it.
+func _hold_gun(pose: Dictionary, at: Vector3, barrel: Vector3, top: Vector3, pole: Vector3) -> void:
 	_poses.grasp(pose, "Right", at, barrel, top, pole)
-	_roll_arm(pose, top if neutral == Vector3.ZERO else neutral)
+	_roll_arm(pose, top)
 	_poses.hold(pose, "Right", barrel, top)
 
 
