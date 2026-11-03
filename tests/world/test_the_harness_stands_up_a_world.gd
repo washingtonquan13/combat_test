@@ -82,11 +82,11 @@ func _a_spawned_unit_lands_in_it(context: WorldContext) -> void:
 ## By IDENTITY. `!= null` passes against the detached fallback too, which
 ## is precisely the state this whole exercise exists to stop testing.
 func _the_managers_really_delegate(context: WorldContext) -> void:
-	check("SurfaceManager reads the loaded world's own surface list, not a "
+	check("SurfaceManager reads the loaded world's own cloud grid, not a "
 			+ "detached one",
-		is_same(SurfaceManager.active_surfaces, context.surfaces),
-		"active_surfaces is a different array object from context.surfaces "
-			+ "— the getter is answering from _detached_surfaces with a "
+		is_same(SurfaceManager.cloud_grid, context.cloud_grid),
+		"cloud_grid is a different object from context.cloud_grid "
+			+ "— the getter is answering from _detached_clouds with a "
 			+ "world loaded")
 	check("CombatManager reads the loaded world's own encounter list",
 		is_same(CombatManager.encounters, context.encounters),

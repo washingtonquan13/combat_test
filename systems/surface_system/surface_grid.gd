@@ -5,7 +5,7 @@ extends RefCounted
 ## — Grease OR Fire, never both. A cast fills cells (see SurfaceManager.
 ## spill), a later cast of another kind overwrites them, and cells of the
 ## same kind that touch are one SurfacePatch, drawn as one film. Clouds
-## (Fog, Darkness) are not cells: they stay ActiveSurface spheres.
+## (Fog, Darkness) are the 3D counterpart, CloudGrid.
 ##
 ## Sparse: only covered cells exist. A column can hold several floors (a
 ## deck over a street), told apart by height — two cells closer than

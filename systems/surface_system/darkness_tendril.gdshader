@@ -1,10 +1,11 @@
 // One curl of Darkness's tendrils, drawn on a GPUParticles3D quad: thin
 // strands that wind out from the quad's center and taper away, with a
 // faint violet glow along their edges. Billboarding, soft-particle depth
-// fade and `dissipate` work as in fog_puff.gdshader, so fog_cloud.gd
+// fade, `dissipate` and the cube mask work as in fog_puff.gdshader, so fog_cloud.gd
 // drives both layers the same way.
 shader_type spatial;
 render_mode unshaded, depth_draw_never, cull_disabled, shadows_disabled;
+#include "res://systems/surface_system/cloud_mask.gdshaderinc"
 
 instance uniform vec3 shade_color : source_color = vec3(0.02, 0.015, 0.035);
 instance uniform vec3 rim_color : source_color = vec3(0.2, 0.07, 0.32);
@@ -16,6 +17,7 @@ uniform float softness = 1.2;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 
 varying float seed;
+varying float gone;
 
 void vertex() {
 	mat4 world = mat4(normalize(INV_VIEW_MATRIX[0]), normalize(INV_VIEW_MATRIX[1]), normalize(INV_VIEW_MATRIX[2]), MODEL_MATRIX[3]);
@@ -25,6 +27,7 @@ void vertex() {
 	MODELVIEW_MATRIX = MODELVIEW_MATRIX * mat4(vec4(length(MODEL_MATRIX[0].xyz), 0.0, 0.0, 0.0), vec4(0.0, length(MODEL_MATRIX[1].xyz), 0.0, 0.0), vec4(0.0, 0.0, length(MODEL_MATRIX[2].xyz), 0.0), vec4(0.0, 0.0, 0.0, 1.0));
 	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
 	seed = fract(float(INSTANCE_ID) * 0.6180339);
+	gone = cube_gone(MODEL_MATRIX[3].xyz);
 }
 
 float hash(vec2 p) {
@@ -65,8 +68,10 @@ void fragment() {
 	// A soft dark body under the strands so they read as smoke, not wire.
 	shape = max(shape, smoothstep(0.75, 0.0, r) * 0.55 * fbm(centered * 2.0 + seed * 7.0 + TIME * 0.04));
 
-	float d = clamp(dissipate * 1.5 - seed * 0.5, 0.0, 1.0);
-	shape *= smoothstep(d - 0.05, d + 0.25, ridge * 0.7 + (1.0 - r) * 0.3) * (1.0 - dissipate);
+	// The whole cloud thinning away, or just this puff's cube receding.
+	float fade = max(dissipate, gone);
+	float d = clamp(fade * 1.5 - seed * 0.5, 0.0, 1.0);
+	shape *= smoothstep(d - 0.05, d + 0.25, ridge * 0.7 + (1.0 - r) * 0.3) * (1.0 - fade);
 
 	float depth = texture(depth_texture, SCREEN_UV).r;
 	vec4 scene = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);

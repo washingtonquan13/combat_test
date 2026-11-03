@@ -186,17 +186,17 @@ func _context_owns_world_state() -> void:
 	check("and what doesn't", not context.contains(other))
 	other.queue_free()
 
-	# THE LEAK. ActiveSurface holds a visual_node and an Area3D parented to
-	# the world; SurfaceManager only ever cleared them on combat_ended, so
-	# a surface cast outside combat survived the world being freed and left
-	# this array pointing at nodes that went with it.
-	context.surfaces.append(ActiveSurface.new(null, Vector3.ZERO, 1.0, 3))
-	context.surfaces.append(ActiveSurface.new(null, Vector3.ZERO, 1.0, 3))
-	check("surfaces live on the context", context.surfaces.size() == 2)
+	# THE LEAK. A cloud holds a visual parented to the world; SurfaceManager
+	# once cleared clouds only on combat_ended, so one cast outside combat
+	# survived the world being freed and kept pointing at nodes that went
+	# with it.
+	context.cloud_grid.add(CloudCell.new(null, Vector3i(0, 0, 0), 3))
+	context.cloud_grid.add(CloudCell.new(null, Vector3i(1, 0, 0), 3))
+	check("clouds live on the context", context.cloud_grid.cells.size() == 2)
 
 	context.dispose()
 	check("disposing the context drops them, with no combat signal involved",
-		context.surfaces.is_empty())
+		context.cloud_grid.is_empty())
 	check("and drops its encounters too", context.encounters.is_empty())
 
 	context.queue_free()
@@ -213,13 +213,13 @@ func _managers_delegate_to_the_context() -> void:
 		# both managers must stay usable with no world at all (the main
 		# menu is in exactly this state).
 		check("with no world loaded, SurfaceManager still answers",
-			SurfaceManager.active_surfaces != null)
+			SurfaceManager.cloud_grid != null)
 		check("with no world loaded, CombatManager still answers",
 			CombatManager.encounters != null)
 		return
 
-	check("SurfaceManager reads the context's surfaces",
-		is_same(SurfaceManager.active_surfaces, context.surfaces))
+	check("SurfaceManager reads the context's clouds",
+		is_same(SurfaceManager.cloud_grid, context.cloud_grid))
 	check("CombatManager reads the context's encounters",
 		is_same(CombatManager.encounters, context.encounters))
 

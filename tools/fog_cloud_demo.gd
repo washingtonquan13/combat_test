@@ -51,18 +51,17 @@ func _run() -> void:
 	await _wait(2.5)
 
 	_say("The cloud fades")
-	for active in SurfaceManager.active_surfaces.duplicate():
-		SurfaceManager._expire(active)
+	SurfaceManager.expire_all_clouds(WorldManager.context())
 	await _wait(4.0)
 
 	_say("A second cloud, lifted high overhead (Ctrl-drag in game)")
 	await _wait(1.0)
-	await _hero.use_ability(Fog, middle + Vector3(0.0, 6.5, 0.0))
+	await _hero.use_ability(Fog, middle + Vector3(0.0, 7.0, 0.0))
 	_frame(middle + Vector3(0.0, 2.0, 0.0), 18.0)
 	await _wait(3.0)
 	_check("a cloud overhead leaves the sight line clear", LineOfSight.has_clear_shot(_hero, dummy))
 	await _fire(shoot, dummy, "Shoot under it")
-	var high: Vector3 = Vector3(0.0, 6.5, 0.0)
+	var high: Vector3 = Vector3(0.0, 7.0, 0.0)
 	_check("a sight line at the cloud's height is blocked", SurfaceManager.blocks_sight(_hero, _hero.global_position + high, far + high))
 	_say("Up in the air it still blocks sight at its own height")
 	_frame(middle + Vector3(0.0, 4.0, 0.0), 16.0)
@@ -70,11 +69,10 @@ func _run() -> void:
 
 	_say("Out of combat a round is 6 s: 10 rounds later...")
 	await _wait(1.5)
-	var fog: ActiveSurface = SurfaceManager.active_surfaces[0]
-	for _i in fog.rounds_remaining:
+	for _i in SurfaceManager.cloud_grid.cells.values()[0].rounds:
 		SurfaceManager._on_quiet_round()
 	await _wait(4.0)
-	_check("it has run out", SurfaceManager.active_surfaces.is_empty())
+	_check("it has run out", SurfaceManager.cloud_grid.is_empty())
 	_say("...it has run out")
 	await _wait(2.0)
 

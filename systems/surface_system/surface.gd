@@ -31,12 +31,12 @@ extends Resource
 
 enum Shape {
 	DISC,   ## spilled over the ground's SurfaceGrid cells within the radius, merging with its own kind (Grease)
-	SPHERE, ## a ball of the spawned radius around the center, which may be in the air (Fog)
+	SPHERE, ## CloudGrid cubes flooded out from the center within the radius, stopped by walls; may be in the air (Fog)
 }
 @export var shape: Shape = Shape.DISC
 ## Applied to a unit the MOMENT it physically enters the surface — a
-## DISC's cells under its footprint, a SPHERE's Area3D (see
-## SurfaceManager._process/_on_body_entered) — punishes the actual
+## DISC's cells under its footprint, a SPHERE's cubes around its body
+## (see SurfaceManager._process) — punishes the actual
 ## movement decision, mid-turn, rather than waiting for a turn boundary —
 ## and again at the START of any turn a unit is still standing inside it
 ## (see SurfaceManager._on_turn_started), which is what keeps it applied
@@ -75,20 +75,13 @@ enum Shape {
 
 @export_group("Visual")
 ## Persistent looping visual instantiated once when the surface spawns
-## and freed when it expires (see SurfaceManager.spawn/_expire) —
+## and freed when it expires (see SurfaceManager.spawn), drawn to the surface's cells or cubes —
 ## deliberately distinct from VfxEffect/VfxStep, which model a one-shot
 ## sequence that plays to completion and is done; a surface's ambient
 ## look instead needs to just sit there for the surface's entire
 ## lifetime. Any scene works as long as it doesn't try to free itself —
 ## SurfaceManager owns that.
 @export var ambient_scene: PackedScene
-## Whether ambient_scene is scaled to match the surface's actual spawned
-## radius, uniformly — SPHERE only (a DISC's look is drawn to its cells).
-## Same reasoning and default as SpawnParticleStep.scale_to_ability_radius.
-@export var scale_ambient_to_radius: bool = true
-## The radius ambient_scene was authored at 1.0x scale for — only
-## matters if scale_ambient_to_radius is on.
-@export var authored_radius: float = 1.0
 
 @export_group("Spawn/Expire FX")
 ## Optional one-shot VFX/SFX for the instant the surface appears or

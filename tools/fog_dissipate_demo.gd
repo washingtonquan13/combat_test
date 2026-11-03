@@ -18,8 +18,7 @@ func _run() -> void:
 	SurfaceManager.spawn((Darkness.effects[0] as SpawnSurfaceEffect).surface, dark_at, 5.0, _hero)
 	await _wait(6.0)
 	_say("Both clouds burn off")
-	for active in SurfaceManager.active_surfaces.duplicate():
-		SurfaceManager._expire(active)
+	SurfaceManager.expire_all_clouds(WorldManager.context())
 	await _wait(5.0)
 	print("DEMO RESULT: done")
 	get_tree().quit()

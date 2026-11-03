@@ -12,18 +12,18 @@
 **Autoloads owned:** `SurfaceManager` (project.godot:24)
 
 ## Purpose
-BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud gets a detection Area3D and a visual; a ground surface spills into the world's surface grid. While it lasts it applies its status effect to units that enter it or start a turn inside it, and with `status_only_inside` takes the status off again when they leave. A cloud with `blocks_sight` blocks line of sight through it. A surface also supplies the movement-cost multiplier for route planning. It expires by round count, in or out of combat. It does NOT define what the status does (status system), compute routes (`navigation.md`), or decide when it is cast (`spawn_surface_effect.gd`).
+BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud floods the world's 3D cloud grid; a ground surface spills into its 2D surface grid. While it lasts it applies its status effect to units that enter it or start a turn inside it, and with `status_only_inside` takes the status off again when they leave. A cloud with `blocks_sight` blocks line of sight through it. A surface also supplies the movement-cost multiplier for route planning. It expires by round count, in or out of combat. It does NOT define what the status does (status system), compute routes (`navigation.md`), or decide when it is cast (`spawn_surface_effect.gd`).
 
 ## Shapes
 - `Surface.Shape.DISC`: spilled over the ground's `SurfaceGrid` cells (see Surface grid below). "Inside" is any cell under the unit's footprint.
-- `Surface.Shape.SPHERE`: a `SphereShape3D` centered on the point, which may be midair (cast with AerialAreaTargeting; Ctrl-drag sets the height). "Inside" uses the nearest point of the unit's feetâ†’eye segment, so a cloud at head height covers the unit (`_contains`, surface_manager.gd:169). The visual scales uniformly.
+- `Surface.Shape.SPHERE`: CloudGrid cubes flooded out from the point, which may be midair (cast with AerialAreaTargeting; Ctrl-drag sets the height). See Cloud grid below. A unit is inside when any cube touches its feet-to-eye capsule, so a cloud at head height covers the unit (`_clouds_holding`).
 
 ## Fog Cloud (data/abilities/fog_cloud.tres)
 - The rule is BG3's, with GURPS numbers.
   - A sphere 5 m in radius, up to 18 m away, lasting 10 rounds. It needs no to-hit roll.
-  - It blocks sight: no ranged targeting into, out of or across it. `blocks_sight` (surface_manager.gd:181) runs a segment-vs-sphere test, called from `LineOfSight.has_clear_shot_to_point` (line_of_sight.gd:63) once the wall ray is clear. Detection, AoE aiming and the indicators all go through LineOfSight, so fog blocks them too.
+  - It blocks sight: no ranged targeting into, out of or across it. `blocks_sight` (surface_manager.gd:181) walks the cubes along the segment (`CloudGrid.cells_along`), called from `LineOfSight.has_clear_shot_to_point` (line_of_sight.gd:63) once the wall ray is clear. Detection, AoE aiming and the indicators all go through LineOfSight, so fog blocks them too.
   - Units inside are **Blinded** (data/statuses/blinded.tres: âˆ’10 to their attacks, no resistance, not curable), and only while inside.
-- Visual: soft billboard particles, BG3-style. 36 slowly turning puffs (`fog_puff.gdshader`: procedural noise, top-lit, faded where they meet geometry via the depth texture) drift inside a unit sphere in local coordinates, so the uniform radius scale sizes the whole cloud. No ground ring; it reads the same on the ground or in midair. On expiry `_expire` calls the visual's `dissipate()` if it has one (else frees it): over 3.5 s, driven by one progress value so the motion and the thinning are a single movement, the cloud spreads ×1.35, lifts, and the shader's per-instance `dissipate` erodes each puff from its thin edges inward (each puff starting a little later than the last) while the whole cloud fades, then the node frees itself. Sight clears at expiry, not at the end of the fade.
+- Visual: soft billboard particles, BG3-style. 36 slowly turning puffs (`fog_puff.gdshader`: procedural noise, top-lit, faded where they meet geometry via the depth texture) are born at points scattered through the cast's cubes (`show_cubes`), so the cloud takes the grid's shape; the puff count scales with the cube count. No ground ring; it reads the same on the ground or in midair. When its last cube goes, the visual's `dissipate()` runs if it has one (else frees it): over 3.5 s, driven by one progress value so the motion and the thinning are a single movement, the cloud spreads ×1.35, lifts, and the shader's per-instance `dissipate` erodes each puff from its thin edges inward (each puff starting a little later than the last) while the whole cloud fades, then the node frees itself. Sight clears at expiry, not at the end of the fade.
 - Given to the tiefling wizard.
 
 ## Grease (data/abilities/grease.tres)
@@ -39,8 +39,16 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud gets
 - Cells of the same Surface that touch are one `SurfacePatch` with one visual: a new cast merges every patch it touches into the largest. Absorbed visuals free themselves once the merged film has drawn (its `drawn` signal), so there's no gap.
 - Another Surface cast over cells takes them (overwrite; reactions such as fire on grease are not built). The old patch's visual drops them via `set_cells` once the new film has spread over them.
 - Ageing is per cell (`_age_grid`); `expire_cells` recedes the cells that ran out, `expire_all_ground(context)` runs a whole world out. `surface_at(point, context)` answers what lies on the floor there.
-- Clouds (SPHERE) are not on the grid; they keep ActiveSurface + Area3D.
+- Clouds (SPHERE) have their own 3D grid; see Cloud grid.
 - Merge demo: `tools/surface_merge_demo.tscn` (recorded, not a test): overlapping casts, a step, water over grease, partial drying.
+
+## Cloud grid (cloud_grid.gd, cloud_cell.gd, cloud_patch.gd)
+- The 3D counterpart. Each world has one `CloudGrid` (`WorldContext.cloud_grid`, via `_clouds_for`) of 1 m cubes keyed by Vector3i, one cloud per cube. A cube holds its Surface and its own `rounds` left.
+- `_fill` floods out from the cast point's cube: a neighbour is taken if its centre is within the radius and a physics ray to it is clear, so walls and ceilings stop the cloud and it climbs stairwells. The first ray starts 0.1 m above the point so a ground cast isn't blocked by its own floor.
+- Each cast is one `CloudPatch` with one visual. The same cloud cast again tops up the cubes it covers (they stay with their old visual); another cloud takes them, and the old visual recedes them.
+- Holding is polled: `_process` compares each unit's surfaces (`_holding` = ground under its feet + cubes touching its capsule) with last frame's, inflicting on entry and releasing on exit. No Area3D.
+- Ageing is per cube (`_age_clouds`); `expire_cloud_cells` recedes those that ran out, `expire_all_clouds(context)` runs a world out. `cloud_at(point, context)` answers what fills a point.
+- Visual: `fog_cloud.gd` emits from points in the cubes; a per-cloud 3D mask texture (`cloud_mask.gdshaderinc`, one texel per cube) thins a receding cube's puffs in place over `recede_seconds` without restarting the emitter.
 
 ## Ground films (decal_surface.gd)
 - A Decal, so the film drapes over steps and slopes. A Decal can't run a shader, so the scene's `film` ShaderMaterial (canvas_item, edited in the inspector) is duplicated per pass and rendered into SubViewports sized at `pixels_per_meter` (64, up to `max_resolution` 1024): albedo, normal map, and emission when `glows`. Viewports redraw only while cells arrive or recede.
@@ -54,22 +62,22 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud gets
 ## Darkness (data/abilities/darkness.tres)
 - Fog Cloud's rules (sight blocked, Blinded inside, 10 rounds), radius 5 m, plus `dark_vision_sees_through`: a unit with **Dark Vision** (`Unit.dark_vision`, cascaded from UnitDefinition; GURPS B47) is neither walled off nor Blinded by it (`_sees_through`, surface_manager.gd). Fog still stops them.
 - Dark Vision: Night, Haunt, Foul, Fallen. Darkness is given to the tiefling wizard (who lacks Dark Vision).
-- Visual: `darkness.tscn` inherits fog_cloud.tscn: a near-black core (opacity 0.97, 48 puffs) plus a `Tendrils` layer of 16 billboards on the sphere's surface drifting outward. `darkness_tendril.gdshader` draws curling strands (ridged noise in polar coordinates, tapered) over a soft dark body, with a faint violet edge glow. fog_cloud.gd sets colors, opacity and `dissipate` on every GPUParticles3D child, so the tendrils erode with the core.
+- Visual: `darkness.tscn` inherits fog_cloud.tscn: a near-black core (opacity 0.97, 48 puffs) plus a `Tendrils` layer of 16 billboards drifting outward through the cubes. `darkness_tendril.gdshader` draws curling strands (ridged noise in polar coordinates, tapered) over a soft dark body, with a faint violet edge glow. fog_cloud.gd sets colors, opacity and `dissipate` on every GPUParticles3D child, so the tendrils erode with the core.
 
 ## State it owns (source of truth)
 | State | Where | Persisted? |
 |---|---|---|
-| Live clouds for each world | `WorldContext.surfaces`, via `_list_for(context)` | no |
+| Cloud cubes and patches for each world | `CloudGrid`, via `_clouds_for(context)` | no |
 | Ground cells and patches for each world | `SurfaceGrid`, via `_grid_for(context)` | no |
-| Surfaces when no world is loaded | `_detached_surfaces` | no |
-| Per instance: surface def, position, radius, `rounds_remaining`, visual_node, area, **context** | active_surface.gd | no |
+| Clouds when no world is loaded | `_detached_clouds` | no |
+| Per cube: surface, key, `rounds`, patch; per cast: cells, visual, **context** | cloud_cell.gd, cloud_patch.gd | no |
 | Definition: shape, duration, status, `status_only_inside`, `blocks_sight`, cost, visuals and FX | surface.gd | authored .tres |
 
 ## World scoping
 Every surface belongs to a world.
 - `spawn` files it into the caster's `WorldContext` and parents it under that world's root. With no world loaded, it uses the scene root and then the caster's own parent.
 - Turn start, the cost sampler and sight blocking all read the world of the unit concerned, never the focused world.
-- The `active_surfaces` getter (the focused world) is kept only for the world-scoping suite.
+- The `cloud_grid` getter (the focused world) is kept only for the world-scoping suite.
 
 ## Public surface
 - **Calls in**
@@ -84,16 +92,16 @@ Every surface belongs to a world.
   - `CombatManager.round_started_in(encounter, n)` (combat_manager.gd:58, relayed from every encounter) triggers `_on_round_started_in`. This ages the encounter's world, but only when the encounter is the first fight running there: one clock per world.
   - A Timer fires every `ROUND_SECONDS` (6 s, BG3's turn) and triggers `_on_quiet_round`, which ages each world that has no fight running.
   - `CombatManager.turn_started` triggers `_on_turn_started`, which re-applies the status to a unit inside a surface in its own world.
-  - Each Area3D's `body_entered` applies the status, and `body_exited` triggers `_release`.
+  - Every frame `_process` applies the status to units that came into a surface and calls `_release` for those that left.
 
 ## Lifecycle
-- **Spawn:** the surface goes into the caster's world list with `rounds_remaining = duration_rounds`. Visuals and the Area3D are parented under that world.
+- **Spawn:** the cells go into the caster's world grid with `rounds = duration_rounds`. Visuals are parented under that world.
 - **Rounds:**
   - In combat, that world's oldest running fight ages it.
   - Out of combat, it ages once every 6 s. Expiry is at 0.
   - Combat ending does **not** clear surfaces; they finish their time.
 - **Leaving / expiry:** an inside-only status comes off, unless another surface in the same world with the same status still contains the unit (`_release`).
-- **World unload:** `WorldContext.dispose` clears its own `surfaces` array.
+- **World unload:** `WorldContext.dispose` clears its `surface_grid` and `cloud_grid`.
 - **Save / load:** surfaces are not saved (issue 6).
 
 ## Known issues

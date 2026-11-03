@@ -52,8 +52,7 @@ func _run() -> void:
 	await _wait(2.5)
 
 	_say("The darkness burns off")
-	for active in SurfaceManager.active_surfaces.duplicate():
-		SurfaceManager._expire(active)
+	SurfaceManager.expire_all_clouds(WorldManager.context())
 	await _wait(4.0)
 
 	var total := _passed + _failed.size()
