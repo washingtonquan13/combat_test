@@ -5,7 +5,7 @@
 - `surface.gd` (112, the Resource definition: the area TYPE)
 - `active_surface.gd` (32, a RefCounted instance)
 - `grease.gdshader` (54), `grease.tscn` (6)
-- `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud)
+- `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (its dissipate)
 
 **Autoloads owned:** `SurfaceManager` (project.godot:24)
 
@@ -21,7 +21,7 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
   - A sphere 4 m in radius, up to 18 m away, lasting 10 rounds. It needs no to-hit roll.
   - It blocks sight: no ranged targeting into, out of or across it. `blocks_sight` (surface_manager.gd:181) runs a segment-vs-sphere test, called from `LineOfSight.has_clear_shot_to_point` (line_of_sight.gd:63) once the wall ray is clear. Detection, AoE aiming and the indicators all go through LineOfSight, so fog blocks them too.
   - Units inside are **Blinded** (data/statuses/blinded.tres: âˆ’10 to their attacks, no resistance, not curable), and only while inside.
-- Visual: soft billboard particles, BG3-style. 36 slowly turning puffs (`fog_puff.gdshader`: procedural noise, top-lit, faded where they meet geometry via the depth texture) drift inside a unit sphere in local coordinates, so the uniform radius scale sizes the whole cloud. No ground ring; it reads the same on the ground or in midair.
+- Visual: soft billboard particles, BG3-style. 36 slowly turning puffs (`fog_puff.gdshader`: procedural noise, top-lit, faded where they meet geometry via the depth texture) drift inside a unit sphere in local coordinates, so the uniform radius scale sizes the whole cloud. No ground ring; it reads the same on the ground or in midair. On expiry `_expire` calls the visual's `dissipate()` if it has one (else frees it): over 3 s the cloud spreads ×1.35, lifts, and the shader's per-instance `dissipate` erodes each puff from its thin edges inward, then the node frees itself. Sight clears at expiry, not at the end of the fade.
 - Given to the tiefling wizard.
 
 ## State it owns (source of truth)

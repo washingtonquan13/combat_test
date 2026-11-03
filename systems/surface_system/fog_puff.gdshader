@@ -2,7 +2,9 @@
 // but keeps the emitter's scale (SurfaceManager scales the cloud to its
 // radius), turns by the particle's angle, and fades where it meets the
 // floor or a unit (soft particles) so it never shows a hard cut line.
-// The puff itself is procedural noise, no texture.
+// The puff itself is procedural noise, no texture. `dissipate` (0 to 1,
+// set per cloud by fog_cloud.gd) eats each puff from its thin edges
+// inward, so the cloud breaks into wisps instead of fading evenly.
 shader_type spatial;
 render_mode unshaded, depth_draw_never, cull_disabled, shadows_disabled;
 
@@ -10,6 +12,7 @@ uniform vec3 lit_color : source_color = vec3(0.86, 0.88, 0.9);
 uniform vec3 shade_color : source_color = vec3(0.52, 0.56, 0.62);
 uniform float opacity = 0.6;
 uniform float softness = 1.2;
+instance uniform float dissipate = 0.0;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 
 varying float seed;
@@ -51,6 +54,9 @@ void fragment() {
 	float n = fbm(UV * 3.0 + seed * 17.0 + vec2(TIME * 0.05, 0.0));
 	// Lumpy edge: the noise eats into a round falloff.
 	float shape = smoothstep(1.0, 0.25, length(centered) + (n - 0.5) * 0.7);
+	// Thin parts go first: the edge and the noise's low spots.
+	float cut = mix(-0.15, 0.9, dissipate);
+	shape *= smoothstep(cut - 0.12, cut + 0.12, shape * 0.4 + n * 0.6) * (1.0 - dissipate * dissipate);
 
 	float depth = texture(depth_texture, SCREEN_UV).r;
 	vec4 scene = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);

@@ -53,7 +53,7 @@ func _run() -> void:
 	_say("The cloud fades")
 	for active in SurfaceManager.active_surfaces.duplicate():
 		SurfaceManager._expire(active)
-	await _wait(1.5)
+	await _wait(4.0)
 
 	_say("A second cloud, lifted high overhead (Ctrl-drag in game)")
 	await _wait(1.0)
@@ -73,7 +73,7 @@ func _run() -> void:
 	var fog: ActiveSurface = SurfaceManager.active_surfaces[0]
 	for _i in fog.rounds_remaining:
 		SurfaceManager._on_quiet_round()
-	await _wait(1.5)
+	await _wait(4.0)
 	_check("it has run out", SurfaceManager.active_surfaces.is_empty())
 	_say("...it has run out")
 	await _wait(2.0)

@@ -260,8 +260,12 @@ func _expire(active: ActiveSurface) -> void:
 	if active.surface.expire_sfx:
 		active.surface.expire_sfx.play(parent, active.position)
 
+	# A visual with its own way out (fog thinning away) frees itself.
 	if active.visual_node and is_instance_valid(active.visual_node):
-		active.visual_node.queue_free()
+		if active.visual_node.has_method("dissipate"):
+			active.visual_node.dissipate()
+		else:
+			active.visual_node.queue_free()
 	if active.area and is_instance_valid(active.area):
 		active.area.queue_free()
 
