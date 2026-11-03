@@ -5,7 +5,7 @@
 - `surface.gd` (112, the Resource definition: the area TYPE)
 - `active_surface.gd` (32, a RefCounted instance)
 - `decal_surface.gd` (DecalSurface, shared by every ground film), `film_common.gdshaderinc` + `film_passes.gdshaderinc` (the film shaders' shared uniforms, noise and fragment)
-- `grease.tscn`, `water.tscn`, `blood.tscn`, `acid.tscn` (`liquid_film.gdshader`), `ice.tscn` (`ice_film.gdshader`), `web.tscn` (`web_film.gdshader`), `fire.tscn` (`scorch_film.gdshader` + `fire_surface.gd` + `flame.gdshader`). Only Grease has an ability; the rest are visuals with no Surface resource yet.
+- `grease.tscn`, `water.tscn`, `blood.tscn`, `acid.tscn` (`liquid_film.gdshader`), `ice.tscn` (`ice_film.gdshader`), `web.tscn` (`web_film.gdshader`), `fire.tscn` (`scorch_film.gdshader` + `fire_surface.gd` + `flame.gdshader` + `spark.gdshader` + `heat_haze.gdshader`, smoke reuses `fog_puff.gdshader`). Only Grease has an ability; the rest are visuals with no Surface resource yet.
 - `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (colors and dissipate for every particle layer), `darkness.tscn` (the same cloud, inked, plus a tendril layer), `darkness_tendril.gdshader`
 
 **Autoloads owned:** `SurfaceManager` (project.godot:24)
@@ -35,8 +35,9 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
 ## Ground films (decal_surface.gd)
 - A Decal, so the film drapes over steps and slopes. A Decal can't run a shader, so the scene's `film` ShaderMaterial (canvas_item, edited in the inspector) is duplicated per pass and rendered into 512 px SubViewports: albedo, normal map, and emission when `glows`. Viewports redraw only while the shape changes. Each redraw is read back on `frame_post_draw` and set as a NEW ImageTexture: the decal atlas shows neither a ViewportTexture nor an `ImageTexture.update()`.
 - A film shader includes `film_common.gdshaderinc`, defines `film_height(p)`, `film_albedo(p, h)` and `film_emission(p, h)`, then includes `film_passes.gdshaderinc`; every pass derives from the one height, so bumps and glow sit exactly on the film.
-- `liquid_film` covers Grease, Water, Blood and Acid through uniforms (colors, alpha_max, droplets, lumpiness, bubbles, glow_color). Ice has Voronoi cracks and a frosted rim; Web draws spokes and spiral rings in meters, one large web plus three small ones; Fire's scorch has ember veins on the emission pass.
-- Fire adds a GPUParticles3D of camera-facing flame quads (`flame.gdshader`, additive, depth-softened at the ground), sized at 4 per square meter over the patch, and a flickering OmniLight. Both undo the patch's DISC scale. `dissipate()` stops the flames and fades the light, then the scorch recedes.
+- `liquid_film` covers Grease, Water, Blood and Acid through uniforms (colors, alpha_max, droplets, lumpiness, bubbles, glow_color). Ice has Voronoi cracks and a frosted rim; Web draws spokes and spiral rings in meters, one large web plus three small ones; Fire's scorch glows while burning: boiling heat under dark crust plates, dying back to ember veins as it recedes.
+- A glow can loop: `glow_frames` > 0 draws that many emission pictures once the film has spread (the shader loops on `glow_phase`, from `film_common`), then `_process` cycles them at `glow_fps`. No redraws while it plays; `dissipate()` drops back to the one live picture. Fire uses 8 at 8 fps.
+- Fire adds, all sized to the patch and undoing its DISC scale: Flames (camera-facing quads, `flame.gdshader`: round base, noise-eroded into tongues, additive, depth-softened), Sparks (`spark.gdshader`, twinkling additive dots with turbulence), Smoke (dark `fog_puff` puffs rising from 1.2 m), Haze (an upright camera-facing quad bending the screen texture, `render_priority` -1 so it draws before the flames and never wipes them) and a flickering OmniLight. `dissipate()` stops the emitters and fades the light and haze, then the scorch recedes.
 - Look demo of all seven: `tools/surfaces_look_demo.tscn` (recorded, not a test).
 
 ## Darkness (data/abilities/darkness.tres)

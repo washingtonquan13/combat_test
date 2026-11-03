@@ -1,8 +1,10 @@
 shader_type canvas_item;
 render_mode unshaded, blend_disabled;
 
-// The burnt ground under a fire for decal_surface.gd: soot, charred
-// black at the centre, with ember veins that glow (the emission pass).
+// The ground under a fire for decal_surface.gd: soot, charred black at
+// the centre. While it burns, the char glows - hot, boiling under dark
+// crust plates, looping on glow_phase - and as it goes out the glow dies
+// back to ember veins, then those fade and the char recedes.
 
 #include "res://systems/surface_system/film_common.gdshaderinc"
 
@@ -10,6 +12,11 @@ uniform vec3 char_color : source_color = vec3(0.025, 0.02, 0.018);
 uniform vec3 soot_color : source_color = vec3(0.16, 0.13, 0.11);
 uniform float alpha_max : hint_range(0.0, 1.0) = 0.92;
 uniform vec3 ember_color : source_color = vec3(1.0, 0.32, 0.05);
+uniform vec3 deep_color : source_color = vec3(0.45, 0.04, 0.0);
+uniform vec3 hot_color : source_color = vec3(1.0, 0.78, 0.35);
+// Boiling and crust detail per meter.
+uniform float boil_scale = 1.4;
+uniform float crust_scale = 2.2;
 // Ember vein cells per meter.
 uniform float vein_density = 2.2;
 
@@ -33,8 +40,20 @@ vec4 film_albedo(vec2 p, float h) {
 }
 
 vec3 film_emission(vec2 p, float h) {
-	// Embers only where it burnt deep.
-	return ember_color * veins(p) * smoothstep(0.45, 0.75, h);
+	vec2 m = p * radius_m;
+	// The warp circles once per loop, so the boil comes back to its start.
+	float turn = glow_phase * 6.2831853;
+	vec2 loop = vec2(cos(turn), sin(turn)) * 0.5;
+	vec2 warp = vec2(fbm(m * 0.9 + loop + seed), fbm(m * 0.9 - loop + seed + 7.3));
+	float heat = fbm(m * boil_scale + warp * 1.6 + seed * 1.3);
+	float crust = smoothstep(0.45, 0.62, fbm(m * crust_scale + warp * 0.8 + seed + 2.0));
+	// Burning goes out first; the veins linger a little as embers.
+	float burning = smoothstep(0.2, 0.55, h) * (1.0 - smoothstep(0.0, 0.45, recede));
+	float glow = burning * mix(1.0, 0.12, crust) * smoothstep(0.25, 0.7, heat + (h - 0.5) * 0.4);
+	vec3 color = mix(deep_color, ember_color, smoothstep(0.15, 0.55, glow));
+	color = mix(color, hot_color, smoothstep(0.6, 0.95, glow));
+	float embers = veins(p) * smoothstep(0.45, 0.75, h) * 0.6 * (1.0 - smoothstep(0.3, 0.9, recede));
+	return max(color * glow, ember_color * embers);
 }
 
 #include "res://systems/surface_system/film_passes.gdshaderinc"

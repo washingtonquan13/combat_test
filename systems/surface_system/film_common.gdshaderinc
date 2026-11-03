@@ -12,6 +12,9 @@ uniform float radius_m = 3.0;
 uniform float spread = 1.0;
 // 0 whole, 1 gone. Thin film goes first.
 uniform float recede = 0.0;
+// 0..1 around a looping glow (decal_surface.gd's glow_frames): a film
+// that animates its emission comes back to where it began at 1.
+uniform float glow_phase = 0.0;
 // How strongly the thickness shows in the normal map.
 uniform float bumpiness = 0.08;
 // Fine ripples on top of the thickness, for the gloss to catch.

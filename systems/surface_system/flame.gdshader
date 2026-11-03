@@ -9,7 +9,7 @@ render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabl
 uniform vec3 core_color : source_color = vec3(1.0, 0.72, 0.32);
 uniform vec3 body_color : source_color = vec3(1.0, 0.38, 0.06);
 uniform vec3 tip_color : source_color = vec3(0.55, 0.06, 0.02);
-uniform float intensity = 1.1;
+uniform float intensity = 1.6;
 uniform float scroll_speed = 1.6;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 // Fades the flame where it meets the ground, so no hard line.
@@ -59,16 +59,19 @@ void fragment() {
 	// Licks: noise scrolling upward bends the flame side to side.
 	// QuadMesh UV runs top to bottom; height runs base (0) to tip (1).
 	float height = 1.0 - uv.y;
-	float wobble = (fbm(vec2(height * 2.0 - t, v_seed)) - 0.5) * 0.35 * height;
+	float wobble = (fbm(vec2(height * 2.0 - t, v_seed)) - 0.5) * 0.6 * height;
 	float x = (uv.x - 0.5 + wobble) * 2.0;
-	// Teardrop: wide at the base, pinched at the tip.
-	float width = mix(1.0, 0.12, pow(height, 1.4));
-	float shape = 1.0 - smoothstep(width * 0.2, width, abs(x));
-	shape *= smoothstep(0.0, 0.08, height) * (1.0 - smoothstep(0.8, 1.0, height));
-	float turbulence = fbm(vec2(x * 1.5, uv.y * 3.0 + t * 1.8) + v_seed);
-	float heat = shape * smoothstep(0.2, 0.75, turbulence + (1.0 - height) * 0.45);
-	vec3 color = mix(tip_color, body_color, smoothstep(0.1, 0.45, heat));
-	color = mix(color, core_color, smoothstep(0.55, 0.9, heat));
+	// Teardrop: a round bulb at the base drawing up to a point, its
+	// outline eaten by the turbulence so the top breaks into licks.
+	float width = mix(1.0, 0.1, smoothstep(0.15, 1.0, height));
+	float below = max(0.3 - height, 0.0) / 0.3;
+	float d = length(vec2(x / max(width, 0.001), below));
+	float shape = 1.0 - smoothstep(0.2, 1.0, d);
+	float turbulence = fbm(vec2(x * 2.5, uv.y * 4.0 + t * 2.2) + v_seed);
+	// Eaten harder toward the top, so the tip splits into tongues.
+	float heat = smoothstep(0.2, 0.65, shape - (1.0 - turbulence) * (0.25 + height * 0.7));
+	vec3 color = mix(tip_color, body_color, smoothstep(0.05, 0.4, heat));
+	color = mix(color, core_color, smoothstep(0.5, 0.9, heat));
 	float depth = textureLod(depth_texture, SCREEN_UV, 0.0).r;
 	vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
 	float scene_z = -view.z / view.w;
