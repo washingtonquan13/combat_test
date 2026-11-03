@@ -3,7 +3,7 @@ class_name BodyPlan
 extends Resource
 ## A creature's anatomy for injury: a torso row that every unaimed hit
 ## takes, plus a row per location an attack can be aimed at. Most
-## creatures share human.tres and differ only by InjuryTraits; a
+## creatures share human.tres and differ only by an InjuryPreset; a
 ## different body shape (no head) is a different plan.
 
 const HUMAN_PATH := "res://data/body_plans/human.tres"

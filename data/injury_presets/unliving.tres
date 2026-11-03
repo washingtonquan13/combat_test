@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="InjuryPreset" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://systems/combat_system/hit_location.gd" id="1_c3cdh"]
+[ext_resource type="Script" path="res://systems/combat_system/injury_rule.gd" id="2_ppydh"]
+[ext_resource type="Resource" path="res://data/hit_locations/torso.tres" id="3_8lju5"]
+[ext_resource type="Script" path="res://systems/combat_system/injury_preset.gd" id="4_vxonh"]
+
+[sub_resource type="Resource" id="Resource_cyqgq"]
+script = ExtResource("2_ppydh")
+op = 0
+field = 0
+value = 1.0
+rows = Array[ExtResource("1_c3cdh")]([ExtResource("3_8lju5")])
+wound_types = Array[int]([2])
+
+[sub_resource type="Resource" id="Resource_7gije"]
+script = ExtResource("2_ppydh")
+op = 0
+field = 0
+value = 1.0
+rows = Array[ExtResource("1_c3cdh")]([ExtResource("3_8lju5")])
+wound_types = Array[int]([6])
+
+[sub_resource type="Resource" id="Resource_c2j20"]
+script = ExtResource("2_ppydh")
+op = 0
+field = 0
+value = 0.5
+rows = Array[ExtResource("1_c3cdh")]([ExtResource("3_8lju5")])
+wound_types = Array[int]([5])
+
+[sub_resource type="Resource" id="Resource_l8jix"]
+script = ExtResource("2_ppydh")
+op = 0
+field = 0
+value = 0.333333
+rows = Array[ExtResource("1_c3cdh")]([ExtResource("3_8lju5")])
+wound_types = Array[int]([4])
+
+[sub_resource type="Resource" id="Resource_sh64t"]
+script = ExtResource("2_ppydh")
+op = 0
+field = 0
+value = 0.2
+rows = Array[ExtResource("1_c3cdh")]([ExtResource("3_8lju5")])
+wound_types = Array[int]([3])
+
+[resource]
+script = ExtResource("4_vxonh")
+display_name = "Unliving"
+summary = "Impaling and piercing do less: imp x1, pi+ x1/2, pi x1/3, pi- x1/5"
+rules = Array[ExtResource("2_ppydh")]([SubResource("Resource_cyqgq"), SubResource("Resource_7gije"), SubResource("Resource_c2j20"), SubResource("Resource_l8jix"), SubResource("Resource_sh64t")])
+missing_locations = Array[ExtResource("1_c3cdh")]([])

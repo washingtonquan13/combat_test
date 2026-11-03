@@ -9,9 +9,6 @@ extends Resource
 
 ## Which location this is; the torso row holds torso.tres.
 @export var location: HitLocation
-## Resolve exactly as the torso does (No Vitals, No Brain). Applied after
-## every other rule, so it follows the torso's final numbers.
-@export var copy_torso: bool = false
 ## Wounding multiplier per wound type. 0 is immune: no injury, not even 1.
 @export var multipliers: PackedFloat32Array = PackedFloat32Array([1, 1.5, 2, 0.5, 1, 1.5, 2, 1, 1, 1])
 ## Most injury one hit can do, per wound type; 0 is no cap (Diffuse).

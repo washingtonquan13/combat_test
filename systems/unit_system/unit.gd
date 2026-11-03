@@ -37,7 +37,8 @@ extends CharacterBody3D
 			abilities = definition.abilities
 			natural_attacks = definition.natural_attacks
 			body_plan = definition.body_plan
-			injury_traits = definition.injury_traits
+			injury_preset = definition.injury_preset
+			missing_locations = definition.missing_locations
 			# Resolved, not raw: a species normally names an AiArchetype
 			# and leaves ai_behaviors empty — see UnitDefinition.
 			ai_behaviors = definition.resolved_ai_behaviors()
@@ -241,7 +242,8 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 ## This body's anatomy and Injury Tolerance — see UnitDefinition.body_plan
 ## and injury_profile().
 @export var body_plan: BodyPlan
-@export var injury_traits: Array[InjuryTrait] = []
+@export var injury_preset: InjuryPreset
+@export var missing_locations: Array[HitLocation] = []
 ## Composable AI decision rules, tried in order — see AiBehavior. Empty
 ## (every unit today) falls back to CombatAI's original hardcoded
 ## nearest-hostile/default_ability baseline, so no existing content
@@ -1499,21 +1501,15 @@ var _injury_profile: InjuryProfile
 var _injury_profile_key: Array = []
 
 
-## How this unit takes injury now: its body plan (human by default) with
-## the traits of its definition, worn gear and statuses merged in.
-## Rebuilt only when that list changes, so DamageResolver can ask on
-## every roll.
+## How this unit takes injury: its body plan (human by default), its
+## preset, then its missing locations. Rebuilt only when one of those
+## changes, so DamageResolver can ask on every roll.
 func injury_profile() -> InjuryProfile:
 	var plan: BodyPlan = body_plan if body_plan else BodyPlan.human()
-	var traits: Array[InjuryTrait] = injury_traits.duplicate()
-	if _equipment:
-		traits.append_array(_equipment.injury_traits())
-	for status in active_statuses():
-		traits.append_array(status.injury_traits)
-	var key: Array = [plan]
-	key.append_array(traits)
+	var key: Array = [plan, injury_preset]
+	key.append_array(missing_locations)
 	if _injury_profile == null or key != _injury_profile_key:
-		_injury_profile = InjuryProfile.build(plan, traits)
+		_injury_profile = InjuryProfile.build(plan, injury_preset, missing_locations)
 		_injury_profile_key = key
 	return _injury_profile
 

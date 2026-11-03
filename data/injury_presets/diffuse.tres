@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="InjuryPreset" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/combat_system/hit_location.gd" id="1_07chx"]
+[ext_resource type="Resource" path="res://data/hit_locations/vitals.tres" id="2_63gwy"]
+[ext_resource type="Resource" path="res://data/hit_locations/skull.tres" id="3_phf3a"]
+[ext_resource type="Script" path="res://systems/combat_system/injury_rule.gd" id="4_hhngt"]
+[ext_resource type="Script" path="res://systems/combat_system/injury_preset.gd" id="5_fnmyn"]
+
+[sub_resource type="Resource" id="Resource_8x4k8"]
+script = ExtResource("4_hhngt")
+op = 1
+field = 1
+value = 1.0
+rows = Array[ExtResource("1_07chx")]([])
+wound_types = Array[int]([2, 3, 4, 5, 6])
+
+[sub_resource type="Resource" id="Resource_anpwr"]
+script = ExtResource("4_hhngt")
+op = 1
+field = 1
+value = 2.0
+rows = Array[ExtResource("1_07chx")]([])
+wound_types = Array[int]([0, 1, 7, 8, 9])
+
+[resource]
+script = ExtResource("5_fnmyn")
+display_name = "Diffuse"
+summary = "No vitals or brain; a hit does at most 1 (imp, pi) or 2, except area attacks"
+rules = Array[ExtResource("4_hhngt")]([SubResource("Resource_8x4k8"), SubResource("Resource_anpwr")])
+missing_locations = Array[ExtResource("1_07chx")]([ExtResource("2_63gwy"), ExtResource("3_phf3a")])

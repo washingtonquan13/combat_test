@@ -25,9 +25,6 @@ enum StackMode {
 @export var max_stacks: int = 1
 
 @export var behaviors: Array[StatusBehavior] = []
-## How it changes the way its bearer takes injury while on (a stoneskin,
-## a curse of fragility) — see Unit.injury_profile.
-@export var injury_traits: Array[InjuryTrait] = []
 
 ## Whether a RemoveStatusEffect (a cure, a dispel) can take this off.
 ## False for a status the rules own entering and leaving — Downed only

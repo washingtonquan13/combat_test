@@ -101,9 +101,12 @@ extends Resource
 ## How this species takes injury (B379-380, B398-399): its hit locations
 ## and what each wound type does there. Unset is the human plan.
 @export var body_plan: BodyPlan
-## Injury Tolerance and the like (Unliving, Diffuse) on top of the plan.
-## See InjuryProfile.
-@export var injury_traits: Array[InjuryTrait] = []
+## Injury Tolerance tier on top of the plan (Unliving, Homogeneous,
+## Diffuse); unset is none. See InjuryProfile.
+@export var injury_preset: InjuryPreset
+## Locations this body lacks on its own, whatever the preset (No Vitals,
+## No Brain): a hit there resolves as the torso.
+@export var missing_locations: Array[HitLocation] = []
 ## This species' tactical role — see AiArchetype. Supplies the behaviors
 ## and smartness tier, so a species normally sets this and nothing else
 ## AI-related.
