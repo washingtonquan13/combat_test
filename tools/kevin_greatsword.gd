@@ -13,12 +13,16 @@ const KevinClip := preload("res://tools/kevin_clip.gd")
 const DIR := "res://assets/kevin_melee/"
 # From the right grip down the hilt to the left, as _greatsword_stance had it.
 const SPACING := 0.11
-# The thrust's moments, in seconds: drawn back, the point home, held there,
-# back on guard.
-const DRAWN := 0.32
-const THRUST_IMPACT := 0.48
-const HELD := 0.62
-const THRUST_LENGTH := 1.3
+# The thrust's moments, in seconds: drawn back, coiled there a beat, the
+# point snapped home past where it stops, settled, held, back on guard.
+const DRAWN := 0.4
+const COILED := 0.56
+const THRUST_IMPACT := 0.65
+const SETTLED := 0.78
+const HELD := 1.0
+const THRUST_LENGTH := 1.6
+# How hard the point accelerates into the target.
+const STRIKE := 2.5
 # Where the target is: ahead, chest high.
 const TARGET := Vector3(0, 1.2, 1.8)
 # The right elbow out and up behind the hilt, so the wrist can lie the blade
@@ -53,15 +57,21 @@ func swing() -> Animation:
 func thrust() -> Animation:
 	var source := KevinClip.source(DIR + "HumanM@CombatIdle2H01.fbx")
 	var guard := _fit(KevinClip.frame(_poses, source, 0.0))
-	var drawn := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.03, -0.05),
-		{"Spine": Vector3(-4, -12, 0), "Chest": Vector3(-2, -10, 0)}, Vector3(-0.2, 0.9, 0.25))
-	var home := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.08, 0.16),
-		{"Spine": Vector3(10, 10, 0), "Chest": Vector3(6, 8, 0)}, Vector3(-0.05, 0.9, 0.75))
+	var drawn := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.05, -0.08),
+		{"Spine": Vector3(-5, -16, 0), "Chest": Vector3(-3, -13, 0)}, Vector3(-0.24, 0.9, 0.18))
+	var coiled := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.06, -0.1),
+		{"Spine": Vector3(-6, -19, 0), "Chest": Vector3(-3, -15, 0)}, Vector3(-0.26, 0.9, 0.14))
+	var lunged := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.11, 0.22),
+		{"Spine": Vector3(14, 13, 0), "Chest": Vector3(8, 10, 0)}, Vector3(-0.04, 0.9, 0.84))
+	var home := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.09, 0.17),
+		{"Spine": Vector3(11, 10, 0), "Chest": Vector3(6, 8, 0)}, Vector3(-0.05, 0.9, 0.76))
 	return _poses.clip(THRUST_LENGTH, false, func(t: float, _length: float) -> Dictionary:
 		return _poses.keyed(t, [
 			[0.0, guard],
 			[DRAWN, drawn],
-			[THRUST_IMPACT, home],
+			[COILED, coiled],
+			[THRUST_IMPACT, lunged, STRIKE],
+			[SETTLED, home],
 			[HELD, home],
 			[THRUST_LENGTH, guard],
 		]))

@@ -190,14 +190,17 @@ func _set_local(pose: Dictionary, bone: String, local: Basis) -> void:
 
 
 # Eases from each key pose to the next. Keys are resolved first, so a key on
-# the Idle base blends with one on the neutral base.
+# the Idle base blends with one on the neutral base. A key with a third entry
+# is struck rather than eased into: reached still speeding up, as a blow
+# lands, the entry how hard it accelerates (2 is t squared).
 func keyed(t: float, keys: Array) -> Dictionary:
 	for i in range(keys.size() - 1):
 		var a: Array = keys[i]
 		var b: Array = keys[i + 1]
 		if t <= b[0] or i == keys.size() - 2:
 			var f := clampf((t - a[0]) / (b[0] - a[0]), 0.0, 1.0)
-			return _blend(resolve(a[1]), resolve(b[1]), smoothstep(0.0, 1.0, f))
+			f = pow(f, b[2]) if b.size() > 2 else smoothstep(0.0, 1.0, f)
+			return _blend(resolve(a[1]), resolve(b[1]), f)
 	return resolve(keys[-1][1])
 
 
