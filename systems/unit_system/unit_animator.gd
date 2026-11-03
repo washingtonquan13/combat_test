@@ -30,7 +30,7 @@ extends Node
 ## Unit.cast_released); "impact" is Unit.notify_impact(), which lands an
 ## ability whose AbilityTiming.waits_for_impact is on. Keys are placed by
 ## hand in the AnimationPlayer editor, e.g. Spell_Simple_Shoot release
-## 0.2, Jump_Start impact 0.25, fireball Cast release 0.3. The cast
+## 0.2, Jump_Start impact 0.55 (generated, tools/make_weapon_animations.gd), fireball Cast release 0.3. The cast
 ## always lets go: at the sequence's end if no clip had a key, when the
 ## sequence is abandoned or replaced, on a hit reaction or death, at once
 ## for an ability with no cast animation, and at UnitCombat's

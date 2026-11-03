@@ -53,6 +53,8 @@ extends SceneTree
 #   Reload_Pistol      Pistol_Reload, two handed, refitted to our gun
 #   Reload_Rifle       AssaultRifle_Reload01 (Kevin Iglesias), refitted
 #   Reload_Crossbow    muzzle down, the string hauled back, a bolt laid in
+#
+# And one that isn't a weapon's: Jump_Start, the jump's wind-up and spring.
 
 const PoseBuilder := preload("res://tools/pose_builder.gd")
 # The long guns' stance and aim and the rifle's reload, from the Kevin
@@ -101,6 +103,16 @@ const ARM := ["RightShoulder", "RightUpperArm", "RightLowerArm", "RightHand"]
 const BOW_RELEASE := 0.85
 # One breath of a built stance, the length of its loop.
 const BREATH := 2.4
+# The jump. Quaternius' Jump_Start begins at the bottom of its crouch and is
+# up within a few frames, so the way down is Jump_Land's way up run
+# backwards (its frame at CROUCH is Jump_Start's first) from where it has
+# stood at RISEN, over SINK seconds. Then Jump_Start to SPRUNG, the body in
+# the air, the feet leaving the ground at LIFT_OFF.
+const CROUCH := 0.1
+const RISEN := 0.8
+const SINK := 0.45
+const SPRUNG := 0.3
+const LIFT_OFF := 0.1
 
 var _poses: PoseBuilder
 var _ual1: AnimationLibrary
@@ -159,6 +171,7 @@ func _init() -> void:
 		return _crossbow.raised(_kick(since) * 6.0), _crossbow_rest))
 	library.add_animation("Bow_Shot", _keyed(_poses.clip(1.45, false, _bow), {"release": [BOW_RELEASE]}))
 	library.add_animation("Dodge", _poses.clip(0.6, false, _dodge))
+	library.add_animation("Jump_Start", _keyed(_jump_start(), {"impact": [SINK + LIFT_OFF]}))
 	library.add_animation("Block", _poses.clip(0.75, false, _block))
 
 	var err := ResourceSaver.save(library, OUT)
@@ -211,6 +224,16 @@ func _joined(clips: Array) -> Animation:
 				return _frame(anim, minf(t, anim.length))
 			t -= anim.length
 		return _standing)
+
+
+# Down into the crouch and up off the ground (see CROUCH).
+func _jump_start() -> Animation:
+	var land := _source("Jump_Land")
+	var start := _source("Jump_Start")
+	return _poses.clip(SINK + SPRUNG, false, func(t: float, _length: float) -> Dictionary:
+		if t < SINK:
+			return _frame(land, lerpf(RISEN, CROUCH, t / SINK))
+		return _frame(start, t - SINK))
 
 
 # Adds a Call Method track on CharacterModel: method name -> key times.
