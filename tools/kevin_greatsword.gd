@@ -13,26 +13,23 @@ const KevinClip := preload("res://tools/kevin_clip.gd")
 const DIR := "res://assets/kevin_melee/"
 # From the right grip down the hilt to the left, as _greatsword_stance had it.
 const SPACING := 0.11
-# The thrust's moments, in seconds: drawn back, coiled there a beat, the
-# point snapped home past where it stops, settled, held, back on guard.
-const DRAWN := 0.4
-const COILED := 0.56
-const THRUST_IMPACT := 0.65
-const SETTLED := 0.78
-const HELD := 1.0
-const THRUST_LENGTH := 1.6
-# How hard the point accelerates into the target.
-const STRIKE := 2.5
+# The thrust's moments in AttackPolearm01, in seconds: the hands are on
+# the thrust's grip by ARMED, the point home at THRUST_IMPACT, and back on
+# the guard's grip from DISARMED to the clip's end.
+const ARMED := 0.12
+const THRUST_IMPACT := 0.45
+const DISARMED := 1.0
 # Where the target is: ahead, chest high.
 const TARGET := Vector3(0, 1.2, 1.8)
-# The right elbow out and up behind the hilt, so the wrist can lie the blade
-# along the forearm onto the target.
-const RIGHT_POLE := Vector3(-1, 0.5, 0.5)
+# The hilt from where the spear's front hand is, in to the middle: the rear
+# hand winds back past the shoulder, which a sword's point aimed ahead would
+# run through the body to follow.
+const HILT_SHIFT := Vector3(0.15, 0.05, 0)
 # How far each hand is turned on the hilt from where its wrist rests, in
-# degrees about the blade.
-const LEFT_ROLL := 45.0
-const RIGHT_ROLL := 10.0
-
+# degrees about the blade: the turns that bend the wrists least through the
+# drive (tools/_probe/roll_sweep.gd).
+const LEFT_ROLL := -135.0
+const RIGHT_ROLL := -30.0
 var _poses: PoseBuilder
 
 
@@ -51,67 +48,50 @@ func swing() -> Animation:
 	return _fitted("HumanM@Attack2H01", false)
 
 
-# The thrust, built on the guard since the pack has none: the hilt drawn
-# back to the right hip, point on the target, then driven home with both
-# hands, the hips sinking and following it in, the feet where they stood.
+# The thrust, from the pack's spear attack (AttackPolearm01), which starts
+# and ends on the guard's feet: wound back, the front foot stepped in, and
+# driven home. The body is the artist's; both hands are on our hilt where
+# the spear's front hand is, the point on TARGET, eased from the guard's grip
+# at the start and back to it at the end.
 func thrust() -> Animation:
-	var source := KevinClip.source(DIR + "HumanM@CombatIdle2H01.fbx")
-	var guard := _fit(KevinClip.frame(_poses, source, 0.0))
-	var drawn := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.05, -0.08),
-		{"Spine": Vector3(-5, -16, 0), "Chest": Vector3(-3, -13, 0)}, Vector3(-0.24, 0.9, 0.18))
-	var coiled := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.06, -0.1),
-		{"Spine": Vector3(-6, -19, 0), "Chest": Vector3(-3, -15, 0)}, Vector3(-0.26, 0.9, 0.14))
-	var lunged := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.11, 0.22),
-		{"Spine": Vector3(14, 13, 0), "Chest": Vector3(8, 10, 0)}, Vector3(-0.04, 0.9, 0.84))
-	var home := _thrusting(KevinClip.frame(_poses, source, 0.0), Vector3(0, -0.09, 0.17),
-		{"Spine": Vector3(11, 10, 0), "Chest": Vector3(6, 8, 0)}, Vector3(-0.05, 0.9, 0.76))
-	return _poses.clip(THRUST_LENGTH, false, func(t: float, _length: float) -> Dictionary:
-		return _poses.keyed(t, [
-			[0.0, guard],
-			[DRAWN, drawn],
-			[COILED, coiled],
-			[THRUST_IMPACT, lunged, STRIKE],
-			[SETTLED, home],
-			[HELD, home],
-			[THRUST_LENGTH, guard],
-		]))
+	var spear := KevinClip.source(DIR + "HumanM@AttackPolearm01.fbx")
+	var guard := KevinClip.frame(_poses, KevinClip.source(DIR + "HumanM@CombatIdle2H01.fbx"), 0.0)
+	var guarded := _poses.resolve(guard)
+	var right := _poses.grip_transform(guard, "Right")
+	var rest := {
+		"hilt": right.origin,
+		"blade": right.basis.y.normalized(),
+		"Right": KevinClip.pole(_poses, guarded, "Right"),
+		"Left": KevinClip.pole(_poses, guarded, "Left"),
+	}
+	rest["right_edge"] = _across(right.basis.z, rest["blade"])
+	rest["left_edge"] = _across(_poses.grip_transform(guard, "Left").basis.z, rest["blade"])
+	return _poses.clip(spear.length, false, func(t: float, length: float) -> Dictionary:
+		var on := smoothstep(0.0, ARMED, t) * (1.0 - smoothstep(DISARMED, length, t))
+		return _thrusting(KevinClip.frame(_poses, spear, t), rest, on))
 
 
-# The guard frame `pose` with the hips moved by `hips` and the body turned by
-# `turns`, the feet left where they stood, and the hilt held at `hilt` with
-# the point on TARGET, both elbows bending as elbows do.
-func _thrusting(pose: Dictionary, hips: Vector3, turns: Dictionary, hilt: Vector3) -> Dictionary:
+# The spear clip's frame `pose` with the hands on our hilt: `on` of the way
+# from the guard's grip `rest` to the thrust's.
+func _thrusting(pose: Dictionary, rest: Dictionary, on: float) -> Dictionary:
 	var resolved := _poses.resolve(pose)
-	var feet := {}
+	var held := _poses.bone_transform(resolved, "LeftHand").origin + HILT_SHIFT
+	var hilt: Vector3 = rest["hilt"].lerp(held, on)
+	var blade: Vector3 = rest["blade"].slerp((TARGET - held).normalized(), on)
+	var poles := {}
 	for side: String in ["Left", "Right"]:
-		feet[side] = [_poses.bone_transform(resolved, side + "Foot"), _knee(resolved, side)]
-	var arms := {"Left": KevinClip.pole(_poses, resolved, "Left"), "Right": RIGHT_POLE}
-	pose["_hips"] = pose.get("_hips", Vector3.ZERO) + hips
-	for bone: String in turns:
-		PoseBuilder.add(pose, bone, turns[bone])
-	for side: String in feet:
-		_poses.plant(pose, side, feet[side][0], feet[side][1])
+		poles[side] = rest[side].lerp(KevinClip.pole(_poses, resolved, side), on)
 	# Each hand turned on the blade from where its wrist points it with the
 	# arm out at the hilt.
-	_poses.reach(pose, "Right", hilt, arms["Right"], true)
-	var natural := _poses.grip_transform(pose, "Right").basis
-	var blade := (TARGET - hilt).normalized()
-	var edge := _across(natural.z, blade).rotated(blade, deg_to_rad(RIGHT_ROLL))
-	_poses.reach(pose, "Left", hilt - blade * SPACING, arms["Left"], true)
+	_poses.reach(pose, "Right", hilt, poles["Right"])
+	var edge := _across(_poses.grip_transform(pose, "Right").basis.z, blade).rotated(blade, deg_to_rad(RIGHT_ROLL))
+	edge = _across(rest["right_edge"], blade).lerp(edge, on)
+	_poses.reach(pose, "Left", hilt - blade * SPACING, poles["Left"])
 	var left_edge := _across(_poses.grip_transform(pose, "Left").basis.z, blade).rotated(blade, deg_to_rad(LEFT_ROLL))
-	_poses.grasp(pose, "Right", hilt, edge, blade, arms["Right"], true)
-	_poses.grasp(pose, "Left", hilt - blade * SPACING, left_edge, blade, arms["Left"], true)
+	left_edge = _across(rest["left_edge"], blade).lerp(left_edge, on)
+	_poses.grasp(pose, "Right", hilt, edge, blade, poles["Right"])
+	_poses.grasp(pose, "Left", hilt - blade * SPACING, left_edge, blade, poles["Left"])
 	return pose
-
-
-# Which way the guard bends the `side` knee.
-func _knee(resolved: Dictionary, side: String) -> Vector3:
-	var hip := _poses.bone_transform(resolved, side + "UpperLeg").origin
-	var knee := _poses.bone_transform(resolved, side + "LowerLeg").origin
-	var ankle := _poses.bone_transform(resolved, side + "Foot").origin
-	var line := (ankle - hip).normalized()
-	var out := knee - hip
-	return out - line * out.dot(line)
 
 
 func _fitted(file: String, loops: bool) -> Animation:
