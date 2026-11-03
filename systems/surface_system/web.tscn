@@ -1,0 +1,17 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/decal_surface.gd" id="1_script"]
+[ext_resource type="Shader" path="res://systems/surface_system/web_film.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="film"]
+shader = ExtResource("2_shader")
+shader_parameter/bumpiness = 0.01
+shader_parameter/ripple_strength = 0.0
+
+[node name="Web" type="Decal"]
+size = Vector3(2.6, 2.4, 2.6)
+normal_fade = 0.6
+cull_mask = 1048573
+script = ExtResource("1_script")
+film = SubResource("film")
+roughness = 0.8

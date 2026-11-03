@@ -1,0 +1,71 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/fire_surface.gd" id="1_script"]
+[ext_resource type="Shader" path="res://systems/surface_system/scorch_film.gdshader" id="2_shader"]
+[ext_resource type="Shader" path="res://systems/surface_system/flame.gdshader" id="3_flame"]
+
+[sub_resource type="ShaderMaterial" id="film"]
+shader = ExtResource("2_shader")
+
+[sub_resource type="Gradient" id="fade"]
+offsets = PackedFloat32Array(0, 0.2, 0.7, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0.8, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="fade_texture"]
+gradient = SubResource("fade")
+
+[sub_resource type="Curve" id="grow"]
+_data = [Vector2(0, 0.5), 0.0, 0.0, 0, 0, Vector2(0.3, 1), 0.0, 0.0, 0, 0, Vector2(1, 0.6), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="grow_texture"]
+curve = SubResource("grow")
+
+[sub_resource type="ParticleProcessMaterial" id="burn"]
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.0
+emission_ring_radius = 2.0
+emission_ring_inner_radius = 0.0
+direction = Vector3(0, 1, 0)
+spread = 8.0
+initial_velocity_min = 0.3
+initial_velocity_max = 0.7
+gravity = Vector3(0, 0.6, 0)
+scale_min = 0.6
+scale_max = 1.3
+scale_curve = SubResource("grow_texture")
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="ShaderMaterial" id="flame"]
+render_priority = 0
+shader = ExtResource("3_flame")
+
+[sub_resource type="QuadMesh" id="tongue"]
+material = SubResource("flame")
+size = Vector2(0.9, 1.1)
+center_offset = Vector3(0, 0.5, 0)
+
+[node name="Fire" type="Decal"]
+size = Vector3(2.6, 2.4, 2.6)
+normal_fade = 0.6
+cull_mask = 1048573
+emission_energy = 2.0
+script = ExtResource("1_script")
+film = SubResource("film")
+glows = true
+roughness = 0.95
+
+[node name="Flames" type="GPUParticles3D" parent="."]
+amount = 40
+lifetime = 0.9
+randomness = 0.5
+visibility_aabb = AABB(-5, -1, -5, 10, 5, 10)
+process_material = SubResource("burn")
+draw_pass_1 = SubResource("tongue")
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 2.0
+omni_range = 5.0

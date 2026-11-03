@@ -1,0 +1,24 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/decal_surface.gd" id="1_script"]
+[ext_resource type="Shader" path="res://systems/surface_system/liquid_film.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="film"]
+shader = ExtResource("2_shader")
+shader_parameter/thick_color = Color(0.22, 0.42, 0.02, 1)
+shader_parameter/thin_color = Color(0.55, 0.78, 0.12, 1)
+shader_parameter/alpha_max = 0.85
+shader_parameter/bubbles = 0.35
+shader_parameter/bubble_size_m = 0.1
+shader_parameter/glow_color = Color(0.18, 0.4, 0.02, 1)
+shader_parameter/bumpiness = 0.12
+
+[node name="Acid" type="Decal"]
+size = Vector3(2.6, 2.4, 2.6)
+normal_fade = 0.6
+cull_mask = 1048573
+emission_energy = 1.2
+script = ExtResource("1_script")
+film = SubResource("film")
+glows = true
+roughness = 0.2

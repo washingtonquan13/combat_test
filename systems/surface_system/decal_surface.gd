@@ -1,14 +1,20 @@
+class_name DecalSurface
 extends Decal
-## The Grease visual. A Decal, so the film drapes over steps and slopes;
-## a Decal can't run a shader, so grease.gdshader draws its albedo and
-## normal map in two small SubViewports, redrawn only while the shape
-## changes. A Decal doesn't show a ViewportTexture, so each redraw is
-## copied into an ImageTexture. The outline is noise, different every cast. It spreads
-## out when cast, and expiry calls dissipate(): thin film goes first,
-## then it frees itself. Units wear Unit.RENDER_LAYER, which cull_mask
-## leaves out, so the film paints the floor and not their feet.
+## A surface drawn on the ground: Grease, Water, Ice, Blood... A Decal,
+## so the film drapes over steps and slopes. A Decal can't run a shader,
+## so `film` (a canvas_item shader built on film_passes.gdshaderinc) draws
+## its albedo, normal map and, when it `glows`, emission in small
+## SubViewports, redrawn only while the shape changes. A Decal doesn't
+## show a ViewportTexture, so each redraw is copied into an ImageTexture.
+## The outline is noise, different every cast. It spreads out when cast,
+## and expiry calls dissipate(): thin film goes first, then it frees
+## itself. Units wear Unit.RENDER_LAYER, which cull_mask leaves out, so
+## the film paints the floor and not their feet.
 
-@export var shader: Shader
+## The look, edited in the inspector; each pass draws a copy of it.
+@export var film: ShaderMaterial
+## Also draw the film's emission pass, into texture_emission.
+@export var glows: bool = false
 @export var resolution: int = 512
 @export var spread_seconds: float = 0.6
 @export var recede_seconds: float = 1.5
@@ -24,7 +30,7 @@ var _copy_pending: bool = false
 
 func _ready() -> void:
 	var seed: float = randf() * 100.0
-	for normal_pass in [false, true]:
+	for film_pass in ([0, 1, 2] if glows else [0, 1]):
 		var viewport := SubViewport.new()
 		viewport.size = Vector2i(resolution, resolution)
 		viewport.disable_3d = true
@@ -32,9 +38,8 @@ func _ready() -> void:
 		viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		var canvas := ColorRect.new()
 		canvas.size = Vector2(viewport.size)
-		var material := ShaderMaterial.new()
-		material.shader = shader
-		material.set_shader_parameter("normal_pass", normal_pass)
+		var material := film.duplicate() as ShaderMaterial
+		material.set_shader_parameter("film_pass", film_pass)
 		material.set_shader_parameter("seed", seed)
 		canvas.material = material
 		viewport.add_child(canvas)
@@ -44,8 +49,7 @@ func _ready() -> void:
 	for _viewport in _viewports:
 		var blank := Image.create(resolution, resolution, false, Image.FORMAT_RGBA8)
 		_textures.append(ImageTexture.create_from_image(blank))
-	texture_albedo = _textures[0]
-	texture_normal = _textures[1]
+	_show_textures()
 	RenderingServer.frame_post_draw.connect(_copy_drawn)
 	var orm := Image.create(4, 4, false, Image.FORMAT_RGB8)
 	orm.fill(Color(1.0, roughness, 0.0))
@@ -93,5 +97,11 @@ func _copy_drawn() -> void:
 		var image: Image = _viewports[i].get_texture().get_image()
 		image.convert(Image.FORMAT_RGBA8)
 		_textures[i] = ImageTexture.create_from_image(image)
+	_show_textures()
+
+
+func _show_textures() -> void:
 	texture_albedo = _textures[0]
 	texture_normal = _textures[1]
+	if glows:
+		texture_emission = _textures[2]

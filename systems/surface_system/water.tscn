@@ -1,0 +1,23 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/decal_surface.gd" id="1_script"]
+[ext_resource type="Shader" path="res://systems/surface_system/liquid_film.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="film"]
+shader = ExtResource("2_shader")
+shader_parameter/thick_color = Color(0.02, 0.035, 0.05, 1)
+shader_parameter/thin_color = Color(0.06, 0.08, 0.1, 1)
+shader_parameter/alpha_max = 0.55
+shader_parameter/lumpiness = 0.1
+shader_parameter/droplets = 0.5
+shader_parameter/bumpiness = 0.05
+shader_parameter/ripple_scale = 2.0
+shader_parameter/ripple_strength = 0.6
+
+[node name="Water" type="Decal"]
+size = Vector3(2.6, 2.4, 2.6)
+normal_fade = 0.6
+cull_mask = 1048573
+script = ExtResource("1_script")
+film = SubResource("film")
+roughness = 0.03
