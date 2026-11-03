@@ -30,7 +30,7 @@ extends SceneTree
 #   Claw          Zombie_Scratch
 #   Bite          the head and chest lunge in, the jaw leading
 #   Gore          head down, a charge, then a toss of the head
-#   Pistol_Shot   up from the low ready to Pistol_Shoot's aim, three shots
+#   Pistol_Shot   one hand, up from the low ready to level, three shots
 #   Rifle_Burst   raised to the shoulder from the stance, ten shots
 #   Crossbow_Shot raised to the shoulder, one shot
 #   Bow_Shot      the bow arm out, the string drawn to the cheek, loosed
@@ -44,12 +44,12 @@ extends SceneTree
 #
 #   Stance_Sword       Sword_Idle
 #   Stance_Shield      Idle_Shield
-#   Stance_Pistol      Pistol_Idle refitted, lowered to a low ready
+#   Stance_Pistol      Spell_Simple_Idle mirrored, one hand, a low ready
 #   Stance_Greatsword  both hands on the hilt at the belly, the blade up
 #   Stance_Longgun     AssaultRifle_Aim01 (Kevin Iglesias), refitted to our gun
 #   Stance_Crossbow    the same, the left hand on the crossbow's forestock
 #   Stance_Bow         the bow low in front, an arrow on the string
-#   Reload_Pistol      Pistol_Reload, refitted to our gun
+#   Reload_Pistol      Pistol_Reload, two handed, refitted to our gun
 #   Reload_Rifle       AssaultRifle_Reload01 (Kevin Iglesias), refitted
 #   Reload_Crossbow    muzzle down, the string hauled back, a bolt laid in
 
@@ -57,7 +57,7 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 # The long guns' stance and aim and the rifle's reload, from the Kevin
 # Iglesias soldier clips.
 const KevinRifle := preload("res://tools/kevin_rifle.gd")
-# The pistol's stance, shot and reload, from the Quaternius pistol clips.
+# The pistol's stance, shot and reload, from the Quaternius clips.
 const QuaterniusPistol := preload("res://tools/quaternius_pistol.gd")
 
 const OUT := "res://assets/weapon_animations.tres"
