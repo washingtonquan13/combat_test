@@ -62,6 +62,11 @@ func _run() -> void:
 	await _wait(3.0)
 	_check("a cloud overhead leaves the sight line clear", LineOfSight.has_clear_shot(_hero, dummy))
 	await _fire(shoot, dummy, "Shoot under it")
+	var high: Vector3 = Vector3(0.0, 6.5, 0.0)
+	_check("a sight line at the cloud's height is blocked", SurfaceManager.blocks_sight(_hero, _hero.global_position + high, far + high))
+	_say("Up in the air it still blocks sight at its own height")
+	_frame(middle + Vector3(0.0, 4.0, 0.0), 16.0)
+	await _wait(4.0)
 
 	_say("Out of combat a round is 6 s: 10 rounds later...")
 	await _wait(1.5)
