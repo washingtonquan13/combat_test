@@ -59,6 +59,8 @@ static func effective_dr(dr: float, armor_divisor: float = 1.0) -> int:
 ##    through DR does at least 1 (B379). A multiplier of 0 is immunity.
 ## 3. The location's injury cap (Diffuse, B380), which an area attack
 ##    ignores.
+## 4. The target's injury_divisor (Damage Reduction, Powers 52), after
+##    the cap, rounded down, still at least 1.
 static func injury(raw: int, target: Unit, wound_type: WoundType = WoundType.CRUSHING, armor_divisor: float = 1.0, is_critical: bool = false, ignores_dr: bool = false, location: HitLocation = null, is_area: bool = false) -> int:
 	var profile: InjuryProfile = target.injury_profile() if target else null
 	var row: BodyRow = profile.row(location) if profile else BodyPlan.human().row(location)
@@ -74,6 +76,8 @@ static func injury(raw: int, target: Unit, wound_type: WoundType = WoundType.CRU
 	var cap: int = row.max_injury[wound_type]
 	if cap > 0 and not is_area:
 		amount = mini(amount, cap)
+	if target and target.injury_divisor > 1.0:
+		amount = maxi(floori(amount / target.injury_divisor + 0.0001), 1)
 	return amount
 
 

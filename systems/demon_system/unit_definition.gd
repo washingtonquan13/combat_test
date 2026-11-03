@@ -107,6 +107,10 @@ extends Resource
 ## Locations this body lacks on its own, whatever the preset (No Vitals,
 ## No Brain): a hit there resolves as the torso.
 @export var missing_locations: Array[HitLocation] = []
+## Injury Tolerance (Damage Reduction, Powers 52): injury is divided by
+## this after the multiplier and the cap, rounded down, at least 1. For
+## a creature tougher than others of its kind, whatever its preset.
+@export_range(1.0, 10.0, 0.5) var injury_divisor: float = 1.0
 ## This species' tactical role — see AiArchetype. Supplies the behaviors
 ## and smartness tier, so a species normally sets this and nothing else
 ## AI-related.

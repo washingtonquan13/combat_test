@@ -2,7 +2,7 @@ extends AiTestCase
 ## Injury Tolerance (B380) over the body plan: Unliving cuts piercing,
 ## Homogeneous has no vitals, Diffuse caps a hit except from an area, an
 ## immunity takes nothing, and No Vitals on its own sends a vitals hit to
-## the torso.
+## the torso, and a divisor divides after Diffuse's cap.
 
 const W := DamageResolver.WoundType
 
@@ -45,4 +45,9 @@ func run() -> void:
 	target.missing_locations = missing
 	check("no vitals: a pi hit to the vitals is the torso's x1",
 		DamageResolver.injury(8, target, W.PIERCING, 1.0, false, false, vitals) == 8)
+
+	target.missing_locations = []
+	target.injury_preset = diffuse
+	target.injury_divisor = 2.0
+	check("divisor 2 after diffuse's cap: 20 cutting does 1", DamageResolver.injury(20, target, W.CUTTING) == 1)
 	free_spawned()

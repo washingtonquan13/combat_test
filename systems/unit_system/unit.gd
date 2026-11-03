@@ -39,6 +39,7 @@ extends CharacterBody3D
 			body_plan = definition.body_plan
 			injury_preset = definition.injury_preset
 			missing_locations = definition.missing_locations
+			injury_divisor = definition.injury_divisor
 			# Resolved, not raw: a species normally names an AiArchetype
 			# and leaves ai_behaviors empty — see UnitDefinition.
 			ai_behaviors = definition.resolved_ai_behaviors()
@@ -244,6 +245,7 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 @export var body_plan: BodyPlan
 @export var injury_preset: InjuryPreset
 @export var missing_locations: Array[HitLocation] = []
+@export var injury_divisor: float = 1.0
 ## Composable AI decision rules, tried in order — see AiBehavior. Empty
 ## (every unit today) falls back to CombatAI's original hardcoded
 ## nearest-hostile/default_ability baseline, so no existing content

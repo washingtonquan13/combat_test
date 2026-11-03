@@ -13,6 +13,7 @@ var _row: BodyRow
 var _spins: Array[SpinBox] = []
 var _source: Object
 var _table: GridContainer
+var _divisor: Label
 
 
 func edit_row(row: BodyRow) -> void:
@@ -45,6 +46,10 @@ func show_effective(source: Object) -> void:
 	add_child(title)
 	_table = GridContainer.new()
 	add_child(_table)
+	_divisor = _label("")
+	_divisor.add_theme_color_override("font_color", CHANGED)
+	_divisor.tooltip_text = "Damage Reduction: divides the injury after the multiplier and the cap."
+	add_child(_divisor)
 	EditorInterface.get_inspector().property_edited.connect(_refresh_table.unbind(1))
 	if source is Resource:
 		source.changed.connect(_refresh_table)
@@ -113,6 +118,9 @@ func _refresh_table() -> void:
 		_table.add_child(_label(DamageResolver.ABBREVIATION[wound_type], true))
 		for index in rows.size():
 			_table.add_child(_cell(profile, rows[index], index, wound_type))
+	_divisor.visible = _source is UnitDefinition and _source.injury_divisor > 1.0
+	if _divisor.visible:
+		_divisor.text = "Then ÷%s, rounded down, at least 1" % String.num(_source.injury_divisor)
 
 
 func _cell(profile: InjuryProfile, row: BodyRow, index: int, wound_type: int) -> Label:
