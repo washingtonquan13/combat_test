@@ -48,6 +48,7 @@ extends CharacterBody3D
 			vision_cone_degrees = definition.vision_cone_degrees
 			max_sight_range = definition.max_sight_range
 			proximity_radius = definition.proximity_radius
+			dark_vision = definition.dark_vision
 			alignment = definition.alignment
 			tendency = definition.tendency
 			move_speed = definition.move_speed
@@ -113,6 +114,10 @@ var has_died: bool = false
 ## behind another indefinitely, which reads as blindness rather than as
 ## stealth.
 @export var proximity_radius: float = 2.5
+## Dark Vision (GURPS B47): sees through darkness, magical included. A
+## Darkness cloud neither blocks this unit's sight nor Blinds it. Fog
+## still does: that is not darkness.
+@export var dark_vision: bool = false
 
 @export_group("Alignment")
 ## Two independent axes, each a plain signed integer — no enum, no

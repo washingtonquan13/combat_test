@@ -140,7 +140,7 @@ func _build_detection_area(surface: Surface, radius: float, instance: ActiveSurf
 func _on_body_entered(body: Node3D, active: ActiveSurface) -> void:
 	if not body is Unit or not body.is_alive():
 		return
-	if not active.surface.status_effect:
+	if not active.surface.status_effect or _sees_through(body, active):
 		return
 	body.inflict_status(active.surface.status_effect, null)
 
@@ -180,12 +180,17 @@ func _contains(active: ActiveSurface, unit: Unit) -> bool:
 ## LineOfSight after its wall raycast.
 func blocks_sight(viewer: Node, from: Vector3, to: Vector3) -> bool:
 	for active in _list_for(WorldManager.context_for(viewer)):
-		if not active.surface.blocks_sight:
+		if not active.surface.blocks_sight or _sees_through(viewer, active):
 			continue
 		var nearest: Vector3 = Geometry3D.get_closest_point_to_segment(active.position, from, to)
 		if nearest.distance_to(active.position) <= active.radius:
 			return true
 	return false
+
+
+## Dark Vision ignores a darkness surface: no wall, no Blinded.
+func _sees_through(viewer: Node, active: ActiveSurface) -> bool:
+	return active.surface.dark_vision_sees_through and viewer is Unit and viewer.dark_vision
 
 
 ## The terrain-cost sampler for a route planned by mover — RoutePlanner.
@@ -241,7 +246,7 @@ func _on_turn_started(unit: Unit) -> void:
 	if not unit.is_alive():
 		return
 	for active in _list_for(WorldManager.context_for(unit)):
-		if active.surface.status_effect and _contains(active, unit):
+		if active.surface.status_effect and _contains(active, unit) and not _sees_through(unit, active):
 			unit.inflict_status(active.surface.status_effect, null)
 
 

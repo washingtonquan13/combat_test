@@ -2,8 +2,10 @@ extends AiTestCase
 ## Fog Cloud: a sphere that may hang in the air, blocks sight through it,
 ## and Blinds whoever is inside only while they are inside. Out of
 ## combat it still runs out, a round per SurfaceManager.ROUND_SECONDS.
+## Darkness is the same cloud, but Dark Vision sees through it.
 
 var FOG: Ability = load("res://data/abilities/fog_cloud.tres")
+var DARKNESS: Ability = load("res://data/abilities/darkness.tres")
 
 
 func run() -> void:
@@ -33,4 +35,17 @@ func run() -> void:
 	for _i in cloud.duration_rounds:
 		SurfaceManager._on_quiet_round()
 	check("with no fight, it runs out after its rounds", not SurfaceManager._list_for(fog.context).has(fog))
+
+	var dark: Surface = (DARKNESS.effects[0] as SpawnSurfaceEffect).surface
+	target.global_position = Vector3(6.0, 0.0, 0.0)
+	archer.dark_vision = true
+	target.dark_vision = true
+	var night: ActiveSurface = SurfaceManager.spawn(dark, target.global_position + Vector3(0.0, 1.0, 0.0), 2.0, archer)
+	for _i in 3:
+		await get_tree().physics_frame
+	SurfaceManager._on_turn_started(target)
+	check("Dark Vision sees through Darkness", LineOfSight.has_clear_shot(archer, target) and not target.has_status(blinded))
+	archer.dark_vision = false
+	check("without it, Darkness blocks like fog", not LineOfSight.has_clear_shot(archer, target))
+	SurfaceManager._expire(night)
 	free_spawned()

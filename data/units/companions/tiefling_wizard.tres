@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=31 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=32 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -27,6 +27,7 @@
 [ext_resource type="Resource" path="res://data/skills/acrobatics.tres" id="sk1"]
 [ext_resource type="Resource" path="res://data/skills/insight.tres" id="sk2"]
 [ext_resource type="Resource" path="res://data/abilities/fog_cloud.tres" id="a17_fog"]
+[ext_resource type="Resource" path="res://data/abilities/darkness.tres" id="a18_dark"]
 
 [sub_resource type="Resource" id="rec0"]
 script = ExtResource("rec")
@@ -52,7 +53,7 @@ faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
-abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a13"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog")])
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a13"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark")])
 
 alignment = -100
 tendency = 100

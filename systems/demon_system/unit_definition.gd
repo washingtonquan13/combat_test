@@ -54,6 +54,7 @@ extends Resource
 @export var vision_cone_degrees: float = 120.0
 @export var max_sight_range: float = 18.0
 @export var proximity_radius: float = 2.5
+@export var dark_vision: bool = false
 
 
 @export var faction: StringName = &"player"

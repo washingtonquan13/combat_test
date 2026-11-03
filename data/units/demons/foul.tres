@@ -19,6 +19,7 @@ root = ExtResource("7_greeting")
 
 [resource]
 script = ExtResource("1_def")
+dark_vision = true
 injury_preset = ExtResource("97_injury")
 ai_archetype = ExtResource("99_arch")
 id = "foul"

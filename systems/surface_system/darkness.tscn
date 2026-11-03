@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://systems/surface_system/fog_cloud.tscn" id="1_fog"]
+
+[node name="Darkness" instance=ExtResource("1_fog")]
+lit_color = Color(0.16, 0.13, 0.2, 1)
+shade_color = Color(0.02, 0.015, 0.035, 1)
+opacity = 0.93
+
+[node name="Puffs" parent="." index="0"]
+amount = 48

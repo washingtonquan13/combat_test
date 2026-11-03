@@ -8,9 +8,9 @@
 shader_type spatial;
 render_mode unshaded, depth_draw_never, cull_disabled, shadows_disabled;
 
-uniform vec3 lit_color : source_color = vec3(0.86, 0.88, 0.9);
-uniform vec3 shade_color : source_color = vec3(0.52, 0.56, 0.62);
-uniform float opacity = 0.6;
+instance uniform vec3 lit_color : source_color = vec3(0.86, 0.88, 0.9);
+instance uniform vec3 shade_color : source_color = vec3(0.52, 0.56, 0.62);
+instance uniform float opacity = 0.6;
 uniform float softness = 1.2;
 instance uniform float dissipate = 0.0;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;

@@ -62,6 +62,9 @@ enum Shape {
 ## across (BG3's Fog Cloud). Read by LineOfSight, so ranged targeting,
 ## AoE aiming and detection all see the same wall.
 @export var blocks_sight: bool = false
+## It is darkness (Darkness, not Fog): a unit with Dark Vision sees
+## through it and is not given its status inside.
+@export var dark_vision_sees_through: bool = false
 
 @export_group("Movement")
 ## Multiplies the BUDGET cost (not the visual walking speed) of

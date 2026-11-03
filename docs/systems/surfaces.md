@@ -5,7 +5,7 @@
 - `surface.gd` (112, the Resource definition: the area TYPE)
 - `active_surface.gd` (32, a RefCounted instance)
 - `grease.gdshader` (54), `grease.tscn` (6)
-- `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (its dissipate)
+- `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (its colors and dissipate), `darkness.tscn` (the same cloud, inked)
 
 **Autoloads owned:** `SurfaceManager` (project.godot:24)
 
@@ -23,6 +23,11 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
   - Units inside are **Blinded** (data/statuses/blinded.tres: −10 to their attacks, no resistance, not curable), and only while inside.
 - Visual: soft billboard particles, BG3-style. 36 slowly turning puffs (`fog_puff.gdshader`: procedural noise, top-lit, faded where they meet geometry via the depth texture) drift inside a unit sphere in local coordinates, so the uniform radius scale sizes the whole cloud. No ground ring; it reads the same on the ground or in midair. On expiry `_expire` calls the visual's `dissipate()` if it has one (else frees it): over 3 s the cloud spreads �1.35, lifts, and the shader's per-instance `dissipate` erodes each puff from its thin edges inward, then the node frees itself. Sight clears at expiry, not at the end of the fade.
 - Given to the tiefling wizard.
+
+## Darkness (data/abilities/darkness.tres)
+- Fog Cloud's rules (sight blocked, Blinded inside, 10 rounds), radius 4.5 m, plus `dark_vision_sees_through`: a unit with **Dark Vision** (`Unit.dark_vision`, cascaded from UnitDefinition; GURPS B47) is neither walled off nor Blinded by it (`_sees_through`, surface_manager.gd). Fog still stops them.
+- Dark Vision: Night, Haunt, Foul, Fallen. Darkness is given to the tiefling wizard (who lacks Dark Vision).
+- Visual: `darkness.tscn` inherits fog_cloud.tscn with near-black violet colors, opacity 0.93, 48 puffs; the colors are instance uniforms set by fog_cloud.gd.
 
 ## State it owns (source of truth)
 | State | Where | Persisted? |
@@ -71,10 +76,11 @@ Every surface belongs to a world.
 | 8 | A Blinded unit's attacks get −10, but attacks *against* units in fog are only blocked when ranged (by sight). A melee attack into fog gets no GURPS blind-defense rule. | OPEN, by design for now |
 
 ## Tests
-- tests/combat/test_fog_cloud.gd (6 checks):
+- tests/combat/test_fog_cloud.gd (8 checks):
   - sight is blocked through a cloud but not by one overhead;
   - Blinded is applied inside and comes off on leaving;
-  - out of combat, the cloud expires after its rounds.
+  - out of combat, the cloud expires after its rounds;
+  - Darkness: Dark Vision sees through and is not Blinded; without it, blocked (sabotage-checked).
   - Sabotage-checked: removing the LoS call or the release turns it red.
 - tests/world/test_world_scoping.gd:190-222 checks surface world scoping.
 

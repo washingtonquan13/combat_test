@@ -17,6 +17,7 @@ root = ExtResource("7_greeting")
 
 [resource]
 script = ExtResource("1_def")
+dark_vision = true
 ai_archetype = ExtResource("99_arch")
 id = "night"
 display_name = "Night"
