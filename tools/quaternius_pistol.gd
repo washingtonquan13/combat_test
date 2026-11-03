@@ -2,8 +2,8 @@ extends RefCounted
 
 # The pistol's stance, shot and reload, from the Quaternius pack (UAL1),
 # fitted to our pistol, held in the right hand alone. At rest the unit
-# stands square in the pack's Idle, the gun hanging at the right thigh,
-# muzzle down. To fire it shifts into the pack's one-handed stance,
+# stands square in the pack's Idle, the gun hanging at the right thigh, the
+# forearm supinated, palm forward, the muzzle down and out from the body. To fire it shifts into the pack's one-handed stance,
 # Spell_Simple_Idle, which the artist made for the left hand, mirrored - the
 # body bladed, the right shoulder forward, the left arm low - with the arm
 # straight out from the shoulder along the unit's facing, the gun level,
@@ -17,9 +17,11 @@ const PoseBuilder := preload("res://tools/pose_builder.gd")
 const UAL1 := "res://assets/unit_animations.tres"
 const REST := "Idle"
 const ONE_HAND := "Spell_Simple_Idle"
-# How far the hanging gun's muzzle is tipped forward from straight down, in
-# degrees.
+# How far the hanging gun's muzzle is tipped out from straight down, away
+# from the leg, in degrees.
 const HANG_TIP := 40.0
+# How much of the hanging hand's turn the shoulder takes, in degrees.
+const SHOULDER_TURN := 15.0
 # How far below level the arm is on its way up, in degrees.
 const LIFT_DIP := 40.0
 # Where the elbow of the gun arm points: down and out when aiming, back and
@@ -111,8 +113,12 @@ func _hang(t: float) -> Dictionary:
 	sample.merge(_closed, true)
 	var pose := _frame(sample)
 	var hand := _poses.grip_transform(pose, "Right").origin + HANG_OUT
-	var tip := Basis(Vector3.LEFT, deg_to_rad(HANG_TIP))
-	_hold_gun(pose, hand, tip * Vector3.DOWN, tip * Vector3.BACK, HANG_POLE)
+	# The character's right is -X: the thumb, and the gun's top, turned out
+	# there, mostly by the supinated forearm, the upper arm turned out
+	# SHOULDER_TURN of it so the forearm stays short of its limit.
+	var tip := Basis(Vector3.FORWARD, deg_to_rad(HANG_TIP))
+	var neutral := Basis(Vector3.UP, -deg_to_rad(SHOULDER_TURN)) * Vector3.BACK
+	_hold_gun(pose, hand, tip * Vector3.DOWN, tip * Vector3.LEFT, HANG_POLE, neutral)
 	return pose
 
 
@@ -131,10 +137,12 @@ func _aim(kick: float) -> Dictionary:
 
 # The right hand on the gun's grip at `at`, the barrel along `barrel`, its
 # top toward `top`, the elbow toward `pole`, the arm turned to a handshake
-# on it.
-func _hold_gun(pose: Dictionary, at: Vector3, barrel: Vector3, top: Vector3, pole: Vector3) -> void:
+# on it - or, given `neutral`, to where the thumb would point in a handshake,
+# the rest of the hand's turn taken by the forearm.
+func _hold_gun(pose: Dictionary, at: Vector3, barrel: Vector3, top: Vector3, pole: Vector3,
+		neutral := Vector3.ZERO) -> void:
 	_poses.grasp(pose, "Right", at, barrel, top, pole)
-	_roll_arm(pose, top)
+	_roll_arm(pose, top if neutral == Vector3.ZERO else neutral)
 	_poses.hold(pose, "Right", barrel, top)
 
 
