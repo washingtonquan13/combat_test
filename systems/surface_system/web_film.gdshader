@@ -1,9 +1,10 @@
 shader_type canvas_item;
 render_mode unshaded, blend_disabled;
 
-// Webbing for decal_surface.gd: one big web with smaller ones lapping
-// its edge, each spokes plus a spiral of rings, over a gauzy sheet of
-// stray strands. Silk lies flat, so it barely shows in the normal map.
+// Webbing for decal_surface.gd: webs strung across the patch, one to
+// every couple of meters and lapping each other, each spokes plus a
+// spiral of rings, over a gauzy sheet of stray strands, all cut to the
+// patch's cells. Silk lies flat, so it barely shows in the normal map.
 
 #include "res://systems/surface_system/film_common.gdshaderinc"
 
@@ -16,12 +17,13 @@ uniform float ring_spacing_m = 0.22;
 uniform float strand_m = 0.018;
 // How thick the gauze between strands is.
 uniform float gauze : hint_range(0.0, 1.0) = 0.35;
+// Meters between webs.
+uniform float web_spacing_m = 2.0;
 
-// One web centred at c, of radius `reach` (both in decal -1..1 space).
-float web(vec2 p, vec2 c, float reach, float turn) {
-	vec2 d = p - c;
-	float r = length(d) * radius_m;
-	float reach_m = reach * radius_m * spread;
+// One web centred at c, of radius reach_m (world meters).
+float web(vec2 m, vec2 c, float reach_m, float turn) {
+	vec2 d = m - c;
+	float r = length(d);
 	if (r > reach_m) {
 		return 0.0;
 	}
@@ -41,26 +43,29 @@ float web(vec2 p, vec2 c, float reach, float turn) {
 	return max(spoke, ring) * fade;
 }
 
-float film_height(vec2 p) {
-	float strands = web(p, vec2(0.0), 0.72, seed);
-	for (int i = 0; i < 3; i++) {
-		float fi = float(i);
-		float a = seed + fi * 2.1;
-		vec2 c = vec2(cos(a), sin(a)) * (0.48 + 0.1 * hash(vec2(fi, seed)));
-		strands = max(strands, web(p, c, 0.32 + 0.08 * hash(vec2(seed, fi)), a * 1.7) * 0.85);
+float film_height(vec2 uv) {
+	vec2 m = meters(uv);
+	// One web to a tile, somewhere in it; neighbours' webs reach in.
+	vec2 tile = floor(m / web_spacing_m);
+	float strands = 0.0;
+	for (int y = -1; y <= 1; y++) {
+		for (int x = -1; x <= 1; x++) {
+			vec2 t = tile + vec2(float(x), float(y));
+			vec2 c = (t + 0.25 + 0.5 * vec2(hash(t + 0.7), hash(t + 3.1))) * web_spacing_m;
+			float reach_m = web_spacing_m * mix(0.5, 0.7, hash(t + 8.3));
+			strands = max(strands, web(m, c, reach_m, hash(t + 5.9) * 6.2832) * mix(0.8, 1.0, hash(t + 2.4)));
+		}
 	}
 	// Gauze: wispy streaks of stray silk across the whole patch.
-	vec2 m = p * radius_m;
-	float wisp = smoothstep(0.5, 0.75, fbm(vec2(m.x * 2.5, m.y * 0.8) + seed)) * gauze;
-	float body = lumpy_body(p, 0.8, 0.1);
-	return receded(max(strands, wisp * body));
+	float wisp = smoothstep(0.5, 0.75, fbm(vec2(m.x * 2.5, m.y * 0.8))) * gauze;
+	return receded(max(strands, wisp) * body(uv, 0.3), uv);
 }
 
-vec4 film_albedo(vec2 p, float h) {
+vec4 film_albedo(vec2 uv, float h) {
 	return vec4(silk_color, smoothstep(0.0, 0.5, h) * alpha_max);
 }
 
-vec3 film_emission(vec2 p, float h) {
+vec3 film_emission(vec2 uv, float h) {
 	return vec3(0.0);
 }
 

@@ -13,8 +13,8 @@ extends IndicatorBase
 ## FLOOR-ONLY — the center always sits wherever the ground raycast hit,
 ## with no way to lift it. Deliberate: this indicator is for abilities
 ## where an airborne blast center wouldn't make sense (Grease, which
-## spawns a ground-hugging Surface — see SpawnSurfaceEffect/Surface,
-## detection_height=0.05 on grease.tres's own Surface sub-resource). For
+## spawns a ground-hugging Surface spilled over the ground's cells — see
+## SpawnSurfaceEffect/Surface). For
 ## an ability that genuinely CAN be aimed in open 3D space (Fireball),
 ## see aerial_area_indicator.gd/AerialAreaTargeting instead — this
 ## indicator explicitly EXCLUDES those (see _get_armed_area_ability) so

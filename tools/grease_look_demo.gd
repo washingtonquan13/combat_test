@@ -24,19 +24,24 @@ func _run() -> void:
 	await _walk(_hero, at)
 	await _wait(2.0)
 	_say("Grease expires")
-	for active in SurfaceManager.active_surfaces.duplicate():
-		SurfaceManager._expire(active)
+	SurfaceManager.expire_all_ground(WorldManager.context())
 	await _wait(2.5)
 	print("DEMO RESULT: done")
 	get_tree().quit()
 
 
-## A grey step or slope (tilted about z) for the film to drape over.
+## A grey step or slope (tilted about z) for the film to drape over,
+## solid so the spill finds it as floor.
 func _block(centre: Vector3, extents: Vector3, tilt_degrees: float) -> void:
-	var block := MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = extents
-	block.mesh = mesh
+	var block := StaticBody3D.new()
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = BoxMesh.new()
+	(mesh.mesh as BoxMesh).size = extents
+	block.add_child(mesh)
+	var shape := CollisionShape3D.new()
+	shape.shape = BoxShape3D.new()
+	(shape.shape as BoxShape3D).size = extents
+	block.add_child(shape)
 	WorldManager.spawn_parent().add_child(block)
 	block.global_position = centre
 	block.rotation_degrees.z = tilt_degrees

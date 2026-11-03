@@ -1,7 +1,7 @@
 extends "res://tools/fog_cloud_demo.gd"
 ## Recorded tour of the ground surfaces' looks, for judging them - NOT a
-## test. Each scene is placed by hand (they have no abilities yet), seen
-## all together, then up close one by one, then expired.
+## test. Each is spilled from a stand-in Surface (they have no abilities
+## yet), seen all together, then up close one by one, then expired.
 
 const LOOKS: Array[PackedScene] = [
 	preload("res://systems/surface_system/grease.tscn"),
@@ -24,27 +24,24 @@ func _run() -> void:
 	var centre: Vector3 = _spot(-12.0, 0.0)
 	_frame(centre, 22.0)
 	await _wait(2.0)
-	var placed: Array[Node3D] = []
+	var spots: Array[Vector3] = []
 	for i in LOOKS.size():
 		var row: int = i / 4
 		var column: float = i % 4 - (1.5 if row == 0 else 1.0)
-		var look: Node3D = LOOKS[i].instantiate()
-		WorldManager.spawn_parent().add_child(look)
-		look.global_position = _spot(-12.0 + (row - 0.5) * 5.5, column * 5.5)
-		look.scale = Vector3(2.0, 1.0, 2.0)
-		placed.append(look)
-		_say(look.name)
+		var at: Vector3 = _spot(-12.0 + (row - 0.5) * 5.5, column * 5.5)
+		var patch: SurfacePatch = SurfaceManager.spawn(_ground(LOOKS[i]), at, 2.0, _hero)
+		spots.append(at)
+		_say(patch.visual.name)
 		await _wait(0.4)
 	await _wait(2.5)
-	for look in placed:
-		_say(look.name)
-		_frame(look.global_position, 6.0)
+	for i in spots.size():
+		_say(LOOKS[i].resource_path.get_file().get_basename().capitalize())
+		_frame(spots[i], 6.0)
 		await _wait(3.0)
 	_frame(centre, 22.0)
 	await _wait(1.5)
 	_say("Surfaces expire")
-	for look in placed:
-		look.dissipate()
+	SurfaceManager.expire_all_ground(WorldManager.context())
 	await _wait(3.0)
 	print("DEMO RESULT: done")
 	get_tree().quit()
@@ -57,3 +54,12 @@ func _frame(point: Vector3, distance: float) -> void:
 	if is_nan(_yaw):
 		_yaw = camera.target_yaw
 	camera.target_yaw = _yaw
+
+
+## A lasting ground Surface that looks like look.
+func _ground(look: PackedScene) -> Surface:
+	var surface := Surface.new()
+	surface.shape = Surface.Shape.DISC
+	surface.duration_rounds = -1
+	surface.ambient_scene = look
+	return surface

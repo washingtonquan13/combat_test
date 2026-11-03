@@ -35,6 +35,8 @@ var encounters: Array[Encounter] = []
 ## Grease, and anything else Surface-backed. Moved off SurfaceManager for
 ## the leak described above.
 var surfaces: Array[ActiveSurface] = []
+## Its ground surfaces (Grease, Fire...) as cells; clouds are in surfaces.
+var surface_grid := SurfaceGrid.new()
 
 ## This context's identity. Captured from the world root once it's in the
 ## tree; every world-scoped query compares against it.
@@ -105,3 +107,4 @@ func dispose() -> void:
 	# children of the world and die with it; what has to end here is this
 	# array's references to them.
 	surfaces.clear()
+	surface_grid.clear()

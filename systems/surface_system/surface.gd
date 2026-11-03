@@ -30,19 +30,13 @@ extends Resource
 @export var duration_rounds: int = 3
 
 enum Shape {
-	DISC,   ## a flat patch on the ground, detection_height tall (Grease)
+	DISC,   ## spilled over the ground's SurfaceGrid cells within the radius, merging with its own kind (Grease)
 	SPHERE, ## a ball of the spawned radius around the center, which may be in the air (Fog)
 }
 @export var shape: Shape = Shape.DISC
-## DISC only. Vertical extent (meters) of the Area3D collision shape SurfaceManager
-## builds for this surface (see SurfaceManager.spawn) — centered so it
-## reaches from ground level up to this height, tall enough to reliably
-## overlap a unit's own collision shape regardless of minor ground
-## unevenness. Purely a detection volume, not a visual — has nothing to
-## do with ambient_scene's own size.
-@export var detection_height: float = 2.0
-## Applied to a unit the MOMENT it physically enters the surface's Area3D
-## (see SurfaceManager.spawn/_on_body_entered) — punishes the actual
+## Applied to a unit the MOMENT it physically enters the surface — a
+## DISC's cells under its footprint, a SPHERE's Area3D (see
+## SurfaceManager._process/_on_body_entered) — punishes the actual
 ## movement decision, mid-turn, rather than waiting for a turn boundary —
 ## and again at the START of any turn a unit is still standing inside it
 ## (see SurfaceManager._on_turn_started), which is what keeps it applied
@@ -89,9 +83,8 @@ enum Shape {
 ## SurfaceManager owns that.
 @export var ambient_scene: PackedScene
 ## Whether ambient_scene is scaled to match the surface's actual spawned
-## radius — X/Z for a DISC, uniformly for a SPHERE, same reasoning and same default
-## (no vertical stretch — height_scale_factor is implicitly 0 here) as
-## SpawnParticleStep.scale_to_ability_radius.
+## radius, uniformly — SPHERE only (a DISC's look is drawn to its cells).
+## Same reasoning and default as SpawnParticleStep.scale_to_ability_radius.
 @export var scale_ambient_to_radius: bool = true
 ## The radius ambient_scene was authored at 1.0x scale for — only
 ## matters if scale_ambient_to_radius is on.

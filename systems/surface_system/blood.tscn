@@ -8,7 +8,7 @@ shader = ExtResource("2_shader")
 shader_parameter/thick_color = Color(0.16, 0.008, 0.01, 1)
 shader_parameter/thin_color = Color(0.4, 0.03, 0.03, 1)
 shader_parameter/alpha_max = 0.93
-shader_parameter/edge_wander = 0.2
+shader_parameter/edge_wander = 0.6
 shader_parameter/droplets = 0.65
 shader_parameter/lumpiness = 0.5
 

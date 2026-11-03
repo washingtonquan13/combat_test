@@ -3,7 +3,8 @@
 **Files:** `systems/surface_system/`:
 - `surface_manager.gd` (285)
 - `surface.gd` (112, the Resource definition: the area TYPE)
-- `active_surface.gd` (32, a RefCounted instance)
+- `active_surface.gd` (32, a RefCounted instance: a cloud)
+- `surface_grid.gd`, `surface_cell.gd`, `surface_patch.gd` (the ground grid: 0.5 m cells, grouped into patches)
 - `decal_surface.gd` (DecalSurface, shared by every ground film), `film_common.gdshaderinc` + `film_passes.gdshaderinc` (the film shaders' shared uniforms, noise and fragment)
 - `grease.tscn`, `water.tscn`, `blood.tscn`, `acid.tscn` (`liquid_film.gdshader`), `ice.tscn` (`ice_film.gdshader`), `web.tscn` (`web_film.gdshader`), `fire.tscn` (`scorch_film.gdshader` + `fire_surface.gd` + `flame.gdshader` + `spark.gdshader` + `heat_haze.gdshader`, smoke reuses `fog_puff.gdshader`). Only Grease has an ability; the rest are visuals with no Surface resource yet.
 - `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (colors and dissipate for every particle layer), `darkness.tscn` (the same cloud, inked, plus a tendril layer), `darkness_tendril.gdshader`
@@ -11,10 +12,10 @@
 **Autoloads owned:** `SurfaceManager` (project.godot:24)
 
 ## Purpose
-BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets a detection Area3D and visuals. While it lasts it applies its status effect to units that enter it or start a turn inside it, and with `status_only_inside` takes the status off again when they leave. A cloud with `blocks_sight` blocks line of sight through it. A surface also supplies the movement-cost multiplier for route planning. It expires by round count, in or out of combat. It does NOT define what the status does (status system), compute routes (`navigation.md`), or decide when it is cast (`spawn_surface_effect.gd`).
+BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud gets a detection Area3D and a visual; a ground surface spills into the world's surface grid. While it lasts it applies its status effect to units that enter it or start a turn inside it, and with `status_only_inside` takes the status off again when they leave. A cloud with `blocks_sight` blocks line of sight through it. A surface also supplies the movement-cost multiplier for route planning. It expires by round count, in or out of combat. It does NOT define what the status does (status system), compute routes (`navigation.md`), or decide when it is cast (`spawn_surface_effect.gd`).
 
 ## Shapes
-- `Surface.Shape.DISC`: a `CylinderShape3D` that is `detection_height` tall and stands on the point. "Inside" is the 3D distance from the center minus `unit.radius`.
+- `Surface.Shape.DISC`: spilled over the ground's `SurfaceGrid` cells (see Surface grid below). "Inside" is any cell under the unit's footprint.
 - `Surface.Shape.SPHERE`: a `SphereShape3D` centered on the point, which may be midair (cast with AerialAreaTargeting; Ctrl-drag sets the height). "Inside" uses the nearest point of the unit's feet→eye segment, so a cloud at head height covers the unit (`_contains`, surface_manager.gd:169). The visual scales uniformly.
 
 ## Fog Cloud (data/abilities/fog_cloud.tres)
@@ -27,17 +28,27 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
 
 ## Grease (data/abilities/grease.tres)
 - Visual: `grease.tscn` is a DecalSurface (see Ground films below).
-- The outline is fbm noise sampled in meters (`radius_m`), so it differs every cast and detail doesn't stretch with radius; droplets sit just past the edge. The film's average edge is 0.75 of the decal (size 2.6 against authored_radius 1.0), which lands on the cast radius.
-- It spreads in over 0.6 s; `dissipate()` (called by `_expire`) thins it over 1.5 s, thin film first, then frees it. Roughness 0.12 via a flat ORM. `normal_fade` 0.6 fades it off steep faces (a decal projects straight down, so on a wall the texture smears into vertical streaks); floors and gentle slopes keep it.
+- The outline follows its cells, wandered by fbm noise sampled in world meters, so neighbouring casts line up and detail doesn't stretch; droplets sit just past the edge.
+- New cells spread out from the cast point over 0.6 s; cells that run out recede over 1.5 s, thin film first, and the decal frees itself when it has none left. Roughness 0.12 via a flat ORM. `normal_fade` 0.6 fades it off steep faces (a decal projects straight down, so on a wall the texture smears into vertical streaks); floors and gentle slopes keep it.
 - `cull_mask` leaves out `Unit.RENDER_LAYER` (2); `Unit.wear_render_layer()` puts unit bodies and held weapons on it, so units standing in grease aren't painted.
 - Look demo: `tools/grease_look_demo.tscn` (recorded, not a test).
 
+## Surface grid (surface_grid.gd, surface_cell.gd, surface_patch.gd)
+- BG3-style. Each world has one `SurfaceGrid` (`WorldContext`, via `_grid_for`) of 0.5 m cells keyed by (x, z), several per key when floors stack. A cell holds its Surface, floor height and its own `rounds` left.
+- `_spill` floods out from the cast point to the radius, stepping cell to cell with physics rays: a wall in the way stops it, and it climbs or drops up to `MAX_STEP` (0.45 m) onto floors facing up at least `FLOOR_NORMAL`. Rays, not the nav grid: exact heights, no C++ change, and it works on the overworld, which has no nav grid.
+- Cells of the same Surface that touch are one `SurfacePatch` with one visual: a new cast merges every patch it touches into the largest. Absorbed visuals free themselves once the merged film has drawn (its `drawn` signal), so there's no gap.
+- Another Surface cast over cells takes them (overwrite; reactions such as fire on grease are not built). The old patch's visual drops them via `set_cells` once the new film has spread over them.
+- Ageing is per cell (`_age_grid`); `expire_cells` recedes the cells that ran out, `expire_all_ground(context)` runs a whole world out. `surface_at(point, context)` answers what lies on the floor there.
+- Clouds (SPHERE) are not on the grid; they keep ActiveSurface + Area3D.
+- Merge demo: `tools/surface_merge_demo.tscn` (recorded, not a test): overlapping casts, a step, water over grease, partial drying.
+
 ## Ground films (decal_surface.gd)
-- A Decal, so the film drapes over steps and slopes. A Decal can't run a shader, so the scene's `film` ShaderMaterial (canvas_item, edited in the inspector) is duplicated per pass and rendered into 512 px SubViewports: albedo, normal map, and emission when `glows`. Viewports redraw only while the shape changes. Each redraw is read back on `frame_post_draw` and set as a NEW ImageTexture: the decal atlas shows neither a ViewportTexture nor an `ImageTexture.update()`.
+- A Decal, so the film drapes over steps and slopes. A Decal can't run a shader, so the scene's `film` ShaderMaterial (canvas_item, edited in the inspector) is duplicated per pass and rendered into SubViewports sized at `pixels_per_meter` (64, up to `max_resolution` 1024): albedo, normal map, and emission when `glows`. Viewports redraw only while cells arrive or recede.
+- The patch's cells reach the shader as `cell_mask`, one RGBA8 texel per cell over the patch's box plus 2 cells of padding: R = coverage (arrival times not-receded), G = meters in from the patch edge / 4, A = recede progress. The box is fitted to the cells each redraw. The mask is flat, so a cell paints every floor inside the box above and below it (1.2 m reach). Each redraw is read back on `frame_post_draw` and set as a NEW ImageTexture: the decal atlas shows neither a ViewportTexture nor an `ImageTexture.update()`.
 - A film shader includes `film_common.gdshaderinc`, defines `film_height(p)`, `film_albedo(p, h)` and `film_emission(p, h)`, then includes `film_passes.gdshaderinc`; every pass derives from the one height, so bumps and glow sit exactly on the film.
 - `liquid_film` covers Grease, Water, Blood and Acid through uniforms (colors, alpha_max, droplets, lumpiness, bubbles, glow_color). Ice has Voronoi cracks and a frosted rim; Web draws spokes and spiral rings in meters, one large web plus three small ones; Fire's scorch glows while burning: boiling heat under dark crust plates, dying back to ember veins as it recedes.
-- A glow can loop: `glow_frames` > 0 draws that many emission pictures once the film has spread (the shader loops on `glow_phase`, from `film_common`), then `_process` cycles them at `glow_fps`. No redraws while it plays; `dissipate()` drops back to the one live picture. Fire uses 8 at 8 fps.
-- Fire adds, all sized to the patch and undoing its DISC scale: Flames (camera-facing quads, `flame.gdshader`: round base, noise-eroded into tongues, additive, depth-softened), Sparks (`spark.gdshader`, twinkling additive dots with turbulence), Smoke (dark `fog_puff` puffs rising from 1.2 m), Haze (an upright camera-facing quad bending the screen texture, `render_priority` -1 so it draws before the flames and never wipes them) and a flickering OmniLight. `dissipate()` stops the emitters and fades the light and haze, then the scorch recedes.
+- A glow can loop: `glow_frames` > 0 draws that many emission pictures once the film has spread (the shader loops on `glow_phase`, from `film_common`), then `_process` cycles them at `glow_fps`. No redraws while it plays; any change of cells drops back to the one live picture. Fire uses 8 at 8 fps.
+- Fire adds, emitted from points scattered over its cells (`_cells_shown`, rebuilt only when the cells change): Flames (camera-facing quads, `flame.gdshader`: round base, noise-eroded into tongues, additive, depth-softened), Sparks (`spark.gdshader`, twinkling additive dots with turbulence), Smoke (dark `fog_puff` puffs rising from 1.2 m), Haze (an upright camera-facing quad bending the screen texture, `render_priority` -1 so it draws before the flames and never wipes them) and a flickering OmniLight. `dissipate()` stops the emitters and fades the light and haze, then the scorch recedes.
 - Look demo of all seven: `tools/surfaces_look_demo.tscn` (recorded, not a test).
 
 ## Darkness (data/abilities/darkness.tres)
@@ -48,7 +59,8 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
 ## State it owns (source of truth)
 | State | Where | Persisted? |
 |---|---|---|
-| Live surfaces for each world | `WorldContext.surfaces`, via `_list_for(context)` | no |
+| Live clouds for each world | `WorldContext.surfaces`, via `_list_for(context)` | no |
+| Ground cells and patches for each world | `SurfaceGrid`, via `_grid_for(context)` | no |
 | Surfaces when no world is loaded | `_detached_surfaces` | no |
 | Per instance: surface def, position, radius, `rounds_remaining`, visual_node, area, **context** | active_surface.gd | no |
 | Definition: shape, duration, status, `status_only_inside`, `blocks_sight`, cost, visuals and FX | surface.gd | authored .tres |
@@ -98,6 +110,7 @@ Every surface belongs to a world.
   - out of combat, the cloud expires after its rounds;
   - Darkness: Dark Vision sees through and is not Blinded; without it, blocked (sabotage-checked).
   - Sabotage-checked: removing the LoS call or the release turns it red.
+- tests/combat/test_surface_grid.gd (4 checks): overlapping grease pools into one patch; water cast over it takes those cells; expired cells leave the grid; expire_all_ground empties it. Sabotage-checked: no merging turns it red.
 - tests/world/test_world_scoping.gd:190-222 checks surface world scoping.
 
 **Gaps:** no test covers two fights in one world sharing a clock, or saving.

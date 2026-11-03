@@ -41,7 +41,6 @@ metadata/_custom_type_script = "uid://cplabynayhpiv"
 script = ExtResource("3_3v0v0")
 surface_name = "Grease"
 duration_rounds = 3
-detection_height = 0.05
 status_effect = SubResource("Resource_efyr5")
 movement_cost_multiplier = 2.0
 ambient_scene = ExtResource("3_5hn5t")
