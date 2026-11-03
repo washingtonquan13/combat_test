@@ -9,11 +9,14 @@ func _run() -> void:
 	await _wait(1.0)
 	await _boot_into_arena()
 	_hero = PartyManager.leader
-	_frame(_spot(-6.0, 0.0), 16.0)
-	await _hero.use_ability(Fog, _spot(-9.0, 0.0) + Vector3(0.0, 1.5, 0.0))
+	# Taken before casting: the hero turns to face its target, which moves _spot().
+	var fog_at: Vector3 = _spot(-15.0, 0.0) + Vector3(0.0, 1.5, 0.0)
+	var dark_at: Vector3 = _spot(-7.0, 0.0) + Vector3(0.0, 1.5, 0.0)
+	_frame(_spot(-10.0, 0.0), 18.0)
+	await _hero.use_ability(Fog, fog_at)
 	# One cast per turn: the second cloud is spawned the way the spell would.
-	SurfaceManager.spawn((Darkness.effects[0] as SpawnSurfaceEffect).surface, _spot(-3.0, 0.0) + Vector3(0.0, 1.5, 0.0), 4.5, _hero)
-	await _wait(3.0)
+	SurfaceManager.spawn((Darkness.effects[0] as SpawnSurfaceEffect).surface, dark_at, 4.5, _hero)
+	await _wait(6.0)
 	_say("Both clouds burn off")
 	for active in SurfaceManager.active_surfaces.duplicate():
 		SurfaceManager._expire(active)

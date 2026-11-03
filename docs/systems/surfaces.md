@@ -5,7 +5,7 @@
 - `surface.gd` (112, the Resource definition: the area TYPE)
 - `active_surface.gd` (32, a RefCounted instance)
 - `grease.gdshader` (54), `grease.tscn` (6)
-- `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (its colors and dissipate), `darkness.tscn` (the same cloud, inked)
+- `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (colors and dissipate for every particle layer), `darkness.tscn` (the same cloud, inked, plus a tendril layer), `darkness_tendril.gdshader`
 
 **Autoloads owned:** `SurfaceManager` (project.godot:24)
 
@@ -27,7 +27,7 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
 ## Darkness (data/abilities/darkness.tres)
 - Fog Cloud's rules (sight blocked, Blinded inside, 10 rounds), radius 4.5 m, plus `dark_vision_sees_through`: a unit with **Dark Vision** (`Unit.dark_vision`, cascaded from UnitDefinition; GURPS B47) is neither walled off nor Blinded by it (`_sees_through`, surface_manager.gd). Fog still stops them.
 - Dark Vision: Night, Haunt, Foul, Fallen. Darkness is given to the tiefling wizard (who lacks Dark Vision).
-- Visual: `darkness.tscn` inherits fog_cloud.tscn with near-black violet colors, opacity 0.93, 48 puffs; the colors are instance uniforms set by fog_cloud.gd.
+- Visual: `darkness.tscn` inherits fog_cloud.tscn: a near-black core (opacity 0.97, 48 puffs) plus a `Tendrils` layer of 16 billboards on the sphere's surface drifting outward. `darkness_tendril.gdshader` draws curling strands (ridged noise in polar coordinates, tapered) over a soft dark body, with a faint violet edge glow. fog_cloud.gd sets colors, opacity and `dissipate` on every GPUParticles3D child, so the tendrils erode with the core.
 
 ## State it owns (source of truth)
 | State | Where | Persisted? |
