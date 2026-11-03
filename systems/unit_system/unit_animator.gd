@@ -55,6 +55,17 @@ extends Node
 @export var walk_animation: String = "Jog_Fwd"
 @export var hit_animation: String = "Hit_Chest"
 @export var death_animation: String = "Death01"
+## A defender's answer to an attack it beat (Unit.defended), by kind.
+## Empty, or a clip the body lacks, shows nothing.
+@export var dodge_animation: String = "Weapon/Dodge"
+@export var parry_animation: String = "Weapon/Parry"
+@export var block_animation: String = "Weapon/Block"
+
+@export_group("Pacing")
+## The beat after an attack's clip settles before the turn moves on.
+## The unit is held busy (Unit.begin_busy) through its attack's clip and
+## this gap, so the next turn doesn't start mid-recovery.
+@export var turn_gap: float = 0.35
 
 @export_group("Cast Animation")
 ## Fallback AnimationSequence for any ability that doesn't set its own
@@ -116,6 +127,12 @@ var _active_phase_index: int = -1
 ## Unit.current_action, because a miss finishes the action in the same
 ## frame it starts and the shot still has to fly.
 var _cast_action: AbilityAction = null
+## The busy hold an attack's clip keeps on the unit (see turn_gap), and
+## the token that tells its safety timer it's stale.
+var _holding_busy: bool = false
+var _hold_token: int = 0
+## Longest a hold may last whatever happens to the clip.
+const MAX_HOLD := 6.0
 ## Bumped every time _play_sequence starts a new play-through — captured
 ## by ON_TIMER phases so a stale timer from an already-abandoned
 ## play-through recognizes itself as stale at fire time, instead of
@@ -197,6 +214,7 @@ func _ready() -> void:
 	unit.movement_finished.connect(_on_movement_finished)
 	unit.ability_use_started.connect(_on_ability_use_started)
 	unit.took_damage.connect(_on_took_damage)
+	unit.defended.connect(_on_defended)
 	unit.died.connect(_on_died)
 	unit.became_idle.connect(_on_unit_became_idle)
 	unit.status_applied.connect(_on_status_applied)
@@ -247,6 +265,9 @@ func _validate_animation_names() -> void:
 	_check_clip(land_animation, "land_animation")
 	_check_clip(hit_animation, "hit_animation")
 	_check_clip(death_animation, "death_animation")
+	_check_clip(dodge_animation, "dodge_animation")
+	_check_clip(parry_animation, "parry_animation")
+	_check_clip(block_animation, "block_animation")
 	_check_sequence(default_cast_animation, "default_cast_animation")
 	_check_clip(default_armed_enter_animation, "default_armed_enter_animation")
 	_check_clip(default_armed_hold_animation, "default_armed_hold_animation")
@@ -397,24 +418,75 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 	# Launched out of the stance: blend from wherever the hold loop is.
 	var from_stance: bool = String(animation_player.current_animation) in _armed_stance_clips
 	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time, action)
+	if ability.uses_attack_action and _active_sequence:
+		_hold_busy()
 
 
 ## A Call Method key in the playing clip (see CharacterModel.moment).
-## "release" lets the cast go; "impact" lands it, through the same
+## "release" lets the next shot go — a rapid-fire clip has one per
+## round; "impact" lands the next one, through the same
 ## Unit.notify_impact() an ImpactSignalStep uses.
 func _on_model_moment(moment_name: StringName) -> void:
 	match moment_name:
 		&"release":
-			_release_cast()
+			if _cast_action:
+				_cast_action.release_next()
 		&"impact":
 			unit.notify_impact()
 
 
+## Lets every shot the clip still held go, and lets go of the action.
 func _release_cast() -> void:
 	var action := _cast_action
 	_cast_action = null
 	if action:
-		action.release()
+		action.release_all()
+
+
+func _hold_busy() -> void:
+	if _holding_busy:
+		return
+	_holding_busy = true
+	_hold_token += 1
+	unit.begin_busy()
+	var token := _hold_token
+	get_tree().create_timer(MAX_HOLD).timeout.connect(func(): _end_hold_if(token))
+
+
+## Ends the hold after `gap` seconds, unless a newer one replaced it.
+func _end_hold(gap: float = 0.0) -> void:
+	if not _holding_busy:
+		return
+	var token := _hold_token
+	if gap <= 0.0:
+		_end_hold_if(token)
+	else:
+		get_tree().create_timer(gap).timeout.connect(func(): _end_hold_if(token))
+
+
+func _end_hold_if(token: int) -> void:
+	if not _holding_busy or token != _hold_token:
+		return
+	_holding_busy = false
+	_hold_token += 1
+	unit.end_busy()
+
+
+## The defense clip: plays at the attack's impact, when the defender
+## beat it (UnitCombat.use_ability).
+func _on_defended(_u: Unit, kind: StringName) -> void:
+	if _cutscene_claimed or not unit.is_alive() or unit.posed_status:
+		return
+	var clip: String
+	match kind:
+		&"dodge":
+			clip = dodge_animation
+		&"parry":
+			clip = parry_animation
+		&"block":
+			clip = block_animation
+	if clip != "" and animation_player.has_animation(clip):
+		_play(clip)
 
 
 ## Reads the currently-held status's own hit_reaction_animation if it
@@ -431,6 +503,7 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 	# The hit clip replaces the wind-up, and with it the release key the
 	# wind-up was going to reach: let the cast go now.
 	_release_cast()
+	_end_hold()
 	var posed: StatusEffect = unit.posed_status
 	if posed and posed.hit_reaction_animation != "":
 		_play(posed.hit_reaction_animation)
@@ -440,6 +513,7 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 
 func _on_died(_u: Unit) -> void:
 	_release_cast()
+	_end_hold()
 	_active_sequence = null
 	_active_phase_index = -1
 	_pending_armed_enter_clip = ""
@@ -540,6 +614,7 @@ func _lift_without_takeoff() -> void:
 
 func _abandon_sequence() -> void:
 	_release_cast()
+	_end_hold()
 	_sequence_token += 1
 	_external_advance_pending = false
 	_active_sequence = null
@@ -668,6 +743,7 @@ var _cutscene_claimed: bool = false
 
 func claim_for_cutscene() -> void:
 	_release_cast()
+	_end_hold()
 	_cutscene_claimed = true
 
 
@@ -712,6 +788,7 @@ func _active_phase() -> AnimationPhase:
 ## `blend` crossfades into the first clip that plays; see _play.
 func _play_sequence(sequence: AnimationSequence, blend: float = -1.0, action: AbilityAction = null) -> void:
 	_release_cast()
+	_end_hold()
 	_cast_action = action
 	_sequence_token += 1
 	_external_advance_pending = false
@@ -745,6 +822,7 @@ func _advance_to_next_phase(blend: float = -1.0) -> bool:
 		# The fallback for a clip with no release key: the cast lets go
 		# as its sequence ends.
 		_release_cast()
+		_end_hold(turn_gap)
 		_active_sequence = null
 		_active_phase_index = -1
 		return false

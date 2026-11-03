@@ -143,6 +143,13 @@ enum Anchor { HEAD, EYE, CHEST, GROUND, HAND }
 ## BoneAttachment3D so it follows the hand through the cast; read at the
 ## moment of release, it is wherever the animation has put the hand.
 @export var hand_anchor: Node3D
+## Where a held weapon sits in each hand, on a BoneAttachment3D so it
+## follows the hand. Oriented so a weapon scene's +Y leaves the thumb
+## side of the fist and +Z faces the way the knuckles do (WeaponData.
+## model_scene). Null means this body holds nothing in that hand - a
+## demon's claws are part of its body.
+@export var main_hand_grip: Node3D
+@export var off_hand_grip: Node3D
 
 @export_group("Gaze")
 ## The bone modifier that turns this body's head toward what it is looking

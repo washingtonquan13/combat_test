@@ -20,6 +20,15 @@ extends Resource
 ## (data/abilities/reload.tres). 0 is no magazine — a bow, a thrown axe.
 ## The rounds left are per copy (ItemInstance.shots_left).
 @export var shots: int = 0
+## What the hand holds while this is the drawn weapon (UnitWeapons). Its
+## origin is the grip; +Y runs out of the thumb side of the fist (a
+## blade's length, a pistol's top) and +Z the way the knuckles face (a
+## blade's edge, a muzzle). Null shows nothing.
+@export var model_scene: PackedScene = null
+## Held in the other hand from the slot it's equipped in: a bow is
+## equipped as the main weapon but held in the bow hand, the string hand
+## free to draw.
+@export var held_in_off_hand: bool = false
 
 
 ## This weapon's rows of one kind, in authored order.

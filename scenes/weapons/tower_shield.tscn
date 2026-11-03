@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_Wood"]
+albedo_color = Color(0.45, 0.28, 0.14, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_Steel"]
+albedo_color = Color(0.62, 0.64, 0.68, 1)
+metallic = 0.8
+roughness = 0.35
+
+[sub_resource type="BoxMesh" id="Mesh_0"]
+material = SubResource("Mat_Wood")
+size = Vector3(0.04, 1.1, 0.55)
+
+[sub_resource type="BoxMesh" id="Mesh_1"]
+material = SubResource("Mat_Steel")
+size = Vector3(0.045, 0.06, 0.56)
+
+[node name="TowerShield" type="Node3D"]
+
+[node name="Face" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.1, 0)
+mesh = SubResource("Mesh_0")
+
+[node name="Band" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.4, 0)
+mesh = SubResource("Mesh_1")

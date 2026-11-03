@@ -47,6 +47,9 @@ extends VfxStep
 ## hand out first (see Unit.anchor). GROUND, the default, is the position
 ## the sequence was played from, as it always was.
 @export var launch_from: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
+## Raises the landing point above the target's feet: an arrow meant for
+## the chest lands at about 1.1.
+@export var lands_at_height: float = 0.0
 
 ## A projectile scene with an "arrive" animation on a child AnimationPlayer
 ## plays it on arrival instead of vanishing: the core goes out, emitters
@@ -61,6 +64,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, c
 		return
 	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
 		from = caster.anchor(launch_from)
+	to.y += lands_at_height
 
 	var wrapper := Node3D.new()
 	WorldManager.spawn_parent().add_child(wrapper)

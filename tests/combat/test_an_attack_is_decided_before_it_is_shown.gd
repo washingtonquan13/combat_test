@@ -34,6 +34,7 @@ func run() -> void:
 	silent.cast_vfx = null
 	silent.timing = missile.timing.duplicate()
 	silent.timing.impact_timeout = 0.2
+	await _idle(caster)
 	caster.reset_turn_actions()
 	hp = target.get_pool(StatIds.HP)
 	result = await caster.use_ability(silent, target)
@@ -42,6 +43,7 @@ func run() -> void:
 		"timed out %s, planned %d, took %d" % [result.get("impact_timed_out", false), planned[0], hp - target.get_pool(StatIds.HP)])
 
 	# The target dies while the attack is still in the air.
+	await _idle(caster)
 	caster.reset_turn_actions()
 	var used := [false]
 	caster.ability_used.connect(func(_a, _t, _r): used[0] = true, CONNECT_ONE_SHOT)
@@ -53,3 +55,10 @@ func run() -> void:
 
 	caster.ability_use_started.disconnect(grab)
 	free_spawned()
+
+
+## The attacker stays busy through its recovery and the gap before the
+## next turn (UnitAnimator.turn_gap); a second use before then is refused.
+func _idle(unit: Unit) -> void:
+	while unit.is_busy():
+		await unit.became_idle

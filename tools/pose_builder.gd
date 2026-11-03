@@ -49,6 +49,33 @@ static func add(pose: Dictionary, bone: String, turn: Vector3) -> void:
 	pose[bone] = pose.get(bone, Vector3.ZERO) + turn
 
 
+# Sets the pose's "<side>Hand" turn so that what the hand holds - the scene
+# on CharacterModel's grip for that side - lies with its +Z along `z_to` and
+# its +Y as near `y_to` as that allows, both in the character's frame. The
+# rest of the pose is taken as it stands, so call this last. A gun's barrel,
+# a bow's face and a blade's edge are each one of the held scene's axes.
+func hold(pose: Dictionary, side: String, z_to: Vector3, y_to: Vector3) -> void:
+	pose.erase(side + "Hand")
+	var resolved := resolve(pose)
+	var bone := side + "Hand"
+	var parent := _skeleton.get_bone_parent(_skeleton.find_bone(bone))
+	var parent_global := Basis()
+	while parent >= 0:
+		parent_global = Basis(resolved[_skeleton.get_bone_name(parent)]) * parent_global
+		parent = _skeleton.get_bone_parent(parent)
+	var grip: Node3D = _model.main_hand_grip if side == "Right" else _model.off_hand_grip
+	var z := z_to.normalized()
+	var x := y_to.cross(z).normalized()
+	var wanted := Basis(x, z.cross(x), z)
+	# Skeleton space: parent_global * local * grip = wanted.
+	var local := parent_global.inverse() * wanted * grip.transform.basis.orthonormalized().inverse()
+	var base: Dictionary = _bases[pose.get("_base", "neutral")]
+	var g: Basis = base["global"][bone]
+	var turn := g * (Basis(base["local"][bone]).inverse() * local) * g.inverse()
+	var euler := turn.get_euler()
+	pose[bone] = Vector3(rad_to_deg(euler.x), rad_to_deg(euler.y), rad_to_deg(euler.z))
+
+
 # Eases from each key pose to the next. Keys are resolved first, so a key on
 # the Idle base blends with one on the neutral base.
 func keyed(t: float, keys: Array) -> Dictionary:

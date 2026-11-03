@@ -13,10 +13,11 @@ extends RefCounted
 ## or by timeout, so a missing or interrupted animation makes an attack
 ## late, never stuck.
 
-## Fired once, on the first impact() — later calls are ignored.
+## Fired on each shot's impact(), up to `shots` — later calls are
+## ignored.
 signal impacted()
-## Fired once, on the first release() — even after finished, since a
-## missed shot still has to fly.
+## Fired as each shot leaves — even after finished, since a missed shot
+## still has to fly.
 signal released()
 ## Fired once, when the action's effects have applied (or it missed) and
 ## ability_used has gone out.
@@ -37,9 +38,14 @@ var is_critical: bool = false
 ## One entry per ability.effects, from that effect's resolve(): the
 ## rolled dice and the injury they will do, before any of it lands.
 var plans: Array[Dictionary] = []
+## Shots this use fires: rapid fire's rounds (UnitCombat._decide), else
+## one. Each is released and impacts on its own — a clip with one
+## release key per shot, a projectile per release — and the hits among
+## them land one per impact, in order.
+var shots: int = 1
 
-var _released: bool = false
-var _impacted: bool = false
+var _released_shots: int = 0
+var _impacts: int = 0
 var _finished: bool = false
 
 
@@ -60,23 +66,39 @@ func planned_damage() -> int:
 	return total
 
 
-## Returns true for the call that counts, false for a repeat.
+## Lets the first shot go. Returns true for the call that counts, false
+## for a repeat.
 func release() -> bool:
-	if _released:
+	if _released_shots > 0:
 		return false
-	_released = true
+	return release_next()
+
+
+## Lets the next shot go: a release key in the clip. Returns false once
+## every shot is out.
+func release_next() -> bool:
+	if _released_shots >= shots:
+		return false
+	_released_shots += 1
 	released.emit()
 	if is_instance_valid(attacker):
 		attacker.cast_released.emit(self)
 	return true
 
 
+## Lets every shot still held go at once: the clip ran out of release
+## keys, or was cut short.
+func release_all() -> void:
+	while release_next():
+		pass
+
+
 func is_released() -> bool:
-	return _released
+	return _released_shots > 0
 
 
-## The safety net for a caster nothing animates: release() anyway after
-## `seconds`. UnitCombat starts it on every use.
+## The safety net for a caster nothing animates: release_all() anyway
+## after `seconds`. UnitCombat starts it on every use.
 func release_after(tree: SceneTree, seconds: float) -> void:
 	tree.create_timer(seconds).timeout.connect(_releaser(self))
 
@@ -85,44 +107,51 @@ func release_after(tree: SceneTree, seconds: float) -> void:
 ## hold it — and a Callable to its own method would not; a static
 ## lambda's capture does.
 static func _releaser(action: AbilityAction) -> Callable:
-	return func(): action.release()
+	return func(): action.release_all()
 
 
-## Returns true for the call that counts, false for a repeat.
+## The next shot arrives, released first if it wasn't. Returns true for
+## a call that counts, false past the last shot.
 func impact() -> bool:
-	if _impacted or _finished:
+	if _finished or _impacts >= shots:
 		return false
-	release()
-	_impacted = true
+	if _released_shots <= _impacts:
+		release_next()
+	_impacts += 1
 	impacted.emit()
 	return true
 
 
-## Waits for impact(), or `timeout` seconds after the release — the
-## wind-up isn't flight time. Already impacted returns at once.
-func wait_for_impact(tree: SceneTree, timeout: float) -> void:
-	if _impacted:
-		return
-	if not _released:
+## Waits for the `nth` shot's impact(), or `timeout` seconds after that
+## shot's release — the wind-up isn't flight time. Already there returns
+## at once.
+func wait_for_impact(tree: SceneTree, timeout: float, nth: int = 1) -> void:
+	while _released_shots < nth and _impacts < nth:
 		await released
-		if _impacted:
-			return
-	tree.create_timer(timeout).timeout.connect(_on_timeout)
-	await impacted
+	if _impacts >= nth:
+		return
+	tree.create_timer(timeout).timeout.connect(_timeout_for(self, nth))
+	while _impacts < nth:
+		await impacted
+
+
+## Same reason as _releaser.
+static func _timeout_for(action: AbilityAction, nth: int) -> Callable:
+	return func(): action._on_timeout(nth)
 
 
 ## Flagged before impact(): the waiting use_ability resumes inside it.
-func _on_timeout() -> void:
-	if _impacted or _finished:
+func _on_timeout(nth: int) -> void:
+	if _finished or _impacts >= nth:
 		return
 	result["impact_timed_out"] = true
-	impact()
+	while _impacts < nth and impact():
+		pass
 
 
 func finish() -> void:
 	if _finished:
 		return
-	_impacted = true
 	_finished = true
 	finished.emit()
 

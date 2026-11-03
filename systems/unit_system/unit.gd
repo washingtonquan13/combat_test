@@ -394,6 +394,10 @@ signal attacked_non_hostile_unit(attacker: Unit, target: Unit)
 ## abilities target a point instead of a unit — see GroundPointTargeting.
 signal ability_used(attacker: Unit, target, result: Dictionary)
 signal took_damage(unit: Unit, amount: int)
+## This unit beat an attack with its defense — `kind` is &"dodge",
+## &"parry" or &"block" (UnitCombat.best_defense) — emitted at the
+## attack's impact, so the answer shows when the blow arrives.
+signal defended(unit: Unit, kind: StringName)
 ## A stat's own parts changed — its base, a status or gear modifier.
 ## Stats derived from it may have changed too.
 signal stat_changed(unit: Unit, id: StringName)

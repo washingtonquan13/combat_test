@@ -42,6 +42,7 @@ func resolve(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dic
 	var halved: bool = attack.is_past_half_damage(attacker, target)
 	var location: HitLocation = attacker.hit_location_for(ability)
 	var injuries: Array[int] = []
+	var raws: Array[int] = []
 	var raw_total: int = 0
 	var applied_total: int = 0
 	for _hit in maxi(attacker.attack_hits(), 1):
@@ -53,10 +54,21 @@ func resolve(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dic
 			raw_damage = raw_damage / 2
 		var applied: int = DamageResolver.injury(raw_damage, target, attack.wound_type, attack.armor_divisor, is_critical, false, location)
 		injuries.append(applied)
+		raws.append(raw_damage)
 		raw_total += raw_damage
 		applied_total += applied
 
-	return {"raw_damage": raw_total, "damage": applied_total, "injuries": injuries}
+	return {"raw_damage": raw_total, "damage": applied_total, "injuries": injuries, "raws": raws}
+
+
+## The `n`th hit of a resolved plan on its own, for an attack whose hits
+## land one per impact (UnitCombat.use_ability). Empty past the last.
+static func hit_plan(plan: Dictionary, n: int) -> Dictionary:
+	if plan.is_empty() or n >= plan.injuries.size():
+		return {}
+	var injury: int = plan.injuries[n]
+	var raw: int = plan.raws[n]
+	return {"raw_damage": raw, "damage": injury, "injuries": [injury] as Array[int], "raws": [raw] as Array[int]}
 
 
 func commit(_attacker: Unit, target, _ability: Ability, is_critical: bool, plan: Dictionary) -> Dictionary:

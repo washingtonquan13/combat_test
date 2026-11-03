@@ -1,4 +1,4 @@
-[gd_scene load_steps=15 format=4 uid="uid://btnqexsmk20xa"]
+[gd_scene load_steps=16 format=4 uid="uid://btnqexsmk20xa"]
 
 [ext_resource type="Script" uid="uid://ee0ub37ip226" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://systems/unit_system/outline.gdshader" id="2_outline"]
@@ -7,6 +7,7 @@
 [ext_resource type="AnimationLibrary" uid="uid://dljalqhwbvg6h" path="res://assets/UAL2_Standard.glb" id="5_ual2"]
 [ext_resource type="AnimationLibrary" uid="uid://xsona7iw7lk2" path="res://assets/flight_animations.tres" id="6_flight"]
 [ext_resource type="AnimationLibrary" uid="uid://cvojeprtllue0" path="res://assets/fireball_animations.tres" id="7_fireball"]
+[ext_resource type="AnimationLibrary" path="res://assets/weapon_animations.tres" id="8_weapon"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]
 resource_local_to_scene = true
@@ -70,7 +71,7 @@ height = 0.001
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.25
 
-[node name="PlaceholderModel" type="Node3D" node_paths=PackedStringArray("animation_player", "outline_mesh", "highlight_mesh", "collision_shape", "head_anchor", "hand_anchor")]
+[node name="PlaceholderModel" type="Node3D" node_paths=PackedStringArray("animation_player", "outline_mesh", "highlight_mesh", "collision_shape", "head_anchor", "hand_anchor", "main_hand_grip", "off_hand_grip")]
 script = ExtResource("1_cm")
 animation_player = NodePath("Body/AnimationPlayer")
 idle_animation = "Idle"
@@ -86,6 +87,8 @@ highlight_mesh = NodePath("HighlightMesh")
 collision_shape = NodePath("CollisionTemplate")
 head_anchor = NodePath("FaceAnchor")
 hand_anchor = NodePath("Body/Armature/GeneralSkeleton/HandAnchor")
+main_hand_grip = NodePath("Body/Armature/GeneralSkeleton/MainHand/Grip")
+off_hand_grip = NodePath("Body/Armature/GeneralSkeleton/OffHand/Grip")
 
 [node name="Body" parent="." instance=ExtResource("3_glb")]
 
@@ -151,12 +154,27 @@ bones/63/rotation = Quaternion(4.41173e-08, 1, 5.96046e-08, 1.94734e-08)
 bone_name = "RightMiddleProximal"
 bone_idx = 39
 
+[node name="MainHand" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="2"]
+bone_name = "RightHand"
+bone_idx = 34
+
+[node name="Grip" type="Node3D" parent="Body/Armature/GeneralSkeleton/MainHand"]
+transform = Transform3D(0, 0.94, 0.342, 0, -0.342, 0.94, 1, 0, 0, 0, 0.085, 0.035)
+
+[node name="OffHand" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="3"]
+bone_name = "LeftHand"
+bone_idx = 10
+
+[node name="Grip" type="Node3D" parent="Body/Armature/GeneralSkeleton/OffHand"]
+transform = Transform3D(0, -0.94, -0.342, 0, -0.342, 0.94, -1, 0, 0, 0, 0.085, 0.035)
+
 [node name="AnimationPlayer" parent="Body" index="1"]
 libraries = {
 &"": ExtResource("4_anims"),
 &"Fireball": ExtResource("7_fireball"),
 &"Flight": ExtResource("6_flight"),
-&"UAL2_Standard": ExtResource("5_ual2")
+&"UAL2_Standard": ExtResource("5_ual2"),
+&"Weapon": ExtResource("8_weapon")
 }
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]

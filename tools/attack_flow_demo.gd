@@ -97,6 +97,9 @@ func _target_killed_mid_flight() -> void:
 			_say("Killed mid-flight..."))
 	var result: Dictionary = await _hero.use_ability(Missile, dummy)
 	_check("the dead target takes nothing", result.get("target_lost", false) and result.damage == 0)
+	# The caster holds its turn through the recovery and UnitAnimator.turn_gap.
+	while _hero.is_busy():
+		await _hero.became_idle
 	_check("the cast still finishes", used[0] and _hero.current_action == null and not _hero.is_busy())
 	_say("...the missile lands on nothing, and the cast finishes cleanly")
 	await _wait(3.0)

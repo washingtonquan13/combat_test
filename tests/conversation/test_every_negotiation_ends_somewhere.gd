@@ -58,6 +58,10 @@ func run() -> void:
 func _give_turn_to(unit: Unit) -> void:
 	var n: int = 0
 	while fight.current_unit != unit and n < 10:
+		# A unit that just attacked holds its turn through the recovery
+		# and UnitAnimator.turn_gap.
+		while fight.current_unit and fight.current_unit.is_busy():
+			await fight.current_unit.became_idle
 		fight.end_turn()
 		await get_tree().process_frame
 		await get_tree().process_frame

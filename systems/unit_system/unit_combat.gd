@@ -355,6 +355,10 @@ func _bound_to(template: Ability, row: AttackRow, off_hand: bool) -> Ability:
 		return per_row[key]
 	var bound: Ability = template.duplicate()
 	bound.ability_name = row.label + (" (off hand)" if off_hand else "")
+	if row.animation:
+		bound.cast_animation = row.animation
+	if row.cast_vfx:
+		bound.cast_vfx = row.cast_vfx
 	var effects: Array[AbilityEffect] = []
 	for effect in template.effects:
 		if effect is GearDamageEffect and effect.row == null:
@@ -568,7 +572,15 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	action.release_after(_owner.get_tree(), RELEASE_TIMEOUT)
 	_owner.ability_use_started.emit(_owner, target, ability)
 
+	var waits: bool = ability.timing and ability.timing.waits_for_impact
+	var tree := _owner.get_tree()
+
 	if not action.hit:
+		# A miss is shown too: the shot flies, and the defender answers
+		# when it arrives.
+		if waits:
+			_owner.begin_busy()
+			await action.wait_for_impact(tree, ability.timing.impact_timeout)
 		var to_hit: Dictionary = result.get("to_hit", {})
 		if not to_hit.get("success", true):
 			SystemLog.print(_miss_log_line(target, ability))
@@ -576,29 +588,39 @@ func use_ability(ability: Ability, target) -> Dictionary:
 				_owner.apply_status(CRIT_FAIL_PENALTY)
 		else:
 			SystemLog.print(_defense_log_line(target, ability, result.defense.kind))
-		_finish(action)
-		return result
-
-	var waits: bool = ability.timing and ability.timing.waits_for_impact
-	if waits:
-		_owner.begin_busy()
-		await action.wait_for_impact(_owner.get_tree(), ability.timing.impact_timeout)
-
-	# The wait is the one stretch where the world moves on without this
-	# attack: a unit target freed or killed meanwhile takes nothing.
-	if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or not target.is_alive()):
-		result["target_lost"] = true
+			if is_instance_valid(target) and target.is_alive():
+				target.defended.emit(target, result.defense.kind)
 		if waits:
 			_owner.end_busy()
 		_finish(action)
 		return result
 
-	var effect_data: Dictionary = _apply_effects(action)
+	# One hit per impact when the ability waits — rapid fire's rounds
+	# land as each arrives — or all at once when it doesn't.
+	var hits: int = result.get("hits", 1) if waits else 1
+	var effect_data: Dictionary = {}
+	if waits:
+		_owner.begin_busy()
+	for n in hits:
+		if waits:
+			await action.wait_for_impact(tree, ability.timing.impact_timeout, n + 1)
+		# The wait is the one stretch where the world moves on without
+		# this attack: a unit target freed or killed meanwhile takes
+		# nothing more.
+		if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or not target.is_alive()):
+			if n == 0:
+				result["target_lost"] = true
+			break
+		var landed: Dictionary = _apply_effects(action, n if waits else -1)
+		effect_data = landed if n == 0 else _merged_effects(effect_data, landed)
 	# Busy until the effects have applied, so one that holds the unit
 	# busy itself (MoveCasterEffect's jump) takes over without a gap —
 	# a became_idle in between would read as the jump having landed.
 	if waits:
 		_owner.end_busy()
+	if result.get("target_lost", false):
+		_finish(action)
+		return result
 	result["effects"] = effect_data.effects
 	result["damage"] = effect_data.damage
 
@@ -626,6 +648,7 @@ func _decide(action: AbilityAction) -> void:
 	var item: ItemInstance = item_holding(row) if row else null
 	if item:
 		shots = item.fire(shots)
+	action.shots = maxi(shots, 1)
 	_hits = 1
 
 	if ability.requires_to_hit:
@@ -1064,16 +1087,38 @@ func _rolls_to_resist(status: StatusEffect, source: Unit) -> bool:
 ## into one total — usually zero or one DamageEffect, but this doesn't
 ## assume that; see effects for the individual per-effect results if
 ## more detail is needed than the aggregate.
-func _apply_effects(action: AbilityAction) -> Dictionary:
+## `hit` -1 commits every effect whole. Otherwise only that hit lands:
+## a GearDamageEffect's `hit`th injury (GearDamageEffect.hit_plan), and
+## every other effect once, with the first hit.
+func _apply_effects(action: AbilityAction, hit: int = -1) -> Dictionary:
 	var effect_results: Array = []
 	var total_damage: int = 0
 	var effects: Array = action.ability.effects
 	for i in effects.size():
-		var effect_result: Dictionary = effects[i].commit(_owner, action.target, action.ability, action.is_critical, action.plans[i])
+		var plan: Dictionary = action.plans[i]
+		if hit >= 0 and effects[i] is GearDamageEffect:
+			plan = GearDamageEffect.hit_plan(plan, hit)
+		elif hit > 0:
+			effect_results.append({})
+			continue
+		var effect_result: Dictionary = effects[i].commit(_owner, action.target, action.ability, action.is_critical, plan)
 		effect_results.append(effect_result)
 		if effect_result.has("damage"):
 			total_damage += effect_result["damage"]
 	return {"effects": effect_results, "damage": total_damage}
+
+
+## Two _apply_effects results as one: damage summed, per effect too.
+static func _merged_effects(a: Dictionary, b: Dictionary) -> Dictionary:
+	var effects: Array = []
+	for i in a.effects.size():
+		var merged: Dictionary = a.effects[i].duplicate()
+		var more: Dictionary = b.effects[i] if i < b.effects.size() else {}
+		for key in ["damage", "raw_damage"]:
+			if more.has(key):
+				merged[key] = merged.get(key, 0) + more[key]
+		effects.append(merged)
+	return {"effects": effects, "damage": a.damage + b.damage}
 
 ## Starts real combat if this was an out-of-combat hostile act against a
 ## living Unit — miss or hit, doesn't matter, an attempted attack is still
