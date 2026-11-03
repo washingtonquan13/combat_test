@@ -103,6 +103,7 @@ script = ExtResource("29_aerialind")
 
 [node name="SightConeIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("30_sightcone")
+enabled = false
 
 [node name="SeekingIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("30_seekind")
