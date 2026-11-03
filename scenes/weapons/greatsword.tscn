@@ -1,48 +1,7 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=2 format=3]
 
-[sub_resource type="StandardMaterial3D" id="Mat_Leather"]
-albedo_color = Color(0.3, 0.18, 0.1, 1)
-roughness = 0.9
-
-[sub_resource type="StandardMaterial3D" id="Mat_Steel"]
-albedo_color = Color(0.62, 0.64, 0.68, 1)
-metallic = 0.8
-roughness = 0.35
-
-[sub_resource type="CylinderMesh" id="Mesh_0"]
-material = SubResource("Mat_Leather")
-top_radius = 0.017
-bottom_radius = 0.017
-height = 0.3
-radial_segments = 16
-rings = 1
-
-[sub_resource type="BoxMesh" id="Mesh_1"]
-material = SubResource("Mat_Steel")
-size = Vector3(0.04, 0.035, 0.04)
-
-[sub_resource type="BoxMesh" id="Mesh_2"]
-material = SubResource("Mat_Steel")
-size = Vector3(0.03, 0.03, 0.3)
-
-[sub_resource type="BoxMesh" id="Mesh_3"]
-material = SubResource("Mat_Steel")
-size = Vector3(0.01, 1.15, 0.06)
+[ext_resource type="PackedScene" path="res://assets/weapons/greatsword.glb" id="1_model"]
 
 [node name="Greatsword" type="Node3D"]
 
-[node name="Grip" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.06, 0)
-mesh = SubResource("Mesh_0")
-
-[node name="Pommel" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.225, 0)
-mesh = SubResource("Mesh_1")
-
-[node name="Guard" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.105, 0)
-mesh = SubResource("Mesh_2")
-
-[node name="Blade" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.695, 0)
-mesh = SubResource("Mesh_3")
+[node name="Model" parent="." instance=ExtResource("1_model")]

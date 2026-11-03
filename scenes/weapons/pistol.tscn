@@ -1,40 +1,7 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=2 format=3]
 
-[sub_resource type="StandardMaterial3D" id="Mat_Wood"]
-albedo_color = Color(0.45, 0.28, 0.14, 1)
-roughness = 0.8
-
-[sub_resource type="StandardMaterial3D" id="Mat_Dark"]
-albedo_color = Color(0.18, 0.18, 0.2, 1)
-metallic = 0.6
-roughness = 0.5
-
-[sub_resource type="BoxMesh" id="Mesh_0"]
-material = SubResource("Mat_Wood")
-size = Vector3(0.03, 0.11, 0.04)
-
-[sub_resource type="BoxMesh" id="Mesh_1"]
-material = SubResource("Mat_Dark")
-size = Vector3(0.035, 0.04, 0.12)
-
-[sub_resource type="CylinderMesh" id="Mesh_2"]
-material = SubResource("Mat_Dark")
-top_radius = 0.009
-bottom_radius = 0.009
-height = 0.12
-radial_segments = 16
-rings = 1
+[ext_resource type="PackedScene" path="res://assets/weapons/pistol.glb" id="1_model"]
 
 [node name="Pistol" type="Node3D"]
 
-[node name="Grip" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.005)
-mesh = SubResource("Mesh_0")
-
-[node name="Body" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.07, 0.03)
-mesh = SubResource("Mesh_1")
-
-[node name="Barrel" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.075, 0.14)
-mesh = SubResource("Mesh_2")
+[node name="Model" parent="." instance=ExtResource("1_model")]
