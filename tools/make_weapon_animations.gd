@@ -79,15 +79,22 @@ const CLAW_IMPACT := 0.60
 const BITE_IMPACT := 0.38
 const GORE_IMPACT := 0.45
 
-# The shots: when the aim is up, and how far apart the shots are.
-const AIM_UP := 0.3
+# The shots: when the aim is up, the beat held on target before the first
+# shot, and how far apart the shots are.
+const AIM_UP := 0.45
+const SETTLE := 0.25
 const PISTOL_SHOTS := 3
-const PISTOL_GAP := 0.22
+const PISTOL_GAP := 0.4
 const RIFLE_SHOTS := 10
 const RIFLE_GAP := 0.07
 # How long the aim is held after the last shot, then the ease back down.
-const AIM_HOLD := 0.3
-const LOWER := 0.35
+const AIM_HOLD := 0.5
+const LOWER := 0.45
+# A one-handed raise: the body turns first, through the lift (the arm out
+# low) at LIFT_AT, and the arm comes up after it by ARM_LAG.
+const LIFT_AT := 0.22
+const ARM_LAG := 0.1
+const ARM := ["RightShoulder", "RightUpperArm", "RightLowerArm", "RightHand"]
 const BOW_RELEASE := 0.85
 # One breath of a built stance, the length of its loop.
 const BREATH := 2.4
@@ -140,7 +147,8 @@ func _init() -> void:
 	library.add_animation("Thrust", _keyed(_poses.clip(0.95, false, _thrust), {"impact": [THRUST_IMPACT]}))
 	library.add_animation("Bite", _keyed(_poses.clip(0.9, false, _bite), {"impact": [BITE_IMPACT]}))
 	library.add_animation("Gore", _keyed(_poses.clip(1.05, false, _gore), {"impact": [GORE_IMPACT]}))
-	library.add_animation("Pistol_Shot", _shots(PISTOL_SHOTS, PISTOL_GAP, _pistol.aimed, _pistol.ready()))
+	library.add_animation("Pistol_Shot", _shots(PISTOL_SHOTS, PISTOL_GAP, _pistol.aimed, _pistol.ready(),
+		_pistol.lifted()))
 	library.add_animation("Rifle_Burst", _shots(RIFLE_SHOTS, RIFLE_GAP, _shoulder_aim, _longgun_rest))
 	library.add_animation("Crossbow_Shot", _shots(1, 0.2, func(since: float) -> Dictionary:
 		return _crossbow.raised(_kick(since) * 6.0), _crossbow_rest))
@@ -212,20 +220,29 @@ static func _keyed(anim: Animation, moments: Dictionary) -> Animation:
 
 # --- Shots -----------------------------------------------------------------
 
-# Up from the weapon's stance (`rest`) to the aim, `count` shots `gap`
-# apart, each a kick back and a settle with a release key on the kick, the
-# aim held, then back down to the stance.
-func _shots(count: int, gap: float, aim_at: Callable, rest: Dictionary) -> Animation:
-	var last_shot := AIM_UP + (count - 1) * gap
+# Up from the weapon's stance (`rest`) to the aim - through `lift` if given,
+# the arm following the body - a beat on target, `count` shots `gap` apart,
+# each a kick back and a settle with a release key on the kick, the aim held,
+# then back down to the stance.
+func _shots(count: int, gap: float, aim_at: Callable, rest: Dictionary, lift := {}) -> Animation:
+	var first := AIM_UP + SETTLE
+	var last_shot := first + (count - 1) * gap
 	var length := last_shot + AIM_HOLD + LOWER
 	var releases: Array[float] = []
 	for i in count:
-		releases.append(AIM_UP + i * gap)
+		releases.append(first + i * gap)
+	var lags := {}
+	for bone: String in ARM:
+		lags[bone] = ARM_LAG
 	var anim := _poses.clip(length, false, func(t: float, _length: float) -> Dictionary:
 		if t <= AIM_UP:
-			return _poses.keyed(t, [[0.0, rest], [AIM_UP, aim_at.call(0.0)]])
+			if lift.is_empty():
+				return _poses.keyed(t, [[0.0, rest], [AIM_UP, aim_at.call(0.0)]])
+			return _poses.flowing(t, AIM_UP, [[0.0, rest], [LIFT_AT, lift], [AIM_UP, aim_at.call(0.0)]], lags)
+		if t < first:
+			return aim_at.call(0.0)
 		if t <= last_shot + AIM_HOLD:
-			var since := fmod(t - AIM_UP, gap) if t < last_shot else t - last_shot
+			var since := fmod(t - first, gap) if t < last_shot else t - last_shot
 			return aim_at.call(since)
 		return _poses.keyed(t, [[last_shot + AIM_HOLD, aim_at.call(AIM_HOLD)], [length, rest]]))
 	return _keyed(anim, {"release": releases})

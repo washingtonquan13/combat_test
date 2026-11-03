@@ -268,8 +268,11 @@ func _measure() -> void:
 	var hands := get_node_or_null("Views/hands")
 	if hands:
 		var to_world := _skeleton().global_transform
-		var focus: Vector3 = to_world * _metrics.at("RightHand").lerp(_metrics.at("LeftHand"), 0.5)
-		hands.global_position = focus + Vector3(-0.55, 0.3, 0.6).normalized() * 1.5
+		# The hands apart, one empty: close on the one holding the weapon.
+		var one_hand := _metrics.at("RightHand").distance_to(_metrics.at("LeftHand")) > 0.3
+		var focus: Vector3 = to_world * (_metrics.at("RightHand") if one_hand
+			else _metrics.at("RightHand").lerp(_metrics.at("LeftHand"), 0.5))
+		hands.global_position = focus + Vector3(-0.55, 0.3, 0.6).normalized() * (0.6 if one_hand else 1.5)
 		hands.look_at(focus, Vector3.UP)
 
 

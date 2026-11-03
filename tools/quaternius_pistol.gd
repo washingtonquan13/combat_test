@@ -20,6 +20,8 @@ const ONE_HAND := "Spell_Simple_Idle"
 # How far the hanging gun's muzzle is tipped forward from straight down, in
 # degrees.
 const HANG_TIP := 40.0
+# How far below level the arm is on its way up, in degrees.
+const LIFT_DIP := 40.0
 # Where the elbow of the gun arm points: down and out when aiming, back and
 # out when hanging.
 const GUN_POLE := Vector3(-0.5, -1.0, 0.0)
@@ -79,6 +81,11 @@ func stance() -> Animation:
 # The stance's first frame: where a shot is raised from and lowered to.
 func ready() -> Dictionary:
 	return _hang(0.0)
+
+
+# Halfway up: turned into the firing stance, the arm out low ahead.
+func lifted() -> Dictionary:
+	return _aim(-LIFT_DIP)
 
 
 # The firing stance `since` seconds after a shot, the arm kicked up by the
