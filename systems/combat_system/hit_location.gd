@@ -1,33 +1,40 @@
 class_name HitLocation
 extends Resource
 ## A part of the body an attack can be aimed at instead of the torso
-## (GURPS B398-399). Taking a to-hit penalty buys a different wounding
-## multiplier, and some locations come with DR of their own (the skull).
-## Only the wound types listed can be aimed here; any other attack goes
-## to the torso as usual, without the penalty — see
-## UnitCombat.hit_location_for.
+## (GURPS B398-399): its name and to-hit penalty. What a hit there does
+## is the target's BodyPlan row for it, so it can differ per creature.
+## torso.tres names the torso row; it is never aimed at.
 
 @export var display_name: String = ""
 @export var to_hit_penalty: int = 0
-## Replaces the wound type's own multiplier (B379's table) outright: a
-## pi- hit to the vitals is x3, not x1.5.
-@export var wounding_multiplier: float = 1.0
-## Added to the target's DR before any armor divisor, as natural DR is.
-@export var extra_dr: int = 0
-@export var wound_types: Array[DamageResolver.WoundType] = []
 
 
+## Whether aiming wound_type here can pay: the human plan's row for this
+## location takes it differently from the torso. Anything else goes to
+## the torso as usual, without the penalty (UnitCombat.hit_location_for).
 func allows(wound_type: DamageResolver.WoundType) -> bool:
-	return wound_types.has(wound_type)
+	var plan: BodyPlan = BodyPlan.human()
+	return plan.row(self).differs_from(plan.torso, wound_type)
 
 
-## "-3 to hit, x3 wounding" for a tooltip, plus the extra DR and which
-## wound types qualify.
+## "-3 to hit\nx3: imp, pi-, pi, pi+, pi++; anything else hits the torso"
+## for a tooltip, from the human plan.
 func describe() -> String:
-	var parts: PackedStringArray = ["%+d to hit" % to_hit_penalty, "x%s wounding" % String.num(wounding_multiplier)]
-	if extra_dr > 0:
-		parts.append("+%d DR" % extra_dr)
-	var types: PackedStringArray = []
-	for wound_type in wound_types:
-		types.append(DamageResolver.ABBREVIATION[wound_type])
-	return "%s\n%s only; anything else hits the torso" % [", ".join(parts), ", ".join(types)]
+	var plan: BodyPlan = BodyPlan.human()
+	var row: BodyRow = plan.row(self)
+	# Wound types grouped by what they do here, in enum order.
+	var groups: Dictionary[String, PackedStringArray] = {}
+	for wound_type in DamageResolver.WoundType.size():
+		if not row.differs_from(plan.torso, wound_type):
+			continue
+		var effect: String = "x%s" % String.num(row.multipliers[wound_type], 2)
+		if row.dr[wound_type] > 0:
+			effect += ", +%d DR" % row.dr[wound_type]
+		if not groups.has(effect):
+			groups[effect] = PackedStringArray()
+		groups[effect].append(DamageResolver.ABBREVIATION[wound_type])
+	var lines: PackedStringArray = ["%+d to hit" % to_hit_penalty]
+	for effect in groups:
+		lines.append("%s: %s" % [effect, ", ".join(groups[effect])])
+	lines.append("Anything else hits the torso")
+	return "\n".join(lines)

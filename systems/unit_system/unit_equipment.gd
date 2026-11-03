@@ -35,6 +35,15 @@ func get_item(slot_key: EquipSlot.Slot) -> ItemInstance:
 	return _equipped.get(slot_key)
 
 
+## The InjuryTraits every worn item grants (ItemDefinition.injury_traits).
+func injury_traits() -> Array[InjuryTrait]:
+	var out: Array[InjuryTrait] = []
+	for item in _equipped.values():
+		if item and item.definition:
+			out.append_array(item.definition.injury_traits)
+	return out
+
+
 ## Each hand slot's partner, main -> off.
 const OFF_HAND_OF: Dictionary = {
 	EquipSlot.Slot.MELEE_MAIN_HAND: EquipSlot.Slot.MELEE_OFF_HAND,

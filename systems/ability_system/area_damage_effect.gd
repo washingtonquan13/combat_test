@@ -60,7 +60,7 @@ func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Di
 
 	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
-		var applied: int = DamageResolver.injury(raw_damage, unit, wound_type, armor_divisor)
+		var applied: int = DamageResolver.injury(raw_damage, unit, wound_type, armor_divisor, false, false, null, true)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})
 
 	var total_damage: int = 0
@@ -98,4 +98,4 @@ func describe() -> String:
 ## would ONE hit unit expect to take," same shape as every sibling
 ## damage effect's expected_damage().
 func expected_damage(_attacker: Unit, target: Unit = null, _location: HitLocation = null) -> float:
-	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor)
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor, false, null, true)

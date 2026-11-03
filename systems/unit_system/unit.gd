@@ -36,6 +36,8 @@ extends CharacterBody3D
 			_unit_stats().reset(definition.stats)
 			abilities = definition.abilities
 			natural_attacks = definition.natural_attacks
+			body_plan = definition.body_plan
+			injury_traits = definition.injury_traits
 			# Resolved, not raw: a species normally names an AiArchetype
 			# and leaves ai_behaviors empty — see UnitDefinition.
 			ai_behaviors = definition.resolved_ai_behaviors()
@@ -236,6 +238,10 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 ## This body's own attacks (claws, teeth) — see UnitDefinition.
 ## natural_attacks and combat_abilities().
 @export var natural_attacks: Array[AttackRow] = []
+## This body's anatomy and Injury Tolerance — see UnitDefinition.body_plan
+## and injury_profile().
+@export var body_plan: BodyPlan
+@export var injury_traits: Array[InjuryTrait] = []
 ## Composable AI decision rules, tried in order — see AiBehavior. Empty
 ## (every unit today) falls back to CombatAI's original hardcoded
 ## nearest-hostile/default_ability baseline, so no existing content
@@ -1487,6 +1493,29 @@ func _unit_stats() -> UnitStats:
 		_stats.pool_changed.connect(func(id: StringName, current: int, maximum: int) -> void:
 			pool_changed.emit(self, id, current, maximum))
 	return _stats
+
+
+var _injury_profile: InjuryProfile
+var _injury_profile_key: Array = []
+
+
+## How this unit takes injury now: its body plan (human by default) with
+## the traits of its definition, worn gear and statuses merged in.
+## Rebuilt only when that list changes, so DamageResolver can ask on
+## every roll.
+func injury_profile() -> InjuryProfile:
+	var plan: BodyPlan = body_plan if body_plan else BodyPlan.human()
+	var traits: Array[InjuryTrait] = injury_traits.duplicate()
+	if _equipment:
+		traits.append_array(_equipment.injury_traits())
+	for status in active_statuses():
+		traits.append_array(status.injury_traits)
+	var key: Array = [plan]
+	key.append_array(traits)
+	if _injury_profile == null or key != _injury_profile_key:
+		_injury_profile = InjuryProfile.build(plan, traits)
+		_injury_profile_key = key
+	return _injury_profile
 
 
 ## Which ItemInstance (if any) this unit currently has equipped in the

@@ -24,6 +24,9 @@ extends Resource
 @export var width: int = 1
 @export var height: int = 1
 @export var maximum_stack_count: int = 99
+## How wearing it changes the way its wearer takes injury (a fireproof
+## cloak) — see Unit.injury_profile.
+@export var injury_traits: Array[InjuryTrait] = []
 
 
 ## Crafting items (a rune, a socket tool) are dragged onto another item

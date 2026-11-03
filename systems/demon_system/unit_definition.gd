@@ -98,6 +98,12 @@ extends Resource
 ## attack beside any weapon the unit holds. Empty means it punches when
 ## it has no weapon.
 @export var natural_attacks: Array[AttackRow] = []
+## How this species takes injury (B379-380, B398-399): its hit locations
+## and what each wound type does there. Unset is the human plan.
+@export var body_plan: BodyPlan
+## Injury Tolerance and the like (Unliving, Diffuse) on top of the plan.
+## See InjuryProfile.
+@export var injury_traits: Array[InjuryTrait] = []
 ## This species' tactical role — see AiArchetype. Supplies the behaviors
 ## and smartness tier, so a species normally sets this and nothing else
 ## AI-related.

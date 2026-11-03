@@ -6,6 +6,3 @@
 script = ExtResource("1_location")
 display_name = "Vitals"
 to_hit_penalty = -3
-wounding_multiplier = 3.0
-extra_dr = 0
-wound_types = Array[int]([2, 3, 4, 5, 6])

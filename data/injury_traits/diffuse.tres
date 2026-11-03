@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="InjuryTrait" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://systems/combat_system/injury_rule.gd" id="1_p3tx4"]
+[ext_resource type="Script" path="res://systems/combat_system/hit_location.gd" id="2_y8cg7"]
+[ext_resource type="Resource" path="res://data/hit_locations/vitals.tres" id="3_1xsa3"]
+[ext_resource type="Resource" path="res://data/hit_locations/skull.tres" id="4_sd31w"]
+[ext_resource type="Script" path="res://systems/combat_system/injury_trait.gd" id="5_1sq8s"]
+
+[sub_resource type="Resource" id="Resource_7p4i8"]
+script = ExtResource("1_p3tx4")
+op = 3
+field = 1
+value = 1.0
+rows = Array[ExtResource("2_y8cg7")]([])
+wound_types = Array[int]([2, 3, 4, 5, 6])
+
+[sub_resource type="Resource" id="Resource_3x63l"]
+script = ExtResource("1_p3tx4")
+op = 3
+field = 1
+value = 2.0
+rows = Array[ExtResource("2_y8cg7")]([])
+wound_types = Array[int]([0, 1, 7, 8, 9])
+
+[sub_resource type="Resource" id="Resource_4olpd"]
+script = ExtResource("1_p3tx4")
+op = 4
+field = 0
+value = 1.0
+rows = Array[ExtResource("2_y8cg7")]([ExtResource("3_1xsa3")])
+wound_types = Array[int]([])
+
+[sub_resource type="Resource" id="Resource_4jboq"]
+script = ExtResource("1_p3tx4")
+op = 4
+field = 0
+value = 1.0
+rows = Array[ExtResource("2_y8cg7")]([ExtResource("4_sd31w")])
+wound_types = Array[int]([])
+
+[resource]
+script = ExtResource("5_1sq8s")
+display_name = "Diffuse"
+summary = "No vitals or brain; a hit does at most 1 (imp, pi) or 2, except area attacks"
+rules = Array[ExtResource("1_p3tx4")]([SubResource("Resource_7p4i8"), SubResource("Resource_3x63l"), SubResource("Resource_4olpd"), SubResource("Resource_4jboq")])
