@@ -7,7 +7,7 @@ extends RefCounted
 # a gun of their own, turned in the right hand from the way ours sits on the
 # grip, with a longer handguard; so each frame is the artist's pose with both
 # arms bent back onto our gun: the right hand turned to hold it the way the
-# clip's hand holds theirs, the left hand on the OffHand mark. Where the
+# clip's hand holds theirs, the left hand on the gun scene's OffHand mark. Where the
 # clip's left hand leaves the gun (the reload's trip to the belt) it is left
 # where the artist put it.
 
@@ -21,10 +21,10 @@ const HIPS_SCALE := 0.936
 # are. The rifle set's hand already holds ours level at the shoulder.
 const GRIP_TURN := Vector3(38.96, 3.81, 0.66)
 const RAISED_TURN := Vector3.ZERO
-# Where the off hand holds the rifle, in the gun's grip space: rifle.tscn's
-# OffHand mark, under the handguard.
-const OFF_HAND := Vector3(0, 0.1, 0.3)
-# The left hand is on the gun within NEAR of the mark, off it past FAR.
+# Where the clip's left hand holds the clip's gun, in the same space: under
+# the handguard, where rifle.tscn's OffHand mark is. The left hand is on the
+# gun within NEAR of it, off it past FAR.
+const CLIP_OFF_HAND := Vector3(0, 0.1, 0.3)
 const NEAR := 0.1
 const FAR := 0.22
 const FINGERS := ["Index", "Middle", "Ring", "Little"]
@@ -32,10 +32,15 @@ const FINGERS := ["Index", "Middle", "Ring", "Little"]
 var _poses: PoseBuilder
 var _aim: Animation
 var _raised: Animation
+# Where the off hand holds the gun, in its grip space.
+var _off_hand: Vector3
 
 
-func _init(poses: PoseBuilder) -> void:
+func _init(poses: PoseBuilder, gun: PackedScene) -> void:
 	_poses = poses
+	var scene: Node3D = gun.instantiate()
+	_off_hand = (scene.get_node("OffHand") as Node3D).position
+	scene.free()
 	_aim = _source("HumanM@AssaultRifle_Aim01")
 	_raised = _source("HumanM@Rifle_Aim01")
 
@@ -96,8 +101,8 @@ func _fit(pose: Dictionary, grip_turn := GRIP_TURN) -> Dictionary:
 	var left := _poses.grip_transform(pose, "Left")
 	var right_pole := _pole(resolved, "Right")
 	var left_pole := _pole(resolved, "Left")
-	var mark := gun * OFF_HAND
-	var on := 1.0 - smoothstep(NEAR, FAR, left.origin.distance_to(mark))
+	var mark := gun * _off_hand
+	var on := 1.0 - smoothstep(NEAR, FAR, left.origin.distance_to(gun * CLIP_OFF_HAND))
 	_poses.grasp(pose, "Right", gun.origin, gun.basis.z, gun.basis.y, right_pole)
 	_curl(pose, on)
 	_poses.grasp(pose, "Left", left.origin.lerp(mark, on), left.basis.z, left.basis.y, left_pole)

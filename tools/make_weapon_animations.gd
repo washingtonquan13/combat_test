@@ -47,6 +47,7 @@ extends SceneTree
 #   Stance_Pistol      Pistol_Idle
 #   Stance_Greatsword  both hands on the hilt at the belly, the blade up
 #   Stance_Longgun     AssaultRifle_Aim01 (Kevin Iglesias), refitted to our gun
+#   Stance_Crossbow    the same, the left hand on the crossbow's forestock
 #   Stance_Bow         the bow low in front, an arrow on the string
 #   Reload_Pistol      Pistol_Reload
 #   Reload_Rifle       AssaultRifle_Reload01 (Kevin Iglesias), refitted
@@ -95,7 +96,9 @@ var _ual2: AnimationLibrary
 var _standing: Dictionary
 # The long guns' carry, the stance their shots and reloads start from.
 var _longgun_rest: Dictionary
+var _crossbow_rest: Dictionary
 var _rifle: KevinRifle
+var _crossbow: KevinRifle
 
 
 func _init() -> void:
@@ -118,9 +121,12 @@ func _init() -> void:
 	library.add_animation("Stance_Pistol", _looped("Pistol_Idle"))
 	library.add_animation("Stance_Greatsword", _poses.clip(BREATH, true, func(t: float, _l: float) -> Dictionary:
 		return _greatsword_stance(_breath(t))))
-	_rifle = KevinRifle.new(_poses)
+	_rifle = KevinRifle.new(_poses, load("res://scenes/weapons/rifle.tscn"))
+	_crossbow = KevinRifle.new(_poses, load("res://scenes/weapons/crossbow.tscn"))
 	_longgun_rest = _rifle.aimed()
+	_crossbow_rest = _crossbow.aimed()
 	library.add_animation("Stance_Longgun", _rifle.stance())
+	library.add_animation("Stance_Crossbow", _crossbow.stance())
 	library.add_animation("Stance_Bow", _poses.clip(BREATH, true, func(t: float, _l: float) -> Dictionary:
 		return _bow_stance(_breath(t))))
 	library.add_animation("Reload_Pistol", _joined(["Pistol_Reload"]))
@@ -133,7 +139,8 @@ func _init() -> void:
 	var pistol_rest := _frame(_source("Pistol_Idle"), 0.0)
 	library.add_animation("Pistol_Shot", _shots(PISTOL_SHOTS, PISTOL_GAP, _pistol_aim, pistol_rest))
 	library.add_animation("Rifle_Burst", _shots(RIFLE_SHOTS, RIFLE_GAP, _shoulder_aim, _longgun_rest))
-	library.add_animation("Crossbow_Shot", _shots(1, 0.2, _shoulder_aim, _longgun_rest))
+	library.add_animation("Crossbow_Shot", _shots(1, 0.2, func(since: float) -> Dictionary:
+		return _crossbow.raised(_kick(since) * 6.0), _crossbow_rest))
 	library.add_animation("Bow_Shot", _keyed(_poses.clip(1.45, false, _bow), {"release": [BOW_RELEASE]}))
 	library.add_animation("Dodge", _poses.clip(0.6, false, _dodge))
 	library.add_animation("Block", _poses.clip(0.75, false, _block))
@@ -539,7 +546,7 @@ func _bow_stance(breath: float) -> Dictionary:
 # left hand hauling the string back up the stock to the latch, a bolt taken
 # and laid in the groove, then back to the ready.
 func _crossbow_reload(t: float, length: float) -> Dictionary:
-	var rest := _longgun_rest
+	var rest := _crossbow_rest
 	var down := _longgun_body(0.0)
 	down["_hips"] = Vector3(0, -0.06, 0)
 	down["Hips"] = Vector3(0, -10, 0)

@@ -128,7 +128,11 @@ extends Node3D
 ## A dragon does not see from 1.5 m, and no formula gets a dragon and a
 ## pixie right at once. Naming the points and letting the body place them
 ## is the only thing that does.
-enum Anchor { HEAD, EYE, CHEST, GROUND, HAND }
+##
+## MUZZLE is not declared on the body: it is the Muzzle marker on the held
+## weapon's scene, where a shot leaves the gun, and the hand when nothing
+## held has one.
+enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE }
 
 @export_group("Anchors")
 ## Where a camera frames the face, and where floating UI belongs.
@@ -255,7 +259,18 @@ func _declared(kind: Anchor) -> Node3D:
 		Anchor.CHEST: return chest_anchor
 		Anchor.GROUND: return ground_anchor
 		Anchor.HAND: return hand_anchor
+		Anchor.MUZZLE: return _held_muzzle()
 	return null
+
+
+# Held weapons are added at runtime, so they have no owner to find by.
+func _held_muzzle() -> Node3D:
+	for grip: Node3D in [main_hand_grip, off_hand_grip]:
+		if is_instance_valid(grip):
+			var muzzle := grip.find_child("Muzzle", true, false) as Node3D
+			if muzzle:
+				return muzzle
+	return hand_anchor
 
 
 func _fallback_ratio(kind: Anchor) -> float:
@@ -265,6 +280,7 @@ func _fallback_ratio(kind: Anchor) -> float:
 		Anchor.CHEST: return 0.55
 		Anchor.GROUND: return 0.0
 		Anchor.HAND: return 0.55   # no hand declared: the chest
+		Anchor.MUZZLE: return 0.55
 	return 0.0
 
 

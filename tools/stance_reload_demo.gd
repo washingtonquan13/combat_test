@@ -19,7 +19,7 @@ func _run() -> void:
 	await _melee_stances()
 	await _gun("pistol", "Shoot", "Weapon/Stance_Pistol", "Weapon/Reload_Pistol")
 	await _gun("rifle", "Burst", "Weapon/Stance_Longgun", "Weapon/Reload_Rifle")
-	await _gun("crossbow", "Shoot", "Weapon/Stance_Longgun", "Weapon/Reload_Crossbow")
+	await _gun("crossbow", "Shoot", "Weapon/Stance_Crossbow", "Weapon/Reload_Crossbow")
 	_say("Longbow: the bow held low, an arrow on the string")
 	_hero.equip_item(RANGED, ItemInstance.new(load("res://data/items/longbow.tres")))
 	await _wait(2.0)

@@ -712,6 +712,7 @@ func _anchor_fallback(kind: CharacterModel.Anchor) -> float:
 		CharacterModel.Anchor.EYE: return 0.75
 		CharacterModel.Anchor.CHEST: return 0.55
 		CharacterModel.Anchor.HAND: return 0.55
+		CharacterModel.Anchor.MUZZLE: return 0.55
 		CharacterModel.Anchor.GROUND: return 0.0
 	return 0.0
 

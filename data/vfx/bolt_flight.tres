@@ -11,7 +11,7 @@ script = ExtResource("3_proj")
 projectile_scene = ExtResource("5_scene")
 speed = 40.0
 arc_height = 0.15
-launch_from = 4
+launch_from = 5
 lands_at_height = 1.1
 
 [sub_resource type="Resource" id="Resource_imp"]

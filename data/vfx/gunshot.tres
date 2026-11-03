@@ -12,7 +12,7 @@
 script = ExtResource("6_spawn")
 scene = ExtResource("7_flash")
 at = 0
-caster_anchor = 4
+caster_anchor = 5
 fallback_lifetime = 0.2
 
 [sub_resource type="Resource" id="Resource_proj"]
@@ -20,7 +20,7 @@ script = ExtResource("3_proj")
 projectile_scene = ExtResource("5_scene")
 speed = 90.0
 arc_height = 0.0
-launch_from = 4
+launch_from = 5
 lands_at_height = 1.1
 
 [sub_resource type="Resource" id="Resource_imp"]

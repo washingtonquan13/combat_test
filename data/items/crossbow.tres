@@ -32,7 +32,7 @@ attacks = Array[ExtResource("4_row")]([SubResource("Resource_shoot")])
 two_handed = true
 shots = 1
 model_scene = ExtResource("w_model")
-stance_animation = "Weapon/Stance_Longgun"
+stance_animation = "Weapon/Stance_Crossbow"
 reload_animation = ExtResource("seq_reload")
 
 [resource]
