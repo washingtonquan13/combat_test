@@ -122,27 +122,47 @@ func _refresh_table() -> void:
 			_table.add_child(_cell(profile, rows[index], index, wound_type))
 	_divisor.visible = profile.divisor > 1.0
 	if _divisor.visible:
-		_divisor.text = "Then ÷%s, rounded down, at least 1" % String.num(profile.divisor)
+		_divisor.text = "Then ÷%s, rounded down, at least 1" % _num(profile.divisor)
 
 
+## "×1.5, ≤2": the multiplier, then the cap as "at most". The tooltip says
+## in words what changed the cell and why.
 func _cell(profile: InjuryProfile, row: BodyRow, index: int, wound_type: int) -> Label:
-	var text: String = "x" + String.num(row.multipliers[wound_type], 2)
-	if row.multipliers[wound_type] <= 0.0:
-		text = "immune"
-	if row.max_injury[wound_type] > 0:
-		text += " max %d" % row.max_injury[wound_type]
-	if row.dr[wound_type] > 0:
-		text += " DR+%d" % row.dr[wound_type]
-	var cell := _label(text)
-	var names := PackedStringArray()
-	for field in InjuryRule.Field.size():
-		var source: String = profile.sources.get("%d:%d:%d" % [index, field, wound_type], "")
-		if source != "" and not names.has(source):
-			names.append(source)
-	if not names.is_empty():
+	var multiplier: float = row.multipliers[wound_type]
+	var cap: int = row.max_injury[wound_type]
+	var dr: int = row.dr[wound_type]
+	var parts := PackedStringArray(["immune" if multiplier <= 0.0 else "×" + _num(multiplier)])
+	if cap > 0 and multiplier > 0.0:
+		parts.append("≤%d" % cap)
+	if dr > 0:
+		parts.append("DR+%d" % dr)
+	var cell := _label(", ".join(parts))
+	var source := func(field: int) -> String:
+		return profile.sources.get("%d:%d:%d" % [index, field, wound_type], "")
+	var lines := PackedStringArray()
+	var by: String = source.call(InjuryRule.Field.MULTIPLIER)
+	if by.begins_with("No "):
+		lines.append("%s: hits here count as torso hits." % by)
+	else:
+		if by != "":
+			lines.append("%s: immune." % by if multiplier <= 0.0 else "%s: ×%s." % [by, _num(multiplier)])
+		by = source.call(InjuryRule.Field.MAX_INJURY)
+		if by != "" and cap > 0:
+			lines.append("%s: one hit does at most %d injury. Area attacks ignore this." % [by, cap])
+		by = source.call(InjuryRule.Field.DR)
+		if by != "":
+			lines.append("%s: DR +%d here." % [by, dr])
+	if not lines.is_empty():
 		cell.add_theme_color_override("font_color", CHANGED)
-		cell.tooltip_text = ", ".join(names)
+	if profile.divisor > 1.0 and multiplier > 0.0:
+		lines.append("Then ÷%s, rounded down, at least 1." % _num(profile.divisor))
+	cell.tooltip_text = "\n".join(lines)
 	return cell
+
+
+## 2 for 2.0, 0.33 for 1/3.
+func _num(value: float) -> String:
+	return str(int(value)) if is_equal_approx(value, roundf(value)) else String.num(value, 2)
 
 
 func _label(text: String, bold: bool = false) -> Label:

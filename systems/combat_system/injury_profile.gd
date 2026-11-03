@@ -48,7 +48,7 @@ static func build(body_plan: BodyPlan, injury_preset: InjuryPreset = null, missi
 			if record_sources:
 				for field in InjuryRule.Field.size():
 					for wound_type in DamageResolver.WoundType.size():
-						profile.sources["%d:%d:%d" % [index, field, wound_type]] = "missing: resolves as the torso"
+						profile.sources["%d:%d:%d" % [index, field, wound_type]] = "No " + (row.location.display_name if row.location else "?")
 		if row.location:
 			profile._rows[row.location] = row
 	return profile
