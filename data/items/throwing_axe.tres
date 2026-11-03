@@ -35,6 +35,7 @@ max_range = 20.0
 script = ExtResource("3_weapon")
 attacks = Array[ExtResource("4_row")]([SubResource("Resource_swing"), SubResource("Resource_throw")])
 model_scene = ExtResource("w_model")
+stance_animation = "Weapon/Stance_Sword"
 
 [resource]
 script = ExtResource("1_gear")

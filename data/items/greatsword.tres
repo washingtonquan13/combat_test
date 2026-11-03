@@ -34,6 +34,7 @@ script = ExtResource("3_weapon")
 attacks = Array[ExtResource("4_row")]([SubResource("Resource_swing"), SubResource("Resource_thrust")])
 two_handed = true
 model_scene = ExtResource("w_model")
+stance_animation = "Weapon/Stance_Greatsword"
 
 [resource]
 script = ExtResource("1_gear")

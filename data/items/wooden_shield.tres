@@ -24,6 +24,7 @@ off_hand_ok = true
 script = ExtResource("4_weapon")
 attacks = Array[ExtResource("5_row")]([SubResource("Resource_bash")])
 model_scene = ExtResource("w_model")
+stance_animation = "Weapon/Stance_Shield"
 
 [resource]
 script = ExtResource("1_gear")

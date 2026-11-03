@@ -177,6 +177,11 @@ var _armed_exit_clip: String = ""
 ## or loaded already flying); cleared only by touched_down.
 var _aloft: bool = false
 
+## Where the drawn weapon's stance comes from (UnitWeapons.stance), and
+## the stance last applied: _idle()'s answer while on the ground.
+var _weapons: UnitWeapons = null
+var _stance: String = ""
+
 
 ## Rebinds this driver onto a body it was not authored against.
 ##
@@ -222,6 +227,9 @@ func _ready() -> void:
 	unit.took_off.connect(_on_took_off)
 	unit.touched_down.connect(_on_touched_down)
 	animation_player.animation_finished.connect(_on_animation_finished)
+	_weapons = unit.get_node_or_null("UnitWeapons") as UnitWeapons
+	if _weapons:
+		_weapons.stance_changed.connect(_on_stance_changed)
 
 	_validate_animation_names()
 
@@ -566,8 +574,30 @@ func _on_unit_became_idle() -> void:
 
 ## --- Flight ---
 
+## On the ground with a weapon drawn, its stance is the idle: every
+## one-shot - an attack, a hit, a reload - comes back to the guard, not
+## to standing upright with the weapon hanging.
 func _idle() -> String:
-	return fly_idle_animation if _aloft and fly_idle_animation != "" else idle_animation
+	if _aloft and fly_idle_animation != "":
+		return fly_idle_animation
+	if not _aloft and _stance != "" and animation_player.has_animation(_stance):
+		return _stance
+	return idle_animation
+
+
+## What's in the hands changed. A unit standing idle shifts into the new
+## stance at once; anything else playing (a walk, an attack, a held pose)
+## comes back to it when it ends.
+func _on_stance_changed(stance: String) -> void:
+	var was_idle: String = _idle()
+	_stance = stance
+	if _cutscene_claimed or unit.posed_status or not unit.is_alive():
+		return
+	if _base_animation == was_idle:
+		_base_animation = _idle()
+	var showing_idle: bool = String(animation_player.current_animation) == was_idle
+	if showing_idle and was_idle != _idle() and not unit.is_moving() and _active_sequence == null:
+		_play(_idle(), stance_blend_time)
 
 
 func _walk() -> String:
@@ -603,12 +633,13 @@ func _on_touched_down(_u: Unit) -> void:
 ## Already flying with no takeoff to show for it. Swaps the ground idle
 ## for the flying one if that is what's showing, and nothing else.
 func _lift_without_takeoff() -> void:
+	var ground_idle: String = _idle()
 	_aloft = true
 	if _cutscene_claimed or unit.posed_status or not unit.is_alive():
 		return
-	var was_idle: bool = _base_animation == idle_animation
+	var was_idle: bool = _base_animation == ground_idle
 	_base_animation = _idle()
-	if was_idle and animation_player.current_animation == idle_animation:
+	if was_idle and animation_player.current_animation == ground_idle:
 		_play(_base_animation)
 
 

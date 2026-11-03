@@ -75,6 +75,8 @@ var _hits: int = 1
 ## Template Ability -> {[AttackRow, off_hand] -> its bound copy}. See
 ## _bound_to.
 var _bound: Dictionary = {}
+## WeaponData.reload_animation -> the Reload that plays it; see _reload.
+var _reload_by_clip: Dictionary = {}
 
 
 ## GURPS ST-based swing/thrust damage: the Basic Set damage table (B16)
@@ -318,9 +320,34 @@ func combat_abilities() -> Array[Ability]:
 			result.append(_bound_to(ability, row, false))
 		for row in off_rows:
 			result.append(_bound_to(ability, row, not row.off_hand_ok))
-	if _holds_magazine_weapon():
-		result.append(load(RELOAD))
+	var reload: Ability = _reload()
+	if reload:
+		result.append(reload)
 	return result
+
+
+## Reload, playing the held gun's reload clip (WeaponData.reload_animation;
+## a ranged hand's gun first, the one Reload draws): one copy per clip,
+## kept like _bound_to's. The plain one, which plays nothing, for a gun
+## that names no clip; null while no magazine weapon is held.
+func _reload() -> Ability:
+	if not _holds_magazine_weapon():
+		return null
+	var plain: Ability = load(RELOAD)
+	for slot in [EquipSlot.Slot.RANGED_MAIN_HAND, EquipSlot.Slot.RANGED_OFF_HAND,
+			EquipSlot.Slot.MELEE_MAIN_HAND, EquipSlot.Slot.MELEE_OFF_HAND]:
+		var item: ItemInstance = _owner.get_equipped_item(slot)
+		var gear := item.definition as GearItem if item else null
+		var weapon: WeaponData = gear.weapon_data if gear else null
+		if weapon == null or weapon.shots <= 0 or weapon.reload_animation == null:
+			continue
+		if not _reload_by_clip.has(weapon.reload_animation):
+			var shown: Ability = plain.duplicate()
+			shown.cast_animation = weapon.reload_animation
+			shown.plays_cast_animation = true
+			_reload_by_clip[weapon.reload_animation] = shown
+		return _reload_by_clip[weapon.reload_animation]
+	return plain
 
 
 ## Offered while a held weapon has a magazine. Loaded lazily like

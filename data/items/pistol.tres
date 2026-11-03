@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" path="res://assets/test_item_icons/test_pistol.png" id="2_icon"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/weapons/pistol.tscn" id="w_model"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_pistol.tres" id="seq_pistol"]
 [ext_resource type="Resource" path="res://data/vfx/gunshot.tres" id="vfx_gunshot"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_pistol.tres" id="seq_reload"]
 
 [sub_resource type="Resource" id="Resource_shoot"]
 script = ExtResource("4_row")
@@ -32,6 +33,8 @@ script = ExtResource("3_weapon")
 attacks = Array[ExtResource("4_row")]([SubResource("Resource_shoot")])
 shots = 9
 model_scene = ExtResource("w_model")
+stance_animation = "Weapon/Stance_Pistol"
+reload_animation = ExtResource("seq_reload")
 
 [resource]
 script = ExtResource("1_gear")

@@ -76,6 +76,89 @@ func hold(pose: Dictionary, side: String, z_to: Vector3, y_to: Vector3) -> void:
 	pose[bone] = Vector3(rad_to_deg(euler.x), rad_to_deg(euler.y), rad_to_deg(euler.z))
 
 
+# Puts what the `side` hand holds at `at` - a point in the skeleton's space,
+# the character's frame - and lies it along `z_to` / `y_to` as hold() does:
+# the arm is bent to bring the wrist where the grip needs it, the elbow
+# swung toward `pole` (default down, back and out). For two hands on one
+# weapon, grasp each side at its own point along the weapon. Call it last.
+func grasp(pose: Dictionary, side: String, at: Vector3, z_to: Vector3, y_to: Vector3, pole := Vector3.ZERO) -> void:
+	var grip: Node3D = _model.main_hand_grip if side == "Right" else _model.off_hand_grip
+	var z := z_to.normalized()
+	var x := y_to.cross(z).normalized()
+	var hand := Basis(x, z.cross(x), z) * grip.transform.basis.orthonormalized().inverse()
+	if pole == Vector3.ZERO:
+		pole = Vector3(-0.5 if side == "Right" else 0.5, -1.0, -0.6)
+	reach(pose, side, at - hand * grip.transform.origin, pole)
+	hold(pose, side, z_to, y_to)
+
+
+# Bends the `side` arm so its wrist lands on `wrist`, in the skeleton's space,
+# the elbow swung toward `pole`. Out of reach, the arm points at it straight.
+func reach(pose: Dictionary, side: String, wrist: Vector3, pole: Vector3) -> void:
+	var upper := side + "UpperArm"
+	var lower := side + "LowerArm"
+	pose.erase(upper)
+	pose.erase(lower)
+	var resolved := resolve(pose)
+	var shoulder := bone_transform(resolved, upper)
+	var len1 := _skeleton.get_bone_rest(_skeleton.find_bone(lower)).origin.length()
+	var len2 := _skeleton.get_bone_rest(_skeleton.find_bone(side + "Hand")).origin.length()
+	var to := wrist - shoulder.origin
+	var d := clampf(to.length(), 0.05, (len1 + len2) * 0.999)
+	var dir := to.normalized()
+	var a := (len1 * len1 - len2 * len2 + d * d) / (2.0 * d)
+	var h := sqrt(maxf(len1 * len1 - a * a, 0.0))
+	var bend := (pole - dir * pole.dot(dir)).normalized()
+	var elbow := shoulder.origin + dir * a + bend * h
+	# Each bone swung the shortest way from where it points onto its segment.
+	var upper_global := _aimed(shoulder.basis, _skeleton.get_bone_rest(_skeleton.find_bone(lower)).origin,
+		elbow - shoulder.origin)
+	var lower_local: Basis = Basis(resolved[lower])
+	var lower_global := _aimed(upper_global * lower_local,
+		_skeleton.get_bone_rest(_skeleton.find_bone(side + "Hand")).origin, shoulder.origin + dir * d - elbow)
+	var parent_global := bone_transform(resolved, _skeleton.get_bone_name(
+		_skeleton.get_bone_parent(_skeleton.find_bone(upper)))).basis
+	_set_local(pose, upper, parent_global.inverse() * upper_global)
+	_set_local(pose, lower, upper_global.inverse() * lower_global)
+
+
+# Where the `side` hand's grip is in a pose, in the skeleton's space.
+func grip_transform(pose: Dictionary, side: String) -> Transform3D:
+	var grip: Node3D = _model.main_hand_grip if side == "Right" else _model.off_hand_grip
+	return bone_transform(resolve(pose), side + "Hand") * grip.transform.orthonormalized()
+
+
+# A bone's transform in the skeleton's space for a resolved pose.
+func bone_transform(resolved: Dictionary, bone: String) -> Transform3D:
+	var i := _skeleton.find_bone(bone)
+	var chain: Array[int] = []
+	while i >= 0:
+		chain.push_front(i)
+		i = _skeleton.get_bone_parent(i)
+	var t := Transform3D()
+	for b in chain:
+		var name := _skeleton.get_bone_name(b)
+		var origin: Vector3 = resolved["_hips"] if name == "Hips" else _skeleton.get_bone_rest(b).origin
+		t = t * Transform3D(Basis(resolved[name]), origin)
+	return t
+
+
+# `global` turned the shortest way so its local `axis` points along `to`.
+static func _aimed(global: Basis, axis: Vector3, to: Vector3) -> Basis:
+	var from := (global * axis).normalized()
+	var turn := Quaternion(from, to.normalized())
+	return (Basis(turn) * global).orthonormalized()
+
+
+# Stores a bone's local rotation as the pose's turn from its base.
+func _set_local(pose: Dictionary, bone: String, local: Basis) -> void:
+	var base: Dictionary = _bases[pose.get("_base", "neutral")]
+	var g: Basis = base["global"][bone]
+	var turn := g * (Basis(base["local"][bone]).inverse() * local.orthonormalized()) * g.inverse()
+	var euler := turn.get_euler()
+	pose[bone] = Vector3(rad_to_deg(euler.x), rad_to_deg(euler.y), rad_to_deg(euler.z))
+
+
 # Eases from each key pose to the next. Keys are resolved first, so a key on
 # the Idle base blends with one on the neutral base.
 func keyed(t: float, keys: Array) -> Dictionary:

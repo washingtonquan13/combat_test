@@ -11,6 +11,9 @@ extends Node
 ## A body without grips - a demon whose claws are its body - holds
 ## nothing, and a weapon without a model shows nothing.
 
+## What's in the hands changed, and with it maybe the stance.
+signal stance_changed(stance: String)
+
 @export var unit: Unit
 
 var drawn: AttackRow.Kind = AttackRow.Kind.MELEE
@@ -32,6 +35,18 @@ func _ready() -> void:
 func held_model(slot: EquipSlot.Slot) -> Node3D:
 	var model: Node3D = _held.get(slot)
 	return model if is_instance_valid(model) else null
+
+
+## The stance clip of what's in the hands (WeaponData.stance_animation):
+## the off hand's if it names one, else the main hand's. Only what is
+## actually held counts - a body without grips stands as it always does.
+func stance() -> String:
+	for off_hand in [true, false]:
+		var slot: EquipSlot.Slot = _hand_slot(drawn, off_hand)
+		var weapon: WeaponData = _weapon_in(slot)
+		if weapon and weapon.stance_animation != "" and held_model(slot):
+			return weapon.stance_animation
+	return ""
 
 
 ## Draws the set of `kind`, if anything of that kind is held.
@@ -65,6 +80,7 @@ func refresh() -> void:
 		var model: Node3D = weapon.model_scene.instantiate()
 		grip.add_child(model)
 		_held[slot] = model
+	stance_changed.emit(stance())
 
 
 func _holds(kind: AttackRow.Kind) -> bool:
@@ -94,4 +110,8 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 	for effect in ability.effects:
 		if effect is GearDamageEffect:
 			draw(effect.kind())
+			return
+		# Reloading takes the gun in hand; guns are ranged weapons.
+		if effect is ReloadEffect:
+			draw(AttackRow.Kind.RANGED)
 			return
