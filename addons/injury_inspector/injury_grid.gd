@@ -86,6 +86,15 @@ func _refresh_table() -> void:
 		if _source.body_plan:
 			plan = _source.body_plan
 		traits.assign(_source.injury_traits)
+	# The rows and traits are sub-resources; an edit to one doesn't reach
+	# the inspector's property_edited or the source's own changed.
+	var watched: Array[Resource] = [plan]
+	watched.append_array(traits)
+	if plan:
+		watched.append_array(plan.rows())
+	for resource in watched:
+		if resource and not resource.changed.is_connected(_refresh_table):
+			resource.changed.connect(_refresh_table)
 	if plan == null or plan.torso == null:
 		_table.columns = 1
 		_table.add_child(_label("No torso row on the plan"))
