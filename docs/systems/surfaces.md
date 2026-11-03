@@ -18,14 +18,14 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
 
 ## Fog Cloud (data/abilities/fog_cloud.tres)
 - The rule is BG3's, with GURPS numbers.
-  - A sphere 4 m in radius, up to 18 m away, lasting 10 rounds. It needs no to-hit roll.
+  - A sphere 5 m in radius, up to 18 m away, lasting 10 rounds. It needs no to-hit roll.
   - It blocks sight: no ranged targeting into, out of or across it. `blocks_sight` (surface_manager.gd:181) runs a segment-vs-sphere test, called from `LineOfSight.has_clear_shot_to_point` (line_of_sight.gd:63) once the wall ray is clear. Detection, AoE aiming and the indicators all go through LineOfSight, so fog blocks them too.
   - Units inside are **Blinded** (data/statuses/blinded.tres: âˆ’10 to their attacks, no resistance, not curable), and only while inside.
 - Visual: soft billboard particles, BG3-style. 36 slowly turning puffs (`fog_puff.gdshader`: procedural noise, top-lit, faded where they meet geometry via the depth texture) drift inside a unit sphere in local coordinates, so the uniform radius scale sizes the whole cloud. No ground ring; it reads the same on the ground or in midair. On expiry `_expire` calls the visual's `dissipate()` if it has one (else frees it): over 3.5 s, driven by one progress value so the motion and the thinning are a single movement, the cloud spreads ×1.35, lifts, and the shader's per-instance `dissipate` erodes each puff from its thin edges inward (each puff starting a little later than the last) while the whole cloud fades, then the node frees itself. Sight clears at expiry, not at the end of the fade.
 - Given to the tiefling wizard.
 
 ## Darkness (data/abilities/darkness.tres)
-- Fog Cloud's rules (sight blocked, Blinded inside, 10 rounds), radius 4.5 m, plus `dark_vision_sees_through`: a unit with **Dark Vision** (`Unit.dark_vision`, cascaded from UnitDefinition; GURPS B47) is neither walled off nor Blinded by it (`_sees_through`, surface_manager.gd). Fog still stops them.
+- Fog Cloud's rules (sight blocked, Blinded inside, 10 rounds), radius 5 m, plus `dark_vision_sees_through`: a unit with **Dark Vision** (`Unit.dark_vision`, cascaded from UnitDefinition; GURPS B47) is neither walled off nor Blinded by it (`_sees_through`, surface_manager.gd). Fog still stops them.
 - Dark Vision: Night, Haunt, Foul, Fallen. Darkness is given to the tiefling wizard (who lacks Dark Vision).
 - Visual: `darkness.tscn` inherits fog_cloud.tscn: a near-black core (opacity 0.97, 48 puffs) plus a `Tendrils` layer of 16 billboards on the sphere's surface drifting outward. `darkness_tendril.gdshader` draws curling strands (ridged noise in polar coordinates, tapered) over a soft dark body, with a faint violet edge glow. fog_cloud.gd sets colors, opacity and `dissipate` on every GPUParticles3D child, so the tendrils erode with the core.
 
