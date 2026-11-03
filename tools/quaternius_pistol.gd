@@ -20,16 +20,19 @@ const ONE_HAND := "Spell_Simple_Idle"
 # How far the hanging gun's muzzle is tipped out from straight down, away
 # from the leg, in degrees.
 const HANG_TIP := 40.0
-# How much of the hanging hand's turn the shoulder takes, in degrees.
-const SHOULDER_TURN := 15.0
+# How much of the hanging hand's turn the upper arm takes, rolled out at the
+# shoulder, in degrees; the forearm supinates the rest.
+const SHOULDER_TURN := 85.0
 # How far below level the arm is on its way up, in degrees.
 const LIFT_DIP := 40.0
 # Where the elbow of the gun arm points: down and out when aiming, back and
 # out when hanging.
 const GUN_POLE := Vector3(-0.5, -1.0, 0.0)
 const HANG_POLE := Vector3(-0.3, 0.0, -1.0)
-# The hanging gun's grip moved off the Idle hand, out clear of the thigh.
-const HANG_OUT := Vector3(-0.06, 0.0, 0.03)
+# The hanging arm: from the shoulder along HANG_ARM, a little out from the
+# thigh, at HANG_REACH of its full length - straight, the elbow just soft.
+const HANG_ARM := Vector3(-0.18, -1.0, 0.02)
+const HANG_REACH := 0.98
 # The left hand is on the gun within NEAR of where the reload clip holds it,
 # off it past FAR.
 const NEAR := 0.05
@@ -112,10 +115,16 @@ func _hang(t: float) -> Dictionary:
 	var sample := _sample(REST, fmod(t, anim.length))
 	sample.merge(_closed, true)
 	var pose := _frame(sample)
-	var hand := _poses.grip_transform(pose, "Right").origin + HANG_OUT
+	var resolved := _poses.resolve(pose)
+	var shoulder := _poses.bone_transform(resolved, "RightUpperArm").origin
+	var elbow := _poses.bone_transform(resolved, "RightLowerArm").origin
+	var wrist := _poses.bone_transform(resolved, "RightHand").origin
+	var grip := _poses.grip_transform(pose, "Right").origin
+	var length := shoulder.distance_to(elbow) + elbow.distance_to(wrist) + wrist.distance_to(grip)
+	var hand := shoulder + HANG_ARM.normalized() * length * HANG_REACH
 	# The character's right is -X: the thumb, and the gun's top, turned out
-	# there, mostly by the supinated forearm, the upper arm turned out
-	# SHOULDER_TURN of it so the forearm stays short of its limit.
+	# there by the whole arm, the shoulder rolling it out SHOULDER_TURN and
+	# the forearm supinating the rest.
 	var tip := Basis(Vector3.FORWARD, deg_to_rad(HANG_TIP))
 	var neutral := Basis(Vector3.UP, -deg_to_rad(SHOULDER_TURN)) * Vector3.BACK
 	_hold_gun(pose, hand, tip * Vector3.DOWN, tip * Vector3.LEFT, HANG_POLE, neutral)
