@@ -4,7 +4,7 @@
 - `surface_manager.gd` (285)
 - `surface.gd` (112, the Resource definition: the area TYPE)
 - `active_surface.gd` (32, a RefCounted instance)
-- `grease.gdshader` (54), `grease.tscn` (6)
+- `grease.tscn` (11, a Decal), `grease_surface.gd` (97), `grease.gdshader` (84)
 - `fog_puff.gdshader`, `fog_cloud.tscn` (a GPUParticles3D puff cloud), `fog_cloud.gd` (colors and dissipate for every particle layer), `darkness.tscn` (the same cloud, inked, plus a tendril layer), `darkness_tendril.gdshader`
 
 **Autoloads owned:** `SurfaceManager` (project.godot:24)
@@ -23,6 +23,13 @@ BG3's "areas": a flat surface (Grease) or a 3D cloud (Fog Cloud). Each one gets 
   - Units inside are **Blinded** (data/statuses/blinded.tres: âˆ’10 to their attacks, no resistance, not curable), and only while inside.
 - Visual: soft billboard particles, BG3-style. 36 slowly turning puffs (`fog_puff.gdshader`: procedural noise, top-lit, faded where they meet geometry via the depth texture) drift inside a unit sphere in local coordinates, so the uniform radius scale sizes the whole cloud. No ground ring; it reads the same on the ground or in midair. On expiry `_expire` calls the visual's `dissipate()` if it has one (else frees it): over 3.5 s, driven by one progress value so the motion and the thinning are a single movement, the cloud spreads ×1.35, lifts, and the shader's per-instance `dissipate` erodes each puff from its thin edges inward (each puff starting a little later than the last) while the whole cloud fades, then the node frees itself. Sight clears at expiry, not at the end of the fade.
 - Given to the tiefling wizard.
+
+## Grease (data/abilities/grease.tres)
+- Visual: `grease.tscn` is a Decal, so the film drapes over steps and slopes. A Decal can't run a shader, so `grease_surface.gd` renders `grease.gdshader` (canvas_item) into two 512 px SubViewports, one albedo and one normal map, only while the shape changes. Each redraw is read back on `frame_post_draw` and set as a NEW ImageTexture: the decal atlas shows neither a ViewportTexture nor an `ImageTexture.update()`.
+- The outline is fbm noise sampled in meters (`radius_m`), so it differs every cast and detail doesn't stretch with radius; droplets sit just past the edge. The film's average edge is 0.75 of the decal (size 2.6 against authored_radius 1.0), which lands on the cast radius.
+- It spreads in over 0.6 s; `dissipate()` (called by `_expire`) thins it over 1.5 s, thin film first, then frees it. Roughness 0.12 via a flat ORM.
+- `cull_mask` leaves out `Unit.RENDER_LAYER` (2); `Unit.wear_render_layer()` puts unit bodies and held weapons on it, so units standing in grease aren't painted.
+- Look demo: `tools/grease_look_demo.tscn` (recorded, not a test).
 
 ## Darkness (data/abilities/darkness.tres)
 - Fog Cloud's rules (sight blocked, Blinded inside, 10 rounds), radius 5 m, plus `dark_vision_sees_through`: a unit with **Dark Vision** (`Unit.dark_vision`, cascaded from UnitDefinition; GURPS B47) is neither walled off nor Blinded by it (`_sees_through`, surface_manager.gd). Fog still stops them.

@@ -94,6 +94,8 @@ func _frame(point: Vector3, distance: float) -> void:
 		WorldManager.spawn_parent().add_child(_marker)
 	_marker.global_position = point
 	camera.focus_target = _marker
+	# Bound from unbound keeps the old anchor; centre on the marker.
+	camera.target_anchor_offset = Vector3.ZERO
 	camera.target_distance = distance
 	camera.target_yaw = camera.current_yaw + 70.0
 

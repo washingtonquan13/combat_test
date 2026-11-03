@@ -79,6 +79,7 @@ func refresh() -> void:
 			continue
 		var model: Node3D = weapon.model_scene.instantiate()
 		grip.add_child(model)
+		Unit.wear_render_layer(model)
 		_held[slot] = model
 	stance_changed.emit(stance())
 

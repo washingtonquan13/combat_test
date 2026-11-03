@@ -230,6 +230,10 @@ var has_died: bool = false
 ## an ordinary faction tag like any other; this is purely about who the
 ## player controls, a separate question from who's hostile to whom.
 const PLAYER_FACTION: StringName = &"player"
+## The render layer every unit's body and held gear wear, and the only
+## thing on it, so a ground decal (Grease) can leave units out with its
+## cull_mask instead of painting their feet.
+const RENDER_LAYER: int = 2
 ## Below a third of its maximum, each pool puts its status on (GURPS
 ## B419 and B426: Move and Dodge halved); back at a third or more, it
 ## comes off. See _update_low_pool_statuses.
@@ -658,6 +662,7 @@ func _bind_model() -> void:
 	avoidance_margin = body.avoidance_margin
 	height = body.height
 	_wear_shape(body.collision_shape)
+	wear_render_layer(body)
 
 	var animator: Node = get_node_or_null("UnitAnimator")
 	if animator and animator.has_method("adopt_model"):
@@ -730,6 +735,15 @@ func _anchor_fallback(kind: CharacterModel.Anchor) -> float:
 		CharacterModel.Anchor.MUZZLE: return 0.55
 		CharacterModel.Anchor.GROUND: return 0.0
 	return 0.0
+
+
+## Puts node and everything visible under it on RENDER_LAYER alone.
+static func wear_render_layer(node: Node) -> void:
+	var visuals: Array[Node] = node.find_children("*", "VisualInstance3D", true, false)
+	if node is VisualInstance3D:
+		visuals.append(node)
+	for visual in visuals:
+		(visual as VisualInstance3D).layers = 1 << (RENDER_LAYER - 1)
 
 
 func _wear_shape(template: CollisionShape3D) -> void:
