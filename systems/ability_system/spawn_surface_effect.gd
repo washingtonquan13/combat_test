@@ -27,6 +27,11 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	if not target is Vector3 or not surface:
 		return {}
 
+	var cone := ability.targeting as ConeTargeting
+	if cone:
+		SurfaceManager.spawn_cone(surface, cone.origin(attacker), cone.direction(attacker, target), cone.length, cone.half_angle(), attacker)
+		return {"spawned_surface": surface.surface_name}
+
 	var targeting := ability.targeting as AreaTargeting
 	if not targeting:
 		return {}

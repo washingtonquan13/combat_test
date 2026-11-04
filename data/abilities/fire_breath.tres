@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=14 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=21 format=3]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
@@ -11,6 +11,11 @@
 [ext_resource type="Texture2D" uid="uid://bcmxnrpmk4ii7" path="res://assets/ability_icon/fireball_icon.png" id="9_icon"]
 [ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://systems/audio_system/sfx_layer.gd" id="10_layer"]
 [ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://systems/audio_system/sfx_cue.gd" id="11_cue"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="13_spawn"]
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="14_surface"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/fire.tscn" id="15_fire"]
+[ext_resource type="Resource" uid="uid://cbjshhpmy5ovp" path="res://data/statuses/burning.tres" id="16_burning"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_bite.tres" id="17_bite"]
 [ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="12_launch"]
 
 [sub_resource type="Resource" id="Resource_cone"]
@@ -55,6 +60,25 @@ status = SubResource("Resource_burning")
 affects_hostiles = true
 affects_allies = true
 
+[sub_resource type="Resource" id="Resource_ground"]
+script = ExtResource("14_surface")
+surface_name = "Fire"
+duration_rounds = 2
+shape = 0
+height_scale = 1.0
+wall_height = 4.0
+lays_ground_under = false
+status_effect = ExtResource("16_burning")
+status_only_inside = false
+blocks_sight = false
+dark_vision_sees_through = false
+movement_cost_multiplier = 1.0
+ambient_scene = ExtResource("15_fire")
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("13_spawn")
+surface = SubResource("Resource_ground")
+
 [sub_resource type="Resource" id="Resource_launch_layer"]
 script = ExtResource("10_layer")
 stream = ExtResource("12_launch")
@@ -72,8 +96,9 @@ ability_name = "Fire Breath"
 icon = ExtResource("9_icon")
 category = 1
 targeting = SubResource("Resource_cone")
-effects = Array[ExtResource("1_eff")]([SubResource("Resource_damage"), SubResource("Resource_apply")])
+effects = Array[ExtResource("1_eff")]([SubResource("Resource_damage"), SubResource("Resource_apply"), SubResource("Resource_spawn")])
 requires_to_hit = false
 uses_attack_action = true
 cast_sfx = SubResource("Resource_launch")
-plays_cast_animation = false
+cast_animation = ExtResource("17_bite")
+plays_cast_animation = true

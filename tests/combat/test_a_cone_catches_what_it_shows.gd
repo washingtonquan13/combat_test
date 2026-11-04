@@ -24,4 +24,11 @@ func run() -> void:
 	BREATH.effects[0].apply(caster, aim, BREATH, false)
 	check("the breath burns who it catches", inside.get_pool(StatIds.HP) < hp)
 	check("and no one else", beside.get_pool(StatIds.HP) == beside_hp)
+
+	var ground: Surface = (BREATH.effects[2] as SpawnSurfaceEffect).surface
+	var context: WorldContext = WorldManager.context_for(caster)
+	BREATH.effects[2].apply(caster, aim, BREATH, false)
+	check("the floor it washes over burns", SurfaceManager.surface_at(Vector3(5.0, 0.0, 0.0), context) == ground)
+	check("the floor beside it does not", SurfaceManager.surface_at(Vector3(0.0, 0.0, 6.0), context) == null)
+	SurfaceManager.expire_all_ground(context)
 	free_spawned()

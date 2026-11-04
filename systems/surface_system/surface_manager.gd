@@ -125,6 +125,52 @@ func spawn_wall(surface: Surface, from: Vector3, to: Vector3, caster: Node = nul
 	return patch
 
 
+## Lays a ground surface (Fire Breath's burning ground) wherever a cone
+## from apex along direction (a unit vector), length long and opening at
+## half_angle radians, washes over the floor: every cell whose floor is
+## inside the cone with no wall between it and the apex, the same shadow
+## the cone's damage casts. It spreads out from the apex. Returns its
+## SurfacePatch, or null if the cone touches no floor (breathed into the
+## air).
+func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: float, half_angle: float, caster: Node = null) -> SurfacePatch:
+	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	if not space:
+		return null
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+	# The highest the cone reaches, so a floor under any of it is found
+	# from above and a ceiling over the apex is not mistaken for one.
+	var top: float = apex.y + maxf(0.0, length * sin(asin(clampf(direction.y, -1.0, 1.0)) + half_angle)) + 0.1
+	var reached: Dictionary = {}
+	var low: Vector2i = SurfaceGrid.key_of(apex - Vector3(length, 0.0, length))
+	var high: Vector2i = SurfaceGrid.key_of(apex + Vector3(length, 0.0, length))
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var key := Vector2i(x, z)
+			var column: Vector3 = SurfaceGrid.centre_of(key, apex.y)
+			if Vector2(column.x - apex.x, column.z - apex.z).length() > length:
+				continue
+			var down := PhysicsRayQueryParameters3D.create(Vector3(column.x, top, column.z), Vector3(column.x, apex.y - length, column.z), 1, exclude)
+			var hit: Dictionary = space.intersect_ray(down)
+			if hit.is_empty() or hit.normal.y < FLOOR_NORMAL:
+				continue
+			var floor_point: Vector3 = hit.position + Vector3.UP * 0.05
+			var to: Vector3 = floor_point - apex
+			if to.length() > length or direction.angle_to(to) > half_angle:
+				continue
+			var sight := PhysicsRayQueryParameters3D.create(apex, floor_point, 1, exclude)
+			if not space.intersect_ray(sight).is_empty():
+				continue
+			reached[key] = hit.position.y
+	if reached.is_empty():
+		return null
+	var ground_apex := Vector3(apex.x, reached.values().min(), apex.z)
+	return _land(surface, reached, context, parent, ground_apex, length)
+
+
 ## Whether the cube centred on point is part of a wall from from to to:
 ## its centre within WALL_HALF_THICKNESS of the line, across the ground,
 ## and its height overlapping the ground there up to height.
