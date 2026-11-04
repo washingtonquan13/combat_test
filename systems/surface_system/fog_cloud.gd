@@ -2,7 +2,9 @@ extends Node3D
 ## The Fog Cloud visual, drawn to the CloudGrid cubes of one cast
 ## (show_cubes()): every layer's puffs are born at points scattered
 ## through the cubes, so the cloud takes the shape the grid gave it — up
-## a stairwell, flat under a ceiling, cut off at a wall. Cubes taken or
+## a stairwell, flat under a ceiling, cut off at a wall. It gathers out
+## from where it was cast: each cube's puffs thicken in a little after the
+## nearer ones', while the whole cloud billows out to its size. Cubes taken or
 ## run out recede (recede_cubes()): their puffs thin away in place, the
 ## rest stay. When the last go, dissipate(): the cloud spreads a little,
 ## lifts, and thins away from its edges in, the way real fog burns off,
@@ -23,6 +25,10 @@ extends Node3D
 @export var points_per_cube: int = 4
 ## How long a cube's puffs take to thin away when it recedes.
 @export var recede_seconds: float = 2.0
+## How long the cloud takes to gather, from its first cube to its last.
+@export var appear_seconds: float = 1.4
+## The cloud's size when it starts gathering, against its full size.
+@export var appear_scale: float = 0.75
 
 var _layers: Array[GPUParticles3D] = []
 var _materials: Array[ShaderMaterial] = []
@@ -30,6 +36,9 @@ var _materials: Array[ShaderMaterial] = []
 var _points: Dictionary[Vector3i, PackedVector3Array] = {}
 ## Receding cube key -> the time it started, in seconds.
 var _receding: Dictionary[Vector3i, float] = {}
+## Gathering cube key -> the time it starts thickening in, in seconds.
+var _arriving: Dictionary[Vector3i, float] = {}
+var _appear: Tween
 var _low := Vector3i.ZERO
 var _dims := Vector3i.ONE
 var _images: Array[Image] = []
@@ -62,7 +71,15 @@ func show_cubes(cells: Array) -> void:
 	var low := Vector3i.MAX
 	var high := Vector3i.MIN
 	var rng := RandomNumberGenerator.new()
+	var now: float = Time.get_ticks_msec() / 1000.0
+	var reach: float = CloudGrid.CELL
 	for cell in cells:
+		reach = maxf(reach, global_position.distance_to(CloudGrid.centre_of(cell.key)))
+	for cell in cells:
+		# Half the time is the spread out from the cast point, half each
+		# cube's own thickening.
+		var d: float = global_position.distance_to(CloudGrid.centre_of(cell.key)) / reach
+		_arriving[cell.key] = now + appear_seconds * 0.5 * d
 		low = low.min(cell.key)
 		high = high.max(cell.key)
 		var points := PackedVector3Array()
@@ -82,12 +99,20 @@ func show_cubes(cells: Array) -> void:
 
 	_images.clear()
 	for z in _dims.z:
-		_images.append(Image.create_empty(_dims.x, _dims.y, false, Image.FORMAT_R8))
+		var image := Image.create_empty(_dims.x, _dims.y, false, Image.FORMAT_R8)
+		image.fill(Color(1.0, 0.0, 0.0))
+		_images.append(image)
 	_mask = ImageTexture3D.new()
 	_mask.create(Image.FORMAT_R8, _dims.x, _dims.y, _dims.z, false, _images)
 	for material in _materials:
 		material.set_shader_parameter("cube_mask", _mask)
 	_place_mask()
+	set_process(true)
+	# Billows out to its size; the mask keeps to the cubes meanwhile.
+	var full: Vector3 = scale
+	scale = full * appear_scale
+	_appear = create_tween().set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	_appear.tween_property(self, "scale", full, appear_seconds)
 
 
 ## Thins the puffs of cells away; the cloud's other cubes stay.
@@ -95,13 +120,22 @@ func recede_cubes(cells: Array) -> void:
 	var now: float = Time.get_ticks_msec() / 1000.0
 	for cell in cells:
 		if _points.erase(cell.key):
-			_receding[cell.key] = now
+			# A cube still gathering thins from as thick as it got.
+			var at: Vector3i = cell.key - _low
+			_receding[cell.key] = now - _images[at.z].get_pixel(at.x, at.y).r * recede_seconds
+			_arriving.erase(cell.key)
 	_emit_from_points()
 	set_process(true)
 
 
 func _process(_delta: float) -> void:
 	var now: float = Time.get_ticks_msec() / 1000.0
+	for key in _arriving.keys():
+		var t: float = clampf((now - _arriving[key]) / (appear_seconds * 0.5), 0.0, 1.0)
+		var at: Vector3i = key - _low
+		_images[at.z].set_pixel(at.x, at.y, Color(1.0 - t * t * (3.0 - 2.0 * t), 0.0, 0.0))
+		if t >= 1.0:
+			_arriving.erase(key)
 	for key in _receding.keys():
 		var t: float = clampf((now - _receding[key]) / recede_seconds, 0.0, 1.0)
 		var at: Vector3i = key - _low
@@ -109,7 +143,9 @@ func _process(_delta: float) -> void:
 		if t >= 1.0:
 			_receding.erase(key)
 	_mask.update(_images)
-	if _receding.is_empty():
+	if _appear and _appear.is_running():
+		_place_mask()
+	elif _receding.is_empty() and _arriving.is_empty():
 		set_process(false)
 
 
@@ -143,6 +179,8 @@ func _place_mask() -> void:
 ## The puffs keep living (no emitting = false): their own lifetime fades
 ## would run on a clock of their own and pop puffs out mid-drift.
 func dissipate() -> void:
+	if _appear and _appear.is_running():
+		_appear.kill()
 	var tween := create_tween()
 	tween.tween_method(_set_progress.bind(scale, position.y), 0.0, 1.0, seconds)
 	tween.tween_callback(queue_free)
