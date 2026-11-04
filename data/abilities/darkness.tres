@@ -14,6 +14,7 @@ script = ExtResource("4_surface")
 surface_name = "Darkness"
 duration_rounds = 10
 shape = 1
+height_scale = 0.5
 status_effect = ExtResource("6_blinded")
 status_only_inside = true
 blocks_sight = true

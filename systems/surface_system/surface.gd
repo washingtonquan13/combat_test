@@ -35,6 +35,10 @@ enum Shape {
 	WALL,   ## CloudGrid cubes standing along a line on the ground, wall_height tall (Wall of Fire; LineTargeting)
 }
 @export var shape: Shape = Shape.DISC
+## How tall a SPHERE stands against its width: below 1 it is squashed
+## into a flat ellipsoid, the way fog lies low and spreads wide. The
+## radius is its half-width.
+@export var height_scale: float = 1.0
 ## How tall a WALL stands from the ground, in meters.
 @export var wall_height: float = 4.0
 ## A ground surface (a DISC) left on the floor under this cloud's cubes

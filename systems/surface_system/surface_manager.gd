@@ -94,7 +94,8 @@ func spawn(surface: Surface, position: Vector3, radius: float, caster: Node = nu
 	_play_spawn_fx(surface, parent, position)
 	if surface.shape == Surface.Shape.DISC:
 		return _spill(surface, position, radius, context, parent)
-	var inside := func(point: Vector3) -> bool: return point.distance_to(position) <= radius
+	var squash := Vector3(1.0, 1.0 / surface.height_scale, 1.0)
+	var inside := func(point: Vector3) -> bool: return ((point - position) * squash).length() <= radius
 	# The cast point sits on the floor; lift it clear of it.
 	var seeds: Dictionary[Vector3i, Vector3] = {CloudGrid.key_of(position): position + Vector3.UP * 0.1}
 	return _fill(surface, seeds, inside, position, context, parent)

@@ -54,6 +54,9 @@ extends AreaIndicator
 ## ground_collision_mask (see IndicatorBase) must match whatever physics
 ## layer your ground/terrain body is on.
 
+var _height_scale: float = 1.0
+
+
 func serves() -> StringName:
 	return &"aerial_area"
 
@@ -75,8 +78,18 @@ func _process(_delta: float) -> void:
 	if AbilityManager.has_aim_height_override:
 		hover_point.y = AbilityManager.aim_height_override
 
+	_height_scale = _cloud_height_scale(ability)
 	_update_line(unit, ability, hover_point)
 	_update_ring(ability, hover_point)
+
+
+## A cloud squashed flat (Surface.height_scale) previews as squashed as
+## it will fill; a blast stays round.
+func _cloud_height_scale(ability: Ability) -> float:
+	for effect in ability.effects:
+		if effect is SpawnSurfaceEffect and effect.surface and effect.surface.shape == Surface.Shape.SPHERE:
+			return effect.surface.height_scale
+	return 1.0
 
 
 func _draw_ring(center: Vector3, radius: float) -> void:
@@ -91,7 +104,7 @@ func _draw_ring_in_plane(center: Vector3, radius: float, basis_a: Vector3, basis
 	_ring_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
 	for i in range(ring_segments + 1):
 		var angle: float = (float(i) / ring_segments) * TAU
-		var point: Vector3 = center + (basis_a * cos(angle) + basis_b * sin(angle)) * radius
+		var point: Vector3 = center + (basis_a * cos(angle) + basis_b * sin(angle)) * radius * Vector3(1.0, _height_scale, 1.0)
 		_ring_immediate.surface_set_color(ring_color)
 		_ring_immediate.surface_add_vertex(point)
 	_ring_immediate.surface_end()
