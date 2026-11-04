@@ -15,6 +15,13 @@ extends Node3D
 @export var smoke_per_cube: float = 0.6
 ## Birth points scattered per cube.
 @export var points_per_cube: int = 4
+## The flame tongue each Flames particle draws: a half-tube this wide
+## and tall, narrowing to its tip by tongue_taper and leaning forward
+## by tongue_lean there.
+@export var tongue_width: float = 1.3
+@export var tongue_height: float = 2.2
+@export_range(0.0, 1.0) var tongue_taper: float = 0.4
+@export var tongue_lean: float = 0.3
 ## How far the light's energy swings either side of its authored value.
 @export var flicker: float = 0.3
 ## How long the light takes to fade out at the end.
@@ -33,6 +40,7 @@ var _burning: float = 1.0
 
 func _ready() -> void:
 	_light_energy = _light.light_energy
+	_flames.draw_pass_1 = _tongue_mesh((_flames.draw_pass_1 as PrimitiveMesh).material)
 	for emitter: GPUParticles3D in [_flames, _sparks, _smoke]:
 		var process := emitter.process_material.duplicate() as ParticleProcessMaterial
 		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINTS
@@ -87,6 +95,41 @@ func _emit_from_points() -> void:
 		var process := emitter.process_material as ParticleProcessMaterial
 		process.emission_point_texture = texture
 		process.emission_point_count = all.size()
+
+
+## A curved half-tube, its foot a little below the particle and its
+## flame texture wrapped round the curve, so a tongue has depth from any
+## angle. Its random spin (the process material's angle) turns each one
+## a different way.
+func _tongue_mesh(material: Material) -> ArrayMesh:
+	const ROWS := 10
+	const SIDES := 8
+	var foot := -tongue_height * 0.07
+	var vertices := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var indices := PackedInt32Array()
+	for row in ROWS + 1:
+		var h := float(row) / ROWS
+		var radius := tongue_width * 0.5 * (1.0 - tongue_taper * h)
+		for side in SIDES + 1:
+			var u := float(side) / SIDES
+			var angle := (u - 0.5) * PI
+			vertices.append(Vector3(sin(angle) * radius, foot + h * tongue_height, cos(angle) * radius * 0.6 + tongue_lean * h * h))
+			uvs.append(Vector2(u, 1.0 - h))
+	for row in ROWS:
+		for side in SIDES:
+			var a := row * (SIDES + 1) + side
+			var b := a + SIDES + 1
+			indices.append_array([a, b, a + 1, a + 1, b, b + 1])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	mesh.surface_set_material(0, material)
+	return mesh
 
 
 func _process(_delta: float) -> void:

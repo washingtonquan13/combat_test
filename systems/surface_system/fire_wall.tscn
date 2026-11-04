@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://systems/surface_system/fire_wall.gd" id="1_script"]
-[ext_resource type="Shader" path="res://systems/surface_system/flame.gdshader" id="3_flame"]
+[ext_resource type="Shader" path="res://systems/surface_system/mesh_flame.gdshader" id="3_flame"]
 [ext_resource type="Texture2D" path="res://assets/vfx/fire_flipbook.png" id="7_flipbook"]
 [ext_resource type="Shader" path="res://systems/surface_system/spark.gdshader" id="4_spark"]
 [ext_resource type="Shader" path="res://systems/surface_system/fog_puff.gdshader" id="5_puff"]
@@ -21,6 +21,9 @@ point_count = 3
 curve = SubResource("grow")
 
 [sub_resource type="ParticleProcessMaterial" id="burn"]
+particle_flag_rotate_y = true
+angle_min = -180.0
+angle_max = 180.0
 direction = Vector3(0, 1, 0)
 spread = 8.0
 initial_velocity_min = 0.5
