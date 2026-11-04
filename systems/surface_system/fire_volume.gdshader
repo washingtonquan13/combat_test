@@ -11,7 +11,8 @@ render_mode unshaded, blend_premul_alpha, depth_draw_never, cull_front, depth_te
 
 uniform sampler3D noise : filter_linear, repeat_enable;
 // One texel per CloudGrid column round the wall: r how much it burns (0..1),
-// g and b its foot and top, in the wall's space. Read soft for r, so the
+// g and b its foot and top, in the wall's space, a how hot it flashes as
+// it catches (fire_ignition.gd). Read soft for r, so the
 // fuel spreads a little past the cubes and their corners round off.
 uniform sampler2D columns_soft : filter_linear, repeat_disable;
 uniform sampler2D columns : filter_nearest, repeat_disable;
@@ -42,6 +43,10 @@ uniform float top_fuel = 0.6;
 // Light given off and light blocked per unit flame per meter.
 uniform float emission = 2.2;
 uniform float absorption = 2.5;
+// How much a catching flame's flash adds to its heat, and turns it
+// toward the core colour.
+uniform float flash_heat = 0.8;
+uniform float flash_color = 0.7;
 // The whole wall's burn, faded out as it dissipates.
 uniform float strength = 1.0;
 uniform vec3 core_color : source_color = vec3(1.0, 0.85, 0.55);
@@ -61,19 +66,21 @@ float sample_noise(vec3 p) {
 	return texture(noise, p).r;
 }
 
-float flame(vec3 p, float t) {
+float flame(vec3 p, float t, out float flash) {
 	vec3 w = p + world_offset;
 	vec3 slow = w * 0.12 - vec3(0.0, t * rise * 0.07, 0.0);
 	vec3 bend = vec3(sample_noise(slow), sample_noise(slow + vec3(0.31, 0.17, 0.53)),
 			sample_noise(slow + vec3(0.71, 0.43, 0.11))) - 0.5;
 	vec3 local = p + box_offset;
 	vec2 uv = (local.xz + bend.xz * 0.6 - columns_origin) / columns_count;
-	float fuel = texture(columns_soft, uv).r;
+	vec4 soft = texture(columns_soft, uv);
+	float fuel = soft.r;
+	flash = soft.a;
 	if (fuel < foot_fuel) {
 		return 0.0;
 	}
 	vec2 span = texture(columns, uv).gb;
-	float y = (local.y - span.x) / max(span.y - span.x, 0.5);
+	float y = (local.y - span.x) / max(span.y - span.x, 0.05);
 	if (y < 0.0 || y > 1.0) {
 		return 0.0;
 	}
@@ -84,6 +91,7 @@ float flame(vec3 p, float t) {
 	float lo = mix(foot_fuel, top_fuel, y);
 	float body = smoothstep(lo, lo + 0.3, fuel);
 	float heat = clamp((n - mix(foot_threshold, top_threshold, y)) * contrast * body, 0.0, 1.0);
+	heat = min(heat * (1.0 + flash * flash_heat), 1.0);
 	// Die out before the top, so no tongue is cut flat.
 	return heat * (1.0 - smoothstep(0.7, 0.97, y));
 }
@@ -115,10 +123,12 @@ void fragment() {
 	float transmit = 1.0;
 	for (int i = 0; i < steps; i++) {
 		vec3 p = v_camera + dir * (t_near + (float(i) + jitter) * step_len);
-		float heat = flame(p, TIME) * strength;
+		float flash;
+		float heat = flame(p, TIME, flash) * strength;
 		if (heat > 0.003) {
 			vec3 color = mix(tip_color, body_color, smoothstep(0.05, 0.35, heat));
 			color = mix(color, core_color, smoothstep(0.55, 0.95, heat));
+			color = mix(color, core_color, flash * flash_color);
 			light += transmit * color * heat * emission * step_len;
 			transmit *= exp(-heat * absorption * step_len);
 			if (transmit < 0.02) {

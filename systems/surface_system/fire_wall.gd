@@ -8,7 +8,11 @@ extends Node3D
 ## recede (recede_cubes()): their fire dies down over recede_seconds. When
 ## the last go, dissipate(): everything stops, the fire and light fade,
 ## and it frees itself. The burning ground left behind is Fire's own visual.
+## It catches from its middle out along its length (fire_ignition.gd):
+## each column a low lick that shoots up and settles, flashing hot, the
+## light flaring with it.
 
+const Ignition = preload("res://systems/surface_system/fire_ignition.gd")
 const VOLUME_SHADER: Shader = preload("res://systems/surface_system/fire_volume.gdshader")
 
 ## The tiling noise the fire rises through.
@@ -23,6 +27,12 @@ const VOLUME_SHADER: Shader = preload("res://systems/surface_system/fire_volume.
 @export var recede_seconds: float = 1.0
 ## How far the light's energy swings either side of its authored value.
 @export var flicker: float = 0.3
+## How long a column's flame takes to catch, and how long the catching
+## takes to run from the wall's middle out to its ends.
+@export var ignite_seconds: float = 1.1
+@export var ignite_spread: float = 0.4
+## How far the light's energy flares over its own as the wall catches.
+@export var light_flare: float = 1.5
 ## How long the fire and light take to fade out at the end.
 @export var fade_seconds: float = 1.5
 
@@ -46,6 +56,11 @@ var _column_texture: ImageTexture
 var _material: ShaderMaterial
 var _light_energy: float
 var _burning: float = 1.0
+## When each column starts to catch, in Time.get_ticks_msec() seconds, and
+## when the last has caught.
+var _lit_at: Dictionary[Vector2i, float] = {}
+var _caught_at: float = 0.0
+var _flash: float = 0.0
 
 
 func _ready() -> void:
@@ -83,9 +98,21 @@ func show_cubes(cells: Array) -> void:
 		emitters[e].amount = maxi(2, roundi(counts[e]))
 		emitters[e].visibility_aabb = box
 	_emit_from_points()
+	_light_columns(low, high)
 	_light.position = to_local((low + high) * 0.5)
 	_light.omni_range = maxf(high.x - low.x, high.z - low.z) * 0.6 + 3.0
 	_build_volume(low, high)
+
+
+## Sets each column catching, the middle first, the ends ignite_spread later.
+func _light_columns(low: Vector3, high: Vector3) -> void:
+	var now: float = Time.get_ticks_msec() / 1000.0
+	var middle := Vector2(low.x + high.x, low.z + high.z) * 0.5
+	var reach: float = maxf(Vector2(high.x - low.x, high.z - low.z).length() * 0.5, CloudGrid.CELL)
+	for column: Vector2i in _columns:
+		var centre := (Vector2(column) + Vector2.ONE * 0.5) * CloudGrid.CELL
+		_lit_at[column] = now + ignite_spread * clampf(centre.distance_to(middle) / reach, 0.0, 1.0)
+	_caught_at = now + ignite_spread + ignite_seconds
 
 
 ## Stops the fire in cells; their columns die down once all their cubes go.
@@ -138,10 +165,13 @@ func _build_volume(low: Vector3, high: Vector3) -> void:
 	_volume.position = centre
 
 
-## Each column's burn, foot and top into the columns texture.
+## Each column's burn, foot, top and flash into the columns texture, its
+## burn rising and its height and flash following Ignition as it catches.
 func _write_columns() -> void:
 	if _column_image == null:
 		return
+	var now: float = Time.get_ticks_msec() / 1000.0
+	_flash = 0.0
 	_column_image.fill(Color(0.0, 0.0, 0.0, 0.0))
 	for column: Vector2i in _columns:
 		var keys: Array = _columns[column]
@@ -154,7 +184,13 @@ func _write_columns() -> void:
 			_spans[column] = span
 		var foot: float = to_local(Vector3(0.0, _spans[column].x, 0.0)).y
 		var top: float = to_local(Vector3(0.0, _spans[column].y, 0.0)).y
-		_column_image.set_pixelv(column - _first_column, Color(_burn[column], foot, top, 1.0))
+		var caught: float = (now - _lit_at.get(column, -INF)) / maxf(ignite_seconds, 0.001)
+		var arrival: float = clampf(caught * 4.0, 0.0, 1.0)
+		var burn: float = _burn[column] * arrival * arrival * (3.0 - 2.0 * arrival)
+		var flash: float = Ignition.flash(caught) if burn > 0.0 else 0.0
+		_flash = maxf(_flash, flash * burn)
+		top = foot + (top - foot) * Ignition.height(caught)
+		_column_image.set_pixelv(column - _first_column, Color(burn, foot, top, flash))
 	_column_texture.update(_column_image)
 
 
@@ -177,10 +213,10 @@ func _emit_from_points() -> void:
 func _process(delta: float) -> void:
 	var t: float = Time.get_ticks_msec() / 1000.0
 	var swing: float = sin(t * 11.0) * 0.5 + sin(t * 17.3 + 1.3) * 0.3 + sin(t * 29.1 + 2.1) * 0.2
-	_light.light_energy = _light_energy * (1.0 + swing * flicker) * _burning
+	_light.light_energy = _light_energy * (1.0 + swing * flicker + light_flare * _flash) * _burning
 	if _material:
 		_material.set_shader_parameter("strength", _burning)
-	var changed := false
+	var changed: bool = Time.get_ticks_msec() / 1000.0 < _caught_at + 0.1
 	for column: Vector2i in _columns:
 		if _columns[column].is_empty() and _burn[column] > 0.0:
 			_burn[column] = maxf(_burn[column] - delta / recede_seconds, 0.0)

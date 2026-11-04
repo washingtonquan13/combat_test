@@ -6,6 +6,8 @@ extends DecalSurface
 ## into one, and a surface laid over it puts its cells out. Sparks fly up,
 ## Smoke rises, Haze shimmers the air and the Light flickers orange over
 ## it. Going out stops the emitters and fades the fire, light and haze.
+## Each cell catches as it spreads in (fire_ignition.gd): a low lick
+## that shoots up and settles, flashing hot, the light flaring with it.
 ## The scorch film is still drawn - the cell lifecycle runs on it - but
 ## fire.tscn sets the decal's cull_mask to 0, so no char shows.
 
@@ -15,6 +17,10 @@ extends DecalSurface
 @export var flame_height: float = 0.9
 @export var sparks_per_square_meter: float = 6.0
 @export var smoke_per_square_meter: float = 1.0
+## How long a cell's flame takes to catch.
+@export var ignite_seconds: float = 1.1
+## How far the light's energy flares over its own as the fire catches.
+@export var light_flare: float = 1.5
 ## Emission points scattered over each cell.
 @export var points_per_cell: int = 4
 ## How far the light's energy swings either side of its authored value.
@@ -26,7 +32,11 @@ extends DecalSurface
 @onready var _haze: MeshInstance3D = $Haze
 @onready var _light: OmniLight3D = $Light
 
+const Ignition = preload("res://systems/surface_system/fire_ignition.gd")
+
 var _light_energy: float
+## How hot the fire flashes as it catches: its hottest cell's flash.
+var _flash: float = 0.0
 var _burning: float = 1.0
 var _material: ShaderMaterial
 ## The columns texture's first cell, and its image.
@@ -129,29 +139,37 @@ func _build_volume(cells: Array[SurfaceCell]) -> void:
 	_volume.global_position = centre
 
 
-## Each cell's burn, foot and top into the columns texture: its burn rises
-## as it spreads in and falls as it recedes, as the film's mask does. A
-## spare cell next to a burning one takes its height, so the soft edge of
-## the fuel has somewhere to stand.
+## Each cell's burn, foot, top and flash into the columns texture: its
+## burn rises as it spreads in and falls as it recedes, as the film's mask
+## does, while it catches (Ignition). A spare cell next to a burning one
+## takes its height and flash, so the soft edge of the fuel has somewhere
+## to stand.
 func _write_columns(now: float) -> void:
 	_column_image.fill(Color(0.0, 0.0, 0.0, 0.0))
 	var size: Vector2i = _column_image.get_size()
 	var ramp: float = maxf(spread_seconds * 0.4, 0.001)
-	for key: Vector2i in _spans:
-		var span: Vector2 = _spans[key]
-		for step: Vector2i in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
-			var near: Vector2i = key + step - _first_cell
-			if not _spans.has(key + step) and near.x >= 0 and near.y >= 0 and near.x < size.x and near.y < size.y:
-				_column_image.set_pixelv(near, Color(0.0, span.x, span.y, 1.0))
+	var texels: Dictionary[Vector2i, Color] = {}
+	_flash = 0.0
 	for key: Vector2i in _spans:
 		var burn: float = 0.0
+		var caught: float = (now - _arrive.get(key, -INF)) / maxf(ignite_seconds, 0.001)
 		if _live.has(key):
 			var arrival: float = clampf((now - _arrive.get(key, -INF)) / ramp, 0.0, 1.0)
 			arrival = arrival * arrival * (3.0 - 2.0 * arrival)
 			var recede: float = clampf((now - _dying[key]) / recede_seconds, 0.0, 1.0) if _dying.has(key) else 0.0
 			burn = arrival * (1.0 - recede)
 		var span: Vector2 = _spans[key]
-		_column_image.set_pixelv(key - _first_cell, Color(burn, span.x, span.y, 1.0))
+		var flash: float = Ignition.flash(caught) if burn > 0.0 else 0.0
+		_flash = maxf(_flash, flash * burn)
+		texels[key] = Color(burn, span.x, span.x + (span.y - span.x) * Ignition.height(caught), flash)
+	for key: Vector2i in texels:
+		var texel: Color = texels[key]
+		for step: Vector2i in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+			var near: Vector2i = key + step - _first_cell
+			if not _spans.has(key + step) and near.x >= 0 and near.y >= 0 and near.x < size.x and near.y < size.y:
+				_column_image.set_pixelv(near, Color(0.0, texel.g, texel.b, texel.a))
+	for key: Vector2i in texels:
+		_column_image.set_pixelv(key - _first_cell, texels[key])
 	_column_texture.update(_column_image)
 
 
@@ -168,7 +186,7 @@ func _process(delta: float) -> void:
 		return
 	var t: float = Time.get_ticks_msec() / 1000.0
 	var swing: float = sin(t * 11.0) * 0.5 + sin(t * 17.3 + 1.3) * 0.3 + sin(t * 29.1 + 2.1) * 0.2
-	_light.light_energy = _light_energy * (1.0 + swing * flicker) * _burning
+	_light.light_energy = _light_energy * (1.0 + swing * flicker + light_flare * _flash) * _burning
 	_haze.set_instance_shader_parameter("burning", _burning)
 	_material.set_shader_parameter("strength", _burning)
 	if _column_image == null:
@@ -176,7 +194,7 @@ func _process(delta: float) -> void:
 	var now: float = _now()
 	var animating: bool = not _dying.is_empty()
 	for key in _arrive:
-		if now - _arrive[key] < spread_seconds * 0.4:
+		if now - _arrive[key] < maxf(spread_seconds * 0.4, ignite_seconds):
 			animating = true
 			break
 	if animating:
