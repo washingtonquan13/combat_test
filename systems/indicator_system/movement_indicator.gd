@@ -1,88 +1,90 @@
 extends IndicatorBase
-## Movement path preview, BG3-style. Drawn only — ClickRouter decides
-## when it is live (the "movement" intent) and hands it the frame's Aim
-## through draw(); it never reads the mouse, raycasts, or handles the
-## Ctrl altitude drag (that is IdleIntent.steer's).
+## Movement path preview, remade after BG3's AiPath. Drawn only:
+## ClickRouter decides when it is live (the "movement" intent) and hands
+## it the frame's Aim through draw(). It never reads the mouse, raycasts,
+## or handles the Ctrl altitude drag (that is IdleIntent.steer's).
 ##
-## Scene setup: attach this script to any plain Node3D in your main scene
-## — it builds its own child MeshInstance3D visuals in code, nothing else
-## needs to be wired up.
+## Scene setup: attach this script to any plain Node3D in the main scene.
+## It builds its own child visuals in code.
 ##
-## A line follows the route from Unit.preview_route() — the same route
-## choice Unit.move_to() makes, ladder journeys included, over a route
-## from NavigationGrid.find_path() that's already avoidance-correct
-## against every other unit's footprint and real level geometry, and
-## through the same RoutePlanner.plan budget/cost planner — from the unit
-## to the aimed point, colored white for the portion within
-## move_remaining and red for the portion beyond it. Because the preview
-## and the move share one route rule over the same grid state, this
-## preview IS what will happen — not an approximation of it.
-##
-## The line itself is corner-rounded (_round_corners) then drawn as one
-## flat, ground-hugging ribbon mesh (_draw_textured_ribbon), carrying
-## real UVs and shaded by movement_indicator_line.gdshader: additive
-## blend, brightness shaped only by a soft smoothstep falloff across the
-## ribbon's WIDTH (UV.y) — no crisp/opaque line, no length-wise dash
-## pattern, just the glowing gradient edge itself. (Two earlier,
-## discarded variants: a dashed pattern sampled along the ribbon's
-## length, and a separate crisp regular-alpha "core" line under a
-## soft "glow" halo — both removed per explicit request; the soft
-## gradient edge WAS the intended line all along, not an add-on around
-## something harder.) Deliberately pushed past the scene's
-## glow_hdr_threshold (brightness_boost uniform — see main.tscn's
-## WorldEnvironment, which enables glow project-wide) so it actually
-## blooms instead of just being a bright shape.
-##
-## The ribbon stays ground-flat (oriented via _horizontal_perpendicular,
-## always in the XZ plane) rather than camera-facing — this is a path
-## decal lying on the terrain, not an effect that should swivel to face
-## the camera as it orbits.
-##
-## Godot (like most renderers) doesn't give line primitives real width,
-## so the ribbon is real geometry: flat quads (ImmediateMesh,
-## PRIMITIVE_TRIANGLES), not PRIMITIVE_LINES.
+## The route is Unit.preview_route(), the same route choice move_to()
+## makes over the same grid, so the preview is what will happen. It is
+## corner-rounded (drawing only), cut into short pieces, and each piece
+## becomes one box ray-traced as a thin glowing tube by
+## movement_path_tube.gdshader. The values are BG3's
+## (Shared/GUI/AiPathSettings.lsx), studied for reference only:
+## - a 2.5 cm wide tube, centre bright, edges falling to nothing;
+## - white within the move budget, crimson past it, cut at the exact
+##   cost where the budget runs out;
+## - cyan over a harmless surface, yellow over a hazard (a status, extra
+##   movement cost, or a sight-blocking cloud);
+## - fades in over the first metre and out over the last;
+## - dashes where the route is obscured, scrolling along it: lightly
+##   (0.2 on, 0.2 off) or heavily (0.05 on, 0.15 off);
+## - a slow pulse, and 10% visibility through walls.
+## The distance readout floats over the route's end.
 
-@export var path_in_range_color: Color = Color(1, 1, 1, 0.5)
-@export var path_out_of_range_color: Color = Color(1, 0, 0, 0.5)
-## Total arc length (meters) over which the color smoothly blends from
-## path_in_range_color to path_out_of_range_color, centered on the
-## move_remaining budget boundary — see _draw_textured_ribbon/
-## _color_at_arc_length. 0 reproduces a hard, instant color cut exactly
-## at the boundary.
-@export var color_transition_length: float = 0
-## Lifts the line slightly above the ground to avoid z-fighting with
-## terrain geometry.
+const TUBE_SHADER: Shader = preload("res://systems/indicator_system/movement_path_tube.gdshader")
+
+## BG3 AiPathSettings RegularColor / ColorPastLimit.
+@export var path_in_range_color: Color = Color(1.0, 1.0, 1.0, 1.0)
+@export var path_out_of_range_color: Color = Color(0.788, 0.0, 0.188, 1.0)
+## BG3 AiPathColor for surfaces you can cross harmlessly (water, blood)
+## and for hazards (grease, fire, fog).
+@export var harmless_surface_color: Color = Color(0.0, 1.0, 1.0, 1.0)
+@export var hazard_surface_color: Color = Color(1.0, 1.0, 0.0, 1.0)
+## Full tube width in metres (BG3 Width).
+@export var tube_width: float = 0.025
+## The tube never draws thinner than this many pixels in radius; past
+## that it widens and dims instead of breaking into dots.
+@export var min_pixel_radius: float = 0.9
+## Additive brightness. Above the WorldEnvironment glow threshold, so it
+## blooms a little.
+@export var brightness: float = 2.0
+## Lift above the ground so the tube rides on it, not in it.
 @export var height_offset: float = 0.05
-## Purely visual corner rounding for the rendered line — see
-## _round_corners. The taut path RoutePlanner produces is optimal but
-## not smooth: real corners at real angles, which read as jagged when
-## drawn as-is. This never touches the actual path/cost/collision data,
-## only what gets drawn here.
+## Fade in / fade out lengths (BG3 AttenuationDistanceStart/End).
+@export var fade_start: float = 1.0
+@export var fade_end: float = 1.0
+## Dash scroll speed (BG3 AnimationSpeed) and the pulse (Pulsation*).
+@export var anim_speed: float = 1.0
+@export var pulse_limits: Vector2 = Vector2(0.1, 0.4)
+@export var pulse_speed: float = 1.0
+## Drawing-only corner rounding; never touches the real route.
 @export var corner_round_radius: float = 0.35
 @export var corner_round_segments: int = 6
-## Ribbon width (meters) — see movement_indicator_line.gdshader.
-@export var line_width: float = 0.05
-## Fraction of the ribbon's width spent fading in from each edge — see
-## the shader's edge_softness. Smaller reads as a crisper edge; 0.5 (the
-## max) fades continuously from edge to centerline with no flat plateau
-## at all. Kept high/soft since the gradient falloff IS the whole
-## visual, not a halo around something crisper.
-@export var edge_softness: float = 0.5
-## Multiplies brightness past the scene's glow_hdr_threshold (Environment
-## default 1.0) so the line actually blooms — see
-## movement_indicator_line.gdshader's brightness_boost uniform.
-@export var brightness_boost: float = 2.5
-
+## Longest piece; surfaces and obscurity are sampled once per piece.
+## Matches SurfaceGrid.CELL so colour changes land on the cell edges.
+@export var max_piece_length: float = 0.25
 ## How far above the route's end the cost readout floats.
 @export var readout_height: float = 0.6
 
-const LINE_SHADER: Shader = preload("res://systems/indicator_system/movement_indicator_line.gdshader")
+## (on, off) metres; off 0 is solid (BG3 PatternClear / Lightly /
+## HeavilyObscured).
+const PATTERN_CLEAR := Vector2(1.0, 0.0)
+const PATTERN_LIGHT := Vector2(0.2, 0.2)
+const PATTERN_HEAVY := Vector2(0.05, 0.15)
 
-var _path_mesh: MeshInstance3D
-var _path_immediate: ImmediateMesh
+## One box: 8 corners, 12 triangles. Corner i's bits are (end, side, up).
+const BOX_INDICES: PackedInt32Array = [
+	0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5,
+	0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6,
+	0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3,
+]
+
+var _tube: MeshInstance3D
+var _mesh := ArrayMesh.new()
+var _material := ShaderMaterial.new()
 ## A Label3D, not a mesh, so IndicatorBase's _owned_meshes doesn't know
 ## about it: hide_visuals/is_showing_anything are extended below.
 var _readout: Label3D
+
+## What the current mesh was built from, so an unchanged route isn't
+## rebuilt every frame (the per-frame pulse and scroll are TIME in the
+## shader).
+var _built_path := PackedVector3Array()
+var _built_cost := -1.0
+var _built_budget := -1.0
 
 
 func serves() -> StringName:
@@ -92,14 +94,21 @@ func serves() -> StringName:
 func _ready() -> void:
 	super()
 	var built: Dictionary = _create_line_mesh()
-	_path_mesh = built.mesh_instance
-	_path_immediate = built.immediate
+	_tube = built.mesh_instance
+	_tube.mesh = _mesh
+	# The boxes are built in world space.
+	_tube.top_level = true
+	_tube.global_transform = Transform3D.IDENTITY
+	_tube.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# Boxes are rebuilt in the shader around their axis; keep the culling
+	# box from dropping a piece the camera can see.
+	_tube.extra_cull_margin = 1.0
 
-	var mat := ShaderMaterial.new()
-	mat.shader = LINE_SHADER
-	mat.set_shader_parameter("edge_softness", edge_softness)
-	mat.set_shader_parameter("brightness_boost", brightness_boost)
-	_path_mesh.material_override = mat
+	_material.shader = TUBE_SHADER
+	# Over clouds and fire, which draw in the same transparent pass.
+	_material.render_priority = 20
+	_tube.material_override = _material
+	_apply_uniforms()
 
 	# Billboarded and screen-constant so it reads the same at any zoom;
 	# no depth test so the wall the route turns behind can't hide it.
@@ -115,6 +124,17 @@ func _ready() -> void:
 	add_child(_readout)
 
 
+func _apply_uniforms() -> void:
+	_material.set_shader_parameter("radius", tube_width * 0.5)
+	_material.set_shader_parameter("min_pixel_radius", min_pixel_radius)
+	_material.set_shader_parameter("fade_start", fade_start)
+	_material.set_shader_parameter("fade_end", fade_end)
+	_material.set_shader_parameter("anim_speed", anim_speed)
+	_material.set_shader_parameter("pulse_limits", pulse_limits)
+	_material.set_shader_parameter("pulse_speed", pulse_speed)
+	_material.set_shader_parameter("brightness", brightness)
+
+
 func hide_visuals() -> void:
 	super()
 	if _readout:
@@ -125,13 +145,11 @@ func is_showing_anything() -> bool:
 	return super() or (_readout != null and _readout.visible)
 
 
-## Draws the route the caster would take to aim.point — from
-## Unit.preview_route(), the same route choice move_to() makes (ladder
-## journeys included), planned in full so _draw_path can colour the part
-## beyond Unit.move_budget() (move_remaining in combat, INF out of it).
-## Nothing to draw without a caster or a ground point under the cursor,
-## nor over a unit or interactable - clicking those doesn't move, so the
-## path must not point at them.
+## Draws the route the caster would take to aim.point, planned in full
+## so the part beyond Unit.move_budget() (move_remaining in combat, INF
+## out of it) can be drawn past-limit. Nothing to draw without a caster
+## or a ground point, nor over a unit or interactable: clicking those
+## doesn't move, so the path must not point at them.
 func draw(aim: Aim) -> void:
 	if aim.caster == null or aim.point == null:
 		_hide_all()
@@ -141,326 +159,230 @@ func draw(aim: Aim) -> void:
 		return
 
 	var planned: Dictionary = aim.caster.preview_route(aim.point)
-	if planned.path.size() < 2:
+	var path: PackedVector3Array = planned.path
+	if path.size() < 2:
 		_hide_all()
 		return
 
-	_draw_path(planned.path, planned.cumulative_cost, aim.caster.move_budget())
-	_path_mesh.visible = true
+	var cost: PackedFloat32Array = planned.cumulative_cost
+	var total_cost: float = cost[cost.size() - 1]
+	var budget: float = aim.caster.move_budget()
+	_update_readout(path[path.size() - 1], total_cost, budget)
+	if path != _built_path or total_cost != _built_cost or budget != _built_budget:
+		_build(path, cost, budget, WorldManager.context_for(aim.caster))
+		_built_path = path
+		_built_cost = total_cost
+		_built_budget = budget
+	_tube.visible = true
 	_readout.visible = true
 
 
 func _hide_all() -> void:
-	if _path_mesh:
-		_path_mesh.visible = false
+	if _tube:
+		_tube.visible = false
 	if _readout:
 		_readout.visible = false
 
 
-## Rebuilds the path line each frame, split into an in-range sub-path
-## (cumulative COST <= budget) and an out-of-range sub-path (the rest) —
-## cost, not raw distance, read straight from RoutePlanner.plan's own
-## cumulative_cost array rather than re-summing segment lengths here.
-## That matters once difficult terrain is in play: re-deriving cost from
-## geometry alone would silently ignore any multiplier, putting the
-## split in the wrong place. Reading the exact numbers the simulation
-## already produced means this can't disagree with where the real move
-## will actually run out. The split point is interpolated along
-## whichever path segment crosses the budget boundary, so the color
-## change lands exactly at the true edge of move_remaining rather than
-## snapping to the nearest path vertex.
-##
-## Each sub-path is corner-rounded SEPARATELY (see _round_corners — it
-## keeps endpoints exact, so the split point stays at its precise
-## interpolated position in both halves rather than getting rounded away
-## from the true budget edge), then the two rounded halves are
-## concatenated into one continuous polyline (dropping the duplicate
-## split-point vertex where they join) and drawn as a single ribbon —
-## see _draw_textured_ribbon/_color_at_arc_length for how that ribbon's
-## per-vertex color smoothly blends across the budget boundary instead
-## of the two halves each being a single flat color with a hard cut
-## between them.
-func _draw_path(path: PackedVector3Array, cumulative_cost: PackedFloat32Array, budget: float) -> void:
-	_path_immediate.clear_surfaces()
-	_update_readout(path[path.size() - 1], cumulative_cost[cumulative_cost.size() - 1], budget)
-
-	var lift := Vector3(0, height_offset, 0)
-
+## Rebuilds the tube mesh for a route. The budget split is found in COST
+## (RoutePlanner's own cumulative_cost, so difficult terrain is priced
+## exactly as the move will be), interpolated inside the crossing
+## segment, and each side is rounded separately so the split stays put.
+func _build(path: PackedVector3Array, cost: PackedFloat32Array, budget: float, context: WorldContext) -> void:
 	var split_index: int = path.size()
 	var split_point: Vector3 = path[path.size() - 1]
 	if budget <= 0.0:
 		split_index = 0
 		split_point = path[0]
-	elif is_inf(budget):
-		# Out of combat (Unit.move_budget) - no budget edge anywhere, the
-		# whole path is in range. Skipped explicitly so an INF cost on the
-		# route can't make INF - INF / INF / INF produce a NaN split.
-		pass
-	else:
+	elif not is_inf(budget):
 		for i in range(1, path.size()):
-			if cumulative_cost[i] >= budget:
-				var segment_cost: float = cumulative_cost[i] - cumulative_cost[i - 1]
-				var remaining: float = budget - cumulative_cost[i - 1]
-				var t: float = (remaining / segment_cost) if segment_cost > 0.0 else 0.0
+			if cost[i] >= budget:
+				var segment_cost: float = cost[i] - cost[i - 1]
+				var t: float = (budget - cost[i - 1]) / segment_cost if segment_cost > 0.0 else 0.0
 				split_point = path[i - 1].lerp(path[i], t)
 				split_index = i
 				break
 
-	var in_range_points := PackedVector3Array()
-	for i in range(0, split_index):
-		in_range_points.append(path[i])
+	var inside := PackedVector3Array()
+	for i in range(split_index):
+		inside.append(path[i])
+	var outside := PackedVector3Array()
 	if split_index < path.size():
-		in_range_points.append(split_point)
-
-	var out_of_range_points := PackedVector3Array()
-	if split_index < path.size():
-		out_of_range_points.append(split_point)
+		inside.append(split_point)
+		outside.append(split_point)
 		for i in range(split_index, path.size()):
-			out_of_range_points.append(path[i])
+			outside.append(path[i])
 
-	var in_range_rounded := _round_corners(in_range_points, corner_round_radius, corner_round_segments)
-	var out_of_range_rounded := _round_corners(out_of_range_points, corner_round_radius, corner_round_segments)
+	var points := PathCornerRounding.round_corners(inside, corner_round_radius, corner_round_segments)
+	var split_at: float = _length_of(points)
+	if outside.size() >= 2:
+		var rounded_out := PathCornerRounding.round_corners(outside, corner_round_radius, corner_round_segments)
+		if points.is_empty():
+			points = rounded_out
+		else:
+			for i in range(1, rounded_out.size()):
+				points.append(rounded_out[i])
+	else:
+		split_at = INF
 
-	if out_of_range_rounded.size() < 2:
-		# The whole path fits comfortably within move_remaining — there's
-		# no real budget boundary anywhere on it at all, so split_point
-		# above is just a leftover placeholder value, not a true edge to
-		# blend toward. INF as the split position makes
-		# _color_at_arc_length naturally resolve to pure
-		# path_in_range_color everywhere (see its own comment) without a
-		# separate code path here.
-		_draw_textured_ribbon(in_range_rounded, INF, lift, line_width)
+	_fill_mesh(_pieces(points), split_at, context)
+
+
+func _length_of(points: PackedVector3Array) -> float:
+	var total := 0.0
+	for i in range(1, points.size()):
+		total += points[i - 1].distance_to(points[i])
+	return total
+
+
+## The polyline lifted and cut into pieces no longer than
+## max_piece_length, dropping zero-length steps.
+func _pieces(points: PackedVector3Array) -> PackedVector3Array:
+	var lift := Vector3(0.0, height_offset, 0.0)
+	var out := PackedVector3Array()
+	if points.is_empty():
+		return out
+	out.append(points[0] + lift)
+	for i in range(1, points.size()):
+		var a: Vector3 = points[i - 1] + lift
+		var b: Vector3 = points[i] + lift
+		var length: float = a.distance_to(b)
+		if length < 0.001:
+			continue
+		var count: int = maxi(1, ceili(length / max_piece_length))
+		for k in range(1, count + 1):
+			out.append(a.lerp(b, float(k) / float(count)))
+	return out
+
+
+## One box per piece, every corner carrying the piece's data (see the
+## layout at the top of movement_path_tube.gdshader).
+func _fill_mesh(points: PackedVector3Array, split_at: float, context: WorldContext) -> void:
+	_mesh.clear_surfaces()
+	var count: int = points.size() - 1
+	if count < 1:
 		return
 
-	var combined := in_range_rounded.duplicate()
-	for i in range(1, out_of_range_rounded.size()):
-		combined.append(out_of_range_rounded[i])
+	var dirs := PackedVector3Array()
+	var distance := PackedFloat32Array([0.0])
+	for i in range(count):
+		var d: Vector3 = points[i + 1] - points[i]
+		dirs.append(d.normalized())
+		distance.append(distance[i] + d.length())
+	var total: float = distance[count]
+	_material.set_shader_parameter("total_length", total)
 
-	var split_arc_length := 0.0
-	for i in range(1, in_range_rounded.size()):
-		split_arc_length += in_range_rounded[i - 1].distance_to(in_range_rounded[i])
+	# Obscurity per piece end, so a dash pattern can blend across a piece.
+	var patterns: Array[Vector2] = []
+	for i in range(points.size()):
+		patterns.append(_pattern_at(points[i], context))
 
-	_draw_textured_ribbon(combined, split_arc_length, lift, line_width)
+	var vertices := PackedVector3Array()
+	var colors := PackedColorArray()
+	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
+	var c0 := PackedFloat32Array()
+	var c1 := PackedFloat32Array()
+	var c2 := PackedFloat32Array()
+	var c3 := PackedFloat32Array()
+	var indices := PackedInt32Array()
+
+	var radius: float = tube_width * 0.5
+	for i in range(count):
+		var a: Vector3 = points[i]
+		var b: Vector3 = points[i + 1]
+		var u: Vector3 = dirs[i]
+		var n0: Vector3 = _miter(dirs[i - 1], u) if i > 0 else u
+		var n1: Vector3 = _miter(u, dirs[i + 1]) if i < count - 1 else u
+		var mid_distance: float = (distance[i] + distance[i + 1]) * 0.5
+		var color: Color = _color_at(a.lerp(b, 0.5), mid_distance >= split_at, context).srgb_to_linear()
+
+		# Corner positions only tell the vertex shader which end and
+		# which side each corner is; it sizes the box itself.
+		var side: Vector3 = u.cross(Vector3.UP)
+		side = Vector3.RIGHT if side.length() < 0.001 else side.normalized()
+		var up: Vector3 = side.cross(u)
+		var base: int = vertices.size()
+		for corner in 8:
+			var end: Vector3 = b if corner & 4 else a
+			var sx: float = 1.0 if corner & 2 else -1.0
+			var sy: float = 1.0 if corner & 1 else -1.0
+			vertices.append(end + side * sx * radius + up * sy * radius)
+			colors.append(color)
+			uvs.append(patterns[i])
+			uv2s.append(patterns[i + 1])
+			c0.append_array([a.x, a.y, a.z, distance[i]])
+			c1.append_array([b.x, b.y, b.z, distance[i + 1]])
+			c2.append_array([n0.x, n0.y, n0.z, 0.0])
+			c3.append_array([n1.x, n1.y, n1.z, 0.0])
+		for index in BOX_INDICES:
+			indices.append(base + index)
+
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_COLOR] = colors
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = uv2s
+	arrays[Mesh.ARRAY_CUSTOM0] = c0
+	arrays[Mesh.ARRAY_CUSTOM1] = c1
+	arrays[Mesh.ARRAY_CUSTOM2] = c2
+	arrays[Mesh.ARRAY_CUSTOM3] = c3
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var format: int = (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT) \
+		| (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT) \
+		| (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM2_SHIFT) \
+		| (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM3_SHIFT)
+	_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, format)
+
+
+## The plane two pieces share at a joint: its normal bisects their
+## directions, so each piece keeps exactly its own side. A near-reversal
+## has no sensible bisector; the pieces then just butt-join.
+func _miter(dir_in: Vector3, dir_out: Vector3) -> Vector3:
+	var n: Vector3 = dir_in + dir_out
+	if n.length() < 0.3:
+		return dir_out
+	return n.normalized()
+
+
+## Past the budget is crimson whatever is underfoot (it is the answer
+## "you can't get there this turn"); within it a surface tints the line.
+func _color_at(point: Vector3, past_limit: bool, context: WorldContext) -> Color:
+	if past_limit:
+		return path_out_of_range_color
+	var surface: Surface = SurfaceManager.cloud_at(point, context)
+	if surface == null:
+		surface = SurfaceManager.surface_at(point, context)
+	if surface == null:
+		return path_in_range_color
+	if surface.status_effect != null or surface.movement_cost_multiplier > 1.0 or surface.blocks_sight:
+		return hazard_surface_color
+	return harmless_surface_color
+
+
+## Dash pattern for how obscured a point is: DetectionManager's light
+## model, and any sight-blocking cloud counts as heavily obscured.
+func _pattern_at(point: Vector3, context: WorldContext) -> Vector2:
+	var cloud: Surface = SurfaceManager.cloud_at(point, context)
+	if cloud and cloud.blocks_sight:
+		return PATTERN_HEAVY
+	match DetectionManager.obscurity_at(point):
+		UnitAwareness.Obscurity.HEAVY:
+			return PATTERN_HEAVY
+		UnitAwareness.Obscurity.LIGHT:
+			return PATTERN_LIGHT
+	return PATTERN_CLEAR
 
 
 ## Cost, not straight-line distance: it's what the budget is spent in,
-## so "x / y" compares like with like. Tinted with the line's own
-## out-of-range colour when the route doesn't fit.
+## so "x / y" compares like with like. Crimson when the route doesn't
+## fit.
 func _update_readout(end: Vector3, total_cost: float, budget: float) -> void:
 	_readout.global_position = end + Vector3(0, readout_height, 0)
 	if is_inf(budget):
 		_readout.text = "%.1f m" % total_cost
-		_readout.modulate = Color(path_in_range_color, 1.0)
+		_readout.modulate = path_in_range_color
 	else:
 		_readout.text = "%.1f / %.1f m" % [total_cost, maxf(budget, 0.0)]
-		_readout.modulate = Color(path_in_range_color if total_cost <= budget else path_out_of_range_color, 1.0)
-
-
-## Purely visual corner rounding for the rendered path line — replaces
-## each interior vertex with a small quadratic-Bezier fillet so real
-## grid-aligned turns don't read as jagged 90/45-degree corners. Radius
-## is clamped per-corner to at most half of either adjacent segment's
-## length, so short zigzag segments can't produce overlapping arcs.
-## Endpoints are always kept exact (the line still starts at the unit
-## and ends exactly at the hover point / budget split). The result is
-## only ever used for drawing — never fed back into pathfinding, cost,
-## or the real move.
-func _round_corners(points: PackedVector3Array, radius: float, arc_segments: int) -> PackedVector3Array:
-	if points.size() < 3 or radius <= 0.0:
-		return points
-
-	var result := PackedVector3Array()
-	result.append(points[0])
-
-	for i in range(1, points.size() - 1):
-		var prev: Vector3 = points[i - 1]
-		var corner: Vector3 = points[i]
-		var next: Vector3 = points[i + 1]
-
-		var to_prev: Vector3 = corner - prev
-		var to_next: Vector3 = next - corner
-		var len_prev: float = to_prev.length()
-		var len_next: float = to_next.length()
-		if len_prev < 0.001 or len_next < 0.001:
-			result.append(corner)
-			continue
-
-		var r: float = min(radius, len_prev * 0.5, len_next * 0.5)
-		var arc_start: Vector3 = corner - (to_prev / len_prev) * r
-		var arc_end: Vector3 = corner + (to_next / len_next) * r
-
-		result.append(arc_start)
-		for s in range(1, arc_segments):
-			var t: float = float(s) / float(arc_segments)
-			var a: Vector3 = arc_start.lerp(corner, t)
-			var b: Vector3 = corner.lerp(arc_end, t)
-			result.append(a.lerp(b, t))
-		result.append(arc_end)
-
-	result.append(points[points.size() - 1])
-	return result
-
-
-## Draws `points` (already corner-rounded, ONE continuous polyline
-## spanning the whole path — see _draw_path for why the in-range and
-## out-of-range halves get concatenated before reaching here) into
-## _path_immediate. UV.y is 0 at the left edge, 1 at the right, for the
-## shader's width falloff (see movement_indicator_line.gdshader) — the
-## only UV component the current shader actually reads. UV.x is still
-## tracked as cumulative arc length in meters, even though nothing
-## currently samples it — cheap to keep computing correctly, and would
-## make a future animated-flow or length-based effect a small addition
-## rather than a rework. Reused as the input to _color_at_arc_length,
-## which is where each vertex's actual color comes from — not a single
-## flat tint for the whole ribbon, see that function.
-##
-## Uses a proper miter join: one perpendicular PER POINT (via
-## _miter_perpendiculars), not one per segment — otherwise two quads
-## meeting at a bend each compute their own perpendicular from only
-## their own segment's direction and disagree on where their shared edge
-## actually is, leaving a visible gap or overlap at every corner.
-## Sharing one perpendicular per point makes adjacent quads agree
-## exactly on the joint's edge vertices instead.
-func _draw_textured_ribbon(points: PackedVector3Array, split_arc_length: float, lift: Vector3, width: float) -> void:
-	if points.size() < 2 or width <= 0.0:
-		return
-
-	var lifted := PackedVector3Array()
-	for p in points:
-		lifted.append(p + lift)
-
-	var cumulative := PackedFloat32Array()
-	cumulative.resize(lifted.size())
-	cumulative[0] = 0.0
-	for i in range(1, lifted.size()):
-		cumulative[i] = cumulative[i - 1] + lifted[i - 1].distance_to(lifted[i])
-
-	var perps := _miter_perpendiculars(lifted, width * 0.5)
-	var half_transition: float = color_transition_length * 0.5
-
-	var vertices := PackedVector3Array()
-	var uvs := PackedVector2Array()
-	var colors := PackedColorArray()
-	for i in range(1, lifted.size()):
-		if cumulative[i] - cumulative[i - 1] < 0.0001:
-			continue
-		var a: Vector3 = lifted[i - 1]
-		var b: Vector3 = lifted[i]
-		var perp_a: Vector3 = perps[i - 1]
-		var perp_b: Vector3 = perps[i]
-		var uv_a: float = cumulative[i - 1]
-		var uv_b: float = cumulative[i]
-		var color_a: Color = _color_at_arc_length(uv_a, split_arc_length, half_transition)
-		var color_b: Color = _color_at_arc_length(uv_b, split_arc_length, half_transition)
-
-		vertices.append(a - perp_a)
-		uvs.append(Vector2(uv_a, 0.0))
-		colors.append(color_a)
-		vertices.append(a + perp_a)
-		uvs.append(Vector2(uv_a, 1.0))
-		colors.append(color_a)
-		vertices.append(b + perp_b)
-		uvs.append(Vector2(uv_b, 1.0))
-		colors.append(color_b)
-
-		vertices.append(a - perp_a)
-		uvs.append(Vector2(uv_a, 0.0))
-		colors.append(color_a)
-		vertices.append(b + perp_b)
-		uvs.append(Vector2(uv_b, 1.0))
-		colors.append(color_b)
-		vertices.append(b - perp_b)
-		uvs.append(Vector2(uv_b, 0.0))
-		colors.append(color_b)
-
-	if vertices.is_empty():
-		return
-
-	_path_immediate.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i in range(vertices.size()):
-		_path_immediate.surface_set_color(colors[i])
-		_path_immediate.surface_set_uv(uvs[i])
-		_path_immediate.surface_add_vertex(vertices[i])
-	_path_immediate.surface_end()
-
-
-## Color for a vertex at `arc_length` along the ribbon, blending smoothly
-## between path_in_range_color and path_out_of_range_color across
-## `half_transition` meters on each side of `split_arc_length` (the
-## move_remaining budget boundary) — an exact 50/50 mix precisely AT the
-## boundary, pure path_in_range_color at half_transition or more before
-## it, pure path_out_of_range_color at half_transition or more after.
-## half_transition<=0 reproduces a hard, instant cut. split_arc_length
-## can be INF (see _draw_path) to mean "no real boundary on this
-## ribbon" — every finite arc_length then reads as arbitrarily far
-## "before" it, which this formula already resolves to pure
-## path_in_range_color without needing a separate branch for that case.
-func _color_at_arc_length(arc_length: float, split_arc_length: float, half_transition: float) -> Color:
-	if half_transition <= 0.0:
-		return path_out_of_range_color if arc_length >= split_arc_length else path_in_range_color
-	var t: float = clamp((arc_length - split_arc_length) / half_transition, -1.0, 1.0)
-	var t01: float = (t + 1.0) * 0.5
-	return path_in_range_color.lerp(path_out_of_range_color, t01)
-
-
-## One ribbon-width perpendicular per point in `lifted`, for a proper
-## miter join (see _draw_textured_ribbon) — at an interior point, this
-## is the perpendicular of the AVERAGED incoming/outgoing segment
-## direction rather than either segment's own, so both quads sharing
-## that point use the exact same edge vertices there. At an endpoint
-## (only one adjacent segment exists) it's just that segment's own
-## perpendicular.
-##
-## Scaled by 1/cos(half the turn angle) — the standard miter-length
-## correction. Without it, a shared perpendicular angled between two
-## segments doesn't reach `half_width` measured perpendicular to either
-## ACTUAL segment, so the ribbon would visibly pinch thinner at every
-## bend. The correction blows up toward a sharp spike as the turn
-## approaches a full reversal (a well-known miter-join degenerate case),
-## guarded by falling back to no correction there — not a real concern
-## in practice since _round_corners already keeps the turn angle at any
-## one point small (it subdivides each corner into corner_round_segments
-## pieces), never a sharp reversal.
-func _miter_perpendiculars(lifted: PackedVector3Array, half_width: float) -> PackedVector3Array:
-	var perps := PackedVector3Array()
-	perps.resize(lifted.size())
-	for i in range(lifted.size()):
-		var dir_in := Vector3.ZERO
-		var dir_out := Vector3.ZERO
-		if i > 0:
-			var d: Vector3 = lifted[i] - lifted[i - 1]
-			if d.length() > 0.0001:
-				dir_in = d.normalized()
-		if i < lifted.size() - 1:
-			var d: Vector3 = lifted[i + 1] - lifted[i]
-			if d.length() > 0.0001:
-				dir_out = d.normalized()
-
-		var miter_dir: Vector3 = dir_in + dir_out
-		if miter_dir.length() < 0.0001:
-			miter_dir = dir_in if dir_in.length() > 0.0001 else dir_out
-
-		var stretch: float = 1.0
-		if dir_in.length() > 0.0001 and dir_out.length() > 0.0001:
-			var cos_half_angle: float = sqrt(max(0.0, (1.0 + dir_in.dot(dir_out)) * 0.5))
-			if cos_half_angle > 0.2:
-				stretch = 1.0 / cos_half_angle
-
-		perps[i] = _horizontal_perpendicular(miter_dir) * half_width * stretch
-	return perps
-
-
-## Sideways (XZ-plane) direction perpendicular to `direction`, for a
-## flat ground-hugging ribbon's width — always horizontal regardless of
-## `direction`'s own slope, so the ribbon reads as a constant-width
-## trail seen from above rather than one that thins out as the path
-## steepens (relevant for a flying unit's path, which can bend up/down).
-## Falls back to world right when `direction` is purely vertical (no
-## horizontal component to rotate) — an edge case straight-up/down
-## flight movement can hit.
-func _horizontal_perpendicular(direction: Vector3) -> Vector3:
-	var horizontal := Vector2(direction.x, direction.z)
-	if horizontal.length() < 0.001:
-		return Vector3.RIGHT
-	horizontal = horizontal.normalized()
-	return Vector3(-horizontal.y, 0.0, horizontal.x)
+		_readout.modulate = path_in_range_color if total_cost <= budget else path_out_of_range_color
