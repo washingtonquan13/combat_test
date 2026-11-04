@@ -45,6 +45,7 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud floo
 
 ## Wall of Fire (data/abilities/wall_of_fire.tres)
 - Two clicks: `LineTargeting.resolve_click` holds the first click on `AbilityManager.line_start` (if it is in range and sight) and returns null; the second returns a `LineTarget` whose end `end_for` pulls in to `max_length`. An illegal end keeps the start. `LineIndicator` draws the aim line, then the wall's outline with the same `end_for` and the wall surface's height.
+- Air walls: holding Ctrl and dragging lifts each click into the air, like an aerial blast (`IndicatorBase._handle_aim_height_input`, shared with `AerialAreaIndicator`; `LineTargeting.resolve_target_point` applies `AbilityManager.aim_height_override`). The wall stands from that height, and `_leave_behind` lays no ground fire under cubes whose bottom doesn't meet the floor.
 - It is a cloud, not ground: opaque (`blocks_sight`), and it sets walkers and fliers alike Searing (`data/statuses/searing.tres`, 1d6 a turn against Burning's 1d6-3).
 - `lays_ground_under`: `spawn_wall` lays its `leaves_behind` under the ground-row cubes the moment it rises, for the wall's rounds plus its own. A walker stands in both and still burns once: `_statuses` rolls each status once per check (on entering, at turn start), and of a `StatusEffect.group` only the highest `rank`. `StatusManager.apply` holds the same rule: Searing replaces Burning, Burning never lands over Searing.
 - `leaves_behind`: as its cubes run out, `_leave_behind` also lays (or tops up) that surface (2-round Fire) on ground that passes through a ground-row cube. `_age` ages the ground before the clouds, so the leftover keeps its whole duration.
@@ -127,7 +128,7 @@ Every surface belongs to a world.
   - Darkness: Dark Vision sees through and is not Blinded; without it, blocked (sabotage-checked).
   - Sabotage-checked: removing the LoS call or the release turns it red.
 - tests/combat/test_surface_grid.gd (4 checks): overlapping grease pools into one patch; water cast over it takes those cells; expired cells leave the grid; expire_all_ground empties it. Sabotage-checked: no merging turns it red.
-- tests/combat/test_wall_of_fire.gd (6 checks): two-click line pulled to max_length; the wall blocks sight and lays ground fire under it at once; a walker in both is Searing and not Burning; running out leaves ground fire with full rounds. Sabotage-checked: aging clouds before ground turns it red, and so does taking Burning out of its group.
+- tests/combat/test_wall_of_fire.gd (7 checks): two-click line pulled to max_length; the wall blocks sight and lays ground fire under it at once; a walker in both is Searing and not Burning; running out leaves ground fire with full rounds; a wall cast 3 m up lays none. Sabotage-checked: aging clouds before ground turns it red, and so does taking Burning out of its group.
 - tests/world/test_world_scoping.gd:190-222 checks surface world scoping.
 
 **Gaps:** no test covers two fights in one world sharing a clock, or saving.

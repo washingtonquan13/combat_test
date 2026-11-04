@@ -1,11 +1,13 @@
 class_name LineTargeting
 extends AbilityTargeting
-## Targets a line on the ground, placed with two clicks — the first sets
+## Targets a line, placed with two clicks — the first sets
 ## where it starts, the second where it ends (Wall of Fire). target is a
 ## LineTarget. Both ends must be within max_range of the caster and, with
 ## requires_line_of_sight, in sight; the line is never longer than
 ## max_length (the second click is pulled in to it, so the preview and
-## the cast agree).
+## the cast agree). Each end may be Ctrl-dragged into the air like an
+## aerial blast (resolve_target_point): the wall then stands from that
+## height and lays no ground fire under it.
 ##
 ## The first click is held in AbilityManager (line_start) between the two
 ## clicks, the same place a Ctrl-dragged aim height waits, and is dropped
@@ -47,6 +49,7 @@ func end_for(start: Vector3, point: Vector3) -> Vector3:
 ## First click: holds the start, if one may go there. Second: the line,
 ## if it is a legal one — an illegal end keeps the start for another try.
 func resolve_click(attacker: Unit, click_position: Vector3) -> Variant:
+	click_position = resolve_target_point(click_position)
 	if not AbilityManager.has_line_start:
 		if can_reach(attacker, click_position):
 			AbilityManager.set_line_start(click_position)
@@ -76,6 +79,14 @@ func describe() -> String:
 	if requires_line_of_sight:
 		s += ", requires line of sight"
 	return s
+
+
+## Lifts a click to the Ctrl-dragged aim height, if any - the same
+## value line_indicator.gd previews.
+func resolve_target_point(click_position: Vector3) -> Vector3:
+	if AbilityManager.has_aim_height_override:
+		click_position.y = AbilityManager.aim_height_override
+	return click_position
 
 
 static func _flat(v: Vector3) -> Vector3:

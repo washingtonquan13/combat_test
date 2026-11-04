@@ -16,8 +16,9 @@ extends AreaIndicator
 ## ring shape itself (_draw_ring below overrides the inherited single-
 ## ring version with three mutually perpendicular rings — _update_ring's
 ## inherited body still calls _draw_ring() virtually, so it picks up
-## this override for free), and the height-drag control neither the
-## floor-only sibling nor IndicatorBase needs.
+## this override for free), and the Ctrl height drag (shared with
+## line_indicator.gd on IndicatorBase), which the floor-only sibling
+## never uses.
 ##
 ## A line from caster to the hovered point (colored by range/line-of-
 ## sight, same states as line_of_sight_indicator.gd), plus a WIREFRAME-
@@ -53,14 +54,6 @@ extends AreaIndicator
 ## ground_collision_mask (see IndicatorBase) must match whatever physics
 ## layer your ground/terrain body is on.
 
-## Whether the Ctrl height-drag was active last frame — used only to
-## detect the moment it STARTS, so the drag's XZ anchor gets captured
-## once per press instead of drifting every frame. Same pattern
-## movement_indicator.gd uses for its own altitude drag.
-var _height_dragging: bool = false
-var _height_drag_anchor_xz: Vector2 = Vector2.ZERO
-
-
 func serves() -> StringName:
 	return &"aerial_area"
 
@@ -78,39 +71,12 @@ func _process(_delta: float) -> void:
 		_hide_all()
 		return
 
-	_handle_height_input(hover_point)
+	_handle_aim_height_input(hover_point)
 	if AbilityManager.has_aim_height_override:
 		hover_point.y = AbilityManager.aim_height_override
 
 	_update_line(unit, ability, hover_point)
 	_update_ring(ability, hover_point)
-
-
-## Modifier-style height control, mirroring movement_indicator.gd's
-## _handle_altitude_input exactly (see this file's header for why it's
-## duplicated rather than shared — the shared PART, the actual sampling
-## math, lives on IndicatorBase as _sample_height_from_mouse; this
-## surrounding drag/anchor bookkeeping is what's genuinely different per
-## caller, since one writes to a Unit's flight_target_altitude and the
-## other to AbilityManager.aim_height_override). On the frame the
-## modifier is first held, the XZ point the ground hover was aiming at
-## gets frozen — for the rest of the hold, mouse movement only changes
-## height, not the aim point, so the two never fight over the same
-## input. Writes the result straight to AbilityManager rather than a
-## local field — see this file's header for why the click handler needs
-## the SAME value.
-func _handle_height_input(hover_point: Vector3) -> void:
-	if not Input.is_action_pressed("fly_altitude_modifier"):
-		_height_dragging = false
-		return
-
-	if not _height_dragging:
-		_height_drag_anchor_xz = Vector2(hover_point.x, hover_point.z)
-		_height_dragging = true
-
-	var sampled_height = _sample_height_from_mouse(_height_drag_anchor_xz)
-	if sampled_height != null:
-		AbilityManager.set_aim_height_override(sampled_height)
 
 
 func _draw_ring(center: Vector3, radius: float) -> void:

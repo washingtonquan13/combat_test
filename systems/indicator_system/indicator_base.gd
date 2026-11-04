@@ -37,6 +37,13 @@ static var _raycast_cache: Dictionary = {}
 ## off wholesale.
 var _owned_meshes: Array[MeshInstance3D] = []
 
+## Whether the Ctrl height-drag was active last frame — used only to
+## detect the moment it STARTS, so the drag's XZ anchor gets captured
+## once per press instead of drifting every frame. Same pattern
+## movement_indicator.gd uses for its own altitude drag.
+var _height_dragging: bool = false
+var _height_drag_anchor_xz: Vector2 = Vector2.ZERO
+
 
 ## Joins the group the ClickRouter walks, and stands down until that
 ## router says otherwise — see serves() for which indicators that applies
@@ -281,3 +288,25 @@ func _sample_height_from_mouse(anchor_xz: Vector2):
 	if hit == null:
 		return null
 	return hit.y
+
+
+## Ctrl-drag of the armed ability's aim height, for the indicators of
+## abilities that may be aimed into the air (aerial_area_indicator.gd,
+## line_indicator.gd). Mirrors movement_indicator.gd's altitude drag: on
+## the frame the modifier is first held the hovered XZ point freezes, and
+## for the rest of the hold the mouse only changes height. Writes to
+## AbilityManager.aim_height_override, which the click reads too
+## (AbilityTargeting.resolve_target_point), so the cast matches the
+## preview.
+func _handle_aim_height_input(hover_point: Vector3) -> void:
+	if not Input.is_action_pressed("fly_altitude_modifier"):
+		_height_dragging = false
+		return
+
+	if not _height_dragging:
+		_height_drag_anchor_xz = Vector2(hover_point.x, hover_point.z)
+		_height_dragging = true
+
+	var sampled_height = _sample_height_from_mouse(_height_drag_anchor_xz)
+	if sampled_height != null:
+		AbilityManager.set_aim_height_override(sampled_height)

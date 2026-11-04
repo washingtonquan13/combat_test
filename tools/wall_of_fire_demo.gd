@@ -3,7 +3,9 @@ extends "res://tools/fog_cloud_demo.gd"
 ## wall between the shooter and the dummy, with burning ground under it,
 ## a dummy walking through it, a
 ## second dummy flying through it, and the wall running out and leaving
-## burning ground. Record it the same way as fog_cloud_demo.
+## burning ground. Then a second wall cast in the air, Ctrl-dragged up
+## 3 m: nothing burns under it, and a flier through it is Searing.
+## Record it the same way as fog_cloud_demo.
 
 const Wall: Ability = preload("res://data/abilities/wall_of_fire.tres")
 
@@ -19,6 +21,13 @@ func _run() -> void:
 	var near: Vector3 = _spot(-2.5, 1.5)
 	var line := LineTarget.new(_spot(-6.0, -5.0), _spot(-6.0, 5.0))
 	var flier_start: Vector3 = _spot(-12.0, -2.0) + Vector3.UP * 2.5
+	# The second, airborne wall - spots taken now, while _spot's frame
+	# (the hero's facing) is the one the rest were.
+	var air_spot: Vector3 = _spot(-3.0, 0.0)
+	var air_from: Vector3 = _spot(-3.0, -3.0)
+	var air_to: Vector3 = _spot(-3.0, 3.0)
+	var high_start: Vector3 = _spot(-6.0, 1.0) + Vector3.UP * 3.5
+	var high_end: Vector3 = _spot(0.0, 1.0) + Vector3.UP * 3.5
 	var dummy: Unit = _dummy(-12.0, 0.0)
 	var wall_surface: Surface = (Wall.effects[0] as SpawnSurfaceEffect).surface
 	var searing: StatusEffect = wall_surface.status_effect
@@ -70,7 +79,30 @@ func _run() -> void:
 	var cell: SurfaceCell = WorldManager.context().surface_grid.cell_under(middle)
 	_check("the burning ground has its full 2 rounds", cell != null and cell.rounds == wall_surface.leaves_behind.duration_rounds)
 	_say("...it has burned down, leaving the ground on fire for 2 rounds")
-	await _wait(5.0)
+	await _wait(3.0)
+
+	_say("Cast it again, Ctrl-dragged 3 m into the air")
+	_frame(air_spot, 16.0)
+	SurfaceManager.expire_all_clouds(WorldManager.context())
+	AbilityManager.set_aim_height_override(air_spot.y + 3.0)
+	var air_line := LineTarget.new(Wall.targeting.resolve_target_point(air_from),
+		Wall.targeting.resolve_target_point(air_to))
+	AbilityManager.has_aim_height_override = false
+	await _wait(1.0)
+	await _hero.use_ability(Wall, air_line)
+	await _wait(2.5)
+	_check("the air wall stands 3 m up", not SurfaceManager.cloud_grid.is_empty())
+	var under: SurfaceCell = WorldManager.context().surface_grid.cell_under(air_spot)
+	_check("nothing burns under the air wall", under == null or under.surface == null)
+	var high: Unit = _dummy(-6.0, 1.0)
+	high.global_position = high_start
+	_say("A dummy flies through it, 3.5 m up")
+	await _wait(1.0)
+	await _walk(high, high_end)
+	await _wait(0.5)
+	_check("flying through the air wall set it Searing", high.has_status(searing))
+	_say("In the air: no ground fire, Searing for fliers")
+	await _wait(4.0)
 
 	var total := _passed + _failed.size()
 	_say("Done: %d/%d checks passed" % [_passed, total])

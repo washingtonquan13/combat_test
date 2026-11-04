@@ -6,7 +6,9 @@ extends IndicatorBase
 ## wall's outline standing from the held start to where the second click
 ## would end it — pulled in to max_length by LineTargeting.end_for(), the
 ## same call the click makes, and as tall as the armed ability's wall
-## surface — colored by whether that line is a legal target.
+## surface — colored by whether that line is a legal target. Ctrl-drag
+## lifts the hovered point into the air (IndicatorBase.
+## _handle_aim_height_input), and the click takes that height too.
 
 @export var clear_color: Color = Color(1, 1, 1, 0.9)
 @export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
@@ -38,6 +40,8 @@ func _process(_delta: float) -> void:
 	if not unit or not targeting or hover_point == null:
 		_line_mesh.visible = false
 		return
+	_handle_aim_height_input(hover_point)
+	hover_point = targeting.resolve_target_point(hover_point)
 	if AbilityManager.has_line_start:
 		_draw_wall(unit, ability, targeting, AbilityManager.line_start, hover_point)
 	else:

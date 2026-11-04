@@ -2,7 +2,7 @@ extends AiTestCase
 ## Wall of Fire: two clicks make the line, the wall is an opaque cloud that
 ## sets walkers and fliers Searing over the ground fire it lays under it -
 ## a walker in both gets Searing alone - and running out leaves that
-## burning ground with its whole duration.
+## burning ground with its whole duration. One cast in the air lays none.
 
 var WALL: Ability = load("res://data/abilities/wall_of_fire.tres")
 
@@ -36,5 +36,9 @@ func run() -> void:
 	check("running out leaves burning ground with its full rounds",
 		SurfaceManager._clouds_for(context).is_empty() and cell != null and cell.surface == wall.leaves_behind
 		and cell.rounds == wall.leaves_behind.duration_rounds)
+	SurfaceManager.expire_all_clouds(context)
+	SurfaceManager.spawn_wall(wall, Vector3(-3.0, 3.0, -5.0), Vector3(-3.0, 3.0, 5.0), caster)
+	check("an air wall stands with no ground fire under it",
+		not SurfaceManager._clouds_for(context).is_empty() and SurfaceManager.surface_at(Vector3(-3.0, 0.0, 0.0), context) == null)
 	SurfaceManager.expire_all_clouds(context)
 	free_spawned()
