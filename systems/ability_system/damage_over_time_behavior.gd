@@ -32,6 +32,12 @@ func on_turn_start(unit: Unit, active: ActiveStatus) -> void:
 	unit.take_damage(applied)
 
 
+## Walking into the fire burns at once, one roll, as well as setting
+## the status ticking.
+func on_contact(unit: Unit, _active: ActiveStatus) -> void:
+	unit.take_damage(DamageResolver.injury(roll_damage(), unit, wound_type, armor_divisor, false, ignores_damage_reduction))
+
+
 func roll_damage() -> int:
 	var total: int = 0
 	for _i in dice_count:

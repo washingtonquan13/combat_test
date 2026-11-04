@@ -151,6 +151,16 @@ func remove(effect: StatusEffect, voluntary: bool = false) -> void:
 	status_removed.emit(effect)
 
 
+## A surface just put effect on the unit by their getting into it: each
+## of its behaviors' on_contact.
+func contact(effect: StatusEffect) -> void:
+	var existing: ActiveStatus = _find(effect)
+	if not existing:
+		return
+	for behavior in effect.behaviors:
+		behavior.on_contact(_owner, existing)
+
+
 func has(effect: StatusEffect) -> bool:
 	return _find(effect) != null
 

@@ -17,6 +17,14 @@ func on_apply(_unit: Unit, _active: ActiveStatus) -> void:
 	pass
 
 
+## Called when a surface puts this status on unit by their getting into
+## it - stepping into fire, a wall springing up round them - after it is
+## applied (see SurfaceManager._process). Not at turn start, when the
+## status's own on_turn_start already bites.
+func on_contact(_unit: Unit, _active: ActiveStatus) -> void:
+	pass
+
+
 ## Called once when the status is removed (expired, cured, replaced).
 ## voluntary is true only when the unit itself chose this removal (a
 ## Land action) — false for natural expiry or any other forced removal

@@ -1164,6 +1164,12 @@ func inflict_status(effect: StatusEffect, source: Unit) -> bool:
 	return true
 
 
+## A surface's status just landed on this unit as they got into it
+## (StatusBehavior.on_contact).
+func status_contact(effect: StatusEffect) -> void:
+	_status_manager.contact(effect)
+
+
 ## Bloodied and Exhausted follow their pools, both ways, on every pool
 ## change — damage, healing, FP spent, a maximum moving. Every unit, not
 ## just the party. Never partway through a status change (see

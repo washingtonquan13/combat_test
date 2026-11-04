@@ -30,7 +30,8 @@ extends Node
 ## BOTH:
 ##  - Every frame (_process), each unit is checked against the cells under
 ##    its footprint and the cubes its body touches (_holding): getting
-##    into one applies its status, the INSTANT it happens, mid-move;
+##    into one applies its status, the INSTANT it happens, mid-move,
+##    and the status's on_contact bites then too (fire burns at once);
 ##    getting out takes a status_only_inside one (Blinded) back off,
 ##    unless something else still holding the unit gives it too.
 ##  - CombatManager.turn_started(unit): re-applies status_effect to
@@ -439,8 +440,10 @@ func _process(_delta: float) -> void:
 			_inside[unit] = now
 		var had: Array[StatusEffect] = _statuses(before, unit)
 		for effect in _statuses(now, unit):
-			if not had.has(effect):
-				unit.inflict_status(effect, null)
+			if not had.has(effect) and unit.inflict_status(effect, null):
+				unit.status_contact(effect)
+		if unit.is_downed() and unit.is_moving():
+			unit.stop_moving()
 		for surface in before:
 			if not now.has(surface):
 				_release(unit, surface, now)
