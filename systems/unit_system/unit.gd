@@ -1015,6 +1015,10 @@ func set_box_hover(value: bool) -> void:
 	_selection.set_box_hover(value)
 
 
+func set_area_targeted(value: bool) -> void:
+	_selection.set_area_targeted(value)
+
+
 func _physics_process(delta: float) -> void:
 	_movement.physics_process(delta)
 

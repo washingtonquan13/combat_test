@@ -43,6 +43,8 @@ extends IndicatorBase
 
 var _line_mesh: PathTube
 var _shell: AoeShell
+## Units outlined as inside the area this frame (Unit.set_area_targeted).
+var _targeted: Array[Unit] = []
 
 
 func serves() -> StringName:
@@ -74,6 +76,7 @@ func draw(aim: Aim) -> void:
 
 	_update_line(unit, ability, hover_point)
 	_update_ring(ability, hover_point)
+	_update_targets(unit, ability, hover_point)
 
 
 func _hide_all() -> void:
@@ -81,6 +84,45 @@ func _hide_all() -> void:
 		_line_mesh.visible = false
 	if _shell:
 		_shell.visible = false
+	_set_targets([])
+
+
+func hide_visuals() -> void:
+	super()
+	_set_targets([])
+
+
+## Outlines exactly who the cast will catch: the same UnitQuery scan the
+## area effects run, with their own hostile/ally gates. A spawned surface
+## or cloud filters no one, so it catches everyone inside.
+func _update_targets(caster: Unit, ability: Ability, center: Vector3) -> void:
+	var targeting := ability.targeting as AreaTargeting
+	if not targeting:
+		_set_targets([])
+		return
+	var hostiles := false
+	var allies := false
+	for effect in ability.effects:
+		if effect is SpawnSurfaceEffect:
+			hostiles = true
+			allies = true
+		elif "affects_hostiles" in effect:
+			hostiles = hostiles or effect.affects_hostiles
+			allies = allies or effect.affects_allies
+	if not hostiles and not allies:
+		_set_targets([])
+		return
+	_set_targets(UnitQuery.area_affected(caster.get_tree(), caster, center, targeting.radius, hostiles, allies))
+
+
+func _set_targets(units: Array[Unit]) -> void:
+	for unit in _targeted:
+		if is_instance_valid(unit) and not units.has(unit):
+			unit.set_area_targeted(false)
+	for unit in units:
+		if not _targeted.has(unit):
+			unit.set_area_targeted(true)
+	_targeted = units
 
 
 func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:

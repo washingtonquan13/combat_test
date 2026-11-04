@@ -82,6 +82,9 @@ signal deselected()
 var is_hovered: bool = false
 var is_selected: bool = false
 var box_hovered: bool = false
+## Inside an armed area ability's volume (AreaIndicator): outlined so the
+## player sees who the cast will catch before committing.
+var area_targeted: bool = false
 
 ## The Unit this belongs to. Identical to get_parent() once in the tree —
 ## kept as a typed field anyway because it is set in _init(), before this
@@ -449,6 +452,15 @@ func set_box_hover(value: bool) -> void:
 	update_highlight()
 
 
+## Set by AreaIndicator while this unit is inside the previewed area.
+## Outline only: the ring keeps meaning hover/selection.
+func set_area_targeted(value: bool) -> void:
+	if area_targeted == value:
+		return
+	area_targeted = value
+	update_highlight()
+
+
 func update_highlight() -> void:
 	var show: bool = is_selected or is_hovered or box_hovered
 	var my_turn: bool = _is_active_turn()
@@ -493,11 +505,15 @@ func update_highlight() -> void:
 		set_physics_process(any_ring)
 
 	if _owner.outline_mesh:
-		_owner.outline_mesh.visible = show
-		if show:
+		var outlined: bool = show or area_targeted
+		_owner.outline_mesh.visible = outlined
+		if outlined:
+			var outline_color: Color = state_color
+			if area_targeted:
+				outline_color = _relation_color()
 			var outline_material := _owner.outline_mesh.material_override as ShaderMaterial
 			if outline_material:
-				outline_material.set_shader_parameter("outline_color", state_color)
+				outline_material.set_shader_parameter("outline_color", outline_color)
 
 
 ## Who this unit is to the party. PARTY is "a unit the player commands"
