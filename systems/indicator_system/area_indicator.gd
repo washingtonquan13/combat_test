@@ -37,15 +37,12 @@ extends IndicatorBase
 @export var blocked_color: Color = IndicatorPalette.BLOCKED
 @export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
 @export var line_height_offset: float = 1.5
-## Not an answer colour: the ring only says how big the blast is and
+## Not an answer colour: the shell only says how big the area is and
 ## never changes with whether the cast is allowed (the line says that).
-@export var ring_color: Color = Color(1, 0.5, 0.1, 0.9)
-@export var ring_height_offset: float = 0.05
-@export var ring_segments: int = 48
+@export var ring_color: Color = IndicatorPalette.AOE
 
 var _line_mesh: PathTube
-var _ring_mesh: MeshInstance3D
-var _ring_immediate: ImmediateMesh
+var _shell: AoeShell
 
 
 func serves() -> StringName:
@@ -56,9 +53,10 @@ func _ready() -> void:
 	super()
 	_line_mesh = _create_tube()
 
-	var ring_built: Dictionary = _create_line_mesh()
-	_ring_mesh = ring_built.mesh_instance
-	_ring_immediate = ring_built.immediate
+	_shell = AoeShell.new()
+	add_child(_shell)
+	_owned_meshes.append(_shell)
+	_shell.set_tint(ring_color)
 
 
 func draw(aim: Aim) -> void:
@@ -81,8 +79,8 @@ func draw(aim: Aim) -> void:
 func _hide_all() -> void:
 	if _line_mesh:
 		_line_mesh.visible = false
-	if _ring_mesh:
-		_ring_mesh.visible = false
+	if _shell:
+		_shell.visible = false
 
 
 func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
@@ -110,15 +108,12 @@ func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 func _update_ring(ability: Ability, hover_point: Vector3) -> void:
 	var targeting := ability.targeting as AreaTargeting
 	if not targeting:
-		_ring_mesh.visible = false
+		_shell.visible = false
 		return
-
 	_draw_ring(hover_point, targeting.radius)
-	_ring_mesh.visible = true
 
 
+## Floor-only: the footprint the spill will cover, traced on the terrain.
 func _draw_ring(center: Vector3, radius: float) -> void:
-	# Flat: the ring lies on the ground.
-	_ring_immediate.clear_surfaces()
-	var lifted: Vector3 = center + Vector3(0, ring_height_offset, 0)
-	_add_ribbon(_ring_immediate, _ring_points(lifted, radius, ring_segments), PackedColorArray([ring_color]))
+	_shell.set_shape(AoeShell.Shape.FOOTPRINT)
+	_shell.show_at(center, radius)

@@ -90,8 +90,10 @@ var box_hovered: bool = false
 var _owner: Unit
 
 ## Ring widths, as fractions of the ring's own radius — the state axis.
-const RING_WIDTH_HOVER: float = 0.07
-const RING_WIDTH_SELECTED: float = 0.16
+## Thin, BG3-style: a crisp core of a few cm plus a soft halo
+## (RING_GLOW), so selection reads by brightness, not by bulk.
+const RING_WIDTH_HOVER: float = 0.035
+const RING_WIDTH_SELECTED: float = 0.06
 const RING_ALPHA_HOVER: float = 0.6
 const RING_ALPHA_SELECTED: float = 1.0
 ## How far a party ring fades while someone outside the party is acting.
@@ -100,7 +102,7 @@ const RING_ALPHA_SELECTED: float = 1.0
 const PARTY_WAITING_ALPHA: float = 0.35
 ## The turn marker: an outer ring, so it reads alongside a selection ring
 ## rather than replacing it.
-const TURN_RING_WIDTH: float = 0.1
+const TURN_RING_WIDTH: float = 0.04
 const TURN_RING_SCALE: float = 1.3
 const TURN_PULSE_HZ: float = 1.2
 const TURN_PULSE_MIN_ALPHA: float = 0.55
@@ -129,7 +131,12 @@ const DROP_LINE_MIN_HEIGHT: float = 0.3
 ## The drop line's fade at each end (it is a PathTube, the one look
 ## every indicator line shares).
 const DROP_LINE_FADE: float = 0.25
-const RING_TEXTURE_SIZE: int = 128
+const RING_TEXTURE_SIZE: int = 256
+## Soft halo either side of the core, as a fraction of the radius, and
+## its peak opacity. Inside the ring it is weaker, so the floor under
+## the unit stays clean.
+const RING_GLOW: float = 0.1
+const RING_GLOW_ALPHA: float = 0.35
 
 ## Ring textures by width, shared by every unit: [albedo, emission].
 static var _ring_textures: Dictionary = {}
@@ -320,12 +327,21 @@ static func _ring_textures_for(width: float) -> Array:
 	# anti-aliased rather than clipped by the texture border.
 	var outer: float = half - 1.5
 	var inner: float = outer - width * outer
+	var glow: float = RING_GLOW * outer
+	outer -= glow
+	inner -= glow
 	var albedo := Image.create_empty(size, size, false, Image.FORMAT_RGBA8)
 	var emission := Image.create_empty(size, size, false, Image.FORMAT_RGBA8)
 	for y in size:
 		for x in size:
 			var d: float = Vector2(x + 0.5 - half, y + 0.5 - half).length()
-			var coverage: float = clampf(minf(outer - d, d - inner) + 0.5, 0.0, 1.0)
+			var core: float = clampf(minf(outer - d, d - inner) + 0.5, 0.0, 1.0)
+			var gap: float = maxf(d - outer, inner - d)
+			var halo: float = 0.0
+			if gap > 0.0:
+				var side: float = 1.0 if d > outer else 0.5
+				halo = RING_GLOW_ALPHA * side * exp(-pow(gap / (glow * 0.45), 2.0))
+			var coverage: float = maxf(core, halo)
 			albedo.set_pixel(x, y, Color(1.0, 1.0, 1.0, coverage))
 			emission.set_pixel(x, y, Color(coverage, coverage, coverage, 1.0))
 	albedo.generate_mipmaps()

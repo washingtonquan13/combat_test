@@ -23,3 +23,6 @@ const ENEMY: Color = Color(0.84, 0.37, 0.0, 1.0)
 const NEUTRAL: Color = Color(0.94, 0.89, 0.26, 1.0)
 ## The active-turn marker. Gold, distinct from every relation colour.
 const ACTIVE_TURN: Color = Color(1.0, 0.82, 0.35, 1.0)
+## AoE volume previews (AoeShell). Says "this much space", not OK/refused.
+## Neutral: the spell's element is not the indicator's business.
+const AOE: Color = Color(0.86, 0.9, 0.95, 1.0)
