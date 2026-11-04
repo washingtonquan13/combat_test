@@ -19,6 +19,7 @@ status_name = "Burning"
 default_duration = 3
 stack_mode = 0
 max_stacks = 1
+group = &"burning"
 behaviors = Array[ExtResource("2_behavior")]([SubResource("Resource_burn")])
 apply_animation = ""
 apply_animation_loops = false

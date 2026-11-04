@@ -88,6 +88,11 @@ func _set_stat_modifiers(effect: StatusEffect, on: bool) -> void:
 
 
 func apply(effect: StatusEffect) -> void:
+	var rival: ActiveStatus = _rival(effect)
+	if rival:
+		if rival.effect.rank > effect.rank:
+			return
+		remove(rival.effect)
 	var existing: ActiveStatus = _find(effect)
 
 	if existing:
@@ -111,6 +116,17 @@ func apply(effect: StatusEffect) -> void:
 			_owner.register_stat_modifier(behavior, effect.status_name)
 	busy -= 1
 	status_applied.emit(effect, new_active)
+
+
+## Another status of effect's group already on this unit (see
+## StatusEffect.group), or null.
+func _rival(effect: StatusEffect) -> ActiveStatus:
+	if effect.group == &"":
+		return null
+	for a in active:
+		if a.effect != effect and a.effect.group == effect.group:
+			return a
+	return null
 
 
 ## voluntary defaults false — "this removal wasn't the unit's own

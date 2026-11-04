@@ -45,8 +45,9 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud floo
 
 ## Wall of Fire (data/abilities/wall_of_fire.tres)
 - Two clicks: `LineTargeting.resolve_click` holds the first click on `AbilityManager.line_start` (if it is in range and sight) and returns null; the second returns a `LineTarget` whose end `end_for` pulls in to `max_length`. An illegal end keeps the start. `LineIndicator` draws the aim line, then the wall's outline with the same `end_for` and the wall surface's height.
-- It is a cloud, not ground: opaque (`blocks_sight`), and it sets walkers and fliers alike Burning. Nothing burns on the ground under it, so the two never double up.
-- `leaves_behind`: as its cubes run out, `_leave_behind` lays that surface (2-round Fire) on ground that passes through a ground-row cube. `_age` ages the ground before the clouds, so the leftover keeps its whole duration.
+- It is a cloud, not ground: opaque (`blocks_sight`), and it sets walkers and fliers alike Searing (`data/statuses/searing.tres`, 1d6 a turn against Burning's 1d6-3).
+- `lays_ground_under`: `spawn_wall` lays its `leaves_behind` under the ground-row cubes the moment it rises, for the wall's rounds plus its own. A walker stands in both and still burns once: `_statuses` rolls each status once per check (on entering, at turn start), and of a `StatusEffect.group` only the highest `rank`. `StatusManager.apply` holds the same rule: Searing replaces Burning, Burning never lands over Searing.
+- `leaves_behind`: as its cubes run out, `_leave_behind` also lays (or tops up) that surface (2-round Fire) on ground that passes through a ground-row cube. `_age` ages the ground before the clouds, so the leftover keeps its whole duration.
 - The AI does not cast LineTargeting abilities, and does not avoid walking through a wall.
 
 ## Cloud grid (cloud_grid.gd, cloud_cell.gd, cloud_patch.gd)
@@ -63,7 +64,7 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud floo
 - A film shader includes `film_common.gdshaderinc`, defines `film_height(p)`, `film_albedo(p, h)` and `film_emission(p, h)`, then includes `film_passes.gdshaderinc`; every pass derives from the one height, so bumps and glow sit exactly on the film.
 - `liquid_film` covers Grease, Water, Blood and Acid through uniforms (colors, alpha_max, droplets, lumpiness, bubbles, glow_color, wet_rim/wet_color for the dark wet band under the edge, ripple_drift). Every film edge gets small bites from `edge_detail` in `film_common`. Ice has Voronoi cracks and a frosted rim; Web draws spokes and spiral rings in meters, one large web plus three small ones; Fire's scorch is BG3-style char: dark flaky crust (fine fbm in `film_height`, so the normal pass gives it relief) with pale ash flecks, its edge crumbling into pieces within `crumble_m` of the outline; embers are a narrow cut of it - thin ridged-noise cracks and fine flecks - each pulsing in place on `loop_phase`, red-orange with the hot color held below white; a few linger as it recedes.
 - A film can loop: `loop_frames` > 0 draws that many pictures of the emission pass (and the normal pass too when `ripples_move`) once the film has spread (the shader loops on `loop_phase`, from `film_common`), then `_process` cycles them at `loop_fps`. No redraws while it plays; any change of cells drops back to the one live picture. Fire uses 12 at 10 fps; water, blood and acid loop their ripples.
-- Fire adds, emitted from points scattered over its cells (`_cells_shown`, rebuilt only when the cells change): Flames (camera-facing quads, `flame.gdshader`: frames of `assets/vfx/fire_flipbook.png`, an 8x8 grayscale flipbook baked in Blender by `tools/vfx/bake_fire_flipbook.py`, each particle at its own frame offset, half mirrored, blended between frames, colored by a ramp, additive, depth-softened; rim cells get `rim_flame_weight` times the emission points; the ground fire keeps them few and small, 1.2 per m², and fades their bases and sides so the char carries the look), Sparks (`spark.gdshader`, twinkling additive dots with turbulence), Smoke (dark `fog_puff` puffs rising from 1.2 m), Haze (an upright camera-facing quad bending the screen texture, `render_priority` -1 so it draws before the flames and never wipes them) and a flickering OmniLight. `dissipate()` stops the emitters and fades the light and haze, then the scorch recedes.
+- Fire adds, emitted from points scattered over its cells (`_cells_shown`, rebuilt only when the cells change): Flames (camera-facing quads, `flame.gdshader`: frames of `assets/vfx/fire_flipbook.png`, an 8x8 grayscale flipbook baked in Blender by `tools/vfx/bake_fire_flipbook.py`, each particle at its own frame offset, half mirrored, blended between frames, colored by a ramp, additive, depth-softened; flames stand only `flame_inset_m` in from the outline, on the solid char past the crumbling edge (`DecalSurface._depths`); the ground fire keeps them few and small, 1.6 per m², cut to a teardrop by `taper` so a small flame never reads as a box), Sparks (`spark.gdshader`, twinkling additive dots with turbulence), Smoke (dark `fog_puff` puffs rising from 1.2 m), Haze (an upright camera-facing quad bending the screen texture, `render_priority` -1 so it draws before the flames and never wipes them) and a flickering OmniLight. `dissipate()` stops the emitters and fades the light and haze, then the scorch recedes.
 - Look demo of all seven: `tools/surfaces_look_demo.tscn` (recorded, not a test).
 
 ## Darkness (data/abilities/darkness.tres)
@@ -98,7 +99,7 @@ Every surface belongs to a world.
 - **Signals in**
   - `CombatManager.round_started_in(encounter, n)` (combat_manager.gd:58, relayed from every encounter) triggers `_on_round_started_in`. This ages the encounter's world, but only when the encounter is the first fight running there: one clock per world.
   - A Timer fires every `ROUND_SECONDS` (6 s, BG3's turn) and triggers `_on_quiet_round`, which ages each world that has no fight running.
-  - `CombatManager.turn_started` triggers `_on_turn_started`, which re-applies the status to a unit inside a surface in its own world.
+  - `CombatManager.turn_started` triggers `_on_turn_started`, which re-applies the statuses of the surfaces a unit is inside, in its own world, each once (`_statuses`).
   - Every frame `_process` applies the status to units that came into a surface and calls `_release` for those that left.
 
 ## Lifecycle
@@ -126,7 +127,7 @@ Every surface belongs to a world.
   - Darkness: Dark Vision sees through and is not Blinded; without it, blocked (sabotage-checked).
   - Sabotage-checked: removing the LoS call or the release turns it red.
 - tests/combat/test_surface_grid.gd (4 checks): overlapping grease pools into one patch; water cast over it takes those cells; expired cells leave the grid; expire_all_ground empties it. Sabotage-checked: no merging turns it red.
-- tests/combat/test_wall_of_fire.gd (6 checks): two-click line pulled to max_length; the wall blocks sight with no ground fire under it; a flier inside is Burning; running out leaves ground fire with full rounds. Sabotage-checked: aging clouds before ground turns it red.
+- tests/combat/test_wall_of_fire.gd (6 checks): two-click line pulled to max_length; the wall blocks sight and lays ground fire under it at once; a walker in both is Searing and not Burning; running out leaves ground fire with full rounds. Sabotage-checked: aging clouds before ground turns it red, and so does taking Burning out of its group.
 - tests/world/test_world_scoping.gd:190-222 checks surface world scoping.
 
 **Gaps:** no test covers two fights in one world sharing a clock, or saving.

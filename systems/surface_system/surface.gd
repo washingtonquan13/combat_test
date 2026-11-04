@@ -39,9 +39,14 @@ enum Shape {
 @export var wall_height: float = 4.0
 ## A ground surface (a DISC) left on the floor under this cloud's cubes
 ## as they run out, where they touched it — Wall of Fire's burning
-## ground. Only after: a unit is never in both the cloud and what it
-## leaves at once, so the two never stack their damage.
+## ground.
 @export var leaves_behind: Surface
+## Lays leaves_behind under the cubes touching the floor the moment the
+## cloud rises, lasting while it stands and its own rounds after, rather
+## than only as it runs out. A unit in both is still set burning once:
+## SurfaceManager rolls each status once, and of a group only the
+## strongest (StatusEffect.group).
+@export var lays_ground_under: bool = false
 ## Applied to a unit the MOMENT it physically enters the surface — a
 ## DISC's cells under its footprint, a SPHERE's cubes around its body
 ## (see SurfaceManager._process) — punishes the actual

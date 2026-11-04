@@ -1,7 +1,8 @@
 extends AiTestCase
 ## Wall of Fire: two clicks make the line, the wall is an opaque cloud that
-## sets walkers and fliers Burning with no ground fire under it, and running
-## out leaves burning ground with its whole duration.
+## sets walkers and fliers Searing over the ground fire it lays under it -
+## a walker in both gets Searing alone - and running out leaves that
+## burning ground with its whole duration.
 
 var WALL: Ability = load("res://data/abilities/wall_of_fire.tres")
 
@@ -23,11 +24,11 @@ func run() -> void:
 
 	SurfaceManager.spawn_wall(wall, Vector3(0.0, 0.0, -5.0), Vector3(0.0, 0.0, 5.0), caster)
 	check("the wall blocks sight", not LineOfSight.has_clear_shot(caster, target))
-	check("no ground fire under it (no double dip)", SurfaceManager.surface_at(Vector3.ZERO, context) == null)
-	target.global_position = Vector3(0.0, 2.5, 0.0)
-	for _i in 2:
-		await get_tree().process_frame
-	check("a flier inside is Burning", target.has_status(wall.status_effect))
+	check("ground fire burns under it at once", SurfaceManager.surface_at(Vector3.ZERO, context) == wall.leaves_behind)
+	target.global_position = Vector3.ZERO
+	SurfaceManager._on_turn_started(target)
+	check("a walker in both is Searing alone",
+		target.has_status(wall.status_effect) and not target.has_status(wall.leaves_behind.status_effect))
 
 	for _i in wall.duration_rounds:
 		SurfaceManager._age(SurfaceManager._clouds_for(context), SurfaceManager._grid_for(context))

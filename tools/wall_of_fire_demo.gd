@@ -1,6 +1,7 @@
 extends "res://tools/fog_cloud_demo.gd"
 ## Recorded showcase of Wall of Fire — NOT a test. A longbow shot, then a
-## wall between the shooter and the dummy, a dummy walking through it, a
+## wall between the shooter and the dummy, with burning ground under it,
+## a dummy walking through it, a
 ## second dummy flying through it, and the wall running out and leaving
 ## burning ground. Record it the same way as fog_cloud_demo.
 
@@ -20,7 +21,8 @@ func _run() -> void:
 	var flier_start: Vector3 = _spot(-12.0, -2.0) + Vector3.UP * 2.5
 	var dummy: Unit = _dummy(-12.0, 0.0)
 	var wall_surface: Surface = (Wall.effects[0] as SpawnSurfaceEffect).surface
-	var burning: StatusEffect = wall_surface.status_effect
+	var searing: StatusEffect = wall_surface.status_effect
+	var burning: StatusEffect = wall_surface.leaves_behind.status_effect
 	SelectionManager.select(_hero)
 	_frame(middle, 16.0)
 	await _wait(2.0)
@@ -35,13 +37,13 @@ func _run() -> void:
 	await _wait(2.5)
 	_check("the wall blocks the sight line", not LineOfSight.has_clear_shot(_hero, dummy))
 	await _fire(shoot, dummy, "Shoot through the wall")
-	_check("no burning ground under it yet (no double dip)", SurfaceManager.surface_at(middle, WorldManager.context()) == null)
+	_check("burning ground lies under it at once", SurfaceManager.surface_at(middle, WorldManager.context()) == wall_surface.leaves_behind)
 
 	_say("The dummy walks through the wall")
 	await _walk(dummy, near)
 	await _wait(0.5)
-	_check("walking through set it Burning", dummy.has_status(burning))
-	_say("Through it: Burning")
+	_check("walking through set it Searing, not Burning as well", dummy.has_status(searing) and not dummy.has_status(burning))
+	_say("Through wall and ground fire: Searing, once")
 	await _wait(2.5)
 
 	var flier: Unit = _dummy(-12.0, -2.0)
@@ -50,8 +52,8 @@ func _run() -> void:
 	await _wait(1.0)
 	await _walk(flier, near + Vector3(0.0, 2.5, -1.5))
 	await _wait(0.5)
-	_check("flying through set it Burning too", flier.has_status(burning))
-	_say("Flying through: Burning too")
+	_check("flying through set it Searing too", flier.has_status(searing))
+	_say("Flying through: Searing too")
 	await _wait(2.5)
 
 	_say("Out of combat a round is 6 s: when its 5 rounds are up...")

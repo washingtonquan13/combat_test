@@ -115,7 +115,12 @@ func spawn_wall(surface: Surface, from: Vector3, to: Vector3, caster: Node = nul
 	for end: Vector3 in [from, to]:
 		var lifted: Vector3 = end + Vector3.UP * 0.1
 		seeds[CloudGrid.key_of(lifted)] = lifted
-	return _fill(surface, seeds, _within_wall.bind(from, to, surface.wall_height), middle, context, parent, _wall_point.bind(from, to))
+	var patch: CloudPatch = _fill(surface, seeds, _within_wall.bind(from, to, surface.wall_height), middle, context, parent, _wall_point.bind(from, to))
+	if patch and surface.lays_ground_under and surface.leaves_behind and not patch.cells.is_empty():
+		# Burns under the wall for as long as it stands, and its own
+		# rounds after: the cubes running out only top it up.
+		_leave_behind(patch, patch.cells, parent, surface.duration_rounds)
+	return patch
 
 
 ## Whether the cube centred on point is part of a wall from from to to:
@@ -299,19 +304,23 @@ func _spill(surface: Surface, position: Vector3, radius: float, context: WorldCo
 ## cells of another surface are overwritten, cells of this one topped up
 ## to the longer time, and every patch of this surface the new cells
 ## overlap or touch merges into the biggest. position and radius are
-## where the visual spreads from and how far.
-func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float) -> SurfacePatch:
+## where the visual spreads from and how far. extra_rounds lengthens the
+## surface's own duration_rounds; negative makes it permanent.
+func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0) -> SurfacePatch:
 	var grid: SurfaceGrid = _grid_for(context)
+	var rounds: int = surface.duration_rounds
+	if rounds >= 0:
+		rounds = -1 if extra_rounds < 0 else rounds + extra_rounds
 	var fresh: Array[SurfaceCell] = []
 	var merging: Array[SurfacePatch] = []
 	var robbed: Array[SurfacePatch] = []
 	for key: Vector2i in reached:
 		var cell: SurfaceCell = grid.cell_at(key, reached[key])
 		if cell and cell.surface == surface:
-			if cell.rounds < 0 or surface.duration_rounds < 0:
+			if cell.rounds < 0 or rounds < 0:
 				cell.rounds = -1
 			else:
-				cell.rounds = maxi(cell.rounds, surface.duration_rounds)
+				cell.rounds = maxi(cell.rounds, rounds)
 			if not merging.has(cell.patch):
 				merging.append(cell.patch)
 			continue
@@ -320,7 +329,7 @@ func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent:
 			grid.remove(cell)
 			if not robbed.has(cell.patch):
 				robbed.append(cell.patch)
-		cell = SurfaceCell.new(surface, key, reached[key], surface.duration_rounds)
+		cell = SurfaceCell.new(surface, key, reached[key], rounds)
 		grid.add(cell)
 		fresh.append(cell)
 	for cell in fresh:
@@ -427,9 +436,10 @@ func _process(_delta: float) -> void:
 			_inside.erase(unit)
 		else:
 			_inside[unit] = now
-		for surface in now:
-			if not before.has(surface) and surface.status_effect and not _sees_through(unit, surface):
-				unit.inflict_status(surface.status_effect, null)
+		var had: Array[StatusEffect] = _statuses(before, unit)
+		for effect in _statuses(now, unit):
+			if not had.has(effect):
+				unit.inflict_status(effect, null)
 		for surface in before:
 			if not now.has(surface):
 				_release(unit, surface, now)
@@ -619,8 +629,8 @@ func expire_cloud_cells(grid: CloudGrid, patch: CloudPatch, cells: Array[CloudCe
 ## not the cubes stacked above it, nor a cube hanging in the air.
 ## Lands as one spill, so the film spreads from under the whole run-out
 ## stretch at once. With no physics (a bare test scene), the lowest
-## run-out cubes' bottoms are the floor.
-func _leave_behind(patch: CloudPatch, cells: Array[CloudCell], parent: Node) -> void:
+## run-out cubes' bottoms are the floor. extra_rounds as for _land.
+func _leave_behind(patch: CloudPatch, cells: Array[CloudCell], parent: Node, extra_rounds: int = 0) -> void:
 	var space: PhysicsDirectSpaceState3D = _space_of(parent)
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
@@ -655,7 +665,7 @@ func _leave_behind(patch: CloudPatch, cells: Array[CloudCell], parent: Node) -> 
 	var radius: float = 0.0
 	for key: Vector2i in reached:
 		radius = maxf(radius, SurfaceGrid.centre_of(key, middle.y).distance_to(middle))
-	_land(patch.surface.leaves_behind, reached, patch.context, parent, middle, radius + SurfaceGrid.CELL)
+	_land(patch.surface.leaves_behind, reached, patch.context, parent, middle, radius + SurfaceGrid.CELL, extra_rounds)
 
 
 ## Runs every cloud in context out at once.
@@ -728,9 +738,35 @@ func expire_all_ground(context: WorldContext) -> void:
 func _on_turn_started(unit: Unit) -> void:
 	if not unit.is_alive():
 		return
-	for surface in _holding(unit):
-		if surface.status_effect and not _sees_through(unit, surface):
-			unit.inflict_status(surface.status_effect, null)
+	for effect in _statuses(_holding(unit), unit):
+		unit.inflict_status(effect, null)
+
+
+## The statuses surfaces put on unit, each once however many of them give
+## it - a walker in Wall of Fire stands in the wall and the ground fire
+## under it - and of a StatusEffect.group only the highest rank, so it is
+## rolled once and never knocked down to a weaker one by the order they
+## are found in. A surface unit sees through gives nothing.
+func _statuses(surfaces: Array[Surface], unit: Unit) -> Array[StatusEffect]:
+	var found: Array[StatusEffect] = []
+	for surface in surfaces:
+		var effect: StatusEffect = surface.status_effect
+		if not effect or found.has(effect) or _sees_through(unit, surface):
+			continue
+		var weaker: int = -1
+		var outranked: bool = false
+		for i in found.size():
+			if effect.group != &"" and found[i].group == effect.group:
+				if found[i].rank >= effect.rank:
+					outranked = true
+				else:
+					weaker = i
+		if outranked:
+			continue
+		if weaker >= 0:
+			found.remove_at(weaker)
+		found.append(effect)
+	return found
 
 
 ## context's own clouds; the detached ones for no world.

@@ -31,6 +31,13 @@ enum StackMode {
 ## ends by being picked up, stabilized, or dying.
 @export var curable: bool = true
 
+## Statuses in one group are strengths of the same thing - Burning and
+## the wall's Searing - and a unit has at most one of them: the higher
+## rank replaces a lower one, a lower one never lands over a higher.
+## Empty means no group.
+@export var group: StringName = &""
+@export var rank: int = 0
+
 @export_group("Resistance")
 ## The stat a target rolls against to shrug this off as it lands — HT
 ## for Sleep or a weakening, Will for fear, DX for a slip. Empty means

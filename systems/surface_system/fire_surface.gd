@@ -10,10 +10,13 @@ extends DecalSurface
 @export var flames_per_square_meter: float = 3.0
 @export var sparks_per_square_meter: float = 6.0
 @export var smoke_per_square_meter: float = 1.0
-## Emission points scattered over each cell, and how many times as many
-## flames stand on the patch's rim cells: fire burns hottest at its edge.
+## Emission points scattered over each cell.
 @export var points_per_cell: int = 4
-@export var rim_flame_weight: int = 3
+## How far in from the outline the flames start, in meters: the scorch's
+## edge crumbles away (scorch_film's crumble_m), and a flame past the
+## solid char stands on bare ground. A patch too small for that burns on
+## its deepest cells.
+@export var flame_inset_m: float = 0.7
 ## How far the light's energy swings either side of its authored value.
 @export var flicker: float = 0.3
 
@@ -40,10 +43,12 @@ func _ready() -> void:
 ## Spreads what burns over the cells, in meters.
 func _cells_shown(cells: Array[SurfaceCell]) -> void:
 	var points := PackedVector3Array()
-	var rim_points := PackedVector3Array()
-	var keys: Dictionary[Vector2i, bool] = {}
+	var depths: Dictionary[Vector2i, float] = _depths()
+	var deepest: float = 0.0
 	for cell in cells:
-		keys[cell.key] = true
+		deepest = maxf(deepest, depths.get(cell.key, 0.0))
+	var inset: float = minf(flame_inset_m, deepest)
+	var flame_points := PackedVector3Array()
 	var low := Vector2(INF, INF)
 	var high := -low
 	var floor_y: float = INF
@@ -52,24 +57,19 @@ func _cells_shown(cells: Array[SurfaceCell]) -> void:
 		low = low.min(Vector2(centre.x, centre.z))
 		high = high.max(Vector2(centre.x, centre.z))
 		floor_y = minf(floor_y, cell.y)
-		var on_rim: bool = false
-		for step in SurfaceGrid.NEIGHBOURS:
-			if not keys.has(cell.key + step):
-				on_rim = true
-				break
 		for i in points_per_cell:
 			var jitter := Vector3(randf() - 0.5, 0.0, randf() - 0.5) * SurfaceGrid.CELL
 			points.append(centre + jitter - global_position)
-			for j in (rim_flame_weight if on_rim else 1):
-				rim_points.append(centre + Vector3(randf() - 0.5, 0.0, randf() - 0.5) * SurfaceGrid.CELL - global_position)
+			if depths.get(cell.key, 0.0) >= inset:
+				flame_points.append(centre + Vector3(randf() - 0.5, 0.0, randf() - 0.5) * SurfaceGrid.CELL - global_position)
 	var area: float = cells.size() * SurfaceGrid.CELL * SurfaceGrid.CELL
 	var counts: Array[int] = [maxi(8, roundi(area * flames_per_square_meter)),
 			maxi(6, roundi(area * sparks_per_square_meter)), maxi(4, roundi(area * smoke_per_square_meter))]
 	# Shared: the points are in each emitter's own space, so Smoke, raised
 	# above the others, keeps its height over them.
 	var spread: ImageTexture = _point_texture(points)
-	var textures: Array[ImageTexture] = [_point_texture(rim_points), spread, spread]
-	var sizes: Array[int] = [rim_points.size(), points.size(), points.size()]
+	var textures: Array[ImageTexture] = [_point_texture(flame_points), spread, spread]
+	var sizes: Array[int] = [flame_points.size(), points.size(), points.size()]
 	var emitters: Array[GPUParticles3D] = [_flames, _sparks, _smoke]
 	for e in emitters.size():
 		var emitter: GPUParticles3D = emitters[e]

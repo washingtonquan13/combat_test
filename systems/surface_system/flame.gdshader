@@ -17,6 +17,10 @@ uniform float fps = 24.0;
 uniform float crop_width = 0.62;
 // Height band (0-1 up the quad) the base fades in over.
 uniform vec2 base_fade = vec2(0.03, 0.2);
+// 0-1: how far the flame is cut to a teardrop, narrow at its root and
+// tip - a small flame on the ground, where the bake's wide base would
+// read as a box.
+uniform float taper = 0.0;
 uniform vec3 core_color : source_color = vec3(1.0, 0.85, 0.55);
 uniform vec3 body_color : source_color = vec3(1.0, 0.42, 0.08);
 uniform vec3 tip_color : source_color = vec3(0.6, 0.07, 0.02);
@@ -89,6 +93,8 @@ void fragment() {
 	heat *= smoothstep(base_fade.x, base_fade.y, height);
 	// And at the quad's sides, so a wide glow never shows its edge.
 	heat *= smoothstep(0.0, 0.18, 0.5 - abs(uv.x - 0.5));
+	float half_width = 0.5 * pow(sin(3.14159 * clamp(height * 0.95 + 0.02, 0.0, 1.0)), 0.6);
+	heat *= mix(1.0, smoothstep(half_width, half_width * 0.55, abs(uv.x - 0.5)), taper);
 	vec3 color = mix(tip_color, body_color, smoothstep(0.05, 0.35, heat));
 	color = mix(color, core_color, smoothstep(0.55, 0.95, heat));
 	float depth = textureLod(depth_texture, SCREEN_UV, 0.0).r;
