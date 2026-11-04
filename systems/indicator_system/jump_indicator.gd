@@ -19,8 +19,7 @@ extends IndicatorBase
 @export var invalid_color: Color = IndicatorPalette.BLOCKED
 @export var arc_segments: int = 24
 
-var _line_mesh: MeshInstance3D
-var _line_immediate: ImmediateMesh
+var _line_mesh: PathTube
 
 
 func serves() -> StringName:
@@ -29,9 +28,7 @@ func serves() -> StringName:
 
 func _ready() -> void:
 	super()
-	var built: Dictionary = _create_line_mesh()
-	_line_mesh = built.mesh_instance
-	_line_immediate = built.immediate
+	_line_mesh = _create_tube()
 
 
 func draw(aim: Aim) -> void:
@@ -49,7 +46,6 @@ func draw(aim: Aim) -> void:
 		return
 
 	_draw_arc(unit, ability, move_effect, hover_point)
-	_line_mesh.visible = true
 
 
 func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hover_point: Vector3) -> void:
@@ -67,6 +63,4 @@ func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hove
 		var t: float = float(i) / arc_segments
 		points.append(move_effect.arc_point(start, landing_point, t))
 
-	# Camera-facing: the arc stands up in the air.
-	_line_immediate.clear_surfaces()
-	_add_ribbon(_line_immediate, points, PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)
+	_line_mesh.show_line(points, color)

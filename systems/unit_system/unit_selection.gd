@@ -126,7 +126,9 @@ const GROUND_COLLISION_MASK: int = 1
 ## Below this a grounded unit's feet and the hit are the same place; above
 ## it the gap is worth drawing.
 const DROP_LINE_MIN_HEIGHT: float = 0.3
-const DROP_LINE_RADIUS: float = 0.012
+## The drop line's fade at each end (it is a PathTube, the one look
+## every indicator line shares).
+const DROP_LINE_FADE: float = 0.25
 const RING_TEXTURE_SIZE: int = 128
 
 ## Ring textures by width, shared by every unit: [albedo, emission].
@@ -134,8 +136,8 @@ static var _ring_textures: Dictionary = {}
 
 var _ring: Decal
 var _turn_ring: Decal
-var _drop_line: MeshInstance3D
-var _drop_material: StandardMaterial3D
+var _drop_line: PathTube
+var _drop_color: Color = IndicatorPalette.ACTIVE_TURN
 var _ring_radius: float = DEFAULT_RING_RADIUS
 ## Where the last ground ray started. The ray only re-casts when this
 ## moves, so a standing unit with its ring up costs nothing per frame.
@@ -264,25 +266,13 @@ func _build_ring(anchor: MeshInstance3D) -> void:
 	_set_ring_look(_turn_ring, TURN_RING_WIDTH, IndicatorPalette.ACTIVE_TURN)
 	anchor.add_child(_turn_ring)
 
-	var cylinder := CylinderMesh.new()
-	cylinder.top_radius = DROP_LINE_RADIUS
-	cylinder.bottom_radius = DROP_LINE_RADIUS
-	cylinder.height = 1.0
-	cylinder.radial_segments = 6
-	cylinder.rings = 1
-	_drop_material = StandardMaterial3D.new()
-	_drop_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	_drop_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	_drop_line = MeshInstance3D.new()
+	_drop_line = PathTube.new()
 	_drop_line.name = "DropLine"
-	_drop_line.mesh = cylinder
-	_drop_line.material_override = _drop_material
-	_drop_line.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_drop_line.fade_start = DROP_LINE_FADE
+	_drop_line.fade_end = DROP_LINE_FADE
 	# On the units' layer, so ground decals (this ring included) leave it
 	# alone rather than smearing over its lower end.
 	_drop_line.layers = 1 << (Unit.RENDER_LAYER - 1)
-	_drop_line.top_level = true
-	_drop_line.visible = false
 	anchor.add_child(_drop_line)
 
 
@@ -467,10 +457,12 @@ func update_highlight() -> void:
 			if my_turn and not _turn_ring.visible:
 				_pulse_time = 0.0
 			_turn_ring.visible = my_turn
-		if _drop_material:
-			var line_color: Color = state_color if show else IndicatorPalette.ACTIVE_TURN
-			line_color.a = minf(line_color.a, 0.7)
-			_drop_material.albedo_color = line_color
+		var line_color: Color = state_color if show else IndicatorPalette.ACTIVE_TURN
+		line_color.a = minf(line_color.a, 0.7)
+		if line_color != _drop_color:
+			_drop_color = line_color
+			# Recoloured where it already stands.
+			_last_cast_from = Vector3.INF
 		if any_ring and not was_showing:
 			# Never drawn where it last was (or at the world origin, for a
 			# ring never placed) while the first ray waits for the next
@@ -564,9 +556,7 @@ func _place_ring(from: Vector3) -> void:
 	var airborne: bool = _owner.is_flying() or drop > DROP_LINE_MIN_HEIGHT
 	_drop_line.visible = airborne and drop > 0.05 and not hit.is_empty()
 	if _drop_line.visible:
-		_drop_line.global_transform = Transform3D(
-			Basis.from_scale(Vector3(1.0, drop, 1.0)),
-			Vector3(feet.x, ground.y + drop * 0.5, feet.z))
+		_drop_line.show_line(PackedVector3Array([feet, Vector3(feet.x, ground.y, feet.z)]), _drop_color)
 
 
 ## The first non-unit surface straight below `from`. Units share the

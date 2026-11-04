@@ -7,9 +7,9 @@ extends IndicatorBase
 ## AreaTargeting, not a duplicated/guessed value, same WYSIWYG principle
 ## as the other indicators. A ring rather than a filled disc
 ## deliberately — an outline shows exactly what's inside the blast
-## without obscuring it, and matches how every other indicator in this
-## project draws thin ribbons (IndicatorBase._add_ribbon) rather than
-## solid meshes.
+## without obscuring it. The aim line is a PathTube like every other
+## indicator line; the ring stays a flat ribbon (IndicatorBase.
+## _add_ribbon), since it is a footprint, not a line.
 ##
 ## FLOOR-ONLY — the center always sits wherever the ground raycast hit,
 ## with no way to lift it. Deliberate: this indicator is for abilities
@@ -43,8 +43,7 @@ extends IndicatorBase
 @export var ring_height_offset: float = 0.05
 @export var ring_segments: int = 48
 
-var _line_mesh: MeshInstance3D
-var _line_immediate: ImmediateMesh
+var _line_mesh: PathTube
 var _ring_mesh: MeshInstance3D
 var _ring_immediate: ImmediateMesh
 
@@ -55,9 +54,7 @@ func serves() -> StringName:
 
 func _ready() -> void:
 	super()
-	var line_built: Dictionary = _create_line_mesh()
-	_line_mesh = line_built.mesh_instance
-	_line_immediate = line_built.immediate
+	_line_mesh = _create_tube()
 
 	var ring_built: Dictionary = _create_line_mesh()
 	_ring_mesh = ring_built.mesh_instance
@@ -107,9 +104,7 @@ func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 	var from: Vector3 = unit.global_position + Vector3(0, line_height_offset, 0)
 	var to: Vector3 = hover_point + Vector3(0, line_height_offset, 0)
 
-	_line_immediate.clear_surfaces()
-	_add_ribbon(_line_immediate, PackedVector3Array([from, to]), PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)
-	_line_mesh.visible = true
+	_line_mesh.show_line(PackedVector3Array([from, to]), color)
 
 
 func _update_ring(ability: Ability, hover_point: Vector3) -> void:

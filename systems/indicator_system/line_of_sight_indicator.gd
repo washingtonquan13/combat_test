@@ -25,8 +25,7 @@ extends IndicatorBase
 ## its own MeshInstance3D in code. The hovered hostile and ground point
 ## come from the Aim ClickRouter hands draw(); nothing here raycasts.
 ##
-## Drawn as a camera-facing ribbon (IndicatorBase._add_ribbon): the line
-## hangs at eye height, where a flat one would be seen edge-on.
+## Drawn as a PathTube, the one look every indicator line shares.
 
 @export var clear_color: Color = IndicatorPalette.OK
 @export var blocked_color: Color = IndicatorPalette.BLOCKED
@@ -41,8 +40,7 @@ extends IndicatorBase
 ## tested. Exactly the kind of drift a shared constant invites and an
 ## anchor makes impossible.
 
-var _line_mesh: MeshInstance3D
-var _line_immediate: ImmediateMesh
+var _line_mesh: PathTube
 
 
 func serves() -> StringName:
@@ -51,9 +49,7 @@ func serves() -> StringName:
 
 func _ready() -> void:
 	super()
-	var built: Dictionary = _create_line_mesh()
-	_line_mesh = built.mesh_instance
-	_line_immediate = built.immediate
+	_line_mesh = _create_tube()
 
 
 func draw(aim: Aim) -> void:
@@ -75,7 +71,6 @@ func draw(aim: Aim) -> void:
 		return
 
 	_draw_line(unit, aim_point, hovered_unit, ability)
-	_line_mesh.visible = true
 
 
 func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Ability) -> void:
@@ -98,5 +93,4 @@ func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Abi
 	var from: Vector3 = unit.global_position + Vector3(0, lift, 0)
 	var to: Vector3 = aim_point + Vector3(0, lift, 0)
 
-	_line_immediate.clear_surfaces()
-	_add_ribbon(_line_immediate, PackedVector3Array([from, to]), PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)
+	_line_mesh.show_line(PackedVector3Array([from, to]), color)

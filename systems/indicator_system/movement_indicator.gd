@@ -11,7 +11,8 @@ extends IndicatorBase
 ## makes over the same grid, so the preview is what will happen. It is
 ## corner-rounded (drawing only), cut into short pieces, and each piece
 ## becomes one box ray-traced as a thin glowing tube by
-## movement_path_tube.gdshader. The values are BG3's
+## movement_path_tube.gdshader (through PathTube, the node every
+## indicator line uses). The values are BG3's
 ## (Shared/GUI/AiPathSettings.lsx), studied for reference only:
 ## - a 2.5 cm wide tube, centre bright, edges falling to nothing;
 ## - white within the move budget, crimson past it, cut at the exact
@@ -23,8 +24,6 @@ extends IndicatorBase
 ##   (0.2 on, 0.2 off) or heavily (0.05 on, 0.15 off);
 ## - a slow pulse, and 10% visibility through walls.
 ## The distance readout floats over the route's end.
-
-const TUBE_SHADER: Shader = preload("res://systems/indicator_system/movement_path_tube.gdshader")
 
 ## BG3 AiPathSettings RegularColor / ColorPastLimit.
 @export var path_in_range_color: Color = Color(1.0, 1.0, 1.0, 1.0)
@@ -65,16 +64,7 @@ const PATTERN_CLEAR := Vector2(1.0, 0.0)
 const PATTERN_LIGHT := Vector2(0.2, 0.2)
 const PATTERN_HEAVY := Vector2(0.05, 0.15)
 
-## One box: 8 corners, 12 triangles. Corner i's bits are (end, side, up).
-const BOX_INDICES: PackedInt32Array = [
-	0, 1, 3, 0, 3, 2, 4, 6, 7, 4, 7, 5,
-	0, 4, 5, 0, 5, 1, 2, 3, 7, 2, 7, 6,
-	0, 2, 6, 0, 6, 4, 1, 5, 7, 1, 7, 3,
-]
-
-var _tube: MeshInstance3D
-var _mesh := ArrayMesh.new()
-var _material := ShaderMaterial.new()
+var _tube: PathTube
 ## A Label3D, not a mesh, so IndicatorBase's _owned_meshes doesn't know
 ## about it: hide_visuals/is_showing_anything are extended below.
 var _readout: Label3D
@@ -93,21 +83,7 @@ func serves() -> StringName:
 
 func _ready() -> void:
 	super()
-	var built: Dictionary = _create_line_mesh()
-	_tube = built.mesh_instance
-	_tube.mesh = _mesh
-	# The boxes are built in world space.
-	_tube.top_level = true
-	_tube.global_transform = Transform3D.IDENTITY
-	_tube.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	# Boxes are rebuilt in the shader around their axis; keep the culling
-	# box from dropping a piece the camera can see.
-	_tube.extra_cull_margin = 1.0
-
-	_material.shader = TUBE_SHADER
-	# Over clouds and fire, which draw in the same transparent pass.
-	_material.render_priority = 20
-	_tube.material_override = _material
+	_tube = _create_tube(fade_start)
 	_apply_uniforms()
 
 	# Billboarded and screen-constant so it reads the same at any zoom;
@@ -125,14 +101,14 @@ func _ready() -> void:
 
 
 func _apply_uniforms() -> void:
-	_material.set_shader_parameter("radius", tube_width * 0.5)
-	_material.set_shader_parameter("min_pixel_radius", min_pixel_radius)
-	_material.set_shader_parameter("fade_start", fade_start)
-	_material.set_shader_parameter("fade_end", fade_end)
-	_material.set_shader_parameter("anim_speed", anim_speed)
-	_material.set_shader_parameter("pulse_limits", pulse_limits)
-	_material.set_shader_parameter("pulse_speed", pulse_speed)
-	_material.set_shader_parameter("brightness", brightness)
+	_tube.width = tube_width
+	_tube.min_pixel_radius = min_pixel_radius
+	_tube.fade_start = fade_start
+	_tube.fade_end = fade_end
+	_tube.anim_speed = anim_speed
+	_tube.pulse_limits = pulse_limits
+	_tube.pulse_speed = pulse_speed
+	_tube.brightness = brightness
 
 
 func hide_visuals() -> void:
@@ -225,7 +201,7 @@ func _build(path: PackedVector3Array, cost: PackedFloat32Array, budget: float, c
 	else:
 		split_at = INF
 
-	_fill_mesh(_pieces(points), split_at, context)
+	_fill_mesh(points, split_at, context)
 
 
 func _length_of(points: PackedVector3Array) -> float:
@@ -235,115 +211,23 @@ func _length_of(points: PackedVector3Array) -> float:
 	return total
 
 
-## The polyline lifted and cut into pieces no longer than
-## max_piece_length, dropping zero-length steps.
-func _pieces(points: PackedVector3Array) -> PackedVector3Array:
-	var lift := Vector3(0.0, height_offset, 0.0)
-	var out := PackedVector3Array()
-	if points.is_empty():
-		return out
-	out.append(points[0] + lift)
-	for i in range(1, points.size()):
-		var a: Vector3 = points[i - 1] + lift
-		var b: Vector3 = points[i] + lift
-		var length: float = a.distance_to(b)
-		if length < 0.001:
-			continue
-		var count: int = maxi(1, ceili(length / max_piece_length))
-		for k in range(1, count + 1):
-			out.append(a.lerp(b, float(k) / float(count)))
-	return out
-
-
-## One box per piece, every corner carrying the piece's data (see the
-## layout at the top of movement_path_tube.gdshader).
+## The route lifted onto the ground and cut into pieces, then one colour
+## per piece (its midpoint's surface, or crimson past the split) and one
+## dash pattern per point (how obscured it is there).
 func _fill_mesh(points: PackedVector3Array, split_at: float, context: WorldContext) -> void:
-	_mesh.clear_surfaces()
-	var count: int = points.size() - 1
-	if count < 1:
-		return
-
-	var dirs := PackedVector3Array()
-	var distance := PackedFloat32Array([0.0])
-	for i in range(count):
-		var d: Vector3 = points[i + 1] - points[i]
-		dirs.append(d.normalized())
-		distance.append(distance[i] + d.length())
-	var total: float = distance[count]
-	_material.set_shader_parameter("total_length", total)
-
-	# Obscurity per piece end, so a dash pattern can blend across a piece.
-	var patterns: Array[Vector2] = []
-	for i in range(points.size()):
-		patterns.append(_pattern_at(points[i], context))
-
-	var vertices := PackedVector3Array()
+	var pieces: PackedVector3Array = PathTube.cut(points, max_piece_length, Vector3(0.0, height_offset, 0.0))
 	var colors := PackedColorArray()
-	var uvs := PackedVector2Array()
-	var uv2s := PackedVector2Array()
-	var c0 := PackedFloat32Array()
-	var c1 := PackedFloat32Array()
-	var c2 := PackedFloat32Array()
-	var c3 := PackedFloat32Array()
-	var indices := PackedInt32Array()
-
-	var radius: float = tube_width * 0.5
-	for i in range(count):
-		var a: Vector3 = points[i]
-		var b: Vector3 = points[i + 1]
-		var u: Vector3 = dirs[i]
-		var n0: Vector3 = _miter(dirs[i - 1], u) if i > 0 else u
-		var n1: Vector3 = _miter(u, dirs[i + 1]) if i < count - 1 else u
-		var mid_distance: float = (distance[i] + distance[i + 1]) * 0.5
-		var color: Color = _color_at(a.lerp(b, 0.5), mid_distance >= split_at, context).srgb_to_linear()
-
-		# Corner positions only tell the vertex shader which end and
-		# which side each corner is; it sizes the box itself.
-		var side: Vector3 = u.cross(Vector3.UP)
-		side = Vector3.RIGHT if side.length() < 0.001 else side.normalized()
-		var up: Vector3 = side.cross(u)
-		var base: int = vertices.size()
-		for corner in 8:
-			var end: Vector3 = b if corner & 4 else a
-			var sx: float = 1.0 if corner & 2 else -1.0
-			var sy: float = 1.0 if corner & 1 else -1.0
-			vertices.append(end + side * sx * radius + up * sy * radius)
-			colors.append(color)
-			uvs.append(patterns[i])
-			uv2s.append(patterns[i + 1])
-			c0.append_array([a.x, a.y, a.z, distance[i]])
-			c1.append_array([b.x, b.y, b.z, distance[i + 1]])
-			c2.append_array([n0.x, n0.y, n0.z, 0.0])
-			c3.append_array([n1.x, n1.y, n1.z, 0.0])
-		for index in BOX_INDICES:
-			indices.append(base + index)
-
-	var arrays := []
-	arrays.resize(Mesh.ARRAY_MAX)
-	arrays[Mesh.ARRAY_VERTEX] = vertices
-	arrays[Mesh.ARRAY_COLOR] = colors
-	arrays[Mesh.ARRAY_TEX_UV] = uvs
-	arrays[Mesh.ARRAY_TEX_UV2] = uv2s
-	arrays[Mesh.ARRAY_CUSTOM0] = c0
-	arrays[Mesh.ARRAY_CUSTOM1] = c1
-	arrays[Mesh.ARRAY_CUSTOM2] = c2
-	arrays[Mesh.ARRAY_CUSTOM3] = c3
-	arrays[Mesh.ARRAY_INDEX] = indices
-	var format: int = (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM0_SHIFT) \
-		| (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM1_SHIFT) \
-		| (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM2_SHIFT) \
-		| (Mesh.ARRAY_CUSTOM_RGBA_FLOAT << Mesh.ARRAY_FORMAT_CUSTOM3_SHIFT)
-	_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays, [], {}, format)
-
-
-## The plane two pieces share at a joint: its normal bisects their
-## directions, so each piece keeps exactly its own side. A near-reversal
-## has no sensible bisector; the pieces then just butt-join.
-func _miter(dir_in: Vector3, dir_out: Vector3) -> Vector3:
-	var n: Vector3 = dir_in + dir_out
-	if n.length() < 0.3:
-		return dir_out
-	return n.normalized()
+	var patterns := PackedVector2Array()
+	var distance := 0.0
+	for i in range(pieces.size()):
+		patterns.append(_pattern_at(pieces[i], context))
+		if i == 0:
+			continue
+		var length: float = pieces[i - 1].distance_to(pieces[i])
+		var past_limit: bool = distance + length * 0.5 >= split_at
+		colors.append(_color_at(pieces[i - 1].lerp(pieces[i], 0.5), past_limit, context))
+		distance += length
+	_tube.build(pieces, colors, patterns)
 
 
 ## Past the budget is crimson whatever is underfoot (it is the answer

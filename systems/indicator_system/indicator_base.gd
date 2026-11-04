@@ -13,8 +13,9 @@ extends Node3D
 ## cache and the Ctrl drag's held point was a static whichever live
 ## indicator wrote - "where is the player aiming" had three owners.
 
-## Default width (meters) of the ribbons every line-drawing indicator
-## draws through _add_ribbon. Godot's line primitives are always one
+## Default width (meters) of the ribbons _add_ribbon draws. Lines are
+## PathTubes now (_create_tube); ribbons remain only for the AoE ring
+## outlines, which are footprints rather than lines. Godot's line primitives are always one
 ## pixel wide whatever the camera distance, which at tactical zoom read
 ## as a hairline; real geometry is the only way to get width.
 const LINE_WIDTH: float = 0.08
@@ -118,6 +119,20 @@ func _create_line_mesh() -> Dictionary:
 	_owned_meshes.append(mesh_instance)
 
 	return {"mesh_instance": mesh_instance, "immediate": immediate}
+
+
+## A PathTube child, the one look every indicator LINE uses (see
+## path_tube.gd), registered like _create_line_mesh()'s meshes so
+## hide_visuals/is_showing_anything cover it. Starts hidden. Short fades
+## by default: an aim line is a few metres, and a metre-long fade at the
+## caster would leave half of it faint.
+func _create_tube(fade: float = 0.3) -> PathTube:
+	var tube := PathTube.new()
+	tube.fade_start = fade
+	tube.fade_end = fade
+	add_child(tube)
+	_owned_meshes.append(tube)
+	return tube
 
 
 ## Appends `points` to `immediate` as one ribbon surface: a core

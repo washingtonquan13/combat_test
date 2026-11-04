@@ -22,8 +22,10 @@ extends IndicatorBase
 @export var wall_color: Color = IndicatorPalette.OK
 @export var ground_offset: float = 0.05
 
-var _line_mesh: MeshInstance3D
-var _line_immediate: ImmediateMesh
+## The aim line's end fades; the wall outline has none.
+const AIM_FADE: float = 0.3
+
+var _line_mesh: PathTube
 
 
 func serves() -> StringName:
@@ -32,9 +34,7 @@ func serves() -> StringName:
 
 func _ready() -> void:
 	super()
-	var built: Dictionary = _create_line_mesh()
-	_line_mesh = built.mesh_instance
-	_line_immediate = built.immediate
+	_line_mesh = _create_tube()
 
 
 func draw(aim: Aim) -> void:
@@ -49,7 +49,6 @@ func draw(aim: Aim) -> void:
 		_draw_wall(unit, ability, targeting, AbilityManager.line_start, hover_point)
 	else:
 		_draw_aim(unit, targeting, hover_point)
-	_line_mesh.visible = true
 
 
 func _draw_aim(unit: Unit, targeting: LineTargeting, hover_point: Vector3) -> void:
@@ -63,7 +62,9 @@ func _draw_aim(unit: Unit, targeting: LineTargeting, hover_point: Vector3) -> vo
 		_:
 			color = blocked_color
 	var lift := Vector3(0, line_height_offset, 0)
-	_strip([unit.global_position + lift, hover_point + lift], color)
+	_line_mesh.fade_start = AIM_FADE
+	_line_mesh.fade_end = AIM_FADE
+	_line_mesh.show_line(PackedVector3Array([unit.global_position + lift, hover_point + lift]), color)
 
 
 func _draw_wall(unit: Unit, ability: Ability, targeting: LineTargeting, start: Vector3, hover_point: Vector3) -> void:
@@ -71,14 +72,10 @@ func _draw_wall(unit: Unit, ability: Ability, targeting: LineTargeting, start: V
 	var legal: bool = targeting.is_valid_target(unit, LineTarget.new(start, end))
 	var up := Vector3(0, _wall_height(ability), 0)
 	var lift := Vector3(0, ground_offset, 0)
-	_strip([start + lift, end + lift, end + up, start + up, start + lift], wall_color if legal else blocked_color)
-
-
-## Camera-facing: both the aim line and the wall's posts stand in the
-## air, where a flat ribbon would be seen edge-on.
-func _strip(points: Array[Vector3], color: Color) -> void:
-	_line_immediate.clear_surfaces()
-	_add_ribbon(_line_immediate, PackedVector3Array(points), PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)
+	# A closed outline: no ends to fade.
+	_line_mesh.fade_start = 0.0
+	_line_mesh.fade_end = 0.0
+	_line_mesh.show_line(PackedVector3Array([start + lift, end + lift, end + up, start + up, start + lift]), wall_color if legal else blocked_color)
 
 
 ## The wall's height, from the surface the ability raises — no separate

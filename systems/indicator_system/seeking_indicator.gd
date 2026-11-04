@@ -22,10 +22,8 @@ extends IndicatorBase
 ##
 ## Colors and the hovered-hostile-or-ground-point aiming behavior match
 ## line_of_sight_indicator.gd exactly — this replaces that indicator's
-## DISPLAY for seeking abilities, not its meaning. Drawn as the same
-## thin camera-facing ribbon line_of_sight_indicator.gd uses (the route
-## flies at launch height, so a flat one would be seen edge-on), not
-## movement_indicator.gd's wider ground ribbon.
+## DISPLAY for seeking abilities, not its meaning. Drawn as a PathTube,
+## the one look every indicator line shares.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
 ## its own MeshInstance3D in code, nothing else needs wiring. The hovered
@@ -36,8 +34,7 @@ extends IndicatorBase
 @export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
 @export var no_target_color: Color = IndicatorPalette.NO_TARGET
 
-var _line_mesh: MeshInstance3D
-var _line_immediate: ImmediateMesh
+var _line_mesh: PathTube
 
 ## Same query-caching idea as movement_indicator.gd's _last_query_* —
 ## NavigationGrid.find_path is a real search, not free, and most frames
@@ -58,9 +55,7 @@ func serves() -> StringName:
 
 func _ready() -> void:
 	super()
-	var built: Dictionary = _create_line_mesh()
-	_line_mesh = built.mesh_instance
-	_line_immediate = built.immediate
+	_line_mesh = _create_tube()
 
 
 func draw(aim: Aim) -> void:
@@ -80,7 +75,6 @@ func draw(aim: Aim) -> void:
 		return
 
 	_update_path_preview(unit, ability, step, aim_point, hovered_unit)
-	_line_mesh.visible = true
 
 
 func _update_path_preview(unit: Unit, ability: Ability, step: PathedProjectileStep, aim_point: Vector3, hovered_unit: Unit) -> void:
@@ -136,5 +130,4 @@ func _color_for(unit: Unit, ability: Ability, hovered_unit: Unit) -> Color:
 
 
 func _draw_path(points: PackedVector3Array, color: Color) -> void:
-	_line_immediate.clear_surfaces()
-	_add_ribbon(_line_immediate, points, PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)
+	_line_mesh.show_line(points, color)
