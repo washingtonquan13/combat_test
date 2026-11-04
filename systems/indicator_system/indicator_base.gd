@@ -37,12 +37,6 @@ static var _raycast_cache: Dictionary = {}
 ## off wholesale.
 var _owned_meshes: Array[MeshInstance3D] = []
 
-## Whether the Ctrl height-drag was active last frame — used only to
-## detect the moment it STARTS, so the drag's ground point gets held
-## once per press. Same pattern movement_indicator.gd uses for its own
-## altitude drag.
-var _height_dragging: bool = false
-
 ## Heights dragged with Ctrl move in steps this big.
 const HEIGHT_STEP: float = 0.25
 
@@ -50,8 +44,11 @@ const HEIGHT_STEP: float = 0.25
 ## Shared by every indicator and the ClickRouter: while it is held,
 ## _get_mouse_ground_point() returns it rather than the cursor's, so the
 ## mouse only moves the height - the preview, the path and the click all
-## stay on the one spot. A drag owner holds it (_hold_ground); letting go
-## of Ctrl frees it.
+## stay on the one spot. A drag owner holds it (_ground_held_from); letting
+## go of Ctrl frees it (_input, every indicator, live or not). It is the
+## drag's only state: a per-indicator "dragging" flag went stale whenever
+## the router switched its indicator off mid-press, and the next press
+## then never held the ground.
 static var _held_ground: Variant = null
 
 
@@ -310,6 +307,19 @@ static func _hold_ground(point: Vector3) -> void:
 	_held_ground = point
 
 
+## The ground point this Ctrl press holds, holding point if none is held
+## yet: the press's first drag frame.
+static func _ground_held_from(point: Vector3) -> Vector3:
+	if _held_ground == null:
+		_held_ground = point
+	return _held_ground
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_released("fly_altitude_modifier"):
+		_held_ground = null
+
+
 ## Ctrl-drag of the armed ability's aim height, for the indicators of
 ## abilities that may be aimed into the air (aerial_area_indicator.gd,
 ## line_indicator.gd). Mirrors movement_indicator.gd's altitude drag: on
@@ -320,14 +330,9 @@ static func _hold_ground(point: Vector3) -> void:
 ## preview.
 func _handle_aim_height_input(hover_point: Vector3) -> void:
 	if not Input.is_action_pressed("fly_altitude_modifier"):
-		_height_dragging = false
 		return
 
-	if not _height_dragging:
-		_hold_ground(hover_point)
-		_height_dragging = true
-
-	var held: Vector3 = _get_mouse_ground_point()
+	var held: Vector3 = _ground_held_from(hover_point)
 	var sampled_height = _sample_height_from_mouse(Vector2(held.x, held.z))
 	if sampled_height != null:
 		AbilityManager.set_aim_height_override(sampled_height)

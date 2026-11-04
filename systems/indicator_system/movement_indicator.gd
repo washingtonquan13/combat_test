@@ -91,16 +91,6 @@ var _last_query_start_cell: Vector3i
 var _last_query_dest_cell: Vector3i
 var _last_waypoints: PackedVector3Array = PackedVector3Array()
 
-## Whether the Ctrl altitude-drag was active last frame — used only to
-## detect the moment it STARTS (see _handle_altitude_input), so the drag's
-## XZ anchor gets captured once per press instead of drifting every frame.
-var _altitude_dragging: bool = false
-## XZ position the altitude drag's vertical plane is anchored to — wherever
-## the ground hover was pointing at the instant the modifier was pressed.
-## Frozen for the duration of the hold: while dragging, the mouse only
-## controls height, not destination, so the two can't fight over the same
-## input.
-var _altitude_drag_anchor_xz: Vector2 = Vector2.ZERO
 
 
 func serves() -> StringName:
@@ -146,8 +136,8 @@ func _hide_all() -> void:
 ## _flying_units_for_altitude_control(), not just active_unit itself.
 ##
 ## How the drag itself works: on the frame the modifier is first held, the
-## XZ point the ground hover was aiming at gets frozen as _altitude_drag_
-## anchor_xz — for the rest of the hold, mouse movement only changes
+## ground point the hover was aiming at is held (IndicatorBase.
+## _held_ground) — for the rest of the hold, mouse movement only changes
 ## height, not destination, so the two never fight over the same input.
 ## Height comes from casting the camera ray through the current mouse
 ## position and intersecting it against a vertical "wall" of infinite
@@ -159,17 +149,11 @@ func _hide_all() -> void:
 func _handle_altitude_input(active_unit: Unit) -> void:
 	var flying_units: Array[Unit] = _flying_units_for_altitude_control(active_unit)
 	if flying_units.is_empty() or not Input.is_action_pressed("fly_altitude_modifier"):
-		_altitude_dragging = false
 		return
 
-	if not _altitude_dragging:
-		var ground_point = _get_mouse_ground_point()
-		var anchor: Vector3 = ground_point if ground_point != null else active_unit.global_position
-		_altitude_drag_anchor_xz = Vector2(anchor.x, anchor.z)
-		_hold_ground(anchor)
-		_altitude_dragging = true
-
-	var sampled_altitude = _sample_height_from_mouse(_altitude_drag_anchor_xz)
+	var ground_point = _get_mouse_ground_point()
+	var held: Vector3 = _ground_held_from(ground_point if ground_point != null else active_unit.global_position)
+	var sampled_altitude = _sample_height_from_mouse(Vector2(held.x, held.z))
 	if sampled_altitude != null:
 		for unit in flying_units:
 			unit.set_flight_altitude(sampled_altitude)
