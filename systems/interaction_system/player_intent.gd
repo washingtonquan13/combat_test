@@ -22,8 +22,8 @@ extends RefCounted
 ## push_intent takes a PlayerIntent rather than production code naming a
 ## debug tool.
 ##
-## handle_left_click/handle_right_click take the router untyped on
-## purpose: the router already depends on these classes, and typing the
+## handle_left_click/handle_right_click/drags_height/steer take the
+## router untyped on purpose: the router already depends on these classes, and typing the
 ## parameter the other way round would make that a cycle.
 
 
@@ -45,12 +45,27 @@ var ability: Ability = null
 ## and it falls through to physics picking exactly as it would if this
 ## system did not exist (which is what keeps a click on the overworld
 ## avatar working).
-func handle_left_click(_router, _hit: ClickHit) -> bool:
+func handle_left_click(_router, _cursor: Cursor) -> bool:
 	return false
 
 
-func handle_right_click(_router, _hit: ClickHit) -> bool:
+func handle_right_click(_router, _cursor: Cursor) -> bool:
 	return false
+
+
+## Whether a held Ctrl means a height drag right now. The router holds
+## the cursor's ground point only while this says yes (see
+## ClickRouter.resolve_cursor), so Ctrl over an intent with no height to
+## drag leaves the cursor free.
+func drags_height(_router) -> bool:
+	return false
+
+
+## Called by the router once per frame with this frame's cursor, before
+## the indicators draw - the one place a held height drag is written to
+## whatever it drags (an aim height, a flight altitude). Default: nothing.
+func steer(_router, _cursor: Cursor) -> void:
+	pass
 
 
 ## The ids of the indicators that should be live while this intent is

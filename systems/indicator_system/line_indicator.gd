@@ -7,8 +7,10 @@ extends IndicatorBase
 ## would end it — pulled in to max_length by LineTargeting.end_for(), the
 ## same call the click makes, and as tall as the armed ability's wall
 ## surface — colored by whether that line is a legal target. Ctrl-drag
-## lifts the hovered point into the air (IndicatorBase.
-## _handle_aim_height_input), and the click takes that height too.
+## lifts the hovered point into the air; Aim.point arrives already lifted
+## (LineTargeting.resolve_target_point, the same call the click makes),
+## so the click takes that height too. The aim line's colour is
+## LineTargeting.check_point(), the rule both clicks share.
 
 @export var clear_color: Color = Color(1, 1, 1, 0.9)
 @export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
@@ -32,16 +34,14 @@ func _ready() -> void:
 	_line_immediate = built.immediate
 
 
-func _process(_delta: float) -> void:
-	var unit := _get_active_unit()
-	var ability: Ability = AbilityManager.armed_ability
+func draw(aim: Aim) -> void:
+	var unit: Unit = aim.caster
+	var ability: Ability = aim.ability
 	var targeting: LineTargeting = ability.targeting as LineTargeting if ability else null
-	var hover_point = _get_mouse_ground_point()
+	var hover_point = aim.point
 	if not unit or not targeting or hover_point == null:
 		_line_mesh.visible = false
 		return
-	_handle_aim_height_input(hover_point)
-	hover_point = targeting.resolve_target_point(hover_point)
 	if AbilityManager.has_line_start:
 		_draw_wall(unit, ability, targeting, AbilityManager.line_start, hover_point)
 	else:
@@ -50,11 +50,14 @@ func _process(_delta: float) -> void:
 
 
 func _draw_aim(unit: Unit, targeting: LineTargeting, hover_point: Vector3) -> void:
-	var color: Color = clear_color
-	if unit.global_position.distance_to(hover_point) > targeting.max_range:
-		color = out_of_range_color
-	elif not targeting.can_reach(unit, hover_point):
-		color = blocked_color
+	var color: Color
+	match targeting.check_point(unit, hover_point):
+		AbilityTargeting.Reach.OK:
+			color = clear_color
+		AbilityTargeting.Reach.OUT_OF_RANGE:
+			color = out_of_range_color
+		_:
+			color = blocked_color
 	var lift := Vector3(0, line_height_offset, 0)
 	_strip([unit.global_position + lift, hover_point + lift], color)
 

@@ -17,16 +17,20 @@ extends IndicatorBase
 ## SpawnSurfaceEffect/Surface). For
 ## an ability that genuinely CAN be aimed in open 3D space (Fireball),
 ## see aerial_area_indicator.gd/AerialAreaTargeting instead — this
-## indicator explicitly EXCLUDES those (see _get_armed_area_ability) so
-## the two never both show for the same armed ability.
+## indicator explicitly EXCLUDES those (AerialAreaTargeting.indicator_ids
+## names &"aerial_area", not &"area") so the two never both show for the
+## same armed ability.
 ##
 ## Only shows during combat, for the unit whose turn it currently is,
 ## only when player-controlled, and only when the currently armed
 ## ability uses AreaTargeting (but not AerialAreaTargeting).
 ##
+## The line's colour is the armed AreaTargeting's own check() — the same
+## range/LoS rule the cast uses, not a copy of it kept here.
+##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
-## its own visuals in code. ground_collision_mask (see IndicatorBase)
-## must match whatever physics layer your ground/terrain body is on.
+## its own visuals in code. The hovered point comes from the Aim
+## ClickRouter hands draw(); nothing here raycasts.
 
 @export var clear_color: Color = Color(1, 1, 1, 0.9)
 @export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
@@ -57,15 +61,15 @@ func _ready() -> void:
 	_ring_immediate = ring_built.immediate
 
 
-func _process(_delta: float) -> void:
-	var unit := _get_active_unit()
-	var ability: Ability = AbilityManager.armed_ability
+func draw(aim: Aim) -> void:
+	var unit: Unit = aim.caster
+	var ability: Ability = aim.ability
 
 	if not unit or not ability:
 		_hide_all()
 		return
 
-	var hover_point = _get_mouse_ground_point()
+	var hover_point = aim.point
 	if hover_point == null:
 		_hide_all()
 		return
@@ -88,12 +92,13 @@ func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 		return
 
 	var color: Color
-	if unit.global_position.distance_to(hover_point) > targeting.max_range:
-		color = out_of_range_color
-	elif targeting.requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(unit, hover_point, targeting.los_obstruction_mask, targeting.eye_height):
-		color = blocked_color
-	else:
-		color = clear_color
+	match targeting.check(unit, hover_point):
+		AbilityTargeting.Reach.OK:
+			color = clear_color
+		AbilityTargeting.Reach.OUT_OF_RANGE:
+			color = out_of_range_color
+		_:
+			color = blocked_color
 
 	var from: Vector3 = unit.global_position + Vector3(0, line_height_offset, 0)
 	var to: Vector3 = hover_point + Vector3(0, line_height_offset, 0)

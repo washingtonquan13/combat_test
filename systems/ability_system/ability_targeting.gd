@@ -18,6 +18,32 @@ func is_valid_target(_attacker: Unit, _target) -> bool:
 	return false
 
 
+## Why a target can or cannot be aimed at, for the previews that colour
+## the difference. OK is exactly is_valid_target() saying yes.
+enum Reach { OK, OUT_OF_RANGE, BLOCKED, INVALID }
+
+
+## The ONE range/line-of-sight rule for this shape: is_valid_target() is
+## `check() == Reach.OK` on every shape that overrides this, and every
+## indicator colours itself from it rather than re-deriving "too far" and
+## "blocked" on its own. Before this the area, line, line-of-sight and
+## seeking indicators each carried their own copy of the rule beside the
+## one the cast used, and a copy that drifted showed a green line for a
+## cast that was then refused. Default: OK or INVALID, from
+## is_valid_target().
+func check(attacker: Unit, target) -> Reach:
+	return Reach.OK if is_valid_target(attacker, target) else Reach.INVALID
+
+
+## Whether this shape can be aimed above the ground with a Ctrl height
+## drag (see AbilityManager.aim_height_override, which
+## resolve_target_point() reads). The router asks this before it holds
+## the ground point for a drag, so a shape that would ignore the height
+## never freezes the cursor.
+func takes_aim_height() -> bool:
+	return false
+
+
 ## Whether attacker has ANY legal target for this ability at all right
 ## now, regardless of where the player is currently aiming — used to
 ## disable a hotbar slot outright rather than leaving it clickable for
@@ -92,7 +118,8 @@ func expects_point_target() -> bool:
 
 ## Adjusts a raw click point into the actual point an ability should be
 ## used at — called by ground_click_target.gd right before use_ability(),
-## on every point-targeting ability regardless of subclass. Default is a
+## on every point-targeting ability regardless of subclass, and by
+## Aim.build for the preview, so both land on the same point. Default is a
 ## no-op passthrough; override where a targeting shape needs to
 ## transform the raw click before use — see AerialAreaTargeting, which
 ## lifts it to a Ctrl-dragged height. Keeps the click router itself

@@ -21,8 +21,9 @@ extends RefCounted
 ## left to do is turn it into a budget-aware walking plan — see
 ## RoutePlanner.plan, which truncates the route to fit `budget` and
 ## integrates terrain cost (Surface.movement_cost_multiplier) along the
-## way. The SAME function is what movement_indicator.gd calls for the
-## preview, so preview and real move can never disagree.
+## way. The movement preview gets its route from preview_route() here,
+## which makes move_to()'s own route choice (ladder branch included) over
+## the same planner, so preview and real move can't disagree.
 ##
 ## move_speed/radius/avoidance_margin/arrival_tolerance/stuck_timeout all
 ## stay directly on Unit rather than moving in here — the @export ones for
@@ -94,6 +95,14 @@ var _path_index: int = 0
 ## authoritative by construction.
 var _planned_cost: float = 0.0
 
+## preview_route()'s cache of its last find_path() query — see that
+## function. Only the search is cached; RoutePlanner.plan() re-runs.
+var _preview_cached: bool = false
+var _preview_flying: bool = false
+var _preview_start_cell: Vector3i
+var _preview_dest_cell: Vector3i
+var _preview_waypoints: PackedVector3Array = PackedVector3Array()
+
 
 func _init(owner: Unit) -> void:
 	_owner = owner
@@ -154,9 +163,8 @@ func move_to(destination: Vector3) -> bool:
 			# find_route/required_move — checked as a hard precondition,
 			# never clamped/attempted-and-stranded) — walk toward the
 			# ladder's near point as far as ordinary budget allows, but
-			# never start the climb itself. Matches
-			# movement_indicator.gd's preview exactly: never shows or
-			# attempts a climb that won't complete.
+			# never start the climb itself. preview_route() mirrors this
+			# branch: never shows or attempts a climb that won't complete.
 			return _start_walk(route.near, budget)
 
 	return _start_walk(destination, budget)
@@ -173,33 +181,125 @@ func move_to(destination: Vector3) -> bool:
 ## real one.
 func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
 	var flying: bool = _owner.is_flying()
-	var query_destination: Vector3 = raw_destination
-	if flying:
-		# XZ comes from wherever was clicked; Y is the pilot's own target
-		# altitude (see Unit.flight_target_altitude), not the clicked
-		# point's Y — a ground click always resolves near y=0, which
-		# isn't where a flying unit is headed. find_path() below does a
-		# genuine 3D search between the unit's real current position and
-		# this point, so the returned route already climbs/descends
-		# around real obstacles at each height — no separate "bake at one
-		# height, then reinterpret Y along XZ progress" step needed.
-		query_destination.y = clamp(
+	var query_destination: Vector3 = _query_destination(raw_destination)
+	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
+	return _plan_waypoints(waypoints, budget, flying)
+
+
+## The point find_path() is actually asked to reach for raw_destination.
+## A grounded unit goes exactly where it was sent. A flier takes XZ from
+## wherever was clicked and Y from the pilot's own target altitude (see
+## Unit.flight_target_altitude), not the clicked point's Y — a ground
+## click always resolves near y=0, which isn't where a flying unit is
+## headed. find_path() does a genuine 3D search between the unit's real
+## current position and this point, so the returned route already
+## climbs/descends around real obstacles at each height — no separate
+## "bake at one height, then reinterpret Y along XZ progress" step needed.
+## Shared by plan_route() and preview_route() so the two can't ask for
+## different destinations.
+func _query_destination(raw: Vector3) -> Vector3:
+	var query: Vector3 = raw
+	if _owner.is_flying():
+		query.y = clamp(
 			_owner.flight_target_altitude,
 			NavigationGrid.FLIGHT_MIN_ALTITUDE,
 			NavigationGrid.FLIGHT_CEILING_HEIGHT
 		)
+	return query
 
-	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
+
+## RoutePlanner.plan() over find_path()'s waypoints, with the flier's
+## vertical cost multipliers — the one budget/cost step plan_route() and
+## preview_route() share. Vertical multipliers are only ever non-default
+## (1.0/1.0) for a flying mover — see FlightRules's own header. A
+## grounded unit's route is billed identically to before they existed,
+## since RoutePlanner.plan()'s defaults are a strict no-op.
+func _plan_waypoints(waypoints: PackedVector3Array, budget: float, flying: bool) -> Dictionary:
 	if waypoints.size() < 2:
 		return {"path": PackedVector3Array(), "cumulative_cost": PackedFloat32Array()}
-
-	# Vertical cost multipliers only ever passed non-default (1.0/1.0)
-	# here, and only for a flying mover — see FlightRules's own header.
-	# A grounded unit's route is billed identically to before this
-	# existed, since RoutePlanner.plan()'s defaults are a strict no-op.
 	var ascend_multiplier: float = FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
 	var descend_multiplier: float = FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
 	return RoutePlanner.plan(waypoints, budget, SurfaceManager.cost_sampler(_owner), ascend_multiplier, descend_multiplier)
+
+
+## The route move_to(dest) would take, planned in full rather than cut at
+## move_remaining — for the movement preview, which draws the in-budget
+## part and the rest in different colours from the returned
+## cumulative_cost. Makes the same choice move_to() does, in the same
+## order: a grounded unit headed for a ladder end gets the ladder journey
+## (or, when the climb is unaffordable, only the walk toward the near end
+## — never a climb the move won't perform); anything else gets
+## plan_route()'s query. Truncating this at move_remaining gives the
+## route move_to() walks, since RoutePlanner.plan() cuts the same path.
+##
+## Returns {path, cumulative_cost} — RoutePlanner.plan()'s shape; an
+## empty path when there is no route.
+##
+## Called every frame while the preview is live, so the A* search is
+## cached by (start cell, destination cell, flying) — the mouse sitting
+## still is the common case. RoutePlanner.plan() re-runs every call: a
+## cheap linear walk, and it keeps terrain cost live.
+func preview_route(dest: Vector3) -> Dictionary:
+	if not _owner.is_flying():
+		var route: Dictionary = Ladder.find_route(_owner, dest)
+		if not route.is_empty():
+			return _preview_ladder_route(route, dest)
+
+	var flying: bool = _owner.is_flying()
+	var query_destination: Vector3 = _query_destination(dest)
+	var start_cell: Vector3i = NavigationGrid.world_to_cell(_owner.global_position)
+	var dest_cell: Vector3i = NavigationGrid.world_to_cell(query_destination)
+	if not (
+		_preview_cached
+		and flying == _preview_flying
+		and start_cell == _preview_start_cell
+		and dest_cell == _preview_dest_cell
+	):
+		_preview_waypoints = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
+		_preview_cached = true
+		_preview_flying = flying
+		_preview_start_cell = start_cell
+		_preview_dest_cell = dest_cell
+
+	return _plan_waypoints(_preview_waypoints, INF, flying)
+
+
+## preview_route()'s ladder branch — see Ladder.find_route for `route`'s
+## shape, and move_to()'s ladder branch for the choice being mirrored.
+func _preview_ladder_route(route: Dictionary, dest: Vector3) -> Dictionary:
+	# Unaffordable: move_to() walks toward the near end and stops there,
+	# so that walk is all there is to show.
+	if not route.affordable:
+		return route.near_planned
+
+	# Affordable: one path over all three legs — the walk to the near end,
+	# the climb as a flat required_move cost, then the walk from the far
+	# end toward dest. The climb is the SAME base-to-top path _climb_ladder
+	# animates (reversed for a descent), not a straight near-to-far line,
+	# which is the clipping bug Ladder.climb_waypoints' header describes.
+	var path: PackedVector3Array = route.near_planned.path.duplicate()
+	var cost: PackedFloat32Array = route.near_planned.cumulative_cost.duplicate()
+	var base_cost: float = cost[cost.size() - 1] if cost.size() > 0 else 0.0
+
+	var climb_points: PackedVector3Array = Ladder.climb_waypoints(route.ladder.base_position(), route.ladder.top_position())
+	if not route.going_up:
+		climb_points.reverse()
+	var climb_total: float = base_cost
+	for i in range(1, climb_points.size()):
+		path.append(climb_points[i])
+		climb_total = base_cost + (route.ladder.required_move if i == climb_points.size() - 1 else 0.0)
+		cost.append(climb_total)
+
+	# The tail is grounded (ladders are grounded-only) and planned from the
+	# far end, where _on_climb_finished starts its own walk.
+	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), route.far, dest, _owner, false)
+	if tail_waypoints.size() >= 2:
+		var tail: Dictionary = _plan_waypoints(tail_waypoints, INF, false)
+		for i in range(1, tail.path.size()):
+			path.append(tail.path[i])
+			cost.append(climb_total + tail.cumulative_cost[i])
+
+	return {"path": path, "cumulative_cost": cost}
 
 
 ## Plans a route to raw_destination within budget and starts walking it —

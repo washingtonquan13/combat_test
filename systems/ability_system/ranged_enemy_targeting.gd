@@ -15,13 +15,17 @@ extends AbilityTargeting
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
+	return check(attacker, target) == Reach.OK
+
+
+func check(attacker: Unit, target) -> Reach:
 	if not target is Unit:
-		return false
+		return Reach.INVALID
 	if attacker.edge_distance_to(target) > max_range:
-		return false
+		return Reach.OUT_OF_RANGE
 	if requires_line_of_sight and not LineOfSight.has_clear_shot(attacker, target, los_obstruction_mask):
-		return false
-	return true
+		return Reach.BLOCKED
+	return Reach.OK
 
 
 func approach_range() -> float:

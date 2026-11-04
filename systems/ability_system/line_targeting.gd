@@ -21,21 +21,37 @@ extends AbilityTargeting
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
+	return check(attacker, target) == Reach.OK
+
+
+## A line is as reachable as its first unreachable end. Too long is
+## INVALID rather than out of range: end_for() never builds one, so only
+## a hand-made LineTarget can be.
+func check(attacker: Unit, target) -> Reach:
 	if not target is LineTarget:
-		return false
+		return Reach.INVALID
 	var line: LineTarget = target
 	if _flat(line.to - line.from).length() > max_length + 0.01:
-		return false
-	return can_reach(attacker, line.from) and can_reach(attacker, line.to)
+		return Reach.INVALID
+	var from_reach: Reach = check_point(attacker, line.from)
+	if from_reach != Reach.OK:
+		return from_reach
+	return check_point(attacker, line.to)
 
 
 ## Whether one end of the line may go at point.
 func can_reach(attacker: Unit, point: Vector3) -> bool:
+	return check_point(attacker, point) == Reach.OK
+
+
+## Range and line of sight to one end of the line: the rule both clicks
+## and the preview share.
+func check_point(attacker: Unit, point: Vector3) -> Reach:
 	if attacker.global_position.distance_to(point) > max_range:
-		return false
+		return Reach.OUT_OF_RANGE
 	if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, point, los_obstruction_mask, eye_height):
-		return false
-	return true
+		return Reach.BLOCKED
+	return Reach.OK
 
 
 ## Where a line started at start ends when aimed at point: point, pulled
@@ -87,6 +103,10 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 	if AbilityManager.has_aim_height_override:
 		click_position.y = AbilityManager.aim_height_override
 	return click_position
+
+
+func takes_aim_height() -> bool:
+	return true
 
 
 static func _flat(v: Vector3) -> Vector3:

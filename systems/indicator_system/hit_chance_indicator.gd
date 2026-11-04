@@ -37,10 +37,10 @@ func is_showing_anything() -> bool:
 	return super() or (label != null and label.visible)
 
 
-func _process(_delta: float) -> void:
+func draw(aim: Aim) -> void:
 	if label == null:
 		return
-	var text: String = _readout_under_cursor()
+	var text: String = _readout_under_cursor(aim)
 	label.visible = text != ""
 	if label.visible:
 		label.text = text
@@ -49,11 +49,11 @@ func _process(_delta: float) -> void:
 
 ## Empty when the cursor is not over something a click would use a
 ## rolled ability on.
-func _readout_under_cursor() -> String:
-	var acting: Unit = _get_active_unit()
+func _readout_under_cursor(aim: Aim) -> String:
+	var acting: Unit = aim.caster
 	if acting == null:
 		return ""
-	var hovered: Unit = _get_hovered_unit()
+	var hovered: Unit = aim.cursor.unit if aim.cursor else null
 	if hovered == null or hovered == acting or not hovered.is_alive():
 		return ""
 	var ability: Ability = hovered.click_ability_for(acting)

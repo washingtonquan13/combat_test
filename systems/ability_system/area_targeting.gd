@@ -26,18 +26,22 @@ extends AbilityTargeting
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
+	return check(attacker, target) == Reach.OK
+
+
+func check(attacker: Unit, target) -> Reach:
 	if not target is Vector3:
-		return false
+		return Reach.INVALID
 
 	var destination: Vector3 = target
 
 	if attacker.global_position.distance_to(destination) > max_range:
-		return false
+		return Reach.OUT_OF_RANGE
 
 	if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, destination, los_obstruction_mask, eye_height):
-		return false
+		return Reach.BLOCKED
 
-	return true
+	return Reach.OK
 
 
 func expects_point_target() -> bool:

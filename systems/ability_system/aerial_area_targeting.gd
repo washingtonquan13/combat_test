@@ -42,5 +42,9 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 ## inherit from AreaTargeting — an aerial blast is aimed in the air, and
 ## drawing the floor ring under it as well says the wrong thing about
 ## where it lands.
+func takes_aim_height() -> bool:
+	return true
+
+
 func indicator_ids() -> Array[StringName]:
 	return [&"aerial_area"]

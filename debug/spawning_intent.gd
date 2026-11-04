@@ -42,16 +42,16 @@ func kind() -> StringName:
 ## The armed_definition check is a safety net: an intent left pushed
 ## after the spawner disarmed must degrade to normal input, never to a
 ## black hole that swallows every click for the rest of the session.
-func handle_left_click(router, hit: ClickHit) -> bool:
+func handle_left_click(router, cursor: Cursor) -> bool:
 	if _spawner.armed_definition == null:
 		router.pop_intent(self)
 		return false
-	if hit.ground != null:
-		_spawner.spawn_at(hit.ground)
+	if cursor.ground != null:
+		_spawner.spawn_at(cursor.ground)
 	return true
 
 
-func handle_right_click(router, _hit: ClickHit) -> bool:
+func handle_right_click(router, _cursor: Cursor) -> bool:
 	if _spawner.armed_definition == null:
 		router.pop_intent(self)
 		return false

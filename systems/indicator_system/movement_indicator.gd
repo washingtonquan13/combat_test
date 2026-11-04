@@ -1,25 +1,22 @@
 extends IndicatorBase
-## Movement path preview, BG3-style. Only shows during combat, for the
-## unit whose turn it currently is, and only if that unit is
-## player-controlled (Unit.is_player_controlled) — the AI's turns don't
-## get this, and neither does anything out of combat.
+## Movement path preview, BG3-style. Drawn only — ClickRouter decides
+## when it is live (the "movement" intent) and hands it the frame's Aim
+## through draw(); it never reads the mouse, raycasts, or handles the
+## Ctrl altitude drag (that is IdleIntent.steer's).
 ##
 ## Scene setup: attach this script to any plain Node3D in your main scene
 ## — it builds its own child MeshInstance3D visuals in code, nothing else
-## needs to be wired up. Requires ground_collision_mask (see
-## IndicatorBase) to match whatever physics layer your ground/terrain
-## body (see ground_click_target.gd) is actually on, so mouse hover can
-## be raycast onto it.
+## needs to be wired up.
 ##
-## A line follows the EXACT planned route (via RoutePlanner.plan — the
-## same budget/cost planner Unit.move_to() itself calls, over a route
+## A line follows the route from Unit.preview_route() — the same route
+## choice Unit.move_to() makes, ladder journeys included, over a route
 ## from NavigationGrid.find_path() that's already avoidance-correct
-## against every other unit's footprint and real level geometry, see
-## navigation_grid.gd) from the unit to wherever the mouse is hovering,
-## colored white for the portion within move_remaining and red for the
-## portion beyond it. Since this calls the literal same planning function
-## the real move will use, over the same grid state, this preview IS what
-## will happen — not an approximation of it.
+## against every other unit's footprint and real level geometry, and
+## through the same RoutePlanner.plan budget/cost planner — from the unit
+## to the aimed point, colored white for the portion within
+## move_remaining and red for the portion beyond it. Because the preview
+## and the move share one route rule over the same grid state, this
+## preview IS what will happen — not an approximation of it.
 ##
 ## The line itself is corner-rounded (_round_corners) then drawn as one
 ## flat, ground-hugging ribbon mesh (_draw_textured_ribbon), carrying
@@ -81,17 +78,6 @@ const LINE_SHADER: Shader = preload("res://systems/indicator_system/movement_ind
 var _path_mesh: MeshInstance3D
 var _path_immediate: ImmediateMesh
 
-## Cache for the last NavigationGrid.find_path() query this preview made —
-## see _update_path_preview. A* is a real search, not free; re-running it
-## unconditionally every rendered frame (most of which the mouse hasn't
-## meaningfully moved) was this preview's single biggest performance cost.
-var _last_query_unit: Unit = null
-var _last_query_flying: bool = false
-var _last_query_start_cell: Vector3i
-var _last_query_dest_cell: Vector3i
-var _last_waypoints: PackedVector3Array = PackedVector3Array()
-
-
 
 func serves() -> StringName:
 	return &"movement"
@@ -110,238 +96,28 @@ func _ready() -> void:
 	_path_mesh.material_override = mat
 
 
-func _process(_delta: float) -> void:
-	var unit := _get_active_unit()
-	if not unit:
+## Draws the route the caster would take to aim.point — from
+## Unit.preview_route(), the same route choice move_to() makes (ladder
+## journeys included), planned in full so _draw_path can colour the part
+## beyond move_remaining. Nothing to draw without a caster or a ground
+## point under the cursor.
+func draw(aim: Aim) -> void:
+	if aim.caster == null or aim.point == null:
 		_hide_all()
 		return
 
-	_handle_altitude_input(unit)
-	_update_path_preview(unit)
+	var planned: Dictionary = aim.caster.preview_route(aim.point)
+	if planned.path.size() < 2:
+		_hide_all()
+		return
+
+	_draw_path(planned.path, planned.cumulative_cost, aim.caster.move_remaining)
+	_path_mesh.visible = true
 
 
 func _hide_all() -> void:
 	if _path_mesh:
 		_path_mesh.visible = false
-
-
-## Modifier-style altitude control: hold fly_altitude_modifier (Ctrl) and
-## every currently-relevant flying unit's TARGET altitude tracks the
-## mouse directly, instead of the old R/F "nudge at a fixed speed"
-## scheme. Called from _process() rather than an input callback since it
-## needs to keep sampling the live mouse position for as long as the
-## modifier stays down. Same gating as the path preview (only reached at
-## all once _get_active_unit() already passed in _process) — which units
-## actually receive the sampled altitude comes from
-## _flying_units_for_altitude_control(), not just active_unit itself.
-##
-## How the drag itself works: on the frame the modifier is first held, the
-## ground point the hover was aiming at is held (IndicatorBase.
-## _held_ground) — for the rest of the hold, mouse movement only changes
-## height, not destination, so the two never fight over the same input.
-## Height comes from casting the camera ray through the current mouse
-## position and intersecting it against a vertical "wall" of infinite
-## height standing at that anchor XZ, facing the camera — see
-## IndicatorBase._sample_height_from_mouse for why that's the right shape
-## of plane to use. Releasing the modifier ends the drag; whatever
-## altitude it landed on stays committed (same as R/F leaving
-## flight_target_altitude wherever it was last nudged to).
-func _handle_altitude_input(active_unit: Unit) -> void:
-	var flying_units: Array[Unit] = _flying_units_for_altitude_control(active_unit)
-	if flying_units.is_empty() or not Input.is_action_pressed("fly_altitude_modifier"):
-		return
-
-	var ground_point = _get_mouse_ground_point()
-	var held: Vector3 = _ground_held_from(ground_point if ground_point != null else active_unit.global_position)
-	var sampled_altitude = _sample_height_from_mouse(Vector2(held.x, held.z))
-	if sampled_altitude != null:
-		for unit in flying_units:
-			unit.set_flight_altitude(sampled_altitude)
-
-
-## Which units the altitude drag should actually apply to. In combat,
-## only the single acting unit can ever move at all, so this stays
-## scoped exactly to it, same as before. Out of combat, a move command
-## already applies to the WHOLE current selection — a leader going to
-## the clicked point plus every other selected unit landing on a ring
-## around it (see ground_click_target.gd) — altitude control follows
-## the same scope, every currently-selected flying unit sharing the one
-## dragged altitude, rather than only whichever unit happens to be first
-## in the selection (PlayerInteractionState.get_active_unit()'s own
-## definition, out of combat). That mismatch was the actual bug: a
-## mixed flying+ground selection silently did nothing on Ctrl-drag
-## whenever a ground unit happened to be selected first, since
-## active_unit.is_flying() was false and the whole gesture no-opped.
-func _flying_units_for_altitude_control(active_unit: Unit) -> Array[Unit]:
-	if not active_unit:
-		return []
-	# The COMMANDED unit's own situation, not whether a fight exists
-	# somewhere: a flier standing outside a battle should still be
-	# adjustable along with the rest of the selection.
-	if active_unit.in_combat():
-		var solo: Array[Unit] = []
-		if active_unit.is_flying():
-			solo.append(active_unit)
-		return solo
-
-	var flying: Array[Unit] = []
-	for unit in SelectionManager.selected_units:
-		if unit.is_flying():
-			flying.append(unit)
-	return flying
-
-
-func _update_path_preview(unit: Unit) -> void:
-	var hover_point = _get_mouse_ground_point()
-	if hover_point == null:
-		_path_mesh.visible = false
-		return
-
-	# Mirrors UnitMovement.move_to()'s own ladder branch exactly (see
-	# Ladder.find_route) — same query, same affordability check, so this
-	# preview can never show a climb the real move wouldn't also perform,
-	# or vice versa. Bypasses the ordinary cached-query path entirely
-	# below; see _update_ladder_preview for why.
-	if not unit.is_flying():
-		var route: Dictionary = Ladder.find_route(unit, hover_point)
-		if not route.is_empty():
-			_update_ladder_preview(unit, route, hover_point)
-			return
-
-	# Mirrors UnitMovement.move_to()'s own flying branch exactly — same
-	# XZ-from-click/Y-from-target-altitude query, so this preview can't
-	# diverge from what the real move will do (see this file's header).
-	var flying: bool = unit.is_flying()
-	var query_hover_point: Vector3 = hover_point
-	if flying:
-		query_hover_point.y = clamp(
-			unit.flight_target_altitude,
-			NavigationGrid.FLIGHT_MIN_ALTITUDE,
-			NavigationGrid.FLIGHT_CEILING_HEIGHT
-		)
-
-	# Only re-run the actual A* search when the meaningful inputs moved to
-	# a different CELL — hover position, unit's own position, or flying
-	# altitude (already folded into dest_cell, since query_hover_point.y
-	# carries the target altitude) — not on every single frame regardless
-	# of whether anything changed, which is most frames (the mouse sitting
-	# still is the common case, not the exception). RoutePlanner.plan
-	# below still re-runs every frame regardless — it's a cheap linear
-	# walk of the path, not a search, so it can stay live-updating against
-	# move_remaining without needing the same caching.
-	var start_cell: Vector3i = NavigationGrid.world_to_cell(unit.global_position)
-	var dest_cell: Vector3i = NavigationGrid.world_to_cell(query_hover_point)
-	var query_unchanged: bool = (
-		unit == _last_query_unit
-		and flying == _last_query_flying
-		and start_cell == _last_query_start_cell
-		and dest_cell == _last_query_dest_cell
-	)
-
-	var waypoints: PackedVector3Array
-	if query_unchanged:
-		waypoints = _last_waypoints
-	else:
-		# Hovering directly over another unit's own footprint has nothing
-		# valid to plan toward exactly at that point — find_path()
-		# naturally resolves to the nearest valid cell outside it, same as
-		# move_to() itself; no separate sanitizing step needed.
-		waypoints = NavigationGrid.find_path(unit.get_tree(), unit.global_position, query_hover_point, unit, flying)
-		_last_query_unit = unit
-		_last_query_flying = flying
-		_last_query_start_cell = start_cell
-		_last_query_dest_cell = dest_cell
-		_last_waypoints = waypoints
-
-	if waypoints.size() < 2:
-		_path_mesh.visible = false
-		return
-
-	# The SAME planning call move_to() itself makes, with the same
-	# cost_sampler — a large budget here gets the full route to the hover
-	# point regardless of move_remaining; the white/red split below is
-	# what shows how far the unit could actually get this turn. Because
-	# this is the literal same function over the literal same grid
-	# state, this preview and the real move can never disagree.
-	# Same ascend/descend multipliers UnitMovement.plan_route() itself
-	# passes for a flying mover (see FlightRules) — without these, this
-	# preview under-reported a flying unit's climb cost by up to 2×, so
-	# the white/red split no longer matched what move_to() actually
-	# charged (see this file's own header, which promises exactly that
-	# equivalence). Both stay 1.0/1.0 (a strict no-op) for a grounded
-	# unit, unchanged from before this fix.
-	var ascend_multiplier: float = UnitMovement.FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
-	var descend_multiplier: float = UnitMovement.FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
-	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.cost_sampler(unit), ascend_multiplier, descend_multiplier)
-	var path: PackedVector3Array = planned.path
-
-	if path.size() < 2:
-		_path_mesh.visible = false
-		return
-
-	_draw_path(path, planned.cumulative_cost, unit.move_remaining)
-	_path_mesh.visible = true
-
-
-## Ladder-aware counterpart to the tail end of _update_path_preview above
-## — see Ladder.find_route for `route`'s shape. Reuses _draw_path
-## completely unchanged in both branches below; only how the (path,
-## cumulative_cost) pair fed into it gets assembled differs.
-func _update_ladder_preview(unit: Unit, route: Dictionary, hover_point: Vector3) -> void:
-	if not route.affordable:
-		# Can't afford the climb this turn — show exactly what
-		# UnitMovement.move_to() will actually do: walk toward the
-		# ladder's near point, ordinary in-range/out-of-range split, and
-		# nothing beyond it. Never draw a climb that won't happen — the
-		# whole point of this ladder's "no partial movement" design is
-		# that the preview must never promise an outcome the execution
-		# can't deliver.
-		var near_planned: Dictionary = route.near_planned
-		if near_planned.path.size() < 2:
-			_path_mesh.visible = false
-			return
-		_draw_path(near_planned.path, near_planned.cumulative_cost, unit.move_remaining)
-		_path_mesh.visible = true
-		return
-
-	# Affordable — build ONE combined path spanning all three legs (walk
-	# to near, the climb itself as a flat required_move cost, walk from
-	# far toward the actual hover point) and hand it to the exact same
-	# _draw_path used for an ordinary move. _draw_path only ever needs a
-	# path + parallel cumulative cost + a budget; it doesn't care whether
-	# a given segment's cost came from ordinary walking or a ladder's
-	# flat climb cost, so no drawing logic needs to change for this case
-	# at all.
-	var combined_path: PackedVector3Array = route.near_planned.path.duplicate()
-	var combined_cost: PackedFloat32Array = route.near_planned.cumulative_cost.duplicate()
-	var base_cost: float = combined_cost[combined_cost.size() - 1] if combined_cost.size() > 0 else 0.0
-
-	# The climb segment itself — the SAME base-to-top canonical path
-	# (reversed for a descent, via route.going_up) UnitMovement.
-	# _climb_ladder actually animates, NOT a straight line from near to
-	# far. A straight line is the exact clipping bug already found and
-	# fixed once in the real movement (see Ladder.climb_waypoints' own
-	# header) — drawing one here instead would silently reintroduce it
-	# in the preview only, showing a line cutting through geometry the
-	# real climb now correctly detours around.
-	var climb_points: PackedVector3Array = Ladder.climb_waypoints(route.ladder.base_position(), route.ladder.top_position())
-	if not route.going_up:
-		climb_points.reverse()
-	var climb_total: float = base_cost
-	for i in range(1, climb_points.size()):
-		combined_path.append(climb_points[i])
-		climb_total = base_cost + (route.ladder.required_move if i == climb_points.size() - 1 else 0.0)
-		combined_cost.append(climb_total)
-
-	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), route.far, hover_point, unit, false)
-	if tail_waypoints.size() >= 2:
-		var tail_planned: Dictionary = RoutePlanner.plan(tail_waypoints, 9999.0, SurfaceManager.cost_sampler(unit))
-		for i in range(1, tail_planned.path.size()):
-			combined_path.append(tail_planned.path[i])
-			combined_cost.append(climb_total + tail_planned.cumulative_cost[i])
-
-	_draw_path(combined_path, combined_cost, unit.move_remaining)
-	_path_mesh.visible = true
 
 
 ## Rebuilds the path line each frame, split into an in-range sub-path

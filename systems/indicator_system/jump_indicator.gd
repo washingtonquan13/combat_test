@@ -10,8 +10,8 @@ extends IndicatorBase
 ## armed ability (see AbilityManager) uses GroundPointTargeting.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
-## its own line mesh in code. ground_collision_mask (see IndicatorBase)
-## must match whatever physics layer your ground/terrain body is on.
+## its own line mesh in code. The hovered point comes from the Aim
+## ClickRouter hands draw(); nothing here raycasts.
 
 @export var valid_color: Color = Color(1, 1, 1, 0.9)
 @export var invalid_color: Color = Color(1, 0.2, 0.2, 0.9)
@@ -32,16 +32,16 @@ func _ready() -> void:
 	_line_immediate = built.immediate
 
 
-func _process(_delta: float) -> void:
-	var unit := _get_active_unit()
-	var ability: Ability = AbilityManager.armed_ability
+func draw(aim: Aim) -> void:
+	var unit: Unit = aim.caster
+	var ability: Ability = aim.ability
 	var move_effect: MoveCasterEffect = ability.get_move_caster_effect() if ability else null
 
 	if not unit or not move_effect:
 		_line_mesh.visible = false
 		return
 
-	var hover_point = _get_mouse_ground_point()
+	var hover_point = aim.point
 	if hover_point == null:
 		_line_mesh.visible = false
 		return

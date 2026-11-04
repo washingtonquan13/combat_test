@@ -9,16 +9,15 @@ extends AreaIndicator
 ## Extends AreaIndicator directly (not IndicatorBase) rather than
 ## duplicating it — this and area_indicator.gd are both fundamentally
 ## the same "AreaTargeting aim-line-plus-ring preview," just floor-only
-## vs. full-3D, so the aim-line drawing (_update_line), the ring wrapper
-## (_update_ring), the shared fields/export colors, and _get_active_unit
-## are all inherited unchanged. What's genuinely different and stays
-## here: which ability type arms this (_get_armed_aerial_ability), the
-## ring shape itself (_draw_ring below overrides the inherited single-
-## ring version with three mutually perpendicular rings — _update_ring's
+## vs. full-3D, so the aim-line drawing (_update_line, coloured by the
+## targeting's check()), the ring wrapper (_update_ring) and the shared
+## fields/export colors are all inherited unchanged. What's genuinely
+## different and stays here: which intent id arms this (serves() ->
+## &"aerial_area", named by AerialAreaTargeting.indicator_ids), the ring
+## shape itself (_draw_ring below overrides the inherited single-ring
+## version with three mutually perpendicular rings — _update_ring's
 ## inherited body still calls _draw_ring() virtually, so it picks up
-## this override for free), and the Ctrl height drag (shared with
-## line_indicator.gd on IndicatorBase), which the floor-only sibling
-## never uses.
+## this override for free), and the cloud's squash (_height_scale).
 ##
 ## A line from caster to the hovered point (colored by range/line-of-
 ## sight, same states as line_of_sight_indicator.gd), plus a WIREFRAME-
@@ -35,15 +34,13 @@ extends AreaIndicator
 ## The hover point's HEIGHT is normally just wherever the ground raycast
 ## hit (an AoE center sitting on the ground, same as the floor-only
 ## sibling). Holding fly_altitude_modifier (Ctrl) lets the player drag
-## it into the air instead: same technique movement_indicator.gd already
-## uses for flying altitude (XZ freezes at the anchor the instant the
-## modifier is pressed, a vertical mouse drag intersected against a
-## camera-facing vertical plane controls height, via IndicatorBase's
-## shared _sample_height_from_mouse). The resulting height is written to
-## AbilityManager.aim_height_override, NOT held locally —
-## ground_click_target.gd reads the exact same value at the moment of
-## the actual click, so the confirmed cast can't disagree with what this
-## preview showed.
+## it into the air instead (XZ freezes at the ground point the press
+## started on, a vertical mouse drag sets the height). This indicator
+## no longer reads that drag itself: ClickRouter resolves it into the
+## Cursor, the intent writes it to AbilityManager.aim_height_override,
+## and Aim.point arrives already lifted by AerialAreaTargeting.
+## resolve_target_point — the same call the actual click makes, so the
+## confirmed cast can't disagree with what this preview showed.
 ##
 ## Only shows during combat, for the unit whose turn it currently is,
 ## only when player-controlled, and only when the currently armed
@@ -51,8 +48,7 @@ extends AreaIndicator
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
 ## its own visuals in code (inherited from AreaIndicator/IndicatorBase).
-## ground_collision_mask (see IndicatorBase) must match whatever physics
-## layer your ground/terrain body is on.
+## The hovered point comes from the Aim ClickRouter hands draw().
 
 var _height_scale: float = 1.0
 
@@ -61,22 +57,19 @@ func serves() -> StringName:
 	return &"aerial_area"
 
 
-func _process(_delta: float) -> void:
-	var unit := _get_active_unit()
-	var ability: Ability = AbilityManager.armed_ability
+func draw(aim: Aim) -> void:
+	var unit: Unit = aim.caster
+	var ability: Ability = aim.ability
 
 	if not unit or not ability:
 		_hide_all()
 		return
 
-	var hover_point = _get_mouse_ground_point()
+	# Already lifted to any Ctrl-dragged height (see Aim.point).
+	var hover_point = aim.point
 	if hover_point == null:
 		_hide_all()
 		return
-
-	_handle_aim_height_input(hover_point)
-	if AbilityManager.has_aim_height_override:
-		hover_point.y = AbilityManager.aim_height_override
 
 	_height_scale = _cloud_height_scale(ability)
 	_update_line(unit, ability, hover_point)

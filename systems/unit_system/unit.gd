@@ -1009,12 +1009,15 @@ func move_to(destination: Vector3) -> bool:
 
 ## Pure route/cost query — see UnitMovement.plan_route's own doc comment.
 ## Exposed here so AiScorer can price out a candidate destination without
-## actually issuing a move order (same read-only need movement_indicator.gd
-## already has for its own preview, just reached via RoutePlanner.plan
-## directly there since it doesn't need the flying-Y-override step this
-## wraps).
+## actually issuing a move order.
 func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
 	return _movement.plan_route(raw_destination, budget)
+
+
+## The full route move_to(dest) would take, ladder journeys included —
+## see UnitMovement.preview_route. What the movement preview draws.
+func preview_route(dest: Vector3) -> Dictionary:
+	return _movement.preview_route(dest)
 
 
 ## Cancels the current move order in place, still spending whatever

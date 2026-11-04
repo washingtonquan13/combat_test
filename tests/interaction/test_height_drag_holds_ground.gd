@@ -1,36 +1,45 @@
 extends AiTestCase
-## A Ctrl height drag holds the ground point: while it is held every
-## reader of the cursor's ground point gets the held spot, so the mouse
-## only moves the height; letting go of Ctrl frees it.
+## A Ctrl height drag holds the ground point: while it is held the
+## router's cursor reports the held spot, so the mouse only moves the
+## height; letting go of Ctrl frees it, and Ctrl over an intent with no
+## height to drag holds nothing.
+
+const ROUTER_SCRIPT: GDScript = preload("res://systems/indicator_system/ground_click_target.gd")
+
+
+class DragIntent extends PlayerIntent:
+	var drags: bool = true
+
+	func kind() -> StringName:
+		return &"drag_probe"
+
+	func drags_height(_router) -> bool:
+		return drags
 
 
 func run() -> void:
-	var reader := IndicatorBase.new()
-	add_child(reader)
+	var router: Node3D = Node3D.new()
+	router.set_script(ROUTER_SCRIPT)
+	add_child(router)
+	router.set_process(false)
+	var intent := DragIntent.new()
 	var spot := Vector3(3.0, 0.0, -7.0)
 
-	Input.action_press("fly_altitude_modifier")
-	IndicatorBase._hold_ground(spot)
-	check("held while Ctrl is down", reader._get_mouse_ground_point() == spot)
-
-	Input.action_release("fly_altitude_modifier")
-	reader._get_mouse_ground_point()
-	check("letting go frees it", IndicatorBase._held_ground == null)
-
-	# A drag the router switches off mid-press (a cast, an armed ability)
-	# must not leave the next press holding nothing new.
 	_ctrl(true)
-	reader._handle_aim_height_input(spot)
-	reader.set_live(false)
+	router._held_ground = spot
+	check("held while Ctrl is down", router.resolve_cursor(intent).ground == spot)
+
+	intent.drags = false
+	check("Ctrl over an intent with nothing to drag holds nothing",
+		router.resolve_cursor(intent).ground != spot and router._held_ground == null)
+
+	intent.drags = true
+	router._held_ground = spot
 	_ctrl(false)
-	_ctrl(true)
-	reader.set_live(true)
-	var next := Vector3(-4.0, 0.0, 2.0)
-	reader._handle_aim_height_input(next)
-	check("the next press holds the new spot", IndicatorBase._held_ground == next)
-	_ctrl(false)
-	AbilityManager.has_aim_height_override = false
-	reader.free()
+	router.resolve_cursor(intent)
+	check("letting go frees it", router._held_ground == null)
+
+	router.free()
 
 
 func _ctrl(down: bool) -> void:

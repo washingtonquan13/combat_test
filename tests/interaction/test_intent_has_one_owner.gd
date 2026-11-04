@@ -19,8 +19,8 @@ extends AiTestCase
 ##   report and [[sabotage-checks-caught-two-false-greens]];
 ## - dark means dark: an indicator switched off must also stop DRAWING,
 ##   asserted by forcing a mesh visible first and watching it go away.
-##   is_processing() alone would pass on a stopped indicator that left a
-##   line hanging in the world;
+##   is_live() alone would pass on a dark indicator that left a line
+##   hanging in the world;
 ## - intent_changed is counted, not merely observed. Re-deriving the same
 ##   intent must not re-fire, or every listener re-does its work forever;
 ## - and the intents are asked to actually COMMAND something. An earlier
@@ -32,11 +32,12 @@ extends AiTestCase
 ## Frame order is its own claim, checked with real awaited frames rather
 ## than the hand-driven _process the bookkeeping half uses. In the real
 ## tree the indicators sit BEFORE the router (WorldManager reparents
-## main_root.gd's attention list in order), so without
-## ClickRouter's process_priority they would each run a frame ahead of
-## the intent that governs them — reading an ability that is no longer
-## theirs. _the_router_runs_before_the_indicators_it_drives mirrors that
-## tree order deliberately and watches who moves first.
+## main_root.gd's attention list in order). Indicators no longer process
+## for themselves - the router calls draw(aim) after applying the intent
+## - so on the frame an indicator is lit it must be drawn AFTER the
+## router moved, never ahead of it with an ability that is not yet its.
+## _the_router_runs_before_the_indicators_it_drives mirrors that tree
+## order deliberately and watches who moves first.
 ##
 ## wants_world(): true. The router is an attention node reparented into
 ## the world by WorldManager, it raycasts against the world's own physics
@@ -50,7 +51,7 @@ extends AiTestCase
 
 const ROUTER_SCRIPT: GDScript = preload("res://systems/indicator_system/ground_click_target.gd")
 const PLAYER_INTENT_SCRIPT: GDScript = preload("res://systems/interaction_system/player_intent.gd")
-const CLICK_HIT_SCRIPT: GDScript = preload("res://systems/interaction_system/click_hit.gd")
+const CURSOR_SCRIPT: GDScript = preload("res://systems/interaction_system/cursor.gd")
 
 const INDICATOR_PATHS: Dictionary = {
 	&"movement": "res://systems/indicator_system/movement_indicator.gd",
@@ -75,7 +76,7 @@ class OrderProbe extends IndicatorBase:
 	func serves() -> StringName:
 		return &"probe_order"
 
-	func _process(_delta: float) -> void:
+	func draw(_aim: Aim) -> void:
 		order_log.append(&"indicator")
 
 
@@ -97,8 +98,8 @@ class RecordingIntent extends PlayerIntent:
 	func kind() -> StringName:
 		return &"recording"
 
-	func handle_left_click(_router, hit: ClickHit) -> bool:
-		lefts.append(hit)
+	func handle_left_click(_router, cursor: Cursor) -> bool:
+		lefts.append(cursor)
 		return true
 
 
@@ -278,7 +279,7 @@ func _the_live_indicator_set_follows_the_ability() -> void:
 			% [_live_ids()] + "both is the bug this replaced")
 
 	check("no ability ever leaves the movement preview live",
-		not _indicators[&"movement"].is_processing(),
+		not _indicators[&"movement"].is_live(),
 		"a click while armed casts rather than walks")
 
 
@@ -347,7 +348,7 @@ func _losing_the_screen_locks_everything() -> void:
 		_router.intent().kind() == &"locked",
 		"got %s" % _router.intent().describe())
 
-	var hit: ClickHit = CLICK_HIT_SCRIPT.new()
+	var hit: Cursor = CURSOR_SCRIPT.new()
 	hit.ground = Vector3.ZERO
 	check("a locked intent consumes no left click",
 		not _router.intent().handle_left_click(_router, hit),
@@ -459,7 +460,7 @@ func _clicks_actually_command_the_world() -> void:
 	# picked, and not a Unit — working at all.
 	SelectionManager.deselect_all()
 	started.clear()
-	var empty_ground: ClickHit = CLICK_HIT_SCRIPT.new()
+	var empty_ground: Cursor = CURSOR_SCRIPT.new()
 	empty_ground.ground = Vector3(4.0, 0.0, 4.0)
 	check("a ground click with nobody selected is refused, not swallowed",
 		not _router.intent().handle_left_click(_router, empty_ground),
@@ -529,11 +530,11 @@ func _clicks_actually_command_the_world() -> void:
 	await get_tree().process_frame
 
 
-## A ClickHit shaped the way the router builds one for a unit under the
+## A Cursor shaped the way the router builds one for a unit under the
 ## cursor: a Unit is an interactable too (it implements get_interactions),
 ## so both fields are set, exactly as the shared raycast would set them.
-func _hit_on(unit: Unit) -> ClickHit:
-	var hit: ClickHit = CLICK_HIT_SCRIPT.new()
+func _hit_on(unit: Unit) -> Cursor:
+	var hit: Cursor = CURSOR_SCRIPT.new()
 	hit.unit = unit
 	hit.interactable = unit
 	hit.ground = unit.global_position
@@ -567,8 +568,8 @@ func _the_router_runs_before_the_indicators_it_drives() -> void:
 		"the intent was handed %d clicks — the gate, the derivation or "
 			% recorder.lefts.size() + "the dispatch is not on the real path")
 	if recorder.lefts.size() == 1:
-		check("and it is handed one hit the router built, not a raw event",
-			recorder.lefts[0] is ClickHit)
+		check("and it is handed one cursor the router built, not a raw event",
+			recorder.lefts[0] is Cursor)
 	check("a claimed click is marked handled, so physics picking never "
 			+ "sees it",
 		_router.get_viewport().is_input_handled(),
@@ -590,29 +591,28 @@ func _the_router_runs_before_the_indicators_it_drives() -> void:
 	_spawn_parent().move_child(probe, 0)
 	_router.intent_changed.connect(func(_i): probe.order_log.append(&"router"))
 
-	var lit := ProbeIntent.new()
-	_router.push_intent(lit)
-	await get_tree().process_frame
-	await get_tree().process_frame
-	check("SETUP: the probe is live under an intent that names it",
-		probe.is_processing(),
-		"the router never switched it on, so the order below is untestable")
-
-	probe.order_log.clear()
 	var dark: PlayerIntent = PLAYER_INTENT_SCRIPT.new()
 	_router.push_intent(dark)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	check("on the frame the intent moves, the router runs before the "
-			+ "indicators it drives",
-		not probe.order_log.is_empty() and probe.order_log[0] == &"router",
-		"log was %s — the indicators sit ahead of the router in the tree, "
-			% [probe.order_log]
-			+ "so without process_priority they process a frame ahead of "
-			+ "the intent that governs them")
+	check("SETUP: the probe is dark under an intent that does not name it",
+		not probe.is_live(),
+		"it is live already, so the order below is untestable")
 
-	_router.pop_intent(dark)
+	probe.order_log.clear()
+	var lit := ProbeIntent.new()
+	_router.push_intent(lit)
+	await get_tree().process_frame
+	check("on the frame the intent moves, the router moves first and the "
+			+ "indicator it lit is drawn in that same frame",
+		probe.order_log.size() >= 2 and probe.order_log[0] == &"router"
+			and probe.order_log[1] == &"indicator",
+		"log was %s — an indicator drawn ahead of the router reads an "
+			% [probe.order_log]
+			+ "ability that is not yet its; one not drawn at all lags a frame")
+
 	_router.pop_intent(lit)
+	_router.pop_intent(dark)
 
 	# --- an indicator that arrives after boot ----------------------------
 	#
@@ -631,7 +631,7 @@ func _the_router_runs_before_the_indicators_it_drives() -> void:
 	await get_tree().process_frame
 	check("an indicator that joins after the intent settled is dark, "
 			+ "because the intent never moved",
-		not latecomer.is_processing(),
+		not latecomer.is_live(),
 		"it woke up on its own, which would mean something other than the "
 			+ "router is deciding liveness")
 
@@ -640,7 +640,7 @@ func _the_router_runs_before_the_indicators_it_drives() -> void:
 	await get_tree().process_frame
 	check("and focusing a world re-applies the intent to whatever is in "
 			+ "the group now",
-		latecomer.is_processing(),
+		latecomer.is_live(),
 		"the router is not listening to WorldManager.world_focused, so an "
 			+ "overlay drawn in the world you left keeps drawing at its "
 			+ "old coordinates in the world you arrive in")
@@ -694,7 +694,7 @@ func _arm_and_apply(ability: Ability) -> void:
 func _live_ids() -> Array:
 	var live: Array = []
 	for id in _indicators:
-		if _indicators[id].is_processing():
+		if _indicators[id].is_live():
 			live.append(String(id))
 	live.sort()
 	return live

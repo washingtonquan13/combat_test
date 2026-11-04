@@ -17,27 +17,28 @@ extends IndicatorBase
 ##
 ## Movement-follow-path rotation (see Unit._physics_process) already owns
 ## facing while walking, and both trying to set rotation.y in the same
-## frame would just fight each other — which is why _get_active_unit()'s
-## can_act() half matters here and not only for visual indicators.
+## frame would just fight each other — which is why the acting unit
+## (Aim.caster, from ClickRouter.active_unit) being a commandable one
+## matters here and not only for visual indicators.
 ##
-## Extends IndicatorBase purely for its raycast helpers (this has no
-## visuals of its own, so _create_line_mesh() goes unused) — same
-## dual-raycast pattern (unit first, ground fallback) as
-## line_of_sight_indicator.gd used, previously its own independent copy.
+## Extends IndicatorBase for the live/draw contract with ClickRouter (this
+## has no visuals of its own, so _create_line_mesh() goes unused): it is
+## handed the same Aim the indicators draw from — the hovered unit first,
+## the ground point as fallback — rather than raycasting for itself.
 
 
 func serves() -> StringName:
 	return &"aim_facing"
 
 
-func _process(delta: float) -> void:
-	var unit := _get_active_unit()
+func draw(aim: Aim) -> void:
+	var unit: Unit = aim.caster
 	if not unit:
 		return
 
-	var hovered := _get_hovered_unit()
-	var aim_point = hovered.global_position if hovered else _get_mouse_ground_point()
+	var hovered: Unit = aim.cursor.unit if aim.cursor else null
+	var aim_point = hovered.global_position if hovered else aim.point
 	if aim_point == null:
 		return
 
-	unit.face_point(aim_point, delta)
+	unit.face_point(aim_point, get_process_delta_time())

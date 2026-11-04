@@ -44,9 +44,9 @@ var _watched_unit: Unit = null
 
 ## Absolute world Y a player has dragged an AreaTargeting ability's aim
 ## point up to via the fly_altitude_modifier (Ctrl) hold — see
-## area_indicator.gd's own height-drag handling, which is the only writer
-## of this via set_aim_height_override(). Read by ground_click_target.gd
-## at the moment of the actual click, so the confirmed cast can't
+## AimingIntent.steer, the only writer of this via
+## set_aim_height_override(). Read through AbilityTargeting.
+## resolve_target_point by both the preview (Aim.build) and the click, so the confirmed cast can't
 ## disagree with what the preview showed — same WYSIWYG reasoning as
 ## every other indicator in this project. has_aim_height_override false
 ## means "use the natural ground-hover height," i.e. today's existing
@@ -90,10 +90,10 @@ func disarm() -> void:
 	armed_unit = null
 
 
-## Called by area_indicator.gd each frame the player drags height with
-## fly_altitude_modifier held — see that file for the actual input/plane-
-## intersection math. A plain setter here rather than area_indicator.gd
-## writing the fields directly, so this stays the one place the "is a
+## Called by AimingIntent.steer each frame the player drags height with
+## fly_altitude_modifier held — see ClickRouter.resolve_cursor for the
+## actual input/plane-intersection math. A plain setter here rather than
+## the intent writing the fields directly, so this stays the one place the "is a
 ## height override active" state actually lives — same centralization
 ## reasoning PlayerInteractionState's own header documents for scattered
 ## per-consumer state.

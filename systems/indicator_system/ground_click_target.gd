@@ -1,13 +1,19 @@
 class_name ClickRouter
-extends IndicatorBase
-## The one owner of player intent — what a click means, and which
-## indicators are live because of it.
+extends Node3D
+## The one owner of player intent — what a click means, which indicators
+## are live because of it — and of where the player is pointing.
+##
+## Each frame, in this order (see _process): derive the intent, resolve
+## the ONE Cursor (the only mouse raycast and the only Ctrl read in the
+## project), let the intent steer any held height drag, build the ONE Aim
+## from that cursor, and hand it to every live indicator's draw(). Clicks
+## take a cursor from the same resolve_cursor(). Indicators never raycast,
+## read input or decide anything — they draw what they are given, so the
+## preview and the click cannot disagree about where the cursor is.
 ##
 ## Kept as the node named GroundClickTarget in MainRoot.tscn because it
 ## already IS the in-world node clicks physically arrive at: one global
-## node doing a centralized raycast (via IndicatorBase's
-## _get_mouse_ground_point/_get_hovered_unit/_get_hovered_interactable),
-## NOT a script attached to every ground collision body — the version
+## node doing a centralized raycast, NOT a script attached to every ground collision body — the version
 ## before that extended StaticBody3D and relied on per-object physics
 ## picking, which meant it had to be attached individually to all five of
 ## the old main.tscn's ground/platform bodies. This needs to exist exactly
@@ -33,6 +39,25 @@ extends IndicatorBase
 ## rebinding any of them needs no code change.
 
 signal intent_changed(intent: PlayerIntent)
+
+## Heights dragged with Ctrl move in steps this big.
+const HEIGHT_STEP: float = 0.25
+
+@export var ground_collision_mask: int = 1
+@export var unit_collision_mask: int = 1
+
+## This frame's cursor and aim, as handed to the indicators. Read-only
+## for anyone else (the nav debug overlay reads cursor); null before the
+## first frame.
+var cursor: Cursor = null
+var aim: Aim = null
+
+## The ground point a Ctrl height drag holds, or null when none does.
+## Taken on the first frame of a drag, released the moment the drag is
+## not one any more (Ctrl up, or an intent with no height to drag). Only
+## resolve_cursor reads or writes it, so no indicator switching off
+## mid-press can leave it stale.
+var _held_ground = null
 
 ## Intents pushed by a tool that wants first refusal on clicks — right
 ## now only debug/spawning_intent.gd. A stack rather than a flag so
@@ -69,11 +94,12 @@ var _last: PlayerIntent = null
 
 
 func _ready() -> void:
-	super()
 	add_to_group(&"click_router")
 
-	# The router MUST apply the intent before any indicator's own _process
-	# runs in the same frame, and by default it does the opposite.
+	# The router draws the indicators itself now, so for them frame order
+	# no longer matters. It still runs first because the dev views that
+	# keep their own _process (the nav overlay) read this frame's cursor,
+	# and because of the history below.
 	#
 	# WorldManager._move_attention_to reparents the attention nodes into
 	# the focused world's viewport in main_root.gd's declared order —
@@ -164,11 +190,140 @@ func _on_world_focused(_world: Node) -> void:
 
 func _process(_delta: float) -> void:
 	var now: PlayerIntent = intent()
-	if _same_intent(now, _last):
-		return
-	_last = now
-	_apply_intent(now)
-	intent_changed.emit(now)
+	if not _same_intent(now, _last):
+		_last = now
+		_apply_intent(now)
+		intent_changed.emit(now)
+
+	cursor = resolve_cursor(now)
+	now.steer(self, cursor)
+	aim = Aim.build(cursor, now)
+	for indicator in get_tree().get_nodes_in_group(&"indicators"):
+		if indicator.serves() != &"" and indicator.is_live():
+			indicator.draw(aim)
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_released("fly_altitude_modifier"):
+		_held_ground = null
+
+
+## What the mouse is over right now, and the height drag if one is held.
+## The only mouse raycast in the project: one ray, or two when the ground
+## and unit masks differ.
+##
+## The drag holds only while Ctrl is down AND the intent has a height to
+## drag (PlayerIntent.drags_height) - Ctrl over anything else leaves the
+## cursor free. Its first frame takes the ground under the mouse, or the
+## active unit's own spot when the mouse is over nothing.
+func resolve_cursor(current: PlayerIntent) -> Cursor:
+	var result := Cursor.new()
+	var ground_hit: Dictionary = _raycast(ground_collision_mask)
+	var unit_hit: Dictionary = (ground_hit if unit_collision_mask == ground_collision_mask
+		else _raycast(unit_collision_mask))
+	var collider: Object = _pickable_collider(unit_hit)
+	result.unit = collider as Unit
+	if collider is Node and collider.has_method("get_interactions"):
+		result.interactable = collider
+	var free_ground = null if ground_hit.is_empty() else ground_hit.position
+
+	var dragging: bool = (Input.is_action_pressed("fly_altitude_modifier")
+		and current != null and current.drags_height(self))
+	if not dragging:
+		_held_ground = null
+		result.ground = free_ground
+		return result
+
+	if _held_ground == null:
+		var unit: Unit = active_unit()
+		_held_ground = free_ground if free_ground != null else (unit.global_position if unit else null)
+	result.ground = _held_ground
+	if _held_ground != null:
+		result.dragging_height = true
+		result.height = _sample_height(Vector2(_held_ground.x, _held_ground.z))
+	return result
+
+
+## The unit indicators draw for - and null for one standing in a world
+## the player is not looking at.
+##
+## That guard belongs HERE rather than in each indicator: indicators are
+## carried between viewports as the player switches worlds (see
+## WorldManager attention nodes), so without it a line of sight, a
+## movement range or a jump arc drawn for somebody in another area keeps
+## being drawn over the area now on screen - pointing at geometry that is
+## not there.
+static func active_unit() -> Unit:
+	var unit: Unit = PlayerInteractionState.get_active_unit()
+	if unit == null:
+		return null
+	var context: WorldContext = WorldManager.context()
+	if context and not context.contains(unit):
+		return null
+	return unit
+
+
+## One mouse ray against mask. Empty if nothing hit, or there is no
+## active camera.
+func _raycast(collision_mask: int) -> Dictionary:
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return {}
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var to: Vector3 = from + camera.project_ray_normal(mouse_pos) * 1000.0
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = collision_mask
+	return get_world_3d().direct_space_state.intersect_ray(query)
+
+
+## What a ray hit, but only if that body would have accepted a click.
+##
+## intersect_ray filters by collision LAYER and nothing else, while
+## Godot's own physics picking (which used to deliver every click on a
+## unit, before ClickRouter raycast for itself) additionally skips any
+## CollisionObject3D with input_ray_pickable off. Honouring it here keeps
+## hovering and clicking agreeing with each other AND with what picking
+## did: unit_death.gd turns pickability off on death, so a corpse that
+## still blocks movement - and so still carries its collision layer -
+## stops being hoverable and clickable the way it always was.
+##
+## Anything that is not a CollisionObject3D is passed straight through:
+## pickability is a property only that class has, and inventing an answer
+## for other colliders would be a rule this function has no business
+## making up.
+func _pickable_collider(result: Dictionary) -> Object:
+	if result.is_empty():
+		return null
+	var collider = result.get("collider")
+	var body := collider as CollisionObject3D
+	if body and not body.input_ray_pickable:
+		return null
+	return collider
+
+
+## The height the mouse points at above anchor_xz: the camera ray through
+## the mouse crossing a vertical wall through that point. The wall's
+## normal is the camera's back vector flattened to horizontal (Y zeroed
+## before normalizing) - flattening is what keeps it a true vertical wall
+## whatever the camera's pitch, so only how high or low the ray crosses
+## it matters; a tilted wall would couple sideways mouse movement into
+## the height. Snapped to HEIGHT_STEP. Null with no camera, or with the
+## ray near-parallel to the wall.
+func _sample_height(anchor_xz: Vector2):
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return null
+	var back: Vector3 = camera.global_transform.basis.z
+	var normal := Vector3(back.x, 0.0, back.z)
+	if normal.length() < 0.001:
+		return null
+	var plane := Plane(normal.normalized(), Vector3(anchor_xz.x, 0.0, anchor_xz.y))
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var hit = plane.intersects_ray(camera.project_ray_origin(mouse_pos), camera.project_ray_normal(mouse_pos))
+	if hit == null:
+		return null
+	return snappedf(hit.y, HEIGHT_STEP)
 
 
 ## By kind AND ability, never by object identity — a freshly built
@@ -194,8 +349,12 @@ func _apply_intent(current: PlayerIntent) -> void:
 		indicator.set_live(live_ids.has(id))
 
 
-## Gate, build the hit ONCE, hand it to the intent, and mark the event
+## Gate, resolve the cursor, hand it to the intent, and mark the event
 ## handled only if the intent actually took it.
+##
+## Resolved fresh rather than reusing this frame's cursor: input runs
+## before _process, so the stored one is a frame old. Same function, so
+## same answer as the preview the player is looking at.
 ##
 ## Marking it handled is what lets Unit stop carrying its own physics-
 ## picked click handler: a handled event never reaches the viewport's
@@ -212,14 +371,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var current: PlayerIntent = intent()
-	var hit := ClickHit.new()
-	hit.ground = _get_mouse_ground_point()
-	hit.unit = _get_hovered_unit()
-	hit.interactable = _get_hovered_interactable()
+	var clicked: Cursor = resolve_cursor(current)
 
 	var consumed: bool = (
-		current.handle_left_click(self, hit) if is_left
-		else current.handle_right_click(self, hit))
+		current.handle_left_click(self, clicked) if is_left
+		else current.handle_right_click(self, clicked))
 	if consumed:
 		get_viewport().set_input_as_handled()
 
@@ -243,9 +399,9 @@ func click_unit(clicked: Unit) -> bool:
 	# filters by collision LAYER only. A corpse with corpse_blocks_movement
 	# keeps its layer, so without this it became clickable again the
 	# moment picking stopped being the thing that delivered the click.
-	# _get_hovered_unit() now honours pickability too (see IndicatorBase),
+	# resolve_cursor honours pickability too (see _pickable_collider),
 	# which is the same rule one step earlier; this is the one that has to
-	# hold even if a caller builds a ClickHit some other way.
+	# hold even if a caller builds a Cursor some other way.
 	if not is_instance_valid(clicked) or not clicked.is_alive():
 		return false
 

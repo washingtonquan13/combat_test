@@ -15,17 +15,15 @@ extends IndicatorBase
 ##   - out_of_range_color   — hovering a hostile unit, but too far away
 ##   - no_target_color        — not hovering any (hostile) unit at all
 ##
-## Range and LoS are checked here the same way Ability.is_in_range() does
-## internally for RANGED_ENEMY — duplicated rather than called through
-## that single bool-returning method, since this needs to tell "out of
-## range" and "blocked" apart as two different visual states, which a
-## single true/false can't distinguish. If Ability's own range/LoS logic
-## changes, this needs to be kept in sync with it.
+## Range and LoS come from the armed RangedEnemyTargeting's own check() —
+## the same rule is_valid_target() (and so the cast) is built on, which
+## tells "out of range" and "blocked" apart as AbilityTargeting.Reach.
+## This used to duplicate that rule here, because a single bool couldn't
+## distinguish the two visual states, and had to be kept in sync by hand.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
-## its own MeshInstance3D in code. unit_collision_mask/ground_collision_mask
-## (see IndicatorBase) must match your Units'/ground's actual physics
-## layers.
+## its own MeshInstance3D in code. The hovered hostile and ground point
+## come from the Aim ClickRouter hands draw(); nothing here raycasts.
 ##
 ## Note: like the movement indicator, this draws a 1-pixel unshaded line
 ## (ImmediateMesh, LINE_STRIP) — fine for a first pass, thicker lines
@@ -59,19 +57,20 @@ func _ready() -> void:
 	_line_immediate = built.immediate
 
 
-func _process(_delta: float) -> void:
-	var unit := _get_active_unit()
-	var ability: Ability = AbilityManager.armed_ability
+func draw(aim: Aim) -> void:
+	var unit: Unit = aim.caster
+	var ability: Ability = aim.ability
 
-	# `as`, not a typed assignment: the router applies a new intent on
-	# ITS _process, and this node can run first in the same frame with a
-	# freshly armed non-ranged ability still in hand.
+	# `as`, not a typed assignment: a guard against being handed an Aim
+	# whose ability isn't ranged. The router now applies the intent before
+	# it draws, so this shouldn't happen, but a wrong-shaped ability must
+	# hide the line rather than error.
 	if not unit or not ability or (ability.targeting as RangedEnemyTargeting) == null:
 		_line_mesh.visible = false
 		return
 
-	var hovered_unit: Unit = _get_hovered_hostile(unit)
-	var aim_point = hovered_unit.global_position if hovered_unit else _get_mouse_ground_point()
+	var hovered_unit: Unit = aim.hostile
+	var aim_point = hovered_unit.global_position if hovered_unit else aim.point
 	if aim_point == null:
 		_line_mesh.visible = false
 		return
@@ -81,17 +80,19 @@ func _process(_delta: float) -> void:
 
 
 func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Ability) -> void:
-	var targeting := ability.targeting as RangedEnemyTargeting
-
 	var color: Color
 	if hovered_unit == null:
 		color = no_target_color
-	elif unit.edge_distance_to(hovered_unit) > targeting.max_range:
-		color = out_of_range_color
-	elif targeting.requires_line_of_sight and not LineOfSight.has_clear_shot(unit, hovered_unit, targeting.los_obstruction_mask):
-		color = blocked_color
 	else:
-		color = clear_color
+		match ability.targeting.check(unit, hovered_unit):
+			AbilityTargeting.Reach.OK:
+				color = clear_color
+			AbilityTargeting.Reach.OUT_OF_RANGE:
+				color = out_of_range_color
+			AbilityTargeting.Reach.BLOCKED:
+				color = blocked_color
+			_:
+				color = no_target_color
 
 	var eye: Vector3 = unit.anchor(CharacterModel.Anchor.EYE)
 	var lift: float = eye.y - unit.global_position.y

@@ -164,7 +164,7 @@ enum Mode { BOUND, UNBOUND }
 
 @export_group("Collision")
 ## Physics layer(s) the camera avoids clipping through — matches this
-## project's shared ground/geometry layer (see indicator_base.gd's own
+## project's shared ground/geometry layer (see ClickRouter's own
 ## ground_collision_mask default). Units live on that same layer but are
 ## always excluded explicitly (see _required_distance_reduction) — the
 ## same "environment blocks, units don't" rule LineOfSight already
