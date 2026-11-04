@@ -311,6 +311,10 @@ func _copy_drawn() -> void:
 	_copy_pending = false
 	for i in _viewports.size():
 		var image: Image = _viewports[i].get_texture().get_image()
+		# A film shader's first draws come out empty while its pipeline is
+		# still compiling: draw again until there is something to show.
+		if i == 0 and image.is_invisible() and _dying.is_empty():
+			_dirty = true
 		image.convert(Image.FORMAT_RGBA8)
 		_textures[i] = ImageTexture.create_from_image(image)
 	_show_textures()
