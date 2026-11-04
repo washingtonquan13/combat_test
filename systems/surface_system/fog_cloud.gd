@@ -186,13 +186,14 @@ func dissipate() -> void:
 	tween.tween_callback(queue_free)
 
 
-## Drift decelerates (fast at first, like a gust lifting it) while the
-## shader thins at the same rate, so nothing sits still waiting.
+## Drift decelerates (fast at first, like a gust lifting it) and the
+## shader thins on the same curve, so the cloud fades as it spreads
+## rather than spreading first and fading after.
 func _set_progress(t: float, start_scale: Vector3, start_y: float) -> void:
 	var drift: float = 1.0 - (1.0 - t) * (1.0 - t)
 	scale = start_scale * lerpf(1.0, spread, drift)
 	position.y = start_y + lift * start_scale.y * drift
 	for layer in _layers:
-		layer.set_instance_shader_parameter("dissipate", t)
+		layer.set_instance_shader_parameter("dissipate", drift)
 	if _mask:
 		_place_mask()
