@@ -166,6 +166,7 @@ func _handle_altitude_input(active_unit: Unit) -> void:
 		var ground_point = _get_mouse_ground_point()
 		var anchor: Vector3 = ground_point if ground_point != null else active_unit.global_position
 		_altitude_drag_anchor_xz = Vector2(anchor.x, anchor.z)
+		_hold_ground(anchor)
 		_altitude_dragging = true
 
 	var sampled_altitude = _sample_height_from_mouse(_altitude_drag_anchor_xz)

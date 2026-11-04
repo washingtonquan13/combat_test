@@ -38,11 +38,21 @@ static var _raycast_cache: Dictionary = {}
 var _owned_meshes: Array[MeshInstance3D] = []
 
 ## Whether the Ctrl height-drag was active last frame — used only to
-## detect the moment it STARTS, so the drag's XZ anchor gets captured
-## once per press instead of drifting every frame. Same pattern
-## movement_indicator.gd uses for its own altitude drag.
+## detect the moment it STARTS, so the drag's ground point gets held
+## once per press. Same pattern movement_indicator.gd uses for its own
+## altitude drag.
 var _height_dragging: bool = false
-var _height_drag_anchor_xz: Vector2 = Vector2.ZERO
+
+## Heights dragged with Ctrl move in steps this big.
+const HEIGHT_STEP: float = 0.25
+
+## The ground point a Ctrl height drag holds, or null when none does.
+## Shared by every indicator and the ClickRouter: while it is held,
+## _get_mouse_ground_point() returns it rather than the cursor's, so the
+## mouse only moves the height - the preview, the path and the click all
+## stay on the one spot. A drag owner holds it (_hold_ground); letting go
+## of Ctrl frees it.
+static var _held_ground: Variant = null
 
 
 ## Joins the group the ClickRouter walks, and stands down until that
@@ -158,6 +168,10 @@ func _create_line_mesh() -> Dictionary:
 ## Ground point under the current mouse position, or null if nothing's
 ## there.
 func _get_mouse_ground_point():
+	if _held_ground != null:
+		if Input.is_action_pressed("fly_altitude_modifier"):
+			return _held_ground
+		_held_ground = null
 	var result := _raycast_from_mouse(ground_collision_mask)
 	if result.is_empty():
 		return null
@@ -287,7 +301,13 @@ func _sample_height_from_mouse(anchor_xz: Vector2):
 	var hit = plane.intersects_ray(from, dir)
 	if hit == null:
 		return null
-	return hit.y
+	return snappedf(hit.y, HEIGHT_STEP)
+
+
+## Holds point as the ground point for the rest of this Ctrl press (see
+## _held_ground).
+static func _hold_ground(point: Vector3) -> void:
+	_held_ground = point
 
 
 ## Ctrl-drag of the armed ability's aim height, for the indicators of
@@ -304,9 +324,10 @@ func _handle_aim_height_input(hover_point: Vector3) -> void:
 		return
 
 	if not _height_dragging:
-		_height_drag_anchor_xz = Vector2(hover_point.x, hover_point.z)
+		_hold_ground(hover_point)
 		_height_dragging = true
 
-	var sampled_height = _sample_height_from_mouse(_height_drag_anchor_xz)
+	var held: Vector3 = _get_mouse_ground_point()
+	var sampled_height = _sample_height_from_mouse(Vector2(held.x, held.z))
 	if sampled_height != null:
 		AbilityManager.set_aim_height_override(sampled_height)
