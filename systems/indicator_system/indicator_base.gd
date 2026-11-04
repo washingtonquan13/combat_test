@@ -35,6 +35,10 @@ var _owned_meshes: Array[MeshInstance3D] = []
 ## set_live (the router's _apply_intent).
 var _live: bool = false
 
+## Units outlined as caught by this aim (Unit.set_area_targeted). Put
+## down by hide_visuals with the meshes.
+var _targeted: Array[Unit] = []
+
 
 ## Joins the group the ClickRouter walks.
 ##
@@ -81,6 +85,18 @@ func hide_visuals() -> void:
 	for mesh in _owned_meshes:
 		if is_instance_valid(mesh):
 			mesh.visible = false
+	_set_targets([])
+
+
+## Outlines exactly units, dropping whoever was outlined before.
+func _set_targets(units: Array[Unit]) -> void:
+	for unit in _targeted:
+		if is_instance_valid(unit) and not units.has(unit):
+			unit.set_area_targeted(false)
+	for unit in units:
+		if not _targeted.has(unit):
+			unit.set_area_targeted(true)
+	_targeted = units
 
 
 ## Whether anything this indicator owns is currently drawn. Exists for

@@ -43,8 +43,6 @@ extends IndicatorBase
 
 var _line_mesh: PathTube
 var _shell: AoeShell
-## Units outlined as inside the area this frame (Unit.set_area_targeted).
-var _targeted: Array[Unit] = []
 
 
 func serves() -> StringName:
@@ -87,11 +85,6 @@ func _hide_all() -> void:
 	_set_targets([])
 
 
-func hide_visuals() -> void:
-	super()
-	_set_targets([])
-
-
 ## Outlines exactly who the cast will catch: the same UnitQuery scan the
 ## area effects run, with their own hostile/ally gates. A spawned surface
 ## or cloud filters no one, so it catches everyone inside.
@@ -113,16 +106,6 @@ func _update_targets(caster: Unit, ability: Ability, center: Vector3) -> void:
 		_set_targets([])
 		return
 	_set_targets(UnitQuery.area_affected(caster.get_tree(), caster, center, targeting.radius, hostiles, allies))
-
-
-func _set_targets(units: Array[Unit]) -> void:
-	for unit in _targeted:
-		if is_instance_valid(unit) and not units.has(unit):
-			unit.set_area_targeted(false)
-	for unit in units:
-		if not _targeted.has(unit):
-			unit.set_area_targeted(true)
-	_targeted = units
 
 
 func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:

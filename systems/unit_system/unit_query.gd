@@ -191,6 +191,20 @@ static func area_affected(tree: SceneTree, attacker: Unit, center: Vector3, radi
 	return affected
 
 
+## Every living unit whose edge comes within half_width of the line from
+## from to to across the ground — who a wall standing there would catch.
+static func line_affected(tree: SceneTree, attacker: Unit, from: Vector3, to: Vector3, half_width: float) -> Array[Unit]:
+	var affected: Array[Unit] = []
+	var a := Vector2(from.x, from.z)
+	var b := Vector2(to.x, to.z)
+	for unit in _in_world_of(attacker, living_units(tree)):
+		var p := Vector2(unit.global_position.x, unit.global_position.z)
+		var closest: Vector2 = a if a.is_equal_approx(b) else Geometry2D.get_closest_point_to_segment(p, a, b)
+		if p.distance_to(closest) - unit.radius <= half_width:
+			affected.append(unit)
+	return affected
+
+
 ## Every unit summoned_by summoner — living or not (see UnitDeath's own
 ## comment on why an already-dead dependent still needs its own expire()
 ## call; don't add an is_alive() filter here).

@@ -9,8 +9,15 @@ extends MeshInstance3D
 ## when aimed at the ground, so it reads as a dome with its own ring).
 ## FOOTPRINT: a ground-only spill (Grease). A short cylinder whose face
 ## and rim are hidden, so only the cut line along the terrain shows.
+## BOX: a slab standing along a line (Wall of Fire), show_box(). Sunk
+## into the ground so its sides, not its floor, meet the terrain: the
+## cut line is the strip it will stand on.
 
-enum Shape { SPHERE, FOOTPRINT }
+enum Shape { SPHERE, FOOTPRINT, BOX }
+
+## How far a BOX reaches below the line it stands on, so its cut line
+## still lands on steps and slopes under it.
+const BOX_SINK: float = 0.6
 
 ## Height of the FOOTPRINT cylinder: the vertical slop its cut line
 ## follows (steps, slopes) before it stops touching the ground.
@@ -43,11 +50,27 @@ func set_tint(color: Color) -> void:
 ## Shows the volume at `center`. `height_scale` squashes a sphere (a flat
 ## cloud previews as flat as it fills).
 func show_at(center: Vector3, radius: float, height_scale: float = 1.0) -> void:
-	global_position = center
+	var size := Vector3(radius, 1.0, radius)
 	if _shape == Shape.SPHERE:
-		scale = Vector3(radius, radius * height_scale, radius)
-	else:
-		scale = Vector3(radius, 1.0, radius)
+		size.y = radius * height_scale
+	global_transform = Transform3D(Basis.from_scale(size), center)
+	visible = true
+
+
+## Shows a BOX standing from from to to: as tall as height above the
+## ground line between them (sheared to follow a slope), and twice
+## half_thickness across.
+func show_box(from: Vector3, to: Vector3, height: float, half_thickness: float) -> void:
+	set_shape(Shape.BOX)
+	var along: Vector3 = to - from
+	var flat := Vector3(along.x, 0.0, along.z)
+	if flat.length_squared() < 0.0001:
+		flat = Vector3.RIGHT * 0.01
+	var across: Vector3 = Vector3.UP.cross(flat).normalized() * half_thickness * 2.0
+	var tall: float = height + BOX_SINK
+	var basis := Basis(along if along.length_squared() > 0.0001 else flat, Vector3.UP * tall, across)
+	var middle: Vector3 = from.lerp(to, 0.5)
+	global_transform = Transform3D(basis, middle + Vector3.UP * (tall * 0.5 - BOX_SINK))
 	visible = true
 
 
@@ -59,6 +82,13 @@ func _apply_shape() -> void:
 		sphere.radial_segments = 48
 		sphere.rings = 24
 		mesh = sphere
+		_material.set_shader_parameter(&"face_alpha", 0.015)
+		_material.set_shader_parameter(&"rim_alpha", 0.3)
+		_material.set_shader_parameter(&"shimmer_alpha", 0.025)
+	elif _shape == Shape.BOX:
+		var box := BoxMesh.new()
+		box.size = Vector3.ONE
+		mesh = box
 		_material.set_shader_parameter(&"face_alpha", 0.015)
 		_material.set_shader_parameter(&"rim_alpha", 0.3)
 		_material.set_shader_parameter(&"shimmer_alpha", 0.025)

@@ -10,22 +10,24 @@ extends IndicatorBase
 ## lifts the hovered point into the air; Aim.point arrives already lifted
 ## (LineTargeting.resolve_target_point, the same call the click makes),
 ## so the click takes that height too. The aim line's colour is
-## LineTargeting.check_point(), the rule both clicks share.
+## LineTargeting.check_point(), the rule both clicks share. The wall
+## itself is an AoeShell BOX, neutral when the second click is legal and
+## the refused colour when not, and everyone it would stand on is
+## outlined.
 
 @export var clear_color: Color = IndicatorPalette.OK
 @export var blocked_color: Color = IndicatorPalette.BLOCKED
 @export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
 @export var line_height_offset: float = 1.5
-## A legal wall's outline. It was orange, which sat right beside the red
-## of a refused one; the outline IS the answer to "can I end it here",
-## so it takes the answer colour.
-@export var wall_color: Color = IndicatorPalette.OK
-@export var ground_offset: float = 0.05
+## A legal wall's shell: the neutral AoE tint every area preview shares.
+## A refused one takes blocked_color, the answer to "can I end it here".
+@export var wall_color: Color = IndicatorPalette.AOE
 
 ## The aim line's end fades; the wall outline has none.
 const AIM_FADE: float = 0.3
 
 var _line_mesh: PathTube
+var _shell: AoeShell
 
 
 func serves() -> StringName:
@@ -35,6 +37,9 @@ func serves() -> StringName:
 func _ready() -> void:
 	super()
 	_line_mesh = _create_tube()
+	_shell = AoeShell.new()
+	add_child(_shell)
+	_owned_meshes.append(_shell)
 
 
 func draw(aim: Aim) -> void:
@@ -43,11 +48,14 @@ func draw(aim: Aim) -> void:
 	var targeting: LineTargeting = ability.targeting as LineTargeting if ability else null
 	var hover_point = aim.point
 	if not unit or not targeting or hover_point == null:
-		_line_mesh.visible = false
+		hide_visuals()
 		return
 	if AbilityManager.has_line_start:
+		_line_mesh.visible = false
 		_draw_wall(unit, ability, targeting, AbilityManager.line_start, hover_point)
 	else:
+		_shell.visible = false
+		_set_targets([])
 		_draw_aim(unit, targeting, hover_point)
 
 
@@ -70,12 +78,10 @@ func _draw_aim(unit: Unit, targeting: LineTargeting, hover_point: Vector3) -> vo
 func _draw_wall(unit: Unit, ability: Ability, targeting: LineTargeting, start: Vector3, hover_point: Vector3) -> void:
 	var end: Vector3 = targeting.end_for(start, hover_point)
 	var legal: bool = targeting.is_valid_target(unit, LineTarget.new(start, end))
-	var up := Vector3(0, _wall_height(ability), 0)
-	var lift := Vector3(0, ground_offset, 0)
-	# A closed outline: no ends to fade.
-	_line_mesh.fade_start = 0.0
-	_line_mesh.fade_end = 0.0
-	_line_mesh.show_line(PackedVector3Array([start + lift, end + lift, end + up, start + up, start + lift]), wall_color if legal else blocked_color)
+	_shell.set_tint(wall_color if legal else blocked_color)
+	_shell.show_box(start, end, _wall_height(ability), SurfaceManager.WALL_HALF_THICKNESS)
+	# A spawned surface filters no one: everyone it stands on is caught.
+	_set_targets(UnitQuery.line_affected(unit.get_tree(), unit, start, end, SurfaceManager.WALL_HALF_THICKNESS))
 
 
 ## The wall's height, from the surface the ability raises — no separate
