@@ -134,7 +134,9 @@ func draw(aim: Aim) -> void:
 		_hide_all()
 		return
 
-	var planned: Dictionary = aim.caster.preview_route(aim.point)
+	# The same ignore list the move order will route with, so a group's
+	# preview doesn't detour around members about to walk off with it.
+	var planned: Dictionary = aim.caster.preview_route(aim.point, FormationPlanner.move_ignore(ClickRouter.move_order_units()))
 	var path: PackedVector3Array = planned.path
 	if path.size() < 2:
 		_hide_all()

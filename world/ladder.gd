@@ -103,7 +103,7 @@ func top_position() -> Vector3:
 ##     cost PLUS required_move, checked all at once as a single hard
 ##     precondition. Always true outside combat (move is unlimited there,
 ##     same as ordinary movement's own budget = INF rule).
-static func find_route(unit: Unit, destination: Vector3) -> Dictionary:
+static func find_route(unit: Unit, destination: Vector3, ignore: Array = []) -> Dictionary:
 	# "ladders" is one global group with no world in it, and every area
 	# here is authored around the origin — so a ladder two areas away sits
 	# at coordinates this unit could plausibly route to, and would be
@@ -165,7 +165,7 @@ static func find_route(unit: Unit, destination: Vector3) -> Dictionary:
 				"cumulative_cost": PackedFloat32Array([0.0, 0.0]),
 			}
 		else:
-			var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, near, unit, false)
+			var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, near, unit, false, ignore)
 			if waypoints.size() < 2:
 				continue
 			near_planned = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.cost_sampler(unit))

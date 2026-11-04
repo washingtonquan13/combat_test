@@ -87,8 +87,8 @@ func handle_death() -> void:
 	_owner.set_physics_process(false)
 
 	if _owner.corpse_blocks_movement:
-		# remove_from_group("units") above means NavigationGrid.
-		# update_occupancy will never see this unit via the normal "units"
+		# remove_from_group("units") above means NavigationGrid's
+		# occupancy sweep will never see this unit via the normal "units"
 		# group loop again — a separate group is what lets a corpse that's
 		# meant to keep blocking movement still get marked occupied on the
 		# grid (see that function), instead of silently becoming

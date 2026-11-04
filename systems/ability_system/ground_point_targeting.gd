@@ -59,11 +59,10 @@ func is_valid_target(attacker: Unit, target) -> bool:
 
 	# Deliberately a SECOND, independent check rather than trusting the
 	# nearest_valid_point() snap above alone: that one reads
-	# NavigationGrid's occupancy grid, which is a manually-refreshed
-	# snapshot (see NavigationGrid.update_occupancy) — accurate as of
-	# whenever it was last called, not automatically current. A hard
-	# "never let this land literally inside another unit" guarantee
-	# can't rely on a snapshot that could be stale, so this re-scans
+	# NavigationGrid's occupancy grid, which is current to the CELL (it
+	# rebuilds whenever a unit changes cell) but not to a unit's exact
+	# position inside it. A hard "never let this land literally inside
+	# another unit" guarantee needs exact positions, so this re-scans
 	# every live unit's ACTUAL current position fresh, right now,
 	# instead. Uses attacker's bare radius (no avoidance_margin) against
 	# each obstacle's own bare radius — the true no-overlap boundary,

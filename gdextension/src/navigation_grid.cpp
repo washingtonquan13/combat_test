@@ -27,9 +27,9 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("invalidate"), &NavigationGrid::invalidate);
 	ClassDB::bind_method(D_METHOD("register_world", "root"), &NavigationGrid::register_world);
 	ClassDB::bind_method(D_METHOD("unregister_world", "root"), &NavigationGrid::unregister_world);
-	ClassDB::bind_method(D_METHOD("update_occupancy", "tree", "movers", "world_ref"), &NavigationGrid::update_occupancy, DEFVAL(Variant()));
-	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()));
-	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying"), &NavigationGrid::find_path);
+	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref", "ignore"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()), DEFVAL(Array()));
+	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying", "ignore"), &NavigationGrid::find_path, DEFVAL(Array()));
+	ClassDB::bind_method(D_METHOD("occupancy_version", "tree", "world_ref"), &NavigationGrid::occupancy_version, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("world_to_cell", "pos"), &NavigationGrid::world_to_cell);
 
 	ClassDB::bind_method(D_METHOD("get_cell_size"), &NavigationGrid::get_cell_size);
@@ -95,6 +95,7 @@ void NavigationGrid::unregister_world(Node *root) {
 		shapes_by_chunk.clear();
 		chunks.clear();
 		chunk_occupancy_nearby.clear();
+		reset_occupancy();
 		baked = false;
 		any_occupied = false;
 		active_world_id = 0;
@@ -155,6 +156,10 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		out.astar_search_id = astar_search_id;
 		out.smooth_search_id = smooth_search_id;
 		out.root = active_root;
+		out.occupancy_stamped = occupancy_stamped;
+		out.occupancy_version = occupancy_version_value;
+		std::swap(out.occupied_chunks, occupied_chunks);
+		std::swap(out.occupancy_signature, occupancy_signature);
 		std::swap(out.chunks, chunks);
 		std::swap(out.astar_g_score, astar_g_score);
 		std::swap(out.astar_g_gen, astar_g_gen);
@@ -172,6 +177,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		all_shapes.clear();
 		shapes_by_chunk.clear();
 		chunk_occupancy_nearby.clear();
+		reset_occupancy();
 	}
 
 	active_world_id = world_id;
@@ -198,6 +204,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		all_shapes.clear();
 		shapes_by_chunk.clear();
 		chunk_occupancy_nearby.clear();
+		reset_occupancy();
 		return;
 	}
 
@@ -210,6 +217,10 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 	astar_search_id = in.astar_search_id;
 	smooth_search_id = in.smooth_search_id;
 	active_root = in.root;
+	occupancy_stamped = in.occupancy_stamped;
+	occupancy_version_value = in.occupancy_version;
+	std::swap(in.occupied_chunks, occupied_chunks);
+	std::swap(in.occupancy_signature, occupancy_signature);
 	std::swap(in.chunks, chunks);
 	std::swap(in.astar_g_score, astar_g_score);
 	std::swap(in.astar_g_gen, astar_g_gen);
@@ -314,6 +325,10 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	chunks.clear();
 	chunks.resize((size_t)chunk_grid_size.x * (size_t)chunk_grid_size.y * (size_t)chunk_grid_size.z);
 	chunk_occupancy_nearby.assign(chunks.size(), 0);
+	// Fresh, empty chunks: whatever occupancy was stamped went with the
+	// old ones, so the next query must restamp even if nobody moved.
+	reset_occupancy();
+	any_occupied = false;
 
 	size_t total_cells = (size_t)grid_size.x * (size_t)grid_size.y * (size_t)grid_size.z;
 	astar_g_score.assign(total_cells, 0.0f);
@@ -764,7 +779,7 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 
 // --- Dynamic occupancy -------------------------------------------------------
 
-Object *NavigationGrid::occupant_at(const Vector3i &cell) const {
+const std::vector<Object *> *NavigationGrid::occupants_at(const Vector3i &cell) const {
 	if (!in_bounds(cell)) {
 		return nullptr;
 	}
@@ -774,7 +789,7 @@ Object *NavigationGrid::occupant_at(const Vector3i &cell) const {
 		return nullptr;
 	}
 	auto it = slot->occupied.find(local_index(cell_to_local(cell)));
-	return it != slot->occupied.end() ? it->second : nullptr;
+	return it != slot->occupied.end() ? &it->second : nullptr;
 }
 
 void NavigationGrid::set_occupant(const Vector3i &cell, Object *obj) {
@@ -786,132 +801,143 @@ void NavigationGrid::set_occupant(const Vector3i &cell, Object *obj) {
 	if (!slot) {
 		slot = std::make_unique<NavChunk>(); // occupancy doesn't need geometry rasterized
 	}
-	slot->occupied[local_index(cell_to_local(cell))] = obj;
-	slot->has_occupancy = true;
+	std::vector<Object *> &here = slot->occupied[local_index(cell_to_local(cell))];
+	if (std::find(here.begin(), here.end(), obj) == here.end()) {
+		here.push_back(obj);
+	}
+	if (!slot->has_occupancy) {
+		slot->has_occupancy = true;
+		occupied_chunks.push_back(idx);
+	}
 }
 
-void NavigationGrid::update_occupancy(SceneTree *tree, Array movers, Object *world_ref) {
-	// movers usually holds the unit whose turn it is, which identifies the
-	// world; world_ref covers the empty-array case.
-	activate_for(movers.size() > 0 ? (Object *)movers[0] : nullptr, world_ref);
-	ensure_baked(tree);
-	for (auto &slot : chunks) {
+void NavigationGrid::reset_occupancy() {
+	occupancy_signature.clear();
+	occupied_chunks.clear();
+	occupancy_stamped = false;
+}
+
+void NavigationGrid::set_query_ignore(const Array &ignore) {
+	query_ignore.clear();
+	for (int i = 0; i < ignore.size(); i++) {
+		Object *obj = ignore[i];
+		if (obj) {
+			query_ignore.push_back(obj);
+		}
+	}
+}
+
+// Everything that occupies cells in the ACTIVE world, in group order:
+// living units, then blocking corpses. Both groups are global, so
+// in_active_world keeps other worlds' occupants out.
+void NavigationGrid::collect_occupants(SceneTree *tree, std::vector<OccupantKey> &keys, std::vector<Object *> &objects) {
+	static const StringName groups[2] = { StringName("units"), StringName("blocking_corpses") };
+	for (int pass = 0; pass < 2; pass++) {
+		TypedArray<Node> nodes = tree->get_nodes_in_group(groups[pass]);
+		for (int i = 0; i < nodes.size(); i++) {
+			Object *obj = nodes[i];
+			Node3D *n3d = Object::cast_to<Node3D>(obj);
+			if (!n3d || !in_active_world(n3d)) {
+				continue;
+			}
+			if (pass == 0 && (!n3d->has_method("is_alive") || !call_bool(n3d, "is_alive"))) {
+				continue;
+			}
+			OccupantKey key;
+			key.id = obj->get_instance_id();
+			key.cell = world_to_cell(n3d->get_global_position());
+			key.clearance_key = clearance_key(get_float_prop(n3d, "radius") + get_float_prop(n3d, "avoidance_margin"));
+			// A flying occupant (or a corpse that died mid-air: corpses
+			// aren't force-landed, see UnitDeath.handle_death) needs a full
+			// 3D volume, not the horizontal disc grounded units share a Y
+			// reference for; see sphere_offsets.
+			key.flying = n3d->has_method("is_flying") && call_bool(n3d, "is_flying");
+			keys.push_back(key);
+			objects.push_back(obj);
+		}
+	}
+}
+
+// Rebuilds occupancy only when the live occupants differ from what it was
+// last built from. Called at the top of every query, so a query always
+// sees the scene as it is at that moment, whatever changed it: a walk, a
+// shove, a teleport earlier this same tick, a death, a unit arriving from
+// another world. Nothing outside has to remember to refresh it. Keys are
+// cells, not positions, so walking inside one cell costs no rebuild.
+//
+// Every occupant is stamped, the querying unit included; who a query
+// ignores (itself, and its group on a group move) is decided per query in
+// is_clear_of_units, so one snapshot serves every caller.
+void NavigationGrid::ensure_occupancy_current(SceneTree *tree) {
+	std::vector<OccupantKey> keys;
+	std::vector<Object *> objects;
+	collect_occupants(tree, keys, objects);
+	if (occupancy_stamped && keys == occupancy_signature) {
+		return;
+	}
+
+	for (int idx : occupied_chunks) {
+		std::unique_ptr<NavChunk> &slot = chunks[idx];
 		if (slot) {
 			slot->occupied.clear();
 			slot->has_occupancy = false;
 		}
 	}
+	occupied_chunks.clear();
 	any_occupied = false;
 
-	TypedArray<Node> units = tree->get_nodes_in_group("units");
-	for (int i = 0; i < units.size(); i++) {
-		Object *obj = units[i];
-		Node *node = Object::cast_to<Node>(obj);
-		if (!node || !node->has_method("is_alive") || !call_bool(node, "is_alive")) {
-			continue;
+	for (size_t i = 0; i < keys.size(); i++) {
+		const OccupantKey &key = keys[i];
+		// Proactively bake the chunk an occupant stands in so the area
+		// around active play stays query-ready.
+		if (in_bounds(key.cell)) {
+			ensure_chunk_dist(cell_to_chunk_coord(key.cell));
 		}
-
-		bool is_mover = false;
-		for (int m = 0; m < movers.size(); m++) {
-			if ((Object *)movers[m] == obj) {
-				is_mover = true;
-				break;
-			}
-		}
-		if (is_mover) {
-			continue;
-		}
-
-		Node3D *n3d = Object::cast_to<Node3D>(node);
-		if (!n3d || !in_active_world(n3d)) {
-			continue;
-		}
-		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
-		Vector3i base_cell = world_to_cell(n3d->get_global_position());
-		// Proactively bake the chunk a live unit currently occupies so the
-		// area around active play stays query-ready, not just wherever a
-		// find_path/nearest_valid_point call has happened to land already.
-		if (in_bounds(base_cell)) {
-			ensure_chunk_dist(cell_to_chunk_coord(base_cell));
-		}
-		// A flying occupant needs a full 3D volume, not the horizontal-only
-		// disc grounded units share a common Y reference for — see
-		// sphere_offsets' own comment for why the horizontal disc alone
-		// silently let two hovering units pass through each other.
-		bool node_flying = node->has_method("is_flying") && call_bool(node, "is_flying");
-		const std::vector<Vector3i> &occ_offsets = node_flying ? sphere_offsets(clearance) : disc_offsets(clearance);
+		float clearance = (float)key.clearance_key / 1000.0f;
+		const std::vector<Vector3i> &occ_offsets = key.flying ? sphere_offsets(clearance) : disc_offsets(clearance);
 		for (const Vector3i &offset : occ_offsets) {
-			Vector3i cell = base_cell + offset;
+			Vector3i cell = key.cell + offset;
 			if (in_bounds(cell)) {
-				set_occupant(cell, obj);
-				any_occupied = true;
-			}
-		}
-	}
-
-	TypedArray<Node> corpses = tree->get_nodes_in_group("blocking_corpses");
-	for (int i = 0; i < corpses.size(); i++) {
-		Object *obj = corpses[i];
-		Node *node = Object::cast_to<Node>(obj);
-		if (!node) {
-			continue;
-		}
-		Node3D *n3d = Object::cast_to<Node3D>(node);
-		if (!n3d || !in_active_world(n3d)) {
-			continue;
-		}
-		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
-		Vector3i base_cell = world_to_cell(n3d->get_global_position());
-		// A corpse isn't force-landed on death (see UnitDeath.handle_death) --
-		// one that died mid-air stays exactly where it was, so it needs
-		// the same flying-aware volume as a live flying unit.
-		bool node_flying = node->has_method("is_flying") && call_bool(node, "is_flying");
-		const std::vector<Vector3i> &occ_offsets = node_flying ? sphere_offsets(clearance) : disc_offsets(clearance);
-		for (const Vector3i &offset : occ_offsets) {
-			Vector3i cell = base_cell + offset;
-			if (in_bounds(cell)) {
-				set_occupant(cell, obj);
+				set_occupant(cell, objects[i]);
 				any_occupied = true;
 			}
 		}
 	}
 
 	refresh_chunk_occupancy_nearby();
+	occupancy_signature = std::move(keys);
+	occupancy_stamped = true;
+	occupancy_version_value = ++occupancy_version_counter;
+}
+
+// Changes whenever the active world's occupancy is rebuilt, so a cached
+// route (UnitMovement's preview) knows when someone has moved since.
+int64_t NavigationGrid::occupancy_version(SceneTree *tree, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	ensure_occupancy_current(tree);
+	return (int64_t)occupancy_version_value;
 }
 
 // Precomputes, for every chunk, whether ANY chunk in its own 3x3x3
-// neighborhood has_occupancy. This exact 27-chunk scan used to happen
-// inline inside is_clear_of_units, freshly, on every single candidate
-// cell a pathfinding query touched — up to once per neighbor per A*
-// expansion. Occupancy itself only changes here, at a turn-boundary
-// update_occupancy call, so the scan is a loop invariant with respect to
-// any pathfinding query run between updates: computing it once here
-// and reading an O(1) flag from is_clear_of_units is the same "hoist the
-// invariant out of the hot path" trade already used for the flat A*
-// scratch arrays and the per-chunk distance field elsewhere in this file.
+// neighborhood has_occupancy, so is_clear_of_units can rule a cell out
+// with one lookup instead of a 27-chunk scan per candidate cell. Marks
+// outward from the occupied chunks rather than scanning every chunk,
+// since occupancy rebuilds whenever anyone crosses a cell.
 void NavigationGrid::refresh_chunk_occupancy_nearby() {
 	std::fill(chunk_occupancy_nearby.begin(), chunk_occupancy_nearby.end(), (uint8_t)0);
-	if (!any_occupied) {
-		return;
-	}
-	for (int idx = 0; idx < (int)chunks.size(); idx++) {
+	for (int idx : occupied_chunks) {
 		Vector3i cc = chunk_coord_from_index(idx);
-		bool nearby = false;
-		for (int dx = -1; dx <= 1 && !nearby; dx++) {
-			for (int dy = -1; dy <= 1 && !nearby; dy++) {
-				for (int dz = -1; dz <= 1 && !nearby; dz++) {
+		for (int dx = -1; dx <= 1; dx++) {
+			for (int dy = -1; dy <= 1; dy++) {
+				for (int dz = -1; dz <= 1; dz++) {
 					Vector3i nc = cc + Vector3i(dx, dy, dz);
-					if (!chunk_in_bounds(nc)) {
-						continue;
-					}
-					const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(nc)];
-					if (slot && slot->has_occupancy) {
-						nearby = true;
+					if (chunk_in_bounds(nc)) {
+						chunk_occupancy_nearby[chunk_coord_index(nc)] = 1;
 					}
 				}
 			}
 		}
-		chunk_occupancy_nearby[idx] = nearby ? (uint8_t)1 : (uint8_t)0;
 	}
 }
 
@@ -943,7 +969,7 @@ const std::vector<Vector3i> &NavigationGrid::disc_offsets(float clearance) {
 
 // Full 3D occupancy volume for a flying occupant, used in place of
 // disc_offsets (which is deliberately horizontal-only, dy always 0) when
-// marking cells a FLYING unit/corpse occupies in update_occupancy. A
+// marking cells a FLYING unit/corpse occupies in ensure_occupancy_current. A
 // grounded unit's Y is pinned to whatever surface it's standing on, so two
 // grounded units near each other always land on the same Y cell and the
 // horizontal disc alone catches their collision correctly. A flying unit
@@ -993,7 +1019,7 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 	// force every single neighbor check across the whole search to do a
 	// full per-offset hashmap lookup regardless. chunk_occupancy_nearby
 	// (see refresh_chunk_occupancy_nearby) is this same 3x3x3
-	// chunk-neighborhood check, precomputed once per update_occupancy call
+	// chunk-neighborhood check, precomputed once per occupancy rebuild
 	// instead of rescanned fresh on every candidate cell here — an O(1)
 	// lookup rules out the common case cheaply. Only sound when the disc's
 	// reach can't cross more than one chunk width, which holds for any
@@ -1019,9 +1045,14 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 		if (!in_bounds(c)) {
 			continue;
 		}
-		Object *occ = occupant_at(c);
-		if (occ != nullptr && occ != self_unit) {
-			return false;
+		const std::vector<Object *> *here = occupants_at(c);
+		if (!here) {
+			continue;
+		}
+		for (Object *occ : *here) {
+			if (occ != self_unit && std::find(query_ignore.begin(), query_ignore.end(), occ) == query_ignore.end()) {
+				return false;
+			}
 		}
 	}
 	return true;
@@ -1098,11 +1129,13 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 
 // --- Nearest-valid-point utility --------------------------------------------
 
-Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref) {
+Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref, Array ignore) {
 	// exclude_unit is optional here (see _bind_methods' DEFVAL), so
 	// world_ref is the fallback for callers that pass neither.
 	activate_for(exclude_unit, world_ref);
 	ensure_baked(tree);
+	ensure_occupancy_current(tree);
+	set_query_ignore(ignore);
 	const std::vector<Vector3i> &offsets = disc_offsets(clearance);
 	// height comes off exclude_unit the same duck-typed way find_path()
 	// reads it off its own unit parameter — exclude_unit is genuinely
@@ -1147,11 +1180,12 @@ NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vecto
 
 // --- Pathfinding -------------------------------------------------------------
 
-PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying) {
-	// unit is always supplied here, so the world is never ambiguous — which
-	// is why none of find_path's 24 call sites needed to change.
+PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore) {
+	// unit is always supplied here, so the world is never ambiguous.
 	activate_for(unit);
 	ensure_baked(tree);
+	ensure_occupancy_current(tree);
+	set_query_ignore(ignore);
 
 	float clearance = get_float_prop(unit, "radius") + get_float_prop(unit, "avoidance_margin");
 	float height = get_float_prop(unit, "height");

@@ -1004,15 +1004,10 @@ func place_at_landing(unit: Unit, spawn_point: Node3D, follower_index: int, foll
 		target += FormationPlanner.ring_offset(
 			follower_index, follower_count, unit.formation_spread_radius)
 
-	# Refreshed HERE, per unit, because the answer changes with every
-	# placement in this loop and because worlds now outlive the player:
-	# whoever arrived last is very likely still standing on the marker,
-	# and before residency there was never anybody there to stand on it.
-	# The unit being placed is passed as the mover so it does not block
-	# its own landing cell, and so the query resolves the DESTINATION's
-	# grid rather than whichever world was last active.
-	var movers: Array = [unit]
-	NavigationGrid.update_occupancy(get_tree(), movers, unit)
+	# Occupancy is checked live on every query, so each placement in this
+	# loop sees the ones before it, and whoever arrived last (worlds
+	# outlive the player) still standing on the marker. The query excludes
+	# the unit itself and resolves the DESTINATION's grid through it.
 	var clearance: float = unit.radius + unit.avoidance_margin
 	# The LEADER goes through this too, which it did not before. Landing it
 	# on the marker unconditionally was fine while a world was rebuilt on

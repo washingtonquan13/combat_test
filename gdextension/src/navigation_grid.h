@@ -3,11 +3,11 @@
 // C++ port of navigation_grid.gd — see that file's own header (still
 // present in git history) for the original design rationale: one shared 3D
 // grid for ground+flight, static geometry baked once, dynamic occupancy
-// rebuilt per turn. This class is registered as an Engine singleton named
+// kept current by the grid itself (see ensure_occupancy_current). This class is registered as an Engine singleton named
 // "NavigationGrid" (see register_types.cpp) so every existing GDScript
 // call site (unit_movement.gd, movement_indicator.gd, combat_manager.gd,
 // knockback_effect.gd, ground_point_targeting.gd, unit.gd) keeps calling
-// NavigationGrid.find_path(...)/update_occupancy(...)/etc. completely
+// NavigationGrid.find_path(...)/nearest_valid_point(...)/etc. largely
 // unchanged — only the implementation moved from GDScript to native code.
 //
 // CHUNKED STORAGE (this revision): the world is no longer one dense flat
@@ -69,7 +69,10 @@ struct NavChunk {
 	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
 	std::vector<uint8_t> no_support; // CHUNK_DIM^3, 1 = nothing solid directly below
 	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
-	std::unordered_map<int, Object *> occupied; // chunk-local index -> occupant
+	// chunk-local index -> every occupant whose volume covers it. Several,
+	// not one: occupancy discs overlap (two units side by side), and a
+	// query that ignores one of them must still see the other.
+	std::unordered_map<int, std::vector<Object *>> occupied;
 	bool has_occupancy = false; // true iff `occupied` is non-empty -- lets is_clear_of_units rule out a whole neighborhood cheaply
 
 	bool rasterized = false;
@@ -88,6 +91,20 @@ struct NavChunk {
 // the whole chunk lifecycle) is untouched by multi-world support, which is
 // the entire point: code that doesn't change can't regress. Only the
 // public entry points swap the right world's state in first.
+// One occupant as occupancy last stamped it: everything that decides
+// which cells it covers. A list of these is the occupancy signature; a
+// query rebuilds occupancy only when the live list differs from it.
+struct OccupantKey {
+	uint64_t id = 0; // instance id, not the pointer: a freed node's address can be reused
+	Vector3i cell;
+	int clearance_key = 0;
+	bool flying = false;
+	bool operator==(const OccupantKey &o) const {
+		return id == o.id && cell == o.cell && clearance_key == o.clearance_key && flying == o.flying;
+	}
+	bool operator!=(const OccupantKey &o) const { return !(*this == o); }
+};
+
 struct ParkedWorld {
 	Vector3 bounds_origin;
 	Vector3i grid_size;
@@ -106,6 +123,10 @@ struct ParkedWorld {
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
 	std::vector<uint8_t> chunk_occupancy_nearby;
+	std::vector<int> occupied_chunks;
+	std::vector<OccupantKey> occupancy_signature;
+	bool occupancy_stamped = false;
+	uint64_t occupancy_version = 0;
 	// The node this world's geometry is scanned from. A World3D can't be
 	// walked back to a node, so the root has to be remembered when the
 	// world registers itself.
@@ -140,9 +161,16 @@ public:
 	// which is a real crash this project shipped (native segfault, no
 	// preceding GDScript error — see WorldManager's own note on this).
 	void invalidate();
-	void update_occupancy(SceneTree *tree, Array movers, Object *world_ref = nullptr);
-	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref = nullptr);
-	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying);
+	// `ignore`: occupants this one query walks through as well as its own
+	// unit — a group move's other movers, who are about to leave their
+	// cells. Per query, never stored: occupancy itself always holds every
+	// live unit and blocking corpse in the world.
+	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref = nullptr, Array ignore = Array());
+	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore = Array());
+	// Bumps whenever the world's occupancy actually changes (anyone moves
+	// a cell, dies, arrives, leaves). For callers caching a route: equal
+	// versions mean find_path would answer the same.
+	int64_t occupancy_version(SceneTree *tree, Object *world_ref);
 	Vector3i world_to_cell(Vector3 pos) const;
 
 	float get_cell_size() const;
@@ -260,14 +288,35 @@ private:
 
 	// Per-chunk cache: true iff ANY chunk in this chunk's own 3x3x3
 	// neighborhood has_occupancy — see refresh_chunk_occupancy_nearby.
-	// Rebuilt once whenever update_occupancy runs (a turn boundary), then
-	// read as a plain O(1) lookup by every is_clear_of_units call in
-	// between — replaces what used to be a fresh 27-chunk scan on EVERY
-	// candidate cell during pathfinding (i.e. up to 26x per A* expansion)
-	// with work proportional to chunk count, done once per occupancy
-	// update instead of once per candidate cell.
+	// Rebuilt whenever occupancy is, then read as a plain O(1) lookup by
+	// every is_clear_of_units call in between — replaces what used to be
+	// a fresh 27-chunk scan on EVERY candidate cell during pathfinding.
 	std::vector<uint8_t> chunk_occupancy_nearby;
 	void refresh_chunk_occupancy_nearby();
+	// Chunks holding any occupancy, so a rebuild clears and re-marks only
+	// those instead of walking every chunk in the world.
+	std::vector<int> occupied_chunks;
+
+	// --- Self-maintaining occupancy ----------------------------------
+	// Occupancy used to be a snapshot callers had to remember to retake
+	// (update_occupancy), which also baked "who is moving" into the
+	// snapshot. Every place that forgot, or retook it at the wrong time,
+	// was a route through a unit. Now every query first compares the live
+	// occupants against the signature occupancy was last built from and
+	// rebuilds only on a difference — so it is exactly as current as the
+	// scene at the moment of asking, with no frame or tick dependence.
+	std::vector<OccupantKey> occupancy_signature;
+	bool occupancy_stamped = false;
+	uint64_t occupancy_version_value = 0;
+	// Shared across worlds so a version never repeats after a world swap.
+	uint64_t occupancy_version_counter = 0;
+	void ensure_occupancy_current(SceneTree *tree);
+	void collect_occupants(SceneTree *tree, std::vector<OccupantKey> &keys, std::vector<Object *> &objects);
+	void reset_occupancy();
+	// The current query's ignore list (see find_path). Set at the top of
+	// each public query, read by is_clear_of_units.
+	std::vector<Object *> query_ignore;
+	void set_query_ignore(const Array &ignore);
 
 	void ensure_project_scanned(SceneTree *tree);
 	void collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out);
@@ -299,7 +348,7 @@ private:
 	const std::vector<Vector3i> &disc_offsets(float clearance);
 	const std::vector<Vector3i> &sphere_offsets(float clearance);
 
-	Object *occupant_at(const Vector3i &cell) const;
+	const std::vector<Object *> *occupants_at(const Vector3i &cell) const;
 	void set_occupant(const Vector3i &cell, Object *obj);
 
 	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const;

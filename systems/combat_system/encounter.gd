@@ -232,11 +232,6 @@ func _adopt(unit: Unit) -> void:
 		unit.died.connect(_on_unit_died)
 	if not unit.downed_changed.is_connected(_on_unit_downed_changed):
 		unit.downed_changed.connect(_on_unit_downed_changed)
-	# Anything that displaces a unit mid-turn (Knockback, Shove, Jump's
-	# move_caster_effect) finishes by emitting ability_used and none of them
-	# go through Unit.move_to(), so none trigger an occupancy update alone.
-	if not unit.ability_used.is_connected(_on_ability_used):
-		unit.ability_used.connect(_on_ability_used)
 
 
 ## Untyped parameter on purpose. A typed `unit: Unit` is validated at the
@@ -254,8 +249,6 @@ func _release(unit) -> void:
 		unit.died.disconnect(_on_unit_died)
 	if unit.downed_changed.is_connected(_on_unit_downed_changed):
 		unit.downed_changed.disconnect(_on_unit_downed_changed)
-	if unit.ability_used.is_connected(_on_ability_used):
-		unit.ability_used.disconnect(_on_ability_used)
 	_drop_turn_requests(unit)
 
 
@@ -370,9 +363,6 @@ func end_turn() -> void:
 
 	phase = Phase.TURN_ENDING
 
-	# Catches anything that displaced a unit at the tail end of this turn
-	# without going through ability_used/move_to's own occupancy update.
-	NavigationGrid.update_occupancy(get_tree(), [unit])
 	turn_ended.emit(unit)
 	_try_disengage(unit)
 	_advance_turn.call_deferred()
@@ -416,7 +406,6 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 
 	var next_unit: Unit = turn_order[_turn_index]
 	phase = Phase.TURN_STARTING
-	NavigationGrid.update_occupancy(get_tree(), [next_unit])
 	turn_ended.emit(unit)
 	_begin_unit_turn_actions(next_unit)
 	_log_and_emit_turn_started(next_unit)
@@ -483,11 +472,6 @@ func _advance_turn() -> void:
 	if unit == null:
 		return
 	phase = Phase.TURN_STARTING
-	# Marks every OTHER living unit's footprint occupied, and this unit's
-	# own excluded (its standing position can't block its own path query).
-	# Once per turn is the right cadence: nothing else moves until this
-	# turn ends.
-	NavigationGrid.update_occupancy(get_tree(), [unit])
 	_begin_unit_turn_actions(unit)
 	unit.tick_statuses()
 
@@ -596,14 +580,6 @@ func _check_combat_end() -> bool:
 
 
 func _on_unit_died(_unit: Unit) -> void:
-	# Deliberately BEFORE the phase check and unconditional on it: an AoE
-	# that wipes a faction fires one died signal per kill, synchronously, in
-	# the same call stack — if THIS death ends the fight, every death after
-	# it in that batch would otherwise hit the early return and never get
-	# occupancy updated. See this class's header on why one phase value is
-	# what actually prevents that class of bug.
-	NavigationGrid.update_occupancy(get_tree(), [current_unit] if current_unit else [])
-
 	if phase == Phase.OUT_OF_COMBAT:
 		return
 
@@ -637,9 +613,3 @@ func _on_unit_downed_changed(unit: Unit) -> void:
 	if phase == Phase.ACTIVE and unit == current_unit:
 		end_turn.call_deferred()
 
-
-## Knockback, Shove, Jump's move_caster_effect and anything else that
-## displaces a unit through an ability rather than Unit.move_to() — this is
-## the catch-all for "what just resolved might have moved someone."
-func _on_ability_used(attacker: Unit, _target, _result: Dictionary) -> void:
-	NavigationGrid.update_occupancy(get_tree(), [attacker])

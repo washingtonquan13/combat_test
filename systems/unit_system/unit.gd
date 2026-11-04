@@ -1065,21 +1065,21 @@ func visual_forward() -> Vector3:
 ## NavigationGrid), and a destination near another unit simply routes to
 ## the nearest valid cell outside that unit's own footprint, which is
 ## what you want when approaching a target to attack it too.
-func move_to(destination: Vector3) -> bool:
-	return _movement.move_to(destination)
+func move_to(destination: Vector3, ignore: Array = []) -> bool:
+	return _movement.move_to(destination, ignore)
 
 
 ## Pure route/cost query — see UnitMovement.plan_route's own doc comment.
 ## Exposed here so AiScorer can price out a candidate destination without
 ## actually issuing a move order.
-func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
-	return _movement.plan_route(raw_destination, budget)
+func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = []) -> Dictionary:
+	return _movement.plan_route(raw_destination, budget, ignore)
 
 
 ## The full route move_to(dest) would take, ladder journeys included —
 ## see UnitMovement.preview_route. What the movement preview draws.
-func preview_route(dest: Vector3) -> Dictionary:
-	return _movement.preview_route(dest)
+func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
+	return _movement.preview_route(dest, ignore)
 
 
 ## Cancels the current move order in place, still spending whatever

@@ -102,6 +102,15 @@ var _preview_flying: bool = false
 var _preview_start_cell: Vector3i
 var _preview_dest_cell: Vector3i
 var _preview_waypoints: PackedVector3Array = PackedVector3Array()
+## The grid's occupancy version and the ignore list the cached search
+## saw: a unit moving, dying or appearing changes the version, so the
+## cache can never show a route around (or through) where units were.
+var _preview_occupancy_version: int = -1
+var _preview_ignore: Array = []
+
+## The ignore list of the journey in flight, so a ladder journey's later
+## walking legs avoid the same units its first leg did.
+var _move_ignore: Array = []
 
 
 func _init(owner: Unit) -> void:
@@ -116,12 +125,12 @@ func is_moving() -> bool:
 ## deterministic plan-then-execute rationale. Out of combat, budget is
 ## effectively unlimited. In combat: only CombatManager.current_unit may
 ## move, and the plan is truncated at exactly move_remaining — see
-## RoutePlanner.plan. Callers are responsible for making sure the grid's
-## occupancy is current for this unit as a mover before calling this (see
-## NavigationGrid.update_occupancy) — combat turn-start and free-roam move
-## orders both already do this.
-##
-func move_to(destination: Vector3) -> bool:
+## RoutePlanner.plan. Occupancy is always current: the grid checks it
+## against the live units on every query (see NavigationGrid). Every other
+## unit is avoided except those in `ignore` — a group moving together
+## passes itself, so members don't route around where the others are
+## about to leave.
+func move_to(destination: Vector3, ignore: Array = []) -> bool:
 	# can_be_commanded(), not can_act(): a unit that is already walking is
 	# precisely when the player most wants to say something else. can_act()
 	# counts walking as busy, so opening with it meant every click during a
@@ -139,6 +148,7 @@ func move_to(destination: Vector3) -> bool:
 		_finish_move(false)
 
 	var budget: float = INF
+	_move_ignore = ignore
 
 	# Turn order binds a unit only while it is actually IN a fight. A unit
 	# standing outside one moves freely even while a battle rages nearby —
@@ -155,7 +165,7 @@ func move_to(destination: Vector3) -> bool:
 	# this check is skipped entirely for a flying mover rather than
 	# needing its own flying-awareness.
 	if not _owner.is_flying():
-		var route: Dictionary = Ladder.find_route(_owner, destination)
+		var route: Dictionary = Ladder.find_route(_owner, destination, ignore)
 		if not route.is_empty():
 			if route.affordable:
 				return _begin_ladder_journey(route, destination)
@@ -179,10 +189,10 @@ func move_to(destination: Vector3) -> bool:
 ## budget defaults to INF — a bare route/cost query has no inherent
 ## budget of its own; _start_walk() is the one caller that passes a
 ## real one.
-func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
+func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = []) -> Dictionary:
 	var flying: bool = _owner.is_flying()
 	var query_destination: Vector3 = _query_destination(raw_destination)
-	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
+	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying, ignore)
 	return _plan_waypoints(waypoints, budget, flying)
 
 
@@ -236,37 +246,44 @@ func _plan_waypoints(waypoints: PackedVector3Array, budget: float, flying: bool)
 ## empty path when there is no route.
 ##
 ## Called every frame while the preview is live, so the A* search is
-## cached by (start cell, destination cell, flying) — the mouse sitting
-## still is the common case. RoutePlanner.plan() re-runs every call: a
+## cached by (start cell, destination cell, flying, occupancy version,
+## ignore) — the mouse sitting still is the common case, and any unit
+## moving changes the version. RoutePlanner.plan() re-runs every call: a
 ## cheap linear walk, and it keeps terrain cost live.
-func preview_route(dest: Vector3) -> Dictionary:
+func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
 	if not _owner.is_flying():
-		var route: Dictionary = Ladder.find_route(_owner, dest)
+		var route: Dictionary = Ladder.find_route(_owner, dest, ignore)
 		if not route.is_empty():
-			return _preview_ladder_route(route, dest)
+			return _preview_ladder_route(route, dest, ignore)
 
 	var flying: bool = _owner.is_flying()
 	var query_destination: Vector3 = _query_destination(dest)
 	var start_cell: Vector3i = NavigationGrid.world_to_cell(_owner.global_position)
 	var dest_cell: Vector3i = NavigationGrid.world_to_cell(query_destination)
+	var version: int = NavigationGrid.occupancy_version(_owner.get_tree(), _owner)
 	if not (
 		_preview_cached
 		and flying == _preview_flying
 		and start_cell == _preview_start_cell
 		and dest_cell == _preview_dest_cell
+		and version == _preview_occupancy_version
+		and ignore == _preview_ignore
 	):
-		_preview_waypoints = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
+		_preview_waypoints = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying, ignore)
 		_preview_cached = true
 		_preview_flying = flying
 		_preview_start_cell = start_cell
 		_preview_dest_cell = dest_cell
+		# find_path may itself have rebuilt occupancy; read the version it used.
+		_preview_occupancy_version = NavigationGrid.occupancy_version(_owner.get_tree(), _owner)
+		_preview_ignore = ignore.duplicate()
 
 	return _plan_waypoints(_preview_waypoints, INF, flying)
 
 
 ## preview_route()'s ladder branch — see Ladder.find_route for `route`'s
 ## shape, and move_to()'s ladder branch for the choice being mirrored.
-func _preview_ladder_route(route: Dictionary, dest: Vector3) -> Dictionary:
+func _preview_ladder_route(route: Dictionary, dest: Vector3, ignore: Array) -> Dictionary:
 	# Unaffordable: move_to() walks toward the near end and stops there,
 	# so that walk is all there is to show.
 	if not route.affordable:
@@ -292,7 +309,7 @@ func _preview_ladder_route(route: Dictionary, dest: Vector3) -> Dictionary:
 
 	# The tail is grounded (ladders are grounded-only) and planned from the
 	# far end, where _on_climb_finished starts its own walk.
-	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), route.far, dest, _owner, false)
+	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), route.far, dest, _owner, false, ignore)
 	if tail_waypoints.size() >= 2:
 		var tail: Dictionary = _plan_waypoints(tail_waypoints, INF, false)
 		for i in range(1, tail.path.size()):
@@ -309,7 +326,7 @@ func _preview_ladder_route(route: Dictionary, dest: Vector3) -> Dictionary:
 ## ladder's walking legs are governed by the exact same budget-truncation/
 ## terrain-cost rules as any other move.
 func _start_walk(raw_destination: Vector3, budget: float) -> bool:
-	var planned: Dictionary = plan_route(raw_destination, budget)
+	var planned: Dictionary = plan_route(raw_destination, budget, _move_ignore)
 	var planned_path: PackedVector3Array = planned.path
 
 	if planned_path.size() < 2:

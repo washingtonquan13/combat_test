@@ -591,23 +591,13 @@ func use_ground_targeted(ability: Ability, click_position: Vector3) -> bool:
 ## rather than picking one lets a mixed selection do the sensible thing
 ## — the free ones go, the busy ones don't.
 func command_move(destination: Vector3) -> bool:
-	var movers: Array[Unit] = _movers()
+	var movers: Array[Unit] = move_order_units()
 	if movers.is_empty():
 		return false
 
 	if movers.size() == 1 and movers[0].in_combat():
 		movers[0].move_to(destination)
 		return true
-
-	# Free-roam moves aren't gated by turn order the way combat is — every
-	# selected unit can move at once — so all of them are excluded from
-	# occupancy for this one update, not just a single mover (see
-	# NavigationGrid). Simultaneous movers can still end up navigating
-	# around each other's stale (pre-move) positions rather than truly
-	# live positions until the next update — an accepted approximation
-	# outside combat, where "only one unit ever moves at a time" doesn't
-	# hold in the first place.
-	NavigationGrid.update_occupancy(get_tree(), movers)
 
 	# Leader/follower formation math lives on FormationPlanner, not here —
 	# see that file for why it's leader-driven but fully deterministic.
@@ -618,7 +608,7 @@ func command_move(destination: Vector3) -> bool:
 ## Who a move order would go to: every selected, living unit, except that
 ## one in a fight moves only on its own turn with move left. Shared by
 ## command_move and _move_answer, so the cursor and the order agree.
-func _movers() -> Array[Unit]:
+static func move_order_units() -> Array[Unit]:
 	var movers: Array[Unit] = []
 	for unit in SelectionManager.selected_units:
 		if not is_instance_valid(unit) or not unit.is_alive():
@@ -643,7 +633,7 @@ func _click_ability_on(clicked: Unit) -> Ability:
 
 ## THE answer to "what would a left click do now" for current and at -
 ## see ClickAnswer. Follows the intents' own handle_left_click branches
-## in their own order, and asks the same rules they act on (_movers,
+## in their own order, and asks the same rules they act on (move_order_units,
 ## _click_ability_on, the ability's targeting check_click/check), so it
 ## can only be as wrong as those are. Pushed tools and the locked intent
 ## get no opinion: they own their clicks.
@@ -712,7 +702,7 @@ func _move_answer(destination: Vector3) -> ClickAnswer:
 	if SelectionManager.selected_units.is_empty():
 		return ClickAnswer.new()
 	var answer := ClickAnswer.new(&"move", destination)
-	var movers: Array[Unit] = _movers()
+	var movers: Array[Unit] = move_order_units()
 	if movers.is_empty():
 		var acting: Unit = PlayerInteractionState.get_active_unit()
 		if acting and acting.in_combat() and not acting.is_my_turn():
@@ -723,7 +713,7 @@ func _move_answer(destination: Vector3) -> ClickAnswer:
 	# The same route the movement preview draws this frame (its A* is
 	# cached by cell, so asking again costs a walk, not a search).
 	var unit: Unit = active_unit()
-	if unit and unit in movers and unit.preview_route(destination).path.is_empty():
+	if unit and unit in movers and unit.preview_route(destination, FormationPlanner.move_ignore(movers)).path.is_empty():
 		return answer.refused("Can't move there")
 	return answer
 
