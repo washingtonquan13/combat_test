@@ -230,8 +230,8 @@ var has_died: bool = false
 ## an ordinary faction tag like any other; this is purely about who the
 ## player controls, a separate question from who's hostile to whom.
 const PLAYER_FACTION: StringName = &"player"
-## The render layer every unit's body and held gear wear, and the only
-## thing on it, so a ground decal (Grease) can leave units out with its
+## The render layer every unit's body and held gear wear (and the Wall of
+## Fire's volume), so a ground decal (Grease) can leave units out with its
 ## cull_mask instead of painting their feet.
 const RENDER_LAYER: int = 2
 ## Below a third of its maximum, each pool puts its status on (GURPS
