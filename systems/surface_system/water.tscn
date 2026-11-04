@@ -13,6 +13,9 @@ shader_parameter/droplets = 0.5
 shader_parameter/bumpiness = 0.05
 shader_parameter/ripple_scale = 2.0
 shader_parameter/ripple_strength = 0.6
+shader_parameter/ripple_drift = 0.8
+shader_parameter/wet_rim = 0.45
+shader_parameter/wet_color = Color(0.03, 0.03, 0.035, 1)
 
 [node name="Water" type="Decal"]
 size = Vector3(2.6, 2.4, 2.6)
@@ -20,4 +23,7 @@ normal_fade = 0.6
 cull_mask = 1048573
 script = ExtResource("1_script")
 film = SubResource("film")
+loop_frames = 10
+loop_fps = 8.0
+ripples_move = true
 roughness = 0.03

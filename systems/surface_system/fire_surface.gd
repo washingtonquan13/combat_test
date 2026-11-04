@@ -10,8 +10,10 @@ extends DecalSurface
 @export var flames_per_square_meter: float = 3.0
 @export var sparks_per_square_meter: float = 6.0
 @export var smoke_per_square_meter: float = 1.0
-## Emission points scattered over each cell.
+## Emission points scattered over each cell, and how many times as many
+## flames stand on the patch's rim cells: fire burns hottest at its edge.
 @export var points_per_cell: int = 4
+@export var rim_flame_weight: int = 3
 ## How far the light's energy swings either side of its authored value.
 @export var flicker: float = 0.3
 
@@ -38,6 +40,10 @@ func _ready() -> void:
 ## Spreads what burns over the cells, in meters.
 func _cells_shown(cells: Array[SurfaceCell]) -> void:
 	var points := PackedVector3Array()
+	var rim_points := PackedVector3Array()
+	var keys: Dictionary[Vector2i, bool] = {}
+	for cell in cells:
+		keys[cell.key] = true
 	var low := Vector2(INF, INF)
 	var high := -low
 	var floor_y: float = INF
@@ -46,24 +52,30 @@ func _cells_shown(cells: Array[SurfaceCell]) -> void:
 		low = low.min(Vector2(centre.x, centre.z))
 		high = high.max(Vector2(centre.x, centre.z))
 		floor_y = minf(floor_y, cell.y)
+		var on_rim: bool = false
+		for step in SurfaceGrid.NEIGHBOURS:
+			if not keys.has(cell.key + step):
+				on_rim = true
+				break
 		for i in points_per_cell:
 			var jitter := Vector3(randf() - 0.5, 0.0, randf() - 0.5) * SurfaceGrid.CELL
 			points.append(centre + jitter - global_position)
+			for j in (rim_flame_weight if on_rim else 1):
+				rim_points.append(centre + Vector3(randf() - 0.5, 0.0, randf() - 0.5) * SurfaceGrid.CELL - global_position)
 	var area: float = cells.size() * SurfaceGrid.CELL * SurfaceGrid.CELL
 	var counts: Array[int] = [maxi(8, roundi(area * flames_per_square_meter)),
 			maxi(6, roundi(area * sparks_per_square_meter)), maxi(4, roundi(area * smoke_per_square_meter))]
-	var image := Image.create(points.size(), 1, false, Image.FORMAT_RGBF)
-	for i in points.size():
-		image.set_pixel(i, 0, Color(points[i].x, points[i].y, points[i].z))
 	# Shared: the points are in each emitter's own space, so Smoke, raised
 	# above the others, keeps its height over them.
-	var texture := ImageTexture.create_from_image(image)
+	var spread: ImageTexture = _point_texture(points)
+	var textures: Array[ImageTexture] = [_point_texture(rim_points), spread, spread]
+	var sizes: Array[int] = [rim_points.size(), points.size(), points.size()]
 	var emitters: Array[GPUParticles3D] = [_flames, _sparks, _smoke]
 	for e in emitters.size():
 		var emitter: GPUParticles3D = emitters[e]
 		var process := emitter.process_material as ParticleProcessMaterial
-		process.emission_point_texture = texture
-		process.emission_point_count = points.size()
+		process.emission_point_texture = textures[e]
+		process.emission_point_count = sizes[e]
 		if emitter.amount != counts[e]:
 			emitter.amount = counts[e]
 	# Haze and light stand over the middle of the patch, on its floor.
@@ -74,6 +86,13 @@ func _cells_shown(cells: Array[SurfaceCell]) -> void:
 	(_haze.mesh as QuadMesh).size.x = maxf(extent.x, extent.y) * 1.1
 	_light.position = base + Vector3(0.0, 1.2, 0.0)
 	_light.omni_range = maxf(extent.x, extent.y) * 0.75 + 2.0
+
+
+func _point_texture(points: PackedVector3Array) -> ImageTexture:
+	var image := Image.create(points.size(), 1, false, Image.FORMAT_RGBF)
+	for i in points.size():
+		image.set_pixel(i, 0, Color(points[i].x, points[i].y, points[i].z))
+	return ImageTexture.create_from_image(image)
 
 
 func _process(delta: float) -> void:

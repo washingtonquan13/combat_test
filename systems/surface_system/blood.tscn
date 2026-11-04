@@ -11,6 +11,9 @@ shader_parameter/alpha_max = 0.93
 shader_parameter/edge_wander = 0.6
 shader_parameter/droplets = 0.65
 shader_parameter/lumpiness = 0.5
+shader_parameter/ripple_drift = 0.3
+shader_parameter/wet_rim = 0.35
+shader_parameter/wet_color = Color(0.07, 0.012, 0.01, 1)
 
 [node name="Blood" type="Decal"]
 size = Vector3(2.6, 2.4, 2.6)
@@ -18,4 +21,7 @@ normal_fade = 0.6
 cull_mask = 1048573
 script = ExtResource("1_script")
 film = SubResource("film")
+loop_frames = 10
+loop_fps = 6.0
+ripples_move = true
 roughness = 0.18

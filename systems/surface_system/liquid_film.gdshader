@@ -4,7 +4,7 @@ render_mode unshaded, blend_disabled;
 // A spilled liquid for decal_surface.gd: Grease, Water, Blood, Acid.
 // A lumpy pool over its cells with splashed droplets past its edge,
 // darker where it's thick and deepest away from the edge; optional dome
-// bubbles and glow.
+// bubbles and glow, and a wet, darkened band of ground round its rim.
 
 #include "res://systems/surface_system/film_common.gdshaderinc"
 
@@ -22,6 +22,10 @@ uniform float lumpiness : hint_range(0.0, 1.0) = 0.45;
 uniform float bubbles : hint_range(0.0, 1.0) = 0.0;
 uniform float bubble_size_m = 0.12;
 uniform vec3 glow_color : source_color = vec3(0.0);
+// The ground darkened round the pool where it soaked in: how dark, and
+// what color the wet ground takes.
+uniform float wet_rim : hint_range(0.0, 1.0) = 0.0;
+uniform vec3 wet_color : source_color = vec3(0.02, 0.02, 0.02);
 
 float bubble(vec2 uv) {
 	if (bubbles <= 0.0) {
@@ -54,7 +58,13 @@ float film_height(vec2 uv) {
 
 vec4 film_albedo(vec2 uv, float h) {
 	vec3 color = mix(thin_color, thick_color, smoothstep(0.1, 0.65, h));
-	return vec4(color, smoothstep(0.0, 0.22, h) * alpha_max);
+	float alpha = smoothstep(0.0, 0.22, h) * alpha_max;
+	// Soaked a little past the pool's own ragged edge; it dries with it.
+	float wet = smoothstep(0.22, 0.46, edge_field(uv, edge_wander * 1.3)) * wet_rim
+			* (1.0 - smoothstep(0.3, 0.9, local_recede(uv)));
+	float out_alpha = alpha + wet * (1.0 - alpha);
+	vec3 out_color = (color * alpha + wet_color * wet * (1.0 - alpha)) / max(out_alpha, 0.0001);
+	return vec4(out_color, out_alpha);
 }
 
 vec3 film_emission(vec2 uv, float h) {

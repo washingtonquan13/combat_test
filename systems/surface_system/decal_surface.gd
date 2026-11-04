@@ -5,9 +5,9 @@ extends Decal
 ## slopes. A Decal can't run a shader, so `film` (a canvas_item shader
 ## built on film_passes.gdshaderinc) draws its albedo, normal map and,
 ## when it `glows`, emission in small SubViewports, redrawn only while
-## the cells change. A glow can also move: once settled, `glow_frames`
-## pictures of it are drawn and then played on a loop, so it animates
-## without redrawing. A Decal doesn't show a ViewportTexture, so each
+## the cells change. A glow and ripples can also move: once settled,
+## `loop_frames` pictures of them are drawn and then played on a loop, so
+## they animate without redrawing. A Decal doesn't show a ViewportTexture, so each
 ## redraw is copied into an ImageTexture.
 ##
 ## SurfaceManager hands it cells: show_cells() spreads new ones out from
@@ -36,11 +36,12 @@ const REACH_Y: float = 1.2
 @export var max_resolution: int = 1024
 @export var spread_seconds: float = 0.6
 @export var recede_seconds: float = 1.5
-## When it glows: how many pictures of the glow to draw once it has
-## settled, looped at glow_fps (the shader loops on glow_phase). 0 holds
-## the glow still.
-@export var glow_frames: int = 0
-@export var glow_fps: float = 10.0
+## How many pictures of what moves - the glow when it glows, the normal
+## map when `ripples_move` - to draw once it has settled, looped at
+## loop_fps (the shader loops on loop_phase). 0 holds it still.
+@export var loop_frames: int = 0
+@export var loop_fps: float = 10.0
+@export var ripples_move: bool = false
 ## Low: the film is glossy, so it catches the scene's lights.
 @export var roughness: float = 0.12
 
@@ -50,9 +51,10 @@ var _canvases: Array[ColorRect] = []
 var _textures: Array[ImageTexture] = []
 var _mask: ImageTexture
 var _copy_pending: bool = false
-var _glow_loop: Array[ImageTexture] = []
-## Which glow picture is being drawn; -1 while none is.
-var _glow_drawing: int = -1
+## Per loop picture, its texture for each pass that moves, by pass.
+var _loop: Array[Dictionary] = []
+## Which loop picture is being drawn; -1 while none is.
+var _loop_drawing: int = -1
 ## Cells shown, by key; dying ones stay until they've receded.
 var _live: Dictionary[Vector2i, SurfaceCell] = {}
 ## When each cell starts arriving / receding, in seconds.
@@ -157,9 +159,9 @@ func _changed() -> void:
 	_shown = true
 	_dirty = true
 	_cells_dirty = true
-	# The glow loop pictured the old cells.
-	_glow_loop.clear()
-	_glow_drawing = -1
+	# The loop pictured the old cells.
+	_loop.clear()
+	_loop_drawing = -1
 
 
 func _now() -> float:
@@ -189,11 +191,14 @@ func _process(_delta: float) -> void:
 	if animating or _dirty:
 		_dirty = false
 		_draw_mask(now)
-	elif glows and glow_frames > 0 and _glow_loop.is_empty() and _glow_drawing < 0 and not _copy_pending:
-		_draw_glow(0)
-	if glow_frames > 0 and _glow_loop.size() == glow_frames:
-		var frame: int = int(now * glow_fps) % glow_frames
-		texture_emission = _glow_loop[frame]
+	elif not _moving_passes().is_empty() and loop_frames > 0 and _loop.is_empty() and _loop_drawing < 0 and not _copy_pending:
+		_draw_loop(0)
+	if loop_frames > 0 and _loop.size() == loop_frames:
+		var frame: Dictionary = _loop[int(now * loop_fps) % loop_frames]
+		if frame.has(1):
+			texture_normal = frame[1]
+		if frame.has(2):
+			texture_emission = frame[2]
 
 
 ## Paints the cells into the mask and redraws the passes from it.
@@ -269,23 +274,37 @@ func _exit_tree() -> void:
 	RenderingServer.frame_post_draw.disconnect(_copy_drawn)
 
 
-func _draw_glow(frame: int) -> void:
-	_glow_drawing = frame
-	_materials[2].set_shader_parameter("glow_phase", float(frame) / glow_frames)
-	_viewports[2].render_target_update_mode = SubViewport.UPDATE_ONCE
+## The passes the loop pictures: 1 normal, 2 emission.
+func _moving_passes() -> Array[int]:
+	var passes: Array[int] = []
+	if ripples_move:
+		passes.append(1)
+	if glows:
+		passes.append(2)
+	return passes
+
+
+func _draw_loop(frame: int) -> void:
+	_loop_drawing = frame
+	for film_pass in _moving_passes():
+		_materials[film_pass].set_shader_parameter("loop_phase", float(frame) / loop_frames)
+		_viewports[film_pass].render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## After the frame that redrew the viewports, their pictures into the
 ## decal's textures, and the decal's box onto the cells they picture.
 func _copy_drawn() -> void:
-	if _glow_drawing >= 0 and not _copy_pending:
-		var image: Image = _viewports[2].get_texture().get_image()
-		image.convert(Image.FORMAT_RGBA8)
-		_glow_loop.append(ImageTexture.create_from_image(image))
-		if _glow_loop.size() < glow_frames:
-			_draw_glow(_glow_loop.size())
+	if _loop_drawing >= 0 and not _copy_pending:
+		var frame: Dictionary = {}
+		for film_pass in _moving_passes():
+			var image: Image = _viewports[film_pass].get_texture().get_image()
+			image.convert(Image.FORMAT_RGBA8)
+			frame[film_pass] = ImageTexture.create_from_image(image)
+		_loop.append(frame)
+		if _loop.size() < loop_frames:
+			_draw_loop(_loop.size())
 		else:
-			_glow_drawing = -1
+			_loop_drawing = -1
 		return
 	if not _copy_pending:
 		return

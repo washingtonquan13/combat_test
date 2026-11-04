@@ -18,14 +18,19 @@ uniform vec2 mask_cells = vec2(1.0);
 // The decal's corner and size on the ground, in world meters.
 uniform vec2 origin_m = vec2(0.0);
 uniform vec2 size_m = vec2(1.0);
-// 0..1 around a looping glow (decal_surface.gd's glow_frames): a film
-// that animates its emission comes back to where it began at 1.
-uniform float glow_phase = 0.0;
+// 0..1 around decal_surface.gd's loop (loop_frames): a film that
+// animates its glow or ripples comes back to where it began at 1.
+uniform float loop_phase = 0.0;
 // How strongly the thickness shows in the normal map.
 uniform float bumpiness = 0.08;
-// Fine ripples on top of the thickness, for the gloss to catch.
+// Fine ripples on top of the thickness, for the gloss to catch, and how
+// far they drift round each loop (0 holds them still).
 uniform float ripple_scale = 3.0;
 uniform float ripple_strength = 0.25;
+uniform float ripple_drift = 0.0;
+// Small bites out of the outline, on top of its big lumps, as a share
+// of the wander.
+uniform float edge_detail = 0.35;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -63,9 +68,11 @@ float field(vec2 uv) {
 			+ texture(cell_mask, uv + vec2(h.x, -h.y)).r + texture(cell_mask, uv + vec2(-h.x, -h.y)).r) * 0.25;
 }
 
-// field with its outline pushed in and out by noise, up to `wander`.
+// field with its outline pushed in and out by noise, up to `wander`:
+// big lumps, and edge_detail of small bites.
 float edge_field(vec2 uv, float wander) {
-	return field(uv) + (fbm(meters(uv) * 0.9) - 0.5) * wander;
+	vec2 m = meters(uv);
+	return field(uv) + (fbm(m * 0.9) - 0.5) * wander + (fbm(m * 3.7 + 11.0) - 0.5) * wander * edge_detail;
 }
 
 // The film's body: 1 inside its lumpy outline, 0 outside.

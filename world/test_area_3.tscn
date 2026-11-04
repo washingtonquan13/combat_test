@@ -3,10 +3,7 @@
 [ext_resource type="Script" path="res://systems/world_system/game_area.gd" id="1_area"]
 [ext_resource type="PackedScene" path="res://world/proto_block.tscn" id="2_block"]
 [ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="3_camera"]
-
-[sub_resource type="Environment" id="Environment_plain"]
-background_mode = 1
-background_color = Color(0.09, 0.1, 0.13, 1)
+[ext_resource type="Environment" path="res://world/combat_environment.tres" id="env_combat"]
 
 [node name="TestArea3" type="Node3D"]
 script = ExtResource("1_area")
@@ -24,7 +21,7 @@ transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 
 max_pan_radius = 30.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_plain")
+environment = ExtResource("env_combat")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)

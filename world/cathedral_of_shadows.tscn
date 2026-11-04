@@ -5,11 +5,7 @@
 [ext_resource type="PackedScene" path="res://world/fusion_chamber.tscn" id="3_chamber"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="4_unit"]
 [ext_resource type="Resource" path="res://data/units/npcs/minister.tres" id="5_minister"]
-
-[sub_resource type="Environment" id="Environment_movement_glow"]
-background_mode = 1
-background_color = Color(0.09, 0.1, 0.13, 1)
-glow_enabled = true
+[ext_resource type="Environment" path="res://world/combat_environment.tres" id="env_combat"]
 
 [node name="Cathedral" type="Node3D" node_paths=PackedStringArray("device_view", "device_view_target")]
 script = ExtResource("1_ac70m")
@@ -22,7 +18,7 @@ device_view_target = NodePath("MenuFocus")
 size = Vector3(20, 1, 20)
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_movement_glow")
+environment = ExtResource("env_combat")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)

@@ -27,6 +27,7 @@
 [ext_resource type="Script" uid="uid://d1ity5hrprjde" path="res://systems/world_system/area_exit.gd" id="76_exit"]
 [ext_resource type="PackedScene" path="res://cinematics/test_arena_arrival.tscn" id="99_arrival"]
 [ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="npc_town"]
+[ext_resource type="Environment" path="res://world/combat_environment.tres" id="env_combat"]
 
 [sub_resource type="Resource" id="Resource_raids_resolved"]
 script = ExtResource("65_flagcheck")
@@ -41,11 +42,6 @@ prerequisite = SubResource("Resource_raids_resolved")
 [sub_resource type="Resource" id="Resource_townsperson_dlgopt"]
 script = ExtResource("63_dlgrootopt")
 root = ExtResource("62_townsdlg")
-
-[sub_resource type="Environment" id="Environment_movement_glow"]
-background_mode = 1
-background_color = Color(0.09, 0.1, 0.13, 1)
-glow_enabled = true
 
 [node name="TestArena" type="Node3D"]
 script = ExtResource("1_7mycd")
@@ -179,7 +175,7 @@ transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 
 max_pan_radius = 50.0
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_movement_glow")
+environment = ExtResource("env_combat")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 4, 0)
