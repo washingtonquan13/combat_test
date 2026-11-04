@@ -1,11 +1,14 @@
 shader_type spatial;
-render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled;
+render_mode unshaded, blend_premul_alpha, depth_draw_never, cull_disabled, shadows_disabled;
 
 // One flame tongue of a fire_wall.tscn: flame.gdshader's flipbook flame
 // wrapped round a curved, tapering half-tube (fire_wall.gd's tongue mesh)
 // instead of drawn on a card turned to the camera, so the wall has depth
 // seen from any angle. The tube itself sways and curls, more toward its
-// tip, each tongue on its own beat.
+// tip, each tongue on its own beat. A tongue is born and dies by
+// erosion - its faint parts eaten away first, so its edge stays crisp -
+// and it blends premultiplied, glowing but also hiding a little of what's
+// behind it, so a thick wall stays orange instead of adding up to white.
 
 uniform sampler2D flipbook : hint_default_black, filter_linear_mipmap, repeat_disable;
 uniform int columns = 8;
@@ -23,6 +26,11 @@ uniform vec3 core_color : source_color = vec3(1.0, 0.85, 0.55);
 uniform vec3 body_color : source_color = vec3(1.0, 0.42, 0.08);
 uniform vec3 tip_color : source_color = vec3(0.6, 0.07, 0.02);
 uniform float intensity = 1.6;
+// How much of what's behind a fully hot tongue hides.
+uniform float opacity = 0.45;
+// The eaten edge's softness, and how ragged noise makes it.
+uniform float erode_soft = 0.08;
+uniform float erode_noise = 0.5;
 // Slight noise bend on top of the baked motion.
 uniform float wobble_amount = 0.12;
 uniform float scroll_speed = 1.6;
@@ -94,11 +102,17 @@ void fragment() {
 	heat *= smoothstep(0.0, 0.18, 0.5 - abs(uv.x - 0.5));
 	float half_width = 0.5 * pow(sin(3.14159 * clamp(height * 0.95 + 0.02, 0.0, 1.0)), 0.6);
 	heat *= mix(1.0, smoothstep(half_width, half_width * 0.55, abs(uv.x - 0.5)), taper);
+	// The particle's fade (COLOR.a) sets the erosion threshold: whatever is
+	// cooler than it is gone.
+	float ragged = heat * mix(1.0, 0.5 + fbm(vec2(uv.x * 4.0 + v_seed, height * 3.0 - TIME * scroll_speed)), erode_noise);
+	float threshold = (1.0 - COLOR.a) * 0.6;
+	heat *= smoothstep(threshold, threshold + erode_soft, ragged);
 	vec3 color = mix(tip_color, body_color, smoothstep(0.05, 0.35, heat));
 	color = mix(color, core_color, smoothstep(0.55, 0.95, heat));
 	float depth = textureLod(depth_texture, SCREEN_UV, 0.0).r;
 	vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
 	float scene_z = -view.z / view.w;
 	float soft = clamp((scene_z + VERTEX.z) / soft_distance, 0.0, 1.0);
-	ALBEDO = color * heat * intensity * COLOR.a * soft;
+	ALBEDO = color * heat * intensity * soft;
+	ALPHA = clamp(heat * opacity * soft, 0.0, 1.0);
 }
