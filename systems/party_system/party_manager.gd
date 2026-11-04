@@ -314,6 +314,124 @@ func is_member(unit: Unit) -> bool:
 	return unit in members
 
 
+# --- Chain (follow the leader) ---------------------------------------
+#
+# BG3-style chaining: out of combat, moving some of the party drags the
+# rest of it along behind whoever was moved. FormationPlanner asks
+# chain_followers() which members should come and gives each a ring slot
+# around the destination; this file owns who is chained and stops the
+# walkers if a fight breaks out on the way.
+
+## How far from the moved unit a member can be and still be pulled along.
+## Same-world is the hard rule (see chain_followers); this keeps a member
+## parked across a big map from setting off on a long walk because
+## somebody else took three steps.
+const CHAIN_MAX_DISTANCE: float = 40.0
+
+## Members deliberately left behind, by persistent_id so the choice
+## survives the unit being relocated or respawned in another world.
+## Chained is the default, so only the exceptions are stored. Not saved:
+## a reload brings everyone back on the chain.
+var _unchained: Dictionary = {}
+
+## Units currently walking because the chain moved them, so a fight
+## starting can stop them rather than let them stroll into it.
+var _chain_walkers: Array[Unit] = []
+
+
+## Leave a member behind (false) or put it back on the chain (true).
+func set_chained(unit: Unit, chained: bool) -> void:
+	if unit == null:
+		return
+	if unit.persistent_id == &"":
+		unit.persistent_id = Unit.generate_persistent_id()
+	if chained:
+		_unchained.erase(unit.persistent_id)
+	else:
+		_unchained[unit.persistent_id] = true
+
+
+func is_chained(unit: Unit) -> bool:
+	if unit == null:
+		return false
+	return unit.persistent_id == &"" or not _unchained.has(unit.persistent_id)
+
+
+## The party members who should follow `mover` when the player moves
+## `moved` (which includes mover), in roster order so their ring slots
+## are deterministic.
+##
+## Empty when mover is not a party member or is in combat: chaining is a
+## free-roam comfort, and a combat move is one unit on its own turn.
+## Followers must be in the same world (World3D) as mover and within
+## CHAIN_MAX_DISTANCE, out of combat, alive and standing, chained, and
+## free to take an order — can_be_commanded(), which lets a member that
+## is still WALKING (very likely from the previous chain move) be
+## re-targeted, but not one mid-ability.
+func chain_followers(mover: Unit, moved: Array[Unit]) -> Array[Unit]:
+	var out: Array[Unit] = []
+	if not is_instance_valid(mover) or not mover.is_inside_tree():
+		return out
+	if not is_member(mover) or mover.in_combat():
+		return out
+	var world: World3D = mover.get_world_3d()
+	var group: PartyGroup = group_of(mover)
+	for unit in members:
+		if unit in moved:
+			continue
+		# Only mover's own group: a split-off group is somewhere else by
+		# definition, even if it happens to share a world.
+		if group and not group.has_unit(unit):
+			continue
+		if not unit.is_inside_tree() or unit.get_world_3d() != world:
+			continue
+		if not unit.is_alive() or unit.is_downed() or unit.in_combat():
+			continue
+		if not is_chained(unit) or not unit.can_be_commanded():
+			continue
+		if unit.distance_to(mover) > CHAIN_MAX_DISTANCE:
+			continue
+		out.append(unit)
+	return out
+
+
+## Called by FormationPlanner after it has ordered the chain's walkers.
+func note_chain_walkers(walkers: Array[Unit]) -> void:
+	_chain_walkers = _chain_walkers.filter(func(u): return is_instance_valid(u))
+	for unit in walkers:
+		if not _chain_walkers.has(unit):
+			_chain_walkers.append(unit)
+
+
+## A fight starting near the chain stops the walkers who were only coming
+## along. Anyone the fight pulled in is the encounter's now and is left
+## alone; anyone it did not is halted where they stand instead of walking
+## on to a destination that is now a battlefield. Only walkers in a world
+## where a player unit just entered combat are stopped, so a fight
+## elsewhere does not freeze a chain walking here.
+func _on_party_entered_combat(unit: Unit) -> void:
+	if not is_instance_valid(unit) or not unit.is_player_controlled() or not unit.is_inside_tree():
+		return
+	var world: World3D = unit.get_world_3d()
+	var still: Array[Unit] = []
+	for walker in _chain_walkers:
+		if not is_instance_valid(walker):
+			continue
+		if walker.is_inside_tree() and walker.get_world_3d() == world:
+			if not walker.in_combat() and walker.is_moving():
+				walker.force_stop_movement()
+			continue
+		still.append(walker)
+	_chain_walkers = still
+
+
+func _on_combat_started_for_chain(turn_order: Array[Unit]) -> void:
+	for unit in turn_order:
+		if is_instance_valid(unit) and unit.is_player_controlled():
+			_on_party_entered_combat(unit)
+			return
+
+
 ## Must already be a member — leader is a role WITHIN the roster, not an
 ## independent designation with its own separate validity check.
 func set_leader(unit: Unit) -> void:
@@ -465,6 +583,19 @@ func clear_members() -> void:
 ## save.
 func _ready() -> void:
 	_register_persistence.call_deferred()
+	# CombatManager sits earlier in [autoload], so it is resolvable here.
+	CombatManager.combat_started.connect(_on_combat_started_for_chain)
+	CombatManager.unit_joined_combat.connect(_on_party_entered_combat)
+
+
+## Torn down explicitly: both autoloads outlive most things but not each
+## other at quit, and a connection left on CombatManager would call into
+## a freed PartyManager.
+func _exit_tree() -> void:
+	if CombatManager.combat_started.is_connected(_on_combat_started_for_chain):
+		CombatManager.combat_started.disconnect(_on_combat_started_for_chain)
+	if CombatManager.unit_joined_combat.is_connected(_on_party_entered_combat):
+		CombatManager.unit_joined_combat.disconnect(_on_party_entered_combat)
 
 
 ## No `after`: load_state() below rebuilds groups and records straight out

@@ -105,6 +105,40 @@ var _aiming: AimingIntent = null
 ## world focus — see _on_world_focused.
 var _last: PlayerIntent = null
 
+## The look, sound and OS cursor of each decision this router makes. Built
+## here rather than authored in MainRoot.tscn so it travels with the
+## router between worlds and no scene has to remember to add it.
+var _feedback: ClickFeedback = null
+
+
+## What a left click would do right now, and whether it would be taken -
+## the one answer both the context cursor (every frame) and the click
+## feedback (on release) read, so the cursor never promises a click the
+## router then refuses. Built by _answer from the same Cursor the click
+## uses.
+class ClickAnswer:
+	## &"none" (no opinion: locked, a pushed tool, nothing under the
+	## cursor), &"move", &"select", &"use" (an ability, at a unit or a
+	## point), &"interact", &"nothing" (aiming at nothing - consumed, does
+	## nothing).
+	var verb: StringName = &"none"
+	var ok: bool = true
+	## Why not, when ok is false. Empty means the router has nothing
+	## better than the generic line for the verb.
+	var reason: String = ""
+	## Where the feedback goes: the destination, the target's feet, the
+	## aimed point. Null when there is no spot to mark.
+	var point = null
+
+	func _init(answer_verb: StringName = &"none", answer_point = null) -> void:
+		verb = answer_verb
+		point = answer_point
+
+	func refused(why: String) -> ClickAnswer:
+		ok = false
+		reason = why
+		return self
+
 
 func _ready() -> void:
 	add_to_group(&"click_router")
@@ -150,6 +184,10 @@ func _ready() -> void:
 	# connection can only outlive it if MainRoot itself is freed, and
 	# Godot drops signal connections to a freed Object on its own.
 	WorldManager.world_focused.connect(_on_world_focused)
+
+	_feedback = ClickFeedback.new()
+	_feedback.name = "ClickFeedback"
+	add_child(_feedback)
 
 
 ## THE derivation. Priority, top down:
@@ -214,6 +252,7 @@ func _process(_delta: float) -> void:
 	for indicator in get_tree().get_nodes_in_group(&"indicators"):
 		if indicator.serves() != &"" and indicator.is_live():
 			indicator.draw(aim)
+	_feedback.show_cursor(_cursor_shape(now))
 
 
 func _input(event: InputEvent) -> void:
@@ -444,7 +483,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		# it was pressed, unless that intent is gone from the stack.
 		if pressed_intent != intent() and not (pressed_intent in _pushed):
 			pressed_intent = intent()
-		if pressed_intent.handle_left_click(self, pressed):
+		# Answered before the intent acts: acting changes the state the
+		# answer reads (a move spends budget, a first line click sets
+		# its start), and the feedback is for the click as it was made.
+		var answer: ClickAnswer = _answer(pressed_intent, pressed)
+		var consumed: bool = pressed_intent.handle_left_click(self, pressed)
+		_give_feedback(answer, consumed)
+		if consumed:
 			get_viewport().set_input_as_handled()
 		return
 
@@ -484,11 +529,10 @@ func click_unit(clicked: Unit) -> bool:
 		return false
 
 	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
-	if acting_unit and acting_unit != clicked and acting_unit in SelectionManager.selected_units:
-		var ability: Ability = clicked.click_ability_for(acting_unit)
-		if ability:
-			acting_unit.use_ability(ability, clicked)
-			return true
+	var ability: Ability = _click_ability_on(clicked)
+	if ability:
+		acting_unit.use_ability(ability, clicked)
+		return true
 
 	var additive: bool = Input.is_action_pressed("select_additive")
 	# In combat, a plain click on an ally who can't act right now must not
@@ -547,17 +591,7 @@ func use_ground_targeted(ability: Ability, click_position: Vector3) -> bool:
 ## rather than picking one lets a mixed selection do the sensible thing
 ## — the free ones go, the busy ones don't.
 func command_move(destination: Vector3) -> bool:
-	var movers: Array[Unit] = []
-	for unit in SelectionManager.selected_units:
-		if not is_instance_valid(unit) or not unit.is_alive():
-			continue
-		if unit.in_combat():
-			# Combat movement stays strictly one unit on its own turn.
-			if unit.is_my_turn() and unit.has_move_remaining():
-				movers.append(unit)
-		else:
-			movers.append(unit)
-
+	var movers: Array[Unit] = _movers()
 	if movers.is_empty():
 		return false
 
@@ -579,3 +613,180 @@ func command_move(destination: Vector3) -> bool:
 	# see that file for why it's leader-driven but fully deterministic.
 	FormationPlanner.command_group_move(movers, destination)
 	return true
+
+
+## Who a move order would go to: every selected, living unit, except that
+## one in a fight moves only on its own turn with move left. Shared by
+## command_move and _move_answer, so the cursor and the order agree.
+func _movers() -> Array[Unit]:
+	var movers: Array[Unit] = []
+	for unit in SelectionManager.selected_units:
+		if not is_instance_valid(unit) or not unit.is_alive():
+			continue
+		if unit.in_combat():
+			# Combat movement stays strictly one unit on its own turn.
+			if unit.is_my_turn() and unit.has_move_remaining():
+				movers.append(unit)
+		else:
+			movers.append(unit)
+	return movers
+
+
+## The ability a click on clicked would use, or null when the click would
+## select it instead - click_unit's rule, and _answer's preview of it.
+func _click_ability_on(clicked: Unit) -> Ability:
+	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
+	if acting_unit and acting_unit != clicked and acting_unit in SelectionManager.selected_units:
+		return clicked.click_ability_for(acting_unit)
+	return null
+
+
+## THE answer to "what would a left click do now" for current and at -
+## see ClickAnswer. Follows the intents' own handle_left_click branches
+## in their own order, and asks the same rules they act on (_movers,
+## _click_ability_on, the ability's targeting check_click/check), so it
+## can only be as wrong as those are. Pushed tools and the locked intent
+## get no opinion: they own their clicks.
+func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
+	if at == null or current == null:
+		return ClickAnswer.new()
+	if current is IdleIntent:
+		if at.unit:
+			return _unit_answer(at.unit, false)
+		if at.interactable:
+			return ClickAnswer.new(&"interact")
+		if at.ground == null:
+			return ClickAnswer.new()
+		return _move_answer(at.ground)
+	if current is AimingIntent:
+		var ability: Ability = current.ability
+		if ability and ability.targeting and ability.targeting.expects_point_target():
+			var p = at.aim_point(ability)
+			var caster: Unit = PlayerInteractionState.get_active_unit()
+			if p == null or caster == null or caster not in SelectionManager.selected_units:
+				return ClickAnswer.new()
+			var answer := ClickAnswer.new(&"use", ability.targeting.resolve_target_point(p))
+			var reach: AbilityTargeting.Reach = ability.targeting.check_click(caster, p)
+			if reach != AbilityTargeting.Reach.OK:
+				answer.refused(_reach_reason(reach, false))
+			return answer
+		if at.unit:
+			return _unit_answer(at.unit, true)
+		if at.interactable:
+			return ClickAnswer.new()
+		return ClickAnswer.new(&"nothing", at.ground).refused("No target")
+	return ClickAnswer.new()
+
+
+## A click on a unit: an ability at it (in reach or not), else a
+## selection. aiming says an ability is armed, so a unit the armed
+## ability cannot take (a heal on a hostile) is a refusal rather than a
+## quiet selection - the player meant to cast. A unit that is not the
+## player's to select is interact (its right-click menu).
+func _unit_answer(clicked: Unit, aiming: bool) -> ClickAnswer:
+	if not is_instance_valid(clicked) or not clicked.is_alive():
+		return ClickAnswer.new()
+	var point: Vector3 = clicked.global_position
+	var ability: Ability = _click_ability_on(clicked)
+	if ability == null:
+		if aiming:
+			return ClickAnswer.new(&"use", point).refused("Invalid target")
+		if clicked.is_player_controlled():
+			return ClickAnswer.new(&"select", point)
+		return ClickAnswer.new(&"interact", point)
+	var answer := ClickAnswer.new(&"use", point)
+	if ability.targeting:
+		var reach: AbilityTargeting.Reach = ability.targeting.check(PlayerInteractionState.get_active_unit(), clicked)
+		if reach != AbilityTargeting.Reach.OK:
+			answer.refused(_reach_reason(reach, true))
+	return answer
+
+
+## A move order to destination. Nobody selected is no opinion (nothing
+## would happen, and nothing should look refused). Somebody selected who
+## cannot move is refused with why. A destination the commanded unit has
+## no route to is refused too: command_move would still hand out the
+## order, but the unit would not go anywhere. Beyond the move budget is
+## fine - the move walks as far as it can, as the preview shows.
+func _move_answer(destination: Vector3) -> ClickAnswer:
+	if SelectionManager.selected_units.is_empty():
+		return ClickAnswer.new()
+	var answer := ClickAnswer.new(&"move", destination)
+	var movers: Array[Unit] = _movers()
+	if movers.is_empty():
+		var acting: Unit = PlayerInteractionState.get_active_unit()
+		if acting and acting.in_combat() and not acting.is_my_turn():
+			return answer.refused("Not your turn")
+		if acting and acting.in_combat() and not acting.has_move_remaining():
+			return answer.refused("No movement left")
+		return answer.refused("Can't move there")
+	# The same route the movement preview draws this frame (its A* is
+	# cached by cell, so asking again costs a walk, not a search).
+	var unit: Unit = active_unit()
+	if unit and unit in movers and unit.preview_route(destination).path.is_empty():
+		return answer.refused("Can't move there")
+	return answer
+
+
+static func _reach_reason(reach: AbilityTargeting.Reach, at_unit: bool) -> String:
+	match reach:
+		AbilityTargeting.Reach.OUT_OF_RANGE:
+			return "Out of reach"
+		# Every shape that returns BLOCKED returns it for line of sight.
+		AbilityTargeting.Reach.BLOCKED:
+			return "No line of sight"
+	return "Invalid target" if at_unit else "Can't target there"
+
+
+## The feedback for a click, from the answer taken at release and whether
+## the intent consumed it. A move is believed only if it was both
+## answered ok and actually handed out (command_move returning false is a
+## refusal whatever the answer said).
+func _give_feedback(answer: ClickAnswer, consumed: bool) -> void:
+	match answer.verb:
+		&"move":
+			if answer.ok and consumed:
+				_feedback.confirm_move(answer.point)
+			else:
+				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Can't move there")
+		&"use":
+			if answer.ok:
+				_feedback.confirm()
+			else:
+				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Out of reach")
+		&"nothing":
+			_feedback.refuse(answer.point, answer.reason)
+
+
+## The OS cursor for this frame, from this frame's cursor and intent. The
+## plain arrow whenever the router is not the one the mouse is talking
+## to: something owns the screen (locked), a blocking screen is open, or
+## the mouse is over UI. A refused answer is forbidden whatever the verb;
+## the rest by verb. Moving keeps the arrow: it is the default action,
+## and a hand or crosshair over every patch of floor would say nothing.
+func _cursor_shape(current: PlayerIntent) -> Input.CursorShape:
+	if current == _locked or not UIStack.can_open() or _mouse_over_gui():
+		return Input.CURSOR_ARROW
+	var answer: ClickAnswer = _answer(current, cursor)
+	if not answer.ok:
+		return Input.CURSOR_FORBIDDEN
+	match answer.verb:
+		&"use":
+			return Input.CURSOR_CROSS
+		&"interact":
+			return Input.CURSOR_POINTING_HAND
+	return Input.CURSOR_ARROW
+
+
+## Whether the mouse is over a Control rather than the world. Clicks
+## already know this for free - the GUI consumes them before
+## _unhandled_input - but _process runs regardless, so the cursor asks.
+## The world is drawn by a SubViewportContainer (world_view.tscn) that is
+## itself the hovered Control while the mouse is over the world, so that
+## one does not count; a Control inside the world's own viewport does.
+func _mouse_over_gui() -> bool:
+	var hovered: Control = get_tree().root.gui_get_hovered_control()
+	if hovered != null and not (hovered is SubViewportContainer):
+		return true
+	var viewport: Viewport = get_viewport()
+	return viewport != get_tree().root and viewport.gui_get_hovered_control() != null

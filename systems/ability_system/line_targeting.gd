@@ -78,6 +78,16 @@ func resolve_click(attacker: Unit, click_position: Vector3) -> Variant:
 	return line
 
 
+## Mirrors resolve_click's two steps: the first click only needs its end
+## reachable; the second is judged as the whole line it would make.
+func check_click(attacker: Unit, click_position: Vector3) -> Reach:
+	var point: Vector3 = resolve_target_point(click_position)
+	if not AbilityManager.has_line_start:
+		return check_point(attacker, point)
+	var start: Vector3 = AbilityManager.line_start
+	return check(attacker, LineTarget.new(start, end_for(start, point)))
+
+
 func expects_point_target() -> bool:
 	return true
 

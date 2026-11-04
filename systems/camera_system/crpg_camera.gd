@@ -63,7 +63,14 @@ class_name CRPGCamera
 ## corners that way. What BG3 itself does instead is documented (see
 ## _apply_occlusion_fade's own header) — fading walls/ceilings transparent
 ## rather than repositioning the camera at all — and that's the intended
-## real fix, not yet built.
+## real fix, now built (see the Occlusion Fade export group).
+##
+## Seeing the party, as opposed to seeing the room, is two cooperating
+## pieces: walls between this camera and the anchor / the party / the
+## selection fade (_apply_occlusion_fade), and any unit still hidden by
+## something that did NOT fade shows as a tinted silhouette drawn through
+## it (XRaySilhouettes, a child this camera creates — see the X-Ray
+## Silhouettes export group).
 ##
 ## Written for Godot 4.x
 
@@ -214,6 +221,49 @@ enum Mode { BOUND, UNBOUND }
 ## so it's the one number that means "no longer visibly moving."
 @export var load_focus_settle_distance: float = 0.5
 
+@export_group("Occlusion Fade")
+## Fades walls/roofs/props between the camera and what the player is
+## looking at (see _apply_occlusion_fade). Off restores everything.
+@export var occlusion_fade_enabled: bool = true
+## GeometryInstance3D.transparency a blocking object eases to. Not 1.0 on
+## purpose: a faint ghost of the wall keeps the room readable.
+@export_range(0.0, 1.0) var occluded_transparency: float = 0.8
+## How fast a newly blocking object fades out (higher = snappier).
+@export var fade_out_speed: float = 12.0
+## How fast a no-longer-blocking object returns to solid. Slower than
+## fade_out_speed so walls settle back rather than pop.
+@export var fade_in_speed: float = 4.0
+## Seconds an object stays faded after the last ray that found it in the
+## way. Stops a wall edge flickering while a unit walks along it.
+@export var occlusion_hold_time: float = 0.25
+## Physics frames between occlusion ray passes. The easing still runs
+## every frame; only the ray queries are thinned. 2 = 30 queries a second.
+@export_range(1, 8) var occlusion_query_interval: int = 2
+## Units, besides the anchor, whose sightlines are kept clear: selected
+## units first, then the focused unit, then the core party.
+@export_range(0, 16) var max_fade_subjects: int = 6
+## Objects one ray may pass through (a wall, then a roof behind it...).
+@export_range(1, 8) var max_hits_per_ray: int = 4
+## Hard cap on objects faded at once — a guard against a sightline
+## through a dense blockout fading half the map.
+@export var max_faded_instances: int = 32
+## A ray hit whose surface normal points up more than this (y component),
+## below the subject's head, is a floor or ledge top the ray grazed, not a
+## wall — never faded.
+@export_range(0.0, 1.0) var occlusion_floor_normal: float = 0.7
+
+@export_group("X-Ray Silhouettes")
+## Tints party units (and enemies the party is fighting) through anything
+## that hides them and was not faded. See XRaySilhouettes.
+@export var xray_enabled: bool = true
+## Enemies in a fight with the party get a silhouette too.
+@export var xray_show_enemies: bool = true
+@export_range(0.0, 1.0) var xray_fill_alpha: float = 0.22
+@export_range(0.0, 1.0) var xray_rim_alpha: float = 0.55
+## Metres geometry must sit in front of a unit to count as hiding it —
+## see xray_silhouette.gdshader for why this cannot be zero.
+@export_range(0.0, 2.0) var xray_occlusion_bias: float = 0.3
+
 # shared state (kept continuous across both modes so switching never snaps)
 var current_yaw: float = 0.0        # degrees
 var target_yaw: float = 0.0         # degrees
@@ -265,6 +315,34 @@ var _smoothed_height_lift: float = 0.0
 ## every physics frame while true (see _physics_process); a no-op the
 ## rest of the time.
 var _settling_load_focus: bool = false
+
+## Never faded, whatever stands in the way: put a node (or any ancestor
+## of it) in this group to opt it out — a floor-and-walls mesh that must
+## stay solid, a prop whose fade would look wrong.
+const NO_OCCLUSION_FADE_GROUP: StringName = &"no_occlusion_fade"
+
+## One object currently faded (or easing back). `node` is untyped on
+## purpose: it may be freed between frames, and a freed instance cannot be
+## assigned to or read through a typed GeometryInstance3D slot cleanly.
+class _FadeEntry:
+	var node
+	## The object's own transparency before we touched it — restored
+	## exactly, so authored transparency survives a fade.
+	var original: float = 0.0
+	## 0 = untouched, 1 = fully at occluded_transparency.
+	var amount: float = 0.0
+	## _fade_clock time until which it still counts as blocking.
+	var blocked_until: float = 0.0
+
+## instance_id -> _FadeEntry. Keyed by id so a freed node's entry can
+## still be found and dropped.
+var _faded: Dictionary = {}
+## "collider_id:shape" -> Array of GeometryInstance3D that draw that
+## collider. Mapping is a tree walk, so it is done once per collider.
+var _fade_visual_cache: Dictionary = {}
+var _fade_clock: float = 0.0
+var _occlusion_frame: int = 0
+var _xray: XRaySilhouettes
 
 
 func _get_mode() -> Mode:
@@ -323,6 +401,34 @@ func _ready() -> void:
 	current_anchor_offset = target_anchor_offset
 	desired_position = global_position
 	current_look_at_point = _get_anchor_point()
+	_setup_xray()
+
+
+## Built in code rather than authored in crpg_camera.tscn so the knobs
+## live in ONE inspector (this camera's X-Ray Silhouettes group) and every
+## area's camera gets it without a scene edit.
+func _setup_xray() -> void:
+	_xray = XRaySilhouettes.new()
+	_xray.name = "XRaySilhouettes"
+	_xray.enabled = xray_enabled
+	_xray.show_enemies = xray_show_enemies
+	_xray.fill_alpha = xray_fill_alpha
+	_xray.rim_alpha = xray_rim_alpha
+	_xray.occlusion_bias = xray_occlusion_bias
+	_xray.setup(self)
+	add_child(_xray)
+
+
+## Walls this camera faded must not stay faded once it is gone (an area
+## swap, a world torn down while its geometry is kept). Restored at once,
+## not eased: there is no next frame to ease in.
+func _exit_tree() -> void:
+	for id in _faded.keys():
+		var entry: _FadeEntry = _faded[id]
+		if is_instance_valid(entry.node):
+			entry.node.transparency = entry.original
+	_faded.clear()
+	_fade_visual_cache.clear()
 
 
 ## Camera has never followed anyone up to now — focus_target simply
@@ -547,37 +653,271 @@ func _required_distance_reduction(from: Vector3, forward: Vector3, distance: flo
 	return max(distance - safe_distance, 0.0)
 
 
-## Occlusion fade hook — NOT YET IMPLEMENTED. This is the intended REAL
-## fix for the "gets uncomfortably close in a tight corner" problem
-## distance reduction alone has (see _required_distance_reduction's own
-## header) — not by finding a cleverer camera position, but by not
-## needing to: fade whatever's in the way transparent and leave the
-## camera where it already was. Confirmed via direct research
-## (2026-08-25) that this is what CRPGs with this camera style actually
-## do — Larian has said BG3's camera dissolves walls/ceilings with a
-## smooth opacity transition on entering a room and fades them back in
-## on leaving, rather than repositioning the camera around them; older
-## isometric CRPGs (Diablo-likes) use the same "fade what's between
-## camera and character" idea for trees/walls. A lateral "dodge to
-## whichever side has more room" alternative was tried here first and
-## it DID work (headless-verified: recovered a fully-clear distance in a
-## corner scenario that pure distance-reduction left stuck badly
-## cramped) — dropped anyway, specifically because no real CRPG solves
-## corners by repositioning the camera like that; fading the obstruction
-## is the authentic technique and this hook exists so a future pass can
-## build that instead.
+## Occlusion fade: whatever stands between this camera and what the
+## player is looking at goes see-through, and comes back when it no longer
+## does. This is the real fix for the "uncomfortably close in a tight
+## corner" problem distance reduction alone has (see
+## _required_distance_reduction): rather than find a cleverer camera
+## position, leave the camera where it is and fade the obstruction.
+## Researched 2026-08-25: it is what CRPGs with this camera actually do —
+## Larian has said BG3 dissolves walls/ceilings with a smooth opacity
+## transition rather than repositioning the camera, and Diablo-likes fade
+## trees/walls between camera and character. A lateral "dodge to the
+## clearer side" camera was tried first and worked, and was dropped for
+## exactly that reason.
 ##
-## Left as a hook rather than built now: a real version needs its own
-## tagging convention (a dedicated physics layer, or a group, marking
-## which objects are fade-eligible vs. solid — walls/ceilings dissolve,
-## solid terrain still gets real collision) and a dithered-transparency
-## shader or material trick, and this project has no fadeable-prop
-## content yet to build or verify either of those against. Called every
-## physics frame with the same inputs _update_distance_reduction gets,
-## so wiring a real implementation in later is a matter of filling this
-## function in — no changes needed elsewhere in the pipeline.
-func _apply_occlusion_fade(_from: Vector3, _forward: Vector3, _distance: float) -> void:
-	pass
+## What is kept clear: the anchor point, plus up to max_fade_subjects
+## units (selected first, then the focused unit, then the core party) that
+## are on screen. Each gets rays from the camera to its chest and head;
+## each ray walks through up to max_hits_per_ray colliders (units
+## excluded, the same "environment blocks, units don't" rule collision
+## uses). Rays rather than shape casts: a ray reports WHICH shape it hit,
+## which is what lets one collider be mapped to the one mesh that draws
+## it (see _fade_visuals_for), and two rays per unit cost almost nothing.
+##
+## What is never faded (see _fade_blocks):
+##   - anything whose bounds do not rise above the subject's waist — the
+##     ground, a kerb, a low crate the unit is plainly visible over;
+##   - whatever the subject is standing on or in (its bounds contain the
+##     subject's feet and reach down to them) — the floor block, a terrain
+##     chunk, a whole-building mesh that includes its own floor;
+##   - an up-facing surface the ray grazed below head height — a ledge;
+##   - anything in NO_OCCLUSION_FADE_GROUP, or with an ancestor in it;
+##   - anything on Unit.RENDER_LAYER (unit gear, the Wall of Fire volume).
+##
+## How it fades: GeometryInstance3D.transparency, eased per instance
+## toward occluded_transparency and back. Non-destructive — no material is
+## touched, so shared materials, ShaderMaterials and imported glb
+## materials all work alike, and restoring is writing one float back. The
+## renderer moves a faded object to the transparent pass, which is also
+## what makes XRaySilhouettes ignore it (only opaque geometry reaches the
+## depth texture), so a unit behind a FADED wall is simply seen, and only
+## one behind an unfaded wall gets a silhouette.
+##
+## Called every physics frame; rays run every occlusion_query_interval
+## frames, the easing every frame.
+func _apply_occlusion_fade(from: Vector3, _forward: Vector3, _distance: float) -> void:
+	var delta: float = get_physics_process_delta_time()
+	_fade_clock += delta
+	# Not being looked through (a cinematic owns the view) or switched off:
+	# stop finding new blockers and let everything ease back to solid.
+	if occlusion_fade_enabled and current:
+		_occlusion_frame += 1
+		if _occlusion_frame >= occlusion_query_interval:
+			_occlusion_frame = 0
+			_find_occluders(from)
+	_ease_fades(delta)
+
+
+## One sightline to keep clear: `target` is where the ray ends; `feet`,
+## `waist_y` and `head_y` describe the subject for _fade_blocks.
+func _fade_probe(target: Vector3, feet: Vector3, waist_y: float, head_y: float) -> Dictionary:
+	return {"target": target, "feet": feet, "waist_y": waist_y, "head_y": head_y}
+
+
+func _occlusion_probes(anchor: Vector3) -> Array:
+	var probes: Array = []
+	var anchor_feet: Vector3 = anchor - focus_offset
+	probes.append(_fade_probe(anchor, anchor_feet, anchor.y, anchor_feet.y + 1.8))
+
+	var subjects: Array[Unit] = []
+	var candidates: Array = []
+	candidates.append_array(SelectionManager.selected_units)
+	if focus_target is Unit:
+		candidates.append(focus_target)
+	candidates.append_array(UnitQuery.core_party_units(get_tree()))
+	var world: World3D = get_world_3d()
+	for candidate in candidates:
+		if subjects.size() >= max_fade_subjects:
+			break
+		if not is_instance_valid(candidate) or not candidate.is_inside_tree():
+			continue
+		var unit := candidate as Unit
+		if unit == null or unit in subjects or unit.get_world_3d() != world:
+			continue
+		subjects.append(unit)
+
+	for unit in subjects:
+		var chest: Vector3 = unit.anchor(CharacterModel.Anchor.CHEST)
+		# Off screen: nothing in front of it is in the player's way, and a
+		# ray to it would spend the fade cap on walls nobody is looking at.
+		if not is_position_in_frustum(chest):
+			continue
+		var head: Vector3 = unit.anchor(CharacterModel.Anchor.HEAD)
+		var feet: Vector3 = unit.global_position
+		# Waist sits a little below the chest anchor; derived from it so a
+		# tall demon's waist is where its own body says, not a human's.
+		var waist_y: float = lerp(feet.y, chest.y, 0.8)
+		probes.append(_fade_probe(chest, feet, waist_y, head.y))
+		probes.append(_fade_probe(head, feet, waist_y, head.y))
+	return probes
+
+
+func _find_occluders(anchor: Vector3) -> void:
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	if space_state == null:
+		return
+	var unit_rids: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		unit_rids.append(unit.get_rid())
+	var eye: Vector3 = global_position
+	for probe in _occlusion_probes(anchor):
+		_cast_occlusion_ray(space_state, eye, probe, unit_rids)
+
+
+## Walks one sightline from the camera to probe.target, through up to
+## max_hits_per_ray colliders, excluding each one once it has been seen so
+## the next query finds what is behind it.
+func _cast_occlusion_ray(space_state: PhysicsDirectSpaceState3D, eye: Vector3, probe: Dictionary, unit_rids: Array[RID]) -> void:
+	var exclude: Array[RID] = []
+	exclude.assign(unit_rids)
+	var target: Vector3 = probe.target
+	for _i in max_hits_per_ray:
+		var query := PhysicsRayQueryParameters3D.create(eye, target, collision_mask, exclude)
+		var hit: Dictionary = space_state.intersect_ray(query)
+		if hit.is_empty():
+			return
+		exclude.append(hit.rid)
+		var normal: Vector3 = hit.normal
+		var point: Vector3 = hit.position
+		if normal.y > occlusion_floor_normal and point.y < probe.head_y:
+			continue
+		for visual in _fade_visuals_for(hit.collider, hit.shape):
+			if _fade_blocks(visual, probe):
+				_mark_blocking(visual)
+
+
+## Whether `visual` is the kind of thing that may be faded for this
+## subject — see _apply_occlusion_fade's header for the rules.
+func _fade_blocks(visual: GeometryInstance3D, probe: Dictionary) -> bool:
+	var box: AABB = visual.global_transform * visual.get_aabb()
+	if box.end.y <= probe.waist_y:
+		return false
+	var feet: Vector3 = probe.feet
+	var under_feet: bool = feet.x >= box.position.x and feet.x <= box.end.x \
+		and feet.z >= box.position.z and feet.z <= box.end.z
+	if under_feet and box.position.y <= feet.y + 0.25:
+		return false
+	return true
+
+
+func _mark_blocking(visual: GeometryInstance3D) -> void:
+	var id: int = visual.get_instance_id()
+	var entry: _FadeEntry = _faded.get(id)
+	if entry == null:
+		if _faded.size() >= max_faded_instances:
+			return
+		entry = _FadeEntry.new()
+		entry.node = visual
+		entry.original = visual.transparency
+		_faded[id] = entry
+	entry.blocked_until = _fade_clock + occlusion_hold_time
+
+
+## Eases every tracked object toward faded (still blocking) or solid (not),
+## and forgets it once it is back to its own transparency. Entries whose
+## node was freed or left the tree are dropped here — the validity check
+## every frame IS the tree-exit handling, with no signal to leak.
+func _ease_fades(delta: float) -> void:
+	for id in _faded.keys():
+		var entry: _FadeEntry = _faded[id]
+		if not is_instance_valid(entry.node):
+			_faded.erase(id)
+			continue
+		if not entry.node.is_inside_tree():
+			entry.node.transparency = entry.original
+			_faded.erase(id)
+			continue
+		var blocking: bool = entry.blocked_until > _fade_clock
+		var goal: float = 1.0 if blocking else 0.0
+		var speed: float = fade_out_speed if blocking else fade_in_speed
+		entry.amount = lerp(entry.amount, goal, 1.0 - exp(-speed * delta))
+		if not blocking and entry.amount < 0.01:
+			entry.node.transparency = entry.original
+			_faded.erase(id)
+			continue
+		entry.node.transparency = lerp(entry.original, max(entry.original, occluded_transparency), entry.amount)
+
+
+## The GeometryInstance3D(s) that draw a collider, cached per collider and
+## shape. Covers the shapes this project's geometry comes in:
+##   - CSG: the CSGShape3D IS both collider and visual;
+##   - a body with its mesh beside the hit shape (ProtoBlock, hand-built
+##     StaticBody3D + MeshInstance3D + CollisionShape3D): the shape's
+##     parent's own GeometryInstance3D children;
+##   - an imported glb's -col body (MeshInstance3D > StaticBody3D >
+##     CollisionShape3D): the body's parent mesh;
+##   - otherwise, meshes under the body, stopping at any nested body so a
+##     container StaticBody3D never claims its children's meshes.
+## The hit SHAPE, not just the body, decides the holder, so one big
+## StaticBody3D with many shapes still fades only the piece in the way.
+func _fade_visuals_for(collider: Object, shape_index: int) -> Array:
+	if collider == null:
+		return []
+	var key: String = "%d:%d" % [collider.get_instance_id(), shape_index]
+	var cached = _fade_visual_cache.get(key)
+	if cached != null:
+		var all_valid: bool = true
+		for visual in cached:
+			if not is_instance_valid(visual):
+				all_valid = false
+				break
+		if all_valid:
+			return cached
+	if _fade_visual_cache.size() > 512:
+		_fade_visual_cache.clear()
+
+	var found: Array = []
+	if collider is GeometryInstance3D:
+		found.append(collider)
+	elif collider is CollisionObject3D:
+		var body := collider as CollisionObject3D
+		var holder: Node = body
+		var owner_id: int = body.shape_find_owner(shape_index)
+		var shape_owner := body.shape_owner_get_owner(owner_id) as Node
+		if shape_owner and shape_owner.get_parent():
+			holder = shape_owner.get_parent()
+		for child in holder.get_children():
+			if child is GeometryInstance3D:
+				found.append(child)
+		if found.is_empty() and body.get_parent() is GeometryInstance3D:
+			found.append(body.get_parent())
+		if found.is_empty():
+			_collect_body_visuals(body, found)
+
+	var eligible: Array = []
+	var unit_layer: int = 1 << (Unit.RENDER_LAYER - 1)
+	if not (collider is Node and _opted_out_of_fade(collider)):
+		for visual in found:
+			if (visual as GeometryInstance3D).layers & unit_layer:
+				continue
+			if _opted_out_of_fade(visual):
+				continue
+			eligible.append(visual)
+	_fade_visual_cache[key] = eligible
+	return eligible
+
+
+## Meshes under `node`, not descending into nested bodies. Capped so a
+## huge scene parented under one body cannot stall a frame.
+func _collect_body_visuals(node: Node, found: Array) -> void:
+	for child in node.get_children():
+		if found.size() >= 16:
+			return
+		if child is CollisionObject3D:
+			continue
+		if child is GeometryInstance3D:
+			found.append(child)
+		_collect_body_visuals(child, found)
+
+
+func _opted_out_of_fade(node: Node) -> bool:
+	var walk: Node = node
+	while walk:
+		if walk.is_in_group(NO_OCCLUSION_FADE_GROUP):
+			return true
+		walk = walk.get_parent()
+	return false
 
 
 func _handle_rotation_input(delta: float) -> void:

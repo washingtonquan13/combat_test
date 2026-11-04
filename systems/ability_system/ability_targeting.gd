@@ -35,6 +35,16 @@ func check(attacker: Unit, target) -> Reach:
 	return Reach.OK if is_valid_target(attacker, target) else Reach.INVALID
 
 
+## What a ground click at click_position would get: check() on the target
+## resolve_click() would build from it. ClickRouter reads this to answer
+## a point click before it is made (the context cursor, the refusal
+## feedback), so it has to follow resolve_click's own steps - which is
+## why it lives here beside it rather than in the router. Default: the
+## point as resolve_target_point() adjusts it.
+func check_click(attacker: Unit, click_position: Vector3) -> Reach:
+	return check(attacker, resolve_target_point(click_position))
+
+
 ## Whether this shape can be aimed above the ground with a Ctrl height
 ## drag (see AbilityManager.aim_height_override, which
 ## resolve_target_point() reads). The router asks this before it holds

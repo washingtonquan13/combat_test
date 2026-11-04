@@ -28,6 +28,15 @@ extends RefCounted
 ## The leader is whoever PlayerInteractionState.get_active_unit()
 ## resolves to ("first selected" out of combat); if that's null (nothing
 ## selected), every unit is just sent straight to destination instead.
+##
+## Chaining (BG3 style): out of combat, the party members the player did
+## NOT move come along too — see PartyManager.chain_followers for who
+## qualifies. Living here because this is the one place every free-roam
+## group move passes through (ClickRouter.command_move calls it for every
+## move that isn't a lone combatant on its turn), so no click path needs
+## to know chaining exists. Chain followers share the movers' ring: they
+## take the slots after the selected followers, so nobody is sent to the
+## same spot.
 static func command_group_move(units: Array[Unit], destination: Vector3) -> void:
 	var leader: Unit = PartyManager.leader if PartyManager.leader in units else PlayerInteractionState.get_active_unit()
 	if not leader:
@@ -40,10 +49,24 @@ static func command_group_move(units: Array[Unit], destination: Vector3) -> void
 		if unit != leader:
 			followers.append(unit)
 
+	var chain: Array[Unit] = PartyManager.chain_followers(leader, units)
+	if not chain.is_empty():
+		# The caller's occupancy snapshot excluded only the selected movers,
+		# so every chain follower is still an obstacle at its own standing
+		# cell. Re-taken with everyone who is about to move excluded.
+		var everyone: Array = []
+		everyone.append_array(units)
+		everyone.append_array(chain)
+		NavigationGrid.update_occupancy(leader.get_tree(), everyone, leader)
+		followers.append_array(chain)
+
 	leader.move_to(destination)
 	for i in followers.size():
 		var offset: Vector3 = ring_offset(i, followers.size(), leader.formation_spread_radius)
 		followers[i].move_to(destination + offset)
+
+	if not chain.is_empty():
+		PartyManager.note_chain_walkers(chain)
 
 
 ## One point on an evenly-spaced ring of `count` points around the
