@@ -21,8 +21,9 @@ extends DecalSurface
 @export var ignite_seconds: float = 1.1
 ## How far the light's energy flares over its own as the fire catches.
 @export var light_flare: float = 1.5
-## Emission points scattered over each cell.
-@export var points_per_cell: int = 4
+## Emission points scattered per square metre; a cell gets its share, a
+## fraction of one by chance.
+@export var points_per_square_metre: float = 16.0
 ## How far the light's energy swings either side of its authored value.
 @export var flicker: float = 0.3
 
@@ -69,7 +70,7 @@ func _cells_shown(cells: Array[SurfaceCell]) -> void:
 		low = low.min(Vector2(centre.x, centre.z))
 		high = high.max(Vector2(centre.x, centre.z))
 		floor_y = minf(floor_y, cell.y)
-		for i in points_per_cell:
+		for i in floori(points_per_square_metre * SurfaceGrid.CELL * SurfaceGrid.CELL + randf()):
 			var jitter := Vector3(randf() - 0.5, 0.0, randf() - 0.5) * SurfaceGrid.CELL
 			points.append(centre + jitter - global_position)
 	var area: float = cells.size() * SurfaceGrid.CELL * SurfaceGrid.CELL

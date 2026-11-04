@@ -17,10 +17,11 @@ const VOLUME_SHADER: Shader = preload("res://systems/surface_system/fire_volume.
 
 ## The tiling noise the fire rises through.
 @export var noise: Texture3D
-@export var sparks_per_cube: float = 1.5
-@export var smoke_per_cube: float = 0.6
-## Birth points scattered per cube.
-@export var points_per_cube: int = 4
+@export var sparks_per_cubic_metre: float = 1.5
+@export var smoke_per_cubic_metre: float = 0.6
+## Birth points scattered per cubic metre; a cube gets its share, a
+## fraction of one by chance.
+@export var points_per_cubic_metre: float = 4.0
 ## How far past the cubes, sideways and up, the fire's box reaches.
 @export var box_margin: float = 1.0
 ## How long a receding column's fire takes to die down.
@@ -87,11 +88,12 @@ func show_cubes(cells: Array) -> void:
 		low = low.min(centre)
 		high = high.max(centre)
 		var points := PackedVector3Array()
-		for i in points_per_cube:
+		for i in floori(points_per_cubic_metre * pow(CloudGrid.CELL, 3.0) + randf()):
 			var jitter := Vector3(randf() - 0.5, randf() * 0.6 - 0.5, randf() - 0.5) * CloudGrid.CELL
 			points.append(to_local(centre + jitter))
 		_points[cell.key] = points
-	var counts: Array[float] = [sparks_per_cube * cells.size(), smoke_per_cube * cells.size()]
+	var volume: float = cells.size() * pow(CloudGrid.CELL, 3.0)
+	var counts: Array[float] = [sparks_per_cubic_metre * volume, smoke_per_cubic_metre * volume]
 	var emitters: Array[GPUParticles3D] = [_sparks, _smoke]
 	var box := AABB(to_local(low), high - low).grow(4.0)
 	for e in emitters.size():

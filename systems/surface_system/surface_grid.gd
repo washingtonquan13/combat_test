@@ -11,7 +11,8 @@ extends RefCounted
 ## deck over a street), told apart by height — two cells closer than
 ## SAME_FLOOR in y are the same cell.
 
-const CELL: float = 0.5
+## The same 0.25 m the navigation grid and the cloud grid use.
+const CELL: float = 0.25
 const SAME_FLOOR: float = 1.0
 const NEIGHBOURS: Array[Vector2i] = [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]
 

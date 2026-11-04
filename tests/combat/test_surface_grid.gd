@@ -7,6 +7,8 @@ var GREASE: Ability = load("res://data/abilities/grease.tres")
 
 
 func run() -> void:
+	check("surfaces, clouds and navigation share one cell size",
+		SurfaceGrid.CELL == NavigationGrid.CELL_SIZE and CloudGrid.CELL == NavigationGrid.CELL_SIZE)
 	var grease: Surface = (GREASE.effects[0] as SpawnSurfaceEffect).surface
 	var caster: Unit = spawn_unit(&"player", 10, 10, 10, [melee()], Vector3(-8.0, 0.0, 0.0))
 	var context: WorldContext = WorldManager.context_for(caster)

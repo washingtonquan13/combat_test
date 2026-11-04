@@ -9,7 +9,8 @@ extends RefCounted
 ##
 ## Sparse: only covered cubes exist.
 
-const CELL: float = 1.0
+## The same 0.25 m the navigation grid and the surface grid use.
+const CELL: float = 0.25
 const NEIGHBOURS: Array[Vector3i] = [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0),
 		Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
 

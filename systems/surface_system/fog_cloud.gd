@@ -19,10 +19,11 @@ extends Node3D
 @export var seconds: float = 3.5
 @export var spread: float = 1.35
 @export var lift: float = 0.6
-## Each layer's authored amount is its puffs per this many cubes.
-@export var authored_cubes: float = 50.0
-## Birth points scattered per cube.
-@export var points_per_cube: int = 4
+## Each layer's authored amount is its puffs per this many cubic metres.
+@export var authored_volume: float = 50.0
+## Birth points scattered per cubic metre; a cube gets its share, a
+## fraction of one by chance.
+@export var points_per_cubic_metre: float = 4.0
 ## How long a cube's puffs take to thin away when it recedes.
 @export var recede_seconds: float = 2.0
 ## How long the cloud takes to gather, from its first cube to its last.
@@ -73,6 +74,8 @@ func show_cubes(cells: Array) -> void:
 	var rng := RandomNumberGenerator.new()
 	var now: float = Time.get_ticks_msec() / 1000.0
 	var reach: float = CloudGrid.CELL
+	var volume: float = cells.size() * pow(CloudGrid.CELL, 3.0)
+	var share: float = points_per_cubic_metre * pow(CloudGrid.CELL, 3.0)
 	for cell in cells:
 		reach = maxf(reach, global_position.distance_to(CloudGrid.centre_of(cell.key)))
 	for cell in cells:
@@ -83,8 +86,8 @@ func show_cubes(cells: Array) -> void:
 		low = low.min(cell.key)
 		high = high.max(cell.key)
 		var points := PackedVector3Array()
-		for i in points_per_cube:
-			var jitter := Vector3(rng.randf_range(-0.4, 0.4), rng.randf_range(-0.4, 0.4), rng.randf_range(-0.4, 0.4))
+		for i in floori(share + rng.randf()):
+			var jitter := Vector3(rng.randf() - 0.5, rng.randf() - 0.5, rng.randf() - 0.5)
 			points.append(to_local(CloudGrid.centre_of(cell.key) + jitter * CloudGrid.CELL))
 		_points[cell.key] = points
 	_low = low
@@ -93,7 +96,7 @@ func show_cubes(cells: Array) -> void:
 
 	var box := AABB(to_local(Vector3(low) * CloudGrid.CELL), Vector3(_dims) * CloudGrid.CELL).grow(3.0)
 	for layer in _layers:
-		layer.amount = maxi(4, roundi(layer.amount * cells.size() / authored_cubes))
+		layer.amount = maxi(4, roundi(layer.amount * volume / authored_volume))
 		layer.visibility_aabb = box
 	_emit_from_points()
 
