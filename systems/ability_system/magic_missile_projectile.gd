@@ -6,8 +6,8 @@ extends Node3D
 ## other VFX/indicator visual in this project builds its own meshes at
 ## runtime (see IndicatorBase._create_line_mesh, area_indicator.gd).
 ##
-## Shaded deliberately, unlike the movement indicator's unshaded ribbon
-## (render_mode unshaded, see movement_indicator_line.gdshader) — this
+## Shaded deliberately, unlike the indicators' unshaded ribbons (see
+## IndicatorBase._create_line_mesh) — this
 ## is a solid object flying through lit space, not a decal painted on
 ## the ground, so it should actually respond to scene lighting. It still
 ## reads as bright via emission (bloom is already project-wide, see

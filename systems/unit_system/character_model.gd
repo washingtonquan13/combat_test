@@ -71,8 +71,10 @@ extends Node3D
 ## the Unit: an outline is a second copy of one specific mesh on one
 ## specific rig.
 @export var outline_mesh: MeshInstance3D
-## The flat ring at the feet. Belongs to the body because it has to match
-## the body's footprint.
+## The ring at the feet. Belongs to the body because it has to match the
+## body's footprint: at runtime UnitSelection reads the ring's radius from
+## this mesh, then clears it and projects a decal ring onto the ground in
+## its place, so the mesh is only ever seen in the editor.
 @export var highlight_mesh: MeshInstance3D
 
 @export_group("Extent")

@@ -362,9 +362,11 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 @export var corpse_blocks_movement: bool = false
 
 @export_group("Selection")
-## Optional visual child (e.g. a flat ring or decal MeshInstance3D at the
-## unit's feet) used to show hover/selection state. Safe to leave
-## unassigned — highlighting is just skipped if there's no mesh.
+## The anchor for this unit's ground ring (hover, selection, active turn).
+## Its mesh only says how big the footprint is: UnitSelection reads a
+## radius from it, clears it, and projects a ring decal onto whatever is
+## underfoot instead (see unit_selection.gd's header). Its `visible` is
+## the ring's on/off switch. Safe to leave unassigned — no ring is drawn.
 @export var highlight_mesh: MeshInstance3D
 ## Optional full-body outline — a SEPARATE MeshInstance3D sharing the
 ## same mesh and skeleton as the character model, with the outline.gdshader
@@ -373,7 +375,13 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 ## traces the actual animated silhouette) — safe to leave unassigned,
 ## same as highlight_mesh.
 @export var outline_mesh: MeshInstance3D
+## No longer read by the ring or the outline: those take their hue from
+## the unit's relation to the party (IndicatorPalette). Kept because it is
+## still saved and restored per party member (PartyManager) and set in
+## scenes, and removing an export a scene still sets is a scene edit.
 @export var hover_color: Color = Color(1, 1, 1, 0.5)
+## This unit's UI accent — portrait outline, dialogue speaker colour. Not
+## the ring's colour any more (see hover_color).
 @export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
 
 @export_group("UI")

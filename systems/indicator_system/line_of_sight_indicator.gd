@@ -25,14 +25,13 @@ extends IndicatorBase
 ## its own MeshInstance3D in code. The hovered hostile and ground point
 ## come from the Aim ClickRouter hands draw(); nothing here raycasts.
 ##
-## Note: like the movement indicator, this draws a 1-pixel unshaded line
-## (ImmediateMesh, LINE_STRIP) — fine for a first pass, thicker lines
-## would need an actual ribbon mesh.
+## Drawn as a camera-facing ribbon (IndicatorBase._add_ribbon): the line
+## hangs at eye height, where a flat one would be seen edge-on.
 
-@export var clear_color: Color = Color(1, 1, 1, 0.9)
-@export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
-@export var out_of_range_color: Color = Color(0.5, 0.5, 0.5, 0.6)
-@export var no_target_color: Color = Color(0.7, 0.7, 0.7, 0.35)
+@export var clear_color: Color = IndicatorPalette.OK
+@export var blocked_color: Color = IndicatorPalette.BLOCKED
+@export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
+@export var no_target_color: Color = IndicatorPalette.NO_TARGET
 ## Where the line is drawn is no longer a number here at all: it comes from
 ## the same eye anchor LineOfSight traces from, so the two cannot disagree.
 ##
@@ -100,9 +99,4 @@ func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Abi
 	var to: Vector3 = aim_point + Vector3(0, lift, 0)
 
 	_line_immediate.clear_surfaces()
-	_line_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	_line_immediate.surface_set_color(color)
-	_line_immediate.surface_add_vertex(from)
-	_line_immediate.surface_set_color(color)
-	_line_immediate.surface_add_vertex(to)
-	_line_immediate.surface_end()
+	_add_ribbon(_line_immediate, PackedVector3Array([from, to]), PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)

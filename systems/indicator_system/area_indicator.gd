@@ -8,7 +8,8 @@ extends IndicatorBase
 ## as the other indicators. A ring rather than a filled disc
 ## deliberately — an outline shows exactly what's inside the blast
 ## without obscuring it, and matches how every other indicator in this
-## project draws via line primitives rather than solid meshes.
+## project draws thin ribbons (IndicatorBase._add_ribbon) rather than
+## solid meshes.
 ##
 ## FLOOR-ONLY — the center always sits wherever the ground raycast hit,
 ## with no way to lift it. Deliberate: this indicator is for abilities
@@ -32,10 +33,12 @@ extends IndicatorBase
 ## its own visuals in code. The hovered point comes from the Aim
 ## ClickRouter hands draw(); nothing here raycasts.
 
-@export var clear_color: Color = Color(1, 1, 1, 0.9)
-@export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
-@export var out_of_range_color: Color = Color(0.5, 0.5, 0.5, 0.6)
+@export var clear_color: Color = IndicatorPalette.OK
+@export var blocked_color: Color = IndicatorPalette.BLOCKED
+@export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
 @export var line_height_offset: float = 1.5
+## Not an answer colour: the ring only says how big the blast is and
+## never changes with whether the cast is allowed (the line says that).
 @export var ring_color: Color = Color(1, 0.5, 0.1, 0.9)
 @export var ring_height_offset: float = 0.05
 @export var ring_segments: int = 48
@@ -91,6 +94,7 @@ func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 		_line_mesh.visible = false
 		return
 
+	# BLOCKED and INVALID both mean "this click is refused".
 	var color: Color
 	match targeting.check(unit, hover_point):
 		AbilityTargeting.Reach.OK:
@@ -104,12 +108,7 @@ func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 	var to: Vector3 = hover_point + Vector3(0, line_height_offset, 0)
 
 	_line_immediate.clear_surfaces()
-	_line_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	_line_immediate.surface_set_color(color)
-	_line_immediate.surface_add_vertex(from)
-	_line_immediate.surface_set_color(color)
-	_line_immediate.surface_add_vertex(to)
-	_line_immediate.surface_end()
+	_add_ribbon(_line_immediate, PackedVector3Array([from, to]), PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)
 	_line_mesh.visible = true
 
 
@@ -124,14 +123,7 @@ func _update_ring(ability: Ability, hover_point: Vector3) -> void:
 
 
 func _draw_ring(center: Vector3, radius: float) -> void:
+	# Flat: the ring lies on the ground.
 	_ring_immediate.clear_surfaces()
-	_ring_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-
-	for i in range(ring_segments + 1):
-		var angle: float = (float(i) / ring_segments) * TAU
-		var point: Vector3 = center + Vector3(cos(angle), 0.0, sin(angle)) * radius
-		point.y += ring_height_offset
-		_ring_immediate.surface_set_color(ring_color)
-		_ring_immediate.surface_add_vertex(point)
-
-	_ring_immediate.surface_end()
+	var lifted: Vector3 = center + Vector3(0, ring_height_offset, 0)
+	_add_ribbon(_ring_immediate, _ring_points(lifted, radius, ring_segments), PackedColorArray([ring_color]))

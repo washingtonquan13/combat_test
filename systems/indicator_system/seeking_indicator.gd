@@ -23,19 +23,18 @@ extends IndicatorBase
 ## Colors and the hovered-hostile-or-ground-point aiming behavior match
 ## line_of_sight_indicator.gd exactly — this replaces that indicator's
 ## DISPLAY for seeking abilities, not its meaning. Drawn as the same
-## plain colored line (PRIMITIVE_LINE_STRIP) line_of_sight_indicator.gd
-## uses, not movement_indicator.gd's glowing ribbon shader — the ask was
-## to become NavigationGrid-aware and corner-rounded like that indicator,
-## not to take on its visual treatment too.
+## thin camera-facing ribbon line_of_sight_indicator.gd uses (the route
+## flies at launch height, so a flat one would be seen edge-on), not
+## movement_indicator.gd's wider ground ribbon.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
 ## its own MeshInstance3D in code, nothing else needs wiring. The hovered
 ## hostile and ground point come from the Aim ClickRouter hands draw().
 
-@export var clear_color: Color = Color(1, 1, 1, 0.9)
-@export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
-@export var out_of_range_color: Color = Color(0.5, 0.5, 0.5, 0.6)
-@export var no_target_color: Color = Color(0.7, 0.7, 0.7, 0.35)
+@export var clear_color: Color = IndicatorPalette.OK
+@export var blocked_color: Color = IndicatorPalette.BLOCKED
+@export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
+@export var no_target_color: Color = IndicatorPalette.NO_TARGET
 
 var _line_mesh: MeshInstance3D
 var _line_immediate: ImmediateMesh
@@ -138,11 +137,4 @@ func _color_for(unit: Unit, ability: Ability, hovered_unit: Unit) -> Color:
 
 func _draw_path(points: PackedVector3Array, color: Color) -> void:
 	_line_immediate.clear_surfaces()
-	if points.size() < 2:
-		return
-
-	_line_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for p in points:
-		_line_immediate.surface_set_color(color)
-		_line_immediate.surface_add_vertex(p)
-	_line_immediate.surface_end()
+	_add_ribbon(_line_immediate, points, PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)

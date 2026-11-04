@@ -25,7 +25,7 @@ extends AreaIndicator
 ## the armed ability's own AreaTargeting, not a duplicated/guessed
 ## value, same WYSIWYG principle as the other indicators. Three mutually
 ## perpendicular rings rather than a filled mesh, matching how every
-## other indicator in this project draws via line primitives — and
+## other indicator in this project draws as thin ribbons — and
 ## specifically three rings, not one, since the center can be lifted off
 ## the ground here: a single flat ring floating in midair reads as a
 ## disc, not a sphere. 3 great circles is what actually communicates
@@ -93,11 +93,8 @@ func _draw_ring(center: Vector3, radius: float) -> void:
 	_draw_ring_in_plane(lifted, radius, Vector3.BACK, Vector3.UP)     # ZY
 
 
+## Camera-facing: two of the three rings stand upright, and even the
+## flat one floats in the air when the centre is lifted.
 func _draw_ring_in_plane(center: Vector3, radius: float, basis_a: Vector3, basis_b: Vector3) -> void:
-	_ring_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for i in range(ring_segments + 1):
-		var angle: float = (float(i) / ring_segments) * TAU
-		var point: Vector3 = center + (basis_a * cos(angle) + basis_b * sin(angle)) * radius * Vector3(1.0, _height_scale, 1.0)
-		_ring_immediate.surface_set_color(ring_color)
-		_ring_immediate.surface_add_vertex(point)
-	_ring_immediate.surface_end()
+	var points := _ring_points(center, radius, ring_segments, basis_a, basis_b, Vector3(1.0, _height_scale, 1.0))
+	_add_ribbon(_ring_immediate, points, PackedColorArray([ring_color]), LINE_WIDTH, LINE_EDGE, true)

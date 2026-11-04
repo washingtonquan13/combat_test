@@ -13,8 +13,10 @@ extends IndicatorBase
 ## its own line mesh in code. The hovered point comes from the Aim
 ## ClickRouter hands draw(); nothing here raycasts.
 
-@export var valid_color: Color = Color(1, 1, 1, 0.9)
-@export var invalid_color: Color = Color(1, 0.2, 0.2, 0.9)
+@export var valid_color: Color = IndicatorPalette.OK
+## The landing is refused (is_valid_target false) — not merely short:
+## a jump past the budget lands short and is still valid.
+@export var invalid_color: Color = IndicatorPalette.BLOCKED
 @export var arc_segments: int = 24
 
 var _line_mesh: MeshInstance3D
@@ -60,13 +62,11 @@ func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hove
 
 	var start: Vector3 = unit.global_position
 
-	_line_immediate.clear_surfaces()
-	_line_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-
+	var points := PackedVector3Array()
 	for i in range(arc_segments + 1):
 		var t: float = float(i) / arc_segments
-		var point: Vector3 = move_effect.arc_point(start, landing_point, t)
-		_line_immediate.surface_set_color(color)
-		_line_immediate.surface_add_vertex(point)
+		points.append(move_effect.arc_point(start, landing_point, t))
 
-	_line_immediate.surface_end()
+	# Camera-facing: the arc stands up in the air.
+	_line_immediate.clear_surfaces()
+	_add_ribbon(_line_immediate, points, PackedColorArray([color]), LINE_WIDTH, LINE_EDGE, true)
