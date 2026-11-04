@@ -24,7 +24,6 @@ uniform vec3 box_size = vec3(8.0, 4.4, 1.2);
 // world-fixed, so no two walls burn alike).
 uniform vec3 box_offset;
 uniform vec3 world_offset;
-uniform int steps = 48;
 // Meters a second the flame rises.
 uniform float rise = 2.2;
 // Noise tiles per meter for the tongues and the detail: across, up.
@@ -40,27 +39,11 @@ uniform float contrast = 4.0;
 // How much fuel the flame needs at its foot and its top: low is thick.
 uniform float foot_fuel = 0.12;
 uniform float top_fuel = 0.6;
-// Light given off and light blocked per unit flame per meter.
-uniform float emission = 2.2;
-uniform float absorption = 2.5;
-// How much a catching flame's flash adds to its heat, and turns it
-// toward the core colour.
+// How much a catching flame's flash adds to its heat (and, flash_color,
+// turns it toward the core colour).
 uniform float flash_heat = 0.8;
-uniform float flash_color = 0.7;
 // The whole wall's burn, faded out as it dissipates.
 uniform float strength = 1.0;
-uniform vec3 core_color : source_color = vec3(1.0, 0.85, 0.55);
-uniform vec3 body_color : source_color = vec3(1.0, 0.42, 0.08);
-uniform vec3 tip_color : source_color = vec3(0.6, 0.07, 0.02);
-uniform sampler2D depth_texture : hint_depth_texture, filter_nearest;
-
-varying vec3 v_camera;
-varying vec3 v_local;
-
-void vertex() {
-	v_local = VERTEX;
-	v_camera = (inverse(MODEL_MATRIX) * vec4(CAMERA_POSITION_WORLD, 1.0)).xyz;
-}
 
 float sample_noise(vec3 p) {
 	return texture(noise, p).r;
@@ -96,46 +79,17 @@ float flame(vec3 p, float t, out float flash) {
 	return heat * (1.0 - smoothstep(0.7, 0.97, y));
 }
 
+float fire_heat(vec3 p, out float flash) {
+	return flame(p, TIME, flash) * strength;
+}
+
+#include "res://systems/surface_system/fire_march.gdshaderinc"
+
 void fragment() {
-	vec3 half_size = box_size * 0.5;
-	vec3 dir = normalize(v_local - v_camera);
-	vec3 inv = 1.0 / dir;
-	vec3 t0 = (-half_size - v_camera) * inv;
-	vec3 t1 = (half_size - v_camera) * inv;
-	vec3 lo = min(t0, t1);
-	vec3 hi = max(t0, t1);
-	float t_near = max(max(max(lo.x, lo.y), lo.z), 0.0);
-	float t_far = min(min(hi.x, hi.y), hi.z);
-	// Stop at whatever's in front: the ground, a unit. This is the only
-	// depth test - the box's far faces may lie under the ground.
-	float depth = textureLod(depth_texture, SCREEN_UV, 0.0).r;
-	vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
-	vec3 world = (INV_VIEW_MATRIX * vec4(view.xyz / view.w, 1.0)).xyz;
-	vec3 scene_local = (inverse(MODEL_MATRIX) * vec4(world, 1.0)).xyz;
-	t_far = min(t_far, dot(scene_local - v_camera, dir));
-	float step_len = (t_far - t_near) / float(steps);
-	if (step_len <= 0.0) {
+	vec4 fire = march_fire(box_size, SCREEN_UV, FRAGCOORD.xy, MODEL_MATRIX, INV_VIEW_MATRIX, INV_PROJECTION_MATRIX);
+	if (fire.a <= 0.0) {
 		discard;
 	}
-	// Jitter where each ray starts, so the steps don't show as bands.
-	float jitter = fract(sin(dot(FRAGCOORD.xy, vec2(12.9898, 78.233))) * 43758.5453);
-	vec3 light = vec3(0.0);
-	float transmit = 1.0;
-	for (int i = 0; i < steps; i++) {
-		vec3 p = v_camera + dir * (t_near + (float(i) + jitter) * step_len);
-		float flash;
-		float heat = flame(p, TIME, flash) * strength;
-		if (heat > 0.003) {
-			vec3 color = mix(tip_color, body_color, smoothstep(0.05, 0.35, heat));
-			color = mix(color, core_color, smoothstep(0.55, 0.95, heat));
-			color = mix(color, core_color, flash * flash_color);
-			light += transmit * color * heat * emission * step_len;
-			transmit *= exp(-heat * absorption * step_len);
-			if (transmit < 0.02) {
-				break;
-			}
-		}
-	}
-	ALBEDO = light;
-	ALPHA = 1.0 - transmit;
+	ALBEDO = fire.rgb;
+	ALPHA = fire.a;
 }

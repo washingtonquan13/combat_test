@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=21 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=25 format=3]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
@@ -16,6 +16,9 @@
 [ext_resource type="PackedScene" path="res://systems/surface_system/fire.tscn" id="15_fire"]
 [ext_resource type="Resource" uid="uid://cbjshhpmy5ovp" path="res://data/statuses/burning.tres" id="16_burning"]
 [ext_resource type="Resource" path="res://data/animation_sequences/weapon_bite.tres" id="17_bite"]
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="18_vfx"]
+[ext_resource type="Script" path="res://systems/ability_system/vfx_step.gd" id="19_step"]
+[ext_resource type="Script" path="res://systems/ability_system/fire_breath_step.gd" id="20_breath"]
 [ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="12_launch"]
 
 [sub_resource type="Resource" id="Resource_cone"]
@@ -90,6 +93,13 @@ pitch_scale = 1.0
 script = ExtResource("11_cue")
 layers = Array[ExtResource("10_layer")]([SubResource("Resource_launch_layer")])
 
+[sub_resource type="Resource" id="Resource_gust"]
+script = ExtResource("20_breath")
+
+[sub_resource type="Resource" id="Resource_cast_vfx"]
+script = ExtResource("18_vfx")
+steps = Array[ExtResource("19_step")]([SubResource("Resource_gust")])
+
 [resource]
 script = ExtResource("2_ability")
 ability_name = "Fire Breath"
@@ -101,4 +111,5 @@ requires_to_hit = false
 uses_attack_action = true
 cast_sfx = SubResource("Resource_launch")
 cast_animation = ExtResource("17_bite")
+cast_vfx = SubResource("Resource_cast_vfx")
 plays_cast_animation = true
