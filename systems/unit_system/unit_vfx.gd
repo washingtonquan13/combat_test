@@ -186,7 +186,8 @@ func _on_cast_released(action: AbilityAction) -> void:
 		return
 	var ability: Ability = action.ability
 	var sequence: VfxEffect = ability.cast_vfx if ability.cast_vfx else default_cast_vfx
-	_play(sequence, attacker.global_position, _get_target_position(action.target, attacker), ability, attacker)
+	await _play(sequence, attacker.global_position, _get_target_position(action.target, attacker), ability, attacker)
+	action.finish_visuals()
 
 
 func _let_go_all() -> void:
@@ -275,4 +276,4 @@ func _get_target_position(target, attacker: Unit) -> Vector3:
 func _play(sequence: VfxEffect, from: Vector3, to: Vector3, ability: Ability = null, caster: Unit = null) -> void:
 	if not sequence:
 		return
-	sequence.play(WorldManager.spawn_parent(), from, to, ability, caster)
+	await sequence.play(WorldManager.spawn_parent(), from, to, ability, caster)

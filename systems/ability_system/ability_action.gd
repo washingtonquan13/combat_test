@@ -22,6 +22,8 @@ signal released()
 ## Fired once, when the action's effects have applied (or it missed) and
 ## ability_used has gone out.
 signal finished()
+## Fired when a shot's cast_vfx sequence has played out.
+signal visuals_done()
 
 static var _next_id: int = 1
 
@@ -47,6 +49,7 @@ var shots: int = 1
 var _released_shots: int = 0
 var _impacts: int = 0
 var _finished: bool = false
+var _visuals_done: bool = false
 
 
 func _init(p_attacker: Unit, p_target, p_ability: Ability, p_result: Dictionary) -> void:
@@ -156,8 +159,14 @@ func finish() -> void:
 	finished.emit()
 
 
-func has_impacted() -> bool:
-	return _impacts > 0
+## UnitVfx: a shot's cast_vfx has played out.
+func finish_visuals() -> void:
+	_visuals_done = true
+	visuals_done.emit()
+
+
+func has_finished_visuals() -> bool:
+	return _visuals_done
 
 
 func is_finished() -> bool:

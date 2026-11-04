@@ -18,6 +18,11 @@ extends AbilityEffect
 ## indicator showed the player before they committed to the cast.
 
 @export var surface: Surface
+## For a cone: seconds a front takes to spread the surface out to the
+## cone's end, fast then slowing, instead of it spreading in at once.
+## Fire Breath matches its gust's front_seconds (fire_breath.tscn), so
+## the ground catches as the fire reaches it. 0 for the usual spread.
+@export var front_seconds: float = 0.0
 
 
 func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
@@ -29,7 +34,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 
 	var cone := ability.targeting as ConeTargeting
 	if cone:
-		SurfaceManager.spawn_cone(surface, cone.origin(attacker), cone.direction(attacker, target), cone.length, cone.half_angle(), attacker)
+		SurfaceManager.spawn_cone(surface, cone.origin(attacker), cone.direction(attacker, target), cone.length, cone.half_angle(), attacker, front_seconds)
 		return {"spawned_surface": surface.surface_name}
 
 	var targeting := ability.targeting as AreaTargeting

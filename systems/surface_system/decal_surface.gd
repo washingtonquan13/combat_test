@@ -101,10 +101,18 @@ func _ready() -> void:
 
 ## The patch is now `cells`. Those in `fresh` spread out from `from`,
 ## the furthest (`reach` away) arriving last; others already shown stay
-## as they are, and any not shown yet appear at once.
-func show_cells(cells: Array[SurfaceCell], fresh: Array[SurfaceCell], from: Vector3, reach: float) -> void:
+## as they are, and any not shown yet appear at once. With front_seconds,
+## they arrive instead with a front shot out from `from` (in 3D) that
+## reaches `reach` in front_seconds, fast then slowing - Fire Breath's
+## gust, so its ground catches as the fire washes over it.
+func show_cells(cells: Array[SurfaceCell], fresh: Array[SurfaceCell], from: Vector3, reach: float, front_seconds: float = 0.0) -> void:
 	var now: float = _now()
 	for cell in fresh:
+		if front_seconds > 0.0:
+			var u: float = clampf(cell.centre().distance_to(from) / maxf(reach, SurfaceGrid.CELL), 0.0, 1.0)
+			_arrive[cell.key] = now + front_seconds * (1.0 - sqrt(1.0 - u))
+			_dying.erase(cell.key)
+			continue
 		var d: float = Vector2(cell.centre().x - from.x, cell.centre().z - from.z).length()
 		_arrive[cell.key] = now + spread_seconds * 0.6 * clampf(d / maxf(reach, SurfaceGrid.CELL), 0.0, 1.0)
 		_dying.erase(cell.key)

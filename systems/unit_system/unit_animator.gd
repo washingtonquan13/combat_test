@@ -678,7 +678,7 @@ func _on_animation_finished(anim_name: StringName) -> void:
 			# last phase just finished — fall through to the same
 			# rest-on-base check below, same as any other one-shot clip
 			# finishing with nothing queued after it.
-		elif phase.advance_trigger == AnimationPhase.AdvanceTrigger.EXTERNAL 				or phase.advance_trigger == AnimationPhase.AdvanceTrigger.ON_IMPACT:
+		elif phase.advance_trigger == AnimationPhase.AdvanceTrigger.EXTERNAL 				or phase.advance_trigger == AnimationPhase.AdvanceTrigger.ON_CAST_VFX:
 			# An EXTERNAL phase's own clip reaching its natural end is NOT
 			# permission to move on — only advance_external() is. But
 			# unlike ON_FINISH, that's not permission to do anything else
@@ -858,19 +858,17 @@ func _advance_to_next_phase(blend: float = -1.0) -> bool:
 			if _external_advance_pending:
 				_external_advance_pending = false
 				return _advance_to_next_phase(blend)
-		AnimationPhase.AdvanceTrigger.ON_IMPACT:
+		AnimationPhase.AdvanceTrigger.ON_CAST_VFX:
 			var action := _cast_action
-			if not action or action.has_impacted() or action.is_finished():
+			if not action or action.has_finished_visuals():
 				return _advance_to_next_phase(blend)
-			var landed := _impact_phase_done.bind(_sequence_token, _active_phase_index)
-			action.impacted.connect(landed, CONNECT_ONE_SHOT)
-			action.finished.connect(landed, CONNECT_ONE_SHOT)
+			action.visuals_done.connect(_cast_vfx_phase_done.bind(_sequence_token, _active_phase_index), CONNECT_ONE_SHOT)
 	return true
 
 
-## An ON_IMPACT phase's cast landed. Both of its signals are hooked, so
-## the second, or one arriving after the sequence moved on, is stale.
-func _impact_phase_done(token: int, index: int) -> void:
+## An ON_CAST_VFX phase's visuals are done. One arriving after the
+## sequence moved on is stale.
+func _cast_vfx_phase_done(token: int, index: int) -> void:
 	if token != _sequence_token or index != _active_phase_index:
 		return
 	if not _advance_to_next_phase(phase_blend_time) and not unit.is_moving():

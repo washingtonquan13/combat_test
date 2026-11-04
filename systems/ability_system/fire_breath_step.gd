@@ -1,10 +1,11 @@
 class_name FireBreathStep
 extends VfxStep
 ## Breathes a gust of fire (fire_breath.tscn) down the ability's cone,
-## from the caster's chest along its aim, and returns once it has burnt
-## out: a step after it (an ImpactSignalStep) lands the cast then. The
-## caster's head looks down the cone, up or down with its aim, while it
-## breathes.
+## from the caster's chest along its aim, landing the cast as it leaves
+## the mouth (notify_impact: the damage, and the ground, which catches as
+## the front reaches it - SpawnSurfaceEffect.front_seconds), and returns
+## once it has burnt out. The caster's head looks down the cone, up or
+## down with its aim, while it breathes.
 
 @export var scene: PackedScene = preload("res://systems/surface_system/fire_breath.tscn")
 ## Seconds the head takes to go back to the animation once it is done.
@@ -22,6 +23,7 @@ func play(context: Node, _from: Vector3, to: Vector3, ability: Ability = null, c
 	var gust: Node3D = scene.instantiate()
 	context.add_child(gust)
 	gust.breathe(apex, along, cone.length, cone.half_angle())
+	caster.notify_impact()
 	var gaze := Node3D.new()
 	context.add_child(gaze)
 	gaze.global_position = apex + along * cone.length

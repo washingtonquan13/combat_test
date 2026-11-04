@@ -129,10 +129,11 @@ func spawn_wall(surface: Surface, from: Vector3, to: Vector3, caster: Node = nul
 ## from apex along direction (a unit vector), length long and opening at
 ## half_angle radians, washes over the floor: every cell whose floor is
 ## inside the cone with no wall between it and the apex, the same shadow
-## the cone's damage casts. It spreads out from the apex. Returns its
-## SurfacePatch, or null if the cone touches no floor (breathed into the
-## air).
-func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: float, half_angle: float, caster: Node = null) -> SurfacePatch:
+## the cone's damage casts. It spreads out from the apex, or, given
+## front_seconds, with a front reaching the cone's end in that long (see
+## DecalSurface.show_cells). Returns its SurfacePatch, or null if the cone
+## touches no floor (breathed into the air).
+func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: float, half_angle: float, caster: Node = null, front_seconds: float = 0.0) -> SurfacePatch:
 	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
 	var parent: Node = _parent_for(context, caster)
 	var space: PhysicsDirectSpaceState3D = _space_of(parent)
@@ -167,6 +168,8 @@ func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: flo
 			reached[key] = hit.position.y
 	if reached.is_empty():
 		return null
+	if front_seconds > 0.0:
+		return _land(surface, reached, context, parent, apex, length, 0, front_seconds)
 	var ground_apex := Vector3(apex.x, reached.values().min(), apex.z)
 	return _land(surface, reached, context, parent, ground_apex, length)
 
@@ -354,7 +357,7 @@ func _spill(surface: Surface, position: Vector3, radius: float, context: WorldCo
 ## overlap or touch merges into the biggest. position and radius are
 ## where the visual spreads from and how far. extra_rounds lengthens the
 ## surface's own duration_rounds; negative makes it permanent.
-func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0) -> SurfacePatch:
+func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0, front_seconds: float = 0.0) -> SurfacePatch:
 	var grid: SurfaceGrid = _grid_for(context)
 	var rounds: int = surface.duration_rounds
 	if rounds >= 0:
@@ -414,7 +417,7 @@ func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent:
 		cell.patch = patch
 	patch.cells.append_array(fresh)
 	if patch.visual and patch.visual.has_method("show_cells"):
-		patch.visual.show_cells(patch.cells, fresh, position, radius)
+		patch.visual.show_cells(patch.cells, fresh, position, radius, front_seconds)
 
 	for other in robbed:
 		if other.cells.is_empty():

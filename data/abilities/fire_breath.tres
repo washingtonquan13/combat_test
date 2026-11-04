@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=29 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=27 format=3]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
@@ -20,7 +20,6 @@
 [ext_resource type="Script" path="res://systems/ability_system/vfx_step.gd" id="19_step"]
 [ext_resource type="Script" path="res://systems/ability_system/fire_breath_step.gd" id="20_breath"]
 [ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="21_timing"]
-[ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://systems/ability_system/impact_signal_step.gd" id="22_impact"]
 [ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="12_launch"]
 
 [sub_resource type="Resource" id="Resource_cone"]
@@ -83,6 +82,7 @@ ambient_scene = ExtResource("15_fire")
 [sub_resource type="Resource" id="Resource_spawn"]
 script = ExtResource("13_spawn")
 surface = SubResource("Resource_ground")
+front_seconds = 0.35
 
 [sub_resource type="Resource" id="Resource_launch_layer"]
 script = ExtResource("10_layer")
@@ -98,12 +98,9 @@ layers = Array[ExtResource("10_layer")]([SubResource("Resource_launch_layer")])
 [sub_resource type="Resource" id="Resource_gust"]
 script = ExtResource("20_breath")
 
-[sub_resource type="Resource" id="Resource_landed"]
-script = ExtResource("22_impact")
-
 [sub_resource type="Resource" id="Resource_cast_vfx"]
 script = ExtResource("18_vfx")
-steps = Array[ExtResource("19_step")]([SubResource("Resource_gust"), SubResource("Resource_landed")])
+steps = Array[ExtResource("19_step")]([SubResource("Resource_gust")])
 
 [sub_resource type="Resource" id="Resource_timing"]
 script = ExtResource("21_timing")
