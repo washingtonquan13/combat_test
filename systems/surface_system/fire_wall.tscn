@@ -44,6 +44,34 @@ material = SubResource("flame")
 size = Vector2(1.3, 2.2)
 center_offset = Vector3(0, 0.95, 0)
 
+[sub_resource type="ParticleProcessMaterial" id="surge"]
+particle_flag_rotate_y = true
+angle_min = -180.0
+angle_max = 180.0
+direction = Vector3(0, 1, 0)
+spread = 4.0
+initial_velocity_min = 0.2
+initial_velocity_max = 0.4
+gravity = Vector3(0, 0.3, 0)
+scale_min = 0.85
+scale_max = 1.15
+scale_curve = SubResource("grow_texture")
+color_ramp = SubResource("fade_texture")
+
+[sub_resource type="ShaderMaterial" id="core_flame"]
+render_priority = 0
+shader = ExtResource("3_flame")
+shader_parameter/flipbook = ExtResource("7_flipbook")
+shader_parameter/fps = 16.0
+shader_parameter/intensity = 1.2
+shader_parameter/sway = 0.45
+shader_parameter/sway_speed = 1.2
+shader_parameter/tongue_height = 3.8
+
+[sub_resource type="QuadMesh" id="macro"]
+material = SubResource("core_flame")
+size = Vector2(2.4, 3.8)
+
 [sub_resource type="Gradient" id="cool"]
 offsets = PackedFloat32Array(0, 0.1, 0.6, 1)
 colors = PackedColorArray(1, 0.85, 0.5, 0, 1, 0.75, 0.35, 1, 1, 0.4, 0.08, 0.9, 0.8, 0.15, 0.02, 0)
@@ -121,6 +149,14 @@ randomness = 0.5
 visibility_aabb = AABB(-8, -1, -8, 16, 7, 16)
 process_material = SubResource("burn")
 draw_pass_1 = SubResource("tongue")
+
+[node name="Core" type="GPUParticles3D" parent="."]
+amount = 8
+lifetime = 1.6
+randomness = 0.4
+visibility_aabb = AABB(-8, -1, -8, 16, 9, 16)
+process_material = SubResource("surge")
+draw_pass_1 = SubResource("macro")
 
 [node name="Sparks" type="GPUParticles3D" parent="."]
 amount = 50
