@@ -585,7 +585,9 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# covers Jump's facing for free (target is the landing point, so
 	# facing it here IS facing the jump direction — no separate rotation
 	# logic needed in MoveCasterEffect itself).
-	if target is Vector3 or target is Unit:
+	if target is LineTarget:
+		_owner.snap_face_point(target.centre())
+	elif target is Vector3 or target is Unit:
 		_owner.snap_face_point(target if target is Vector3 else target.global_position)
 
 	# Everything is decided here, in this frame, before anyone sees it:
@@ -633,8 +635,8 @@ func use_ability(ability: Ability, target) -> Dictionary:
 			await action.wait_for_impact(tree, ability.timing.impact_timeout, n + 1)
 		# The wait is the one stretch where the world moves on without
 		# this attack: a unit target freed or killed meanwhile takes
-		# nothing more.
-		if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or not target.is_alive()):
+		# nothing more. A LineTarget is an object too, but never a unit.
+		if typeof(target) == TYPE_OBJECT and (not is_instance_valid(target) or (target is Unit and not target.is_alive())):
 			if n == 0:
 				result["target_lost"] = true
 			break

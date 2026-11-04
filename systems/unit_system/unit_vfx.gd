@@ -262,6 +262,8 @@ func _get_target_position(target, attacker: Unit) -> Vector3:
 		return target.global_position
 	if target is Vector3:
 		return target
+	if target is LineTarget:
+		return target.centre()
 	return attacker.global_position
 
 

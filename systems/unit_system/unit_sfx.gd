@@ -145,7 +145,10 @@ func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 	_stop_hold_loop()
 
 	_pending_ability = ability
-	_pending_target_position = target.global_position if target is Unit else (target if target is Vector3 else attacker.global_position)
+	if target is LineTarget:
+		_pending_target_position = target.centre()
+	else:
+		_pending_target_position = target.global_position if target is Unit else (target if target is Vector3 else attacker.global_position)
 
 	var cast_cue: SfxCue = ability.cast_sfx if ability.cast_sfx else default_cast_sfx
 	_play_cue(cast_cue, attacker.global_position)

@@ -17,6 +17,7 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud floo
 ## Shapes
 - `Surface.Shape.DISC`: spilled over the ground's `SurfaceGrid` cells (see Surface grid below). "Inside" is any cell under the unit's footprint.
 - `Surface.Shape.SPHERE`: CloudGrid cubes flooded out from the point, which may be midair (cast with AerialAreaTargeting; Ctrl-drag sets the height). See Cloud grid below. A unit is inside when any cube touches its feet-to-eye capsule, so a cloud at head height covers the unit (`_clouds_holding`).
+- `Surface.Shape.WALL`: CloudGrid cubes along a ground line, `wall_height` tall (`spawn_wall(surface, from, to, caster)`). A cube is in when it lies within `WALL_HALF_THICKNESS` of the line across the ground and overlaps the height above the line's ground (`_within_wall`); `_wall_point` lifts each cube's ray target 0.1 m over that ground so the bottom row floods along a floor that passes through it.
 
 ## Fog Cloud (data/abilities/fog_cloud.tres)
 - The rule is BG3's, with GURPS numbers.
@@ -42,9 +43,15 @@ BG3's "areas": a ground surface (Grease) or a 3D cloud (Fog Cloud). A cloud floo
 - Clouds (SPHERE) have their own 3D grid; see Cloud grid.
 - Merge demo: `tools/surface_merge_demo.tscn` (recorded, not a test): overlapping casts, a step, water over grease, partial drying.
 
+## Wall of Fire (data/abilities/wall_of_fire.tres)
+- Two clicks: `LineTargeting.resolve_click` holds the first click on `AbilityManager.line_start` (if it is in range and sight) and returns null; the second returns a `LineTarget` whose end `end_for` pulls in to `max_length`. An illegal end keeps the start. `LineIndicator` draws the aim line, then the wall's outline with the same `end_for` and the wall surface's height.
+- It is a cloud, not ground: opaque (`blocks_sight`), and it sets walkers and fliers alike Burning. Nothing burns on the ground under it, so the two never double up.
+- `leaves_behind`: as its cubes run out, `_leave_behind` lays that surface (2-round Fire) on ground that passes through a ground-row cube. `_age` ages the ground before the clouds, so the leftover keeps its whole duration.
+- The AI does not cast LineTargeting abilities, and does not avoid walking through a wall.
+
 ## Cloud grid (cloud_grid.gd, cloud_cell.gd, cloud_patch.gd)
 - The 3D counterpart. Each world has one `CloudGrid` (`WorldContext.cloud_grid`, via `_clouds_for`) of 1 m cubes keyed by Vector3i, one cloud per cube. A cube holds its Surface and its own `rounds` left.
-- `_fill` floods out from the cast point's cube: a neighbour is taken if its centre is within the radius and a physics ray to it is clear, so walls and ceilings stop the cloud and it climbs stairwells. The first ray starts 0.1 m above the point so a ground cast isn't blocked by its own floor.
+- `_fill` floods out from the cast point's cube: a neighbour is taken if its centre is within the radius and a physics ray to it is clear, so walls and ceilings stop the cloud and it climbs stairwells. The first ray starts 0.1 m above the point so a ground cast isn't blocked by its own floor. An optional `point_of(key)` picks each cube's ray point instead of its centre (walls use it).
 - Each cast is one `CloudPatch` with one visual. The same cloud cast again tops up the cubes it covers (they stay with their old visual); another cloud takes them, and the old visual recedes them.
 - Holding is polled: `_process` compares each unit's surfaces (`_holding` = ground under its feet + cubes touching its capsule) with last frame's, inflicting on entry and releasing on exit. No Area3D.
 - Ageing is per cube (`_age_clouds`); `expire_cloud_cells` recedes those that ran out, `expire_all_clouds(context)` runs a world out. `cloud_at(point, context)` answers what fills a point.
@@ -81,7 +88,7 @@ Every surface belongs to a world.
 
 ## Public surface
 - **Calls in**
-  - `spawn(surface, position, radius, caster)` is called by spawn_surface_effect.gd.
+  - `spawn(surface, position, radius, caster)` and `spawn_wall(surface, from, to, caster)` (for a LineTarget) are called by spawn_surface_effect.gd.
   - `cost_sampler(mover)` returns `movement_cost_multiplier_at` bound to the mover's world. It is used as the RoutePlanner cost_sampler by:
     - unit_movement.gd:202
     - movement_indicator.gd:290, 353
@@ -119,6 +126,7 @@ Every surface belongs to a world.
   - Darkness: Dark Vision sees through and is not Blinded; without it, blocked (sabotage-checked).
   - Sabotage-checked: removing the LoS call or the release turns it red.
 - tests/combat/test_surface_grid.gd (4 checks): overlapping grease pools into one patch; water cast over it takes those cells; expired cells leave the grid; expire_all_ground empties it. Sabotage-checked: no merging turns it red.
+- tests/combat/test_wall_of_fire.gd (6 checks): two-click line pulled to max_length; the wall blocks sight with no ground fire under it; a flier inside is Burning; running out leaves ground fire with full rounds. Sabotage-checked: aging clouds before ground turns it red.
 - tests/world/test_world_scoping.gd:190-222 checks surface world scoping.
 
 **Gaps:** no test covers two fights in one world sharing a clock, or saving.

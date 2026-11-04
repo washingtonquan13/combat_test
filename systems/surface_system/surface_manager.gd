@@ -50,6 +50,10 @@ const ROUND_SECONDS: float = 6.0
 const MAX_STEP: float = 0.45
 ## A ray hit flatter than this is floor; steeper is wall.
 const FLOOR_NORMAL: float = 0.6
+## How far across the ground a WALL cloud's cubes reach from its line, to
+## their centres. Over half a cube's diagonal (0.71), so a wall run at an
+## angle to the grid stays face-connected and floods end to end.
+const WALL_HALF_THICKNESS: float = 0.75
 
 ## The focused world's clouds — what's on screen. Kept for readers that
 ## really mean that (the world-scoping suite); everything here goes
@@ -86,57 +90,123 @@ func _ready() -> void:
 ## CloudPatch.
 func spawn(surface: Surface, position: Vector3, radius: float, caster: Node = null) -> RefCounted:
 	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	_play_spawn_fx(surface, parent, position)
+	if surface.shape == Surface.Shape.DISC:
+		return _spill(surface, position, radius, context, parent)
+	var inside := func(point: Vector3) -> bool: return point.distance_to(position) <= radius
+	# The cast point sits on the floor; lift it clear of it.
+	var seeds: Dictionary[Vector3i, Vector3] = {CloudGrid.key_of(position): position + Vector3.UP * 0.1}
+	return _fill(surface, seeds, inside, position, context, parent)
 
-	# The caster's world; failing that, wherever the caster stands (a bare
-	# test scene has no world and no scene root).
+
+## Raises a WALL cloud (Wall of Fire) along the ground from from to to:
+## every cube within WALL_HALF_THICKNESS of the line, from the ground up
+## to the surface's wall_height, flooded out from both ends the way any
+## cloud fills — so a wall it meets cuts it off — and standing on stairs
+## and slopes, the ground lerped between the two ends. Returns its
+## CloudPatch.
+func spawn_wall(surface: Surface, from: Vector3, to: Vector3, caster: Node = null) -> CloudPatch:
+	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	var middle: Vector3 = from.lerp(to, 0.5)
+	_play_spawn_fx(surface, parent, middle)
+	var seeds: Dictionary[Vector3i, Vector3] = {}
+	for end: Vector3 in [from, to]:
+		var lifted: Vector3 = end + Vector3.UP * 0.1
+		seeds[CloudGrid.key_of(lifted)] = lifted
+	return _fill(surface, seeds, _within_wall.bind(from, to, surface.wall_height), middle, context, parent, _wall_point.bind(from, to))
+
+
+## Whether the cube centred on point is part of a wall from from to to:
+## its centre within WALL_HALF_THICKNESS of the line, across the ground,
+## and its height overlapping the ground there up to height.
+func _within_wall(point: Vector3, from: Vector3, to: Vector3, height: float) -> bool:
+	var on_line: Vector3 = from.lerp(to, _along(point, from, to))
+	if Vector2(point.x - on_line.x, point.z - on_line.z).length() > WALL_HALF_THICKNESS:
+		return false
+	var ground: float = on_line.y
+	var half: float = CloudGrid.CELL * 0.5
+	return point.y + half > ground and point.y - half < ground + height
+
+
+## Where the fill passes through a wall's cube: its centre, lifted clear
+## of the ground line where the cube straddles it — a ground-row centre
+## can sit right on the floor, and a ray along the floor hits it.
+func _wall_point(key: Vector3i, from: Vector3, to: Vector3) -> Vector3:
+	var centre: Vector3 = CloudGrid.centre_of(key)
+	centre.y = maxf(centre.y, lerpf(from.y, to.y, _along(centre, from, to)) + 0.1)
+	return centre
+
+
+## How far along from-to, 0 to 1 across the ground, point lies.
+func _along(point: Vector3, from: Vector3, to: Vector3) -> float:
+	var along := Vector2(to.x - from.x, to.z - from.z)
+	if along.length_squared() == 0.0:
+		return 0.0
+	return clampf((Vector2(point.x, point.z) - Vector2(from.x, from.z)).dot(along) / along.length_squared(), 0.0, 1.0)
+
+
+## The caster's world; failing that, wherever the caster stands (a bare
+## test scene has no world and no scene root).
+func _parent_for(context: WorldContext, caster: Node) -> Node:
 	var parent: Node = WorldManager.spawn_parent()
 	if context and is_instance_valid(context.world_root):
 		parent = context.world_root
 	elif parent == null and caster and caster.is_inside_tree():
 		parent = caster.get_parent()
+	return parent
 
+
+func _play_spawn_fx(surface: Surface, parent: Node, position: Vector3) -> void:
 	if surface.spawn_vfx:
 		surface.spawn_vfx.play(parent, position, position)
 	if surface.spawn_sfx:
 		surface.spawn_sfx.play(parent, position)
 
-	if surface.shape == Surface.Shape.DISC:
-		return _spill(surface, position, radius, context, parent)
-	return _fill(surface, position, radius, context, parent)
+
+## Where the fill passes through the cube at key: point_of(key), or its
+## centre.
+func _fill_point(key: Vector3i, point_of: Callable) -> Vector3:
+	return point_of.call(key) if point_of.is_valid() else CloudGrid.centre_of(key)
 
 
-## Fills the cubes within radius of position that a gas let out there
-## would reach: flooding out from the cube it lands in, one face at a
-## time, each step only where a ray between the two cube centres is clear
+## Fills the cubes inside (a cube centre -> whether the shape holds it)
+## that a gas let out at seeds (start cube -> the point it's let out at)
+## would reach: flooding out from those cubes, one face at a
+## time, each step only where a ray between the two cubes is clear (from
+## point_of(key) to point_of(next), their centres by default)
 ## — so walls, floors and ceilings stop it, and it doesn't leak through
 ## them. Units don't block it. With no physics (a bare test scene), it
-## fills the plain ball.
+## fills the plain shape. The visual is placed at position.
 ##
 ## Lands on the grid: cubes of another cloud are taken (their old visual
 ## recedes them), cubes of this one topped up to the longer time and left
 ## with the visual already showing them. Returns this cast's patch — the
-## start cube's, if the cast only topped up.
-func _fill(surface: Surface, position: Vector3, radius: float, context: WorldContext, parent: Node) -> CloudPatch:
+## first start cube's, if the cast only topped up.
+func _fill(surface: Surface, seeds: Dictionary[Vector3i, Vector3], inside: Callable, position: Vector3, context: WorldContext, parent: Node, point_of: Callable = Callable()) -> CloudPatch:
 	var grid: CloudGrid = _clouds_for(context)
 	var space: PhysicsDirectSpaceState3D = _space_of(parent)
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
 		exclude.append(unit.get_rid())
 
-	var start: Vector3i = CloudGrid.key_of(position)
-	var reached: Dictionary[Vector3i, bool] = {start: true}
-	var frontier: Array[Vector3i] = [start]
+	var start: Vector3i = seeds.keys()[0]
+	var reached: Dictionary[Vector3i, bool] = {}
+	var frontier: Array[Vector3i] = []
+	for key: Vector3i in seeds:
+		reached[key] = true
+		frontier.append(key)
 	while not frontier.is_empty():
 		var key: Vector3i = frontier.pop_front()
-		# The cast point sits on the floor; lift it clear of it.
-		var from: Vector3 = position + Vector3.UP * 0.1 if key == start else CloudGrid.centre_of(key)
+		var from: Vector3 = seeds.get(key, _fill_point(key, point_of))
 		for step in CloudGrid.NEIGHBOURS:
 			var next: Vector3i = key + step
 			if reached.has(next):
 				continue
-			var to: Vector3 = CloudGrid.centre_of(next)
-			if to.distance_to(position) > radius:
+			if not inside.call(CloudGrid.centre_of(next)):
 				continue
+			var to: Vector3 = _fill_point(next, point_of)
 			if space:
 				var ray := PhysicsRayQueryParameters3D.create(from, to, 1, exclude)
 				if not space.intersect_ray(ray).is_empty():
@@ -198,7 +268,6 @@ func _fill(surface: Surface, position: Vector3, radius: float, context: WorldCon
 ## this one topped up to the longer time, and every patch of this
 ## surface the new cells overlap or touch merges into the biggest.
 func _spill(surface: Surface, position: Vector3, radius: float, context: WorldContext, parent: Node) -> SurfacePatch:
-	var grid: SurfaceGrid = _grid_for(context)
 	var space: PhysicsDirectSpaceState3D = _space_of(parent)
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
@@ -223,7 +292,16 @@ func _spill(surface: Surface, position: Vector3, radius: float, context: WorldCo
 			if not is_nan(y):
 				reached[next] = y
 				frontier.append(next)
+	return _land(surface, reached, context, parent, position, radius)
 
+
+## Lands reached (SurfaceGrid key -> its floor y) on the grid as surface:
+## cells of another surface are overwritten, cells of this one topped up
+## to the longer time, and every patch of this surface the new cells
+## overlap or touch merges into the biggest. position and radius are
+## where the visual spreads from and how far.
+func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float) -> SurfacePatch:
+	var grid: SurfaceGrid = _grid_for(context)
 	var fresh: Array[SurfaceCell] = []
 	var merging: Array[SurfacePatch] = []
 	var robbed: Array[SurfacePatch] = []
@@ -480,8 +558,7 @@ func _on_round_started_in(encounter: Encounter, _round_number: int) -> void:
 	for fight in fights:
 		if is_instance_valid(fight) and fight.is_running:
 			if fight == encounter:
-				_age_clouds(_clouds_for(context))
-				_age_grid(_grid_for(context))
+				_age(_clouds_for(context), _grid_for(context))
 			return
 
 
@@ -489,11 +566,17 @@ func _on_round_started_in(encounter: Encounter, _round_number: int) -> void:
 func _on_quiet_round() -> void:
 	for context in WorldManager.all_contexts():
 		if not _fighting(context.encounters):
-			_age_clouds(context.cloud_grid)
-			_age_grid(context.surface_grid)
+			_age(context.cloud_grid, context.surface_grid)
 	if WorldManager.context() == null and not _fighting(CombatManager.encounters):
-		_age_clouds(_detached_clouds)
-		_age_grid(_detached_grid)
+		_age(_detached_clouds, _detached_grid)
+
+
+## One round off a world's surfaces. The ground goes first: ground a cloud
+## leaves behind as it runs out (leaves_behind) then lands after this
+## round's aging, and keeps its whole duration.
+func _age(clouds: CloudGrid, ground: SurfaceGrid) -> void:
+	_age_grid(ground)
+	_age_clouds(clouds)
 
 
 ## Every cube runs out on its own clock, like ground cells.
@@ -526,6 +609,53 @@ func expire_cloud_cells(grid: CloudGrid, patch: CloudPatch, cells: Array[CloudCe
 	if patch.surface.expire_sfx:
 		patch.surface.expire_sfx.play(parent, at)
 	_recede(patch, cells)
+	if patch.surface.leaves_behind:
+		_leave_behind(patch, cells, parent)
+
+
+## Lands patch's leaves_behind ground surface (Wall of Fire's burning
+## ground) on the floor under those of cells that touch it. A cube touches
+## the floor when the floor passes through it — the ground row of a wall,
+## not the cubes stacked above it, nor a cube hanging in the air.
+## Lands as one spill, so the film spreads from under the whole run-out
+## stretch at once. With no physics (a bare test scene), the lowest
+## run-out cubes' bottoms are the floor.
+func _leave_behind(patch: CloudPatch, cells: Array[CloudCell], parent: Node) -> void:
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+	var lowest: int = cells[0].key.y
+	for cell in cells:
+		lowest = mini(lowest, cell.key.y)
+	var half: float = CloudGrid.CELL * 0.5
+	var across: int = roundi(CloudGrid.CELL / SurfaceGrid.CELL)
+	var reached: Dictionary = {}
+	for cell in cells:
+		if not space and cell.key.y != lowest:
+			continue
+		var bottom: float = cell.key.y * CloudGrid.CELL
+		# The SurfaceGrid cells under the cube's footprint.
+		var corner: Vector2i = SurfaceGrid.key_of(cell.centre() - Vector3(half, 0.0, half) + Vector3(0.01, 0.0, 0.01))
+		for dx in across:
+			for dz in across:
+				var key: Vector2i = corner + Vector2i(dx, dz)
+				var floor_y: float = bottom
+				if space:
+					floor_y = _floor_under(space, SurfaceGrid.centre_of(key, bottom + CloudGrid.CELL), exclude)
+					if is_nan(floor_y) or floor_y < bottom - 0.05 or floor_y >= bottom + CloudGrid.CELL:
+						continue
+				reached[key] = floor_y
+	if reached.is_empty():
+		return
+	var middle := Vector3.ZERO
+	for key: Vector2i in reached:
+		middle += SurfaceGrid.centre_of(key, reached[key])
+	middle /= reached.size()
+	var radius: float = 0.0
+	for key: Vector2i in reached:
+		radius = maxf(radius, SurfaceGrid.centre_of(key, middle.y).distance_to(middle))
+	_land(patch.surface.leaves_behind, reached, patch.context, parent, middle, radius + SurfaceGrid.CELL)
 
 
 ## Runs every cloud in context out at once.

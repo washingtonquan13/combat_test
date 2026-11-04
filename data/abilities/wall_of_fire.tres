@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=12 format=3]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="4_surface"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/fire_wall.tscn" id="5_wall"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/fire.tscn" id="6_fire"]
+[ext_resource type="Resource" path="res://data/statuses/burning.tres" id="7_burning"]
+[ext_resource type="Texture2D" uid="uid://bcmxnrpmk4ii7" path="res://assets/ability_icon/fireball_icon.png" id="8_icon"]
+[ext_resource type="Script" path="res://systems/ability_system/line_targeting.gd" id="9_targeting"]
+
+[sub_resource type="Resource" id="Resource_ground"]
+script = ExtResource("4_surface")
+surface_name = "Fire"
+duration_rounds = 2
+shape = 0
+status_effect = ExtResource("7_burning")
+ambient_scene = ExtResource("6_fire")
+metadata/_custom_type_script = "uid://cykbj1s0c82e5"
+
+[sub_resource type="Resource" id="Resource_wall"]
+script = ExtResource("4_surface")
+surface_name = "Wall of Fire"
+duration_rounds = 5
+shape = 2
+wall_height = 4.0
+leaves_behind = SubResource("Resource_ground")
+status_effect = ExtResource("7_burning")
+blocks_sight = true
+ambient_scene = ExtResource("5_wall")
+metadata/_custom_type_script = "uid://cykbj1s0c82e5"
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("3_spawn")
+surface = SubResource("Resource_wall")
+metadata/_custom_type_script = "uid://5apipwrij8ef"
+
+[sub_resource type="Resource" id="Resource_targeting"]
+script = ExtResource("9_targeting")
+max_range = 18.0
+max_length = 12.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+eye_height = 1.5
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Wall of Fire"
+icon = ExtResource("8_icon")
+category = 1
+targeting = SubResource("Resource_targeting")
+effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+armed_enter_animation = ""
+armed_hold_animation = ""
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

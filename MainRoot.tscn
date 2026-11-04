@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=45 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
@@ -28,6 +28,7 @@
 [ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://systems/indicator_system/line_of_sight_indicator.gd" id="26_losind"]
 [ext_resource type="Script" uid="uid://8r0mkwuth7cw" path="res://systems/indicator_system/jump_indicator.gd" id="27_jumpind"]
 [ext_resource type="Script" uid="uid://dqa8pee2hc1ky" path="res://systems/indicator_system/area_indicator.gd" id="28_areaind"]
+[ext_resource type="Script" path="res://systems/indicator_system/line_indicator.gd" id="28_lineind"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://systems/indicator_system/aerial_area_indicator.gd" id="29_aerialind"]
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://systems/indicator_system/seeking_indicator.gd" id="30_seekind"]
 [ext_resource type="Script" uid="uid://p8ye5cc6ckt6" path="res://systems/indicator_system/sight_cone_indicator.gd" id="30_sightcone"]
@@ -97,6 +98,9 @@ script = ExtResource("27_jumpind")
 
 [node name="AreaIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("28_areaind")
+
+[node name="LineIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("28_lineind")
 
 [node name="AerialAreaIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("29_aerialind")

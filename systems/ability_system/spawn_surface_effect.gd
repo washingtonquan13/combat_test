@@ -21,6 +21,9 @@ extends AbilityEffect
 
 
 func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+	if target is LineTarget and surface:
+		SurfaceManager.spawn_wall(surface, target.from, target.to, attacker)
+		return {"spawned_surface": surface.surface_name}
 	if not target is Vector3 or not surface:
 		return {}
 

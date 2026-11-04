@@ -58,6 +58,12 @@ var _watched_unit: Unit = null
 var aim_height_override: float = 0.0
 var has_aim_height_override: bool = false
 
+## Where a LineTargeting ability's line starts, once its first click is
+## in (see LineTargeting.resolve_click). Reset with the armed ability, as
+## the aim height is.
+var line_start: Vector3 = Vector3.ZERO
+var has_line_start: bool = false
+
 
 func arm(ability: Ability) -> void:
 	var unit: Unit = PlayerInteractionState.get_active_unit()
@@ -68,6 +74,7 @@ func arm(ability: Ability) -> void:
 	armed_ability = ability
 	armed_unit = unit
 	has_aim_height_override = false
+	has_line_start = false
 	_watch_current_unit()
 	ability_armed.emit(ability)
 
@@ -75,6 +82,7 @@ func arm(ability: Ability) -> void:
 func disarm() -> void:
 	_unwatch_unit()
 	has_aim_height_override = false
+	has_line_start = false
 	if armed_ability == null:
 		return
 	armed_ability = null
@@ -92,6 +100,15 @@ func disarm() -> void:
 func set_aim_height_override(y: float) -> void:
 	aim_height_override = y
 	has_aim_height_override = true
+
+
+func set_line_start(point: Vector3) -> void:
+	line_start = point
+	has_line_start = true
+
+
+func clear_line_start() -> void:
+	has_line_start = false
 
 
 ## Follows the COMMANDED unit, the same one every indicator and the

@@ -102,6 +102,14 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 	return click_position
 
 
+## What a ground click aims the ability at: the target to use it on, or
+## null when the click was taken but there's nothing to cast yet — the
+## first of LineTargeting's two clicks. Default: the click's point, as
+## resolve_target_point() adjusts it.
+func resolve_click(_attacker: Unit, click_position: Vector3) -> Variant:
+	return resolve_target_point(click_position)
+
+
 ## Distance CombatAI should try to close to before considering a target
 ## in range — used for movement/standoff purposes (see AiScorer.
 ## standoff_goal). Override in each subclass; base returns 0 (stand

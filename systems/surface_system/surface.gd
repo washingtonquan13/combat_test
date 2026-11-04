@@ -32,8 +32,16 @@ extends Resource
 enum Shape {
 	DISC,   ## spilled over the ground's SurfaceGrid cells within the radius, merging with its own kind (Grease)
 	SPHERE, ## CloudGrid cubes flooded out from the center within the radius, stopped by walls; may be in the air (Fog)
+	WALL,   ## CloudGrid cubes standing along a line on the ground, wall_height tall (Wall of Fire; LineTargeting)
 }
 @export var shape: Shape = Shape.DISC
+## How tall a WALL stands from the ground, in meters.
+@export var wall_height: float = 4.0
+## A ground surface (a DISC) left on the floor under this cloud's cubes
+## as they run out, where they touched it — Wall of Fire's burning
+## ground. Only after: a unit is never in both the cloud and what it
+## leaves at once, so the two never stack their damage.
+@export var leaves_behind: Surface
 ## Applied to a unit the MOMENT it physically enters the surface — a
 ## DISC's cells under its footprint, a SPHERE's cubes around its body
 ## (see SurfaceManager._process) — punishes the actual

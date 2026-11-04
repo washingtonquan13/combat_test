@@ -280,7 +280,9 @@ func use_ground_targeted(ability: Ability, click_position: Vector3) -> bool:
 	# AreaTargeting (Grease) and GroundPointTargeting (Jump) both inherit
 	# the no-op default — floor-only abilities have no business picking
 	# up a stray height override.
-	unit.use_ability(ability, ability.targeting.resolve_target_point(click_position))
+	var target = ability.targeting.resolve_click(unit, click_position)
+	if target != null:
+		unit.use_ability(ability, target)
 	return true
 
 
