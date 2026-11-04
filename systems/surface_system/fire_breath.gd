@@ -3,7 +3,10 @@ extends Node3D
 ## streaming out along the cone it was breathed in, set by breathe().
 ## The Light rides out with the front, flaring, and dies with it. When
 ## the tail has chased the fire out and what is left has burnt out, it
-## frees itself.
+## frees itself, saying so first (burnt_out).
+
+## The fire is spent; it frees itself right after.
+signal burnt_out
 
 const VOLUME_SHADER: Shader = preload("res://systems/surface_system/fire_breath.gdshader")
 
@@ -94,4 +97,6 @@ func _process(delta: float) -> void:
 	_light.position = Vector3(_length * 0.5 * reach, 0.0, 0.0)
 	_light.light_energy = _light_energy * (1.0 + 0.5 * (1.0 - reach)) * reach * out
 	if _age >= _life:
+		set_process(false)
+		burnt_out.emit()
 		queue_free()

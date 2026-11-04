@@ -198,6 +198,7 @@ const GAZE_PITCH_LIMIT_DEGREES: float = 45.0
 signal moment(name: StringName)
 
 var _gaze_modifier: LookAtModifier3D = null
+var _gaze_release: Tween = null
 var _gaze_resolved: bool = false
 var _gaze_point: Node3D = null
 
@@ -297,20 +298,31 @@ func gaze_at(target: Node3D) -> bool:
 	var modifier: LookAtModifier3D = _resolve_gaze_modifier()
 	if modifier == null or not is_instance_valid(target):
 		return false
+	if _gaze_release:
+		_gaze_release.kill()
+		_gaze_release = null
 	modifier.target_node = modifier.get_path_to(target)
 	modifier.influence = 1.0
 	return true
 
 
-## Release the head back to whatever the animation is doing.
+## Release the head back to whatever the animation is doing, at once or
+## eased over ease_seconds.
 ##
-## Influence drops in one step rather than easing, so a body holding a
-## strong turn will snap. Acceptable today because gaze ends when a
-## conversation does, and the camera cuts away on the same frame — but it
-## is the first thing to fix if a gaze ever ends while the shot holds.
-func stop_gazing() -> void:
-	if is_instance_valid(_gaze_modifier):
+## At once snaps a body holding a strong turn: fine when the camera cuts
+## away on the same frame, as it does when a conversation ends. A gaze
+## that ends while the shot holds (Fire Breath's) eases instead.
+func stop_gazing(ease_seconds: float = 0.0) -> void:
+	if not is_instance_valid(_gaze_modifier):
+		return
+	if _gaze_release:
+		_gaze_release.kill()
+		_gaze_release = null
+	if ease_seconds <= 0.0:
 		_gaze_modifier.influence = 0.0
+		return
+	_gaze_release = create_tween()
+	_gaze_release.tween_property(_gaze_modifier, "influence", 0.0, ease_seconds)
 
 
 ## The node OTHER bodies should aim at to look this one in the face.

@@ -156,5 +156,9 @@ func finish() -> void:
 	finished.emit()
 
 
+func has_impacted() -> bool:
+	return _impacts > 0
+
+
 func is_finished() -> bool:
 	return _finished

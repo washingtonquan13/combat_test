@@ -723,10 +723,10 @@ func gaze_at(target: Node3D) -> bool:
 	return body.gaze_at(target) if body else false
 
 
-func stop_gazing() -> void:
+func stop_gazing(ease_seconds: float = 0.0) -> void:
 	var body := get_node_or_null("CharacterModel") as CharacterModel
 	if body:
-		body.stop_gazing()
+		body.stop_gazing(ease_seconds)
 
 
 ## What someone looking at THIS unit should aim at, or null if it has no

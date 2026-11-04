@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=25 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=29 format=3]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
@@ -15,10 +15,12 @@
 [ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="14_surface"]
 [ext_resource type="PackedScene" path="res://systems/surface_system/fire.tscn" id="15_fire"]
 [ext_resource type="Resource" uid="uid://cbjshhpmy5ovp" path="res://data/statuses/burning.tres" id="16_burning"]
-[ext_resource type="Resource" path="res://data/animation_sequences/weapon_bite.tres" id="17_bite"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_breath.tres" id="17_breath"]
 [ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="18_vfx"]
 [ext_resource type="Script" path="res://systems/ability_system/vfx_step.gd" id="19_step"]
 [ext_resource type="Script" path="res://systems/ability_system/fire_breath_step.gd" id="20_breath"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="21_timing"]
+[ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://systems/ability_system/impact_signal_step.gd" id="22_impact"]
 [ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="12_launch"]
 
 [sub_resource type="Resource" id="Resource_cone"]
@@ -96,9 +98,17 @@ layers = Array[ExtResource("10_layer")]([SubResource("Resource_launch_layer")])
 [sub_resource type="Resource" id="Resource_gust"]
 script = ExtResource("20_breath")
 
+[sub_resource type="Resource" id="Resource_landed"]
+script = ExtResource("22_impact")
+
 [sub_resource type="Resource" id="Resource_cast_vfx"]
 script = ExtResource("18_vfx")
-steps = Array[ExtResource("19_step")]([SubResource("Resource_gust")])
+steps = Array[ExtResource("19_step")]([SubResource("Resource_gust"), SubResource("Resource_landed")])
+
+[sub_resource type="Resource" id="Resource_timing"]
+script = ExtResource("21_timing")
+waits_for_impact = true
+impact_timeout = 4.0
 
 [resource]
 script = ExtResource("2_ability")
@@ -110,6 +120,7 @@ effects = Array[ExtResource("1_eff")]([SubResource("Resource_damage"), SubResour
 requires_to_hit = false
 uses_attack_action = true
 cast_sfx = SubResource("Resource_launch")
-cast_animation = ExtResource("17_bite")
+cast_animation = ExtResource("17_breath")
 cast_vfx = SubResource("Resource_cast_vfx")
+timing = SubResource("Resource_timing")
 plays_cast_animation = true

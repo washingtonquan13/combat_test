@@ -80,6 +80,7 @@ const THROW_RELEASE := 0.36
 const PUNCH_IMPACT := 0.27
 const CLAW_IMPACT := 0.60
 const BITE_IMPACT := 0.38
+const BREATH_RELEASE := 0.38
 const GORE_IMPACT := 0.45
 
 # The shots: when the aim is up, the beat held on target before the first
@@ -157,6 +158,10 @@ func _init() -> void:
 	library.add_animation("Reload_Crossbow", _crossbow.hauled_reload())
 
 	library.add_animation("Bite", _keyed(_poses.clip(0.9, false, _bite), {"impact": [BITE_IMPACT]}))
+	library.add_animation("Breath", _keyed(_poses.clip(BREATH_RELEASE, false, _breath),
+		{"release": [BREATH_RELEASE - 0.02]}))
+	library.add_animation("Breath_Hold", _poses.clip(1.2, false, _breath_hold))
+	library.add_animation("Breath_Out", _poses.clip(0.45, false, _breath_out))
 	library.add_animation("Gore", _keyed(_poses.clip(1.05, false, _gore), {"impact": [GORE_IMPACT]}))
 	library.add_animation("Pistol_Shot", _shots(PISTOL_SHOTS, PISTOL_GAP, _pistol.aimed, _pistol.ready(),
 		_pistol.lifted()))
@@ -314,12 +319,27 @@ func _guard() -> Dictionary:
 
 func _bite(t: float, length: float) -> Dictionary:
 	# Reared back, then the head driven in low, the jaw first.
+	var lunge := _bite_lunge()
+	return _poses.keyed(t, [
+		[0.0, _standing],
+		[0.22, _bite_reared()],
+		[BITE_IMPACT, lunge],
+		[0.5, lunge],
+		[length, _standing],
+	])
+
+
+func _bite_reared() -> Dictionary:
 	var reared := _guard()
 	reared["Spine"] = Vector3(-8, 0, 0)
 	reared["Chest"] = Vector3(-8, 0, 0)
 	reared["Neck"] = Vector3(-10, 0, 0)
 	reared["Head"] = Vector3(-15, 0, 0)
 	reared["RightLowerArm"] = Vector3(-60, 0, 0)
+	return reared
+
+
+func _bite_lunge() -> Dictionary:
 	var lunge := _guard()
 	lunge["_hips"] = Vector3(0, -0.08, 0.2)
 	lunge["Spine"] = Vector3(22, 0, 0)
@@ -331,11 +351,35 @@ func _bite(t: float, length: float) -> Dictionary:
 	lunge["RightUpperLeg"] = Vector3(20, 0, -5)
 	lunge["LeftUpperArm"] = Vector3(-40, 0, -20)
 	lunge["RightUpperArm"] = Vector3(-40, 0, 20)
+	return lunge
+
+
+# Fire Breath: the Bite's rear and lunge, the fire let go at the lunge;
+# the lunge held while it pours out (weapon_breath.tres holds that phase
+# until the cast lands); then back to standing.
+func _breath(t: float, length: float) -> Dictionary:
 	return _poses.keyed(t, [
 		[0.0, _standing],
-		[0.22, reared],
-		[BITE_IMPACT, lunge],
-		[0.5, lunge],
+		[0.22, _bite_reared()],
+		[length, _bite_lunge()],
+	])
+
+
+func _breath_hold(t: float, length: float) -> Dictionary:
+	# Leaning a little further into it as it pours out.
+	var deeper := _bite_lunge()
+	deeper["Spine"] = Vector3(25, 0, 0)
+	deeper["Chest"] = Vector3(16, 0, 0)
+	return _poses.keyed(t, [
+		[0.0, _bite_lunge()],
+		[length, deeper],
+	])
+
+
+func _breath_out(t: float, length: float) -> Dictionary:
+	var deeper := _breath_hold(1.0, 1.0)
+	return _poses.keyed(t, [
+		[0.0, deeper],
 		[length, _standing],
 	])
 
