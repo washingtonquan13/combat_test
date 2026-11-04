@@ -87,6 +87,8 @@ void fragment() {
 			texture(flipbook, cell_uv(sample_uv, next)).r, position - frame);
 	// The bake has a hard bright line along its base: fade it in instead.
 	heat *= smoothstep(base_fade.x, base_fade.y, height);
+	// And at the quad's sides, so a wide glow never shows its edge.
+	heat *= smoothstep(0.0, 0.18, 0.5 - abs(uv.x - 0.5));
 	vec3 color = mix(tip_color, body_color, smoothstep(0.05, 0.35, heat));
 	color = mix(color, core_color, smoothstep(0.55, 0.95, heat));
 	float depth = textureLod(depth_texture, SCREEN_UV, 0.0).r;

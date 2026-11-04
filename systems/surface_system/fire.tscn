@@ -45,11 +45,12 @@ color_ramp = SubResource("fade_texture")
 render_priority = 0
 shader = ExtResource("3_flame")
 shader_parameter/flipbook = ExtResource("7_flipbook")
+shader_parameter/base_fade = Vector2(0.08, 0.5)
 
 [sub_resource type="QuadMesh" id="tongue"]
 material = SubResource("flame")
-size = Vector2(1.2, 1.9)
-center_offset = Vector3(0, 0.8, 0)
+size = Vector2(0.8, 1.25)
+center_offset = Vector3(0, 0.52, 0)
 
 [sub_resource type="Gradient" id="cool"]
 offsets = PackedFloat32Array(0, 0.1, 0.6, 1)
@@ -148,6 +149,8 @@ glows = true
 loop_frames = 12
 loop_fps = 10.0
 roughness = 0.95
+flames_per_square_meter = 1.2
+rim_flame_weight = 1
 
 [node name="Haze" type="MeshInstance3D" parent="."]
 cast_shadow = 0
