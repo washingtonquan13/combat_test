@@ -234,6 +234,9 @@ const PLAYER_FACTION: StringName = &"player"
 ## Fire's volume), so a ground decal (Grease) can leave units out with its
 ## cull_mask instead of painting their feet.
 const RENDER_LAYER: int = 2
+## Physics layer 20, worn only by each unit's PickArea, so a mouse ray can
+## look for "a unit under the cursor" without hitting walls or floors.
+const PICK_LAYER: int = 1 << 19
 ## Below a third of its maximum, each pool puts its status on (GURPS
 ## B419 and B426: Move and Dodge halved); back at a third or more, it
 ## comes off. See _update_low_pool_statuses.
@@ -808,18 +811,62 @@ func _ready() -> void:
 	_status_manager.status_applied.connect(func(_effect, _active): _update_low_pool_statuses())
 	_status_manager.status_removed.connect(func(_effect): _update_low_pool_statuses())
 	_update_low_pool_statuses()
-	# CollisionObject3D (CharacterBody3D's base) already provides
-	# mouse_entered/mouse_exited signals once this is on and Project
-	# Settings > Physics > Common > Enable Object Picking is on (it is by
-	# default). HOVER ONLY: clicking a unit belongs to ClickRouter, which
-	# raycasts for itself and marks the event handled, so a click never
-	# reaches physics picking here at all. A unit deciding what a click on
-	# it means was one of the eight places player intent used to live.
+	# The body's capsule (radius 0.25) is too thin to aim at, so hover comes
+	# from a fatter PickArea cylinder the size of the selection ring. Physics
+	# picking reports only the first hit, which is the cylinder, so the
+	# body's own mouse_entered would never fire and is not connected. The
+	# body stays input_ray_pickable all the same: ClickRouter reads that flag
+	# as the unit's one "can be clicked" switch (see set_pickable). HOVER
+	# ONLY here: clicking a unit belongs to ClickRouter, which raycasts for
+	# itself and marks the event handled, so a click never reaches physics
+	# picking at all. A unit deciding what a click on it means was one of
+	# the eight places player intent used to live.
 	add_to_group("units")
 
 	input_ray_pickable = true
-	mouse_entered.connect(_on_mouse_entered)
-	mouse_exited.connect(_on_mouse_exited)
+	_build_pick_area()
+	pick_area.mouse_entered.connect(_on_mouse_entered)
+	pick_area.mouse_exited.connect(_on_mouse_exited)
+
+
+## The unit's click and hover target: an Area3D on PICK_LAYER that neither
+## monitors nor is monitored, so it never touches movement or overlap
+## queries. Built in code, not unit.tscn, so every unit gets the same one.
+var pick_area: Area3D
+
+
+func _build_pick_area() -> void:
+	pick_area = Area3D.new()
+	pick_area.name = "PickArea"
+	pick_area.monitoring = false
+	pick_area.monitorable = true
+	pick_area.collision_layer = PICK_LAYER
+	pick_area.collision_mask = 0
+	pick_area.input_ray_pickable = true
+	var cylinder := CylinderShape3D.new()
+	cylinder.radius = 0.5
+	cylinder.height = 2.0
+	var shape := CollisionShape3D.new()
+	shape.shape = cylinder
+	shape.position = Vector3(0.0, 1.0, 0.0)
+	pick_area.add_child(shape)
+	add_child(pick_area)
+
+
+## The Unit a PickArea belongs to, or null for anything else a ray hit.
+static func from_pick_area(area: Object) -> Unit:
+	var node := area as Node
+	if node == null:
+		return null
+	return node.get_parent() as Unit
+
+
+## Turns clicking and hovering this unit on or off together: the body's
+## flag (ClickRouter's "can be clicked") and the PickArea's (hover).
+func set_pickable(value: bool) -> void:
+	input_ray_pickable = value
+	if pick_area != null:
+		pick_area.input_ray_pickable = value
 
 
 ## This used to be followed by an _exit_tree() whose entire body was
@@ -916,6 +963,13 @@ var encounter: Encounter = null
 ## which asks what the PLAYER is looking at.
 func in_combat() -> bool:
 	return encounter != null and encounter.is_running
+
+
+## How far this unit may move right now. Out of combat movement is
+## unmetered, so previews and AI must ask here rather than read
+## move_remaining, which is 0 outside combat.
+func move_budget() -> float:
+	return move_remaining if in_combat() else INF
 
 
 ## Whether it is this unit's turn in whatever fight it is in.

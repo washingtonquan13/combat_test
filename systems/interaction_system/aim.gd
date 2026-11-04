@@ -16,7 +16,8 @@ var caster: Unit = null
 ## The ability being aimed, or null while idle.
 var ability: Ability = null
 
-## The cursor's ground point as the armed ability would take it (see
+## The cursor's aim point (Cursor.aim_point - a hovered unit's feet for a
+## point-target ability, else the ground) as the armed ability would take it (see
 ## AbilityTargeting.resolve_target_point - lifted to the dragged height
 ## for the shapes that take one), or the bare ground point while idle.
 ## Null when the ray missed the ground.
@@ -31,9 +32,10 @@ static func build(from: Cursor, intent: PlayerIntent) -> Aim:
 	aim.cursor = from
 	aim.caster = ClickRouter.active_unit()
 	aim.ability = intent.ability if intent else null
-	aim.point = from.ground
-	if from.ground != null and aim.ability and aim.ability.targeting:
-		aim.point = aim.ability.targeting.resolve_target_point(from.ground)
+	var base = from.aim_point(aim.ability)
+	aim.point = base
+	if base != null and aim.ability and aim.ability.targeting:
+		aim.point = aim.ability.targeting.resolve_target_point(base)
 	if aim.caster and from.unit and from.unit.is_alive() and aim.caster.is_hostile_to(from.unit):
 		aim.hostile = from.unit
 	return aim

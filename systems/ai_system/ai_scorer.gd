@@ -565,7 +565,7 @@ static func _resolve_reach(unit: Unit, plan: AiPlan) -> bool:
 
 
 static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool:
-	var budget: float = unit.move_remaining if unit.in_combat() else INF
+	var budget: float = unit.move_budget()
 
 	# ACT IF YOU CAN, MOVE ONLY IF YOU MUST. An IF_NEEDED destination is
 	# just "how I get in range" (see AiPlan.movement_intent), so once the

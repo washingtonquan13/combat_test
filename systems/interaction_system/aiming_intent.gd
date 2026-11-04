@@ -9,15 +9,14 @@ extends PlayerIntent
 ## which overlays belong to it instead of five indicators each asking the
 ## same question about themselves.
 ##
-## The click order deliberately matches what the old two-owner
-## arrangement did, including the corner where an area ability is armed
-## and the cursor is over a unit: that went to the unit path then (the
-## router bailed on a hovered interactable and physics picking took it)
-## and it goes to the unit path now. resolve_click_ability() prefers the
-## armed ability, so the same cast is attempted and the same targeting
-## check refuses it. Clicking bare ground with a UNIT-targeted ability
-## armed likewise still falls through to a move order rather than doing
-## nothing.
+## A click while armed only ever casts. A point/area ability lands at
+## Cursor.aim_point - a hovered unit's feet, else the ground - the same
+## point the preview (Aim.point) showed. It used to go to the unit path
+## when a unit was hovered, where the targeting check refused it
+## silently after the preview had drawn it on the unit's capsule. A
+## unit-targeted ability takes the hovered unit; clicked on bare ground
+## it does nothing (and the click is consumed) instead of falling through
+## to a move order, so aiming never walks the caster anywhere.
 
 func _init(armed: Ability) -> void:
 	ability = armed
@@ -27,16 +26,21 @@ func kind() -> StringName:
 	return &"aiming"
 
 
+## Point/area ability: cast at Cursor.aim_point (null - the ray missed -
+## is not consumed). Otherwise a hovered unit is the target; a hovered
+## interactable is left to its own handler; and a click on nothing is
+## consumed and does nothing - it must not select or move.
 func handle_left_click(router, cursor: Cursor) -> bool:
+	if ability and ability.targeting and ability.targeting.expects_point_target():
+		var p = cursor.aim_point(ability)
+		if p == null:
+			return false
+		return router.use_ground_targeted(ability, p)
 	if cursor.unit:
 		return router.click_unit(cursor.unit)
 	if cursor.interactable:
 		return false
-	if cursor.ground == null:
-		return false
-	if router.use_ground_targeted(ability, cursor.ground):
-		return true
-	return router.command_move(cursor.ground)
+	return true
 
 
 ## Cancelling what you just armed. Right-click has to swallow this even

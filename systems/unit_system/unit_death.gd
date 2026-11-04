@@ -69,7 +69,7 @@ func handle_death() -> void:
 		AreaState.mark_removed(WorldManager.current_area().id, _owner.persistent_id)
 
 	_owner.remove_from_group("units")
-	_owner.input_ray_pickable = false
+	_owner.set_pickable(false)
 
 	if _owner.is_selected:
 		SelectionManager.deselect(_owner)

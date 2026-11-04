@@ -43,8 +43,14 @@ signal intent_changed(intent: PlayerIntent)
 ## Heights dragged with Ctrl move in steps this big.
 const HEIGHT_STEP: float = 0.25
 
+## Pixels the mouse may travel between press and release and still be a
+## click. Past it the gesture is a box select (DragSelectBox reads this
+## same constant), so a box drag never also issues a move.
+const CLICK_DRAG_THRESHOLD: float = 6.0
+
 @export var ground_collision_mask: int = 1
-@export var unit_collision_mask: int = 1
+## Unit pick areas only (Unit.PICK_LAYER, layer 20), not unit bodies.
+@export_flags_3d_physics var unit_collision_mask: int = 1 << 19
 
 ## This frame's cursor and aim, as handed to the indicators. Read-only
 ## for anyone else (the nav debug overlay reads cursor); null before the
@@ -58,6 +64,13 @@ var aim: Aim = null
 ## resolve_cursor reads or writes it, so no indicator switching off
 ## mid-press can leave it stale.
 var _held_ground = null
+
+## A left press waiting for its release: the cursor and intent at press,
+## and where it was pressed. Cleared on release, or once the mouse moves
+## past CLICK_DRAG_THRESHOLD (then it is a box drag, not a click).
+var _press_cursor: Cursor = null
+var _press_intent: PlayerIntent = null
+var _press_position: Vector2 = Vector2.ZERO
 
 ## Intents pushed by a tool that wants first refusal on clicks — right
 ## now only debug/spawning_intent.gd. A stack rather than a flag so
@@ -209,8 +222,8 @@ func _input(event: InputEvent) -> void:
 
 
 ## What the mouse is over right now, and the height drag if one is held.
-## The only mouse raycast in the project: one ray, or two when the ground
-## and unit masks differ.
+## The only mouse raycasts in the project: the world past units (see
+## _raycast_past_units), and the unit pick areas (_unit_under_mouse).
 ##
 ## The drag holds only while Ctrl is down AND the intent has a height to
 ## drag (PlayerIntent.drags_height) - Ctrl over anything else leaves the
@@ -218,14 +231,17 @@ func _input(event: InputEvent) -> void:
 ## active unit's own spot when the mouse is over nothing.
 func resolve_cursor(current: PlayerIntent) -> Cursor:
 	var result := Cursor.new()
-	var ground_hit: Dictionary = _raycast(ground_collision_mask)
-	var unit_hit: Dictionary = (ground_hit if unit_collision_mask == ground_collision_mask
-		else _raycast(unit_collision_mask))
-	var collider: Object = _pickable_collider(unit_hit)
-	result.unit = collider as Unit
-	if collider is Node and collider.has_method("get_interactions"):
+	# The world under the mouse, looking THROUGH units: cursor.ground is the
+	# floor (or prop) behind a unit, never a point on its capsule, so a
+	# path or an area aimed past a unit lands where the player sees it.
+	var ground_hit: Dictionary = _raycast_past_units(ground_collision_mask)
+	var collider: Object = _pickable_collider(ground_hit)
+	if collider is Node and not (collider is Unit) and collider.has_method("get_interactions"):
 		result.interactable = collider
 	var free_ground = null if ground_hit.is_empty() else ground_hit.position
+	result.unit = _unit_under_mouse(ground_hit)
+	if result.unit and result.unit.has_method("get_interactions"):
+		result.interactable = result.unit
 
 	var dragging: bool = (Input.is_action_pressed("fly_altitude_modifier")
 		and current != null and current.drags_height(self))
@@ -265,7 +281,7 @@ static func active_unit() -> Unit:
 
 ## One mouse ray against mask. Empty if nothing hit, or there is no
 ## active camera.
-func _raycast(collision_mask: int) -> Dictionary:
+func _raycast(collision_mask: int, exclude: Array[RID] = [], areas_only: bool = false) -> Dictionary:
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if not camera:
 		return {}
@@ -274,7 +290,45 @@ func _raycast(collision_mask: int) -> Dictionary:
 	var to: Vector3 = from + camera.project_ray_normal(mouse_pos) * 1000.0
 	var query := PhysicsRayQueryParameters3D.create(from, to)
 	query.collision_mask = collision_mask
+	query.exclude = exclude
+	if areas_only:
+		query.collide_with_areas = true
+		query.collide_with_bodies = false
 	return get_world_3d().direct_space_state.intersect_ray(query)
+
+
+## The first non-unit hit under the mouse. Units share the ground's
+## physics layer (they collide with walls and each other on it), so the
+## ray is re-cast past each unit it meets rather than masked; a handful of
+## units stacked on one ray is the most this ever loops.
+func _raycast_past_units(collision_mask: int) -> Dictionary:
+	var exclude: Array[RID] = []
+	for i in 8:
+		var hit: Dictionary = _raycast(collision_mask, exclude)
+		if hit.is_empty() or not (hit.collider is Unit):
+			return hit
+		exclude.append(hit.rid)
+	return {}
+
+
+## The unit the mouse is over, picked by its PickArea (Unit.PICK_LAYER, a
+## cylinder the size of the selection ring) rather than its 0.25 m
+## capsule, which made units a sliver to click. Only a unit nearer the
+## camera than the world behind it counts, so walls still hide units, and
+## only one that accepts clicks (Unit.set_pickable; off on death).
+func _unit_under_mouse(world_hit: Dictionary) -> Unit:
+	var hit: Dictionary = _raycast(unit_collision_mask, [], true)
+	if hit.is_empty():
+		return null
+	var unit: Unit = Unit.from_pick_area(hit.collider)
+	if unit == null or not unit.input_ray_pickable:
+		return null
+	if not world_hit.is_empty():
+		var camera: Camera3D = get_viewport().get_camera_3d()
+		var eye: Vector3 = camera.global_position
+		if eye.distance_to(hit.position) > eye.distance_to(world_hit.position):
+			return null
+	return unit
 
 
 ## What a ray hit, but only if that body would have accepted a click.
@@ -363,20 +417,44 @@ func _apply_intent(current: PlayerIntent) -> void:
 ## through to picking, which is how clicking an overworld avatar (its own
 ## input_event, not a Unit) keeps working.
 func _unhandled_input(event: InputEvent) -> void:
-	var is_left: bool = event.is_action_pressed("left_click")
-	var is_right: bool = event.is_action_pressed("right_click")
-	if not is_left and not is_right:
+	# A left click is decided on RELEASE, so a press that turns into a box
+	# drag never also commands anyone. The target is still taken at press
+	# (what the player pressed on is what they meant), and the drag is
+	# measured against the one CLICK_DRAG_THRESHOLD DragSelectBox uses too:
+	# past it the gesture is a box, short of it a click, never both.
+	if event.is_action_pressed("left_click"):
+		_press_intent = intent()
+		_press_cursor = resolve_cursor(_press_intent)
+		_press_position = event.position if event is InputEventMouse else get_viewport().get_mouse_position()
+		return
+	if event is InputEventMouseMotion and _press_cursor != null:
+		if _press_position.distance_to(event.position) >= CLICK_DRAG_THRESHOLD:
+			_press_cursor = null
+			_press_intent = null
+		return
+	if event.is_action_released("left_click"):
+		var pressed: Cursor = _press_cursor
+		var pressed_intent: PlayerIntent = _press_intent
+		_press_cursor = null
+		_press_intent = null
+		if pressed == null:
+			return
+		# The intent could have moved between press and release (a hotbar
+		# key, a turn ending); the click means what the screen showed when
+		# it was pressed, unless that intent is gone from the stack.
+		if pressed_intent != intent() and not (pressed_intent in _pushed):
+			pressed_intent = intent()
+		if pressed_intent.handle_left_click(self, pressed):
+			get_viewport().set_input_as_handled()
+		return
+
+	if not event.is_action_pressed("right_click"):
 		if event.is_action_pressed("deselect_all") and CameraDirector.has_control():
 			SelectionManager.deselect_all()
 		return
 
 	var current: PlayerIntent = intent()
-	var clicked: Cursor = resolve_cursor(current)
-
-	var consumed: bool = (
-		current.handle_left_click(self, clicked) if is_left
-		else current.handle_right_click(self, clicked))
-	if consumed:
+	if current.handle_right_click(self, resolve_cursor(current)):
 		get_viewport().set_input_as_handled()
 
 
@@ -412,7 +490,15 @@ func click_unit(clicked: Unit) -> bool:
 			acting_unit.use_ability(ability, clicked)
 			return true
 
-	SelectionManager.select(clicked, Input.is_action_pressed("select_additive"))
+	var additive: bool = Input.is_action_pressed("select_additive")
+	# In combat, a plain click on an ally who can't act right now must not
+	# take the selection off the unit whose turn it is: that left the
+	# player with nobody to command until they clicked back. Additive
+	# clicks still build a group as before.
+	if not additive and acting_unit and acting_unit != clicked \
+			and acting_unit.in_combat() and not clicked.is_commandable():
+		return true
+	SelectionManager.select(clicked, additive)
 	return true
 
 

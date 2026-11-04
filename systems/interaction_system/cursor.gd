@@ -39,6 +39,24 @@ var dragging_height: bool = false
 var height = null
 
 
+## Where a point/area ability lands when the player clicks now - the ONE
+## rule, read by both the preview (Aim.build) and the click
+## (AimingIntent.handle_left_click), so they cannot disagree:
+## - a Ctrl height drag holds its ground point (ground already is it);
+## - a point-target ability with a unit under the cursor lands at that
+##   unit's feet (unit.global_position);
+## - otherwise the ground under the cursor (null if the ray missed).
+## Before this, an area ability hovered over a unit previewed on the
+## unit's capsule, and the click was then routed to the unit and refused
+## silently by its targeting check.
+func aim_point(ability: Ability) -> Variant:
+	if dragging_height:
+		return ground
+	if is_instance_valid(unit) and ability and ability.targeting and ability.targeting.expects_point_target():
+		return unit.global_position
+	return ground
+
+
 func describe() -> String:
 	if unit:
 		return "unit %s" % unit.name

@@ -515,6 +515,18 @@ func _clicks_actually_command_the_world() -> void:
 		"fired %s, expected %s" % [cast_by_caster, armed.ability_name])
 	check("and that click is consumed too", aimed_click)
 
+	# A near-miss while aiming does nothing. It used to fall through to a
+	# move order, so missing the target walked the caster off.
+	var moved: Array = []
+	caster.movement_started.connect(func(_u): moved.append(true))
+	var miss: Cursor = CURSOR_SCRIPT.new()
+	miss.ground = Vector3(6.0, 0.0, 6.0)
+	var miss_consumed: bool = aiming.handle_left_click(_router, miss)
+	check("a ground click while aiming a unit ability neither moves nor casts",
+		moved.is_empty() and cast_by_caster.size() == 1,
+		"moved %d, casts %d" % [moved.size(), cast_by_caster.size()])
+	check("and is consumed, so it does not select or deselect either", miss_consumed)
+
 	AbilityManager.disarm()
 	SelectionManager.deselect_all()
 	_router._process(0.0)
@@ -560,9 +572,28 @@ func _the_router_runs_before_the_indicators_it_drives() -> void:
 	var press := InputEventMouseButton.new()
 	press.button_index = MOUSE_BUTTON_LEFT
 	press.pressed = true
-	_router.get_viewport().push_input(press)
+	press.position = Vector2(100, 100)
+	var release: InputEventMouseButton = press.duplicate()
+	release.pressed = false
 
-	check("a real left press reaches the current intent through the "
+	# A press that drags past the threshold is a box select, not a click:
+	# before, the press alone commanded a move under every box drag.
+	_router.get_viewport().push_input(press)
+	var drag := InputEventMouseMotion.new()
+	drag.position = press.position + Vector2(ClickRouter.CLICK_DRAG_THRESHOLD + 4.0, 0)
+	drag.button_mask = MOUSE_BUTTON_MASK_LEFT
+	_router.get_viewport().push_input(drag)
+	_router.get_viewport().push_input(release)
+	check("a press dragged past CLICK_DRAG_THRESHOLD is not a click",
+		recorder.lefts.is_empty(),
+		"a box drag also reached the intent as a click (%d)" % recorder.lefts.size())
+
+	_router.get_viewport().push_input(press)
+	check("a press alone decides nothing; the click is its release",
+		recorder.lefts.is_empty())
+	_router.get_viewport().push_input(release)
+
+	check("a real left click reaches the current intent through the "
 			+ "router's own _unhandled_input",
 		recorder.lefts.size() == 1,
 		"the intent was handed %d clicks — the gate, the derivation or "

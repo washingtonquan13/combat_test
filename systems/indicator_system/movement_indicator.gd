@@ -99,10 +99,15 @@ func _ready() -> void:
 ## Draws the route the caster would take to aim.point — from
 ## Unit.preview_route(), the same route choice move_to() makes (ladder
 ## journeys included), planned in full so _draw_path can colour the part
-## beyond move_remaining. Nothing to draw without a caster or a ground
-## point under the cursor.
+## beyond Unit.move_budget() (move_remaining in combat, INF out of it).
+## Nothing to draw without a caster or a ground point under the cursor,
+## nor over a unit or interactable - clicking those doesn't move, so the
+## path must not point at them.
 func draw(aim: Aim) -> void:
 	if aim.caster == null or aim.point == null:
+		_hide_all()
+		return
+	if aim.cursor and (aim.cursor.unit or aim.cursor.interactable):
 		_hide_all()
 		return
 
@@ -111,7 +116,7 @@ func draw(aim: Aim) -> void:
 		_hide_all()
 		return
 
-	_draw_path(planned.path, planned.cumulative_cost, aim.caster.move_remaining)
+	_draw_path(planned.path, planned.cumulative_cost, aim.caster.move_budget())
 	_path_mesh.visible = true
 
 
@@ -153,6 +158,11 @@ func _draw_path(path: PackedVector3Array, cumulative_cost: PackedFloat32Array, b
 	if budget <= 0.0:
 		split_index = 0
 		split_point = path[0]
+	elif is_inf(budget):
+		# Out of combat (Unit.move_budget) - no budget edge anywhere, the
+		# whole path is in range. Skipped explicitly so an INF cost on the
+		# route can't make INF - INF / INF / INF produce a NaN split.
+		pass
 	else:
 		for i in range(1, path.size()):
 			if cumulative_cost[i] >= budget:
