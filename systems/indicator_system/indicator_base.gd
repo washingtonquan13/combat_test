@@ -99,6 +99,26 @@ func _set_targets(units: Array[Unit]) -> void:
 	_targeted = units
 
 
+## Outlines who ability aimed at target would catch: the targeting
+## shape's own units_caught(), gated by the effects' own hostile/ally
+## flags. A spawned surface or cloud filters no one, so it catches
+## everyone inside.
+func _outline_caught(caster: Unit, ability: Ability, target) -> void:
+	var hostiles := false
+	var allies := false
+	for effect in ability.effects:
+		if effect is SpawnSurfaceEffect:
+			hostiles = true
+			allies = true
+		elif "affects_hostiles" in effect:
+			hostiles = hostiles or effect.affects_hostiles
+			allies = allies or effect.affects_allies
+	if not ability.targeting or (not hostiles and not allies):
+		_set_targets([])
+		return
+	_set_targets(ability.targeting.units_caught(caster, target, hostiles, allies))
+
+
 ## Whether anything this indicator owns is currently drawn. Exists for
 ## the suite that asserts an indicator really goes dark rather than
 ## merely stopping — see tests/interaction/test_intent_has_one_owner.gd.

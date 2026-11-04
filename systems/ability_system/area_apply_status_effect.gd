@@ -13,7 +13,7 @@ extends AbilityEffect
 ## radius fields that could drift out of sync.
 ##
 ## Same shared scan as AreaDamageEffect — see that file's header — via
-## UnitQuery.area_affected.
+## AbilityTargeting.units_caught.
 
 @export var status: StatusEffect
 @export var affects_hostiles: bool = true
@@ -24,15 +24,12 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	if not target is Vector3 or not status:
 		return {}
 
-	var targeting := ability.targeting as AreaTargeting
-	if not targeting:
+	if not ability.targeting:
 		return {}
 
-	var center: Vector3 = target
-	var radius: float = targeting.radius
 	var affected: Array[Unit] = []
 
-	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
+	for unit in ability.targeting.units_caught(attacker, target, affects_hostiles, affects_allies):
 		if unit.inflict_status(status, attacker):
 			affected.append(unit)
 

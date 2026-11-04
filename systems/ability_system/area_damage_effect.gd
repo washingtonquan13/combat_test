@@ -23,9 +23,10 @@ extends AbilityEffect
 ## radius is caught by it, matching the edge-based convention used
 ## everywhere else in this project (reach, ranged max_range, etc.).
 ##
-## The scan itself (edge-distance + hostile/ally gating) lives in
-## UnitQuery.area_affected — AreaHealEffect/AreaApplyStatusEffect share
-## the exact same scan; only what happens to each matched unit differs.
+## Who is caught is the targeting shape's own answer (AbilityTargeting.
+## units_caught): a sphere for AreaTargeting, a cone for ConeTargeting.
+## AreaHealEffect/AreaApplyStatusEffect ask the same question; only what
+## happens to each matched unit differs.
 
 @export var dice_count: int = 2
 @export var dice_sides: int = 6
@@ -50,15 +51,12 @@ func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Di
 	if not target is Vector3:
 		return {}
 
-	var targeting := ability.targeting as AreaTargeting
-	if not targeting:
+	if not ability.targeting:
 		return {}
 
-	var center: Vector3 = target
-	var radius: float = targeting.radius
 	var affected: Array = []
 
-	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
+	for unit in ability.targeting.units_caught(attacker, target, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
 		var applied: int = DamageResolver.injury(raw_damage, unit, wound_type, armor_divisor, false, false, null, true)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})

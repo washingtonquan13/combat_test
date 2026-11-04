@@ -44,6 +44,13 @@ func check(attacker: Unit, target) -> Reach:
 	return Reach.OK
 
 
+## Everyone whose edge is within radius of the point.
+func units_caught(attacker: Unit, target, affects_hostiles: bool, affects_allies: bool) -> Array[Unit]:
+	if not target is Vector3:
+		return []
+	return UnitQuery.area_affected(attacker.get_tree(), attacker, target, radius, affects_hostiles, affects_allies)
+
+
 func expects_point_target() -> bool:
 	return true
 

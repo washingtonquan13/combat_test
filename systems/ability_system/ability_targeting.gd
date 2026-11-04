@@ -147,6 +147,14 @@ func resolve_click(_attacker: Unit, click_position: Vector3) -> Variant:
 	return resolve_target_point(click_position)
 
 
+## Who an area-shaped cast aimed at target catches, gated by side: the
+## one scan the area effects, the previews' outlines and the AI all ask,
+## so none of them keeps its own copy of the shape. Default: no one (a
+## shape that targets a single unit, or none).
+func units_caught(_attacker: Unit, _target, _affects_hostiles: bool, _affects_allies: bool) -> Array[Unit]:
+	return []
+
+
 ## Distance CombatAI should try to close to before considering a target
 ## in range — used for movement/standoff purposes (see AiScorer.
 ## standoff_goal). Override in each subclass; base returns 0 (stand

@@ -37,6 +37,8 @@ extends AiBehavior
 func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	if not ability or not ability.targeting:
 		return []
+	if ability.targeting is ConeTargeting:
+		return _propose_cone(unit)
 	var radius: float = _blast_radius()
 	if radius <= 0.0:
 		return []
@@ -76,6 +78,27 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 		plan.reason = "area: %d caught" % caught
 		plans.append(plan)
 
+	return plans
+
+
+## A cone cannot be placed, only turned: one candidate per hostile, aimed
+## at its chest from where this unit stands, counted by the cone's own
+## units_caught (which never includes the caster).
+func _propose_cone(unit: Unit) -> Array[AiPlan]:
+	var cone := ability.targeting as ConeTargeting
+	var plans: Array[AiPlan] = []
+	for other in UnitQuery.living_units_near(unit):
+		if not unit.is_hostile_to(other):
+			continue
+		var point: Vector3 = other.anchor(CharacterModel.Anchor.CHEST)
+		var caught: int = cone.units_caught(unit, point, true, false).size()
+		if caught < min_targets:
+			continue
+		if cone.units_caught(unit, point, false, true).size() > max_allies_caught:
+			continue
+		var plan: AiPlan = point_plan(unit, ability, point, bias)
+		plan.reason = "cone: %d caught" % caught
+		plans.append(plan)
 	return plans
 
 

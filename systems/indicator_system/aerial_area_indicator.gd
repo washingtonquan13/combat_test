@@ -67,7 +67,7 @@ func draw(aim: Aim) -> void:
 	_height_scale = _cloud_height_scale(ability)
 	_update_line(unit, ability, hover_point)
 	_update_ring(ability, hover_point)
-	_update_targets(unit, ability, hover_point)
+	_outline_caught(unit, ability, hover_point)
 
 
 ## A cloud squashed flat (Surface.height_scale) previews as squashed as

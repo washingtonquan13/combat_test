@@ -12,8 +12,10 @@ extends MeshInstance3D
 ## BOX: a slab standing along a line (Wall of Fire), show_box(). Sunk
 ## into the ground so its sides, not its floor, meet the terrain: the
 ## cut line is the strip it will stand on.
+## CONE: a round cone with a rounded end, from its apex (Fire Breath),
+## show_cone(). Its cut line is where the breath washes over the floor.
 
-enum Shape { SPHERE, FOOTPRINT, BOX }
+enum Shape { SPHERE, FOOTPRINT, BOX, CONE }
 
 ## How far a BOX reaches below the line it stands on, so its cut line
 ## still lands on steps and slopes under it.
@@ -23,8 +25,14 @@ const BOX_SINK: float = 0.6
 ## follows (steps, slopes) before it stops touching the ground.
 const FOOTPRINT_HEIGHT: float = 1.2
 
+## Around-segments and cap rings of the CONE mesh.
+const CONE_SEGMENTS: int = 48
+const CONE_CAP_RINGS: int = 8
+
 var _material: ShaderMaterial
 var _shape: Shape = Shape.SPHERE
+## Half-angle the CONE mesh was last built for.
+var _cone_half_angle: float = -1.0
 
 
 func _init() -> void:
@@ -74,8 +82,63 @@ func show_box(from: Vector3, to: Vector3, height: float, half_thickness: float) 
 	visible = true
 
 
+## Shows a CONE with its apex at apex, pointing along direction (a unit
+## vector), length long and opening at half_angle radians.
+func show_cone(apex: Vector3, direction: Vector3, length: float, half_angle: float) -> void:
+	set_shape(Shape.CONE)
+	if not is_equal_approx(half_angle, _cone_half_angle):
+		_cone_half_angle = half_angle
+		mesh = _cone_mesh(half_angle)
+	var up: Vector3 = Vector3.UP if absf(direction.dot(Vector3.UP)) < 0.99 else Vector3.BACK
+	var basis := Basis.looking_at(direction, up).scaled(Vector3.ONE * length)
+	global_transform = Transform3D(basis, apex)
+	visible = true
+
+
+## A unit spherical sector along -Z: the cone's side fanned from the apex,
+## closed by a spherical cap, so its far end is everywhere one length
+## from the apex.
+static func _cone_mesh(half_angle: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var sin_h: float = sin(half_angle)
+	var cos_h: float = cos(half_angle)
+	for i in CONE_SEGMENTS:
+		var a0: float = TAU * float(i) / CONE_SEGMENTS
+		var a1: float = TAU * float(i + 1) / CONE_SEGMENTS
+		var am: float = (a0 + a1) * 0.5
+		var rim0 := Vector3(sin_h * cos(a0), sin_h * sin(a0), -cos_h)
+		var rim1 := Vector3(sin_h * cos(a1), sin_h * sin(a1), -cos_h)
+		st.set_normal(Vector3(cos_h * cos(am), cos_h * sin(am), sin_h))
+		st.add_vertex(Vector3.ZERO)
+		st.set_normal(Vector3(cos_h * cos(a0), cos_h * sin(a0), sin_h))
+		st.add_vertex(rim0)
+		st.set_normal(Vector3(cos_h * cos(a1), cos_h * sin(a1), sin_h))
+		st.add_vertex(rim1)
+		for r in CONE_CAP_RINGS:
+			var p0: float = half_angle * float(r) / CONE_CAP_RINGS
+			var p1: float = half_angle * float(r + 1) / CONE_CAP_RINGS
+			var c00 := _cap_point(p0, a0)
+			var c01 := _cap_point(p0, a1)
+			var c10 := _cap_point(p1, a0)
+			var c11 := _cap_point(p1, a1)
+			for v in [c00, c10, c11, c00, c11, c01]:
+				st.set_normal(v)
+				st.add_vertex(v)
+	return st.commit()
+
+
+static func _cap_point(polar: float, around: float) -> Vector3:
+	return Vector3(sin(polar) * cos(around), sin(polar) * sin(around), -cos(polar))
+
+
 func _apply_shape() -> void:
-	if _shape == Shape.SPHERE:
+	if _shape == Shape.CONE:
+		_cone_half_angle = -1.0
+		_material.set_shader_parameter(&"face_alpha", 0.015)
+		_material.set_shader_parameter(&"rim_alpha", 0.3)
+		_material.set_shader_parameter(&"shimmer_alpha", 0.025)
+	elif _shape == Shape.SPHERE:
 		var sphere := SphereMesh.new()
 		sphere.radius = 1.0
 		sphere.height = 2.0
