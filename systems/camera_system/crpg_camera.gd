@@ -634,7 +634,36 @@ func _required_distance_reduction(from: Vector3, forward: Vector3, distance: flo
 		excluded.append(unit.get_rid())
 	query.exclude = excluded
 
+	# A wall the occlusion fade will dissolve must not also pull the camera
+	# in: the zoom would carry the camera past it, the wall would stop
+	# being between camera and subject, and it would snap back solid. So
+	# fade-eligible blockers are excluded and the sweep goes on behind
+	# them; only what fade leaves solid (terrain, floors) shortens it.
+	var anchor_probe: Dictionary = _fade_probe(from, from - focus_offset, from.y, from.y - focus_offset.y + 1.8)
 	var cast_result: PackedFloat32Array = space_state.cast_motion(query)
+	for _i in max_hits_per_ray:
+		if not occlusion_fade_enabled or cast_result.is_empty() or cast_result[0] >= 1.0:
+			break
+		var touch := PhysicsShapeQueryParameters3D.new()
+		touch.shape = shape
+		touch.transform = Transform3D(Basis(), from + query.motion * cast_result[1])
+		touch.collision_mask = collision_mask
+		touch.exclude = query.exclude
+		var rest: Dictionary = space_state.get_rest_info(touch)
+		if rest.is_empty():
+			break
+		var collider: Object = instance_from_id(rest.collider_id)
+		var fadeable: bool = false
+		for visual in _fade_visuals_for(collider, rest.shape):
+			if _fade_blocks(visual, anchor_probe):
+				fadeable = true
+				break
+		if not fadeable:
+			break
+		var widened: Array = query.exclude
+		widened.append(rest.rid)
+		query.exclude = widened
+		cast_result = space_state.cast_motion(query)
 	# cast_motion does NOT return an empty array for "nothing in the
 	# way" — confirmed via direct testing, contrary to how intersect_ray
 	# behaves elsewhere in this file. A fully clear motion reports
