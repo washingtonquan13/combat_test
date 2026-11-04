@@ -64,6 +64,7 @@ func _run() -> void:
 	_check("flying through set it Searing too", flier.has_status(searing))
 	_say("Flying through: Searing too")
 	await _wait(2.5)
+	await _from_above(middle)
 
 	_say("Out of combat a round is 6 s: when its 5 rounds are up...")
 	_frame(middle, 13.0)
@@ -103,6 +104,7 @@ func _run() -> void:
 	_check("flying through the air wall set it Searing", high.has_status(searing))
 	_say("In the air: no ground fire, Searing for fliers")
 	await _wait(4.0)
+	await _from_above(air_spot)
 
 	var total := _passed + _failed.size()
 	_say("Done: %d/%d checks passed" % [_passed, total])
@@ -111,3 +113,18 @@ func _run() -> void:
 		print("  FAILED: ", f)
 	await _wait(2.0)
 	get_tree().quit()
+
+
+## Looks straight down on point for a few seconds, then back.
+func _from_above(point: Vector3) -> void:
+	var camera: CRPGCamera = get_tree().root.find_children("*", "CRPGCamera", true, false)[0]
+	var pitches := Vector2(camera.min_pitch, camera.max_pitch)
+	_say("From above")
+	camera.min_pitch = 89.0
+	camera.max_pitch = 89.0
+	_frame(point, 15.0)
+	await _wait(4.0)
+	camera.min_pitch = pitches.x
+	camera.max_pitch = pitches.y
+	_frame(point, 16.0)
+	await _wait(1.5)
