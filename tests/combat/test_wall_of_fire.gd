@@ -16,7 +16,7 @@ func run() -> void:
 	var context: WorldContext = WorldManager.context_for(caster)
 
 	AbilityManager.clear_line_start()
-	var first = targeting.resolve_click(caster, Vector3(0.0, 0.0, -2.0))
+	var first = targeting.resolve_click(caster, Vector3(0.0, 0.0, -11.0))
 	check("the first click holds the start", first == null and AbilityManager.has_line_start)
 	var line = targeting.resolve_click(caster, Vector3(0.0, 0.0, 40.0))
 	check("the second click makes a line, pulled in to max_length",
