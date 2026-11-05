@@ -1,10 +1,11 @@
 shader_type canvas_item;
 // A Diablo-style resource globe (dock.gd's HP and FP globes): the
 // TextureRect's texture masked to a circle and seen through a glass sphere.
-// Below `fill` it is "liquid": full colour, optionally tinted, slowly
-// swirling and refracted. Above it the texture is drained to grey. A wavy
-// meniscus moves along the surface, and a gloss highlight, a fresnel edge
-// and a metal rim sell the glass.
+// Below `fill` it is "liquid": full colour, optionally tinted, with a
+// swirl pattern painted on a sphere that spins about its vertical axis, so
+// the liquid reads as a rotating ball rather than a flat scroll. Above it
+// the texture is drained to grey. A wavy meniscus moves along the surface,
+// and a gloss highlight, a fresnel edge and a metal rim sell the glass.
 //
 // HP: the portrait is the texture and the liquid tint is ~0, so filling
 // gives the face its colour back. FP: a dark texture and a strong blue tint.
@@ -22,11 +23,18 @@ uniform float surface_px = 1.5;
 // The meniscus wave, as a fraction of the globe's height.
 uniform float wave_amp = 0.018;
 uniform float wave_speed = 1.0;
-// Swirl: how much the flowing noise brightens/darkens the liquid, how far it
-// bends the texture, and how fast it flows.
-uniform float swirl = 0.25;
-uniform float refract = 0.006;
-uniform float swirl_speed = 1.0;
+// The spinning swirl. spin_speed is radians per second about the vertical
+// axis; spin_scale is how fine the pattern is; churn is how fast the pattern
+// itself evolves while it turns. swirl brightens/darkens the liquid with
+// it, veins are the bright ridged filaments (alpha = strength), and
+// refract is how far it bends the texture underneath.
+uniform float spin_speed = 0.6;
+uniform float spin_scale = 2.2;
+uniform float churn = 0.15;
+uniform float swirl = 0.3;
+uniform vec4 vein_color : source_color = vec4(0.6, 0.85, 1.0, 0.6);
+uniform float vein_sharp = 5.0;
+uniform float refract = 0.0;
 // Glass: the shading toward the edge, the edge glow and the top-left gloss.
 uniform float sphere_shade : hint_range(0.0, 1.0) = 0.45;
 uniform vec4 fresnel_color : source_color = vec4(0.8, 0.85, 1.0, 0.25);
@@ -41,24 +49,30 @@ uniform float rim_px = 3.0;
 uniform vec2 uv_scale = vec2(1.0);
 uniform vec2 uv_offset = vec2(0.0);
 
-float hash(vec2 p) {
-	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+float hash(vec3 p) {
+	p = fract(p * vec3(0.1031, 0.1030, 0.0973));
+	p += dot(p, p.yxz + 33.33);
+	return fract((p.x + p.y) * p.z);
 }
 
-float noise(vec2 p) {
-	vec2 i = floor(p);
-	vec2 f = fract(p);
-	vec2 u = f * f * (3.0 - 2.0 * f);
-	return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
-			mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+float noise(vec3 p) {
+	vec3 i = floor(p);
+	vec3 f = fract(p);
+	vec3 u = f * f * (3.0 - 2.0 * f);
+	return mix(
+		mix(mix(hash(i), hash(i + vec3(1, 0, 0)), u.x),
+			mix(hash(i + vec3(0, 1, 0)), hash(i + vec3(1, 1, 0)), u.x), u.y),
+		mix(mix(hash(i + vec3(0, 0, 1)), hash(i + vec3(1, 0, 1)), u.x),
+			mix(hash(i + vec3(0, 1, 1)), hash(i + vec3(1, 1, 1)), u.x), u.y),
+		u.z);
 }
 
-float fbm(vec2 p) {
+float fbm(vec3 p) {
 	float v = 0.0;
 	float a = 0.5;
 	for (int i = 0; i < 4; i++) {
 		v += a * noise(p);
-		p = p * 2.03 + vec2(1.7, 9.2);
+		p = p * 2.03 + vec3(1.7, 9.2, 4.1);
 		a *= 0.5;
 	}
 	return v;
@@ -70,14 +84,20 @@ void fragment() {
 	// Pixels per unit of r, so the rim and the edge stay crisp at any size.
 	float px = fwidth(r);
 	float inside = 1.0 - smoothstep(1.0 - px, 1.0, r);
-	// The sphere's surface normal facing the viewer.
+	// The point on the front of the sphere under this pixel.
 	float z = sqrt(max(0.0, 1.0 - r * r));
+	vec3 n = vec3(c.x * 2.0, -c.y * 2.0, z);
 
-	float t = TIME * swirl_speed;
-	// Domain-warped noise: liquid that flows and curls instead of sliding.
-	vec2 q = UV * 3.0;
-	vec2 warp = vec2(fbm(q + vec2(0.0, t * 0.15)), fbm(q + vec2(5.2, -t * 0.12)));
-	float flow = fbm(q + warp * 2.0 + vec2(t * 0.08, -t * 0.2));
+	// Turn the sphere about its vertical axis and read the swirl there: a
+	// pattern that slides fast in the middle and slow at the edges, the way
+	// a spinning ball does. Domain warp so it curls instead of just sliding.
+	float a = TIME * spin_speed;
+	vec3 p = vec3(n.x * cos(a) + n.z * sin(a), n.y, -n.x * sin(a) + n.z * cos(a)) * spin_scale;
+	vec3 drift = vec3(0.0, TIME * churn, TIME * churn * 0.7);
+	vec3 warp = vec3(fbm(p + drift), fbm(p + vec3(5.2, 1.3, 2.8) - drift), 0.0);
+	float flow = fbm(p + warp * 1.8 + drift * 0.5);
+	float ridge = 1.0 - abs(flow * 2.0 - 1.0);
+	float veins = pow(ridge, vein_sharp);
 
 	// The meniscus: two travelling sine waves, flattened at empty and full.
 	float wt = TIME * wave_speed;
@@ -92,14 +112,15 @@ void fragment() {
 		wet = 0.0;
 	}
 
-	vec2 bend = (warp - vec2(0.5)) * refract * wet;
+	vec2 bend = (warp.xy - vec2(0.5)) * refract * wet;
 	vec4 base = texture(TEXTURE, uv_offset + (UV + bend) * uv_scale);
 
-	// Liquid: the texture in full colour, tinted, rippling with the flow.
+	// Liquid: the texture in full colour, tinted, swirling.
 	float depth = fill > 0.0 ? clamp(height / max(level, 0.001), 0.0, 1.0) : 0.0;
 	vec4 tint = mix(liquid_bottom, liquid_top, depth);
 	vec3 liquid = mix(base.rgb, tint.rgb, tint.a);
 	liquid *= 1.0 + swirl * (flow - 0.5) * 2.0;
+	liquid += vein_color.rgb * vein_color.a * veins * (0.4 + 0.6 * z);
 
 	// Drained: the same texture gone grey and dim.
 	float lum = dot(base.rgb, vec3(0.299, 0.587, 0.114));
