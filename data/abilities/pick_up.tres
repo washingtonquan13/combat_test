@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=7 format=3 uid="uid://cpa7yeuykkuis"]
+[gd_resource type="Resource" script_class="Ability" load_steps=8 format=3 uid="uid://cpa7yeuykkuis"]
 
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
 [ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://systems/ability_system/melee_enemy_targeting.gd" id="2_targeting"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
 [ext_resource type="Script" uid="uid://fgiyfvvrjfdd" path="res://systems/ability_system/pick_up_effect.gd" id="4_pick_up"]
+[ext_resource type="Texture2D" uid="uid://ucseygiq7qis" path="res://assets/ability_icon/pick_up_icon.png" id="9_icon"]
 
 [sub_resource type="Resource" id="Resource_pick_up"]
 script = ExtResource("4_pick_up")
@@ -16,6 +17,7 @@ requires_ally = true
 [resource]
 script = ExtResource("1_ability")
 ability_name = "Pick Up"
+icon = ExtResource("9_icon")
 category = 0
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_pick_up")])
