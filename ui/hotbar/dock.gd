@@ -75,6 +75,10 @@ var _grip_start_y: float = 0.0
 var _grip_start_rows: int = 1
 var _grip_dragging: bool = false
 var _default_globe_texture: Texture2D
+## Whose pools the globes last showed: a new unit snaps the fill, the same
+## unit's damage or healing drains/fills it.
+var _globe_unit: Unit = null
+var _fill_tweens: Dictionary = {}
 
 
 func _ready() -> void:
@@ -321,13 +325,30 @@ func _refresh_globes() -> void:
 	var hp: int = unit.get_pool(StatIds.HP)
 	var hp_max: int = maxi(floori(unit.get_stat(StatIds.HP)), 1)
 	_hp_label.text = "%d / %d" % [hp, hp_max]
-	_hp_globe.material.set_shader_parameter("fill", clampf(float(hp) / hp_max, 0.0, 1.0))
+	var snap: bool = unit != _globe_unit
+	_globe_unit = unit
+	_set_fill(_hp_globe, clampf(float(hp) / hp_max, 0.0, 1.0), snap)
 	var fp: int = unit.get_pool(StatIds.FP)
 	var fp_max: int = maxi(floori(unit.get_stat(StatIds.FP)), 1)
 	_fp_label.text = str(fp)
-	_fp_globe.material.set_shader_parameter("fill", clampf(float(fp) / fp_max, 0.0, 1.0))
+	_set_fill(_fp_globe, clampf(float(fp) / fp_max, 0.0, 1.0), snap)
 	_fp_globe.tooltip_text = "Fatigue Points %d / %d" % [fp, fp_max]
 	_hp_globe.tooltip_text = "Hit Points %d / %d" % [hp, hp_max]
+
+
+func _set_fill(globe: TextureRect, value: float, snap: bool) -> void:
+	var material: ShaderMaterial = globe.material
+	var old: Tween = _fill_tweens.get(globe)
+	if old:
+		old.kill()
+	var from: float = material.get_shader_parameter("fill")
+	if snap or is_equal_approx(from, value):
+		material.set_shader_parameter("fill", value)
+		return
+	var tween: Tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tween.tween_method(func(f: float) -> void: material.set_shader_parameter("fill", f),
+			from, value, 0.45)
+	_fill_tweens[globe] = tween
 
 
 ## Crops a texture to its centred square (a tall one nearer its top,

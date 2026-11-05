@@ -11,8 +11,8 @@ extends Node
 ##
 ## SETUP:
 ##  1. Project Settings > Input Map: add three actions —
-##       "test_start_combat" mapped to a key (e.g. K)
-##       "test_end_turn"      mapped to a key (e.g. N)
+##       "test_start_combat" mapped to a key (F6 here)
+##       "test_end_turn"      mapped to a key (F7 here)
 ##       "test_delay_turn"    mapped to a key (e.g. M)
 ##  2. Make sure your Unit instances are already in the scene tree, each
 ##     with `faction` set appropriately (player units default to "player";
