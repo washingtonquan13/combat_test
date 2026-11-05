@@ -2204,10 +2204,20 @@ bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::v
 	int steps = std::max(1, (int)std::ceil(length / CELL_SIZE));
 	for (int i = 1; i < steps; i++) {
 		float t = (float)i / (float)steps;
-		Vector3 point = a.lerp(b, t);
-		if (!is_valid_cell_cached(world_to_cell(point), offsets, clearance, height, flying, unit, smooth_sid)) {
-			return false;
+		Vector3i cell = world_to_cell(a.lerp(b, t));
+		if (is_valid_cell_cached(cell, offsets, clearance, height, flying, unit, smooth_sid)) {
+			continue;
 		}
+		// A walker's standing cells climb a slope in whole-cell stairs, so
+		// a straight line up a ramp passes through the layer above or below
+		// them between treads. The ground under the line is still there, a
+		// cell off, and the same one-cell rise A* steps between neighbours.
+		// Where the ground bends away from the line further than that (the
+		// knee where a ramp meets the floor), the corner stays a waypoint.
+		if (!flying && (is_valid_cell_cached(cell + Vector3i(0, 1, 0), offsets, clearance, height, flying, unit, smooth_sid) || is_valid_cell_cached(cell - Vector3i(0, 1, 0), offsets, clearance, height, flying, unit, smooth_sid))) {
+			continue;
+		}
+		return false;
 	}
 	return true;
 }

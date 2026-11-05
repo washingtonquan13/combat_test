@@ -32,7 +32,10 @@ func run() -> void:
 	var down: PackedVector3Array = _route(walker, TOWN, CAMP)
 	check("the town routes down to the pit camp", _arrives(down, CAMP), "path %s" % down)
 	check("and that route goes by the ramp on the east side",
-		Array(down).any(func(p: Vector3) -> bool: return p.x > 9.0 and p.y < -1.0 and p.y > -5.0),
+		_samples(down).any(func(p: Vector3) -> bool: return p.x > 9.0 and p.y < -1.0 and p.y > -5.0),
+		"path %s" % down)
+	check("and the ramp is one smoothed run, not a stair of waypoints",
+		Array(down).filter(func(p: Vector3) -> bool: return p.y < -0.5 and p.y > -5.5).size() <= 1,
 		"path %s" % down)
 	var top: Vector3 = ladder.top_position()
 	var base: Vector3 = ladder.base_position()
@@ -46,6 +49,17 @@ func run() -> void:
 
 func _route(walker: Unit, from: Vector3, to: Vector3) -> PackedVector3Array:
 	return NavigationGrid.find_path(get_tree(), from, to, walker, false)
+
+
+## Points every 0.5 m along the path, since a smoothed ramp has no waypoint
+## halfway down it.
+func _samples(path: PackedVector3Array) -> Array:
+	var out: Array = []
+	for i in path.size() - 1:
+		var steps: int = maxi(1, ceili(path[i].distance_to(path[i + 1]) / 0.5))
+		for k in steps:
+			out.append(path[i].lerp(path[i + 1], float(k) / steps))
+	return out
 
 
 func _arrives(path: PackedVector3Array, to: Vector3) -> bool:
