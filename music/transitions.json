@@ -15,7 +15,10 @@
 		"test_area_2.negotiation": {"ensemble": "decadence", "score": "decadence"},
 		"test_area_3.exploration": {"ensemble": "tonewheel", "score": "sealed-ward-lament"},
 		"test_area_3.combat": {"ensemble": "band", "score": "low-end"},
-		"test_area_3.negotiation": {"ensemble": "decadence", "score": "decadence"}
+		"test_area_3.negotiation": {"ensemble": "decadence", "score": "decadence"},
+		"goblin_quarry.exploration": {"ensemble": "tonewheel", "score": "sealed-ward-lament"},
+		"goblin_quarry.combat": {"ensemble": "tonewheel", "score": "sealed-ward"},
+		"goblin_quarry.negotiation": {"ensemble": "decadence", "score": "decadence"}
 	},
 	"rules": [
 		{"from": "*", "to": "*", "exit": "now", "fade": 1.5, "fade_in": 1.0},
@@ -38,6 +41,10 @@
 		{"from": "*", "to": "test_area_3.combat", "exit": "beat", "fade": 0.5, "urgent": true, "max_wait": 0.5},
 		{"from": "test_area_3.combat", "to": "*", "exit": "now", "fade": 2.0, "fade_in": 1.5, "pick_up": true},
 		{"from": "test_area_3.combat", "to": "test_area_3.negotiation", "exit": "now", "fade": 1.0, "fade_in": 0.5},
-		{"from": "test_area_3.negotiation", "to": "test_area_3.combat", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true}
+		{"from": "test_area_3.negotiation", "to": "test_area_3.combat", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true},
+		{"from": "*", "to": "goblin_quarry.combat", "exit": "beat", "fade": 0.5, "urgent": true, "max_wait": 0.5},
+		{"from": "goblin_quarry.combat", "to": "*", "exit": "now", "fade": 2.0, "fade_in": 1.5, "pick_up": true},
+		{"from": "goblin_quarry.combat", "to": "goblin_quarry.negotiation", "exit": "now", "fade": 1.0, "fade_in": 0.5},
+		{"from": "goblin_quarry.negotiation", "to": "goblin_quarry.combat", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true}
 	]
 }
