@@ -23,6 +23,7 @@ any_unit = true
 script = ExtResource("1_ability")
 ability_name = "Enlarge Person"
 icon = ExtResource("6_icon")
+icon_color = Color(0.43, 0.63, 1, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_applystatus")])

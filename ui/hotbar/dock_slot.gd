@@ -1,7 +1,13 @@
 class_name DockSlot
-extends Button
-## One slot on the combat dock (dock.gd). A Button for click handling, an
-## icon and a disabled state; a drag-and-drop SOURCE whenever it holds an
+extends BaseButton
+## One slot on the combat dock (dock.gd). A BaseButton for clicks and the
+## disabled state, drawn in layers rather than by the button itself:
+##   Face  - slot_icon.gdshader: a backdrop lit in Ability.icon_color and
+##           the icon on it (an ability's glyph recoloured, or a weapon's
+##           picture as it is), greyed for the other set or disabled;
+##   Frame - the border, one of the styleboxes below per state;
+##   then the labels and badges.
+## A drag-and-drop SOURCE whenever it holds an
 ## ability, and a drop TARGET only when it mirrors one of
 ## unit.custom_slots (is_custom_slot).
 ##
@@ -9,7 +15,8 @@ extends Button
 ## sit in its home slot and in a custom slot at once, so there is no
 ## single place to move it from.
 ##
-## Three looks, from `look`, all authored as styleboxes in dock_slot.tscn:
+## Three looks, from `look`, the frames authored as styleboxes in
+## dock_slot.tscn:
 ##   PLAIN  - spells, utility, custom slots (square, thin border);
 ##   WEAPON - an attack bound to a weapon set's row (bronze frame, the
 ##            row's damage type in TagLabel); `other_set` dims it and
@@ -30,8 +37,15 @@ enum Look { PLAIN, WEAPON, ROUND }
 @export var style_round: StyleBox
 @export var style_round_lit: StyleBox
 @export var style_empty: StyleBox
-## self_modulate of an attack from the set not in hand.
-@export var other_set_modulate: Color = Color(0.75, 0.75, 0.75, 0.45)
+## The Face's saturation and brightness for an attack from the set not
+## in hand, while disabled, and while hovered.
+@export var other_set_saturation: float = 0.35
+@export var other_set_brightness: float = 0.55
+@export var disabled_saturation: float = 0.0
+@export var disabled_brightness: float = 0.45
+@export var hover_brightness: float = 1.2
+## The Frame's modulate for an attack from the set not in hand.
+@export var other_set_frame_modulate: Color = Color(1, 1, 1, 0.5)
 ## LevelBadge's modulate while its toggle is off.
 @export var level_off_modulate: Color = Color(1, 1, 1, 0.45)
 
@@ -45,6 +59,12 @@ var custom_slot_index: int = -1
 var is_custom_slot: bool:
 	get: return custom_slot_index >= 0
 
+var _icon_texture: Texture2D = null
+
+@onready var _face: ColorRect = $Face
+@onready var _face_material: ShaderMaterial = $Face.material
+@onready var _frame: Panel = $Frame
+@onready var _name_label: Label = $NameLabel
 @onready var _toggle_border: CanvasItem = $ToggleBorder
 @onready var _key_label: Label = $KeyLabel
 @onready var _tag_label: Label = $TagLabel
@@ -69,6 +89,8 @@ func _ready() -> void:
 	_apply_ability()
 	pressed.connect(activate)
 	gui_input.connect(_on_gui_input)
+	mouse_entered.connect(_refresh_face)
+	mouse_exited.connect(_refresh_face)
 
 
 ## The hotkey shown in the corner ("1", "⇧3"), or "" for none.
@@ -86,20 +108,29 @@ func set_ability(value: Ability) -> void:
 
 
 func _apply_ability() -> void:
-	icon = _icon()
-	text = ability.ability_name.left(3) if (ability and not icon) else ""
+	var item_icon: Texture2D = _item_icon()
+	_icon_texture = item_icon if item_icon else (ability.icon if ability else null)
+	_face_material.set_shader_parameter("icon_tex", _icon_texture)
+	_face_material.set_shader_parameter("has_icon", _icon_texture != null)
+	# A weapon's picture is colour art; an ability's icon is a glyph.
+	_face_material.set_shader_parameter("glyph", item_icon == null)
+	_face_material.set_shader_parameter("tint", ability.icon_color if ability else Color(0.3, 0.27, 0.22))
+	_face_material.set_shader_parameter("round", look == Look.ROUND)
+	_name_label.visible = ability != null and _icon_texture == null
+	_name_label.text = ability.ability_name if ability else ""
 	tooltip_text = _build_tooltip()
 	var row: AttackRow = _row()
 	_tag_label.visible = look == Look.WEAPON and row != null
 	if _tag_label.visible:
 		_tag_label.text = WOUND_TAGS.get(row.wound_type, "")
 	_swap_badge.visible = other_set
-	self_modulate = other_set_modulate if other_set else Color.WHITE
+	_frame.modulate = other_set_frame_modulate if other_set else Color.WHITE
+	_refresh_face()
 
 
 ## A weapon attack shows the weapon that makes it; anything else, or a
-## natural attack, its own icon.
-func _icon() -> Texture2D:
+## natural attack, its own icon (null here).
+func _item_icon() -> Texture2D:
 	if not ability:
 		return null
 	var row: AttackRow = _row()
@@ -108,7 +139,23 @@ func _icon() -> Texture2D:
 			var item: ItemInstance = unit.get_equipped_item(slot)
 			if item and item.definition and item.definition.icon and item.attacks().has(row):
 				return item.definition.icon
-	return ability.icon
+	return null
+
+
+## The Face's grey and brightness from disabled / other set / hover.
+func _refresh_face() -> void:
+	var saturation: float = 1.0
+	var brightness: float = 1.0
+	if disabled:
+		saturation = disabled_saturation
+		brightness = disabled_brightness
+	elif other_set:
+		saturation = other_set_saturation
+		brightness = other_set_brightness
+	if ability and not disabled and is_hovered():
+		brightness *= hover_brightness
+	_face_material.set_shader_parameter("saturation", saturation)
+	_face_material.set_shader_parameter("brightness", brightness)
 
 
 func _row() -> AttackRow:
@@ -178,8 +225,7 @@ func _make_custom_tooltip(for_text: String) -> Object:
 
 
 func _set_style(style: StyleBox) -> void:
-	for state in ["normal", "hover", "pressed", "disabled", "hover_pressed"]:
-		add_theme_stylebox_override(state, style)
+	_frame.add_theme_stylebox_override("panel", style)
 
 
 ## Re-applies armed / on / disabled state from AbilityManager and the
@@ -187,6 +233,11 @@ func _set_style(style: StyleBox) -> void:
 ## it; the tooltip is rebuilt too, since the to-hit sum moves with the
 ## toggles.
 func refresh_state() -> void:
+	_refresh_state()
+	_refresh_face()
+
+
+func _refresh_state() -> void:
 	tooltip_text = _build_tooltip()
 	if not ability or not unit:
 		_set_style(style_empty)
@@ -297,7 +348,7 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	if not ability:
 		return null
 	var preview := TextureRect.new()
-	preview.texture = icon
+	preview.texture = _icon_texture
 	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	preview.size = size
 	preview.position = -preview.size / 2

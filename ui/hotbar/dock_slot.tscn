@@ -1,14 +1,11 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://ui/hotbar/dock_slot.gd" id="1_slot"]
 [ext_resource type="Shader" path="res://ui/toggle_border.gdshader" id="2_border"]
+[ext_resource type="Shader" path="res://ui/hotbar/slot_icon.gdshader" id="3_face"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_plain"]
-content_margin_left = 5.0
-content_margin_top = 5.0
-content_margin_right = 5.0
-content_margin_bottom = 5.0
-bg_color = Color(0.055, 0.047, 0.039, 1)
+draw_center = false
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -20,11 +17,7 @@ corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_weapon"]
-content_margin_left = 5.0
-content_margin_top = 5.0
-content_margin_right = 5.0
-content_margin_bottom = 5.0
-bg_color = Color(0.114, 0.09, 0.055, 1)
+draw_center = false
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
@@ -36,11 +29,7 @@ corner_radius_bottom_right = 3
 corner_radius_bottom_left = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_armed"]
-content_margin_left = 5.0
-content_margin_top = 5.0
-content_margin_right = 5.0
-content_margin_bottom = 5.0
-bg_color = Color(0.165, 0.125, 0.063, 1)
+draw_center = false
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
@@ -54,11 +43,7 @@ shadow_color = Color(0.878, 0.714, 0.353, 0.6)
 shadow_size = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_round"]
-content_margin_left = 9.0
-content_margin_top = 9.0
-content_margin_right = 9.0
-content_margin_bottom = 9.0
-bg_color = Color(0.071, 0.059, 0.094, 1)
+draw_center = false
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -71,11 +56,7 @@ corner_radius_bottom_left = 20
 corner_detail = 12
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_round_lit"]
-content_margin_left = 9.0
-content_margin_top = 9.0
-content_margin_right = 9.0
-content_margin_bottom = 9.0
-bg_color = Color(0.071, 0.059, 0.094, 1)
+draw_center = false
 border_width_left = 2
 border_width_top = 2
 border_width_right = 2
@@ -90,11 +71,7 @@ shadow_color = Color(0.878, 0.714, 0.353, 0.67)
 shadow_size = 7
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_empty"]
-content_margin_left = 5.0
-content_margin_top = 5.0
-content_margin_right = 5.0
-content_margin_bottom = 5.0
-bg_color = Color(0.055, 0.047, 0.039, 0.5)
+draw_center = false
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -138,21 +115,33 @@ corner_radius_bottom_right = 8
 corner_radius_bottom_left = 8
 corner_detail = 6
 
-[sub_resource type="StyleBoxEmpty" id="StyleBox_none"]
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_face"]
+resource_local_to_scene = true
+shader = ExtResource("3_face")
+shader_parameter/has_icon = false
+shader_parameter/glyph = true
+shader_parameter/tint = Color(0.78, 0.74, 0.66, 1)
+shader_parameter/inset = 0.76
+shader_parameter/round = false
+shader_parameter/corner_px = 3.0
+shader_parameter/cut = 0.15
+shader_parameter/soft = 0.7
+shader_parameter/glyph_light = Color(0.98, 0.96, 0.9, 1)
+shader_parameter/glyph_tint = 0.45
+shader_parameter/backdrop_glow = 0.3
+shader_parameter/backdrop_dark = Color(0.055, 0.047, 0.039, 1)
+shader_parameter/shadow_px = Vector2(1, 1.5)
+shader_parameter/shadow_strength = 0.8
+shader_parameter/saturation = 1.0
+shader_parameter/brightness = 1.0
 
-[node name="DockSlot" type="Button"]
+[node name="DockSlot" type="BaseButton"]
 custom_minimum_size = Vector2(40, 40)
 offset_right = 40.0
 offset_bottom = 40.0
 size_flags_horizontal = 0
 size_flags_vertical = 4
 focus_mode = 0
-theme_override_colors/font_color = Color(0.91, 0.863, 0.753, 1)
-theme_override_font_sizes/font_size = 11
-theme_override_styles/focus = SubResource("StyleBox_none")
-theme_override_styles/normal = SubResource("StyleBox_plain")
-icon_alignment = 1
-expand_icon = true
 script = ExtResource("1_slot")
 style_plain = SubResource("StyleBox_plain")
 style_weapon = SubResource("StyleBox_weapon")
@@ -160,6 +149,44 @@ style_armed = SubResource("StyleBox_armed")
 style_round = SubResource("StyleBox_round")
 style_round_lit = SubResource("StyleBox_round_lit")
 style_empty = SubResource("StyleBox_empty")
+
+[node name="Face" type="ColorRect" parent="."]
+material = SubResource("ShaderMaterial_face")
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="NameLabel" type="Label" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.91, 0.863, 0.753, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 9
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+clip_text = true
+
+[node name="Frame" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_plain")
 
 [node name="ToggleBorder" type="ColorRect" parent="."]
 visible = false

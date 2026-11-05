@@ -41,6 +41,7 @@ metadata/_custom_type_script = "uid://b1y7f6ela25ie"
 script = ExtResource("2_ability")
 ability_name = "Fog Cloud"
 icon = ExtResource("7_icon")
+icon_color = Color(0.43, 0.63, 1, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])

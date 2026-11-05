@@ -32,6 +32,7 @@ metadata/_custom_type_script = "uid://bjatij1rn26yg"
 script = ExtResource("2_4kc7v")
 ability_name = "Jump"
 icon = ExtResource("3_klqml")
+icon_color = Color(0.59, 0.78, 0.67, 1)
 category = 0
 targeting = SubResource("Resource_uc2tp")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_srpy8")])

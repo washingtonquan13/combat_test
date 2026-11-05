@@ -61,6 +61,7 @@ metadata/_custom_type_script = "uid://bjatij1rn26yg"
 script = ExtResource("1_abil")
 ability_name = "Magic Missile"
 icon = ExtResource("3_4oqof")
+icon_color = Color(0.43, 0.63, 1, 1)
 category = 1
 targeting = SubResource("Resource_targ")
 effects = Array[ExtResource("2_effb")]([SubResource("Resource_dmg")])

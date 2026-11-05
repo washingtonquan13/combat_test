@@ -42,6 +42,7 @@ metadata/_custom_type_script = "uid://b1y7f6ela25ie"
 script = ExtResource("2_ability")
 ability_name = "Darkness"
 icon = ExtResource("7_icon")
+icon_color = Color(0.67, 0.43, 0.9, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])

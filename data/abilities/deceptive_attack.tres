@@ -7,6 +7,7 @@
 script = ExtResource("1_ability")
 ability_name = "Deceptive Attack"
 icon = ExtResource("2_icon")
+icon_color = Color(0.92, 0.55, 0.45, 1)
 category = 0
 is_toggle = true
 max_level = 5

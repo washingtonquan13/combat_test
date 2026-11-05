@@ -111,6 +111,7 @@ impact_timeout = 4.0
 script = ExtResource("2_ability")
 ability_name = "Fire Breath"
 icon = ExtResource("9_icon")
+icon_color = Color(1, 0.55, 0.24, 1)
 category = 1
 targeting = SubResource("Resource_cone")
 effects = Array[ExtResource("1_eff")]([SubResource("Resource_damage"), SubResource("Resource_apply"), SubResource("Resource_spawn")])

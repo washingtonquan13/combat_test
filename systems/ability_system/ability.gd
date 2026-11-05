@@ -21,6 +21,10 @@ extends Resource
 
 @export var ability_name: String = "Basic Attack"
 @export var icon: Texture2D
+## The hue the hotbar paints the icon and its slot in (dock_slot.gd's
+## Face). The icon itself is white art on black and is recoloured, so one
+## set of glyphs reads as fire, holy, arcane and so on.
+@export var icon_color: Color = Color(0.78, 0.74, 0.66)
 
 ## Which hotbar section this ability's own slot belongs in — NOT whether
 ## it can also appear in a unit's Custom hotbar section (see

@@ -50,6 +50,7 @@ eye_height = 1.5
 script = ExtResource("2_ability")
 ability_name = "Wall of Fire"
 icon = ExtResource("8_icon")
+icon_color = Color(1, 0.55, 0.24, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
