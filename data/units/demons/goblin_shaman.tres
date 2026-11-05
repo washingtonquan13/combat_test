@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=13 format=3 uid="uid://bpig3gd3ljdoj"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=15 format=3 uid="uid://bpig3gd3ljdoj"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -11,6 +11,8 @@
 [ext_resource type="Script" uid="uid://2l5kece6i6sd" path="res://systems/party_system/party_skill_record.gd" id="10_jv1fc"]
 [ext_resource type="PackedScene" uid="uid://btnqexsmk20xa" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 [ext_resource type="Resource" uid="uid://c41bul2lsch8o" path="res://data/ai_archetypes/support.tres" id="99_arch"]
+[ext_resource type="Script" uid="uid://1cuiym8es4oi" path="res://systems/inventory_system/item_definition.gd" id="90_itemdef"]
+[ext_resource type="Resource" uid="uid://gmr1ju7bc3d6" path="res://data/items/longbow.tres" id="91_longbow"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("7_pe0nw")
@@ -33,6 +35,9 @@ portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("98_model")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack_ranged")])
+equipment = Dictionary[int, ExtResource("90_itemdef")]({
+14: ExtResource("91_longbow")
+})
 ai_archetype = ExtResource("99_arch")
 ai_behaviors = Array[ExtResource("6_aibehavior")]([])
 ai_smartness = 2

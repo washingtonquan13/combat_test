@@ -952,6 +952,7 @@ func _ready() -> void:
 	# UnitEquipment) is a loadout change too — one connection here, not a
 	# second emit beside each of the three.
 	equipment_changed.connect(func(_unit: Unit) -> void: _queue_loadout_changed())
+	_apply_definition_equipment()
 
 	input_ray_pickable = true
 	_build_pick_area()
@@ -1302,6 +1303,23 @@ func notify_movement_idle_check() -> void:
 ## definition listing the same ones would hand her a second copy of each
 ## rather than replacing them. The scene wins while it still has an
 ## opinion; when those nodes go, the definition is all that is left.
+## Equips the items its definition lists, once UnitEquipment exists. Like
+## skills, not part of the definition cascade (that runs before _ready).
+## A slot already filled (a save, a scene) is left alone.
+func _apply_definition_equipment() -> void:
+	if definition == null:
+		return
+	for slot_key in definition.equipment:
+		var item_def: ItemDefinition = definition.equipment[slot_key]
+		if item_def != null and get_equipped_item(slot_key) == null:
+			equip_item(slot_key, ItemInstance.new(item_def))
+	# An archer with nothing for melee starts with its bow as the active set,
+	# so it is the bow that comes out when the fight starts.
+	if get_equipped_item(EquipSlot.Slot.MELEE_MAIN_HAND) == null \
+			and get_equipped_item(EquipSlot.Slot.RANGED_MAIN_HAND) != null:
+		set_active_weapon_set(AttackRow.Kind.RANGED, false)
+
+
 func _apply_definition_skills() -> void:
 	if definition == null or definition.skills.is_empty():
 		return

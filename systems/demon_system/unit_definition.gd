@@ -99,6 +99,11 @@ extends Resource
 ## attack beside any weapon the unit holds. Empty means it punches when
 ## it has no weapon.
 @export var natural_attacks: Array[AttackRow] = []
+## What this species carries, by slot (EquipSlot.Slot): each is equipped
+## as a fresh ItemInstance when the unit is ready, so a goblin spawns with
+## its sword in hand and its attacks come from the weapon's rows. Empty
+## means it fights with natural_attacks (or punches).
+@export var equipment: Dictionary[EquipSlot.Slot, ItemDefinition] = {}
 ## How this species takes injury (B379-380, B398-399): its hit locations
 ## and what each wound type does there. Unset is the human plan.
 @export var body_plan: BodyPlan
