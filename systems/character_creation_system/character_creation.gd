@@ -446,7 +446,7 @@ func _on_confirm_pressed() -> void:
 	# moment the game proper begins. Nothing here touches GameMode: once a
 	# world is focused, the mode reads that world's own get_base_mode().
 	# Not close(): travel_area() closes this screen behind the fade.
-	WorldManager.travel_area(&"test_arena")
+	WorldManager.travel_area(&"goblin_quarry")
 
 
 ## Debug: a valid build in every field, through the same step and
