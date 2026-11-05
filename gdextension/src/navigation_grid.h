@@ -89,6 +89,9 @@ struct TriShape {
 	// its edges borders no other walkable triangle, so the ground band
 	// under it runs on past that edge (where the slope meets a platform).
 	std::vector<uint8_t> open_edge;
+	// 3 per triangle, edge k running from vertex k to k + 1: 1 = the edge
+	// borders no other walkable triangle.
+	std::vector<uint8_t> outer_edge;
 	AABB aabb;
 	bool any_walkable = false;
 	// chunk column (cx * chunk_grid_size.z + cz) -> triangles whose

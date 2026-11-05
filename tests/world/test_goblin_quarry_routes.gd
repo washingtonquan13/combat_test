@@ -46,6 +46,21 @@ func run() -> void:
 	check("the shaman's ledge does not route on foot (Jump only)",
 		not _arrives(_route(walker, CAMP, LEDGE), LEDGE))
 
+	# Walked, not just routed: from the pit floor beside the ramp, a path
+	# that steps onto the ramp's side face strands the walker at its foot.
+	var rim := Vector3(12.0, 0.05, -30.0)
+	walker.global_position = Vector3(6.0, -5.95, -40.0)
+	walker.velocity = Vector3.ZERO
+	for i in 15:
+		await get_tree().physics_frame
+	walker.move_to(rim)
+	for i in 1500:
+		await get_tree().physics_frame
+		if not walker.is_moving():
+			break
+	check("a unit on the pit floor walks up the ramp, not into its side",
+		walker.global_position.distance_to(rim) < 1.0, "ended %s" % walker.global_position)
+
 
 func _route(walker: Unit, from: Vector3, to: Vector3) -> PackedVector3Array:
 	return NavigationGrid.find_path(get_tree(), from, to, walker, false)

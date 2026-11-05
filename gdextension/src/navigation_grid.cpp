@@ -745,11 +745,13 @@ bool NavigationGrid::build_tri_shape(CollisionShape3D *cs, TriShape &out) {
 		}
 	}
 	out.open_edge.assign(count, 0);
+	out.outer_edge.assign(count * 3, 0);
 	for (size_t i = 0; i < count; i++) {
 		if (walkable[i]) {
 			for (int k = 0; k < 3; k++) {
 				if (walkable_uses[edges[i * 3 + k]] < 2) {
 					out.open_edge[i] = 1;
+					out.outer_edge[i * 3 + k] = 1;
 				}
 			}
 		}
@@ -917,7 +919,10 @@ void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &ch
 // is not a wall to it. Where the triangle borders no other walkable one
 // (open_edge), the band runs on along the slope past it, under the face's
 // plane, onto whatever the slope meets there: the platform it climbs to.
-// Across the slope it stops at the triangle's own sides.
+// Across the slope it stops short of the triangle's own sides: an outer
+// side running with the slope is the top of the ramp's side face, so the
+// cell just inside it stays a wall and a unit on the floor beside the face
+// keeps clear of it instead of stepping up onto it from the side.
 void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i &chunk_coord, NavChunk &chunk) {
 	const Vector3 &a = tri.verts[id * 3], &b = tri.verts[id * 3 + 1], &c = tri.verts[id * 3 + 2];
 	const Vector3 &n = tri.normals[id];
@@ -934,8 +939,25 @@ void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i
 	uz /= ulen;
 	// Counter-clockwise in x/z, so inside is the left of every edge.
 	Vector3 v[3] = { a, b, c };
+	// edge_of[k]: which of the triangle's own edges v[k] -> v[k + 1] is.
+	int edge_of[3] = { 0, 1, 2 };
 	if (cross2(b.x - a.x, b.z - a.z, c.x - a.x, c.z - a.z) < 0.0f) {
 		std::swap(v[1], v[2]);
+		edge_of[0] = 2;
+		edge_of[2] = 0;
+	}
+	// How far inside each edge the band stops: a cell for an outer edge
+	// within 45 degrees of the slope's direction (a side), else nothing.
+	float inset[3] = { 0.0f, 0.0f, 0.0f };
+	if (ulen > 1e-4f) {
+		for (int k = 0; k < 3; k++) {
+			const Vector3 &p0 = v[k], &p1 = v[(k + 1) % 3];
+			float ex = p1.x - p0.x, ez = p1.z - p0.z;
+			float elen = std::sqrt(ex * ex + ez * ez);
+			if (tri.outer_edge[id * 3 + edge_of[k]] && elen > 1e-6f && std::abs(cross2(ex, ez, ux, uz)) < 0.7071f * elen) {
+				inset[k] = CELL_SIZE * elen;
+			}
+		}
 	}
 
 	float x0 = std::min({ a.x, b.x, c.x }) - sweep * std::abs(ux), x1 = std::max({ a.x, b.x, c.x }) + sweep * std::abs(ux);
@@ -954,24 +976,40 @@ void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i
 	for (int x = lo.x; x <= hi.x; x++) {
 		for (int z = lo.z; z <= hi.z; z++) {
 			Vector3 p = cell_center(Vector3i(x, 0, z));
-			// The stretch of s for which (p + s * u) lies in the triangle.
-			float s_lo = -sweep, s_hi = sweep;
+			// The stretch of s for which (p + s * u) lies in the triangle,
+			// and the edges it enters and leaves by.
+			float s_lo = -1e30f, s_hi = 1e30f;
+			int lo_edge = -1, hi_edge = -1;
 			for (int k = 0; k < 3 && s_lo <= s_hi; k++) {
 				const Vector3 &p0 = v[k], &p1 = v[(k + 1) % 3];
 				float ex = p1.x - p0.x, ez = p1.z - p0.z;
-				float f0 = cross2(ex, ez, p.x - p0.x, p.z - p0.z);
+				float f0 = cross2(ex, ez, p.x - p0.x, p.z - p0.z) - inset[k];
 				float f1 = cross2(ex, ez, ux, uz);
 				if (std::abs(f1) < 1e-9f) {
 					if (f0 < -1e-6f) {
 						s_hi = s_lo - 1.0f;
 					}
 				} else if (f1 > 0.0f) {
-					s_lo = std::max(s_lo, -f0 / f1);
-				} else {
-					s_hi = std::min(s_hi, -f0 / f1);
+					if (-f0 / f1 > s_lo) {
+						s_lo = -f0 / f1;
+						lo_edge = k;
+					}
+				} else if (-f0 / f1 < s_hi) {
+					s_hi = -f0 / f1;
+					hi_edge = k;
 				}
 			}
 			if (s_lo > s_hi + 1e-6f) {
+				continue;
+			}
+			// Off the triangle, the band runs on only past an outer edge
+			// across the slope (a toe or a top, not a side), and only
+			// within reach of it: never through a neighbouring triangle.
+			auto crossable = [&](int k) { return k >= 0 && tri.outer_edge[id * 3 + edge_of[k]] && inset[k] == 0.0f; };
+			if (s_lo > 1e-6f && !(s_lo <= sweep && crossable(lo_edge))) {
+				continue;
+			}
+			if (s_hi < -1e-6f && !(-s_hi <= sweep && crossable(hi_edge))) {
 				continue;
 			}
 			float h = plane_height(a, n, p.x, p.z);
@@ -1200,8 +1238,10 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 					Vector3 local = ramp.inverse.xform(cell_center(base + Vector3i(x, y, z)));
 					bool within = true;
 					for (int k = 0; k < 3 && within; k++) {
+						// Short of the box's sides by a cell (see mark_tri_ground).
 						if (k != ramp.up_axis) {
-							within = std::abs(local[k]) <= ramp.half_size[k] + ramp.extend[k];
+							float side = ramp.extend[k] > 0.0f ? ramp.extend[k] : -CELL_SIZE / ramp.axis_scale[k];
+							within = std::abs(local[k]) <= ramp.half_size[k] + side;
 						}
 					}
 					if (!within) {
