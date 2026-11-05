@@ -44,25 +44,10 @@ extends AreaIndicator
 ## The hovered point comes from the Aim ClickRouter hands draw().
 
 var _height_scale: float = 1.0
-## The blast centre's height over the floor when it is aimed into the air
-## (the cursor on the height plane, or a Ctrl-lifted point): ring, drop
-## line, shadow and readout. Hidden on the ground.
-var _altitude: AltitudeMarker
 
 
 func serves() -> StringName:
 	return &"aerial_area"
-
-
-func _ready() -> void:
-	super()
-	_altitude = _create_altitude_marker()
-
-
-func _hide_all() -> void:
-	super()
-	if _altitude:
-		_altitude.hide_marker()
 
 
 func draw(aim: Aim) -> void:
@@ -83,7 +68,6 @@ func draw(aim: Aim) -> void:
 	_update_line(unit, ability, hover_point)
 	_update_ring(ability, hover_point)
 	_outline_caught(unit, ability, hover_point)
-	_altitude.show_at(hover_point, AltitudeMarker.floor_under(aim, hover_point), ring_color)
 
 
 ## A cloud squashed flat (Surface.height_scale) previews as squashed as

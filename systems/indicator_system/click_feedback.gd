@@ -22,7 +22,7 @@ extends Node3D
 ## the AIR (a flier's move on the height plane) would show no ring at
 ## all. Given the floor under such a point, the ring pulses on that floor
 ## and a shrinking PathTube ring marks the midair point itself, joined
-## for the moment of the pulse by the same look as AltitudeMarker.
+## to it by a drop line for the moment of the pulse.
 
 ## Played on a click that was taken. Null means the code-built tick below,
 ## so the game needs no audio asset for this; drop a real stream in here
@@ -52,8 +52,7 @@ const MARKER_HEIGHT: float = 0.8
 const REASON_SECONDS: float = 1.1
 const REASON_HEIGHT: float = 0.9
 const REASON_RISE: float = 0.35
-## Above this over its floor a clicked point is in the air (see
-## AltitudeMarker.MIN_HEIGHT).
+## Above this over its floor a clicked point is in the air.
 const MIDAIR_HEIGHT: float = 0.25
 const MIDAIR_RING_SEGMENTS: int = 28
 

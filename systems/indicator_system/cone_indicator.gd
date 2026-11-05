@@ -13,9 +13,6 @@ extends IndicatorBase
 @export var shell_color: Color = IndicatorPalette.AOE
 
 var _shell: AoeShell
-## Height over the floor of the aimed point when a Ctrl drag or the
-## height plane lifts it into the air.
-var _altitude: AltitudeMarker
 
 
 func serves() -> StringName:
@@ -28,7 +25,6 @@ func _ready() -> void:
 	add_child(_shell)
 	_owned_meshes.append(_shell)
 	_shell.set_tint(shell_color)
-	_altitude = _create_altitude_marker()
 
 
 func draw(aim: Aim) -> void:
@@ -41,4 +37,3 @@ func draw(aim: Aim) -> void:
 	var point: Vector3 = aim.point
 	_shell.show_cone(targeting.origin(unit), targeting.direction(unit, point), targeting.length, targeting.half_angle())
 	_outline_caught(unit, ability, point)
-	_altitude.show_at(point, AltitudeMarker.floor_under(aim, point), shell_color)
