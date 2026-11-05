@@ -1257,6 +1257,11 @@ func is_climbing() -> bool:
 	return _movement.is_climbing()
 
 
+## The ladder this unit is on right now, or null (see Ladder.climber).
+func climbing_ladder() -> Ladder:
+	return _movement.climbing_ladder()
+
+
 ## 1 climbing up, -1 down, 0 otherwise (see UnitMovement.climb_direction).
 func climb_direction() -> int:
 	return _movement.climb_direction()

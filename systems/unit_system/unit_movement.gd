@@ -79,6 +79,10 @@ var _climb_facing: Vector3 = Vector3.ZERO
 ## An order given while climbing: {destination, ignore}, run by
 ## _finish_move once the far end is reached. Empty when none.
 var _after_climb: Dictionary = {}
+## The ladder the route climbs, null when it has none. One climber at a
+## time (Ladder.climber): the walk holds short of the near end while
+## someone else is on it, and claims it on stepping onto the rungs.
+var _climb_ladder: Ladder = null
 ## The tolerance a climb point is reached within — tight, because the
 ## points are the corner of the landing, and arriving early cuts it.
 const CLIMB_ARRIVAL: float = 0.01
@@ -136,6 +140,10 @@ func is_climbing() -> bool:
 ## Which way the unit is going on the rungs right now: 1 up, -1 down, 0
 ## when it isn't climbing or is stepping on or off at either end (those
 ## legs of Ladder.climb_waypoints are level).
+func climbing_ladder() -> Ladder:
+	return _climb_ladder if is_climbing() else null
+
+
 func climb_direction() -> int:
 	if not is_climbing():
 		return 0
@@ -424,6 +432,7 @@ func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
 		"climb_last": climb_last,
 		"climb_speed": ladder.climb_speed,
 		"climb_facing": facing.normalized() if facing.length() > 0.01 else Vector3.ZERO,
+		"ladder": ladder,
 	}
 
 
@@ -450,6 +459,7 @@ func _begin_route(planned: Dictionary) -> bool:
 	_climb_last = planned.get("climb_last", -1)
 	_climb_speed = planned.get("climb_speed", _climb_speed)
 	_climb_facing = planned.get("climb_facing", Vector3.ZERO)
+	_climb_ladder = planned.get("ladder", null)
 	_stuck_timer = 0.0
 	_last_progress_position = _owner.global_position
 	_moving = true
@@ -494,6 +504,7 @@ func force_stop() -> void:
 	_path_index = 0
 	_climb_first = -1
 	_climb_last = -1
+	_climb_ladder = null
 	_after_climb = {}
 
 
@@ -535,7 +546,11 @@ func physics_process(delta: float) -> void:
 	# while still well off in altitude, and skip past the very step that
 	# was supposed to carry it the rest of the way up/down.
 	# A climb point is reached in 3D and almost exactly (CLIMB_ARRIVAL).
+	# Never onto a ladder someone else is on: the walk holds short.
+	var held: bool = _waiting_for_ladder()
 	while _path_index < _current_path.size():
+		if held and _path_index + 1 >= _climb_first:
+			break
 		var to_waypoint: Vector3 = _current_path[_path_index] - _owner.global_position
 		var climb_point: bool = _climb_first >= 0 and _path_index >= _climb_first and _path_index <= _climb_last
 		if not flying and not climb_point:
@@ -548,7 +563,12 @@ func physics_process(delta: float) -> void:
 		_finish_move()
 		return
 
+	if held:
+		_hold()
+		return
+
 	if is_climbing():
+		_climb_ladder.claim(_owner)
 		_climb_step(delta)
 		return
 
@@ -589,6 +609,26 @@ func physics_process(delta: float) -> void:
 		_owner.velocity.x = direction.x * _owner.move_speed
 		_owner.velocity.z = direction.z * _owner.move_speed
 	_owner.move_and_slide()
+
+
+## Whether this unit is walking to a ladder someone else is on and has
+## come within Ladder.WAIT_DISTANCE of its near end — where it waits.
+func _waiting_for_ladder() -> bool:
+	if _climb_ladder == null or _path_index >= _climb_first:
+		return false
+	var to_near: Vector3 = _current_path[_climb_first] - _owner.global_position
+	to_near.y = 0.0
+	return to_near.length() <= Ladder.WAIT_DISTANCE and _climb_ladder.is_busy_for(_owner)
+
+
+## One frame waiting for the ladder: standing, still under gravity, and
+## never counted as stuck — the wait ends when the ladder frees.
+func _hold() -> void:
+	_owner.velocity.x = 0.0
+	_owner.velocity.z = 0.0
+	_owner.move_and_slide()
+	_stuck_timer = 0.0
+	_last_progress_position = _owner.global_position
 
 
 ## One frame on the ladder: straight at the next climb point at
@@ -640,6 +680,7 @@ func _finish_move(announce: bool = true) -> void:
 	_planned_cost = 0.0
 	_climb_first = -1
 	_climb_last = -1
+	_climb_ladder = null
 
 	# An order given mid-climb runs now, from the far end; it replaces
 	# this move, so this one doesn't announce — unless it can't start.

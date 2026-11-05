@@ -56,8 +56,38 @@ extends Node3D
 ## clip's rate follows this, so any value keeps hands and feet in step.
 @export var climb_speed: float = 0.75
 
+## One climber at a time: the last unit to step onto the rungs. Never
+## released explicitly — a holder that has stepped off, died or been freed
+## simply stops counting (see climber()), so no exit path can leak a
+## claim and lock the ladder.
+var _climber_id: int = 0
+
+## How far short of the near end a unit waits while someone else is on
+## the ladder: off the foot, so the one climbing down lands clear of it.
+const WAIT_DISTANCE: float = 1.2
+
+
 func _ready() -> void:
 	add_to_group("ladders")
+
+
+## The unit on this ladder right now, or null.
+func climber() -> Unit:
+	var holder := instance_from_id(_climber_id) as Unit if _climber_id != 0 else null
+	if holder and holder.climbing_ladder() == self:
+		return holder
+	return null
+
+
+## Called by UnitMovement as `unit` steps onto the rungs.
+func claim(unit: Unit) -> void:
+	_climber_id = unit.get_instance_id()
+
+
+## Whether `unit` must wait for someone else to get off first.
+func is_busy_for(unit: Unit) -> bool:
+	var holder: Unit = climber()
+	return holder != null and holder != unit
 
 
 func base_position() -> Vector3:

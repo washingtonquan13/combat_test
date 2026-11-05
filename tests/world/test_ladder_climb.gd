@@ -98,6 +98,34 @@ func run() -> void:
 
 	if fight.is_running:
 		fight.finish(&"")
+
+	# Two going down together: one on the rungs at a time, the other
+	# waits off the foot, and both get down.
+	var second: Unit = spawn_brute(top.x, top.z)
+	# Behind the top, away from the drop: (top - base) points onto the landing.
+	var onto_landing: Vector3 = Vector3(top.x - base.x, 0.0, top.z - base.z).normalized()
+	second.global_position = top + onto_landing * 0.9
+	await get_tree().physics_frame
+	var pair: Array = [walker, second]
+	walker.move_to(base + Vector3(3.0, 0.0, 2.0), pair)
+	second.move_to(base + Vector3(3.0, 0.0, 3.5), pair)
+	var most_on_rungs: int = 0
+	var both_used: Dictionary = {}
+	guard = 0
+	while (walker.is_moving() or second.is_moving()) and guard < 3000:
+		await get_tree().physics_frame
+		guard += 1
+		var on: int = 0
+		for unit: Unit in pair:
+			if unit.climbing_ladder() == ladder:
+				on += 1
+				both_used[unit] = true
+		most_on_rungs = maxi(most_on_rungs, on)
+	check("SETUP: both took the ladder", both_used.size() == 2,
+		"used %s; walker %s, second %s" % [both_used.size(), walker.global_position, second.global_position])
+	check("one climber at a time", most_on_rungs == 1, "%d on the rungs at once" % most_on_rungs)
+	check("and both get down", walker.global_position.y < base.y + 0.5 and second.global_position.y < base.y + 0.5,
+		"walker %s, second %s" % [walker.global_position, second.global_position])
 	CombatAi.ai_factions = _saved_factions
 
 
