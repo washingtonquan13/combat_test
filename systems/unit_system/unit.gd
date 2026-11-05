@@ -669,10 +669,15 @@ func _bind_model() -> void:
 	outline_mesh = body.outline_mesh
 	highlight_mesh = body.highlight_mesh
 
-	radius = body.radius
+	# Worn at this unit's size: the body scaled whole, and the extent the
+	# grid and the range checks read with it. avoidance_margin is a gap
+	# between bodies, not part of one, so it stays as authored.
+	var size: float = SizeModifier.scale_for(floori(get_stat(StatIds.SM)), body.authored_size_modifier)
+	body.scale = Vector3.ONE * size
+	radius = body.radius * size
 	avoidance_margin = body.avoidance_margin
-	height = body.height
-	_wear_shape(body.collision_shape)
+	height = body.height * size
+	_wear_shape(body.collision_shape, size)
 	wear_render_layer(body)
 
 	var animator: Node = get_node_or_null("UnitAnimator")
@@ -757,14 +762,31 @@ static func wear_render_layer(node: Node) -> void:
 		(visual as VisualInstance3D).layers = 1 << (RENDER_LAYER - 1)
 
 
-func _wear_shape(template: CollisionShape3D) -> void:
+func _wear_shape(template: CollisionShape3D, size: float = 1.0) -> void:
 	if template == null:
 		return
 	var own := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if own == null:
 		return
-	own.shape = template.shape
+	own.shape = template.shape if is_equal_approx(size, 1.0) else _scaled_shape(template.shape, size)
 	own.transform = template.transform
+	own.position *= size
+
+
+## A copy of shape size times bigger. Scaled by its own measures, not the
+## node's scale, which physics does not reliably honour on a shape.
+static func _scaled_shape(shape: Shape3D, size: float) -> Shape3D:
+	var scaled: Shape3D = shape.duplicate()
+	if scaled is CapsuleShape3D or scaled is CylinderShape3D:
+		scaled.radius *= size
+		scaled.height *= size
+	elif scaled is SphereShape3D:
+		scaled.radius *= size
+	elif scaled is BoxShape3D:
+		scaled.size *= size
+	else:
+		push_warning("Unit: no way to scale a %s; worn at its authored size." % shape.get_class())
+	return scaled
 
 
 func _ready() -> void:
@@ -837,6 +859,12 @@ func _ready() -> void:
 	pick_area.mouse_exited.connect(_on_mouse_exited)
 
 
+## The smallest a unit's PickArea gets, so a tiny creature can still be
+## hovered and clicked.
+const MIN_PICK_RADIUS: float = 0.3
+const MIN_PICK_HEIGHT: float = 1.0
+
+
 ## The unit's click and hover target: an Area3D on PICK_LAYER that neither
 ## monitors nor is monitored, so it never touches movement or overlap
 ## queries. Built in code, not unit.tscn, so every unit gets the same one.
@@ -852,11 +880,13 @@ func _build_pick_area() -> void:
 	pick_area.collision_mask = 0
 	pick_area.input_ray_pickable = true
 	var cylinder := CylinderShape3D.new()
-	cylinder.radius = 0.5
-	cylinder.height = 2.0
+	# Twice the body's radius, as the ring is, but never too small to point
+	# at: a pixie is a quarter of a man.
+	cylinder.radius = maxf(radius * 2.0, MIN_PICK_RADIUS)
+	cylinder.height = maxf(height, MIN_PICK_HEIGHT)
 	var shape := CollisionShape3D.new()
 	shape.shape = cylinder
-	shape.position = Vector3(0.0, 1.0, 0.0)
+	shape.position = Vector3(0.0, cylinder.height * 0.5, 0.0)
 	pick_area.add_child(shape)
 	add_child(pick_area)
 

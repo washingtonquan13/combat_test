@@ -99,6 +99,11 @@ extends Node3D
 @export var radius: float = 0.25
 @export var avoidance_margin: float = 0.25
 @export var height: float = 2.0
+## The Size Modifier this body was built at (see SizeModifier). A unit of
+## another SM wears it scaled by the difference, extent and all: a man-sized
+## body on a dragon (SM +2) is worn two and a half times over, while a body
+## modelled at a dragon's true size says 2 here and is worn as it is.
+@export var authored_size_modifier: int = 0
 
 ## The body's PHYSICAL shape, authored here and copied onto the Unit's own
 ## direct-child CollisionShape3D at spawn.
@@ -252,7 +257,8 @@ func anchor_position(kind: Anchor) -> Vector3:
 	var declared: Node3D = _declared(kind)
 	if is_instance_valid(declared):
 		return declared.global_position
-	return global_position + Vector3(0.0, height * _fallback_ratio(kind), 0.0)
+	# height is as authored; the body may be worn scaled (Unit._wear_size).
+	return global_position + Vector3(0.0, height * global_basis.get_scale().y * _fallback_ratio(kind), 0.0)
 
 
 func _declared(kind: Anchor) -> Node3D:
