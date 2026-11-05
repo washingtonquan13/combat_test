@@ -20,7 +20,7 @@ extends Node3D
 ## NavigationGrid's own search: find_route() below is called externally,
 ## by UnitMovement, BEFORE any pathfinding runs, and the actual journey is
 ## stitched together from two ordinary NavigationGrid.find_path() calls
-## plus a direct Tween for the climb itself — deliberately, to avoid the
+## with the climb between them, all one route UnitMovement walks — deliberately, to avoid the
 ## C++ engine changes real graph integration would require for a feature
 ## this narrow in scope.
 ##
@@ -43,17 +43,15 @@ extends Node3D
 
 ## Flat move-budget cost of using this ladder, checked as a hard
 ## precondition (not a clamp) before a climb ever starts — see
-## find_route()/UnitMovement._begin_ladder_journey. Defaults to 0: most
-## ladders should be free once reached, matching how Solasta treats
-## "easy surfaces like ladders or ropes... without any trouble" as the
-## baseline case. Set higher only for the rare ladder that should feel
+## find_route()/UnitMovement.move_to. Defaults to 0: a ladder is free
+## once reached, BG3's rule — only the walk to the near end is paid. Set higher only for the rare ladder that should feel
 ## like a real commitment.
 @export var required_move: float = 0.0
 
-## Duration of the climb's Tween — same role as MoveCasterEffect's
-## jump_duration. First-guess default, untuned by eye like every other
-## timing value in this project until it's actually been watched.
-@export var climb_duration: float = 0.6
+## Climbing speed in m/s, along UnitMovement's route (the climb is part
+## of the move, see _ladder_route there). A real climber manages ~0.5;
+## 1.5 keeps a 6 m ladder to 4 s without the old fixed 0.6 s zip.
+@export var climb_speed: float = 1.5
 
 ## How close a move_to() destination needs to be to base_position()/
 ## top_position() to be interpreted as "use this ladder" — see
@@ -188,7 +186,7 @@ static func find_route(unit: Unit, destination: Vector3, ignore: Array = []) -> 
 ## The actual climb route, ALWAYS expressed base-to-top regardless of
 ## which direction a unit is actually traveling — the caller reverses the
 ## result for a top-to-base descent (see going_up below; find_route and
-## UnitMovement._climb_ladder both already know the real direction, so
+## UnitMovement._ladder_route both already know the real direction, so
 ## reversing there is trivial). Goes straight up first, staying at
 ## BASE's own XZ the entire way (guaranteed clear the whole way up,
 ## since that's exactly where a unit walks up to on ordinary ground
@@ -210,8 +208,8 @@ static func find_route(unit: Unit, destination: Vector3, ignore: Array = []) -> 
 ## letting the caller reverse it, rather than recomputing the shape
 ## itself per direction.
 ##
-## Shared by find_route's safety check and UnitMovement._climb_ladder's
-## actual animation, so what's validated and what's played can never
+## Shared by find_route's safety check and UnitMovement._ladder_route's
+## actual climb, so what's validated and what's played can never
 ## disagree.
 ##
 ## Returns 2-3 points, base-to-top order (degenerate cases collapse — a

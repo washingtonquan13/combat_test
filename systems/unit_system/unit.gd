@@ -1252,6 +1252,11 @@ func is_moving() -> bool:
 	return _movement.is_moving()
 
 
+## On a ladder right now — part of a move, so is_moving() too.
+func is_climbing() -> bool:
+	return _movement.is_climbing()
+
+
 ## The route this unit is walking right now, start to destination as it
 ## was planned, in preview_route()'s shape; empty while not walking.
 func current_route() -> Dictionary:
