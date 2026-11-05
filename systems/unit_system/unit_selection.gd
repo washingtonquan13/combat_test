@@ -149,6 +149,9 @@ var _turn_ring: Decal
 var _drop_line: PathTube
 var _drop_color: Color = IndicatorPalette.ACTIVE_TURN
 var _ring_radius: float = DEFAULT_RING_RADIUS
+## The unit's worn size (Unit.worn_size) when _ring_radius was measured:
+## fit_ring scales from there.
+var _ring_measured_at: float = 1.0
 ## Where the last ground ray started. The ray only re-casts when this
 ## moves, so a standing unit with its ring up costs nothing per frame.
 var _last_cast_from: Vector3 = Vector3.INF
@@ -264,6 +267,7 @@ func _build_ring(anchor: MeshInstance3D) -> void:
 		var footprint: float = maxf(extent.x, extent.z) * 0.5
 		if footprint > 0.05:
 			_ring_radius = footprint
+	_ring_measured_at = _owner.worn_size
 	# The disc itself is what z-fought with the floor. The node stays, as
 	# the switch and the parent; only its drawing goes.
 	anchor.mesh = null
@@ -284,6 +288,18 @@ func _build_ring(anchor: MeshInstance3D) -> void:
 	# alone rather than smearing over its lower end.
 	_drop_line.layers = 1 << (Unit.RENDER_LAYER - 1)
 	anchor.add_child(_drop_line)
+
+
+## Sizes both rings for a unit now worn at `size` (Unit.worn_size) - one
+## that grows or shrinks mid-fight. The decals are top_level, so the
+## body's own scale never reaches them.
+func fit_ring(size: float) -> void:
+	var r: float = _ring_radius * size / _ring_measured_at
+	if _ring:
+		_ring.size = Vector3(r * 2.0, DECAL_HEIGHT, r * 2.0)
+	if _turn_ring:
+		var t: float = r * TURN_RING_SCALE
+		_turn_ring.size = Vector3(t * 2.0, DECAL_HEIGHT, t * 2.0)
 
 
 func _make_ring_decal(decal_name: String, ring_radius: float) -> Decal:

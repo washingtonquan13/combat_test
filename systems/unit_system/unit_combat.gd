@@ -437,6 +437,8 @@ func resolve_click_ability(acting_unit: Unit) -> Ability:
 	var ability: Ability = AbilityManager.armed_ability if AbilityManager.armed_ability else acting_unit.default_ability()
 	if not ability:
 		return null
+	if ability.targeting and ability.targeting.any_unit:
+		return ability
 	var wants_ally: bool = ability.targeting and ability.targeting.requires_ally_target()
 	if wants_ally:
 		return ability if not acting_unit.is_hostile_to(_owner) else null
@@ -534,7 +536,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 	# at an ally is NOT rejected — that targeting is hostility-agnostic
 	# by design already (see AbilityTargeting.requires_ally's own doc
 	# comment; friendly-fire-capable AoE already relies on this).
-	if ability.targeting and ability.targeting.requires_ally_target() and target is Unit and _owner.is_hostile_to(target):
+	if ability.targeting and ability.targeting.requires_ally_target() and not ability.targeting.any_unit 			and target is Unit and _owner.is_hostile_to(target):
 		result["invalid_target"] = true
 		return result
 

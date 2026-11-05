@@ -82,6 +82,11 @@ func has_any_valid_target(_attacker: Unit) -> bool:
 ## targeting (GroundPointTargeting, AreaTargeting) since those don't
 ## target a Unit at all — left false and unused there.
 @export var requires_ally: bool = false
+## Whether a click on ANY unit casts this ability at them - the caster
+## itself, an ally, an enemy - rather than selecting a friendly one.
+## Enlarge and Reduce Person: a buff on a friend, a curse on a foe. Beats
+## requires_ally when both are set. Same Unit-target-only scope.
+@export var any_unit: bool = false
 
 
 func requires_ally_target() -> bool:

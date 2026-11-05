@@ -669,15 +669,11 @@ func _bind_model() -> void:
 	outline_mesh = body.outline_mesh
 	highlight_mesh = body.highlight_mesh
 
-	# Worn at this unit's size: the body scaled whole, and the extent the
-	# grid and the range checks read with it. avoidance_margin is a gap
-	# between bodies, not part of one, so it stays as authored.
-	var size: float = SizeModifier.scale_for(floori(get_stat(StatIds.SM)), body.authored_size_modifier)
-	body.scale = Vector3.ONE * size
-	radius = body.radius * size
+	# avoidance_margin is a gap between bodies, not part of one, so it
+	# stays as authored whatever size the body is worn at.
 	avoidance_margin = body.avoidance_margin
-	height = body.height * size
-	_wear_shape(body.collision_shape, size)
+	_wear_size(false)
+	_fit_size_strength()
 	wear_render_layer(body)
 
 	var animator: Node = get_node_or_null("UnitAnimator")
@@ -685,17 +681,6 @@ func _bind_model() -> void:
 		animator.adopt_model(body)
 
 
-## Copies the body's authored shape onto the Unit's own direct-child
-## CollisionShape3D, which is the only place Godot will honour it.
-##
-## Shipped together with the extent numbers above on purpose: a unit that
-## PLANS as a dragon and COLLIDES as a demon is worse than one that does
-## neither, because the planner routes around a body the physics does not
-## have and nothing in the game reports the disagreement.
-##
-## The Shape3D itself is shared rather than duplicated. Nothing mutates a
-## shape at runtime, and every unit wearing one body should be the same
-## size — if that ever stops being true, this is the line to change.
 ## A named point on this unit's body, in world space — see
 ## CharacterModel.Anchor.
 ##
@@ -762,6 +747,88 @@ static func wear_render_layer(node: Node) -> void:
 		(visual as VisualInstance3D).layers = 1 << (RENDER_LAYER - 1)
 
 
+## Seconds a body takes to grow or shrink to a new SM.
+const SIZE_CHANGE_SECONDS: float = 0.8
+
+## The scale the body is shown at now: its SM's size, or on the way there.
+var worn_size: float = 1.0
+var _size_tween: Tween
+## Size's share of ST (stats.md): a body grown or shrunk from its own SM
+## is that much stronger or weaker. Registered only while nonzero.
+var _size_strength: StatModifierBehavior
+
+
+## Wears this unit's SM: the body scaled whole (grown or shrunk to it over
+## SIZE_CHANGE_SECONDS when animate, at once otherwise), and the extent
+## the grid, the range checks, the collision and the pick area read with
+## it - those at once, so nothing plans with a size the unit is leaving.
+func _wear_size(animate: bool) -> void:
+	var body := get_node_or_null("CharacterModel") as CharacterModel
+	if body == null:
+		return
+	var size: float = SizeModifier.scale_for(floori(get_stat(StatIds.SM)), body.authored_size_modifier)
+	radius = body.radius * size
+	height = body.height * size
+	_wear_shape(body.collision_shape, size)
+	_fit_pick_area()
+	if _size_tween:
+		_size_tween.kill()
+	if not animate or not is_inside_tree():
+		_show_size(size, body)
+		return
+	_size_tween = create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	_size_tween.tween_method(_show_size.bind(body), worn_size, size, SIZE_CHANGE_SECONDS)
+
+
+func _show_size(size: float, body: CharacterModel) -> void:
+	if not is_instance_valid(body):
+		return
+	worn_size = size
+	body.scale = Vector3.ONE * size
+	if _selection:
+		_selection.fit_ring(size)
+
+
+## Sets Size's share of ST: ST before it, times how much longer this unit
+## is at its SM than at its own base SM. Relative to the base, so a
+## creature authored big (a dragon's ST 18 at SM +2) keeps its ST; only a
+## change from it - Enlarge, Reduce - moves it. HP follows ST, and a pool
+## over its new maximum is brought down to it.
+func _fit_size_strength() -> void:
+	var stats := _unit_stats()
+	var ratio: float = SizeModifier.scale_for(floori(get_stat(StatIds.SM)), stats.get_base(StatIds.SM))
+	var current: int = _size_strength.amount if _size_strength else 0
+	var before_size: float = stats.get_unhalved(StatIds.ST) - current
+	var amount: int = roundi(before_size * (ratio - 1.0))
+	if amount == current:
+		return
+	if _size_strength:
+		stats.remove_modifier(_size_strength, "Size")
+	else:
+		_size_strength = StatModifierBehavior.new()
+		_size_strength.stat_name = StatIds.ST
+	_size_strength.amount = amount
+	if amount != 0:
+		stats.add_modifier(_size_strength, "Size")
+	stats.set_current(StatIds.HP, stats.get_current(StatIds.HP))
+
+
+func _on_own_stat_changed(_unit: Unit, id: StringName) -> void:
+	if id == StatIds.SM:
+		_wear_size(true)
+	if id == StatIds.SM or id == StatIds.ST:
+		_fit_size_strength()
+
+
+## Copies the body's authored shape onto the Unit's own direct-child
+## CollisionShape3D, which is the only place Godot will honour it, at
+## `size` times its authored size (a scaled copy; the authored shape is
+## shared and never mutated).
+##
+## Shipped together with the extent numbers in _wear_size on purpose: a
+## unit that PLANS as a dragon and COLLIDES as a demon is worse than one
+## that does neither, because the planner routes around a body the
+## physics does not have and nothing in the game reports the disagreement.
 func _wear_shape(template: CollisionShape3D, size: float = 1.0) -> void:
 	if template == null:
 		return
@@ -852,6 +919,7 @@ func _ready() -> void:
 	# picking at all. A unit deciding what a click on it means was one of
 	# the eight places player intent used to live.
 	add_to_group("units")
+	stat_changed.connect(_on_own_stat_changed)
 
 	input_ray_pickable = true
 	_build_pick_area()
@@ -879,16 +947,25 @@ func _build_pick_area() -> void:
 	pick_area.collision_layer = PICK_LAYER
 	pick_area.collision_mask = 0
 	pick_area.input_ray_pickable = true
-	var cylinder := CylinderShape3D.new()
-	# Twice the body's radius, as the ring is, but never too small to point
-	# at: a pixie is a quarter of a man.
-	cylinder.radius = maxf(radius * 2.0, MIN_PICK_RADIUS)
-	cylinder.height = maxf(height, MIN_PICK_HEIGHT)
 	var shape := CollisionShape3D.new()
-	shape.shape = cylinder
-	shape.position = Vector3(0.0, cylinder.height * 0.5, 0.0)
+	shape.name = "Shape"
+	shape.shape = CylinderShape3D.new()
 	pick_area.add_child(shape)
 	add_child(pick_area)
+	_fit_pick_area()
+
+
+## Sizes the PickArea's cylinder to the unit's radius and height: twice
+## the radius, as the ring is, but never too small to point at - a pixie
+## is a quarter of a man.
+func _fit_pick_area() -> void:
+	if pick_area == null:
+		return
+	var shape := pick_area.get_node("Shape") as CollisionShape3D
+	var cylinder := shape.shape as CylinderShape3D
+	cylinder.radius = maxf(radius * 2.0, MIN_PICK_RADIUS)
+	cylinder.height = maxf(height, MIN_PICK_HEIGHT)
+	shape.position = Vector3(0.0, cylinder.height * 0.5, 0.0)
 
 
 ## The Unit a PickArea belongs to, or null for anything else a ray hit.

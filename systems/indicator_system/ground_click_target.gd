@@ -626,9 +626,18 @@ static func move_order_units() -> Array[Unit]:
 ## select it instead - click_unit's rule, and _answer's preview of it.
 func _click_ability_on(clicked: Unit) -> Ability:
 	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
-	if acting_unit and acting_unit != clicked and acting_unit in SelectionManager.selected_units:
-		return clicked.click_ability_for(acting_unit)
-	return null
+	if acting_unit == null or acting_unit not in SelectionManager.selected_units:
+		return null
+	# A click on yourself selects yourself - unless the armed ability can
+	# be cast on anyone, self included (AbilityTargeting.any_unit).
+	if acting_unit == clicked and not _armed_for_anyone():
+		return null
+	return clicked.click_ability_for(acting_unit)
+
+
+func _armed_for_anyone() -> bool:
+	var armed: Ability = AbilityManager.armed_ability
+	return armed != null and armed.targeting != null and armed.targeting.any_unit
 
 
 ## THE answer to "what would a left click do now" for current and at -
