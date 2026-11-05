@@ -1252,6 +1252,12 @@ func is_moving() -> bool:
 	return _movement.is_moving()
 
 
+## The route this unit is walking right now, start to destination as it
+## was planned, in preview_route()'s shape; empty while not walking.
+func current_route() -> Dictionary:
+	return _movement.current_route()
+
+
 ## Whether this unit has anything currently in flight — movement, or any
 ## async ability effect that's bracketed itself with begin_busy(). This
 ## is what CombatManager checks before ending a turn, and what move_to/

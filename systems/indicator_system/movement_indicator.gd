@@ -24,6 +24,15 @@ extends IndicatorBase
 ##   (0.2 on, 0.2 off) or heavily (0.05 on, 0.15 off);
 ## - a slow pulse, and 10% visibility through walls.
 ## The distance readout floats over the route's end.
+##
+## When it draws (BG3's rules):
+## - in combat, before the click: the hover preview, route + readout;
+## - in combat, once the unit is walking: the route it committed to,
+##   whole, and nothing else (no readout, the cursor ignored) until it
+##   arrives; then the hover preview returns;
+## - out of combat: nothing (the click marker, ClickFeedback, is the
+##   feedback), unless select_additive (Shift) is held, which shows the
+##   hover preview to plan around a hazard.
 
 ## BG3 AiPathSettings RegularColor / ColorPastLimit.
 @export var path_in_range_color: Color = Color(1.0, 1.0, 1.0, 1.0)
@@ -123,11 +132,23 @@ func is_showing_anything() -> bool:
 
 ## Draws the route the caster would take to aim.point, planned in full
 ## so the part beyond Unit.move_budget() (move_remaining in combat, INF
-## out of it) can be drawn past-limit. Nothing to draw without a caster
-## or a ground point, nor over a unit or interactable: clicking those
-## doesn't move, so the path must not point at them.
+## out of it) can be drawn past-limit; or, while it walks in combat, the
+## route it is walking (see the header for when). The preview has
+## nothing to draw without a ground point, nor over a unit or
+## interactable: clicking those doesn't move, so the path must not point
+## at them.
 func draw(aim: Aim) -> void:
-	if aim.caster == null or aim.point == null:
+	if aim.caster == null:
+		_hide_all()
+		return
+	var in_combat: bool = aim.caster.in_combat()
+	if in_combat and aim.caster.is_moving():
+		_show_route(aim.caster, aim.caster.current_route(), false)
+		return
+	if not in_combat and not Input.is_action_pressed(&"select_additive"):
+		_hide_all()
+		return
+	if aim.point == null:
 		_hide_all()
 		return
 	if aim.cursor and (aim.cursor.unit or aim.cursor.interactable):
@@ -136,23 +157,29 @@ func draw(aim: Aim) -> void:
 
 	# The same ignore list the move order will route with, so a group's
 	# preview doesn't detour around members about to walk off with it.
-	var planned: Dictionary = aim.caster.preview_route(aim.point, FormationPlanner.move_ignore(ClickRouter.move_order_units()))
-	var path: PackedVector3Array = planned.path
-	if path.size() < 2:
+	_show_route(aim.caster, aim.caster.preview_route(aim.point, FormationPlanner.move_ignore(ClickRouter.move_order_units())), true)
+
+
+## Draws planned (preview_route()'s shape) for caster, with the cost
+## readout or without it.
+func _show_route(caster: Unit, planned: Dictionary, with_readout: bool) -> void:
+	var path: PackedVector3Array = planned.get("path", PackedVector3Array())
+	var cost: PackedFloat32Array = planned.get("cumulative_cost", PackedFloat32Array())
+	if path.size() < 2 or cost.size() != path.size():
 		_hide_all()
 		return
 
-	var cost: PackedFloat32Array = planned.cumulative_cost
 	var total_cost: float = cost[cost.size() - 1]
-	var budget: float = aim.caster.move_budget()
-	_update_readout(path[path.size() - 1], total_cost, budget)
+	var budget: float = caster.move_budget()
 	if path != _built_path or total_cost != _built_cost or budget != _built_budget:
-		_build(path, cost, budget, WorldManager.context_for(aim.caster))
+		_build(path, cost, budget, WorldManager.context_for(caster))
 		_built_path = path
 		_built_cost = total_cost
 		_built_budget = budget
 	_tube.visible = true
-	_readout.visible = true
+	if with_readout:
+		_update_readout(path[path.size() - 1], total_cost, budget)
+	_readout.visible = with_readout
 
 
 func _hide_all() -> void:

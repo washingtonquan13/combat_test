@@ -85,6 +85,9 @@ var _ladder_final_destination: Vector3 = Vector3.ZERO
 ## RoutePlanner.plan) — nothing about avoidance is decided live while
 ## walking; physics_process just follows these fixed points.
 var _current_path: PackedVector3Array = PackedVector3Array()
+## RoutePlanner's cumulative cost along _current_path, kept for
+## current_route() (the committed line movement_indicator.gd draws).
+var _current_cost: PackedFloat32Array = PackedFloat32Array()
 var _path_index: int = 0
 ## The planned path's exact total BUDGET COST — not necessarily its
 ## physical length; the two only diverge while crossing difficult
@@ -119,6 +122,14 @@ func _init(owner: Unit) -> void:
 
 func is_moving() -> bool:
 	return _moving
+
+
+## The route being walked, whole (start to destination, as planned at
+## the order), in preview_route()'s shape; empty while not walking.
+func current_route() -> Dictionary:
+	if not _moving or _current_path.size() < 2:
+		return {}
+	return {"path": _current_path, "cumulative_cost": _current_cost}
 
 
 ## Orders this unit toward destination — see this file's header for the
@@ -349,6 +360,7 @@ func _start_walk(raw_destination: Vector3, budget: float) -> bool:
 		return false
 
 	_current_path = planned_path
+	_current_cost = planned.cumulative_cost
 	_path_index = 1
 	_planned_cost = planned.cumulative_cost[-1] if planned.cumulative_cost.size() > 0 else 0.0
 	_move_start_position = _owner.global_position
@@ -503,6 +515,7 @@ func force_stop() -> void:
 	_moving = false
 	_owner.velocity = Vector3.ZERO
 	_current_path = PackedVector3Array()
+	_current_cost = PackedFloat32Array()
 	_path_index = 0
 	_ladder_stage = 0
 	_ladder = null
@@ -626,6 +639,7 @@ func _finish_move(announce: bool = true) -> void:
 		_owner.spend_move(spent)
 
 	_current_path = PackedVector3Array()
+	_current_cost = PackedFloat32Array()
 	_path_index = 0
 	_planned_cost = 0.0
 
