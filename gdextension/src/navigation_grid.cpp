@@ -1,6 +1,12 @@
 #include "navigation_grid.h"
 
 #include <godot_cpp/classes/array_mesh.hpp>
+#include <godot_cpp/classes/capsule_shape3d.hpp>
+#include <godot_cpp/classes/concave_polygon_shape3d.hpp>
+#include <godot_cpp/classes/convex_polygon_shape3d.hpp>
+#include <godot_cpp/classes/cylinder_shape3d.hpp>
+#include <godot_cpp/classes/height_map_shape3d.hpp>
+#include <godot_cpp/classes/sphere_shape3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
 #include <algorithm>
@@ -95,6 +101,7 @@ void NavigationGrid::unregister_world(Node *root) {
 		// the dangling-pointer crash invalidate() existed to paper over.
 		all_shapes.clear();
 		shapes_by_chunk.clear();
+		tri_shapes.clear();
 		chunks.clear();
 		chunk_occupancy_nearby.clear();
 		reset_occupancy();
@@ -171,6 +178,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		std::swap(out.smooth_valid_result, smooth_valid_result);
 		std::swap(out.all_shapes, all_shapes);
 		std::swap(out.shapes_by_chunk, shapes_by_chunk);
+		std::swap(out.tri_shapes, tri_shapes);
 		std::swap(out.chunk_occupancy_nearby, chunk_occupancy_nearby);
 	} else {
 		// Leaving the legacy grid behind for good — clear rather than
@@ -178,6 +186,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		chunks.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
+		tri_shapes.clear();
 		chunk_occupancy_nearby.clear();
 		reset_occupancy();
 	}
@@ -205,6 +214,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		smooth_valid_result.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
+		tri_shapes.clear();
 		chunk_occupancy_nearby.clear();
 		reset_occupancy();
 		return;
@@ -232,6 +242,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 	std::swap(in.smooth_valid_result, smooth_valid_result);
 	std::swap(in.all_shapes, all_shapes);
 	std::swap(in.shapes_by_chunk, shapes_by_chunk);
+	std::swap(in.tri_shapes, tri_shapes);
 	std::swap(in.chunk_occupancy_nearby, chunk_occupancy_nearby);
 	parked_worlds.erase(it);
 }
@@ -276,6 +287,7 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	// world that was just freed alongside the new world's real ones.
 	all_shapes.clear();
 	shapes_by_chunk.clear();
+	tri_shapes.clear();
 
 	// The registered world's own root, falling back to the current scene
 	// for the pre-registration/editor case. Scanning get_current_scene()
@@ -285,6 +297,13 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	Node *root = active_root ? active_root : tree->get_current_scene();
 	if (root) {
 		collect_static_shapes(root, all_shapes);
+	}
+	// Mesh shapes (concave, convex, height map) as their triangles.
+	for (CollisionShape3D *cs : all_shapes) {
+		auto tri = std::make_shared<TriShape>();
+		if (build_tri_shape(cs, *tri)) {
+			tri_shapes[cs] = tri;
+		}
 	}
 
 	Vector3 world_min, world_max;
@@ -349,8 +368,13 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 		AABB aabb = shape_global_aabb(cs);
 		// A ramp marks ground past its own box (ramp_of), in chunks it
 		// may not otherwise touch.
+		// So does a mesh with walkable slopes (mark_tri_ground).
 		RampInfo ramp;
-		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp)) {
+		auto tri = tri_shapes.find(cs);
+		if (tri != tri_shapes.end()) {
+			index_tri_columns(*tri->second);
+		}
+		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp) || (tri != tri_shapes.end() && tri->second->any_walkable)) {
 			aabb = aabb.grow(MAX_CLEARANCE_CELLS * CELL_SIZE);
 		}
 		Vector3i min_cell = world_to_cell(aabb.position);
@@ -399,7 +423,20 @@ AABB NavigationGrid::shape_global_aabb(CollisionShape3D *cs) {
 	if (box) {
 		Vector3 size = box->get_size();
 		local_aabb = AABB(size * -0.5f, size);
+	} else if (SphereShape3D *sphere = Object::cast_to<SphereShape3D>(shape.ptr())) {
+		float r = sphere->get_radius();
+		local_aabb = AABB(Vector3(-r, -r, -r), Vector3(r, r, r) * 2.0f);
+	} else if (CylinderShape3D *cylinder = Object::cast_to<CylinderShape3D>(shape.ptr())) {
+		float r = cylinder->get_radius(), h = cylinder->get_height() * 0.5f;
+		local_aabb = AABB(Vector3(-r, -h, -r), Vector3(r, h, r) * 2.0f);
+	} else if (CapsuleShape3D *capsule = Object::cast_to<CapsuleShape3D>(shape.ptr())) {
+		float r = capsule->get_radius(), h = std::max(capsule->get_height() * 0.5f, r);
+		local_aabb = AABB(Vector3(-r, -h, -r), Vector3(r, h, r) * 2.0f);
 	} else {
+		auto tri = tri_shapes.find(cs);
+		if (tri != tri_shapes.end()) {
+			return tri->second->aabb; // already world space
+		}
 		Ref<ArrayMesh> mesh = shape->get_debug_mesh();
 		local_aabb = mesh->get_aabb();
 	}
@@ -416,6 +453,540 @@ AABB NavigationGrid::transform_aabb(const Transform3D &t, const AABB &aabb) {
 		result = result.expand(t.xform(corner));
 	}
 	return result;
+}
+
+// --- Mesh shapes as triangles ------------------------------------------------
+
+namespace {
+// A triangle a unit walks on: facing up, no steeper than the body climbs,
+// and tilted at all (a flat top is an ordinary floor or step, as for boxes).
+bool tri_walkable(const Vector3 &n, float max_degrees, float &tan_tilt) {
+	if (n.y < std::cos(max_degrees * (float)Math_PI / 180.0f) || n.y >= std::cos(1.0f * (float)Math_PI / 180.0f)) {
+		return false;
+	}
+	tan_tilt = std::sqrt(std::max(0.0f, 1.0f - n.y * n.y)) / n.y;
+	return true;
+}
+
+// Akenine-Moller triangle / axis-aligned box overlap.
+bool tri_box_overlap(const Vector3 &centre, const Vector3 &half, const Vector3 &a, const Vector3 &b, const Vector3 &c) {
+	Vector3 v[3] = { a - centre, b - centre, c - centre };
+	Vector3 e[3] = { v[1] - v[0], v[2] - v[1], v[0] - v[2] };
+	for (int i = 0; i < 3; i++) {
+		for (int k = 0; k < 3; k++) {
+			Vector3 unit_axis((float)(k == 0), (float)(k == 1), (float)(k == 2));
+			Vector3 axis = unit_axis.cross(e[i]);
+			float p0 = axis.dot(v[0]), p1 = axis.dot(v[1]), p2 = axis.dot(v[2]);
+			float r = half.x * std::abs(axis.x) + half.y * std::abs(axis.y) + half.z * std::abs(axis.z);
+			if (std::min({ p0, p1, p2 }) > r || std::max({ p0, p1, p2 }) < -r) {
+				return false;
+			}
+		}
+	}
+	for (int k = 0; k < 3; k++) {
+		float lo = std::min({ v[0][k], v[1][k], v[2][k] });
+		float hi = std::max({ v[0][k], v[1][k], v[2][k] });
+		if (lo > half[k] || hi < -half[k]) {
+			return false;
+		}
+	}
+	Vector3 n = e[0].cross(e[1]);
+	float r = half.x * std::abs(n.x) + half.y * std::abs(n.y) + half.z * std::abs(n.z);
+	return std::abs(n.dot(v[0])) <= r;
+}
+
+inline float cross2(float ax, float az, float bx, float bz) {
+	return ax * bz - az * bx;
+}
+
+// Height of the triangle's plane over (x, z).
+inline float plane_height(const Vector3 &a, const Vector3 &n, float x, float z) {
+	return a.y - (n.x * (x - a.x) + n.z * (z - a.z)) / n.y;
+}
+
+uint64_t vertex_key(const Vector3 &p) {
+	auto q = [](float f) -> uint64_t {
+		int64_t i = (int64_t)std::llround(f / 0.01f) + (1 << 20);
+		return (uint64_t)std::max<int64_t>(0, std::min<int64_t>(i, (1 << 21) - 1));
+	};
+	return (q(p.x) << 42) | (q(p.y) << 21) | q(p.z);
+}
+
+// A convex hull's faces from its points, with outward normals. Brute
+// force over point triples: fine for the few dozen points a convex
+// collision shape has.
+bool hull_triangles(const std::vector<Vector3> &in, std::vector<Vector3> &verts, std::vector<Vector3> &normals) {
+	std::vector<Vector3> pts;
+	for (const Vector3 &p : in) {
+		bool dup = false;
+		for (const Vector3 &q : pts) {
+			if (p.distance_squared_to(q) < 1e-8f) {
+				dup = true;
+				break;
+			}
+		}
+		if (!dup) {
+			pts.push_back(p);
+		}
+	}
+	int n = (int)pts.size();
+	if (n < 4 || n > 160) {
+		return false;
+	}
+	Vector3 lo = pts[0], hi = pts[0];
+	for (const Vector3 &p : pts) {
+		lo = Vector3(std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z));
+		hi = Vector3(std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z));
+	}
+	float eps = 1e-4f * std::max(1.0f, (hi - lo).length());
+	std::vector<std::pair<Vector3, float>> planes;
+	for (int i = 0; i < n; i++) {
+		for (int j = i + 1; j < n; j++) {
+			for (int k = j + 1; k < n; k++) {
+				Vector3 nn = (pts[j] - pts[i]).cross(pts[k] - pts[i]);
+				float len = nn.length();
+				if (len < 1e-9f) {
+					continue;
+				}
+				nn /= len;
+				float d = nn.dot(pts[i]);
+				bool any_above = false, any_below = false;
+				for (const Vector3 &p : pts) {
+					float s = nn.dot(p) - d;
+					any_above |= s > eps;
+					any_below |= s < -eps;
+				}
+				if (any_above && any_below) {
+					continue;
+				}
+				if (any_above) {
+					nn = -nn;
+					d = -d;
+				}
+				bool seen = false;
+				for (const auto &pl : planes) {
+					if (pl.first.dot(nn) > 1.0f - 1e-5f && std::abs(pl.second - d) < eps) {
+						seen = true;
+						break;
+					}
+				}
+				if (!seen) {
+					planes.push_back({ nn, d });
+				}
+			}
+		}
+	}
+	for (const auto &pl : planes) {
+		std::vector<Vector3> face;
+		for (const Vector3 &p : pts) {
+			if (std::abs(pl.first.dot(p) - pl.second) <= eps) {
+				face.push_back(p);
+			}
+		}
+		if (face.size() < 3) {
+			continue;
+		}
+		// The face's outline (monotone chain in the plane), so points
+		// inside it or along its edges never join the fan.
+		Vector3 u = std::abs(pl.first.x) < 0.9f ? Vector3(1, 0, 0).cross(pl.first).normalized() : Vector3(0, 1, 0).cross(pl.first).normalized();
+		Vector3 w = pl.first.cross(u);
+		auto pu = [&](const Vector3 &p) { return p.dot(u); };
+		auto pw = [&](const Vector3 &p) { return p.dot(w); };
+		std::sort(face.begin(), face.end(), [&](const Vector3 &p, const Vector3 &q) {
+			return pu(p) != pu(q) ? pu(p) < pu(q) : pw(p) < pw(q);
+		});
+		auto turn = [&](const Vector3 &o, const Vector3 &p, const Vector3 &q) {
+			return cross2(pu(p) - pu(o), pw(p) - pw(o), pu(q) - pu(o), pw(q) - pw(o));
+		};
+		std::vector<Vector3> ring(face.size() * 2);
+		size_t m = 0;
+		for (size_t i = 0; i < face.size(); i++) {
+			while (m >= 2 && turn(ring[m - 2], ring[m - 1], face[i]) <= eps * eps) {
+				m--;
+			}
+			ring[m++] = face[i];
+		}
+		for (size_t i = face.size() - 1, lower = m + 1; i-- > 0;) {
+			while (m >= lower && turn(ring[m - 2], ring[m - 1], face[i]) <= eps * eps) {
+				m--;
+			}
+			ring[m++] = face[i];
+		}
+		ring.resize(m > 0 ? m - 1 : 0);
+		for (size_t i = 1; i + 1 < ring.size(); i++) {
+			// Wound so (c - a) x (b - a) is the outward normal.
+			Vector3 a = ring[0], b = ring[i], c = ring[i + 1];
+			if ((c - a).cross(b - a).dot(pl.first) < 0.0f) {
+				std::swap(b, c);
+			}
+			verts.push_back(a);
+			verts.push_back(b);
+			verts.push_back(c);
+			normals.push_back(pl.first);
+		}
+	}
+	return !normals.empty();
+}
+} // namespace
+
+bool NavigationGrid::build_tri_shape(CollisionShape3D *cs, TriShape &out) {
+	Ref<Shape3D> shape = cs->get_shape();
+	Transform3D t = cs->get_global_transform();
+	// A mirroring transform turns the winding inside out.
+	float handedness = t.basis.determinant() < 0.0f ? -1.0f : 1.0f;
+	auto add = [&](const Vector3 &la, const Vector3 &lb, const Vector3 &lc) {
+		Vector3 a = t.xform(la), b = t.xform(lb), c = t.xform(lc);
+		// Godot's front face is clockwise: its normal is (c - a) x (b - a).
+		Vector3 n = (c - a).cross(b - a) * handedness;
+		float len = n.length();
+		if (!(len > 1e-12f)) {
+			return;
+		}
+		out.verts.push_back(a);
+		out.verts.push_back(b);
+		out.verts.push_back(c);
+		out.normals.push_back(n / len);
+	};
+	bool closed_kind = false;
+	if (ConcavePolygonShape3D *concave = Object::cast_to<ConcavePolygonShape3D>(shape.ptr())) {
+		PackedVector3Array faces = concave->get_faces();
+		for (int64_t i = 0; i + 2 < faces.size(); i += 3) {
+			add(faces[i], faces[i + 1], faces[i + 2]);
+		}
+		closed_kind = true;
+	} else if (ConvexPolygonShape3D *convex = Object::cast_to<ConvexPolygonShape3D>(shape.ptr())) {
+		PackedVector3Array points = convex->get_points();
+		std::vector<Vector3> world;
+		for (int64_t i = 0; i < points.size(); i++) {
+			world.push_back(t.xform(points[i]));
+		}
+		if (!hull_triangles(world, out.verts, out.normals)) {
+			return false;
+		}
+	} else if (HeightMapShape3D *height_map = Object::cast_to<HeightMapShape3D>(shape.ptr())) {
+		int w = height_map->get_map_width();
+		int d = height_map->get_map_depth();
+		PackedFloat32Array data = height_map->get_map_data();
+		if (w < 2 || d < 2 || data.size() < (int64_t)w * d) {
+			return false;
+		}
+		auto at = [&](int x, int z) {
+			return Vector3(x - (w - 1) * 0.5f, data[(int64_t)z * w + x], z - (d - 1) * 0.5f);
+		};
+		for (int z = 0; z + 1 < d; z++) {
+			for (int x = 0; x + 1 < w; x++) {
+				Vector3 v00 = at(x, z), v10 = at(x + 1, z), v01 = at(x, z + 1), v11 = at(x + 1, z + 1);
+				if (std::isnan(v00.y) || std::isnan(v10.y) || std::isnan(v01.y) || std::isnan(v11.y)) {
+					continue; // a hole
+				}
+				size_t before = out.normals.size();
+				add(v00, v10, v11);
+				add(v00, v11, v01);
+				// A height field faces up whatever order its corners came in.
+				for (size_t i = before; i < out.normals.size(); i++) {
+					if (out.normals[i].y < 0.0f) {
+						out.normals[i] = -out.normals[i];
+					}
+				}
+			}
+		}
+	} else {
+		return false;
+	}
+	size_t count = out.normals.size();
+	if (count == 0) {
+		return false;
+	}
+
+	std::unordered_map<uint64_t, int> vertex_ids;
+	auto vid = [&](const Vector3 &p) {
+		auto it = vertex_ids.emplace(vertex_key(p), (int)vertex_ids.size());
+		return (uint64_t)it.first->second;
+	};
+	std::vector<uint64_t> edges(count * 3);
+	std::unordered_map<uint64_t, int> edge_uses;
+	for (size_t i = 0; i < count; i++) {
+		uint64_t ids[3] = { vid(out.verts[i * 3]), vid(out.verts[i * 3 + 1]), vid(out.verts[i * 3 + 2]) };
+		for (int k = 0; k < 3; k++) {
+			uint64_t p = ids[k], q = ids[(k + 1) % 3];
+			edges[i * 3 + k] = (std::min(p, q) << 32) | std::max(p, q);
+			edge_uses[edges[i * 3 + k]]++;
+		}
+	}
+	// A closed mesh wound inside out (negative volume) is flipped, so its
+	// normals point out of the solid either way.
+	if (closed_kind) {
+		bool closed = true;
+		for (const auto &e : edge_uses) {
+			closed &= e.second == 2;
+		}
+		float volume = 0.0f;
+		for (size_t i = 0; i < count; i++) {
+			const Vector3 &a = out.verts[i * 3], &b = out.verts[i * 3 + 1], &c = out.verts[i * 3 + 2];
+			volume += ((a + b + c) / 3.0f).dot(out.normals[i]) * (b - a).cross(c - a).length();
+		}
+		if (closed && volume < 0.0f) {
+			for (Vector3 &n : out.normals) {
+				n = -n;
+			}
+		}
+	}
+
+	std::vector<uint8_t> walkable(count, 0);
+	std::unordered_map<uint64_t, int> walkable_uses;
+	for (size_t i = 0; i < count; i++) {
+		float tan_tilt;
+		if (tri_walkable(out.normals[i], MAX_WALKABLE_SLOPE_DEGREES, tan_tilt)) {
+			walkable[i] = 1;
+			out.any_walkable = true;
+			for (int k = 0; k < 3; k++) {
+				walkable_uses[edges[i * 3 + k]]++;
+			}
+		}
+	}
+	out.open_edge.assign(count, 0);
+	for (size_t i = 0; i < count; i++) {
+		if (walkable[i]) {
+			for (int k = 0; k < 3; k++) {
+				if (walkable_uses[edges[i * 3 + k]] < 2) {
+					out.open_edge[i] = 1;
+				}
+			}
+		}
+	}
+
+	out.aabb = AABB(out.verts[0], Vector3());
+	for (const Vector3 &v : out.verts) {
+		out.aabb = out.aabb.expand(v);
+	}
+	return true;
+}
+
+void NavigationGrid::index_tri_columns(TriShape &tri) {
+	float reach = MAX_CLEARANCE_CELLS * CELL_SIZE;
+	size_t count = tri.normals.size();
+	for (size_t i = 0; i < count; i++) {
+		const Vector3 &a = tri.verts[i * 3], &b = tri.verts[i * 3 + 1], &c = tri.verts[i * 3 + 2];
+		float x0 = std::min({ a.x, b.x, c.x }), x1 = std::max({ a.x, b.x, c.x });
+		float z0 = std::min({ a.z, b.z, c.z }), z1 = std::max({ a.z, b.z, c.z });
+		if (tri.open_edge[i]) {
+			x0 -= reach;
+			x1 += reach;
+			z0 -= reach;
+			z1 += reach;
+		}
+		Vector3i lo = world_to_cell(Vector3(x0, 0.0f, z0));
+		Vector3i hi = world_to_cell(Vector3(x1, 0.0f, z1));
+		lo.x = std::max(0, lo.x);
+		lo.z = std::max(0, lo.z);
+		hi.x = std::min(grid_size.x - 1, hi.x);
+		hi.z = std::min(grid_size.z - 1, hi.z);
+		if (hi.x < lo.x || hi.z < lo.z) {
+			continue;
+		}
+		for (int cx = lo.x / CHUNK_DIM; cx <= hi.x / CHUNK_DIM; cx++) {
+			for (int cz = lo.z / CHUNK_DIM; cz <= hi.z / CHUNK_DIM; cz++) {
+				tri.by_column[cx * chunk_grid_size.z + cz].push_back((int)i);
+			}
+		}
+	}
+}
+
+// Solid from a mesh's triangles, sampled at cell centres the way boxes
+// are: each column of cells up through the chunk crosses the mesh's
+// faces, and runs from a face looking down (into the solid) to the next
+// looking up (out of it) are solid. An up-facing face with nothing under
+// it (terrain, an open floor) is solid down to the shape's bottom, and a
+// run thinner than a cell keeps one cell. Steep faces also mark every
+// cell they pass through, so a thin open wall still blocks.
+void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &chunk_coord, NavChunk &chunk, std::vector<std::pair<const TriShape *, int>> &walkable) {
+	auto col = tri.by_column.find(chunk_coord.x * chunk_grid_size.z + chunk_coord.z);
+	if (col == tri.by_column.end()) {
+		return;
+	}
+	Vector3i base = chunk_coord * CHUNK_DIM;
+	int cx1 = std::min(CHUNK_DIM, grid_size.x - base.x);
+	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
+	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
+	// Off the cell centres by a hair, so a column never runs exactly down
+	// an edge two triangles share and counts both or neither.
+	const float JX = 1.37e-4f, JZ = 2.91e-4f;
+	auto first_centre = [&](float v, float origin) { return (int)std::ceil((v - origin) / CELL_SIZE - 0.5f); };
+	auto last_centre = [&](float v, float origin) { return (int)std::floor((v - origin) / CELL_SIZE - 0.5f); };
+	auto clampi = [](int v, int lo, int hi) { return std::max(lo, std::min(v, hi)); };
+
+	struct Hit {
+		int column;
+		float h;
+		bool enters;
+	};
+	std::vector<Hit> hits;
+	Vector3 half = Vector3(CELL_SIZE, CELL_SIZE, CELL_SIZE) * 0.49f;
+	for (int id : col->second) {
+		const Vector3 &a = tri.verts[id * 3], &b = tri.verts[id * 3 + 1], &c = tri.verts[id * 3 + 2];
+		const Vector3 &n = tri.normals[id];
+		float tan_tilt;
+		if (tri_walkable(n, MAX_WALKABLE_SLOPE_DEGREES, tan_tilt)) {
+			walkable.push_back({ &tri, id });
+		}
+		if (std::abs(n.y) > 1e-4f) {
+			int x0 = std::max(base.x, first_centre(std::min({ a.x, b.x, c.x }), bounds_origin.x));
+			int x1 = std::min(base.x + cx1 - 1, last_centre(std::max({ a.x, b.x, c.x }), bounds_origin.x));
+			int z0 = std::max(base.z, first_centre(std::min({ a.z, b.z, c.z }), bounds_origin.z));
+			int z1 = std::min(base.z + cz1 - 1, last_centre(std::max({ a.z, b.z, c.z }), bounds_origin.z));
+			for (int x = x0; x <= x1; x++) {
+				float px = bounds_origin.x + (x + 0.5f) * CELL_SIZE + JX;
+				for (int z = z0; z <= z1; z++) {
+					float pz = bounds_origin.z + (z + 0.5f) * CELL_SIZE + JZ;
+					float d1 = cross2(b.x - a.x, b.z - a.z, px - a.x, pz - a.z);
+					float d2 = cross2(c.x - b.x, c.z - b.z, px - b.x, pz - b.z);
+					float d3 = cross2(a.x - c.x, a.z - c.z, px - c.x, pz - c.z);
+					bool inside = (d1 >= 0.0f && d2 >= 0.0f && d3 >= 0.0f) || (d1 <= 0.0f && d2 <= 0.0f && d3 <= 0.0f);
+					if (inside) {
+						hits.push_back({ (x - base.x) * CHUNK_DIM + (z - base.z), plane_height(a, n, px, pz), n.y < 0.0f });
+					}
+				}
+			}
+		}
+		if (std::abs(n.y) < 0.5f) {
+			Vector3i lo = world_to_cell(Vector3(std::min({ a.x, b.x, c.x }), std::min({ a.y, b.y, c.y }), std::min({ a.z, b.z, c.z })));
+			Vector3i hi = world_to_cell(Vector3(std::max({ a.x, b.x, c.x }), std::max({ a.y, b.y, c.y }), std::max({ a.z, b.z, c.z })));
+			int fx0 = std::max(base.x, lo.x), fx1 = std::min(base.x + cx1 - 1, hi.x);
+			int fy0 = std::max(base.y, lo.y), fy1 = std::min(base.y + cy1 - 1, hi.y);
+			int fz0 = std::max(base.z, lo.z), fz1 = std::min(base.z + cz1 - 1, hi.z);
+			for (int x = fx0; x <= fx1; x++) {
+				for (int y = fy0; y <= fy1; y++) {
+					for (int z = fz0; z <= fz1; z++) {
+						Vector3i cell(x, y, z);
+						if (tri_box_overlap(cell_center(cell), half, a, b, c)) {
+							chunk.solid[local_index(cell - base)] = 1;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	std::sort(hits.begin(), hits.end(), [](const Hit &p, const Hit &q) {
+		return p.column != q.column ? p.column < q.column : p.h < q.h;
+	});
+	auto fill = [&](int column, float lo, float hi) {
+		int lx = column / CHUNK_DIM, lz = column % CHUNK_DIM;
+		int y0 = first_centre(lo, bounds_origin.y), y1 = last_centre(hi, bounds_origin.y);
+		if (y1 < y0) {
+			y0 = y1 = (int)std::floor(((lo + hi) * 0.5f - bounds_origin.y) / CELL_SIZE);
+		}
+		y0 = clampi(y0, base.y, base.y + cy1);
+		y1 = clampi(y1, base.y - 1, base.y + cy1 - 1);
+		for (int y = y0; y <= y1; y++) {
+			chunk.solid[local_index(Vector3i(lx, y - base.y, lz))] = 1;
+		}
+	};
+	for (size_t i = 0; i < hits.size();) {
+		size_t j = i;
+		bool open = false;
+		float start = 0.0f;
+		bool below = false; // a run already closed lower in this column
+		for (; j < hits.size() && hits[j].column == hits[i].column; j++) {
+			const Hit &hit = hits[j];
+			if (hit.enters) {
+				if (!open) {
+					open = true;
+					start = hit.h;
+				}
+			} else {
+				// An up-facing face with nothing opened under it: the first
+				// is ground down to the shape's bottom; one over a run
+				// already closed (a bridge deck over the terrain of the same
+				// mesh) is only its own cell, leaving the gap open.
+				fill(hit.column, open ? start : (below ? hit.h : tri.aabb.position.y), hit.h);
+				open = false;
+				below = true;
+			}
+		}
+		if (open) {
+			fill(hits[i].column, start, start);
+		}
+		i = j;
+	}
+}
+
+// The walkable triangle's band of ground (see NavChunk::ground): solid
+// lying just under its face, down by as much as the face rises over the
+// widest clearance the grid measures, so the slope ahead of a unit's feet
+// is not a wall to it. Where the triangle borders no other walkable one
+// (open_edge), the band runs on along the slope past it, under the face's
+// plane, onto whatever the slope meets there: the platform it climbs to.
+// Across the slope it stops at the triangle's own sides.
+void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i &chunk_coord, NavChunk &chunk) {
+	const Vector3 &a = tri.verts[id * 3], &b = tri.verts[id * 3 + 1], &c = tri.verts[id * 3 + 2];
+	const Vector3 &n = tri.normals[id];
+	float tan_tilt;
+	if (!tri_walkable(n, MAX_WALKABLE_SLOPE_DEGREES, tan_tilt)) {
+		return;
+	}
+	float reach = MAX_CLEARANCE_CELLS * CELL_SIZE;
+	float sweep = tri.open_edge[id] ? reach : 0.0f;
+	float skin = CELL_SIZE + reach * tan_tilt;
+	float ux = -n.x, uz = -n.z;
+	float ulen = std::sqrt(ux * ux + uz * uz);
+	ux /= ulen;
+	uz /= ulen;
+	// Counter-clockwise in x/z, so inside is the left of every edge.
+	Vector3 v[3] = { a, b, c };
+	if (cross2(b.x - a.x, b.z - a.z, c.x - a.x, c.z - a.z) < 0.0f) {
+		std::swap(v[1], v[2]);
+	}
+
+	float x0 = std::min({ a.x, b.x, c.x }) - sweep * std::abs(ux), x1 = std::max({ a.x, b.x, c.x }) + sweep * std::abs(ux);
+	float z0 = std::min({ a.z, b.z, c.z }) - sweep * std::abs(uz), z1 = std::max({ a.z, b.z, c.z }) + sweep * std::abs(uz);
+	float h_lo = 1e30f, h_hi = -1e30f;
+	for (int k = 0; k < 4; k++) {
+		float h = plane_height(a, n, (k & 1) ? x1 : x0, (k & 2) ? z1 : z0);
+		h_lo = std::min(h_lo, h);
+		h_hi = std::max(h_hi, h);
+	}
+	Vector3i base = chunk_coord * CHUNK_DIM;
+	Vector3i lo = world_to_cell(Vector3(x0, h_lo - skin, z0));
+	Vector3i hi = world_to_cell(Vector3(x1, h_hi + CELL_SIZE, z1));
+	lo = Vector3i(std::max(lo.x, base.x), std::max(lo.y, base.y), std::max(lo.z, base.z));
+	hi = Vector3i(std::min({ hi.x, base.x + CHUNK_DIM - 1, grid_size.x - 1 }), std::min({ hi.y, base.y + CHUNK_DIM - 1, grid_size.y - 1 }), std::min({ hi.z, base.z + CHUNK_DIM - 1, grid_size.z - 1 }));
+	for (int x = lo.x; x <= hi.x; x++) {
+		for (int z = lo.z; z <= hi.z; z++) {
+			Vector3 p = cell_center(Vector3i(x, 0, z));
+			// The stretch of s for which (p + s * u) lies in the triangle.
+			float s_lo = -sweep, s_hi = sweep;
+			for (int k = 0; k < 3 && s_lo <= s_hi; k++) {
+				const Vector3 &p0 = v[k], &p1 = v[(k + 1) % 3];
+				float ex = p1.x - p0.x, ez = p1.z - p0.z;
+				float f0 = cross2(ex, ez, p.x - p0.x, p.z - p0.z);
+				float f1 = cross2(ex, ez, ux, uz);
+				if (std::abs(f1) < 1e-9f) {
+					if (f0 < -1e-6f) {
+						s_hi = s_lo - 1.0f;
+					}
+				} else if (f1 > 0.0f) {
+					s_lo = std::max(s_lo, -f0 / f1);
+				} else {
+					s_hi = std::min(s_hi, -f0 / f1);
+				}
+			}
+			if (s_lo > s_hi + 1e-6f) {
+				continue;
+			}
+			float h = plane_height(a, n, p.x, p.z);
+			for (int y = lo.y; y <= hi.y; y++) {
+				int li = local_index(Vector3i(x, y, z) - base);
+				if (!chunk.solid[li]) {
+					continue;
+				}
+				float depth = h - cell_center(Vector3i(x, y, z)).y;
+				if (depth >= -CELL_SIZE * 0.5f && depth <= skin) {
+					chunk.ground[li] = 1;
+				}
+			}
+		}
+	}
 }
 
 // --- Cell <-> world / chunk addressing --------------------------------------
@@ -556,13 +1127,23 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
 	std::vector<RampInfo> ramps;
+	std::vector<std::pair<const TriShape *, int>> walkable_tris;
 	for (CollisionShape3D *cs : it->second) {
+		auto tri = tri_shapes.find(cs);
+		if (tri != tri_shapes.end()) {
+			rasterize_tri_shape(*tri->second, chunk_coord, chunk, walkable_tris);
+			continue;
+		}
 		Ref<Shape3D> shape = cs->get_shape();
 		Transform3D global_transform = cs->get_global_transform();
 		AABB aabb = shape_global_aabb(cs);
 		BoxShape3D *box = Object::cast_to<BoxShape3D>(shape.ptr());
 		bool is_box = box != nullptr;
 		Vector3 half_size = is_box ? box->get_size() * 0.5f : Vector3();
+		// Round primitives are tested exactly too, in their own space.
+		SphereShape3D *sphere = Object::cast_to<SphereShape3D>(shape.ptr());
+		CylinderShape3D *cylinder = Object::cast_to<CylinderShape3D>(shape.ptr());
+		CapsuleShape3D *capsule = Object::cast_to<CapsuleShape3D>(shape.ptr());
 		Transform3D inverse = global_transform.affine_inverse();
 		RampInfo ramp;
 		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp)) {
@@ -578,6 +1159,18 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 					if (is_box) {
 						Vector3 local = inverse.xform(world_point);
 						inside = std::abs(local.x) <= half_size.x && std::abs(local.y) <= half_size.y && std::abs(local.z) <= half_size.z;
+					} else if (sphere) {
+						inside = inverse.xform(world_point).length() <= sphere->get_radius();
+					} else if (cylinder) {
+						Vector3 local = inverse.xform(world_point);
+						float r = cylinder->get_radius();
+						inside = std::abs(local.y) <= cylinder->get_height() * 0.5f && local.x * local.x + local.z * local.z <= r * r;
+					} else if (capsule) {
+						Vector3 local = inverse.xform(world_point);
+						float r = capsule->get_radius();
+						float core = std::max(0.0f, capsule->get_height() * 0.5f - r);
+						local.y = std::max(0.0f, std::abs(local.y) - core);
+						inside = local.length() <= r;
 					} else {
 						inside = aabb.has_point(world_point);
 					}
@@ -593,6 +1186,9 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 	// shape the solid there belongs to. Solid standing ABOVE the face (a
 	// crate on the ramp) stays a wall; half a cell of slack lets the
 	// ramp's own top cells, whose centres can sit just over it, through.
+	for (const auto &walk : walkable_tris) {
+		mark_tri_ground(*walk.first, walk.second, chunk_coord, chunk);
+	}
 	for (const RampInfo &ramp : ramps) {
 		for (int x = 0; x < cx1; x++) {
 			for (int y = 0; y < cy1; y++) {

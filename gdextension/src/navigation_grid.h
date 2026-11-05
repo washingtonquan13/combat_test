@@ -78,6 +78,24 @@ struct RampInfo {
 	float skin_depth = 0.0f;
 };
 
+// A mesh collision shape (ConcavePolygonShape3D, ConvexPolygonShape3D,
+// HeightMapShape3D) as world-space triangles, built once per scan
+// (build_tri_shape in the .cpp) and rasterized from its triangles rather
+// than its bounding box.
+struct TriShape {
+	std::vector<Vector3> verts; // 3 per triangle, world space
+	std::vector<Vector3> normals; // 1 per triangle, unit, pointing out of the solid
+	// 1 per triangle: 1 = walkable (see tri_walkable) and at least one of
+	// its edges borders no other walkable triangle, so the ground band
+	// under it runs on past that edge (where the slope meets a platform).
+	std::vector<uint8_t> open_edge;
+	AABB aabb;
+	bool any_walkable = false;
+	// chunk column (cx * chunk_grid_size.z + cz) -> triangles whose
+	// footprint, or ground band, reaches into it.
+	std::unordered_map<int, std::vector<int>> by_column;
+};
+
 struct NavChunk {
 	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
 	// CHUNK_DIM^3, parallel to solid: 1 = solid lying just under a walkable
@@ -141,6 +159,7 @@ struct ParkedWorld {
 	int smooth_search_id = 0;
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
+	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tri_shapes;
 	std::vector<uint8_t> chunk_occupancy_nearby;
 	std::vector<int> occupied_chunks;
 	std::vector<OccupantKey> occupancy_signature;
@@ -303,6 +322,7 @@ private:
 	// instead of every shape in the level.
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
+	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tri_shapes;
 
 	std::vector<Vector3i> neighbor_offsets; // 26-connectivity, fine A*
 	std::vector<float> neighbor_step_cost; // parallel to neighbor_offsets — precomputed world-unit length of each offset, so a_star's hot loop doesn't call length() (sqrt) 26x per expansion for a fixed, known-in-advance set of vectors
@@ -345,6 +365,10 @@ private:
 	void collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out);
 	AABB shape_global_aabb(CollisionShape3D *cs);
 	AABB transform_aabb(const Transform3D &t, const AABB &aabb);
+	bool build_tri_shape(CollisionShape3D *cs, TriShape &out);
+	void index_tri_columns(TriShape &tri);
+	void rasterize_tri_shape(const TriShape &tri, const Vector3i &chunk_coord, NavChunk &chunk, std::vector<std::pair<const TriShape *, int>> &walkable);
+	void mark_tri_ground(const TriShape &tri, int id, const Vector3i &chunk_coord, NavChunk &chunk);
 
 	Vector3 cell_center(const Vector3i &cell) const;
 	int cell_index(const Vector3i &cell) const; // global bijection over grid_size — A* bookkeeping keys only
