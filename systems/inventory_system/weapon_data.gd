@@ -38,6 +38,21 @@ extends Resource
 ## nothing.
 @export var reload_animation: AnimationSequence = null
 
+## Where it's carried while equipped but not in hand (UnitWeapons): the
+## inactive set, and both sets while sheathed. AUTO decides by
+## resolved_sheath(); the hand it's held in picks the hip's side.
+enum Sheath { AUTO, BACK, HIP }
+@export var sheath: Sheath = Sheath.AUTO
+
+
+## sheath with AUTO decided: what takes both hands - a greatsword, a bow,
+## a long gun, a crossbow - and any shield go across the back; anything
+## one-handed - a sword, an axe, a pistol - on the hip.
+func resolved_sheath(is_shield: bool) -> Sheath:
+	if sheath != Sheath.AUTO:
+		return sheath
+	return Sheath.BACK if two_handed or is_shield else Sheath.HIP
+
 
 ## This weapon's rows of one kind, in authored order.
 func rows_of(kind: AttackRow.Kind) -> Array[AttackRow]:

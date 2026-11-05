@@ -30,18 +30,16 @@ extends AiTestCase
 ## CombatManager relays turn_started from EVERY encounter, including
 ## unwatched ones, so a far fight coming back around to a player unit put
 ## that unit's abilities on the hotbar while the player was elsewhere.
-## ability_hotbar._on_turn_started now returns early when the unit is not
-## in view.
+## The dock (ui/hotbar/dock.gd) _on_turn_started returns early when the
+## unit is not in view.
 ##
 ## Both widgets are BUILT HERE. The HUD lives in MainRoot.tscn, which the
 ## test runner scene does not load. end_turn_button.gd extends Button, so
-## .new() is a working instance. ability_hotbar.gd has @onready children
-## and no scene of its own — it is authored inline in MainRoot.tscn — so
-## _build_hotbar() reproduces that node layout (CommonGrid,
-## DividerCommonAbilities, AbilitiesGrid, DividerAbilitiesCustom,
-## CustomGrid) BEFORE the bar enters the tree, which is what makes its
-## _ready() resolve. That is the real script, the real _ready(), and the
-## real signal wiring; nothing here is a stand-in.
+## .new() is a working instance. The dock is its own scene,
+## ui/hotbar/dock.tscn, instanced whole: the real script, the real
+## _ready(), and the real signal wiring; nothing here is a stand-in. Its
+## root stays visible (it only holds the layout); what shows or hides
+## with the unit is its BarColumn, so that is what _hotbar points at.
 ##
 ## Asserted with is_visible_in_tree(), not with `visible` and not with a
 ## manager's state: a green UI suite once shipped panels that were never
@@ -51,7 +49,8 @@ const HOME := &"test_arena"
 const AWAY := &"test_area_2"
 
 var _button: Button = null
-var _hotbar: HBoxContainer = null
+var _dock: Control = null
+var _hotbar: Control = null
 var _host: Control = null
 var _fight: Encounter = null
 var _foe: Unit = null
@@ -88,8 +87,9 @@ func run() -> void:
 	# turn_started the way the real HUD does.
 	_button = load("res://systems/combat_system/end_turn_button.gd").new()
 	_root.add_child(_button)
-	_hotbar = _build_hotbar()
-	_root.add_child(_hotbar)
+	_dock = load("res://ui/hotbar/dock.tscn").instantiate()
+	_root.add_child(_dock)
+	_hotbar = _dock.get_node("%BarColumn")
 	await get_tree().process_frame
 
 	# DX 4 against a party member's default, so the player's unit takes
@@ -196,34 +196,6 @@ func run() -> void:
 	_restore()
 
 
-## The bar as MainRoot.tscn authors it: the script's five permanent
-## children, named and ordered, added BEFORE the bar enters the tree so
-## the @onready lookups in its _ready() resolve.
-func _build_hotbar() -> HBoxContainer:
-	var bar: HBoxContainer = load("res://ui/ability_hotbar.gd").new()
-	bar.name = "AbilityHotbar"
-	bar.slot_scene = load("res://ui/hotbar_slot.tscn")
-	_add_grid(bar, "CommonGrid", 4)
-	_add_divider(bar, "DividerCommonAbilities")
-	_add_grid(bar, "AbilitiesGrid", 6)
-	_add_divider(bar, "DividerAbilitiesCustom")
-	_add_grid(bar, "CustomGrid", 6)
-	return bar
-
-
-func _add_grid(bar: HBoxContainer, node_name: String, columns: int) -> void:
-	var grid := GridContainer.new()
-	grid.name = node_name
-	grid.columns = columns
-	bar.add_child(grid)
-
-
-func _add_divider(bar: HBoxContainer, node_name: String) -> void:
-	var divider := HotbarDivider.new()
-	divider.name = node_name
-	bar.add_child(divider)
-
-
 ## Advances the fight until it is this unit's turn. The initiative sort is
 ## deterministic given the DX gap above; this is the guard that says so
 ## rather than assuming it.
@@ -302,8 +274,8 @@ func _restore() -> void:
 	SelectionManager.deselect_all()
 	if is_instance_valid(_button):
 		_button.queue_free()
-	if is_instance_valid(_hotbar):
-		_hotbar.queue_free()
+	if is_instance_valid(_dock):
+		_dock.queue_free()
 	if is_instance_valid(_foe):
 		_spawned.erase(_foe)
 		if _foe.is_in_group("units"):

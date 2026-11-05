@@ -242,7 +242,7 @@ func _spawn_enemy_beside(ally: Unit) -> Unit:
 	unit.set_base_stat(StatIds.HP, 20 - floori(unit.get_stat(StatIds.ST)))
 	unit.set_pool(StatIds.HP, 20)
 	var abilities: Array[Ability] = [melee()]
-	unit.abilities = abilities
+	unit.set_abilities(abilities)
 	unit.global_position = ally.global_position + Vector3(3.0, 0.0, 0.0)
 	unit.reset_turn_actions()
 	return unit

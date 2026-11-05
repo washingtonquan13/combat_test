@@ -459,7 +459,7 @@ func _on_grant_ability_pressed() -> void:
 	var selected: PackedInt32Array = _grant_ability_list.get_selected_items()
 	if selected.is_empty():
 		return
-	_unit.abilities.append(_grantable_abilities[selected[0]])
+	_unit.add_ability(_grantable_abilities[selected[0]])
 	_refresh_ability_list(_unit)
 
 

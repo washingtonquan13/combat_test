@@ -231,7 +231,7 @@ func spawn_unit(faction: StringName, strength: int, dexterity: int, max_hp: int,
 	unit.set_base_stat(StatIds.DX, dexterity)
 	unit.set_base_stat(StatIds.HP, max_hp - floori(unit.get_stat(StatIds.ST)))
 	unit.set_pool(StatIds.HP, max_hp)
-	unit.abilities = typed
+	unit.set_abilities(typed)
 	unit.ai_smartness = 2
 	unit.global_position = position
 	unit.reset_turn_actions()

@@ -129,7 +129,7 @@ func _spawn_wearing(model: PackedScene) -> Unit:
 	unit.definition = definition
 	_root.add_child(unit)
 	var abilities: Array[Ability] = [melee()]
-	unit.abilities = abilities
+	unit.set_abilities(abilities)
 	unit.reset_turn_actions()
 	_spawned.append(unit)
 	return unit

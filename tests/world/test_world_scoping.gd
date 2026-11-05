@@ -84,7 +84,7 @@ func _spawn_in(viewport: SubViewport, faction: StringName, position: Vector3) ->
 	unit.set_base_stat(StatIds.HP, 20 - floori(unit.get_stat(StatIds.ST)))
 	unit.set_pool(StatIds.HP, 20)
 	var abilities: Array[Ability] = [melee()]
-	unit.abilities = abilities
+	unit.set_abilities(abilities)
 	unit.global_position = position
 	unit.reset_turn_actions()
 	return unit

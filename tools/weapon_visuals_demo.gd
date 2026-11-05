@@ -121,8 +121,8 @@ func _pistol_one_hit_per_round() -> void:
 func _claws_play_their_own_clip() -> void:
 	_say("A clawed beast, bare-handed: its claws play their own clip")
 	var beast: Unit = _dummy(-1.2, 0.0)
-	beast.abilities.append(load("res://data/abilities/basic_attack_melee.tres"))
-	beast.natural_attacks.append(load("res://data/attacks/claws.tres"))
+	beast.add_ability(load("res://data/abilities/basic_attack_melee.tres"))
+	beast.add_natural_attack(load("res://data/attacks/claws.tres"))
 	var target: Unit = _dummy(-2.4, 0.0)
 	await _wait(1.5)
 	var claws: Ability = null

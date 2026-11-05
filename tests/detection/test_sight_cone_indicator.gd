@@ -184,7 +184,7 @@ func _cones_stop_at_the_world_on_screen() -> void:
 	foreign.set_base_stat(StatIds.HP, 20 - floori(foreign.get_stat(StatIds.ST)))
 	foreign.set_pool(StatIds.HP, 20)
 	var abilities: Array[Ability] = [melee()]
-	foreign.abilities = abilities
+	foreign.set_abilities(abilities)
 	foreign.global_position = Vector3.ZERO
 	foreign.reset_turn_actions()
 	await get_tree().physics_frame

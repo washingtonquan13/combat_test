@@ -1,16 +1,13 @@
-[gd_scene load_steps=46 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=44 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
 [ext_resource type="Script" uid="uid://bwtn55jbtliv4" path="res://systems/selection_system/drag_select_box.gd" id="3_lquwl"]
 [ext_resource type="PackedScene" uid="uid://caf7q4n41fgu5" path="res://ui/unit_portrait.tscn" id="4_272bh"]
 [ext_resource type="Script" uid="uid://dco3xcx22f26n" path="res://systems/combat_system/initiative_row.gd" id="5_dg77c"]
-[ext_resource type="Script" uid="uid://5dq2mibjdmfb" path="res://ui/ability_hotbar.gd" id="6_w48qg"]
-[ext_resource type="PackedScene" uid="uid://c8p3x6fyoh5xw" path="res://ui/hotbar_slot.tscn" id="7_cegan"]
 [ext_resource type="PackedScene" uid="uid://dtttg6dyn8w56" path="res://systems/log_system/system_log.tscn" id="8_xuqvo"]
-[ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://ui/hotbar_divider.gd" id="9_hbdivider"]
+[ext_resource type="PackedScene" path="res://ui/hotbar/dock.tscn" id="9_dock"]
 [ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://ui/party_panel.gd" id="10_partypanel"]
-[ext_resource type="Script" uid="uid://bb040f657sdme" path="res://systems/combat_system/end_turn_button.gd" id="11_qsp4k"]
 [ext_resource type="Texture2D" uid="uid://b87v8swp3yenp" path="res://assets/ui_icon/hamburger_icon.png" id="12_seu75"]
 [ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://ui/menu_button.gd" id="13_htxhm"]
 [ext_resource type="PackedScene" uid="uid://jfavnc280asx" path="res://ui/party_overview.tscn" id="14_partyoverview"]
@@ -42,7 +39,7 @@
 [ext_resource type="PackedScene" path="res://systems/cinematic_system/cinematic_overlay.tscn" id="37_cineoverlay"]
 [ext_resource type="Script" uid="uid://dexhga3bpptng" path="res://ui/area_label.gd" id="38_arealabel"]
 [ext_resource type="Script" uid="uid://bmxsyci41mrsj" path="res://systems/indicator_system/hit_chance_indicator.gd" id="39_hitchance"]
-[ext_resource type="Script" path="res://systems/indicator_system/cone_indicator.gd" id="40_coneind"]
+[ext_resource type="Script" uid="uid://et56pabmj85d" path="res://systems/indicator_system/cone_indicator.gd" id="40_coneind"]
 [ext_resource type="PackedScene" path="res://ui/game_over.tscn" id="40_gameover"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_areaplate"]
@@ -153,42 +150,8 @@ grow_horizontal = 2
 script = ExtResource("5_dg77c")
 portrait_scene = ExtResource("4_272bh")
 
-[node name="AbilityHotbar" type="HBoxContainer" parent="CanvasLayer/TacticalUI"]
-layout_mode = 0
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -20.0
-offset_top = -40.0
-offset_right = 20.0
-offset_bottom = -20.0
-grow_horizontal = 2
-grow_vertical = 0
-script = ExtResource("6_w48qg")
-slot_scene = ExtResource("7_cegan")
-
-[node name="CommonGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 4
-
-[node name="DividerCommonAbilities" type="VSeparator" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-custom_minimum_size = Vector2(10, 32)
-layout_mode = 2
-script = ExtResource("9_hbdivider")
-
-[node name="AbilitiesGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 6
-
-[node name="DividerAbilitiesCustom" type="VSeparator" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-custom_minimum_size = Vector2(10, 32)
-layout_mode = 2
-script = ExtResource("9_hbdivider")
-
-[node name="CustomGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 6
+[node name="Dock" parent="CanvasLayer/TacticalUI" instance=ExtResource("9_dock")]
+layout_mode = 1
 
 [node name="SystemLog" parent="CanvasLayer/TacticalUI" instance=ExtResource("8_xuqvo")]
 layout_mode = 1
@@ -196,22 +159,6 @@ anchors_preset = -1
 offset_left = -240.0
 offset_top = -90.0
 offset_bottom = 90.0
-
-[node name="EndTurnButton" type="Button" parent="CanvasLayer/TacticalUI"]
-custom_minimum_size = Vector2(90, 31)
-layout_mode = 0
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -90.0
-offset_top = -31.0
-offset_right = -20.0
-offset_bottom = -20.0
-grow_horizontal = 0
-grow_vertical = 0
-text = "END TURN"
-script = ExtResource("11_qsp4k")
 
 [node name="MenuButton" type="Button" parent="CanvasLayer/TacticalUI"]
 custom_minimum_size = Vector2(32, 32)

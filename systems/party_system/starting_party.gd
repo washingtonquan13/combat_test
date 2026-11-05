@@ -68,7 +68,7 @@ static func _give_everything(leader: Unit) -> void:
 	for id in _resource_ids(ABILITY_DIR):
 		if not INNATE_ABILITIES.has(id):
 			abilities.append(load(ABILITY_DIR + id + ".tres"))
-	leader.abilities = abilities
+	leader.set_abilities(abilities)
 
 	for id in _resource_ids(ITEM_DIR):
 		var definition: ItemDefinition = load(ITEM_DIR + id + ".tres")

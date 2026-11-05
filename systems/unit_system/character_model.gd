@@ -162,6 +162,21 @@ enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE }
 @export var main_hand_grip: Node3D
 @export var off_hand_grip: Node3D
 
+## Where an equipped weapon that is NOT in hand is carried (UnitWeapons):
+## two across the back, one on each hip. Each is a frame, not a fit: its
+## origin sits on the body's surface, +X points straight away from the
+## body, +Y the way a carried item's handle end points (up and over the
+## shoulder, up out of the belt). UnitWeapons lays the item flat along
+## it. Null builds the socket at runtime on the humanoid bones (see
+## SHEATH_FRAMES); a body that holds nothing (no grips) carries nothing.
+enum SheathSocket { BACK_A, BACK_B, HIP_MAIN, HIP_OFF }
+
+@export_group("Sheaths")
+@export var back_sheath_a: Node3D
+@export var back_sheath_b: Node3D
+@export var hip_sheath_main: Node3D
+@export var hip_sheath_off: Node3D
+
 @export_group("Gaze")
 ## The bone modifier that turns this body's head toward what it is looking
 ## at. Optional, and null is a real answer meaning "this body does not
@@ -280,6 +295,83 @@ func _held_muzzle() -> Node3D:
 			if muzzle:
 				return muzzle
 	return hand_anchor
+
+
+## Where a sheath is built when the body declares none, in the skeleton's
+## space - the character's frame, as tools/pose_builder.gd has it: metres,
+## facing +Z, its left +X. Measured off the UAL mannequin (UAL1_Standard
+## .glb): the shoulder blades stand out to z -0.16 between 1.2 and 1.5 m,
+## the pelvis is +-0.16 wide at 0.9 m. Back items cross over the upper
+## back, handle ends toward the shoulders; hip items hang at the side,
+## handle up and forward, tip down and back, behind where the arm hangs.
+## Riding UpperChest and Hips so they move with the torso, not the arms.
+## Right for a humanoid of that build, a guess for anything else -
+## declare the export to overrule it.
+const SHEATH_FRAMES: Dictionary = {
+	SheathSocket.BACK_A: {"bones": [&"UpperChest", &"Chest", &"Spine"],
+		"origin": Vector3(0.0, 1.25, -0.165), "up": Vector3(-0.45, 0.89, 0.0), "out": Vector3(0, 0, -1)},
+	SheathSocket.BACK_B: {"bones": [&"UpperChest", &"Chest", &"Spine"],
+		"origin": Vector3(0.0, 1.25, -0.165), "up": Vector3(0.45, 0.89, 0.0), "out": Vector3(0, 0, -1)},
+	SheathSocket.HIP_MAIN: {"bones": [&"Hips"],
+		"origin": Vector3(-0.18, 0.92, -0.04), "up": Vector3(0.0, 0.89, 0.45), "out": Vector3(-1, 0, 0)},
+	SheathSocket.HIP_OFF: {"bones": [&"Hips"],
+		"origin": Vector3(0.18, 0.92, -0.04), "up": Vector3(0.0, 0.89, 0.45), "out": Vector3(1, 0, 0)},
+}
+
+## SheathSocket -> the socket built for it (or null: this body can't have it).
+var _built_sheaths: Dictionary = {}
+
+
+## The frame a weapon not in hand is carried on, or null: a body without
+## grips carries nothing, as it holds nothing.
+func sheath_socket(which: SheathSocket) -> Node3D:
+	var declared: Node3D = _declared_sheath(which)
+	if is_instance_valid(declared):
+		return declared
+	if not is_instance_valid(main_hand_grip) and not is_instance_valid(off_hand_grip):
+		return null
+	if not _built_sheaths.has(which) or (_built_sheaths[which] != null and not is_instance_valid(_built_sheaths[which])):
+		_built_sheaths[which] = _build_sheath(which)
+	return _built_sheaths[which]
+
+
+func _declared_sheath(which: SheathSocket) -> Node3D:
+	match which:
+		SheathSocket.BACK_A: return back_sheath_a
+		SheathSocket.BACK_B: return back_sheath_b
+		SheathSocket.HIP_MAIN: return hip_sheath_main
+		SheathSocket.HIP_OFF: return hip_sheath_off
+	return null
+
+
+## A BoneAttachment3D on the frame's bone, with the socket under it placed
+## so that at the rest pose it sits exactly on the frame. Built at runtime
+## and never saved, like the fallback gaze.
+func _build_sheath(which: SheathSocket) -> Node3D:
+	var skeleton: Skeleton3D = _find_skeleton(self)
+	if skeleton == null:
+		return null
+	var frame: Dictionary = SHEATH_FRAMES[which]
+	var bone: int = -1
+	for bone_name: StringName in frame["bones"]:
+		bone = skeleton.find_bone(bone_name)
+		if bone != -1:
+			break
+	if bone == -1:
+		return null
+	var attachment := BoneAttachment3D.new()
+	attachment.name = "Sheath" + String(SheathSocket.keys()[which]).to_pascal_case()
+	skeleton.add_child(attachment)
+	attachment.bone_name = skeleton.get_bone_name(bone)
+	var socket := Node3D.new()
+	socket.name = "Socket"
+	attachment.add_child(socket)
+	var out: Vector3 = frame["out"]
+	var up_hint: Vector3 = frame["up"]
+	var up: Vector3 = (up_hint - out * out.dot(up_hint)).normalized()
+	var wanted := Transform3D(Basis(out, up, out.cross(up)), frame["origin"])
+	socket.transform = skeleton.get_bone_global_rest(bone).affine_inverse() * wanted
+	return socket
 
 
 func _fallback_ratio(kind: Anchor) -> float:

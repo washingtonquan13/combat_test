@@ -1,0 +1,583 @@
+[gd_scene load_steps=21 format=3]
+
+[ext_resource type="Script" path="res://ui/hotbar/dock.gd" id="1_dock"]
+[ext_resource type="Shader" path="res://ui/hotbar/globe.gdshader" id="2_globe"]
+[ext_resource type="Shader" path="res://ui/hotbar/panel_gradient.gdshader" id="3_panel"]
+[ext_resource type="Script" path="res://systems/combat_system/end_turn_button.gd" id="4_end"]
+
+[sub_resource type="Gradient" id="Gradient_globe"]
+offsets = PackedFloat32Array(0, 1)
+colors = PackedColorArray(0.22, 0.19, 0.15, 1, 0.07, 0.06, 0.05, 1)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_globe"]
+gradient = SubResource("Gradient_globe")
+width = 96
+height = 96
+fill = 1
+fill_from = Vector2(0.5, 0.35)
+fill_to = Vector2(0.5, 1)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_hp"]
+resource_local_to_scene = true
+shader = ExtResource("2_globe")
+shader_parameter/fill = 1.0
+shader_parameter/liquid_top = Color(0.78, 0.12, 0.12, 0.12)
+shader_parameter/liquid_bottom = Color(0.59, 0, 0, 0.38)
+shader_parameter/lost_color = Color(0, 0, 0, 0.6)
+shader_parameter/surface_color = Color(1, 0.47, 0.47, 0.8)
+shader_parameter/rim_color = Color(0.878, 0.714, 0.353, 1)
+shader_parameter/rim_px = 3.0
+shader_parameter/surface_px = 2.0
+shader_parameter/vignette = 0.55
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_fp"]
+resource_local_to_scene = true
+shader = ExtResource("2_globe")
+shader_parameter/fill = 1.0
+shader_parameter/liquid_top = Color(0.353, 0.561, 0.847, 0.92)
+shader_parameter/liquid_bottom = Color(0.09, 0.227, 0.471, 0.95)
+shader_parameter/lost_color = Color(0, 0, 0, 0.5)
+shader_parameter/surface_color = Color(0.659, 0.812, 1, 0.9)
+shader_parameter/rim_color = Color(0.659, 0.51, 0.243, 1)
+shader_parameter/rim_px = 2.0
+shader_parameter/surface_px = 1.5
+shader_parameter/vignette = 0.45
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_movebg"]
+bg_color = Color(0.063, 0.051, 0.039, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.431, 0.353, 0.22, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_movefill"]
+bg_color = Color(0.878, 0.714, 0.353, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_bar"]
+content_margin_left = 1.0
+content_margin_top = 1.0
+content_margin_right = 1.0
+content_margin_bottom = 1.0
+bg_color = Color(0.082, 0.071, 0.055, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.431, 0.353, 0.22, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 8
+shadow_offset = Vector2(0, 2)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_panel"]
+shader = ExtResource("3_panel")
+shader_parameter/top_color = Color(0.165, 0.141, 0.11, 1)
+shader_parameter/bottom_color = Color(0.082, 0.071, 0.055, 1)
+shader_parameter/radius_px = 5.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_grip"]
+bg_color = Color(0.165, 0.141, 0.11, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.659, 0.51, 0.243, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_set"]
+content_margin_left = 5.0
+content_margin_top = 3.0
+content_margin_right = 5.0
+content_margin_bottom = 3.0
+bg_color = Color(0.114, 0.09, 0.055, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.878, 0.714, 0.353, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.878, 0.714, 0.353, 0.35)
+shadow_size = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_swap"]
+content_margin_left = 6.0
+content_margin_top = 1.0
+content_margin_right = 6.0
+content_margin_bottom = 1.0
+bg_color = Color(0.169, 0.29, 0.388, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.333, 0.502, 0.639, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_swap_hover"]
+content_margin_left = 6.0
+content_margin_top = 1.0
+content_margin_right = 6.0
+content_margin_bottom = 1.0
+bg_color = Color(0.231, 0.384, 0.502, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.588, 0.761, 0.902, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_pager"]
+content_margin_left = 2.0
+content_margin_right = 2.0
+bg_color = Color(0.114, 0.09, 0.055, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.431, 0.353, 0.22, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_end"]
+bg_color = Color(0.2, 0.149, 0.078, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.659, 0.51, 0.243, 1)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+corner_detail = 14
+shadow_color = Color(0, 0, 0, 0.55)
+shadow_size = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_end_hover"]
+bg_color = Color(0.29, 0.212, 0.106, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.949, 0.831, 0.541, 1)
+corner_radius_top_left = 28
+corner_radius_top_right = 28
+corner_radius_bottom_right = 28
+corner_radius_bottom_left = 28
+corner_detail = 14
+shadow_color = Color(0.878, 0.714, 0.353, 0.45)
+shadow_size = 7
+
+[sub_resource type="StyleBoxEmpty" id="StyleBox_none"]
+
+[node name="Dock" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_dock")
+
+[node name="Row" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_top = -8.0
+offset_bottom = -8.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="Globes" type="Control" parent="Row"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(106, 102)
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+
+[node name="HpGlobe" type="TextureRect" parent="Row/Globes"]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_hp")
+layout_mode = 0
+offset_top = 10.0
+offset_right = 92.0
+offset_bottom = 102.0
+texture = SubResource("GradientTexture2D_globe")
+expand_mode = 1
+stretch_mode = 0
+
+[node name="HpLabel" type="Label" parent="Row/Globes/HpGlobe"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -38.0
+offset_bottom = -22.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.91, 0.863, 0.753, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+theme_override_font_sizes/font_size = 13
+text = "11 / 15"
+horizontal_alignment = 1
+
+[node name="HpCaption" type="Label" parent="Row/Globes/HpGlobe"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -23.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.878, 0.714, 0.353, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 9
+text = "HP"
+horizontal_alignment = 1
+
+[node name="FpGlobe" type="TextureRect" parent="Row/Globes"]
+unique_name_in_owner = true
+material = SubResource("ShaderMaterial_fp")
+layout_mode = 0
+offset_left = 64.0
+offset_right = 106.0
+offset_bottom = 42.0
+texture = SubResource("GradientTexture2D_globe")
+expand_mode = 1
+stretch_mode = 0
+
+[node name="FpLabel" type="Label" parent="Row/Globes/FpGlobe"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -16.0
+offset_top = -12.0
+offset_right = 16.0
+offset_bottom = 4.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.91, 0.863, 0.753, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 12
+text = "10"
+horizontal_alignment = 1
+
+[node name="FpCaption" type="Label" parent="Row/Globes/FpGlobe"]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -16.0
+offset_top = 3.0
+offset_right = 16.0
+offset_bottom = 14.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.659, 0.812, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 8
+text = "FP"
+horizontal_alignment = 1
+
+[node name="BarColumn" type="VBoxContainer" parent="Row"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="MoveBox" type="VBoxContainer" parent="Row/BarColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 1
+
+[node name="MoveLabel" type="RichTextLabel" parent="Row/BarColumn/MoveBox"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/default_color = Color(0.91, 0.863, 0.753, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/normal_font_size = 11
+bbcode_enabled = true
+text = "Move [color=#f2d48a]6[/color] / 10 m"
+fit_content = true
+scroll_active = false
+autowrap_mode = 0
+horizontal_alignment = 1
+
+[node name="MoveBar" type="ProgressBar" parent="Row/BarColumn/MoveBox"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 7)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("StyleBox_movebg")
+theme_override_styles/fill = SubResource("StyleBox_movefill")
+max_value = 1.0
+value = 0.6
+show_percentage = false
+
+[node name="Bar" type="PanelContainer" parent="Row/BarColumn"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBox_bar")
+
+[node name="Backdrop" type="ColorRect" parent="Row/BarColumn/Bar"]
+material = SubResource("ShaderMaterial_panel")
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Grip" type="Panel" parent="Row/BarColumn/Bar/Backdrop"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -22.0
+offset_top = -5.0
+offset_right = 22.0
+offset_bottom = 3.0
+grow_horizontal = 2
+tooltip_text = "Drag up or down: rows shown"
+mouse_default_cursor_shape = 9
+theme_override_styles/panel = SubResource("StyleBox_grip")
+
+[node name="Content" type="MarginContainer" parent="Row/BarColumn/Bar"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 7
+theme_override_constants/margin_top = 7
+theme_override_constants/margin_right = 7
+theme_override_constants/margin_bottom = 6
+
+[node name="Body" type="HBoxContainer" parent="Row/BarColumn/Bar/Content"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 7
+
+[node name="SetColumn" type="VBoxContainer" parent="Row/BarColumn/Bar/Content/Body"]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="SetBox" type="PanelContainer" parent="Row/BarColumn/Bar/Content/Body/SetColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Weapon set in hand"
+theme_override_styles/panel = SubResource("StyleBox_set")
+
+[node name="SetLine" type="HBoxContainer" parent="Row/BarColumn/Bar/Content/Body/SetColumn/SetBox"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="SetNumeral" type="Label" parent="Row/BarColumn/Bar/Content/Body/SetColumn/SetBox/SetLine"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(13, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.949, 0.831, 0.541, 1)
+theme_override_font_sizes/font_size = 12
+text = "I"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="SetIconMain" type="TextureRect" parent="Row/BarColumn/Bar/Content/Body/SetColumn/SetBox/SetLine"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(17, 17)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SetIconOff" type="TextureRect" parent="Row/BarColumn/Bar/Content/Body/SetColumn/SetBox/SetLine"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(17, 17)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="SwapButton" type="Button" parent="Row/BarColumn/Bar/Content/Body/SetColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+focus_mode = 0
+tooltip_text = "Swap weapon sets (F)"
+theme_override_colors/font_color = Color(0.812, 0.902, 1, 1)
+theme_override_font_sizes/font_size = 10
+theme_override_styles/focus = SubResource("StyleBox_none")
+theme_override_styles/normal = SubResource("StyleBox_swap")
+theme_override_styles/hover = SubResource("StyleBox_swap_hover")
+theme_override_styles/pressed = SubResource("StyleBox_swap_hover")
+text = "⇄ F"
+
+[node name="SetSep" type="ColorRect" parent="Row/BarColumn/Bar/Content/Body"]
+custom_minimum_size = Vector2(1, 32)
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+color = Color(0.431, 0.353, 0.22, 1)
+
+[node name="Rows" type="VBoxContainer" parent="Row/BarColumn/Bar/Content/Body"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="PinnedRow" type="HBoxContainer" parent="Row/BarColumn/Bar/Content/Body/Rows"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="Attacks" type="HBoxContainer" parent="Row/BarColumn/Bar/Content/Body/Rows/PinnedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="ToggleSep" type="ColorRect" parent="Row/BarColumn/Bar/Content/Body/Rows/PinnedRow"]
+custom_minimum_size = Vector2(1, 32)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+color = Color(0.431, 0.353, 0.22, 1)
+
+[node name="Toggles" type="HBoxContainer" parent="Row/BarColumn/Bar/Content/Body/Rows/PinnedRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="PageGrid" type="GridContainer" parent="Row/BarColumn/Bar/Content/Body/Rows"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/h_separation = 3
+theme_override_constants/v_separation = 4
+columns = 10
+
+[node name="PagerSep" type="ColorRect" parent="Row/BarColumn/Bar/Content/Body"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(1, 32)
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+color = Color(0.431, 0.353, 0.22, 1)
+
+[node name="Pager" type="VBoxContainer" parent="Row/BarColumn/Bar/Content/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+theme_override_constants/separation = 1
+
+[node name="PageUp" type="Button" parent="Row/BarColumn/Bar/Content/Body/Pager"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 12)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(0.878, 0.714, 0.353, 1)
+theme_override_font_sizes/font_size = 8
+theme_override_styles/focus = SubResource("StyleBox_none")
+theme_override_styles/normal = SubResource("StyleBox_pager")
+theme_override_styles/hover = SubResource("StyleBox_pager")
+theme_override_styles/pressed = SubResource("StyleBox_pager")
+theme_override_styles/disabled = SubResource("StyleBox_pager")
+text = "▲"
+
+[node name="PageLabel" type="Label" parent="Row/BarColumn/Bar/Content/Body/Pager"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.749, 0.682, 0.525, 1)
+theme_override_font_sizes/font_size = 9
+text = "1/4"
+horizontal_alignment = 1
+
+[node name="PageDown" type="Button" parent="Row/BarColumn/Bar/Content/Body/Pager"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(18, 12)
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(0.878, 0.714, 0.353, 1)
+theme_override_font_sizes/font_size = 8
+theme_override_styles/focus = SubResource("StyleBox_none")
+theme_override_styles/normal = SubResource("StyleBox_pager")
+theme_override_styles/hover = SubResource("StyleBox_pager")
+theme_override_styles/pressed = SubResource("StyleBox_pager")
+theme_override_styles/disabled = SubResource("StyleBox_pager")
+text = "▼"
+
+[node name="EndTurnHolder" type="Control" parent="Row"]
+custom_minimum_size = Vector2(56, 62)
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+
+[node name="EndTurnButton" type="Button" parent="Row/EndTurnHolder"]
+layout_mode = 0
+offset_right = 56.0
+offset_bottom = 56.0
+focus_mode = 0
+theme_override_colors/font_color = Color(0.941, 0.851, 0.627, 1)
+theme_override_colors/font_hover_color = Color(1, 0.94, 0.78, 1)
+theme_override_font_sizes/font_size = 10
+theme_override_styles/focus = SubResource("StyleBox_none")
+theme_override_styles/normal = SubResource("StyleBox_end")
+theme_override_styles/hover = SubResource("StyleBox_end_hover")
+theme_override_styles/pressed = SubResource("StyleBox_end_hover")
+theme_override_styles/disabled = SubResource("StyleBox_end")
+text = "END
+TURN"
+script = ExtResource("4_end")

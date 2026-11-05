@@ -211,7 +211,14 @@ func _can_restore(unit, context: WorldContext) -> bool:
 ##
 ## exact_match on both, because a plain Tab action also matches Shift+Tab
 ## under Godot's default (inclusive) modifier matching.
+##
+## F (swap_weapon_set) is handled here too, under the same gates, since it
+## acts on the selection — see swap_selected_weapon_sets.
 func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("swap_weapon_set", false, true):
+		if UIStack.can_open() and CameraDirector.has_control() and swap_selected_weapon_sets():
+			get_viewport().set_input_as_handled()
+		return
 	var step: int = 0
 	if event.is_action_pressed("cycle_selection_previous", false, true):
 		step = -1
@@ -223,6 +230,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if cycle_selection(step):
 		get_viewport().set_input_as_handled()
+
+
+## F: every selected unit the player can command right now swaps weapon
+## sets (Unit.swap_weapon_set — free). is_commandable is the gate: not
+## mid-action, and in a fight only on its own turn. Returns whether
+## anyone swapped.
+func swap_selected_weapon_sets() -> bool:
+	var swapped: bool = false
+	for unit in selected_units:
+		if is_instance_valid(unit) and unit.is_commandable():
+			unit.swap_weapon_set()
+			swapped = true
+	return swapped
 
 
 ## Selects the next (step 1) or previous (step -1) party member after the

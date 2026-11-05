@@ -69,6 +69,9 @@ extends Resource
 
 @export var abilities: Array[Ability] = []
 @export var custom_slots: Array[Ability] = []
+## Which weapon set was in hand (Unit.active_weapon_set). Restored
+## sheathed either way: drawing is a fight's to decide.
+@export var active_weapon_set: AttackRow.Kind = AttackRow.Kind.MELEE
 
 @export var skills: Array[PartySkillRecord] = []
 

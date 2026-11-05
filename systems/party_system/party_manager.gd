@@ -534,6 +534,7 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	data.tendency = unit.tendency
 	data.abilities = unit.abilities.duplicate()
 	data.custom_slots = unit.custom_slots.duplicate()
+	data.active_weapon_set = unit.active_weapon_set
 	data.is_leader = is_leader(unit)
 	data.selected_color = unit.selected_color
 	data.hover_color = unit.hover_color
@@ -706,6 +707,7 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 		"tendency": record.tendency,
 		"abilities": abilities,
 		"custom_slots": custom_slots,
+		"active_weapon_set": record.active_weapon_set,
 		"skills": skills,
 		"equipment": equipment,
 	}
@@ -803,6 +805,9 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 			push_warning("PartyManager.load_state: unknown ability '%s'" % ability_name)
 			record.custom_slots.append(null)
 
+	# Absent from a save written before weapon sets: set I, the default.
+	record.active_weapon_set = clampi(int(entry.get("active_weapon_set", AttackRow.Kind.MELEE)), 0, 1) as AttackRow.Kind
+
 	for skill_entry in entry.get("skills", []):
 		var skill: Skill = SkillDatabase.find(skill_entry.get("skill_name", ""))
 		if not skill:
@@ -868,8 +873,9 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	unit.move_speed = record.move_speed
 	unit.alignment = record.alignment
 	unit.tendency = record.tendency
-	unit.abilities = record.abilities.duplicate()
-	unit.custom_slots = record.custom_slots.duplicate()
+	unit.set_abilities(record.abilities.duplicate())
+	unit.set_custom_slots(record.custom_slots.duplicate())
+	unit.set_active_weapon_set(record.active_weapon_set, false)
 	unit.selected_color = record.selected_color
 	unit.hover_color = record.hover_color
 

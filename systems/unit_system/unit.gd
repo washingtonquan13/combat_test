@@ -248,10 +248,24 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 ## the default (see default_ability) when nothing's explicitly armed via
 ## AbilityManager — that's what makes click-to-attack keep working before
 ## a hotbar exists to actually choose between multiple abilities.
-@export var abilities: Array[Ability] = []
+##
+## Read freely, but write through set_abilities/add_ability/remove_ability
+## (or plain assignment, whose setter does the same): either way
+## loadout_changed fires. An in-place append/erase on this array changes
+## what the unit can use without telling anyone, and can write into the
+## UnitDefinition the array came from — the definition setter hands over
+## its own array, not a copy.
+@export var abilities: Array[Ability] = []:
+	set(value):
+		abilities = value
+		_queue_loadout_changed()
 ## This body's own attacks (claws, teeth) — see UnitDefinition.
-## natural_attacks and combat_abilities().
-@export var natural_attacks: Array[AttackRow] = []
+## natural_attacks and combat_abilities(). Written like abilities: assign
+## or set_natural_attacks, never in place.
+@export var natural_attacks: Array[AttackRow] = []:
+	set(value):
+		natural_attacks = value
+		_queue_loadout_changed()
 ## This body's anatomy and Injury Tolerance — see UnitDefinition.body_plan
 ## and injury_profile().
 @export var body_plan: BodyPlan
@@ -277,7 +291,13 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 ## this default (add/remove null entries) per-unit in the Inspector for
 ## a unit that should have more or fewer than 6 — ability_hotbar.gd
 ## reads custom_slots.size() rather than assuming 6.
-@export var custom_slots: Array[Ability] = [null, null, null, null, null, null]
+##
+## Written like abilities: assign, set_custom_slots or set_custom_slot,
+## never by index in place.
+@export var custom_slots: Array[Ability] = [null, null, null, null, null, null]:
+	set(value):
+		custom_slots = value
+		_queue_loadout_changed()
 ## Which unit summoned this one, or null if it wasn't summoned at all —
 ## set by SummonEffect.apply() at creation time (occasionally hand-set
 ## in the Inspector too, for a scripted encounter that wants a boss to
@@ -437,6 +457,14 @@ signal toggles_changed(unit: Unit)
 ## Something was equipped or taken off — the attacks it offers changed
 ## (see combat_abilities()).
 signal equipment_changed(unit: Unit)
+## Anything about what this unit can use or how its weapons are shown
+## changed: equipment, abilities, natural attacks, custom slots, the
+## active weapon set, drawn or sheathed. Deferred and coalesced — fires
+## once, at the end of the frame, however many changes landed in it, so
+## state is consistent by the time anyone reads it. Never fires before
+## the unit is ready: a listener reads the starting state when it
+## connects. See _queue_loadout_changed.
+signal loadout_changed(unit: Unit)
 ## A pool's current or maximum may have changed — HP bars, FP pips.
 signal pool_changed(unit: Unit, id: StringName, current: int, maximum: int)
 signal healed(unit: Unit, amount: int)
@@ -920,6 +948,10 @@ func _ready() -> void:
 	# the eight places player intent used to live.
 	add_to_group("units")
 	stat_changed.connect(_on_own_stat_changed)
+	# Every equipment_changed (equip, unequip, an item's own refresh in
+	# UnitEquipment) is a loadout change too — one connection here, not a
+	# second emit beside each of the three.
+	equipment_changed.connect(func(_unit: Unit) -> void: _queue_loadout_changed())
 
 	input_ray_pickable = true
 	_build_pick_area()
@@ -1070,7 +1102,17 @@ func is_hostile_to(other: Unit) -> bool:
 ## CombatManager.in_combat about a specific unit's turn economy asks here
 ## instead, which is what lets one unit fight while another walks around
 ## freely (see CombatManager's own header).
-var encounter: Encounter = null
+##
+## Also where weapons are drawn and put away: adopted into a fight (its
+## start, a resume, joining one already running) draws; released from it
+## (its end, fleeing it) sheathes. Encounter is the one place that adopts
+## and releases, so this is the one place that sees every way in and out.
+var encounter: Encounter = null:
+	set(value):
+		var was_fighting: bool = encounter != null
+		encounter = value
+		if (value != null) != was_fighting:
+			set_weapons_sheathed(value == null)
 
 
 ## Whether combat rules apply to THIS unit — a move budget, a spent attack
@@ -1767,6 +1809,119 @@ func unequip_item(slot_key: EquipSlot.Slot) -> ItemInstance:
 	return item
 
 
+# --- Loadout ---------------------------------------------------------
+# What the unit can use and how its weapons are shown. Every change here
+# ends in loadout_changed, which is the one signal the hotbar and the
+# held/sheathed weapon models listen to.
+
+## BG3-style weapon sets. MELEE is set I (MELEE_MAIN_HAND/MELEE_OFF_HAND),
+## RANGED is set II (RANGED_MAIN_HAND/RANGED_OFF_HAND). Both sets' attacks
+## stay in combat_abilities(); this says which one is in hand, which
+## default_ability() attacks with, and which one using the other's attack
+## swaps away from. Write through set_active_weapon_set.
+var active_weapon_set: AttackRow.Kind = AttackRow.Kind.MELEE
+## True: both sets on the back and hip, nothing in hand. Units start
+## sheathed; joining a fight draws, leaving one sheathes (see encounter's
+## setter), and swapping sets or using a weapon attack draws. Write
+## through set_weapons_sheathed.
+var weapons_sheathed: bool = true
+var _loadout_queued: bool = false
+
+
+## Makes kind the set in hand. Free — no action, no move. draw: also take
+## the weapons out, which choosing a set means everywhere except restoring
+## a saved one.
+func set_active_weapon_set(kind: AttackRow.Kind, draw: bool = true) -> void:
+	if kind != active_weapon_set:
+		active_weapon_set = kind
+		_queue_loadout_changed()
+	if draw:
+		set_weapons_sheathed(false)
+
+
+## The other set, drawn. Free, like set_active_weapon_set.
+func swap_weapon_set() -> void:
+	var other: AttackRow.Kind = AttackRow.Kind.RANGED if active_weapon_set == AttackRow.Kind.MELEE else AttackRow.Kind.MELEE
+	set_active_weapon_set(other)
+
+
+func set_weapons_sheathed(value: bool) -> void:
+	if value == weapons_sheathed:
+		return
+	weapons_sheathed = value
+	_queue_loadout_changed()
+
+
+## See UnitCombat.weapon_set_of().
+func weapon_set_of(ability: Ability) -> int:
+	return _combat.weapon_set_of(ability) if _combat else -1
+
+
+func set_abilities(value: Array[Ability]) -> void:
+	abilities = value
+
+
+## Appends to a fresh copy, never in place — see abilities.
+func add_ability(ability: Ability) -> void:
+	var next: Array[Ability] = abilities.duplicate()
+	next.append(ability)
+	abilities = next
+
+
+## Removes the first occurrence, from a fresh copy. Returns whether it
+## was there.
+func remove_ability(ability: Ability) -> bool:
+	if not abilities.has(ability):
+		return false
+	var next: Array[Ability] = abilities.duplicate()
+	next.erase(ability)
+	abilities = next
+	return true
+
+
+func set_natural_attacks(value: Array[AttackRow]) -> void:
+	natural_attacks = value
+
+
+## Appends to a fresh copy, never in place — see natural_attacks.
+func add_natural_attack(row: AttackRow) -> void:
+	var next: Array[AttackRow] = natural_attacks.duplicate()
+	next.append(row)
+	natural_attacks = next
+
+
+func set_custom_slots(value: Array[Ability]) -> void:
+	custom_slots = value
+
+
+## One custom hotbar slot; null empties it. An index past the end is
+## refused, not grown into: the slot count is authored (see custom_slots).
+func set_custom_slot(index: int, ability: Ability) -> void:
+	if index < 0 or index >= custom_slots.size():
+		push_warning("Unit '%s': no custom slot %d" % [name, index])
+		return
+	if custom_slots[index] == ability:
+		return
+	var next: Array[Ability] = custom_slots.duplicate()
+	next[index] = ability
+	custom_slots = next
+
+
+## Coalesces every change in a frame into one loadout_changed at its end.
+## Nothing before ready: exported values arriving while a scene loads are
+## the starting state, not changes, and nothing is listening yet anyway.
+func _queue_loadout_changed() -> void:
+	if not is_node_ready() or _loadout_queued:
+		return
+	_loadout_queued = true
+	_emit_loadout_changed.call_deferred()
+
+
+func _emit_loadout_changed() -> void:
+	_loadout_queued = false
+	loadout_changed.emit(self)
+
+
 ## See UnitCombat.combat_abilities().
 func combat_abilities() -> Array[Ability]:
 	return _combat.combat_abilities()
@@ -1994,6 +2149,7 @@ func save_state() -> Dictionary:
 		"parries": _combat.parries,
 		"blocked": _combat.blocked,
 		"statuses": _status_manager.save_state(),
+		"active_weapon_set": active_weapon_set,
 	}
 
 
@@ -2017,6 +2173,10 @@ func _apply_pending_state() -> void:
 	_combat.parries = int(state.get("parries", 0))
 	_combat.blocked = bool(state.get("blocked", false))
 	_status_manager.load_state(state.get("statuses", []))
+	# Restored sheathed: a state from before weapon sets has no key, and
+	# drawing is the encounter's to decide, not the save's.
+	if state.has("active_weapon_set"):
+		set_active_weapon_set(clampi(int(state["active_weapon_set"]), 0, 1) as AttackRow.Kind, false)
 	if is_node_ready():
 		_update_low_pool_statuses()
 	_budget_flying = is_flying()

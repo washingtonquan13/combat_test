@@ -2,7 +2,7 @@ extends AiTestCase
 ## The party rail survives a conversation — the fix for the "party half
 ## of the dialogue UI rewrite": DialogueOverlay authors hides_hud=true in
 ## MainRoot.tscn, and UIStack used to own exactly one HUD node
-## (CanvasLayer/TacticalUI) containing InitiativeRow, AbilityHotbar,
+## (CanvasLayer/TacticalUI) containing InitiativeRow, Dock (the hotbar),
 ## SystemLog, PartyPanel and EndTurnButton together — so a conversation
 ## blanked the party portraits as pure collateral, with no way to select
 ## a party member while talking even though unit_portrait.gd's own press
@@ -23,7 +23,7 @@ extends AiTestCase
 ## suite builds a stand-in shell rather than loading MainRoot.tscn:
 ##   - CanvasLayer -> TacticalUI (plain Control, standing in for the real
 ##     one) -> two plain Control children named "InitiativeRow" and
-##     "AbilityHotbar" — NOT the real systems/combat_system components
+##     "Dock" — NOT the real systems/combat_system components
 ##     (do-not-touch, and both need a live combat/turn state this suite
 ##     has no reason to stand up). What is under test is whether they sit
 ##     inside a Control that goes invisible, not their own contents.
@@ -412,7 +412,7 @@ func _build_shell() -> void:
 	_tactical.add_child(_initiative_row)
 
 	_ability_hotbar = Control.new()
-	_ability_hotbar.name = "AbilityHotbar"
+	_ability_hotbar.name = "Dock"
 	_tactical.add_child(_ability_hotbar)
 
 	_party_rail = Control.new()
