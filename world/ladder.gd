@@ -1,3 +1,4 @@
+@tool
 class_name Ladder
 extends Node3D
 ## A grounded-unit-only vertical connector between two points (up to a
@@ -31,8 +32,10 @@ extends Node3D
 ##
 ## Scene setup: base_marker/top_marker are Marker3D children, dragged
 ## into place in the editor (gives a real 3D gizmo, unlike typing raw
-## Vector3 numbers). The visual mesh is a plain MeshInstance3D with no
-## collision — assign your own mesh in the Inspector.
+## Vector3 numbers). The ladder faces along its own +Z: the climber
+## faces that way on the rungs, both ways (see facing()), so a purely
+## vertical ladder still knows which way it faces. The rails and rungs
+## are built from the markers (see _build), no collision.
 
 ## Paths to Marker3D children marking exactly where a unit's feet land at
 ## each end. NodePath rather than a direct Marker3D reference — dragging
@@ -67,8 +70,90 @@ var _climber_id: int = 0
 const WAIT_DISTANCE: float = 1.2
 
 
+## How far in front of the climb line (the base marker's XZ, where the
+## unit's origin travels) the rungs sit: where the climb clip's toes and
+## leading hand land (tools/make_ladder_animations.gd stands the capture
+## upright so they share one plane), the body upright behind it.
+const RUNG_OFFSET: float = 0.15
+## Half the ladder's width: the clip's trailing hand grips a rail ~0.4
+## out from the climb line (the captured ladder was wide).
+const RAIL_HALF_SPAN: float = 0.38
+## The rails run this far past the top, a handhold for the step off.
+const RAIL_ABOVE_TOP: float = 1.0
+
+var _built_key: Array = []
+
+
 func _ready() -> void:
-	add_to_group("ladders")
+	if not Engine.is_editor_hint():
+		add_to_group("ladders")
+	_build()
+
+
+func _process(_delta: float) -> void:
+	# Editor only: follow the markers as they are dragged.
+	if Engine.is_editor_hint():
+		_build()
+	else:
+		set_process(false)
+
+
+## The way a climber faces on the rungs: this node's +Z, flattened.
+func facing() -> Vector3:
+	var forward: Vector3 = global_basis.z
+	forward.y = 0.0
+	return forward.normalized() if forward.length() > 0.01 else Vector3.FORWARD
+
+
+## Rung spacing is the climb clip's own rise per cycle, so the feet land
+## on rungs at climb_speed (UnitAnimator plays it to that rise).
+static func rung_spacing() -> float:
+	var library := load("res://assets/ladder_animations.tres") as AnimationLibrary
+	var clip: Animation = library.get_animation("Climb_Up") if library else null
+	return float(clip.get_meta("rise", 0.28)) if clip else 0.28
+
+
+## Rails and rungs as one mesh, in this node's space, from base to top.
+func _build() -> void:
+	var base_node := get_node_or_null(base_marker) as Node3D
+	var top_node := get_node_or_null(top_marker) as Node3D
+	var base_local: Vector3 = base_node.position if base_node else Vector3.ZERO
+	var top_local: Vector3 = top_node.position if top_node else Vector3.UP * 4.0
+	var key: Array = [base_local, top_local]
+	if key == _built_key:
+		return
+	_built_key = key
+	var visual := get_node_or_null("Rungs") as MeshInstance3D
+	if not visual:
+		visual = MeshInstance3D.new()
+		visual.name = "Rungs"
+		add_child(visual)
+
+	var spacing: float = rung_spacing()
+	var foot: Vector3 = base_local + Vector3(0.0, 0.0, RUNG_OFFSET)
+	var height: float = top_local.y - base_local.y
+	var rail := BoxMesh.new()
+	rail.size = Vector3(0.05, height + RAIL_ABOVE_TOP, 0.07)
+	var rung := CylinderMesh.new()
+	rung.top_radius = 0.018
+	rung.bottom_radius = 0.018
+	rung.height = RAIL_HALF_SPAN * 2.0
+	rung.radial_segments = 8
+	rung.rings = 1
+	var tool := SurfaceTool.new()
+	tool.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for side in [-1.0, 1.0]:
+		var at := Vector3(side * RAIL_HALF_SPAN, (height + RAIL_ABOVE_TOP) * 0.5, 0.0)
+		tool.append_from(rail, 0, Transform3D(Basis.IDENTITY, foot + at))
+	var across := Basis(Vector3.BACK, PI * 0.5)
+	var count: int = floori((height - 0.05) / spacing)
+	for i in range(1, count + 1):
+		tool.append_from(rung, 0, Transform3D(across, foot + Vector3.UP * spacing * i))
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.42, 0.3, 0.2)
+	material.roughness = 0.9
+	tool.set_material(material)
+	visual.mesh = tool.commit()
 
 
 ## The unit on this ladder right now, or null.

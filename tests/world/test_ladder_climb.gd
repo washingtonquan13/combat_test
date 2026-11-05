@@ -57,6 +57,8 @@ func run() -> void:
 	var climb_frame: int = Engine.get_physics_frames()
 	for i in 20:
 		await get_tree().physics_frame
+	check("it faces the way the ladder does", walker.visual_forward().dot(ladder.facing()) > 0.9,
+		"faces %s, ladder %s" % [walker.visual_forward(), ladder.facing()])
 	walker.stop_moving()
 	check("a stop mid-climb does not leave it on the rungs", walker.is_moving() and walker.is_climbing())
 	guard = 0

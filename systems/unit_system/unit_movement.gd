@@ -73,8 +73,9 @@ var _last_progress_position: Vector3 = Vector3.ZERO
 var _climb_first: int = -1
 var _climb_last: int = -1
 var _climb_speed: float = 0.75
-## Horizontal direction from the ladder's base to its top — toward the
-## wall, both ways (a unit climbs down facing the rungs too).
+## The ladder's own facing (Ladder.facing) — toward the rungs, both ways
+## (a unit climbs down facing them too), and defined for a purely
+## vertical ladder whose ends share an XZ.
 var _climb_facing: Vector3 = Vector3.ZERO
 ## An order given while climbing: {destination, ignore}, run by
 ## _finish_move once the far end is reached. Empty when none.
@@ -423,15 +424,13 @@ func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
 			path.append(tail.path[i])
 			cost.append(climbed_cost + tail.cumulative_cost[i])
 
-	var facing: Vector3 = ladder.top_position() - ladder.base_position()
-	facing.y = 0.0
 	return {
 		"path": path,
 		"cumulative_cost": cost,
 		"climb_first": climb_first,
 		"climb_last": climb_last,
 		"climb_speed": ladder.climb_speed,
-		"climb_facing": facing.normalized() if facing.length() > 0.01 else Vector3.ZERO,
+		"climb_facing": ladder.facing(),
 		"ladder": ladder,
 	}
 

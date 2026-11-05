@@ -36,6 +36,12 @@ const HIPS := 0.917
 const CMU_HIPS := 0.941
 # Frames to crossfade the cycle's end into its start.
 const BLEND := 8
+# The capture's ladder leaned: the whole body tips into it, toes ~0.1 m
+# ahead of the support rung's origin and hands ~0.4 m ahead 1.2 m up. Our
+# ladders are vertical, so the pose is pitched back this far about the
+# support rung (the origin), which puts toes and hands on one vertical
+# plane (Ladder.RUNG_OFFSET) with the body upright behind it.
+const UPRIGHT_DEG := 14.0
 
 # One rung per cycle, frames of take 14_35 from foot lift to the same
 # foot's next lift; foot = the support foot's height (capture metres) at
@@ -47,7 +53,7 @@ const CYCLES := {
 
 func _init() -> void:
 	var source := _source(TAKE)
-	var facing := _facing_fix(source)
+	var facing := Quaternion(Vector3.RIGHT, deg_to_rad(-UPRIGHT_DEG)) * _facing_fix(source)
 	var library := AnimationLibrary.new()
 	for clip: String in CYCLES:
 		var c: Dictionary = CYCLES[clip]

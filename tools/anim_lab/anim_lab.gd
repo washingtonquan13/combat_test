@@ -19,6 +19,10 @@ extends Node3D
 #     [--clip=Stance_Longgun | --keys=res://tools/anim_lab/rifle_blocking.gd --set=stance] \
 #     [--times=0,0.5,1.2 | --at-keys] [--interp=stepped|keyed|flowing] \
 #     [--views=front,side,top,quarter,hands] [--main=res://scenes/weapons/rifle.tscn] [--off=...]
+#     [--prop=res://world/ladder.tscn]
+#
+# --prop sets a scene at the mannequin's feet, in its space (+Z ahead): a
+# ladder, a ledge, whatever the clip is played against.
 #
 # Run it with --watch=C:/path/request.json instead and it stays open: each
 # time that file changes it reads the same arguments from it as JSON, reloads
@@ -424,6 +428,13 @@ func _render(args: Dictionary) -> Error:
 		main_weapon = load(args["main"]) if args["main"] != "" else null
 	if args.has("off"):
 		off_weapon = load(args["off"]) if args["off"] != "" else null
+	var old_prop := get_node_or_null("Model/Prop")
+	if old_prop:
+		old_prop.free()
+	if String(args.get("prop", "")) != "":
+		var prop: Node = (load(args["prop"]) as PackedScene).instantiate()
+		prop.name = "Prop"
+		$Model.add_child(prop)
 	var views: PackedStringArray = String(args.get("views", ",".join(VIEWS))).split(",")
 	# Rows: the given times, or each key held.
 	var rows := []
