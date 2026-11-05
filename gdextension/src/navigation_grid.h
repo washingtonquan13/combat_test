@@ -65,8 +65,27 @@ namespace godot {
 //     (see NavigationGrid::bake_chunk_dist for why one field suffices).
 // Occupancy lives here too but is independent of bake state entirely — a
 // chunk can hold occupancy before it's ever geometrically touched.
+// A walkable ramp found while rasterizing (ramp_of in the .cpp): the box's
+// space, which local axis is its face's normal, and how far the band of
+// ground under that face reaches, down and past the box's ends.
+struct RampInfo {
+	Transform3D inverse;
+	Vector3 half_size;
+	Vector3 axis_scale;
+	Vector3 extend;
+	int up_axis = -1;
+	float up_sign = 1.0f;
+	float skin_depth = 0.0f;
+};
+
 struct NavChunk {
 	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
+	// CHUNK_DIM^3, parallel to solid: 1 = solid lying just under a walkable
+	// ramp's face (a tilted box no steeper than MAX_WALKABLE_SLOPE_DEGREES;
+	// see ramp_of). Such a cell is still solid, but it is ground under a
+	// unit's feet, not a wall in its way, so bake_chunk_dist does not
+	// measure clearance from it.
+	std::vector<uint8_t> ground;
 	std::vector<uint8_t> no_support; // CHUNK_DIM^3, 1 = nothing solid directly below
 	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
 	// chunk-local index -> every occupant whose volume covers it. Several,
@@ -186,6 +205,10 @@ private:
 	static constexpr float FLIGHT_CEILING_HEIGHT = 12.0f;
 	static constexpr float BOUNDS_MARGIN = 2.0f;
 	static constexpr int MAX_EXPANSIONS = 30000;
+	// Steepest floor a grounded unit walks up: CharacterBody3D's default
+	// floor_max_angle, which units keep. A tilted box no steeper than this
+	// is ground; anything steeper, or any vertical face, is a wall.
+	static constexpr float MAX_WALKABLE_SLOPE_DEGREES = 45.5f;
 
 	static constexpr int CHUNK_DIM = 32; // 8m/side at 0.25m cells
 	static constexpr int MAX_CLEARANCE_CELLS = 16; // 4m horizontal reach cap for the distance field

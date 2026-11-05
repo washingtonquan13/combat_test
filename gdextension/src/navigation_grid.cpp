@@ -22,6 +22,8 @@ Vector3 vmax(const Vector3 &a, const Vector3 &b) {
 NavigationGrid::NavigationGrid() {}
 NavigationGrid::~NavigationGrid() {}
 
+static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, int reach_cells, RampInfo &slope);
+
 void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("ensure_baked", "tree"), &NavigationGrid::ensure_baked);
 	ClassDB::bind_method(D_METHOD("invalidate"), &NavigationGrid::invalidate);
@@ -345,6 +347,12 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	// rasterize of one chunk only tests the shapes that could matter.
 	for (CollisionShape3D *cs : all_shapes) {
 		AABB aabb = shape_global_aabb(cs);
+		// A ramp marks ground past its own box (ramp_of), in chunks it
+		// may not otherwise touch.
+		RampInfo ramp;
+		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp)) {
+			aabb = aabb.grow(MAX_CLEARANCE_CELLS * CELL_SIZE);
+		}
 		Vector3i min_cell = world_to_cell(aabb.position);
 		Vector3i max_cell = world_to_cell(aabb.position + aabb.size);
 		min_cell = Vector3i(std::max(min_cell.x, 0), std::max(min_cell.y, 0), std::max(min_cell.z, 0));
@@ -479,9 +487,61 @@ NavChunk &NavigationGrid::ensure_chunk_rasterized(const Vector3i &chunk_coord) {
 		return chunk;
 	}
 	chunk.solid.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
+	chunk.ground.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
 	rasterize_chunk(chunk_coord, chunk);
 	chunk.rasterized = true;
 	return chunk;
+}
+
+// A tilted box no steeper than a unit can walk is a ramp: its upper face is
+// ground. Which face is "upper" is whichever local axis points most nearly
+// up; a box tilted by less than a degree is flat and its top is an ordinary
+// step, which the body cannot climb. Fills `slope` and returns true for a
+// ramp.
+static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, int reach_cells, RampInfo &slope) {
+	BoxShape3D *box = Object::cast_to<BoxShape3D>(cs->get_shape().ptr());
+	if (!box) {
+		return false;
+	}
+	Transform3D global_transform = cs->get_global_transform();
+	float best = 0.0f;
+	slope.up_axis = -1;
+	for (int k = 0; k < 3; k++) {
+		Vector3 axis = global_transform.basis.get_column(k);
+		float len = axis.length();
+		slope.axis_scale[k] = len;
+		if (len <= 0.0f) {
+			return false;
+		}
+		float d = axis.y / len;
+		if (std::abs(d) > best) {
+			best = std::abs(d);
+			slope.up_axis = k;
+			slope.up_sign = d < 0.0f ? -1.0f : 1.0f;
+		}
+	}
+	if (best < std::cos(max_degrees * (float)Math_PI / 180.0f) || best >= std::cos(1.0f * (float)Math_PI / 180.0f)) {
+		return false;
+	}
+	slope.inverse = global_transform.affine_inverse();
+	slope.half_size = box->get_size() * 0.5f;
+	float reach = reach_cells * cell_size;
+	// A unit's feet sit on the face and the face rises ahead of them, so
+	// within the widest clearance the grid measures, what lies beside the
+	// feet layer is up to reach * sin(tilt) under the face: under the
+	// walking surface, not in the body's way.
+	slope.skin_depth = cell_size + reach * std::sqrt(std::max(0.0f, 1.0f - best * best));
+	// The face runs on past the box's ends along the slope, by the same
+	// reach: whatever meets the ramp there (the platform it climbs to, the
+	// floor it starts from) is ground too where it lies under that face.
+	// Across the slope the band stops at the box's sides.
+	for (int k = 0; k < 3; k++) {
+		slope.extend[k] = 0.0f;
+		if (k != slope.up_axis && std::abs(global_transform.basis.get_column(k).y) / slope.axis_scale[k] > 0.0175f) {
+			slope.extend[k] = reach / slope.axis_scale[k];
+		}
+	}
+	return true;
 }
 
 void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk) {
@@ -495,6 +555,7 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
+	std::vector<RampInfo> ramps;
 	for (CollisionShape3D *cs : it->second) {
 		Ref<Shape3D> shape = cs->get_shape();
 		Transform3D global_transform = cs->get_global_transform();
@@ -503,6 +564,10 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 		bool is_box = box != nullptr;
 		Vector3 half_size = is_box ? box->get_size() * 0.5f : Vector3();
 		Transform3D inverse = global_transform.affine_inverse();
+		RampInfo ramp;
+		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp)) {
+			ramps.push_back(ramp);
+		}
 
 		for (int x = 0; x < cx1; x++) {
 			for (int y = 0; y < cy1; y++) {
@@ -518,6 +583,37 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 					}
 					if (inside) {
 						chunk.solid[local_index(Vector3i(x, y, z))] = 1;
+					}
+				}
+			}
+		}
+	}
+
+	// Once everything is solid: each ramp's band under its face, whichever
+	// shape the solid there belongs to. Solid standing ABOVE the face (a
+	// crate on the ramp) stays a wall; half a cell of slack lets the
+	// ramp's own top cells, whose centres can sit just over it, through.
+	for (const RampInfo &ramp : ramps) {
+		for (int x = 0; x < cx1; x++) {
+			for (int y = 0; y < cy1; y++) {
+				for (int z = 0; z < cz1; z++) {
+					int li = local_index(Vector3i(x, y, z));
+					if (!chunk.solid[li]) {
+						continue;
+					}
+					Vector3 local = ramp.inverse.xform(cell_center(base + Vector3i(x, y, z)));
+					bool within = true;
+					for (int k = 0; k < 3 && within; k++) {
+						if (k != ramp.up_axis) {
+							within = std::abs(local[k]) <= ramp.half_size[k] + ramp.extend[k];
+						}
+					}
+					if (!within) {
+						continue;
+					}
+					float depth = (ramp.half_size[ramp.up_axis] - local[ramp.up_axis] * ramp.up_sign) * ramp.axis_scale[ramp.up_axis];
+					if (depth >= -CELL_SIZE * 0.5f && depth <= ramp.skin_depth) {
+						chunk.ground[li] = 1;
 					}
 				}
 			}
@@ -617,12 +713,14 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	// second, independent cost from the hashmap-vs-flat-array one (see the
 	// comment above), found by the same profiling pass.
 	uint8_t *neighbor_solid[3][3] = {};
+	uint8_t *neighbor_ground[3][3] = {};
 	for (int dx = -1; dx <= 1; dx++) {
 		for (int dz = -1; dz <= 1; dz++) {
 			Vector3i nc = chunk_coord + Vector3i(dx, 0, dz);
 			if (chunk_in_bounds(nc)) {
 				NavChunk &nchunk = ensure_chunk_rasterized(nc);
 				neighbor_solid[dx + 1][dz + 1] = nchunk.solid.data();
+				neighbor_ground[dx + 1][dz + 1] = nchunk.ground.data();
 			}
 		}
 	}
@@ -651,6 +749,20 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 		int lx = x - cdx * CHUNK_DIM;
 		int lz = z - cdz * CHUNK_DIM;
 		return arr[local_index(Vector3i(lx, local_y, lz))] != 0;
+	};
+	// A ramp's skin (NavChunk::ground == 1) is solid but not a wall: it is
+	// what a unit walking the ramp stands on, the cell beside its feet one
+	// step further up the slope. Clearance is measured from walls only.
+	auto ramp_skin = [&](int x, int local_y, int z) -> bool {
+		int cdx = (x < 0) ? -1 : (x >= CHUNK_DIM ? 1 : 0);
+		int cdz = (z < 0) ? -1 : (z >= CHUNK_DIM ? 1 : 0);
+		uint8_t *arr = neighbor_ground[cdx + 1][cdz + 1];
+		if (!arr) {
+			return false;
+		}
+		int lx = x - cdx * CHUNK_DIM;
+		int lz = z - cdz * CHUNK_DIM;
+		return arr[local_index(Vector3i(lx, local_y, lz))] == 1;
 	};
 
 	chunk.dist.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE));
@@ -698,10 +810,12 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 				}
 				bool local = x >= 0 && x < cx1 && z >= 0 && z < cz1;
 				if (solid_fast(x, y, z)) {
-					int li2 = idx2(x, z);
-					best[li2] = 0.0f;
-					best_gen[li2] = gen;
-					pq.push({ 0.0f, x, z });
+					if (!ramp_skin(x, y, z)) {
+						int li2 = idx2(x, z);
+						best[li2] = 0.0f;
+						best_gen[li2] = gen;
+						pq.push({ 0.0f, x, z });
+					}
 					// Written directly (not just left to the propagation
 					// pass below) so a solid cell is ALWAYS correctly 0,
 					// even in the any_air==false fast-out right after this
