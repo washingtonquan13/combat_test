@@ -88,6 +88,10 @@ func _set_stat_modifiers(effect: StatusEffect, on: bool) -> void:
 
 
 func apply(effect: StatusEffect) -> void:
+	var countered: StatusEffect = countered_by(effect)
+	if countered:
+		remove(countered)
+		return
 	var rival: ActiveStatus = _rival(effect)
 	if rival:
 		if rival.effect.rank > effect.rank:
@@ -116,6 +120,15 @@ func apply(effect: StatusEffect) -> void:
 			_owner.register_stat_modifier(behavior, effect.status_name)
 	busy -= 1
 	status_applied.emit(effect, new_active)
+
+
+## The status on this unit that effect would counter (see
+## StatusEffect.counters) instead of landing, or null.
+func countered_by(effect: StatusEffect) -> StatusEffect:
+	for a in active:
+		if a.effect.group != &"" and effect.counters.has(a.effect.group):
+			return a.effect
+	return null
 
 
 ## Another status of effect's group already on this unit (see

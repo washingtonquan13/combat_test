@@ -37,6 +37,13 @@ enum StackMode {
 ## Empty means no group.
 @export var group: StringName = &""
 @export var rank: int = 0
+## Groups this status counters (Pathfinder's "counters and dispels"):
+## landing on a unit that has a status of one of these groups removes
+## that status instead of applying this one. Enlarged and Reduced counter
+## each other, so each cast steps size one way and it never passes +/-1.
+## By group, not by StatusEffect, so two statuses can counter each other
+## without a resource cycle.
+@export var counters: Array[StringName] = []
 
 @export_group("Resistance")
 ## The stat a target rolls against to shrug this off as it lands — HT

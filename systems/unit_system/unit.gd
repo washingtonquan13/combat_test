@@ -1329,6 +1329,12 @@ func apply_status(effect: StatusEffect) -> void:
 	_status_manager.apply(effect)
 
 
+## The status on this unit that effect would counter and remove instead
+## of landing (StatusEffect.counters), or null.
+func status_countered_by(effect: StatusEffect) -> StatusEffect:
+	return _status_manager.countered_by(effect)
+
+
 ## A status put on this unit by an ability or a surface, which it may
 ## resist (UnitCombat.resists). apply_status is for the ones the rules
 ## put on — Downed, Flying, a summon's timer — which always land.
