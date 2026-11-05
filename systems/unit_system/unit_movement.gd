@@ -212,7 +212,7 @@ func move_to(destination: Vector3, ignore: Array = []) -> bool:
 		if not route.is_empty():
 			if route.affordable:
 				var tail_budget: float = budget - _route_end_cost(route.near_planned) - route.ladder.required_move
-				return _begin_route(_ladder_route(route, destination, ignore, tail_budget))
+				return _begin_route(_ladder_route(route, tail_budget))
 			# Can't afford the full climb this turn (see Ladder.
 			# find_route/required_move — checked as a hard precondition,
 			# never clamped/attempted-and-stranded) — walk toward the
@@ -314,7 +314,7 @@ func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
 	if not _owner.is_flying():
 		var route: Dictionary = Ladder.find_route(_owner, dest, ignore)
 		if not route.is_empty():
-			return _preview_ladder_route(route, dest, ignore)
+			return _preview_ladder_route(route)
 
 	var flying: bool = _owner.is_flying()
 	var query_destination: Vector3 = _query_destination(dest)
@@ -343,17 +343,17 @@ func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
 
 ## preview_route()'s ladder branch — see Ladder.find_route for `route`'s
 ## shape, and move_to()'s ladder branch for the choice being mirrored.
-func _preview_ladder_route(route: Dictionary, dest: Vector3, ignore: Array) -> Dictionary:
+func _preview_ladder_route(route: Dictionary) -> Dictionary:
 	# Unaffordable: move_to() walks toward the near end and stops there,
 	# so that walk is all there is to show.
 	if not route.affordable:
 		return route.near_planned
-	return _ladder_route(route, dest, ignore, INF)
+	return _ladder_route(route, INF)
 
 
 ## The one route over a whole ladder journey, walked by move_to and drawn
 ## by the preview: the walk to the near end, the climb, then the walk from
-## the far end toward dest, cut at tail_budget. Returns RoutePlanner's
+## the far end to the destination, cut at tail_budget. Returns RoutePlanner's
 ## {path, cumulative_cost} plus climb_first/climb_last/climb_speed/
 ## climb_facing for _begin_route.
 ##
@@ -363,7 +363,7 @@ func _preview_ladder_route(route: Dictionary, dest: Vector3, ignore: Array) -> D
 ## onto the exact foot of the ladder before going up rather than climbing
 ## from wherever the walk's arrival_tolerance let it stop. It adds no
 ## cost but the ladder's required_move, charged at the far end.
-func _ladder_route(route: Dictionary, dest: Vector3, ignore: Array, tail_budget: float) -> Dictionary:
+func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
 	var ladder: Ladder = route.ladder
 	var path: PackedVector3Array = route.near_planned.path.duplicate()
 	var cost: PackedFloat32Array = route.near_planned.cumulative_cost.duplicate()
@@ -379,9 +379,10 @@ func _ladder_route(route: Dictionary, dest: Vector3, ignore: Array, tail_budget:
 	var climb_last: int = path.size() - 1
 	var climbed_cost: float = cost[climb_last]
 
-	# The tail is grounded (ladders are grounded-only), planned from the
-	# far end, and the only leg the budget can cut short.
-	var tail_waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), route.far, dest, _owner, false, ignore)
+	# The tail is grounded (ladders are grounded-only), found by
+	# Ladder.find_route from the far end, and the only leg the budget can
+	# cut short.
+	var tail_waypoints: PackedVector3Array = route.tail_waypoints
 	if tail_waypoints.size() >= 2 and tail_budget > 0.0:
 		var tail: Dictionary = _plan_waypoints(tail_waypoints, tail_budget, false)
 		for i in range(1, tail.path.size()):

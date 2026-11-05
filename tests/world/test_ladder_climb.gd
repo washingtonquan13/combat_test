@@ -2,7 +2,8 @@ extends AiTestCase
 ## A ladder climb is part of the one walked route (unit_movement.gd's
 ## _ladder_route): no cost accrues on it (BG3's rule), it takes time at
 ## Ladder.climb_speed rather than snapping, and a stop ordered mid-climb
-## takes effect at the far end, so no unit is ever left on the rungs.
+## takes effect at the far end, so no unit is ever left on the rungs. A
+## destination anywhere routes by the ladder when that is the cheaper way.
 ##
 ## Uses the demo quarry's ladder; only LevelGeometry is lifted out.
 
@@ -31,19 +32,19 @@ func run() -> void:
 	for i in 15:
 		await get_tree().physics_frame
 
+	# A pit-floor spot nowhere near the base: on foot it is the long way
+	# round by the east ramp, so the ladder is the cheaper route.
+	walker.move_to(base + Vector3(3.0, 0.0, 2.0))
+	check("a destination away from the ladder still routes by it",
+		_climb_cost(walker.current_route()) >= 0.0, "path %s" % walker.current_route().get("path"))
+	walker.stop_moving()
+	await get_tree().physics_frame
+
 	check("SETUP: move_to the base starts a move", walker.move_to(base))
 	var route: Dictionary = walker.current_route()
-	var path: PackedVector3Array = route.get("path", PackedVector3Array())
-	var cost: PackedFloat32Array = route.get("cumulative_cost", PackedFloat32Array())
-	var vertical_cost: float = 0.0
-	var has_vertical: bool = false
-	for i in range(1, path.size()):
-		if Vector2(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z).length() < 0.01 \
-				and absf(path[i].y - path[i - 1].y) > 1.0:
-			has_vertical = true
-			vertical_cost += cost[i] - cost[i - 1]
-	check("the climb is in the walked route", has_vertical, "path %s" % path)
-	check("and costs nothing", is_zero_approx(vertical_cost), "cost %s" % cost)
+	var vertical_cost: float = _climb_cost(route)
+	check("the climb is in the walked route", vertical_cost >= 0.0, "path %s" % route.get("path"))
+	check("and costs nothing", is_zero_approx(vertical_cost), "cost %s" % route.get("cumulative_cost"))
 
 	var start_frame: int = Engine.get_physics_frames()
 	var guard: int = 0
@@ -94,3 +95,15 @@ func run() -> void:
 	if fight.is_running:
 		fight.finish(&"")
 	CombatAi.ai_factions = _saved_factions
+
+
+## What the route's vertical segments cost, or -1 when it has none.
+func _climb_cost(route: Dictionary) -> float:
+	var path: PackedVector3Array = route.get("path", PackedVector3Array())
+	var cost: PackedFloat32Array = route.get("cumulative_cost", PackedFloat32Array())
+	var total: float = -1.0
+	for i in range(1, path.size()):
+		if Vector2(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z).length() < 0.01 \
+				and absf(path[i].y - path[i - 1].y) > 1.0:
+			total = maxf(total, 0.0) + cost[i] - cost[i - 1]
+	return total

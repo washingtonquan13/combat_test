@@ -17,12 +17,13 @@ extends Node3D
 ## Conceptually the same idea as Unreal's NavLinkProxy or Unity's
 ## NavMeshLink — a manually-placed connector the pathfinder doesn't
 ## discover on its own. Unlike those, this ISN'T integrated into
-## NavigationGrid's own search: find_route() below is called externally,
-## by UnitMovement, BEFORE any pathfinding runs, and the actual journey is
-## stitched together from two ordinary NavigationGrid.find_path() calls
-## with the climb between them, all one route UnitMovement walks — deliberately, to avoid the
-## C++ engine changes real graph integration would require for a feature
-## this narrow in scope.
+## NavigationGrid's own search: find_route() below is called by
+## UnitMovement before it walks, prices each ladder (walk to it, climb,
+## walk on) against the plain walked path from ordinary
+## NavigationGrid.find_path() calls, and the winner is stitched into the
+## one route UnitMovement walks — deliberately, to avoid the C++ engine
+## changes real graph integration would require for a feature this narrow
+## in scope. One ladder per journey; chains of ladders are not searched.
 ##
 ## Grounded units only — a flying unit already has unrestricted vertical
 ## movement and never needs one; UnitMovement only ever calls find_route()
@@ -53,12 +54,6 @@ extends Node3D
 ## 1.5 keeps a 6 m ladder to 4 s without the old fixed 0.6 s zip.
 @export var climb_speed: float = 1.5
 
-## How close a move_to() destination needs to be to base_position()/
-## top_position() to be interpreted as "use this ladder" — see
-## find_route().
-@export var interaction_radius: float = 1.5
-
-
 func _ready() -> void:
 	add_to_group("ladders")
 
@@ -73,114 +68,149 @@ func top_position() -> Vector3:
 	return marker.global_position if marker else global_position
 
 
-## The ONE shared query both UnitMovement's real move and
-## movement_indicator.gd's preview call — so neither can disagree with the
-## other about whether a destination implies using a ladder, or whether
-## the unit can currently afford it. Same discipline jump_indicator.gd
-## already applies to Jump's arc: what's shown must be exactly what will
-## happen, never an approximation of it.
+## How close a walked path's end must come to the asked-for point to
+## count as getting there (find_path snaps an unstandable point).
+const ARRIVAL: float = 1.0
+
+static var _cache_key: Array = []
+static var _cache_route: Dictionary = {}
+
+
+## The ONE shared query both UnitMovement's real move and its preview
+## call, so neither can disagree about whether a destination takes a
+## ladder, or whether the unit can afford it.
 ##
-## Returns {} if no ladder in the "ladders" group is relevant to
-## destination at all (i.e. destination isn't near any ladder's base or
-## top). Otherwise:
+## A ladder is taken, wherever the destination is, when it is the only
+## way there or the cheaper one (BG3 routes through ladders the same way):
+## the walk to its near end, the free climb, and the walk on from its far
+## end, against the plain walked path. Only a move that changes level
+## looks at all (the unit nearer the near end's height, the destination
+## nearer the far end's), so a flat click costs no path query.
+##
+## Returns {} when walking is as good or the only option. Otherwise:
 ##   ladder: Ladder
-##   near: Vector3 — the end closer to the unit's current side, walked to
-##     normally before climbing
-##   far: Vector3 — the other end, where destination actually is
-##   near_planned: Dictionary — RoutePlanner.plan()'s own return shape
-##     ({path, cumulative_cost}) for the real route from the unit's
-##     current position to `near`, planned with an effectively unlimited
-##     budget so the caller sees the FULL route/cost regardless of
-##     move_remaining (same convention movement_indicator.gd already uses
-##     for its own preview planning)
-##   going_up: bool — true if near==base/far==top (climbing up), false if
-##     near==top/far==base (climbing down). UnitMovement needs this to
-##     know which direction to actually walk climb_waypoints in — see
-##     that function's own header for why the path isn't symmetric.
-##   affordable: bool — whether move_remaining covers near_planned's full
-##     cost PLUS required_move, checked all at once as a single hard
-##     precondition. Always true outside combat (move is unlimited there,
-##     same as ordinary movement's own budget = INF rule).
+##   near / far: Vector3 — the end walked to, and the end climbed to
+##   near_planned: RoutePlanner.plan()'s {path, cumulative_cost} to near,
+##     planned without a budget so the caller sees the whole cost
+##   tail_waypoints: find_path from far to the destination (UnitMovement
+##     plans it with what budget is left)
+##   going_up: bool — which way to walk climb_waypoints (see its header)
+##   affordable: whether move_remaining covers the walk to near plus
+##     required_move, one hard precondition; always true out of combat.
+##
+## Cached on the last query (unit, cells, occupancy, budget): the preview
+## asks every frame and the mouse sitting still is the common case.
 static func find_route(unit: Unit, destination: Vector3, ignore: Array = []) -> Dictionary:
-	# "ladders" is one global group with no world in it, and every area
-	# here is authored around the origin — so a ladder two areas away sits
-	# at coordinates this unit could plausibly route to, and would be
-	# climbed in a world it is not in.
+	var candidates: Array = []
+	# "ladders" is one global group with no world in it, and every area is
+	# authored around the origin, so a ladder two areas away sits at
+	# coordinates this unit could plausibly route to.
 	for node in unit.get_tree().get_nodes_in_group("ladders"):
 		var ladder := node as Ladder
 		if not ladder or not ladder.is_inside_tree():
 			continue
 		if ladder.get_world_3d() != unit.get_world_3d():
 			continue
-
 		var top: Vector3 = ladder.top_position()
 		var base: Vector3 = ladder.base_position()
-
-		var near: Vector3
-		var far: Vector3
-		var going_up: bool
-		if destination.distance_to(top) <= ladder.interaction_radius:
-			near = base
-			far = top
-			going_up = true
-		elif destination.distance_to(base) <= ladder.interaction_radius:
-			near = top
-			far = base
-			going_up = false
-		else:
-			continue
-
-		# near/far are themselves confirmed-valid points, but the PATH
-		# connecting them isn't automatically safe — a straight line
-		# between an outside-the-geometry point and an inset landing point
-		# can cut straight through whatever solid corner sits between
-		# them (confirmed, reproduced: a ladder mounted on a wall with its
-		# top inset onto the platform above cut through the platform's own
-		# corner for the top half of the climb, in BOTH directions — see
-		# climb_waypoints' own header for why going_up has to be passed
-		# through here too, not just to UnitMovement). Skip this ladder
-		# rather than offer a climb that would visibly clip — a broken/
-		# misplaced ladder should silently decline to engage, not animate
-		# through geometry.
-		if not _climb_path_is_clear(unit, base, top, going_up):
-			continue
-
-		# find_path returning fewer than 2 waypoints normally means "no
-		# route exists," but it's ALSO what a start==destination query
-		# returns — and the unit already standing at/very near `near` is
-		# the COMMON case here, not an edge case: it's exactly where a
-		# unit stands right after climbing UP a moment ago, so the very
-		# next thing they do is often try to climb back DOWN from
-		# essentially that same spot. Confirmed as a real bug, not
-		# hypothetical: this used to fall through to `continue` (silently
-		# refusing to offer the ladder at all) whenever the click was
-		# close enough to already-arrived. Treated as a trivial, real,
-		# zero-cost route instead of a failure.
-		var near_planned: Dictionary
-		if unit.global_position.distance_to(near) <= unit.arrival_tolerance:
-			near_planned = {
-				"path": PackedVector3Array([unit.global_position, near]),
-				"cumulative_cost": PackedFloat32Array([0.0, 0.0]),
-			}
-		else:
-			var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, near, unit, false, ignore)
-			if waypoints.size() < 2:
+		for going_up in [true, false]:
+			var near: Vector3 = base if going_up else top
+			var far: Vector3 = top if going_up else base
+			if absf(unit.global_position.y - near.y) >= absf(unit.global_position.y - far.y):
 				continue
-			near_planned = RoutePlanner.plan(waypoints, 9999.0, SurfaceManager.cost_sampler(unit))
+			if absf(destination.y - far.y) >= absf(destination.y - near.y):
+				continue
+			candidates.append([ladder, near, far, going_up])
+	if candidates.is_empty():
+		return {}
 
-		var cost_to_near: float = near_planned.cumulative_cost[near_planned.cumulative_cost.size() - 1] if near_planned.cumulative_cost.size() > 0 else 0.0
-		var affordable: bool = (not unit.in_combat()) or (unit.move_remaining >= cost_to_near + ladder.required_move)
+	var tree: SceneTree = unit.get_tree()
+	var key: Array = [
+		unit.get_instance_id(),
+		NavigationGrid.world_to_cell(unit.global_position),
+		NavigationGrid.world_to_cell(destination),
+		NavigationGrid.occupancy_version(tree, unit),
+		ignore.hash(),
+		unit.in_combat(),
+		unit.move_remaining,
+	]
+	if key == _cache_key:
+		return _cache_route
+	var route: Dictionary = _best_route(unit, destination, ignore, candidates)
+	_cache_key = key
+	_cache_route = route
+	return route
 
-		return {
+
+static func _best_route(unit: Unit, destination: Vector3, ignore: Array, candidates: Array) -> Dictionary:
+	var sampler: Callable = SurfaceManager.cost_sampler(unit)
+	var best_cost: float = INF
+	var direct: Dictionary = _plan_leg(unit, unit.global_position, destination, ignore, sampler)
+	if not direct.is_empty():
+		best_cost = _end_cost(direct)
+
+	var best: Dictionary = {}
+	for candidate in candidates:
+		var ladder: Ladder = candidate[0]
+		var near: Vector3 = candidate[1]
+		var far: Vector3 = candidate[2]
+		var going_up: bool = candidate[3]
+		# Straight-line floor first: most ladders lose to the plain walk
+		# without a single path query.
+		var floor_cost: float = _flat(unit.global_position, near) + ladder.required_move + _flat(far, destination)
+		if floor_cost >= best_cost:
+			continue
+		# A misplaced ladder whose climb would cut through geometry
+		# declines to engage rather than animate through it (see
+		# climb_waypoints for the reproduced corner-clip).
+		if not _climb_path_is_clear(unit, ladder.base_position(), ladder.top_position(), going_up):
+			continue
+		var near_planned: Dictionary = _plan_leg(unit, unit.global_position, near, ignore, sampler)
+		if near_planned.is_empty():
+			continue
+		var tail: Dictionary = _plan_leg(unit, far, destination, ignore, sampler)
+		if tail.is_empty():
+			continue
+		var total: float = _end_cost(near_planned) + ladder.required_move + _end_cost(tail)
+		if total >= best_cost:
+			continue
+		best_cost = total
+		best = {
 			"ladder": ladder,
 			"near": near,
 			"far": far,
 			"near_planned": near_planned,
+			"tail_waypoints": tail.waypoints,
 			"going_up": going_up,
-			"affordable": affordable,
+			"affordable": (not unit.in_combat())
+				or unit.move_remaining >= _end_cost(near_planned) + ladder.required_move,
 		}
+	return best
 
-	return {}
+
+## A walked leg, planned without a budget: {path, cumulative_cost,
+## waypoints}, or {} when it does not get there. Standing on the start
+## already is a real, free leg — the common case right after a climb,
+## when the next order is the climb back.
+static func _plan_leg(unit: Unit, from: Vector3, to: Vector3, ignore: Array, sampler: Callable) -> Dictionary:
+	if from.distance_to(to) <= unit.arrival_tolerance:
+		var trivial := PackedVector3Array([from, to])
+		return {"path": trivial, "cumulative_cost": PackedFloat32Array([0.0, 0.0]), "waypoints": trivial}
+	var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), from, to, unit, false, ignore)
+	if waypoints.size() < 2 or waypoints[waypoints.size() - 1].distance_to(to) > ARRIVAL:
+		return {}
+	var planned: Dictionary = RoutePlanner.plan(waypoints, 9999.0, sampler)
+	planned["waypoints"] = waypoints
+	return planned
+
+
+static func _end_cost(planned: Dictionary) -> float:
+	var cost: PackedFloat32Array = planned.cumulative_cost
+	return cost[cost.size() - 1] if cost.size() > 0 else 0.0
+
+
+static func _flat(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
 
 ## The actual climb route, ALWAYS expressed base-to-top regardless of
