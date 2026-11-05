@@ -98,6 +98,10 @@ extends Node
 @export var takeoff_animation: String = ""
 @export var land_animation: String = ""
 
+@export_group("Ladder Animation")
+## See CharacterModel's own Ladder Animation group.
+@export var climb_animation: String = ""
+
 ## What a one-shot clip (a hit reaction, most commonly) returns to once
 ## it finishes — idle_animation normally, or the held status's
 ## apply_animation while unit.visual_state == POSED. The single source
@@ -201,6 +205,7 @@ func adopt_model(model: CharacterModel) -> void:
 	fly_move_animation = model.fly_move_animation
 	takeoff_animation = model.takeoff_animation
 	land_animation = model.land_animation
+	climb_animation = model.climb_animation
 	model.moment.connect(_on_model_moment)
 
 
@@ -572,6 +577,35 @@ func _on_stance_changed(stance: String) -> void:
 	var showing_idle: bool = String(animation_player.current_animation) == was_idle
 	if showing_idle and was_idle != _idle() and not unit.is_moving() and _active_sequence == null:
 		_play(_idle(), stance_blend_time)
+
+
+## The way the climb clip is playing: 1 up, -1 down, 0 not climbing.
+var _climb_shown: int = 0
+
+
+## A climb is part of a move, so movement_started has already played the
+## walk; this swaps it for the climb on the rungs and back for the level
+## steps on and off. Polled because the route crosses onto the ladder
+## with no signal of its own.
+func _physics_process(_delta: float) -> void:
+	if unit == null or _cutscene_claimed or unit.posed_status or not unit.is_alive():
+		return
+	var direction: int = unit.climb_direction()
+	if direction == _climb_shown:
+		return
+	_climb_shown = direction
+	if direction == 0:
+		if unit.is_moving():
+			_play(_walk(), 0.15)
+		return
+	if climb_animation == "" or not animation_player.has_animation(climb_animation):
+		return
+	# One cycle climbs `rise`, so this rate keeps the hands and feet on
+	# the rungs at the unit's own climb speed.
+	var clip: Animation = animation_player.get_animation(climb_animation)
+	var rise: float = clip.get_meta("rise", 0.3)
+	var rate: float = unit.climb_speed() * clip.length / rise
+	animation_player.play(climb_animation, 0.15, rate * direction, direction < 0)
 
 
 func _walk() -> String:

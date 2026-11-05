@@ -65,6 +65,12 @@ extends Node3D
 @export var takeoff_animation: String = ""
 @export var land_animation: String = ""
 
+@export_group("Ladder Animation")
+## A one-rung climbing loop, in place, with the height it climbs in its
+## "rise" metadata (tools/make_ladder_animations.gd); played forwards up
+## a ladder and backwards down one. Empty means walking on the rungs.
+@export var climb_animation: String = ""
+
 @export_group("Presentation")
 ## The silhouette drawn behind the body when hovered or selected. Skinned
 ## to THIS body's skeleton, which is the whole reason it cannot live on

@@ -50,9 +50,11 @@ extends Node3D
 @export var required_move: float = 0.0
 
 ## Climbing speed in m/s, along UnitMovement's route (the climb is part
-## of the move, see _ladder_route there). A real climber manages ~0.5;
-## 1.5 keeps a 6 m ladder to 4 s without the old fixed 0.6 s zip.
-@export var climb_speed: float = 1.5
+## of the move, see _ladder_route there). A real climber manages ~0.5,
+## the CMU capture behind the climb clip 0.2; 0.75 is a brisk scramble
+## (the clip at ~3.7x, a rung every 0.36 s) and a 6 m ladder in 8 s. The
+## clip's rate follows this, so any value keeps hands and feet in step.
+@export var climb_speed: float = 0.75
 
 func _ready() -> void:
 	add_to_group("ladders")

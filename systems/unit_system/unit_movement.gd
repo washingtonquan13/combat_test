@@ -72,7 +72,7 @@ var _last_progress_position: Vector3 = Vector3.ZERO
 ## the far end (_after_climb) rather than leaving the unit on the rungs.
 var _climb_first: int = -1
 var _climb_last: int = -1
-var _climb_speed: float = 1.5
+var _climb_speed: float = 0.75
 ## Horizontal direction from the ladder's base to its top — toward the
 ## wall, both ways (a unit climbs down facing the rungs too).
 var _climb_facing: Vector3 = Vector3.ZERO
@@ -131,6 +131,23 @@ func is_moving() -> bool:
 ## point. Still is_moving(): the climb is part of the move.
 func is_climbing() -> bool:
 	return _moving and _climb_first >= 0 and _path_index >= _climb_first and _path_index <= _climb_last
+
+
+## Which way the unit is going on the rungs right now: 1 up, -1 down, 0
+## when it isn't climbing or is stepping on or off at either end (those
+## legs of Ladder.climb_waypoints are level).
+func climb_direction() -> int:
+	if not is_climbing():
+		return 0
+	var rise: float = _current_path[_path_index].y - _owner.global_position.y
+	if absf(rise) < 0.01:
+		return 0
+	return 1 if rise > 0.0 else -1
+
+
+## The speed of the climb being made (Ladder.climb_speed), m/s.
+func climb_speed() -> float:
+	return _climb_speed
 
 
 ## The route being walked, whole (start to destination, as planned at

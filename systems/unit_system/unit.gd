@@ -1257,6 +1257,15 @@ func is_climbing() -> bool:
 	return _movement.is_climbing()
 
 
+## 1 climbing up, -1 down, 0 otherwise (see UnitMovement.climb_direction).
+func climb_direction() -> int:
+	return _movement.climb_direction()
+
+
+func climb_speed() -> float:
+	return _movement.climb_speed()
+
+
 ## The route this unit is walking right now, start to destination as it
 ## was planned, in preview_route()'s shape; empty while not walking.
 func current_route() -> Dictionary:
