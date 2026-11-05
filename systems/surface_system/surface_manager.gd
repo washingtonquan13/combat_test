@@ -174,6 +174,51 @@ func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: flo
 	return _land(surface, reached, context, parent, ground_apex, length)
 
 
+## Lays a ground surface (Explosive Fireball's burning ground) wherever a
+## blast sphere of radius round centre reaches the floor: every cell whose
+## floor is within radius of centre with no wall between, the same shadow
+## the blast's damage casts. A burst on the ground burns a full patch, one
+## in the air a smaller one the higher it is, and one higher than radius
+## none. It spreads out from centre, or, given front_seconds, with a front
+## reaching radius in that long (see DecalSurface.show_cells). Returns its
+## SurfacePatch, or null if the blast touches no floor.
+func spawn_burst(surface: Surface, centre: Vector3, radius: float, caster: Node = null, front_seconds: float = 0.0) -> SurfacePatch:
+	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	if not space:
+		return null
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+	# Lifted a little, so a burst on the ground sees the floor round it
+	# rather than grazing it.
+	var eye: Vector3 = centre + Vector3.UP * 0.3
+	var reached: Dictionary = {}
+	var low: Vector2i = SurfaceGrid.key_of(centre - Vector3(radius, 0.0, radius))
+	var high: Vector2i = SurfaceGrid.key_of(centre + Vector3(radius, 0.0, radius))
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var key := Vector2i(x, z)
+			var column: Vector3 = SurfaceGrid.centre_of(key, centre.y)
+			if Vector2(column.x - centre.x, column.z - centre.z).length() > radius:
+				continue
+			var down := PhysicsRayQueryParameters3D.create(column + Vector3.UP * 0.5, column + Vector3.DOWN * radius, 1, exclude)
+			var hit: Dictionary = space.intersect_ray(down)
+			if hit.is_empty() or hit.normal.y < FLOOR_NORMAL:
+				continue
+			var floor_point: Vector3 = hit.position + Vector3.UP * 0.05
+			if floor_point.distance_to(centre) > radius:
+				continue
+			var sight := PhysicsRayQueryParameters3D.create(eye, floor_point, 1, exclude)
+			if not space.intersect_ray(sight).is_empty():
+				continue
+			reached[key] = hit.position.y
+	if reached.is_empty():
+		return null
+	return _land(surface, reached, context, parent, centre, radius, 0, front_seconds)
+
+
 ## Whether the cube centred on point is part of a wall from from to to:
 ## its centre within WALL_HALF_THICKNESS of the line, across the ground,
 ## and its height overlapping the ground there up to height.

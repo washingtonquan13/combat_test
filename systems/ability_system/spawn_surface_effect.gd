@@ -18,10 +18,11 @@ extends AbilityEffect
 ## indicator showed the player before they committed to the cast.
 
 @export var surface: Surface
-## For a cone: seconds a front takes to spread the surface out to the
-## cone's end, fast then slowing, instead of it spreading in at once.
-## Fire Breath matches its gust's front_seconds (fire_breath.tscn), so
-## the ground catches as the fire reaches it. 0 for the usual spread.
+## For a cone or an aerial blast: seconds a front takes to spread the
+## surface out to the cone's end or the blast's radius, fast then slowing,
+## instead of it spreading in at once. Fire Breath and Explosive Fireball
+## match their fire's front_seconds (fire_breath.tscn, fireball_blast.gd),
+## so the ground catches as the fire reaches it. 0 for the usual spread.
 @export var front_seconds: float = 0.0
 
 
@@ -41,6 +42,11 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	if not targeting:
 		return {}
 
+	if targeting is AerialAreaTargeting and surface.shape == Surface.Shape.DISC:
+		# A blast aimed anywhere in the air: only the floor its sphere reaches.
+		if SurfaceManager.spawn_burst(surface, target, targeting.radius, attacker, front_seconds) == null:
+			return {}
+		return {"spawned_surface": surface.surface_name}
 	SurfaceManager.spawn(surface, target, targeting.radius, attacker)
 	return {"spawned_surface": surface.surface_name}
 
