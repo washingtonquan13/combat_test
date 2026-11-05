@@ -28,14 +28,16 @@ shader_parameter/empty_dim = 0.5
 shader_parameter/surface_color = Color(1, 0.92, 0.8, 0.75)
 shader_parameter/surface_px = 2.0
 shader_parameter/wave_amp = 0.02
-shader_parameter/swirl = 0.12
-shader_parameter/refract = 0.004
+shader_parameter/swirl = 0.18
+shader_parameter/refract = 0.006
 shader_parameter/sphere_shade = 0.4
 shader_parameter/fresnel_color = Color(1, 0.9, 0.75, 0.18)
 shader_parameter/gloss = 0.3
 shader_parameter/rim_color = Color(0.878, 0.714, 0.353, 1)
 shader_parameter/rim_px = 3.0
-shader_parameter/vein_color = Color(1, 0.9, 0.7, 0)
+shader_parameter/vein_color = Color(1, 0.75, 0.45, 0.28)
+shader_parameter/spin_scale = 1.8
+shader_parameter/vein_sharp = 6.0
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_fp"]
 resource_local_to_scene = true
