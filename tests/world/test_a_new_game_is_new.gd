@@ -145,7 +145,7 @@ func run() -> void:
 		return
 
 	check("SETUP: the first game's party is the first character's",
-		_leader_name() == FIRST_NAME and _live_members().size() == 4,
+		_leader_name() == FIRST_NAME and _live_members().size() == 1,
 		"leader '%s', %d member(s) — %s" % [
 			_leader_name(), _live_members().size(), _describe_party()])
 
@@ -275,7 +275,7 @@ func run() -> void:
 
 	# --- the bug, as the player meets it -------------------------------
 	check("the second game's party is the second character's",
-		_leader_name() == SECOND_NAME and _live_members().size() == 4,
+		_leader_name() == SECOND_NAME and _live_members().size() == 1,
 		"leader is '%s' with %d member(s) — %s. test_arena only bootstraps " % [
 			_leader_name(), _live_members().size(), _describe_party()] +
 		"when the roster is empty, so a surviving roster respawns the old party")

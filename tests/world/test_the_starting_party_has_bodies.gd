@@ -44,6 +44,7 @@ func run() -> void:
 	# with.
 	PartyManager.clear_members()
 	PartyManager.load_state({})
+	PartyManager.inventory.load_state({})
 
 	WorldManager.load_area(HOME)
 	await get_tree().process_frame
@@ -61,7 +62,7 @@ func run() -> void:
 			party.append(member)
 
 	check("SETUP: the starting party exists",
-		party.size() >= 4, "%d member(s)" % party.size())
+		party.size() == 1, "%d member(s)" % party.size())
 
 	# The control. Authored in the same scene, but through definitions.
 	var enemy: Unit = _find_by_id(&"test_arena_hobgoblin")
@@ -96,43 +97,26 @@ func run() -> void:
 	_restore()
 
 
-## The migration guard for moving the party out of the scene.
-##
-## These four used to be hand-placed nodes carrying alignment, tendency,
-## move_speed, selected_color, a conversation and three trained skills as
-## inline properties and child nodes. All of that now lives in
-## data/companions/*.tres, and none of it is visible in a body check — a
-## companion could come back correctly rendered and completely characterless.
+## The authored wizard stands in when chargen never ran, and keeps who she
+## was authored as; the demo also hands her every spell and all the gear.
 func _the_companions_kept_who_they_are(party: Array[Unit]) -> void:
 	var wizard: Unit = _member_named(party, "Tiefling Wizard")
-	var ranger: Unit = _member_named(party, "Elf Ranger")
-	if wizard == null or ranger == null:
-		check("SETUP: the wizard and the ranger are both here", false,
-			"the party is not who it should be")
+	if wizard == null:
+		check("SETUP: the wizard stands in for the missing chargen character", false)
 		return
 
 	check("the wizard is still as chaotic as she was authored",
 		wizard.alignment == -100 and wizard.tendency == 100,
-		"alignment %d, tendency %d — the overworld spin is derived from this" % [
-			wizard.alignment, wizard.tendency])
-
-	var levels: Dictionary = {}
-	for instance in wizard.get_skills():
-		if instance.skill_data:
-			levels[instance.skill_data.resource_path.get_file()] = instance.levels_purchased
-	check("and kept all three skills she trained",
-		levels.size() == 3, "%d skill(s): %s" % [levels.size(), str(levels)])
-	check("including the one she put seven levels into",
-		levels.get("insight.tres", 0) == 7,
-		"insight at %d" % levels.get("insight.tres", 0))
-
-	check("and everyone still walks at the speed they were given",
-		is_equal_approx(wizard.move_speed, 5.0),
-		"%.2f" % wizard.move_speed)
-
-	check("and the ranger can still be talked to",
-		not ranger.dialogue_options.is_empty(),
-		"her conversation went missing with her node")
+		"alignment %d, tendency %d" % [wizard.alignment, wizard.tendency])
+	var names: Array = wizard.abilities.map(func(a: Ability) -> String: return a.resource_path.get_file())
+	check("and knows every spell, the fireball included",
+		names.has("explosive_fireball.tres") and names.has("wall_of_fire.tres"), str(names))
+	var sword: ItemInstance = wizard.get_equipped_item(EquipSlot.Slot.MELEE_MAIN_HAND)
+	check("and wears the loadout",
+		sword != null and sword.definition.resource_path.ends_with("iron_sword.tres"))
+	check("and the rest of the gear is in the bag",
+		PartyManager.inventory.items().any(func(i: ItemInstance) -> bool:
+			return i.definition.resource_path.ends_with("greatsword.tres")))
 
 
 ## The character chargen makes, which is nobody's authored content.
@@ -147,6 +131,7 @@ func _a_created_character_has_a_body() -> void:
 	WorldManager.discard_worlds()
 	PartyManager.clear_members()
 	PartyManager.load_state({})
+	PartyManager.inventory.load_state({})
 
 	var record := PartyMemberData.new()
 	record.is_leader = true
@@ -225,6 +210,7 @@ func _snapshot_globals() -> void:
 	_snapshot = {
 		"flags": FlagManager.save_state(),
 		"party": PartyManager.save_state(),
+		"bag": PartyManager.inventory.save_state(),
 	}
 
 
@@ -233,6 +219,7 @@ func _restore() -> void:
 	if not _snapshot.is_empty():
 		FlagManager.load_state(_snapshot["flags"])
 		PartyManager.load_state(_snapshot["party"])
+		PartyManager.inventory.load_state(_snapshot["bag"])
 	while PartyManager.groups.size() > 1:
 		PartyManager.groups[0].absorb(PartyManager.groups[1])
 		PartyManager.groups.remove_at(1)
