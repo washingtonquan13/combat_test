@@ -19,3 +19,18 @@ From [game-icons.net](https://game-icons.net), licensed under
 | pick_up_icon.png | Grab | Lorc |
 | attack_icon_melee.png | Broadsword | Lorc |
 | fireball_icon.png | Fireball | Lorc |
+| attack_icon_ranged.png | High shot | Lorc |
+| reload_icon.png | Reload gun barrel | Delapouite |
+| bless_icon.png | Spiked halo | Lorc |
+| cure_icon.png | Remedy | Delapouite |
+| heal_icon.png | Heart plus | Zeromancer |
+| deceptive_attack_icon.png | Sly | Lorc |
+| grease_icon.png | Oily spiral | Lorc |
+| jump_icon.png | Jump across | Delapouite |
+| knockback_icon.png | Push | Delapouite |
+| shield_icon.png | Magic shield | Lorc |
+| sleep_spell_icon.png | Night sleep | Delapouite |
+| summon_icon.png | Pentagram rose | Lorc |
+| target_head_icon.png | Headshot | Lorc |
+| target_vitals_icon.png | Pierced heart | Lorc |
+| weaken_icon.png | Broken skull | Lorc |
