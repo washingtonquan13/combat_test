@@ -34,6 +34,8 @@ func run() -> void:
 
 	# A pit-floor spot nowhere near the base: on foot it is the long way
 	# round by the east ramp, so the ladder is the cheaper route.
+	check("the AI's route query sees the same ladder",
+		_climb_cost(walker.plan_route(base + Vector3(3.0, 0.0, 2.0))) >= 0.0)
 	walker.move_to(base + Vector3(3.0, 0.0, 2.0))
 	check("a destination away from the ladder still routes by it",
 		_climb_cost(walker.current_route()) >= 0.0, "path %s" % walker.current_route().get("path"))
@@ -73,6 +75,8 @@ func run() -> void:
 
 	var enemy: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], base + Vector3(0.0, 0.0, -8.0))
 	await get_tree().physics_frame
+	check("the AI knows a grounded foe can climb up to the top",
+		AiScorer._can_ever_reach(enemy, top, melee()))
 	var fight: Encounter = CombatManager.start_combat([walker, enemy] as Array[Unit])
 	await get_tree().process_frame
 	guard = 0

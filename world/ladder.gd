@@ -78,9 +78,9 @@ static var _cache_key: Array = []
 static var _cache_route: Dictionary = {}
 
 
-## The ONE shared query both UnitMovement's real move and its preview
-## call, so neither can disagree about whether a destination takes a
-## ladder, or whether the unit can afford it.
+## The ONE shared query behind UnitMovement.plan_route — so the real move,
+## its preview and the AI's pricing of a move can't disagree about whether
+## a destination takes a ladder.
 ##
 ## A ladder is taken, wherever the destination is, when it is the only
 ## way there or the cheaper one (BG3 routes through ladders the same way):
@@ -97,13 +97,46 @@ static var _cache_route: Dictionary = {}
 ##   tail_waypoints: find_path from far to the destination (UnitMovement
 ##     plans it with what budget is left)
 ##   going_up: bool — which way to walk climb_waypoints (see its header)
-##   affordable: whether move_remaining covers the walk to near plus
-##     required_move, one hard precondition; always true out of combat.
+## Whether a budget covers the climb is the caller's question (see
+## UnitMovement.plan_route): the same route serves every budget.
 ##
-## Cached on the last query (unit, cells, occupancy, budget): the preview
+## Cached on the last query (unit, cells, occupancy, ignore): the preview
 ## asks every frame and the mouse sitting still is the common case.
 static func find_route(unit: Unit, destination: Vector3, ignore: Array = []) -> Dictionary:
 	var candidates: Array = []
+	for end in _climbable_ends(unit):
+		var near: Vector3 = end[1]
+		var far: Vector3 = end[2]
+		if absf(destination.y - far.y) >= absf(destination.y - near.y):
+			continue
+		candidates.append(end)
+	if candidates.is_empty():
+		return {}
+
+	var tree: SceneTree = unit.get_tree()
+	var key: Array = [
+		unit.get_instance_id(),
+		NavigationGrid.world_to_cell(unit.global_position),
+		NavigationGrid.world_to_cell(destination),
+		NavigationGrid.occupancy_version(tree, unit),
+		ignore.hash(),
+	]
+	if key == _cache_key:
+		return _cache_route
+	var route: Dictionary = _best_route(unit, destination, ignore, candidates)
+	_cache_key = key
+	_cache_route = route
+	return route
+
+
+## The ladder ends `unit` could climb to from the level it stands on:
+## [ladder, near, far, going_up] for each ladder in its world whose near
+## end is nearer the unit's height than its far end. find_route's first
+## filter, and the AI's question of what heights a grounded unit can ever
+## get to (see AiScorer._can_ever_reach) — one copy, so the AI never
+## counts a climb the move wouldn't consider.
+static func _climbable_ends(unit: Unit) -> Array:
+	var ends: Array = []
 	# "ladders" is one global group with no world in it, and every area is
 	# authored around the origin, so a ladder two areas away sits at
 	# coordinates this unit could plausibly route to.
@@ -120,28 +153,18 @@ static func find_route(unit: Unit, destination: Vector3, ignore: Array = []) -> 
 			var far: Vector3 = top if going_up else base
 			if absf(unit.global_position.y - near.y) >= absf(unit.global_position.y - far.y):
 				continue
-			if absf(destination.y - far.y) >= absf(destination.y - near.y):
-				continue
-			candidates.append([ladder, near, far, going_up])
-	if candidates.is_empty():
-		return {}
+			ends.append([ladder, near, far, going_up])
+	return ends
 
-	var tree: SceneTree = unit.get_tree()
-	var key: Array = [
-		unit.get_instance_id(),
-		NavigationGrid.world_to_cell(unit.global_position),
-		NavigationGrid.world_to_cell(destination),
-		NavigationGrid.occupancy_version(tree, unit),
-		ignore.hash(),
-		unit.in_combat(),
-		unit.move_remaining,
-	]
-	if key == _cache_key:
-		return _cache_route
-	var route: Dictionary = _best_route(unit, destination, ignore, candidates)
-	_cache_key = key
-	_cache_route = route
-	return route
+
+## Heights a grounded unit can reach by one climb from where it stands —
+## the far ends of _climbable_ends. No path query: whether the walk to the
+## ladder exists is the route's question, not this one's.
+static func climbable_heights(unit: Unit) -> PackedFloat32Array:
+	var heights := PackedFloat32Array()
+	for end in _climbable_ends(unit):
+		heights.append((end[2] as Vector3).y)
+	return heights
 
 
 static func _best_route(unit: Unit, destination: Vector3, ignore: Array, candidates: Array) -> Dictionary:
@@ -184,8 +207,6 @@ static func _best_route(unit: Unit, destination: Vector3, ignore: Array, candida
 			"near_planned": near_planned,
 			"tail_waypoints": tail.waypoints,
 			"going_up": going_up,
-			"affordable": (not unit.in_combat())
-				or unit.move_remaining >= _end_cost(near_planned) + ladder.required_move,
 		}
 	return best
 

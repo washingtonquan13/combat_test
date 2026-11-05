@@ -8,12 +8,12 @@ extends AiBehavior
 ## ONLY this behavior, and not MaintainAltitude, uses flight for: purely
 ## as a shortcut past terrain, never as a standing preference.
 ##
-## Compares both routes at the SAME cost scale — RoutePlanner.plan() over
-## NavigationGrid.find_path(), the exact functions every real move in
-## this project already goes through (see UnitMovement.plan_route/
-## movement_indicator.gd) — with the flying leg's own ascend/descend
-## multipliers applied (see FlightRules), so "meaningfully cheaper"
-## already accounts for climbing being expensive, not just raw distance.
+## Compares both routes at the SAME cost scale — the ground one is the
+## unit's own UnitMovement.plan_route (ladders included), the flying one
+## RoutePlanner.plan() over a flying NavigationGrid.find_path() — with
+## the flying leg's own ascend/descend multipliers applied (see
+## FlightRules), so "meaningfully cheaper" already accounts for climbing
+## being expensive, not just raw distance.
 ## Only ever proposes the takeoff itself; the resulting attack (or
 ## further repositioning) is left to whatever runs after this unit is
 ## actually airborne (MaintainAltitude/Swoop, or the plain baseline
@@ -42,8 +42,8 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 		return []
 
 	var goal: Vector3 = AiScorer.standoff_goal(unit, target, ability)
-	var ground_cost: float = _route_cost(unit, goal, false)
-	var flight_cost: float = _route_cost(unit, Vector3(goal.x, _flight_altitude_for(target), goal.z), true)
+	var ground_cost: float = _ground_cost(unit, goal)
+	var flight_cost: float = _flight_cost(unit, Vector3(goal.x, _flight_altitude_for(target), goal.z))
 
 	if flight_cost == INF or ground_cost < flight_cost * cost_advantage_threshold:
 		return []
@@ -57,15 +57,25 @@ func _flight_altitude_for(target: Unit) -> float:
 	return UnitMovement.clamp_flight_altitude(target.global_position.y, target.global_position, target)
 
 
-## INF if no route exists at all (ground OR flying) — an unreachable
-## route can never look "cheaper" than one that at least exists.
-func _route_cost(unit: Unit, goal: Vector3, flying: bool) -> float:
-	var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, goal, unit, flying)
+## The grounded unit's own route query (UnitMovement.plan_route), so a
+## ladder that gets it there counts — the same route it walks if it
+## doesn't take off. INF if there is no route at all.
+func _ground_cost(unit: Unit, goal: Vector3) -> float:
+	var planned: Dictionary = unit.plan_route(goal)
+	if planned.path.size() < 2:
+		return INF
+	return planned.cumulative_cost[planned.cumulative_cost.size() - 1]
+
+
+## The route the unit would fly once airborne — find_path in flying mode
+## with the flier's vertical multipliers. INF if there is none at all: an
+## unreachable route can never look "cheaper" than one that exists.
+func _flight_cost(unit: Unit, goal: Vector3) -> float:
+	var waypoints: PackedVector3Array = NavigationGrid.find_path(unit.get_tree(), unit.global_position, goal, unit, true)
 	if waypoints.size() < 2:
 		return INF
-	var ascend: float = UnitMovement.FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
-	var descend: float = UnitMovement.FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
-	var planned: Dictionary = RoutePlanner.plan(waypoints, INF, SurfaceManager.cost_sampler(unit), ascend, descend)
+	var rules: FlightRules = UnitMovement.FLIGHT_RULES
+	var planned: Dictionary = RoutePlanner.plan(waypoints, INF, SurfaceManager.cost_sampler(unit), rules.ascend_cost_multiplier, rules.descend_cost_multiplier)
 	if planned.cumulative_cost.size() == 0:
 		return INF
 	return planned.cumulative_cost[planned.cumulative_cost.size() - 1]

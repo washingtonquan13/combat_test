@@ -952,16 +952,21 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 ## per candidate position is exactly the cost incoming_threat's header
 ## already declined to pay, and this only needs to rank candidates.
 ##
-## Known limitation, same class as this file's other documented ones: it
-## compares against the HOSTILE's current height, so it can't see terrain
-## the hostile could climb onto to close the vertical gap. In an arena
-## that never comes up; on a level with a tall platform beside a hovering
-## flyer, this will overrate that flyer's safety.
+## A grounded hostile also gets every height one ladder takes it to (see
+## Ladder.climbable_heights — the same ladders its move would consider),
+## so a platform beside a hovering flyer is not safe when there is a
+## ladder up to it. Still no path query: whether the hostile can walk to
+## that ladder is left to the route it actually takes.
 static func _can_ever_reach(hostile: Unit, position: Vector3, ability: Ability) -> bool:
 	if hostile.is_flying() or FlightAiUtil.find_flight_ability(hostile):
 		return true
 	var approach: float = ability.targeting.approach_range() if ability.targeting else 0.0
-	return position.y - hostile.global_position.y <= approach
+	if position.y - hostile.global_position.y <= approach:
+		return true
+	for height in Ladder.climbable_heights(hostile):
+		if position.y - height <= approach:
+			return true
+	return false
 
 
 ## How good it is for unit to be standing at position, in the same HP

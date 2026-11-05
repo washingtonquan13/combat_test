@@ -220,41 +220,50 @@ func move_to(destination: Vector3, ignore: Array = []) -> bool:
 			return false
 		budget = _owner.move_remaining
 
-	# Ladders are a grounded-only mechanic (see Ladder) — a flying unit
-	# already has unrestricted vertical movement and never needs one, so
-	# this check is skipped entirely for a flying mover rather than
-	# needing its own flying-awareness.
-	if not _owner.is_flying():
-		var route: Dictionary = Ladder.find_route(_owner, destination, ignore)
-		if not route.is_empty():
-			if route.affordable:
-				var tail_budget: float = budget - _route_end_cost(route.near_planned) - route.ladder.required_move
-				return _begin_route(_ladder_route(route, tail_budget))
-			# Can't afford the full climb this turn (see Ladder.
-			# find_route/required_move — checked as a hard precondition,
-			# never clamped/attempted-and-stranded) — walk toward the
-			# ladder's near point as far as ordinary budget allows, but
-			# never start the climb itself. preview_route() mirrors this
-			# branch: never shows or attempts a climb that won't complete.
-			return _start_walk(route.near, budget)
-
-	return _start_walk(destination, budget)
+	return _begin_route(plan_route(destination, budget, ignore))
 
 
-## Plans a route from this unit's current position to raw_destination
-## WITHOUT starting to walk it — a pure query, extracted out of
-## _start_walk() below (its only caller) purely so its own
-## flying-Y-override + NavigationGrid.find_path() + RoutePlanner.plan()
-## sequence has one clearly-named home.
+## The route move_to(raw_destination) would walk, cut at budget, WITHOUT
+## starting it — the one route query, so whatever asks "can I get there
+## and what does it cost" (the AI scorer, any behavior pricing a move)
+## gets the answer the move itself acts on, ladders included.
+##
+## Ladders are a grounded-only mechanic (see Ladder) — a flier already has
+## unrestricted vertical movement, so it never looks for one. A ladder
+## journey the budget can't reach the top of is never planned (the climb
+## is atomic, see Ladder.required_move): the route is the walk toward the
+## near end instead, as far as budget goes.
 ##
 ## budget defaults to INF — a bare route/cost query has no inherent
-## budget of its own; _start_walk() is the one caller that passes a
-## real one.
+## budget of its own; move_to() passes move_remaining in combat.
 func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = []) -> Dictionary:
+	if not _owner.is_flying():
+		var route: Dictionary = Ladder.find_route(_owner, raw_destination, ignore)
+		if not route.is_empty():
+			if _climb_affordable(route, budget):
+				return _ladder_route(route, budget - _climb_end_cost(route))
+			return _direct_route(route.near, budget, ignore)
+	return _direct_route(raw_destination, budget, ignore)
+
+
+## plan_route()'s walked case: find_path() and RoutePlanner, nothing else.
+func _direct_route(raw_destination: Vector3, budget: float, ignore: Array) -> Dictionary:
 	var flying: bool = _owner.is_flying()
 	var query_destination: Vector3 = _query_destination(raw_destination)
 	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying, ignore)
 	return _plan_waypoints(waypoints, budget, flying)
+
+
+## What a ladder journey has cost by the time the unit stands at the far
+## end: the walk to the near end plus the ladder's required_move.
+static func _climb_end_cost(route: Dictionary) -> float:
+	return _route_end_cost(route.near_planned) + route.ladder.required_move
+
+
+## Whether budget covers getting up (or down) the whole ladder — one hard
+## precondition, never clamped into a climb that stops on the rungs.
+static func _climb_affordable(route: Dictionary, budget: float) -> bool:
+	return budget >= _climb_end_cost(route)
 
 
 ## The point find_path() is actually asked to reach for raw_destination.
@@ -331,7 +340,7 @@ func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
 	if not _owner.is_flying():
 		var route: Dictionary = Ladder.find_route(_owner, dest, ignore)
 		if not route.is_empty():
-			return _preview_ladder_route(route)
+			return _preview_ladder_route(route, ignore)
 
 	var flying: bool = _owner.is_flying()
 	var query_destination: Vector3 = _query_destination(dest)
@@ -359,11 +368,11 @@ func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
 
 
 ## preview_route()'s ladder branch — see Ladder.find_route for `route`'s
-## shape, and move_to()'s ladder branch for the choice being mirrored.
-func _preview_ladder_route(route: Dictionary) -> Dictionary:
-	# Unaffordable: move_to() walks toward the near end and stops there,
-	# so that walk is all there is to show.
-	if not route.affordable:
+## shape. Uncut, but making plan_route()'s choice at the real budget: when
+## move_to() would only walk toward the near end, that walk is all there
+## is to show.
+func _preview_ladder_route(route: Dictionary, ignore: Array) -> Dictionary:
+	if not _climb_affordable(route, _owner.move_budget()):
 		return route.near_planned
 	return _ladder_route(route, INF)
 
@@ -421,13 +430,6 @@ func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
 static func _route_end_cost(planned: Dictionary) -> float:
 	var cost: PackedFloat32Array = planned.cumulative_cost
 	return cost[cost.size() - 1] if cost.size() > 0 else 0.0
-
-
-## Plans a route to raw_destination within budget and starts walking it —
-## the shared "plan then execute" core move_to() uses for an ordinary move
-## (and for the walk toward a ladder it can't afford to climb yet).
-func _start_walk(raw_destination: Vector3, budget: float) -> bool:
-	return _begin_route(plan_route(raw_destination, budget, _move_ignore))
 
 
 ## Starts walking `planned` — RoutePlanner's {path, cumulative_cost}, or
