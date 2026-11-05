@@ -18,3 +18,4 @@ From [game-icons.net](https://game-icons.net), licensed under
 | wall_of_fire_icon.png | Firewall | Delapouite |
 | pick_up_icon.png | Grab | Lorc |
 | attack_icon_melee.png | Broadsword | Lorc |
+| fireball_icon.png | Fireball | Lorc |
