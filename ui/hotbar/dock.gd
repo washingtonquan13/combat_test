@@ -362,8 +362,9 @@ static func _cover_square(material: ShaderMaterial, texture: Texture2D) -> void:
 	material.set_shader_parameter("uv_offset", offset)
 
 
-## The move budget left this turn. Polled: move_remaining has no signal,
-## and it drains continuously while the unit walks.
+## The move budget left this turn. Polled: move_remaining has no signal.
+## It is charged only when a walk ends, so the cost walked so far is
+## taken off here to drain the bar as the unit goes.
 func _process(_delta: float) -> void:
 	var unit: Unit = _current_unit
 	var show_move: bool = _bar_column.visible and unit != null and is_instance_valid(unit) and unit.in_combat()
@@ -371,7 +372,7 @@ func _process(_delta: float) -> void:
 	if not show_move:
 		return
 	var total: float = maxf(unit.move_per_turn(), 0.001)
-	var left: float = clampf(unit.move_remaining, 0.0, total)
+	var left: float = clampf(unit.move_remaining - unit.move_cost_walked(), 0.0, total)
 	_move_bar.value = left / total
 	var text: String = "Move [color=#f2d48a]%s[/color] / %s m" % [_metres(left), _metres(total)]
 	if _move_label.text != text:

@@ -132,6 +132,22 @@ func current_route() -> Dictionary:
 	return {"path": _current_path, "cumulative_cost": _current_cost}
 
 
+## Budget cost of the current route walked so far; 0 while not walking.
+## For displays only: the budget itself is still charged once, at the
+## end (_finish_move), so nothing that reads move_remaining changes.
+func cost_walked() -> float:
+	if not _moving or _path_index < 1 or _current_cost.size() != _current_path.size():
+		return 0.0
+	var i: int = mini(_path_index, _current_path.size() - 1)
+	var from: Vector3 = _current_path[i - 1]
+	var to: Vector3 = _current_path[i]
+	var length: float = from.distance_to(to)
+	var t: float = 1.0
+	if length > 0.0:
+		t = clampf(1.0 - _owner.global_position.distance_to(to) / length, 0.0, 1.0)
+	return lerpf(_current_cost[i - 1], _current_cost[i], t)
+
+
 ## Orders this unit toward destination — see this file's header for the
 ## deterministic plan-then-execute rationale. Out of combat, budget is
 ## effectively unlimited. In combat: only CombatManager.current_unit may

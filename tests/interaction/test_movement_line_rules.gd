@@ -51,6 +51,13 @@ func run() -> void:
 		unit.is_moving() and line._tube.visible and line._built_path == walking)
 	check("walking: no readout", not line._readout.visible)
 
+	for i in 10:
+		await get_tree().physics_frame
+	var walked: float = unit.move_cost_walked()
+	var route_cost: float = unit.current_route().get("cumulative_cost", PackedFloat32Array([0.0]))[-1]
+	check("walking: cost walked so far is partway (%.2f of %.2f)" % [walked, route_cost],
+		unit.is_moving() and walked > 0.0 and walked < route_cost)
+
 	unit.stop_moving()
 	if fight.is_running:
 		fight.finish(&"")

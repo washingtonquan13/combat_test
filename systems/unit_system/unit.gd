@@ -1258,6 +1258,12 @@ func current_route() -> Dictionary:
 	return _movement.current_route()
 
 
+## Budget cost walked so far on the current route (display only; see
+## UnitMovement.cost_walked).
+func move_cost_walked() -> float:
+	return _movement.cost_walked()
+
+
 ## Whether this unit has anything currently in flight — movement, or any
 ## async ability effect that's bracketed itself with begin_busy(). This
 ## is what CombatManager checks before ending a turn, and what move_to/
