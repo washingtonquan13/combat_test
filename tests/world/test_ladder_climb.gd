@@ -55,6 +55,18 @@ func run() -> void:
 		guard += 1
 	check("the unit gets onto the ladder", walker.is_climbing())
 	var climb_frame: int = Engine.get_physics_frames()
+	guard = 0
+	while walker.climbing_over() == 0 and guard < 300:
+		await get_tree().physics_frame
+		guard += 1
+	await get_tree().physics_frame
+	check("it gets on over the top edge with its own clip",
+		String(_animation_player(walker).current_animation) == "Ladder/Climb_On_Top",
+		"playing %s" % _animation_player(walker).current_animation)
+	guard = 0
+	while walker.climb_direction() == 0 and guard < 600:
+		await get_tree().physics_frame
+		guard += 1
 	for i in 20:
 		await get_tree().physics_frame
 	check("it faces the way the ladder does", walker.visual_forward().dot(ladder.facing()) > 0.9,
@@ -141,3 +153,7 @@ func _climb_cost(route: Dictionary) -> float:
 				and absf(path[i].y - path[i - 1].y) > 1.0:
 			total = maxf(total, 0.0) + cost[i] - cost[i - 1]
 	return total
+
+
+static func _animation_player(unit: Unit) -> AnimationPlayer:
+	return unit.find_child("AnimationPlayer", true, false) as AnimationPlayer

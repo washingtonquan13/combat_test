@@ -194,7 +194,7 @@ func _keys_pose(t: float) -> Dictionary:
 		Interp.KEYED:
 			return poses.keyed(t, pairs)
 		_:
-			return poses.flowing(t, s["length"], pairs)
+			return poses.flowing(t, s["length"], pairs, {}, s.get("eased", true))
 
 
 func _refresh() -> void:
@@ -435,6 +435,9 @@ func _render(args: Dictionary) -> Error:
 		var prop: Node = (load(args["prop"]) as PackedScene).instantiate()
 		prop.name = "Prop"
 		$Model.add_child(prop)
+	# Moves every view by x,y,z metres, for a clip that travels out of frame.
+	var look := String(args.get("look", "0,0,0")).split_floats(",")
+	$Views.position = Vector3(look[0], look[1], look[2])
 	var views: PackedStringArray = String(args.get("views", ",".join(VIEWS))).split(",")
 	# Rows: the given times, or each key held.
 	var rows := []

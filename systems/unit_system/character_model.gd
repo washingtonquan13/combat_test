@@ -70,6 +70,12 @@ extends Node3D
 ## "rise" metadata (tools/make_ladder_animations.gd); played forwards up
 ## a ladder and backwards down one. Empty means walking on the rungs.
 @export var climb_animation: String = ""
+## Off the top onto the landing, and on from it (the same motion run
+## backwards), in place over the last Ladder.OVER_RUNGS rungs and the
+## step off; played to fit the unit's time over the edge. Empty means
+## the climbing loop and the walk there instead.
+@export var climb_off_animation: String = ""
+@export var climb_on_animation: String = ""
 
 @export_group("Presentation")
 ## The silhouette drawn behind the body when hovered or selected. Skinned

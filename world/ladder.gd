@@ -78,8 +78,18 @@ const RUNG_OFFSET: float = 0.15
 ## Half the ladder's width: the clip's trailing hand grips a rail ~0.4
 ## out from the climb line (the captured ladder was wide).
 const RAIL_HALF_SPAN: float = 0.38
-## The rails run this far past the top, a handhold for the step off.
-const RAIL_ABOVE_TOP: float = 1.0
+## The rails stop at the top: the way off is hands flat on the landing and
+## a knee over its edge (tools/anim_lab/ladder_blocking.gd), not a step
+## through rails.
+const RAIL_ABOVE_TOP: float = 0.0
+## The rungs end this many below the landing: from there the climb-over
+## (Climb_Over_Top, tools/anim_lab/ladder_blocking.gd) takes the climber
+## up and onto it, hands flat on the floor, a knee over the edge.
+const OVER_RUNGS: float = 3.0
+## How far onto the landing, from the climb line, the climb-over ends
+## standing — the clip's root motion runs stop -> elbow -> off
+## (climb_waypoints) and is baked out of its hips to match.
+const OVER_REACH: float = 1.0
 
 var _built_key: Array = []
 
@@ -146,9 +156,11 @@ func _build() -> void:
 		var at := Vector3(side * RAIL_HALF_SPAN, (height + RAIL_ABOVE_TOP) * 0.5, 0.0)
 		tool.append_from(rail, 0, Transform3D(Basis.IDENTITY, foot + at))
 	var across := Basis(Vector3.BACK, PI * 0.5)
+	# Counted down from the landing, so the rung the climb-over starts
+	# from (OVER_RUNGS below it) is a real rung under the support foot.
 	var count: int = floori((height - 0.05) / spacing)
 	for i in range(1, count + 1):
-		tool.append_from(rung, 0, Transform3D(across, foot + Vector3.UP * spacing * i))
+		tool.append_from(rung, 0, Transform3D(across, foot + Vector3.UP * (height - spacing * i)))
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.42, 0.3, 0.2)
 	material.roughness = 0.9
@@ -353,44 +365,42 @@ static func _flat(a: Vector3, b: Vector3) -> float:
 
 ## The actual climb route, ALWAYS expressed base-to-top regardless of
 ## which direction a unit is actually traveling — the caller reverses the
-## result for a top-to-base descent (see going_up below; find_route and
-## UnitMovement._ladder_route both already know the real direction, so
-## reversing there is trivial). Goes straight up first, staying at
-## BASE's own XZ the entire way (guaranteed clear the whole way up,
-## since that's exactly where a unit walks up to on ordinary ground
-## before ever starting to climb), THEN a horizontal step at TOP's height
-## onto TOP's actual XZ — that step lands exactly at the landing
-## surface's own height, so it grazes along the top of whatever's there
-## instead of cutting through its interior.
+## result for a top-to-base descent (find_route and
+## UnitMovement._ladder_route both know the real direction). Goes
+## straight up first, staying at BASE's own XZ (clear the whole way up,
+## since that's where a unit walks up to on ordinary ground before ever
+## starting to climb), THEN horizontally at TOP's height onto TOP's XZ —
+## that leg lands exactly at the landing surface's own height, so it
+## grazes along the top of whatever's there instead of cutting through
+## its interior.
 ##
-## NOT safe to compute generically from whichever endpoint happens to be
-## passed first — a real, reproduced bug, not a hypothetical: an earlier
-## version anchored the vertical run at the FIRST argument's XZ
-## regardless of direction, which worked climbing up (base is naturally
-## first there) but broke climbing back down (top would have been
-## first — and top is typically inset ONTO whatever it's landing on, so
-## a vertical run at top's own XZ plunges straight through that
-## landing's solid interior on the way down, the same clipping bug this
-## function exists to prevent, just triggered in the other direction).
-## Fixed by always computing the path in a single canonical order and
-## letting the caller reverse it, rather than recomputing the shape
-## itself per direction.
+## NOT safe to compute from whichever endpoint happens to be passed
+## first — a real, reproduced bug: an earlier version anchored the
+## vertical run at the FIRST argument's XZ, which broke climbing down
+## (top is inset ONTO its landing, so a vertical run at top's XZ plunges
+## through the landing's solid interior). The path is always computed in
+## one canonical order and the caller reverses it.
 ##
 ## Shared by find_route's safety check and UnitMovement._ladder_route's
 ## actual climb, so what's validated and what's played can never
 ## disagree.
 ##
-## Returns 2-3 points, base-to-top order (degenerate cases collapse — a
-## purely vertical ladder with the same XZ at both ends never needs the
-## horizontal step at all, see the distance guards below).
+## Always five points, base-to-top, a leg between each pair:
+##   0 base
+##   1 stop: OVER_RUNGS rungs below the landing — the rungs end here
+##   2 elbow: base's XZ at top's height
+##   3 off: OVER_REACH onto the landing toward top
+##   4 top
+## Legs 1-2 and 2-3 are the climb-over (Climb_Over_Top up, Climb_On_Top
+## down), the same two legs whichever way the list is walked. A short
+## ladder or a top close to the climb line collapses some legs to zero
+## length; they are kept, so the indices hold, and reached at once.
 static func climb_waypoints(base: Vector3, top: Vector3) -> PackedVector3Array:
-	var elbow: Vector3 = Vector3(base.x, top.y, base.z)
-	var waypoints := PackedVector3Array([base])
-	if base.distance_to(elbow) > 0.001:
-		waypoints.append(elbow)
-	if elbow.distance_to(top) > 0.001:
-		waypoints.append(top)
-	return waypoints
+	var elbow := Vector3(base.x, top.y, base.z)
+	var stop := Vector3(base.x, maxf(base.y, top.y - OVER_RUNGS * rung_spacing()), base.z)
+	var ahead := Vector3(top.x - base.x, 0.0, top.z - base.z)
+	var off: Vector3 = elbow + ahead.limit_length(OVER_REACH)
+	return PackedVector3Array([base, stop, elbow, off, top])
 
 
 ## Whether climb_waypoints(base, top)'s planned route is actually clear of

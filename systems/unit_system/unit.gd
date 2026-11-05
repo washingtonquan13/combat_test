@@ -1271,6 +1271,20 @@ func climb_speed() -> float:
 	return _movement.climb_speed()
 
 
+## 1 climbing over the top edge, -1 getting on there, 0 otherwise (see
+## UnitMovement.climbing_over).
+func climbing_over() -> int:
+	return _movement.climbing_over()
+
+
+func climb_over_seconds() -> float:
+	return _movement.climb_over_seconds()
+
+
+func climb_stop_height() -> float:
+	return _movement.climb_stop_height()
+
+
 ## The route this unit is walking right now, start to destination as it
 ## was planned, in preview_route()'s shape; empty while not walking.
 func current_route() -> Dictionary:

@@ -211,19 +211,23 @@ func keyed(t: float, keys: Array) -> Dictionary:
 # rather than eased key to key. `lags` delays bones by name, in seconds, so
 # the shoulder can lead and the wrist and fingers follow; a negative lag
 # leads. Every bone still starts on the first key and ends on the last.
-func flowing(t: float, length: float, keys: Array, lags := {}) -> Dictionary:
+# `eased` runs the whole clip as one minimum-jerk reach, right for a single
+# gesture; a clip of several phases (a climb-over) passes false, so each
+# key lands at its own time and the spline alone smooths between them.
+func flowing(t: float, length: float, keys: Array, lags := {}, eased := true) -> Dictionary:
 	var poses: Array[Dictionary] = []
 	var times: Array[float] = []
 	for key: Array in keys:
 		poses.append(resolve(key[1]))
 		times.append(key[0] / length)
-	var out := {"_resolved": true, "_hips": _spline_hips(poses, times, _reach(t / length))}
+	var ease := func(u: float) -> float: return _reach(u) if eased else clampf(u, 0.0, 1.0)
+	var out := {"_resolved": true, "_hips": _spline_hips(poses, times, ease.call(t / length))}
 	for bone: String in poses[0]:
 		if bone.begins_with("_"):
 			continue
 		var lag: float = lags.get(bone, 0.0)
 		var u := (t - lag) / (length - lag) if lag >= 0.0 else t / (length + lag)
-		out[bone] = _spline_bone(poses, times, bone, _reach(clampf(u, 0.0, 1.0)))
+		out[bone] = _spline_bone(poses, times, bone, ease.call(clampf(u, 0.0, 1.0)))
 	return out
 
 
@@ -319,22 +323,38 @@ func _turned(base: Dictionary, bone: String, deg: Vector3) -> Quaternion:
 	return (Basis(local) * (g.inverse() * turn * g)).get_rotation_quaternion().normalized()
 
 
-func _read_bases(idle: Animation) -> void:
-	var idle_local := {}
-	var rest_local := {}
+## Adds a base named `name`: `anim`'s pose at `t`, exactly, for poses that
+## must meet another clip without a pop ({"_base": name, ...turns}).
+func add_clip_base(name: String, anim: Animation, t: float) -> void:
+	var clip_base := _clip_pose(anim, t)
+	_bases[name] = _base(clip_base[0], clip_base[1])
+
+
+# [bone -> local rotation, Hips position] at t; bones the clip doesn't key
+# stay at rest.
+func _clip_pose(anim: Animation, t: float) -> Array:
+	var local := {}
 	for i in _skeleton.get_bone_count():
 		var bone := _skeleton.get_bone_name(i)
-		rest_local[bone] = _skeleton.get_bone_rest(i).basis.get_rotation_quaternion()
-		idle_local[bone] = rest_local[bone]
-		var track := idle.find_track(NodePath("%GeneralSkeleton:" + bone), Animation.TYPE_ROTATION_3D)
+		local[bone] = _skeleton.get_bone_rest(i).basis.get_rotation_quaternion()
+		var track := anim.find_track(NodePath("%GeneralSkeleton:" + bone), Animation.TYPE_ROTATION_3D)
 		if track >= 0:
-			idle_local[bone] = idle.rotation_track_interpolate(track, 0.0)
-	var rest_hips := _skeleton.get_bone_rest(_skeleton.find_bone("Hips")).origin
-	var idle_hips := rest_hips
-	var hips_track := idle.find_track(NodePath("%GeneralSkeleton:Hips"), Animation.TYPE_POSITION_3D)
+			local[bone] = anim.rotation_track_interpolate(track, t)
+	var hips := _skeleton.get_bone_rest(_skeleton.find_bone("Hips")).origin
+	var hips_track := anim.find_track(NodePath("%GeneralSkeleton:Hips"), Animation.TYPE_POSITION_3D)
 	if hips_track >= 0:
-		idle_hips = idle.position_track_interpolate(hips_track, 0.0)
-	_bases["idle"] = _base(idle_local, idle_hips)
+		hips = anim.position_track_interpolate(hips_track, t)
+	return [local, hips]
+
+
+func _read_bases(idle: Animation) -> void:
+	var rest_local := {}
+	for i in _skeleton.get_bone_count():
+		rest_local[_skeleton.get_bone_name(i)] = _skeleton.get_bone_rest(i).basis.get_rotation_quaternion()
+	var rest_hips := _skeleton.get_bone_rest(_skeleton.find_bone("Hips")).origin
+	var idle_pose := _clip_pose(idle, 0.0)
+	var idle_hips: Vector3 = idle_pose[1]
+	_bases["idle"] = _base(idle_pose[0], idle_hips)
 	# Neutral: the rest pose, symmetric, with the arms brought down to hang a
 	# little out from the sides. Idle's hips height keeps the feet on the floor
 	# the same way.

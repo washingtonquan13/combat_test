@@ -101,6 +101,8 @@ extends Node
 @export_group("Ladder Animation")
 ## See CharacterModel's own Ladder Animation group.
 @export var climb_animation: String = ""
+@export var climb_off_animation: String = ""
+@export var climb_on_animation: String = ""
 
 ## What a one-shot clip (a hit reaction, most commonly) returns to once
 ## it finishes — idle_animation normally, or the held status's
@@ -206,6 +208,8 @@ func adopt_model(model: CharacterModel) -> void:
 	takeoff_animation = model.takeoff_animation
 	land_animation = model.land_animation
 	climb_animation = model.climb_animation
+	climb_off_animation = model.climb_off_animation
+	climb_on_animation = model.climb_on_animation
 	model.moment.connect(_on_model_moment)
 
 
@@ -579,7 +583,8 @@ func _on_stance_changed(stance: String) -> void:
 		_play(_idle(), stance_blend_time)
 
 
-## The way the climb clip is playing: 1 up, -1 down, 0 not climbing.
+## What the ladder is showing: 1 climbing up, -1 down, 2 over the top
+## edge, -2 getting on there, 0 not climbing.
 var _climb_shown: int = 0
 
 
@@ -590,22 +595,33 @@ var _climb_shown: int = 0
 func _physics_process(_delta: float) -> void:
 	if unit == null or _cutscene_claimed or unit.posed_status or not unit.is_alive():
 		return
-	var direction: int = unit.climb_direction()
-	if direction == _climb_shown:
+	var over: int = unit.climbing_over()
+	var over_clip: String = climb_off_animation if over > 0 else climb_on_animation
+	var shown: int = unit.climb_direction()
+	if over != 0:
+		shown = 2 * over if animation_player.has_animation(over_clip) else over
+	if shown == _climb_shown:
 		return
-	_climb_shown = direction
-	if direction == 0:
+	_climb_shown = shown
+	if shown == 0:
 		if unit.is_moving():
 			_play(_walk(), 0.15)
+		return
+	if absi(shown) == 2:
+		var over_seconds: float = maxf(unit.climb_over_seconds(), 0.01)
+		animation_player.play(over_clip, 0.1, animation_player.get_animation(over_clip).length / over_seconds)
 		return
 	if climb_animation == "" or not animation_player.has_animation(climb_animation):
 		return
 	# One cycle climbs `rise`, so this rate keeps the hands and feet on
-	# the rungs at the unit's own climb speed.
+	# the rungs at the unit's own climb speed; phased from the stop at the
+	# top so a cycle ends exactly where the clip over the edge begins.
 	var clip: Animation = animation_player.get_animation(climb_animation)
 	var rise: float = clip.get_meta("rise", 0.3)
 	var rate: float = unit.climb_speed() * clip.length / rise
-	animation_player.play(climb_animation, 0.15, rate * direction, direction < 0)
+	var phase: float = fposmod((unit.global_position.y - unit.climb_stop_height()) / rise, 1.0)
+	animation_player.play(climb_animation, 0.15, rate * shown)
+	animation_player.seek(phase * clip.length, true)
 
 
 func _walk() -> String:

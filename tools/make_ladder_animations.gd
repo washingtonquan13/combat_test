@@ -23,9 +23,26 @@ extends SceneTree
 # to the rung the support foot is on at the cycle's start: the unit's
 # origin is that rung.
 #
+# Climb_Over_Top and Climb_On_Top are procedural, from the key poses in
+# tools/anim_lab/ladder_blocking.gd (built on Climb_Up's first frame, so
+# built after it): getting off at the top, hands flat on the landing and a
+# knee over its edge, and the same run backwards for getting on. Each
+# covers the last Ladder.OVER_RUNGS rungs and the step onto the landing,
+# the unit's root travelling stop -> elbow -> off (Ladder.climb_waypoints)
+# at one steady speed; that path is taken out of the Hips so the clip
+# plays in place over the unit's own movement. UnitAnimator plays each at
+# the rate that fits it to the unit's time on those two legs.
+#
 # The CMU data is free for any use; the lab asks for this credit:
 # "The data used in this project was obtained from mocap.cs.cmu.edu.
 # The database was created with funding from NSF EIA-0196217."
+
+# Loaded at run time, not preloaded: Ladder (which the blocking reads)
+# names the SurfaceManager autoload, and a -s script compiles before the
+# autoloads are registered.
+const POSE_BUILDER := "res://tools/pose_builder.gd"
+const BLOCKING := "res://tools/anim_lab/ladder_blocking.gd"
+const LADDER := "res://world/ladder.gd"
 
 const OUT := "res://assets/ladder_animations.tres"
 const TAKE := "res://assets/cmu_ladder/cmu_14_35.glb"
@@ -51,13 +68,14 @@ const CYCLES := {
 }
 
 
-func _init() -> void:
+func _initialize() -> void:
 	var source := _source(TAKE)
 	var facing := Quaternion(Vector3.RIGHT, deg_to_rad(-UPRIGHT_DEG)) * _facing_fix(source)
 	var library := AnimationLibrary.new()
 	for clip: String in CYCLES:
 		var c: Dictionary = CYCLES[clip]
 		library.add_animation(clip, _cycle(source, c["from"], c["to"], c["foot"], facing))
+	_add_climb_over(library, library.get_animation("Climb_Up"))
 	var err := ResourceSaver.save(library, OUT)
 	print("ladder animations: saved %s (%s)" % [OUT, error_string(err)])
 	quit(0 if err == OK else 1)
@@ -144,3 +162,31 @@ static func _sample(source: Animation, track: int, f: int, from: int, frames: in
 	var trend: Vector3 = p0 + step * (float(f - from) / frames)
 	var d: Vector3 = p - trend
 	return Vector3(d.x, p0.y - rest + d.y, d.z)
+
+
+# The blocking's two sets, sampled flowing key to key, each with the root's
+# path onto the landing taken out of the Hips: up OVER_RUNGS rises, then
+# OVER_REACH ahead, at one speed — the root is that far along the path's
+# length as the clip is through its time (backwards for getting on).
+static func _add_climb_over(library: AnimationLibrary, climb: Animation) -> void:
+	var poses: Object = load(POSE_BUILDER).new()
+	var blocking: Object = load(BLOCKING).new()
+	var ladder: GDScript = load(LADDER)
+	blocking.climb_clip = climb
+	var sets: Dictionary = blocking.build(poses)
+	var up: float = float(ladder.OVER_RUNGS) * float(climb.get_meta("rise"))
+	var ahead: float = ladder.OVER_REACH
+	for clip: String in ["Climb_Over_Top", "Climb_On_Top"]:
+		var s: Dictionary = sets["climb_over_top" if clip == "Climb_Over_Top" else "climb_on_top"]
+		var keys := []
+		for k: Array in s["keys"]:
+			keys.append([k[0], poses.resolve(k[2])])
+		var off := clip == "Climb_Over_Top"
+		var anim: Animation = poses.clip(s["length"], false, func(t: float, length: float) -> Dictionary:
+			var pose: Dictionary = poses.flowing(t, length, keys, {}, s["eased"])
+			var along: float = (t / length if off else 1.0 - t / length) * (up + ahead)
+			var root := Vector3(0.0, minf(along, up), maxf(along - up, 0.0))
+			pose["_hips"] = (pose["_hips"] as Vector3) - root
+			return pose)
+		library.add_animation(clip, anim)
+	poses.free_model()

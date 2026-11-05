@@ -84,6 +84,10 @@ var _after_climb: Dictionary = {}
 ## time (Ladder.climber): the walk holds short of the near end while
 ## someone else is on it, and claims it on stepping onto the rungs.
 var _climb_ladder: Ladder = null
+## Whether the climb goes up the ladder (false: down). With _climb_first
+## it names the legs of Ladder.climb_waypoints: the two over the top
+## edge are the targets at _climb_first + 2 and + 3 either way.
+var _climb_up: bool = true
 ## The tolerance a climb point is reached within — tight, because the
 ## points are the corner of the landing, and arriving early cuts it.
 const CLIMB_ARRIVAL: float = 0.01
@@ -138,15 +142,15 @@ func is_climbing() -> bool:
 	return _moving and _climb_first >= 0 and _path_index >= _climb_first and _path_index <= _climb_last
 
 
-## Which way the unit is going on the rungs right now: 1 up, -1 down, 0
-## when it isn't climbing or is stepping on or off at either end (those
-## legs of Ladder.climb_waypoints are level).
 func climbing_ladder() -> Ladder:
 	return _climb_ladder if is_climbing() else null
 
 
+## Which way the unit is going on the rungs right now: 1 up, -1 down, 0
+## when it isn't climbing, is stepping on or off a level leg, or is
+## climbing over the top edge (climbing_over).
 func climb_direction() -> int:
-	if not is_climbing():
+	if not is_climbing() or climbing_over() != 0:
 		return 0
 	var rise: float = _current_path[_path_index].y - _owner.global_position.y
 	if absf(rise) < 0.01:
@@ -157,6 +161,35 @@ func climb_direction() -> int:
 ## The speed of the climb being made (Ladder.climb_speed), m/s.
 func climb_speed() -> float:
 	return _climb_speed
+
+
+## 1 while climbing over the top edge onto the landing, -1 while getting
+## on from it, 0 otherwise: the two legs between the last rungs
+## (Ladder.OVER_RUNGS below the landing) and the step off, which one
+## clip covers.
+func climbing_over() -> int:
+	if not is_climbing() or (_path_index != _climb_first + 2 and _path_index != _climb_first + 3):
+		return 0
+	return 1 if _climb_up else -1
+
+
+## How long the climb over the top edge takes: both its legs at
+## climb_speed. The clip is played to fit it.
+func climb_over_seconds() -> float:
+	if _climb_first < 0:
+		return 0.0
+	var p: PackedVector3Array = _current_path
+	var length: float = p[_climb_first + 1].distance_to(p[_climb_first + 2]) 			+ p[_climb_first + 2].distance_to(p[_climb_first + 3])
+	return length / _climb_speed
+
+
+## The height the rungs climb end at (Ladder.climb_waypoints' stop):
+## the climbing loop is phased from here, so its cycle meets the clip
+## over the top at its first frame.
+func climb_stop_height() -> float:
+	if _climb_first < 0:
+		return _owner.global_position.y
+	return _current_path[_climb_first + (1 if _climb_up else 3)].y
 
 
 ## The route being walked, whole (start to destination, as planned at
@@ -431,6 +464,7 @@ func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
 		"climb_last": climb_last,
 		"climb_speed": ladder.climb_speed,
 		"climb_facing": ladder.facing(),
+		"climb_up": route.going_up,
 		"ladder": ladder,
 	}
 
@@ -459,6 +493,7 @@ func _begin_route(planned: Dictionary) -> bool:
 	_climb_speed = planned.get("climb_speed", _climb_speed)
 	_climb_facing = planned.get("climb_facing", Vector3.ZERO)
 	_climb_ladder = planned.get("ladder", null)
+	_climb_up = planned.get("climb_up", true)
 	_stuck_timer = 0.0
 	_last_progress_position = _owner.global_position
 	_moving = true
@@ -640,7 +675,13 @@ func _climb_step(delta: float) -> void:
 	var to_target: Vector3 = target - _owner.global_position
 	var step: float = _climb_speed * delta
 	_owner.velocity = Vector3.ZERO
-	if _climb_facing != Vector3.ZERO:
+	# The level step between the landing's edge and the top is walked
+	# facing the way it goes; the rest faces the ladder.
+	var landing_leg: bool = _path_index == _climb_first + (4 if _climb_up else 1)
+	var level := Vector3(to_target.x, 0.0, to_target.z)
+	if landing_leg and level.length() > 0.01:
+		_owner.face_direction(level, delta)
+	elif _climb_facing != Vector3.ZERO:
 		_owner.face_direction(_climb_facing, delta)
 	if to_target.length() <= step:
 		_owner.global_position = target
