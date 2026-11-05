@@ -54,7 +54,7 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 
 
 func _flight_altitude_for(target: Unit) -> float:
-	return clamp(target.global_position.y, NavigationGrid.FLIGHT_MIN_ALTITUDE, NavigationGrid.FLIGHT_CEILING_HEIGHT)
+	return UnitMovement.clamp_flight_altitude(target.global_position.y, target.global_position, target)
 
 
 ## INF if no route exists at all (ground OR flying) — an unreachable

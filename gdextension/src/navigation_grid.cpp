@@ -43,6 +43,8 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_cell_size"), &NavigationGrid::get_cell_size);
 	ClassDB::bind_method(D_METHOD("get_flight_min_altitude"), &NavigationGrid::get_flight_min_altitude);
 	ClassDB::bind_method(D_METHOD("get_flight_ceiling_height"), &NavigationGrid::get_flight_ceiling_height);
+	ClassDB::bind_method(D_METHOD("flight_floor_at", "tree", "pos", "world_ref"), &NavigationGrid::flight_floor_at, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("flight_lowest_altitude", "tree", "world_ref"), &NavigationGrid::flight_lowest_altitude, DEFVAL(Variant()));
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "CELL_SIZE"), "", "get_cell_size");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "FLIGHT_MIN_ALTITUDE"), "", "get_flight_min_altitude");
@@ -52,6 +54,36 @@ void NavigationGrid::_bind_methods() {
 float NavigationGrid::get_cell_size() const { return CELL_SIZE; }
 float NavigationGrid::get_flight_min_altitude() const { return FLIGHT_MIN_ALTITUDE; }
 float NavigationGrid::get_flight_ceiling_height() const { return FLIGHT_CEILING_HEIGHT; }
+
+// The lowest feet height a flier may take at pos's XZ: FLIGHT_MIN_ALTITUDE
+// above the first solid at or below pos (pos inside solid climbs out of it
+// first). Callers clamp an altitude up to this, so a pit floor at y=-6
+// allows -5 while ground at y=0 still allows 1.
+float NavigationGrid::flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	Vector3i cell = world_to_cell(pos);
+	cell.x = std::clamp(cell.x, 0, grid_size.x - 1);
+	cell.z = std::clamp(cell.z, 0, grid_size.z - 1);
+	cell.y = std::clamp(cell.y, 0, grid_size.y - 1);
+	while (cell.y < grid_size.y - 1 && is_solid(cell)) {
+		cell.y++;
+	}
+	while (cell.y > 0 && !is_solid(cell - Vector3i(0, 1, 0))) {
+		cell.y--;
+	}
+	return bounds_origin.y + (float)cell.y * CELL_SIZE + FLIGHT_MIN_ALTITUDE;
+}
+
+// The lowest altitude a flier may take anywhere in this world: the bottom
+// of its geometry plus FLIGHT_MIN_ALTITUDE. The altitude plane, which has
+// no single XZ, clamps to this; the move query then lifts to the floor at
+// its own destination (flight_floor_at).
+float NavigationGrid::flight_lowest_altitude(SceneTree *tree, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	return bounds_origin.y + BOUNDS_MARGIN + FLIGHT_MIN_ALTITUDE;
+}
 
 // --- Multi-world registry --------------------------------------------
 //
@@ -1289,6 +1321,7 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
 	chunk.no_support.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
+	chunk.flight_low.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
 	chunk.has_ground_passable = false;
 	chunk.has_flyable = false;
 
@@ -1305,8 +1338,19 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 					if (supported) {
 						chunk.has_ground_passable = true;
 					}
+					// Too low to fly: solid in any cell whose top lies under
+					// FLIGHT_MIN_ALTITUDE below this cell's centre - the same
+					// cut the old absolute rule made over y=0 ground.
+					bool low = false;
+					for (int k = 1; ((float)k - 0.5f) * CELL_SIZE < FLIGHT_MIN_ALTITUDE; k++) {
+						if (is_solid(cell - Vector3i(0, k, 0))) {
+							low = true;
+							break;
+						}
+					}
+					chunk.flight_low[li] = low ? 1 : 0;
 					float world_y = bounds_origin.y + ((float)cell.y + 0.5f) * CELL_SIZE;
-					if (world_y >= FLIGHT_MIN_ALTITUDE && world_y <= FLIGHT_CEILING_HEIGHT) {
+					if (!low && world_y <= FLIGHT_CEILING_HEIGHT) {
 						chunk.has_flyable = true;
 					}
 				}
@@ -1814,7 +1858,7 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	}
 	if (flying) {
 		float world_y = bounds_origin.y + ((float)cell.y + 0.5f) * CELL_SIZE;
-		if (world_y < FLIGHT_MIN_ALTITUDE || world_y > FLIGHT_CEILING_HEIGHT) {
+		if (world_y > FLIGHT_CEILING_HEIGHT) {
 			return false;
 		}
 	}
@@ -1834,11 +1878,9 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	int li = local_index(local);
 	int chunk_idx = chunk_coord_index(chunk_coord);
 
-	if (!flying) {
-		NavChunk &support_chunk = ensure_chunk_support(chunk_coord);
-		if (support_chunk.no_support[li] != 0) {
-			return false;
-		}
+	NavChunk &support_chunk = ensure_chunk_support(chunk_coord);
+	if (flying ? support_chunk.flight_low[li] != 0 : support_chunk.no_support[li] != 0) {
+		return false;
 	}
 
 	// Body clearance checked across every Y-layer the unit's height spans,

@@ -68,11 +68,8 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 
 	var altitude: float = NAN
 	if not is_nan(preferred_altitude) and unit.is_flying():
-		altitude = clampf(
-			target.global_position.y + preferred_altitude,
-			NavigationGrid.FLIGHT_MIN_ALTITUDE,
-			NavigationGrid.FLIGHT_CEILING_HEIGHT
-		)
+		var wanted: float = target.global_position.y + preferred_altitude
+		altitude = UnitMovement.clamp_flight_altitude(wanted, Vector3(destination.x, wanted, destination.z), unit)
 		destination.y = altitude
 
 	# REQUIRED, via positioned_attack_plan: arriving IS the intent here,

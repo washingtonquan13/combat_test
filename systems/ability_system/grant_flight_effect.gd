@@ -51,11 +51,8 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	# from a cell the grid considers invalid and returns nothing: no
 	# indicator, no movement, until landing brought the unit back into the
 	# valid range.
-	var target_y: float = clamp(
-		attacker.global_position.y + takeoff_height,
-		NavigationGrid.FLIGHT_MIN_ALTITUDE,
-		NavigationGrid.FLIGHT_CEILING_HEIGHT
-	)
+	var lift: Vector3 = attacker.global_position + Vector3.UP * takeoff_height
+	var target_y: float = UnitMovement.clamp_flight_altitude(lift.y, lift, attacker)
 	# The unit's next move should hold this new height by default, not
 	# snap back toward wherever flight_target_altitude was last left
 	# (0.0, or a stale value from a previous flight) — see

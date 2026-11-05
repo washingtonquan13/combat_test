@@ -518,11 +518,8 @@ static func _plan_end_position(unit: Unit, plan: AiPlan) -> Vector3:
 				# Clamped exactly the way GrantFlightEffect.apply() clamps
 				# it, so scoring can't credit a takeoff with an altitude
 				# the ability won't actually deliver.
-				var target_y: float = clamp(
-					unit.global_position.y + effect.takeoff_height,
-					NavigationGrid.FLIGHT_MIN_ALTITUDE,
-					NavigationGrid.FLIGHT_CEILING_HEIGHT
-				)
+				var lift: Vector3 = unit.global_position + Vector3.UP * effect.takeoff_height
+				var target_y: float = UnitMovement.clamp_flight_altitude(lift.y, lift, unit)
 				return Vector3(unit.global_position.x, target_y, unit.global_position.z)
 			if effect is LandEffect:
 				return Vector3(unit.global_position.x, _ground_y_at(unit, unit.global_position), unit.global_position.z)

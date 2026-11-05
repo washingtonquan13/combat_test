@@ -108,6 +108,9 @@ struct NavChunk {
 	// measure clearance from it.
 	std::vector<uint8_t> ground;
 	std::vector<uint8_t> no_support; // CHUNK_DIM^3, 1 = nothing solid directly below
+	// CHUNK_DIM^3, 1 = solid within FLIGHT_MIN_ALTITUDE straight below: too
+	// low for a flier, which must stay that far above whatever is under it.
+	std::vector<uint8_t> flight_low;
 	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
 	// chunk-local index -> every occupant whose volume covers it. Several,
 	// not one: occupancy discs overlap (two units side by side), and a
@@ -217,12 +220,16 @@ public:
 	float get_cell_size() const;
 	float get_flight_min_altitude() const;
 	float get_flight_ceiling_height() const;
+	float flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref = nullptr);
+	float flight_lowest_altitude(SceneTree *tree, Object *world_ref = nullptr);
 
 protected:
 	static void _bind_methods();
 
 private:
 	static constexpr float CELL_SIZE = 0.25f;
+	// Height a flier keeps above the ground under it - relative, not a world
+	// Y, so a pit or a raised floor gets the same 1 m as y=0 ground.
 	static constexpr float FLIGHT_MIN_ALTITUDE = 1.0f;
 	static constexpr float FLIGHT_CEILING_HEIGHT = 12.0f;
 	static constexpr float BOUNDS_MARGIN = 2.0f;

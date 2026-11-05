@@ -210,17 +210,28 @@ func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = [
 func _query_destination(raw: Vector3) -> Vector3:
 	var query: Vector3 = raw
 	if _owner.is_flying():
-		query.y = clamp_flight_altitude(_owner.flight_target_altitude)
+		var altitude: float = _owner.flight_target_altitude
+		query.y = clamp_flight_altitude(altitude, Vector3(raw.x, altitude, raw.z), _owner)
 	return query
 
 
-## altitude clamped to the valid flight envelope (NavigationGrid.
-## FLIGHT_MIN_ALTITUDE..FLIGHT_CEILING_HEIGHT) - the one copy of that
-## rule, shared by the move query, set_flight_altitude and the router's
-## altitude plane (IdleIntent.clamp_height), so the plane the player sees
-## is the altitude the flier will take.
-static func clamp_flight_altitude(altitude: float) -> float:
-	return clampf(altitude, NavigationGrid.FLIGHT_MIN_ALTITUDE, NavigationGrid.FLIGHT_CEILING_HEIGHT)
+## altitude clamped to the valid flight envelope - the one copy of that
+## rule, shared by the move query, set_flight_altitude, takeoff, the AI
+## and the router's altitude plane (IdleIntent.clamp_height), so the plane
+## the player sees is the altitude the flier will take. The floor is
+## relative: FLIGHT_MIN_ALTITUDE above the ground under `at`
+## (NavigationGrid.flight_floor_at), so a flier can drop into a pit as far
+## as it can hover over y=0 ground. With no `at` (the plane, which has no
+## one XZ) it is the lowest the world allows, and the move query lifts to
+## the floor at its own destination. The ceiling is a world Y.
+static func clamp_flight_altitude(altitude: float, at: Variant = null, world_ref: Node = null) -> float:
+	var tree := Engine.get_main_loop() as SceneTree
+	var floor_y: float
+	if at == null:
+		floor_y = NavigationGrid.flight_lowest_altitude(tree, world_ref)
+	else:
+		floor_y = NavigationGrid.flight_floor_at(tree, at, world_ref)
+	return clampf(altitude, floor_y, NavigationGrid.FLIGHT_CEILING_HEIGHT)
 
 
 ## RoutePlanner.plan() over find_path()'s waypoints, with the flier's
@@ -648,7 +659,7 @@ func _finish_move(announce: bool = true) -> void:
 ## (Ctrl + wheel, or a Ctrl hold) while this unit flies. Doesn't move the
 ## unit itself; only changes where its NEXT move_to() call will aim for.
 func set_flight_altitude(altitude: float) -> void:
-	_owner.flight_target_altitude = clamp_flight_altitude(altitude)
+	_owner.flight_target_altitude = clamp_flight_altitude(altitude, null, _owner)
 
 
 ## Forces this unit out of the air by removing every status currently
