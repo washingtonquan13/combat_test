@@ -5,21 +5,21 @@ shader_type spatial;
 //
 // No stencil. The pass ignores the depth buffer (depth_test_disabled), so
 // every fragment of the body reaches fragment(), wall or no wall. It then
-// asks the depth texture what the opaque scene actually put at this
-// pixel: if that is the unit itself (or something behind it), the body is
-// visible and the fragment is discarded; if it is something nearer than
-// the body by more than occlusion_bias, the body is hidden there and the
-// tint is drawn.
+// asks level_depth how far away the LEVEL is at this pixel: if the level
+// is behind the body, the body is in view there and the fragment is
+// discarded; if the level is nearer by more than occlusion_bias, a wall
+// hides the body there and the tint is drawn.
 //
-// The bias is what keeps a visible unit clean. Without it, an arm swung
-// in front of the torso is "something nearer" and the torso would tint
-// through the arm. 0.3 m is about half a body's depth: a wall has to be
-// clearly in front of the unit before it counts.
+// level_depth, not the screen's own depth texture, because the screen's
+// holds every opaque thing: another unit, a shield, the unit's own arm.
+// Tested against that, a unit behind a unit tinted, and so did a torso
+// behind its own swung arm. level_depth is rendered by XRaySilhouettes
+// from a camera that mirrors this one and leaves Unit.RENDER_LAYER out
+// (see level_depth_capture.gdshader), so only level geometry hides.
 //
-// Only OPAQUE geometry writes the depth texture. That is the point: a wall
-// the camera has faded (GeometryInstance3D.transparency) has left the
-// opaque pass, so a unit behind a faded wall is just seen, not tinted;
-// clouds, fire and fog never trigger it either.
+// The bias covers a foot sunk a little into the floor and the coarser
+// edges of a reduced-resolution level_depth. Only opaque geometry is in
+// it: clouds, fire and fog never trigger the tint.
 //
 // Skinned meshes need nothing special: overlays run on the skinned
 // vertices, so the silhouette follows the animated pose.
@@ -32,15 +32,13 @@ uniform float fill_alpha : hint_range(0.0, 1.0) = 0.22;
 uniform float rim_alpha : hint_range(0.0, 1.0) = 0.55;
 uniform float rim_power : hint_range(0.5, 8.0) = 2.0;
 // Metres something must sit in front of the body before it counts as hiding it.
-uniform float occlusion_bias : hint_range(0.0, 2.0) = 0.3;
+uniform float occlusion_bias : hint_range(0.0, 2.0) = 0.1;
 
-uniform sampler2D depth_texture : hint_depth_texture, filter_nearest, repeat_disable;
+// Linear metres to the nearest level surface, in R. Set by XRaySilhouettes.
+uniform sampler2D level_depth : filter_nearest, repeat_disable;
 
 void fragment() {
-	float depth = textureLod(depth_texture, SCREEN_UV, 0.0).r;
-	// Godot 4.3+ (Vulkan, reversed Z): the raw depth IS the NDC z.
-	vec4 scene_view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, depth, 1.0);
-	float scene_distance = -scene_view.z / scene_view.w;
+	float scene_distance = textureLod(level_depth, SCREEN_UV, 0.0).r;
 	float own_distance = -VERTEX.z;
 	if (own_distance <= scene_distance + occlusion_bias) {
 		discard;
