@@ -486,6 +486,9 @@ func resolve_click_ability(acting_unit: Unit) -> Ability:
 ## case effects apply immediately. ability_used (the final result)
 ## fires once, from _finish, on every path — hit, miss or lost target.
 func use_ability(ability: Ability, target) -> Dictionary:
+	# A toggle cast that is on (Fly while flying) switches off instead:
+	# everything below, costs included, is the off form's.
+	ability = ability.form_for(_owner)
 	var result := {
 		"attacker": _owner,
 		"target": target,

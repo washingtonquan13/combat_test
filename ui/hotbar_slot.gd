@@ -26,6 +26,10 @@ extends Button
 ## dimmed while off: a left click while it is on steps the level, a right
 ## click switches it off and keeps the level.
 ##
+## A toggle cast (Ability.on_status, Fly) is cast like any ability and
+## shows the same ToggleBorder while its status is on; using it then uses
+## its off form (Ability.form_for), which UnitCombat.use_ability resolves.
+##
 ## Scene setup: a Button sized to your icon dimensions, with a
 ## ToggleBorder ColorRect covering it and a LevelLabel; everything else
 ## is set from code.
@@ -89,6 +93,8 @@ func _build_tooltip() -> String:
 		lines.append(ability.hit_location.describe())
 	if ability == UnitCombat.DECEPTIVE_ATTACK:
 		lines.append("Per level: -2 to your skill, -1 to the target's defense")
+	if ability.toggle_off:
+		lines.append("Use again while on: %s" % ability.toggle_off.ability_name)
 	if ability.max_level > 0:
 		lines.append("Click while on: next level (1-%d). Right click: off" % ability.max_level)
 	return "\n".join(lines)
@@ -111,7 +117,7 @@ func refresh_state() -> void:
 		_level_label.visible = false
 		disabled = false
 		return
-	_toggle_border.visible = ability.is_toggle and unit.is_toggled(ability)
+	_toggle_border.visible = (ability.is_toggle and unit.is_toggled(ability)) or ability.is_on_for(unit)
 	_level_label.visible = ability.is_toggle and ability.max_level > 0
 	if _level_label.visible:
 		_level_label.text = str(unit.toggle_level(ability))
@@ -121,8 +127,10 @@ func refresh_state() -> void:
 		disabled = false
 		return
 	set_armed(ability == AbilityManager.armed_ability)
-	disabled = ability.attack_action_spent_by(unit) or ability.out_of_ammo(unit) \
-			or (ability.targeting and not ability.targeting.has_any_valid_target(unit))
+	# A toggle cast that is on is judged by what using it now does.
+	var form: Ability = ability.form_for(unit)
+	disabled = form.attack_action_spent_by(unit) or form.out_of_ammo(unit) \
+			or (form.targeting and not form.targeting.has_any_valid_target(unit))
 
 
 func _on_pressed() -> void:

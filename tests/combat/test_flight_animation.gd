@@ -20,8 +20,7 @@ func run() -> void:
 
 func _lifts_hovers_glides_and_lands() -> void:
 	var fly: Ability = load("res://data/abilities/fly.tres")
-	var land: Ability = load("res://data/abilities/land.tres")
-	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), fly, land], Vector3.ZERO)
+	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), fly], Vector3.ZERO)
 	await get_tree().process_frame
 	var animator: Node = unit.get_node("UnitAnimator")
 	var player: AnimationPlayer = animator.animation_player
@@ -38,6 +37,7 @@ func _lifts_hovers_glides_and_lands() -> void:
 	unit.set_pool(StatIds.FP, 20)
 	var used: Dictionary = await unit.use_ability(fly, unit)
 	check("SETUP: Fly was really used", unit.is_flying(), str(used))
+	check("flying, the Fly toggle is on", fly.is_on_for(unit))
 	check("taking off plays the takeoff, with no cast clip first", player.current_animation == "Flight/Takeoff",
 		player.current_animation)
 	check("and it rests on the hover after", animator._base_animation == "Flight/Hover",
@@ -57,8 +57,11 @@ func _lifts_hovers_glides_and_lands() -> void:
 	check("stopping in the air goes back to the hover", player.current_animation == "Flight/Hover",
 		player.current_animation)
 
-	unit.use_ability(land, unit)
-	check("SETUP: the flying status is gone as the descent starts", not unit.is_flying())
+	var fp_before: int = unit.get_pool(StatIds.FP)
+	unit.use_ability(fly, unit)
+	check("using Fly again lands, and the toggle is off", not unit.is_flying() and not fly.is_on_for(unit))
+	check("landing costs no FP", unit.get_pool(StatIds.FP) == fp_before,
+		"%d -> %d" % [fp_before, unit.get_pool(StatIds.FP)])
 	check("landing comes down in the hover, with no cast clip",
 		player.current_animation == "Flight/Hover", player.current_animation)
 	unit.movement_finished.emit(unit)

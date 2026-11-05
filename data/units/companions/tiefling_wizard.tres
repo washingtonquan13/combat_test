@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=35 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=34 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -18,7 +18,6 @@
 [ext_resource type="Resource" path="res://data/abilities/cure.tres" id="a10"]
 [ext_resource type="Resource" path="res://data/abilities/summon_spirit.tres" id="a11"]
 [ext_resource type="Resource" path="res://data/abilities/fly.tres" id="a12"]
-[ext_resource type="Resource" path="res://data/abilities/land.tres" id="a13"]
 [ext_resource type="Resource" path="res://data/abilities/magic_missile.tres" id="a14"]
 [ext_resource type="Resource" path="res://data/abilities/summon_demon_template.tres" id="a15"]
 [ext_resource type="Resource" path="res://data/abilities/dismiss_summon.tres" id="a16"]
@@ -56,7 +55,7 @@ faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
-abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a13"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark"), ExtResource("a19_wall"), ExtResource("a20_enlarge"), ExtResource("a21_reduce")])
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark"), ExtResource("a19_wall"), ExtResource("a20_enlarge"), ExtResource("a21_reduce")])
 
 alignment = -100
 tendency = 100

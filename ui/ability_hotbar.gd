@@ -183,6 +183,10 @@ func _connect_current_unit(unit: Unit) -> void:
 	_current_unit = unit
 	unit.ability_used.connect(_on_ability_used)
 	unit.toggles_changed.connect(_on_toggles_changed)
+	# A toggle cast is on while its status is (Ability.on_status), and
+	# the status can end with no ability used: expiry, exhaustion.
+	unit.status_applied.connect(_on_status_changed)
+	unit.status_removed.connect(_on_status_changed)
 	unit.equipment_changed.connect(_on_equipment_changed)
 
 
@@ -190,6 +194,8 @@ func _disconnect_current_unit() -> void:
 	if _current_unit and is_instance_valid(_current_unit) and _current_unit.ability_used.is_connected(_on_ability_used):
 		_current_unit.ability_used.disconnect(_on_ability_used)
 		_current_unit.toggles_changed.disconnect(_on_toggles_changed)
+		_current_unit.status_applied.disconnect(_on_status_changed)
+		_current_unit.status_removed.disconnect(_on_status_changed)
 		_current_unit.equipment_changed.disconnect(_on_equipment_changed)
 	_current_unit = null
 
@@ -268,6 +274,10 @@ func _on_equipment_changed(unit: Unit) -> void:
 
 
 func _on_toggles_changed(_unit: Unit) -> void:
+	_update_slot_states()
+
+
+func _on_status_changed(_unit: Unit, _effect: StatusEffect) -> void:
 	_update_slot_states()
 
 

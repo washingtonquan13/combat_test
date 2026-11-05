@@ -82,7 +82,7 @@ func _attempt_action(unit: Unit) -> void:
 		return
 
 	# A FREE ability must not cost the turn. Landing is the case that
-	# exposed this: land.tres spends no attack action, no movement and no
+	# exposed this: landing (Fly's off form) spends no attack action, movement or
 	# FP, so a flyer coming down can still shoot afterwards — but ending
 	# the turn here unconditionally meant it couldn't, and the AI was
 	# forced into a false choice between descending safely and doing

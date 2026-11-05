@@ -48,6 +48,15 @@ enum Category { COMMON, ABILITIES }
 ## steps to the next, wrapping round to 1, and switching it off keeps the
 ## level for next time (UnitCombat.toggle_level).
 @export_range(0, 9) var max_level: int = 0
+## A toggle CAST, unlike is_toggle above: a real cast that is on for as
+## long as its caster has on_status (Fly: while flying). Using it while
+## on uses toggle_off instead, with toggle_off's own costs, effects and
+## animation (Fly's lands the caster). On or off is read off the status,
+## never stored, so expiry or exhaustion ending the status turns it off.
+@export var on_status: StatusEffect
+## What using this does while it is on — embedded in the same .tres, it
+## never has a hotbar slot of its own. See form_for().
+@export var toggle_off: Ability
 
 @export_group("Cost")
 ## Whether landing a hit requires a to-hit roll (Unit.roll_vs) before any
@@ -163,6 +172,18 @@ enum Category { COMMON, ABILITIES }
 ## Land's descent): no cast clip at all, not even the fallback, so the
 ## motion's clips play from the moment of use.
 @export var plays_cast_animation: bool = true
+
+
+## Whether this toggle cast (on_status) is on for unit right now.
+func is_on_for(unit: Unit) -> bool:
+	return on_status != null and unit.has_status(on_status)
+
+
+## What using this ability does for unit right now: toggle_off while it
+## is on, itself otherwise. UnitCombat.use_ability() resolves through
+## this, so the player's hotbar and the AI land through the same path.
+func form_for(unit: Unit) -> Ability:
+	return toggle_off if toggle_off and is_on_for(unit) else self
 
 
 ## Whether target is a legal target for this ability from attacker's
