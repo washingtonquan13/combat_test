@@ -42,19 +42,17 @@ var armed_unit: Unit = null
 ## unit was being watched even if the current unit has since changed.
 var _watched_unit: Unit = null
 
-## Absolute world Y a player has dragged an AreaTargeting ability's aim
-## point up to via the fly_altitude_modifier (Ctrl) hold — see
-## AimingIntent.steer, the only writer of this via
-## set_aim_height_override(). Read through AbilityTargeting.
-## resolve_target_point by both the preview (Aim.build) and the click, so the confirmed cast can't
-## disagree with what the preview showed — same WYSIWYG reasoning as
-## every other indicator in this project. has_aim_height_override false
-## means "use the natural ground-hover height," i.e. today's existing
-## flat-on-the-ground behavior, unchanged unless a player deliberately
-## lifts it. Reset whenever the armed ability changes — a leftover
-## height from a previous, unrelated cast should never silently carry
-## into a new one, same reasoning flying altitude resets between
-## separately-initiated actions.
+## Absolute world Y an aimed shape's point is taken at - see
+## AimingIntent.steer, the only writer (set_aim_height_override /
+## clear_aim_height_override): the latched height plane's Y when the
+## cursor point is on it, a hovered unit's centre of mass, or nothing.
+## Read through AbilityTargeting.resolve_target_point by both the preview
+## (Aim.build) and the click, so the confirmed cast can't disagree with
+## what the preview showed. has_aim_height_override false means "use the
+## natural ground-hover height" (a cone's level AIM_LIFT, flat on the
+## ground for the rest). Reset whenever the armed ability changes - a
+## leftover height from a previous, unrelated cast should never silently
+## carry into a new one.
 var aim_height_override: float = 0.0
 var has_aim_height_override: bool = false
 
@@ -90,16 +88,19 @@ func disarm() -> void:
 	armed_unit = null
 
 
-## Called by AimingIntent.steer each frame the player drags height with
-## fly_altitude_modifier held — see ClickRouter.resolve_cursor for the
-## actual input/plane-intersection math. A plain setter here rather than
-## the intent writing the fields directly, so this stays the one place the "is a
-## height override active" state actually lives — same centralization
-## reasoning PlayerInteractionState's own header documents for scattered
-## per-consumer state.
+## Called by AimingIntent.steer whenever the cursor's aim point carries
+## its own height (see there; ClickRouter.resolve_cursor owns the plane
+## and the input). A plain setter here rather than the intent writing the
+## fields directly, so this stays the one place the "is a height
+## override active" state actually lives.
 func set_aim_height_override(y: float) -> void:
 	aim_height_override = y
 	has_aim_height_override = true
+
+
+## The aim point is a plain surface point again: no height of its own.
+func clear_aim_height_override() -> void:
+	has_aim_height_override = false
 
 
 func set_line_start(point: Vector3) -> void:

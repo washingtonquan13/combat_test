@@ -23,7 +23,11 @@ extends IndicatorBase
 ## - dashes where the route is obscured, scrolling along it: lightly
 ##   (0.2 on, 0.2 off) or heavily (0.05 on, 0.15 off);
 ## - a slow pulse, and 10% visibility through walls.
-## The distance readout floats over the route's end.
+## The distance readout floats over the route's end. When that end is
+## in the air (the caster flies, or the cursor is on the latched height
+## plane) an AltitudeMarker hangs from it: a ring at the end, a drop line
+## to the floor below and the height beside it, so a midair destination
+## reads as "here, this high" rather than a line stopping in space.
 
 ## BG3 AiPathSettings RegularColor / ColorPastLimit.
 @export var path_in_range_color: Color = Color(1.0, 1.0, 1.0, 1.0)
@@ -68,6 +72,9 @@ var _tube: PathTube
 ## A Label3D, not a mesh, so IndicatorBase's _owned_meshes doesn't know
 ## about it: hide_visuals/is_showing_anything are extended below.
 var _readout: Label3D
+## The midair end's ring, drop line and height (registered with
+## IndicatorBase, so hide_visuals covers it).
+var _altitude: AltitudeMarker
 
 ## What the current mesh was built from, so an unchanged route isn't
 ## rebuilt every frame (the per-frame pulse and scroll are TIME in the
@@ -98,6 +105,8 @@ func _ready() -> void:
 	_readout.no_depth_test = true
 	_readout.visible = false
 	add_child(_readout)
+
+	_altitude = _create_altitude_marker()
 
 
 func _apply_uniforms() -> void:
@@ -153,6 +162,7 @@ func draw(aim: Aim) -> void:
 		_built_budget = budget
 	_tube.visible = true
 	_readout.visible = true
+	_update_altitude(aim, path[path.size() - 1], total_cost <= budget)
 
 
 func _hide_all() -> void:
@@ -160,6 +170,20 @@ func _hide_all() -> void:
 		_tube.visible = false
 	if _readout:
 		_readout.visible = false
+	if _altitude:
+		_altitude.hide_marker()
+
+
+## The marker under a midair end, its floor the cursor's floor_below at
+## the end's XZ (the end and the cursor point share about the same XZ).
+## Only for a flier or a plane aim: a walker's end is on a floor, even
+## when that floor is a ledge above the cursor's.
+func _update_altitude(aim: Aim, end: Vector3, in_range: bool) -> void:
+	if not (aim.caster.is_flying() or AltitudeMarker.cursor_on_plane(aim)):
+		_altitude.hide_marker()
+		return
+	var color: Color = path_in_range_color if in_range else path_out_of_range_color
+	_altitude.show_at(end, AltitudeMarker.floor_under(aim, end), color)
 
 
 ## Rebuilds the tube mesh for a route. The budget split is found in COST

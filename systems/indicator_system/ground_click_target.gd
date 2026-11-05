@@ -5,7 +5,7 @@ extends Node3D
 ##
 ## Each frame, in this order (see _process): derive the intent, resolve
 ## the ONE Cursor (the only mouse raycast and the only Ctrl read in the
-## project), let the intent steer any held height drag, build the ONE Aim
+## project), let the intent steer the height plane, build the ONE Aim
 ## from that cursor, and hand it to every live indicator's draw(). Clicks
 ## take a cursor from the same resolve_cursor(). Indicators never raycast,
 ## read input or decide anything — they draw what they are given, so the
@@ -43,10 +43,16 @@ signal intent_changed(intent: PlayerIntent)
 ## Heights dragged with Ctrl move in steps this big.
 const HEIGHT_STEP: float = 0.25
 
+## One Ctrl + wheel notch moves the height plane this far.
+const PLANE_STEP: float = 0.5
+
 ## Pixels the mouse may travel between press and release and still be a
 ## click. Past it the gesture is a box select (DragSelectBox reads this
 ## same constant), so a box drag never also issues a move.
 const CLICK_DRAG_THRESHOLD: float = 6.0
+
+## How far every ray this router casts reaches.
+const RAY_LENGTH: float = 1000.0
 
 @export var ground_collision_mask: int = 1
 ## Unit pick areas only (Unit.PICK_LAYER, layer 20), not unit bodies.
@@ -58,12 +64,30 @@ const CLICK_DRAG_THRESHOLD: float = 6.0
 var cursor: Cursor = null
 var aim: Aim = null
 
-## The ground point a Ctrl height drag holds, or null when none does.
-## Taken on the first frame of a drag, released the moment the drag is
-## not one any more (Ctrl up, or an intent with no height to drag). Only
-## resolve_cursor reads or writes it, so no indicator switching off
-## mid-press can leave it stale.
+## The spot a Ctrl height hold keeps, or null when no hold is down.
+## Taken on the first frame of a hold - the point the cursor was on, so
+## a hold started on the plane keeps the plane's height - and released
+## the moment Ctrl is up or the intent takes no height. Only
+## resolve_cursor reads or writes it (and _input on Ctrl release), so no
+## indicator switching off mid-press can leave it stale.
 var _held_ground = null
+
+## The height plane the player set: Ctrl + wheel steps it (PLANE_STEP), a
+## Ctrl hold drags it, and it STAYS when Ctrl is let go - that is the
+## latch. Null when none is set. For an intent with a standing height (an
+## idle flier, PlayerIntent.standing_height) it lives only until this
+## frame's steer has written it to the unit, which then owns it. Cleared
+## when the intent changes (_plane_intent), when an aiming click places a
+## cast, and on every arm/disarm.
+var _plane_height = null
+
+## The intent _plane_height was set under, compared by _same_intent: a
+## height latched for one ability never carries into another.
+var _plane_intent: PlayerIntent = null
+
+## A Ctrl + wheel step landed since the last steer, so this frame's
+## cursor reports the plane as moved (Cursor.height_steered).
+var _wheel_steered: bool = false
 
 ## A left press waiting for its release: the cursor and intent at press,
 ## and where it was pressed. Cleared on release, or once the mouse moves
@@ -129,6 +153,9 @@ class ClickAnswer:
 	## Where the feedback goes: the destination, the target's feet, the
 	## aimed point. Null when there is no spot to mark.
 	var point = null
+	## The surface below point when point is midair (Cursor.floor_below),
+	## else null - where the feedback ring lands under a midair marker.
+	var floor_point = null
 
 	func _init(answer_verb: StringName = &"none", answer_point = null) -> void:
 		verb = answer_verb
@@ -185,6 +212,11 @@ func _ready() -> void:
 	# Godot drops signal connections to a freed Object on its own.
 	WorldManager.world_focused.connect(_on_world_focused)
 
+	# Arming or disarming anything drops a latched height, even on a
+	# frame where the derived intent never visibly changed (disarm and
+	# re-arm of the same ability between two frames).
+	AbilityManager.ability_armed.connect(_on_ability_armed)
+
 	_feedback = ClickFeedback.new()
 	_feedback.name = "ClickFeedback"
 	add_child(_feedback)
@@ -239,6 +271,16 @@ func _on_world_focused(_world: Node) -> void:
 	_last = null
 
 
+func _on_ability_armed(_ability: Ability) -> void:
+	_clear_plane()
+
+
+func _clear_plane() -> void:
+	_plane_height = null
+	_held_ground = null
+	_wheel_steered = false
+
+
 func _process(_delta: float) -> void:
 	var now: PlayerIntent = intent()
 	if not _same_intent(now, _last):
@@ -248,6 +290,7 @@ func _process(_delta: float) -> void:
 
 	cursor = resolve_cursor(now)
 	now.steer(self, cursor)
+	_steered(now)
 	aim = Aim.build(cursor, now)
 	for indicator in get_tree().get_nodes_in_group(&"indicators"):
 		if indicator.serves() != &"" and indicator.is_live():
@@ -260,43 +303,160 @@ func _input(event: InputEvent) -> void:
 		_held_ground = null
 
 
-## What the mouse is over right now, and the height drag if one is held.
+## What the mouse is over right now, on the height plane if one is up.
 ## The only mouse raycasts in the project: the world past units (see
 ## _raycast_past_units), and the unit pick areas (_unit_under_mouse).
 ##
-## The drag holds only while Ctrl is down AND the intent has a height to
-## drag (PlayerIntent.drags_height) - Ctrl over anything else leaves the
-## cursor free. Its first frame takes the ground under the mouse, or the
-## active unit's own spot when the mouse is over nothing.
+## A height plane exists only while the intent takes a height
+## (PlayerIntent.drags_height) - Ctrl over anything else leaves the
+## cursor free. Its height is, first found: what the player set
+## (_plane_height - a wheel step, a Ctrl hold, latched after release),
+## else the intent's standing height (an idle flier's altitude).
+## - Ctrl held: the cursor keeps the spot the hold started on (the point
+##   it was on, else the active unit's own spot) and the mouse's height on
+##   screen sets the plane (_sample_height), clamped by the intent.
+## - Otherwise: the cursor is the FIRST thing the mouse ray meets - the
+##   surface it hits, or its crossing of the plane, whichever is nearer
+##   the camera (the surface if the plane is not in front of it). That is
+##   what lets the player aim sideways freely at altitude.
+## Unit picking does not look at the plane: a unit under the mouse is
+## still hovered (to target or select) wherever the plane crosses.
 func resolve_cursor(current: PlayerIntent) -> Cursor:
 	var result := Cursor.new()
-	# The world under the mouse, looking THROUGH units: cursor.ground is the
-	# floor (or prop) behind a unit, never a point on its capsule, so a
+	# The world under the mouse, looking THROUGH units: the surface point is
+	# the floor (or prop) behind a unit, never a point on its capsule, so a
 	# path or an area aimed past a unit lands where the player sees it.
 	var ground_hit: Dictionary = _raycast_past_units(ground_collision_mask)
 	var collider: Object = _pickable_collider(ground_hit)
 	if collider is Node and not (collider is Unit) and collider.has_method("get_interactions"):
 		result.interactable = collider
-	var free_ground = null if ground_hit.is_empty() else ground_hit.position
+	var surface = null if ground_hit.is_empty() else ground_hit.position
 	result.unit = _unit_under_mouse(ground_hit)
 	if result.unit and result.unit.has_method("get_interactions"):
 		result.interactable = result.unit
 
-	var dragging: bool = (Input.is_action_pressed("fly_altitude_modifier")
-		and current != null and current.drags_height(self))
-	if not dragging:
+	if not _same_intent(current, _plane_intent):
+		_clear_plane()
+		_plane_intent = current
+	if current == null or not current.drags_height(self):
+		_clear_plane()
+		result.ground = surface
+		result.floor_below = surface
+		return result
+
+	var plane = _plane_height if _plane_height != null else current.standing_height(self)
+	if not Input.is_action_pressed("fly_altitude_modifier"):
 		_held_ground = null
-		result.ground = free_ground
+		result.height_steered = _wheel_steered
+		result.plane_height = plane
+		result.ground = _first_hit(surface, plane)
+		result.on_plane = result.ground != null and result.ground != surface
+		result.floor_below = _floor_below(result.ground) if result.on_plane else result.ground
 		return result
 
 	if _held_ground == null:
-		var unit: Unit = active_unit()
-		_held_ground = free_ground if free_ground != null else (unit.global_position if unit else null)
-	result.ground = _held_ground
-	if _held_ground != null:
-		result.dragging_height = true
-		result.height = _sample_height(Vector2(_held_ground.x, _held_ground.z))
+		var start = _first_hit(surface, plane)
+		if start == null:
+			var unit: Unit = active_unit()
+			start = unit.global_position if unit else null
+		_held_ground = start
+	if _held_ground == null:
+		result.ground = surface
+		result.floor_below = surface
+		return result
+	var height = _sample_height(Vector2(_held_ground.x, _held_ground.z))
+	if height == null:
+		height = plane if plane != null else _held_ground.y
+	height = current.clamp_height(height)
+	_plane_height = height
+	result.holding_height = true
+	result.height_steered = true
+	result.on_plane = true
+	result.plane_height = height
+	result.ground = Vector3(_held_ground.x, height, _held_ground.z)
+	result.floor_below = _floor_below(result.ground)
 	return result
+
+
+## The first thing the mouse ray meets: surface, or the ray's crossing of
+## the plane y = plane when that is nearer the camera. The surface when
+## there is no plane or the plane is not in front of the camera.
+func _first_hit(surface, plane):
+	if plane == null:
+		return surface
+	var crossing = _plane_crossing(plane)
+	if crossing == null:
+		return surface
+	if surface == null:
+		return crossing
+	var eye: Vector3 = get_viewport().get_camera_3d().global_position
+	return crossing if eye.distance_to(crossing) < eye.distance_to(surface) else surface
+
+
+## After this frame's steer: a wheel step has been written, and a height
+## an intent stands on (an idle flier's altitude) now lives on the unit,
+## so the router stops holding its own copy - next frame reads it back
+## through standing_height, clamped as the unit took it.
+func _steered(current: PlayerIntent) -> void:
+	_wheel_steered = false
+	if current != null and current.standing_height(self) != null:
+		_plane_height = null
+
+
+## One Ctrl + wheel notch: the plane moves PLANE_STEP up or down from
+## where it is - the player's latched height, else the intent's standing
+## one (an idle flier's altitude), else where the player is pointing (the
+## Y of this frame's aim point, or the active unit's own Y over nothing).
+## Returns whether there was a plane to step.
+func _step_plane(current: PlayerIntent, direction: float) -> bool:
+	if current == null or not current.drags_height(self):
+		return false
+	if not _same_intent(current, _plane_intent):
+		_clear_plane()
+		_plane_intent = current
+	var base = _plane_height if _plane_height != null else current.standing_height(self)
+	if base == null:
+		var point = cursor.aim_point(current.ability) if cursor else null
+		if point == null:
+			var unit: Unit = active_unit()
+			if unit == null:
+				return false
+			point = unit.global_position
+		base = point.y
+	_plane_height = current.clamp_height(base + direction * PLANE_STEP)
+	_wheel_steered = true
+	return true
+
+
+## Where the mouse ray crosses the horizontal plane y = height, or null
+## when the plane is not in front of the camera (or past RAY_LENGTH).
+func _plane_crossing(height: float):
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return null
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var hit = Plane(Vector3.UP, height).intersects_ray(from, camera.project_ray_normal(mouse_pos))
+	if hit == null or from.distance_to(hit) > RAY_LENGTH:
+		return null
+	return hit
+
+
+## The surface straight below point - past units, as the mouse ray is -
+## or null when nothing is below it.
+func _floor_below(point: Vector3):
+	var exclude: Array[RID] = []
+	for i in 8:
+		var query := PhysicsRayQueryParameters3D.create(point, point + Vector3.DOWN * RAY_LENGTH)
+		query.collision_mask = ground_collision_mask
+		query.exclude = exclude
+		var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+		if hit.is_empty():
+			return null
+		if not (hit.collider is Unit):
+			return hit.position
+		exclude.append(hit.rid)
+	return null
 
 
 ## The unit indicators draw for - and null for one standing in a world
@@ -326,7 +486,7 @@ func _raycast(collision_mask: int, exclude: Array[RID] = [], areas_only: bool = 
 		return {}
 	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
 	var from: Vector3 = camera.project_ray_origin(mouse_pos)
-	var to: Vector3 = from + camera.project_ray_normal(mouse_pos) * 1000.0
+	var to: Vector3 = from + camera.project_ray_normal(mouse_pos) * RAY_LENGTH
 	var query := PhysicsRayQueryParameters3D.create(from, to)
 	query.collision_mask = collision_mask
 	query.exclude = exclude
@@ -461,6 +621,16 @@ func _unhandled_input(event: InputEvent) -> void:
 	# (what the player pressed on is what they meant), and the drag is
 	# measured against the one CLICK_DRAG_THRESHOLD DragSelectBox uses too:
 	# past it the gesture is a box, short of it a click, never both.
+	# Ctrl + wheel steps the height plane instead of zooming the camera.
+	# CRPGCamera also skips zoom while Ctrl is down: it sits in this same
+	# viewport, and which _unhandled_input runs first is tree order, which
+	# neither side should depend on.
+	if Input.is_action_pressed("fly_altitude_modifier") and (
+			event.is_action_pressed("camera_zoom_in") or event.is_action_pressed("camera_zoom_out")):
+		if _step_plane(intent(), 1.0 if event.is_action_pressed("camera_zoom_in") else -1.0):
+			get_viewport().set_input_as_handled()
+		return
+
 	if event.is_action_pressed("left_click"):
 		_press_intent = intent()
 		_press_cursor = resolve_cursor(_press_intent)
@@ -486,10 +656,19 @@ func _unhandled_input(event: InputEvent) -> void:
 		# Answered before the intent acts: acting changes the state the
 		# answer reads (a move spends budget, a first line click sets
 		# its start), and the feedback is for the click as it was made.
+		# The pressed cursor's own height is what the click means: steer
+		# with it, so the aim height the answer and the cast read is that
+		# cursor's and not whatever the last frame steered.
+		pressed_intent.steer(self, pressed)
 		var answer: ClickAnswer = _answer(pressed_intent, pressed)
 		var consumed: bool = pressed_intent.handle_left_click(self, pressed)
 		_give_feedback(answer, consumed)
 		if consumed:
+			# A placed cast spends the latched height. A line's first
+			# click is consumed too but places nothing yet - its second
+			# click is aimed on the same plane.
+			if pressed_intent is AimingIntent and not AbilityManager.has_line_start:
+				_clear_plane()
 			get_viewport().set_input_as_handled()
 		return
 
@@ -656,7 +835,10 @@ func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
 			return ClickAnswer.new(&"interact")
 		if at.ground == null:
 			return ClickAnswer.new()
-		return _move_answer(at.ground)
+		var move: ClickAnswer = _move_answer(at.move_point(), at.ground)
+		if at.on_plane:
+			move.floor_point = at.floor_below
+		return move
 	if current is AimingIntent:
 		var ability: Ability = current.ability
 		if ability and ability.targeting and ability.targeting.expects_point_target():
@@ -665,6 +847,8 @@ func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
 			if p == null or caster == null or caster not in SelectionManager.selected_units:
 				return ClickAnswer.new()
 			var answer := ClickAnswer.new(&"use", ability.targeting.resolve_target_point(p))
+			if at.on_plane and not at.aims_at_unit(ability):
+				answer.floor_point = at.floor_below
 			var reach: AbilityTargeting.Reach = ability.targeting.check_click(caster, p)
 			if reach != AbilityTargeting.Reach.OK:
 				answer.refused(_reach_reason(reach, false))
@@ -673,7 +857,10 @@ func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
 			return _unit_answer(at.unit, true)
 		if at.interactable:
 			return ClickAnswer.new()
-		return ClickAnswer.new(&"nothing", at.ground).refused("No target")
+		var none: ClickAnswer = ClickAnswer.new(&"nothing", at.ground).refused("No target")
+		if at.on_plane:
+			none.floor_point = at.floor_below
+		return none
 	return ClickAnswer.new()
 
 
@@ -706,11 +893,13 @@ func _unit_answer(clicked: Unit, aiming: bool) -> ClickAnswer:
 ## cannot move is refused with why. A destination the commanded unit has
 ## no route to is refused too: command_move would still hand out the
 ## order, but the unit would not go anywhere. Beyond the move budget is
-## fine - the move walks as far as it can, as the preview shows.
-func _move_answer(destination: Vector3) -> ClickAnswer:
+## fine - the move walks as far as it can, as the preview shows. marker
+## is where the feedback goes (the midair point a flier was sent to);
+## destination is the order itself (Cursor.move_point).
+func _move_answer(destination: Vector3, marker: Vector3) -> ClickAnswer:
 	if SelectionManager.selected_units.is_empty():
 		return ClickAnswer.new()
-	var answer := ClickAnswer.new(&"move", destination)
+	var answer := ClickAnswer.new(&"move", marker)
 	var movers: Array[Unit] = move_order_units()
 	if movers.is_empty():
 		var acting: Unit = PlayerInteractionState.get_active_unit()
@@ -745,16 +934,16 @@ func _give_feedback(answer: ClickAnswer, consumed: bool) -> void:
 	match answer.verb:
 		&"move":
 			if answer.ok and consumed:
-				_feedback.confirm_move(answer.point)
+				_feedback.confirm_move(answer.point, answer.floor_point)
 			else:
-				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Can't move there")
+				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Can't move there", answer.floor_point)
 		&"use":
 			if answer.ok:
 				_feedback.confirm()
 			else:
-				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Out of reach")
+				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Out of reach", answer.floor_point)
 		&"nothing":
-			_feedback.refuse(answer.point, answer.reason)
+			_feedback.refuse(answer.point, answer.reason, answer.floor_point)
 
 
 ## The OS cursor for this frame, from this frame's cursor and intent. The

@@ -501,6 +501,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	var scroll_down: bool = event.is_action_pressed("camera_zoom_out")
 	if not (scroll_up or scroll_down):
 		return
+	# Ctrl + wheel steps the height plane (ClickRouter._step_plane), never
+	# the zoom - checked here as well as consumed there, so it holds
+	# whichever of the two sees the event first.
+	if Input.is_action_pressed("fly_altitude_modifier"):
+		return
 
 	# Identical in both modes: zoom toward/away from the anchor, clamped.
 	var step: float = zoom_speed * 0.1

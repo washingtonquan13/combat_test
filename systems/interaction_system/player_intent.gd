@@ -53,17 +53,33 @@ func handle_right_click(_router, _cursor: Cursor) -> bool:
 	return false
 
 
-## Whether a held Ctrl means a height drag right now. The router holds
-## the cursor's ground point only while this says yes (see
-## ClickRouter.resolve_cursor), so Ctrl over an intent with no height to
-## drag leaves the cursor free.
+## Whether this intent takes a height right now: Ctrl + wheel steps a
+## height plane, a Ctrl hold drags it, and the cursor meets the plane
+## (see ClickRouter.resolve_cursor). While this says no there is no
+## plane and Ctrl leaves the cursor free.
 func drags_height(_router) -> bool:
 	return false
 
 
+## A height plane this intent always has, with no latch needed - an idle
+## flier's own altitude - or null when it has none and the plane exists
+## only once the player sets one. Read by the router each frame, so the
+## plane can never drift from what it stands for.
+func standing_height(_router) -> Variant:
+	return null
+
+
+## The nearest height this intent can actually take to h - an altitude
+## clamped to the flight envelope. Applied by the router to every height
+## the player sets, so the plane shown is the plane that will be used.
+func clamp_height(h: float) -> float:
+	return h
+
+
 ## Called by the router once per frame with this frame's cursor, before
-## the indicators draw - the one place a held height drag is written to
-## whatever it drags (an aim height, a flight altitude). Default: nothing.
+## the indicators draw (and again with a click's own cursor before the
+## click is answered) - the one place the cursor's height is written to
+## whatever it steers (an aim height, a flight altitude). Default: nothing.
 func steer(_router, _cursor: Cursor) -> void:
 	pass
 

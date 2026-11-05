@@ -210,12 +210,17 @@ func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = [
 func _query_destination(raw: Vector3) -> Vector3:
 	var query: Vector3 = raw
 	if _owner.is_flying():
-		query.y = clamp(
-			_owner.flight_target_altitude,
-			NavigationGrid.FLIGHT_MIN_ALTITUDE,
-			NavigationGrid.FLIGHT_CEILING_HEIGHT
-		)
+		query.y = clamp_flight_altitude(_owner.flight_target_altitude)
 	return query
+
+
+## altitude clamped to the valid flight envelope (NavigationGrid.
+## FLIGHT_MIN_ALTITUDE..FLIGHT_CEILING_HEIGHT) - the one copy of that
+## rule, shared by the move query, set_flight_altitude and the router's
+## altitude plane (IdleIntent.clamp_height), so the plane the player sees
+## is the altitude the flier will take.
+static func clamp_flight_altitude(altitude: float) -> float:
+	return clampf(altitude, NavigationGrid.FLIGHT_MIN_ALTITUDE, NavigationGrid.FLIGHT_CEILING_HEIGHT)
 
 
 ## RoutePlanner.plan() over find_path()'s waypoints, with the flier's
@@ -639,15 +644,11 @@ func _finish_move(announce: bool = true) -> void:
 
 ## Sets flight_target_altitude directly, clamped to the valid flight
 ## envelope (see NavigationGrid.FLIGHT_MIN_ALTITUDE/FLIGHT_CEILING_HEIGHT)
-## — called every frame from movement_indicator.gd's Ctrl-drag altitude
-## control while this unit is the active, flying unit. Doesn't move the
+## — called by IdleIntent.steer when the player moves the altitude plane
+## (Ctrl + wheel, or a Ctrl hold) while this unit flies. Doesn't move the
 ## unit itself; only changes where its NEXT move_to() call will aim for.
 func set_flight_altitude(altitude: float) -> void:
-	_owner.flight_target_altitude = clamp(
-		altitude,
-		NavigationGrid.FLIGHT_MIN_ALTITUDE,
-		NavigationGrid.FLIGHT_CEILING_HEIGHT
-	)
+	_owner.flight_target_altitude = clamp_flight_altitude(altitude)
 
 
 ## Forces this unit out of the air by removing every status currently

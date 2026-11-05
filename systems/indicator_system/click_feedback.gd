@@ -17,6 +17,12 @@ extends Node3D
 ## (UnitSelection): a decal paints whatever ground is under it, slopes and
 ## steps included, where a flat ribbon would float or sink, and its
 ## cull_mask leaves out Unit.RENDER_LAYER so a ring never paints a boot.
+##
+## A decal only paints ground inside its box, so a click on a point in
+## the AIR (a flier's move on the height plane) would show no ring at
+## all. Given the floor under such a point, the ring pulses on that floor
+## and a shrinking PathTube ring marks the midair point itself, joined
+## for the moment of the pulse by the same look as AltitudeMarker.
 
 ## Played on a click that was taken. Null means the code-built tick below,
 ## so the game needs no audio asset for this; drop a real stream in here
@@ -46,6 +52,10 @@ const MARKER_HEIGHT: float = 0.8
 const REASON_SECONDS: float = 1.1
 const REASON_HEIGHT: float = 0.9
 const REASON_RISE: float = 0.35
+## Above this over its floor a clicked point is in the air (see
+## AltitudeMarker.MIN_HEIGHT).
+const MIDAIR_HEIGHT: float = 0.25
+const MIDAIR_RING_SEGMENTS: int = 28
 
 var _confirm_player: AudioStreamPlayer
 var _refuse_player: AudioStreamPlayer
@@ -73,11 +83,12 @@ func _notification(what: int) -> void:
 		show_cursor(Input.CURSOR_ARROW)
 
 
-## A move order was given: ring at the destination, tick.
-func confirm_move(point) -> void:
+## A move order was given: ring at the destination, tick. floor_point is
+## the floor under a midair destination (Cursor.floor_below), or null.
+func confirm_move(point, floor_point = null) -> void:
 	_confirm_player.play()
 	if point is Vector3:
-		_spawn_ring(point, IndicatorPalette.OK)
+		_spawn_marker(point, floor_point, IndicatorPalette.OK)
 
 
 ## A click was taken but needs no marker of its own (an ability cast -
@@ -88,11 +99,12 @@ func confirm() -> void:
 
 ## A click was refused. point may be null (the ray missed): then there is
 ## only the sound, since there is nowhere to put the ring or the reason.
-func refuse(point, reason: String) -> void:
+## floor_point as for confirm_move.
+func refuse(point, reason: String, floor_point = null) -> void:
 	_refuse_player.play()
 	if not (point is Vector3):
 		return
-	_spawn_ring(point, IndicatorPalette.BLOCKED)
+	_spawn_marker(point, floor_point, IndicatorPalette.BLOCKED)
 	if reason != "":
 		_show_reason(point, reason)
 
@@ -106,6 +118,54 @@ func show_cursor(shape: Input.CursorShape) -> void:
 		return
 	_cursor_shape = shape
 	Input.set_default_cursor_shape(shape)
+
+
+## The ring for a click at point: on the ground there, or, for a point
+## in the air over floor_point, on that floor and in the air both.
+func _spawn_marker(point: Vector3, floor_point, color: Color) -> void:
+	if floor_point is Vector3 and point.y - (floor_point as Vector3).y >= MIDAIR_HEIGHT:
+		var below := Vector3(point.x, (floor_point as Vector3).y, point.z)
+		_spawn_ring(below, color)
+		_spawn_air_ring(point, below, color)
+		return
+	_spawn_ring(point, color)
+
+
+## A ring at a midair point and a drop line to the floor, shrinking and
+## fading with the floor ring. PathTubes are built in world space, so the
+## shrink rebuilds the ring each step rather than scaling a node.
+func _spawn_air_ring(point: Vector3, below: Vector3, color: Color) -> void:
+	var unit_layer: int = 1 << (Unit.RENDER_LAYER - 1)
+	var ring := PathTube.new()
+	ring.fade_start = 0.0
+	ring.fade_end = 0.0
+	ring.layers = unit_layer
+	add_child(ring)
+	var drop := PathTube.new()
+	drop.width = 0.02
+	drop.fade_start = 0.2
+	drop.fade_end = 0.2
+	drop.layers = unit_layer
+	add_child(drop)
+	drop.show_line(PackedVector3Array([point, below]), Color(color, color.a * 0.7))
+
+	var radius: float = MARKER_SIZE * 0.5
+	var step := func(t: float) -> void:
+		var r: float = radius * lerpf(1.0, MARKER_END_SCALE, 1.0 - pow(1.0 - t, 3.0))
+		var faded := Color(color, color.a * (1.0 - t * t))
+		var points := PackedVector3Array()
+		for i in range(MIDAIR_RING_SEGMENTS + 1):
+			var angle: float = (float(i) / MIDAIR_RING_SEGMENTS) * TAU
+			points.append(point + Vector3(cos(angle), 0.0, sin(angle)) * r)
+		ring.show_line(points, faded)
+		drop.visible = t < 0.999
+	step.call(0.0)
+
+	# Bound to the ring, so a world freed mid-fade takes the tween with it.
+	var tween: Tween = ring.create_tween()
+	tween.tween_method(step, 0.0, 1.0, MARKER_SECONDS)
+	tween.tween_callback(ring.queue_free)
+	tween.tween_callback(drop.queue_free)
 
 
 func _spawn_ring(point: Vector3, color: Color) -> void:

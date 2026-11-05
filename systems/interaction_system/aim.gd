@@ -16,11 +16,12 @@ var caster: Unit = null
 ## The ability being aimed, or null while idle.
 var ability: Ability = null
 
-## The cursor's aim point (Cursor.aim_point - a hovered unit's feet for a
-## point-target ability, else the ground) as the armed ability would take it (see
-## AbilityTargeting.resolve_target_point - lifted to the dragged height
-## for the shapes that take one), or the bare ground point while idle.
-## Null when the ray missed the ground.
+## The cursor's aim point (Cursor.aim_point - a hovered unit's centre of
+## mass or feet for a point-target ability, else the cursor's point,
+## midair when on the height plane) as the armed ability would take it
+## (see AbilityTargeting.resolve_target_point - at the aim height for the
+## shapes that take one), or the bare cursor point while idle (midair at
+## a flier's altitude). Null when the ray met nothing.
 var point = null
 
 ## cursor.unit when it is alive and hostile to the caster, else null.

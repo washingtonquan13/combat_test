@@ -30,7 +30,7 @@ func handle_left_click(router, cursor: Cursor) -> bool:
 		return false
 	if cursor.ground == null:
 		return false
-	return router.command_move(cursor.ground)
+	return router.command_move(cursor.move_point())
 
 
 func handle_right_click(_router, cursor: Cursor) -> bool:
@@ -45,20 +45,36 @@ func handle_right_click(_router, cursor: Cursor) -> bool:
 	return InteractionMenu.is_open()
 
 
-## Ctrl drags flight altitude while anyone it would apply to flies.
+## Ctrl + wheel / a Ctrl hold set flight altitude while anyone it would
+## apply to flies.
 func drags_height(router) -> bool:
 	return not flying_units_for_altitude(router.active_unit()).is_empty()
 
 
-## Every flier the drag applies to takes its height as its target
-## altitude, which the move order and the path preview both read
-## (Unit.flight_target_altitude). Letting go keeps whatever altitude the
-## drag landed on.
+## The plane IS the flier's altitude: always on while it flies, so a move
+## click lands where the mouse ray crosses that altitude (midair), not on
+## the ground below. The active unit's own when it flies, else the first
+## selected flier's (an out-of-combat mixed selection).
+func standing_height(router) -> Variant:
+	var fliers: Array[Unit] = flying_units_for_altitude(router.active_unit())
+	if fliers.is_empty():
+		return null
+	return fliers[0].flight_target_altitude
+
+
+func clamp_height(h: float) -> float:
+	return UnitMovement.clamp_flight_altitude(h)
+
+
+## When the player moved the plane this frame, every flier it applies to
+## takes its height as its target altitude, which the move order and the
+## path preview both read (Unit.flight_target_altitude). It stays there
+## after Ctrl is let go - on the unit, which is the one place it lives.
 func steer(router, cursor: Cursor) -> void:
-	if not cursor.dragging_height or cursor.height == null:
+	if not cursor.height_steered or cursor.plane_height == null:
 		return
 	for unit in flying_units_for_altitude(router.active_unit()):
-		unit.set_flight_altitude(cursor.height)
+		unit.set_flight_altitude(cursor.plane_height)
 
 
 ## Which units the altitude drag applies to. In combat only the acting

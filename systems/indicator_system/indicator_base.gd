@@ -31,6 +31,12 @@ const LINE_EDGE: float = 0.015
 ## off wholesale.
 var _owned_meshes: Array[MeshInstance3D] = []
 
+## Every AltitudeMarker this indicator built through
+## _create_altitude_marker(): a Node3D of several pieces (a decal and a
+## label among them), so it is tracked beside _owned_meshes rather than
+## in it, and put away by the same hide_visuals.
+var _owned_markers: Array[AltitudeMarker] = []
+
 ## Whether the router currently draws this indicator. Written only by
 ## set_live (the router's _apply_intent).
 var _live: bool = false
@@ -85,6 +91,9 @@ func hide_visuals() -> void:
 	for mesh in _owned_meshes:
 		if is_instance_valid(mesh):
 			mesh.visible = false
+	for marker in _owned_markers:
+		if is_instance_valid(marker):
+			marker.hide_marker()
 	_set_targets([])
 
 
@@ -126,7 +135,19 @@ func is_showing_anything() -> bool:
 	for mesh in _owned_meshes:
 		if is_instance_valid(mesh) and mesh.visible:
 			return true
+	for marker in _owned_markers:
+		if is_instance_valid(marker) and marker.is_showing():
+			return true
 	return false
+
+
+## An AltitudeMarker child, registered so hide_visuals/
+## is_showing_anything cover it. Starts hidden.
+func _create_altitude_marker() -> AltitudeMarker:
+	var marker := AltitudeMarker.new()
+	add_child(marker)
+	_owned_markers.append(marker)
+	return marker
 
 
 ## Creates a new MeshInstance3D + ImmediateMesh configured for

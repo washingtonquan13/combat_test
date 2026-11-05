@@ -28,6 +28,9 @@ const AIM_FADE: float = 0.3
 
 var _line_mesh: PathTube
 var _shell: AoeShell
+## Height over the floor of the point being aimed (the line's start
+## before the first click, its end after), when that is in the air.
+var _altitude: AltitudeMarker
 
 
 func serves() -> StringName:
@@ -40,6 +43,7 @@ func _ready() -> void:
 	_shell = AoeShell.new()
 	add_child(_shell)
 	_owned_meshes.append(_shell)
+	_altitude = _create_altitude_marker()
 
 
 func draw(aim: Aim) -> void:
@@ -52,11 +56,14 @@ func draw(aim: Aim) -> void:
 		return
 	if AbilityManager.has_line_start:
 		_line_mesh.visible = false
+		var end: Vector3 = targeting.end_for(AbilityManager.line_start, hover_point)
 		_draw_wall(unit, ability, targeting, AbilityManager.line_start, hover_point)
+		_altitude.show_at(end, AltitudeMarker.floor_under(aim, end), wall_color)
 	else:
 		_shell.visible = false
 		_set_targets([])
 		_draw_aim(unit, targeting, hover_point)
+		_altitude.show_at(hover_point, AltitudeMarker.floor_under(aim, hover_point), clear_color)
 
 
 func _draw_aim(unit: Unit, targeting: LineTargeting, hover_point: Vector3) -> void:
