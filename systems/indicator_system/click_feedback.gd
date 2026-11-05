@@ -23,6 +23,13 @@ extends Node3D
 ## all. Given the floor under such a point, the ring pulses on that floor
 ## and a shrinking PathTube ring marks the midair point itself, joined
 ## to it by a drop line for the moment of the pulse.
+##
+## After the pulse, each unit the player ordered keeps a smaller ring at
+## the end of its route, breathing, until it stops walking that route:
+## arrived, stopped, or given another order (the CRPG convention - the
+## spot you sent someone stays marked until they get there). Polled from
+## the unit's own route each frame, so no "arrived" bookkeeping can go
+## stale.
 
 ## Played on a click that was taken. Null means the code-built tick below,
 ## so the game needs no audio asset for this; drop a real stream in here
@@ -55,6 +62,12 @@ const REASON_RISE: float = 0.35
 ## Above this over its floor a clicked point is in the air.
 const MIDAIR_HEIGHT: float = 0.25
 const MIDAIR_RING_SEGMENTS: int = 28
+## The ring held at a destination while the unit walks there: diameter,
+## breathing period, and the alpha range it breathes through.
+const HOLD_SIZE: float = 0.55
+const HOLD_PERIOD: float = 1.1
+const HOLD_ALPHA_MIN: float = 0.35
+const HOLD_GROW: float = 0.12
 
 var _confirm_player: AudioStreamPlayer
 var _refuse_player: AudioStreamPlayer
@@ -66,6 +79,10 @@ var _reason_label: Label3D = null
 ## changes - every set_default_cursor_shape sends a fake mouse motion
 ## through the input pipeline.
 var _cursor_shape: Input.CursorShape = Input.CURSOR_ARROW
+## Unit -> {decal, end}: the destination ring held for a unit walking a
+## route that ends at `end`.
+var _held: Dictionary = {}
+var _hold_clock: float = 0.0
 
 
 func _ready() -> void:
@@ -88,6 +105,57 @@ func confirm_move(point, floor_point = null) -> void:
 	_confirm_player.play()
 	if point is Vector3:
 		_spawn_marker(point, floor_point, IndicatorPalette.OK)
+
+
+## Holds a breathing ring at the end of unit's current route until it
+## stops walking that route. floor_point: the floor under a midair end
+## (a decal only paints ground), or null.
+func hold_destination(unit: Unit, floor_point = null) -> void:
+	_release(unit)
+	var route: Dictionary = unit.current_route()
+	if route.is_empty():
+		return
+	var path: PackedVector3Array = route.path
+	var end: Vector3 = path[path.size() - 1]
+	var decal: Decal = _ring_decal(IndicatorPalette.OK, HOLD_SIZE)
+	decal.global_position = floor_point if floor_point is Vector3 else end
+	_held[unit] = {"decal": decal, "end": end}
+
+
+func _process(delta: float) -> void:
+	if _held.is_empty():
+		return
+	_hold_clock += delta
+	var wave: float = 0.5 + 0.5 * sin(_hold_clock * TAU / HOLD_PERIOD)
+	for unit in _held.keys():
+		var decal: Decal = _held[unit].decal
+		if not _still_heading(unit, _held[unit].end) or not is_instance_valid(decal):
+			_release(unit)
+			continue
+		var alpha: float = IndicatorPalette.OK.a * lerpf(HOLD_ALPHA_MIN, 1.0, wave)
+		decal.modulate = Color(IndicatorPalette.OK, alpha)
+		decal.emission_energy = alpha
+		var diameter: float = HOLD_SIZE * (1.0 + HOLD_GROW * wave)
+		decal.size = Vector3(diameter, MARKER_HEIGHT, diameter)
+
+
+static func _still_heading(unit, end: Vector3) -> bool:
+	if not is_instance_valid(unit) or not unit.is_moving():
+		return false
+	var route: Dictionary = unit.current_route()
+	if route.is_empty():
+		return false
+	var path: PackedVector3Array = route.path
+	return path[path.size() - 1].is_equal_approx(end)
+
+
+func _release(unit) -> void:
+	if not _held.has(unit):
+		return
+	var decal = _held[unit].decal
+	if is_instance_valid(decal):
+		decal.queue_free()
+	_held.erase(unit)
 
 
 ## A click was taken but needs no marker of its own (an ability cast -
@@ -168,9 +236,24 @@ func _spawn_air_ring(point: Vector3, below: Vector3, color: Color) -> void:
 
 
 func _spawn_ring(point: Vector3, color: Color) -> void:
+	var decal: Decal = _ring_decal(color, MARKER_SIZE)
+	decal.global_position = point
+
+	# Bound to the decal, so a world freed mid-fade takes the tween with it.
+	var end_size := Vector3(MARKER_SIZE * MARKER_END_SCALE, MARKER_HEIGHT, MARKER_SIZE * MARKER_END_SCALE)
+	var faded := Color(color, 0.0)
+	var tween: Tween = decal.create_tween().set_parallel(true)
+	tween.tween_property(decal, "size", end_size, MARKER_SECONDS).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(decal, "modulate", faded, MARKER_SECONDS).set_ease(Tween.EASE_IN)
+	tween.tween_property(decal, "emission_energy", 0.0, MARKER_SECONDS)
+	tween.chain().tween_callback(decal.queue_free)
+
+
+## A ring decal of the given diameter, added under this node.
+func _ring_decal(color: Color, diameter: float) -> Decal:
 	var decal := Decal.new()
 	decal.top_level = true
-	decal.size = Vector3(MARKER_SIZE, MARKER_HEIGHT, MARKER_SIZE)
+	decal.size = Vector3(diameter, MARKER_HEIGHT, diameter)
 	decal.normal_fade = 0.6
 	decal.upper_fade = 0.1
 	decal.lower_fade = 0.1
@@ -184,16 +267,7 @@ func _spawn_ring(point: Vector3, color: Color) -> void:
 	decal.modulate = color
 	decal.emission_energy = color.a
 	add_child(decal)
-	decal.global_position = point
-
-	# Bound to the decal, so a world freed mid-fade takes the tween with it.
-	var end_size := Vector3(MARKER_SIZE * MARKER_END_SCALE, MARKER_HEIGHT, MARKER_SIZE * MARKER_END_SCALE)
-	var faded := Color(color, 0.0)
-	var tween: Tween = decal.create_tween().set_parallel(true)
-	tween.tween_property(decal, "size", end_size, MARKER_SECONDS).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
-	tween.tween_property(decal, "modulate", faded, MARKER_SECONDS).set_ease(Tween.EASE_IN)
-	tween.tween_property(decal, "emission_energy", 0.0, MARKER_SECONDS)
-	tween.chain().tween_callback(decal.queue_free)
+	return decal
 
 
 ## Styled like the movement preview's cost readout: billboarded, screen-

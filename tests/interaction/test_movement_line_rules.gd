@@ -58,7 +58,16 @@ func run() -> void:
 	check("walking: cost walked so far is partway (%.2f of %.2f)" % [walked, route_cost],
 		unit.is_moving() and walked > 0.0 and walked < route_cost)
 
+	var feedback := preload("res://systems/indicator_system/click_feedback.gd").new()
+	add_child(feedback)
+	feedback.hold_destination(unit)
+	await get_tree().process_frame
+	check("walking: the destination ring holds", feedback._held.has(unit))
 	unit.stop_moving()
+	await get_tree().process_frame
+	check("stopped: the destination ring is gone", not feedback._held.has(unit))
+	feedback.queue_free()
+
 	if fight.is_running:
 		fight.finish(&"")
 	line.queue_free()

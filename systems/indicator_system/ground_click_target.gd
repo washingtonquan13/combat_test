@@ -776,12 +776,24 @@ func command_move(destination: Vector3) -> bool:
 
 	if movers.size() == 1 and movers[0].in_combat():
 		movers[0].move_to(destination)
-		return true
-
-	# Leader/follower formation math lives on FormationPlanner, not here —
-	# see that file for why it's leader-driven but fully deterministic.
-	FormationPlanner.command_group_move(movers, destination)
+	else:
+		# Leader/follower formation math lives on FormationPlanner, not
+		# here - see that file for why it's leader-driven but fully
+		# deterministic.
+		FormationPlanner.command_group_move(movers, destination)
+	# Each unit sent marks where it is going until it gets there (chain
+	# followers tagging along are not marked: the player didn't send them).
+	for unit in movers:
+		_hold_destination(unit)
 	return true
+
+
+func _hold_destination(unit: Unit) -> void:
+	var route: Dictionary = unit.current_route()
+	if route.is_empty():
+		return
+	var end: Vector3 = route.path[route.path.size() - 1]
+	_feedback.hold_destination(unit, _floor_below(end + Vector3.UP * 0.1) if unit.is_flying() else null)
 
 
 ## Who a move order would go to: every selected, living unit, except that
