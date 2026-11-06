@@ -8,24 +8,11 @@ shader_type spatial;
 // fading along the cone and to nothing at its edge, so it never shows a
 // silhouette. Additive and brighter than 1.0, so it blooms.
 //
-// The mesh is a unit BoxMesh (size 1). The vertex shader stretches it to
-// bound the cone, so the node's origin is the hand and the cone runs along
-// its local -Z. Because the shader moves the vertices, the MeshInstance3D
-// needs a custom_aabb (see lightning_cone.gd) or it is culled wrongly.
-//
-// cull_front draws the box's far faces, so it still draws with the camera
-// inside it. The march is clipped to the cone itself, and stops at whatever
-// is in front (the ground, a unit) by reading the depth texture; that is the
-// only depth test, since the box's far faces may lie under the ground.
+// The box, the cone clipping and the depth stop are cone_volume.gdshaderinc.
 render_mode unshaded, blend_add, depth_draw_never, depth_test_disabled, cull_front, fog_disabled, shadows_disabled;
 
 uniform sampler3D noise : filter_linear_mipmap, repeat_enable;
-uniform sampler2D depth_texture : hint_depth_texture, filter_nearest;
-
-// The cone's shape, in the node's local metres: how far it reaches along
-// -Z, and its half-angle in radians. (Not "length": that is a built-in.)
-uniform float cone_length = 9.0;
-uniform float half_angle = 0.45;
+#include "res://scenes/vfx/cone_volume.gdshaderinc"
 
 // Set per frame: overall brightness, how far along it has spread (0..1),
 // and the clock that moves the streaks.
@@ -61,72 +48,10 @@ uniform vec3 noise_offset = vec3(0.0);
 
 const int STEPS = 28;
 
-varying vec3 local_vertex;
-varying vec3 local_camera;
-
 void vertex() {
-	// Stretch the unit box to bound the cone: x and y out to the far end's
-	// radius, z from the hand (0) to the far end (-cone_length).
-	float radius = tan(half_angle) * cone_length * 1.02;
-	VERTEX = vec3(VERTEX.xy * 2.0 * radius, (VERTEX.z - 0.5) * cone_length);
+	VERTEX = cone_box(VERTEX);
 	local_vertex = VERTEX;
 	local_camera = (inverse(MODEL_MATRIX) * vec4(CAMERA_POSITION_WORLD, 1.0)).xyz;
-}
-
-// The stretch of the ray o + t * d that lies inside the cone, between the
-// hand and the far end. False if the ray misses it.
-bool cone_interval(vec3 o, vec3 d, out float t_in, out float t_out) {
-	// First between the planes z = 0 and z = -cone_length.
-	if (abs(d.z) < 1e-6) {
-		t_in = -1e6;
-		t_out = 1e6;
-		if (o.z > 0.0 || o.z < -cone_length) {
-			return false;
-		}
-	} else {
-		float a = -o.z / d.z;
-		float b = (-cone_length - o.z) / d.z;
-		t_in = min(a, b);
-		t_out = max(a, b);
-	}
-	// Then inside x^2 + y^2 <= k^2 z^2. That is a double cone, but between
-	// the planes only the -Z half counts, and the -Z half is convex, so what
-	// is left is one stretch.
-	float k = tan(half_angle);
-	float k2 = k * k;
-	float qa = d.x * d.x + d.y * d.y - k2 * d.z * d.z;
-	float qb = 2.0 * (o.x * d.x + o.y * d.y - k2 * o.z * d.z);
-	float qc = o.x * o.x + o.y * o.y - k2 * o.z * o.z;
-	// A ray parallel to the cone's side: keep the planes' stretch; the
-	// density is zero outside the cone anyway.
-	if (abs(qa) > 1e-6) {
-		float disc = qb * qb - 4.0 * qa * qc;
-		if (disc < 0.0) {
-			if (qa > 0.0) {
-				return false;
-			}
-		} else {
-			float s = sqrt(disc);
-			float r0 = (-qb - s) / (2.0 * qa);
-			float r1 = (-qb + s) / (2.0 * qa);
-			float t1 = min(r0, r1);
-			float t2 = max(r0, r1);
-			if (qa > 0.0) {
-				// Steeper than the cone's side: inside between the two hits.
-				t_in = max(t_in, t1);
-				t_out = min(t_out, t2);
-			} else {
-				// Shallower: inside before the first hit or after the second,
-				// one in each half. Keep whichever is the -Z half.
-				if (o.z + d.z * t1 < 0.0) {
-					t_out = min(t_out, t1);
-				} else {
-					t_in = max(t_in, t2);
-				}
-			}
-		}
-	}
-	return t_out > t_in;
 }
 
 // Light given off at p, in the node's local space.
@@ -167,22 +92,11 @@ void fragment() {
 	vec3 dir = normalize(local_vertex - local_camera);
 	float t_in;
 	float t_out;
-	if (!cone_interval(local_camera, dir, t_in, t_out)) {
-		discard;
-	}
-	t_in = max(t_in, 0.0);
-	// Stop at whatever's in front.
-	float scene_depth = textureLod(depth_texture, SCREEN_UV, 0.0).r;
-	vec4 view = INV_PROJECTION_MATRIX * vec4(SCREEN_UV * 2.0 - 1.0, scene_depth, 1.0);
-	vec3 world = (INV_VIEW_MATRIX * vec4(view.xyz / view.w, 1.0)).xyz;
-	vec3 scene_local = (inverse(MODEL_MATRIX) * vec4(world, 1.0)).xyz;
-	t_out = min(t_out, dot(scene_local - local_camera, dir));
-	if (t_out <= t_in) {
+	if (!cone_span(dir, SCREEN_UV, INV_PROJECTION_MATRIX, INV_VIEW_MATRIX, MODEL_MATRIX, t_in, t_out)) {
 		discard;
 	}
 	float step_len = (t_out - t_in) / float(STEPS);
-	// Jitter where each ray starts, so the steps don't show as bands.
-	float jitter = fract(sin(dot(FRAGCOORD.xy, vec2(12.9898, 78.233))) * 43758.5453);
+	float jitter = cone_jitter(FRAGCOORD.xy);
 	float tan_half = tan(half_angle);
 	vec3 total = vec3(0.0);
 	for (int i = 0; i < STEPS; i++) {
