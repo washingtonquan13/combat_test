@@ -6,6 +6,11 @@ extends MeshInstance3D
 ## where the parent was rather than riding along with it.
 ##
 ## Set emitting false to stop laying new points; what is there ages out.
+##
+## The strip is built just before the frame draws (frame_pre_draw), with
+## the parent's position at that moment as its head: a projectile moved by
+## a tween is moved after every _process, so a head laid in _process would
+## sit a frame behind it - a visible gap at speed.
 
 const SHADER_CODE := """
 shader_type spatial;
@@ -50,6 +55,7 @@ func _ready() -> void:
 	material.set_shader_parameter(&"tint", color)
 	material.set_shader_parameter(&"energy", energy)
 	material_override = material
+	RenderingServer.frame_pre_draw.connect(_rebuild)
 
 
 func is_empty() -> bool:
@@ -70,24 +76,35 @@ func _process(delta: float) -> void:
 			_ages.clear()
 		_points.append(here)
 		_ages.append(0.0)
-	_rebuild()
 
 
 func _rebuild() -> void:
+	if not is_inside_tree():
+		return
 	_strip.clear_surfaces()
-	var count: int = _points.size()
+	var points: PackedVector3Array = _points
+	var ages: PackedFloat32Array = _ages
+	var parent := get_parent() as Node3D
+	if emitting and parent and parent.is_visible_in_tree() and not points.is_empty():
+		var head: Vector3 = parent.global_position
+		if head.distance_to(points[-1]) > 0.001 and head.distance_to(points[-1]) <= max_step:
+			points = points.duplicate()
+			ages = ages.duplicate()
+			points.append(head)
+			ages.append(0.0)
+	var count: int = points.size()
 	var camera := get_viewport().get_camera_3d()
 	if count < 2 or camera == null:
 		return
 	var eye: Vector3 = camera.global_position
 	_strip.surface_begin(Mesh.PRIMITIVE_TRIANGLE_STRIP)
 	for i in count:
-		var p: Vector3 = _points[i]
-		var tangent: Vector3 = _points[min(i + 1, count - 1)] - _points[max(i - 1, 0)]
+		var p: Vector3 = points[i]
+		var tangent: Vector3 = points[min(i + 1, count - 1)] - points[max(i - 1, 0)]
 		var side: Vector3 = tangent.cross(eye - p)
 		if side.length_squared() < 1e-10:
 			side = Vector3.RIGHT
-		var life: float = clamp(1.0 - _ages[i] / lifetime, 0.0, 1.0)
+		var life: float = clamp(1.0 - ages[i] / lifetime, 0.0, 1.0)
 		side = side.normalized() * width * 0.5 * life
 		var shade := Color(1, 1, 1, life * life)
 		_strip.surface_set_color(shade)
