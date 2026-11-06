@@ -1,6 +1,7 @@
 extends AiTestCase
 ## Shove flies the target along ArcFlight, ST through the jump formula;
-## a wall on the way stops it short, and a long fall hurts.
+## a wall on the way stops it short, off a ledge it comes down below,
+## and a long fall hurts.
 
 
 func run() -> void:
@@ -34,6 +35,26 @@ func run() -> void:
 	check("a wall stops the shove short", stop is Vector3 and stop.x < 3.0 - 0.2 - victim.radius + 0.05, str(stop))
 	free_spawned()
 	wall.queue_free()
+
+	var ledge := StaticBody3D.new()
+	var ledge_shape := CollisionShape3D.new()
+	var ledge_box := BoxShape3D.new()
+	ledge_box.size = Vector3(2.0, 6.0, 4.0)
+	ledge_shape.shape = ledge_box
+	ledge_shape.position = Vector3(0, 3.0, 0)
+	ledge.add_child(ledge_shape)
+	_root.add_child(ledge)
+	ledge.global_position = Vector3(0.5, 0, 0)
+	NavigationGrid.invalidate()
+	await get_tree().physics_frame
+	shover = spawn_unit(&"player", 10, 10, 10, [], Vector3(0, 6, 0))
+	victim = spawn_unit(&"enemy", 10, 10, 10, [], Vector3(1, 6, 0))
+	await get_tree().physics_frame
+	var down = effect.landing_point(shover, victim)
+	check("off a ledge it lands on the ground below", down is Vector3 and down.y < 1.0 and down.x > 3.0, str(down))
+	free_spawned()
+	ledge.queue_free()
+	NavigationGrid.invalidate()
 
 	var faller: Unit = spawn_unit(&"enemy", 10, 10, 10, [], Vector3.ZERO)
 	ArcFlight.take_fall(faller, SAFE_DROP)

@@ -30,11 +30,19 @@ static func strength_distance(st: float, rule: StrengthRule = StrengthRule.ROUND
 			return 0.3 * st + 1.5
 
 
-## Where the flight is at t (0 = from, 1 = to): height above the straight
-## line at t 0.5.
+## Where the flight is at t (0 = from, 1 = to): a parabola peaking height
+## above the HIGHER end. On the flat that is height above the line at t
+## 0.5; off a ledge it rises before it drops, so it clears the edge it
+## leaves (over the straight line it would dip into it), and up onto one
+## it clears the edge it lands on.
 static func point(from: Vector3, to: Vector3, height: float, t: float) -> Vector3:
 	var p: Vector3 = from.lerp(to, t)
-	p.y += height * 4.0 * t * (1.0 - t)
+	var rise: float = maxf(from.y, to.y) + maxf(height, 0.0) - from.y
+	var drop: float = to.y - from.y
+	if rise <= 0.0:
+		return p
+	var b: float = 2.0 * rise + 2.0 * sqrt(maxf(rise * (rise - drop), 0.0))
+	p.y = from.y + b * t + (drop - b) * t * t
 	return p
 
 

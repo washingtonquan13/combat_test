@@ -79,13 +79,17 @@ func _stop_short(target: Unit, direction: Vector3, reach: float) -> Vector3:
 
 
 ## A flying target stays at its height; a grounded one comes down on the
-## nearest valid cell (NavigationGrid), or stays put with none.
+## nearest valid cell (NavigationGrid), or stays put with none. The snap
+## starts from the ground under point, not point itself: its search only
+## reaches a few metres, so off a high ledge it would find nothing.
 func _land(target: Unit, point: Vector3) -> Vector3:
 	var to: Vector3 = target.global_position
 	if target.is_flying():
 		return Vector3(point.x, to.y, point.z)
+	var tree: SceneTree = target.get_tree()
+	point.y = NavigationGrid.flight_floor_at(tree, point, target) - NavigationGrid.FLIGHT_MIN_ALTITUDE
 	var clearance: float = target.radius + target.avoidance_margin
-	var snap: Dictionary = NavigationGrid.nearest_valid_point(target.get_tree(), point, clearance, false, target)
+	var snap: Dictionary = NavigationGrid.nearest_valid_point(tree, point, clearance, false, target)
 	return snap.point if snap.found else to
 
 
