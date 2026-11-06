@@ -13,6 +13,10 @@ extends InteractableProp
 ##
 ## Still a StaticBody3D, so the navigation grid bakes it as an obstacle
 ## (and its top as somewhere to stand); moving it re-bakes the grid.
+##
+## A drop doesn't teleport it: it flies there along arc_point(), the same
+## curve PropDrag draws while it is held, so the line shows the path it
+## will take.
 
 ## One-handed lift (B353): 2 x BL.
 const MAX_LIFT_BL: float = 2.0
@@ -29,13 +33,33 @@ const THROW_TABLE: Array = [
 
 const METRES_PER_YARD: float = 0.9144
 
+## The flight's peak above the straight line between its ends: a floor,
+## plus a share of the distance, capped so a long toss stays readable.
+const ARC_MIN_HEIGHT: float = 0.6
+const ARC_HEIGHT_PER_METRE: float = 0.25
+const ARC_MAX_HEIGHT: float = 3.0
+
+## Flight time: a floor, plus this much per metre, capped.
+const FLIGHT_MIN_TIME: float = 0.3
+const FLIGHT_TIME_PER_METRE: float = 0.04
+const FLIGHT_MAX_TIME: float = 0.8
+
+## A drop's flight (fly_to) has set it down.
+signal landed
+
 @export var weight_lb: float = 10.0
+
+## True while it is in the air after a drop; it can't be picked up
+## again until it lands.
+var in_flight: bool = false
 
 
 ## Why mover can't pick this up, or "" when they can.
 func refusal_for(mover: Unit) -> String:
 	if mover == null:
 		return "No one to move it"
+	if in_flight:
+		return "Still in the air"
 	if weight_lb > mover.basic_lift() * MAX_LIFT_BL:
 		return "Too heavy to lift"
 	if _horizontal_distance(mover.global_position, global_position) > reach_for(mover):
@@ -73,6 +97,37 @@ func resting_transform(point: Vector3) -> Transform3D:
 func place_at(point: Vector3) -> void:
 	global_transform = resting_transform(point)
 	NavigationGrid.invalidate()
+
+
+## Sends it from where it is to rest on point along arc_point(), then
+## places it there (place_at, so the grid re-bakes on landing, not on
+## takeoff). Emits landed when it arrives.
+func fly_to(point: Vector3) -> void:
+	var from: Vector3 = global_position
+	var to: Vector3 = resting_transform(point).origin
+	in_flight = true
+	var tween: Tween = create_tween()
+	tween.tween_method(func(t: float) -> void: global_position = arc_point(from, to, t), 0.0, 1.0, flight_time(from, to))
+	tween.tween_callback(func() -> void:
+		in_flight = false
+		place_at(point)
+		landed.emit())
+
+
+## Where a flight from `from` to `to` is at t (0..1): a parabola over the
+## straight line, peaking at t 0.5 (same shape as MoveCasterEffect's).
+static func arc_point(from: Vector3, to: Vector3, t: float) -> Vector3:
+	var point: Vector3 = from.lerp(to, t)
+	point.y += arc_height(from, to) * 4.0 * t * (1.0 - t)
+	return point
+
+
+static func arc_height(from: Vector3, to: Vector3) -> float:
+	return minf(ARC_MIN_HEIGHT + ARC_HEIGHT_PER_METRE * _horizontal_distance(from, to), ARC_MAX_HEIGHT)
+
+
+static func flight_time(from: Vector3, to: Vector3) -> float:
+	return minf(FLIGHT_MIN_TIME + FLIGHT_TIME_PER_METRE * from.distance_to(to), FLIGHT_MAX_TIME)
 
 
 ## The collision shapes this prop occupies, each with its transform

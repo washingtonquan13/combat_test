@@ -11,6 +11,10 @@ extends Node3D
 ## against everything else on the ground layer (walls, other props,
 ## units).
 ##
+## A line arcs from the prop to the ghost along MovableProp.arc_point(),
+## the path a drop flies it along, in the indicator colours: white where
+## it may go, red where not.
+##
 ## Made and fed by ClickRouter, which owns the cursor; this never reads
 ## input or casts a mouse ray itself.
 
@@ -25,6 +29,8 @@ const FIT_LIFT: float = 0.03
 ## split normals, and pushing them apart leaves the corners open.
 const OUTLINE_SCALE: float = 1.06
 
+const ARC_SEGMENTS: int = 24
+
 const OUTLINE_SHADER: Shader = preload("res://systems/unit_system/outline.gdshader")
 
 var prop: MovableProp
@@ -37,6 +43,7 @@ var valid: bool = false
 
 var _outline: ShaderMaterial
 var _ghost_material: StandardMaterial3D
+var _arc: PathTube
 
 
 func _init(dragged: MovableProp, by: Unit, mask: int = 1) -> void:
@@ -71,6 +78,10 @@ func _ready() -> void:
 		shell.material_override = _outline
 		shell.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(shell)
+	_arc = PathTube.new()
+	_arc.fade_start = 0.3
+	_arc.fade_end = 0.3
+	add_child(_arc)
 	visible = false
 
 
@@ -85,7 +96,26 @@ func follow(ground) -> void:
 	valid = mover != null and prop.in_reach(mover, point) and fits(point)
 	_outline.set_shader_parameter("outline_color", OK_COLOR if valid else BLOCKED_COLOR)
 	_ghost_material.albedo_color = Color(OK_COLOR if valid else BLOCKED_COLOR, 0.35)
+	_draw_arc()
 	visible = true
+
+
+## The flight path, through the prop's middle rather than its origin.
+func _draw_arc() -> void:
+	var from: Vector3 = prop.global_position
+	var to: Vector3 = global_position
+	var middle: Vector3 = prop.global_basis * _local_middle()
+	var points := PackedVector3Array()
+	for i in range(ARC_SEGMENTS + 1):
+		points.append(MovableProp.arc_point(from, to, float(i) / ARC_SEGMENTS) + middle)
+	_arc.show_line(points, IndicatorPalette.OK if valid else IndicatorPalette.BLOCKED)
+
+
+func _local_middle() -> Vector3:
+	var shapes: Array[CollisionShape3D] = prop.shapes()
+	if shapes.is_empty():
+		return Vector3.ZERO
+	return (shapes[0].transform * shapes[0].shape.get_debug_mesh().get_aabb()).get_center()
 
 
 ## Whether the prop's shapes, resting on at, overlap nothing but itself.
@@ -104,10 +134,10 @@ func fits(at: Vector3) -> bool:
 	return true
 
 
-## Sets the prop down where the ghost is. False, and nothing moved, when
-## it may not go there.
+## Flies the prop to where the ghost is (MovableProp.fly_to). False, and
+## nothing moved, when it may not go there.
 func drop() -> bool:
 	if not valid or point == null or not is_instance_valid(prop):
 		return false
-	prop.place_at(point)
+	prop.fly_to(point)
 	return true
