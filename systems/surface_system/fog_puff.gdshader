@@ -15,13 +15,23 @@ instance uniform vec3 shade_color : source_color = vec3(0.52, 0.56, 0.62);
 instance uniform float opacity = 0.6;
 uniform float softness = 1.2;
 instance uniform float dissipate = 0.0;
-// Charge (Electrified Steam): the cloud flickers, and now and then a puff
-// flashes blue-white. 0 for a plain cloud.
+// Charge (Electrified Steam): lightning inside the cloud, 0 for a plain
+// cloud. Each puff has a core that glows blue from within: faintly, as
+// each stretch of the cloud flickers by itself, and brightly when a
+// strike (xyz where, w how bright; electrified_steam_cloud.gd) goes off
+// near it.
 instance uniform float flicker = 0.0;
+instance uniform vec4 strike_a = vec4(0.0);
+instance uniform vec4 strike_b = vec4(0.0);
+uniform vec3 glow_color : source_color = vec3(0.32, 0.55, 1.0);
+uniform float glow_energy = 9.0;
+// How far a strike lights the cloud, meters.
+uniform float strike_reach = 1.3;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 
 varying float seed;
 varying float gone;
+varying vec3 centre;
 
 void vertex() {
 	mat4 world = mat4(normalize(INV_VIEW_MATRIX[0]), normalize(INV_VIEW_MATRIX[1]), normalize(INV_VIEW_MATRIX[2]), MODEL_MATRIX[3]);
@@ -32,6 +42,7 @@ void vertex() {
 	MODELVIEW_NORMAL_MATRIX = mat3(MODELVIEW_MATRIX);
 	seed = fract(float(INSTANCE_ID) * 0.6180339);
 	gone = cube_gone(MODEL_MATRIX[3].xyz);
+	centre = MODEL_MATRIX[3].xyz;
 }
 
 float hash(vec2 p) {
@@ -79,10 +90,19 @@ void fragment() {
 	float light = clamp(0.5 - centered.y * 0.45 + (n - 0.5) * 0.6, 0.0, 1.0);
 	ALBEDO = mix(shade_color, lit_color, light) * COLOR.rgb;
 	if (flicker > 0.0) {
-		float shimmer = noise(vec2(TIME * 9.0, seed * 13.0)) - 0.5;
-		float flash = step(0.94, hash(vec2(floor(TIME * 14.0), seed * 91.0)));
-		ALBEDO *= 1.0 + flicker * 0.3 * shimmer;
-		ALBEDO = mix(ALBEDO, vec3(0.85, 0.93, 1.0) * 1.6, flash * flicker * shape);
+		// The core: a lump somewhere inside the puff, off its middle.
+		vec2 off = (vec2(hash(vec2(seed, 7.1)), hash(vec2(seed, 3.3))) - 0.5) * 0.7;
+		float core = smoothstep(0.8, 0.0, length(centered - off) + (n - 0.5) * 0.6);
+		// Lit through the cloud's own lumps, not as a smooth ball.
+		float lumps = fbm(UV * 6.0 + seed * 31.0);
+		core *= core * smoothstep(0.3, 0.7, lumps) * 1.6;
+		// Each stretch of the cloud (about 2 m) flickers by itself.
+		vec3 cell = floor(centre / 2.0);
+		float region = hash(cell.xz + cell.y * 7.7);
+		float idle = pow(noise(vec2(TIME * 6.0, region * 53.0)), 5.0) * 0.6;
+		float strike = strike_a.w * exp(-distance(centre, strike_a.xyz) / strike_reach)
+				+ strike_b.w * exp(-distance(centre, strike_b.xyz) / strike_reach);
+		ALBEDO += glow_color * glow_energy * core * (idle + strike * 2.0) * flicker;
 	}
 	ALPHA = shape * soft * opacity * COLOR.a;
 }
