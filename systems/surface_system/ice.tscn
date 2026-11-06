@@ -5,8 +5,10 @@
 
 [sub_resource type="ShaderMaterial" id="film"]
 shader = ExtResource("2_shader")
-shader_parameter/bumpiness = 0.1
-shader_parameter/ripple_strength = 0.05
+shader_parameter/bumpiness = 0.12
+shader_parameter/ripple_scale = 14.0
+shader_parameter/ripple_strength = 0.6
+shader_parameter/edge_detail = 0.7
 
 [node name="Ice" type="Decal"]
 size = Vector3(2.6, 2.4, 2.6)
@@ -14,4 +16,5 @@ normal_fade = 0.6
 cull_mask = 1048573
 script = ExtResource("1_script")
 film = SubResource("film")
-roughness = 0.06
+pixels_per_meter = 96.0
+roughness = 0.55

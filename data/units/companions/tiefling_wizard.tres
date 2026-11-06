@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=34 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=36 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -30,6 +30,8 @@
 [ext_resource type="Resource" path="res://data/abilities/wall_of_fire.tres" id="a19_wall"]
 [ext_resource type="Resource" path="res://data/abilities/enlarge_person.tres" id="a20_enlarge"]
 [ext_resource type="Resource" path="res://data/abilities/reduce_person.tres" id="a21_reduce"]
+[ext_resource type="Resource" path="res://data/abilities/frost_breath.tres" id="a22_frost"]
+[ext_resource type="Resource" path="res://data/abilities/lightning_breath.tres" id="a23_lightning"]
 
 [sub_resource type="Resource" id="rec0"]
 script = ExtResource("rec")
@@ -55,7 +57,7 @@ faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
-abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark"), ExtResource("a19_wall"), ExtResource("a20_enlarge"), ExtResource("a21_reduce")])
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark"), ExtResource("a19_wall"), ExtResource("a20_enlarge"), ExtResource("a21_reduce"), ExtResource("a22_frost"), ExtResource("a23_lightning")])
 
 alignment = -100
 tendency = 100

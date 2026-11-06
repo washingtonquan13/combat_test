@@ -1,0 +1,122 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=29 format=3]
+
+[ext_resource type="Script" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" path="res://systems/ability_system/area_damage_effect.gd" id="3_dmg"]
+[ext_resource type="Script" path="res://systems/ability_system/status_behavior.gd" id="4_behavior"]
+[ext_resource type="Script" path="res://systems/ability_system/prone_behavior.gd" id="5_prone"]
+[ext_resource type="Script" path="res://systems/ability_system/incapacitate_behavior.gd" id="6_incap"]
+[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="7_status_effect"]
+[ext_resource type="Script" path="res://systems/ability_system/cone_targeting.gd" id="8_cone"]
+[ext_resource type="Texture2D" path="res://assets/ability_icon/fire_breath_icon.png" id="9_icon"]
+[ext_resource type="Script" path="res://systems/ability_system/spawn_surface_effect.gd" id="10_spawn"]
+[ext_resource type="Script" path="res://systems/surface_system/surface.gd" id="11_surface"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/ice.tscn" id="12_ice"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_breath.tres" id="13_breath"]
+[ext_resource type="Script" path="res://systems/ability_system/vfx_effect.gd" id="14_vfx"]
+[ext_resource type="Script" path="res://systems/ability_system/vfx_step.gd" id="15_step"]
+[ext_resource type="Script" path="res://systems/ability_system/cone_vfx_step.gd" id="16_cone_step"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/ice/frost_cone.tscn" id="17_frost"]
+[ext_resource type="Script" path="res://systems/ability_system/ability_timing.gd" id="18_timing"]
+
+[sub_resource type="Resource" id="Resource_blast"]
+script = ExtResource("16_cone_step")
+scene = ExtResource("17_frost")
+gaze_release_seconds = 0.3
+
+[sub_resource type="Resource" id="Resource_cast_vfx"]
+script = ExtResource("14_vfx")
+steps = Array[ExtResource("15_step")]([SubResource("Resource_blast")])
+
+[sub_resource type="Resource" id="Resource_damage"]
+script = ExtResource("3_dmg")
+dice_count = 2
+dice_sides = 6
+dice_bonus = 0
+wound_type = 0
+armor_divisor = 1.0
+affects_hostiles = true
+affects_allies = true
+
+[sub_resource type="Resource" id="Resource_prone"]
+script = ExtResource("5_prone")
+melee_bonus = 4
+ranged_penalty = -4
+
+[sub_resource type="Resource" id="Resource_incap"]
+script = ExtResource("6_incap")
+
+[sub_resource type="Resource" id="Resource_slipped"]
+script = ExtResource("7_status_effect")
+status_name = "Slipped"
+default_duration = 3
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("4_behavior")]([SubResource("Resource_prone"), SubResource("Resource_incap")])
+curable = true
+group = &""
+rank = 0
+resisted_by = &"DX"
+resistance_modifier = 0
+apply_animation = "UAL2_Standard/Hit_Knockback"
+apply_animation_loops = false
+remove_animation = "UAL2_Standard/LayToIdle"
+hit_reaction_animation = ""
+
+[sub_resource type="Resource" id="Resource_ice"]
+script = ExtResource("11_surface")
+surface_name = "Ice"
+duration_rounds = 3
+shape = 0
+height_scale = 1.0
+wall_height = 4.0
+lays_ground_under = false
+status_effect = SubResource("Resource_slipped")
+status_only_inside = false
+blocks_sight = false
+dark_vision_sees_through = false
+movement_cost_multiplier = 2.0
+ambient_scene = ExtResource("12_ice")
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("10_spawn")
+surface = SubResource("Resource_ice")
+front_seconds = 0.3
+
+[sub_resource type="Resource" id="Resource_cone"]
+script = ExtResource("8_cone")
+length = 9.0
+end_width = 9.0
+max_pitch_degrees = 60.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+requires_ally = false
+
+[sub_resource type="Resource" id="Resource_timing"]
+script = ExtResource("18_timing")
+waits_for_impact = true
+impact_timeout = 4.0
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Frost Breath"
+icon = ExtResource("9_icon")
+icon_color = Color(0.55, 0.85, 1, 1)
+category = 1
+targeting = SubResource("Resource_cone")
+effects = Array[ExtResource("1_eff")]([SubResource("Resource_damage"), SubResource("Resource_spawn")])
+is_toggle = false
+toggle_group = &""
+max_level = 0
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+timing = SubResource("Resource_timing")
+cast_vfx = SubResource("Resource_cast_vfx")
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+cast_animation = ExtResource("13_breath")
+plays_cast_animation = true
