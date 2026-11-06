@@ -2012,6 +2012,12 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 		return result;
 	}
 
+	// A goal sealed off from the start is answered here, not by a search
+	// that has to exhaust itself (MAX_EXPANSIONS, ~160 ms) to find out.
+	if (!regions_may_connect(start_cell, goal_cell, flying)) {
+		return PackedVector3Array();
+	}
+
 	// Coarse-guided fast path: restrict the fine search to a corridor of
 	// chunks around an approximate chunk-level route. The coarse pass is
 	// deliberately optimistic (ignores clearance/occupancy entirely), so
@@ -2180,6 +2186,250 @@ std::vector<uint8_t> NavigationGrid::coarse_corridor(const Vector3i &start_cell,
 		}
 	}
 	return corridor;
+}
+
+// --- Connectivity regions ----------------------------------------------------
+
+NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bool flying) {
+	NavChunk &chunk = ensure_chunk_support(chunk_coord);
+	NavRegions &r = chunk.regions[flying ? 1 : 0];
+	if (r.labelled) {
+		return r;
+	}
+	r.labelled = true;
+	const size_t n = (size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
+	r.label.assign(n, 0);
+	r.count = 0;
+
+	Vector3i base = chunk_coord * CHUNK_DIM;
+	int cx1 = std::min(CHUNK_DIM, grid_size.x - base.x);
+	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
+	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
+
+	// Open = is_valid_cell's tests that hold for every clearance and height:
+	// dist > clearance >= 0 is exactly "not solid" (bake_chunk_dist writes 0
+	// for solid cells only), and the body's first layer is the cell itself.
+	// Closed cells stay 0; open ones are marked UINT16_MAX until labelled.
+	const uint16_t OPEN = 0xFFFF;
+	bool any_open = false;
+	for (int y = 0; y < cy1; y++) {
+		float world_y = bounds_origin.y + ((float)(base.y + y) + 0.5f) * CELL_SIZE;
+		if (flying && world_y > FLIGHT_CEILING_HEIGHT) {
+			continue;
+		}
+		for (int z = 0; z < cz1; z++) {
+			for (int x = 0; x < cx1; x++) {
+				int li = local_index(Vector3i(x, y, z));
+				if (chunk.solid[li] != 0) {
+					continue;
+				}
+				if (flying ? chunk.flight_low[li] != 0 : chunk.no_support[li] != 0) {
+					continue;
+				}
+				r.label[li] = OPEN;
+				any_open = true;
+			}
+		}
+	}
+	if (!any_open) {
+		return r;
+	}
+
+	std::vector<int> stack;
+	for (int seed = 0; seed < (int)n; seed++) {
+		if (r.label[seed] != OPEN) {
+			continue;
+		}
+		uint16_t id = ++r.count;
+		r.label[seed] = id;
+		stack.push_back(seed);
+		while (!stack.empty()) {
+			int li = stack.back();
+			stack.pop_back();
+			int x = li % CHUNK_DIM;
+			int y = (li / CHUNK_DIM) % CHUNK_DIM;
+			int z = li / (CHUNK_DIM * CHUNK_DIM);
+			for (int dz = -1; dz <= 1; dz++) {
+				int nz = z + dz;
+				if (nz < 0 || nz >= CHUNK_DIM) {
+					continue;
+				}
+				for (int dy = -1; dy <= 1; dy++) {
+					int ny = y + dy;
+					if (ny < 0 || ny >= CHUNK_DIM) {
+						continue;
+					}
+					for (int dx = -1; dx <= 1; dx++) {
+						int nx = x + dx;
+						if (nx < 0 || nx >= CHUNK_DIM) {
+							continue;
+						}
+						int ni = local_index(Vector3i(nx, ny, nz));
+						if (r.label[ni] == OPEN) {
+							r.label[ni] = id;
+							stack.push_back(ni);
+						}
+					}
+				}
+			}
+		}
+	}
+	return r;
+}
+
+NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying) {
+	NavRegions &r = ensure_chunk_regions(chunk_coord, flying);
+	if (r.linked) {
+		return r;
+	}
+	r.linked = true;
+	r.links.assign(r.count, std::vector<uint64_t>());
+	if (r.count == 0) {
+		return r;
+	}
+
+	// The 26 neighbouring chunks' labels, resolved once. chunks is sized
+	// once per scan, so these references stay valid while more are built.
+	const NavRegions *around[3][3][3] = {};
+	uint64_t around_idx[3][3][3] = {};
+	for (int dx = -1; dx <= 1; dx++) {
+		for (int dy = -1; dy <= 1; dy++) {
+			for (int dz = -1; dz <= 1; dz++) {
+				Vector3i nc = chunk_coord + Vector3i(dx, dy, dz);
+				if ((dx == 0 && dy == 0 && dz == 0) || !chunk_in_bounds(nc)) {
+					continue;
+				}
+				around[dx + 1][dy + 1][dz + 1] = &ensure_chunk_regions(nc, flying);
+				around_idx[dx + 1][dy + 1][dz + 1] = (uint64_t)chunk_coord_index(nc);
+			}
+		}
+	}
+
+	const int last = CHUNK_DIM - 1;
+	for (int z = 0; z < CHUNK_DIM; z++) {
+		for (int y = 0; y < CHUNK_DIM; y++) {
+			for (int x = 0; x < CHUNK_DIM; x++) {
+				if (x != 0 && x != last && y != 0 && y != last && z != 0 && z != last) {
+					continue;
+				}
+				uint16_t own = r.label[local_index(Vector3i(x, y, z))];
+				if (own == 0) {
+					continue;
+				}
+				std::vector<uint64_t> &out = r.links[own - 1];
+				for (int dz = -1; dz <= 1; dz++) {
+					for (int dy = -1; dy <= 1; dy++) {
+						for (int dx = -1; dx <= 1; dx++) {
+							int nx = x + dx, ny = y + dy, nz = z + dz;
+							int cdx = nx < 0 ? -1 : (nx > last ? 1 : 0);
+							int cdy = ny < 0 ? -1 : (ny > last ? 1 : 0);
+							int cdz = nz < 0 ? -1 : (nz > last ? 1 : 0);
+							if (cdx == 0 && cdy == 0 && cdz == 0) {
+								continue; // inside this chunk: same region already
+							}
+							const NavRegions *nb = around[cdx + 1][cdy + 1][cdz + 1];
+							if (!nb) {
+								continue;
+							}
+							uint16_t other = nb->label[local_index(Vector3i(nx - cdx * CHUNK_DIM, ny - cdy * CHUNK_DIM, nz - cdz * CHUNK_DIM))];
+							if (other != 0) {
+								out.push_back((around_idx[cdx + 1][cdy + 1][cdz + 1] << 16) | other);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	for (std::vector<uint64_t> &out : r.links) {
+		std::sort(out.begin(), out.end());
+		out.erase(std::unique(out.begin(), out.end()), out.end());
+	}
+	return r;
+}
+
+uint64_t NavigationGrid::region_key(const Vector3i &cell, bool flying) {
+	if (!in_bounds(cell)) {
+		return 0;
+	}
+	Vector3i cc = cell_to_chunk_coord(cell);
+	uint16_t label = ensure_chunk_regions(cc, flying).label[local_index(cell_to_local(cell))];
+	if (label == 0) {
+		return 0;
+	}
+	return ((uint64_t)chunk_coord_index(cc) << 16) | label;
+}
+
+bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying) {
+	uint64_t goal_key = region_key(goal_cell, flying);
+	if (goal_key == 0) {
+		return true; // the goal passed is_valid_cell, so this can't happen; let the search decide
+	}
+	// a_star expands the start cell whether or not it is valid, then steps
+	// only into valid cells: its own region if open, else its neighbours'.
+	std::vector<uint64_t> seeds;
+	uint64_t own = region_key(start_cell, flying);
+	if (own != 0) {
+		seeds.push_back(own);
+	} else {
+		for (const Vector3i &offset : neighbor_offsets) {
+			uint64_t k = region_key(start_cell + offset, flying);
+			if (k != 0 && std::find(seeds.begin(), seeds.end(), k) == seeds.end()) {
+				seeds.push_back(k);
+			}
+		}
+	}
+	if (seeds.empty()) {
+		return false;
+	}
+	if (std::find(seeds.begin(), seeds.end(), goal_key) != seeds.end()) {
+		return true;
+	}
+
+	// Greedy best-first from both ends, each heading for the other's chunk;
+	// always grow the smaller frontier. A node is checked against the other
+	// side when first seen, so a shared region is caught by whichever side
+	// reaches it second. A side that runs out has walked its whole
+	// component without touching the other: no path.
+	struct Side {
+		std::unordered_set<uint64_t> seen;
+		std::priority_queue<std::pair<float, uint64_t>, std::vector<std::pair<float, uint64_t>>, std::greater<std::pair<float, uint64_t>>> open;
+		Vector3i toward;
+	};
+	Side sides[2];
+	sides[0].toward = cell_to_chunk_coord(goal_cell);
+	sides[1].toward = cell_to_chunk_coord(start_cell);
+	auto priority = [&](uint64_t key, const Vector3i &toward) -> float {
+		return coarse_heuristic(chunk_coord_from_index((int)(key >> 16)), toward);
+	};
+	for (uint64_t k : seeds) {
+		sides[0].seen.insert(k);
+		sides[0].open.push({ priority(k, sides[0].toward), k });
+	}
+	sides[1].seen.insert(goal_key);
+	sides[1].open.push({ priority(goal_key, sides[1].toward), goal_key });
+
+	for (int expansions = 0; expansions < MAX_REGION_EXPANSIONS; expansions++) {
+		if (sides[0].open.empty() || sides[1].open.empty()) {
+			return false;
+		}
+		int s = sides[0].open.size() <= sides[1].open.size() ? 0 : 1;
+		Side &me = sides[s];
+		Side &other = sides[1 - s];
+		uint64_t key = me.open.top().second;
+		me.open.pop();
+		Vector3i cc = chunk_coord_from_index((int)(key >> 16));
+		const NavRegions &r = ensure_chunk_region_links(cc, flying);
+		for (uint64_t next : r.links[(key & 0xFFFF) - 1]) {
+			if (other.seen.count(next)) {
+				return true;
+			}
+			if (me.seen.insert(next).second) {
+				me.open.push({ priority(next, me.toward), next });
+			}
+		}
+	}
+	return true; // too big to settle cheaply: the search decides, capped as ever
 }
 
 PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask) {

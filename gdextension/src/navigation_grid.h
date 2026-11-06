@@ -99,6 +99,24 @@ struct TriShape {
 	std::unordered_map<int, std::vector<int>> by_column;
 };
 
+// One chunk's connected regions for one movement mode (walking or flying).
+// A cell is open when SOME unit of that mode could stand in it: not solid,
+// supported (walking) or high enough (flying), under the flight ceiling
+// (flying). That is is_valid_cell with clearance, height and occupancy
+// taken away, so it holds for every cell any search could accept, and two
+// cells in different regions can never be joined by a search. Open cells
+// touching across any of the 26 neighbours share a region, the same
+// neighbours a_star steps through. See NavigationGrid::regions_may_connect.
+struct NavRegions {
+	bool labelled = false;
+	bool linked = false;
+	uint16_t count = 0;
+	std::vector<uint16_t> label; // CHUNK_DIM^3, 0 = closed, else 1..count
+	// [region - 1] -> region keys (see region_key) in neighbouring chunks
+	// that one of its cells touches.
+	std::vector<std::vector<uint64_t>> links;
+};
+
 struct NavChunk {
 	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
 	// CHUNK_DIM^3, parallel to solid: 1 = solid lying just under a walkable
@@ -123,6 +141,7 @@ struct NavChunk {
 	bool dist_baked = false;
 	bool has_ground_passable = false;
 	bool has_flyable = false;
+	NavRegions regions[2]; // [0] walking, [1] flying
 };
 
 // One world's worth of grid state, parked here while some OTHER world is
@@ -431,6 +450,23 @@ private:
 	// corridor-restricted fine search always falls back to an unrestricted
 	// one, so this can only affect speed).
 	std::vector<uint8_t> coarse_corridor(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
+
+	// --- Connectivity regions ----------------------------------------
+	// Whether a search from start_cell could ever reach goal_cell: false
+	// only when it provably can't (their regions are not connected), so
+	// find_path answers "no path" without exhausting a search for it. A
+	// search from both ends at once over the region graph, so a goal
+	// sealed off from the start (a pocket inside hollow terrain, a ledge
+	// with no way up) fails in the time it takes to walk ITS side, not
+	// the whole level. Labels need only the support tier and are built
+	// per chunk as the search reaches it; they go with the chunks when
+	// the world is rescanned.
+	static constexpr int MAX_REGION_EXPANSIONS = 20000;
+	bool regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
+	NavRegions &ensure_chunk_regions(const Vector3i &chunk_coord, bool flying);
+	NavRegions &ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying);
+	// (chunk index << 16) | label, or 0 for a closed cell.
+	uint64_t region_key(const Vector3i &cell, bool flying);
 
 	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask);
 	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);

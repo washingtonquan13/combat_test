@@ -45,6 +45,16 @@ func run() -> void:
 		"base %s" % base)
 	check("the shaman's ledge does not route on foot (Jump only)",
 		not _arrives(_route(walker, CAMP, LEDGE), LEDGE))
+	# Sealed off is answered by connectivity, not by a search that runs to
+	# its expansion cap (~160 ms) to find out. Second call: bakes are warm.
+	var t0: int = Time.get_ticks_usec()
+	var sealed: PackedVector3Array = _route(walker, CAMP, LEDGE)
+	var failed_ms: float = (Time.get_ticks_usec() - t0) / 1000.0
+	t0 = Time.get_ticks_usec()
+	_route(walker, TOWN, CAMP)
+	var routed_ms: float = (Time.get_ticks_usec() - t0) / 1000.0
+	print("  ledge (sealed) %.2f ms, town->camp %.2f ms" % [failed_ms, routed_ms])
+	check("and that answer is quick", sealed.is_empty() and failed_ms < 20.0, "%.1f ms" % failed_ms)
 
 	# Walked, not just routed: from the pit floor beside the ramp, a path
 	# that steps onto the ramp's side face strands the walker at its foot.
