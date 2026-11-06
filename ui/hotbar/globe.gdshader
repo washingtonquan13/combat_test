@@ -35,6 +35,11 @@ uniform float swirl = 0.3;
 uniform vec4 vein_color : source_color = vec4(0.6, 0.85, 1.0, 0.6);
 uniform float vein_sharp = 5.0;
 uniform float refract = 0.0;
+// The liquid glows from inside: density is how fast it brightens with
+// thickness (thick middle bright, thin edges dark); bubbles is how bright
+// the rising bubbles are (0 = none).
+uniform float density = 1.6;
+uniform float bubbles : hint_range(0.0, 1.0) = 0.5;
 // Glass: the shading toward the edge, the edge glow and the top-left gloss.
 uniform float sphere_shade : hint_range(0.0, 1.0) = 0.45;
 uniform vec4 fresnel_color : source_color = vec4(0.8, 0.85, 1.0, 0.25);
@@ -99,30 +104,50 @@ void fragment() {
 	float z = sqrt(max(0.0, 1.0 - r * r));
 	vec3 n = vec3(c.x * 2.0, -c.y * 2.0, z);
 
-	// Turn the sphere about its vertical axis and read the swirl there: a
-	// pattern that slides fast in the middle and slow at the edges, the way
-	// a spinning ball does. Domain warp so it curls instead of just sliding.
-	float a = TIME * spin_speed;
-	vec3 p = vec3(n.x * cos(a) + n.z * sin(a), n.y, -n.x * sin(a) + n.z * cos(a)) * spin_scale;
+	// The liquid fills the ball from the bottom to a flat line across it,
+	// seen through the glass, so magnified like the picture. A pixel below
+	// the line is liquid; its ray runs from the front of the ball (z) to the
+	// back (-z) through it.
+	float sx = c.x * 2.0;
+	float sy = -c.y * 2.0;
+	float wt = TIME * wave_speed;
+	float settle = smoothstep(0.0, 0.04, fill) * smoothstep(1.0, 0.96, fill);
+	float wave = (sin(sx * 4.5 + wt * 1.7) * 0.6 + sin(sx * 8.5 - wt * 2.3) * 0.4) * wave_amp * 2.0 * settle;
+	float level = mix(-1.0, 1.0, fill) + wave;
+	float y_front = sy * (1.0 - lens * (1.0 - r * r));
+	float e_front = fwidth(y_front);
+	float body = 1.0 - smoothstep(level - e_front, level + e_front, y_front);
+	if (fill <= 0.0) {
+		body = 0.0;
+	}
+	float wet = body;
+	float thickness = 2.0 * z;
+	float z_in = z;
+
+	// Smoke swirling in the volume, read at three depths along the ray, each
+	// layer turning a little slower than the one in front of it, so the
+	// swirl has depth instead of sliding like a decal. Domain-warped so it
+	// curls.
 	vec3 drift = vec3(0.0, TIME * churn, TIME * churn * 0.7);
-	vec3 warp = vec3(fbm(p + drift), fbm(p + vec3(5.2, 1.3, 2.8) - drift), 0.0);
-	float flow = fbm(p + warp * 1.8 + drift * 0.5);
+	float smoke = 0.0;
+	vec3 warp = vec3(0.5);
+	float flow = 0.5;
+	for (int k = 0; k < 3; k++) {
+		float fk = float(k);
+		float zk = mix(z_in, -z, (fk + 0.5) / 3.0);
+		float a = TIME * spin_speed * (1.0 - 0.25 * fk) + fk * 1.7;
+		vec3 q = vec3(sx * cos(a) + zk * sin(a), sy, -sx * sin(a) + zk * cos(a)) * spin_scale;
+		vec3 wq = vec3(fbm(q + drift), fbm(q + vec3(5.2, 1.3, 2.8) - drift), 0.0);
+		float f = fbm(q + wq * 1.8 + drift * 0.5);
+		if (k == 0) {
+			warp = wq;
+			flow = f;
+		}
+		smoke += f * (1.0 - 0.2 * fk);
+	}
+	smoke /= 2.4;
 	float ridge = 1.0 - abs(flow * 2.0 - 1.0);
 	float veins = pow(ridge, vein_sharp);
-
-	// The meniscus: two travelling sine waves, flattened at empty and full.
-	float wt = TIME * wave_speed;
-	float wave = sin(UV.x * 9.0 + wt * 1.7) * 0.6 + sin(UV.x * 17.0 - wt * 2.3) * 0.4;
-	float settle = smoothstep(0.0, 0.04, fill) * smoothstep(1.0, 0.96, fill);
-	float level = fill + wave * wave_amp * settle;
-
-	// The liquid line seen through the glass, magnified like the picture.
-	float height = 0.5 - c.y * (1.0 - lens * (1.0 - r * r));
-	float line_px = fwidth(UV.y);
-	float wet = 1.0 - smoothstep(level - line_px, level + line_px, height);
-	if (fill <= 0.0) {
-		wet = 0.0;
-	}
 
 	vec2 bend = (warp.xy - vec2(0.5)) * refract * wet;
 	// Through the glass: the ball magnifies its middle, and red and blue
@@ -134,22 +159,42 @@ void fragment() {
 	base.r = texture(TEXTURE, uv_offset + (at + split) * uv_scale).r;
 	base.b = texture(TEXTURE, uv_offset + (at - split) * uv_scale).b;
 
-	// Liquid: the texture in full colour, tinted, swirling.
-	float depth = fill > 0.0 ? clamp(height / max(level, 0.001), 0.0, 1.0) : 0.0;
+	// Liquid: the texture in full colour under the tint, lit from inside -
+	// thick liquid glows, the thin edges go dark - with the smoke's lighter
+	// and darker wisps through it.
+	float glow = 1.0 - exp(-density * thickness);
+	float depth = clamp(0.5 + sy * 0.25 + (smoke - 0.5) * 1.6, 0.0, 1.0);
 	vec4 tint = mix(liquid_bottom, liquid_top, depth);
 	vec3 liquid = mix(base.rgb, tint.rgb, tint.a);
-	liquid *= 1.0 + swirl * (flow - 0.5) * 2.0;
-	liquid += vein_color.rgb * vein_color.a * veins * (0.4 + 0.6 * z);
+	liquid *= mix(0.4, 1.25, glow);
+	liquid *= 1.0 + swirl * (smoke - 0.5) * 2.4;
+	liquid += vein_color.rgb * vein_color.a * veins * glow;
+
+	// Bubbles rising through the body, each column at its own pace, swaying.
+	float column = floor(sx * 7.0);
+	float rise = TIME * mix(0.25, 0.6, hash(vec3(column, 3.0, 1.0))) * 7.0;
+	vec2 g = vec2(sx * 7.0, sy * 7.0 - rise);
+	vec2 cell = floor(g);
+	float h = hash(vec3(cell, 7.0));
+	vec2 f = fract(g) - 0.5 - (vec2(h, fract(h * 5.3)) - 0.5) * 0.4;
+	f.x += sin(TIME * 2.0 + h * 6.28) * 0.12;
+	float rb = mix(0.05, 0.11, fract(h * 9.1));
+	float bubble = (1.0 - smoothstep(rb * 0.55, rb, length(f))) * step(h, 0.3);
+	// Brighter rim, darker middle, fading out just under the surface.
+	float ring = smoothstep(rb * 0.2, rb * 0.8, length(f));
+	bubble *= (0.35 + 0.65 * ring) * (1.0 - smoothstep(level - 0.2, level - 0.05, y_front));
+	liquid += vec3(1.0) * bubbles * bubble * body * (0.4 + 0.6 * z);
 
 	// Drained: the same texture gone grey and dim.
 	float lum = dot(base.rgb, vec3(0.299, 0.587, 0.114));
 	vec3 empty = mix(base.rgb, vec3(lum), empty_desaturate) * empty_dim;
 
-	vec3 col = mix(empty, liquid, wet);
+	vec3 col = mix(empty, liquid, body);
 
-	float surface = 1.0 - smoothstep(0.0, surface_px * line_px, abs(height - level));
+	// The surface: a thin bright line, surface_px wide.
 	if (fill > 0.001 && fill < 0.999) {
-		col = mix(col, surface_color.rgb, surface * surface_color.a);
+		float lip = 1.0 - smoothstep(0.0, surface_px * 0.5 * e_front, abs(y_front - level));
+		col = mix(col, surface_color.rgb, lip * surface_color.a);
 	}
 
 	// Glass sphere: darker toward the edge, a cool fresnel glow just inside
