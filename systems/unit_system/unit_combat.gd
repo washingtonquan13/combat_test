@@ -1228,19 +1228,28 @@ func _apply_effects(action: AbilityAction, hit: int = -1) -> Dictionary:
 
 ## An attack of an element (Ability.element) that landed: what's on the
 ## ground where it hit reacts to it (SurfaceManager.touch) — unless it
-## lays a surface of that element itself, whose own landing already does.
+## lays a surface of that element itself, whose own landing already does -
+## directly, or as what its surface leaves behind (Wall of Fire's wall lays
+## fire under it).
 func _touch_ground(action: AbilityAction) -> void:
 	var ability: Ability = action.ability
 	if ability.element == Surface.Element.NONE:
 		return
 	for effect in ability.effects:
-		if effect is SpawnSurfaceEffect and effect.surface and effect.surface.element == ability.element:
+		if effect is SpawnSurfaceEffect and _lays_element(effect.surface, ability.element):
 			return
 	var target = action.target
 	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
 		return
 	SurfaceManager.touch(ability.element, ability, _owner, target)
 
+
+func _lays_element(surface: Surface, element: Surface.Element) -> bool:
+	while surface:
+		if surface.element == element:
+			return true
+		surface = surface.leaves_behind
+	return false
 
 ## Two _apply_effects results as one: damage summed, per effect too.
 static func _merged_effects(a: Dictionary, b: Dictionary) -> Dictionary:

@@ -290,7 +290,7 @@ func _cloud_reach(grid: CloudGrid, ability: Ability, attacker: Unit, target) -> 
 			if cell.centre().distance_to(centre) <= area.radius + half_cube:
 				cells.append(cell)
 		return {cells = cells, sight_from = centre}
-	if attacker:
+	if attacker and (target is Unit or target is Vector3):
 		cells.append_array(grid.cells_along(LineOfSight.shot_from(attacker), LineOfSight.shot_to(target)))
 	if target is Unit:
 		cells.append_array(grid.cells_touching(target.global_position, target.anchor(CharacterModel.Anchor.EYE), target.radius))
