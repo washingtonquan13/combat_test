@@ -14,6 +14,14 @@ extends RefCounted
 ## targeting ability (e.g. an AoE — see AreaTargeting) can check LoS to
 ## wherever it's aiming without duplicating the raycast setup.
 
+## How near the end of the ray a wall may be met and still be the thing
+## aimed at rather than cover. A shot at a wall (an arrow loosed into it,
+## a Fire Bolt at a wall face) ends ON that wall - the lift keeps the
+## destination on the same face - so the ray always meets it at the very
+## end, and without this every wall the player aimed at read as blocking.
+const STRUCK_SURFACE_SLACK: float = 0.1
+
+
 static func has_clear_shot(
 	attacker: Unit,
 	target: Unit,
@@ -62,6 +70,9 @@ static func has_clear_shot_to_point(
 			# Clear of walls; a cloud that blocks sight (Fog) still can.
 			return not SurfaceManager.blocks_sight(attacker, from, to)
 		if not result.collider is Unit:
+			# The surface the shot was aimed at, not something in front of it.
+			if result.position.distance_to(to) <= STRUCK_SURFACE_SLACK:
+				return not SurfaceManager.blocks_sight(attacker, from, to)
 			return false
 		exclude.append(result.rid)
 		query.exclude = exclude
