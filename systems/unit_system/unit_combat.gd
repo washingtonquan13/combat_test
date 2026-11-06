@@ -1219,7 +1219,25 @@ func _apply_effects(action: AbilityAction, hit: int = -1) -> Dictionary:
 		effect_results.append(effect_result)
 		if effect_result.has("damage"):
 			total_damage += effect_result["damage"]
+	if hit <= 0:
+		_touch_ground(action)
 	return {"effects": effect_results, "damage": total_damage}
+
+
+## An attack of an element (Ability.element) that landed: what's on the
+## ground where it hit reacts to it (SurfaceManager.touch) — unless it
+## lays a surface of that element itself, whose own landing already does.
+func _touch_ground(action: AbilityAction) -> void:
+	var ability: Ability = action.ability
+	if ability.element == Surface.Element.NONE:
+		return
+	for effect in ability.effects:
+		if effect is SpawnSurfaceEffect and effect.surface and effect.surface.element == ability.element:
+			return
+	var target = action.target
+	if typeof(target) == TYPE_OBJECT and not is_instance_valid(target):
+		return
+	SurfaceManager.touch(ability.element, ability, _owner, target)
 
 
 ## Two _apply_effects results as one: damage summed, per effect too.

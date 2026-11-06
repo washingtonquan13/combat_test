@@ -19,9 +19,19 @@ enum Outcome {
 
 @export var element: Surface.Element = Surface.Element.FIRE
 @export var outcome: Outcome = Outcome.TAKEN
-## What the cells turn into, for BECOMES. Unset clears them.
-@export var becomes: Surface
+## What the cells turn into, for BECOMES: a Surface .tres. Unset clears
+## them. A path, not the Surface itself, because reactions run both ways
+## (ice melts into water, water freezes into ice) and Godot can't load
+## two resource files that refer to each other; this one is loaded the
+## first time it's needed, from the cache, so it is the same Surface
+## every other reference to that file holds.
+@export_file("*.tres") var becomes: String = ""
 ## The reaction runs through every touching cell of this surface, not
 ## just those the landing surface reached: one spark sets the whole
 ## grease patch alight, one breath freezes the whole puddle.
 @export var spreads: bool = false
+
+
+## The Surface the cells turn into, or null to clear them (see becomes).
+func becomes_surface() -> Surface:
+	return load(becomes) as Surface if not becomes.is_empty() else null

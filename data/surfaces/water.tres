@@ -7,7 +7,8 @@
 [sub_resource type="Resource" id="Resource_freezes"]
 script = ExtResource("2_reaction")
 element = 2
-outcome = 0
+outcome = 1
+becomes = "res://data/surfaces/ice.tres"
 spreads = true
 
 [sub_resource type="Resource" id="Resource_douses"]

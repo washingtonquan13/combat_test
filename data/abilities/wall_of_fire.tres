@@ -5,21 +5,10 @@
 [ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
 [ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="4_surface"]
 [ext_resource type="PackedScene" path="res://systems/surface_system/fire_wall.tscn" id="5_wall"]
-[ext_resource type="PackedScene" path="res://systems/surface_system/fire.tscn" id="6_fire"]
-[ext_resource type="Resource" path="res://data/statuses/burning.tres" id="7_burning"]
 [ext_resource type="Resource" path="res://data/statuses/searing.tres" id="10_searing"]
 [ext_resource type="Texture2D" uid="uid://7n6u3ht5dt5k" path="res://assets/ability_icon/wall_of_fire_icon.png" id="8_icon"]
 [ext_resource type="Script" path="res://systems/ability_system/line_targeting.gd" id="9_targeting"]
-
-[sub_resource type="Resource" id="Resource_ground"]
-script = ExtResource("4_surface")
-surface_name = "Fire"
-element = 1
-duration_rounds = 2
-shape = 0
-status_effect = ExtResource("7_burning")
-ambient_scene = ExtResource("6_fire")
-metadata/_custom_type_script = "uid://cykbj1s0c82e5"
+[ext_resource type="Resource" path="res://data/surfaces/fire.tres" id="90_fire_surface"]
 
 [sub_resource type="Resource" id="Resource_wall"]
 script = ExtResource("4_surface")
@@ -27,7 +16,7 @@ surface_name = "Wall of Fire"
 duration_rounds = 5
 shape = 2
 wall_height = 4.0
-leaves_behind = SubResource("Resource_ground")
+leaves_behind = ExtResource("90_fire_surface")
 lays_ground_under = true
 status_effect = ExtResource("10_searing")
 blocks_sight = true
@@ -55,6 +44,7 @@ icon_color = Color(1, 0.55, 0.24, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
+element = 1
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0

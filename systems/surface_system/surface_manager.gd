@@ -136,16 +136,91 @@ func spawn_wall(surface: Surface, from: Vector3, to: Vector3, caster: Node = nul
 func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: float, half_angle: float, caster: Node = null, front_seconds: float = 0.0) -> SurfacePatch:
 	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
 	var parent: Node = _parent_for(context, caster)
-	var space: PhysicsDirectSpaceState3D = _space_of(parent)
-	if not space:
+	var reached: Dictionary = _cone_cells(_space_of(parent), apex, direction, length, half_angle)
+	if reached.is_empty():
 		return null
+	if front_seconds > 0.0:
+		return _land(surface, reached, context, parent, apex, length, 0, front_seconds)
+	var ground_apex := Vector3(apex.x, reached.values().min(), apex.z)
+	return _land(surface, reached, context, parent, ground_apex, length)
+
+
+## An attack of element landing without leaving a surface of its own
+## (Lightning Breath, a frost bolt): what's on the ground where it lands
+## reacts to it all the same, as if a surface of that element had landed
+## there (_react) — cold freezes the water a target stands in, fire lights
+## the grease. Where: the target's footprint for a unit, else the
+## ability's area — its cone, its blast's floor, its spill. Nothing of the
+## element is left behind, so a reaction that would only let it TAKE the
+## cells does nothing.
+func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -> void:
+	if element == Surface.Element.NONE:
+		return
+	var context: WorldContext = WorldManager.context_for(attacker) if attacker else WorldManager.context()
+	var grid: SurfaceGrid = _grid_for(context)
+	if grid.is_empty():
+		return
+	var parent: Node = _parent_for(context, attacker)
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	var reached: Dictionary = {}
+	var position: Vector3
+	var radius: float = 0.0
+	if target is Unit:
+		position = target.global_position
+		radius = target.radius
+		reached = _footprint_cells(grid, position, radius)
+	elif target is Vector3:
+		position = target
+		var cone := ability.targeting as ConeTargeting
+		var area := ability.targeting as AreaTargeting
+		if cone:
+			position = cone.origin(attacker)
+			radius = cone.length
+			reached = _cone_cells(space, position, cone.direction(attacker, target), cone.length, cone.half_angle())
+		elif area is AerialAreaTargeting:
+			radius = area.radius
+			reached = _burst_cells(space, position, radius)
+		elif area:
+			radius = area.radius
+			reached = _spill_cells(space, position, radius)
+	if reached.is_empty():
+		return
+	var turned: Dictionary = _react(element, null, reached, grid)
+	for result: Surface in turned:
+		_land(result, turned[result], context, parent, position, radius)
+
+
+## The cells (SurfaceGrid key -> floor y) on the ground under a footprint
+## of radius round feet, as _surfaces_under reads them.
+func _footprint_cells(grid: SurfaceGrid, feet: Vector3, radius: float) -> Dictionary:
+	var reached: Dictionary = {}
+	var reach := Vector3(radius, 0.0, radius)
+	var low: Vector2i = SurfaceGrid.key_of(feet - reach)
+	var high: Vector2i = SurfaceGrid.key_of(feet + reach)
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var cell: SurfaceCell = grid.cell_at(Vector2i(x, z), feet.y)
+			if cell == null:
+				continue
+			var near := Vector2(clampf(feet.x, x * SurfaceGrid.CELL, (x + 1) * SurfaceGrid.CELL),
+					clampf(feet.z, z * SurfaceGrid.CELL, (z + 1) * SurfaceGrid.CELL))
+			if near.distance_to(Vector2(feet.x, feet.z)) <= radius:
+				reached[cell.key] = cell.y
+	return reached
+
+
+## The floor cells (SurfaceGrid key -> floor y) a cone from apex washes
+## over, as spawn_cone lays them. Empty with no physics space.
+func _cone_cells(space: PhysicsDirectSpaceState3D, apex: Vector3, direction: Vector3, length: float, half_angle: float) -> Dictionary:
+	var reached: Dictionary = {}
+	if not space:
+		return reached
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
 		exclude.append(unit.get_rid())
 	# The highest the cone reaches, so a floor under any of it is found
 	# from above and a ceiling over the apex is not mistaken for one.
 	var top: float = apex.y + maxf(0.0, length * sin(asin(clampf(direction.y, -1.0, 1.0)) + half_angle)) + 0.1
-	var reached: Dictionary = {}
 	var low: Vector2i = SurfaceGrid.key_of(apex - Vector3(length, 0.0, length))
 	var high: Vector2i = SurfaceGrid.key_of(apex + Vector3(length, 0.0, length))
 	for x in range(low.x, high.x + 1):
@@ -166,12 +241,7 @@ func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: flo
 			if not space.intersect_ray(sight).is_empty():
 				continue
 			reached[key] = hit.position.y
-	if reached.is_empty():
-		return null
-	if front_seconds > 0.0:
-		return _land(surface, reached, context, parent, apex, length, 0, front_seconds)
-	var ground_apex := Vector3(apex.x, reached.values().min(), apex.z)
-	return _land(surface, reached, context, parent, ground_apex, length)
+	return reached
 
 
 ## Lays a ground surface (Explosive Fireball's burning ground) wherever a
@@ -185,16 +255,24 @@ func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: flo
 func spawn_burst(surface: Surface, centre: Vector3, radius: float, caster: Node = null, front_seconds: float = 0.0) -> SurfacePatch:
 	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
 	var parent: Node = _parent_for(context, caster)
-	var space: PhysicsDirectSpaceState3D = _space_of(parent)
-	if not space:
+	var reached: Dictionary = _burst_cells(_space_of(parent), centre, radius)
+	if reached.is_empty():
 		return null
+	return _land(surface, reached, context, parent, centre, radius, 0, front_seconds)
+
+
+## The floor cells (SurfaceGrid key -> floor y) a blast round centre
+## reaches, as spawn_burst lays them. Empty with no physics space.
+func _burst_cells(space: PhysicsDirectSpaceState3D, centre: Vector3, radius: float) -> Dictionary:
+	var reached: Dictionary = {}
+	if not space:
+		return reached
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
 		exclude.append(unit.get_rid())
 	# Lifted a little, so a burst on the ground sees the floor round it
 	# rather than grazing it.
 	var eye: Vector3 = centre + Vector3.UP * 0.3
-	var reached: Dictionary = {}
 	var low: Vector2i = SurfaceGrid.key_of(centre - Vector3(radius, 0.0, radius))
 	var high: Vector2i = SurfaceGrid.key_of(centre + Vector3(radius, 0.0, radius))
 	for x in range(low.x, high.x + 1):
@@ -214,9 +292,7 @@ func spawn_burst(surface: Surface, centre: Vector3, radius: float, caster: Node 
 			if not space.intersect_ray(sight).is_empty():
 				continue
 			reached[key] = hit.position.y
-	if reached.is_empty():
-		return null
-	return _land(surface, reached, context, parent, centre, radius, 0, front_seconds)
+	return reached
 
 
 ## Whether the cube centred on point is part of a wall from from to to:
@@ -369,7 +445,12 @@ func _fill(surface: Surface, seeds: Dictionary[Vector3i, Vector3], inside: Calla
 ## this one topped up to the longer time, and every patch of this
 ## surface the new cells overlap or touch merges into the biggest.
 func _spill(surface: Surface, position: Vector3, radius: float, context: WorldContext, parent: Node) -> SurfacePatch:
-	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	return _land(surface, _spill_cells(_space_of(parent), position, radius), context, parent, position, radius)
+
+
+## The floor cells (SurfaceGrid key -> floor y) a liquid poured at
+## position reaches within radius, as _spill lays them.
+func _spill_cells(space: PhysicsDirectSpaceState3D, position: Vector3, radius: float) -> Dictionary:
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
 		exclude.append(unit.get_rid())
@@ -393,7 +474,7 @@ func _spill(surface: Surface, position: Vector3, radius: float, context: WorldCo
 			if not is_nan(y):
 				reached[next] = y
 				frontier.append(next)
-	return _land(surface, reached, context, parent, position, radius)
+	return reached
 
 
 ## Lands reached (SurfaceGrid key -> its floor y) on the grid as surface:
@@ -410,7 +491,7 @@ func _spill(surface: Surface, position: Vector3, radius: float, context: WorldCo
 func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0, front_seconds: float = 0.0) -> SurfacePatch:
 	var grid: SurfaceGrid = _grid_for(context)
 	var cast: int = reached.size()
-	var turned: Dictionary = _react(surface, reached, grid)
+	var turned: Dictionary = _react(surface.element, surface, reached, grid)
 	for result: Surface in turned:
 		_land(result, turned[result], context, parent, position, radius, 0, front_seconds)
 	if reached.is_empty():
@@ -498,24 +579,26 @@ func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent:
 
 
 ## What the ground already in reached (SurfaceGrid key -> floor y) does
-## as surface lands on it, by its SurfaceReaction to surface's element.
-## Edits reached in place: cells that resist or turn into something else
-## come out of it, and cells a TAKEN reaction spreads through (the rest
-## of a grease patch) go into it. Cells a BECOMES reaction clears are
-## expired here. Returns what the rest turn into: Surface -> its own
-## reached, to be landed in turn.
-func _react(surface: Surface, reached: Dictionary, grid: SurfaceGrid) -> Dictionary:
+## as something of element reaches it, by its SurfaceReaction to that
+## element: landing, the surface landing there (null for an attack that
+## only touches the ground, see touch()). Edits reached in place: cells
+## that resist or turn into something else come out of it, and cells a
+## TAKEN reaction spreads through (the rest of a grease patch) go into
+## it. A cell that BECOMES the very surface landing is just taken by it.
+## Cells a BECOMES reaction clears are expired here. Returns what the
+## rest turn into: Surface -> its own reached, to be landed in turn.
+func _react(element: Surface.Element, landing: Surface, reached: Dictionary, grid: SurfaceGrid) -> Dictionary:
 	var turned: Dictionary = {}
-	if surface.element == Surface.Element.NONE:
+	if element == Surface.Element.NONE:
 		return turned
 	var cleared: Dictionary = {}  # SurfacePatch -> Array[SurfaceCell]
 	var frontier: Array[SurfaceCell] = []
 	var into: Dictionary = {}  # SurfaceCell spreading -> the reached it spreads into
 	for key: Vector2i in reached.keys():
 		var cell: SurfaceCell = grid.cell_at(key, reached[key])
-		if cell == null or cell.surface == surface:
+		if cell == null or (landing and cell.surface == landing):
 			continue
-		var reaction: SurfaceReaction = cell.surface.reaction_to(surface.element)
+		var reaction: SurfaceReaction = cell.surface.reaction_to(element)
 		if reaction == null:
 			continue
 		var target: Dictionary = reached
@@ -524,15 +607,22 @@ func _react(surface: Surface, reached: Dictionary, grid: SurfaceGrid) -> Diction
 				reached.erase(key)
 				continue
 			SurfaceReaction.Outcome.BECOMES:
+				var becomes: Surface = reaction.becomes_surface()
+				if landing and becomes == landing:
+					# Grease becoming the fire landing on it: just taken.
+					if reaction.spreads:
+						frontier.append(cell)
+						into[cell] = reached
+					continue
 				reached.erase(key)
-				if reaction.becomes == null:
+				if becomes == null:
 					if not cleared.has(cell.patch):
 						cleared[cell.patch] = [] as Array[SurfaceCell]
 					cleared[cell.patch].append(cell)
 					continue
-				if not turned.has(reaction.becomes):
-					turned[reaction.becomes] = {}
-				target = turned[reaction.becomes]
+				if not turned.has(becomes):
+					turned[becomes] = {}
+				target = turned[becomes]
 				target[key] = cell.y
 		if reaction.spreads:
 			frontier.append(cell)

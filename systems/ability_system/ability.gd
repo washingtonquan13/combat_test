@@ -37,6 +37,10 @@ enum Category { COMMON, ABILITIES }
 
 @export var targeting: AbilityTargeting
 @export var effects: Array[AbilityEffect] = []
+## What the attack is made of, for combos with what's on the ground where
+## it lands (SurfaceManager.touch): Fire Breath is FIRE, Frost Breath
+## COLD. Kept apart from damage types for now; to be revisited with them.
+@export var element: Surface.Element = Surface.Element.NONE
 
 @export_group("Toggle")
 ## A toggle is switched on and off from the hotbar instead of used: it

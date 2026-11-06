@@ -26,9 +26,7 @@
 [ext_resource type="PackedScene" path="res://scenes/vfx/fireball/fireball_hold.tscn" id="25_holdvfx"]
 [ext_resource type="PackedScene" path="res://scenes/vfx/fireball/fireball_projectile.tscn" id="26_projvfx"]
 [ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="27_spawn"]
-[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="28_surface"]
-[ext_resource type="PackedScene" path="res://systems/surface_system/fire.tscn" id="29_fire"]
-[ext_resource type="Resource" uid="uid://cbjshhpmy5ovp" path="res://data/statuses/burning.tres" id="30_burning"]
+[ext_resource type="Resource" path="res://data/surfaces/fire.tres" id="90_fire_surface"]
 
 [sub_resource type="Resource" id="Resource_iownq"]
 script = ExtResource("1_tsbd3")
@@ -164,25 +162,9 @@ impact_timeout = 3.0
 impact_sfx = SubResource("Resource_mme6j")
 metadata/_custom_type_script = "uid://bjatij1rn26yg"
 
-[sub_resource type="Resource" id="Resource_ground"]
-script = ExtResource("28_surface")
-surface_name = "Fire"
-element = 1
-duration_rounds = 2
-shape = 0
-height_scale = 1.0
-wall_height = 4.0
-lays_ground_under = false
-status_effect = ExtResource("30_burning")
-status_only_inside = false
-blocks_sight = false
-dark_vision_sees_through = false
-movement_cost_multiplier = 1.0
-ambient_scene = ExtResource("29_fire")
-
 [sub_resource type="Resource" id="Resource_spawn"]
 script = ExtResource("27_spawn")
-surface = SubResource("Resource_ground")
+surface = ExtResource("90_fire_surface")
 front_seconds = 0.3
 
 [resource]
@@ -193,6 +175,7 @@ icon_color = Color(1, 0.55, 0.24, 1)
 category = 1
 targeting = SubResource("Resource_ycrns")
 effects = Array[ExtResource("1_res1m")]([SubResource("Resource_l62op"), SubResource("Resource_kjwuy"), SubResource("Resource_spawn")])
+element = 1
 is_toggle = false
 toggle_group = &""
 max_level = 0
