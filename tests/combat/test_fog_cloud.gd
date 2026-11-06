@@ -41,7 +41,7 @@ func run() -> void:
 	SurfaceManager.spawn(cloud, target.global_position + Vector3(0.0, 1.0, 0.0), 2.0, archer)
 	for _i in 2:
 		await get_tree().process_frame
-	var blinded: StatusEffect = cloud.status_effect
+	var blinded: StatusEffect = cloud.status_effects[0]
 	check("inside, the target is Blinded", target.has_status(blinded))
 	target.global_position = Vector3(20.0, 0.0, 0.0)
 	for _i in 2:

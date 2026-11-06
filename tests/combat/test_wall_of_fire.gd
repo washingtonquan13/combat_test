@@ -34,7 +34,7 @@ func run() -> void:
 	SurfaceManager._on_turn_started(target)
 	check("standing in it at turn start doesn't burn again", target.get_pool(StatIds.HP) == burnt)
 	check("a walker in both is Searing alone",
-		target.has_status(wall.status_effect) and not target.has_status(wall.leaves_behind.status_effect))
+		target.has_status(wall.status_effects[0]) and not target.has_status(wall.leaves_behind.status_effects[0]))
 
 	for _i in wall.duration_rounds:
 		SurfaceManager._age(SurfaceManager._clouds_for(context), SurfaceManager._grid_for(context))

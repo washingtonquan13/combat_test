@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="Surface" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="Surface" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://systems/surface_system/surface.gd" id="1_surface"]
 [ext_resource type="Resource" path="res://data/statuses/blinded.tres" id="2_blinded"]
 [ext_resource type="PackedScene" path="res://systems/surface_system/steam_cloud.tscn" id="3_look"]
+[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="90_status_effect"]
 
 [resource]
 script = ExtResource("1_surface")
@@ -11,7 +12,7 @@ duration_rounds = 2
 shape = 1
 height_scale = 0.5
 wall_height = 2.0
-status_effect = ExtResource("2_blinded")
+status_effects = Array[ExtResource("90_status_effect")]([ExtResource("2_blinded")])
 status_only_inside = true
 blocks_sight = true
 ambient_scene = ExtResource("3_look")

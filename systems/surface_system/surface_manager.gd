@@ -34,7 +34,7 @@ extends Node
 ##    and the status's on_contact bites then too (fire burns at once);
 ##    getting out takes a status_only_inside one (Blinded) back off,
 ##    unless something else still holding the unit gives it too.
-##  - CombatManager.turn_started(unit): re-applies status_effect to
+##  - CombatManager.turn_started(unit): re-applies status_effects to
 ##    whoever's still inside at the START of their own turn — entering
 ##    fires once per stay, so without this Burning would run out under a
 ##    unit standing in the fire.
@@ -827,16 +827,19 @@ func surface_at(point: Vector3, context: WorldContext) -> Surface:
 	return cell.surface if cell else null
 
 
-## Takes surface's inside-only status off unit, unless one of the
+## Takes surface's inside-only statuses off unit, each unless one of the
 ## surfaces still holding them (`still`) gives the same status.
 func _release(unit: Unit, surface: Surface, still: Array[Surface]) -> void:
-	var effect: StatusEffect = surface.status_effect
-	if not effect or not surface.status_only_inside:
+	if not surface.status_only_inside:
 		return
-	for other in still:
-		if other.status_effect == effect:
-			return
-	unit.remove_status(effect)
+	for effect in surface.status_effects:
+		var held: bool = false
+		for other in still:
+			if other.status_effects.has(effect):
+				held = true
+				break
+		if not held:
+			unit.remove_status(effect)
 
 
 ## Whether a sight line from `from` to `to` passes through a cube of a
@@ -1094,22 +1097,24 @@ func _on_turn_started(unit: Unit) -> void:
 func _statuses(surfaces: Array[Surface], unit: Unit) -> Array[StatusEffect]:
 	var found: Array[StatusEffect] = []
 	for surface in surfaces:
-		var effect: StatusEffect = surface.status_effect
-		if not effect or found.has(effect) or _sees_through(unit, surface):
+		if _sees_through(unit, surface):
 			continue
-		var weaker: int = -1
-		var outranked: bool = false
-		for i in found.size():
-			if effect.group != &"" and found[i].group == effect.group:
-				if found[i].rank >= effect.rank:
-					outranked = true
-				else:
-					weaker = i
-		if outranked:
-			continue
-		if weaker >= 0:
-			found.remove_at(weaker)
-		found.append(effect)
+		for effect in surface.status_effects:
+			if effect == null or found.has(effect):
+				continue
+			var weaker: int = -1
+			var outranked: bool = false
+			for i in found.size():
+				if effect.group != &"" and found[i].group == effect.group:
+					if found[i].rank >= effect.rank:
+						outranked = true
+					else:
+						weaker = i
+			if outranked:
+				continue
+			if weaker >= 0:
+				found.remove_at(weaker)
+			found.append(effect)
 	return found
 
 

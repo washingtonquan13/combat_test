@@ -1,14 +1,15 @@
-[gd_resource type="Resource" script_class="Surface" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="Surface" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://systems/surface_system/surface.gd" id="1_surface"]
 [ext_resource type="Resource" uid="uid://cbjshhpmy5ovp" path="res://data/statuses/burning.tres" id="2_burning"]
 [ext_resource type="PackedScene" path="res://systems/surface_system/fire.tscn" id="3_look"]
+[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="90_status_effect"]
 
 [resource]
 script = ExtResource("1_surface")
 surface_name = "Fire"
 duration_rounds = 2
 shape = 0
-status_effect = ExtResource("2_burning")
+status_effects = Array[ExtResource("90_status_effect")]([ExtResource("2_burning")])
 element = 1
 ambient_scene = ExtResource("3_look")

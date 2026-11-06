@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=11 format=3]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
@@ -8,6 +8,7 @@
 [ext_resource type="Resource" path="res://data/statuses/blinded.tres" id="6_blinded"]
 [ext_resource type="Texture2D" path="res://assets/ability_icon/fog_cloud_icon.png" id="7_icon"]
 [ext_resource type="Script" uid="uid://b1y7f6ela25ie" path="res://systems/ability_system/aerial_area_targeting.gd" id="8_targeting"]
+[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="90_status_effect"]
 
 [sub_resource type="Resource" id="Resource_cloud"]
 script = ExtResource("4_surface")
@@ -15,7 +16,7 @@ surface_name = "Fog Cloud"
 duration_rounds = 10
 shape = 1
 height_scale = 0.5
-status_effect = ExtResource("6_blinded")
+status_effects = Array[ExtResource("90_status_effect")]([ExtResource("6_blinded")])
 status_only_inside = true
 blocks_sight = true
 movement_cost_multiplier = 1.0

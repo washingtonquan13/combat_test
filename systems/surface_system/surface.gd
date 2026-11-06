@@ -59,16 +59,17 @@ enum Shape {
 ## SurfaceManager rolls each status once, and of a group only the
 ## strongest (StatusEffect.group).
 @export var lays_ground_under: bool = false
-## Applied to a unit the MOMENT it physically enters the surface — a
+## Each applied to a unit the MOMENT it physically enters the surface — a
 ## DISC's cells under its footprint, a SPHERE's cubes around its body
 ## (see SurfaceManager._process) — punishes the actual
 ## movement decision, mid-turn, rather than waiting for a turn boundary —
 ## and again at the START of any turn a unit is still standing inside it
 ## (see SurfaceManager._on_turn_started), which is what keeps it applied
 ## turn after turn for someone who just stands there without triggering
-## a fresh entry event. Left unset, the surface exists visually but does
+## a fresh entry event. As many as it likes: electrified steam both
+## blinds and shocks. Left empty, the surface exists visually but does
 ## nothing mechanically.
-@export var status_effect: StatusEffect
+@export var status_effects: Array[StatusEffect] = []
 
 ## The status lasts only while the unit is inside: it comes off when
 ## they leave (or the area goes) unless another such area still holds
@@ -142,6 +143,6 @@ func reaction_to(incoming: Element) -> SurfaceReaction:
 
 func describe() -> String:
 	var lines: PackedStringArray = [surface_name]
-	if status_effect:
-		lines.append("Applies %s while standing in it" % status_effect.status_name)
+	for effect in status_effects:
+		lines.append("Applies %s while standing in it" % effect.status_name)
 	return "\n".join(lines)

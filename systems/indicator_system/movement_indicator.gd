@@ -269,7 +269,7 @@ func _color_at(point: Vector3, past_limit: bool, context: WorldContext) -> Color
 		surface = SurfaceManager.surface_at(point, context)
 	if surface == null:
 		return path_in_range_color
-	if surface.status_effect != null or surface.movement_cost_multiplier > 1.0 or surface.blocks_sight:
+	if not surface.status_effects.is_empty() or surface.movement_cost_multiplier > 1.0 or surface.blocks_sight:
 		return hazard_surface_color
 	return harmless_surface_color
 

@@ -20,8 +20,15 @@ extends StatusBehavior
 ## melee, for the rest of the status's duration. Reused by every status
 ## built from this piece (Sleep, Stun, Paralysis, ...) for free, same as
 ## every other IncapacitateBehavior rule.
+##
+## Caught mid-walk (slipping on grease or ice, shocked in a puddle) the
+## unit stops on the spot and the rest of this turn's move is gone, as in
+## BG3: falling over ends the walk, it doesn't carry on through.
 
 func on_apply(unit: Unit, _active: ActiveStatus) -> void:
+	if unit.is_moving():
+		unit.stop_moving()
+	unit.spend_move(unit.move_remaining)
 	unit.ground_if_flying()
 
 
