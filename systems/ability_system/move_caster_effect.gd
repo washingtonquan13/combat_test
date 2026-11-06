@@ -26,10 +26,9 @@ extends AbilityEffect
 ## apart the way line_of_sight_indicator.gd's necessary duplication can.
 
 @export var jump_duration: float = 0.4
-@export var arc_height: float = 1.5
 
 
-func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3:
 		return {}
 
@@ -39,7 +38,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	var destination: Vector3 = clamp_to_budget(attacker, target)
 	var distance: float = attacker.global_position.distance_to(destination)
 
-	ArcFlight.fly(attacker, destination, arc_height, jump_duration)
+	ArcFlight.fly(attacker, destination, arc_height_of(ability), jump_duration)
 
 	if attacker.in_combat():
 		attacker.spend_move(distance)
@@ -62,10 +61,17 @@ func clamp_to_budget(attacker: Unit, destination: Vector3) -> Vector3:
 	return attacker.global_position + direction * attacker.move_remaining
 
 
-## Point along the jump's parabolic arc at t (0 = start, 1 = end), peaking
-## at arc_height above a straight lerp when t=0.5.
-func arc_point(start: Vector3, end: Vector3, t: float) -> Vector3:
-	return ArcFlight.point(start, end, arc_height, t)
+## The jump's peak height: its targeting's flight_arc_height, the curve
+## the targeting checks for walls, so the flight and the check can't
+## differ.
+static func arc_height_of(ability: Ability) -> float:
+	var targeting := ability.targeting as GroundPointTargeting if ability else null
+	return targeting.flight_arc_height if targeting else 0.0
+
+
+## Point along the jump's arc at t (0 = start, 1 = end).
+func arc_point(ability: Ability, start: Vector3, end: Vector3, t: float) -> Vector3:
+	return ArcFlight.point(start, end, arc_height_of(ability), t)
 
 
 func describe() -> String:

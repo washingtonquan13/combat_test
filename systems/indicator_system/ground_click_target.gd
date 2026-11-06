@@ -1041,6 +1041,8 @@ static func _reach_reason(reach: AbilityTargeting.Reach, at_unit: bool) -> Strin
 		# Every shape that returns BLOCKED returns it for line of sight.
 		AbilityTargeting.Reach.BLOCKED:
 			return "No line of sight"
+		AbilityTargeting.Reach.PATH_BLOCKED:
+			return "Something in the way"
 	return "Invalid target" if at_unit else "Can't target there"
 
 

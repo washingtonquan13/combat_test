@@ -61,6 +61,6 @@ func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hove
 	var points := PackedVector3Array()
 	for i in range(arc_segments + 1):
 		var t: float = float(i) / arc_segments
-		points.append(move_effect.arc_point(start, landing_point, t))
+		points.append(move_effect.arc_point(ability, start, landing_point, t))
 
 	_line_mesh.show_line(points, color)

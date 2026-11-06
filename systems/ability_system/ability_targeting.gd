@@ -20,7 +20,9 @@ func is_valid_target(_attacker: Unit, _target) -> bool:
 
 ## Why a target can or cannot be aimed at, for the previews that colour
 ## the difference. OK is exactly is_valid_target() saying yes.
-enum Reach { OK, OUT_OF_RANGE, BLOCKED, INVALID }
+## BLOCKED is line of sight; PATH_BLOCKED is something in the way of a
+## flight there (ArcFlight.clear_fraction).
+enum Reach { OK, OUT_OF_RANGE, BLOCKED, INVALID, PATH_BLOCKED }
 
 
 ## The ONE range/line-of-sight rule for this shape: is_valid_target() is

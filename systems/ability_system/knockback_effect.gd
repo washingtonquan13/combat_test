@@ -11,8 +11,9 @@ extends AbilityEffect
 ## supported cell (NavigationGrid.nearest_valid_point), so it can't land
 ## inside a wall, in the void or inside another unit; with nowhere valid
 ## nearby it stays put. A FLYING target keeps its altitude and isn't
-## snapped. The flight itself doesn't yet check for walls on the way, and
-## a landing much lower doesn't hurt: both to come, in ArcFlight.
+## snapped. A wall on the way (ArcFlight.clear_fraction) stops it short
+## against the wall, where it drops; landing far below where it was hurts
+## (ArcFlight.take_fall).
 ##
 ## Doesn't touch anyone's move_remaining: being shoved isn't the target's
 ## own movement. Area3D overlaps (Grease and the like) still fire, since
@@ -46,7 +47,8 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 
 
 ## Where target would land shoved by attacker, or null when they stand on
-## the same spot (no direction to push).
+## the same spot (no direction to push). A wall on the way stops it short
+## (_stop_short).
 func landing_point(attacker: Unit, target: Unit):
 	var from: Vector3 = attacker.global_position
 	var to: Vector3 = target.global_position
@@ -54,12 +56,36 @@ func landing_point(attacker: Unit, target: Unit):
 	offset.y = 0.0
 	if offset.length() < 0.001:
 		return null
-	var raw_destination: Vector3 = to + offset.normalized() * push_distance(attacker)
+	var direction: Vector3 = offset.normalized()
+	var landing: Vector3 = _land(target, to + direction * push_distance(attacker))
+	var clear: float = ArcFlight.clear_fraction(target, to, landing, arc_height)
+	if clear >= 1.0:
+		return landing
+	return _stop_short(target, direction, (landing - to).length() * clear)
+
+
+## Where target ends up shoved toward a wall `reach` metres away along
+## direction: back off it by its radius and land below there (it may
+## drop). Stays put when even that path is blocked.
+func _stop_short(target: Unit, direction: Vector3, reach: float) -> Vector3:
+	var to: Vector3 = target.global_position
+	var short: float = reach - target.radius
+	if short <= 0.05:
+		return to
+	var landing: Vector3 = _land(target, to + direction * short)
+	if ArcFlight.clear_fraction(target, to, landing, arc_height) < 1.0:
+		return to
+	return landing
+
+
+## A flying target stays at its height; a grounded one comes down on the
+## nearest valid cell (NavigationGrid), or stays put with none.
+func _land(target: Unit, point: Vector3) -> Vector3:
+	var to: Vector3 = target.global_position
 	if target.is_flying():
-		raw_destination.y = to.y
-		return raw_destination
+		return Vector3(point.x, to.y, point.z)
 	var clearance: float = target.radius + target.avoidance_margin
-	var snap: Dictionary = NavigationGrid.nearest_valid_point(target.get_tree(), raw_destination, clearance, false, target)
+	var snap: Dictionary = NavigationGrid.nearest_valid_point(target.get_tree(), point, clearance, false, target)
 	return snap.point if snap.found else to
 
 
