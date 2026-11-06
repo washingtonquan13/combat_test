@@ -90,12 +90,59 @@ func _ready() -> void:
 	_launch.call_deferred(global_position - global_transform.basis.z.normalized() * launch_gap)
 
 
-## The kick at the hand: a hot flash and a few sparks.
+## The kick at the hand, a blast rather than a spark: a big white-hot
+## flare, a jet of flame thrown forward along the shot, a spray of sparks
+## and flame blown back past the hand, a ring of heat punching out across
+## the line, and a hard flash of light on everything round the caster.
 func _launch(at: Vector3) -> void:
-	VfxBits.flash(at, hot_color, 0.7, 3.0, 0.12)
-	VfxBits.light_flash(at, flame_color, 3.0, 3.5, 0.15)
-	VfxBits.burst(at, PackedColorArray([Color(1.6, 1.3, 0.7, 1.0), flame_color, Color(0.6, 0.1, 0.02, 0.0)]),
-		0.04, 3.0, 14, 0.25, Vector2(1.5, 3.5), 0.0, 6.0)
+	var forward: Vector3 = -global_transform.basis.z.normalized()
+	VfxBits.flash(at, hot_color, 1.3, 4.5, 0.12)
+	VfxBits.flash(at, flame_color, 2.4, 2.6, 0.3)
+	VfxBits.light_flash(at, flame_color, 7.0, 6.0, 0.3)
+	var jet := VfxBits.burst(at, PackedColorArray([Color(1.6, 1.3, 0.7, 1.0), flame_color, Color(0.6, 0.1, 0.02, 0.0)]),
+		0.16, 3.0, 26, 0.22, Vector2(5.0, 10.0), 0.0, 9.0)
+	_aim(jet, forward, 14.0)
+	var back := VfxBits.burst(at, PackedColorArray([Color(1.6, 1.3, 0.7, 1.0), flame_color, Color(0.6, 0.1, 0.02, 0.0)]),
+		0.05, 3.2, 40, 0.4, Vector2(3.0, 7.0), -1.0, 6.0)
+	_aim(back, -forward, 55.0)
+	var flame := VfxBits.burst(at, PackedColorArray([Color(1.2, 0.8, 0.3, 0.9), Color(flame_color, 0.6), Color(0.3, 0.05, 0.0, 0.0)]),
+		0.55, 1.6, 12, 0.35, Vector2(1.5, 3.5), 0.6, 5.0)
+	_aim(flame, -forward, 80.0)
+	_shock_ring(at, forward)
+
+
+## A thin ring of heat across the line of the shot, punching out and fading.
+func _shock_ring(at: Vector3, forward: Vector3) -> void:
+	var ring := MeshInstance3D.new()
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.9
+	torus.outer_radius = 1.0
+	torus.rings = 32
+	torus.ring_segments = 6
+	ring.mesh = torus
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.no_depth_test = false
+	material.albedo_color = Color(1.0, 0.6, 0.2, 1.0) * 2.5
+	ring.material_override = material
+	ring.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	WorldManager.spawn_parent().add_child(ring)
+	ring.global_position = at
+	# The torus lies in its XZ plane: turn its axis (Y) along the shot.
+	ring.global_basis = Basis(Quaternion(Vector3.UP, forward))
+	ring.scale = Vector3.ONE * 0.08
+	var tween := ring.create_tween().set_parallel()
+	tween.tween_property(ring, "scale", Vector3(0.75, 0.2, 0.75), 0.22).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+	tween.tween_property(material, "albedo_color", Color(1.0, 0.4, 0.1, 0.0), 0.22).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(ring.queue_free)
+
+
+func _aim(emitter: GPUParticles3D, direction: Vector3, spread: float) -> void:
+	var process := emitter.process_material as ParticleProcessMaterial
+	process.direction = direction
+	process.spread = spread
 
 
 ## The flicker: the glow and light breathe on two out-of-step waves.
