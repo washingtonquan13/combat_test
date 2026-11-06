@@ -22,7 +22,6 @@ extends AbilityTargeting
 @export var radius: float = 3.0
 @export var requires_line_of_sight: bool = true
 @export var los_obstruction_mask: int = 1
-@export var eye_height: float = 1.5
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
@@ -38,7 +37,7 @@ func check(attacker: Unit, target) -> Reach:
 	if attacker.global_position.distance_to(destination) > max_range:
 		return Reach.OUT_OF_RANGE
 
-	if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, destination, los_obstruction_mask, eye_height):
+	if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, destination, los_obstruction_mask):
 		return Reach.BLOCKED
 
 	return Reach.OK

@@ -83,7 +83,9 @@ func _sight_lines_come_from_the_eye() -> void:
 	tall.global_position = Vector3(0.0, 0.0, -4.0)
 	await get_tree().physics_frame
 
-	var target := Vector3(0.0, 0.0, 4.0)
+	# Far enough past the wall that a 4 m eye clears it on the way down
+	# to the ground there; ground right behind a wall is hidden to anyone.
+	var target := Vector3(0.0, 0.0, 12.0)
 	check("an ordinary body cannot see over a 2.5 m wall from 1.5 m",
 		not LineOfSight.has_clear_shot_to_point(ordinary, target),
 		"the wall is not blocking anything — the fixture is wrong")

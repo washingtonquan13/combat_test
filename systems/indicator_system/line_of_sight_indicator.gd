@@ -31,14 +31,8 @@ extends IndicatorBase
 @export var blocked_color: Color = IndicatorPalette.BLOCKED
 @export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
 @export var no_target_color: Color = IndicatorPalette.NO_TARGET
-## Where the line is drawn is no longer a number here at all: it comes from
-## the same eye anchor LineOfSight traces from, so the two cannot disagree.
-##
-## They DID disagree. This was 1.5 to match LineOfSight's default, said so
-## in its own comment — and MainRoot.tscn then overrode it to 2.0, so the
-## line every player saw was half a metre above the ray actually being
-## tested. Exactly the kind of drift a shared constant invites and an
-## anchor makes impossible.
+## Where the line is drawn is not a number here at all: it is
+## LineOfSight.shot_from/shot_to, the segment the rule traces.
 
 var _line_mesh: PathTube
 
@@ -65,7 +59,7 @@ func draw(aim: Aim) -> void:
 		return
 
 	var hovered_unit: Unit = aim.hostile
-	var aim_point = hovered_unit.global_position if hovered_unit else aim.point
+	var aim_point = hovered_unit if hovered_unit else aim.point
 	if aim_point == null:
 		_line_mesh.visible = false
 		return
@@ -73,7 +67,7 @@ func draw(aim: Aim) -> void:
 	_draw_line(unit, aim_point, hovered_unit, ability)
 
 
-func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Ability) -> void:
+func _draw_line(unit: Unit, aim_point, hovered_unit: Unit, ability: Ability) -> void:
 	var color: Color
 	# A ground-aimable shot colours its line to the spot as it does to a
 	# unit: the click would fire there.
@@ -91,9 +85,6 @@ func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Abi
 			_:
 				color = no_target_color
 
-	var eye: Vector3 = unit.anchor(CharacterModel.Anchor.EYE)
-	var lift: float = eye.y - unit.global_position.y
-	var from: Vector3 = unit.global_position + Vector3(0, lift, 0)
-	var to: Vector3 = aim_point + Vector3(0, lift, 0)
-
-	_line_mesh.show_line(PackedVector3Array([from, to]), color)
+	# The segment check() traced: eye to the hovered body's chest, or to
+	# the aimed spot itself.
+	_show_shot(_line_mesh, LineOfSight.shot_from(unit), LineOfSight.shot_to(aim_point), color)

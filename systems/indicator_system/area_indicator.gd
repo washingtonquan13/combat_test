@@ -36,7 +36,6 @@ extends IndicatorBase
 @export var clear_color: Color = IndicatorPalette.OK
 @export var blocked_color: Color = IndicatorPalette.BLOCKED
 @export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
-@export var line_height_offset: float = 1.5
 ## Not an answer colour: the shell only says how big the area is and
 ## never changes with whether the cast is allowed (the line says that).
 @export var ring_color: Color = IndicatorPalette.AOE
@@ -101,10 +100,8 @@ func _update_line(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 		_:
 			color = blocked_color
 
-	var from: Vector3 = unit.global_position + Vector3(0, line_height_offset, 0)
-	var to: Vector3 = hover_point + Vector3(0, line_height_offset, 0)
-
-	_line_mesh.show_line(PackedVector3Array([from, to]), color)
+	# Ends on the blast's centre, where the ring is drawn.
+	_show_shot(_line_mesh, LineOfSight.shot_from(unit), hover_point, color)
 
 
 func _update_ring(ability: Ability, hover_point: Vector3) -> void:

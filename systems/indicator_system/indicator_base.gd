@@ -171,6 +171,42 @@ func _create_tube(fade: float = 0.3) -> PathTube:
 	return tube
 
 
+## How far out along the shot an aim line starts, so it leaves the caster
+## rather than growing out of its face.
+const SHOT_START_GAP: float = 0.5
+
+
+## Draws the shot segment LineOfSight traces (shot_from -> shot_to) on
+## tube, minus the first SHOT_START_GAP. Its end is exactly the aimed
+## point or body, so it meets the cursor and an area's ring centre.
+func _show_shot(tube: PathTube, from: Vector3, to: Vector3, color: Color) -> void:
+	_show_from_caster(tube, PackedVector3Array([from, to]), color)
+
+
+## Draws points on tube with the first SHOT_START_GAP cut off: any aim
+## line that leaves the caster's body. A line shorter than twice the gap
+## draws nothing. Not for a path the body itself travels (a move, a jump
+## arc), which starts at the feet the body stands on.
+func _show_from_caster(tube: PathTube, points: PackedVector3Array, color: Color) -> void:
+	var left: float = SHOT_START_GAP
+	var total: float = 0.0
+	for i in points.size() - 1:
+		total += points[i].distance_to(points[i + 1])
+	if total <= SHOT_START_GAP * 2.0:
+		tube.visible = false
+		return
+	var out := PackedVector3Array()
+	for i in points.size() - 1:
+		var piece: float = points[i].distance_to(points[i + 1])
+		if out.is_empty():
+			if piece <= left:
+				left -= piece
+				continue
+			out.append(points[i].lerp(points[i + 1], left / piece))
+		out.append(points[i + 1])
+	tube.show_line(out, color)
+
+
 ## Appends `points` to `immediate` as one ribbon surface: a core
 ## `width` wide in `colors` with an IndicatorPalette.EDGE rim `edge` wide
 ## on each side, laid out across the width as three strips (rim, core,

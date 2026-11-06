@@ -18,7 +18,6 @@ extends IndicatorBase
 @export var clear_color: Color = IndicatorPalette.OK
 @export var blocked_color: Color = IndicatorPalette.BLOCKED
 @export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
-@export var line_height_offset: float = 1.5
 ## A legal wall's shell: the neutral AoE tint every area preview shares.
 ## A refused one takes blocked_color, the answer to "can I end it here".
 @export var wall_color: Color = IndicatorPalette.AOE
@@ -69,10 +68,9 @@ func _draw_aim(unit: Unit, targeting: LineTargeting, hover_point: Vector3) -> vo
 			color = out_of_range_color
 		_:
 			color = blocked_color
-	var lift := Vector3(0, line_height_offset, 0)
 	_line_mesh.fade_start = AIM_FADE
 	_line_mesh.fade_end = AIM_FADE
-	_line_mesh.show_line(PackedVector3Array([unit.global_position + lift, hover_point + lift]), color)
+	_show_shot(_line_mesh, LineOfSight.shot_from(unit), hover_point, color)
 
 
 func _draw_wall(unit: Unit, ability: Ability, targeting: LineTargeting, start: Vector3, hover_point: Vector3) -> void:

@@ -130,4 +130,4 @@ func _color_for(unit: Unit, ability: Ability, hovered_unit: Unit) -> Color:
 
 
 func _draw_path(points: PackedVector3Array, color: Color) -> void:
-	_line_mesh.show_line(points, color)
+	_show_from_caster(_line_mesh, points, color)
