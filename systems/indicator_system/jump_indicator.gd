@@ -52,7 +52,7 @@ func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hove
 	# The REAL landing point after budget clamping, not just wherever the
 	# mouse is — if there's not enough move_remaining to cover the full
 	# distance, the actual jump lands short, so the preview should too.
-	var landing_point: Vector3 = move_effect.clamp_to_budget(unit, hover_point)
+	var landing_point: Vector3 = (ability.targeting as GroundPointTargeting).landing_for(unit, hover_point)
 	var valid: bool = ability.targeting.is_valid_target(unit, landing_point)
 	var color: Color = valid_color if valid else invalid_color
 

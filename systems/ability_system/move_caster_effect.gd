@@ -15,15 +15,11 @@ extends AbilityEffect
 ## combat — a jump that cost nothing would trivially bypass the turn's
 ## whole movement economy. If the intended distance exceeds what's left,
 ## the landing point is clamped shorter along the same direction rather
-## than the jump being rejected outright, same "walk as far as you can"
-## convention Unit.move_to() already established for an ordinary click
-## beyond range.
+## than the jump being rejected outright: GroundPointTargeting.landing_for,
+## so the click is checked (walls, footing) at the shortened spot.
 ##
-## arc_point() and clamp_to_budget() are public deliberately, not just
-## implementation details — jump_indicator.gd calls both directly so the
-## preview arc is computed EXACTLY the way the real jump will be, rather
-## than duplicating this math and risking the two silently drifting
-## apart the way line_of_sight_indicator.gd's necessary duplication can.
+## arc_point() is public deliberately: jump_indicator.gd calls it (and
+## landing_for) so the preview arc is the real jump's, not a copy.
 
 @export var jump_duration: float = 0.4
 
@@ -35,7 +31,8 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	if attacker.in_combat() and not attacker.has_move_remaining():
 		return {}
 
-	var destination: Vector3 = clamp_to_budget(attacker, target)
+	var targeting := ability.targeting as GroundPointTargeting if ability else null
+	var destination: Vector3 = targeting.landing_for(attacker, target) if targeting else target
 	var distance: float = attacker.global_position.distance_to(destination)
 
 	ArcFlight.fly(attacker, destination, arc_height_of(ability), jump_duration)
@@ -44,21 +41,6 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 		attacker.spend_move(distance)
 
 	return {"jumped_distance": distance}
-
-
-## The actual landing point after clamping to whatever move budget is
-## left this turn — unchanged if out of combat, or if there's enough
-## budget to cover the full distance already.
-func clamp_to_budget(attacker: Unit, destination: Vector3) -> Vector3:
-	if not attacker.in_combat():
-		return destination
-
-	var distance: float = attacker.global_position.distance_to(destination)
-	if distance <= attacker.move_remaining or distance <= 0.001:
-		return destination
-
-	var direction: Vector3 = (destination - attacker.global_position) / distance
-	return attacker.global_position + direction * attacker.move_remaining
 
 
 ## The jump's peak height: its targeting's flight_arc_height, the curve

@@ -97,6 +97,30 @@ func _can_stand_at(attacker: Unit, destination: Vector3) -> bool:
 	return true
 
 
+## Where attacker comes down aiming at point. A caster that flies there
+## (flight_arc_height) only goes as far as its move left this turn, so the
+## spot is pulled back along the same direction, the "walk as far as you
+## can" rule Unit.move_to() uses; anything else lands where aimed. Every
+## check (check_click, the indicator) and the jump itself use this point,
+## so a shortened jump is checked where it really lands.
+func landing_for(attacker: Unit, point: Vector3) -> Vector3:
+	if flight_arc_height <= 0.0 or not attacker.in_combat():
+		return point
+	var from: Vector3 = attacker.global_position
+	var distance: float = from.distance_to(point)
+	if distance <= attacker.move_remaining or distance <= 0.001:
+		return point
+	return from + (point - from) / distance * attacker.move_remaining
+
+
+func resolve_click(attacker: Unit, click_position: Vector3) -> Variant:
+	return landing_for(attacker, resolve_target_point(click_position))
+
+
+func check_click(attacker: Unit, click_position: Vector3) -> Reach:
+	return check(attacker, landing_for(attacker, resolve_target_point(click_position)))
+
+
 ## How far attacker may target, in metres.
 func range_for(attacker: Unit) -> float:
 	if not range_from_strength:
