@@ -22,6 +22,9 @@ uniform float lumpiness : hint_range(0.0, 1.0) = 0.45;
 uniform float bubbles : hint_range(0.0, 1.0) = 0.0;
 uniform float bubble_size_m = 0.12;
 uniform vec3 glow_color : source_color = vec3(0.0);
+// Crackling arcs in the glow (Electrified Water): thin bright lines that
+// wander round the loop, so the pool flickers. 0 for none.
+uniform float glow_arcs : hint_range(0.0, 1.0) = 0.0;
 // The ground darkened round the pool where it soaked in: how dark, and
 // what color the wet ground takes.
 uniform float wet_rim : hint_range(0.0, 1.0) = 0.0;
@@ -68,7 +71,16 @@ vec4 film_albedo(vec2 uv, float h) {
 }
 
 vec3 film_emission(vec2 uv, float h) {
-	return glow_color * smoothstep(0.05, 0.5, h) * (0.6 + 0.4 * fbm(meters(uv) * 2.0));
+	vec3 glow = glow_color * smoothstep(0.05, 0.5, h) * (0.6 + 0.4 * fbm(meters(uv) * 2.0));
+	if (glow_arcs > 0.0) {
+		// Where a drifting noise field crosses its middle; the drift
+		// runs round a circle, so the loop's last picture meets its first.
+		float turn = loop_phase * 6.2831853;
+		float field = fbm(meters(uv) * 1.6 + vec2(cos(turn), sin(turn)) * 1.2);
+		float arc = 1.0 - smoothstep(0.0, 0.035, abs(field - 0.5));
+		glow += vec3(0.75, 0.88, 1.0) * arc * glow_arcs * 2.5 * smoothstep(0.05, 0.3, h);
+	}
+	return glow;
 }
 
 #include "res://systems/surface_system/film_passes.gdshaderinc"

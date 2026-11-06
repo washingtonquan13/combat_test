@@ -13,14 +13,15 @@ extends Resource
 
 enum Outcome {
 	TAKEN,   ## The landing surface takes the cells, as without a reaction; with spreads, every touching cell of this surface too (fire through a grease patch).
-	BECOMES, ## The cells turn into `becomes` instead (ice under fire into water), or are cleared away with it unset. The landing surface doesn't land there.
+	BECOMES, ## The cells turn into `becomes` instead (ice under fire into water), or are cleared away with it unset; a cloud `becomes` rises off them and clears them (water under fire into steam). The landing surface doesn't land there.
 	RESISTS, ## The cells stay as they are and the landing surface doesn't land there (fire on water).
 }
 
 @export var element: Surface.Element = Surface.Element.FIRE
 @export var outcome: Outcome = Outcome.TAKEN
 ## What the cells turn into, for BECOMES: a Surface .tres. Unset clears
-## them. A path, not the Surface itself, because reactions run both ways
+## them. A cloud (a SPHERE or WALL) rises off them instead, its
+## wall_height tall over each cell, and they are cleared. A path, not the Surface itself, because reactions run both ways
 ## (ice melts into water, water freezes into ice) and Godot can't load
 ## two resource files that refer to each other; this one is loaded the
 ## first time it's needed, from the cache, so it is the same Surface

@@ -11,11 +11,15 @@ extends Node3D
 ## then frees itself. Sight is already clear by then; this is only the
 ## look. The colors are per scene, and every GPUParticles3D child gets
 ## them, so Darkness is this cloud inked, plus a layer of tendrils
-## (darkness_tendril.gdshader).
+## (darkness_tendril.gdshader), Steam it whitened and Electrified Steam
+## it tinted and flickering.
 
 @export var lit_color: Color = Color(0.86, 0.88, 0.9)
 @export var shade_color: Color = Color(0.52, 0.56, 0.62)
 @export var opacity: float = 0.6
+## How much the puffs flash and flicker with charge (Electrified Steam);
+## 0 for a plain cloud. See fog_puff.gdshader.
+@export var flicker: float = 0.0
 @export var seconds: float = 3.5
 @export var spread: float = 1.35
 @export var lift: float = 0.6
@@ -55,6 +59,8 @@ func _ready() -> void:
 		layer.set_instance_shader_parameter("lit_color", lit_color)
 		layer.set_instance_shader_parameter("shade_color", shade_color)
 		layer.set_instance_shader_parameter("opacity", opacity)
+		if flicker > 0.0:
+			layer.set_instance_shader_parameter("flicker", flicker)
 		# Each cloud its own: the scene's resources are shared by every cast.
 		var process := layer.process_material.duplicate() as ParticleProcessMaterial
 		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_POINTS

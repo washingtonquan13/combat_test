@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="Surface" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/surface.gd" id="1_surface"]
+[ext_resource type="Script" path="res://systems/surface_system/surface_reaction.gd" id="2_reaction"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/electrified_water.tscn" id="3_look"]
+[ext_resource type="Resource" path="res://data/statuses/shocked.tres" id="4_shocked"]
+[ext_resource type="Resource" path="res://data/surfaces/water.tres" id="5_water"]
+
+[sub_resource type="Resource" id="Resource_freezes"]
+script = ExtResource("2_reaction")
+element = 2
+outcome = 1
+becomes = "res://data/surfaces/ice.tres"
+spreads = true
+
+[sub_resource type="Resource" id="Resource_boils"]
+script = ExtResource("2_reaction")
+element = 1
+outcome = 1
+becomes = "res://data/surfaces/electrified_steam_cloud.tres"
+spreads = false
+
+[sub_resource type="Resource" id="Resource_recharges"]
+script = ExtResource("2_reaction")
+element = 4
+outcome = 1
+becomes = "res://data/surfaces/electrified_water.tres"
+spreads = true
+
+[resource]
+script = ExtResource("1_surface")
+surface_name = "Electrified Water"
+duration_rounds = 2
+shape = 0
+leaves_behind = ExtResource("5_water")
+status_effect = ExtResource("4_shocked")
+element = 3
+reactions = Array[ExtResource("2_reaction")]([SubResource("Resource_freezes"), SubResource("Resource_boils"), SubResource("Resource_recharges")])
+ambient_scene = ExtResource("3_look")

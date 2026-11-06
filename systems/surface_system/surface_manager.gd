@@ -185,9 +185,7 @@ func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -
 			reached = _spill_cells(space, position, radius)
 	if reached.is_empty():
 		return
-	var turned: Dictionary = _react(element, null, reached, grid)
-	for result: Surface in turned:
-		_land(result, turned[result], context, parent, position, radius)
+	_land_turned(_react(element, null, reached, grid), context, parent, position, radius)
 
 
 ## The cells (SurfaceGrid key -> floor y) on the ground under a footprint
@@ -491,9 +489,7 @@ func _spill_cells(space: PhysicsDirectSpaceState3D, position: Vector3, radius: f
 func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0, front_seconds: float = 0.0) -> SurfacePatch:
 	var grid: SurfaceGrid = _grid_for(context)
 	var cast: int = reached.size()
-	var turned: Dictionary = _react(surface.element, surface, reached, grid)
-	for result: Surface in turned:
-		_land(result, turned[result], context, parent, position, radius, 0, front_seconds)
+	_land_turned(_react(surface.element, surface, reached, grid), context, parent, position, radius, front_seconds)
 	if reached.is_empty():
 		return null
 	if reached.size() > cast:
@@ -578,6 +574,59 @@ func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent:
 	return patch
 
 
+## Lands what a reaction turned the ground into (_react's result: Surface
+## -> its reached): a ground surface onto those cells (_land), a cloud
+## rising off them (_rise). position, radius and front_seconds as for
+## _land; a cloud only gathers, so it takes none of them.
+func _land_turned(turned: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, front_seconds: float = 0.0) -> void:
+	for result: Surface in turned:
+		if result.shape == Surface.Shape.DISC:
+			_land(result, turned[result], context, parent, position, radius, 0, front_seconds)
+		else:
+			_rise(result, turned[result], context, parent)
+
+
+## Raises cloud (steam) off the ground cells in reached (SurfaceGrid key
+## -> floor y): the cubes over each cell, from its floor up to the
+## cloud's wall_height, filled the way any cloud fills (_fill), so a
+## ceiling lower than that stops it. The cloud grid's cubes are the
+## surface grid's squares, so each cell is one column. _react has already
+## cleared the cells. Returns its CloudPatch.
+func _rise(cloud: Surface, reached: Dictionary, context: WorldContext, parent: Node) -> CloudPatch:
+	var middle := Vector3.ZERO
+	var seeds: Dictionary[Vector3i, Vector3] = {}
+	for key: Vector2i in reached:
+		var lifted: Vector3 = SurfaceGrid.centre_of(key, reached[key] + 0.1)
+		seeds[CloudGrid.key_of(lifted)] = lifted
+		middle += SurfaceGrid.centre_of(key, reached[key])
+	middle /= reached.size()
+	_play_spawn_fx(cloud, parent, middle)
+	return _fill(cloud, seeds, _over_ground.bind(reached, cloud.wall_height), middle, context, parent, _ground_point.bind(reached))
+
+
+## Whether the cube centred on point stands over one of the ground cells
+## in reached (key -> floor y), its height overlapping that floor up to
+## height.
+func _over_ground(point: Vector3, reached: Dictionary, height: float) -> bool:
+	var column: Vector2i = SurfaceGrid.key_of(point)
+	if not reached.has(column):
+		return false
+	var ground: float = reached[column]
+	var half: float = CloudGrid.CELL * 0.5
+	return point.y + half > ground and point.y - half < ground + height
+
+
+## Where a cloud rising off the ground passes through the cube at key:
+## its centre, lifted clear of the floor where the cube straddles it, as
+## _wall_point does for a wall.
+func _ground_point(key: Vector3i, reached: Dictionary) -> Vector3:
+	var centre: Vector3 = CloudGrid.centre_of(key)
+	var column := Vector2i(key.x, key.z)
+	if reached.has(column):
+		centre.y = maxf(centre.y, reached[column] + 0.1)
+	return centre
+
+
 ## What the ground already in reached (SurfaceGrid key -> floor y) does
 ## as something of element reaches it, by its SurfaceReaction to that
 ## element: landing, the surface landing there (null for an attack that
@@ -585,8 +634,9 @@ func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent:
 ## that resist or turn into something else come out of it, and cells a
 ## TAKEN reaction spreads through (the rest of a grease patch) go into
 ## it. A cell that BECOMES the very surface landing is just taken by it.
-## Cells a BECOMES reaction clears are expired here. Returns what the
-## rest turn into: Surface -> its own reached, to be landed in turn.
+## Cells a BECOMES reaction clears, or turns into a cloud rising off
+## them, are expired here. Returns what the rest turn into: Surface ->
+## its own reached, to be landed in turn (_land_turned).
 func _react(element: Surface.Element, landing: Surface, reached: Dictionary, grid: SurfaceGrid) -> Dictionary:
 	var turned: Dictionary = {}
 	if element == Surface.Element.NONE:
@@ -640,6 +690,17 @@ func _react(element: Surface.Element, landing: Surface, reached: Dictionary, gri
 			into[beside] = target
 			frontier.append(beside)
 			target[beside.key] = beside.y
+	# A cloud rising off cells (steam off water) leaves the floor bare.
+	for result: Surface in turned:
+		if result.shape == Surface.Shape.DISC:
+			continue
+		for key: Vector2i in turned[result]:
+			var cell: SurfaceCell = grid.cell_at(key, turned[result][key])
+			if cell == null:
+				continue
+			if not cleared.has(cell.patch):
+				cleared[cell.patch] = [] as Array[SurfaceCell]
+			cleared[cell.patch].append(cell)
 	for patch: SurfacePatch in cleared:
 		expire_cells(grid, patch, cleared[patch])
 	return turned
@@ -951,8 +1012,12 @@ func _recede(patch: CloudPatch, cells: Array[CloudCell]) -> void:
 
 
 ## Every cell runs out on its own clock; a patch loses the cells that ran
-## out, which recede from its film, and goes when it has none left.
+## out, which recede from its film, and goes when it has none left. What
+## a surface leaves behind (leaves_behind) lands on its run-out cells
+## after the whole grid has aged, so it keeps its whole duration and no
+## patch it merges into is aged twice.
 func _age_grid(grid: SurfaceGrid) -> void:
+	var settling: Array[Array] = []  # [SurfacePatch, its run-out cells]
 	for patch in grid.patches.duplicate():
 		var ran_out: Array[SurfaceCell] = []
 		for cell in patch.cells:
@@ -963,6 +1028,23 @@ func _age_grid(grid: SurfaceGrid) -> void:
 				ran_out.append(cell)
 		if not ran_out.is_empty():
 			expire_cells(grid, patch, ran_out)
+			if patch.surface.leaves_behind:
+				settling.append([patch, ran_out])
+	for each: Array in settling:
+		_settle(each[0], each[1])
+
+
+## Lands patch's leaves_behind on the floor where its cells ran out:
+## electrified water settling back into plain water.
+func _settle(patch: SurfacePatch, cells: Array[SurfaceCell]) -> void:
+	var reached: Dictionary = {}
+	for cell in cells:
+		reached[cell.key] = cell.y
+	var middle: Vector3 = patch.centroid(cells)
+	var radius: float = 0.0
+	for cell in cells:
+		radius = maxf(radius, cell.centre().distance_to(middle))
+	_land(patch.surface.leaves_behind, reached, patch.context, _parent_for(patch.context, null), middle, radius + SurfaceGrid.CELL)
 
 
 ## Takes cells off the grid and out of patch's film. Whoever stood on

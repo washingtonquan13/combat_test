@@ -43,11 +43,15 @@ enum Shape {
 ## into a flat ellipsoid, the way fog lies low and spreads wide. The
 ## radius is its half-width.
 @export var height_scale: float = 1.0
-## How tall a WALL stands from the ground, in meters.
+## How tall a WALL stands from the ground, in meters; and a cloud that
+## rises off the ground in a reaction (steam off water, see
+## SurfaceReaction.becomes) stands as tall over the cells it rose from.
 @export var wall_height: float = 4.0
-## A ground surface (a DISC) left on the floor under this cloud's cubes
-## as they run out, where they touched it — Wall of Fire's burning
-## ground.
+## A ground surface (a DISC) left on the floor where this one runs out:
+## for a cloud, under its cubes as they run out, where they touched it
+## (Wall of Fire's burning ground); for a ground surface, on its own
+## cells as they run out (electrified water settling back into water).
+## Not when it is cleared or taken over, only when its time is up.
 @export var leaves_behind: Surface
 ## Lays leaves_behind under the cubes touching the floor the moment the
 ## cloud rises, lasting while it stands and its own rounds after, rather

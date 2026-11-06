@@ -15,6 +15,9 @@ instance uniform vec3 shade_color : source_color = vec3(0.52, 0.56, 0.62);
 instance uniform float opacity = 0.6;
 uniform float softness = 1.2;
 instance uniform float dissipate = 0.0;
+// Charge (Electrified Steam): the cloud flickers, and now and then a puff
+// flashes blue-white. 0 for a plain cloud.
+instance uniform float flicker = 0.0;
 uniform sampler2D depth_texture : hint_depth_texture, filter_linear;
 
 varying float seed;
@@ -75,5 +78,11 @@ void fragment() {
 	// Lighter on top, as if lit from above.
 	float light = clamp(0.5 - centered.y * 0.45 + (n - 0.5) * 0.6, 0.0, 1.0);
 	ALBEDO = mix(shade_color, lit_color, light) * COLOR.rgb;
+	if (flicker > 0.0) {
+		float shimmer = noise(vec2(TIME * 9.0, seed * 13.0)) - 0.5;
+		float flash = step(0.94, hash(vec2(floor(TIME * 14.0), seed * 91.0)));
+		ALBEDO *= 1.0 + flicker * 0.3 * shimmer;
+		ALBEDO = mix(ALBEDO, vec3(0.85, 0.93, 1.0) * 1.6, flash * flicker * shape);
+	}
 	ALPHA = shape * soft * opacity * COLOR.a;
 }
