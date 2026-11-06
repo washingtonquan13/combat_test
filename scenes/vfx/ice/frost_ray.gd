@@ -19,10 +19,15 @@ shader_type spatial;
 render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, fog_disabled;
 uniform vec4 core_color : source_color = vec4(0.92, 0.98, 1.0, 1.0);
 uniform vec4 halo_color : source_color = vec4(0.35, 0.72, 1.0, 1.0);
-uniform float energy = 2.6;
+uniform float energy = 2.2;
 uniform float fade = 1.0;
 uniform float beam_length = 10.0;
 uniform float scroll = 7.0;
+uniform float pulse_spacing = 1.4;
+uniform float pulse_speed = 9.0;
+uniform float twist_length = 1.4;
+uniform float twist_speed = 9.0;
+uniform float strand_radius = 0.55;
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -37,17 +42,34 @@ float noise(vec2 p) {
 }
 
 void fragment() {
-	float x = UV.x * 2.0 - 1.0;
+	// The strip is 1.6x the beam's visual width so the strands have room.
+	float x = (UV.x * 2.0 - 1.0) * 1.6;
 	float metres = UV.y * beam_length;
 	float n = noise(vec2(metres * 1.6 - TIME * scroll, x * 2.5 + TIME * 0.7)) * 0.6
 		+ noise(vec2(metres * 4.5 - TIME * scroll * 1.6, x * 5.0 - TIME)) * 0.4;
+	// Pulses of cold driven down the core, hand to target.
+	float wave = fract(metres / pulse_spacing - TIME * pulse_speed / pulse_spacing);
+	float pulse = exp(-pow((wave - 0.5) * 6.0, 2.0));
+	float core_w = 45.0 / (1.0 + pulse * 1.2);
+	float core = exp(-x * x * core_w) * (1.0 + pulse * 0.8);
 	float edge = abs(x) + (n - 0.5) * 0.45;
-	float core = exp(-x * x * 45.0);
-	float halo = exp(-edge * edge * 5.0) * (0.3 + 0.7 * n);
+	float halo = exp(-edge * edge * 5.0) * (0.3 + 0.7 * n) * (0.85 + pulse * 0.35);
+	// Two strands twisting around the core; brighter on the near side.
+	float strands = 0.0;
+	for (int i = 0; i < 2; i++) {
+		float phase = metres * TAU / twist_length - TIME * twist_speed + float(i) * PI;
+		float sx = sin(phase) * strand_radius;
+		float near = 0.45 + 0.55 * (0.5 + 0.5 * cos(phase));
+		float d = x - sx;
+		strands += exp(-d * d * 260.0) * near;
+	}
+	// A fine shimmer of frost glints through the halo.
+	float glint = pow(noise(vec2(metres * 14.0 - TIME * scroll * 2.5, x * 18.0)), 10.0) * 6.0 * halo;
 	float ends = smoothstep(0.0, 0.25, metres) * smoothstep(0.0, 0.15, beam_length - metres);
-	vec3 col = core_color.rgb * core * 1.6 + halo_color.rgb * halo;
+	vec3 col = core_color.rgb * core * 1.5 + halo_color.rgb * halo * 1.15
+		+ mix(halo_color.rgb, core_color.rgb, 0.3) * strands * 1.1 + core_color.rgb * glint;
 	ALBEDO = col * energy;
-	ALPHA = clamp((core + halo) * ends * fade, 0.0, 1.0);
+	ALPHA = clamp((core + halo + strands * 0.8 + glint) * ends * fade, 0.0, 1.0);
 }
 """
 
@@ -208,7 +230,7 @@ func _process(_delta: float) -> void:
 	_place_motes(_from, tip)
 	_light.global_position = tip
 	_light.light_energy = 1.6 * _fade
-	_draw_beam(_from, tip, beam_width * (0.6 + 0.4 * _fade))
+	_draw_beam(_from, tip, beam_width * 1.6 * (0.6 + 0.4 * _fade))
 
 
 ## The motes come off the whole length of the beam.
