@@ -67,6 +67,7 @@ affects_allies = true
 [sub_resource type="Resource" id="Resource_ground"]
 script = ExtResource("14_surface")
 surface_name = "Fire"
+element = 1
 duration_rounds = 2
 shape = 0
 height_scale = 1.0

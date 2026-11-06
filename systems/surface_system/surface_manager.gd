@@ -402,8 +402,24 @@ func _spill(surface: Surface, position: Vector3, radius: float, context: WorldCo
 ## overlap or touch merges into the biggest. position and radius are
 ## where the visual spreads from and how far. extra_rounds lengthens the
 ## surface's own duration_rounds; negative makes it permanent.
+##
+## First, what's already there reacts to the landing surface's element
+## (_react): fire spreads through the grease it touches, ice it touches
+## turns to water, water it touches won't take it. Returns null if
+## nothing of surface landed (fire poured wholly on water).
 func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0, front_seconds: float = 0.0) -> SurfacePatch:
 	var grid: SurfaceGrid = _grid_for(context)
+	var cast: int = reached.size()
+	var turned: Dictionary = _react(surface, reached, grid)
+	for result: Surface in turned:
+		_land(result, turned[result], context, parent, position, radius, 0, front_seconds)
+	if reached.is_empty():
+		return null
+	if reached.size() > cast:
+		# A reaction carried the surface past where it was cast (through
+		# the whole grease patch): its film spreads that far.
+		for key: Vector2i in reached:
+			radius = maxf(radius, SurfaceGrid.centre_of(key, position.y).distance_to(position))
 	var rounds: int = surface.duration_rounds
 	if rounds >= 0:
 		rounds = -1 if extra_rounds < 0 else rounds + extra_rounds
@@ -479,6 +495,64 @@ func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent:
 		# Bound to the visual, so the call is dropped if it's freed first.
 		get_tree().create_timer(seconds).timeout.connect(other.visual.set_cells.bind(keep))
 	return patch
+
+
+## What the ground already in reached (SurfaceGrid key -> floor y) does
+## as surface lands on it, by its SurfaceReaction to surface's element.
+## Edits reached in place: cells that resist or turn into something else
+## come out of it, and cells a TAKEN reaction spreads through (the rest
+## of a grease patch) go into it. Cells a BECOMES reaction clears are
+## expired here. Returns what the rest turn into: Surface -> its own
+## reached, to be landed in turn.
+func _react(surface: Surface, reached: Dictionary, grid: SurfaceGrid) -> Dictionary:
+	var turned: Dictionary = {}
+	if surface.element == Surface.Element.NONE:
+		return turned
+	var cleared: Dictionary = {}  # SurfacePatch -> Array[SurfaceCell]
+	var frontier: Array[SurfaceCell] = []
+	var into: Dictionary = {}  # SurfaceCell spreading -> the reached it spreads into
+	for key: Vector2i in reached.keys():
+		var cell: SurfaceCell = grid.cell_at(key, reached[key])
+		if cell == null or cell.surface == surface:
+			continue
+		var reaction: SurfaceReaction = cell.surface.reaction_to(surface.element)
+		if reaction == null:
+			continue
+		var target: Dictionary = reached
+		match reaction.outcome:
+			SurfaceReaction.Outcome.RESISTS:
+				reached.erase(key)
+				continue
+			SurfaceReaction.Outcome.BECOMES:
+				reached.erase(key)
+				if reaction.becomes == null:
+					if not cleared.has(cell.patch):
+						cleared[cell.patch] = [] as Array[SurfaceCell]
+					cleared[cell.patch].append(cell)
+					continue
+				if not turned.has(reaction.becomes):
+					turned[reaction.becomes] = {}
+				target = turned[reaction.becomes]
+				target[key] = cell.y
+		if reaction.spreads:
+			frontier.append(cell)
+			into[cell] = target
+	# Through every touching cell of the same surface, from those reached.
+	while not frontier.is_empty():
+		var cell: SurfaceCell = frontier.pop_back()
+		var target: Dictionary = into[cell]
+		for step in SurfaceGrid.NEIGHBOURS:
+			var beside: SurfaceCell = grid.cell_at(cell.key + step, cell.y)
+			if beside == null or beside.surface != cell.surface or into.has(beside):
+				continue
+			if reached.has(beside.key) or target.has(beside.key):
+				continue
+			into[beside] = target
+			frontier.append(beside)
+			target[beside.key] = beside.y
+	for patch: SurfacePatch in cleared:
+		expire_cells(grid, patch, cleared[patch])
+	return turned
 
 
 ## Where the floor is under point (the ray starts half a meter above it,

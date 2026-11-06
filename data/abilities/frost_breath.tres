@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=29 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=32 format=3]
 
 [ext_resource type="Script" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
 [ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="2_ability"]
@@ -18,6 +18,8 @@
 [ext_resource type="Script" path="res://systems/ability_system/cone_vfx_step.gd" id="16_cone_step"]
 [ext_resource type="PackedScene" path="res://scenes/vfx/ice/frost_cone.tscn" id="17_frost"]
 [ext_resource type="Script" path="res://systems/ability_system/ability_timing.gd" id="18_timing"]
+[ext_resource type="Script" path="res://systems/surface_system/surface_reaction.gd" id="19_reaction"]
+[ext_resource type="Resource" path="res://data/surfaces/water.tres" id="20_water"]
 
 [sub_resource type="Resource" id="Resource_blast"]
 script = ExtResource("16_cone_step")
@@ -63,6 +65,13 @@ apply_animation_loops = false
 remove_animation = "UAL2_Standard/LayToIdle"
 hit_reaction_animation = ""
 
+[sub_resource type="Resource" id="Resource_melts"]
+script = ExtResource("19_reaction")
+element = 1
+outcome = 1
+becomes = ExtResource("20_water")
+spreads = false
+
 [sub_resource type="Resource" id="Resource_ice"]
 script = ExtResource("11_surface")
 surface_name = "Ice"
@@ -74,6 +83,8 @@ lays_ground_under = false
 status_effect = SubResource("Resource_slipped")
 status_only_inside = false
 blocks_sight = false
+element = 2
+reactions = Array[ExtResource("19_reaction")]([SubResource("Resource_melts")])
 dark_vision_sees_through = false
 movement_cost_multiplier = 2.0
 ambient_scene = ExtResource("12_ice")

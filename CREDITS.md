@@ -16,6 +16,8 @@ From [game-icons.net](https://game-icons.net), licensed under
 | fly_icon.png | Angel wings | Lorc |
 | fire_breath_icon.png | Fire breath | Lorc |
 | wall_of_fire_icon.png | Firewall | Delapouite |
+| web_icon.png | Spider web | Lorc |
+| create_water_icon.png | Water splash | Lorc |
 | pick_up_icon.png | Grab | Lorc |
 | attack_icon_melee.png | Broadsword | Lorc |
 | fireball_icon.png | Fireball | Lorc |

@@ -22,6 +22,10 @@ extends Resource
 ## burning your own units standing in it is the point, not a bug to guard
 ## against.
 
+## What a surface is made of, for combos (see element, SurfaceReaction).
+## Kept apart from damage's WoundType, which has no cold or lightning.
+enum Element { NONE, FIRE, COLD, WATER, LIGHTNING }
+
 @export var surface_name: String = "Surface"
 ## How many ROUNDS (a full pass through turn order — see
 ## CombatManager.round_started) this surface persists before expiring on
@@ -68,6 +72,17 @@ enum Shape {
 ## Slipped.
 @export var status_only_inside: bool = false
 
+@export_group("Reactions")
+## What this surface is made of, for combos with what's already on the
+## ground (see SurfaceReaction): Fire is FIRE, Ice COLD, Water WATER.
+## Grease is NONE: it doesn't do anything to other surfaces, it is
+## something fire does something to (its reactions).
+@export var element: Element = Element.NONE
+## What happens to this surface when one of an element lands on it,
+## one entry per element. An element not listed simply takes the cells
+## over.
+@export var reactions: Array[SurfaceReaction] = []
+
 @export_group("Sight")
 ## Blocks every sight line that passes through it — into, out of, or
 ## across (BG3's Fog Cloud). Read by LineOfSight, so ranged targeting,
@@ -109,6 +124,16 @@ enum Shape {
 @export var spawn_sfx: SfxCue
 @export var expire_vfx: VfxEffect
 @export var expire_sfx: SfxCue
+
+
+## This surface's reaction to one of `incoming` landing on it, or null.
+func reaction_to(incoming: Element) -> SurfaceReaction:
+	if incoming == Element.NONE:
+		return null
+	for reaction in reactions:
+		if reaction and reaction.element == incoming:
+			return reaction
+	return null
 
 
 func describe() -> String:

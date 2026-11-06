@@ -14,6 +14,7 @@
 [sub_resource type="Resource" id="Resource_ground"]
 script = ExtResource("4_surface")
 surface_name = "Fire"
+element = 1
 duration_rounds = 2
 shape = 0
 status_effect = ExtResource("7_burning")
