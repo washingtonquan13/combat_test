@@ -1308,11 +1308,30 @@ NavChunk &NavigationGrid::ensure_chunk_support(const Vector3i &chunk_coord) {
 }
 
 void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &chunk) {
-	// no_support only ever reads straight down (x, y-1, z), so only the
-	// vertical neighbor needs rasterizing ahead of this pass.
+	// Both tiers only ever read straight down, at most FLIGHT_LOW_CELLS
+	// (< CHUNK_DIM) cells: this chunk's own solid[] or the one directly
+	// below's. Read those two arrays directly - going through is_solid()
+	// per cell (bounds check, chunk lookup) cost ~1 ms a chunk, and a
+	// flier's coarse corridor bakes ~100 of them.
+	// Off the world's bottom counts as solid, as is_solid() has it.
 	Vector3i below_chunk = chunk_coord - Vector3i(0, 1, 0);
+	const uint8_t *below_solid = nullptr;
 	if (chunk_in_bounds(below_chunk)) {
-		ensure_chunk_rasterized(below_chunk);
+		below_solid = ensure_chunk_rasterized(below_chunk).solid.data();
+	}
+	const uint8_t *own_solid = chunk.solid.data();
+	auto solid_at = [&](int x, int y, int z) -> bool {
+		if (y >= 0) {
+			return own_solid[local_index(Vector3i(x, y, z))] != 0;
+		}
+		return below_solid == nullptr || below_solid[local_index(Vector3i(x, y + CHUNK_DIM, z))] != 0;
+	};
+	// Too low to fly: solid in any cell whose top lies under
+	// FLIGHT_MIN_ALTITUDE below this cell's centre - the same cut the old
+	// absolute rule made over y=0 ground.
+	int flight_low_cells = 0;
+	while (((float)(flight_low_cells + 1) - 0.5f) * CELL_SIZE < FLIGHT_MIN_ALTITUDE) {
+		flight_low_cells++;
 	}
 
 	Vector3i base = chunk_coord * CHUNK_DIM;
@@ -1325,34 +1344,34 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	chunk.has_ground_passable = false;
 	chunk.has_flyable = false;
 
+	// One walk up each column, carrying how far below the nearest solid
+	// cell is: supported = it is 1, too low = it is within flight_low_cells.
 	for (int x = 0; x < cx1; x++) {
-		for (int y = 0; y < cy1; y++) {
-			for (int z = 0; z < cz1; z++) {
-				Vector3i cell = base + Vector3i(x, y, z);
+		for (int z = 0; z < cz1; z++) {
+			int since_solid = flight_low_cells + 1; // "none in reach"
+			for (int k = 1; k <= flight_low_cells; k++) {
+				if (solid_at(x, -k, z)) {
+					since_solid = k;
+					break;
+				}
+			}
+			for (int y = 0; y < cy1; y++) {
 				int li = local_index(Vector3i(x, y, z));
-				bool supported = cell.y > 0 && is_solid(cell - Vector3i(0, 1, 0));
+				bool supported = base.y + y > 0 && since_solid == 1;
 				chunk.no_support[li] = supported ? 0 : 1;
-
-				bool cell_solid = chunk.solid[li] != 0;
-				if (!cell_solid) {
+				if (own_solid[li] == 0) {
 					if (supported) {
 						chunk.has_ground_passable = true;
 					}
-					// Too low to fly: solid in any cell whose top lies under
-					// FLIGHT_MIN_ALTITUDE below this cell's centre - the same
-					// cut the old absolute rule made over y=0 ground.
-					bool low = false;
-					for (int k = 1; ((float)k - 0.5f) * CELL_SIZE < FLIGHT_MIN_ALTITUDE; k++) {
-						if (is_solid(cell - Vector3i(0, k, 0))) {
-							low = true;
-							break;
-						}
-					}
+					bool low = since_solid <= flight_low_cells;
 					chunk.flight_low[li] = low ? 1 : 0;
-					float world_y = bounds_origin.y + ((float)cell.y + 0.5f) * CELL_SIZE;
+					float world_y = bounds_origin.y + ((float)(base.y + y) + 0.5f) * CELL_SIZE;
 					if (!low && world_y <= FLIGHT_CEILING_HEIGHT) {
 						chunk.has_flyable = true;
 					}
+					since_solid = std::min(since_solid + 1, flight_low_cells + 1);
+				} else {
+					since_solid = 1;
 				}
 			}
 		}
