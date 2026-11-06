@@ -61,6 +61,19 @@ func run() -> void:
 	check("a unit on the pit floor walks up the ramp, not into its side",
 		walker.global_position.distance_to(rim) < 1.0, "ended %s" % walker.global_position)
 
+	# A flier low in the pit, hovering the rim above its altitude: the
+	# query lifts to the rim. It used to look for a floor at the flier's
+	# altitude inside the rim's rock, found a sealed pocket there, and
+	# every hovered cell cost a failed 160 ms search.
+	walker.apply_status(load("res://data/statuses/flying.tres"))
+	walker.global_position = Vector3(0.0, -3.0, -44.0)
+	walker.flight_target_altitude = -3.0
+	var over_rim := Vector3(1.8, 0.0, -24.7)
+	var preview: Dictionary = walker.preview_route(over_rim)
+	var flown: PackedVector3Array = preview.get("path", PackedVector3Array())
+	check("a flier in the pit routes to rim ground above its altitude",
+		flown.size() >= 2 and flown[flown.size() - 1].y > 0.5, "path %s" % flown)
+
 
 func _route(walker: Unit, from: Vector3, to: Vector3) -> PackedVector3Array:
 	return NavigationGrid.find_path(get_tree(), from, to, walker, false)

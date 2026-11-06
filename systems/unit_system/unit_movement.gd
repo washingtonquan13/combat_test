@@ -323,7 +323,11 @@ func _query_destination(raw: Vector3) -> Vector3:
 	var query: Vector3 = raw
 	if _owner.is_flying():
 		var altitude: float = _owner.flight_target_altitude
-		query.y = clamp_flight_altitude(altitude, Vector3(raw.x, altitude, raw.z), _owner)
+		# The floor is looked up from the altitude, or from the hovered
+		# point when the altitude is below it: an altitude under ground
+		# the cursor is on lies inside the terrain, where the floor found
+		# is a hollow pocket no search can reach.
+		query.y = clamp_flight_altitude(altitude, Vector3(raw.x, maxf(altitude, raw.y), raw.z), _owner)
 	return query
 
 
