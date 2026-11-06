@@ -224,6 +224,15 @@ public:
 	// which is a real crash this project shipped (native segfault, no
 	// preceding GDScript error — see WorldManager's own note on this).
 	void invalidate();
+	// The cheap form of invalidate() for one body that moved, appeared or
+	// went away: `region` must cover everywhere its geometry was AND now is
+	// (a moved prop's old and new AABB merged). Only chunks whose baked
+	// tiers could read that region are reset; the rest of the world stays
+	// baked. `world_root` names which world (any node in it works, the
+	// root WorldContext registered is what callers hand over), so a parked
+	// world is updated in place rather than whichever one is active. Falls
+	// back to a full rescan when the change moves the world's bounds.
+	void invalidate_region(Node *world_root, AABB region);
 	// `ignore`: occupants this one query walks through as well as its own
 	// unit — a group move's other movers, who are about to leave their
 	// cells. Per query, never stored: occupancy itself always holds every
@@ -231,8 +240,9 @@ public:
 	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref = nullptr, Array ignore = Array());
 	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore = Array());
 	// Bumps whenever the world's occupancy actually changes (anyone moves
-	// a cell, dies, arrives, leaves). For callers caching a route: equal
-	// versions mean find_path would answer the same.
+	// a cell, dies, arrives, leaves), and whenever its geometry is
+	// invalidated. For callers caching a route: equal versions mean
+	// find_path would answer the same.
 	int64_t occupancy_version(SceneTree *tree, Object *world_ref);
 	Vector3i world_to_cell(Vector3 pos) const;
 
@@ -391,6 +401,16 @@ private:
 	void set_query_ignore(const Array &ignore);
 
 	void ensure_project_scanned(SceneTree *tree);
+	// invalidate_region's work on the active world: refreshes the shape
+	// list, rebuckets and un-bakes the chunks around region.
+	void invalidate_active_region(SceneTree *tree, const AABB &region);
+	// The grid's origin and size for the shapes in all_shapes, as a scan
+	// sizes it. Shared so invalidate_region can tell whether a change moved
+	// the bounds (and so needs a full rescan).
+	void scan_bounds(Vector3 &origin, Vector3i &size);
+	// The chunks a shape is bucketed into (see shapes_by_chunk), or false
+	// when it lies outside the grid.
+	bool shape_chunk_range(CollisionShape3D *cs, Vector3i &min_chunk, Vector3i &max_chunk);
 	void collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out);
 	AABB shape_global_aabb(CollisionShape3D *cs);
 	AABB transform_aabb(const Transform3D &t, const AABB &aabb);
