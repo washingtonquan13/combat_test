@@ -1,13 +1,13 @@
 shader_type spatial;
 // One lightning channel drawn as a ribbon that always faces the camera.
-// The mesh (built by lightning_strike.gd) puts both edge vertices of each
+// The mesh (built by lightning_arcs.gd) puts both edge vertices of each
 // point at the same spot on the channel:
 //   NORMAL    the channel's direction at that point
 //   UV.x      -1 or +1, which side of the channel this vertex is on
 //   UV2.x     the ribbon's half width, in metres
 //   COLOR.r   weight: how bright this point is relative to the channel
-//   COLOR.g   drop: 0 at the cloud, 1 at the ground. The leader is
-//             revealed top down by comparing it against `reveal`
+//   COLOR.g   reveal coordinate, e.g. the drop from the cloud. A strike
+//             grows by comparing it against the `reveal` uniform
 //   COLOR.b   1 on a branch, 0 on the main channel
 // The vertex shader pushes the two vertices apart sideways, across the
 // view, so the ribbon is always seen face on. Additive, unshaded, and
