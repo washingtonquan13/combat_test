@@ -85,12 +85,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 	if not projectile_scene:
 		return
 
-	var launch_point: Vector3 = from + Vector3(0, launch_height_offset, 0)
-
-	var path: PackedVector3Array = NavigationGrid.find_path(context.get_tree(), launch_point, to, self, flying)
-	if path.size() < 2:
-		path = PackedVector3Array([launch_point, to])
-	path = PathCornerRounding.round_corners(path, corner_round_radius, corner_round_segments)
+	var path: PackedVector3Array = route(_caster, from, _unit_at(context.get_tree(), to), to)
 
 	var wrapper := Node3D.new()
 	WorldManager.spawn_parent().add_child(wrapper)
@@ -112,6 +107,64 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 
 	if is_instance_valid(wrapper):
 		wrapper.queue_free()  # frees the instance too, as its child
+
+
+## The flight path, rounded: from launch_height_offset above `from` to
+## the target's chest (or `to` when no unit is aimed at). The cast and
+## seeking_indicator.gd's preview both call this, so they draw and fly
+## the same route.
+##
+## The caster and target are ignored as occupants: units fill their
+## whole body height, so the launch point sits inside the caster's
+## body and the goal inside the target's. Without the ignore the start
+## cell is blocked, find_path returns nothing, and the bolt flies a
+## straight line through every wall.
+func route(caster: Unit, from: Vector3, target: Unit, to: Vector3) -> PackedVector3Array:
+	var launch_point: Vector3 = from + Vector3(0, launch_height_offset, 0)
+	var end: Vector3 = LineOfSight.shot_to(target) if target else to
+	var ignore: Array = []
+	if caster:
+		ignore.append(caster)
+		# This step is a Resource, not a node in a world, so the
+		# caster names which world the query runs in.
+		NavigationGrid.world_to_cell(launch_point, caster)
+	if target:
+		ignore.append(target)
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	var path: PackedVector3Array = NavigationGrid.find_path(tree, launch_point, end, self, flying, ignore)
+	if path.size() < 2:
+		path = PackedVector3Array([launch_point, end])
+	elif path[-1].distance_to(end) > 0.05:
+		# find_path ends on the goal cell's centre, not the point.
+		path.append(end)
+	var space: PhysicsDirectSpaceState3D = caster.get_world_3d().direct_space_state if caster else null
+	var is_clear := func(a: Vector3, b: Vector3) -> bool: return space == null or _geometry_clear(space, a, b)
+	return PathCornerRounding.round_corners(path, corner_round_radius, corner_round_segments, is_clear)
+
+
+## No wall between a and b. Units share layer 1 with walls and are
+## stepped past: the route already goes around them.
+static func _geometry_clear(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vector3) -> bool:
+	var query := PhysicsRayQueryParameters3D.create(a, b, 1)
+	var exclude: Array[RID] = []
+	for _i in 8:
+		query.exclude = exclude
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			return true
+		if not hit.collider is Unit:
+			return false
+		exclude.append(hit.rid)
+	return true
+
+
+## UnitVfx passes a unit target as its global_position, so the unit
+## standing exactly there is the one aimed at.
+func _unit_at(tree: SceneTree, point: Vector3) -> Unit:
+	for node in tree.get_nodes_in_group(&"units"):
+		if node is Unit and node.global_position.distance_squared_to(point) < 0.0001:
+			return node
+	return null
 
 
 func _path_length(path: PackedVector3Array) -> float:

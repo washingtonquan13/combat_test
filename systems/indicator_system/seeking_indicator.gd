@@ -93,20 +93,15 @@ func _update_path_preview(unit: Unit, ability: Ability, step: PathedProjectileSt
 	if query_unchanged:
 		waypoints = _last_waypoints
 	else:
-		# Same empty-result fallback as PathedProjectileStep.play() itself
-		# (see that file) — keeps this preview honest about what will
-		# actually be flown even when find_path can't route it.
-		waypoints = NavigationGrid.find_path(unit.get_tree(), launch_point, aim_point, step, step.flying)
-		if waypoints.size() < 2:
-			waypoints = PackedVector3Array([launch_point, aim_point])
+		# The cast flies this same route (PathedProjectileStep.route).
+		waypoints = step.route(unit, unit.global_position, hovered_unit, aim_point)
 		_last_query_unit = unit
 		_last_query_step = step
 		_last_query_start_cell = start_cell
 		_last_query_dest_cell = dest_cell
 		_last_waypoints = waypoints
 
-	var rounded := PathCornerRounding.round_corners(waypoints, step.corner_round_radius, step.corner_round_segments)
-	_draw_path(rounded, _color_for(unit, ability, hovered_unit))
+	_draw_path(waypoints, _color_for(unit, ability, hovered_unit))
 
 
 ## Same range/LoS decision line_of_sight_indicator.gd makes: the armed
