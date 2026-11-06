@@ -1466,124 +1466,115 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 
 	chunk.dist.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE));
 
-	struct QEntry {
-		float d;
-		int x, z;
-	};
-	struct QCmp {
-		bool operator()(const QEntry &a, const QEntry &b) const { return a.d > b.d; }
-	};
-	static const int OX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 };
-	static const int OZ[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
-	static const float OD[8] = { 1.f, 1.f, 1.f, 1.f, 1.41421356f, 1.41421356f, 1.41421356f, 1.41421356f };
-
-	// Scratch buffers sized once to the (CHUNK_DIM + 2*reach) window and
-	// reused across every Y layer via a generation stamp instead of a
-	// hashmap — this is the same flat-array-over-unordered_map trade this
-	// codebase already validated for the main A* search (see the header's
-	// own comment on why that reversed between the GDScript and C++
-	// ports). Measured necessary here too: an unordered_map<int64_t,float>
-	// version of this per-chunk Dijkstra cost 50-80ms on a first touch —
-	// dominated by hashmap churn from seeding/relaxing every solid cell in
-	// a large flat slab (e.g. deep inside a thick floor), not by the
-	// search itself.
+	// Per Y layer, distance to the nearest wall cell over the 8-connected
+	// grid (steps 1 and sqrt 2), out to MAX_CLEARANCE_CELLS. Computed as a
+	// two-pass chamfer sweep over the (CHUNK_DIM + 2*reach)^2 window: the
+	// forward pass carries every path made of +x / +z-leaning steps, the
+	// backward pass the rest, and on a rectangle (the window clipped to the
+	// world, with no holes) a shortest path can always be reordered into
+	// one run of each - so two passes give exactly the graph distance.
+	// This replaced a per-layer Dijkstra that pushed every wall cell in the
+	// window through a priority queue: same field, ~2.4 ms -> a fraction
+	// of that per chunk, and a flier's first path bakes dozens of chunks.
+	const float D1 = 1.0f;
+	const float D2 = 1.41421356f;
+	const float FAR = 1.0e9f;
+	const uint16_t MAX_DIST = (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE);
 	int reach = MAX_CLEARANCE_CELLS;
 	int W = CHUNK_DIM + 2 * reach;
-	std::vector<float> best(( size_t)W * W);
-	std::vector<int> best_gen((size_t)W * W, 0);
-	int gen = 0;
 	auto idx2 = [&](int x, int z) -> int { return (x + reach) * W + (z + reach); };
+	// The window clipped to the world: cells outside it are neither walls
+	// nor passed through, as in_bounds() had it.
+	int xlo = std::max(-reach, -base.x), xhi = std::min(CHUNK_DIM + reach, grid_size.x - base.x);
+	int zlo = std::max(-reach, -base.z), zhi = std::min(CHUNK_DIM + reach, grid_size.z - base.z);
+	std::vector<float> d((size_t)W * W, FAR);
+	const uint8_t *own_solid = neighbor_solid[1][1];
 
 	for (int y = 0; y < cy1; y++) {
-		int world_y = base.y + y;
-		gen++;
-
-		std::priority_queue<QEntry, std::vector<QEntry>, QCmp> pq;
+		// A solid cell is always 0 (is_valid_cell has no separate is_solid
+		// guard; dist==0 is what blocks it), written even when the layer
+		// has no air to propagate into.
 		bool any_air = false;
-
-		for (int x = -reach; x < CHUNK_DIM + reach; x++) {
-			for (int z = -reach; z < CHUNK_DIM + reach; z++) {
-				Vector3i wc(base.x + x, world_y, base.z + z);
-				if (!in_bounds(wc)) {
-					continue;
-				}
-				bool local = x >= 0 && x < cx1 && z >= 0 && z < cz1;
-				if (solid_fast(x, y, z)) {
-					if (!ramp_skin(x, y, z)) {
-						int li2 = idx2(x, z);
-						best[li2] = 0.0f;
-						best_gen[li2] = gen;
-						pq.push({ 0.0f, x, z });
-					}
-					// Written directly (not just left to the propagation
-					// pass below) so a solid cell is ALWAYS correctly 0,
-					// even in the any_air==false fast-out right after this
-					// loop -- is_valid_cell has no separate is_solid guard
-					// before consulting this field (a solid cell reaching
-					// dist==0 is what makes it "always blocked" at all),
-					// and a grounded search always tries the straight-down
-					// neighbor, so a cell one layer into a thick floor slab
-					// is genuinely reachable on every expansion, not a
-					// theoretical case.
-					if (local) {
-						chunk.dist[local_index(Vector3i(x, y, z))] = 0;
-					}
-				} else if (local) {
+		for (int x = 0; x < cx1; x++) {
+			for (int z = 0; z < cz1; z++) {
+				int li = local_index(Vector3i(x, y, z));
+				if (own_solid[li] != 0) {
+					chunk.dist[li] = 0;
+				} else {
 					any_air = true;
 				}
 			}
 		}
-
-		// No open cell inside this chunk at this Y (e.g. deep inside a
-		// thick floor slab, far from any edge) -- every local cell here is
-		// solid and already got dist=0 written directly above, so there's
-		// nothing left for the propagation pass to contribute within this
-		// chunk. A neighboring chunk that DOES have air at this Y picks up
-		// these same solid cells as sources independently, from its own
-		// is_solid() reads reaching across the boundary -- each chunk's
-		// dist field is computed self-containedly, so skipping propagation
-		// here doesn't leave a neighbor under-informed.
 		if (!any_air) {
 			continue;
 		}
 
-		while (!pq.empty()) {
-			QEntry top = pq.top();
-			pq.pop();
-			int li2 = idx2(top.x, top.z);
-			if (best_gen[li2] != gen || top.d > best[li2]) {
-				continue; // stale entry
+		// A ramp's skin is solid but not a wall (see ramp_skin above).
+		bool any_wall = false;
+		for (int x = xlo; x < xhi; x++) {
+			for (int z = zlo; z < zhi; z++) {
+				bool wall = solid_fast(x, y, z) && !ramp_skin(x, y, z);
+				d[idx2(x, z)] = wall ? 0.0f : FAR;
+				any_wall = any_wall || wall;
 			}
+		}
+		if (!any_wall) {
+			continue; // no wall in reach: the open cells keep MAX_DIST
+		}
 
-			if (top.x >= 0 && top.x < cx1 && top.z >= 0 && top.z < cz1) {
-				int li = local_index(Vector3i(top.x, y, top.z));
-				uint16_t clamped = (uint16_t)std::min((float)(MAX_CLEARANCE_CELLS * DIST_SCALE), top.d * DIST_SCALE);
+		for (int x = xlo; x < xhi; x++) {
+			for (int z = zlo; z < zhi; z++) {
+				int i = idx2(x, z);
+				float v = d[i];
+				if (v == 0.0f) {
+					continue;
+				}
+				if (x > xlo) {
+					int u = i - W;
+					v = std::min(v, d[u] + D1);
+					if (z > zlo) {
+						v = std::min(v, d[u - 1] + D2);
+					}
+					if (z < zhi - 1) {
+						v = std::min(v, d[u + 1] + D2);
+					}
+				}
+				if (z > zlo) {
+					v = std::min(v, d[i - 1] + D1);
+				}
+				d[i] = v;
+			}
+		}
+		for (int x = xhi - 1; x >= xlo; x--) {
+			for (int z = zhi - 1; z >= zlo; z--) {
+				int i = idx2(x, z);
+				float v = d[i];
+				if (v == 0.0f) {
+					continue;
+				}
+				if (x < xhi - 1) {
+					int u = i + W;
+					v = std::min(v, d[u] + D1);
+					if (z > zlo) {
+						v = std::min(v, d[u - 1] + D2);
+					}
+					if (z < zhi - 1) {
+						v = std::min(v, d[u + 1] + D2);
+					}
+				}
+				if (z < zhi - 1) {
+					v = std::min(v, d[i + 1] + D1);
+				}
+				d[i] = v;
+			}
+		}
+
+		for (int x = 0; x < cx1; x++) {
+			for (int z = 0; z < cz1; z++) {
+				int li = local_index(Vector3i(x, y, z));
+				uint16_t clamped = (uint16_t)std::min((float)MAX_DIST, d[idx2(x, z)] * DIST_SCALE);
 				if (clamped < chunk.dist[li]) {
 					chunk.dist[li] = clamped;
-				}
-			}
-			if (top.d >= (float)MAX_CLEARANCE_CELLS) {
-				continue;
-			}
-
-			for (int i = 0; i < 8; i++) {
-				int nx = top.x + OX[i], nz = top.z + OZ[i];
-				if (nx < -reach || nx >= CHUNK_DIM + reach || nz < -reach || nz >= CHUNK_DIM + reach) {
-					continue;
-				}
-				Vector3i nwc(base.x + nx, world_y, base.z + nz);
-				if (!in_bounds(nwc)) {
-					continue;
-				}
-				float nd = top.d + OD[i];
-				if (nd > (float)MAX_CLEARANCE_CELLS) {
-					continue;
-				}
-				int nli2 = idx2(nx, nz);
-				if (best_gen[nli2] != gen || nd < best[nli2]) {
-					best[nli2] = nd;
-					best_gen[nli2] = gen;
-					pq.push({ nd, nx, nz });
 				}
 			}
 		}
