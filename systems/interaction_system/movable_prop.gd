@@ -17,6 +17,9 @@ extends InteractableProp
 ## A drop doesn't teleport it: it flies there along arc_point(), the same
 ## curve PropDrag draws while it is held, so the line shows the path it
 ## will take.
+##
+## Where it was put down is saved: save_state() records its transform
+## (see AreaState), so a box moved and left stays moved.
 
 ## One-handed lift (B353): 2 x BL.
 const MAX_LIFT_BL: float = 2.0
@@ -53,6 +56,10 @@ signal landed
 ## again until it lands.
 var in_flight: bool = false
 
+## Where the flight in progress will set it down (global), so a save taken
+## mid-air records where it is going rather than a point in the air.
+var _landing: Transform3D
+
 
 ## Why mover can't pick this up, or "" when they can.
 func refusal_for(mover: Unit) -> String:
@@ -85,33 +92,67 @@ func in_reach(mover: Unit, point: Vector3) -> bool:
 	return _horizontal_distance(mover.global_position, point) <= reach_for(mover)
 
 
-## The transform this prop would have resting on point: same rotation,
-## its lowest collision point on point.
-func resting_transform(point: Vector3) -> Transform3D:
+## The transform this prop would have resting on point: its lowest
+## collision point on point, turned to basis (its own rotation if none).
+## Turns are about the vertical, so the lowest point stays the lowest.
+func resting_transform(point: Vector3, basis = null) -> Transform3D:
 	var t: Transform3D = global_transform
-	t.origin = point + Vector3(0, -_local_bottom() * global_basis.get_scale().y, 0)
+	if basis is Basis:
+		t.basis = basis
+	t.origin = point + Vector3(0, -_local_bottom() * t.basis.get_scale().y, 0)
 	return t
 
 
-## Puts it down at point and has the navigation grid re-bake.
-func place_at(point: Vector3) -> void:
-	global_transform = resting_transform(point)
+## Its rotation turned yaw radians about the vertical.
+func turned_basis(yaw: float) -> Basis:
+	return Basis(Vector3.UP, yaw) * global_basis
+
+
+## Puts it down at point (turned to basis, if given) and has the
+## navigation grid re-bake.
+func place_at(point: Vector3, basis = null) -> void:
+	global_transform = resting_transform(point, basis)
 	NavigationGrid.invalidate()
 
 
-## Sends it from where it is to rest on point along arc_point(), then
-## places it there (place_at, so the grid re-bakes on landing, not on
-## takeoff). Emits landed when it arrives.
-func fly_to(point: Vector3) -> void:
-	var from: Vector3 = global_position
-	var to: Vector3 = resting_transform(point).origin
+## Sends it from where it is to rest on point along arc_point(), turning
+## to basis on the way if given, then places it there (place_at, so the
+## grid re-bakes on landing, not on takeoff). Emits landed when it
+## arrives.
+func fly_to(point: Vector3, basis = null) -> void:
+	var start: Transform3D = global_transform
+	_landing = resting_transform(point, basis)
+	var from_turn: Quaternion = start.basis.get_rotation_quaternion()
+	var to_turn: Quaternion = _landing.basis.get_rotation_quaternion()
+	var scale: Vector3 = start.basis.get_scale()
 	in_flight = true
 	var tween: Tween = create_tween()
-	tween.tween_method(func(t: float) -> void: global_position = arc_point(from, to, t), 0.0, 1.0, flight_time(from, to))
+	tween.tween_method(func(t: float) -> void:
+		global_transform = Transform3D(
+			Basis(from_turn.slerp(to_turn, t)).scaled(scale),
+			arc_point(start.origin, _landing.origin, t)),
+		0.0, 1.0, flight_time(start.origin, _landing.origin))
 	tween.tween_callback(func() -> void:
 		in_flight = false
-		place_at(point)
+		place_at(point, _landing.basis)
 		landed.emit())
+
+
+## Its transform, local as authored, for AreaState. Mid-flight it is where
+## it will land.
+func save_state() -> Dictionary:
+	var t: Transform3D = transform
+	if in_flight:
+		var parent := get_parent() as Node3D
+		t = parent.global_transform.affine_inverse() * _landing if parent else _landing
+	return {"transform": t}
+
+
+## Runs before the world enters the tree (WorldManager reconciles it
+## first), so this sets the local transform the scene authored.
+func load_state(state: Dictionary) -> void:
+	if state.get("transform") is Transform3D:
+		transform = state["transform"]
 
 
 ## Where a flight from `from` to `to` is at t (0..1): a parabola over the

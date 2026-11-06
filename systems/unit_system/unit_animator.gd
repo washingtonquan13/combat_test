@@ -817,6 +817,17 @@ func play_cutscene_clip(anim_name: String) -> bool:
 	return _play(anim_name)
 
 
+## A one-shot clip with nothing behind it - moving a prop raises a hand.
+## Rests back on the base animation when it ends, as every one-shot does
+## (_on_animation_finished). Refused while a cutscene owns the body or an
+## ability's sequence is playing, which it would cut off. Returns whether
+## it played.
+func play_gesture(anim_name: String) -> bool:
+	if _cutscene_claimed or _active_sequence != null:
+		return false
+	return _play(anim_name, phase_blend_time)
+
+
 ## `blend` is the crossfade from the current clip; -1 is the player's own
 ## default (none, unless a body sets one).
 func _play(anim_name: String, blend: float = -1.0) -> bool:

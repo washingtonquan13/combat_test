@@ -315,6 +315,15 @@ func _process(_delta: float) -> void:
 func _input(event: InputEvent) -> void:
 	if event.is_action_released("fly_altitude_modifier"):
 		_held_ground = null
+	# A plain wheel notch goes to the intent first (a held prop turns on
+	# it). Here rather than in _unhandled_input: CRPGCamera zooms from its
+	# own _unhandled_input in this viewport, and which of the two runs
+	# first is tree order. _input runs before both, so a used notch never
+	# reaches the camera.
+	var up: bool = event.is_action_pressed("camera_zoom_in")
+	if (up or event.is_action_pressed("camera_zoom_out")) and not Input.is_action_pressed("fly_altitude_modifier"):
+		if intent().handle_wheel(self, 1.0 if up else -1.0):
+			get_viewport().set_input_as_handled()
 
 
 ## What the mouse is over right now, on the height plane if one is up.

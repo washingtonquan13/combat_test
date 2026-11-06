@@ -596,6 +596,7 @@ selected_color = Color(1, 0, 0, 0.627451)
 
 [node name="MovableBox" parent="." instance=ExtResource("23_box")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.3, 32)
+persistent_id = &"quarry_box"
 
 [node name="PartySpawnPoint" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 34)

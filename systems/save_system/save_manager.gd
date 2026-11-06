@@ -333,6 +333,9 @@ func save(save_name: String, slot: String = "") -> bool:
 	# every position would collapse onto a single entry. save_state() calls
 	# it again harmlessly; what matters is that it has happened by now.
 	PartyManager.capture()
+	# Also before anything is written: AreaState lives in FlagManager's
+	# section, so the worlds still loaded have to be recorded into it first.
+	WorldManager.record_area_states()
 
 	DirAccess.make_dir_recursive_absolute(SAVE_DIR)
 

@@ -15,6 +15,12 @@ extends Node3D
 ## the path a drop flies it along, in the indicator colours: white where
 ## it may go, red where not.
 ##
+## The wheel turns it (turn()): the ghost, the fit and the landing all
+## use the turned rotation, and the prop turns to it on the way.
+##
+## On a drop the mover raises a hand (GESTURE_CLIP, UAL's plain spell
+## cast) and turns to face where it goes.
+##
 ## Made and fed by ClickRouter, which owns the cursor; this never reads
 ## input or casts a mouse ray itself.
 
@@ -31,6 +37,14 @@ const OUTLINE_SCALE: float = 1.06
 
 const ARC_SEGMENTS: int = 24
 
+## One wheel notch turns the prop this far.
+const TURN_STEP: float = deg_to_rad(15.0)
+
+const GESTURE_CLIP: String = "Spell_Simple_Shoot"
+
+## How long the mover takes to turn toward the drop.
+const FACE_TIME: float = 0.25
+
 const OUTLINE_SHADER: Shader = preload("res://systems/unit_system/outline.gdshader")
 
 var prop: MovableProp
@@ -40,6 +54,9 @@ var collision_mask: int = 1
 ## Where a drop would land, or null while the cursor is on nothing.
 var point = null
 var valid: bool = false
+
+## How far the wheel has turned it from its own rotation, radians.
+var yaw: float = 0.0
 
 var _outline: ShaderMaterial
 var _ghost_material: StandardMaterial3D
@@ -92,7 +109,7 @@ func follow(ground) -> void:
 		visible = false
 		valid = false
 		return
-	global_transform = prop.resting_transform(point)
+	global_transform = prop.resting_transform(point, prop.turned_basis(yaw))
 	valid = mover != null and prop.in_reach(mover, point) and fits(point)
 	_outline.set_shader_parameter("outline_color", OK_COLOR if valid else BLOCKED_COLOR)
 	_ghost_material.albedo_color = Color(OK_COLOR if valid else BLOCKED_COLOR, 0.35)
@@ -121,7 +138,7 @@ func _local_middle() -> Vector3:
 ## Whether the prop's shapes, resting on at, overlap nothing but itself.
 func fits(at: Vector3) -> bool:
 	var space: PhysicsDirectSpaceState3D = prop.get_world_3d().direct_space_state
-	var resting: Transform3D = prop.resting_transform(at)
+	var resting: Transform3D = prop.resting_transform(at, prop.turned_basis(yaw))
 	resting.origin.y += FIT_LIFT
 	for cs in prop.shapes():
 		var query := PhysicsShapeQueryParameters3D.new()
@@ -134,10 +151,32 @@ func fits(at: Vector3) -> bool:
 	return true
 
 
-## Flies the prop to where the ghost is (MovableProp.fly_to). False, and
-## nothing moved, when it may not go there.
+## One wheel notch: +1 turns it counter-clockwise seen from above.
+## Re-checks the fit at once, since a long prop may not fit turned.
+func turn(steps: float) -> void:
+	yaw = wrapf(yaw + steps * TURN_STEP, -PI, PI)
+	follow(point)
+
+
+## Flies the prop to where the ghost is, turned as the ghost is
+## (MovableProp.fly_to), with the mover's gesture. False, and nothing
+## moved, when it may not go there.
 func drop() -> bool:
 	if not valid or point == null or not is_instance_valid(prop):
 		return false
-	prop.fly_to(point)
+	var at: Vector3 = point
+	prop.fly_to(at, prop.turned_basis(yaw))
+	_gesture_toward(at)
 	return true
+
+
+func _gesture_toward(at: Vector3) -> void:
+	if mover == null or not is_instance_valid(mover):
+		return
+	var animator: UnitAnimator = mover.animator()
+	if animator:
+		animator.play_gesture(GESTURE_CLIP)
+	var who: Unit = mover
+	mover.create_tween().tween_method(
+		func(_t: float) -> void: who.face_point(at, who.get_process_delta_time()),
+		0.0, 1.0, FACE_TIME)

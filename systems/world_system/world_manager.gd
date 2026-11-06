@@ -770,11 +770,13 @@ func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDe
 ## Uses the same walk as reconciliation, and the same duck-typed
 ## save_state()-on-the-node-or-a-child convention, so a component that
 ## already answers load_state() is captured too.
-func _capture_area_state(resident: ResidentWorld) -> void:
+func _capture_area_state(resident: ResidentWorld, skip_party: bool = false) -> void:
 	if resident == null or resident.area == null or not is_instance_valid(resident.world):
 		return
 
 	for node in _collect_persistent_nodes(resident.world):
+		if skip_party and node is Unit and PartyManager.is_member(node):
+			continue
 		var target: Node = node
 		if not target.has_method("save_state"):
 			for child in node.get_children():
@@ -783,6 +785,21 @@ func _capture_area_state(resident: ResidentWorld) -> void:
 					break
 		if target.has_method("save_state"):
 			AreaState.store_state(resident.area.id, node.persistent_id, target.save_state())
+
+
+## Records every resident world's persistent state in AreaState while it
+## stays loaded - what a save to disk needs. Teardown is otherwise the only
+## time a world is recorded, so a save taken while standing in an area
+## wrote that area as it was when last left: a box moved or an enemy
+## wounded here came back as authored on load.
+##
+## The party is left out: on teardown its members have already been taken
+## out of the world (_disembody), and they travel in PartyManager's own
+## records, not the area's.
+func record_area_states() -> void:
+	for resident in _residents.values():
+		if is_instance_valid(resident):
+			_capture_area_state(resident, true)
 
 
 ## Applies AreaState against a just-instantiated, not-yet-in-tree world —

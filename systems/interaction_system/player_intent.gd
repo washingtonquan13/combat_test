@@ -53,6 +53,12 @@ func handle_right_click(_router, _cursor: Cursor) -> bool:
 	return false
 
 
+## A plain wheel notch (no Ctrl), +1 up. True when it was used and the
+## camera must not also zoom on it.
+func handle_wheel(_router, _steps: float) -> bool:
+	return false
+
+
 ## Whether this intent takes a height right now: Ctrl + wheel steps a
 ## height plane, a Ctrl hold drags it, and the cursor meets the plane
 ## (see ClickRouter.resolve_cursor). While this says no there is no
