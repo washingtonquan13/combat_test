@@ -12,10 +12,10 @@ extends AiTestCase
 const FLOOR_CENTRE := Vector3(101.3, 3.7, -57.9)
 const FLOOR_SIZE := Vector3(120.0, 1.0, 120.0)
 const CHUNK_CELLS := 32
-## What the grid adds around the geometry (BOUNDS_MARGIN) and the flight
-## ceiling it always reaches (FLIGHT_CEILING_HEIGHT + margin).
+## What the grid adds around the geometry (BOUNDS_MARGIN), and the flight
+## headroom it adds over the tallest geometry (FLIGHT_MAX_ALTITUDE).
 const MARGIN := 2.0
-const CEILING := 14.0
+const HEADROOM := 12.0
 
 
 func run() -> void:
@@ -42,7 +42,7 @@ func run() -> void:
 		await get_tree().physics_frame
 
 	var path: PackedVector3Array = NavigationGrid.find_path(get_tree(), from, to, walker, false)
-	var origin_cell: Vector3i = NavigationGrid.world_to_cell(Vector3.ZERO)
+	var origin_cell: Vector3i = NavigationGrid.world_to_cell(Vector3.ZERO, walker)
 	var anchored: bool = origin_cell.x % CHUNK_CELLS == 0 \
 		and origin_cell.y % CHUNK_CELLS == 0 and origin_cell.z % CHUNK_CELLS == 0
 
@@ -50,7 +50,7 @@ func run() -> void:
 	var cell: float = NavigationGrid.CELL_SIZE
 	var lo_y: float = FLOOR_CENTRE.y - FLOOR_SIZE.y * 0.5 - MARGIN
 	var cells: float = ceilf((FLOOR_SIZE.x + 2.0 * MARGIN) / cell) \
-		* ceilf((maxf(top + MARGIN, CEILING) - lo_y) / cell) \
+		* ceilf((top + MARGIN + HEADROOM - lo_y) / cell) \
 		* ceilf((FLOOR_SIZE.z + 2.0 * MARGIN) / cell)
 	var bytes: int = NavigationGrid.debug_memory_bytes()
 
