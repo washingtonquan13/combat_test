@@ -17,7 +17,7 @@ script = ExtResource("9_proj")
 projectile_scene = ExtResource("10_scene")
 speed = 22.0
 arc_height = 0.35
-launch_from = 4
+launch_from = 6
 lands_on_chest = true
 metadata/_custom_type_script = "uid://bbwsb2teel8f1"
 

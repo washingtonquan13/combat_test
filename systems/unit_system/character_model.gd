@@ -151,7 +151,12 @@ extends Node3D
 ## MUZZLE is not declared on the body: it is the Muzzle marker on the held
 ## weapon's scene, where a shot leaves the gun, and the hand when nothing
 ## held has one.
-enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE }
+##
+## OFF_HAND is the other hand, the one a spell is cast from when the
+## pose throws that arm out (Spell_Simple_Shoot reaches with the left
+## while the right keeps the weapon). Appended last: abilities store the
+## enum as a number.
+enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE, OFF_HAND }
 
 @export_group("Anchors")
 ## Where a camera frames the face, and where floating UI belongs.
@@ -166,6 +171,9 @@ enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE }
 ## BoneAttachment3D so it follows the hand through the cast; read at the
 ## moment of release, it is wherever the animation has put the hand.
 @export var hand_anchor: Node3D
+## The other hand, likewise on a BoneAttachment3D. Null falls back to
+## the off-hand grip, which already rides that hand.
+@export var off_hand_anchor: Node3D
 ## Where a held weapon sits in each hand, on a BoneAttachment3D so it
 ## follows the hand. Oriented so a weapon scene's +Y leaves the thumb
 ## side of the fist and +Z faces the way the knuckles do (WeaponData.
@@ -296,6 +304,7 @@ func _declared(kind: Anchor) -> Node3D:
 		Anchor.GROUND: return ground_anchor
 		Anchor.HAND: return hand_anchor
 		Anchor.MUZZLE: return _held_muzzle()
+		Anchor.OFF_HAND: return off_hand_anchor if is_instance_valid(off_hand_anchor) else off_hand_grip
 	return null
 
 
@@ -394,6 +403,7 @@ func _fallback_ratio(kind: Anchor) -> float:
 		Anchor.GROUND: return 0.0
 		Anchor.HAND: return 0.55   # no hand declared: the chest
 		Anchor.MUZZLE: return 0.55
+		Anchor.OFF_HAND: return 0.55
 	return 0.0
 
 

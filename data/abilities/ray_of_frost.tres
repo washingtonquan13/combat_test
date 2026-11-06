@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=14 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=15 format=3]
 
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_abil"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="2_effb"]
@@ -11,10 +11,12 @@
 [ext_resource type="Script" path="res://systems/ability_system/beam_step.gd" id="9_proj"]
 [ext_resource type="PackedScene" path="res://scenes/vfx/ice/frost_ray.tscn" id="10_scene"]
 [ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://systems/ability_system/impact_signal_step.gd" id="11_imp"]
+[ext_resource type="Resource" path="res://data/animation_sequences/spell_cast_held.tres" id="12_cast"]
 
 [sub_resource type="Resource" id="Resource_proj"]
 script = ExtResource("9_proj")
 beam_scene = ExtResource("10_scene")
+launch_from = 6
 
 [sub_resource type="Resource" id="Resource_imp"]
 script = ExtResource("11_imp")
@@ -59,4 +61,5 @@ requires_to_hit = true
 uses_attack_action = true
 timing = SubResource("Resource_time")
 cast_vfx = SubResource("Resource_vfxe")
+cast_animation = ExtResource("12_cast")
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

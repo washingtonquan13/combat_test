@@ -79,6 +79,11 @@ extends VfxStep
 ## with, so rounding the flown path directly is safe here).
 @export var corner_round_radius: float = 2.0
 @export var corner_round_segments: int = 6
+## Where on the caster the projectile is SEEN to leave from. The route
+## (and its preview) still starts launch_height_offset above the feet;
+## the flight just begins at this point instead and joins the route
+## where it passes the hand. GROUND keeps the route's own start.
+@export var launch_from: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
 
 
 func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _caster: Unit = null) -> void:
@@ -86,6 +91,8 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 		return
 
 	var path: PackedVector3Array = route(_caster, from, unit_at(context.get_tree(), to), to)
+	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(_caster):
+		path = _from_hand(path, _caster.anchor(launch_from))
 
 	var total_length: float = _path_length(path)
 	var flight_time: float = duration if duration > 0.0 else total_length / max(speed, 0.01)
@@ -164,6 +171,20 @@ static func _geometry_clear(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vec
 			return false
 		exclude.append(hit.rid)
 	return true
+
+
+## The route, started at the hand: points no farther along than the
+## hand (closer to the route's start than it is) are dropped.
+static func _from_hand(path: PackedVector3Array, hand: Vector3) -> PackedVector3Array:
+	var start: Vector3 = path[0]
+	var flat := func(v: Vector3) -> Vector2: return Vector2(v.x, v.z)
+	var reach: float = flat.call(start).distance_to(flat.call(hand))
+	var out := PackedVector3Array([hand])
+	for i in range(1, path.size()):
+		if i < path.size() - 1 and flat.call(start).distance_to(flat.call(path[i])) <= reach:
+			continue
+		out.append(path[i])
+	return out
 
 
 func _path_length(path: PackedVector3Array) -> float:
