@@ -8,7 +8,11 @@ extends Node3D
 ## frost look is hoarfrost and mist, as on the Ice surface.
 ##
 ## The beam follows the hand while it holds, so it stays in the cast
-## pose's hand. Built in code like the other spell visuals (see VfxBits).
+## pose's hand. It starts a hand's breadth out from the fingers, where a
+## backblast goes off as it fires: a cold flash and a spray of frost and
+## mist thrown back past the hand, and a steady spit of frost there while
+## it holds - so it reads as cold blasting out of the hand, not a line
+## drawn from it. Built in code like the other spell visuals (see VfxBits).
 
 const BEAM_SHADER_CODE := """
 shader_type spatial;
@@ -54,6 +58,8 @@ static var _beam_shader: Shader
 @export var fade_time: float = 0.2
 @export var halo_color: Color = Color(0.35, 0.72, 1.0)
 @export var frost_color: Color = Color(0.82, 0.93, 1.0)
+## Metres between the hand and where the beam starts.
+@export var hand_gap: float = 0.3
 
 var _caster: Unit
 var _launch_from: CharacterModel.Anchor = CharacterModel.Anchor.HAND
@@ -65,8 +71,10 @@ var _strip := ImmediateMesh.new()
 var _material: ShaderMaterial
 var _hand: Node3D
 var _hand_glow: MeshInstance3D
+var _hand_core: MeshInstance3D
 var _motes: GPUParticles3D
 var _light: OmniLight3D
+var _spit: GPUParticles3D
 
 
 func _ready() -> void:
@@ -88,7 +96,20 @@ func _ready() -> void:
 	_hand = Node3D.new()
 	add_child(_hand)
 	_hand.top_level = true
-	_hand_glow = VfxBits.glow(_hand, halo_color, 0.45, 2.2, 2.0)
+	_hand_glow = VfxBits.glow(_hand, halo_color, 0.6, 2.6, 2.0)
+	_hand_core = VfxBits.glow(_hand, frost_color, 0.22, 3.5, 1.4)
+
+	# Frost spitting back out of the beam's root while it holds.
+	_spit = VfxBits.particles(_hand, Color.WHITE, 0.035, 3.0, 40, 0.35)
+	var spit := _spit.process_material as ParticleProcessMaterial
+	spit.spread = 35.0
+	spit.initial_velocity_min = 1.2
+	spit.initial_velocity_max = 2.6
+	spit.damping_min = 4.0
+	spit.damping_max = 4.0
+	spit.scale_curve = VfxBits.size_curve(1.0, 0.1)
+	spit.color_ramp = VfxBits.ramp(PackedColorArray([
+		Color(1.4, 1.5, 1.6, 1.0), Color(frost_color, 0.7), Color(halo_color, 0.0)]))
 
 	_motes = VfxBits.particles(self, Color.WHITE, 0.04, 3.0, 60, 0.6)
 	_motes.top_level = true
@@ -121,12 +142,16 @@ func fire(from: Vector3, to: Vector3, reach_time: float, caster: Unit, launch_fr
 	_caster = caster
 	_launch_from = launch_from
 	_motes.emitting = true
+	_spit.emitting = true
+	_backblast(_start(_from))
 	var tween := create_tween()
 	tween.tween_property(self, "_reach", 1.0, max(reach_time, 0.01))
 	tween.tween_callback(_hit)
 	tween.tween_interval(hold_time)
 	tween.tween_property(self, "_fade", 0.0, fade_time)
-	tween.tween_callback(func(): _motes.emitting = false)
+	tween.tween_callback(func():
+		_motes.emitting = false
+		_spit.emitting = false)
 	tween.tween_interval(0.7)
 	tween.tween_callback(queue_free)
 
@@ -142,12 +167,42 @@ func _hit() -> void:
 		0.7, 0.6, 8, 0.9, Vector2(0.3, 0.9), 0.3, 2.0)
 
 
+## Where the beam starts: hand_gap out from the hand toward the target.
+func _start(hand: Vector3) -> Vector3:
+	var along: Vector3 = _to - hand
+	return hand + along.normalized() * min(hand_gap, along.length() * 0.5)
+
+
+## The kick as it fires: a cold flash, frost sparks and a puff of mist
+## thrown back and out past the hand, opposite the beam.
+func _backblast(at: Vector3) -> void:
+	var back: Vector3 = (at - _to).normalized()
+	VfxBits.flash(at, frost_color, 1.4, 3.2, 0.3)
+	VfxBits.flash(at, halo_color, 0.8, 2.5, 0.18)
+	VfxBits.light_flash(at, halo_color, 3.0, 3.5, 0.35)
+	var sparks := VfxBits.burst(at, PackedColorArray([Color(1.5, 1.6, 1.7, 1.0), frost_color, Color(halo_color, 0.0)]),
+		0.045, 3.0, 40, 0.45, Vector2(2.5, 5.5), -1.0, 6.0)
+	_aim(sparks, back, 60.0)
+	var mist := VfxBits.burst(at, PackedColorArray([Color(frost_color, 0.0), Color(frost_color, 0.4), Color(halo_color, 0.0)]),
+		0.5, 0.7, 10, 0.7, Vector2(0.8, 2.0), 0.2, 3.0)
+	_aim(mist, back, 70.0)
+
+
+func _aim(emitter: GPUParticles3D, direction: Vector3, spread: float) -> void:
+	var process := emitter.process_material as ParticleProcessMaterial
+	process.direction = direction
+	process.spread = spread
+
+
 func _process(_delta: float) -> void:
 	if is_instance_valid(_caster) and _launch_from != CharacterModel.Anchor.GROUND:
-		_from = _caster.anchor(_launch_from)
+		_from = _start(_caster.anchor(_launch_from))
 	var tip: Vector3 = _from.lerp(_to, _reach)
 	_hand.global_position = _from
+	if _from.distance_squared_to(_to) > 0.0001:
+		(_spit.process_material as ParticleProcessMaterial).direction = (_from - _to).normalized()
 	_hand_glow.scale = Vector3.ONE * _fade
+	_hand_core.scale = Vector3.ONE * _fade
 	_material.set_shader_parameter(&"fade", _fade)
 	_material.set_shader_parameter(&"beam_length", max(_from.distance_to(tip), 0.01))
 	_place_motes(_from, tip)
