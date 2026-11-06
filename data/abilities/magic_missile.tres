@@ -39,12 +39,12 @@ metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
 [sub_resource type="Resource" id="Resource_dmg"]
 script = ExtResource("4_dmg")
 dice_count = 1
-dice_sides = 4
-dice_bonus = 1
+dice_sides = 6
 metadata/_custom_type_script = "uid://l0qndk2gae1o"
 
 [sub_resource type="Resource" id="Resource_targ"]
 script = ExtResource("3_targ")
+aims_at_ground = true
 max_range = 24.0
 requires_line_of_sight = false
 los_obstruction_mask = 1
@@ -61,6 +61,7 @@ metadata/_custom_type_script = "uid://bjatij1rn26yg"
 script = ExtResource("1_abil")
 ability_name = "Magic Missile"
 icon = ExtResource("3_4oqof")
+icon_color = Color(0.43, 0.63, 1, 1)
 category = 1
 targeting = SubResource("Resource_targ")
 effects = Array[ExtResource("2_effb")]([SubResource("Resource_dmg")])

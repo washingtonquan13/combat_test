@@ -1,0 +1,60 @@
+{
+  "library": "salamander.drums",
+  "instruments": {
+    "kit": {
+      "layers": [
+        {
+          "sfz": "salamander.drums/salamander-kit.sfz"
+        }
+      ],
+      "range": [
+        35,
+        57
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10
+      },
+      "drums": {
+        "kick_soft": 35,
+        "kick": 36,
+        "rim": 37,
+        "snare": 38,
+        "snare_edge": 39,
+        "tom_low": 41,
+        "hat": 42,
+        "hat_pedal": 44,
+        "tom_high": 45,
+        "hat_open": 46,
+        "crash": 49,
+        "ride": 51,
+        "china": 52,
+        "ride_bell": 53,
+        "splash": 55,
+        "cowbell": 56,
+        "crash2": 57
+      }
+    },
+    "kit2": {
+      "layers": [
+        {
+          "sfz": "salamander.drums/salamander-kit2.sfz"
+        }
+      ],
+      "range": [
+        35,
+        39
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10
+      },
+      "drums": {
+        "kick_soft": 35,
+        "kick": 36,
+        "snare": 38,
+        "snare_edge": 39
+      }
+    }
+  }
+}

@@ -117,18 +117,12 @@ const FP_CONSERVE_PENALTY: float = 3.0
 ## difference.
 const SCORE_EPSILON: float = 0.0001
 
-## _success_probability(target_number) memoized across calls within a
-## single turn's worth of scoring (many candidates share the same
-## attacker skill and often the same target) — 216 outcomes enumerated
-## is cheap regardless, but the cache costs nothing either.
-static var _success_cache: Dictionary = {}
-
 ## score_position() memoized WITHIN a single best_plan() pass only —
 ## many candidates share a destination (every attack against the same
 ## target resolves to the same standoff point), and each miss costs a
-## full sweep over every hostile's abilities. Unlike _success_cache,
-## which is keyed on a target number and stays valid forever, this is
-## keyed on world positions that change the moment anything moves, so
+## full sweep over every hostile's abilities. Unlike SuccessRoll's odds
+## cache, which is keyed on a target number and stays valid forever,
+## this is keyed on world positions that change the moment anything moves, so
 ## best_plan()/describe_candidates() clear it on entry rather than
 ## letting it persist across turns.
 static var _position_cache: Dictionary = {}
@@ -285,10 +279,10 @@ static func _enumerate_baseline_candidates(unit: Unit, tree: SceneTree) -> Array
 ## (threat_output below).
 static func _damaging_abilities(unit: Unit) -> Array[Ability]:
 	var abilities: Array[Ability] = []
-	for ability in unit.abilities:
+	for ability in unit.combat_abilities():
 		if not ability.targeting:
 			continue
-		if not (ability.targeting is MeleeEnemyTargeting or ability.targeting is RangedEnemyTargeting):
+		if not ability.targeting.targets_single_enemy():
 			continue
 
 		var total_damage: float = 0.0
@@ -314,7 +308,17 @@ static func _damaging_abilities(unit: Unit) -> Array[Ability]:
 ## credited for the attacks it will make BETTER from somewhere else, e.g.
 ## a flyer gaining AltitudeAdvantageBehavior's downward-fire bonus. Pass
 ## nothing for "from here."
+## A Downed unit threatens nothing — it can't act until picked up (see
+## latent_threat_output for what it WOULD threaten).
 static func threat_output(unit: Unit, position = null) -> float:
+	if unit.is_downed():
+		return 0.0
+	return latent_threat_output(unit, position)
+
+
+## threat_output regardless of being Downed: what this unit would do once
+## back on its feet. The stake in finishing a Downed unit off.
+static func latent_threat_output(unit: Unit, position = null) -> float:
 	var previous_position: Vector3 = unit.global_position
 	if position != null:
 		unit.global_position = position
@@ -324,7 +328,7 @@ static func threat_output(unit: Unit, position = null) -> float:
 	for ability in _damaging_abilities(unit):
 		var total_damage: float = 0.0
 		for effect in ability.effects:
-			total_damage += effect.expected_damage(unit)
+			total_damage += effect.expected_damage(unit, representative)
 		var chance: float = 1.0
 		if ability.requires_to_hit and representative:
 			chance = _chance_to_hit(unit, representative, ability)
@@ -352,11 +356,11 @@ static func _prepare_plan(unit: Unit, plan: AiPlan) -> bool:
 
 	if not plan.pure_reposition:
 		var ability: Ability = plan.ability
-		if ability.attack_action_spent_by(unit):
+		if ability.attack_action_spent_by(unit) or ability.out_of_ammo(unit):
 			return false
 		if unit.in_combat() and ability.move_cost > 0.0 and unit.move_remaining < ability.move_cost:
 			return false
-		if ability.fp_cost > 0.0 and unit.current_fp < ability.fp_cost:
+		if ability.fp_cost > 0.0 and unit.get_pool(StatIds.FP) < ability.fp_cost:
 			return false
 		if ability.targeting and ability.targeting.requires_ally_target() and plan.target is Unit and unit.is_hostile_to(plan.target):
 			return false
@@ -466,7 +470,7 @@ static func _apply_positional_value(unit: Unit, plan: AiPlan) -> void:
 ## hostile, since that is the same figure negated.
 static func _death_probability(unit: Unit, position: Vector3) -> float:
 	var threat: float = -score_position(unit, position)
-	return clampf(threat / max(float(unit.current_hp), 1.0), 0.0, 1.0)
+	return clampf(threat / max(float(unit.hp_to_death()), 1.0), 0.0, 1.0)
 
 
 ## Whether this plan actually lands an attack this turn, and so has
@@ -514,11 +518,8 @@ static func _plan_end_position(unit: Unit, plan: AiPlan) -> Vector3:
 				# Clamped exactly the way GrantFlightEffect.apply() clamps
 				# it, so scoring can't credit a takeoff with an altitude
 				# the ability won't actually deliver.
-				var target_y: float = clamp(
-					unit.global_position.y + effect.takeoff_height,
-					NavigationGrid.FLIGHT_MIN_ALTITUDE,
-					NavigationGrid.FLIGHT_CEILING_HEIGHT
-				)
+				var lift: Vector3 = unit.global_position + Vector3.UP * effect.takeoff_height
+				var target_y: float = UnitMovement.clamp_flight_altitude(lift.y, lift, unit)
 				return Vector3(unit.global_position.x, target_y, unit.global_position.z)
 			if effect is LandEffect:
 				return Vector3(unit.global_position.x, _ground_y_at(unit, unit.global_position), unit.global_position.z)
@@ -561,7 +562,7 @@ static func _resolve_reach(unit: Unit, plan: AiPlan) -> bool:
 
 
 static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool:
-	var budget: float = unit.move_remaining if unit.in_combat() else INF
+	var budget: float = unit.move_budget()
 
 	# ACT IF YOU CAN, MOVE ONLY IF YOU MUST. An IF_NEEDED destination is
 	# just "how I get in range" (see AiPlan.movement_intent), so once the
@@ -654,14 +655,71 @@ static func _would_be_in_range(position: Vector3, unit: Unit, target: Unit, abil
 ## score: the actual expected-damage/expected-heal arithmetic is common
 ## to every candidate regardless of where it came from, so it lives here
 ## once instead of being re-derived per behavior.
+##
+## An attack is priced once per place it could be aimed — the torso and
+## each aim toggle — and plan.aim keeps the best: -7 for the skull is
+## worth it against a target whose armor the torso can't get through.
+## Each aim is priced again at each Deceptive Attack level, against a
+## target that defends, until a level is worth less than the one before
+## it: past that point every extra -2 to skill only costs more.
 static func _score_plan(unit: Unit, plan: AiPlan) -> void:
+	var expected_heal: float = 0.0
+	for effect in plan.ability.effects:
+		expected_heal += effect.expected_heal(unit)
+
+	var aims: Array[Ability] = [null]
+	if plan.target is Unit and plan.ability.requires_to_hit:
+		aims.append_array(UnitCombat.AIM_TOGGLES)
+	var max_deceptive: int = 0
+	if plan.target is Unit and plan.ability.requires_to_hit and plan.target.can_dodge():
+		max_deceptive = UnitCombat.DECEPTIVE_ATTACK.max_level
+	var previous_aim: Ability = unit.aim()
+	var previous_deceptive: int = unit.deceptive_level()
+	var previous_saved_level: int = unit.toggle_level(UnitCombat.DECEPTIVE_ATTACK)
+	var reason: String = plan.reason
+	var best: Dictionary = {}
+	for aim in aims:
+		unit.set_aim(aim, false)
+		var location: HitLocation = unit.hit_location_for(plan.ability)
+		if aim and not location:
+			continue  # this attack can't go there; the torso already priced it
+		var last_value: float = -INF
+		for level in max_deceptive + 1:
+			unit.set_deceptive_level(level, false)
+			plan.reason = reason
+			var value: float = _action_value(unit, plan, expected_heal, location)
+			if value < last_value:
+				break
+			last_value = value
+			if best.is_empty() or value > best.value:
+				best = {"value": value, "aim": aim, "deceptive": level, "reason": plan.reason}
+	unit.set_aim(previous_aim, false)
+	unit.set_deceptive_level(previous_saved_level, false)
+	unit.set_deceptive_level(previous_deceptive, false)
+
+	plan.aim = best.aim
+	plan.deceptive_level = best.deceptive
+	plan.reason = best.reason
+	plan.score += best.value
+
+	# The ability-cost tie-breaker used to live here; it now runs in
+	# _prepare_plan so pure_reposition candidates are charged under the
+	# same rule instead of being silently exempt — see that method.
+
+	if unit.ai_smartness >= 3 and plan.ability.fp_cost > 0.0 and float(unit.get_pool(StatIds.FP)) - plan.ability.fp_cost < float(FP_RESERVE):
+		plan.score -= FP_CONSERVE_PENALTY
+
+
+## What plan is worth with unit aimed at location (null: the torso) —
+## the expected damage or healing it does, in HP. Fills in plan.reason
+## if nothing has.
+static func _action_value(unit: Unit, plan: AiPlan, expected_heal: float, location: HitLocation) -> float:
 	var tier: int = unit.ai_smartness
 
 	var expected_damage: float = 0.0
-	var expected_heal: float = 0.0
+	var target_unit: Unit = plan.target if plan.target is Unit else null
 	for effect in plan.ability.effects:
-		expected_damage += effect.expected_damage(unit)
-		expected_heal += effect.expected_heal(unit)
+		expected_damage += effect.expected_damage(unit, target_unit, location)
 
 	var value: float = 0.0
 
@@ -683,39 +741,55 @@ static func _score_plan(unit: Unit, plan: AiPlan) -> void:
 		unit.global_position = previous_position
 
 		var hit_value: float = expected_damage * chance
-		# Tier 0 never reaches here (see _feral_plan) — tier 1 already
-		# wants "expected damage," which means clamping overkill from the
-		# very first tier that reasons about damage at all, not something
-		# gated to a later tier.
-		value = minf(hit_value, float(plan.target.current_hp))
+		if tier >= 2 and plan.target.is_downed():
+			value = _downed_hit_value(plan.target, hit_value, chance)
+			if plan.reason == "":
+				plan.reason = "attack downed: %.1f" % value
+		else:
+			# Tier 0 never reaches here (see _feral_plan) — tier 1 already
+			# wants "expected damage," which means clamping overkill from the
+			# very first tier that reasons about damage at all, not something
+			# gated to a later tier.
+			value = minf(hit_value, float(plan.target.hp_to_death()))
 
-		if tier >= 2 and hit_value >= float(plan.target.current_hp):
-			# Denying the target its own future turns — priced in the
-			# same HP currency as everything else via threat_output,
-			# rather than a flat guess. A dangerous target is now worth
-			# more to kill than a harmless one, and a target already
-			# close to death collects this MORE OFTEN (less damage is
-			# needed to cross current_hp) — the same "prefer finishing a
-			# nearly-dead target" preference FINISH_WEIGHT used to
-			# approximate by multiplying the base value, now falling out
-			# for free instead of being double-counted.
-			value += threat_output(plan.target) * KILL_HORIZON_TURNS
-		if plan.reason == "":
-			plan.reason = "attack: %.1f dmg%s" % [value, " (kills)" if hit_value >= float(plan.target.current_hp) else ""]
+			if tier >= 2 and hit_value >= float(plan.target.hp_to_death()):
+				# Denying the target its own future turns — priced in the
+				# same HP currency as everything else via threat_output,
+				# rather than a flat guess. A dangerous target is now worth
+				# more to kill than a harmless one, and a target already
+				# close to death collects this MORE OFTEN (less damage is
+				# needed to cross current HP) — the same "prefer finishing a
+				# nearly-dead target" preference FINISH_WEIGHT used to
+				# approximate by multiplying the base value, now falling out
+				# for free instead of being double-counted.
+				value += threat_output(plan.target) * KILL_HORIZON_TURNS
+			if plan.reason == "":
+				plan.reason = "attack%s: %.1f dmg%s" % [" " + location.display_name.to_lower() if location else "", value, " (kills)" if hit_value >= float(plan.target.hp_to_death()) else ""]
 	elif expected_heal > 0.0 and plan.target is Unit:
-		var missing_hp: float = float(plan.target.maximum_hp - plan.target.current_hp)
+		var missing_hp: float = float(plan.target.get_stat(StatIds.HP) - plan.target.get_pool(StatIds.HP))
 		value = minf(expected_heal, missing_hp)
 		if plan.reason == "":
 			plan.reason = "heal: %.1f hp" % value
 
-	plan.score += value
+	return value
 
-	# The ability-cost tie-breaker used to live here; it now runs in
-	# _prepare_plan so pure_reposition candidates are charged under the
-	# same rule instead of being silently exempt — see that method.
 
-	if tier >= 3 and plan.ability.fp_cost > 0.0 and float(unit.current_fp) - plan.ability.fp_cost < float(FP_RESERVE):
-		plan.score -= FP_CONSERVE_PENALTY
+## A hit on a Downed unit, priced by what it does to the death track
+## rather than to HP: every hit marks death (DeathRollsBehavior) and the
+## third mark kills. The kill is worth what any kill is — the turns it
+## denies, here the target's latent threat once picked up — and a hit
+## that only marks earns that kill's share for the marks still needed,
+## so the last mark is worth the whole kill. A stable unit's tracks reset
+## before the mark, so it's back to needing all of them. Critical hits'
+## double marks aren't modeled, same spirit as this file's other
+## approximations.
+static func _downed_hit_value(target: Unit, hit_value: float, chance: float) -> float:
+	var kill_value: float = latent_threat_output(target) * KILL_HORIZON_TURNS
+	if hit_value >= float(target.hp_to_death()):
+		return kill_value
+	var marked: int = 0 if target.is_stable() else int(target.downed_tally().get("death", 0))
+	var needed: int = maxi(DeathRollsBehavior.TO_END - marked, 1)
+	return kill_value * chance / float(needed)
 
 
 ## Nothing scored as usable this turn — rather than end the turn having
@@ -772,14 +846,15 @@ static func incoming_threat(unit: Unit, position: Vector3) -> float:
 
 	var threat: float = 0.0
 	for hostile in UnitQuery.living_units_near(unit):
-		if not unit.is_hostile_to(hostile):
+		# A Downed hostile can't attack anyone.
+		if not unit.is_hostile_to(hostile) or hostile.is_downed():
 			continue
 
 		var best_hit_value: float = 0.0
 		for ability in _damaging_abilities(hostile):
 			var total_damage: float = 0.0
 			for effect in ability.effects:
-				total_damage += effect.expected_damage(hostile)
+				total_damage += effect.expected_damage(hostile, unit)
 
 			var reach: float = hostile.move_remaining + ability.targeting.approach_range()
 			var edge_distance: float = hostile.global_position.distance_to(position) - hostile.radius - unit.radius
@@ -821,7 +896,8 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 
 	var threat: float = 0.0
 	for hostile in UnitQuery.living_units_near(unit):
-		if not unit.is_hostile_to(hostile):
+		# A Downed hostile can't attack anyone.
+		if not unit.is_hostile_to(hostile) or hostile.is_downed():
 			continue
 
 		var best_hit_value: float = 0.0
@@ -831,7 +907,7 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 
 			var total_damage: float = 0.0
 			for effect in ability.effects:
-				total_damage += effect.expected_damage(hostile)
+				total_damage += effect.expected_damage(hostile, unit)
 
 			# Movement per turn, not move_remaining: this is a
 			# multi-turn question, and whatever the hostile has left
@@ -839,7 +915,7 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 			# next three. Floored at 1.0 so a move-0 hostile that's
 			# already in range still counts (it attacks from where it
 			# stands) instead of dividing by zero.
-			var move_per_turn: float = maxf(float(hostile.move), 1.0)
+			var move_per_turn: float = maxf(hostile.move_per_turn(), 1.0)
 			var approach: float = ability.targeting.approach_range()
 			var edge_distance: float = hostile.global_position.distance_to(position) - hostile.radius - unit.radius
 			var turns_to_reach: float = ceilf(maxf(0.0, edge_distance - approach) / move_per_turn)
@@ -876,16 +952,21 @@ static func sustained_incoming_threat(unit: Unit, position: Vector3) -> float:
 ## per candidate position is exactly the cost incoming_threat's header
 ## already declined to pay, and this only needs to rank candidates.
 ##
-## Known limitation, same class as this file's other documented ones: it
-## compares against the HOSTILE's current height, so it can't see terrain
-## the hostile could climb onto to close the vertical gap. In an arena
-## that never comes up; on a level with a tall platform beside a hovering
-## flyer, this will overrate that flyer's safety.
+## A grounded hostile also gets every height one ladder takes it to (see
+## Ladder.climbable_heights — the same ladders its move would consider),
+## so a platform beside a hovering flyer is not safe when there is a
+## ladder up to it. Still no path query: whether the hostile can walk to
+## that ladder is left to the route it actually takes.
 static func _can_ever_reach(hostile: Unit, position: Vector3, ability: Ability) -> bool:
 	if hostile.is_flying() or FlightAiUtil.find_flight_ability(hostile):
 		return true
 	var approach: float = ability.targeting.approach_range() if ability.targeting else 0.0
-	return position.y - hostile.global_position.y <= approach
+	if position.y - hostile.global_position.y <= approach:
+		return true
+	for height in Ladder.climbable_heights(hostile):
+		if position.y - height <= approach:
+			return true
+	return false
 
 
 ## How good it is for unit to be standing at position, in the same HP
@@ -939,7 +1020,7 @@ static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: V
 	if upkeep <= 0:
 		return 0.0
 
-	var remaining: float = float(unit.current_fp) - plan.ability.fp_cost
+	var remaining: float = float(unit.get_pool(StatIds.FP)) - plan.ability.fp_cost
 	var turns_aloft: float = remaining / float(upkeep)
 	if turns_aloft >= KILL_HORIZON_TURNS:
 		return 0.0
@@ -950,9 +1031,8 @@ static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: V
 	var cost: float = 0.0
 	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
 	if roll.dice_count > 0:
-		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
-		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
-			cost = maxf(0.0, cost - float(unit.damage_reduction))
+		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
+			unit, DamageResolver.WoundType.CRUSHING, 1.0, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	# And the safety it's buying is only rented. _apply_positional_value
 	# has already credited this takeoff with escaping everything that
@@ -999,7 +1079,7 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 	if upkeep <= 0:
 		return 0.0
 
-	var turns_aloft: float = float(unit.current_fp) / float(upkeep)
+	var turns_aloft: float = float(unit.get_pool(StatIds.FP)) / float(upkeep)
 	if turns_aloft >= KILL_HORIZON_TURNS:
 		return 0.0
 
@@ -1014,9 +1094,8 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 	var cost: float = 0.0
 	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
 	if roll.dice_count > 0:
-		cost = float(roll.dice_count) * 3.5 + float(roll.dice_bonus)
-		if UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr:
-			cost = maxf(0.0, cost - float(unit.damage_reduction))
+		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
+			unit, DamageResolver.WoundType.CRUSHING, 1.0, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	var grounded_fraction: float = 1.0 - turns_aloft / KILL_HORIZON_TURNS
 	cost += sustained_incoming_threat(unit, Vector3(position.x, ground_y, position.z)) * grounded_fraction
@@ -1055,59 +1134,19 @@ static func _ground_y_at(unit: Unit, position: Vector3) -> float:
 	return result.position.y
 
 
-## Attacker's real to-hit target number against target for ability —
-## same formula UnitCombat._roll_to_hit builds (own skill, outgoing
-## modifiers, defender's incoming modifiers, altitude advantage), just
-## converted to a probability instead of actually rolled. The to-hit term
-## this produces DOES shift with altitude (AltitudeAdvantageBehavior caps
-## at +4 — see altitude_advantage_behavior.gd), but that shift alone is
-## second-order: against an already-likely-to-hit ranged attacker, +4
-## buys only a few points of probability, nowhere near enough to justify
-## a takeoff's cost on its own. The decisive reason to fly is captured
-## separately, in incoming_threat() above — melee-only hostiles simply
-## can't reach a unit that isn't on the ground.
+## Chance that unit's ability lands on target — UnitCombat.hit_chance,
+## the to-hit roll and the defender's Dodge as exact odds, so the AI
+## prices an attack with the same numbers the roll and the player's
+## readout use. The to-hit term DOES shift with altitude
+## (AltitudeAdvantageBehavior caps at +4 — see
+## altitude_advantage_behavior.gd), but that shift alone is second-order:
+## against an already-likely-to-hit ranged attacker, +4 buys only a few
+## points of probability, nowhere near enough to justify a takeoff's cost
+## on its own. The decisive reason to fly is captured separately, in
+## incoming_threat() above — melee-only hostiles simply can't reach a
+## unit that isn't on the ground.
 static func _chance_to_hit(unit: Unit, target, ability: Ability) -> float:
-	var target_number: int = unit.attack_skill()
-	target_number += unit.outgoing_attack_to_hit_modifier(target, ability)
-	if target is Unit:
-		target_number += target.incoming_attack_to_hit_modifier(unit, ability)
-		target_number += UnitCombat.ALTITUDE_ADVANTAGE.modify_incoming_attack_to_hit(target, unit, ability)
-	return _success_probability(target_number)
-
-
-## Exact 3d6-roll-under success probability against target_number —
-## enumerates all 216 equally-likely outcomes rather than sampling, so
-## this scorer's own decisions are deterministic and independent of RNG
-## (a real roll still happens later, in UnitCombat.use_ability(), when
-## the chosen plan is actually executed). Mirrors SuccessRoll.roll_vs's
-## critical-success/critical-failure thresholds exactly — see that
-## file's own doc comment for what each threshold means; duplicated
-## here rather than refactored into one shared helper because
-## SuccessRoll rolls dice and returns the roll, and this needs the
-## opposite: a closed-form probability with no roll at all.
-static func _success_probability(target_number: int) -> float:
-	if _success_cache.has(target_number):
-		return _success_cache[target_number]
-
-	var success_count: int = 0
-	for d1 in range(1, 7):
-		for d2 in range(1, 7):
-			for d3 in range(1, 7):
-				var roll: int = d1 + d2 + d3
-				var critical_success: bool = roll == 3 or roll == 4 \
-					or (roll == 5 and target_number >= 15) \
-					or (roll == 6 and target_number >= 16)
-				var critical_failure: bool = not critical_success and (
-					roll == 18
-					or (roll == 17 and target_number <= 15)
-					or roll >= target_number + 10
-				)
-				if critical_success or (not critical_failure and roll <= target_number):
-					success_count += 1
-
-	var probability: float = float(success_count) / 216.0
-	_success_cache[target_number] = probability
-	return probability
+	return unit.hit_chance(target, ability)
 
 
 ## The point a unit trying to act on target with ability should move to:

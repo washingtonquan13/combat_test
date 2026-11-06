@@ -21,6 +21,10 @@ extends Resource
 
 @export var ability_name: String = "Basic Attack"
 @export var icon: Texture2D
+## The hue the hotbar paints the icon and its slot in (dock_slot.gd's
+## Face). The icon itself is white art on black and is recoloured, so one
+## set of glyphs reads as fire, holy, arcane and so on.
+@export var icon_color: Color = Color(0.78, 0.74, 0.66)
 
 ## Which hotbar section this ability's own slot belongs in — NOT whether
 ## it can also appear in a unit's Custom hotbar section (see
@@ -33,6 +37,34 @@ enum Category { COMMON, ABILITIES }
 
 @export var targeting: AbilityTargeting
 @export var effects: Array[AbilityEffect] = []
+## What the attack is made of, for combos with what's on the ground where
+## it lands (SurfaceManager.touch): Fire Breath is FIRE, Frost Breath
+## COLD. Kept apart from damage types for now; to be revisited with them.
+@export var element: Surface.Element = Surface.Element.NONE
+
+@export_group("Toggle")
+## A toggle is switched on and off from the hotbar instead of used: it
+## changes how the unit's other abilities work while it is on (see
+## UnitCombat's Toggles section). No targeting or effects of its own.
+@export var is_toggle: bool = false
+## Toggles sharing a group are mutually exclusive: switching one on
+## switches the rest off. Empty is a group of its own.
+@export var toggle_group: StringName = &""
+## Set on an aim toggle: attacks go here instead of the torso.
+@export var hit_location: HitLocation
+## Above 0, the toggle has levels 1..max_level: clicking it while on
+## steps to the next, wrapping round to 1, and switching it off keeps the
+## level for next time (UnitCombat.toggle_level).
+@export_range(0, 9) var max_level: int = 0
+## A toggle CAST, unlike is_toggle above: a real cast that is on for as
+## long as its caster has on_status (Fly: while flying). Using it while
+## on uses toggle_off instead, with toggle_off's own costs, effects and
+## animation (Fly's lands the caster). On or off is read off the status,
+## never stored, so expiry or exhaustion ending the status turns it off.
+@export var on_status: StatusEffect
+## What using this does while it is on — embedded in the same .tres, it
+## never has a hotbar slot of its own. See form_for().
+@export var toggle_off: Ability
 
 @export_group("Cost")
 ## Whether landing a hit requires a to-hit roll (Unit.roll_vs) before any
@@ -118,8 +150,14 @@ enum Category { COMMON, ABILITIES }
 @export var armed_hold_sfx: AudioStream
 @export var armed_enter_vfx: VfxEffect
 @export var armed_hold_vfx: PackedScene
+## Where on the body armed_hold_vfx rides. GROUND, the default, parents it
+## to the unit as it always was. Any other point (HAND for a flame held in
+## the palm) carries it there every frame, following the point but not the
+## bone's turn, so the scene is authored with +Y as up whatever the hand does.
+@export var armed_hold_vfx_at: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
 @export var armed_enter_animation: String = ""
 @export var armed_hold_animation: String = ""
+@export var armed_exit_animation: String = ""
 
 @export_group("Cast SFX")
 ## Optional composable sound (see SfxCue) played the instant this
@@ -138,6 +176,22 @@ enum Category { COMMON, ABILITIES }
 ## generic default sequence, same fallback shape as cast_vfx/cast_sfx
 ## above. Plays on the same ability_use_started moment as those two.
 @export var cast_animation: AnimationSequence
+## Off for an ability whose effect is its own body motion (Fly's takeoff,
+## Land's descent): no cast clip at all, not even the fallback, so the
+## motion's clips play from the moment of use.
+@export var plays_cast_animation: bool = true
+
+
+## Whether this toggle cast (on_status) is on for unit right now.
+func is_on_for(unit: Unit) -> bool:
+	return on_status != null and unit.has_status(on_status)
+
+
+## What using this ability does for unit right now: toggle_off while it
+## is on, itself otherwise. UnitCombat.use_ability() resolves through
+## this, so the player's hotbar and the AI land through the same path.
+func form_for(unit: Unit) -> Ability:
+	return toggle_off if toggle_off and is_on_for(unit) else self
 
 
 ## Whether target is a legal target for this ability from attacker's
@@ -149,6 +203,36 @@ func is_in_range(attacker: Unit, target) -> bool:
 	if not targeting:
 		return false
 	return targeting.is_valid_target(attacker, target)
+
+
+## Which preview overlays belong to THIS ability while it is being aimed
+## (see IndicatorBase.serves(), AimingIntent.indicator_ids()) — the
+## targeting shape's own ids, plus the ones that follow from what the
+## ability DOES rather than what it targets.
+##
+## Both effect-derived cases were previously guards inside the
+## indicators, keyed on the same facts from the other end:
+##
+## - a seeking ability replaces the straight aim line with a real
+##   NavigationGrid route preview, so it takes &"seeking" INSTEAD of
+##   &"line_of_sight" (line_of_sight_indicator hand-excluded these; that
+##   exclusion is the erase below). Keyed on VFX composition, not on
+##   targeting type, because "seeking" is a property of how a thing
+##   travels — nothing stops a future one from targeting differently;
+## - the flight arc belongs to a ground-point ability that actually MOVES
+##   its caster (Jump), or one that flies its target (Shove), which are
+##   facts about its effects list.
+func indicator_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	if targeting:
+		ids.append_array(targeting.indicator_ids())
+	if has_pathed_projectile():
+		ids.erase(&"line_of_sight")
+		if not ids.has(&"seeking"):
+			ids.append(&"seeking")
+	if (targeting is GroundPointTargeting and has_move_caster_effect()) or get_knockback_effect():
+		ids.append(&"flight")
+	return ids
 
 
 ## The PathedProjectileStep in cast_vfx.steps, if this ability has one
@@ -194,6 +278,13 @@ func has_move_caster_effect() -> bool:
 	return get_move_caster_effect() != null
 
 
+func get_knockback_effect() -> KnockbackEffect:
+	for effect in effects:
+		if effect is KnockbackEffect:
+			return effect
+	return null
+
+
 ## Whether unit has already spent its once-per-turn attack action on
 ## THIS ability's own economy — true only if uses_attack_action is set
 ## AND unit.has_attacked AND there's an actual turn for that to mean
@@ -208,3 +299,9 @@ func has_move_caster_effect() -> bool:
 ## context, not because it actually encoded the same rule.
 func attack_action_spent_by(unit: Unit) -> bool:
 	return unit.in_combat() and uses_attack_action and unit.has_attacked
+
+
+## Fires from a magazine with nothing left in it (WeaponData.shots).
+## Checked by the same three callers as attack_action_spent_by.
+func out_of_ammo(unit: Unit) -> bool:
+	return unit.shots_left(self) == 0

@@ -3,11 +3,11 @@
 // C++ port of navigation_grid.gd — see that file's own header (still
 // present in git history) for the original design rationale: one shared 3D
 // grid for ground+flight, static geometry baked once, dynamic occupancy
-// rebuilt per turn. This class is registered as an Engine singleton named
+// kept current by the grid itself (see ensure_occupancy_current). This class is registered as an Engine singleton named
 // "NavigationGrid" (see register_types.cpp) so every existing GDScript
 // call site (unit_movement.gd, movement_indicator.gd, combat_manager.gd,
 // knockback_effect.gd, ground_point_targeting.gd, unit.gd) keeps calling
-// NavigationGrid.find_path(...)/update_occupancy(...)/etc. completely
+// NavigationGrid.find_path(...)/nearest_valid_point(...)/etc. largely
 // unchanged — only the implementation moved from GDScript to native code.
 //
 // CHUNKED STORAGE (this revision): the world is no longer one dense flat
@@ -65,11 +65,75 @@ namespace godot {
 //     (see NavigationGrid::bake_chunk_dist for why one field suffices).
 // Occupancy lives here too but is independent of bake state entirely — a
 // chunk can hold occupancy before it's ever geometrically touched.
+// A walkable ramp found while rasterizing (ramp_of in the .cpp): the box's
+// space, which local axis is its face's normal, and how far the band of
+// ground under that face reaches, down and past the box's ends.
+struct RampInfo {
+	Transform3D inverse;
+	Vector3 half_size;
+	Vector3 axis_scale;
+	Vector3 extend;
+	int up_axis = -1;
+	float up_sign = 1.0f;
+	float skin_depth = 0.0f;
+};
+
+// A mesh collision shape (ConcavePolygonShape3D, ConvexPolygonShape3D,
+// HeightMapShape3D) as world-space triangles, built once per scan
+// (build_tri_shape in the .cpp) and rasterized from its triangles rather
+// than its bounding box.
+struct TriShape {
+	std::vector<Vector3> verts; // 3 per triangle, world space
+	std::vector<Vector3> normals; // 1 per triangle, unit, pointing out of the solid
+	// 1 per triangle: 1 = walkable (see tri_walkable) and at least one of
+	// its edges borders no other walkable triangle, so the ground band
+	// under it runs on past that edge (where the slope meets a platform).
+	std::vector<uint8_t> open_edge;
+	// 3 per triangle, edge k running from vertex k to k + 1: 1 = the edge
+	// borders no other walkable triangle.
+	std::vector<uint8_t> outer_edge;
+	AABB aabb;
+	bool any_walkable = false;
+	// chunk column (cx * chunk_grid_size.z + cz) -> triangles whose
+	// footprint, or ground band, reaches into it.
+	std::unordered_map<int, std::vector<int>> by_column;
+};
+
+// One chunk's connected regions for one movement mode (walking or flying).
+// A cell is open when SOME unit of that mode could stand in it: not solid,
+// supported (walking) or high enough (flying), under the flight ceiling
+// (flying). That is is_valid_cell with clearance, height and occupancy
+// taken away, so it holds for every cell any search could accept, and two
+// cells in different regions can never be joined by a search. Open cells
+// touching across any of the 26 neighbours share a region, the same
+// neighbours a_star steps through. See NavigationGrid::regions_may_connect.
+struct NavRegions {
+	bool labelled = false;
+	bool linked = false;
+	uint16_t count = 0;
+	std::vector<uint16_t> label; // CHUNK_DIM^3, 0 = closed, else 1..count
+	// [region - 1] -> region keys (see region_key) in neighbouring chunks
+	// that one of its cells touches.
+	std::vector<std::vector<uint64_t>> links;
+};
+
 struct NavChunk {
 	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
+	// CHUNK_DIM^3, parallel to solid: 1 = solid lying just under a walkable
+	// ramp's face (a tilted box no steeper than MAX_WALKABLE_SLOPE_DEGREES;
+	// see ramp_of). Such a cell is still solid, but it is ground under a
+	// unit's feet, not a wall in its way, so bake_chunk_dist does not
+	// measure clearance from it.
+	std::vector<uint8_t> ground;
 	std::vector<uint8_t> no_support; // CHUNK_DIM^3, 1 = nothing solid directly below
+	// CHUNK_DIM^3, 1 = solid within FLIGHT_MIN_ALTITUDE straight below: too
+	// low for a flier, which must stay that far above whatever is under it.
+	std::vector<uint8_t> flight_low;
 	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
-	std::unordered_map<int, Object *> occupied; // chunk-local index -> occupant
+	// chunk-local index -> every occupant whose volume covers it. Several,
+	// not one: occupancy discs overlap (two units side by side), and a
+	// query that ignores one of them must still see the other.
+	std::unordered_map<int, std::vector<Object *>> occupied;
 	bool has_occupancy = false; // true iff `occupied` is non-empty -- lets is_clear_of_units rule out a whole neighborhood cheaply
 
 	bool rasterized = false;
@@ -77,6 +141,7 @@ struct NavChunk {
 	bool dist_baked = false;
 	bool has_ground_passable = false;
 	bool has_flyable = false;
+	NavRegions regions[2]; // [0] walking, [1] flying
 };
 
 // One world's worth of grid state, parked here while some OTHER world is
@@ -88,6 +153,20 @@ struct NavChunk {
 // the whole chunk lifecycle) is untouched by multi-world support, which is
 // the entire point: code that doesn't change can't regress. Only the
 // public entry points swap the right world's state in first.
+// One occupant as occupancy last stamped it: everything that decides
+// which cells it covers. A list of these is the occupancy signature; a
+// query rebuilds occupancy only when the live list differs from it.
+struct OccupantKey {
+	uint64_t id = 0; // instance id, not the pointer: a freed node's address can be reused
+	Vector3i cell;
+	int clearance_key = 0;
+	bool flying = false;
+	bool operator==(const OccupantKey &o) const {
+		return id == o.id && cell == o.cell && clearance_key == o.clearance_key && flying == o.flying;
+	}
+	bool operator!=(const OccupantKey &o) const { return !(*this == o); }
+};
+
 struct ParkedWorld {
 	Vector3 bounds_origin;
 	Vector3i grid_size;
@@ -105,7 +184,12 @@ struct ParkedWorld {
 	int smooth_search_id = 0;
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
+	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tri_shapes;
 	std::vector<uint8_t> chunk_occupancy_nearby;
+	std::vector<int> occupied_chunks;
+	std::vector<OccupantKey> occupancy_signature;
+	bool occupancy_stamped = false;
+	uint64_t occupancy_version = 0;
 	// The node this world's geometry is scanned from. A World3D can't be
 	// walked back to a node, so the root has to be remembered when the
 	// world registers itself.
@@ -140,24 +224,39 @@ public:
 	// which is a real crash this project shipped (native segfault, no
 	// preceding GDScript error — see WorldManager's own note on this).
 	void invalidate();
-	void update_occupancy(SceneTree *tree, Array movers, Object *world_ref = nullptr);
-	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref = nullptr);
-	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying);
+	// `ignore`: occupants this one query walks through as well as its own
+	// unit — a group move's other movers, who are about to leave their
+	// cells. Per query, never stored: occupancy itself always holds every
+	// live unit and blocking corpse in the world.
+	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref = nullptr, Array ignore = Array());
+	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore = Array());
+	// Bumps whenever the world's occupancy actually changes (anyone moves
+	// a cell, dies, arrives, leaves). For callers caching a route: equal
+	// versions mean find_path would answer the same.
+	int64_t occupancy_version(SceneTree *tree, Object *world_ref);
 	Vector3i world_to_cell(Vector3 pos) const;
 
 	float get_cell_size() const;
 	float get_flight_min_altitude() const;
 	float get_flight_ceiling_height() const;
+	float flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref = nullptr);
+	float flight_lowest_altitude(SceneTree *tree, Object *world_ref = nullptr);
 
 protected:
 	static void _bind_methods();
 
 private:
 	static constexpr float CELL_SIZE = 0.25f;
+	// Height a flier keeps above the ground under it - relative, not a world
+	// Y, so a pit or a raised floor gets the same 1 m as y=0 ground.
 	static constexpr float FLIGHT_MIN_ALTITUDE = 1.0f;
 	static constexpr float FLIGHT_CEILING_HEIGHT = 12.0f;
 	static constexpr float BOUNDS_MARGIN = 2.0f;
 	static constexpr int MAX_EXPANSIONS = 30000;
+	// Steepest floor a grounded unit walks up: CharacterBody3D's default
+	// floor_max_angle, which units keep. A tilted box no steeper than this
+	// is ground; anything steeper, or any vertical face, is a wall.
+	static constexpr float MAX_WALKABLE_SLOPE_DEGREES = 45.5f;
 
 	static constexpr int CHUNK_DIM = 32; // 8m/side at 0.25m cells
 	static constexpr int MAX_CLEARANCE_CELLS = 16; // 4m horizontal reach cap for the distance field
@@ -252,6 +351,7 @@ private:
 	// instead of every shape in the level.
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
+	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tri_shapes;
 
 	std::vector<Vector3i> neighbor_offsets; // 26-connectivity, fine A*
 	std::vector<float> neighbor_step_cost; // parallel to neighbor_offsets — precomputed world-unit length of each offset, so a_star's hot loop doesn't call length() (sqrt) 26x per expansion for a fixed, known-in-advance set of vectors
@@ -260,19 +360,44 @@ private:
 
 	// Per-chunk cache: true iff ANY chunk in this chunk's own 3x3x3
 	// neighborhood has_occupancy — see refresh_chunk_occupancy_nearby.
-	// Rebuilt once whenever update_occupancy runs (a turn boundary), then
-	// read as a plain O(1) lookup by every is_clear_of_units call in
-	// between — replaces what used to be a fresh 27-chunk scan on EVERY
-	// candidate cell during pathfinding (i.e. up to 26x per A* expansion)
-	// with work proportional to chunk count, done once per occupancy
-	// update instead of once per candidate cell.
+	// Rebuilt whenever occupancy is, then read as a plain O(1) lookup by
+	// every is_clear_of_units call in between — replaces what used to be
+	// a fresh 27-chunk scan on EVERY candidate cell during pathfinding.
 	std::vector<uint8_t> chunk_occupancy_nearby;
 	void refresh_chunk_occupancy_nearby();
+	// Chunks holding any occupancy, so a rebuild clears and re-marks only
+	// those instead of walking every chunk in the world.
+	std::vector<int> occupied_chunks;
+
+	// --- Self-maintaining occupancy ----------------------------------
+	// Occupancy used to be a snapshot callers had to remember to retake
+	// (update_occupancy), which also baked "who is moving" into the
+	// snapshot. Every place that forgot, or retook it at the wrong time,
+	// was a route through a unit. Now every query first compares the live
+	// occupants against the signature occupancy was last built from and
+	// rebuilds only on a difference — so it is exactly as current as the
+	// scene at the moment of asking, with no frame or tick dependence.
+	std::vector<OccupantKey> occupancy_signature;
+	bool occupancy_stamped = false;
+	uint64_t occupancy_version_value = 0;
+	// Shared across worlds so a version never repeats after a world swap.
+	uint64_t occupancy_version_counter = 0;
+	void ensure_occupancy_current(SceneTree *tree);
+	void collect_occupants(SceneTree *tree, std::vector<OccupantKey> &keys, std::vector<Object *> &objects);
+	void reset_occupancy();
+	// The current query's ignore list (see find_path). Set at the top of
+	// each public query, read by is_clear_of_units.
+	std::vector<Object *> query_ignore;
+	void set_query_ignore(const Array &ignore);
 
 	void ensure_project_scanned(SceneTree *tree);
 	void collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out);
 	AABB shape_global_aabb(CollisionShape3D *cs);
 	AABB transform_aabb(const Transform3D &t, const AABB &aabb);
+	bool build_tri_shape(CollisionShape3D *cs, TriShape &out);
+	void index_tri_columns(TriShape &tri);
+	void rasterize_tri_shape(const TriShape &tri, const Vector3i &chunk_coord, NavChunk &chunk, std::vector<std::pair<const TriShape *, int>> &walkable);
+	void mark_tri_ground(const TriShape &tri, int id, const Vector3i &chunk_coord, NavChunk &chunk);
 
 	Vector3 cell_center(const Vector3i &cell) const;
 	int cell_index(const Vector3i &cell) const; // global bijection over grid_size — A* bookkeeping keys only
@@ -299,7 +424,7 @@ private:
 	const std::vector<Vector3i> &disc_offsets(float clearance);
 	const std::vector<Vector3i> &sphere_offsets(float clearance);
 
-	Object *occupant_at(const Vector3i &cell) const;
+	const std::vector<Object *> *occupants_at(const Vector3i &cell) const;
 	void set_occupant(const Vector3i &cell, Object *obj);
 
 	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const;
@@ -325,6 +450,23 @@ private:
 	// corridor-restricted fine search always falls back to an unrestricted
 	// one, so this can only affect speed).
 	std::vector<uint8_t> coarse_corridor(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
+
+	// --- Connectivity regions ----------------------------------------
+	// Whether a search from start_cell could ever reach goal_cell: false
+	// only when it provably can't (their regions are not connected), so
+	// find_path answers "no path" without exhausting a search for it. A
+	// search from both ends at once over the region graph, so a goal
+	// sealed off from the start (a pocket inside hollow terrain, a ledge
+	// with no way up) fails in the time it takes to walk ITS side, not
+	// the whole level. Labels need only the support tier and are built
+	// per chunk as the search reaches it; they go with the chunks when
+	// the world is rescanned.
+	static constexpr int MAX_REGION_EXPANSIONS = 20000;
+	bool regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
+	NavRegions &ensure_chunk_regions(const Vector3i &chunk_coord, bool flying);
+	NavRegions &ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying);
+	// (chunk index << 16) | label, or 0 for a closed cell.
+	uint64_t region_key(const Vector3i &cell, bool flying);
 
 	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask);
 	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);

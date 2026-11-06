@@ -26,22 +26,37 @@ extends AbilityTargeting
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
+	return check(attacker, target) == Reach.OK
+
+
+func check(attacker: Unit, target) -> Reach:
 	if not target is Vector3:
-		return false
+		return Reach.INVALID
 
 	var destination: Vector3 = target
 
 	if attacker.global_position.distance_to(destination) > max_range:
-		return false
+		return Reach.OUT_OF_RANGE
 
 	if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, destination, los_obstruction_mask, eye_height):
-		return false
+		return Reach.BLOCKED
 
-	return true
+	return Reach.OK
+
+
+## Everyone whose edge is within radius of the point.
+func units_caught(attacker: Unit, target, affects_hostiles: bool, affects_allies: bool) -> Array[Unit]:
+	if not target is Vector3:
+		return []
+	return UnitQuery.area_affected(attacker.get_tree(), attacker, target, radius, affects_hostiles, affects_allies)
 
 
 func expects_point_target() -> bool:
 	return true
+
+
+func indicator_ids() -> Array[StringName]:
+	return [&"area"]
 
 
 func describe() -> String:

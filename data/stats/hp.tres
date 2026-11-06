@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"HP"
+display_name = "Hit Points"
+abbreviation = "HP"
+description = "How much injury this unit can take. Below 0 it is in danger of going down."
+order = 40
+kind = 1
+formula = "ST"
+default_value = 0
+is_pool = true

@@ -1,0 +1,49 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" path="res://assets/test_item_icons/test_crossbow.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
+[ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/crossbow.tscn" id="w_model"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_crossbow.tres" id="seq_crossbow"]
+[ext_resource type="Resource" path="res://data/vfx/bolt_flight.tres" id="vfx_bolt_flight"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_crossbow.tres" id="seq_reload"]
+
+[sub_resource type="Resource" id="Resource_shoot"]
+script = ExtResource("4_row")
+label = "Shoot"
+animation = ExtResource("seq_crossbow")
+cast_vfx = ExtResource("vfx_bolt_flight")
+kind = 1
+damage_base = 2
+wound_type = 2
+min_st = 7
+acc = 4
+half_damage_range = 20.0
+max_range = 40.0
+fixed_dice_count = 1
+fixed_dice_sides = 6
+fixed_dice_bonus = 3
+
+[sub_resource type="Resource" id="Resource_weapon"]
+script = ExtResource("3_weapon")
+attacks = Array[ExtResource("4_row")]([SubResource("Resource_shoot")])
+two_handed = true
+shots = 1
+model_scene = ExtResource("w_model")
+stance_animation = "Weapon/Stance_Crossbow"
+reload_animation = ExtResource("seq_reload")
+
+[resource]
+script = ExtResource("1_gear")
+slot_type = 13
+weight = 6.0
+stat_modifiers = Array[ExtResource("3_s3sab")]([])
+weapon_data = SubResource("Resource_weapon")
+id = &"crossbow"
+item_name = "Crossbow"
+icon = ExtResource("2_icon")
+width = 2
+height = 3
+maximum_stack_count = 1

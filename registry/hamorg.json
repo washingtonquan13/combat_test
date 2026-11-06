@@ -1,0 +1,89 @@
+{
+  "library": "hamorg",
+  "description": "HamOrg, a sampled tonewheel organ. Its drawbars, percussion and rotary are CCs; the ensembles that use it choose where they rest.",
+  "instruments": {
+    "lead-still": {
+      "layers": [
+        {
+          "sfz": "hamorg/SFZ/hamorg-lead-still.sfz"
+        }
+      ],
+      "range": [
+        36,
+        98
+      ],
+      "bend_range": 1200,
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "dynamics": 1,
+        "attack": 15,
+        "release": 16,
+        "percussion": 18,
+        "vibrato_chorus": 19,
+        "vibrato_depth": 20,
+        "drawbar1": 21,
+        "drawbar2": 22,
+        "drawbar3": 23,
+        "drawbar4": 24,
+        "drawbar5": 25,
+        "drawbar6": 26,
+        "drawbar7": 27,
+        "drawbar8": 28,
+        "drawbar9": 29
+      },
+      "keyswitches": {
+        "perc_off": 100,
+        "perc_2nd_slow": 101,
+        "perc_2nd_fast": 102,
+        "perc_3rd_slow": 103,
+        "perc_3rd_fast": 104,
+        "perc_5th_slow": 105,
+        "perc_5th_fast": 106
+      },
+      "keyswitch_default": "perc_off"
+    },
+    "lead": {
+      "layers": [
+        {
+          "sfz": "hamorg/SFZ/hamorg-lead.sfz"
+        }
+      ],
+      "range": [
+        36,
+        98
+      ],
+      "bend_range": 1200,
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "dynamics": 1,
+        "attack": 15,
+        "release": 16,
+        "percussion": 18,
+        "vibrato_chorus": 19,
+        "vibrato_depth": 20,
+        "drawbar1": 21,
+        "drawbar2": 22,
+        "drawbar3": 23,
+        "drawbar4": 24,
+        "drawbar5": 25,
+        "drawbar6": 26,
+        "drawbar7": 27,
+        "drawbar8": 28,
+        "drawbar9": 29,
+        "rotary": 30
+      },
+      "keyswitches": {
+        "perc_off": 100,
+        "perc_2nd_slow": 101,
+        "perc_2nd_fast": 102,
+        "perc_3rd_slow": 103,
+        "perc_3rd_fast": 104,
+        "perc_5th_slow": 105,
+        "perc_5th_fast": 106
+      },
+      "keyswitch_default": "perc_off"
+    }
+  }
+}

@@ -1,0 +1,65 @@
+[gd_scene load_steps=5 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_Flash"]
+shading_mode = 0
+albedo_color = Color(1, 0.8, 0.35, 1)
+emission_enabled = true
+emission = Color(1, 0.7, 0.25, 1)
+emission_energy_multiplier = 6.0
+
+[sub_resource type="SphereMesh" id="Mesh_Flash"]
+material = SubResource("Mat_Flash")
+radius = 0.07
+height = 0.14
+radial_segments = 8
+rings = 4
+
+[sub_resource type="Animation" id="Animation_flash"]
+resource_name = "flash"
+length = 0.08
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath("Flash:scale")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.08),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [Vector3(1.3, 1.3, 1.3), Vector3(0.1, 0.1, 0.1)]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Light:light_energy")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.08),
+"transitions": PackedFloat32Array(1, 1),
+"update": 0,
+"values": [3.0, 0.0]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_flash"]
+_data = {
+&"flash": SubResource("Animation_flash")
+}
+
+[node name="MuzzleFlash" type="Node3D"]
+
+[node name="Flash" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+mesh = SubResource("Mesh_Flash")
+
+[node name="Light" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.75, 0.4, 1)
+light_energy = 3.0
+omni_range = 3.0
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+libraries = {
+&"": SubResource("AnimationLibrary_flash")
+}
+autoplay = "flash"

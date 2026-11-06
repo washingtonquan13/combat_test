@@ -7,6 +7,7 @@ extends AiTestCase
 func run() -> void:
 	_threat_output()
 	_kill_value()
+	_downed_targets()
 	_sustained_threat()
 	_tie_breaking()
 	_positional_value()
@@ -36,9 +37,12 @@ func _threat_output() -> void:
 
 
 func _kill_value() -> void:
-	var attacker: Unit = spawn_unit(&"enemy", 12, 12, 10, [melee()], Vector3.ZERO)
-	var dangerous: Unit = spawn_unit(&"player", 16, 10, 1, [melee()], Vector3(1.0, 0.0, 0.0))
-	var harmless: Unit = spawn_unit(&"player", 8, 10, 1, [], Vector3(1.0, 0.0, 1.0))
+	# Targets on the enemy side: the party goes Downed below 0 instead of
+	# dying, so a 1-HP party member is not a kill. ST 16 so the expected
+	# hit, after the target's active defense, still clears 1 HP.
+	var attacker: Unit = spawn_unit(&"player", 16, 12, 10, [melee()], Vector3.ZERO)
+	var dangerous: Unit = spawn_unit(&"enemy", 16, 10, 1, [melee()], Vector3(1.0, 0.0, 0.0))
+	var harmless: Unit = spawn_unit(&"enemy", 8, 10, 1, [], Vector3(1.0, 0.0, 1.0))
 
 	var against_dangerous := AiPlan.new(melee(), dangerous)
 	AiScorer._score_plan(attacker, against_dangerous)
@@ -49,6 +53,42 @@ func _kill_value() -> void:
 		"%.3f vs %.3f" % [against_dangerous.score, against_harmless.score])
 	free_spawned()
 
+
+
+## A Downed unit threatens nothing, is still worth finishing, and is
+## worth more the closer it is to its third mark.
+func _downed_targets() -> void:
+	var attacker: Unit = spawn_unit(&"enemy", 12, 12, 10, [melee()], Vector3.ZERO)
+	var downed: Unit = spawn_unit(&"player", 12, 12, 10, [melee()], Vector3(1.0, 0.0, 0.0))
+	downed.set_pool(StatIds.HP, -3)
+	downed.apply_status(UnitCombat.downed_status())
+
+	check_equalf("a Downed unit has no threat output", AiScorer.threat_output(downed), 0.0)
+	check("but a latent one", AiScorer.latent_threat_output(downed) > 0.0)
+	check_equalf("a Downed hostile adds no incoming threat",
+		AiScorer.incoming_threat(attacker, Vector3.ZERO), 0.0)
+	check("only Downed left: it's still the nearest hostile",
+		UnitQuery.nearest_hostile(attacker.get_tree(), attacker) == downed)
+
+	var first_mark := AiPlan.new(melee(), downed)
+	AiScorer._score_plan(attacker, first_mark)
+	downed.downed_tally()["death"] = 2
+	var last_mark := AiPlan.new(melee(), downed)
+	AiScorer._score_plan(attacker, last_mark)
+	check("the last mark is worth more than the first",
+		last_mark.score > first_mark.score and first_mark.score > 0.0,
+		"%.3f vs %.3f" % [last_mark.score, first_mark.score])
+
+	var standing: Unit = spawn_unit(&"player", 12, 12, 10, [melee()], Vector3(4.0, 0.0, 0.0))
+	check("a standing hostile comes before a nearer Downed one",
+		UnitQuery.nearest_hostile(attacker.get_tree(), attacker) == standing)
+
+	var finish := load("res://data/ai_behaviors/finish_downed.tres") as FinishDownedBehavior
+	var brute: AiArchetype = load("res://data/ai_archetypes/brute.tres")
+	check("archetypes carry the personality bias", finish != null and brute.behaviors.has(finish))
+	check("a Scary demon leans toward finishing, a Kind one doesn't",
+		finish.bias_by_personality.get(&"Scary", 0.0) > 0.0 and finish.bias_by_personality.get(&"Kind", 0.0) == 0.0)
+	free_spawned()
 
 ## The term that makes altitude categorically different from distance:
 ## running is a delay, being unreachable is permanent.

@@ -1,92 +1,101 @@
 class_name KnockbackEffect
 extends AbilityEffect
-## Pushes the TARGET directly away from the caster along the straight
-## line between them, by a fixed distance — same direct global_position
-## Tween approach MoveCasterEffect uses for Jump (see that file), just
-## applied to target instead of attacker, with no arc: a shove is a pure
-## horizontal displacement, it never changes the target's altitude — a
-## flying target stays exactly as airborne as it was (deliberate design
-## choice: shove isn't a fall/knockdown, that's IncapacitateBehavior's
-## job — see Unit.ground_if_flying()).
+## Shove: sends the TARGET flying directly away from the caster, the way
+## Jump flies the jumper (ArcFlight: same curve, same bypass of
+## move_and_slide() and path-finding). How far is the caster's ST through
+## the jump formula (ArcFlight.strength_distance), a placeholder until
+## Shove gets its own ST-vs-weight rule. distance_from_strength off falls
+## back to the fixed distance.
 ##
-## Deliberately bypasses move_and_slide() and PathAvoidance the same way
-## Jump does — a shove isn't a walk order, it shouldn't path around
-## obstacles or ask permission. The one thing it DOES respect is the
-## grid itself for a GROUNDED target: the destination is snapped onto a
-## valid supported cell (see NavigationGrid.nearest_valid_point) so a
-## knockback can't shove a unit through a wall, off into the void, or
-## into another unit. A FLYING target skips that snap entirely — see
-## apply()'s own comment for why.
-## Does NOT check for another unit already standing at the landing spot
-## (no pileup/collision resolution) — an intentional simplification, not
-## an oversight; revisit if stacking knockbacks into a wall of allies
-## becomes a real tactic worth modeling.
+## Where it lands: for a GROUNDED target the spot is snapped onto a valid
+## supported cell (NavigationGrid.nearest_valid_point), so it can't land
+## inside a wall, in the void or inside another unit; with nowhere valid
+## nearby it stays put. A FLYING target keeps its altitude and isn't
+## snapped. A wall on the way (ArcFlight.clear_fraction) stops it short
+## against the wall, where it drops; landing far below where it was hurts
+## (ArcFlight.take_fall).
 ##
-## Doesn't touch anyone's move_remaining — being shoved isn't the
-## target's own movement choice, so it costs neither the caster's nor
-## the target's turn budget. Still triggers ordinary physics overlap
-## (Area3D.body_entered/exited) same as any other movement, since that's
-## driven by the physics engine noticing the collision shape moved, not
-## by HOW it moved — knocking someone into Grease works correctly for
-## free, no special-casing needed here.
+## Doesn't touch anyone's move_remaining: being shoved isn't the target's
+## own movement. Area3D overlaps (Grease and the like) still fire, since
+## the physics engine sees the shape move whatever moved it.
 
+@export var distance_from_strength: bool = true
+## See ArcFlight.StrengthRule.
+@export var strength_rule: ArcFlight.StrengthRule = ArcFlight.StrengthRule.ROUNDED
+## Used when distance_from_strength is off.
 @export var distance: float = 3.0
-@export var push_duration: float = 0.25
+## The flight itself is Jump's: its peak (jump.tres flight_arc_height
+## 1.5 m) and its time (ArcFlight.duration, by distance), so a shoved
+## body flies like a jumper does.
+@export var arc_height: float = 1.5
+
+
+func push_distance(attacker: Unit) -> float:
+	if not distance_from_strength:
+		return distance
+	return ArcFlight.strength_distance(attacker.get_stat_unhalved(StatIds.ST), strength_rule)
 
 
 func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
+	var destination = landing_point(attacker, target)
+	if destination == null:
+		return {}
+	var actual_distance: float = target.global_position.distance_to(destination)
+	if actual_distance > 0.001:
+		ArcFlight.fly(target, destination, arc_height)
+	return {"knockback_distance": actual_distance}
 
+
+## Where target would land shoved by attacker, or null when they stand on
+## the same spot (no direction to push). A wall on the way stops it short
+## (_stop_short).
+func landing_point(attacker: Unit, target: Unit):
 	var from: Vector3 = attacker.global_position
 	var to: Vector3 = target.global_position
 	var offset: Vector3 = to - from
 	offset.y = 0.0
 	if offset.length() < 0.001:
-		return {}
-
+		return null
 	var direction: Vector3 = offset.normalized()
-	var raw_destination: Vector3 = to + direction * distance
+	var landing: Vector3 = _land(target, to + direction * push_distance(attacker))
+	var clear: float = ArcFlight.clear_fraction(target, to, landing, arc_height)
+	if clear >= 1.0:
+		return landing
+	return _stop_short(target, direction, (landing - to).length() * clear)
 
-	var destination: Vector3
+
+## Where target ends up shoved toward a wall `reach` metres away along
+## direction: back off it by its radius and land below there (it may
+## drop). Stays put when even that path is blocked.
+func _stop_short(target: Unit, direction: Vector3, reach: float) -> Vector3:
+	var to: Vector3 = target.global_position
+	var short: float = reach - target.radius
+	if short <= 0.05:
+		return to
+	var landing: Vector3 = _land(target, to + direction * short)
+	if ArcFlight.clear_fraction(target, to, landing, arc_height) < 1.0:
+		return to
+	return landing
+
+
+## A flying target stays at its height; a grounded one comes down on the
+## nearest valid cell (NavigationGrid), or stays put with none. The snap
+## starts from the ground under point, not point itself: its search only
+## reaches a few metres, so off a high ledge it would find nothing.
+func _land(target: Unit, point: Vector3) -> Vector3:
+	var to: Vector3 = target.global_position
 	if target.is_flying():
-		# No grid snap here, deliberately — a shove is a pure horizontal
-		# displacement (see this file's header); it doesn't check for
-		# real obstacles at the target's altitude at all (shove is
-		# melee-range, so attacker and target are already close in
-		# altitude, and nothing has asked for shove-respects-air-
-		# obstacles specifically). Y is explicitly held at the target's
-		# current altitude regardless of what raw_destination's Y ended
-		# up being (it already matches, since offset.y was zeroed above
-		# — this just makes that invariant explicit rather than implicit).
-		destination = raw_destination
-		destination.y = to.y
-	else:
-		var clearance: float = target.radius + target.avoidance_margin
-		var snap: Dictionary = NavigationGrid.nearest_valid_point(target.get_tree(), raw_destination, clearance, false, target)
-		# Nothing valid found nearby (e.g. shoved toward a solid wall
-		# with no clear cell within range) — left exactly where it is
-		# rather than guessing a fallback, same "no guessing" philosophy
-		# as Unit.land()'s own "nowhere to land" case.
-		destination = snap.point if snap.found else to
-
-	var actual_distance: float = to.distance_to(destination)
-
-	_animate_push(target, destination)
-
-	return {"knockback_distance": actual_distance}
-
-
-func _animate_push(target: Unit, destination: Vector3) -> void:
-	var start: Vector3 = target.global_position
-	target.begin_busy()
-	var tween: Tween = target.create_tween()
-	tween.tween_method(
-		func(t: float): target.global_position = start.lerp(destination, t),
-		0.0, 1.0, push_duration
-	)
-	tween.finished.connect(target.end_busy)
+		return Vector3(point.x, to.y, point.z)
+	var tree: SceneTree = target.get_tree()
+	point.y = NavigationGrid.flight_floor_at(tree, point, target) - NavigationGrid.FLIGHT_MIN_ALTITUDE
+	var clearance: float = target.radius + target.avoidance_margin
+	var snap: Dictionary = NavigationGrid.nearest_valid_point(tree, point, clearance, false, target)
+	return snap.point if snap.found else to
 
 
 func describe() -> String:
+	if distance_from_strength:
+		return "Knockback by ST"
 	return "Knockback %.1fm" % distance

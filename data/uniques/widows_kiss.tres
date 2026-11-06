@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="UniqueItem" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/inventory_system/unique_item.gd" id="1_unique"]
+[ext_resource type="Script" path="res://systems/inventory_system/item_modifier.gd" id="2_mod"]
+[ext_resource type="Script" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_stat"]
+[ext_resource type="Resource" path="res://data/items/iron_sword.tres" id="4_base"]
+
+[sub_resource type="Resource" id="Resource_edge"]
+script = ExtResource("2_mod")
+label = "+2 damage, +1 to hit"
+damage_bonus = 2
+to_hit_bonus = 1
+
+[sub_resource type="Resource" id="Resource_dx"]
+script = ExtResource("3_stat")
+stat_name = &"DX"
+amount = 1
+
+[sub_resource type="Resource" id="Resource_grace"]
+script = ExtResource("2_mod")
+label = "+1 DX"
+stat_modifiers = Array[ExtResource("3_stat")]([SubResource("Resource_dx")])
+
+[resource]
+script = ExtResource("1_unique")
+id = &"widows_kiss"
+unique_name = "Widow's Kiss"
+base = ExtResource("4_base")
+level = 1
+modifiers = Array[ExtResource("2_mod")]([SubResource("Resource_edge"), SubResource("Resource_grace")])

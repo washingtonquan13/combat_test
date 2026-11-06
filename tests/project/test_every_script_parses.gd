@@ -46,6 +46,10 @@ func _every_script(root: String) -> PackedStringArray:
 	# joining both the same way yields "res:///.godot", which matches no
 	# skip entry and walks the import cache.
 	var base: String = root if root.ends_with("/") else root + "/"
+	# Godot's own rule for "not part of the project": archive/ and samples/
+	# carry one, and nothing in them is meant to load.
+	if FileAccess.file_exists(base + ".gdignore"):
+		return found
 	for directory in DirAccess.get_directories_at(root):
 		found.append_array(_every_script(base + directory))
 	for file in DirAccess.get_files_at(root):

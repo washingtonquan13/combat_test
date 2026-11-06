@@ -1,0 +1,148 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/demon_sheet.gd" id="1_sheet"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_name"]
+font_size = 22
+
+[node name="DemonSheet" type="MarginContainer"]
+custom_minimum_size = Vector2(300, 0)
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+script = ExtResource("1_sheet")
+
+[node name="EmptyLabel" type="Label" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 0
+text = "Nothing chosen."
+
+[node name="Details" type="VBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="NameLabel" type="Label" parent="Details"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Pixie"
+label_settings = SubResource("LabelSettings_name")
+
+[node name="RaceLabel" type="Label" parent="Details"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Fairy   Rank 1"
+
+[node name="VitalsLabel" type="Label" parent="Details"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "HP 10/10   FP 5/5   DR 0"
+
+[node name="TopRule" type="HSeparator" parent="Details"]
+layout_mode = 2
+
+[node name="Attributes" type="GridContainer" parent="Details"]
+layout_mode = 2
+theme_override_constants/h_separation = 10
+columns = 3
+
+[node name="StName" type="Label" parent="Details/Attributes"]
+layout_mode = 2
+text = "ST"
+
+[node name="StBar" type="ProgressBar" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 20.0
+value = 10.0
+show_percentage = false
+
+[node name="StValue" type="Label" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+text = "10"
+horizontal_alignment = 2
+
+[node name="DxName" type="Label" parent="Details/Attributes"]
+layout_mode = 2
+text = "DX"
+
+[node name="DxBar" type="ProgressBar" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 20.0
+value = 10.0
+show_percentage = false
+
+[node name="DxValue" type="Label" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+text = "10"
+horizontal_alignment = 2
+
+[node name="IqName" type="Label" parent="Details/Attributes"]
+layout_mode = 2
+text = "IQ"
+
+[node name="IqBar" type="ProgressBar" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 20.0
+value = 10.0
+show_percentage = false
+
+[node name="IqValue" type="Label" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+text = "10"
+horizontal_alignment = 2
+
+[node name="HtName" type="Label" parent="Details/Attributes"]
+layout_mode = 2
+text = "HT"
+
+[node name="HtBar" type="ProgressBar" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+max_value = 20.0
+value = 10.0
+show_percentage = false
+
+[node name="HtValue" type="Label" parent="Details/Attributes"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+text = "10"
+horizontal_alignment = 2
+
+[node name="BottomRule" type="HSeparator" parent="Details"]
+layout_mode = 2
+
+[node name="SkillsTitle" type="Label" parent="Details"]
+layout_mode = 2
+text = "Skills"
+
+[node name="SkillsLabel" type="Label" parent="Details"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+text = "Basic Attack"
+autowrap_mode = 3

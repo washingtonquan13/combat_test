@@ -20,6 +20,8 @@ func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	var was_active: bool = target.has_status(status)
+	if not status.curable:
+		return {"removed_status": status.status_name, "was_active": was_active, "refused": true}
 	target.remove_status(status)
 
 	return {"removed_status": status.status_name, "was_active": was_active}

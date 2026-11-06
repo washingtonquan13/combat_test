@@ -1,0 +1,246 @@
+{
+  "format": 2,
+  "id": "combo",
+  "name": "Devil Speak",
+  "description": "A combo: a clavinet spine, a tonewheel organ drawn at two registrations through a rotary cabinet that is played rather than recorded, a double-tracked electric guitar with its own keyswitched articulations - palm mute, sustain, harmonics, slides - fingered electric bass, a choir that turns into brass when the score asks, and a real kit with real round robins. Every part is stacked rather than single - a role names a list of layers, each a different recording with its own velocity window, gain, placement and offset, so a part is a section instead of one patch played twice.",
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "hamorg/lead",
+          "name": "lower",
+          "gain_db": 0.0,
+          "gain_source": "guessed",
+          "defaults": {
+            "drawbar1": 127,
+            "drawbar2": 127,
+            "drawbar3": 127,
+            "drawbar4": 0,
+            "drawbar5": 0,
+            "drawbar6": 0,
+            "drawbar7": 0,
+            "drawbar8": 0,
+            "drawbar9": 0,
+            "percussion": 0
+          }
+        },
+        {
+          "instrument": "hamorg/lead",
+          "name": "upper",
+          "gain_db": -6.0,
+          "gain_source": "guessed",
+          "delay": 0.009,
+          "defaults": {
+            "drawbar1": 0,
+            "drawbar2": 0,
+            "drawbar3": 48,
+            "drawbar4": 127,
+            "drawbar5": 0,
+            "drawbar6": 111,
+            "drawbar7": 80,
+            "drawbar8": 80,
+            "drawbar9": 111,
+            "percussion": 127,
+            "pan": 58
+          }
+        }
+      ],
+      "range": [
+        36,
+        91
+      ],
+      "voices": 16,
+      "gain_source": "measured",
+      "gain_db": -2.3,
+      "defaults": {
+        "dynamics": 88,
+        "volume": 100,
+        "pan": 82,
+        "rotary": 0,
+        "attack": 0,
+        "release": 0
+      }
+    },
+    "guitar": {
+      "family": "guitar",
+      "layers": [
+        {
+          "instrument": "metal-gtx/guitar",
+          "name": "left",
+          "gain_db": 0.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.006,
+            "velocity": 6
+          },
+          "defaults": {
+            "pan": 40
+          }
+        },
+        {
+          "instrument": "metal-gtx/guitar",
+          "name": "right",
+          "gain_db": -1.5,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.006,
+            "velocity": 6
+          },
+          "defaults": {
+            "pan": 88,
+            "picking": 92,
+            "vibrato_speed": 88
+          }
+        }
+      ],
+      "voices": 16,
+      "gain_source": "measured",
+      "gain_db": -7.1,
+      "defaults": {
+        "volume": 100,
+        "pan": 64,
+        "vibrato_depth": 0,
+        "vibrato_speed": 95,
+        "mute_time": 51,
+        "long": 0,
+        "rel_shape": 40,
+        "rel_level": 108,
+        "interval_a": 19,
+        "interval_b": 82,
+        "resonance": 44,
+        "picking": 75,
+        "tension": 0,
+        "magnet": 64
+      },
+      "keyswitch_default": "mute"
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "clavinet/placed",
+          "name": "clavinet"
+        },
+        {
+          "instrument": "vpo/celesta",
+          "name": "celesta",
+          "gain_db": -18.0,
+          "gain_source": "guessed",
+          "delay": 0.008,
+          "velocity": [
+            92,
+            127
+          ],
+          "transpose": 12,
+          "voices": 12
+        }
+      ],
+      "range": [
+        29,
+        88
+      ],
+      "voices": 24,
+      "gain_source": "measured",
+      "gain_db": 0.5,
+      "defaults": {
+        "volume": 100,
+        "sustain": 0,
+        "pan": 48
+      }
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "karoryfer.swagbass/placed",
+          "name": "fingered"
+        },
+        {
+          "instrument": "karoryfer.swagbass/shiny",
+          "name": "shiny",
+          "gain_db": -8.5,
+          "gain_source": "guessed",
+          "velocity": [
+            84,
+            127
+          ],
+          "voices": 8
+        }
+      ],
+      "range": [
+        28,
+        72
+      ],
+      "voices": 16,
+      "gain_source": "measured",
+      "gain_db": 0.6,
+      "defaults": {
+        "volume": 100,
+        "pan": 64
+      }
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-and-brass",
+          "name": "voices"
+        },
+        {
+          "instrument": "vpo/strings-section",
+          "name": "strings",
+          "gain_db": -5.0,
+          "gain_source": "guessed",
+          "delay": 0.014,
+          "voices": 48,
+          "defaults": {
+            "pan": 52
+          }
+        }
+      ],
+      "range": [
+        43,
+        84
+      ],
+      "voices": 64,
+      "gain_source": "measured",
+      "gain_db": -20.7,
+      "defaults": {
+        "dynamics": 80,
+        "volume": 100,
+        "sustain": 0,
+        "legato_attack": 0,
+        "vibrato_depth": 10,
+        "pan": 64
+      }
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "salamander.drums/kit",
+          "name": "kit"
+        },
+        {
+          "instrument": "salamander.drums/kit2",
+          "name": "room",
+          "gain_db": -6.0,
+          "gain_source": "guessed",
+          "delay": 0.005,
+          "voices": 12,
+          "defaults": {
+            "pan": 58
+          }
+        }
+      ],
+      "voices": 32,
+      "gain_source": "measured",
+      "gain_db": -6.2,
+      "defaults": {
+        "volume": 100,
+        "pan": 64
+      }
+    }
+  }
+}

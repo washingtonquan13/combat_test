@@ -23,6 +23,14 @@ extends RefCounted
 ##
 ## Stateless from the outside — static, no instances, not an autoload —
 ## same reasoning as DemonDatabase.
+##
+## The scan-and-cache itself is ResourceCatalog (see that file's header
+## for the full behaviour matrix); this file only supplies its directory,
+## its id field, and the recursive/first-wins/remap-handling/no-dedupe
+## shape that matches the original hand-written loader exactly — the
+## first-wins id policy is what keeps the "two definitions sharing an id"
+## failure mode described above out of find() (get_all() still surfaces
+## both, unchanged, since dedupe is off).
 
 ## One root, walked recursively — demons/, companions/, npcs/, summons/ and
 ## whatever comes next. Deliberately NOT a list of directories: a hardcoded
@@ -32,52 +40,38 @@ extends RefCounted
 ## has no BODY. A subfolder added under here is covered by existing.
 const ROOT_DIR: String = "res://data/units/"
 
-static var _all: Array[UnitDefinition] = []
+static var _catalog: ResourceCatalog
 
 
 static func get_all() -> Array[UnitDefinition]:
-	if _all.is_empty():
-		_load_all()
-	return _all
+	var result: Array[UnitDefinition] = []
+	for resource in _get_catalog().all():
+		result.append(resource as UnitDefinition)
+	return result
 
 
-## Null if no definition with this id exists in either directory. A
-## linear scan, deliberately not a cached id->definition dict — see this
-## file's own header on why a flat array is kept instead of one: an id
-## collision between demons/ and units/ is a pre-existing authoring risk
-## either way, and this returns whichever this array happens to hold
-## first rather than letting one silently overwrite the other in a
-## cache. Needed for save/load: PartyMemberData.definition is saved as
-## an id (see SaveManager), and a saved leader/companion can come from
-## EITHER directory — DemonDatabase.find() alone can't resolve a
-## units/-sourced definition.
+## Null if no definition with this id exists in either directory. See
+## this file's own header on why a first-match, not a last-write-wins,
+## resolution is kept for a duplicate id: an id collision between
+## demons/ and units/ is a pre-existing authoring risk either way, and
+## this returns whichever this array happens to hold first rather than
+## letting one silently overwrite the other in a cache. Needed for
+## save/load: PartyMemberData.definition is saved as an id (see
+## SaveManager), and a saved leader/companion can come from EITHER
+## directory — DemonDatabase.find() alone can't resolve a units/-sourced
+## definition.
 static func find(id: String) -> UnitDefinition:
-	if _all.is_empty():
-		_load_all()
-	for definition in _all:
-		if definition.id == id:
-			return definition
-	return null
+	return _get_catalog().find(id) as UnitDefinition
 
 
 static func refresh() -> void:
-	_all.clear()
-	_load_all()
+	_get_catalog().refresh()
 
 
-static func _load_all() -> void:
-	var pending: Array[String] = [ROOT_DIR]
-	while not pending.is_empty():
-		var dir: String = pending.pop_back()
-		for sub in DirAccess.get_directories_at(dir):
-			pending.append(dir + sub + "/")
-		for file_name in DirAccess.get_files_at(dir):
-			# Godot hands back .remap in an exported build; .tres is what
-			# actually opens.
-			if file_name.ends_with(".tres.remap"):
-				file_name = file_name.trim_suffix(".remap")
-			if not file_name.ends_with(".tres"):
-				continue
-			var definition := load(dir + file_name) as UnitDefinition
-			if definition:
-				_all.append(definition)
+static func _get_catalog() -> ResourceCatalog:
+	if not _catalog:
+		var extract_id := func(resource: Resource) -> Variant:
+			var definition := resource as UnitDefinition
+			return definition.id if definition else null
+		_catalog = ResourceCatalog.new(ROOT_DIR, true, extract_id, true, false, true)
+	return _catalog

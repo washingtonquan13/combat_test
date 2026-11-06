@@ -1,0 +1,24 @@
+// Foundry test - four bars to prove the foundry ensemble sounds.
+//
+// Machinery under Tokyo: a lonely piano figure over a rusty kit in a heavy
+// half time, tuba and trombones on the roots, brass stabs on the pushes.
+
+title: Foundry Test
+ensemble: foundry
+parts: lead keys bass perc
+tempo: 96
+meter: 4/4
+key: c minor
+order: works
+
+section works bars:4
+  keys dyn:mp
+    | c5:0.5 eb5:0.5 g5:0.5 eb5:0.5 c5:0.5 eb5:0.5 ab5:1 | g5:2 f5:1 eb5:1 | c5:0.5 eb5:0.5 g5:0.5 eb5:0.5 c5:0.5 eb5:0.5 b4:1 | c5:4 |
+  bass dyn:f feel:tight
+    | c2:1.5 c2:0.5 r:1 c2:1 | ab1:1.5 ab1:0.5 r:1 g1:1 | c2:1.5 c2:0.5 r:1 c2:1 | g1:2 c2:2 |
+  lead dyn:f
+    | r:3.5 [c4 g4 c5]:0.5! | r:3.5 [ab3 eb4 ab4]:0.5! | r:3.5 [g3 d4 g4]:0.5! | [c4 g4 c5]:1! r:3 |
+  perc.hands dyn:mf feel:tight
+    | hat:0.5 hat:0.5 snare:0.5 hat:0.5 hat:0.5 hat:0.5 snare:0.5 hat_open:0.5 | hat:0.5 hat:0.5 snare:0.5 hat:0.5 hat:0.5 hat:0.5 snare:0.5 hat:0.5 | hat:0.5 hat:0.5 snare:0.5 hat:0.5 hat:0.5 hat:0.5 snare:0.5 hat_open:0.5 | tom_high:0.5 tom_mid:0.5 tom_low:0.5 tom_low:0.5 crash:2 |
+  perc.feet dyn:f feel:tight
+    | kick:1.5 kick:0.5 r:2 | kick:1.5 kick:0.5 r:2 | kick:1.5 kick:0.5 r:2 | kick:4 |

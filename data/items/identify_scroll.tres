@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="IdentifyScroll" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://systems/inventory_system/identify_scroll.gd" id="1_scroll"]
+[ext_resource type="Texture2D" path="res://assets/test_item_icons/test_identify_scroll.png" id="2_icon"]
+
+[resource]
+script = ExtResource("1_scroll")
+id = &"identify_scroll"
+item_name = "Scroll of Identify"
+icon = ExtResource("2_icon")
+maximum_stack_count = 99

@@ -12,7 +12,7 @@ extends AiTestCase
 ## door in the destination that leads back to it — which is exactly right
 ## for walking through a doorway, and meaningless during a restore, where
 ## "the area being left" is whichever area the load loop happened to
-## rebuild last. The overworld authors DoorA with target_area =
+## rebuild last. The overworld authors CongoSquare with target_area =
 ## "test_arena", so a rebuild of the overworld taken while the arena was
 ## focused resolved to that door purely because of iteration order.
 ##
@@ -31,9 +31,9 @@ extends AiTestCase
 const HOME := &"test_arena"
 const OVERWORLD := &"overworld"
 ## What the overworld authors as its way back to HOME (see its
-## SpawnPoints/DoorA, target_area = "test_arena"). Travel must resolve to
+## SpawnPoints/CongoSquare, target_area = "test_arena"). Travel must resolve to
 ## this; a rebuild must not.
-const BACK_LINK := &"DoorA"
+const BACK_LINK := &"CongoSquare"
 ## Where a world with no doorway to arrive through puts people instead.
 const FALLBACK := &"default"
 

@@ -1,0 +1,117 @@
+[gd_scene load_steps=9 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_stone"]
+albedo_color = Color(0.18, 0.19, 0.24, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_pad"]
+albedo_color = Color(0.22, 0.26, 0.36, 1)
+emission_enabled = true
+emission = Color(0.25, 0.4, 0.75, 1)
+emission_energy_multiplier = 0.35
+
+[sub_resource type="StandardMaterial3D" id="Mat_ring"]
+albedo_color = Color(0.3, 0.32, 0.4, 1)
+metallic = 0.4
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="Mesh_pillar"]
+top_radius = 0.45
+bottom_radius = 0.55
+height = 23.2
+
+[sub_resource type="CylinderMesh" id="Mesh_pad"]
+top_radius = 1.4
+bottom_radius = 1.4
+height = 0.1
+
+[sub_resource type="TorusMesh" id="Mesh_ring_inner"]
+inner_radius = 1.6
+outer_radius = 2.0
+
+[sub_resource type="TorusMesh" id="Mesh_ring_mid"]
+inner_radius = 3.4
+outer_radius = 3.8
+
+[sub_resource type="TorusMesh" id="Mesh_ring_outer"]
+inner_radius = 5.2
+outer_radius = 5.7
+
+[node name="FusionChamber" type="Node3D"]
+
+[node name="Pads" type="Node3D" parent="."]
+
+[node name="PadLeft" type="MeshInstance3D" parent="Pads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.05, -2)
+mesh = SubResource("Mesh_pad")
+material_override = SubResource("Mat_pad")
+
+[node name="PadRight" type="MeshInstance3D" parent="Pads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.05, -2)
+mesh = SubResource("Mesh_pad")
+material_override = SubResource("Mat_pad")
+
+[node name="PadResult" type="MeshInstance3D" parent="Pads"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 2)
+mesh = SubResource("Mesh_pad")
+material_override = SubResource("Mat_pad")
+
+[node name="Pillars" type="Node3D" parent="."]
+
+[node name="Pillar1" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0813, 1.1, 2.1048)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="Pillar2" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1048, 1.1, 5.0813)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="Pillar3" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1048, 1.1, 5.0813)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="Pillar4" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0813, 1.1, 2.1048)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="Pillar5" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.0813, 1.1, -2.1048)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="Pillar6" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.1048, 1.1, -5.0813)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="Pillar7" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.1048, 1.1, -5.0813)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="Pillar8" type="MeshInstance3D" parent="Pillars"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0813, 1.1, -2.1048)
+mesh = SubResource("Mesh_pillar")
+material_override = SubResource("Mat_stone")
+
+[node name="CeilingRings" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 13, 0)
+
+[node name="Inner" type="MeshInstance3D" parent="CeilingRings"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+mesh = SubResource("Mesh_ring_inner")
+material_override = SubResource("Mat_ring")
+
+[node name="Middle" type="MeshInstance3D" parent="CeilingRings"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0)
+mesh = SubResource("Mesh_ring_mid")
+material_override = SubResource("Mat_ring")
+
+[node name="Outer" type="MeshInstance3D" parent="CeilingRings"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("Mesh_ring_outer")
+material_override = SubResource("Mat_ring")

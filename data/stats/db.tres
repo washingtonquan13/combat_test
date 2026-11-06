@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"DB"
+display_name = "Defense Bonus"
+abbreviation = "DB"
+description = "Added to Dodge, Parry and Block. A shield's."
+order = 84
+kind = 0
+default_value = 0

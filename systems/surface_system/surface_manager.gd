@@ -3,197 +3,1149 @@ extends Node
 ## Project > Project Settings > AutoLoad, alongside CombatManager/
 ## AbilityManager/SelectionManager.
 ##
-## Tracks every ActiveSurface currently on the battlefield — the
-## world-persistent counterpart to StatusManager (which tracks status
-## effects owned by a unit); a surface is instead anchored to a position,
-## with no owning unit at all. Three checkpoints:
-##  - Area3D.body_entered (built per-surface in spawn(), see
-##    _on_body_entered): applies status_effect the INSTANT a unit
-##    physically walks into the surface, mid-move — this is what
-##    actually punishes a movement decision as it happens, rather than
-##    waiting for a turn boundary to notice. Real physics overlap against
-##    the unit's own collision shape, so it fires correctly regardless of
-##    which direction a unit crosses the boundary from, or whether a
-##    surface spawns directly under an already-stationary unit (that
-##    counts as an immediate overlap the same way).
-##  - CombatManager.turn_started(unit) (see _on_turn_started): re-applies
-##    status_effect to whoever's still standing inside at the START of
-##    their own turn. Necessary IN ADDITION to body_entered, not instead
-##    of it — body_entered only fires once per continuous stay, so
-##    without this a unit that just stands in Fire for several turns
-##    would have Burning expire on its own normal duration instead of
-##    being kept alive by the fire that's still under them.
-##  - CombatManager.round_started: age every active surface by one round,
-##    expiring (and freeing its ambient visual + detection Area3D)
-##    anything that hits zero — rides on the signal CombatManager already
-##    emits rather than a separate scheduler of its own.
-
-## Backed by the loaded world's WorldContext rather than stored here, so
-## surfaces cannot outlive the world holding their visual_node and Area3D.
-## They used to be cleared only on combat_ended — meaning a Grease cast
-## outside combat, followed by an area change, left this array pointing at
-## nodes the freed world had taken with it.
+## Tracks every surface currently in any loaded world — ground surfaces
+## (Grease) as cells of the world's SurfaceGrid, clouds (Fog) as cubes of
+## its CloudGrid: the world-persistent counterpart to
+## StatusManager (which tracks status effects owned by a unit); a surface
+## is instead anchored to a position, with no owning unit at all.
 ##
-## Kept as a property under the original name so every existing reader is
-## untouched. Falls back to a local array when no world is loaded (the main
-## menu), which is where nothing should be spawning surfaces anyway.
-var active_surfaces: Array[ActiveSurface]:
-	get:
-		var context: WorldContext = WorldManager.context()
-		return context.surfaces if context else _detached_surfaces
+## EVERY ONE BELONGS TO A WORLD. spawn() files it into the caster's
+## WorldContext and parents it under that world, and every reader below
+## asks the context of the unit or point it is about — never the focused
+## world, which is only the one on screen.
+##
+## GROUND SURFACES are BG3's grid. A cast spills over the floor cell by
+## cell from where it lands (_spill(): physics rays, so it stops at walls
+## and won't run up a wall or off a ledge), overwrites cells of any other
+## kind and merges with touching cells of its own kind into one
+## SurfacePatch, drawn as one film. Cells age one by one; the cells that
+## run out recede from the film.
+##
+## CLOUDS are the same idea in 3D: a cast fills 1 m cubes out from where
+## it lands (_fill(): rays again, so walls, floors and ceilings stop it),
+## overwrites cubes of another cloud and tops up its own. Each cast keeps
+## its own visual; cubes age one by one and recede from it. Sight lines
+## are walked cube by cube (blocks_sight).
+##
+## BOTH:
+##  - Every frame (_process), each unit is checked against the cells under
+##    its footprint and the cubes its body touches (_holding): getting
+##    into one applies its status, the INSTANT it happens, mid-move,
+##    and the status's on_contact bites then too (fire burns at once);
+##    getting out takes a status_only_inside one (Blinded) back off,
+##    unless something else still holding the unit gives it too.
+##  - CombatManager.turn_started(unit): re-applies status_effects to
+##    whoever's still inside at the START of their own turn — entering
+##    fires once per stay, so without this Burning would run out under a
+##    unit standing in the fire.
+##  - Rounds (see _on_round_started_in / _on_quiet_round): one clock per
+##    world. While a fight runs there, its rounds age the world's
+##    surfaces; with none running, a round is ROUND_SECONDS of real time
+##    (BG3's rule), so a surface cast outside combat still runs out.
+##    Combat ending does NOT clear them — they finish their time.
 
-var _detached_surfaces: Array[ActiveSurface] = []
+## One round outside combat, in seconds. BG3's turn.
+const ROUND_SECONDS: float = 6.0
+## How far up or down a spill flows from one cell to the next: a kerb,
+## not a ledge.
+const MAX_STEP: float = 0.45
+## A ray hit flatter than this is floor; steeper is wall.
+const FLOOR_NORMAL: float = 0.6
+## How far across the ground a WALL cloud's cubes reach from its line, to
+## their centres. Over half a cube's diagonal (0.71), so a wall run at an
+## angle to the grid stays face-connected and floods end to end.
+const WALL_HALF_THICKNESS: float = 0.75
+## How far round the struck spot a single-target attack at the ground
+## touches the floor (touch), meters.
+const POINT_TOUCH_RADIUS: float = 0.4
+
+## The focused world's clouds — what's on screen. Kept for readers that
+## really mean that (the world-scoping suite); everything here goes
+## through _clouds_for() with the world it is actually about.
+var cloud_grid: CloudGrid:
+	get:
+		return _clouds_for(WorldManager.context())
+
+## Surfaces cast with no world loaded (the main menu, headless tests).
+var _detached_clouds := CloudGrid.new()
+var _detached_grid := SurfaceGrid.new()
+
+## Unit -> the surfaces holding it last frame (underfoot or around it).
+var _inside: Dictionary = {}
 
 
 func _ready() -> void:
-	CombatManager.round_started.connect(_on_round_started)
+	CombatManager.round_started_in.connect(_on_round_started_in)
 	CombatManager.turn_started.connect(_on_turn_started)
-	CombatManager.combat_ended.connect(_on_combat_ended)
+	var clock := Timer.new()
+	clock.wait_time = ROUND_SECONDS
+	clock.autostart = true
+	clock.timeout.connect(_on_quiet_round)
+	add_child(clock)
 
 
 ## Called by SpawnSurfaceEffect.apply() — see that file. radius is passed
 ## in rather than read here (same "targeting owns radius" source of truth
-## AreaDamageEffect/AreaApplyStatusEffect already follow).
-func spawn(surface: Surface, position: Vector3, radius: float) -> ActiveSurface:
-	var instance := ActiveSurface.new(surface, position, radius, surface.duration_rounds)
-	active_surfaces.append(instance)
-
-	var context: Node = WorldManager.spawn_parent()
-
-	if surface.ambient_scene:
-		var visual := surface.ambient_scene.instantiate()
-		context.add_child(visual)
-		if visual is Node3D:
-			visual.global_position = position
-			if surface.scale_ambient_to_radius:
-				var factor: float = radius / max(surface.authored_radius, 0.001)
-				visual.scale = Vector3(factor, 1.0, factor)
-		instance.visual_node = visual
-
-	var area := _build_detection_area(surface, radius, instance)
-	context.add_child(area)
-	area.global_position = position
-	instance.area = area
-
-	if surface.spawn_vfx:
-		surface.spawn_vfx.play(context, position, position)
-	if surface.spawn_sfx:
-		surface.spawn_sfx.play(context, position)
-
-	return instance
-
-
-## Built purely from radius/detection_height, not from ambient_scene — a
-## surface's detection volume is never hand-authored per scene the way
-## its visual is; it's automatic from the exact same radius the
-## targeting indicator already showed the player. A CylinderShape3D
-## rather than a box for the same reason AreaDamageEffect/
-## AreaApplyStatusEffect use radial distance: a surface's footprint is a
-## circle, not a square.
+## AreaDamageEffect/AreaApplyStatusEffect already follow). caster decides
+## the world; null means the focused one.
 ##
-## Does NOT set the area's position — global_position can't be set
-## before a Node3D is inside the scene tree (no parent to resolve
-## "global" against yet), so the caller (spawn()) adds this to the tree
-## first and positions it after. input_ray_pickable is turned off
-## explicitly: CollisionObject3D (Area3D's base) defaults that to true,
-## which would otherwise make this purely-for-detection area silently
-## eligible for Godot's built-in mouse-picking raycast too — intercepting
-## clicks meant for the ground StaticBody3D underneath it (see
-## ground_click_target.gd) even though nothing here ever listens for
-## that. Note this is a SEPARATE system from the manual intersect_ray
-## calls indicator_base.gd's own raycasts make for hover previews — those
-## default to collide_with_areas = false already, which is why the
-## movement PREVIEW line was never affected by this even while real
-## clicks were.
-func _build_detection_area(surface: Surface, radius: float, instance: ActiveSurface) -> Area3D:
-	var area := Area3D.new()
-	area.monitorable = false
-	area.input_ray_pickable = false
-
-	var shape := CollisionShape3D.new()
-	var cylinder := CylinderShape3D.new()
-	cylinder.radius = radius
-	cylinder.height = surface.detection_height
-	shape.shape = cylinder
-	shape.position = Vector3(0.0, surface.detection_height / 2.0, 0.0)
-	area.add_child(shape)
-
-	area.body_entered.connect(_on_body_entered.bind(instance))
-	return area
+## A ground surface (DISC) spills into the grid and returns its
+## SurfacePatch; a cloud (SPHERE) fills the cloud grid and returns its
+## CloudPatch.
+func spawn(surface: Surface, position: Vector3, radius: float, caster: Node = null) -> RefCounted:
+	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	_play_spawn_fx(surface, parent, position)
+	if surface.shape == Surface.Shape.DISC:
+		return _spill(surface, position, radius, context, parent)
+	var squash := Vector3(1.0, 1.0 / surface.height_scale, 1.0)
+	var inside := func(point: Vector3) -> bool: return ((point - position) * squash).length() <= radius
+	# The cast point sits on the floor; lift it clear of it.
+	var seeds: Dictionary[Vector3i, Vector3] = {CloudGrid.key_of(position): position + Vector3.UP * 0.1}
+	return _fill(surface, seeds, inside, position, context, parent)
 
 
-## Fires the instant a unit's own collision shape overlaps the surface's
-## detection volume — real shape-vs-shape physics overlap, which is why
-## this needs no manual edge-to-edge distance math the way
-## _on_turn_started does; the physics engine already accounts for the
-## unit's own collision radius correctly. Also fires for a surface
-## spawned directly under an already-stationary unit (Godot reports that
-## as an immediate overlap, functionally the same as walking in), so
-## there's no separate "was already standing here at spawn time" case to
-## handle.
-func _on_body_entered(body: Node3D, active: ActiveSurface) -> void:
-	if not body is Unit or not body.is_alive():
+## Raises a WALL cloud (Wall of Fire) along the ground from from to to:
+## every cube within WALL_HALF_THICKNESS of the line, from the ground up
+## to the surface's wall_height, flooded out from both ends the way any
+## cloud fills — so a wall it meets cuts it off — and standing on stairs
+## and slopes, the ground lerped between the two ends. Returns its
+## CloudPatch.
+func spawn_wall(surface: Surface, from: Vector3, to: Vector3, caster: Node = null) -> CloudPatch:
+	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	var middle: Vector3 = from.lerp(to, 0.5)
+	_play_spawn_fx(surface, parent, middle)
+	var seeds: Dictionary[Vector3i, Vector3] = {}
+	for end: Vector3 in [from, to]:
+		var lifted: Vector3 = end + Vector3.UP * 0.1
+		seeds[CloudGrid.key_of(lifted)] = lifted
+	var patch: CloudPatch = _fill(surface, seeds, _within_wall.bind(from, to, surface.wall_height), middle, context, parent, _wall_point.bind(from, to))
+	if patch and surface.lays_ground_under and surface.leaves_behind and not patch.cells.is_empty():
+		# Burns under the wall for as long as it stands, and its own
+		# rounds after: the cubes running out only top it up.
+		_leave_behind(patch, patch.cells, parent, surface.duration_rounds)
+	return patch
+
+
+## Lays a ground surface (Fire Breath's burning ground) wherever a cone
+## from apex along direction (a unit vector), length long and opening at
+## half_angle radians, washes over the floor: every cell whose floor is
+## inside the cone with no wall between it and the apex, the same shadow
+## the cone's damage casts. It spreads out from the apex, or, given
+## front_seconds, with a front reaching the cone's end in that long (see
+## DecalSurface.show_cells). Returns its SurfacePatch, or null if the cone
+## touches no floor (breathed into the air).
+func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: float, half_angle: float, caster: Node = null, front_seconds: float = 0.0) -> SurfacePatch:
+	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	var reached: Dictionary = _cone_cells(_space_of(parent), apex, direction, length, half_angle)
+	if reached.is_empty():
+		return null
+	if front_seconds > 0.0:
+		return _land(surface, reached, context, parent, apex, length, 0, front_seconds)
+	var ground_apex := Vector3(apex.x, reached.values().min(), apex.z)
+	return _land(surface, reached, context, parent, ground_apex, length)
+
+
+## An attack of element landing without leaving a surface of its own
+## (Lightning Breath, a frost bolt): what's on the ground where it lands
+## reacts to it all the same, as if a surface of that element had landed
+## there (_react) — cold freezes the water a target stands in, fire lights
+## the grease. Where: the target's footprint for a unit, else the
+## ability's area — its cone, its blast's floor, its spill — or, for a
+## single-target attack aimed at the ground, the spot it struck. Nothing of the
+## element is left behind, so a reaction that would only let it TAKE the
+## cells does nothing.
+func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -> void:
+	if element == Surface.Element.NONE:
 		return
-	if not active.surface.status_effect:
+	var context: WorldContext = WorldManager.context_for(attacker) if attacker else WorldManager.context()
+	var grid: SurfaceGrid = _grid_for(context)
+	if grid.is_empty():
 		return
-	body.apply_status(active.surface.status_effect)
+	var parent: Node = _parent_for(context, attacker)
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	var reached: Dictionary = {}
+	var position: Vector3
+	var radius: float = 0.0
+	if target is Unit:
+		position = target.global_position
+		radius = target.radius
+		reached = _footprint_cells(grid, position, radius)
+	elif target is Vector3:
+		position = target
+		var cone := ability.targeting as ConeTargeting
+		var area := ability.targeting as AreaTargeting
+		if cone:
+			position = cone.origin(attacker)
+			radius = cone.length
+			reached = _cone_cells(space, position, cone.direction(attacker, target), cone.length, cone.half_angle())
+		elif area is AerialAreaTargeting:
+			radius = area.radius
+			reached = _burst_cells(space, position, radius)
+		elif area:
+			radius = area.radius
+			reached = _spill_cells(space, position, radius)
+		else:
+			# A single-target attack at the ground (Fire Bolt at a patch
+			# of grease): the spot it struck. One cell is enough - a
+			# spreading reaction floods the rest.
+			radius = POINT_TOUCH_RADIUS
+			reached = _footprint_cells(grid, position, radius)
+	if reached.is_empty():
+		return
+	_land_turned(_react(element, null, reached, grid), context, parent, position, radius)
 
 
-## Read by RoutePlanner.plan (via a Callable passed in by
-## UnitMovement.move_to/movement_indicator.gd — see Surface.
-## movement_cost_multiplier's doc comment) while planning a route. point
-## is a bare sample point along the simulated path, not a unit — no
-## edge-to-edge radius adjustment the way _on_turn_started does for an
-## actual unit's body. Highest multiplier of any surface currently
-## covering point wins if more than one does; difficult terrain doesn't
-## stack multiplicatively just because two patches happen to overlap.
-## Returns 1.0 (no effect) if nothing covers point.
-func movement_cost_multiplier_at(point: Vector3) -> float:
+## The cells (SurfaceGrid key -> floor y) on the ground under a footprint
+## of radius round feet, as _surfaces_under reads them.
+func _footprint_cells(grid: SurfaceGrid, feet: Vector3, radius: float) -> Dictionary:
+	var reached: Dictionary = {}
+	var reach := Vector3(radius, 0.0, radius)
+	var low: Vector2i = SurfaceGrid.key_of(feet - reach)
+	var high: Vector2i = SurfaceGrid.key_of(feet + reach)
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var cell: SurfaceCell = grid.cell_at(Vector2i(x, z), feet.y)
+			if cell == null:
+				continue
+			var near := Vector2(clampf(feet.x, x * SurfaceGrid.CELL, (x + 1) * SurfaceGrid.CELL),
+					clampf(feet.z, z * SurfaceGrid.CELL, (z + 1) * SurfaceGrid.CELL))
+			if near.distance_to(Vector2(feet.x, feet.z)) <= radius:
+				reached[cell.key] = cell.y
+	return reached
+
+
+## The floor cells (SurfaceGrid key -> floor y) a cone from apex washes
+## over, as spawn_cone lays them. Empty with no physics space.
+func _cone_cells(space: PhysicsDirectSpaceState3D, apex: Vector3, direction: Vector3, length: float, half_angle: float) -> Dictionary:
+	var reached: Dictionary = {}
+	if not space:
+		return reached
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+	# The highest the cone reaches, so a floor under any of it is found
+	# from above and a ceiling over the apex is not mistaken for one.
+	var top: float = apex.y + maxf(0.0, length * sin(asin(clampf(direction.y, -1.0, 1.0)) + half_angle)) + 0.1
+	var low: Vector2i = SurfaceGrid.key_of(apex - Vector3(length, 0.0, length))
+	var high: Vector2i = SurfaceGrid.key_of(apex + Vector3(length, 0.0, length))
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var key := Vector2i(x, z)
+			var column: Vector3 = SurfaceGrid.centre_of(key, apex.y)
+			if Vector2(column.x - apex.x, column.z - apex.z).length() > length:
+				continue
+			var down := PhysicsRayQueryParameters3D.create(Vector3(column.x, top, column.z), Vector3(column.x, apex.y - length, column.z), 1, exclude)
+			var hit: Dictionary = space.intersect_ray(down)
+			if hit.is_empty() or hit.normal.y < FLOOR_NORMAL:
+				continue
+			var floor_point: Vector3 = hit.position + Vector3.UP * 0.05
+			var to: Vector3 = floor_point - apex
+			if to.length() > length or direction.angle_to(to) > half_angle:
+				continue
+			var sight := PhysicsRayQueryParameters3D.create(apex, floor_point, 1, exclude)
+			if not space.intersect_ray(sight).is_empty():
+				continue
+			reached[key] = hit.position.y
+	return reached
+
+
+## Lays a ground surface (Explosive Fireball's burning ground) wherever a
+## blast sphere of radius round centre reaches the floor: every cell whose
+## floor is within radius of centre with no wall between, the same shadow
+## the blast's damage casts. A burst on the ground burns a full patch, one
+## in the air a smaller one the higher it is, and one higher than radius
+## none. It spreads out from centre, or, given front_seconds, with a front
+## reaching radius in that long (see DecalSurface.show_cells). Returns its
+## SurfacePatch, or null if the blast touches no floor.
+func spawn_burst(surface: Surface, centre: Vector3, radius: float, caster: Node = null, front_seconds: float = 0.0) -> SurfacePatch:
+	var context: WorldContext = WorldManager.context_for(caster) if caster else WorldManager.context()
+	var parent: Node = _parent_for(context, caster)
+	var reached: Dictionary = _burst_cells(_space_of(parent), centre, radius)
+	if reached.is_empty():
+		return null
+	return _land(surface, reached, context, parent, centre, radius, 0, front_seconds)
+
+
+## The floor cells (SurfaceGrid key -> floor y) a blast round centre
+## reaches, as spawn_burst lays them. Empty with no physics space.
+func _burst_cells(space: PhysicsDirectSpaceState3D, centre: Vector3, radius: float) -> Dictionary:
+	var reached: Dictionary = {}
+	if not space:
+		return reached
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+	# Lifted a little, so a burst on the ground sees the floor round it
+	# rather than grazing it.
+	var eye: Vector3 = centre + Vector3.UP * 0.3
+	var low: Vector2i = SurfaceGrid.key_of(centre - Vector3(radius, 0.0, radius))
+	var high: Vector2i = SurfaceGrid.key_of(centre + Vector3(radius, 0.0, radius))
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var key := Vector2i(x, z)
+			var column: Vector3 = SurfaceGrid.centre_of(key, centre.y)
+			if Vector2(column.x - centre.x, column.z - centre.z).length() > radius:
+				continue
+			var down := PhysicsRayQueryParameters3D.create(column + Vector3.UP * 0.5, column + Vector3.DOWN * radius, 1, exclude)
+			var hit: Dictionary = space.intersect_ray(down)
+			if hit.is_empty() or hit.normal.y < FLOOR_NORMAL:
+				continue
+			var floor_point: Vector3 = hit.position + Vector3.UP * 0.05
+			if floor_point.distance_to(centre) > radius:
+				continue
+			var sight := PhysicsRayQueryParameters3D.create(eye, floor_point, 1, exclude)
+			if not space.intersect_ray(sight).is_empty():
+				continue
+			reached[key] = hit.position.y
+	return reached
+
+
+## Whether the cube centred on point is part of a wall from from to to:
+## its centre within WALL_HALF_THICKNESS of the line, across the ground,
+## and its height overlapping the ground there up to height.
+func _within_wall(point: Vector3, from: Vector3, to: Vector3, height: float) -> bool:
+	var on_line: Vector3 = from.lerp(to, _along(point, from, to))
+	if Vector2(point.x - on_line.x, point.z - on_line.z).length() > WALL_HALF_THICKNESS:
+		return false
+	var ground: float = on_line.y
+	var half: float = CloudGrid.CELL * 0.5
+	return point.y + half > ground and point.y - half < ground + height
+
+
+## Where the fill passes through a wall's cube: its centre, lifted clear
+## of the ground line where the cube straddles it — a ground-row centre
+## can sit right on the floor, and a ray along the floor hits it.
+func _wall_point(key: Vector3i, from: Vector3, to: Vector3) -> Vector3:
+	var centre: Vector3 = CloudGrid.centre_of(key)
+	centre.y = maxf(centre.y, lerpf(from.y, to.y, _along(centre, from, to)) + 0.1)
+	return centre
+
+
+## How far along from-to, 0 to 1 across the ground, point lies.
+func _along(point: Vector3, from: Vector3, to: Vector3) -> float:
+	var along := Vector2(to.x - from.x, to.z - from.z)
+	if along.length_squared() == 0.0:
+		return 0.0
+	return clampf((Vector2(point.x, point.z) - Vector2(from.x, from.z)).dot(along) / along.length_squared(), 0.0, 1.0)
+
+
+## The caster's world; failing that, wherever the caster stands (a bare
+## test scene has no world and no scene root).
+func _parent_for(context: WorldContext, caster: Node) -> Node:
+	var parent: Node = WorldManager.spawn_parent()
+	if context and is_instance_valid(context.world_root):
+		parent = context.world_root
+	elif parent == null and caster and caster.is_inside_tree():
+		parent = caster.get_parent()
+	return parent
+
+
+func _play_spawn_fx(surface: Surface, parent: Node, position: Vector3) -> void:
+	if surface.spawn_vfx:
+		surface.spawn_vfx.play(parent, position, position)
+	if surface.spawn_sfx:
+		surface.spawn_sfx.play(parent, position)
+
+
+## Where the fill passes through the cube at key: point_of(key), or its
+## centre.
+func _fill_point(key: Vector3i, point_of: Callable) -> Vector3:
+	return point_of.call(key) if point_of.is_valid() else CloudGrid.centre_of(key)
+
+
+## Fills the cubes inside (a cube centre -> whether the shape holds it)
+## that a gas let out at seeds (start cube -> the point it's let out at)
+## would reach: flooding out from those cubes, one face at a
+## time, each step only where a ray between the two cubes is clear (from
+## point_of(key) to point_of(next), their centres by default)
+## — so walls, floors and ceilings stop it, and it doesn't leak through
+## them. Units don't block it. With no physics (a bare test scene), it
+## fills the plain shape. The visual is placed at position.
+##
+## Lands on the grid: cubes of another cloud are taken (their old visual
+## recedes them), cubes of this one topped up to the longer time and left
+## with the visual already showing them. Returns this cast's patch — the
+## first start cube's, if the cast only topped up.
+func _fill(surface: Surface, seeds: Dictionary[Vector3i, Vector3], inside: Callable, position: Vector3, context: WorldContext, parent: Node, point_of: Callable = Callable()) -> CloudPatch:
+	var grid: CloudGrid = _clouds_for(context)
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+
+	var start: Vector3i = seeds.keys()[0]
+	var reached: Dictionary[Vector3i, bool] = {}
+	var frontier: Array[Vector3i] = []
+	for key: Vector3i in seeds:
+		reached[key] = true
+		frontier.append(key)
+	while not frontier.is_empty():
+		var key: Vector3i = frontier.pop_front()
+		var from: Vector3 = seeds.get(key, _fill_point(key, point_of))
+		for step in CloudGrid.NEIGHBOURS:
+			var next: Vector3i = key + step
+			if reached.has(next):
+				continue
+			if not inside.call(CloudGrid.centre_of(next)):
+				continue
+			var to: Vector3 = _fill_point(next, point_of)
+			if space:
+				var ray := PhysicsRayQueryParameters3D.create(from, to, 1, exclude)
+				if not space.intersect_ray(ray).is_empty():
+					continue
+			reached[next] = true
+			frontier.append(next)
+
+	var patch := CloudPatch.new(surface, context)
+	var robbed: Array[CloudPatch] = []
+	var taken: Dictionary = {}
+	var start_patch: CloudPatch = null
+	for key: Vector3i in reached:
+		var cell: CloudCell = grid.cells.get(key)
+		if cell and cell.surface == surface:
+			if cell.rounds < 0 or surface.duration_rounds < 0:
+				cell.rounds = -1
+			else:
+				cell.rounds = maxi(cell.rounds, surface.duration_rounds)
+			if key == start:
+				start_patch = cell.patch
+			continue
+		if cell:
+			cell.patch.cells.erase(cell)
+			grid.remove(cell)
+			if not robbed.has(cell.patch):
+				robbed.append(cell.patch)
+				taken[cell.patch] = [] as Array[CloudCell]
+			taken[cell.patch].append(cell)
+		cell = CloudCell.new(surface, key, surface.duration_rounds)
+		cell.patch = patch
+		grid.add(cell)
+		patch.cells.append(cell)
+
+	for other: CloudPatch in robbed:
+		if other.cells.is_empty():
+			grid.patches.erase(other)
+		_recede(other, taken[other])
+
+	if patch.cells.is_empty():
+		return start_patch
+	grid.patches.append(patch)
+	if surface.ambient_scene:
+		patch.visual = surface.ambient_scene.instantiate()
+		parent.add_child(patch.visual)
+		patch.visual.global_position = position
+		if patch.visual.has_method("show_cubes"):
+			patch.visual.show_cubes(patch.cells)
+	return patch
+
+
+## Fills the cells within radius of position that a liquid poured there
+## would reach: flooding out from the cell it lands in, one step at a
+## time, each step only onto floor (a ray down finds it) no more than a
+## kerb up or down, and not through a wall (a ray across at shin height).
+## Units don't count as either. With no floor under the cast at all (a
+## bare test scene), it fills the flat disc.
+##
+## Lands on the grid: cells of another surface are overwritten, cells of
+## this one topped up to the longer time, and every patch of this
+## surface the new cells overlap or touch merges into the biggest.
+func _spill(surface: Surface, position: Vector3, radius: float, context: WorldContext, parent: Node) -> SurfacePatch:
+	return _land(surface, _spill_cells(_space_of(parent), position, radius), context, parent, position, radius)
+
+
+## The floor cells (SurfaceGrid key -> floor y) a liquid poured at
+## position reaches within radius, as _spill lays them.
+func _spill_cells(space: PhysicsDirectSpaceState3D, position: Vector3, radius: float) -> Dictionary:
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+
+	var start: Vector2i = SurfaceGrid.key_of(position)
+	var start_y: float = _floor_under(space, SurfaceGrid.centre_of(start, position.y), exclude) if space else NAN
+	var flat: bool = is_nan(start_y)
+	var reached: Dictionary = {start: position.y if flat else start_y}
+	var frontier: Array[Vector2i] = [start]
+	while not frontier.is_empty():
+		var key: Vector2i = frontier.pop_front()
+		var from: Vector3 = SurfaceGrid.centre_of(key, reached[key])
+		for step in SurfaceGrid.NEIGHBOURS:
+			var next: Vector2i = key + step
+			if reached.has(next):
+				continue
+			var to: Vector3 = SurfaceGrid.centre_of(next, from.y)
+			if Vector2(to.x - position.x, to.z - position.z).length() > radius:
+				continue
+			var y: float = from.y if flat else _step(space, from, to, exclude)
+			if not is_nan(y):
+				reached[next] = y
+				frontier.append(next)
+	return reached
+
+
+## Lands reached (SurfaceGrid key -> its floor y) on the grid as surface:
+## cells of another surface are overwritten, cells of this one topped up
+## to the longer time, and every patch of this surface the new cells
+## overlap or touch merges into the biggest. position and radius are
+## where the visual spreads from and how far. extra_rounds lengthens the
+## surface's own duration_rounds; negative makes it permanent.
+##
+## First, what's already there reacts to the landing surface's element
+## (_react): fire spreads through the grease it touches, ice it touches
+## turns to water, water it touches won't take it. Returns null if
+## nothing of surface landed (fire poured wholly on water).
+func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0, front_seconds: float = 0.0) -> SurfacePatch:
+	var grid: SurfaceGrid = _grid_for(context)
+	var cast: int = reached.size()
+	_land_turned(_react(surface.element, surface, reached, grid), context, parent, position, radius, front_seconds)
+	if reached.is_empty():
+		return null
+	if reached.size() > cast:
+		# A reaction carried the surface past where it was cast (through
+		# the whole grease patch): its film spreads that far.
+		for key: Vector2i in reached:
+			radius = maxf(radius, SurfaceGrid.centre_of(key, position.y).distance_to(position))
+	var rounds: int = surface.duration_rounds
+	if rounds >= 0:
+		rounds = -1 if extra_rounds < 0 else rounds + extra_rounds
+	var fresh: Array[SurfaceCell] = []
+	var merging: Array[SurfacePatch] = []
+	var robbed: Array[SurfacePatch] = []
+	for key: Vector2i in reached:
+		var cell: SurfaceCell = grid.cell_at(key, reached[key])
+		if cell and cell.surface == surface:
+			if cell.rounds < 0 or rounds < 0:
+				cell.rounds = -1
+			else:
+				cell.rounds = maxi(cell.rounds, rounds)
+			if not merging.has(cell.patch):
+				merging.append(cell.patch)
+			continue
+		if cell:
+			cell.patch.cells.erase(cell)
+			grid.remove(cell)
+			if not robbed.has(cell.patch):
+				robbed.append(cell.patch)
+		cell = SurfaceCell.new(surface, key, reached[key], rounds)
+		grid.add(cell)
+		fresh.append(cell)
+	for cell in fresh:
+		for step in SurfaceGrid.NEIGHBOURS:
+			var beside: SurfaceCell = grid.cell_at(cell.key + step, cell.y)
+			if beside and beside.patch and beside.surface == surface and not merging.has(beside.patch):
+				merging.append(beside.patch)
+
+	var patch: SurfacePatch = null
+	for other in merging:
+		if patch == null or other.cells.size() > patch.cells.size():
+			patch = other
+	if patch == null:
+		patch = SurfacePatch.new(surface, context)
+		grid.patches.append(patch)
+		if surface.ambient_scene:
+			patch.visual = surface.ambient_scene.instantiate()
+			parent.add_child(patch.visual)
+			if not patch.visual.has_method("show_cells"):
+				patch.visual.global_position = position
+	for other in merging:
+		if other == patch:
+			continue
+		for cell in other.cells:
+			cell.patch = patch
+		patch.cells.append_array(other.cells)
+		grid.patches.erase(other)
+		# Its cells are in the merged film from that film's next picture.
+		if other.visual and patch.visual and patch.visual.has_signal("drawn"):
+			patch.visual.drawn.connect(other.visual.queue_free, CONNECT_ONE_SHOT)
+		elif other.visual:
+			other.visual.queue_free()
+	for cell in fresh:
+		cell.patch = patch
+	patch.cells.append_array(fresh)
+	if patch.visual and patch.visual.has_method("show_cells"):
+		patch.visual.show_cells(patch.cells, fresh, position, radius, front_seconds)
+
+	for other in robbed:
+		if other.cells.is_empty():
+			grid.patches.erase(other)
+		if not other.visual:
+			continue
+		if not other.visual.has_method("set_cells"):
+			if other.cells.is_empty():
+				other.visual.queue_free()
+			continue
+		# The overwritten cells go once the new film has spread over them.
+		var keep: Array[SurfaceCell] = other.cells.duplicate()
+		var seconds: float = patch.visual.spread_seconds if patch.visual is DecalSurface else 0.0
+		# Bound to the visual, so the call is dropped if it's freed first.
+		get_tree().create_timer(seconds).timeout.connect(other.visual.set_cells.bind(keep))
+	return patch
+
+
+## Lands what a reaction turned the ground into (_react's result: Surface
+## -> its reached): a ground surface onto those cells (_land), a cloud
+## rising off them (_rise). position, radius and front_seconds as for
+## _land; a cloud only gathers, so it takes none of them.
+func _land_turned(turned: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, front_seconds: float = 0.0) -> void:
+	for result: Surface in turned:
+		if result.shape == Surface.Shape.DISC:
+			_land(result, turned[result], context, parent, position, radius, 0, front_seconds)
+		else:
+			_rise(result, turned[result], context, parent)
+
+
+## Raises cloud (steam) off the ground cells in reached (SurfaceGrid key
+## -> floor y): the cubes over each cell, from its floor up to the
+## cloud's wall_height, filled the way any cloud fills (_fill), so a
+## ceiling lower than that stops it. The cloud grid's cubes are the
+## surface grid's squares, so each cell is one column. _react has already
+## cleared the cells. Returns its CloudPatch.
+func _rise(cloud: Surface, reached: Dictionary, context: WorldContext, parent: Node) -> CloudPatch:
+	var middle := Vector3.ZERO
+	var seeds: Dictionary[Vector3i, Vector3] = {}
+	for key: Vector2i in reached:
+		var lifted: Vector3 = SurfaceGrid.centre_of(key, reached[key] + 0.1)
+		seeds[CloudGrid.key_of(lifted)] = lifted
+		middle += SurfaceGrid.centre_of(key, reached[key])
+	middle /= reached.size()
+	_play_spawn_fx(cloud, parent, middle)
+	return _fill(cloud, seeds, _over_ground.bind(reached, cloud.wall_height), middle, context, parent, _ground_point.bind(reached))
+
+
+## Whether the cube centred on point stands over one of the ground cells
+## in reached (key -> floor y), its height overlapping that floor up to
+## height.
+func _over_ground(point: Vector3, reached: Dictionary, height: float) -> bool:
+	var column: Vector2i = SurfaceGrid.key_of(point)
+	if not reached.has(column):
+		return false
+	var ground: float = reached[column]
+	var half: float = CloudGrid.CELL * 0.5
+	return point.y + half > ground and point.y - half < ground + height
+
+
+## Where a cloud rising off the ground passes through the cube at key:
+## its centre, lifted clear of the floor where the cube straddles it, as
+## _wall_point does for a wall.
+func _ground_point(key: Vector3i, reached: Dictionary) -> Vector3:
+	var centre: Vector3 = CloudGrid.centre_of(key)
+	var column := Vector2i(key.x, key.z)
+	if reached.has(column):
+		centre.y = maxf(centre.y, reached[column] + 0.1)
+	return centre
+
+
+## What the ground already in reached (SurfaceGrid key -> floor y) does
+## as something of element reaches it, by its SurfaceReaction to that
+## element: landing, the surface landing there (null for an attack that
+## only touches the ground, see touch()). Edits reached in place: cells
+## that resist or turn into something else come out of it, and cells a
+## TAKEN reaction spreads through (the rest of a grease patch) go into
+## it. A cell that BECOMES the very surface landing is just taken by it.
+## Cells a BECOMES reaction clears, or turns into a cloud rising off
+## them, are expired here. Returns what the rest turn into: Surface ->
+## its own reached, to be landed in turn (_land_turned).
+func _react(element: Surface.Element, landing: Surface, reached: Dictionary, grid: SurfaceGrid) -> Dictionary:
+	var turned: Dictionary = {}
+	if element == Surface.Element.NONE:
+		return turned
+	var cleared: Dictionary = {}  # SurfacePatch -> Array[SurfaceCell]
+	var frontier: Array[SurfaceCell] = []
+	var into: Dictionary = {}  # SurfaceCell spreading -> the reached it spreads into
+	for key: Vector2i in reached.keys():
+		var cell: SurfaceCell = grid.cell_at(key, reached[key])
+		if cell == null or (landing and cell.surface == landing):
+			continue
+		var reaction: SurfaceReaction = cell.surface.reaction_to(element)
+		if reaction == null:
+			continue
+		var target: Dictionary = reached
+		match reaction.outcome:
+			SurfaceReaction.Outcome.RESISTS:
+				reached.erase(key)
+				continue
+			SurfaceReaction.Outcome.BECOMES:
+				var becomes: Surface = reaction.becomes_surface()
+				if landing and becomes == landing:
+					# Grease becoming the fire landing on it: just taken.
+					if reaction.spreads:
+						frontier.append(cell)
+						into[cell] = reached
+					continue
+				reached.erase(key)
+				if becomes == null:
+					if not cleared.has(cell.patch):
+						cleared[cell.patch] = [] as Array[SurfaceCell]
+					cleared[cell.patch].append(cell)
+					continue
+				if not turned.has(becomes):
+					turned[becomes] = {}
+				target = turned[becomes]
+				target[key] = cell.y
+		if reaction.spreads:
+			frontier.append(cell)
+			into[cell] = target
+	# Through every touching cell of the same surface, from those reached.
+	while not frontier.is_empty():
+		var cell: SurfaceCell = frontier.pop_back()
+		var target: Dictionary = into[cell]
+		for step in SurfaceGrid.NEIGHBOURS:
+			var beside: SurfaceCell = grid.cell_at(cell.key + step, cell.y)
+			if beside == null or beside.surface != cell.surface or into.has(beside):
+				continue
+			if reached.has(beside.key) or target.has(beside.key):
+				continue
+			into[beside] = target
+			frontier.append(beside)
+			target[beside.key] = beside.y
+	# A cloud rising off cells (steam off water) leaves the floor bare.
+	for result: Surface in turned:
+		if result.shape == Surface.Shape.DISC:
+			continue
+		for key: Vector2i in turned[result]:
+			var cell: SurfaceCell = grid.cell_at(key, turned[result][key])
+			if cell == null:
+				continue
+			if not cleared.has(cell.patch):
+				cleared[cell.patch] = [] as Array[SurfaceCell]
+			cleared[cell.patch].append(cell)
+	for patch: SurfacePatch in cleared:
+		expire_cells(grid, patch, cleared[patch])
+	return turned
+
+
+## Where the floor is under point (the ray starts half a meter above it,
+## so a ceiling overhead doesn't count), or NAN for none.
+func _floor_under(space: PhysicsDirectSpaceState3D, point: Vector3, exclude: Array[RID]) -> float:
+	var down := PhysicsRayQueryParameters3D.create(point + Vector3.UP * 0.5, point + Vector3.DOWN * 1.5, 1, exclude)
+	var hit: Dictionary = space.intersect_ray(down)
+	if hit.is_empty() or hit.normal.y < FLOOR_NORMAL:
+		return NAN
+	return hit.position.y
+
+
+## The floor height a spill reaches stepping from one cell centre to the
+## next, or NAN if a wall is in the way, there's no floor, or it's more
+## than a kerb up or down.
+func _step(space: PhysicsDirectSpaceState3D, from: Vector3, to: Vector3, exclude: Array[RID]) -> float:
+	var lift := Vector3.UP * 0.5
+	var across := PhysicsRayQueryParameters3D.create(from + lift, to + lift, 1, exclude)
+	if not space.intersect_ray(across).is_empty():
+		return NAN
+	var y: float = _floor_under(space, to, exclude)
+	if is_nan(y) or absf(y - from.y) > MAX_STEP:
+		return NAN
+	return y
+
+
+func _space_of(node: Node) -> PhysicsDirectSpaceState3D:
+	if node == null or not node.is_inside_tree():
+		return null
+	if node is Node3D:
+		return (node as Node3D).get_world_3d().direct_space_state
+	return node.get_viewport().find_world_3d().direct_space_state
+
+
+## Every frame: moves units into and out of surfaces. Reads the cells
+## under each unit's footprint and the cubes around its body, so it is
+## the grid that decides — the same answer movement cost and turn start
+## get.
+func _process(_delta: float) -> void:
+	for unit in _inside.keys():
+		if not is_instance_valid(unit):
+			_inside.erase(unit)
+	if _inside.is_empty() and _no_surfaces():
+		return
+	for unit: Unit in UnitQuery.all_units(get_tree()):
+		var now: Array[Surface] = _holding(unit) if unit.is_alive() else ([] as Array[Surface])
+		var before: Array[Surface] = _inside.get(unit, [] as Array[Surface])
+		if now == before:
+			continue
+		if now.is_empty():
+			_inside.erase(unit)
+		else:
+			_inside[unit] = now
+		var had: Array[StatusEffect] = _statuses(before, unit)
+		for effect in _statuses(now, unit):
+			if not had.has(effect) and unit.inflict_status(effect, null):
+				unit.status_contact(effect)
+		if unit.is_downed() and unit.is_moving():
+			unit.stop_moving()
+		for surface in before:
+			if not now.has(surface):
+				_release(unit, surface, now)
+
+
+func _no_surfaces() -> bool:
+	if not _detached_grid.is_empty() or not _detached_clouds.is_empty():
+		return false
+	for context in WorldManager.all_contexts():
+		if not context.surface_grid.is_empty() or not context.cloud_grid.is_empty():
+			return false
+	return true
+
+
+## Every surface holding unit: on the floor under it or in the air around
+## it.
+func _holding(unit: Unit) -> Array[Surface]:
+	var found: Array[Surface] = _surfaces_under(unit)
+	for surface in _clouds_holding(unit):
+		if not found.has(surface):
+			found.append(surface)
+	return found
+
+
+## The clouds around any part of unit's upright body (feet to eyes) — a
+## cloud hanging at head height covers a unit whose feet are below it.
+func _clouds_holding(unit: Unit) -> Array[Surface]:
+	var found: Array[Surface] = []
+	var grid: CloudGrid = _clouds_for(WorldManager.context_for(unit))
+	for cell in grid.cells_touching(unit.global_position, unit.anchor(CharacterModel.Anchor.EYE), unit.radius):
+		if not found.has(cell.surface):
+			found.append(cell.surface)
+	return found
+
+
+## The ground surfaces under any part of unit's footprint, in its world.
+func _surfaces_under(unit: Unit) -> Array[Surface]:
+	var found: Array[Surface] = []
+	var grid: SurfaceGrid = _grid_for(WorldManager.context_for(unit))
+	if grid.is_empty():
+		return found
+	var feet: Vector3 = unit.global_position
+	var reach := Vector3(unit.radius, 0.0, unit.radius)
+	var low: Vector2i = SurfaceGrid.key_of(feet - reach)
+	var high: Vector2i = SurfaceGrid.key_of(feet + reach)
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var cell: SurfaceCell = grid.cell_at(Vector2i(x, z), feet.y)
+			if cell == null or found.has(cell.surface):
+				continue
+			# The nearest point of the square to the footprint's centre.
+			var near := Vector2(clampf(feet.x, x * SurfaceGrid.CELL, (x + 1) * SurfaceGrid.CELL),
+					clampf(feet.z, z * SurfaceGrid.CELL, (z + 1) * SurfaceGrid.CELL))
+			if near.distance_to(Vector2(feet.x, feet.z)) <= unit.radius:
+				found.append(cell.surface)
+	return found
+
+
+## The ground surface on the floor at point in context, or null.
+func surface_at(point: Vector3, context: WorldContext) -> Surface:
+	var cell: SurfaceCell = _grid_for(context).cell_under(point)
+	return cell.surface if cell else null
+
+
+## Takes surface's inside-only statuses off unit, each unless one of the
+## surfaces still holding them (`still`) gives the same status.
+func _release(unit: Unit, surface: Surface, still: Array[Surface]) -> void:
+	if not surface.status_only_inside:
+		return
+	for effect in surface.status_effects:
+		var held: bool = false
+		for other in still:
+			if other.status_effects.has(effect):
+				held = true
+				break
+		if not held:
+			unit.remove_status(effect)
+
+
+## Whether a sight line from `from` to `to` passes through a cube of a
+## sight-blocking cloud in viewer's world. Starting or ending inside
+## counts: that is BG3's "blocks ranged attacks in, out and across". Read
+## by LineOfSight after its wall raycast.
+func blocks_sight(viewer: Node, from: Vector3, to: Vector3) -> bool:
+	for cell in _clouds_for(WorldManager.context_for(viewer)).cells_along(from, to):
+		if cell.surface.blocks_sight and not _sees_through(viewer, cell.surface):
+			return true
+	return false
+
+
+## The cloud in the cube at point in context, or null.
+func cloud_at(point: Vector3, context: WorldContext) -> Surface:
+	var cell: CloudCell = _clouds_for(context).cell_at(point)
+	return cell.surface if cell else null
+
+
+## Dark Vision ignores a darkness surface: no wall, no Blinded.
+func _sees_through(viewer: Node, surface: Surface) -> bool:
+	return surface.dark_vision_sees_through and viewer is Unit and viewer.dark_vision
+
+
+## The terrain-cost sampler for a route planned by mover — RoutePlanner.
+## plan's cost_sampler, reading only the surfaces in mover's own world.
+func cost_sampler(mover: Node) -> Callable:
+	return movement_cost_multiplier_at.bind(WorldManager.context_for(mover))
+
+
+## point is a bare sample point along a simulated path, not a unit. The
+## higher multiplier of the cell under it and the cube around it wins.
+## 1.0 (no effect) if nothing covers it. Call through cost_sampler(),
+## which supplies the context.
+func movement_cost_multiplier_at(point: Vector3, context: WorldContext) -> float:
 	var multiplier: float = 1.0
-	for active in active_surfaces:
-		if active.position.distance_to(point) <= active.radius:
-			multiplier = max(multiplier, active.surface.movement_cost_multiplier)
+	var cell: SurfaceCell = _grid_for(context).cell_under(point)
+	if cell:
+		multiplier = cell.surface.movement_cost_multiplier
+	var cube: CloudCell = _clouds_for(context).cell_at(point)
+	if cube:
+		multiplier = maxf(multiplier, cube.surface.movement_cost_multiplier)
 	return multiplier
 
 
-func _on_round_started(_round_number: int) -> void:
-	for active in active_surfaces.duplicate():
-		if active.rounds_remaining < 0:
-			continue  # permanent surface — never ages out this way
-		active.rounds_remaining -= 1
-		if active.rounds_remaining <= 0:
-			_expire(active)
+## A round of a fight ages the surfaces of the fight's own world — but
+## only from that world's clock, its oldest running fight, so two fights
+## side by side don't burn a Grease patch twice as fast.
+func _on_round_started_in(encounter: Encounter, _round_number: int) -> void:
+	var context: WorldContext = _context_of(encounter)
+	var fights: Array[Encounter] = context.encounters if context else CombatManager.encounters
+	for fight in fights:
+		if is_instance_valid(fight) and fight.is_running:
+			if fight == encounter:
+				_age(_clouds_for(context), _grid_for(context))
+			return
+
+
+## A world with no fight running ages by real time instead.
+func _on_quiet_round() -> void:
+	for context in WorldManager.all_contexts():
+		if not _fighting(context.encounters):
+			_age(context.cloud_grid, context.surface_grid)
+	if WorldManager.context() == null and not _fighting(CombatManager.encounters):
+		_age(_detached_clouds, _detached_grid)
+
+
+## One round off a world's surfaces. The ground goes first: ground a cloud
+## leaves behind as it runs out (leaves_behind) then lands after this
+## round's aging, and keeps its whole duration.
+func _age(clouds: CloudGrid, ground: SurfaceGrid) -> void:
+	_age_grid(ground)
+	_age_clouds(clouds)
+
+
+## Every cube runs out on its own clock, like ground cells.
+func _age_clouds(grid: CloudGrid) -> void:
+	for patch in grid.patches.duplicate():
+		var ran_out: Array[CloudCell] = []
+		for cell in patch.cells:
+			if cell.rounds < 0:
+				continue  # permanent
+			cell.rounds -= 1
+			if cell.rounds <= 0:
+				ran_out.append(cell)
+		if not ran_out.is_empty():
+			expire_cloud_cells(grid, patch, ran_out)
+
+
+## Takes cubes off the grid and out of patch's visual. Whoever was inside
+## them is let go on the next frame's check.
+func expire_cloud_cells(grid: CloudGrid, patch: CloudPatch, cells: Array[CloudCell]) -> void:
+	var at: Vector3 = patch.centroid(cells)
+	for cell in cells:
+		grid.remove(cell)
+		patch.cells.erase(cell)
+	if patch.cells.is_empty():
+		grid.patches.erase(patch)
+	var alive: bool = patch.visual != null and is_instance_valid(patch.visual)
+	var parent: Node = patch.visual.get_parent() if alive else WorldManager.spawn_parent()
+	if patch.surface.expire_vfx:
+		patch.surface.expire_vfx.play(parent, at, at)
+	if patch.surface.expire_sfx:
+		patch.surface.expire_sfx.play(parent, at)
+	_recede(patch, cells)
+	if patch.surface.leaves_behind:
+		_leave_behind(patch, cells, parent)
+
+
+## Lands patch's leaves_behind ground surface (Wall of Fire's burning
+## ground) on the floor under those of cells that touch it. A cube touches
+## the floor when the floor passes through it — the ground row of a wall,
+## not the cubes stacked above it, nor a cube hanging in the air.
+## Lands as one spill, so the film spreads from under the whole run-out
+## stretch at once. With no physics (a bare test scene), the lowest
+## run-out cubes' bottoms are the floor. extra_rounds as for _land.
+func _leave_behind(patch: CloudPatch, cells: Array[CloudCell], parent: Node, extra_rounds: int = 0) -> void:
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	var exclude: Array[RID] = []
+	for unit in UnitQuery.all_units(get_tree()):
+		exclude.append(unit.get_rid())
+	var lowest: int = cells[0].key.y
+	for cell in cells:
+		lowest = mini(lowest, cell.key.y)
+	var half: float = CloudGrid.CELL * 0.5
+	var across: int = roundi(CloudGrid.CELL / SurfaceGrid.CELL)
+	var reached: Dictionary = {}
+	for cell in cells:
+		if not space and cell.key.y != lowest:
+			continue
+		var bottom: float = cell.key.y * CloudGrid.CELL
+		# The SurfaceGrid cells under the cube's footprint.
+		var corner: Vector2i = SurfaceGrid.key_of(cell.centre() - Vector3(half, 0.0, half) + Vector3(0.01, 0.0, 0.01))
+		for dx in across:
+			for dz in across:
+				var key: Vector2i = corner + Vector2i(dx, dz)
+				var floor_y: float = bottom
+				if space:
+					floor_y = _floor_under(space, SurfaceGrid.centre_of(key, bottom + CloudGrid.CELL), exclude)
+					if is_nan(floor_y) or floor_y < bottom - 0.05 or floor_y >= bottom + CloudGrid.CELL:
+						continue
+				reached[key] = floor_y
+	if reached.is_empty():
+		return
+	var middle := Vector3.ZERO
+	for key: Vector2i in reached:
+		middle += SurfaceGrid.centre_of(key, reached[key])
+	middle /= reached.size()
+	var radius: float = 0.0
+	for key: Vector2i in reached:
+		radius = maxf(radius, SurfaceGrid.centre_of(key, middle.y).distance_to(middle))
+	_land(patch.surface.leaves_behind, reached, patch.context, parent, middle, radius + SurfaceGrid.CELL, extra_rounds)
+
+
+## Runs every cloud in context out at once.
+func expire_all_clouds(context: WorldContext) -> void:
+	var grid: CloudGrid = _clouds_for(context)
+	for patch in grid.patches.duplicate():
+		expire_cloud_cells(grid, patch, patch.cells.duplicate())
+
+
+## patch's visual lets go of cells it no longer holds: all of them thins
+## the whole cloud away, some recedes just those.
+func _recede(patch: CloudPatch, cells: Array[CloudCell]) -> void:
+	if patch.visual == null or not is_instance_valid(patch.visual):
+		return
+	if patch.cells.is_empty() and patch.visual.has_method("dissipate"):
+		patch.visual.dissipate()
+	elif patch.visual.has_method("recede_cubes"):
+		patch.visual.recede_cubes(cells)
+	elif patch.cells.is_empty():
+		patch.visual.queue_free()
+
+
+## Every cell runs out on its own clock; a patch loses the cells that ran
+## out, which recede from its film, and goes when it has none left. What
+## a surface leaves behind (leaves_behind) lands on its run-out cells
+## after the whole grid has aged, so it keeps its whole duration and no
+## patch it merges into is aged twice.
+func _age_grid(grid: SurfaceGrid) -> void:
+	var settling: Array[Array] = []  # [SurfacePatch, its run-out cells]
+	for patch in grid.patches.duplicate():
+		var ran_out: Array[SurfaceCell] = []
+		for cell in patch.cells:
+			if cell.rounds < 0:
+				continue  # permanent
+			cell.rounds -= 1
+			if cell.rounds <= 0:
+				ran_out.append(cell)
+		if not ran_out.is_empty():
+			expire_cells(grid, patch, ran_out)
+			if patch.surface.leaves_behind:
+				settling.append([patch, ran_out])
+	for each: Array in settling:
+		_settle(each[0], each[1])
+
+
+## Lands patch's leaves_behind on the floor where its cells ran out:
+## electrified water settling back into plain water.
+func _settle(patch: SurfacePatch, cells: Array[SurfaceCell]) -> void:
+	var reached: Dictionary = {}
+	for cell in cells:
+		reached[cell.key] = cell.y
+	var middle: Vector3 = patch.centroid(cells)
+	var radius: float = 0.0
+	for cell in cells:
+		radius = maxf(radius, cell.centre().distance_to(middle))
+	_land(patch.surface.leaves_behind, reached, patch.context, _parent_for(patch.context, null), middle, radius + SurfaceGrid.CELL)
+
+
+## Takes cells off the grid and out of patch's film. Whoever stood on
+## them steps off on the next frame's check.
+func expire_cells(grid: SurfaceGrid, patch: SurfacePatch, cells: Array[SurfaceCell]) -> void:
+	var at: Vector3 = patch.centroid(cells)
+	for cell in cells:
+		grid.remove(cell)
+		patch.cells.erase(cell)
+	if patch.cells.is_empty():
+		grid.patches.erase(patch)
+	var alive: bool = patch.visual != null and is_instance_valid(patch.visual)
+	var parent: Node = patch.visual.get_parent() if alive else WorldManager.spawn_parent()
+	if patch.surface.expire_vfx:
+		patch.surface.expire_vfx.play(parent, at, at)
+	if patch.surface.expire_sfx:
+		patch.surface.expire_sfx.play(parent, at)
+	if not alive:
+		return
+	if patch.cells.is_empty() and patch.visual.has_method("dissipate"):
+		patch.visual.dissipate()
+	elif patch.visual.has_method("recede_cells"):
+		patch.visual.recede_cells(cells)
+	elif patch.cells.is_empty():
+		patch.visual.queue_free()
+
+
+## Runs every ground patch in context out at once.
+func expire_all_ground(context: WorldContext) -> void:
+	var grid: SurfaceGrid = _grid_for(context)
+	for patch in grid.patches.duplicate():
+		expire_cells(grid, patch, patch.cells.duplicate())
 
 
 func _on_turn_started(unit: Unit) -> void:
 	if not unit.is_alive():
 		return
-	for active in active_surfaces:
-		if not active.surface.status_effect:
+	for effect in _statuses(_holding(unit), unit):
+		unit.inflict_status(effect, null)
+
+
+## The statuses surfaces put on unit, each once however many of them give
+## it - a walker in Wall of Fire stands in the wall and the ground fire
+## under it - and of a StatusEffect.group only the highest rank, so it is
+## rolled once and never knocked down to a weaker one by the order they
+## are found in. A surface unit sees through gives nothing.
+func _statuses(surfaces: Array[Surface], unit: Unit) -> Array[StatusEffect]:
+	var found: Array[StatusEffect] = []
+	for surface in surfaces:
+		if _sees_through(unit, surface):
 			continue
-		var edge_dist: float = active.position.distance_to(unit.global_position) - unit.radius
-		if edge_dist <= active.radius:
-			unit.apply_status(active.surface.status_effect)
+		for effect in surface.status_effects:
+			if effect == null or found.has(effect):
+				continue
+			var weaker: int = -1
+			var outranked: bool = false
+			for i in found.size():
+				if effect.group != &"" and found[i].group == effect.group:
+					if found[i].rank >= effect.rank:
+						outranked = true
+					else:
+						weaker = i
+			if outranked:
+				continue
+			if weaker >= 0:
+				found.remove_at(weaker)
+			found.append(effect)
+	return found
 
 
-## Combat ending doesn't leave battlefield hazards lingering into
-## whatever comes next — every active surface is cleared out along with
-## it, same as CombatManager already clearing turn_order.
-func _on_combat_ended(_winning_faction: StringName) -> void:
-	for active in active_surfaces.duplicate():
-		_expire(active)
+## context's own clouds; the detached ones for no world.
+func _clouds_for(context: WorldContext) -> CloudGrid:
+	return context.cloud_grid if context else _detached_clouds
 
 
-func _expire(active: ActiveSurface) -> void:
-	active_surfaces.erase(active)
+func _grid_for(context: WorldContext) -> SurfaceGrid:
+	return context.surface_grid if context else _detached_grid
 
-	var context: Node = WorldManager.spawn_parent()
-	if active.surface.expire_vfx:
-		active.surface.expire_vfx.play(context, active.position, active.position)
-	if active.surface.expire_sfx:
-		active.surface.expire_sfx.play(context, active.position)
 
-	if active.visual_node and is_instance_valid(active.visual_node):
-		active.visual_node.queue_free()
-	if active.area and is_instance_valid(active.area):
-		active.area.queue_free()
+func _context_of(encounter: Encounter) -> WorldContext:
+	for context in WorldManager.all_contexts():
+		if context.encounters.has(encounter):
+			return context
+	return null
+
+
+func _fighting(encounters: Array[Encounter]) -> bool:
+	for fight in encounters:
+		if is_instance_valid(fight) and fight.is_running:
+			return true
+	return false

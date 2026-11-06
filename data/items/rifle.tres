@@ -1,0 +1,50 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" path="res://assets/test_item_icons/test_rifle.png" id="2_icon"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
+[ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/rifle.tscn" id="w_model"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_rifle_burst.tres" id="seq_rifle_burst"]
+[ext_resource type="Resource" path="res://data/vfx/gunshot.tres" id="vfx_gunshot"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_rifle.tres" id="seq_reload"]
+
+[sub_resource type="Resource" id="Resource_burst"]
+script = ExtResource("4_row")
+label = "Burst"
+animation = ExtResource("seq_rifle_burst")
+cast_vfx = ExtResource("vfx_gunshot")
+kind = 1
+damage_base = 2
+wound_type = 4
+min_st = 9
+acc = 5
+half_damage_range = 20.0
+max_range = 40.0
+rof = 10
+recoil = 2
+fixed_dice_count = 5
+fixed_dice_sides = 6
+
+[sub_resource type="Resource" id="Resource_weapon"]
+script = ExtResource("3_weapon")
+attacks = Array[ExtResource("4_row")]([SubResource("Resource_burst")])
+two_handed = true
+shots = 30
+model_scene = ExtResource("w_model")
+stance_animation = "Weapon/Stance_Longgun"
+reload_animation = ExtResource("seq_reload")
+
+[resource]
+script = ExtResource("1_gear")
+slot_type = 13
+weight = 9.0
+stat_modifiers = Array[ExtResource("3_s3sab")]([])
+weapon_data = SubResource("Resource_weapon")
+id = &"rifle"
+item_name = "Assault Rifle"
+icon = ExtResource("2_icon")
+width = 2
+height = 4
+maximum_stack_count = 1

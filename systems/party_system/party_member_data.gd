@@ -49,14 +49,11 @@ extends Resource
 @export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
 @export var hover_color: Color = Color(1, 1, 1, 0.5)
 
-@export var strength: int = 10
-@export var dexterity: int = 10
-@export var intelligence: int = 10
-@export var health: int = 10
-@export var will: int = 10
-@export var perception: int = 10
-@export var move: int = 5
-## Real-time physical movement speed — distinct from move (the tactical
+## Every stat base and pool current, in UnitStats.to_dict() shape —
+## captured whole, so a stat added to res://data/stats/ survives a world
+## reload without this file listing it.
+@export var stats: Dictionary = {}
+## Real-time physical movement speed — distinct from Move (the tactical
 ## move-budget stat) the same way it's distinct on Unit itself. Missing
 ## this was a silent bug of the exact same shape selected_color's own doc
 ## comment already records: every world reload restored a member's stats
@@ -66,22 +63,19 @@ extends Resource
 ## hand-placed node.
 @export var move_speed: float = 4.0
 
-@export var maximum_hp: int = 10
-@export var current_hp: int = 10
-@export var maximum_fp: int = 10
-@export var current_fp: int = 10
-@export var damage_reduction: int = 0
 
 @export var alignment: int = 0
 @export var tendency: int = 0
 
 @export var abilities: Array[Ability] = []
 @export var custom_slots: Array[Ability] = []
+## Which weapon set was in hand (Unit.active_weapon_set). Restored
+## sheathed either way: drawing is a fight's to decide.
+@export var active_weapon_set: AttackRow.Kind = AttackRow.Kind.MELEE
 
 @export var skills: Array[PartySkillRecord] = []
 
-## EquipSlot.Slot (int) -> GearItem — the data an equipped Item wraps, not
-## the live Item node itself (see PartyManager.spawn_into(), which
-## instantiates a fresh Item from each entry the same way GiveItemEffect
-## already does).
+## EquipSlot.Slot (int) -> ItemInstance — a snapshot copy of what was
+## worn, sockets and runes included; PartyManager.spawn_into() equips a
+## fresh copy of each, so the record is never the live item.
 @export var equipment: Dictionary = {}

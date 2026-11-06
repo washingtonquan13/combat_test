@@ -13,10 +13,9 @@ extends Node
 ## click-routing, just showing up on the camera side.
 ##
 ## has_control() is a GameMode query — see that autoload for the full
-## reasoning. CombatManager/DialogueManager/NegotiationManager/
-## StashManager each push/pop their own GameMode.Mode when they start/end
-## rather than exposing an is_active() for this file to aggregate by
-## hand; adding a future blocker (a cutscene system) means giving it its
+## reasoning. CombatManager, Conversations and StashManager each feed
+## GameMode's derived mode rather than this file aggregating their
+## states by hand; adding a future blocker (a cutscene system) means giving it its
 ## own mode and possibly widening this function's allow-list, not adding
 ## a new hardcoded autoload reference here.
 ##

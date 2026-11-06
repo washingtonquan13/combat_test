@@ -1,0 +1,86 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://tools/anim_lab/anim_lab.gd" id="1_fgbje"]
+[ext_resource type="AnimationLibrary" path="res://assets/weapon_animations.tres" id="2_qntwi"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/rifle.tscn" id="3_u2rld"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="4_e30y0"]
+[ext_resource type="Script" path="res://tools/anim_lab/lab_grid.gd" id="6_f11ph"]
+
+[sub_resource type="Environment" id="Environment_r83fd"]
+background_mode = 1
+background_color = Color(0.64, 0.67, 0.71, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.75, 0.75, 0.78, 1)
+ambient_light_energy = 0.8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_7kb4w"]
+content_margin_left = 8.0
+content_margin_top = 26.0
+bg_color = Color(0.1, 0.11, 0.13, 1)
+
+[node name="AnimLab" type="Node3D"]
+script = ExtResource("1_fgbje")
+library = ExtResource("2_qntwi")
+main_weapon = ExtResource("3_u2rld")
+
+[node name="Model" parent="." instance=ExtResource("4_e30y0")]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.83205, 0.412021, -0.371391, 0, 0.669534, 0.742781, 0.5547, -0.618031, 0.557086, -2, 4, 3)
+light_energy = 1.1
+
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_r83fd")
+
+[node name="Views" type="Node3D" parent="."]
+
+[node name="front" type="Camera3D" parent="Views"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.95, 4)
+projection = 1
+size = 2.1
+
+[node name="side" type="Camera3D" parent="Views"]
+transform = Transform3D(-4.37114e-08, 0, -1, 0, 1, 0, 1, 0, -4.37114e-08, -4, 0.95, 0)
+projection = 1
+size = 2.1
+
+[node name="top" type="Camera3D" parent="Views"]
+transform = Transform3D(-1, -8.74228e-08, -3.82137e-15, 0, -4.37114e-08, 1, -8.74228e-08, 1, 4.37114e-08, 0, 4, 0.15)
+projection = 1
+size = 1.6
+
+[node name="quarter" type="Camera3D" parent="Views"]
+transform = Transform3D(0.772726, 0.136842, -0.619813, 0, 0.976485, 0.215587, 0.634739, -0.16659, 0.754555, -2.3, 1.75, 2.9)
+current = true
+fov = 32.0
+
+[node name="hands" type="Camera3D" parent="Views"]
+transform = Transform3D(0.768221, 0.22955, -0.597614, 0, 0.933503, 0.358569, 0.640184, -0.27546, 0.717137, -0.5, 1.4, 0.9)
+fov = 40.0
+
+[node name="Hud" type="CanvasLayer" parent="."]
+
+[node name="Grid" type="Control" parent="Hud"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("6_f11ph")
+
+[node name="Readout" type="Label" parent="Hud"]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_styles/normal = SubResource("StyleBoxFlat_7kb4w")
+theme_override_font_sizes/font_size = 12
+autowrap_mode = 2
+
+[node name="Caption" type="Label" parent="Hud"]
+offset_left = 6.0
+offset_top = 4.0
+offset_right = 6.0
+offset_bottom = 4.0
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0, 0, 0, 1)

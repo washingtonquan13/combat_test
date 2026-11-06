@@ -21,7 +21,7 @@ extends Node
 ##
 ## WHAT DOESN'T BELONG HERE, and why. SelectionManager.selected_units,
 ## UIStack, GameMode's mode stack, CombatManager.focused_encounter and
-## DialogueManager's live conversation are all PLAYER-scoped, not
+## Conversations.current are all PLAYER-scoped, not
 ## world-scoped — there is one player, so there is one of each no matter
 ## how many worlds exist. Putting them here would be a category error that
 ## only shows up later, as duplicated UI state fighting over one screen.
@@ -32,9 +32,11 @@ extends Node
 ## them through here.
 var encounters: Array[Encounter] = []
 
-## Grease, and anything else Surface-backed. Moved off SurfaceManager for
-## the leak described above.
-var surfaces: Array[ActiveSurface] = []
+## Its surfaces, moved off SurfaceManager for the leak described above:
+## ground surfaces (Grease, Fire...) as cells, clouds (Fog, Darkness) as
+## cubes.
+var surface_grid := SurfaceGrid.new()
+var cloud_grid := CloudGrid.new()
 
 ## This context's identity. Captured from the world root once it's in the
 ## tree; every world-scoped query compares against it.
@@ -99,9 +101,10 @@ func dispose() -> void:
 		NavigationGrid.unregister_world(world_root)
 	world_root = null
 
-	# Cleared, not expired. _expire() reaches for WorldManager.spawn_parent()
-	# to detach visuals, and by this point that is either the outgoing world
-	# (about to be freed anyway) or already gone. The nodes themselves are
-	# children of the world and die with it; what has to end here is this
-	# array's references to them.
-	surfaces.clear()
+	# Cleared, not expired. Expiring reaches for WorldManager.spawn_parent()
+	# for its effects, and by this point that is either the outgoing world
+	# (about to be freed anyway) or already gone. The visuals themselves are
+	# children of the world and die with it; what has to end here is the
+	# grids' references to them.
+	surface_grid.clear()
+	cloud_grid.clear()

@@ -1,0 +1,127 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://ui/downed_tracker.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/stable_icon.svg" id="2_icon"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_stable_on"]
+bg_color = Color(0.243, 0.812, 0.353, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.05, 0.165, 0.075, 1)
+corner_radius_top_left = 1
+corner_radius_top_right = 1
+corner_radius_bottom_right = 1
+corner_radius_bottom_left = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_stable_off"]
+bg_color = Color(0, 0, 0, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.243, 0.812, 0.353, 0.8)
+corner_radius_top_left = 1
+corner_radius_top_right = 1
+corner_radius_bottom_right = 1
+corner_radius_bottom_left = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_death_on"]
+bg_color = Color(0.89, 0.2, 0.2, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.03, 0.03, 1)
+corner_radius_top_left = 1
+corner_radius_top_right = 1
+corner_radius_bottom_right = 1
+corner_radius_bottom_left = 1
+
+[sub_resource type="StyleBoxFlat" id="StyleBox_death_off"]
+bg_color = Color(0, 0, 0, 0.6)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.89, 0.2, 0.2, 0.8)
+corner_radius_top_left = 1
+corner_radius_top_right = 1
+corner_radius_bottom_right = 1
+corner_radius_bottom_left = 1
+
+[node name="DownedTracker" type="VBoxContainer"]
+mouse_filter = 2
+alignment = 1
+script = ExtResource("1_script")
+stable_on = SubResource("StyleBox_stable_on")
+stable_off = SubResource("StyleBox_stable_off")
+death_on = SubResource("StyleBox_death_on")
+death_off = SubResource("StyleBox_death_off")
+
+[node name="Tracks" type="HBoxContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="StableBars" type="HBoxContainer" parent="Tracks"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Bar1" type="Panel" parent="Tracks/StableBars"]
+custom_minimum_size = Vector2(6, 18)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_stable_off")
+
+[node name="Bar2" type="Panel" parent="Tracks/StableBars"]
+custom_minimum_size = Vector2(6, 18)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_stable_off")
+
+[node name="Bar3" type="Panel" parent="Tracks/StableBars"]
+custom_minimum_size = Vector2(6, 18)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_stable_off")
+
+[node name="DeathBars" type="HBoxContainer" parent="Tracks"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Bar1" type="Panel" parent="Tracks/DeathBars"]
+custom_minimum_size = Vector2(6, 18)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_death_off")
+
+[node name="Bar2" type="Panel" parent="Tracks/DeathBars"]
+custom_minimum_size = Vector2(6, 18)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_death_off")
+
+[node name="Bar3" type="Panel" parent="Tracks/DeathBars"]
+custom_minimum_size = Vector2(6, 18)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBox_death_off")
+
+[node name="StableIcon" type="TextureRect" parent="."]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_horizontal = 4
+mouse_filter = 2
+texture = ExtResource("2_icon")
+expand_mode = 1
+stretch_mode = 5

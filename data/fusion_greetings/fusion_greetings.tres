@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="FusionGreetings" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/demon_system/fusion_greetings.gd" id="1_greet"]
+
+[resource]
+script = ExtResource("1_greet")
+introduction = "I am {name} of the {order} clan."
+by_personality = {
+&"Calm": "I will follow where you lead, Master.",
+&"Cryptic": "We have met before, though you would not remember it.",
+&"Dumb": "Huh? Oh. Hello! What do we do now?",
+&"Foolish": "Hee hee! Point me at something and watch!",
+&"Girly": "Ooh, a fresh start. Treat me nicely, okay?",
+&"Kind": "It is good to meet you. I hope I can be of help.",
+&"Moody": "...Fine. I am here. Do not expect me to be cheerful about it.",
+&"Scary": "Remember who you woke. I certainly will.",
+&"Sly": "A new body, a new bargain. Let us both profit, hm?",
+&"Wild": "RAAH! At last, something to fight with!"
+}
+fallback_remark = "Let us see what you make of me."

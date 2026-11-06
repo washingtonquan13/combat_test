@@ -4,10 +4,9 @@ extends RefCounted
 ## FlyToCloseGap, Flee) all need — factored out here rather than
 ## duplicated per-behavior, same reasoning UnitQuery collects its own
 ## shared scans for. Type-checked against the actual effect present on
-## an ability (GrantFlightEffect/LandEffect), not compared against a
-## specific fly.tres/land.tres resource, so this works for any unit
-## carrying any flight-granting/landing ability, not just the two
-## authored ones today — mirrors the old CombatAI._find_flight_ability
+## an ability (GrantFlightEffect), not compared against a specific
+## fly.tres resource, so this works for any unit carrying any
+## flight-granting ability, not just the one authored today — mirrors the old CombatAI._find_flight_ability
 ## this replaces (see combat_ai.gd's own header on why that hardcoded
 ## hack was removed from there).
 
@@ -19,11 +18,13 @@ static func find_flight_ability(unit: Unit) -> Ability:
 	return null
 
 
+## What landing is for this unit right now: its flight ability's off form
+## (Ability.toggle_off), the same thing the player's Fly slot does while
+## on — null unless that flight is the one that is on.
 static func find_land_ability(unit: Unit) -> Ability:
-	for ability in unit.abilities:
-		for effect in ability.effects:
-			if effect is LandEffect:
-				return ability
+	var flight: Ability = find_flight_ability(unit)
+	if flight and flight.toggle_off and flight.is_on_for(unit):
+		return flight.toggle_off
 	return null
 
 

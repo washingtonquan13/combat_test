@@ -1,0 +1,155 @@
+{
+  "format": 2,
+  "id": "industrial",
+  "name": "Industrial",
+  "description": "A Nocturne-era battle ensemble, every sound home-built. The kit is synthesized by tools/build_homebuilt_sfz.py: a gated overdriven kick, bit-crushed noise snares, ring-modulated metal, an anvil and a clank, a reverse cymbal, and risers and whooshes as one-shots on keys of their own. The bass is Tide, the ring-modulated saw buzz from the Long Time Way ensemble; the lead is Wire, the band ensemble's cutting saw lead. Keys are Toll, the synthesized tubular bell, with the formant chant a voice of their own. The pad is three drones addressed by voice: a detuned supersaw breathing through a slow filter, a low semitone cluster, and the chant.",
+  "buses": {
+    "lead": {
+      "space": "room",
+      "wet": 0.16,
+      "predelay": 20.0
+    },
+    "keys": {
+      "space": "hall",
+      "wet": 0.3,
+      "predelay": 30.0
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.3,
+      "predelay": 30.0
+    },
+    "perc": {
+      "space": "room",
+      "wet": 0.14,
+      "predelay": 10.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "synth/wire-lead"
+        }
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": 4.0,
+      "defaults": {
+        "vibrato_depth": 0,
+        "brightness": 40
+      }
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "homebuilt/toll",
+          "name": "toll"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -20.5
+    },
+    "keys_chant": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "homebuilt/chant",
+          "name": "chant",
+          "gain_db": -4.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -20.5
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "synth/tide-bass"
+        }
+      ],
+      "range": [
+        24,
+        60
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": 9.0
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "homebuilt/drone-saw",
+          "name": "drone"
+        }
+      ],
+      "range": [
+        24,
+        84
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -20.0
+    },
+    "cluster": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "homebuilt/drone-cluster",
+          "name": "cluster"
+        }
+      ],
+      "range": [
+        24,
+        84
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -20.0
+    },
+    "chant": {
+      "family": "choir",
+      "layers": [
+        {
+          "instrument": "homebuilt/chant",
+          "name": "chant",
+          "gain_db": -2.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "range": [
+        24,
+        84
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -20.0
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "homebuilt/industrial-kit"
+        }
+      ],
+      "voices": 32,
+      "gain_source": "guessed",
+      "gain_db": -20.0
+    }
+  }
+}

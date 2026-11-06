@@ -125,12 +125,6 @@ var _pending_delay_positions: int = -1
 var _skip_first_action_for: Unit = null
 
 
-## Builds initiative order and starts. Initiative = dexterity, highest
-## first; ties broken by a value rolled once per unit BEFOREHAND, not
-## inside the comparator — a sort comparator can be called more than once
-## for the same pair, and one that re-rolls each call gives inconsistent
-## answers, which Godot flags as a bad comparison function and can leave
-## the sort broken.
 ## A fight as data: who is in it, in order, and how far through it is.
 ##
 ## Units by persistent_id, which is what makes a turn order writable at
@@ -188,6 +182,12 @@ func resume(units: Array[Unit], at_index: int, at_round: int) -> void:
 	turn_started.emit(current_unit)
 
 
+## Builds initiative order and starts. Highest Basic Speed first, then
+## the higher DX (GURPS's own tie rule), then a value rolled once per
+## unit BEFOREHAND, not inside the comparator — a sort comparator can be
+## called more than once for the same pair, and one that re-rolls each
+## call gives inconsistent answers, which Godot flags as a bad comparison
+## function and can leave the sort broken.
 func begin(combatants: Array[Unit], skip_first_action_for: Unit = null) -> void:
 	turn_order = combatants.filter(func(u): return is_instance_valid(u) and u.is_alive())
 
@@ -196,8 +196,9 @@ func begin(combatants: Array[Unit], skip_first_action_for: Unit = null) -> void:
 		tiebreak[unit] = randi_range(1, 6)
 
 	turn_order.sort_custom(func(a: Unit, b: Unit) -> bool:
-		if a.get_stat("DX") != b.get_stat("DX"):
-			return a.get_stat("DX") > b.get_stat("DX")
+		for id in [StatIds.BASIC_SPEED, StatIds.DX]:
+			if a.get_stat(id) != b.get_stat(id):
+				return a.get_stat(id) > b.get_stat(id)
 		return tiebreak[a] > tiebreak[b]
 	)
 
@@ -229,11 +230,8 @@ func _adopt(unit: Unit) -> void:
 	unit.encounter = self
 	if not unit.died.is_connected(_on_unit_died):
 		unit.died.connect(_on_unit_died)
-	# Anything that displaces a unit mid-turn (Knockback, Shove, Jump's
-	# move_caster_effect) finishes by emitting ability_used and none of them
-	# go through Unit.move_to(), so none trigger an occupancy update alone.
-	if not unit.ability_used.is_connected(_on_ability_used):
-		unit.ability_used.connect(_on_ability_used)
+	if not unit.downed_changed.is_connected(_on_unit_downed_changed):
+		unit.downed_changed.connect(_on_unit_downed_changed)
 
 
 ## Untyped parameter on purpose. A typed `unit: Unit` is validated at the
@@ -249,8 +247,23 @@ func _release(unit) -> void:
 		unit.encounter = null
 	if unit.died.is_connected(_on_unit_died):
 		unit.died.disconnect(_on_unit_died)
-	if unit.ability_used.is_connected(_on_ability_used):
-		unit.ability_used.disconnect(_on_ability_used)
+	if unit.downed_changed.is_connected(_on_unit_downed_changed):
+		unit.downed_changed.disconnect(_on_unit_downed_changed)
+	_drop_turn_requests(unit)
+
+
+## Forgets an end_turn or delay_turn that was waiting on unit's
+## became_idle. Such a request belongs to that unit's turn only: once
+## the turn has moved on or the unit has left, firing it would end or
+## delay whoever is acting by then.
+func _drop_turn_requests(unit) -> void:
+	if not is_instance_valid(unit):
+		return
+	if unit.became_idle.is_connected(end_turn):
+		unit.became_idle.disconnect(end_turn)
+	if unit.became_idle.is_connected(_on_unit_idle_for_delay):
+		unit.became_idle.disconnect(_on_unit_idle_for_delay)
+		_pending_delay_positions = -1
 
 
 ## Injects a unit into this running fight — a summon, or someone who walked
@@ -313,6 +326,10 @@ func finish(winning_faction: StringName = &"") -> void:
 
 	phase = Phase.OUT_OF_COMBAT
 	for unit in turn_order:
+		# Anyone still Downed when the fight ends survives it, stable but
+		# still down.
+		if is_instance_valid(unit) and unit.is_downed():
+			unit.stabilize()
 		_release(unit)
 	turn_order.clear()
 	_turn_index = -1
@@ -346,9 +363,6 @@ func end_turn() -> void:
 
 	phase = Phase.TURN_ENDING
 
-	# Catches anything that displaced a unit at the tail end of this turn
-	# without going through ability_used/move_to's own occupancy update.
-	NavigationGrid.update_occupancy(get_tree(), [unit])
 	turn_ended.emit(unit)
 	_try_disengage(unit)
 	_advance_turn.call_deferred()
@@ -392,7 +406,6 @@ func _perform_delay(unit: Unit, positions: int) -> void:
 
 	var next_unit: Unit = turn_order[_turn_index]
 	phase = Phase.TURN_STARTING
-	NavigationGrid.update_occupancy(get_tree(), [next_unit])
 	turn_ended.emit(unit)
 	_begin_unit_turn_actions(next_unit)
 	_log_and_emit_turn_started(next_unit)
@@ -412,6 +425,11 @@ func _begin_unit_turn_actions(unit: Unit) -> void:
 func _advance_turn() -> void:
 	if phase == Phase.OUT_OF_COMBAT:
 		return
+
+	# Read off turn_order, not current_unit: the outgoing unit may have
+	# been freed, and a typed getter can't hand that back.
+	if _turn_index >= 0 and _turn_index < turn_order.size():
+		_drop_turn_requests(turn_order[_turn_index])
 
 	# Captured before turn_order is reassigned — filter() returns a NEW
 	# array, so this keeps the original unfiltered ordering (and the index
@@ -454,11 +472,6 @@ func _advance_turn() -> void:
 	if unit == null:
 		return
 	phase = Phase.TURN_STARTING
-	# Marks every OTHER living unit's footprint occupied, and this unit's
-	# own excluded (its standing position can't block its own path query).
-	# Once per turn is the right cadence: nothing else moves until this
-	# turn ends.
-	NavigationGrid.update_occupancy(get_tree(), [unit])
 	_begin_unit_turn_actions(unit)
 	unit.tick_statuses()
 
@@ -468,6 +481,17 @@ func _advance_turn() -> void:
 	if phase == Phase.OUT_OF_COMBAT:
 		return
 	if not is_instance_valid(unit) or not unit.is_alive():
+		_advance_turn.call_deferred()
+		return
+
+	# A Downed unit's turn is just its roll (tick_statuses above already
+	# made it, and killed it on the third mark toward death) — it never
+	# gets turn_started, so nothing (player input, CombatAI) tries to act.
+	if unit.is_stable():
+		SystemLog.print("%s is down, but stable." % LogFormat.unit_name(unit))
+		_advance_turn.call_deferred()
+		return
+	if unit.is_downed():
 		_advance_turn.call_deferred()
 		return
 
@@ -503,6 +527,9 @@ func _try_disengage(unit: Unit) -> void:
 	for other in turn_order:
 		if other == unit or not is_instance_valid(other) or not other.is_alive():
 			continue
+		# Someone lying Downed isn't watching anybody.
+		if other.is_downed():
+			continue
 		if not unit.is_hostile_to(other):
 			continue
 		var distance: float = unit.distance_to(other)
@@ -536,24 +563,23 @@ func _check_combat_end() -> bool:
 		if is_instance_valid(unit) and unit.is_alive():
 			living.append(unit)
 
+	# A Downed unit can't fight but can still be finished off, so a pair
+	# keeps the fight going as long as at least one of them is standing.
+	# Two Downed units can't do anything to each other.
 	for i in living.size():
 		for j in range(i + 1, living.size()):
+			if living[i].is_downed() and living[j].is_downed():
+				continue
 			if living[i].is_hostile_to(living[j]):
 				return false  # somebody here still wants to fight somebody else here
 
-	finish(living[0].faction if not living.is_empty() else &"")
+	var standing: Array[Unit] = living.filter(func(u): return not u.is_downed())
+	var winners: Array[Unit] = standing if not standing.is_empty() else living
+	finish(winners[0].faction if not winners.is_empty() else &"")
 	return true
 
 
 func _on_unit_died(_unit: Unit) -> void:
-	# Deliberately BEFORE the phase check and unconditional on it: an AoE
-	# that wipes a faction fires one died signal per kill, synchronously, in
-	# the same call stack — if THIS death ends the fight, every death after
-	# it in that batch would otherwise hit the early return and never get
-	# occupancy updated. See this class's header on why one phase value is
-	# what actually prevents that class of bug.
-	NavigationGrid.update_occupancy(get_tree(), [current_unit] if current_unit else [])
-
 	if phase == Phase.OUT_OF_COMBAT:
 		return
 
@@ -576,8 +602,14 @@ func _on_unit_died(_unit: Unit) -> void:
 		_advance_turn.call_deferred()
 
 
-## Knockback, Shove, Jump's move_caster_effect and anything else that
-## displaces a unit through an ability rather than Unit.move_to() — this is
-## the catch-all for "what just resolved might have moved someone."
-func _on_ability_used(attacker: Unit, _target, _result: Dictionary) -> void:
-	NavigationGrid.update_occupancy(get_tree(), [attacker])
+## Going Downed can end the fight (the last one standing on a side just
+## went down) and, mid-turn, ends that unit's turn. Getting picked up
+## needs nothing here: a picked-up unit simply gets its next turn.
+func _on_unit_downed_changed(unit: Unit) -> void:
+	if phase == Phase.OUT_OF_COMBAT or not unit.is_downed():
+		return
+	if _check_combat_end():
+		return
+	if phase == Phase.ACTIVE and unit == current_unit:
+		end_turn.call_deferred()
+

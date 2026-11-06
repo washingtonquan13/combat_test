@@ -5,6 +5,8 @@ extends Container
 @onready var background: ColorRect = $Background
 @onready var icon_rect: TextureRect = $Icon
 @onready var stack_count_label: Label = $StackCount
+@onready var rarity_frame: ReferenceRect = $RarityFrame
+@onready var socket_overlay: SocketOverlay = $Sockets
 
 @export var tooltip_scene: PackedScene
 @export var context_menu_scene: PackedScene
@@ -32,16 +34,18 @@ extends Container
 ## unchanged; only the few WRITE sites (assigning gear_data =) needed to
 ## move to `definition` directly.
 var gear_data: GearItem:
-	get: return definition as GearItem
+	get: return (instance.definition if instance else definition) as GearItem
 @export var icon: Texture2D:
 	set(value):
 		icon = value
 		if is_instance_valid(icon_rect):
 			icon_rect.texture = value
-@export var cell_size_px: int = 64:
-	set(value):
-		cell_size_px = value
-		_update_size()
+## Pixels per cell of the grid this widget sits in, read from that grid
+## (Inventory.cell_size_px) so the two can't disagree; 0 out of a grid.
+var cell_size_px: int:
+	get:
+		var layer := get_parent() as InventoryGridLayer
+		return layer.cell_size_px if layer else 0
 @export var width: int = 1:
 	set(value):
 		width = value
@@ -52,14 +56,36 @@ var gear_data: GearItem:
 		height = value
 		_update_size()
 		_update_tooltip_text()
+## Authoring input only, for Items placed by hand in a scene (chest.tscn):
+## Inventory adopts those into its ItemContainer, and from then on the
+## count lives on `instance`.
 @export var current_stack_count: int = 1
 @export var maximum_stack_count: int = 99
+
+## The copy this widget shows. Everything per-copy (the stack count
+## today) is read from here; the widget itself holds nothing that has to
+## survive it being freed — Inventory and EquipSlot free and rebuild
+## widgets freely.
+var instance: ItemInstance:
+	set(value):
+		if instance and instance.changed.is_connected(_on_instance_changed):
+			instance.changed.disconnect(_on_instance_changed)
+		instance = value
+		if instance:
+			instance.changed.connect(_on_instance_changed)
+			definition = instance.definition
+		_on_instance_changed()
+
+## The grid this widget's instance sits in, or null when it's shown in
+## an EquipSlot. Set by Inventory.
+var container: ItemContainer
 
 enum LayoutMode { GRID, EQUIPPED }
 @export var layout: LayoutMode = LayoutMode.GRID:
 	set(value):
 		layout = value
 		_update_size()
+		_show_sockets()
 
 var is_being_dragged: bool = false
 var context_menu: Window = null
@@ -68,10 +94,11 @@ func _ready() -> void:
 	if is_instance_valid(icon_rect):
 		icon_rect.texture = icon
 	_update_size()
-	_update_tooltip_text()
+	update_stack_count_label()
+	_show_sockets()
 
 func _update_size() -> void:
-	if layout == LayoutMode.GRID:
+	if layout == LayoutMode.GRID and cell_size_px > 0:
 		size = Vector2i(width, height) * cell_size_px
 	# EQUIPPED layout size is owned by whichever EquipSlot the item is placed in.
 
@@ -89,6 +116,9 @@ func _physics_process(_delta: float) -> void:
 
 func _notification(what: int) -> void:
 	match what:
+		NOTIFICATION_PARENTED:
+			_update_size()
+			_show_sockets()
 		NOTIFICATION_DRAG_BEGIN:
 			if is_same(get_viewport().gui_get_drag_data(), self):
 				is_being_dragged = true
@@ -105,7 +135,10 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	var preview := TextureRect.new()
 	preview.texture = icon
 	preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	preview.size = Vector2i(width, height) * cell_size_px
+	preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	# As big as it's drawn where it was picked up: its footprint in a
+	# grid, the slot in an EquipSlot.
+	preview.size = size
 	preview.position = -preview.size / 2
 	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_drag_preview(preview)
@@ -117,20 +150,55 @@ func get_parent_equip_slot() -> EquipSlot:
 		return parent.get_parent() as EquipSlot
 	return null
 
-## Leaves wherever the item currently lives (grid or equip slot), including
-## the equip-slot-side bookkeeping, so it's ready to be added somewhere new.
+## Takes this widget's instance out of wherever it lives (a grid or an
+## equip slot, including the unit's stat bookkeeping), so it's ready to
+## be placed somewhere new. The widget itself is freed by whichever view
+## was showing it; the instance is what moves.
 func detach_from_current_location() -> void:
 	var slot := get_parent_equip_slot()
 	if slot:
 		slot.unequip()
+	elif container:
+		container.remove(instance)
+		container = null
 
-	var parent := get_parent()
-	if parent:
-		parent.remove_child(self)
+func _on_instance_changed() -> void:
+	if instance:
+		current_stack_count = instance.count
+	update_stack_count_label()
+	_show_sockets()
+
+
+## Rarity frame, and the sockets over the art — only in the grid, where
+## the art is at its true footprint; the shrunken equipped preview leaves
+## them to the tooltip's full-size art.
+func _show_sockets() -> void:
+	if not is_instance_valid(socket_overlay):
+		return
+	rarity_frame.visible = instance != null and instance.rarity != ItemInstance.Rarity.NORMAL
+	if instance:
+		rarity_frame.border_color = instance.rarity_color()
+	socket_overlay.visible = layout == LayoutMode.GRID
+	socket_overlay.show_sockets(instance, cell_size_px)
+
+
+## Dropping a usable item on this one — a rune into a free socket, an awl
+## for a new socket — uses one of it on this copy. Anything else falls
+## through to the grid under this widget, as a move.
+func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+	return data is Item and data != self and instance != null and data.instance != null 		and data.definition.can_apply_to(instance)
+
+
+func _drop_data(_at_position: Vector2, data: Variant) -> void:
+	data.definition.apply_to(instance)
+	data.instance.count -= 1
+	if data.instance.count <= 0:
+		data.detach_from_current_location()
 
 func update_stack_count_label() -> void:
-	stack_count_label.text = str(current_stack_count)
-	stack_count_label.visible = current_stack_count > 1
+	if is_instance_valid(stack_count_label):
+		stack_count_label.text = str(current_stack_count)
+		stack_count_label.visible = current_stack_count > 1
 	_update_tooltip_text()
 
 func _update_tooltip_text() -> void:
@@ -171,8 +239,10 @@ func _make_custom_tooltip(for_text: String) -> Object:
 		return null
 
 	var tooltip: Control = tooltip_scene.instantiate()
-	if tooltip.has_method("set_text"):
-		tooltip.set_text(for_text)
+	if instance and tooltip.has_method("show_item"):
+		tooltip.ready.connect(tooltip.show_item.bind(instance))
+	elif tooltip.has_method("set_text"):
+		tooltip.ready.connect(tooltip.set_text.bind(for_text))
 	return tooltip
 
 ## Right-click menu, shown via a Window-based Popup — rendered as a top-most

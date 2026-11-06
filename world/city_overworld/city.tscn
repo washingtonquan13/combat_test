@@ -1,0 +1,19 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://world/city_overworld/city_0.glb" id="0"]
+[ext_resource type="PackedScene" path="res://world/city_overworld/city_1.glb" id="1"]
+[ext_resource type="PackedScene" path="res://world/city_overworld/city_2.glb" id="2"]
+[ext_resource type="PackedScene" path="res://world/city_overworld/city_3.glb" id="3"]
+[ext_resource type="PackedScene" path="res://world/city_overworld/city_4.glb" id="4"]
+
+[node name="City" type="Node3D"]
+
+[node name="Part0" parent="." instance=ExtResource("0")]
+
+[node name="Part1" parent="." instance=ExtResource("1")]
+
+[node name="Part2" parent="." instance=ExtResource("2")]
+
+[node name="Part3" parent="." instance=ExtResource("3")]
+
+[node name="Part4" parent="." instance=ExtResource("4")]

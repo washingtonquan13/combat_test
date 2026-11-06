@@ -1,0 +1,308 @@
+// Sealed Ward - one cell, repeated, with the harmony moving above it.
+//
+// This is an ostinato piece, not a chord progression, because that is what the
+// measurements said. Across ten Masuko-era SNES scores the bass repeats a 2- to
+// 4-bar cell at 100% exactness for the whole track, the harmony is four or five
+// pitch classes used subtractively, and everything moves in sixteenths. A riff
+// that turns around onto a new chord every bar is rock writing; this idiom
+// pedals, and the interest comes from what is laid over the pedal.
+//
+// So: the bass plays the same two bars from the first downbeat to the last,
+// never once varying its pitches. What changes is everything else.
+//
+// Harmony over the pedal. The cell stays in D; the chords above it move every
+// two bars, not every bar - slow harmonic rhythm over a fixed bass is the whole
+// point of a pedal, and a fast one would cancel it:
+//
+//   Dm . | F . | Bb . | A .
+//
+// Against a D in the bass, F is D minor with the root's weight kept, Bb makes it
+// a Bb major over its third - the moment of lift - and A is the dominant with
+// its C# grinding a half step against the pedal's D. That grind is the piece.
+//
+// The ward tightens. The `rite` section moves the entire band up one semitone,
+// to E flat minor, and the pedal moves with it: the cell is the same pattern,
+// written once, used as `cell+1`. A semitone is the smallest move there is and
+// the most unsettling - nothing about the music changes except that it is now in
+// the wrong place - and then `out` drops back to D, which is the only resolution
+// the piece offers.
+//
+// What each instrument is for, because they are not six copies of the riff:
+//
+//   Bass       the cell. Sixteenths, but played: the accented notes are the
+//              skeleton and the ones marked `+` are dead ghosts - the string
+//              damped, the pick still moving. Ghosts are what makes a sixteenth
+//              line a bass player instead of a sequencer, and they are the thing
+//              the first version of this score had none of. The last note of
+//              each bar slides into the next.
+//
+//   Guitar     not a second riff. It is the engine: palm-muted chugs on the
+//              pedal, sixteenths, low and dead, with a power chord stab where
+//              the harmony turns over. Chords are root-fifth-octave and never
+//              contain a third, since distortion turns a third into a note
+//              outside the chord, and the organ has the thirds anyway.
+//
+//   Organ      the voice. This ensemble is a Hammond and the tune belongs to it -
+//              a melody that arrives late, in the verse, over music the ear has
+//              already learned, and comes back an octave up when the ward moves.
+//
+//   Pad        the chord quality the guitar refuses to state: the third and the
+//              seventh, two notes, held, swelling into each harmonic change.
+//
+//   Keys       only in the rite, and only the cell's own shape two octaves up,
+//              so the tightening is heard as the same music in a brighter place.
+//
+//   Drums      the source kits are a two-sound drum machine: kick and an electric
+//              snare, almost nothing else. Written as three limbs, but the right
+//              hand stays off the cymbals until the rite - it has nothing to play
+//              that the sixteenths are not already playing, and an empty hand is
+//              what makes the rite's entry land.
+//
+// Form is entrances: bass alone, then the engine, then the drums lean in, then
+// the tune, then the ward moves. Nothing is ever taken away until `out`.
+
+title: Sealed Ward
+ensemble: tonewheel
+parts: lead guitar keys bass pad perc
+tempo: 132
+meter: 4/4
+key: d minor
+order: intro [riff verse rite break reprise] out
+
+// --- the cell, written once ---------------------------------------------
+
+pattern cell
+  | d2:0.25! d2:0.25+ d2:0.25 d2:0.25+ f2:0.25! d2:0.25+ c2:0.25 d2:0.25+ a1:0.25! a1:0.25+ c2:0.25 d2:0.25+ f2:0.25! g2:0.25+ f2:0.25 d2:0.25/ |
+  | d2:0.25! d2:0.25+ d2:0.25 f2:0.25+ g2:0.25! f2:0.25+ d2:0.25 c2:0.25+ d2:0.25! e2:0.25+ f2:0.25 g2:0.25+ a2:0.25! g2:0.25+ f2:0.25 e2:0.25/ |
+
+// The engine. Twelve dead sixteenths and a stab, then the same bar with the
+// stab pushed onto the offbeats - the only syncopation the guitar has, so it
+// counts when it happens.
+
+pattern chug
+  | d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ [d3 a3 d4]:1! |
+  | d3:0.25+ d3:0.25+ [d3 a3 d4]:0.5! d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ [d3 a3 d4]:0.5! d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ r:0.5 |
+
+// The cell's shape, two octaves up, for the rite only.
+
+pattern bright
+  | d4:0.25! d4:0.25 a4:0.25 d5:0.25 f5:0.25! d5:0.25 c5:0.25 a4:0.25 a4:0.25! c5:0.25 d5:0.25 f5:0.25 a5:0.25! g5:0.25 f5:0.25 d5:0.25 |
+  | d5:0.25! a4:0.25 f4:0.25 d4:0.25 g4:0.25! d5:0.25 f5:0.25 g5:0.25 a5:0.25! g5:0.25 f5:0.25 e5:0.25 d5:0.25! f5:0.25 a5:0.25 d6:0.25 |
+
+// --- the kit ------------------------------------------------------------
+// The kick answers the cell's accents; the snare takes 2 and 4 and ghosts the
+// sixteenth the bass leaves open.
+
+pattern hook
+  // The tune, named because the reprise plays it note for note and a reprise
+  // that is retyped is a reprise that drifts. `from:verse` cannot carry it
+  // there, because declaring a lane in the inheriting section replaces the
+  // inherited one outright - and the reprise needs to replace it, to spin the
+  // Leslie up under the same notes.
+  | d4:0.75! f4:0.75 g4:0.5 a4:0.25 c5:0.25 a4:0.5 g4:0.5 f4:0.5 |
+  | d5:1.5_ c5:0.5 bb4:1 a4:1 |
+  | a4:0.75! c5:0.75 d5:0.5 f5:0.25 a5:0.25 f5:0.5 e5:0.5 c5:0.5 |
+  | f5:1.5_ e5:0.5 d5:1 c5:1 |
+  | d4:0.75! f4:0.75 g4:0.5 bb4:0.25 d5:0.25 bb4:0.5 a4:0.5 f4:0.5 |
+  | bb4:1.5_ a4:0.5 g4:1 f4:1 |
+  | a4:0.5 c#5:0.5 e5:1! g5:0.5 e5:0.5 c#5:1 |
+  | c#5:2! e5:0.5 g5:0.5 a5:0.5 g5:0.5 |
+
+pattern feet
+  | kick:1! kick:0.5 kick:0.5 kick:1! kick:0.75 kick:0.25 |
+pattern back
+  | r:1 snare_dry:0.75! snare_dry:0.25. r:1 snare_dry:1! |
+pattern hats
+  | hat:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+pattern four
+  | kick:1! kick:1 kick:1! kick:1 |
+pattern offbeat
+  | r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 |
+
+// --- sections -----------------------------------------------------------
+
+section intro bars:4
+  // The cell twice, alone but for the foot. Nothing to hear but the ghosts.
+  bass dyn:mp..mf feel:tight pocket:on
+    | cell | cell |
+  perc.feet dyn:mp feel:tight
+    | r:4 | r:4 | feet | feet |
+  pad dyn:pp
+    | [f4 a4]:4 | [f4 a4]:4 | [f4 a4]:4 | [f4 a4]:4^ |
+
+section riff bars:8
+  // The engine starts. Still no tune, no cymbals, no chord change for two bars
+  // at a time - the ear is being given the pedal to hold on to.
+  bass dyn:mf feel:tight pocket:on
+    | cell | cell | cell | cell |
+  guitar dyn:mf..f feel:tight art:sustain pocket:on
+    | chug | chug | chug | chug |
+  perc.feet dyn:mf feel:tight
+    | feet | feet | feet | feet | feet | feet | feet |
+    | kick:1! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+  perc.left dyn:mf feel:tight
+    | back | back | back | back | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+  pad dyn:pp..p
+    | [f4 a4]:4 | [f4 a4]:4 | [a4 c5]:4 | [a4 c5]:4^ |
+    | [d4 f4]:4 | [d4 f4]:4 | [c#4 g4]:4 | [c#4 g4]:4^ |
+
+section verse bars:8
+  // The organ arrives. Bar 3 is bar 1 moved up to sit on the F, and bar 5 the
+  // same shape again over the Bb - the tune is one idea heard three times at
+  // three heights, which is how a melody gets remembered. The long notes are
+  // the thirds and sevenths the guitar will not play.
+  lead dyn:mf..f feel:tight pocket:lay rot:slow
+    // The rotor is turning slowly when the tune arrives - chorale, the speed a
+    // Hammond idles at. It has somewhere to go later.
+    | hook |
+  bass dyn:mf feel:tight pocket:lay
+    | cell | cell | cell | cell |
+  guitar dyn:mf feel:tight art:sustain pocket:lay
+    | chug | chug | chug | chug |
+  perc.feet dyn:mf feel:tight
+    | feet | feet | feet | feet | feet | feet | feet |
+    | kick:1! kick:0.5 kick:0.5 kick:1! kick:0.5 kick:0.5 |
+  perc.left dyn:mf feel:tight
+    | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. r:1 snare_dry:0.5! tom_floor:0.5 |
+    | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. tom_high:0.5 tom_high:0.5 tom_mid:0.5 tom_floor:0.5 |
+  pad dyn:p
+    | [f4 a4]:4 | [f4 a4]:4 | [a4 c5]:4 | [a4 c5]:4^ |
+    | [d4 f4]:4 | [d4 f4]:4 | [c#4 g4]:4 | [c#4 g4]:4^ |
+
+section rite bars:8
+  // The lift. The bass never moves - the pedal is the thing the whole piece
+  // stands on, and taking it away was what made the first attempt at this
+  // section fall over. Instead the guitar's roots climb away from it, Bb C Dm
+  // A, two bars each: bVI to bVII to i is the oldest lift in this idiom, and
+  // against a bass that refuses to follow, each chord is heard as a tension
+  // rather than a change of scene.
+  //
+  // It is also not louder than the verse until it has earned it. The keys stay
+  // out for four bars, the right hand plays offbeats rather than filling every
+  // eighth, and the dynamic climbs across the section instead of starting at
+  // the top.
+  lead dyn:mf..ff feel:tight pocket:push rot:fast
+    | bb4:0.5! d5:0.5 f5:1! d5:0.5 c5:0.5 bb4:1 |
+    | d5:1.5_ f5:0.5 a5:1 f5:1 |
+    | c5:0.5! e5:0.5 g5:1! e5:0.5 d5:0.5 c5:1 |
+    | e5:1.5_ g5:0.5 c6:1 a5:1 |
+    | d5:0.5! f5:0.5 a5:1! g5:0.5 f5:0.5 d5:1 |
+    | a5:1.5_ g5:0.5 f5:1 d5:1 |
+    | c#5:0.5! e5:0.5 a5:1! g5:0.5 e5:0.5 c#5:1 |
+    | c#5:1! e5:1 g5:0.5 a5:0.5 bb5:0.5! a5:0.5 |
+  keys dyn:mf..f feel:tight pocket:push
+    // Held back until the second phrase, so the section still has somewhere
+    // to go when it is halfway through.
+    | r:4 | r:4 | r:4 | r:4 |
+    | bright | bright |
+  bass dyn:f feel:tight pocket:push
+    | cell | cell | cell | cell |
+  guitar dyn:mf..ff feel:tight art:sustain pocket:push
+    | chug-4 | chug-2 | chug | chug-5 |
+  perc.right dyn:mf..ff feel:tight
+    | crash_big:0.5! r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 |
+    | offbeat | offbeat |
+    | r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:2 |
+    | crash:0.5! r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 hat_open:0.5 r:0.5 |
+    | offbeat | offbeat |
+    | crash_big:0.5! r:1.5 crash:0.5! r:1.5 |
+  perc.feet dyn:mf..ff feel:tight
+    | feet | feet | feet | feet |
+    | four | four | four |
+    | kick:0.5! kick:0.5 kick:0.5 kick:0.5 kick:0.5! kick:0.5 kick:0.5! kick:0.5! |
+  perc.left dyn:mf..ff feel:tight
+    | back | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. r:0.5 snare_dry:0.5! snare_dry:0.5 snare_dry:0.5! |
+    | back | back | back |
+    | snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+  pad dyn:p..mf
+    | [d4 f4]:4 | [d4 f4]:4 | [e4 g4]:4 | [e4 g4]:4^ |
+    | [f4 a4]:4 | [f4 a4]:4 | [c#4 g4]:4 | [c#4 g4]:4^ |
+
+section break bars:8
+  // The drop, and the only release the piece has. Guitar and kit stop dead and
+  // the cell is naked again, exactly as it was in the intro - a piece that
+  // returns to its own opening three quarters of the way through is heard as
+  // whole rather than as a list of sections. Over it the organ stops playing a
+  // tune and plays notes: two, three beats each, the long chord tones the
+  // sixteenths never leave room for.
+  //
+  // The kit comes back alone in the last two bars and drags the band in with it.
+  bass dyn:mp feel:loose pocket:lay
+    | cell | cell | cell | cell |
+  lead dyn:p..mf feel:loose pocket:lay rot:slow
+    | d5:2_ c5:2_ |
+    | bb4:3_ a4:1 |
+    | f5:2_ e5:2_ |
+    | d5:4_ |
+    | a4:2_ c5:2_ |
+    | d5:3_ f5:1 |
+    | e5:2! c#5:2_ |
+    | d5:1.5! a4:0.5 f4:1 a4:1 |
+  perc.left dyn:p..f feel:tight
+    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
+    | r:2 snare_dry:0.5. snare_dry:0.5 snare_dry:0.5. snare_dry:0.5 |
+    | snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25 snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+  perc.feet dyn:p..f feel:tight
+    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
+    | kick:2! r:2 |
+    | kick:1! kick:1 kick:1! kick:0.5 kick:0.5 |
+  pad dyn:p
+    | [f4 a4]:4 | [f4 a4]:4 | [d4 f4]:4 | [d4 f4]:4^ |
+    | [a4 c5]:4 | [a4 c5]:4 | [c#4 g4]:4 | [c#4 g4]:4^ |
+
+section reprise from:verse
+  // The hook returns note for note - `from:verse` copies the organ, the bass,
+  // the pad and the kit's two hands unchanged, because the whole point of a
+  // reprise is that it is the same thing. What is new is underneath and above
+  // it: the guitar leans on the dynamic, the keys double the cell two octaves
+  // up for the first time outside the rite, and the right hand finally plays
+  // straight eighths, which is the sound of a band all the way in.
+  lead dyn:f..ff feel:tight pocket:lay rot:fast
+    // The same eight bars as the verse, from the same pattern, but the Leslie
+    // is up this time. That is the whole difference and it is enough: a
+    // reprise is not the tune played harder, it is the tune in a room that
+    // has changed.
+    | hook |
+  guitar dyn:f..ff feel:tight art:sustain pocket:on
+    | chug | chug | chug | chug |
+  keys dyn:mf..f feel:tight pocket:on
+    | bright | bright | bright | bright |
+  perc.right dyn:f..ff feel:tight
+    | crash_big:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hats | hats | hats |
+    | crash:0.5! hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. |
+    | hats | hats |
+    | crash_big:0.5! r:1.5 crash:0.5! r:1.5 |
+
+section out bars:4
+  // Back to D, which after the rite is the only thing that sounds like relief.
+  // The cell runs one last time and stops on its own first note.
+  bass dyn:f..mf feel:tight pocket:on
+    | cell |
+    | d2:0.25! d2:0.25+ d2:0.25 d2:0.25+ f2:0.25! d2:0.25+ c2:0.25 d2:0.25+ a1:0.25! a1:0.25+ c2:0.25 d2:0.25+ a1:0.5! a1:0.5/ |
+    | d2:4! |
+  guitar dyn:f..mf feel:tight art:sustain pocket:on
+    | chug |
+    | d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ d3:0.25+ [c#3 g#3 c#4]:1! |
+    | [d3 a3 d4]:4! |
+  lead dyn:f..mf feel:tight
+    | d5:1! a4:1 f4:1 d4:1 |
+    | c#5:1.5! e5:0.5 g5:1 a5:1 |
+    | a4:2_ f4:1 e4:1 |
+    | d4:4_ |
+  perc.right dyn:f..mf feel:tight
+    | crash:0.5! r:3.5 | r:4 | r:2 crash_small:0.5! r:1.5 | crash_big:4! |
+  perc.feet dyn:f..mf feel:tight
+    | feet | feet |
+    | kick:1! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |
+    | kick:4! |
+  perc.left dyn:f..mf feel:tight
+    | back | back |
+    | r:1 snare_dry:0.75! snare_dry:0.25. snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25 snare_dry:0.25 snare_dry:0.25! snare_dry:0.25! snare_dry:0.25! |
+    | r:4 |
+  pad dyn:mf..p
+    | [f4 a4]:4 | [c#4 g4]:4 | [c#4 g4]:4^ | [d4 f4 a4]:4 |

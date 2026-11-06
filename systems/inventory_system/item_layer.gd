@@ -5,10 +5,13 @@ extends Control
 @onready var inventory: Inventory = get_parent().get_parent()
 
 @export var grid_texture: Texture2D
-@export var cell_size_px: int = 64:
-	set(value):
-		cell_size_px = value
-		queue_redraw()
+## The owning Inventory's — the one place a grid's cell size is set.
+var cell_size_px: int:
+	get:
+		# Not the @onready `inventory`: items ask while the scene is still
+		# loading, before this layer is ready.
+		var grid := get_parent().get_parent() as Inventory if get_parent() else null
+		return grid.cell_size_px if grid else 0
 
 func _ready() -> void:
 	if not resized.is_connected(queue_redraw):

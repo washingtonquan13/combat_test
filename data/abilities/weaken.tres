@@ -14,6 +14,7 @@ metadata/_custom_type_script = "uid://cxvg4h3mmr1l4"
 
 [sub_resource type="Resource" id="Resource_targeting"]
 script = ExtResource("2_targeting")
+aims_at_ground = true
 max_range = 8.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
@@ -24,6 +25,7 @@ metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 script = ExtResource("1_ability")
 ability_name = "Weaken"
 icon = ExtResource("6_icon")
+icon_color = Color(0.67, 0.43, 0.9, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_applystatus")])

@@ -1,54 +1,75 @@
-[gd_scene format=3 uid="uid://dh3wt71h4dgt8"]
+[gd_scene load_steps=5 format=3 uid="uid://dh3wt71h4dgt8"]
 
-[node name="MarginContainer" type="MarginContainer"]
-custom_minimum_size = Vector2(210, 280)
-offset_right = 210.0
-offset_bottom = 280.0
+[ext_resource type="Script" path="res://systems/inventory_system/item_tooltip.gd" id="1_tip"]
+[ext_resource type="Script" path="res://systems/inventory_system/socket_overlay.gd" id="2_sock"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tip"]
+bg_color = Color(0.07, 0.07, 0.09, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.45, 0.4, 0.3, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plate"]
+bg_color = Color(0.03, 0.03, 0.04, 1)
+content_margin_left = 6.0
+content_margin_top = 6.0
+content_margin_right = 6.0
+content_margin_bottom = 6.0
+
+[node name="ItemTooltip" type="PanelContainer"]
+custom_minimum_size = Vector2(220, 0)
+offset_right = 220.0
+offset_bottom = 60.0
+theme_override_styles/panel = SubResource("StyleBoxFlat_tip")
+script = ExtResource("1_tip")
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 2
 theme_override_constants/margin_left = 8
-theme_override_constants/margin_top = 8
+theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 8
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_bottom = 6
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="Lines" type="VBoxContainer" parent="Margin"]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="VBoxContainer"]
+[node name="ArtPlate" type="PanelContainer" parent="Margin/Lines"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 7
-text = "Cold-Iron Broadsword +2"
-vertical_alignment = 1
+theme_override_styles/panel = SubResource("StyleBoxFlat_plate")
 
-[node name="Label2" type="Label" parent="VBoxContainer"]
+[node name="Center" type="CenterContainer" parent="Margin/Lines/ArtPlate"]
 layout_mode = 2
-size_flags_vertical = 7
-text = "One-Handed"
-vertical_alignment = 1
 
-[node name="Label3" type="Label" parent="VBoxContainer"]
+[node name="Art" type="TextureRect" parent="Margin/Lines/ArtPlate/Center"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 7
-text = "sw+1 Cutting"
-vertical_alignment = 1
+expand_mode = 1
 
-[node name="Label4" type="Label" parent="VBoxContainer"]
-layout_mode = 2
-size_flags_vertical = 7
-text = "thr+2 Impaling"
-vertical_alignment = 1
+[node name="ArtSockets" type="Control" parent="Margin/Lines/ArtPlate/Center/Art"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_sock")
 
-[node name="Label5" type="Label" parent="VBoxContainer"]
+[node name="Name" type="Label" parent="Margin/Lines"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 7
-text = "Cold-Iron"
-vertical_alignment = 1
+text = "Item"
 
-[node name="Label6" type="Label" parent="VBoxContainer"]
+[node name="Kind" type="Label" parent="Margin/Lines"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_vertical = 7
-text = "Enhancement +2"
-vertical_alignment = 1
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+text = "Kind"
 
-[node name="Label7" type="Label" parent="VBoxContainer"]
+[node name="Details" type="VBoxContainer" parent="Margin/Lines"]
+unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-text = "3 lbs"

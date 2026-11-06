@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"Per"
+display_name = "Perception"
+abbreviation = "Per"
+description = "Alertness — noticing hidden things and danger."
+order = 70
+kind = 1
+formula = "IQ"
+default_value = 0

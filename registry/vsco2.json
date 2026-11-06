@@ -1,0 +1,121 @@
+{
+  "library": "vsco2",
+  "instruments": {
+    "organ-loud": {
+      "layers": [
+        {
+          "sfz": "vsco2/OrganLoud.sfz"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ]
+    },
+    "organ-quiet": {
+      "layers": [
+        {
+          "sfz": "vsco2/OrganQuiet.sfz"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10
+      }
+    },
+    "trumpet-stac": {
+      "layers": [
+        {
+          "sfz": "vsco2/TrumpetStac.sfz"
+        }
+      ],
+      "range": [
+        52,
+        84
+      ]
+    },
+    "trombone-stac": {
+      "layers": [
+        {
+          "sfz": "vsco2/TromboneStac.sfz"
+        }
+      ],
+      "range": [
+        34,
+        70
+      ]
+    },
+    "horn-stac": {
+      "layers": [
+        {
+          "sfz": "vsco2/FHornStac.sfz"
+        }
+      ],
+      "range": [
+        33,
+        77
+      ]
+    },
+    "organ-loud-pedal": {
+      "layers": [
+        {
+          "sfz": "vsco2/OrganLoudPedal.sfz"
+        }
+      ],
+      "range": [
+        36,
+        66
+      ]
+    },
+    "timpani": {
+      "layers": [
+        {
+          "sfz": "vsco2/Timpani.sfz"
+        }
+      ],
+      "range": [
+        36,
+        60
+      ],
+      "drums": {
+        "timp_low": 36,
+        "timp_g": 43,
+        "timp_a": 45,
+        "timp_c": 48,
+        "timp_d": 50
+      }
+    },
+    "tubular-bells": {
+      "layers": [
+        {
+          "sfz": "vsco2/TubularBells.sfz"
+        }
+      ],
+      "range": [
+        60,
+        79
+      ],
+      "drums": {
+        "bell_d": 62,
+        "bell_f": 65,
+        "bell_a": 69,
+        "bell_d_high": 74
+      }
+    },
+    "tuba-stac": {
+      "layers": [
+        {
+          "sfz": "vsco2/TubaStac.sfz"
+        }
+      ],
+      "range": [
+        29,
+        62
+      ]
+    }
+  }
+}

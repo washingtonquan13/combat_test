@@ -69,8 +69,7 @@ func _on_exit_button_pressed() -> void:
 ## Debug-only escape hatch, kept alongside the real one (see
 ## OverworldExit/travel_interaction.gd in test_arena.tscn).
 func _on_debug_exit_pressed() -> void:
-	close()
-	WorldManager.load_area(HOME_AREA)
+	WorldManager.travel_area(HOME_AREA)
 
 
 func _on_save_pressed() -> void:
@@ -86,13 +85,19 @@ func _on_load_pressed() -> void:
 ## own header on why it exists as a separate entry point from
 ## load_world()), not load_area(), since there is no destination WORLD
 ## here, only a screen.
+## Behind the black, so the teardown's stall is not on screen. The refusal is asked first, so a
+## refused exit never fades.
 func _on_main_menu_pressed() -> void:
-	if not WorldManager.unload():
+	if not WorldManager.can_travel():
+		WorldManager.unload()   # warns why
 		return
-	close()
-	# unload() above left no world focused, so GameMode is already back to
-	# MAIN_MENU by the time this screen goes up.
-	UIStack.push(get_tree().get_first_node_in_group("main_menu"))
+	WorldManager.behind_black(func() -> void:
+		if not WorldManager.unload():
+			return
+		close()
+		# unload() above left no world focused, so GameMode is already back
+		# to MAIN_MENU by the time this screen goes up.
+		UIStack.push(get_tree().get_first_node_in_group("main_menu")))
 
 
 func _on_load_completed(_path: String) -> void:

@@ -1,0 +1,9 @@
+{
+ "note": "Hand-estimated ground shape. OpenStreetMap has no elevation, so the levee, the Washington Artillery Park deck and its amphitheater ramp are guesses from the steps and rail lines in the map, not survey data. Frame: 'origin' is a point on Decatur Street's centreline, 'along' runs down Decatur, and distances across it ('d') grow toward the river.",
+ "frame": {"origin": [-50.19, 171.15], "along": [0.6135, -0.7899]},
+ "levee": {"bank_from": 40.0, "bank_to": 60.0, "top": 4.0, "far": 160.0, "u_from": -80.0, "u_to": 420.0},
+ "decks": [
+  {"name": "WashingtonArtilleryPark", "replaces": "way/329364574", "u": [158.0, 185.0], "d": [28.0, 62.0], "top": 4.0, "ramp_from_d": 11.0}
+ ],
+ "spawn": [36.0, 62.0]
+}

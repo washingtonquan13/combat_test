@@ -97,7 +97,7 @@ func _support_ally() -> void:
 	check("offers nothing to a healthy, unstatused ally", offered_to_ally == 0,
 		"%d offers" % offered_to_ally)
 
-	ally.current_hp = 5
+	ally.set_pool(StatIds.HP, 5)
 	var heals_the_wounded: bool = false
 	for plan in behavior.propose(healer):
 		if plan.target == ally and plan.reason.begins_with("heal"):
@@ -130,10 +130,10 @@ func _land_before_exhaustion() -> void:
 		free_spawned()
 		return
 
-	flyer.current_fp = flyer.maximum_fp
+	flyer.set_pool(StatIds.FP, floori(flyer.get_stat(StatIds.FP)))
 	check("silent with FP to spare", behavior.propose(flyer).is_empty())
 
-	flyer.current_fp = 1
+	flyer.set_pool(StatIds.FP, 1)
 	var offers_landing: bool = false
 	var proposals: Array[AiPlan] = behavior.propose(flyer)
 	for plan in proposals:

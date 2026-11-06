@@ -159,7 +159,7 @@ func _a_unit_with_no_definition_still_works() -> void:
 func _spawn_wearing(model_path: String) -> Unit:
 	var definition := UnitDefinition.new()
 	definition.model_scene = load(model_path)
-	definition.max_hp = 20
+	definition.stats[StatIds.HP] = 20 - 10  # HP 20 at the default ST 10
 	definition.faction = &"player"
 
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
@@ -168,7 +168,7 @@ func _spawn_wearing(model_path: String) -> Unit:
 	unit.definition = definition
 	_root.add_child(unit)
 	var abilities: Array[Ability] = [melee()]
-	unit.abilities = abilities
+	unit.set_abilities(abilities)
 	unit.reset_turn_actions()
 	_units.append(unit)
 	return unit

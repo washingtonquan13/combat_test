@@ -1,0 +1,23 @@
+[gd_scene load_steps=3 format=3]
+
+[sub_resource type="StandardMaterial3D" id="Mat_Glow"]
+shading_mode = 0
+albedo_color = Color(1, 0.85, 0.45, 1)
+emission_enabled = true
+emission = Color(1, 0.75, 0.3, 1)
+emission_energy_multiplier = 4.0
+
+[sub_resource type="CylinderMesh" id="Mesh_Streak"]
+material = SubResource("Mat_Glow")
+top_radius = 0.008
+bottom_radius = 0.003
+height = 1.2
+radial_segments = 6
+rings = 1
+
+[node name="Tracer" type="Node3D"]
+
+[node name="Streak" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0.6)
+cast_shadow = 0
+mesh = SubResource("Mesh_Streak")

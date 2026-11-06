@@ -47,84 +47,147 @@ static func speaker_line(speaker_name: String, text: String) -> String:
 	return "%s\n%s" % [speaker_name_tag(speaker_name), text]
 
 
-## target/can_use turn this into the DC/modifier preview — this is a
-## roll-UNDER system (SuccessRoll: 3d6 <= target succeeds), so target
-## IS the full number to beat, not a DC alongside a separate modifier —
-## just the plain skill name and that number, "untrained" instead of a
-## misleading 0 if there's no way to attempt it at all. No separate
-## assist marker: a present companion's bonus (see
-## DialogueManager.find_assisting_companion) is already folded into
+## target/attemptable turn this into the DC/modifier preview — this is a
+## roll-UNDER system (SuccessRoll: 3d6 <= target succeeds), so target IS
+## the full number to beat, not a DC alongside a separate modifier.
+## No separate assist marker: a present companion's bonus (see
+## Conversation.find_assisting_companion) is already folded into
 ## target by the caller, so the number shown is already the real one —
 ## a "+" suffix here would misread as d20-style "need 12 or higher,"
 ## backwards for a system where lower rolls are better.
-static func skill_tag(skill_name: String, target: int, can_use: bool) -> String:
+##
+## 2026-09 rework (the one approved-mockup change: "untrained skills
+## should show skill levels like trained skills do") — three cases, not
+## the old two:
+## - attemptable && is_trained: plain number, exactly as before.
+## - attemptable && !is_trained: the number IS shown now (this is the
+##   actual fix), annotated "(untrained)" rather than replaced by the
+##   word — SkillCalculator.get_skill_level already computes a real,
+##   honest target for a default-derived attempt; hiding it behind a
+##   word was the bug, per the user's own request.
+## - !attemptable: skill_level is a pure floor with zero information
+##   behind it (see SkillCheckResult.attemptable) — printing it as a
+##   number would be the misleading-0 this file's old comment already
+##   worried about, just reached a different way. "cannot attempt" is
+##   the honest word for THIS case; it's deliberately not "untrained"
+##   any more, now that "untrained" means something more specific above.
+## is_trained defaults to true so a 3-arg call (attemptable standing in
+## for the old can_use) renders exactly as before — nothing outside this
+## file currently calls skill_tag directly, but the signature stays
+## backward-compatible on purpose.
+static func skill_tag(skill_name: String, target: int, attemptable: bool, is_trained: bool = true) -> String:
 	if skill_name == "":
 		return ""
-	var target_text: String = "%d" % target if can_use else "untrained"
+	var target_text: String
+	if not attemptable:
+		target_text = "cannot attempt"
+	elif is_trained:
+		target_text = "%d" % target
+	else:
+		target_text = "%d (untrained)" % target
 	return "[color=#%s]|%s %s|[/color]" % [skill_tag_color.to_html(false), skill_name, target_text]
 
 
-## The full response-button label for one choice — alignment tag (if
-## any) + skill tag/DC preview (if any, and only if that check isn't
-## hidden) + the response text itself. A hidden SkillCheckChoice/
-## QuickContestChoice (show_to_player == false) collapses to "???"
-## instead, same as the old system.
-static func choice_label(choice: DialogueChoice) -> String:
-	if (choice is SkillCheckChoice or choice is QuickContestChoice) and not choice.show_to_player:
+## The full response label for one snapshot choice entry (see
+## Conversation.describe_choice) — alignment tag (if any) + skill tag/
+## target preview (if any, and only if that check isn't hidden) + the
+## response text itself. A hidden check collapses to "???", same as the
+## old system. Works from display data, not from the DialogueChoice
+## resource: the conversation already computed the number with the same
+## code that rolls, so nothing here touches SkillCalculator.
+static func choice_label(entry: Dictionary) -> String:
+	var check: Dictionary = entry.get("check", {})
+	if check.get("hidden", false):
 		return "???"
 
 	var tags: Array[String] = []
-	var alignment: String = alignment_tag(choice.alignment_name)
+	var alignment: String = alignment_tag(entry.get("alignment", ""))
 	if alignment != "":
 		tags.append(alignment)
-	if choice is SkillCheckChoice or choice is QuickContestChoice:
-		tags.append(_skill_preview_tag(choice))
-	tags.append(choice.text)
+	if not check.is_empty():
+		tags.append(skill_tag(check.skill, check.target, check.attemptable, check.is_trained))
+	tags.append(entry.get("text", ""))
 	return " ".join(tags)
 
 
-## Shared by SkillCheckChoice and QuickContestChoice — both just need
-## "what's MY side's number." A contest's NPC-side target is
-## deliberately not previewed here — unknown information going in,
-## same as the player never sees an enemy's exact defenses ahead of an
-## attack roll.
-static func _skill_preview_tag(choice: DialogueChoice) -> String:
-	var actor: Unit = DialogueManager.participants.get("player")
-	if not actor:
-		return skill_tag(choice.skill_name, 0, false)
-	var result: SkillCheckResult = SkillCalculator.get_skill_level(actor, choice.skill_name)
-	var assistant: Unit = DialogueManager.find_assisting_companion(choice.skill_name)
-	var target: int = result.skill_level + (DialogueManager.ASSIST_BONUS if assistant else 0)
-	return skill_tag(choice.skill_name, target, result.can_use_skill)
-
-
-## roll is the full SuccessRoll.roll_vs() Dictionary — surfaces the
-## critical success/failure GURPS already computes there (the old
-## signature took separate rolled/target/success values and silently
-## dropped that information). assistant is whoever's
-## find_assisting_companion() bonus applied, if any, credited by name.
-static func skill_result(skill_name: String, roll: Dictionary, assistant: Unit = null) -> String:
-	var color: Color = success_color if roll.success else failure_color
-	var verdict: String = "Failed"
+## The verdict word for a finished roll — shared by the transcript's
+## result aside and anything else that names a roll's outcome.
+static func skill_verdict(roll: Dictionary) -> String:
 	if roll.critical_success:
-		verdict = "Critically succeeded"
-	elif roll.critical_failure:
-		verdict = "Critically failed"
-	elif roll.success:
-		verdict = "Succeeded"
+		return "Critically succeeded"
+	if roll.critical_failure:
+		return "Critically failed"
+	return "Succeeded" if roll.success else "Failed"
+
+
+## Plain text, no BBCode: this goes into the structured transcript, and
+## entry_bbcode() colors the verdict and the skill name when a presenter
+## wants them colored. roll is the full SuccessRoll.roll_vs() Dictionary,
+## so a critical success/failure is named rather than dropped. assistant
+## is whoever's assist bonus applied, credited by name.
+static func skill_result(skill_name: String, roll: Dictionary, assistant: Unit = null) -> String:
 	var assist_note: String = " (%s helped)" % assistant.get_display_name() if assistant else ""
-	return "[color=#%s]%s[/color] at a [color=#FFFFFF]%s[/color] check%s — rolled %d vs target %d" % [
-		color.to_html(false), verdict, skill_name, assist_note, roll.roll, roll.target
+	return "%s at a %s check%s — rolled %d vs target %d" % [
+		skill_verdict(roll), skill_name, assist_note, roll.roll, roll.target
 	]
 
 
 ## The GURPS Quick Contest readout — both sides' own roll vs their own
-## target, side by side, so a loss against a strong NPC reads as
-## exactly that rather than a bare pass/fail. See
-## QuickContestChoice._wins_contest for how actor_wins gets decided.
+## target, side by side, so a loss against a strong NPC reads as exactly
+## that rather than a bare pass/fail. Plain text, same reason as
+## skill_result(). See QuickContestChoice._wins_contest for how
+## actor_wins gets decided.
 static func contest_result(actor_skill_name: String, actor_roll: Dictionary, npc_skill_name: String, npc_roll: Dictionary, actor_wins: bool) -> String:
-	var color: Color = success_color if actor_wins else failure_color
 	var verdict: String = "You win the contest" if actor_wins else "You lose the contest"
-	return "[color=#%s]%s[/color] — your [color=#FFFFFF]%s[/color] rolled %d vs %d, their [color=#FFFFFF]%s[/color] rolled %d vs %d" % [
-		color.to_html(false), verdict, actor_skill_name, actor_roll.roll, actor_roll.target, npc_skill_name, npc_roll.roll, npc_roll.target
+	return "%s — your %s rolled %d vs %d, their %s rolled %d vs %d" % [
+		verdict, actor_skill_name, actor_roll.roll, actor_roll.target, npc_skill_name, npc_roll.roll, npc_roll.target
 	]
+
+
+## One transcript entry (see Conversation.record) as BBCode — the single
+## place the transcript's look is decided, shared by the conversation log
+## and by the negotiation's echo to SystemLog. The transcript itself
+## holds no BBCode, so a different presenter can style it differently.
+##   line: bold speaker name on its own line, then the text
+##   alignment aside: the "(Lawful)" part in that alignment's color
+##   check aside: the verdict in success/failure color, and each skill
+##     named in the entry's skills extra in white
+##   any other aside (a mood note, a pardon): the text as-is
+static func entry_bbcode(entry: Dictionary) -> String:
+	var text: String = entry.get("text", "")
+	if entry.get("kind", &"aside") == &"line":
+		return speaker_line(entry.get("name", ""), text)
+
+	match entry.get("tag", &""):
+		&"alignment":
+			var alignment: String = entry.get("alignment", "")
+			return text.replace("(%s)" % alignment, alignment_tag(alignment))
+		&"check":
+			var verdict: String = entry.get("verdict", "")
+			var color: Color = success_color if entry.get("success", false) else failure_color
+			var styled: String = text
+			if verdict != "" and styled.begins_with(verdict):
+				styled = "[color=#%s]%s[/color]%s" % [color.to_html(false), verdict, styled.substr(verdict.length())]
+			# Each skill name named in the extras, in order, in white — the
+			# cursor keeps "Persuasion vs Persuasion" from whitening one
+			# occurrence twice.
+			var cursor: int = verdict.length()
+			for skill in entry.get("skills", []):
+				var at: int = styled.find(skill, cursor)
+				if at < 0:
+					continue
+				var white: String = "[color=#FFFFFF]%s[/color]" % skill
+				styled = styled.substr(0, at) + white + styled.substr(at + skill.length())
+				cursor = at + white.length()
+			return styled
+	return text
+
+
+## One transcript entry as the conversation log shows it: a line as
+## entry_bbcode() renders it, an aside additionally dimmed and italic so
+## the log reads spoken words apart from the system's own notes.
+static func log_bbcode(entry: Dictionary) -> String:
+	var styled: String = entry_bbcode(entry)
+	if entry.get("kind", &"aside") == &"line":
+		return styled
+	return "[color=#A0A0A0][i]%s[/i][/color]" % styled

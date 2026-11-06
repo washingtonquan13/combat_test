@@ -1,0 +1,139 @@
+{
+  "library": "standard-bass",
+  "description": "Standard Bass V2, a DI electric bass with keyswitched articulations. Its release samples cut off the notes still sounding, so every layer says release_cuts.",
+  "instruments": {
+    "ksop": {
+      "layers": [
+        {
+          "sfz": "standard-bass/Ui_Standard_Bass_V2/Standard_Bass_V2_KSOP/#Standard_Bass_V2_KSOP.sfz",
+          "release_cuts": true
+        }
+      ],
+      "range": [
+        35,
+        76
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "vibrato_depth": 20,
+        "vibrato_speed": 21,
+        "mute_time": 22,
+        "long": 23,
+        "rel_shape": 24,
+        "rel_level": 25,
+        "interval_a": 26,
+        "interval_b": 27,
+        "magnet": 48,
+        "sub": 49,
+        "slide_speed": 111
+      },
+      "keyswitches": {
+        "slide_fx": 22,
+        "fret_mute": 23,
+        "sustain": 24,
+        "sustain_up": 25,
+        "sustain_alt": 26,
+        "mute": 27,
+        "mute_up": 28,
+        "mute_alt": 29,
+        "legato": 30,
+        "slide_down": 31,
+        "slide_up": 32,
+        "slide_in": 33,
+        "slide_out": 34,
+        "marcato": 24
+      },
+      "keyswitch_default": "sustain"
+    },
+    "wide-top": {
+      "layers": [
+        {
+          "sfz": "standard-bass/Ui_Standard_Bass_V2/Standard_Bass_V2_KSOP/standard-bass-wide-top.sfz",
+          "release_cuts": true
+        }
+      ],
+      "range": [
+        35,
+        76
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "vibrato_depth": 20,
+        "vibrato_speed": 21,
+        "mute_time": 22,
+        "long": 23,
+        "rel_shape": 24,
+        "rel_level": 25,
+        "interval_a": 26,
+        "interval_b": 27,
+        "magnet": 48,
+        "sub": 49,
+        "slide_speed": 111
+      },
+      "keyswitches": {
+        "slide_fx": 22,
+        "fret_mute": 23,
+        "sustain": 24,
+        "sustain_up": 25,
+        "sustain_alt": 26,
+        "mute": 27,
+        "mute_up": 28,
+        "mute_alt": 29,
+        "legato": 30,
+        "slide_down": 31,
+        "slide_up": 32,
+        "slide_in": 33,
+        "slide_out": 34,
+        "marcato": 24
+      },
+      "keyswitch_default": "sustain"
+    },
+    "amped": {
+      "layers": [
+        {
+          "sfz": "standard-bass/Ui_Standard_Bass_V2/Standard_Bass_V2_KSOP/standard-bass-amped.sfz",
+          "release_cuts": true
+        }
+      ],
+      "range": [
+        35,
+        76
+      ],
+      "bend_range": 500,
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "vibrato_depth": 20,
+        "vibrato_speed": 21,
+        "mute_time": 22,
+        "long": 23,
+        "rel_shape": 24,
+        "rel_level": 25,
+        "interval_a": 26,
+        "interval_b": 27,
+        "magnet": 48,
+        "sub": 49,
+        "slide_speed": 111
+      },
+      "keyswitches": {
+        "slide_fx": 22,
+        "fret_mute": 23,
+        "sustain": 24,
+        "sustain_up": 25,
+        "sustain_alt": 26,
+        "mute": 27,
+        "mute_up": 28,
+        "mute_alt": 29,
+        "legato": 30,
+        "slide_down": 31,
+        "slide_up": 32,
+        "slide_in": 33,
+        "slide_out": 34,
+        "marcato": 24
+      },
+      "keyswitch_default": "sustain"
+    }
+  }
+}

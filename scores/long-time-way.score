@@ -1,0 +1,336 @@
+// Long Time Way - the exploration theme from Giten Megami Tensei (1995),
+// reimagined. The original is a General MIDI file; this keeps its notes,
+// its form and its mood and changes what plays them.
+//
+// What the original is. D minor, 120 beats a minute, and almost nothing
+// happening, on purpose - it is music for walking. Everything rests on one
+// figure: a bass in unbroken sixteenths, D A D C D A F G A C D C and then
+// either A C G A or F E D C, alternating bar by bar, for all eighty bars.
+// Over it, very slowly:
+//
+//   roots   a synth bass holds a root for four bars at a time, D A Bb C -
+//           i, v, bVI, bVII, the aeolian loop that every long road in a
+//           game is paved with. The figure never changes to follow it, so
+//           over Bb and C it rubs, which is most of the mood. From the
+//           second statement the same roots gallop - an eighth and two
+//           sixteenths on every beat - and that, with the kit, is the whole
+//           of the lift.
+//   voices  a choir holds the chords, voiced low: D F A D, E G C over A
+//           (an Am7 with the root in the bass), D F Bb, and E A C over C.
+//   melody  a bowed pad, first as a single held D, then D F, then D F A,
+//           then two voices a third apart moving by step, one whole note a
+//           bar: G F G F over D, E F G E over A, A F G A over Bb, G F E G
+//           over C. Over D that is the ninth and the eleventh, never the
+//           triad - the melody floats over the chord rather than sitting in
+//           it. It is played three times.
+//   drums   nothing for forty bars, then four bars of sixteenth hats
+//           alone over a held D and F, a snare fill, and a plain backbeat -
+//           kick on 1 and 3, snare on 2 and 4 - with a fill every fourth
+//           bar, arriving with the second statement and the gallop.
+//
+// What changes. The sounds, and only as far as the mood allows:
+//
+//   The figure is three instruments at once. A plucked upright - the
+//   original's acoustic bass, and the piece's beat until the drums come -
+//   with plucked cellos an octave above it, which is how an orchestra makes
+//   a bass line heard: the double bass is the floor, the cello the edge.
+//   And under both Tide, a
+//   synth bass whose filter ticks open on every sixteenth and whose
+//   dynamics are the filter, so the intro's crescendo is the line
+//   brightening under the pluck, the way a modern track builds on one
+//   figure. The roots are Drift, a bass that swells in rather
+//   than being struck, so a chord change arrives like a change of light.
+//
+//   The melody is on real string sections - first violins on the upper
+//   voice, violas on the lower - with a supersaw pad behind the violins,
+//   so it is both bowed and synthetic, which is what the original's
+//   "bowed pad" patch was reaching for. The choir is a sampled choir, with
+//   the same pad behind it.
+//
+//   The kit is acoustic, the Salamander kit, and it keeps the original's
+//   patience and its beat: nothing until the melody's first statement is
+//   ending, then the hats alone for four bars, then the backbeat and its
+//   fills as written. The hats are the kit's second part, `hats`, so they
+//   have a fader of their own and sit under the backbeat the way a mixed
+//   record's hats do. The shaker and the crashes are a third, `fx`, on
+//   Circuit, a kit sfizz synthesizes.
+//   The roots' gallop is Tide, the ostinato's own synth bass, as a part of
+//   its own; Drift cannot gallop, it has no attack. Before the drums, a
+//   shaker, quietly, from the moment the choir arrives.
+//
+//   The high Bb that turns into the melody - the original's one gesture, a
+//   bowed synth wrenched up a tone on the pitch wheel and let sag back -
+//   gets a voice of its own, Keen, a crying synth lead that can bend, and
+//   plays the 1995 bend as it was written.
+//
+//   The original drenches everything in reverb (every channel sends 110 of
+//   127, the drums 120), and a synth kit next to a sampled choir sounds as
+//   if it is in another building unless it has air of its own; so this ensemble
+//   puts the kit in the hall and sends everything more.
+//
+//   One line is new: in the third statement the upper voice of the melody
+//   goes up an octave. A third time through the same sixteen bars needs
+//   something to be different; that is all it gets. (A bright pluck on
+//   the chord used to join it, and was cut: it made the end overwhelming.)
+//
+// Form. Everything up to the drums plays once: the intro, the choir, the
+// Bb that sets out, the first statement and the four bars of hats. That is
+// the start of the journey, and it is never revisited. The loop is the
+// journey itself - the second and third statements, with the gallop and
+// the kit, bars 45 to 76 of the original. `home` and `end` are the way out.
+
+title: Long Time Way
+ensemble: wayfarer
+parts: lead cry:lead@lead lower:strings@lead bass root:bass@bass gallop:bass@bass pad perc hats:perc@perc fx:perc@perc
+tempo: 120
+meter: 4/4
+key: d minor
+order: intro rise turn theme open [theme2 theme3] home end
+
+// The figure the whole piece rests on: the ostinato's two bars, which
+// alternate for all eighty bars of the original. Each section says only
+// how many times and how loud.
+pattern figure
+  | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 a1:0.25 c2:0.25 g1:0.25 a1:0.25 |
+  | d1:0.25! a1:0.25 d2:0.25 c2:0.25 d2:0.25 a1:0.25 f1:0.25 g1:0.25 a1:0.25 c2:0.25 d2:0.25 c2:0.25 f2:0.25 e2:0.25 d2:0.25 c2:0.25 |
+// The shaker's bar of sixteenths, leaning on each beat.
+pattern shake
+  | shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. shaker:0.25! shaker:0.25. shaker:0.25 shaker:0.25. |
+
+// The ostinato alone - plucked from the first note, as the original is,
+// with the synth under it opening - and one held D over it.
+section intro bars:8
+  bass.figure dyn:mp..mf feel:tight
+    | figure*4 |
+  lead dyn:pp..mp
+    | d5:16^ | [d5 f5]:16^ |
+
+// The roots and the choir arrive; the held D becomes D F, then D F A.
+section rise bars:12
+  bass.figure dyn:mf feel:tight
+    | figure*6 |
+  root dyn:mp
+    | d2:16 | a1:16 | bb1:16 |
+  pad dyn:p..mp
+    | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 | [d3 f3 bb3]:8 [d3 f3 bb3 d4]:8 |
+  lead dyn:mp
+    | d5:16 | [d5 f5]:16 | [d5 f5 a5]:16^ |
+  fx dyn:p..mp
+    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
+    | shake*4 |
+
+// C, and the held chord opens to A C E; then high Bb, the flat sixth,
+// over the held chord for a bar - the darkest note in the piece, as the
+// pickup. It is the
+// original's signature, and it is not played straight: struck hard, bent up
+// a whole tone at once, held on the C, then let sag back through the Bb to
+// just under it as the melody arrives. The shape is the 1995 file's own
+// pitch-wheel moves, read off it and written out in beats. Strings cannot
+// bend, so it is Keen alone, the lead's crying synth voice.
+section turn bars:4
+  bass.figure dyn:mf feel:tight
+    | figure*2 |
+  root dyn:mp
+    | c2:16 |
+  pad dyn:mp
+    | [e3 a3 c4]:8 [e3 a3 c4 e4]:8 |
+  lead.hold dyn:mp..mf
+    | [a4 c5 e5]:16 |
+  cry dyn:f bend:+200@0.4,+200@2,0@3.56,-40@3.9
+    | r:12 bb5:4! |
+  fx dyn:mp
+    | shake*4 |
+
+// The second and third statements' rhythm section, as the original has it.
+// A root gallops for four bars; the kit plays a backbeat and fills every
+// fourth bar, with a longer fill at the end of a phrase.
+pattern trot
+  | d2:0.5 d2:0.25*2 d2:0.5 d2:0.25*2 d2:0.5 d2:0.25*2 d2:0.5 d2:0.25*2 |
+pattern beat_feet
+  | kick:2! kick:2 |
+pattern beat_hands
+  | r:1 snare:1! r:1 snare:1! |
+pattern fill_feet
+  | kick:2! kick:1 kick:1 |
+pattern fill_hands
+  | r:1 snare:1.25! snare:0.5 snare:0.75 snare:0.25 snare:0.25! |
+pattern roll_feet
+  | kick:2! kick:0.5 kick:0.5 kick:1 |
+pattern roll_hands
+  | r:1 snare:1.25! snare:0.5 snare:0.5 snare:0.25 snare:0.25 snare:0.25! |
+// The hats as the original plays them: a texture under the backbeat, not
+// beside it - the loudest of them two thirds of a snare. The closed hat
+// leans on each beat, the open hat falls on the third, sixth, tenth,
+// thirteenth and fifteenth sixteenths. `hats_in` is their first two bars,
+// before the last two opens arrive.
+pattern hats
+  | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25. hat:0.25. hat_open:0.25 hat:0.25. hat_open:0.25 hat:0.25. |
+pattern hats_in
+  | hat:0.25! hat:0.25. hat_open:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25 hat:0.25. hat:0.25! hat_open:0.25 hat:0.25. hat:0.25. hat:0.25! hat:0.25. hat:0.25 hat:0.25. |
+
+// The melody: two voices a third apart, a whole note a bar. No drums yet
+// but the shaker, and the hats coming in over the last two bars.
+section theme bars:16
+  bass.figure dyn:mf feel:tight
+    | figure*8 |
+  root dyn:mf
+    | d2:16 | a1:16 | bb1:16 | c2:16 |
+  pad dyn:mp
+    | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 |
+    | [d3 f3 bb3]:16 | [e3 a3 c4]:16 |
+  // The melody is played, not held. Same notes, same one-a-bar pulse the
+  // original has - what changes is the bow. `^` swells a note under its
+  // written level, up past it, and back before it releases, which the
+  // strings can only do now that they are sent expression instead of the
+  // mod wheel; see the layer controls in wayfarer.json. Not every bar
+  // swells. A section that swelled on all sixteen would be as mechanical as
+  // one that never did, so the bow moves on the notes a phrase arrives at
+  // and rests on the notes between, and each four-bar phrase dies away on
+  // its last. Bar 9's A is the high point of the section and the only note
+  // taken with the bow already moving. The two voices sit behind the beat
+  // and not by the same amount - the inner part leans later still, because
+  // a section that speaks in perfect unison is one instrument rather than a
+  // desk of players. The first note is the exception to the bow: it is taken
+  // at level, because it answers the Bb and a swell from under it reads as
+  // a gap.
+  lead.upper dyn:mp..mf art:sustain feel:loose pocket:lay
+    | g4:4_ | f4:4_ | g4:4^ | f4:4. |
+    | e4:4_ | f4:4_ | g4:4^ | e4:4. |
+    | a4:4!^ | f4:4_ | g4:4^ | a4:4^ |
+    | g4:4_ | f4:4_ | e4:4. | g4:4^ |
+  lower dyn:mp..mf art:sustain feel:loose pocket:22
+    | e4:4_ | d4:4_ | e4:4_ | d4:4. |
+    | c4:4_ | d4:4_ | e4:4^ | c4:4. |
+    | f4:4!^ | d4:4_ | e4:4_ | f4:4^ |
+    | e4:4_ | d4:4_ | c4:4. | e4:4^ |
+  fx dyn:mp
+    | shake*16 |
+  hats dyn:pp..p feel:tight
+    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
+    | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | hats_in | % |
+
+// Four bars of breath before the journey: no root, the voices holding D
+// and F, the hats alone, and a snare fill in the last bar into the kit.
+section open bars:4
+  bass.figure dyn:mf feel:tight
+    | figure*2 |
+  lead dyn:mf
+    | [d4 f4]:16^ |
+  pad dyn:mp
+    | [d3 f3 a3 d4]:16 |
+  hats dyn:p feel:tight
+    | hats | % | % | % |
+  perc.left dyn:mf feel:tight
+    | r:4 | r:4 | r:4 | r:2.25 snare:0.75 snare:0.5 snare:0.25 snare:0.25! |
+  perc.feet dyn:mf feel:tight
+    | r:4 | r:4 | r:4 | r:2 kick:2! |
+
+// The journey: the melody again, over the kit and the galloping roots.
+section theme2 bars:16
+  bass.figure dyn:mf..f feel:tight
+    | figure*8 |
+  gallop dyn:mf feel:tight
+    | trot | % | % | % | trot-5 | % | % | % |
+    | trot-4 | % | % | % | trot-2 | % | % | % |
+  pad dyn:mf
+    | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 |
+    | [d3 f3 bb3]:16 | [e3 a3 c4]:16 |
+  // Second statement, and the change is the scoring rather than the volume.
+  // The top line is the same bow as before, digging in at the head of each
+  // phrase now that the kit is under it. The inner voice goes to tremolo:
+  // the same notes, no longer held but shivering, which is how a section
+  // puts unease under a melody that has not itself changed. That is the
+  // whole difference between this pass and the first one.
+  lead.upper dyn:mf art:sustain feel:loose pocket:lay
+    | g4:4!^ | f4:4_ | g4:4^ | f4:4. |
+    | e4:4_ | f4:4_ | g4:4^ | e4:4. |
+    | a4:4!^ | f4:4_ | g4:4^ | a4:4^ |
+    | g4:4_ | f4:4_ | e4:4. | g4:4^ |
+  lower dyn:mf art:tremolo feel:loose pocket:18
+    | e4:4^ | d4:4_ | e4:4_ | d4:4. |
+    | c4:4_ | d4:4_ | e4:4^ | c4:4. |
+    | f4:4!^ | d4:4_ | e4:4_ | f4:4^ |
+    | e4:4_ | d4:4_ | c4:4. | e4:4^ |
+  hats dyn:p feel:tight
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
+  perc.left dyn:mf feel:tight
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
+  perc.feet dyn:mf feel:tight
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | roll_feet |
+
+// The third time: the upper voice an octave higher.
+section theme3 bars:16
+  bass.figure dyn:f feel:tight
+    | figure*8 |
+  gallop dyn:f feel:tight
+    | trot | % | % | % | trot-5 | % | % | % |
+    | trot-4 | % | % | % | trot-2 | % | % | % |
+  pad dyn:mf..f
+    | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 |
+    | [d3 f3 bb3]:16 | [e3 a3 c4]:16 |
+  // Third statement: the violins an octave up - the octave is the
+  // original's, not ours - bowed and held as in the second statement, and
+  // only the inner voice in tremolo; both voices trembling up there grated
+  // every time the loop came round. With the kit under it the pair sit on
+  // the beat rather than behind it. It is no louder than the second
+  // statement: the octave is the climb, and on top of it a crescendo and
+  // marcato accents were too much. So no `!` here - on strings it is a
+  // switch to the marcato samples, not just an accent.
+  lead.upper dyn:mp..mf art:sustain feel:loose pocket:on
+    | g5:4^ | f5:4_ | g5:4^ | f5:4_ |
+    | e5:4_ | f5:4_ | g5:4^ | e5:4. |
+    | a5:4^ | f5:4_ | g5:4^ | a5:4^ |
+    | g5:4_ | f5:4_ | e5:4. | g5:4^ |
+  lower dyn:mf art:tremolo feel:loose pocket:on
+    | e4:4^ | d4:4_ | e4:4_ | d4:4_ |
+    | c4:4_ | d4:4_ | e4:4^ | c4:4. |
+    | f4:4^ | d4:4_ | e4:4_ | f4:4^ |
+    | e4:4_ | d4:4_ | c4:4. | e4:4^ |
+  hats dyn:mp feel:tight
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
+    | hats | % | % | % |
+  perc.left dyn:f feel:tight
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
+    | beat_hands | % | % | fill_hands |
+    | beat_hands | % | % | roll_hands |
+  perc.feet dyn:f feel:tight
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | roll_feet |
+    | beat_feet | % | % | fill_feet |
+    | beat_feet | % | % | roll_feet |
+
+// The way out: the kit stops and the held D returns, as the original ends.
+section home bars:4
+  bass.figure dyn:f..mp feel:tight
+    | figure*2 |
+  lead dyn:mf..p
+    | d5:16 |
+  pad dyn:mp..p
+    | [d3 f3 a3 d4]:16 |
+  fx dyn:mf
+    | crash:4! | r:4 | r:4 | r:4 |
+
+// The way out: the figure lands on D and everything else lets go.
+section end bars:2
+  bass.figure dyn:mp feel:tight
+    | d1:4! r:4 |
+  root dyn:mp
+    | d2:8 |
+  pad dyn:mp..p
+    | [d3 f3 a3 d4]:8 |
+  lead dyn:mp..p
+    | [d4 f4 a4 d5]:8 |
+  fx dyn:mp
+    | crash:4! r:4 |

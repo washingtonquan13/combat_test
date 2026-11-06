@@ -1,0 +1,71 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" path="res://systems/ability_system/area_damage_effect.gd" id="3_dmg"]
+[ext_resource type="Script" path="res://systems/ability_system/cone_targeting.gd" id="8_cone"]
+[ext_resource type="Texture2D" path="res://assets/ability_icon/fire_breath_icon.png" id="9_icon"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_breath.tres" id="13_breath"]
+[ext_resource type="Script" path="res://systems/ability_system/vfx_effect.gd" id="14_vfx"]
+[ext_resource type="Script" path="res://systems/ability_system/vfx_step.gd" id="15_step"]
+[ext_resource type="Script" path="res://systems/ability_system/cone_vfx_step.gd" id="16_cone_step"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/lightning/lightning_cone.tscn" id="17_lightning"]
+[ext_resource type="Script" path="res://systems/ability_system/ability_timing.gd" id="18_timing"]
+
+[sub_resource type="Resource" id="Resource_blast"]
+script = ExtResource("16_cone_step")
+scene = ExtResource("17_lightning")
+gaze_release_seconds = 0.3
+
+[sub_resource type="Resource" id="Resource_cast_vfx"]
+script = ExtResource("14_vfx")
+steps = Array[ExtResource("15_step")]([SubResource("Resource_blast")])
+
+[sub_resource type="Resource" id="Resource_damage"]
+script = ExtResource("3_dmg")
+dice_count = 2
+dice_sides = 6
+dice_bonus = 0
+wound_type = 7
+armor_divisor = 1.0
+affects_hostiles = true
+affects_allies = true
+
+[sub_resource type="Resource" id="Resource_cone"]
+script = ExtResource("8_cone")
+length = 9.0
+end_width = 9.0
+max_pitch_degrees = 60.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+requires_ally = false
+
+[sub_resource type="Resource" id="Resource_timing"]
+script = ExtResource("18_timing")
+waits_for_impact = true
+impact_timeout = 4.0
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Lightning Breath"
+icon = ExtResource("9_icon")
+icon_color = Color(0.75, 0.75, 1, 1)
+category = 1
+targeting = SubResource("Resource_cone")
+effects = Array[ExtResource("1_eff")]([SubResource("Resource_damage")])
+element = 4
+is_toggle = false
+toggle_group = &""
+max_level = 0
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+timing = SubResource("Resource_timing")
+cast_vfx = SubResource("Resource_cast_vfx")
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+cast_animation = ExtResource("13_breath")
+plays_cast_animation = true

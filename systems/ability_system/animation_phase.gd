@@ -20,6 +20,10 @@ enum AdvanceTrigger {
 	            ## For a phase whose end is a physical event with no
 	            ## animation-side signal of its own (Jump's Loop, which
 	            ## only ends once MoveCasterEffect's Tween completes).
+	ON_CAST_VFX, ## Holds until the cast's visuals (the ability's
+	            ## cast_vfx) are done. For a pose kept while the effect
+	            ## plays out (Fire Breath's lunge, held until the gust is
+	            ## spent).
 }
 
 @export var animation_name: String = ""
@@ -36,4 +40,6 @@ func describe() -> String:
 			return "%s (%.2fs)" % [animation_name, duration]
 		AdvanceTrigger.EXTERNAL:
 			return "%s (external)" % animation_name
+		AdvanceTrigger.ON_CAST_VFX:
+			return "%s (until the cast's visuals are done)" % animation_name
 	return animation_name

@@ -14,7 +14,7 @@ extends VfxStep
 ## DOES fix is the projectile itself looking real (genuine travel time)
 ## rather than an explosion just happening instantly at both ends.
 ##
-## Reuses the same parabolic arc math MoveCasterEffect.arc_point() uses
+## The same kind of parabola ArcFlight.point() draws
 ## for Jump — same shape, different purpose (a purely cosmetic flight
 ## path here, versus Jump's actual gameplay movement) — duplicated
 ## rather than shared, since sharing would mean this purely-visual step
@@ -42,11 +42,29 @@ extends VfxStep
 ## original, untouched local transform exactly as authored, and only
 ## the wrapper ever points toward the target.
 @export var facing_offset_degrees: float = 0.0
+## Which point on the caster the projectile leaves from, read when this
+## step starts - so a DelayStep before it lets the cast animation get the
+## hand out first (see Unit.anchor). GROUND, the default, is the position
+## the sequence was played from, as it always was.
+@export var launch_from: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
+## Raises the landing point above the target's feet: an arrow meant for
+## the chest lands at about 1.1.
+@export var lands_at_height: float = 0.0
+
+## A projectile scene with an "arrive" animation on a child AnimationPlayer
+## plays it on arrival instead of vanishing: the core goes out, emitters
+## stop, and the smoke and sparks already in the air drift on. The step
+## still ends on arrival, so the impact is not held up; the scene is
+## freed when the animation ends.
+const ARRIVE_ANIMATION := &"arrive"
 
 
-func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _caster: Unit = null) -> void:
+func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, caster: Unit = null) -> void:
 	if not projectile_scene:
 		return
+	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
+		from = caster.anchor(launch_from)
+	to.y += lands_at_height
 
 	var wrapper := Node3D.new()
 	WorldManager.spawn_parent().add_child(wrapper)
@@ -66,7 +84,18 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 	await tween.finished
 
 	if is_instance_valid(wrapper):
-		wrapper.queue_free()  # frees the instance too, as its child
+		_arrive(wrapper, instance)
+
+
+## Frees the wrapper (and the instance, its child), after the instance's
+## arrive animation if it has one. Not awaited by play().
+func _arrive(wrapper: Node3D, instance: Node) -> void:
+	var player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+	if player and player.has_animation(ARRIVE_ANIMATION):
+		player.play(ARRIVE_ANIMATION)
+		await player.animation_finished
+	if is_instance_valid(wrapper):
+		wrapper.queue_free()
 
 
 ## Updates position AND rotation together each frame — rotation follows

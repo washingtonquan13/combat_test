@@ -19,8 +19,9 @@ func _on_equip_pressed() -> void:
 	if is_instance_valid(target_item):
 		for slot in get_tree().get_nodes_in_group("equip_slots"):
 			if slot.accepts_item(target_item):
+				var instance: ItemInstance = target_item.instance
 				target_item.detach_from_current_location()
-				slot.equip(target_item)
+				slot.equip(instance)
 				break
 	hide()
 
@@ -28,7 +29,6 @@ func _on_drop_pressed() -> void:
 	# No world-drop system exists yet, so this discards the item outright.
 	if is_instance_valid(target_item):
 		target_item.detach_from_current_location()
-		target_item.queue_free()
 	hide()
 
 func _on_inspect_pressed() -> void:

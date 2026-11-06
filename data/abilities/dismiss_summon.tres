@@ -15,6 +15,7 @@ requires_ally = true
 [resource]
 script = ExtResource("1_ability")
 ability_name = "Dismiss"
+icon_color = Color(0.67, 0.43, 0.9, 1)
 category = 1
 targeting = SubResource("Resource_dismisstargeting")
 effects = Array[ExtResource("1_34kxh")]([SubResource("Resource_dismisseffect")])

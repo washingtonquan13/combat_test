@@ -1,0 +1,172 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/fire_surface.gd" id="1_script"]
+[ext_resource type="Shader" path="res://systems/surface_system/scorch_film.gdshader" id="2_shader"]
+[ext_resource type="Shader" path="res://systems/surface_system/spark.gdshader" id="4_spark"]
+[ext_resource type="Shader" path="res://systems/surface_system/fog_puff.gdshader" id="5_puff"]
+[ext_resource type="Shader" path="res://systems/surface_system/heat_haze.gdshader" id="6_haze"]
+[ext_resource type="Shader" path="res://systems/surface_system/fire_volume.gdshader" id="8_volume"]
+
+[sub_resource type="ShaderMaterial" id="film"]
+shader = ExtResource("2_shader")
+
+[sub_resource type="Gradient" id="cool"]
+offsets = PackedFloat32Array(0, 0.1, 0.6, 1)
+colors = PackedColorArray(1, 0.85, 0.5, 0, 1, 0.75, 0.35, 1, 1, 0.4, 0.08, 0.9, 0.8, 0.15, 0.02, 0)
+
+[sub_resource type="GradientTexture1D" id="cool_texture"]
+gradient = SubResource("cool")
+
+[sub_resource type="ParticleProcessMaterial" id="fly"]
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.0
+emission_ring_radius = 2.0
+emission_ring_inner_radius = 0.0
+direction = Vector3(0, 1, 0)
+spread = 25.0
+initial_velocity_min = 1.0
+initial_velocity_max = 2.4
+gravity = Vector3(0, 0.2, 0)
+damping_min = 0.4
+damping_max = 0.9
+scale_min = 0.5
+scale_max = 1.2
+color_ramp = SubResource("cool_texture")
+turbulence_enabled = true
+turbulence_noise_strength = 1.5
+turbulence_noise_scale = 1.5
+turbulence_influence_min = 0.08
+turbulence_influence_max = 0.18
+
+[sub_resource type="ShaderMaterial" id="spark"]
+shader = ExtResource("4_spark")
+
+[sub_resource type="QuadMesh" id="speck"]
+material = SubResource("spark")
+size = Vector2(0.08, 0.08)
+
+[sub_resource type="Gradient" id="haze_fade"]
+offsets = PackedFloat32Array(0, 0.25, 0.7, 1)
+colors = PackedColorArray(1, 1, 1, 0, 1, 1, 1, 0.8, 1, 1, 1, 0.5, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture1D" id="haze_fade_texture"]
+gradient = SubResource("haze_fade")
+
+[sub_resource type="Curve" id="billow"]
+_data = [Vector2(0, 0.5), 0.0, 1.2, 0, 0, Vector2(1, 1.6), 0.0, 0.0, 0, 0]
+point_count = 2
+
+[sub_resource type="CurveTexture" id="billow_texture"]
+curve = SubResource("billow")
+
+[sub_resource type="ParticleProcessMaterial" id="rise"]
+emission_shape = 6
+emission_ring_axis = Vector3(0, 1, 0)
+emission_ring_height = 0.0
+emission_ring_radius = 2.0
+emission_ring_inner_radius = 0.0
+angle_min = -180.0
+angle_max = 180.0
+angular_velocity_min = -20.0
+angular_velocity_max = 20.0
+direction = Vector3(0, 1, 0)
+spread = 10.0
+initial_velocity_min = 0.4
+initial_velocity_max = 0.8
+gravity = Vector3(0.15, 0.1, 0)
+scale_min = 0.8
+scale_max = 1.3
+scale_curve = SubResource("billow_texture")
+color_ramp = SubResource("haze_fade_texture")
+
+[sub_resource type="ShaderMaterial" id="puff"]
+shader = ExtResource("5_puff")
+
+[sub_resource type="QuadMesh" id="puff_quad"]
+material = SubResource("puff")
+size = Vector2(1.4, 1.4)
+
+[sub_resource type="ShaderMaterial" id="haze"]
+render_priority = -1
+shader = ExtResource("6_haze")
+
+[sub_resource type="QuadMesh" id="haze_quad"]
+material = SubResource("haze")
+size = Vector2(4, 2.4)
+center_offset = Vector3(0, 1.2, 0)
+
+[sub_resource type="FastNoiseLite" id="rising"]
+noise_type = 1
+frequency = 0.06
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture3D" id="rising_texture"]
+width = 64
+height = 64
+depth = 64
+seamless = true
+noise = SubResource("rising")
+
+[sub_resource type="ShaderMaterial" id="volume"]
+render_priority = 1
+shader = ExtResource("8_volume")
+shader_parameter/noise = SubResource("rising_texture")
+shader_parameter/steps = 20
+shader_parameter/rise = 1.6
+shader_parameter/tongue_scale = Vector2(0.7, 0.35)
+shader_parameter/detail_scale = Vector2(1.8, 1)
+shader_parameter/warp = 0.5
+shader_parameter/foot_threshold = 0.5
+shader_parameter/top_threshold = 0.78
+shader_parameter/contrast = 6.0
+shader_parameter/emission = 3.0
+shader_parameter/absorption = 3.0
+
+[node name="Fire" type="Decal"]
+size = Vector3(2.6, 2.4, 2.6)
+normal_fade = 0.6
+cull_mask = 0
+emission_energy = 1.8
+script = ExtResource("1_script")
+film = SubResource("film")
+glows = true
+loop_frames = 12
+loop_fps = 10.0
+roughness = 0.95
+volume_material = SubResource("volume")
+
+[node name="Haze" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+mesh = SubResource("haze_quad")
+
+[node name="Volume" type="MeshInstance3D" parent="."]
+top_level = true
+layers = 2
+cast_shadow = 0
+
+[node name="Sparks" type="GPUParticles3D" parent="."]
+amount = 30
+lifetime = 1.8
+randomness = 0.6
+visibility_aabb = AABB(-5, -1, -5, 10, 7, 10)
+process_material = SubResource("fly")
+draw_pass_1 = SubResource("speck")
+
+[node name="Smoke" type="GPUParticles3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+amount = 12
+lifetime = 3.5
+randomness = 0.4
+visibility_aabb = AABB(-5, -1, -5, 10, 7, 10)
+process_material = SubResource("rise")
+draw_pass_1 = SubResource("puff_quad")
+instance_shader_parameters/lit_color = Color(0.4, 0.37, 0.34, 1)
+instance_shader_parameters/shade_color = Color(0.14, 0.12, 0.11, 1)
+instance_shader_parameters/opacity = 0.75
+
+[node name="Light" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 2.0
+omni_range = 5.0

@@ -58,3 +58,4 @@ text_block = "They're gone. All of them — no torches on the treeline last nigh
 choices = Array[ExtResource("2_choice")]([SubResource("Resource_glad_to_help"), SubResource("Resource_paid_for_it"), SubResource("Resource_really_over"), SubResource("Resource_resolved_goodbye")])
 next_node_id = ""
 interjection_options = Array[ExtResource("4_js1ln")]([])
+start_effects = Array[ExtResource("2_1xyio")]([])

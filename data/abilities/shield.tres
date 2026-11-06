@@ -11,7 +11,7 @@
 
 [sub_resource type="Resource" id="Resource_statmod"]
 script = ExtResource("7_statmod")
-stat_name = "DR"
+stat_name = &"DR"
 amount = 3
 metadata/_custom_type_script = "uid://bgd2vy28ksd3v"
 
@@ -22,6 +22,7 @@ default_duration = 3
 stack_mode = 0
 max_stacks = 1
 behaviors = Array[ExtResource("6_behavior")]([SubResource("Resource_statmod")])
+curable = true
 apply_animation = ""
 apply_animation_loops = false
 remove_animation = ""
@@ -42,6 +43,7 @@ metadata/_custom_type_script = "uid://dr8ikn7mlllm6"
 script = ExtResource("1_ability")
 ability_name = "Shield"
 icon = ExtResource("8_icon")
+icon_color = Color(0.43, 0.63, 1, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_applystatus")])
@@ -49,6 +51,9 @@ requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

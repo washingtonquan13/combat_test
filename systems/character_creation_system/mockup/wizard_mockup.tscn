@@ -1,0 +1,1957 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Theme" path="res://systems/character_creation_system/mockup/wizard_theme.tres" id="1_mm7n6"]
+[ext_resource type="Script" path="res://systems/character_creation_system/mockup/wizard_mockup.gd" id="2_ec0k7"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_memeg"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_4ub0y"]
+
+[node name="WizardMockup" type="Control"]
+layout_mode = 3
+anchors_preset = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme = ExtResource("1_mm7n6")
+script = ExtResource("2_ec0k7")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0.0666667, 0.0745098, 0.0901961, 1)
+
+[node name="Margin" type="MarginContainer" parent="."]
+layout_mode = 0
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 20
+
+[node name="Root" type="VBoxContainer" parent="Margin"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Header" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Margin/Root/Header"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "LEVEL UP"
+
+[node name="Gap" type="Control" parent="Margin/Root/Header"]
+custom_minimum_size = Vector2(28, 0)
+layout_mode = 2
+
+[node name="Stepper" type="HBoxContainer" parent="Margin/Root/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+alignment = 1
+
+[node name="Step1" type="Button" parent="Margin/Root/Header/Stepper"]
+layout_mode = 2
+theme_type_variation = &"StepButton"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_memeg")
+text = "1   Class"
+
+[node name="Line1" type="ColorRect" parent="Margin/Root/Header/Stepper"]
+custom_minimum_size = Vector2(28, 2)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+color = Color(0.2, 0.215686, 0.243137, 1)
+
+[node name="Step2" type="Button" parent="Margin/Root/Header/Stepper"]
+layout_mode = 2
+theme_type_variation = &"StepButton"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_memeg")
+text = "2   What you gain"
+
+[node name="Line2" type="ColorRect" parent="Margin/Root/Header/Stepper"]
+custom_minimum_size = Vector2(28, 2)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+color = Color(0.2, 0.215686, 0.243137, 1)
+
+[node name="Step3" type="Button" parent="Margin/Root/Header/Stepper"]
+layout_mode = 2
+theme_type_variation = &"StepButton"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_memeg")
+text = "3   Attributes"
+
+[node name="Line3" type="ColorRect" parent="Margin/Root/Header/Stepper"]
+custom_minimum_size = Vector2(28, 2)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+color = Color(0.2, 0.215686, 0.243137, 1)
+
+[node name="Step4" type="Button" parent="Margin/Root/Header/Stepper"]
+layout_mode = 2
+theme_type_variation = &"StepButton"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_memeg")
+text = "4   Skills"
+
+[node name="Line4" type="ColorRect" parent="Margin/Root/Header/Stepper"]
+custom_minimum_size = Vector2(28, 2)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+color = Color(0.2, 0.215686, 0.243137, 1)
+
+[node name="Step5" type="Button" parent="Margin/Root/Header/Stepper"]
+layout_mode = 2
+theme_type_variation = &"StepButton"
+toggle_mode = true
+button_group = SubResource("ButtonGroup_memeg")
+text = "5   Summary"
+
+[node name="StepCount" type="Label" parent="Margin/Root/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Step 2 of 5"
+
+[node name="Body" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 20
+
+[node name="Sheet" type="PanelContainer" parent="Margin/Root/Body"]
+custom_minimum_size = Vector2(330, 0)
+layout_mode = 2
+
+[node name="SheetBox" type="VBoxContainer" parent="Margin/Root/Body/Sheet"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Who" type="HBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="PortraitFrame" type="PanelContainer" parent="Margin/Root/Body/Sheet/SheetBox/Who"]
+custom_minimum_size = Vector2(84, 105)
+layout_mode = 2
+theme_type_variation = &"Portrait"
+
+[node name="@Label@2" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Who/PortraitFrame"]
+layout_mode = 2
+theme_type_variation = &"Glyph"
+text = "KV"
+horizontal_alignment = 1
+
+[node name="WhoText" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/Who"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="NameLabel" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Who/WhoText"]
+layout_mode = 2
+theme_type_variation = &"Heading"
+text = "Kael Varros"
+
+[node name="LevelLabel" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Who/WhoText"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Level 3  >  4"
+
+[node name="Class1" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Who/WhoText"]
+layout_mode = 2
+text = "Fighter 2"
+
+[node name="Class2" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Who/WhoText"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "Magus 1  >  2"
+
+[node name="Sep1" type="HSeparator" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+
+[node name="@Label@3" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "ATTRIBUTES"
+
+[node name="AttributeGrid" type="GridContainer" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 6
+columns = 4
+
+[node name="TileST" type="PanelContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Tile"
+
+[node name="@VBoxContainer@4" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileST"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="@Label@5" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileST/@VBoxContainer@4"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "ST"
+horizontal_alignment = 1
+
+[node name="@Label@6" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileST/@VBoxContainer@4"]
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "14"
+horizontal_alignment = 1
+
+[node name="@Label@7" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileST/@VBoxContainer@4"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = " "
+horizontal_alignment = 1
+
+[node name="TileDX" type="PanelContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Tile"
+
+[node name="@VBoxContainer@8" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileDX"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="@Label@9" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileDX/@VBoxContainer@8"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "DX"
+horizontal_alignment = 1
+
+[node name="@Label@10" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileDX/@VBoxContainer@8"]
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "14"
+horizontal_alignment = 1
+
+[node name="@Label@11" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileDX/@VBoxContainer@8"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "+1"
+horizontal_alignment = 1
+
+[node name="TileIQ" type="PanelContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Tile"
+
+[node name="@VBoxContainer@12" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileIQ"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="@Label@13" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileIQ/@VBoxContainer@12"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "IQ"
+horizontal_alignment = 1
+
+[node name="@Label@14" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileIQ/@VBoxContainer@12"]
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "13"
+horizontal_alignment = 1
+
+[node name="@Label@15" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileIQ/@VBoxContainer@12"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "+1"
+horizontal_alignment = 1
+
+[node name="TileHT" type="PanelContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Tile"
+
+[node name="@VBoxContainer@16" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileHT"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="@Label@17" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileHT/@VBoxContainer@16"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "HT"
+horizontal_alignment = 1
+
+[node name="@Label@18" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileHT/@VBoxContainer@16"]
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "13"
+horizontal_alignment = 1
+
+[node name="@Label@19" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/AttributeGrid/TileHT/@VBoxContainer@16"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = " "
+horizontal_alignment = 1
+
+[node name="DerivedGrid" type="GridContainer" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+theme_override_constants/h_separation = 4
+columns = 5
+
+[node name="DerivedHP" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="@Label@20" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedHP"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "HP"
+horizontal_alignment = 1
+
+[node name="@Label@21" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedHP"]
+layout_mode = 2
+text = "16"
+horizontal_alignment = 1
+
+[node name="DerivedFP" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="@Label@22" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedFP"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "FP"
+horizontal_alignment = 1
+
+[node name="@Label@23" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedFP"]
+layout_mode = 2
+text = "13"
+horizontal_alignment = 1
+
+[node name="DerivedWill" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="@Label@24" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedWill"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Will"
+horizontal_alignment = 1
+
+[node name="@Label@25" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedWill"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "13"
+horizontal_alignment = 1
+
+[node name="DerivedPer" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="@Label@26" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedPer"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Per"
+horizontal_alignment = 1
+
+[node name="@Label@27" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedPer"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "13"
+horizontal_alignment = 1
+
+[node name="DerivedMove" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 0
+
+[node name="@Label@28" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedMove"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Move"
+horizontal_alignment = 1
+
+[node name="@Label@29" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/DerivedGrid/DerivedMove"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "40 m"
+horizontal_alignment = 1
+
+[node name="Sep2" type="HSeparator" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+
+[node name="@Label@30" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "SKILLS YOU'LL ROLL"
+
+[node name="RollSkills" type="VBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="BasicAttack" type="HBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@31" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/BasicAttack"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Basic Attack"
+
+[node name="@Label@32" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/BasicAttack"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "14"
+
+[node name="@Label@33" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/BasicAttack"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = ">"
+
+[node name="@Label@34" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/BasicAttack"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "15"
+
+[node name="Athletics" type="HBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@35" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Athletics"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Athletics"
+
+[node name="@Label@36" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Athletics"]
+layout_mode = 2
+text = "15"
+
+[node name="Arcana" type="HBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@37" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Arcana"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Arcana"
+
+[node name="@Label@38" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Arcana"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "11"
+
+[node name="@Label@39" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Arcana"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = ">"
+
+[node name="@Label@40" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Arcana"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "13"
+
+[node name="Acrobatics" type="HBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@41" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Acrobatics"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Acrobatics"
+
+[node name="@Label@42" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Acrobatics"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "7"
+
+[node name="@Label@43" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Acrobatics"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = ">"
+
+[node name="@Label@44" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Acrobatics"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "13"
+
+[node name="Perception" type="HBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@45" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Perception"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Perception"
+
+[node name="@Label@46" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Perception"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "12"
+
+[node name="@Label@47" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Perception"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = ">"
+
+[node name="@Label@48" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Perception"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "13"
+
+[node name="Intimidation" type="HBoxContainer" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@49" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Intimidation"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Intimidation"
+
+[node name="@Label@50" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Intimidation"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "12"
+
+[node name="@Label@51" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Intimidation"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = ">"
+
+[node name="@Label@52" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/RollSkills/Intimidation"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "13"
+
+[node name="@Label@53" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Includes skills Magus suggests, even untrained."
+autowrap_mode = 3
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Sep3" type="HSeparator" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+
+[node name="Points" type="GridContainer" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+columns = 2
+
+[node name="@Label@54" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Points"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Attribute points"
+
+[node name="@Label@55" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Points"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "0 / 3 left"
+
+[node name="@Label@56" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Points"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Skill points"
+
+[node name="@Label@57" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/Points"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "0 / 2 left"
+
+[node name="Pages" type="TabContainer" parent="Margin/Root/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+current_tab = 0
+tabs_visible = false
+
+[node name="Class" type="VBoxContainer" parent="Margin/Root/Body/Pages"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 14
+metadata/_tab_index = 0
+
+[node name="PageTitle" type="Label" parent="Margin/Root/Body/Pages/Class"]
+layout_mode = 2
+theme_type_variation = &"Heading"
+text = "Choose a class to advance"
+
+[node name="PageSub" type="Label" parent="Margin/Root/Body/Pages/Class"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Raise a class you have, start a new one, or meet the requirements for a specialty."
+autowrap_mode = 3
+
+[node name="Split" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 18
+
+[node name="ClassTree" type="Tree" parent="Margin/Root/Body/Pages/Class/Split"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+hide_root = true
+
+[node name="Detail" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 14
+
+[node name="Head" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Glyph" type="PanelContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Head"]
+custom_minimum_size = Vector2(72, 72)
+layout_mode = 2
+theme_type_variation = &"Portrait"
+
+[node name="@Label@79" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Head/Glyph"]
+layout_mode = 2
+theme_type_variation = &"Glyph"
+text = "M"
+horizontal_alignment = 1
+
+[node name="@VBoxContainer@80" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Head"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="@Label@81" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Head/@VBoxContainer@80"]
+layout_mode = 2
+theme_type_variation = &"Heading"
+text = "Magus"
+
+[node name="@Label@82" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Head/@VBoxContainer@80"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Core class  ·  Magus 1  >  2"
+
+[node name="@Label@83" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "A swordsman who casts through the blade. Magi trade raw toughness for spells delivered in the same swing."
+autowrap_mode = 3
+
+[node name="Cards" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="KeyAttributes" type="PanelContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Card"
+
+[node name="@VBoxContainer@84" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards/KeyAttributes"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@85" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards/KeyAttributes/@VBoxContainer@84"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "KEY ATTRIBUTES"
+
+[node name="@Label@86" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards/KeyAttributes/@VBoxContainer@84"]
+layout_mode = 2
+theme_type_variation = &"AccentLabel"
+text = "DX 13   ·   IQ 12"
+
+[node name="SuggestedSkills" type="PanelContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Card"
+
+[node name="@VBoxContainer@87" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards/SuggestedSkills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@88" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards/SuggestedSkills/@VBoxContainer@87"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "SUGGESTED SKILLS"
+
+[node name="@Label@89" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Cards/SuggestedSkills/@VBoxContainer@87"]
+layout_mode = 2
+text = "Basic Attack · Arcana · Acrobatics"
+
+[node name="@Label@90" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "LEVEL TRACK"
+
+[node name="Track" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Level1" type="PanelContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@91" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="@Label@92" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1/@HBoxContainer@91"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "1"
+horizontal_alignment = 1
+
+[node name="@VBoxContainer@93" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1/@HBoxContainer@91"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="@HBoxContainer@94" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1/@HBoxContainer@91/@VBoxContainer@93"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="@Label@95" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1/@HBoxContainer@91/@VBoxContainer@93/@HBoxContainer@94"]
+layout_mode = 2
+text = "Spell Strike"
+
+[node name="@Label@96" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1/@HBoxContainer@91/@VBoxContainer@93/@HBoxContainer@94"]
+layout_mode = 2
+theme_type_variation = &"TagPill"
+text = "ACTIVE"
+
+[node name="@Label@97" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1/@HBoxContainer@91/@VBoxContainer@93"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Deliver a battle spell you know through a melee hit."
+autowrap_mode = 3
+
+[node name="@Label@98" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level1/@HBoxContainer@91"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "Have"
+
+[node name="Level2" type="PanelContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track"]
+layout_mode = 2
+theme_type_variation = &"RowFocus"
+
+[node name="@HBoxContainer@99" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="@Label@100" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2/@HBoxContainer@99"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "2"
+horizontal_alignment = 1
+
+[node name="@VBoxContainer@101" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2/@HBoxContainer@99"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="@HBoxContainer@102" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2/@HBoxContainer@99/@VBoxContainer@101"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="@Label@103" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2/@HBoxContainer@99/@VBoxContainer@101/@HBoxContainer@102"]
+layout_mode = 2
+text = "Arcane Guard"
+
+[node name="@Label@104" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2/@HBoxContainer@99/@VBoxContainer@101/@HBoxContainer@102"]
+layout_mode = 2
+theme_type_variation = &"TagPill"
+text = "PASSIVE"
+
+[node name="@Label@105" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2/@HBoxContainer@99/@VBoxContainer@101"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Casting in melee no longer leaves you open to free attacks."
+autowrap_mode = 3
+
+[node name="@Label@106" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level2/@HBoxContainer@99"]
+layout_mode = 2
+theme_type_variation = &"AccentLabel"
+text = "This level"
+
+[node name="Level3" type="PanelContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@107" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="@Label@108" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3/@HBoxContainer@107"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "3"
+horizontal_alignment = 1
+
+[node name="@VBoxContainer@109" type="VBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3/@HBoxContainer@107"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="@HBoxContainer@110" type="HBoxContainer" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3/@HBoxContainer@107/@VBoxContainer@109"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="@Label@111" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3/@HBoxContainer@107/@VBoxContainer@109/@HBoxContainer@110"]
+layout_mode = 2
+text = "Battle Spells II"
+
+[node name="@Label@112" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3/@HBoxContainer@107/@VBoxContainer@109/@HBoxContainer@110"]
+layout_mode = 2
+theme_type_variation = &"TagPill"
+text = "PASSIVE"
+
+[node name="@Label@113" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3/@HBoxContainer@107/@VBoxContainer@109"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Learn tier 2 battle spells."
+autowrap_mode = 3
+
+[node name="@Label@114" type="Label" parent="Margin/Root/Body/Pages/Class/Split/Detail/Track/Level3/@HBoxContainer@107"]
+layout_mode = 2
+theme_type_variation = &"AccentLabel"
+
+[node name="WhatYouGain" type="VBoxContainer" parent="Margin/Root/Body/Pages"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+metadata/_tab_index = 1
+
+[node name="Center" type="CenterContainer" parent="Margin/Root/Body/Pages/WhatYouGain"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Column" type="VBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Emblem" type="PanelContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_horizontal = 4
+theme_type_variation = &"Portrait"
+
+[node name="@Label@115" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Emblem"]
+layout_mode = 2
+theme_type_variation = &"Glyph"
+text = "M"
+horizontal_alignment = 1
+
+[node name="@Label@116" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "MAGUS  2"
+horizontal_alignment = 1
+
+[node name="Feature" type="PanelContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column"]
+layout_mode = 2
+theme_type_variation = &"FeatureCard"
+
+[node name="@VBoxContainer@117" type="VBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Feature"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="@HBoxContainer@118" type="HBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Feature/@VBoxContainer@117"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@119" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Feature/@VBoxContainer@117/@HBoxContainer@118"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "Arcane Guard"
+
+[node name="@Label@120" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Feature/@VBoxContainer@117/@HBoxContainer@118"]
+layout_mode = 2
+theme_type_variation = &"TagPill"
+text = "PASSIVE"
+
+[node name="@Label@121" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Feature/@VBoxContainer@117"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Casting in melee no longer leaves you open to free attacks."
+autowrap_mode = 3
+
+[node name="Perks" type="HBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Perkattributepoints" type="PanelContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Card"
+
+[node name="@HBoxContainer@122" type="HBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkattributepoints"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="@Label@123" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkattributepoints/@HBoxContainer@122"]
+layout_mode = 2
+theme_type_variation = &"Glyph"
+text = "+3"
+
+[node name="@VBoxContainer@124" type="VBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkattributepoints/@HBoxContainer@122"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="@Label@125" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkattributepoints/@HBoxContainer@122/@VBoxContainer@124"]
+layout_mode = 2
+text = "attribute points"
+
+[node name="@Label@126" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkattributepoints/@HBoxContainer@122/@VBoxContainer@124"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Spend them on the Attributes step"
+
+[node name="Perkskillpoints" type="PanelContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Card"
+
+[node name="@HBoxContainer@127" type="HBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkskillpoints"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="@Label@128" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkskillpoints/@HBoxContainer@127"]
+layout_mode = 2
+theme_type_variation = &"Glyph"
+text = "+2"
+
+[node name="@VBoxContainer@129" type="VBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkskillpoints/@HBoxContainer@127"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="@Label@130" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkskillpoints/@HBoxContainer@127/@VBoxContainer@129"]
+layout_mode = 2
+text = "skill points"
+
+[node name="@Label@131" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Perks/Perkskillpoints/@HBoxContainer@127/@VBoxContainer@129"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Spend them on the Skills step"
+
+[node name="@Label@132" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "TOWARD"
+
+[node name="Toward" type="VBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ArcaneArcher" type="PanelContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward"]
+layout_mode = 2
+theme_type_variation = &"Highlight"
+
+[node name="@HBoxContainer@133" type="HBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward/ArcaneArcher"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@134" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward/ArcaneArcher/@HBoxContainer@133"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Arcane Archer   ·   specialty"
+
+[node name="@Label@135" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward/ArcaneArcher/@HBoxContainer@133"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "UNLOCKED"
+
+[node name="Spellblade" type="PanelContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@136" type="HBoxContainer" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward/Spellblade"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@137" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward/Spellblade/@HBoxContainer@136"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Spellblade   ·   prestige"
+
+[node name="@Label@138" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column/Toward/Spellblade/@HBoxContainer@136"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "1 left: Fighter 3 (have 2)"
+
+[node name="@Label@139" type="Label" parent="Margin/Root/Body/Pages/WhatYouGain/Center/Column"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Next at Magus 3: Battle Spells II"
+horizontal_alignment = 1
+
+[node name="Attributes" type="VBoxContainer" parent="Margin/Root/Body/Pages"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 14
+metadata/_tab_index = 2
+
+[node name="PageTitle" type="Label" parent="Margin/Root/Body/Pages/Attributes"]
+layout_mode = 2
+theme_type_variation = &"Heading"
+text = "Raise your attributes"
+
+[node name="PageSub" type="Label" parent="Margin/Root/Body/Pages/Attributes"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "3 points this level. Each step costs more as the score climbs; unspent points bank for next level."
+autowrap_mode = 3
+
+[node name="AttributesList" type="VBoxContainer" parent="Margin/Root/Body/Pages/Attributes"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="ST" type="PanelContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@141" type="HBoxContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@142" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Strength"
+
+[node name="@Label@143" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "ST"
+
+[node name="@Button@144" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@145" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "14"
+horizontal_alignment = 1
+
+[node name="@Button@146" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@147" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="@Label@148" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "next 3"
+
+[node name="@Label@149" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/ST/@HBoxContainer@141"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Faint"
+text = "Raises HP, Athletics"
+horizontal_alignment = 2
+
+[node name="DX" type="PanelContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList"]
+layout_mode = 2
+theme_type_variation = &"RowFocus"
+
+[node name="@HBoxContainer@150" type="HBoxContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@151" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Dexterity"
+
+[node name="@Label@152" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "DX"
+
+[node name="@Button@153" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@154" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "14"
+horizontal_alignment = 1
+
+[node name="@Button@155" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@156" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "+1"
+
+[node name="@Label@157" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "next 3"
+
+[node name="@Label@158" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/DX/@HBoxContainer@150"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Faint"
+text = "Raises Basic Attack, Acrobatics, Move"
+horizontal_alignment = 2
+
+[node name="IQ" type="PanelContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList"]
+layout_mode = 2
+theme_type_variation = &"RowFocus"
+
+[node name="@HBoxContainer@159" type="HBoxContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@160" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Intelligence"
+
+[node name="@Label@161" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "IQ"
+
+[node name="@Button@162" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@163" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "13"
+horizontal_alignment = 1
+
+[node name="@Button@164" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@165" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "+1"
+
+[node name="@Label@166" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "next 2"
+
+[node name="@Label@167" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/IQ/@HBoxContainer@159"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Faint"
+text = "Raises Arcana, Will, Per"
+horizontal_alignment = 2
+
+[node name="HT" type="PanelContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@168" type="HBoxContainer" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@169" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Health"
+
+[node name="@Label@170" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "HT"
+
+[node name="@Button@171" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@172" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+custom_minimum_size = Vector2(44, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "13"
+horizontal_alignment = 1
+
+[node name="@Button@173" type="Button" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@174" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+custom_minimum_size = Vector2(30, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="@Label@175" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+custom_minimum_size = Vector2(60, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "next 2"
+
+[node name="@Label@176" type="Label" parent="Margin/Root/Body/Pages/Attributes/AttributesList/HT/@HBoxContainer@168"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Faint"
+text = "Raises FP, Move"
+horizontal_alignment = 2
+
+[node name="Changes" type="PanelContainer" parent="Margin/Root/Body/Pages/Attributes"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="@VBoxContainer@177" type="VBoxContainer" parent="Margin/Root/Body/Pages/Attributes/Changes"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Label@178" type="Label" parent="Margin/Root/Body/Pages/Attributes/Changes/@VBoxContainer@177"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "THIS CHANGES"
+
+[node name="@Label@179" type="Label" parent="Margin/Root/Body/Pages/Attributes/Changes/@VBoxContainer@177"]
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "Will 12 > 13    Per 12 > 13    Move 39 > 40 m"
+
+[node name="@Label@180" type="Label" parent="Margin/Root/Body/Pages/Attributes/Changes/@VBoxContainer@177"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Basic Attack 14 > 15    Arcana 11 > 12    Perception 12 > 13"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Attributes"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="PointsLeft" type="HBoxContainer" parent="Margin/Root/Body/Pages/Attributes"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Attributes/PointsLeft"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@181" type="Label" parent="Margin/Root/Body/Pages/Attributes/PointsLeft"]
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Attribute points left"
+
+[node name="@Label@182" type="Label" parent="Margin/Root/Body/Pages/Attributes/PointsLeft"]
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "0 / 3"
+
+[node name="Skills" type="VBoxContainer" parent="Margin/Root/Body/Pages"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 14
+metadata/_tab_index = 3
+
+[node name="PageTitle" type="Label" parent="Margin/Root/Body/Pages/Skills"]
+layout_mode = 2
+theme_type_variation = &"Heading"
+text = "Train your skills"
+
+[node name="PageSub" type="Label" parent="Margin/Root/Body/Pages/Skills"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "2 points this level. The roll uses the better of your trained level and the untrained default."
+autowrap_mode = 3
+
+[node name="Filters" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="@Button@184" type="Button" parent="Margin/Root/Body/Pages/Skills/Filters"]
+layout_mode = 2
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ButtonGroup_4ub0y")
+text = "Suggested"
+
+[node name="@Button@185" type="Button" parent="Margin/Root/Body/Pages/Skills/Filters"]
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_4ub0y")
+text = "Trained"
+
+[node name="@Button@186" type="Button" parent="Margin/Root/Body/Pages/Skills/Filters"]
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_4ub0y")
+text = "All 19"
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/Root/Body/Pages/Skills"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SkillsList" type="VBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="Arcana" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList"]
+layout_mode = 2
+theme_type_variation = &"RowFocus"
+
+[node name="@HBoxContainer@187" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@188" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Arcana"
+
+[node name="@Label@189" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "IQ / Hard"
+
+[node name="@Button@190" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@191" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "2"
+horizontal_alignment = 1
+
+[node name="@Button@192" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@193" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "+1"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@194" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "IQ - 2 + 2"
+
+[node name="@Label@195" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Arcana/@HBoxContainer@187"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_type_variation = &"BigUp"
+text = "13"
+horizontal_alignment = 2
+
+[node name="Acrobatics" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@196" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@197" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Acrobatics"
+
+[node name="@Label@198" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "DX / Hard"
+
+[node name="@Button@199" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@200" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "1"
+horizontal_alignment = 1
+
+[node name="@Button@201" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@202" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+text = "+1"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@203" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "DX - 2 + 1"
+
+[node name="@Label@204" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Acrobatics/@HBoxContainer@196"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_type_variation = &"BigUp"
+text = "13"
+horizontal_alignment = 2
+
+[node name="BasicAttack" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@205" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@206" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Basic Attack"
+
+[node name="@Label@207" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "DX / Very Hard"
+
+[node name="@Button@208" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@209" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "4"
+horizontal_alignment = 1
+
+[node name="@Button@210" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@211" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@212" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "DX - 3 + 4"
+
+[node name="@Label@213" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/BasicAttack/@HBoxContainer@205"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "15"
+horizontal_alignment = 2
+
+[node name="Athletics" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@214" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@215" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Athletics"
+
+[node name="@Label@216" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "ST / Average"
+
+[node name="@Button@217" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@218" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "2"
+horizontal_alignment = 1
+
+[node name="@Button@219" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@220" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@221" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "ST - 1 + 2"
+
+[node name="@Label@222" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Athletics/@HBoxContainer@214"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "15"
+horizontal_alignment = 2
+
+[node name="Perception" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@223" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@224" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Perception"
+
+[node name="@Label@225" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Per / Average"
+
+[node name="@Button@226" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@227" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "1"
+horizontal_alignment = 1
+
+[node name="@Button@228" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@229" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@230" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Per - 1 + 1"
+
+[node name="@Label@231" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Perception/@HBoxContainer@223"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "13"
+horizontal_alignment = 2
+
+[node name="Intimidation" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@232" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@233" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Intimidation"
+
+[node name="@Label@234" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Will / Average"
+
+[node name="@Button@235" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@236" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "1"
+horizontal_alignment = 1
+
+[node name="@Button@237" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@238" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@239" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Will - 1 + 1"
+
+[node name="@Label@240" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Intimidation/@HBoxContainer@232"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "13"
+horizontal_alignment = 2
+
+[node name="Stealth" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@241" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@242" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Stealth"
+
+[node name="@Label@243" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "DX / Average"
+
+[node name="@Button@244" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " - "
+
+[node name="@Label@245" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+custom_minimum_size = Vector2(36, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "0"
+horizontal_alignment = 1
+
+[node name="@Button@246" type="Button" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = " + "
+
+[node name="@Label@247" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+custom_minimum_size = Vector2(26, 0)
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="@Label@248" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "default DX - 5"
+
+[node name="@Label@249" type="Label" parent="Margin/Root/Body/Pages/Skills/Scroll/SkillsList/Stealth/@HBoxContainer@241"]
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_type_variation = &"BigNumber"
+text = "9"
+horizontal_alignment = 2
+
+[node name="SkillDetail" type="PanelContainer" parent="Margin/Root/Body/Pages/Skills"]
+layout_mode = 2
+theme_type_variation = &"Card"
+
+[node name="@VBoxContainer@250" type="VBoxContainer" parent="Margin/Root/Body/Pages/Skills/SkillDetail"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="@HBoxContainer@251" type="HBoxContainer" parent="Margin/Root/Body/Pages/Skills/SkillDetail/@VBoxContainer@250"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="@Label@252" type="Label" parent="Margin/Root/Body/Pages/Skills/SkillDetail/@VBoxContainer@250/@HBoxContainer@251"]
+layout_mode = 2
+text = "Arcana"
+
+[node name="@Label@253" type="Label" parent="Margin/Root/Body/Pages/Skills/SkillDetail/@VBoxContainer@250/@HBoxContainer@251"]
+layout_mode = 2
+theme_type_variation = &"TagPill"
+text = "IQ / HARD"
+
+[node name="@Label@254" type="Label" parent="Margin/Root/Body/Pages/Skills/SkillDetail/@VBoxContainer@250"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Knowledge of magical theory, spells, and the planes. Magus suggests it: raising IQ on the last step already moved it from 11 to 12."
+autowrap_mode = 3
+
+[node name="Summary" type="VBoxContainer" parent="Margin/Root/Body/Pages"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 14
+metadata/_tab_index = 4
+
+[node name="PageTitle" type="Label" parent="Margin/Root/Body/Pages/Summary"]
+layout_mode = 2
+theme_type_variation = &"Heading"
+text = "Kael Varros reaches level 4"
+
+[node name="PageSub" type="Label" parent="Margin/Root/Body/Pages/Summary"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"Dim"
+text = "Review what changes, then confirm. Nothing below needs fixing."
+autowrap_mode = 3
+
+[node name="Changes" type="VBoxContainer" parent="Margin/Root/Body/Pages/Summary"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Class" type="PanelContainer" parent="Margin/Root/Body/Pages/Summary/Changes"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@256" type="HBoxContainer" parent="Margin/Root/Body/Pages/Summary/Changes/Class"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="@Label@257" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Class/@HBoxContainer@256"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Class"
+
+[node name="@Label@258" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Class/@HBoxContainer@256"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Magus 1  >  2"
+
+[node name="@Label@259" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Class/@HBoxContainer@256"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Arcane Guard (passive)"
+
+[node name="Attributes" type="PanelContainer" parent="Margin/Root/Body/Pages/Summary/Changes"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@260" type="HBoxContainer" parent="Margin/Root/Body/Pages/Summary/Changes/Attributes"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="@Label@261" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Attributes/@HBoxContainer@260"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Attributes"
+
+[node name="@Label@262" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Attributes/@HBoxContainer@260"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "DX 13 > 14,  IQ 12 > 13"
+
+[node name="@Label@263" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Attributes/@HBoxContainer@260"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "3 of 3 points spent"
+
+[node name="Skills" type="PanelContainer" parent="Margin/Root/Body/Pages/Summary/Changes"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@264" type="HBoxContainer" parent="Margin/Root/Body/Pages/Summary/Changes/Skills"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="@Label@265" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Skills/@HBoxContainer@264"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Skills"
+
+[node name="@Label@266" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Skills/@HBoxContainer@264"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Arcana 1 > 2,  Acrobatics 0 > 1"
+
+[node name="@Label@267" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Skills/@HBoxContainer@264"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "2 of 2 points spent"
+
+[node name="Derived" type="PanelContainer" parent="Margin/Root/Body/Pages/Summary/Changes"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@268" type="HBoxContainer" parent="Margin/Root/Body/Pages/Summary/Changes/Derived"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="@Label@269" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Derived/@HBoxContainer@268"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Derived"
+
+[node name="@Label@270" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Derived/@HBoxContainer@268"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Will 12 > 13,  Per 12 > 13,  Move 39 > 40 m"
+
+[node name="@Label@271" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Derived/@HBoxContainer@268"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+
+[node name="Unlocked" type="PanelContainer" parent="Margin/Root/Body/Pages/Summary/Changes"]
+layout_mode = 2
+theme_type_variation = &"Row"
+
+[node name="@HBoxContainer@272" type="HBoxContainer" parent="Margin/Root/Body/Pages/Summary/Changes/Unlocked"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="@Label@273" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Unlocked/@HBoxContainer@272"]
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+theme_type_variation = &"Dim"
+text = "Unlocked"
+
+[node name="@Label@274" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Unlocked/@HBoxContainer@272"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Arcane Archer specialty"
+
+[node name="@Label@275" type="Label" parent="Margin/Root/Body/Pages/Summary/Changes/Unlocked/@HBoxContainer@272"]
+layout_mode = 2
+theme_type_variation = &"Faint"
+text = "Choose it at a later level"
+
+[node name="@Label@276" type="Label" parent="Margin/Root/Body/Pages/Summary"]
+layout_mode = 2
+theme_type_variation = &"Eyebrow"
+text = "EDIT A STEP"
+
+[node name="Edits" type="HBoxContainer" parent="Margin/Root/Body/Pages/Summary"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="@Button@277" type="Button" parent="Margin/Root/Body/Pages/Summary/Edits"]
+layout_mode = 2
+text = "Class"
+
+[node name="@Button@278" type="Button" parent="Margin/Root/Body/Pages/Summary/Edits"]
+layout_mode = 2
+text = "Attributes"
+
+[node name="@Button@279" type="Button" parent="Margin/Root/Body/Pages/Summary/Edits"]
+layout_mode = 2
+text = "Skills"
+
+[node name="Spacer" type="Control" parent="Margin/Root/Body/Pages/Summary"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ButtonRow" type="HBoxContainer" parent="Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="BackButton" type="Button" parent="Margin/Root/ButtonRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(110, 0)
+layout_mode = 2
+text = "<  Back"
+
+[node name="Spacer" type="Control" parent="Margin/Root/ButtonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Hint" type="Label" parent="Margin/Root/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"Up"
+
+[node name="NextButton" type="Button" parent="Margin/Root/ButtonRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+theme_type_variation = &"PrimaryButton"
+text = "Next"

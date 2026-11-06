@@ -1,6 +1,50 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://systems/character_creation_system/character_creation.gd" id="1_charcreate"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_sheet"]
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+bg_color = Color(0.11, 0.115, 0.14, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.27, 0.33, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_placeholder"]
+bg_color = Color(0.16, 0.17, 0.2, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.32, 0.34, 0.4, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_debug"]
+content_margin_left = 8.0
+content_margin_top = 4.0
+content_margin_right = 8.0
+content_margin_bottom = 4.0
+bg_color = Color(0.32, 0.2, 0.06, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.85, 0.55, 0.15, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
 
 [node name="CharacterCreation" type="Control"]
 layout_mode = 3
@@ -39,62 +83,55 @@ theme_override_constants/separation = 16
 
 [node name="Title" type="Label" parent="Margin/Root"]
 layout_mode = 2
+theme_override_font_sizes/font_size = 22
 text = "CREATE YOUR CHARACTER"
 
-[node name="Tabs" type="TabContainer" parent="Margin/Root"]
-custom_minimum_size = Vector2(0, 520)
+[node name="Body" type="HBoxContainer" parent="Margin/Root"]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 20
 
-[node name="Basics" type="VBoxContainer" parent="Margin/Root/Tabs"]
+[node name="Sheet" type="PanelContainer" parent="Margin/Root/Body"]
+custom_minimum_size = Vector2(300, 0)
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_styles/panel = SubResource("StyleBoxFlat_sheet")
 
-[node name="NameRow" type="HBoxContainer" parent="Margin/Root/Tabs/Basics"]
+[node name="SheetBox" type="VBoxContainer" parent="Margin/Root/Body/Sheet"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 10
 
-[node name="NameLabel" type="Label" parent="Margin/Root/Tabs/Basics/NameRow"]
-layout_mode = 2
-text = "Name:"
-
-[node name="NameEdit" type="LineEdit" parent="Margin/Root/Tabs/Basics/NameRow"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(260, 0)
-layout_mode = 2
-placeholder_text = "Enter a name"
-
-[node name="Portrait" type="HBoxContainer" parent="Margin/Root/Tabs"]
-visible = false
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="PortraitGridScroll" type="ScrollContainer" parent="Margin/Root/Tabs/Portrait"]
-layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 3
-
-[node name="PortraitGrid" type="GridContainer" parent="Margin/Root/Tabs/Portrait/PortraitGridScroll"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 8
-columns = 5
-
-[node name="PreviewPanel" type="VBoxContainer" parent="Margin/Root/Tabs/Portrait"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="PreviewLabel" type="Label" parent="Margin/Root/Tabs/Portrait/PreviewPanel"]
-layout_mode = 2
-text = "Selected"
-
-[node name="PreviewFrame" type="Control" parent="Margin/Root/Tabs/Portrait/PreviewPanel"]
+[node name="PortraitFrame" type="Control" parent="Margin/Root/Body/Sheet/SheetBox"]
 custom_minimum_size = Vector2(160, 200)
 layout_mode = 2
+size_flags_horizontal = 4
 
-[node name="PreviewTexture" type="TextureRect" parent="Margin/Root/Tabs/Portrait/PreviewPanel/PreviewFrame"]
+[node name="PortraitPlaceholder" type="Panel" parent="Margin/Root/Body/Sheet/SheetBox/PortraitFrame"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_placeholder")
+
+[node name="PlaceholderLabel" type="Label" parent="Margin/Root/Body/Sheet/SheetBox/PortraitFrame/PortraitPlaceholder"]
+modulate = Color(0.6, 0.62, 0.7, 1)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "?
+
+NO PORTRAIT
+pick one on the
+Portrait tab"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="PreviewTexture" type="TextureRect" parent="Margin/Root/Body/Sheet/SheetBox/PortraitFrame"]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
@@ -105,36 +142,201 @@ grow_vertical = 2
 expand_mode = 1
 stretch_mode = 6
 
-[node name="Attributes" type="VBoxContainer" parent="Margin/Root/Tabs"]
+[node name="NameEdit" type="LineEdit" parent="Margin/Root/Body/Sheet/SheetBox"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Enter a name"
+alignment = 1
+max_length = 32
+
+[node name="SummarySeparator" type="HSeparator" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+
+[node name="AttributeSummary" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ST 10   DX 10   IQ 10   HT 10"
+horizontal_alignment = 1
+
+[node name="DerivedSummary" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "HP = ST, FP = HT, Will = IQ, Per = IQ, Basic Speed = (DX + HT) / 4, Move = Basic Speed without the fraction (meters per turn), Air Move = Basic Speed x 2 without the fraction, Dodge = Move + 3."
+mouse_filter = 0
+text = "HP 10   FP 10   Will 10   Per 10   Move 30"
+horizontal_alignment = 1
+
+[node name="ChecklistSeparator" type="HSeparator" parent="Margin/Root/Body/Sheet/SheetBox"]
+layout_mode = 2
+
+[node name="Checklist" type="Label" parent="Margin/Root/Body/Sheet/SheetBox"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+text = "Checklist"
+autowrap_mode = 3
+
+[node name="Tabs" type="TabContainer" parent="Margin/Root/Body"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+current_tab = 0
+
+[node name="Origin" type="VBoxContainer" parent="Margin/Root/Body/Tabs"]
+layout_mode = 2
+theme_override_constants/separation = 10
+metadata/_tab_index = 0
+
+[node name="OriginNote" type="Label" parent="Margin/Root/Body/Tabs/Origin"]
+modulate = Color(0.6, 0.62, 0.7, 1)
+layout_mode = 2
+text = "Placeholders: these choices are laid out but not built yet. Every character is the one body for now."
+autowrap_mode = 3
+
+[node name="OriginGrid" type="GridContainer" parent="Margin/Root/Body/Tabs/Origin"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="BodyLabel" type="Label" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+custom_minimum_size = Vector2(130, 0)
+layout_mode = 2
+text = "Body"
+
+[node name="BodyOption" type="OptionButton" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+disabled = true
+selected = 0
+item_count = 1
+popup/item_0/text = "Human (placeholder)"
+popup/item_0/id = 0
+
+[node name="BackgroundLabel" type="Label" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+layout_mode = 2
+text = "Background"
+
+[node name="BackgroundOption" type="OptionButton" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+layout_mode = 2
+disabled = true
+selected = 0
+item_count = 1
+popup/item_0/text = "Coming soon"
+popup/item_0/id = 0
+
+[node name="GearLabel" type="Label" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+layout_mode = 2
+text = "Starting gear"
+
+[node name="GearOption" type="OptionButton" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+layout_mode = 2
+disabled = true
+selected = 0
+item_count = 1
+popup/item_0/text = "Coming soon"
+popup/item_0/id = 0
+
+[node name="VoiceLabel" type="Label" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+layout_mode = 2
+text = "Voice"
+
+[node name="VoiceOption" type="OptionButton" parent="Margin/Root/Body/Tabs/Origin/OriginGrid"]
+layout_mode = 2
+disabled = true
+selected = 0
+item_count = 1
+popup/item_0/text = "Coming soon"
+popup/item_0/id = 0
+
+[node name="ModelPreview" type="Panel" parent="Margin/Root/Body/Tabs/Origin"]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_placeholder")
+
+[node name="ModelPreviewLabel" type="Label" parent="Margin/Root/Body/Tabs/Origin/ModelPreview"]
+modulate = Color(0.6, 0.62, 0.7, 1)
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+text = "3D MODEL PREVIEW
+placeholder"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Portrait" type="VBoxContainer" parent="Margin/Root/Body/Tabs"]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
+metadata/_tab_index = 1
 
-[node name="AttributesHeader" type="Label" parent="Margin/Root/Tabs/Attributes"]
+[node name="PortraitNote" type="Label" parent="Margin/Root/Body/Tabs/Portrait"]
+modulate = Color(0.6, 0.62, 0.7, 1)
+layout_mode = 2
+text = "Any image dropped into assets/portraits/ shows up here."
+
+[node name="PortraitGridScroll" type="ScrollContainer" parent="Margin/Root/Body/Tabs/Portrait"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="PortraitGrid" type="GridContainer" parent="Margin/Root/Body/Tabs/Portrait/PortraitGridScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 6
+
+[node name="Attributes" type="VBoxContainer" parent="Margin/Root/Body/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+metadata/_tab_index = 2
+
+[node name="AttributesHeader" type="Label" parent="Margin/Root/Body/Tabs/Attributes"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "ATTRIBUTES"
 
-[node name="AttributesList" type="VBoxContainer" parent="Margin/Root/Tabs/Attributes"]
+[node name="AttributesHint" type="Label" parent="Margin/Root/Body/Tabs/Attributes"]
+modulate = Color(0.6, 0.62, 0.7, 1)
+layout_mode = 2
+text = "Every point must be spent. Lowering a score below 10 refunds points."
+autowrap_mode = 3
+
+[node name="AttributesList" type="VBoxContainer" parent="Margin/Root/Body/Tabs/Attributes"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="Skills" type="VBoxContainer" parent="Margin/Root/Tabs"]
+[node name="Skills" type="VBoxContainer" parent="Margin/Root/Body/Tabs"]
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 8
+metadata/_tab_index = 3
 
-[node name="SkillsHeader" type="Label" parent="Margin/Root/Tabs/Skills"]
+[node name="SkillsHeader" type="Label" parent="Margin/Root/Body/Tabs/Skills"]
 unique_name_in_owner = true
 layout_mode = 2
 text = "SKILLS"
 
-[node name="SkillsScroll" type="ScrollContainer" parent="Margin/Root/Tabs/Skills"]
+[node name="SkillsHint" type="Label" parent="Margin/Root/Body/Tabs/Skills"]
+modulate = Color(0.6, 0.62, 0.7, 1)
+layout_mode = 2
+text = "Levels are relative to the controlling attribute. Hover a skill for its description."
+autowrap_mode = 3
+
+[node name="SkillsScroll" type="ScrollContainer" parent="Margin/Root/Body/Tabs/Skills"]
 layout_mode = 2
 size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
-[node name="SkillsList" type="VBoxContainer" parent="Margin/Root/Tabs/Skills/SkillsScroll"]
+[node name="SkillsList" type="VBoxContainer" parent="Margin/Root/Body/Tabs/Skills/SkillsScroll"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -142,8 +344,36 @@ theme_override_constants/separation = 2
 
 [node name="ButtonRow" type="HBoxContainer" parent="Margin/Root"]
 layout_mode = 2
-alignment = 2
 theme_override_constants/separation = 12
+
+[node name="DebugTools" type="PanelContainer" parent="Margin/Root/ButtonRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_debug")
+
+[node name="DebugBox" type="HBoxContainer" parent="Margin/Root/ButtonRow/DebugTools"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DebugLabel" type="Label" parent="Margin/Root/ButtonRow/DebugTools/DebugBox"]
+layout_mode = 2
+text = "DEBUG"
+
+[node name="AutoFillButton" type="Button" parent="Margin/Root/ButtonRow/DebugTools/DebugBox"]
+custom_minimum_size = Vector2(110, 32)
+layout_mode = 2
+tooltip_text = "Fill every field with a valid build, without starting."
+text = "AUTO-FILL"
+
+[node name="QuickCreateButton" type="Button" parent="Margin/Root/ButtonRow/DebugTools/DebugBox"]
+custom_minimum_size = Vector2(140, 32)
+layout_mode = 2
+tooltip_text = "Fill every field with a valid build and start the game."
+text = "QUICK CREATE"
+
+[node name="Spacer" type="Control" parent="Margin/Root/ButtonRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 
 [node name="BackButton" type="Button" parent="Margin/Root/ButtonRow"]
 custom_minimum_size = Vector2(120, 36)
@@ -152,11 +382,13 @@ text = "BACK"
 
 [node name="ConfirmButton" type="Button" parent="Margin/Root/ButtonRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(160, 36)
+custom_minimum_size = Vector2(180, 36)
 layout_mode = 2
 disabled = true
 text = "BEGIN ADVENTURE"
 
-[connection signal="text_changed" from="Margin/Root/Tabs/Basics/NameRow/NameEdit" to="." method="_on_name_text_changed"]
+[connection signal="text_changed" from="Margin/Root/Body/Sheet/SheetBox/NameEdit" to="." method="_on_name_text_changed"]
+[connection signal="pressed" from="Margin/Root/ButtonRow/DebugTools/DebugBox/AutoFillButton" to="." method="_on_auto_fill_pressed"]
+[connection signal="pressed" from="Margin/Root/ButtonRow/DebugTools/DebugBox/QuickCreateButton" to="." method="_on_quick_create_pressed"]
 [connection signal="pressed" from="Margin/Root/ButtonRow/BackButton" to="." method="_on_back_pressed"]
 [connection signal="pressed" from="Margin/Root/ButtonRow/ConfirmButton" to="." method="_on_confirm_pressed"]

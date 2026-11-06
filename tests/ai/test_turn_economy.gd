@@ -11,10 +11,13 @@ func run() -> void:
 
 
 func _land_is_free() -> void:
-	var land: Ability = load("res://data/abilities/land.tres")
-	check("land.tres spends no attack action", not land.uses_attack_action)
-	check_equalf("land.tres spends no movement", land.move_cost, 0.0)
-	check_equalf("land.tres spends no FP", land.fp_cost, 0.0)
+	var land: Ability = (load("res://data/abilities/fly.tres") as Ability).toggle_off
+	check("SETUP: Fly has a landing off form", land != null)
+	if not land:
+		return
+	check("landing spends no attack action", not land.uses_attack_action)
+	check_equalf("landing spends no movement", land.move_cost, 0.0)
+	check_equalf("landing spends no FP", land.fp_cost, 0.0)
 
 
 func _landing_leaves_the_turn_intact() -> void:
@@ -25,7 +28,7 @@ func _landing_leaves_the_turn_intact() -> void:
 		return
 	var brute: Unit = spawn_brute(3.0)
 
-	avian.use_ability(load("res://data/abilities/land.tres"), avian)
+	avian.use_ability(load("res://data/abilities/fly.tres"), avian)
 
 	check("after landing, the attack action is still unspent", not avian.has_attacked)
 	check("after landing, movement is still unspent", avian.has_move_remaining(),

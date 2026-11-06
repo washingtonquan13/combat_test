@@ -1,0 +1,35 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/inventory_system/remains.gd" id="1_remains"]
+[ext_resource type="Resource" path="res://data/interactions/loot.tres" id="2_loot"]
+[ext_resource type="Script" path="res://systems/interaction_system/interaction_option.gd" id="3_opt"]
+[ext_resource type="PackedScene" path="res://systems/inventory_system/stash_component.tscn" id="4_stash"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_remains"]
+top_radius = 0.45
+bottom_radius = 0.5
+height = 0.12
+
+[sub_resource type="StandardMaterial3D" id="Material_remains"]
+albedo_color = Color(0.32, 0.24, 0.16, 1)
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_remains"]
+height = 0.3
+radius = 0.5
+
+[node name="Remains" type="StaticBody3D"]
+collision_layer = 1
+script = ExtResource("1_remains")
+interactions = Array[ExtResource("3_opt")]([ExtResource("2_loot")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, 0)
+mesh = SubResource("CylinderMesh_remains")
+surface_material_override/0 = SubResource("Material_remains")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("CylinderShape3D_remains")
+
+[node name="StashComponent" parent="." instance=ExtResource("4_stash")]
+display_name = "Remains"

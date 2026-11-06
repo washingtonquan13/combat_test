@@ -1,6 +1,12 @@
 #include "navigation_grid.h"
 
 #include <godot_cpp/classes/array_mesh.hpp>
+#include <godot_cpp/classes/capsule_shape3d.hpp>
+#include <godot_cpp/classes/concave_polygon_shape3d.hpp>
+#include <godot_cpp/classes/convex_polygon_shape3d.hpp>
+#include <godot_cpp/classes/cylinder_shape3d.hpp>
+#include <godot_cpp/classes/height_map_shape3d.hpp>
+#include <godot_cpp/classes/sphere_shape3d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
 #include <algorithm>
@@ -22,19 +28,23 @@ Vector3 vmax(const Vector3 &a, const Vector3 &b) {
 NavigationGrid::NavigationGrid() {}
 NavigationGrid::~NavigationGrid() {}
 
+static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, int reach_cells, RampInfo &slope);
+
 void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("ensure_baked", "tree"), &NavigationGrid::ensure_baked);
 	ClassDB::bind_method(D_METHOD("invalidate"), &NavigationGrid::invalidate);
 	ClassDB::bind_method(D_METHOD("register_world", "root"), &NavigationGrid::register_world);
 	ClassDB::bind_method(D_METHOD("unregister_world", "root"), &NavigationGrid::unregister_world);
-	ClassDB::bind_method(D_METHOD("update_occupancy", "tree", "movers", "world_ref"), &NavigationGrid::update_occupancy, DEFVAL(Variant()));
-	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()));
-	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying"), &NavigationGrid::find_path);
+	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref", "ignore"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()), DEFVAL(Array()));
+	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying", "ignore"), &NavigationGrid::find_path, DEFVAL(Array()));
+	ClassDB::bind_method(D_METHOD("occupancy_version", "tree", "world_ref"), &NavigationGrid::occupancy_version, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("world_to_cell", "pos"), &NavigationGrid::world_to_cell);
 
 	ClassDB::bind_method(D_METHOD("get_cell_size"), &NavigationGrid::get_cell_size);
 	ClassDB::bind_method(D_METHOD("get_flight_min_altitude"), &NavigationGrid::get_flight_min_altitude);
 	ClassDB::bind_method(D_METHOD("get_flight_ceiling_height"), &NavigationGrid::get_flight_ceiling_height);
+	ClassDB::bind_method(D_METHOD("flight_floor_at", "tree", "pos", "world_ref"), &NavigationGrid::flight_floor_at, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("flight_lowest_altitude", "tree", "world_ref"), &NavigationGrid::flight_lowest_altitude, DEFVAL(Variant()));
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "CELL_SIZE"), "", "get_cell_size");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "FLIGHT_MIN_ALTITUDE"), "", "get_flight_min_altitude");
@@ -44,6 +54,36 @@ void NavigationGrid::_bind_methods() {
 float NavigationGrid::get_cell_size() const { return CELL_SIZE; }
 float NavigationGrid::get_flight_min_altitude() const { return FLIGHT_MIN_ALTITUDE; }
 float NavigationGrid::get_flight_ceiling_height() const { return FLIGHT_CEILING_HEIGHT; }
+
+// The lowest feet height a flier may take at pos's XZ: FLIGHT_MIN_ALTITUDE
+// above the first solid at or below pos (pos inside solid climbs out of it
+// first). Callers clamp an altitude up to this, so a pit floor at y=-6
+// allows -5 while ground at y=0 still allows 1.
+float NavigationGrid::flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	Vector3i cell = world_to_cell(pos);
+	cell.x = std::clamp(cell.x, 0, grid_size.x - 1);
+	cell.z = std::clamp(cell.z, 0, grid_size.z - 1);
+	cell.y = std::clamp(cell.y, 0, grid_size.y - 1);
+	while (cell.y < grid_size.y - 1 && is_solid(cell)) {
+		cell.y++;
+	}
+	while (cell.y > 0 && !is_solid(cell - Vector3i(0, 1, 0))) {
+		cell.y--;
+	}
+	return bounds_origin.y + (float)cell.y * CELL_SIZE + FLIGHT_MIN_ALTITUDE;
+}
+
+// The lowest altitude a flier may take anywhere in this world: the bottom
+// of its geometry plus FLIGHT_MIN_ALTITUDE. The altitude plane, which has
+// no single XZ, clamps to this; the move query then lifts to the floor at
+// its own destination (flight_floor_at).
+float NavigationGrid::flight_lowest_altitude(SceneTree *tree, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	return bounds_origin.y + BOUNDS_MARGIN + FLIGHT_MIN_ALTITUDE;
+}
 
 // --- Multi-world registry --------------------------------------------
 //
@@ -93,8 +133,10 @@ void NavigationGrid::unregister_world(Node *root) {
 		// the dangling-pointer crash invalidate() existed to paper over.
 		all_shapes.clear();
 		shapes_by_chunk.clear();
+		tri_shapes.clear();
 		chunks.clear();
 		chunk_occupancy_nearby.clear();
+		reset_occupancy();
 		baked = false;
 		any_occupied = false;
 		active_world_id = 0;
@@ -155,6 +197,10 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		out.astar_search_id = astar_search_id;
 		out.smooth_search_id = smooth_search_id;
 		out.root = active_root;
+		out.occupancy_stamped = occupancy_stamped;
+		out.occupancy_version = occupancy_version_value;
+		std::swap(out.occupied_chunks, occupied_chunks);
+		std::swap(out.occupancy_signature, occupancy_signature);
 		std::swap(out.chunks, chunks);
 		std::swap(out.astar_g_score, astar_g_score);
 		std::swap(out.astar_g_gen, astar_g_gen);
@@ -164,6 +210,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		std::swap(out.smooth_valid_result, smooth_valid_result);
 		std::swap(out.all_shapes, all_shapes);
 		std::swap(out.shapes_by_chunk, shapes_by_chunk);
+		std::swap(out.tri_shapes, tri_shapes);
 		std::swap(out.chunk_occupancy_nearby, chunk_occupancy_nearby);
 	} else {
 		// Leaving the legacy grid behind for good — clear rather than
@@ -171,7 +218,9 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		chunks.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
+		tri_shapes.clear();
 		chunk_occupancy_nearby.clear();
+		reset_occupancy();
 	}
 
 	active_world_id = world_id;
@@ -197,7 +246,9 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		smooth_valid_result.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
+		tri_shapes.clear();
 		chunk_occupancy_nearby.clear();
+		reset_occupancy();
 		return;
 	}
 
@@ -210,6 +261,10 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 	astar_search_id = in.astar_search_id;
 	smooth_search_id = in.smooth_search_id;
 	active_root = in.root;
+	occupancy_stamped = in.occupancy_stamped;
+	occupancy_version_value = in.occupancy_version;
+	std::swap(in.occupied_chunks, occupied_chunks);
+	std::swap(in.occupancy_signature, occupancy_signature);
 	std::swap(in.chunks, chunks);
 	std::swap(in.astar_g_score, astar_g_score);
 	std::swap(in.astar_g_gen, astar_g_gen);
@@ -219,6 +274,7 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 	std::swap(in.smooth_valid_result, smooth_valid_result);
 	std::swap(in.all_shapes, all_shapes);
 	std::swap(in.shapes_by_chunk, shapes_by_chunk);
+	std::swap(in.tri_shapes, tri_shapes);
 	std::swap(in.chunk_occupancy_nearby, chunk_occupancy_nearby);
 	parked_worlds.erase(it);
 }
@@ -263,6 +319,7 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	// world that was just freed alongside the new world's real ones.
 	all_shapes.clear();
 	shapes_by_chunk.clear();
+	tri_shapes.clear();
 
 	// The registered world's own root, falling back to the current scene
 	// for the pre-registration/editor case. Scanning get_current_scene()
@@ -272,6 +329,13 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	Node *root = active_root ? active_root : tree->get_current_scene();
 	if (root) {
 		collect_static_shapes(root, all_shapes);
+	}
+	// Mesh shapes (concave, convex, height map) as their triangles.
+	for (CollisionShape3D *cs : all_shapes) {
+		auto tri = std::make_shared<TriShape>();
+		if (build_tri_shape(cs, *tri)) {
+			tri_shapes[cs] = tri;
+		}
 	}
 
 	Vector3 world_min, world_max;
@@ -314,6 +378,10 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	chunks.clear();
 	chunks.resize((size_t)chunk_grid_size.x * (size_t)chunk_grid_size.y * (size_t)chunk_grid_size.z);
 	chunk_occupancy_nearby.assign(chunks.size(), 0);
+	// Fresh, empty chunks: whatever occupancy was stamped went with the
+	// old ones, so the next query must restamp even if nobody moved.
+	reset_occupancy();
+	any_occupied = false;
 
 	size_t total_cells = (size_t)grid_size.x * (size_t)grid_size.y * (size_t)grid_size.z;
 	astar_g_score.assign(total_cells, 0.0f);
@@ -330,6 +398,17 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	// rasterize of one chunk only tests the shapes that could matter.
 	for (CollisionShape3D *cs : all_shapes) {
 		AABB aabb = shape_global_aabb(cs);
+		// A ramp marks ground past its own box (ramp_of), in chunks it
+		// may not otherwise touch.
+		// So does a mesh with walkable slopes (mark_tri_ground).
+		RampInfo ramp;
+		auto tri = tri_shapes.find(cs);
+		if (tri != tri_shapes.end()) {
+			index_tri_columns(*tri->second);
+		}
+		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp) || (tri != tri_shapes.end() && tri->second->any_walkable)) {
+			aabb = aabb.grow(MAX_CLEARANCE_CELLS * CELL_SIZE);
+		}
 		Vector3i min_cell = world_to_cell(aabb.position);
 		Vector3i max_cell = world_to_cell(aabb.position + aabb.size);
 		min_cell = Vector3i(std::max(min_cell.x, 0), std::max(min_cell.y, 0), std::max(min_cell.z, 0));
@@ -376,7 +455,20 @@ AABB NavigationGrid::shape_global_aabb(CollisionShape3D *cs) {
 	if (box) {
 		Vector3 size = box->get_size();
 		local_aabb = AABB(size * -0.5f, size);
+	} else if (SphereShape3D *sphere = Object::cast_to<SphereShape3D>(shape.ptr())) {
+		float r = sphere->get_radius();
+		local_aabb = AABB(Vector3(-r, -r, -r), Vector3(r, r, r) * 2.0f);
+	} else if (CylinderShape3D *cylinder = Object::cast_to<CylinderShape3D>(shape.ptr())) {
+		float r = cylinder->get_radius(), h = cylinder->get_height() * 0.5f;
+		local_aabb = AABB(Vector3(-r, -h, -r), Vector3(r, h, r) * 2.0f);
+	} else if (CapsuleShape3D *capsule = Object::cast_to<CapsuleShape3D>(shape.ptr())) {
+		float r = capsule->get_radius(), h = std::max(capsule->get_height() * 0.5f, r);
+		local_aabb = AABB(Vector3(-r, -h, -r), Vector3(r, h, r) * 2.0f);
 	} else {
+		auto tri = tri_shapes.find(cs);
+		if (tri != tri_shapes.end()) {
+			return tri->second->aabb; // already world space
+		}
 		Ref<ArrayMesh> mesh = shape->get_debug_mesh();
 		local_aabb = mesh->get_aabb();
 	}
@@ -393,6 +485,578 @@ AABB NavigationGrid::transform_aabb(const Transform3D &t, const AABB &aabb) {
 		result = result.expand(t.xform(corner));
 	}
 	return result;
+}
+
+// --- Mesh shapes as triangles ------------------------------------------------
+
+namespace {
+// A triangle a unit walks on: facing up, no steeper than the body climbs,
+// and tilted at all (a flat top is an ordinary floor or step, as for boxes).
+bool tri_walkable(const Vector3 &n, float max_degrees, float &tan_tilt) {
+	if (n.y < std::cos(max_degrees * (float)Math_PI / 180.0f) || n.y >= std::cos(1.0f * (float)Math_PI / 180.0f)) {
+		return false;
+	}
+	tan_tilt = std::sqrt(std::max(0.0f, 1.0f - n.y * n.y)) / n.y;
+	return true;
+}
+
+// Akenine-Moller triangle / axis-aligned box overlap.
+bool tri_box_overlap(const Vector3 &centre, const Vector3 &half, const Vector3 &a, const Vector3 &b, const Vector3 &c) {
+	Vector3 v[3] = { a - centre, b - centre, c - centre };
+	Vector3 e[3] = { v[1] - v[0], v[2] - v[1], v[0] - v[2] };
+	for (int i = 0; i < 3; i++) {
+		for (int k = 0; k < 3; k++) {
+			Vector3 unit_axis((float)(k == 0), (float)(k == 1), (float)(k == 2));
+			Vector3 axis = unit_axis.cross(e[i]);
+			float p0 = axis.dot(v[0]), p1 = axis.dot(v[1]), p2 = axis.dot(v[2]);
+			float r = half.x * std::abs(axis.x) + half.y * std::abs(axis.y) + half.z * std::abs(axis.z);
+			if (std::min({ p0, p1, p2 }) > r || std::max({ p0, p1, p2 }) < -r) {
+				return false;
+			}
+		}
+	}
+	for (int k = 0; k < 3; k++) {
+		float lo = std::min({ v[0][k], v[1][k], v[2][k] });
+		float hi = std::max({ v[0][k], v[1][k], v[2][k] });
+		if (lo > half[k] || hi < -half[k]) {
+			return false;
+		}
+	}
+	Vector3 n = e[0].cross(e[1]);
+	float r = half.x * std::abs(n.x) + half.y * std::abs(n.y) + half.z * std::abs(n.z);
+	return std::abs(n.dot(v[0])) <= r;
+}
+
+inline float cross2(float ax, float az, float bx, float bz) {
+	return ax * bz - az * bx;
+}
+
+// Height of the triangle's plane over (x, z).
+inline float plane_height(const Vector3 &a, const Vector3 &n, float x, float z) {
+	return a.y - (n.x * (x - a.x) + n.z * (z - a.z)) / n.y;
+}
+
+uint64_t vertex_key(const Vector3 &p) {
+	auto q = [](float f) -> uint64_t {
+		int64_t i = (int64_t)std::llround(f / 0.01f) + (1 << 20);
+		return (uint64_t)std::max<int64_t>(0, std::min<int64_t>(i, (1 << 21) - 1));
+	};
+	return (q(p.x) << 42) | (q(p.y) << 21) | q(p.z);
+}
+
+// A convex hull's faces from its points, with outward normals. Brute
+// force over point triples: fine for the few dozen points a convex
+// collision shape has.
+bool hull_triangles(const std::vector<Vector3> &in, std::vector<Vector3> &verts, std::vector<Vector3> &normals) {
+	std::vector<Vector3> pts;
+	for (const Vector3 &p : in) {
+		bool dup = false;
+		for (const Vector3 &q : pts) {
+			if (p.distance_squared_to(q) < 1e-8f) {
+				dup = true;
+				break;
+			}
+		}
+		if (!dup) {
+			pts.push_back(p);
+		}
+	}
+	int n = (int)pts.size();
+	if (n < 4 || n > 160) {
+		return false;
+	}
+	Vector3 lo = pts[0], hi = pts[0];
+	for (const Vector3 &p : pts) {
+		lo = Vector3(std::min(lo.x, p.x), std::min(lo.y, p.y), std::min(lo.z, p.z));
+		hi = Vector3(std::max(hi.x, p.x), std::max(hi.y, p.y), std::max(hi.z, p.z));
+	}
+	float eps = 1e-4f * std::max(1.0f, (hi - lo).length());
+	std::vector<std::pair<Vector3, float>> planes;
+	for (int i = 0; i < n; i++) {
+		for (int j = i + 1; j < n; j++) {
+			for (int k = j + 1; k < n; k++) {
+				Vector3 nn = (pts[j] - pts[i]).cross(pts[k] - pts[i]);
+				float len = nn.length();
+				if (len < 1e-9f) {
+					continue;
+				}
+				nn /= len;
+				float d = nn.dot(pts[i]);
+				bool any_above = false, any_below = false;
+				for (const Vector3 &p : pts) {
+					float s = nn.dot(p) - d;
+					any_above |= s > eps;
+					any_below |= s < -eps;
+				}
+				if (any_above && any_below) {
+					continue;
+				}
+				if (any_above) {
+					nn = -nn;
+					d = -d;
+				}
+				bool seen = false;
+				for (const auto &pl : planes) {
+					if (pl.first.dot(nn) > 1.0f - 1e-5f && std::abs(pl.second - d) < eps) {
+						seen = true;
+						break;
+					}
+				}
+				if (!seen) {
+					planes.push_back({ nn, d });
+				}
+			}
+		}
+	}
+	for (const auto &pl : planes) {
+		std::vector<Vector3> face;
+		for (const Vector3 &p : pts) {
+			if (std::abs(pl.first.dot(p) - pl.second) <= eps) {
+				face.push_back(p);
+			}
+		}
+		if (face.size() < 3) {
+			continue;
+		}
+		// The face's outline (monotone chain in the plane), so points
+		// inside it or along its edges never join the fan.
+		Vector3 u = std::abs(pl.first.x) < 0.9f ? Vector3(1, 0, 0).cross(pl.first).normalized() : Vector3(0, 1, 0).cross(pl.first).normalized();
+		Vector3 w = pl.first.cross(u);
+		auto pu = [&](const Vector3 &p) { return p.dot(u); };
+		auto pw = [&](const Vector3 &p) { return p.dot(w); };
+		std::sort(face.begin(), face.end(), [&](const Vector3 &p, const Vector3 &q) {
+			return pu(p) != pu(q) ? pu(p) < pu(q) : pw(p) < pw(q);
+		});
+		auto turn = [&](const Vector3 &o, const Vector3 &p, const Vector3 &q) {
+			return cross2(pu(p) - pu(o), pw(p) - pw(o), pu(q) - pu(o), pw(q) - pw(o));
+		};
+		std::vector<Vector3> ring(face.size() * 2);
+		size_t m = 0;
+		for (size_t i = 0; i < face.size(); i++) {
+			while (m >= 2 && turn(ring[m - 2], ring[m - 1], face[i]) <= eps * eps) {
+				m--;
+			}
+			ring[m++] = face[i];
+		}
+		for (size_t i = face.size() - 1, lower = m + 1; i-- > 0;) {
+			while (m >= lower && turn(ring[m - 2], ring[m - 1], face[i]) <= eps * eps) {
+				m--;
+			}
+			ring[m++] = face[i];
+		}
+		ring.resize(m > 0 ? m - 1 : 0);
+		for (size_t i = 1; i + 1 < ring.size(); i++) {
+			// Wound so (c - a) x (b - a) is the outward normal.
+			Vector3 a = ring[0], b = ring[i], c = ring[i + 1];
+			if ((c - a).cross(b - a).dot(pl.first) < 0.0f) {
+				std::swap(b, c);
+			}
+			verts.push_back(a);
+			verts.push_back(b);
+			verts.push_back(c);
+			normals.push_back(pl.first);
+		}
+	}
+	return !normals.empty();
+}
+} // namespace
+
+bool NavigationGrid::build_tri_shape(CollisionShape3D *cs, TriShape &out) {
+	Ref<Shape3D> shape = cs->get_shape();
+	Transform3D t = cs->get_global_transform();
+	// A mirroring transform turns the winding inside out.
+	float handedness = t.basis.determinant() < 0.0f ? -1.0f : 1.0f;
+	auto add = [&](const Vector3 &la, const Vector3 &lb, const Vector3 &lc) {
+		Vector3 a = t.xform(la), b = t.xform(lb), c = t.xform(lc);
+		// Godot's front face is clockwise: its normal is (c - a) x (b - a).
+		Vector3 n = (c - a).cross(b - a) * handedness;
+		float len = n.length();
+		if (!(len > 1e-12f)) {
+			return;
+		}
+		out.verts.push_back(a);
+		out.verts.push_back(b);
+		out.verts.push_back(c);
+		out.normals.push_back(n / len);
+	};
+	bool closed_kind = false;
+	if (ConcavePolygonShape3D *concave = Object::cast_to<ConcavePolygonShape3D>(shape.ptr())) {
+		PackedVector3Array faces = concave->get_faces();
+		for (int64_t i = 0; i + 2 < faces.size(); i += 3) {
+			add(faces[i], faces[i + 1], faces[i + 2]);
+		}
+		closed_kind = true;
+	} else if (ConvexPolygonShape3D *convex = Object::cast_to<ConvexPolygonShape3D>(shape.ptr())) {
+		PackedVector3Array points = convex->get_points();
+		std::vector<Vector3> world;
+		for (int64_t i = 0; i < points.size(); i++) {
+			world.push_back(t.xform(points[i]));
+		}
+		if (!hull_triangles(world, out.verts, out.normals)) {
+			return false;
+		}
+	} else if (HeightMapShape3D *height_map = Object::cast_to<HeightMapShape3D>(shape.ptr())) {
+		int w = height_map->get_map_width();
+		int d = height_map->get_map_depth();
+		PackedFloat32Array data = height_map->get_map_data();
+		if (w < 2 || d < 2 || data.size() < (int64_t)w * d) {
+			return false;
+		}
+		auto at = [&](int x, int z) {
+			return Vector3(x - (w - 1) * 0.5f, data[(int64_t)z * w + x], z - (d - 1) * 0.5f);
+		};
+		for (int z = 0; z + 1 < d; z++) {
+			for (int x = 0; x + 1 < w; x++) {
+				Vector3 v00 = at(x, z), v10 = at(x + 1, z), v01 = at(x, z + 1), v11 = at(x + 1, z + 1);
+				if (std::isnan(v00.y) || std::isnan(v10.y) || std::isnan(v01.y) || std::isnan(v11.y)) {
+					continue; // a hole
+				}
+				size_t before = out.normals.size();
+				add(v00, v10, v11);
+				add(v00, v11, v01);
+				// A height field faces up whatever order its corners came in.
+				for (size_t i = before; i < out.normals.size(); i++) {
+					if (out.normals[i].y < 0.0f) {
+						out.normals[i] = -out.normals[i];
+					}
+				}
+			}
+		}
+	} else {
+		return false;
+	}
+	size_t count = out.normals.size();
+	if (count == 0) {
+		return false;
+	}
+
+	std::unordered_map<uint64_t, int> vertex_ids;
+	auto vid = [&](const Vector3 &p) {
+		auto it = vertex_ids.emplace(vertex_key(p), (int)vertex_ids.size());
+		return (uint64_t)it.first->second;
+	};
+	std::vector<uint64_t> edges(count * 3);
+	std::unordered_map<uint64_t, int> edge_uses;
+	for (size_t i = 0; i < count; i++) {
+		uint64_t ids[3] = { vid(out.verts[i * 3]), vid(out.verts[i * 3 + 1]), vid(out.verts[i * 3 + 2]) };
+		for (int k = 0; k < 3; k++) {
+			uint64_t p = ids[k], q = ids[(k + 1) % 3];
+			edges[i * 3 + k] = (std::min(p, q) << 32) | std::max(p, q);
+			edge_uses[edges[i * 3 + k]]++;
+		}
+	}
+	// A closed mesh wound inside out (negative volume) is flipped, so its
+	// normals point out of the solid either way.
+	if (closed_kind) {
+		bool closed = true;
+		for (const auto &e : edge_uses) {
+			closed &= e.second == 2;
+		}
+		float volume = 0.0f;
+		for (size_t i = 0; i < count; i++) {
+			const Vector3 &a = out.verts[i * 3], &b = out.verts[i * 3 + 1], &c = out.verts[i * 3 + 2];
+			volume += ((a + b + c) / 3.0f).dot(out.normals[i]) * (b - a).cross(c - a).length();
+		}
+		if (closed && volume < 0.0f) {
+			for (Vector3 &n : out.normals) {
+				n = -n;
+			}
+		}
+	}
+
+	std::vector<uint8_t> walkable(count, 0);
+	std::unordered_map<uint64_t, int> walkable_uses;
+	for (size_t i = 0; i < count; i++) {
+		float tan_tilt;
+		if (tri_walkable(out.normals[i], MAX_WALKABLE_SLOPE_DEGREES, tan_tilt)) {
+			walkable[i] = 1;
+			out.any_walkable = true;
+			for (int k = 0; k < 3; k++) {
+				walkable_uses[edges[i * 3 + k]]++;
+			}
+		}
+	}
+	out.open_edge.assign(count, 0);
+	out.outer_edge.assign(count * 3, 0);
+	for (size_t i = 0; i < count; i++) {
+		if (walkable[i]) {
+			for (int k = 0; k < 3; k++) {
+				if (walkable_uses[edges[i * 3 + k]] < 2) {
+					out.open_edge[i] = 1;
+					out.outer_edge[i * 3 + k] = 1;
+				}
+			}
+		}
+	}
+
+	out.aabb = AABB(out.verts[0], Vector3());
+	for (const Vector3 &v : out.verts) {
+		out.aabb = out.aabb.expand(v);
+	}
+	return true;
+}
+
+void NavigationGrid::index_tri_columns(TriShape &tri) {
+	float reach = MAX_CLEARANCE_CELLS * CELL_SIZE;
+	size_t count = tri.normals.size();
+	for (size_t i = 0; i < count; i++) {
+		const Vector3 &a = tri.verts[i * 3], &b = tri.verts[i * 3 + 1], &c = tri.verts[i * 3 + 2];
+		float x0 = std::min({ a.x, b.x, c.x }), x1 = std::max({ a.x, b.x, c.x });
+		float z0 = std::min({ a.z, b.z, c.z }), z1 = std::max({ a.z, b.z, c.z });
+		if (tri.open_edge[i]) {
+			x0 -= reach;
+			x1 += reach;
+			z0 -= reach;
+			z1 += reach;
+		}
+		Vector3i lo = world_to_cell(Vector3(x0, 0.0f, z0));
+		Vector3i hi = world_to_cell(Vector3(x1, 0.0f, z1));
+		lo.x = std::max(0, lo.x);
+		lo.z = std::max(0, lo.z);
+		hi.x = std::min(grid_size.x - 1, hi.x);
+		hi.z = std::min(grid_size.z - 1, hi.z);
+		if (hi.x < lo.x || hi.z < lo.z) {
+			continue;
+		}
+		for (int cx = lo.x / CHUNK_DIM; cx <= hi.x / CHUNK_DIM; cx++) {
+			for (int cz = lo.z / CHUNK_DIM; cz <= hi.z / CHUNK_DIM; cz++) {
+				tri.by_column[cx * chunk_grid_size.z + cz].push_back((int)i);
+			}
+		}
+	}
+}
+
+// Solid from a mesh's triangles, sampled at cell centres the way boxes
+// are: each column of cells up through the chunk crosses the mesh's
+// faces, and runs from a face looking down (into the solid) to the next
+// looking up (out of it) are solid. An up-facing face with nothing under
+// it (terrain, an open floor) is solid down to the shape's bottom, and a
+// run thinner than a cell keeps one cell. Steep faces also mark every
+// cell they pass through, so a thin open wall still blocks.
+void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &chunk_coord, NavChunk &chunk, std::vector<std::pair<const TriShape *, int>> &walkable) {
+	auto col = tri.by_column.find(chunk_coord.x * chunk_grid_size.z + chunk_coord.z);
+	if (col == tri.by_column.end()) {
+		return;
+	}
+	Vector3i base = chunk_coord * CHUNK_DIM;
+	int cx1 = std::min(CHUNK_DIM, grid_size.x - base.x);
+	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
+	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
+	// Off the cell centres by a hair, so a column never runs exactly down
+	// an edge two triangles share and counts both or neither.
+	const float JX = 1.37e-4f, JZ = 2.91e-4f;
+	auto first_centre = [&](float v, float origin) { return (int)std::ceil((v - origin) / CELL_SIZE - 0.5f); };
+	auto last_centre = [&](float v, float origin) { return (int)std::floor((v - origin) / CELL_SIZE - 0.5f); };
+	auto clampi = [](int v, int lo, int hi) { return std::max(lo, std::min(v, hi)); };
+
+	struct Hit {
+		int column;
+		float h;
+		bool enters;
+	};
+	std::vector<Hit> hits;
+	Vector3 half = Vector3(CELL_SIZE, CELL_SIZE, CELL_SIZE) * 0.49f;
+	for (int id : col->second) {
+		const Vector3 &a = tri.verts[id * 3], &b = tri.verts[id * 3 + 1], &c = tri.verts[id * 3 + 2];
+		const Vector3 &n = tri.normals[id];
+		float tan_tilt;
+		if (tri_walkable(n, MAX_WALKABLE_SLOPE_DEGREES, tan_tilt)) {
+			walkable.push_back({ &tri, id });
+		}
+		if (std::abs(n.y) > 1e-4f) {
+			int x0 = std::max(base.x, first_centre(std::min({ a.x, b.x, c.x }), bounds_origin.x));
+			int x1 = std::min(base.x + cx1 - 1, last_centre(std::max({ a.x, b.x, c.x }), bounds_origin.x));
+			int z0 = std::max(base.z, first_centre(std::min({ a.z, b.z, c.z }), bounds_origin.z));
+			int z1 = std::min(base.z + cz1 - 1, last_centre(std::max({ a.z, b.z, c.z }), bounds_origin.z));
+			for (int x = x0; x <= x1; x++) {
+				float px = bounds_origin.x + (x + 0.5f) * CELL_SIZE + JX;
+				for (int z = z0; z <= z1; z++) {
+					float pz = bounds_origin.z + (z + 0.5f) * CELL_SIZE + JZ;
+					float d1 = cross2(b.x - a.x, b.z - a.z, px - a.x, pz - a.z);
+					float d2 = cross2(c.x - b.x, c.z - b.z, px - b.x, pz - b.z);
+					float d3 = cross2(a.x - c.x, a.z - c.z, px - c.x, pz - c.z);
+					bool inside = (d1 >= 0.0f && d2 >= 0.0f && d3 >= 0.0f) || (d1 <= 0.0f && d2 <= 0.0f && d3 <= 0.0f);
+					if (inside) {
+						hits.push_back({ (x - base.x) * CHUNK_DIM + (z - base.z), plane_height(a, n, px, pz), n.y < 0.0f });
+					}
+				}
+			}
+		}
+		if (std::abs(n.y) < 0.5f) {
+			Vector3i lo = world_to_cell(Vector3(std::min({ a.x, b.x, c.x }), std::min({ a.y, b.y, c.y }), std::min({ a.z, b.z, c.z })));
+			Vector3i hi = world_to_cell(Vector3(std::max({ a.x, b.x, c.x }), std::max({ a.y, b.y, c.y }), std::max({ a.z, b.z, c.z })));
+			int fx0 = std::max(base.x, lo.x), fx1 = std::min(base.x + cx1 - 1, hi.x);
+			int fy0 = std::max(base.y, lo.y), fy1 = std::min(base.y + cy1 - 1, hi.y);
+			int fz0 = std::max(base.z, lo.z), fz1 = std::min(base.z + cz1 - 1, hi.z);
+			for (int x = fx0; x <= fx1; x++) {
+				for (int y = fy0; y <= fy1; y++) {
+					for (int z = fz0; z <= fz1; z++) {
+						Vector3i cell(x, y, z);
+						if (tri_box_overlap(cell_center(cell), half, a, b, c)) {
+							chunk.solid[local_index(cell - base)] = 1;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	std::sort(hits.begin(), hits.end(), [](const Hit &p, const Hit &q) {
+		return p.column != q.column ? p.column < q.column : p.h < q.h;
+	});
+	auto fill = [&](int column, float lo, float hi) {
+		int lx = column / CHUNK_DIM, lz = column % CHUNK_DIM;
+		int y0 = first_centre(lo, bounds_origin.y), y1 = last_centre(hi, bounds_origin.y);
+		if (y1 < y0) {
+			y0 = y1 = (int)std::floor(((lo + hi) * 0.5f - bounds_origin.y) / CELL_SIZE);
+		}
+		y0 = clampi(y0, base.y, base.y + cy1);
+		y1 = clampi(y1, base.y - 1, base.y + cy1 - 1);
+		for (int y = y0; y <= y1; y++) {
+			chunk.solid[local_index(Vector3i(lx, y - base.y, lz))] = 1;
+		}
+	};
+	for (size_t i = 0; i < hits.size();) {
+		size_t j = i;
+		bool open = false;
+		float start = 0.0f;
+		bool below = false; // a run already closed lower in this column
+		for (; j < hits.size() && hits[j].column == hits[i].column; j++) {
+			const Hit &hit = hits[j];
+			if (hit.enters) {
+				if (!open) {
+					open = true;
+					start = hit.h;
+				}
+			} else {
+				// An up-facing face with nothing opened under it: the first
+				// is ground down to the shape's bottom; one over a run
+				// already closed (a bridge deck over the terrain of the same
+				// mesh) is only its own cell, leaving the gap open.
+				fill(hit.column, open ? start : (below ? hit.h : tri.aabb.position.y), hit.h);
+				open = false;
+				below = true;
+			}
+		}
+		if (open) {
+			fill(hits[i].column, start, start);
+		}
+		i = j;
+	}
+}
+
+// The walkable triangle's band of ground (see NavChunk::ground): solid
+// lying just under its face, down by as much as the face rises over the
+// widest clearance the grid measures, so the slope ahead of a unit's feet
+// is not a wall to it. Where the triangle borders no other walkable one
+// (open_edge), the band runs on along the slope past it, under the face's
+// plane, onto whatever the slope meets there: the platform it climbs to.
+// Across the slope it stops short of the triangle's own sides: an outer
+// side running with the slope is the top of the ramp's side face, so the
+// cell just inside it stays a wall and a unit on the floor beside the face
+// keeps clear of it instead of stepping up onto it from the side.
+void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i &chunk_coord, NavChunk &chunk) {
+	const Vector3 &a = tri.verts[id * 3], &b = tri.verts[id * 3 + 1], &c = tri.verts[id * 3 + 2];
+	const Vector3 &n = tri.normals[id];
+	float tan_tilt;
+	if (!tri_walkable(n, MAX_WALKABLE_SLOPE_DEGREES, tan_tilt)) {
+		return;
+	}
+	float reach = MAX_CLEARANCE_CELLS * CELL_SIZE;
+	float sweep = tri.open_edge[id] ? reach : 0.0f;
+	float skin = CELL_SIZE + reach * tan_tilt;
+	float ux = -n.x, uz = -n.z;
+	float ulen = std::sqrt(ux * ux + uz * uz);
+	ux /= ulen;
+	uz /= ulen;
+	// Counter-clockwise in x/z, so inside is the left of every edge.
+	Vector3 v[3] = { a, b, c };
+	// edge_of[k]: which of the triangle's own edges v[k] -> v[k + 1] is.
+	int edge_of[3] = { 0, 1, 2 };
+	if (cross2(b.x - a.x, b.z - a.z, c.x - a.x, c.z - a.z) < 0.0f) {
+		std::swap(v[1], v[2]);
+		edge_of[0] = 2;
+		edge_of[2] = 0;
+	}
+	// How far inside each edge the band stops: a cell for an outer edge
+	// within 45 degrees of the slope's direction (a side), else nothing.
+	float inset[3] = { 0.0f, 0.0f, 0.0f };
+	if (ulen > 1e-4f) {
+		for (int k = 0; k < 3; k++) {
+			const Vector3 &p0 = v[k], &p1 = v[(k + 1) % 3];
+			float ex = p1.x - p0.x, ez = p1.z - p0.z;
+			float elen = std::sqrt(ex * ex + ez * ez);
+			if (tri.outer_edge[id * 3 + edge_of[k]] && elen > 1e-6f && std::abs(cross2(ex, ez, ux, uz)) < 0.7071f * elen) {
+				inset[k] = CELL_SIZE * elen;
+			}
+		}
+	}
+
+	float x0 = std::min({ a.x, b.x, c.x }) - sweep * std::abs(ux), x1 = std::max({ a.x, b.x, c.x }) + sweep * std::abs(ux);
+	float z0 = std::min({ a.z, b.z, c.z }) - sweep * std::abs(uz), z1 = std::max({ a.z, b.z, c.z }) + sweep * std::abs(uz);
+	float h_lo = 1e30f, h_hi = -1e30f;
+	for (int k = 0; k < 4; k++) {
+		float h = plane_height(a, n, (k & 1) ? x1 : x0, (k & 2) ? z1 : z0);
+		h_lo = std::min(h_lo, h);
+		h_hi = std::max(h_hi, h);
+	}
+	Vector3i base = chunk_coord * CHUNK_DIM;
+	Vector3i lo = world_to_cell(Vector3(x0, h_lo - skin, z0));
+	Vector3i hi = world_to_cell(Vector3(x1, h_hi + CELL_SIZE, z1));
+	lo = Vector3i(std::max(lo.x, base.x), std::max(lo.y, base.y), std::max(lo.z, base.z));
+	hi = Vector3i(std::min({ hi.x, base.x + CHUNK_DIM - 1, grid_size.x - 1 }), std::min({ hi.y, base.y + CHUNK_DIM - 1, grid_size.y - 1 }), std::min({ hi.z, base.z + CHUNK_DIM - 1, grid_size.z - 1 }));
+	for (int x = lo.x; x <= hi.x; x++) {
+		for (int z = lo.z; z <= hi.z; z++) {
+			Vector3 p = cell_center(Vector3i(x, 0, z));
+			// The stretch of s for which (p + s * u) lies in the triangle,
+			// and the edges it enters and leaves by.
+			float s_lo = -1e30f, s_hi = 1e30f;
+			int lo_edge = -1, hi_edge = -1;
+			for (int k = 0; k < 3 && s_lo <= s_hi; k++) {
+				const Vector3 &p0 = v[k], &p1 = v[(k + 1) % 3];
+				float ex = p1.x - p0.x, ez = p1.z - p0.z;
+				float f0 = cross2(ex, ez, p.x - p0.x, p.z - p0.z) - inset[k];
+				float f1 = cross2(ex, ez, ux, uz);
+				if (std::abs(f1) < 1e-9f) {
+					if (f0 < -1e-6f) {
+						s_hi = s_lo - 1.0f;
+					}
+				} else if (f1 > 0.0f) {
+					if (-f0 / f1 > s_lo) {
+						s_lo = -f0 / f1;
+						lo_edge = k;
+					}
+				} else if (-f0 / f1 < s_hi) {
+					s_hi = -f0 / f1;
+					hi_edge = k;
+				}
+			}
+			if (s_lo > s_hi + 1e-6f) {
+				continue;
+			}
+			// Off the triangle, the band runs on only past an outer edge
+			// across the slope (a toe or a top, not a side), and only
+			// within reach of it: never through a neighbouring triangle.
+			auto crossable = [&](int k) { return k >= 0 && tri.outer_edge[id * 3 + edge_of[k]] && inset[k] == 0.0f; };
+			if (s_lo > 1e-6f && !(s_lo <= sweep && crossable(lo_edge))) {
+				continue;
+			}
+			if (s_hi < -1e-6f && !(-s_hi <= sweep && crossable(hi_edge))) {
+				continue;
+			}
+			float h = plane_height(a, n, p.x, p.z);
+			for (int y = lo.y; y <= hi.y; y++) {
+				int li = local_index(Vector3i(x, y, z) - base);
+				if (!chunk.solid[li]) {
+					continue;
+				}
+				float depth = h - cell_center(Vector3i(x, y, z)).y;
+				if (depth >= -CELL_SIZE * 0.5f && depth <= skin) {
+					chunk.ground[li] = 1;
+				}
+			}
+		}
+	}
 }
 
 // --- Cell <-> world / chunk addressing --------------------------------------
@@ -464,9 +1128,61 @@ NavChunk &NavigationGrid::ensure_chunk_rasterized(const Vector3i &chunk_coord) {
 		return chunk;
 	}
 	chunk.solid.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
+	chunk.ground.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
 	rasterize_chunk(chunk_coord, chunk);
 	chunk.rasterized = true;
 	return chunk;
+}
+
+// A tilted box no steeper than a unit can walk is a ramp: its upper face is
+// ground. Which face is "upper" is whichever local axis points most nearly
+// up; a box tilted by less than a degree is flat and its top is an ordinary
+// step, which the body cannot climb. Fills `slope` and returns true for a
+// ramp.
+static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, int reach_cells, RampInfo &slope) {
+	BoxShape3D *box = Object::cast_to<BoxShape3D>(cs->get_shape().ptr());
+	if (!box) {
+		return false;
+	}
+	Transform3D global_transform = cs->get_global_transform();
+	float best = 0.0f;
+	slope.up_axis = -1;
+	for (int k = 0; k < 3; k++) {
+		Vector3 axis = global_transform.basis.get_column(k);
+		float len = axis.length();
+		slope.axis_scale[k] = len;
+		if (len <= 0.0f) {
+			return false;
+		}
+		float d = axis.y / len;
+		if (std::abs(d) > best) {
+			best = std::abs(d);
+			slope.up_axis = k;
+			slope.up_sign = d < 0.0f ? -1.0f : 1.0f;
+		}
+	}
+	if (best < std::cos(max_degrees * (float)Math_PI / 180.0f) || best >= std::cos(1.0f * (float)Math_PI / 180.0f)) {
+		return false;
+	}
+	slope.inverse = global_transform.affine_inverse();
+	slope.half_size = box->get_size() * 0.5f;
+	float reach = reach_cells * cell_size;
+	// A unit's feet sit on the face and the face rises ahead of them, so
+	// within the widest clearance the grid measures, what lies beside the
+	// feet layer is up to reach * sin(tilt) under the face: under the
+	// walking surface, not in the body's way.
+	slope.skin_depth = cell_size + reach * std::sqrt(std::max(0.0f, 1.0f - best * best));
+	// The face runs on past the box's ends along the slope, by the same
+	// reach: whatever meets the ramp there (the platform it climbs to, the
+	// floor it starts from) is ground too where it lies under that face.
+	// Across the slope the band stops at the box's sides.
+	for (int k = 0; k < 3; k++) {
+		slope.extend[k] = 0.0f;
+		if (k != slope.up_axis && std::abs(global_transform.basis.get_column(k).y) / slope.axis_scale[k] > 0.0175f) {
+			slope.extend[k] = reach / slope.axis_scale[k];
+		}
+	}
+	return true;
 }
 
 void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk) {
@@ -480,14 +1196,29 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
+	std::vector<RampInfo> ramps;
+	std::vector<std::pair<const TriShape *, int>> walkable_tris;
 	for (CollisionShape3D *cs : it->second) {
+		auto tri = tri_shapes.find(cs);
+		if (tri != tri_shapes.end()) {
+			rasterize_tri_shape(*tri->second, chunk_coord, chunk, walkable_tris);
+			continue;
+		}
 		Ref<Shape3D> shape = cs->get_shape();
 		Transform3D global_transform = cs->get_global_transform();
 		AABB aabb = shape_global_aabb(cs);
 		BoxShape3D *box = Object::cast_to<BoxShape3D>(shape.ptr());
 		bool is_box = box != nullptr;
 		Vector3 half_size = is_box ? box->get_size() * 0.5f : Vector3();
+		// Round primitives are tested exactly too, in their own space.
+		SphereShape3D *sphere = Object::cast_to<SphereShape3D>(shape.ptr());
+		CylinderShape3D *cylinder = Object::cast_to<CylinderShape3D>(shape.ptr());
+		CapsuleShape3D *capsule = Object::cast_to<CapsuleShape3D>(shape.ptr());
 		Transform3D inverse = global_transform.affine_inverse();
+		RampInfo ramp;
+		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp)) {
+			ramps.push_back(ramp);
+		}
 
 		for (int x = 0; x < cx1; x++) {
 			for (int y = 0; y < cy1; y++) {
@@ -498,11 +1229,59 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 					if (is_box) {
 						Vector3 local = inverse.xform(world_point);
 						inside = std::abs(local.x) <= half_size.x && std::abs(local.y) <= half_size.y && std::abs(local.z) <= half_size.z;
+					} else if (sphere) {
+						inside = inverse.xform(world_point).length() <= sphere->get_radius();
+					} else if (cylinder) {
+						Vector3 local = inverse.xform(world_point);
+						float r = cylinder->get_radius();
+						inside = std::abs(local.y) <= cylinder->get_height() * 0.5f && local.x * local.x + local.z * local.z <= r * r;
+					} else if (capsule) {
+						Vector3 local = inverse.xform(world_point);
+						float r = capsule->get_radius();
+						float core = std::max(0.0f, capsule->get_height() * 0.5f - r);
+						local.y = std::max(0.0f, std::abs(local.y) - core);
+						inside = local.length() <= r;
 					} else {
 						inside = aabb.has_point(world_point);
 					}
 					if (inside) {
 						chunk.solid[local_index(Vector3i(x, y, z))] = 1;
+					}
+				}
+			}
+		}
+	}
+
+	// Once everything is solid: each ramp's band under its face, whichever
+	// shape the solid there belongs to. Solid standing ABOVE the face (a
+	// crate on the ramp) stays a wall; half a cell of slack lets the
+	// ramp's own top cells, whose centres can sit just over it, through.
+	for (const auto &walk : walkable_tris) {
+		mark_tri_ground(*walk.first, walk.second, chunk_coord, chunk);
+	}
+	for (const RampInfo &ramp : ramps) {
+		for (int x = 0; x < cx1; x++) {
+			for (int y = 0; y < cy1; y++) {
+				for (int z = 0; z < cz1; z++) {
+					int li = local_index(Vector3i(x, y, z));
+					if (!chunk.solid[li]) {
+						continue;
+					}
+					Vector3 local = ramp.inverse.xform(cell_center(base + Vector3i(x, y, z)));
+					bool within = true;
+					for (int k = 0; k < 3 && within; k++) {
+						// Short of the box's sides by a cell (see mark_tri_ground).
+						if (k != ramp.up_axis) {
+							float side = ramp.extend[k] > 0.0f ? ramp.extend[k] : -CELL_SIZE / ramp.axis_scale[k];
+							within = std::abs(local[k]) <= ramp.half_size[k] + side;
+						}
+					}
+					if (!within) {
+						continue;
+					}
+					float depth = (ramp.half_size[ramp.up_axis] - local[ramp.up_axis] * ramp.up_sign) * ramp.axis_scale[ramp.up_axis];
+					if (depth >= -CELL_SIZE * 0.5f && depth <= ramp.skin_depth) {
+						chunk.ground[li] = 1;
 					}
 				}
 			}
@@ -529,11 +1308,30 @@ NavChunk &NavigationGrid::ensure_chunk_support(const Vector3i &chunk_coord) {
 }
 
 void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &chunk) {
-	// no_support only ever reads straight down (x, y-1, z), so only the
-	// vertical neighbor needs rasterizing ahead of this pass.
+	// Both tiers only ever read straight down, at most FLIGHT_LOW_CELLS
+	// (< CHUNK_DIM) cells: this chunk's own solid[] or the one directly
+	// below's. Read those two arrays directly - going through is_solid()
+	// per cell (bounds check, chunk lookup) cost ~1 ms a chunk, and a
+	// flier's coarse corridor bakes ~100 of them.
+	// Off the world's bottom counts as solid, as is_solid() has it.
 	Vector3i below_chunk = chunk_coord - Vector3i(0, 1, 0);
+	const uint8_t *below_solid = nullptr;
 	if (chunk_in_bounds(below_chunk)) {
-		ensure_chunk_rasterized(below_chunk);
+		below_solid = ensure_chunk_rasterized(below_chunk).solid.data();
+	}
+	const uint8_t *own_solid = chunk.solid.data();
+	auto solid_at = [&](int x, int y, int z) -> bool {
+		if (y >= 0) {
+			return own_solid[local_index(Vector3i(x, y, z))] != 0;
+		}
+		return below_solid == nullptr || below_solid[local_index(Vector3i(x, y + CHUNK_DIM, z))] != 0;
+	};
+	// Too low to fly: solid in any cell whose top lies under
+	// FLIGHT_MIN_ALTITUDE below this cell's centre - the same cut the old
+	// absolute rule made over y=0 ground.
+	int flight_low_cells = 0;
+	while (((float)(flight_low_cells + 1) - 0.5f) * CELL_SIZE < FLIGHT_MIN_ALTITUDE) {
+		flight_low_cells++;
 	}
 
 	Vector3i base = chunk_coord * CHUNK_DIM;
@@ -542,26 +1340,38 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
 	chunk.no_support.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
+	chunk.flight_low.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
 	chunk.has_ground_passable = false;
 	chunk.has_flyable = false;
 
+	// One walk up each column, carrying how far below the nearest solid
+	// cell is: supported = it is 1, too low = it is within flight_low_cells.
 	for (int x = 0; x < cx1; x++) {
-		for (int y = 0; y < cy1; y++) {
-			for (int z = 0; z < cz1; z++) {
-				Vector3i cell = base + Vector3i(x, y, z);
+		for (int z = 0; z < cz1; z++) {
+			int since_solid = flight_low_cells + 1; // "none in reach"
+			for (int k = 1; k <= flight_low_cells; k++) {
+				if (solid_at(x, -k, z)) {
+					since_solid = k;
+					break;
+				}
+			}
+			for (int y = 0; y < cy1; y++) {
 				int li = local_index(Vector3i(x, y, z));
-				bool supported = cell.y > 0 && is_solid(cell - Vector3i(0, 1, 0));
+				bool supported = base.y + y > 0 && since_solid == 1;
 				chunk.no_support[li] = supported ? 0 : 1;
-
-				bool cell_solid = chunk.solid[li] != 0;
-				if (!cell_solid) {
+				if (own_solid[li] == 0) {
 					if (supported) {
 						chunk.has_ground_passable = true;
 					}
-					float world_y = bounds_origin.y + ((float)cell.y + 0.5f) * CELL_SIZE;
-					if (world_y >= FLIGHT_MIN_ALTITUDE && world_y <= FLIGHT_CEILING_HEIGHT) {
+					bool low = since_solid <= flight_low_cells;
+					chunk.flight_low[li] = low ? 1 : 0;
+					float world_y = bounds_origin.y + ((float)(base.y + y) + 0.5f) * CELL_SIZE;
+					if (!low && world_y <= FLIGHT_CEILING_HEIGHT) {
 						chunk.has_flyable = true;
 					}
+					since_solid = std::min(since_solid + 1, flight_low_cells + 1);
+				} else {
+					since_solid = 1;
 				}
 			}
 		}
@@ -602,12 +1412,14 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	// second, independent cost from the hashmap-vs-flat-array one (see the
 	// comment above), found by the same profiling pass.
 	uint8_t *neighbor_solid[3][3] = {};
+	uint8_t *neighbor_ground[3][3] = {};
 	for (int dx = -1; dx <= 1; dx++) {
 		for (int dz = -1; dz <= 1; dz++) {
 			Vector3i nc = chunk_coord + Vector3i(dx, 0, dz);
 			if (chunk_in_bounds(nc)) {
 				NavChunk &nchunk = ensure_chunk_rasterized(nc);
 				neighbor_solid[dx + 1][dz + 1] = nchunk.solid.data();
+				neighbor_ground[dx + 1][dz + 1] = nchunk.ground.data();
 			}
 		}
 	}
@@ -637,125 +1449,132 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 		int lz = z - cdz * CHUNK_DIM;
 		return arr[local_index(Vector3i(lx, local_y, lz))] != 0;
 	};
+	// A ramp's skin (NavChunk::ground == 1) is solid but not a wall: it is
+	// what a unit walking the ramp stands on, the cell beside its feet one
+	// step further up the slope. Clearance is measured from walls only.
+	auto ramp_skin = [&](int x, int local_y, int z) -> bool {
+		int cdx = (x < 0) ? -1 : (x >= CHUNK_DIM ? 1 : 0);
+		int cdz = (z < 0) ? -1 : (z >= CHUNK_DIM ? 1 : 0);
+		uint8_t *arr = neighbor_ground[cdx + 1][cdz + 1];
+		if (!arr) {
+			return false;
+		}
+		int lx = x - cdx * CHUNK_DIM;
+		int lz = z - cdz * CHUNK_DIM;
+		return arr[local_index(Vector3i(lx, local_y, lz))] == 1;
+	};
 
 	chunk.dist.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE));
 
-	struct QEntry {
-		float d;
-		int x, z;
-	};
-	struct QCmp {
-		bool operator()(const QEntry &a, const QEntry &b) const { return a.d > b.d; }
-	};
-	static const int OX[8] = { 1, -1, 0, 0, 1, 1, -1, -1 };
-	static const int OZ[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
-	static const float OD[8] = { 1.f, 1.f, 1.f, 1.f, 1.41421356f, 1.41421356f, 1.41421356f, 1.41421356f };
-
-	// Scratch buffers sized once to the (CHUNK_DIM + 2*reach) window and
-	// reused across every Y layer via a generation stamp instead of a
-	// hashmap — this is the same flat-array-over-unordered_map trade this
-	// codebase already validated for the main A* search (see the header's
-	// own comment on why that reversed between the GDScript and C++
-	// ports). Measured necessary here too: an unordered_map<int64_t,float>
-	// version of this per-chunk Dijkstra cost 50-80ms on a first touch —
-	// dominated by hashmap churn from seeding/relaxing every solid cell in
-	// a large flat slab (e.g. deep inside a thick floor), not by the
-	// search itself.
+	// Per Y layer, distance to the nearest wall cell over the 8-connected
+	// grid (steps 1 and sqrt 2), out to MAX_CLEARANCE_CELLS. Computed as a
+	// two-pass chamfer sweep over the (CHUNK_DIM + 2*reach)^2 window: the
+	// forward pass carries every path made of +x / +z-leaning steps, the
+	// backward pass the rest, and on a rectangle (the window clipped to the
+	// world, with no holes) a shortest path can always be reordered into
+	// one run of each - so two passes give exactly the graph distance.
+	// This replaced a per-layer Dijkstra that pushed every wall cell in the
+	// window through a priority queue: same field, ~2.4 ms -> a fraction
+	// of that per chunk, and a flier's first path bakes dozens of chunks.
+	const float D1 = 1.0f;
+	const float D2 = 1.41421356f;
+	const float FAR = 1.0e9f;
+	const uint16_t MAX_DIST = (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE);
 	int reach = MAX_CLEARANCE_CELLS;
 	int W = CHUNK_DIM + 2 * reach;
-	std::vector<float> best(( size_t)W * W);
-	std::vector<int> best_gen((size_t)W * W, 0);
-	int gen = 0;
 	auto idx2 = [&](int x, int z) -> int { return (x + reach) * W + (z + reach); };
+	// The window clipped to the world: cells outside it are neither walls
+	// nor passed through, as in_bounds() had it.
+	int xlo = std::max(-reach, -base.x), xhi = std::min(CHUNK_DIM + reach, grid_size.x - base.x);
+	int zlo = std::max(-reach, -base.z), zhi = std::min(CHUNK_DIM + reach, grid_size.z - base.z);
+	std::vector<float> d((size_t)W * W, FAR);
+	const uint8_t *own_solid = neighbor_solid[1][1];
 
 	for (int y = 0; y < cy1; y++) {
-		int world_y = base.y + y;
-		gen++;
-
-		std::priority_queue<QEntry, std::vector<QEntry>, QCmp> pq;
+		// A solid cell is always 0 (is_valid_cell has no separate is_solid
+		// guard; dist==0 is what blocks it), written even when the layer
+		// has no air to propagate into.
 		bool any_air = false;
-
-		for (int x = -reach; x < CHUNK_DIM + reach; x++) {
-			for (int z = -reach; z < CHUNK_DIM + reach; z++) {
-				Vector3i wc(base.x + x, world_y, base.z + z);
-				if (!in_bounds(wc)) {
-					continue;
-				}
-				bool local = x >= 0 && x < cx1 && z >= 0 && z < cz1;
-				if (solid_fast(x, y, z)) {
-					int li2 = idx2(x, z);
-					best[li2] = 0.0f;
-					best_gen[li2] = gen;
-					pq.push({ 0.0f, x, z });
-					// Written directly (not just left to the propagation
-					// pass below) so a solid cell is ALWAYS correctly 0,
-					// even in the any_air==false fast-out right after this
-					// loop -- is_valid_cell has no separate is_solid guard
-					// before consulting this field (a solid cell reaching
-					// dist==0 is what makes it "always blocked" at all),
-					// and a grounded search always tries the straight-down
-					// neighbor, so a cell one layer into a thick floor slab
-					// is genuinely reachable on every expansion, not a
-					// theoretical case.
-					if (local) {
-						chunk.dist[local_index(Vector3i(x, y, z))] = 0;
-					}
-				} else if (local) {
+		for (int x = 0; x < cx1; x++) {
+			for (int z = 0; z < cz1; z++) {
+				int li = local_index(Vector3i(x, y, z));
+				if (own_solid[li] != 0) {
+					chunk.dist[li] = 0;
+				} else {
 					any_air = true;
 				}
 			}
 		}
-
-		// No open cell inside this chunk at this Y (e.g. deep inside a
-		// thick floor slab, far from any edge) -- every local cell here is
-		// solid and already got dist=0 written directly above, so there's
-		// nothing left for the propagation pass to contribute within this
-		// chunk. A neighboring chunk that DOES have air at this Y picks up
-		// these same solid cells as sources independently, from its own
-		// is_solid() reads reaching across the boundary -- each chunk's
-		// dist field is computed self-containedly, so skipping propagation
-		// here doesn't leave a neighbor under-informed.
 		if (!any_air) {
 			continue;
 		}
 
-		while (!pq.empty()) {
-			QEntry top = pq.top();
-			pq.pop();
-			int li2 = idx2(top.x, top.z);
-			if (best_gen[li2] != gen || top.d > best[li2]) {
-				continue; // stale entry
+		// A ramp's skin is solid but not a wall (see ramp_skin above).
+		bool any_wall = false;
+		for (int x = xlo; x < xhi; x++) {
+			for (int z = zlo; z < zhi; z++) {
+				bool wall = solid_fast(x, y, z) && !ramp_skin(x, y, z);
+				d[idx2(x, z)] = wall ? 0.0f : FAR;
+				any_wall = any_wall || wall;
 			}
+		}
+		if (!any_wall) {
+			continue; // no wall in reach: the open cells keep MAX_DIST
+		}
 
-			if (top.x >= 0 && top.x < cx1 && top.z >= 0 && top.z < cz1) {
-				int li = local_index(Vector3i(top.x, y, top.z));
-				uint16_t clamped = (uint16_t)std::min((float)(MAX_CLEARANCE_CELLS * DIST_SCALE), top.d * DIST_SCALE);
+		for (int x = xlo; x < xhi; x++) {
+			for (int z = zlo; z < zhi; z++) {
+				int i = idx2(x, z);
+				float v = d[i];
+				if (v == 0.0f) {
+					continue;
+				}
+				if (x > xlo) {
+					int u = i - W;
+					v = std::min(v, d[u] + D1);
+					if (z > zlo) {
+						v = std::min(v, d[u - 1] + D2);
+					}
+					if (z < zhi - 1) {
+						v = std::min(v, d[u + 1] + D2);
+					}
+				}
+				if (z > zlo) {
+					v = std::min(v, d[i - 1] + D1);
+				}
+				d[i] = v;
+			}
+		}
+		for (int x = xhi - 1; x >= xlo; x--) {
+			for (int z = zhi - 1; z >= zlo; z--) {
+				int i = idx2(x, z);
+				float v = d[i];
+				if (v == 0.0f) {
+					continue;
+				}
+				if (x < xhi - 1) {
+					int u = i + W;
+					v = std::min(v, d[u] + D1);
+					if (z > zlo) {
+						v = std::min(v, d[u - 1] + D2);
+					}
+					if (z < zhi - 1) {
+						v = std::min(v, d[u + 1] + D2);
+					}
+				}
+				if (z < zhi - 1) {
+					v = std::min(v, d[i + 1] + D1);
+				}
+				d[i] = v;
+			}
+		}
+
+		for (int x = 0; x < cx1; x++) {
+			for (int z = 0; z < cz1; z++) {
+				int li = local_index(Vector3i(x, y, z));
+				uint16_t clamped = (uint16_t)std::min((float)MAX_DIST, d[idx2(x, z)] * DIST_SCALE);
 				if (clamped < chunk.dist[li]) {
 					chunk.dist[li] = clamped;
-				}
-			}
-			if (top.d >= (float)MAX_CLEARANCE_CELLS) {
-				continue;
-			}
-
-			for (int i = 0; i < 8; i++) {
-				int nx = top.x + OX[i], nz = top.z + OZ[i];
-				if (nx < -reach || nx >= CHUNK_DIM + reach || nz < -reach || nz >= CHUNK_DIM + reach) {
-					continue;
-				}
-				Vector3i nwc(base.x + nx, world_y, base.z + nz);
-				if (!in_bounds(nwc)) {
-					continue;
-				}
-				float nd = top.d + OD[i];
-				if (nd > (float)MAX_CLEARANCE_CELLS) {
-					continue;
-				}
-				int nli2 = idx2(nx, nz);
-				if (best_gen[nli2] != gen || nd < best[nli2]) {
-					best[nli2] = nd;
-					best_gen[nli2] = gen;
-					pq.push({ nd, nx, nz });
 				}
 			}
 		}
@@ -764,7 +1583,7 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 
 // --- Dynamic occupancy -------------------------------------------------------
 
-Object *NavigationGrid::occupant_at(const Vector3i &cell) const {
+const std::vector<Object *> *NavigationGrid::occupants_at(const Vector3i &cell) const {
 	if (!in_bounds(cell)) {
 		return nullptr;
 	}
@@ -774,7 +1593,7 @@ Object *NavigationGrid::occupant_at(const Vector3i &cell) const {
 		return nullptr;
 	}
 	auto it = slot->occupied.find(local_index(cell_to_local(cell)));
-	return it != slot->occupied.end() ? it->second : nullptr;
+	return it != slot->occupied.end() ? &it->second : nullptr;
 }
 
 void NavigationGrid::set_occupant(const Vector3i &cell, Object *obj) {
@@ -786,132 +1605,143 @@ void NavigationGrid::set_occupant(const Vector3i &cell, Object *obj) {
 	if (!slot) {
 		slot = std::make_unique<NavChunk>(); // occupancy doesn't need geometry rasterized
 	}
-	slot->occupied[local_index(cell_to_local(cell))] = obj;
-	slot->has_occupancy = true;
+	std::vector<Object *> &here = slot->occupied[local_index(cell_to_local(cell))];
+	if (std::find(here.begin(), here.end(), obj) == here.end()) {
+		here.push_back(obj);
+	}
+	if (!slot->has_occupancy) {
+		slot->has_occupancy = true;
+		occupied_chunks.push_back(idx);
+	}
 }
 
-void NavigationGrid::update_occupancy(SceneTree *tree, Array movers, Object *world_ref) {
-	// movers usually holds the unit whose turn it is, which identifies the
-	// world; world_ref covers the empty-array case.
-	activate_for(movers.size() > 0 ? (Object *)movers[0] : nullptr, world_ref);
-	ensure_baked(tree);
-	for (auto &slot : chunks) {
+void NavigationGrid::reset_occupancy() {
+	occupancy_signature.clear();
+	occupied_chunks.clear();
+	occupancy_stamped = false;
+}
+
+void NavigationGrid::set_query_ignore(const Array &ignore) {
+	query_ignore.clear();
+	for (int i = 0; i < ignore.size(); i++) {
+		Object *obj = ignore[i];
+		if (obj) {
+			query_ignore.push_back(obj);
+		}
+	}
+}
+
+// Everything that occupies cells in the ACTIVE world, in group order:
+// living units, then blocking corpses. Both groups are global, so
+// in_active_world keeps other worlds' occupants out.
+void NavigationGrid::collect_occupants(SceneTree *tree, std::vector<OccupantKey> &keys, std::vector<Object *> &objects) {
+	static const StringName groups[2] = { StringName("units"), StringName("blocking_corpses") };
+	for (int pass = 0; pass < 2; pass++) {
+		TypedArray<Node> nodes = tree->get_nodes_in_group(groups[pass]);
+		for (int i = 0; i < nodes.size(); i++) {
+			Object *obj = nodes[i];
+			Node3D *n3d = Object::cast_to<Node3D>(obj);
+			if (!n3d || !in_active_world(n3d)) {
+				continue;
+			}
+			if (pass == 0 && (!n3d->has_method("is_alive") || !call_bool(n3d, "is_alive"))) {
+				continue;
+			}
+			OccupantKey key;
+			key.id = obj->get_instance_id();
+			key.cell = world_to_cell(n3d->get_global_position());
+			key.clearance_key = clearance_key(get_float_prop(n3d, "radius") + get_float_prop(n3d, "avoidance_margin"));
+			// A flying occupant (or a corpse that died mid-air: corpses
+			// aren't force-landed, see UnitDeath.handle_death) needs a full
+			// 3D volume, not the horizontal disc grounded units share a Y
+			// reference for; see sphere_offsets.
+			key.flying = n3d->has_method("is_flying") && call_bool(n3d, "is_flying");
+			keys.push_back(key);
+			objects.push_back(obj);
+		}
+	}
+}
+
+// Rebuilds occupancy only when the live occupants differ from what it was
+// last built from. Called at the top of every query, so a query always
+// sees the scene as it is at that moment, whatever changed it: a walk, a
+// shove, a teleport earlier this same tick, a death, a unit arriving from
+// another world. Nothing outside has to remember to refresh it. Keys are
+// cells, not positions, so walking inside one cell costs no rebuild.
+//
+// Every occupant is stamped, the querying unit included; who a query
+// ignores (itself, and its group on a group move) is decided per query in
+// is_clear_of_units, so one snapshot serves every caller.
+void NavigationGrid::ensure_occupancy_current(SceneTree *tree) {
+	std::vector<OccupantKey> keys;
+	std::vector<Object *> objects;
+	collect_occupants(tree, keys, objects);
+	if (occupancy_stamped && keys == occupancy_signature) {
+		return;
+	}
+
+	for (int idx : occupied_chunks) {
+		std::unique_ptr<NavChunk> &slot = chunks[idx];
 		if (slot) {
 			slot->occupied.clear();
 			slot->has_occupancy = false;
 		}
 	}
+	occupied_chunks.clear();
 	any_occupied = false;
 
-	TypedArray<Node> units = tree->get_nodes_in_group("units");
-	for (int i = 0; i < units.size(); i++) {
-		Object *obj = units[i];
-		Node *node = Object::cast_to<Node>(obj);
-		if (!node || !node->has_method("is_alive") || !call_bool(node, "is_alive")) {
-			continue;
+	for (size_t i = 0; i < keys.size(); i++) {
+		const OccupantKey &key = keys[i];
+		// Proactively bake the chunk an occupant stands in so the area
+		// around active play stays query-ready.
+		if (in_bounds(key.cell)) {
+			ensure_chunk_dist(cell_to_chunk_coord(key.cell));
 		}
-
-		bool is_mover = false;
-		for (int m = 0; m < movers.size(); m++) {
-			if ((Object *)movers[m] == obj) {
-				is_mover = true;
-				break;
-			}
-		}
-		if (is_mover) {
-			continue;
-		}
-
-		Node3D *n3d = Object::cast_to<Node3D>(node);
-		if (!n3d || !in_active_world(n3d)) {
-			continue;
-		}
-		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
-		Vector3i base_cell = world_to_cell(n3d->get_global_position());
-		// Proactively bake the chunk a live unit currently occupies so the
-		// area around active play stays query-ready, not just wherever a
-		// find_path/nearest_valid_point call has happened to land already.
-		if (in_bounds(base_cell)) {
-			ensure_chunk_dist(cell_to_chunk_coord(base_cell));
-		}
-		// A flying occupant needs a full 3D volume, not the horizontal-only
-		// disc grounded units share a common Y reference for — see
-		// sphere_offsets' own comment for why the horizontal disc alone
-		// silently let two hovering units pass through each other.
-		bool node_flying = node->has_method("is_flying") && call_bool(node, "is_flying");
-		const std::vector<Vector3i> &occ_offsets = node_flying ? sphere_offsets(clearance) : disc_offsets(clearance);
+		float clearance = (float)key.clearance_key / 1000.0f;
+		const std::vector<Vector3i> &occ_offsets = key.flying ? sphere_offsets(clearance) : disc_offsets(clearance);
 		for (const Vector3i &offset : occ_offsets) {
-			Vector3i cell = base_cell + offset;
+			Vector3i cell = key.cell + offset;
 			if (in_bounds(cell)) {
-				set_occupant(cell, obj);
-				any_occupied = true;
-			}
-		}
-	}
-
-	TypedArray<Node> corpses = tree->get_nodes_in_group("blocking_corpses");
-	for (int i = 0; i < corpses.size(); i++) {
-		Object *obj = corpses[i];
-		Node *node = Object::cast_to<Node>(obj);
-		if (!node) {
-			continue;
-		}
-		Node3D *n3d = Object::cast_to<Node3D>(node);
-		if (!n3d || !in_active_world(n3d)) {
-			continue;
-		}
-		float clearance = get_float_prop(node, "radius") + get_float_prop(node, "avoidance_margin");
-		Vector3i base_cell = world_to_cell(n3d->get_global_position());
-		// A corpse isn't force-landed on death (see UnitDeath.handle_death) --
-		// one that died mid-air stays exactly where it was, so it needs
-		// the same flying-aware volume as a live flying unit.
-		bool node_flying = node->has_method("is_flying") && call_bool(node, "is_flying");
-		const std::vector<Vector3i> &occ_offsets = node_flying ? sphere_offsets(clearance) : disc_offsets(clearance);
-		for (const Vector3i &offset : occ_offsets) {
-			Vector3i cell = base_cell + offset;
-			if (in_bounds(cell)) {
-				set_occupant(cell, obj);
+				set_occupant(cell, objects[i]);
 				any_occupied = true;
 			}
 		}
 	}
 
 	refresh_chunk_occupancy_nearby();
+	occupancy_signature = std::move(keys);
+	occupancy_stamped = true;
+	occupancy_version_value = ++occupancy_version_counter;
+}
+
+// Changes whenever the active world's occupancy is rebuilt, so a cached
+// route (UnitMovement's preview) knows when someone has moved since.
+int64_t NavigationGrid::occupancy_version(SceneTree *tree, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	ensure_occupancy_current(tree);
+	return (int64_t)occupancy_version_value;
 }
 
 // Precomputes, for every chunk, whether ANY chunk in its own 3x3x3
-// neighborhood has_occupancy. This exact 27-chunk scan used to happen
-// inline inside is_clear_of_units, freshly, on every single candidate
-// cell a pathfinding query touched — up to once per neighbor per A*
-// expansion. Occupancy itself only changes here, at a turn-boundary
-// update_occupancy call, so the scan is a loop invariant with respect to
-// any pathfinding query run between updates: computing it once here
-// and reading an O(1) flag from is_clear_of_units is the same "hoist the
-// invariant out of the hot path" trade already used for the flat A*
-// scratch arrays and the per-chunk distance field elsewhere in this file.
+// neighborhood has_occupancy, so is_clear_of_units can rule a cell out
+// with one lookup instead of a 27-chunk scan per candidate cell. Marks
+// outward from the occupied chunks rather than scanning every chunk,
+// since occupancy rebuilds whenever anyone crosses a cell.
 void NavigationGrid::refresh_chunk_occupancy_nearby() {
 	std::fill(chunk_occupancy_nearby.begin(), chunk_occupancy_nearby.end(), (uint8_t)0);
-	if (!any_occupied) {
-		return;
-	}
-	for (int idx = 0; idx < (int)chunks.size(); idx++) {
+	for (int idx : occupied_chunks) {
 		Vector3i cc = chunk_coord_from_index(idx);
-		bool nearby = false;
-		for (int dx = -1; dx <= 1 && !nearby; dx++) {
-			for (int dy = -1; dy <= 1 && !nearby; dy++) {
-				for (int dz = -1; dz <= 1 && !nearby; dz++) {
+		for (int dx = -1; dx <= 1; dx++) {
+			for (int dy = -1; dy <= 1; dy++) {
+				for (int dz = -1; dz <= 1; dz++) {
 					Vector3i nc = cc + Vector3i(dx, dy, dz);
-					if (!chunk_in_bounds(nc)) {
-						continue;
-					}
-					const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(nc)];
-					if (slot && slot->has_occupancy) {
-						nearby = true;
+					if (chunk_in_bounds(nc)) {
+						chunk_occupancy_nearby[chunk_coord_index(nc)] = 1;
 					}
 				}
 			}
 		}
-		chunk_occupancy_nearby[idx] = nearby ? (uint8_t)1 : (uint8_t)0;
 	}
 }
 
@@ -943,7 +1773,7 @@ const std::vector<Vector3i> &NavigationGrid::disc_offsets(float clearance) {
 
 // Full 3D occupancy volume for a flying occupant, used in place of
 // disc_offsets (which is deliberately horizontal-only, dy always 0) when
-// marking cells a FLYING unit/corpse occupies in update_occupancy. A
+// marking cells a FLYING unit/corpse occupies in ensure_occupancy_current. A
 // grounded unit's Y is pinned to whatever surface it's standing on, so two
 // grounded units near each other always land on the same Y cell and the
 // horizontal disc alone catches their collision correctly. A flying unit
@@ -993,7 +1823,7 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 	// force every single neighbor check across the whole search to do a
 	// full per-offset hashmap lookup regardless. chunk_occupancy_nearby
 	// (see refresh_chunk_occupancy_nearby) is this same 3x3x3
-	// chunk-neighborhood check, precomputed once per update_occupancy call
+	// chunk-neighborhood check, precomputed once per occupancy rebuild
 	// instead of rescanned fresh on every candidate cell here — an O(1)
 	// lookup rules out the common case cheaply. Only sound when the disc's
 	// reach can't cross more than one chunk width, which holds for any
@@ -1019,9 +1849,14 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 		if (!in_bounds(c)) {
 			continue;
 		}
-		Object *occ = occupant_at(c);
-		if (occ != nullptr && occ != self_unit) {
-			return false;
+		const std::vector<Object *> *here = occupants_at(c);
+		if (!here) {
+			continue;
+		}
+		for (Object *occ : *here) {
+			if (occ != self_unit && std::find(query_ignore.begin(), query_ignore.end(), occ) == query_ignore.end()) {
+				return false;
+			}
 		}
 	}
 	return true;
@@ -1033,7 +1868,7 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	}
 	if (flying) {
 		float world_y = bounds_origin.y + ((float)cell.y + 0.5f) * CELL_SIZE;
-		if (world_y < FLIGHT_MIN_ALTITUDE || world_y > FLIGHT_CEILING_HEIGHT) {
+		if (world_y > FLIGHT_CEILING_HEIGHT) {
 			return false;
 		}
 	}
@@ -1053,11 +1888,9 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	int li = local_index(local);
 	int chunk_idx = chunk_coord_index(chunk_coord);
 
-	if (!flying) {
-		NavChunk &support_chunk = ensure_chunk_support(chunk_coord);
-		if (support_chunk.no_support[li] != 0) {
-			return false;
-		}
+	NavChunk &support_chunk = ensure_chunk_support(chunk_coord);
+	if (flying ? support_chunk.flight_low[li] != 0 : support_chunk.no_support[li] != 0) {
+		return false;
 	}
 
 	// Body clearance checked across every Y-layer the unit's height spans,
@@ -1098,11 +1931,13 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 
 // --- Nearest-valid-point utility --------------------------------------------
 
-Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref) {
+Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref, Array ignore) {
 	// exclude_unit is optional here (see _bind_methods' DEFVAL), so
 	// world_ref is the fallback for callers that pass neither.
 	activate_for(exclude_unit, world_ref);
 	ensure_baked(tree);
+	ensure_occupancy_current(tree);
+	set_query_ignore(ignore);
 	const std::vector<Vector3i> &offsets = disc_offsets(clearance);
 	// height comes off exclude_unit the same duck-typed way find_path()
 	// reads it off its own unit parameter — exclude_unit is genuinely
@@ -1147,11 +1982,12 @@ NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vecto
 
 // --- Pathfinding -------------------------------------------------------------
 
-PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying) {
-	// unit is always supplied here, so the world is never ambiguous — which
-	// is why none of find_path's 24 call sites needed to change.
+PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore) {
+	// unit is always supplied here, so the world is never ambiguous.
 	activate_for(unit);
 	ensure_baked(tree);
+	ensure_occupancy_current(tree);
+	set_query_ignore(ignore);
 
 	float clearance = get_float_prop(unit, "radius") + get_float_prop(unit, "avoidance_margin");
 	float height = get_float_prop(unit, "height");
@@ -1174,6 +2010,12 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 		result.push_back(start);
 		result.push_back(cell_center(goal_cell));
 		return result;
+	}
+
+	// A goal sealed off from the start is answered here, not by a search
+	// that has to exhaust itself (MAX_EXPANSIONS, ~160 ms) to find out.
+	if (!regions_may_connect(start_cell, goal_cell, flying)) {
+		return PackedVector3Array();
 	}
 
 	// Coarse-guided fast path: restrict the fine search to a corridor of
@@ -1346,6 +2188,250 @@ std::vector<uint8_t> NavigationGrid::coarse_corridor(const Vector3i &start_cell,
 	return corridor;
 }
 
+// --- Connectivity regions ----------------------------------------------------
+
+NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bool flying) {
+	NavChunk &chunk = ensure_chunk_support(chunk_coord);
+	NavRegions &r = chunk.regions[flying ? 1 : 0];
+	if (r.labelled) {
+		return r;
+	}
+	r.labelled = true;
+	const size_t n = (size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
+	r.label.assign(n, 0);
+	r.count = 0;
+
+	Vector3i base = chunk_coord * CHUNK_DIM;
+	int cx1 = std::min(CHUNK_DIM, grid_size.x - base.x);
+	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
+	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
+
+	// Open = is_valid_cell's tests that hold for every clearance and height:
+	// dist > clearance >= 0 is exactly "not solid" (bake_chunk_dist writes 0
+	// for solid cells only), and the body's first layer is the cell itself.
+	// Closed cells stay 0; open ones are marked UINT16_MAX until labelled.
+	const uint16_t OPEN = 0xFFFF;
+	bool any_open = false;
+	for (int y = 0; y < cy1; y++) {
+		float world_y = bounds_origin.y + ((float)(base.y + y) + 0.5f) * CELL_SIZE;
+		if (flying && world_y > FLIGHT_CEILING_HEIGHT) {
+			continue;
+		}
+		for (int z = 0; z < cz1; z++) {
+			for (int x = 0; x < cx1; x++) {
+				int li = local_index(Vector3i(x, y, z));
+				if (chunk.solid[li] != 0) {
+					continue;
+				}
+				if (flying ? chunk.flight_low[li] != 0 : chunk.no_support[li] != 0) {
+					continue;
+				}
+				r.label[li] = OPEN;
+				any_open = true;
+			}
+		}
+	}
+	if (!any_open) {
+		return r;
+	}
+
+	std::vector<int> stack;
+	for (int seed = 0; seed < (int)n; seed++) {
+		if (r.label[seed] != OPEN) {
+			continue;
+		}
+		uint16_t id = ++r.count;
+		r.label[seed] = id;
+		stack.push_back(seed);
+		while (!stack.empty()) {
+			int li = stack.back();
+			stack.pop_back();
+			int x = li % CHUNK_DIM;
+			int y = (li / CHUNK_DIM) % CHUNK_DIM;
+			int z = li / (CHUNK_DIM * CHUNK_DIM);
+			for (int dz = -1; dz <= 1; dz++) {
+				int nz = z + dz;
+				if (nz < 0 || nz >= CHUNK_DIM) {
+					continue;
+				}
+				for (int dy = -1; dy <= 1; dy++) {
+					int ny = y + dy;
+					if (ny < 0 || ny >= CHUNK_DIM) {
+						continue;
+					}
+					for (int dx = -1; dx <= 1; dx++) {
+						int nx = x + dx;
+						if (nx < 0 || nx >= CHUNK_DIM) {
+							continue;
+						}
+						int ni = local_index(Vector3i(nx, ny, nz));
+						if (r.label[ni] == OPEN) {
+							r.label[ni] = id;
+							stack.push_back(ni);
+						}
+					}
+				}
+			}
+		}
+	}
+	return r;
+}
+
+NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying) {
+	NavRegions &r = ensure_chunk_regions(chunk_coord, flying);
+	if (r.linked) {
+		return r;
+	}
+	r.linked = true;
+	r.links.assign(r.count, std::vector<uint64_t>());
+	if (r.count == 0) {
+		return r;
+	}
+
+	// The 26 neighbouring chunks' labels, resolved once. chunks is sized
+	// once per scan, so these references stay valid while more are built.
+	const NavRegions *around[3][3][3] = {};
+	uint64_t around_idx[3][3][3] = {};
+	for (int dx = -1; dx <= 1; dx++) {
+		for (int dy = -1; dy <= 1; dy++) {
+			for (int dz = -1; dz <= 1; dz++) {
+				Vector3i nc = chunk_coord + Vector3i(dx, dy, dz);
+				if ((dx == 0 && dy == 0 && dz == 0) || !chunk_in_bounds(nc)) {
+					continue;
+				}
+				around[dx + 1][dy + 1][dz + 1] = &ensure_chunk_regions(nc, flying);
+				around_idx[dx + 1][dy + 1][dz + 1] = (uint64_t)chunk_coord_index(nc);
+			}
+		}
+	}
+
+	const int last = CHUNK_DIM - 1;
+	for (int z = 0; z < CHUNK_DIM; z++) {
+		for (int y = 0; y < CHUNK_DIM; y++) {
+			for (int x = 0; x < CHUNK_DIM; x++) {
+				if (x != 0 && x != last && y != 0 && y != last && z != 0 && z != last) {
+					continue;
+				}
+				uint16_t own = r.label[local_index(Vector3i(x, y, z))];
+				if (own == 0) {
+					continue;
+				}
+				std::vector<uint64_t> &out = r.links[own - 1];
+				for (int dz = -1; dz <= 1; dz++) {
+					for (int dy = -1; dy <= 1; dy++) {
+						for (int dx = -1; dx <= 1; dx++) {
+							int nx = x + dx, ny = y + dy, nz = z + dz;
+							int cdx = nx < 0 ? -1 : (nx > last ? 1 : 0);
+							int cdy = ny < 0 ? -1 : (ny > last ? 1 : 0);
+							int cdz = nz < 0 ? -1 : (nz > last ? 1 : 0);
+							if (cdx == 0 && cdy == 0 && cdz == 0) {
+								continue; // inside this chunk: same region already
+							}
+							const NavRegions *nb = around[cdx + 1][cdy + 1][cdz + 1];
+							if (!nb) {
+								continue;
+							}
+							uint16_t other = nb->label[local_index(Vector3i(nx - cdx * CHUNK_DIM, ny - cdy * CHUNK_DIM, nz - cdz * CHUNK_DIM))];
+							if (other != 0) {
+								out.push_back((around_idx[cdx + 1][cdy + 1][cdz + 1] << 16) | other);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	for (std::vector<uint64_t> &out : r.links) {
+		std::sort(out.begin(), out.end());
+		out.erase(std::unique(out.begin(), out.end()), out.end());
+	}
+	return r;
+}
+
+uint64_t NavigationGrid::region_key(const Vector3i &cell, bool flying) {
+	if (!in_bounds(cell)) {
+		return 0;
+	}
+	Vector3i cc = cell_to_chunk_coord(cell);
+	uint16_t label = ensure_chunk_regions(cc, flying).label[local_index(cell_to_local(cell))];
+	if (label == 0) {
+		return 0;
+	}
+	return ((uint64_t)chunk_coord_index(cc) << 16) | label;
+}
+
+bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying) {
+	uint64_t goal_key = region_key(goal_cell, flying);
+	if (goal_key == 0) {
+		return true; // the goal passed is_valid_cell, so this can't happen; let the search decide
+	}
+	// a_star expands the start cell whether or not it is valid, then steps
+	// only into valid cells: its own region if open, else its neighbours'.
+	std::vector<uint64_t> seeds;
+	uint64_t own = region_key(start_cell, flying);
+	if (own != 0) {
+		seeds.push_back(own);
+	} else {
+		for (const Vector3i &offset : neighbor_offsets) {
+			uint64_t k = region_key(start_cell + offset, flying);
+			if (k != 0 && std::find(seeds.begin(), seeds.end(), k) == seeds.end()) {
+				seeds.push_back(k);
+			}
+		}
+	}
+	if (seeds.empty()) {
+		return false;
+	}
+	if (std::find(seeds.begin(), seeds.end(), goal_key) != seeds.end()) {
+		return true;
+	}
+
+	// Greedy best-first from both ends, each heading for the other's chunk;
+	// always grow the smaller frontier. A node is checked against the other
+	// side when first seen, so a shared region is caught by whichever side
+	// reaches it second. A side that runs out has walked its whole
+	// component without touching the other: no path.
+	struct Side {
+		std::unordered_set<uint64_t> seen;
+		std::priority_queue<std::pair<float, uint64_t>, std::vector<std::pair<float, uint64_t>>, std::greater<std::pair<float, uint64_t>>> open;
+		Vector3i toward;
+	};
+	Side sides[2];
+	sides[0].toward = cell_to_chunk_coord(goal_cell);
+	sides[1].toward = cell_to_chunk_coord(start_cell);
+	auto priority = [&](uint64_t key, const Vector3i &toward) -> float {
+		return coarse_heuristic(chunk_coord_from_index((int)(key >> 16)), toward);
+	};
+	for (uint64_t k : seeds) {
+		sides[0].seen.insert(k);
+		sides[0].open.push({ priority(k, sides[0].toward), k });
+	}
+	sides[1].seen.insert(goal_key);
+	sides[1].open.push({ priority(goal_key, sides[1].toward), goal_key });
+
+	for (int expansions = 0; expansions < MAX_REGION_EXPANSIONS; expansions++) {
+		if (sides[0].open.empty() || sides[1].open.empty()) {
+			return false;
+		}
+		int s = sides[0].open.size() <= sides[1].open.size() ? 0 : 1;
+		Side &me = sides[s];
+		Side &other = sides[1 - s];
+		uint64_t key = me.open.top().second;
+		me.open.pop();
+		Vector3i cc = chunk_coord_from_index((int)(key >> 16));
+		const NavRegions &r = ensure_chunk_region_links(cc, flying);
+		for (uint64_t next : r.links[(key & 0xFFFF) - 1]) {
+			if (other.seen.count(next)) {
+				return true;
+			}
+			if (me.seen.insert(next).second) {
+				me.open.push({ priority(next, me.toward), next });
+			}
+		}
+	}
+	return true; // too big to settle cheaply: the search decides, capped as ever
+}
+
 PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask) {
 	std::priority_queue<OpenEntry, std::vector<OpenEntry>, OpenEntryCompare> open_heap;
 
@@ -1460,10 +2546,20 @@ bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::v
 	int steps = std::max(1, (int)std::ceil(length / CELL_SIZE));
 	for (int i = 1; i < steps; i++) {
 		float t = (float)i / (float)steps;
-		Vector3 point = a.lerp(b, t);
-		if (!is_valid_cell_cached(world_to_cell(point), offsets, clearance, height, flying, unit, smooth_sid)) {
-			return false;
+		Vector3i cell = world_to_cell(a.lerp(b, t));
+		if (is_valid_cell_cached(cell, offsets, clearance, height, flying, unit, smooth_sid)) {
+			continue;
 		}
+		// A walker's standing cells climb a slope in whole-cell stairs, so
+		// a straight line up a ramp passes through the layer above or below
+		// them between treads. The ground under the line is still there, a
+		// cell off, and the same one-cell rise A* steps between neighbours.
+		// Where the ground bends away from the line further than that (the
+		// knee where a ramp meets the floor), the corner stays a waypoint.
+		if (!flying && (is_valid_cell_cached(cell + Vector3i(0, 1, 0), offsets, clearance, height, flying, unit, smooth_sid) || is_valid_cell_cached(cell - Vector3i(0, 1, 0), offsets, clearance, height, flying, unit, smooth_sid))) {
+			continue;
+		}
+		return false;
 	}
 	return true;
 }
