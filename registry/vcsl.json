@@ -1,0 +1,72 @@
+{
+  "library": "vcsl",
+  "instruments": {
+    "harpsichord": {
+      "layers": [
+        {
+          "sfz": "vcsl/Chordophones/Zithers/Harpsichord, Flemish - Full.sfz"
+        }
+      ],
+      "range": [
+        29,
+        84
+      ]
+    },
+    "dan-tranh": {
+      "layers": [
+        {
+          "sfz": "vcsl/Chordophones/Zithers/Dan Tranh - Normal.sfz"
+        }
+      ],
+      "range": [
+        47,
+        84
+      ]
+    },
+    "kalimba": {
+      "layers": [
+        {
+          "sfz": "vcsl/Idiophones/Plucked Idiophones/Kalimba, Kenya.sfz"
+        }
+      ],
+      "range": [
+        59,
+        84
+      ]
+    },
+    "ritual-kit": {
+      "layers": [
+        {
+          "sfz": "vcsl/ritual-kit.sfz"
+        }
+      ],
+      "range": [
+        24,
+        80
+      ],
+      "drums": {
+        "boom": 24,
+        "frame_low_hand": 32,
+        "frame_low": 33,
+        "frame_low_muted": 34,
+        "frame_high_hand": 35,
+        "frame_high": 36,
+        "frame_high_muted": 37,
+        "darbuka_1": 40,
+        "darbuka_2": 41,
+        "darbuka_3": 42,
+        "darbuka_4": 43,
+        "darbuka_5": 44,
+        "slit_low": 48,
+        "slit_high": 49,
+        "gong": 56,
+        "gong_2": 57,
+        "gong_scrape": 58,
+        "bell_1": 72,
+        "bell_2": 73,
+        "bell_3": 74,
+        "finger_cymbal": 80
+      }
+    }
+  }
+}

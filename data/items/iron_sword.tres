@@ -1,21 +1,38 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=6 format=3 uid="uid://cing3w35sxrnh"]
+[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3 uid="uid://cing3w35sxrnh"]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
 [ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/iron_sword.tscn" id="w_model"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_thrust.tres" id="seq_thrust"]
+
+[sub_resource type="Resource" id="Resource_swing"]
+script = ExtResource("4_row")
+label = "Swing"
+damage_base = 0
+damage_bonus = 2
+wound_type = 1
+
+[sub_resource type="Resource" id="Resource_thrust"]
+script = ExtResource("4_row")
+label = "Thrust"
+animation = ExtResource("seq_thrust")
+damage_base = 1
+damage_bonus = 2
+wound_type = 2
 
 [sub_resource type="Resource" id="Resource_weapon"]
 script = ExtResource("3_weapon")
-damage_type = 0
-damage_bonus = 2
-fixed_dice_count = 1
-fixed_dice_sides = 6
-fixed_dice_bonus = 0
+attacks = Array[ExtResource("4_row")]([SubResource("Resource_swing"), SubResource("Resource_thrust")])
+model_scene = ExtResource("w_model")
+stance_animation = "Weapon/Stance_Sword"
 
 [resource]
 script = ExtResource("1_gear")
 slot_type = 11
+weight = 3.0
 stat_modifiers = Array[ExtResource("3_s3sab")]([])
 weapon_data = SubResource("Resource_weapon")
 id = &"iron_sword"

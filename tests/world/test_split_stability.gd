@@ -16,7 +16,10 @@ extends AiTestCase
 
 const HOME := &"test_arena"
 const AWAY := &"test_area_2"
-const FAR := &"cathedral_of_shadows"
+## Was the cathedral until that became a menu-room with no party in it —
+## which left only two ordinary areas, so this needed a third to stay a
+## test about a party scattered across SEPARATE places.
+const FAR := &"test_area_3"
 
 var _host: Control
 var _saved_host: Control = null
@@ -220,8 +223,8 @@ func _a_half_abstract_group_is_embodied_whole() -> void:
 	absent.id = &"probe_absent"
 	absent.display_name = "Absent"
 	absent.faction = &"player"
-	absent.maximum_hp = 10
-	absent.current_hp = 10
+	absent.set_base_stat(StatIds.HP, 10 - floori(absent.get_stat(StatIds.ST)))
+	absent.set_pool(StatIds.HP, 10)
 	group.records.append(absent)
 
 	PartyManager.embody(group, world, marker)

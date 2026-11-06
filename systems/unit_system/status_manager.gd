@@ -20,6 +20,12 @@ signal status_ticked(effect: StatusEffect, active_status: ActiveStatus)
 
 var _owner: Unit
 var active: Array[ActiveStatus] = []
+## Above 0 while apply/remove/load_state are partway through a status —
+## listed but its modifiers not all on, or the reverse. A stat change
+## from one of those modifiers can set off a rule that reads statuses
+## (Unit._update_low_pool_statuses); it waits on this, and runs again
+## once the change is whole.
+var busy: int = 0
 
 
 func _init(owner: Unit) -> void:
@@ -42,6 +48,8 @@ func save_state() -> Array:
 			"effect": status.effect.resource_path,
 			"turns": status.turns_remaining,
 			"stacks": status.stacks,
+			"stopped": status.stopped,
+			"tally": status.tally.duplicate(),
 		})
 	return out
 
@@ -49,8 +57,13 @@ func save_state() -> Array:
 ## Rebuilds `active` directly rather than replaying apply(), because
 ## these statuses are not being APPLIED — they are being remembered.
 ## apply() would reset each duration to the effect's default and fire
-## whatever an application is supposed to announce.
+## whatever an application is supposed to announce. Stat modifiers are
+## the exception: they live on the unit's stats, not here, so they are
+## taken off with the old list and put back with the new one.
 func load_state(state: Array) -> void:
+	busy += 1
+	for status in active:
+		_set_stat_modifiers(status.effect, false)
 	active.clear()
 	for entry in state:
 		var effect: StatusEffect = load(entry.get("effect", ""))
@@ -58,10 +71,32 @@ func load_state(state: Array) -> void:
 			continue
 		var status := ActiveStatus.new(effect, int(entry.get("turns", 0)))
 		status.stacks = int(entry.get("stacks", 1))
+		status.stopped = bool(entry.get("stopped", false))
+		status.tally = entry.get("tally", {}).duplicate()
 		active.append(status)
+		_set_stat_modifiers(effect, true)
+	busy -= 1
+
+
+func _set_stat_modifiers(effect: StatusEffect, on: bool) -> void:
+	for behavior in effect.behaviors:
+		if behavior is StatModifierBehavior:
+			if on:
+				_owner.register_stat_modifier(behavior, effect.status_name)
+			else:
+				_owner.unregister_stat_modifier(behavior, effect.status_name)
 
 
 func apply(effect: StatusEffect) -> void:
+	var countered: StatusEffect = countered_by(effect)
+	if countered:
+		remove(countered)
+		return
+	var rival: ActiveStatus = _rival(effect)
+	if rival:
+		if rival.effect.rank > effect.rank:
+			return
+		remove(rival.effect)
 	var existing: ActiveStatus = _find(effect)
 
 	if existing:
@@ -77,12 +112,34 @@ func apply(effect: StatusEffect) -> void:
 				return
 
 	var new_active := ActiveStatus.new(effect, effect.default_duration)
+	busy += 1
 	active.append(new_active)
 	for behavior in effect.behaviors:
 		behavior.on_apply(_owner, new_active)
 		if behavior is StatModifierBehavior:
 			_owner.register_stat_modifier(behavior, effect.status_name)
+	busy -= 1
 	status_applied.emit(effect, new_active)
+
+
+## The status on this unit that effect would counter (see
+## StatusEffect.counters) instead of landing, or null.
+func countered_by(effect: StatusEffect) -> StatusEffect:
+	for a in active:
+		if a.effect.group != &"" and effect.counters.has(a.effect.group):
+			return a.effect
+	return null
+
+
+## Another status of effect's group already on this unit (see
+## StatusEffect.group), or null.
+func _rival(effect: StatusEffect) -> ActiveStatus:
+	if effect.group == &"":
+		return null
+	for a in active:
+		if a.effect != effect and a.effect.group == effect.group:
+			return a
+	return null
 
 
 ## voluntary defaults false — "this removal wasn't the unit's own
@@ -97,16 +154,40 @@ func remove(effect: StatusEffect, voluntary: bool = false) -> void:
 	var existing: ActiveStatus = _find(effect)
 	if not existing:
 		return
+	busy += 1
 	active.erase(existing)
 	for behavior in effect.behaviors:
 		behavior.on_remove(_owner, existing, voluntary)
 		if behavior is StatModifierBehavior:
-			_owner.unregister_stat_modifier(behavior)
+			_owner.unregister_stat_modifier(behavior, effect.status_name)
+	busy -= 1
 	status_removed.emit(effect)
+
+
+## A surface just put effect on the unit by their getting into it: each
+## of its behaviors' on_contact.
+func contact(effect: StatusEffect) -> void:
+	var existing: ActiveStatus = _find(effect)
+	if not existing:
+		return
+	for behavior in effect.behaviors:
+		behavior.on_contact(_owner, existing)
 
 
 func has(effect: StatusEffect) -> bool:
 	return _find(effect) != null
+
+
+func turns_remaining(effect: StatusEffect) -> int:
+	var existing: ActiveStatus = _find(effect)
+	return existing.turns_remaining if existing else 0
+
+
+## The live tally, for a caller to read or change — empty when the
+## status isn't active.
+func tally(effect: StatusEffect) -> Dictionary:
+	var existing: ActiveStatus = _find(effect)
+	return existing.tally if existing else {}
 
 
 func _find(effect: StatusEffect) -> ActiveStatus:
@@ -127,6 +208,8 @@ func tick_turn_start() -> void:
 			behavior.on_turn_start(_owner, a)
 		status_ticked.emit(a.effect, a)
 
+		if a.stopped:
+			continue
 		a.turns_remaining -= 1
 		if a.turns_remaining <= 0:
 			remove(a.effect)
@@ -143,12 +226,22 @@ func prevents_turn() -> bool:
 	return false
 
 
+## Whether ANY active status holds this unit in place — see
+## StatusBehavior.prevents_movement().
+func prevents_movement() -> bool:
+	for a in active:
+		for behavior in a.effect.behaviors:
+			if behavior.prevents_movement():
+				return true
+	return false
+
+
 ## Notifies every active status's behaviors that this unit took damage —
 ## lets e.g. RemoveOnDamageBehavior react (waking from Sleep).
-func notify_damage_taken(amount: int) -> void:
+func notify_damage_taken(amount: int, critical: bool = false) -> void:
 	for a in active.duplicate():
 		for behavior in a.effect.behaviors:
-			behavior.on_damage_taken(_owner, amount, a)
+			behavior.on_damage_taken(_owner, amount, a, critical)
 
 
 ## Whether ANY active status grants this unit flight right now — see

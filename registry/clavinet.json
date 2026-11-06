@@ -1,0 +1,21 @@
+{
+  "library": "clavinet",
+  "instruments": {
+    "placed": {
+      "layers": [
+        {
+          "sfz": "clavinet/clavinet-placed.sfz"
+        }
+      ],
+      "range": [
+        29,
+        88
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "sustain": 64
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+// Cathedral test - four bars to prove the cathedral ensemble sounds.
+//
+// The law's music in mainline Megami Tensei: a D minor organ line that
+// climbs by step over a pedal that will not move, a male choir holding
+// bare fifths, harpsichord walking underneath, and brass stabbing the
+// downbeats. Timpani mark the bars and a tubular bell tolls the end.
+
+title: Cathedral Test
+ensemble: cathedral
+parts: lead brass keys bass choir perc
+tempo: 72
+meter: 4/4
+key: d minor
+order: nave
+
+section nave bars:4
+  lead dyn:mf
+    | d5:1 e5:1 f5:1 g5:1 | a5:2 g5:1 f5:1 | e5:1 f5:1 d5:1 c#5:1 | d5:4 |
+  bass dyn:mf
+    | d2:4 | bb1:4 | a1:4 | d2:4 |
+  choir dyn:mp
+    | [d3 a3]:4 | [bb2 f3]:4 | [a2 e3]:4 | [d3 a3 d4]:4 |
+  keys dyn:mp
+    | d4:0.5 f4:0.5 a4:0.5 f4:0.5 d4:0.5 f4:0.5 a4:0.5 f4:0.5 | bb3:0.5 d4:0.5 f4:0.5 d4:0.5 bb3:0.5 d4:0.5 f4:0.5 d4:0.5 | a3:0.5 c#4:0.5 e4:0.5 c#4:0.5 a3:0.5 c#4:0.5 e4:0.5 c#4:0.5 | d4:4 |
+  brass dyn:f
+    | [d4 a4 d5]:0.5! r:3.5 | [bb3 f4 bb4]:0.5! r:3.5 | [a3 e4 a4]:0.5! r:3.5 | [d4 a4 d5]:0.5! r:3.5 |
+  perc dyn:mf
+    | timp_d:1 r:3 | timp_low:1 r:3 | timp_a:1 r:3 | timp_d:1 bell_d:3 |

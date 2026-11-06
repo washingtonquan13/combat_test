@@ -43,7 +43,7 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 
 	for ally in allies:
 		for ability in heal_abilities:
-			if not ability or ally.maximum_hp <= 0 or ally.current_hp >= ally.maximum_hp:
+			if not ability or ally.get_stat(StatIds.HP) <= 0 or ally.get_pool(StatIds.HP) >= ally.get_stat(StatIds.HP):
 				continue
 			var heal: AiPlan = attack_plan(unit, ally, ability, bias)
 			heal.reason = "heal %s" % ally.get_display_name()

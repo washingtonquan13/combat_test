@@ -9,7 +9,6 @@
 [sub_resource type="Resource" id="Resource_knockback"]
 script = ExtResource("4_knockback")
 distance = 3.0
-push_duration = 0.25
 metadata/_custom_type_script = "uid://drjjm08fw6max"
 
 [sub_resource type="Resource" id="Resource_targeting"]

@@ -1,0 +1,34 @@
+// Synth reference - a few seconds of each sfizz-native synth on its own, so
+// what they sound like today is on record. tools/synth_reference.py renders
+// this and compares it against samples/synth/reference/; see that file.
+//
+// Written to exercise what makes each one itself rather than to be music:
+// the pad crescendos across a held chord, so the dynamics CC, the filter
+// envelope, the drift and the delayed vibrato are all in it, then swells on
+// a second chord. The arpeggio plays accented and unaccented notes across
+// three octaves, then lets a low, a middle and a high note ring out, so the
+// pluck's velocity-to-filter and the bell's decay are both measured.
+
+title: Synth reference
+ensemble: band
+parts: lead keys pad
+tempo: 120
+meter: 4/4
+key: e minor
+order: pad keys lead
+
+section pad bars:2
+  pad dyn:p..f
+    | [e3 g3 b3 e4]:4 | [f#3 a3 b3 d#4]:4^ |
+
+section keys bars:2
+  keys dyn:mf
+    | e3:0.25! g3:0.25 b3:0.25 e4:0.25! g4:0.25 b4:0.25 e5:0.25! g5:0.25 b5:0.25 e6:0.25! b5:0.25 g5:0.25 e5:0.25! b4:0.25 g4:0.25 e4:0.25! |
+    | e3:1! b4:1. e6:2! |
+
+// The lead: a staccato run for the attack and filter bite, a slur, and a
+// held note long enough for the vibrato to open, across a dynamic ramp.
+section lead bars:2
+  lead dyn:mp..f vib:deep
+    | e4:0.5! g4:0.5' b4:0.5' e5:0.5! d5:0.5~ e5:0.5 g5:1 |
+    | a5:4_ |

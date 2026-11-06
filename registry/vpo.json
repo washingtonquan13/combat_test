@@ -1,0 +1,212 @@
+{
+  "library": "vpo",
+  "description": "Virtual Playing Orchestra 3. CC1 is 'slower and quieter' on its sustained patches; CC11 is a plain gain, so its choirs take dynamics there.",
+  "instruments": {
+    "choir-female": {
+      "layers": [
+        {
+          "sfz": "vpo/Vocals/choir-FEMALE-sustain.sfz"
+        }
+      ],
+      "range": [
+        67,
+        84
+      ],
+      "controls": {
+        "dynamics": 11
+      }
+    },
+    "choir-male": {
+      "layers": [
+        {
+          "sfz": "vpo/Vocals/choir-MALE-sustain.sfz"
+        }
+      ],
+      "range": [
+        43,
+        66
+      ],
+      "controls": {
+        "dynamics": 11
+      }
+    },
+    "celesta": {
+      "layers": [
+        {
+          "sfz": "vpo/Keys/celesta.sfz"
+        }
+      ],
+      "range": [
+        60,
+        108
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "sustain": 64
+      }
+    },
+    "choir-and-brass": {
+      "layers": [
+        {
+          "sfz": "vpo/choir-and-brass.sfz"
+        }
+      ],
+      "range": [
+        40,
+        84
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "dynamics": 1,
+        "sustain": 64,
+        "legato_attack": 73,
+        "vibrato_depth": 76
+      },
+      "keyswitches": {
+        "choir": 12,
+        "brass": 13,
+        "brass_long": 14,
+        "brass_short": 15
+      },
+      "keyswitch_default": "choir"
+    },
+    "strings-section": {
+      "layers": [
+        {
+          "sfz": "vpo/strings-section.sfz"
+        }
+      ],
+      "range": [
+        24,
+        105
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "dynamics": 11,
+        "sustain": 64,
+        "legato_attack": 73,
+        "vibrato_depth": 76
+      },
+      "keyswitches": {
+        "choir": 12,
+        "brass": 13,
+        "brass_long": 14,
+        "brass_short": 15
+      },
+      "keyswitch_default": "choir"
+    },
+    "tubular-bells": {
+      "layers": [
+        {
+          "sfz": "vpo/Percussion/tubular-bells.sfz"
+        }
+      ],
+      "range": [
+        57,
+        79
+      ],
+      "controls": {
+        "dynamics": 11
+      }
+    },
+    "choir-mixed": {
+      "layers": [
+        {
+          "sfz": "vpo/Vocals/choir-MIXED-sustain.sfz"
+        }
+      ],
+      "range": [
+        43,
+        84
+      ],
+      "controls": {
+        "dynamics": 11
+      }
+    },
+    "all-strings": {
+      "layers": [
+        {
+          "sfz": "vpo/Strings/all-strings-SEC-sustain.sfz"
+        }
+      ],
+      "range": [
+        24,
+        105
+      ],
+      "controls": {
+        "dynamics": 11
+      }
+    },
+    "violins": {
+      "layers": [
+        {
+          "sfz": "vpo/Strings/1st-violin-SEC-KS-C3.sfz"
+        }
+      ],
+      "range": [
+        55,
+        105
+      ],
+      "controls": {
+        "dynamics": 11
+      },
+      "keyswitches": {
+        "sustain": 48,
+        "tremolo": 49,
+        "expressive": 50,
+        "accent": 51,
+        "staccato": 52,
+        "pizzicato": 53
+      },
+      "keyswitch_default": "sustain"
+    },
+    "violas": {
+      "layers": [
+        {
+          "sfz": "vpo/Strings/viola-SEC-KS-C2.sfz"
+        }
+      ],
+      "range": [
+        48,
+        93
+      ],
+      "controls": {
+        "dynamics": 11
+      },
+      "keyswitches": {
+        "sustain": 36,
+        "tremolo": 37,
+        "expressive": 38,
+        "accent": 39,
+        "staccato": 40,
+        "pizzicato": 41
+      },
+      "keyswitch_default": "sustain"
+    },
+    "upright-pizz": {
+      "layers": [
+        {
+          "sfz": "vpo/upright-pizz.sfz"
+        }
+      ],
+      "range": [
+        24,
+        67
+      ]
+    },
+    "cello-pizz": {
+      "layers": [
+        {
+          "sfz": "vpo/cello-pizz.sfz"
+        }
+      ],
+      "range": [
+        36,
+        81
+      ]
+    }
+  }
+}

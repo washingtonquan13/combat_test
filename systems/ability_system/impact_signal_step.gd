@@ -7,7 +7,8 @@ extends VfxStep
 ## arrives), before whatever comes next (an explosion's
 ## SpawnParticleStep). For an ability with waits_for_impact set (see
 ## Ability), UnitCombat.use_ability() is paused waiting on exactly this
-## call — reaching this step is what lets damage actually apply.
+## call — reaching this step is what lands the damage already rolled.
+## Ignored once the caster's current action has finished (it timed out).
 ##
 ## Does nothing (silently) if caster wasn't passed through to this
 ## sequence's play() call — sequences not tied to an ability use (a

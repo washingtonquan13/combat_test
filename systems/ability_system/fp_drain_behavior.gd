@@ -23,7 +23,7 @@ extends StatusBehavior
 
 func on_turn_start(unit: Unit, active: ActiveStatus) -> void:
 	var cost: int = fp_per_turn * active.stacks
-	if unit.current_fp < cost:
+	if unit.get_pool(StatIds.FP) < cost:
 		# Removal (not damage, not a partial charge) — this status simply
 		# can no longer be sustained. unit.remove_status(), not
 		# StatusManager directly — Unit is the public-facing surface
@@ -32,7 +32,7 @@ func on_turn_start(unit: Unit, active: ActiveStatus) -> void:
 		unit.remove_status(active.effect)
 		return
 
-	unit.current_fp -= cost
+	unit.spend_pool(StatIds.FP, cost)
 
 
 func describe() -> String:

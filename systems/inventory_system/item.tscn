@@ -1,8 +1,9 @@
-[gd_scene load_steps=5 format=3 uid="uid://c6cftiltyv5xo"]
+[gd_scene load_steps=6 format=3 uid="uid://c6cftiltyv5xo"]
 
 [ext_resource type="Script" uid="uid://c4oi4tue2xgxi" path="res://systems/inventory_system/item.gd" id="1_3aprp"]
 [ext_resource type="PackedScene" uid="uid://dh3wt71h4dgt8" path="res://systems/inventory_system/item_tooltip.tscn" id="2_6muww"]
 [ext_resource type="Texture2D" uid="uid://c140egpvoqs1e" path="res://assets/icon.svg" id="3_6muww"]
+[ext_resource type="Script" path="res://systems/inventory_system/socket_overlay.gd" id="4_sock"]
 [ext_resource type="PackedScene" uid="uid://b1x42s1wppw2q" path="res://systems/inventory_system/context_menu.tscn" id="3_vljjh"]
 
 [node name="Item" type="MarginContainer"]
@@ -13,7 +14,6 @@ script = ExtResource("1_3aprp")
 tooltip_scene = ExtResource("2_6muww")
 context_menu_scene = ExtResource("3_vljjh")
 icon = ExtResource("3_6muww")
-cell_size_px = 32
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 2
@@ -34,3 +34,16 @@ size_flags_vertical = 3
 text = "99"
 horizontal_alignment = 2
 vertical_alignment = 2
+
+[node name="RarityFrame" type="ReferenceRect" parent="."]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+border_color = Color(0.53, 0.53, 1, 1)
+border_width = 2.0
+editor_only = false
+
+[node name="Sockets" type="Control" parent="."]
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("4_sock")

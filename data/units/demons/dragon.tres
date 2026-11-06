@@ -8,9 +8,12 @@
 [ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
 [ext_resource type="Resource" path="res://data/negotiation/conversations/scary/scary_greeting.tres" id="7_greeting"]
 [ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="90_fly"]
-[ext_resource type="Resource" uid="uid://b31trte3ncbs1" path="res://data/abilities/land.tres" id="91_land"]
+[ext_resource type="Resource" path="res://data/abilities/fire_breath.tres" id="92_breath"]
 [ext_resource type="Resource" path="res://data/ai_archetypes/aerial_skirmisher.tres" id="99_arch"]
 [ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="90_row"]
+[ext_resource type="Resource" path="res://data/attacks/fangs.tres" id="91_fangs"]
+[ext_resource type="Resource" path="res://data/attacks/claws.tres" id="91_claws"]
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
 root = ExtResource("7_greeting")
@@ -20,16 +23,7 @@ script = ExtResource("1_def")
 ai_archetype = ExtResource("99_arch")
 id = "dragon"
 display_name = "Dragon"
-strength = 18
-dexterity = 10
-intelligence = 12
-health = 18
-move = 5
-will = 14
-perception = 12
-max_hp = 22
-max_fp = 18
-damage_reduction = 3
+stats = Dictionary[StringName, int]({&"ST": 18, &"IQ": 12, &"HT": 18, &"HP": 4, &"Will": 2, &"Move": -2, &"DR": 3, &"SM": 2})
 faction = &"enemy"
 order = &"Dragon"
 personality = &"Scary"
@@ -38,6 +32,7 @@ is_special = false
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("98_model")
-abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("90_fly"), ExtResource("91_land")])
+abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("90_fly"), ExtResource("92_breath")])
+natural_attacks = Array[ExtResource("90_row")]([ExtResource("91_fangs"), ExtResource("91_claws")])
 negotiable = true
 negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])

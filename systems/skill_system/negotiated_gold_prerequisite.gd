@@ -1,7 +1,7 @@
 class_name NegotiatedGoldPrerequisite
 extends PrerequisiteRule
 ## Requires the party to afford THIS negotiation's own rolled amount
-## (NegotiationManager.current_gold_amount) rather than a fixed authored
+## (the conversation's gold variable) rather than a fixed authored
 ## number — the counterpart to GoldPrerequisite for choices that pay
 ## SacrificeNegotiatedGoldEffect's own dynamic cost. Needed because that
 ## amount is rolled per-encounter from the demon's rank: a fixed
@@ -12,4 +12,8 @@ extends PrerequisiteRule
 ## none — there's nothing to author, the amount is never fixed.
 
 func is_satisfied(_unit: Unit) -> bool:
-	return CurrencyManager.has_gold(NegotiationManager.current_gold_amount)
+	return false
+
+
+func is_satisfied_in(c: Conversation) -> bool:
+	return CurrencyManager.has_gold(int(c.vars.get("gold", 0)))

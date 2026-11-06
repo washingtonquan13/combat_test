@@ -27,9 +27,9 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 
 	var plans: Array[AiPlan] = []
 	for ally in UnitQuery.living_allies(unit.get_tree(), unit):
-		if ally.maximum_hp <= 0:
+		if ally.get_stat(StatIds.HP) <= 0:
 			continue
-		var fraction: float = float(ally.current_hp) / float(ally.maximum_hp)
+		var fraction: float = float(ally.get_pool(StatIds.HP)) / float(ally.get_stat(StatIds.HP))
 		if fraction >= hp_threshold:
 			continue
 		var plan: AiPlan = attack_plan(unit, ally, heal_ability, score_bonus)

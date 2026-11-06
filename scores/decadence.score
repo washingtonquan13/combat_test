@@ -1,0 +1,76 @@
+// Decadence - the main theme from Giten Megami Tensei (1995), rebuilt note
+// for note from the original MIDI (Macco). Five source channels, five parts;
+// the loop is the original 32 bars. The motif is ch1's D3 A3 G#3 B3 build,
+// twice every four bars. The voices are VPO's sampled choirs.
+
+title: Decadence
+ensemble: decadence
+parts: lead voice:keys rock:keys choir pad perc
+tempo: 120
+meter: 4/4
+key: d minor
+order: [a b]
+
+pattern melody
+  | c5:7_. g#4:1 | a4:8_ |
+  | d4:7_ g#4:1 | a4:8_ |
+  | c5:7_ g#4:1 | a4:4_ d4:3_ c4:1 |
+  | d4:3_ e4:1 f4:3_ g#4:1 | a4:4_ c5:4_ |
+pattern rocking
+  | [a3 c4]:1_ [g#3 b3]:1_ [a3 c4]:1_ [g#3 b3]:1_ | [a3 c4]:1_ [g#3 b3]:1_ [a3 c4]:1_ [g#3 b3]:1_ |
+  | [g3 bb3]:1_ [f#3 a3]:1_ [g3 bb3]:1_ [f#3 a3]:1_ | [g3 bb3]:1_ [f#3 a3]:1_ [g3 bb3]:1_ [f#3 a3]:1_ |
+pattern rocking_open
+  | c4:1_ [g#3 b3]:1_ [a3 c4]:1_ [g#3 b3]:1_ | [a3 c4]:1_ [g#3 b3]:1_ [a3 c4]:1_ [g#3 b3]:1_ |
+  | [g3 bb3]:1_ [f#3 a3]:1_ [g3 bb3]:1_ [f#3 a3]:1_ | [g3 bb3]:1_ [f#3 a3]:1_ [g3 bb3]:1_ [f#3 a3]:1_ |
+pattern kick_a
+  | kick:4 | r:3.5 kick:0.5 | kick:4 | r:4 |
+pattern ride_a
+  | ride:4 | r:4 | ride:4 | r:4 |
+pattern hat_a
+  | r:4 | r:3.5 hat_open:0.5 | r:4 | r:4 |
+pattern kick_b
+  | kick:2 kick:2 | kick:2 kick:1.5 kick:0.5 |
+pattern ride_b
+  | ride:2 ride:2 | ride:2 ride:2 |
+pattern hat_b
+  | r:4 | r:3.5 hat_open:0.5 |
+
+section a bars:16
+  choir dyn:mf shape:none
+    | d2:63.85_ r:0.15 |
+  voice.d dyn:mf shape:none
+    | d3:8_ | r:3 d3:5_ | d3:8_ | r:3 d3:5_ | d3:5.31_ r:2.69 | r:3 d3:4_ r:1 | d3:8_ | r:3 d3:4_ r:1 |
+  voice.a dyn:mf shape:none
+    | r:2 a3:6_ | r:4 a3:4_ | r:2 a3:6_ | r:4 a3:4_ | r:2 a3:4_ r:2 | r:4 a3:4_ | r:2 a3:6_ | r:4 a3:4_ |
+  voice.gs dyn:mf shape:none
+    | r:4 g#3:4_ | r:5 g#3:3_ | r:4 g#3:2_ r:2 | r:5 g#3:3_ | r:4 g#3:4_ | r:5 g#3:3_ | r:4 g#3:4_ | r:5 g#3:3_ |
+  voice.b dyn:mf shape:none
+    | r:6 b3:2_ | r:6 b3:2_ | r:6 b3:2_ | r:6 b3:2_ | r:6 b3:2_ | r:6 b3:2_ | r:6 b3:2_ | r:6 b3:2_ |
+  lead dyn:mp shape:natural vib:warm
+    | melody |
+  perc.kick dyn:fff shape:none feel:tight
+    | kick_a*4 |
+  perc.ride dyn:f shape:none feel:tight
+    | ride_a*4 |
+  perc.hat dyn:mf shape:none feel:tight
+    | hat_a*4 |
+
+section b bars:16
+  choir dyn:mf shape:none
+    | d2:8_ | c#2:8_ | c2:8_ | c#2:8_ | d2:8_ | c#2:8_ | c2:8_ | c#2:8_ |
+  rock dyn:mf shape:light
+    | rocking_open rocking*3 |
+  pad.floor dyn:mp shape:none feel:loose
+    | a3:32_^ | g3:32_^ |
+  pad.third dyn:mp shape:none feel:loose
+    | r:8 c4:24_ | r:8 bb3:24_ |
+  pad.fifth dyn:mp shape:none feel:loose
+    | r:16 f4:16_ | r:16 eb4:16_ |
+  pad.top dyn:mp shape:none feel:loose
+    | r:24 c5:8_ | r:24 bb4:8_ |
+  perc.kick dyn:fff shape:none feel:tight
+    | kick_b*8 |
+  perc.ride dyn:f shape:none feel:tight
+    | ride_b*8 |
+  perc.hat dyn:mf shape:none feel:tight
+    | hat_b*8 |

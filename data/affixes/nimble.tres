@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="Affix" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://systems/inventory_system/affix.gd" id="1_affix"]
+[ext_resource type="Script" path="res://systems/inventory_system/item_modifier.gd" id="2_mod"]
+[ext_resource type="Script" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_stat"]
+
+[sub_resource type="Resource" id="Resource_stat"]
+script = ExtResource("3_stat")
+stat_name = &"Dodge"
+amount = 1
+
+[sub_resource type="Resource" id="Resource_mod"]
+script = ExtResource("2_mod")
+label = "+1 Dodge"
+stat_modifiers = Array[ExtResource("3_stat")]([SubResource("Resource_stat")])
+
+[resource]
+script = ExtResource("1_affix")
+id = &"nimble"
+kind = 0
+affix_name = "Nimble"
+group = &"dodge"
+level = 1
+on_armor = true
+modifier = SubResource("Resource_mod")

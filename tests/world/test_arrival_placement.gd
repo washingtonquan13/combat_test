@@ -1,7 +1,12 @@
 extends AiTestCase
 ## Units arrive standing on the ground, not in the sky.
 ##
-## Reproduces a reported sequence: one member walks into the cathedral, two
+## The destination used to be the Cathedral of Shadows, which is where the
+## bug below was originally reported. It moved to test_area_2 when the
+## cathedral became a menu-room that spawns no party at all — an area with
+## nobody in it cannot demonstrate anything about where arrivals land.
+##
+## Reproduces a reported sequence: one member walks into the far area, two
 ## more are sent to the overworld, and when those two then travel to the
 ## cathedral they are nowhere to be found — their Y is in the thousands.
 ##
@@ -14,7 +19,7 @@ extends AiTestCase
 ## that fails loudly; it just returns a point.
 
 const HOME := &"test_arena"
-const CATHEDRAL := &"cathedral_of_shadows"
+const DESTINATION := &"test_area_2"
 
 ## Every area in this project is authored around the origin and none is
 ## remotely this tall, so anything past it is not a placement, it is a
@@ -76,11 +81,11 @@ func _the_reported_sequence() -> void:
 			"%d member(s)" % party.size())
 		return
 
-	# One walks into the cathedral on their own.
+	# One walks into the far area on their own.
 	var first: Array[Unit] = [party[0]]
-	WorldManager.load_area(CATHEDRAL, &"", first)
+	WorldManager.load_area(DESTINATION, &"", first)
 	await get_tree().process_frame
-	_check_heights("after one member enters the cathedral alone")
+	_check_heights("after one member enters the far area alone")
 
 	# Back to the rest, and two of them go out to the overworld together.
 	if not WorldManager.focus_group(PartyManager.group_of(party[1])):
@@ -94,11 +99,11 @@ func _the_reported_sequence() -> void:
 	await get_tree().process_frame
 	_check_heights("after two are sent out to the overworld")
 
-	# And then those two follow the first into the cathedral.
-	WorldManager.load_area(CATHEDRAL)
+	# And then those two follow the first into the far area.
+	WorldManager.load_area(DESTINATION)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check_heights("after the pair follows them into the cathedral")
+	_check_heights("after the pair follows them into the far area")
 
 	# The whole point of the report: they were nowhere to be seen.
 	var context: WorldContext = WorldManager.context()
@@ -106,7 +111,7 @@ func _the_reported_sequence() -> void:
 	for unit in _live_members():
 		if context and context.contains(unit):
 			present += 1
-	check("everyone who travelled is actually in the cathedral",
+	check("everyone who travelled is actually in the far area",
 		present >= 3, "only %d of 3 arrived" % present)
 
 
@@ -210,7 +215,7 @@ func _two_avatars_then_one_goes_in() -> void:
 		avatars == 2, "%d group(s) on the overworld" % avatars)
 
 	# And now one of the two walks in.
-	WorldManager.load_area(CATHEDRAL)
+	WorldManager.load_area(DESTINATION)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check_heights("after one of two overworld avatars walks into an area")
@@ -233,8 +238,9 @@ func _two_avatars_then_one_goes_in() -> void:
 ## one spot do not stay on one spot. They shove each other apart every
 ## physics frame, upward, which is what a party member at y=8000 is.
 func _nobody_lands_on_an_occupant() -> void:
+	var pad := _a_world_of_its_own()
 	var marker := Node3D.new()
-	_root.add_child(marker)
+	pad.add_child(marker)
 	marker.global_position = Vector3(0.0, 0.5, 0.0)
 
 	var resident: Unit = spawn_brute(0.0)
@@ -251,11 +257,13 @@ func _nobody_lands_on_an_occupant() -> void:
 		"%.2f apart - they will shove each other skyward" % gap)
 
 	marker.queue_free()
+	_dispose_world(pad)
 
 
 func _a_failed_snap_still_separates_them() -> void:
+	var pad := _a_world_of_its_own()
 	var marker := Node3D.new()
-	_root.add_child(marker)
+	pad.add_child(marker)
 	# Well outside anything the grid has scanned.
 	marker.global_position = Vector3(5000.0, 0.0, 5000.0)
 
@@ -277,6 +285,34 @@ func _a_failed_snap_still_separates_them() -> void:
 			% stacked)
 
 	marker.queue_free()
+	_dispose_world(pad)
+
+
+## A registered world for the cases that place units by hand. Without one
+## their grid queries name no world, and the extension falls back to
+## scanning the whole scene tree, every resident world included; with the
+## city overworld resident that is a grid three kilometres across.
+func _a_world_of_its_own() -> Node3D:
+	var pad := Node3D.new()
+	_root.add_child(pad)
+	var ground := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(20.0, 1.0, 20.0)
+	shape.shape = box
+	ground.add_child(shape)
+	pad.add_child(ground)
+	ground.position = Vector3(0.0, -0.5, 0.0)
+	var context := WorldContext.new(pad)
+	pad.set_meta(&"context", context)
+	return pad
+
+
+func _dispose_world(pad: Node3D) -> void:
+	var context: WorldContext = pad.get_meta(&"context")
+	context.dispose()
+	context.free()
+	pad.queue_free()
 
 
 func _check_heights(when: String) -> void:

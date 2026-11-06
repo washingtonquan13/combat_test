@@ -1,0 +1,34 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/electrified_water_surface.gd" id="1_script"]
+[ext_resource type="Shader" path="res://systems/surface_system/liquid_film.gdshader" id="2_shader"]
+
+[sub_resource type="ShaderMaterial" id="film"]
+shader = ExtResource("2_shader")
+shader_parameter/thick_color = Color(0.03, 0.05, 0.09, 1)
+shader_parameter/thin_color = Color(0.08, 0.11, 0.17, 1)
+shader_parameter/alpha_max = 0.6
+shader_parameter/lumpiness = 0.1
+shader_parameter/droplets = 0.5
+shader_parameter/glow_color = Color(0.022, 0.045, 0.1, 1)
+shader_parameter/crackle = 1.0
+shader_parameter/bumpiness = 0.05
+shader_parameter/ripple_scale = 2.0
+shader_parameter/ripple_strength = 0.6
+shader_parameter/ripple_drift = 0.8
+shader_parameter/wet_rim = 0.45
+shader_parameter/wet_color = Color(0.03, 0.03, 0.035, 1)
+
+[node name="ElectrifiedWater" type="Decal"]
+size = Vector3(2.6, 2.4, 2.6)
+normal_fade = 0.6
+cull_mask = 1048573
+emission_energy = 6.0
+script = ExtResource("1_script")
+film = SubResource("film")
+glows = true
+loop_frames = 20
+loop_fps = 16.0
+pixels_per_meter = 96.0
+ripples_move = true
+roughness = 0.03

@@ -1,6 +1,6 @@
 class_name DamageEffect
 extends AbilityEffect
-## Deals dice-rolled damage, minus target's damage_reduction. To-hit is
+## Deals dice-rolled damage, minus target's DR. To-hit is
 ## NOT rolled here — that's Ability/Unit.use_ability()'s job, resolved
 ## once before ANY of an ability's effects run (see use_ability's doc
 ## comment for why: a missed attack should skip every effect, not just
@@ -10,17 +10,33 @@ extends AbilityEffect
 @export var dice_count: int = 1
 @export var dice_sides: int = 6
 @export var dice_bonus: int = 0
+## GURPS damage type (B379): what DR lets through is multiplied by its
+## wounding multiplier.
+@export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
+## GURPS armor divisor (B378): the target's DR is divided by it. 1 is
+## none; (2), (3), (5), (10) penetrate; (0.5), (0.2), (0.1) are stopped
+## more easily than usual.
+@export var armor_divisor: float = 1.0
 
 
-func apply(_attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Unit:
 		return {}
 
 	var raw_damage: int = roll_damage()
-	var applied: int = max(raw_damage - target.get_stat("DR"), 0)
-	target.take_damage(applied)
-
+	var applied: int = DamageResolver.injury(raw_damage, target, wound_type, armor_divisor, false, false, attacker.hit_location_for(ability))
 	return {"raw_damage": raw_damage, "damage": applied}
+
+
+func commit(_attacker: Unit, target, _ability: Ability, _is_critical: bool, plan: Dictionary) -> Dictionary:
+	if plan.is_empty():
+		return {}
+	target.take_damage(plan.damage)
+	return plan
 
 
 func roll_damage() -> int:
@@ -31,8 +47,12 @@ func roll_damage() -> int:
 
 
 func describe() -> String:
-	return "%dd%d+%d damage" % [dice_count, dice_sides, dice_bonus]
+	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type, armor_divisor)]
 
 
-func expected_damage(_attacker: Unit) -> float:
-	return float(dice_count) * (float(dice_sides) + 1.0) / 2.0 + float(dice_bonus)
+func expected_damage(_attacker: Unit, target: Unit = null, location: HitLocation = null) -> float:
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor, false, location)
+
+
+func located_wound_type(_attacker: Unit) -> int:
+	return wound_type

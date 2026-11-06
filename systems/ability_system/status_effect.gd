@@ -1,9 +1,13 @@
+@tool
 class_name StatusEffect
 extends Resource
 ## Data for one status effect type, composed from independent
 ## StatusBehavior pieces — see that file's header for why. Create
 ## instances as .tres files, assign one or more StatusBehavior resources
 ## to behaviors.
+##
+## @tool only for the stat-id suggestions on resisted_by
+## (_validate_property).
 
 @export var status_name: String = "Status"
 @export var icon: Texture2D
@@ -21,6 +25,36 @@ enum StackMode {
 @export var max_stacks: int = 1
 
 @export var behaviors: Array[StatusBehavior] = []
+
+## Whether a RemoveStatusEffect (a cure, a dispel) can take this off.
+## False for a status the rules own entering and leaving — Downed only
+## ends by being picked up, stabilized, or dying.
+@export var curable: bool = true
+
+## Statuses in one group are strengths of the same thing - Burning and
+## the wall's Searing - and a unit has at most one of them: the higher
+## rank replaces a lower one, a lower one never lands over a higher.
+## Empty means no group.
+@export var group: StringName = &""
+@export var rank: int = 0
+## Groups this status counters (Pathfinder's "counters and dispels"):
+## landing on a unit that has a status of one of these groups removes
+## that status instead of applying this one. Enlarged and Reduced counter
+## each other, so each cast steps size one way and it never passes +/-1.
+## By group, not by StatusEffect, so two statuses can counter each other
+## without a resource cycle.
+@export var counters: Array[StringName] = []
+
+@export_group("Resistance")
+## The stat a target rolls against to shrug this off as it lands — HT
+## for Sleep or a weakening, Will for fear, DX for a slip. Empty means
+## it always lands: a buff, fire, or a rule status like Downed. Rolled
+## only when it comes from something hostile or from nothing at all (a
+## surface); an ally's status is never resisted. See
+## UnitCombat.resists.
+@export var resisted_by: StringName = &""
+## Added to the resistance roll; negative makes it harder to shrug off.
+@export var resistance_modifier: int = 0
 
 @export_group("Apply FX")
 ## Optional VFX/SFX played the instant this status is first applied (not
@@ -89,10 +123,18 @@ enum StackMode {
 @export var remove_sfx: SfxCue
 
 
+func _validate_property(property: Dictionary) -> void:
+	if property.name == "resisted_by":
+		StatDatabase.suggest_ids(property)
+
+
 func describe() -> String:
 	var lines: PackedStringArray = [status_name]
 	for behavior in behaviors:
 		var d: String = behavior.describe()
 		if d != "":
 			lines.append(d)
+	if resisted_by != &"":
+		var modifier: String = "" if resistance_modifier == 0 else " %+d" % resistance_modifier
+		lines.append("Resisted by %s%s" % [resisted_by, modifier])
 	return "\n".join(lines)

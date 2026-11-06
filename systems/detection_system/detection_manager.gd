@@ -220,7 +220,7 @@ func _attempt_sight(observer: Unit, subject: Unit) -> bool:
 	if not LineOfSight.has_clear_shot(observer, subject, OBSTRUCTION_MASK, EYE_HEIGHT):
 		return false
 
-	var target_number: int = observer.perception
+	var target_number: int = floori(observer.get_stat(StatIds.PER))
 	target_number -= roundi(distance * DISTANCE_PENALTY_PER_METRE)
 	target_number -= _stealth_of(subject)
 	target_number += obscurity_at(subject.global_position)

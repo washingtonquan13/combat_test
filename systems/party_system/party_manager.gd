@@ -26,12 +26,21 @@ extends Node
 ## bridge between the two, and are what make WorldManager's replace-only
 ## world loading possible without losing the party.
 
-const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
 const UNIT_SCENE: PackedScene = preload("res://systems/unit_system/unit.tscn")
 
 signal member_added(unit: Unit)
 signal member_removed(unit: Unit)
 signal leader_changed(unit: Unit)
+## Nobody in the party is left standing: every member is Downed or dead.
+## Checked after a member dies or goes Downed, a frame later, so a hit
+## that downs one member and the AoE that drops the next both land first.
+signal defeated()
+
+## The party's shared bag. Owned here rather than by PartyOverview's
+## Inventory widget, which only draws it (see Inventory.bind()), so the
+## items exist, save and load whether or not any screen is up. Saved as
+## its own [inventory] section, the same one the widget used to register.
+var inventory := ItemContainer.new(10, 13)
 
 ## Every group the party is currently divided into - see PartyGroup. One
 ## while the party is together, which is the ordinary case and the only
@@ -86,6 +95,11 @@ var roster: Array[PartyMemberData]:
 ## the old PendingCharacter autoload used to serve, just carrying a real
 ## PartyMemberData instead of a parallel set of loose ad hoc fields.
 var pending_leader: PartyMemberData = null
+
+## Members who died, captured at the moment of death and kept so they
+## can be revived later. Not in any group: they aren't travelling with
+## anyone.
+var fallen: Array[PartyMemberData] = []
 
 
 ## Silently refused (with a warning) for anything that isn't a core party
@@ -238,6 +252,7 @@ func add_member(unit: Unit, into: PartyGroup = null) -> void:
 		group.units.append(unit)
 	group.embodied = true
 	unit.died.connect(_on_member_died)
+	unit.downed_changed.connect(_on_member_downed_changed)
 	member_added.emit(unit)
 
 
@@ -256,6 +271,8 @@ func remove_member(unit: Unit) -> void:
 		group.units.erase(unit)
 	if unit.died.is_connected(_on_member_died):
 		unit.died.disconnect(_on_member_died)
+	if unit.downed_changed.is_connected(_on_member_downed_changed):
+		unit.downed_changed.disconnect(_on_member_downed_changed)
 	if leader == unit:
 		leader = null
 		leader_changed.emit(null)
@@ -263,11 +280,156 @@ func remove_member(unit: Unit) -> void:
 
 
 func _on_member_died(unit: Unit) -> void:
+	fallen.append(_capture_one(unit))
 	remove_member(unit)
+	_check_defeat.call_deferred()
+
+
+func _on_member_downed_changed(unit: Unit) -> void:
+	if unit.is_downed():
+		_check_defeat.call_deferred()
+
+
+## Whether nobody in the party is standing. A group off in another area
+## (not embodied) is out of harm's way, so it still counts as standing.
+## The party's summoned demons do not: losing is about the party itself.
+func is_defeated() -> bool:
+	for group in groups:
+		if not group.embodied:
+			if not group.records.is_empty():
+				return false
+			continue
+		for unit in group.units:
+			if is_instance_valid(unit) and unit.is_alive() and not unit.is_downed():
+				return false
+	return true
+
+
+func _check_defeat() -> void:
+	if is_defeated():
+		defeated.emit()
 
 
 func is_member(unit: Unit) -> bool:
 	return unit in members
+
+
+# --- Chain (follow the leader) ---------------------------------------
+#
+# BG3-style chaining: out of combat, moving some of the party drags the
+# rest of it along behind whoever was moved. FormationPlanner asks
+# chain_followers() which members should come and gives each a ring slot
+# around the destination; this file owns who is chained and stops the
+# walkers if a fight breaks out on the way.
+
+## How far from the moved unit a member can be and still be pulled along.
+## Same-world is the hard rule (see chain_followers); this keeps a member
+## parked across a big map from setting off on a long walk because
+## somebody else took three steps.
+const CHAIN_MAX_DISTANCE: float = 40.0
+
+## Members deliberately left behind, by persistent_id so the choice
+## survives the unit being relocated or respawned in another world.
+## Chained is the default, so only the exceptions are stored. Not saved:
+## a reload brings everyone back on the chain.
+var _unchained: Dictionary = {}
+
+## Units currently walking because the chain moved them, so a fight
+## starting can stop them rather than let them stroll into it.
+var _chain_walkers: Array[Unit] = []
+
+
+## Leave a member behind (false) or put it back on the chain (true).
+func set_chained(unit: Unit, chained: bool) -> void:
+	if unit == null:
+		return
+	if unit.persistent_id == &"":
+		unit.persistent_id = Unit.generate_persistent_id()
+	if chained:
+		_unchained.erase(unit.persistent_id)
+	else:
+		_unchained[unit.persistent_id] = true
+
+
+func is_chained(unit: Unit) -> bool:
+	if unit == null:
+		return false
+	return unit.persistent_id == &"" or not _unchained.has(unit.persistent_id)
+
+
+## The party members who should follow `mover` when the player moves
+## `moved` (which includes mover), in roster order so their ring slots
+## are deterministic.
+##
+## Empty when mover is not a party member or is in combat: chaining is a
+## free-roam comfort, and a combat move is one unit on its own turn.
+## Followers must be in the same world (World3D) as mover and within
+## CHAIN_MAX_DISTANCE, out of combat, alive and standing, chained, and
+## free to take an order — can_be_commanded(), which lets a member that
+## is still WALKING (very likely from the previous chain move) be
+## re-targeted, but not one mid-ability.
+func chain_followers(mover: Unit, moved: Array[Unit]) -> Array[Unit]:
+	var out: Array[Unit] = []
+	if not is_instance_valid(mover) or not mover.is_inside_tree():
+		return out
+	if not is_member(mover) or mover.in_combat():
+		return out
+	var world: World3D = mover.get_world_3d()
+	var group: PartyGroup = group_of(mover)
+	for unit in members:
+		if unit in moved:
+			continue
+		# Only mover's own group: a split-off group is somewhere else by
+		# definition, even if it happens to share a world.
+		if group and not group.has_unit(unit):
+			continue
+		if not unit.is_inside_tree() or unit.get_world_3d() != world:
+			continue
+		if not unit.is_alive() or unit.is_downed() or unit.in_combat():
+			continue
+		if not is_chained(unit) or not unit.can_be_commanded():
+			continue
+		if unit.distance_to(mover) > CHAIN_MAX_DISTANCE:
+			continue
+		out.append(unit)
+	return out
+
+
+## Called by FormationPlanner after it has ordered the chain's walkers.
+func note_chain_walkers(walkers: Array[Unit]) -> void:
+	_chain_walkers = _chain_walkers.filter(func(u): return is_instance_valid(u))
+	for unit in walkers:
+		if not _chain_walkers.has(unit):
+			_chain_walkers.append(unit)
+
+
+## A fight starting near the chain stops the walkers who were only coming
+## along. Anyone the fight pulled in is the encounter's now and is left
+## alone; anyone it did not is halted where they stand instead of walking
+## on to a destination that is now a battlefield. Only walkers in a world
+## where a player unit just entered combat are stopped, so a fight
+## elsewhere does not freeze a chain walking here.
+func _on_party_entered_combat(unit: Unit) -> void:
+	if not is_instance_valid(unit) or not unit.is_player_controlled() or not unit.is_inside_tree():
+		return
+	var world: World3D = unit.get_world_3d()
+	var still: Array[Unit] = []
+	for walker in _chain_walkers:
+		if not is_instance_valid(walker):
+			continue
+		if walker.is_inside_tree() and walker.get_world_3d() == world:
+			if not walker.in_combat() and walker.is_moving():
+				walker.force_stop_movement()
+			continue
+		still.append(walker)
+	_chain_walkers = still
+
+
+func _on_combat_started_for_chain(turn_order: Array[Unit]) -> void:
+	for unit in turn_order:
+		if is_instance_valid(unit) and unit.is_player_controlled():
+			_on_party_entered_combat(unit)
+			return
 
 
 ## Must already be a member — leader is a role WITHIN the roster, not an
@@ -366,23 +528,13 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	data.display_name = unit.display_name
 	data.portrait_texture = unit.portrait_texture
 	data.faction = unit.faction
-	data.strength = unit.strength
-	data.dexterity = unit.dexterity
-	data.intelligence = unit.intelligence
-	data.health = unit.health
-	data.will = unit.will
-	data.perception = unit.perception
-	data.move = unit.move
+	data.stats = unit.stats_to_dict()
 	data.move_speed = unit.move_speed
-	data.maximum_hp = unit.maximum_hp
-	data.current_hp = unit.current_hp
-	data.maximum_fp = unit.maximum_fp
-	data.current_fp = unit.current_fp
-	data.damage_reduction = unit.damage_reduction
 	data.alignment = unit.alignment
 	data.tendency = unit.tendency
 	data.abilities = unit.abilities.duplicate()
 	data.custom_slots = unit.custom_slots.duplicate()
+	data.active_weapon_set = unit.active_weapon_set
 	data.is_leader = is_leader(unit)
 	data.selected_color = unit.selected_color
 	data.hover_color = unit.hover_color
@@ -394,9 +546,9 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 		data.skills.append(record)
 
 	for slot in unit.get_equipped_slots():
-		var item: Item = unit.get_equipped_item(slot)
+		var item: ItemInstance = unit.get_equipped_item(slot)
 		if item and item.gear_data:
-			data.equipment[slot] = item.gear_data
+			data.equipment[slot] = item.copy()
 
 	return data
 
@@ -412,10 +564,50 @@ func clear_members() -> void:
 	for unit in members:
 		if is_instance_valid(unit) and unit.died.is_connected(_on_member_died):
 			unit.died.disconnect(_on_member_died)
+		if is_instance_valid(unit) and unit.downed_changed.is_connected(_on_member_downed_changed):
+			unit.downed_changed.disconnect(_on_member_downed_changed)
 	for group in groups:
 		group.units.clear()
 		group.embodied = false
 	leader = null
+
+
+## Registered from HERE rather than named by SaveManager: adding a system
+## that persists should never be an edit to the save system again, and a
+## hand-maintained list somewhere else is a second place to remember
+## something.
+##
+## DEFERRED because this autoload is created BEFORE SaveManager (see
+## project.godot's [autoload] order) — the `SaveManager` identifier cannot
+## be resolved yet while this _ready() runs. A deferred call lands once
+## every autoload is up, which is still long before anything can ask for a
+## save.
+func _ready() -> void:
+	_register_persistence.call_deferred()
+	# CombatManager sits earlier in [autoload], so it is resolvable here.
+	CombatManager.combat_started.connect(_on_combat_started_for_chain)
+	CombatManager.unit_joined_combat.connect(_on_party_entered_combat)
+
+
+## Torn down explicitly: both autoloads outlive most things but not each
+## other at quit, and a connection left on CombatManager would call into
+## a freed PartyManager.
+func _exit_tree() -> void:
+	if CombatManager.combat_started.is_connected(_on_combat_started_for_chain):
+		CombatManager.combat_started.disconnect(_on_combat_started_for_chain)
+	if CombatManager.unit_joined_combat.is_connected(_on_party_entered_combat):
+		CombatManager.unit_joined_combat.disconnect(_on_party_entered_combat)
+
+
+## No `after`: load_state() below rebuilds groups and records straight out
+## of the save's own dictionary, resolving names through
+## SpawnableUnitDatabase/AbilityDatabase/SkillDatabase/ItemDatabase —
+## resource databases, not saved systems. Nothing FlagManager,
+## DemonRoster or CurrencyManager restore is read
+## from here.
+func _register_persistence() -> void:
+	SaveManager.register(&"party", self)
+	SaveManager.register(&"inventory", inventory)
 
 
 ## --- Save/load ---
@@ -462,6 +654,7 @@ func save_state() -> Dictionary:
 		"groups": group_entries,
 		"active": maxi(0, groups.find(active_group)),
 		"members": flat,
+		"fallen": fallen.map(_save_one),
 	}
 
 
@@ -491,8 +684,8 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 	# no need to stringify the key the way JSON would have forced.
 	var equipment: Dictionary = {}
 	for slot in record.equipment:
-		var gear: GearItem = record.equipment[slot]
-		equipment[slot] = gear.id
+		var item: ItemInstance = record.equipment[slot]
+		equipment[slot] = item.to_dict()
 
 	return {
 		"definition_id": record.definition.id if record.definition else "",
@@ -508,23 +701,13 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 		"faction": record.faction,
 		"selected_color": record.selected_color,
 		"hover_color": record.hover_color,
-		"strength": record.strength,
-		"dexterity": record.dexterity,
-		"intelligence": record.intelligence,
-		"health": record.health,
-		"will": record.will,
-		"perception": record.perception,
-		"move": record.move,
+		"stats": record.stats,
 		"move_speed": record.move_speed,
-		"maximum_hp": record.maximum_hp,
-		"current_hp": record.current_hp,
-		"maximum_fp": record.maximum_fp,
-		"current_fp": record.current_fp,
-		"damage_reduction": record.damage_reduction,
 		"alignment": record.alignment,
 		"tendency": record.tendency,
 		"abilities": abilities,
 		"custom_slots": custom_slots,
+		"active_weapon_set": record.active_weapon_set,
 		"skills": skills,
 		"equipment": equipment,
 	}
@@ -538,6 +721,9 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 func load_state(state: Dictionary) -> void:
 	groups.clear()
 	active_group = null
+	fallen.clear()
+	for entry in state.get("fallen", []):
+		fallen.append(_load_one(entry))
 
 	var entries: Array = state.get("groups", [])
 	if entries.is_empty():
@@ -589,19 +775,8 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 	record.faction = entry.get("faction", &"player")
 	record.selected_color = entry.get("selected_color", record.selected_color)
 	record.hover_color = entry.get("hover_color", record.hover_color)
-	record.strength = entry.get("strength", record.strength)
-	record.dexterity = entry.get("dexterity", record.dexterity)
-	record.intelligence = entry.get("intelligence", record.intelligence)
-	record.health = entry.get("health", record.health)
-	record.will = entry.get("will", record.will)
-	record.perception = entry.get("perception", record.perception)
-	record.move = entry.get("move", record.move)
+	record.stats = entry.get("stats", {})
 	record.move_speed = entry.get("move_speed", record.move_speed)
-	record.maximum_hp = entry.get("maximum_hp", record.maximum_hp)
-	record.current_hp = entry.get("current_hp", record.current_hp)
-	record.maximum_fp = entry.get("maximum_fp", record.maximum_fp)
-	record.current_fp = entry.get("current_fp", record.current_fp)
-	record.damage_reduction = entry.get("damage_reduction", record.damage_reduction)
 	record.alignment = entry.get("alignment", record.alignment)
 	record.tendency = entry.get("tendency", record.tendency)
 
@@ -630,6 +805,9 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 			push_warning("PartyManager.load_state: unknown ability '%s'" % ability_name)
 			record.custom_slots.append(null)
 
+	# Absent from a save written before weapon sets: set I, the default.
+	record.active_weapon_set = clampi(int(entry.get("active_weapon_set", AttackRow.Kind.MELEE)), 0, 1) as AttackRow.Kind
+
 	for skill_entry in entry.get("skills", []):
 		var skill: Skill = SkillDatabase.find(skill_entry.get("skill_name", ""))
 		if not skill:
@@ -640,9 +818,10 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 		record.skills.append(skill_record)
 
 	for slot in entry.get("equipment", {}):
-		var gear: GearItem = ItemDatabase.find(entry["equipment"][slot]) as GearItem
-		if gear:
-			record.equipment[slot] = gear
+		# A bare id is a save from before per-copy item state.
+		var item: ItemInstance = ItemInstance.from_dict(entry["equipment"][slot])
+		if item and item.gear_data:
+			record.equipment[slot] = item
 
 	return record
 
@@ -654,7 +833,7 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 ## first, when present, fires Unit's own cascading setter before every
 ## recorded field is written on top of it — the same cascade-then-
 ## override order Unit.definition's own setter documents, so anything
-## individually progressed (current_hp after damage, a trained skill)
+## individually progressed (HP after damage, a trained skill)
 ## always wins over the species baseline it started from.
 func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> Unit:
 	var scene: PackedScene = UNIT_SCENE
@@ -688,23 +867,15 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	unit.display_name = record.display_name
 	unit.portrait_texture = record.portrait_texture
 	unit.faction = record.faction
-	unit.strength = record.strength
-	unit.dexterity = record.dexterity
-	unit.intelligence = record.intelligence
-	unit.health = record.health
-	unit.will = record.will
-	unit.perception = record.perception
-	unit.move = record.move
+	# One dict, every stat — a stat added to res://data/stats/ travels
+	# with the record without anyone listing it here.
+	unit.stats_from_dict(record.stats)
 	unit.move_speed = record.move_speed
-	unit.maximum_hp = record.maximum_hp
-	unit.current_hp = record.current_hp
-	unit.maximum_fp = record.maximum_fp
-	unit.current_fp = record.current_fp
-	unit.damage_reduction = record.damage_reduction
 	unit.alignment = record.alignment
 	unit.tendency = record.tendency
-	unit.abilities = record.abilities.duplicate()
-	unit.custom_slots = record.custom_slots.duplicate()
+	unit.set_abilities(record.abilities.duplicate())
+	unit.set_custom_slots(record.custom_slots.duplicate())
+	unit.set_active_weapon_set(record.active_weapon_set, false)
 	unit.selected_color = record.selected_color
 	unit.hover_color = record.hover_color
 
@@ -716,9 +887,7 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 		unit.add_skill(instance)
 
 	for slot in record.equipment:
-		var item: Item = ITEM_SCENE.instantiate()
-		item.definition = record.equipment[slot]
-		unit.equip_item(slot, item)
+		unit.equip_item(slot, record.equipment[slot].copy())
 
 	return unit
 
@@ -841,15 +1010,10 @@ func place_at_landing(unit: Unit, spawn_point: Node3D, follower_index: int, foll
 		target += FormationPlanner.ring_offset(
 			follower_index, follower_count, unit.formation_spread_radius)
 
-	# Refreshed HERE, per unit, because the answer changes with every
-	# placement in this loop and because worlds now outlive the player:
-	# whoever arrived last is very likely still standing on the marker,
-	# and before residency there was never anybody there to stand on it.
-	# The unit being placed is passed as the mover so it does not block
-	# its own landing cell, and so the query resolves the DESTINATION's
-	# grid rather than whichever world was last active.
-	var movers: Array = [unit]
-	NavigationGrid.update_occupancy(get_tree(), movers, unit)
+	# Occupancy is checked live on every query, so each placement in this
+	# loop sees the ones before it, and whoever arrived last (worlds
+	# outlive the player) still standing on the marker. The query excludes
+	# the unit itself and resolves the DESTINATION's grid through it.
 	var clearance: float = unit.radius + unit.avoidance_margin
 	# The LEADER goes through this too, which it did not before. Landing it
 	# on the marker unconditionally was fine while a world was rebuilt on

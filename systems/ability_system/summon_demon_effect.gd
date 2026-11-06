@@ -14,7 +14,7 @@ extends AbilityEffect
 ## per pick from the roster popup instead of one .tres existing per
 ## demon (see that file's own header for the full popup flow).
 ##
-## Initializes the summoned Unit's current_hp/current_fp from
+## Initializes the summoned Unit's HP/FP pools from
 ## owned_demon's OWN current values, not full health — a demon that
 ## came into the roster damaged (from a prior Dismiss, or eventually a
 ## rough negotiation) stays damaged until something actively heals it;
@@ -29,6 +29,9 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	if not DemonRoster.is_owned(owned_demon):
 		# Defensive only — the roster entry could theoretically have been
 		# consumed by fusion between the picker opening and this resolving.
+		return {}
+	if owned_demon.is_dead:
+		SystemLog.print("%s is dead." % owned_demon.species.display_name)
 		return {}
 	if DemonRoster.is_fielded(owned_demon):
 		# The authoritative check, not just the picker's filtering below —
@@ -54,15 +57,14 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	var summon: Unit = owned_demon.species.unit_scene.instantiate()
 	# The cascade off .definition carries display_name/portrait_texture/
 	# the full stat block/abilities/ai_behaviors onto the summon in one
-	# line (see Unit.definition's setter) — faction/current_hp/current_fp
+	# line (see Unit.definition's setter) — faction and the HP/FP pools
 	# still need an explicit override afterward: a recruited demon fights
 	# for whoever fielded it, not its species' default faction, and a
 	# damaged demon shouldn't be free-healed back to full just by being
 	# re-summoned (see owned_demon.gd's own header).
 	summon.definition = owned_demon.species
 	summon.faction = attacker.faction
-	summon.current_hp = owned_demon.current_hp
-	summon.current_fp = owned_demon.current_fp
+	summon.stats_from_dict(owned_demon.stats)
 	# Ties this summon's lifetime to attacker's — see UnitDeath.handle_death,
 	# which expires everything it summoned the moment it dies. Same
 	# convention SummonEffect already uses for its own summons.

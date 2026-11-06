@@ -28,9 +28,9 @@ extends Resource
 ## classic Megaten fusion charts use in place of a level system this
 ## project doesn't have.
 ##
-## max_hp/max_fp are authored here explicitly rather than read off
-## unit_scene at runtime, so OwnedDemon never needs to instantiate a
-## scene just to know a fresh recruit's starting stats.
+## Stats are authored here (`stats`) rather than read off unit_scene
+## at runtime, so OwnedDemon and the compendium never need to instantiate
+## a scene just to know a species' numbers — see stat_value().
 ##
 ## Every field below that Unit also carries defaults to EXACTLY the same
 ## value Unit's own script declares — see Unit.definition's setter. That
@@ -40,13 +40,12 @@ extends Resource
 @export var id: String = ""
 @export var display_name: String = ""
 
-@export var strength: int = 10
-@export var dexterity: int = 10
-@export var intelligence: int = 10
-@export var health: int = 10
-@export var move: int = 5
-@export var will: int = 10
-@export var perception: int = 10
+## Stat bases this species differs from the defaults by — StatDefinition
+## id -> base (a primary's value, a derived stat's bought bonus over its
+## formula). Only the differences: a stat left out takes its file's
+## default_value, so a new stat added to res://data/stats/ needs no edit
+## here, and a species reads as what makes it unusual.
+@export var stats: Dictionary[StringName, int] = {}
 
 ## Senses — cascade onto Unit exactly like every other stat here, so a
 ## blind burrower and a hawk are the same detection code at different
@@ -55,10 +54,8 @@ extends Resource
 @export var vision_cone_degrees: float = 120.0
 @export var max_sight_range: float = 18.0
 @export var proximity_radius: float = 2.5
+@export var dark_vision: bool = false
 
-@export var max_hp: int = 10
-@export var max_fp: int = 0
-@export var damage_reduction: int = 0
 
 @export var faction: StringName = &"player"
 
@@ -97,6 +94,29 @@ extends Resource
 ## bodies. See CharacterModel.
 @export var model_scene: PackedScene
 @export var abilities: Array[Ability] = []
+## Attacks this species' body makes — claws, teeth, horns (data/attacks/).
+## Each is a row like a weapon's (see AttackRow) and shows up as its own
+## attack beside any weapon the unit holds. Empty means it punches when
+## it has no weapon.
+@export var natural_attacks: Array[AttackRow] = []
+## What this species carries, by slot (EquipSlot.Slot): each is equipped
+## as a fresh ItemInstance when the unit is ready, so a goblin spawns with
+## its sword in hand and its attacks come from the weapon's rows. Empty
+## means it fights with natural_attacks (or punches).
+@export var equipment: Dictionary[EquipSlot.Slot, ItemDefinition] = {}
+## How this species takes injury (B379-380, B398-399): its hit locations
+## and what each wound type does there. Unset is the human plan.
+@export var body_plan: BodyPlan
+## Injury Tolerance tier on top of the plan (Unliving, Homogeneous,
+## Diffuse); unset is none. See InjuryProfile.
+@export var injury_preset: InjuryPreset
+## Locations this body lacks on its own, whatever the preset (No Vitals,
+## No Brain): a hit there resolves as the torso.
+@export var missing_locations: Array[HitLocation] = []
+## Injury Tolerance (Damage Reduction, Powers 52): injury is divided by
+## this after the multiplier and the cap, rounded down, at least 1. For
+## a creature tougher than others of its kind, whatever its preset.
+@export_range(1.0, 10.0, 0.5) var injury_divisor: float = 1.0
 ## This species' tactical role — see AiArchetype. Supplies the behaviors
 ## and smartness tier, so a species normally sets this and nothing else
 ## AI-related.
@@ -113,13 +133,22 @@ extends Resource
 ## behaves identically whether or not this line exists in its .tres.
 @export var ai_smartness: int = 2
 
+@export_group("Loot")
+## Item level of what it leaves behind when killed. Separate from rank,
+## which only orders a species within its order for fusion.
+@export var level: int = 1
+## Rolls for its remains, each kept on drop_chance. Party members and
+## owned demons never drop anything (Remains.drop_for).
+@export var max_drops: int = 2
+@export_range(0.0, 1.0) var drop_chance: float = 0.5
+
 ## Whether this species is negotiable BY DEFAULT — cascades onto
 ## Unit.negotiable (see that field), still overridable per-instance for
 ## a specific encounter that wants an exception either way. A species
 ## with no real negotiation content authored (negotiation_options empty)
-## being left negotiable=true is harmless — NegotiationManager's own
-## guard already requires resolve_negotiation_root() to return something
-## before a conversation can start.
+## being left negotiable=true is harmless — Conversations.begin refuses a
+## conversation with no root, so resolve_negotiation_root() has to return
+## something before a negotiation can start.
 @export_group("Character")
 ## Law/Chaos and the neutral tendency behind it — read by the alignment
 ## grid, by AlignmentPrerequisite, and by the overworld avatar, whose whole
@@ -133,8 +162,8 @@ extends Resource
 ## Defaults match Unit's own, so a definition that says nothing about them
 ## changes nothing. hover_color is deliberately absent: unit.tscn overrides
 ## it scene-wide, so a definition default would have to duplicate that
-## value to avoid re-tinting every unit in the game — the same trap max_fp
-## sets, and not worth walking into for a field nothing authors per
+## value to avoid re-tinting every unit in the game — the trap every
+## hand-mirrored default sets, and not worth walking into for a field nothing authors per
 ## character.
 @export var selected_color: Color = Color(1, 0.85, 0.2, 0.9)
 ## Conversations this character offers. Empty for anything that cannot be
@@ -167,10 +196,11 @@ extends Resource
 
 ## First negotiation_options entry whose prerequisite is satisfied (or
 ## has none), null if nothing currently applies — see
-## Unit.resolve_dialogue_root(), the pattern this mirrors exactly.
-func resolve_negotiation_root(actor: Unit) -> DialogueNode:
+## Unit.resolve_dialogue_root(), the pattern this mirrors exactly,
+## including being asked in the conversation the root is for.
+func resolve_negotiation_root(c: Conversation) -> DialogueNode:
 	for option in negotiation_options:
-		if not option.prerequisite or option.prerequisite.is_satisfied(actor):
+		if not option.prerequisite or option.prerequisite.is_satisfied_in(c):
 			return option.root
 	return null
 
@@ -204,3 +234,16 @@ func resolved_ai_smartness() -> int:
 	if ai_archetype and ai_smartness == 2:
 		return ai_archetype.smartness
 	return ai_smartness
+
+
+## A stat's value for this species with nothing applied — what the
+## compendium and roster show, and a fresh recruit's pool maximums.
+func stat_value(id: StringName) -> float:
+	return StatDatabase.value_of(id, _base_of, func(_id: StringName) -> int: return 0)
+
+
+func _base_of(id: StringName) -> int:
+	if stats.has(id):
+		return stats[id]
+	var definition := StatDatabase.find(id)
+	return definition.default_value if definition else 0

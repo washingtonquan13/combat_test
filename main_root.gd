@@ -14,10 +14,10 @@ extends Node
 ## CanvasLayer above whatever world happens to be loaded, and needs no
 ## changes to accommodate one. There's no backdrop art today.
 ##
-## MusicManager.start_exploration_theme() is not called here — the title
-## screen plays its own track (see main_menu.gd). The exploration theme
-## instead starts from MusicManager's own world_loaded handler, which fires
-## for every real world load (see WorldManager.load_world()).
+## Music is not started here — the title screen plays its own piece (see
+## main_menu.gd), and an area's music starts from MusicManager's own
+## world_loaded handler, which fires for every real world load (see
+## WorldManager.load_world()).
 
 func _ready() -> void:
 	WorldManager.register_scene_root($SceneRoot)
@@ -39,13 +39,43 @@ func _ready() -> void:
 	# mouse event at all. It draws over the 3D and under the HUD there,
 	# which is where a selection box belongs anyway.
 	var attention: Array[Node] = [
-		$Indicators, $GroundClickTarget, $DialogueCameraRig, $CanvasLayer/DragSelectBox,
+		$Indicators, $GroundClickTarget, $CinematicCamera, $CanvasLayer/DragSelectBox,
 	]
 	WorldManager.register_attention_nodes(attention)
+	# Heads turn toward whoever is speaking. Created here rather than
+	# authored into MainRoot.tscn because it renders nothing and owns no
+	# transform — it only reads the live conversation and sets a bone
+	# modifier's influence, so a scene node would buy visibility in the
+	# editor and nothing else. Move it into the scene if that visibility
+	# ever turns out to be worth having.
+	add_child(DialogueGaze.new())
+	# Frames the speaker, by asking the cinematic director like any other
+	# caller. Created here for the same reason as DialogueGaze: it renders
+	# nothing and owns no transform. The CAMERA it drives is a real node
+	# above, because that one does have a transform and has to ride into
+	# whichever viewport is being looked at.
+	add_child(DialogueStaging.new())
+
 	# The TACTICAL HUD subtree, not the CanvasLayer — see
 	# UIStack.register_hud()'s own header for why that distinction is
 	# load-bearing rather than cosmetic.
 	UIStack.register_hud($CanvasLayer/TacticalUI)
+	# PartyRail is a SIBLING of TacticalUI (see MainRoot.tscn), a bare
+	# full-rect wrapper around PartyPanel — registered, not PartyPanel
+	# itself, so its own visibility rule (UIScreen.keeps_party_visible)
+	# can differ from the rest of the HUD's WITHOUT fighting PartyPanel's
+	# own visible flag, which party_panel.gd already drives independently
+	# (hidden when the party is empty) — see UIStack.register_party_rail()
+	# and PartyPanel's own header for why a bare wrapper, not PartyPanel
+	# directly, is what gets registered here.
+	UIStack.register_party_rail($CanvasLayer/PartyRail)
+
+	# The cutscene letterbox/subtitle screen, on its own CanvasLayer above
+	# the HUD's. Handed to the director the way the cinematic camera is, so
+	# the director never needs to know MainRoot's layout. It is a UIScreen
+	# with hides_hud set, so the HUD goes down through UIStack's own rule
+	# while a scene is on screen — see CinematicOverlay's header.
+	CinematicDirector.register_overlay($CinematicLayer/CinematicOverlay)
 
 	# No mode to set. With no world loaded and character creation not open,
 	# GameMode already answers MAIN_MENU — that is its floor, and booting

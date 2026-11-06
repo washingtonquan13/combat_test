@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=30 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=38 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -18,7 +18,6 @@
 [ext_resource type="Resource" path="res://data/abilities/cure.tres" id="a10"]
 [ext_resource type="Resource" path="res://data/abilities/summon_spirit.tres" id="a11"]
 [ext_resource type="Resource" path="res://data/abilities/fly.tres" id="a12"]
-[ext_resource type="Resource" path="res://data/abilities/land.tres" id="a13"]
 [ext_resource type="Resource" path="res://data/abilities/magic_missile.tres" id="a14"]
 [ext_resource type="Resource" path="res://data/abilities/summon_demon_template.tres" id="a15"]
 [ext_resource type="Resource" path="res://data/abilities/dismiss_summon.tres" id="a16"]
@@ -26,6 +25,17 @@
 [ext_resource type="Resource" path="res://data/skills/arcana.tres" id="sk0"]
 [ext_resource type="Resource" path="res://data/skills/acrobatics.tres" id="sk1"]
 [ext_resource type="Resource" path="res://data/skills/insight.tres" id="sk2"]
+[ext_resource type="Resource" path="res://data/abilities/fog_cloud.tres" id="a17_fog"]
+[ext_resource type="Resource" path="res://data/abilities/darkness.tres" id="a18_dark"]
+[ext_resource type="Resource" path="res://data/abilities/wall_of_fire.tres" id="a19_wall"]
+[ext_resource type="Resource" path="res://data/abilities/enlarge_person.tres" id="a20_enlarge"]
+[ext_resource type="Resource" path="res://data/abilities/reduce_person.tres" id="a21_reduce"]
+[ext_resource type="Resource" path="res://data/abilities/frost_breath.tres" id="a22_frost"]
+[ext_resource type="Resource" path="res://data/abilities/lightning_breath.tres" id="a23_lightning"]
+[ext_resource type="Resource" path="res://data/abilities/web.tres" id="a24_web"]
+[ext_resource type="Resource" path="res://data/abilities/create_water.tres" id="a25_water"]
+[ext_resource type="Resource" path="res://data/abilities/fire_bolt.tres" id="a26_firebolt"]
+[ext_resource type="Resource" path="res://data/abilities/ray_of_frost.tres" id="a27_frost_ray"]
 
 [sub_resource type="Resource" id="rec0"]
 script = ExtResource("rec")
@@ -46,15 +56,12 @@ levels_purchased = 7
 script = ExtResource("1_def")
 id = "tiefling_wizard"
 display_name = "Tiefling Wizard"
-dexterity = 18
-intelligence = 16
-move = 24
-max_fp = 10
+stats = Dictionary[StringName, int]({&"DX": 18, &"IQ": 16})
 faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
-abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a13"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16")])
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark"), ExtResource("a19_wall"), ExtResource("a20_enlarge"), ExtResource("a21_reduce"), ExtResource("a22_frost"), ExtResource("a23_lightning"), ExtResource("a24_web"), ExtResource("a25_water"), ExtResource("a26_firebolt"), ExtResource("a27_frost_ray")])
 
 alignment = -100
 tendency = 100

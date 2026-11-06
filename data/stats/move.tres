@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"Move"
+display_name = "Move"
+abbreviation = "Move"
+description = "Basic Move: Basic Speed with the fraction dropped, in meters a turn."
+order = 80
+kind = 1
+formula = "floori(BasicSpeed)"
+default_value = 0

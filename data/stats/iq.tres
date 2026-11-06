@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+[ext_resource type="Resource" path="res://data/character_creation/attribute_costs.tres" id="2_costs"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"IQ"
+display_name = "Intelligence"
+abbreviation = "IQ"
+description = "Brainpower and awareness. Sets Will and Perception."
+order = 20
+kind = 0
+default_value = 10
+point_buy = ExtResource("2_costs")

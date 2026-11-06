@@ -65,10 +65,25 @@ func _on_body_exited(body: Node3D) -> void:
 ## Called by interact_prompt.gd when this door is the current candidate
 ## and the player presses interact — duck-typed the same way
 ## get_interactions()/get_spawn_point() are.
+## The avatar standing here shrinks down into the door first (see
+## OverworldAvatar.enter), and the trip starts once it has gone.
 func activate() -> void:
 	var exit: AreaExit = AreaExit.find_on(self)
-	if exit:
+	if not exit:
+		return
+	var avatar := _entering_avatar()
+	# A door to nowhere (load_area warns) leaves the avatar standing.
+	if avatar and AreaDatabase.find(exit.target_area):
+		avatar.enter(global_position, exit.travel)
+	else:
 		exit.travel()
+
+
+func _entering_avatar() -> OverworldAvatar:
+	for body in get_overlapping_bodies():
+		if body is OverworldAvatar and (body as OverworldAvatar).active:
+			return body
+	return null
 
 
 ## "Enter <area display_name>" when resolvable, bare "Enter" otherwise —

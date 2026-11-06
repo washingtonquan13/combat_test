@@ -33,7 +33,10 @@ extends Node
 ##   the overworld — one controllable avatar, not four tactical Units —
 ##   returns false; PartyManager.roster survives untouched either way,
 ##   only whether it gets projected into live Units for THIS world varies.
-## - get_spawn_point(name: StringName) -> Node3D, same as it's always been.
+## - get_spawn_point(name: StringName) -> Node3D — no longer duck-typed:
+##   it is called through the GameArea base class (see _resolve_spawn_point),
+##   because every world with gameplay of its own extends GameArea.
+##   Only the two above are still discovered with has_method().
 ##
 ## Does NOT touch SceneTree.current_scene — see MainRoot.tscn's own note
 ## for why that's a hard, unavoidable Godot constraint (current_scene can
@@ -169,6 +172,15 @@ var _attention_homes: Dictionary = {}
 ## resolution (explicit request > derived back-link > world's own
 ## "default" fallback) that produced it.
 var _pending_spawn_point_name: StringName = &"default"
+
+## Seconds the screen takes to go black before a load, and to come back
+## after it.
+const TRAVEL_FADE := 0.4
+## Frames the new world runs behind the black before it is shown: the first
+## frames after a load still hitch (first draws).
+const TRAVEL_SETTLE_FRAMES := 3
+## True from the start of behind_black() to the end of its fade-in.
+var _journeying := false
 
 
 ## Called once by MainRoot's own script. SceneRoot boots empty (see
@@ -758,11 +770,13 @@ func _enter_world(scene: PackedScene, spawn_point_name: StringName, area: AreaDe
 ## Uses the same walk as reconciliation, and the same duck-typed
 ## save_state()-on-the-node-or-a-child convention, so a component that
 ## already answers load_state() is captured too.
-func _capture_area_state(resident: ResidentWorld) -> void:
+func _capture_area_state(resident: ResidentWorld, skip_party: bool = false) -> void:
 	if resident == null or resident.area == null or not is_instance_valid(resident.world):
 		return
 
 	for node in _collect_persistent_nodes(resident.world):
+		if skip_party and node is Unit and PartyManager.is_member(node):
+			continue
 		var target: Node = node
 		if not target.has_method("save_state"):
 			for child in node.get_children():
@@ -771,6 +785,21 @@ func _capture_area_state(resident: ResidentWorld) -> void:
 					break
 		if target.has_method("save_state"):
 			AreaState.store_state(resident.area.id, node.persistent_id, target.save_state())
+
+
+## Records every resident world's persistent state in AreaState while it
+## stays loaded - what a save to disk needs. Teardown is otherwise the only
+## time a world is recorded, so a save taken while standing in an area
+## wrote that area as it was when last left: a box moved or an enemy
+## wounded here came back as authored on load.
+##
+## The party is left out: on teardown its members have already been taken
+## out of the world (_disembody), and they travel in PartyManager's own
+## records, not the area's.
+func record_area_states() -> void:
+	for resident in _residents.values():
+		if is_instance_valid(resident):
+			_capture_area_state(resident, true)
 
 
 ## Applies AreaState against a just-instantiated, not-yet-in-tree world —
@@ -843,8 +872,67 @@ func load_area(area_id: StringName, spawn_point_name: StringName = &"", travelle
 	return load_world(area.world_scene, spawn_point_name, area, travellers)
 
 
+## A journey through an exit, as the player sees it: the screen goes
+## black, the area loads behind the black, and the screen comes back (see behind_black()). Every journey the player starts
+## goes through here: an AreaExit, the new game leaving character
+## creation, a menu-room's way out. load_area() itself stays immediate,
+## for restores and tests.
+##
+## Any screen the journey was started from (character creation, a menu)
+## closes behind the black, not before it, so the player never sees a
+## hard cut to whatever was underneath.
+##
+## A trip the gate refuses is refused before anything fades. One that
+## becomes refused during the fade (a fight starts) uncovers again with
+## load_area()'s own warning.
+##
+## The gate is can_travel() alone, not AreaDatabase.find() too: the first
+## find() in a session loads every area's world scene (see AreaDatabase),
+## seconds of work that would land before the black, on screen. An unknown id is still caught, by load_area() behind the black.
+func travel_area(area_id: StringName, spawn_point_name: StringName = &"", travellers: Array[Unit] = []) -> void:
+	if not can_travel(_resolve_travellers(travellers)):
+		load_area(area_id, spawn_point_name, travellers)   # warns why
+		return
+	await behind_black(func() -> void:
+		var going: Array[Unit] = []
+		for unit in travellers:
+			if is_instance_valid(unit):
+				going.append(unit)
+		UIStack.close_all()
+		load_area(area_id, spawn_point_name, going))
+
+
+## Runs `work` on a black screen, and returns what it returned. For
+## anything that holds the game thread for seconds while the player is
+## watching: a journey, a save being opened, the way back to the title.
+##
+## The music is not touched here. It plays on the audio thread from a
+## timeline the conductor uploaded ahead (see SfzTimeline), so a stall of
+## any length neither holds a note nor delays one; what plays next is
+## MusicManager's decision, made from state when the new world is focused,
+## and is a musical transition like any other.
+##
+## So all the slow work goes inside `work`, never before the call: a
+## refusal decided up front is fine, but loading anything up front is the
+## stall this exists to hide. A second call while one is under way is
+## dropped and returns null: the first is already changing everything.
+func behind_black(work: Callable) -> Variant:
+	if _journeying:
+		return null
+	_journeying = true
+	var cover: Tween = ScreenFade.cover(TRAVEL_FADE)
+	if cover.is_running():
+		await cover.finished
+	var result: Variant = work.call()
+	for i in TRAVEL_SETTLE_FRAMES:
+		await get_tree().process_frame
+	ScreenFade.uncover(TRAVEL_FADE)
+	_journeying = false
+	return result
+
+
 ## The area behind the FOCUSED world, or null with nothing loaded. Read
-## by MusicManager to resolve per-area tracks; it and current_world()
+## by MusicManager to name the area's music; it and current_world()
 ## always describe the same world, because both now read the same record.
 func current_area() -> AreaDefinition:
 	return _focused.area if _focused else null
@@ -1084,8 +1172,8 @@ func is_area_resident(area_id: StringName) -> bool:
 
 
 ## Withdraws every currently-fielded demon through the same path a
-## voluntary Dismiss uses (see DismissEffect) — syncing current_hp/
-## current_fp back onto its OwnedDemon roster entry first, so a demon
+## voluntary Dismiss uses (see DismissEffect) — syncing its HP/FP
+## pools back onto its OwnedDemon roster entry first, so a demon
 ## standing in the world at the moment it unloads doesn't leave
 ## DemonRoster thinking it's still out. A summoned demon is never a
 ## PartyManager member (add_member() refuses anything with summoned_by
@@ -1100,22 +1188,24 @@ func _dismiss_fielded_demons(group: PartyGroup = null) -> void:
 		if group and not group.has_unit(unit.summoned_by if unit.summoned_by else unit):
 			continue
 		if unit.is_alive() and unit.owned_demon:
-			unit.owned_demon.current_hp = unit.current_hp
-			unit.owned_demon.current_fp = unit.current_fp
+			unit.owned_demon.capture_pools(unit)
 			unit.expire()
 
 
-## Duck-typed, same convention as get_tactical_camera(): a world that
-## cares about naming its own spawn points implements this; one that
-## doesn't (or is being loaded for the very first time, with nothing to
-## respawn) never needs it called at all. Falls back to the world's own
-## root as a last resort so a missing/misnamed spawn point degrades to
-## "everyone lands at the origin" instead of a hard error.
+## Every world that reaches here is a GameArea (get_spawn_point() is
+## defined there, not duck-typed like get_tactical_camera()/spawns_party()
+## below it — those still tolerate a non-GameArea world such as a future
+## backdrop-only scene; get_spawn_point() does not need to, since nothing
+## calls this on a world with no gameplay of its own). Falls back to the
+## world's own root as a last resort so a missing/misnamed spawn point
+## degrades to "everyone lands at the origin" instead of a hard error.
 func _resolve_spawn_point(world: Node, spawn_point_name: StringName) -> Node3D:
-	if world.has_method("get_spawn_point"):
+	if world is GameArea:
 		var point: Node3D = world.get_spawn_point(spawn_point_name)
 		if point:
 			return point
+	else:
+		push_warning("WorldManager: %s is not a GameArea, so it cannot name a spawn point." % world.name)
 	push_warning("WorldManager: %s has no spawn point '%s' — spawning at world origin." % [world.name, spawn_point_name])
 	return world
 

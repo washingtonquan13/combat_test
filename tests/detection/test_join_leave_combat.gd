@@ -4,11 +4,21 @@ extends AiTestCase
 ## Both are the same system as detection wearing different hats: joining is
 ## perceiving a fight you weren't in, leaving is nobody being able to
 ## perceive you any more.
+##
+## wants_world(): true. Joining goes through DetectionManager._react_to,
+## which gates on CombatManager.combat_running_in_world_of(observer) — with
+## no world loaded that reads the same default World3D every node in the
+## bare harness shares, so the check passed even if the per-world lookup
+## were broken. With the fixture loaded it is a real per-world query.
 
 
 const SWEEPS: int = 40
 
 var _saved_ai_factions: Array[StringName] = []
+
+
+func wants_world() -> bool:
+	return true
 
 
 func run() -> void:
@@ -44,17 +54,17 @@ func _reinforcement_joins() -> void:
 	nearby.snap_face_point(Vector3(0.0, 0.0, 60.0))
 
 	var roster: Array[Unit] = [fighter, player]
-	CombatManager.start_combat(roster)
+	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 	check("the reinforcement starts outside the fight",
-		not CombatManager.turn_order.has(nearby))
+		not fight.turn_order.has(nearby))
 
 	for i in SWEEPS:
 		DetectionManager.scan()
-		if CombatManager.turn_order.has(nearby):
+		if fight.turn_order.has(nearby):
 			break
 	check("a hostile within earshot of a fight joins it",
-		CombatManager.turn_order.has(nearby))
+		fight.turn_order.has(nearby))
 
 	_ensure_out_of_combat()
 	await get_tree().process_frame
@@ -69,12 +79,12 @@ func _distant_bystander_does_not_join() -> void:
 	far_away.snap_face_point(Vector3(0.0, 0.0, 300.0))
 
 	var roster: Array[Unit] = [fighter, player]
-	CombatManager.start_combat(roster)
+	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 	for i in SWEEPS:
 		DetectionManager.scan()
 	check("a hostile far out of earshot does NOT join",
-		not CombatManager.turn_order.has(far_away))
+		not fight.turn_order.has(far_away))
 
 	_ensure_out_of_combat()
 	await get_tree().process_frame
@@ -92,14 +102,14 @@ func _player_straggler_joins() -> void:
 	var straggler: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3(0.0, 0.0, 6.0))
 
 	var roster: Array[Unit] = [enemy, fighter]
-	CombatManager.start_combat(roster)
+	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 	check("the straggler starts outside the fight",
-		not CombatManager.turn_order.has(straggler))
+		not fight.turn_order.has(straggler))
 
 	DetectionManager.scan()
 	check("a player unit standing in an ongoing fight joins it",
-		CombatManager.turn_order.has(straggler))
+		fight.turn_order.has(straggler))
 
 	_ensure_out_of_combat()
 	await get_tree().process_frame
@@ -115,12 +125,12 @@ func _neutral_bystander_stays_out() -> void:
 	var bystander: Unit = spawn_unit(&"neutral", 12, 12, 20, [melee()], Vector3(0.0, 0.0, 5.0))
 
 	var roster: Array[Unit] = [enemy, fighter]
-	CombatManager.start_combat(roster)
+	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 	DetectionManager.scan()
 
 	check("a neutral standing in a fight it has no stake in stays out",
-		not CombatManager.turn_order.has(bystander))
+		not fight.turn_order.has(bystander))
 
 	_ensure_out_of_combat()
 	await get_tree().process_frame
@@ -135,19 +145,19 @@ func _turn_index_survives_a_join() -> void:
 	var b: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3(1.5, 0.0, 0.0))
 	var c: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], Vector3(3.0, 0.0, 0.0))
 	var roster: Array[Unit] = [a, b]
-	CombatManager.start_combat(roster)
+	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 
-	var acting: Unit = CombatManager.current_unit
-	var before: int = CombatManager.turn_order.size()
+	var acting: Unit = fight.current_unit
+	var before: int = fight.turn_order.size()
 	CombatManager.add_unit_to_combat(c, a)
 
-	check("joining grows the turn order", CombatManager.turn_order.size() == before + 1)
+	check("joining grows the turn order", fight.turn_order.size() == before + 1)
 	check("and current_unit still points at the same combatant",
-		CombatManager.current_unit == acting,
+		fight.current_unit == acting,
 		"was %s, now %s" % [
 			acting.get_display_name() if acting else "null",
-			CombatManager.current_unit.get_display_name() if CombatManager.current_unit else "null"])
+			fight.current_unit.get_display_name() if fight.current_unit else "null"])
 
 	_ensure_out_of_combat()
 	await get_tree().process_frame
@@ -165,10 +175,10 @@ func _escaping_leaves_the_fight() -> void:
 	var holds_ground: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], Vector3(1.0, 0.0, 0.0))
 	var chaser: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3(2.0, 0.0, 0.0))
 	var roster: Array[Unit] = [runner, holds_ground, chaser]
-	CombatManager.start_combat(roster)
+	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 
-	check("everyone starts in the fight", CombatManager.turn_order.has(runner))
+	check("everyone starts in the fight", fight.turn_order.has(runner))
 
 	# Well past DISENGAGE_DISTANCE, and out of everyone's line of sight is
 	# irrelevant at this range — distance alone should carry it.
@@ -177,10 +187,10 @@ func _escaping_leaves_the_fight() -> void:
 	runner.encounter._try_disengage(runner)
 
 	check("a combatant that got clean away drops out of the turn order",
-		not CombatManager.turn_order.has(runner))
+		not fight.turn_order.has(runner))
 	check("while the ones still fighting stay in",
-		CombatManager.turn_order.has(chaser) and CombatManager.turn_order.has(holds_ground))
-	check("and the fight carries on without it", CombatManager.in_combat)
+		fight.turn_order.has(chaser) and fight.turn_order.has(holds_ground))
+	check("and the fight carries on without it", fight.is_running)
 
 	_ensure_out_of_combat()
 	await get_tree().process_frame
@@ -193,7 +203,7 @@ func _last_one_out_ends_it() -> void:
 	var lone_enemy: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], Vector3.ZERO)
 	var player: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3(2.0, 0.0, 0.0))
 	var roster: Array[Unit] = [lone_enemy, player]
-	CombatManager.start_combat(roster)
+	var fight: Encounter = CombatManager.start_combat(roster)
 	await get_tree().process_frame
 
 	lone_enemy.global_position = Vector3(0.0, 0.0, 400.0)
@@ -201,7 +211,7 @@ func _last_one_out_ends_it() -> void:
 	lone_enemy.encounter._try_disengage(lone_enemy)
 
 	check("the fight ends once the last hostile has escaped",
-		not CombatManager.in_combat)
+		not fight.is_running)
 
 	_ensure_out_of_combat()
 	await get_tree().process_frame
@@ -233,6 +243,11 @@ func _escape_does_not_forgive() -> void:
 	free_spawned()
 
 
+## Clears every running encounter, not just the focused one — a fight left
+## running unfocused (from a prior case, or one that never involved the
+## player) would previously be invisible to CombatManager.in_combat and
+## silently survive into the next case.
 func _ensure_out_of_combat() -> void:
-	if CombatManager.in_combat:
-		CombatManager.end_combat(&"")
+	for encounter in CombatManager.encounters.duplicate():
+		if is_instance_valid(encounter) and encounter.is_running:
+			encounter.finish(&"")

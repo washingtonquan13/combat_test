@@ -1,5 +1,6 @@
 [gd_resource type="Resource" script_class="UnitDefinition" load_steps=11 format=3]
 
+[ext_resource type="Resource" path="res://data/injury_presets/homogeneous.tres" id="97_injury"]
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
 [ext_resource type="Texture2D" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
@@ -10,25 +11,20 @@
 [ext_resource type="Resource" path="res://data/ai_archetypes/brute.tres" id="99_arch"]
 [ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="90_row"]
+[ext_resource type="Resource" path="res://data/attacks/claws.tres" id="91_claws"]
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("6_root_option")
 root = ExtResource("7_greeting")
 
 [resource]
 script = ExtResource("1_def")
+dark_vision = true
+injury_preset = ExtResource("97_injury")
 ai_archetype = ExtResource("99_arch")
 id = "foul"
 display_name = "Foul"
-strength = 10
-dexterity = 8
-intelligence = 6
-health = 16
-move = 5
-will = 8
-perception = 8
-max_hp = 16
-max_fp = 16
-damage_reduction = 2
+stats = Dictionary[StringName, int]({&"DX": 8, &"IQ": 6, &"HT": 16, &"HP": 6, &"Will": 2, &"Per": 2, &"Move": -1, &"DR": 2})
 faction = &"enemy"
 order = &"Foul"
 personality = &"Sly"
@@ -38,5 +34,6 @@ portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("98_model")
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
+natural_attacks = Array[ExtResource("90_row")]([ExtResource("91_claws")])
 negotiable = true
 negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])

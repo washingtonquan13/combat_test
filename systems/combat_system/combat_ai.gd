@@ -82,7 +82,7 @@ func _attempt_action(unit: Unit) -> void:
 		return
 
 	# A FREE ability must not cost the turn. Landing is the case that
-	# exposed this: land.tres spends no attack action, no movement and no
+	# exposed this: landing (Fly's off form) spends no attack action, movement or
 	# FP, so a flyer coming down can still shoot afterwards — but ending
 	# the turn here unconditionally meant it couldn't, and the AI was
 	# forced into a false choice between descending safely and doing
@@ -96,6 +96,9 @@ func _attempt_action(unit: Unit) -> void:
 	# _on_movement_finished. The situation genuinely changed, so the right
 	# next action is whatever AiScorer now says it is.
 	var spends_turn: bool = plan.ability.uses_attack_action
+	if plan.ability.requires_to_hit:
+		unit.set_aim(plan.aim)
+		unit.set_deceptive_level(plan.deceptive_level)
 	unit.use_ability(plan.ability, plan.target)
 
 	if spends_turn:

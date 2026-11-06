@@ -1,0 +1,107 @@
+{
+  "format": 2,
+  "id": "foundry",
+  "name": "Foundry",
+  "description": "An ensemble for the iron end of the setting: a factory under Tokyo, a Ring of Gaea hideout, a boss behind a blast door. The kit is Karoryfer's Big Rusty Drums, a battered acoustic kit recorded big, played through the library's own basic program and keymap; the keys are the Salamander Grand Piano, a Yamaha C5, for the lonely piano line that Megami Tensei puts over machinery. The lead is VSCO 2 Community Edition's trumpets and trombones playing staccato for hard stabs, and the bass is VSCO's tuba, staccato, doubled by the trombones an octave up.",
+  "buses": {
+	"lead": {
+	  "space": "room",
+	  "wet": 0.2
+	},
+	"keys": {
+	  "space": "hall",
+	  "wet": 0.2
+	},
+	"bass": {
+	  "space": "room",
+	  "wet": 0.14
+	},
+	"perc": {
+	  "space": "room",
+	  "wet": 0.18
+	}
+  },
+  "parts": {
+	"lead": {
+	  "family": "lead",
+	  "layers": [
+		{
+		  "instrument": "vsco2/trumpet-stac",
+		  "name": "trumpets"
+		},
+		{
+		  "instrument": "vsco2/trombone-stac",
+		  "name": "trombones",
+		  "gain_db": -2.0,
+		  "gain_source": "guessed",
+		  "transpose": -12
+		}
+	  ],
+	  "range": [
+		52,
+		84
+	  ],
+	  "voices": 16,
+	  "gain_source": "measured",
+	  "gain_db": -2.0
+	},
+	"keys": {
+	  "family": "keys",
+	  "layers": [
+		{
+		  "instrument": "salamander.piano/grand",
+		  "name": "piano"
+		}
+	  ],
+	  "voices": 32,
+	  "gain_source": "measured",
+	  "gain_db": 3.0,
+	  "defaults": {
+		"sustain": 0
+	  }
+	},
+	"bass": {
+	  "family": "bass",
+	  "layers": [
+		{
+		  "instrument": "vsco2/tuba-stac",
+		  "name": "tuba"
+		},
+		{
+		  "instrument": "vsco2/trombone-stac",
+		  "name": "trombones",
+		  "gain_db": -8.0,
+		  "gain_source": "guessed",
+		  "transpose": 12
+		}
+	  ],
+	  "range": [
+		29,
+		58
+	  ],
+	  "voices": 12,
+	  "gain_source": "measured",
+	  "gain_db": 8.0
+	},
+	"perc": {
+	  "family": "perc",
+	  "layers": [
+		{
+		  "instrument": "karoryfer.bigrustydrums/basic",
+		  "name": "rusty",
+		  "take": {
+			"timing": 0.004,
+			"velocity": 4
+		  }
+		}
+	  ],
+	  "range": [
+		35,
+		58
+	  ],
+	  "voices": 32,
+	  "gain_source": "measured",
+	  "gain_db": 5.0
+	}
+  }
+}

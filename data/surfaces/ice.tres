@@ -1,0 +1,52 @@
+[gd_resource type="Resource" script_class="Surface" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/surface.gd" id="1_surface"]
+[ext_resource type="Script" path="res://systems/surface_system/surface_reaction.gd" id="2_reaction"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/ice.tscn" id="3_look"]
+[ext_resource type="Script" path="res://systems/ability_system/status_behavior.gd" id="5_behavior"]
+[ext_resource type="Script" path="res://systems/ability_system/prone_behavior.gd" id="6_prone"]
+[ext_resource type="Script" path="res://systems/ability_system/incapacitate_behavior.gd" id="7_incap"]
+[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="8_status_effect"]
+
+[sub_resource type="Resource" id="Resource_prone"]
+script = ExtResource("6_prone")
+melee_bonus = 4
+ranged_penalty = -4
+
+[sub_resource type="Resource" id="Resource_incap"]
+script = ExtResource("7_incap")
+
+[sub_resource type="Resource" id="Resource_slipped"]
+script = ExtResource("8_status_effect")
+status_name = "Slipped"
+default_duration = 3
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("5_behavior")]([SubResource("Resource_prone"), SubResource("Resource_incap")])
+curable = true
+group = &""
+rank = 0
+resisted_by = &"DX"
+resistance_modifier = 0
+apply_animation = "UAL2_Standard/Hit_Knockback"
+apply_animation_loops = false
+remove_animation = "UAL2_Standard/LayToIdle"
+hit_reaction_animation = ""
+
+[sub_resource type="Resource" id="Resource_melts"]
+script = ExtResource("2_reaction")
+element = 1
+outcome = 1
+becomes = "res://data/surfaces/water.tres"
+spreads = false
+
+[resource]
+script = ExtResource("1_surface")
+surface_name = "Ice"
+duration_rounds = 3
+shape = 0
+status_effects = Array[ExtResource("8_status_effect")]([SubResource("Resource_slipped")])
+element = 2
+reactions = Array[ExtResource("2_reaction")]([SubResource("Resource_melts")])
+movement_cost_multiplier = 2.0
+ambient_scene = ExtResource("3_look")

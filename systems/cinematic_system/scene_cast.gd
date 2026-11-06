@@ -1,0 +1,189 @@
+class_name SceneCast
+extends RefCounted
+## Who is playing which role in a scene, resolved when a step asks rather
+## than when the scene starts.
+##
+## LATE, NOT EAGER. "The speaker" changes with every line, so a snapshot
+## taken at scene start is wrong by the second one. A role is a question
+## put to whoever owns the answer, and nothing is copied, so nothing can
+## disagree.
+##
+## THE RULE IS "NEVER STORE WHAT SOMEONE ELSE OWNS", not "never store".
+## The distinction matters and an earlier draft got it wrong by being
+## absolute: the fusion cutscene CONSUMES its parent demons partway
+## through, so asking DemonRoster for one after that returns nothing and
+## late resolution fails worse than a snapshot would.
+##
+##   TRACKED  ask the authority every time. The speaker, the party leader.
+##            Changes freely, nothing is copied, nothing can disagree.
+##   HELD     the scene owns this actor for its duration. A demon still on
+##            screen after the roster released it; a result that did not
+##            exist when the scene started.
+##
+## HELD WINS over tracked for the same role, deliberately. A scene that has
+## taken ownership of an actor is the authority on it until it lets go —
+## that is what taking ownership means, and a fallthrough to the old owner
+## would resurrect exactly the bug held roles exist to prevent.
+
+## Marks are looked up by name in this group, so an area declares its
+## staging by adding nodes rather than by any scene knowing about it.
+const MARK_GROUP: StringName = &"scene_marks"
+
+## role -> Callable returning a Unit (or null).
+var _tracked: Dictionary = {}
+## role -> Unit, owned by the scene rather than by anyone else.
+var _held: Dictionary = {}
+## Set by CinematicDirector when a scene starts. Steps are Resources with
+## no tree presence of their own, and the cast is already the thing they
+## are handed — the same reasoning that makes VfxEffect pass a `context`
+## node down to every VfxStep.
+var tree: SceneTree = null
+## name -> Node3D: the Marks/ of the stage this cast is bound to. Set by
+## CinematicStage.bind() and cleared by unbind(). Here rather than only on
+## the stage because CameraFraming resolves marks through the cast, and a
+## shot aimed at a stage-local mark would otherwise preview correctly in
+## the editor and frame nothing in play.
+var _stage_marks: Dictionary = {}
+
+
+## Binds a role to a question. The Callable is asked every time the role is
+## read, so it must be cheap and must tolerate being asked when the answer
+## is nothing.
+func track(role: StringName, resolver: Callable) -> SceneCast:
+	_tracked[role] = resolver
+	return self
+
+
+## Convenience for a role that is simply one unit for the whole scene, and
+## whose owner is not going to take it away. Still a question underneath,
+## so a freed unit resolves to null rather than to a dangling reference.
+func track_unit(role: StringName, unit: Unit) -> SceneCast:
+	return track(role, func() -> Unit: return unit if is_instance_valid(unit) else null)
+
+
+## Takes ownership of `unit` for this role. It stays resolvable until
+## release_role(), whatever any other system does to it in the meantime.
+func hold(role: StringName, unit: Unit) -> SceneCast:
+	_held[role] = unit
+	return self
+
+
+## Gives the role back. The actor itself is untouched — a scene that also
+## wants it gone from the world keys CinematicStage.despawn(), which does
+## both.
+func release_role(role: StringName) -> void:
+	_held.erase(role)
+
+
+func is_held(role: StringName) -> bool:
+	return _held.has(role)
+
+
+## Who is playing `role` right now, or null.
+##
+## Null is a normal answer, not an error — a monologue has nobody in the
+## listener role, and a step that cannot resolve its subject declines to
+## act rather than complaining.
+func unit(role: StringName) -> Unit:
+	if _held.has(role):
+		var kept: Variant = _held[role]
+		return kept if is_instance_valid(kept) and kept is Unit else null
+	if not _tracked.has(role):
+		return null
+	var found: Variant = (_tracked[role] as Callable).call()
+	return found if is_instance_valid(found) and found is Unit else null
+
+
+func has(role: StringName) -> bool:
+	return _held.has(role) or _tracked.has(role)
+
+
+## A point in the world, from a mark if one is named and otherwise from
+## the actor in `role`. Vector3.ZERO when neither resolves.
+##
+## Deliberately simpler than CameraFraming's own resolution, which also
+## needs a FACING and therefore cannot share this. Effects and sounds only
+## ever need somewhere to happen.
+func point(mark_name: StringName, role: StringName) -> Vector3:
+	if mark_name != &"":
+		var spot: Node3D = mark(mark_name)
+		return spot.global_position if spot else Vector3.ZERO
+	var actor: Unit = unit(role)
+	return actor.anchor(CharacterModel.Anchor.CHEST) if actor else Vector3.ZERO
+
+
+## Actors this scene has taken over the animation of, so the director can
+## give them back when the scene ends.
+##
+## Held here rather than by the director because it is per-play state and
+## the cast already is exactly that — the director plays shared scene
+## resources and must not accumulate anything itself.
+var _claimed: Array[Unit] = []
+
+
+func note_claim(actor: Unit) -> void:
+	if is_instance_valid(actor) and not _claimed.has(actor):
+		_claimed.append(actor)
+
+
+## Hands every claimed actor back to gameplay. Called by the director when
+## a scene ends, however it ends — a scene that aborted must not leave a
+## unit frozen mid-performance and deaf to its own hit reactions.
+func release_claims() -> void:
+	for actor in _claimed:
+		if is_instance_valid(actor):
+			var animator: UnitAnimator = actor.animator()
+			if animator:
+				animator.release_cutscene()
+	_claimed.clear()
+
+
+## A named staging point in the world, or null.
+##
+## LOUD WHEN MISSING. A scene naming a mark its area does not have is an
+## authoring error, and silently falling back to the origin would put
+## actors and cameras at the world centre while everything still appeared
+## to work — the worst possible failure for staging, because it looks like
+## a bad shot rather than a bad reference.
+## Whether a mark exists, without complaining that it does not.
+##
+## mark() is deliberately loud, because a SCENE naming a mark its area
+## lacks is an authoring error. ASKING WHETHER STAGING EXISTS AT ALL is a
+## different question with a legitimate no — fusing on the overworld is
+## allowed, it just has nowhere to show a cutscene — and routing that
+## through mark() would fill the log with errors on every correct use.
+func has_mark(mark_name: StringName) -> bool:
+	if _stage_mark(mark_name) != null:
+		return true
+	if tree == null:
+		return false
+	for node in tree.get_nodes_in_group(MARK_GROUP):
+		if node is Node3D and node.name == mark_name:
+			return true
+	return false
+
+
+func mark(mark_name: StringName) -> Node3D:
+	var local: Node3D = _stage_mark(mark_name)
+	if local:
+		return local
+	if tree == null:
+		push_error("SceneCast: asked for mark '%s' before a tree was set." % mark_name)
+		return null
+	for node in tree.get_nodes_in_group(MARK_GROUP):
+		if node is Node3D and node.name == mark_name:
+			return node
+	push_error("SceneCast: no mark named '%s' in group '%s'." % [mark_name, MARK_GROUP])
+	return null
+
+
+## Stage-local marks win over world marks of the same name, matching
+## CinematicStage.spot(): an area sharing a name with a scene's own staging
+## must not silently retarget it.
+func use_stage_marks(marks: Dictionary) -> void:
+	_stage_marks = marks
+
+
+func _stage_mark(mark_name: StringName) -> Node3D:
+	var found: Variant = _stage_marks.get(mark_name)
+	return found if is_instance_valid(found) and found is Node3D else null

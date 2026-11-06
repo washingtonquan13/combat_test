@@ -15,7 +15,38 @@ extends Node
 
 signal gold_changed(new_amount: int)
 
-var gold: int = 50
+## Starting purse for a new game — also load_state()'s default for a save
+## whose "currency" section is {} (see SaveManager: an empty section means
+## "become empty", not "keep whatever this autoload already had"). Before
+## this was a named constant, `gold = state.get("gold", gold)` made {} a
+## no-op, so a save file with no currency section carried the LIVE purse
+## across a load instead of resetting it — most visibly a new_game() that
+## loads {} into every registered target.
+const STARTING_GOLD: int = 50
+
+var gold: int = STARTING_GOLD
+
+
+## Registered from HERE rather than named by SaveManager: adding a system
+## that persists should never be an edit to the save system again, and a
+## hand-maintained list somewhere else is a second place to remember
+## something.
+##
+## DEFERRED because this autoload is created BEFORE SaveManager (see
+## project.godot's [autoload] order) — the `SaveManager` identifier cannot
+## be resolved yet while this _ready() runs. A deferred call lands once
+## every autoload is up, which is still long before anything can ask for a
+## save.
+func _ready() -> void:
+	_register_persistence.call_deferred()
+
+
+## No `after`: load_state() below sets one int and emits gold_changed,
+## whose only listener is a label in PartyOverview (see
+## party_overview.gd's _on_gold_changed) — nothing that reads another
+## system's restored state.
+func _register_persistence() -> void:
+	SaveManager.register(&"currency", self)
 
 
 func save_state() -> Dictionary:
@@ -26,7 +57,7 @@ func save_state() -> Dictionary:
 ## any gold-display UI needs to react to, same as add_gold()/spend_gold()
 ## already do for an ordinary in-session change.
 func load_state(state: Dictionary) -> void:
-	gold = state.get("gold", gold)
+	gold = state.get("gold", STARTING_GOLD)
 	gold_changed.emit(gold)
 
 

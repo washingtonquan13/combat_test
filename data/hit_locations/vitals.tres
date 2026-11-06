@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="HitLocation" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/combat_system/hit_location.gd" id="1_location"]
+
+[resource]
+script = ExtResource("1_location")
+display_name = "Vitals"
+to_hit_penalty = -3

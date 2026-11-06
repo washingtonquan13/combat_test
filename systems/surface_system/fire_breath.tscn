@@ -1,0 +1,27 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/fire_breath.gd" id="1_script"]
+
+[sub_resource type="FastNoiseLite" id="streaming"]
+noise_type = 1
+frequency = 0.06
+fractal_octaves = 3
+
+[sub_resource type="NoiseTexture3D" id="streaming_texture"]
+width = 64
+height = 64
+depth = 64
+seamless = true
+noise = SubResource("streaming")
+
+[node name="FireBreath" type="Node3D"]
+script = ExtResource("1_script")
+noise = SubResource("streaming_texture")
+
+[node name="Volume" type="MeshInstance3D" parent="."]
+cast_shadow = 0
+
+[node name="Light" type="OmniLight3D" parent="."]
+light_color = Color(1, 0.55, 0.2, 1)
+light_energy = 4.0
+omni_range = 7.0

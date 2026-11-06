@@ -1,0 +1,169 @@
+class_name AoeShell
+extends MeshInstance3D
+## The volume an area ability will fill, drawn as a near-clear shell
+## (aoe_shell.gdshader). Its glowing cut line is where the volume meets
+## the world, which is the footprint on whatever it touches: ground,
+## stairs, walls, a bridge. One look for floor and airborne areas.
+##
+## SPHERE: a blast or cloud, centred wherever it is aimed (half buried
+## when aimed at the ground, so it reads as a dome with its own ring).
+## FOOTPRINT: a ground-only spill (Grease). A short cylinder whose face
+## and rim are hidden, so only the cut line along the terrain shows.
+## BOX: a slab standing along a line (Wall of Fire), show_box(). Sunk
+## into the ground so its sides, not its floor, meet the terrain: the
+## cut line is the strip it will stand on.
+## CONE: a round cone with a rounded end, from its apex (Fire Breath),
+## show_cone(). Its cut line is where the breath washes over the floor.
+
+enum Shape { SPHERE, FOOTPRINT, BOX, CONE }
+
+## How far a BOX reaches below the line it stands on, so its cut line
+## still lands on steps and slopes under it.
+const BOX_SINK: float = 0.6
+
+## Height of the FOOTPRINT cylinder: the vertical slop its cut line
+## follows (steps, slopes) before it stops touching the ground.
+const FOOTPRINT_HEIGHT: float = 1.2
+
+## Around-segments and cap rings of the CONE mesh.
+const CONE_SEGMENTS: int = 48
+const CONE_CAP_RINGS: int = 8
+
+var _material: ShaderMaterial
+var _shape: Shape = Shape.SPHERE
+## Half-angle the CONE mesh was last built for.
+var _cone_half_angle: float = -1.0
+
+
+func _init() -> void:
+	_material = ShaderMaterial.new()
+	_material.shader = preload("res://systems/indicator_system/aoe_shell.gdshader")
+	material_override = _material
+	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_apply_shape()
+	visible = false
+
+
+func set_shape(shape: Shape) -> void:
+	if shape == _shape:
+		return
+	_shape = shape
+	_apply_shape()
+
+
+func set_tint(color: Color) -> void:
+	_material.set_shader_parameter(&"tint", color)
+
+
+## Shows the volume at `center`. `height_scale` squashes a sphere (a flat
+## cloud previews as flat as it fills).
+func show_at(center: Vector3, radius: float, height_scale: float = 1.0) -> void:
+	var size := Vector3(radius, 1.0, radius)
+	if _shape == Shape.SPHERE:
+		size.y = radius * height_scale
+	global_transform = Transform3D(Basis.from_scale(size), center)
+	visible = true
+
+
+## Shows a BOX standing from from to to: as tall as height above the
+## ground line between them (sheared to follow a slope), and twice
+## half_thickness across.
+func show_box(from: Vector3, to: Vector3, height: float, half_thickness: float) -> void:
+	set_shape(Shape.BOX)
+	var along: Vector3 = to - from
+	var flat := Vector3(along.x, 0.0, along.z)
+	if flat.length_squared() < 0.0001:
+		flat = Vector3.RIGHT * 0.01
+	var across: Vector3 = Vector3.UP.cross(flat).normalized() * half_thickness * 2.0
+	var tall: float = height + BOX_SINK
+	var basis := Basis(along if along.length_squared() > 0.0001 else flat, Vector3.UP * tall, across)
+	var middle: Vector3 = from.lerp(to, 0.5)
+	global_transform = Transform3D(basis, middle + Vector3.UP * (tall * 0.5 - BOX_SINK))
+	visible = true
+
+
+## Shows a CONE with its apex at apex, pointing along direction (a unit
+## vector), length long and opening at half_angle radians.
+func show_cone(apex: Vector3, direction: Vector3, length: float, half_angle: float) -> void:
+	set_shape(Shape.CONE)
+	if not is_equal_approx(half_angle, _cone_half_angle):
+		_cone_half_angle = half_angle
+		mesh = _cone_mesh(half_angle)
+	var up: Vector3 = Vector3.UP if absf(direction.dot(Vector3.UP)) < 0.99 else Vector3.BACK
+	var basis := Basis.looking_at(direction, up).scaled(Vector3.ONE * length)
+	global_transform = Transform3D(basis, apex)
+	visible = true
+
+
+## A unit spherical sector along -Z: the cone's side fanned from the apex,
+## closed by a spherical cap, so its far end is everywhere one length
+## from the apex.
+static func _cone_mesh(half_angle: float) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var sin_h: float = sin(half_angle)
+	var cos_h: float = cos(half_angle)
+	for i in CONE_SEGMENTS:
+		var a0: float = TAU * float(i) / CONE_SEGMENTS
+		var a1: float = TAU * float(i + 1) / CONE_SEGMENTS
+		var am: float = (a0 + a1) * 0.5
+		var rim0 := Vector3(sin_h * cos(a0), sin_h * sin(a0), -cos_h)
+		var rim1 := Vector3(sin_h * cos(a1), sin_h * sin(a1), -cos_h)
+		st.set_normal(Vector3(cos_h * cos(am), cos_h * sin(am), sin_h))
+		st.add_vertex(Vector3.ZERO)
+		st.set_normal(Vector3(cos_h * cos(a0), cos_h * sin(a0), sin_h))
+		st.add_vertex(rim0)
+		st.set_normal(Vector3(cos_h * cos(a1), cos_h * sin(a1), sin_h))
+		st.add_vertex(rim1)
+		for r in CONE_CAP_RINGS:
+			var p0: float = half_angle * float(r) / CONE_CAP_RINGS
+			var p1: float = half_angle * float(r + 1) / CONE_CAP_RINGS
+			var c00 := _cap_point(p0, a0)
+			var c01 := _cap_point(p0, a1)
+			var c10 := _cap_point(p1, a0)
+			var c11 := _cap_point(p1, a1)
+			for v in [c00, c10, c11, c00, c11, c01]:
+				st.set_normal(v)
+				st.add_vertex(v)
+	return st.commit()
+
+
+static func _cap_point(polar: float, around: float) -> Vector3:
+	return Vector3(sin(polar) * cos(around), sin(polar) * sin(around), -cos(polar))
+
+
+func _apply_shape() -> void:
+	if _shape == Shape.CONE:
+		_cone_half_angle = -1.0
+		_material.set_shader_parameter(&"face_alpha", 0.015)
+		_material.set_shader_parameter(&"rim_alpha", 0.3)
+		_material.set_shader_parameter(&"shimmer_alpha", 0.025)
+	elif _shape == Shape.SPHERE:
+		var sphere := SphereMesh.new()
+		sphere.radius = 1.0
+		sphere.height = 2.0
+		sphere.radial_segments = 48
+		sphere.rings = 24
+		mesh = sphere
+		_material.set_shader_parameter(&"face_alpha", 0.015)
+		_material.set_shader_parameter(&"rim_alpha", 0.3)
+		_material.set_shader_parameter(&"shimmer_alpha", 0.025)
+	elif _shape == Shape.BOX:
+		var box := BoxMesh.new()
+		box.size = Vector3.ONE
+		mesh = box
+		_material.set_shader_parameter(&"face_alpha", 0.015)
+		_material.set_shader_parameter(&"rim_alpha", 0.3)
+		_material.set_shader_parameter(&"shimmer_alpha", 0.025)
+	else:
+		var cylinder := CylinderMesh.new()
+		cylinder.top_radius = 1.0
+		cylinder.bottom_radius = 1.0
+		cylinder.height = FOOTPRINT_HEIGHT
+		cylinder.radial_segments = 64
+		cylinder.cap_top = false
+		cylinder.cap_bottom = false
+		mesh = cylinder
+		_material.set_shader_parameter(&"face_alpha", 0.0)
+		_material.set_shader_parameter(&"rim_alpha", 0.0)
+		_material.set_shader_parameter(&"shimmer_alpha", 0.0)

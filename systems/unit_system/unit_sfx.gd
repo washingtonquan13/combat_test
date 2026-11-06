@@ -66,7 +66,7 @@ extends Node
 ## doesn't add new ones. A channeled ability needing a repeating "tick"
 ## sound, or a multi-hit ability needing a separate impact sound per
 ## hit, would need Unit.impact_triggered itself to support firing more
-## than once per use_ability() call — it currently doesn't. That's a
+## than once per action — it fires once (see AbilityAction.impact). That's a
 ## change to the combat-level sync signals, a separate and larger
 ## question from making the existing moments composable.
 
@@ -121,7 +121,7 @@ func _ready() -> void:
 
 
 func _on_ability_armed(ability: Ability) -> void:
-	if unit.in_combat() and not unit.is_my_turn():
+	if AbilityManager.armed_unit != unit:
 		return
 
 	_stop_hold_loop()
@@ -145,7 +145,10 @@ func _on_ability_use_started(attacker: Unit, target, ability: Ability) -> void:
 	_stop_hold_loop()
 
 	_pending_ability = ability
-	_pending_target_position = target.global_position if target is Unit else (target if target is Vector3 else attacker.global_position)
+	if target is LineTarget:
+		_pending_target_position = target.centre()
+	else:
+		_pending_target_position = target.global_position if target is Unit else (target if target is Vector3 else attacker.global_position)
 
 	var cast_cue: SfxCue = ability.cast_sfx if ability.cast_sfx else default_cast_sfx
 	_play_cue(cast_cue, attacker.global_position)

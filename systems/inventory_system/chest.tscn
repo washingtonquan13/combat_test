@@ -1,4 +1,4 @@
-[gd_scene load_steps=27 format=3 uid="uid://dwu2y8j3sei5i"]
+[gd_scene load_steps=38 format=3 uid="uid://dwu2y8j3sei5i"]
 
 [ext_resource type="Script" uid="uid://cxn1voxy5ge5j" path="res://systems/interaction_system/interactable_prop.gd" id="1_prop"]
 [ext_resource type="Resource" path="res://data/interactions/loot.tres" id="2_loot"]
@@ -24,6 +24,17 @@
 [ext_resource type="Resource" uid="uid://c63mejhpeqvgo" path="res://data/items/leather_belt.tres" id="22_belt"]
 [ext_resource type="Texture2D" uid="uid://u8puvbqkit5k" path="res://assets/test_item_icons/test_healing_potion.png" id="22_dxdcv"]
 [ext_resource type="Texture2D" uid="uid://bor7ucx1k3nh1" path="res://assets/test_item_icons/test_mana_potion.png" id="24_hh7vn"]
+[ext_resource type="Resource" path="res://data/items/crossbow.tres" id="30_crossbow"]
+[ext_resource type="Resource" path="res://data/items/greatsword.tres" id="30_greatsword"]
+[ext_resource type="Resource" path="res://data/items/longbow.tres" id="30_longbow"]
+[ext_resource type="Resource" path="res://data/items/pistol.tres" id="30_pistol"]
+[ext_resource type="Resource" path="res://data/items/rifle.tres" id="30_rifle"]
+[ext_resource type="Resource" path="res://data/items/throwing_axe.tres" id="30_throwing_axe"]
+[ext_resource type="Resource" path="res://data/items/buckler.tres" id="30_buckler"]
+[ext_resource type="Resource" path="res://data/items/socket_awl.tres" id="30_socket_awl"]
+[ext_resource type="Resource" path="res://data/items/hawk_rune.tres" id="30_hawk_rune"]
+[ext_resource type="Resource" path="res://data/items/iron_rune.tres" id="30_iron_rune"]
+[ext_resource type="Resource" path="res://data/items/vigor_rune.tres" id="30_vigor_rune"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_chest"]
 
@@ -43,14 +54,20 @@ shape = SubResource("BoxShape3D_chest")
 display_name = "Chest"
 
 [node name="Inventory" parent="StashComponent" index="0"]
-custom_minimum_size = Vector2(192, 192)
-offset_right = 192.0
+custom_minimum_size = Vector2(384, 224)
+offset_right = 384.0
+offset_bottom = 224.0
+width = 12
+height = 7
+visible_width = 12
+visible_height = 7
 
 [node name="ScrollContainer" parent="StashComponent/Inventory" index="0"]
-offset_right = 192.0
+offset_right = 384.0
+offset_bottom = 224.0
 
 [node name="ItemLayer" parent="StashComponent/Inventory/ScrollContainer" index="0"]
-custom_minimum_size = Vector2(192, 192)
+custom_minimum_size = Vector2(384, 224)
 
 [node name="TestSword" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="1" instance=ExtResource("6_item")]
 layout_mode = 0
@@ -149,16 +166,89 @@ offset_bottom = 192.0
 definition = ExtResource("15_manapotion")
 icon = ExtResource("24_hh7vn")
 
+[node name="TestCrossbow" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="10" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 192.0
+offset_top = 128.0
+definition = ExtResource("30_crossbow")
+
+[node name="TestGreatsword" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="11" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 192.0
+offset_top = 0.0
+definition = ExtResource("30_greatsword")
+
+[node name="TestLongbow" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="12" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 0.0
+definition = ExtResource("30_longbow")
+
+[node name="TestPistol" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="13" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 256.0
+offset_top = 128.0
+definition = ExtResource("30_pistol")
+
+[node name="TestRifle" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="14" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 256.0
+offset_top = 0.0
+definition = ExtResource("30_rifle")
+
+[node name="TestThrowingAxe" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="15" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 352.0
+offset_top = 0.0
+definition = ExtResource("30_throwing_axe")
+
+[node name="TestBuckler" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="16" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 320.0
+offset_top = 128.0
+definition = ExtResource("30_buckler")
+
+[node name="TestSocketAwl" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="17" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 128.0
+offset_top = 160.0
+definition = ExtResource("30_socket_awl")
+current_stack_count = 5
+
+[node name="TestHawkRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="18" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 160.0
+offset_top = 160.0
+definition = ExtResource("30_hawk_rune")
+current_stack_count = 3
+
+[node name="TestIronRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="19" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 0.0
+offset_top = 192.0
+definition = ExtResource("30_iron_rune")
+current_stack_count = 3
+
+[node name="TestVigorRune" parent="StashComponent/Inventory/ScrollContainer/ItemLayer" index="20" instance=ExtResource("6_item")]
+layout_mode = 0
+offset_left = 32.0
+offset_top = 192.0
+definition = ExtResource("30_vigor_rune")
+current_stack_count = 3
+
 [node name="VScrollBar" parent="StashComponent/Inventory" index="1"]
 visible = false
-offset_left = 192.0
-offset_right = 206.0
-max_value = 192.0
+offset_left = 384.0
+offset_right = 398.0
+max_value = 224.0
 
 [node name="HScrollBar" parent="StashComponent/Inventory" index="2"]
-offset_right = 192.0
-max_value = 192.0
-page = 192.0
+offset_top = 224.0
+offset_right = 384.0
+offset_bottom = 238.0
+visible = false
+max_value = 384.0
+page = 384.0
 
 [editable path="StashComponent"]
 [editable path="StashComponent/Inventory"]

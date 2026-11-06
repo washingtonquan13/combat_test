@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="RuneItem" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/inventory_system/rune_item.gd" id="1_rune"]
+[ext_resource type="Script" path="res://systems/inventory_system/item_modifier.gd" id="2_mod"]
+[ext_resource type="Script" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_stat"]
+[ext_resource type="Texture2D" path="res://assets/test_item_icons/test_rune_vigor.png" id="4_icon"]
+
+[sub_resource type="Resource" id="Resource_ht"]
+script = ExtResource("3_stat")
+stat_name = &"HT"
+amount = 1
+
+[sub_resource type="Resource" id="Resource_weapon"]
+script = ExtResource("2_mod")
+label = "+1 HT"
+stat_modifiers = Array[ExtResource("3_stat")]([SubResource("Resource_ht")])
+
+[sub_resource type="Resource" id="Resource_hp"]
+script = ExtResource("3_stat")
+stat_name = &"HP"
+amount = 2
+
+[sub_resource type="Resource" id="Resource_armor"]
+script = ExtResource("2_mod")
+label = "+2 HP"
+stat_modifiers = Array[ExtResource("3_stat")]([SubResource("Resource_hp")])
+
+[resource]
+script = ExtResource("1_rune")
+on_weapon = SubResource("Resource_weapon")
+on_armor = SubResource("Resource_armor")
+id = &"vigor_rune"
+item_name = "Vigor Rune"
+icon = ExtResource("4_icon")
+maximum_stack_count = 99

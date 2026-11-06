@@ -5,10 +5,10 @@ extends Control
 ## under its own CanvasLayer so it draws above the 3D view. mouse_filter is
 ## forced to IGNORE in _ready() so this control never blocks clicks on
 ## units or the ground — it reads input purely through _unhandled_input,
-## which runs alongside (not instead of) CollisionObject3D physics picking.
-## A plain click (no meaningful drag) is left alone, so single-unit
-## selection and ground_click_target.gd's deselect-on-empty-click keep
-## working exactly as before.
+## A plain click (no meaningful drag) is left alone: ClickRouter decides
+## clicks on release, and both sides measure the drag against the one
+## ClickRouter.CLICK_DRAG_THRESHOLD, so a gesture is a click or a box,
+## never both (a box used to also issue a move order on the press).
 ##
 ## While dragging, units under the box just get a hover-style PREVIEW
 ## highlight (Unit.set_box_hover) — nothing is actually selected yet.
@@ -19,9 +19,6 @@ extends Control
 ## but filtering here too means they don't even preview-highlight as if
 ## they were a valid drag-select target.
 
-## Minimum drag distance (px) before this counts as a box-select rather
-## than a plain click.
-@export var drag_threshold: float = 6.0
 @export var box_color: Color = Color(0.3, 0.7, 1.0, 0.15)
 @export var border_color: Color = Color(0.3, 0.7, 1.0, 0.8)
 
@@ -46,7 +43,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	# actually owns the screen — the same single predicate that already
 	# governs camera input, rather than this file keeping its own list of
 	# things that should suppress it. Previously an is_active() check
-	# against DialogueManager alone, which covered conversations but not
+	# against the dialogue manager alone, which covered dialogue but not
 	# negotiation, looting, the title screen, or character creation.
 	if not CameraDirector.has_control():
 		return
@@ -65,8 +62,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		queue_redraw()
 
 	elif event is InputEventMouseMotion and Input.is_action_pressed("left_click"):
+		# A press on a movable prop drags the prop, not a box.
+		var router: ClickRouter = get_tree().get_first_node_in_group(&"click_router") as ClickRouter
+		if router and router.claims_drag():
+			_dragging = false
+			return
 		_drag_end = event.position
-		if not _dragging and _drag_start.distance_to(_drag_end) >= drag_threshold:
+		if not _dragging and _drag_start.distance_to(_drag_end) >= ClickRouter.CLICK_DRAG_THRESHOLD:
 			_dragging = true
 		if _dragging:
 			_update_box_hover_preview()

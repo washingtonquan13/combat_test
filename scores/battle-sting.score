@@ -1,0 +1,28 @@
+// Battle sting - the bar between wherever the player was and Low End.
+//
+// Played on the band ensemble the moment the outgoing music is cut, with Low End
+// starting on the bar after it. It is Low End's own pickup: the last bar of
+// the riff, where the guitar climbs B C C# D D# into the E of the next pass,
+// here with a crash on the one and the snare filling in the second half. So
+// the battle arrives the way its own loop comes back round - on a dominant
+// that has to resolve, and does, on the riff's first E.
+
+title: Battle Sting
+ensemble: band
+parts: guitar bass perc
+tempo: 150
+meter: 4/4
+key: e minor
+order: sting
+
+section sting bars:1
+  bass dyn:f feel:tight
+    | b1:1.5! b1:0.5 c2:0.5 c#2:0.5 d2:0.5 d#2:0.5! |
+  guitar dyn:f feel:tight
+    | [b2 f#3 b3]:1.5! [b2 f#3 b3]:0.5' [c3 g3 c4]:0.5! [c#3 g#3 c#4]:0.5! [d3 a3 d4]:0.5! [d#3 a#3 d#4]:0.5! |
+  perc.right dyn:f
+    | crash_big:4! |
+  perc.left dyn:mf..f feel:tight
+    | r:2 snare:0.25. snare:0.25. snare:0.25 snare:0.25 snare:0.25 snare:0.25 snare:0.25! snare:0.25! |
+  perc.feet dyn:f feel:tight
+    | kick:1.5! kick:0.5 kick:0.5 kick:0.5 kick:0.5 kick:0.5 |

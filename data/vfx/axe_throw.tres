@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="VfxEffect" load_steps=8 format=3]
+
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="1_vfxe"]
+[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="2_step"]
+[ext_resource type="Script" uid="uid://bbwsb2teel8f1" path="res://systems/ability_system/projectile_step.gd" id="3_proj"]
+[ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://systems/ability_system/impact_signal_step.gd" id="4_imp"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/projectiles/spinning_axe.tscn" id="5_scene"]
+
+[sub_resource type="Resource" id="Resource_proj"]
+script = ExtResource("3_proj")
+projectile_scene = ExtResource("5_scene")
+speed = 14.0
+arc_height = 0.7
+launch_from = 4
+lands_at_height = 1.1
+
+[sub_resource type="Resource" id="Resource_imp"]
+script = ExtResource("4_imp")
+
+[resource]
+script = ExtResource("1_vfxe")
+steps = Array[ExtResource("2_step")]([SubResource("Resource_proj"), SubResource("Resource_imp")])

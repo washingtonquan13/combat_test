@@ -9,7 +9,7 @@ extends StaticBody3D
 ## your own mesh — same physics layer as everything else in this project
 ## (Unit and GroundClickTarget both run on Godot's plain default
 ## layer/mask; there's no separate "interactable" layer to opt into, see
-## indicator_base.gd's _get_hovered_interactable()).
+## ClickRouter.resolve_cursor()).
 
 ## Right-click verbs this prop can ever offer — same authored/reusable
 ## .tres list convention as Unit.interactions.

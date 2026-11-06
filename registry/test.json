@@ -1,0 +1,17 @@
+{
+  "library": "test",
+  "description": "The test tone, one sample across the keyboard, for the test scripts' own ensembles, which need something that loads in a moment and says nothing of its own.",
+  "instruments": {
+    "tone": {
+      "layers": [
+        {
+          "sfz": "test/test.sfz"
+        }
+      ],
+      "range": [
+        0,
+        127
+      ]
+    }
+  }
+}

@@ -57,6 +57,7 @@ var _has_last_center: bool = false
 
 
 func _ready() -> void:
+	super()
 	var box := BoxMesh.new()
 	box.size = Vector3.ONE * cell_visual_size
 
@@ -96,7 +97,12 @@ func _process(_delta: float) -> void:
 	if not _enabled:
 		return
 
-	var ground_point = _get_mouse_ground_point()
+	# The router's cursor, not a raycast of its own: there is one answer
+	# to what the mouse is over (see ClickRouter.resolve_cursor).
+	var router = get_tree().get_first_node_in_group(&"click_router")
+	if router == null or router.cursor == null:
+		return
+	var ground_point = router.cursor.ground
 	if ground_point == null:
 		return
 

@@ -15,7 +15,9 @@ extends DialogueEffect
 ## A future "NPC threatens you but keeps talking" beat shouldn't have to
 ## fight this effect to stay open.
 
-func apply(actor: Unit, target: Unit) -> void:
+func apply(c: Conversation) -> void:
+	var actor: Unit = c.cast.get("player") as Unit
+	var target: Unit = c.cast.get("npc") as Unit
 	# Same escalation FactionRelations expects any provoked hostility to
 	# go through (see UnitCombat._maybe_trigger_combat) — without this,
 	# the two combatants would share a turn_order for this fight but
