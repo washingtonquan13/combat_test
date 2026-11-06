@@ -11,6 +11,7 @@ extends MeshInstance3D
 ## fork() grows branches off an arc.
 
 const BOLT_SHADER: Shader = preload("res://scenes/vfx/lightning/lightning_bolt.gdshader")
+const FLIPBOOK_SHADER: Shader = preload("res://scenes/vfx/lightning/lightning_flipbook.gdshader")
 
 
 ## One arc to draw.
@@ -32,6 +33,8 @@ class Arc:
 	var tip_fade: bool = false
 	## Fraction of the arc over which it fades in from its start.
 	var root_fade: float = 0.0
+	## Which flipbook frame it shows, under use_flipbook().
+	var frame: int = 0
 
 	func _init(p_points: PackedVector3Array = PackedVector3Array(), p_half_width: float = 0.2) -> void:
 		points = p_points
@@ -147,7 +150,7 @@ func show_arcs(arcs: Array[Arc]) -> void:
 				verts.append(pts[i])
 				normals.append(along)
 				uvs.append(Vector2(s, t))
-				uv2s.append(Vector2(width, 0.0))
+				uv2s.append(Vector2(width, float(arc.frame)))
 				colours.append(Color(weight, reveal, 1.0 if arc.branch else 0.0, 1.0))
 		for i in n - 1:
 			var a: int = first + i * 2
@@ -168,6 +171,15 @@ func show_arcs(arcs: Array[Arc]) -> void:
 	mesh = built
 	# The ribbons are pushed out sideways on the GPU, past the mesh's box.
 	extra_cull_margin = _widest * 4.0
+
+
+## Draws the arcs as painted flipbook frames (lightning_flipbook.gdshader)
+## instead of computed glowing lines. Each arc shows its own `frame`.
+func use_flipbook(texture: Texture2D, columns: int, rows: int) -> void:
+	material.shader = FLIPBOOK_SHADER
+	material.set_shader_parameter("flipbook", texture)
+	material.set_shader_parameter("columns", columns)
+	material.set_shader_parameter("rows", rows)
 
 
 ## Sets the shader's per-frame knobs.

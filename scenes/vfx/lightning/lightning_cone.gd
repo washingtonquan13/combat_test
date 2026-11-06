@@ -6,7 +6,8 @@ extends Node3D
 ##  - a churning plasma orb at the hand (ball_lightning.gd's core),
 ##    which flares as the blast fires;
 ##  - a few thick trunks leaving the hand, splitting into many thinner
-##    forked arcs that spray out to random points in the cone;
+##    arcs that spray out to random points in the cone. Each arc is a
+##    painted flipbook bolt (lightning_flipbook.gdshader), forks and all;
 ##  - a faint glowing haze filling the cone (lightning_cone_haze.gdshader).
 ## Every `reroll_seconds` the arcs are thrown away and made again, so the
 ## spray crackles. Units caught in the cone always draw an arc or two.
@@ -17,14 +18,17 @@ extends Node3D
 const Arcs := preload("res://scenes/vfx/lightning/lightning_arcs.gd")
 const Ball := preload("res://scenes/vfx/lightning/ball_lightning.gd")
 const HAZE_SHADER: Shader = preload("res://scenes/vfx/lightning/lightning_cone_haze.gdshader")
+## Painted bolts (tools/lightning_flipbook.py), 2 x 8 frames.
+const FLIPBOOK: Texture2D = preload("res://assets/vfx/lightning/lightning_flipbook.png")
 
 ## Thick arcs leaving the hand, which the spray splits off from.
 @export var trunks: int = 3
 ## How far along the cone the trunks reach, as a fraction of its length.
 @export var trunk_reach: float = 0.4
-@export var trunk_half_width: float = 0.24
+## Trunks are this much wider than spray arcs of the same length.
+@export var trunk_width: float = 1.4
 ## Arcs into empty space each reroll.
-@export var spray_arcs: int = 7
+@export var spray_arcs: int = 5
 ## Arcs to each caught unit each reroll.
 @export var arcs_per_target: int = 2
 @export var reroll_seconds: float = 0.05
@@ -33,12 +37,13 @@ const HAZE_SHADER: Shader = preload("res://scenes/vfx/lightning/lightning_cone_h
 @export var fade_seconds: float = 0.25
 ## How fast the first arcs leap out to full length.
 @export var grow_seconds: float = 0.08
-@export var main_half_width: float = 0.14
-@export var branch_half_width: float = 0.08
-@export var roughness: float = 0.2
-@export var branch_chance: float = 0.08
+## A painted arc's half width per metre of its length. The painting's
+## zigzag scales with it.
+@export var width_per_metre: float = 0.11
+## How much the arcs bend; the painting carries the fine zigzag.
+@export var roughness: float = 0.08
 ## Arc brightness at full strength.
-@export var gain: float = 1.2
+@export var gain: float = 0.9
 @export var light_energy: float = 3.0
 @export var light_color: Color = Color(0.7, 0.8, 1.0)
 ## The plasma orb at the hand.
@@ -68,6 +73,7 @@ var _playing: bool = false
 
 func _ready() -> void:
 	_arcs = Arcs.new()
+	_arcs.use_flipbook(FLIPBOOK, 2, 8)
 	add_child(_arcs)
 	_light = OmniLight3D.new()
 	_light.light_color = light_color
@@ -166,8 +172,9 @@ func _reroll() -> void:
 	_trunk_arcs.clear()
 	for i in trunks:
 		var end: Vector3 = _cone_direction(axis, side, up, 0.4) * _length * trunk_reach * randf_range(0.7, 1.1)
-		var trunk := Arcs.Arc.new(Arcs.channel(Vector3.ZERO, end, 4, roughness * 0.8), trunk_half_width)
+		var trunk := Arcs.Arc.new(Arcs.channel(Vector3.ZERO, end, 2, roughness), end.length() * width_per_metre * trunk_width)
 		trunk.weight = 0.8
+		trunk.frame = randi()
 		trunk.reveal_to = end.length() / _length
 		# The orb hides where the trunks meet; a short fade keeps them
 		# from piling up past it.
@@ -194,7 +201,7 @@ func _cone_direction(axis: Vector3, side: Vector3, up: Vector3, spread: float) -
 	return (axis * cos(off) + (side * cos(around) + up * sin(around)) * sin(off)).normalized()
 
 
-## An arc to `end`, split off a point on the trunk pointing nearest it,
+## A painted arc to `end`, split off a point on the trunk pointing nearest it,
 ## so the spray fans out from the trunks rather than from the hand.
 func _add_arc(arcs: Array[Arcs.Arc], end: Vector3, weight: float) -> void:
 	var start: Vector3 = Vector3.ZERO
@@ -208,16 +215,15 @@ func _add_arc(arcs: Array[Arcs.Arc], end: Vector3, weight: float) -> void:
 	# A target close to the hand: split off near the hand instead.
 	if start.length() >= end.length() * 0.8:
 		start = end * randf_range(0.1, 0.3)
-	var halvings: int = 5 if start.distance_to(end) > 3.0 else 4
-	var arc := Arcs.Arc.new(Arcs.channel(start, end, halvings, roughness), main_half_width)
+	var reach: float = start.distance_to(end)
+	var arc := Arcs.Arc.new(Arcs.channel(start, end, 2, roughness), reach * width_per_metre)
 	arc.weight = weight
+	arc.frame = randi()
 	arc.reveal_from = start.length() / _length
 	arc.reveal_to = end.length() / _length
 	# Fade in where it leaves the trunk, so it reads as a split, not a knot.
 	arc.root_fade = 0.12
 	arcs.append(arc)
-	var bias: Vector3 = end.normalized() * 0.5
-	arcs.append_array(Arcs.fork(arc, branch_chance, start.distance_to(end) * 0.4, halvings - 1, roughness, branch_half_width, bias))
 
 
 ## Sizes and aims the haze to the cone being played.
