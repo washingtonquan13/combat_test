@@ -161,11 +161,14 @@ func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -
 	if element == Surface.Element.NONE:
 		return
 	var context: WorldContext = WorldManager.context_for(attacker) if attacker else WorldManager.context()
+	var parent: Node = _parent_for(context, attacker)
+	var space: PhysicsDirectSpaceState3D = _space_of(parent)
+	# The air first, so a cloud the ground gives off now (steam off water
+	# under fire) isn't touched by the same attack.
+	_touch_clouds(element, ability, attacker, target, context, parent, space)
 	var grid: SurfaceGrid = _grid_for(context)
 	if grid.is_empty():
 		return
-	var parent: Node = _parent_for(context, attacker)
-	var space: PhysicsDirectSpaceState3D = _space_of(parent)
 	var reached: Dictionary = {}
 	var position: Vector3
 	var radius: float = 0.0
@@ -196,6 +199,126 @@ func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -
 	if reached.is_empty():
 		return
 	_land_turned(_react(element, null, reached, grid), context, parent, position, radius)
+
+
+## touch() in the air: every cloud an attack of element reached reacts by
+## its SurfaceReaction to that element (Surface.reactions, as on the
+## ground) — lightning through steam electrifies it. Only BECOMES does
+## anything to a cloud (nothing of the element is left in the air for
+## TAKEN to land), and with spreads it runs through every touching cube
+## of that cloud, so one cube reached is enough. What a cloud becomes is
+## another cloud in its cubes, or nothing (cleared).
+func _touch_clouds(element: Surface.Element, ability: Ability, attacker: Unit, target, context: WorldContext, parent: Node, space: PhysicsDirectSpaceState3D) -> void:
+	var grid: CloudGrid = _clouds_for(context)
+	if grid.is_empty():
+		return
+	var reach: Dictionary = _cloud_reach(grid, ability, attacker, target)
+	var exclude: Array[RID] = []
+	if space and reach.sight_from != null:
+		for unit in UnitQuery.all_units(get_tree()):
+			exclude.append(unit.get_rid())
+	var done: Dictionary = {}  # Vector3i -> true: cubes already reacted
+	for cell: CloudCell in reach.cells:
+		if done.has(cell.key) or grid.cells.get(cell.key) != cell:
+			continue
+		var reaction: SurfaceReaction = cell.surface.reaction_to(element)
+		if reaction == null or reaction.outcome != SurfaceReaction.Outcome.BECOMES:
+			continue
+		if space and reach.sight_from != null:
+			var ray := PhysicsRayQueryParameters3D.create(reach.sight_from, cell.centre(), 1, exclude)
+			if not space.intersect_ray(ray).is_empty():
+				continue
+		var cubes: Array[CloudCell] = [cell]
+		if reaction.spreads:
+			cubes = _cloud_through(grid, cell)
+		for cube in cubes:
+			done[cube.key] = true
+		var becomes: Surface = reaction.becomes_surface()
+		if becomes and becomes.shape == Surface.Shape.DISC:
+			push_warning("SurfaceManager: a cloud can't become a ground surface (%s)" % becomes.surface_name)
+			continue
+		if becomes == null:
+			var by_patch: Dictionary = {}  # CloudPatch -> Array[CloudCell]
+			for cube in cubes:
+				if not by_patch.has(cube.patch):
+					var list: Array[CloudCell] = []
+					by_patch[cube.patch] = list
+				by_patch[cube.patch].append(cube)
+			for patch: CloudPatch in by_patch:
+				expire_cloud_cells(grid, patch, by_patch[patch])
+			continue
+		# The struck cube first: the new cloud thickens in from there.
+		var seeds: Dictionary[Vector3i, Vector3] = {cell.key: cell.centre()}
+		for cube in cubes:
+			seeds[cube.key] = cube.centre()
+		_play_spawn_fx(becomes, parent, cell.centre())
+		_fill(becomes, seeds, func(point: Vector3) -> bool: return seeds.has(CloudGrid.key_of(point)),
+				cell.centre(), context, parent)
+
+
+## The cloud cubes an attack reached (_touch_clouds), as {cells:
+## Array[CloudCell], sight_from: Vector3 or null}: a cone's cubes or a
+## blast's, each only if a ray from sight_from to it is clear (walls
+## shadow them, as they do the ground); for a single-target attack the
+## cubes along the shot, from the attacker's eye to where it landed — a
+## bolt fired through steam reaches it with its target outside — and
+## those round the target's body. The shot's own line is clear by
+## construction, so it needs no sight test.
+func _cloud_reach(grid: CloudGrid, ability: Ability, attacker: Unit, target) -> Dictionary:
+	var cells: Array[CloudCell] = []
+	var cone := ability.targeting as ConeTargeting if ability else null
+	var area := ability.targeting as AreaTargeting if ability else null
+	var point: Vector3 = target.global_position if target is Unit else (target if target is Vector3 else Vector3.ZERO)
+	var half_cube: float = CloudGrid.CELL * 0.87
+	if cone and attacker:
+		var apex: Vector3 = cone.origin(attacker)
+		var aim: Vector3 = cone.direction(attacker, point)
+		var half: float = cone.half_angle()
+		for cell: CloudCell in grid.cells.values():
+			var to: Vector3 = cell.centre() - apex
+			var dist: float = to.length()
+			if dist - half_cube > cone.length:
+				continue
+			if dist > half_cube and aim.angle_to(to) > half + asin(half_cube / dist):
+				continue
+			cells.append(cell)
+		return {cells = cells, sight_from = apex}
+	if area:
+		# Lifted a little, as _burst_cells sees the floor round a burst.
+		var centre: Vector3 = point + Vector3.UP * 0.3
+		for cell: CloudCell in grid.cells.values():
+			if cell.centre().distance_to(centre) <= area.radius + half_cube:
+				cells.append(cell)
+		return {cells = cells, sight_from = centre}
+	if attacker:
+		cells.append_array(grid.cells_along(LineOfSight.shot_from(attacker), LineOfSight.shot_to(target)))
+	if target is Unit:
+		cells.append_array(grid.cells_touching(target.global_position, target.anchor(CharacterModel.Anchor.EYE), target.radius))
+	elif target is Vector3:
+		var struck: CloudCell = grid.cell_at(point)
+		if struck:
+			cells.append(struck)
+	return {cells = cells, sight_from = null}
+
+
+## Every cube of start's cloud joined to it face to face: the whole
+## connected cloud, however many casts filled it.
+func _cloud_through(grid: CloudGrid, start: CloudCell) -> Array[CloudCell]:
+	var found: Array[CloudCell] = [start]
+	var seen: Dictionary = {start.key: true}
+	var i: int = 0
+	while i < found.size():
+		var key: Vector3i = found[i].key
+		i += 1
+		for step in CloudGrid.NEIGHBOURS:
+			var next: Vector3i = key + step
+			if seen.has(next):
+				continue
+			seen[next] = true
+			var beside: CloudCell = grid.cells.get(next)
+			if beside and beside.surface == start.surface:
+				found.append(beside)
+	return found
 
 
 ## The cells (SurfaceGrid key -> floor y) on the ground under a footprint
