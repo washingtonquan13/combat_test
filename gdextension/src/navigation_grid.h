@@ -595,11 +595,15 @@ private:
 	// stepped once per GOAL_FLOOD_EVERY search expansions, empties it and
 	// proves the goal unreachable after a few hundred expansions instead.
 	// A flood that grows past GOAL_FLOOD_BUDGET cells gives up: the goal's
-	// side is big, so the search decides as before. Search and flood share
+	// side is big, so the search decides as before. The budget is what an
+	// OPEN goal pays on every route (26 validity checks per flooded cell),
+	// so it is sized for the pockets this exists for, a goal ringed by
+	// units or tucked behind one gap (about 32 m2 of floor), not whole
+	// rooms: 4096 cost a quarry route 8 ms (16 -> 24 ms). Search and flood share
 	// one adjacency (is_valid_cell over the 26 neighbours, symmetric), so
 	// "sealed" is exact, never a guess.
 	static constexpr int GOAL_FLOOD_EVERY = 4;
-	static constexpr int GOAL_FLOOD_BUDGET = 4096;
+	static constexpr int GOAL_FLOOD_BUDGET = 512;
 	struct GoalFlood {
 		enum State { RUNNING, SEALED, OPEN };
 		State state = RUNNING;

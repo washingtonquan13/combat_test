@@ -45,7 +45,7 @@ Drives the turn of every unit whose faction is AI-controlled: asks `AiScorer.bes
 - UnitQuery: `living_units_near`, `nearest_hostile`, `living_allies`, `all_units_near` (ai_scorer.gd:246, 268, 322, 774, 823, 1039; behaviors).
 - UnitCombat: `ALTITUDE_ADVANTAGE` (ai_scorer.gd:1074).
 - Ability/AbilityEffect: `expected_damage(attacker, target)`, `expected_heal(attacker)` (ability_effect.gd:36, 43; ai_scorer.gd:296, 327, 663-664, 782, 834), `GrantFlightEffect`, `LandEffect` (513, 523), `targeting.approach_range()`.
-- NavigationGrid constants FLIGHT_MIN_ALTITUDE / FLIGHT_CEILING_HEIGHT (ai_scorer.gd:519-520); UnitMovement.FLIGHT_RULES (951, 1011).
+- NavigationGrid.FLIGHT_MIN_ALTITUDE and flight_ceiling_at() (ceiling is FLIGHT_MAX_ALTITUDE above local ground), reached through UnitMovement.clamp_flight_altitude (ai_scorer.gd:522); UnitMovement.FLIGHT_RULES (951, 1011).
 - Physics: `direct_space_state.intersect_ray` per `_ground_y_at` call (ai_scorer.gd:1049-1052).
 - FlightAiUtil (ai_scorer.gd:885, 938, 998).
 
