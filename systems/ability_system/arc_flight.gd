@@ -46,17 +46,42 @@ static func point(from: Vector3, to: Vector3, height: float, t: float) -> Vector
 	return p
 
 
-## Flies unit from where it is to `to` over duration seconds. The unit is
-## busy until it lands, and landing well below where it took off hurts
+# --- How long a flight takes ------------------------------------------
+
+## Ground covered per second in the air: a full ST 10 jump (4.5 m) takes
+## 1.0 s, as Jump always did.
+const FLIGHT_SPEED: float = 4.5
+
+## No flight is quicker than this, so a short hop still reads as a hop.
+const MIN_FLIGHT_TIME: float = 0.4
+
+## For a flight that drops: it can't come down faster than a fall from
+## that height would (sqrt(2 x drop / g)), so going off a ledge takes as
+## long as the drop, not as long as the few metres across.
+const GRAVITY: float = 9.8
+
+
+## Seconds a flight from `from` to `to` takes: the ground it covers at
+## FLIGHT_SPEED, at least MIN_FLIGHT_TIME, and at least the fall time of
+## any drop. Jump and Shove both fly this long, so a short shove into a
+## wall no longer hangs in the air as long as a full jump.
+static func duration(from: Vector3, to: Vector3) -> float:
+	var across: float = Vector2(from.x, from.z).distance_to(Vector2(to.x, to.z))
+	var drop: float = maxf(from.y - to.y, 0.0)
+	return maxf(maxf(across / FLIGHT_SPEED, MIN_FLIGHT_TIME), sqrt(2.0 * drop / GRAVITY))
+
+
+## Flies unit from where it is to `to`, for duration(). The unit is busy
+## until it lands, and landing well below where it took off hurts
 ## (take_fall). Doesn't check the way is clear: callers pick a `to` that
 ## is (clear_fraction).
-static func fly(unit: Unit, to: Vector3, height: float, duration: float) -> Tween:
+static func fly(unit: Unit, to: Vector3, height: float) -> Tween:
 	var from: Vector3 = unit.global_position
 	unit.begin_busy()
 	var tween: Tween = unit.create_tween()
 	tween.tween_method(
 		func(t: float): unit.global_position = point(from, to, height, t),
-		0.0, 1.0, duration
+		0.0, 1.0, duration(from, to)
 	)
 	tween.tween_callback(func() -> void:
 		take_fall(unit, from.y - to.y)

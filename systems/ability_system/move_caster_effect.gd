@@ -21,7 +21,8 @@ extends AbilityEffect
 ## jump_indicator.gd draws the preview from arc_height_of() and
 ## landing_for, so the preview arc is the real jump's, not a copy.
 
-@export var jump_duration: float = 0.4
+## How long the flight takes is ArcFlight.duration: by the distance, the
+## same for a jump as for a shove.
 
 
 func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
@@ -35,7 +36,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	var destination: Vector3 = targeting.landing_for(attacker, target) if targeting else target
 	var distance: float = attacker.global_position.distance_to(destination)
 
-	ArcFlight.fly(attacker, destination, arc_height_of(ability), jump_duration)
+	ArcFlight.fly(attacker, destination, arc_height_of(ability))
 
 	if attacker.in_combat():
 		attacker.spend_move(distance)

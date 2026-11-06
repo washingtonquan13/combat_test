@@ -24,10 +24,9 @@ extends AbilityEffect
 @export var strength_rule: ArcFlight.StrengthRule = ArcFlight.StrengthRule.ROUNDED
 ## Used when distance_from_strength is off.
 @export var distance: float = 3.0
-## The flight itself is Jump's (jump.tres: jump_duration 1.0 s,
-## flight_arc_height 1.5 m), so a shoved body flies like a jumper does,
-## not twice as fast on a flatter curve.
-@export var push_duration: float = 1.0
+## The flight itself is Jump's: its peak (jump.tres flight_arc_height
+## 1.5 m) and its time (ArcFlight.duration, by distance), so a shoved
+## body flies like a jumper does.
 @export var arc_height: float = 1.5
 
 
@@ -45,7 +44,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 		return {}
 	var actual_distance: float = target.global_position.distance_to(destination)
 	if actual_distance > 0.001:
-		ArcFlight.fly(target, destination, arc_height, push_duration)
+		ArcFlight.fly(target, destination, arc_height)
 	return {"knockback_distance": actual_distance}
 
 

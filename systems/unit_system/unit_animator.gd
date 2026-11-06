@@ -971,11 +971,11 @@ func _is_awaiting_external() -> bool:
 ## (ON_FINISH), not yet Loop (EXTERNAL). Since became_idle only fires
 ## once per busy transition, silently no-op-ing here stranded the
 ## sequence on Loop forever once it DID naturally arrive there — the bug
-## this fixed. jump_duration is now tuned past Jump_Start's length so
-## this specific case no longer triggers the race in practice, but the
-## guard stays: nothing enforces that relationship, and any other
-## EXTERNAL-using sequence could hit the same ordering depending on its
-## own clip lengths. Recording the request as pending and letting
+## this fixed. Flight time is now ArcFlight.duration, by distance (0.4 s
+## for a short hop), so a short jump can still land before Start ends:
+## this guard is what keeps that working. Nothing enforces the order,
+## and any other EXTERNAL-using sequence could hit it too, depending on
+## its own clip lengths. Recording the request as pending and letting
 ## _advance_to_next_phase() consume it the instant it lands on an
 ## EXTERNAL phase makes this correct regardless of which order the two
 ## events actually arrive in.
