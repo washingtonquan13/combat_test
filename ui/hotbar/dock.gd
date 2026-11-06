@@ -41,6 +41,9 @@ const ROW_PITCH: float = 44.0
 static var visible_rows: int = 1
 
 @export var dim_modulate: Color = Color(0.82, 0.82, 0.82, 0.8)
+## How far (pixels) the mouse has to be from a globe for its highlight to
+## sit at the very edge: nearer, it slides proportionally toward the middle.
+@export var glint_reach: float = 400.0
 
 @onready var _globes: Control = %Globes
 @onready var _hp_globe: TextureRect = %HpGlobe
@@ -366,6 +369,7 @@ static func _cover_square(material: ShaderMaterial, texture: Texture2D) -> void:
 ## It is charged only when a walk ends, so the cost walked so far is
 ## taken off here to drain the bar as the unit goes.
 func _process(_delta: float) -> void:
+	_aim_glints()
 	var unit: Unit = _current_unit
 	var show_move: bool = _bar_column.visible and unit != null and is_instance_valid(unit) and unit.in_combat()
 	_move_box.modulate.a = 1.0 if show_move else 0.0
@@ -377,6 +381,18 @@ func _process(_delta: float) -> void:
 	var text: String = "Move [color=#f2d48a]%s[/color] / %s m" % [_metres(left), _metres(total)]
 	if _move_label.text != text:
 		_move_label.text = text
+
+
+## The globes' glass highlight leans toward the mouse, as if the pointer
+## were the light (Path of Exile's globes do this): all the way to the edge
+## once the mouse is glint_reach pixels off.
+func _aim_glints() -> void:
+	if not _globes.is_visible_in_tree():
+		return
+	var mouse: Vector2 = get_global_mouse_position()
+	for globe: TextureRect in [_hp_globe, _fp_globe]:
+		var toward: Vector2 = (mouse - globe.get_global_rect().get_center()) / glint_reach
+		globe.material.set_shader_parameter("glint_dir", toward.limit_length(1.0))
 
 
 static func _metres(value: float) -> String:

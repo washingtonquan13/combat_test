@@ -46,6 +46,17 @@ uniform float rim_px = 3.0;
 // UV must stay the rect's 0..1 for the circle). dock.gd sets these from
 // the texture's aspect: the short side whole, the long side centred
 // (or, for a tall portrait, nearer the top, where the face is).
+// Glass: how much the ball magnifies its middle, the colour fringe toward
+// the rim, the window-shaped highlight, and the light gathered in the
+// bottom of the ball after passing through it.
+uniform float lens : hint_range(0.0, 0.5) = 0.18;
+uniform float fringe : hint_range(0.0, 0.05) = 0.012;
+uniform float highlight : hint_range(0.0, 2.0) = 0.9;
+uniform float caustic : hint_range(0.0, 1.0) = 0.35;
+// Where the light is, as dock.gd aims it from the mouse: a direction from
+// the globe's centre, its length (0..1) how far toward the edge the
+// highlight slides.
+uniform vec2 glint_dir = vec2(-0.6, -0.85);
 uniform vec2 uv_scale = vec2(1.0);
 uniform vec2 uv_offset = vec2(0.0);
 
@@ -105,7 +116,8 @@ void fragment() {
 	float settle = smoothstep(0.0, 0.04, fill) * smoothstep(1.0, 0.96, fill);
 	float level = fill + wave * wave_amp * settle;
 
-	float height = 1.0 - UV.y;
+	// The liquid line seen through the glass, magnified like the picture.
+	float height = 0.5 - c.y * (1.0 - lens * (1.0 - r * r));
 	float line_px = fwidth(UV.y);
 	float wet = 1.0 - smoothstep(level - line_px, level + line_px, height);
 	if (fill <= 0.0) {
@@ -113,7 +125,14 @@ void fragment() {
 	}
 
 	vec2 bend = (warp.xy - vec2(0.5)) * refract * wet;
-	vec4 base = texture(TEXTURE, uv_offset + (UV + bend) * uv_scale);
+	// Through the glass: the ball magnifies its middle, and red and blue
+	// bend a touch differently toward the rim.
+	vec2 seen = c * (1.0 - lens * (1.0 - r * r));
+	vec2 split = c * fringe * r * r;
+	vec2 at = vec2(0.5) + seen + bend;
+	vec4 base = texture(TEXTURE, uv_offset + at * uv_scale);
+	base.r = texture(TEXTURE, uv_offset + (at + split) * uv_scale).r;
+	base.b = texture(TEXTURE, uv_offset + (at - split) * uv_scale).b;
 
 	// Liquid: the texture in full colour, tinted, swirling.
 	float depth = fill > 0.0 ? clamp(height / max(level, 0.001), 0.0, 1.0) : 0.0;
@@ -134,12 +153,29 @@ void fragment() {
 	}
 
 	// Glass sphere: darker toward the edge, a cool fresnel glow just inside
-	// the rim, and a soft gloss highlight up and to the left.
+	// the rim.
 	col *= mix(1.0, 0.35 + 0.65 * z, sphere_shade);
 	col += fresnel_color.rgb * fresnel_color.a * pow(r, 4.0);
-	vec2 g = (c - vec2(-0.14, -0.22)) * vec2(1.0, 1.6);
-	float spec = 1.0 - smoothstep(0.0, 0.22, length(g));
-	col += vec3(1.0) * gloss * spec * spec;
+	// Light through the ball gathers in a soft crescent at the bottom.
+	float crescent = smoothstep(0.55, 0.92, r) * smoothstep(0.0, 0.6, -n.y) * (1.0 - smoothstep(0.96, 1.0, r));
+	col += vec3(1.0, 0.95, 0.85) * caustic * crescent * 0.6;
+
+	// The highlight is a reflection of a window where the light is: a
+	// rounded pane curved round the ball, sharp-edged as glass gives it,
+	// brightest on its outer side, and a soft broad sheen round it. A small
+	// second glint sits opposite, where the light leaves.
+	float reach = length(glint_dir);
+	vec2 dir = reach > 0.001 ? glint_dir / reach : vec2(0.0, -1.0);
+	vec2 spot = glint_dir * 0.34;
+	vec2 d = c - spot;
+	vec2 w = vec2(dot(d, vec2(-dir.y, dir.x)), dot(d, -dir)) * vec2(1.0, 1.3);
+	w.y += w.x * w.x * 2.2;
+	float pane = 1.0 - smoothstep(0.05, 0.075, max(abs(w.x) * 0.8, abs(w.y) * 1.7) + length(w) * 0.2);
+	pane *= clamp(0.85 - w.y * 9.0, 0.15, 1.0);
+	float sheen = 1.0 - smoothstep(0.0, 0.3, length(c - spot * 0.9));
+	col += vec3(1.0) * highlight * (pane * 0.55 + sheen * sheen * gloss);
+	float back = 1.0 - smoothstep(0.0, 0.035, length(c + glint_dir * 0.36));
+	col += vec3(1.0) * highlight * back * 0.5 * reach;
 
 	float rim_w = rim_px * px;
 	float rim = smoothstep(1.0 - rim_w - px, 1.0 - rim_w, r);
