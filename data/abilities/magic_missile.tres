@@ -16,7 +16,7 @@
 script = ExtResource("8_path")
 projectile_scene = ExtResource("9_proj")
 duration = 0.0
-speed = 20.0
+speed = 11.0
 flying = true
 radius = 0.1
 avoidance_margin = 0.0
@@ -54,7 +54,7 @@ metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 [sub_resource type="Resource" id="Resource_time"]
 script = ExtResource("5_time")
 waits_for_impact = true
-impact_timeout = 3.0
+impact_timeout = 5.0
 metadata/_custom_type_script = "uid://bjatij1rn26yg"
 
 [resource]
