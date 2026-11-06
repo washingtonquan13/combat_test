@@ -232,7 +232,7 @@ func move_to(destination: Vector3, ignore: Array = []) -> bool:
 	# walk was refused and silently dropped — no redirect, no cancel, no
 	# feedback, just a unit finishing an order the player had changed their
 	# mind about.
-	if not _owner.can_be_commanded():
+	if not _owner.can_be_commanded() or _owner.is_rooted():
 		return false
 
 	# Never left on the rungs: an order given mid-climb ends the current

@@ -226,6 +226,16 @@ func prevents_turn() -> bool:
 	return false
 
 
+## Whether ANY active status holds this unit in place — see
+## StatusBehavior.prevents_movement().
+func prevents_movement() -> bool:
+	for a in active:
+		for behavior in a.effect.behaviors:
+			if behavior.prevents_movement():
+				return true
+	return false
+
+
 ## Notifies every active status's behaviors that this unit took damage —
 ## lets e.g. RemoveOnDamageBehavior react (waking from Sleep).
 func notify_damage_taken(amount: int, critical: bool = false) -> void:

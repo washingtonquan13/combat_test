@@ -51,6 +51,13 @@ func prevents_turn() -> bool:
 	return false
 
 
+## Whether this behavior holds the unit where it stands (Webbed): it may
+## still act, but not walk. If ANY active status returns true, the unit's
+## Move reads 0 and move_to() refuses (see StatusManager.prevents_movement()).
+func prevents_movement() -> bool:
+	return false
+
+
 ## Called whenever unit takes damage from any source, AFTER the damage is
 ## applied — lets a behavior react, e.g. RemoveOnDamageBehavior clearing
 ## the whole status (not just itself) when its owner is hit. critical:

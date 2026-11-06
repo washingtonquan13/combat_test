@@ -1392,7 +1392,15 @@ func move_per_turn() -> float:
 
 
 func _move_per_turn(flying: bool) -> float:
+	if is_rooted():
+		return 0.0
 	return get_stat(StatIds.AIR_MOVE if flying else StatIds.MOVE)
+
+
+## Held where it stands by a status (Webbed): it can still act, but not
+## walk, in combat or out. See StatusBehavior.prevents_movement().
+func is_rooted() -> bool:
+	return _status_manager.prevents_movement()
 
 
 func reset_turn_actions() -> void:
