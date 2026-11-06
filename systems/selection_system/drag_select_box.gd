@@ -62,6 +62,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		queue_redraw()
 
 	elif event is InputEventMouseMotion and Input.is_action_pressed("left_click"):
+		# A press on a movable prop drags the prop, not a box.
+		var router: ClickRouter = get_tree().get_first_node_in_group(&"click_router") as ClickRouter
+		if router and router.claims_drag():
+			_dragging = false
+			return
 		_drag_end = event.position
 		if not _dragging and _drag_start.distance_to(_drag_end) >= ClickRouter.CLICK_DRAG_THRESHOLD:
 			_dragging = true

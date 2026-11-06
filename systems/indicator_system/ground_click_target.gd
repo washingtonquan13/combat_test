@@ -96,6 +96,15 @@ var _press_cursor: Cursor = null
 var _press_intent: PlayerIntent = null
 var _press_position: Vector2 = Vector2.ZERO
 
+## The MovableProp a left press landed on, while that press may still turn
+## into dragging it (see _begin_prop_drag). Null otherwise.
+var _press_prop: MovableProp = null
+
+## The drag in progress, and the intent pushed for it - null when nothing
+## is being dragged. The release drops it, right-click cancels it.
+var _drag: PropDrag = null
+var _drag_intent: DraggingIntent = null
+
 ## Intents pushed by a tool that wants first refusal on clicks — right
 ## now only debug/spawning_intent.gd. A stack rather than a flag so
 ## nesting is at least well-defined, and PlayerIntent-typed so production
@@ -288,7 +297,12 @@ func _process(_delta: float) -> void:
 		_apply_intent(now)
 		intent_changed.emit(now)
 
+	if _drag and now != _drag_intent:
+		# Something took the screen (a conversation, a menu) mid-drag.
+		cancel_prop_drag()
 	cursor = resolve_cursor(now)
+	if _drag:
+		_drag.follow(cursor.ground)
 	now.steer(self, cursor)
 	_steered(now)
 	aim = Aim.build(cursor, now)
@@ -326,7 +340,7 @@ func resolve_cursor(current: PlayerIntent) -> Cursor:
 	# The world under the mouse, looking THROUGH units: the surface point is
 	# the floor (or prop) behind a unit, never a point on its capsule, so a
 	# path or an area aimed past a unit lands where the player sees it.
-	var ground_hit: Dictionary = _raycast_past_units(ground_collision_mask)
+	var ground_hit: Dictionary = _raycast_past_units(ground_collision_mask, _drag_exclusions())
 	var collider: Object = _pickable_collider(ground_hit)
 	if collider is Node and not (collider is Unit) and collider.has_method("get_interactions"):
 		result.interactable = collider
@@ -500,8 +514,8 @@ func _raycast(collision_mask: int, exclude: Array[RID] = [], areas_only: bool = 
 ## physics layer (they collide with walls and each other on it), so the
 ## ray is re-cast past each unit it meets rather than masked; a handful of
 ## units stacked on one ray is the most this ever loops.
-func _raycast_past_units(collision_mask: int) -> Dictionary:
-	var exclude: Array[RID] = []
+func _raycast_past_units(collision_mask: int, also_exclude: Array[RID] = []) -> Dictionary:
+	var exclude: Array[RID] = also_exclude.duplicate()
 	for i in 8:
 		var hit: Dictionary = _raycast(collision_mask, exclude)
 		if hit.is_empty() or not (hit.collider is Unit):
@@ -635,13 +649,25 @@ func _unhandled_input(event: InputEvent) -> void:
 		_press_intent = intent()
 		_press_cursor = resolve_cursor(_press_intent)
 		_press_position = event.position if event is InputEventMouse else get_viewport().get_mouse_position()
+		_press_prop = _press_cursor.interactable as MovableProp if _press_intent == _idle else null
 		return
 	if event is InputEventMouseMotion and _press_cursor != null:
 		if _press_position.distance_to(event.position) >= CLICK_DRAG_THRESHOLD:
+			var prop: MovableProp = _press_prop
+			var at: Cursor = _press_cursor
 			_press_cursor = null
 			_press_intent = null
+			_press_prop = null
+			if prop:
+				_begin_prop_drag(prop, at)
+				get_viewport().set_input_as_handled()
+		return
+	if event.is_action_released("left_click") and _drag:
+		_finish_prop_drag()
+		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_released("left_click"):
+		_press_prop = null
 		var pressed: Cursor = _press_cursor
 		var pressed_intent: PlayerIntent = _press_intent
 		_press_cursor = null
@@ -680,6 +706,68 @@ func _unhandled_input(event: InputEvent) -> void:
 	var current: PlayerIntent = intent()
 	if current.handle_right_click(self, resolve_cursor(current)):
 		get_viewport().set_input_as_handled()
+
+
+## Whether a left press is spoken for by a prop drag - one in progress, or
+## a press on a movable prop that a drag would pick up. DragSelectBox asks
+## before starting a box, so the same gesture is never both.
+func claims_drag() -> bool:
+	return _drag != null or _press_prop != null
+
+
+## A press on prop moved past CLICK_DRAG_THRESHOLD: pick it up, unless the
+## acting unit can't (too heavy, too far - MovableProp.refusal_for), which
+## is said where the prop is.
+func _begin_prop_drag(prop: MovableProp, at: Cursor) -> void:
+	# Nobody selected (a fresh arrival): the party leader carries it, as
+	# long as they stand in this world and can be directed.
+	var mover: Unit = active_unit()
+	if mover == null and PartyManager.leader and PartyManager.leader.is_commandable():
+		var context: WorldContext = WorldManager.context()
+		if context == null or context.contains(PartyManager.leader):
+			mover = PartyManager.leader
+	var why: String = prop.refusal_for(mover)
+	if why != "":
+		_feedback.refuse(prop.global_position, why, at.ground)
+		return
+	_drag = PropDrag.new(prop, mover, ground_collision_mask)
+	add_child(_drag)
+	_drag_intent = DraggingIntent.new(_drag)
+	push_intent(_drag_intent)
+
+
+## The release: set the prop down where the ghost is, or say why not and
+## leave it where it was.
+func _finish_prop_drag() -> void:
+	var drag: PropDrag = _drag
+	var point = drag.point
+	var dropped: bool = drag.drop()
+	if not dropped and point != null:
+		_feedback.refuse(point, "Not enough space" if drag.prop.in_reach(drag.mover, point) else "Too far away", point)
+	_end_prop_drag()
+
+
+## Right-click while holding (DraggingIntent), or the screen taken away:
+## nothing moves.
+func cancel_prop_drag() -> void:
+	if _drag:
+		_end_prop_drag()
+
+
+func _end_prop_drag() -> void:
+	pop_intent(_drag_intent)
+	_drag.queue_free()
+	_drag = null
+	_drag_intent = null
+
+
+## The dragged prop is not under the cursor: the ghost rests on what is
+## behind it.
+func _drag_exclusions() -> Array[RID]:
+	var out: Array[RID] = []
+	if _drag and is_instance_valid(_drag.prop):
+		out.append(_drag.prop.get_rid())
+	return out
 
 
 ## Clicking a unit: use an ability against it if the acting unit has one
