@@ -24,8 +24,11 @@ extends AbilityEffect
 @export var strength_rule: ArcFlight.StrengthRule = ArcFlight.StrengthRule.ROUNDED
 ## Used when distance_from_strength is off.
 @export var distance: float = 3.0
-@export var push_duration: float = 0.5
-@export var arc_height: float = 1.0
+## The flight itself is Jump's (jump.tres: jump_duration 1.0 s,
+## flight_arc_height 1.5 m), so a shoved body flies like a jumper does,
+## not twice as fast on a flatter curve.
+@export var push_duration: float = 1.0
+@export var arc_height: float = 1.5
 
 
 func push_distance(attacker: Unit) -> float:
