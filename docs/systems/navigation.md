@@ -15,6 +15,8 @@ NavigationGrid builds a chunked grid of walkable cells for each registered world
 
 The GDScript helpers turn a path into something a unit can walk. RoutePlanner cuts a path to the movement budget using a cost sampler (route_planner.gd:38-79). FormationPlanner spreads group moves across ring offsets (formation_planner.gd:31-58). PathAvoidance gathers nearby units as obstacles (path_avoidance.gd:34-50). PathCornerRounding smooths corners (path_corner_rounding.gd:18-51).
 
+Which nodes and shapes the grid reads, and what counts as inside geometry, is the authoring contract in [navigation_authoring.md](navigation_authoring.md).
+
 It does NOT move units (unit_movement.gd), own terrain costs (SurfaceManager supplies the sampler, `surfaces.md`), or run on the overworld (the overworld uses direct avatar control, so it has no nav grid).
 
 ## State it owns (source of truth)
