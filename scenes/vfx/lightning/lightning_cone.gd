@@ -8,7 +8,8 @@ extends Node3D
 ##  - a few thick trunks leaving the hand, splitting into many thinner
 ##    arcs that spray out to random points in the cone. Each arc is a
 ##    painted flipbook bolt (lightning_flipbook.gdshader), forks and all;
-##  - a faint glowing haze filling the cone (lightning_cone_haze.gdshader).
+##  - a glowing body filling the cone, raymarched like the fire
+##    (lightning_cone_volume.gdshader): filaments rushing out from the hand.
 ## Every `reroll_seconds` the arcs are thrown away and made again, so the
 ## spray crackles. Units caught in the cone always draw an arc or two.
 ## One flickering light lights the scene. Plays once and frees itself.
@@ -17,7 +18,7 @@ extends Node3D
 
 const Arcs := preload("res://scenes/vfx/lightning/lightning_arcs.gd")
 const Ball := preload("res://scenes/vfx/lightning/ball_lightning.gd")
-const HAZE_SHADER: Shader = preload("res://scenes/vfx/lightning/lightning_cone_haze.gdshader")
+const VOLUME_SHADER: Shader = preload("res://scenes/vfx/lightning/lightning_cone_volume.gdshader")
 ## Painted bolts (tools/lightning_flipbook.py), 2 x 8 frames.
 const FLIPBOOK: Texture2D = preload("res://assets/vfx/lightning/lightning_flipbook.png")
 
@@ -48,8 +49,8 @@ const FLIPBOOK: Texture2D = preload("res://assets/vfx/lightning/lightning_flipbo
 @export var light_color: Color = Color(0.7, 0.8, 1.0)
 ## The plasma orb at the hand.
 @export var orb_radius: float = 0.38
-## Brightness of the haze filling the cone.
-@export var haze_strength: float = 0.5
+## Brightness of the glowing body filling the cone.
+@export var haze_strength: float = 0.8
 ## How hard the first instant kicks: orb, haze and light flare this much
 ## over the hold, dying away over `kick_seconds`.
 @export var kick: float = 2.0
@@ -87,14 +88,20 @@ func _ready() -> void:
 	_orb_material.set_shader_parameter("haze_strength", 0.6)
 	add_child(_orb)
 	_haze_material = ShaderMaterial.new()
-	_haze_material.shader = HAZE_SHADER
-	var noise := NoiseTexture2D.new()
+	_haze_material.shader = VOLUME_SHADER
+	var noise := NoiseTexture3D.new()
+	noise.width = 64
+	noise.height = 64
+	noise.depth = 64
 	noise.seamless = true
 	var fast := FastNoiseLite.new()
-	fast.frequency = 0.03
+	fast.frequency = 0.04
+	fast.fractal_octaves = 2
 	noise.noise = fast
 	_haze_material.set_shader_parameter("noise", noise)
 	_haze = MeshInstance3D.new()
+	# A unit box; the shader stretches it around the cone.
+	_haze.mesh = BoxMesh.new()
 	_haze.material_override = _haze_material
 	_haze.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(_haze)
@@ -226,23 +233,15 @@ func _add_arc(arcs: Array[Arcs.Arc], end: Vector3, weight: float) -> void:
 	arcs.append(arc)
 
 
-## Sizes and aims the haze to the cone being played.
+## Sizes and aims the glowing body to the cone being played.
 func _shape_haze() -> void:
-	var mesh := CylinderMesh.new()
-	mesh.height = _length
-	mesh.top_radius = orb_radius * 0.5
-	mesh.bottom_radius = tan(_half_angle) * _length
-	mesh.radial_segments = 32
-	mesh.rings = 8
-	mesh.cap_top = false
-	mesh.cap_bottom = false
-	_haze.mesh = mesh
-	_haze_material.set_shader_parameter("height", _length)
+	var r: float = tan(_half_angle) * _length * 1.02
+	# The shader moves the box's corners, so culling needs the real size.
+	_haze.custom_aabb = AABB(Vector3(-r, -r, -_length), Vector3(2.0 * r, 2.0 * r, _length))
+	_haze_material.set_shader_parameter("cone_length", _length)
+	_haze_material.set_shader_parameter("half_angle", _half_angle)
+	_haze_material.set_shader_parameter("noise_offset", Vector3(randf(), randf(), randf()))
 	var axis: Vector3 = (global_basis.inverse() * _direction).normalized()
-	# The mesh's +Y (its narrow top) points back at the hand.
-	var y: Vector3 = -axis
-	var x: Vector3 = y.cross(Vector3.UP)
-	if x.length_squared() < 1e-4:
-		x = y.cross(Vector3.RIGHT)
-	x = x.normalized()
-	_haze.transform = Transform3D(Basis(x, y, x.cross(y)), axis * _length * 0.5)
+	var up: Vector3 = Vector3.UP if absf(axis.y) < 0.99 else Vector3.RIGHT
+	# The body's -Z runs along the cone, its origin at the hand.
+	_haze.transform = Transform3D(Basis.looking_at(axis, up), Vector3.ZERO)
