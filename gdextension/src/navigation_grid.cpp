@@ -1,5 +1,6 @@
 #include "navigation_grid.h"
 
+#include <godot_cpp/classes/animatable_body3d.hpp>
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/capsule_shape3d.hpp>
 #include <godot_cpp/classes/concave_polygon_shape3d.hpp>
@@ -7,7 +8,9 @@
 #include <godot_cpp/classes/cylinder_shape3d.hpp>
 #include <godot_cpp/classes/height_map_shape3d.hpp>
 #include <godot_cpp/classes/sphere_shape3d.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/utility_functions.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -410,6 +413,15 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 		auto tri = std::make_shared<TriShape>();
 		if (build_tri_shape(cs, *tri)) {
 			tri_shapes[cs] = tri;
+			continue;
+		}
+		// Anything else is filled as its bounding box: say so, once, rather
+		// than leave an author wondering why a slab of air is solid.
+		Shape3D *shape = cs->get_shape().ptr();
+		bool primitive = Object::cast_to<BoxShape3D>(shape) || Object::cast_to<SphereShape3D>(shape) || Object::cast_to<CylinderShape3D>(shape) || Object::cast_to<CapsuleShape3D>(shape);
+		if (!primitive && warned_shapes.insert(cs->get_instance_id()).second) {
+			UtilityFunctions::push_warning("NavigationGrid: ", cs->get_path(), " has a ", shape->get_class(),
+					", which the grid fills as its whole bounding box (see docs/systems/navigation_authoring.md).");
 		}
 	}
 
@@ -522,15 +534,23 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 			}
 		}
 	}
+
+	seal_interiors();
 }
 
 void NavigationGrid::collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out) {
+	// Only what the physics world itself collides with is geometry: a body
+	// on no collision layer is touched by nothing, and a disabled shape is
+	// not there at all. The project names no world-geometry layer (units,
+	// props and level share layer 1), so the layer test is "any layer".
+	// An AnimatableBody3D is a StaticBody3D that moves, and the bake is a
+	// snapshot, so it is not geometry either.
 	StaticBody3D *sb = Object::cast_to<StaticBody3D>(node);
-	if (sb) {
+	if (sb && sb->get_collision_layer() != 0 && !Object::cast_to<AnimatableBody3D>(node)) {
 		int count = sb->get_child_count();
 		for (int i = 0; i < count; i++) {
 			CollisionShape3D *cs = Object::cast_to<CollisionShape3D>(sb->get_child(i));
-			if (cs && cs->get_shape().is_valid()) {
+			if (cs && !cs->is_disabled() && cs->get_shape().is_valid()) {
 				out.push_back(cs);
 			}
 		}
@@ -563,7 +583,9 @@ AABB NavigationGrid::shape_global_aabb(CollisionShape3D *cs) {
 			return tri->second->aabb; // already world space
 		}
 		Ref<ArrayMesh> mesh = shape->get_debug_mesh();
-		local_aabb = mesh->get_aabb();
+		if (mesh.is_valid()) {
+			local_aabb = mesh->get_aabb();
+		}
 	}
 	return transform_aabb(cs->get_global_transform(), local_aabb);
 }
@@ -975,7 +997,11 @@ void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &ch
 				}
 			}
 		}
-		if (std::abs(n.y) < 0.5f) {
+		// Any face too steep to walk, not just near-vertical ones: steeper
+		// than 45 degrees, neighbouring columns cross it more than a cell
+		// apart, and the cells between would leave a crack the outside
+		// leaks through into a hollow (see seal_interiors).
+		if (std::abs(n.y) < std::cos(MAX_WALKABLE_SLOPE_DEGREES * (float)Math_PI / 180.0f)) {
 			Vector3i lo = world_to_cell(Vector3(std::min({ a.x, b.x, c.x }), std::min({ a.y, b.y, c.y }), std::min({ a.z, b.z, c.z })));
 			Vector3i hi = world_to_cell(Vector3(std::max({ a.x, b.x, c.x }), std::max({ a.y, b.y, c.y }), std::max({ a.z, b.z, c.z })));
 			int fx0 = std::max(base.x, lo.x), fx1 = std::min(base.x + cx1 - 1, hi.x);
@@ -1283,7 +1309,7 @@ static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, in
 	return true;
 }
 
-void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk) {
+void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk, const std::vector<uint8_t> *fill) {
 	auto it = shapes_by_chunk.find(chunk_coord_index(chunk_coord));
 	if (it == shapes_by_chunk.end()) {
 		return; // no geometry touches this chunk — stays all-air
@@ -1318,9 +1344,17 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 			ramps.push_back(ramp);
 		}
 
-		for (int x = 0; x < cx1; x++) {
-			for (int y = 0; y < cy1; y++) {
-				for (int z = 0; z < cz1; z++) {
+		// Only the cells whose centres can lie in the shape's bounding box:
+		// every shape is tested exactly inside it, and seal_interiors
+		// rasterizes every chunk a shape touches, where a floor slab one
+		// metre thick would otherwise cost the whole 8 m chunk.
+		Vector3i lo = world_to_cell(aabb.position) - base;
+		Vector3i hi = world_to_cell(aabb.position + aabb.size) - base;
+		int x0 = std::max(0, lo.x), y0 = std::max(0, lo.y), z0 = std::max(0, lo.z);
+		int x1 = std::min(cx1, hi.x + 1), y1 = std::min(cy1, hi.y + 1), z1 = std::min(cz1, hi.z + 1);
+		for (int x = x0; x < x1; x++) {
+			for (int y = y0; y < y1; y++) {
+				for (int z = z0; z < z1; z++) {
 					Vector3i cell = base + Vector3i(x, y, z);
 					Vector3 world_point = cell_center(cell);
 					bool inside;
@@ -1347,6 +1381,12 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 					}
 				}
 			}
+		}
+	}
+
+	if (fill) {
+		for (size_t i = 0; i < chunk.solid.size(); i++) {
+			chunk.solid[i] |= (*fill)[i];
 		}
 	}
 
@@ -1385,6 +1425,293 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 			}
 		}
 	}
+}
+
+namespace {
+// Union-find over the open runs seal_interiors labels.
+struct RunSets {
+	std::vector<int> parent;
+	int find(int a) {
+		while (parent[a] != a) {
+			parent[a] = parent[parent[a]];
+			a = parent[a];
+		}
+		return a;
+	}
+	void unite(int a, int b) {
+		a = find(a);
+		b = find(b);
+		if (a != b) {
+			parent[std::max(a, b)] = std::min(a, b);
+		}
+	}
+};
+} // namespace
+
+// The rasterizers mark the shells of shapes. What lies inside a shell is
+// decided here, by one rule instead of per-mesh heuristics: an open cell is
+// air only if it is connected to the outside. The grid's boundary layer is
+// outside by construction (BOUNDS_MARGIN of air around all geometry), so a
+// flood from it over open cells reaches every cell any unit could get to,
+// and what it does not reach is inside geometry and becomes solid.
+//
+// Face neighbours only (6-connected), though a_star steps across all 26.
+// A crack only a diagonal step gets through is narrower than any unit's
+// clearance, so nothing a unit can reach is lost by closing it, and a
+// rasterized shell sloping one cell per column is tight to a 6-connected
+// flood but would leak at every step to a 26-connected one.
+//
+// Done at the scan, not lazily: whether a pocket is sealed depends on
+// geometry anywhere in the world. So every chunk a shape touches is
+// rasterized now (rasterize_chunk walks each shape's own bounding box, so
+// that is a few ms per hundred chunks of boxes), and a chunk no shape
+// touches costs one node and is never allocated unless it is sealed.
+// Labelling is by runs of open cells along x, a few per row, rather than by
+// cell, so a chunk's labels cost one pass over its solid[].
+void NavigationGrid::seal_interiors() {
+	uint64_t started = Time::get_singleton()->get_ticks_usec();
+	const int D = CHUNK_DIM;
+	struct ChunkRuns {
+		bool shaped = false;
+		int first = 0; // node of the chunk's first run, or of the whole chunk when no shape touches it
+		Vector3i dims; // in-bounds extent
+		std::vector<int> row_start; // D*D + 1, row = y * D + z
+		std::vector<uint8_t> x0, x1; // inclusive
+	};
+	size_t n = chunks.size();
+	std::vector<ChunkRuns> runs(n);
+	int nodes = 1; // node 0 is the outside
+	int shaped_chunks = 0;
+	for (size_t i = 0; i < n; i++) {
+		ChunkRuns &c = runs[i];
+		Vector3i cc = chunk_coord_from_index((int)i);
+		Vector3i base = cc * D;
+		c.dims = Vector3i(std::min(D, grid_size.x - base.x), std::min(D, grid_size.y - base.y), std::min(D, grid_size.z - base.z));
+		c.first = nodes;
+		if (shapes_by_chunk.find((int)i) == shapes_by_chunk.end()) {
+			nodes++;
+			continue;
+		}
+		c.shaped = true;
+		shaped_chunks++;
+		const std::vector<uint8_t> &solid = ensure_chunk_rasterized(cc).solid;
+		c.row_start.assign((size_t)D * D + 1, 0);
+		for (int y = 0; y < D; y++) {
+			for (int z = 0; z < D; z++) {
+				c.row_start[y * D + z] = (int)c.x0.size();
+				if (y >= c.dims.y || z >= c.dims.z) {
+					continue;
+				}
+				const uint8_t *row = solid.data() + local_index(Vector3i(0, y, z));
+				for (int x = 0; x < c.dims.x;) {
+					if (row[x]) {
+						x++;
+						continue;
+					}
+					int s = x;
+					while (x < c.dims.x && !row[x]) {
+						x++;
+					}
+					c.x0.push_back((uint8_t)s);
+					c.x1.push_back((uint8_t)(x - 1));
+				}
+			}
+		}
+		c.row_start[(size_t)D * D] = (int)c.x0.size();
+		nodes += (int)c.x0.size();
+	}
+
+	RunSets sets;
+	sets.parent.resize(nodes);
+	for (int i = 0; i < nodes; i++) {
+		sets.parent[i] = i;
+	}
+	// Every run of row ra in a sharing an x with a run of row rb in b. A
+	// chunk no shape touches is one open node whatever the row.
+	auto unite_rows = [&](const ChunkRuns &a, int ra, const ChunkRuns &b, int rb) {
+		if (!a.shaped || !b.shaped) {
+			const ChunkRuns &s = a.shaped ? a : b;
+			int whole = a.shaped ? b.first : a.first;
+			if (!s.shaped) {
+				sets.unite(s.first, whole);
+				return;
+			}
+			int rs = a.shaped ? ra : rb;
+			for (int k = s.row_start[rs]; k < s.row_start[rs + 1]; k++) {
+				sets.unite(s.first + k, whole);
+			}
+			return;
+		}
+		int i = a.row_start[ra], ie = a.row_start[ra + 1];
+		int j = b.row_start[rb], je = b.row_start[rb + 1];
+		while (i < ie && j < je) {
+			if (a.x1[i] >= b.x0[j] && b.x1[j] >= a.x0[i]) {
+				sets.unite(a.first + i, b.first + j);
+			}
+			if (a.x1[i] < b.x1[j]) {
+				i++;
+			} else {
+				j++;
+			}
+		}
+	};
+	// The run of a row that covers x, if any.
+	auto run_at = [&](const ChunkRuns &c, int row, int x) -> int {
+		if (!c.shaped) {
+			return c.first;
+		}
+		for (int k = c.row_start[row]; k < c.row_start[row + 1]; k++) {
+			if (c.x0[k] <= x && x <= c.x1[k]) {
+				return c.first + k;
+			}
+		}
+		return -1;
+	};
+	auto unite_row_with = [&](const ChunkRuns &c, int row, int node) {
+		if (!c.shaped) {
+			sets.unite(c.first, node);
+			return;
+		}
+		for (int k = c.row_start[row]; k < c.row_start[row + 1]; k++) {
+			sets.unite(c.first + k, node);
+		}
+	};
+
+	for (size_t i = 0; i < n; i++) {
+		const ChunkRuns &c = runs[i];
+		Vector3i cc = chunk_coord_from_index((int)i);
+		const Vector3i &d = c.dims;
+		// Within the chunk: each row with the rows below and behind it.
+		if (c.shaped) {
+			for (int y = 0; y < d.y; y++) {
+				for (int z = 0; z < d.z; z++) {
+					if (y > 0) {
+						unite_rows(c, y * D + z, c, (y - 1) * D + z);
+					}
+					if (z > 0) {
+						unite_rows(c, y * D + z, c, y * D + z - 1);
+					}
+				}
+			}
+		}
+		// Across the faces it shares with its +x, +y, +z neighbours. A
+		// neighbour exists only past a full chunk, so the shared face is at
+		// D - 1 on this side and 0 on the other.
+		Vector3i nx = cc + Vector3i(1, 0, 0), ny = cc + Vector3i(0, 1, 0), nz = cc + Vector3i(0, 0, 1);
+		if (chunk_in_bounds(nx)) {
+			const ChunkRuns &o = runs[chunk_coord_index(nx)];
+			if (!c.shaped && !o.shaped) {
+				sets.unite(c.first, o.first);
+			} else {
+				for (int y = 0; y < d.y; y++) {
+					for (int z = 0; z < d.z; z++) {
+						int a = run_at(c, y * D + z, D - 1), b = run_at(o, y * D + z, 0);
+						if (a >= 0 && b >= 0) {
+							sets.unite(a, b);
+						}
+					}
+				}
+			}
+		}
+		if (chunk_in_bounds(ny)) {
+			const ChunkRuns &o = runs[chunk_coord_index(ny)];
+			for (int z = 0; z < d.z; z++) {
+				unite_rows(c, (D - 1) * D + z, o, z);
+			}
+		}
+		if (chunk_in_bounds(nz)) {
+			const ChunkRuns &o = runs[chunk_coord_index(nz)];
+			for (int y = 0; y < d.y; y++) {
+				unite_rows(c, y * D + D - 1, o, y * D);
+			}
+		}
+		// The world's boundary faces are the outside.
+		bool on_x0 = cc.x == 0, on_x1 = cc.x == chunk_grid_size.x - 1;
+		bool on_y0 = cc.y == 0, on_y1 = cc.y == chunk_grid_size.y - 1;
+		bool on_z0 = cc.z == 0, on_z1 = cc.z == chunk_grid_size.z - 1;
+		if (!(on_x0 || on_x1 || on_y0 || on_y1 || on_z0 || on_z1)) {
+			continue;
+		}
+		if (!c.shaped) {
+			sets.unite(c.first, 0);
+			continue;
+		}
+		for (int y = 0; y < d.y; y++) {
+			for (int z = 0; z < d.z; z++) {
+				int row = y * D + z;
+				if ((on_y0 && y == 0) || (on_y1 && y == d.y - 1) || (on_z0 && z == 0) || (on_z1 && z == d.z - 1)) {
+					unite_row_with(c, row, 0);
+					continue;
+				}
+				if (on_x0) {
+					int a = run_at(c, row, 0);
+					if (a >= 0) {
+						sets.unite(a, 0);
+					}
+				}
+				if (on_x1) {
+					int a = run_at(c, row, d.x - 1);
+					if (a >= 0) {
+						sets.unite(a, 0);
+					}
+				}
+			}
+		}
+	}
+
+	// Everything the outside did not reach becomes solid. A chunk with
+	// shapes is rasterized again with the fill, so its ramp bands are
+	// marked against the solid that will stay.
+	int outside = sets.find(0);
+	int64_t sealed_cells = 0;
+	int sealed_chunks = 0;
+	const size_t cells = (size_t)D * D * D;
+	for (size_t i = 0; i < n; i++) {
+		const ChunkRuns &c = runs[i];
+		Vector3i cc = chunk_coord_from_index((int)i);
+		if (!c.shaped) {
+			if (sets.find(c.first) == outside) {
+				continue;
+			}
+			std::unique_ptr<NavChunk> &slot = chunks[i];
+			if (!slot) {
+				slot = std::make_unique<NavChunk>();
+			}
+			slot->solid.assign(cells, 1);
+			slot->ground.assign(cells, 0);
+			slot->rasterized = true;
+			sealed_cells += (int64_t)c.dims.x * c.dims.y * c.dims.z;
+			sealed_chunks++;
+			continue;
+		}
+		std::vector<uint8_t> fill;
+		for (int y = 0; y < c.dims.y; y++) {
+			for (int z = 0; z < c.dims.z; z++) {
+				int row = y * D + z;
+				for (int k = c.row_start[row]; k < c.row_start[row + 1]; k++) {
+					if (sets.find(c.first + k) == outside) {
+						continue;
+					}
+					if (fill.empty()) {
+						fill.assign(cells, 0);
+					}
+					for (int x = c.x0[k]; x <= c.x1[k]; x++) {
+						fill[local_index(Vector3i(x, y, z))] = 1;
+					}
+					sealed_cells += c.x1[k] - c.x0[k] + 1;
+				}
+			}
+		}
+		if (!fill.empty()) {
+			NavChunk &chunk = *chunks[i];
+			chunk.solid.assign(cells, 0);
+			chunk.ground.assign(cells, 0);
+			rasterize_chunk(cc, chunk, &fill);
+			sealed_chunks++;
+		}
+	}
+	UtilityFunctions::print_verbose("NavigationGrid: ", shaped_chunks, " of ", (int64_t)n, " chunks hold geometry; sealed ", sealed_cells,
+			" interior cells in ", sealed_chunks, " chunks; ", (double)(Time::get_singleton()->get_ticks_usec() - started) / 1000.0, " ms");
 }
 
 bool NavigationGrid::is_solid(const Vector3i &cell) {

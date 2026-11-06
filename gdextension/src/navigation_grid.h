@@ -401,6 +401,10 @@ private:
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
 	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tri_shapes;
+	// CollisionShape3D instance ids already warned about as filled by their
+	// bounding box, so a rescan (every area load, every prop drop) does not
+	// repeat the warning. Shared across worlds: ids are never reused.
+	std::unordered_set<uint64_t> warned_shapes;
 
 	std::vector<Vector3i> neighbor_offsets; // 26-connectivity, fine A*
 	std::vector<float> neighbor_step_cost; // parallel to neighbor_offsets — precomputed world-unit length of each offset, so a_star's hot loop doesn't call length() (sqrt) 26x per expansion for a fixed, known-in-advance set of vectors
@@ -463,7 +467,16 @@ private:
 	NavChunk &ensure_chunk_rasterized(const Vector3i &chunk_coord);
 	NavChunk &ensure_chunk_support(const Vector3i &chunk_coord);
 	NavChunk &ensure_chunk_dist(const Vector3i &chunk_coord);
-	void rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk);
+	// `fill`: cells to make solid before the ramp bands are marked, so the
+	// bands see them (see seal_interiors).
+	void rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk, const std::vector<uint8_t> *fill = nullptr);
+	// Open means connected to the outside. Every open cell that cannot reach
+	// the world's boundary through open cells is inside geometry (the hollow
+	// of an open mesh, a pocket sealed in rock, a room with no way in) and is
+	// made solid here, once per scan, before any tier reads solid[]. So
+	// support, flight_low, dist, regions and the floor queries all agree that
+	// it is not air.
+	void seal_interiors();
 	void bake_chunk_support(const Vector3i &chunk_coord, NavChunk &chunk);
 	void bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chunk);
 
