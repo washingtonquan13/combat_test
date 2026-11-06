@@ -45,6 +45,7 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_flight_ceiling_height"), &NavigationGrid::get_flight_ceiling_height);
 	ClassDB::bind_method(D_METHOD("flight_floor_at", "tree", "pos", "world_ref"), &NavigationGrid::flight_floor_at, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("flight_lowest_altitude", "tree", "world_ref"), &NavigationGrid::flight_lowest_altitude, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("debug_memory_bytes"), &NavigationGrid::debug_memory_bytes);
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "CELL_SIZE"), "", "get_cell_size");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "FLIGHT_MIN_ALTITUDE"), "", "get_flight_min_altitude");
@@ -82,7 +83,46 @@ float NavigationGrid::flight_floor_at(SceneTree *tree, Vector3 pos, Object *worl
 float NavigationGrid::flight_lowest_altitude(SceneTree *tree, Object *world_ref) {
 	activate_for(world_ref);
 	ensure_baked(tree);
-	return bounds_origin.y + BOUNDS_MARGIN + FLIGHT_MIN_ALTITUDE;
+	return geometry_min_y + FLIGHT_MIN_ALTITUDE;
+}
+
+// Counts container payloads (capacity, not size: that is what is held),
+// plus a rough per-entry cost for the hash maps. Shapes and the parked
+// worlds are left out: this is the cost of the one world being walked.
+int64_t NavigationGrid::debug_memory_bytes() const {
+	int64_t bytes = (int64_t)chunks.capacity() * sizeof(std::unique_ptr<NavChunk>);
+	for (const std::unique_ptr<NavChunk> &c : chunks) {
+		if (!c) {
+			continue;
+		}
+		bytes += sizeof(NavChunk);
+		bytes += c->solid.capacity() + c->ground.capacity() + c->no_support.capacity() + c->flight_low.capacity();
+		bytes += (int64_t)c->dist.capacity() * sizeof(uint16_t);
+		for (const auto &cell : c->occupied) {
+			bytes += sizeof(cell) + 16 + (int64_t)cell.second.capacity() * sizeof(Object *);
+		}
+		for (const NavRegions &r : c->regions) {
+			bytes += (int64_t)r.label.capacity() * sizeof(uint16_t);
+			bytes += (int64_t)r.links.capacity() * sizeof(std::vector<uint64_t>);
+			for (const std::vector<uint64_t> &l : r.links) {
+				bytes += (int64_t)l.capacity() * sizeof(uint64_t);
+			}
+		}
+	}
+	bytes += (int64_t)astar_pages.capacity() * sizeof(std::unique_ptr<AStarPage>);
+	for (const std::unique_ptr<AStarPage> &p : astar_pages) {
+		if (p) {
+			bytes += sizeof(AStarPage);
+		}
+	}
+	bytes += (int64_t)smooth_pages.capacity() * sizeof(std::unique_ptr<SmoothPage>);
+	for (const std::unique_ptr<SmoothPage> &p : smooth_pages) {
+		if (p) {
+			bytes += sizeof(SmoothPage);
+		}
+	}
+	bytes += (int64_t)chunk_occupancy_nearby.capacity();
+	return bytes;
 }
 
 // --- Multi-world registry --------------------------------------------
@@ -135,6 +175,8 @@ void NavigationGrid::unregister_world(Node *root) {
 		shapes_by_chunk.clear();
 		tri_shapes.clear();
 		chunks.clear();
+		astar_pages.clear();
+		smooth_pages.clear();
 		chunk_occupancy_nearby.clear();
 		reset_occupancy();
 		baked = false;
@@ -202,12 +244,9 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		std::swap(out.occupied_chunks, occupied_chunks);
 		std::swap(out.occupancy_signature, occupancy_signature);
 		std::swap(out.chunks, chunks);
-		std::swap(out.astar_g_score, astar_g_score);
-		std::swap(out.astar_g_gen, astar_g_gen);
-		std::swap(out.astar_came_from, astar_came_from);
-		std::swap(out.astar_closed_gen, astar_closed_gen);
-		std::swap(out.smooth_valid_gen, smooth_valid_gen);
-		std::swap(out.smooth_valid_result, smooth_valid_result);
+		out.geometry_min_y = geometry_min_y;
+		std::swap(out.astar_pages, astar_pages);
+		std::swap(out.smooth_pages, smooth_pages);
 		std::swap(out.all_shapes, all_shapes);
 		std::swap(out.shapes_by_chunk, shapes_by_chunk);
 		std::swap(out.tri_shapes, tri_shapes);
@@ -216,6 +255,8 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		// Leaving the legacy grid behind for good — clear rather than
 		// park, so its shape pointers can't outlive their scene.
 		chunks.clear();
+		astar_pages.clear();
+		smooth_pages.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
 		tri_shapes.clear();
@@ -238,12 +279,9 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		smooth_search_id = 0;
 		active_root = nullptr;
 		chunks.clear();
-		astar_g_score.clear();
-		astar_g_gen.clear();
-		astar_came_from.clear();
-		astar_closed_gen.clear();
-		smooth_valid_gen.clear();
-		smooth_valid_result.clear();
+		geometry_min_y = 0.0f;
+		astar_pages.clear();
+		smooth_pages.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
 		tri_shapes.clear();
@@ -266,12 +304,9 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 	std::swap(in.occupied_chunks, occupied_chunks);
 	std::swap(in.occupancy_signature, occupancy_signature);
 	std::swap(in.chunks, chunks);
-	std::swap(in.astar_g_score, astar_g_score);
-	std::swap(in.astar_g_gen, astar_g_gen);
-	std::swap(in.astar_came_from, astar_came_from);
-	std::swap(in.astar_closed_gen, astar_closed_gen);
-	std::swap(in.smooth_valid_gen, smooth_valid_gen);
-	std::swap(in.smooth_valid_result, smooth_valid_result);
+	geometry_min_y = in.geometry_min_y;
+	std::swap(in.astar_pages, astar_pages);
+	std::swap(in.smooth_pages, smooth_pages);
 	std::swap(in.all_shapes, all_shapes);
 	std::swap(in.shapes_by_chunk, shapes_by_chunk);
 	std::swap(in.tri_shapes, tri_shapes);
@@ -360,9 +395,25 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 		world_max = Vector3(1.0f, 1.0f, 1.0f);
 	}
 
+	geometry_min_y = world_min.y;
 	world_min -= Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
 	world_max += Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
 	world_max.y = std::max(world_max.y, FLIGHT_CEILING_HEIGHT + BOUNDS_MARGIN);
+
+	// The lattice is anchored to the world, not to the geometry: the origin
+	// snaps down to a whole chunk (8 m) on each axis, and the grid grows by
+	// whatever that adds. Taken straight from the geometry's minimum, every
+	// cell boundary moved whenever anything low was added or nudged, so the
+	// same floor rasterized into a different layer from one edit to the
+	// next and feet on it rounded into the floor or above it. A multiple of
+	// CHUNK_DIM * CELL_SIZE is also a multiple of CELL_SIZE, so cell faces
+	// land on round world values (y = 0 is a cell face) and chunk faces on
+	// fixed 8 m planes, whatever the level holds.
+	const float chunk_world = (float)CHUNK_DIM * CELL_SIZE;
+	world_min = Vector3(
+			std::floor(world_min.x / chunk_world) * chunk_world,
+			std::floor(world_min.y / chunk_world) * chunk_world,
+			std::floor(world_min.z / chunk_world) * chunk_world);
 
 	bounds_origin = world_min;
 	Vector3 extent = world_max - world_min;
@@ -383,15 +434,14 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	reset_occupancy();
 	any_occupied = false;
 
-	size_t total_cells = (size_t)grid_size.x * (size_t)grid_size.y * (size_t)grid_size.z;
-	astar_g_score.assign(total_cells, 0.0f);
-	astar_g_gen.assign(total_cells, 0);
-	astar_came_from.assign(total_cells, -1);
-	astar_closed_gen.assign(total_cells, 0);
+	// One empty slot per chunk; a page is allocated the first time a
+	// search reaches its chunk (see astar_page).
+	astar_pages.clear();
+	astar_pages.resize(chunks.size());
 	astar_search_id = 0;
 
-	smooth_valid_gen.assign(total_cells, 0);
-	smooth_valid_result.assign(total_cells, 0);
+	smooth_pages.clear();
+	smooth_pages.resize(chunks.size());
 	smooth_search_id = 0;
 
 	// Bucket every shape by each chunk its AABB overlaps, so a lazy
@@ -1073,15 +1123,15 @@ Vector3 NavigationGrid::cell_center(const Vector3i &cell) const {
 	return bounds_origin + Vector3((float)cell.x, (float)cell.y, (float)cell.z) * CELL_SIZE + Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, CELL_SIZE * 0.5f);
 }
 
-int NavigationGrid::cell_index(const Vector3i &cell) const {
-	return cell.x + cell.y * grid_size.x + cell.z * grid_size.x * grid_size.y;
+int64_t NavigationGrid::cell_index(const Vector3i &cell) const {
+	return (int64_t)cell.x + (int64_t)cell.y * grid_size.x + (int64_t)cell.z * grid_size.x * grid_size.y;
 }
 
-Vector3i NavigationGrid::cell_from_index(int idx) const {
-	int x = idx % grid_size.x;
-	int y = (idx / grid_size.x) % grid_size.y;
-	int z = idx / (grid_size.x * grid_size.y);
-	return Vector3i(x, y, z);
+Vector3i NavigationGrid::cell_from_index(int64_t idx) const {
+	int64_t x = idx % grid_size.x;
+	int64_t y = (idx / grid_size.x) % grid_size.y;
+	int64_t z = idx / ((int64_t)grid_size.x * grid_size.y);
+	return Vector3i((int)x, (int)y, (int)z);
 }
 
 bool NavigationGrid::in_bounds(const Vector3i &cell) const {
@@ -2432,28 +2482,57 @@ bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vecto
 	return true; // too big to settle cheaply: the search decides, capped as ever
 }
 
+AStarPage &NavigationGrid::astar_page(const Vector3i &cell, int &local) {
+	local = local_index(cell_to_local(cell));
+	std::unique_ptr<AStarPage> &page = astar_pages[chunk_coord_index(cell_to_chunk_coord(cell))];
+	if (!page) {
+		// Value-initialised, so every stamp starts at 0, older than any
+		// search (ids start at 1).
+		page = std::make_unique<AStarPage>();
+	}
+	return *page;
+}
+
+SmoothPage &NavigationGrid::smooth_page(const Vector3i &cell, int &local) {
+	local = local_index(cell_to_local(cell));
+	std::unique_ptr<SmoothPage> &page = smooth_pages[chunk_coord_index(cell_to_chunk_coord(cell))];
+	if (!page) {
+		page = std::make_unique<SmoothPage>();
+	}
+	return *page;
+}
+
 PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask) {
 	std::priority_queue<OpenEntry, std::vector<OpenEntry>, OpenEntryCompare> open_heap;
 
 	astar_search_id++;
 	int sid = astar_search_id;
 
-	int start_idx = cell_index(start_cell);
-	astar_g_score[start_idx] = 0.0f;
-	astar_g_gen[start_idx] = sid;
+	int start_local;
+	AStarPage &start_page = astar_page(start_cell, start_local);
+	start_page.g_score[start_local] = 0.0f;
+	start_page.g_gen[start_local] = sid;
 	open_heap.push({ heuristic(start_cell, goal_cell) * HEURISTIC_WEIGHT, start_cell });
 
 	int expansions = 0;
+
+	// The last chunk a neighbour fell in and its page: most of a cell's 26
+	// neighbours share its chunk, so this skips the page table nearly
+	// every step. A page never moves once allocated (it is behind a
+	// unique_ptr), so the pointer holds for the whole search.
+	int last_chunk = -1;
+	AStarPage *last_page = nullptr;
 
 	while (!open_heap.empty()) {
 		OpenEntry top = open_heap.top();
 		open_heap.pop();
 		Vector3i current = top.cell;
-		int current_idx = cell_index(current);
-		if (astar_closed_gen[current_idx] == sid) {
+		int current_local;
+		AStarPage &current_page = astar_page(current, current_local);
+		if (current_page.closed_gen[current_local] == sid) {
 			continue;
 		}
-		astar_closed_gen[current_idx] = sid;
+		current_page.closed_gen[current_local] = sid;
 
 		if (current == goal_cell) {
 			return reconstruct_path(start, start_cell, goal_cell);
@@ -2464,7 +2543,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			break;
 		}
 
-		float current_g = astar_g_score[current_idx];
+		float current_g = current_page.g_score[current_local];
 
 		for (size_t oi = 0; oi < neighbor_offsets.size(); oi++) {
 			const Vector3i &offset = neighbor_offsets[oi];
@@ -2472,11 +2551,20 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			if (!in_bounds(neighbor)) {
 				continue;
 			}
-			if (allowed_chunks_mask && !(*allowed_chunks_mask)[chunk_coord_index(cell_to_chunk_coord(neighbor))]) {
+			int neighbor_chunk = chunk_coord_index(cell_to_chunk_coord(neighbor));
+			if (allowed_chunks_mask && !(*allowed_chunks_mask)[neighbor_chunk]) {
 				continue;
 			}
-			int neighbor_idx = cell_index(neighbor);
-			if (astar_closed_gen[neighbor_idx] == sid) {
+			if (neighbor_chunk != last_chunk) {
+				std::unique_ptr<AStarPage> &slot = astar_pages[neighbor_chunk];
+				if (!slot) {
+					slot = std::make_unique<AStarPage>();
+				}
+				last_chunk = neighbor_chunk;
+				last_page = slot.get();
+			}
+			int neighbor_local = local_index(cell_to_local(neighbor));
+			if (last_page->closed_gen[neighbor_local] == sid) {
 				continue;
 			}
 			if (!is_valid_cell(neighbor, offsets, clearance, height, flying, unit)) {
@@ -2484,11 +2572,11 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			}
 			float step_cost = neighbor_step_cost[oi];
 			float tentative = current_g + step_cost;
-			float neighbor_g = (astar_g_gen[neighbor_idx] == sid) ? astar_g_score[neighbor_idx] : 1e30f;
+			float neighbor_g = (last_page->g_gen[neighbor_local] == sid) ? last_page->g_score[neighbor_local] : 1e30f;
 			if (tentative < neighbor_g) {
-				astar_g_score[neighbor_idx] = tentative;
-				astar_g_gen[neighbor_idx] = sid;
-				astar_came_from[neighbor_idx] = current_idx;
+				last_page->g_score[neighbor_local] = tentative;
+				last_page->g_gen[neighbor_local] = sid;
+				last_page->came_dir[neighbor_local] = (uint8_t)oi;
 				open_heap.push({ tentative + heuristic(neighbor, goal_cell) * HEURISTIC_WEIGHT, neighbor });
 			}
 		}
@@ -2498,20 +2586,24 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 }
 
 PackedVector3Array NavigationGrid::reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell) {
-	int start_idx = cell_index(start_cell);
-	std::vector<int> cell_indices;
-	cell_indices.push_back(cell_index(goal_cell));
-	int cur = cell_indices[0];
-	while (cur != start_idx) {
-		cur = astar_came_from[cur];
-		cell_indices.push_back(cur);
+	// Walk back from the goal by each cell's arriving step. Every cell on
+	// the chain but the start was reached this search, so its came_dir is
+	// this search's, whichever chunk it sits in.
+	std::vector<Vector3i> cells;
+	cells.push_back(goal_cell);
+	Vector3i cur = goal_cell;
+	while (cur != start_cell) {
+		int local;
+		AStarPage &page = astar_page(cur, local);
+		cur = cur - neighbor_offsets[page.came_dir[local]];
+		cells.push_back(cur);
 	}
-	std::reverse(cell_indices.begin(), cell_indices.end());
+	std::reverse(cells.begin(), cells.end());
 
 	PackedVector3Array result;
 	result.push_back(start);
-	for (size_t i = 1; i < cell_indices.size(); i++) {
-		result.push_back(cell_center(cell_from_index(cell_indices[i])));
+	for (size_t i = 1; i < cells.size(); i++) {
+		result.push_back(cell_center(cells[i]));
 	}
 	return result;
 }
@@ -2565,7 +2657,7 @@ bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::v
 }
 
 // Memoized wrapper around is_valid_cell for use within a single
-// smooth_path() call — see the header comment on smooth_valid_gen for
+// smooth_path() call — see the header comment on smooth_pages for
 // why this is exact (not approximate) despite the cache. Mirrors
 // is_valid_cell's own out-of-bounds handling (false) so callers can
 // treat this as a drop-in replacement.
@@ -2573,13 +2665,14 @@ bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vecto
 	if (!in_bounds(cell)) {
 		return false;
 	}
-	int idx = cell_index(cell);
-	if (smooth_valid_gen[idx] == smooth_sid) {
-		return smooth_valid_result[idx] != 0;
+	int local;
+	SmoothPage &page = smooth_page(cell, local);
+	if (page.valid_gen[local] == smooth_sid) {
+		return page.valid_result[local] != 0;
 	}
 	bool result = is_valid_cell(cell, offsets, clearance, height, flying, self_unit);
-	smooth_valid_gen[idx] = smooth_sid;
-	smooth_valid_result[idx] = result ? (uint8_t)1 : (uint8_t)0;
+	page.valid_gen[local] = smooth_sid;
+	page.valid_result[local] = result ? (uint8_t)1 : (uint8_t)0;
 	return result;
 }
 
