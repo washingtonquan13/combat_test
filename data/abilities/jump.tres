@@ -17,6 +17,7 @@ metadata/_custom_type_script = "uid://deawu000jynxq"
 [sub_resource type="Resource" id="Resource_uc2tp"]
 script = ExtResource("5_cxc1v")
 max_range = 6.0
+range_from_strength = true
 navmesh_tolerance = 0.5
 validate_as_caster_flying = true
 requires_ally = false
