@@ -94,6 +94,23 @@ float fbm(vec3 p) {
 	return v;
 }
 
+// A highlight shaped by the ball: an oval centred at spot, its long axis
+// along the circle round the ball's middle and bent to follow it, squashed
+// across as it nears the rim. Sharp on the rim side (toward), soft on the
+// side toward the middle; brightest at the rim side.
+float glint_arc(vec2 p, vec2 spot, vec2 toward, float half_len, float half_thick) {
+	float rho = length(spot);
+	vec2 d = p - spot;
+	// x along the curve, y inward (positive toward the ball's middle).
+	vec2 w = vec2(dot(d, vec2(-toward.y, toward.x)), dot(d, -toward));
+	w.y += w.x * w.x / (2.0 * max(rho, 0.22));
+	float thick = half_thick * (1.0 - 0.55 * smoothstep(0.1, 0.45, rho));
+	float e = length(w / vec2(half_len, thick));
+	float side = smoothstep(-1.0, 1.0, w.y / thick);
+	float soft = max(mix(0.2, 0.6, side), 0.75 * smoothstep(0.3, 1.0, abs(w.x) / half_len));
+	return (1.0 - smoothstep(1.0 - soft, 1.0, e)) * mix(1.0, 0.65, side);
+}
+
 void fragment() {
 	vec2 c = UV - vec2(0.5);
 	float r = length(c) * 2.0;
@@ -205,21 +222,17 @@ void fragment() {
 	float crescent = smoothstep(0.55, 0.92, r) * smoothstep(0.0, 0.6, -n.y) * (1.0 - smoothstep(0.96, 1.0, r));
 	col += vec3(1.0, 0.95, 0.85) * caustic * crescent * 0.6;
 
-	// The highlight is a reflection of a window where the light is: a
-	// rounded pane curved round the ball, sharp-edged as glass gives it,
-	// brightest on its outer side, and a soft broad sheen round it. A small
-	// second glint sits opposite, where the light leaves.
+	// The highlight is the light reflected off the curved glass: a soft
+	// oval laid along the ball's curve, sharp on its rim side and fading
+	// toward the middle, thinner the nearer the rim it sits. A soft broad
+	// sheen round it, and a small arc opposite where the light leaves.
 	float reach = length(glint_dir);
 	vec2 dir = reach > 0.001 ? glint_dir / reach : vec2(0.0, -1.0);
 	vec2 spot = glint_dir * 0.34;
-	vec2 d = c - spot;
-	vec2 w = vec2(dot(d, vec2(-dir.y, dir.x)), dot(d, -dir)) * vec2(1.0, 1.3);
-	w.y += w.x * w.x * 2.2;
-	float pane = 1.0 - smoothstep(0.05, 0.075, max(abs(w.x) * 0.8, abs(w.y) * 1.7) + length(w) * 0.2);
-	pane *= clamp(0.85 - w.y * 9.0, 0.15, 1.0);
+	float pane = glint_arc(c, spot, dir, 0.11, 0.07);
 	float sheen = 1.0 - smoothstep(0.0, 0.3, length(c - spot * 0.9));
-	col += vec3(1.0) * highlight * (pane * 0.55 + sheen * sheen * gloss);
-	float back = 1.0 - smoothstep(0.0, 0.035, length(c + glint_dir * 0.36));
+	col += vec3(1.0) * highlight * (pane * 0.7 + sheen * sheen * gloss);
+	float back = glint_arc(c, -glint_dir * 0.37, -dir, 0.04, 0.018);
 	col += vec3(1.0) * highlight * back * 0.5 * reach;
 
 	float rim_w = rim_px * px;
