@@ -109,10 +109,38 @@ func turned_basis(yaw: float) -> Basis:
 
 
 ## Puts it down at point (turned to basis, if given) and has the
-## navigation grid re-bake.
+## navigation grid re-bake around it.
 func place_at(point: Vector3, basis = null) -> void:
-	global_transform = resting_transform(point, basis)
-	NavigationGrid.invalidate()
+	_set_down(grid_aabb(), resting_transform(point, basis))
+
+
+## Moves it to t and re-bakes the grid where it was (was, its grid_aabb()
+## when the grid last saw it) and where it now is. Only those chunks are
+## re-baked, in this prop's own world (see NavigationGrid.invalidate_region).
+func _set_down(was: AABB, t: Transform3D) -> void:
+	global_transform = t
+	NavigationGrid.invalidate_region(_world_root(), was.merge(grid_aabb()))
+
+
+## The world-space box around every shape the navigation grid scans of this
+## prop: each CollisionShape3D child with a shape, disabled or not, as the
+## grid's own scan takes them.
+func grid_aabb() -> AABB:
+	var box := AABB(global_position, Vector3.ZERO)
+	for child in get_children():
+		if child is CollisionShape3D and child.shape != null:
+			box = box.merge(child.global_transform * child.shape.get_debug_mesh().get_aabb())
+	return box
+
+
+## The root of the world this prop is in, as its WorldContext registered it
+## with the grid; itself when no context claims it (a test scene), which
+## names the same world.
+func _world_root() -> Node:
+	var ctx: WorldContext = WorldManager.context_for(self)
+	if ctx and ctx.world_root and ctx.contains(self):
+		return ctx.world_root
+	return self
 
 
 ## Sends it from where it is to rest on point along arc_point(), turning
@@ -121,6 +149,8 @@ func place_at(point: Vector3, basis = null) -> void:
 ## arrives.
 func fly_to(point: Vector3, basis = null) -> void:
 	var start: Transform3D = global_transform
+	# Where the grid last saw it: by landing, the tween has moved it away.
+	var start_box: AABB = grid_aabb()
 	_landing = resting_transform(point, basis)
 	var from_turn: Quaternion = start.basis.get_rotation_quaternion()
 	var to_turn: Quaternion = _landing.basis.get_rotation_quaternion()
@@ -134,7 +164,7 @@ func fly_to(point: Vector3, basis = null) -> void:
 		0.0, 1.0, flight_time(start.origin, _landing.origin))
 	tween.tween_callback(func() -> void:
 		in_flight = false
-		place_at(point, _landing.basis)
+		_set_down(start_box, resting_transform(point, _landing.basis))
 		landed.emit())
 
 

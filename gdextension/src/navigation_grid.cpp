@@ -36,6 +36,7 @@ static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, in
 void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("ensure_baked", "tree"), &NavigationGrid::ensure_baked);
 	ClassDB::bind_method(D_METHOD("invalidate"), &NavigationGrid::invalidate);
+	ClassDB::bind_method(D_METHOD("invalidate_region", "world_root", "region"), &NavigationGrid::invalidate_region);
 	ClassDB::bind_method(D_METHOD("register_world", "root"), &NavigationGrid::register_world);
 	ClassDB::bind_method(D_METHOD("unregister_world", "root"), &NavigationGrid::unregister_world);
 	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref", "ignore"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()), DEFVAL(Array()));
@@ -390,6 +391,36 @@ void NavigationGrid::invalidate() {
 	baked = false;
 }
 
+// Resolves the world, then lets invalidate_active_region do the work on it
+// while it is the loaded one. A parked world is swapped in, updated and
+// swapped back out (O(1) each way, see activate_world), so the world a call
+// names is the world that changes, whichever happens to be active.
+void NavigationGrid::invalidate_region(Node *world_root, AABB region) {
+	uint64_t id = world_id_of(world_root);
+	if (id == 0) {
+		// Not a node in any world: the grid can't tell which one changed,
+		// so the active one is rescanned whole, as invalidate() does.
+		invalidate();
+		return;
+	}
+	SceneTree *tree = world_root->get_tree();
+	if (id != active_world_id && parked_worlds.find(id) == parked_worlds.end()) {
+		// An unregistered world. With nothing registered the legacy grid,
+		// scanned from the current scene, is the one holding its geometry;
+		// otherwise no grid has scanned it, and its first query will.
+		if (active_world_id == 0) {
+			invalidate_active_region(tree, region);
+		}
+		return;
+	}
+	uint64_t previous = active_world_id;
+	activate_world(id);
+	invalidate_active_region(tree, region);
+	if (previous != id && previous != 0) {
+		activate_world(previous);
+	}
+}
+
 void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	// Cleared here, not just left to accumulate — this function reruns
 	// after invalidate(), and both containers are append-only below, so
@@ -425,57 +456,7 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 		}
 	}
 
-	Vector3 world_min, world_max;
-	bool have_bounds = false;
-	for (CollisionShape3D *cs : all_shapes) {
-		AABB aabb = shape_global_aabb(cs);
-		if (!have_bounds) {
-			world_min = aabb.position;
-			world_max = aabb.position + aabb.size;
-			have_bounds = true;
-		} else {
-			world_min = vmin(world_min, aabb.position);
-			world_max = vmax(world_max, aabb.position + aabb.size);
-		}
-	}
-
-	if (!have_bounds) {
-		// No static geometry at all — degenerate, but a minimal placeholder
-		// volume keeps every query well-defined ("no path") instead of a
-		// zero-sized allocation elsewhere.
-		world_min = Vector3(-1.0f, -1.0f, -1.0f);
-		world_max = Vector3(1.0f, 1.0f, 1.0f);
-	}
-
-	geometry_min_y = world_min.y;
-	world_min -= Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
-	world_max += Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
-	// Room for the flight band over the tallest geometry: the ceiling is
-	// FLIGHT_MAX_ALTITUDE above the ground under a flier, so the highest
-	// flyable cell sits that far over the top of the world.
-	world_max.y += FLIGHT_MAX_ALTITUDE;
-
-	// The lattice is anchored to the world, not to the geometry: the origin
-	// snaps down to a whole chunk (8 m) on each axis, and the grid grows by
-	// whatever that adds. Taken straight from the geometry's minimum, every
-	// cell boundary moved whenever anything low was added or nudged, so the
-	// same floor rasterized into a different layer from one edit to the
-	// next and feet on it rounded into the floor or above it. A multiple of
-	// CHUNK_DIM * CELL_SIZE is also a multiple of CELL_SIZE, so cell faces
-	// land on round world values (y = 0 is a cell face) and chunk faces on
-	// fixed 8 m planes, whatever the level holds.
-	const float chunk_world = (float)CHUNK_DIM * CELL_SIZE;
-	world_min = Vector3(
-			std::floor(world_min.x / chunk_world) * chunk_world,
-			std::floor(world_min.y / chunk_world) * chunk_world,
-			std::floor(world_min.z / chunk_world) * chunk_world);
-
-	bounds_origin = world_min;
-	Vector3 extent = world_max - world_min;
-	grid_size = Vector3i(
-			(int)std::ceil(extent.x / CELL_SIZE),
-			(int)std::ceil(extent.y / CELL_SIZE),
-			(int)std::ceil(extent.z / CELL_SIZE));
+	scan_bounds(bounds_origin, grid_size, geometry_min_y);
 	chunk_grid_size = Vector3i(
 			(grid_size.x + CHUNK_DIM - 1) / CHUNK_DIM,
 			(grid_size.y + CHUNK_DIM - 1) / CHUNK_DIM,
@@ -502,27 +483,14 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	// Bucket every shape by each chunk its AABB overlaps, so a lazy
 	// rasterize of one chunk only tests the shapes that could matter.
 	for (CollisionShape3D *cs : all_shapes) {
-		AABB aabb = shape_global_aabb(cs);
-		// A ramp marks ground past its own box (ramp_of), in chunks it
-		// may not otherwise touch.
-		// So does a mesh with walkable slopes (mark_tri_ground).
-		RampInfo ramp;
 		auto tri = tri_shapes.find(cs);
 		if (tri != tri_shapes.end()) {
 			index_tri_columns(*tri->second);
 		}
-		if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp) || (tri != tri_shapes.end() && tri->second->any_walkable)) {
-			aabb = aabb.grow(MAX_CLEARANCE_CELLS * CELL_SIZE);
-		}
-		Vector3i min_cell = world_to_cell(aabb.position);
-		Vector3i max_cell = world_to_cell(aabb.position + aabb.size);
-		min_cell = Vector3i(std::max(min_cell.x, 0), std::max(min_cell.y, 0), std::max(min_cell.z, 0));
-		max_cell = Vector3i(std::min(max_cell.x, grid_size.x - 1), std::min(max_cell.y, grid_size.y - 1), std::min(max_cell.z, grid_size.z - 1));
-		if (max_cell.x < min_cell.x || max_cell.y < min_cell.y || max_cell.z < min_cell.z) {
+		Vector3i min_chunk, max_chunk;
+		if (!shape_chunk_range(cs, min_chunk, max_chunk)) {
 			continue;
 		}
-		Vector3i min_chunk = cell_to_chunk_coord(min_cell);
-		Vector3i max_chunk = cell_to_chunk_coord(max_cell);
 		for (int cx = min_chunk.x; cx <= max_chunk.x; cx++) {
 			for (int cy = min_chunk.y; cy <= max_chunk.y; cy++) {
 				for (int cz = min_chunk.z; cz <= max_chunk.z; cz++) {
@@ -536,6 +504,266 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	}
 
 	seal_interiors();
+}
+
+void NavigationGrid::scan_bounds(Vector3 &origin, Vector3i &size, float &min_y) {
+	Vector3 world_min, world_max;
+	bool have_bounds = false;
+	for (CollisionShape3D *cs : all_shapes) {
+		AABB aabb = shape_global_aabb(cs);
+		if (!have_bounds) {
+			world_min = aabb.position;
+			world_max = aabb.position + aabb.size;
+			have_bounds = true;
+		} else {
+			world_min = vmin(world_min, aabb.position);
+			world_max = vmax(world_max, aabb.position + aabb.size);
+		}
+	}
+
+	if (!have_bounds) {
+		// No static geometry at all — degenerate, but a minimal placeholder
+		// volume keeps every query well-defined ("no path") instead of a
+		// zero-sized allocation elsewhere.
+		world_min = Vector3(-1.0f, -1.0f, -1.0f);
+		world_max = Vector3(1.0f, 1.0f, 1.0f);
+	}
+
+	min_y = world_min.y;
+	world_min -= Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
+	world_max += Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
+	// Room for the flight band over the tallest geometry: the ceiling is
+	// FLIGHT_MAX_ALTITUDE above the ground under a flier, so the highest
+	// flyable cell sits that far over the top of the world.
+	world_max.y += FLIGHT_MAX_ALTITUDE;
+
+	// The lattice is anchored to the world, not to the geometry: the origin
+	// snaps down to a whole chunk (8 m) on each axis, and the grid grows by
+	// whatever that adds. Taken straight from the geometry's minimum, every
+	// cell boundary moved whenever anything low was added or nudged, so the
+	// same floor rasterized into a different layer from one edit to the
+	// next and feet on it rounded into the floor or above it. A multiple of
+	// CHUNK_DIM * CELL_SIZE is also a multiple of CELL_SIZE, so cell faces
+	// land on round world values (y = 0 is a cell face) and chunk faces on
+	// fixed 8 m planes, whatever the level holds.
+	const float chunk_world = (float)CHUNK_DIM * CELL_SIZE;
+	world_min = Vector3(
+			std::floor(world_min.x / chunk_world) * chunk_world,
+			std::floor(world_min.y / chunk_world) * chunk_world,
+			std::floor(world_min.z / chunk_world) * chunk_world);
+
+	origin = world_min;
+	Vector3 extent = world_max - world_min;
+	size = Vector3i(
+			(int)std::ceil(extent.x / CELL_SIZE),
+			(int)std::ceil(extent.y / CELL_SIZE),
+			(int)std::ceil(extent.z / CELL_SIZE));
+}
+
+bool NavigationGrid::shape_chunk_range(CollisionShape3D *cs, Vector3i &min_chunk, Vector3i &max_chunk) {
+	AABB aabb = shape_global_aabb(cs);
+	// A ramp marks ground past its own box (ramp_of), in chunks it
+	// may not otherwise touch.
+	// So does a mesh with walkable slopes (mark_tri_ground).
+	RampInfo ramp;
+	auto tri = tri_shapes.find(cs);
+	if (ramp_of(cs, MAX_WALKABLE_SLOPE_DEGREES, CELL_SIZE, MAX_CLEARANCE_CELLS, ramp) || (tri != tri_shapes.end() && tri->second->any_walkable)) {
+		aabb = aabb.grow(MAX_CLEARANCE_CELLS * CELL_SIZE);
+	}
+	Vector3i min_cell = world_to_cell(aabb.position);
+	Vector3i max_cell = world_to_cell(aabb.position + aabb.size);
+	min_cell = Vector3i(std::max(min_cell.x, 0), std::max(min_cell.y, 0), std::max(min_cell.z, 0));
+	max_cell = Vector3i(std::min(max_cell.x, grid_size.x - 1), std::min(max_cell.y, grid_size.y - 1), std::min(max_cell.z, grid_size.z - 1));
+	if (max_cell.x < min_cell.x || max_cell.y < min_cell.y || max_cell.z < min_cell.z) {
+		return false;
+	}
+	min_chunk = cell_to_chunk_coord(min_cell);
+	max_chunk = cell_to_chunk_coord(max_cell);
+	return true;
+}
+
+// The local half of invalidate_region. Every tier is lazy and keyed by a
+// per-chunk flag, so un-baking a chunk is just clearing its flags: the next
+// query that reaches it rebuilds it from the refreshed shape buckets. What
+// has to be got right is WHICH chunks, since each tier reads more than its
+// own chunk:
+//   - solid/ground (rasterize): the chunks the region overlaps (T). The
+//     region is first grown by the widest reach any shape marks beyond its
+//     own box (a ramp's or walkable mesh's ground band, MAX_CLEARANCE_CELLS)
+//     so a moved ramp's band is covered too.
+//   - support/flight_low: T and the chunk ABOVE each, which reads T's top
+//     cells as the ground under its bottom ones (bake_chunk_support).
+//   - dist: T and its 8 horizontal neighbours, whose clearance windows
+//     reach one chunk sideways into T (bake_chunk_dist).
+//   - region labels: wherever support changed (they read solid, no_support
+//     and flight_low), and region links: every chunk touching one of
+//     those, since links name neighbours' labels.
+// Occupancy is left alone: it lives in the chunks beside the geometry and
+// never depended on it. The coarse corridor is computed per query from the
+// support flags, so it follows on its own.
+void NavigationGrid::invalidate_active_region(SceneTree *tree, const AABB &region) {
+	if (!baked) {
+		return; // the next query scans everything anyway
+	}
+	Node *root = active_root ? active_root : (tree ? tree->get_current_scene() : nullptr);
+	if (!root) {
+		baked = false;
+		return;
+	}
+
+	AABB touched = region.abs().grow((MAX_CLEARANCE_CELLS + 1) * CELL_SIZE);
+
+	// The shape list is re-walked whole: a moved body may have changed
+	// buckets, a freed one must not leave a dangling pointer behind, and
+	// walking the tree is cheap. Building a mesh's triangles is not, so a
+	// mesh shape clear of the region (and so, by this call's contract,
+	// unmoved) keeps the TriShape it already has, column index included —
+	// the grid's size is unchanged or the rescan below replaces it anyway.
+	std::vector<CollisionShape3D *> shapes;
+	collect_static_shapes(root, shapes);
+	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tris;
+	std::vector<TriShape *> fresh;
+	for (CollisionShape3D *cs : shapes) {
+		auto old = tri_shapes.find(cs);
+		if (old != tri_shapes.end() && !old->second->aabb.intersects(touched)) {
+			tris[cs] = old->second;
+			continue;
+		}
+		auto tri = std::make_shared<TriShape>();
+		if (build_tri_shape(cs, *tri)) {
+			tris[cs] = tri;
+			fresh.push_back(tri.get());
+		}
+	}
+	std::swap(all_shapes, shapes);
+	std::swap(tri_shapes, tris);
+
+	// Geometry that moved past the old bounds (or took the old extreme
+	// with it) needs a grid of another size: everything is re-laid, so
+	// nothing baked can be kept.
+	Vector3 origin;
+	Vector3i size;
+	float min_y;
+	scan_bounds(origin, size, min_y);
+	if (origin != bounds_origin || size != grid_size) {
+		baked = false;
+		return;
+	}
+	// The lattice is snapped, so the lowest geometry can move within one
+	// chunk without changing the grid; the flight floor follows it.
+	geometry_min_y = min_y;
+	for (TriShape *tri : fresh) {
+		index_tri_columns(*tri);
+	}
+
+	// A route cached against the old geometry must not survive it. Full
+	// invalidate gets this from the rescan restamping occupancy; here the
+	// occupancy stays, so the version is bumped directly.
+	occupancy_version_value = ++occupancy_version_counter;
+
+	Vector3i lo_cell = world_to_cell(touched.position);
+	Vector3i hi_cell = world_to_cell(touched.position + touched.size);
+	lo_cell = Vector3i(std::max(lo_cell.x, 0), std::max(lo_cell.y, 0), std::max(lo_cell.z, 0));
+	hi_cell = Vector3i(std::min(hi_cell.x, grid_size.x - 1), std::min(hi_cell.y, grid_size.y - 1), std::min(hi_cell.z, grid_size.z - 1));
+	if (hi_cell.x < lo_cell.x || hi_cell.y < lo_cell.y || hi_cell.z < lo_cell.z) {
+		return; // wholly outside the grid: no baked chunk can have read it
+	}
+	Vector3i lo = cell_to_chunk_coord(lo_cell);
+	Vector3i hi = cell_to_chunk_coord(hi_cell);
+
+	// Rebucket T alone. A bucket outside T can only have changed if a shape
+	// in it moved, and every shape that moved lies in the region.
+	for (int cx = lo.x; cx <= hi.x; cx++) {
+		for (int cy = lo.y; cy <= hi.y; cy++) {
+			for (int cz = lo.z; cz <= hi.z; cz++) {
+				shapes_by_chunk.erase(chunk_coord_index(Vector3i(cx, cy, cz)));
+			}
+		}
+	}
+	for (CollisionShape3D *cs : all_shapes) {
+		Vector3i smin, smax;
+		if (!shape_chunk_range(cs, smin, smax)) {
+			continue;
+		}
+		Vector3i a(std::max(smin.x, lo.x), std::max(smin.y, lo.y), std::max(smin.z, lo.z));
+		Vector3i b(std::min(smax.x, hi.x), std::min(smax.y, hi.y), std::min(smax.z, hi.z));
+		for (int cx = a.x; cx <= b.x; cx++) {
+			for (int cy = a.y; cy <= b.y; cy++) {
+				for (int cz = a.z; cz <= b.z; cz++) {
+					shapes_by_chunk[chunk_coord_index(Vector3i(cx, cy, cz))].push_back(cs);
+				}
+			}
+		}
+	}
+
+	// Each tier reads more than its own chunk, so un-baking a box of
+	// chunks [a, b] un-bakes what reads it too (see above). Support reads
+	// up to flight_high_cells straight down, which reaches support_reach
+	// chunks below, so that many chunks above the box lose their support.
+	const int support_reach = (flight_high_cells() + CHUNK_DIM - 1) / CHUNK_DIM;
+	auto within = [](int v, int a, int b) { return v >= a && v <= b; };
+	auto unbake = [&](const Vector3i &a, const Vector3i &b, bool raster) {
+		for (int cx = a.x - 1; cx <= b.x + 1; cx++) {
+			for (int cy = a.y - 1; cy <= b.y + support_reach + 1; cy++) {
+				for (int cz = a.z - 1; cz <= b.z + 1; cz++) {
+					Vector3i cc(cx, cy, cz);
+					if (!chunk_in_bounds(cc)) {
+						continue;
+					}
+					std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(cc)];
+					if (!slot) {
+						continue; // never touched: nothing baked to drop
+					}
+					NavChunk &chunk = *slot;
+					bool in_xz = within(cx, a.x, b.x) && within(cz, a.z, b.z);
+					bool in_support = in_xz && within(cy, a.y, b.y + support_reach);
+					if (raster && in_xz && within(cy, a.y, b.y)) {
+						chunk.rasterized = false;
+					}
+					if (in_support) {
+						chunk.support_baked = false;
+					}
+					if (within(cx, a.x - 1, b.x + 1) && within(cz, a.z - 1, b.z + 1) && within(cy, a.y, b.y)) {
+						chunk.dist_baked = false;
+					}
+					for (NavRegions &r : chunk.regions) {
+						if (in_support) {
+							r.labelled = false;
+						}
+						r.linked = false; // this loop's box is the support box grown by one chunk
+					}
+				}
+			}
+		}
+	};
+	unbake(lo, hi, true);
+
+	// Sealed interiors are a global answer (seal_interiors): the move may
+	// have opened a sealed room or closed an open one anywhere its flood
+	// reached. Every chunk holding a seal fill goes back to its raw
+	// geometry, the seal pass runs again over the fresh rasters, and every
+	// chunk sealed before or after is un-baked like the region. The pass
+	// re-rasterizes only what was un-baked; the rest is one walk over the
+	// shaped chunks' solid[].
+	std::vector<Vector3i> was_sealed;
+	for (size_t i = 0; i < chunks.size(); i++) {
+		if (chunks[i] && chunks[i]->sealed) {
+			chunks[i]->rasterized = false;
+			chunks[i]->sealed = false;
+			was_sealed.push_back(chunk_coord_from_index((int)i));
+		}
+	}
+	seal_interiors();
+	// Only the tiers above the raster: the seal pass has just laid it.
+	for (const Vector3i &cc : was_sealed) {
+		unbake(cc, cc, false);
+	}
+	for (size_t i = 0; i < chunks.size(); i++) {
+		if (chunks[i] && chunks[i]->sealed) {
+			Vector3i cc = chunk_coord_from_index((int)i);
+			unbake(cc, cc, false);
+		}
+	}
 }
 
 void NavigationGrid::collect_static_shapes(Node *node, std::vector<CollisionShape3D *> &out) {
@@ -1680,6 +1908,7 @@ void NavigationGrid::seal_interiors() {
 			slot->solid.assign(cells, 1);
 			slot->ground.assign(cells, 0);
 			slot->rasterized = true;
+			slot->sealed = true;
 			sealed_cells += (int64_t)c.dims.x * c.dims.y * c.dims.z;
 			sealed_chunks++;
 			continue;
@@ -1707,6 +1936,7 @@ void NavigationGrid::seal_interiors() {
 			chunk.solid.assign(cells, 0);
 			chunk.ground.assign(cells, 0);
 			rasterize_chunk(cc, chunk, &fill);
+			chunk.sealed = true;
 			sealed_chunks++;
 		}
 	}
