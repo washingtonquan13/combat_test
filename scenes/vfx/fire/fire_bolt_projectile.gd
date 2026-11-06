@@ -12,6 +12,8 @@ const CORE_SHADER: Shader = preload("res://scenes/vfx/fireball/fireball_core.gds
 @export var flame_color: Color = Color(1.0, 0.45, 0.08)
 @export var hot_color: Color = Color(1.0, 0.85, 0.45)
 @export var core_radius: float = 0.09
+## How far ahead of the hand the launch flash goes off, in metres.
+@export var launch_gap: float = 0.35
 
 var _core: MeshInstance3D
 var _glow: MeshInstance3D
@@ -83,7 +85,9 @@ func _ready() -> void:
 	_light.light_energy = 2.5
 	_light.omni_range = 4.0
 	add_child(_light)
-	_launch.call_deferred(global_position)
+	# The wrapper already faces along the flight (ProjectileStep), so -Z is
+	# forward: the kick goes off just ahead of the hand, not inside it.
+	_launch.call_deferred(global_position - global_transform.basis.z.normalized() * launch_gap)
 
 
 ## The kick at the hand: a hot flash and a few sparks.
