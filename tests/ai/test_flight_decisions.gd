@@ -108,9 +108,18 @@ func _lands_before_falling() -> void:
 
 	# ...but not into the thing that drove it up there. Buying a turn is
 	# worth the fall when the ground is lethal.
+	#
+	# Lethal means armed. A weaponless brute punches (thr-1 crushing, see
+	# GearDamageEffect), and three punchers price the ground at ~6 HP over
+	# the horizon against an ~11 HP fall from 8 m — so landing among them
+	# is the correct answer, and this check went red when unarmed attacks
+	# became punches. With swords the ground costs ~54 and the scorer
+	# rightly clears out first.
 	var over_a_crowd: Unit = spawn_demon("avian", Vector3(0.0, 8.0, 0.0), true, 1)
 	for i in 3:
-		spawn_brute(2.0 + i * 1.5)
+		var armed: Unit = spawn_brute(2.0 + i * 1.5)
+		armed.equip_item(EquipSlot.Slot.MELEE_MAIN_HAND,
+			ItemInstance.new(load("res://data/items/iron_sword.tres")))
 	var crowded: AiPlan = AiScorer.best_plan(over_a_crowd)
 	check("low on FP over a crowd, it does not land straight into it",
 		crowded != null and not crowded.reason.begins_with("land"),
