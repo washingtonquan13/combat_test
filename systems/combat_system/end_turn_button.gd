@@ -3,7 +3,7 @@ extends Button
 ## turn (hidden during AI turns and outside of combat, same visibility
 ## rule as movement_indicator.gd/ability_hotbar.gd).
 ##
-## Just calls CombatManager.end_turn() on press — that function already
+## Just calls CombatManager.end_turn() on press (or on Space) — that function already
 ## handles deferring correctly if the current unit is still busy
 ## (mid-move, mid-ability-animation) rather than needing this button to
 ## know or care about that itself. Clicking while busy is safe: the
@@ -96,6 +96,16 @@ func _on_selection_changed(_selected_units: Array[Unit]) -> void:
 
 func _on_world_focused(_world: Node) -> void:
 	_refresh()
+
+
+## Space ends the turn too, whenever the button itself would: same unit,
+## same rule. Unhandled, so a focused dialogue choice or a cutscene that
+## reads the same key gets it first.
+func _unhandled_input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or not event.is_action_pressed(&"end_turn", false, true):
+		return
+	get_viewport().set_input_as_handled()
+	_on_pressed()
 
 
 func _on_pressed() -> void:

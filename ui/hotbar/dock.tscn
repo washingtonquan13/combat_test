@@ -184,30 +184,30 @@ corner_radius_bottom_left = 3
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_end"]
 bg_color = Color(0.2, 0.149, 0.078, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
 border_color = Color(0.659, 0.51, 0.243, 1)
-corner_radius_top_left = 28
-corner_radius_top_right = 28
-corner_radius_bottom_right = 28
-corner_radius_bottom_left = 28
+corner_radius_top_left = 50
+corner_radius_top_right = 50
+corner_radius_bottom_right = 50
+corner_radius_bottom_left = 50
 corner_detail = 14
 shadow_color = Color(0, 0, 0, 0.55)
 shadow_size = 6
 
 [sub_resource type="StyleBoxFlat" id="StyleBox_end_hover"]
 bg_color = Color(0.29, 0.212, 0.106, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
 border_color = Color(0.949, 0.831, 0.541, 1)
-corner_radius_top_left = 28
-corner_radius_top_right = 28
-corner_radius_bottom_right = 28
-corner_radius_bottom_left = 28
+corner_radius_top_left = 50
+corner_radius_top_right = 50
+corner_radius_bottom_right = 50
+corner_radius_bottom_left = 50
 corner_detail = 14
 shadow_color = Color(0.878, 0.714, 0.353, 0.45)
 shadow_size = 7
@@ -579,19 +579,20 @@ theme_override_styles/disabled = SubResource("StyleBox_pager")
 text = "▼"
 
 [node name="EndTurnHolder" type="Control" parent="Row"]
-custom_minimum_size = Vector2(56, 62)
+custom_minimum_size = Vector2(100, 106)
 layout_mode = 2
 size_flags_vertical = 8
 mouse_filter = 2
 
 [node name="EndTurnButton" type="Button" parent="Row/EndTurnHolder"]
 layout_mode = 0
-offset_right = 56.0
-offset_bottom = 56.0
+offset_right = 100.0
+offset_bottom = 100.0
 focus_mode = 0
 theme_override_colors/font_color = Color(0.941, 0.851, 0.627, 1)
 theme_override_colors/font_hover_color = Color(1, 0.94, 0.78, 1)
-theme_override_font_sizes/font_size = 10
+theme_override_font_sizes/font_size = 16
+tooltip_text = "End turn (Space)"
 theme_override_styles/focus = SubResource("StyleBox_none")
 theme_override_styles/normal = SubResource("StyleBox_end")
 theme_override_styles/hover = SubResource("StyleBox_end_hover")
