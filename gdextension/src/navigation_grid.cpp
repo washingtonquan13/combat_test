@@ -38,30 +38,30 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref", "ignore"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()), DEFVAL(Array()));
 	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying", "ignore"), &NavigationGrid::find_path, DEFVAL(Array()));
 	ClassDB::bind_method(D_METHOD("occupancy_version", "tree", "world_ref"), &NavigationGrid::occupancy_version, DEFVAL(Variant()));
-	ClassDB::bind_method(D_METHOD("world_to_cell", "pos"), &NavigationGrid::world_to_cell);
+	ClassDB::bind_method(D_METHOD("world_to_cell", "pos", "world_ref"), &NavigationGrid::world_to_cell_in);
 
 	ClassDB::bind_method(D_METHOD("get_cell_size"), &NavigationGrid::get_cell_size);
 	ClassDB::bind_method(D_METHOD("get_flight_min_altitude"), &NavigationGrid::get_flight_min_altitude);
-	ClassDB::bind_method(D_METHOD("get_flight_ceiling_height"), &NavigationGrid::get_flight_ceiling_height);
+	ClassDB::bind_method(D_METHOD("get_flight_max_altitude"), &NavigationGrid::get_flight_max_altitude);
+	ClassDB::bind_method(D_METHOD("ground_height_at", "tree", "pos", "world_ref"), &NavigationGrid::ground_height_at, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("flight_floor_at", "tree", "pos", "world_ref"), &NavigationGrid::flight_floor_at, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("flight_ceiling_at", "tree", "pos", "world_ref"), &NavigationGrid::flight_ceiling_at, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("flight_lowest_altitude", "tree", "world_ref"), &NavigationGrid::flight_lowest_altitude, DEFVAL(Variant()));
+	ClassDB::bind_method(D_METHOD("flight_highest_altitude", "tree", "world_ref"), &NavigationGrid::flight_highest_altitude, DEFVAL(Variant()));
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "CELL_SIZE"), "", "get_cell_size");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "FLIGHT_MIN_ALTITUDE"), "", "get_flight_min_altitude");
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "FLIGHT_CEILING_HEIGHT"), "", "get_flight_ceiling_height");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "FLIGHT_MAX_ALTITUDE"), "", "get_flight_max_altitude");
 }
 
 float NavigationGrid::get_cell_size() const { return CELL_SIZE; }
 float NavigationGrid::get_flight_min_altitude() const { return FLIGHT_MIN_ALTITUDE; }
-float NavigationGrid::get_flight_ceiling_height() const { return FLIGHT_CEILING_HEIGHT; }
+float NavigationGrid::get_flight_max_altitude() const { return FLIGHT_MAX_ALTITUDE; }
 
-// The lowest feet height a flier may take at pos's XZ: FLIGHT_MIN_ALTITUDE
-// above the first solid at or below pos (pos inside solid climbs out of it
-// first). Callers clamp an altitude up to this, so a pit floor at y=-6
-// allows -5 while ground at y=0 still allows 1.
-float NavigationGrid::flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref) {
-	activate_for(world_ref);
-	ensure_baked(tree);
+// The ground the flight band at pos's XZ is measured from. The world's
+// floor counts as solid (is_solid has it so), so an empty column measures
+// from the bottom of the bounds - the same ground bake_chunk_support sees.
+float NavigationGrid::ground_top_below(Vector3 pos) {
 	Vector3i cell = world_to_cell(pos);
 	cell.x = std::clamp(cell.x, 0, grid_size.x - 1);
 	cell.z = std::clamp(cell.z, 0, grid_size.z - 1);
@@ -72,7 +72,37 @@ float NavigationGrid::flight_floor_at(SceneTree *tree, Vector3 pos, Object *worl
 	while (cell.y > 0 && !is_solid(cell - Vector3i(0, 1, 0))) {
 		cell.y--;
 	}
-	return bounds_origin.y + (float)cell.y * CELL_SIZE + FLIGHT_MIN_ALTITUDE;
+	return bounds_origin.y + (float)cell.y * CELL_SIZE;
+}
+
+// The height of the ground under pos (pos inside solid climbs out first):
+// where a grounded body dropped there would stand.
+float NavigationGrid::ground_height_at(SceneTree *tree, Vector3 pos, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	return ground_top_below(pos);
+}
+
+// The lowest feet height a flier may take at pos's XZ: FLIGHT_MIN_ALTITUDE
+// above the first solid at or below pos (pos inside solid climbs out of it
+// first). Callers clamp an altitude up to this, so a pit floor at y=-6
+// allows -5 while ground at y=0 still allows 1.
+float NavigationGrid::flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	return ground_top_below(pos) + FLIGHT_MIN_ALTITUDE;
+}
+
+// The highest feet height a flier may take at pos's XZ, measured from the
+// same ground as flight_floor_at, so a rooftop at y=15 allows 26.875 while
+// ground at y=0 still allows 11.875. Returned as the centre of the topmost
+// flyable cell rather than ground + FLIGHT_MAX_ALTITUDE: that exact height
+// is the bottom edge of the first cell bake_chunk_support marks too high,
+// so clamping to it would put the flier in a cell the grid rejects.
+float NavigationGrid::flight_ceiling_at(SceneTree *tree, Vector3 pos, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	return ground_top_below(pos) + ((float)flight_high_cells() - 0.5f) * CELL_SIZE;
 }
 
 // The lowest altitude a flier may take anywhere in this world: the bottom
@@ -83,6 +113,16 @@ float NavigationGrid::flight_lowest_altitude(SceneTree *tree, Object *world_ref)
 	activate_for(world_ref);
 	ensure_baked(tree);
 	return bounds_origin.y + BOUNDS_MARGIN + FLIGHT_MIN_ALTITUDE;
+}
+
+// The highest altitude a flier may take anywhere in this world: the top of
+// its geometry plus FLIGHT_MAX_ALTITUDE, which is where ensure_baked put
+// the bounds' top. For the altitude plane, like flight_lowest_altitude;
+// the move query then clamps to the ceiling at its own destination.
+float NavigationGrid::flight_highest_altitude(SceneTree *tree, Object *world_ref) {
+	activate_for(world_ref);
+	ensure_baked(tree);
+	return bounds_origin.y + (float)grid_size.y * CELL_SIZE - BOUNDS_MARGIN;
 }
 
 // --- Multi-world registry --------------------------------------------
@@ -362,7 +402,10 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 
 	world_min -= Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
 	world_max += Vector3(BOUNDS_MARGIN, BOUNDS_MARGIN, BOUNDS_MARGIN);
-	world_max.y = std::max(world_max.y, FLIGHT_CEILING_HEIGHT + BOUNDS_MARGIN);
+	// Room for the flight band over the tallest geometry: the ceiling is
+	// FLIGHT_MAX_ALTITUDE above the ground under a flier, so the highest
+	// flyable cell sits that far over the top of the world.
+	world_max.y += FLIGHT_MAX_ALTITUDE;
 
 	bounds_origin = world_min;
 	Vector3 extent = world_max - world_min;
@@ -1069,6 +1112,11 @@ Vector3i NavigationGrid::world_to_cell(Vector3 pos) const {
 			(int)std::floor(local.z / CELL_SIZE));
 }
 
+Vector3i NavigationGrid::world_to_cell_in(Vector3 pos, Object *world_ref) {
+	activate_for(world_ref);
+	return world_to_cell(pos);
+}
+
 Vector3 NavigationGrid::cell_center(const Vector3i &cell) const {
 	return bounds_origin + Vector3((float)cell.x, (float)cell.y, (float)cell.z) * CELL_SIZE + Vector3(CELL_SIZE * 0.5f, CELL_SIZE * 0.5f, CELL_SIZE * 0.5f);
 }
@@ -1308,31 +1356,36 @@ NavChunk &NavigationGrid::ensure_chunk_support(const Vector3i &chunk_coord) {
 }
 
 void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &chunk) {
-	// Both tiers only ever read straight down, at most FLIGHT_LOW_CELLS
-	// (< CHUNK_DIM) cells: this chunk's own solid[] or the one directly
-	// below's. Read those two arrays directly - going through is_solid()
-	// per cell (bounds check, chunk lookup) cost ~1 ms a chunk, and a
-	// flier's coarse corridor bakes ~100 of them.
+	// Every tier only ever reads straight down, at most flight_high_cells
+	// cells - more than one chunk, so a column can reach two chunks below.
+	// Read those solid[] arrays directly - going through is_solid() per
+	// cell (bounds check, chunk lookup) cost ~1 ms a chunk, and a flier's
+	// coarse corridor bakes ~100 of them. A chunk below is rasterized only
+	// once some column actually scans into it: over ground the scan stops
+	// at the first solid, so a walker's bake still touches only the chunk
+	// directly below.
 	// Off the world's bottom counts as solid, as is_solid() has it.
-	Vector3i below_chunk = chunk_coord - Vector3i(0, 1, 0);
-	const uint8_t *below_solid = nullptr;
-	if (chunk_in_bounds(below_chunk)) {
-		below_solid = ensure_chunk_rasterized(below_chunk).solid.data();
-	}
+	const int flight_low = flight_low_cells();
+	const int flight_high = flight_high_cells();
+	const int below_count = (flight_high + CHUNK_DIM - 1) / CHUNK_DIM;
+	std::vector<const uint8_t *> below_solid((size_t)below_count, nullptr);
+	std::vector<uint8_t> below_resolved((size_t)below_count, 0);
 	const uint8_t *own_solid = chunk.solid.data();
 	auto solid_at = [&](int x, int y, int z) -> bool {
 		if (y >= 0) {
 			return own_solid[local_index(Vector3i(x, y, z))] != 0;
 		}
-		return below_solid == nullptr || below_solid[local_index(Vector3i(x, y + CHUNK_DIM, z))] != 0;
+		int depth = (-y + CHUNK_DIM - 1) / CHUNK_DIM; // 1 = the chunk directly below
+		if (!below_resolved[depth - 1]) {
+			below_resolved[depth - 1] = 1;
+			Vector3i below_chunk = chunk_coord - Vector3i(0, depth, 0);
+			if (chunk_in_bounds(below_chunk)) {
+				below_solid[depth - 1] = ensure_chunk_rasterized(below_chunk).solid.data();
+			}
+		}
+		const uint8_t *solid = below_solid[depth - 1];
+		return solid == nullptr || solid[local_index(Vector3i(x, y + depth * CHUNK_DIM, z))] != 0;
 	};
-	// Too low to fly: solid in any cell whose top lies under
-	// FLIGHT_MIN_ALTITUDE below this cell's centre - the same cut the old
-	// absolute rule made over y=0 ground.
-	int flight_low_cells = 0;
-	while (((float)(flight_low_cells + 1) - 0.5f) * CELL_SIZE < FLIGHT_MIN_ALTITUDE) {
-		flight_low_cells++;
-	}
 
 	Vector3i base = chunk_coord * CHUNK_DIM;
 	int cx1 = std::min(CHUNK_DIM, grid_size.x - base.x);
@@ -1341,15 +1394,17 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 
 	chunk.no_support.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
 	chunk.flight_low.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
+	chunk.flight_high.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
 	chunk.has_ground_passable = false;
 	chunk.has_flyable = false;
 
 	// One walk up each column, carrying how far below the nearest solid
-	// cell is: supported = it is 1, too low = it is within flight_low_cells.
+	// cell is: supported = it is 1, too low = it is within flight_low,
+	// too high = it is beyond flight_high.
 	for (int x = 0; x < cx1; x++) {
 		for (int z = 0; z < cz1; z++) {
-			int since_solid = flight_low_cells + 1; // "none in reach"
-			for (int k = 1; k <= flight_low_cells; k++) {
+			int since_solid = flight_high + 1; // "none in reach"
+			for (int k = 1; k <= flight_high; k++) {
 				if (solid_at(x, -k, z)) {
 					since_solid = k;
 					break;
@@ -1363,19 +1418,42 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 					if (supported) {
 						chunk.has_ground_passable = true;
 					}
-					bool low = since_solid <= flight_low_cells;
+					bool low = since_solid <= flight_low;
+					bool high = since_solid > flight_high;
 					chunk.flight_low[li] = low ? 1 : 0;
-					float world_y = bounds_origin.y + ((float)(base.y + y) + 0.5f) * CELL_SIZE;
-					if (!low && world_y <= FLIGHT_CEILING_HEIGHT) {
+					chunk.flight_high[li] = high ? 1 : 0;
+					if (!low && !high) {
 						chunk.has_flyable = true;
 					}
-					since_solid = std::min(since_solid + 1, flight_low_cells + 1);
+					since_solid = std::min(since_solid + 1, flight_high + 1);
 				} else {
 					since_solid = 1;
 				}
 			}
 		}
 	}
+}
+
+// Too low to fly: solid in any cell whose top lies under
+// FLIGHT_MIN_ALTITUDE below this cell's centre - the same cut the old
+// absolute rule made over y=0 ground.
+int NavigationGrid::flight_low_cells() {
+	int cells = 0;
+	while (((float)(cells + 1) - 0.5f) * CELL_SIZE < FLIGHT_MIN_ALTITUDE) {
+		cells++;
+	}
+	return cells;
+}
+
+// Too high to fly: no solid within this many cells straight down, so the
+// cell's centre is more than FLIGHT_MAX_ALTITUDE over the ground's top -
+// the cut the old absolute ceiling made over y=0 ground.
+int NavigationGrid::flight_high_cells() {
+	int cells = 0;
+	while (((float)(cells + 1) - 0.5f) * CELL_SIZE <= FLIGHT_MAX_ALTITUDE) {
+		cells++;
+	}
+	return cells;
 }
 
 NavChunk &NavigationGrid::ensure_chunk_dist(const Vector3i &chunk_coord) {
@@ -1863,14 +1941,8 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 }
 
 bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit) {
-	if (cell.x < 0 || cell.y < 0 || cell.z < 0 || cell.x >= grid_size.x || cell.y >= grid_size.y || cell.z >= grid_size.z) {
+	if (!in_bounds(cell)) {
 		return false;
-	}
-	if (flying) {
-		float world_y = bounds_origin.y + ((float)cell.y + 0.5f) * CELL_SIZE;
-		if (world_y > FLIGHT_CEILING_HEIGHT) {
-			return false;
-		}
 	}
 
 	// Chunk coordinate/local index/chunk lookup computed ONCE and shared
@@ -1889,7 +1961,7 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	int chunk_idx = chunk_coord_index(chunk_coord);
 
 	NavChunk &support_chunk = ensure_chunk_support(chunk_coord);
-	if (flying ? support_chunk.flight_low[li] != 0 : support_chunk.no_support[li] != 0) {
+	if (!is_open_cell(support_chunk, li, flying)) {
 		return false;
 	}
 
@@ -1944,7 +2016,7 @@ Dictionary NavigationGrid::nearest_valid_point(SceneTree *tree, Vector3 point, f
 	// optional here (DEFVAL(Variant()) in _bind_methods), unlike find_path's
 	// unit, so this can't assume non-null the way get_float_prop's other
 	// callers do.
-	float height = exclude_unit ? get_float_prop(exclude_unit, "height") : 0.0f;
+	float height = exclude_unit ? get_float_prop(exclude_unit, "height") : DEFAULT_BODY_HEIGHT;
 	NearestResult snap = find_nearest_free_cell(world_to_cell(point), offsets, clearance, height, flying, exclude_unit, max_radius_cells);
 	Dictionary result;
 	if (!snap.found) {
@@ -2206,24 +2278,18 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
-	// Open = is_valid_cell's tests that hold for every clearance and height:
-	// dist > clearance >= 0 is exactly "not solid" (bake_chunk_dist writes 0
-	// for solid cells only), and the body's first layer is the cell itself.
-	// Closed cells stay 0; open ones are marked UINT16_MAX until labelled.
+	// Open = is_open_cell, the very call is_valid_cell makes: the part of
+	// its rule that holds for every clearance and height. Sharing the call
+	// instead of restating it is what keeps regions from ever being
+	// stricter than A*. Closed cells stay 0; open ones are marked
+	// UINT16_MAX until labelled.
 	const uint16_t OPEN = 0xFFFF;
 	bool any_open = false;
 	for (int y = 0; y < cy1; y++) {
-		float world_y = bounds_origin.y + ((float)(base.y + y) + 0.5f) * CELL_SIZE;
-		if (flying && world_y > FLIGHT_CEILING_HEIGHT) {
-			continue;
-		}
 		for (int z = 0; z < cz1; z++) {
 			for (int x = 0; x < cx1; x++) {
 				int li = local_index(Vector3i(x, y, z));
-				if (chunk.solid[li] != 0) {
-					continue;
-				}
-				if (flying ? chunk.flight_low[li] != 0 : chunk.no_support[li] != 0) {
+				if (!is_open_cell(chunk, li, flying)) {
 					continue;
 				}
 				r.label[li] = OPEN;

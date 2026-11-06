@@ -89,7 +89,7 @@ func _land(target: Unit, point: Vector3) -> Vector3:
 	if target.is_flying():
 		return Vector3(point.x, to.y, point.z)
 	var tree: SceneTree = target.get_tree()
-	point.y = NavigationGrid.flight_floor_at(tree, point, target) - NavigationGrid.FLIGHT_MIN_ALTITUDE
+	point.y = NavigationGrid.ground_height_at(tree, point, target)
 	var clearance: float = target.radius + target.avoidance_margin
 	var snap: Dictionary = NavigationGrid.nearest_valid_point(tree, point, clearance, false, target)
 	return snap.point if snap.found else to

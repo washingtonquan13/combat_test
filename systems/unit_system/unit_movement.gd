@@ -339,15 +339,21 @@ func _query_destination(raw: Vector3) -> Vector3:
 ## (NavigationGrid.flight_floor_at), so a flier can drop into a pit as far
 ## as it can hover over y=0 ground. With no `at` (the plane, which has no
 ## one XZ) it is the lowest the world allows, and the move query lifts to
-## the floor at its own destination. The ceiling is a world Y.
+## the floor at its own destination. The ceiling is relative the same way
+## (NavigationGrid.flight_ceiling_at, FLIGHT_MAX_ALTITUDE over the same
+## ground), so a rooftop gets the same band as y=0; with no `at` it is the
+## highest the world allows.
 static func clamp_flight_altitude(altitude: float, at: Variant = null, world_ref: Node = null) -> float:
 	var tree := Engine.get_main_loop() as SceneTree
 	var floor_y: float
+	var ceiling_y: float
 	if at == null:
 		floor_y = NavigationGrid.flight_lowest_altitude(tree, world_ref)
+		ceiling_y = NavigationGrid.flight_highest_altitude(tree, world_ref)
 	else:
 		floor_y = NavigationGrid.flight_floor_at(tree, at, world_ref)
-	return clampf(altitude, floor_y, NavigationGrid.FLIGHT_CEILING_HEIGHT)
+		ceiling_y = NavigationGrid.flight_ceiling_at(tree, at, world_ref)
+	return clampf(altitude, floor_y, ceiling_y)
 
 
 ## RoutePlanner.plan() over find_path()'s waypoints, with the flier's
@@ -390,8 +396,8 @@ func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
 
 	var flying: bool = _owner.is_flying()
 	var query_destination: Vector3 = _query_destination(dest)
-	var start_cell: Vector3i = NavigationGrid.world_to_cell(_owner.global_position)
-	var dest_cell: Vector3i = NavigationGrid.world_to_cell(query_destination)
+	var start_cell: Vector3i = NavigationGrid.world_to_cell(_owner.global_position, _owner)
+	var dest_cell: Vector3i = NavigationGrid.world_to_cell(query_destination, _owner)
 	var version: int = NavigationGrid.occupancy_version(_owner.get_tree(), _owner)
 	if not (
 		_preview_cached
@@ -743,7 +749,7 @@ func _finish_move(announce: bool = true) -> void:
 
 
 ## Sets flight_target_altitude directly, clamped to the valid flight
-## envelope (see NavigationGrid.FLIGHT_MIN_ALTITUDE/FLIGHT_CEILING_HEIGHT)
+## envelope (see NavigationGrid.FLIGHT_MIN_ALTITUDE/FLIGHT_MAX_ALTITUDE)
 ## — called by IdleIntent.steer when the player moves the altitude plane
 ## (Ctrl + wheel, or a Ctrl hold) while this unit flies. Doesn't move the
 ## unit itself; only changes where its NEXT move_to() call will aim for.

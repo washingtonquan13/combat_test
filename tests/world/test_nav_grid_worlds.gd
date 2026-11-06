@@ -249,28 +249,25 @@ func _occupancy_does_not_leak_between_worlds() -> void:
 ## which is per-world, so two worlds of different extents number the same
 ## world point differently.
 ##
-## Not a live bug, because both callers use it the only way it can be
-## used: movement_indicator and seeking_indicator each take two cells
-## back-to-back and compare them ("has the hovered cell changed"), with
-## one world loaded throughout. The constraint is that a cell number is
-## meaningless outside the world it was taken in — so a future caller that
-## stores one across a world switch should fail here rather than in play.
+## A cell number is meaningless outside the world it was taken in, so
+## world_to_cell takes the world it numbers in and activates it, like every
+## other query: a caller can no longer get a number from whichever world
+## an earlier, unrelated query happened to leave loaded.
 func _world_pure_queries_are_unaffected() -> void:
 	check("CELL_SIZE is a game rule, not per-world state",
 		NavigationGrid.CELL_SIZE > 0.0)
 	check("and so are the flight limits",
-		NavigationGrid.FLIGHT_CEILING_HEIGHT > 0.0
+		NavigationGrid.FLIGHT_MAX_ALTITUDE > 0.0
 			and NavigationGrid.FLIGHT_MIN_ALTITUDE > 0.0)
 
 	NavigationGrid.find_path(get_tree(), WEST, EAST, _unit_a, false)
-	var in_a: Vector3i = NavigationGrid.world_to_cell(SPOT_B)
-	check("world_to_cell is stable while one world stays loaded",
-		NavigationGrid.world_to_cell(SPOT_B) == in_a)
+	var in_a: Vector3i = NavigationGrid.world_to_cell(SPOT_B, _unit_a)
 
 	NavigationGrid.find_path(get_tree(), WEST, EAST, _unit_b, false)
-	check("but it is relative to the loaded world, not absolute — cells do "
-			+ "not survive a world switch",
-		NavigationGrid.world_to_cell(SPOT_B) != in_a,
+	check("world_to_cell numbers in the world it is given, whichever is loaded",
+		NavigationGrid.world_to_cell(SPOT_B, _unit_a) == in_a)
+	check("and that numbering is per-world, not absolute",
+		NavigationGrid.world_to_cell(SPOT_B, _unit_b) != in_a,
 		"both worlds happened to share bounds; the claim is untested, not false")
 
 

@@ -80,8 +80,8 @@ func draw(aim: Aim) -> void:
 func _update_path_preview(unit: Unit, ability: Ability, step: PathedProjectileStep, aim_point: Vector3, hovered_unit: Unit) -> void:
 	var launch_point: Vector3 = unit.global_position + Vector3(0, step.launch_height_offset, 0)
 
-	var start_cell: Vector3i = NavigationGrid.world_to_cell(launch_point)
-	var dest_cell: Vector3i = NavigationGrid.world_to_cell(aim_point)
+	var start_cell: Vector3i = NavigationGrid.world_to_cell(launch_point, unit)
+	var dest_cell: Vector3i = NavigationGrid.world_to_cell(aim_point, unit)
 	var query_unchanged: bool = (
 		unit == _last_query_unit
 		and step == _last_query_step
