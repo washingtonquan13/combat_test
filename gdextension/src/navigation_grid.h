@@ -144,6 +144,28 @@ struct NavChunk {
 	NavRegions regions[2]; // [0] walking, [1] flying
 };
 
+// Fine-A* scratch for one chunk's cells, allocated the first time a search
+// touches the chunk and kept for later searches. Every field is stamped
+// with the search that wrote it (see NavigationGrid::astar_search_id), so a
+// page is never cleared: a stale stamp reads as "untouched this search".
+// came_dir is the index into neighbor_offsets of the step that reached the
+// cell, not the parent's index: the parent is cell - offset, which works
+// the same whether it sits in this chunk or the next, in one byte.
+struct AStarPage {
+	static constexpr int CELLS = 32 * 32 * 32; // CHUNK_DIM^3
+	float g_score[CELLS];
+	int g_gen[CELLS];
+	int closed_gen[CELLS];
+	uint8_t came_dir[CELLS];
+};
+
+// smooth_path's memo of is_valid_cell, paged the same way as AStarPage.
+struct SmoothPage {
+	static constexpr int CELLS = 32 * 32 * 32; // CHUNK_DIM^3
+	int valid_gen[CELLS];
+	uint8_t valid_result[CELLS];
+};
+
 // One world's worth of grid state, parked here while some OTHER world is
 // the active one. See NavigationGrid::activate_world.
 //
@@ -174,13 +196,10 @@ struct ParkedWorld {
 	bool baked = false;
 	bool any_occupied = false;
 	std::vector<std::unique_ptr<NavChunk>> chunks;
-	std::vector<float> astar_g_score;
-	std::vector<int> astar_g_gen;
-	std::vector<int> astar_came_from;
-	std::vector<int> astar_closed_gen;
+	float geometry_min_y = 0.0f;
+	std::vector<std::unique_ptr<AStarPage>> astar_pages;
 	int astar_search_id = 0;
-	std::vector<int> smooth_valid_gen;
-	std::vector<uint8_t> smooth_valid_result;
+	std::vector<std::unique_ptr<SmoothPage>> smooth_pages;
 	int smooth_search_id = 0;
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
@@ -241,6 +260,9 @@ public:
 	float get_flight_ceiling_height() const;
 	float flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref = nullptr);
 	float flight_lowest_altitude(SceneTree *tree, Object *world_ref = nullptr);
+	// Bytes held by the active world's chunks and search scratch: what a
+	// map's size actually costs, for measuring.
+	int64_t debug_memory_bytes() const;
 
 protected:
 	static void _bind_methods();
@@ -304,31 +326,42 @@ private:
 	// registered world, then to the legacy no-world grid.
 	void activate_for(Object *primary, Object *fallback = nullptr);
 
+	// Cell (0,0,0)'s corner. A multiple of CHUNK_DIM * CELL_SIZE on every
+	// axis (see ensure_project_scanned), so cell and chunk boundaries sit at
+	// the same world positions whatever geometry the level holds.
 	Vector3 bounds_origin;
 	Vector3i grid_size;
 	Vector3i chunk_grid_size;
+	// Lowest point of the scanned geometry (bounds_origin.y lies below it by
+	// the margin plus the snap, so it is not derivable from the origin).
+	float geometry_min_y = 0.0f;
 	bool baked = false; // project geometry scanned + chunk table sized (NOT "every chunk rasterized")
 	bool any_occupied = false;
 
 	std::vector<std::unique_ptr<NavChunk>> chunks;
 
-	// Persistent fine-A* scratch, sized once to the total (bounded) world
-	// cell count when the project is scanned and reused across every
-	// query via a generation stamp instead of a fresh
-	// unordered_map/unordered_set per call — the same flat-array-over-hash
-	// trade already used for the per-chunk distance field, applied here
-	// once profiling showed g_score/came_from/closed hashing (not chunk
-	// lookups, which are plain vector indexing) was the dominant per-
-	// expansion cost once the corridor restriction made searches long
-	// enough for that to matter. astar_g_gen/astar_closed_gen record which
-	// search last touched a cell; a stale generation means "not part of
-	// the current search," standing in for what would otherwise need a
-	// full clear between queries.
-	std::vector<float> astar_g_score;
-	std::vector<int> astar_g_gen;
-	std::vector<int> astar_came_from;
-	std::vector<int> astar_closed_gen;
+	// Persistent fine-A* scratch, reused across every query via a
+	// generation stamp instead of a fresh unordered_map/unordered_set per
+	// call — the same flat-array-over-hash trade already used for the
+	// per-chunk distance field, applied here once profiling showed
+	// g_score/came_from/closed hashing was the dominant per-expansion cost
+	// once the corridor restriction made searches long enough for that to
+	// matter. g_gen/closed_gen record which search last touched a cell; a
+	// stale generation means "not part of the current search," standing in
+	// for what would otherwise need a full clear between queries.
+	//
+	// Paged by chunk index, a page allocated only when a search first
+	// reaches that chunk. It used to be flat arrays over the whole world
+	// volume, 21 bytes for every cell of the bounds whether any search ever
+	// went there or not, and a copy per parked world: a big map's sky and
+	// rock cost more than everything else the grid holds put together.
+	std::vector<std::unique_ptr<AStarPage>> astar_pages;
 	int astar_search_id = 0;
+	// The page holding an in-bounds cell, allocated on first touch, and the
+	// cell's index within it. a_star keeps the last page it used, since
+	// most neighbours share their parent's chunk.
+	AStarPage &astar_page(const Vector3i &cell, int &local);
+	SmoothPage &smooth_page(const Vector3i &cell, int &local);
 
 	// Same flat-array-plus-generation-stamp trade as the fine-A* scratch
 	// above, applied to smooth_path's is_valid_cell calls instead.
@@ -341,8 +374,7 @@ private:
 	// result per cell here is exact, not an approximation — it changes
 	// nothing about WHICH points get sampled or the early-exit behavior,
 	// only skips recomputing an answer already known this call.
-	std::vector<int> smooth_valid_gen;
-	std::vector<uint8_t> smooth_valid_result;
+	std::vector<std::unique_ptr<SmoothPage>> smooth_pages; // paged as astar_pages
 	int smooth_search_id = 0;
 	bool is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int smooth_sid);
 
@@ -400,8 +432,8 @@ private:
 	void mark_tri_ground(const TriShape &tri, int id, const Vector3i &chunk_coord, NavChunk &chunk);
 
 	Vector3 cell_center(const Vector3i &cell) const;
-	int cell_index(const Vector3i &cell) const; // global bijection over grid_size — A* bookkeeping keys only
-	Vector3i cell_from_index(int idx) const;
+	int64_t cell_index(const Vector3i &cell) const; // global bijection over grid_size; 64-bit, a large map's cell count passes 2^31
+	Vector3i cell_from_index(int64_t idx) const;
 	bool in_bounds(const Vector3i &cell) const;
 
 	Vector3i cell_to_chunk_coord(const Vector3i &cell) const;
@@ -444,7 +476,7 @@ private:
 	// returns a chunk_coord_index -> allowed flat mask covering
 	// CORRIDOR_RADIUS_CHUNKS around an approximate route from start to
 	// goal, or an empty vector if none was found. A flat mask rather than
-	// a hash set for the same reason as astar_g_score above — chunk counts
+	// a hash set for the same reason as astar_pages above — chunk counts
 	// are small, so this is cheap to allocate fresh per query. Deliberately
 	// optimistic/approximate — see find_path for why that's safe (a failed
 	// corridor-restricted fine search always falls back to an unrestricted
