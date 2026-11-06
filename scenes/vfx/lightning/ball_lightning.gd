@@ -39,9 +39,12 @@ var _since_jump: float = 10.0
 var _dying_at: float = -1.0
 
 
-func _ready() -> void:
-	_core_material = ShaderMaterial.new()
-	_core_material.shader = CORE_SHADER
+## A plasma core: a unit sphere wearing ball_lightning_core.gdshader.
+## Scale it to size; drive the material's "time" and "strength".
+## The electric cone uses one at the hand.
+static func make_core() -> MeshInstance3D:
+	var material := ShaderMaterial.new()
+	material.shader = CORE_SHADER
 	var noise := NoiseTexture3D.new()
 	noise.width = 64
 	noise.height = 64
@@ -51,16 +54,22 @@ func _ready() -> void:
 	fast.frequency = 0.04
 	fast.fractal_octaves = 2
 	noise.noise = fast
-	_core_material.set_shader_parameter("noise", noise)
+	material.set_shader_parameter("noise", noise)
 	var sphere := SphereMesh.new()
 	sphere.radius = 1.0
 	sphere.height = 2.0
 	sphere.radial_segments = 24
 	sphere.rings = 12
-	_core = MeshInstance3D.new()
-	_core.mesh = sphere
-	_core.material_override = _core_material
-	_core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var core := MeshInstance3D.new()
+	core.mesh = sphere
+	core.material_override = material
+	core.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return core
+
+
+func _ready() -> void:
+	_core = make_core()
+	_core_material = _core.material_override
 	add_child(_core)
 	_arcs = Arcs.new()
 	add_child(_arcs)
