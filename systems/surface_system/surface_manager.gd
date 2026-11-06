@@ -55,6 +55,9 @@ const FLOOR_NORMAL: float = 0.6
 ## their centres. Over half a cube's diagonal (0.71), so a wall run at an
 ## angle to the grid stays face-connected and floods end to end.
 const WALL_HALF_THICKNESS: float = 0.75
+## How far round the struck spot a single-target attack at the ground
+## touches the floor (touch), meters.
+const POINT_TOUCH_RADIUS: float = 0.4
 
 ## The focused world's clouds — what's on screen. Kept for readers that
 ## really mean that (the world-scoping suite); everything here goes
@@ -150,7 +153,8 @@ func spawn_cone(surface: Surface, apex: Vector3, direction: Vector3, length: flo
 ## reacts to it all the same, as if a surface of that element had landed
 ## there (_react) — cold freezes the water a target stands in, fire lights
 ## the grease. Where: the target's footprint for a unit, else the
-## ability's area — its cone, its blast's floor, its spill. Nothing of the
+## ability's area — its cone, its blast's floor, its spill — or, for a
+## single-target attack aimed at the ground, the spot it struck. Nothing of the
 ## element is left behind, so a reaction that would only let it TAKE the
 ## cells does nothing.
 func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -> void:
@@ -183,6 +187,12 @@ func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -
 		elif area:
 			radius = area.radius
 			reached = _spill_cells(space, position, radius)
+		else:
+			# A single-target attack at the ground (Fire Bolt at a patch
+			# of grease): the spot it struck. One cell is enough - a
+			# spreading reaction floods the rest.
+			radius = POINT_TOUCH_RADIUS
+			reached = _footprint_cells(grid, position, radius)
 	if reached.is_empty():
 		return
 	_land_turned(_react(element, null, reached, grid), context, parent, position, radius)

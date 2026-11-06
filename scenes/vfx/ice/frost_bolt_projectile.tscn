@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="PackedScene" path="res://systems/ability_system/magic_missile_projectile.tscn" id="1_mm"]
+
+[node name="FrostBoltProjectile" instance=ExtResource("1_mm")]
+bolt_color = Color(0.6, 0.9, 1, 1)
+bolt_radius = 0.1

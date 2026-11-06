@@ -16,8 +16,9 @@ extends PlayerIntent
 ## when a unit was hovered, where the targeting check refused it
 ## silently after the preview had drawn it on the unit's capsule. A
 ## unit-targeted ability takes the hovered unit; clicked on bare ground
-## it does nothing (and the click is consumed) instead of falling through
-## to a move order, so aiming never walks the caster anywhere.
+## it goes off at that spot if it may (AbilityTargeting.aims_at_ground),
+## else does nothing (and the click is consumed) instead of falling
+## through to a move order, so aiming never walks the caster anywhere.
 
 func _init(armed: Ability) -> void:
 	ability = armed
@@ -29,8 +30,9 @@ func kind() -> StringName:
 
 ## Point/area ability: cast at Cursor.aim_point (null - the ray missed -
 ## is not consumed). Otherwise a hovered unit is the target; a hovered
-## interactable is left to its own handler; and a click on nothing is
-## consumed and does nothing - it must not select or move.
+## interactable is left to its own handler; a ground-aimable attack hits
+## the ground clicked; and any other click on nothing is consumed and
+## does nothing - it must not select or move.
 func handle_left_click(router, cursor: Cursor) -> bool:
 	if ability and ability.targeting and ability.targeting.expects_point_target():
 		var p = cursor.aim_point(ability)
@@ -41,6 +43,10 @@ func handle_left_click(router, cursor: Cursor) -> bool:
 		return router.click_unit(cursor.unit)
 	if cursor.interactable:
 		return false
+	# A unit-targeted attack that may go off at the ground (AbilityTargeting.
+	# aims_at_ground) hits the spot clicked.
+	if ability and ability.targeting and ability.targeting.aims_at_ground and cursor.ground != null:
+		return router.use_ground_targeted(ability, cursor.ground)
 	return true
 
 

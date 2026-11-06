@@ -765,7 +765,9 @@ func _decide(action: AbilityAction) -> void:
 	action.shots = maxi(shots, 1)
 	_hits = 1
 
-	if ability.requires_to_hit:
+	# A swing or shot at the ground (AbilityTargeting.aims_at_ground) has
+	# nothing to miss: it lands where it was aimed, as in BG3.
+	if ability.requires_to_hit and not target is Vector3:
 		# The DEFENDER's active statuses (Prone, etc.) can modify how
 		# easy THEY are to hit — summed onto the attacker's own skill
 		# before rolling, so e.g. Prone's melee bonus/ranged penalty

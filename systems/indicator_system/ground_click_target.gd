@@ -730,7 +730,7 @@ func click_unit(clicked: Unit) -> bool:
 ## ability) and the player is actually commanding the caster, uses it at
 ## the clicked point. Returns whether it did.
 func use_ground_targeted(ability: Ability, click_position: Vector3) -> bool:
-	if not ability or not ability.targeting or not ability.targeting.expects_point_target():
+	if not ability or not ability.targeting or not ability.targeting.takes_ground_click():
 		return false
 
 	var unit: Unit = PlayerInteractionState.get_active_unit()
@@ -869,6 +869,15 @@ func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
 			return _unit_answer(at.unit, true)
 		if at.interactable:
 			return ClickAnswer.new()
+		if ability and ability.targeting and ability.targeting.aims_at_ground and at.ground != null:
+			var caster: Unit = PlayerInteractionState.get_active_unit()
+			if caster == null or caster not in SelectionManager.selected_units:
+				return ClickAnswer.new()
+			var at_ground := ClickAnswer.new(&"use", at.ground)
+			var reach: AbilityTargeting.Reach = ability.targeting.check_click(caster, at.ground)
+			if reach != AbilityTargeting.Reach.OK:
+				at_ground.refused(_reach_reason(reach, false))
+			return at_ground
 		var none: ClickAnswer = ClickAnswer.new(&"nothing", at.ground).refused("No target")
 		if at.on_plane:
 			none.floor_point = at.floor_below

@@ -11,9 +11,16 @@ extends AbilityTargeting
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
+	return check(attacker, target) == Reach.OK
+
+
+func check(attacker: Unit, target) -> Reach:
+	if target is Vector3 and aims_at_ground:
+		var reach: float = maxf(attacker.global_position.distance_to(target) - attacker.radius, 0.0)
+		return Reach.OK if reach <= melee_range else Reach.OUT_OF_RANGE
 	if not target is Unit:
-		return false
-	return attacker.edge_distance_to(target) <= melee_range
+		return Reach.INVALID
+	return Reach.OK if attacker.edge_distance_to(target) <= melee_range else Reach.OUT_OF_RANGE
 
 
 func approach_range() -> float:

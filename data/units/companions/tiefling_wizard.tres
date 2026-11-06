@@ -34,6 +34,8 @@
 [ext_resource type="Resource" path="res://data/abilities/lightning_breath.tres" id="a23_lightning"]
 [ext_resource type="Resource" path="res://data/abilities/web.tres" id="a24_web"]
 [ext_resource type="Resource" path="res://data/abilities/create_water.tres" id="a25_water"]
+[ext_resource type="Resource" path="res://data/abilities/fire_bolt.tres" id="a26_firebolt"]
+[ext_resource type="Resource" path="res://data/abilities/ray_of_frost.tres" id="a27_frost_ray"]
 
 [sub_resource type="Resource" id="rec0"]
 script = ExtResource("rec")
@@ -59,7 +61,7 @@ faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
-abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark"), ExtResource("a19_wall"), ExtResource("a20_enlarge"), ExtResource("a21_reduce"), ExtResource("a22_frost"), ExtResource("a23_lightning"), ExtResource("a24_web"), ExtResource("a25_water")])
+abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2"), ExtResource("a3"), ExtResource("a4"), ExtResource("a5"), ExtResource("a6"), ExtResource("a7"), ExtResource("a8"), ExtResource("a9"), ExtResource("a10"), ExtResource("a11"), ExtResource("a12"), ExtResource("a14"), ExtResource("a15"), ExtResource("a16"), ExtResource("a17_fog"), ExtResource("a18_dark"), ExtResource("a19_wall"), ExtResource("a20_enlarge"), ExtResource("a21_reduce"), ExtResource("a22_frost"), ExtResource("a23_lightning"), ExtResource("a24_web"), ExtResource("a25_water"), ExtResource("a26_firebolt"), ExtResource("a27_frost_ray")])
 
 alignment = -100
 tendency = 100

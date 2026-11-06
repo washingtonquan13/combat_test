@@ -57,6 +57,7 @@ metadata/_custom_type_script = "uid://cxvg4h3mmr1l4"
 
 [sub_resource type="Resource" id="Resource_4i07h"]
 script = ExtResource("6_4i07h")
+aims_at_ground = true
 max_range = 15.0
 requires_line_of_sight = true
 los_obstruction_mask = 1

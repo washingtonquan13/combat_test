@@ -75,10 +75,13 @@ func draw(aim: Aim) -> void:
 
 func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Ability) -> void:
 	var color: Color
-	if hovered_unit == null:
+	# A ground-aimable shot colours its line to the spot as it does to a
+	# unit: the click would fire there.
+	var target = hovered_unit if hovered_unit else (aim_point if ability.targeting.aims_at_ground else null)
+	if target == null:
 		color = no_target_color
 	else:
-		match ability.targeting.check(unit, hovered_unit):
+		match ability.targeting.check(unit, target):
 			AbilityTargeting.Reach.OK:
 				color = clear_color
 			AbilityTargeting.Reach.OUT_OF_RANGE:

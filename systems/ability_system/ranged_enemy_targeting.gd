@@ -19,6 +19,12 @@ func is_valid_target(attacker: Unit, target) -> bool:
 
 
 func check(attacker: Unit, target) -> Reach:
+	if target is Vector3 and aims_at_ground:
+		if maxf(attacker.global_position.distance_to(target) - attacker.radius, 0.0) > max_range:
+			return Reach.OUT_OF_RANGE
+		if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, target, los_obstruction_mask):
+			return Reach.BLOCKED
+		return Reach.OK
 	if not target is Unit:
 		return Reach.INVALID
 	if attacker.edge_distance_to(target) > max_range:

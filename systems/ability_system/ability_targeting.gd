@@ -87,10 +87,28 @@ func has_any_valid_target(_attacker: Unit) -> bool:
 ## Enlarge and Reduce Person: a buff on a friend, a curse on a foe. Beats
 ## requires_ally when both are set. Same Unit-target-only scope.
 @export var any_unit: bool = false
+## Whether this unit-targeted ability may also be used on the ground: a
+## click on bare ground (no unit under the cursor) swings or shoots at
+## that spot, as BG3 lets a Fire Bolt, a sword or a bow go off at no
+## one. Nothing is there to hit, so it always lands (no to-hit roll),
+## and an attack of an element (Ability.element) still makes the ground
+## react (SurfaceManager.touch): Fire Bolt lights grease, Ray of Frost
+## freezes water. Attacks only: a heal or a buff has nothing to do on
+## the floor. Range (and line of sight) are this shape's own, measured
+## to the point.
+@export var aims_at_ground: bool = false
 
 
 func requires_ally_target() -> bool:
 	return requires_ally
+
+
+## Whether a click on the ground is used by this ability: a point/area
+## shape always, a unit-targeted one with aims_at_ground on. The one
+## question the click router, the aiming intent and the context cursor
+## ask, so none of them keeps its own copy.
+func takes_ground_click() -> bool:
+	return expects_point_target() or aims_at_ground
 
 
 ## Whether this targeting shape's target is a single hostile Unit — true
