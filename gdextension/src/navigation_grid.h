@@ -188,9 +188,9 @@ struct OccupantKey {
 	uint64_t id = 0; // instance id, not the pointer: a freed node's address can be reused
 	Vector3i cell;
 	int clearance_key = 0;
-	bool flying = false;
+	int layers = 0; // body column height in cells, feet layer up; see occupant_layers
 	bool operator==(const OccupantKey &o) const {
-		return id == o.id && cell == o.cell && clearance_key == o.clearance_key && flying == o.flying;
+		return id == o.id && cell == o.cell && clearance_key == o.clearance_key && layers == o.layers;
 	}
 	bool operator!=(const OccupantKey &o) const { return !(*this == o); }
 };
@@ -420,8 +420,7 @@ private:
 
 	std::vector<Vector3i> neighbor_offsets; // 26-connectivity, fine A*
 	std::vector<float> neighbor_step_cost; // parallel to neighbor_offsets — precomputed world-unit length of each offset, so a_star's hot loop doesn't call length() (sqrt) 26x per expansion for a fixed, known-in-advance set of vectors
-	std::unordered_map<int, std::vector<Vector3i>> disc_offsets_cache; // horizontal (x,z) offsets by clearance — grounded occupancy discs
-	std::unordered_map<int, std::vector<Vector3i>> sphere_offsets_cache; // full 3D offsets by clearance — flying occupancy (see sphere_offsets)
+	std::unordered_map<int, std::vector<Vector3i>> disc_offsets_cache; // horizontal (x,z) offsets by clearance — one layer of an occupancy column
 
 	// Per-chunk cache: true iff ANY chunk in this chunk's own 3x3x3
 	// neighborhood has_occupancy — see refresh_chunk_occupancy_nearby.
@@ -513,12 +512,22 @@ private:
 
 	static int clearance_key(float clearance);
 	const std::vector<Vector3i> &disc_offsets(float clearance);
-	const std::vector<Vector3i> &sphere_offsets(float clearance);
 
 	const std::vector<Object *> *occupants_at(const Vector3i &cell) const;
 	void set_occupant(const Vector3i &cell, Object *obj);
 
-	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const;
+	// Every occupant, walking or flying, fills a vertical column: its
+	// clearance disc on every layer from its feet up its body height. A
+	// column is never shorter than MIN_OCCUPANT_LAYERS, which is what lets
+	// is_clear_of_units sample the querying body's layers MIN_OCCUPANT_LAYERS
+	// apart instead of testing all of them: a column at least that tall
+	// that overlaps the body's span always covers one sampled layer.
+	static constexpr int MIN_OCCUPANT_LAYERS = 4; // 1 m
+	static constexpr float DEFAULT_OCCUPANT_HEIGHT = 2.0f; // Unit.height's default, for an occupant reporting none
+	static int occupant_layers(float height);
+	static int body_layers(float height);
+
+	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, float height, Object *self_unit) const;
 	bool is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit);
 	// The part of is_valid_cell that holds for every clearance and height,
 	// for an in-bounds cell of a support-baked chunk: not solid; walking
@@ -554,8 +563,9 @@ private:
 	// a hash set for the same reason as astar_pages above — chunk counts
 	// are small, so this is cheap to allocate fresh per query. Deliberately
 	// optimistic/approximate — see find_path for why that's safe (a failed
-	// corridor-restricted fine search always falls back to an unrestricted
-	// one, so this can only affect speed).
+	// corridor-restricted fine search falls back to an unrestricted one
+	// whenever the corridor could be why it failed, so this can only affect
+	// speed).
 	std::vector<uint8_t> coarse_corridor(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
 
 	// --- Connectivity regions ----------------------------------------
@@ -575,7 +585,33 @@ private:
 	// (chunk index << 16) | label, or 0 for a closed cell.
 	uint64_t region_key(const Vector3i &cell, bool flying);
 
-	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask);
+	// The goal's own side of a search, flooded alongside it. Regions
+	// (above) ignore clearance and occupancy, so a goal they pass can still
+	// be sealed off for THIS unit: ringed by units, or behind a gap too
+	// narrow for its body. A search from the start finds that out only by
+	// exhausting everything it can reach, which on an open map is the
+	// MAX_EXPANSIONS cap. The goal's sealed pocket is usually tiny, so a
+	// breadth-first flood over the very cells the search would accept,
+	// stepped once per GOAL_FLOOD_EVERY search expansions, empties it and
+	// proves the goal unreachable after a few hundred expansions instead.
+	// A flood that grows past GOAL_FLOOD_BUDGET cells gives up: the goal's
+	// side is big, so the search decides as before. Search and flood share
+	// one adjacency (is_valid_cell over the 26 neighbours, symmetric), so
+	// "sealed" is exact, never a guess.
+	static constexpr int GOAL_FLOOD_EVERY = 4;
+	static constexpr int GOAL_FLOOD_BUDGET = 4096;
+	struct GoalFlood {
+		enum State { RUNNING, SEALED, OPEN };
+		State state = RUNNING;
+		Vector3i start_cell;
+		std::vector<Vector3i> queue; // BFS order; head is the next to expand
+		size_t head = 0;
+		std::unordered_set<int64_t> seen; // cell_index
+	};
+	void goal_flood_begin(GoalFlood &flood, const Vector3i &start_cell, const Vector3i &goal_cell);
+	void goal_flood_step(GoalFlood &flood, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
+
+	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask, GoalFlood *flood = nullptr, bool *mask_cut = nullptr);
 	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);
 	PackedVector3Array smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
 	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int smooth_sid);

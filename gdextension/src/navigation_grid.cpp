@@ -2336,11 +2336,10 @@ void NavigationGrid::collect_occupants(SceneTree *tree, std::vector<OccupantKey>
 			key.id = obj->get_instance_id();
 			key.cell = world_to_cell(n3d->get_global_position());
 			key.clearance_key = clearance_key(get_float_prop(n3d, "radius") + get_float_prop(n3d, "avoidance_margin"));
-			// A flying occupant (or a corpse that died mid-air: corpses
-			// aren't force-landed, see UnitDeath.handle_death) needs a full
-			// 3D volume, not the horizontal disc grounded units share a Y
-			// reference for; see sphere_offsets.
-			key.flying = n3d->has_method("is_flying") && call_bool(n3d, "is_flying");
+			// Walking or flying (or a corpse that died mid-air: corpses
+			// aren't force-landed, see UnitDeath.handle_death), the volume
+			// is the same column from the feet up; see occupant_layers.
+			key.layers = occupant_layers(get_float_prop(n3d, "height"));
 			keys.push_back(key);
 			objects.push_back(obj);
 		}
@@ -2383,12 +2382,14 @@ void NavigationGrid::ensure_occupancy_current(SceneTree *tree) {
 			ensure_chunk_dist(cell_to_chunk_coord(key.cell));
 		}
 		float clearance = (float)key.clearance_key / 1000.0f;
-		const std::vector<Vector3i> &occ_offsets = key.flying ? sphere_offsets(clearance) : disc_offsets(clearance);
-		for (const Vector3i &offset : occ_offsets) {
-			Vector3i cell = key.cell + offset;
-			if (in_bounds(cell)) {
-				set_occupant(cell, objects[i]);
-				any_occupied = true;
+		const std::vector<Vector3i> &occ_offsets = disc_offsets(clearance);
+		for (int dy = 0; dy < key.layers; dy++) {
+			for (const Vector3i &offset : occ_offsets) {
+				Vector3i cell = key.cell + offset + Vector3i(0, dy, 0);
+				if (in_bounds(cell)) {
+					set_occupant(cell, objects[i]);
+					any_occupied = true;
+				}
 			}
 		}
 	}
@@ -2456,47 +2457,27 @@ const std::vector<Vector3i> &NavigationGrid::disc_offsets(float clearance) {
 	return emplaced.first->second;
 }
 
-// Full 3D occupancy volume for a flying occupant, used in place of
-// disc_offsets (which is deliberately horizontal-only, dy always 0) when
-// marking cells a FLYING unit/corpse occupies in ensure_occupancy_current. A
-// grounded unit's Y is pinned to whatever surface it's standing on, so two
-// grounded units near each other always land on the same Y cell and the
-// horizontal disc alone catches their collision correctly. A flying unit
-// has no such shared reference — its altitude is whatever the player last
-// set it to (R/F historically, now the Ctrl-drag control) — so two
-// hovering units can be right next to each other in world space while
-// sitting in DIFFERENT Y cells, and the horizontal-only disc would never
-// mark them as overlapping at all. That's the actual root cause behind
-// "flying units fly through each other" — read-side collision checks
-// (is_clear_of_units) don't need to change; they already test a
-// horizontal disc around each candidate cell at that candidate's own Y,
-// which correctly detects an overlap once the occupied SET properly
-// represents the occupant's true 3D volume here on the write side.
-const std::vector<Vector3i> &NavigationGrid::sphere_offsets(float clearance) {
-	int key = clearance_key(clearance);
-	auto it = sphere_offsets_cache.find(key);
-	if (it != sphere_offsets_cache.end()) {
-		return it->second;
+// A column, not a disc at the feet layer or (for fliers) a sphere: a
+// unit's body is that tall wherever it stands. A disc at the feet alone
+// missed every overlap that wasn't feet-to-feet on one layer: two walkers
+// a layer apart on a ramp, or a flier at chest height crossing a standing
+// unit. A sphere around a flier's feet had the same blind spot above and
+// below it. Columns on both sides (the occupant's here, the querying
+// body's in is_clear_of_units) make every vertical overlap a collision.
+int NavigationGrid::occupant_layers(float height) {
+	if (height <= 0.0f) {
+		height = DEFAULT_OCCUPANT_HEIGHT;
 	}
-
-	std::vector<Vector3i> result;
-	int reach = (int)std::ceil(clearance / CELL_SIZE);
-	for (int dx = -reach; dx <= reach; dx++) {
-		for (int dy = -reach; dy <= reach; dy++) {
-			for (int dz = -reach; dz <= reach; dz++) {
-				float dist = std::sqrt((float)(dx * dx + dy * dy + dz * dz)) * CELL_SIZE;
-				if (dist > clearance) {
-					continue;
-				}
-				result.push_back(Vector3i(dx, dy, dz));
-			}
-		}
-	}
-	auto emplaced = sphere_offsets_cache.emplace(key, std::move(result));
-	return emplaced.first->second;
+	return std::max(MIN_OCCUPANT_LAYERS, body_layers(height));
 }
 
-bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const {
+// Layers a body of this height spans from its feet cell, as is_valid_cell
+// counts them for clearance.
+int NavigationGrid::body_layers(float height) {
+	return std::max(1, (int)std::ceil(height / CELL_SIZE));
+}
+
+bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, float height, Object *self_unit) const {
 	if (!any_occupied) {
 		return true;
 	}
@@ -2515,33 +2496,46 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 	// realistic unit clearance (this falls back to the exact per-offset
 	// check otherwise, so an oversized clearance degrades to the old cost
 	// rather than being wrong). The cached flag already accounts for all
-	// three axes, not just the horizontal ones — a flying occupant's
-	// occupancy is a real 3D sphere now (see sphere_offsets), so it can
-	// land in a vertically-adjacent chunk too. chunk_idx is the caller's
+	// three axes, not just the horizontal ones — occupancy is a column
+	// (see occupant_layers), and so is the body tested below, so either can
+	// reach into a vertically-adjacent chunk too. chunk_idx is the caller's
 	// already-computed chunk_coord_index(cell_to_chunk_coord(cell)) — this
 	// is always called right after is_valid_cell derives the same chunk
 	// coordinate for its own support/clearance checks, so recomputing it a
 	// third time here would be pure waste.
 	int reach_cells = (int)std::ceil(clearance / CELL_SIZE);
-	if (reach_cells <= CHUNK_DIM) {
+	int layers = body_layers(height);
+	if (reach_cells <= CHUNK_DIM && layers <= CHUNK_DIM) {
 		if (!chunk_occupancy_nearby[chunk_idx]) {
 			return true;
 		}
 	}
 
-	for (const Vector3i &offset : offsets) {
-		Vector3i c = cell + offset;
-		if (!in_bounds(c)) {
-			continue;
+	// The querying body spans `layers` from this cell up. Every occupant
+	// column is at least MIN_OCCUPANT_LAYERS tall and has no gaps, so any
+	// that overlaps the span covers one of the layers sampled that far
+	// apart, plus the top: three disc tests for a 2 m body, not eight.
+	for (int dy = 0;; dy += MIN_OCCUPANT_LAYERS) {
+		if (dy > layers - 1) {
+			dy = layers - 1;
 		}
-		const std::vector<Object *> *here = occupants_at(c);
-		if (!here) {
-			continue;
-		}
-		for (Object *occ : *here) {
-			if (occ != self_unit && std::find(query_ignore.begin(), query_ignore.end(), occ) == query_ignore.end()) {
-				return false;
+		for (const Vector3i &offset : offsets) {
+			Vector3i c = cell + offset + Vector3i(0, dy, 0);
+			if (!in_bounds(c)) {
+				continue;
 			}
+			const std::vector<Object *> *here = occupants_at(c);
+			if (!here) {
+				continue;
+			}
+			for (Object *occ : *here) {
+				if (occ != self_unit && std::find(query_ignore.begin(), query_ignore.end(), occ) == query_ignore.end()) {
+					return false;
+				}
+			}
+		}
+		if (dy == layers - 1) {
+			break;
 		}
 	}
 	return true;
@@ -2605,7 +2599,7 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 		}
 	}
 
-	return is_clear_of_units(cell, chunk_idx, offsets, clearance, self_unit);
+	return is_clear_of_units(cell, chunk_idx, offsets, clearance, height, self_unit);
 }
 
 // --- Nearest-valid-point utility --------------------------------------------
@@ -2706,13 +2700,27 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 	// optimization must never silently change correctness (see the old
 	// navmesh outage in HANDOFF.md): it can only affect how fast a path is
 	// found, never whether one is found when it exists.
+	//
+	// Regions above ignore clearance and occupancy, so a goal they pass
+	// can still be sealed off for this unit (ringed by units, behind a gap
+	// too narrow for it). The goal flood (see GoalFlood) answers that from
+	// the goal's side while the search runs, and a corridor search that
+	// emptied its open set without the corridor ever turning a cell away
+	// has already seen the start's whole side: in both cases the
+	// unrestricted retry could only fail again, slowly, so it is skipped.
 	std::vector<uint8_t> corridor = coarse_corridor(start_cell, goal_cell, flying);
+	GoalFlood flood;
+	goal_flood_begin(flood, start_cell, goal_cell);
 	PackedVector3Array raw;
+	bool mask_cut = true;
 	if (!corridor.empty()) {
-		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, &corridor);
+		mask_cut = false;
+		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, &corridor, &flood, &mask_cut);
 	}
-	if (raw.size() < 2) {
-		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, nullptr);
+	if (raw.size() < 2 && mask_cut && flood.state != GoalFlood::SEALED) {
+		// The flood carries on where it left off, so a goal side it had
+		// not finished emptying still ends this search early.
+		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, nullptr, &flood);
 	}
 	if (raw.size() < 2) {
 		return raw;
@@ -3125,7 +3133,51 @@ SmoothPage &NavigationGrid::smooth_page(const Vector3i &cell, int &local) {
 	return *page;
 }
 
-PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask) {
+void NavigationGrid::goal_flood_begin(GoalFlood &flood, const Vector3i &start_cell, const Vector3i &goal_cell) {
+	flood.state = GoalFlood::RUNNING;
+	flood.start_cell = start_cell;
+	flood.queue.clear();
+	flood.head = 0;
+	flood.seen.clear();
+	flood.queue.push_back(goal_cell);
+	flood.seen.insert(cell_index(goal_cell));
+}
+
+// One breadth-first expansion of the goal's side. Touching the start cell
+// ends it OPEN: a_star expands the start whether or not it is valid, so
+// that is exactly where the two sides meet.
+void NavigationGrid::goal_flood_step(GoalFlood &flood, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit) {
+	if (flood.state != GoalFlood::RUNNING) {
+		return;
+	}
+	if (flood.head >= flood.queue.size()) {
+		flood.state = GoalFlood::SEALED;
+		return;
+	}
+	if ((int)flood.seen.size() > GOAL_FLOOD_BUDGET) {
+		flood.state = GoalFlood::OPEN;
+		return;
+	}
+	Vector3i current = flood.queue[flood.head++];
+	for (const Vector3i &offset : neighbor_offsets) {
+		Vector3i neighbor = current + offset;
+		if (neighbor == flood.start_cell) {
+			flood.state = GoalFlood::OPEN;
+			return;
+		}
+		if (!in_bounds(neighbor)) {
+			continue;
+		}
+		int64_t idx = cell_index(neighbor);
+		if (flood.seen.count(idx) || !is_valid_cell(neighbor, offsets, clearance, height, flying, unit)) {
+			continue;
+		}
+		flood.seen.insert(idx);
+		flood.queue.push_back(neighbor);
+	}
+}
+
+PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask, GoalFlood *flood, bool *mask_cut) {
 	std::priority_queue<OpenEntry, std::vector<OpenEntry>, OpenEntryCompare> open_heap;
 
 	astar_search_id++;
@@ -3163,7 +3215,16 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 
 		expansions++;
 		if (expansions > MAX_EXPANSIONS) {
+			if (mask_cut) {
+				*mask_cut = true; // capped, not exhausted: a wider search might still get there
+			}
 			break;
+		}
+		if (flood && expansions % GOAL_FLOOD_EVERY == 0) {
+			goal_flood_step(*flood, offsets, clearance, height, flying, unit);
+			if (flood->state == GoalFlood::SEALED) {
+				break;
+			}
 		}
 
 		float current_g = current_page.g_score[current_local];
@@ -3176,6 +3237,9 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			}
 			int neighbor_chunk = chunk_coord_index(cell_to_chunk_coord(neighbor));
 			if (allowed_chunks_mask && !(*allowed_chunks_mask)[neighbor_chunk]) {
+				if (mask_cut) {
+					*mask_cut = true;
+				}
 				continue;
 			}
 			if (neighbor_chunk != last_chunk) {
