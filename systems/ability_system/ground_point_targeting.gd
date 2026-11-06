@@ -20,22 +20,13 @@ extends AbilityTargeting
 ## long as AI units don't have a ground-targeted ability as abilities[0],
 ## this doesn't cause a problem, just an ability the AI never picks.
 
-## How far the jump's distance is set by the jumper's ST (range_for).
-enum StrengthRule {
-	## 5e's running long jump, ST in feet at 5e's 5 ft = 1.5 m (so 1 ft
-	## = 0.3 m), plus BG3's 1.5 m: 0.3 x ST + 1.5. 4.5 m at ST 10.
-	ROUNDED,
-	## BG3's own numbers converted exactly: 4.5 m at ST 10, +1 m per 2
-	## ST: 0.5 x ST - 0.5. Same at ST 10, steeper either side.
-	EXACT,
-}
-
 ## A fixed range, used unless range_from_strength.
 @export var max_range: float = 6.0
 ## Whether the range is the attacker's jump distance by ST (Jump) instead
 ## of max_range (Summon Spirit, which places something else).
 @export var range_from_strength: bool = false
-@export var strength_rule: StrengthRule = StrengthRule.ROUNDED
+## See ArcFlight.StrengthRule.
+@export var strength_rule: ArcFlight.StrengthRule = ArcFlight.StrengthRule.ROUNDED
 ## How close (meters) the landing point needs to be to an actual valid
 ## grid cell (see NavigationGrid) to count as "on walkable ground" —
 ## matches the tolerance pattern used elsewhere for point validation
@@ -96,15 +87,7 @@ func is_valid_target(attacker: Unit, target) -> bool:
 func range_for(attacker: Unit) -> float:
 	if not range_from_strength:
 		return max_range
-	return strength_distance(attacker.get_stat_unhalved(StatIds.ST), strength_rule)
-
-
-static func strength_distance(st: float, rule: StrengthRule) -> float:
-	match rule:
-		StrengthRule.EXACT:
-			return maxf(0.5 * st - 0.5, 0.0)
-		_:
-			return 0.3 * st + 1.5
+	return ArcFlight.strength_distance(attacker.get_stat_unhalved(StatIds.ST), strength_rule)
 
 
 func expects_point_target() -> bool:

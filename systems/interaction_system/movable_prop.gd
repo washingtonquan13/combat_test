@@ -158,9 +158,7 @@ func load_state(state: Dictionary) -> void:
 ## Where a flight from `from` to `to` is at t (0..1): a parabola over the
 ## straight line, peaking at t 0.5 (same shape as MoveCasterEffect's).
 static func arc_point(from: Vector3, to: Vector3, t: float) -> Vector3:
-	var point: Vector3 = from.lerp(to, t)
-	point.y += arc_height(from, to) * 4.0 * t * (1.0 - t)
-	return point
+	return ArcFlight.point(from, to, arc_height(from, to), t)
 
 
 static func arc_height(from: Vector3, to: Vector3) -> float:

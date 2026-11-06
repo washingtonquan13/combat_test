@@ -6,7 +6,7 @@ extends AbilityEffect
 ## Deliberately does NOT reuse Unit.move_to() — that would defeat the
 ## entire point of a jump, since normal pathfinding tries to route
 ## AROUND whatever gap you're trying to jump OVER (or fails to find a
-## path at all). Instead this directly animates global_position along a
+## path at all). Instead this flies global_position (ArcFlight) along a
 ## simple arc via Tween, bypassing move_and_slide()'s physics collision
 ## response on purpose: a jump is supposed to be able to arc over things
 ## a walk would be physically blocked by.
@@ -39,7 +39,7 @@ func apply(attacker: Unit, target, _ability: Ability, _is_critical: bool) -> Dic
 	var destination: Vector3 = clamp_to_budget(attacker, target)
 	var distance: float = attacker.global_position.distance_to(destination)
 
-	_animate_jump(attacker, destination)
+	ArcFlight.fly(attacker, destination, arc_height, jump_duration)
 
 	if attacker.in_combat():
 		attacker.spend_move(distance)
@@ -62,23 +62,10 @@ func clamp_to_budget(attacker: Unit, destination: Vector3) -> Vector3:
 	return attacker.global_position + direction * attacker.move_remaining
 
 
-func _animate_jump(attacker: Unit, destination: Vector3) -> void:
-	var start: Vector3 = attacker.global_position
-	attacker.begin_busy()
-	var tween: Tween = attacker.create_tween()
-	tween.tween_method(
-		func(t: float): attacker.global_position = arc_point(start, destination, t),
-		0.0, 1.0, jump_duration
-	)
-	tween.finished.connect(attacker.end_busy)
-
-
 ## Point along the jump's parabolic arc at t (0 = start, 1 = end), peaking
 ## at arc_height above a straight lerp when t=0.5.
 func arc_point(start: Vector3, end: Vector3, t: float) -> Vector3:
-	var point: Vector3 = start.lerp(end, t)
-	point.y += arc_height * 4.0 * t * (1.0 - t)
-	return point
+	return ArcFlight.point(start, end, arc_height, t)
 
 
 func describe() -> String:
