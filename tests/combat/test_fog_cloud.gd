@@ -3,7 +3,7 @@ extends AiTestCase
 ## through them, and Blind whoever is inside only while they are inside. Out of
 ## combat it still runs out, a round per SurfaceManager.ROUND_SECONDS.
 ## Darkness is the same cloud, but Dark Vision sees through it.
-## Lightning shot through steam electrifies the whole of that cloud.
+## Lightning shot through steam or fog electrifies the whole of that cloud.
 
 var FOG: Ability = load("res://data/abilities/fog_cloud.tres")
 var DARKNESS: Ability = load("res://data/abilities/darkness.tres")
@@ -75,5 +75,9 @@ func run() -> void:
 		SurfaceManager.cloud_at(Vector3(0.0, 1.5, 0.0), context) == shocked
 		and SurfaceManager.cloud_at(Vector3(0.0, 1.5, 1.6), context) == shocked
 		and SurfaceManager.cloud_at(Vector3(0.0, 1.5, 12.0), context) == steam)
+	SurfaceManager.expire_all_clouds(context)
+	SurfaceManager.spawn(cloud, Vector3(0.0, 1.5, 0.0), 2.0, archer)
+	SurfaceManager.touch(Surface.Element.LIGHTNING, null, archer, target)
+	check("so does fog", SurfaceManager.cloud_at(Vector3(0.0, 1.5, 1.6), context) == shocked)
 	SurfaceManager.expire_all_clouds(context)
 	free_spawned()
