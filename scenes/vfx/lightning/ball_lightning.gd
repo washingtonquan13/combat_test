@@ -1,11 +1,12 @@
 extends Node3D
-## A fantasy ball of lightning at this node's position: an orb with a
-## white-hot heart and a glowing, shimmering shell
-## (ball_lightning_core.gdshader); plasma-globe tendrils from the heart
-## out to the shell, whose ends wander; short sparks crackling off the
-## surface; and now and then an arc that jumps from the ball to the
-## ground or to a nearby point. One flickering light, which flares on
-## each jump.
+## A ball of lightning at this node's position: a sphere woven from bolts.
+## Arcs wrap around its surface and cut through its middle, and all of
+## them are thrown away and made again every `reroll_seconds`, so the ball
+## seethes. Where they cross at the centre they pile up white-hot; a small
+## plasma heart (ball_lightning_core.gdshader) glows there too. Short
+## sparks crackle off the surface, and now and then an arc jumps from the
+## ball to the ground or to a nearby point. One flickering light, which
+## flares on each jump.
 ##
 ## Move the node to move the ball. It lives `life_seconds` (0: until
 ## dissipate() is called), then shrinks away and frees itself.
@@ -18,13 +19,16 @@ const CORE_SHADER: Shader = preload("res://scenes/vfx/lightning/ball_lightning_c
 @export var life_seconds: float = 0.0
 @export var grow_seconds: float = 0.25
 @export var fade_seconds: float = 0.3
-## Tendrils from the heart to the shell, and how fast their ends wander.
-@export var tendrils: int = 6
-@export var tendril_wander: float = 2.5
-## Sparks crackling off the surface, and arcs crawling over it, at once.
-@export var sparks: int = 3
-@export var surface_arcs: int = 2
-@export var reroll_seconds: float = 0.06
+## Arcs wrapping around the surface, which give the ball its outline.
+@export var wrap_arcs: int = 10
+## Arcs cutting through the middle, which fill it.
+@export var through_arcs: int = 4
+## Sparks crackling off the surface.
+@export var sparks: int = 2
+@export var reroll_seconds: float = 0.045
+@export var arc_half_width: float = 0.05
+## Size of the glowing heart, as a fraction of the radius.
+@export var heart: float = 0.35
 ## Chance, per reroll, that an arc jumps out of the ball.
 @export var jump_chance: float = 0.12
 ## Furthest a jump can reach.
@@ -44,8 +48,6 @@ var _age: float = 0.0
 var _since_reroll: float = 0.0
 var _since_jump: float = 10.0
 var _dying_at: float = -1.0
-## Where each tendril meets the shell, as unit vectors.
-var _tendril_ends: Array[Vector3] = []
 
 
 ## A plasma core: a unit sphere wearing ball_lightning_core.gdshader.
@@ -79,18 +81,10 @@ static func make_core() -> MeshInstance3D:
 func _ready() -> void:
 	_core = make_core()
 	_core_material = _core.material_override
-	# The fantasy look: a hotter heart, a bright shell, and quieter
-	# filaments, which the tendrils take over from.
-	_core_material.set_shader_parameter("filament_strength", 3.0)
-	_core_material.set_shader_parameter("shell_strength", 3.0)
-	_core_material.set_shader_parameter("core_strength", 3.0)
-	# A saturated blue body, so only the heart and the arc cores go white.
-	_core_material.set_shader_parameter("shell_color", Color(0.2, 0.45, 1.0))
-	_core_material.set_shader_parameter("haze_color", Color(0.12, 0.28, 1.0))
-	_core_material.set_shader_parameter("haze_strength", 0.6)
+	# Only a hot heart: the bolts are the ball.
+	_core_material.set_shader_parameter("core_strength", 5.0)
+	_core_material.set_shader_parameter("filament_strength", 2.0)
 	add_child(_core)
-	for i in tendrils:
-		_tendril_ends.append(_random_unit())
 	_arcs = Arcs.new()
 	add_child(_arcs)
 	_light = OmniLight3D.new()
@@ -121,31 +115,30 @@ func _process(delta: float) -> void:
 			queue_free()
 			return
 		strength *= 1.0 - clampf(gone, 0.0, 1.0)
-	for i in _tendril_ends.size():
-		_tendril_ends[i] = (_tendril_ends[i] + _random_unit() * tendril_wander * delta).normalized()
 	if _since_reroll >= reroll_seconds:
 		_reroll()
 	# The ball breathes and shivers; a jump makes it flare.
 	var flare: float = exp(-_since_jump / 0.05)
 	var wobble: float = 1.0 + 0.06 * sin(_age * 9.0) + 0.04 * randf_range(-1.0, 1.0)
-	_core.scale = Vector3.ONE * radius * wobble * lerpf(0.3, 1.0, strength)
+	_arcs.scale = Vector3.ONE * wobble * lerpf(0.3, 1.0, strength)
+	_core.scale = Vector3.ONE * radius * heart * wobble * lerpf(0.3, 1.0, strength)
 	_core_material.set_shader_parameter("time", _age)
 	_core_material.set_shader_parameter("strength", strength * (randf_range(0.85, 1.05) + flare))
-	var crackle: float = 0.6 + 0.4 * exp(-_since_reroll / 0.025)
+	var crackle: float = 0.6 + 0.4 * exp(-_since_reroll / 0.02)
 	_arcs.set_brightness(0.45 * strength * crackle, (1.2 + 3.0 * flare) * strength)
-	_light.light_energy = light_energy * strength * (randf_range(0.7, 1.0) + 3.0 * flare)
+	_light.light_energy = light_energy * strength * (randf_range(0.7, 1.0) + 1.5 * flare)
 
 
-## New surface arcs, and maybe a jump.
+## A new weave of bolts, and maybe a jump.
 func _reroll() -> void:
 	_since_reroll = 0.0
 	var arcs: Array[Arcs.Arc] = []
-	for end in _tendril_ends:
-		arcs.append(_tendril(end))
+	for i in wrap_arcs:
+		arcs.append(_wrap_arc())
+	for i in through_arcs:
+		arcs.append(_through_arc())
 	for i in sparks:
 		arcs.append(_spark())
-	for i in surface_arcs:
-		arcs.append(_surface_arc())
 	if randf() < jump_chance:
 		var jump: Arcs.Arc = _jump_arc()
 		if jump != null:
@@ -155,39 +148,46 @@ func _reroll() -> void:
 	_arcs.show_arcs(arcs)
 
 
-## A tendril from the heart to the shell, reshaped every reroll so it
-## crackles while its end wanders slowly.
-func _tendril(end: Vector3) -> Arcs.Arc:
-	var arc := Arcs.Arc.new(Arcs.channel(Vector3.ZERO, end * radius * 0.92, 3, 0.3), 0.08)
-	arc.weight = randf_range(0.7, 1.0)
-	# The heart hides where they meet.
-	arc.root_fade = 0.25
+## A bolt wrapping part way round the ball along a great circle, a little
+## inside or outside the surface. Made of short legs, each channelled and
+## pressed back onto the sphere, so it stays jagged but keeps the ball round.
+func _wrap_arc() -> Arcs.Arc:
+	var a: Vector3 = _random_unit()
+	var axis: Vector3 = a.cross(_random_unit()).normalized()
+	var sweep: float = randf_range(1.6, 3.6)
+	var legs: int = ceili(sweep / 0.8)
+	var shell: float = radius * randf_range(0.8, 1.05)
+	var points := PackedVector3Array()
+	var from: Vector3 = a
+	for leg in legs:
+		var to: Vector3 = a.rotated(axis, sweep * float(leg + 1) / float(legs))
+		var piece: PackedVector3Array = Arcs.channel(from, to, 3, 0.2)
+		for k in range(0 if leg == 0 else 1, piece.size()):
+			points.append(piece[k].normalized() * shell * randf_range(0.95, 1.05))
+		from = to
+	var arc := Arcs.Arc.new(points, arc_half_width)
+	arc.weight = randf_range(0.6, 1.0)
+	arc.tip_fade = true
+	return arc
+
+
+## A bolt cutting through the ball from one side to near the other,
+## passing close to the heart.
+func _through_arc() -> Arcs.Arc:
+	var a: Vector3 = _random_unit()
+	var b: Vector3 = (-a + _random_unit() * 0.7).normalized()
+	var arc := Arcs.Arc.new(Arcs.channel(a * radius * 0.95, b * radius * 0.95, 4, 0.3), arc_half_width)
+	arc.weight = randf_range(0.5, 0.9)
+	arc.tip_fade = true
 	return arc
 
 
 ## A short spark leaping off the surface into the air.
 func _spark() -> Arcs.Arc:
 	var a: Vector3 = _random_unit()
-	var end: Vector3 = a * radius * randf_range(1.4, 1.9) + _random_unit() * radius * 0.2
-	var arc := Arcs.Arc.new(Arcs.channel(a * radius * 0.95, end, 3, 0.35), 0.08)
+	var end: Vector3 = a * radius * randf_range(1.4, 1.8) + _random_unit() * radius * 0.2
+	var arc := Arcs.Arc.new(Arcs.channel(a * radius * 0.95, end, 3, 0.35), arc_half_width)
 	arc.weight = randf_range(0.5, 1.0)
-	arc.tip_fade = true
-	return arc
-
-
-## An arc from one point on the ball to another not far off, hugging the
-## surface a little outside it.
-func _surface_arc() -> Arcs.Arc:
-	var a: Vector3 = _random_unit()
-	var b: Vector3 = (a + _random_unit() * randf_range(1.0, 1.6)).normalized()
-	var points: PackedVector3Array = Arcs.channel(a * radius, b * radius, 4, 0.28)
-	var n: int = points.size()
-	for i in n:
-		var t: float = float(i) / float(n - 1)
-		var lift: float = 1.0 + 0.25 * sin(t * PI)
-		points[i] = points[i].normalized() * radius * lift
-	var arc := Arcs.Arc.new(points, 0.12)
-	arc.weight = randf_range(0.4, 1.0)
 	arc.tip_fade = true
 	return arc
 
@@ -207,7 +207,8 @@ func _jump_arc() -> Arcs.Arc:
 		ends.append(hit.position)
 	if ends.is_empty():
 		return null
-	var end: Vector3 = global_transform.affine_inverse() * ends[randi() % ends.size()]
+	# The arcs node is scaled with the ball's wobble; aim in its space.
+	var end: Vector3 = _arcs.global_transform.affine_inverse() * ends[randi() % ends.size()]
 	var start: Vector3 = end.normalized() * radius
 	var arc := Arcs.Arc.new(Arcs.channel(start, end, 5, 0.22), 0.12)
 	# Drawn with the branches' brightness, so it can flare on its own.

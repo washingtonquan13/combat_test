@@ -18,13 +18,6 @@ uniform float filament_strength = 9.0;
 uniform float haze_strength = 0.2;
 // How thin the filaments are: higher is thinner.
 uniform float filament_sharpness = 14.0;
-// A glowing shell at the sphere's edge, the "fantasy orb" rim: brightest
-// just inside the silhouette, shimmering with the noise. 0 turns it off
-// (the electric cone's orb has none).
-uniform vec3 shell_color : source_color = vec3(0.4, 0.6, 1.0);
-uniform float shell_strength = 0.0;
-// How sharply the rim hugs the edge: higher is thinner.
-uniform float shell_sharpness = 6.0;
 // Scale of the noise across the ball, and how fast it churns.
 uniform float noise_scale = 0.35;
 uniform float churn = 0.35;
@@ -76,13 +69,5 @@ void fragment() {
 		vec3 p = local_camera + dir * (enter + (float(i) + 0.5) * step_len);
 		total += glow(p) * step_len;
 	}
-	// The rim, worked out from how close the ray passes to the centre:
-	// a ray grazing the edge sees the most shell. Fades off at the very
-	// edge so the silhouette stays soft.
-	float closest = sqrt(max(1.0 - h * h, 0.0));
-	vec3 entry = local_camera + dir * enter;
-	float shimmer = texture(noise, entry * noise_scale * 2.0 + vec3(0.0, time * churn * 2.0, 0.0)).r;
-	float rim = pow(closest, shell_sharpness) * smoothstep(1.0, 0.94, closest);
-	total += shell_color * rim * shell_strength * (0.5 + shimmer);
 	ALBEDO = total * strength;
 }
