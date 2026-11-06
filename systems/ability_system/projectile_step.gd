@@ -51,12 +51,12 @@ extends VfxStep
 ## the chest lands at about 1.1.
 @export var lands_at_height: float = 0.0
 
-## A projectile scene with an "arrive" animation on a child AnimationPlayer
-## plays it on arrival instead of vanishing: the core goes out, emitters
-## stop, and the smoke and sparks already in the air drift on. The step
-## still ends on arrival, so the impact is not held up; the scene is
-## freed when the animation ends.
-const ARRIVE_ANIMATION := &"arrive"
+## Lands on the chest of a unit aimed at (LineOfSight.shot_to), not its
+## feet; a point on the ground is still landed on as aimed.
+@export var lands_on_chest: bool = false
+
+## A projectile scene with an arrive() coroutine or an "arrive" animation
+## plays it on arrival instead of vanishing (see VfxStep.arrive_and_free).
 
 
 func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, caster: Unit = null) -> void:
@@ -64,10 +64,17 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, c
 		return
 	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
 		from = caster.anchor(launch_from)
+	if lands_on_chest:
+		var target: Unit = unit_at(context.get_tree(), to)
+		if target:
+			to = LineOfSight.shot_to(target)
 	to.y += lands_at_height
 
 	var wrapper := Node3D.new()
 	WorldManager.spawn_parent().add_child(wrapper)
+	# Placed before the scene goes in, so nothing it lays down (a trail)
+	# starts from the world origin.
+	_update_transform(wrapper, from, to, 0.0)
 
 	var instance := projectile_scene.instantiate()
 	wrapper.add_child(instance)
@@ -84,18 +91,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, c
 	await tween.finished
 
 	if is_instance_valid(wrapper):
-		_arrive(wrapper, instance)
-
-
-## Frees the wrapper (and the instance, its child), after the instance's
-## arrive animation if it has one. Not awaited by play().
-func _arrive(wrapper: Node3D, instance: Node) -> void:
-	var player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
-	if player and player.has_animation(ARRIVE_ANIMATION):
-		player.play(ARRIVE_ANIMATION)
-		await player.animation_finished
-	if is_instance_valid(wrapper):
-		wrapper.queue_free()
+		arrive_and_free(wrapper, instance)
 
 
 ## Updates position AND rotation together each frame — rotation follows

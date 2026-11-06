@@ -1,110 +1,86 @@
 extends Node3D
-## Visual for the Magic Missile projectile (see PathedProjectileStep,
-## abilities/magic_missile.tres) — a small SHADED, glowing bolt with a
-## short, continuously-fading particle trail behind it. Built in code
-## rather than as hand-placed scene sub-resources, matching how every
-## other VFX/indicator visual in this project builds its own meshes at
-## runtime (see IndicatorBase._create_line_mesh, area_indicator.gd).
+## Visual for Magic Missile (PathedProjectileStep, abilities/magic_missile.tres):
+## three glowing magenta darts flying the one route together, braided
+## around it - each swings out sideways and up and back, a third of a
+## turn apart from the others - with a ribbon trail behind each. They
+## start together at the hand and come back together on the target, so
+## they land as the one hit the spell is. On arrival they go out in a
+## violet pop of sparks.
 ##
-## Shaded deliberately, unlike the indicators' unshaded ribbons (see
-## IndicatorBase._create_line_mesh) — this
-## is a solid object flying through lit space, not a decal painted on
-## the ground, so it should actually respond to scene lighting. It still
-## reads as bright via emission (bloom is already project-wide, see
-## main.tscn's WorldEnvironment) rather than needing an unshaded/emissive
-## trick to look lit from within.
-##
-## The trail is deliberately NOT permanent — each particle has a short
-## lifetime and fades to transparent via color_ramp, so it continuously
-## ages out as the bolt travels instead of leaving a lingering streak.
+## Purely a look: the darts are one projectile to the rules (one route,
+## one hit, the damage unchanged). Built in code like the other spell
+## visuals (see VfxBits).
 
-@export var bolt_color: Color = Color(0.55, 0.35, 1.0)
-@export var bolt_radius: float = 0.12
-@export var trail_lifetime: float = 0.35
-@export var trail_amount: int = 24
+@export var bolt_color: Color = Color(0.9, 0.35, 1.0)
+@export var core_color: Color = Color(1.0, 0.85, 1.0)
+@export var dart_count: int = 3
+## How far a dart swings out from the route at its widest, in metres.
+@export var weave: float = 0.32
+## Metres flown per full turn of the braid.
+@export var wavelength: float = 3.2
+## Metres over which the darts spread out after launch and close in
+## before the hit.
+@export var gather: float = 1.6
+@export var trail_lifetime: float = 0.14
+
+var _darts: Array[Node3D] = []
+var _trails: Array[RibbonTrail] = []
+var _light: OmniLight3D
 
 
 func _ready() -> void:
-	_build_bolt()
-	_build_trail()
+	for i in dart_count:
+		var dart := Node3D.new()
+		add_child(dart)
+		_build_dart(dart)
+		_darts.append(dart)
+	_light = OmniLight3D.new()
+	_light.light_color = bolt_color
+	_light.light_energy = 1.2
+	_light.omni_range = 2.5
+	add_child(_light)
 
 
-## Tapered, not a plain sphere — a sphere is rotationally symmetric, so
-## PathedProjectileStep's yaw-per-frame rotation (see that file) would be
-## mathematically correct but completely invisible on one. CylinderMesh's
-## long axis is +Y by default; the mesh_instance's own local -90° X
-## rotation below points the narrow (top_radius) end toward local -Z,
-## which is the wrapper's forward — the tip leads the direction of
-## travel once PathedProjectileStep aims the wrapper. Bottom-heavy taper
-## (bottom_radius > top_radius) so the wide end trails toward the trail
-## particles behind it.
-func _build_bolt() -> void:
-	var mesh_instance := MeshInstance3D.new()
-	add_child(mesh_instance)
-	mesh_instance.rotation.x = deg_to_rad(-90.0)
-
-	var dart := CylinderMesh.new()
-	dart.top_radius = bolt_radius * 0.25
-	dart.bottom_radius = bolt_radius
-	dart.height = bolt_radius * 4.0
-	mesh_instance.mesh = dart
-
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = bolt_color
-	mat.emission_enabled = true
-	mat.emission = bolt_color
-	mat.emission_energy_multiplier = 4.0
-	mesh_instance.material_override = mat
+## A bright pinched core, stretched along the flight, in a soft glow,
+## trailing a ribbon.
+func _build_dart(dart: Node3D) -> void:
+	var core := VfxBits.glow(dart, core_color, 0.16, 4.0, 1.2)
+	core.name = &"Core"
+	var halo := VfxBits.glow(dart, bolt_color, 0.5, 1.6, 2.4)
+	halo.name = &"Halo"
+	var trail := RibbonTrail.new()
+	trail.lifetime = trail_lifetime
+	trail.width = 0.1
+	trail.color = bolt_color
+	trail.energy = 2.5
+	dart.add_child(trail)
+	_trails.append(trail)
 
 
-## GPUParticles3D in world space (local_coords = false) so previously-
-## emitted particles stay behind at the world position they were spawned
-## at, rather than riding along with the bolt — that's what actually
-## reads as a trail rather than a cloud following the mesh around.
-## visibility_aabb is set generously wide/deep because the default box
-## is sized for a stationary emitter; a fast-moving world-space trail
-## can extend well past it and silently get frustum-culled otherwise.
-func _build_trail() -> void:
-	var particles := GPUParticles3D.new()
-	add_child(particles)
+## PathedProjectileStep calls this each frame: t is 0..1 along a route
+## of `length` metres.
+func set_flight_progress(t: float, length: float) -> void:
+	var flown: float = t * length
+	var left: float = length - flown
+	var spread: float = clamp(min(flown, left) / max(gather, 0.01), 0.0, 1.0)
+	spread = spread * spread * (3.0 - 2.0 * spread)
+	var turn: float = TAU * flown / max(wavelength, 0.01)
+	for i in _darts.size():
+		var angle: float = turn + TAU * i / _darts.size()
+		_darts[i].position = Vector3(cos(angle) * weave, sin(angle) * weave * 0.7, 0.0) * spread
 
-	particles.emitting = true
-	particles.amount = trail_amount
-	particles.lifetime = trail_lifetime
-	particles.local_coords = false
-	particles.draw_order = GPUParticles3D.DRAW_ORDER_LIFETIME
-	particles.visibility_aabb = AABB(Vector3(-8, -8, -8), Vector3(16, 16, 16))
 
-	var mesh := SphereMesh.new()
-	mesh.radius = bolt_radius * 0.5
-	mesh.height = bolt_radius
-	particles.draw_pass_1 = mesh
-
-	var process_mat := ParticleProcessMaterial.new()
-	process_mat.direction = Vector3(0, 0, 0)
-	process_mat.spread = 10.0
-	process_mat.initial_velocity_min = 0.0
-	process_mat.initial_velocity_max = 0.3
-	process_mat.gravity = Vector3.ZERO
-	process_mat.scale_min = 1.0
-	process_mat.scale_max = 1.0
-
-	var gradient := Gradient.new()
-	gradient.colors = PackedColorArray([
-		Color(bolt_color.r, bolt_color.g, bolt_color.b, 0.8),
-		Color(bolt_color.r, bolt_color.g, bolt_color.b, 0.0),
-	])
-	var gradient_texture := GradientTexture1D.new()
-	gradient_texture.gradient = gradient
-	process_mat.color_ramp = gradient_texture
-
-	particles.process_material = process_mat
-
-	var trail_mat := StandardMaterial3D.new()
-	trail_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	trail_mat.vertex_color_use_as_albedo = true
-	trail_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	trail_mat.emission_enabled = true
-	trail_mat.emission = bolt_color
-	trail_mat.emission_energy_multiplier = 3.0
-	particles.material_override = trail_mat
+## The darts go out in a violet pop; their trails age out after them.
+func arrive() -> void:
+	var at: Vector3 = global_position
+	for dart in _darts:
+		dart.get_node(^"Core").visible = false
+		dart.get_node(^"Halo").visible = false
+	for trail in _trails:
+		trail.emitting = false
+	_light.visible = false
+	VfxBits.flash(at, bolt_color, 1.1, 3.0, 0.25)
+	VfxBits.light_flash(at, bolt_color, 3.0, 4.0, 0.3)
+	VfxBits.burst(at, PackedColorArray([Color(1.6, 1.2, 1.8, 1.0), bolt_color, Color(bolt_color, 0.0)]),
+		0.08, 3.0, 28, 0.4, Vector2(2.0, 5.0), -2.0, 6.0)
+	await get_tree().create_timer(trail_lifetime + 0.05).timeout

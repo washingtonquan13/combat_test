@@ -85,28 +85,36 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 	if not projectile_scene:
 		return
 
-	var path: PackedVector3Array = route(_caster, from, _unit_at(context.get_tree(), to), to)
-
-	var wrapper := Node3D.new()
-	WorldManager.spawn_parent().add_child(wrapper)
-
-	var instance := projectile_scene.instantiate()
-	wrapper.add_child(instance)
+	var path: PackedVector3Array = route(_caster, from, unit_at(context.get_tree(), to), to)
 
 	var total_length: float = _path_length(path)
 	var flight_time: float = duration if duration > 0.0 else total_length / max(speed, 0.01)
+
+	var wrapper := Node3D.new()
+	WorldManager.spawn_parent().add_child(wrapper)
+	# Placed before the scene goes in, so nothing it lays down (a trail)
+	# starts from the world origin.
+	_update_transform(wrapper, path, total_length, 0.0)
+
+	var instance := projectile_scene.instantiate()
+	wrapper.add_child(instance)
+	# A scene that shapes itself by how far along it is (the missile's
+	# darts weaving apart and back together) is told each frame.
+	var follows := instance.has_method(&"set_flight_progress")
 
 	var tween: Tween = context.create_tween()
 	tween.tween_method(
 		func(t: float):
 			if is_instance_valid(wrapper):
-				_update_transform(wrapper, path, total_length, t),
+				_update_transform(wrapper, path, total_length, t)
+				if follows:
+					instance.set_flight_progress(t, total_length),
 		0.0, 1.0, flight_time
 	)
 	await tween.finished
 
 	if is_instance_valid(wrapper):
-		wrapper.queue_free()  # frees the instance too, as its child
+		arrive_and_free(wrapper, instance)
 
 
 ## The flight path, rounded: from launch_height_offset above `from` to
@@ -156,15 +164,6 @@ static func _geometry_clear(space: PhysicsDirectSpaceState3D, a: Vector3, b: Vec
 			return false
 		exclude.append(hit.rid)
 	return true
-
-
-## UnitVfx passes a unit target as its global_position, so the unit
-## standing exactly there is the one aimed at.
-func _unit_at(tree: SceneTree, point: Vector3) -> Unit:
-	for node in tree.get_nodes_in_group(&"units"):
-		if node is Unit and node.global_position.distance_squared_to(point) < 0.0001:
-			return node
-	return null
 
 
 func _path_length(path: PackedVector3Array) -> float:
