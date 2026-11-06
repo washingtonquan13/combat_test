@@ -129,6 +129,10 @@ struct NavChunk {
 	// CHUNK_DIM^3, 1 = solid within FLIGHT_MIN_ALTITUDE straight below: too
 	// low for a flier, which must stay that far above whatever is under it.
 	std::vector<uint8_t> flight_low;
+	// CHUNK_DIM^3, 1 = nothing solid within FLIGHT_MAX_ALTITUDE straight
+	// below: too high for a flier, whose ceiling rides on the ground under
+	// it the same way its floor does.
+	std::vector<uint8_t> flight_high;
 	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
 	// chunk-local index -> every occupant whose volume covers it. Several,
 	// not one: occupancy discs overlap (two units side by side), and a
@@ -254,15 +258,22 @@ public:
 	// versions mean find_path would answer the same.
 	int64_t occupancy_version(SceneTree *tree, Object *world_ref);
 	Vector3i world_to_cell(Vector3 pos) const;
+	// What GDScript gets as world_to_cell: a cell number is only meaningful
+	// in the world whose lattice produced it, so the caller has to say
+	// which world, and that world is activated first like every other query.
+	Vector3i world_to_cell_in(Vector3 pos, Object *world_ref);
 
 	float get_cell_size() const;
 	float get_flight_min_altitude() const;
-	float get_flight_ceiling_height() const;
+	float get_flight_max_altitude() const;
+	float ground_height_at(SceneTree *tree, Vector3 pos, Object *world_ref = nullptr);
 	float flight_floor_at(SceneTree *tree, Vector3 pos, Object *world_ref = nullptr);
+	float flight_ceiling_at(SceneTree *tree, Vector3 pos, Object *world_ref = nullptr);
 	float flight_lowest_altitude(SceneTree *tree, Object *world_ref = nullptr);
 	// Bytes held by the active world's chunks and search scratch: what a
 	// map's size actually costs, for measuring.
 	int64_t debug_memory_bytes() const;
+	float flight_highest_altitude(SceneTree *tree, Object *world_ref = nullptr);
 
 protected:
 	static void _bind_methods();
@@ -272,7 +283,13 @@ private:
 	// Height a flier keeps above the ground under it - relative, not a world
 	// Y, so a pit or a raised floor gets the same 1 m as y=0 ground.
 	static constexpr float FLIGHT_MIN_ALTITUDE = 1.0f;
-	static constexpr float FLIGHT_CEILING_HEIGHT = 12.0f;
+	// Highest a flier rises above the ground under it - relative too, so a
+	// flier over a rooftop at y=15 has the same 12 m band as one over y=0.
+	static constexpr float FLIGHT_MAX_ALTITUDE = 12.0f;
+	// Body height assumed when a query names no unit: Unit.height's default,
+	// so a unit-less nearest_valid_point never snaps under an overhang that
+	// find_path (which always reads a real unit's height) would then reject.
+	static constexpr float DEFAULT_BODY_HEIGHT = 2.0f;
 	static constexpr float BOUNDS_MARGIN = 2.0f;
 	static constexpr int MAX_EXPANSIONS = 30000;
 	// Steepest floor a grounded unit walks up: CharacterBody3D's default
@@ -451,6 +468,13 @@ private:
 	void bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chunk);
 
 	bool is_solid(const Vector3i &cell);
+	// Cells a flier may occupy within FLIGHT_MIN/MAX_ALTITUDE of the solid
+	// below it, counted as bake_chunk_support counts them.
+	static int flight_low_cells();
+	static int flight_high_cells();
+	// Top of the first solid at or below pos (pos inside solid climbs out
+	// first); the world's floor when the column is empty all the way down.
+	float ground_top_below(Vector3 pos);
 
 	static int clearance_key(float clearance);
 	const std::vector<Vector3i> &disc_offsets(float clearance);
@@ -461,6 +485,22 @@ private:
 
 	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, Object *self_unit) const;
 	bool is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit);
+	// The part of is_valid_cell that holds for every clearance and height,
+	// for an in-bounds cell of a support-baked chunk: not solid; walking
+	// needs support directly below; flying needs to be neither under
+	// FLIGHT_MIN_ALTITUDE nor over FLIGHT_MAX_ALTITUDE above the ground.
+	// is_valid_cell and ensure_chunk_regions both call this one rule, so a
+	// region can never be stricter than A* - a cell A* accepts is always
+	// open, and regions_may_connect never rules out a path that exists.
+	static inline bool is_open_cell(const NavChunk &chunk, int li, bool flying) {
+		if (chunk.solid[li] != 0) {
+			return false;
+		}
+		if (flying) {
+			return chunk.flight_low[li] == 0 && chunk.flight_high[li] == 0;
+		}
+		return chunk.no_support[li] == 0;
+	}
 
 	struct NearestResult {
 		bool found;

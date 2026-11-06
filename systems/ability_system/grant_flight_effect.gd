@@ -44,8 +44,8 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	# this project already respects (Unit.set_flight_altitude(),
 	# UnitMovement.plan_route(), movement_indicator.gd's own preview) —
 	# this was the one unclamped write. Without it, taking off from
-	# anywhere within takeoff_height of NavigationGrid.FLIGHT_CEILING_HEIGHT
-	# (a tall platform, notably) left the unit standing above the ceiling,
+	# anywhere within takeoff_height of the flight ceiling
+	# (NavigationGrid.flight_ceiling_at) left the unit above the ceiling,
 	# which NavigationGrid.is_valid_cell() hard-rejects for a flying query
 	# — every subsequent find_path() call, preview or real, then starts
 	# from a cell the grid considers invalid and returns nothing: no

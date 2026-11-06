@@ -243,8 +243,8 @@ static func find_route(unit: Unit, destination: Vector3, ignore: Array = []) -> 
 	var tree: SceneTree = unit.get_tree()
 	var key: Array = [
 		unit.get_instance_id(),
-		NavigationGrid.world_to_cell(unit.global_position),
-		NavigationGrid.world_to_cell(destination),
+		NavigationGrid.world_to_cell(unit.global_position, unit),
+		NavigationGrid.world_to_cell(destination, unit),
 		NavigationGrid.occupancy_version(tree, unit),
 		ignore.hash(),
 	]

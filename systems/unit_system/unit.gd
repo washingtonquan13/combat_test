@@ -207,7 +207,7 @@ var has_died: bool = false
 ## from reading as an instant snap.
 @export var min_land_duration: float = 0.15
 ## Ceiling on land()'s eased duration. Deliberately NOT derived from
-## NavigationGrid.FLIGHT_CEILING_HEIGHT or any other flight-system
+## NavigationGrid.FLIGHT_MAX_ALTITUDE or any other flight-system
 ## constant — Unit shouldn't need to know about, or stay in sync with,
 ## that value. Set generously high (well above what
 ## vertical_speed × any realistic descent produces) so it never engages
