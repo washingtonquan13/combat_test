@@ -57,7 +57,7 @@ const INDICATOR_PATHS: Dictionary = {
 	&"movement": "res://systems/indicator_system/movement_indicator.gd",
 	&"area": "res://systems/indicator_system/area_indicator.gd",
 	&"aerial_area": "res://systems/indicator_system/aerial_area_indicator.gd",
-	&"jump": "res://systems/indicator_system/jump_indicator.gd",
+	&"flight": "res://systems/indicator_system/jump_indicator.gd",
 	&"line_of_sight": "res://systems/indicator_system/line_of_sight_indicator.gd",
 	&"seeking": "res://systems/indicator_system/seeking_indicator.gd",
 	&"aim_facing": "res://systems/unit_system/unit_aim_facing.gd",
@@ -269,8 +269,12 @@ func _the_live_indicator_set_follows_the_ability() -> void:
 
 	_arm_and_apply(load("res://data/abilities/jump.tres"))
 	check("a ground-point ability that moves its caster draws the arc",
-		_live_ids() == ["aim_facing", "jump"],
+		_live_ids() == ["aim_facing", "flight"],
 		"live: %s" % [_live_ids()])
+
+	_arm_and_apply(load("res://data/abilities/shove.tres"))
+	check("an ability that flies its target draws the arc",
+		_live_ids().has("flight"), "live: %s" % [_live_ids()])
 
 	_arm_and_apply(load("res://data/abilities/explosive_fireball.tres"))
 	check("an aerial area ability takes the aerial rings, not the flat one",

@@ -219,8 +219,9 @@ func is_in_range(attacker: Unit, target) -> bool:
 ##   exclusion is the erase below). Keyed on VFX composition, not on
 ##   targeting type, because "seeking" is a property of how a thing
 ##   travels — nothing stops a future one from targeting differently;
-## - the jump arc belongs to a ground-point ability that actually MOVES
-##   its caster, which is a fact about its effects list.
+## - the flight arc belongs to a ground-point ability that actually MOVES
+##   its caster (Jump), or one that flies its target (Shove), which are
+##   facts about its effects list.
 func indicator_ids() -> Array[StringName]:
 	var ids: Array[StringName] = []
 	if targeting:
@@ -229,8 +230,8 @@ func indicator_ids() -> Array[StringName]:
 		ids.erase(&"line_of_sight")
 		if not ids.has(&"seeking"):
 			ids.append(&"seeking")
-	if targeting is GroundPointTargeting and has_move_caster_effect():
-		ids.append(&"jump")
+	if (targeting is GroundPointTargeting and has_move_caster_effect()) or get_knockback_effect():
+		ids.append(&"flight")
 	return ids
 
 
@@ -275,6 +276,13 @@ func get_move_caster_effect() -> MoveCasterEffect:
 
 func has_move_caster_effect() -> bool:
 	return get_move_caster_effect() != null
+
+
+func get_knockback_effect() -> KnockbackEffect:
+	for effect in effects:
+		if effect is KnockbackEffect:
+			return effect
+	return null
 
 
 ## Whether unit has already spent its once-per-turn attack action on

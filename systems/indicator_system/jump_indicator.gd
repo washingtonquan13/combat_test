@@ -1,21 +1,22 @@
 extends IndicatorBase
-## Jump arc preview, BG3-style — matches MoveCasterEffect's actual
-## trajectory exactly (same arc math, same budget clamp, both called
-## directly rather than reimplemented here) so what's shown is what will
-## happen, not an approximation of it. Same principle as the movement
-## path preview and the LoS indicator.
+## Flight arc preview, BG3-style: the curve a Jump flies its caster along,
+## or a Shove flies its target along, drawn with the same ArcFlight curve
+## and the same landing rules the flight itself uses (landing_for and
+## check() for a jump, KnockbackEffect.landing_point for a shove), called
+## rather than reimplemented, so what's shown is what will happen.
 ##
-## Only shows during combat, for the unit whose turn it currently is,
-## only when that unit is player-controlled, and only when the currently
-## armed ability (see AbilityManager) uses GroundPointTargeting.
+## A curve that runs into a wall is drawn only up to the wall
+## (ArcFlight.clear_fraction), never through it. A jump that hits one is
+## refused, so its stub shows red; a shove already stops at the wall, so
+## its arc ends there anyway.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
-## its own line mesh in code. The hovered point comes from the Aim
+## its own line mesh in code. The hovered point and unit come from the Aim
 ## ClickRouter hands draw(); nothing here raycasts.
 
 @export var valid_color: Color = IndicatorPalette.OK
-## The landing is refused (is_valid_target false) — not merely short:
-## a jump past the budget lands short and is still valid.
+## The landing is refused (check() not OK) — not merely short: a jump
+## past the budget lands short and is still valid.
 @export var invalid_color: Color = IndicatorPalette.BLOCKED
 @export var arc_segments: int = 24
 
@@ -23,7 +24,7 @@ var _line_mesh: PathTube
 
 
 func serves() -> StringName:
-	return &"jump"
+	return &"flight"
 
 
 func _ready() -> void:
@@ -34,33 +35,42 @@ func _ready() -> void:
 func draw(aim: Aim) -> void:
 	var unit: Unit = aim.caster
 	var ability: Ability = aim.ability
-	var move_effect: MoveCasterEffect = ability.get_move_caster_effect() if ability else null
-
-	if not unit or not move_effect:
+	if not unit or not ability:
 		_line_mesh.visible = false
 		return
-
-	var hover_point = aim.point
-	if hover_point == null:
+	if ability.has_move_caster_effect() and aim.point is Vector3:
+		_draw_jump(unit, ability, aim.point)
+	elif ability.get_knockback_effect() and aim.cursor and is_instance_valid(aim.cursor.unit):
+		_draw_shove(unit, ability, aim.cursor.unit)
+	else:
 		_line_mesh.visible = false
-		return
-
-	_draw_arc(unit, ability, move_effect, hover_point)
 
 
-func _draw_arc(unit: Unit, ability: Ability, move_effect: MoveCasterEffect, hover_point: Vector3) -> void:
+func _draw_jump(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
+	var targeting: GroundPointTargeting = ability.targeting
 	# The REAL landing point after budget clamping, not just wherever the
-	# mouse is — if there's not enough move_remaining to cover the full
-	# distance, the actual jump lands short, so the preview should too.
-	var landing_point: Vector3 = (ability.targeting as GroundPointTargeting).landing_for(unit, hover_point)
-	var valid: bool = ability.targeting.is_valid_target(unit, landing_point)
-	var color: Color = valid_color if valid else invalid_color
+	# mouse is: short of move, the jump lands short, so the preview does.
+	var landing: Vector3 = targeting.landing_for(unit, hover_point)
+	var valid: bool = targeting.check(unit, landing) == AbilityTargeting.Reach.OK
+	_draw_arc(unit, unit.global_position, landing, MoveCasterEffect.arc_height_of(ability), valid)
 
-	var start: Vector3 = unit.global_position
 
+## The target's flight, while the shove can reach it from here (out of
+## reach, the caster would walk first and shove from somewhere else).
+func _draw_shove(unit: Unit, ability: Ability, target: Unit) -> void:
+	var effect: KnockbackEffect = ability.get_knockback_effect()
+	var landing = effect.landing_point(unit, target) if target != unit and ability.is_in_range(unit, target) else null
+	if not landing is Vector3 or target.global_position.distance_to(landing) < 0.05:
+		_line_mesh.visible = false
+		return
+	_draw_arc(target, target.global_position, landing, effect.arc_height, true)
+
+
+## The curve flier flies from start to landing, cut where it meets a wall.
+func _draw_arc(flier: Unit, start: Vector3, landing: Vector3, height: float, valid: bool) -> void:
+	var reach: float = ArcFlight.clear_fraction(flier, start, landing, height)
 	var points := PackedVector3Array()
-	for i in range(arc_segments + 1):
-		var t: float = float(i) / arc_segments
-		points.append(move_effect.arc_point(ability, start, landing_point, t))
-
-	_line_mesh.show_line(points, color)
+	var steps: int = maxi(ceili(arc_segments * reach), 1)
+	for i in range(steps + 1):
+		points.append(ArcFlight.point(start, landing, height, reach * float(i) / steps))
+	_line_mesh.show_line(points, valid_color if valid else invalid_color)

@@ -14,7 +14,7 @@ extends VfxStep
 ## DOES fix is the projectile itself looking real (genuine travel time)
 ## rather than an explosion just happening instantly at both ends.
 ##
-## Reuses the same parabolic arc math MoveCasterEffect.arc_point() uses
+## The same kind of parabola ArcFlight.point() draws
 ## for Jump — same shape, different purpose (a purely cosmetic flight
 ## path here, versus Jump's actual gameplay movement) — duplicated
 ## rather than shared, since sharing would mean this purely-visual step

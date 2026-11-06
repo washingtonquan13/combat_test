@@ -18,8 +18,8 @@ extends AbilityEffect
 ## than the jump being rejected outright: GroundPointTargeting.landing_for,
 ## so the click is checked (walls, footing) at the shortened spot.
 ##
-## arc_point() is public deliberately: jump_indicator.gd calls it (and
-## landing_for) so the preview arc is the real jump's, not a copy.
+## jump_indicator.gd draws the preview from arc_height_of() and
+## landing_for, so the preview arc is the real jump's, not a copy.
 
 @export var jump_duration: float = 0.4
 
@@ -49,11 +49,6 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 static func arc_height_of(ability: Ability) -> float:
 	var targeting := ability.targeting as GroundPointTargeting if ability else null
 	return targeting.flight_arc_height if targeting else 0.0
-
-
-## Point along the jump's arc at t (0 = start, 1 = end).
-func arc_point(ability: Ability, start: Vector3, end: Vector3, t: float) -> Vector3:
-	return ArcFlight.point(start, end, arc_height_of(ability), t)
 
 
 func describe() -> String:
