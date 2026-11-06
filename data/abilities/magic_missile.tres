@@ -39,8 +39,7 @@ metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
 [sub_resource type="Resource" id="Resource_dmg"]
 script = ExtResource("4_dmg")
 dice_count = 1
-dice_sides = 4
-dice_bonus = 1
+dice_sides = 6
 metadata/_custom_type_script = "uid://l0qndk2gae1o"
 
 [sub_resource type="Resource" id="Resource_targ"]
