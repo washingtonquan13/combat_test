@@ -288,13 +288,15 @@ func cycle_selection(step: int) -> bool:
 
 ## additive = true (e.g. shift-click) adds to the current selection instead
 ## of replacing it. Clicking an already-selected unit with additive = true
-## deselects just that unit (standard RTS/CRPG toggle behavior).
+## deselects just that unit (standard RTS/CRPG toggle behavior), unless it
+## is the only one: a click never leaves the party with nobody selected.
 func select(unit: Unit, additive: bool = false) -> void:
 	if not unit.is_player_controlled():
 		return
 
 	if additive and unit in selected_units:
-		deselect(unit)
+		if selected_units.size() > 1:
+			deselect(unit)
 		return
 
 	if not additive:

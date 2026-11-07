@@ -661,6 +661,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_press_prop = _press_cursor.interactable as MovableProp if _press_intent == _idle else null
 		return
 	if event is InputEventMouseMotion and _press_cursor != null:
+		# A press while aiming is a cast however far the hand drifts on
+		# the way to the target: there is no box to draw mid-aim.
+		if _press_intent is AimingIntent:
+			return
 		if _press_position.distance_to(event.position) >= CLICK_DRAG_THRESHOLD:
 			var prop: MovableProp = _press_prop
 			var at: Cursor = _press_cursor
@@ -717,11 +721,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
-## Whether a left press is spoken for by a prop drag - one in progress, or
-## a press on a movable prop that a drag would pick up. DragSelectBox asks
-## before starting a box, so the same gesture is never both.
+## Whether a left press is spoken for, so it draws no box: a prop drag -
+## one in progress, or a press on a movable prop that a drag would pick
+## up - or a press while aiming, which casts on release however far it
+## drifted. DragSelectBox asks before starting a box, so the same gesture
+## is never both.
 func claims_drag() -> bool:
-	return _drag != null or _press_prop != null
+	return _drag != null or _press_prop != null or _press_intent is AimingIntent
 
 
 ## A press on prop moved past CLICK_DRAG_THRESHOLD: pick it up, unless the
@@ -791,7 +797,7 @@ func _drag_exclusions() -> Array[RID]:
 ## happened to reach it. Returns true always — a click on a unit is
 ## spoken for even when SelectionManager refuses it (it refuses anything
 ## not player-controlled), which is the same nothing that happened before.
-func click_unit(clicked: Unit) -> bool:
+func click_unit(clicked: Unit, aiming: bool = false) -> bool:
 	# A corpse is not a target and not a selection. Physics picking used
 	# to enforce this for free — unit_death.gd sets input_ray_pickable =
 	# false — but this router raycasts for itself, and intersect_ray
@@ -808,6 +814,10 @@ func click_unit(clicked: Unit) -> bool:
 	var ability: Ability = _click_ability_on(clicked)
 	if ability:
 		acting_unit.use_ability(ability, clicked)
+		return true
+	# Aiming at a unit the armed ability can't take is a refused cast
+	# (see _unit_answer), never a selection: the aim and the caster stay.
+	if aiming:
 		return true
 
 	var additive: bool = Input.is_action_pressed("select_additive")

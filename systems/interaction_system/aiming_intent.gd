@@ -40,7 +40,7 @@ func handle_left_click(router, cursor: Cursor) -> bool:
 			return false
 		return router.use_ground_targeted(ability, p)
 	if cursor.unit:
-		return router.click_unit(cursor.unit)
+		return router.click_unit(cursor.unit, true)
 	if cursor.interactable:
 		return false
 	# A unit-targeted attack that may go off at the ground (AbilityTargeting.

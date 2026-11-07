@@ -129,10 +129,9 @@ func _finish_drag() -> void:
 	for unit in _boxed_units:
 		unit.set_box_hover(false)
 
+	# A box that caught nobody changes nothing: the party is never left
+	# with nobody selected by a sloppy click on the ground.
 	if _boxed_units.is_empty():
-		if not _additive:
-			SelectionManager.deselect_all()
-		_boxed_units.clear()
 		return
 
 	for i in _boxed_units.size():
