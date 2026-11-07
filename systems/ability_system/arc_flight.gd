@@ -99,9 +99,11 @@ const PATH_SAMPLES: int = 16
 ## lands on doesn't count as in the way.
 const PATH_LIFT: float = 0.2
 
-## What a flight can hit: the ground layer (level geometry, props). Units
-## on it are left out (see clear_fraction).
-const PATH_MASK: int = 1
+## What a flight can hit: the ground layer (level geometry, props) and a
+## solid cloud's barrier (SurfaceManager.BARRIER_LAYER, 1 << 18: a frozen
+## Wall of Water stops a jump or a shove like rock). Units on it are left
+## out (see clear_fraction).
+const PATH_MASK: int = 1 | (1 << 18)
 
 
 ## How far along the flight from `from` to `to` unit gets before something

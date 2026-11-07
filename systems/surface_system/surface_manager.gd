@@ -260,7 +260,7 @@ func _touch_clouds(element: Surface.Element, ability: Ability, attacker: Unit, t
 			seeds[cube.key] = cube.centre()
 		_play_spawn_fx(becomes, parent, cell.centre())
 		_fill(becomes, seeds, func(point: Vector3) -> bool: return seeds.has(CloudGrid.key_of(point)),
-				cell.centre(), context, parent)
+				cell.centre(), context, parent, Callable(), true)
 
 
 ## The cloud cubes an attack reached (_touch_clouds), as {cells:
@@ -499,19 +499,51 @@ func _fill_point(key: Vector3i, point_of: Callable) -> Vector3:
 ## recedes them), cubes of this one topped up to the longer time and left
 ## with the visual already showing them. Returns this cast's patch — the
 ## first start cube's, if the cast only topped up.
-func _fill(surface: Surface, seeds: Dictionary[Vector3i, Vector3], inside: Callable, position: Vector3, context: WorldContext, parent: Node, point_of: Callable = Callable()) -> CloudPatch:
+##
+## A solid cloud (blocks_movement: a frozen Wall of Water) is rock to a
+## gas: a fill neither floods into its cubes nor takes them, so fog cast
+## over ice leaves the ice. A reaction turning those very cubes into
+## something else (_touch_clouds: fire melting the ice) passes
+## may_take_solid.
+func _fill(surface: Surface, seeds: Dictionary[Vector3i, Vector3], inside: Callable, position: Vector3, context: WorldContext, parent: Node, point_of: Callable = Callable(), may_take_solid: bool = false) -> CloudPatch:
 	var grid: CloudGrid = _clouds_for(context)
 	var space: PhysicsDirectSpaceState3D = _space_of(parent)
 	var exclude: Array[RID] = []
 	for unit in UnitQuery.all_units(get_tree()):
 		exclude.append(unit.get_rid())
+	var solid := func(key: Vector3i) -> bool:
+		if may_take_solid:
+			return false
+		var held: CloudCell = grid.cells.get(key)
+		return held != null and held.surface != surface and held.surface.blocks_movement
 
 	var start: Vector3i = seeds.keys()[0]
 	var reached: Dictionary[Vector3i, bool] = {}
 	var frontier: Array[Vector3i] = []
+	var buried: Array[Vector3i] = []
 	for key: Vector3i in seeds:
+		if solid.call(key):
+			buried.append(key)
+			continue
 		reached[key] = true
 		frontier.append(key)
+	# Let out inside the solid (fog aimed at the ice): it comes out at the
+	# solid's surface, every free cube of the shape touching it from the
+	# buried seeds' side.
+	var dug: Dictionary[Vector3i, bool] = {}
+	while not buried.is_empty():
+		var key: Vector3i = buried.pop_front()
+		dug[key] = true
+		for step in CloudGrid.NEIGHBOURS:
+			var next: Vector3i = key + step
+			if dug.has(next) or reached.has(next) or not inside.call(CloudGrid.centre_of(next)):
+				continue
+			if solid.call(next):
+				dug[next] = true
+				buried.append(next)
+			else:
+				reached[next] = true
+				frontier.append(next)
 	while not frontier.is_empty():
 		var key: Vector3i = frontier.pop_front()
 		var from: Vector3 = seeds.get(key, _fill_point(key, point_of))
@@ -519,7 +551,7 @@ func _fill(surface: Surface, seeds: Dictionary[Vector3i, Vector3], inside: Calla
 			var next: Vector3i = key + step
 			if reached.has(next):
 				continue
-			if not inside.call(CloudGrid.centre_of(next)):
+			if not inside.call(CloudGrid.centre_of(next)) or solid.call(next):
 				continue
 			var to: Vector3 = _fill_point(next, point_of)
 			if space:
@@ -1170,7 +1202,8 @@ func _recede(patch: CloudPatch, cells: Array[CloudCell]) -> void:
 ## cloud only): one box per column of cubes, floor to top, and has the
 ## navigation grid re-bake where the old one stood and the new one stands.
 ## The old body leaves the tree before the grid looks, so it never keeps a
-## pointer to a freed shape. parent is where a first barrier goes.
+## pointer to a freed shape. parent is where a first barrier goes. Anyone
+## standing where it now stands is put out of it (_put_out).
 func _sync_barrier(patch: CloudPatch, parent: Node) -> void:
 	if not patch.surface.blocks_movement:
 		return
@@ -1213,6 +1246,34 @@ func _sync_barrier(patch: CloudPatch, parent: Node) -> void:
 	if changed:
 		var root: Node = patch.context.world_root if patch.context and patch.context.world_root else parent
 		NavigationGrid.invalidate_region(root, region)
+	if patch.barrier:
+		_put_out(patch)
+
+
+## Moves every walker whose footprint is in patch's barrier (a wave freezing
+## round someone standing in it) to the nearest spot it can stand, which the
+## navigation grid, re-baked round the barrier, knows. A flier hovers over
+## or beside it and is left alone; one with nowhere to go stays put.
+func _put_out(patch: CloudPatch) -> void:
+	var body: StaticBody3D = patch.barrier
+	for unit in UnitQuery.all_units(get_tree()):
+		if unit.is_flying() or (patch.context and not patch.context.contains(unit)):
+			continue
+		var feet: Vector3 = unit.global_position
+		var caught: bool = false
+		for shape: CollisionShape3D in body.get_children():
+			var half: Vector3 = (shape.shape as BoxShape3D).size * 0.5
+			var centre: Vector3 = body.global_transform * shape.position
+			var off: Vector3 = (feet - centre).abs()
+			if off.x < half.x + unit.radius and off.z < half.z + unit.radius and feet.y > centre.y - half.y - 0.5 and feet.y < centre.y + half.y:
+				caught = true
+				break
+		if not caught:
+			continue
+		var clearance: float = unit.radius + unit.avoidance_margin
+		var snap: Dictionary = NavigationGrid.nearest_valid_point(get_tree(), feet, clearance, false, unit)
+		if snap.found:
+			unit.global_position = snap.point
 
 
 func _barrier_box(body: StaticBody3D) -> AABB:
