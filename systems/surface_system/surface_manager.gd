@@ -121,6 +121,9 @@ func spawn_wall(surface: Surface, from: Vector3, to: Vector3, caster: Node = nul
 		var lifted: Vector3 = end + Vector3.UP * 0.1
 		seeds[CloudGrid.key_of(lifted)] = lifted
 	var patch: CloudPatch = _fill(surface, seeds, _within_wall.bind(from, to, surface.wall_height), middle, context, parent, _wall_point.bind(from, to))
+	# A wall with a front (Wall of Water's curl) faces away from its caster.
+	if patch and caster is Node3D and is_instance_valid(patch.visual) and patch.visual.has_method("lean_away_from"):
+		patch.visual.lean_away_from(caster.global_position)
 	if patch and surface.lays_ground_under and surface.leaves_behind and not patch.cells.is_empty():
 		# Burns under the wall for as long as it stands, and its own
 		# rounds after: the cubes running out only top it up.
@@ -984,6 +987,16 @@ func blocks_sight(viewer: Node, from: Vector3, to: Vector3) -> bool:
 		if cell.surface.blocks_sight and not _sees_through(viewer, cell.surface):
 			return true
 	return false
+
+
+## The to-hit modifier for a ranged shot from from to to: the worst (most
+## negative) ranged_penalty of any cloud cube on the line in viewer's
+## world, once however many cubes it crosses. 0 if none.
+func ranged_penalty_between(viewer: Node, from: Vector3, to: Vector3) -> int:
+	var worst: int = 0
+	for cell in _clouds_for(WorldManager.context_for(viewer)).cells_along(from, to):
+		worst = mini(worst, cell.surface.ranged_penalty)
+	return worst
 
 
 ## The cloud in the cube at point in context, or null.

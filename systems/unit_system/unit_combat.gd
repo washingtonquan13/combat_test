@@ -840,8 +840,13 @@ func to_hit_target(target, ability: Ability) -> int:
 		if ability.requires_to_hit:
 			number -= 2 * deceptive_level()
 		var gear: GearDamageEffect = _gear_effect(ability)
+		var ranged: bool = ability.targeting is RangedEnemyTargeting
 		if gear and gear.row_for(_owner).kind == AttackRow.Kind.RANGED:
+			ranged = true
 			number += range_penalty(_owner.edge_distance_to(target))
+		if ranged:
+			# A wall it shoots through (Wall of Water) deflects the shot.
+			number += SurfaceManager.ranged_penalty_between(_owner, LineOfSight.shot_from(_owner), LineOfSight.shot_to(target))
 	return number
 
 

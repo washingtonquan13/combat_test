@@ -110,6 +110,14 @@ enum Shape {
 ## disagree about it.
 @export var movement_cost_multiplier: float = 1.0
 
+@export_group("Ranged")
+## Added to the to-hit number of a ranged attack whose shot line passes
+## through this surface (negative = harder), once per shot however many
+## cubes it crosses: the worst surface on the line counts. A cloud or
+## wall you can see through but that still deflects shots (Wall of
+## Water). Read via SurfaceManager.ranged_penalty_between.
+@export var ranged_penalty: int = 0
+
 @export_group("Visual")
 ## Persistent looping visual instantiated once when the surface spawns
 ## and freed when it expires (see SurfaceManager.spawn), drawn to the surface's cells or cubes —
