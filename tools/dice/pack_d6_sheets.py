@@ -2,15 +2,16 @@
 
     python -I tools/dice/pack_d6_sheets.py <frames_dir> <out_dir>
 
-Writes into <out_dir> (assets/ui/dice/ in the project):
+Writes into <out_dir> (assets/ui/dice/ in the project), every sheet a grid
+COLS wide, row-major, unused trailing cells empty:
 
-    d6_tumble_<a|b|c>.png  TUMBLE_COLS x TUMBLE_ROWS grid, row-major
-    d6_settle_<n>.png      SETTLE_COLS x SETTLE_ROWS grid, row-major
-    d6_landed.png          one row: faces 1..6 left to right
+    d6_roll_<name>.png   one community tumble (double_roll_1/2, single_roll)
+    d6_settle_<n>.png    the settle onto face n; its last frame is the landed
+                         still
+    d6_landed.png        one row: faces 1..6 at rest, left to right
 
-Every cell is the same square frame. Godot's skill_check_dice_popup.gd
-reads these with AtlasTexture regions, so its FRAME_PX/grid constants must
-match the ones here.
+Godot's skill_check_dice_popup.gd reads these with AtlasTexture regions, so
+its FRAME_PX, COLS and frame counts must match the renders.
 """
 
 import os
@@ -19,8 +20,8 @@ import sys
 import numpy as np
 from PIL import Image
 
-TUMBLE_COLS, TUMBLE_ROWS = 8, 4
-SETTLE_COLS, SETTLE_ROWS = 4, 4
+COLS = 8
+ROLLS = ("double_roll_1", "double_roll_2", "single_roll")
 
 
 def load_frames(folder: str) -> list:
@@ -38,8 +39,8 @@ def check_edges(name: str, frames: list) -> None:
         print(f"pack_d6_sheets: WARNING {name}: alpha {worst} at a frame edge (cropped?)")
 
 
-## Alpha fades to nothing over this many pixels at every frame edge, so a
-## soft shadow tail never ends in a hard line. The die keeps well clear.
+# Alpha fades to nothing over this many pixels at every frame edge, so a
+# motion-blur smear never ends in a hard line. The die keeps well clear.
 EDGE_FEATHER = 12
 
 
@@ -52,9 +53,8 @@ def feather(frame: np.ndarray) -> np.ndarray:
     return out
 
 
-def grid(frames: list, cols: int, rows: int) -> Image.Image:
-    if len(frames) != cols * rows:
-        raise SystemExit(f"expected {cols * rows} frames, got {len(frames)}")
+def grid(frames: list, cols: int = COLS) -> Image.Image:
+    rows = -(-len(frames) // cols)
     h, w = frames[0].shape[:2]
     sheet = np.zeros((rows * h, cols * w, 4), np.uint8)
     for i, f in enumerate(frames):
@@ -68,17 +68,18 @@ def main() -> None:
         raise SystemExit(__doc__)
     src, out = sys.argv[1], sys.argv[2]
     os.makedirs(out, exist_ok=True)
-    for name in ("a", "b", "c"):
-        frames = load_frames(os.path.join(src, f"tumble_{name}"))
-        check_edges(f"tumble_{name}", frames)
-        grid(frames, TUMBLE_COLS, TUMBLE_ROWS).save(os.path.join(out, f"d6_tumble_{name}.png"), optimize=True)
+    for name in ROLLS:
+        frames = load_frames(os.path.join(src, f"roll_{name}"))
+        check_edges(f"roll_{name}", frames)
+        grid(frames).save(os.path.join(out, f"d6_roll_{name}.png"), optimize=True)
+        print(f"pack_d6_sheets: roll_{name} {len(frames)} frames")
+    landed = []
     for value in range(1, 7):
         frames = load_frames(os.path.join(src, f"settle_{value}"))
         check_edges(f"settle_{value}", frames)
-        grid(frames, SETTLE_COLS, SETTLE_ROWS).save(os.path.join(out, f"d6_settle_{value}.png"), optimize=True)
-    landed = [np.asarray(Image.open(os.path.join(src, f"landed_{v}.png")).convert("RGBA")) for v in range(1, 7)]
-    check_edges("landed", landed)
-    grid(landed, 6, 1).save(os.path.join(out, "d6_landed.png"), optimize=True)
+        grid(frames).save(os.path.join(out, f"d6_settle_{value}.png"), optimize=True)
+        landed.append(frames[-1])
+    grid(landed, 6).save(os.path.join(out, "d6_landed.png"), optimize=True)
     print("pack_d6_sheets: sheets written to", out)
 
 

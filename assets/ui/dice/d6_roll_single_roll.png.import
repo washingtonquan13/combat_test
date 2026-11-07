@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cavtb10c6f73f"
-path.bptc="res://.godot/imported/d6_tumble_c.png-75aae07c01164520a9325502d0f20cda.bptc.ctex"
+uid="uid://bkkm6nr2u7aoy"
+path.bptc="res://.godot/imported/d6_roll_single_roll.png-73d98209a8fefeaaa86ecf8c5eef8075.bptc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/ui/dice/d6_tumble_c.png"
-dest_files=["res://.godot/imported/d6_tumble_c.png-75aae07c01164520a9325502d0f20cda.bptc.ctex"]
+source_file="res://assets/ui/dice/d6_roll_single_roll.png"
+dest_files=["res://.godot/imported/d6_roll_single_roll.png-73d98209a8fefeaaa86ecf8c5eef8075.bptc.ctex"]
 
 [params]
 

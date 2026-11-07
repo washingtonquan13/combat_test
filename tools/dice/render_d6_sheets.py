@@ -1,29 +1,28 @@
-"""Renders the frames for the skill-check dice popup's sprite d6.
+"""Renders the skill-check popup's sprite d6 from the community d20 rig.
 
-Run headless with Blender 4.3:
+The scene is the "Numbered Dice" BG3 custom-dice setup (Nexus mod 1325,
+numbers_main.blend): its front-on orthographic camera, four area lights,
+world, Cycles settings, the compositor's directional-blur motion smear and
+the rig's roll and settle actions are all kept. Only the die is swapped:
+the d20 mesh is replaced by a sharp cube, each face a body-coloured square
+in a white frame like the d20's faces, numerals 1-6 on top.
 
-    "C:/Program Files/Blender Foundation/Blender 4.3/blender.exe" -b \
-        -P tools/dice/render_d6_sheets.py -- --out <frames_dir>
+The render loop is the mod maker's batch script (the .blend's Text.001),
+pointed at d6 actions. Run headless with Blender 4.3:
 
-then pack the frames into sheets with tools/dice/pack_d6_sheets.py (or run
-tools/dice/build.sh, which does both).
+    blender -b <numbers_main.blend> -P tools/dice/render_d6_sheets.py \
+        -- --out <frames_dir>
 
-Everything is built here: a bevelled cube with the numerals 1-6 inlaid in
-Blender's own font, no downloaded assets. It renders, into <frames_dir>:
+then pack with tools/dice/pack_d6_sheets.py (tools/dice/build.sh does both).
+Into <frames_dir> it writes, as ####.png frames:
 
-    tumble_<a|b|c>/####.png  TUMBLE_FRAMES frames each, a seamless loop of a
-                             motion-blurred tumble in the air; one spin per
-                             die so three dice never look identical.
-                             Result-agnostic.
-    settle_<n>/####.png      SETTLE_FRAMES frames: the die drops out of a
-                             tumble, rolls over its corners and comes to rest
-                             with face n up, then a glint sweeps its top.
-                             The last frame is the landed still.
-    landed_<n>.png           face n up, at rest, no glint.
+    roll_<double_roll_1|double_roll_2|single_roll>/  the community tumbles,
+        compositor blur on, result-agnostic, exactly as the d20 renders them.
+    settle_<n>/  SETTLE_FRAMES frames: the community d<k> wobble, moved onto
+        the cube so it comes to rest with face n square to the camera and its
+        numeral upright. The last frame is the landed still.
 
-The camera looks down at the die from CAMERA_ELEVATION degrees and the
-numeral on the top face reads upright to it. The background is transparent;
-the die's shadow is kept in alpha by a shadow catcher.
+The .blend is never written back; nothing from it ships but these renders.
 """
 
 import math
@@ -34,363 +33,218 @@ import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-FRAME_PX = 192
-TUMBLE_FRAMES = 32
-SETTLE_FRAMES = 16
-## Frame (1-based) the settling die comes to rest on; the glint plays after.
-SETTLE_REST_FRAME = 10
-CAMERA_ELEVATION = 60.0
-## Width of the view at the die, in die widths.
-VIEW_WIDTH = 2.5
-CAMERA_DISTANCE = 7.0
-HOVER_Z = 0.9
-SAMPLES = 48
+## Half the cube's edge, world units. The camera's orthographic view is 6
+## across, so face-on the die fills 57% of the frame and even corner-on
+## (half * sqrt 3 = 2.94) the tumble stays inside it.
+HALF = 1.7
+## White frame round each face, as a fraction of the edge.
+BORDER = 0.07
+## Numeral height, fraction of the edge.
+NUMERAL = 0.62
+## Numerals sit this far proud of the face so they never z-fight it.
+NUMERAL_LIFT = 0.004
+BODY_COLOR = (0.32, 0.025, 0.03, 1.0)
 
-## Face value -> (outward normal, the numeral's up direction on that face).
-## Opposite faces sum to 7.
+## Same durations the mod maker's script renders: every settle 18 frames
+## (holding the last pose past the action's end), the rolls their length.
+SETTLE_FRAMES = 18
+ROLLS = {"double_roll_1": 27, "double_roll_2": 28, "single_roll": 61}
+
+## Face n: (outward normal, the way "up" its numeral reads). Opposite faces
+## sum to 7.
 FACES = {
     1: (Vector((0, 0, 1)), Vector((0, 1, 0))),
-    6: (Vector((0, 0, -1)), Vector((0, -1, 0))),
+    6: (Vector((0, 0, -1)), Vector((0, 1, 0))),
     2: (Vector((1, 0, 0)), Vector((0, 0, 1))),
     5: (Vector((-1, 0, 0)), Vector((0, 0, 1))),
     3: (Vector((0, -1, 0)), Vector((0, 0, 1))),
     4: (Vector((0, 1, 0)), Vector((0, 0, 1))),
 }
-
-## Per-die tumble: two spin axes and whole turns per loop of each, so every
-## loop closes on itself exactly (both spins return to identity at t=1).
-TUMBLES = {
-    "a": ((1.0, 0.35, 0.2), 2, (0.1, 1.0, 0.4), 1, (0.3, 0.2, 0.0)),
-    "b": ((-0.4, 1.0, 0.3), 2, (1.0, 0.0, 0.5), 1, (1.1, -0.4, 0.7)),
-    "c": ((0.6, -0.5, 1.0), 2, (0.8, 1.0, -0.2), -1, (-0.6, 0.9, 0.3)),
-}
+## Which community settle wobble each face borrows (d1..d6, all distinct).
+WOBBLE_OF = {n: f"d{n}" for n in range(1, 7)}
 
 
-def parse_out() -> str:
-    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    if "--out" not in argv:
-        raise SystemExit("usage: blender -b -P render_d6_sheets.py -- --out <dir>")
-    return os.path.abspath(argv[argv.index("--out") + 1])
-
-
-def face_frame(value: int) -> Matrix:
-    """Rotation whose columns are the numeral's right, up and normal."""
-    normal, up = FACES[value]
+def face_frame(n: int):
+    normal, up = FACES[n]
     right = up.cross(normal)
-    return Matrix((right, up, normal)).transposed()
+    return right, up, normal
 
 
-def landed_rotation(value: int) -> Quaternion:
-    """Die rotation that puts face `value` up, numeral upright to camera."""
-    return face_frame(value).transposed().to_quaternion()
-
-
-def reset_scene() -> None:
-    bpy.ops.wm.read_factory_settings(use_empty=True)
-
-
-def make_materials():
-    body = bpy.data.materials.new("DieBody")
-    body.use_nodes = True
-    p = body.node_tree.nodes["Principled BSDF"]
-    p.inputs["Base Color"].default_value = (0.13, 0.006, 0.012, 1.0)
-    p.inputs["Roughness"].default_value = 0.22
-    p.inputs["Coat Weight"].default_value = 0.6
-    p.inputs["Coat Roughness"].default_value = 0.05
-
-    ink = bpy.data.materials.new("DieNumeral")
-    ink.use_nodes = True
-    p = ink.node_tree.nodes["Principled BSDF"]
-    p.inputs["Base Color"].default_value = (1.0, 0.78, 0.38, 1.0)
-    p.inputs["Metallic"].default_value = 1.0
-    p.inputs["Roughness"].default_value = 0.28
-    return body, ink
-
-
-def numeral_mesh(ink) -> bpy.types.Object:
-    """One mesh holding all six numerals, each inlaid a hair proud of its
-    face. (An EXACT boolean engraving was tried and mangled the die.)"""
+def build_cube(materials) -> bpy.types.Object:
+    mesh = bpy.data.meshes.new("d6")
     bm = bmesh.new()
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    for value in FACES:
-        curve = bpy.data.curves.new(f"num{value}", type="FONT")
-        curve.body = str(value)
-        curve.align_x = "CENTER"
-        curve.align_y = "CENTER"
-        curve.size = 0.62
-        curve.offset = 0.014
-        curve.extrude = 0.004
-        curve.resolution_u = 6
-        obj = bpy.data.objects.new(f"num{value}", curve)
-        bpy.context.scene.collection.objects.link(obj)
-        depsgraph.update()
-        evaluated = obj.evaluated_get(depsgraph)
-        mesh = bpy.data.meshes.new_from_object(evaluated)
-        normal, _ = FACES[value]
-        placement = face_frame(value).to_4x4()
-        placement.translation = normal * 0.5015
-        mesh.transform(placement)
-        bm.from_mesh(mesh)
-        bpy.data.objects.remove(obj)
-        bpy.data.meshes.remove(mesh)
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-5)
-    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
-    mesh = bpy.data.meshes.new("Numerals")
+    inner = HALF * (1.0 - 2.0 * BORDER)
+    for n in range(1, 7):
+        right, up, normal = face_frame(n)
+        c = normal * HALF
+
+        def corner(x, y):
+            return bm.verts.new(c + right * x + up * y)
+
+        outer = [corner(-HALF, -HALF), corner(HALF, -HALF), corner(HALF, HALF), corner(-HALF, HALF)]
+        ins = [corner(-inner, -inner), corner(inner, -inner), corner(inner, inner), corner(-inner, inner)]
+        body = bm.faces.new(ins)
+        body.material_index = 1
+        for i in range(4):
+            j = (i + 1) % 4
+            strip = bm.faces.new((outer[i], outer[j], ins[j], ins[i]))
+            strip.material_index = 0
+    bm.normal_update()
     bm.to_mesh(mesh)
     bm.free()
-    mesh.materials.append(ink)
-    numerals = bpy.data.objects.new("Numerals", mesh)
-    bpy.context.scene.collection.objects.link(numerals)
-    return numerals
+    for m in materials:
+        mesh.materials.append(m)
+    for p in mesh.polygons:
+        p.use_smooth = False
+    return bpy.data.objects.new("d6", mesh)
 
 
-def build_die():
-    body, ink = make_materials()
-    bpy.ops.mesh.primitive_cube_add(size=1.0)
-    die = bpy.context.active_object
-    die.name = "Die"
-    die.data.materials.append(body)
-    bevel = die.modifiers.new("Bevel", "BEVEL")
-    bevel.width = 0.1
-    bevel.segments = 6
-    bevel.limit_method = "NONE"
-    bevel.harden_normals = True
-    numerals = numeral_mesh(ink)
-    numerals.parent = die
-    bpy.ops.object.shade_smooth()
-    die.rotation_mode = "QUATERNION"
-    die.cycles.use_motion_blur = True
-    die.cycles.motion_steps = 4
-    return die
+def build_numeral(n: int, material) -> bpy.types.Object:
+    curve = bpy.data.curves.new(f"num{n}", "FONT")
+    curve.body = str(n)
+    curve.align_x = "CENTER"
+    curve.align_y = "CENTER"
+    curve.size = 2.0 * HALF * NUMERAL
+    text = bpy.data.objects.new(f"num{n}", curve)
+    bpy.context.scene.collection.objects.link(text)
+    mesh = text.to_mesh().copy()
+    text.to_mesh_clear()
+    bpy.data.objects.remove(text)
+    bpy.data.curves.remove(curve)
+    right, up, normal = face_frame(n)
+    # Text lies in its local XY, facing +Z: map that onto the face.
+    basis = Matrix((right, up, normal)).transposed().to_4x4()
+    mesh.transform(Matrix.Translation(normal * (HALF + NUMERAL_LIFT)) @ basis)
+    mesh.materials.append(material)
+    return bpy.data.objects.new(f"num{n}", mesh)
 
 
-def add_area(name, location, size, energy, color=(1, 1, 1), shadow=True):
-    data = bpy.data.lights.new(name, "AREA")
-    data.size = size
-    data.energy = energy
-    data.color = color
-    data.use_shadow = shadow
-    obj = bpy.data.objects.new(name, data)
-    bpy.context.scene.collection.objects.link(obj)
-    obj.location = location
-    obj.rotation_euler = (Vector((0, 0, 0.5)) - Vector(location)).to_track_quat("-Z", "Y").to_euler()
-    return obj
+def swap_die(dice_empty: bpy.types.Object) -> None:
+    old = bpy.data.objects["dice"]
+    edge, body = old.data.materials[0], old.data.materials[1]
+    for name in ("dice", "numbers"):
+        bpy.data.objects.remove(bpy.data.objects[name])
 
+    # Body: the community plastic, a flat colour where its (missing) d20
+    # texture was. Its shading-only bevel rounds the edges; the cube's are
+    # meant to be sharp.
+    tree = body.node_tree
+    for node in tree.nodes:
+        if node.type == "GROUP" and "Base Color" in node.inputs:
+            sock = node.inputs["Base Color"]
+            for link in list(sock.links):
+                tree.links.remove(link)
+            sock.default_value = BODY_COLOR
+            for inner in node.node_tree.nodes:
+                if inner.type == "BEVEL":
+                    inner.inputs["Radius"].default_value = 0.0
 
-def build_stage():
     scene = bpy.context.scene
-    scene.render.engine = "CYCLES"
-    scene.cycles.device = "CPU"
-    scene.cycles.samples = SAMPLES
-    scene.cycles.use_denoising = True
-    scene.cycles.use_adaptive_sampling = True
-    scene.render.film_transparent = True
-    scene.render.resolution_x = FRAME_PX
-    scene.render.resolution_y = FRAME_PX
-    scene.render.resolution_percentage = 100
-    scene.render.fps = 30
-    scene.render.use_motion_blur = True
-    scene.render.motion_blur_shutter = 0.75
+    parts = [build_cube([edge, body])] + [build_numeral(n, edge) for n in range(1, 7)]
+    for part in parts:
+        scene.collection.objects.link(part)
+        part.parent = dice_empty
+        part.matrix_parent_inverse = Matrix.Identity(4)
+
+
+def face_target(n: int) -> Quaternion:
+    """The Dice rotation that turns face n square to the camera (+Z),
+    numeral upright (+Y on screen)."""
+    right, up, normal = face_frame(n)
+    return Matrix((right, up, normal)).to_quaternion()
+
+
+def reset_deltas(obj) -> None:
+    obj.delta_rotation_euler = (0, 0, 0)
+    obj.delta_rotation_quaternion = (1, 0, 0, 0)
+    obj.delta_location = (0, 0, 0)
+
+
+def settle_action(dice_empty, scene, n: int) -> bpy.types.Action:
+    """The community wobble WOBBLE_OF[n], re-aimed at face n: every frame's
+    rotation is the wobble's own rotation relative to where it ends, applied
+    on top of face n's rest pose. Location and scale are kept as is."""
+    source = bpy.data.actions[WOBBLE_OF[n]]
+    dice_empty.animation_data.action = source
+    dice_empty.rotation_mode = "QUATERNION"
+    first, last = int(source.frame_range[0]), int(source.frame_range[1])
+    samples = []
+    for f in range(first, last + 1):
+        scene.frame_set(f)
+        samples.append((f, dice_empty.rotation_quaternion.copy(), dice_empty.location.copy(), dice_empty.scale.copy()))
+    rest_inv = samples[-1][1].normalized().inverted()
+    target = face_target(n)
+
+    action = bpy.data.actions.new(f"d6_{n}")
+    dice_empty.animation_data.action = action
+    prev = None
+    for f, q, loc, scale in samples:
+        out = (q.normalized() @ rest_inv) @ target
+        if prev is not None and prev.dot(out) < 0.0:
+            out.negate()
+        prev = out
+        dice_empty.rotation_quaternion = out
+        dice_empty.location = loc
+        dice_empty.scale = scale
+        for path in ("rotation_quaternion", "location", "scale"):
+            dice_empty.keyframe_insert(path, frame=f)
+    for fc in action.fcurves:
+        for k in fc.keyframe_points:
+            k.interpolation = "LINEAR"
+    return action
+
+
+def use_gpu() -> None:
+    prefs = bpy.context.preferences.addons["cycles"].preferences
+    for backend in ("OPTIX", "CUDA", "HIP", "ONEAPI"):
+        try:
+            prefs.compute_device_type = backend
+        except TypeError:
+            continue
+        prefs.get_devices()
+        if any(d.type == backend for d in prefs.devices):
+            for d in prefs.devices:
+                d.use = d.type == backend
+            print("render_d6_sheets: Cycles on", backend)
+            return
+    bpy.context.scene.cycles.device = "CPU"
+    print("render_d6_sheets: Cycles on CPU")
+
+
+def render(dice_empty, scene, action, out_dir: str, duration: int, compositing: bool) -> None:
+    """The mod maker's loop body: assign, set the range, render."""
+    reset_deltas(dice_empty)
+    dice_empty.animation_data.action = action
+    scene.use_nodes = compositing
+    scene.frame_start = int(action.frame_range[0])
+    scene.frame_end = scene.frame_start + duration - 1
+    os.makedirs(out_dir, exist_ok=True)
+    scene.render.filepath = os.path.join(out_dir, "")
+    bpy.ops.render.render(animation=True)
+
+
+def main() -> None:
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    out = os.path.abspath(argv[argv.index("--out") + 1])
+
+    scene = bpy.data.scenes["d20"]
+    if bpy.context.window:
+        bpy.context.window.scene = scene
+    dice_empty = bpy.data.objects["Dice"]
+    swap_die(dice_empty)
+    use_gpu()
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
     scene.render.image_settings.color_depth = "8"
-    scene.view_settings.view_transform = "Standard"
-    scene.view_settings.look = "None"
 
-    world = bpy.data.worlds.new("World")
-    scene.world = world
-    world.use_nodes = True
-    world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.05, 0.05, 0.06, 1)
-    world.node_tree.nodes["Background"].inputs["Strength"].default_value = 1.0
-
-    target = Vector((0, 0, 0.55))
-    elev = math.radians(CAMERA_ELEVATION)
-    cam_data = bpy.data.cameras.new("Camera")
-    # Perspective, though narrow: through an orthographic camera a flat
-    # face mirrors one direction everywhere, so the glint lit the whole
-    # face at once instead of travelling across it.
-    cam_data.type = "PERSP"
-    cam_data.sensor_fit = "HORIZONTAL"
-    cam_data.angle = 2 * math.atan(VIEW_WIDTH / 2 / CAMERA_DISTANCE)
-    cam = bpy.data.objects.new("Camera", cam_data)
-    scene.collection.objects.link(cam)
-    cam.location = target + CAMERA_DISTANCE * Vector((0, -math.cos(elev), math.sin(elev)))
-    cam.rotation_euler = (target - cam.location).to_track_quat("-Z", "Y").to_euler()
-    scene.camera = cam
-
-    add_area("Key", (-1.4, -1.2, 5.0), 2.5, 300)
-    # Only the key casts a shadow: the low fill and rim threw long ones
-    # off the edge of the frame.
-    add_area("Fill", (3.0, -2.5, 2.0), 3.0, 50, (0.85, 0.9, 1.0), shadow=False)
-    add_area("Rim", (0.5, 3.5, 3.0), 1.5, 300, shadow=False)
-
-    # Mirror direction of the camera about the top face: a light on this
-    # line shows up as a highlight on that face. It sweeps across it for
-    # the settle glint, and is invisible to diffuse so only the specular
-    # glint shows.
-    glint_data = bpy.data.lights.new("Glint", "AREA")
-    glint_data.size = 0.06
-    glint_data.energy = 0.0
-    glint = bpy.data.objects.new("Glint", glint_data)
-    scene.collection.objects.link(glint)
-    glint.visible_diffuse = False
-    glint.visible_volume_scatter = False
-
-    bpy.ops.mesh.primitive_plane_add(size=8.0, location=(0, 0, 0))
-    ground = bpy.context.active_object
-    ground.is_shadow_catcher = True
-    # Lit, the catcher would show up mirrored in the die's glossy coat.
-    ground.visible_glossy = False
-    return glint, target, elev
-
-
-def clear_animation(*objs):
-    for obj in objs:
-        obj.animation_data_clear()
-        obj.data.animation_data_clear() if hasattr(obj.data, "animation_data_clear") else None
-
-
-def lowest_extent(q: Quaternion) -> float:
-    """Half the die's height for rotation q, so it rests on the ground
-    instead of sinking through it (bevel ignored: it only lowers corners)."""
-    m = q.to_matrix()
-    return 0.5 * (abs(m[2][0]) + abs(m[2][1]) + abs(m[2][2])) - 0.03
-
-
-def key_die(die, frame, q, z, prev):
-    if prev is not None and prev.dot(q) < 0:
-        q = -q
-    die.rotation_quaternion = q
-    die.location = (0, 0, z)
-    die.keyframe_insert("rotation_quaternion", frame=frame)
-    die.keyframe_insert("location", frame=frame)
-    return q
-
-
-def linear_keys(obj):
-    if obj.animation_data and obj.animation_data.action:
-        for fc in obj.animation_data.action.fcurves:
-            for kp in fc.keyframe_points:
-                kp.interpolation = "LINEAR"
-
-
-def tumble_rotation(spec, t: float) -> Quaternion:
-    axis1, turns1, axis2, turns2, base = spec
-    q1 = Quaternion(Vector(axis1).normalized(), math.tau * turns1 * t)
-    q2 = Quaternion(Vector(axis2).normalized(), math.tau * turns2 * t)
-    return q1 @ q2 @ Matrix.Rotation(base[0], 3, "X").to_quaternion() \
-        @ Matrix.Rotation(base[1], 3, "Y").to_quaternion() \
-        @ Matrix.Rotation(base[2], 3, "Z").to_quaternion()
-
-
-## Keys every SUBSTEPS of a frame, so the motion blur follows the curved
-## spin instead of a straight chord between whole frames.
-SUBSTEPS = 4
-
-
-def render_tumble(die, glint, name, spec, out_dir):
-    scene = bpy.context.scene
-    clear_animation(die, glint)
-    prev = None
-    for i in range(-2 * SUBSTEPS, (TUMBLE_FRAMES + 2) * SUBSTEPS + 1):
-        f = 1 + i / SUBSTEPS
-        t = (f - 1) / TUMBLE_FRAMES
-        z = HOVER_Z + 0.04 * math.sin(math.tau * t)
-        prev = key_die(die, f, tumble_rotation(spec, t), z, prev)
-    linear_keys(die)
-    scene.frame_start = 1
-    scene.frame_end = TUMBLE_FRAMES
-    scene.render.filepath = os.path.join(out_dir, f"tumble_{name}", "")
-    bpy.ops.render.render(animation=True)
-
-
-def settle_pose(value: int, f: float, spin_axis: Vector):
-    """(rotation, height) of the settling die at frame f."""
-    rest = landed_rotation(value)
-    u = min(max((f - 1) / (SETTLE_REST_FRAME - 1), 0.0), 1.0)
-    # Fast at the start (matching the tumble it cuts in from), easing to a
-    # stop, then a small damped rock about the same axis once down.
-    angle = math.radians(150) * (1 - u) ** 2
-    after = f - SETTLE_REST_FRAME
-    if after > 0:
-        angle += math.radians(5) * math.exp(-after * 0.9) * math.sin(after * 2.2)
-    if f < 1:
-        angle = math.radians(150) * (1 + (1 - f) / (SETTLE_REST_FRAME - 1) * 2)
-    q = Quaternion(spin_axis, angle) @ rest
-    # Drops from the hover height, a little bounce, then rests on whichever
-    # corner or edge is lowest.
-    drop = min(max((f - 1) / 5.0, 0.0), 1.0)
-    z = HOVER_Z + (0.5 - HOVER_Z) * drop * drop
-    if 6 <= f <= 9:
-        z += 0.07 * math.sin(math.pi * (f - 6) / 3.0)
-    return q, max(z, lowest_extent(q))
-
-
-def render_settle(die, glint, value, target, elev, out_dir):
-    scene = bpy.context.scene
-    clear_animation(die, glint)
-    spin_axis = Vector((1.0, 0.45 * (1 if value % 2 else -1), 0.15)).normalized()
-    prev = None
-    for i in range(-2 * SUBSTEPS, (SETTLE_FRAMES + 2) * SUBSTEPS + 1):
-        f = 1 + i / SUBSTEPS
-        q, z = settle_pose(value, f, spin_axis)
-        if f >= SETTLE_REST_FRAME:
-            q, z = landed_rotation(value), 0.5
-        prev = key_die(die, f, q, z, prev)
-    linear_keys(die)
-
-    # Glint: sweeps along the camera's mirror line over the top face.
-    mirror = Vector((0, math.cos(elev), math.sin(elev)))
-    top = Vector((0, 0, 1.0))
-    glint.data.energy = 0.0
-    glint.data.keyframe_insert("energy", frame=SETTLE_REST_FRAME)
-    for k, f in enumerate(range(SETTLE_REST_FRAME, SETTLE_FRAMES + 2)):
-        s = (f - SETTLE_REST_FRAME) / (SETTLE_FRAMES - SETTLE_REST_FRAME)
-        glint.location = top + 6 * mirror + Vector((-2.2 + 4.4 * s, -0.6 + 1.2 * s, 0))
-        glint.rotation_euler = (top - glint.location).to_track_quat("-Z", "Y").to_euler()
-        glint.keyframe_insert("location", frame=f)
-        glint.keyframe_insert("rotation_euler", frame=f)
-    for f, e in ((SETTLE_REST_FRAME + 1, 120.0), (SETTLE_FRAMES - 1, 120.0), (SETTLE_FRAMES, 0.0)):
-        glint.data.energy = e
-        glint.data.keyframe_insert("energy", frame=f)
-    scene.frame_start = 1
-    scene.frame_end = SETTLE_FRAMES
-    scene.render.filepath = os.path.join(out_dir, f"settle_{value}", "")
-    bpy.ops.render.render(animation=True)
-    glint.data.animation_data_clear()
-    glint.data.energy = 0.0
-
-
-def render_landed(die, glint, value, out_dir):
-    scene = bpy.context.scene
-    clear_animation(die, glint)
-    glint.data.energy = 0.0
-    die.rotation_quaternion = landed_rotation(value)
-    die.location = (0, 0, 0.5)
-    scene.frame_set(1)
-    scene.render.filepath = os.path.join(out_dir, f"landed_{value}.png")
-    bpy.ops.render.render(write_still=True)
-
-
-def main():
-    out_dir = parse_out()
-    only = os.environ.get("D6_ONLY", "")
-    os.makedirs(out_dir, exist_ok=True)
-    reset_scene()
-    die = build_die()
-    glint, target, elev = build_stage()
-    for value in FACES:
-        if not only or only == "landed":
-            render_landed(die, glint, value, out_dir)
-    for name, spec in TUMBLES.items():
-        if not only or only == "tumble":
-            render_tumble(die, glint, name, spec, out_dir)
-    for value in sorted(FACES):
-        if not only or only == "settle":
-            render_settle(die, glint, value, target, elev, out_dir)
-    depsgraph = bpy.context.evaluated_depsgraph_get()
-    print("render_d6_sheets: die has", len(die.evaluated_get(depsgraph).data.polygons), "faces")
-    print("render_d6_sheets: frames written to", out_dir)
+    settles = {n: settle_action(dice_empty, scene, n) for n in range(1, 7)}
+    for n, action in settles.items():
+        dice_empty.rotation_mode = "QUATERNION"
+        render(dice_empty, scene, action, os.path.join(out, f"settle_{n}"), SETTLE_FRAMES, False)
+    for name, duration in ROLLS.items():
+        dice_empty.rotation_mode = "QUATERNION"
+        render(dice_empty, scene, bpy.data.actions[name], os.path.join(out, f"roll_{name}"), duration, True)
+    print("render_d6_sheets: frames written to", out)
 
 
 main()

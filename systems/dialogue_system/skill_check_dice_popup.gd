@@ -7,26 +7,31 @@ extends Control
 ##
 ## BG3-style sprite dice, no 3D in game: every die is a TextureRect whose
 ## AtlasTexture steps through pre-rendered sheets in assets/ui/dice/ —
-## a result-agnostic tumble loop (one per die, so the three never move
-## in unison), then the settle sheet for the face that die rolled (it
-## comes to rest face-up and a glint crosses it), then the landed still.
-## The sheets are rendered by tools/dice/render_d6_sheets.py in Blender
-## and packed by tools/dice/pack_d6_sheets.py (tools/dice/build.sh runs
-## both); the frame size and grids below must match those scripts.
+## a result-agnostic motion-blurred roll (a different one per die, so the
+## three never move in unison), then the settle sheet for the face that
+## die rolled (it wobbles to rest with that face square to the camera),
+## then the landed still. The sheets come from the community BG3 custom
+## dice rig, d20 swapped for a cube: tools/dice/render_d6_sheets.py
+## renders them in Blender and tools/dice/pack_d6_sheets.py packs them
+## (tools/dice/build.sh runs both); the frame size, grid width, rate and
+## frame counts below must match those scripts.
 ##
 ## Hidden by default. MainRoot.tscn adds exactly one of these as a
 ## CanvasLayer child, after DialogueOverlay/ConversationLog so it
 ## renders on top of both while a roll is in progress.
 
-const FRAME_PX: int = 192
-const FPS: float = 30.0
-const TUMBLE_SHEETS: Array[Texture2D] = [
-	preload("res://assets/ui/dice/d6_tumble_a.png"),
-	preload("res://assets/ui/dice/d6_tumble_b.png"),
-	preload("res://assets/ui/dice/d6_tumble_c.png"),
+const FRAME_PX: int = 256
+## The rig's own frame rate; every sheet is played at it.
+const FPS: float = 18.0
+## Every sheet is this many frames wide, row-major.
+const COLS: int = 8
+## Die i plays ROLL_SHEETS[i] once; ROLL_FRAMES[i] is its frame count.
+const ROLL_SHEETS: Array[Texture2D] = [
+	preload("res://assets/ui/dice/d6_roll_double_roll_1.png"),
+	preload("res://assets/ui/dice/d6_roll_double_roll_2.png"),
+	preload("res://assets/ui/dice/d6_roll_single_roll.png"),
 ]
-const TUMBLE_COLS: int = 8
-const TUMBLE_FRAMES: int = 32
+const ROLL_FRAMES: Array[int] = [27, 28, 61]
 ## Index = face value - 1.
 const SETTLE_SHEETS: Array[Texture2D] = [
 	preload("res://assets/ui/dice/d6_settle_1.png"),
@@ -36,21 +41,18 @@ const SETTLE_SHEETS: Array[Texture2D] = [
 	preload("res://assets/ui/dice/d6_settle_5.png"),
 	preload("res://assets/ui/dice/d6_settle_6.png"),
 ]
-const SETTLE_COLS: int = 4
-const SETTLE_FRAMES: int = 16
+const SETTLE_FRAMES: int = 18
 ## One row, faces 1..6 left to right.
 const LANDED_SHEET: Texture2D = preload("res://assets/ui/dice/d6_landed.png")
 
-## On-screen size of one frame. The die itself fills under half of it;
-## the rest is room for the tumble and the shadow.
-const DIE_DISPLAY_PX: float = 120.0
-## Neighbouring frames overlap by this much, since their edges are empty.
-const DIE_OVERLAP_PX: float = 34.0
-## Time from Roll to the FIRST die coming to rest, settle included.
-const TUMBLE_DURATION: float = 1.0
-## Each die lands this much later than the previous one, so all 3
-## visibly stop in sequence instead of landing in a near-unison blur.
-const STAGGER_STEP: float = 0.4
+## On-screen size of one frame. Face-on, the die fills 57% of it; the
+## rest is room for its corners mid-roll and the blur smear.
+const DIE_DISPLAY_PX: float = 150.0
+## Neighbouring frames overlap by this much, since their edges are empty
+## once the die is at rest.
+const DIE_OVERLAP_PX: float = 50.0
+## Each die starts rolling this much after the previous one.
+const STAGGER_STEP: float = 0.25
 ## Arbitrary — the roll hasn't happened yet, so no face value is
 ## "correct" while waiting on the Roll button. Each die just shows its
 ## landed still of this face.
@@ -66,7 +68,7 @@ const IDLE_FACE_VALUE: int = 1
 ## offsets: a fixed _CORNER_WIDTH x _CORNER_HEIGHT box pinned to that
 ## corner as the window resizes.
 const _CORNER_WIDTH: float = 3 * DIE_DISPLAY_PX - 2 * DIE_OVERLAP_PX + 16.0
-const _CORNER_HEIGHT: float = 190.0
+const _CORNER_HEIGHT: float = 220.0
 const _CORNER_MARGIN: float = 20.0
 ## Height the conversation band needs at the bottom, plus a gap above it.
 const _BAND_CLEARANCE: float = 170.0
@@ -207,23 +209,22 @@ func _build_scene() -> void:
 	_continue_button.pressed.connect(_step.emit)
 
 
-func _show_frame(die: int, sheet: Texture2D, cols: int, index: int) -> void:
+func _show_frame(die: int, sheet: Texture2D, index: int) -> void:
 	var face: AtlasTexture = _faces[die]
 	face.atlas = sheet
-	face.region = Rect2((index % cols) * FRAME_PX, floori(float(index) / cols) * FRAME_PX, FRAME_PX, FRAME_PX)
+	face.region = Rect2((index % COLS) * FRAME_PX, floori(float(index) / COLS) * FRAME_PX, FRAME_PX, FRAME_PX)
 
 
-## `frame` counts up without wrapping; the tumble sheet is a seamless loop.
-func _show_tumble(frame: float, die: int, phase: int) -> void:
-	_show_frame(die, TUMBLE_SHEETS[die], TUMBLE_COLS, (int(frame) + phase) % TUMBLE_FRAMES)
+func _show_roll(frame: float, die: int) -> void:
+	_show_frame(die, ROLL_SHEETS[die], mini(int(frame), ROLL_FRAMES[die] - 1))
 
 
 func _show_settle(frame: float, die: int, face_value: int) -> void:
-	_show_frame(die, SETTLE_SHEETS[face_value - 1], SETTLE_COLS, mini(int(frame), SETTLE_FRAMES - 1))
+	_show_frame(die, SETTLE_SHEETS[face_value - 1], mini(int(frame), SETTLE_FRAMES - 1))
 
 
 func _show_landed(die: int, face_value: int) -> void:
-	_show_frame(die, LANDED_SHEET, 6, face_value - 1)
+	_show_frame(die, LANDED_SHEET, face_value - 1)
 
 
 func _kill_tweens() -> void:
@@ -250,24 +251,29 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	_continue_button.visible = false
 	_result_label.text = "Rolling %s..." % skill_name
 
-	# Each die tumbles until its settle has to start for it to land on
-	# time, then plays the settle sheet for the face it rolled, ending on
-	# that face's landed still. Random loop phases, so no two dice show
-	# the same tumble frame at once.
+	# Each die waits its stagger, plays its roll once, then the settle
+	# sheet for the face it rolled, ending on that face's landed still.
 	var settle_time: float = SETTLE_FRAMES / FPS
+	var last_down: float = -1.0
+	var last: Tween = null
 	for i in 3:
 		var face_value: int = roll.dice[i]
-		var tumble_time: float = maxf(TUMBLE_DURATION + i * STAGGER_STEP - settle_time, 0.0)
+		var roll_time: float = ROLL_FRAMES[i] / FPS
 		var tween: Tween = create_tween()
-		tween.tween_method(_show_tumble.bind(i, randi() % TUMBLE_FRAMES), 0.0, tumble_time * FPS, tumble_time)
+		tween.tween_callback(_show_roll.bind(0.0, i))
+		tween.tween_interval(i * STAGGER_STEP)
+		tween.tween_method(_show_roll.bind(i), 0.0, float(ROLL_FRAMES[i]), roll_time)
 		tween.tween_method(_show_settle.bind(i, face_value), 0.0, float(SETTLE_FRAMES), settle_time)
 		tween.tween_callback(_show_landed.bind(i, face_value))
 		_tweens.append(tween)
+		var down: float = i * STAGGER_STEP + roll_time + settle_time
+		if down > last_down:
+			last_down = down
+			last = tween
 
-	# The last die lands last, so its tween finishing means all three are
-	# down. Waited on through _step, which _forget also emits, so a roll
+	# Waited on through _step, which _forget also emits, so a roll
 	# abandoned mid-tumble (its tweens killed) still wakes up and leaves.
-	_tweens[-1].finished.connect(_step.emit)
+	last.finished.connect(_step.emit)
 	await _step
 	if token != _play_token:
 		return

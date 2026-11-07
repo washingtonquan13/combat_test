@@ -204,10 +204,11 @@ func _dice_popup_flow() -> void:
 	check("so is Continue", band.continue_disabled)
 
 	d.dice_press(dice)
-	var waited: int = 0
-	while not (d.dice_view(dice).button_visible and d.dice_view(dice).button_text == "Continue") and waited < 600:
+	# The roll plays in real time (the slowest die is about 5 s), so wait on
+	# the clock, not a frame count.
+	var give_up: int = Time.get_ticks_msec() + 10000
+	while not (d.dice_view(dice).button_visible and d.dice_view(dice).button_text == "Continue") and Time.get_ticks_msec() < give_up:
 		await get_tree().process_frame
-		waited += 1
 	view = d.dice_view(dice)
 	check("after Roll the dice land and a verdict shows with Continue",
 		view.button_text == "Continue" and view.label.contains(" vs "), str(view))
