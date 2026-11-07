@@ -103,7 +103,7 @@ section intro bars:8
   bass.figure dyn:mp..mf feel:tight
     | figure*4 |
   lead dyn:pp..mp
-    | d5:16_^ | [d5 f5]:16_^ |
+    | d5:16^ | [d5 f5]:16^ |
 
 // The roots and the choir arrive; the held D becomes D F, then D F A.
 section rise bars:12
@@ -114,7 +114,7 @@ section rise bars:12
   pad dyn:p..mp
     | [d3 f3 a3 d4]:16 | [e3 g3 c4]:16 | [d3 f3 bb3]:8 [d3 f3 bb3 d4]:8 |
   lead dyn:mp
-    | d5:16_ | [d5 f5]:16_ | [d5 f5 a5]:16_^ |
+    | d5:16 | [d5 f5]:16 | [d5 f5 a5]:16^ |
   fx dyn:p..mp
     | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 | r:4 |
     | shake*4 |
@@ -135,7 +135,7 @@ section turn bars:4
   pad dyn:mp
     | [e3 a3 c4]:8 [e3 a3 c4 e4]:8 |
   lead.hold dyn:mp..mf
-    | [a4 c5 e5]:16_ |
+    | [a4 c5 e5]:16 |
   cry dyn:f bend:+200@0.4,+200@2,0@3.56,-40@3.9
     | r:12 bb5:4! |
   fx dyn:mp
