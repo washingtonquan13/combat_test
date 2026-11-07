@@ -13,15 +13,19 @@ extends Control
 ## that ends on its face: no cut anywhere. The sheets live in
 ## assets/ui/dice/ beside d6_dice.json, the sidecar that carries every
 ## count, rate and each throw's path; nothing here hardcodes them. Each die
-## is a 1:1 sprite flown along its throw's path from its slot (the sprites
-## only spin, the travel is ours), with a UI-drawn shadow that drifts and
-## softens with height.
+## is a 1:1 sprite (the sprites only spin, the travel is ours), with a
+## UI-drawn shadow that drifts and softens with height.
 ##
-## Layout, top to bottom: the dice row, the verdict row (target plate left,
-## total plate right), the verdict line, the throw zone, the button. Every
-## throw starts below its slot and travels up; the card keeps room below
-## the dice row for the lowest start, so the whole throw plays inside the
-## card, over the rows beneath, never over the dialogue band below it.
+## Like BG3's rolls, the dice roam the tray before they settle: every roll
+## gives each die a fresh route, thrown in from the bottom, changing course
+## at each of its throw's bounces, and joining its throw's own path at the
+## final landing, so the last tip and settle into the slot stay the throw's.
+## The height, and so the shadow, is always the throw's own. Routes are
+## redrawn until no two dice ever come close, so they never overlap.
+##
+## Layout, top to bottom: the tray (the dice rest in a row across its
+## middle), the verdict row (target plate left, total plate right), the
+## verdict line, the button. The card sits centred above the dialogue band.
 ##
 ## Flow: idle shows the target plate and a Roll button. Roll throws three
 ## different throws into the three slots in random order, staggered; each
@@ -84,11 +88,37 @@ const PLATE_BORDER: Color = Color(0.45, 0.4, 0.32)
 const TEXT: Color = Color(0.93, 0.9, 0.84)
 const DIM_TEXT: Color = Color(0.55, 0.53, 0.5)
 
-## The dice row's height; its width is the three slots plus DICE_ROW_PAD
-## each side, plus the widest sideways drift of any throw. Dice fly well
-## outside it — it only fixes where they rest.
-const DICE_ROW_HEIGHT: float = 140.0
-const DICE_ROW_PAD: float = 24.0
+## The tray the dice roam, px; they rest in a row across its middle. A
+## die's centre keeps TRAY_INSET from its edges, so a corner spinning past
+## stays on the card.
+const TRAY_SIZE: Vector2 = Vector2(720.0, 380.0)
+const TRAY_INSET: float = 72.0
+## Two dice never come closer than this many faces, centre to centre (a
+## cube turned corner-on is about 1.4 faces across).
+const MIN_APART_FACES: float = 1.45
+## A route's first leg heads at most THROW_IN_SPREAD off straight up, so
+## the throw's spin still reads as the way it is going. Each bounce turns
+## it by BOUNCE_TURN_MIN..MAX either way, and each leg keeps
+## SPEED_KEPT of the one before's speed; the first leg's is THROW_SPEED,
+## px per frame. A die meeting the tray's edge bounces off it.
+const THROW_IN_SPREAD: float = deg_to_rad(55.0)
+const BOUNCE_TURN_MIN: float = deg_to_rad(35.0)
+const BOUNCE_TURN_MAX: float = deg_to_rad(150.0)
+const SPEED_KEPT: Vector2 = Vector2(0.45, 0.8)
+const THROW_SPEED: Vector2 = Vector2(16.0, 28.0)
+## Routes are redrawn up to this many times to clear each other (a few
+## usually do); failing that the dice fly their throws' own paths, which
+## d6_throws.py cleared.
+const ROUTE_TRIES: int = 400
+## The throw lands for good (height within this of rest) at its arrival,
+## and any dip in its height that it climbs out of by BOUNCE_RISE before
+## then is a bounce; bounces closer than MIN_LEG_FRAMES (to each other, the
+## launch or the arrival) count as one.
+const ARRIVE_HEIGHT: float = 1.0
+const BOUNCE_RISE: float = 0.2
+const MIN_LEG_FRAMES: int = 4
+## Room either side of the dice for the verdict row and line, px.
+const VERDICT_PAD: float = 60.0
 ## The total plate; the verdict row is this tall, and the target plate
 ## beside it fits inside that height.
 const TOTAL_PLATE_SIZE: Vector2 = Vector2(120.0, 64.0)
@@ -96,13 +126,8 @@ const COLUMN_SEPARATION: int = 8
 const CARD_MARGIN: float = 14.0
 ## Lines the verdict label always keeps room for.
 const RESULT_LINES: int = 2
-## Bottom-right, above the conversation band, rather than dead centre over
-## the speaker, which the lower-third layout keeps clear. The card grows
-## up and left from that corner to its content's size. _BAND_CLEARANCE is
-## the room the content-sized band needs at the bottom, plus a gap. The
-## throws play inside the card (see _build_throw_zone), so the band only
-## has to clear the card.
-const _CORNER_MARGIN: float = 20.0
+## Centred in the screen above the conversation band. _BAND_CLEARANCE is
+## the room the content-sized band needs at the bottom, plus a gap.
 const _BAND_CLEARANCE: float = 170.0
 
 ## From the sidecar, which overrides these at _ready; these are only what
@@ -130,10 +155,9 @@ var _target_plate: PanelContainer
 var _target_style: StyleBoxFlat
 var _skill_label: Label
 var _target_label: Label
-## Plain Control, so its children (the dice) are positioned by hand.
+## The tray. Plain Control, so its children (the dice) are positioned by
+## hand.
 var _dice_row: Control
-## Empty room near the foot of the card that the lowest throws start in.
-var _throw_zone: Control
 ## Holds _total_plate's place in the verdict row; the plate itself is a
 ## free child of it, so it can pop and slam without a container resetting
 ## it.
@@ -156,6 +180,10 @@ var _slot_value: Array[int] = [1, 1, 1]
 var _roll_sheets: Array[Texture2D] = [null, null, null]
 var _landed: Array[bool] = [false, false, false]
 var _heights: Array[float] = [0.0, 0.0, 0.0]
+## This roll's route per slot: the die's offset from its slot's rest at
+## each sheet frame (the height stays the throw's own).
+var _routes: Array[PackedVector2Array] = [PackedVector2Array(), PackedVector2Array(), PackedVector2Array()]
+var _rng := RandomNumberGenerator.new()
 var _running_total: int = 0
 ## True from Roll until the resolved state: a click on the card skips.
 var _animating: bool = false
@@ -349,7 +377,7 @@ func _start_throw(roll: Dictionary) -> Tween:
 		_glints[k].visible = false
 		var spec: Dictionary = _heads[head]
 		frames = maxi(frames, _launch_frames[k] + spec.frames + _glint_frames)
-	_warn_if_throw_leaves_card()
+	_plan_routes()
 	var duration: float = frames / _fps
 	var tween: Tween = _new_tween()
 	_show_time(0.0)
@@ -380,7 +408,10 @@ func _show_die(k: int, local: float) -> void:
 	elif not _landed[k]:
 		_land(k)
 	var path: PackedVector3Array = spec.path
-	_place_die(k, path[mini(frame, path.size() - 1)], clampf(local / FADE_IN_FRAMES, 0.0, 1.0))
+	var route: PackedVector2Array = _routes[k]
+	var at: Vector2 = route[mini(frame, route.size() - 1)]
+	var z: float = path[mini(frame, path.size() - 1)].z
+	_place_die(k, Vector3(at.x, at.y, z), clampf(local / FADE_IN_FRAMES, 0.0, 1.0))
 	_show_glint(k, raw - last - 1)
 
 
@@ -415,7 +446,7 @@ func _start_slam(roll: Dictionary) -> Tween:
 	tween.tween_callback(_apply_verdict.bind(roll))
 	tween.tween_interval(SLAM_HOLD)
 	tween.tween_property(_total_plate, "position:x", 0.0, SLAM_RETURN_TIME) \
-		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.parallel().tween_property(_total_plate, "scale", Vector2.ONE, SLAM_RETURN_TIME)
 	return tween
 
@@ -578,27 +609,133 @@ func _request_sheet(file: String) -> void:
 		_requested[file] = true
 
 
-## _build_throw_zone sized the card so every throw starts inside it; if
-## the column under the dice row came out shorter than it reckoned (a
-## theme with bigger fonts, say), a die would start over the dialogue band
-## below the card. The card keeps one height for the whole roll, so the
-## layout read here is the one the throw plays in.
-func _warn_if_throw_leaves_card() -> void:
-	var bottom: float = _card.get_global_rect().end.y
-	var row_top: float = _dice_row.get_global_rect().position.y
+## A route per slot for this roll, redrawn until no two dice ever come
+## within MIN_APART_FACES of each other, in flight or at rest; failing
+## that, the throws' own paths.
+func _plan_routes() -> void:
+	_rng.randomize()
+	for _try in ROUTE_TRIES:
+		var drawn: bool = true
+		for k in SLOTS:
+			_routes[k] = _random_route(k)
+			drawn = drawn and not _routes[k].is_empty()
+		if drawn and _routes_clear():
+			return
+	push_warning("skill_check_dice_popup: no clear routes in %d tries; the dice fly their throws' own paths" % ROUTE_TRIES)
 	for k in SLOTS:
-		var path: PackedVector3Array = _heads[_slot_head[k]].path
-		# The far edge of the die, its face turned diagonal mid-spin.
-		if row_top + _slot_centre(k).y + _max_path_y(path) + _face_px * 0.5 * sqrt(2.0) > bottom + 0.5:
-			push_warning("skill_check_dice_popup: throw %d starts below the card; the throw zone is too short" % _slot_head[k])
+		var own := PackedVector2Array()
+		for p in _heads[_slot_head[k]].path:
+			own.append(Vector2(p.x, p.y))
+		_routes[k] = own
 
 
-## How far below its slot a throw ever gets, px.
-static func _max_path_y(path: PackedVector3Array) -> float:
-	var low: float = 0.0
-	for p in path:
-		low = maxf(low, p.y)
-	return low
+## Die k's route, as its offset from its slot at every sheet frame: in a
+## straight line between bounces (a die in the air keeps its course),
+## turning at each of its throw's bounces and off the tray's edges, and
+## onto the throw's own path where the throw lands for good. Drawn
+## backwards from that landing, so it always ends there; kept when it
+## starts in the lower half of the tray, in die k's third of it, so the
+## three come in side by side. Empty when no draw did in a few goes.
+func _random_route(k: int) -> PackedVector2Array:
+	var path: PackedVector3Array = _heads[_slot_head[k]].path
+	var keys: Array[int] = _key_frames(path)
+	var arrive: int = keys[-1]
+	var slot: Vector2 = _slot_centre(k)
+	var lo := Vector2(TRAY_INSET, TRAY_INSET)
+	var hi: Vector2 = TRAY_SIZE - lo
+	var third: float = (hi.x - lo.x) / SLOTS
+	var steps := PackedVector2Array()
+	steps.resize(keys.size() - 1)
+	var flight := PackedVector2Array()
+	flight.resize(arrive + 1)
+	for _go in 50:
+		# Every leg's step per frame, launch first.
+		var heading: Vector2 = Vector2.UP.rotated(_rng.randf_range(-THROW_IN_SPREAD, THROW_IN_SPREAD))
+		var speed: float = _rng.randf_range(THROW_SPEED.x, THROW_SPEED.y)
+		for leg in steps.size():
+			if leg > 0:
+				var turn: float = _rng.randf_range(BOUNCE_TURN_MIN, BOUNCE_TURN_MAX)
+				heading = heading.rotated(turn if _rng.randi() % 2 == 0 else -turn)
+				speed *= _rng.randf_range(SPEED_KEPT.x, SPEED_KEPT.y)
+			steps[leg] = heading * speed
+		# Back from the landing, folded into the tray: a die that would cross
+		# an edge comes off it mirrored.
+		var at: Vector2 = slot + Vector2(path[arrive].x, path[arrive].y)
+		var leg: int = steps.size() - 1
+		for f in range(arrive, -1, -1):
+			flight[f] = Vector2(_fold(at.x, lo.x, hi.x), _fold(at.y, lo.y, hi.y))
+			while leg > 0 and keys[leg] >= f:
+				leg -= 1
+			at -= steps[leg]
+		if flight[0].y >= TRAY_SIZE.y * 0.5 and int((flight[0].x - lo.x) / third) == k:
+			var route := PackedVector2Array()
+			for f in path.size():
+				route.append(flight[f] - slot if f < arrive else Vector2(path[f].x, path[f].y))
+			return route
+	return PackedVector2Array()
+
+
+## x folded into [lo, hi], as a ball between two walls would be.
+static func _fold(x: float, lo: float, hi: float) -> float:
+	var width: float = hi - lo
+	var t: float = fposmod(x - lo, 2.0 * width)
+	return lo + (t if t <= width else 2.0 * width - t)
+
+
+## Launch, every bounce, and the landing for good, as frames of `path`.
+static func _key_frames(path: PackedVector3Array) -> Array[int]:
+	var arrive: int = path.size() - 1
+	for f in path.size():
+		if path[f].z <= ARRIVE_HEIGHT:
+			arrive = f
+			break
+	var keys: Array[int] = [0]
+	for f in range(1, arrive):
+		var z: float = path[f].z
+		if not (z < path[f - 1].z and z <= path[f + 1].z):
+			continue
+		# A bounce climbs out of the dip; a tumble that only slows its fall
+		# does not.
+		var peak: float = z
+		var j: int = f + 1
+		while j < arrive and path[j].z >= z:
+			peak = maxf(peak, path[j].z)
+			j += 1
+		if peak - z < BOUNCE_RISE or f < MIN_LEG_FRAMES:
+			continue
+		# Two bounces too close together are one: keep the lower.
+		if keys.size() > 1 and f - keys[-1] < MIN_LEG_FRAMES:
+			if z < path[keys[-1]].z:
+				keys[-1] = f
+			continue
+		keys.append(f)
+	while keys.size() > 1 and arrive - keys[-1] < MIN_LEG_FRAMES:
+		keys.pop_back()
+	keys.append(maxi(arrive, 1))
+	return keys
+
+
+## True when no two dice in the tray are ever closer than MIN_APART_FACES,
+## counting each die from its launch and holding it at rest once landed.
+func _routes_clear() -> bool:
+	var apart: float = MIN_APART_FACES * _face_px
+	var span: int = 0
+	for k in SLOTS:
+		span = maxi(span, _launch_frames[k] + _routes[k].size())
+	for frame in span:
+		for a in SLOTS:
+			var la: int = frame - _launch_frames[a]
+			if la < 0:
+				continue
+			var pa: Vector2 = _slot_centre(a) + _routes[a][mini(la, _routes[a].size() - 1)]
+			for b in range(a + 1, SLOTS):
+				var lb: int = frame - _launch_frames[b]
+				if lb < 0:
+					continue
+				var pb: Vector2 = _slot_centre(b) + _routes[b][mini(lb, _routes[b].size() - 1)]
+				if pa.distance_to(pb) < apart:
+					return false
+	return true
 
 
 func _new_tween() -> Tween:
@@ -658,16 +795,14 @@ func _build_scene() -> void:
 
 	_card = PanelContainer.new()
 	add_child(_card)
-	_card.anchor_left = 1.0
-	_card.anchor_top = 1.0
-	_card.anchor_right = 1.0
-	_card.anchor_bottom = 1.0
-	_card.offset_left = -_CORNER_MARGIN
-	_card.offset_right = -_CORNER_MARGIN
-	_card.offset_top = -_BAND_CLEARANCE
-	_card.offset_bottom = -_BAND_CLEARANCE
-	_card.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_card.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_card.anchor_left = 0.5
+	_card.anchor_top = 0.5
+	_card.anchor_right = 0.5
+	_card.anchor_bottom = 0.5
+	_card.offset_top = -_BAND_CLEARANCE * 0.5
+	_card.offset_bottom = -_BAND_CLEARANCE * 0.5
+	_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_card.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_card.mouse_filter = Control.MOUSE_FILTER_STOP
 	_card.add_theme_stylebox_override("panel", _box(CARD_BG, CARD_BG, 0, 10, CARD_MARGIN))
 	_card.gui_input.connect(_on_card_gui_input)
@@ -677,27 +812,20 @@ func _build_scene() -> void:
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.add_theme_constant_override("separation", COLUMN_SEPARATION)
 
-	# Wide enough for the faces at their slots and, each side, the widest
-	# sideways drift of any throw.
-	var drift: float = 0.0
-	for spec in _heads:
-		for p in spec.path:
-			drift = maxf(drift, absf(p.x))
-	var row_width: float = (SLOTS - 1) * _slot_spacing + _face_px + 2 * (DICE_ROW_PAD + ceilf(drift))
 	_dice_row = Control.new()
 	column.add_child(_dice_row)
-	_dice_row.custom_minimum_size = Vector2(row_width, DICE_ROW_HEIGHT)
+	_dice_row.custom_minimum_size = TRAY_SIZE
 	_dice_row.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_dice_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	# Over everything under it, so a die flies across the plates, the
-	# verdict line and the button, not behind them.
+	# Over the rows below, should a spinning corner reach them.
 	_dice_row.z_index = 1
 	# 1:1 sprites, so no mipmaps; linear only for the subpixel shadow.
 	_dice_row.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	_build_dice()
 
-	# Target left, total right, the row as wide as the dice: the slam
-	# crosses the gap between them.
+	# Target left, total right, the row a little wider than the resting
+	# dice: the slam crosses the gap between them.
+	var row_width: float = (SLOTS - 1) * _slot_spacing + _face_px + 2 * VERDICT_PAD
 	var verdict_row := HBoxContainer.new()
 	column.add_child(verdict_row)
 	verdict_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -730,9 +858,9 @@ func _build_scene() -> void:
 	_total_plate.pivot_offset = TOTAL_PLATE_SIZE * 0.5
 	_total_label = _label(_total_plate, 34, DIM_TEXT)
 
-	# The card is anchored bottom-right and grows up, so anything that
-	# changes its height moves the slots under resting dice. The verdict
-	# keeps room for two lines and the button keeps its place while hidden.
+	# The card is centred, so anything that changes its height moves the
+	# slots under resting dice. The verdict keeps room for two lines and the
+	# button keeps its place while hidden.
 	_result_label = _label(column, 18, TEXT)
 	_result_label.remove_theme_color_override("font_color")
 	# Word-wraps inside the dice row's width instead of widening the card.
@@ -741,10 +869,6 @@ func _build_scene() -> void:
 	var line: float = _result_label.get_theme_font("font").get_height(18) \
 		+ _result_label.get_theme_constant("line_spacing")
 	_result_label.custom_minimum_size = Vector2(row_width, ceilf(line * RESULT_LINES))
-
-	_throw_zone = Control.new()
-	column.add_child(_throw_zone)
-	_throw_zone.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	var button_holder := CenterContainer.new()
 	column.add_child(button_holder)
@@ -756,30 +880,6 @@ func _build_scene() -> void:
 	button_holder.custom_minimum_size = _continue_button.get_combined_minimum_size()
 	_continue_button.visible = false
 	_continue_button.pressed.connect(_step.emit)
-
-	_build_throw_zone(column)
-
-
-## Every throw starts below its slot and travels up. The column under the
-## dice row (verdict row, verdict line, button, the card's bottom margin)
-## is already room a die can fly over; the throw zone, between the verdict
-## line and the button, makes up whatever more the lowest start needs, so
-## no die, half a cell round its centre, ever starts below the card's
-## bottom edge. Fixed here, so the card never changes height mid-roll.
-func _build_throw_zone(column: VBoxContainer) -> void:
-	if _heads.is_empty():
-		return
-	var lowest: float = 0.0
-	for spec in _heads:
-		lowest = maxf(lowest, _max_path_y(spec.path))
-	var needed: float = lowest + _cell * 0.5 - DICE_ROW_HEIGHT * 0.5
-	var below: float = CARD_MARGIN
-	for i in range(_dice_row.get_index() + 1, column.get_child_count()):
-		var child := column.get_child(i) as Control
-		below += COLUMN_SEPARATION
-		if child != _throw_zone:
-			below += child.get_combined_minimum_size().y
-	_throw_zone.custom_minimum_size = Vector2(0.0, ceilf(maxf(needed - below, 0.0)))
 
 
 ## Shadows first, then the dice, so every shadow is under every die.
