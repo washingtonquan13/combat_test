@@ -26,24 +26,23 @@ const SHEET_SHADER: Shader = preload("res://systems/surface_system/water_wall.gd
 ## under it into the hollow, down the steep concave face, and out along
 ## the trough in front.
 const PROFILE: Array[Vector2] = [
-	Vector2(-2.2, 0.0), Vector2(-1.7, 0.06), Vector2(-1.2, 0.18),
-	Vector2(-0.75, 0.36), Vector2(-0.35, 0.58), Vector2(0.0, 0.78),
-	Vector2(0.35, 0.93), Vector2(0.75, 1.0), Vector2(1.15, 0.98),
-	Vector2(1.45, 0.88), Vector2(1.62, 0.74), Vector2(1.65, 0.62),
-	Vector2(1.55, 0.68), Vector2(1.3, 0.76), Vector2(1.0, 0.74),
-	Vector2(0.75, 0.62), Vector2(0.6, 0.45), Vector2(0.55, 0.28),
-	Vector2(0.62, 0.12), Vector2(0.85, 0.03), Vector2(1.3, 0.0),
+	Vector2(-1.8, 0.0), Vector2(-1.3, 0.12), Vector2(-0.85, 0.32),
+	Vector2(-0.45, 0.55), Vector2(-0.1, 0.75), Vector2(0.2, 0.9),
+	Vector2(0.5, 0.98), Vector2(0.8, 1.0), Vector2(1.05, 0.96),
+	Vector2(1.22, 0.88), Vector2(1.3, 0.8), Vector2(1.3, 0.72),
+	Vector2(1.24, 0.67), Vector2(1.14, 0.7), Vector2(1.02, 0.76),
+	Vector2(0.88, 0.79), Vector2(0.74, 0.77), Vector2(0.62, 0.7),
+	Vector2(0.54, 0.58), Vector2(0.5, 0.44), Vector2(0.48, 0.3),
+	Vector2(0.5, 0.16), Vector2(0.58, 0.06), Vector2(0.75, 0.01),
+	Vector2(1.1, 0.0),
 ]
 ## How thick the water is at each of PROFILE's points, metres: deep in
 ## the body, thinning out to the lip's point.
-const THICKNESS: Array[float] = [
-	1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.45, 0.32, 0.2, 0.12,
-	0.06, 0.1, 0.2, 0.32, 0.5, 0.7, 0.9, 1.0, 0.8, 0.4,
-]
+const THICKNESS: Array[float] = [1.8,1.6,1.4,1.2,1.0,0.85,0.7,0.55,0.4,0.28,0.18,0.1,0.06,0.1,0.16,0.24,0.32,0.42,0.55,0.7,0.85,1.0,1.0,0.8,0.4]
 ## Which of PROFILE's points is the lip's point.
-const TIP: int = 11
+const TIP: int = 12
 ## Which of PROFILE's points the face under the lip runs between.
-const BACK_WALL: Vector2i = Vector2i(15, 17)
+const BACK_WALL: Vector2i = Vector2i(19, 21)
 ## Points between each two of PROFILE's, smoothed through them.
 const PROFILE_STEPS: int = 8
 ## Mesh rows between each two stations.
@@ -54,8 +53,6 @@ const NOMINAL_HEIGHT: float = 4.0
 @export var streaks: Texture2D
 ## The ripples' normal map.
 @export var ripples: Texture2D
-## The Electrified Wall of Water's crackle, 0 for plain water.
-@export var crackle: float = 0.0
 @export var spray_per_metre: float = 6.0
 @export var drips_per_metre: float = 3.0
 ## How long the wave takes to rise, and how long the rising takes to run
@@ -105,7 +102,9 @@ var _profile_thickness := PackedFloat32Array()
 var _lip: int = 0
 var _crest: int = 0
 var _tip: int = TIP * PROFILE_STEPS
-var _born: float = 0.0
+## Seconds since it was placed, in game time, so a slow frame (the
+## first one, building the mesh) can't skip the rise.
+var _age: float = 0.0
 var _risen: bool = false
 var _strength: float = 1.0
 var _material: ShaderMaterial
@@ -124,7 +123,6 @@ func _ready() -> void:
 	_smooth_profile()
 	_material = _make_material(SHEET_SHADER, _sheet, _mesh)
 	_material.set_shader_parameter("ripples", ripples)
-	_material.set_shader_parameter("crackle", crackle)
 
 
 func _make_material(shader: Shader, instance: MeshInstance3D, mesh: ArrayMesh) -> ShaderMaterial:
@@ -158,7 +156,7 @@ func _emitters() -> Array[GPUParticles3D]:
 ## wall is placed: an emitter's amount can't change later without it
 ## restarting.
 func show_cubes(cells: Array) -> void:
-	_born = Time.get_ticks_msec() / 1000.0
+	_age = 0.0
 	var spans: Dictionary[Vector2i, Vector2] = {}
 	for cell in cells:
 		_keys.append(cell.key)
@@ -347,10 +345,10 @@ func _scaled(point: Vector2, height: float) -> Vector2:
 
 ## Station i's height now, 0..1: rising from the middle out, sunk as it
 ## recedes, tapered at the ends, collapsing as the whole wave goes.
-func _station_height(i: int, now: float) -> float:
+func _station_height(i: int) -> float:
 	var t: float = _station_t[i]
 	var reach: float = maxf(absf(_station_t[0]), absf(_station_t[_station_t.size() - 1]))
-	var rise: float = clampf((now - _born - rise_spread * absf(t) / maxf(reach, 0.001)) / maxf(rise_seconds, 0.001), 0.0, 1.0)
+	var rise: float = clampf((_age - rise_spread * absf(t) / maxf(reach, 0.001)) / maxf(rise_seconds, 0.001), 0.0, 1.0)
 	rise = rise * rise * (3.0 - 2.0 * rise)
 	var end: float = minf(t - _station_t[0], _station_t[_station_t.size() - 1] - t)
 	var tapered: float = smoothstep(0.0, taper, end)
@@ -470,9 +468,8 @@ func _add_strip(mesh: ArrayMesh, path: PackedVector2Array, attrs: Array[Vector4]
 
 ## Each station's height now into the shaders' texture.
 func _update_heights() -> void:
-	var now: float = Time.get_ticks_msec() / 1000.0
 	for i in _station_t.size():
-		_heights_image.set_pixel(i, 0, Color(_station_height(i, now), 0.0, 0.0))
+		_heights_image.set_pixel(i, 0, Color(_station_height(i), 0.0, 0.0))
 	_heights.update(_heights_image)
 
 
@@ -514,9 +511,10 @@ func _standing(i: int) -> bool:
 func _process(delta: float) -> void:
 	if _station_t.is_empty():
 		return
-	var now: float = Time.get_ticks_msec() / 1000.0
+	# At most a 30 fps step, so a hitch slows the rise instead of skipping it.
+	_age += minf(delta, 1.0 / 30.0)
 	var changed: bool = not _risen or _strength < 1.0
-	if not _risen and now > _born + rise_spread + rise_seconds:
+	if not _risen and _age > rise_spread + rise_seconds:
 		_risen = true
 		_emit_from_points()
 	for i in _station_t.size():

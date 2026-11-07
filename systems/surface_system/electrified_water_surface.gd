@@ -1,6 +1,6 @@
 extends DecalSurface
 ## Electrified Water: the water film, glowing, with charge skittering
-## over it (electric_crawl.gd): painted arcs snapping between the
+## over it (electric_crawl.gd), no crackle painted in the water itself: painted arcs snapping between the
 ## puddle's cells, low over the water, and a light flickering with them.
 ## Only cells that have spread in and are not receding carry charge, so
 ## the arcs gather with the puddle and die back as it goes.
@@ -18,16 +18,15 @@ func _ready() -> void:
 	super()
 	_crawl = Crawl.new()
 	_crawl.hug_floor = true
-	# The film's crackle covers the pool; these are the odd bigger bolt
-	# arching up out of it, held long enough to see.
-	_crawl.arcs_per_point = 0.025
-	_crawl.max_arcs = 4
+	# Bolts arching up out of the pool, held long enough to see.
+	_crawl.arcs_per_point = 0.08
+	_crawl.max_arcs = 10
 	_crawl.min_length = 1.0
 	_crawl.max_length = 2.6
 	_crawl.arc_seconds = Vector2(0.1, 0.3)
 	_crawl.floor_bow = 0.45
 	_crawl.surge_arcs = 3
-	_crawl.surges_per_second = 0.8
+	_crawl.surges_per_second = 2.0
 	# Placed in world space: the decal's box moves as the puddle redraws.
 	_crawl.top_level = true
 	add_child(_crawl)

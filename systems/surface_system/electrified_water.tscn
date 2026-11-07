@@ -11,7 +11,6 @@ shader_parameter/alpha_max = 0.6
 shader_parameter/lumpiness = 0.1
 shader_parameter/droplets = 0.5
 shader_parameter/glow_color = Color(0.022, 0.045, 0.1, 1)
-shader_parameter/crackle = 1.0
 shader_parameter/bumpiness = 0.05
 shader_parameter/ripple_scale = 2.0
 shader_parameter/ripple_strength = 0.6

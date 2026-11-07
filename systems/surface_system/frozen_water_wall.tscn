@@ -1,0 +1,7 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://systems/surface_system/water_wall.tscn" id="1_wall"]
+[ext_resource type="Script" path="res://systems/surface_system/frozen_water_wall.gd" id="2_script"]
+
+[node name="FrozenWaterWall" instance=ExtResource("1_wall")]
+script = ExtResource("2_script")

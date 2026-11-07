@@ -5,4 +5,3 @@
 
 [node name="ElectrifiedWaterWall" instance=ExtResource("1_wall")]
 script = ExtResource("2_script")
-crackle = 1.0

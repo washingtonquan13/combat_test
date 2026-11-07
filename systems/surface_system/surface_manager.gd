@@ -58,6 +58,10 @@ const WALL_HALF_THICKNESS: float = 0.75
 ## How far round the struck spot a single-target attack at the ground
 ## touches the floor (touch), meters.
 const POINT_TOUCH_RADIUS: float = 0.4
+## The physics layer of a blocks_movement cloud's barrier: the navigation
+## grid bakes a body on any layer, but sight and shots only test layer 1,
+## so the barrier stops walkers and nothing else.
+const BARRIER_LAYER: int = 1 << 18
 
 ## The focused world's clouds — what's on screen. Kept for readers that
 ## really mean that (the world-scoping suite); everything here goes
@@ -565,6 +569,7 @@ func _fill(surface: Surface, seeds: Dictionary[Vector3i, Vector3], inside: Calla
 		patch.visual.global_position = position
 		if patch.visual.has_method("show_cubes"):
 			patch.visual.show_cubes(patch.cells)
+	_sync_barrier(patch, parent)
 	return patch
 
 
@@ -1150,6 +1155,7 @@ func expire_all_clouds(context: WorldContext) -> void:
 ## patch's visual lets go of cells it no longer holds: all of them thins
 ## the whole cloud away, some recedes just those.
 func _recede(patch: CloudPatch, cells: Array[CloudCell]) -> void:
+	_sync_barrier(patch, null)
 	if patch.visual == null or not is_instance_valid(patch.visual):
 		return
 	if patch.cells.is_empty() and patch.visual.has_method("dissipate"):
@@ -1158,6 +1164,64 @@ func _recede(patch: CloudPatch, cells: Array[CloudCell]) -> void:
 		patch.visual.recede_cubes(cells)
 	elif patch.cells.is_empty():
 		patch.visual.queue_free()
+
+
+## Rebuilds patch's barrier over the cubes it holds now (a blocks_movement
+## cloud only): one box per column of cubes, floor to top, and has the
+## navigation grid re-bake where the old one stood and the new one stands.
+## The old body leaves the tree before the grid looks, so it never keeps a
+## pointer to a freed shape. parent is where a first barrier goes.
+func _sync_barrier(patch: CloudPatch, parent: Node) -> void:
+	if not patch.surface.blocks_movement:
+		return
+	var region := AABB()
+	var changed: bool = false
+	var old: StaticBody3D = patch.barrier if is_instance_valid(patch.barrier) else null
+	patch.barrier = null
+	if old:
+		region = _barrier_box(old)
+		changed = true
+		parent = old.get_parent()
+		parent.remove_child(old)
+		old.queue_free()
+	if not patch.cells.is_empty() and parent:
+		var columns: Dictionary[Vector2i, Vector2i] = {}  # column -> lowest, highest key.y
+		for cell in patch.cells:
+			var column := Vector2i(cell.key.x, cell.key.z)
+			var span: Vector2i = columns.get(column, Vector2i(cell.key.y, cell.key.y))
+			columns[column] = Vector2i(mini(span.x, cell.key.y), maxi(span.y, cell.key.y))
+		var body := StaticBody3D.new()
+		body.name = "Barrier"
+		body.collision_layer = BARRIER_LAYER
+		body.collision_mask = 0
+		parent.add_child(body)
+		body.global_transform = Transform3D.IDENTITY
+		for column: Vector2i in columns:
+			var span: Vector2i = columns[column]
+			var low := Vector3(column.x, span.x, column.y) * CloudGrid.CELL
+			var high := Vector3(column.x + 1, span.y + 1, column.y + 1) * CloudGrid.CELL
+			var box := BoxShape3D.new()
+			box.size = high - low
+			var shape := CollisionShape3D.new()
+			shape.shape = box
+			shape.position = (low + high) * 0.5
+			body.add_child(shape)
+		patch.barrier = body
+		var box: AABB = _barrier_box(body)
+		region = region.merge(box) if changed else box
+		changed = true
+	if changed:
+		var root: Node = patch.context.world_root if patch.context and patch.context.world_root else parent
+		NavigationGrid.invalidate_region(root, region)
+
+
+func _barrier_box(body: StaticBody3D) -> AABB:
+	var box := AABB()
+	for shape: CollisionShape3D in body.get_children():
+		var size: Vector3 = (shape.shape as BoxShape3D).size
+		var one := AABB(body.global_transform * shape.position - size * 0.5, size)
+		box = one if box.size == Vector3.ZERO else box.merge(one)
+	return box
 
 
 ## Every cell runs out on its own clock; a patch loses the cells that ran

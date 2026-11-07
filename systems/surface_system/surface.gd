@@ -109,6 +109,11 @@ enum Shape {
 ## guarantees the movement preview and the actual move can never
 ## disagree about it.
 @export var movement_cost_multiplier: float = 1.0
+## A cloud that stops walkers: routes go round its cubes the way they go
+## round a wall (Frozen Wall of Water), through a barrier SurfaceManager
+## keeps over them. Only walking: sight and shots still follow
+## blocks_sight and ranged_penalty.
+@export var blocks_movement: bool = false
 
 @export_group("Ranged")
 ## Added to the to-hit number of a ranged attack whose shot line passes

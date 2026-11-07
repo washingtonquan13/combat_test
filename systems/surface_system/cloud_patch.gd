@@ -9,6 +9,9 @@ var surface: Surface
 var cells: Array[CloudCell] = []
 ## A fog_cloud.gd visual, shown the cubes through show_cubes()/recede_cubes().
 var visual: Node3D
+## Over the cubes of a blocks_movement cloud, for the navigation grid to
+## route round (SurfaceManager._sync_barrier).
+var barrier: StaticBody3D
 var context: WorldContext
 
 
