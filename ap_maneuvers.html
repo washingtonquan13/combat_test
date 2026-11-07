@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Maneuvers on Pips</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Spectral:ital,wght@0,400;0,600;1,400&family=Inter+Tight:wght@500;600;700&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #15120f; --panel: #1f1a15; --panel-2: #29221b; --line: #3d3328;
+  --fg: #e9e1d4; --muted: #a89a86; --gold: #d8a94a;
+  --mv: #e0b04f; --ac: #efe6d2; --at: #c4523f; --warn: #e0a040; --bad: #c4523f; --ok: #8fbf6a; --tg: #7fb2d8;
+  --hole: #120f0c;
+  --serif: "Spectral", Georgia, serif; --display: "Cinzel", Georgia, serif; --sans: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 var(--serif); padding: 0 16px; }
+.wrap { max-width: 900px; margin: 0 auto; padding-block: 36px 72px; display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.2; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(28px, 6vw, 40px); }
+h2 { font-size: clamp(21px, 4vw, 26px); color: var(--gold); }
+h3 { font: 700 17px/1.3 var(--sans); }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 16px; }
+.label { font: 600 12px/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); font-style: italic; font-size: 18px; }
+strong { color: #fff3dd; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 70ch; }
+.note { font: 500 14px/1.5 var(--sans); color: var(--muted); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font: 500 14px/1.45 var(--sans); }
+th, td { text-align: left; vertical-align: top; padding: 9px 11px; border-bottom: 1px solid var(--line); }
+th { font: 700 11.5px/1.2 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); position: sticky; top: 0; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 700; color: #fff3dd; white-space: nowrap; }
+td .pg { display: block; font-weight: 500; color: var(--muted); font-size: 12px; }
+td.port { background: rgba(216,169,74,0.06); }
+td.adapt { background: rgba(127,178,216,0.06); }
+
+.cost { display: inline-flex; gap: 3px; align-items: center; vertical-align: -3px; margin-right: 4px; }
+.pip { --c: var(--mv); width: 13px; height: 15px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--c); display: inline-block; position: relative; flex: none; }
+.pip::after { content: ""; position: absolute; inset: 2px; clip-path: inherit; background: var(--c); }
+.pip.ac { --c: var(--ac); } .pip.at { --c: var(--at); } .pip.step { --c: var(--ok); }
+.pip.out::after { background: var(--hole); }
+.free { font: 700 11.5px/1 var(--sans); color: var(--tg); border: 1px solid var(--tg); border-radius: 4px; padding: 3px 5px; }
+
+.kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.kind { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--c, var(--gold)); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+.kind h3 { color: var(--c, var(--gold)); }
+.kind p, .kind ul { font-size: 15.5px; }
+.kind.tg { --c: var(--tg); } .kind.ts { --c: var(--warn); } .kind.act { --c: var(--ac); } .kind.der { --c: var(--muted); }
+
+.decide { display: grid; gap: 12px; }
+.q { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--tg); border-radius: 10px; padding: 12px 16px; display: grid; gap: 6px; }
+.q p { font-size: 16px; }
+.q .rec { font: 600 14px/1.45 var(--sans); color: #cfe3f2; }
+
+.strip { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; background: #191c16; border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.strip .pip { width: 18px; height: 21px; }
+.strip .gap { width: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <span class="label">Typed AP · maneuvers</span>
+  <h1>The Basic Set maneuvers, ported to pips</h1>
+  <p class="lede">Port first, adapt second. Each book maneuver is given as written, then what it costs under the six core rules, then the change the port forces or invites.</p>
+  <p class="note">The book column is from memory of the Basic Set (pages B363–B367, B369–B370, B357, B417). Check the marked lines against the book before building anything.</p>
+</header>
+
+<section>
+  <h2>Cost marks used below</h2>
+  <p class="note" style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center">
+    <span><span class="cost"><i class="pip step"></i></span>free step</span>
+    <span><span class="cost"><i class="pip"></i></span>movement pip</span>
+    <span><span class="cost"><i class="pip ac"></i></span>Action pip</span>
+    <span><span class="cost"><i class="pip at"></i></span>Extra Attack pip</span>
+    <span><span class="free">FREE</span> no pips</span>
+  </p>
+</section>
+
+<section>
+  <h2>1 · The maneuvers, as written and as pips</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Maneuver</th><th>Book: one second</th><th>Book move · defenses</th><th>Port: pips</th><th>Adapt</th></tr></thead>
+    <tbody>
+      <tr><td>Do Nothing<span class="pg">B364</span></td><td>Stand still; the turn a stunned fighter recovers on.</td><td>None · any</td><td class="port"><span class="free">FREE</span>End Turn with pips unspent.</td><td class="adapt">The stun roll already happens at turn start, so it needs no button.</td></tr>
+      <tr><td>Move<span class="pg">B364</span></td><td>Move up to full Move. No attack.</td><td>Full · any</td><td class="port"><span class="cost"><i class="pip step"></i><i class="pip"></i></span>Movement pips only.</td><td class="adapt">No longer exclusive: the Action pip is still yours. Moving then attacking is Move and Attack (rule 4).</td></tr>
+      <tr><td>Change Posture<span class="pg">B364</span></td><td>One posture change. Prone to standing takes two turns via kneeling. Crouching can ride on a step (check).</td><td>None · any</td><td class="port"><span class="cost"><i class="pip ac"></i></span>One change.</td><td class="adapt">Stand from prone = two changes: the Action pip, then borrow. Crouch is free.</td></tr>
+      <tr><td>Aim<span class="pg">B364</span></td><td>Ranged only. The next attack gets +Acc. +1 more after a second turn, +2 after three. Spoiled by an active defense or by being hurt.</td><td>Step · any (spoils aim)</td><td class="port"><span class="cost"><i class="pip ac"></i></span>The bonus is banked for the next turn's shot.</td><td class="adapt">One turn of Aim only for now (build-up was deferred). Paid movement spoils it, and so does an automated defense.</td></tr>
+      <tr><td>Evaluate<span class="pg">B364</span></td><td>+1 per turn to the next melee attack or Feint on one foe, to +3.</td><td>Step · any</td><td class="port"><span class="cost"><i class="pip ac"></i></span>Banked against that foe.</td><td class="adapt">Same as Aim: one turn now, build-up later.</td></tr>
+      <tr><td>Attack<span class="pg">B365</span></td><td>One attack, melee or ranged.</td><td>Step · any</td><td class="port"><span class="cost"><i class="pip at"></i></span>or <span class="cost"><i class="pip ac"></i></span>or borrow <span class="cost"><i class="pip"></i><i class="pip"></i><i class="pip"></i></span></td><td class="adapt">Spend order: Attack, then Action, then borrow (rule 6). The free toggles ride on it.</td></tr>
+      <tr><td>Feint<span class="pg">B365</span></td><td>Quick Contest of skill. Your margin is subtracted from the foe's defense against your next attack, on your next turn.</td><td>Step · any</td><td class="port"><span class="cost"><i class="pip ac"></i></span>Margin stored on the foe.</td><td class="adapt">Keep the book's timing: the margin applies from your next turn. Otherwise feint plus borrowed attack becomes All-Out Attack (Feint) at no price.</td></tr>
+      <tr><td>All-Out Attack<span class="pg">B365</span></td><td>Melee, choose one: <b>Determined</b> +4 to hit, <b>Double</b> two attacks, <b>Feint</b> feint and attack, <b>Strong</b> +2 damage (or +1 per die). Ranged: Determined +1, Suppression Fire.</td><td>Half Move forward · <b>none</b> until your next turn</td><td class="port"><span class="cost"><i class="pip ac"></i></span>A turn state. Movement capped at half Move, no Move and Attack penalty inside it.</td><td class="adapt">Double: the second attack is free and takes no Rapid Strike. Feint: the margin applies on this turn.</td></tr>
+      <tr><td>Move and Attack<span class="pg">B365</span></td><td>Full move, then one attack. Melee −4 with skill capped at 9; ranged −2 or Bulk, whichever is worse. No Parry or retreat (check).</td><td>Full · restricted</td><td class="port">Never chosen: applied when any paid pip was spent and you attack (rule 4).</td><td class="adapt">The step pip doesn't count, matching the book's step on Attack.</td></tr>
+      <tr><td>All-Out Defense<span class="pg">B366</span></td><td>No attack. Choose one: <b>Increased Defense</b> +2 to one of Dodge, Parry or Block, or <b>Double Defense</b> two different defenses against one attack.</td><td>Step, or half Move with Increased Dodge · boosted</td><td class="port"><span class="cost"><i class="pip ac"></i><i class="pip at out"></i></span>A turn state. Uses up the Action and Attack pips.</td><td class="adapt">Defenses are automated, so the variant is a choice and the roll picks itself. Only AoD (Dodge) allows past half Move.</td></tr>
+      <tr><td>Concentrate<span class="pg">B366</span></td><td>Mental task or spell. A defense or injury calls for Will−3 or the effort is lost.</td><td>Step · any (may break)</td><td class="port"><span class="cost"><i class="pip ac"></i></span>Per second of casting. Longer casts hold across turns.</td><td class="adapt">Decision below: whether a spell can follow paid movement.</td></tr>
+      <tr><td>Ready<span class="pg">B366</span></td><td>Draw, sheathe or pick up an item, or one second of reloading. Fast-Draw makes drawing free.</td><td>Step · any</td><td class="port"><span class="cost"><i class="pip ac"></i></span>Per Ready. A reload of N seconds = N Action pips.</td><td class="adapt">Borrow lets you Ready and still attack, at the price of movement.</td></tr>
+      <tr><td>Wait<span class="pg">B366</span></td><td>Hold a maneuver until a trigger, then act.</td><td>As the held maneuver</td><td class="port">—</td><td class="adapt">Deferred in the core.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>2 · Attack options from the book</h2>
+  <p>These modify an Attack; they are not maneuvers. Hit location and Deceptive Attack are already in the game as free toggles, and the others follow the same pattern.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Option</th><th>Book</th><th>Port</th><th>Combines with</th></tr></thead>
+    <tbody>
+      <tr><td>Hit location<span class="pg">B398</span></td><td>Penalty by location, effect by location.</td><td class="port"><span class="free">FREE</span>Toggle, one per group (built).</td><td>Everything except All-Out Defense.</td></tr>
+      <tr><td>Deceptive Attack<span class="pg">B369</span></td><td>−2 to your skill for each −1 to the foe's defense.</td><td class="port"><span class="free">FREE</span>Leveled toggle (built).</td><td>Everything except All-Out Defense.</td></tr>
+      <tr><td>Dual-Weapon Attack<span class="pg">B417</span></td><td>Attack with both hands at once, −4 each (off-hand penalty too, unless trained).</td><td class="port"><span class="free">FREE</span>Toggle. One pip pays both attacks.</td><td>Not with Rapid Strike or AoA Double.</td></tr>
+      <tr><td>Rapid Strike<span class="pg">B370</span></td><td>Two attacks with one weapon, −6 to <b>both</b>.</td><td class="port">Not a toggle: any extra attack not paid from an Attack pip (rule 5).</td><td>Divergence: the port penalises only the extra one, because pips are spent as you go and the first swing is already resolved.</td></tr>
+      <tr><td>Extra Effort<span class="pg">B357</span></td><td>Pay FP: Mighty Blows (+damage), Flurry of Blows (halves the Rapid Strike penalty), Feverish Defense (+2 to a defense).</td><td class="port"><span class="free">FREE</span> pips, costs FP. Toggles.</td><td>Uses the FP globe already on the dock.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">Telegraphic, Committed and Defensive Attack are from Martial Arts, not the Basic Set. Leave them until the Basic Set port is in.</p>
+</section>
+
+<section>
+  <h2>3 · Toggle, turn state or action</h2>
+  <div class="kinds">
+    <div class="kind tg"><h3>Free toggles</h3><p>Ride on any attack, cost no pips, and stack. Exclusive only inside their group.</p><ul><li>Hit location (group)</li><li>Deceptive Attack (level)</li><li>Dual-Weapon Attack</li><li>Extra Effort (FP)</li></ul></div>
+    <div class="kind ts"><h3>Turn states</h3><p>One per turn, exclusive with each other. They change your defenses until your next turn, so they lock once you act.</p><ul><li>All-Out Attack: Determined, Double, Feint, Strong (pick one)</li><li>All-Out Defense: Increased, Double (pick one)</li><li>Wait (later)</li></ul></div>
+    <div class="kind act"><h3>Actions</h3><p>Each spends a pip and can be borrowed for.</p><ul><li>Attack, Feint</li><li>Aim, Evaluate</li><li>Ready, Change Posture</li><li>Concentrate</li></ul></div>
+    <div class="kind der"><h3>Derived, never chosen</h3><p>Follow from what you spent.</p><ul><li>Move</li><li>Move and Attack</li><li>Rapid Strike</li><li>Do Nothing</li></ul></div>
+  </div>
+  <h3 style="margin-top:6px">Conflicts</h3>
+  <ul>
+    <li><strong>All-Out Attack vs All-Out Defense:</strong> exclusive.</li>
+    <li><strong>All-Out Defense</strong> greys out every attack action and every attack toggle.</li>
+    <li><strong>All-Out Attack</strong> is unavailable once paid movement passes half Move. While it's on, the path stops at half Move and Move and Attack doesn't apply.</li>
+    <li><strong>AoA Double</strong> excludes Dual-Weapon. A third attack bought with borrowed movement still takes Rapid Strike.</li>
+    <li><strong>Aim and Evaluate</strong> are lost to paid movement past the step, and Aim is also lost to any defense roll.</li>
+    <li>Toggles keep their state between attacks but reset at end of turn, as now. Turn states reset at the start of your next turn.</li>
+  </ul>
+  <p class="note"><strong>AI cost:</strong> <code>_score_plan</code> already prices hit locations × Deceptive levels for every attack. Crossing in four AoA variants multiplies that by five. Price the turn states as separate plans instead: AoA (Determined) crossed with hit location only; Double and Strong at the best toggle from the plain plan; AoD as one plan with no attack. The cost becomes additive, not multiplied.</p>
+</section>
+
+<section>
+  <h2>4 · What the game has now</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Ability</th><th>Now</th><th>Book</th><th>Port</th></tr></thead>
+    <tbody>
+      <tr><td>Basic attacks</td><td>Attack action</td><td>Attack</td><td class="port"><span class="cost"><i class="pip ac"></i></span>(spend order)</td></tr>
+      <tr><td>Target head / vitals, Deceptive</td><td>Free toggles</td><td>Attack options</td><td class="port"><span class="free">FREE</span>unchanged</td></tr>
+      <tr><td>Reload</td><td>Attack action</td><td>Ready × reload time</td><td class="port"><span class="cost"><i class="pip ac"></i></span>per second of reload</td></tr>
+      <tr><td>Pick Up</td><td>Attack action</td><td>Ready</td><td class="port"><span class="cost"><i class="pip ac"></i></span></td></tr>
+      <tr><td>Shove</td><td>Attack action</td><td>Attack (B372)</td><td class="port"><span class="cost"><i class="pip ac"></i></span>Takes Move and Attack after paid movement</td></tr>
+      <tr><td>Dismiss</td><td>Attack action</td><td>Ending your own spell is free</td><td class="port"><span class="free">FREE</span></td></tr>
+      <tr><td>Jump</td><td>Spends move distance</td><td>Part of Move (B352)</td><td class="port"><span class="cost"><i class="pip"></i></span>by distance (unchanged)</td></tr>
+      <tr><td>Fly (take off)</td><td>Attack action + 2 m</td><td>Part of Move with Flight</td><td class="port"><span class="cost"><i class="pip"></i><i class="pip"></i></span>2 movement pips, no Action</td></tr>
+      <tr><td>Land</td><td>Free</td><td>Part of Move</td><td class="port"><span class="free">FREE</span></td></tr>
+      <tr><td>Weapon set swap (F)</td><td>Free</td><td>Ready (sheathe + draw)</td><td class="port">Decision below</td></tr>
+      <tr><td>Spells</td><td>Attack action</td><td>Concentrate × cast time</td><td class="port"><span class="cost"><i class="pip ac"></i></span>per second</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>5 · The step is a pip</h2>
+  <p>It can be exactly one pip if movement pips are a <strong>fixed count of ten, each Move/10 long</strong>. The book step is Move/10, so the first pip is the step for every unit. That also settles the open question of more pips versus longer pips: faster units get longer pips. Borrowing three pips then costs 30% of anyone's Move.</p>
+  <div class="strip" aria-label="Movement row: one green step pip and nine gold pips, then the Action pip">
+    <i class="pip step"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><span class="gap"></span><i class="pip ac"></i>
+  </div>
+  <p class="note">The green first pip is spent the moment you move, costs nothing, can't be borrowed by an action, and doesn't trigger Move and Attack. Both mockups now draw it this way in place of the STEP capsule.</p>
+</section>
+
+<section>
+  <h2>6 · Decisions the port leaves open</h2>
+  <div class="decide">
+    <div class="q"><h3>Spells after paid movement</h3><p>The book's Concentrate allows only a step, so walking then casting is illegal. BG3 players expect to move and cast.</p><p class="rec">Recommend: allow it. Attack spells take Move and Attack; other spells take no penalty.</p></div>
+    <div class="q"><h3>Weapon set swap</h3><p>Free now (BG3). The book says Ready, and Fast-Draw makes drawing free.</p><p class="rec">Recommend: one Ready (Action pip, borrowable), or free on an automatic Fast-Draw success.</p></div>
+    <div class="q"><h3>Rapid Strike on both attacks?</h3><p>The book penalises both swings. Spending as you go can't reach back to the first.</p><p class="rec">Recommend: keep the port rule (the extra one only). Fixing it would need a declare-first toggle, which is the solver the core ruled out.</p></div>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

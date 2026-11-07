@@ -5,22 +5,24 @@
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_vpgqn"]
 [ext_resource type="Script" uid="uid://fgbbihwp3tid" path="res://systems/ability_system/gear_damage_effect.gd" id="2_4hxbv"]
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://systems/ability_system/ranged_enemy_targeting.gd" id="5_nl2jd"]
-[ext_resource type="Script" path="res://systems/ability_system/ability_timing.gd" id="t_timing"]
-[ext_resource type="Resource" path="res://data/animation_sequences/weapon_crossbow.tres" id="seq_default"]
-[ext_resource type="Resource" path="res://data/vfx/bolt_flight.tres" id="vfx_default"]
+[ext_resource type="Resource" uid="uid://bswb4mw0s1ee1" path="res://data/animation_sequences/weapon_crossbow.tres" id="seq_default"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="t_timing"]
+[ext_resource type="Resource" uid="uid://gi88pt6ycb12" path="res://data/vfx/bolt_flight.tres" id="vfx_default"]
 
 [sub_resource type="Resource" id="Resource_nl2jd"]
 script = ExtResource("2_4hxbv")
 category = 1
+off_hand = false
 metadata/_custom_type_script = "uid://fgbbihwp3tid"
 
 [sub_resource type="Resource" id="Resource_pm8sj"]
 script = ExtResource("5_nl2jd")
-aims_at_ground = true
 max_range = 15.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
 requires_ally = false
+any_unit = false
+aims_at_ground = true
 metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 
 [sub_resource type="Resource" id="Resource_timing"]
@@ -32,19 +34,24 @@ impact_timeout = 3.0
 script = ExtResource("1_vpgqn")
 ability_name = "Basic Attack (Ranged)"
 icon = ExtResource("1_8dawa")
+icon_color = Color(0.78, 0.74, 0.66, 1)
 category = 0
 targeting = SubResource("Resource_pm8sj")
 effects = Array[ExtResource("1_7ohbq")]([SubResource("Resource_nl2jd")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = true
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+timing = SubResource("Resource_timing")
+cast_vfx = ExtResource("vfx_default")
 armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
 armed_exit_animation = ""
-timing = SubResource("Resource_timing")
 cast_animation = ExtResource("seq_default")
-cast_vfx = ExtResource("vfx_default")
 plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

@@ -1,37 +1,58 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3 uid="uid://dna4g0dvtk5dm"]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://b7oi6ye8v7p0" path="res://assets/test_item_icons/test_shield.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_statmod"]
 [ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="4_weapon"]
-[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="5_row"]
+[ext_resource type="Script" uid="uid://kj230cxxaog0" path="res://systems/inventory_system/attack_row.gd" id="5_row"]
+[ext_resource type="Resource" uid="uid://d0kjsmtkqqovb" path="res://data/animation_sequences/weapon_bash.tres" id="seq_bash"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/buckler.tscn" id="w_model"]
-[ext_resource type="Resource" path="res://data/animation_sequences/weapon_bash.tres" id="seq_bash"]
 
 [sub_resource type="Resource" id="Resource_statmod"]
 script = ExtResource("3_statmod")
 stat_name = &"DB"
 amount = 1
+multiplier = 1.0
 
 [sub_resource type="Resource" id="Resource_bash"]
 script = ExtResource("5_row")
 label = "Shield Bash"
-animation = ExtResource("seq_bash")
+kind = 0
 damage_base = 1
+damage_bonus = 0
+wound_type = 0
+armor_divisor = 1.0
+reach = 1.0
+min_st = 0
 off_hand_ok = true
+to_hit_bonus = 0
+acc = 0
+half_damage_range = 0.0
+max_range = 0.0
+weapon_st = 0
+rof = 1
+recoil = 1
+fixed_dice_count = 1
+fixed_dice_sides = 6
+fixed_dice_bonus = 0
+animation = ExtResource("seq_bash")
 
 [sub_resource type="Resource" id="Resource_weapon"]
 script = ExtResource("4_weapon")
 attacks = Array[ExtResource("5_row")]([SubResource("Resource_bash")])
+two_handed = false
+shots = 0
 model_scene = ExtResource("w_model")
+held_in_off_hand = false
 stance_animation = "Weapon/Stance_Shield"
+sheath = 0
 
 [resource]
 script = ExtResource("1_gear")
 slot_type = 12
 weight = 6.0
-is_shield = true
 stat_modifiers = Array[ExtResource("3_statmod")]([SubResource("Resource_statmod")])
+is_shield = true
 weapon_data = SubResource("Resource_weapon")
 id = &"buckler"
 item_name = "Buckler"

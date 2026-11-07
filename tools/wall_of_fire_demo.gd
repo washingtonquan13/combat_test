@@ -30,8 +30,8 @@ func _run() -> void:
 	var high_end: Vector3 = _spot(0.0, 1.0) + Vector3.UP * 3.5
 	var dummy: Unit = _dummy(-12.0, 0.0)
 	var wall_surface: Surface = (Wall.effects[0] as SpawnSurfaceEffect).surface
-	var searing: StatusEffect = wall_surface.status_effect
-	var burning: StatusEffect = wall_surface.leaves_behind.status_effect
+	var searing: StatusEffect = wall_surface.status_effects[0]
+	var burning: StatusEffect = wall_surface.leaves_behind.status_effects[0]
 	SelectionManager.select(_hero)
 	_frame(middle, 16.0)
 	await _wait(2.0)

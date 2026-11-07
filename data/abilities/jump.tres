@@ -10,17 +10,19 @@
 
 [sub_resource type="Resource" id="Resource_srpy8"]
 script = ExtResource("2_8xeob")
-jump_duration = 1.0
 metadata/_custom_type_script = "uid://deawu000jynxq"
 
 [sub_resource type="Resource" id="Resource_uc2tp"]
 script = ExtResource("5_cxc1v")
 max_range = 6.0
 range_from_strength = true
+strength_rule = 0
 flight_arc_height = 1.5
 navmesh_tolerance = 0.5
 validate_as_caster_flying = true
 requires_ally = false
+any_unit = false
+aims_at_ground = false
 metadata/_custom_type_script = "uid://drd20fn8tucu"
 
 [sub_resource type="Resource" id="Resource_time"]
@@ -37,11 +39,15 @@ icon_color = Color(0.59, 0.78, 0.67, 1)
 category = 0
 targeting = SubResource("Resource_uc2tp")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_srpy8")])
-timing = SubResource("Resource_time")
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = false
 move_cost = 0.0
 fp_cost = 0.0
+timing = SubResource("Resource_time")
 armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""

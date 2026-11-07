@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AnimationSequence" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="AnimationSequence" load_steps=4 format=3 uid="uid://b00j3i0mi80cg"]
 
 [ext_resource type="Script" uid="uid://bptyd4ela7qrw" path="res://systems/ability_system/animation_sequence.gd" id="1_sequence"]
 [ext_resource type="Script" uid="uid://o0enjmwq0i3g" path="res://systems/ability_system/animation_phase.gd" id="2_phase"]
@@ -7,6 +7,7 @@
 script = ExtResource("2_phase")
 animation_name = "Weapon/Rifle_Burst"
 advance_trigger = 0
+duration = 0.3
 
 [resource]
 script = ExtResource("1_sequence")

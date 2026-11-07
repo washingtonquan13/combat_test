@@ -1,47 +1,76 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3]
+[gd_resource type="Resource" script_class="GearItem" load_steps=12 format=3 uid="uid://ghfkc2x1ssrr"]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
-[ext_resource type="Texture2D" path="res://assets/test_item_icons/test_throwing_axe.png" id="2_icon"]
+[ext_resource type="Texture2D" uid="uid://ctedi1iaoddky" path="res://assets/test_item_icons/test_throwing_axe.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
 [ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
-[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
+[ext_resource type="Script" uid="uid://kj230cxxaog0" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
+[ext_resource type="Resource" uid="uid://b8aqhaxwymy7e" path="res://data/animation_sequences/weapon_throw.tres" id="seq_throw"]
+[ext_resource type="Resource" uid="uid://dsmgxsdedsxkc" path="res://data/vfx/axe_throw.tres" id="vfx_axe_throw"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/throwing_axe.tscn" id="w_model"]
-[ext_resource type="Resource" path="res://data/animation_sequences/weapon_throw.tres" id="seq_throw"]
-[ext_resource type="Resource" path="res://data/vfx/axe_throw.tres" id="vfx_axe_throw"]
 
 [sub_resource type="Resource" id="Resource_swing"]
 script = ExtResource("4_row")
 label = "Swing"
+kind = 0
 damage_base = 0
 damage_bonus = 2
 wound_type = 1
+armor_divisor = 1.0
+reach = 1.0
 min_st = 11
+off_hand_ok = false
+to_hit_bonus = 0
+acc = 0
+half_damage_range = 0.0
+max_range = 0.0
+weapon_st = 0
+rof = 1
+recoil = 1
+fixed_dice_count = 1
+fixed_dice_sides = 6
+fixed_dice_bonus = 0
 
 [sub_resource type="Resource" id="Resource_throw"]
 script = ExtResource("4_row")
 label = "Throw"
-animation = ExtResource("seq_throw")
-cast_vfx = ExtResource("vfx_axe_throw")
 kind = 1
 damage_base = 0
 damage_bonus = 2
 wound_type = 1
+armor_divisor = 1.0
+reach = 1.0
 min_st = 11
+off_hand_ok = false
+to_hit_bonus = 0
 acc = 2
 half_damage_range = 10.0
 max_range = 20.0
+weapon_st = 0
+rof = 1
+recoil = 1
+fixed_dice_count = 1
+fixed_dice_sides = 6
+fixed_dice_bonus = 0
+animation = ExtResource("seq_throw")
+cast_vfx = ExtResource("vfx_axe_throw")
 
 [sub_resource type="Resource" id="Resource_weapon"]
 script = ExtResource("3_weapon")
 attacks = Array[ExtResource("4_row")]([SubResource("Resource_swing"), SubResource("Resource_throw")])
+two_handed = false
+shots = 0
 model_scene = ExtResource("w_model")
+held_in_off_hand = false
 stance_animation = "Weapon/Stance_Sword"
+sheath = 0
 
 [resource]
 script = ExtResource("1_gear")
 slot_type = 11
 weight = 4.0
 stat_modifiers = Array[ExtResource("3_s3sab")]([])
+is_shield = false
 weapon_data = SubResource("Resource_weapon")
 id = &"throwing_axe"
 item_name = "Throwing Axe"

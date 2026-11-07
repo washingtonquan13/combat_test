@@ -1,21 +1,30 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=8 format=3 uid="uid://ci6jopn4qvauk"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
-[ext_resource type="Script" path="res://systems/ability_system/surface_step_effect.gd" id="3_step"]
-[ext_resource type="Script" path="res://systems/ability_system/surface_step_targeting.gd" id="4_target"]
+[ext_resource type="Script" uid="uid://dysnhy4vk02uo" path="res://systems/ability_system/surface_step_effect.gd" id="3_step"]
+[ext_resource type="Script" uid="uid://c6vfs4jsfftnq" path="res://systems/ability_system/surface_step_targeting.gd" id="4_target"]
 [ext_resource type="Texture2D" uid="uid://bvr8in2su8d61" path="res://assets/ability_icon/puddle_step_icon.png" id="5_icon"]
 
 [sub_resource type="Resource" id="Resource_step"]
 script = ExtResource("3_step")
+depth = 2.0
+sink_time = 0.45
+under_time = 0.15
+splash_color = Color(0.65, 0.85, 0.95, 0.9)
 
 [sub_resource type="Resource" id="Resource_target"]
 script = ExtResource("4_target")
 element = 3
 max_range = 12.0
+range_from_strength = false
+strength_rule = 0
 flight_arc_height = 0.0
 navmesh_tolerance = 0.5
 validate_as_caster_flying = false
+requires_ally = false
+any_unit = false
+aims_at_ground = false
 
 [resource]
 script = ExtResource("2_ability")
@@ -26,8 +35,15 @@ category = 1
 targeting = SubResource("Resource_target")
 effects = Array[ExtResource("1_effect")]([SubResource("Resource_step")])
 element = 3
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = false
 move_cost = 2.0
 fp_cost = 0.0
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
 plays_cast_animation = false

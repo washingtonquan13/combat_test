@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AnimationSequence" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="AnimationSequence" load_steps=8 format=3 uid="uid://bt5amh6e1fqk7"]
 
 [ext_resource type="Script" uid="uid://bptyd4ela7qrw" path="res://systems/ability_system/animation_sequence.gd" id="1_sequence"]
 [ext_resource type="Script" uid="uid://o0enjmwq0i3g" path="res://systems/ability_system/animation_phase.gd" id="2_phase"]

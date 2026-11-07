@@ -41,6 +41,8 @@ metadata/_custom_type_script = "uid://ddgwd7w0n6s0h"
 script = ExtResource("4_dmg")
 dice_count = 1
 dice_sides = 6
+wound_type = 0
+armor_divisor = 1.0
 metadata/_custom_type_script = "uid://l0qndk2gae1o"
 
 [sub_resource type="Resource" id="Resource_targ"]
@@ -66,12 +68,18 @@ icon_color = Color(0.43, 0.63, 1, 1)
 category = 1
 targeting = SubResource("Resource_targ")
 effects = Array[ExtResource("2_effb")]([SubResource("Resource_dmg")])
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
 timing = SubResource("Resource_time")
 cast_vfx = SubResource("Resource_vfxe")
+armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

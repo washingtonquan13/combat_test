@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=43 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
 [ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]

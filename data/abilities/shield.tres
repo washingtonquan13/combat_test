@@ -13,6 +13,7 @@
 script = ExtResource("7_statmod")
 stat_name = &"DR"
 amount = 3
+multiplier = 1.0
 metadata/_custom_type_script = "uid://bgd2vy28ksd3v"
 
 [sub_resource type="Resource" id="Resource_status"]
@@ -23,6 +24,11 @@ stack_mode = 0
 max_stacks = 1
 behaviors = Array[ExtResource("6_behavior")]([SubResource("Resource_statmod")])
 curable = true
+group = &""
+rank = 0
+counters = Array[StringName]([])
+resisted_by = &""
+resistance_modifier = 0
 apply_animation = ""
 apply_animation_loops = false
 remove_animation = ""
@@ -37,6 +43,8 @@ metadata/_custom_type_script = "uid://cxvg4h3mmr1l4"
 [sub_resource type="Resource" id="Resource_targeting"]
 script = ExtResource("2_targeting")
 requires_ally = false
+any_unit = false
+aims_at_ground = false
 metadata/_custom_type_script = "uid://dr8ikn7mlllm6"
 
 [resource]
@@ -47,6 +55,10 @@ icon_color = Color(0.43, 0.63, 1, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_applystatus")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0

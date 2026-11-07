@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" uid="uid://bol7w701na4bs" path="res://systems/ai_system/ai_archetype.gd" id="1_arch"]
 [ext_resource type="Script" uid="uid://bn8cgjij005m8" path="res://systems/ai_system/ai_behavior.gd" id="2_beh"]
-[ext_resource type="Resource" path="res://data/ai_behaviors/finish_downed.tres" id="3_finish_downed"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_fk524"]
+[ext_resource type="Resource" path="res://data/ai_behaviors/finish_downed.tres" id="3_finish_downed"]
 [ext_resource type="Resource" uid="uid://bmgw6mjv7sps4" path="res://data/abilities/heal.tres" id="a1_heal"]
 [ext_resource type="Resource" uid="uid://bk3h1qlytr0eg" path="res://data/abilities/cure.tres" id="a2_cure"]
 [ext_resource type="Resource" uid="uid://xrcp3khftmgl" path="res://data/abilities/bless.tres" id="a3_bless"]

@@ -13,14 +13,21 @@ script = ExtResource("4_pick_up")
 script = ExtResource("2_targeting")
 melee_range = 1.0
 requires_ally = true
+any_unit = false
+aims_at_ground = false
 
 [resource]
 script = ExtResource("1_ability")
 ability_name = "Pick Up"
 icon = ExtResource("9_icon")
+icon_color = Color(0.78, 0.74, 0.66, 1)
 category = 0
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_pick_up")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0

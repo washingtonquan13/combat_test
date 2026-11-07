@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hotbar Pips</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Spectral:ital,wght@0,400;1,400&family=Inter+Tight:wght@500;600;700;800&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #15120f; --panel: #1f1a15; --line: #3d3328; --fg: #e9e1d4; --muted: #a89a86; --gold: #d8a94a;
+  --mv: #e0b04f; --ac: #efe6d2; --at: #c4523f; --open: #ffe39a; --hole: #100d0a;
+  --warn: #e0a040; --bad: #c4523f; --ok: #8fbf6a;
+  --serif: "Spectral", Georgia, serif; --display: "Cinzel", Georgia, serif; --sans: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 var(--serif); padding: 0 16px; }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 32px 64px; display: grid; gap: 36px; }
+h1, h2 { font-family: var(--display); margin: 0; line-height: 1.2; text-wrap: balance; }
+h1 { font-size: clamp(26px, 6vw, 38px); }
+h2 { font-size: clamp(20px, 4vw, 24px); color: var(--gold); }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 14px; }
+.label { font: 600 12px/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); font-style: italic; }
+strong { color: #fff3dd; }
+
+/* ---------- scene + dock (authored at 780 x 196, scaled to fit) ---------- */
+.scene { border: 1px solid var(--line); border-radius: 14px; overflow-x: auto; overflow-y: hidden; background:
+  radial-gradient(60% 80% at 30% 20%, rgba(120,140,90,0.35), transparent 70%),
+  radial-gradient(50% 70% at 80% 30%, rgba(90,110,120,0.3), transparent 70%),
+  linear-gradient(#3a4630, #232a1d); padding: 14px 0 10px; }
+.fit { position: relative; width: 100%; }
+.stage { position: absolute; left: 50%; top: 0; width: 780px; height: 196px; transform-origin: top center; font-family: var(--sans); color: #e8dcc0; }
+.abs { position: absolute; }
+
+.tip { left: 160px; top: 0; height: 40px; max-width: 500px; padding: 6px 10px; border-radius: 6px; background: rgba(12,10,8,0.92); border: 1px solid #6e5527; font: 600 13px/1.35 var(--sans); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; white-space: nowrap; }
+.tip:empty { display: none; }
+.badge { font: 700 11px/1 var(--sans); padding: 4px 5px; border-radius: 4px; }
+.badge.warn { color: #ffd28a; border: 1px solid var(--warn); background: rgba(224,160,64,0.18); }
+.badge.bad { color: #ffb0a2; border: 1px solid var(--bad); background: rgba(196,82,63,0.2); }
+.badge.ok { color: #cfeab8; border: 1px solid var(--ok); background: rgba(143,191,106,0.15); }
+
+.globe { border-radius: 50%; border: 3px solid #e0b65a; box-shadow: 0 4px 14px rgba(0,0,0,0.6), inset 0 0 18px rgba(0,0,0,0.6); display: grid; place-items: center; text-align: center; color: #e8dcc0; text-shadow: 0 1px 2px #000, 0 0 3px #000; }
+.globe.hp { left: 0; top: 56px; width: 132px; height: 132px; background:
+  radial-gradient(30% 18% at 36% 24%, rgba(255,255,255,0.55), transparent 70%),
+  linear-gradient(to top, #8e2418 0 72%, rgba(40,10,8,0.95) 72%);
+  font: 800 17px/1.1 var(--sans); }
+.globe.hp small, .globe.fp small { display: block; font: 800 11px/1 var(--sans); color: var(--gold); letter-spacing: 0.08em; }
+.globe.fp { left: 94px; top: 48px; width: 56px; height: 56px; border-color: #a8823e; background:
+  radial-gradient(30% 20% at 36% 26%, rgba(255,255,255,0.5), transparent 70%),
+  linear-gradient(to top, #23578a 0 85%, rgba(8,16,30,0.95) 85%);
+  font: 800 13px/1 var(--sans); }
+.globe.fp small { color: #a8cfff; font-size: 9px; }
+
+.strip { left: 162px; top: 48px; height: 36px; display: flex; gap: 14px; align-items: flex-start; }
+.grp { display: grid; gap: 3px; }
+.gl { font: 800 8.5px/1 var(--sans); letter-spacing: 0.12em; color: #d9caa9; text-shadow: 0 1px 2px #000; }
+.ps { display: flex; gap: 3px; align-items: center; }
+.vsep { width: 1px; height: 26px; background: #6e5a38; }
+
+.pip { --c: var(--mv); width: 15px; height: 17px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--c); position: relative; flex: none; display: inline-block; filter: drop-shadow(0 1px 1px #000); }
+.pip::after { content: ""; position: absolute; inset: 2px; clip-path: inherit; background: var(--c); }
+.pip.step { --c: var(--ok); margin-right: 3px; }
+.pip.ac { --c: var(--ac); } .pip.at { --c: var(--at); }
+.pip.spent { opacity: 0.5; } .pip.spent::after { background: var(--hole); }
+.pip.open:not(.step) { --c: var(--open); }
+.pip.open::after { background: radial-gradient(circle, rgba(255,227,154,0.7), rgba(255,227,154,0.12)); }
+.pip.step.open::after { background: radial-gradient(circle, rgba(207,234,184,0.7), rgba(207,234,184,0.12)); }
+.pip.borrowed { --c: var(--ac); opacity: 0.55; } .pip.borrowed::after { background: var(--hole); }
+.pip.ghost::after { animation: blink .9s ease-in-out infinite; }
+@keyframes blink { 50% { background: var(--hole); } }
+
+.bar { left: 160px; top: 88px; width: 504px; height: 100px; border-radius: 8px; border: 1px solid #6e5a38; background: linear-gradient(#2a2419, #15120e); box-shadow: 0 6px 16px rgba(0,0,0,0.55); padding: 9px 10px; display: flex; gap: 10px; }
+.grip { position: absolute; left: 50%; top: -5px; width: 44px; height: 8px; margin-left: -22px; border-radius: 4px; background: #2a2419; border: 1px solid #6e5a38; }
+.setcol { display: grid; gap: 6px; align-content: start; width: 50px; }
+.setbox { height: 38px; border-radius: 6px; border: 1px solid #a8823e; background: #1d170f; display: grid; place-items: center; font: 800 14px/1 var(--display); color: #f2d48a; }
+.swap { height: 30px; border-radius: 6px; border: 1px solid #55809f; background: #2b4a63; color: #cfe6ff; font: 700 11px/1 var(--sans); display: grid; place-items: center; }
+.hsep { width: 1px; background: #6e5a38; }
+.rows { display: grid; gap: 6px; align-content: start; }
+.row { display: flex; gap: 5px; align-items: center; }
+
+.slot { position: relative; width: 38px; height: 38px; border-radius: 6px; border: 1px solid #6e5a38; background: linear-gradient(#241e15, #120f0b); color: #eadcbe; font: 700 9.5px/1.05 var(--sans); padding: 0; cursor: pointer; display: grid; place-items: center; text-align: center; }
+.slot .ico { font-size: 15px; line-height: 1; }
+.slot .key { position: absolute; left: 3px; bottom: 2px; font: 700 8px/1 var(--sans); color: #a89a86; }
+.slot .cost { position: absolute; right: 2px; top: 2px; display: flex; gap: 1px; }
+.slot .cost i { width: 7px; height: 8px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); background: var(--c); }
+.slot.hot, .slot:hover { border-color: #f2d48a; box-shadow: 0 0 10px rgba(224,182,90,0.45); }
+.slot.na { opacity: 0.4; filter: grayscale(0.8); }
+.slot.round { border-radius: 50%; width: 32px; height: 32px; margin-top: 3px; }
+.slot.round.on { border-color: #f2d48a; background: #4a361b; }
+
+.endturn { left: 674px; top: 88px; width: 100px; height: 100px; border-radius: 50%; border: 2px solid #b88b3a; background: radial-gradient(circle at 50% 35%, #33291b, #15110c); color: #f1e2c2; font: 800 13px/1.15 var(--display); letter-spacing: 0.05em; box-shadow: 0 6px 16px rgba(0,0,0,0.55); cursor: pointer; }
+.endturn small { display: block; font: 700 9px/1 var(--sans); color: #a89a86; margin-top: 4px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font: 500 14px/1.3 var(--sans); }
+.controls button, .controls label { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer; }
+.controls input[type=range] { accent-color: var(--gold); width: 140px; vertical-align: middle; }
+.log { font: 500 14px/1.5 var(--sans); color: var(--muted); min-height: 1.5em; }
+
+.states { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.state { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; align-content: start; }
+.state .mini { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; background: #0f0d0a; border-radius: 6px; padding: 8px 10px; }
+.state h3 { margin: 0; font: 700 14px/1.3 var(--sans); }
+.state p { font: 500 13.5px/1.45 var(--sans); color: var(--muted); }
+.notes { display: grid; gap: 10px; }
+.notes p { font-size: 16px; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 16px; font: 500 14px/1.35 var(--sans); color: var(--muted); }
+.legend div { display: flex; gap: 9px; align-items: center; }
+.foot { color: var(--muted); font: 500 13px/1.5 var(--sans); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header style="display:grid;gap:10px">
+  <span class="label">Combat Test · dock mockup · 6 Nov 2026</span>
+  <h1>Hotbar with pips</h1>
+  <p class="lede">The current dock, with the Move label and bar replaced by one strip of pips, and each slot marked with what it will cost right now.</p>
+</header>
+
+<section>
+  <div class="scene"><div class="fit" id="fit"><div class="stage" id="stage">
+    <div class="abs tip" id="tip"></div>
+    <div class="abs globe hp"><div>11 / 15<small>HP</small></div></div>
+    <div class="abs globe fp"><div>10<small>FP</small></div></div>
+    <div class="abs strip" id="strip"></div>
+    <div class="abs bar">
+      <div class="grip"></div>
+      <div class="setcol"><div class="setbox">I</div><div class="swap">⇄ F</div></div>
+      <div class="hsep"></div>
+      <div class="rows">
+        <div class="row" id="pinned"></div>
+        <div class="row" id="page"></div>
+      </div>
+    </div>
+    <button class="abs endturn" id="b-end">END<br>TURN<small>SPACE</small></button>
+  </div></div></div>
+
+  <div class="controls">
+    <label>Walk to <input type="range" id="walk" min="0" max="10" step="0.1" value="0"> <span id="walkv">0.0 m</span></label>
+    <button id="b-walk">Walk</button>
+    <label><input type="checkbox" id="xa"> Extra Attack</label>
+  </div>
+  <div class="log" id="log"></div>
+
+  <div class="legend">
+    <div><i class="pip"></i>ready</div>
+    <div><i class="pip open"></i>paid for, distance left on it</div>
+    <div><i class="pip spent"></i>spent</div>
+    <div><i class="pip borrowed"></i>movement spent by an action</div>
+    <div><i class="pip ac ghost"></i>would be spent (blinks)</div>
+    <div><i class="pip step"></i>the free step: first pip, costs nothing, no Move and Attack</div>
+  </div>
+</section>
+
+<section>
+  <h2>The states, side by side</h2>
+  <div class="states" id="states"></div>
+</section>
+
+<section>
+  <h2>Choices in this mockup</h2>
+  <div class="notes">
+    <p><strong>Same spot as the Move bar.</strong> The strip sits where the Move label and bar are now, over the left edge of the panel, so the dock doesn't grow. Nine movement pips, the Action pip and an Extra Attack pip fit in about 230 px.</p>
+    <p><strong>Cost marks show the payer, not the price.</strong> The little hexes in a slot's corner are coloured by the pool that will actually pay if you use it now. Swing shows one bone hex while the Action pip is there; once that's gone the same slot shows three gold ones. If nothing can pay, the slot dims.</p>
+    <p><strong>Nothing is written as a number.</strong> Pips are few enough to count at a glance. The tooltip names the pool and any penalty; distance within a pip belongs to the path line in the world.</p>
+    <p><strong>Toggles stay free.</strong> The round slots have no cost marks; they change the next attack, not the budget.</p>
+  </div>
+</section>
+
+<p class="foot">Illustrative numbers: Move 10 (1 m free, then nine 1 m pips), one Action pip, an action that has no pip borrows 3 movement pips, Jump costs 2. Slot set and labels are placeholders for the real loadout.</p>
+</div>
+
+<script>
+(() => {
+  const MOVE = 10, STEP = MOVE / 10, PER = 1, NMOVE = 9, BORROW = 3, EPS = 1e-9;
+  const $ = id => document.getElementById(id);
+  const pipsFor = d => Math.max(0, Math.ceil((d - STEP) / PER - EPS));
+  const ABIL = [
+    { id: "swing", name: "Swing", ico: "⚔", key: "1", kind: "attack", row: "pinned" },
+    { id: "thrust", name: "Thrust", ico: "➶", key: "2", kind: "attack", row: "pinned" },
+    { sep: true, row: "pinned" },
+    { id: "aim", name: "Aim", kind: "toggle", row: "pinned" },
+    { id: "dec", name: "Dcv", kind: "toggle", row: "pinned" },
+    { id: "bolt", name: "Bolt", ico: "✦", key: "3", kind: "action", row: "page" },
+    { id: "shove", name: "Shove", ico: "✋", key: "4", kind: "action", row: "page" },
+    { id: "jump", name: "Jump", ico: "⤴", key: "5", kind: "move", n: 2, row: "page" },
+    { id: "potion", name: "Potion", ico: "⚗", key: "6", kind: "action", row: "page" },
+    { id: "help", name: "Help", ico: "✚", key: "7", kind: "action", row: "page" },
+  ];
+  let st, armed = null;
+
+  const fresh = xa => ({ dist: 0, borrowed: 0, action: 1, attack: xa ? 1 : 0, xa, attacks: 0 });
+  const usable = s => NMOVE - s.borrowed;
+  const freeMove = s => usable(s) - pipsFor(s.dist);
+
+  function payFor(s, a) {
+    if (a.kind === "attack") {
+      if (s.attack > 0) return { pool: "attack", n: 1 };
+      if (s.action > 0) return { pool: "action", n: 1 };
+      return freeMove(s) >= BORROW ? { pool: "move", n: BORROW } : null;
+    }
+    if (a.kind === "action") {
+      if (s.action > 0) return { pool: "action", n: 1 };
+      return freeMove(s) >= BORROW ? { pool: "move", n: BORROW } : null;
+    }
+    if (a.kind === "move") return freeMove(s) >= a.n ? { pool: "move", n: a.n } : null;
+    return { pool: null, n: 0 };
+  }
+  function badges(s, a, pay) {
+    if (a.kind !== "attack") return [];
+    const b = [];
+    if (s.attacks >= 1 && pay.pool !== "attack") b.push(["bad", "Rapid Strike"]);
+    if (pipsFor(s.dist) > 0) b.push(["warn", "Move and Attack"]);
+    if (!b.length) b.push(["ok", "no penalty"]);
+    return b;
+  }
+  const badge = ([k, t]) => `<span class="badge ${k}">${t}</span>`;
+  const POOLVAR = { attack: "var(--at)", action: "var(--ac)", move: "var(--mv)" };
+  const POOLNAME = { attack: "the Extra Attack pip", action: "the Action pip" };
+
+  // The pip strip for a state and an optional preview: {walkTo} or {pay}.
+  function stripHTML(s, pv = {}) {
+    const spent = pipsFor(s.dist);
+    const planSpent = pv.walkTo != null ? pipsFor(pv.walkTo) : spent;
+    const openLeft = spent > 0 ? STEP + spent * PER - s.dist : 0;
+    const mv = [];
+    for (let i = 0; i < NMOVE; i++) {
+      let c = "pip";
+      if (i >= usable(s)) c += " borrowed";
+      else if (i < spent) c += (i === spent - 1 && openLeft > EPS) ? " open" : " spent";
+      else if (i < planSpent) c += " ghost";
+      mv.push(c);
+    }
+    if (pv.pay && pv.pay.pool === "move") { let n = pv.pay.n; for (let i = usable(s) - 1; i >= spent && n; i--, n--) mv[i] += " ghost"; }
+    const pip = c => `<i class="${c}"></i>`;
+    const grp = (label, inner) => `<div class="grp"><div class="ps">${inner}</div><span class="gl">${label}</span></div>`;
+    const plan = pv.walkTo != null ? pv.walkTo : s.dist;
+    let sc = "pip step";
+    if (s.dist >= STEP - EPS) sc += " spent";
+    else if (s.dist > EPS) sc += " open";
+    if (plan > s.dist + EPS && s.dist < STEP - EPS) sc += " ghost";
+    let h = grp("MOVE", pip(sc) + mv.map(pip).join(""));
+    h += grp("ACTION", pip("pip ac" + (s.action ? (pv.pay && pv.pay.pool === "action" ? " ghost" : "") : " spent")));
+    if (s.xa) h += `<i class="vsep"></i>` + grp("ATTACK", pip("pip at" + (s.attack ? (pv.pay && pv.pay.pool === "attack" ? " ghost" : "") : " spent")));
+    return h;
+  }
+
+  // slots
+  const toggled = new Set();
+  function buildSlots() {
+    ABIL.forEach(a => {
+      const host = $(a.row);
+      if (a.sep) { const d = document.createElement("i"); d.className = "hsep"; d.style.alignSelf = "stretch"; host.appendChild(d); return; }
+      const b = document.createElement("button");
+      b.className = "slot" + (a.kind === "toggle" ? " round" : "");
+      b.dataset.id = a.id;
+      b.innerHTML = a.kind === "toggle" ? a.name : `<span class="ico">${a.ico}</span><span class="key">${a.key}</span><span class="cost"></span>`;
+      b.addEventListener("mouseenter", () => { if (!armed) preview(a); });
+      b.addEventListener("mouseleave", () => { if (!armed) idle(); });
+      b.addEventListener("click", e => { e.stopPropagation(); use(a); });
+      host.appendChild(b);
+    });
+  }
+  function paintSlots() {
+    ABIL.forEach(a => {
+      if (a.sep) return;
+      const b = document.querySelector(`.slot[data-id="${a.id}"]`);
+      b.classList.toggle("hot", armed === a.id);
+      if (a.kind === "toggle") { b.classList.toggle("on", toggled.has(a.id)); return; }
+      const pay = payFor(st, a);
+      b.classList.toggle("na", !pay);
+      const c = pay || payFor({ ...st, attack: 0, action: 0, borrowed: 0, dist: 0 }, a);
+      b.querySelector(".cost").innerHTML = Array.from({ length: c.n }, () => `<i style="--c:${POOLVAR[c.pool]}"></i>`).join("");
+    });
+  }
+
+  const tip = h => { $("tip").innerHTML = h; };
+  const say = t => { $("log").textContent = t; };
+  function render(pv) { $("strip").innerHTML = stripHTML(st, pv); paintSlots(); }
+  function idle() { tip(""); render(); }
+
+  function preview(a) {
+    if (a.kind === "toggle") { tip(`<b>${a.name}</b> · toggle, no pip cost`); render(); return; }
+    const pay = payFor(st, a);
+    if (!pay) { tip(`<b>${a.name}</b> · no pip left that can pay`); render(); return; }
+    const from = pay.pool === "move" ? `${pay.n} Movement pips` : POOLNAME[pay.pool];
+    tip(`<b>${a.name}</b> · paid with <b>${from}</b> ${badges(st, a, pay).map(badge).join(" ")}`);
+    render({ pay });
+  }
+  function use(a) {
+    if (a.kind === "toggle") { toggled.has(a.id) ? toggled.delete(a.id) : toggled.add(a.id); preview(a); return; }
+    if (armed !== a.id) { armed = a.id; preview(a); say(`Tap ${a.name} again to use it.`); return; }
+    armed = null;
+    const pay = payFor(st, a);
+    if (!pay) { say("No pip left that can pay."); idle(); return; }
+    const b = badges(st, a, pay);
+    if (pay.pool === "attack") st.attack--; else if (pay.pool === "action") st.action--; else st.borrowed += pay.n;
+    if (a.kind === "attack") st.attacks++;
+    tip(`${a.name} used. ${b.map(badge).join(" ")}`); render();
+    say(`${a.name} paid with ${pay.pool === "move" ? pay.n + " movement pips" : POOLNAME[pay.pool]}.`);
+  }
+  document.addEventListener("click", () => { if (armed) { armed = null; idle(); } });
+
+  function reset() {
+    st = fresh($("xa").checked); armed = null; toggled.clear();
+    $("walk").value = 0; $("walkv").textContent = "0.0 m";
+    tip(""); render();
+    say("Hover or tap a slot to preview what pays for it; tap twice to use. The slider plans a walk.");
+  }
+  $("walk").addEventListener("input", e => {
+    armed = null;
+    const to = Math.max(st.dist, Math.min(+e.target.value, STEP + usable(st) * PER));
+    e.target.value = to; $("walkv").textContent = to.toFixed(1) + " m";
+    const cost = pipsFor(to) - pipsFor(st.dist);
+    tip(`Walk to ${to.toFixed(1)} m · <b>${cost} pip${cost === 1 ? "" : "s"}</b>` + (to <= STEP + EPS ? " " + badge(["ok", "inside the free step"]) : ""));
+    render({ walkTo: to });
+  });
+  $("b-walk").addEventListener("click", e => {
+    e.stopPropagation();
+    const to = +$("walk").value; if (to <= st.dist + EPS) return;
+    st.dist = to; tip(""); render();
+    const n = pipsFor(st.dist);
+    say(n ? `Walked to ${to.toFixed(1)} m: ${n} movement pip${n === 1 ? "" : "s"} spent this turn.` : "Still inside the free step: no pip spent.");
+  });
+  $("b-end").addEventListener("click", e => { e.stopPropagation(); reset(); });
+  $("xa").addEventListener("change", reset);
+
+  // scale the 780 px stage to the page
+  const fit = $("fit"), stage = $("stage");
+  // Below 0.72 the pips get too small to read, so a narrow screen scrolls
+  // the scene sideways instead.
+  const scene = fit.parentElement;
+  const resize = () => {
+    const room = scene.clientWidth, s = Math.max(0.72, Math.min(1, room / 780));
+    stage.style.transform = `translateX(-50%) scale(${s})`;
+    fit.style.width = Math.max(room, 780 * s) + "px"; fit.style.height = (196 * s) + "px";
+  };
+  new ResizeObserver(resize).observe(scene); resize();
+
+  // static gallery
+  const STATES = [
+    ["Start of turn", "Ten movement pips (the first, green, is the free step), the Action pip.", fresh(false), {}],
+    ["Walked 0.8 m", "Still inside the free step: the green step pip is open, nothing paid.", { ...fresh(false), dist: 0.8 }, {}],
+    ["Walked 3.4 m", "Three pips spent; the third is open with 0.6 m left on it.", { ...fresh(false), dist: 3.4 }, {}],
+    ["Planning 3.4 → 6.2 m", "The two pips the walk would cross blink.", { ...fresh(false), dist: 3.4 }, { walkTo: 6.2 }],
+    ["Second attack, no Action pip", "Swing borrows the last three usable movement pips.", { ...fresh(false), dist: 3.4, action: 0, attacks: 1 }, { pay: { pool: "move", n: 3 } }],
+    ["After borrowing", "Borrowed pips stay in the row, outlined in bone, so the turn reads left to right.", { ...fresh(false), dist: 3.4, action: 0, attacks: 2, borrowed: 3 }, {}],
+    ["Extra Attack", "The Attack pip sits past a divider and pays first.", fresh(true), { pay: { pool: "attack", n: 1 } }],
+  ];
+  $("states").innerHTML = STATES.map(([t, d, s, pv]) => `<div class="state"><div class="mini">${stripHTML(s, pv)}</div><h3>${t}</h3><p>${d}</p></div>`).join("");
+
+  buildSlots(); reset();
+})();
+</script>
+</body>
+</html>

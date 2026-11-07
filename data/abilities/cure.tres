@@ -18,6 +18,8 @@ max_range = 8.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
 requires_ally = true
+any_unit = false
+aims_at_ground = false
 metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 
 [resource]
@@ -28,6 +30,10 @@ icon_color = Color(1, 0.84, 0.47, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_removestatus")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0

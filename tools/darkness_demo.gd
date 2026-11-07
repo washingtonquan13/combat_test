@@ -16,7 +16,7 @@ func _run() -> void:
 	var middle: Vector3 = _spot(-6.0, 0.0)
 	var far: Vector3 = _spot(-12.0, 0.0)
 	var dummy: Unit = _dummy(-12.0, 0.0)
-	var blinded: StatusEffect = (Darkness.effects[0] as SpawnSurfaceEffect).surface.status_effect
+	var blinded: StatusEffect = (Darkness.effects[0] as SpawnSurfaceEffect).surface.status_effects[0]
 	SelectionManager.select(_hero)
 	_frame(middle, 14.0)
 	await _wait(2.0)

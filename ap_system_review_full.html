@@ -1,0 +1,641 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Typed AP Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Spectral:ital,wght@0,400;0,600;1,400&family=Inter+Tight:wght@500;600;700&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #15120f;
+  --panel: #1f1a15;
+  --panel-2: #29221b;
+  --line: #3d3328;
+  --fg: #e9e1d4;
+  --muted: #a89a86;
+  --gold: #d8a94a;
+  --gold-dim: #6e5527;
+  --blood: #c4523f;
+  --mana: #4f8fe0;
+  --ok: #8fbf6a;
+  --warn: #e0a040;
+  --ghost: rgba(216, 169, 74, 0.35);
+  --serif: "Spectral", Georgia, "Times New Roman", serif;
+  --display: "Cinzel", "Trajan Pro", Georgia, serif;
+  --sans: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 17px/1.6 var(--serif);
+  padding: 0 16px;
+}
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 80px; display: grid; gap: 48px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 700; text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: clamp(30px, 6vw, 44px); letter-spacing: 0.02em; }
+h2 { font-size: clamp(22px, 4vw, 28px); color: var(--gold); }
+h3 { font-size: 18px; font-family: var(--sans); font-weight: 700; letter-spacing: 0.01em; }
+p { margin: 0; max-width: 68ch; }
+.label { font: 600 12px/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+section { display: grid; gap: 18px; }
+.lede { color: var(--muted); font-size: 19px; font-style: italic; }
+.stack { display: grid; gap: 14px; }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 68ch; }
+strong { color: #fff3dd; }
+code { font: 14px/1.4 ui-monospace, Consolas, monospace; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; }
+
+/* rating */
+.rating { display: grid; grid-template-columns: auto 1fr; gap: 24px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px; }
+.score { display: grid; justify-items: center; gap: 4px; }
+.score b { font: 700 54px/1 var(--display); color: var(--gold); font-variant-numeric: tabular-nums; }
+.score span { font: 600 13px/1 var(--sans); color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.score .after { font: 600 15px/1.2 var(--sans); color: var(--ok); text-transform: none; letter-spacing: 0; }
+.bars { display: grid; gap: 9px; min-width: 0; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 11em) 1fr 2.4em; gap: 10px; align-items: center; font: 500 14px/1.2 var(--sans); }
+.bar-row .track { height: 8px; background: var(--panel-2); border-radius: 4px; overflow: hidden; position: relative; }
+.bar-row .fill { position: absolute; inset: 0 auto 0 0; background: var(--gold); border-radius: 4px; }
+.bar-row .fix { position: absolute; inset: 0 auto 0 0; background: var(--ok); opacity: 0.35; border-radius: 4px; }
+.bar-row em { font-style: normal; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) {
+  .rating { grid-template-columns: 1fr; }
+  .bar-row { grid-template-columns: minmax(0, 8.5em) 1fr 2.2em; font-size: 13px; }
+}
+
+/* answer cards */
+.answers { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.answer { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 8px; align-content: start; }
+.answer .q { font: 600 13px/1.3 var(--sans); color: var(--muted); }
+.answer .a { font: 700 19px/1.25 var(--sans); color: var(--gold); }
+.answer p { font-size: 15.5px; }
+
+/* ---------- dock mockup ---------- */
+.stage { container-type: inline-size; width: 100%; max-width: 100%; }
+.dock {
+  --u: calc(100cqw / 640);
+  position: relative;
+  width: 100%;
+  aspect-ratio: 640 / 250;
+  border-radius: calc(var(--u) * 14);
+  background:
+    radial-gradient(120% 90% at 50% 0%, #3a4a3a 0%, #22281f 55%, #171a14 100%);
+  overflow: hidden;
+  border: 1px solid var(--line);
+  font-family: var(--sans);
+}
+.dock::before { /* hint of the battlefield */
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(115deg, rgba(255,255,255,0.025) 0 calc(var(--u)*18), transparent calc(var(--u)*18) calc(var(--u)*36));
+}
+.u { position: absolute; }
+.hp {
+  left: calc(var(--u)*14); top: calc(var(--u)*96); width: calc(var(--u)*130); height: calc(var(--u)*130);
+  border-radius: 50%;
+  border: calc(var(--u)*5) solid #b88b3a;
+  background:
+    radial-gradient(35% 22% at 38% 26%, rgba(255,255,255,0.55), transparent 70%),
+    radial-gradient(60% 60% at 50% 40%, #a57a55 0%, #6f4b33 45%, #3d2a1e 100%);
+  box-shadow: 0 calc(var(--u)*4) calc(var(--u)*14) rgba(0,0,0,0.6), inset 0 0 calc(var(--u)*18) rgba(0,0,0,0.6);
+  display: grid; place-items: end center; padding-bottom: calc(var(--u)*24);
+  color: #fff; text-shadow: 0 1px 2px #000; text-align: center;
+  font: 700 calc(var(--u)*20)/1 var(--sans);
+}
+.hp small { display: block; color: var(--gold); font-size: calc(var(--u)*12); margin-top: calc(var(--u)*3); }
+.fp {
+  left: calc(var(--u)*110); top: calc(var(--u)*80); width: calc(var(--u)*56); height: calc(var(--u)*56);
+  border-radius: 50%; border: calc(var(--u)*3.5) solid #b88b3a;
+  background: radial-gradient(40% 25% at 40% 28%, rgba(255,255,255,0.6), transparent 70%), radial-gradient(circle at 50% 60%, #3d7de0, #173f8f);
+  color: #fff; display: grid; place-items: center; font: 700 calc(var(--u)*16)/1 var(--sans); text-shadow: 0 1px 2px #000;
+}
+.fp small { display: block; font-size: calc(var(--u)*9); text-align: center; }
+
+/* AP strip: pips + movement bar, above the panel */
+.apstrip {
+  left: calc(var(--u)*180); top: calc(var(--u)*44); width: calc(var(--u)*330); height: calc(var(--u)*46);
+  display: grid; grid-template-columns: auto 1fr; gap: calc(var(--u)*12); align-items: end;
+}
+.pips { display: flex; gap: calc(var(--u)*9); align-items: end; }
+.pipgroup { display: grid; justify-items: center; gap: calc(var(--u)*4); }
+.pipgroup .row { display: flex; gap: calc(var(--u)*4); }
+.pipgroup .tag { font: 700 calc(var(--u)*8)/1 var(--sans); letter-spacing: 0.08em; color: #d9cdb8; text-shadow: 0 1px 2px #000; }
+.pip {
+  width: calc(var(--u)*16); height: calc(var(--u)*16); transform: rotate(45deg);
+  border: calc(var(--u)*2) solid var(--c); background: var(--c);
+  box-shadow: 0 0 calc(var(--u)*6) color-mix(in srgb, var(--c) 60%, transparent);
+  transition: background .15s, box-shadow .15s, opacity .15s;
+}
+.pip.spent { background: transparent; box-shadow: none; opacity: 0.45; }
+.pip.ghost { background: transparent; animation: blink .9s ease-in-out infinite; }
+@keyframes blink { 50% { background: color-mix(in srgb, var(--c) 45%, transparent); } }
+.pip.general { --c: #efe6d2; }
+.pip.attack { --c: var(--blood); }
+.pip.spell { --c: var(--mana); }
+
+.move { display: grid; gap: calc(var(--u)*4); }
+.move .tag { display: flex; justify-content: space-between; font: 700 calc(var(--u)*9)/1 var(--sans); color: #e8dcc6; text-shadow: 0 1px 2px #000; letter-spacing: 0.04em; }
+.move .tag b { color: var(--gold); font-variant-numeric: tabular-nums; }
+.mtrack {
+  position: relative; height: calc(var(--u)*11); border-radius: calc(var(--u)*6);
+  background: rgba(0,0,0,0.55); border: calc(var(--u)*1.5) solid #8a6a32; overflow: hidden;
+}
+.mfill, .mghost, .mborrow { position: absolute; top: 0; bottom: 0; left: 0; transition: width .2s, left .2s; }
+.mfill { background: linear-gradient(#f0c766, #b3832c); }
+.mghost { background: repeating-linear-gradient(135deg, rgba(255,240,200,0.55) 0 calc(var(--u)*3), rgba(255,240,200,0.15) calc(var(--u)*3) calc(var(--u)*6)); }
+.mborrow { background: repeating-linear-gradient(135deg, rgba(224,160,64,0.95) 0 calc(var(--u)*3), rgba(224,160,64,0.35) calc(var(--u)*3) calc(var(--u)*6)); }
+.tick { position: absolute; top: calc(var(--u)*-2); bottom: calc(var(--u)*-2); width: calc(var(--u)*1.5); background: rgba(255,255,255,0.75); }
+.ticklabels { position: relative; height: calc(var(--u)*9); font: 600 calc(var(--u)*7.5)/1 var(--sans); color: #cfc2ac; text-shadow: 0 1px 2px #000; }
+.ticklabels span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+
+.panel {
+  left: calc(var(--u)*172); top: calc(var(--u)*120); width: calc(var(--u)*346); height: calc(var(--u)*110);
+  background: linear-gradient(#2a221b, #1a1511); border: calc(var(--u)*2) solid #6e5527; border-radius: calc(var(--u)*10);
+  padding: calc(var(--u)*9); display: grid; gap: calc(var(--u)*8); align-content: start;
+  box-shadow: 0 calc(var(--u)*6) calc(var(--u)*18) rgba(0,0,0,0.6);
+}
+.slots { display: flex; gap: calc(var(--u)*6); }
+.slot {
+  width: calc(var(--u)*42); height: calc(var(--u)*42); border-radius: calc(var(--u)*6);
+  border: calc(var(--u)*2) solid #8a6a32; background: #120f0c; display: grid; place-items: center;
+  color: #e8dcc6; font: 700 calc(var(--u)*17)/1 var(--sans); cursor: pointer; position: relative; padding: 0;
+  transition: border-color .12s, transform .12s;
+}
+.slot:hover, .slot:focus-visible, .slot.hot { border-color: var(--gold); transform: translateY(calc(var(--u)*-2)); outline: none; }
+.slot .cost { position: absolute; right: calc(var(--u)*2); bottom: calc(var(--u)*2); width: calc(var(--u)*8); height: calc(var(--u)*8); transform: rotate(45deg); background: var(--c); }
+.slot.round { border-radius: 50%; }
+.slot.round.on { border-color: var(--gold); box-shadow: 0 0 calc(var(--u)*8) var(--gold); }
+.slot.walk { --c: transparent; }
+.slot svg { width: 62%; height: 62%; fill: currentColor; }
+
+.endturn {
+  right: calc(var(--u)*16); top: calc(var(--u)*118); width: calc(var(--u)*100); height: calc(var(--u)*100); border-radius: 50%;
+  border: calc(var(--u)*3) solid #b88b3a; background: radial-gradient(circle at 50% 35%, #3a2f22, #1b1611);
+  display: grid; place-items: center; color: #f1e2c2; font: 700 calc(var(--u)*15)/1.1 var(--sans); text-align: center; letter-spacing: 0.04em;
+}
+
+/* readout bubble near cursor */
+.readout {
+  left: calc(var(--u)*180); top: calc(var(--u)*6); width: calc(var(--u)*330);
+  background: rgba(10,8,6,0.85); border: 1px solid #6e5527; border-radius: calc(var(--u)*7);
+  padding: calc(var(--u)*6) calc(var(--u)*9); font: 600 calc(var(--u)*10.5)/1.3 var(--sans); color: #efe4cf;
+  display: flex; gap: calc(var(--u)*8); align-items: center; flex-wrap: wrap; min-height: calc(var(--u)*30);
+}
+.badge { font: 700 calc(var(--u)*9)/1 var(--sans); padding: calc(var(--u)*3) calc(var(--u)*5); border-radius: calc(var(--u)*4); letter-spacing: 0.04em; white-space: nowrap; }
+.badge.warn { background: color-mix(in srgb, var(--warn) 25%, transparent); color: #ffd28a; border: 1px solid var(--warn); }
+.badge.bad { background: color-mix(in srgb, var(--blood) 25%, transparent); color: #ffb0a2; border: 1px solid var(--blood); }
+.badge.ok { background: color-mix(in srgb, var(--ok) 20%, transparent); color: #cfeab8; border: 1px solid var(--ok); }
+
+/* controls under mockup */
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font: 500 14px/1.3 var(--sans); }
+.controls button, .controls label {
+  background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font: inherit; cursor: pointer;
+}
+.controls button:hover { border-color: var(--gold); }
+.controls input[type=range] { accent-color: var(--gold); width: 140px; vertical-align: middle; }
+.log { font: 500 14px/1.5 var(--sans); color: var(--muted); min-height: 1.5em; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font: 500 13.5px/1.3 var(--sans); color: var(--muted); }
+.legend i { display: inline-block; width: 11px; height: 11px; transform: rotate(45deg); margin-right: 7px; vertical-align: -1px; }
+.legend .sw { width: 22px; height: 8px; transform: none; border-radius: 4px; }
+
+/* variant B */
+.alt { container-type: inline-size; }
+.altstrip { --u: calc(100cqw / 640); background: #1b1813; border: 1px solid var(--line); border-radius: 10px; padding: calc(var(--u)*14); display: flex; gap: calc(var(--u)*5); flex-wrap: wrap; align-items: center; }
+.blk { width: calc(var(--u)*22); height: calc(var(--u)*22); border-radius: calc(var(--u)*3); border: calc(var(--u)*2) solid #b3832c; background: #d8a94a; }
+.blk.half { background: linear-gradient(90deg, #d8a94a 50%, transparent 50%); }
+.blk.empty { background: transparent; opacity: 0.5; }
+.sep { width: calc(var(--u)*10); }
+
+table { border-collapse: collapse; width: 100%; font: 15px/1.45 var(--serif); }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 12px/1.2 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.tablewrap { overflow-x: auto; }
+.fixes { counter-reset: fix; display: grid; gap: 14px; }
+.fixcard { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--gold); border-radius: 10px; padding: 14px 18px; display: grid; gap: 8px; }
+.fixcard p { font-size: 16px; }
+.fixcard .gurps { color: var(--muted); font-style: italic; }
+.foot { color: var(--muted); font: 500 13px/1.5 var(--sans); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="stack">
+  <span class="label">Combat Test · design review · 6 Nov 2026</span>
+  <h1>Typed Action Points</h1>
+  <p class="lede">A review of the proposed GURPS-inspired AP economy: how faithful it is, where it leaks, and what the dock should look like if it ships.</p>
+</header>
+
+<section>
+  <h2>Rating</h2>
+  <div class="rating">
+    <div class="score">
+      <b>7</b><span>out of 10 as written</span>
+      <span class="after">8.5 with three fixes</span>
+    </div>
+    <div class="bars" aria-label="Rating breakdown; gold is as written, green shows the gain from the fixes">
+      <div class="bar-row"><span>GURPS spirit</span><div class="track"><div class="fix" style="width:90%"></div><div class="fill" style="width:80%"></div></div><em>8</em></div>
+      <div class="bar-row"><span>GURPS mechanics</span><div class="track"><div class="fix" style="width:80%"></div><div class="fill" style="width:50%"></div></div><em>5</em></div>
+      <div class="bar-row"><span>Exploit resistance</span><div class="track"><div class="fix" style="width:80%"></div><div class="fill" style="width:40%"></div></div><em>4</em></div>
+      <div class="bar-row"><span>CRPG readability</span><div class="track"><div class="fix" style="width:80%"></div><div class="fill" style="width:70%"></div></div><em>7</em></div>
+      <div class="bar-row"><span>Build expression</span><div class="track"><div class="fix" style="width:90%"></div><div class="fill" style="width:90%"></div></div><em>9</em></div>
+      <div class="bar-row"><span>Fit with this codebase</span><div class="track"><div class="fix" style="width:80%"></div><div class="fill" style="width:80%"></div></div><em>8</em></div>
+    </div>
+  </div>
+  <p>The architecture is the right one. Typed pools say something GURPS's maneuver list only implies: legs and hands are different budgets, and standing still is what buys extra actions. It's also the system GURPS's own designer drafted first, abandoned only because counting points by hand was tedious, which a computer removes. It loses points because, as written, the baseline turn is a free Move and Attack, extra attacks cost nothing but AP, and speed becomes an attack stat. All three are closed by the fixes below without leaving the typed-pool design.</p>
+</section>
+
+<section>
+  <h2>The dock with AP</h2>
+  <div class="answers">
+    <div class="answer"><span class="q">Does movement still get a bar?</span><span class="a">Yes, the same gold bar.</span>
+      <p>Movement is spent per metre, so it's fractional; a bar shows that honestly where blocks can't. It's the bar you already approved, now also the Movement AP pool. When an action borrows from it, the borrowed chunk is hatched orange.</p></div>
+    <div class="answer"><span class="q">Is AP a bar or pips?</span><span class="a">Pips for actions, a bar for movement.</span>
+      <p>General, Attack and Spell AP are small whole numbers, and spending one is a decision, so they're diamond pips beside the bar, one colour per pool. Movement AP stays continuous. Two shapes, so the eye never confuses legs with hands.</p></div>
+    <div class="answer"><span class="q">How do you see what an action costs?</span><span class="a">A ghost preview.</span>
+      <p>Hover or tap an ability: the pip it will spend blinks, or the bar shows a hatched chunk if it has to borrow movement. Penalties (Move &amp; Attack, Rapid Strike) appear as badges in the readout before you commit.</p></div>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="dock" id="dock">
+      <div class="u readout" id="readout"><span>Tap an ability or drag the walk slider to preview its cost.</span></div>
+
+      <div class="u apstrip">
+        <div class="pips">
+          <div class="pipgroup"><div class="row" id="pips-general"></div><span class="tag">ACTION</span></div>
+          <div class="pipgroup"><div class="row" id="pips-attack"></div><span class="tag">ATTACK</span></div>
+        </div>
+        <div class="move">
+          <div class="tag"><span>MOVE</span><b id="move-label">5.0 / 5.0 m</b></div>
+          <div class="mtrack" id="mtrack">
+            <div class="mfill" id="mfill"></div>
+            <div class="mghost" id="mghost"></div>
+            <div class="mborrow" id="mborrow"></div>
+            <div class="tick" style="left:20%"></div>
+            <div class="tick" style="left:50%"></div>
+          </div>
+          <div class="ticklabels"><span style="left:20%">step</span><span style="left:50%">half</span></div>
+        </div>
+      </div>
+
+      <div class="u hp">15 / 15<small>HP</small></div>
+      <div class="u fp"><span>7<small>FP</small></span></div>
+
+      <div class="u panel">
+        <div class="slots">
+          <button class="slot" data-act="sword" aria-label="Sword attack" style="--c:var(--blood)"><svg viewBox="0 0 24 24"><path d="M19 2l3 3-11 11 1.5 1.5-2 2L9 18l-3 3-2-2 3-3-1.5-1.5 2-2L9 14z"/></svg><i class="cost"></i></button>
+          <button class="slot" data-act="firebolt" aria-label="Fire Bolt" style="--c:var(--mana)"><svg viewBox="0 0 24 24"><path d="M12 2c1 4 6 6 6 12a6 6 0 01-12 0c0-3 2-5 3-7 0 3 2 4 3 4 0-4-2-6 0-9z"/></svg><i class="cost"></i></button>
+          <button class="slot" data-act="reload" aria-label="Reload / Ready" style="--c:#efe6d2"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 017.7 6h-2.1A6 6 0 106 14H4a8 8 0 018-10zm8 1v6h-6z"/></svg><i class="cost"></i></button>
+          <button class="slot round" data-act="aoa" aria-label="All-Out Attack toggle"><span style="font-size:calc(var(--u)*11)">AOA</span></button>
+          <button class="slot round" data-act="aod" aria-label="All-Out Defense toggle"><span style="font-size:calc(var(--u)*11)">AOD</span></button>
+          <button class="slot round" data-act="aim" aria-label="Aim toggle"><span style="font-size:calc(var(--u)*11)">AIM</span></button>
+        </div>
+        <div class="slots">
+          <button class="slot" data-act="potion" aria-label="Drink potion" style="--c:#efe6d2"><svg viewBox="0 0 24 24"><path d="M9 2h6v2l-1 1v3.3A7 7 0 1110 8.3V5L9 4z"/></svg><i class="cost"></i></button>
+          <button class="slot" data-act="shove" aria-label="Shove" style="--c:#efe6d2"><svg viewBox="0 0 24 24"><path d="M3 12l6-6v4h8V6l4 6-4 6v-4H9v4z"/></svg><i class="cost"></i></button>
+        </div>
+      </div>
+
+      <div class="u endturn">END<br>TURN</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <label>Walk <input type="range" id="walk" min="0" max="5" step="0.25" value="0"> <span id="walkv">0 m</span></label>
+    <button id="commit-walk">Walk</button>
+    <button id="reset">New turn</button>
+  </div>
+  <div class="log" id="log">Example character: Move 5, one Action AP, one Attack AP from Extra Attack. Tap a slot twice to use it.</div>
+  <div class="legend">
+    <span><i style="background:#efe6d2"></i>Action AP (any ordinary action)</span>
+    <span><i style="background:var(--blood)"></i>Attack AP (Extra Attack)</span>
+    <span><i style="background:var(--mana)"></i>Spell AP (when a build has it)</span>
+    <span><i class="sw" style="background:linear-gradient(#f0c766,#b3832c)"></i>Movement AP</span>
+    <span><i class="sw" style="background:repeating-linear-gradient(135deg,#e0a040 0 3px,rgba(224,160,64,.35) 3px 6px)"></i>borrowed by an action</span>
+  </div>
+
+  <h3>Why not pips for movement too?</h3>
+  <div class="alt">
+    <div class="altstrip" aria-label="All-blocks alternative">
+      <div class="blk"></div><div class="blk"></div><div class="blk"></div><div class="blk"></div><div class="blk"></div><div class="blk"></div><div class="blk half"></div><div class="blk empty"></div><div class="blk empty"></div><div class="blk empty"></div>
+      <span class="sep"></span>
+      <i class="pip general" style="--u:inherit;width:calc(var(--u)*16);height:calc(var(--u)*16)"></i>
+      <i class="pip attack" style="width:calc(var(--u)*16);height:calc(var(--u)*16)"></i>
+    </div>
+  </div>
+  <p>Ten movement pips after a 3.25 m walk: you get a half-pip nobody can read at a glance, ten pips competing with the two that actually matter, and the dots you already rejected for the Move bar. Pips suit things you spend whole; a bar suits things you spend by the metre.</p>
+</section>
+
+<section id="many">
+  <h2>When there are many pips</h2>
+  <p>If AP slices the one-second turn into equal ticks, every pool is made of the same unit, and the pips join into one strip: the whole second, left to right. Below, a second is <strong>6 AP</strong>, which splits cleanly into halves and thirds (a step is 1 AP, half your Move is 2 AP). The number is illustrative; the strip works the same at 4, 8 or 12.</p>
+  <ul>
+    <li><strong>One strip, grouped by pool.</strong> Movement first (gold), then Action (bone), then Attack (red). A small gap between pools, never between pips of one pool.</li>
+    <li><strong>Movement pips drain smoothly.</strong> Walking 1.6 AP empties one pip and drains the next to 40%. Joined together, the gold pips read as the Move bar you already have, cut into seconds.</li>
+    <li><strong>Action pips go all at once.</strong> Spent ones turn hollow. The pips an action <em>would</em> spend blink before you commit.</li>
+    <li><strong>Borrowing is visible.</strong> An action paid from movement takes whole gold pips from the right end, shown as bone outlines inside the gold group.</li>
+    <li><strong>Extra pools attach after a divider</strong> with a small label (Extra Attack, Haste). Haste is a second strip under the first, because it's a second turn, not a longer one.</li>
+    <li><strong>Past about 12 pips, ticks group in threes</strong> so you can count without counting. At very high totals the group shows a number instead.</li>
+  </ul>
+
+  <div class="pipdemo" id="pipdemo"></div>
+  <p class="foot">Example character: Move 5. Movement 4 AP (1.25 m each), Action 2 AP; a sword swing costs 2 AP.</p>
+</section>
+
+<style>
+.pipdemo { display: grid; gap: 14px; container-type: inline-size; }
+.prow { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; }
+.prow .cap { font: 600 14px/1.35 var(--sans); color: var(--fg); }
+.prow .cap span { color: var(--muted); font-weight: 500; }
+.strip { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: end; }
+.grp { display: grid; gap: 5px; justify-items: start; }
+.grp .gl { font: 700 10px/1 var(--sans); letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+.grp .ps { display: flex; gap: 4px; }
+.grp .ps .third { width: 6px; }
+.sp {
+  --s: clamp(18px, 6.2cqw, 30px);
+  width: var(--s); height: calc(var(--s) * 1.15);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: var(--c); position: relative;
+}
+.sp::before { /* hollow look: inner dark hex */
+  content: ""; position: absolute; inset: 2px;
+  clip-path: inherit; background: #120f0c;
+}
+.sp::after { /* fill level, bottom up */
+  content: ""; position: absolute; inset: 2px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(to top, var(--c) var(--f), transparent var(--f));
+}
+.sp.mv { --c: #e0b04f; }
+.sp.ac { --c: #efe6d2; }
+.sp.at { --c: #c4523f; }
+.sp.ha { --c: #9b7de0; }
+.sp.borrow { --c: #e0b04f; }
+.sp.borrow::after { background: transparent; }
+.sp.borrow::before { inset: 2px; background: #120f0c; box-shadow: none; }
+.sp.borrow { background: #efe6d2; }
+.sp.ghost::after { animation: pblink .9s ease-in-out infinite; }
+@keyframes pblink { 50% { opacity: 0.25; } }
+.divider { width: 2px; align-self: stretch; background: var(--line); border-radius: 1px; }
+.count { font: 700 18px/1 var(--sans); color: var(--gold); font-variant-numeric: tabular-nums; align-self: center; }
+.count small { font-size: 12px; color: var(--muted); font-weight: 600; }
+</style>
+<script>
+(() => {
+  // pip: [kind, fill 0..1, flags]
+  const P = (k, f = 1, x = "") => ({ k, f, x });
+  const rep = (n, k, f = 1, x = "") => Array.from({ length: n }, () => P(k, f, x));
+  const ROWS = [
+    { cap: "Start of turn", sub: "the full second: 4 Movement, 2 Action",
+      groups: [["Move", rep(4, "mv")], ["Action", rep(2, "ac")]] },
+    { cap: "Walked 2 m", sub: "1.6 AP: one pip gone, the next at 40%",
+      groups: [["Move", [P("mv"), P("mv"), P("mv", 0.4), P("mv", 0)]], ["Action", rep(2, "ac")]] },
+    { cap: "Hovering Sword", sub: "the two Action pips it would spend blink",
+      groups: [["Move", [P("mv"), P("mv"), P("mv", 0.4), P("mv", 0)]], ["Action", rep(2, "ac", 1, "ghost")]] },
+    { cap: "Swung, then a second swing paid from movement", sub: "two gold pips borrowed (bone outlines); Rapid Strike applies",
+      groups: [["Move", [P("mv", 0.4), P("mv", 0), P("borrow", 0), P("borrow", 0)]], ["Action", rep(2, "ac", 0)]] },
+    { cap: "Extra Attack", sub: "its pips attach after a divider",
+      groups: [["Move", rep(4, "mv")], ["Action", rep(2, "ac")], "|", ["Extra Attack", rep(2, "at")]] },
+    { cap: "Hasted", sub: "a second strip: a second turn, not a longer one",
+      groups: [["Move", rep(4, "mv")], ["Action", rep(2, "ac")], "/", ["Haste · Move", rep(4, "ha")], ["Haste · Action", rep(2, "ha")]] },
+    { cap: "12 AP to a second", sub: "the same strip, ticks grouped in threes",
+      groups: [["Move", rep(8, "mv"), 3], ["Action", rep(4, "ac"), 3]] },
+  ];
+  const host = document.getElementById("pipdemo");
+  for (const r of ROWS) {
+    const row = document.createElement("div"); row.className = "prow";
+    row.innerHTML = `<div class="cap">${r.cap} · <span>${r.sub}</span></div>`;
+    let strip = document.createElement("div"); strip.className = "strip"; row.appendChild(strip);
+    for (const g of r.groups) {
+      if (g === "|") { const d = document.createElement("i"); d.className = "divider"; strip.appendChild(d); continue; }
+      if (g === "/") { strip = document.createElement("div"); strip.className = "strip"; row.appendChild(strip); continue; }
+      const [label, pips, every] = g;
+      const el = document.createElement("div"); el.className = "grp";
+      const ps = document.createElement("div"); ps.className = "ps";
+      pips.forEach((p, i) => {
+        if (every && i && i % every === 0) { const t = document.createElement("i"); t.className = "third"; ps.appendChild(t); }
+        const s = document.createElement("i");
+        s.className = `sp ${p.k} ${p.x}`; s.style.setProperty("--f", (p.f * 100) + "%");
+        ps.appendChild(s);
+      });
+      el.appendChild(ps);
+      const l = document.createElement("span"); l.className = "gl"; l.textContent = label; el.appendChild(l);
+      strip.appendChild(el);
+    }
+    host.appendChild(row);
+  }
+})();
+</script>
+
+<section>
+  <h2>What it gets right</h2>
+  <ul>
+    <li><strong>AP is the one-second turn cut into pieces.</strong> Man to Man's first draft did exactly this (1 yard = 1 AP, a swing = 2). It was dropped for bookkeeping, which the computer now does.</li>
+    <li><strong>The mobility-for-action trade is GURPS's core trade.</strong> Attack gets one step; Move gets full Move. Letting Movement AP buy actions, never the reverse, says "I stood my ground to do more."</li>
+    <li><strong>Extra Attack as Attack AP is faithful.</strong> In GURPS it adds attacks inside the Attack maneuver without adding mobility. A dedicated pool is the same thing.</li>
+    <li><strong>Ready and reloads fit AP better than maneuvers.</strong> "Three turns of Ready" becomes a cost whose progress carries across turns.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Three fixes before anything is built</h2>
+  <div class="fixes">
+    <div class="fixcard"><h3>1 · The baseline turn is a free Move and Attack</h3>
+      <p>Full Movement AP plus an action lets everyone run full Move and attack at full skill with full defenses. That's D&amp;D's turn.</p>
+      <p class="gurps">GURPS Move and Attack: melee −4 with skill capped at 9, ranged −2 or Bulk, no parry, no retreat.</p>
+      <p><strong>Fix:</strong> make it a state worked out from what you did. Moved more than a step this turn and attacked, before or after? The penalties apply until your next turn. A graded version (step: none, up to half Move: −2, beyond: −4) is friendlier than the all-or-nothing cliff.</p></div>
+    <div class="fixcard"><h3>2 · Movement-funded attacks beat All-Out Attack</h3>
+      <p>Standing still and pouring movement into attacks gives several attacks at full skill while keeping your defenses.</p>
+      <p class="gurps">GURPS caps it at two: All-Out Attack (Double) with no defenses, or Rapid Strike at −6 each.</p>
+      <p><strong>Fix:</strong> every attack after the first that isn't paid from Attack AP takes the Rapid Strike penalty. Attacks paid from Attack AP take none, which gives Extra Attack a clear job.</p></div>
+    <div class="fixcard"><h3>3 · Speed becomes an attack stat</h3>
+      <p>If the Movement pool equals Move, a Move 8 demon gets more actions than a Move 5 human, and a flier on Air Move (2× ground) gets a doubled pool to turn into attacks.</p>
+      <p class="gurps">GURPS: Move never grants extra attacks.</p>
+      <p><strong>Fix:</strong> everyone gets the same Movement AP pool; Move sets metres per AP. Fliers pay less AP per metre. Encumbrance and size then change distance only, as in GURPS.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Other leaks</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Problem</th><th>Fix</th></tr></thead>
+    <tbody>
+      <tr><td>Hit-and-run with split movement</td><td>Move and Attack state (fix 1)</td></tr>
+      <tr><td>Most-restricted-first spending strands AP when an action fits two dedicated pools (Fire Bolt is attack and spell)</td><td>Don't lock the pool at spend time. Keep this turn's action list and re-check it can all be paid; with 3–4 pools that's a tiny matching problem and never wrong</td></tr>
+      <tr><td>Buying three Aims in one turn</td><td>Aim, Evaluate and Concentrate build once per turn: Aim gives Acc, then +1, then +1; Evaluate +1 per turn up to +3; damage forces a Will roll to keep them</td></tr>
+      <tr><td>Saving AP for an alpha strike</td><td>No carry-over between turns</td></tr>
+      <tr><td>Dedicated AP stacking from items and buffs</td><td>A cap per pool; dedicated grants priced like GURPS Extra Attack (25 points each)</td></tr>
+      <tr><td>Haste-style effects</td><td>Grant a whole second set of pools, never extra Movement AP</td></tr>
+      <tr><td>Stagger draining AP</td><td>Skip it: it's shock under another name, which you already rejected. Damage can break Aim or Concentrate (Will roll), and that's all</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>The open questions, answered</h2>
+  <ul>
+    <li><strong>Defenses:</strong> off AP entirely. Dodge is free and unlimited in GURPS; Parry and Block have their own limits, which already reset on your own turn. Putting them on AP means a choice every time you're attacked.</li>
+    <li><strong>Reaction pool:</strong> none. Model GURPS Wait instead: hold leftover Action or Attack AP at end of turn for a triggered action, like a Stop Thrust. GURPS has no free opportunity attacks.</li>
+    <li><strong>Unused Movement AP:</strong> no carry-over, but it funds Retreat: one step back when you defend, for +3 Dodge or +1 Parry/Block, once per turn. Leftover movement gets a defensive use without inventing anything.</li>
+    <li><strong>Refill:</strong> every pool refills at the start of your own turn.</li>
+    <li><strong>All-Out Attack:</strong> a toggle declared before your first attack; Determined (+4 hit), Strong (+2 damage) or Double (one extra attack with no Rapid Strike penalty). Half Move cap, no defenses until your next turn.</li>
+    <li><strong>All-Out Defense:</strong> only if you haven't attacked; locks out attacks for the turn. Half Move cap; +2 to one defense or Double Defense.</li>
+    <li><strong>Varying costs:</strong> by action type, and by a weapon's ready-after-use cost, not a swing-speed stat (GURPS has none). Attributes act only through Basic Speed setting metres per AP.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Missing pieces</h2>
+  <ul>
+    <li>A free step (about 1 m) that never triggers Move and Attack.</li>
+    <li>Posture changes and standing up as AP costs; this matters once shove-to-prone lands.</li>
+    <li>Feint: a Quick Contest of skills that spends an attack.</li>
+    <li>Bad footing costing extra Movement AP per metre (×2 in GURPS), so Grease and Web plug in.</li>
+    <li>Sprinting: extra distance for FP.</li>
+    <li>AI planning: free ordering grows the plan space. Choose position and main action, then fill leftover AP greedily.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Simplifications</h2>
+  <ul>
+    <li><strong>No baseline Attack AP.</strong> Everyone gets Movement AP plus a small Action pool; Attack AP exists only through Extra Attack. Without it, a baseline Attack pool is just Action AP with a different colour.</li>
+    <li><strong>Fractional AP internally, whole numbers on screen.</strong> Pathing stays on 0.25 m cells; only the bar rounds.</li>
+    <li><strong>Derive commitments where possible.</strong> Move and Attack is worked out from what you did; only All-Out Attack and All-Out Defense are declared.</li>
+    <li><strong>One spending rule:</strong> the matching check. Priority order becomes a tie-break.</li>
+  </ul>
+  <p>The current economy is already halfway there: movement is a metre budget, <code>Ability.move_cost</code> already lets actions eat movement, attack options are stacking toggles, and defenses already live outside the turn. The conversion is pools in place of the single attack action, the Move and Attack state, the Rapid Strike penalty, per-turn Aim, and teaching <code>ai_scorer</code> to price AP.</p>
+</section>
+
+<p class="foot">Numbers in the mockup are illustrative: Movement pool 10 AP (Move 5, so 2 AP per metre), an action borrowed from movement costs 4 AP, one Action AP, one Attack AP.</p>
+</div>
+
+<script>
+(() => {
+  const MOVE = 5, POOL = 10, PER_M = POOL / MOVE, BORROW = 4, STEP = 1;
+  const pools = { general: 1, attack: 1 };
+  let st, armed = null, toggles = { aoa: false, aod: false, aim: false };
+
+  const ACTS = {
+    sword:    { name: "Sword", kind: "attack", from: ["attack", "general"] },
+    firebolt: { name: "Fire Bolt", kind: "attack", from: ["general"] },
+    reload:   { name: "Reload", kind: "ready", from: ["general"] },
+    potion:   { name: "Drink potion", kind: "ready", from: ["general"] },
+    shove:    { name: "Shove", kind: "action", from: ["general"] },
+  };
+
+  const $ = id => document.getElementById(id);
+  function reset() {
+    st = { general: pools.general, attack: pools.attack, move: POOL, moved: 0, attacks: 0, attackedFromBonus: 0 };
+    armed = null; toggles = { aoa: false, aod: false, aim: false };
+    $("walk").value = 0; render(); say("New turn. Every pool is full.");
+  }
+  function say(t) { $("log").textContent = t; }
+
+  // Which pool would pay, and what penalties apply
+  function plan(key) {
+    const a = ACTS[key];
+    for (const p of a.from) if (st[p] > 0) return { pool: p, borrow: 0, ...penalties(a, p) };
+    if (st.move >= BORROW) return { pool: "move", borrow: BORROW, ...penalties(a, "move") };
+    return null;
+  }
+  function penalties(a, pool) {
+    const out = [];
+    if (a.kind !== "attack") return { badges: out };
+    if (toggles.aod) return { badges: [["bad", "All-Out Defense: no attacks"]], blocked: true };
+    if (st.attacks >= 1 && pool !== "attack" && !(toggles.aoa && st.attacks === 1)) out.push(["bad", "Rapid Strike −6"]);
+    if (st.moved > STEP) out.push(["warn", st.moved > MOVE / 2 ? "Move & Attack −4" : "Move & Attack −2"]);
+    if (toggles.aoa) out.push(["warn", "All-Out: no defenses"]);
+    if (toggles.aim && !out.length) out.push(["ok", "Aim +Acc"]);
+    if (!out.length) out.push(["ok", "no penalty"]);
+    return { badges: out };
+  }
+  const POOLNAME = { attack: "Attack AP", general: "Action AP", move: "movement (4 AP = 2 m)" };
+
+  function render(preview) {
+    // pips
+    for (const p of ["general", "attack"]) {
+      const row = $("pips-" + p); row.innerHTML = "";
+      for (let i = 0; i < pools[p]; i++) {
+        const el = document.createElement("i");
+        el.className = "pip " + p + (i >= st[p] ? " spent" : "");
+        if (preview && preview.pool === p && i === st[p] - 1) el.classList.add("ghost");
+        row.appendChild(el);
+      }
+    }
+    // bar
+    const walkAP = preview && preview.walk ? preview.walk * PER_M : 0;
+    const borrowAP = preview && preview.borrow ? preview.borrow : 0;
+    const keep = Math.max(0, st.move - walkAP - borrowAP);
+    $("mfill").style.width = (keep / POOL * 100) + "%";
+    $("mghost").style.left = (keep / POOL * 100) + "%";
+    $("mghost").style.width = (walkAP / POOL * 100) + "%";
+    $("mborrow").style.left = ((keep + walkAP) / POOL * 100) + "%";
+    $("mborrow").style.width = (borrowAP / POOL * 100) + "%";
+    $("move-label").textContent = (st.move / PER_M).toFixed(1) + " / " + MOVE.toFixed(1) + " m";
+    document.querySelectorAll(".slot.round").forEach(b => b.classList.toggle("on", !!toggles[b.dataset.act]));
+    document.querySelectorAll(".slot[data-act]").forEach(b => b.classList.toggle("hot", b.dataset.act === armed));
+  }
+
+  function readout(html) { $("readout").innerHTML = html; }
+  function previewAct(key) {
+    const p = plan(key);
+    if (!p) { readout(`<span>${ACTS[key].name}: not enough AP left.</span>`); render(); return null; }
+    const badges = (p.badges || []).map(([k, t]) => `<span class="badge ${k}">${t}</span>`).join("");
+    readout(`<span>${ACTS[key].name} · paid from <b>${POOLNAME[p.pool]}</b></span>${badges}`);
+    render(p);
+    return p;
+  }
+
+  document.querySelectorAll(".slot[data-act]").forEach(btn => {
+    const key = btn.dataset.act;
+    if (["aoa", "aod", "aim"].includes(key)) {
+      btn.addEventListener("click", () => {
+        if (key === "aod" && st.attacks > 0) { say("All-Out Defense is only allowed before you attack."); return; }
+        if (key === "aoa" && st.attacks > 0) { say("All-Out Attack must be declared before your first attack."); return; }
+        toggles[key] = !toggles[key];
+        if (key === "aoa" && toggles.aoa) toggles.aod = false;
+        if (key === "aod" && toggles.aod) toggles.aoa = false;
+        say(`${key.toUpperCase()} ${toggles[key] ? "on" : "off"}.`); render();
+        if (armed) previewAct(armed);
+      });
+      return;
+    }
+    btn.addEventListener("mouseenter", () => { if (!armed) previewAct(key); });
+    btn.addEventListener("mouseleave", () => { if (!armed) { render(); } });
+    btn.addEventListener("click", () => {
+      if (armed !== key) { armed = key; previewAct(key); say(`Previewing ${ACTS[key].name}. Tap again to use it.`); return; }
+      const p = plan(key);
+      if (!p || p.blocked) { say("Can't do that now."); return; }
+      if (p.pool === "move") st.move -= p.borrow; else st[p.pool]--;
+      if (ACTS[key].kind === "attack") st.attacks++;
+      armed = null; render();
+      readout(`<span>Used ${ACTS[key].name} from ${POOLNAME[p.pool]}.</span>`);
+      say(`${ACTS[key].name} used. ${st.move < POOL ? "Movement left: " + (st.move / PER_M).toFixed(1) + " m." : ""}`);
+    });
+  });
+
+  $("walk").addEventListener("input", e => {
+    const m = Math.min(+e.target.value, st.move / PER_M);
+    e.target.value = m;
+    $("walkv").textContent = m + " m";
+    armed = null;
+    const after = st.moved + m;
+    const warn = after > STEP ? `<span class="badge warn">attacking after this: Move &amp; Attack ${after > MOVE / 2 ? "−4" : "−2"}</span>` : `<span class="badge ok">within a step</span>`;
+    readout(`<span>Walk ${m} m · ${(m * PER_M).toFixed(1)} Movement AP</span>${m > 0 ? warn : ""}`);
+    render({ walk: m });
+  });
+  $("commit-walk").addEventListener("click", () => {
+    const m = +$("walk").value; if (!m) return;
+    st.move -= m * PER_M; st.moved += m; $("walk").value = 0; $("walkv").textContent = "0 m";
+    render(); readout(`<span>Walked ${m} m.</span>`); say(`Walked ${m} m. ${st.moved > STEP ? "Attacks this turn now take Move & Attack penalties." : ""}`);
+  });
+  $("reset").addEventListener("click", reset);
+  reset();
+})();
+</script>
+</body>
+</html>

@@ -1,18 +1,18 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=20 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=20 format=3 uid="uid://cew0xnwjrofpd"]
 
-[ext_resource type="Script" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
-[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="2_ability"]
-[ext_resource type="Script" path="res://systems/ability_system/area_damage_effect.gd" id="3_dmg"]
-[ext_resource type="Script" path="res://systems/ability_system/cone_targeting.gd" id="8_cone"]
-[ext_resource type="Texture2D" path="res://assets/ability_icon/fire_breath_icon.png" id="9_icon"]
-[ext_resource type="Script" path="res://systems/ability_system/spawn_surface_effect.gd" id="10_spawn"]
-[ext_resource type="Resource" path="res://data/animation_sequences/weapon_breath.tres" id="13_breath"]
-[ext_resource type="Script" path="res://systems/ability_system/vfx_effect.gd" id="14_vfx"]
-[ext_resource type="Script" path="res://systems/ability_system/vfx_step.gd" id="15_step"]
-[ext_resource type="Script" path="res://systems/ability_system/cone_vfx_step.gd" id="16_cone_step"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://dley113smhdn3" path="res://systems/ability_system/area_damage_effect.gd" id="3_dmg"]
+[ext_resource type="Script" uid="uid://7dakyq0nqsb7" path="res://systems/ability_system/cone_targeting.gd" id="8_cone"]
+[ext_resource type="Texture2D" uid="uid://fbhq80ww3x3h" path="res://assets/ability_icon/fire_breath_icon.png" id="9_icon"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="10_spawn"]
+[ext_resource type="Resource" uid="uid://wrxvxvawwob3" path="res://data/animation_sequences/weapon_breath.tres" id="13_breath"]
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="14_vfx"]
+[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="15_step"]
+[ext_resource type="Script" uid="uid://bmt7le1wyfdqe" path="res://systems/ability_system/cone_vfx_step.gd" id="16_cone_step"]
 [ext_resource type="PackedScene" path="res://scenes/vfx/ice/frost_cone.tscn" id="17_frost"]
-[ext_resource type="Script" path="res://systems/ability_system/ability_timing.gd" id="18_timing"]
-[ext_resource type="Resource" path="res://data/surfaces/ice.tres" id="90_ice_surface"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="18_timing"]
+[ext_resource type="Resource" uid="uid://cgpyi2ywynowu" path="res://data/surfaces/ice.tres" id="90_ice_surface"]
 
 [sub_resource type="Resource" id="Resource_blast"]
 script = ExtResource("16_cone_step")
@@ -46,6 +46,8 @@ max_pitch_degrees = 60.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
 requires_ally = false
+any_unit = false
+aims_at_ground = false
 
 [sub_resource type="Resource" id="Resource_timing"]
 script = ExtResource("18_timing")

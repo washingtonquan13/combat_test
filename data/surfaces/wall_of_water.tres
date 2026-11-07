@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="Surface" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="Surface" load_steps=8 format=3 uid="uid://coiaxm0jj1b3g"]
 
-[ext_resource type="Script" path="res://systems/surface_system/surface.gd" id="1_surface"]
-[ext_resource type="Script" path="res://systems/surface_system/surface_reaction.gd" id="2_reaction"]
-[ext_resource type="Resource" path="res://data/surfaces/water.tres" id="3_ground"]
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="1_surface"]
+[ext_resource type="Script" uid="uid://cog6samh014mo" path="res://systems/surface_system/surface_reaction.gd" id="2_reaction"]
+[ext_resource type="Resource" uid="uid://c1bqphlx1h076" path="res://data/surfaces/water.tres" id="3_ground"]
 [ext_resource type="PackedScene" path="res://systems/surface_system/water_wall.tscn" id="4_look"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="5_a6ek7"]
 
 [sub_resource type="Resource" id="Resource_electrified"]
 script = ExtResource("2_reaction")
@@ -24,12 +25,17 @@ script = ExtResource("1_surface")
 surface_name = "Wall of Water"
 duration_rounds = 5
 shape = 2
+height_scale = 1.0
 wall_height = 4.0
 leaves_behind = ExtResource("3_ground")
 lays_ground_under = true
+status_effects = Array[ExtResource("5_a6ek7")]([])
+status_only_inside = false
 element = 3
 reactions = Array[ExtResource("2_reaction")]([SubResource("Resource_electrified"), SubResource("Resource_frozen")])
 blocks_sight = false
+dark_vision_sees_through = false
 movement_cost_multiplier = 2.0
+blocks_movement = false
 ranged_penalty = -4
 ambient_scene = ExtResource("4_look")

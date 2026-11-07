@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" format=3 uid="uid://dh51y4swh78rh"]
+[gd_resource type="Resource" script_class="Ability" load_steps=45 format=3 uid="uid://dh51y4swh78rh"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_res1m"]
 [ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://systems/audio_system/sfx_layer.gd" id="1_tsbd3"]
@@ -117,6 +117,7 @@ behaviors = Array[ExtResource("4_846f3")]([SubResource("Resource_voctw")])
 curable = true
 group = &""
 rank = 0
+counters = Array[StringName]([])
 resisted_by = &""
 resistance_modifier = 0
 apply_animation = ""
@@ -132,6 +133,11 @@ affects_hostiles = true
 affects_allies = true
 metadata/_custom_type_script = "uid://b31m1uvps4rb"
 
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("27_spawn")
+surface = ExtResource("90_fire_surface")
+front_seconds = 0.3
+
 [sub_resource type="Resource" id="Resource_ycrns"]
 script = ExtResource("5_r5ii0")
 max_range = 15.0
@@ -140,6 +146,7 @@ requires_line_of_sight = true
 los_obstruction_mask = 1
 eye_height = 1.5
 requires_ally = false
+any_unit = false
 metadata/_custom_type_script = "uid://b1y7f6ela25ie"
 
 [sub_resource type="Resource" id="Resource_ldoga"]
@@ -161,11 +168,6 @@ waits_for_impact = true
 impact_timeout = 3.0
 impact_sfx = SubResource("Resource_mme6j")
 metadata/_custom_type_script = "uid://bjatij1rn26yg"
-
-[sub_resource type="Resource" id="Resource_spawn"]
-script = ExtResource("27_spawn")
-surface = ExtResource("90_fire_surface")
-front_seconds = 0.3
 
 [resource]
 script = ExtResource("2_nideg")

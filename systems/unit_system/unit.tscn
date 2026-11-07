@@ -5,7 +5,7 @@
 [ext_resource type="Script" uid="uid://dnh7j3tbx8iv1" path="res://systems/unit_system/unit_vfx.gd" id="5_of1k5"]
 [ext_resource type="Script" uid="uid://ck5pdrnkh24um" path="res://systems/unit_system/unit_sfx.gd" id="6_74e6i"]
 [ext_resource type="PackedScene" path="res://ui/downed_tracker.tscn" id="7_downed"]
-[ext_resource type="Script" path="res://systems/unit_system/unit_weapons.gd" id="8_weapons"]
+[ext_resource type="Script" uid="uid://boyqrmcgv68e4" path="res://systems/unit_system/unit_weapons.gd" id="8_weapons"]
 [ext_resource type="Resource" uid="uid://rybmi15rabro" path="res://data/animation_sequences/spell_cast.tres" id="castanim_spell"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_5wnup"]

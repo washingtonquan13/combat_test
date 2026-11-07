@@ -1,14 +1,15 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=11 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=14 format=3 uid="uid://c6jcidhurcyim"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
 [ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
+[ext_resource type="Script" uid="uid://cog6samh014mo" path="res://systems/surface_system/surface_reaction.gd" id="4_ojc00"]
 [ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="4_surface"]
 [ext_resource type="PackedScene" path="res://systems/surface_system/darkness.tscn" id="5_visual"]
-[ext_resource type="Resource" path="res://data/statuses/blinded.tres" id="6_blinded"]
-[ext_resource type="Texture2D" path="res://assets/ability_icon/darkness_icon.png" id="7_icon"]
+[ext_resource type="Resource" uid="uid://co2idxwubn1wq" path="res://data/statuses/blinded.tres" id="6_blinded"]
+[ext_resource type="Texture2D" uid="uid://37m5y8ueysje" path="res://assets/ability_icon/darkness_icon.png" id="7_icon"]
 [ext_resource type="Script" uid="uid://b1y7f6ela25ie" path="res://systems/ability_system/aerial_area_targeting.gd" id="8_targeting"]
-[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="90_status_effect"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="90_status_effect"]
 
 [sub_resource type="Resource" id="Resource_cloud"]
 script = ExtResource("4_surface")
@@ -16,17 +17,24 @@ surface_name = "Darkness"
 duration_rounds = 10
 shape = 1
 height_scale = 0.5
+wall_height = 4.0
+lays_ground_under = false
 status_effects = Array[ExtResource("90_status_effect")]([ExtResource("6_blinded")])
 status_only_inside = true
+element = 0
+reactions = Array[ExtResource("4_ojc00")]([])
 blocks_sight = true
 dark_vision_sees_through = true
 movement_cost_multiplier = 1.0
+blocks_movement = false
+ranged_penalty = 0
 ambient_scene = ExtResource("5_visual")
 metadata/_custom_type_script = "uid://cykbj1s0c82e5"
 
 [sub_resource type="Resource" id="Resource_spawn"]
 script = ExtResource("3_spawn")
 surface = SubResource("Resource_cloud")
+front_seconds = 0.0
 metadata/_custom_type_script = "uid://5apipwrij8ef"
 
 [sub_resource type="Resource" id="Resource_targeting"]
@@ -35,8 +43,9 @@ max_range = 18.0
 radius = 5.0
 requires_line_of_sight = false
 los_obstruction_mask = 1
-eye_height = 1.5
 requires_ally = false
+any_unit = false
+aims_at_ground = false
 metadata/_custom_type_script = "uid://b1y7f6ela25ie"
 
 [resource]
@@ -47,10 +56,17 @@ icon_color = Color(0.67, 0.43, 0.9, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

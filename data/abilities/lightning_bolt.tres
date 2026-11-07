@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=15 format=3]
+[gd_resource type="Resource" script_class="Ability" load_steps=19 format=3 uid="uid://d2phloht5p2gn"]
 
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_abil"]
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="2_effb"]
@@ -8,10 +8,10 @@
 [ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="6_time"]
 [ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="7_vfxe"]
 [ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="8_step"]
-[ext_resource type="Script" path="res://systems/ability_system/beam_step.gd" id="9_proj"]
+[ext_resource type="Script" uid="uid://c4abp1ddyf8gs" path="res://systems/ability_system/beam_step.gd" id="9_proj"]
 [ext_resource type="PackedScene" path="res://scenes/vfx/lightning/lightning_bolt_beam.tscn" id="10_scene"]
 [ext_resource type="Script" uid="uid://bkpdhvqqgfc8o" path="res://systems/ability_system/impact_signal_step.gd" id="11_imp"]
-[ext_resource type="Resource" path="res://data/animation_sequences/spell_cast_held.tres" id="12_cast"]
+[ext_resource type="Resource" uid="uid://bt5amh6e1fqk7" path="res://data/animation_sequences/spell_cast_held.tres" id="12_cast"]
 
 [sub_resource type="Resource" id="Resource_proj"]
 script = ExtResource("9_proj")
@@ -33,6 +33,8 @@ script = ExtResource("5_dmg")
 dice_count = 1
 dice_sides = 6
 dice_bonus = 1
+wound_type = 0
+armor_divisor = 1.0
 metadata/_custom_type_script = "uid://l0qndk2gae1o"
 
 [sub_resource type="Resource" id="Resource_targ"]
@@ -40,6 +42,8 @@ script = ExtResource("4_targ")
 max_range = 18.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
+requires_ally = false
+any_unit = false
 aims_at_ground = true
 metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 
@@ -55,12 +59,22 @@ ability_name = "Lightning Bolt"
 icon = ExtResource("3_icon")
 icon_color = Color(0.75, 0.8, 1, 1)
 category = 1
-element = 4
 targeting = SubResource("Resource_targ")
 effects = Array[ExtResource("2_effb")]([SubResource("Resource_dmg")])
+element = 4
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = true
 uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
 timing = SubResource("Resource_time")
 cast_vfx = SubResource("Resource_vfxe")
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
 cast_animation = ExtResource("12_cast")
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"
