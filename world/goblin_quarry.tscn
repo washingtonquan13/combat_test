@@ -1,4 +1,4 @@
-[gd_scene load_steps=90 format=3]
+[gd_scene load_steps=93 format=3]
 
 [ext_resource type="Script" path="res://world/goblin_quarry.gd" id="1_area"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_unit"]
@@ -23,6 +23,9 @@
 [ext_resource type="Resource" path="res://data/dialogue/scared_townsperson/resolved_hub.tres" id="21_resolved"]
 [ext_resource type="Script" path="res://systems/skill_system/flag_prerequisite.gd" id="22_flag"]
 [ext_resource type="PackedScene" path="res://systems/interaction_system/movable_box.tscn" id="23_box"]
+[ext_resource type="PackedScene" path="res://systems/interaction_system/interactable_prop.tscn" id="24_prop"]
+[ext_resource type="Resource" path="res://data/interactions/travel.tres" id="25_travel"]
+[ext_resource type="Script" path="res://systems/world_system/area_exit.gd" id="26_exit"]
 
 [sub_resource type="Resource" id="Resource_raids_resolved"]
 script = ExtResource("22_flag")
@@ -597,6 +600,18 @@ selected_color = Color(1, 0, 0, 0.627451)
 [node name="MovableBox" parent="." instance=ExtResource("23_box")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0.3, 32)
 persistent_id = &"quarry_box"
+
+[node name="OverworldExit" parent="." instance=ExtResource("24_prop")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1, 43)
+interactions = Array[ExtResource("16_iopt")]([ExtResource("25_travel")])
+
+[node name="AreaExit" type="Node" parent="OverworldExit" node_paths=PackedStringArray("arrival_point")]
+script = ExtResource("26_exit")
+target_area = &"overworld"
+arrival_point = NodePath("../ArrivalPoint")
+
+[node name="ArrivalPoint" type="Marker3D" parent="OverworldExit"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, -3)
 
 [node name="PartySpawnPoint" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 0, 34)

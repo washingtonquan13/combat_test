@@ -100,6 +100,13 @@ transform = Transform3D(6.2864, 0, 1.6526, 0, 6.5, 0, -1.6526, 0, 6.2864, -3590.
 script = ExtResource("5_exit")
 target_area = &"test_area_3"
 
+[node name="OldQuarry" parent="SpawnPoints" instance=ExtResource("4_door")]
+transform = Transform3D(6.5, 0, 0, 0, 6.5, 0, 0, 0, 6.5, -3063, 0, 2444)
+
+[node name="AreaExit" type="Node" parent="SpawnPoints/OldQuarry"]
+script = ExtResource("5_exit")
+target_area = &"goblin_quarry"
+
 [node name="OverworldCamera" parent="." instance=ExtResource("3_xhpe8")]
 height = 103.923
 distance = 60.0
