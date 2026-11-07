@@ -28,6 +28,10 @@ extends AbilityEffect
 ## constant velocity — it only guards against an unusually large
 ## takeoff_height set on some future ability.
 @export var max_ascend_duration: float = 4.0
+## Seconds on the ground between the cast and the climb: room for a
+## takeoff clip's crouch to read as the push that lifts the body, rather
+## than as a crouch performed already in the air.
+@export var lift_delay: float = 0.0
 
 
 func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Dictionary:
@@ -35,22 +39,20 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 		return {}
 
 	attacker.apply_status(flying_status)
+	attacker.took_off.emit(attacker)
 	# Clamped to the same flight envelope every other altitude write in
 	# this project already respects (Unit.set_flight_altitude(),
 	# UnitMovement.plan_route(), movement_indicator.gd's own preview) —
 	# this was the one unclamped write. Without it, taking off from
-	# anywhere within takeoff_height of NavigationGrid.FLIGHT_CEILING_HEIGHT
-	# (a tall platform, notably) left the unit standing above the ceiling,
+	# anywhere within takeoff_height of the flight ceiling
+	# (NavigationGrid.flight_ceiling_at) left the unit above the ceiling,
 	# which NavigationGrid.is_valid_cell() hard-rejects for a flying query
 	# — every subsequent find_path() call, preview or real, then starts
 	# from a cell the grid considers invalid and returns nothing: no
 	# indicator, no movement, until landing brought the unit back into the
 	# valid range.
-	var target_y: float = clamp(
-		attacker.global_position.y + takeoff_height,
-		NavigationGrid.FLIGHT_MIN_ALTITUDE,
-		NavigationGrid.FLIGHT_CEILING_HEIGHT
-	)
+	var lift: Vector3 = attacker.global_position + Vector3.UP * takeoff_height
+	var target_y: float = UnitMovement.clamp_flight_altitude(lift.y, lift, attacker)
 	# The unit's next move should hold this new height by default, not
 	# snap back toward wherever flight_target_altitude was last left
 	# (0.0, or a stale value from a previous flight) — see
@@ -72,6 +74,8 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	var tween: Tween = attacker.create_tween()
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
+	if lift_delay > 0.0:
+		tween.tween_interval(lift_delay)
 	tween.tween_property(attacker, "global_position:y", target_y, duration)
 	tween.finished.connect(attacker.end_busy)
 

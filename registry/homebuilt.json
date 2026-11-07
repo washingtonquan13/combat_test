@@ -1,0 +1,128 @@
+{
+  "library": "homebuilt",
+  "instruments": {
+    "toll": {
+      "layers": [
+        {
+          "sfz": "homebuilt/toll.sfz"
+        }
+      ]
+    },
+    "chant": {
+      "layers": [
+        {
+          "sfz": "homebuilt/chant.sfz"
+        }
+      ]
+    },
+    "drone-saw": {
+      "layers": [
+        {
+          "sfz": "homebuilt/drone-saw.sfz"
+        }
+      ]
+    },
+    "drone-cluster": {
+      "layers": [
+        {
+          "sfz": "homebuilt/drone-cluster.sfz"
+        }
+      ]
+    },
+    "industrial-kit": {
+      "layers": [
+        {
+          "sfz": "homebuilt/industrial-kit.sfz"
+        }
+      ],
+      "range": [
+        35,
+        63
+      ],
+      "drums": {
+        "boom": 35,
+        "kick": 36,
+        "rim": 37,
+        "snare": 38,
+        "clap": 39,
+        "crush": 40,
+        "hat": 42,
+        "hat_pedal": 44,
+        "hat_open": 46,
+        "crash": 49,
+        "metal": 51,
+        "anvil": 53,
+        "clank": 54,
+        "reverse": 57,
+        "riser": 60,
+        "riser_short": 61,
+        "whoosh": 62,
+        "downer": 63
+      }
+    },
+    "chip-pulse25": {
+      "layers": [
+        {
+          "sfz": "homebuilt/chip-pulse25.sfz"
+        }
+      ]
+    },
+    "chip-pulse12": {
+      "layers": [
+        {
+          "sfz": "homebuilt/chip-pulse12.sfz"
+        }
+      ]
+    },
+    "chip-pulse50": {
+      "layers": [
+        {
+          "sfz": "homebuilt/chip-pulse50.sfz"
+        }
+      ]
+    },
+    "fm-brass": {
+      "layers": [
+        {
+          "sfz": "homebuilt/fm-brass.sfz"
+        }
+      ]
+    },
+    "chip-tri": {
+      "layers": [
+        {
+          "sfz": "homebuilt/chip-tri.sfz"
+        }
+      ]
+    },
+    "fm-slap": {
+      "layers": [
+        {
+          "sfz": "homebuilt/fm-slap.sfz"
+        }
+      ]
+    },
+    "chip-kit": {
+      "layers": [
+        {
+          "sfz": "homebuilt/chip-kit.sfz"
+        }
+      ],
+      "range": [
+        36,
+        50
+      ],
+      "drums": {
+        "kick": 36,
+        "snare": 38,
+        "zap": 39,
+        "hat": 42,
+        "tom_low": 45,
+        "hat_open": 46,
+        "tom_mid": 48,
+        "crash": 49,
+        "tom_high": 50
+      }
+    }
+  }
+}

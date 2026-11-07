@@ -1,0 +1,27 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://systems/interaction_system/movable_prop.gd" id="1_movable"]
+[ext_resource type="Script" uid="uid://cfvydw47435bo" path="res://systems/interaction_system/interaction_option.gd" id="2_option"]
+[ext_resource type="Resource" path="res://data/interactions/examine.tres" id="3_examine"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_box"]
+albedo_color = Color(0.55, 0.38, 0.22, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_box"]
+material = SubResource("StandardMaterial3D_box")
+size = Vector3(0.6, 0.6, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_box"]
+size = Vector3(0.6, 0.6, 0.6)
+
+[node name="MovableBox" type="StaticBody3D"]
+script = ExtResource("1_movable")
+weight_lb = 10.0
+interactions = Array[ExtResource("2_option")]([ExtResource("3_examine")])
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_box")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_box")

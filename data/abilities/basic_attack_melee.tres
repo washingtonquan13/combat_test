@@ -1,35 +1,53 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://ccpq7il7jxpx1"]
+[gd_resource type="Resource" script_class="Ability" load_steps=11 format=3 uid="uid://ccpq7il7jxpx1"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_m1xwx"]
 [ext_resource type="Texture2D" uid="uid://fsfptrhr6sy3" path="res://assets/ability_icon/attack_icon_melee.png" id="1_owfv6"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_m1xwx"]
 [ext_resource type="Script" uid="uid://fgbbihwp3tid" path="res://systems/ability_system/gear_damage_effect.gd" id="2_on0pe"]
 [ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://systems/ability_system/melee_enemy_targeting.gd" id="5_ebikf"]
-[ext_resource type="Resource" uid="uid://cb2phacaa63wj" path="res://data/animation_sequences/melee_attack.tres" id="6_castanim"]
+[ext_resource type="Resource" uid="uid://cxpxh8mb5ct57" path="res://data/animation_sequences/weapon_swing.tres" id="seq_default"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="t_timing"]
 
 [sub_resource type="Resource" id="Resource_ebikf"]
 script = ExtResource("2_on0pe")
 category = 0
+off_hand = false
 metadata/_custom_type_script = "uid://fgbbihwp3tid"
 
 [sub_resource type="Resource" id="Resource_uasc7"]
 script = ExtResource("5_ebikf")
 melee_range = 1.0
 requires_ally = false
+any_unit = false
+aims_at_ground = true
 metadata/_custom_type_script = "uid://5elqyfxktw7f"
+
+[sub_resource type="Resource" id="Resource_timing"]
+script = ExtResource("t_timing")
+waits_for_impact = true
+impact_timeout = 3.0
 
 [resource]
 script = ExtResource("2_m1xwx")
 ability_name = "Basic Attack (Melee)"
 icon = ExtResource("1_owfv6")
+icon_color = Color(0.78, 0.74, 0.66, 1)
 category = 0
 targeting = SubResource("Resource_uasc7")
 effects = Array[ExtResource("1_m1xwx")]([SubResource("Resource_ebikf")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = true
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+timing = SubResource("Resource_timing")
+armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
-cast_animation = ExtResource("6_castanim")
+armed_exit_animation = ""
+cast_animation = ExtResource("seq_default")
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

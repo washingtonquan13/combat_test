@@ -6,7 +6,7 @@
 [ext_resource type="Script" uid="uid://cxvg4h3mmr1l4" path="res://systems/ability_system/apply_status_effect.gd" id="4_applystatus"]
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="5_status"]
 [ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="6_behavior"]
-[ext_resource type="Script" path="res://systems/ability_system/outgoing_attack_modifier_behavior.gd" id="7_outgoing"]
+[ext_resource type="Script" uid="uid://bl6ho0f6egol0" path="res://systems/ability_system/outgoing_attack_modifier_behavior.gd" id="7_outgoing"]
 [ext_resource type="Texture2D" uid="uid://d23sxrfn4ew0a" path="res://assets/ability_icon/bless_icon.png" id="8_icon"]
 
 [sub_resource type="Resource" id="Resource_outgoing"]
@@ -21,6 +21,12 @@ default_duration = 3
 stack_mode = 0
 max_stacks = 1
 behaviors = Array[ExtResource("6_behavior")]([SubResource("Resource_outgoing")])
+curable = true
+group = &""
+rank = 0
+counters = Array[StringName]([])
+resisted_by = &""
+resistance_modifier = 0
 apply_animation = ""
 apply_animation_loops = false
 remove_animation = ""
@@ -38,19 +44,29 @@ max_range = 8.0
 requires_line_of_sight = true
 los_obstruction_mask = 1
 requires_ally = true
+any_unit = false
+aims_at_ground = false
 metadata/_custom_type_script = "uid://c2pqxcyoj7nxh"
 
 [resource]
 script = ExtResource("1_ability")
 ability_name = "Bless"
 icon = ExtResource("8_icon")
+icon_color = Color(1, 0.84, 0.47, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("3_effect")]([SubResource("Resource_applystatus")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

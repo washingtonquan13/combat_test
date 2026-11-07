@@ -3,6 +3,7 @@ extends MarginContainer
 
 @onready var item_layer: Control = $ItemLayer
 @onready var ghost_preview: ColorRect = $GhostPreview
+@onready var _empty_icon: TextureRect = $EmptyIcon
 
 ## Which kind of GearItem this slot accepts — see accepts_item().
 @export var slot_type: GearItem.SlotType = GearItem.SlotType.HELMET
@@ -23,16 +24,44 @@ enum Slot {
 }
 @export var slot: Slot = Slot.HELMET
 
+## The faint outline an empty slot shows, so it reads as "helmet" or
+## "off hand" before anything is in it. Set per slot in party_overview.tscn.
+@export var empty_icon: Texture2D:
+	set(value):
+		empty_icon = value
+		_refresh_empty_icon()
+
 ## Which unit this slot currently represents — assigned by
 ## party_overview.gd's open_for(), not per-instance in the .tscn (all 16
 ## slots are shared UI, re-pointed at whichever unit's sheet is open).
 ## equip()/unequip() only touch the unit's stat modifiers/storage when
 ## this is set; display_item()/clear_display() below never do, regardless.
-@export var unit: Unit
+@export var unit: Unit:
+	set(value):
+		if unit and unit.equipment_changed.is_connected(_on_equipment_changed):
+			unit.equipment_changed.disconnect(_on_equipment_changed)
+		unit = value
+		if unit:
+			unit.equipment_changed.connect(_on_equipment_changed)
+		_refresh_ghost()
 
+## The widget showing whatever unit has in this slot — a view only,
+## built by display_instance() and freed by clear_display(). What's worn
+## lives on the unit (UnitEquipment), as an ItemInstance.
 var equipped_item: Item = null
 
+## An off-hand slot's faded copy of the two-handed weapon in its main
+## hand: shows why the slot is taken. Not an Item, so it can't be
+## dragged, right-clicked or counted by accepts_item().
+var _ghost: TextureRect = null
+## Grey and half-faded: the icon over a grey wash reads as "taken by the
+## main hand", not as an item in this slot.
+const GHOST_TINT := Color(0.8, 0.8, 0.8, 0.55)
+
+const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tscn")
+
 func _ready() -> void:
+	_refresh_empty_icon()
 	if not mouse_exited.is_connected(_on_mouse_exited):
 		mouse_exited.connect(_on_mouse_exited)
 
@@ -48,56 +77,121 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	if not (data is Item) or not accepts_item(data):
 		return
+	var instance: ItemInstance = data.instance
 	data.detach_from_current_location()
-	equip(data)
+	equip(instance)
 	ghost_preview.visible = false
 
 func _on_mouse_exited() -> void:
 	ghost_preview.visible = false
 
-## Real equip — a drag-and-drop from the inventory grid (see
-## _drop_data). Places the item AND registers its stat modifiers on
-## unit (if set). party_overview.gd's unit-switch swap deliberately
-## does NOT call this — see display_item() below.
-func equip(item: Item) -> void:
+## Real equip — a drag-and-drop or the context menu's Equip. Shows the
+## instance AND registers it on unit (if set), stat modifiers included.
+## party_overview.gd's unit-switch swap deliberately does NOT call this —
+## see display_instance() below.
+func equip(instance: ItemInstance) -> void:
 	if equipped_item:
 		unequip()
-	display_item(item)
+	display_instance(instance)
 	if unit:
-		unit.equip_item(slot, item)
+		unit.equip_item(slot, instance)
 
 
-## Real unequip — counterpart to equip(), same "drag-and-drop only"
-## scope. Reverts unit's stat modifiers before clearing the display.
+## Real unequip — counterpart to equip(). Reverts unit's stat modifiers
+## before clearing the display.
 func unequip() -> void:
 	if unit and equipped_item:
 		unit.unequip_item(slot)
 	clear_display()
 
 
-## Pure visual placement, no stat/storage side effects — reparents item
-## into view with no idea whether it's a NEW equip or just redisplaying
-## something already equipped on unit. party_overview.gd's open_for()
-## uses this (paired with clear_display()) when swapping which unit's
-## sheet is shown: the item's already registered on its owning unit,
-## nothing needs registering again just because it's visible again.
-func display_item(item: Item) -> void:
-	if item.get_parent():
-		item.reparent(item_layer)
-	else:
-		item_layer.add_child(item)
-	equipped_item = item
-
+## Pure visual placement, no stat/storage side effects — builds a widget
+## for instance with no idea whether it's a NEW equip or just showing
+## something already equipped on unit. party_overview.gd's unit switch
+## uses this (paired with clear_display()): the instance is already
+## registered on its unit, nothing needs registering again just because
+## it's visible again.
+func display_instance(instance: ItemInstance) -> void:
+	clear_display()
+	if not instance:
+		return
+	var item: Item = ITEM_SCENE.instantiate()
+	item.instance = instance
 	item.layout = Item.LayoutMode.EQUIPPED
-	item.size = item_layer.size
-	item.position = Vector2.ZERO
+	item_layer.add_child(item)
+	# Anchored, not sized once: on the screen's first open item_layer hasn't
+	# been laid out yet (0x0), and a copied size would stay 0x0.
+	item.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	equipped_item = item
+	_refresh_ghost()
 
 
-## Visual-only counterpart to display_item() — see its header.
+## Visual-only counterpart to display_instance() — see its header.
+## Out of the slot at once, freed at the end of the frame (the widget may
+## be the drag data of the drop being handled right now).
 func clear_display() -> void:
+	if equipped_item:
+		if equipped_item.get_parent():
+			equipped_item.get_parent().remove_child(equipped_item)
+		equipped_item.queue_free()
 	equipped_item = null
+	_refresh_ghost()
+
+
+func _on_equipment_changed(_unit: Unit) -> void:
+	_refresh_ghost()
+
+
+func _refresh_ghost() -> void:
+	var weapon: ItemInstance = null
+	if unit and not equipped_item and is_node_ready():
+		var main = UnitEquipment.OFF_HAND_OF.find_key(slot)
+		if main != null:
+			var held: ItemInstance = unit.get_equipped_item(main)
+			if UnitEquipment.is_two_handed(held):
+				weapon = held
+	if not weapon:
+		if _ghost:
+			_ghost.queue_free()
+			_ghost = null
+		_refresh_empty_icon()
+		return
+	if not _ghost:
+		_ghost = TextureRect.new()
+		_ghost.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_ghost.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		_ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ghost.modulate = GHOST_TINT
+		var wash := ColorRect.new()
+		wash.color = Color(0.6, 0.6, 0.6, 0.5)
+		wash.show_behind_parent = true
+		wash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_ghost.add_child(wash)
+		wash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		item_layer.add_child(_ghost)
+		_ghost.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_ghost.texture = weapon.definition.icon
+	_refresh_empty_icon()
+
+
+## Shown only while nothing is in the slot — no item, no two-hand ghost.
+func _refresh_empty_icon() -> void:
+	if not is_node_ready():
+		return
+	_empty_icon.texture = empty_icon
+	_empty_icon.visible = empty_icon != null and equipped_item == null and _ghost == null
 
 func accepts_item(item: Item) -> bool:
 	if not (equipped_item == null or equipped_item == item):
 		return false
-	return item.gear_data != null and item.gear_data.slot_type == slot_type
+	return accepts(item.instance)
+
+## Identified, fits this slot's type (GearItem.fits: a one-handed weapon
+## fits the off hand too) and, on a unit, its other hand allows it and
+## it keeps the unit under 10 x Basic Lift. An unidentified item can't
+## be worn until a scroll identifies it.
+func accepts(instance: ItemInstance) -> bool:
+	if instance == null or not instance.identified or instance.gear_data == null \
+			or not instance.gear_data.fits(slot_type):
+		return false
+	return unit == null or (unit.hands_allow(slot, instance) and unit.weight_allows(slot, instance))

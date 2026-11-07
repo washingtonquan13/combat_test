@@ -20,6 +20,7 @@ requires_ally = false
 script = ExtResource("1_ability")
 ability_name = "Summon Demon"
 icon = ExtResource("4_icon")
+icon_color = Color(0.67, 0.43, 0.9, 1)
 category = 1
 targeting = SubResource("Resource_targeting")
 effects = Array[ExtResource("1_fnyxh")]([SubResource("Resource_summondemoneffect")])

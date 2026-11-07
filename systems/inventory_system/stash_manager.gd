@@ -6,7 +6,7 @@ extends Node
 ## typed to the component, not to whatever owns it, so this has no idea
 ## whether the thing being looted is a chest, a corpse, or anything
 ## else (see stash_component.gd). Deliberately dumb about PRESENTATION,
-## same split as DialogueManager/dialogue_overlay: stash_panel.gd just
+## same split as Conversation/dialogue_overlay: stash_panel.gd just
 ## listens to the signals below and does the actual reparenting of
 ## Inventory nodes — this file never touches a Control.
 
@@ -20,16 +20,16 @@ func is_active() -> bool:
 	return current_stash != null
 
 
-## Mutually exclusive with a conversation — see DialogueManager.start_dialogue's
-## matching StashManager.is_active() guard — and with another stash already
-## open, since the reparent-based transfer only ever has one "loot UI" to
-## reparent into.
+## Mutually exclusive with a conversation and with another stash already
+## open (GameMode.input_is_taken() answers both) — the reparent-based
+## transfer only ever has one "loot UI" to reparent into.
 func open_stash(stash: StashComponent, actor: Unit) -> void:
-	if not stash or DialogueManager.is_active() or is_active():
+	if not stash or GameMode.input_is_taken():
 		return
 	# GameMode reads current_stash through is_active(); the mode becomes
 	# LOOTING on the line above and needs telling nothing.
 	current_stash = stash
+	stash.roll_loot()
 	stash_opened.emit(stash, actor)
 
 

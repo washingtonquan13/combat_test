@@ -11,8 +11,8 @@ extends Node
 ##
 ## SETUP:
 ##  1. Project Settings > Input Map: add three actions —
-##       "test_start_combat" mapped to a key (e.g. K)
-##       "test_end_turn"      mapped to a key (e.g. N)
+##       "test_start_combat" mapped to a key (F6 here)
+##       "test_end_turn"      mapped to a key (F7 here)
 ##       "test_delay_turn"    mapped to a key (e.g. M)
 ##  2. Make sure your Unit instances are already in the scene tree, each
 ##     with `faction` set appropriately (player units default to "player";
@@ -21,7 +21,7 @@ extends Node
 ##     so everything prints to the Output panel: turn order, whose turn it
 ##     is, every attack/move/death.
 ##  4. On your turn: right-click the ground to move (respects move budget),
-##     left-click an enemy to attack (see unit.gd _on_input_event). Press
+##     left-click an enemy to attack (see ClickRouter.click_unit). Press
 ##     the end-turn key when you're done acting, or the delay-turn key to
 ##     give up this turn for now and go later in this same round instead
 ##     (see CombatManager.delay_turn — defaults to delaying by 1).
@@ -32,7 +32,7 @@ extends Node
 ## (ability_used/died) are connected fresh each time combat starts,
 ## against whichever Units are alive THEN. A transient Unit taking its
 ## own connections with it when freed is the normal, safe case; this is
-## the mirror image of the UnitSelection/DialogueManager leak (a
+## the mirror image of the old UnitSelection/dialogue-manager leak (a
 ## persistent listener holding a strong ref INTO a transient object),
 ## not a repeat of it.
 
@@ -54,13 +54,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("test_start_combat"):
 		_start_test_combat()
 	elif event.is_action_pressed("test_end_turn"):
-		if CombatManager.in_combat:
+		var encounter: Encounter = CombatManager.focused_encounter
+		if encounter and encounter.is_running:
 			CombatManager.end_turn()
 	elif event.is_action_pressed("toggle_area_residency"):
 		_toggle_area_residency()
 	elif event.is_action_pressed("test_delay_turn"):
-		if CombatManager.in_combat:
-			var unit: Unit = CombatManager.current_unit
+		var encounter: Encounter = CombatManager.focused_encounter
+		if encounter and encounter.is_running:
+			var unit: Unit = encounter.current_unit
 			if unit and not CombatManager.delay_turn(unit):
 				print("Couldn't delay ", unit.get_display_name(), "'s turn.")
 
@@ -100,7 +102,7 @@ func _connect_unit_signals(units: Array[Unit]) -> void:
 func _on_combat_started(turn_order: Array[Unit]) -> void:
 	print("--- Combat started ---")
 	for unit in turn_order:
-		print("  ", unit.get_display_name(), " (", unit.faction, ") DX ", unit.get_stat("DX"), " HP ", unit.current_hp)
+		print("  ", unit.get_display_name(), " (", unit.faction, ") DX ", StatDefinition.format(unit.get_stat(StatIds.DX)), " HP ", unit.get_pool(StatIds.HP))
 
 
 func _on_turn_started(unit: Unit) -> void:
@@ -123,7 +125,7 @@ func _on_unit_ability_used(attacker: Unit, target, result: Dictionary) -> void:
 				" (rolled ", result.to_hit.roll, " vs ", result.to_hit.target, ")")
 	elif target is Unit:
 		print("   ", attacker.get_display_name(), " hits ", target_desc, " with ", result.ability.ability_name,
-				" for ", result.damage, " damage (", target.current_hp, " HP left)")
+				" for ", result.damage, " damage (", target.get_pool(StatIds.HP), " HP left)")
 	else:
 		print("   ", attacker.get_display_name(), " uses ", result.ability.ability_name, " at ", target_desc)
 

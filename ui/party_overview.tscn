@@ -1,16 +1,34 @@
-[gd_scene load_steps=10 format=3 uid="uid://jfavnc280asx"]
+[gd_scene load_steps=27 format=3 uid="uid://jfavnc280asx"]
 
 [ext_resource type="Script" uid="uid://dh2u4sdf8l16p" path="res://ui/party_overview.gd" id="1_overview"]
 [ext_resource type="PackedScene" uid="uid://dtgr0062ae6jf" path="res://systems/inventory_system/equip_slot.tscn" id="2_equip"]
 [ext_resource type="PackedScene" uid="uid://dql71bcpiu04e" path="res://systems/inventory_system/inventory.tscn" id="3_inv"]
 [ext_resource type="PackedScene" path="res://ui/stats_column.tscn" id="4_stats"]
+[ext_resource type="PackedScene" path="res://ui/encumbrance_bar.tscn" id="4_encumbrance"]
 [ext_resource type="Script" uid="uid://2g8vxoibdf3k" path="res://systems/indicator_system/alignment_grid.gd" id="5_align_grid"]
 [ext_resource type="Script" path="res://ui/demon_compendium_panel.gd" id="6_demon_panel"]
 [ext_resource type="Script" path="res://debug/debug_spawn_panel.gd" id="7_spawn_panel"]
 [ext_resource type="Script" path="res://debug/debug_music_panel.gd" id="8_music_panel"]
 [ext_resource type="Script" path="res://debug/debug_alignment_panel.gd" id="9_alignment_panel"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/amulet.svg" id="slot_amulet"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/belt.svg" id="slot_belt"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/boots.svg" id="slot_boots"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/bracers.svg" id="slot_bracers"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/chest_armor.svg" id="slot_chest_armor"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/cloak.svg" id="slot_cloak"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/gloves.svg" id="slot_gloves"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/helmet.svg" id="slot_helmet"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/legs.svg" id="slot_legs"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/melee_main.svg" id="slot_melee_main"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/melee_off.svg" id="slot_melee_off"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/ranged_main.svg" id="slot_ranged_main"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/ranged_off.svg" id="slot_ranged_off"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/ring.svg" id="slot_ring"]
+[ext_resource type="Texture2D" path="res://assets/ui_icon/equip_slot/undershirt.svg" id="slot_undershirt"]
 
 [sub_resource type="ButtonGroup" id="ButtonGroup_spawn_faction"]
+
+[sub_resource type="ButtonGroup" id="ButtonGroup_bag_filter"]
 
 [node name="PartyOverview" type="Control"]
 layout_mode = 3
@@ -115,148 +133,212 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
+[node name="PartyRail" type="MarginContainer" parent="ContentArea/InventoryPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_bottom = 1.0
+offset_left = 0.0
+offset_right = 96.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="VBox" type="VBoxContainer" parent="ContentArea/InventoryPanel/PartyRail"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Header" type="Label" parent="ContentArea/InventoryPanel/PartyRail/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 15
+text = "Party"
+horizontal_alignment = 1
+
+[node name="PartyList" type="VBoxContainer" parent="ContentArea/InventoryPanel/PartyRail/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Spacer" type="Control" parent="ContentArea/InventoryPanel/PartyRail/VBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="CycleHint" type="Label" parent="ContentArea/InventoryPanel/PartyRail/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 13
+text = "[Q] [E]
+cycle"
+horizontal_alignment = 1
+
+[node name="RailRule" type="ColorRect" parent="ContentArea/InventoryPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_bottom = 1.0
+offset_left = 96.0
+offset_right = 97.0
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.173, 0.184, 0.216, 1)
+
 [node name="StatsColumn" parent="ContentArea/InventoryPanel" instance=ExtResource("4_stats")]
 layout_mode = 1
 anchors_preset = -1
-anchor_right = 0.28
 anchor_bottom = 1.0
+offset_left = 96.0
+offset_right = 496.0
 grow_horizontal = 2
 grow_vertical = 2
+
+[node name="StatsRule" type="ColorRect" parent="ContentArea/InventoryPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_bottom = 1.0
+offset_left = 496.0
+offset_right = 497.0
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.173, 0.184, 0.216, 1)
 
 [node name="EquipmentColumn" type="MarginContainer" parent="ContentArea/InventoryPanel"]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.28
-anchor_right = 0.62
 anchor_bottom = 1.0
+offset_left = 496.0
+offset_right = 1016.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 16
+theme_override_constants/margin_top = 24
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn"]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_constants/separation = 16
-
-[node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
-layout_mode = 2
-text = "Equipment"
-
-[node name="HSeparator" type="HSeparator" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
-layout_mode = 2
+theme_override_constants/separation = 26
 
 [node name="PortraitRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_constants/separation = 12
+theme_override_constants/separation = 20
 
 [node name="LeftSlots" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
 [node name="Helmet" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_helmet")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 
 [node name="Amulet" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_amulet")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 1
 slot = 1
 
 [node name="Cloak" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_cloak")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 2
 slot = 2
 
 [node name="ChestArmor" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_chest_armor")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 3
 slot = 3
 
 [node name="Undershirt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_undershirt")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 4
 slot = 4
 
 [node name="Bracers" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/LeftSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_bracers")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 5
 slot = 5
 
 [node name="Portrait" type="TextureRect" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 240)
+custom_minimum_size = Vector2(280, 492)
 layout_mode = 2
 size_flags_vertical = 4
 expand_mode = 1
+stretch_mode = 6
 
 [node name="RightSlots" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow"]
 layout_mode = 2
 size_flags_vertical = 4
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
 [node name="Ring1" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_ring")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 6
 slot = 6
 
 [node name="Ring2" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_ring")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 6
 slot = 7
 
 [node name="Gloves" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_gloves")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 7
 slot = 8
 
 [node name="Belt" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_belt")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 8
 slot = 9
 
 [node name="Legs" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_legs")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 9
 slot = 10
 
 [node name="Boots" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/PortraitRow/RightSlots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_boots")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(72, 72)
 layout_mode = 2
 slot_type = 10
 slot = 11
 
-[node name="HSeparator2" type="HSeparator" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
-layout_mode = 2
-
 [node name="WeaponSetsRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer"]
 layout_mode = 2
 size_flags_horizontal = 4
-theme_override_constants/separation = 28
+theme_override_constants/separation = 44
 
 [node name="MeleeSet" type="VBoxContainer" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow"]
 layout_mode = 2
@@ -264,7 +346,7 @@ theme_override_constants/separation = 6
 
 [node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 15
 text = "Melee"
 horizontal_alignment = 1
 
@@ -273,15 +355,17 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="MeleeMainHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_melee_main")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 slot_type = 11
 slot = 12
 
 [node name="MeleeOffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/MeleeSet/Slots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_melee_off")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 slot_type = 12
 slot = 13
@@ -292,7 +376,7 @@ theme_override_constants/separation = 6
 
 [node name="Header" type="Label" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet"]
 layout_mode = 2
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 15
 text = "Ranged"
 horizontal_alignment = 1
 
@@ -301,76 +385,138 @@ layout_mode = 2
 theme_override_constants/separation = 10
 
 [node name="RangedMainHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_ranged_main")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 slot_type = 13
 slot = 14
 
 [node name="RangedOffHand" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer/WeaponSetsRow/RangedSet/Slots" instance=ExtResource("2_equip")]
+empty_icon = ExtResource("slot_ranged_off")
 unique_name_in_owner = true
-custom_minimum_size = Vector2(32, 32)
+custom_minimum_size = Vector2(96, 96)
 layout_mode = 2
 slot_type = 14
 slot = 15
 
+[node name="EncumbranceBar" parent="ContentArea/InventoryPanel/EquipmentColumn/VBoxContainer" instance=ExtResource("4_encumbrance")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="EquipmentRule" type="ColorRect" parent="ContentArea/InventoryPanel"]
+layout_mode = 1
+anchors_preset = -1
+anchor_bottom = 1.0
+offset_left = 1016.0
+offset_right = 1017.0
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.173, 0.184, 0.216, 1)
+
 [node name="InventoryColumn" type="MarginContainer" parent="ContentArea/InventoryPanel"]
 layout_mode = 1
 anchors_preset = -1
-anchor_left = 0.62
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_left = 1016.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 20
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 18
 theme_override_constants/margin_right = 24
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn"]
-unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 10
-
-[node name="Header" type="Label" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
-layout_mode = 2
-text = "Stash"
-
-[node name="HSeparator" type="HSeparator" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
-layout_mode = 2
 
 [node name="SortRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="SortButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+[node name="Header" type="Label" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Party bag"
+
+[node name="FilterAll" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 0
-text = "Sort items"
+toggle_mode = true
+button_pressed = true
+button_group = SubResource("ButtonGroup_bag_filter")
+text = "All"
+flat = true
+
+[node name="FilterGear" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_bag_filter")
+text = "Gear"
+flat = true
+
+[node name="FilterUse" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_bag_filter")
+text = "Use"
+flat = true
+
+[node name="FilterRunes" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+button_group = SubResource("ButtonGroup_bag_filter")
+text = "Runes"
+flat = true
 
 [node name="SortRowSpacer" type="Control" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 
+[node name="SortButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Sort"
+
 [node name="GoldLabel" type="Label" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Gold: 50"
+theme_override_colors/font_color = Color(0.851, 0.722, 0.31, 1)
+theme_override_font_sizes/font_size = 17
+text = "50 g"
 
-[node name="DebugAddGoldButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/SortRow"]
+[node name="BagSlot" type="VBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "+50 (debug)"
 
-[node name="Inventory" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer" instance=ExtResource("3_inv")]
+[node name="Inventory" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/BagSlot" instance=ExtResource("3_inv")]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(206, 288)
 layout_mode = 2
-size_flags_vertical = 3
-width = 6
-height = 16
-visible_width = 6
-visible_height = 9
+cell_size_px = 52
+width = 10
+height = 13
+visible_width = 10
+visible_height = 13
+
+[node name="FooterRow" type="HBoxContainer" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer"]
+layout_mode = 2
+
+[node name="BagNote" type="Label" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/FooterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "Shared by the whole party"
+
+[node name="DebugAddGoldButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/FooterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+50 g (debug)"
+flat = true
 
 [node name="CharacterPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true
@@ -792,7 +938,7 @@ text = "Music"
 [node name="HSeparator" type="HSeparator" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
 layout_mode = 2
 
-[node name="MusicTrackList" type="ItemList" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+[node name="MusicAreaList" type="ItemList" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
@@ -801,13 +947,13 @@ size_flags_vertical = 3
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="PlayTrackButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
+[node name="PlayMusicButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Play"
 
-[node name="StopTrackButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
+[node name="StopMusicButton" type="Button" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer/ButtonRow"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
@@ -818,12 +964,9 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Stopped."
 
-[node name="PositionSlider" type="HSlider" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
+[node name="MusicStatsLabel" type="Label" parent="ContentArea/MusicPanel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-max_value = 1.0
-step = 0.01
-editable = false
 
 [node name="AlignmentPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true

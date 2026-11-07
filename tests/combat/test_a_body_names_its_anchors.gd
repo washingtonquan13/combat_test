@@ -83,7 +83,9 @@ func _sight_lines_come_from_the_eye() -> void:
 	tall.global_position = Vector3(0.0, 0.0, -4.0)
 	await get_tree().physics_frame
 
-	var target := Vector3(0.0, 0.0, 4.0)
+	# Far enough past the wall that a 4 m eye clears it on the way down
+	# to the ground there; ground right behind a wall is hidden to anyone.
+	var target := Vector3(0.0, 0.0, 12.0)
 	check("an ordinary body cannot see over a 2.5 m wall from 1.5 m",
 		not LineOfSight.has_clear_shot_to_point(ordinary, target),
 		"the wall is not blocking anything — the fixture is wrong")
@@ -140,14 +142,14 @@ func _packed(body_height: float, head_at: Vector3, eye_at: Vector3) -> PackedSce
 func _spawn_wearing(model: PackedScene) -> Unit:
 	var definition := UnitDefinition.new()
 	definition.model_scene = model
-	definition.max_hp = 20
+	definition.stats[StatIds.HP] = 20 - 10  # HP 20 at the default ST 10
 	definition.faction = &"player"
 
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	unit.definition = definition
 	_root.add_child(unit)
 	var abilities: Array[Ability] = [melee()]
-	unit.abilities = abilities
+	unit.set_abilities(abilities)
 	unit.reset_turn_actions()
 	_spawned.append(unit)
 	return unit

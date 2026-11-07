@@ -18,17 +18,36 @@ extends AbilityEffect
 ## indicator showed the player before they committed to the cast.
 
 @export var surface: Surface
+## For a cone or an aerial blast: seconds a front takes to spread the
+## surface out to the cone's end or the blast's radius, fast then slowing,
+## instead of it spreading in at once. Fire Breath and Explosive Fireball
+## match their fire's front_seconds (fire_breath.tscn, fireball_blast.gd),
+## so the ground catches as the fire reaches it. 0 for the usual spread.
+@export var front_seconds: float = 0.0
 
 
-func apply(_attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+	if target is LineTarget and surface:
+		SurfaceManager.spawn_wall(surface, target.from, target.to, attacker)
+		return {"spawned_surface": surface.surface_name}
 	if not target is Vector3 or not surface:
 		return {}
+
+	var cone := ability.targeting as ConeTargeting
+	if cone:
+		SurfaceManager.spawn_cone(surface, cone.origin(attacker), cone.direction(attacker, target), cone.length, cone.half_angle(), attacker, front_seconds)
+		return {"spawned_surface": surface.surface_name}
 
 	var targeting := ability.targeting as AreaTargeting
 	if not targeting:
 		return {}
 
-	SurfaceManager.spawn(surface, target, targeting.radius)
+	if targeting is AerialAreaTargeting and surface.shape == Surface.Shape.DISC:
+		# A blast aimed anywhere in the air: only the floor its sphere reaches.
+		if SurfaceManager.spawn_burst(surface, target, targeting.radius, attacker, front_seconds) == null:
+			return {}
+		return {"spawned_surface": surface.surface_name}
+	SurfaceManager.spawn(surface, target, targeting.radius, attacker)
 	return {"spawned_surface": surface.surface_name}
 
 

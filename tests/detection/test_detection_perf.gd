@@ -55,6 +55,7 @@ func run() -> void:
 	print("        detection: %.3f ms/sweep (%d observers x %d party)"
 		% [per_sweep_ms, OBSERVERS, PARTY])
 
-	if CombatManager.in_combat:
-		CombatManager.end_combat(&"")
+	for encounter in CombatManager.encounters.duplicate():
+		if is_instance_valid(encounter) and encounter.is_running:
+			encounter.finish(&"")
 	free_spawned()

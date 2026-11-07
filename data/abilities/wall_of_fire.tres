@@ -1,0 +1,73 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=15 format=3 uid="uid://c08a1jifu25ol"]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="4_surface"]
+[ext_resource type="Script" uid="uid://cog6samh014mo" path="res://systems/surface_system/surface_reaction.gd" id="5_i4wbf"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/fire_wall.tscn" id="5_wall"]
+[ext_resource type="Texture2D" uid="uid://7n6u3ht5dt5k" path="res://assets/ability_icon/wall_of_fire_icon.png" id="8_icon"]
+[ext_resource type="Script" uid="uid://d0kfi73aslocx" path="res://systems/ability_system/line_targeting.gd" id="9_targeting"]
+[ext_resource type="Resource" uid="uid://d1pwfaqd1sgqr" path="res://data/statuses/searing.tres" id="10_searing"]
+[ext_resource type="Resource" path="res://data/surfaces/fire.tres" id="90_fire_surface"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="90_status_effect"]
+
+[sub_resource type="Resource" id="Resource_wall"]
+script = ExtResource("4_surface")
+surface_name = "Wall of Fire"
+duration_rounds = 5
+shape = 2
+height_scale = 1.0
+wall_height = 4.0
+leaves_behind = ExtResource("90_fire_surface")
+lays_ground_under = true
+status_effects = Array[ExtResource("90_status_effect")]([ExtResource("10_searing")])
+status_only_inside = false
+element = 0
+reactions = Array[ExtResource("5_i4wbf")]([])
+blocks_sight = true
+dark_vision_sees_through = false
+movement_cost_multiplier = 1.0
+blocks_movement = false
+ranged_penalty = 0
+ambient_scene = ExtResource("5_wall")
+metadata/_custom_type_script = "uid://cykbj1s0c82e5"
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("3_spawn")
+surface = SubResource("Resource_wall")
+front_seconds = 0.0
+metadata/_custom_type_script = "uid://5apipwrij8ef"
+
+[sub_resource type="Resource" id="Resource_targeting"]
+script = ExtResource("9_targeting")
+max_range = 18.0
+max_length = 12.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+requires_ally = false
+any_unit = false
+aims_at_ground = false
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Wall of Fire"
+icon = ExtResource("8_icon")
+icon_color = Color(1, 0.55, 0.24, 1)
+category = 1
+targeting = SubResource("Resource_targeting")
+effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
+element = 1
+is_toggle = false
+toggle_group = &""
+max_level = 0
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
+metadata/_custom_type_script = "uid://bpidhds13g0p8"

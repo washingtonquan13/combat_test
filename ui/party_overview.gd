@@ -21,13 +21,13 @@ extends UIScreen
 ## (PlayerInteractionState.get_active_unit()), toggled by the
 ## open_party_overview action (C).
 ##
-## Still no in-panel character switcher, but the underlying gap that
-## used to justify deferring one is fixed: equipment now persists per-
-## unit (see UnitEquipment), and _swap_equipment() below reparents the
-## 16 shared EquipSlots' items out to the outgoing unit's storage and in
-## from the incoming unit's, the same pattern StashPanel already uses
-## for a chest's single Inventory, just looped over 16 slots. Close and
-## reopen on a different unit still — nothing calls this mid-session yet.
+## The Inventory tab's party rail (one button per PartyManager.members,
+## demons excluded) and Q/E switch the shown member without closing:
+## show_unit() re-points everything, and _swap_equipment() below re-points
+## the 16 shared EquipSlots at the incoming unit and rebuilds their widgets
+## from what it wears (equipment persists per unit, see UnitEquipment).
+## The bag is the party's, so it stays; its All/Gear/Use/Runes buttons
+## only dim what doesn't match (Inventory.set_filter).
 ##
 ## Alignment display: AlignmentTitle shows the category label (the same
 ## Chaos/Neutral/Law x Dark/Neutral/Light categories Unit itself owns,
@@ -45,8 +45,8 @@ extends UIScreen
 ## blocks_input_below=true is authored on this scene's instance in
 ## MainRoot.tscn (see UIScreen's own header) — what makes UIStack.
 ## can_open() correctly refuse a new C-key open while a stash is up,
-## replacing the old hand-rolled "DialogueManager.is_active() or
-## StashManager.is_active()" guard this file used to check directly.
+## replacing the old hand-rolled "is a dialogue or a stash active"
+## guard this file used to check directly.
 ## hides_hud/closes_on_cancel stay at UIScreen's own defaults.
 
 @onready var _tab_buttons: Dictionary = {
@@ -84,10 +84,25 @@ extends UIScreen
 @onready var _character_stats: StatsColumn = $ContentArea/CharacterPanel/StatsColumn
 
 @onready var _portrait: TextureRect = %Portrait
+@onready var _encumbrance_bar: EncumbranceBar = %EncumbranceBar
 @onready var _sort_button: Button = %SortButton
 @onready var _inventory: Inventory = %Inventory
 @onready var _gold_label: Label = %GoldLabel
 @onready var _debug_add_gold_button: Button = %DebugAddGoldButton
+@onready var _party_list: VBoxContainer = %PartyList
+
+const RAIL_BUTTON_SIZE := Vector2(72, 88)
+const RAIL_SHOWN := Color(0.851, 0.722, 0.31, 1)
+const RAIL_OTHER := Color(0.227, 0.239, 0.275, 1)
+const RAIL_HP := Color(0.788, 0.29, 0.29, 1)
+
+## Filter button -> what it lets through, at full brightness.
+@onready var _bag_filters: Dictionary = {
+	%FilterAll: func(_i: ItemInstance) -> bool: return true,
+	%FilterGear: func(i: ItemInstance) -> bool: return i.gear_data != null,
+	%FilterUse: func(i: ItemInstance) -> bool: return i.gear_data == null and not (i.definition is RuneItem),
+	%FilterRunes: func(i: ItemInstance) -> bool: return i.definition is RuneItem,
+}
 
 ## All 16 shared equip slots, built once so _swap_equipment() doesn't
 ## need to re-walk the tree every unit switch — same "gather named nodes
@@ -161,6 +176,10 @@ func _ready() -> void:
 	# file's header for why a group, not a direct reference.
 	add_to_group("party_overview")
 
+	# The party's items live in PartyManager.inventory, which also saves
+	# them; this widget only draws that container.
+	_inventory.bind(PartyManager.inventory)
+
 	for tab_name in _tab_buttons:
 		_tab_buttons[tab_name].pressed.connect(_show_tab.bind(tab_name))
 	%TabSpawn.visible = OS.is_debug_build()
@@ -168,6 +187,10 @@ func _ready() -> void:
 	%TabAlignment.visible = OS.is_debug_build()
 	%CloseButton.pressed.connect(close)
 	_sort_button.pressed.connect(_inventory.sort_items)
+	for button in _bag_filters:
+		button.pressed.connect(func(): _inventory.set_filter(_bag_filters[button]))
+	PartyManager.member_added.connect(func(_u): _refresh_party_rail())
+	PartyManager.member_removed.connect(func(_u): _refresh_party_rail())
 	_quest_list.item_selected.connect(_on_quest_selected)
 
 	_debug_add_gold_button.visible = OS.is_debug_build()
@@ -186,6 +209,14 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# The cameras leave Q/E alone while this is open (UIStack.can_open()).
+	if UIStack.is_open(self) and _unit:
+		var step := -1 if event.is_action_pressed("camera_rotate_left") else 				(1 if event.is_action_pressed("camera_rotate_right") else 0)
+		if step != 0:
+			_cycle_member(step)
+			get_viewport().set_input_as_handled()
+			return
+
 	if not event.is_action_pressed("open_party_overview"):
 		return
 
@@ -212,6 +243,14 @@ func _unhandled_input(event: InputEvent) -> void:
 ## Lets StashPanel borrow the party's shared Inventory node while a chest
 ## is open (see stash_panel.gd) — reparented out and back rather than a
 ## second Inventory instance, so there's only ever one real set of items.
+## Equipping, or socketing a rune into something worn, changes the
+## shown unit's stats while the sheet is open.
+func _on_equipment_changed(unit: Unit) -> void:
+	_inventory_stats.refresh(unit)
+	_encumbrance_bar.refresh(unit)
+	_character_stats.refresh(unit)
+
+
 func get_inventory() -> Inventory:
 	return _inventory
 
@@ -219,13 +258,25 @@ func get_inventory() -> Inventory:
 ## Where get_inventory()'s node belongs when nothing has borrowed it —
 ## StashPanel reparents it back here on close.
 func get_inventory_slot() -> VBoxContainer:
-	return %VBoxContainer
+	return %BagSlot
 
 
 func open_for(unit: Unit) -> void:
+	show_unit(unit)
+	_refresh_party_rail()
+	open()
+	_show_tab("inventory")
+
+
+## Points every tab at unit, staying on whichever tab is showing.
+func show_unit(unit: Unit) -> void:
 	_swap_equipment(unit)
+	if is_instance_valid(_unit) and _unit.equipment_changed.is_connected(_on_equipment_changed):
+		_unit.equipment_changed.disconnect(_on_equipment_changed)
 	_unit = unit
+	unit.equipment_changed.connect(_on_equipment_changed)
 	_inventory_stats.refresh(unit)
+	_encumbrance_bar.refresh(unit)
 	_character_stats.refresh(unit)
 	_portrait.texture = unit.portrait_texture
 	_refresh_alignment_grid(unit)
@@ -236,31 +287,101 @@ func open_for(unit: Unit) -> void:
 	_spawn_panel.refresh()
 	_music_panel.refresh()
 	_alignment_panel.refresh()
-	open()
-	_show_tab("inventory")
+	_highlight_rail()
 
 
-## Reparents the outgoing unit's (self._unit, still the OLD value at
-## this point) equipped items out to ITS OWN storage, and the incoming
-## unit's already-equipped items in — via EquipSlot.display_item()/
-## clear_display(), the visual-only pair, NOT equip()/unequip(), so
-## nothing gets re-registered or reverted just because it became
-## visible/invisible. See Unit._equipped_items_home's header for why
-## visibility is toggled explicitly here.
+## Next (step 1) or previous (-1) party member, wrapping.
+func _cycle_member(step: int) -> void:
+	var members: Array[Unit] = PartyManager.members
+	if members.is_empty():
+		return
+	var index := members.find(_unit)
+	show_unit(members[posmod(index + step, members.size())])
+
+
+## Rebuilt on open and when the party changes; a switch only moves the
+## highlight. Out of the list at once: a queued-free button would still
+## count toward the rail's height, and an anchored rail never shrinks back.
+func _refresh_party_rail() -> void:
+	for child in _party_list.get_children():
+		_party_list.remove_child(child)
+		child.queue_free()
+	for member in PartyManager.members:
+		_party_list.add_child(_rail_button(member))
+	_highlight_rail()
+
+
+func _highlight_rail() -> void:
+	for button in _party_list.get_children():
+		var frame: StyleBoxFlat = button.get_theme_stylebox("normal")
+		frame.border_color = RAIL_SHOWN if button.get_meta("unit") == _unit else RAIL_OTHER
+
+
+## Portrait and name, an HP bar under it, gold-framed for the shown unit.
+func _rail_button(member: Unit) -> Button:
+	var button := Button.new()
+	button.custom_minimum_size = RAIL_BUTTON_SIZE
+	button.focus_mode = Control.FOCUS_NONE
+	button.tooltip_text = member.get_display_name()
+	var frame := StyleBoxFlat.new()
+	frame.bg_color = Color(0.118, 0.125, 0.153, 1)
+	frame.set_corner_radius_all(6)
+	frame.set_border_width_all(2)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		button.add_theme_stylebox_override(state, frame)
+	button.set_meta("unit", member)
+	button.pressed.connect(show_unit.bind(member))
+
+	var art := TextureRect.new()
+	art.texture = member.portrait_texture
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(art)
+	art.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT, Control.PRESET_MODE_MINSIZE, 2)
+
+	var name_label := Label.new()
+	name_label.text = member.get_display_name()
+	name_label.add_theme_font_size_override("font_size", 13)
+	name_label.add_theme_constant_override("outline_size", 4)
+	name_label.add_theme_color_override("font_outline_color", Color.BLACK)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(name_label)
+	name_label.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE, Control.PRESET_MODE_MINSIZE, 4)
+
+	var max_hp: float = member.get_stat(StatIds.HP)
+	var hp := ColorRect.new()
+	hp.color = RAIL_HP
+	hp.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	button.add_child(hp)
+	hp.anchor_top = 1.0
+	hp.anchor_bottom = 1.0
+	hp.anchor_right = clampf(member.get_pool(StatIds.HP) / max_hp, 0.0, 1.0) if max_hp > 0 else 0.0
+	hp.offset_top = 3
+	hp.offset_bottom = 7
+	return button
+
+
+## Re-points the 16 shared EquipSlots at unit and shows what it wears —
+## via EquipSlot.display_instance()/clear_display(), the visual-only pair,
+## NOT equip()/unequip(), so nothing gets re-registered or reverted just
+## because it became visible/invisible. The worn instances live on each
+## unit (UnitEquipment); the widgets are rebuilt every time.
 func _swap_equipment(unit: Unit) -> void:
-	var previous_unit: Unit = _unit
 	for slot in _equip_slots:
-		if previous_unit and slot.equipped_item:
-			var item: Item = slot.equipped_item
-			item.reparent(previous_unit.get_equipped_items_home())
-			item.visible = false
-			slot.clear_display()
-
+		slot.clear_display()
 		slot.unit = unit
-		var stored_item: Item = unit.get_equipped_item(slot.slot)
-		if stored_item:
-			stored_item.visible = true
-			slot.display_item(stored_item)
+		slot.display_instance(unit.get_equipped_item(slot.slot))
+
+
+## Opens this screen already showing one tab, for a caller that knows
+## which part of it the player asked for — the Cathedral's Fuse option
+## wants the demons tab, not whatever was last looked at.
+func open_on_tab(tab_name: String) -> void:
+	open()
+	_show_tab(tab_name)
 
 
 func _show_tab(tab_name: String) -> void:
@@ -338,7 +459,7 @@ func _on_grant_ability_pressed() -> void:
 	var selected: PackedInt32Array = _grant_ability_list.get_selected_items()
 	if selected.is_empty():
 		return
-	_unit.abilities.append(_grantable_abilities[selected[0]])
+	_unit.add_ability(_grantable_abilities[selected[0]])
 	_refresh_ability_list(_unit)
 
 
@@ -419,4 +540,4 @@ func _show_quest_detail(quest: Quest) -> void:
 
 
 func _on_gold_changed(new_amount: int) -> void:
-	_gold_label.text = "Gold: %d" % new_amount
+	_gold_label.text = "%d g" % new_amount

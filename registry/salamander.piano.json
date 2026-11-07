@@ -1,0 +1,27 @@
+{
+  "library": "salamander.piano",
+  "instruments": {
+    "grand": {
+      "layers": [
+        {
+          "sfz": "salamander.piano/Salamander Grand Piano V3.sfz"
+        }
+      ],
+      "range": [
+        21,
+        108
+      ],
+      "controls": {
+        "volume": 7,
+        "pan": 10,
+        "sustain": 64,
+        "release": 72
+      },
+      "keyswitches": {
+        "natural": 12,
+        "retuned": 13
+      },
+      "keyswitch_default": "natural"
+    }
+  }
+}

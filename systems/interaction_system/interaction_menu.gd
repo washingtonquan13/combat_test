@@ -73,7 +73,7 @@ func is_open() -> bool:
 ## Anchors the menu to target's own on-screen position — BG3-style ("the
 ## menu appears where the object is"), not an OS-context-menu-style
 ## cursor anchor. target is only ever reached via a 3D raycast (see
-## ground_click_target.gd._get_hovered_interactable), so it's always a
+## ClickRouter.resolve_cursor), so it's always a
 ## Node3D and always actually on-screen at the moment of the click — no
 ## is_position_behind guard needed the way drag_select_box.gd's
 ## iterate-every-unit version requires.

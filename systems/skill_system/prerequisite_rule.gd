@@ -17,3 +17,12 @@ extends Resource
 func is_satisfied(_unit: Unit) -> bool:
 	push_error("%s doesn't implement is_satisfied() yet" % get_script().resource_path)
 	return false
+
+
+## The same question asked inside a conversation — what a dialogue
+## choice's or interjection's gate calls. Defaults to asking about the
+## conversation's acting unit, so every rule that only cares about a
+## unit works unchanged; a rule that reads the conversation itself
+## (its cast, its variables, its dice) overrides this instead.
+func is_satisfied_in(c: Conversation) -> bool:
+	return is_satisfied(c.cast.get("player") as Unit)

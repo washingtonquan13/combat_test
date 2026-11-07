@@ -129,9 +129,14 @@ func _on_save_pressed() -> void:
 		close()
 
 
+## Opened behind the black, and this panel closed there too, so neither
+## the load's stall nor a cut to the rebuilt world is ever on screen.
 func _on_load_pressed(path: String) -> void:
-	if SaveManager.load_file(path):
-		close()
+	await WorldManager.behind_black(func() -> bool:
+		var ok: bool = SaveManager.load_file(path)
+		if ok:
+			close()
+		return ok)
 
 
 ## Says why, in the player's words. Fires for every load attempt anywhere,

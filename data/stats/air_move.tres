@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"AirMove"
+display_name = "Air Move"
+abbreviation = "Air"
+description = "Move while flying: twice Basic Speed, fraction dropped. Meters a turn in the air."
+order = 82
+kind = 1
+formula = "floori(BasicSpeed * 2)"
+default_value = 0

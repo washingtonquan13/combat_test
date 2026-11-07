@@ -16,14 +16,18 @@ extends Button
 ## feedback for free.
 ##
 ## Scene setup — a Button root sized to your portrait dimensions, with
-## three full-rect-anchored children (unchanged from the original
-## Control version):
+## four children, the first three full-rect-anchored (unchanged from the
+## original Control version) and one thin edge bar added for the party
+## rail:
 ##   - TextureRect named "Portrait"       — the unit's art
 ##   - ColorRect named "DamageOverlay"    — semi-transparent red; grows
 ##     upward from the bottom as the unit loses HP
 ##   - Panel named "OutlineFrame"         — colored border, see
-##     _setup_outline. Last child (drawn on top) so the border stays
-##     crisp regardless of how much the damage overlay has filled in.
+##     _setup_outline.
+##   - ColorRect named "SpeakingMarker"   — thin bar pinned to the top
+##     edge, hidden unless set_speaking(true). Last child (drawn on top
+##     of everything, OutlineFrame included) so neither the outline nor
+##     the damage overlay can ever cover it up.
 ##
 ## Put one instance of this scene per unit inside an HBoxContainer (the
 ## initiative strip) or add directly to any Container (the party panel)
@@ -72,6 +76,12 @@ var group: PartyGroup = null
 @onready var portrait: TextureRect = $Portrait
 @onready var damage_overlay: ColorRect = $DamageOverlay
 @onready var outline_frame: Panel = $OutlineFrame
+## Small top-edge bar, shown only while this portrait's unit is the
+## current speaker in a conversation — see set_speaking() and
+## party_panel.gd's _set_speaking_unit(). Not used by initiative_row.gd
+## at all (nothing there ever calls set_speaking), same as
+## highlight_scale above; harmless to leave authored either way.
+@onready var speaking_marker: ColorRect = $SpeakingMarker
 
 var _base_min_size: Vector2
 ## Uniform (both axes) scale applied to _base_min_size to get the
@@ -240,10 +250,19 @@ func _setup_outline(color: Color) -> void:
 
 
 func _update_overlay() -> void:
-	if not unit or unit.maximum_hp <= 0:
+	if not unit or unit.get_stat(StatIds.HP) <= 0:
 		return
 
-	var damage_fraction: float = 1.0 - float(unit.current_hp) / float(unit.maximum_hp)
+	var damage_fraction: float = 1.0 - float(unit.get_pool(StatIds.HP)) / float(unit.get_stat(StatIds.HP))
 	damage_fraction = clamp(damage_fraction, 0.0, 1.0)
 
 	damage_overlay.anchor_top = 1.0 - damage_fraction
+
+
+## Toggles the top-edge speaking marker — see the SpeakingMarker export
+## comment above. Called by party_panel.gd, never set directly here:
+## this portrait has no opinion of its own about who is currently
+## talking, same reason set_highlighted() is driven by initiative_row.gd
+## rather than this script watching CombatManager itself.
+func set_speaking(value: bool) -> void:
+	speaking_marker.visible = value

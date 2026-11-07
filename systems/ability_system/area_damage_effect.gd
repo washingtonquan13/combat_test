@@ -23,33 +23,42 @@ extends AbilityEffect
 ## radius is caught by it, matching the edge-based convention used
 ## everywhere else in this project (reach, ranged max_range, etc.).
 ##
-## The scan itself (edge-distance + hostile/ally gating) lives in
-## UnitQuery.area_affected — AreaHealEffect/AreaApplyStatusEffect share
-## the exact same scan; only what happens to each matched unit differs.
+## Who is caught is the targeting shape's own answer (AbilityTargeting.
+## units_caught): a sphere for AreaTargeting, a cone for ConeTargeting.
+## AreaHealEffect/AreaApplyStatusEffect ask the same question; only what
+## happens to each matched unit differs.
 
 @export var dice_count: int = 2
 @export var dice_sides: int = 6
 @export var dice_bonus: int = 0
+## GURPS damage type (B379): what DR lets through is multiplied by its
+## wounding multiplier.
+@export var wound_type: DamageResolver.WoundType = DamageResolver.WoundType.CRUSHING
+## GURPS armor divisor (B378): the target's DR is divided by it. 1 is
+## none; (2), (3), (5), (10) penetrate; (0.5), (0.2), (0.1) are stopped
+## more easily than usual.
+@export var armor_divisor: float = 1.0
 @export var affects_hostiles: bool = true
 @export var affects_allies: bool = false
 
 
-func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+## Who the blast catches and what each takes, decided when it is cast.
+func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
 	if not target is Vector3:
 		return {}
 
-	var targeting := ability.targeting as AreaTargeting
-	if not targeting:
+	if not ability.targeting:
 		return {}
 
-	var center: Vector3 = target
-	var radius: float = targeting.radius
 	var affected: Array = []
 
-	for unit in UnitQuery.area_affected(attacker.get_tree(), attacker, center, radius, affects_hostiles, affects_allies):
+	for unit in ability.targeting.units_caught(attacker, target, affects_hostiles, affects_allies):
 		var raw_damage: int = roll_damage()
-		var applied: int = max(raw_damage - unit.get_stat("DR"), 0)
-		unit.take_damage(applied)
+		var applied: int = DamageResolver.injury(raw_damage, unit, wound_type, armor_divisor, false, false, null, true)
 		affected.append({"unit": unit, "raw_damage": raw_damage, "damage": applied})
 
 	var total_damage: int = 0
@@ -57,6 +66,16 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 		total_damage += entry.damage
 
 	return {"affected": affected, "damage": total_damage}
+
+
+## Anyone freed before the blast lands is skipped.
+func commit(_attacker: Unit, _target, _ability: Ability, _is_critical: bool, plan: Dictionary) -> Dictionary:
+	if plan.is_empty():
+		return {}
+	for entry in plan.affected:
+		if is_instance_valid(entry.unit):
+			entry.unit.take_damage(entry.damage)
+	return plan
 
 
 func roll_damage() -> int:
@@ -67,7 +86,7 @@ func roll_damage() -> int:
 
 
 func describe() -> String:
-	return "%dd%d+%d damage" % [dice_count, dice_sides, dice_bonus]
+	return "%dd%d+%d %s damage" % [dice_count, dice_sides, dice_bonus, DamageResolver.describe(wound_type, armor_divisor)]
 
 
 ## Per-target average, NOT scaled by how many units the blast would
@@ -76,5 +95,5 @@ func describe() -> String:
 ## generation is out of scope for this pass), so this answers "how much
 ## would ONE hit unit expect to take," same shape as every sibling
 ## damage effect's expected_damage().
-func expected_damage(_attacker: Unit) -> float:
-	return float(dice_count) * (float(dice_sides) + 1.0) / 2.0 + float(dice_bonus)
+func expected_damage(_attacker: Unit, target: Unit = null, _location: HitLocation = null) -> float:
+	return DamageResolver.expected_injury(dice_count, dice_sides, dice_bonus, target, wound_type, armor_divisor, false, null, true)

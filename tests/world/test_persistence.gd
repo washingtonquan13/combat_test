@@ -42,8 +42,8 @@ func run() -> void:
 
 func _a_unit_round_trips_its_own_state() -> void:
 	var before: Unit = spawn_brute(0.0)
-	before.current_hp = 7
-	before.current_fp = 3
+	before.set_pool(StatIds.HP, 7)
+	before.set_pool(StatIds.FP, 3)
 	before.move_remaining = 2.5
 	before.has_attacked = true
 	before.global_position = Vector3(3.0, 0.0, -4.0)
@@ -57,8 +57,8 @@ func _a_unit_round_trips_its_own_state() -> void:
 	var after: Unit = spawn_brute(20.0)
 	after.load_state(state)
 
-	check("hp and fp come back", after.current_hp == 7 and after.current_fp == 3,
-		"%d hp, %d fp" % [after.current_hp, after.current_fp])
+	check("hp and fp come back", after.get_pool(StatIds.HP) == 7 and after.get_pool(StatIds.FP) == 3,
+		"%d hp, %d fp" % [after.get_pool(StatIds.HP), after.get_pool(StatIds.FP)])
 	check("the turn already partly spent comes back",
 		is_equal_approx(after.move_remaining, 2.5) and after.has_attacked,
 		"%.2f move, attacked=%s" % [after.move_remaining, after.has_attacked])
@@ -136,8 +136,8 @@ func _an_area_remembers_what_happened_in_it() -> void:
 		return
 
 	var id: StringName = victim.persistent_id
-	var wounded_to: int = maxi(1, victim.current_hp - 5)
-	victim.current_hp = wounded_to
+	var wounded_to: int = maxi(1, victim.get_pool(StatIds.HP) - 5)
+	victim.set_pool(StatIds.HP, wounded_to)
 	victim.global_position += Vector3(2.0, 0.0, 2.0)
 	var moved_to: Vector3 = victim.global_position
 
@@ -157,8 +157,8 @@ func _an_area_remembers_what_happened_in_it() -> void:
 	if again == null:
 		return
 
-	check("still wounded", again.current_hp == wounded_to,
-		"%d hp, expected %d" % [again.current_hp, wounded_to])
+	check("still wounded", again.get_pool(StatIds.HP) == wounded_to,
+		"%d hp, expected %d" % [again.get_pool(StatIds.HP), wounded_to])
 	check("and still where they had moved to",
 		again.global_position.distance_to(moved_to) < 1.0,
 		"back at their authored spot")
@@ -311,7 +311,10 @@ func _a_fight_resumes_where_it_was_left() -> void:
 	# End it and rebuild from the record, which is what a load does.
 	fight.finish(&"")
 	await get_tree().process_frame
-	check("SETUP: the original fight is over", not CombatManager.in_combat)
+	# fight is freed by now — finish() queue_frees it (via CombatManager's
+	# combat_ended relay) and the frame just awaited is enough for that
+	# deferred free to land.
+	check("SETUP: the original fight is over", not is_instance_valid(fight) or not fight.is_running)
 
 	var resumed: Encounter = CombatManager.restore_combat(state)
 	await get_tree().process_frame

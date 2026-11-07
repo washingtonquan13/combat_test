@@ -21,8 +21,9 @@ extends RefCounted
 ## left to do is turn it into a budget-aware walking plan — see
 ## RoutePlanner.plan, which truncates the route to fit `budget` and
 ## integrates terrain cost (Surface.movement_cost_multiplier) along the
-## way. The SAME function is what movement_indicator.gd calls for the
-## preview, so preview and real move can never disagree.
+## way. The movement preview gets its route from preview_route() here,
+## which makes move_to()'s own route choice (ladder branch included) over
+## the same planner, so preview and real move can't disagree.
 ##
 ## move_speed/radius/avoidance_margin/arrival_tolerance/stuck_timeout all
 ## stay directly on Unit rather than moving in here — the @export ones for
@@ -58,32 +59,47 @@ var _owner: Unit
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
 var _moving: bool = false
-var _move_start_position: Vector3 = Vector3.ZERO
 var _stuck_timer: float = 0.0
 var _last_progress_position: Vector3 = Vector3.ZERO
 
-## Which leg of a ladder journey (see Ladder, move_to's ladder branch, and
-## _begin_ladder_journey/_climb_ladder/_on_climb_finished below) is
-## currently in flight: 0 = none, 1 = walking to the ladder's near point,
-## 2 = climbing, 3 = walking from the ladder's far point to the real
-## final destination. Checked by _finish_move() to decide whether an
-## ordinary walk completing should chain into the next ladder stage
-## instead of emitting movement_finished right away.
-var _ladder_stage: int = 0
-var _ladder: Ladder = null
-var _ladder_far: Vector3 = Vector3.ZERO
-## Whether this journey is climbing up (base->top) or down (top->base) —
-## needed because climb_waypoints' path isn't symmetric (see its own
-## header); the climb must be walked in the right order, not just
-## between the right two points.
-var _ladder_going_up: bool = true
-var _ladder_final_destination: Vector3 = Vector3.ZERO
+## A ladder climb is part of the route, not a separate stage: points
+## _climb_first.._climb_last of _current_path are reached by climbing
+## (see Ladder and _ladder_route), -1 when the route has none. While the
+## next point is one of them the unit is climbing (is_climbing): no
+## gravity, no move_and_slide, Ladder.climb_speed, facing the ladder.
+## The climb costs no move budget (BG3's rule — only the walk to the
+## near end is paid) and is atomic: an order given mid-climb waits at
+## the far end (_after_climb) rather than leaving the unit on the rungs.
+var _climb_first: int = -1
+var _climb_last: int = -1
+var _climb_speed: float = 0.75
+## The ladder's own facing (Ladder.facing) — toward the rungs, both ways
+## (a unit climbs down facing them too), and defined for a purely
+## vertical ladder whose ends share an XZ.
+var _climb_facing: Vector3 = Vector3.ZERO
+## An order given while climbing: {destination, ignore}, run by
+## _finish_move once the far end is reached. Empty when none.
+var _after_climb: Dictionary = {}
+## The ladder the route climbs, null when it has none. One climber at a
+## time (Ladder.climber): the walk holds short of the near end while
+## someone else is on it, and claims it on stepping onto the rungs.
+var _climb_ladder: Ladder = null
+## Whether the climb goes up the ladder (false: down). With _climb_first
+## it names the legs of Ladder.climb_waypoints: the two over the top
+## edge are the targets at _climb_first + 2 and + 3 either way.
+var _climb_up: bool = true
+## The tolerance a climb point is reached within — tight, because the
+## points are the corner of the landing, and arriving early cuts it.
+const CLIMB_ARRIVAL: float = 0.01
 
 ## The exact route this unit is currently walking, and which point in it
 ## is next. Planned ONCE, in full, before movement starts (see move_to /
 ## RoutePlanner.plan) — nothing about avoidance is decided live while
 ## walking; physics_process just follows these fixed points.
 var _current_path: PackedVector3Array = PackedVector3Array()
+## RoutePlanner's cumulative cost along _current_path, kept for
+## current_route() (the committed line movement_indicator.gd draws).
+var _current_cost: PackedFloat32Array = PackedFloat32Array()
 var _path_index: int = 0
 ## The planned path's exact total BUDGET COST — not necessarily its
 ## physical length; the two only diverge while crossing difficult
@@ -94,6 +110,23 @@ var _path_index: int = 0
 ## authoritative by construction.
 var _planned_cost: float = 0.0
 
+## preview_route()'s cache of its last find_path() query — see that
+## function. Only the search is cached; RoutePlanner.plan() re-runs.
+var _preview_cached: bool = false
+var _preview_flying: bool = false
+var _preview_start_cell: Vector3i
+var _preview_dest_cell: Vector3i
+var _preview_waypoints: PackedVector3Array = PackedVector3Array()
+## The grid's occupancy version and the ignore list the cached search
+## saw: a unit moving, dying or appearing changes the version, so the
+## cache can never show a route around (or through) where units were.
+var _preview_occupancy_version: int = -1
+var _preview_ignore: Array = []
+
+## The ignore list of the journey in flight, so a ladder journey's later
+## walking legs avoid the same units its first leg did.
+var _move_ignore: Array = []
+
 
 func _init(owner: Unit) -> void:
 	_owner = owner
@@ -103,24 +136,111 @@ func is_moving() -> bool:
 	return _moving
 
 
+## Whether the unit is on a ladder right now — its next point is a climb
+## point. Still is_moving(): the climb is part of the move.
+func is_climbing() -> bool:
+	return _moving and _climb_first >= 0 and _path_index >= _climb_first and _path_index <= _climb_last
+
+
+func climbing_ladder() -> Ladder:
+	return _climb_ladder if is_climbing() else null
+
+
+## Which way the unit is going on the rungs right now: 1 up, -1 down, 0
+## when it isn't climbing, is stepping on or off a level leg, or is
+## climbing over the top edge (climbing_over).
+func climb_direction() -> int:
+	if not is_climbing() or climbing_over() != 0:
+		return 0
+	var rise: float = _current_path[_path_index].y - _owner.global_position.y
+	if absf(rise) < 0.01:
+		return 0
+	return 1 if rise > 0.0 else -1
+
+
+## The speed of the climb being made (Ladder.climb_speed), m/s.
+func climb_speed() -> float:
+	return _climb_speed
+
+
+## 1 while climbing over the top edge onto the landing, -1 while getting
+## on from it, 0 otherwise: the two legs between the last rungs
+## (Ladder.OVER_RUNGS below the landing) and the step off, which one
+## clip covers.
+func climbing_over() -> int:
+	if not is_climbing() or (_path_index != _climb_first + 2 and _path_index != _climb_first + 3):
+		return 0
+	return 1 if _climb_up else -1
+
+
+## How long the climb over the top edge takes: both its legs at
+## climb_speed. The clip is played to fit it.
+func climb_over_seconds() -> float:
+	if _climb_first < 0:
+		return 0.0
+	var p: PackedVector3Array = _current_path
+	var length: float = p[_climb_first + 1].distance_to(p[_climb_first + 2]) 			+ p[_climb_first + 2].distance_to(p[_climb_first + 3])
+	return length / _climb_speed
+
+
+## The height the rungs climb end at (Ladder.climb_waypoints' stop):
+## the climbing loop is phased from here, so its cycle meets the clip
+## over the top at its first frame.
+func climb_stop_height() -> float:
+	if _climb_first < 0:
+		return _owner.global_position.y
+	return _current_path[_climb_first + (1 if _climb_up else 3)].y
+
+
+## The route being walked, whole (start to destination, as planned at
+## the order), in preview_route()'s shape; empty while not walking.
+func current_route() -> Dictionary:
+	if not _moving or _current_path.size() < 2:
+		return {}
+	return {"path": _current_path, "cumulative_cost": _current_cost}
+
+
+## Budget cost of the current route walked so far; 0 while not walking.
+## For displays only: the budget itself is still charged once, at the
+## end (_finish_move), so nothing that reads move_remaining changes.
+func cost_walked() -> float:
+	if not _moving or _path_index < 1 or _current_cost.size() != _current_path.size():
+		return 0.0
+	var i: int = mini(_path_index, _current_path.size() - 1)
+	var from: Vector3 = _current_path[i - 1]
+	var to: Vector3 = _current_path[i]
+	var length: float = from.distance_to(to)
+	var t: float = 1.0
+	if length > 0.0:
+		t = clampf(1.0 - _owner.global_position.distance_to(to) / length, 0.0, 1.0)
+	return lerpf(_current_cost[i - 1], _current_cost[i], t)
+
+
 ## Orders this unit toward destination — see this file's header for the
 ## deterministic plan-then-execute rationale. Out of combat, budget is
 ## effectively unlimited. In combat: only CombatManager.current_unit may
 ## move, and the plan is truncated at exactly move_remaining — see
-## RoutePlanner.plan. Callers are responsible for making sure the grid's
-## occupancy is current for this unit as a mover before calling this (see
-## NavigationGrid.update_occupancy) — combat turn-start and free-roam move
-## orders both already do this.
-##
-func move_to(destination: Vector3) -> bool:
+## RoutePlanner.plan. Occupancy is always current: the grid checks it
+## against the live units on every query (see NavigationGrid). Every other
+## unit is avoided except those in `ignore` — a group moving together
+## passes itself, so members don't route around where the others are
+## about to leave.
+func move_to(destination: Vector3, ignore: Array = []) -> bool:
 	# can_be_commanded(), not can_act(): a unit that is already walking is
 	# precisely when the player most wants to say something else. can_act()
 	# counts walking as busy, so opening with it meant every click during a
 	# walk was refused and silently dropped — no redirect, no cancel, no
 	# feedback, just a unit finishing an order the player had changed their
 	# mind about.
-	if not _owner.can_be_commanded():
+	if not _owner.can_be_commanded() or _owner.is_rooted():
 		return false
+
+	# Never left on the rungs: an order given mid-climb ends the current
+	# route at the ladder's far end and runs from there.
+	if is_climbing():
+		_after_climb = {"destination": destination, "ignore": ignore}
+		_end_route_at_climb_end()
+		return true
 
 	# The order in flight is REPLACED, not queued behind. Ended without
 	# announcing, since it did not finish — but still charged for the
@@ -130,6 +250,7 @@ func move_to(destination: Vector3) -> bool:
 		_finish_move(false)
 
 	var budget: float = INF
+	_move_ignore = ignore
 
 	# Turn order binds a unit only while it is actually IN a fight. A unit
 	# standing outside one moves freely even while a battle rages nearby —
@@ -141,84 +262,248 @@ func move_to(destination: Vector3) -> bool:
 			return false
 		budget = _owner.move_remaining
 
-	# Ladders are a grounded-only mechanic (see Ladder) — a flying unit
-	# already has unrestricted vertical movement and never needs one, so
-	# this check is skipped entirely for a flying mover rather than
-	# needing its own flying-awareness.
-	if not _owner.is_flying():
-		var route: Dictionary = Ladder.find_route(_owner, destination)
-		if not route.is_empty():
-			if route.affordable:
-				return _begin_ladder_journey(route, destination)
-			# Can't afford the full climb this turn (see Ladder.
-			# find_route/required_move — checked as a hard precondition,
-			# never clamped/attempted-and-stranded) — walk toward the
-			# ladder's near point as far as ordinary budget allows, but
-			# never start the climb itself. Matches
-			# movement_indicator.gd's preview exactly: never shows or
-			# attempts a climb that won't complete.
-			return _start_walk(route.near, budget)
-
-	return _start_walk(destination, budget)
+	return _begin_route(plan_route(destination, budget, ignore))
 
 
-## Plans a route from this unit's current position to raw_destination
-## WITHOUT starting to walk it — a pure query, extracted out of
-## _start_walk() below (its only caller) purely so its own
-## flying-Y-override + NavigationGrid.find_path() + RoutePlanner.plan()
-## sequence has one clearly-named home.
+## The route move_to(raw_destination) would walk, cut at budget, WITHOUT
+## starting it — the one route query, so whatever asks "can I get there
+## and what does it cost" (the AI scorer, any behavior pricing a move)
+## gets the answer the move itself acts on, ladders included.
+##
+## Ladders are a grounded-only mechanic (see Ladder) — a flier already has
+## unrestricted vertical movement, so it never looks for one. A ladder
+## journey the budget can't reach the top of is never planned (the climb
+## is atomic, see Ladder.required_move): the route is the walk toward the
+## near end instead, as far as budget goes.
 ##
 ## budget defaults to INF — a bare route/cost query has no inherent
-## budget of its own; _start_walk() is the one caller that passes a
-## real one.
-func plan_route(raw_destination: Vector3, budget: float = INF) -> Dictionary:
-	var flying: bool = _owner.is_flying()
-	var query_destination: Vector3 = raw_destination
-	if flying:
-		# XZ comes from wherever was clicked; Y is the pilot's own target
-		# altitude (see Unit.flight_target_altitude), not the clicked
-		# point's Y — a ground click always resolves near y=0, which
-		# isn't where a flying unit is headed. find_path() below does a
-		# genuine 3D search between the unit's real current position and
-		# this point, so the returned route already climbs/descends
-		# around real obstacles at each height — no separate "bake at one
-		# height, then reinterpret Y along XZ progress" step needed.
-		query_destination.y = clamp(
-			_owner.flight_target_altitude,
-			NavigationGrid.FLIGHT_MIN_ALTITUDE,
-			NavigationGrid.FLIGHT_CEILING_HEIGHT
-		)
+## budget of its own; move_to() passes move_remaining in combat.
+func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = []) -> Dictionary:
+	if not _owner.is_flying():
+		var route: Dictionary = Ladder.find_route(_owner, raw_destination, ignore)
+		if not route.is_empty():
+			if _climb_affordable(route, budget):
+				return _ladder_route(route, budget - _climb_end_cost(route))
+			return _direct_route(route.near, budget, ignore)
+	return _direct_route(raw_destination, budget, ignore)
 
-	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying)
+
+## plan_route()'s walked case: find_path() and RoutePlanner, nothing else.
+func _direct_route(raw_destination: Vector3, budget: float, ignore: Array) -> Dictionary:
+	var flying: bool = _owner.is_flying()
+	var query_destination: Vector3 = _query_destination(raw_destination)
+	var waypoints: PackedVector3Array = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying, ignore)
+	return _plan_waypoints(waypoints, budget, flying)
+
+
+## What a ladder journey has cost by the time the unit stands at the far
+## end: the walk to the near end plus the ladder's required_move.
+static func _climb_end_cost(route: Dictionary) -> float:
+	return _route_end_cost(route.near_planned) + route.ladder.required_move
+
+
+## Whether budget covers getting up (or down) the whole ladder — one hard
+## precondition, never clamped into a climb that stops on the rungs.
+static func _climb_affordable(route: Dictionary, budget: float) -> bool:
+	return budget >= _climb_end_cost(route)
+
+
+## The point find_path() is actually asked to reach for raw_destination.
+## A grounded unit goes exactly where it was sent. A flier takes XZ from
+## wherever was clicked and Y from the pilot's own target altitude (see
+## Unit.flight_target_altitude), not the clicked point's Y — a ground
+## click always resolves near y=0, which isn't where a flying unit is
+## headed. find_path() does a genuine 3D search between the unit's real
+## current position and this point, so the returned route already
+## climbs/descends around real obstacles at each height — no separate
+## "bake at one height, then reinterpret Y along XZ progress" step needed.
+## Shared by plan_route() and preview_route() so the two can't ask for
+## different destinations.
+func _query_destination(raw: Vector3) -> Vector3:
+	var query: Vector3 = raw
+	if _owner.is_flying():
+		var altitude: float = _owner.flight_target_altitude
+		# The floor is looked up from the altitude, or from the hovered
+		# point when the altitude is below it: an altitude under ground
+		# the cursor is on lies inside the terrain, where the floor found
+		# is a hollow pocket no search can reach.
+		query.y = clamp_flight_altitude(altitude, Vector3(raw.x, maxf(altitude, raw.y), raw.z), _owner)
+	return query
+
+
+## altitude clamped to the valid flight envelope - the one copy of that
+## rule, shared by the move query, set_flight_altitude, takeoff, the AI
+## and the router's altitude plane (IdleIntent.clamp_height), so the plane
+## the player sees is the altitude the flier will take. The floor is
+## relative: FLIGHT_MIN_ALTITUDE above the ground under `at`
+## (NavigationGrid.flight_floor_at), so a flier can drop into a pit as far
+## as it can hover over y=0 ground. With no `at` (the plane, which has no
+## one XZ) it is the lowest the world allows, and the move query lifts to
+## the floor at its own destination. The ceiling is relative the same way
+## (NavigationGrid.flight_ceiling_at, FLIGHT_MAX_ALTITUDE over the same
+## ground), so a rooftop gets the same band as y=0; with no `at` it is the
+## highest the world allows.
+static func clamp_flight_altitude(altitude: float, at: Variant = null, world_ref: Node = null) -> float:
+	var tree := Engine.get_main_loop() as SceneTree
+	var floor_y: float
+	var ceiling_y: float
+	if at == null:
+		floor_y = NavigationGrid.flight_lowest_altitude(tree, world_ref)
+		ceiling_y = NavigationGrid.flight_highest_altitude(tree, world_ref)
+	else:
+		floor_y = NavigationGrid.flight_floor_at(tree, at, world_ref)
+		ceiling_y = NavigationGrid.flight_ceiling_at(tree, at, world_ref)
+	return clampf(altitude, floor_y, ceiling_y)
+
+
+## RoutePlanner.plan() over find_path()'s waypoints, with the flier's
+## vertical cost multipliers — the one budget/cost step plan_route() and
+## preview_route() share. Vertical multipliers are only ever non-default
+## (1.0/1.0) for a flying mover — see FlightRules's own header. A
+## grounded unit's route is billed identically to before they existed,
+## since RoutePlanner.plan()'s defaults are a strict no-op.
+func _plan_waypoints(waypoints: PackedVector3Array, budget: float, flying: bool) -> Dictionary:
 	if waypoints.size() < 2:
 		return {"path": PackedVector3Array(), "cumulative_cost": PackedFloat32Array()}
-
-	# Vertical cost multipliers only ever passed non-default (1.0/1.0)
-	# here, and only for a flying mover — see FlightRules's own header.
-	# A grounded unit's route is billed identically to before this
-	# existed, since RoutePlanner.plan()'s defaults are a strict no-op.
 	var ascend_multiplier: float = FLIGHT_RULES.ascend_cost_multiplier if flying else 1.0
 	var descend_multiplier: float = FLIGHT_RULES.descend_cost_multiplier if flying else 1.0
-	return RoutePlanner.plan(waypoints, budget, SurfaceManager.movement_cost_multiplier_at, ascend_multiplier, descend_multiplier)
+	return RoutePlanner.plan(waypoints, budget, SurfaceManager.cost_sampler(_owner), ascend_multiplier, descend_multiplier)
 
 
-## Plans a route to raw_destination within budget and starts walking it —
-## the shared "plan then execute" core move_to() itself uses for an
-## ordinary move, and each walking leg of a ladder journey (see
-## _begin_ladder_journey/_on_climb_finished) reuses identically, so a
-## ladder's walking legs are governed by the exact same budget-truncation/
-## terrain-cost rules as any other move.
-func _start_walk(raw_destination: Vector3, budget: float) -> bool:
-	var planned: Dictionary = plan_route(raw_destination, budget)
+## The route move_to(dest) would take, planned in full rather than cut at
+## move_remaining — for the movement preview, which draws the in-budget
+## part and the rest in different colours from the returned
+## cumulative_cost. Makes the same choice move_to() does, in the same
+## order: a grounded unit headed for a ladder end gets the ladder journey
+## (or, when the climb is unaffordable, only the walk toward the near end
+## — never a climb the move won't perform); anything else gets
+## plan_route()'s query. Truncating this at move_remaining gives the
+## route move_to() walks, since RoutePlanner.plan() cuts the same path.
+##
+## Returns {path, cumulative_cost} — RoutePlanner.plan()'s shape; an
+## empty path when there is no route.
+##
+## Called every frame while the preview is live, so the A* search is
+## cached by (start cell, destination cell, flying, occupancy version,
+## ignore) — the mouse sitting still is the common case, and any unit
+## moving changes the version. RoutePlanner.plan() re-runs every call: a
+## cheap linear walk, and it keeps terrain cost live.
+func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
+	if not _owner.is_flying():
+		var route: Dictionary = Ladder.find_route(_owner, dest, ignore)
+		if not route.is_empty():
+			return _preview_ladder_route(route, ignore)
+
+	var flying: bool = _owner.is_flying()
+	var query_destination: Vector3 = _query_destination(dest)
+	var start_cell: Vector3i = NavigationGrid.world_to_cell(_owner.global_position, _owner)
+	var dest_cell: Vector3i = NavigationGrid.world_to_cell(query_destination, _owner)
+	var version: int = NavigationGrid.occupancy_version(_owner.get_tree(), _owner)
+	if not (
+		_preview_cached
+		and flying == _preview_flying
+		and start_cell == _preview_start_cell
+		and dest_cell == _preview_dest_cell
+		and version == _preview_occupancy_version
+		and ignore == _preview_ignore
+	):
+		_preview_waypoints = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying, ignore)
+		_preview_cached = true
+		_preview_flying = flying
+		_preview_start_cell = start_cell
+		_preview_dest_cell = dest_cell
+		# find_path may itself have rebuilt occupancy; read the version it used.
+		_preview_occupancy_version = NavigationGrid.occupancy_version(_owner.get_tree(), _owner)
+		_preview_ignore = ignore.duplicate()
+
+	return _plan_waypoints(_preview_waypoints, INF, flying)
+
+
+## preview_route()'s ladder branch — see Ladder.find_route for `route`'s
+## shape. Uncut, but making plan_route()'s choice at the real budget: when
+## move_to() would only walk toward the near end, that walk is all there
+## is to show.
+func _preview_ladder_route(route: Dictionary, ignore: Array) -> Dictionary:
+	if not _climb_affordable(route, _owner.move_budget()):
+		return route.near_planned
+	return _ladder_route(route, INF)
+
+
+## The one route over a whole ladder journey, walked by move_to and drawn
+## by the preview: the walk to the near end, the climb, then the walk from
+## the far end to the destination, cut at tail_budget. Returns RoutePlanner's
+## {path, cumulative_cost} plus climb_first/climb_last/climb_speed/
+## climb_facing for _begin_route.
+##
+## The climb is Ladder.climb_waypoints (reversed for a descent), not a
+## straight near-to-far line — the clipping bug that function's header
+## describes. Its first point is the near end itself, so the unit settles
+## onto the exact foot of the ladder before going up rather than climbing
+## from wherever the walk's arrival_tolerance let it stop. It adds no
+## cost but the ladder's required_move, charged at the far end.
+func _ladder_route(route: Dictionary, tail_budget: float) -> Dictionary:
+	var ladder: Ladder = route.ladder
+	var path: PackedVector3Array = route.near_planned.path.duplicate()
+	var cost: PackedFloat32Array = route.near_planned.cumulative_cost.duplicate()
+	var walk_cost: float = _route_end_cost(route.near_planned)
+
+	var climb_points: PackedVector3Array = Ladder.climb_waypoints(ladder.base_position(), ladder.top_position())
+	if not route.going_up:
+		climb_points.reverse()
+	var climb_first: int = path.size()
+	for i in climb_points.size():
+		path.append(climb_points[i])
+		cost.append(walk_cost + (ladder.required_move if i == climb_points.size() - 1 else 0.0))
+	var climb_last: int = path.size() - 1
+	var climbed_cost: float = cost[climb_last]
+
+	# The tail is grounded (ladders are grounded-only), found by
+	# Ladder.find_route from the far end, and the only leg the budget can
+	# cut short.
+	var tail_waypoints: PackedVector3Array = route.tail_waypoints
+	if tail_waypoints.size() >= 2 and tail_budget > 0.0:
+		var tail: Dictionary = _plan_waypoints(tail_waypoints, tail_budget, false)
+		for i in range(1, tail.path.size()):
+			path.append(tail.path[i])
+			cost.append(climbed_cost + tail.cumulative_cost[i])
+
+	return {
+		"path": path,
+		"cumulative_cost": cost,
+		"climb_first": climb_first,
+		"climb_last": climb_last,
+		"climb_speed": ladder.climb_speed,
+		"climb_facing": ladder.facing(),
+		"climb_up": route.going_up,
+		"ladder": ladder,
+	}
+
+
+static func _route_end_cost(planned: Dictionary) -> float:
+	var cost: PackedFloat32Array = planned.cumulative_cost
+	return cost[cost.size() - 1] if cost.size() > 0 else 0.0
+
+
+## Starts walking `planned` — RoutePlanner's {path, cumulative_cost}, or
+## _ladder_route's, whose climb_* keys mark the climb inside it. Every move
+## goes through here, so a ladder journey is one move: one
+## movement_started, one movement_finished, one current_route() the line,
+## the destination ring and the Move bar all read the whole way.
+func _begin_route(planned: Dictionary) -> bool:
 	var planned_path: PackedVector3Array = planned.path
-
 	if planned_path.size() < 2:
 		return false
 
 	_current_path = planned_path
+	_current_cost = planned.cumulative_cost
 	_path_index = 1
-	_planned_cost = planned.cumulative_cost[-1] if planned.cumulative_cost.size() > 0 else 0.0
-	_move_start_position = _owner.global_position
+	_planned_cost = _route_end_cost(planned)
+	_climb_first = planned.get("climb_first", -1)
+	_climb_last = planned.get("climb_last", -1)
+	_climb_speed = planned.get("climb_speed", _climb_speed)
+	_climb_facing = planned.get("climb_facing", Vector3.ZERO)
+	_climb_ladder = planned.get("ladder", null)
+	_climb_up = planned.get("climb_up", true)
 	_stuck_timer = 0.0
 	_last_progress_position = _owner.global_position
 	_moving = true
@@ -226,136 +511,25 @@ func _start_walk(raw_destination: Vector3, budget: float) -> bool:
 	return true
 
 
-## Stage 1 of a ladder journey — see Ladder.find_route for `route`'s
-## shape. Already confirmed affordable IN FULL (walk + climb together)
-## before this is ever called (see move_to), so this walk is guaranteed
-## to complete without being cut short by budget — passing move_remaining
-## itself as the budget (rather than INF) keeps this consistent with
-## every other walk's budget accounting regardless, belt-and-suspenders
-## rather than relying purely on that guarantee.
-##
-## Returns whether the journey actually started — move_to() forwards this
-## as its own return value. _start_walk can legitimately fail here for
-## two very different reasons that must NOT be treated the same way:
-## already standing at (or effectively at) route.near — the common case
-## right after climbing UP, since the very next thing a player often does
-## is immediately try to climb back DOWN from essentially that same
-## spot — versus route.near being genuinely unreachable. The first isn't
-## a failure at all, it just means there's no walk needed before
-## climbing; skip straight to stage 2. Confirmed as a real, reproducible
-## bug, not a hypothetical: before this distinction existed, the "already
-## there" case silently left _ladder_stage stuck at 1 forever — nothing
-## was ever going to advance it, since physics_process()'s own
-## "reached the end" check (which is what would normally notice and
-## chain into the climb) never runs at all while _moving is false — so
-## the unit stood frozen while move_to() had already told its caller the
-## move succeeded. That's exactly "can climb up but can't come back
-## down": climbing up starts from somewhere genuinely far from the base,
-## so the walk is real; climbing down starts from right where the unit
-## is already standing after the climb up, hitting this exact case.
-func _begin_ladder_journey(route: Dictionary, final_destination: Vector3) -> bool:
-	_ladder = route.ladder
-	_ladder_far = route.far
-	_ladder_final_destination = final_destination
-	_ladder_going_up = route.going_up
-
-	if _owner.global_position.distance_to(route.near) <= _owner.arrival_tolerance:
-		_ladder_stage = 2
-		_climb_ladder()
-		return true
-
-	if _start_walk(route.near, _owner.move_remaining if _owner.in_combat() else INF):
-		_ladder_stage = 1
-		return true
-
-	_ladder = null
-	return false
-
-
-## Stage 2 — the actual climb. Bypasses move_and_slide() entirely, the
-## same technique MoveCasterEffect/KnockbackEffect already use for Jump/
-## Shove — a climb isn't a walk order, it shouldn't path around anything.
-## Spends required_move atomically, all at once (already confirmed
-## affordable in full back in move_to/find_route) — not measured or
-## re-derived here, matching this ladder's own "no partial climb"
-## contract.
-##
-## Animates through Ladder.climb_waypoints (up to 3 points: base, an
-## intermediate straight-up point, top), NOT a bare start-to-destination
-## lerp — a single diagonal line between an outside-the-geometry point
-## and an inset one can cut straight through whatever solid corner sits
-## between them (confirmed, reproduced — see that function's own
-## header). climb_waypoints always computes base-to-top order and gets
-## reversed here for a descent — NOT recomputed from _owner's actual
-## current position — because the path's shape depends on which end is
-## genuinely outside the geometry (always the base), not on which
-## direction happens to be first; see climb_waypoints' header for the
-## real, reproduced bug that came from getting this backwards.
-## Ladder.find_route already validated this exact route via
-## _climb_path_is_clear before this journey was ever allowed to begin,
-## so this is playing back an already-confirmed-safe path, not hoping it
-## happens to be clear. Each segment's duration is proportional to its
-## own share of the total distance, so a long vertical climb with a
-## short horizontal step at the top doesn't spend equal time on both.
-func _climb_ladder() -> void:
-	var ladder: Ladder = _ladder
-
-	_owner.begin_busy()
-	if _owner.in_combat():
-		_owner.spend_move(ladder.required_move)
-
-	var waypoints: PackedVector3Array = Ladder.climb_waypoints(ladder.base_position(), ladder.top_position())
-	if not _ladder_going_up:
-		waypoints.reverse()
-	if waypoints.size() < 2:
-		# Degenerate ladder (base and top coincide) — nothing to actually
-		# animate.
-		_on_climb_finished.call_deferred()
-		return
-
-	var total_dist: float = 0.0
-	for i in range(1, waypoints.size()):
-		total_dist += waypoints[i - 1].distance_to(waypoints[i])
-
-	var tween: Tween = _owner.create_tween()
-	for i in range(1, waypoints.size()):
-		var seg_start: Vector3 = waypoints[i - 1]
-		var seg_end: Vector3 = waypoints[i]
-		var seg_dist: float = seg_start.distance_to(seg_end)
-		var seg_duration: float = ladder.climb_duration * (seg_dist / total_dist) if total_dist > 0.001 else ladder.climb_duration
-		tween.tween_method(
-			func(t: float): _owner.global_position = seg_start.lerp(seg_end, t),
-			0.0, 1.0, seg_duration
-		)
-	tween.finished.connect(_on_climb_finished)
-
-
-## Stage 3 — walk from the ladder's far point toward the real destination,
-## using whatever move_remaining is left after the climb. This leg is
-## ordinary movement in every sense (can fall short of the real
-## destination, same ARRIVAL_SLACK/budget rules as any other move) — the
-## "no partial movement" guarantee only ever protected the climb itself,
-## not the rest of the turn's movement.
-func _on_climb_finished() -> void:
-	_owner.end_busy()
-	_ladder_stage = 3
-	_ladder = null
-	var final_destination: Vector3 = _ladder_final_destination
-
-	if not _start_walk(final_destination, _owner.move_remaining if _owner.in_combat() else INF):
-		# Nothing left to walk (already there, or no valid path onward) —
-		# the journey still completed successfully; emit completion
-		# directly instead of waiting on a walk leg that was never going
-		# to start.
-		_ladder_stage = 0
-		_owner.movement_finished.emit(_owner)
-		_owner.notify_movement_idle_check()
+## Cuts the route being walked at the ladder's far end — an order given
+## mid-climb (move_to, stop_moving) takes effect there, never on the
+## rungs. The budget charged is the route's cost up to that point.
+func _end_route_at_climb_end() -> void:
+	var end: int = _climb_last + 1
+	_current_path = _current_path.slice(0, end)
+	_current_cost = _current_cost.slice(0, end)
+	_planned_cost = _current_cost[end - 1] if _current_cost.size() >= end else _planned_cost
 
 
 ## Cancels the current move order in place, still spending whatever
 ## distance was actually covered (combat only).
 func stop_moving() -> void:
 	if not _moving:
+		return
+	# Mid-climb the stop lands at the ladder's far end, not on the rungs.
+	if is_climbing():
+		_after_climb = {}
+		_end_route_at_climb_end()
 		return
 	_finish_move()
 
@@ -370,9 +544,12 @@ func force_stop() -> void:
 	_moving = false
 	_owner.velocity = Vector3.ZERO
 	_current_path = PackedVector3Array()
+	_current_cost = PackedFloat32Array()
 	_path_index = 0
-	_ladder_stage = 0
-	_ladder = null
+	_climb_first = -1
+	_climb_last = -1
+	_climb_ladder = null
+	_after_climb = {}
 
 
 func physics_process(delta: float) -> void:
@@ -386,7 +563,8 @@ func physics_process(delta: float) -> void:
 	# can't be reintroduced as a "only applies mid-walk" bug later. Flying
 	# is untouched — altitude there is owned entirely by
 	# flight_target_altitude, never by gravity.
-	if not flying:
+	var climbing: bool = is_climbing()
+	if not flying and not climbing:
 		if _owner.is_on_floor():
 			_owner.velocity.y = 0.0
 		else:
@@ -411,16 +589,31 @@ func physics_process(delta: float) -> void:
 	# consider itself "arrived" at a waypoint from XZ distance alone
 	# while still well off in altitude, and skip past the very step that
 	# was supposed to carry it the rest of the way up/down.
+	# A climb point is reached in 3D and almost exactly (CLIMB_ARRIVAL).
+	# Never onto a ladder someone else is on: the walk holds short.
+	var held: bool = _waiting_for_ladder()
 	while _path_index < _current_path.size():
+		if held and _path_index + 1 >= _climb_first:
+			break
 		var to_waypoint: Vector3 = _current_path[_path_index] - _owner.global_position
-		if not flying:
+		var climb_point: bool = _climb_first >= 0 and _path_index >= _climb_first and _path_index <= _climb_last
+		if not flying and not climb_point:
 			to_waypoint.y = 0.0
-		if to_waypoint.length() > _owner.arrival_tolerance:
+		if to_waypoint.length() > (CLIMB_ARRIVAL if climb_point else _owner.arrival_tolerance):
 			break
 		_path_index += 1
 
 	if _path_index >= _current_path.size():
 		_finish_move()
+		return
+
+	if held:
+		_hold()
+		return
+
+	if is_climbing():
+		_climb_ladder.claim(_owner)
+		_climb_step(delta)
 		return
 
 	# Last-resort safety net — see stuck_timeout's doc comment. The path
@@ -462,54 +655,89 @@ func physics_process(delta: float) -> void:
 	_owner.move_and_slide()
 
 
+## Whether this unit is walking to a ladder someone else is on and has
+## come within Ladder.WAIT_DISTANCE of its near end — where it waits.
+func _waiting_for_ladder() -> bool:
+	if _climb_ladder == null or _path_index >= _climb_first:
+		return false
+	var to_near: Vector3 = _current_path[_climb_first] - _owner.global_position
+	to_near.y = 0.0
+	return to_near.length() <= Ladder.WAIT_DISTANCE and _climb_ladder.is_busy_for(_owner)
+
+
+## One frame waiting for the ladder: standing, still under gravity, and
+## never counted as stuck — the wait ends when the ladder frees.
+func _hold() -> void:
+	_owner.velocity.x = 0.0
+	_owner.velocity.z = 0.0
+	_owner.move_and_slide()
+	_stuck_timer = 0.0
+	_last_progress_position = _owner.global_position
+
+
+## One frame on the ladder: straight at the next climb point at
+## climb_speed, placed directly — no gravity, no move_and_slide, since the
+## climb runs along the landing's own edge (Ladder.climb_waypoints) where
+## collision would only snag. Already-validated geometry: Ladder.find_route
+## checked this path before the move was allowed.
+func _climb_step(delta: float) -> void:
+	var target: Vector3 = _current_path[_path_index]
+	var to_target: Vector3 = target - _owner.global_position
+	var step: float = _climb_speed * delta
+	_owner.velocity = Vector3.ZERO
+	# The level step between the landing's edge and the top is walked
+	# facing the way it goes; the rest faces the ladder.
+	var landing_leg: bool = _path_index == _climb_first + (4 if _climb_up else 1)
+	var level := Vector3(to_target.x, 0.0, to_target.z)
+	if landing_leg and level.length() > 0.01:
+		_owner.face_direction(level, delta)
+	elif _climb_facing != Vector3.ZERO:
+		_owner.face_direction(_climb_facing, delta)
+	if to_target.length() <= step:
+		_owner.global_position = target
+	else:
+		_owner.global_position += to_target.normalized() * step
+	_stuck_timer = 0.0
+	_last_progress_position = _owner.global_position
+
+
 ## announce = false ends the move without emitting movement_finished:
 ## the move did not finish, it was REPLACED by a new order (see
 ## move_to). The budget is still charged for the distance actually
 ## walked; only the "I am done" announcement is withheld, because
 ## listeners treat it as a completed step and act on it.
 func _finish_move(announce: bool = true) -> void:
+	var walked: float = cost_walked()
 	_moving = false
 	_owner.velocity = Vector3.ZERO
 
-	# Needed both for the spend calculation below AND to decide whether a
-	# ladder journey's walking leg may chain into its next stage (see
-	# below) — an organically-completed leg chains, one cut short
-	# (stuck_timeout, or a manual stop_moving() mid-route) aborts the
-	# ladder journey cleanly instead of climbing from wherever it
-	# happened to stop.
 	var completed_fully: bool = _path_index >= _current_path.size()
 
 	if _owner.in_combat():
 		# The plan completed fully (walked every point) → charge its
 		# exact known cost, not a re-measurement — that cost IS what was
 		# spent, by construction, since nothing deviated from the plan.
-		# Cut short instead → fall back to actually-measured PHYSICAL
-		# displacement, since in that abnormal case the plan and reality
-		# genuinely diverged. That fallback under-charges if the
-		# cut-short portion crossed difficult terrain — same "rare
-		# last-resort path, not the normal case" trade-off as every other
-		# use of stuck_timeout in this file, not worth chasing exactly.
-		var spent: float = _planned_cost if completed_fully else _move_start_position.distance_to(_owner.global_position)
+		# Cut short (replaced, stopped, stuck) → the route's cost up to
+		# where the unit is (cost_walked, what the Move bar showed), not
+		# the straight-line displacement: that would bill a free ladder
+		# climb's height, and miss terrain cost.
+		var spent: float = _planned_cost if completed_fully else walked
 		_owner.spend_move(spent)
 
 	_current_path = PackedVector3Array()
+	_current_cost = PackedFloat32Array()
 	_path_index = 0
 	_planned_cost = 0.0
+	_climb_first = -1
+	_climb_last = -1
+	_climb_ladder = null
 
-	if _ladder_stage == 1 and completed_fully:
-		# Reached the ladder's base/top — the walking leg is done, but
-		# this ISN'T the end of the overall move yet, so movement_finished
-		# doesn't fire here; the climb (stage 2) picks up immediately.
-		_ladder_stage = 2
-		_climb_ladder()
+	# An order given mid-climb runs now, from the far end; it replaces
+	# this move, so this one doesn't announce — unless it can't start.
+	var queued: Dictionary = _after_climb
+	_after_climb = {}
+	if not queued.is_empty() and move_to(queued.destination, queued.ignore):
 		return
-
-	if _ladder_stage != 0:
-		# Either stage 3 (the walk after climbing) finished — completed
-		# fully or not, same "may fall short" rule as any other move — or
-		# stage 1 got cut short and the journey is aborting cleanly.
-		_ladder_stage = 0
-		_ladder = null
 
 	if announce:
 		_owner.movement_finished.emit(_owner)
@@ -521,16 +749,12 @@ func _finish_move(announce: bool = true) -> void:
 
 
 ## Sets flight_target_altitude directly, clamped to the valid flight
-## envelope (see NavigationGrid.FLIGHT_MIN_ALTITUDE/FLIGHT_CEILING_HEIGHT)
-## — called every frame from movement_indicator.gd's Ctrl-drag altitude
-## control while this unit is the active, flying unit. Doesn't move the
+## envelope (see NavigationGrid.FLIGHT_MIN_ALTITUDE/FLIGHT_MAX_ALTITUDE)
+## — called by IdleIntent.steer when the player moves the altitude plane
+## (Ctrl + wheel, or a Ctrl hold) while this unit flies. Doesn't move the
 ## unit itself; only changes where its NEXT move_to() call will aim for.
 func set_flight_altitude(altitude: float) -> void:
-	_owner.flight_target_altitude = clamp(
-		altitude,
-		NavigationGrid.FLIGHT_MIN_ALTITUDE,
-		NavigationGrid.FLIGHT_CEILING_HEIGHT
-	)
+	_owner.flight_target_altitude = clamp_flight_altitude(altitude, null, _owner)
 
 
 ## Forces this unit out of the air by removing every status currently
@@ -558,8 +782,7 @@ func ground_if_flying() -> void:
 ## regardless of caller — a graceful descent even when knocked out isn't
 ## fully realistic, but a single shared animation is worth more than
 ## relitigating tone per call site; revisit only with a concrete reason.
-## Same begin_busy()/Tween/end_busy() shape _climb_ladder() above already
-## uses — this bypasses the path-following system entirely too, for the
+## A begin_busy()/Tween/end_busy() shape — this bypasses the path-following system entirely too, for the
 ## same reason: a landing isn't a walk order, it shouldn't path around
 ## anything.
 ##
@@ -613,6 +836,7 @@ func land(controlled: bool = false) -> void:
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(_owner, "global_position:y", result.position.y, duration)
+	tween.finished.connect(func(): _owner.touched_down.emit(_owner))
 	tween.finished.connect(_owner.end_busy)
 	SystemLog.print("%s lands." % LogFormat.unit_name(_owner))
 
@@ -628,9 +852,7 @@ func _apply_fall_damage(descent: float) -> void:
 	if raw_damage <= 0:
 		return
 
-	var applied: int = raw_damage
-	if FLIGHT_RULES.fall_damage_reduced_by_dr:
-		applied = max(raw_damage - _owner.get_stat("DR"), 0)
+	var applied: int = DamageResolver.injury(raw_damage, _owner, DamageResolver.WoundType.CRUSHING, 1.0, false, not FLIGHT_RULES.fall_damage_reduced_by_dr)
 
 	if applied > 0:
 		SystemLog.print("%s takes %d fall damage." % [LogFormat.unit_name(_owner), applied])

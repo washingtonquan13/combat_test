@@ -1,95 +1,833 @@
-extends IndicatorBase
-## Global click router — the one place that decides what left/right click
-## do, for both the ground AND anything interactable (a Unit, an
-## InteractableProp, anything future implementing get_interactions()).
+class_name ClickRouter
+extends Node3D
+## The one owner of player intent — what a click means, which indicators
+## are live because of it — and of where the player is pointing.
 ##
-## Left-click on empty ground moves the selected unit(s) there — UNLESS a
-## ground-point-targeting ability like Jump is armed, in which case it's
-## used instead (see _try_use_ground_targeted_ability). Left-click on an
-## interactable does nothing here at all — Unit._on_input_event (still
-## per-object physics picking) owns that click; this script's own
-## hovered-interactable check exists purely to bail out and stay out of
-## its way.
+## Each frame, in this order (see _process): derive the intent, resolve
+## the ONE Cursor (the only mouse raycast and the only Ctrl read in the
+## project), let the intent steer the height plane, build the ONE Aim
+## from that cursor, and hand it to every live indicator's draw(). Clicks
+## take a cursor from the same resolve_cursor(). Indicators never raycast,
+## read input or decide anything — they draw what they are given, so the
+## preview and the click cannot disagree about where the cursor is.
 ##
-## Right-click disarms an armed ability if there is one (same "cancel the
-## thing I just armed" priority as before — right-click swallowing input
-## silently otherwise reads as broken, not intentional). Otherwise, if
-## the cursor is over an interactable, opens InteractionMenu for it —
-## this is the ONLY place that happens; no interactable needs its own
-## right-click wiring, just get_interactions(). Right-click on empty
-## ground does nothing (no menu, no move — move lives on left-click now).
+## Kept as the node named GroundClickTarget in MainRoot.tscn because it
+## already IS the in-world node clicks physically arrive at: one global
+## node doing a centralized raycast, NOT a script attached to every ground collision body — the version
+## before that extended StaticBody3D and relied on per-object physics
+## picking, which meant it had to be attached individually to all five of
+## the old main.tscn's ground/platform bodies. This needs to exist exactly
+## once and works against any number of ground bodies for free as long as
+## they are on ground_collision_mask.
 ##
-## One global node doing a centralized raycast (via IndicatorBase's
-## _get_mouse_ground_point/_get_hovered_unit/_get_hovered_interactable),
-## NOT a script attached to every ground collision body — the previous
-## version extended StaticBody3D and relied on per-object physics picking
-## (CollisionObject3D.input_event), which meant this exact script had
-## to be attached individually to all five of main.tscn's ground/
-## platform bodies. That stops scaling the moment a real level's ground
-## is built from more than a handful of pieces (a GridMap, a multi-
-## chunk terrain, ...). This version needs to exist exactly once, and
-## works against any number of ground bodies for free as long as they're
-## on ground_collision_mask (see IndicatorBase) — no per-object setup.
+## INTENT IS DERIVED, NEVER STORED — same shape as GameMode.current_mode(),
+## for the same reason. intent() reads CameraDirector, the pushed stack
+## and AbilityManager and returns the answer; _process compares this
+## frame's answer to last frame's and emits intent_changed when it moved.
+## Nothing anywhere assigns "the current intent", so nothing can disagree
+## about it, and there is no state to get stuck in.
 ##
-## "Left-click"/"right-click"/"deselect_all" below are all InputMap
-## actions (see project.godot > Input Map), not hardcoded
-## MOUSE_BUTTON_LEFT/RIGHT/KEY_TAB checks — rebinding any of them needs no
-## code change.
+## What that replaced: eight places deciding what a click meant (this
+## file's own left/right branches, Unit._on_input_event's physics-picked
+## copy, the debug spawner's interceptor list) and seven indicators
+## polling three singletons every frame to re-derive whether they were
+## the one being aimed. Indicators are now TOLD, once, on change — see
+## _apply_intent and IndicatorBase.serves().
+##
+## "Left-click"/"right-click"/"deselect_all" are InputMap actions (see
+## project.godot > Input Map), not hardcoded button constants —
+## rebinding any of them needs no code change.
 
-func _unhandled_input(event: InputEvent) -> void:
-	# The cinematic camera being frozen out from under a live conversation
-	# or menu (see camera_director.gd) doesn't by itself stop a click from
-	# still reaching the tactical world underneath it — this is what
-	# actually does that: no move orders, no ability casts, no context
-	# menus while any of CameraDirector's own blockers own the screen.
-	# Reuses has_control() itself rather than keeping a second,
-	# separately-maintained list of the same conditions here — a click
-	# shouldn't be able to reach the world in any state where the camera
-	# is frozen out of responding to input either.
+signal intent_changed(intent: PlayerIntent)
+
+## Heights dragged with Ctrl move in steps this big.
+const HEIGHT_STEP: float = 0.25
+
+## One Ctrl + wheel notch moves the height plane this far.
+const PLANE_STEP: float = 0.5
+
+## Pixels the mouse may travel between press and release and still be a
+## click. Past it the gesture is a box select (DragSelectBox reads this
+## same constant), so a box drag never also issues a move.
+const CLICK_DRAG_THRESHOLD: float = 6.0
+
+## How far every ray this router casts reaches.
+const RAY_LENGTH: float = 1000.0
+
+@export var ground_collision_mask: int = 1
+## Unit pick areas only (Unit.PICK_LAYER, layer 20), not unit bodies.
+@export_flags_3d_physics var unit_collision_mask: int = 1 << 19
+
+## This frame's cursor and aim, as handed to the indicators. Read-only
+## for anyone else (the nav debug overlay reads cursor); null before the
+## first frame.
+var cursor: Cursor = null
+var aim: Aim = null
+
+## The spot a Ctrl height hold keeps, or null when no hold is down.
+## Taken on the first frame of a hold - the point the cursor was on, so
+## a hold started on the plane keeps the plane's height - and released
+## the moment Ctrl is up or the intent takes no height. Only
+## resolve_cursor reads or writes it (and _input on Ctrl release), so no
+## indicator switching off mid-press can leave it stale.
+var _held_ground = null
+
+## The height plane the player set: Ctrl + wheel steps it (PLANE_STEP), a
+## Ctrl hold drags it, and it STAYS when Ctrl is let go - that is the
+## latch. Null when none is set. For an intent with a standing height (an
+## idle flier, PlayerIntent.standing_height) it lives only until this
+## frame's steer has written it to the unit, which then owns it. Cleared
+## when the intent changes (_plane_intent), when an aiming click places a
+## cast, and on every arm/disarm.
+var _plane_height = null
+
+## The intent _plane_height was set under, compared by _same_intent: a
+## height latched for one ability never carries into another.
+var _plane_intent: PlayerIntent = null
+
+## A Ctrl + wheel step landed since the last steer, so this frame's
+## cursor reports the plane as moved (Cursor.height_steered).
+var _wheel_steered: bool = false
+
+## A left press waiting for its release: the cursor and intent at press,
+## and where it was pressed. Cleared on release, or once the mouse moves
+## past CLICK_DRAG_THRESHOLD (then it is a box drag, not a click).
+var _press_cursor: Cursor = null
+var _press_intent: PlayerIntent = null
+var _press_position: Vector2 = Vector2.ZERO
+
+## The MovableProp a left press landed on, while that press may still turn
+## into dragging it (see _begin_prop_drag). Null otherwise.
+var _press_prop: MovableProp = null
+
+## The drag in progress, and the intent pushed for it - null when nothing
+## is being dragged. The release drops it, right-click cancels it.
+var _drag: PropDrag = null
+var _drag_intent: DraggingIntent = null
+
+## Intents pushed by a tool that wants first refusal on clicks — right
+## now only debug/spawning_intent.gd. A stack rather than a flag so
+## nesting is at least well-defined, and PlayerIntent-typed so production
+## code never names the debug tool that pushes one (the old
+## intercept_clicks/release_clicks pair took bare Callables for the same
+## reason; this replaces them).
+##
+## Registered in the &"click_router" group (see _ready) rather than as an
+## autoload singleton, because this node already IS the one global click
+## authority and already lives inside the world SubViewport where the
+## click physically arrives — a tool that armed itself via its own
+## _input() could not reliably beat or follow this node's _unhandled_input
+## in tree order (autoloads sit before MainRoot, but the world
+## SubViewportContainer forwards its click into the SubViewport's own
+## synchronous input pass — ground picking included — before _input ever
+## reaches further down the physical root tree), so claiming a click has
+## to happen from inside that same pass instead.
+var _pushed: Array[PlayerIntent] = []
+
+## Reused rather than rebuilt each frame: these two carry no state, and
+## intent() is called from _process. Aiming is cached per ability for the
+## same reason — see intent().
+var _idle: IdleIntent = IdleIntent.new()
+var _locked: LockedIntent = LockedIntent.new()
+var _aiming: AimingIntent = null
+
+## Last intent handed to intent_changed. Null until the first _process,
+## which is deliberate: the first comparison always differs, so the
+## indicators get told what they are from the very first frame instead of
+## staying dark until something happens to change. Cleared again on every
+## world focus — see _on_world_focused.
+var _last: PlayerIntent = null
+
+## The look, sound and OS cursor of each decision this router makes. Built
+## here rather than authored in MainRoot.tscn so it travels with the
+## router between worlds and no scene has to remember to add it.
+var _feedback: ClickFeedback = null
+
+
+## What a left click would do right now, and whether it would be taken -
+## the one answer both the context cursor (every frame) and the click
+## feedback (on release) read, so the cursor never promises a click the
+## router then refuses. Built by _answer from the same Cursor the click
+## uses.
+class ClickAnswer:
+	## &"none" (no opinion: locked, a pushed tool, nothing under the
+	## cursor), &"move", &"select", &"use" (an ability, at a unit or a
+	## point), &"interact", &"nothing" (aiming at nothing - consumed, does
+	## nothing).
+	var verb: StringName = &"none"
+	var ok: bool = true
+	## Why not, when ok is false. Empty means the router has nothing
+	## better than the generic line for the verb.
+	var reason: String = ""
+	## Where the feedback goes: the destination, the target's feet, the
+	## aimed point. Null when there is no spot to mark.
+	var point = null
+	## The surface below point when point is midair (Cursor.floor_below),
+	## else null - where the feedback ring lands under a midair marker.
+	var floor_point = null
+
+	func _init(answer_verb: StringName = &"none", answer_point = null) -> void:
+		verb = answer_verb
+		point = answer_point
+
+	func refused(why: String) -> ClickAnswer:
+		ok = false
+		reason = why
+		return self
+
+
+func _ready() -> void:
+	add_to_group(&"click_router")
+
+	# The router draws the indicators itself now, so for them frame order
+	# no longer matters. It still runs first because the dev views that
+	# keep their own _process (the nav overlay) read this frame's cursor,
+	# and because of the history below.
+	#
+	# WorldManager._move_attention_to reparents the attention nodes into
+	# the focused world's viewport in main_root.gd's declared order —
+	# [Indicators, GroundClickTarget, CinematicCamera, DragSelectBox] — so
+	# in-world tree order puts every indicator BEFORE this node, and Godot
+	# calls _process in tree order. Each indicator therefore processed one
+	# frame ahead of _apply_intent: on the frame an ability was armed or
+	# swapped, an indicator that was still live from the previous intent
+	# ran with the NEW armed ability in hand, which is a Nil access or a
+	# failed typed assignment depending on the pair (hotbar swaps hit this
+	# for real).
+	#
+	# Lower priority runs first. Fixing it here rather than by reordering
+	# main_root.gd's array, because the array is about what the player's
+	# attention follows between worlds and says nothing about frame order,
+	# and the indicators' own defensive guards are a second line — not the
+	# rule. Nothing else in the project sets process_priority, so -10 is
+	# simply "before everyone".
+	process_priority = -10
+
+	# A world becoming focused is the one moment the applied state can be
+	# stale without the intent having changed: this node and the
+	# indicators are reparented into the arriving world, and an indicator
+	# left live from world A keeps drawing at world-A coordinates in world
+	# B until something happens to move the intent. Same hole catches an
+	# indicator that joins the group after boot — it would stay dark
+	# forever. Dropping the cache forces the next _process to re-apply
+	# unconditionally.
+	#
+	# Connected for good, with no _exit_tree teardown: reparent() does
+	# fire NOTIFICATION_EXIT_TREE, so disconnecting there would silently
+	# unhook this on the FIRST world switch and never restore it (_ready
+	# runs once). This node is reparented, never freed — it is a child of
+	# MainRoot and _move_attention_to(null) returns it there — so the
+	# connection can only outlive it if MainRoot itself is freed, and
+	# Godot drops signal connections to a freed Object on its own.
+	WorldManager.world_focused.connect(_on_world_focused)
+
+	# Arming or disarming anything drops a latched height, even on a
+	# frame where the derived intent never visibly changed (disarm and
+	# re-arm of the same ability between two frames).
+	AbilityManager.ability_armed.connect(_on_ability_armed)
+
+	_feedback = ClickFeedback.new()
+	_feedback.name = "ClickFeedback"
+	add_child(_feedback)
+
+
+## THE derivation. Priority, top down:
+##
+##   1. Locked, if something else owns the screen (CameraDirector.
+##      has_control() — a conversation, negotiation, loot screen,
+##      cutscene, open context menu, or the menus). Above the pushed
+##      stack on purpose: a debug tool arming itself must not punch
+##      through a live conversation either.
+##   2. Whatever was pushed, most recent first.
+##   3. Aiming, if AbilityManager has something armed.
+##   4. Idle.
+##
+## No branch of this reads or writes a stored "current intent" — every
+## call recomputes from the sources that already own each fact.
+func intent() -> PlayerIntent:
 	if not CameraDirector.has_control():
+		return _locked
+	if not _pushed.is_empty():
+		return _pushed[_pushed.size() - 1]
+	var armed: Ability = AbilityManager.armed_ability
+	if armed == null:
+		return _idle
+	if _aiming == null or _aiming.ability != armed:
+		_aiming = AimingIntent.new(armed)
+	return _aiming
+
+
+## Gives intent first refusal on every click this router sees, ahead of
+## the ordinary aiming/move/interaction behaviour, until it is popped.
+func push_intent(intent_to_push: PlayerIntent) -> void:
+	if intent_to_push == null or _pushed.has(intent_to_push):
+		return
+	_pushed.push_back(intent_to_push)
+
+
+## Silent no-op if it is not on the stack, so a double-release (disarm
+## firing twice) cannot error.
+func pop_intent(intent_to_pop: PlayerIntent) -> void:
+	_pushed.erase(intent_to_pop)
+
+
+## Forgets what was applied, without deciding anything: the next _process
+## derives the intent fresh and applies it to whatever indicators are in
+## the group NOW. Not _apply_intent() directly — this can fire mid-load,
+## and intent() is only meaningful once the arriving world is the focused
+## one.
+func _on_world_focused(_world: Node) -> void:
+	_last = null
+
+
+func _on_ability_armed(_ability: Ability) -> void:
+	_clear_plane()
+
+
+func _clear_plane() -> void:
+	_plane_height = null
+	_held_ground = null
+	_wheel_steered = false
+
+
+func _process(_delta: float) -> void:
+	var now: PlayerIntent = intent()
+	if not _same_intent(now, _last):
+		_last = now
+		_apply_intent(now)
+		intent_changed.emit(now)
+
+	if _drag and now != _drag_intent:
+		# Something took the screen (a conversation, a menu) mid-drag.
+		cancel_prop_drag()
+	cursor = resolve_cursor(now)
+	if _drag:
+		_drag.follow(cursor.ground)
+	now.steer(self, cursor)
+	_steered(now)
+	aim = Aim.build(cursor, now)
+	for indicator in get_tree().get_nodes_in_group(&"indicators"):
+		if indicator.serves() != &"" and indicator.is_live():
+			indicator.draw(aim)
+	_feedback.show_cursor(_cursor_shape(now))
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_released("fly_altitude_modifier"):
+		_held_ground = null
+	# A plain wheel notch goes to the intent first (a held prop turns on
+	# it). Here rather than in _unhandled_input: CRPGCamera zooms from its
+	# own _unhandled_input in this viewport, and which of the two runs
+	# first is tree order. _input runs before both, so a used notch never
+	# reaches the camera.
+	var up: bool = event.is_action_pressed("camera_zoom_in")
+	if (up or event.is_action_pressed("camera_zoom_out")) and not Input.is_action_pressed("fly_altitude_modifier"):
+		if intent().handle_wheel(self, 1.0 if up else -1.0):
+			get_viewport().set_input_as_handled()
+
+
+## What the mouse is over right now, on the height plane if one is up.
+## The only mouse raycasts in the project: the world past units (see
+## _raycast_past_units), and the unit pick areas (_unit_under_mouse).
+##
+## A height plane exists only while the intent takes a height
+## (PlayerIntent.drags_height) - Ctrl over anything else leaves the
+## cursor free. Its height is, first found: what the player set
+## (_plane_height - a wheel step, a Ctrl hold, latched after release),
+## else the intent's standing height (an idle flier's altitude).
+## - Ctrl held: the cursor keeps the spot the hold started on (the point
+##   it was on, else the active unit's own spot) and the mouse's height on
+##   screen sets the plane (_sample_height), clamped by the intent.
+## - Otherwise: the cursor is the FIRST thing the mouse ray meets - the
+##   surface it hits, or its crossing of the plane, whichever is nearer
+##   the camera (the surface if the plane is not in front of it). That is
+##   what lets the player aim sideways freely at altitude.
+## Unit picking does not look at the plane: a unit under the mouse is
+## still hovered (to target or select) wherever the plane crosses.
+func resolve_cursor(current: PlayerIntent) -> Cursor:
+	var result := Cursor.new()
+	# The world under the mouse, looking THROUGH units: the surface point is
+	# the floor (or prop) behind a unit, never a point on its capsule, so a
+	# path or an area aimed past a unit lands where the player sees it.
+	var ground_hit: Dictionary = _raycast_past_units(ground_collision_mask, _drag_exclusions())
+	var collider: Object = _pickable_collider(ground_hit)
+	if collider is Node and not (collider is Unit) and collider.has_method("get_interactions"):
+		result.interactable = collider
+	var surface = null if ground_hit.is_empty() else ground_hit.position
+	result.unit = _unit_under_mouse(ground_hit)
+	if result.unit and result.unit.has_method("get_interactions"):
+		result.interactable = result.unit
+
+	if not _same_intent(current, _plane_intent):
+		_clear_plane()
+		_plane_intent = current
+	if current == null or not current.drags_height(self):
+		_clear_plane()
+		result.ground = surface
+		result.floor_below = surface
+		return result
+
+	var plane = _plane_height if _plane_height != null else current.standing_height(self)
+	if not Input.is_action_pressed("fly_altitude_modifier"):
+		_held_ground = null
+		result.height_steered = _wheel_steered
+		result.plane_height = plane
+		result.ground = _first_hit(surface, plane)
+		result.on_plane = result.ground != null and result.ground != surface
+		result.floor_below = _floor_below(result.ground) if result.on_plane else result.ground
+		return result
+
+	if _held_ground == null:
+		var start = _first_hit(surface, plane)
+		if start == null:
+			var unit: Unit = active_unit()
+			start = unit.global_position if unit else null
+		_held_ground = start
+	if _held_ground == null:
+		result.ground = surface
+		result.floor_below = surface
+		return result
+	var height = _sample_height(Vector2(_held_ground.x, _held_ground.z))
+	if height == null:
+		height = plane if plane != null else _held_ground.y
+	height = current.clamp_height(height)
+	_plane_height = height
+	result.holding_height = true
+	result.height_steered = true
+	result.on_plane = true
+	result.plane_height = height
+	result.ground = Vector3(_held_ground.x, height, _held_ground.z)
+	result.floor_below = _floor_below(result.ground)
+	return result
+
+
+## The first thing the mouse ray meets: surface, or the ray's crossing of
+## the plane y = plane when that is nearer the camera. The surface when
+## there is no plane or the plane is not in front of the camera.
+func _first_hit(surface, plane):
+	if plane == null:
+		return surface
+	var crossing = _plane_crossing(plane)
+	if crossing == null:
+		return surface
+	if surface == null:
+		return crossing
+	var eye: Vector3 = get_viewport().get_camera_3d().global_position
+	return crossing if eye.distance_to(crossing) < eye.distance_to(surface) else surface
+
+
+## After this frame's steer: a wheel step has been written, and a height
+## an intent stands on (an idle flier's altitude) now lives on the unit,
+## so the router stops holding its own copy - next frame reads it back
+## through standing_height, clamped as the unit took it.
+func _steered(current: PlayerIntent) -> void:
+	_wheel_steered = false
+	if current != null and current.standing_height(self) != null:
+		_plane_height = null
+
+
+## One Ctrl + wheel notch: the plane moves PLANE_STEP up or down from
+## where it is - the player's latched height, else the intent's standing
+## one (an idle flier's altitude), else where the player is pointing (the
+## Y of this frame's aim point, or the active unit's own Y over nothing).
+## Returns whether there was a plane to step.
+func _step_plane(current: PlayerIntent, direction: float) -> bool:
+	if current == null or not current.drags_height(self):
+		return false
+	if not _same_intent(current, _plane_intent):
+		_clear_plane()
+		_plane_intent = current
+	var base = _plane_height if _plane_height != null else current.standing_height(self)
+	if base == null:
+		var point = cursor.aim_point(current.ability) if cursor else null
+		if point == null:
+			var unit: Unit = active_unit()
+			if unit == null:
+				return false
+			point = unit.global_position
+		base = point.y
+	_plane_height = current.clamp_height(base + direction * PLANE_STEP)
+	_wheel_steered = true
+	return true
+
+
+## Where the mouse ray crosses the horizontal plane y = height, or null
+## when the plane is not in front of the camera (or past RAY_LENGTH).
+func _plane_crossing(height: float):
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return null
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var hit = Plane(Vector3.UP, height).intersects_ray(from, camera.project_ray_normal(mouse_pos))
+	if hit == null or from.distance_to(hit) > RAY_LENGTH:
+		return null
+	return hit
+
+
+## The surface straight below point - past units, as the mouse ray is -
+## or null when nothing is below it.
+func _floor_below(point: Vector3):
+	var exclude: Array[RID] = []
+	for i in 8:
+		var query := PhysicsRayQueryParameters3D.create(point, point + Vector3.DOWN * RAY_LENGTH)
+		query.collision_mask = ground_collision_mask
+		query.exclude = exclude
+		var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+		if hit.is_empty():
+			return null
+		if not (hit.collider is Unit):
+			return hit.position
+		exclude.append(hit.rid)
+	return null
+
+
+## The unit indicators draw for - and null for one standing in a world
+## the player is not looking at.
+##
+## That guard belongs HERE rather than in each indicator: indicators are
+## carried between viewports as the player switches worlds (see
+## WorldManager attention nodes), so without it a line of sight, a
+## movement range or a jump arc drawn for somebody in another area keeps
+## being drawn over the area now on screen - pointing at geometry that is
+## not there.
+static func active_unit() -> Unit:
+	var unit: Unit = PlayerInteractionState.get_active_unit()
+	if unit == null:
+		return null
+	var context: WorldContext = WorldManager.context()
+	if context and not context.contains(unit):
+		return null
+	return unit
+
+
+## One mouse ray against mask. Empty if nothing hit, or there is no
+## active camera.
+func _raycast(collision_mask: int, exclude: Array[RID] = [], areas_only: bool = false) -> Dictionary:
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return {}
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var to: Vector3 = from + camera.project_ray_normal(mouse_pos) * RAY_LENGTH
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = collision_mask
+	query.exclude = exclude
+	if areas_only:
+		query.collide_with_areas = true
+		query.collide_with_bodies = false
+	return get_world_3d().direct_space_state.intersect_ray(query)
+
+
+## The first non-unit hit under the mouse. Units share the ground's
+## physics layer (they collide with walls and each other on it), so the
+## ray is re-cast past each unit it meets rather than masked; a handful of
+## units stacked on one ray is the most this ever loops.
+func _raycast_past_units(collision_mask: int, also_exclude: Array[RID] = []) -> Dictionary:
+	var exclude: Array[RID] = also_exclude.duplicate()
+	for i in 8:
+		var hit: Dictionary = _raycast(collision_mask, exclude)
+		if hit.is_empty() or not (hit.collider is Unit):
+			return hit
+		exclude.append(hit.rid)
+	return {}
+
+
+## The unit the mouse is over, picked by its PickArea (Unit.PICK_LAYER, a
+## cylinder the size of the selection ring) rather than its 0.25 m
+## capsule, which made units a sliver to click. Only a unit nearer the
+## camera than the world behind it counts, so walls still hide units, and
+## only one that accepts clicks (Unit.set_pickable; off on death).
+func _unit_under_mouse(world_hit: Dictionary) -> Unit:
+	var hit: Dictionary = _raycast(unit_collision_mask, [], true)
+	if hit.is_empty():
+		return null
+	var unit: Unit = Unit.from_pick_area(hit.collider)
+	if unit == null or not unit.input_ray_pickable:
+		return null
+	if not world_hit.is_empty():
+		var camera: Camera3D = get_viewport().get_camera_3d()
+		var eye: Vector3 = camera.global_position
+		if eye.distance_to(hit.position) > eye.distance_to(world_hit.position):
+			return null
+	return unit
+
+
+## What a ray hit, but only if that body would have accepted a click.
+##
+## intersect_ray filters by collision LAYER and nothing else, while
+## Godot's own physics picking (which used to deliver every click on a
+## unit, before ClickRouter raycast for itself) additionally skips any
+## CollisionObject3D with input_ray_pickable off. Honouring it here keeps
+## hovering and clicking agreeing with each other AND with what picking
+## did: unit_death.gd turns pickability off on death, so a corpse that
+## still blocks movement - and so still carries its collision layer -
+## stops being hoverable and clickable the way it always was.
+##
+## Anything that is not a CollisionObject3D is passed straight through:
+## pickability is a property only that class has, and inventing an answer
+## for other colliders would be a rule this function has no business
+## making up.
+func _pickable_collider(result: Dictionary) -> Object:
+	if result.is_empty():
+		return null
+	var collider = result.get("collider")
+	var body := collider as CollisionObject3D
+	if body and not body.input_ray_pickable:
+		return null
+	return collider
+
+
+## The height the mouse points at above anchor_xz: the camera ray through
+## the mouse crossing a vertical wall through that point. The wall's
+## normal is the camera's back vector flattened to horizontal (Y zeroed
+## before normalizing) - flattening is what keeps it a true vertical wall
+## whatever the camera's pitch, so only how high or low the ray crosses
+## it matters; a tilted wall would couple sideways mouse movement into
+## the height. Snapped to HEIGHT_STEP. Null with no camera, or with the
+## ray near-parallel to the wall.
+func _sample_height(anchor_xz: Vector2):
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if not camera:
+		return null
+	var back: Vector3 = camera.global_transform.basis.z
+	var normal := Vector3(back.x, 0.0, back.z)
+	if normal.length() < 0.001:
+		return null
+	var plane := Plane(normal.normalized(), Vector3(anchor_xz.x, 0.0, anchor_xz.y))
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var hit = plane.intersects_ray(camera.project_ray_origin(mouse_pos), camera.project_ray_normal(mouse_pos))
+	if hit == null:
+		return null
+	return snappedf(hit.y, HEIGHT_STEP)
+
+
+## By kind AND ability, never by object identity — a freshly built
+## AimingIntent for the ability already being aimed is the same intent,
+## and re-firing on it would make every listener re-do its work on a
+## frame where nothing actually moved.
+func _same_intent(a: PlayerIntent, b: PlayerIntent) -> bool:
+	if a == null or b == null:
+		return false
+	return a.kind() == b.kind() and a.ability == b.ability
+
+
+## Tells every intent-driven indicator whether it is currently the one.
+## Indicators declaring serves() == &"" are skipped entirely: the sight
+## cones and the nav overlay are development views with their own
+## toggles, and the router has no business switching those off.
+func _apply_intent(current: PlayerIntent) -> void:
+	var live_ids: Array[StringName] = current.indicator_ids()
+	for indicator in get_tree().get_nodes_in_group(&"indicators"):
+		var id: StringName = indicator.serves()
+		if id == &"":
+			continue
+		indicator.set_live(live_ids.has(id))
+
+
+## Gate, resolve the cursor, hand it to the intent, and mark the event
+## handled only if the intent actually took it.
+##
+## Resolved fresh rather than reusing this frame's cursor: input runs
+## before _process, so the stored one is a frame old. Same function, so
+## same answer as the preview the player is looking at.
+##
+## Marking it handled is what lets Unit stop carrying its own physics-
+## picked click handler: a handled event never reaches the viewport's
+## physics picking pass at all. Not marking it when nothing happened is
+## equally load-bearing — a click that commanded nobody still has to fall
+## through to picking, which is how clicking an overworld avatar (its own
+## input_event, not a Unit) keeps working.
+func _unhandled_input(event: InputEvent) -> void:
+	# A left click is decided on RELEASE, so a press that turns into a box
+	# drag never also commands anyone. The target is still taken at press
+	# (what the player pressed on is what they meant), and the drag is
+	# measured against the one CLICK_DRAG_THRESHOLD DragSelectBox uses too:
+	# past it the gesture is a box, short of it a click, never both.
+	# Ctrl + wheel steps the height plane instead of zooming the camera.
+	# CRPGCamera also skips zoom while Ctrl is down: it sits in this same
+	# viewport, and which _unhandled_input runs first is tree order, which
+	# neither side should depend on.
+	if Input.is_action_pressed("fly_altitude_modifier") and (
+			event.is_action_pressed("camera_zoom_in") or event.is_action_pressed("camera_zoom_out")):
+		if _step_plane(intent(), 1.0 if event.is_action_pressed("camera_zoom_in") else -1.0):
+			get_viewport().set_input_as_handled()
 		return
 
 	if event.is_action_pressed("left_click"):
-		if PlayerInteractionState.is_debug_spawn_armed():
-			_spawn_debug_unit()
+		_press_intent = intent()
+		_press_cursor = resolve_cursor(_press_intent)
+		_press_position = event.position if event is InputEventMouse else get_viewport().get_mouse_position()
+		_press_prop = _press_cursor.interactable as MovableProp if _press_intent == _idle else null
+		return
+	if event is InputEventMouseMotion and _press_cursor != null:
+		if _press_position.distance_to(event.position) >= CLICK_DRAG_THRESHOLD:
+			var prop: MovableProp = _press_prop
+			var at: Cursor = _press_cursor
+			_press_cursor = null
+			_press_intent = null
+			_press_prop = null
+			if prop:
+				_begin_prop_drag(prop, at)
+				get_viewport().set_input_as_handled()
+		return
+	if event.is_action_released("left_click") and _drag:
+		_finish_prop_drag()
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_released("left_click"):
+		_press_prop = null
+		var pressed: Cursor = _press_cursor
+		var pressed_intent: PlayerIntent = _press_intent
+		_press_cursor = null
+		_press_intent = null
+		if pressed == null:
 			return
-		if _get_hovered_interactable():
-			return
-		var click_position = _get_mouse_ground_point()
-		if click_position == null:
-			return
-		if _try_use_ground_targeted_ability(click_position):
-			return
-		_command_move(click_position)
-	elif event.is_action_pressed("right_click"):
-		if DebugSpawner.armed_definition:
-			DebugSpawner.disarm()
-			return
-		if AbilityManager.armed_ability:
-			AbilityManager.disarm()
-			return
-		var target: Node = _get_hovered_interactable()
-		if not target:
-			return
-		var actor: Unit = PlayerInteractionState.get_active_unit()
-		if actor:
-			InteractionMenu.open_for(target, actor)
-	elif event.is_action_pressed("deselect_all"):
-		SelectionManager.deselect_all()
+		# The intent could have moved between press and release (a hotbar
+		# key, a turn ending); the click means what the screen showed when
+		# it was pressed, unless that intent is gone from the stack.
+		if pressed_intent != intent() and not (pressed_intent in _pushed):
+			pressed_intent = intent()
+		# Answered before the intent acts: acting changes the state the
+		# answer reads (a move spends budget, a first line click sets
+		# its start), and the feedback is for the click as it was made.
+		# The pressed cursor's own height is what the click means: steer
+		# with it, so the aim height the answer and the cast read is that
+		# cursor's and not whatever the last frame steered.
+		pressed_intent.steer(self, pressed)
+		var answer: ClickAnswer = _answer(pressed_intent, pressed)
+		var consumed: bool = pressed_intent.handle_left_click(self, pressed)
+		_give_feedback(answer, consumed)
+		if consumed:
+			# A placed cast spends the latched height. A line's first
+			# click is consumed too but places nothing yet - its second
+			# click is aimed on the same plane.
+			if pressed_intent is AimingIntent and not AbilityManager.has_line_start:
+				_clear_plane()
+			get_viewport().set_input_as_handled()
+		return
+
+	if not event.is_action_pressed("right_click"):
+		if event.is_action_pressed("deselect_all") and CameraDirector.has_control():
+			SelectionManager.deselect_all()
+		return
+
+	var current: PlayerIntent = intent()
+	if current.handle_right_click(self, resolve_cursor(current)):
+		get_viewport().set_input_as_handled()
 
 
-## If the currently armed ability (see AbilityManager) expects a ground
-## point as its target (Ability.targeting.expects_point_target — Jump,
-## an AoE, or any future point-targeting ability), and it's the acting
-## player unit's own turn, uses it at the clicked point instead of the
-## click falling through to normal ground-click behavior. Mirrors how
-## Unit._on_input_event checks ability-use before falling through to
-## normal selection on an enemy click — same pattern, applied to ground
-## clicks instead of unit clicks. Returns true if the click was consumed
-## this way.
-func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
-	var ability: Ability = AbilityManager.armed_ability
-	if not ability or not ability.targeting or not ability.targeting.expects_point_target():
+## Whether a left press is spoken for by a prop drag - one in progress, or
+## a press on a movable prop that a drag would pick up. DragSelectBox asks
+## before starting a box, so the same gesture is never both.
+func claims_drag() -> bool:
+	return _drag != null or _press_prop != null
+
+
+## A press on prop moved past CLICK_DRAG_THRESHOLD: pick it up, unless the
+## acting unit can't (too heavy, too far - MovableProp.refusal_for), which
+## is said where the prop is.
+func _begin_prop_drag(prop: MovableProp, at: Cursor) -> void:
+	# Nobody selected (a fresh arrival): the party leader carries it, as
+	# long as they stand in this world and can be directed.
+	var mover: Unit = active_unit()
+	if mover == null and PartyManager.leader and PartyManager.leader.is_commandable():
+		var context: WorldContext = WorldManager.context()
+		if context == null or context.contains(PartyManager.leader):
+			mover = PartyManager.leader
+	var why: String = prop.refusal_for(mover)
+	if why != "":
+		_feedback.refuse(prop.global_position, why, at.ground)
+		return
+	_drag = PropDrag.new(prop, mover, ground_collision_mask)
+	add_child(_drag)
+	_drag_intent = DraggingIntent.new(_drag)
+	push_intent(_drag_intent)
+
+
+## The release: set the prop down where the ghost is, or say why not and
+## leave it where it was.
+func _finish_prop_drag() -> void:
+	var drag: PropDrag = _drag
+	var point = drag.point
+	var dropped: bool = drag.drop()
+	if not dropped and point != null:
+		_feedback.refuse(point, "Not enough space" if drag.prop.in_reach(drag.mover, point) else "Too far away", point)
+	_end_prop_drag()
+
+
+## Right-click while holding (DraggingIntent), or the screen taken away:
+## nothing moves.
+func cancel_prop_drag() -> void:
+	if _drag:
+		_end_prop_drag()
+
+
+func _end_prop_drag() -> void:
+	pop_intent(_drag_intent)
+	_drag.queue_free()
+	_drag = null
+	_drag_intent = null
+
+
+## The dragged prop is not under the cursor: the ghost rests on what is
+## behind it.
+func _drag_exclusions() -> Array[RID]:
+	var out: Array[RID] = []
+	if _drag and is_instance_valid(_drag.prop):
+		out.append(_drag.prop.get_rid())
+	return out
+
+
+## Clicking a unit: use an ability against it if the acting unit has one
+## that routes at it (see UnitCombat.resolve_click_ability — the armed
+## ability first, otherwise the acting unit's default), otherwise select
+## it, additively while select_additive is held.
+##
+## Ported verbatim off Unit._on_input_event, which is deleted. It never
+## belonged on the unit: every unit in the world carried a copy of the
+## player's targeting rules and its own guard about whether the player
+## was even in control, and only ever ran because physics picking
+## happened to reach it. Returns true always — a click on a unit is
+## spoken for even when SelectionManager refuses it (it refuses anything
+## not player-controlled), which is the same nothing that happened before.
+func click_unit(clicked: Unit) -> bool:
+	# A corpse is not a target and not a selection. Physics picking used
+	# to enforce this for free — unit_death.gd sets input_ray_pickable =
+	# false — but this router raycasts for itself, and intersect_ray
+	# filters by collision LAYER only. A corpse with corpse_blocks_movement
+	# keeps its layer, so without this it became clickable again the
+	# moment picking stopped being the thing that delivered the click.
+	# resolve_cursor honours pickability too (see _pickable_collider),
+	# which is the same rule one step earlier; this is the one that has to
+	# hold even if a caller builds a Cursor some other way.
+	if not is_instance_valid(clicked) or not clicked.is_alive():
+		return false
+
+	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
+	var ability: Ability = _click_ability_on(clicked)
+	if ability:
+		acting_unit.use_ability(ability, clicked)
+		return true
+
+	var additive: bool = Input.is_action_pressed("select_additive")
+	# In combat, a plain click on an ally who can't act right now must not
+	# take the selection off the unit whose turn it is: that left the
+	# player with nobody to command until they clicked back. Additive
+	# clicks still build a group as before.
+	if not additive and acting_unit and acting_unit != clicked \
+			and acting_unit.in_combat() and not clicked.is_commandable():
+		return true
+	SelectionManager.select(clicked, additive)
+	return true
+
+
+## If ability expects a ground point as its target (Ability.targeting.
+## expects_point_target — Jump, an AoE, any future point-targeting
+## ability) and the player is actually commanding the caster, uses it at
+## the clicked point. Returns whether it did.
+func use_ground_targeted(ability: Ability, click_position: Vector3) -> bool:
+	if not ability or not ability.targeting or not ability.targeting.takes_ground_click():
 		return false
 
 	var unit: Unit = PlayerInteractionState.get_active_unit()
@@ -104,81 +842,61 @@ func _try_use_ground_targeted_ability(click_position: Vector3) -> bool:
 	# AreaTargeting (Grease) and GroundPointTargeting (Jump) both inherit
 	# the no-op default — floor-only abilities have no business picking
 	# up a stray height override.
-	var target_point: Vector3 = ability.targeting.resolve_target_point(click_position)
-	unit.use_ability(ability, target_point)
+	var target = ability.targeting.resolve_click(unit, click_position)
+	if target != null:
+		unit.use_ability(ability, target)
 	return true
 
 
-## Spawns DebugSpawner's currently armed UnitDefinition at wherever the
-## ground raycast resolves this click, joining active combat if one's
-## running (CombatManager.add_unit_to_combat no-ops out of combat). See
-## SummonDemonEffect.apply() for the pattern this simplifies from.
+## Moves whoever is selected and free to move. Returns whether anybody
+## actually got an order — false leaves the click unconsumed, so a click
+## that commanded nobody still falls through to physics picking.
 ##
-## Always consumes the click while armed, even on a miss (no ground hit
-## under the cursor) — deliberately does NOT fall through to
-## _command_move on a miss, so an accidental miss-click while armed can
-## never move the selected unit instead. Stays armed on a miss; disarms
-## only once a spawn actually lands.
-func _spawn_debug_unit() -> void:
-	var click_position = _get_mouse_ground_point()
-	if click_position == null:
+## Gated per COMMANDED UNIT, not on whether a fight exists somewhere.
+##
+## This used to check the global CombatManager.in_combat and then permit
+## only CombatManager.current_unit to move, which meant any running fight
+## anywhere froze every other party member solid. A unit deliberately
+## held out of a battle could not be walked anywhere — so ambushes,
+## flanking and held reserves were impossible rather than merely fiddly,
+## and DetectionManager's join-in-progress had nothing that could ever
+## carry a straggler into range.
+##
+## Now: units in the fight obey turn order; units outside it move freely,
+## even while it rages. Splitting selected units into the two groups
+## rather than picking one lets a mixed selection do the sensible thing
+## — the free ones go, the busy ones don't.
+func command_move(destination: Vector3) -> bool:
+	var movers: Array[Unit] = move_order_units()
+	if movers.is_empty():
+		return false
+
+	if movers.size() == 1 and movers[0].in_combat():
+		movers[0].move_to(destination)
+	else:
+		# Leader/follower formation math lives on FormationPlanner, not
+		# here - see that file for why it's leader-driven but fully
+		# deterministic.
+		FormationPlanner.command_group_move(movers, destination)
+	# Each unit sent marks where it is going until it gets there (chain
+	# followers tagging along are not marked: the player didn't send them).
+	for unit in movers:
+		_hold_destination(unit)
+	return true
+
+
+func _hold_destination(unit: Unit) -> void:
+	var route: Dictionary = unit.current_route()
+	if route.is_empty():
 		return
-
-	var definition: UnitDefinition = DebugSpawner.armed_definition
-	var faction: StringName = DebugSpawner.armed_faction
-	DebugSpawner.disarm()
-
-	var spawned: Unit = definition.unit_scene.instantiate()
-	# .definition's cascade sets faction = definition.faction as part of
-	# the same assignment — the override below must come AFTER, or the
-	# panel's chosen faction gets silently overwritten back to the
-	# species default the instant .definition is assigned.
-	spawned.definition = definition
-	spawned.faction = faction
-	if faction == &"enemy":
-		# hover_color/selected_color aren't part of the .definition cascade
-		# (see UnitDefinition's header) and default to Unit's own
-		# yellow-gold — correct for a friendly spawn (every player-faction
-		# unit in main.tscn leaves these unset too), wrong for a hostile
-		# one. Every hand-authored hostile uses exactly this red, so match
-		# it here instead of leaving debug spawns looking friendly.
-		spawned.hover_color = Color(1, 0, 0, 0.501961)
-		spawned.selected_color = Color(1, 0, 0, 0.627451)
-	WorldManager.spawn_parent().add_child(spawned)
-	spawned.global_position = click_position
-
-	# Whatever fight is running where it was spawned, if any. Passed
-	# nothing, this used to fall back to the fight on screen and enrol a
-	# freshly spawned unit in a battle in a completely different area.
-	CombatManager.add_unit_to_combat(
-		spawned, null, CombatManager.running_encounter_in_world_of(spawned))
-
-	if faction == &"player":
-		# party_panel.gd listens to PartyManager.member_added directly and
-		# picks this up on its own — no separate registration call needed
-		# (that used to be true, back when the panel only ever scanned
-		# once at boot; not anymore, see that file's own _ready() header).
-		PartyManager.add_member(spawned)
+	var end: Vector3 = route.path[route.path.size() - 1]
+	_feedback.hold_destination(unit, _floor_below(end + Vector3.UP * 0.1) if unit.is_flying() else null)
 
 
-## Only reached on a left-click that didn't land on an interactable and
-## wasn't consumed by an armed ground-targeted ability — see
-## _unhandled_input.
-func _command_move(destination: Vector3) -> void:
-	# Gated per COMMANDED UNIT, not on whether a fight exists somewhere.
-	#
-	# This used to check the global CombatManager.in_combat and then permit
-	# only CombatManager.current_unit to move, which meant any running fight
-	# anywhere froze every other party member solid. A unit deliberately
-	# held out of a battle could not be walked anywhere — so ambushes,
-	# flanking and held reserves were impossible rather than merely fiddly,
-	# and DetectionManager's join-in-progress had nothing that could ever
-	# carry a straggler into range.
-	#
-	# Now: units in the fight obey turn order; units outside it move freely,
-	# even while it rages. Splitting selected units into the two groups
-	# rather than picking one lets a mixed selection do the sensible thing
-	# — the free ones go, the busy ones don't.
+## Who a move order would go to: every selected, living unit, except that
+## one in a fight moves only on its own turn with move left. Shared by
+## command_move and _move_answer, so the cursor and the order agree.
+static func move_order_units() -> Array[Unit]:
 	var movers: Array[Unit] = []
 	for unit in SelectionManager.selected_units:
 		if not is_instance_valid(unit) or not unit.is_alive():
@@ -189,24 +907,194 @@ func _command_move(destination: Vector3) -> void:
 				movers.append(unit)
 		else:
 			movers.append(unit)
+	return movers
 
+
+## The ability a click on clicked would use, or null when the click would
+## select it instead - click_unit's rule, and _answer's preview of it.
+func _click_ability_on(clicked: Unit) -> Ability:
+	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
+	if acting_unit == null or acting_unit not in SelectionManager.selected_units:
+		return null
+	# A click on yourself selects yourself - unless the armed ability can
+	# be cast on anyone, self included (AbilityTargeting.any_unit).
+	if acting_unit == clicked and not _armed_for_anyone():
+		return null
+	return clicked.click_ability_for(acting_unit)
+
+
+func _armed_for_anyone() -> bool:
+	var armed: Ability = AbilityManager.armed_ability
+	return armed != null and armed.targeting != null and armed.targeting.any_unit
+
+
+## THE answer to "what would a left click do now" for current and at -
+## see ClickAnswer. Follows the intents' own handle_left_click branches
+## in their own order, and asks the same rules they act on (move_order_units,
+## _click_ability_on, the ability's targeting check_click/check), so it
+## can only be as wrong as those are. Pushed tools and the locked intent
+## get no opinion: they own their clicks.
+func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
+	if at == null or current == null:
+		return ClickAnswer.new()
+	if current is IdleIntent:
+		if at.unit:
+			return _unit_answer(at.unit, false)
+		if at.interactable:
+			return ClickAnswer.new(&"interact")
+		if at.ground == null:
+			return ClickAnswer.new()
+		var move: ClickAnswer = _move_answer(at.move_point(), at.ground)
+		if at.on_plane:
+			move.floor_point = at.floor_below
+		return move
+	if current is AimingIntent:
+		var ability: Ability = current.ability
+		if ability and ability.targeting and ability.targeting.expects_point_target():
+			var p = at.aim_point(ability)
+			var caster: Unit = PlayerInteractionState.get_active_unit()
+			if p == null or caster == null or caster not in SelectionManager.selected_units:
+				return ClickAnswer.new()
+			var answer := ClickAnswer.new(&"use", ability.targeting.resolve_target_point(p))
+			if at.on_plane and not at.aims_at_unit(ability):
+				answer.floor_point = at.floor_below
+			var reach: AbilityTargeting.Reach = ability.targeting.check_click(caster, p)
+			if reach != AbilityTargeting.Reach.OK:
+				answer.refused(_reach_reason(reach, false))
+			return answer
+		if at.unit:
+			return _unit_answer(at.unit, true)
+		if at.interactable:
+			return ClickAnswer.new()
+		if ability and ability.targeting and ability.targeting.aims_at_ground and at.ground != null:
+			var caster: Unit = PlayerInteractionState.get_active_unit()
+			if caster == null or caster not in SelectionManager.selected_units:
+				return ClickAnswer.new()
+			var at_ground := ClickAnswer.new(&"use", at.ground)
+			var reach: AbilityTargeting.Reach = ability.targeting.check_click(caster, at.ground)
+			if reach != AbilityTargeting.Reach.OK:
+				at_ground.refused(_reach_reason(reach, false))
+			return at_ground
+		var none: ClickAnswer = ClickAnswer.new(&"nothing", at.ground).refused("No target")
+		if at.on_plane:
+			none.floor_point = at.floor_below
+		return none
+	return ClickAnswer.new()
+
+
+## A click on a unit: an ability at it (in reach or not), else a
+## selection. aiming says an ability is armed, so a unit the armed
+## ability cannot take (a heal on a hostile) is a refusal rather than a
+## quiet selection - the player meant to cast. A unit that is not the
+## player's to select is interact (its right-click menu).
+func _unit_answer(clicked: Unit, aiming: bool) -> ClickAnswer:
+	if not is_instance_valid(clicked) or not clicked.is_alive():
+		return ClickAnswer.new()
+	var point: Vector3 = clicked.global_position
+	var ability: Ability = _click_ability_on(clicked)
+	if ability == null:
+		if aiming:
+			return ClickAnswer.new(&"use", point).refused("Invalid target")
+		if clicked.is_player_controlled():
+			return ClickAnswer.new(&"select", point)
+		return ClickAnswer.new(&"interact", point)
+	var answer := ClickAnswer.new(&"use", point)
+	if ability.targeting:
+		var reach: AbilityTargeting.Reach = ability.targeting.check(PlayerInteractionState.get_active_unit(), clicked)
+		if reach != AbilityTargeting.Reach.OK:
+			answer.refused(_reach_reason(reach, true))
+	return answer
+
+
+## A move order to destination. Nobody selected is no opinion (nothing
+## would happen, and nothing should look refused). Somebody selected who
+## cannot move is refused with why. A destination the commanded unit has
+## no route to is refused too: command_move would still hand out the
+## order, but the unit would not go anywhere. Beyond the move budget is
+## fine - the move walks as far as it can, as the preview shows. marker
+## is where the feedback goes (the midair point a flier was sent to);
+## destination is the order itself (Cursor.move_point).
+func _move_answer(destination: Vector3, marker: Vector3) -> ClickAnswer:
+	if SelectionManager.selected_units.is_empty():
+		return ClickAnswer.new()
+	var answer := ClickAnswer.new(&"move", marker)
+	var movers: Array[Unit] = move_order_units()
 	if movers.is_empty():
-		return
+		var acting: Unit = PlayerInteractionState.get_active_unit()
+		if acting and acting.in_combat() and not acting.is_my_turn():
+			return answer.refused("Not your turn")
+		if acting and acting.in_combat() and not acting.has_move_remaining():
+			return answer.refused("No movement left")
+		return answer.refused("Can't move there")
+	# The same route the movement preview draws this frame (its A* is
+	# cached by cell, so asking again costs a walk, not a search).
+	var unit: Unit = active_unit()
+	if unit and unit in movers and unit.preview_route(destination, FormationPlanner.move_ignore(movers)).path.is_empty():
+		return answer.refused("Can't move there")
+	return answer
 
-	if movers.size() == 1 and movers[0].in_combat():
-		movers[0].move_to(destination)
-		return
 
-	# Free-roam moves aren't gated by turn order the way combat is — every
-	# selected unit can move at once — so all of them are excluded from
-	# occupancy for this one update, not just a single mover (see
-	# NavigationGrid). Simultaneous movers can still end up navigating
-	# around each other's stale (pre-move) positions rather than truly
-	# live positions until the next update — an accepted approximation
-	# outside combat, where "only one unit ever moves at a time" doesn't
-	# hold in the first place.
-	NavigationGrid.update_occupancy(get_tree(), movers)
+static func _reach_reason(reach: AbilityTargeting.Reach, at_unit: bool) -> String:
+	match reach:
+		AbilityTargeting.Reach.OUT_OF_RANGE:
+			return "Out of reach"
+		# Every shape that returns BLOCKED returns it for line of sight.
+		AbilityTargeting.Reach.BLOCKED:
+			return "No line of sight"
+		AbilityTargeting.Reach.PATH_BLOCKED:
+			return "Something in the way"
+	return "Invalid target" if at_unit else "Can't target there"
 
-	# Leader/follower formation math lives on FormationPlanner, not here —
-	# see that file for why it's leader-driven but fully deterministic.
-	FormationPlanner.command_group_move(movers, destination)
+
+## The feedback for a click, from the answer taken at release and whether
+## the intent consumed it. A move is believed only if it was both
+## answered ok and actually handed out (command_move returning false is a
+## refusal whatever the answer said).
+func _give_feedback(answer: ClickAnswer, consumed: bool) -> void:
+	match answer.verb:
+		&"move":
+			if answer.ok and consumed:
+				_feedback.confirm_move(answer.point, answer.floor_point)
+			else:
+				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Can't move there", answer.floor_point)
+		&"use":
+			if answer.ok:
+				_feedback.confirm()
+			else:
+				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Out of reach", answer.floor_point)
+		&"nothing":
+			_feedback.refuse(answer.point, answer.reason, answer.floor_point)
+
+
+## The OS cursor for this frame, from this frame's cursor and intent. The
+## plain arrow whenever the router is not the one the mouse is talking
+## to: something owns the screen (locked), a blocking screen is open, or
+## the mouse is over UI. A refused answer is forbidden whatever the verb;
+## the rest by verb. Moving keeps the arrow: it is the default action,
+## and a hand or crosshair over every patch of floor would say nothing.
+func _cursor_shape(current: PlayerIntent) -> Input.CursorShape:
+	if current == _locked or not UIStack.can_open() or _mouse_over_gui():
+		return Input.CURSOR_ARROW
+	var answer: ClickAnswer = _answer(current, cursor)
+	if not answer.ok:
+		return Input.CURSOR_FORBIDDEN
+	match answer.verb:
+		&"use":
+			return Input.CURSOR_CROSS
+		&"interact":
+			return Input.CURSOR_POINTING_HAND
+	return Input.CURSOR_ARROW
+
+
+## Whether the mouse is over a Control rather than the world. Clicks
+## already know this for free - the GUI consumes them before
+## _unhandled_input - but _process runs regardless, so the cursor asks.
+## The world is drawn by a SubViewportContainer (world_view.tscn) that is
+## itself the hovered Control while the mouse is over the world, so that
+## one does not count; a Control inside the world's own viewport does.
+func _mouse_over_gui() -> bool:
+	var hovered: Control = get_tree().root.gui_get_hovered_control()
+	if hovered != null and not (hovered is SubViewportContainer):
+		return true
+	var viewport: Viewport = get_viewport()
+	return viewport != get_tree().root and viewport.gui_get_hovered_control() != null

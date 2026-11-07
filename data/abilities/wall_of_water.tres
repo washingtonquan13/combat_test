@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://d1qtb3egm7jii"]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
+[ext_resource type="Resource" uid="uid://coiaxm0jj1b3g" path="res://data/surfaces/wall_of_water.tres" id="4_surface"]
+[ext_resource type="Texture2D" uid="uid://b24r4x4g36u1c" path="res://assets/ability_icon/wall_of_water_icon.png" id="8_icon"]
+[ext_resource type="Script" uid="uid://d0kfi73aslocx" path="res://systems/ability_system/line_targeting.gd" id="9_targeting"]
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("3_spawn")
+surface = ExtResource("4_surface")
+front_seconds = 0.0
+
+[sub_resource type="Resource" id="Resource_targeting"]
+script = ExtResource("9_targeting")
+max_range = 18.0
+max_length = 12.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+requires_ally = false
+any_unit = false
+aims_at_ground = false
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Wall of Water"
+icon = ExtResource("8_icon")
+icon_color = Color(0.45, 0.65, 0.9, 1)
+category = 1
+targeting = SubResource("Resource_targeting")
+effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
+element = 3
+is_toggle = false
+toggle_group = &""
+max_level = 0
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true

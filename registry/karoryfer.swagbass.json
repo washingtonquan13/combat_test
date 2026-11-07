@@ -1,0 +1,50 @@
+{
+  "library": "karoryfer.swagbass",
+  "description": "Swag Bass, a fingered flatwound bass in fifths (C G D A) with three dynamic layers and four round robins. Keys 75-78 are each string played dead, damped by the fretting hand: named as drums dead_<open string>, so a muted note plays the dead thud of its own string. The noises above 72 are why the range stops there.",
+  "instruments": {
+    "placed": {
+      "layers": [
+        {
+          "sfz": "karoryfer.swagbass/swagbass-placed.sfz"
+        }
+      ],
+      "range": [
+        21,
+        72
+      ],
+      "bend_range": 1200,
+      "controls": {
+        "volume": 7,
+        "pan": 10
+      },
+      "drums": {
+        "dead_c1": 75,
+        "dead_g1": 76,
+        "dead_d2": 77,
+        "dead_a2": 78
+      }
+    },
+    "shiny": {
+      "layers": [
+        {
+          "sfz": "karoryfer.swagbass/swagbass_shiny.sfz"
+        }
+      ],
+      "range": [
+        21,
+        72
+      ],
+      "bend_range": 1200,
+      "controls": {
+        "volume": 7,
+        "pan": 10
+      },
+      "drums": {
+        "dead_c1": 75,
+        "dead_g1": 76,
+        "dead_d2": 77,
+        "dead_a2": 78
+      }
+    }
+  }
+}

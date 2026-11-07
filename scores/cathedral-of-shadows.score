@@ -1,0 +1,351 @@
+// Cathedral of Shadows - the fusion theme. Original, not a transcription.
+//
+// The mechanic is the composition. Fusion takes two beings, destroys both,
+// and returns a third. The harmonic analogue of that is exact and old: the
+// hexatonic cycle, six triads in which each chord shares two notes with the
+// next and a single voice moves by a semitone. Two things persist, one
+// changes, and what stands there afterwards is neither of them.
+//
+// The ensemble chose the collection. The tubular bells in this ensemble are cast at
+// D, F and A and nothing else, and the timpani at C, D, G and A - so the
+// piece has to live where those pitches are structural. Exactly one
+// hexatonic collection contains D, F and A:
+//
+//   { C#  D  F  F#  A  A# }
+//
+// built by alternating a semitone and a minor third, and closing on itself.
+// Its six consonant triads are the whole harmonic vocabulary of this piece:
+//
+//   Dm - Bb - Bbm - F# - F#m - D - Dm
+//    \    \     \     \     \     \
+//     A>Bb D>Db  F>Gb  Bb>A  Db>D  Gb>F
+//
+// Six chords, six semitones, and the sixth move puts you back where you
+// started having passed through two major keys a tritone apart. Nothing
+// modulates. Nothing cadences. There is no dominant anywhere in the piece,
+// because a dominant is a promise about where you are going and this room
+// does not make promises. The chords simply turn, the way a mechanism turns.
+//
+// D minor is in the cycle, so the Cathedral stands in the same key as the
+// rest of this soundtrack - but it is arrived at by rotation rather than by
+// resolution. It is home the way a stopped clock is right.
+//
+// The apparatus. Inside that collection sits one augmented triad, D-F#-Bb:
+// symmetrical, belonging to no key, unable to resolve, and present in every
+// single one of the six chords. The harpsichord turns it over and over and
+// never changes a note. Because the organ's harmony moves underneath it, the
+// same six notes are consonant in one bar and wrong in the next without the
+// harpsichord having done anything at all. That is the machine, and it is
+// the one voice in the piece that never learns anything.
+//
+// The choir is the fusion itself, made audible. Three voices, and the rule
+// is that only one of them may move per bar. Each voice moves twice in a
+// cycle and they take their turns in strict rotation, so the ear hears two
+// notes hold while a third becomes something else - over and over, six times,
+// and then the chord is the chord it started as. Written out, the three
+// lanes are a canon of semitone slips at a bar's distance.
+//
+// The organ's line is the collection itself, descending: D C# Bb A F# F.
+// Semitone, minor third, semitone, minor third - the scale creeping down two
+// ways at once. In `rite` it climbs the same six notes backwards. The
+// mechanism run in reverse, which is the other thing this room does.
+//
+// Form. `nave` builds D minor from the bottom and lets it stand, so that
+// there is something to take apart. `turn` starts the machine over a pedal
+// D that will not move, so the Bb and F# chords are heard as colourations of
+// home rather than as departures. `rite` runs the same cycle with the pedal
+// following the roots - the ground moves too, and there is nothing left
+// underneath. `veil` stops the machine on D minor and tolls.
+//
+// Three against six. The brass and the timpani strike every third bar while
+// the harmony turns every sixth, so the punctuation crosses the cycle
+// instead of confirming it and the two only agree twice in twelve bars.
+//
+// The mode, and the argument. The cycle is symmetrical, and that is
+// exactly why no tune can live in it: symmetry has no scale degrees and no
+// tendency tones, so nothing pulls anywhere. A melody needs gravity. So the
+// piece is given a mode with too much of it - D Hungarian minor:
+//
+//   D  E  F  G#  A  Bb  C#
+//
+// the minor scale with a raised fourth, which puts an augmented second
+// between F and G# and a tritone between D and G#. Set the two collections
+// side by side and they agree about five notes out of six:
+//
+//   machine   C#  D  F  F#  A  Bb
+//   mode      C#  D  F  G#  A  Bb   (+ E)
+//
+// One disagreement, one semitone: the machine has F#, the mode has G#. The
+// whole piece is that argument. G# is the note the mechanism does not
+// possess, and every time the subject sounds it over the turning harmony it
+// is a foreign body. And the ending follows from the same fact - the Picardy
+// third is F becoming F#, which is the machine overwriting the mode's third
+// with its own. The tune does not win. It is the last thing to be fused.
+//
+// Slow, 3/4, sixty to the minute: a beat a second, a bar every three, a
+// sarabande pulse - the meter of sacred dance. Nothing here is in a hurry.
+// You are standing in a shop.
+
+title: Cathedral of Shadows
+ensemble: cathedral
+parts: lead brass keys bass choir perc
+tempo: 60
+meter: 3/4
+key: d minor
+order: toccata nave [turn fugue rite] veil
+
+// The augmented triad D-F#-Bb, turning. The one figure in the piece that
+// never changes a note, under harmony that never stops changing.
+pattern engine
+  | d4:0.5 gb4:0.5 bb4:0.5 d5:0.5 bb4:0.5 gb4:0.5 |
+
+
+// The subject. Two bars, a sixth of range, and built out of the two
+// intervals the mode owns and the machine cannot make: the tritone D-G# it
+// leaps at the start, and the augmented second F-G# it climbs back through.
+// It turns around A, falls to F, and drops home. Everything in the fugue is
+// made from it and it is the only tune in the piece.
+pattern subject
+  | d4:1 g#4:0.5 a4:0.5 bb4:0.5 a4:0.5 |
+  | f4:1 e4:0.5 f4:0.5 d4:1 |
+
+// The answer, at the fifth. Not a real answer - the subject transposed by
+// scale step rather than by semitone, so every note stays inside the mode.
+// The contour is identical and the tritone becomes a fourth, which is the
+// price: the answer is the subject with its teeth taken out, and the fugue
+// spends the rest of its length putting them back.
+pattern answer
+  | a4:1 d5:0.5 e5:0.5 f5:0.5 e5:0.5 |
+  | c#5:1 bb4:0.5 c#5:0.5 a4:1 |
+
+// The countersubject - continuous eighths where the subject holds, moving
+// under its long notes and resting where it runs. It ends on the same
+// augmented second, from the other side.
+pattern counter
+  | f4:0.5 e4:0.5 d4:0.5 c#4:0.5 d4:0.5 f4:0.5 |
+  | a4:0.5 g#4:0.5 f4:0.5 e4:0.5 d4:1 |
+
+
+// BWV 565's opening, in this piece's six notes. Bach declaims it in bare
+// octaves with no harmony under it at all, in free time, flourish and then
+// silence - so this does too. The gesture is the mordent on A and the fall
+// that follows it.
+//
+// The mordent is the reason this works. Bach's ornament is A-Bb-A, and A>Bb
+// is the first move of the fusion cycle, Dm to Bb. The most famous
+// ornament in organ music turns out to be this machine taking one step and
+// stepping back. The fall after it is the collection itself, descending.
+//
+// Then the other symmetry arrives. A fully diminished seventh - D F Ab B -
+// full organ, and then nothing. It shares D and F with the collection and
+// brings Ab and B, which are foreign to it. Two notes kept, two notes not:
+// the same arithmetic as everything else in this room, and it is the sound
+// of the fusion failing.
+//
+// The last bare octaves before the silence are D - G# - A. That is the head
+// of the subject, and the first time the mode's raised fourth is heard. It
+// is planted here and not explained for nearly two minutes.
+section toccata bars:6
+  lead dyn:f
+    | [a4 a5]:0.25 [bb4 bb5]:0.25 [a4 a5]:1.5 r:1 |
+    | [gb4 gb5]:0.25 [f4 f5]:0.25 [db4 db5]:0.25 [bb3 bb4]:0.25 [a3 a4]:2 |
+    | r:3 |
+    | [d4 f4 ab4 b4]:2! r:1 |
+    | [d4 d5]:0.5 [g#4 g#5]:0.5 [a4 a5]:2 |
+    | [d3 d4]:2 r:1 |
+  bass dyn:f
+    | r:9 | d2:2 r:1 | r:3 | d2:3 |
+  perc.drums dyn:f
+    | r:9 | timp_d:1 r:2 | r:3 | r:3 |
+
+
+// D minor built from the bottom up, a voice every bar, and left to stand.
+// The machine is not running yet; this is the chord it will take apart.
+section nave bars:6
+  bass dyn:p..mf
+    | d2:18 |
+  choir.low dyn:p..mf
+    | r:3 | a3:15 |
+  choir.mid dyn:p..mf
+    | r:6 | d4:12 |
+  choir.high dyn:p..mf
+    | r:9 | f4:9 |
+  perc.drums dyn:p
+    | timp_d:3 | r:15 |
+  perc.bells dyn:p
+    | r:15 | bell_d:3 |
+
+
+// The cycle twice, over a pedal D that will not move. Because the ground
+// stays, Bb and F# are heard as things happening to D minor rather than as
+// leaving it - the room changing colour rather than changing place.
+section turn bars:12
+  bass dyn:mp
+    | d2:36 |
+  // Three voices, one semitone per bar, each moving twice a cycle in
+  // rotation: A>Bb, D>Db, F>Gb, Bb>A, Db>D, Gb>F. Read the three lanes
+  // down a bar at a time and exactly one of them has changed.
+  choir.low dyn:mp
+    | a3:3 | bb3:9 | a3:9 | bb3:9 | a3:6 |
+  choir.mid dyn:mp
+    | d4:6 | db4:9 | d4:9 | db4:9 | d4:3 |
+  choir.high dyn:mp
+    | f4:9 | gb4:9 | f4:9 | gb4:9 |
+  // The collection descending: D C# Bb A F# F. Two bars a step.
+  lead dyn:mp..mf
+    | r:3 | d5:6 | db5:6 | bb4:6 | a4:6 | gb4:6 | f4:3 |
+  keys dyn:mf feel:tight
+    | engine*12 |
+  perc.drums dyn:mp
+    | timp_d:3 | r:15 | timp_a:3 | r:15 |
+
+// The fugue. The machine stops and something alive starts, at a hundred to
+// the minute instead of sixty - the only fast music in the piece, and the
+// only music in it that argues rather than turns. Three voices, all of them
+// the same organ, because a fugue is one instrument thinking in parallel and
+// the point is that you cannot tell them apart by colour, only by line.
+//
+// Exposition, bars 1-6. The middle voice states the subject alone. The top
+// voice answers at the fifth while the middle takes up the countersubject.
+// The bottom voice enters with the subject an octave down, the top takes the
+// countersubject, and the middle is free. Three entries, subject-answer-
+// subject, which is the oldest shape there is.
+//
+// Episode, bars 7-8. Two voices, sequences built from the subject's tail,
+// falling. Nothing new - episodes are made of debris.
+//
+// Middle entries, bars 9-12. The subject in the top voice an octave up, high
+// and exposed, then the answer in the bottom voice while the top pulls back
+// and the middle brings the countersubject again.
+//
+// Stretto, bars 13-15. The bottom voice begins the subject and the middle
+// voice begins it again one bar later, before the first has finished. The
+// subject overtaking itself is the only way a fugue has of saying that a
+// thing is closing in, and it is where the harpsichord comes back: the
+// machine restarts underneath the stretto, over a pedal D, and from the bar
+// it enters the fugue has somewhere it is being taken.
+section fugue bars:16 tempo:100
+  lead.alto dyn:mf
+    | subject |
+    | counter |
+    | d4:0.5 f4:0.5 e4:0.5 d4:0.5 c#4:0.5 d4:0.5 |
+    | f4:0.5 g#4:0.5 a4:1 bb4:0.5 a4:0.5 |
+    | f4:0.5 e4:0.5 d4:0.5 c#4:0.5 bb3:0.5 a3:0.5 |
+    | bb3:0.5 c#4:0.5 d4:0.5 e4:0.5 f4:1 |
+    | a3:3 | bb3:3 |
+    | counter |
+    | r:3 |
+    | subject |
+    | d4:3 |
+  lead.sop dyn:mf
+    | r:3 | r:3 |
+    | answer |
+    | counter |
+    | a4:0.5 g#4:0.5 f4:0.5 e4:0.5 d4:0.5 c#4:0.5 |
+    | d4:0.5 e4:0.5 f4:0.5 g#4:0.5 a4:1 |
+    | subject+12 |
+    | a5:1 bb5:0.5 a5:0.5 g#5:1 |
+    | a5:1 f5:0.5 e5:0.5 d5:1 |
+    | a4:3 | bb4:3 |
+    | a4:1 g#4:0.5 a4:0.5 f4:1 |
+    | d4:3 |
+  lead.low dyn:mf
+    | r:3 | r:3 | r:3 | r:3 |
+    | subject-12 |
+    | d3:1 c#3:1 d3:1 |
+    | f3:1 e3:1 d3:1 |
+    | bb2:3 | a2:3 |
+    | answer-12 |
+    | subject-12 |
+    | d3:3 |
+    | d3:3 |
+  // The pedal arrives for the stretto and does not move again.
+  bass dyn:mf
+    | r:36 | d2:12 |
+  // The machine, restarting under the stretto. It has been silent since the
+  // fugue began. It comes back playing exactly what it was playing before,
+  // because it has not been listening.
+  keys dyn:mf feel:tight
+    | r:36 | engine*4 |
+  perc.drums dyn:mf
+    | r:36 | timp_d:3 | r:3 | timp_a:3 | r:3 |
+  perc.bells dyn:mp
+    | r:36 | r:3 | bell_d:3 | r:3 | bell_a:3 |
+
+
+// The same cycle with the pedal following the roots. The ground moves with
+// the chords now, so there is no fixed thing left to hear them against, and
+// the brass strikes every third bar against a harmony that turns every
+// sixth. The organ climbs the six notes it came down.
+section rite bars:12
+  bass dyn:mf
+    | d2:3 | bb1:6 | gb2:6 | d2:3 | d2:3 | bb1:6 | gb2:6 | d2:3 |
+  choir.low dyn:mf
+    | a3:3 | bb3:9 | a3:9 | bb3:9 | a3:6 |
+  choir.mid dyn:mf
+    | d4:6 | db4:9 | d4:9 | db4:9 | d4:3 |
+  choir.high dyn:mf
+    | f4:9 | gb4:9 | f4:9 | gb4:9 |
+  // The subject, three times, at sixty against the hundred it was born at -
+  // the same notes in twice the time, which is augmentation, and the oldest
+  // way a fugue has of making its subject sound like a verdict. It is no
+  // longer accompanied; it is surrounded. Its G# is the one note the six
+  // turning underneath do not contain, so the tune is out of the room in
+  // exactly one place, every time, and never the same place twice - over Dm,
+  // then over F#, then over the bare augmented triad itself.
+  lead dyn:mf
+    | subject | r:6 | subject | r:6 | subject | r:6 |
+  keys dyn:f feel:tight
+    | engine*12 |
+  // Bars 1, 4, 7, 10, struck and gone - and every one of them a fully
+  // diminished seventh, which is the other way the octave divides evenly
+  // and the chord BWV 565 is built out of. There are only three of them in
+  // all of music. The first three stabs are all three, and between them
+  // they use all twelve notes, while the organ underneath never leaves its
+  // six. Each one meets the collection in exactly two notes - D F, then
+  // Gb A, then Db Bb - and brings two that do not belong.
+  //
+  // Three against six again: the stabs fall every third bar while the
+  // harmony turns every sixth, so a chord that is two-thirds wrong lands on
+  // Dm, on F#, on Dm, on F#, and never on the four chords in between.
+  brass dyn:f
+    | [d4 f4 ab4 b4]:0.5! r:2.5 | r:3 | r:3 | [c4 eb4 gb4 a4]:0.5! r:2.5 | r:3 | r:3 |
+    | [db4 e4 g4 bb4]:0.5! r:2.5 | r:3 | r:3 | [d4 f4 ab4 b4]:0.5! r:2.5 | r:3 | r:3 |
+  perc.drums dyn:mf
+    | timp_d:3 | r:6 | timp_a:3 | r:6 | timp_d:3 | r:6 | timp_a:3 | r:6 |
+  perc.bells dyn:mp
+    | r:18 | bell_d:3 | r:6 | bell_f:3 | r:6 |
+
+
+// The machine stops, and the piece ends the only way this one honestly can.
+// Not one patch in this ensemble declares a single controller opcode - which
+// for the organ is not a defect but the instrument: a pipe either speaks or
+// it does not, and no amount of expression pedal will make a rank play
+// quieter. An organ piece does not fade. It ends by having voices taken off
+// it. So `veil` is `nave` run backwards - the staircase that built D minor
+// from the bottom is dismantled from the top, a voice a bar, and the bells
+// toll down A F D as the voice holding each one leaves. The pedal is last
+// out, because the ground is always the last thing to go.
+//
+// And it ends the way BWV 565 ends: on a Picardy third. Bach closes a
+// D minor toccata on D major, and D major is already the sixth chord of
+// this cycle - so the borrowed ending is not borrowed at all, it is the
+// machine taking one more step. The third leaves as F, the room goes quiet
+// for two bars, and it comes back as F#. That last semitone is the only
+// move in the piece that does not lead anywhere else, because there is
+// nothing after it.
+section veil bars:6
+  bass dyn:mp
+    | d2:18 |
+  choir.low dyn:mp
+    | a3:12 | r:6 |
+  choir.mid dyn:mp
+    | d4:9 | r:9 |
+  choir.high dyn:mp
+    | f4:6 | r:6 | gb4:6 |
+  lead dyn:mp
+    | r:3 | d4:15 |
+  perc.drums dyn:mp
+    | timp_d:3 | r:15 |
+  perc.bells dyn:mp
+    | r:3 | bell_a:3 | bell_f:3 | bell_d:3 | r:6 |

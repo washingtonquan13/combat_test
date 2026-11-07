@@ -5,8 +5,8 @@ extends AreaTargeting
 ## future ability where "the AoE floats in midair" is physically
 ## sensible (an explosion, a burst of energy). Plain AreaTargeting stays
 ## the floor-only default — Grease, which spawns a ground-hugging
-## Surface (see SpawnSurfaceEffect/Surface, detection_height=0.05 on
-## grease.tres's own Surface sub-resource), can only logically sit ON
+## Surface (see SpawnSurfaceEffect/Surface, spilled over the
+## ground's cells), can only logically sit ON
 ## the floor, never airborne, and neither can anything else shaped like
 ## it. The two are genuinely different SHAPES of area ability, not one
 ## ability with a toggle — same reasoning every other targeting split in
@@ -36,3 +36,15 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 	if AbilityManager.has_aim_height_override:
 		click_position.y = AbilityManager.aim_height_override
 	return click_position
+
+
+## The three-ring aerial overlay REPLACES the flat one it would otherwise
+## inherit from AreaTargeting — an aerial blast is aimed in the air, and
+## drawing the floor ring under it as well says the wrong thing about
+## where it lands.
+func takes_aim_height() -> bool:
+	return true
+
+
+func indicator_ids() -> Array[StringName]:
+	return [&"aerial_area"]

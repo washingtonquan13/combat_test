@@ -48,3 +48,29 @@ func play(_context: Node, _from: Vector3, _to: Vector3, _ability: Ability = null
 ## subclass.
 func describe() -> String:
 	return ""
+
+
+## The unit standing exactly at point, or null. UnitVfx passes a unit
+## target as its global_position, so that is the one aimed at.
+static func unit_at(tree: SceneTree, point: Vector3) -> Unit:
+	for node in tree.get_nodes_in_group(&"units"):
+		if node is Unit and node.global_position.distance_squared_to(point) < 0.0001:
+			return node
+	return null
+
+
+## Lets a projectile scene play out its arrival before it is freed: a
+## scene whose root has an arrive() coroutine runs it (fx going out,
+## a burst at the hit), or one with an "arrive" animation on a child
+## AnimationPlayer plays that. Not awaited by the steps, so the impact
+## is not held up.
+static func arrive_and_free(wrapper: Node3D, instance: Node) -> void:
+	if instance.has_method(&"arrive"):
+		await instance.arrive()
+	else:
+		var player := instance.get_node_or_null("AnimationPlayer") as AnimationPlayer
+		if player and player.has_animation(&"arrive"):
+			player.play(&"arrive")
+			await player.animation_finished
+	if is_instance_valid(wrapper):
+		wrapper.queue_free()

@@ -144,18 +144,15 @@ func _combat_mode_belongs_to_the_fight_on_screen() -> void:
 ## drawn over the area now on screen, pointing at geometry that is not
 ## there.
 ##
-## Asserted at the shared base rather than per indicator: every 3D
-## indicator inherits _get_active_unit, so this is the one place the
-## guard can live and the one place it can be checked.
+## Asserted at the source rather than per indicator: every indicator
+## draws for Aim.caster, which is ClickRouter.active_unit(), so this is
+## the one place the guard can live and the one place it can be checked.
 func _indicators_do_not_draw_across_worlds() -> void:
-	check("SETUP: the fight the player is not watching owns current_unit",
-		CombatManager.in_combat and CombatManager.current_unit == _stayer,
-		"current_unit is %s" % str(CombatManager.current_unit))
+	check("SETUP: the fight the player is not watching owns focus",
+		CombatManager.focused_encounter == _fight and _fight.current_unit == _stayer,
+		"current_unit is %s" % str(_fight.current_unit if is_instance_valid(_fight) else null))
 
-	var probe := IndicatorBase.new()
-	_root.add_child(probe)
-	var drawn_for: Unit = probe._get_active_unit()
-	probe.queue_free()
+	var drawn_for: Unit = ClickRouter.active_unit()
 
 	check("indicators draw for nobody while their unit is in another world",
 		drawn_for == null,
@@ -240,12 +237,12 @@ func _spawn_enemy_beside(ally: Unit) -> Unit:
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	ally.get_parent().add_child(unit)
 	unit.faction = &"enemy"
-	unit.strength = 10
-	unit.dexterity = 10
-	unit.maximum_hp = 20
-	unit.current_hp = 20
+	unit.set_base_stat(StatIds.ST, 10)
+	unit.set_base_stat(StatIds.DX, 10)
+	unit.set_base_stat(StatIds.HP, 20 - floori(unit.get_stat(StatIds.ST)))
+	unit.set_pool(StatIds.HP, 20)
 	var abilities: Array[Ability] = [melee()]
-	unit.abilities = abilities
+	unit.set_abilities(abilities)
 	unit.global_position = ally.global_position + Vector3(3.0, 0.0, 0.0)
 	unit.reset_turn_actions()
 	return unit

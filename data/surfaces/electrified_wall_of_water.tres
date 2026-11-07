@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="Surface" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/surface_system/surface.gd" id="1_surface"]
+[ext_resource type="Resource" path="res://data/statuses/shocked.tres" id="2_shocked"]
+[ext_resource type="Resource" path="res://data/surfaces/electrified_water.tres" id="3_ground"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/electrified_water_wall.tscn" id="4_look"]
+[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="90_status_effect"]
+
+[resource]
+script = ExtResource("1_surface")
+surface_name = "Electrified Wall of Water"
+duration_rounds = 5
+shape = 2
+wall_height = 4.0
+leaves_behind = ExtResource("3_ground")
+lays_ground_under = true
+status_effects = Array[ExtResource("90_status_effect")]([ExtResource("2_shocked")])
+element = 4
+blocks_sight = false
+movement_cost_multiplier = 2.0
+ranged_penalty = -4
+ambient_scene = ExtResource("4_look")

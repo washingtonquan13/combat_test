@@ -60,10 +60,12 @@ class_name CRPGCamera
 ## corner (it can only pull straight back along one fixed line, never
 ## find a less-cramped angle) — a lateral "dodge to the clearer side" fix
 ## was tried and worked, but got dropped: no real CRPG actually solves
-## corners that way. What BG3 itself does instead is documented (see
-## _apply_occlusion_fade's own header) — fading walls/ceilings transparent
-## rather than repositioning the camera at all — and that's the intended
-## real fix, not yet built.
+## corners that way. BG3 fades walls instead; this camera used to as well,
+## and that was removed (2026-11-05): it fought the x-ray silhouettes, which
+## the player preferred. Now nothing fades, every blocker shortens the
+## camera, and a unit hidden by level geometry shows as a tinted silhouette
+## drawn through it (XRaySilhouettes, a child this camera creates — see the
+## X-Ray Silhouettes export group).
 ##
 ## Written for Godot 4.x
 
@@ -164,7 +166,7 @@ enum Mode { BOUND, UNBOUND }
 
 @export_group("Collision")
 ## Physics layer(s) the camera avoids clipping through — matches this
-## project's shared ground/geometry layer (see indicator_base.gd's own
+## project's shared ground/geometry layer (see ClickRouter's own
 ## ground_collision_mask default). Units live on that same layer but are
 ## always excluded explicitly (see _required_distance_reduction) — the
 ## same "environment blocks, units don't" rule LineOfSight already
@@ -213,6 +215,21 @@ enum Mode { BOUND, UNBOUND }
 ## — global_position is where every one of those pipelines converges,
 ## so it's the one number that means "no longer visibly moving."
 @export var load_focus_settle_distance: float = 0.5
+
+@export_group("X-Ray Silhouettes")
+## Tints party units (and enemies the party is fighting) through level
+## geometry that hides them. Units never hide units. See XRaySilhouettes.
+@export var xray_enabled: bool = true
+## Enemies in a fight with the party get a silhouette too.
+@export var xray_show_enemies: bool = true
+@export_range(0.0, 1.0) var xray_fill_alpha: float = 0.22
+@export_range(0.0, 1.0) var xray_rim_alpha: float = 0.55
+## Metres level geometry must sit in front of a unit to count as hiding
+## it — see xray_silhouette.gdshader for why this cannot be zero.
+@export_range(0.0, 2.0) var xray_occlusion_bias: float = 0.1
+## Resolution of the level-only depth render the silhouettes test against,
+## as a fraction of the screen. Lower is cheaper; edges get coarser.
+@export_range(0.25, 1.0) var xray_depth_scale: float = 0.5
 
 # shared state (kept continuous across both modes so switching never snaps)
 var current_yaw: float = 0.0        # degrees
@@ -265,6 +282,8 @@ var _smoothed_height_lift: float = 0.0
 ## every physics frame while true (see _physics_process); a no-op the
 ## rest of the time.
 var _settling_load_focus: bool = false
+
+var _xray: XRaySilhouettes
 
 
 func _get_mode() -> Mode:
@@ -323,6 +342,23 @@ func _ready() -> void:
 	current_anchor_offset = target_anchor_offset
 	desired_position = global_position
 	current_look_at_point = _get_anchor_point()
+	_setup_xray()
+
+
+## Built in code rather than authored in crpg_camera.tscn so the knobs
+## live in ONE inspector (this camera's X-Ray Silhouettes group) and every
+## area's camera gets it without a scene edit.
+func _setup_xray() -> void:
+	_xray = XRaySilhouettes.new()
+	_xray.name = "XRaySilhouettes"
+	_xray.enabled = xray_enabled
+	_xray.show_enemies = xray_show_enemies
+	_xray.fill_alpha = xray_fill_alpha
+	_xray.rim_alpha = xray_rim_alpha
+	_xray.occlusion_bias = xray_occlusion_bias
+	_xray.depth_scale = xray_depth_scale
+	_xray.setup(self)
+	add_child(_xray)
 
 
 ## Camera has never followed anyone up to now — focus_target simply
@@ -395,6 +431,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	var scroll_down: bool = event.is_action_pressed("camera_zoom_out")
 	if not (scroll_up or scroll_down):
 		return
+	# Ctrl + wheel steps the height plane (ClickRouter._step_plane), never
+	# the zoom - checked here as well as consumed there, so it holds
+	# whichever of the two sees the event first.
+	if Input.is_action_pressed("fly_altitude_modifier"):
+		return
 
 	# Identical in both modes: zoom toward/away from the anchor, clamped.
 	var step: float = zoom_speed * 0.1
@@ -436,7 +477,6 @@ func _physics_process(delta: float) -> void:
 	)
 
 	_update_distance_reduction(anchor_point, forward, current_distance, delta)
-	_apply_occlusion_fade(anchor_point, forward, current_distance)
 	var collision_safe_distance: float = max(current_distance - _smoothed_distance_reduction, min_collision_distance)
 	desired_position = anchor_point - (forward * collision_safe_distance)
 
@@ -547,44 +587,14 @@ func _required_distance_reduction(from: Vector3, forward: Vector3, distance: flo
 	return max(distance - safe_distance, 0.0)
 
 
-## Occlusion fade hook — NOT YET IMPLEMENTED. This is the intended REAL
-## fix for the "gets uncomfortably close in a tight corner" problem
-## distance reduction alone has (see _required_distance_reduction's own
-## header) — not by finding a cleverer camera position, but by not
-## needing to: fade whatever's in the way transparent and leave the
-## camera where it already was. Confirmed via direct research
-## (2026-08-25) that this is what CRPGs with this camera style actually
-## do — Larian has said BG3's camera dissolves walls/ceilings with a
-## smooth opacity transition on entering a room and fades them back in
-## on leaving, rather than repositioning the camera around them; older
-## isometric CRPGs (Diablo-likes) use the same "fade what's between
-## camera and character" idea for trees/walls. A lateral "dodge to
-## whichever side has more room" alternative was tried here first and
-## it DID work (headless-verified: recovered a fully-clear distance in a
-## corner scenario that pure distance-reduction left stuck badly
-## cramped) — dropped anyway, specifically because no real CRPG solves
-## corners by repositioning the camera like that; fading the obstruction
-## is the authentic technique and this hook exists so a future pass can
-## build that instead.
-##
-## Left as a hook rather than built now: a real version needs its own
-## tagging convention (a dedicated physics layer, or a group, marking
-## which objects are fade-eligible vs. solid — walls/ceilings dissolve,
-## solid terrain still gets real collision) and a dithered-transparency
-## shader or material trick, and this project has no fadeable-prop
-## content yet to build or verify either of those against. Called every
-## physics frame with the same inputs _update_distance_reduction gets,
-## so wiring a real implementation in later is a matter of filling this
-## function in — no changes needed elsewhere in the pipeline.
-func _apply_occlusion_fade(_from: Vector3, _forward: Vector3, _distance: float) -> void:
-	pass
-
-
 func _handle_rotation_input(delta: float) -> void:
 	# Note: in Godot, increasing rotation_degrees.y turns the camera
 	# counterclockwise (left) when viewed from above — the opposite of the
 	# usual "E turns right" expectation. Q therefore increases yaw (turn
 	# left) and E decreases it (turn right) to match that expectation.
+	# A blocking screen (the party sheet) has Q/E for itself.
+	if not UIStack.can_open():
+		return
 	if Input.is_action_pressed("camera_rotate_left"):
 		target_yaw += rotation_speed * delta
 	if Input.is_action_pressed("camera_rotate_right"):

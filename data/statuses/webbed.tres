@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="StatusEffect" load_steps=8 format=3 uid="uid://cb5yy21x3wg4h"]
+
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="1_behavior"]
+[ext_resource type="Script" uid="uid://c74y5p48ubm5f" path="res://systems/ability_system/rooted_behavior.gd" id="2_rooted"]
+[ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_statmod"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="4_status"]
+[ext_resource type="Texture2D" uid="uid://bbo8dwmlsa41l" path="res://assets/ability_icon/web_icon.png" id="5_icon"]
+
+[sub_resource type="Resource" id="Resource_rooted"]
+script = ExtResource("2_rooted")
+
+[sub_resource type="Resource" id="Resource_dodge"]
+script = ExtResource("3_statmod")
+stat_name = &"Dodge"
+amount = -3
+multiplier = 1.0
+
+[resource]
+script = ExtResource("4_status")
+status_name = "Webbed"
+icon = ExtResource("5_icon")
+default_duration = 1
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("1_behavior")]([SubResource("Resource_rooted"), SubResource("Resource_dodge")])
+curable = true
+group = &""
+rank = 0
+counters = Array[StringName]([])
+resisted_by = &"ST"
+resistance_modifier = 0
+apply_animation = ""
+apply_animation_loops = false
+remove_animation = ""
+hit_reaction_animation = ""

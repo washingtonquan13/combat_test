@@ -7,8 +7,8 @@ extends RefCounted
 ## zigzag detection) that UnitMovement.move_to() called to plan an
 ## avoidance-correct route before NavigationGrid existed. That planner
 ## has zero remaining callers — NavigationGrid.find_path() (a real grid
-## search that already knows about every unit's footprint via
-## update_occupancy()) plus RoutePlanner.plan() (budget/terrain-cost
+## search that already knows about every unit's footprint, rebuilt
+## whenever a unit changes cell) plus RoutePlanner.plan() (budget/terrain-cost
 ## truncation) replaced it entirely — and has been deleted rather than
 ## kept "just in case," since git history is the actual right place for
 ## that, not several hundred lines of live, unused simulation code.
@@ -21,10 +21,9 @@ extends RefCounted
 ## occupancy-snapshot-based) hard-overlap backstop. See that call site's
 ## own comment for why a live scan matters there specifically, even
 ## though NavigationGrid's own occupancy grid already answers a similar
-## question: occupancy is a manually-refreshed snapshot (see
-## NavigationGrid.update_occupancy), not automatically current, so a
-## validity check that must never be wrong even when occupancy happens
-## to be stale needs its own independent, always-live source of truth.
+## question: occupancy is tracked per grid cell, not exact positions,
+## so a validity check that must never be wrong needs its own
+## always-live source of truth.
 
 ## Collects every other living unit's position/radius as obstacle data.
 ## excluded is a list of units to leave out (always at least the mover

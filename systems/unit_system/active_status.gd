@@ -10,6 +10,12 @@ extends RefCounted
 var effect: StatusEffect
 var turns_remaining: int
 var stacks: int = 1
+## A stopped timer never runs down — Downed, whose own rolls decide
+## how it ends (DeathRollsBehavior).
+var stopped: bool = false
+## Counts a behavior keeps for this one application — Downed's marks
+## toward stable and toward death.
+var tally: Dictionary = {}
 
 
 func _init(p_effect: StatusEffect, p_turns_remaining: int) -> void:

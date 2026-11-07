@@ -1,0 +1,146 @@
+{
+  "library": "synth",
+  "description": "Synth instruments built for this project.",
+  "instruments": {
+    "veil-pad": {
+      "layers": [
+        {
+          "sfz": "synth/veil-pad.sfz"
+        }
+      ],
+      "range": [
+        24,
+        108
+      ],
+      "controls": {
+        "dynamics": 1,
+        "brightness": 74
+      }
+    },
+    "wire-lead": {
+      "layers": [
+        {
+          "sfz": "synth/wire-lead.sfz"
+        }
+      ],
+      "range": [
+        48,
+        96
+      ],
+      "controls": {
+        "dynamics": 1,
+        "brightness": 74,
+        "vibrato_depth": 20,
+        "bend": 21
+      }
+    },
+    "glass-arp": {
+      "layers": [
+        {
+          "sfz": "synth/glass-arp.sfz"
+        }
+      ],
+      "range": [
+        24,
+        108
+      ]
+    },
+    "halo-lead": {
+      "layers": [
+        {
+          "sfz": "synth/halo-lead.sfz"
+        }
+      ],
+      "range": [
+        36,
+        100
+      ],
+      "controls": {
+        "dynamics": 1
+      }
+    },
+    "vox-pad": {
+      "layers": [
+        {
+          "sfz": "synth/vox-pad.sfz"
+        }
+      ],
+      "range": [
+        36,
+        96
+      ],
+      "controls": {
+        "dynamics": 1,
+        "brightness": 74
+      }
+    },
+    "drift-sub": {
+      "layers": [
+        {
+          "sfz": "synth/drift-sub.sfz"
+        }
+      ],
+      "range": [
+        0,
+        72
+      ],
+      "controls": {
+        "dynamics": 1
+      }
+    },
+    "circuit-kit": {
+      "layers": [
+        {
+          "sfz": "synth/circuit-kit.sfz"
+        }
+      ],
+      "range": [
+        35,
+        70
+      ],
+      "drums": {
+        "boom": 35,
+        "kick": 36,
+        "rim": 37,
+        "snare": 38,
+        "clap": 39,
+        "hat": 42,
+        "hat_pedal": 44,
+        "hat_open": 46,
+        "crash": 49,
+        "shaker": 70
+      }
+    },
+    "tide-bass": {
+      "layers": [
+        {
+          "sfz": "synth/tide-bass.sfz"
+        }
+      ],
+      "range": [
+        0,
+        72
+      ],
+      "controls": {
+        "dynamics": 1,
+        "brightness": 74
+      }
+    },
+    "keen-lead": {
+      "layers": [
+        {
+          "sfz": "synth/keen-lead.sfz"
+        }
+      ],
+      "range": [
+        48,
+        100
+      ],
+      "controls": {
+        "dynamics": 1,
+        "brightness": 74,
+        "bend": 21
+      }
+    }
+  }
+}

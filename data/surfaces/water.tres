@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="Surface" load_steps=8 format=3 uid="uid://c1bqphlx1h076"]
+
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="1_surface"]
+[ext_resource type="Script" uid="uid://cog6samh014mo" path="res://systems/surface_system/surface_reaction.gd" id="2_reaction"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/water.tscn" id="3_look"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="4_setik"]
+
+[sub_resource type="Resource" id="Resource_freezes"]
+script = ExtResource("2_reaction")
+element = 2
+outcome = 1
+becomes = "res://data/surfaces/ice.tres"
+spreads = true
+
+[sub_resource type="Resource" id="Resource_boils"]
+script = ExtResource("2_reaction")
+element = 1
+outcome = 1
+becomes = "res://data/surfaces/steam_cloud.tres"
+spreads = false
+
+[sub_resource type="Resource" id="Resource_electrified"]
+script = ExtResource("2_reaction")
+element = 4
+outcome = 1
+becomes = "res://data/surfaces/electrified_water.tres"
+spreads = true
+
+[resource]
+script = ExtResource("1_surface")
+surface_name = "Water"
+duration_rounds = 5
+shape = 0
+height_scale = 1.0
+wall_height = 4.0
+lays_ground_under = false
+status_effects = Array[ExtResource("4_setik")]([])
+status_only_inside = false
+element = 3
+reactions = Array[ExtResource("2_reaction")]([SubResource("Resource_freezes"), SubResource("Resource_boils"), SubResource("Resource_electrified")])
+blocks_sight = false
+dark_vision_sees_through = false
+movement_cost_multiplier = 1.0
+blocks_movement = false
+ranged_penalty = 0
+ambient_scene = ExtResource("3_look")

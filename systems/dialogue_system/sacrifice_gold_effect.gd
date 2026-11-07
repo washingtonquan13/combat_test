@@ -8,10 +8,16 @@ extends DialogueEffect
 ## so this stays a generic DialogueEffect rather than moving under
 ## systems/negotiation_system/. For a negotiation's own rank-scaled,
 ## randomly-rolled amount, see SacrificeNegotiatedGoldEffect instead —
-## that one reads NegotiationManager state and belongs there.
+## that one reads the conversation's gold variable and belongs there.
 
 @export var amount: int = 0
 
 
-func apply(_actor: Unit, _target: Unit) -> void:
+func apply(_c: Conversation) -> void:
 	CurrencyManager.spend_gold(amount)
+
+
+func cost_tag(_c: Conversation) -> String:
+	if amount <= 0:
+		return ""
+	return "-%d gold" % amount

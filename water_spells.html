@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Water Spell Tropes</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Spectral:ital,wght@0,400;0,600;1,400&family=Inter+Tight:wght@500;600;700&display=swap">
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #0e1518; --panel: #142027; --panel-2: #1a2a33; --line: #2a3f4a;
+  --fg: #e2ecef; --muted: #93a9b1; --accent: #5cc4d8; --foam: #cfeff5; --pick: #e0b04f;
+  --serif: "Spectral", Georgia, serif; --display: "Cinzel", Georgia, serif; --sans: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 17px/1.6 var(--serif); padding: 0 16px; }
+.wrap { max-width: 900px; margin: 0 auto; padding-block: 36px 72px; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.2; margin: 0; text-wrap: balance; }
+h1 { font-size: clamp(28px, 6vw, 40px); }
+h2 { font-size: clamp(20px, 4vw, 25px); color: var(--accent); }
+h3 { font: 700 17px/1.3 var(--sans); color: var(--foam); }
+p { margin: 0; max-width: 68ch; }
+section { display: grid; gap: 14px; }
+.label { font: 600 12px/1 var(--sans); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.lede { color: var(--muted); font-style: italic; font-size: 18px; }
+strong { color: #ffffff; }
+.note { font: 500 14px/1.5 var(--sans); color: var(--muted); }
+ul { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; max-width: 70ch; }
+code { font: 14px/1.4 ui-monospace, Consolas, monospace; background: var(--panel-2); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; }
+.card p { font-size: 15.5px; }
+.card .uses { font: 500 13px/1.45 var(--sans); color: var(--muted); }
+.card.pick { border-color: var(--pick); box-shadow: inset 0 3px 0 var(--pick); }
+.tag { justify-self: start; font: 700 11px/1 var(--sans); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 6px; border-radius: 4px; color: var(--pick); border: 1px solid var(--pick); }
+
+.plan { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 16px 18px; display: grid; gap: 12px; }
+.tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 600px; font: 500 14px/1.45 var(--sans); }
+th, td { text-align: left; vertical-align: top; padding: 9px 11px; border-bottom: 1px solid var(--line); }
+th { font: 700 11.5px/1.2 var(--sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); background: var(--panel-2); }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 700; color: var(--foam); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header style="display:grid;gap:12px">
+  <span class="label">Spell design · water college</span>
+  <h1>Water spells that aren't ice</h1>
+  <p class="lede">Tropes grouped by what the water does: push, control the ground, act on a body, or move you. Gold marks the suggested first set.</p>
+</header>
+
+<section>
+  <h2>Force: water as pressure</h2>
+  <div class="grid">
+    <div class="card pick"><span class="tag">First set</span><h3>Water Jet</h3><p>A hard line that knocks the target back and leaves a puddle where it hits.</p><p class="uses">Uses: Shove arc, wall-impact damage, Water surface. GURPS has a Water Jet: low damage, big push.</p></div>
+    <div class="card"><h3>Wave</h3><p>A cone or wide line that pushes everyone outward and floods the ground behind it. Clears doorways, knocks people off ledges.</p><p class="uses">Uses: ConeTargeting, Shove arc, Water surface.</p></div>
+    <div class="card pick"><span class="tag">First set</span><h3>Geyser</h3><p>Erupts under a spot and throws whoever stands there straight up. They take fall damage on landing. Works on crates too.</p><p class="uses">Uses: ArcFlight pointed up, fall damage, movable props.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Control: water as terrain</h2>
+  <div class="grid">
+    <div class="card pick"><span class="tag">First set · building now</span><h3>Wall of Water</h3><p>A standing wall that slows anyone wading through, deflects shots fired through it, and soaks whoever touches it.</p><p class="uses">Uses: Wall of Fire's wall-shaped surface, line targeting, Water surface left behind. Stretch: douses fire.</p></div>
+    <div class="card pick"><span class="tag">First set</span><h3>Whirlpool</h3><p>A circle that drags units toward its centre each turn and is hard to move through. The opposite of every push spell you have.</p><p class="uses">Uses: disc surface, movement cost, a per-turn pull (new).</p></div>
+    <div class="card"><h3>Rain</h3><p>A large area that soaks everyone, puts out fires over a few turns, and turns the ground to water. Sets up lightning.</p><p class="uses">Uses: Water surface, Electrified Water, Wet (new).</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Body: water against a creature</h2>
+  <div class="grid">
+    <div class="card"><h3>Drowning Bubble</h3><p>A globe of water around the head. The target suffocates and can't speak, so it can't cast or negotiate.</p><p class="uses">Uses: GURPS suffocation (FP loss), a status.</p></div>
+    <div class="card"><h3>Dehydrate</h3><p>Pulls the water out of a body. Damage that ignores armour and hits plant and water creatures harder.</p><p class="uses">Uses: damage with armour divisor, race tags.</p></div>
+    <div class="card"><h3>Water Whip</h3><p>A reach attack that grapples a target or yanks it toward you.</p><p class="uses">Uses: reach, Shove arc reversed.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>Utility and movement</h2>
+  <div class="grid">
+    <div class="card"><h3>Puddle Step</h3><p>Sink into one water surface and rise from another nearby. Rewards flooding the ground first.</p></div>
+    <div class="card"><h3>Healing Spring</h3><p>A pool that heals whoever stands in it.</p></div>
+    <div class="card"><h3>Walk on / Breathe Water</h3><p>Classic utility, but useless without water terrain. Skip for now.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>The missing piece: Wet</h2>
+  <p>There's no <strong>Wet</strong> status yet. Most water interactions go through it: wet units don't catch fire, lose Burning, and take more from lightning. It's the cheapest way to tie every water spell together, and it lays the ground for extinguishing fire later without building that now.</p>
+</section>
+
+<section>
+  <h2>Wall of Water: the plan</h2>
+  <div class="plan">
+    <p><strong>Yes, the same approach as Wall of Fire.</strong> Wall of Fire is almost all data: a <code>Surface</code> with the wall shape, a 4 m height, line targeting, a status on contact, a ground surface left behind, and a scene for the look. Wall of Water swaps the values and the scene.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Surface field</th><th>Wall of Fire</th><th>Wall of Water</th></tr></thead>
+      <tbody>
+        <tr><td>shape / height</td><td>wall, 4 m</td><td>wall, 4 m</td></tr>
+        <tr><td>targeting</td><td>line, 18 m range, up to 12 m long</td><td>same</td></tr>
+        <tr><td>status_effects</td><td>Searing</td><td>Wet (new); none until it exists</td></tr>
+        <tr><td>leaves_behind</td><td>Fire</td><td>Water</td></tr>
+        <tr><td>blocks_sight</td><td>yes</td><td>no: you see through it, warped</td></tr>
+        <tr><td>movement_cost_multiplier</td><td>1.0</td><td>2 or more: wading through a wave</td></tr>
+        <tr><td>element</td><td>fire</td><td>water</td></tr>
+        <tr><td>ambient_scene</td><td><code>fire_wall.tscn</code></td><td><code>water_wall.tscn</code> (new): the tsunami look</td></tr>
+      </tbody>
+    </table></div>
+    <p><strong>New beyond data:</strong> a penalty to ranged attacks whose line passes through the wall. The surface has no field for that yet.</p>
+    <p><strong>The tsunami look:</strong> a breaking wave caught at its peak. The face leans toward the enemy side, the crest curls over with foam, spray hangs above it, and sheets of water run down the face in a loop. It holds that pose rather than crashing, so it reads as a wall. For it to actually crash and push, it would be the Wave spell.</p>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

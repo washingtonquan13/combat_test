@@ -1,16 +1,13 @@
-[gd_scene load_steps=36 format=3 uid="uid://cu821ekvs0wu5"]
+[gd_scene load_steps=43 format=3 uid="uid://cu821ekvs0wu5"]
 
 [ext_resource type="Script" uid="uid://ck400elf1ig6t" path="res://main_root.gd" id="1_mainroot"]
-[ext_resource type="Script" uid="uid://bewqwyyyowxwv" path="res://systems/dialogue_system/dialogue_camera_rig.gd" id="2_dlgcamrig"]
+[ext_resource type="Script" uid="uid://cnhu6m5vcycx6" path="res://systems/cinematic_system/cinematic_camera.gd" id="2_cinecam"]
 [ext_resource type="Script" uid="uid://bwtn55jbtliv4" path="res://systems/selection_system/drag_select_box.gd" id="3_lquwl"]
 [ext_resource type="PackedScene" uid="uid://caf7q4n41fgu5" path="res://ui/unit_portrait.tscn" id="4_272bh"]
 [ext_resource type="Script" uid="uid://dco3xcx22f26n" path="res://systems/combat_system/initiative_row.gd" id="5_dg77c"]
-[ext_resource type="Script" uid="uid://5dq2mibjdmfb" path="res://ui/ability_hotbar.gd" id="6_w48qg"]
-[ext_resource type="PackedScene" uid="uid://c8p3x6fyoh5xw" path="res://ui/hotbar_slot.tscn" id="7_cegan"]
 [ext_resource type="PackedScene" uid="uid://dtttg6dyn8w56" path="res://systems/log_system/system_log.tscn" id="8_xuqvo"]
-[ext_resource type="Script" uid="uid://h0akfa83m6c7" path="res://ui/hotbar_divider.gd" id="9_hbdivider"]
+[ext_resource type="PackedScene" path="res://ui/hotbar/dock.tscn" id="9_dock"]
 [ext_resource type="Script" uid="uid://c5hehufxn84ob" path="res://ui/party_panel.gd" id="10_partypanel"]
-[ext_resource type="Script" uid="uid://bb040f657sdme" path="res://systems/combat_system/end_turn_button.gd" id="11_qsp4k"]
 [ext_resource type="Texture2D" uid="uid://b87v8swp3yenp" path="res://assets/ui_icon/hamburger_icon.png" id="12_seu75"]
 [ext_resource type="Script" uid="uid://crlbgkpsyqfaw" path="res://ui/menu_button.gd" id="13_htxhm"]
 [ext_resource type="PackedScene" uid="uid://jfavnc280asx" path="res://ui/party_overview.tscn" id="14_partyoverview"]
@@ -28,13 +25,31 @@
 [ext_resource type="Script" uid="uid://c60swhb75w42e" path="res://systems/indicator_system/line_of_sight_indicator.gd" id="26_losind"]
 [ext_resource type="Script" uid="uid://8r0mkwuth7cw" path="res://systems/indicator_system/jump_indicator.gd" id="27_jumpind"]
 [ext_resource type="Script" uid="uid://dqa8pee2hc1ky" path="res://systems/indicator_system/area_indicator.gd" id="28_areaind"]
+[ext_resource type="Script" uid="uid://gm0k7kd8ypt4" path="res://systems/indicator_system/line_indicator.gd" id="28_lineind"]
 [ext_resource type="Script" uid="uid://4wfur7tp2sya" path="res://systems/indicator_system/aerial_area_indicator.gd" id="29_aerialind"]
 [ext_resource type="Script" uid="uid://cerqx50othpf3" path="res://systems/indicator_system/seeking_indicator.gd" id="30_seekind"]
 [ext_resource type="Script" uid="uid://p8ye5cc6ckt6" path="res://systems/indicator_system/sight_cone_indicator.gd" id="30_sightcone"]
 [ext_resource type="Script" uid="uid://dtl0kpo00xbxt" path="res://debug/nav_debug_overlay.gd" id="31_navdbg"]
 [ext_resource type="Script" uid="uid://dwxlhcmxv7u8v" path="res://systems/interaction_system/interact_prompt.gd" id="32_interactprompt"]
 [ext_resource type="Script" uid="uid://cu2efa5w2hpro" path="res://debug/debug_combat_harness.gd" id="33_debugharness"]
+[ext_resource type="Script" uid="uid://dsbvnm08kyv1h" path="res://debug/debug_cutscene_harness.gd" id="34_cutsceneharness"]
 [ext_resource type="PackedScene" path="res://ui/save_load_panel.tscn" id="34_saveloadpanel"]
+[ext_resource type="PackedScene" uid="uid://dypeuvgfr3s4j" path="res://ui/cathedral_menu.tscn" id="35_cathedralmenu"]
+[ext_resource type="Script" uid="uid://figtunvhfhvk" path="res://systems/cinematic_system/cinematic_cues.gd" id="36_cues"]
+[ext_resource type="PackedScene" path="res://systems/cinematic_system/cinematic_overlay.tscn" id="37_cineoverlay"]
+[ext_resource type="Script" uid="uid://dexhga3bpptng" path="res://ui/area_label.gd" id="38_arealabel"]
+[ext_resource type="Script" uid="uid://bmxsyci41mrsj" path="res://systems/indicator_system/hit_chance_indicator.gd" id="39_hitchance"]
+[ext_resource type="Script" uid="uid://et56pabmj85d" path="res://systems/indicator_system/cone_indicator.gd" id="40_coneind"]
+[ext_resource type="PackedScene" path="res://ui/game_over.tscn" id="40_gameover"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_areaplate"]
+content_margin_left = 14.0
+content_margin_top = 4.0
+content_margin_right = 18.0
+content_margin_bottom = 4.0
+bg_color = Color(0.05, 0.05, 0.07, 0.72)
+border_width_left = 3
+border_color = Color(0.85, 0.72, 0.45, 1)
 
 [node name="MainRoot" type="Node"]
 script = ExtResource("1_mainroot")
@@ -50,14 +65,20 @@ mouse_filter = 2
 
 [node name="SceneRoot" type="Node3D" parent="."]
 
-[node name="DialogueCameraRig" type="Node3D" parent="."]
-script = ExtResource("2_dlgcamrig")
+[node name="CinematicCamera" type="Node3D" parent="."]
+script = ExtResource("2_cinecam")
+
+[node name="CinematicCues" type="Node" parent="."]
+script = ExtResource("36_cues")
 
 [node name="GroundClickTarget" type="Node3D" parent="."]
 script = ExtResource("23_groundclick")
 
 [node name="DebugCombatHarness" type="Node" parent="."]
 script = ExtResource("33_debugharness")
+
+[node name="DebugCutsceneHarness" type="Node" parent="."]
+script = ExtResource("34_cutsceneharness")
 
 [node name="Indicators" type="Node3D" parent="."]
 
@@ -76,17 +97,28 @@ script = ExtResource("27_jumpind")
 [node name="AreaIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("28_areaind")
 
+[node name="LineIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("28_lineind")
+
 [node name="AerialAreaIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("29_aerialind")
 
+[node name="ConeIndicator" type="Node3D" parent="Indicators"]
+script = ExtResource("40_coneind")
+
 [node name="SightConeIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("30_sightcone")
+enabled = false
 
 [node name="SeekingIndicator" type="Node3D" parent="Indicators"]
 script = ExtResource("30_seekind")
 
 [node name="NavDebugOverlay" type="Node3D" parent="Indicators"]
 script = ExtResource("31_navdbg")
+
+[node name="HitChanceIndicator" type="Node3D" parent="Indicators" node_paths=PackedStringArray("label")]
+script = ExtResource("39_hitchance")
+label = NodePath("../../CanvasLayer/TacticalUI/HitChanceLabel")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
@@ -118,42 +150,8 @@ grow_horizontal = 2
 script = ExtResource("5_dg77c")
 portrait_scene = ExtResource("4_272bh")
 
-[node name="AbilityHotbar" type="HBoxContainer" parent="CanvasLayer/TacticalUI"]
-layout_mode = 0
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -20.0
-offset_top = -40.0
-offset_right = 20.0
-offset_bottom = -20.0
-grow_horizontal = 2
-grow_vertical = 0
-script = ExtResource("6_w48qg")
-slot_scene = ExtResource("7_cegan")
-
-[node name="CommonGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 4
-
-[node name="DividerCommonAbilities" type="VSeparator" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-custom_minimum_size = Vector2(10, 32)
-layout_mode = 2
-script = ExtResource("9_hbdivider")
-
-[node name="AbilitiesGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 6
-
-[node name="DividerAbilitiesCustom" type="VSeparator" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-custom_minimum_size = Vector2(10, 32)
-layout_mode = 2
-script = ExtResource("9_hbdivider")
-
-[node name="CustomGrid" type="GridContainer" parent="CanvasLayer/TacticalUI/AbilityHotbar"]
-layout_mode = 2
-columns = 6
+[node name="Dock" parent="CanvasLayer/TacticalUI" instance=ExtResource("9_dock")]
+layout_mode = 1
 
 [node name="SystemLog" parent="CanvasLayer/TacticalUI" instance=ExtResource("8_xuqvo")]
 layout_mode = 1
@@ -161,41 +159,6 @@ anchors_preset = -1
 offset_left = -240.0
 offset_top = -90.0
 offset_bottom = 90.0
-
-[node name="PartyPanel" type="VBoxContainer" parent="CanvasLayer/TacticalUI"]
-layout_mode = 0
-anchor_top = 0.5
-anchor_bottom = 0.5
-offset_left = 20.0
-offset_top = -180.0
-offset_right = 150.0
-offset_bottom = 180.0
-grow_vertical = 2
-size_flags_horizontal = 0
-theme_override_constants/separation = 4
-alignment = 1
-script = ExtResource("10_partypanel")
-slot_scene = ExtResource("4_272bh")
-
-[node name="CoreContainer" type="VBoxContainer" parent="CanvasLayer/TacticalUI/PartyPanel"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="EndTurnButton" type="Button" parent="CanvasLayer/TacticalUI"]
-custom_minimum_size = Vector2(90, 31)
-layout_mode = 0
-anchor_left = 1.0
-anchor_top = 1.0
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = -90.0
-offset_top = -31.0
-offset_right = -20.0
-offset_bottom = -20.0
-grow_horizontal = 0
-grow_vertical = 0
-text = "END TURN"
-script = ExtResource("11_qsp4k")
 
 [node name="MenuButton" type="Button" parent="CanvasLayer/TacticalUI"]
 custom_minimum_size = Vector2(32, 32)
@@ -210,6 +173,43 @@ offset_bottom = 8.0
 grow_horizontal = 0
 icon = ExtResource("12_seu75")
 script = ExtResource("13_htxhm")
+
+[node name="HitChanceLabel" type="Label" parent="CanvasLayer/TacticalUI"]
+visible = false
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 18
+text = "0%"
+
+[node name="PartyRail" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="PartyPanel" type="VBoxContainer" parent="CanvasLayer/PartyRail"]
+layout_mode = 0
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_left = 8.0
+offset_top = -200.0
+offset_right = 72.0
+offset_bottom = 200.0
+grow_vertical = 2
+theme_override_constants/separation = 4
+alignment = 1
+script = ExtResource("10_partypanel")
+slot_scene = ExtResource("4_272bh")
+
+[node name="CoreContainer" type="VBoxContainer" parent="CanvasLayer/PartyRail/PartyPanel"]
+layout_mode = 2
+theme_override_constants/separation = 4
 
 [node name="InteractPrompt" type="PanelContainer" parent="CanvasLayer"]
 visible = false
@@ -231,6 +231,53 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Enter"
 horizontal_alignment = 1
+
+[node name="AreaLabel" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("38_arealabel")
+
+[node name="Corner" type="Label" parent="CanvasLayer/AreaLabel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 14.0
+offset_right = 20.0
+offset_bottom = 14.0
+theme_override_colors/font_color = Color(0.95, 0.92, 0.82, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 20
+theme_override_styles/normal = SubResource("StyleBoxFlat_areaplate")
+text = "French Quarter"
+
+[node name="Banner" type="PanelContainer" parent="CanvasLayer/AreaLabel"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -260.0
+offset_top = 64.0
+offset_right = 260.0
+offset_bottom = 124.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_areaplate")
+
+[node name="Label" type="Label" parent="CanvasLayer/AreaLabel/Banner"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.96, 0.86, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 8
+theme_override_font_sizes/font_size = 34
+text = "French Quarter"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="PartyOverview" parent="CanvasLayer" instance=ExtResource("14_partyoverview")]
 blocks_input_below = true
@@ -318,6 +365,7 @@ text = "EXIT TO DESKTOP"
 [node name="DialogueOverlay" parent="CanvasLayer" instance=ExtResource("17_dlgoverlay")]
 hides_hud = true
 blocks_input_below = true
+keeps_party_visible = true
 closes_on_cancel = false
 
 [node name="ConversationLog" parent="CanvasLayer" instance=ExtResource("18_convlog")]
@@ -341,8 +389,22 @@ hides_hud = true
 blocks_input_below = true
 closes_on_cancel = false
 
+[node name="GameOver" parent="CanvasLayer" node_paths=PackedStringArray("save_load_panel") instance=ExtResource("40_gameover")]
+save_load_panel = NodePath("../SaveLoadPanel")
+hides_hud = true
+blocks_input_below = true
+closes_on_cancel = false
+
 [node name="SaveLoadPanel" parent="CanvasLayer" instance=ExtResource("34_saveloadpanel")]
 blocks_input_below = true
+
+[node name="CathedralMenu" parent="CanvasLayer" instance=ExtResource("35_cathedralmenu")]
+visible = false
+
+[node name="CinematicLayer" type="CanvasLayer" parent="."]
+layer = 2
+
+[node name="CinematicOverlay" parent="CinematicLayer" instance=ExtResource("37_cineoverlay")]
 
 [connection signal="pressed" from="CanvasLayer/TacticalUI/MenuButton" to="CanvasLayer/TacticalUI/MenuButton" method="_on_pressed"]
 [connection signal="pressed" from="CanvasLayer/EscMenu/ExitButton" to="CanvasLayer/EscMenu" method="_on_exit_button_pressed"]

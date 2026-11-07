@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://vk3dtgoqxf16"]
+[gd_resource type="Resource" script_class="Ability" load_steps=11 format=3 uid="uid://vk3dtgoqxf16"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_pqnpu"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_4kc7v"]
@@ -6,33 +6,52 @@
 [ext_resource type="Texture2D" uid="uid://bdpy4af10hwl1" path="res://assets/ability_icon/jump_icon.png" id="3_klqml"]
 [ext_resource type="Script" uid="uid://drd20fn8tucu" path="res://systems/ability_system/ground_point_targeting.gd" id="5_cxc1v"]
 [ext_resource type="Resource" uid="uid://d1ucf1e0n7ao4" path="res://data/animation_sequences/jump.tres" id="6_castanim"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="7_time"]
 
 [sub_resource type="Resource" id="Resource_srpy8"]
 script = ExtResource("2_8xeob")
-jump_duration = 1.0
-arc_height = 1.5
 metadata/_custom_type_script = "uid://deawu000jynxq"
 
 [sub_resource type="Resource" id="Resource_uc2tp"]
 script = ExtResource("5_cxc1v")
 max_range = 6.0
+range_from_strength = true
+strength_rule = 0
+flight_arc_height = 1.5
 navmesh_tolerance = 0.5
 validate_as_caster_flying = true
 requires_ally = false
+any_unit = false
+aims_at_ground = false
 metadata/_custom_type_script = "uid://drd20fn8tucu"
+
+[sub_resource type="Resource" id="Resource_time"]
+script = ExtResource("7_time")
+waits_for_impact = true
+impact_timeout = 0.5
+metadata/_custom_type_script = "uid://bjatij1rn26yg"
 
 [resource]
 script = ExtResource("2_4kc7v")
 ability_name = "Jump"
 icon = ExtResource("3_klqml")
+icon_color = Color(0.59, 0.78, 0.67, 1)
 category = 0
 targeting = SubResource("Resource_uc2tp")
 effects = Array[ExtResource("1_pqnpu")]([SubResource("Resource_srpy8")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = false
 uses_attack_action = false
 move_cost = 0.0
 fp_cost = 0.0
+timing = SubResource("Resource_time")
+armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
+armed_exit_animation = ""
 cast_animation = ExtResource("6_castanim")
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

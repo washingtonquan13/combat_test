@@ -149,16 +149,24 @@ static func core_party_units(tree: SceneTree) -> Array[Unit]:
 ## target something in another world, however close it looks in raw
 ## coordinates (two worlds routinely occupy the same coordinates, since
 ## every area is authored around the origin).
+## Standing hostiles come first: a Downed one is only the answer when
+## nothing hostile is left standing, so the baseline still finishes the
+## job rather than ignoring a fight it has already won.
 static func nearest_hostile(tree: SceneTree, unit: Unit) -> Unit:
 	var nearest: Unit = null
 	var nearest_dist: float = INF
+	var nearest_standing: bool = false
 	for other in _in_world_of(unit, living_units(tree)):
 		if not unit.is_hostile_to(other):
 			continue
+		var standing: bool = not other.is_downed()
+		if nearest_standing and not standing:
+			continue
 		var dist: float = unit.distance_to(other)
-		if dist < nearest_dist:
+		if dist < nearest_dist or (standing and not nearest_standing):
 			nearest_dist = dist
 			nearest = other
+			nearest_standing = standing
 	return nearest
 
 
@@ -180,6 +188,20 @@ static func area_affected(tree: SceneTree, attacker: Unit, center: Vector3, radi
 		if not is_hostile and not affects_allies:
 			continue
 		affected.append(unit)
+	return affected
+
+
+## Every living unit whose edge comes within half_width of the line from
+## from to to across the ground — who a wall standing there would catch.
+static func line_affected(tree: SceneTree, attacker: Unit, from: Vector3, to: Vector3, half_width: float) -> Array[Unit]:
+	var affected: Array[Unit] = []
+	var a := Vector2(from.x, from.z)
+	var b := Vector2(to.x, to.z)
+	for unit in _in_world_of(attacker, living_units(tree)):
+		var p := Vector2(unit.global_position.x, unit.global_position.z)
+		var closest: Vector2 = a if a.is_equal_approx(b) else Geometry2D.get_closest_point_to_segment(p, a, b)
+		if p.distance_to(closest) - unit.radius <= half_width:
+			affected.append(unit)
 	return affected
 
 

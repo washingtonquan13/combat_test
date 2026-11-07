@@ -1,0 +1,170 @@
+{
+  "format": 2,
+  "id": "cathedral",
+  "name": "Cathedral",
+  "description": "An ensemble for the places in a Megami Tensei game where the law lives: a church of the Messians, a Mikado throne room, a cathedral at the end of a ruined Tokyo. The lead is a real pipe organ from VSCO 2 Community Edition, its loud registration with the quiet one underneath for body, and the bass is the same organ's pedal division with VSCO's timpani struck under the roots. The keys are a Flemish harpsichord from the Versilian Community Sample Library, all its stops drawn, for the cold baroque figures that walk under a sermon; the choir is Virtual Playing Orchestra's male choir with the quiet organ behind it. The brass is VSCO's trumpets, trombones and horns playing staccato, for the stabs that announce an angel; it plays through the guitar bus, where a rock piece's riff would sit. The kit is timpani and tubular bells, and nothing else.",
+  "buses": {
+    "lead": {
+      "space": "hall",
+      "wet": 0.34,
+      "predelay": 24.0
+    },
+    "guitar": {
+      "space": "hall",
+      "wet": 0.28
+    },
+    "keys": {
+      "space": "hall",
+      "wet": 0.2
+    },
+    "bass": {
+      "space": "hall",
+      "wet": 0.3
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.36,
+      "predelay": 30.0
+    },
+    "perc": {
+      "space": "hall",
+      "wet": 0.32
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "vsco2/organ-loud",
+          "name": "great"
+        },
+        {
+          "instrument": "vsco2/organ-quiet",
+          "name": "choir-organ",
+          "gain_db": -8.0,
+          "gain_source": "guessed",
+          "delay": 0.006
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": 8.0
+    },
+    "brass": {
+      "family": "brass",
+      "bus": "guitar",
+      "layers": [
+        {
+          "instrument": "vsco2/trumpet-stac",
+          "name": "trumpets"
+        },
+        {
+          "instrument": "vsco2/trombone-stac",
+          "name": "trombones",
+          "gain_db": -3.0,
+          "gain_source": "guessed",
+          "transpose": -12
+        },
+        {
+          "instrument": "vsco2/horn-stac",
+          "name": "horns",
+          "gain_db": -4.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "range": [
+        52,
+        84
+      ],
+      "voices": 18,
+      "gain_source": "guessed",
+      "gain_db": -15.0
+    },
+    "keys": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "vcsl/harpsichord",
+          "name": "harpsichord"
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -4.0
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "vsco2/organ-loud-pedal",
+          "name": "pedal"
+        },
+        {
+          "instrument": "vsco2/timpani",
+          "name": "timpani",
+          "gain_db": -6.0,
+          "gain_source": "guessed",
+          "voices": 6
+        }
+      ],
+      "range": [
+        36,
+        60
+      ],
+      "voices": 12,
+      "gain_source": "guessed",
+      "gain_db": -6.0
+    },
+    "choir": {
+      "family": "choir",
+      "bus": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-male",
+          "name": "choir"
+        },
+        {
+          "instrument": "vsco2/organ-quiet",
+          "name": "flue",
+          "gain_db": -12.0,
+          "gain_source": "guessed",
+          "delay": 0.02
+        }
+      ],
+      "range": [
+        36,
+        84
+      ],
+      "voices": 32,
+      "gain_source": "guessed",
+      "gain_db": -5.0
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "vsco2/timpani",
+          "name": "timpani",
+          "take": {
+            "timing": 0.004,
+            "velocity": 4
+          }
+        },
+        {
+          "instrument": "vsco2/tubular-bells",
+          "name": "bells",
+          "gain_db": -6.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.006,
+            "velocity": 5
+          }
+        }
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": 2.0
+    }
+  }
+}

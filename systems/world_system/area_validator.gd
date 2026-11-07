@@ -88,11 +88,21 @@ static func _check_definitions(areas: Array[AreaDefinition], issues: Array[Issue
 		if area.display_name.is_empty():
 			issues.append(Issue.new(false, where, "display_name is empty"))
 
-		# Music is optional by design (MusicManager simply plays nothing),
-		# so a missing exploration track is a warning about a silent area,
-		# not a fault.
-		if not area.exploration_track:
-			issues.append(Issue.new(false, where, "no exploration_track — this area will be silent"))
+		_check_music(area, where, issues)
+
+
+## Music is named after the area (see MusicManager.music_area()), so the
+## transitions table is what has to know every area. A gap is a warning,
+## not a fault: MusicManager keeps whatever was already playing.
+static func _check_music(area: AreaDefinition, where: String, issues: Array[Issue]) -> void:
+	var table: SfzTransitions = SfzTransitions.load_from(SfzSettings.transitions_path())
+	if table == null:
+		issues.append(Issue.new(false, where, "no transitions table at %s — every area will be silent" % SfzSettings.transitions_path()))
+		return
+	for moment in [MusicManager.EXPLORATION, MusicManager.COMBAT, MusicManager.NEGOTIATION]:
+		var music: String = MusicManager.music_area(area.id, moment)
+		if not table.has_area(music):
+			issues.append(Issue.new(false, where, "no '%s' in the transitions table — %s keeps the previous music" % [music, moment]))
 
 
 static func _check_exits(area: AreaDefinition, known_ids: Dictionary, links: Dictionary, issues: Array[Issue]) -> void:

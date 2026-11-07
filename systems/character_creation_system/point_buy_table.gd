@@ -13,12 +13,9 @@ extends Resource
 ## the table's own upper end "campaign power" knobs meant to be tuned,
 ## not a fixed, closed set of concepts.
 ##
-## Bucket B (secondary attributes — Will/Perception/HP/FP/Move becoming
-## derived from primary attributes instead of independent Unit fields)
-## is deliberately NOT built here — it needs a real Unit data-model
-## change first (those 5 fields are currently independent, hand-authored
-## exports, not computed), which is its own follow-up decision, not
-## something to fold into this pass. See faction_relation_party_system.md.
+## Which stats are bought against a table is set on the stat: a
+## StatDefinition's point_buy (res://data/stats/). Derived stats (HP, FP,
+## Will, Per, Move) have none — they follow from the ones bought.
 
 ## value -> cost. Godot's typed-Dictionary export shows as a real
 ## Inspector table, not a blob of text to hand-edit blind.

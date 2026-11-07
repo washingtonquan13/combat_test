@@ -1,6 +1,15 @@
 extends AiTestCase
 ## Who the player is commanding, and what that unit is allowed to do.
 ##
+## wants_world(): true. is_commandable/can_be_commanded and the combat
+## gates this suite exercises sit downstream of CombatManager, which reads
+## through WorldContext once a world is loaded (see test_encounters.gd's
+## header) rather than the detached fallback every other suite exercises
+## it through. The fixture spawns no party (spawns_party() is false), so
+## PartyManager.add_member here is adding the harness's own fighter/
+## bystander to whatever party state the harness saved and restores —
+## _restore() below already removes both members again before teardown.
+##
 ## There used to be two answers to that question — SelectionManager out of
 ## combat, CombatManager.current_unit in it, switched on a global
 ## in_combat flag. A global flag cannot mean anything sensible once several
@@ -19,6 +28,10 @@ var _enemy: Unit
 var _fight: Encounter = null
 var _saved_factions: Array = []
 var _refreshed: bool = false
+
+
+func wants_world() -> bool:
+	return true
 
 
 func run() -> void:

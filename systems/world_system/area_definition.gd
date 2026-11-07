@@ -30,8 +30,6 @@ extends Resource
 ## (doors, exits) exists to contain — nothing but AreaDatabase itself
 ## ever touches this field directly.
 @export var world_scene: PackedScene
-
-@export_group("Music")
-@export var exploration_track: MusicTrack
-@export var combat_track: MusicTrack
-@export var negotiation_track: MusicTrack
+## Item level of what its chests roll (StashComponent.loot_rolls); its
+## monsters drop at their own level (UnitDefinition.level).
+@export var level: int = 1

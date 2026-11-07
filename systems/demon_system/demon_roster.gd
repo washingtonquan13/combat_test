@@ -26,6 +26,14 @@ extends Node
 
 var _owned: Array[OwnedDemon] = []
 
+## Default (and new-game/empty-save) value for max_active_summons — see
+## load_state() below. Before this was a named constant,
+## `max_active_summons = state.get("max_active_summons", max_active_summons)`
+## made a save whose "demons" section is {} a no-op instead of a reset, so
+## a debug-adjusted cap (see the compendium panel's debug row) survived
+## past a new game.
+const DEFAULT_MAX_ACTIVE_SUMMONS: int = 3
+
 ## Party-wide cap on how many demons can be actively fielded at once —
 ## read by SummonDemonEffect.apply(). Debug-adjustable for now (see the
 ## demon compendium panel's debug row) — the real long-term driver is
@@ -33,7 +41,30 @@ var _owned: Array[OwnedDemon] = []
 ## XP system yet. Whatever eventually computes that should assign
 ## directly into this field rather than adding a parallel value; nothing
 ## else needs to change.
-var max_active_summons: int = 3
+var max_active_summons: int = DEFAULT_MAX_ACTIVE_SUMMONS
+
+
+## Registered from HERE rather than named by SaveManager: adding a system
+## that persists should never be an edit to the save system again, and a
+## hand-maintained list somewhere else is a second place to remember
+## something.
+##
+## DEFERRED because this autoload is created BEFORE SaveManager (see
+## project.godot's [autoload] order) — the `SaveManager` identifier cannot
+## be resolved yet while this _ready() runs. A deferred call lands once
+## every autoload is up, which is still long before anything can ask for a
+## save.
+func _ready() -> void:
+	_register_persistence.call_deferred()
+
+
+## No `after`: load_state() below resolves each entry's species through
+## SpawnableUnitDatabase — a resource database, not a saved system — and
+## reads nothing that FlagManager, PartyManager, CurrencyManager or the
+## party Inventory restore. Ownership and party membership are separate
+## records with no reference between them in the save file.
+func _register_persistence() -> void:
+	SaveManager.register(&"demons", self)
 
 
 ## Creates a fresh, full-HP/FP OwnedDemon and adds it to the roster —
@@ -41,8 +72,6 @@ var max_active_summons: int = 3
 func recruit(species: UnitDefinition) -> OwnedDemon:
 	var owned := OwnedDemon.new()
 	owned.species = species
-	owned.current_hp = species.max_hp
-	owned.current_fp = species.max_fp
 	_owned.append(owned)
 	return owned
 
@@ -96,9 +125,9 @@ func save_state() -> Dictionary:
 	for owned in _owned:
 		entries.append({
 			"species_id": owned.species.id if owned.species else "",
-			"current_hp": owned.current_hp,
-			"current_fp": owned.current_fp,
+			"stats": owned.stats,
 			"has_been_summoned": owned.has_been_summoned,
+			"is_dead": owned.is_dead,
 		})
 	return {
 		"owned": entries,
@@ -115,8 +144,8 @@ func load_state(state: Dictionary) -> void:
 			continue
 		var owned := OwnedDemon.new()
 		owned.species = species
-		owned.current_hp = entry.get("current_hp", species.max_hp)
-		owned.current_fp = entry.get("current_fp", species.max_fp)
+		owned.stats = entry.get("stats", {})
 		owned.has_been_summoned = entry.get("has_been_summoned", false)
+		owned.is_dead = entry.get("is_dead", false)
 		_owned.append(owned)
-	max_active_summons = state.get("max_active_summons", max_active_summons)
+	max_active_summons = state.get("max_active_summons", DEFAULT_MAX_ACTIVE_SUMMONS)

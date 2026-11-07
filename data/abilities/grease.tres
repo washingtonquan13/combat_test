@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=18 format=3 uid="uid://8t1yvopu728x"]
+[gd_resource type="Resource" script_class="Ability" load_steps=20 format=3 uid="uid://8t1yvopu728x"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_klks1"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_8da6v"]
@@ -11,6 +11,14 @@
 [ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="7_oyg0r"]
 [ext_resource type="Texture2D" uid="uid://qiuxvonh0jav" path="res://assets/ability_icon/grease_icon.png" id="8_5hn5t"]
 [ext_resource type="Script" uid="uid://bhfvvo8gbkewp" path="res://systems/ability_system/area_targeting.gd" id="9_3xeoo"]
+[ext_resource type="Script" uid="uid://cog6samh014mo" path="res://systems/surface_system/surface_reaction.gd" id="10_reaction"]
+
+[sub_resource type="Resource" id="Resource_ignites"]
+script = ExtResource("10_reaction")
+element = 1
+outcome = 1
+becomes = "res://data/surfaces/fire.tres"
+spreads = true
 
 [sub_resource type="Resource" id="Resource_w70ck"]
 script = ExtResource("5_ahm4a")
@@ -30,6 +38,12 @@ default_duration = 3
 stack_mode = 0
 max_stacks = 1
 behaviors = Array[ExtResource("4_5hn5t")]([SubResource("Resource_w70ck"), SubResource("Resource_7pofh")])
+curable = true
+group = &""
+rank = 0
+counters = Array[StringName]([])
+resisted_by = &"DX"
+resistance_modifier = 0
 apply_animation = "UAL2_Standard/Hit_Knockback"
 apply_animation_loops = false
 remove_animation = "UAL2_Standard/LayToIdle"
@@ -40,17 +54,24 @@ metadata/_custom_type_script = "uid://cplabynayhpiv"
 script = ExtResource("3_3v0v0")
 surface_name = "Grease"
 duration_rounds = 3
-detection_height = 0.05
-status_effect = SubResource("Resource_efyr5")
+shape = 0
+height_scale = 1.0
+wall_height = 4.0
+lays_ground_under = false
+status_effects = Array[ExtResource("7_oyg0r")]([SubResource("Resource_efyr5")])
+status_only_inside = false
+element = 0
+reactions = Array[ExtResource("10_reaction")]([SubResource("Resource_ignites")])
+blocks_sight = false
+dark_vision_sees_through = false
 movement_cost_multiplier = 2.0
 ambient_scene = ExtResource("3_5hn5t")
-scale_ambient_to_radius = true
-authored_radius = 1.0
 metadata/_custom_type_script = "uid://cykbj1s0c82e5"
 
 [sub_resource type="Resource" id="Resource_golul"]
 script = ExtResource("2_nljf2")
 surface = SubResource("Resource_6bgp3")
+front_seconds = 0.0
 metadata/_custom_type_script = "uid://5apipwrij8ef"
 
 [sub_resource type="Resource" id="Resource_si4fr"]
@@ -61,19 +82,28 @@ requires_line_of_sight = false
 los_obstruction_mask = 1
 eye_height = 1.5
 requires_ally = false
+any_unit = false
 metadata/_custom_type_script = "uid://bhfvvo8gbkewp"
 
 [resource]
 script = ExtResource("2_8da6v")
 ability_name = "Grease"
 icon = ExtResource("8_5hn5t")
+icon_color = Color(0.59, 0.78, 0.67, 1)
 category = 1
 targeting = SubResource("Resource_si4fr")
 effects = Array[ExtResource("1_klks1")]([SubResource("Resource_golul")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
 requires_to_hit = true
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
+armed_hold_vfx_at = 3
 armed_enter_animation = ""
 armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=9 format=3 uid="uid://b4lp2t13u2ks5"]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_effect"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
+[ext_resource type="Resource" uid="uid://c1bqphlx1h076" path="res://data/surfaces/water.tres" id="4_surface"]
+[ext_resource type="Texture2D" uid="uid://bltjfnyxwt1dy" path="res://assets/ability_icon/create_water_icon.png" id="5_icon"]
+[ext_resource type="Script" uid="uid://bhfvvo8gbkewp" path="res://systems/ability_system/area_targeting.gd" id="6_area"]
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("3_spawn")
+surface = ExtResource("4_surface")
+front_seconds = 0.0
+
+[sub_resource type="Resource" id="Resource_area"]
+script = ExtResource("6_area")
+max_range = 10.0
+radius = 3.0
+requires_line_of_sight = false
+los_obstruction_mask = 1
+eye_height = 1.5
+requires_ally = false
+any_unit = false
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Create Water"
+icon = ExtResource("5_icon")
+icon_color = Color(0.45, 0.65, 0.9, 1)
+category = 1
+targeting = SubResource("Resource_area")
+effects = Array[ExtResource("1_effect")]([SubResource("Resource_spawn")])
+element = 3
+is_toggle = false
+toggle_group = &""
+max_level = 0
+requires_to_hit = true
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"FP"
+display_name = "Fatigue Points"
+abbreviation = "FP"
+description = "Energy spent on abilities and exertion."
+order = 50
+kind = 1
+formula = "HT"
+default_value = 0
+is_pool = true

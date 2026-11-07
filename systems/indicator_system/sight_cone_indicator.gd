@@ -72,6 +72,7 @@ var _edge_immediate: ImmediateMesh
 
 
 func _ready() -> void:
+	super()
 	var fill_built: Dictionary = _create_line_mesh()
 	_fill_mesh = fill_built.mesh_instance
 	_fill_immediate = fill_built.immediate
@@ -125,10 +126,10 @@ func _observers() -> Array[Unit]:
 	var result: Array[Unit] = []
 	if not enabled:
 		return result
-	# A fight in THIS world. CombatManager.in_combat is the focused
-	# encounter, which after a focus switch can be a battle somewhere the
-	# player is no longer looking — hiding the cones of the world they
-	# actually are in.
+	# A fight in THIS world. CombatManager.focused_encounter can be a
+	# battle somewhere the player is no longer looking after a focus
+	# switch — hiding the cones of the world they actually are in, so this
+	# asks per-world instead.
 	if hide_in_combat and CombatManager.combat_running_in_world_of(self):
 		return result
 

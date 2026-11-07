@@ -45,6 +45,7 @@ func run() -> void:
 
 	_geometry_does_not_leak_between_worlds()
 	_occupancy_does_not_leak_between_worlds()
+	await _occupancy_follows_units_live()
 	_world_pure_queries_are_unaffected()
 	await _registration_is_symmetric()
 
@@ -112,12 +113,12 @@ func _spawn_in(root: Node3D, position: Vector3) -> Unit:
 	var unit: Unit = load("res://systems/unit_system/unit.tscn").instantiate()
 	root.add_child(unit)
 	unit.faction = &"player"
-	unit.strength = 12
-	unit.dexterity = 12
-	unit.maximum_hp = 20
-	unit.current_hp = 20
+	unit.set_base_stat(StatIds.ST, 12)
+	unit.set_base_stat(StatIds.DX, 12)
+	unit.set_base_stat(StatIds.HP, 20 - floori(unit.get_stat(StatIds.ST)))
+	unit.set_pool(StatIds.HP, 20)
 	var abilities: Array[Ability] = [melee()]
-	unit.abilities = abilities
+	unit.set_abilities(abilities)
 	unit.global_position = position
 	unit.reset_turn_actions()
 	return unit
@@ -152,6 +153,58 @@ func _geometry_does_not_leak_between_worlds() -> void:
 		NavigationGrid.find_path(get_tree(), WEST, EAST, _unit_a, false).size() == 0)
 
 
+## Occupancy used to be a snapshot someone had to remember to retake,
+## and the movement preview cached its search by start/destination only,
+## so a unit that moved (or was shoved) left the preview routing around
+## where it USED to stand, or straight through where it stands now. Each
+## query now checks the live units itself. Nothing here refreshes by hand.
+func _occupancy_follows_units_live() -> void:
+	_unit_b.global_position = WEST
+	var blocker: Unit = _spawn_in(_root_b, Vector3.ZERO)
+	await get_tree().physics_frame
+	# Clear of the blocker means its body and the mover's don't overlap.
+	var clear: float = blocker.radius + _unit_b.radius
+	var origin := Vector3.ZERO
+	# Warm-up: the first query settles which world's grid cell keys resolve
+	# in, so the checks below hit the cache unless occupancy busts it.
+	_unit_b.preview_route(EAST)
+
+	var around: float = _closest_approach(_unit_b.preview_route(EAST), origin)
+	check("the preview goes around a unit standing on the line",
+		around >= clear, "passed %.2f m from it" % around)
+
+	blocker.global_position = Vector3(0.0, 0.0, 15.0)
+	var through: float = _closest_approach(_unit_b.preview_route(EAST), origin)
+	check("and straight over its old spot once it walks away, no refresh call",
+		through < clear, "still kept %.2f m from the old spot" % through)
+
+	blocker.global_position = origin
+	var ignored: float = _closest_approach(_unit_b.preview_route(EAST, [blocker]), origin)
+	check("a group move ignores its own members",
+		ignored < clear, "kept %.2f m from an ignored member" % ignored)
+	var plain: float = _closest_approach(_unit_b.preview_route(EAST), origin)
+	check("but without the ignore list the unit blocks again",
+		plain >= clear, "the cached ignored route leaked (%.2f m)" % plain)
+
+	blocker.free()
+
+
+## Nearest the route passes to `point` on the ground plane; -1 for no
+## route, so "no route" never reads as "went around".
+func _closest_approach(planned: Dictionary, point: Vector3) -> float:
+	var path: PackedVector3Array = planned.path
+	if path.size() < 2:
+		return -1.0
+	var flat := Vector2(point.x, point.z)
+	var best: float = INF
+	for i in range(1, path.size()):
+		var a := Vector2(path[i - 1].x, path[i - 1].z)
+		var b := Vector2(path[i].x, path[i].z)
+		var closest: Vector2 = Geometry2D.get_closest_point_to_segment(flat, a, b)
+		best = minf(best, closest.distance_to(flat))
+	return best
+
+
 ## Units live in one global "units" group with no world in it, so the
 ## occupancy sweep sees every world's units at once. Both these units
 ## stand at the same coordinates, so a sweep that didn't filter would
@@ -162,15 +215,13 @@ func _occupancy_does_not_leak_between_worlds() -> void:
 
 	var clearance: float = _unit_a.radius + _unit_a.avoidance_margin
 
-	# B stamped first, then A. exclude_unit is null in both, so each
+	# B queried first, then A. exclude_unit is null in both, so each
 	# query sees its OWN unit as a blocker and must not see the other's.
-	NavigationGrid.update_occupancy(get_tree(), [], _root_b)
 	var b_at_east: Dictionary = NavigationGrid.nearest_valid_point(
 		get_tree(), EAST, clearance, false, null, 0, _root_b)
 	check("one world leaves the cell the OTHER world's unit stands in walkable",
 		b_at_east.found, "a foreign unit blocked a cell")
 
-	NavigationGrid.update_occupancy(get_tree(), [], _root_a)
 	var a_at_own: Dictionary = NavigationGrid.nearest_valid_point(
 		get_tree(), EAST, clearance, false, null, 0, _root_a)
 	check("but a world does see its OWN unit standing there",
@@ -198,28 +249,25 @@ func _occupancy_does_not_leak_between_worlds() -> void:
 ## which is per-world, so two worlds of different extents number the same
 ## world point differently.
 ##
-## Not a live bug, because both callers use it the only way it can be
-## used: movement_indicator and seeking_indicator each take two cells
-## back-to-back and compare them ("has the hovered cell changed"), with
-## one world loaded throughout. The constraint is that a cell number is
-## meaningless outside the world it was taken in — so a future caller that
-## stores one across a world switch should fail here rather than in play.
+## A cell number is meaningless outside the world it was taken in, so
+## world_to_cell takes the world it numbers in and activates it, like every
+## other query: a caller can no longer get a number from whichever world
+## an earlier, unrelated query happened to leave loaded.
 func _world_pure_queries_are_unaffected() -> void:
 	check("CELL_SIZE is a game rule, not per-world state",
 		NavigationGrid.CELL_SIZE > 0.0)
 	check("and so are the flight limits",
-		NavigationGrid.FLIGHT_CEILING_HEIGHT > 0.0
+		NavigationGrid.FLIGHT_MAX_ALTITUDE > 0.0
 			and NavigationGrid.FLIGHT_MIN_ALTITUDE > 0.0)
 
 	NavigationGrid.find_path(get_tree(), WEST, EAST, _unit_a, false)
-	var in_a: Vector3i = NavigationGrid.world_to_cell(SPOT_B)
-	check("world_to_cell is stable while one world stays loaded",
-		NavigationGrid.world_to_cell(SPOT_B) == in_a)
+	var in_a: Vector3i = NavigationGrid.world_to_cell(SPOT_B, _unit_a)
 
 	NavigationGrid.find_path(get_tree(), WEST, EAST, _unit_b, false)
-	check("but it is relative to the loaded world, not absolute — cells do "
-			+ "not survive a world switch",
-		NavigationGrid.world_to_cell(SPOT_B) != in_a,
+	check("world_to_cell numbers in the world it is given, whichever is loaded",
+		NavigationGrid.world_to_cell(SPOT_B, _unit_a) == in_a)
+	check("and that numbering is per-world, not absolute",
+		NavigationGrid.world_to_cell(SPOT_B, _unit_b) != in_a,
 		"both worlds happened to share bounds; the claim is untested, not false")
 
 
@@ -288,7 +336,7 @@ func _a_real_authored_area_still_bakes() -> void:
 	var area: Node3D = load("res://world/test_arena.tscn").instantiate()
 	_root.add_child(area)
 	# Its own units come with it and land in the global "units" group;
-	# they are harmless here (nothing calls update_occupancy) but must not
+	# they are harmless here (nothing queries their world) but must not
 	# outlive this case.
 	await get_tree().physics_frame
 	await get_tree().physics_frame

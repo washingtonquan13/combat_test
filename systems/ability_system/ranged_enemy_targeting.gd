@@ -15,17 +15,35 @@ extends AbilityTargeting
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
+	return check(attacker, target) == Reach.OK
+
+
+func check(attacker: Unit, target) -> Reach:
+	if target is Vector3 and aims_at_ground:
+		if maxf(attacker.global_position.distance_to(target) - attacker.radius, 0.0) > max_range:
+			return Reach.OUT_OF_RANGE
+		if requires_line_of_sight and not LineOfSight.has_clear_shot_to_point(attacker, target, los_obstruction_mask):
+			return Reach.BLOCKED
+		return Reach.OK
 	if not target is Unit:
-		return false
+		return Reach.INVALID
 	if attacker.edge_distance_to(target) > max_range:
-		return false
+		return Reach.OUT_OF_RANGE
 	if requires_line_of_sight and not LineOfSight.has_clear_shot(attacker, target, los_obstruction_mask):
-		return false
-	return true
+		return Reach.BLOCKED
+	return Reach.OK
 
 
 func approach_range() -> float:
 	return max_range
+
+
+func targets_single_enemy() -> bool:
+	return true
+
+
+func indicator_ids() -> Array[StringName]:
+	return [&"line_of_sight"]
 
 
 func describe() -> String:

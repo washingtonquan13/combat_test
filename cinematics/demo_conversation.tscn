@@ -1,0 +1,405 @@
+[gd_scene load_steps=26 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
+[ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
+[ext_resource type="Script" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/spawn_beat.gd" id="4_spawn"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/walk_to_beat.gd" id="5_walk"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/face_beat.gd" id="6_face"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/line_beat.gd" id="7_line"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/effect_beat.gd" id="8_effect"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/sound_beat.gd" id="9_sound"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/despawn_beat.gd" id="10_despawn"]
+[ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="11_townsperson"]
+[ext_resource type="Script" path="res://systems/ability_system/vfx_effect.gd" id="12_vfx"]
+[ext_resource type="Script" path="res://systems/ability_system/vfx_step.gd" id="13_vfxstep"]
+[ext_resource type="Script" path="res://systems/ability_system/spawn_particle_step.gd" id="14_particle"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/BinbunVFX/impact_explosions/effects/hit/vfx_hit_05.tscn" id="15_hitvfx"]
+[ext_resource type="Script" path="res://systems/audio_system/sfx_cue.gd" id="16_cue"]
+[ext_resource type="Script" path="res://systems/audio_system/sfx_layer.gd" id="17_layer"]
+[ext_resource type="AudioStream" path="res://assets/audio/sleep_chime.mp3" id="18_chime"]
+
+[sub_resource type="Resource" id="Resource_particle"]
+script = ExtResource("14_particle")
+scene = ExtResource("15_hitvfx")
+at = 0
+force_one_shot = true
+fallback_lifetime = 2.0
+scale_to_ability_radius = false
+authored_radius = 1.0
+height_scale_factor = 0.0
+
+[sub_resource type="Resource" id="Resource_blessing"]
+script = ExtResource("12_vfx")
+steps = Array[ExtResource("13_vfxstep")]([SubResource("Resource_particle")])
+
+[sub_resource type="Resource" id="Resource_chime_layer"]
+script = ExtResource("17_layer")
+stream = ExtResource("18_chime")
+delay = 0.0
+volume_db = 0.0
+pitch_scale = 1.0
+
+[sub_resource type="Resource" id="Resource_chime"]
+script = ExtResource("16_cue")
+layers = Array[ExtResource("17_layer")]([SubResource("Resource_chime_layer")])
+
+[sub_resource type="Animation" id="Animation_reset"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [&"wide"]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Shots/wide:distance")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 0,
+"values": [6.5]
+}
+
+[sub_resource type="Animation" id="Animation_scene"]
+resource_name = "scene"
+length = 7.0
+step = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 2.9, 3.4, 3.9, 4.4),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 1,
+"values": [&"wide", &"stranger_close", &"leader_close", &"stranger_close", &"wide"]
+}
+tracks/1/type = "value"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Shots/wide:distance")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0, 0.3, 2.8),
+"transitions": PackedFloat32Array(1, 1, 1),
+"update": 0,
+"values": [6.5, 6.5, 5.0]
+}
+tracks/2/type = "method"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Beats/SpawnStranger")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0.1),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/3/type = "method"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Beats/StrangerApproaches")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0.3),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/4/type = "method"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("Beats/LeaderTurns")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(2.8),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/5/type = "method"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("Beats/StrangerTurns")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(2.8),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/6/type = "method"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath("Beats/Greeting")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(2.9),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/7/type = "method"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath("Beats/Reply")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(3.4),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/8/type = "method"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath("Beats/Blessing")
+tracks/8/interp = 1
+tracks/8/loop_wrap = true
+tracks/8/keys = {
+"times": PackedFloat32Array(3.9),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/9/type = "method"
+tracks/9/imported = false
+tracks/9/enabled = true
+tracks/9/path = NodePath("Beats/Chime")
+tracks/9/interp = 1
+tracks/9/loop_wrap = true
+tracks/9/keys = {
+"times": PackedFloat32Array(3.9),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/10/type = "method"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath("Beats/Farewell")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(3.9),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/11/type = "method"
+tracks/11/imported = false
+tracks/11/enabled = true
+tracks/11/path = NodePath("Beats/StrangerLeaves")
+tracks/11/interp = 1
+tracks/11/loop_wrap = true
+tracks/11/keys = {
+"times": PackedFloat32Array(4.4),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/12/type = "method"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath("Beats/DespawnStranger")
+tracks/12/interp = 1
+tracks/12/loop_wrap = true
+tracks/12/keys = {
+"times": PackedFloat32Array(6.6),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_demo"]
+_data = {
+"RESET": SubResource("Animation_reset"),
+"scene": SubResource("Animation_scene")
+}
+
+[node name="DemoConversation" type="Node3D"]
+script = ExtResource("1_stage")
+anchor_mark = &"DemoConversation"
+props = {}
+world_marks = PackedStringArray("DemoConversation")
+shot = &"wide"
+
+[node name="Roles" type="Node3D" parent="."]
+
+[node name="leader" type="Marker3D" parent="Roles"]
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="stranger" type="Marker3D" parent="Roles"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, -7)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="Marks" type="Node3D" parent="."]
+
+[node name="StrangerEntry" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, -7)
+
+[node name="MeetSpot" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.8)
+
+[node name="Shots" type="Node3D" parent="."]
+
+[node name="wide" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"leader"
+subject_mark = &""
+distance = 6.5
+azimuth_degrees = 160.0
+elevation_degrees = 24.0
+fov_degrees = 55.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="stranger_close" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"stranger"
+subject_mark = &""
+distance = 1.8
+azimuth_degrees = 25.0
+elevation_degrees = 4.0
+fov_degrees = 40.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="leader_close" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"leader"
+subject_mark = &""
+distance = 1.8
+azimuth_degrees = -25.0
+elevation_degrees = 4.0
+fov_degrees = 40.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="Beats" type="Node" parent="."]
+
+[node name="SpawnStranger" type="Node" parent="Beats"]
+script = ExtResource("4_spawn")
+role = &"stranger"
+definition = ExtResource("11_townsperson")
+prop_key = ""
+at = &"StrangerEntry"
+
+[node name="StrangerApproaches" type="Node" parent="Beats"]
+script = ExtResource("5_walk")
+role = &"stranger"
+mark = &"MeetSpot"
+speed = 0.0
+duration = 2.4
+
+[node name="LeaderTurns" type="Node" parent="Beats"]
+script = ExtResource("6_face")
+role = &"leader"
+target = &"stranger"
+
+[node name="StrangerTurns" type="Node" parent="Beats"]
+script = ExtResource("6_face")
+role = &"stranger"
+target = &"leader"
+
+[node name="Greeting" type="Node" parent="Beats"]
+script = ExtResource("7_line")
+role = &"stranger"
+speaker_name = "Stranger"
+text = "You there. Nobody walks this road on purpose."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="Reply" type="Node" parent="Beats"]
+script = ExtResource("7_line")
+role = &"leader"
+speaker_name = ""
+text = "Just passing through."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="Blessing" type="Node" parent="Beats"]
+script = ExtResource("8_effect")
+vfx = SubResource("Resource_blessing")
+from = &"stranger"
+to = &""
+
+[node name="Chime" type="Node" parent="Beats"]
+script = ExtResource("9_sound")
+cue = SubResource("Resource_chime")
+at = &"stranger"
+
+[node name="Farewell" type="Node" parent="Beats"]
+script = ExtResource("7_line")
+role = &"stranger"
+speaker_name = "Stranger"
+text = "Then take a blessing for the road, and do not linger after dark."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="StrangerLeaves" type="Node" parent="Beats"]
+script = ExtResource("5_walk")
+role = &"stranger"
+mark = &"StrangerEntry"
+speed = 0.0
+duration = 2.0
+
+[node name="DespawnStranger" type="Node" parent="Beats"]
+script = ExtResource("10_despawn")
+role = &"stranger"
+
+[node name="Timeline" type="AnimationPlayer" parent="."]
+callback_mode_method = 1
+libraries = {
+"": SubResource("AnimationLibrary_demo")
+}

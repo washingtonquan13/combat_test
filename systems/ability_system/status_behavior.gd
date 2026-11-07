@@ -17,6 +17,14 @@ func on_apply(_unit: Unit, _active: ActiveStatus) -> void:
 	pass
 
 
+## Called when a surface puts this status on unit by their getting into
+## it - stepping into fire, a wall springing up round them - after it is
+## applied (see SurfaceManager._process). Not at turn start, when the
+## status's own on_turn_start already bites.
+func on_contact(_unit: Unit, _active: ActiveStatus) -> void:
+	pass
+
+
 ## Called once when the status is removed (expired, cured, replaced).
 ## voluntary is true only when the unit itself chose this removal (a
 ## Land action) — false for natural expiry or any other forced removal
@@ -43,10 +51,18 @@ func prevents_turn() -> bool:
 	return false
 
 
+## Whether this behavior holds the unit where it stands (Webbed): it may
+## still act, but not walk. If ANY active status returns true, the unit's
+## Move reads 0 and move_to() refuses (see StatusManager.prevents_movement()).
+func prevents_movement() -> bool:
+	return false
+
+
 ## Called whenever unit takes damage from any source, AFTER the damage is
 ## applied — lets a behavior react, e.g. RemoveOnDamageBehavior clearing
-## the whole status (not just itself) when its owner is hit.
-func on_damage_taken(_unit: Unit, _amount: int, _active: ActiveStatus) -> void:
+## the whole status (not just itself) when its owner is hit. critical:
+## the hit was a critical one.
+func on_damage_taken(_unit: Unit, _amount: int, _active: ActiveStatus, _critical: bool = false) -> void:
 	pass
 
 

@@ -66,6 +66,7 @@ func _install_synthetic_host() -> bool:
 func _travellers_arrive_as_the_same_units() -> void:
 	WorldManager.load_area(HOME)
 	await get_tree().process_frame
+	_recruit_a_companion()
 
 	var before: Array[int] = _member_ids()
 	if before.is_empty():
@@ -81,6 +82,18 @@ func _travellers_arrive_as_the_same_units() -> void:
 		"rebuilt from roster — live state would have been dropped")
 	check("and they are in the destination world, not the one they left",
 		_all_members_in(WorldManager.context()))
+
+
+## A new game starts with one character, and splitting needs two, so a
+## companion joins in the home world before anything travels.
+func _recruit_a_companion() -> void:
+	var definition: UnitDefinition = load("res://data/units/companions/human_barbarian.tres")
+	var unit: Unit = definition.unit_scene.instantiate()
+	unit.definition = definition
+	unit.persistent_id = StringName("companion_%s" % definition.id)
+	WorldManager.current_world().add_child(unit)
+	unit.position = Vector3(-3.0, 0.0, 0.0)
+	PartyManager.add_member(unit)
 
 
 ## THE claim. Everything above would still pass if travel moved everyone.

@@ -1,0 +1,188 @@
+{
+  "format": 2,
+  "id": "decadence",
+  "name": "Decadence",
+  "description": "Decadence, rebuilt from the 1995 MIDI with real voices. The motif - a chord built a note at a time - is VPO's mixed choir with bowed violas under it; the rocking two-note chords are the mixed choir alone; the drone and the chromatic bass are VPO's male choir sung an octave up over Drift, the slow sub, which keeps the written D2. The melody is Halo doubled by Wire; the warm pad is VPO's full string section with Veil; the kit is the Salamander acoustic kit.",
+  "buses": {
+    "lead": {
+      "space": "hall",
+      "wet": 0.28,
+      "predelay": 38.0
+    },
+    "keys": {
+      "space": "hall",
+      "wet": 0.18,
+      "predelay": 24.0
+    },
+    "bass": {
+      "space": "hall",
+      "wet": 0.26,
+      "predelay": 30.0
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.24,
+      "predelay": 42.0
+    },
+    "perc": {
+      "space": "hall",
+      "wet": 0.2,
+      "predelay": 16.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "range": [
+        48,
+        84
+      ],
+      "voices": 8,
+      "gain_db": 9.0,
+      "gain_source": "guessed",
+      "layers": [
+        {
+          "instrument": "synth/halo-lead",
+          "name": "halo",
+          "gain_db": -6.0,
+          "gain_source": "measured"
+        },
+        {
+          "instrument": "synth/wire-lead",
+          "name": "wire",
+          "gain_db": -9.0,
+          "gain_source": "guessed",
+          "defaults": {
+            "brightness": 40
+          }
+        }
+      ]
+    },
+    "voice": {
+      "family": "keys",
+      "range": [
+        36,
+        84
+      ],
+      "voices": 24,
+      "gain_db": 2.5,
+      "gain_source": "measured",
+      "keyswitch_default": "expressive",
+      "layers": [
+        {
+          "instrument": "vpo/choir-mixed",
+          "name": "choir",
+          "gain_db": 5.0,
+          "gain_source": "guessed"
+        },
+        {
+          "instrument": "vpo/violas",
+          "name": "violas",
+          "gain_db": -4.0,
+          "gain_source": "guessed",
+          "take": {
+            "timing": 0.008,
+            "velocity": 5
+          }
+        }
+      ]
+    },
+    "rock": {
+      "family": "keys",
+      "range": [
+        36,
+        84
+      ],
+      "voices": 24,
+      "gain_db": -2.0,
+      "gain_source": "measured",
+      "layers": [
+        {
+          "instrument": "vpo/choir-mixed",
+          "name": "choir_rock",
+          "gain_db": 5.0,
+          "gain_source": "guessed"
+        }
+      ]
+    },
+    "choir": {
+      "family": "choir",
+      "bus": "bass",
+      "range": [
+        24,
+        72
+      ],
+      "voices": 12,
+      "gain_db": 6.5,
+      "gain_source": "measured",
+      "layers": [
+        {
+          "instrument": "synth/drift-sub",
+          "name": "sub",
+          "gain_db": -6.0,
+          "gain_source": "guessed"
+        },
+        {
+          "instrument": "vpo/choir-male",
+          "name": "monks",
+          "gain_db": 6.3,
+          "gain_source": "guessed",
+          "transpose": 12
+        }
+      ]
+    },
+    "pad": {
+      "family": "pad",
+      "range": [
+        36,
+        88
+      ],
+      "voices": 32,
+      "gain_db": -6.5,
+      "gain_source": "guessed",
+      "defaults": {
+        "brightness": 0
+      },
+      "layers": [
+        {
+          "instrument": "vpo/all-strings",
+          "name": "strings",
+          "gain_db": 6.7,
+          "gain_source": "measured"
+        },
+        {
+          "instrument": "synth/veil-pad",
+          "name": "veil",
+          "gain_db": -12.0,
+          "gain_source": "guessed",
+          "delay": 0.02
+        }
+      ]
+    },
+    "perc": {
+      "family": "perc",
+      "voices": 24,
+      "gain_db": 0.0,
+      "gain_source": "guessed",
+      "defaults": {
+        "pan": 64
+      },
+      "layers": [
+        {
+          "instrument": "salamander.drums/kit",
+          "name": "kit",
+          "take": {
+            "timing": 0.0,
+            "velocity": 5
+          },
+          "voices": 16
+        }
+      ],
+      "drums": {
+        "kick": 36,
+        "ride": 51,
+        "hat_open": 46
+      }
+    }
+  }
+}

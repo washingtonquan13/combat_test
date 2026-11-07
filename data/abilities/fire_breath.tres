@@ -1,0 +1,132 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=32 format=3 uid="uid://btgxbkk27jkac"]
+
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
+[ext_resource type="Script" uid="uid://dley113smhdn3" path="res://systems/ability_system/area_damage_effect.gd" id="3_dmg"]
+[ext_resource type="Script" uid="uid://b31m1uvps4rb" path="res://systems/ability_system/area_apply_status_effect.gd" id="4_status"]
+[ext_resource type="Script" uid="uid://wn5k5xf8n72l" path="res://systems/ability_system/status_behavior.gd" id="5_behavior"]
+[ext_resource type="Script" uid="uid://ckc0lgw7iemnq" path="res://systems/ability_system/damage_over_time_behavior.gd" id="6_dot"]
+[ext_resource type="PackedScene" path="res://systems/surface_system/fire_breath.tscn" id="7_7saei"]
+[ext_resource type="Script" uid="uid://cplabynayhpiv" path="res://systems/ability_system/status_effect.gd" id="7_status_effect"]
+[ext_resource type="Script" uid="uid://7dakyq0nqsb7" path="res://systems/ability_system/cone_targeting.gd" id="8_cone"]
+[ext_resource type="Texture2D" uid="uid://fbhq80ww3x3h" path="res://assets/ability_icon/fire_breath_icon.png" id="9_icon"]
+[ext_resource type="Script" uid="uid://ctxyvb7k718wy" path="res://systems/audio_system/sfx_layer.gd" id="10_layer"]
+[ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://systems/audio_system/sfx_cue.gd" id="11_cue"]
+[ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="12_launch"]
+[ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="13_spawn"]
+[ext_resource type="Resource" uid="uid://wrxvxvawwob3" path="res://data/animation_sequences/weapon_breath.tres" id="17_breath"]
+[ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="18_vfx"]
+[ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="19_step"]
+[ext_resource type="Script" uid="uid://bdexkp00ivhds" path="res://systems/ability_system/fire_breath_step.gd" id="20_breath"]
+[ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="21_timing"]
+[ext_resource type="Resource" path="res://data/surfaces/fire.tres" id="90_fire_surface"]
+
+[sub_resource type="Resource" id="Resource_launch_layer"]
+script = ExtResource("10_layer")
+stream = ExtResource("12_launch")
+delay = 0.0
+volume_db = 0.0
+pitch_scale = 1.0
+
+[sub_resource type="Resource" id="Resource_launch"]
+script = ExtResource("11_cue")
+layers = Array[ExtResource("10_layer")]([SubResource("Resource_launch_layer")])
+
+[sub_resource type="Resource" id="Resource_gust"]
+script = ExtResource("20_breath")
+scene = ExtResource("7_7saei")
+gaze_release_seconds = 0.3
+
+[sub_resource type="Resource" id="Resource_cast_vfx"]
+script = ExtResource("18_vfx")
+steps = Array[ExtResource("19_step")]([SubResource("Resource_gust")])
+
+[sub_resource type="Resource" id="Resource_damage"]
+script = ExtResource("3_dmg")
+dice_count = 2
+dice_sides = 6
+dice_bonus = 0
+wound_type = 7
+armor_divisor = 1.0
+affects_hostiles = true
+affects_allies = true
+
+[sub_resource type="Resource" id="Resource_dot"]
+script = ExtResource("6_dot")
+dice_count = 1
+dice_sides = 6
+dice_bonus = -3
+wound_type = 7
+armor_divisor = 1.0
+ignores_damage_reduction = true
+
+[sub_resource type="Resource" id="Resource_burning"]
+script = ExtResource("7_status_effect")
+status_name = "Burning"
+default_duration = 3
+stack_mode = 0
+max_stacks = 1
+behaviors = Array[ExtResource("5_behavior")]([SubResource("Resource_dot")])
+curable = true
+group = &""
+rank = 0
+counters = Array[StringName]([])
+resisted_by = &""
+resistance_modifier = 0
+apply_animation = ""
+apply_animation_loops = false
+remove_animation = ""
+hit_reaction_animation = ""
+
+[sub_resource type="Resource" id="Resource_apply"]
+script = ExtResource("4_status")
+status = SubResource("Resource_burning")
+affects_hostiles = true
+affects_allies = true
+
+[sub_resource type="Resource" id="Resource_spawn"]
+script = ExtResource("13_spawn")
+surface = ExtResource("90_fire_surface")
+front_seconds = 0.35
+
+[sub_resource type="Resource" id="Resource_cone"]
+script = ExtResource("8_cone")
+length = 9.0
+end_width = 9.0
+max_pitch_degrees = 60.0
+requires_line_of_sight = true
+los_obstruction_mask = 1
+requires_ally = false
+any_unit = false
+aims_at_ground = false
+
+[sub_resource type="Resource" id="Resource_timing"]
+script = ExtResource("21_timing")
+waits_for_impact = true
+impact_timeout = 4.0
+
+[resource]
+script = ExtResource("2_ability")
+ability_name = "Fire Breath"
+icon = ExtResource("9_icon")
+icon_color = Color(1, 0.55, 0.24, 1)
+category = 1
+targeting = SubResource("Resource_cone")
+effects = Array[ExtResource("1_eff")]([SubResource("Resource_damage"), SubResource("Resource_apply"), SubResource("Resource_spawn")])
+element = 1
+is_toggle = false
+toggle_group = &""
+max_level = 0
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+timing = SubResource("Resource_timing")
+cast_vfx = SubResource("Resource_cast_vfx")
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+cast_sfx = SubResource("Resource_launch")
+cast_animation = ExtResource("17_breath")
+plays_cast_animation = true

@@ -17,3 +17,31 @@ gdextension/.sconf_temp/
 # 71202de) — 1.2MB of build junk each time.
 bin/win64/~*
 *.TMP
+
+# SFZ sample libraries (22 GB, several not redistributable); shipped beside the exe, never in git
+/samples/
+
+# sfzplayer debug symbols (13 MB per build) and the ~-prefixed copies Windows
+# leaves when a rebuild replaces a DLL the editor holds open.
+addons/sfzplayer/bin/*.pdb
+addons/sfzplayer/bin/~*
+
+# Rendered audio for listening checks: derived from the ensembles and scores, not source.
+renders/
+
+# Generated city blockouts (several GB of pipeline output, rebuilt by
+# tools/blockout): never versioned. Only the hand-kept jackson_square
+# files in data/blockouts are tracked.
+/data/blockouts/*/
+/world/new_orleans/
+/world/new_orleans_overworld.tscn
+/world/nola_*
+
+# Scratch probes, their renders, and Git Bash crash dumps
+/tools/_probe/
+*.stackdump
+/tools/_tmp_probe/
+# Demo videos rendered into the project root
+/*.mp4
+__pycache__/
+tools/blockout/*.pkl

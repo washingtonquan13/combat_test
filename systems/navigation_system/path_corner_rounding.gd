@@ -15,7 +15,11 @@ extends RefCounted
 ## arcs. Endpoints are always kept exact.
 
 
-static func round_corners(points: PackedVector3Array, radius: float, arc_segments: int) -> PackedVector3Array:
+## is_clear(a, b) -> bool, when given, vets each rounded corner: an arc
+## that would cut back through what the raw route went around (a wall's
+## edge) is retried at half the radius, and left sharp if it still can't
+## clear. The raw route is clear, so a sharp corner always is.
+static func round_corners(points: PackedVector3Array, radius: float, arc_segments: int, is_clear: Callable = Callable()) -> PackedVector3Array:
 	if points.size() < 3 or radius <= 0.0:
 		return points
 
@@ -36,16 +40,37 @@ static func round_corners(points: PackedVector3Array, radius: float, arc_segment
 			continue
 
 		var r: float = min(radius, len_prev * 0.5, len_next * 0.5)
-		var arc_start: Vector3 = corner - (to_prev / len_prev) * r
-		var arc_end: Vector3 = corner + (to_next / len_next) * r
-
-		result.append(arc_start)
-		for s in range(1, arc_segments):
-			var t: float = float(s) / float(arc_segments)
-			var a: Vector3 = arc_start.lerp(corner, t)
-			var b: Vector3 = corner.lerp(arc_end, t)
-			result.append(a.lerp(b, t))
-		result.append(arc_end)
+		var arc := _arc(corner, to_prev / len_prev, to_next / len_next, r, arc_segments)
+		if is_clear.is_valid():
+			var tries := 0
+			while not _arc_clear(arc, is_clear):
+				tries += 1
+				r *= 0.5
+				if tries > 4:
+					arc = PackedVector3Array([corner])
+					break
+				arc = _arc(corner, to_prev / len_prev, to_next / len_next, r, arc_segments)
+		result.append_array(arc)
 
 	result.append(points[points.size() - 1])
 	return result
+
+
+static func _arc(corner: Vector3, in_dir: Vector3, out_dir: Vector3, r: float, arc_segments: int) -> PackedVector3Array:
+	var arc_start: Vector3 = corner - in_dir * r
+	var arc_end: Vector3 = corner + out_dir * r
+	var arc := PackedVector3Array([arc_start])
+	for s in range(1, arc_segments):
+		var t: float = float(s) / float(arc_segments)
+		var a: Vector3 = arc_start.lerp(corner, t)
+		var b: Vector3 = corner.lerp(arc_end, t)
+		arc.append(a.lerp(b, t))
+	arc.append(arc_end)
+	return arc
+
+
+static func _arc_clear(arc: PackedVector3Array, is_clear: Callable) -> bool:
+	for i in arc.size() - 1:
+		if not is_clear.call(arc[i], arc[i + 1]):
+			return false
+	return true

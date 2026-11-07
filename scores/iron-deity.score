@@ -1,0 +1,91 @@
+// Iron Deity - a battle loop on the industrial ensemble, after Nocturne.
+//
+// The Nocturne battle is a machine that happens to have a tune on it: an
+// eighth-note bass that never stops, a kit that is more foundry than band,
+// and a melody that circles a half step. This is that, at demo length.
+//
+// Harmony. E phrygian over a pedal, the flat second (F) as the only chord
+// that is not E until the turnaround: E E F E | E E C B. The B major at the
+// end is borrowed from harmonic minor so the loop leans back into its own
+// top - the same dominant pull Low End is built on.
+//
+// The bass is one cell: root, root, octave, root, then a half-step neighbour
+// on beat 3 and a walk toward the next bar. Tide's ring-modulated buzz makes
+// eighths into an engine rather than a line.
+//
+// The kit is written as limbs. The kick is a broken three-three-two against
+// the bass's straight eighths; the snare is a backbeat with a crushed
+// flam on the and of four; the hats are eighths, soft on the offbeats; metal
+// and anvil mark the phrase. The reverse cymbal in the intro is two seconds
+// long, which at 150 is five beats: it starts on the last beat of bar 3 and
+// lands on the loop's first downbeat.
+//
+// The toll is the bell of the Cathedral of Shadows, struck on the phrase
+// downbeats. In b the lead enters over it; the chant replaces the saw
+// drone, so the second half sounds bigger without a single extra note in
+// the band.
+
+title: Iron Deity
+ensemble: industrial
+parts: lead keys bass pad cluster:pad@pad chant:choir@pad perc metal:perc@perc
+tempo: 150
+meter: 4/4
+key: e minor
+order: intro [a b] end
+
+section intro bars:4
+  pad.drone dyn:p..mf
+    | e2:16^ |
+  cluster dyn:pp..mp
+    | r:8 | e1:8^ |
+  keys dyn:mf
+    | [e3 e4]:4! | r:4 | r:4 | r:4 |
+  perc.fx dyn:mf
+    | boom:4! | r:4 | r:3 reverse:1 | r:4 |
+  metal dyn:mp
+    | r:4 | anvil:1! r:3 | r:2 clank:1 clank:1 | metal:1 r:1 metal:1 metal:1 |
+
+section a bars:8
+  bass dyn:f feel:tight
+    | e2:0.5! e2:0.5 e3:0.5' e2:0.5 f2:0.5! e2:0.5 bb2:0.5 a2:0.5 | e2:0.5! e2:0.5 e3:0.5' e2:0.5 f2:0.5! e2:0.5 bb2:0.5 a2:0.5 | f2:0.5! f2:0.5 f3:0.5' f2:0.5 e2:0.5! f2:0.5 c3:0.5 b2:0.5 | e2:0.5! e2:0.5 e3:0.5' e2:0.5 f2:0.5! e2:0.5 bb2:0.5 a2:0.5 |
+    | e2:0.5! e2:0.5 e3:0.5' e2:0.5 f2:0.5! e2:0.5 bb2:0.5 a2:0.5 | e2:0.5! e2:0.5 e3:0.5' e2:0.5 f2:0.5! e2:0.5 d3:0.5 c3:0.5 | c2:0.5! c2:0.5 c3:0.5' c2:0.5 d2:0.5! c2:0.5 g2:0.5 f#2:0.5 | b1:0.5! b1:0.5 b2:0.5' b1:0.5 c2:0.5! c#2:0.5 d2:0.5 d#2:0.5! |
+  pad.drone dyn:mp
+    | e2:16 | e2:8 c2:4 b1:4 |
+  cluster dyn:p
+    | r:16 | r:8 c2:4 b1:4 |
+  keys dyn:f
+    | [e3 e4]:4! | r:4 | [f3 f4]:4! | r:4 | [e3 e4]:4! | r:4 | [c3 c4]:4! | [b2 b3]:4! |
+  perc.feet dyn:f feel:tight
+    | kick:0.75! kick:0.75 kick:0.5 kick:1! kick:0.5 kick:0.5 | kick:0.75! kick:0.75 kick:0.5 kick:1! kick:0.5 kick:0.5 | kick:0.75! kick:0.75 kick:0.5 kick:1! kick:0.5 kick:0.5 | kick:0.75! kick:0.75 kick:0.5 kick:1! kick:0.5 kick:0.5 |
+    | kick:0.75! kick:0.75 kick:0.5 kick:1! kick:0.5 kick:0.5 | kick:0.75! kick:0.75 kick:0.5 kick:1! kick:0.5 kick:0.5 | kick:0.75! kick:0.75 kick:0.5 kick:1! kick:0.5 kick:0.5 | kick:1! kick:1 kick:0.5 kick:0.5 kick:0.5 kick:0.5! |
+  perc.left dyn:f feel:tight
+    | r:1 snare:1! r:1 snare:0.5! crush:0.5. | r:1 snare:1! r:1 snare:0.5! crush:0.5. | r:1 snare:1! r:1 snare:0.5! crush:0.5. | r:1 snare:1! r:1 snare:0.5! crush:0.5. |
+    | r:1 snare:1! r:1 snare:0.5! crush:0.5. | r:1 snare:1! r:1 snare:0.5! crush:0.5. | r:1 snare:1! r:1 snare:0.5! crush:0.5. | snare:0.5! snare:0.5 crush:0.5 snare:0.5 crush:0.5! crush:0.5 snare:0.5! snare:0.5! |
+  perc.right dyn:mf feel:tight
+    | hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 | hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 | hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 | hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 |
+    | hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 | hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 | hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat:0.5. hat:0.5 hat_open:0.5 | r:4 |
+  metal dyn:mf
+    | crash:1! r:3 | r:2 metal:1 r:1 | anvil:1! r:3 | r:2 metal:1 clank:1 | metal:1! r:3 | r:2 metal:1 r:1 | anvil:1! r:3 | anvil:1! r:1 anvil:1! r:1 |
+
+section b from:a
+  pad.drone dyn:mp
+    | r:16 | r:16 |
+  chant dyn:mp..mf
+    | e3:16^ | e3:8 c3:4 b2:4 |
+  lead dyn:f feel:tight
+    | e5:1.5! f5:0.5 e5:1 d5:1 | b4:3 r:1 | c5:1.5 b4:0.5 a4:1 bb4:1 | b4:4^ |
+    | g5:1.5! f5:0.5 e5:1 f5:1 | e5:2 d5:1 bb4:1 | c5:1.5 d5:0.5 e5:1 f5:1 | d#5:4^ |
+
+section end bars:2
+  bass dyn:f
+    | e2:4! | r:4 |
+  pad.drone dyn:mf..pp
+    | e2:8 |
+  keys dyn:f
+    | [e3 b3 e4]:4! | r:4 |
+  perc.feet dyn:f
+    | kick:4! | r:4 |
+  metal dyn:f
+    | crash:1! anvil:3! | r:4 |
+  perc.fx dyn:f
+    | boom:4! | r:4 |

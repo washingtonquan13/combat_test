@@ -41,7 +41,7 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 		return []
 	# A unit with no FP economy at all flies for free and never needs to
 	# come down for this reason.
-	if unit.maximum_fp <= 0:
+	if unit.get_stat(StatIds.FP) <= 0:
 		return []
 
 	var land_ability: Ability = FlightAiUtil.find_land_ability(unit)
@@ -51,13 +51,13 @@ func _propose_candidates(unit: Unit) -> Array[AiPlan]:
 	var drain: int = FlightAiUtil.flight_upkeep(unit)
 	if drain <= 0:
 		return []
-	if unit.current_fp > drain * turns_of_reserve:
+	if unit.get_pool(StatIds.FP) > drain * turns_of_reserve:
 		return []
 
 	var plans: Array[AiPlan] = []
 
 	var descend: AiPlan = self_plan(unit, land_ability, bias)
-	descend.reason = "land: %d FP left" % unit.current_fp
+	descend.reason = "land: %d FP left" % unit.get_pool(StatIds.FP)
 	plans.append(descend)
 
 	# AND a way to make landing worth taking. Descending is only the right

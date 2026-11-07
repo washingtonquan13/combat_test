@@ -6977,6 +6977,20 @@ tracks/57/path = NodePath("%GeneralSkeleton:RightToes")
 tracks/57/interp = 1
 tracks/57/loop_wrap = true
 tracks/57/keys = PackedFloat32Array(0, 1, 8.93408e-08, -1, -8.9407e-08, 5.01626e-09)
+tracks/58/type = "method"
+tracks/58/imported = false
+tracks/58/enabled = true
+tracks/58/path = NodePath("..")
+tracks/58/interp = 1
+tracks/58/loop_wrap = true
+tracks/58/keys = {
+"times": PackedFloat32Array(0.25),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"impact"
+}]
+}
 
 [sub_resource type="Animation" id="Animation_562q8"]
 resource_name = "PickUp_Table"
@@ -14771,6 +14785,20 @@ tracks/57/path = NodePath("%GeneralSkeleton:RightToes")
 tracks/57/interp = 1
 tracks/57/loop_wrap = true
 tracks/57/keys = PackedFloat32Array(0, 1, 2.22619e-08, -1, -8.9407e-08, -1.46475e-08)
+tracks/58/type = "method"
+tracks/58/imported = false
+tracks/58/enabled = true
+tracks/58/path = NodePath("..")
+tracks/58/interp = 1
+tracks/58/loop_wrap = true
+tracks/58/keys = {
+"times": PackedFloat32Array(0.2),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"release"
+}]
+}
 
 [sub_resource type="Animation" id="Animation_54djx"]
 resource_name = "Sprint_Loop"

@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tools/breath_demo.gd" id="1"]
+
+[node name="BreathDemo" type="Node"]
+script = ExtResource("1")

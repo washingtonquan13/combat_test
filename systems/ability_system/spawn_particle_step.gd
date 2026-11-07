@@ -47,6 +47,9 @@ enum At { CASTER, TARGET }
 
 @export var scene: PackedScene
 @export var at: At = At.TARGET
+## At CASTER, which point on the caster: HAND puts a muzzle flash at the
+## gun. GROUND, the default, is the position the sequence played from.
+@export var caster_anchor: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
 
 @export var force_one_shot: bool = true
 ## Fallback duration, used only if no VFXController-shaped API is found
@@ -71,11 +74,13 @@ enum At { CASTER, TARGET }
 @export_range(0.0, 1.0, 0.05) var height_scale_factor: float = 0.0
 
 
-func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null, _caster: Unit = null) -> void:
+func play(context: Node, from: Vector3, to: Vector3, ability: Ability = null, caster: Unit = null) -> void:
 	if not scene:
 		return
 
 	var position: Vector3 = from if at == At.CASTER else to
+	if at == At.CASTER and caster_anchor != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
+		position = caster.anchor(caster_anchor)
 	var instance := scene.instantiate()
 	WorldManager.spawn_parent().add_child(instance)
 

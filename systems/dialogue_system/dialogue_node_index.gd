@@ -1,22 +1,15 @@
 class_name DialogueNodeIndex
 extends RefCounted
-## Indexes a directory of DialogueNode .tres files by their own `id` —
-## the one piece of DialogueManager/NegotiationManager's orchestration
-## that was ever truly identical between them (confirmed by direct
-## line-for-line comparison, not assumed): same recursive DirAccess
-## walk, same duplicate-id handling, differing only in a warning
-## message's prefix. Everything else each manager does around this
-## (interjections, hub-revisit dedup, which reference fields get
-## validated, empty-next-node-id semantics) has real, deliberate
-## differences and stays on each manager separately — this only owns
-## "find a node by id," not showing anything or deciding what a
-## node/choice means.
+## Indexes a directory of DialogueNode .tres files by their own `id`.
+## One index per tree folder, shared by every Conversation reading from
+## it (see Conversation.index_for) — dialogue and negotiation trees keep
+## separate id namespaces. This only owns "find a node by id," not
+## showing anything or deciding what a node/choice means.
 
 var _id_to_path: Dictionary = {}  # String id -> String res:// path
 var _indexed: bool = false
-## Prefixes every push_warning from this index — lets DialogueManager's
-## and NegotiationManager's warnings stay distinguishable in the output
-## despite sharing this same indexing code underneath.
+## Prefixes every push_warning from this index, so its warnings say who
+## was indexing.
 var _log_prefix: String
 
 
@@ -25,8 +18,7 @@ func _init(log_prefix: String) -> void:
 
 
 ## No-op after the first call — same "index once, not per lookup" fix
-## SkillDatabase established and both managers already followed before
-## this extraction.
+## SkillDatabase established.
 func ensure_indexed(root_dir: String) -> void:
 	if _indexed:
 		return
@@ -45,9 +37,8 @@ func has_id(id: String) -> bool:
 
 
 ## Every currently-indexed id, for a caller's own validation pass (see
-## DialogueManager/NegotiationManager's own _validate_node_references) —
-## this index doesn't know what a valid reference looks like for either
-## caller, only what ids actually exist to be referenced.
+## Conversations.lint) — this index doesn't know what a valid reference
+## looks like, only what ids actually exist to be referenced.
 func all_ids() -> Array:
 	return _id_to_path.keys()
 

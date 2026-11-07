@@ -1,11 +1,22 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://ui/stats_column.gd" id="1_stats"]
+[ext_resource type="Script" path="res://ui/stat_tip.gd" id="2_tip"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_tile"]
+content_margin_top = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.118, 0.125, 0.153, 1)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
 
 [node name="StatsColumn" type="MarginContainer"]
 theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 16
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 12
 script = ExtResource("1_stats")
 
 [node name="ScrollContainer" type="ScrollContainer" parent="."]
@@ -14,17 +25,17 @@ horizontal_scroll_mode = 0
 
 [node name="VBoxContainer" type="VBoxContainer" parent="ScrollContainer"]
 layout_mode = 2
-theme_override_constants/separation = 8
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
 
 [node name="NameLabel" type="Label" parent="ScrollContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-
-[node name="HSeparator" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
-layout_mode = 2
+theme_override_font_sizes/font_size = 26
 
 [node name="HPHeader" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
+script = ExtResource("2_tip")
 
 [node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/HPHeader"]
 layout_mode = 2
@@ -39,8 +50,8 @@ unique_name_in_owner = true
 layout_mode = 2
 
 [node name="HPBar" type="Control" parent="ScrollContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 6)
 layout_mode = 2
+custom_minimum_size = Vector2(0, 6)
 
 [node name="Bg" type="ColorRect" parent="ScrollContainer/VBoxContainer/HPBar"]
 layout_mode = 1
@@ -61,6 +72,7 @@ color = Color(0.85, 0.3, 0.3, 1)
 
 [node name="FPHeader" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
+script = ExtResource("2_tip")
 
 [node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/FPHeader"]
 layout_mode = 2
@@ -75,8 +87,8 @@ unique_name_in_owner = true
 layout_mode = 2
 
 [node name="FPBar" type="Control" parent="ScrollContainer/VBoxContainer"]
-custom_minimum_size = Vector2(0, 6)
 layout_mode = 2
+custom_minimum_size = Vector2(0, 6)
 
 [node name="Bg" type="ColorRect" parent="ScrollContainer/VBoxContainer/FPBar"]
 layout_mode = 1
@@ -95,136 +107,293 @@ anchor_bottom = 1.0
 grow_vertical = 2
 color = Color(0.3, 0.55, 0.85, 1)
 
-[node name="HSeparator2" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+[node name="AttributesHeader" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "ATTRIBUTES"
+
+[node name="AttributesHeaderRule" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
 
 [node name="AttributeGrid" type="GridContainer" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
+theme_override_constants/h_separation = 16
 theme_override_constants/v_separation = 6
-columns = 2
+columns = 4
 
 [node name="STLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
 text = "ST"
 
 [node name="STValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="DXLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "DX"
-
-[node name="DXValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="IQLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "IQ"
-
-[node name="IQValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-horizontal_alignment = 2
-
-[node name="HTLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
-layout_mode = 2
-text = "HT"
-
-[node name="HTValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
-unique_name_in_owner = true
-layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="WillLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
 text = "Will"
 
 [node name="WillValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="DXLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+text = "DX"
+
+[node name="DXValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
 [node name="PerLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
 text = "Per"
 
 [node name="PerValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
 horizontal_alignment = 2
 
-[node name="HSeparator3" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+[node name="IQLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
-
-[node name="DRRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/DRRow"]
-layout_mode = 2
-text = "DR"
-
-[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/DRRow"]
-layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
 size_flags_horizontal = 3
+text = "IQ"
 
-[node name="DRValue" type="Label" parent="ScrollContainer/VBoxContainer/DRRow"]
+[node name="IQValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+horizontal_alignment = 2
 
-[node name="MoveRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+[node name="BasicSpeedLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+text = "Basic Speed"
 
-[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/MoveRow"]
+[node name="BasicSpeedValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="HTLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+text = "HT"
+
+[node name="HTValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="MoveLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
+layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
 text = "Move"
 
-[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/MoveRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="MoveValue" type="Label" parent="ScrollContainer/VBoxContainer/MoveRow"]
+[node name="MoveValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+script = ExtResource("2_tip")
+mouse_filter = 1
+size_flags_horizontal = 3
+horizontal_alignment = 2
 
-[node name="HSeparator4" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+[node name="ThrustLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
-
-[node name="ThrustRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
-layout_mode = 2
-
-[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/ThrustRow"]
-layout_mode = 2
+size_flags_horizontal = 3
 text = "Thrust"
 
-[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/ThrustRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="ThrustValue" type="Label" parent="ScrollContainer/VBoxContainer/ThrustRow"]
+[node name="ThrustValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
 
-[node name="SwingRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+[node name="SwingLabel" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 layout_mode = 2
-
-[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/SwingRow"]
-layout_mode = 2
+size_flags_horizontal = 3
 text = "Swing"
 
-[node name="Spacer" type="Control" parent="ScrollContainer/VBoxContainer/SwingRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="SwingValue" type="Label" parent="ScrollContainer/VBoxContainer/SwingRow"]
+[node name="SwingValue" type="Label" parent="ScrollContainer/VBoxContainer/AttributeGrid"]
 unique_name_in_owner = true
 layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 2
+
+[node name="DefenseHeader" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "DEFENSE"
+
+[node name="DefenseHeaderRule" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="DefenseRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DodgeTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
+layout_mode = 2
+script = ExtResource("2_tip")
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
+
+[node name="VBox" type="VBoxContainer" parent="ScrollContainer/VBoxContainer/DefenseRow/DodgeTile"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="DodgeValue" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/DodgeTile/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/DodgeTile/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "Dodge"
+horizontal_alignment = 1
+
+[node name="ParryTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
+layout_mode = 2
+script = ExtResource("2_tip")
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
+
+[node name="VBox" type="VBoxContainer" parent="ScrollContainer/VBoxContainer/DefenseRow/ParryTile"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="ParryValue" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/ParryTile/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/ParryTile/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "Parry"
+horizontal_alignment = 1
+
+[node name="BlockTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
+layout_mode = 2
+script = ExtResource("2_tip")
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
+
+[node name="VBox" type="VBoxContainer" parent="ScrollContainer/VBoxContainer/DefenseRow/BlockTile"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="BlockValue" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/BlockTile/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/BlockTile/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "Block"
+horizontal_alignment = 1
+
+[node name="DRTile" type="PanelContainer" parent="ScrollContainer/VBoxContainer/DefenseRow"]
+layout_mode = 2
+script = ExtResource("2_tip")
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("StyleBoxFlat_tile")
+
+[node name="VBox" type="VBoxContainer" parent="ScrollContainer/VBoxContainer/DefenseRow/DRTile"]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="DRValue" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/DRTile/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+horizontal_alignment = 1
+
+[node name="Label" type="Label" parent="ScrollContainer/VBoxContainer/DefenseRow/DRTile/VBox"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "DR"
+horizontal_alignment = 1
+
+[node name="AttacksHeader" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "ATTACKS"
+
+[node name="AttacksHeaderRule" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="AttackList" type="VBoxContainer" parent="ScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="ConditionsHeader" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "CONDITIONS"
+
+[node name="ConditionsHeaderRule" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="ConditionList" type="HFlowContainer" parent="ScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 6

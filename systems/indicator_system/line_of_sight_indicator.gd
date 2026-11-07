@@ -15,104 +15,76 @@ extends IndicatorBase
 ##   - out_of_range_color   — hovering a hostile unit, but too far away
 ##   - no_target_color        — not hovering any (hostile) unit at all
 ##
-## Range and LoS are checked here the same way Ability.is_in_range() does
-## internally for RANGED_ENEMY — duplicated rather than called through
-## that single bool-returning method, since this needs to tell "out of
-## range" and "blocked" apart as two different visual states, which a
-## single true/false can't distinguish. If Ability's own range/LoS logic
-## changes, this needs to be kept in sync with it.
+## Range and LoS come from the armed RangedEnemyTargeting's own check() —
+## the same rule is_valid_target() (and so the cast) is built on, which
+## tells "out of range" and "blocked" apart as AbilityTargeting.Reach.
+## This used to duplicate that rule here, because a single bool couldn't
+## distinguish the two visual states, and had to be kept in sync by hand.
 ##
 ## Scene setup: attach to a Node3D anywhere in your main scene — builds
-## its own MeshInstance3D in code. unit_collision_mask/ground_collision_mask
-## (see IndicatorBase) must match your Units'/ground's actual physics
-## layers.
+## its own MeshInstance3D in code. The hovered hostile and ground point
+## come from the Aim ClickRouter hands draw(); nothing here raycasts.
 ##
-## Note: like the movement indicator, this draws a 1-pixel unshaded line
-## (ImmediateMesh, LINE_STRIP) — fine for a first pass, thicker lines
-## would need an actual ribbon mesh.
+## Drawn as a PathTube, the one look every indicator line shares.
 
-@export var clear_color: Color = Color(1, 1, 1, 0.9)
-@export var blocked_color: Color = Color(1, 0.2, 0.2, 0.9)
-@export var out_of_range_color: Color = Color(0.5, 0.5, 0.5, 0.6)
-@export var no_target_color: Color = Color(0.7, 0.7, 0.7, 0.35)
-## Where the line is drawn is no longer a number here at all: it comes from
-## the same eye anchor LineOfSight traces from, so the two cannot disagree.
-##
-## They DID disagree. This was 1.5 to match LineOfSight's default, said so
-## in its own comment — and MainRoot.tscn then overrode it to 2.0, so the
-## line every player saw was half a metre above the ray actually being
-## tested. Exactly the kind of drift a shared constant invites and an
-## anchor makes impossible.
+@export var clear_color: Color = IndicatorPalette.OK
+@export var blocked_color: Color = IndicatorPalette.BLOCKED
+@export var out_of_range_color: Color = IndicatorPalette.OUT_OF_REACH
+@export var no_target_color: Color = IndicatorPalette.NO_TARGET
+## Where the line is drawn is not a number here at all: it is
+## LineOfSight.shot_from/shot_to, the segment the rule traces.
 
-var _line_mesh: MeshInstance3D
-var _line_immediate: ImmediateMesh
+var _line_mesh: PathTube
+
+
+func serves() -> StringName:
+	return &"line_of_sight"
 
 
 func _ready() -> void:
-	var built: Dictionary = _create_line_mesh()
-	_line_mesh = built.mesh_instance
-	_line_immediate = built.immediate
+	super()
+	_line_mesh = _create_tube()
 
 
-func _process(_delta: float) -> void:
-	var unit := _get_active_unit()
-	var ability := _get_armed_ranged_ability()
+func draw(aim: Aim) -> void:
+	var unit: Unit = aim.caster
+	var ability: Ability = aim.ability
 
-	if not unit or not ability:
+	# `as`, not a typed assignment: a guard against being handed an Aim
+	# whose ability isn't ranged. The router now applies the intent before
+	# it draws, so this shouldn't happen, but a wrong-shaped ability must
+	# hide the line rather than error.
+	if not unit or not ability or (ability.targeting as RangedEnemyTargeting) == null:
 		_line_mesh.visible = false
 		return
 
-	var hovered_unit: Unit = _get_hovered_hostile(unit)
-	var aim_point = hovered_unit.global_position if hovered_unit else _get_mouse_ground_point()
+	var hovered_unit: Unit = aim.hostile
+	var aim_point = hovered_unit if hovered_unit else aim.point
 	if aim_point == null:
 		_line_mesh.visible = false
 		return
 
 	_draw_line(unit, aim_point, hovered_unit, ability)
-	_line_mesh.visible = true
 
 
-## Excludes seeking abilities (see Ability.has_pathed_projectile) even
-## though they're RangedEnemyTargeting too — seeking_indicator.gd shows
-## the real bent NavigationGrid route for those instead of this straight
-## aim line, and the two would otherwise both draw for the same armed
-## ability.
-func _get_armed_ranged_ability() -> Ability:
-	var ability := PlayerInteractionState.get_armed_ability_of_targeting_type(RangedEnemyTargeting)
-	if ability and ability.has_pathed_projectile():
-		return null
-	return ability
-
-
-## Reads range/LoS off ability.targeting directly (cast to
-## RangedEnemyTargeting — safe since _get_armed_ranged_ability already
-## confirmed it's that type). This is a legitimate, narrow exception to
-## staying fully generic about targeting components: this indicator's
-## whole purpose is showing distinct visual states an "is it valid" bool
-## can't distinguish, so it needs the concrete field values, not just a
-## yes/no.
-func _draw_line(unit: Unit, aim_point: Vector3, hovered_unit: Unit, ability: Ability) -> void:
-	var targeting: RangedEnemyTargeting = ability.targeting
-
+func _draw_line(unit: Unit, aim_point, hovered_unit: Unit, ability: Ability) -> void:
 	var color: Color
-	if hovered_unit == null:
+	# A ground-aimable shot colours its line to the spot as it does to a
+	# unit: the click would fire there.
+	var target = hovered_unit if hovered_unit else (aim_point if ability.targeting.aims_at_ground else null)
+	if target == null:
 		color = no_target_color
-	elif unit.edge_distance_to(hovered_unit) > targeting.max_range:
-		color = out_of_range_color
-	elif targeting.requires_line_of_sight and not LineOfSight.has_clear_shot(unit, hovered_unit, targeting.los_obstruction_mask):
-		color = blocked_color
 	else:
-		color = clear_color
+		match ability.targeting.check(unit, target):
+			AbilityTargeting.Reach.OK:
+				color = clear_color
+			AbilityTargeting.Reach.OUT_OF_RANGE:
+				color = out_of_range_color
+			AbilityTargeting.Reach.BLOCKED:
+				color = blocked_color
+			_:
+				color = no_target_color
 
-	var eye: Vector3 = unit.anchor(CharacterModel.Anchor.EYE)
-	var lift: float = eye.y - unit.global_position.y
-	var from: Vector3 = unit.global_position + Vector3(0, lift, 0)
-	var to: Vector3 = aim_point + Vector3(0, lift, 0)
-
-	_line_immediate.clear_surfaces()
-	_line_immediate.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	_line_immediate.surface_set_color(color)
-	_line_immediate.surface_add_vertex(from)
-	_line_immediate.surface_set_color(color)
-	_line_immediate.surface_add_vertex(to)
-	_line_immediate.surface_end()
+	# The segment check() traced: eye to the hovered body's chest, or to
+	# the aimed spot itself.
+	_show_shot(_line_mesh, LineOfSight.shot_from(unit), LineOfSight.shot_to(aim_point), color)

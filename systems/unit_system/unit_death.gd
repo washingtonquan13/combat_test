@@ -24,7 +24,7 @@ func _init(owner: Unit) -> void:
 ## pruning, initiative UI, the animator/VFX death reactions — already
 ## listens to died; a summon leaving combat this way is exactly that,
 ## just not caused by damage, so it gets its own log line instead of
-## "has died". current_hp is zeroed (not left as whatever it was) so
+## "has died". The HP pool is zeroed (not left as whatever it was) so
 ## is_alive() agrees with everything else — CombatManager._advance_turn(),
 ## notably, which decides whether to keep giving this unit turns purely
 ## off is_alive(), same as an ordinary death; without this, a summon
@@ -32,12 +32,13 @@ func _init(owner: Unit) -> void:
 ## a moment before its queue_free() actually takes effect.
 func expire() -> void:
 	SystemLog.print("%s fades away." % LogFormat.unit_name(_owner))
-	_owner.current_hp = 0
+	_owner.set_pool(StatIds.HP, 0)
 	# _owner.handle_death(), not a same-class handle_death() call — routes
-	# through Unit's own wrapper (see unit.gd) so this path picks up
-	# _selection.teardown() too, not just this file's own cleanup. Both
-	# calls land on this exact same UnitDeath instance either way; this
-	# only changes which entry point gets there.
+	# through Unit's own public wrapper (see unit.gd), which is the entry
+	# point every other death path uses too, so anything that wrapper ever
+	# grows applies here as well. Both calls land on this exact same
+	# UnitDeath instance either way; this only changes which entry point
+	# gets there.
 	_owner.handle_death()
 	_owner.died.emit(_owner)
 
@@ -50,6 +51,12 @@ func expire() -> void:
 ## regardless of how long the actual node sticks around for a death
 ## animation.
 func handle_death() -> void:
+	# A unit on the downed rule is still is_alive() at 0 HP and below, so
+	# death is its own flag rather than read off the HP pool.
+	_owner.has_died = true
+	# Dead, not Downed. has_died is already set, so the status coming off
+	# neither counts as running out nor plays the get-up clip.
+	_owner.remove_status(UnitCombat.downed_status())
 	# Recorded first, before any of the teardown below — this is a real
 	# death (handle_death(), not expire(): a despawning summon never
 	# carries a persistent_id, since only hand-placed content does — see
@@ -62,7 +69,7 @@ func handle_death() -> void:
 		AreaState.mark_removed(WorldManager.current_area().id, _owner.persistent_id)
 
 	_owner.remove_from_group("units")
-	_owner.input_ray_pickable = false
+	_owner.set_pickable(false)
 
 	if _owner.is_selected:
 		SelectionManager.deselect(_owner)
@@ -80,8 +87,8 @@ func handle_death() -> void:
 	_owner.set_physics_process(false)
 
 	if _owner.corpse_blocks_movement:
-		# remove_from_group("units") above means NavigationGrid.
-		# update_occupancy will never see this unit via the normal "units"
+		# remove_from_group("units") above means NavigationGrid's
+		# occupancy sweep will never see this unit via the normal "units"
 		# group loop again — a separate group is what lets a corpse that's
 		# meant to keep blocking movement still get marked occupied on the
 		# grid (see that function), instead of silently becoming

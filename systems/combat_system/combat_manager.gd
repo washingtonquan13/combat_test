@@ -13,14 +13,20 @@ extends Node
 ## bound by its turn order and could not be commanded at all, so ambushes,
 ## flanking and held reserves were unreachable rather than awkward.
 ##
-## THE DELEGATING ACCESSORS BELOW ARE LOAD-BEARING, not convenience.
-## in_combat/current_unit/turn_order/phase/round_number all forward to the
-## focused encounter, which is what lets every UI reader — initiative_row,
-## player_interaction_state, ability_manager, ability_hotbar,
-## movement_indicator — keep working completely unchanged. Code that means
-## "is THIS unit fighting" should ask the unit instead (Unit.in_combat()).
-## The distinction is the whole point: those two questions were the same
-## question before, and conflating them is what caused the bug above.
+## ENCOUNTER IS THE ONLY HOLDER OF TURN STATE. This autoload used to also
+## expose in_combat/current_unit/turn_order/phase/round_number as
+## properties forwarding to focused_encounter — a second way to ask a
+## question Encounter already answers, and the two could disagree the
+## moment more than one fight was running (a unit fighting in an
+## unfocused/unwatched encounter still reads in_combat()==true on itself
+## while the deleted CombatManager.in_combat could read false, or vice
+## versa). They are gone now. Code that means "is THIS unit fighting"
+## asks the unit (Unit.in_combat()/Unit.is_my_turn()), or the unit's own
+## unit.encounter directly. Code that means "the fight the player is
+## looking at" asks focused_encounter (with a null check) or, when the
+## question is only "is there one", a_watched_fight_is_running(). Code
+## that means "is anything happening anywhere" asks any_combat_running().
+## There is no fourth way to ask.
 
 ## Emitted for every encounter, relayed from whichever one fired it — so
 ## the ~26 existing connections keep working without learning that
@@ -45,6 +51,11 @@ signal attention_changed()
 ## encounter is too late, since finish() clears its combatants before
 ## announcing (see Encounter.world_3d).
 signal combat_ended_in_world(world: World3D)
+
+## round_started from EVERY running fight, naming it — round_started
+## itself stays focused-only for the HUD. SurfaceManager ages each world's
+## surfaces from this, picking one clock per world itself.
+signal round_started_in(encounter: Encounter, round_number: int)
 
 ## How close another unit needs to be to the attacker OR the target (same
 ## faction as whichever one it's near) to get pulled into a freshly
@@ -107,33 +118,10 @@ func _encounter_list_for(combatants: Array[Unit]) -> Array[Encounter]:
 var focused_encounter: Encounter = null
 
 
-# --- Legacy accessors ------------------------------------------------
-# Every one of these answers "what is the player looking at," which is what
-# the UI has always been asking even when it read like a global.
-
-var in_combat: bool:
-	get: return focused_encounter != null and focused_encounter.is_running
-
-
-var turn_order: Array[Unit]:
-	get: return focused_encounter.turn_order if focused_encounter else ([] as Array[Unit])
-
-
-var current_unit: Unit:
-	get: return focused_encounter.current_unit if focused_encounter else null
-
-
-var round_number: int:
-	get: return focused_encounter.round_number if focused_encounter else 0
-
-
-var phase: Encounter.Phase:
-	get: return focused_encounter.phase if focused_encounter else Encounter.Phase.OUT_OF_COMBAT
-
-
-## True while ANY fight is running, focused or not — distinct from
-## in_combat, which is specifically about the player's view. Used for
-## global concerns like music that shouldn't care which fight it is.
+## True while ANY fight is running, focused or not — distinct from asking
+## about a single unit or the focused encounter, which are both about ONE
+## fight specifically. Used for global concerns like music that shouldn't
+## care which fight it is.
 func any_combat_running() -> bool:
 	for encounter in all_encounters():
 		# An encounter is queue_free()d as it ends, so it can briefly be
@@ -150,6 +138,11 @@ func any_combat_running() -> bool:
 ## Returns it, so a caller that needs to keep track of a specific fight
 ## can.
 func start_combat(combatants: Array[Unit], skip_first_action_for: Unit = null) -> Encounter:
+	# Before anything changes, so Retry on the game over screen puts the
+	# party back just before this fight.
+	if _involves_player(combatants):
+		SaveManager.autosave(SaveManager.FIGHT_AUTOSAVE, "Autosave: fight")
+
 	var encounter := Encounter.new()
 	encounter.name = "Encounter%d" % (encounters.size() + 1)
 	add_child(encounter)
@@ -385,14 +378,10 @@ func _relay(encounter: Encounter) -> void:
 	encounter.unit_joined_combat.connect(func(unit): unit_joined_combat.emit(unit))
 	encounter.unit_left_combat.connect(func(unit): unit_left_combat.emit(unit))
 
-	# round_started is relayed ONLY from the focused encounter. Surfaces are
-	# WORLD state, not encounter state, and SurfaceManager ages every active
-	# surface by one round on this signal — relaying it from every running
-	# fight would age them once per fight per round, so two simultaneous
-	# battles would burn a Grease patch twice as fast as one. The proper
-	# home for surfaces is a per-world context in a later pass; until then
-	# this is the approximation that keeps the common case correct.
+	# round_started is relayed ONLY from the focused encounter, for the
+	# HUD. Anything per-world (SurfaceManager) reads round_started_in.
 	encounter.round_started.connect(func(n):
+		round_started_in.emit(encounter, n)
 		if encounter == focused_encounter:
 			round_started.emit(n)
 	)

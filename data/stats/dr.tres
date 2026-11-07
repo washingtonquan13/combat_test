@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="StatDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/stat_system/stat_definition.gd" id="1_stat"]
+
+[resource]
+script = ExtResource("1_stat")
+id = &"DR"
+display_name = "Damage Resistance"
+abbreviation = "DR"
+description = "Subtracted from every hit's damage."
+order = 90
+kind = 0
+default_value = 0

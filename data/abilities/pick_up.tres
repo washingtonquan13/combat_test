@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=8 format=3 uid="uid://cpa7yeuykkuis"]
+
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
+[ext_resource type="Script" uid="uid://5elqyfxktw7f" path="res://systems/ability_system/melee_enemy_targeting.gd" id="2_targeting"]
+[ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="3_effect"]
+[ext_resource type="Script" uid="uid://fgiyfvvrjfdd" path="res://systems/ability_system/pick_up_effect.gd" id="4_pick_up"]
+[ext_resource type="Texture2D" uid="uid://ucseygiq7qis" path="res://assets/ability_icon/pick_up_icon.png" id="9_icon"]
+
+[sub_resource type="Resource" id="Resource_pick_up"]
+script = ExtResource("4_pick_up")
+
+[sub_resource type="Resource" id="Resource_targeting"]
+script = ExtResource("2_targeting")
+melee_range = 1.0
+requires_ally = true
+any_unit = false
+aims_at_ground = false
+
+[resource]
+script = ExtResource("1_ability")
+ability_name = "Pick Up"
+icon = ExtResource("9_icon")
+icon_color = Color(0.78, 0.74, 0.66, 1)
+category = 0
+targeting = SubResource("Resource_targeting")
+effects = Array[ExtResource("3_effect")]([SubResource("Resource_pick_up")])
+element = 0
+is_toggle = false
+toggle_group = &""
+max_level = 0
+requires_to_hit = false
+uses_attack_action = true
+move_cost = 0.0
+fp_cost = 0.0
+armed_hold_vfx_at = 3
+armed_enter_animation = ""
+armed_hold_animation = ""
+armed_exit_animation = ""
+plays_cast_animation = true
