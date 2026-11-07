@@ -1,69 +1,63 @@
 extends Node3D
 ## The Wall of Water visual, drawn to the CloudGrid cubes of one cast
-## (show_cubes()): a breaking wave caught at its peak, the crest curled
-## over toward the far side from its caster (lean_away_from()), with water
-## running up its back, over the lip and down its face without end
-## (water_wall.gdshader). The lip throws a torn curtain of water down in
-## front of the face (water_curtain.gdshader) that lands in foam rolling
-## out over the ground (water_foam_band.gdshader). It follows the cubes:
+## (show_cubes()): a tidal wave caught as it curls, a long slope rising
+## out of the ground to a crest whose lip hooks out over the far side
+## from its caster (lean_away_from()), above a steep hollow face. Water
+## runs up its back, over the lip and down the face without end
+## (water_wall.gdshader). It follows the cubes:
 ## stepping up a stair, cut where a wall stopped it, tapering at its ends,
 ## its crest swelling and sinking along its length. It rises from its
-## middle out. Spray blows off the crest and splashes up where the curtain
-## lands. Columns run out recede (recede_cubes()): that stretch of the
+## middle out. Spray feathers off the crest and lip, and drops fall
+## from its point. Columns run out recede (recede_cubes()): that stretch of the
 ## wave sinks over recede_seconds. When the last go, dissipate(): the wave
 ## collapses and fades, and it frees itself. The water left on the ground
 ## is Water's own visual.
 ##
-## The meshes are built once, at full height; each frame only the
-## stations' heights change (a one-row texture), and the shaders settle
-## the meshes to them (water_wall.gdshaderinc).
+## The mesh is built once, at full height; each frame only the stations'
+## heights change (a one-row texture), and the shader settles the mesh to
+## them (water_wall.gdshaderinc).
 
 const SHEET_SHADER: Shader = preload("res://systems/surface_system/water_wall.gdshader")
-const CURTAIN_SHADER: Shader = preload("res://systems/surface_system/water_curtain.gdshader")
-const BAND_SHADER: Shader = preload("res://systems/surface_system/water_foam_band.gdshader")
 
 ## The wave's cross-section, x metres toward its front (away from its
 ## caster) from the wall's line, y its height as a fraction of the wall's:
-## back foot, up the back, the crest, out to the lip, back under it into
-## the barrel and down the face to the front foot.
+## the back foot far behind, a long slope rising out of the ground, the
+## crest, the lip hooked out over the front and down to a point, back
+## under it into the hollow, down the steep concave face, and out along
+## the trough in front.
 const PROFILE: Array[Vector2] = [
-	Vector2(-0.7, 0.0), Vector2(-0.64, 0.18), Vector2(-0.5, 0.42),
-	Vector2(-0.26, 0.68), Vector2(0.08, 0.88), Vector2(0.55, 0.99),
-	Vector2(1.05, 0.98), Vector2(1.5, 0.88), Vector2(1.82, 0.7),
-	Vector2(1.94, 0.5), Vector2(1.84, 0.4), Vector2(1.58, 0.47),
-	Vector2(1.2, 0.53), Vector2(0.82, 0.46), Vector2(0.56, 0.3),
-	Vector2(0.52, 0.13), Vector2(0.66, 0.0),
+	Vector2(-2.2, 0.0), Vector2(-1.7, 0.06), Vector2(-1.2, 0.18),
+	Vector2(-0.75, 0.36), Vector2(-0.35, 0.58), Vector2(0.0, 0.78),
+	Vector2(0.35, 0.93), Vector2(0.75, 1.0), Vector2(1.15, 0.98),
+	Vector2(1.45, 0.88), Vector2(1.62, 0.74), Vector2(1.65, 0.62),
+	Vector2(1.55, 0.68), Vector2(1.3, 0.76), Vector2(1.0, 0.74),
+	Vector2(0.75, 0.62), Vector2(0.6, 0.45), Vector2(0.55, 0.28),
+	Vector2(0.62, 0.12), Vector2(0.85, 0.03), Vector2(1.3, 0.0),
 ]
 ## How thick the water is at each of PROFILE's points, metres: deep in
-## the body, thin out along the curl.
+## the body, thinning out to the lip's point.
 const THICKNESS: Array[float] = [
-	1.3, 1.2, 1.0, 0.9, 0.8, 0.7, 0.5, 0.3, 0.16, 0.1, 0.14, 0.3, 0.5, 0.8, 1.0, 1.2, 1.3,
+	1.8, 1.6, 1.4, 1.2, 1.0, 0.8, 0.6, 0.45, 0.32, 0.2, 0.12,
+	0.06, 0.1, 0.2, 0.32, 0.5, 0.7, 0.9, 1.0, 0.8, 0.4,
 ]
+## Which of PROFILE's points is the lip's point.
+const TIP: int = 11
+## Which of PROFILE's points the face under the lip runs between.
+const BACK_WALL: Vector2i = Vector2i(15, 17)
 ## Points between each two of PROFILE's, smoothed through them.
 const PROFILE_STEPS: int = 8
 ## Mesh rows between each two stations.
 const ROWS_PER_STATION: int = 2
 ## The wall height PROFILE's 0..1 shares are laid out for.
 const NOMINAL_HEIGHT: float = 4.0
-## Rows down the curtain, and how far forward of the lip it lands.
-const CURTAIN_STEPS: int = 10
-const CURTAIN_THROW: float = 0.45
-## How far the foam rolls out past where the curtain lands, and behind
-## the back foot.
-const FOAM_REACH: float = 0.9
-const BACK_FOAM_REACH: float = 0.4
-
 ## The tiling noise the water's streaks scroll through.
 @export var streaks: Texture2D
 ## The ripples' normal map.
 @export var ripples: Texture2D
-## Cellular noise the foam is cut from.
-@export var foam_cells: Texture2D
 ## The Electrified Wall of Water's crackle, 0 for plain water.
 @export var crackle: float = 0.0
-@export var spray_per_metre: float = 5.0
+@export var spray_per_metre: float = 6.0
 @export var drips_per_metre: float = 3.0
-@export var splash_per_metre: float = 4.0
 ## How long the wave takes to rise, and how long the rising takes to run
 ## from its middle out to its ends.
 @export var rise_seconds: float = 0.9
@@ -81,11 +75,8 @@ const BACK_FOAM_REACH: float = 0.4
 static var _fronts: Dictionary = {}
 
 @onready var _sheet: MeshInstance3D = $Sheet
-@onready var _curtain: MeshInstance3D = $Curtain
-@onready var _band: MeshInstance3D = $Band
 @onready var _spray: GPUParticles3D = $Spray
 @onready var _drips: GPUParticles3D = $Drips
-@onready var _foam: GPUParticles3D = $Foam
 
 var _keys: Array[Vector3i] = []
 ## Each column's cubes still standing.
@@ -113,15 +104,12 @@ var _profile_share := PackedFloat32Array()
 var _profile_thickness := PackedFloat32Array()
 var _lip: int = 0
 var _crest: int = 0
+var _tip: int = TIP * PROFILE_STEPS
 var _born: float = 0.0
 var _risen: bool = false
 var _strength: float = 1.0
 var _material: ShaderMaterial
-var _curtain_material: ShaderMaterial
-var _band_material: ShaderMaterial
 var _mesh := ArrayMesh.new()
-var _curtain_mesh := ArrayMesh.new()
-var _band_mesh := ArrayMesh.new()
 ## Each station's height now, for the shaders.
 var _heights_image: Image
 var _heights := ImageTexture.new()
@@ -137,16 +125,12 @@ func _ready() -> void:
 	_material = _make_material(SHEET_SHADER, _sheet, _mesh)
 	_material.set_shader_parameter("ripples", ripples)
 	_material.set_shader_parameter("crackle", crackle)
-	_curtain_material = _make_material(CURTAIN_SHADER, _curtain, _curtain_mesh)
-	_curtain_material.set_shader_parameter("crackle", crackle)
-	_band_material = _make_material(BAND_SHADER, _band, _band_mesh)
 
 
 func _make_material(shader: Shader, instance: MeshInstance3D, mesh: ArrayMesh) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
 	material.shader = shader
 	material.set_shader_parameter("streaks", streaks)
-	material.set_shader_parameter("foam_cells", foam_cells)
 	material.set_shader_parameter("heights", _heights)
 	instance.mesh = mesh
 	instance.material_override = material
@@ -157,7 +141,7 @@ func _make_material(shader: Shader, instance: MeshInstance3D, mesh: ArrayMesh) -
 
 
 func _materials() -> Array[ShaderMaterial]:
-	return [_material, _curtain_material, _band_material]
+	return [_material]
 
 
 func _exit_tree() -> void:
@@ -167,7 +151,7 @@ func _exit_tree() -> void:
 
 
 func _emitters() -> Array[GPUParticles3D]:
-	return [_spray, _drips, _foam]
+	return [_spray, _drips]
 
 
 ## Raises the wave over cells (CloudCells). Called once, right after the
@@ -197,7 +181,7 @@ func show_cubes(cells: Array) -> void:
 	_rebuild()
 	_update_heights()
 	var length: float = _station_t[_station_t.size() - 1] - _station_t[0]
-	var counts: Array[float] = [spray_per_metre * length, drips_per_metre * length, splash_per_metre * length]
+	var counts: Array[float] = [spray_per_metre * length, drips_per_metre * length]
 	var emitters := _emitters()
 	for e in emitters.size():
 		emitters[e].amount = maxi(2, roundi(counts[e]))
@@ -231,8 +215,8 @@ func dissipate() -> void:
 		emitter.emitting = false
 	var tween := create_tween()
 	tween.tween_property(self, "_strength", 0.0, fade_seconds)
-	# Long enough for the last splashes to land.
-	tween.tween_interval(maxf(_foam.lifetime - fade_seconds, 0.0))
+	# Long enough for the last spray to settle.
+	tween.tween_interval(maxf(_spray.lifetime - fade_seconds, 0.0))
 	tween.tween_callback(queue_free)
 
 
@@ -388,49 +372,16 @@ func _point(i: int, j: int, h: float) -> Vector3:
 	return _place(i, _profile[j], h)
 
 
-## The lip, and the curtain's path down from it to the ground.
-func _curtain_path() -> PackedVector2Array:
-	var lip: Vector2 = _profile[_lip]
-	var path := PackedVector2Array()
-	for k in CURTAIN_STEPS + 1:
-		var f: float = float(k) / CURTAIN_STEPS
-		path.append(Vector2(lip.x - 0.06 + CURTAIN_THROW * f * f, (lip.y + 0.03) * (1.0 - f) - 0.004 * f))
-	return path
-
-
 func _rebuild() -> void:
 	if _station_t.is_empty():
 		return
 	var lip_x: float = _profile[_lip].x
-	# The wave.
 	var attrs: Array[Vector4] = []
 	for j in _profile.size():
 		attrs.append(Vector4(_profile_share[j], _profile_thickness[j], _profile[j].y, clampf(_profile[j].x / lip_x, 0.0, 1.0)))
 	_mesh.clear_surfaces()
 	_add_strip(_mesh, _profile, attrs)
-	# The curtain off its lip.
-	var curtain := _curtain_path()
-	attrs = []
-	for k in curtain.size():
-		attrs.append(Vector4(float(k) / CURTAIN_STEPS, 0.12, curtain[k].y, 1.0))
-	_curtain_mesh.clear_surfaces()
-	_add_strip(_curtain_mesh, curtain, attrs)
-	# Foam out in front from the face's foot past where the curtain lands,
-	# and behind the back foot.
-	_band_mesh.clear_surfaces()
-	var lift: float = 0.025 / NOMINAL_HEIGHT
-	for band: Vector2 in [Vector2(_profile[_profile.size() - 1].x, curtain[curtain.size() - 1].x + FOAM_REACH), Vector2(_profile[0].x, _profile[0].x - BACK_FOAM_REACH)]:
-		var path := PackedVector2Array()
-		attrs = []
-		for k in 9:
-			var f: float = k / 8.0
-			var x: float = lerpf(band.x, band.y, f)
-			path.append(Vector2(x, lift))
-			attrs.append(Vector4(f, 0.0, 0.0, clampf(x / lip_x, 0.0, 1.0)))
-		_add_strip(_band_mesh, path, attrs)
-	var aabb := _mesh.get_aabb().merge(_band_mesh.get_aabb()).grow(1.0)
-	for instance: MeshInstance3D in [_sheet, _curtain, _band]:
-		instance.custom_aabb = aabb
+	_sheet.custom_aabb = _mesh.get_aabb().grow(1.0)
 
 
 ## Adds a surface to mesh: path (PROFILE's units) swept along the
@@ -525,22 +476,18 @@ func _update_heights() -> void:
 	_heights.update(_heights_image)
 
 
-## Where on the standing wave (full height) spray, drips and splashes
-## start, in this node's space.
+## Where on the standing wave (full height) spray and drips start, in
+## this node's space.
 func _emit_from_points() -> void:
 	var spray := PackedVector3Array()
 	var drips := PackedVector3Array()
-	var foam := PackedVector3Array()
-	var curtain := _curtain_path()
 	for i in _station_t.size():
 		if _station_burn[i] < 1.0 or not _standing(i):
 			continue
 		spray.append(to_local(_point(i, _crest, 1.0)))
-		spray.append(to_local(_point(i, maxi(_lip - PROFILE_STEPS, 0), 1.0)))
-		drips.append(to_local(_point(i, _lip, 1.0)))
-		foam.append(to_local(_place(i, curtain[curtain.size() - 1])))
-		foam.append(to_local(_place(i, curtain[curtain.size() - 1] + Vector2(0.3, 0.0))))
-	var sets: Array[PackedVector3Array] = [spray, drips, foam]
+		spray.append(to_local(_point(i, _lip, 1.0)))
+		drips.append(to_local(_point(i, _tip, 1.0)))
+	var sets: Array[PackedVector3Array] = [spray, drips]
 	var emitters := _emitters()
 	var front := Vector3(_normal.x, 0.0, _normal.y) * _lean
 	for e in emitters.size():
@@ -553,8 +500,6 @@ func _emit_from_points() -> void:
 		process.emission_point_count = sets[e].size()
 		if emitters[e] == _spray:
 			process.direction = (front * 0.6 + Vector3.UP).normalized()
-		elif emitters[e] == _foam:
-			process.direction = (front * 0.5 + Vector3.UP).normalized()
 		emitters[e].emitting = _strength > 0.0
 
 

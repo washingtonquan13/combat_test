@@ -1,12 +1,12 @@
-// What the Wall of Water's three meshes (water_wall.gd: the wave, the
-// curtain falling off its lip, the foam on the ground) share: each is
-// built once at full height, and the vertex shader settles it to where
-// it stands now. Each vertex carries its station's foot (CUSTOM0.xyz)
-// and where along the stations it is (CUSTOM0.w); `heights` holds each
-// station's height 0..1 (rising, receding, collapsing), and the vertex
-// is pulled down toward the foot and in toward the wall's line to match.
-// The crest's height and the lip's reach swell and sink slowly along the
-// wall (UV.x is metres along it), so it is never one shape extruded.
+// What the Wall of Water's wave mesh (water_wall.gd) needs to rise and
+// recede: it is built once at full height, and the vertex shader settles
+// it to where it stands now. Each vertex carries its station's foot
+// (CUSTOM0.xyz) and where along the stations it is (CUSTOM0.w); `heights`
+// holds each station's height 0..1 (rising, receding, collapsing), and
+// the vertex is pulled down toward the foot and in toward the wall's line
+// to match. The crest's height and the lip's reach swell and sink slowly
+// along the wall (UV.x is metres along it), so it is never one shape
+// extruded.
 // CUSTOM1: x the share of the way along the cross-section, y how thick
 // the water is there (metres), z how high up the wave it is (0..1),
 // w how far forward toward the lip (0..1).

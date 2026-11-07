@@ -2,8 +2,8 @@ extends "res://systems/surface_system/water_wall.gd"
 ## Electrified Wall of Water: the same wave, faced the same way as the
 ## one the lightning struck, with the electrified ground's look in it: a
 ## web of crackle running through the water (water_wall.gdshader's
-## crackle), and now and then a bolt jumping along the crest or down the
-## face, flashing a blue light with it. Stretches that recede carry no
+## crackle), and now and then a bolt jumping along the crest or across
+## the hollow from the lip's point to the face under it, flashing a blue light with it. Stretches that recede carry no
 ## more charge; as the wave collapses the strikes die away with it.
 
 const LightningArcs = preload("res://scenes/vfx/lightning/lightning_arcs.gd")
@@ -60,10 +60,9 @@ func _process(delta: float) -> void:
 	_glow *= exp(-14.0 * delta)
 	_light.light_energy = light_energy * _glow * _strength
 	_material.set_shader_parameter("crackle", crackle * _strength)
-	_curtain_material.set_shader_parameter("crackle", crackle * _strength)
 
 
-## A bolt along the crest, or from the lip down the face, at a stretch
+## A bolt along the crest, or across the hollow, at a stretch
 ## still standing.
 func _strike() -> void:
 	var standing: Array[int] = []
@@ -82,9 +81,9 @@ func _strike() -> void:
 		a = _point(i, _crest, 1.0)
 		b = _point(j, clampi(_crest + randi_range(-4, 4), 0, _profile.size() - 1), 1.0)
 	else:
-		# From the lip down the face toward the foot.
-		a = _point(i, _lip, 1.0)
-		b = _point(i, _profile.size() - 1 - randi_range(4, 12), 1.0)
+		# From the lip's point across the hollow to the face under it.
+		a = _point(i, _tip, 1.0)
+		b = _point(i, randi_range(BACK_WALL.x * PROFILE_STEPS, BACK_WALL.y * PROFILE_STEPS), 1.0)
 	var arc := LightningArcs.Arc.new(LightningArcs.channel(a, b, 4, 0.35), 0.06)
 	arc.reveal_to = 1.0
 	_arcs.show_arcs([arc] as Array[LightningArcs.Arc])
