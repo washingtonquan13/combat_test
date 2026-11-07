@@ -83,6 +83,22 @@ var active: bool = false
 ## (and its fade to black) starts, so the eye sees it go.
 const ENTER_HOLD := 0.15
 
+@export_group("Alignment Color")
+## The whole icon takes its leader's alignment colour: SMT's Law blue,
+## Chaos red, and a pale silver for Neutral.
+@export var law_color := Color(0.1, 0.32, 1.0)
+@export var chaos_color := Color(0.92, 0.1, 0.07)
+@export var neutral_color := Color(0.82, 0.86, 0.92)
+## How fast the colour slides to a new alignment, per second; it fades
+## rather than snapping when the leader changes.
+@export var color_blend_rate: float = 3.0
+## The glow's pulse: how deep it dips and how fast, for a mild alignment
+## and for one at the far end of the scale.
+@export var pulse_depth_mild: float = 0.25
+@export var pulse_depth_extreme: float = 0.55
+@export var pulse_rate_mild: float = 1.8
+@export var pulse_rate_extreme: float = 3.6
+
 ## Set by overworld.gd right after instancing — the avatar reads this
 ## every physics frame to know which way "forward" currently means.
 @export var camera: OverworldCamera
@@ -93,6 +109,9 @@ var _view_scale := 1.0
 ## 1 standing, falling to 0 as the icon shrinks into a door; see enter().
 var _shrink := 1.0
 var _entering := false
+@onready var _body: GeometryInstance3D = $SpinPivot/person_icon_v4/geometry_0
+@onready var _glow: GeometryInstance3D = $SpinPivot/Glow
+var _color := Color(-1, -1, -1)
 
 
 func _physics_process(delta: float) -> void:
@@ -130,6 +149,7 @@ func _physics_process(delta: float) -> void:
 	# enter() spins the icon itself on the way down.
 	if not _entering:
 		_apply_alignment_spin(delta)
+	_apply_alignment_color(delta)
 
 
 ## One physics step of walking toward a flat direction (length 0 to 1),
@@ -193,6 +213,33 @@ func _apply_alignment_spin(delta: float) -> void:
 	var speed_degrees: float = base_spin_degrees * lerpf(mild_spin_scale, extreme_spin_scale, extremity)
 	var direction_sign: float = law_spin_sign if category > 0 else -law_spin_sign
 	_spin_pivot.rotate_y(direction_sign * deg_to_rad(speed_degrees) * delta)
+
+
+## Colours the icon by its leader's alignment, through per-instance shader
+## parameters so two avatars of a split party each keep their own.
+func _apply_alignment_color(delta: float) -> void:
+	var alignment: int = PartyManager.leader_alignment()
+	var category: int = UnitAlignment.category_for(alignment)
+	var target: Color = neutral_color
+	if category > 0:
+		target = law_color
+	elif category < 0:
+		target = chaos_color
+	var threshold: float = float(UnitAlignment.ALIGNMENT_NEUTRAL_THRESHOLD)
+	var extremity: float = 0.0
+	if category != 0:
+		extremity = clampf((absf(alignment) - threshold) / (AlignmentGrid.DISPLAY_RANGE - threshold), 0.0, 1.0)
+	if _color.r < 0.0:
+		_color = target
+	else:
+		_color = _color.lerp(target, clampf(color_blend_rate * delta, 0.0, 1.0))
+	var rgb := Vector3(_color.r, _color.g, _color.b)
+	var depth: float = lerpf(pulse_depth_mild, pulse_depth_extreme, extremity)
+	var rate: float = lerpf(pulse_rate_mild, pulse_rate_extreme, extremity)
+	for geometry: GeometryInstance3D in [_body, _glow]:
+		geometry.set_instance_shader_parameter(&"body_color", rgb)
+		geometry.set_instance_shader_parameter(&"pulse_depth", depth)
+		geometry.set_instance_shader_parameter(&"pulse_rate", rate)
 
 
 ## The SpinPivot yaw that points its +X at the camera, in the pivot's own
