@@ -64,9 +64,6 @@ const SLAM_HOLD: float = 0.12
 const SLAM_RETURN_TIME: float = 0.35
 ## Gap left between the slammed total and the target plate it hits, px.
 const SLAM_GAP: float = 4.0
-## The blank stills shown in the slots while waiting on Roll.
-const IDLE_GHOST_ALPHA: float = 0.3
-
 ## The shadow is a soft ellipse on the panel under each die. At rest it
 ## sits SHADOW_REST_OFFSET from the die's centre, wide enough that a dark
 ## rim shows round the face, most below-right; per px of height it drifts
@@ -464,12 +461,12 @@ func _show_idle(skill_name: String, roll: Dictionary) -> void:
 	_total_label.add_theme_color_override("font_color", DIM_TEXT)
 	_reset_total_plate()
 	for k in SLOTS:
+		# The tray stays empty until the dice fly in.
 		_landed[k] = false
-		_show_still(k)
 		_numerals[k].visible = false
 		_numerals[k].modulate = Color.WHITE
 		_glints[k].visible = false
-		_place_die(k, Vector3.ZERO, IDLE_GHOST_ALPHA)
+		_dice[k].visible = false
 		_shadows[k].visible = false
 
 
