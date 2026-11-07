@@ -3,12 +3,13 @@
 The scene is the "Numbered Dice" BG3 custom-dice setup (Nexus mod 1325,
 numbers_main.blend): its front-on orthographic camera, four area lights,
 world, Cycles settings, the compositor's directional-blur motion smear and
-the rig's roll and settle actions are all kept. Only the die is swapped:
+the mod maker's render loop are kept. The die is swapped:
 the d20 mesh is replaced by a sharp cube, each face a body-coloured square
 in a white frame like the d20's faces, numerals 1-6 on top.
 
 The render loop is the mod maker's batch script (the .blend's Text.001),
-pointed at d6 actions. Run headless with Blender 4.3:
+pointed at d6 actions; the tumbles are simulated here, since the rig's
+roll actions were keyed for a d20. Run headless with Blender 4.3:
 
     blender -b <numbers_main.blend> -P tools/dice/render_d6_sheets.py \
         -- --out <frames_dir>
@@ -16,23 +17,25 @@ pointed at d6 actions. Run headless with Blender 4.3:
 then pack with tools/dice/pack_d6_sheets.py (tools/dice/build.sh does both).
 Into <frames_dir> it writes, as ####.png frames:
 
-    roll_<double_roll_1|double_roll_2|single_roll>/  the community tumbles,
-        result-agnostic, re-aimed to come to rest face-on with REST_FACE up
-        front; the compositor's spin blur is keyed from each frame's turn,
-        so it fades out as the die slows.
+    tumble_<1|2|3>/  physics-simulated throws (TUMBLES), result-agnostic,
+        each ending flat at rest with REST_FACE square to the camera; the
+        compositor's spin blur is keyed from each frame's turn, so it
+        fades out as the die slows.
     settle_<n>/  SETTLE_FRAMES frames like BG3's d20_N: the die still, face n
         square to the camera, numeral upright, a glint sweeping across. The
         last frame is the landed still.
     cover/  one frame: the die at rest with no numeral, BG3's faceCover,
         which the popup lays over the cut from roll to result.
 
-Pass --only a,b to render just those (roll names, settle_<n>, cover).
+Pass --only a,b to render just those (tumble_<n>, settle_<n>, cover).
 
 The .blend is never written back; nothing from it ships but these renders.
 """
 
+import itertools
 import math
 import os
+import random
 import sys
 
 import bmesh
@@ -51,10 +54,8 @@ NUMERAL = 0.62
 NUMERAL_LIFT = 0.004
 BODY_COLOR = (0.32, 0.025, 0.03, 1.0)
 
-## Same durations the mod maker's script renders: every settle 18 frames
-## (holding the last pose past the action's end), the rolls their length.
+## Every result sheet is 18 frames, as the mod maker's script renders them.
 SETTLE_FRAMES = 18
-ROLLS = {"double_roll_1": 27, "double_roll_2": 28, "single_roll": 61}
 
 ## Face n: (outward normal, the way "up" its numeral reads). Opposite faces
 ## sum to 7.
@@ -69,8 +70,6 @@ FACES = {
 ## Every roll comes to rest with this face up front; the popup's face cover
 ## hides its numeral while the result's takes over.
 REST_FACE = 1
-## The roll eases the last of the way to rest over this many frames.
-DAMP_FRAMES = 6
 ## Spin blur per degree the die turned that frame, and its cap (the rig's).
 BLUR_PER_DEGREE = 0.5
 BLUR_MAX_DEGREES = 20.0
@@ -194,50 +193,134 @@ def linear(action) -> None:
             k.interpolation = "LINEAR"
 
 
-def roll_action(dice_empty, scene, name: str, duration: int):
-    """The community tumble `name`, re-aimed so it comes to rest square to
-    the camera in the pose every result sheet holds (REST_FACE up front).
+## The tumbles, physics-simulated rather than taken from the rig: the rig's
+## roll actions were keyed for a d20, which reads as rolling however it
+## spins, while a cube spinning freely just looks like a box in the air. A
+## d6 tumbles: hits, hops, goes over its edges and tips flat. Each is a
+## throw onto the floor (the camera looks straight down at it) from these
+## seeds of throw_conditions, chosen for many edge flips.
+TUMBLES = {"1": 19, "2": 12, "3": 35}
+## The sim: the rig's 18 frames a second, substeps per frame, gravity
+## (world units are the cube's: HALF = 1.7), restitution, friction.
+SIM_FPS = 18
+SIM_SUBSTEPS = 80
+SIM_GRAVITY = 40.0
+SIM_RESTITUTION = 0.35
+SIM_FRICTION = 0.55
+SIM_MAX_FRAMES = 120
 
-    On the d20 a tumble can stop anywhere: an icosahedron's outline is near
-    enough the same from every side, so BG3 cuts from the roll's last frame
-    to the result sheet without a seam. A cube's outline is not, so every
-    frame's rotation is taken relative to where the tumble ends and applied
-    on top of the rest pose, and the last DAMP_FRAMES ease the rest of the
-    way in, so the die stops instead of freezing mid-turn.
-    Returns the action, each frame's location and each frame's spin in
-    degrees."""
-    source = bpy.data.actions[name]
-    dice_empty.animation_data.action = source
-    first = int(source.frame_range[0])
-    samples = []
-    for f in range(first, first + duration):
-        scene.frame_set(f)
-        loc, rot, _scale = dice_empty.matrix_world.decompose()
-        samples.append((loc.copy(), rot.normalized()))
-    end_inv = samples[-1][1].inverted()
+
+def throw_conditions(seed: int):
+    """Start state for throw `seed`: dropped from above while moving
+    forward fast, at a random attitude and spin."""
+    rnd = random.Random(seed)
+    q = Quaternion(Vector((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-1, 1))).normalized(), rnd.uniform(0, 6.28))
+    w = Vector((rnd.uniform(-1, 1), rnd.uniform(-1, 1), rnd.uniform(-1, 1))).normalized() * rnd.uniform(8, 16)
+    v = Vector((rnd.uniform(20, 30), rnd.uniform(-4, 4), -6))
+    return Vector((0, 0, 6)), v, q, w
+
+
+def simulate(x, v, q, w):
+    """A solid cube against the floor z = 0: impulses at every corner below
+    it, restitution only on real impacts so it can come to rest, Coulomb
+    friction, which is what turns its slide into rolling over an edge.
+    Returns each frame's orientation, until it has been still two frames."""
+    corners = [Vector((sx, sy, sz)) * HALF for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
+    inv_i = 6.0 / (2 * HALF) ** 2
+    n = Vector((0, 0, 1))
+    dt = 1.0 / (SIM_FPS * SIM_SUBSTEPS)
+    out, still = [], 0
+    for _f in range(SIM_MAX_FRAMES):
+        for _s in range(SIM_SUBSTEPS):
+            v.z -= SIM_GRAVITY * dt
+            x += v * dt
+            dq = Quaternion((0.0, w.x, w.y, w.z)) @ q
+            q = Quaternion([a + 0.5 * dt * b for a, b in zip(q, dq)]).normalized()
+            rot = q.to_matrix()
+            contacts = [rot @ c for c in corners if (x + rot @ c).z < 0.0]
+            if not contacts:
+                continue
+            x.z -= min((x + r).z for r in contacts)
+            for _it in range(4):
+                for r in contacts:
+                    un = (v + w.cross(r)).dot(n)
+                    if un >= 0.0:
+                        continue
+                    e = SIM_RESTITUTION if un < -3.0 else 0.0
+                    rn = r.cross(n)
+                    jn = -(1.0 + e) * un / (1.0 + inv_i * rn.dot(rn))
+                    v += n * jn
+                    w += rn * (jn * inv_i)
+                    u = v + w.cross(r)
+                    ut = u - n * u.dot(n)
+                    if ut.length > 1e-6:
+                        t = ut.normalized()
+                        rt = r.cross(t)
+                        jt = max(-ut.length / (1.0 + inv_i * rt.dot(rt)), -SIM_FRICTION * jn)
+                        v += t * jt
+                        w += rt * (jt * inv_i)
+        out.append(q.copy())
+        if v.length < 0.15 and w.length < 0.15 and x.z < HALF + 0.02:
+            still += 1
+            if still >= 2:
+                break
+        else:
+            still = 0
+    return out
+
+
+def cube_turns():
+    """The 24 rotations that map the cube onto itself."""
+    turns = []
+    for m in itertools.permutations(range(3)):
+        for signs in itertools.product((1, -1), repeat=3):
+            rows = [Vector([signs[i] if j == m[i] else 0 for j in range(3)]) for i in range(3)]
+            mat = Matrix(rows)
+            if mat.determinant() > 0:
+                turns.append(mat.to_quaternion())
+    return turns
+
+
+def tumble_action(dice_empty, name: str, seed: int):
+    """Throw `seed`, aimed to come to rest in the pose every result sheet
+    holds (REST_FACE square to the camera, numeral upright).
+
+    The sim's die lands with whatever face up, turned some way about the
+    camera's axis. Relabelling which face is which (a turn of the cube onto
+    itself, applied in its own frame) and turning the whole throw about the
+    camera's axis (screen rotation, which the eye cannot tell from another
+    throw) put it exactly at rest without touching the motion.
+    The die stays centred like the rig's rolls; the popup moves it.
+    Returns the action, each frame's location and each frame's spin."""
+    samples = simulate(*throw_conditions(seed))
+    end = samples[-1]
     rest = face_target(REST_FACE)
+    best = None
+    for m in cube_turns():
+        fix = rest @ (end @ m).inverted()
+        tilt = (fix.to_matrix() @ Vector((0, 0, 1))).angle(Vector((0, 0, 1)))
+        if best is None or tilt < best[0]:
+            best = (tilt, fix, m)
+    _tilt, fix, m = best
 
     reset_deltas(dice_empty)
     dice_empty.rotation_mode = "QUATERNION"
-    action = bpy.data.actions.new(f"d6_{name}")
+    action = bpy.data.actions.new(f"d6_tumble_{name}")
     dice_empty.animation_data.action = action
     spins, locations, prev = [], [], None
-    for i, (loc, rot) in enumerate(samples):
-        q = (rot @ end_inv) @ rest
-        t = min(1.0, max(0.0, (i - (duration - 1 - DAMP_FRAMES)) / DAMP_FRAMES))
-        w = t * t * (3.0 - 2.0 * t)
-        q = q.slerp(rest, w)
-        loc = loc.lerp(Vector((0, 0, 0)), w)
+    for i, q in enumerate(samples):
+        q = fix @ q @ m
         if prev is not None and prev.dot(q) < 0.0:
             q.negate()
         spins.append(0.0 if prev is None else math.degrees(prev.rotation_difference(q).angle))
-        locations.append(loc)
+        locations.append(Vector((0, 0, 0)))
         prev = q
-        key_pose(dice_empty, first + i, q, loc)
+        key_pose(dice_empty, 1 + i, q, Vector((0, 0, 0)))
     linear(action)
     if len(spins) > 1:
         spins[0] = spins[1]
-    return action, locations, spins
+    print(f"render_d6_sheets: tumble_{name} seed {seed}: {len(samples)} frames")
+    return action, locations, spins, len(samples)
 
 
 def blur_action(scene, name: str, first: int, locations, spins) -> None:
@@ -356,12 +439,12 @@ def main() -> None:
     def wanted(key: str) -> bool:
         return only is None or key in only
 
-    for name, duration in ROLLS.items():
-        if not wanted(name):
+    for name, seed in TUMBLES.items():
+        if not wanted(f"tumble_{name}"):
             continue
-        action, locations, spins = roll_action(dice_empty, scene, name, duration)
-        blur_action(scene, name, int(action.frame_range[0]), locations, spins)
-        render(dice_empty, scene, action, os.path.join(out, f"roll_{name}"), duration, True)
+        action, locations, spins, duration = tumble_action(dice_empty, name, seed)
+        blur_action(scene, name, 1, locations, spins)
+        render(dice_empty, scene, action, os.path.join(out, f"tumble_{name}"), duration, True)
 
     glint.hide_render = False
     for n in range(1, 7):

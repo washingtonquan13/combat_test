@@ -7,8 +7,8 @@ extends Control
 ##
 ## BG3-style sprite dice, no 3D in game: every die is a TextureRect whose
 ## AtlasTexture steps through pre-rendered sheets in assets/ui/dice/ —
-## a result-agnostic motion-blurred roll (a different one per die, so the
-## three never move in unison) that comes to rest face-on, then the
+## a result-agnostic motion-blurred tumble (a different simulated throw per
+## die, so the three never move in unison) that tips flat face-on, then the
 ## result sheet for the face that die rolled (held still, face square to
 ## the camera, a glint sweeping across, like BG3's d20_N), then the landed
 ## still. Every roll stops on the same face, so as BG3 does a face cover
@@ -31,11 +31,11 @@ const FPS: float = 18.0
 const COLS: int = 8
 ## Die i plays ROLL_SHEETS[i] once; ROLL_FRAMES[i] is its frame count.
 const ROLL_SHEETS: Array[Texture2D] = [
-	preload("res://assets/ui/dice/d6_roll_double_roll_1.png"),
-	preload("res://assets/ui/dice/d6_roll_double_roll_2.png"),
-	preload("res://assets/ui/dice/d6_roll_single_roll.png"),
+	preload("res://assets/ui/dice/d6_tumble_1.png"),
+	preload("res://assets/ui/dice/d6_tumble_2.png"),
+	preload("res://assets/ui/dice/d6_tumble_3.png"),
 ]
-const ROLL_FRAMES: Array[int] = [27, 28, 61]
+const ROLL_FRAMES: Array[int] = [34, 40, 40]
 ## Index = face value - 1.
 const SETTLE_SHEETS: Array[Texture2D] = [
 	preload("res://assets/ui/dice/d6_settle_1.png"),

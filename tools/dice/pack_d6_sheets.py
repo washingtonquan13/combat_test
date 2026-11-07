@@ -5,7 +5,7 @@
 Writes into <out_dir> (assets/ui/dice/ in the project), every sheet a grid
 COLS wide, row-major, unused trailing cells empty:
 
-    d6_roll_<name>.png   one community tumble (double_roll_1/2, single_roll)
+    d6_<tumble_n>.png    one simulated throw (tumble_1..3)
     d6_settle_<n>.png    the result sheet for face n: still, a glint across;
                          its last frame is the landed still
     d6_landed.png        one row: faces 1..6 at rest, left to right
@@ -22,7 +22,7 @@ import numpy as np
 from PIL import Image
 
 COLS = 8
-ROLLS = ("double_roll_1", "double_roll_2", "single_roll")
+ROLLS = ("tumble_1", "tumble_2", "tumble_3")
 
 
 def load_frames(folder: str) -> list:
@@ -70,10 +70,10 @@ def main() -> None:
     src, out = sys.argv[1], sys.argv[2]
     os.makedirs(out, exist_ok=True)
     for name in ROLLS:
-        frames = load_frames(os.path.join(src, f"roll_{name}"))
-        check_edges(f"roll_{name}", frames)
-        grid(frames).save(os.path.join(out, f"d6_roll_{name}.png"), optimize=True)
-        print(f"pack_d6_sheets: roll_{name} {len(frames)} frames")
+        frames = load_frames(os.path.join(src, name))
+        check_edges(name, frames)
+        grid(frames).save(os.path.join(out, f"d6_{name}.png"), optimize=True)
+        print(f"pack_d6_sheets: {name} {len(frames)} frames")
     landed = []
     for value in range(1, 7):
         frames = load_frames(os.path.join(src, f"settle_{value}"))
