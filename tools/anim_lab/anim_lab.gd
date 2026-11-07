@@ -18,8 +18,9 @@ extends Node3D
 #     res://tools/anim_lab/anim_lab.tscn -- --out=C:/path/sheet.png \
 #     [--clip=Stance_Longgun | --keys=res://tools/anim_lab/rifle_blocking.gd --set=stance] \
 #     [--times=0,0.5,1.2 | --at-keys] [--interp=stepped|keyed|flowing] \
-#     [--views=front,side,top,quarter,hands] [--main=res://scenes/weapons/rifle.tscn] [--off=...]
+#     [--views=front,side,top,quarter,hands,back,back_quarter] [--main=res://scenes/weapons/rifle.tscn] [--off=...]
 #     [--prop=res://world/ladder.tscn]
+#     [--wings=res://scenes/character_models/fairy_wings.tscn --wing-clip=Flutter]
 #
 # --prop sets a scene at the mannequin's feet, in its space (+Z ahead): a
 # ladder, a ledge, whatever the clip is played against.
@@ -42,7 +43,7 @@ const BodyVolumes := preload("res://tools/anim_lab/body_volumes.gd")
 enum Source { CLIP, KEYS }
 enum Interp { STEPPED, KEYED, FLOWING }
 
-const VIEWS := ["front", "side", "top", "quarter", "hands"]
+const VIEWS := ["front", "side", "top", "quarter", "hands", "back", "back_quarter"]
 const SKELETON_PATH := "Model/Body/Armature/GeneralSkeleton"
 const MAIN_GRIP := "Model/Body/Armature/GeneralSkeleton/MainHand/Grip"
 const OFF_GRIP := "Model/Body/Armature/GeneralSkeleton/OffHand/Grip"
@@ -435,6 +436,17 @@ func _render(args: Dictionary) -> Error:
 		var prop: Node = (load(args["prop"]) as PackedScene).instantiate()
 		prop.name = "Prop"
 		$Model.add_child(prop)
+	# --wings mounts a WingRig on the back, and every row holds --wing-clip
+	# at the row's time alongside the body's.
+	var old_wings := _skeleton().get_node_or_null("WingMount")
+	if old_wings:
+		old_wings.free()
+	var wings: WingRig = null
+	if String(args.get("wings", "")) != "":
+		wings = (load(args["wings"]) as PackedScene).instantiate()
+		$Model.add_child(wings)
+		wings.mount()
+	var wing_clip := StringName(args.get("wing-clip", "Folded"))
 	# Moves every view by x,y,z metres, for a clip that travels out of frame.
 	var look := String(args.get("look", "0,0,0")).split_floats(",")
 	$Views.position = Vector3(look[0], look[1], look[2])
@@ -455,6 +467,9 @@ func _render(args: Dictionary) -> Error:
 		key = rows[r]["key"]
 		time = rows[r]["time"]
 		_process(0.0)
+		if wings:
+			wings.pose_at(wing_clip, time)
+			_label += "   wings %s" % wing_clip
 		for c in views.size():
 			var cam: Camera3D = get_node("Views/" + views[c])
 			cam.current = true

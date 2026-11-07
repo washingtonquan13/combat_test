@@ -1,0 +1,15 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/wing_rig.gd" id="1_rig"]
+[ext_resource type="PackedScene" path="res://assets/fairy_wings/fairy_wings.glb" id="2_glb"]
+[ext_resource type="Shader" path="res://assets/fairy_wings/wing_membrane.gdshader" id="3_shader"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_membrane"]
+render_priority = 1
+shader = ExtResource("3_shader")
+
+[node name="Wings" type="Node3D"]
+script = ExtResource("1_rig")
+membrane = SubResource("ShaderMaterial_membrane")
+
+[node name="Rig" parent="." instance=ExtResource("2_glb")]

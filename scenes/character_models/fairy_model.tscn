@@ -1,0 +1,8 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="1_body"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/fairy_wings.tscn" id="2_wings"]
+
+[node name="FairyModel" instance=ExtResource("1_body")]
+
+[node name="Wings" parent="." instance=ExtResource("2_wings")]

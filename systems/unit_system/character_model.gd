@@ -238,6 +238,18 @@ const GAZE_PITCH_LIMIT_DEGREES: float = 45.0
 ## the ability under way. Nothing here knows about abilities.
 signal moment(name: StringName)
 
+## Whether the body is off the ground, as UnitAnimator keeps it (took_off
+## to touched_down). Parts that look different in the air follow it -
+## WingRig folds its wings on the ground and spreads them aloft.
+signal aloft_changed(aloft: bool)
+
+var aloft: bool = false:
+	set(value):
+		if value == aloft:
+			return
+		aloft = value
+		aloft_changed.emit(value)
+
 var _gaze_modifier: LookAtModifier3D = null
 var _gaze_release: Tween = null
 var _gaze_resolved: bool = false

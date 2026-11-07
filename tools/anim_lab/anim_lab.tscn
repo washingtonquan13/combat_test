@@ -58,6 +58,15 @@ fov = 32.0
 transform = Transform3D(0.768221, 0.22955, -0.597614, 0, 0.933503, 0.358569, 0.640184, -0.27546, 0.717137, -0.5, 1.4, 0.9)
 fov = 40.0
 
+[node name="back" type="Camera3D" parent="Views"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.95, -4)
+projection = 1
+size = 2.1
+
+[node name="back_quarter" type="Camera3D" parent="Views"]
+transform = Transform3D(-0.783498, -0.123404, 0.609018, 0, 0.980082, 0.198593, -0.621395, 0.155597, -0.767892, 2.3, 1.9, -2.9)
+fov = 32.0
+
 [node name="Hud" type="CanvasLayer" parent="."]
 
 [node name="Grid" type="Control" parent="Hud"]

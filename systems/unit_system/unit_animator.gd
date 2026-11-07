@@ -162,8 +162,16 @@ var _armed_exit_clip: String = ""
 ## the flying status is gone the moment a landing starts, but the body is
 ## still in the air until the descent ends (Unit.touched_down). Set by
 ## took_off, or by a flight status turning up without one (a unit spawned
-## or loaded already flying); cleared only by touched_down.
-var _aloft: bool = false
+## or loaded already flying); cleared only by touched_down. Passed on to
+## the body (CharacterModel.aloft), for its wings.
+var _aloft: bool = false:
+	set(value):
+		_aloft = value
+		if is_instance_valid(_model):
+			_model.aloft = value
+
+## The body adopted last (adopt_model), told when it goes aloft.
+var _model: CharacterModel = null
 
 ## Where the drawn weapon's stance comes from (UnitWeapons.stance), and
 ## the stance last applied: _idle()'s answer while on the ground.
@@ -205,6 +213,8 @@ func adopt_model(model: CharacterModel) -> void:
 	climb_off_animation = model.climb_off_animation
 	climb_on_animation = model.climb_on_animation
 	model.moment.connect(_on_model_moment)
+	_model = model
+	model.aloft = _aloft
 
 
 func _ready() -> void:
