@@ -16,12 +16,15 @@ extends Control
 ## is a 1:1 sprite (the sprites only spin, the travel is ours), with a
 ## UI-drawn shadow that drifts and softens with height.
 ##
-## Like BG3's rolls, the dice roam the tray before they settle: every roll
-## gives each die a fresh route, thrown in from the bottom, changing course
-## at each of its throw's bounces, and joining its throw's own path at the
-## final landing, so the last tip and settle into the slot stay the throw's.
-## The height, and so the shadow, is always the throw's own. Routes are
-## redrawn until no two dice ever come close, so they never overlap.
+## A d6 doesn't roam like a d20: it hits the table, bounces, tips over a
+## few edges and stops. So only the throw-in is ours: every roll gives each
+## die a fresh flight in, a straight line (a die in the air keeps its
+## course) from somewhere below its slot to where its throw first touches
+## down, heading roughly the way the throw does and at least as fast. From
+## that touchdown on, the die follows its throw's own path, the one its
+## spin was simulated with, so every bounce and tip moves it the way it
+## turns. The height, and so the shadow, is always the throw's own. Routes
+## are redrawn until no two dice ever come close, so they never overlap.
 ##
 ## Layout, top to bottom: the tray (the dice rest in a row across its
 ## middle), the verdict row (target plate left, total plate right), the
@@ -88,24 +91,19 @@ const PLATE_BORDER: Color = Color(0.45, 0.4, 0.32)
 const TEXT: Color = Color(0.93, 0.9, 0.84)
 const DIM_TEXT: Color = Color(0.55, 0.53, 0.5)
 
-## The tray the dice roam, px; they rest in a row across its middle. A
-## die's centre keeps TRAY_INSET from its edges, so a corner spinning past
-## stays on the card.
+## The tray the dice fly into, px; they rest in a row across its middle. A
+## die's centre starts at least TRAY_INSET from its sides, so a corner
+## spinning past stays on the card.
 const TRAY_SIZE: Vector2 = Vector2(720.0, 380.0)
 const TRAY_INSET: float = 72.0
 ## Two dice never come closer than this many faces, centre to centre (a
 ## cube turned corner-on is about 1.4 faces across).
 const MIN_APART_FACES: float = 1.45
-## A route's first leg heads at most THROW_IN_SPREAD off straight up, so
-## the throw's spin still reads as the way it is going. Each bounce turns
-## it by BOUNCE_TURN_MIN..MAX either way, and each leg keeps
-## SPEED_KEPT of the one before's speed; the first leg's is THROW_SPEED,
-## px per frame. A die meeting the tray's edge bounces off it.
-const THROW_IN_SPREAD: float = deg_to_rad(55.0)
-const BOUNCE_TURN_MIN: float = deg_to_rad(35.0)
-const BOUNCE_TURN_MAX: float = deg_to_rad(150.0)
-const SPEED_KEPT: Vector2 = Vector2(0.45, 0.8)
-const THROW_SPEED: Vector2 = Vector2(16.0, 28.0)
+## A throw-in heads at most THROW_IN_TURN off the way its throw comes down,
+## at THROW_IN_SPEED times the throw's own speed there (the touchdown
+## sheds the rest), and starts at most a face below the tray.
+const THROW_IN_TURN: float = deg_to_rad(40.0)
+const THROW_IN_SPEED: Vector2 = Vector2(1.0, 2.5)
 ## Routes are redrawn up to this many times to clear each other (a few
 ## usually do); failing that the dice fly their throws' own paths, which
 ## d6_throws.py cleared.
@@ -629,57 +627,37 @@ func _plan_routes() -> void:
 		_routes[k] = own
 
 
-## Die k's route, as its offset from its slot at every sheet frame: in a
-## straight line between bounces (a die in the air keeps its course),
-## turning at each of its throw's bounces and off the tray's edges, and
-## onto the throw's own path where the throw lands for good. Drawn
-## backwards from that landing, so it always ends there; kept when it
-## starts in the lower half of the tray, in die k's third of it, so the
-## three come in side by side. Empty when no draw did in a few goes.
+## Die k's route, as its offset from its slot at every sheet frame: a
+## straight flight in to its throw's first touchdown, then the throw's own
+## path. Kept when the flight starts within the tray's width, below the
+## row and at most a face below the tray; empty when no draw did in a few
+## goes.
 func _random_route(k: int) -> PackedVector2Array:
 	var path: PackedVector3Array = _heads[_slot_head[k]].path
-	var keys: Array[int] = _key_frames(path)
-	var arrive: int = keys[-1]
+	var touch: int = _key_frames(path)[1]
 	var slot: Vector2 = _slot_centre(k)
-	var lo := Vector2(TRAY_INSET, TRAY_INSET)
-	var hi: Vector2 = TRAY_SIZE - lo
-	var third: float = (hi.x - lo.x) / SLOTS
-	var steps := PackedVector2Array()
-	steps.resize(keys.size() - 1)
-	var flight := PackedVector2Array()
-	flight.resize(arrive + 1)
+	var land: Vector2 = slot + Vector2(path[touch].x, path[touch].y)
+	# The throw's own speed coming down, px per frame, over its last two
+	# frames in the air.
+	var back: int = maxi(touch - 2, 0)
+	var coming: Vector2 = (land - slot - Vector2(path[back].x, path[back].y)) / (touch - back)
+	if coming.is_zero_approx():
+		coming = Vector2.UP
 	for _go in 50:
-		# Every leg's step per frame, launch first.
-		var heading: Vector2 = Vector2.UP.rotated(_rng.randf_range(-THROW_IN_SPREAD, THROW_IN_SPREAD))
-		var speed: float = _rng.randf_range(THROW_SPEED.x, THROW_SPEED.y)
-		for leg in steps.size():
-			if leg > 0:
-				var turn: float = _rng.randf_range(BOUNCE_TURN_MIN, BOUNCE_TURN_MAX)
-				heading = heading.rotated(turn if _rng.randi() % 2 == 0 else -turn)
-				speed *= _rng.randf_range(SPEED_KEPT.x, SPEED_KEPT.y)
-			steps[leg] = heading * speed
-		# Back from the landing, folded into the tray: a die that would cross
-		# an edge comes off it mirrored.
-		var at: Vector2 = slot + Vector2(path[arrive].x, path[arrive].y)
-		var leg: int = steps.size() - 1
-		for f in range(arrive, -1, -1):
-			flight[f] = Vector2(_fold(at.x, lo.x, hi.x), _fold(at.y, lo.y, hi.y))
-			while leg > 0 and keys[leg] >= f:
-				leg -= 1
-			at -= steps[leg]
-		if flight[0].y >= TRAY_SIZE.y * 0.5 and int((flight[0].x - lo.x) / third) == k:
-			var route := PackedVector2Array()
-			for f in path.size():
-				route.append(flight[f] - slot if f < arrive else Vector2(path[f].x, path[f].y))
-			return route
+		var turn: float = _rng.randf_range(-THROW_IN_TURN, THROW_IN_TURN)
+		var speed: float = _rng.randf_range(THROW_IN_SPEED.x, THROW_IN_SPEED.y)
+		var start: Vector2 = land - coming.rotated(turn) * speed * touch
+		var inside: bool = start.x >= TRAY_INSET and start.x <= TRAY_SIZE.x - TRAY_INSET
+		if not inside or start.y < slot.y or start.y > TRAY_SIZE.y + _face_px:
+			continue
+		var route := PackedVector2Array()
+		for f in path.size():
+			if f < touch:
+				route.append(start.lerp(land, float(f) / touch) - slot)
+			else:
+				route.append(Vector2(path[f].x, path[f].y))
+		return route
 	return PackedVector2Array()
-
-
-## x folded into [lo, hi], as a ball between two walls would be.
-static func _fold(x: float, lo: float, hi: float) -> float:
-	var width: float = hi - lo
-	var t: float = fposmod(x - lo, 2.0 * width)
-	return lo + (t if t <= width else 2.0 * width - t)
 
 
 ## Launch, every bounce, and the landing for good, as frames of `path`.
