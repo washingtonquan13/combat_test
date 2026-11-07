@@ -4,7 +4,7 @@
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
 [ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="3_spawn"]
 [ext_resource type="Resource" path="res://data/surfaces/wall_of_water.tres" id="4_surface"]
-[ext_resource type="Texture2D" uid="uid://bltjfnyxwt1dy" path="res://assets/ability_icon/create_water_icon.png" id="8_icon"]
+[ext_resource type="Texture2D" uid="uid://b24r4x4g36u1c" path="res://assets/ability_icon/wall_of_water_icon.png" id="8_icon"]
 [ext_resource type="Script" uid="uid://d0kfi73aslocx" path="res://systems/ability_system/line_targeting.gd" id="9_targeting"]
 
 [sub_resource type="Resource" id="Resource_spawn"]

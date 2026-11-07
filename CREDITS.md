@@ -36,3 +36,9 @@ From [game-icons.net](https://game-icons.net), licensed under
 | target_head_icon.png | Headshot | Lorc |
 | target_vitals_icon.png | Pierced heart | Lorc |
 | weaken_icon.png | Broken skull | Lorc |
+| fire_bolt_icon.png | Fire ray | Lorc |
+| ray_of_frost_icon.png | Ice bolt | Lorc |
+| lightning_bolt_icon.png | Focused lightning | Lorc |
+| shadow_step_icon.png | Shadow follower | Lorc |
+| puddle_step_icon.png | Droplet splash | Lorc |
+| wall_of_water_icon.png | Big wave | Lorc |
