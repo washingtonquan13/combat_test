@@ -31,3 +31,7 @@ A recorded walkthrough of the attack flow (1bf3e4c), built on item_layer_demo's 
 # combat_rules_demo
 
 A recorded walkthrough of the combat rules, built on item_layer_demo's helpers. It runs 17 checks against a same-faction dummy in a leather chestpiece. It shows crushing, cutting and impaling after DR, with live Swing and Thrust. It shows Target Vitals and Target Head (to-hit and wounding), and a level-2 Deceptive Attack. Bloodied and Exhausted come on below a third of HP or FP. Stacking heavy gear raises the encumbrance level with the inventory open. Downing the whole party brings up the game over screen. The HT roll to stay up is random, so the demo forces the failure the way test_game_over does. Record it with `res://tools/combat_rules_demo.tscn`.
+
+# dice
+
+`bash tools/dice/build.sh [frames_dir]` renders the skill-check popup's sprite d6 in Blender 4.3 (`render_d6_sheets.py`, headless, everything built procedurally) and packs the frames into `assets/ui/dice/` (`pack_d6_sheets.py`, system `python -I` with numpy + PIL). About four minutes on CPU Cycles. Output: three seamless 32-frame tumble loops (8x4 grids), six 16-frame settle-and-glint sheets (4x4), and a landed strip of faces 1-6, all 192 px frames. `systems/dialogue_system/skill_check_dice_popup.gd` reads them by grid, so its constants must match the scripts'. The sheets import VRAM-compressed with mipmaps.

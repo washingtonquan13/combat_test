@@ -1,77 +1,81 @@
 extends Control
-## Shows a real 3d6 tumble for a dialogue skill check, landing on the
-## exact faces SuccessRoll.roll_vs() already rolled — a check asks for it
-## with Conversation.show(&"dice", {skill, roll}), which parks the choice
-## until this calls Conversation.complete(). The roll is fully decided
-## before this ever runs; this only ever plays back an already-final
-## result, same "decide first, animate second" principle proven out in
-## dice_roll_prototype.gd/dice_roll_2d_prototype.gd earlier, now wired
-## into the real skill-check flow instead of a standalone demo scene.
+## Shows a 3d6 tumble for a dialogue skill check, landing on the exact
+## faces SuccessRoll.roll_vs() already rolled — a check asks for it with
+## Conversation.show(&"dice", {skill, roll}), which parks the choice until
+## this calls Conversation.complete(). The roll is fully decided before
+## this ever runs; this only plays back an already-final result.
 ##
-## Built entirely in code (matching both of those prototypes) rather
-## than a hand-authored .tscn — a SubViewport nested under a Control,
-## feeding 3 individually-instanced dice, is exactly the kind of tree
-## that's easy to get subtly wrong by hand without live-testing it.
+## BG3-style sprite dice, no 3D in game: every die is a TextureRect whose
+## AtlasTexture steps through pre-rendered sheets in assets/ui/dice/ —
+## a result-agnostic tumble loop (one per die, so the three never move
+## in unison), then the settle sheet for the face that die rolled (it
+## comes to rest face-up and a glint crosses it), then the landed still.
+## The sheets are rendered by tools/dice/render_d6_sheets.py in Blender
+## and packed by tools/dice/pack_d6_sheets.py (tools/dice/build.sh runs
+## both); the frame size and grids below must match those scripts.
 ##
-## Hidden by default. main.tscn adds exactly one of these as a
+## Hidden by default. MainRoot.tscn adds exactly one of these as a
 ## CanvasLayer child, after DialogueOverlay/ConversationLog so it
 ## renders on top of both while a roll is in progress.
 
-const DIE_FACE_NORMALS: Dictionary = {
-	1: Vector3.UP, 6: Vector3.DOWN,
-	2: Vector3.RIGHT, 5: Vector3.LEFT,
-	3: Vector3.BACK, 4: Vector3.FORWARD,
-}
-## The die's OVERALL correction per face — NOT the same rotations used
-## to place each face's Label3D in _build_die(). This set answers "how
-## do I rotate the whole die, as a rigid body, so THIS face ends up
-## where Basis.looking_at()'s own -Z convention expects" — i.e. each
-## entry is R such that R * DIE_FACE_NORMALS[face] == Vector3(0,0,-1).
-## Composed with a camera-facing basis in _on_dice_roll_requested() so
-## the chosen face lands pointed at the camera, not just "up" — hand-
-## derived per axis-aligned face rather than a generic from/to
-## quaternion, which leaves the roll around that axis undetermined
-## (fine for a plain color, not fine for a numeral that needs to stay
-## upright instead of landing sideways).
-const FACE_TO_FORWARD_EULER: Dictionary = {
-	1: Vector3(-PI / 2, 0, 0), 6: Vector3(PI / 2, 0, 0),
-	2: Vector3(0, PI / 2, 0), 5: Vector3(0, -PI / 2, 0),
-	3: Vector3(PI, 0, 0), 4: Vector3(0, 0, 0),
-}
-const DIE_SPACING: float = 1.4
+const FRAME_PX: int = 192
+const FPS: float = 30.0
+const TUMBLE_SHEETS: Array[Texture2D] = [
+	preload("res://assets/ui/dice/d6_tumble_a.png"),
+	preload("res://assets/ui/dice/d6_tumble_b.png"),
+	preload("res://assets/ui/dice/d6_tumble_c.png"),
+]
+const TUMBLE_COLS: int = 8
+const TUMBLE_FRAMES: int = 32
+## Index = face value - 1.
+const SETTLE_SHEETS: Array[Texture2D] = [
+	preload("res://assets/ui/dice/d6_settle_1.png"),
+	preload("res://assets/ui/dice/d6_settle_2.png"),
+	preload("res://assets/ui/dice/d6_settle_3.png"),
+	preload("res://assets/ui/dice/d6_settle_4.png"),
+	preload("res://assets/ui/dice/d6_settle_5.png"),
+	preload("res://assets/ui/dice/d6_settle_6.png"),
+]
+const SETTLE_COLS: int = 4
+const SETTLE_FRAMES: int = 16
+## One row, faces 1..6 left to right.
+const LANDED_SHEET: Texture2D = preload("res://assets/ui/dice/d6_landed.png")
+
+## On-screen size of one frame. The die itself fills under half of it;
+## the rest is room for the tumble and the shadow.
+const DIE_DISPLAY_PX: float = 120.0
+## Neighbouring frames overlap by this much, since their edges are empty.
+const DIE_OVERLAP_PX: float = 34.0
+## Time from Roll to the FIRST die coming to rest, settle included.
 const TUMBLE_DURATION: float = 1.0
-## Each die's tween runs this much longer than the previous die's, so
-## all 3 visibly stop in sequence instead of landing in a near-unison
-## blur — big enough to read as "one at a time," not just jitter.
+## Each die lands this much later than the previous one, so all 3
+## visibly stop in sequence instead of landing in a near-unison blur.
 const STAGGER_STEP: float = 0.4
 ## Arbitrary — the roll hasn't happened yet, so no face value is
-## "correct" while waiting on the Roll button. Just needs to be some
-## fixed value so the idle pose is camera-facing instead of whatever
-## identity/last-landed rotation the die happened to have.
+## "correct" while waiting on the Roll button. Each die just shows its
+## landed still of this face.
 const IDLE_FACE_VALUE: int = 1
 ## Bottom-right, in a small footprint above the conversation band, rather
-## than the old dead-centre placement — dead centre sat directly over the
-## speaker, which is exactly what the lower-third layout keeps clear.
+## than dead centre over the speaker, which the lower-third layout keeps
+## clear. Anchored to the BOTTOM of the screen: _BAND_CLEARANCE is the
+## room the content-sized band needs there, its own height plus a gap.
+## If the band ever grows past it (a very long choice list), the dice
+## overlap it rather than the speaker, the better of the two failures.
 ##
-## Anchored to the BOTTOM of the screen, not to a fractional line. An
-## earlier version pinned to 0.65 to track the old overlay's own
-## anchor_top, but the new band is sized to its CONTENT and pinned to the
-## bottom, so there is no fractional line left to track. _BAND_CLEARANCE
-## is the room that band needs: its own height plus a gap. If the band
-## ever grows past it (a very long choice list), the dice will overlap it
-## rather than the speaker, which is the better of the two failures.
-##
-## Both anchors on each axis are equal, so Godot's anchor-spread sizing
-## does not apply: the size is exactly offset_right minus offset_left by
-## offset_bottom minus offset_top, a fixed 150x150 pinned to that corner
-## as the window resizes.
-const _CORNER_SIZE: float = 150.0
+## Both anchors on each axis are equal, so the size is exactly the
+## offsets: a fixed _CORNER_WIDTH x _CORNER_HEIGHT box pinned to that
+## corner as the window resizes.
+const _CORNER_WIDTH: float = 3 * DIE_DISPLAY_PX - 2 * DIE_OVERLAP_PX + 16.0
+const _CORNER_HEIGHT: float = 190.0
 const _CORNER_MARGIN: float = 20.0
 ## Height the conversation band needs at the bottom, plus a gap above it.
 const _BAND_CLEARANCE: float = 170.0
 
-var _camera: Camera3D
-var _dice: Array[Node3D] = []
+## One AtlasTexture per die, each the texture of its own TextureRect;
+## showing a frame only moves its atlas and region.
+var _faces: Array[AtlasTexture] = []
+## The running roll's tweens, killed when a roll is abandoned or restarted.
+var _tweens: Array[Tween] = []
 var _result_label: Label
 var _continue_button: Button
 ## The conversation this is attached to as its &"dice" presenter, and the
@@ -145,6 +149,7 @@ func _forget() -> void:
 			_conversation.changed.disconnect(_on_changed)
 	_conversation = null
 	_play_token += 1
+	_kill_tweens()
 	visible = false
 	if _continue_button:
 		_continue_button.visible = false
@@ -156,11 +161,11 @@ func _build_scene() -> void:
 	anchor_top = 1.0
 	anchor_right = 1.0
 	anchor_bottom = 1.0
-	offset_left = -(_CORNER_SIZE + _CORNER_MARGIN)
-	offset_top = -(_CORNER_SIZE + _BAND_CLEARANCE)
+	offset_left = -(_CORNER_WIDTH + _CORNER_MARGIN)
+	offset_top = -(_CORNER_HEIGHT + _BAND_CLEARANCE)
 	offset_right = -_CORNER_MARGIN
 	offset_bottom = -_BAND_CLEARANCE
-	custom_minimum_size = Vector2(_CORNER_SIZE, _CORNER_SIZE)
+	custom_minimum_size = Vector2(_CORNER_WIDTH, _CORNER_HEIGHT)
 
 	var panel := PanelContainer.new()
 	add_child(panel)
@@ -168,47 +173,32 @@ func _build_scene() -> void:
 	var vbox := VBoxContainer.new()
 	panel.add_child(vbox)
 
-	# 130x55 rather than the old 400x170 — scaled down to fit the 150x150
-	# corner box, but kept at (almost exactly) the SAME aspect ratio
-	# (400:170 ≈ 2.35, 130:55 ≈ 2.36) on purpose: _face_toward_camera_euler
-	# and the camera's own position/FOV below are untouched, so a viewport
-	# with a different aspect would crop the two outer dice instead of just
-	# rendering the same framing at a lower resolution.
-	var viewport_container := SubViewportContainer.new()
-	vbox.add_child(viewport_container)
-	viewport_container.custom_minimum_size = Vector2(130, 55)
-	viewport_container.stretch = true
-
-	var viewport := SubViewport.new()
-	viewport_container.add_child(viewport)
-	viewport.size = Vector2i(130, 55)
-	viewport.own_world_3d = true
-	viewport.transparent_bg = true
-
-	_camera = Camera3D.new()
-	viewport.add_child(_camera)
-	_camera.position = Vector3(0, 2.0, 3.2)
-	_camera.look_at(Vector3.ZERO, Vector3.UP)
-
-	var light := DirectionalLight3D.new()
-	viewport.add_child(light)
-	light.rotation_degrees = Vector3(-50, -30, 0)
-
+	var row := HBoxContainer.new()
+	vbox.add_child(row)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", -int(DIE_OVERLAP_PX))
 	for i in 3:
-		var die := _build_die()
-		viewport.add_child(die)
-		die.position = Vector3((i - 1) * DIE_SPACING, 0, 0)
-		_dice.append(die)
+		var face := AtlasTexture.new()
+		_faces.append(face)
+		var die := TextureRect.new()
+		row.add_child(die)
+		die.texture = face
+		die.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		die.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		die.custom_minimum_size = Vector2(DIE_DISPLAY_PX, DIE_DISPLAY_PX)
+		# The sheets carry mipmaps: frames are drawn well under the size
+		# they were rendered at.
+		die.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		_show_landed(i, IDLE_FACE_VALUE)
 
 	_result_label = Label.new()
 	vbox.add_child(_result_label)
 	_result_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_result_label.add_theme_font_size_override("font_size", 12)
-	# Word-wraps ("Critical success! — 14 vs 10" etc.) inside the 130px
-	# viewport width above instead of forcing the whole popup wider than
-	# the 150x150 corner box it's now anchored into.
+	# Word-wraps ("Critical success! — 14 vs 10" etc.) inside the dice
+	# row's width instead of forcing the popup wider than its corner box.
 	_result_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-	_result_label.custom_minimum_size = Vector2(130, 0)
+	_result_label.custom_minimum_size = Vector2(_CORNER_WIDTH - 16.0, 0)
 
 	_continue_button = Button.new()
 	vbox.add_child(_continue_button)
@@ -217,87 +207,39 @@ func _build_scene() -> void:
 	_continue_button.pressed.connect(_step.emit)
 
 
-## A real numeral per face — no texture asset exists, but Label3D
-## renders actual legible text without needing one, a step up from
-## dice_roll_prototype.gd's flat-colored-square placeholder. Swapping
-## in real numbered art later only touches this function;
-## _on_dice_roll_requested below never needs to change.
-##
-## The per-face rotation below is confirmed correct on its own terms —
-## it aims each face's content at the right world direction, verified
-## live (the die itself always presents the intended face to the
-## camera). What was still wrong after that was the glyph ITSELF
-## reading mirrored on every face — a separate, orthogonal problem:
-## rotation alone can never mirror anything (it's orientation-
-## preserving), so no amount of retuning the rotation table above could
-## ever have fixed this. scale.x = -1 corrects the glyph in the label's
-## own local space, independent of and unaffected by whichever way
-## that space then gets rotated to face outward. billboard stays
-## explicitly disabled: each numeral must rotate WITH the die during
-## the tumble and only read correctly once genuinely landed, never
-## fake it by always facing the camera.
-func _build_die() -> Node3D:
-	var die := Node3D.new()
-	var body := MeshInstance3D.new()
-	die.add_child(body)
-	body.mesh = BoxMesh.new()
-	var body_mat := StandardMaterial3D.new()
-	body_mat.albedo_color = Color(0.15, 0.15, 0.18)
-	body.material_override = body_mat
-
-	for face in DIE_FACE_NORMALS:
-		var label := Label3D.new()
-		die.add_child(label)
-		label.text = str(face)
-		label.font_size = 64
-		label.pixel_size = 0.008
-		label.modulate = Color(0.92, 0.88, 0.78)
-		label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		label.scale.x = -1
-
-		var normal: Vector3 = DIE_FACE_NORMALS[face]
-		label.position = normal * 0.52
-		if normal == Vector3.UP:
-			label.rotation = Vector3(-PI / 2, 0, 0)
-		elif normal == Vector3.DOWN:
-			label.rotation = Vector3(PI / 2, 0, 0)
-		elif normal == Vector3.RIGHT:
-			label.rotation = Vector3(0, PI / 2, 0)
-		elif normal == Vector3.LEFT:
-			label.rotation = Vector3(0, -PI / 2, 0)
-		elif normal == Vector3.BACK:
-			pass
-		elif normal == Vector3.FORWARD:
-			label.rotation = Vector3(PI, 0, 0)
-
-	return die
+func _show_frame(die: int, sheet: Texture2D, cols: int, index: int) -> void:
+	var face: AtlasTexture = _faces[die]
+	face.atlas = sheet
+	face.region = Rect2((index % cols) * FRAME_PX, floori(float(index) / cols) * FRAME_PX, FRAME_PX, FRAME_PX)
 
 
-## The die's target rotation so face_value points at _camera — not
-## just Vector3.UP, which only looks head-on to a camera that's
-## directly overhead. Composes a camera-facing basis (whose own -Z
-## points at the camera, roll fixed by world-up) with
-## FACE_TO_FORWARD_EULER's fixed per-face correction, so the exact
-## chosen face ends up where that -Z is, right numeral upright — see
-## FACE_TO_FORWARD_EULER's own comment for the derivation.
-func _face_toward_camera_euler(die: Node3D, face_value: int) -> Vector3:
-	var to_camera: Vector3 = (_camera.position - die.position).normalized()
-	var camera_facing: Basis = Basis.looking_at(to_camera, Vector3.UP)
-	var face_correction: Basis = Basis.from_euler(FACE_TO_FORWARD_EULER[face_value])
-	return (camera_facing * face_correction).get_euler()
+## `frame` counts up without wrapping; the tumble sheet is a seamless loop.
+func _show_tumble(frame: float, die: int, phase: int) -> void:
+	_show_frame(die, TUMBLE_SHEETS[die], TUMBLE_COLS, (int(frame) + phase) % TUMBLE_FRAMES)
+
+
+func _show_settle(frame: float, die: int, face_value: int) -> void:
+	_show_frame(die, SETTLE_SHEETS[face_value - 1], SETTLE_COLS, mini(int(frame), SETTLE_FRAMES - 1))
+
+
+func _show_landed(die: int, face_value: int) -> void:
+	_show_frame(die, LANDED_SHEET, 6, face_value - 1)
+
+
+func _kill_tweens() -> void:
+	for tween in _tweens:
+		if tween.is_valid():
+			tween.kill()
+	_tweens.clear()
 
 
 func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	_play_token += 1
 	var token: int = _play_token
 	visible = true
-	# Without this, a die sits at whatever rotation it was last left in
-	# (identity on the very first roll ever) instead of presenting a
-	# face square to the camera — identity in particular reads as
-	# tilted, since the camera isn't positioned straight down any one
-	# axis (see _build_scene()'s _camera.position).
+	_kill_tweens()
 	for i in 3:
-		_dice[i].rotation = _face_toward_camera_euler(_dice[i], IDLE_FACE_VALUE)
+		_show_landed(i, IDLE_FACE_VALUE)
 	_result_label.text = "%s check" % skill_name
 	_continue_button.text = "Roll"
 	_continue_button.visible = true
@@ -308,31 +250,28 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	_continue_button.visible = false
 	_result_label.text = "Rolling %s..." % skill_name
 
-	var tweens: Array[Tween] = []
+	# Each die tumbles until its settle has to start for it to land on
+	# time, then plays the settle sheet for the face it rolled, ending on
+	# that face's landed still. Random loop phases, so no two dice show
+	# the same tumble frame at once.
+	var settle_time: float = SETTLE_FRAMES / FPS
 	for i in 3:
-		var die: Node3D = _dice[i]
-		var target_euler: Vector3 = _face_toward_camera_euler(die, roll.dice[i])
-		# Extra whole turns stacked onto the target before tweening —
-		# same final orientation either way, but Tween interpolates
-		# rotation's X/Y/Z linearly, so the extra turns are visibly
-		# travelled through on the way instead of skipped past. Staggered
-		# per-die duration so all 3 don't land in perfect unison.
-		var spun_euler: Vector3 = target_euler + Vector3(
-			TAU * randi_range(2, 3), TAU * randi_range(2, 3), 0
-		)
-		die.rotation = Vector3(randf_range(0, TAU), randf_range(0, TAU), randf_range(0, TAU))
+		var face_value: int = roll.dice[i]
+		var tumble_time: float = maxf(TUMBLE_DURATION + i * STAGGER_STEP - settle_time, 0.0)
 		var tween: Tween = create_tween()
-		tween.tween_property(die, "rotation", spun_euler, TUMBLE_DURATION + i * STAGGER_STEP) \
-			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		tweens.append(tween)
+		tween.tween_method(_show_tumble.bind(i, randi() % TUMBLE_FRAMES), 0.0, tumble_time * FPS, tumble_time)
+		tween.tween_method(_show_settle.bind(i, face_value), 0.0, float(SETTLE_FRAMES), settle_time)
+		tween.tween_callback(_show_landed.bind(i, face_value))
+		_tweens.append(tween)
 
-	for tween in tweens:
-		await tween.finished
+	# The last die lands last, so its tween finishing means all three are
+	# down. Waited on through _step, which _forget also emits, so a roll
+	# abandoned mid-tumble (its tweens killed) still wakes up and leaves.
+	_tweens[-1].finished.connect(_step.emit)
+	await _step
 	if token != _play_token:
 		return
-	# Normalize off the extra full turns now that every die has landed.
-	for i in 3:
-		_dice[i].rotation = _face_toward_camera_euler(_dice[i], roll.dice[i])
+	_tweens.clear()
 
 	var verdict: String = "Failed"
 	if roll.critical_success:
