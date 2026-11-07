@@ -24,7 +24,9 @@ extends Resource
 
 ## What a surface is made of, for combos (see element, SurfaceReaction).
 ## Kept apart from damage's WoundType, which has no cold or lightning.
-enum Element { NONE, FIRE, COLD, WATER, LIGHTNING }
+## SHADOW is never laid as a patch: shade is worked out where it's asked
+## for (Shadows), and SurfaceManager.element_at answers for it.
+enum Element { NONE, FIRE, COLD, WATER, LIGHTNING, SHADOW }
 
 @export var surface_name: String = "Surface"
 ## How many ROUNDS (a full pass through turn order — see
@@ -159,3 +161,10 @@ func describe() -> String:
 	for effect in status_effects:
 		lines.append("Applies %s while standing in it" % effect.status_name)
 	return "\n".join(lines)
+
+
+## A magical darkness: a sight-blocking cloud Dark Vision sees through (fog
+## blocks sight too, but Dark Vision doesn't help there). Shadows treats
+## one as shade, sun or no sun.
+func is_darkness() -> bool:
+	return blocks_sight and dark_vision_sees_through

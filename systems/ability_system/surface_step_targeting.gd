@@ -6,8 +6,8 @@ extends GroundPointTargeting
 ## on one too; in between nothing matters (no path, no sight line), since
 ## the caster goes through the surface, not over the ground.
 ##
-## Kept to an element rather than to Water so a shadow version can reuse
-## it once shadows are surfaces.
+## Kept to an element rather than to Water: Shadow Step is the same step
+## with element SHADOW (shade, see Shadows).
 
 @export var element: Surface.Element = Surface.Element.WATER
 
@@ -20,7 +20,7 @@ func check(attacker: Unit, target) -> Reach:
 	var destination: Vector3 = target
 	if attacker.global_position.distance_to(destination) > range_for(attacker):
 		return Reach.OUT_OF_RANGE
-	if not _surface_matches(SurfaceManager.surface_at(destination, WorldManager.context_for(attacker))):
+	if not SurfaceManager.element_at(element, destination, WorldManager.context_for(attacker)):
 		return Reach.INVALID
 	if not _can_stand_at(attacker, destination):
 		return Reach.INVALID
@@ -32,14 +32,7 @@ func check(attacker: Unit, target) -> Reach:
 func standing_in(attacker: Unit) -> bool:
 	if attacker.is_flying():
 		return false
-	for surface in SurfaceManager.surfaces_under(attacker):
-		if _surface_matches(surface):
-			return true
-	return false
-
-
-func _surface_matches(surface: Surface) -> bool:
-	return surface != null and surface.element == element
+	return SurfaceManager.stands_on_element(attacker, element)
 
 
 func describe() -> String:

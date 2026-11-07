@@ -1000,6 +1000,25 @@ func surface_at(point: Vector3, context: WorldContext) -> Surface:
 	return cell.surface if cell else null
 
 
+## Whether point in context is on element: a ground patch of it, or for
+## SHADOW, shade (Shadows). The question a step between surfaces asks.
+func element_at(element: Surface.Element, point: Vector3, context: WorldContext) -> bool:
+	if element == Surface.Element.SHADOW:
+		return Shadows.is_shadowed(point, context)
+	var surface: Surface = surface_at(point, context)
+	return surface != null and surface.element == element
+
+
+## Whether unit stands on element, as element_at. Shade is read at the feet.
+func stands_on_element(unit: Unit, element: Surface.Element) -> bool:
+	if element == Surface.Element.SHADOW:
+		return Shadows.is_shadowed(unit.global_position, WorldManager.context_for(unit))
+	for surface in surfaces_under(unit):
+		if surface.element == element:
+			return true
+	return false
+
+
 ## Takes surface's inside-only statuses off unit, each unless one of the
 ## surfaces still holding them (`still`) gives the same status.
 func _release(unit: Unit, surface: Surface, still: Array[Surface]) -> void:
