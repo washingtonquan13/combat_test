@@ -20,7 +20,7 @@ func check(attacker: Unit, target) -> Reach:
 	var destination: Vector3 = target
 	if attacker.global_position.distance_to(destination) > range_for(attacker):
 		return Reach.OUT_OF_RANGE
-	if not SurfaceManager.element_at(element, destination, WorldManager.context_for(attacker)):
+	if not SurfaceManager.element_at(element, destination, WorldManager.context_for(attacker), attacker):
 		return Reach.INVALID
 	if not _can_stand_at(attacker, destination):
 		return Reach.INVALID
