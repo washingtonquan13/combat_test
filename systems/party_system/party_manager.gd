@@ -465,6 +465,17 @@ func leader_alignment() -> int:
 	return 0
 
 
+## The leader's Light/Dark tendency, read the same two ways as
+## leader_alignment(); 0 before there is any leader.
+func leader_tendency() -> int:
+	if leader:
+		return leader.tendency
+	for record in roster:
+		if record.is_leader:
+			return record.tendency
+	return 0
+
+
 ## Writes alignment to WHICHEVER of the live leader Unit / roster record
 ## currently exist, so a debug-set value holds across the next world
 ## transition either direction instead of being silently overwritten by
