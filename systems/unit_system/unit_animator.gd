@@ -11,12 +11,12 @@ extends Node
 ## from inside your instanced/editable-children .glb into
 ## `animation_player`.
 ##
-## An ability's cast animation is driven entirely by data (see
+## An ability's cast motion is driven entirely by data (see
 ## AnimationSequence/AnimationPhase) rather than hardcoded per ability
 ## shape — this script has no idea what a "melee attack," "spell," or
-## "jump" is anymore. ability.cast_animation (falling back to this
-## script's own default_cast_animation when unset, same fallback shape
-## cast_vfx/cast_sfx already use) supplies an ordered list of phases;
+## "jump" is anymore. ability.motion names a motion key, and the body's
+## MotionSet (CharacterModel.motions) answers it with an ordered list of
+## phases, falling back by category (&"cast.charged" -> &"cast");
 ## this script just plays each phase's clip and advances to the next one
 ## whenever that phase's own AdvanceTrigger says to — see
 ## _advance_to_next_phase()/_active_phase() near the bottom of this file
@@ -62,20 +62,7 @@ extends Node
 ## this gap, so the next turn doesn't start mid-recovery.
 @export var turn_gap: float = 0.35
 
-@export_group("Cast Animation")
-## Fallback AnimationSequence for any ability that doesn't set its own
-## cast_animation — same fallback shape unit_vfx.gd/unit_sfx.gd already
-## use for cast_vfx/cast_sfx.
-@export var default_cast_animation: AnimationSequence
-
-@export_group("Armed Animation")
-## Fallback clip names for any ability that doesn't set its own
-## armed_enter_animation/armed_hold_animation/armed_exit_animation — same
-## fallback shape unit_sfx.gd/unit_vfx.gd already use for their own armed
-## moments. See _on_ability_armed() for how they chain together.
-@export var default_armed_enter_animation: String = ""
-@export var default_armed_hold_animation: String = ""
-@export var default_armed_exit_animation: String = ""
+@export_group("Blending")
 ## The crossfade into a stance clip (an armed enter, hold or exit) and into
 ## the cast that launches from it. Those are the clips that start while
 ## something else is mid-motion - arming from partway through the idle
@@ -105,8 +92,8 @@ extends Node
 @export var climb_on_animation: String = ""
 
 ## What a one-shot clip (a hit reaction, most commonly) returns to once
-## it finishes — idle_animation normally, or the held status's
-## apply_animation while unit.visual_state == POSED. The single source
+## it finishes — idle_animation normally, or the held status's pose
+## (_posed_clip) while unit.visual_state == POSED. The single source
 ## every fallback reads from, kept correct in exactly the two places a
 ## pose starts/ends (_on_status_applied/_on_status_removed) instead of
 ## re-derived ad hoc wherever a one-shot clip happens to finish.
@@ -181,7 +168,16 @@ var _aloft: bool = false
 ## Where the drawn weapon's stance comes from (UnitWeapons.stance), and
 ## the stance last applied: _idle()'s answer while on the ground.
 var _weapons: UnitWeapons = null
-var _stance: String = ""
+var _stance: StringName = &""
+
+## The body's answer to every motion key (CharacterModel.motions), taken in
+## adopt_model. Null is a body with no motions: every cast releases at once
+## and no stance, pose or gesture plays.
+var _motions: MotionSet = null
+
+## The clip the held status pose (unit.posed_status) is resting on, as its
+## apply_motion resolved on this body. "" while not posed.
+var _posed_clip: String = ""
 
 
 ## Rebinds this driver onto a body it was not authored against.
@@ -200,9 +196,7 @@ func adopt_model(model: CharacterModel) -> void:
 	walk_animation = model.walk_animation
 	hit_animation = model.hit_animation
 	death_animation = model.death_animation
-	default_armed_enter_animation = model.armed_enter_animation
-	default_armed_hold_animation = model.armed_hold_animation
-	default_armed_exit_animation = model.armed_exit_animation
+	_motions = model.motions
 	fly_idle_animation = model.fly_idle_animation
 	fly_move_animation = model.fly_move_animation
 	takeoff_animation = model.takeoff_animation
@@ -244,7 +238,7 @@ func _ready() -> void:
 
 
 ## Warns about every clip name referenced by this unit's own animation
-## fields, or by any ability in its roster, that doesn't actually exist
+## fields, or anywhere in its body's MotionSet, that doesn't actually exist
 ## on animation_player — checked once here at scene load rather than
 ## only discovered lazily whenever a specific phase is finally reached
 ## in play (see _play()'s own warning for that backstop case). The
@@ -253,11 +247,9 @@ func _ready() -> void:
 ## silently frozen character with nothing in the console pointing at
 ## why — this is what actually makes that authoring safe.
 ##
-## Can't do the same for StatusEffect's own apply_animation/
-## hit_reaction_animation/remove_animation fields the same way — which
-## status a unit might end up carrying isn't known until one's actually
-## applied at runtime, unlike abilities, which are a fixed roster
-## sitting on unit.abilities from the start.
+## Callers (abilities, attack rows, weapons, statuses) name motion keys,
+## not clips, so the motion set is the whole of what can be misspelled. A
+## key the set doesn't answer is a supported "this body doesn't do that".
 func _validate_animation_names() -> void:
 	# A body with NO clips at all is a whitebox, and that is a supported
 	# state rather than a broken one — every ability's sequence would
@@ -276,18 +268,12 @@ func _validate_animation_names() -> void:
 	_check_clip(land_animation, "land_animation")
 	_check_clip(hit_animation, "hit_animation")
 	_check_clip(death_animation, "death_animation")
-	_check_sequence(default_cast_animation, "default_cast_animation")
-	_check_clip(default_armed_enter_animation, "default_armed_enter_animation")
-	_check_clip(default_armed_hold_animation, "default_armed_hold_animation")
-	_check_clip(default_armed_exit_animation, "default_armed_exit_animation")
+	if _motions:
+		for key in _motions.sequences:
+			_check_sequence(_motions.sequences[key], "motion \"%s\"" % key)
+		for key in _motions.clips:
+			_check_clip(_motions.clips[key], "motion \"%s\"" % key)
 
-	for ability in unit.abilities:
-		if not ability:
-			continue
-		_check_sequence(ability.cast_animation, "%s.cast_animation" % ability.ability_name)
-		_check_clip(ability.armed_enter_animation, "%s.armed_enter_animation" % ability.ability_name)
-		_check_clip(ability.armed_hold_animation, "%s.armed_hold_animation" % ability.ability_name)
-		_check_clip(ability.armed_exit_animation, "%s.armed_exit_animation" % ability.ability_name)
 
 
 func _check_sequence(sequence: AnimationSequence, label: String) -> void:
@@ -315,6 +301,7 @@ func _on_movement_started(_u: Unit) -> void:
 	if _cutscene_claimed:
 		return
 	unit.posed_status = null
+	_posed_clip = ""
 	unit.visual_state = Unit.VisualState.STANDING
 	_base_animation = _idle()
 	_play(_walk())
@@ -359,10 +346,10 @@ func _on_ability_armed(ability: Ability) -> void:
 		_put_stance_away()
 		return
 
-	var enter: String = ability.armed_enter_animation if ability.armed_enter_animation != "" else default_armed_enter_animation
-	var hold: String = ability.armed_hold_animation if ability.armed_hold_animation != "" else default_armed_hold_animation
+	var enter: String = _armed_clip(&"armed.enter", ability.armed_motion)
+	var hold: String = _armed_clip(&"armed.hold", ability.armed_motion)
 	_armed_stance_clips = [enter, hold]
-	_armed_exit_clip = ability.armed_exit_animation if ability.armed_exit_animation != "" else default_armed_exit_animation
+	_armed_exit_clip = _armed_clip(&"armed.exit", ability.armed_motion)
 
 	if enter != "" and _play(enter, stance_blend_time):
 		_pending_armed_enter_clip = enter
@@ -422,7 +409,7 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 		if action:
 			action.release()
 		return
-	var sequence: AnimationSequence = ability.cast_animation if ability.cast_animation else default_cast_animation
+	var sequence: AnimationSequence = _motions.sequence_for(ability.motion) if _motions else null
 	# Launched out of the stance: blend from wherever the hold loop is.
 	var from_stance: bool = String(animation_player.current_animation) in _armed_stance_clips
 	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time, action)
@@ -480,7 +467,7 @@ func _end_hold_if(token: int) -> void:
 	unit.end_busy()
 
 
-## Reads the currently-held status's own hit_reaction_animation if it
+## Reads the currently-held status's own hit_reaction_motion if it
 ## set one (see StatusEffect), otherwise the animator's normal default —
 ## this is the ONLY thing that varies per status; whether the unit
 ## actually returns to its pose afterward doesn't depend on this choice
@@ -496,10 +483,8 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 	_release_cast()
 	_end_hold()
 	var posed: StatusEffect = unit.posed_status
-	if posed and posed.hit_reaction_animation != "":
-		_play(posed.hit_reaction_animation)
-	else:
-		_play(hit_animation)
+	var reaction: String = _clip(posed.hit_reaction_motion) if posed else ""
+	_play(reaction if reaction != "" else hit_animation)
 
 
 func _on_died(_u: Unit) -> void:
@@ -512,6 +497,7 @@ func _on_died(_u: Unit) -> void:
 	_armed_stance_clips = []
 	_armed_exit_clip = ""
 	unit.posed_status = null
+	_posed_clip = ""
 	unit.visual_state = Unit.VisualState.STANDING
 	_play(death_animation)
 
@@ -528,14 +514,17 @@ func _on_died(_u: Unit) -> void:
 func _on_status_applied(_affected_unit: Unit, effect: StatusEffect) -> void:
 	if not _aloft and unit.is_flying():
 		_lift_without_takeoff()
-	if effect.apply_animation == "":
+	# A body with no clip for the pose doesn't take it: nothing to hold.
+	var pose: String = _clip(effect.apply_motion)
+	if pose == "":
 		return
 	if unit.posed_status != null:
 		return  # already holding a different pose — see Unit.posed_status's doc comment
 	unit.posed_status = effect
 	unit.visual_state = Unit.VisualState.POSED
-	_base_animation = effect.apply_animation
-	_play(effect.apply_animation)
+	_posed_clip = pose
+	_base_animation = pose
+	_play(pose)
 
 
 func _on_status_removed(_affected_unit: Unit, effect: StatusEffect) -> void:
@@ -543,12 +532,12 @@ func _on_status_removed(_affected_unit: Unit, effect: StatusEffect) -> void:
 	if effect != unit.posed_status or not unit.is_alive():
 		return
 	unit.posed_status = null
+	_posed_clip = ""
 	unit.visual_state = Unit.VisualState.STANDING
 	_base_animation = _idle()
-	if effect.remove_animation != "":
-		_play(effect.remove_animation)
-	else:
-		_play(_base_animation)
+	_posed_clip = ""
+	var recovery: String = _clip(effect.remove_motion)
+	_play(recovery if recovery != "" else _base_animation)
 
 
 func _on_unit_became_idle() -> void:
@@ -563,15 +552,16 @@ func _on_unit_became_idle() -> void:
 func _idle() -> String:
 	if _aloft and fly_idle_animation != "":
 		return fly_idle_animation
-	if not _aloft and _stance != "" and animation_player.has_animation(_stance):
-		return _stance
+	var stance: String = _clip(_stance) if not _aloft else ""
+	if stance != "" and animation_player.has_animation(stance):
+		return stance
 	return idle_animation
 
 
 ## What's in the hands changed. A unit standing idle shifts into the new
 ## stance at once; anything else playing (a walk, an attack, a held pose)
 ## comes back to it when it ends.
-func _on_stance_changed(stance: String) -> void:
+func _on_stance_changed(stance: StringName) -> void:
 	var was_idle: String = _idle()
 	_stance = stance
 	if _cutscene_claimed or unit.posed_status or not unit.is_alive():
@@ -698,9 +688,8 @@ func _on_animation_finished(anim_name: StringName) -> void:
 	# Holds on the pose's final frame instead of falling through below —
 	# see Unit.posed_status's doc comment. Cleared by _on_status_removed,
 	# which is what actually plays the recovery clip
-	# (StatusEffect.remove_animation) once the status is gone.
-	var posed: StatusEffect = unit.posed_status
-	if posed and anim_name == posed.apply_animation:
+	# (StatusEffect.remove_motion) once the status is gone.
+	if unit.posed_status and _posed_clip != "" and anim_name == _posed_clip:
 		return
 
 	# The armed-enter clip finishing is what starts the hold loop — see
@@ -757,18 +746,17 @@ func _on_animation_finished(anim_name: StringName) -> void:
 ## every time a one-shot on top of it (a hit reaction) finishes: an
 ## unconditional _play(_base_animation) would visibly replay the whole
 ## "collapse to the ground" motion after every single hit while down,
-## instead of snapping straight back to already being down. That's the
-## default (StatusEffect.apply_animation_loops == false) — a status
-## whose pose is authored as a genuine LOOP instead (a "lying down,
-## breathing" idle) sets that field, and this just lets it keep playing
-## normally rather than freezing it mid-loop, which would look wrong the
-## other way around.
+## instead of snapping straight back to already being down. A pose clip
+## authored as a genuine LOOP instead (a "lying down, breathing" idle)
+## says so in its own loop mode, and this lets it keep playing normally
+## rather than freezing it mid-loop, which would look wrong the other way
+## around.
 func _rest_on_base_animation(blend: float = -1.0) -> void:
 	_play(_base_animation, blend)
-	var posed: StatusEffect = unit.posed_status
-	if posed and _base_animation == posed.apply_animation and not posed.apply_animation_loops:
-		if animation_player.has_animation(_base_animation):
-			animation_player.seek(animation_player.current_animation_length, true)
+	if unit.posed_status and _posed_clip != "" and _base_animation == _posed_clip \
+			and animation_player.has_animation(_posed_clip) \
+			and animation_player.get_animation(_posed_clip).loop_mode == Animation.LOOP_NONE:
+		animation_player.seek(animation_player.current_animation_length, true)
 
 
 ## Returns whether a clip actually started playing.
@@ -817,15 +805,28 @@ func play_cutscene_clip(anim_name: String) -> bool:
 	return _play(anim_name)
 
 
-## A one-shot clip with nothing behind it - moving a prop raises a hand.
-## Rests back on the base animation when it ends, as every one-shot does
-## (_on_animation_finished). Refused while a cutscene owns the body or an
-## ability's sequence is playing, which it would cut off. Returns whether
-## it played.
-func play_gesture(anim_name: String) -> bool:
+## A one-shot motion with nothing behind it - moving a prop raises a hand
+## (&"gesture"). Rests back on the base animation when it ends, as every
+## one-shot does (_on_animation_finished). Refused while a cutscene owns
+## the body or an ability's sequence is playing, which it would cut off.
+## Returns whether it played; a body with no clip for it plays nothing.
+func play_motion(motion: StringName) -> bool:
 	if _cutscene_claimed or _active_sequence != null:
 		return false
-	return _play(anim_name, phase_blend_time)
+	return _play(_clip(motion), phase_blend_time)
+
+
+## This body's clip for `motion`, or "" when it has none.
+func _clip(motion: StringName) -> String:
+	if motion == &"" or _motions == null:
+		return ""
+	return _motions.clip_for(motion)
+
+
+## One stage of the armed loop for `kind` (Ability.armed_motion):
+## "armed.enter.charged", falling back to plain "armed.enter".
+func _armed_clip(stage: StringName, kind: StringName) -> String:
+	return _clip(StringName(stage + "." + kind) if kind != &"" else stage)
 
 
 ## `blend` is the crossfade from the current clip; -1 is the player's own

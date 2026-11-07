@@ -50,10 +50,11 @@ extends Node3D
 @export var hit_animation: String = ""
 @export var death_animation: String = ""
 
-@export_group("Armed Animation")
-@export var armed_enter_animation: String = ""
-@export var armed_hold_animation: String = ""
-@export var armed_exit_animation: String = ""
+@export_group("Motions")
+## What this body does for each motion key that abilities, attack rows,
+## weapons and statuses name (see MotionSet). Null means it has no motions
+## at all: every action still runs, with nothing played.
+@export var motions: MotionSet
 
 @export_group("Flight Animation")
 ## While the unit is in the air these stand in for idle and walk; empty

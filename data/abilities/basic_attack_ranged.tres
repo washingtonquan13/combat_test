@@ -1,11 +1,10 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=12 format=3 uid="uid://cb3k1n2puqron"]
+[gd_resource type="Resource" script_class="Ability" load_steps=11 format=3 uid="uid://cb3k1n2puqron"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_7ohbq"]
 [ext_resource type="Texture2D" uid="uid://buwrel4grptvr" path="res://assets/ability_icon/attack_icon_ranged.png" id="1_8dawa"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_vpgqn"]
 [ext_resource type="Script" uid="uid://fgbbihwp3tid" path="res://systems/ability_system/gear_damage_effect.gd" id="2_4hxbv"]
 [ext_resource type="Script" uid="uid://c2pqxcyoj7nxh" path="res://systems/ability_system/ranged_enemy_targeting.gd" id="5_nl2jd"]
-[ext_resource type="Resource" uid="uid://bswb4mw0s1ee1" path="res://data/animation_sequences/weapon_crossbow.tres" id="seq_default"]
 [ext_resource type="Script" uid="uid://bjatij1rn26yg" path="res://systems/ability_system/ability_timing.gd" id="t_timing"]
 [ext_resource type="Resource" uid="uid://gi88pt6ycb12" path="res://data/vfx/bolt_flight.tres" id="vfx_default"]
 
@@ -49,9 +48,6 @@ fp_cost = 0.0
 timing = SubResource("Resource_timing")
 cast_vfx = ExtResource("vfx_default")
 armed_hold_vfx_at = 3
-armed_enter_animation = ""
-armed_hold_animation = ""
-armed_exit_animation = ""
-cast_animation = ExtResource("seq_default")
+motion = &"attack.shoot.crossbow"
 plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

@@ -45,7 +45,3 @@ rank = 0
 counters = Array[StringName]([])
 resisted_by = &""
 resistance_modifier = 0
-apply_animation = ""
-apply_animation_loops = false
-remove_animation = ""
-hit_reaction_animation = ""

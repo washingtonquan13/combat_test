@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=4 uid="uid://btnqexsmk20xa"]
+[gd_scene load_steps=18 format=4 uid="uid://btnqexsmk20xa"]
 
 [ext_resource type="Script" uid="uid://ee0ub37ip226" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://systems/unit_system/outline.gdshader" id="2_outline"]
@@ -9,6 +9,7 @@
 [ext_resource type="AnimationLibrary" uid="uid://cvojeprtllue0" path="res://assets/fireball_animations.tres" id="7_fireball"]
 [ext_resource type="AnimationLibrary" uid="uid://p1mjjjfv2c1l" path="res://assets/weapon_animations.tres" id="8_weapon"]
 [ext_resource type="AnimationLibrary" uid="uid://bnor2mfisrdex" path="res://assets/ladder_animations.tres" id="9_ladder"]
+[ext_resource type="Resource" path="res://data/motion_sets/humanoid.tres" id="10_motions"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]
 resource_local_to_scene = true
@@ -86,6 +87,7 @@ land_animation = "Flight/Land"
 climb_animation = "Ladder/Climb_Up"
 climb_off_animation = "Ladder/Climb_Over_Top"
 climb_on_animation = "Ladder/Climb_On_Top"
+motions = ExtResource("10_motions")
 outline_mesh = NodePath("OutlineMesh")
 highlight_mesh = NodePath("HighlightMesh")
 collision_shape = NodePath("CollisionTemplate")

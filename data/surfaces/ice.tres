@@ -36,10 +36,8 @@ rank = 0
 counters = Array[StringName]([])
 resisted_by = &"DX"
 resistance_modifier = 0
-apply_animation = "UAL2_Standard/Hit_Knockback"
-apply_animation_loops = false
-remove_animation = "UAL2_Standard/LayToIdle"
-hit_reaction_animation = ""
+apply_motion = &"knockdown"
+remove_motion = &"get_up"
 
 [resource]
 script = ExtResource("1_surface")

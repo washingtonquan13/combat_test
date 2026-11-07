@@ -1,12 +1,10 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=12 format=3 uid="uid://c3sl3ewjb1rcu"]
+[gd_resource type="Resource" script_class="GearItem" load_steps=10 format=3 uid="uid://c3sl3ewjb1rcu"]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://b14gmkvgquglw" path="res://assets/test_item_icons/test_pistol.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
 [ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
 [ext_resource type="Script" uid="uid://kj230cxxaog0" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
-[ext_resource type="Resource" uid="uid://cbypccweocy0a" path="res://data/animation_sequences/weapon_pistol.tres" id="seq_pistol"]
-[ext_resource type="Resource" uid="uid://b36mskhvgrdbe" path="res://data/animation_sequences/weapon_reload_pistol.tres" id="seq_reload"]
 [ext_resource type="Resource" uid="uid://b0xgqxee5od0d" path="res://data/vfx/gunshot.tres" id="vfx_gunshot"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/pistol.tscn" id="w_model"]
 
@@ -31,7 +29,7 @@ recoil = 2
 fixed_dice_count = 2
 fixed_dice_sides = 6
 fixed_dice_bonus = 2
-animation = ExtResource("seq_pistol")
+motion = &"attack.shoot.pistol"
 cast_vfx = ExtResource("vfx_gunshot")
 
 [sub_resource type="Resource" id="Resource_weapon"]
@@ -41,8 +39,8 @@ two_handed = false
 shots = 9
 model_scene = ExtResource("w_model")
 held_in_off_hand = false
-stance_animation = "Weapon/Stance_Pistol"
-reload_animation = ExtResource("seq_reload")
+stance_motion = &"stance.pistol"
+reload_motion = &"reload.pistol"
 sheath = 0
 
 [resource]

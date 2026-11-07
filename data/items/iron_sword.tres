@@ -1,11 +1,10 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3 uid="uid://cing3w35sxrnh"]
+[gd_resource type="Resource" script_class="GearItem" load_steps=10 format=3 uid="uid://cing3w35sxrnh"]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
 [ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
 [ext_resource type="Script" uid="uid://kj230cxxaog0" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
-[ext_resource type="Resource" uid="uid://b1iyno7670oow" path="res://data/animation_sequences/weapon_thrust.tres" id="seq_thrust"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/iron_sword.tscn" id="w_model"]
 
 [sub_resource type="Resource" id="Resource_swing"]
@@ -51,7 +50,7 @@ recoil = 1
 fixed_dice_count = 1
 fixed_dice_sides = 6
 fixed_dice_bonus = 0
-animation = ExtResource("seq_thrust")
+motion = &"attack.thrust"
 
 [sub_resource type="Resource" id="Resource_weapon"]
 script = ExtResource("3_weapon")
@@ -60,7 +59,7 @@ two_handed = false
 shots = 0
 model_scene = ExtResource("w_model")
 held_in_off_hand = false
-stance_animation = "Weapon/Stance_Sword"
+stance_motion = &"stance.sword"
 sheath = 0
 
 [resource]

@@ -15,7 +15,7 @@ extends Node
 ## nothing, and a weapon without a model shows nothing.
 
 ## What's in the hands changed, and with it maybe the stance.
-signal stance_changed(stance: String)
+signal stance_changed(stance: StringName)
 
 ## Every hand slot, in the order homes are handed out.
 const SLOTS: Array[EquipSlot.Slot] = [
@@ -68,17 +68,17 @@ func carried_model(slot: EquipSlot.Slot) -> Node3D:
 	return model if is_instance_valid(model) else null
 
 
-## The stance clip of what's in the hands (WeaponData.stance_animation):
+## The stance motion of what's in the hands (WeaponData.stance_motion):
 ## the off hand's if it names one, else the main hand's. Only what is
 ## actually held counts - sheathed, or a body without grips, stands as it
-## always does.
-func stance() -> String:
+## always does. The animator turns the key into this body's clip.
+func stance() -> StringName:
 	for off_hand in [true, false]:
 		var slot: EquipSlot.Slot = _hand_slot(drawn, off_hand)
 		var weapon: WeaponData = _weapon_in(slot)
-		if weapon and weapon.stance_animation != "" and held_model(slot):
-			return weapon.stance_animation
-	return ""
+		if weapon and weapon.stance_motion != &"" and held_model(slot):
+			return weapon.stance_motion
+	return &""
 
 
 ## Rebuilds what's in the hands and on the body from the Unit's state.

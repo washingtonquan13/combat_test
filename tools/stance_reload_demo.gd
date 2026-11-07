@@ -1,9 +1,9 @@
 extends "res://tools/weapon_visuals_demo.gd"
 ## Recorded walkthrough of weapon stances and reloads — NOT a test. With a
-## weapon drawn the hero stands in its guard (WeaponData.stance_animation)
+## weapon drawn the hero stands in its guard (WeaponData.stance_motion)
 ## instead of upright with the weapon hanging, a shield's guard beating the
 ## sword's, and comes back to it after an attack; Reload plays the drawn
-## gun's own clip (WeaponData.reload_animation), holds the turn through it
+## gun's own clip (WeaponData.reload_motion), holds the turn through it
 ## and fills the magazine. Record it the same way as item_layer_demo.
 
 

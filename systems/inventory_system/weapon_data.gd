@@ -29,14 +29,15 @@ extends Resource
 ## equipped as the main weapon but held in the bow hand, the string hand
 ## free to draw.
 @export var held_in_off_hand: bool = false
-## The looping clip the body stands in while this is drawn, in place of
-## its plain idle: the guard it fights from (UnitAnimator._idle). A
-## shield's beats the main hand's - it changes how the whole body
-## stands. Empty, or a clip the body lacks, keeps the plain idle.
-@export var stance_animation: String = ""
-## What Reload plays while this is the drawn magazine weapon. Null plays
-## nothing.
-@export var reload_animation: AnimationSequence = null
+## Motion key of the looping guard the body stands in while this is drawn,
+## in place of its plain idle (UnitAnimator._idle): &"stance.sword",
+## &"stance.longgun". A shield's beats the main hand's - it changes how the
+## whole body stands. Empty, or a key the body has no clip for, keeps the
+## plain idle.
+@export var stance_motion: StringName = &""
+## Motion key Reload plays while this is the drawn magazine weapon
+## (&"reload.pistol"). Empty plays nothing.
+@export var reload_motion: StringName = &""
 
 ## Where it's carried while equipped but not in hand (UnitWeapons): the
 ## inactive set, and both sets while sheathed. AUTO decides by

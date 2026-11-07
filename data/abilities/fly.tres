@@ -39,8 +39,6 @@ requires_to_hit = false
 uses_attack_action = false
 move_cost = 0.0
 fp_cost = 0.0
-armed_enter_animation = ""
-armed_hold_animation = ""
 plays_cast_animation = false
 metadata/_custom_type_script = "uid://bpidhds13g0p8"
 
@@ -58,7 +56,5 @@ requires_to_hit = false
 uses_attack_action = true
 move_cost = 2.0
 fp_cost = 1.0
-armed_enter_animation = ""
-armed_hold_animation = ""
 plays_cast_animation = false
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

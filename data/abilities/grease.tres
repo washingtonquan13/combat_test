@@ -44,10 +44,8 @@ rank = 0
 counters = Array[StringName]([])
 resisted_by = &"DX"
 resistance_modifier = 0
-apply_animation = "UAL2_Standard/Hit_Knockback"
-apply_animation_loops = false
-remove_animation = "UAL2_Standard/LayToIdle"
-hit_reaction_animation = ""
+apply_motion = &"knockdown"
+remove_motion = &"get_up"
 metadata/_custom_type_script = "uid://cplabynayhpiv"
 
 [sub_resource type="Resource" id="Resource_6bgp3"]
@@ -102,8 +100,5 @@ uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
 armed_hold_vfx_at = 3
-armed_enter_animation = ""
-armed_hold_animation = ""
-armed_exit_animation = ""
 plays_cast_animation = true
 metadata/_custom_type_script = "uid://bpidhds13g0p8"

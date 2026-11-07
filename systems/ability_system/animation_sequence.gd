@@ -21,8 +21,8 @@ extends Resource
 ## reason: state survives an interruption, a suspended await doesn't.
 ##
 ## Create instances as .tres files, assign a sequence of AnimationPhase
-## resources to phases. Assign the result to Ability.cast_animation (or
-## unit_animator.gd's own default_cast_animation fallback) — Jump is
+## resources to phases. A body's MotionSet maps motion keys to them
+## (data/motion_sets/humanoid.tres: &"jump", &"cast.charged") — Jump is
 ## [Start(ON_FINISH), Loop(EXTERNAL), Land(ON_FINISH)], a Sword Attack
 ## is just [Sword_Attack(ON_FINISH)], sharing the same phase TYPE
 ## without either needing bespoke code in the player.

@@ -73,45 +73,32 @@ enum StackMode {
 @export var tick_sfx: SfxCue
 
 @export_group("Animation")
-## Optional clip played the instant this status is first applied (same
-## first-application-only scope as apply_vfx/apply_sfx — not replayed on
-## a REFRESH/STACK re-application) — a plain clip name, not a composable
-## resource like VfxEffect/SfxCue, matching how every OTHER animation in
-## this project already works (see unit_animator.gd's Clip Names group).
-## Meant for a status with a genuinely distinct POSE, not just a
-## reaction flourish — see remove_animation below for why the two are a
-## pair, not independent fields.
-@export var apply_animation: String = ""
-## Whether apply_animation is a looping "resting" clip (e.g. a lying-
-## down idle) rather than a one-shot that should freeze on its final
-## frame once it finishes playing — see unit_animator.gd's
-## _rest_on_base_animation, which is the only place this is read.
-## Defaults false (freeze on last frame), matching how apply_animation
-## already behaved before this field existed — a status only needs to
-## touch this if its pose clip is specifically authored to loop.
-@export var apply_animation_loops: bool = false
-## Optional clip played when this status is actually removed (expired,
-## cured, replaced) IF apply_animation ever played and is still being
-## held — see unit_animator.gd's Unit.posed_status. Left unset, the
-## animator falls back to its own default idle clip instead (rather than
-## holding the pose's final frame forever, which is very likely not what
-## you want) — but if you set apply_animation for a real pose (lying
-## down, frozen, ...) you almost always want a matching, purpose-made
-## remove_animation (a recovery clip) too.
-@export var remove_animation: String = ""
+## Motion key of the pose the body takes the instant this status is first
+## applied (same first-application-only scope as apply_vfx/apply_sfx, not
+## replayed on a REFRESH/STACK re-application), resolved to a clip by the
+## body's MotionSet. Meant for a status with a genuinely distinct POSE
+## (&"knockdown" for Prone), not a reaction flourish. Whether the pose loops
+## or freezes on its last frame is the clip's own loop mode. A body with no
+## clip for the key simply doesn't pose.
+@export var apply_motion: StringName = &""
+## Motion key played when this status is actually removed (expired, cured,
+## replaced) IF its apply_motion pose is still being held; see
+## unit_animator.gd's Unit.posed_status. Empty, or a key the body has no clip
+## for, falls back to the body's idle instead of holding the pose's final
+## frame forever, but a real pose almost always wants a matching recovery
+## (&"get_up").
+@export var remove_motion: StringName = &""
 
 @export_group("Hit Reaction FX")
-## Optional clip/VFX/SFX played instead of the animator's/VFX's/SFX's own
-## defaults for a moment where this unit takes damage while this
-## status's apply_animation is currently being held (e.g. a "flinch
-## while down" clip for Prone/Incapacitate, distinct from a standing
-## hit-react) — same shape as Apply/Tick/Remove FX above, just for this
-## fourth moment. Left unset, each system plays its own normal default
-## reaction instead. Whichever plays, the unit still correctly returns to
-## holding this status's pose afterward regardless — that part is
-## handled structurally (see Unit.visual_state/posed_status), not
-## per-status, so it can't be forgotten by leaving these unset.
-@export var hit_reaction_animation: String = ""
+## Optional motion/VFX/SFX played instead of the animator's/VFX's/SFX's own
+## defaults when this unit takes damage while this status's apply_motion
+## pose is held (a "flinch while down" for Prone, distinct from a standing
+## hit-react); same shape as Apply/Tick/Remove FX above, for this fourth
+## moment. Left unset, each system plays its own normal default reaction.
+## Whichever plays, the unit still returns to holding this status's pose
+## afterward; that part is structural (see Unit.visual_state/posed_status),
+## not per-status, so it can't be forgotten by leaving these unset.
+@export var hit_reaction_motion: StringName = &""
 @export var hit_reaction_vfx: VfxEffect
 @export var hit_reaction_sfx: SfxCue
 

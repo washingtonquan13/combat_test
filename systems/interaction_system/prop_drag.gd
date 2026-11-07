@@ -18,8 +18,8 @@ extends Node3D
 ## The wheel turns it (turn()): the ghost, the fit and the landing all
 ## use the turned rotation, and the prop turns to it on the way.
 ##
-## On a drop the mover raises a hand (GESTURE_CLIP, UAL's plain spell
-## cast) and turns to face where it goes.
+## On a drop the mover raises a hand (its body's &"gesture" motion) and
+## turns to face where it goes.
 ##
 ## Made and fed by ClickRouter, which owns the cursor; this never reads
 ## input or casts a mouse ray itself.
@@ -39,8 +39,6 @@ const ARC_SEGMENTS: int = 24
 
 ## One wheel notch turns the prop this far.
 const TURN_STEP: float = deg_to_rad(15.0)
-
-const GESTURE_CLIP: String = "Spell_Simple_Shoot"
 
 ## How long the mover takes to turn toward the drop.
 const FACE_TIME: float = 0.25
@@ -175,7 +173,7 @@ func _gesture_toward(at: Vector3) -> void:
 		return
 	var animator: UnitAnimator = mover.animator()
 	if animator:
-		animator.play_gesture(GESTURE_CLIP)
+		animator.play_motion(&"gesture")
 	var who: Unit = mover
 	mover.create_tween().tween_method(
 		func(_t: float) -> void: who.face_point(at, who.get_process_delta_time()),

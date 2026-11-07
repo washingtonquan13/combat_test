@@ -75,10 +75,11 @@ enum DamageBase { SWING, THRUST, FIXED }
 @export var fixed_dice_bonus: int = 0
 
 @export_group("Presentation")
-## The attacker's clip for this row: a swing, a thrust, a bow draw. Its
-## Call Method keys mark the release and the impact (see
-## CharacterModel.moment). Empty keeps the attack template's own.
-@export var animation: AnimationSequence
+## Motion key the attacker plays for this row (&"attack.swing",
+## &"attack.shoot.bow", &"attack.claw"), resolved by the attacker's body
+## (MotionSet). The sequence's Call Method keys mark the release and the
+## impact (see CharacterModel.moment). Empty keeps the attack template's own.
+@export var motion: StringName = &""
 ## What flies or flashes once the attack releases: an arrow, a tracer
 ## and muzzle flash, a spinning axe. Ends with an ImpactSignalStep for a
 ## ranged row, whose hit lands on it. Empty keeps the template's own.

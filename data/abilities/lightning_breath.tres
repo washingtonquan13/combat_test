@@ -1,11 +1,10 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=17 format=3 uid="uid://vm07vcyy4im1"]
+[gd_resource type="Resource" script_class="Ability" load_steps=16 format=3 uid="uid://vm07vcyy4im1"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
 [ext_resource type="Script" uid="uid://dley113smhdn3" path="res://systems/ability_system/area_damage_effect.gd" id="3_dmg"]
 [ext_resource type="Script" uid="uid://7dakyq0nqsb7" path="res://systems/ability_system/cone_targeting.gd" id="8_cone"]
 [ext_resource type="Texture2D" uid="uid://fbhq80ww3x3h" path="res://assets/ability_icon/fire_breath_icon.png" id="9_icon"]
-[ext_resource type="Resource" uid="uid://wrxvxvawwob3" path="res://data/animation_sequences/weapon_breath.tres" id="13_breath"]
 [ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="14_vfx"]
 [ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="15_step"]
 [ext_resource type="Script" uid="uid://bmt7le1wyfdqe" path="res://systems/ability_system/cone_vfx_step.gd" id="16_cone_step"]
@@ -66,8 +65,5 @@ fp_cost = 0.0
 timing = SubResource("Resource_timing")
 cast_vfx = SubResource("Resource_cast_vfx")
 armed_hold_vfx_at = 3
-armed_enter_animation = ""
-armed_hold_animation = ""
-armed_exit_animation = ""
-cast_animation = ExtResource("13_breath")
+motion = &"breath"
 plays_cast_animation = true

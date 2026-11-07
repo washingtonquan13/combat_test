@@ -1,0 +1,68 @@
+[gd_resource type="Resource" script_class="MotionSet" load_steps=25 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/motion_set.gd" id="1_motion_set"]
+[ext_resource type="Resource" path="res://data/animation_sequences/fireball_cast.tres" id="2_fireball_cast"]
+[ext_resource type="Script" path="res://systems/ability_system/animation_sequence.gd" id="2_iw2oy"]
+[ext_resource type="Resource" path="res://data/animation_sequences/jump.tres" id="3_jump"]
+[ext_resource type="Resource" path="res://data/animation_sequences/spell_cast.tres" id="4_spell_cast"]
+[ext_resource type="Resource" path="res://data/animation_sequences/spell_cast_held.tres" id="5_spell_cast_held"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_bash.tres" id="6_weapon_bash"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_bite.tres" id="7_weapon_bite"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_bow.tres" id="8_weapon_bow"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_breath.tres" id="9_weapon_breath"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_claw.tres" id="10_weapon_claw"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_crossbow.tres" id="11_weapon_crossbow"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_gore.tres" id="12_weapon_gore"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_heavy_swing.tres" id="13_weapon_heavy_swing"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_heavy_thrust.tres" id="14_weapon_heavy_thrust"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_pistol.tres" id="15_weapon_pistol"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_punch.tres" id="16_weapon_punch"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_crossbow.tres" id="17_weapon_reload_crossbow"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_pistol.tres" id="18_weapon_reload_pistol"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_reload_rifle.tres" id="19_weapon_reload_rifle"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_rifle_burst.tres" id="20_weapon_rifle_burst"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_swing.tres" id="21_weapon_swing"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_throw.tres" id="22_weapon_throw"]
+[ext_resource type="Resource" path="res://data/animation_sequences/weapon_thrust.tres" id="23_weapon_thrust"]
+
+[resource]
+script = ExtResource("1_motion_set")
+sequences = Dictionary[StringName, ExtResource("2_iw2oy")]({
+&"attack.bash": ExtResource("6_weapon_bash"),
+&"attack.bite": ExtResource("7_weapon_bite"),
+&"attack.claw": ExtResource("10_weapon_claw"),
+&"attack.gore": ExtResource("12_weapon_gore"),
+&"attack.punch": ExtResource("16_weapon_punch"),
+&"attack.shoot.bow": ExtResource("8_weapon_bow"),
+&"attack.shoot.crossbow": ExtResource("11_weapon_crossbow"),
+&"attack.shoot.pistol": ExtResource("15_weapon_pistol"),
+&"attack.shoot.rifle": ExtResource("20_weapon_rifle_burst"),
+&"attack.swing": ExtResource("21_weapon_swing"),
+&"attack.swing.heavy": ExtResource("13_weapon_heavy_swing"),
+&"attack.throw": ExtResource("22_weapon_throw"),
+&"attack.thrust": ExtResource("23_weapon_thrust"),
+&"attack.thrust.heavy": ExtResource("14_weapon_heavy_thrust"),
+&"breath": ExtResource("9_weapon_breath"),
+&"cast": ExtResource("4_spell_cast"),
+&"cast.charged": ExtResource("2_fireball_cast"),
+&"cast.held": ExtResource("5_spell_cast_held"),
+&"jump": ExtResource("3_jump"),
+&"reload.crossbow": ExtResource("17_weapon_reload_crossbow"),
+&"reload.pistol": ExtResource("18_weapon_reload_pistol"),
+&"reload.rifle": ExtResource("19_weapon_reload_rifle")
+})
+clips = Dictionary[StringName, String]({
+&"armed.enter.charged": "Fireball/Arm",
+&"armed.exit.charged": "Fireball/Disarm",
+&"armed.hold.charged": "Fireball/Hold",
+&"gesture": "Spell_Simple_Shoot",
+&"get_up": "UAL2_Standard/LayToIdle",
+&"knockdown": "UAL2_Standard/Hit_Knockback",
+&"stance.bow": "Weapon/Stance_Bow",
+&"stance.crossbow": "Weapon/Stance_Crossbow",
+&"stance.greatsword": "Weapon/Stance_Greatsword",
+&"stance.longgun": "Weapon/Stance_Longgun",
+&"stance.pistol": "Weapon/Stance_Pistol",
+&"stance.shield": "Weapon/Stance_Shield",
+&"stance.sword": "Weapon/Stance_Sword"
+})

@@ -155,9 +155,11 @@ enum Category { COMMON, ABILITIES }
 ## the palm) carries it there every frame, following the point but not the
 ## bone's turn, so the scene is authored with +Y as up whatever the hand does.
 @export var armed_hold_vfx_at: CharacterModel.Anchor = CharacterModel.Anchor.GROUND
-@export var armed_enter_animation: String = ""
-@export var armed_hold_animation: String = ""
-@export var armed_exit_animation: String = ""
+## Which armed loop the body plays while this is held ready: the clips
+## under "armed.enter.<this>", "armed.hold.<this>" and "armed.exit.<this>"
+## in the caster's MotionSet, falling back to plain "armed.enter" and so on.
+## Empty uses the plain keys. Fireball names &"charged".
+@export var armed_motion: StringName = &""
 
 @export_group("Cast SFX")
 ## Optional composable sound (see SfxCue) played the instant this
@@ -171,13 +173,14 @@ enum Category { COMMON, ABILITIES }
 @export var cast_sfx: SfxCue
 
 @export_group("Cast Animation")
-## Optional per-ability composable animation sequence — see
-## AnimationSequence. Left unset, unit_animator.gd falls back to its own
-## generic default sequence, same fallback shape as cast_vfx/cast_sfx
-## above. Plays on the same ability_use_started moment as those two.
-@export var cast_animation: AnimationSequence
+## The motion key the caster plays on use (ability_use_started), looked up
+## in its body's MotionSet with category fallback: &"cast.charged" falls
+## back to &"cast", and a body with neither plays nothing and releases at
+## once. Name what the action is (&"breath", &"jump", &"cast.held"), never
+## a clip; each body decides how it looks.
+@export var motion: StringName = &"cast"
 ## Off for an ability whose effect is its own body motion (Fly's takeoff,
-## Land's descent): no cast clip at all, not even the fallback, so the
+## Land's descent): no cast motion at all, not even the default, so the
 ## motion's clips play from the moment of use.
 @export var plays_cast_animation: bool = true
 

@@ -36,8 +36,8 @@ extends SceneTree
 #   Bow_Shot      BowShot01 Load + Release (Kevin Iglesias), raised from the stance, refitted
 #
 # The stances are the looping idles a unit stands in with a weapon drawn
-# (WeaponData.stance_animation), and the reloads what Reload plays
-# (WeaponData.reload_animation).
+# (WeaponData.stance_motion via the body's MotionSet), and the reloads
+# what Reload plays (WeaponData.reload_motion).
 #
 #   Stance_Sword       CombatIdle1H01 (Kevin Iglesias), the low one-handed guard
 #   Stance_Shield      Idle_Shield

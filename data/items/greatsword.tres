@@ -1,12 +1,10 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=12 format=3 uid="uid://34pnclvfyyn1"]
+[gd_resource type="Resource" script_class="GearItem" load_steps=10 format=3 uid="uid://34pnclvfyyn1"]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://dr4i264dff4c1" path="res://assets/test_item_icons/test_sword.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
 [ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
 [ext_resource type="Script" uid="uid://kj230cxxaog0" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
-[ext_resource type="Resource" uid="uid://v1xujyqewsv7" path="res://data/animation_sequences/weapon_heavy_swing.tres" id="seq_heavy_swing"]
-[ext_resource type="Resource" uid="uid://bx1yvuef15uvf" path="res://data/animation_sequences/weapon_heavy_thrust.tres" id="seq_heavy_thrust"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/greatsword.tscn" id="w_model"]
 
 [sub_resource type="Resource" id="Resource_swing"]
@@ -30,7 +28,7 @@ recoil = 1
 fixed_dice_count = 1
 fixed_dice_sides = 6
 fixed_dice_bonus = 0
-animation = ExtResource("seq_heavy_swing")
+motion = &"attack.swing.heavy"
 
 [sub_resource type="Resource" id="Resource_thrust"]
 script = ExtResource("4_row")
@@ -53,7 +51,7 @@ recoil = 1
 fixed_dice_count = 1
 fixed_dice_sides = 6
 fixed_dice_bonus = 0
-animation = ExtResource("seq_heavy_thrust")
+motion = &"attack.thrust.heavy"
 
 [sub_resource type="Resource" id="Resource_weapon"]
 script = ExtResource("3_weapon")
@@ -62,7 +60,7 @@ two_handed = true
 shots = 0
 model_scene = ExtResource("w_model")
 held_in_off_hand = false
-stance_animation = "Weapon/Stance_Greatsword"
+stance_motion = &"stance.greatsword"
 sheath = 0
 
 [resource]

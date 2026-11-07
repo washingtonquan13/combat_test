@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="Ability" load_steps=32 format=3 uid="uid://btgxbkk27jkac"]
+[gd_resource type="Resource" script_class="Ability" load_steps=31 format=3 uid="uid://btgxbkk27jkac"]
 
 [ext_resource type="Script" uid="uid://cckohifllkhwq" path="res://systems/ability_system/ability_effect.gd" id="1_eff"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="2_ability"]
@@ -14,7 +14,6 @@
 [ext_resource type="Script" uid="uid://bb7l26qye5i03" path="res://systems/audio_system/sfx_cue.gd" id="11_cue"]
 [ext_resource type="AudioStream" uid="uid://botodxjct1cq4" path="res://assets/audio/LDD - Elemental Magic - Fire Attacks [Free Pack]/Fire Attacks - WAV Files/EM_FIRE_LAUNCH_01.wav" id="12_launch"]
 [ext_resource type="Script" uid="uid://5apipwrij8ef" path="res://systems/ability_system/spawn_surface_effect.gd" id="13_spawn"]
-[ext_resource type="Resource" uid="uid://wrxvxvawwob3" path="res://data/animation_sequences/weapon_breath.tres" id="17_breath"]
 [ext_resource type="Script" uid="uid://ddgwd7w0n6s0h" path="res://systems/ability_system/vfx_effect.gd" id="18_vfx"]
 [ext_resource type="Script" uid="uid://dbfn018d5k2hh" path="res://systems/ability_system/vfx_step.gd" id="19_step"]
 [ext_resource type="Script" uid="uid://bdexkp00ivhds" path="res://systems/ability_system/fire_breath_step.gd" id="20_breath"]
@@ -73,10 +72,6 @@ rank = 0
 counters = Array[StringName]([])
 resisted_by = &""
 resistance_modifier = 0
-apply_animation = ""
-apply_animation_loops = false
-remove_animation = ""
-hit_reaction_animation = ""
 
 [sub_resource type="Resource" id="Resource_apply"]
 script = ExtResource("4_status")
@@ -124,9 +119,6 @@ fp_cost = 0.0
 timing = SubResource("Resource_timing")
 cast_vfx = SubResource("Resource_cast_vfx")
 armed_hold_vfx_at = 3
-armed_enter_animation = ""
-armed_hold_animation = ""
-armed_exit_animation = ""
 cast_sfx = SubResource("Resource_launch")
-cast_animation = ExtResource("17_breath")
+motion = &"breath"
 plays_cast_animation = true

@@ -78,8 +78,8 @@ var _bound: Dictionary = {}
 ## Bound copy -> the weapon set (AttackRow.Kind, or -1 for none) of the
 ## hand slot its row came from. See weapon_set_of.
 var _bound_set: Dictionary = {}
-## WeaponData.reload_animation -> the Reload that plays it; see _reload.
-var _reload_by_clip: Dictionary = {}
+## WeaponData.reload_motion -> the Reload that plays it; see _reload.
+var _reload_by_motion: Dictionary = {}
 
 
 ## GURPS ST-based swing/thrust damage: the Basic Set damage table (B16)
@@ -220,7 +220,7 @@ func weapon_set_of(ability: Ability) -> int:
 		return -1
 	if _bound_set.has(ability):
 		return _bound_set[ability]
-	if ability == load(RELOAD) or _reload_by_clip.values().has(ability):
+	if ability == load(RELOAD) or _reload_by_motion.values().has(ability):
 		return _reload_set(ability)
 	return -1
 
@@ -235,7 +235,7 @@ func _reload_set(ability: Ability) -> int:
 			continue
 		var gear := item.definition as GearItem
 		var weapon: WeaponData = gear.weapon_data if gear else null
-		if weapon and weapon.reload_animation and weapon.reload_animation == ability.cast_animation:
+		if weapon and weapon.reload_motion != &"" and weapon.reload_motion == ability.motion:
 			return _set_of_slot(slot)
 		if fallback == -1:
 			fallback = _set_of_slot(slot)
@@ -391,10 +391,10 @@ func combat_abilities() -> Array[Ability]:
 	return result
 
 
-## Reload, playing the held gun's reload clip (WeaponData.reload_animation;
-## a ranged hand's gun first, the one Reload draws): one copy per clip,
+## Reload, playing the held gun's reload motion (WeaponData.reload_motion;
+## a ranged hand's gun first, the one Reload draws): one copy per motion,
 ## kept like _bound_to's. The plain one, which plays nothing, for a gun
-## that names no clip; null while no magazine weapon is held.
+## that names no motion; null while no magazine weapon is held.
 func _reload() -> Ability:
 	if not _holds_magazine_weapon():
 		return null
@@ -403,14 +403,14 @@ func _reload() -> Ability:
 		var item: ItemInstance = _owner.get_equipped_item(slot)
 		var gear := item.definition as GearItem if item else null
 		var weapon: WeaponData = gear.weapon_data if gear else null
-		if weapon == null or weapon.shots <= 0 or weapon.reload_animation == null:
+		if weapon == null or weapon.shots <= 0 or weapon.reload_motion == &"":
 			continue
-		if not _reload_by_clip.has(weapon.reload_animation):
+		if not _reload_by_motion.has(weapon.reload_motion):
 			var shown: Ability = plain.duplicate()
-			shown.cast_animation = weapon.reload_animation
+			shown.motion = weapon.reload_motion
 			shown.plays_cast_animation = true
-			_reload_by_clip[weapon.reload_animation] = shown
-		return _reload_by_clip[weapon.reload_animation]
+			_reload_by_motion[weapon.reload_motion] = shown
+		return _reload_by_motion[weapon.reload_motion]
 	return plain
 
 
@@ -453,8 +453,8 @@ func _bound_to(template: Ability, row: AttackRow, off_hand: bool, weapon_set: in
 		return per_row[key]
 	var bound: Ability = template.duplicate()
 	bound.ability_name = row.label + (" (off hand)" if off_hand else "")
-	if row.animation:
-		bound.cast_animation = row.animation
+	if row.motion != &"":
+		bound.motion = row.motion
 	if row.cast_vfx:
 		bound.cast_vfx = row.cast_vfx
 	var effects: Array[AbilityEffect] = []

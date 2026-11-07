@@ -25,7 +25,3 @@ rank = 1
 counters = Array[StringName]([&"reduce"])
 resisted_by = &"HT"
 resistance_modifier = 0
-apply_animation = ""
-apply_animation_loops = false
-remove_animation = ""
-hit_reaction_animation = ""

@@ -1,11 +1,10 @@
-[gd_resource type="Resource" script_class="GearItem" load_steps=11 format=3 uid="uid://gmr1ju7bc3d6"]
+[gd_resource type="Resource" script_class="GearItem" load_steps=10 format=3 uid="uid://gmr1ju7bc3d6"]
 
 [ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
 [ext_resource type="Texture2D" uid="uid://bgfqe1mrn7b3i" path="res://assets/test_item_icons/test_bow.png" id="2_icon"]
 [ext_resource type="Script" uid="uid://bgd2vy28ksd3v" path="res://systems/ability_system/stat_modifier_behavior.gd" id="3_s3sab"]
 [ext_resource type="Script" uid="uid://dcesewmrnfa2m" path="res://systems/inventory_system/weapon_data.gd" id="3_weapon"]
 [ext_resource type="Script" uid="uid://kj230cxxaog0" path="res://systems/inventory_system/attack_row.gd" id="4_row"]
-[ext_resource type="Resource" uid="uid://b6m567ix84nsm" path="res://data/animation_sequences/weapon_bow.tres" id="seq_bow"]
 [ext_resource type="Resource" uid="uid://dt3e4fdpjiybq" path="res://data/vfx/arrow_flight.tres" id="vfx_arrow_flight"]
 [ext_resource type="PackedScene" path="res://scenes/weapons/longbow.tscn" id="w_model"]
 
@@ -30,7 +29,7 @@ recoil = 1
 fixed_dice_count = 1
 fixed_dice_sides = 6
 fixed_dice_bonus = 0
-animation = ExtResource("seq_bow")
+motion = &"attack.shoot.bow"
 cast_vfx = ExtResource("vfx_arrow_flight")
 
 [sub_resource type="Resource" id="Resource_weapon"]
@@ -40,7 +39,7 @@ two_handed = true
 shots = 0
 model_scene = ExtResource("w_model")
 held_in_off_hand = true
-stance_animation = "Weapon/Stance_Bow"
+stance_motion = &"stance.bow"
 sheath = 0
 
 [resource]

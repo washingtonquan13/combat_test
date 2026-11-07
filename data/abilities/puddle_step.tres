@@ -43,7 +43,4 @@ uses_attack_action = false
 move_cost = 2.0
 fp_cost = 0.0
 armed_hold_vfx_at = 3
-armed_enter_animation = ""
-armed_hold_animation = ""
-armed_exit_animation = ""
 plays_cast_animation = false

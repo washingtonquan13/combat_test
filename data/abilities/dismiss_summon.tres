@@ -23,5 +23,3 @@ requires_to_hit = false
 uses_attack_action = true
 move_cost = 0.0
 fp_cost = 0.0
-armed_enter_animation = ""
-armed_hold_animation = ""
