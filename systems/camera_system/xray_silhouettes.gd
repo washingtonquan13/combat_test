@@ -31,7 +31,8 @@ extends Node
 ##     behind a pillar only costs the player information they already have.
 ## Hidden bodies (is_visible_in_tree false: a unit made invisible by some
 ## other system) are skipped, so this never reveals what was hidden on
-## purpose.
+## purpose. So is a unit in UNDER_GROUND (Puddle Step sinking it through
+## the floor): the floor hides it on purpose, not by accident of the view.
 ##
 ## Non-destructive: an overlay is only written onto a mesh whose overlay is
 ## empty (or already ours), and only cleared if it is still ours, so the
@@ -46,6 +47,11 @@ const CAPTURE_SHADER: Shader = preload("res://systems/camera_system/level_depth_
 ## Render layer only the depth capture quad wears. The player's camera
 ## leaves it out (setup), so the quad is never seen on screen.
 const CAPTURE_LAYER: int = 20
+## Units in this group are under the floor on purpose and get no
+## silhouette. Whoever adds one calls refresh_all, so the silhouette goes
+## the same frame rather than at the next refresh.
+const UNDER_GROUND: StringName = &"under_ground"
+const GROUP: StringName = &"xray_silhouettes"
 
 var enabled: bool = true
 var show_enemies: bool = true
@@ -128,6 +134,7 @@ func _build_depth_viewport() -> void:
 
 
 func _enter_tree() -> void:
+	add_to_group(GROUP)
 	if not RenderingServer.frame_pre_draw.is_connected(_sync_depth_camera):
 		RenderingServer.frame_pre_draw.connect(_sync_depth_camera)
 
@@ -205,6 +212,11 @@ func clear() -> void:
 	_painted.clear()
 
 
+## Re-evaluates every silhouette now, in every world.
+static func refresh_all(tree: SceneTree) -> void:
+	tree.call_group(GROUP, "_refresh")
+
+
 func _refresh() -> void:
 	var wanted: Dictionary = {}
 	# Only while this camera is the one being looked through: a cinematic
@@ -245,6 +257,8 @@ func _collect(wanted: Dictionary) -> void:
 			continue
 		var material: ShaderMaterial = _material_for(unit, party_encounters)
 		if material == null:
+			continue
+		if unit.is_in_group(UNDER_GROUND):
 			continue
 		var body := unit.get_node_or_null("CharacterModel") as Node3D
 		if body == null or not body.is_visible_in_tree():

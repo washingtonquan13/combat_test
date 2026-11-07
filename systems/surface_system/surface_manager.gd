@@ -329,7 +329,7 @@ func _cloud_through(grid: CloudGrid, start: CloudCell) -> Array[CloudCell]:
 
 
 ## The cells (SurfaceGrid key -> floor y) on the ground under a footprint
-## of radius round feet, as _surfaces_under reads them.
+## of radius round feet, as surfaces_under reads them.
 func _footprint_cells(grid: SurfaceGrid, feet: Vector3, radius: float) -> Dictionary:
 	var reached: Dictionary = {}
 	var reach := Vector3(radius, 0.0, radius)
@@ -953,7 +953,7 @@ func _no_surfaces() -> bool:
 ## Every surface holding unit: on the floor under it or in the air around
 ## it.
 func _holding(unit: Unit) -> Array[Surface]:
-	var found: Array[Surface] = _surfaces_under(unit)
+	var found: Array[Surface] = surfaces_under(unit)
 	for surface in _clouds_holding(unit):
 		if not found.has(surface):
 			found.append(surface)
@@ -972,7 +972,7 @@ func _clouds_holding(unit: Unit) -> Array[Surface]:
 
 
 ## The ground surfaces under any part of unit's footprint, in its world.
-func _surfaces_under(unit: Unit) -> Array[Surface]:
+func surfaces_under(unit: Unit) -> Array[Surface]:
 	var found: Array[Surface] = []
 	var grid: SurfaceGrid = _grid_for(WorldManager.context_for(unit))
 	if grid.is_empty():
