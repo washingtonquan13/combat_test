@@ -6,9 +6,10 @@ Writes into <out_dir> (assets/ui/dice/ in the project), every sheet a grid
 COLS wide, row-major, unused trailing cells empty:
 
     d6_roll_<name>.png   one community tumble (double_roll_1/2, single_roll)
-    d6_settle_<n>.png    the settle onto face n; its last frame is the landed
-                         still
+    d6_settle_<n>.png    the result sheet for face n: still, a glint across;
+                         its last frame is the landed still
     d6_landed.png        one row: faces 1..6 at rest, left to right
+    d6_face_cover.png    one frame: the die at rest, no numeral
 
 Godot's skill_check_dice_popup.gd reads these with AtlasTexture regions, so
 its FRAME_PX, COLS and frame counts must match the renders.
@@ -80,6 +81,8 @@ def main() -> None:
         grid(frames).save(os.path.join(out, f"d6_settle_{value}.png"), optimize=True)
         landed.append(frames[-1])
     grid(landed, 6).save(os.path.join(out, "d6_landed.png"), optimize=True)
+    cover = load_frames(os.path.join(src, "cover"))
+    grid(cover, 1).save(os.path.join(out, "d6_face_cover.png"), optimize=True)
     print("pack_d6_sheets: sheets written to", out)
 
 

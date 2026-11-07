@@ -8,9 +8,13 @@ extends Control
 ## BG3-style sprite dice, no 3D in game: every die is a TextureRect whose
 ## AtlasTexture steps through pre-rendered sheets in assets/ui/dice/ —
 ## a result-agnostic motion-blurred roll (a different one per die, so the
-## three never move in unison), then the settle sheet for the face that
-## die rolled (it wobbles to rest with that face square to the camera),
-## then the landed still. The sheets come from the community BG3 custom
+## three never move in unison) that comes to rest face-on, then the
+## result sheet for the face that die rolled (held still, face square to
+## the camera, a glint sweeping across, like BG3's d20_N), then the landed
+## still. Every roll stops on the same face, so as BG3 does a face cover
+## (the die at rest with no numeral) fades in over the roll's last frames
+## and out over the result sheet, and the numeral changes under it. The
+## sheets come from the community BG3 custom
 ## dice rig, d20 swapped for a cube: tools/dice/render_d6_sheets.py
 ## renders them in Blender and tools/dice/pack_d6_sheets.py packs them
 ## (tools/dice/build.sh runs both); the frame size, grid width, rate and
@@ -44,6 +48,12 @@ const SETTLE_SHEETS: Array[Texture2D] = [
 const SETTLE_FRAMES: int = 18
 ## One row, faces 1..6 left to right.
 const LANDED_SHEET: Texture2D = preload("res://assets/ui/dice/d6_landed.png")
+## The die at rest with no numeral, laid over each die at the cut from roll
+## to result: it fades in over the roll's last COVER_IN_FRAMES (the roll is
+## already still by then) and out over COVER_OUT seconds of the result.
+const FACE_COVER: Texture2D = preload("res://assets/ui/dice/d6_face_cover.png")
+const COVER_IN_FRAMES: int = 3
+const COVER_OUT: float = 0.25
 
 ## On-screen size of one frame. Face-on, the die fills 57% of it; the
 ## rest is room for its corners mid-roll and the blur smear.
@@ -76,6 +86,8 @@ const _BAND_CLEARANCE: float = 170.0
 ## One AtlasTexture per die, each the texture of its own TextureRect;
 ## showing a frame only moves its atlas and region.
 var _faces: Array[AtlasTexture] = []
+## One face cover per die, over its TextureRect, transparent until a cut.
+var _covers: Array[TextureRect] = []
 ## The running roll's tweens, killed when a roll is abandoned or restarted.
 var _tweens: Array[Tween] = []
 var _result_label: Label
@@ -191,6 +203,15 @@ func _build_scene() -> void:
 		# The sheets carry mipmaps: frames are drawn well under the size
 		# they were rendered at.
 		die.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		var cover := TextureRect.new()
+		die.add_child(cover)
+		cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		cover.texture = FACE_COVER
+		cover.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		cover.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		cover.texture_filter = die.texture_filter
+		cover.modulate.a = 0.0
+		_covers.append(cover)
 		_show_landed(i, IDLE_FACE_VALUE)
 
 	_result_label = Label.new()
@@ -241,6 +262,7 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	_kill_tweens()
 	for i in 3:
 		_show_landed(i, IDLE_FACE_VALUE)
+		_covers[i].modulate.a = 0.0
 	_result_label.text = "%s check" % skill_name
 	_continue_button.text = "Roll"
 	_continue_button.visible = true
@@ -251,19 +273,26 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	_continue_button.visible = false
 	_result_label.text = "Rolling %s..." % skill_name
 
-	# Each die waits its stagger, plays its roll once, then the settle
-	# sheet for the face it rolled, ending on that face's landed still.
+	# Each die waits its stagger, plays its roll once, then the result
+	# sheet for the face it rolled, ending on that face's landed still; the
+	# cover fades in as the roll stops and out as the result sheet starts.
 	var settle_time: float = SETTLE_FRAMES / FPS
 	var last_down: float = -1.0
 	var last: Tween = null
 	for i in 3:
 		var face_value: int = roll.dice[i]
-		var roll_time: float = ROLL_FRAMES[i] / FPS
+		var frames: int = ROLL_FRAMES[i]
+		var roll_time: float = frames / FPS
+		var cover_from: int = frames - COVER_IN_FRAMES
+		var cover: TextureRect = _covers[i]
 		var tween: Tween = create_tween()
 		tween.tween_callback(_show_roll.bind(0.0, i))
 		tween.tween_interval(i * STAGGER_STEP)
-		tween.tween_method(_show_roll.bind(i), 0.0, float(ROLL_FRAMES[i]), roll_time)
+		tween.tween_method(_show_roll.bind(i), 0.0, float(cover_from), cover_from / FPS)
+		tween.tween_method(_show_roll.bind(i), float(cover_from), float(frames), COVER_IN_FRAMES / FPS)
+		tween.parallel().tween_property(cover, "modulate:a", 1.0, COVER_IN_FRAMES / FPS)
 		tween.tween_method(_show_settle.bind(i, face_value), 0.0, float(SETTLE_FRAMES), settle_time)
+		tween.parallel().tween_property(cover, "modulate:a", 0.0, COVER_OUT)
 		tween.tween_callback(_show_landed.bind(i, face_value))
 		_tweens.append(tween)
 		var down: float = i * STAGGER_STEP + roll_time + settle_time

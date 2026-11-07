@@ -17,10 +17,16 @@ then pack with tools/dice/pack_d6_sheets.py (tools/dice/build.sh does both).
 Into <frames_dir> it writes, as ####.png frames:
 
     roll_<double_roll_1|double_roll_2|single_roll>/  the community tumbles,
-        compositor blur on, result-agnostic, exactly as the d20 renders them.
-    settle_<n>/  SETTLE_FRAMES frames: the community d<k> wobble, moved onto
-        the cube so it comes to rest with face n square to the camera and its
-        numeral upright. The last frame is the landed still.
+        result-agnostic, re-aimed to come to rest face-on with REST_FACE up
+        front; the compositor's spin blur is keyed from each frame's turn,
+        so it fades out as the die slows.
+    settle_<n>/  SETTLE_FRAMES frames like BG3's d20_N: the die still, face n
+        square to the camera, numeral upright, a glint sweeping across. The
+        last frame is the landed still.
+    cover/  one frame: the die at rest with no numeral, BG3's faceCover,
+        which the popup lays over the cut from roll to result.
+
+Pass --only a,b to render just those (roll names, settle_<n>, cover).
 
 The .blend is never written back; nothing from it ships but these renders.
 """
@@ -60,8 +66,22 @@ FACES = {
     3: (Vector((0, -1, 0)), Vector((0, 0, 1))),
     4: (Vector((0, 1, 0)), Vector((0, 0, 1))),
 }
-## Which community settle wobble each face borrows (d1..d6, all distinct).
-WOBBLE_OF = {n: f"d{n}" for n in range(1, 7)}
+## Every roll comes to rest with this face up front; the popup's face cover
+## hides its numeral while the result's takes over.
+REST_FACE = 1
+## The roll eases the last of the way to rest over this many frames.
+DAMP_FRAMES = 6
+## Spin blur per degree the die turned that frame, and its cap (the rig's).
+BLUR_PER_DEGREE = 0.5
+BLUR_MAX_DEGREES = 20.0
+## The result sheet's glint: the frames it crosses the face between, its
+## height (above the camera's 7.2, so the camera never sees it), how far to
+## either side of centre it waits, its width and power.
+GLINT_FRAMES = (4, 13)
+GLINT_HEIGHT = 9.0
+GLINT_REACH = 4.0
+GLINT_WIDTH = 0.8
+GLINT_ENERGY = 400.0
 
 
 def face_frame(n: int):
@@ -160,38 +180,130 @@ def reset_deltas(obj) -> None:
     obj.delta_location = (0, 0, 0)
 
 
-def settle_action(dice_empty, scene, n: int) -> bpy.types.Action:
-    """The community wobble WOBBLE_OF[n], re-aimed at face n: every frame's
-    rotation is the wobble's own rotation relative to where it ends, applied
-    on top of face n's rest pose. Location and scale are kept as is."""
-    source = bpy.data.actions[WOBBLE_OF[n]]
-    dice_empty.animation_data.action = source
-    dice_empty.rotation_mode = "QUATERNION"
-    first, last = int(source.frame_range[0]), int(source.frame_range[1])
-    samples = []
-    for f in range(first, last + 1):
-        scene.frame_set(f)
-        samples.append((f, dice_empty.rotation_quaternion.copy(), dice_empty.location.copy(), dice_empty.scale.copy()))
-    rest_inv = samples[-1][1].normalized().inverted()
-    target = face_target(n)
+def key_pose(obj, frame: int, rotation: Quaternion, location: Vector) -> None:
+    obj.rotation_quaternion = rotation
+    obj.location = location
+    obj.scale = (1, 1, 1)
+    for path in ("rotation_quaternion", "location", "scale"):
+        obj.keyframe_insert(path, frame=frame)
 
-    action = bpy.data.actions.new(f"d6_{n}")
-    dice_empty.animation_data.action = action
-    prev = None
-    for f, q, loc, scale in samples:
-        out = (q.normalized() @ rest_inv) @ target
-        if prev is not None and prev.dot(out) < 0.0:
-            out.negate()
-        prev = out
-        dice_empty.rotation_quaternion = out
-        dice_empty.location = loc
-        dice_empty.scale = scale
-        for path in ("rotation_quaternion", "location", "scale"):
-            dice_empty.keyframe_insert(path, frame=f)
+
+def linear(action) -> None:
     for fc in action.fcurves:
         for k in fc.keyframe_points:
             k.interpolation = "LINEAR"
+
+
+def roll_action(dice_empty, scene, name: str, duration: int):
+    """The community tumble `name`, re-aimed so it comes to rest square to
+    the camera in the pose every result sheet holds (REST_FACE up front).
+
+    On the d20 a tumble can stop anywhere: an icosahedron's outline is near
+    enough the same from every side, so BG3 cuts from the roll's last frame
+    to the result sheet without a seam. A cube's outline is not, so every
+    frame's rotation is taken relative to where the tumble ends and applied
+    on top of the rest pose, and the last DAMP_FRAMES ease the rest of the
+    way in, so the die stops instead of freezing mid-turn.
+    Returns the action, each frame's location and each frame's spin in
+    degrees."""
+    source = bpy.data.actions[name]
+    dice_empty.animation_data.action = source
+    first = int(source.frame_range[0])
+    samples = []
+    for f in range(first, first + duration):
+        scene.frame_set(f)
+        loc, rot, _scale = dice_empty.matrix_world.decompose()
+        samples.append((loc.copy(), rot.normalized()))
+    end_inv = samples[-1][1].inverted()
+    rest = face_target(REST_FACE)
+
+    reset_deltas(dice_empty)
+    dice_empty.rotation_mode = "QUATERNION"
+    action = bpy.data.actions.new(f"d6_{name}")
+    dice_empty.animation_data.action = action
+    spins, locations, prev = [], [], None
+    for i, (loc, rot) in enumerate(samples):
+        q = (rot @ end_inv) @ rest
+        t = min(1.0, max(0.0, (i - (duration - 1 - DAMP_FRAMES)) / DAMP_FRAMES))
+        w = t * t * (3.0 - 2.0 * t)
+        q = q.slerp(rest, w)
+        loc = loc.lerp(Vector((0, 0, 0)), w)
+        if prev is not None and prev.dot(q) < 0.0:
+            q.negate()
+        spins.append(0.0 if prev is None else math.degrees(prev.rotation_difference(q).angle))
+        locations.append(loc)
+        prev = q
+        key_pose(dice_empty, first + i, q, loc)
+    linear(action)
+    if len(spins) > 1:
+        spins[0] = spins[1]
+    return action, locations, spins
+
+
+def blur_action(scene, name: str, first: int, locations, spins) -> None:
+    """Keys the rig's spin blur (the Directional Blur.001 that feeds the
+    Composite) frame by frame from the die's own motion: centred where the
+    die is on screen, BLUR_PER_DEGREE of spin per degree it turned that
+    frame, at most the rig's 20, so the smear dies away as the die stops.
+    The rig's own keys were set by hand for one roll and hold full blur to
+    the last frame of the others."""
+    tree = scene.node_tree
+    node = tree.nodes["Directional Blur.001"]
+    if tree.animation_data is None:
+        tree.animation_data_create()
+    action = bpy.data.actions.new(f"blur_{name}")
+    tree.animation_data.action = action
+    across = scene.camera.data.ortho_scale
+    for i, (loc, spin) in enumerate(zip(locations, spins)):
+        f = first + i
+        node.spin = math.radians(min(BLUR_MAX_DEGREES, spin * BLUR_PER_DEGREE))
+        node.center_x = 0.5 + loc.x / across
+        node.center_y = 0.5 + loc.y / across
+        node.distance = 0.0
+        node.zoom = 0.0
+        for prop in ("spin", "center_x", "center_y", "distance", "zoom"):
+            node.keyframe_insert(prop, frame=f)
+    linear(action)
+
+
+def still_action(dice_empty, n: int):
+    """BG3's result sheet: the die holds still at rest, face n square to the
+    camera, while the glint sweeps over it."""
+    reset_deltas(dice_empty)
+    dice_empty.rotation_mode = "QUATERNION"
+    action = bpy.data.actions.new(f"d6_{n}")
+    dice_empty.animation_data.action = action
+    key_pose(dice_empty, 1, face_target(n), Vector((0, 0, 0)))
+    key_pose(dice_empty, SETTLE_FRAMES, face_target(n), Vector((0, 0, 0)))
+    linear(action)
     return action
+
+
+def build_glint(scene):
+    """A long thin area light above the camera, out of its sight and seen
+    only in the face's reflection (no diffuse), so it adds a highlight bar
+    and nothing else. Keyed to cross the face diagonally between
+    GLINT_FRAMES and to sit out of reach before and after, so the first
+    frame matches the roll's last and the last is the clean landed still."""
+    data = bpy.data.lights.new("glint", "AREA")
+    data.shape = "RECTANGLE"
+    data.size = GLINT_WIDTH
+    data.size_y = 14.0
+    data.energy = GLINT_ENERGY
+    glint = bpy.data.objects.new("glint", data)
+    scene.collection.objects.link(glint)
+    glint.visible_diffuse = False
+    glint.visible_transmission = False
+    glint.visible_volume_scatter = False
+    glint.rotation_euler = (0, 0, math.radians(-45))
+    a, b = GLINT_FRAMES
+    across = Vector((1, -1, 0)).normalized()
+    for f, s in ((1, -GLINT_REACH), (a, -GLINT_REACH), (b, GLINT_REACH), (SETTLE_FRAMES, GLINT_REACH)):
+        glint.location = across * s + Vector((0, 0, GLINT_HEIGHT))
+        glint.keyframe_insert("location", frame=f)
+    linear(glint.animation_data.action)
+    glint.hide_render = True
+    return glint
 
 
 def use_gpu() -> None:
@@ -237,13 +349,32 @@ def main() -> None:
     scene.render.image_settings.color_mode = "RGBA"
     scene.render.image_settings.color_depth = "8"
 
-    settles = {n: settle_action(dice_empty, scene, n) for n in range(1, 7)}
-    for n, action in settles.items():
-        dice_empty.rotation_mode = "QUATERNION"
-        render(dice_empty, scene, action, os.path.join(out, f"settle_{n}"), SETTLE_FRAMES, False)
+    glint = build_glint(scene)
+    numerals = [o for o in dice_empty.children if o.name.startswith("num")]
+    only = argv[argv.index("--only") + 1].split(",") if "--only" in argv else None
+
+    def wanted(key: str) -> bool:
+        return only is None or key in only
+
     for name, duration in ROLLS.items():
-        dice_empty.rotation_mode = "QUATERNION"
-        render(dice_empty, scene, bpy.data.actions[name], os.path.join(out, f"roll_{name}"), duration, True)
+        if not wanted(name):
+            continue
+        action, locations, spins = roll_action(dice_empty, scene, name, duration)
+        blur_action(scene, name, int(action.frame_range[0]), locations, spins)
+        render(dice_empty, scene, action, os.path.join(out, f"roll_{name}"), duration, True)
+
+    glint.hide_render = False
+    for n in range(1, 7):
+        if wanted(f"settle_{n}"):
+            render(dice_empty, scene, still_action(dice_empty, n), os.path.join(out, f"settle_{n}"), SETTLE_FRAMES, False)
+    glint.hide_render = True
+
+    # The face cover: the die at rest with no numeral, laid over the cut
+    # from the roll's last frame to the result sheet.
+    if wanted("cover"):
+        for o in numerals:
+            o.hide_render = True
+        render(dice_empty, scene, still_action(dice_empty, REST_FACE), os.path.join(out, "cover"), 1, False)
     print("render_d6_sheets: frames written to", out)
 
 
