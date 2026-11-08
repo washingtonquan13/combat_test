@@ -148,12 +148,18 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 	for (const std::unique_ptr<AStarPage> &p : astar_pages) {
 		if (p) {
 			bytes += sizeof(AStarPage);
+			for (const std::unique_ptr<AStarBrick> &b : p->bricks) {
+				bytes += b ? sizeof(AStarBrick) : 0;
+			}
 		}
 	}
 	bytes += (int64_t)smooth_pages.capacity() * sizeof(std::unique_ptr<SmoothPage>);
 	for (const std::unique_ptr<SmoothPage> &p : smooth_pages) {
 		if (p) {
 			bytes += sizeof(SmoothPage);
+			for (const std::unique_ptr<SmoothBrick> &b : p->bricks) {
+				bytes += b ? sizeof(SmoothBrick) : 0;
+			}
 		}
 	}
 	bytes += (int64_t)chunk_occupancy_nearby.capacity();
@@ -183,20 +189,6 @@ bool brick_uniform(const std::vector<T> &field, int bx, int by, int bz) {
 		}
 	}
 	return true;
-}
-
-// Whether any stamp in the brick is above `since`.
-bool brick_stamped(const int *stamps, int bx, int by, int bz, int since) {
-	for (int z = 0; z < BRICK; z++) {
-		for (int y = 0; y < BRICK; y++) {
-			for (int x = 0; x < BRICK; x++) {
-				if (stamps[cell_of(bx, by, bz, x, y, z)] > since) {
-					return true;
-				}
-			}
-		}
-	}
-	return false;
 }
 
 struct FieldTally {
@@ -280,15 +272,15 @@ Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
 			continue;
 		}
 		astar_count++;
-		const AStarPage &p = *pp;
-		for (int i = 0; i < CELLS; i++) {
-			astar_cells_since += (p.g_gen[i] > since_search || p.valid_gen[i] > since_search);
-		}
-		for (int bz = 0; bz < BRICKS_PER_AXIS; bz++) {
-			for (int by = 0; by < BRICKS_PER_AXIS; by++) {
-				for (int bx = 0; bx < BRICKS_PER_AXIS; bx++) {
-					astar_ever += brick_stamped(p.g_gen, bx, by, bz, 0) || brick_stamped(p.valid_gen, bx, by, bz, 0);
-					astar_since += brick_stamped(p.g_gen, bx, by, bz, since_search) || brick_stamped(p.valid_gen, bx, by, bz, since_search);
+		for (const std::unique_ptr<AStarBrick> &b : pp->bricks) {
+			if (!b) {
+				continue;
+			}
+			astar_ever++;
+			if (b->gen > since_search) {
+				astar_since++;
+				for (int i = 0; i < AStarBrick::CELLS; i++) {
+					astar_cells_since += b->state[i] != 0;
 				}
 			}
 		}
@@ -299,12 +291,8 @@ Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
 			continue;
 		}
 		smooth_count++;
-		for (int bz = 0; bz < BRICKS_PER_AXIS; bz++) {
-			for (int by = 0; by < BRICKS_PER_AXIS; by++) {
-				for (int bx = 0; bx < BRICKS_PER_AXIS; bx++) {
-					smooth_ever += brick_stamped(pp->valid_gen, bx, by, bz, 0);
-				}
-			}
+		for (const std::unique_ptr<SmoothBrick> &b : pp->bricks) {
+			smooth_ever += b ? 1 : 0;
 		}
 	}
 
@@ -330,12 +318,12 @@ Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
 	fields["every_field"] = all_cell.to_dict();
 	d["fields"] = fields;
 	d["astar_pages"] = astar_count;
-	d["astar_bytes"] = astar_count * (int64_t)sizeof(AStarPage);
+	d["astar_bytes"] = astar_count * (int64_t)sizeof(AStarPage) + astar_ever * (int64_t)sizeof(AStarBrick);
 	d["astar_bricks_ever"] = astar_ever;
 	d["astar_bricks_since"] = astar_since;
 	d["astar_cells_since"] = astar_cells_since;
 	d["smooth_pages"] = smooth_count;
-	d["smooth_bytes"] = smooth_count * (int64_t)sizeof(SmoothPage);
+	d["smooth_bytes"] = smooth_count * (int64_t)sizeof(SmoothPage) + smooth_ever * (int64_t)sizeof(SmoothBrick);
 	d["smooth_bricks_ever"] = smooth_ever;
 	d["bricks_per_page"] = BRICKS_PER_CHUNK;
 	return d;
@@ -653,7 +641,7 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	any_occupied = false;
 
 	// One empty slot per chunk; a page is allocated the first time a
-	// search reaches its chunk (see astar_page).
+	// search reaches its chunk (see astar_brick).
 	astar_pages.clear();
 	astar_pages.resize(chunks.size());
 	astar_search_id = 0;
@@ -3376,24 +3364,54 @@ bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vecto
 	return true; // too big to settle cheaply: the search decides, capped as ever
 }
 
-AStarPage &NavigationGrid::astar_page(const Vector3i &cell, int &local) {
-	local = local_index(cell_to_local(cell));
-	std::unique_ptr<AStarPage> &page = astar_pages[chunk_coord_index(cell_to_chunk_coord(cell))];
-	if (!page) {
-		// Value-initialised, so every stamp starts at 0, older than any
-		// search (ids start at 1).
-		page = std::make_unique<AStarPage>();
-	}
-	return *page;
+// A local cell's brick within its chunk's page, and its index in the brick.
+static inline int brick_slot(const Vector3i &local_cell) {
+	return (local_cell.x >> 3) + (local_cell.y >> 3) * 4 + (local_cell.z >> 3) * 16;
 }
 
-SmoothPage &NavigationGrid::smooth_page(const Vector3i &cell, int &local) {
-	local = local_index(cell_to_local(cell));
+static inline int brick_local(const Vector3i &local_cell) {
+	return (local_cell.x & 7) + (local_cell.y & 7) * 8 + (local_cell.z & 7) * 64;
+}
+
+AStarBrick &NavigationGrid::astar_brick_in(int chunk_index, const Vector3i &local_cell, int sid) {
+	std::unique_ptr<AStarPage> &page = astar_pages[chunk_index];
+	if (!page) {
+		page = std::make_unique<AStarPage>();
+	}
+	std::unique_ptr<AStarBrick> &brick = page->bricks[brick_slot(local_cell)];
+	if (!brick) {
+		brick = std::make_unique<AStarBrick>();
+	}
+	if (brick->gen != sid) {
+		// First touch this search: nothing in it is this search's yet.
+		brick->gen = sid;
+		std::fill_n(brick->state, AStarBrick::CELLS, (uint8_t)0);
+	}
+	return *brick;
+}
+
+AStarBrick &NavigationGrid::astar_brick(const Vector3i &cell, int sid, int &local) {
+	Vector3i local_cell = cell_to_local(cell);
+	local = brick_local(local_cell);
+	return astar_brick_in(chunk_coord_index(cell_to_chunk_coord(cell)), local_cell, sid);
+}
+
+SmoothBrick &NavigationGrid::smooth_brick(const Vector3i &cell, int sid, int &local) {
+	Vector3i local_cell = cell_to_local(cell);
+	local = brick_local(local_cell);
 	std::unique_ptr<SmoothPage> &page = smooth_pages[chunk_coord_index(cell_to_chunk_coord(cell))];
 	if (!page) {
 		page = std::make_unique<SmoothPage>();
 	}
-	return *page;
+	std::unique_ptr<SmoothBrick> &brick = page->bricks[brick_slot(local_cell)];
+	if (!brick) {
+		brick = std::make_unique<SmoothBrick>();
+	}
+	if (brick->gen != sid) {
+		brick->gen = sid;
+		std::fill_n(brick->state, SmoothBrick::CELLS, (uint8_t)0);
+	}
+	return *brick;
 }
 
 void NavigationGrid::goal_flood_begin(GoalFlood &flood, const Vector3i &start_cell, const Vector3i &goal_cell) {
@@ -3447,30 +3465,30 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 	int sid = astar_search_id;
 
 	int start_local;
-	AStarPage &start_page = astar_page(start_cell, start_local);
-	start_page.g_score[start_local] = 0.0f;
-	start_page.g_gen[start_local] = sid;
+	AStarBrick &start_brick = astar_brick(start_cell, sid, start_local);
+	start_brick.g[start_local] = 0.0f;
 	open_heap.push({ heuristic(start_cell, goal_cell) * HEURISTIC_WEIGHT, start_cell });
 
 	int expansions = 0;
 
-	// The last chunk a neighbour fell in and its page: most of a cell's 26
-	// neighbours share its chunk, so this skips the page table nearly
-	// every step. A page never moves once allocated (it is behind a
-	// unique_ptr), so the pointer holds for the whole search.
-	int last_chunk = -1;
-	AStarPage *last_page = nullptr;
+	// The last brick a neighbour fell in: most of a cell's 26 neighbours
+	// share its brick, so this skips the page table most steps. A brick
+	// never moves once allocated (it is behind a unique_ptr) and is cleared
+	// only on its first touch this search, so the pointer holds for the
+	// whole search.
+	int last_key = -1;
+	AStarBrick *last_brick = nullptr;
 
 	while (!open_heap.empty()) {
 		OpenEntry top = open_heap.top();
 		open_heap.pop();
 		Vector3i current = top.cell;
 		int current_local;
-		AStarPage &current_page = astar_page(current, current_local);
-		if (current_page.closed_gen[current_local] == sid) {
+		AStarBrick &current_brick = astar_brick(current, sid, current_local);
+		if (current_brick.state[current_local] & AStarBrick::CLOSED) {
 			continue;
 		}
-		current_page.closed_gen[current_local] = sid;
+		current_brick.state[current_local] |= AStarBrick::CLOSED;
 
 		if (current == goal_cell) {
 			return reconstruct_path(start, start_cell, goal_cell);
@@ -3491,7 +3509,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			}
 		}
 
-		float current_g = current_page.g_score[current_local];
+		float current_g = current_brick.g[current_local];
 
 		for (size_t oi = 0; oi < neighbor_offsets.size(); oi++) {
 			const Vector3i &offset = neighbor_offsets[oi];
@@ -3506,32 +3524,29 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 				}
 				continue;
 			}
-			if (neighbor_chunk != last_chunk) {
-				std::unique_ptr<AStarPage> &slot = astar_pages[neighbor_chunk];
-				if (!slot) {
-					slot = std::make_unique<AStarPage>();
-				}
-				last_chunk = neighbor_chunk;
-				last_page = slot.get();
+			Vector3i neighbor_cell = cell_to_local(neighbor);
+			int key = neighbor_chunk * AStarPage::BRICKS + brick_slot(neighbor_cell);
+			if (key != last_key) {
+				last_brick = &astar_brick_in(neighbor_chunk, neighbor_cell, sid);
+				last_key = key;
 			}
-			int neighbor_local = local_index(cell_to_local(neighbor));
-			if (last_page->closed_gen[neighbor_local] == sid) {
+			int neighbor_local = brick_local(neighbor_cell);
+			uint8_t &state = last_brick->state[neighbor_local];
+			if (state & AStarBrick::CLOSED) {
 				continue;
 			}
-			if (last_page->valid_gen[neighbor_local] != sid) {
-				last_page->valid_gen[neighbor_local] = sid;
-				last_page->valid_result[neighbor_local] = is_valid_cell(neighbor, offsets, clearance, height, flying, unit) ? (uint8_t)1 : (uint8_t)0;
+			if (!(state & AStarBrick::CHECKED)) {
+				state = AStarBrick::CHECKED | (is_valid_cell(neighbor, offsets, clearance, height, flying, unit) ? AStarBrick::VALID : (uint8_t)0);
+				last_brick->g[neighbor_local] = 1e30f;
 			}
-			if (!last_page->valid_result[neighbor_local]) {
+			if (!(state & AStarBrick::VALID)) {
 				continue;
 			}
 			float step_cost = neighbor_step_cost[oi];
 			float tentative = current_g + step_cost;
-			float neighbor_g = (last_page->g_gen[neighbor_local] == sid) ? last_page->g_score[neighbor_local] : 1e30f;
-			if (tentative < neighbor_g) {
-				last_page->g_score[neighbor_local] = tentative;
-				last_page->g_gen[neighbor_local] = sid;
-				last_page->came_dir[neighbor_local] = (uint8_t)oi;
+			if (tentative < last_brick->g[neighbor_local]) {
+				last_brick->g[neighbor_local] = tentative;
+				state = (state & ~AStarBrick::DIR_MASK) | (uint8_t)oi;
 				open_heap.push({ tentative + heuristic(neighbor, goal_cell) * HEURISTIC_WEIGHT, neighbor });
 			}
 		}
@@ -3549,8 +3564,8 @@ PackedVector3Array NavigationGrid::reconstruct_path(const Vector3 &start, const 
 	Vector3i cur = goal_cell;
 	while (cur != start_cell) {
 		int local;
-		AStarPage &page = astar_page(cur, local);
-		cur = cur - neighbor_offsets[page.came_dir[local]];
+		AStarBrick &brick = astar_brick(cur, astar_search_id, local);
+		cur = cur - neighbor_offsets[brick.state[local] & AStarBrick::DIR_MASK];
 		cells.push_back(cur);
 	}
 	std::reverse(cells.begin(), cells.end());
@@ -3621,13 +3636,13 @@ bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vecto
 		return false;
 	}
 	int local;
-	SmoothPage &page = smooth_page(cell, local);
-	if (page.valid_gen[local] == smooth_sid) {
-		return page.valid_result[local] != 0;
+	SmoothBrick &brick = smooth_brick(cell, smooth_sid, local);
+	uint8_t &state = brick.state[local];
+	if (state & AStarBrick::CHECKED) {
+		return (state & AStarBrick::VALID) != 0;
 	}
 	bool result = is_valid_cell(cell, offsets, clearance, height, flying, self_unit);
-	page.valid_gen[local] = smooth_sid;
-	page.valid_result[local] = result ? (uint8_t)1 : (uint8_t)0;
+	state = AStarBrick::CHECKED | (result ? AStarBrick::VALID : (uint8_t)0);
 	return result;
 }
 

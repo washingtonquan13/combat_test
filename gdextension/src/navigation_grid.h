@@ -162,32 +162,53 @@ struct NavChunk {
 	NavRegions regions[2]; // [0] walking, [1] flying
 };
 
-// Fine-A* scratch for one chunk's cells, allocated the first time a search
-// touches the chunk and kept for later searches. Every field is stamped
-// with the search that wrote it (see NavigationGrid::astar_search_id), so a
-// page is never cleared: a stale stamp reads as "untouched this search".
-// came_dir is the index into neighbor_offsets of the step that reached the
-// cell, not the parent's index: the parent is cell - offset, which works
-// the same whether it sits in this chunk or the next, in one byte.
-struct AStarPage {
-	static constexpr int CELLS = 32 * 32 * 32; // CHUNK_DIM^3
-	float g_score[CELLS];
-	int g_gen[CELLS];
-	int closed_gen[CELLS];
-	uint8_t came_dir[CELLS];
-	// is_valid_cell's answer this search (valid_gen == sid). A cell is
-	// reached from up to 26 expanded neighbours before it closes, and each
-	// used to re-ask: for a tall wide body that is a column of distance
-	// field reads and an occupancy disc scan every time.
-	int valid_gen[CELLS];
-	uint8_t valid_result[CELLS];
+// Fine-A* scratch in 8^3 bricks: a chunk's page holds one slot per brick,
+// and a brick is allocated the first time a search reaches it and kept for
+// later searches. A search's corridor crosses most of its chunks' cells
+// nowhere (a fifth of them on the quarry), so whole-chunk pages paid for
+// sky and rock no search entered.
+//
+// A brick is stamped with the last search that used it (see
+// NavigationGrid::astar_search_id), and the first touch of a brick in a
+// search clears its 512 state bytes, so a cell carries no stamp of its own
+// and no page is ever cleared whole. state packs, low bits first:
+// - came_dir (5 bits): the index into neighbor_offsets (26 of them) of the
+//   step that reached the cell, not the parent's index: the parent is
+//   cell - offset, which works the same in this brick or the next;
+// - CHECKED: is_valid_cell has answered for the cell this search, and VALID
+//   is that answer. A cell is reached from up to 26 expanded neighbours
+//   before it closes, and each used to re-ask: for a tall wide body that is
+//   a column of distance field reads and an occupancy disc scan every time;
+// - CLOSED: expanded this search.
+// g is this search's cost once the cell is CHECKED (set to "unreached"
+// then), or for the start cell, which is never checked.
+struct AStarBrick {
+	static constexpr int CELLS = 8 * 8 * 8;
+	static constexpr uint8_t DIR_MASK = 0x1f;
+	static constexpr uint8_t CHECKED = 0x20;
+	static constexpr uint8_t VALID = 0x40;
+	static constexpr uint8_t CLOSED = 0x80;
+	int gen = 0;
+	uint8_t state[CELLS];
+	float g[CELLS];
 };
 
-// smooth_path's memo of is_valid_cell, paged the same way as AStarPage.
+struct AStarPage {
+	static constexpr int BRICKS = 4 * 4 * 4; // (CHUNK_DIM / 8)^3
+	std::unique_ptr<AStarBrick> bricks[BRICKS];
+};
+
+// smooth_path's memo of is_valid_cell, bricked and stamped the same way;
+// state is AStarBrick's CHECKED | VALID.
+struct SmoothBrick {
+	static constexpr int CELLS = 8 * 8 * 8;
+	int gen = 0;
+	uint8_t state[CELLS];
+};
+
 struct SmoothPage {
-	static constexpr int CELLS = 32 * 32 * 32; // CHUNK_DIM^3
-	int valid_gen[CELLS];
-	uint8_t valid_result[CELLS];
+	static constexpr int BRICKS = 4 * 4 * 4;
+	std::unique_ptr<SmoothBrick> bricks[BRICKS];
 };
 
 // One world's worth of grid state, parked here while some OTHER world is
@@ -411,23 +432,27 @@ private:
 	// per-chunk distance field, applied here once profiling showed
 	// g_score/came_from/closed hashing was the dominant per-expansion cost
 	// once the corridor restriction made searches long enough for that to
-	// matter. g_gen/closed_gen record which search last touched a cell; a
-	// stale generation means "not part of the current search," standing in
-	// for what would otherwise need a full clear between queries.
+	// matter. Each brick records which search last touched it; a stale
+	// one means "not part of the current search," and is cleared on its
+	// first touch instead of clearing everything between queries.
 	//
-	// Paged by chunk index, a page allocated only when a search first
-	// reaches that chunk. It used to be flat arrays over the whole world
-	// volume, 21 bytes for every cell of the bounds whether any search ever
-	// went there or not, and a copy per parked world: a big map's sky and
-	// rock cost more than everything else the grid holds put together.
+	// Paged by chunk index and bricked within the page (see AStarBrick),
+	// a brick allocated only when a search first reaches it. It used to be
+	// flat arrays over the whole world volume, 21 bytes for every cell of
+	// the bounds whether any search ever went there or not, and a copy per
+	// parked world: a big map's sky and rock cost more than everything
+	// else the grid holds put together. Then whole-chunk pages of 18 bytes
+	// a cell, half the quarry's memory after a few dozen searches.
 	std::vector<std::unique_ptr<AStarPage>> astar_pages;
 	int astar_search_id = 0;
 	int64_t debug_expansion_count = 0;
-	// The page holding an in-bounds cell, allocated on first touch, and the
-	// cell's index within it. a_star keeps the last page it used, since
-	// most neighbours share their parent's chunk.
-	AStarPage &astar_page(const Vector3i &cell, int &local);
-	SmoothPage &smooth_page(const Vector3i &cell, int &local);
+	// The brick holding an in-bounds cell, allocated on first touch and
+	// cleared on the first touch of search `sid`, and the cell's index
+	// within it. a_star keeps the last brick it used, since most
+	// neighbours share their parent's.
+	AStarBrick &astar_brick(const Vector3i &cell, int sid, int &local);
+	AStarBrick &astar_brick_in(int chunk_index, const Vector3i &local_cell, int sid);
+	SmoothBrick &smooth_brick(const Vector3i &cell, int sid, int &local);
 
 	// Same flat-array-plus-generation-stamp trade as the fine-A* scratch
 	// above, applied to smooth_path's is_valid_cell calls instead.
