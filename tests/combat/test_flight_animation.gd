@@ -48,7 +48,7 @@ func _lifts_hovers_glides_and_lands() -> void:
 	await get_tree().create_timer(1.2).timeout
 	check("up in the air it hovers", player.current_animation == "Flight/Hover",
 		player.current_animation)
-	check("SETUP: it really climbed", unit.global_position.y > 2.0, "y=%.2f" % unit.global_position.y)
+	check("SETUP: it really climbed", unit.global_position.y > 1.5, "y=%.2f" % unit.global_position.y)
 
 	unit.movement_started.emit(unit)
 	check("moving in the air glides, not jogs", player.current_animation == "Flight/Fly_Fwd",

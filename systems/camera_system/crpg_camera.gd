@@ -154,7 +154,13 @@ enum Mode { BOUND, UNBOUND }
 @export var zoom_speed: float = 10.0
 @export var zoom_smoothing: float = 8.0
 @export var min_distance: float = 5.0
-@export var max_distance: float = 25.0
+## Far enough to frame an SM +6 body (20 m nose to tail) whole. Past
+## pitch_full_distance the pitch holds and each wheel notch steps further.
+@export var max_distance: float = 60.0
+## The zoom where pitch reaches max_pitch and holds: the old max_distance,
+## so the usual tactical range (and the opening zoom, halfway into it)
+## looks exactly as it did before the limit was raised for big bodies.
+@export var pitch_full_distance: float = 25.0
 
 @export_group("Angle (Pitch) — tied to zoom, both modes")
 ## Downward pitch angle (degrees) when fully zoomed IN (close to the anchor).
@@ -301,7 +307,7 @@ func _ready() -> void:
 	# below skips it.
 	WorldManager.world_loaded.connect(_on_world_loaded)
 
-	target_distance = clamp((min_distance + max_distance) * 0.5, min_distance, max_distance)
+	target_distance = clamp((min_distance + pitch_full_distance) * 0.5, min_distance, max_distance)
 	current_distance = target_distance
 	target_pitch = _calculate_pitch_for_distance(current_distance)
 	current_pitch = target_pitch
@@ -438,7 +444,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	# Identical in both modes: zoom toward/away from the anchor, clamped.
-	var step: float = zoom_speed * 0.1
+	# Steps grow in proportion past pitch_full_distance, so the long
+	# range out to max_distance is a few notches, not dozens.
+	var step: float = zoom_speed * 0.1 * maxf(1.0, target_distance / pitch_full_distance)
 	target_distance += (-step if scroll_up else step)
 	target_distance = clamp(target_distance, min_distance, max_distance)
 
@@ -701,7 +709,7 @@ func _get_wasd_input() -> Vector2:
 
 ## Maps the current zoom distance to a downward pitch angle. Used in both modes.
 func _calculate_pitch_for_distance(distance: float) -> float:
-	var t: float = inverse_lerp(min_distance, max_distance, distance)
+	var t: float = inverse_lerp(min_distance, pitch_full_distance, distance)
 	t = clamp(t, 0.0, 1.0)
 	var curved: float = t
 	if pitch_curve:

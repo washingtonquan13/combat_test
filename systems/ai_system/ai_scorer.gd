@@ -490,9 +490,9 @@ static func _realizes_offense_this_turn(unit: Unit, plan: AiPlan) -> bool:
 ##
 ## A takeoff never moves horizontally, so it carries no destination at
 ## all; its whole effect is a change in ALTITUDE, which is exactly the
-## thing position scoring exists to price. Reading the height straight off
-## the GrantFlightEffect (and clamping it the same way that effect's own
-## apply() does) keeps the two from drifting: if scoring guessed a
+## thing position scoring exists to price. Asking the GrantFlightEffect
+## for it (lift_target_y, the same call its own apply() climbs to) keeps
+## the two from drifting: if scoring guessed a
 ## different altitude than the ability delivers, the AI would be choosing
 ## takeoffs on the strength of a benefit it never receives — which is
 ## precisely what fly.tres's takeoff_height of 1.0 was doing against
@@ -515,11 +515,10 @@ static func _plan_end_position(unit: Unit, plan: AiPlan) -> Vector3:
 	if plan.ability:
 		for effect in plan.ability.effects:
 			if effect is GrantFlightEffect:
-				# Clamped exactly the way GrantFlightEffect.apply() clamps
-				# it, so scoring can't credit a takeoff with an altitude
-				# the ability won't actually deliver.
-				var lift: Vector3 = unit.global_position + Vector3.UP * effect.takeoff_height
-				var target_y: float = UnitMovement.clamp_flight_altitude(lift.y, lift, unit)
+				# The same call GrantFlightEffect.apply() climbs to, so
+				# scoring can't credit a takeoff with an altitude the
+				# ability won't actually deliver.
+				var target_y: float = effect.lift_target_y(unit)
 				return Vector3(unit.global_position.x, target_y, unit.global_position.z)
 			if effect is LandEffect:
 				return Vector3(unit.global_position.x, _ground_y_at(unit, unit.global_position), unit.global_position.z)

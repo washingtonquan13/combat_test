@@ -13,7 +13,10 @@ extends AbilityEffect
 ## standing at (a platform, not just y=0).
 
 @export var flying_status: StatusEffect
-@export var takeoff_height: float = 3.0
+## Metres lifted by an SM 0 body; a bigger or smaller one lifts this times
+## its SM's scale (SizeModifier.scale_for), so a takeoff clears the same
+## share of the body at every size. See lift_target_y.
+@export var takeoff_height: float = 2.0
 ## Vertical ascent speed (m/s) — see Unit.vertical_speed for why landing
 ## uses the same idea (kept as a separate value here since takeoff has
 ## a single call site and landing has several).
@@ -51,8 +54,7 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	# from a cell the grid considers invalid and returns nothing: no
 	# indicator, no movement, until landing brought the unit back into the
 	# valid range.
-	var lift: Vector3 = attacker.global_position + Vector3.UP * takeoff_height
-	var target_y: float = UnitMovement.clamp_flight_altitude(lift.y, lift, attacker)
+	var target_y: float = lift_target_y(attacker)
 	# The unit's next move should hold this new height by default, not
 	# snap back toward wherever flight_target_altitude was last left
 	# (0.0, or a stale value from a previous flight) — see
@@ -81,6 +83,15 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 
 	SystemLog.print("%s takes to the air." % LogFormat.unit_name(attacker))
 	return {}
+
+
+## The height unit's takeoff climbs to: takeoff_height at its SM's scale
+## above where it stands, clamped to the flight envelope. AiScorer prices
+## takeoffs with this same call.
+func lift_target_y(unit: Unit) -> float:
+	var size: float = SizeModifier.scale_for(floori(unit.get_stat(StatIds.SM)))
+	var lift: Vector3 = unit.global_position + Vector3.UP * (takeoff_height * size)
+	return UnitMovement.clamp_flight_altitude(lift.y, lift, unit)
 
 
 func describe() -> String:
