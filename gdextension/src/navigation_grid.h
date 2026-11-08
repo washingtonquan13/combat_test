@@ -452,21 +452,9 @@ struct AStarBrick {
 };
 
 struct AStarPage {
-	static constexpr int BRICKS = 4 * 4 * 4; // (CHUNK_DIM / 8)^3
+	static constexpr int SIDE = 4; // CHUNK_DIM / 8
+	static constexpr int BRICKS = SIDE * SIDE * SIDE;
 	std::unique_ptr<AStarBrick> bricks[BRICKS];
-};
-
-// smooth_path's memo of is_valid_cell, bricked and stamped the same way;
-// state is AStarBrick's CHECKED | VALID.
-struct SmoothBrick {
-	static constexpr int CELLS = 8 * 8 * 8;
-	int gen = 0;
-	uint8_t state[CELLS];
-};
-
-struct SmoothPage {
-	static constexpr int BRICKS = 4 * 4 * 4;
-	std::unique_ptr<SmoothBrick> bricks[BRICKS];
 };
 
 // One world's worth of grid state, parked here while some OTHER world is
@@ -502,8 +490,6 @@ struct ParkedWorld {
 	float geometry_min_y = 0.0f;
 	std::vector<std::unique_ptr<AStarPage>> astar_pages;
 	int astar_search_id = 0;
-	std::vector<std::unique_ptr<SmoothPage>> smooth_pages;
-	int smooth_search_id = 0;
 	std::vector<CollisionShape3D *> all_shapes;
 	std::unordered_map<int, std::vector<CollisionShape3D *>> shapes_by_chunk;
 	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tri_shapes;
@@ -719,22 +705,28 @@ private:
 	// neighbours share their parent's.
 	AStarBrick &astar_brick(const Vector3i &cell, int sid, int &local);
 	AStarBrick &astar_brick_in(int chunk_index, const Vector3i &local_cell, int sid);
-	SmoothBrick &smooth_brick(const Vector3i &cell, int sid, int &local);
 
-	// Same flat-array-plus-generation-stamp trade as the fine-A* scratch
-	// above, applied to smooth_path's is_valid_cell calls instead.
-	// smooth_path's string-pulling re-derives line_clear(anchor, probe)
-	// from scratch for every probe extension, which resamples most of the
-	// SAME cells near the anchor over and over as probe grows (found by
-	// profiling to dominate total find_path time on long paths — ~80% of
-	// it on a 60m detour). is_valid_cell is pure for the duration of one
-	// query (grid/occupancy state doesn't change mid-call), so caching its
-	// result per cell here is exact, not an approximation — it changes
-	// nothing about WHICH points get sampled or the early-exit behavior,
-	// only skips recomputing an answer already known this call.
-	std::vector<std::unique_ptr<SmoothPage>> smooth_pages; // paged as astar_pages
-	int smooth_search_id = 0;
-	bool is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int smooth_sid);
+	// is_valid_cell, answered once per cell per query. is_valid_cell is pure
+	// for one find_path (grid and occupancy don't change mid-call), and the
+	// search, the goal flood and smooth_path all ask it about the same body,
+	// so all three share the search's CHECKED | VALID bytes: the line tests
+	// walk cells the search already paid for.
+	bool valid_this_search(AStarBrick &brick, int local, const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit);
+	bool is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit);
+
+	// a_star's open list, kept between searches so one costs no allocation:
+	// f quantised into OPEN_BUCKET_M buckets, each a chain of open_nodes,
+	// newest first. A push is two writes where a heap's is a sift through
+	// log n entries; order is approximate only within one bucket, a quarter
+	// of the 0.25 m cell.
+	struct OpenNode {
+		Vector3i cell;
+		int next;
+	};
+	static constexpr float OPEN_BUCKET_M = 0.0625f;
+	static constexpr int OPEN_BUCKET_LIMIT = 1 << 18;
+	std::vector<int> open_heads; // bucket -> newest node in it, -1 = empty
+	std::vector<OpenNode> open_nodes;
 
 	// Static geometry, bucketed once by every chunk its AABB overlaps, so
 	// rasterizing one chunk only tests the shapes that could touch it
@@ -949,15 +941,33 @@ private:
 		Vector3i start_cell;
 		std::vector<Vector3i> queue; // BFS order; head is the next to expand
 		size_t head = 0;
-		std::unordered_set<int64_t> seen; // cell_index
+		int seen_count = 0;
+		// cell_index, open addressed, -1 = empty. The budget bounds it, so
+		// it lives on the stack and a query allocates nothing for it.
+		static constexpr int SEEN_SLOTS = 2048;
+		int64_t seen[SEEN_SLOTS];
+		// False if the cell was already seen.
+		bool mark_seen(int64_t index) {
+			uint32_t slot = ((uint32_t)index * 2654435761u) >> 21;
+			while (seen[slot] != -1) {
+				if (seen[slot] == index) {
+					return false;
+				}
+				slot = (slot + 1) & (SEEN_SLOTS - 1);
+			}
+			seen[slot] = index;
+			seen_count++;
+			return true;
+		}
 	};
+	static_assert(GOAL_FLOOD_BUDGET + 26 < GoalFlood::SEEN_SLOTS / 2, "the flood's table must stay sparse");
 	void goal_flood_begin(GoalFlood &flood, const Vector3i &start_cell, const Vector3i &goal_cell);
 	void goal_flood_step(GoalFlood &flood, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
 
 	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int cls, GoalFlood *flood = nullptr);
 	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);
 	PackedVector3Array smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
-	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int smooth_sid);
+	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
 
 	// Reads a float property off a duck-typed GDScript "Unit" instance
 	// (radius, avoidance_margin, height, flight_target_altitude) —

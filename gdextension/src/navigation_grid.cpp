@@ -395,15 +395,7 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 			}
 		}
 	}
-	bytes += (int64_t)smooth_pages.capacity() * sizeof(std::unique_ptr<SmoothPage>);
-	for (const std::unique_ptr<SmoothPage> &p : smooth_pages) {
-		if (p) {
-			bytes += sizeof(SmoothPage);
-			for (const std::unique_ptr<SmoothBrick> &b : p->bricks) {
-				bytes += b ? sizeof(SmoothBrick) : 0;
-			}
-		}
-	}
+	bytes += (int64_t)open_heads.capacity() * sizeof(int) + (int64_t)open_nodes.capacity() * sizeof(OpenNode);
 	bytes += (int64_t)chunk_occupancy_nearby.capacity();
 	// This thread's bake scratch; a prebake worker's dies with it.
 	const BakeScratch &scratch = bake_scratch();
@@ -532,16 +524,6 @@ Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
 			}
 		}
 	}
-	int64_t smooth_count = 0, smooth_ever = 0;
-	for (const std::unique_ptr<SmoothPage> &pp : smooth_pages) {
-		if (!pp) {
-			continue;
-		}
-		smooth_count++;
-		for (const std::unique_ptr<SmoothBrick> &b : pp->bricks) {
-			smooth_ever += b ? 1 : 0;
-		}
-	}
 
 	Dictionary d;
 	d["chunk_grid"] = chunk_grid_size;
@@ -569,9 +551,6 @@ Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
 	d["astar_bricks_ever"] = astar_ever;
 	d["astar_bricks_since"] = astar_since;
 	d["astar_cells_since"] = astar_cells_since;
-	d["smooth_pages"] = smooth_count;
-	d["smooth_bytes"] = smooth_count * (int64_t)sizeof(SmoothPage) + smooth_ever * (int64_t)sizeof(SmoothBrick);
-	d["smooth_bricks_ever"] = smooth_ever;
 	d["bricks_per_page"] = BRICKS_PER_CHUNK;
 	return d;
 }
@@ -637,7 +616,6 @@ void NavigationGrid::unregister_world(Node *root) {
 		tri_shapes.clear();
 		chunks.clear();
 		astar_pages.clear();
-		smooth_pages.clear();
 		chunk_occupancy_nearby.clear();
 		reset_occupancy();
 		baked = false;
@@ -698,7 +676,6 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		out.baked = baked;
 		out.any_occupied = any_occupied;
 		out.astar_search_id = astar_search_id;
-		out.smooth_search_id = smooth_search_id;
 		out.root = active_root;
 		out.occupancy_stamped = occupancy_stamped;
 		out.occupancy_version = occupancy_version_value;
@@ -707,7 +684,6 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		std::swap(out.chunks, chunks);
 		out.geometry_min_y = geometry_min_y;
 		std::swap(out.astar_pages, astar_pages);
-		std::swap(out.smooth_pages, smooth_pages);
 		std::swap(out.all_shapes, all_shapes);
 		std::swap(out.shapes_by_chunk, shapes_by_chunk);
 		std::swap(out.tri_shapes, tri_shapes);
@@ -717,7 +693,6 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		// park, so its shape pointers can't outlive their scene.
 		chunks.clear();
 		astar_pages.clear();
-		smooth_pages.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
 		tri_shapes.clear();
@@ -737,12 +712,10 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 		baked = false;
 		any_occupied = false;
 		astar_search_id = 0;
-		smooth_search_id = 0;
 		active_root = nullptr;
 		chunks.clear();
 		geometry_min_y = 0.0f;
 		astar_pages.clear();
-		smooth_pages.clear();
 		all_shapes.clear();
 		shapes_by_chunk.clear();
 		tri_shapes.clear();
@@ -758,7 +731,6 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 	baked = in.baked;
 	any_occupied = in.any_occupied;
 	astar_search_id = in.astar_search_id;
-	smooth_search_id = in.smooth_search_id;
 	active_root = in.root;
 	occupancy_stamped = in.occupancy_stamped;
 	occupancy_version_value = in.occupancy_version;
@@ -767,7 +739,6 @@ void NavigationGrid::activate_world(uint64_t world_id) {
 	std::swap(in.chunks, chunks);
 	geometry_min_y = in.geometry_min_y;
 	std::swap(in.astar_pages, astar_pages);
-	std::swap(in.smooth_pages, smooth_pages);
 	std::swap(in.all_shapes, all_shapes);
 	std::swap(in.shapes_by_chunk, shapes_by_chunk);
 	std::swap(in.tri_shapes, tri_shapes);
@@ -893,10 +864,6 @@ void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
 	astar_pages.clear();
 	astar_pages.resize(chunks.size());
 	astar_search_id = 0;
-
-	smooth_pages.clear();
-	smooth_pages.resize(chunks.size());
-	smooth_search_id = 0;
 
 	// Bucket every shape by each chunk its AABB overlaps, so a lazy
 	// rasterize of one chunk only tests the shapes that could matter.
@@ -3172,7 +3139,10 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	int li = local_index(local);
 	int chunk_idx = chunk_coord_index(chunk_coord);
 
-	NavChunk &support_chunk = ensure_chunk_support(chunk_coord);
+	// Baked chunks are the rule at query time (the area load bakes them all),
+	// so the ensure_ calls hide behind a look at the flags.
+	const std::unique_ptr<NavChunk> &slot = chunks[chunk_idx];
+	NavChunk &support_chunk = (slot && slot->rasterized && slot->support_baked) ? *slot : ensure_chunk_support(chunk_coord);
 	if (!is_open_cell(support_chunk, li, flying)) {
 		return false;
 	}
@@ -3198,19 +3168,27 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	// it can say: clear all the way out. Other units are still kept off at
 	// the body's full clearance below.
 	const float wall_clearance = std::min(clearance, MAX_CLEARANCE_CELLS * CELL_SIZE - 0.5f / DIST_SCALE * CELL_SIZE);
-	for (int dy = 0; dy < vertical_cells; dy++) {
-		Vector3i layer_chunk_coord = chunk_coord;
-		int layer_li = li;
-		if (dy > 0) {
-			Vector3i layer_cell = cell + Vector3i(0, dy, 0);
-			if (layer_cell.y >= grid_size.y) {
-				return false;
-			}
-			layer_chunk_coord = cell_to_chunk_coord(layer_cell);
-			layer_li = local_index(cell_to_local(layer_cell));
+	Vector3i layer_chunk_coord = chunk_coord;
+	int layer_chunk_idx = chunk_idx;
+	int layer_li = li;
+	NavChunk *dist_chunk = nullptr;
+	for (int dy = 0; dy < vertical_cells; dy++, layer_li += CHUNK_DIM) {
+		const int y = cell.y + dy;
+		if (y >= grid_size.y) {
+			return false;
 		}
-		NavChunk &dist_chunk = ensure_chunk_dist(layer_chunk_coord);
-		float clearance_world = (float)dist_chunk.dist.get(layer_li) / (float)DIST_SCALE * CELL_SIZE;
+		// The column stays in one chunk until it crosses that chunk's top.
+		if (dy > 0 && (y & (CHUNK_DIM - 1)) == 0) {
+			layer_chunk_coord.y++;
+			layer_chunk_idx += chunk_grid_size.x;
+			layer_li -= CHUNK_DIM * CHUNK_DIM;
+			dist_chunk = nullptr;
+		}
+		if (!dist_chunk) {
+			const std::unique_ptr<NavChunk> &layer_slot = chunks[layer_chunk_idx];
+			dist_chunk = (layer_slot && layer_slot->rasterized && layer_slot->dist_baked) ? layer_slot.get() : &ensure_chunk_dist(layer_chunk_coord);
+		}
+		float clearance_world = (float)dist_chunk->dist.get(layer_li) / (float)DIST_SCALE * CELL_SIZE;
 		if (clearance_world <= wall_clearance) {
 			return false;
 		}
@@ -3435,18 +3413,6 @@ float NavigationGrid::coarse_heuristic(const Vector3i &a, const Vector3i &b) {
 	Vector3i d = a - b;
 	return Vector3((float)d.x, (float)d.y, (float)d.z).length();
 }
-
-namespace {
-struct OpenEntry {
-	float priority;
-	Vector3i cell;
-};
-struct OpenEntryCompare {
-	bool operator()(const OpenEntry &a, const OpenEntry &b) const {
-		return a.priority > b.priority;
-	}
-};
-} // namespace
 
 // --- Connectivity regions ----------------------------------------------------
 
@@ -3951,22 +3917,24 @@ AStarBrick &NavigationGrid::astar_brick(const Vector3i &cell, int sid, int &loca
 	return astar_brick_in(chunk_coord_index(cell_to_chunk_coord(cell)), local_cell, sid);
 }
 
-SmoothBrick &NavigationGrid::smooth_brick(const Vector3i &cell, int sid, int &local) {
-	Vector3i local_cell = cell_to_local(cell);
-	local = brick_local(local_cell);
-	std::unique_ptr<SmoothPage> &page = smooth_pages[chunk_coord_index(cell_to_chunk_coord(cell))];
-	if (!page) {
-		page = std::make_unique<SmoothPage>();
+// The first ask of a cell is the only one that costs anything. g goes to
+// "unreached" with it, which is what the search reads a CHECKED cell's g as.
+inline bool NavigationGrid::valid_this_search(AStarBrick &brick, int local, const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit) {
+	uint8_t &state = brick.state[local];
+	if (!(state & AStarBrick::CHECKED)) {
+		state |= AStarBrick::CHECKED | (is_valid_cell(cell, offsets, clearance, height, flying, self_unit) ? AStarBrick::VALID : (uint8_t)0);
+		brick.g[local] = 1e30f;
 	}
-	std::unique_ptr<SmoothBrick> &brick = page->bricks[brick_slot(local_cell)];
-	if (!brick) {
-		brick = std::make_unique<SmoothBrick>();
+	return (state & AStarBrick::VALID) != 0;
+}
+
+bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit) {
+	if (!in_bounds(cell)) {
+		return false;
 	}
-	if (brick->gen != sid) {
-		brick->gen = sid;
-		std::fill_n(brick->state, SmoothBrick::CELLS, (uint8_t)0);
-	}
-	return *brick;
+	int local;
+	AStarBrick &brick = astar_brick(cell, astar_search_id, local);
+	return valid_this_search(brick, local, cell, offsets, clearance, height, flying, self_unit);
 }
 
 void NavigationGrid::goal_flood_begin(GoalFlood &flood, const Vector3i &start_cell, const Vector3i &goal_cell) {
@@ -3974,9 +3942,10 @@ void NavigationGrid::goal_flood_begin(GoalFlood &flood, const Vector3i &start_ce
 	flood.start_cell = start_cell;
 	flood.queue.clear();
 	flood.head = 0;
-	flood.seen.clear();
+	flood.seen_count = 0;
+	std::fill_n(flood.seen, GoalFlood::SEEN_SLOTS, (int64_t)-1);
 	flood.queue.push_back(goal_cell);
-	flood.seen.insert(cell_index(goal_cell));
+	flood.mark_seen(cell_index(goal_cell));
 }
 
 // One breadth-first expansion of the goal's side. Touching the start cell
@@ -3990,7 +3959,7 @@ void NavigationGrid::goal_flood_step(GoalFlood &flood, const std::vector<Vector3
 		flood.state = GoalFlood::SEALED;
 		return;
 	}
-	if ((int)flood.seen.size() > GOAL_FLOOD_BUDGET) {
+	if (flood.seen_count > GOAL_FLOOD_BUDGET) {
 		flood.state = GoalFlood::OPEN;
 		return;
 	}
@@ -4001,21 +3970,13 @@ void NavigationGrid::goal_flood_step(GoalFlood &flood, const std::vector<Vector3
 			flood.state = GoalFlood::OPEN;
 			return;
 		}
-		if (!in_bounds(neighbor)) {
-			continue;
+		if (is_valid_cell_cached(neighbor, offsets, clearance, height, flying, unit) && flood.mark_seen(cell_index(neighbor))) {
+			flood.queue.push_back(neighbor);
 		}
-		int64_t idx = cell_index(neighbor);
-		if (flood.seen.count(idx) || !is_valid_cell(neighbor, offsets, clearance, height, flying, unit)) {
-			continue;
-		}
-		flood.seen.insert(idx);
-		flood.queue.push_back(neighbor);
 	}
 }
 
 PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int cls, GoalFlood *flood) {
-	std::priority_queue<OpenEntry, std::vector<OpenEntry>, OpenEntryCompare> open_heap;
-
 	astar_search_id++;
 	int sid = astar_search_id;
 
@@ -4041,7 +4002,20 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 		}
 		return std::max(heuristic(cell, goal_cell), guide_bound - heuristic(cell, start_cell));
 	};
-	open_heap.push({ estimate(start_cell, chunk_coord_index(cell_to_chunk_coord(start_cell)), cell_to_local(start_cell)) * HEURISTIC_WEIGHT, start_cell });
+
+	std::fill(open_heads.begin(), open_heads.end(), -1);
+	open_nodes.clear();
+	int open_cursor = OPEN_BUCKET_LIMIT;
+	auto open_push = [&](float f, const Vector3i &cell) {
+		const int bucket = (int)std::min(f / OPEN_BUCKET_M, (float)(OPEN_BUCKET_LIMIT - 1));
+		if (bucket >= (int)open_heads.size()) {
+			open_heads.resize(bucket + 1024, -1);
+		}
+		open_nodes.push_back({ cell, open_heads[bucket] });
+		open_heads[bucket] = (int)open_nodes.size() - 1;
+		open_cursor = std::min(open_cursor, bucket);
+	};
+	open_push(estimate(start_cell, chunk_coord_index(cell_to_chunk_coord(start_cell)), cell_to_local(start_cell)) * HEURISTIC_WEIGHT, start_cell);
 
 	int expansions = 0;
 
@@ -4053,10 +4027,22 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 	int last_key = -1;
 	AStarBrick *last_brick = nullptr;
 
-	while (!open_heap.empty()) {
-		OpenEntry top = open_heap.top();
-		open_heap.pop();
-		Vector3i current = top.cell;
+	const int bricks_x = chunk_grid_size.x * AStarPage::SIDE;
+	const int bricks_xy = bricks_x * chunk_grid_size.y * AStarPage::SIDE;
+	const Vector3i last_cell = grid_size - Vector3i(1, 1, 1);
+	const int neighbor_count = (int)neighbor_offsets.size();
+
+	while (true) {
+		const int open_end = (int)open_heads.size();
+		while (open_cursor < open_end && open_heads[open_cursor] < 0) {
+			open_cursor++;
+		}
+		if (open_cursor >= open_end) {
+			break;
+		}
+		const OpenNode top = open_nodes[open_heads[open_cursor]];
+		open_heads[open_cursor] = top.next;
+		const Vector3i current = top.cell;
 		int current_local;
 		AStarBrick &current_brick = astar_brick(current, sid, current_local);
 		if (current_brick.state[current_local] & AStarBrick::CLOSED) {
@@ -4080,39 +4066,34 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			}
 		}
 
-		float current_g = current_brick.g[current_local];
+		const float current_g = current_brick.g[current_local];
+		const bool interior = current.x > 0 && current.y > 0 && current.z > 0 && current.x < last_cell.x && current.y < last_cell.y && current.z < last_cell.z;
 
-		for (size_t oi = 0; oi < neighbor_offsets.size(); oi++) {
-			const Vector3i &offset = neighbor_offsets[oi];
-			Vector3i neighbor = current + offset;
-			if (!in_bounds(neighbor)) {
+		for (int oi = 0; oi < neighbor_count; oi++) {
+			const Vector3i neighbor = current + neighbor_offsets[oi];
+			if (!interior && !in_bounds(neighbor)) {
 				continue;
 			}
-			int neighbor_chunk = chunk_coord_index(cell_to_chunk_coord(neighbor));
-			Vector3i neighbor_cell = cell_to_local(neighbor);
-			int key = neighbor_chunk * AStarPage::BRICKS + brick_slot(neighbor_cell);
+			// In bounds, so never negative: a shift is the division, and the
+			// brick's own coordinates key it without finding its chunk.
+			const int key = (neighbor.x >> 3) + (neighbor.y >> 3) * bricks_x + (neighbor.z >> 3) * bricks_xy;
 			if (key != last_key) {
-				last_brick = &astar_brick_in(neighbor_chunk, neighbor_cell, sid);
+				last_brick = &astar_brick_in(chunk_coord_index(cell_to_chunk_coord(neighbor)), cell_to_local(neighbor), sid);
 				last_key = key;
 			}
-			int neighbor_local = brick_local(neighbor_cell);
+			const int neighbor_local = (neighbor.x & 7) + (neighbor.y & 7) * 8 + (neighbor.z & 7) * 64;
 			uint8_t &state = last_brick->state[neighbor_local];
 			if (state & AStarBrick::CLOSED) {
 				continue;
 			}
-			if (!(state & AStarBrick::CHECKED)) {
-				state = AStarBrick::CHECKED | (is_valid_cell(neighbor, offsets, clearance, height, flying, unit) ? AStarBrick::VALID : (uint8_t)0);
-				last_brick->g[neighbor_local] = 1e30f;
-			}
-			if (!(state & AStarBrick::VALID)) {
+			if (!valid_this_search(*last_brick, neighbor_local, neighbor, offsets, clearance, height, flying, unit)) {
 				continue;
 			}
-			float step_cost = neighbor_step_cost[oi];
-			float tentative = current_g + step_cost;
+			const float tentative = current_g + neighbor_step_cost[oi];
 			if (tentative < last_brick->g[neighbor_local]) {
 				last_brick->g[neighbor_local] = tentative;
 				state = (state & ~AStarBrick::DIR_MASK) | (uint8_t)oi;
-				open_heap.push({ tentative + estimate(neighbor, neighbor_chunk, neighbor_cell) * HEURISTIC_WEIGHT, neighbor });
+				open_push(tentative + estimate(neighbor, chunk_coord_index(cell_to_chunk_coord(neighbor)), cell_to_local(neighbor)) * HEURISTIC_WEIGHT, neighbor);
 			}
 		}
 	}
@@ -4148,33 +4129,50 @@ PackedVector3Array NavigationGrid::smooth_path(const PackedVector3Array &path, c
 		return path;
 	}
 
-	smooth_search_id++;
-	int sid = smooth_search_id;
-
+	// How far each anchor sees, by galloping out and bisecting back: a
+	// straight run of n points costs log n line tests, where trying each
+	// point in turn cost n of them, each as long as the run so far. The line
+	// bisection lands on is clear and the next one isn't, so an anchor never
+	// sees less far than the first failure would have left it.
 	PackedVector3Array result;
 	result.push_back(path[0]);
+	const int last = path.size() - 1;
 	int anchor = 0;
-	int probe = 2;
-	while (probe < path.size()) {
-		if (line_clear(path[anchor], path[probe], offsets, clearance, height, flying, unit, sid)) {
-			probe++;
-		} else {
-			result.push_back(path[probe - 1]);
-			anchor = probe - 1;
-			probe++;
+	while (anchor < last) {
+		int clear = anchor + 1;
+		int blocked = -1;
+		for (int stride = 1; clear < last; stride *= 2) {
+			const int probe = std::min(clear + stride, last);
+			if (!line_clear(path[anchor], path[probe], offsets, clearance, height, flying, unit)) {
+				blocked = probe;
+				break;
+			}
+			clear = probe;
 		}
+		while (blocked - clear > 1) {
+			const int probe = clear + (blocked - clear) / 2;
+			if (line_clear(path[anchor], path[probe], offsets, clearance, height, flying, unit)) {
+				clear = probe;
+			} else {
+				blocked = probe;
+			}
+		}
+		if (clear < last) {
+			result.push_back(path[clear]);
+		}
+		anchor = clear;
 	}
-	result.push_back(path[path.size() - 1]);
+	result.push_back(path[last]);
 	return result;
 }
 
-bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int smooth_sid) {
+bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit) {
 	float length = a.distance_to(b);
 	int steps = std::max(1, (int)std::ceil(length / CELL_SIZE));
 	for (int i = 1; i < steps; i++) {
 		float t = (float)i / (float)steps;
 		Vector3i cell = world_to_cell(a.lerp(b, t));
-		if (is_valid_cell_cached(cell, offsets, clearance, height, flying, unit, smooth_sid)) {
+		if (is_valid_cell_cached(cell, offsets, clearance, height, flying, unit)) {
 			continue;
 		}
 		// A walker's standing cells climb a slope in whole-cell stairs, so
@@ -4183,32 +4181,12 @@ bool NavigationGrid::line_clear(const Vector3 &a, const Vector3 &b, const std::v
 		// cell off, and the same one-cell rise A* steps between neighbours.
 		// Where the ground bends away from the line further than that (the
 		// knee where a ramp meets the floor), the corner stays a waypoint.
-		if (!flying && (is_valid_cell_cached(cell + Vector3i(0, 1, 0), offsets, clearance, height, flying, unit, smooth_sid) || is_valid_cell_cached(cell - Vector3i(0, 1, 0), offsets, clearance, height, flying, unit, smooth_sid))) {
+		if (!flying && (is_valid_cell_cached(cell + Vector3i(0, 1, 0), offsets, clearance, height, flying, unit) || is_valid_cell_cached(cell - Vector3i(0, 1, 0), offsets, clearance, height, flying, unit))) {
 			continue;
 		}
 		return false;
 	}
 	return true;
-}
-
-// Memoized wrapper around is_valid_cell for use within a single
-// smooth_path() call — see the header comment on smooth_pages for
-// why this is exact (not approximate) despite the cache. Mirrors
-// is_valid_cell's own out-of-bounds handling (false) so callers can
-// treat this as a drop-in replacement.
-bool NavigationGrid::is_valid_cell_cached(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int smooth_sid) {
-	if (!in_bounds(cell)) {
-		return false;
-	}
-	int local;
-	SmoothBrick &brick = smooth_brick(cell, smooth_sid, local);
-	uint8_t &state = brick.state[local];
-	if (state & AStarBrick::CHECKED) {
-		return (state & AStarBrick::VALID) != 0;
-	}
-	bool result = is_valid_cell(cell, offsets, clearance, height, flying, self_unit);
-	state = AStarBrick::CHECKED | (result ? AStarBrick::VALID : (uint8_t)0);
-	return result;
 }
 
 // --- Duck-typed GDScript "Unit" property/method access ---------------------
