@@ -874,8 +874,16 @@ func _wear_shape(template: CollisionShape3D, size: float = 1.0) -> void:
 static func _scaled_shape(shape: Shape3D, size: float) -> Shape3D:
 	var scaled: Shape3D = shape.duplicate()
 	if scaled is CapsuleShape3D or scaled is CylinderShape3D:
-		scaled.radius *= size
-		scaled.height *= size
+		# Growing sets height first, shrinking radius first. A capsule keeps
+		# height >= 2 * radius by bumping height when radius passes it, so
+		# radius first on a flat capsule grown 10x took height 1 -> 4.4 -> 44:
+		# a 10 m dragon with a 44 m collider that hit walls 22 m away.
+		if size > 1.0:
+			scaled.height *= size
+			scaled.radius *= size
+		else:
+			scaled.radius *= size
+			scaled.height *= size
 	elif scaled is SphereShape3D:
 		scaled.radius *= size
 	elif scaled is BoxShape3D:

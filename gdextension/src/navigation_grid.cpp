@@ -132,9 +132,7 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 		bytes += sizeof(NavChunk);
 		bytes += c->solid.capacity() + c->ground.capacity() + c->no_support.capacity() + c->flight_low.capacity();
 		bytes += (int64_t)c->dist.capacity() * sizeof(uint16_t);
-		for (const auto &cell : c->occupied) {
-			bytes += sizeof(cell) + 16 + (int64_t)cell.second.capacity() * sizeof(Object *);
-		}
+		bytes += (int64_t)c->occupants.capacity() * sizeof(OccupantVolume);
 		for (const NavRegions &r : c->regions) {
 			bytes += (int64_t)r.label.capacity() * sizeof(uint16_t);
 			bytes += (int64_t)r.links.capacity() * sizeof(std::vector<uint64_t>);
@@ -2268,36 +2266,34 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 
 // --- Dynamic occupancy -------------------------------------------------------
 
-const std::vector<Object *> *NavigationGrid::occupants_at(const Vector3i &cell) const {
-	if (!in_bounds(cell)) {
-		return nullptr;
+bool NavigationGrid::stamp_occupant(const OccupantVolume &volume) {
+	int reach = (int)std::ceil(volume.clearance / CELL_SIZE);
+	Vector3i lo = volume.cell - Vector3i(reach, 0, reach);
+	Vector3i hi = volume.cell + Vector3i(reach, volume.layers - 1, reach);
+	lo = Vector3i(std::max(lo.x, 0), std::max(lo.y, 0), std::max(lo.z, 0));
+	hi = Vector3i(std::min(hi.x, grid_size.x - 1), std::min(hi.y, grid_size.y - 1), std::min(hi.z, grid_size.z - 1));
+	if (lo.x > hi.x || lo.y > hi.y || lo.z > hi.z) {
+		return false;
 	}
-	int idx = chunk_coord_index(cell_to_chunk_coord(cell));
-	const std::unique_ptr<NavChunk> &slot = chunks[idx];
-	if (!slot) {
-		return nullptr;
+	Vector3i clo = cell_to_chunk_coord(lo);
+	Vector3i chi = cell_to_chunk_coord(hi);
+	for (int cx = clo.x; cx <= chi.x; cx++) {
+		for (int cy = clo.y; cy <= chi.y; cy++) {
+			for (int cz = clo.z; cz <= chi.z; cz++) {
+				int idx = chunk_coord_index(Vector3i(cx, cy, cz));
+				std::unique_ptr<NavChunk> &slot = chunks[idx];
+				if (!slot) {
+					slot = std::make_unique<NavChunk>(); // occupancy doesn't need geometry rasterized
+				}
+				slot->occupants.push_back(volume);
+				if (!slot->has_occupancy) {
+					slot->has_occupancy = true;
+					occupied_chunks.push_back(idx);
+				}
+			}
+		}
 	}
-	auto it = slot->occupied.find(local_index(cell_to_local(cell)));
-	return it != slot->occupied.end() ? &it->second : nullptr;
-}
-
-void NavigationGrid::set_occupant(const Vector3i &cell, Object *obj) {
-	if (!in_bounds(cell)) {
-		return;
-	}
-	int idx = chunk_coord_index(cell_to_chunk_coord(cell));
-	std::unique_ptr<NavChunk> &slot = chunks[idx];
-	if (!slot) {
-		slot = std::make_unique<NavChunk>(); // occupancy doesn't need geometry rasterized
-	}
-	std::vector<Object *> &here = slot->occupied[local_index(cell_to_local(cell))];
-	if (std::find(here.begin(), here.end(), obj) == here.end()) {
-		here.push_back(obj);
-	}
-	if (!slot->has_occupancy) {
-		slot->has_occupancy = true;
-		occupied_chunks.push_back(idx);
-	}
+	return true;
 }
 
 void NavigationGrid::reset_occupancy() {
@@ -2367,7 +2363,7 @@ void NavigationGrid::ensure_occupancy_current(SceneTree *tree) {
 	for (int idx : occupied_chunks) {
 		std::unique_ptr<NavChunk> &slot = chunks[idx];
 		if (slot) {
-			slot->occupied.clear();
+			slot->occupants.clear();
 			slot->has_occupancy = false;
 		}
 	}
@@ -2381,16 +2377,13 @@ void NavigationGrid::ensure_occupancy_current(SceneTree *tree) {
 		if (in_bounds(key.cell)) {
 			ensure_chunk_dist(cell_to_chunk_coord(key.cell));
 		}
-		float clearance = (float)key.clearance_key / 1000.0f;
-		const std::vector<Vector3i> &occ_offsets = disc_offsets(clearance);
-		for (int dy = 0; dy < key.layers; dy++) {
-			for (const Vector3i &offset : occ_offsets) {
-				Vector3i cell = key.cell + offset + Vector3i(0, dy, 0);
-				if (in_bounds(cell)) {
-					set_occupant(cell, objects[i]);
-					any_occupied = true;
-				}
-			}
+		OccupantVolume volume;
+		volume.obj = objects[i];
+		volume.cell = key.cell;
+		volume.clearance = (float)key.clearance_key / 1000.0f;
+		volume.layers = key.layers;
+		if (stamp_occupant(volume)) {
+			any_occupied = true;
 		}
 	}
 
@@ -2477,7 +2470,7 @@ int NavigationGrid::body_layers(float height) {
 	return std::max(1, (int)std::ceil(height / CELL_SIZE));
 }
 
-bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, float height, Object *self_unit) const {
+bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, float clearance, float height, Object *self_unit) const {
 	if (!any_occupied) {
 		return true;
 	}
@@ -2487,15 +2480,15 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 	// a real battlefield with several units, that's true almost all the
 	// time even when nothing is anywhere near THIS cell, which used to
 	// force every single neighbor check across the whole search to do a
-	// full per-offset hashmap lookup regardless. chunk_occupancy_nearby
+	// full occupancy test regardless. chunk_occupancy_nearby
 	// (see refresh_chunk_occupancy_nearby) is this same 3x3x3
 	// chunk-neighborhood check, precomputed once per occupancy rebuild
 	// instead of rescanned fresh on every candidate cell here — an O(1)
 	// lookup rules out the common case cheaply. Only sound when the disc's
 	// reach can't cross more than one chunk width, which holds for any
-	// realistic unit clearance (this falls back to the exact per-offset
-	// check otherwise, so an oversized clearance degrades to the old cost
-	// rather than being wrong). The cached flag already accounts for all
+	// realistic unit clearance (this falls back to the full test below
+	// otherwise, so an oversized clearance only costs more, never answers
+	// wrong). The cached flag already accounts for all
 	// three axes, not just the horizontal ones — occupancy is a column
 	// (see occupant_layers), and so is the body tested below, so either can
 	// reach into a vertically-adjacent chunk too. chunk_idx is the caller's
@@ -2511,31 +2504,39 @@ bool NavigationGrid::is_clear_of_units(const Vector3i &cell, int chunk_idx, cons
 		}
 	}
 
-	// The querying body spans `layers` from this cell up. Every occupant
-	// column is at least MIN_OCCUPANT_LAYERS tall and has no gaps, so any
-	// that overlaps the span covers one of the layers sampled that far
-	// apart, plus the top: three disc tests for a 2 m body, not eight.
-	for (int dy = 0;; dy += MIN_OCCUPANT_LAYERS) {
-		if (dy > layers - 1) {
-			dy = layers - 1;
-		}
-		for (const Vector3i &offset : offsets) {
-			Vector3i c = cell + offset + Vector3i(0, dy, 0);
-			if (!in_bounds(c)) {
-				continue;
-			}
-			const std::vector<Object *> *here = occupants_at(c);
-			if (!here) {
-				continue;
-			}
-			for (Object *occ : *here) {
-				if (occ != self_unit && std::find(query_ignore.begin(), query_ignore.end(), occ) == query_ignore.end()) {
-					return false;
+	// Two columns collide when their discs overlap (centres no further
+	// apart than the two clearances) and their layer spans share a layer:
+	// the continuous form of asking whether any cell of this body's disc
+	// lies in the occupant's. Any occupant that can collide is listed in a chunk
+	// this body's own column reaches, since the overlap lies in both.
+	Vector3i lo = cell - Vector3i(reach_cells, 0, reach_cells);
+	Vector3i hi = cell + Vector3i(reach_cells, layers - 1, reach_cells);
+	lo = Vector3i(std::max(lo.x, 0), std::max(lo.y, 0), std::max(lo.z, 0));
+	hi = Vector3i(std::min(hi.x, grid_size.x - 1), std::min(hi.y, grid_size.y - 1), std::min(hi.z, grid_size.z - 1));
+	Vector3i clo = cell_to_chunk_coord(lo);
+	Vector3i chi = cell_to_chunk_coord(hi);
+	for (int cx = clo.x; cx <= chi.x; cx++) {
+		for (int cy = clo.y; cy <= chi.y; cy++) {
+			for (int cz = clo.z; cz <= chi.z; cz++) {
+				const std::unique_ptr<NavChunk> &slot = chunks[chunk_coord_index(Vector3i(cx, cy, cz))];
+				if (!slot || !slot->has_occupancy) {
+					continue;
+				}
+				for (const OccupantVolume &occ : slot->occupants) {
+					if (cell.y > occ.cell.y + occ.layers - 1 || occ.cell.y > cell.y + layers - 1) {
+						continue;
+					}
+					int dx = occ.cell.x - cell.x;
+					int dz = occ.cell.z - cell.z;
+					float reach = clearance + occ.clearance;
+					if ((float)(dx * dx + dz * dz) * CELL_SIZE * CELL_SIZE > reach * reach) {
+						continue;
+					}
+					if (occ.obj != self_unit && std::find(query_ignore.begin(), query_ignore.end(), occ.obj) == query_ignore.end()) {
+						return false;
+					}
 				}
 			}
-		}
-		if (dy == layers - 1) {
-			break;
 		}
 	}
 	return true;
@@ -2605,7 +2606,10 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 		}
 	}
 
-	return is_clear_of_units(cell, chunk_idx, offsets, clearance, height, self_unit);
+	if (!any_occupied) {
+		return true;
+	}
+	return is_clear_of_units(cell, chunk_idx, clearance, height, self_unit);
 }
 
 // --- Nearest-valid-point utility --------------------------------------------
@@ -2643,11 +2647,10 @@ NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vecto
 	for (int radius = 1; radius <= max_radius; radius++) {
 		for (int dx = -radius; dx <= radius; dx++) {
 			for (int dy = -radius; dy <= radius; dy++) {
-				for (int dz = -radius; dz <= radius; dz++) {
-					int m = std::max(std::abs(dx), std::max(std::abs(dy), std::abs(dz)));
-					if (m != radius) {
-						continue;
-					}
+				// Only the shell: inside it, dz jumps straight from -radius to radius.
+				bool on_shell = std::abs(dx) == radius || std::abs(dy) == radius;
+				int dz_step = on_shell ? 1 : 2 * radius;
+				for (int dz = -radius; dz <= radius; dz += dz_step) {
 					Vector3i candidate = cell + Vector3i(dx, dy, dz);
 					if (is_valid_cell(candidate, offsets, clearance, height, flying, self_unit)) {
 						return { true, candidate };
@@ -2678,7 +2681,10 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 		return PackedVector3Array();
 	}
 
-	NearestResult goal_snap = find_nearest_free_cell(world_to_cell(destination), offsets, clearance, height, flying, unit, 12);
+	// The search reaches past the body's own clearance, so a wide body sent
+	// onto another unit still finds the nearest spot it fits beside it.
+	int snap_radius = 12 + (int)Math::ceil(clearance / CELL_SIZE);
+	NearestResult goal_snap = find_nearest_free_cell(world_to_cell(destination), offsets, clearance, height, flying, unit, snap_radius);
 	if (!goal_snap.found) {
 		return PackedVector3Array();
 	}

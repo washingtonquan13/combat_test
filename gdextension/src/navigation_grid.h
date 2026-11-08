@@ -117,6 +117,15 @@ struct NavRegions {
 	std::vector<std::vector<uint64_t>> links;
 };
 
+// One occupant as is_clear_of_units tests it: a vertical column from its
+// feet cell up `layers` cells, `clearance` (radius + margin) around.
+struct OccupantVolume {
+	Object *obj = nullptr; // compared, never dereferenced
+	Vector3i cell;
+	float clearance = 0.0f;
+	int layers = 0;
+};
+
 struct NavChunk {
 	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
 	// CHUNK_DIM^3, parallel to solid: 1 = solid lying just under a walkable
@@ -134,11 +143,14 @@ struct NavChunk {
 	// it the same way its floor does.
 	std::vector<uint8_t> flight_high;
 	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
-	// chunk-local index -> every occupant whose volume covers it. Several,
-	// not one: occupancy discs overlap (two units side by side), and a
-	// query that ignores one of them must still see the other.
-	std::unordered_map<int, std::vector<Object *>> occupied;
-	bool has_occupancy = false; // true iff `occupied` is non-empty -- lets is_clear_of_units rule out a whole neighborhood cheaply
+	// Every occupant whose column reaches into this chunk, as the volume it
+	// is rather than the cells it covers. Stamping a body cell by cell cost
+	// its disc times its height on every rebuild (an SM 6 dragon: ~21,000
+	// cells whenever anyone crossed a cell), and testing a body against
+	// stamps cost the querying disc times its sampled layers per candidate
+	// cell (~6,300 lookups for the dragon). A volume test is a few compares.
+	std::vector<OccupantVolume> occupants;
+	bool has_occupancy = false; // true iff `occupants` is non-empty -- lets is_clear_of_units rule out a whole neighborhood cheaply
 
 	bool rasterized = false;
 	// solid[] holds a seal_interiors fill on top of the raw geometry.
@@ -513,21 +525,19 @@ private:
 	static int clearance_key(float clearance);
 	const std::vector<Vector3i> &disc_offsets(float clearance);
 
-	const std::vector<Object *> *occupants_at(const Vector3i &cell) const;
-	void set_occupant(const Vector3i &cell, Object *obj);
+	// Lists the volume in every chunk its column reaches; false when none
+	// of it is in bounds.
+	bool stamp_occupant(const OccupantVolume &volume);
 
 	// Every occupant, walking or flying, fills a vertical column: its
-	// clearance disc on every layer from its feet up its body height. A
-	// column is never shorter than MIN_OCCUPANT_LAYERS, which is what lets
-	// is_clear_of_units sample the querying body's layers MIN_OCCUPANT_LAYERS
-	// apart instead of testing all of them: a column at least that tall
-	// that overlaps the body's span always covers one sampled layer.
+	// clearance disc on every layer from its feet up its body height,
+	// never shorter than MIN_OCCUPANT_LAYERS.
 	static constexpr int MIN_OCCUPANT_LAYERS = 4; // 1 m
 	static constexpr float DEFAULT_OCCUPANT_HEIGHT = 2.0f; // Unit.height's default, for an occupant reporting none
 	static int occupant_layers(float height);
 	static int body_layers(float height);
 
-	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, const std::vector<Vector3i> &offsets, float clearance, float height, Object *self_unit) const;
+	bool is_clear_of_units(const Vector3i &cell, int chunk_idx, float clearance, float height, Object *self_unit) const;
 	bool is_valid_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit);
 	// The part of is_valid_cell that holds for every clearance and height,
 	// for an in-bounds cell of a support-baked chunk: not solid; walking
