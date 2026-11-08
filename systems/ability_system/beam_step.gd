@@ -23,7 +23,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, c
 	if not beam_scene:
 		return
 	var target: Unit = unit_at(context.get_tree(), to)
-	var end: Vector3 = LineOfSight.shot_to(target) if target else to
+	var end: Vector3 = LineOfSight.shot_to(target, caster if is_instance_valid(caster) else null) if target else to
 	if launch_from != CharacterModel.Anchor.GROUND and is_instance_valid(caster):
 		from = caster.anchor(launch_from)
 	var beam := beam_scene.instantiate()

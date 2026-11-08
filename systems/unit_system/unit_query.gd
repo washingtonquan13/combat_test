@@ -170,8 +170,9 @@ static func nearest_hostile(tree: SceneTree, unit: Unit) -> Unit:
 	return nearest
 
 
-## Every living unit whose EDGE (not center) lies within radius of
-## center, gated by hostile/ally-to-attacker — the exact scan
+## Every living unit whose BODY (UnitBody: its column and any tail or
+## neck its model authored) comes within radius of center, gated by
+## hostile/ally-to-attacker — the exact scan
 ## AreaDamageEffect/AreaHealEffect/AreaApplyStatusEffect each
 ## reimplemented identically. What happens to a matched unit (a damage
 ## roll, a heal roll, a status application) stays on the caller — that's
@@ -179,8 +180,7 @@ static func nearest_hostile(tree: SceneTree, unit: Unit) -> Unit:
 static func area_affected(tree: SceneTree, attacker: Unit, center: Vector3, radius: float, affects_hostiles: bool, affects_allies: bool) -> Array[Unit]:
 	var affected: Array[Unit] = []
 	for unit in _in_world_of(attacker, living_units(tree)):
-		var edge_dist: float = center.distance_to(unit.global_position) - unit.radius
-		if edge_dist > radius:
+		if unit.body_shape().distance_to_point(center) > radius:
 			continue
 		var is_hostile: bool = attacker.is_hostile_to(unit)
 		if is_hostile and not affects_hostiles:
@@ -191,16 +191,16 @@ static func area_affected(tree: SceneTree, attacker: Unit, center: Vector3, radi
 	return affected
 
 
-## Every living unit whose edge comes within half_width of the line from
-## from to to across the ground — who a wall standing there would catch.
+## Every living unit whose footprint (UnitBody.ground_distance_to_segment:
+## the column's disc and any tail's shadow) comes within half_width of the
+## line from from to to across the ground — who a wall standing there
+## would catch.
 static func line_affected(tree: SceneTree, attacker: Unit, from: Vector3, to: Vector3, half_width: float) -> Array[Unit]:
 	var affected: Array[Unit] = []
 	var a := Vector2(from.x, from.z)
 	var b := Vector2(to.x, to.z)
 	for unit in _in_world_of(attacker, living_units(tree)):
-		var p := Vector2(unit.global_position.x, unit.global_position.z)
-		var closest: Vector2 = a if a.is_equal_approx(b) else Geometry2D.get_closest_point_to_segment(p, a, b)
-		if p.distance_to(closest) - unit.radius <= half_width:
+		if unit.body_shape().ground_distance_to_segment(a, b) <= half_width:
 			affected.append(unit)
 	return affected
 

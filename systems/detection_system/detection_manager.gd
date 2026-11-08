@@ -46,10 +46,10 @@ const PROXIMITY_BONUS: int = 4
 ## next room brings people running while one across the map does not.
 const HEARING_RADIUS: float = 22.0
 
-## Eye height and obstruction mask for the sight raycast — same values
-## every targeting class uses, so detection and shooting agree about what
-## counts as a wall.
-const EYE_HEIGHT: float = 1.5
+## Obstruction mask for the sight raycast — the same one every targeting
+## class uses, so detection and shooting agree about what counts as a
+## wall. The ray leaves the observer's own eye (CharacterModel.Anchor.EYE),
+## not a fixed 1.5 m: a dragon looks over a wall a man can't.
 const OBSTRUCTION_MASK: int = 1
 
 ## Emitted whenever a unit's awareness escalates, for UI and debugging.
@@ -104,6 +104,9 @@ func scan() -> void:
 		if observer.in_combat():
 			continue
 
+		# Read once per observer: the eye rides a bone, and asking for it
+		# per subject was most of a sweep's cost.
+		var eye: Vector3 = observer.anchor(CharacterModel.Anchor.EYE)
 		for subject in units:
 			if subject == observer or not subject.is_player_controlled():
 				continue
@@ -114,7 +117,7 @@ func scan() -> void:
 			# be metres apart in raw coordinates.
 			if subject.get_world_3d() != observer.get_world_3d():
 				continue
-			if _consider(observer, subject):
+			if _consider(observer, subject, eye):
 				break
 
 
@@ -177,7 +180,7 @@ func _draw_in_latecomers(units: Array[Unit]) -> void:
 ## Resolves one observer/subject pair, returning true if awareness
 ## escalated (so the caller can stop looking — one thing noticed is enough
 ## to act on this tick).
-func _consider(observer: Unit, subject: Unit) -> bool:
+func _consider(observer: Unit, subject: Unit, eye: Vector3) -> bool:
 	var awareness: UnitAwareness = observer.awareness()
 	if awareness.is_aware_of(subject):
 		# Already knows. Keep the breadcrumb current, but nothing new
@@ -185,7 +188,7 @@ func _consider(observer: Unit, subject: Unit) -> bool:
 		awareness.notice(subject, true)
 		return false
 
-	var identified: bool = _attempt_sight(observer, subject)
+	var identified: bool = _attempt_sight(observer, subject, eye)
 	var heard: bool = not identified and _hears_disturbance(observer, subject)
 	if not identified and not heard:
 		return false
@@ -208,7 +211,7 @@ func _consider(observer: Unit, subject: Unit) -> bool:
 ## vision might genuinely go unnoticed. It reproduces the feel of BG3's
 ## gradually-filling detection indicator without a second meter to build,
 ## tune, and display.
-func _attempt_sight(observer: Unit, subject: Unit) -> bool:
+func _attempt_sight(observer: Unit, subject: Unit, eye: Vector3) -> bool:
 	var distance: float = observer.distance_to(subject)
 	if distance > observer.max_sight_range:
 		return false
@@ -217,7 +220,7 @@ func _attempt_sight(observer: Unit, subject: Unit) -> bool:
 	if not close and not _within_cone(observer, subject):
 		return false
 
-	if not LineOfSight.has_clear_shot(observer, subject, OBSTRUCTION_MASK, EYE_HEIGHT):
+	if not LineOfSight.has_clear_shot_from(observer, eye, subject, OBSTRUCTION_MASK):
 		return false
 
 	var target_number: int = floori(observer.get_stat(StatIds.PER))

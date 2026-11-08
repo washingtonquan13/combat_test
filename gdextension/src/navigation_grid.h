@@ -332,7 +332,12 @@ private:
 	static constexpr float MAX_WALKABLE_SLOPE_DEGREES = 45.5f;
 
 	static constexpr int CHUNK_DIM = 32; // 8m/side at 0.25m cells
-	static constexpr int MAX_CLEARANCE_CELLS = 16; // 4m horizontal reach cap for the distance field
+	// 5m horizontal reach cap for the distance field: past it every open
+	// cell reads "clear all the way out". Wide enough for an SM 6 dragon
+	// (clearance 4.25) to be kept its whole distance from walls; the cost
+	// is the bake window, (CHUNK_DIM + 2 * cap)^2 per layer, ~1.3x at 16.
+	// Must stay below CHUNK_DIM (bake_chunk_dist reads direct neighbours).
+	static constexpr int MAX_CLEARANCE_CELLS = 20;
 	static constexpr int DIST_SCALE = 8; // fixed-point precision for NavChunk::dist (1/8 cell ~= 0.03m)
 	static constexpr int CORRIDOR_RADIUS_CHUNKS = 1; // fine search slack around the coarse route
 	// Weighted A* (Pohl 1970): trades a bounded amount of path optimality

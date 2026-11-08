@@ -67,7 +67,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, c
 	if lands_on_chest:
 		var target: Unit = unit_at(context.get_tree(), to)
 		if target:
-			to = LineOfSight.shot_to(target)
+			to = LineOfSight.shot_to(target, caster if is_instance_valid(caster) else null)
 	to.y += lands_at_height
 
 	var wrapper := Node3D.new()

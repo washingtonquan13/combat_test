@@ -18,7 +18,7 @@ extends Resource
 ## through StatusManager's per-status aggregation.
 ##
 ## Melee gets no equivalent modifier here on purpose: MeleeEnemyTargeting's
-## own tiny range (see Unit.edge_distance_to, already full 3D distance)
+## own tiny range (see Unit.edge_distance_to, the full 3D gap between bodies)
 ## already makes it unable to reach a meaningfully elevated target at
 ## all — there's no realistic case where a melee attack against an
 ## airborne target would even reach modify_incoming_attack_to_hit in the

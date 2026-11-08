@@ -47,4 +47,5 @@ func run() -> void:
 	check("an air wall stands with no ground fire under it",
 		not SurfaceManager._clouds_for(context).is_empty() and SurfaceManager.surface_at(Vector3(-3.0, 0.0, 0.0), context) == null)
 	SurfaceManager.expire_all_clouds(context)
+	SurfaceManager.expire_all_ground(context)
 	free_spawned()

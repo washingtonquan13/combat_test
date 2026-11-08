@@ -2583,10 +2583,10 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 	// not.
 	int vertical_cells = std::max(1, (int)std::ceil(height / CELL_SIZE));
 	// The distance field stops counting at MAX_CLEARANCE_CELLS, so a body
-	// at least that wide (an SM 6 dragon's 4 m) would find no cell "more
-	// than" clear and could never move. Past the field's reach, ask only
-	// for the most it can say: clear all the way out. Other units are
-	// still kept off at the body's full clearance below.
+	// at least that wide (past 5 m) would find no cell "more than" clear
+	// and could never move. Past the field's reach, ask only for the most
+	// it can say: clear all the way out. Other units are still kept off at
+	// the body's full clearance below.
 	const float wall_clearance = std::min(clearance, MAX_CLEARANCE_CELLS * CELL_SIZE - 0.5f / DIST_SCALE * CELL_SIZE);
 	for (int dy = 0; dy < vertical_cells; dy++) {
 		Vector3i layer_chunk_coord = chunk_coord;

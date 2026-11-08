@@ -27,31 +27,64 @@ const SURFACE_CLEARANCE: float = 0.1
 
 ## Where a shot leaves the attacker: its eye anchor (CharacterModel.Anchor
 ## .EYE, "where this body sees from, and where its shots originate"). An
-## explicit eye_height above the feet wins, for callers that mean a fixed
-## one (DetectionManager's EYE_HEIGHT).
+## explicit eye_height above the feet wins, for a caller that means a
+## fixed one.
 static func shot_from(attacker: Unit, eye_height: float = NAN) -> Vector3:
 	if is_nan(eye_height):
 		return attacker.anchor(CharacterModel.Anchor.EYE)
 	return attacker.global_position + Vector3(0, eye_height, 0)
 
 
-## Where a shot at target lands: a Unit's chest (the body, not its feet
-## or a point an eye-height above them), a Vector3 exactly where it was
-## aimed. The one answer the rule traces and every indicator draws, so
-## the line on screen is the line tested.
-static func shot_to(target) -> Vector3:
-	if target is Unit:
-		return (target as Unit).anchor(CharacterModel.Anchor.CHEST)
-	return target
+## Where a shot at target lands. A Vector3 is exactly where it was aimed.
+## A Unit is its first point (UnitBody.sight_points: chest, then head,
+## then down a tail) the attacker can see - a man behind a low wall is
+## shot in the head, a dragon round a corner in the tail - or its chest
+## when none is clear or no attacker is given. The one answer the rule
+## traces and every indicator and missile follows, so the line on screen
+## is the line tested.
+static func shot_to(target, attacker: Unit = null, obstruction_mask: int = 1) -> Vector3:
+	if not target is Unit:
+		return target
+	var body := target as Unit
+	if attacker:
+		var seen = _first_visible(attacker, shot_from(attacker), body, obstruction_mask)
+		if seen != null:
+			return seen
+	return body.anchor(CharacterModel.Anchor.CHEST)
 
 
+## Whether any part of target can be seen from the attacker's eye (see
+## shot_to for the order they are tried in).
 static func has_clear_shot(
 	attacker: Unit,
 	target: Unit,
 	obstruction_mask: int = 1,
 	eye_height: float = NAN
 ) -> bool:
-	return _clear(attacker, shot_from(attacker, eye_height), shot_to(target), obstruction_mask, [target.get_rid()])
+	return _first_visible(attacker, shot_from(attacker, eye_height), target, obstruction_mask) != null
+
+
+## has_clear_shot from an eye already found - for a caller asking about
+## many targets from one attacker (a detection sweep), where reading a
+## bone-held EYE anchor per pair is the cost.
+static func has_clear_shot_from(attacker: Unit, from: Vector3, target: Unit, obstruction_mask: int = 1) -> bool:
+	return _first_visible(attacker, from, target, obstruction_mask) != null
+
+
+## The first of target's sight points with a clear line from from, or null.
+## The chest alone first: in the open it is the answer, and detection asks
+## this for every observer and subject each sweep - the rest of the body
+## is only built when the chest is hidden.
+static func _first_visible(attacker: Unit, from: Vector3, target: Unit, obstruction_mask: int):
+	var exclude: Array = [target.get_rid()]
+	var chest: Vector3 = target.anchor(CharacterModel.Anchor.CHEST)
+	if _clear(attacker, from, chest, obstruction_mask, exclude):
+		return chest
+	var points: Array[Vector3] = target.body_shape().sight_points()
+	for i in range(1, points.size()):
+		if _clear(attacker, from, points[i], obstruction_mask, exclude):
+			return points[i]
+	return null
 
 
 ## Line of sight from the attacker's eye to point itself, not to a point

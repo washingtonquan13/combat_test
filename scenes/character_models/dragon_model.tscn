@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="PackedScene" path="res://assets/dragon/dragon.glb" id="2_glb"]
@@ -13,7 +13,15 @@ height = 0.02
 radius = 0.22
 height = 1.0
 
-[node name="DragonModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "collision_shape", "head_anchor", "eye_anchor", "chest_anchor")]
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_move"]
+radius = 0.3
+height = 0.6
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_tail"]
+radius = 0.05
+height = 1.14
+
+[node name="DragonModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "collision_shape", "hit_shapes", "head_anchor", "eye_anchor", "chest_anchor")]
 script = ExtResource("1_cm")
 animation_player = NodePath("Body/AnimationPlayer")
 idle_animation = "Idle"
@@ -29,6 +37,7 @@ highlight_mesh = NodePath("HighlightMesh")
 radius = 0.4
 height = 0.6
 collision_shape = NodePath("CollisionTemplate")
+hit_shapes = [NodePath("HitTorso"), NodePath("HitTail")]
 head_anchor = NodePath("Body/Armature/Skeleton3D/Head")
 eye_anchor = NodePath("Body/Armature/Skeleton3D/Head")
 chest_anchor = NodePath("Body/Armature/Skeleton3D/Chest")
@@ -46,5 +55,13 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
 mesh = SubResource("CylinderMesh_ring")
 
 [node name="CollisionTemplate" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("CapsuleShape3D_move")
+
+[node name="HitTorso" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.22, 0.02)
 shape = SubResource("CapsuleShape3D_torso")
+
+[node name="HitTail" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -0.1535, 0.9881, 0, -0.9881, -0.1535, 0, 0.16, -0.865)
+shape = SubResource("CapsuleShape3D_tail")

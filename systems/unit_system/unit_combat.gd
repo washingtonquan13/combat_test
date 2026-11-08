@@ -846,7 +846,7 @@ func to_hit_target(target, ability: Ability) -> int:
 			number += range_penalty(_owner.edge_distance_to(target))
 		if ranged:
 			# A wall it shoots through (Wall of Water) deflects the shot.
-			number += SurfaceManager.ranged_penalty_between(_owner, LineOfSight.shot_from(_owner), LineOfSight.shot_to(target))
+			number += SurfaceManager.ranged_penalty_between(_owner, LineOfSight.shot_from(_owner), LineOfSight.shot_to(target, _owner))
 	return number
 
 

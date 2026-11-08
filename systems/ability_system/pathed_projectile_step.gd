@@ -136,7 +136,7 @@ func play(context: Node, from: Vector3, to: Vector3, _ability: Ability = null, _
 ## straight line through every wall.
 func route(caster: Unit, from: Vector3, target: Unit, to: Vector3) -> PackedVector3Array:
 	var launch_point: Vector3 = from + Vector3(0, launch_height_offset, 0)
-	var end: Vector3 = LineOfSight.shot_to(target) if target else to
+	var end: Vector3 = LineOfSight.shot_to(target, caster if is_instance_valid(caster) else null) if target else to
 	var ignore: Array = []
 	if caster:
 		ignore.append(caster)

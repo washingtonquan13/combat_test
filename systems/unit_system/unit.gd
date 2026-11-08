@@ -867,6 +867,19 @@ func _wear_shape(template: CollisionShape3D, size: float = 1.0) -> void:
 	own.shape = template.shape if is_equal_approx(size, 1.0) else _scaled_shape(template.shape, size)
 	own.transform = template.transform
 	own.position *= size
+	_warn_if_wider_than_clearance(own)
+
+
+## A collider wider than the clearance the grid keeps (radius +
+## avoidance_margin) meets walls on routes the planner calls clear: the
+## dragon's bouncing. Said once at wear, where the author can fix it.
+func _warn_if_wider_than_clearance(own: CollisionShape3D) -> void:
+	var box: AABB = own.transform * own.shape.get_debug_mesh().get_aabb()
+	# A box around a round shape overstates it by its corners: compare the
+	# widest axis, not the diagonal.
+	var reach: float = maxf(maxf(absf(box.position.x), absf(box.end.x)), maxf(absf(box.position.z), absf(box.end.z)))
+	if reach > radius + avoidance_margin + 0.01:
+		push_warning("%s: its collider reaches %.2f m out, past the %.2f m the navigation grid keeps clear; it will meet walls the planner routes past." % [name, reach, radius + avoidance_margin])
 
 
 ## A copy of shape size times bigger. Scaled by its own measures, not the
@@ -2090,13 +2103,23 @@ func distance_to(other: Unit) -> float:
 	return global_position.distance_to(other.global_position)
 
 
-## Center-to-center distance minus both units' radii — how far apart their
-## actual bodies are, not their positions. This is what any range check
-## (melee or ranged — see Ability.is_in_range) should be measured-
+## How far other's body is from where this unit stands (UnitBody.gap_to):
+## its column to every part of other, tail and all. What any range check
+## (melee or ranged — see Ability.is_in_range) should be measured
 ## against; two units can be "touching" while still having meaningfully
-## distant global_positions once you account for size.
+## distant global_positions once you account for size and shape.
 func edge_distance_to(other: Unit) -> float:
-	return max(distance_to(other) - radius - other.radius, 0.0)
+	return body_shape().gap_to(other.body_shape())
+
+
+var _body_shape: UnitBody
+
+## This unit's body as the hit rules see it (UnitBody): the column it
+## stands in plus whatever its model authored sticking out of it.
+func body_shape() -> UnitBody:
+	if _body_shape == null:
+		_body_shape = UnitBody.new(self)
+	return _body_shape
 
 
 ## Forwards to SuccessRoll — not UnitCombat, since nothing about GURPS'

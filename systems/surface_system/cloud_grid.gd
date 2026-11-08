@@ -83,8 +83,8 @@ func cells_along(from: Vector3, to: Vector3) -> Array[CloudCell]:
 	return found
 
 
-## The cubes touching an upright capsule: a segment from `low` to `high`,
-## `radius` thick (a unit's body, feet to eyes).
+## The cubes touching a capsule: a segment from `low` to `high`, `radius`
+## thick, at any slant (a part of a unit's body, UnitBody.segments()).
 func cells_touching(low: Vector3, high: Vector3, radius: float) -> Array[CloudCell]:
 	var found: Array[CloudCell] = []
 	if cells.is_empty():

@@ -85,6 +85,7 @@ func _draw_line(unit: Unit, aim_point, hovered_unit: Unit, ability: Ability) -> 
 			_:
 				color = no_target_color
 
-	# The segment check() traced: eye to the hovered body's chest, or to
-	# the aimed spot itself.
-	_show_shot(_line_mesh, LineOfSight.shot_from(unit), LineOfSight.shot_to(aim_point), color)
+	# The segment check() traced: eye to the part of the hovered body it
+	# can see, or to the aimed spot itself.
+	var mask: int = ability.targeting.los_obstruction_mask if "los_obstruction_mask" in ability.targeting else 1
+	_show_shot(_line_mesh, LineOfSight.shot_from(unit), LineOfSight.shot_to(aim_point, unit, mask), color)

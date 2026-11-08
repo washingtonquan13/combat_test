@@ -134,7 +134,19 @@ extends Node3D
 ##
 ## Null is allowed: a body that declares no shape leaves the Unit's own
 ## authored one alone.
+##
+## It must fit inside the column the navigation grid keeps clear (radius
+## + avoidance_margin wide, height tall): a collider poking past it is a
+## body the planner routes as if it weren't there, and walking into a
+## wall with it is how a dragon bounced off every corner.
 @export var collision_shape: CollisionShape3D
+
+## What of the body sticks out of that column and can still be hit: a
+## tail, a long neck. Capsules (or spheres) placed against the mesh, read
+## live by UnitBody, so they turn and grow with the body. Inert like the
+## collision template - nothing collides with them, rules measure them.
+## A humanoid needs none: its column is its body.
+@export var hit_shapes: Array[CollisionShape3D] = []
 
 ## Named points on this body that other systems aim at.
 ##

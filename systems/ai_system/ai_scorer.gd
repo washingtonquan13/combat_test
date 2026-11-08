@@ -668,7 +668,7 @@ static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool
 ## approximation here.
 static func _would_be_in_range(position: Vector3, unit: Unit, target: Unit, ability: Ability) -> bool:
 	var approach: float = ability.targeting.approach_range() if ability.targeting else 0.0
-	var edge_distance: float = position.distance_to(target.global_position) - unit.radius - target.radius
+	var edge_distance: float = target.body_shape().gap_from_column(position, unit.radius, unit.height)
 	return edge_distance <= approach + 0.05
 
 
@@ -1200,7 +1200,9 @@ static func standoff_goal(unit: Unit, target: Unit, ability: Ability) -> Vector3
 	var direction: Vector3 = to_target / distance
 	var ability_range: float = ability.targeting.approach_range() if ability.targeting else 0.0
 	# Center-to-center distance at which this unit's *edge* sits exactly
-	# at ability_range from target's edge (mirrors Unit.edge_distance_to).
+	# at ability_range from the edge of target's column (Unit.edge_distance_to
+	# also counts its hit capsules - a tail - so this stops short of where
+	# the real check would already pass, never past it).
 	# The margin must exceed arrival_tolerance, not just be some small
 	# constant — Unit's movement considers itself "arrived" (i.e. moves
 	# no further) once within arrival_tolerance of the destination, so a

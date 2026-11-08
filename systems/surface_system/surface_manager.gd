@@ -182,7 +182,7 @@ func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -
 	if target is Unit:
 		position = target.global_position
 		radius = target.radius
-		reached = _footprint_cells(grid, position, radius)
+		reached = _body_cells(grid, target)
 	elif target is Vector3:
 		position = target
 		var cone := ability.targeting as ConeTargeting
@@ -298,9 +298,10 @@ func _cloud_reach(grid: CloudGrid, ability: Ability, attacker: Unit, target) -> 
 				cells.append(cell)
 		return {cells = cells, sight_from = centre}
 	if attacker and (target is Unit or target is Vector3):
-		cells.append_array(grid.cells_along(LineOfSight.shot_from(attacker), LineOfSight.shot_to(target)))
+		cells.append_array(grid.cells_along(LineOfSight.shot_from(attacker), LineOfSight.shot_to(target, attacker)))
 	if target is Unit:
-		cells.append_array(grid.cells_touching(target.global_position, target.anchor(CharacterModel.Anchor.EYE), target.radius))
+		for part in target.body_shape().segments():
+			cells.append_array(grid.cells_touching(part[0], part[1], part[2]))
 	elif target is Vector3:
 		var struck: CloudCell = grid.cell_at(point)
 		if struck:
@@ -343,6 +344,27 @@ func _footprint_cells(grid: SurfaceGrid, feet: Vector3, radius: float) -> Dictio
 			var near := Vector2(clampf(feet.x, x * SurfaceGrid.CELL, (x + 1) * SurfaceGrid.CELL),
 					clampf(feet.z, z * SurfaceGrid.CELL, (z + 1) * SurfaceGrid.CELL))
 			if near.distance_to(Vector2(feet.x, feet.z)) <= radius:
+				reached[cell.key] = cell.y
+	return reached
+
+
+## The cells (SurfaceGrid key -> floor y) on the ground under unit's
+## footprint (UnitBody.ground_touches_rect), at its feet's floor — what
+## surfaces_under reads and touch() reacts.
+func _body_cells(grid: SurfaceGrid, unit: Unit) -> Dictionary:
+	var reached: Dictionary = {}
+	var body: UnitBody = unit.body_shape()
+	var bounds: Array[Vector2] = body.ground_bounds()
+	var feet_y: float = unit.global_position.y
+	var low: Vector2i = SurfaceGrid.key_of(Vector3(bounds[0].x, 0.0, bounds[0].y))
+	var high: Vector2i = SurfaceGrid.key_of(Vector3(bounds[1].x, 0.0, bounds[1].y))
+	for x in range(low.x, high.x + 1):
+		for z in range(low.y, high.y + 1):
+			var cell: SurfaceCell = grid.cell_at(Vector2i(x, z), feet_y)
+			if cell == null:
+				continue
+			var square := Rect2(x * SurfaceGrid.CELL, z * SurfaceGrid.CELL, SurfaceGrid.CELL, SurfaceGrid.CELL)
+			if body.ground_touches_rect(square):
 				reached[cell.key] = cell.y
 	return reached
 
@@ -960,37 +982,33 @@ func _holding(unit: Unit) -> Array[Surface]:
 	return found
 
 
-## The clouds around any part of unit's upright body (feet to eyes) — a
-## cloud hanging at head height covers a unit whose feet are below it.
+## The clouds around any part of unit's body (UnitBody: its column feet
+## to top, and any hit capsule) — a cloud hanging at head height covers a
+## unit whose feet are below it, and one a dragon's tail lies in covers
+## the dragon.
 func _clouds_holding(unit: Unit) -> Array[Surface]:
 	var found: Array[Surface] = []
 	var grid: CloudGrid = _clouds_for(WorldManager.context_for(unit))
-	for cell in grid.cells_touching(unit.global_position, unit.anchor(CharacterModel.Anchor.EYE), unit.radius):
-		if not found.has(cell.surface):
-			found.append(cell.surface)
+	if grid.is_empty():
+		return found
+	for part in unit.body_shape().segments():
+		for cell in grid.cells_touching(part[0], part[1], part[2]):
+			if not found.has(cell.surface):
+				found.append(cell.surface)
 	return found
 
 
-## The ground surfaces under any part of unit's footprint, in its world.
+## The ground surfaces under any part of unit's footprint (UnitBody: its
+## column's disc and its hit capsules' shadow), in its world.
 func surfaces_under(unit: Unit) -> Array[Surface]:
 	var found: Array[Surface] = []
 	var grid: SurfaceGrid = _grid_for(WorldManager.context_for(unit))
 	if grid.is_empty():
 		return found
-	var feet: Vector3 = unit.global_position
-	var reach := Vector3(unit.radius, 0.0, unit.radius)
-	var low: Vector2i = SurfaceGrid.key_of(feet - reach)
-	var high: Vector2i = SurfaceGrid.key_of(feet + reach)
-	for x in range(low.x, high.x + 1):
-		for z in range(low.y, high.y + 1):
-			var cell: SurfaceCell = grid.cell_at(Vector2i(x, z), feet.y)
-			if cell == null or found.has(cell.surface):
-				continue
-			# The nearest point of the square to the footprint's centre.
-			var near := Vector2(clampf(feet.x, x * SurfaceGrid.CELL, (x + 1) * SurfaceGrid.CELL),
-					clampf(feet.z, z * SurfaceGrid.CELL, (z + 1) * SurfaceGrid.CELL))
-			if near.distance_to(Vector2(feet.x, feet.z)) <= unit.radius:
-				found.append(cell.surface)
+	for key: Vector2i in _body_cells(grid, unit):
+		var cell: SurfaceCell = grid.cell_at(key, unit.global_position.y)
+		if cell and not found.has(cell.surface):
+			found.append(cell.surface)
 	return found
 
 

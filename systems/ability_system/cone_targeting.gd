@@ -78,8 +78,9 @@ func resolve_target_point(click_position: Vector3) -> Vector3:
 const AIM_LIFT: float = 1.3
 
 
-## Who a cone aimed at target catches: any of a unit's body points (feet,
-## chest, head) inside the cone, widened by its radius, with no wall
+## Who a cone aimed at target catches: any of a unit's body points
+## (UnitBody.samples: feet, chest, head, and down any tail) inside the
+## cone, widened by the radius of the part it lies in, with no wall
 ## between it and the origin. Never the caster.
 func units_caught(attacker: Unit, target, affects_hostiles: bool, affects_allies: bool) -> Array[Unit]:
 	var caught: Array[Unit] = []
@@ -102,19 +103,15 @@ func units_caught(attacker: Unit, target, affects_hostiles: bool, affects_allies
 
 
 func _catches(attacker: Unit, unit: Unit, from: Vector3, aim: Vector3, half: float) -> bool:
-	var points: Array[Vector3] = [
-		unit.global_position + Vector3.UP * 0.2,
-		unit.anchor(CharacterModel.Anchor.CHEST),
-		unit.anchor(CharacterModel.Anchor.HEAD),
-	]
-	for point in points:
+	for sample in unit.body_shape().samples():
+		var point := Vector3(sample.x, sample.y, sample.z)
 		var to: Vector3 = point - from
 		var dist: float = to.length()
-		if dist - unit.radius > length:
+		if dist - sample.w > length:
 			continue
-		if dist > unit.radius:
-			# The body's radius widens the angle it can be grazed at.
-			var slack: float = asin(clampf(unit.radius / dist, 0.0, 1.0))
+		if dist > sample.w:
+			# The part's radius widens the angle it can be grazed at.
+			var slack: float = asin(clampf(sample.w / dist, 0.0, 1.0))
 			if aim.angle_to(to) > half + slack:
 				continue
 		if requires_line_of_sight and not _clear(attacker, unit, from, point):
