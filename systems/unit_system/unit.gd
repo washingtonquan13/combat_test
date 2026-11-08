@@ -945,16 +945,17 @@ func _ready() -> void:
 	_status_manager.status_applied.connect(func(_effect, _active): _update_low_pool_statuses())
 	_status_manager.status_removed.connect(func(_effect): _update_low_pool_statuses())
 	_update_low_pool_statuses()
-	# The body's capsule (radius 0.25) is too thin to aim at, so hover comes
-	# from a fatter PickArea cylinder the size of the selection ring. Physics
-	# picking reports only the first hit, which is the cylinder, so the
-	# body's own mouse_entered would never fire and is not connected. The
-	# body stays input_ray_pickable all the same: ClickRouter reads that flag
-	# as the unit's one "can be clicked" switch (see set_pickable). HOVER
-	# ONLY here: clicking a unit belongs to ClickRouter, which raycasts for
-	# itself and marks the event handled, so a click never reaches physics
-	# picking at all. A unit deciding what a click on it means was one of
-	# the eight places player intent used to live.
+	# The body's capsule (radius 0.25) is too thin to aim at, so hovering
+	# and clicking both aim at a fatter PickArea cylinder. Both belong to
+	# ClickRouter, which raycasts for itself: the unit it picks for a click
+	# is the one it hovers (set_hovered), so the highlight never names a
+	# different unit than a click would. Physics picking used to drive
+	# hover, and it reports only the FIRST area a ray enters - a dragon's
+	# area in front of a goblin lit the dragon while a click took the
+	# goblin. The body stays input_ray_pickable: ClickRouter reads that
+	# flag as the unit's one "can be clicked" switch (see set_pickable). A
+	# unit deciding what a click on it means was one of the eight places
+	# player intent used to live.
 	add_to_group("units")
 	stat_changed.connect(_on_own_stat_changed)
 	# Every equipment_changed (equip, unequip, an item's own refresh in
@@ -965,14 +966,15 @@ func _ready() -> void:
 
 	input_ray_pickable = true
 	_build_pick_area()
-	pick_area.mouse_entered.connect(_on_mouse_entered)
-	pick_area.mouse_exited.connect(_on_mouse_exited)
 
 
 ## The smallest a unit's PickArea gets, so a tiny creature can still be
 ## hovered and clicked.
 const MIN_PICK_RADIUS: float = 0.3
 const MIN_PICK_HEIGHT: float = 1.0
+## How far past its body a unit can be pointed at: a man (radius 0.25)
+## gets the 0.5 m he always had.
+const PICK_MARGIN: float = 0.25
 
 
 ## The unit's click and hover target: an Area3D on PICK_LAYER that neither
@@ -988,7 +990,7 @@ func _build_pick_area() -> void:
 	pick_area.monitorable = true
 	pick_area.collision_layer = PICK_LAYER
 	pick_area.collision_mask = 0
-	pick_area.input_ray_pickable = true
+	pick_area.input_ray_pickable = false
 	var shape := CollisionShape3D.new()
 	shape.name = "Shape"
 	shape.shape = CylinderShape3D.new()
@@ -997,15 +999,17 @@ func _build_pick_area() -> void:
 	_fit_pick_area()
 
 
-## Sizes the PickArea's cylinder to the unit's radius and height: twice
-## the radius, as the ring is, but never too small to point at - a pixie
-## is a quarter of a man.
+## Sizes the PickArea's cylinder to the unit's radius and height: the body
+## plus PICK_MARGIN, never too small to point at - a pixie is a quarter of
+## a man. A margin, not a multiple: twice the radius was the same 0.5 m on
+## a man but an 8 m disc on a dragon, which swallowed the ground clicks
+## around it - the player could not move it to a spot beside itself.
 func _fit_pick_area() -> void:
 	if pick_area == null:
 		return
 	var shape := pick_area.get_node("Shape") as CollisionShape3D
 	var cylinder := shape.shape as CylinderShape3D
-	cylinder.radius = maxf(radius * 2.0, MIN_PICK_RADIUS)
+	cylinder.radius = maxf(radius + PICK_MARGIN, MIN_PICK_RADIUS)
 	cylinder.height = maxf(height, MIN_PICK_HEIGHT)
 	shape.position = Vector3(0.0, cylinder.height * 0.5, 0.0)
 
@@ -1018,12 +1022,10 @@ static func from_pick_area(area: Object) -> Unit:
 	return node.get_parent() as Unit
 
 
-## Turns clicking and hovering this unit on or off together: the body's
-## flag (ClickRouter's "can be clicked") and the PickArea's (hover).
+## Turns clicking and hovering this unit on or off together. One flag:
+## ClickRouter reads it for both.
 func set_pickable(value: bool) -> void:
 	input_ray_pickable = value
-	if pick_area != null:
-		pick_area.input_ray_pickable = value
 
 
 ## This used to be followed by an _exit_tree() whose entire body was
@@ -1037,12 +1039,15 @@ func set_pickable(value: bool) -> void:
 ## this unit and disconnects itself in its own _exit_tree — the engine
 ## does the bookkeeping a hand-written teardown() used to, and there is
 ## no longer a caller that can forget it.
-func _on_mouse_entered() -> void:
-	_selection.on_mouse_entered()
-
-
-func _on_mouse_exited() -> void:
-	_selection.on_mouse_exited()
+##
+## Hover is ClickRouter's to set, from the unit its cursor picked.
+func set_hovered(value: bool) -> void:
+	if value == _selection.is_hovered:
+		return
+	if value:
+		_selection.on_mouse_entered()
+	else:
+		_selection.on_mouse_exited()
 
 
 ## Which ability, if any, fires when actor clicks THIS unit — see

@@ -142,6 +142,8 @@ var _last: PlayerIntent = null
 ## here rather than authored in MainRoot.tscn so it travels with the
 ## router between worlds and no scene has to remember to add it.
 var _feedback: ClickFeedback = null
+## The unit this router last hovered (see _hover).
+var _hovered: Unit = null
 
 
 ## What a left click would do right now, and whether it would be taken -
@@ -301,6 +303,7 @@ func _process(_delta: float) -> void:
 		# Something took the screen (a conversation, a menu) mid-drag.
 		cancel_prop_drag()
 	cursor = resolve_cursor(now)
+	_hover(null if _not_listening(now) else cursor.unit)
 	if _drag:
 		_drag.follow(cursor.ground)
 	now.steer(self, cursor)
@@ -534,23 +537,42 @@ func _raycast_past_units(collision_mask: int, also_exclude: Array[RID] = []) -> 
 
 
 ## The unit the mouse is over, picked by its PickArea (Unit.PICK_LAYER, a
-## cylinder the size of the selection ring) rather than its 0.25 m
-## capsule, which made units a sliver to click. Only a unit nearer the
-## camera than the world behind it counts, so walls still hide units, and
-## only one that accepts clicks (Unit.set_pickable; off on death).
+## cylinder a little wider than the body; see Unit._fit_pick_area) rather
+## than its capsule, which made units a sliver to click. Only a unit
+## nearer the camera than the world behind it counts, so walls still hide
+## units, and only one that accepts clicks (Unit.set_pickable; off on
+## death).
+##
+## Where pick areas overlap along the ray - a goblin at a dragon's flank -
+## the unit whose upright axis the ray passes nearest wins, not the first
+## area the ray enters. First-hit let the big area in front swallow every
+## small unit standing in or behind it.
 func _unit_under_mouse(world_hit: Dictionary) -> Unit:
-	var hit: Dictionary = _raycast(unit_collision_mask, [], true)
-	if hit.is_empty():
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera == null:
 		return null
-	var unit: Unit = Unit.from_pick_area(hit.collider)
-	if unit == null or not unit.input_ray_pickable:
-		return null
-	if not world_hit.is_empty():
-		var camera: Camera3D = get_viewport().get_camera_3d()
-		var eye: Vector3 = camera.global_position
-		if eye.distance_to(hit.position) > eye.distance_to(world_hit.position):
-			return null
-	return unit
+	var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+	var from: Vector3 = camera.project_ray_origin(mouse_pos)
+	var to: Vector3 = from + camera.project_ray_normal(mouse_pos) * RAY_LENGTH
+	var world_distance: float = INF if world_hit.is_empty() else from.distance_to(world_hit.position)
+	var best: Unit = null
+	var best_miss: float = INF
+	var exclude: Array[RID] = []
+	for i in 8:
+		var hit: Dictionary = _raycast(unit_collision_mask, exclude, true)
+		if hit.is_empty() or from.distance_to(hit.position) > world_distance:
+			break
+		exclude.append(hit.rid)
+		var unit: Unit = Unit.from_pick_area(hit.collider)
+		if unit == null or not unit.input_ray_pickable:
+			continue
+		var base: Vector3 = unit.global_position
+		var points: PackedVector3Array = Geometry3D.get_closest_points_between_segments(from, to, base, base + Vector3.UP * unit.height)
+		var miss: float = points[0].distance_to(points[1])
+		if miss < best_miss:
+			best = unit
+			best_miss = miss
+	return best
 
 
 ## What a ray hit, but only if that body would have accepted a click.
@@ -1083,7 +1105,7 @@ func _give_feedback(answer: ClickAnswer, consumed: bool) -> void:
 ## the rest by verb. Moving keeps the arrow: it is the default action,
 ## and a hand or crosshair over every patch of floor would say nothing.
 func _cursor_shape(current: PlayerIntent) -> Input.CursorShape:
-	if current == _locked or not UIStack.can_open() or _mouse_over_gui():
+	if _not_listening(current):
 		return Input.CURSOR_ARROW
 	var answer: ClickAnswer = _answer(current, cursor)
 	if not answer.ok:
@@ -1094,6 +1116,26 @@ func _cursor_shape(current: PlayerIntent) -> Input.CursorShape:
 		&"interact":
 			return Input.CURSOR_POINTING_HAND
 	return Input.CURSOR_ARROW
+
+
+## Whether the router is not the one the mouse is talking to: something
+## owns the screen (locked), a blocking screen is open, or the mouse is
+## over UI.
+func _not_listening(current: PlayerIntent) -> bool:
+	return current == _locked or not UIStack.can_open() or _mouse_over_gui()
+
+
+## Moves the hover highlight to unit (null: off every unit). The router
+## hovers the unit its cursor picked, so the highlight always names the
+## unit a click would take.
+func _hover(unit: Unit) -> void:
+	if unit == _hovered:
+		return
+	if is_instance_valid(_hovered):
+		_hovered.set_hovered(false)
+	_hovered = unit
+	if unit:
+		unit.set_hovered(true)
 
 
 ## Whether the mouse is over a Control rather than the world. Clicks
