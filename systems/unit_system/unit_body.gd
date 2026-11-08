@@ -81,17 +81,37 @@ func distance_to_point(point: Vector3) -> float:
 	return best
 
 
-## How far other's body is from this one's COLUMN - the gap a reach or a
-## range is measured across. Only the target's capsules count: a reach
-## is taken from where the attacker stands, not from its own tail tip,
-## while anything of the target's in reach can be struck.
+## How far other's body is from this one: every part of each, column and
+## capsules, to every part of the other - the gap a reach or a range is
+## measured across. Both whole bodies, the way a tabletop creature's whole
+## space reaches and is reached: a dragon bites what is beside its tail as
+## well as what is at its snout, and is bitten in either place.
 func gap_to(other: UnitBody) -> float:
-	return other.gap_from_column(column_low(), _unit.radius, _unit.height)
+	var best: float = other.gap_from_column(column_low(), _unit.radius, _unit.height)
+	for capsule in capsules():
+		best = minf(best, other.gap_from_capsule(capsule))
+	return best
 
 
-## gap_to() asked from a column that isn't where any unit stands yet: one
-## of radius and height with its feet at feet, measured to this body. What
-## the AI asks of a position it is weighing walking to.
+## How far one capsule ([a, b, radius], as capsules() gives them) is from
+## this body.
+func gap_from_capsule(capsule: Array) -> float:
+	var low: Vector3 = column_low()
+	var high: Vector3 = column_high()
+	var closest: PackedVector3Array = Geometry3D.get_closest_points_between_segments(capsule[0], capsule[1], low, high)
+	var best: float = maxf(_point_to_column(closest[0]) - capsule[2], 0.0)
+	for mine in capsules():
+		var pair: PackedVector3Array = Geometry3D.get_closest_points_between_segments(capsule[0], capsule[1], mine[0], mine[1])
+		best = minf(best, maxf(pair[0].distance_to(pair[1]) - capsule[2] - mine[2], 0.0))
+	return best
+
+
+## How far a bare column - radius and height, its feet at feet - is from
+## this body. What the AI asks of a position it is weighing walking to:
+## the walker's capsules turn with its path, so only its column is sure to
+## be where it will stand. The column is inside the body, so that gap is
+## never shorter than gap_to() from the same spot: an AI that thinks a
+## spot reaches is right.
 func gap_from_column(feet: Vector3, radius: float, height: float) -> float:
 	var low: Vector3 = feet
 	var high: Vector3 = feet + Vector3.UP * height

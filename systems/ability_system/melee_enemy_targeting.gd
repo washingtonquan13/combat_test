@@ -16,7 +16,7 @@ func is_valid_target(attacker: Unit, target) -> bool:
 
 func check(attacker: Unit, target) -> Reach:
 	if target is Vector3 and aims_at_ground:
-		var reach: float = maxf(attacker.global_position.distance_to(target) - attacker.radius, 0.0)
+		var reach: float = attacker.body_shape().distance_to_point(target)
 		return Reach.OK if reach <= melee_range else Reach.OUT_OF_RANGE
 	if not target is Unit:
 		return Reach.INVALID

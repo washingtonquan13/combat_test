@@ -29,6 +29,8 @@ func run() -> void:
 	man.global_position = Vector3(tip.x + 1.0, dragon.global_position.y, tip.z)
 	check("a man beside the tail is in reach of it", man.edge_distance_to(dragon) < 1.0,
 		"gap %.2f m" % man.edge_distance_to(dragon))
+	check("and the tail reaches him back - the dragon's whole body reaches", dragon.edge_distance_to(man) < 1.0,
+		"gap %.2f m" % dragon.edge_distance_to(man))
 
 	# The movement collider fits inside the circle the grid keeps clear.
 	var clearance: float = dragon.radius + dragon.avoidance_margin

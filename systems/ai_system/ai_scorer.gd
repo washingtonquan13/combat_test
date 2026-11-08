@@ -668,7 +668,13 @@ static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool
 ## approximation here.
 static func _would_be_in_range(position: Vector3, unit: Unit, target: Unit, ability: Ability) -> bool:
 	var approach: float = ability.targeting.approach_range() if ability.targeting else 0.0
-	var edge_distance: float = target.body_shape().gap_from_column(position, unit.radius, unit.height)
+	# Where unit already stands its whole body counts, as it does for the
+	# real check; anywhere else only its column (see gap_from_column).
+	var edge_distance: float
+	if position.is_equal_approx(unit.global_position):
+		edge_distance = unit.edge_distance_to(target)
+	else:
+		edge_distance = target.body_shape().gap_from_column(position, unit.radius, unit.height)
 	return edge_distance <= approach + 0.05
 
 

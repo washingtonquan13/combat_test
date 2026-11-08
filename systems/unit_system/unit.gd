@@ -2103,8 +2103,8 @@ func distance_to(other: Unit) -> float:
 	return global_position.distance_to(other.global_position)
 
 
-## How far other's body is from where this unit stands (UnitBody.gap_to):
-## its column to every part of other, tail and all. What any range check
+## How far other's body is from this unit's (UnitBody.gap_to): every
+## part of one to every part of the other, tails and all. What any range check
 ## (melee or ranged — see Ability.is_in_range) should be measured
 ## against; two units can be "touching" while still having meaningfully
 ## distant global_positions once you account for size and shape.
