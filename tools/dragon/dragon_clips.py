@@ -110,6 +110,8 @@ class Clip:
 #   tail_yaw / tail_pitch  over the tail
 #   arm_raise / arm_out / arm_in / elbow / paw   the right foreleg
 #   roll / sink        the whole body onto its left side, and down
+#   pitch              the whole body, nose up (+) or down, about the torso
+#   fore_tuck / hind_back  forelegs folded up to the chest, hind legs swept back
 
 def _bite():
     return Clip("Bite", 24, {
@@ -223,6 +225,26 @@ def clips():
     return [_bite(), _claw(), _breath(), _breath_hold(), _breath_out(), _hit(), _death()]
 
 
+ALL_FEET = tuple(LEGS)
+
+
+def _fly_forward(frames):
+    """Forward flight, posed over the hover loop (`frames` is its last
+    frame): the body tipped nose down into the direction of travel, the
+    neck and head raised back to look ahead, the tail lowered to trail
+    level, the forelegs tucked and the hind legs swept back. The wings keep
+    the hover's beat, so the two loops cross-fade cleanly."""
+    hold = lambda v: [(0, v), (frames, v)]
+    return Clip("Fly_Forward-loop", frames, {
+        "pitch": hold(-35), "neck_lo": hold(4), "neck_hi": hold(6), "head": hold(10),
+        "tail_pitch": hold(22), "fore_tuck": hold(30), "hind_back": hold(35),
+    }, follow=ALL_FEET)
+
+
+def fly_clips(frames):
+    return [_fly_forward(frames)]
+
+
 # --- Posing -----------------------------------------------------------------
 
 class Poser:
@@ -326,6 +348,24 @@ class Poser:
                 self.turn(upper, _side(-s * 18 * limp) @ _pitch((25 if front else -20) * limp))
                 self.turn(lower, _pitch((-30 if front else 25) * limp))
 
+        # Legs folded for flight.
+        tuck, back = g("fore_tuck"), g("hind_back")
+        if tuck or back:
+            for foot, (upper, lower) in LEGS.items():
+                if foot.startswith("Hand"):
+                    self.turn(upper, _pitch(tuck))
+                    self.turn(lower, _pitch(-tuck * 1.6))
+                else:
+                    self.turn(upper, _pitch(-back))
+                    self.turn(lower, _pitch(-back * 0.5))
+
+        # The whole body tipped about the torso centre.
+        if g("pitch"):
+            pb = self.pb["pelvic_2"]
+            p = pb.matrix.translation.copy()
+            pb.matrix = Matrix.Translation(p) @ _pitch(g("pitch")).to_4x4() @ Matrix.Translation(-p) @ pb.matrix
+            self.update()
+
         # The whole body, last: rolled about a line along its left flank.
         roll, sink = g("roll"), g("sink")
         if roll or sink:
@@ -414,9 +454,10 @@ def _continuous(frames):
                     frames[i][k] = -frames[i][k]
 
 
-def build(arm, body, idle):
-    """Bakes every clip into a new action. Returns (actions, moments), with
-    moments as {clip: {method: [seconds]}}."""
+def build(arm, body, idle, fly=None):
+    """Bakes every clip into a new action: clips() over `idle`, fly_clips()
+    over `fly` (the hover loop). Returns (actions, moments), with moments as
+    {clip: {method: [seconds]}}."""
     deform = [m for m in body.modifiers if m.type == "ARMATURE"]
     for m in deform:
         m.show_viewport = False  # no skinning on every pose update while baking
@@ -424,11 +465,15 @@ def build(arm, body, idle):
     poser = Poser(arm, idle)
     poser.pose(clips()[0], 0)  # the first pose after setup reads stale matrices; spend it
     actions, moments = [], {}
-    for clip in clips():
+    jobs = [(poser, c) for c in clips()]
+    if fly is not None:
+        flyer = Poser(arm, fly)
+        jobs += [(flyer, c) for c in fly_clips(flyer.idle_len)]
+    for posing, clip in jobs:
         frames = []
         for f in range(clip.frames + 1):
-            poser.pose(clip, f)
-            frames.append(poser.channels())
+            posing.pose(clip, f)
+            frames.append(posing.channels())
         _continuous(frames)
         actions.append(_action(arm, clip.name, frames))
         if clip.name == "Death":

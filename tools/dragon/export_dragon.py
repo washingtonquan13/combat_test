@@ -18,8 +18,9 @@
 #   - rebuilds the materials on the colour and normal maps, on the
 #     non-mirrored UV set (the mirrored set is for a grey detail map the
 #     game doesn't use);
-#   - names the loops Idle/Walk/Run/Fly with Godot's -loop suffix, and
-#     splits Fly's opening lift-off out as Takeoff (and, reversed, Land).
+#   - names the loops Idle/Walk/Run/Fly with Godot's -loop suffix, cuts
+#     Fly down to two clean wing beats, and splits its lift-off out as
+#     Takeoff (and, reversed, Land).
 # Blender space: +Z up, the dragon faces -Y; glTF turns that into Godot +Z.
 
 import os
@@ -164,20 +165,31 @@ for src, name in ACTIONS.items():
 arm.animation_data.action = None
 
 
-# Fly_New starts on the ground and takes off before it hovers. Split it: the
-# hover loops from the frame that best matches its last, the frames before
-# that are Takeoff, and Land is Takeoff run backwards.
+# Fly_New takes off (frames 0-14), beats its wings (a ~19-frame flap that
+# settles by about frame 40 and runs to about 120), glides, lands and stands
+# still. Split it: the hover loops over the closest-matching pair of frames
+# two flaps apart in the settled flapping; Takeoff runs from the start to
+# the early frame that best matches the loop's first, so it hands over
+# without a jump; Land is Takeoff run backwards. (Looping to the end would
+# replay the landing and the standing frames in mid air.)
 def pose_at(curves, f):
     return [fc.evaluate(f) for fc in curves]
+
+
+def mismatch(a, b):
+    return sum((x - y) ** 2 for x, y in zip(a, b))
 
 
 fly = bpy.data.actions["Fly-loop"]
 curves = fcurves(fly)
 fly_start, fly_end = (int(x) for x in fly.frame_range)
-last = pose_at(curves, fly_end)
-loop_from = min(range(fly_start + 12, fly_start + 60),
-                key=lambda f: sum((a - b) ** 2 for a, b in zip(pose_at(curves, f), last)))
-print("DRAGON fly loops from frame", loop_from, "of", fly_start, fly_end)
+poses = {f: pose_at(curves, f) for f in range(fly_start, fly_start + 121)}
+loop_from, loop_to = min(((s, e) for s in range(fly_start + 34, fly_start + 80)
+                          for e in range(s + 30, min(s + 46, fly_start + 121))),
+                         key=lambda se: mismatch(poses[se[0]], poses[se[1]]))
+takeoff_to = min(range(fly_start + 12, fly_start + 35), key=lambda f: mismatch(poses[f], poses[loop_from]))
+print("DRAGON fly loops over frames", loop_from, loop_to, "mismatch %.5f;" % mismatch(poses[loop_from], poses[loop_to]),
+      "takeoff ends", takeoff_to, "mismatch %.5f" % mismatch(poses[takeoff_to], poses[loop_from]))
 
 
 def copy_range(src, name, frames, reverse=False):
@@ -206,8 +218,8 @@ def copy_range(src, name, frames, reverse=False):
     return act
 
 
-takeoff = range(fly_start, loop_from + 1)
-hover = range(loop_from, fly_end + 1)
+takeoff = range(fly_start, takeoff_to + 1)
+hover = range(loop_from, loop_to + 1)
 extra = [copy_range(fly, "Takeoff", takeoff), copy_range(fly, "Land", takeoff, reverse=True)]
 hover_act = copy_range(fly, "Hover-loop", hover)
 bpy.data.actions.remove(fly)
@@ -223,7 +235,7 @@ for track in list(arm.animation_data.nla_tracks):
         arm.animation_data.nla_tracks.remove(track)
 
 # The action clips, authored over Idle (dragon_clips.py).
-authored, moments = dragon_clips.build(arm, body, bpy.data.actions["Idle-loop"])
+authored, moments = dragon_clips.build(arm, body, bpy.data.actions["Idle-loop"], fly=hover_act)
 for act in authored:
     track = arm.animation_data.nla_tracks.new()
     track.name = act.name
@@ -241,7 +253,7 @@ for o in [o for o in bpy.data.objects if o not in (arm, body)]:
 # --- Write ------------------------------------------------------------------
 
 if PREVIEW:
-    dragon_clips.preview(arm, authored, PREVIEW, only=ONLY)
+    dragon_clips.preview(arm, authored + [hover_act], PREVIEW, only=ONLY)
     sys.exit(0)
 
 bpy.context.view_layer.update()

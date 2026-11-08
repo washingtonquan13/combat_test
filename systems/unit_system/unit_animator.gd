@@ -847,7 +847,15 @@ func _play(anim_name: String, blend: float = -1.0) -> bool:
 	if not animation_player.has_animation(anim_name):
 		push_warning("unit_animator.gd: tried to play unknown animation \"%s\" on %s." % [anim_name, unit.name])
 		return false
+	# The two flight loops share one wing beat: starting the other over at
+	# frame 0 would cross-fade two different points in the flap.
+	var from: String = String(animation_player.current_animation)
+	var flight := [fly_idle_animation, fly_move_animation]
+	var keep_beat: bool = from != anim_name and from in flight and anim_name in flight
+	var beat: float = animation_player.current_animation_position if keep_beat else 0.0
 	animation_player.play(anim_name, blend)
+	if keep_beat:
+		animation_player.seek(fposmod(beat, animation_player.current_animation_length), false)
 	return true
 
 
