@@ -62,6 +62,11 @@ func spawns_party() -> bool:
 	return true
 
 
+## Whether units path through this world, so its grid is worth baking on load.
+func needs_navigation() -> bool:
+	return true
+
+
 func get_tactical_camera() -> Camera3D:
 	if tactical_camera:
 		return tactical_camera

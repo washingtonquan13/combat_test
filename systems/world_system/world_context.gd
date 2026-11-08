@@ -59,6 +59,10 @@ func _init(root: Node3D = null) -> void:
 		# scene) — which is what keeps the editor and any pre-registration
 		# call path working.
 		NavigationGrid.register_world(root)
+		# The whole grid, now, while the screen is black: no unit's first
+		# path has to pay for it.
+		if root is GameArea and root.needs_navigation():
+			NavigationGrid.prebake(root)
 
 
 ## The navigation grid serving this world.

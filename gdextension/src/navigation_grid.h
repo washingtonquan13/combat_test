@@ -147,6 +147,18 @@ public:
 	// Whether the field holds data: written once, and not reset since.
 	bool present() const { return has_data; }
 	bool brick_uniform(int slot) const { return index[slot] == UNIFORM; }
+	// Every cell holds `value`, read off the slots without expanding.
+	bool all_of(T value) const {
+		if (dense_count != 0) {
+			return false;
+		}
+		for (int s = 0; s < SLOTS; s++) {
+			if (uniform[s] != value) {
+				return false;
+			}
+		}
+		return true;
+	}
 	int dense_bricks() const { return dense_count; }
 
 	T *begin_write(T value) {
@@ -314,6 +326,23 @@ struct OccupantVolume {
 	int layers = 0;
 };
 
+// seal_interiors' labels of one chunk with shapes, from its raw raster:
+// kept so a pass relabels only the chunks whose raster was laid again.
+struct SealLabels {
+	bool valid = false;
+	int count = 0; // 6-connected open components within the chunk
+	std::vector<uint16_t> row_start; // CHUNK_DIM^2 + 1, row = y * CHUNK_DIM + z
+	std::vector<uint8_t> x0, x1; // open runs along x, inclusive
+	std::vector<uint16_t> comp; // per run: its component
+	// Components touching -x, +x, -y, +y, -z, +z (sorted, unique).
+	std::vector<uint16_t> face[6];
+	// Components meeting the +x, +y, +z neighbour's, when it has shapes too.
+	std::vector<std::pair<uint16_t, uint16_t>> link[3];
+	// Components the last pass sealed (sorted). Also kept, as {0}, for a
+	// chunk with no shapes that is sealed whole.
+	std::vector<uint16_t> sealed;
+};
+
 struct NavChunk {
 	BrickField<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
 	// CHUNK_DIM^3, parallel to solid: 1 = solid lying just under a walkable
@@ -348,6 +377,7 @@ struct NavChunk {
 	bool has_ground_passable = false;
 	bool has_flyable = false;
 	NavRegions regions[2]; // [0] walking, [1] flying
+	SealLabels seal;
 };
 
 // Fine-A* scratch in 8^3 bricks: a chunk's page holds one slot per brick,
@@ -521,6 +551,16 @@ public:
 	// difference both around one query.
 	int64_t debug_expansions() const { return debug_expansion_count; }
 	int debug_search_id() const { return astar_search_id; }
+	// Measurement only: milliseconds spent so far in each stage of making
+	// and searching the grid (scan, seal, rasterize, support, dist,
+	// regions, links, search), each counted exclusive of the stages it
+	// calls, since the grid was made.
+	Dictionary debug_bake_profile() const;
+	// Bakes every chunk of world_ref's world through region links, walking
+	// and flying, across cores, so no query pays a bake; returns the chunk
+	// count. Called once at area load (WorldContext); a no-op for a world
+	// already baked.
+	int prebake(Node *world_ref);
 	float flight_highest_altitude(SceneTree *tree, Object *world_ref = nullptr);
 
 protected:
@@ -634,13 +674,6 @@ private:
 	std::vector<std::unique_ptr<AStarPage>> astar_pages;
 	int astar_search_id = 0;
 	int64_t debug_expansion_count = 0;
-	// Dense views of packed cell fields for the bakes that sweep whole
-	// chunks (BrickField::dense), kept so a bake does not allocate.
-	// support: [0] the chunk itself, [k] the chunk k below.
-	std::vector<std::vector<uint8_t>> support_scratch;
-	// dist: [(dx + 1) * 3 + dz + 1], the chunk and its 8 side neighbours.
-	std::vector<uint8_t> dist_solid_scratch[9];
-	std::vector<uint8_t> dist_ground_scratch[9];
 	// The brick holding an in-bounds cell, allocated on first touch and
 	// cleared on the first touch of search `sid`, and the cell's index
 	// within it. a_star keeps the last brick it used, since most
@@ -754,7 +787,9 @@ private:
 	// made solid here, once per scan, before any tier reads solid[]. So
 	// support, flight_low, dist, regions and the floor queries all agree that
 	// it is not air.
-	void seal_interiors();
+	std::vector<int> seal_interiors();
+	bool every_chunk_baked() const;
+	void bake_missing_tiers();
 	void bake_chunk_support(const Vector3i &chunk_coord, NavChunk &chunk);
 	void bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chunk);
 

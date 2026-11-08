@@ -13,8 +13,11 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <queue>
+#include <thread>
 #include <utility>
 
 using namespace godot;
@@ -26,7 +29,157 @@ Vector3 vmin(const Vector3 &a, const Vector3 &b) {
 Vector3 vmax(const Vector3 &a, const Vector3 &b) {
 	return Vector3(std::max(a.x, b.x), std::max(a.y, b.y), std::max(a.z, b.z));
 }
+
+// Exclusive time per bake stage (debug_bake_profile). A stage entered
+// inside another pauses the outer one's clock until it returns. Main
+// thread only: a prebake worker turns its clock off (stage_clock_on), and
+// the main thread times each parallel phase whole instead.
+enum BakeStage { STAGE_SCAN, STAGE_SEAL, STAGE_RASTERIZE, STAGE_SUPPORT, STAGE_DIST, STAGE_REGIONS, STAGE_LINKS, STAGE_SEARCH, STAGE_COUNT };
+const char *const BAKE_STAGE_NAMES[STAGE_COUNT] = { "scan", "seal", "rasterize", "support", "dist", "regions", "links", "search" };
+int64_t bake_stage_ns[STAGE_COUNT] = {};
+int bake_stage_current = -1;
+std::chrono::steady_clock::time_point bake_stage_since;
+thread_local bool stage_clock_on = true;
+
+struct StageClock {
+	bool on;
+	int previous = -1;
+	explicit StageClock(int stage) :
+			on(stage_clock_on) {
+		if (!on) {
+			return;
+		}
+		const auto now = std::chrono::steady_clock::now();
+		if (bake_stage_current >= 0) {
+			bake_stage_ns[bake_stage_current] += std::chrono::duration_cast<std::chrono::nanoseconds>(now - bake_stage_since).count();
+		}
+		previous = bake_stage_current;
+		bake_stage_current = stage;
+		bake_stage_since = now;
+	}
+	~StageClock() {
+		if (!on) {
+			return;
+		}
+		const auto now = std::chrono::steady_clock::now();
+		bake_stage_ns[bake_stage_current] += std::chrono::duration_cast<std::chrono::nanoseconds>(now - bake_stage_since).count();
+		bake_stage_current = previous;
+		bake_stage_since = now;
+	}
+};
+
+// Dense views of packed cell fields for the bakes that sweep whole chunks
+// (BrickField::dense), kept so a bake does not allocate. One set per
+// thread, so prebake's workers each have their own.
+struct BakeScratch {
+	// support: [0] the chunk itself, [k] the chunk k below.
+	std::vector<std::vector<uint8_t>> support;
+	// dist: [(dx + 1) * 3 + dz + 1], the chunk and its 8 side neighbours.
+	std::vector<uint8_t> dist_solid[9];
+	std::vector<uint8_t> dist_ground[9];
+};
+BakeScratch &bake_scratch() {
+	thread_local BakeScratch s;
+	return s;
+}
+
+// work(i) for every i in [0, count), spread over the machine's cores (the
+// calling thread is one of them). Workers keep no stage clock.
+template <typename F>
+void parallel_for(int count, F &&work) {
+	const int hw = (int)std::thread::hardware_concurrency();
+	const int helpers = std::max(0, std::min(std::min(hw, 16) - 1, count / 8));
+	std::atomic<int> next{ 0 };
+	auto loop = [&]() {
+		for (int i = next.fetch_add(1); i < count; i = next.fetch_add(1)) {
+			work(i);
+		}
+	};
+	std::vector<std::thread> threads;
+	threads.reserve((size_t)helpers);
+	for (int t = 0; t < helpers; t++) {
+		threads.emplace_back([&]() {
+			stage_clock_on = false;
+			loop();
+		});
+	}
+	const bool was_on = stage_clock_on;
+	stage_clock_on = false;
+	loop();
+	stage_clock_on = was_on;
+	for (std::thread &t : threads) {
+		t.join();
+	}
+}
 } // namespace
+
+Dictionary NavigationGrid::debug_bake_profile() const {
+	Dictionary d;
+	for (int i = 0; i < STAGE_COUNT; i++) {
+		d[BAKE_STAGE_NAMES[i]] = (double)bake_stage_ns[i] / 1.0e6;
+	}
+	return d;
+}
+
+// Every tier of every chunk, now, so no query pays a bake: called at area
+// load, behind the fade (WorldContext). A chunk already baked is skipped,
+// so a world re-entered costs nothing.
+int NavigationGrid::prebake(Node *world_ref) {
+	if (!world_ref || !world_ref->is_inside_tree()) {
+		return 0;
+	}
+	activate_for(world_ref);
+	ensure_baked(world_ref->get_tree());
+	bake_missing_tiers();
+	return (int)chunks.size();
+}
+
+bool NavigationGrid::every_chunk_baked() const {
+	for (const std::unique_ptr<NavChunk> &slot : chunks) {
+		if (!slot || !slot->rasterized || !slot->support_baked || !slot->dist_baked || !slot->regions[0].linked || !slot->regions[1].linked) {
+			return false;
+		}
+	}
+	return true;
+}
+
+// Whatever tiers any chunk lacks. Rasterizing reads the scene and stays on
+// this thread; each later tier reads only tiers before it and writes only
+// its own chunk, so it runs across cores, one phase at a time. A phase must
+// finish every chunk before the next begins: a worker that found a tier
+// below it missing would bake it in a neighbour another worker is reading.
+void NavigationGrid::bake_missing_tiers() {
+	const int count = (int)chunks.size();
+	for (int i = 0; i < count; i++) {
+		ensure_chunk_rasterized(chunk_coord_from_index(i));
+	}
+	auto phase = [&](BakeStage stage, auto &&needs, auto &&work) {
+		StageClock clock(stage);
+		std::vector<int> todo;
+		for (int i = 0; i < count; i++) {
+			if (needs(*chunks[i])) {
+				todo.push_back(i);
+			}
+		}
+		parallel_for((int)todo.size(), [&](int s) { work(todo[s], *chunks[todo[s]]); });
+	};
+	phase(STAGE_SUPPORT, [](const NavChunk &c) { return !c.support_baked; }, [&](int i, NavChunk &c) {
+		bake_chunk_support(chunk_coord_from_index(i), c);
+		c.support_baked = true;
+	});
+	phase(STAGE_DIST, [](const NavChunk &c) { return !c.dist_baked; }, [&](int i, NavChunk &c) {
+		bake_chunk_dist(chunk_coord_from_index(i), c);
+		c.dist_baked = true;
+	});
+	phase(STAGE_REGIONS, [](const NavChunk &c) { return !c.regions[0].labelled || !c.regions[1].labelled; }, [&](int i, NavChunk &) {
+		ensure_chunk_regions(chunk_coord_from_index(i), false);
+		ensure_chunk_regions(chunk_coord_from_index(i), true);
+	});
+	phase(STAGE_LINKS, [](const NavChunk &c) { return !c.regions[0].linked || !c.regions[1].linked; }, [&](int i, NavChunk &) {
+		ensure_chunk_region_links(chunk_coord_from_index(i), false);
+		ensure_chunk_region_links(chunk_coord_from_index(i), true);
+	});
+}
 
 NavigationGrid::NavigationGrid() {}
 NavigationGrid::~NavigationGrid() {}
@@ -54,6 +207,8 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("debug_memory_bytes"), &NavigationGrid::debug_memory_bytes);
 	ClassDB::bind_method(D_METHOD("debug_structure_stats", "since_search"), &NavigationGrid::debug_structure_stats, DEFVAL(-1));
 	ClassDB::bind_method(D_METHOD("debug_expansions"), &NavigationGrid::debug_expansions);
+	ClassDB::bind_method(D_METHOD("debug_bake_profile"), &NavigationGrid::debug_bake_profile);
+	ClassDB::bind_method(D_METHOD("prebake", "world_ref"), &NavigationGrid::prebake);
 	ClassDB::bind_method(D_METHOD("debug_search_id"), &NavigationGrid::debug_search_id);
 	ClassDB::bind_method(D_METHOD("flight_highest_altitude", "tree", "world_ref"), &NavigationGrid::flight_highest_altitude, DEFVAL(Variant()));
 
@@ -163,11 +318,13 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 		}
 	}
 	bytes += (int64_t)chunk_occupancy_nearby.capacity();
-	for (const std::vector<uint8_t> &s : support_scratch) {
+	// This thread's bake scratch; a prebake worker's dies with it.
+	const BakeScratch &scratch = bake_scratch();
+	for (const std::vector<uint8_t> &s : scratch.support) {
 		bytes += (int64_t)s.capacity();
 	}
 	for (int i = 0; i < 9; i++) {
-		bytes += (int64_t)dist_solid_scratch[i].capacity() + (int64_t)dist_ground_scratch[i].capacity();
+		bytes += (int64_t)scratch.dist_solid[i].capacity() + (int64_t)scratch.dist_ground[i].capacity();
 	}
 	return bytes;
 }
@@ -588,6 +745,7 @@ void NavigationGrid::invalidate_region(Node *world_root, AABB region) {
 }
 
 void NavigationGrid::ensure_project_scanned(SceneTree *tree) {
+	StageClock clock(STAGE_SCAN);
 	// Cleared here, not just left to accumulate — this function reruns
 	// after invalidate(), and both containers are append-only below, so
 	// without this a re-scan would keep every dangling pointer from the
@@ -862,6 +1020,9 @@ void NavigationGrid::invalidate_active_region(SceneTree *tree, const AABB &regio
 		}
 	}
 
+	// A world baked whole is kept whole (see the end of this function).
+	const bool was_whole = every_chunk_baked();
+
 	// Each tier reads more than its own chunk, so un-baking a box of
 	// chunks [a, b] un-bakes what reads it too (see above). Support reads
 	// up to flight_high_cells straight down, which reaches support_reach
@@ -906,29 +1067,17 @@ void NavigationGrid::invalidate_active_region(SceneTree *tree, const AABB &regio
 
 	// Sealed interiors are a global answer (seal_interiors): the move may
 	// have opened a sealed room or closed an open one anywhere its flood
-	// reached. Every chunk holding a seal fill goes back to its raw
-	// geometry, the seal pass runs again over the fresh rasters, and every
-	// chunk sealed before or after is un-baked like the region. The pass
-	// re-rasterizes only what was un-baked; the rest is one walk over the
-	// shaped chunks' solid[].
-	std::vector<Vector3i> was_sealed;
-	for (size_t i = 0; i < chunks.size(); i++) {
-		if (chunks[i] && chunks[i]->sealed) {
-			chunks[i]->rasterized = false;
-			chunks[i]->sealed = false;
-			was_sealed.push_back(chunk_coord_from_index((int)i));
-		}
-	}
-	seal_interiors();
-	// Only the tiers above the raster: the seal pass has just laid it.
-	for (const Vector3i &cc : was_sealed) {
+	// reached. The pass relabels only the chunks just un-rasterized, joins
+	// the world over cached components, and returns the chunks whose fill
+	// changed; those lose the tiers above the raster, which it has laid.
+	for (int i : seal_interiors()) {
+		Vector3i cc = chunk_coord_from_index(i);
 		unbake(cc, cc, false);
 	}
-	for (size_t i = 0; i < chunks.size(); i++) {
-		if (chunks[i] && chunks[i]->sealed) {
-			Vector3i cc = chunk_coord_from_index((int)i);
-			unbake(cc, cc, false);
-		}
+
+	// Paid here, across cores, and not by the next unit to ask for a path.
+	if (was_whole) {
+		bake_missing_tiers();
 	}
 }
 
@@ -1648,6 +1797,7 @@ NavChunk &NavigationGrid::ensure_chunk_rasterized(const Vector3i &chunk_coord) {
 	if (chunk.rasterized) {
 		return chunk;
 	}
+	StageClock clock(STAGE_RASTERIZE);
 	rasterize_chunk(chunk_coord, chunk);
 	chunk.rasterized = true;
 	return chunk;
@@ -1830,9 +1980,16 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 }
 
 namespace {
-// Union-find over the open runs seal_interiors labels.
+// Union-find over integer nodes: a chunk's open runs while seal_interiors
+// labels it, then every chunk's components for the world-wide join.
 struct RunSets {
 	std::vector<int> parent;
+	void reset(int count) {
+		parent.resize((size_t)count);
+		for (int i = 0; i < count; i++) {
+			parent[i] = i;
+		}
+	}
 	int find(int a) {
 		while (parent[a] != a) {
 			parent[a] = parent[parent[a]];
@@ -1848,6 +2005,14 @@ struct RunSets {
 		}
 	}
 };
+
+// Faces of a chunk, as SealLabels::face indexes them.
+enum SealFace { FACE_X0, FACE_X1, FACE_Y0, FACE_Y1, FACE_Z0, FACE_Z1 };
+
+void sort_unique(std::vector<uint16_t> &v) {
+	std::sort(v.begin(), v.end());
+	v.erase(std::unique(v.begin(), v.end()), v.end());
+}
 } // namespace
 
 // The rasterizers mark the shells of shapes. What lies inside a shell is
@@ -1867,254 +2032,368 @@ struct RunSets {
 // geometry anywhere in the world. So every chunk a shape touches is
 // rasterized now (rasterize_chunk walks each shape's own bounding box, so
 // that is a few ms per hundred chunks of boxes), and a chunk no shape
-// touches costs one node and is never allocated unless it is sealed.
-// Labelling is by runs of open cells along x, a few per row, rather than by
-// cell, so a chunk's labels cost one pass over its solid[].
-void NavigationGrid::seal_interiors() {
+// touches is one open component and is never allocated unless it is
+// sealed.
+//
+// Two levels, so a prop move pays for the chunks it touched and not the
+// world. Each chunk with shapes is labelled on its own (SealLabels): its
+// open runs along x, joined into 6-connected components, and which of
+// those touch each face and each neighbour's components. That is kept,
+// and redone only for a chunk whose raw raster was redone
+// (invalidate_active_region clears `valid`). The world-wide join is then
+// over components, not cells or runs: a few thousand nodes.
+//
+// Returns the chunks whose fill changed (solid[] laid again), so a caller
+// with tiers already baked can un-bake them.
+std::vector<int> NavigationGrid::seal_interiors() {
+	StageClock clock(STAGE_SEAL);
 	uint64_t started = Time::get_singleton()->get_ticks_usec();
 	const int D = CHUNK_DIM;
-	struct ChunkRuns {
-		bool shaped = false;
-		int first = 0; // node of the chunk's first run, or of the whole chunk when no shape touches it
-		Vector3i dims; // in-bounds extent
-		std::vector<int> row_start; // D*D + 1, row = y * D + z
-		std::vector<uint8_t> x0, x1; // inclusive
-	};
-	size_t n = chunks.size();
-	std::vector<ChunkRuns> runs(n);
-	int nodes = 1; // node 0 is the outside
-	int shaped_chunks = 0;
-	std::vector<uint8_t> solid_view;
-	for (size_t i = 0; i < n; i++) {
-		ChunkRuns &c = runs[i];
-		Vector3i cc = chunk_coord_from_index((int)i);
+	const int n = (int)chunks.size();
+	auto dims_of = [&](const Vector3i &cc) {
 		Vector3i base = cc * D;
-		c.dims = Vector3i(std::min(D, grid_size.x - base.x), std::min(D, grid_size.y - base.y), std::min(D, grid_size.z - base.z));
-		c.first = nodes;
-		if (shapes_by_chunk.find((int)i) == shapes_by_chunk.end()) {
-			nodes++;
+		return Vector3i(std::min(D, grid_size.x - base.x), std::min(D, grid_size.y - base.y), std::min(D, grid_size.z - base.z));
+	};
+	std::vector<uint8_t> shaped((size_t)n, 0);
+	for (int i = 0; i < n; i++) {
+		shaped[i] = shapes_by_chunk.find(i) != shapes_by_chunk.end();
+	}
+
+	// Label every chunk with shapes whose labels are stale: rasterize on
+	// this thread (it reads the scene), then label across cores (each
+	// reads only its own solid[] and writes only its own labels).
+	std::vector<int> stale;
+	std::vector<uint8_t> relabelled((size_t)n, 0);
+	for (int i = 0; i < n; i++) {
+		if (!shaped[i]) {
 			continue;
 		}
-		c.shaped = true;
-		shaped_chunks++;
-		const uint8_t *solid = ensure_chunk_rasterized(cc).solid.dense(solid_view);
-		c.row_start.assign((size_t)D * D + 1, 0);
+		// Labels describe the raw raster; one just laid makes them stale.
+		const bool fresh = !chunks[i] || !chunks[i]->rasterized;
+		NavChunk &chunk = ensure_chunk_rasterized(chunk_coord_from_index(i));
+		if (fresh) {
+			chunk.seal.valid = false;
+		}
+		if (!chunk.seal.valid) {
+			stale.push_back(i);
+			relabelled[i] = 1;
+		}
+	}
+	for (int i = 0; i < n; i++) {
+		// A chunk that lost its shapes keeps no labels: it is one open node.
+		if (!shaped[i] && chunks[i] && chunks[i]->seal.valid) {
+			chunks[i]->seal = SealLabels();
+			relabelled[i] = 1;
+		}
+	}
+	parallel_for((int)stale.size(), [&](int s) {
+		const int i = stale[s];
+		NavChunk &chunk = *chunks[i];
+		SealLabels &L = chunk.seal;
+		const Vector3i d = dims_of(chunk_coord_from_index(i));
+		thread_local std::vector<uint8_t> solid_view;
+		const uint8_t *solid = chunk.solid.dense(solid_view);
+		L.row_start.assign((size_t)D * D + 1, 0);
+		L.x0.clear();
+		L.x1.clear();
 		for (int y = 0; y < D; y++) {
 			for (int z = 0; z < D; z++) {
-				c.row_start[y * D + z] = (int)c.x0.size();
-				if (y >= c.dims.y || z >= c.dims.z) {
+				L.row_start[y * D + z] = (uint16_t)L.x0.size();
+				if (y >= d.y || z >= d.z) {
 					continue;
 				}
 				const uint8_t *row = solid + local_index(Vector3i(0, y, z));
-				for (int x = 0; x < c.dims.x;) {
+				for (int x = 0; x < d.x;) {
 					if (row[x]) {
 						x++;
 						continue;
 					}
-					int s = x;
-					while (x < c.dims.x && !row[x]) {
+					int start = x;
+					while (x < d.x && !row[x]) {
 						x++;
 					}
-					c.x0.push_back((uint8_t)s);
-					c.x1.push_back((uint8_t)(x - 1));
+					L.x0.push_back((uint8_t)start);
+					L.x1.push_back((uint8_t)(x - 1));
 				}
 			}
 		}
-		c.row_start[(size_t)D * D] = (int)c.x0.size();
-		nodes += (int)c.x0.size();
-	}
+		L.row_start[(size_t)D * D] = (uint16_t)L.x0.size();
+		const int runs = (int)L.x0.size();
 
-	RunSets sets;
-	sets.parent.resize(nodes);
-	for (int i = 0; i < nodes; i++) {
-		sets.parent[i] = i;
-	}
-	// Every run of row ra in a sharing an x with a run of row rb in b. A
-	// chunk no shape touches is one open node whatever the row.
-	auto unite_rows = [&](const ChunkRuns &a, int ra, const ChunkRuns &b, int rb) {
-		if (!a.shaped || !b.shaped) {
-			const ChunkRuns &s = a.shaped ? a : b;
-			int whole = a.shaped ? b.first : a.first;
-			if (!s.shaped) {
-				sets.unite(s.first, whole);
-				return;
-			}
-			int rs = a.shaped ? ra : rb;
-			for (int k = s.row_start[rs]; k < s.row_start[rs + 1]; k++) {
-				sets.unite(s.first + k, whole);
-			}
-			return;
-		}
-		int i = a.row_start[ra], ie = a.row_start[ra + 1];
-		int j = b.row_start[rb], je = b.row_start[rb + 1];
-		while (i < ie && j < je) {
-			if (a.x1[i] >= b.x0[j] && b.x1[j] >= a.x0[i]) {
-				sets.unite(a.first + i, b.first + j);
-			}
-			if (a.x1[i] < b.x1[j]) {
-				i++;
-			} else {
-				j++;
-			}
-		}
-	};
-	// The run of a row that covers x, if any.
-	auto run_at = [&](const ChunkRuns &c, int row, int x) -> int {
-		if (!c.shaped) {
-			return c.first;
-		}
-		for (int k = c.row_start[row]; k < c.row_start[row + 1]; k++) {
-			if (c.x0[k] <= x && x <= c.x1[k]) {
-				return c.first + k;
-			}
-		}
-		return -1;
-	};
-	auto unite_row_with = [&](const ChunkRuns &c, int row, int node) {
-		if (!c.shaped) {
-			sets.unite(c.first, node);
-			return;
-		}
-		for (int k = c.row_start[row]; k < c.row_start[row + 1]; k++) {
-			sets.unite(c.first + k, node);
-		}
-	};
-
-	for (size_t i = 0; i < n; i++) {
-		const ChunkRuns &c = runs[i];
-		Vector3i cc = chunk_coord_from_index((int)i);
-		const Vector3i &d = c.dims;
-		// Within the chunk: each row with the rows below and behind it.
-		if (c.shaped) {
-			for (int y = 0; y < d.y; y++) {
-				for (int z = 0; z < d.z; z++) {
-					if (y > 0) {
-						unite_rows(c, y * D + z, c, (y - 1) * D + z);
-					}
-					if (z > 0) {
-						unite_rows(c, y * D + z, c, y * D + z - 1);
-					}
+		// Each row with the rows below and behind it.
+		thread_local RunSets sets;
+		sets.reset(runs);
+		auto unite_rows = [&](int ra, int rb) {
+			int a = L.row_start[ra], ae = L.row_start[ra + 1];
+			int b = L.row_start[rb], be = L.row_start[rb + 1];
+			while (a < ae && b < be) {
+				if (L.x1[a] >= L.x0[b] && L.x1[b] >= L.x0[a]) {
+					sets.unite(a, b);
+				}
+				if (L.x1[a] < L.x1[b]) {
+					a++;
+				} else {
+					b++;
 				}
 			}
-		}
-		// Across the faces it shares with its +x, +y, +z neighbours. A
-		// neighbour exists only past a full chunk, so the shared face is at
-		// D - 1 on this side and 0 on the other.
-		Vector3i nx = cc + Vector3i(1, 0, 0), ny = cc + Vector3i(0, 1, 0), nz = cc + Vector3i(0, 0, 1);
-		if (chunk_in_bounds(nx)) {
-			const ChunkRuns &o = runs[chunk_coord_index(nx)];
-			if (!c.shaped && !o.shaped) {
-				sets.unite(c.first, o.first);
-			} else {
-				for (int y = 0; y < d.y; y++) {
-					for (int z = 0; z < d.z; z++) {
-						int a = run_at(c, y * D + z, D - 1), b = run_at(o, y * D + z, 0);
-						if (a >= 0 && b >= 0) {
-							sets.unite(a, b);
-						}
-					}
-				}
-			}
-		}
-		if (chunk_in_bounds(ny)) {
-			const ChunkRuns &o = runs[chunk_coord_index(ny)];
+		};
+		for (int y = 0; y < d.y; y++) {
 			for (int z = 0; z < d.z; z++) {
-				unite_rows(c, (D - 1) * D + z, o, z);
+				if (y > 0) {
+					unite_rows(y * D + z, (y - 1) * D + z);
+				}
+				if (z > 0) {
+					unite_rows(y * D + z, y * D + z - 1);
+				}
 			}
 		}
-		if (chunk_in_bounds(nz)) {
-			const ChunkRuns &o = runs[chunk_coord_index(nz)];
-			for (int y = 0; y < d.y; y++) {
-				unite_rows(c, y * D + D - 1, o, y * D);
-			}
+		// Roots are the lowest run of each set (unite keeps the min), so
+		// numbering in run order meets every root before its members.
+		L.comp.assign((size_t)runs, 0);
+		L.count = 0;
+		for (int k = 0; k < runs; k++) {
+			int root = sets.find(k);
+			L.comp[k] = root == k ? (uint16_t)L.count++ : L.comp[root];
 		}
-		// The world's boundary faces are the outside.
-		bool on_x0 = cc.x == 0, on_x1 = cc.x == chunk_grid_size.x - 1;
-		bool on_y0 = cc.y == 0, on_y1 = cc.y == chunk_grid_size.y - 1;
-		bool on_z0 = cc.z == 0, on_z1 = cc.z == chunk_grid_size.z - 1;
-		if (!(on_x0 || on_x1 || on_y0 || on_y1 || on_z0 || on_z1)) {
-			continue;
-		}
-		if (!c.shaped) {
-			sets.unite(c.first, 0);
-			continue;
+
+		for (std::vector<uint16_t> &f : L.face) {
+			f.clear();
 		}
 		for (int y = 0; y < d.y; y++) {
 			for (int z = 0; z < d.z; z++) {
-				int row = y * D + z;
-				if ((on_y0 && y == 0) || (on_y1 && y == d.y - 1) || (on_z0 && z == 0) || (on_z1 && z == d.z - 1)) {
-					unite_row_with(c, row, 0);
-					continue;
-				}
-				if (on_x0) {
-					int a = run_at(c, row, 0);
-					if (a >= 0) {
-						sets.unite(a, 0);
+				const int row = y * D + z;
+				for (int k = L.row_start[row]; k < L.row_start[row + 1]; k++) {
+					const uint16_t c = L.comp[k];
+					if (L.x0[k] == 0) {
+						L.face[FACE_X0].push_back(c);
+					}
+					if (L.x1[k] == d.x - 1) {
+						L.face[FACE_X1].push_back(c);
+					}
+					if (y == 0) {
+						L.face[FACE_Y0].push_back(c);
+					}
+					if (y == d.y - 1) {
+						L.face[FACE_Y1].push_back(c);
+					}
+					if (z == 0) {
+						L.face[FACE_Z0].push_back(c);
+					}
+					if (z == d.z - 1) {
+						L.face[FACE_Z1].push_back(c);
 					}
 				}
-				if (on_x1) {
-					int a = run_at(c, row, d.x - 1);
-					if (a >= 0) {
-						sets.unite(a, 0);
+			}
+		}
+		for (std::vector<uint16_t> &f : L.face) {
+			sort_unique(f);
+		}
+		L.valid = true;
+	});
+
+	// Which components meet across each face both of whose chunks have
+	// shapes, kept on the chunk on the low side. Redone where either side
+	// was relabelled. A neighbour exists only past a full chunk, so the
+	// shared face is at D - 1 on this side and 0 on the other.
+	std::vector<int> relink;
+	for (int i = 0; i < n; i++) {
+		if (!shaped[i]) {
+			continue;
+		}
+		const Vector3i cc = chunk_coord_from_index(i);
+		bool any = relabelled[i];
+		for (int axis = 0; axis < 3 && !any; axis++) {
+			Vector3i o = cc;
+			o[axis] += 1;
+			any = chunk_in_bounds(o) && relabelled[chunk_coord_index(o)];
+		}
+		if (any) {
+			relink.push_back(i);
+		}
+	}
+	parallel_for((int)relink.size(), [&](int s) {
+		const int i = relink[s];
+		const Vector3i cc = chunk_coord_from_index(i);
+		const Vector3i d = dims_of(cc);
+		SealLabels &L = chunks[i]->seal;
+		for (int axis = 0; axis < 3; axis++) {
+			std::vector<std::pair<uint16_t, uint16_t>> &link = L.link[axis];
+			link.clear();
+			Vector3i oc = cc;
+			oc[axis] += 1;
+			if (!chunk_in_bounds(oc) || !shaped[chunk_coord_index(oc)]) {
+				continue;
+			}
+			const SealLabels &O = chunks[chunk_coord_index(oc)]->seal;
+			auto merge = [&](int ra, int rb) {
+				int a = L.row_start[ra], ae = L.row_start[ra + 1];
+				int b = O.row_start[rb], be = O.row_start[rb + 1];
+				while (a < ae && b < be) {
+					if (L.x1[a] >= O.x0[b] && O.x1[b] >= L.x0[a]) {
+						link.emplace_back(L.comp[a], O.comp[b]);
+					}
+					if (L.x1[a] < O.x1[b]) {
+						a++;
+					} else {
+						b++;
 					}
 				}
+			};
+			if (axis == 0) {
+				for (int y = 0; y < d.y; y++) {
+					for (int z = 0; z < d.z; z++) {
+						const int row = y * D + z;
+						int a = L.row_start[row + 1] - 1, b = O.row_start[row];
+						if (a >= L.row_start[row] && L.x1[a] == D - 1 && b < O.row_start[row + 1] && O.x0[b] == 0) {
+							link.emplace_back(L.comp[a], O.comp[b]);
+						}
+					}
+				}
+			} else if (axis == 1) {
+				for (int z = 0; z < d.z; z++) {
+					merge((D - 1) * D + z, z);
+				}
+			} else {
+				for (int y = 0; y < d.y; y++) {
+					merge(y * D + D - 1, y * D);
+				}
+			}
+			std::sort(link.begin(), link.end());
+			link.erase(std::unique(link.begin(), link.end()), link.end());
+		}
+	});
+
+	// The world-wide join. Node 0 is the outside; a chunk with shapes has
+	// one node per component, a chunk without is one open node.
+	std::vector<int> first((size_t)n);
+	int nodes = 1;
+	for (int i = 0; i < n; i++) {
+		first[i] = nodes;
+		nodes += shaped[i] ? chunks[i]->seal.count : 1;
+	}
+	RunSets sets;
+	sets.reset(nodes);
+	const SealFace low_face[3] = { FACE_X0, FACE_Y0, FACE_Z0 };
+	const SealFace high_face[3] = { FACE_X1, FACE_Y1, FACE_Z1 };
+	// Every component of chunk i on face f, joined to node.
+	auto unite_face = [&](int i, int f, int node) {
+		if (!shaped[i]) {
+			sets.unite(first[i], node);
+			return;
+		}
+		for (uint16_t c : chunks[i]->seal.face[f]) {
+			sets.unite(first[i] + c, node);
+		}
+	};
+	for (int i = 0; i < n; i++) {
+		const Vector3i cc = chunk_coord_from_index(i);
+		for (int axis = 0; axis < 3; axis++) {
+			// The world's boundary faces are the outside.
+			if (cc[axis] == 0) {
+				unite_face(i, low_face[axis], 0);
+			}
+			if (cc[axis] == chunk_grid_size[axis] - 1) {
+				unite_face(i, high_face[axis], 0);
+				continue;
+			}
+			Vector3i oc = cc;
+			oc[axis] += 1;
+			const int o = chunk_coord_index(oc);
+			if (shaped[i] && shaped[o]) {
+				for (const std::pair<uint16_t, uint16_t> &e : chunks[i]->seal.link[axis]) {
+					sets.unite(first[i] + e.first, first[o] + e.second);
+				}
+			} else if (shaped[i]) {
+				unite_face(i, high_face[axis], first[o]);
+			} else {
+				unite_face(o, low_face[axis], first[i]);
 			}
 		}
 	}
 
 	// Everything the outside did not reach becomes solid. A chunk with
 	// shapes is rasterized again with the fill, so its ramp bands are
-	// marked against the solid that will stay.
-	int outside = sets.find(0);
+	// marked against the solid that will stay. Only a chunk whose sealed
+	// components changed, or whose raw raster was just laid, is touched.
+	const int outside = sets.find(0);
 	int64_t sealed_cells = 0;
 	int sealed_chunks = 0;
-	const size_t cells = (size_t)D * D * D;
-	for (size_t i = 0; i < n; i++) {
-		const ChunkRuns &c = runs[i];
-		Vector3i cc = chunk_coord_from_index((int)i);
-		if (!c.shaped) {
-			if (sets.find(c.first) == outside) {
-				continue;
+	std::vector<int> changed;
+	std::vector<uint16_t> now;
+	std::vector<uint8_t> fill;
+	for (int i = 0; i < n; i++) {
+		const Vector3i cc = chunk_coord_from_index(i);
+		now.clear();
+		if (shaped[i]) {
+			const SealLabels &L = chunks[i]->seal;
+			for (int c = 0; c < L.count; c++) {
+				if (sets.find(first[i] + c) != outside) {
+					now.push_back((uint16_t)c);
+				}
 			}
-			std::unique_ptr<NavChunk> &slot = chunks[i];
-			if (!slot) {
-				slot = std::make_unique<NavChunk>();
-			}
-			slot->solid.fill(1);
-			slot->ground.fill(0);
-			slot->rasterized = true;
-			slot->sealed = true;
-			sealed_cells += (int64_t)c.dims.x * c.dims.y * c.dims.z;
-			sealed_chunks++;
+		} else if (sets.find(first[i]) != outside) {
+			now.push_back(0);
+		}
+		std::unique_ptr<NavChunk> &slot = chunks[i];
+		if (!slot && now.empty()) {
 			continue;
 		}
-		std::vector<uint8_t> fill;
-		for (int y = 0; y < c.dims.y; y++) {
-			for (int z = 0; z < c.dims.z; z++) {
-				int row = y * D + z;
-				for (int k = c.row_start[row]; k < c.row_start[row + 1]; k++) {
-					if (sets.find(c.first + k) == outside) {
+		if (!slot) {
+			slot = std::make_unique<NavChunk>();
+		}
+		NavChunk &chunk = *slot;
+		if (!now.empty()) {
+			sealed_chunks++;
+		}
+		// Its raw raster was just laid, or was dropped (an unshaped chunk
+		// in the moved box): its fill must be laid again either way.
+		const bool raw_fresh = relabelled[i] != 0 || !chunk.rasterized;
+		if (!raw_fresh && now == chunk.seal.sealed && chunk.sealed == !now.empty()) {
+			continue;
+		}
+		chunk.seal.sealed = now;
+		changed.push_back(i);
+		if (now.empty()) {
+			if (chunk.sealed) {
+				rasterize_chunk(cc, chunk); // back to the raw geometry
+				chunk.rasterized = true;
+			}
+			chunk.sealed = false;
+			continue;
+		}
+		if (!shaped[i]) {
+			const Vector3i d = dims_of(cc);
+			chunk.solid.fill(1);
+			chunk.ground.fill(0);
+			chunk.rasterized = true;
+			chunk.sealed = true;
+			sealed_cells += (int64_t)d.x * d.y * d.z;
+			continue;
+		}
+		const SealLabels &L = chunk.seal;
+		fill.assign((size_t)D * D * D, 0);
+		for (int y = 0; y < D; y++) {
+			for (int z = 0; z < D; z++) {
+				const int row = y * D + z;
+				for (int k = L.row_start[row]; k < L.row_start[row + 1]; k++) {
+					if (!std::binary_search(now.begin(), now.end(), L.comp[k])) {
 						continue;
 					}
-					if (fill.empty()) {
-						fill.assign(cells, 0);
-					}
-					for (int x = c.x0[k]; x <= c.x1[k]; x++) {
+					for (int x = L.x0[k]; x <= L.x1[k]; x++) {
 						fill[local_index(Vector3i(x, y, z))] = 1;
 					}
-					sealed_cells += c.x1[k] - c.x0[k] + 1;
+					sealed_cells += L.x1[k] - L.x0[k] + 1;
 				}
 			}
 		}
-		if (!fill.empty()) {
-			NavChunk &chunk = *chunks[i];
-			rasterize_chunk(cc, chunk, &fill);
-			chunk.sealed = true;
-			sealed_chunks++;
-		}
+		rasterize_chunk(cc, chunk, &fill);
+		chunk.rasterized = true;
+		chunk.sealed = true;
 	}
-	UtilityFunctions::print_verbose("NavigationGrid: ", shaped_chunks, " of ", (int64_t)n, " chunks hold geometry; sealed ", sealed_cells,
-			" interior cells in ", sealed_chunks, " chunks; ", (double)(Time::get_singleton()->get_ticks_usec() - started) / 1000.0, " ms");
+	UtilityFunctions::print_verbose("NavigationGrid: seal relabelled ", (int64_t)stale.size(), " of ", (int64_t)n, " chunks, ", nodes,
+			" components; sealed ", sealed_chunks, " chunks, ", (int64_t)changed.size(), " changed (", sealed_cells, " cells laid); ",
+			(double)(Time::get_singleton()->get_ticks_usec() - started) / 1000.0, " ms");
+	return changed;
 }
 
 bool NavigationGrid::is_solid(const Vector3i &cell) {
@@ -2130,6 +2409,7 @@ NavChunk &NavigationGrid::ensure_chunk_support(const Vector3i &chunk_coord) {
 	if (chunk.support_baked) {
 		return chunk;
 	}
+	StageClock clock(STAGE_SUPPORT);
 	bake_chunk_support(chunk_coord, chunk);
 	chunk.support_baked = true;
 	return chunk;
@@ -2150,13 +2430,11 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	const int below_count = (flight_high + CHUNK_DIM - 1) / CHUNK_DIM;
 	std::vector<const uint8_t *> below_solid((size_t)below_count, nullptr);
 	std::vector<uint8_t> below_resolved((size_t)below_count, 0);
+	std::vector<std::vector<uint8_t>> &support_scratch = bake_scratch().support;
 	support_scratch.resize((size_t)below_count + 1);
-	const uint8_t *own_solid = chunk.solid.dense(support_scratch[0]);
-	auto solid_at = [&](int x, int y, int z) -> bool {
-		if (y >= 0) {
-			return own_solid[local_index(Vector3i(x, y, z))] != 0;
-		}
-		int depth = (-y + CHUNK_DIM - 1) / CHUNK_DIM; // 1 = the chunk directly below
+	// The chunk `depth` below (1 = directly below), rasterized on first use;
+	// null off the world's bottom.
+	auto below = [&](int depth) -> const uint8_t * {
 		if (!below_resolved[depth - 1]) {
 			below_resolved[depth - 1] = 1;
 			Vector3i below_chunk = chunk_coord - Vector3i(0, depth, 0);
@@ -2164,9 +2442,30 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 				below_solid[depth - 1] = ensure_chunk_rasterized(below_chunk).solid.dense(support_scratch[depth]);
 			}
 		}
-		const uint8_t *solid = below_solid[depth - 1];
-		return solid == nullptr || solid[local_index(Vector3i(x, y + depth * CHUNK_DIM, z))] != 0;
+		return below_solid[depth - 1];
 	};
+
+	// Open sky: no solid in this chunk nor anywhere in reach below it. Every
+	// cell is unsupported and too high to fly; the sweep would find that one
+	// column at a time.
+	{
+		const Vector3i b = chunk_coord * CHUNK_DIM;
+		const bool whole = b.x + CHUNK_DIM <= grid_size.x && b.y + CHUNK_DIM <= grid_size.y && b.z + CHUNK_DIM <= grid_size.z;
+		bool sky = whole && chunk.solid.all_of(0);
+		for (int depth = 1; sky && depth <= below_count; depth++) {
+			Vector3i below_chunk = chunk_coord - Vector3i(0, depth, 0);
+			sky = chunk_in_bounds(below_chunk) && ensure_chunk_rasterized(below_chunk).solid.all_of(0);
+		}
+		if (sky) {
+			chunk.no_support.fill(1);
+			chunk.flight_low.fill(0);
+			chunk.flight_high.fill(1);
+			chunk.has_ground_passable = false;
+			chunk.has_flyable = false;
+			return;
+		}
+	}
+	const uint8_t *own_solid = chunk.solid.dense(support_scratch[0]);
 
 	Vector3i base = chunk_coord * CHUNK_DIM;
 	int cx1 = std::min(CHUNK_DIM, grid_size.x - base.x);
@@ -2184,11 +2483,23 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	// too high = it is beyond flight_high.
 	for (int x = 0; x < cx1; x++) {
 		for (int z = 0; z < cz1; z++) {
+			// The nearest solid straight down, k cells below the chunk's
+			// floor, read chunk by chunk.
 			int since_solid = flight_high + 1; // "none in reach"
-			for (int k = 1; k <= flight_high; k++) {
-				if (solid_at(x, -k, z)) {
-					since_solid = k;
+			for (int depth = 1; depth <= below_count && since_solid > flight_high; depth++) {
+				const int k0 = (depth - 1) * CHUNK_DIM + 1;
+				const int k1 = std::min(depth * CHUNK_DIM, flight_high);
+				const uint8_t *solid = below(depth);
+				if (solid == nullptr) {
+					since_solid = k0;
 					break;
+				}
+				const uint8_t *col = solid + x + z * CHUNK_DIM * CHUNK_DIM;
+				for (int k = k0; k <= k1; k++) {
+					if (col[(depth * CHUNK_DIM - k) * CHUNK_DIM] != 0) {
+						since_solid = k;
+						break;
+					}
 				}
 			}
 			for (int y = 0; y < cy1; y++) {
@@ -2245,6 +2556,7 @@ NavChunk &NavigationGrid::ensure_chunk_dist(const Vector3i &chunk_coord) {
 	if (chunk.dist_baked) {
 		return chunk;
 	}
+	StageClock clock(STAGE_DIST);
 	bake_chunk_dist(chunk_coord, chunk);
 	chunk.dist_baked = true;
 	return chunk;
@@ -2273,15 +2585,41 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	// reads the seed scan below does — that per-cell indirection was a
 	// second, independent cost from the hashmap-vs-flat-array one (see the
 	// comment above), found by the same profiling pass.
-	const uint8_t *neighbor_solid[3][3] = {};
-	const uint8_t *neighbor_ground[3][3] = {};
+	const uint16_t MAX_DIST = (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE);
+	// Whole chunks first: all rock is 0 everywhere, and with no solid at
+	// all in the 3x3 around it nothing is in reach, so every cell keeps
+	// MAX_DIST. Most of a map is one or the other (sky, bedrock), and the
+	// per-layer sweep below would scan a 72^2 window 32 times to find that.
+	NavChunk *neighbor_chunk[3][3] = {};
+	bool wall_near = false;
 	for (int dx = -1; dx <= 1; dx++) {
 		for (int dz = -1; dz <= 1; dz++) {
 			Vector3i nc = chunk_coord + Vector3i(dx, 0, dz);
 			if (chunk_in_bounds(nc)) {
-				NavChunk &nchunk = ensure_chunk_rasterized(nc);
-				neighbor_solid[dx + 1][dz + 1] = nchunk.solid.dense(dist_solid_scratch[(dx + 1) * 3 + dz + 1]);
-				neighbor_ground[dx + 1][dz + 1] = nchunk.ground.dense(dist_ground_scratch[(dx + 1) * 3 + dz + 1]);
+				neighbor_chunk[dx + 1][dz + 1] = &ensure_chunk_rasterized(nc);
+				wall_near = wall_near || !neighbor_chunk[dx + 1][dz + 1]->solid.all_of(0);
+			}
+		}
+	}
+	if (!wall_near) {
+		chunk.dist.fill(MAX_DIST);
+		return;
+	}
+	const Vector3i whole_base = chunk_coord * CHUNK_DIM;
+	const bool whole = whole_base.x + CHUNK_DIM <= grid_size.x && whole_base.y + CHUNK_DIM <= grid_size.y && whole_base.z + CHUNK_DIM <= grid_size.z;
+	if (whole && chunk.solid.all_of(1)) {
+		chunk.dist.fill(0);
+		return;
+	}
+	const uint8_t *neighbor_solid[3][3] = {};
+	const uint8_t *neighbor_ground[3][3] = {};
+	std::vector<uint8_t> *dist_solid_scratch = bake_scratch().dist_solid;
+	std::vector<uint8_t> *dist_ground_scratch = bake_scratch().dist_ground;
+	for (int dx = 0; dx < 3; dx++) {
+		for (int dz = 0; dz < 3; dz++) {
+			if (neighbor_chunk[dx][dz]) {
+				neighbor_solid[dx][dz] = neighbor_chunk[dx][dz]->solid.dense(dist_solid_scratch[dx * 3 + dz]);
+				neighbor_ground[dx][dz] = neighbor_chunk[dx][dz]->ground.dense(dist_ground_scratch[dx * 3 + dz]);
 			}
 		}
 	}
@@ -2291,42 +2629,13 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
-	// Fast solid lookup for the seed scan: x,z are chunk-relative and may
-	// reach one chunk-width into a neighbor (guaranteed by
-	// MAX_CLEARANCE_CELLS < CHUNK_DIM); local_y is relative to THIS
-	// chunk's own base and is valid for every horizontal neighbor too
-	// (they share the same chunk row). Caller must already know the
-	// corresponding world cell is in_bounds -- a null neighbor_solid slot
-	// (chunk coordinate off the world edge) is the only "solid" case this
-	// needs to handle, since an in-bounds world cell is always covered by
-	// its owning neighbor's own rasterized range.
-	auto solid_fast = [&](int x, int local_y, int z) -> bool {
-		int cdx = (x < 0) ? -1 : (x >= CHUNK_DIM ? 1 : 0);
-		int cdz = (z < 0) ? -1 : (z >= CHUNK_DIM ? 1 : 0);
-		const uint8_t *arr = neighbor_solid[cdx + 1][cdz + 1];
-		if (!arr) {
-			return true;
-		}
-		int lx = x - cdx * CHUNK_DIM;
-		int lz = z - cdz * CHUNK_DIM;
-		return arr[local_index(Vector3i(lx, local_y, lz))] != 0;
-	};
 	// A ramp's skin (NavChunk::ground == 1) is solid but not a wall: it is
 	// what a unit walking the ramp stands on, the cell beside its feet one
 	// step further up the slope. Clearance is measured from walls only.
-	auto ramp_skin = [&](int x, int local_y, int z) -> bool {
-		int cdx = (x < 0) ? -1 : (x >= CHUNK_DIM ? 1 : 0);
-		int cdz = (z < 0) ? -1 : (z >= CHUNK_DIM ? 1 : 0);
-		const uint8_t *arr = neighbor_ground[cdx + 1][cdz + 1];
-		if (!arr) {
-			return false;
-		}
-		int lx = x - cdx * CHUNK_DIM;
-		int lz = z - cdz * CHUNK_DIM;
-		return arr[local_index(Vector3i(lx, local_y, lz))] == 1;
-	};
+	// A chunk slot off the world edge (null) never falls inside the window,
+	// which is clipped to the world; it reads as wall if it ever did.
 
-	uint16_t *dist_w = chunk.dist.begin_write((uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE));
+	uint16_t *dist_w = chunk.dist.begin_write(MAX_DIST);
 
 	// Per Y layer, distance to the nearest wall cell over the 8-connected
 	// grid (steps 1 and sqrt 2), out to MAX_CLEARANCE_CELLS. Computed as a
@@ -2341,7 +2650,6 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	const float D1 = 1.0f;
 	const float D2 = 1.41421356f;
 	const float FAR = 1.0e9f;
-	const uint16_t MAX_DIST = (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE);
 	int reach = MAX_CLEARANCE_CELLS;
 	int W = CHUNK_DIM + 2 * reach;
 	auto idx2 = [&](int x, int z) -> int { return (x + reach) * W + (z + reach); };
@@ -2371,13 +2679,37 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 			continue;
 		}
 
-		// A ramp's skin is solid but not a wall (see ramp_skin above).
+		// A ramp's skin is solid but not a wall (see above).
+		// The window row by row, each row in up to three runs (one per
+		// neighbour chunk it crosses), so the chunk is picked per run, not
+		// per cell.
 		bool any_wall = false;
 		for (int x = xlo; x < xhi; x++) {
-			for (int z = zlo; z < zhi; z++) {
-				bool wall = solid_fast(x, y, z) && !ramp_skin(x, y, z);
-				d[idx2(x, z)] = wall ? 0.0f : FAR;
-				any_wall = any_wall || wall;
+			const int cdx = (x < 0) ? -1 : (x >= CHUNK_DIM ? 1 : 0);
+			const int lx = x - cdx * CHUNK_DIM;
+			float *row = d.data() + idx2(x, 0);
+			for (int cdz = -1; cdz <= 1; cdz++) {
+				const int z0 = std::max(zlo, cdz * CHUNK_DIM);
+				const int z1 = std::min(zhi, cdz * CHUNK_DIM + CHUNK_DIM);
+				if (z0 >= z1) {
+					continue;
+				}
+				const uint8_t *sol = neighbor_solid[cdx + 1][cdz + 1];
+				const uint8_t *gnd = neighbor_ground[cdx + 1][cdz + 1];
+				if (!sol) {
+					for (int z = z0; z < z1; z++) {
+						row[z] = 0.0f;
+					}
+					any_wall = true;
+					continue;
+				}
+				const int li0 = lx + y * CHUNK_DIM - cdz * CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
+				for (int z = z0; z < z1; z++) {
+					const int li = li0 + z * CHUNK_DIM * CHUNK_DIM;
+					const bool wall = sol[li] != 0 && !(gnd && gnd[li] == 1);
+					row[z] = wall ? 0.0f : FAR;
+					any_wall = any_wall || wall;
+				}
 			}
 		}
 		if (!any_wall) {
@@ -2891,6 +3223,7 @@ NavigationGrid::NearestResult NavigationGrid::find_escape_cell(const Vector3i &c
 // --- Pathfinding -------------------------------------------------------------
 
 PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore) {
+	StageClock clock(STAGE_SEARCH);
 	// unit is always supplied here, so the world is never ambiguous.
 	activate_for(unit);
 	ensure_baked(tree);
@@ -3142,8 +3475,8 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 	if (r.labelled) {
 		return r;
 	}
+	StageClock clock(STAGE_REGIONS);
 	r.labelled = true;
-	const size_t n = (size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
 	uint16_t *label_w = r.label.begin_write(0);
 	r.count = 0;
 
@@ -3153,66 +3486,128 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
 	// Open = is_open_cell, the very call is_valid_cell makes: the part of
-	// its rule that holds for every clearance and height. Sharing the call
+	// its rule that holds for every clearance and height. Sharing the rule
 	// instead of restating it is what keeps regions from ever being
-	// stricter than A*. Closed cells stay 0; open ones are marked
-	// UINT16_MAX until labelled.
-	const uint16_t OPEN = 0xFFFF;
-	bool any_open = false;
-	for (int y = 0; y < cy1; y++) {
-		for (int z = 0; z < cz1; z++) {
-			for (int x = 0; x < cx1; x++) {
-				int li = local_index(Vector3i(x, y, z));
-				if (!is_open_cell(chunk, li, flying)) {
+	// stricter than A*. Closed cells stay 0.
+	//
+	// Labelled by runs, not cells: each x-row's open cells split into runs,
+	// and a run joins (union-find) every run it touches in the 8 rows
+	// around it - touching takes overlap with one cell of slack either
+	// side, which is 26-connectivity. A chunk of air is 1,024 runs, not
+	// 32,768 cells times 26 neighbours. Runs come in local_index order, so
+	// numbering components by their first run gives the very labels a
+	// cell-by-cell flood seeded in that order did.
+	thread_local std::vector<uint8_t> s_solid, s_a, s_b;
+	const uint8_t *solid = chunk.solid.dense(s_solid);
+	const uint8_t *fa = flying ? chunk.flight_low.dense(s_a) : chunk.no_support.dense(s_a);
+	const uint8_t *fb = flying ? chunk.flight_high.dense(s_b) : nullptr;
+
+	struct Run {
+		int16_t x0, x1;
+		int parent;
+	};
+	thread_local std::vector<Run> runs;
+	thread_local std::vector<int> row_first; // [row] -> first run, row = y + z * CHUNK_DIM; [ROWS] = end
+	const int ROWS = CHUNK_DIM * CHUNK_DIM;
+	runs.clear();
+	row_first.assign(ROWS + 1, 0);
+	for (int z = 0; z < CHUNK_DIM; z++) {
+		for (int y = 0; y < CHUNK_DIM; y++) {
+			const int row = y + z * CHUNK_DIM;
+			row_first[row] = (int)runs.size();
+			if (y >= cy1 || z >= cz1) {
+				continue;
+			}
+			const int li0 = row * CHUNK_DIM;
+			int x = 0;
+			while (x < cx1) {
+				auto open = [&](int xi) {
+					const int li = li0 + xi;
+					return solid[li] == 0 && fa[li] == 0 && (!fb || fb[li] == 0);
+				};
+				if (!open(x)) {
+					x++;
 					continue;
 				}
-				label_w[li] = OPEN;
-				any_open = true;
+				int x0 = x;
+				while (x < cx1 && open(x)) {
+					x++;
+				}
+				runs.push_back({ (int16_t)x0, (int16_t)(x - 1), (int)runs.size() });
 			}
 		}
 	}
-	if (!any_open) {
+	row_first[ROWS] = (int)runs.size();
+	if (runs.empty()) {
 		r.label.end_write();
 		return r;
 	}
 
-	std::vector<int> stack;
-	for (int seed = 0; seed < (int)n; seed++) {
-		if (label_w[seed] != OPEN) {
-			continue;
+	auto find = [&](int i) {
+		while (runs[i].parent != i) {
+			runs[i].parent = runs[runs[i].parent].parent;
+			i = runs[i].parent;
 		}
-		uint16_t id = ++r.count;
-		label_w[seed] = id;
-		stack.push_back(seed);
-		while (!stack.empty()) {
-			int li = stack.back();
-			stack.pop_back();
-			int x = li % CHUNK_DIM;
-			int y = (li / CHUNK_DIM) % CHUNK_DIM;
-			int z = li / (CHUNK_DIM * CHUNK_DIM);
-			for (int dz = -1; dz <= 1; dz++) {
-				int nz = z + dz;
-				if (nz < 0 || nz >= CHUNK_DIM) {
+		return i;
+	};
+	auto unite = [&](int a, int b) {
+		a = find(a);
+		b = find(b);
+		if (a != b) {
+			// The lower run stays the root, so a root is its component's first run.
+			if (a < b) {
+				runs[b].parent = a;
+			} else {
+				runs[a].parent = b;
+			}
+		}
+	};
+	// Each row against the four rows of the 8 around it that come before
+	// it in row order; the other four see it from their side.
+	static const int BEFORE[4][2] = { { -1, 0 }, { -1, -1 }, { 0, -1 }, { 1, -1 } }; // (dy, dz)
+	for (int z = 0; z < cz1; z++) {
+		for (int y = 0; y < cy1; y++) {
+			const int row = y + z * CHUNK_DIM;
+			const int a0 = row_first[row], a1 = row_first[row + 1];
+			if (a0 == a1) {
+				continue;
+			}
+			for (const int *d : BEFORE) {
+				const int ny = y + d[0], nz = z + d[1];
+				if (ny < 0 || ny >= cy1 || nz < 0) {
 					continue;
 				}
-				for (int dy = -1; dy <= 1; dy++) {
-					int ny = y + dy;
-					if (ny < 0 || ny >= CHUNK_DIM) {
-						continue;
+				const int nrow = ny + nz * CHUNK_DIM;
+				int i = a0, j = row_first[nrow];
+				const int j1 = row_first[nrow + 1];
+				while (i < a1 && j < j1) {
+					if (runs[j].x0 <= runs[i].x1 + 1 && runs[i].x0 <= runs[j].x1 + 1) {
+						unite(i, j);
 					}
-					for (int dx = -1; dx <= 1; dx++) {
-						int nx = x + dx;
-						if (nx < 0 || nx >= CHUNK_DIM) {
-							continue;
-						}
-						int ni = local_index(Vector3i(nx, ny, nz));
-						if (label_w[ni] == OPEN) {
-							label_w[ni] = id;
-							stack.push_back(ni);
-						}
+					// Step past whichever run ends first.
+					if (runs[i].x1 < runs[j].x1) {
+						i++;
+					} else {
+						j++;
 					}
 				}
 			}
+		}
+	}
+
+	thread_local std::vector<uint16_t> id_of_root;
+	id_of_root.assign(runs.size(), 0);
+	for (int i = 0; i < (int)runs.size(); i++) {
+		const int root = find(i);
+		if (id_of_root[root] == 0) {
+			id_of_root[root] = ++r.count;
+		}
+	}
+	for (int row = 0; row < ROWS; row++) {
+		for (int i = row_first[row]; i < row_first[row + 1]; i++) {
+			const uint16_t id = id_of_root[find(i)];
+			uint16_t *dst = label_w + row * CHUNK_DIM;
+			std::fill(dst + runs[i].x0, dst + runs[i].x1 + 1, id);
 		}
 	}
 	r.label.end_write();
@@ -3224,6 +3619,7 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 	if (r.linked) {
 		return r;
 	}
+	StageClock clock(STAGE_LINKS);
 	r.linked = true;
 	r.links.assign(r.count, std::vector<uint64_t>());
 	if (r.count == 0) {
@@ -3247,35 +3643,64 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 		}
 	}
 
+	// Every (own region, neighbour region) pair across the chunk's skin,
+	// gathered flat and sorted once. Consecutive cells mostly repeat the
+	// pair before them, so that one is skipped as it comes; links end up
+	// exactly sized, where per-region vectors that had every touch pushed
+	// and were then deduplicated kept the capacity of all of them.
+	thread_local std::vector<uint16_t> s_own;
+	const uint16_t *own_label = r.label.dense(s_own);
+	thread_local std::vector<std::pair<uint16_t, uint64_t>> pairs;
+	pairs.clear();
 	const int last = CHUNK_DIM - 1;
-	for (int z = 0; z < CHUNK_DIM; z++) {
-		for (int y = 0; y < CHUNK_DIM; y++) {
-			for (int x = 0; x < CHUNK_DIM; x++) {
-				if (x != 0 && x != last && y != 0 && y != last && z != 0 && z != last) {
+	for (int cdz = -1; cdz <= 1; cdz++) {
+		for (int cdy = -1; cdy <= 1; cdy++) {
+			for (int cdx = -1; cdx <= 1; cdx++) {
+				const NavRegions *nb = around[cdx + 1][cdy + 1][cdz + 1];
+				if (!nb || nb->count == 0) {
 					continue;
 				}
-				uint16_t own = r.label.get(local_index(Vector3i(x, y, z)));
-				if (own == 0) {
-					continue;
-				}
-				std::vector<uint64_t> &out = r.links[own - 1];
-				for (int dz = -1; dz <= 1; dz++) {
-					for (int dy = -1; dy <= 1; dy++) {
-						for (int dx = -1; dx <= 1; dx++) {
-							int nx = x + dx, ny = y + dy, nz = z + dz;
-							int cdx = nx < 0 ? -1 : (nx > last ? 1 : 0);
-							int cdy = ny < 0 ? -1 : (ny > last ? 1 : 0);
-							int cdz = nz < 0 ? -1 : (nz > last ? 1 : 0);
-							if (cdx == 0 && cdy == 0 && cdz == 0) {
-								continue; // inside this chunk: same region already
-							}
-							const NavRegions *nb = around[cdx + 1][cdy + 1][cdz + 1];
-							if (!nb) {
+				const uint64_t nb_key = around_idx[cdx + 1][cdy + 1][cdz + 1] << 16;
+				// This chunk's cells on that side: the face, edge or corner
+				// layer, and for each the neighbour cells across it.
+				const int x0 = cdx < 0 ? 0 : (cdx > 0 ? last : 0), x1 = cdx == 0 ? last : x0;
+				const int y0 = cdy < 0 ? 0 : (cdy > 0 ? last : 0), y1 = cdy == 0 ? last : y0;
+				const int z0 = cdz < 0 ? 0 : (cdz > 0 ? last : 0), z1 = cdz == 0 ? last : z0;
+				uint16_t prev_own = 0;
+				uint64_t prev_other = 0;
+				for (int z = z0; z <= z1; z++) {
+					for (int y = y0; y <= y1; y++) {
+						for (int x = x0; x <= x1; x++) {
+							const uint16_t own = own_label[x + y * CHUNK_DIM + z * CHUNK_DIM * CHUNK_DIM];
+							if (own == 0) {
 								continue;
 							}
-							uint16_t other = nb->label.get(local_index(Vector3i(nx - cdx * CHUNK_DIM, ny - cdy * CHUNK_DIM, nz - cdz * CHUNK_DIM)));
-							if (other != 0) {
-								out.push_back((around_idx[cdx + 1][cdy + 1][cdz + 1] << 16) | other);
+							// Neighbour cells across this side: on an axis the
+							// side crosses, the one layer over; on the others,
+							// this cell and the two beside it that stay inside
+							// the neighbour chunk.
+							const int ax0 = cdx != 0 ? (cdx < 0 ? last : 0) : std::max(0, x - 1);
+							const int ax1 = cdx != 0 ? ax0 : std::min(last, x + 1);
+							const int ay0 = cdy != 0 ? (cdy < 0 ? last : 0) : std::max(0, y - 1);
+							const int ay1 = cdy != 0 ? ay0 : std::min(last, y + 1);
+							const int az0 = cdz != 0 ? (cdz < 0 ? last : 0) : std::max(0, z - 1);
+							const int az1 = cdz != 0 ? az0 : std::min(last, z + 1);
+							for (int nz = az0; nz <= az1; nz++) {
+								for (int ny = ay0; ny <= ay1; ny++) {
+									for (int nx = ax0; nx <= ax1; nx++) {
+										const uint16_t other = nb->label.get(nx + ny * CHUNK_DIM + nz * CHUNK_DIM * CHUNK_DIM);
+										if (other == 0) {
+											continue;
+										}
+										const uint64_t key = nb_key | other;
+										if (own == prev_own && key == prev_other) {
+											continue;
+										}
+										prev_own = own;
+										prev_other = key;
+										pairs.push_back({ own, key });
+									}
+								}
 							}
 						}
 					}
@@ -3283,9 +3708,17 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 			}
 		}
 	}
-	for (std::vector<uint64_t> &out : r.links) {
-		std::sort(out.begin(), out.end());
-		out.erase(std::unique(out.begin(), out.end()), out.end());
+	std::sort(pairs.begin(), pairs.end());
+	pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
+	std::vector<int> per_region(r.count, 0);
+	for (const auto &p : pairs) {
+		per_region[p.first - 1]++;
+	}
+	for (int i = 0; i < r.count; i++) {
+		r.links[i].reserve(per_region[i]);
+	}
+	for (const auto &p : pairs) {
+		r.links[p.first - 1].push_back(p.second);
 	}
 	return r;
 }

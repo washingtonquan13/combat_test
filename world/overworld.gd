@@ -11,8 +11,9 @@ extends GameArea
 ## Extends GameArea (see that file) rather than answering the world
 ## contract itself — get_spawn_point()'s inherited find_child()-then-
 ## "Start"-fallback behavior already matches what this file used to do by
-## hand, so only the two ways an overworld genuinely differs from an
-## ordinary area (get_base_mode(), spawns_party()) are overridden here.
+## hand, so only the ways an overworld genuinely differs from an ordinary
+## area (get_base_mode(), spawns_party(), needs_navigation()) are overridden
+## here.
 ##
 ## Was a runtime maze generator (a LAYOUT text grid, walls/floor/door all
 ## built in _ready()) until the data-driven-areas pass baked that output
@@ -180,6 +181,11 @@ func get_base_mode() -> GameMode.Mode:
 ## stays untouched either way, only whether it gets projected into live
 ## Units for THIS world varies.
 func spawns_party() -> bool:
+	return false
+
+
+## The avatar steers directly; nothing here ever asks for a path.
+func needs_navigation() -> bool:
 	return false
 
 
