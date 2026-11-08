@@ -303,6 +303,15 @@ public:
 	// Bytes held by the active world's chunks and search scratch: what a
 	// map's size actually costs, for measuring.
 	int64_t debug_memory_bytes() const;
+	// Measurement only (the nav-structure probe): how the active world's
+	// cells would pack as uniform 8^3 bricks, field by field, and how much
+	// of the search scratch any search since `since_search` wrote to.
+	Dictionary debug_structure_stats(int since_search = -1) const;
+	// Cells a_star has expanded since the grid was made, across every
+	// search and world, and the id of the latest search, so a caller can
+	// difference both around one query.
+	int64_t debug_expansions() const { return debug_expansion_count; }
+	int debug_search_id() const { return astar_search_id; }
 	float flight_highest_altitude(SceneTree *tree, Object *world_ref = nullptr);
 
 protected:
@@ -413,6 +422,7 @@ private:
 	// rock cost more than everything else the grid holds put together.
 	std::vector<std::unique_ptr<AStarPage>> astar_pages;
 	int astar_search_id = 0;
+	int64_t debug_expansion_count = 0;
 	// The page holding an in-bounds cell, allocated on first touch, and the
 	// cell's index within it. a_star keeps the last page it used, since
 	// most neighbours share their parent's chunk.

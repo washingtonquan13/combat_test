@@ -52,6 +52,9 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("flight_ceiling_at", "tree", "pos", "world_ref"), &NavigationGrid::flight_ceiling_at, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("flight_lowest_altitude", "tree", "world_ref"), &NavigationGrid::flight_lowest_altitude, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("debug_memory_bytes"), &NavigationGrid::debug_memory_bytes);
+	ClassDB::bind_method(D_METHOD("debug_structure_stats", "since_search"), &NavigationGrid::debug_structure_stats, DEFVAL(-1));
+	ClassDB::bind_method(D_METHOD("debug_expansions"), &NavigationGrid::debug_expansions);
+	ClassDB::bind_method(D_METHOD("debug_search_id"), &NavigationGrid::debug_search_id);
 	ClassDB::bind_method(D_METHOD("flight_highest_altitude", "tree", "world_ref"), &NavigationGrid::flight_highest_altitude, DEFVAL(Variant()));
 
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "CELL_SIZE"), "", "get_cell_size");
@@ -130,7 +133,7 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 			continue;
 		}
 		bytes += sizeof(NavChunk);
-		bytes += c->solid.capacity() + c->ground.capacity() + c->no_support.capacity() + c->flight_low.capacity();
+		bytes += c->solid.capacity() + c->ground.capacity() + c->no_support.capacity() + c->flight_low.capacity() + c->flight_high.capacity();
 		bytes += (int64_t)c->dist.capacity() * sizeof(uint16_t);
 		bytes += (int64_t)c->occupants.capacity() * sizeof(OccupantVolume);
 		for (const NavRegions &r : c->regions) {
@@ -155,6 +158,187 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 	}
 	bytes += (int64_t)chunk_occupancy_nearby.capacity();
 	return bytes;
+}
+
+namespace {
+constexpr int BRICK = 8;
+constexpr int BRICKS_PER_AXIS = 32 / BRICK; // CHUNK_DIM / BRICK
+constexpr int BRICKS_PER_CHUNK = BRICKS_PER_AXIS * BRICKS_PER_AXIS * BRICKS_PER_AXIS;
+
+inline int cell_of(int bx, int by, int bz, int x, int y, int z) {
+	return (bx * BRICK + x) + (by * BRICK + y) * 32 + (bz * BRICK + z) * 32 * 32;
+}
+
+// Whether brick (bx, by, bz) of a CHUNK_DIM^3 field holds one value.
+template <typename T>
+bool brick_uniform(const std::vector<T> &field, int bx, int by, int bz) {
+	const T first = field[cell_of(bx, by, bz, 0, 0, 0)];
+	for (int z = 0; z < BRICK; z++) {
+		for (int y = 0; y < BRICK; y++) {
+			for (int x = 0; x < BRICK; x++) {
+				if (field[cell_of(bx, by, bz, x, y, z)] != first) {
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+// Whether any stamp in the brick is above `since`.
+bool brick_stamped(const int *stamps, int bx, int by, int bz, int since) {
+	for (int z = 0; z < BRICK; z++) {
+		for (int y = 0; y < BRICK; y++) {
+			for (int x = 0; x < BRICK; x++) {
+				if (stamps[cell_of(bx, by, bz, x, y, z)] > since) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+struct FieldTally {
+	int64_t bricks = 0;
+	int64_t uniform = 0;
+	Dictionary to_dict() const {
+		Dictionary d;
+		d["bricks"] = bricks;
+		d["uniform"] = uniform;
+		return d;
+	}
+};
+} // namespace
+
+// Read-only. A field is only examined in chunks where it is meant to hold
+// data (solid/ground once rasterized, the support fields once baked, dist
+// once its own bake ran, region labels once labelled), so a lazily skipped
+// field doesn't read as "uniform zero".
+Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
+	static constexpr int CELLS = 32 * 32 * 32;
+	int64_t allocated = 0, rasterized = 0, support_baked = 0, dist_baked = 0, sealed = 0;
+	FieldTally solid, ground, no_support, flight_low, flight_high, dist, walk_label, fly_label, all_cell;
+	int64_t bytes_u8 = 0, bytes_dist = 0, bytes_labels = 0;
+	for (const std::unique_ptr<NavChunk> &cp : chunks) {
+		if (!cp) {
+			continue;
+		}
+		const NavChunk &c = *cp;
+		allocated++;
+		rasterized += c.rasterized;
+		support_baked += c.support_baked;
+		dist_baked += c.dist_baked;
+		sealed += c.sealed;
+		bytes_u8 += c.solid.capacity() + c.ground.capacity() + c.no_support.capacity() + c.flight_low.capacity() + c.flight_high.capacity();
+		bytes_dist += (int64_t)c.dist.capacity() * sizeof(uint16_t);
+		for (const NavRegions &r : c.regions) {
+			bytes_labels += (int64_t)r.label.capacity() * sizeof(uint16_t);
+		}
+		const bool has_solid = c.rasterized && (int)c.solid.size() == CELLS;
+		const bool has_ground = c.rasterized && (int)c.ground.size() == CELLS;
+		const bool has_support = c.support_baked && (int)c.no_support.size() == CELLS;
+		const bool has_low = c.support_baked && (int)c.flight_low.size() == CELLS;
+		const bool has_high = c.support_baked && (int)c.flight_high.size() == CELLS;
+		const bool has_dist = c.dist_baked && (int)c.dist.size() == CELLS;
+		const bool has_walk = c.regions[0].labelled && (int)c.regions[0].label.size() == CELLS;
+		const bool has_fly = c.regions[1].labelled && (int)c.regions[1].label.size() == CELLS;
+		for (int bz = 0; bz < BRICKS_PER_AXIS; bz++) {
+			for (int by = 0; by < BRICKS_PER_AXIS; by++) {
+				for (int bx = 0; bx < BRICKS_PER_AXIS; bx++) {
+					bool all = true;
+					bool any = false;
+					auto tally = [&](bool present, FieldTally &f, bool uniform) {
+						if (!present) {
+							return;
+						}
+						any = true;
+						f.bricks++;
+						f.uniform += uniform;
+						all = all && uniform;
+					};
+					tally(has_solid, solid, has_solid && brick_uniform(c.solid, bx, by, bz));
+					tally(has_ground, ground, has_ground && brick_uniform(c.ground, bx, by, bz));
+					tally(has_support, no_support, has_support && brick_uniform(c.no_support, bx, by, bz));
+					tally(has_low, flight_low, has_low && brick_uniform(c.flight_low, bx, by, bz));
+					tally(has_high, flight_high, has_high && brick_uniform(c.flight_high, bx, by, bz));
+					tally(has_dist, dist, has_dist && brick_uniform(c.dist, bx, by, bz));
+					tally(has_walk, walk_label, has_walk && brick_uniform(c.regions[0].label, bx, by, bz));
+					tally(has_fly, fly_label, has_fly && brick_uniform(c.regions[1].label, bx, by, bz));
+					if (any) {
+						all_cell.bricks++;
+						all_cell.uniform += all;
+					}
+				}
+			}
+		}
+	}
+
+	int64_t astar_count = 0, astar_ever = 0, astar_since = 0, astar_cells_since = 0;
+	for (const std::unique_ptr<AStarPage> &pp : astar_pages) {
+		if (!pp) {
+			continue;
+		}
+		astar_count++;
+		const AStarPage &p = *pp;
+		for (int i = 0; i < CELLS; i++) {
+			astar_cells_since += (p.g_gen[i] > since_search || p.valid_gen[i] > since_search);
+		}
+		for (int bz = 0; bz < BRICKS_PER_AXIS; bz++) {
+			for (int by = 0; by < BRICKS_PER_AXIS; by++) {
+				for (int bx = 0; bx < BRICKS_PER_AXIS; bx++) {
+					astar_ever += brick_stamped(p.g_gen, bx, by, bz, 0) || brick_stamped(p.valid_gen, bx, by, bz, 0);
+					astar_since += brick_stamped(p.g_gen, bx, by, bz, since_search) || brick_stamped(p.valid_gen, bx, by, bz, since_search);
+				}
+			}
+		}
+	}
+	int64_t smooth_count = 0, smooth_ever = 0;
+	for (const std::unique_ptr<SmoothPage> &pp : smooth_pages) {
+		if (!pp) {
+			continue;
+		}
+		smooth_count++;
+		for (int bz = 0; bz < BRICKS_PER_AXIS; bz++) {
+			for (int by = 0; by < BRICKS_PER_AXIS; by++) {
+				for (int bx = 0; bx < BRICKS_PER_AXIS; bx++) {
+					smooth_ever += brick_stamped(pp->valid_gen, bx, by, bz, 0);
+				}
+			}
+		}
+	}
+
+	Dictionary d;
+	d["chunk_grid"] = chunk_grid_size;
+	d["chunks_allocated"] = allocated;
+	d["chunks_rasterized"] = rasterized;
+	d["chunks_sealed"] = sealed;
+	d["chunks_support_baked"] = support_baked;
+	d["chunks_dist_baked"] = dist_baked;
+	d["bytes_u8_fields"] = bytes_u8;
+	d["bytes_dist"] = bytes_dist;
+	d["bytes_region_labels"] = bytes_labels;
+	Dictionary fields;
+	fields["solid"] = solid.to_dict();
+	fields["ground"] = ground.to_dict();
+	fields["no_support"] = no_support.to_dict();
+	fields["flight_low"] = flight_low.to_dict();
+	fields["flight_high"] = flight_high.to_dict();
+	fields["dist"] = dist.to_dict();
+	fields["walk_label"] = walk_label.to_dict();
+	fields["fly_label"] = fly_label.to_dict();
+	fields["every_field"] = all_cell.to_dict();
+	d["fields"] = fields;
+	d["astar_pages"] = astar_count;
+	d["astar_bytes"] = astar_count * (int64_t)sizeof(AStarPage);
+	d["astar_bricks_ever"] = astar_ever;
+	d["astar_bricks_since"] = astar_since;
+	d["astar_cells_since"] = astar_cells_since;
+	d["smooth_pages"] = smooth_count;
+	d["smooth_bytes"] = smooth_count * (int64_t)sizeof(SmoothPage);
+	d["smooth_bricks_ever"] = smooth_ever;
+	d["bricks_per_page"] = BRICKS_PER_CHUNK;
+	return d;
 }
 
 // The highest altitude a flier may take anywhere in this world: the top of
@@ -3293,6 +3477,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 		}
 
 		expansions++;
+		debug_expansion_count++;
 		if (expansions > MAX_EXPANSIONS) {
 			if (mask_cut) {
 				*mask_cut = true; // capped, not exhausted: a wider search might still get there
