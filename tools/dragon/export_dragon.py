@@ -37,6 +37,7 @@ PREVIEW = next((a.split("=", 1)[1] for a in ARGS if a.startswith("--preview=")),
 # --clips=Bite,Claw: preview only these.
 ONLY = next((a.split("=", 1)[1].split(",") for a in ARGS if a.startswith("--clips=")), None)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import bake_poses  # noqa: E402
 import dragon_clips  # noqa: E402
 
 LENGTH = 2.0  # metres nose to tail: SizeModifier.length_for(0)
@@ -241,6 +242,10 @@ for act in authored:
     track.name = act.name
     strip = track.strips.new(act.name, 0, act)
     strip.action_slot = act.slots[0]
+
+# Authored from scratch (poses.py). Run last: the clips above still build on
+# the model's own Idle until they are re-authored.
+bake_poses.replace(arm, body, {"Idle-loop": "idle"})
 
 KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"} | {a.name for a in authored}
 for act in [a for a in bpy.data.actions if a.name not in KEEP]:
