@@ -9,7 +9,15 @@ var key: Vector2i
 var y: float
 ## Rounds left; -1 never runs out.
 var rounds: int
-var patch: SurfacePatch
+## The patch this cell belongs to. Held weakly: the patch lists its
+## cells, and a strong link back made each pair keep the other alive
+## after the grid let go - surface, visual resources and all.
+var patch: SurfacePatch:
+	get:
+		return _patch.get_ref() if _patch else null
+	set(value):
+		_patch = weakref(value) if value else null
+var _patch: WeakRef
 
 
 func _init(p_surface: Surface, p_key: Vector2i, p_y: float, p_rounds: int) -> void:
