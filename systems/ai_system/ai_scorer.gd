@@ -127,6 +127,29 @@ const SCORE_EPSILON: float = 0.0001
 ## letting it persist across turns.
 static var _position_cache: Dictionary = {}
 
+## unit.plan_route() memoized within one pass, cleared with _position_cache
+## and for the same reason. Every candidate against the same target with
+## the same reach asks for the same standoff route, and each miss is a
+## full find_path().
+static var _route_cache: Dictionary = {}
+
+
+## unit.plan_route(goal, budget) through this pass's route cache. The key
+## is everything the answer reads: the unit and where it stands, the goal,
+## the budget, whether it flies and at what altitude (_resolve_reach adopts
+## a plan's altitude temporarily), and the occupancy version, so a pass
+## that moves anything never reuses a stale route.
+static func route(unit: Unit, goal: Vector3, budget: float = INF) -> Dictionary:
+	var key: Array = [unit.get_instance_id(), unit.global_position, goal, budget,
+		unit.is_flying(), unit.flight_target_altitude,
+		NavigationGrid.occupancy_version(unit.get_tree())]
+	var cached: Variant = _route_cache.get(key)
+	if cached != null:
+		return cached
+	var planned: Dictionary = unit.plan_route(goal, budget)
+	_route_cache[key] = planned
+	return planned
+
 
 ## The single best AiPlan for unit to act on right now, or null if it has
 ## no living hostile at all (nothing to do — matches the old baseline's
@@ -140,6 +163,7 @@ static func best_plan(unit: Unit) -> AiPlan:
 		return _feral_plan(unit)
 
 	_position_cache.clear()
+	_route_cache.clear()
 
 	var tree: SceneTree = unit.get_tree()
 	var candidates: Array[AiPlan] = _enumerate_baseline_candidates(unit, tree)
@@ -187,6 +211,7 @@ const BEHAVIOR_SOURCE_PRIORITY: int = 10
 ## here.
 static func describe_candidates(unit: Unit) -> String:
 	_position_cache.clear()
+	_route_cache.clear()
 
 	var tree: SceneTree = unit.get_tree()
 	var candidates: Array[AiPlan] = _enumerate_baseline_candidates(unit, tree)
@@ -585,7 +610,7 @@ static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool
 	if plan.has_destination:
 		if unit.global_position.distance_to(plan.destination) <= unit.arrival_tolerance:
 			return true
-		var moving_plan: Dictionary = unit.plan_route(plan.destination, budget)
+		var moving_plan: Dictionary = AiScorer.route(unit, plan.destination, budget)
 		return moving_plan.path.size() >= 2
 
 	if not plan.ability:
@@ -609,7 +634,7 @@ static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool
 		if gap <= 0.001:
 			return true
 		var point_goal: Vector3 = point - (toward / gap) * max(approach - unit.arrival_tolerance, 0.05)
-		var point_route: Dictionary = unit.plan_route(point_goal, budget)
+		var point_route: Dictionary = AiScorer.route(unit, point_goal, budget)
 		if point_route.path.size() < 2:
 			return false
 		var landed: Vector3 = point_route.path[point_route.path.size() - 1]
@@ -620,7 +645,7 @@ static func _resolve_reach_at_current_altitude(unit: Unit, plan: AiPlan) -> bool
 		return true
 
 	var goal: Vector3 = AiScorer.standoff_goal(unit, plan.target, plan.ability)
-	var planned: Dictionary = unit.plan_route(goal, budget)
+	var planned: Dictionary = AiScorer.route(unit, goal, budget)
 	if planned.path.size() < 2:
 		return false
 

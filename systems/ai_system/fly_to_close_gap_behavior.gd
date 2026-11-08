@@ -57,11 +57,12 @@ func _flight_altitude_for(target: Unit) -> float:
 	return UnitMovement.clamp_flight_altitude(target.global_position.y, target.global_position, target)
 
 
-## The grounded unit's own route query (UnitMovement.plan_route), so a
-## ladder that gets it there counts — the same route it walks if it
-## doesn't take off. INF if there is no route at all.
+## The grounded unit's own route query (UnitMovement.plan_route, through
+## the scorer's per-pass cache), so a ladder that gets it there counts —
+## the same route it walks if it doesn't take off. INF if there is no
+## route at all.
 func _ground_cost(unit: Unit, goal: Vector3) -> float:
-	var planned: Dictionary = unit.plan_route(goal)
+	var planned: Dictionary = AiScorer.route(unit, goal)
 	if planned.path.size() < 2:
 		return INF
 	return planned.cumulative_cost[planned.cumulative_cost.size() - 1]
