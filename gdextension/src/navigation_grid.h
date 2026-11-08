@@ -51,6 +51,9 @@
 #include <unordered_set>
 #include <memory>
 #include <cstdint>
+#include <cstring>
+#include <algorithm>
+#include <godot_cpp/core/error_macros.hpp>
 
 namespace godot {
 
@@ -99,6 +102,191 @@ struct TriShape {
 	std::unordered_map<int, std::vector<int>> by_column;
 };
 
+// A CHUNK_DIM^3 cell field kept as 64 bricks of 8^3 cells, where a brick
+// holding one value stores only that value. Air, rock and a flat floor's
+// one clearance are most of any chunk: the nav-structure probe measured
+// 82-99.9% of bricks uniform, field by field, and a dense array paid
+// 32,768 entries a chunk for them.
+//
+// Writing goes through a dense buffer: begin_write() opens one holding a
+// value, the baker writes and re-reads it through the returned pointer
+// exactly as it did the old dense array, and end_write() packs it and frees
+// it. Readers use get(), or dense() for a bake that sweeps a whole
+// neighbouring chunk. There is no operator[]: every access says which of
+// the two it is, so a write cannot land on packed bricks unnoticed.
+//
+// Building with nav_verify=yes (scons) checks every pack against the
+// buffer it came from.
+template <typename T>
+class BrickField {
+public:
+	static constexpr int DIM = 32; // CHUNK_DIM
+	static constexpr int CELLS = DIM * DIM * DIM;
+	static constexpr int SLOTS = 64; // (DIM / 8)^3
+	static constexpr int BRICK_CELLS = 512;
+	static constexpr uint8_t UNIFORM = 0xFF;
+
+	BrickField() {
+		std::fill(index, index + SLOTS, UNIFORM);
+		std::fill(uniform, uniform + SLOTS, T(0));
+	}
+	BrickField(const BrickField &) = delete;
+	BrickField &operator=(const BrickField &) = delete;
+
+	// local_index (x + y*32 + z*1024) -> brick slot (bx + by*4 + bz*16)
+	// and the cell's place in that brick (lx + ly*8 + lz*64).
+	static inline int slot_of(int li) { return ((li >> 3) & 3) | ((li >> 6) & 12) | ((li >> 9) & 48); }
+	static inline int local_of(int li) { return (li & 7) | ((li >> 2) & 56) | ((li >> 4) & 448); }
+
+	inline T get(int li) const {
+		const int s = slot_of(li);
+		const uint8_t k = index[s];
+		return k == UNIFORM ? uniform[s] : pool[(size_t)k * BRICK_CELLS + local_of(li)];
+	}
+
+	// Whether the field holds data: written once, and not reset since.
+	bool present() const { return has_data; }
+	bool brick_uniform(int slot) const { return index[slot] == UNIFORM; }
+	int dense_bricks() const { return dense_count; }
+
+	T *begin_write(T value) {
+		release();
+		work.assign(CELLS, value);
+		return work.data();
+	}
+	// The open buffer, for a writer that is handed the field rather than
+	// the pointer begin_write returned.
+	T *work_data() {
+		CRASH_COND_MSG(work.empty(), "BrickField: written outside begin_write/end_write");
+		return work.data();
+	}
+	void end_write() {
+		CRASH_COND_MSG(work.empty(), "BrickField: end_write without begin_write");
+		bool flat[SLOTS];
+		int dense = 0;
+		for (int s = 0; s < SLOTS; s++) {
+			const int base = brick_base(s);
+			const T first = work[base];
+			// A brick row is 8 cells, sizeof(T) 64-bit words: compare whole
+			// words against a row of `first`, one branch per brick plane.
+			uint64_t ref[sizeof(T)];
+			{
+				T row_of_first[8];
+				std::fill(row_of_first, row_of_first + 8, first);
+				std::memcpy(ref, row_of_first, sizeof(ref));
+			}
+			bool same = true;
+			for (int lz = 0; lz < 8 && same; lz++) {
+				uint64_t diff = 0;
+				for (int ly = 0; ly < 8; ly++) {
+					const T *row = work.data() + base + ly * DIM + lz * DIM * DIM;
+					for (size_t w = 0; w < sizeof(T); w++) {
+						uint64_t v;
+						std::memcpy(&v, row + w * (8 / sizeof(T)), sizeof(v));
+						diff |= v ^ ref[w];
+					}
+				}
+				same = diff == 0;
+			}
+			flat[s] = same;
+			uniform[s] = same ? first : T(0);
+			dense += same ? 0 : 1;
+		}
+		dense_count = dense;
+		pool.reset(dense > 0 ? new T[(size_t)dense * BRICK_CELLS] : nullptr);
+		uint8_t next = 0;
+		for (int s = 0; s < SLOTS; s++) {
+			if (flat[s]) {
+				index[s] = UNIFORM;
+				continue;
+			}
+			index[s] = next;
+			T *dst = pool.get() + (size_t)next * BRICK_CELLS;
+			const int base = brick_base(s);
+			for (int lz = 0; lz < 8; lz++) {
+				for (int ly = 0; ly < 8; ly++) {
+					std::memcpy(dst + ly * 8 + lz * 64, work.data() + base + ly * DIM + lz * DIM * DIM, 8 * sizeof(T));
+				}
+			}
+			next++;
+		}
+		has_data = true;
+#ifdef NAV_BRICK_VERIFY
+		for (int li = 0; li < CELLS; li++) {
+			CRASH_COND_MSG(get(li) != work[li], "BrickField: a packed cell reads back different");
+		}
+#endif
+		std::vector<T>().swap(work);
+	}
+
+	// Every cell one value, with nothing allocated.
+	void fill(T value) {
+		release();
+		std::fill(uniform, uniform + SLOTS, value);
+		has_data = true;
+	}
+
+	// The whole field as a dense array (local_index order), for a bake
+	// that sweeps it: expanded into `scratch`, or, for a chunk of all air
+	// or all rock, a shared constant array with no copy at all.
+	const T *dense(std::vector<T> &scratch) const {
+		if (dense_count == 0 && (uniform[0] == T(0) || uniform[0] == T(1))) {
+			bool same = true;
+			for (int s = 1; s < SLOTS && same; s++) {
+				same = uniform[s] == uniform[0];
+			}
+			if (same) {
+				return constant(uniform[0]);
+			}
+		}
+		scratch.resize(CELLS);
+		for (int s = 0; s < SLOTS; s++) {
+			const int base = brick_base(s);
+			const uint8_t k = index[s];
+			const T *src = k == UNIFORM ? nullptr : pool.get() + (size_t)k * BRICK_CELLS;
+			for (int lz = 0; lz < 8; lz++) {
+				for (int ly = 0; ly < 8; ly++) {
+					T *row = scratch.data() + base + ly * DIM + lz * DIM * DIM;
+					if (src) {
+						std::memcpy(row, src + ly * 8 + lz * 64, 8 * sizeof(T));
+					} else {
+						std::fill(row, row + 8, uniform[s]);
+					}
+				}
+			}
+		}
+		return scratch.data();
+	}
+
+	// What the field holds: the dense bricks and the open buffer. The
+	// slots themselves are counted in sizeof(NavChunk).
+	int64_t bytes() const {
+		return (int64_t)dense_count * BRICK_CELLS * sizeof(T) + (int64_t)work.capacity() * sizeof(T);
+	}
+
+private:
+	static inline int brick_base(int s) { return (s & 3) * 8 + ((s >> 2) & 3) * 8 * DIM + (s >> 4) * 8 * DIM * DIM; }
+	static const T *constant(T value) {
+		static const std::vector<T> zeros(CELLS, T(0));
+		static const std::vector<T> ones(CELLS, T(1));
+		return value == T(0) ? zeros.data() : ones.data();
+	}
+	void release() {
+		pool.reset();
+		dense_count = 0;
+		std::fill(index, index + SLOTS, UNIFORM);
+		std::fill(uniform, uniform + SLOTS, T(0));
+		has_data = false;
+	}
+
+	uint8_t index[SLOTS]; // a dense brick's place in pool, or UNIFORM
+	T uniform[SLOTS]; // a uniform brick's one value
+	std::unique_ptr<T[]> pool; // dense_count bricks of BRICK_CELLS, slot order
+	int dense_count = 0;
+	bool has_data = false;
+	std::vector<T> work; // open between begin_write and end_write only
+};
+
 // One chunk's connected regions for one movement mode (walking or flying).
 // A cell is open when SOME unit of that mode could stand in it: not solid,
 // supported (walking) or high enough (flying), under the flight ceiling
@@ -111,7 +299,7 @@ struct NavRegions {
 	bool labelled = false;
 	bool linked = false;
 	uint16_t count = 0;
-	std::vector<uint16_t> label; // CHUNK_DIM^3, 0 = closed, else 1..count
+	BrickField<uint16_t> label; // CHUNK_DIM^3, 0 = closed, else 1..count
 	// [region - 1] -> region keys (see region_key) in neighbouring chunks
 	// that one of its cells touches.
 	std::vector<std::vector<uint64_t>> links;
@@ -127,22 +315,22 @@ struct OccupantVolume {
 };
 
 struct NavChunk {
-	std::vector<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
+	BrickField<uint8_t> solid; // CHUNK_DIM^3, 1 = solid geometry
 	// CHUNK_DIM^3, parallel to solid: 1 = solid lying just under a walkable
 	// ramp's face (a tilted box no steeper than MAX_WALKABLE_SLOPE_DEGREES;
 	// see ramp_of). Such a cell is still solid, but it is ground under a
 	// unit's feet, not a wall in its way, so bake_chunk_dist does not
 	// measure clearance from it.
-	std::vector<uint8_t> ground;
-	std::vector<uint8_t> no_support; // CHUNK_DIM^3, 1 = nothing solid directly below
+	BrickField<uint8_t> ground;
+	BrickField<uint8_t> no_support; // CHUNK_DIM^3, 1 = nothing solid directly below
 	// CHUNK_DIM^3, 1 = solid within FLIGHT_MIN_ALTITUDE straight below: too
 	// low for a flier, which must stay that far above whatever is under it.
-	std::vector<uint8_t> flight_low;
+	BrickField<uint8_t> flight_low;
 	// CHUNK_DIM^3, 1 = nothing solid within FLIGHT_MAX_ALTITUDE straight
 	// below: too high for a flier, whose ceiling rides on the ground under
 	// it the same way its floor does.
-	std::vector<uint8_t> flight_high;
-	std::vector<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
+	BrickField<uint8_t> flight_high;
+	BrickField<uint16_t> dist; // CHUNK_DIM^3, fixed-point cells (see DIST_SCALE) to nearest solid, same Y layer
 	// Every occupant whose column reaches into this chunk, as the volume it
 	// is rather than the cells it covers. Stamping a body cell by cell cost
 	// its disc times its height on every rebuild (an SM 6 dragon: ~21,000
@@ -446,6 +634,13 @@ private:
 	std::vector<std::unique_ptr<AStarPage>> astar_pages;
 	int astar_search_id = 0;
 	int64_t debug_expansion_count = 0;
+	// Dense views of packed cell fields for the bakes that sweep whole
+	// chunks (BrickField::dense), kept so a bake does not allocate.
+	// support: [0] the chunk itself, [k] the chunk k below.
+	std::vector<std::vector<uint8_t>> support_scratch;
+	// dist: [(dx + 1) * 3 + dz + 1], the chunk and its 8 side neighbours.
+	std::vector<uint8_t> dist_solid_scratch[9];
+	std::vector<uint8_t> dist_ground_scratch[9];
 	// The brick holding an in-bounds cell, allocated on first touch and
 	// cleared on the first touch of search `sid`, and the cell's index
 	// within it. a_star keeps the last brick it used, since most
@@ -597,13 +792,13 @@ private:
 	// region can never be stricter than A* - a cell A* accepts is always
 	// open, and regions_may_connect never rules out a path that exists.
 	static inline bool is_open_cell(const NavChunk &chunk, int li, bool flying) {
-		if (chunk.solid[li] != 0) {
+		if (chunk.solid.get(li) != 0) {
 			return false;
 		}
 		if (flying) {
-			return chunk.flight_low[li] == 0 && chunk.flight_high[li] == 0;
+			return chunk.flight_low.get(li) == 0 && chunk.flight_high.get(li) == 0;
 		}
-		return chunk.no_support[li] == 0;
+		return chunk.no_support.get(li) == 0;
 	}
 
 	struct NearestResult {

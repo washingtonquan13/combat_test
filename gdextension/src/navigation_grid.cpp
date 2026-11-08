@@ -133,11 +133,11 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 			continue;
 		}
 		bytes += sizeof(NavChunk);
-		bytes += c->solid.capacity() + c->ground.capacity() + c->no_support.capacity() + c->flight_low.capacity() + c->flight_high.capacity();
-		bytes += (int64_t)c->dist.capacity() * sizeof(uint16_t);
+		bytes += c->solid.bytes() + c->ground.bytes() + c->no_support.bytes() + c->flight_low.bytes() + c->flight_high.bytes();
+		bytes += c->dist.bytes();
 		bytes += (int64_t)c->occupants.capacity() * sizeof(OccupantVolume);
 		for (const NavRegions &r : c->regions) {
-			bytes += (int64_t)r.label.capacity() * sizeof(uint16_t);
+			bytes += r.label.bytes();
 			bytes += (int64_t)r.links.capacity() * sizeof(std::vector<uint64_t>);
 			for (const std::vector<uint64_t> &l : r.links) {
 				bytes += (int64_t)l.capacity() * sizeof(uint64_t);
@@ -163,6 +163,12 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 		}
 	}
 	bytes += (int64_t)chunk_occupancy_nearby.capacity();
+	for (const std::vector<uint8_t> &s : support_scratch) {
+		bytes += (int64_t)s.capacity();
+	}
+	for (int i = 0; i < 9; i++) {
+		bytes += (int64_t)dist_solid_scratch[i].capacity() + (int64_t)dist_ground_scratch[i].capacity();
+	}
 	return bytes;
 }
 
@@ -177,18 +183,8 @@ inline int cell_of(int bx, int by, int bz, int x, int y, int z) {
 
 // Whether brick (bx, by, bz) of a CHUNK_DIM^3 field holds one value.
 template <typename T>
-bool brick_uniform(const std::vector<T> &field, int bx, int by, int bz) {
-	const T first = field[cell_of(bx, by, bz, 0, 0, 0)];
-	for (int z = 0; z < BRICK; z++) {
-		for (int y = 0; y < BRICK; y++) {
-			for (int x = 0; x < BRICK; x++) {
-				if (field[cell_of(bx, by, bz, x, y, z)] != first) {
-					return false;
-				}
-			}
-		}
-	}
-	return true;
+bool brick_uniform(const BrickField<T> &field, int bx, int by, int bz) {
+	return field.brick_uniform(bx + by * BRICKS_PER_AXIS + bz * BRICKS_PER_AXIS * BRICKS_PER_AXIS);
 }
 
 struct FieldTally {
@@ -222,19 +218,19 @@ Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
 		support_baked += c.support_baked;
 		dist_baked += c.dist_baked;
 		sealed += c.sealed;
-		bytes_u8 += c.solid.capacity() + c.ground.capacity() + c.no_support.capacity() + c.flight_low.capacity() + c.flight_high.capacity();
-		bytes_dist += (int64_t)c.dist.capacity() * sizeof(uint16_t);
+		bytes_u8 += c.solid.bytes() + c.ground.bytes() + c.no_support.bytes() + c.flight_low.bytes() + c.flight_high.bytes();
+		bytes_dist += c.dist.bytes();
 		for (const NavRegions &r : c.regions) {
-			bytes_labels += (int64_t)r.label.capacity() * sizeof(uint16_t);
+			bytes_labels += r.label.bytes();
 		}
-		const bool has_solid = c.rasterized && (int)c.solid.size() == CELLS;
-		const bool has_ground = c.rasterized && (int)c.ground.size() == CELLS;
-		const bool has_support = c.support_baked && (int)c.no_support.size() == CELLS;
-		const bool has_low = c.support_baked && (int)c.flight_low.size() == CELLS;
-		const bool has_high = c.support_baked && (int)c.flight_high.size() == CELLS;
-		const bool has_dist = c.dist_baked && (int)c.dist.size() == CELLS;
-		const bool has_walk = c.regions[0].labelled && (int)c.regions[0].label.size() == CELLS;
-		const bool has_fly = c.regions[1].labelled && (int)c.regions[1].label.size() == CELLS;
+		const bool has_solid = c.rasterized && c.solid.present();
+		const bool has_ground = c.rasterized && c.ground.present();
+		const bool has_support = c.support_baked && c.no_support.present();
+		const bool has_low = c.support_baked && c.flight_low.present();
+		const bool has_high = c.support_baked && c.flight_high.present();
+		const bool has_dist = c.dist_baked && c.dist.present();
+		const bool has_walk = c.regions[0].labelled && c.regions[0].label.present();
+		const bool has_fly = c.regions[1].labelled && c.regions[1].label.present();
 		for (int bz = 0; bz < BRICKS_PER_AXIS; bz++) {
 			for (int by = 0; by < BRICKS_PER_AXIS; by++) {
 				for (int bx = 0; bx < BRICKS_PER_AXIS; bx++) {
@@ -1347,6 +1343,7 @@ void NavigationGrid::index_tri_columns(TriShape &tri) {
 // run thinner than a cell keeps one cell. Steep faces also mark every
 // cell they pass through, so a thin open wall still blocks.
 void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &chunk_coord, NavChunk &chunk, std::vector<std::pair<const TriShape *, int>> &walkable) {
+	uint8_t *solid_w = chunk.solid.work_data();
 	auto col = tri.by_column.find(chunk_coord.x * chunk_grid_size.z + chunk_coord.z);
 	if (col == tri.by_column.end()) {
 		return;
@@ -1410,7 +1407,7 @@ void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &ch
 					for (int z = fz0; z <= fz1; z++) {
 						Vector3i cell(x, y, z);
 						if (tri_box_overlap(cell_center(cell), half, a, b, c)) {
-							chunk.solid[local_index(cell - base)] = 1;
+							solid_w[local_index(cell - base)] = 1;
 						}
 					}
 				}
@@ -1430,7 +1427,7 @@ void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &ch
 		y0 = clampi(y0, base.y, base.y + cy1);
 		y1 = clampi(y1, base.y - 1, base.y + cy1 - 1);
 		for (int y = y0; y <= y1; y++) {
-			chunk.solid[local_index(Vector3i(lx, y - base.y, lz))] = 1;
+			solid_w[local_index(Vector3i(lx, y - base.y, lz))] = 1;
 		}
 	};
 	for (size_t i = 0; i < hits.size();) {
@@ -1473,6 +1470,8 @@ void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &ch
 // cell just inside it stays a wall and a unit on the floor beside the face
 // keeps clear of it instead of stepping up onto it from the side.
 void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i &chunk_coord, NavChunk &chunk) {
+	const uint8_t *solid_w = chunk.solid.work_data();
+	uint8_t *ground_w = chunk.ground.work_data();
 	const Vector3 &a = tri.verts[id * 3], &b = tri.verts[id * 3 + 1], &c = tri.verts[id * 3 + 2];
 	const Vector3 &n = tri.normals[id];
 	float tan_tilt;
@@ -1564,12 +1563,12 @@ void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i
 			float h = plane_height(a, n, p.x, p.z);
 			for (int y = lo.y; y <= hi.y; y++) {
 				int li = local_index(Vector3i(x, y, z) - base);
-				if (!chunk.solid[li]) {
+				if (!solid_w[li]) {
 					continue;
 				}
 				float depth = h - cell_center(Vector3i(x, y, z)).y;
 				if (depth >= -CELL_SIZE * 0.5f && depth <= skin) {
-					chunk.ground[li] = 1;
+					ground_w[li] = 1;
 				}
 			}
 		}
@@ -1649,8 +1648,6 @@ NavChunk &NavigationGrid::ensure_chunk_rasterized(const Vector3i &chunk_coord) {
 	if (chunk.rasterized) {
 		return chunk;
 	}
-	chunk.solid.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
-	chunk.ground.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
 	rasterize_chunk(chunk_coord, chunk);
 	chunk.rasterized = true;
 	return chunk;
@@ -1710,8 +1707,13 @@ static bool ramp_of(CollisionShape3D *cs, float max_degrees, float cell_size, in
 void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chunk, const std::vector<uint8_t> *fill) {
 	auto it = shapes_by_chunk.find(chunk_coord_index(chunk_coord));
 	if (it == shapes_by_chunk.end()) {
-		return; // no geometry touches this chunk — stays all-air
+		// No geometry touches this chunk: all air, nothing allocated.
+		chunk.solid.fill(0);
+		chunk.ground.fill(0);
+		return;
 	}
+	uint8_t *solid_w = chunk.solid.begin_write(0);
+	uint8_t *ground_w = chunk.ground.begin_write(0);
 
 	Vector3i base = chunk_coord * CHUNK_DIM;
 	int cx1 = std::min(CHUNK_DIM, grid_size.x - base.x);
@@ -1775,7 +1777,7 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 						inside = aabb.has_point(world_point);
 					}
 					if (inside) {
-						chunk.solid[local_index(Vector3i(x, y, z))] = 1;
+						solid_w[local_index(Vector3i(x, y, z))] = 1;
 					}
 				}
 			}
@@ -1783,8 +1785,8 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 	}
 
 	if (fill) {
-		for (size_t i = 0; i < chunk.solid.size(); i++) {
-			chunk.solid[i] |= (*fill)[i];
+		for (size_t i = 0; i < (size_t)BrickField<uint8_t>::CELLS; i++) {
+			solid_w[i] |= (*fill)[i];
 		}
 	}
 
@@ -1800,7 +1802,7 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 			for (int y = 0; y < cy1; y++) {
 				for (int z = 0; z < cz1; z++) {
 					int li = local_index(Vector3i(x, y, z));
-					if (!chunk.solid[li]) {
+					if (!solid_w[li]) {
 						continue;
 					}
 					Vector3 local = ramp.inverse.xform(cell_center(base + Vector3i(x, y, z)));
@@ -1817,12 +1819,14 @@ void NavigationGrid::rasterize_chunk(const Vector3i &chunk_coord, NavChunk &chun
 					}
 					float depth = (ramp.half_size[ramp.up_axis] - local[ramp.up_axis] * ramp.up_sign) * ramp.axis_scale[ramp.up_axis];
 					if (depth >= -CELL_SIZE * 0.5f && depth <= ramp.skin_depth) {
-						chunk.ground[li] = 1;
+						ground_w[li] = 1;
 					}
 				}
 			}
 		}
 	}
+	chunk.solid.end_write();
+	chunk.ground.end_write();
 }
 
 namespace {
@@ -1880,6 +1884,7 @@ void NavigationGrid::seal_interiors() {
 	std::vector<ChunkRuns> runs(n);
 	int nodes = 1; // node 0 is the outside
 	int shaped_chunks = 0;
+	std::vector<uint8_t> solid_view;
 	for (size_t i = 0; i < n; i++) {
 		ChunkRuns &c = runs[i];
 		Vector3i cc = chunk_coord_from_index((int)i);
@@ -1892,7 +1897,7 @@ void NavigationGrid::seal_interiors() {
 		}
 		c.shaped = true;
 		shaped_chunks++;
-		const std::vector<uint8_t> &solid = ensure_chunk_rasterized(cc).solid;
+		const uint8_t *solid = ensure_chunk_rasterized(cc).solid.dense(solid_view);
 		c.row_start.assign((size_t)D * D + 1, 0);
 		for (int y = 0; y < D; y++) {
 			for (int z = 0; z < D; z++) {
@@ -1900,7 +1905,7 @@ void NavigationGrid::seal_interiors() {
 				if (y >= c.dims.y || z >= c.dims.z) {
 					continue;
 				}
-				const uint8_t *row = solid.data() + local_index(Vector3i(0, y, z));
+				const uint8_t *row = solid + local_index(Vector3i(0, y, z));
 				for (int x = 0; x < c.dims.x;) {
 					if (row[x]) {
 						x++;
@@ -2075,8 +2080,8 @@ void NavigationGrid::seal_interiors() {
 			if (!slot) {
 				slot = std::make_unique<NavChunk>();
 			}
-			slot->solid.assign(cells, 1);
-			slot->ground.assign(cells, 0);
+			slot->solid.fill(1);
+			slot->ground.fill(0);
 			slot->rasterized = true;
 			slot->sealed = true;
 			sealed_cells += (int64_t)c.dims.x * c.dims.y * c.dims.z;
@@ -2103,8 +2108,6 @@ void NavigationGrid::seal_interiors() {
 		}
 		if (!fill.empty()) {
 			NavChunk &chunk = *chunks[i];
-			chunk.solid.assign(cells, 0);
-			chunk.ground.assign(cells, 0);
 			rasterize_chunk(cc, chunk, &fill);
 			chunk.sealed = true;
 			sealed_chunks++;
@@ -2119,7 +2122,7 @@ bool NavigationGrid::is_solid(const Vector3i &cell) {
 		return true;
 	}
 	NavChunk &chunk = ensure_chunk_rasterized(cell_to_chunk_coord(cell));
-	return chunk.solid[local_index(cell_to_local(cell))] != 0;
+	return chunk.solid.get(local_index(cell_to_local(cell))) != 0;
 }
 
 NavChunk &NavigationGrid::ensure_chunk_support(const Vector3i &chunk_coord) {
@@ -2147,7 +2150,8 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	const int below_count = (flight_high + CHUNK_DIM - 1) / CHUNK_DIM;
 	std::vector<const uint8_t *> below_solid((size_t)below_count, nullptr);
 	std::vector<uint8_t> below_resolved((size_t)below_count, 0);
-	const uint8_t *own_solid = chunk.solid.data();
+	support_scratch.resize((size_t)below_count + 1);
+	const uint8_t *own_solid = chunk.solid.dense(support_scratch[0]);
 	auto solid_at = [&](int x, int y, int z) -> bool {
 		if (y >= 0) {
 			return own_solid[local_index(Vector3i(x, y, z))] != 0;
@@ -2157,7 +2161,7 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 			below_resolved[depth - 1] = 1;
 			Vector3i below_chunk = chunk_coord - Vector3i(0, depth, 0);
 			if (chunk_in_bounds(below_chunk)) {
-				below_solid[depth - 1] = ensure_chunk_rasterized(below_chunk).solid.data();
+				below_solid[depth - 1] = ensure_chunk_rasterized(below_chunk).solid.dense(support_scratch[depth]);
 			}
 		}
 		const uint8_t *solid = below_solid[depth - 1];
@@ -2169,9 +2173,9 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	int cy1 = std::min(CHUNK_DIM, grid_size.y - base.y);
 	int cz1 = std::min(CHUNK_DIM, grid_size.z - base.z);
 
-	chunk.no_support.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
-	chunk.flight_low.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
-	chunk.flight_high.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, 0);
+	uint8_t *no_support_w = chunk.no_support.begin_write(0);
+	uint8_t *flight_low_w = chunk.flight_low.begin_write(0);
+	uint8_t *flight_high_w = chunk.flight_high.begin_write(0);
 	chunk.has_ground_passable = false;
 	chunk.has_flyable = false;
 
@@ -2190,15 +2194,15 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 			for (int y = 0; y < cy1; y++) {
 				int li = local_index(Vector3i(x, y, z));
 				bool supported = base.y + y > 0 && since_solid == 1;
-				chunk.no_support[li] = supported ? 0 : 1;
+				no_support_w[li] = supported ? 0 : 1;
 				if (own_solid[li] == 0) {
 					if (supported) {
 						chunk.has_ground_passable = true;
 					}
 					bool low = since_solid <= flight_low;
 					bool high = since_solid > flight_high;
-					chunk.flight_low[li] = low ? 1 : 0;
-					chunk.flight_high[li] = high ? 1 : 0;
+					flight_low_w[li] = low ? 1 : 0;
+					flight_high_w[li] = high ? 1 : 0;
 					if (!low && !high) {
 						chunk.has_flyable = true;
 					}
@@ -2209,6 +2213,9 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 			}
 		}
 	}
+	chunk.no_support.end_write();
+	chunk.flight_low.end_write();
+	chunk.flight_high.end_write();
 }
 
 // Too low to fly: solid in any cell whose top lies under
@@ -2266,15 +2273,15 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	// reads the seed scan below does — that per-cell indirection was a
 	// second, independent cost from the hashmap-vs-flat-array one (see the
 	// comment above), found by the same profiling pass.
-	uint8_t *neighbor_solid[3][3] = {};
-	uint8_t *neighbor_ground[3][3] = {};
+	const uint8_t *neighbor_solid[3][3] = {};
+	const uint8_t *neighbor_ground[3][3] = {};
 	for (int dx = -1; dx <= 1; dx++) {
 		for (int dz = -1; dz <= 1; dz++) {
 			Vector3i nc = chunk_coord + Vector3i(dx, 0, dz);
 			if (chunk_in_bounds(nc)) {
 				NavChunk &nchunk = ensure_chunk_rasterized(nc);
-				neighbor_solid[dx + 1][dz + 1] = nchunk.solid.data();
-				neighbor_ground[dx + 1][dz + 1] = nchunk.ground.data();
+				neighbor_solid[dx + 1][dz + 1] = nchunk.solid.dense(dist_solid_scratch[(dx + 1) * 3 + dz + 1]);
+				neighbor_ground[dx + 1][dz + 1] = nchunk.ground.dense(dist_ground_scratch[(dx + 1) * 3 + dz + 1]);
 			}
 		}
 	}
@@ -2296,7 +2303,7 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	auto solid_fast = [&](int x, int local_y, int z) -> bool {
 		int cdx = (x < 0) ? -1 : (x >= CHUNK_DIM ? 1 : 0);
 		int cdz = (z < 0) ? -1 : (z >= CHUNK_DIM ? 1 : 0);
-		uint8_t *arr = neighbor_solid[cdx + 1][cdz + 1];
+		const uint8_t *arr = neighbor_solid[cdx + 1][cdz + 1];
 		if (!arr) {
 			return true;
 		}
@@ -2310,7 +2317,7 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 	auto ramp_skin = [&](int x, int local_y, int z) -> bool {
 		int cdx = (x < 0) ? -1 : (x >= CHUNK_DIM ? 1 : 0);
 		int cdz = (z < 0) ? -1 : (z >= CHUNK_DIM ? 1 : 0);
-		uint8_t *arr = neighbor_ground[cdx + 1][cdz + 1];
+		const uint8_t *arr = neighbor_ground[cdx + 1][cdz + 1];
 		if (!arr) {
 			return false;
 		}
@@ -2319,7 +2326,7 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 		return arr[local_index(Vector3i(lx, local_y, lz))] == 1;
 	};
 
-	chunk.dist.assign((size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM, (uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE));
+	uint16_t *dist_w = chunk.dist.begin_write((uint16_t)(MAX_CLEARANCE_CELLS * DIST_SCALE));
 
 	// Per Y layer, distance to the nearest wall cell over the 8-connected
 	// grid (steps 1 and sqrt 2), out to MAX_CLEARANCE_CELLS. Computed as a
@@ -2354,7 +2361,7 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 			for (int z = 0; z < cz1; z++) {
 				int li = local_index(Vector3i(x, y, z));
 				if (own_solid[li] != 0) {
-					chunk.dist[li] = 0;
+					dist_w[li] = 0;
 				} else {
 					any_air = true;
 				}
@@ -2428,12 +2435,13 @@ void NavigationGrid::bake_chunk_dist(const Vector3i &chunk_coord, NavChunk &chun
 			for (int z = 0; z < cz1; z++) {
 				int li = local_index(Vector3i(x, y, z));
 				uint16_t clamped = (uint16_t)std::min((float)MAX_DIST, d[idx2(x, z)] * DIST_SCALE);
-				if (clamped < chunk.dist[li]) {
-					chunk.dist[li] = clamped;
+				if (clamped < dist_w[li]) {
+					dist_w[li] = clamped;
 				}
 			}
 		}
 	}
+	chunk.dist.end_write();
 }
 
 // --- Dynamic occupancy -------------------------------------------------------
@@ -2772,7 +2780,7 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 			layer_li = local_index(cell_to_local(layer_cell));
 		}
 		NavChunk &dist_chunk = ensure_chunk_dist(layer_chunk_coord);
-		float clearance_world = (float)dist_chunk.dist[layer_li] / (float)DIST_SCALE * CELL_SIZE;
+		float clearance_world = (float)dist_chunk.dist.get(layer_li) / (float)DIST_SCALE * CELL_SIZE;
 		if (clearance_world <= wall_clearance) {
 			return false;
 		}
@@ -3136,7 +3144,7 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 	}
 	r.labelled = true;
 	const size_t n = (size_t)CHUNK_DIM * CHUNK_DIM * CHUNK_DIM;
-	r.label.assign(n, 0);
+	uint16_t *label_w = r.label.begin_write(0);
 	r.count = 0;
 
 	Vector3i base = chunk_coord * CHUNK_DIM;
@@ -3158,22 +3166,23 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 				if (!is_open_cell(chunk, li, flying)) {
 					continue;
 				}
-				r.label[li] = OPEN;
+				label_w[li] = OPEN;
 				any_open = true;
 			}
 		}
 	}
 	if (!any_open) {
+		r.label.end_write();
 		return r;
 	}
 
 	std::vector<int> stack;
 	for (int seed = 0; seed < (int)n; seed++) {
-		if (r.label[seed] != OPEN) {
+		if (label_w[seed] != OPEN) {
 			continue;
 		}
 		uint16_t id = ++r.count;
-		r.label[seed] = id;
+		label_w[seed] = id;
 		stack.push_back(seed);
 		while (!stack.empty()) {
 			int li = stack.back();
@@ -3197,8 +3206,8 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 							continue;
 						}
 						int ni = local_index(Vector3i(nx, ny, nz));
-						if (r.label[ni] == OPEN) {
-							r.label[ni] = id;
+						if (label_w[ni] == OPEN) {
+							label_w[ni] = id;
 							stack.push_back(ni);
 						}
 					}
@@ -3206,6 +3215,7 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 			}
 		}
 	}
+	r.label.end_write();
 	return r;
 }
 
@@ -3244,7 +3254,7 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 				if (x != 0 && x != last && y != 0 && y != last && z != 0 && z != last) {
 					continue;
 				}
-				uint16_t own = r.label[local_index(Vector3i(x, y, z))];
+				uint16_t own = r.label.get(local_index(Vector3i(x, y, z)));
 				if (own == 0) {
 					continue;
 				}
@@ -3263,7 +3273,7 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 							if (!nb) {
 								continue;
 							}
-							uint16_t other = nb->label[local_index(Vector3i(nx - cdx * CHUNK_DIM, ny - cdy * CHUNK_DIM, nz - cdz * CHUNK_DIM))];
+							uint16_t other = nb->label.get(local_index(Vector3i(nx - cdx * CHUNK_DIM, ny - cdy * CHUNK_DIM, nz - cdz * CHUNK_DIM)));
 							if (other != 0) {
 								out.push_back((around_idx[cdx + 1][cdy + 1][cdz + 1] << 16) | other);
 							}
@@ -3285,7 +3295,7 @@ uint64_t NavigationGrid::region_key(const Vector3i &cell, bool flying) {
 		return 0;
 	}
 	Vector3i cc = cell_to_chunk_coord(cell);
-	uint16_t label = ensure_chunk_regions(cc, flying).label[local_index(cell_to_local(cell))];
+	uint16_t label = ensure_chunk_regions(cc, flying).label.get(local_index(cell_to_local(cell)));
 	if (label == 0) {
 		return 0;
 	}

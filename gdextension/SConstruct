@@ -4,6 +4,10 @@ import os
 env = SConscript("godot-cpp/SConstruct")
 
 env.Append(CPPPATH=["src/"])
+# scons nav_verify=yes: every BrickField pack is read back against the
+# dense buffer it came from (navigation_grid.h). Slow; for checking only.
+if ARGUMENTS.get("nav_verify", "no") == "yes":
+    env.Append(CPPDEFINES=["NAV_BRICK_VERIFY"])
 sources = Glob("src/*.cpp")
 
 if env["platform"] == "windows":
