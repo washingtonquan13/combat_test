@@ -12,7 +12,9 @@
 # A wing is three fingers fanned from the shoulder, and it closes by bringing
 # them together and zigzagging each: back from the shoulder, forward to the
 # knuckle, back to the tip. The membrane goes slack between them. Wing points
-# are written as if the chest were at rest, so the wing rides the ribcage.
+# are written as if the chest were at rest, so the wing rides the ribcage. An
+# open wing has no zigzag: `ups` gives the way each finger segment's top face
+# looks instead.
 #
 # Numbers are Blender space at SM 0 (2 m nose to tail): +Z up, the dragon faces
 # -Y, +X is its left. Nothing here names a clip, and the control names are what
@@ -211,7 +213,8 @@ class Rig:
         centre = "w_C_" + side
         self.P[centre] = self._child_rigid("breast", centre)
         out = mirrored(c["out"]).normalized()
-        for finger, points in zip(WING_FINGERS, c["fingers"]):
+        ups = c.get("ups")
+        for k, (finger, points) in enumerate(zip(WING_FINGERS, c["fingers"])):
             names = [n + "_" + side for n in finger]
             joints = [self._from_parent(centre, self._head(names[0]))]
             joints += [self._from_parent("breast", mirrored(p)) for p in points]
@@ -222,7 +225,8 @@ class Rig:
                 rest_up = Vector((0, 0, 1))
                 rest_up = (rest_up - rest_dir * rest_up.dot(rest_dir)).normalized()
                 new_dir = (joints[i + 1] - joints[i]).normalized()
-                self._set(name, joints[i], _frame(new_dir, out * WING_FACE[i]) @ _frame(rest_dir, rest_up).inverted())
+                up = self._delta("breast") @ mirrored(ups[k][i]) if ups else out * WING_FACE[i]
+                self._set(name, joints[i], _frame(new_dir, up) @ _frame(rest_dir, rest_up).inverted())
 
     def _leg(self, foot, upper, lower, c):
         at = Vector(c["at"])

@@ -39,6 +39,14 @@ VIEWS = [
     ("top", (0, 0.3, 5), (0, 0.3, 0), 2.0),
     ("CRPG camera", (-2.4, -2.4, 3.6), (0, 0.2, 0.15), 1.7),
 ]
+VIEWS_ALOFT = [
+    ("left side", (5, 0.2, 0.75), (0, 0.2, 0.75), 2.9),
+    ("right side", (-5, 0.2, 0.75), (0, 0.2, 0.75), 2.9),
+    ("front", (0, -5, 0.75), (0, 0, 0.75), 3.0),
+    ("back", (0, 5, 0.95), (0, 0, 0.75), 3.0),
+    ("top", (0, 0.2, 6), (0, 0.2, 0), 3.1),
+    ("CRPG camera", (-2.4, -2.4, 4.2), (0, 0.1, 0.7), 3.3),
+]
 
 scene.render.engine = "BLENDER_WORKBENCH"
 scene.display.shading.light = "STUDIO"
@@ -95,9 +103,9 @@ def sheet(panels, cols, path):
     bpy.data.images.remove(img)
 
 
-def views(wanted, stem):
+def views(wanted, stem, name):
     panels = []
-    for label, loc, at, scale in VIEWS:
+    for label, loc, at, scale in (VIEWS_ALOFT if name in poses.ALOFT else VIEWS):
         if wanted and label not in wanted:
             continue
         loc, at = Vector(loc), Vector(at)
@@ -125,11 +133,11 @@ for name in NAMES:
         for f in range(frames):
             rig.solve(clip["at"](f / frames))
             rig.apply()
-            sheet(views(CLIP_VIEWS, os.path.join(out, "_v")), 3, os.path.join(out, "frame_%04d.png" % f))
+            sheet(views(CLIP_VIEWS, os.path.join(out, "_v"), name), 3, os.path.join(out, "frame_%04d.png" % f))
             if f % 12 == 0:
                 print("LAB", name, f, "/", frames, flush=True)
         continue
     rig.solve(poses.POSES[name])
     rig.apply()
-    sheet(views(None, os.path.join(OUT, name)), 3, os.path.join(OUT, "%s_sheet.png" % name))
+    sheet(views(None, os.path.join(OUT, name), name), 3, os.path.join(OUT, "%s_sheet.png" % name))
 print("LAB OK")
