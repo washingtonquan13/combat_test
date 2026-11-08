@@ -6,7 +6,8 @@ extends MarginContainer
 ## needed" precedent rather than two copies of the same onready refs
 ## silently drifting out of sync with each other).
 ##
-## The party's level and XP, HP/FP, ST/DX/IQ/HT/Will/Per, Basic Speed, Move (with Air Move for a
+## The party's level and XP (with LEVEL UP under it while this unit has
+## points to spend, so the button is wherever the bar is), HP/FP, ST/DX/IQ/HT/Will/Per, Basic Speed, Move (with Air Move for a
 ## unit that can fly), Thrust/Swing; the active defenses and DR; every
 ## attack the unit has now, both weapon sets at once since both are
 ## always live; and its conditions. Hovering a number shows how it is
@@ -19,6 +20,8 @@ extends MarginContainer
 @onready var _fp_fill: ColorRect = %FPFill
 @onready var _xp_value: Label = %XPValue
 @onready var _xp_fill: ColorRect = %XPFill
+@onready var _level_up_row: HBoxContainer = %LevelUpRow
+@onready var _level_up_note: Label = %LevelUpNote
 @onready var _st_value: Label = %STValue
 @onready var _dx_value: Label = %DXValue
 @onready var _iq_value: Label = %IQValue
@@ -38,6 +41,13 @@ extends MarginContainer
 
 const DIM := Color(1, 1, 1, 0.5)
 
+## LEVEL UP was pressed. The owner opens the level-up screen.
+signal level_up_requested
+
+
+func _ready() -> void:
+	%LevelUpButton.pressed.connect(level_up_requested.emit)
+
 
 func refresh(unit: Unit) -> void:
 	_name_label.text = unit.get_display_name()
@@ -47,6 +57,7 @@ func refresh(unit: Unit) -> void:
 	_fp_value.text = "%d / %d" % [unit.get_pool(StatIds.FP), unit.get_stat(StatIds.FP)]
 	_fp_fill.anchor_right = _fraction(unit.get_pool(StatIds.FP), floori(unit.get_stat(StatIds.FP)))
 	_refresh_xp()
+	_refresh_level_up(unit)
 
 	_st_value.text = StatDefinition.format(unit.get_stat(StatIds.ST))
 	_dx_value.text = StatDefinition.format(unit.get_stat(StatIds.DX))
@@ -86,6 +97,29 @@ func _refresh_xp() -> void:
 		_xp_value.text = "Level %d  ·  max" % Progression.level
 		_xp_fill.anchor_right = 1.0
 		_set_tip(_xp_value, "Party XP %d\nThe highest level there is." % Progression.xp)
+
+
+## LEVEL UP while this unit has points left, with what is left to spend.
+## The only way in: levelling happens in this menu, never from a prompt
+## over the world.
+func _refresh_level_up(unit: Unit) -> void:
+	_level_up_row.visible = Progression.has_unspent(unit)
+	if not _level_up_row.visible:
+		return
+	var points: Dictionary = Progression.unspent(unit)
+	var parts: PackedStringArray = []
+	for entry in [[Progression.ATTRIBUTES, "attribute"], [Progression.SKILLS, "skill"],
+			[Progression.ABILITIES, "ability"]]:
+		var count: int = points.get(entry[0], 0)
+		if count > 0:
+			parts.append("%d %s" % [count, entry[1]])
+	_level_up_note.text = "%s to spend" % "  ·  ".join(parts)
+
+
+## Why LEVEL UP could not open ("Not during a fight."), in place of what
+## is left to spend until the next refresh.
+func show_level_up_refusal(why: String) -> void:
+	_level_up_note.text = why
 
 
 ## Every hover breakdown. A stat's comes from its own parts; the

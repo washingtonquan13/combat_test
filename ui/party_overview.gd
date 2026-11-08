@@ -90,10 +90,6 @@ extends UIScreen
 @onready var _gold_label: Label = %GoldLabel
 @onready var _debug_add_gold_button: Button = %DebugAddGoldButton
 @onready var _debug_add_xp_button: Button = %DebugAddXpButton
-@onready var _level_up_toast: PanelContainer = %LevelUpToast
-@onready var _level_up_title: Label = %LevelUpTitle
-@onready var _level_up_note: Label = %LevelUpNote
-@onready var _level_up_button: Button = %LevelUpButton
 @onready var _party_list: VBoxContainer = %PartyList
 
 const RAIL_BUTTON_SIZE := Vector2(72, 88)
@@ -205,10 +201,10 @@ func _ready() -> void:
 
 	_debug_add_xp_button.visible = OS.is_debug_build()
 	_debug_add_xp_button.pressed.connect(func(): Progression.award_xp(100, "debug"))
-	_level_up_button.pressed.connect(_on_level_up_pressed)
-	Progression.xp_changed.connect(func(_xp, _level): _on_xp_changed())
-	Progression.points_changed.connect(func(_id): _refresh_level_toast())
-	%CharacterPanel.visibility_changed.connect(_refresh_level_toast)
+	_inventory_stats.level_up_requested.connect(_on_level_up_pressed)
+	_character_stats.level_up_requested.connect(_on_level_up_pressed)
+	Progression.xp_changed.connect(func(_xp, _level): _on_progression_changed())
+	Progression.points_changed.connect(func(_id): _on_progression_changed())
 
 	_debug_grant_section.visible = OS.is_debug_build()
 	if OS.is_debug_build():
@@ -294,7 +290,6 @@ func show_unit(unit: Unit) -> void:
 	_refresh_alignment_grid(unit)
 	_refresh_skill_list(unit)
 	_refresh_ability_list(unit)
-	_refresh_level_toast()
 	_refresh_journal_list()
 	_demon_panel.refresh()
 	_spawn_panel.refresh()
@@ -441,49 +436,27 @@ func _refresh_skill_list(unit: Unit) -> void:
 		_skill_list.add_child(row)
 
 
-## Both stat columns draw the party's XP bar.
-func _on_xp_changed() -> void:
+## Both stat columns draw the party's XP bar and LEVEL UP under it.
+func _on_progression_changed() -> void:
 	if is_instance_valid(_unit):
 		_inventory_stats.refresh(_unit)
 		_character_stats.refresh(_unit)
-	_refresh_level_toast()
-
-
-## A toast on the Character tab while the member shown has points left:
-## what is left to spend, and LEVEL UP. The only way in: levelling up
-## happens in this menu, never from a prompt over the world. It stays
-## until the points are spent and fades in each time it comes into view.
-func _refresh_level_toast() -> void:
-	var points: Dictionary = Progression.unspent(_unit) if is_instance_valid(_unit) else {}
-	var wanted: bool = is_instance_valid(_unit) and Progression.has_unspent(_unit)
-	var was_shown: bool = _level_up_toast.is_visible_in_tree()
-	_level_up_toast.visible = wanted
-	if not wanted:
-		return
-	_level_up_title.text = "LEVEL %d" % Progression.level
-	var parts: PackedStringArray = []
-	for entry in [[Progression.ATTRIBUTES, "attribute point"], [Progression.SKILLS, "skill point"],
-			[Progression.ABILITIES, "ability pick"]]:
-		var count: int = points.get(entry[0], 0)
-		if count > 0:
-			parts.append("%d %s%s" % [count, entry[1], "" if count == 1 else "s"])
-	_level_up_note.text = "%s to spend" % "  ·  ".join(parts)
-	if not was_shown and _level_up_toast.is_visible_in_tree():
-		_level_up_toast.modulate.a = 0.0
-		create_tween().tween_property(_level_up_toast, "modulate:a", 1.0, 0.3)
 
 
 ## The level-up screen opens over the world, not over this one, so this
 ## closes first (UIStack.can_open() is false while it is up). A refusal
-## ("Not during a fight.") brings this back with the reason on the toast.
+## ("Not during a fight.") brings this back, on the same tab, with the
+## reason where the points were.
 func _on_level_up_pressed() -> void:
 	var unit: Unit = _unit
+	var tab: String = "character" if %CharacterPanel.visible else "inventory"
 	close()
 	var why: String = Progression.open_level_up(unit)
 	if not why.is_empty():
 		open_for(unit)
-		_show_tab("character")
-		_level_up_note.text = why
+		_show_tab(tab)
+		_inventory_stats.show_level_up_refusal(why)
+		_character_stats.show_level_up_refusal(why)
 
 
 func _refresh_ability_list(unit: Unit) -> void:

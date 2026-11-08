@@ -70,6 +70,28 @@ anchor_bottom = 1.0
 grow_vertical = 2
 color = Color(0.851, 0.722, 0.31, 1)
 
+[node name="LevelUpRow" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="LevelUpNote" type="Label" parent="ScrollContainer/VBoxContainer/LevelUpRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.851, 0.722, 0.31, 1)
+theme_override_font_sizes/font_size = 14
+text = "3 attribute · 3 skill · 1 ability to spend"
+autowrap_mode = 3
+
+[node name="LevelUpButton" type="Button" parent="ScrollContainer/VBoxContainer/LevelUpRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 2
+size_flags_vertical = 4
+text = "LEVEL UP"
+
 [node name="HPHeader" type="HBoxContainer" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
 script = ExtResource("2_tip")

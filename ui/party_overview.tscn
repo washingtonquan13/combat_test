@@ -668,59 +668,6 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "Add to Unit"
 
-[node name="LevelUpToast" type="PanelContainer" parent="ContentArea/CharacterPanel"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 1
-anchors_preset = 7
-anchor_left = 0.5
-anchor_top = 1.0
-anchor_right = 0.5
-anchor_bottom = 1.0
-offset_left = -230.0
-offset_top = -92.0
-offset_right = 230.0
-offset_bottom = -24.0
-grow_horizontal = 2
-grow_vertical = 0
-
-[node name="Margin" type="MarginContainer" parent="ContentArea/CharacterPanel/LevelUpToast"]
-layout_mode = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
-
-[node name="Row" type="HBoxContainer" parent="ContentArea/CharacterPanel/LevelUpToast/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 16
-
-[node name="Text" type="VBoxContainer" parent="ContentArea/CharacterPanel/LevelUpToast/Margin/Row"]
-layout_mode = 2
-size_flags_horizontal = 3
-alignment = 1
-
-[node name="LevelUpTitle" type="Label" parent="ContentArea/CharacterPanel/LevelUpToast/Margin/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.851, 0.722, 0.31, 1)
-theme_override_font_sizes/font_size = 18
-text = "LEVEL 2"
-
-[node name="LevelUpNote" type="Label" parent="ContentArea/CharacterPanel/LevelUpToast/Margin/Row/Text"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
-theme_override_font_sizes/font_size = 14
-text = "3 attribute · 3 skill points · 1 ability to spend"
-
-[node name="LevelUpButton" type="Button" parent="ContentArea/CharacterPanel/LevelUpToast/Margin/Row"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(130, 36)
-layout_mode = 2
-size_flags_vertical = 4
-text = "LEVEL UP"
-
 [node name="DemonPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true
 visible = false
