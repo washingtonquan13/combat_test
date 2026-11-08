@@ -39,6 +39,8 @@ func run() -> void:
 	var hp_before: float = hero.get_pool(StatIds.HP)
 	var why: String = screen.open_level_up(hero)
 	check("the level-up screen opens", why.is_empty(), why)
+	check("levelling spends plain points, +1 for 1 however high",
+		screen._step_cost(screen.ATTRIBUTE_TABLE, 15, 16) == 1, str(screen._step_cost(screen.ATTRIBUTE_TABLE, 15, 16)))
 	var learnable: Ability = null
 	for ability in AbilityDatabase.get_all():
 		if table.is_learnable(ability) and not screen._knows_ability(hero, ability):

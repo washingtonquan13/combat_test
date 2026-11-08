@@ -48,11 +48,13 @@ extends UIScreen
 ## pending_leader back in to pre-fill on open — this screen's only
 ## contact with PartyManager stays writing to it on Confirm.
 ##
-## LEVEL-UP MODE (open_level_up): the same point-buy, reopened on a party
-## member who has unspent points from Progression. Each row's floor is
-## the member's current value, so nothing already bought can be sold
-## back, and the pool is what that member has unspent rather than the
-## table's point_pool. Origin, Portrait and the name are fixed by then and
+## LEVEL-UP MODE (open_level_up): the same screen, reopened on a party
+## member who has unspent points from Progression — but D&D-style plain
+## points, not point-buy: every +1 costs 1, whatever the value, so the
+## cost tables only set the caps. Each row's floor is the member's
+## current value, so nothing already bought can be sold back, and the
+## pool is what that member has unspent rather than the table's
+## point_pool. Origin, Portrait and the name are fixed by then and
 ## hidden; an Abilities tab appears instead — the ONLY place abilities
 ## are bought (a new character starts with just the basics). Confirm
 ## writes onto the live Unit and hands back what was spent; whatever was
@@ -387,7 +389,7 @@ func _can_afford_step(table: PointBuyTable, values: Dictionary, floors: Dictiona
 	if new_value < _lowest(table, floors, key) or new_value > _highest(table, floors, key):
 		return false
 	if delta > 0:
-		var marginal_cost: int = table.cost_for(new_value) - table.cost_for(values[key])
+		var marginal_cost: int = _step_cost(table, values[key], new_value)
 		if marginal_cost > _remaining(table, values, floors, pool):
 			return false
 	return true
@@ -422,8 +424,25 @@ func _remaining(table: PointBuyTable, values: Dictionary, floors: Dictionary, po
 func _spent(table: PointBuyTable, values: Dictionary, floors: Dictionary) -> int:
 	var spent: int = 0
 	for key in values:
-		spent += table.cost_for(values[key]) - table.cost_for(floors.get(key, values[key]))
+		spent += _step_cost(table, floors.get(key, values[key]), values[key])
 	return spent
+
+
+## What raising a row from one value to another costs. Creating: the
+## table's price difference. Levelling: plain points, 1 per +1.
+func _step_cost(table: PointBuyTable, from: int, to: int) -> int:
+	if _level_up_unit != null:
+		return to - from
+	return table.cost_for(to) - table.cost_for(from)
+
+
+## A row's price column. Creating: what the value costs from the
+## table. Levelling: how much this visit has raised it, if anything.
+func _cost_text(table: PointBuyTable, floors: Dictionary, key: String, value: int) -> String:
+	if _level_up_unit == null:
+		return "cost %d" % table.cost_for(value)
+	var raised: int = value - int(floors.get(key, value))
+	return "+%d" % raised if raised > 0 else ""
 
 
 func _picks_left() -> int:
@@ -442,9 +461,9 @@ func _refresh_attributes() -> void:
 		var value: int = _attribute_values[id]
 		var row: Dictionary = _attribute_rows[id]
 		row["value_label"].text = str(value)
-		row["cost_label"].text = "cost %d" % ATTRIBUTE_TABLE.cost_for(value)
+		row["cost_label"].text = _cost_text(ATTRIBUTE_TABLE, _floor_attributes, id, value)
 		row["minus"].disabled = value <= _lowest(ATTRIBUTE_TABLE, _floor_attributes, id)
-		var next_step_cost: int = ATTRIBUTE_TABLE.cost_for(value + 1) - ATTRIBUTE_TABLE.cost_for(value)
+		var next_step_cost: int = _step_cost(ATTRIBUTE_TABLE, value, value + 1)
 		row["plus"].disabled = value >= _highest(ATTRIBUTE_TABLE, _floor_attributes, id) or next_step_cost > remaining
 
 	_attributes_header.text = "ATTRIBUTES  —  Points remaining: %d" % remaining
@@ -475,9 +494,9 @@ func _refresh_skills() -> void:
 		var value: int = _skill_values[skill_name]
 		var row: Dictionary = _skill_rows[skill_name]
 		row["value_label"].text = "%+d" % value
-		row["cost_label"].text = "cost %d" % SKILL_TABLE.cost_for(value)
+		row["cost_label"].text = _cost_text(SKILL_TABLE, _floor_skills, skill_name, value)
 		row["minus"].disabled = value <= _lowest(SKILL_TABLE, _floor_skills, skill_name)
-		var next_step_cost: int = SKILL_TABLE.cost_for(value + 1) - SKILL_TABLE.cost_for(value)
+		var next_step_cost: int = _step_cost(SKILL_TABLE, value, value + 1)
 		row["plus"].disabled = value >= _highest(SKILL_TABLE, _floor_skills, skill_name) or next_step_cost > remaining
 
 	_skills_header.text = "SKILLS  —  Points remaining: %d" % remaining
