@@ -29,7 +29,14 @@ from mathutils import Vector
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT_DIR = os.path.join(ROOT, "assets", "dragon")
-TEX_DIR = sys.argv[sys.argv.index("--") + 1]
+ARGS = sys.argv[sys.argv.index("--") + 1:]
+TEX_DIR = ARGS[0]
+# --preview=<dir>: render the authored clips there instead of exporting.
+PREVIEW = next((a.split("=", 1)[1] for a in ARGS if a.startswith("--preview=")), None)
+# --clips=Bite,Claw: preview only these.
+ONLY = next((a.split("=", 1)[1].split(",") for a in ARGS if a.startswith("--clips=")), None)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import dragon_clips  # noqa: E402
 
 LENGTH = 2.0  # metres nose to tail: SizeModifier.length_for(0)
 ACTIONS = {"Idel_New": "Idle-loop", "Walk_New": "Walk-loop",
@@ -215,7 +222,15 @@ for track in list(arm.animation_data.nla_tracks):
     if not track.strips or track.strips[0].action is None:
         arm.animation_data.nla_tracks.remove(track)
 
-KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"}
+# The action clips, authored over Idle (dragon_clips.py).
+authored, moments = dragon_clips.build(arm, body, bpy.data.actions["Idle-loop"])
+for act in authored:
+    track = arm.animation_data.nla_tracks.new()
+    track.name = act.name
+    strip = track.strips.new(act.name, 0, act)
+    strip.action_slot = act.slots[0]
+
+KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"} | {a.name for a in authored}
 for act in [a for a in bpy.data.actions if a.name not in KEEP]:
     bpy.data.actions.remove(act)
 
@@ -225,6 +240,10 @@ for o in [o for o in bpy.data.objects if o not in (arm, body)]:
 
 # --- Write ------------------------------------------------------------------
 
+if PREVIEW:
+    dragon_clips.preview(arm, authored, PREVIEW, only=ONLY)
+    sys.exit(0)
+
 bpy.context.view_layer.update()
 co = [body.matrix_world @ v.co for v in mesh.vertices]
 lo = Vector((min(c.x for c in co), min(c.y for c in co), min(c.z for c in co)))
@@ -232,6 +251,9 @@ hi = Vector((max(c.x for c in co), max(c.y for c in co), max(c.z for c in co)))
 print("DRAGON rest bbox", tuple(round(v, 3) for v in lo), tuple(round(v, 3) for v in hi))
 
 os.makedirs(OUT_DIR, exist_ok=True)
+# Keyed into the clips as release()/impact() method tracks on import
+# (dragon_post_import.gd).
+dragon_clips.write_moments(os.path.join(OUT_DIR, "dragon_moments.json"), moments)
 bpy.ops.export_scene.gltf(
     filepath=os.path.join(OUT_DIR, "dragon.glb"),
     export_format="GLB",
