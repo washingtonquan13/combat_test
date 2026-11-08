@@ -1,6 +1,6 @@
 extends AiTestCase
 ## A unit is hit as its whole body (UnitBody), not as a disc round its
-## feet: an SM 6 dragon's tail, 11 m behind it, is struck by a blast or a
+## feet: an SM 4 dragon's tail, 7 m behind it, is struck by a blast or a
 ## blade that never comes near its column. And a humanoid, which authors
 ## no hit shapes, is exactly its column - nothing about it changed.
 

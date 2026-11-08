@@ -1,5 +1,5 @@
 extends AiTestCase
-## A body wider than the distance field's 4 m reach (an SM 6 dragon) still
+## A body wider than the distance field's 4 m reach (a dragon past SM 4) still
 ## finds open ground: past the reach it needs only "clear all the way
 ## out", where it once needed more than the field can ever say and could
 ## not move at all.

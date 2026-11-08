@@ -43,7 +43,6 @@ eye_anchor = NodePath("Body/Armature/Skeleton3D/Head")
 chest_anchor = NodePath("Body/Armature/Skeleton3D/Chest")
 
 [node name="Body" parent="." instance=ExtResource("2_glb")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.41)
 
 [node name="Head" type="BoneAttachment3D" parent="Body/Armature/Skeleton3D"]
 bone_name = "head"
@@ -60,9 +59,9 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
 shape = SubResource("CapsuleShape3D_move")
 
 [node name="HitTorso" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.22, 0.43)
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.22, 0.02)
 shape = SubResource("CapsuleShape3D_torso")
 
 [node name="HitTail" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -0.1535, 0.9881, 0, -0.9881, -0.1535, 0, 0.16, -0.455)
+transform = Transform3D(1, 0, 0, 0, -0.1535, 0.9881, 0, -0.9881, -0.1535, 0, 0.16, -0.865)
 shape = SubResource("CapsuleShape3D_tail")
