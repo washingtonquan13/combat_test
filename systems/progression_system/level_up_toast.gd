@@ -5,7 +5,9 @@ extends CanvasLayer
 ## own; the party overview's LEVEL UP button reaches every member later.
 ##
 ## Above the HUD and cinematics (layer 1-2), under ScreenFade (10), so a
-## level gained mid-travel stays behind the black.
+## level gained mid-travel stays behind the black. It belongs to the
+## world: once a screen is up (the party overview has its own toast) it
+## goes, rather than drawing over that screen.
 
 const SHOW_SECONDS: float = 8.0
 const FADE_SECONDS: float = 0.4
@@ -23,6 +25,7 @@ func _ready() -> void:
 	_panel.visible = false
 	_button.pressed.connect(_on_level_up_pressed)
 	_hide_timer.timeout.connect(_fade_out)
+	set_process(false)
 
 
 func show_level(level: int) -> void:
@@ -30,6 +33,7 @@ func show_level(level: int) -> void:
 	_note.text = "Every party member has points to spend."
 	_kill_tween()
 	_panel.visible = true
+	set_process(true)
 	_panel.modulate.a = 0.0
 	_tween = create_tween()
 	_tween.tween_property(_panel, "modulate:a", 1.0, FADE_SECONDS)
@@ -40,6 +44,12 @@ func hide_now() -> void:
 	_kill_tween()
 	_hide_timer.stop()
 	_panel.visible = false
+	set_process(false)
+
+
+func _process(_delta: float) -> void:
+	if not UIStack.can_open():
+		hide_now()
 
 
 func _fade_out() -> void:

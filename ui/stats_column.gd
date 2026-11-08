@@ -6,7 +6,7 @@ extends MarginContainer
 ## needed" precedent rather than two copies of the same onready refs
 ## silently drifting out of sync with each other).
 ##
-## HP/FP, ST/DX/IQ/HT/Will/Per, Basic Speed, Move (with Air Move for a
+## The party's level and XP, HP/FP, ST/DX/IQ/HT/Will/Per, Basic Speed, Move (with Air Move for a
 ## unit that can fly), Thrust/Swing; the active defenses and DR; every
 ## attack the unit has now, both weapon sets at once since both are
 ## always live; and its conditions. Hovering a number shows how it is
@@ -17,6 +17,8 @@ extends MarginContainer
 @onready var _hp_fill: ColorRect = %HPFill
 @onready var _fp_value: Label = %FPValue
 @onready var _fp_fill: ColorRect = %FPFill
+@onready var _xp_value: Label = %XPValue
+@onready var _xp_fill: ColorRect = %XPFill
 @onready var _st_value: Label = %STValue
 @onready var _dx_value: Label = %DXValue
 @onready var _iq_value: Label = %IQValue
@@ -44,6 +46,7 @@ func refresh(unit: Unit) -> void:
 	_hp_fill.anchor_right = _fraction(unit.get_pool(StatIds.HP), floori(unit.get_stat(StatIds.HP)))
 	_fp_value.text = "%d / %d" % [unit.get_pool(StatIds.FP), unit.get_stat(StatIds.FP)]
 	_fp_fill.anchor_right = _fraction(unit.get_pool(StatIds.FP), floori(unit.get_stat(StatIds.FP)))
+	_refresh_xp()
 
 	_st_value.text = StatDefinition.format(unit.get_stat(StatIds.ST))
 	_dx_value.text = StatDefinition.format(unit.get_stat(StatIds.DX))
@@ -68,6 +71,21 @@ func refresh(unit: Unit) -> void:
 	_refresh_tips(unit)
 	_refresh_attacks(unit)
 	_refresh_conditions(unit)
+
+
+## The party's XP, not this unit's: WotR-style, everyone shares one total
+## and one level (see Progression). Full at the level cap.
+func _refresh_xp() -> void:
+	var into: Vector2i = Progression.progress()
+	if into.y > 0:
+		_xp_value.text = "Level %d  ·  %d / %d" % [Progression.level, into.x, into.y]
+		_xp_fill.anchor_right = _fraction(into.x, into.y)
+		_set_tip(_xp_value, "Party XP %d\nShared by the whole party. %d more for level %d." % [
+			Progression.xp, into.y - into.x, Progression.level + 1])
+	else:
+		_xp_value.text = "Level %d  ·  max" % Progression.level
+		_xp_fill.anchor_right = 1.0
+		_set_tip(_xp_value, "Party XP %d\nThe highest level there is." % Progression.xp)
 
 
 ## Every hover breakdown. A stat's comes from its own parts; the
