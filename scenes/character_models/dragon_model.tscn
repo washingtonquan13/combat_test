@@ -1,0 +1,46 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
+[ext_resource type="PackedScene" path="res://assets/dragon/dragon.glb" id="2_glb"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.75
+bottom_radius = 0.75
+height = 0.02
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_torso"]
+radius = 0.22
+height = 1.0
+
+[node name="DragonModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "collision_shape", "head_anchor", "eye_anchor", "chest_anchor")]
+script = ExtResource("1_cm")
+animation_player = NodePath("Body/AnimationPlayer")
+idle_animation = "Idle"
+walk_animation = "Walk"
+fly_idle_animation = "Fly"
+fly_move_animation = "Fly"
+takeoff_animation = "Takeoff"
+land_animation = "Land"
+highlight_mesh = NodePath("HighlightMesh")
+radius = 0.4
+height = 0.6
+collision_shape = NodePath("CollisionTemplate")
+head_anchor = NodePath("Body/Armature/Skeleton3D/Head")
+eye_anchor = NodePath("Body/Armature/Skeleton3D/Head")
+chest_anchor = NodePath("Body/Armature/Skeleton3D/Chest")
+
+[node name="Body" parent="." instance=ExtResource("2_glb")]
+
+[node name="Head" type="BoneAttachment3D" parent="Body/Armature/Skeleton3D"]
+bone_name = "head"
+
+[node name="Chest" type="BoneAttachment3D" parent="Body/Armature/Skeleton3D"]
+bone_name = "breast"
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="CollisionTemplate" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.3, 0.02)
+shape = SubResource("CapsuleShape3D_torso")

@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=12 format=3]
+
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
+[ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="5_attack"]
+[ext_resource type="Script" uid="uid://t5sqv8il4ill" path="res://systems/dialogue_system/dialogue_root_option.gd" id="6_root_option"]
+[ext_resource type="Resource" path="res://data/negotiation/conversations/scary/scary_greeting.tres" id="7_greeting"]
+[ext_resource type="Resource" uid="uid://di2purkqksvn2" path="res://data/abilities/fly.tres" id="90_fly"]
+[ext_resource type="Resource" path="res://data/abilities/fire_breath.tres" id="92_breath"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/dragon_model.tscn" id="98_model"]
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="90_row"]
+[ext_resource type="Resource" path="res://data/attacks/fangs.tres" id="91_fangs"]
+[ext_resource type="Resource" path="res://data/attacks/claws.tres" id="91_claws"]
+[sub_resource type="Resource" id="Resource_negotiation_root"]
+script = ExtResource("6_root_option")
+root = ExtResource("7_greeting")
+
+[resource]
+script = ExtResource("1_def")
+id = "test_dragon"
+display_name = "Test Dragon"
+stats = Dictionary[StringName, int]({&"ST": 18, &"IQ": 12, &"HT": 18, &"HP": 4, &"Will": 2, &"Move": -2, &"DR": 3, &"SM": 0})
+faction = &"player"
+order = &"Dragon"
+personality = &"Scary"
+rank = 1
+is_special = false
+portrait_texture = ExtResource("3_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("98_model")
+abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("90_fly"), ExtResource("92_breath")])
+natural_attacks = Array[ExtResource("90_row")]([ExtResource("91_fangs"), ExtResource("91_claws")])
+negotiable = false
+negotiation_options = Array[ExtResource("6_root_option")]([SubResource("Resource_negotiation_root")])
