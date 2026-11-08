@@ -13,10 +13,9 @@ extends AbilityEffect
 ## standing at (a platform, not just y=0).
 
 @export var flying_status: StatusEffect
-## Metres lifted by an SM 0 body; a bigger or smaller one lifts this times
-## its SM's scale (SizeModifier.scale_for), so a takeoff clears the same
-## share of the body at every size. See lift_target_y.
-@export var takeoff_height: float = 2.0
+## Metres lifted at every size: a fixed hop, so a big flier stays in
+## melee reach of the ground. See lift_target_y.
+@export var takeoff_height: float = 3.0
 ## Vertical ascent speed (m/s) — see Unit.vertical_speed for why landing
 ## uses the same idea (kept as a separate value here since takeoff has
 ## a single call site and landing has several).
@@ -85,12 +84,11 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	return {}
 
 
-## The height unit's takeoff climbs to: takeoff_height at its SM's scale
-## above where it stands, clamped to the flight envelope. AiScorer prices
-## takeoffs with this same call.
+## The height unit's takeoff climbs to: takeoff_height above where it
+## stands, clamped to the flight envelope. AiScorer prices takeoffs with
+## this same call.
 func lift_target_y(unit: Unit) -> float:
-	var size: float = SizeModifier.scale_for(floori(unit.get_stat(StatIds.SM)))
-	var lift: Vector3 = unit.global_position + Vector3.UP * (takeoff_height * size)
+	var lift: Vector3 = unit.global_position + Vector3.UP * takeoff_height
 	return UnitMovement.clamp_flight_altitude(lift.y, lift, unit)
 
 
