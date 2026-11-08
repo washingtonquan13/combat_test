@@ -245,7 +245,7 @@ for act in authored:
 
 # Authored from scratch (poses.py). Run last: the clips above still build on
 # the model's own Idle until they are re-authored.
-bake_poses.replace(arm, body, {"Idle-loop": "idle"})
+bake_poses.replace(arm, body, {"Idle-loop": "idle", "Fly-loop": "hover"})
 
 KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"} | {a.name for a in authored}
 for act in [a for a in bpy.data.actions if a.name not in KEEP]:
@@ -258,7 +258,7 @@ for o in [o for o in bpy.data.objects if o not in (arm, body)]:
 # --- Write ------------------------------------------------------------------
 
 if PREVIEW:
-    dragon_clips.preview(arm, authored + [hover_act], PREVIEW, only=ONLY)
+    dragon_clips.preview(arm, authored + [bpy.data.actions["Fly-loop"]], PREVIEW, only=ONLY)
     sys.exit(0)
 
 bpy.context.view_layer.update()

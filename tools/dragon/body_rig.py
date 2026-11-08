@@ -197,7 +197,7 @@ class Rig:
         self._aim_chain(TAIL, joints)
 
         for side in "LR":
-            self._wing(side, pose.get("wing_" + side, pose["wing"]))
+            self._wing(side, pose.get("wing_" + side) or pose["wing"])
         for foot, (upper, lower) in LEGS.items():
             self._leg(foot, upper, lower, pose["feet"][foot])
         self._fill_rest()

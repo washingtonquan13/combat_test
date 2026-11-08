@@ -142,6 +142,15 @@ def _flight_feet(hand_y, hand_z, foot_y, foot_z):
 # the tail low and then curling out behind as the counterweight. Height matches
 # where the model flew, so the game places it the same.
 
+# The wing at each key, as angles: a stroke is swung through these, so the tips
+# travel arcs instead of cutting straight across.
+HOVER_WING = [
+    {"lift": 50, "sweep": -10, "twist": -15, "elbow": 0, "wrist": -25, "back": 0, "fan": 0.9},
+    {"lift": 5, "sweep": 5, "twist": 18, "elbow": 6, "wrist": 12, "back": 0, "fan": 1.0},
+    {"lift": -38, "sweep": 4, "twist": 14, "elbow": -6, "wrist": -12, "back": 0, "fan": 0.95},
+    {"lift": 30, "sweep": -6, "twist": -20, "elbow": 15, "wrist": -95, "back": 35, "fan": 0.55},
+]
+
 # Wings high and open, about to drive. The body has sunk to its lowest.
 HOVER_TOP = {
     "hip": (0.0, 0.20, 0.535),
@@ -153,7 +162,7 @@ HOVER_TOP = {
     "look": (0.0, -1.0, -0.12),
     "feet": _flight_feet(-0.205, 0.55, 0.26, 0.255),
     "tail": [(0.015, 0.36, 0.41), (0.04, 0.62, 0.29), (0.08, 0.96, 0.28), (0.14, 1.22, 0.36)],
-    "wing": open_wing(lift=50, sweep=-10, twist=-15, wrist=-25, fan=0.9),
+    "wing": open_wing(**HOVER_WING[0]),
 }
 
 # Wings level at full spread, leading edge dipped, the tips bent up by the air.
@@ -167,7 +176,7 @@ HOVER_DRIVE = {
     "look": (0.0, -1.0, -0.12),
     "feet": _flight_feet(-0.205, 0.58, 0.25, 0.27),
     "tail": [(0.015, 0.36, 0.435), (0.04, 0.625, 0.305), (0.08, 0.96, 0.30), (0.14, 1.22, 0.40)],
-    "wing": open_wing(lift=5, sweep=5, twist=18, elbow=6, wrist=12),
+    "wing": open_wing(**HOVER_WING[1]),
 }
 
 # Wings low and forward, the body carried to the top of its bounce.
@@ -181,7 +190,7 @@ HOVER_BOTTOM = {
     "look": (0.0, -1.0, -0.12),
     "feet": _flight_feet(-0.20, 0.615, 0.24, 0.285),
     "tail": [(0.015, 0.36, 0.47), (0.04, 0.625, 0.32), (0.08, 0.955, 0.28), (0.14, 1.21, 0.34)],
-    "wing": open_wing(lift=-38, sweep=4, twist=14, elbow=-6, wrist=-12, fan=0.95),
+    "wing": open_wing(**HOVER_WING[2]),
 }
 
 # Coming back up: the arm lifts first, the hand hanging and folded behind it so
@@ -196,7 +205,7 @@ HOVER_RECOVER = {
     "look": (0.0, -1.0, -0.12),
     "feet": _flight_feet(-0.205, 0.60, 0.25, 0.28),
     "tail": [(0.015, 0.36, 0.45), (0.04, 0.625, 0.32), (0.08, 0.96, 0.33), (0.14, 1.22, 0.45)],
-    "wing": open_wing(lift=30, sweep=-6, twist=-20, elbow=15, wrist=-95, back=35, fan=0.55),
+    "wing": open_wing(**HOVER_WING[3]),
 }
 
 HOVER_KEYS = [HOVER_TOP, HOVER_DRIVE, HOVER_BOTTOM, HOVER_RECOVER]
@@ -214,7 +223,7 @@ POSES = {
 }
 
 # Framed for open wings and height off the ground.
-ALOFT = {"hover_top", "hover_drive", "hover_bottom", "hover_recover", "hover_blocked"}
+ALOFT = {"hover_top", "hover_drive", "hover_bottom", "hover_recover", "hover_blocked", "hover"}
 
 
 def _layer(value, stance, key, curve, t, lag):
@@ -286,9 +295,94 @@ def idle_at(t):
     return out
 
 
+def _cycle(values, times, t):
+    """A looping curve through values at times. Turns around on the keys, never past them."""
+    t %= 1.0
+    n = len(values)
+    i = n - 1
+    while times[i] > t:
+        i -= 1
+    span = lambda a: ((times[(a + 1) % n] - times[a % n]) % 1.0) or 1.0
+    slope = lambda a: (values[(a + 1) % n] - values[a % n]) / span(a)
+
+    def tangent(a):
+        before, after = slope(a - 1), slope(a)
+        return 0.0 if before * after <= 0.0 else 2.0 * before * after / (before + after)
+
+    h = span(i)
+    u = ((t - times[i]) % 1.0) / h
+    a, b = values[i], values[(i + 1) % n]
+    return ((2 * u ** 3 - 3 * u ** 2 + 1) * a + (u ** 3 - 2 * u ** 2 + u) * h * tangent(i)
+            + (3 * u ** 2 - 2 * u ** 3) * b + (u ** 3 - u ** 2) * h * tangent(i + 1))
+
+
+def _between(keys, times, t, lag):
+    """The keys swung through at t, with lag shaped like them: one number or a matching tree."""
+    first = keys[0]
+    if isinstance(first, dict):
+        return {k: _between([p[k] for p in keys], times, t, lag[k] if isinstance(lag, dict) else lag) for k in first}
+    if isinstance(first, list):
+        lags = lag if isinstance(lag, list) else [lag] * len(first)
+        return [_between([p[i] for p in keys], times, t, lags[i]) for i in range(len(first))]
+    if isinstance(first, tuple):
+        return tuple(_cycle([p[i] for p in keys], times, t - lag) for i in range(len(first)))
+    return _cycle(keys, times, t - lag)
+
+
+# Top, drive, bottom, recover. The push down is the hit, about a third of the beat;
+# the lift back is unhurried and never faster than the push.
+HOVER_TIMES = [0.0, 0.17, 0.36, 0.74]
+
+# The arm leads, the hand arrives late. The leading edge turns first.
+HOVER_WING_LAG = {"lift": 0.0, "sweep": 0.0, "twist": -0.012, "elbow": 0.015, "wrist": 0.035, "back": 0.03, "fan": 0.02}
+HOVER_WING_R_LAG = 0.008
+
+# The wings push and the body answers after them: ribcage, then the hips hung
+# under it, then the legs and tail. Split at the ribcage so a breath can take
+# the upper half and leave the wings and legs flying.
+HOVER_UPPER_LAG = {
+    "chest": 0.04, "chest_rot": 0.05,
+    "neck": [0.05, 0.055, 0.06], "head": 0.065, "look": 0.07,
+}
+HOVER_LOWER_LAG = {
+    "hip": 0.07, "back": 0.055,
+    "tail": [0.09, 0.13, 0.17, 0.22],
+    "feet": {"Hand_L": 0.09, "Hand_R": 0.105, "back_food_L": 0.12, "back_food_R": 0.145},
+}
+
+# Sideways and up-down reach of the whip along the tail, and how far behind each point runs.
+HOVER_WHIP = [(0.0, 0.0, 0.0), (0.014, 0.02, 0.06), (0.035, 0.055, 0.12), (0.06, 0.1, 0.19)]
+
+
+def _whip(tail, t):
+    out = []
+    for point, (sideways, up, lag) in zip(tail, HOVER_WHIP):
+        wave = math.sin(2.0 * math.pi * (t - lag))
+        out.append((point[0] + sideways * wave, point[1], point[2] + up * wave))
+    return out
+
+
+def _hover_part(lags, t):
+    return {name: _between([key[name] for key in HOVER_KEYS], HOVER_TIMES, t, lag) for name, lag in lags.items()}
+
+
+def _hover_wing(t):
+    return open_wing(**_between(HOVER_WING, HOVER_TIMES, t, HOVER_WING_LAG))
+
+
+def hover_at(t):
+    out = _hover_part(HOVER_UPPER_LAG, t)
+    out.update(_hover_part(HOVER_LOWER_LAG, t))
+    out["tail"] = _whip(out["tail"], t)
+    out["wing_L"] = _hover_wing(t)
+    out["wing_R"] = _hover_wing(t - HOVER_WING_R_LAG)
+    return out
+
+
 # length in seconds; `at` takes 0..1 of the loop and returns a pose.
 CLIPS = {
     "idle": {"length": 8.0, "at": idle_at},
+    "hover": {"length": 40.0 / 24.0, "at": hover_at},
     "idle_blocked": {"length": 2.0 / 24.0, "at": lambda t: INHALE if t >= 0.5 else STANCE},
     "hover_blocked": {"length": 4.0 / 24.0, "at": lambda t: HOVER_KEYS[min(int(t * 4.0 + 1e-6), 3)]},
 }
