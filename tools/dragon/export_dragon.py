@@ -245,7 +245,7 @@ for act in authored:
 
 # Authored from scratch (poses.py). Run last: the clips above still build on
 # the model's own Idle until they are re-authored.
-FROM_POSES = {"Idle-loop": "idle", "Fly-loop": "hover", "Fly_Forward-loop": "cruise", "Takeoff": "takeoff"}
+FROM_POSES = {"Idle-loop": "idle", "Fly-loop": "hover", "Fly_Forward-loop": "cruise", "Takeoff": "takeoff", "Land": "land"}
 bake_poses.replace(arm, body, FROM_POSES)
 
 KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"} | set(FROM_POSES) | {a.name for a in authored}

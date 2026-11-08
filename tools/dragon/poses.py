@@ -270,7 +270,7 @@ POSES = {
 
 # Framed for open wings and height off the ground.
 ALOFT = {"hover_top", "hover_drive", "hover_bottom", "hover_recover", "hover_blocked", "hover",
-         "cruise_top", "cruise_drive", "cruise_bottom", "cruise_recover", "cruise_blocked", "cruise"}
+         "cruise_top", "cruise_drive", "cruise_bottom", "cruise_recover", "cruise_blocked", "cruise", "land_blocked", "land"}
 
 
 def _layer(value, stance, key, curve, t, lag):
@@ -631,6 +631,92 @@ def takeoff_at(t):
 # Rendered with the game's climb added, so the feet read against the ground.
 LIFTED = {"takeoff_blocked", "takeoff"}
 
+# Landing. The game has already set the unit on the ground when this starts
+# (unit_movement.gd emits touched_down at the end of the descent), and the hover
+# holds the body up on the bones, so the clip carries it the last stretch down.
+LAND_WING = [
+    {"lift": 20, "sweep": 28, "twist": -30, "elbow": 8, "wrist": 12, "back": 0, "fan": 1.0},
+    {"lift": 48, "sweep": 8, "twist": -18, "elbow": 6, "wrist": -22, "back": 10, "fan": 0.85},
+    {"lift": 58, "sweep": -14, "twist": -12, "elbow": 8, "wrist": -42, "back": 24, "fan": 0.6},
+]
+
+# Reared up with the wings thrown forward and cupped, hind legs swung under and
+# reaching for the ground, tail hanging as a counterweight.
+LAND_BRAKE = {
+    "hip": (0.0, 0.215, 0.47),
+    "back": [(0.0, 0.07, 0.575)],
+    "chest": (0.0, -0.055, 0.67),
+    "chest_rot": (-42, 0, 0),
+    "neck": [(0.0, -0.135, 0.79), (0.0, -0.155, 0.86), (0.0, -0.20, 0.92)],
+    "head": (0.0, -0.235, 0.945),
+    "look": (0.0, -1.0, -0.35),
+    "feet": {
+        "Hand_L": {"at": (0.09, -0.19, 0.50), "rot": (50, 6, 0)},
+        "Hand_R": {"at": (-0.09, -0.175, 0.515), "rot": (45, -5, 0)},
+        "back_food_L": {"at": (0.10, 0.20, 0.20), "rot": (20, 5, 0)},
+        "back_food_R": {"at": (-0.10, 0.17, 0.225), "rot": (15, -5, 0)},
+    },
+    "tail": [(0.015, 0.38, 0.35), (0.05, 0.62, 0.17), (0.12, 0.92, 0.05), (0.24, 1.20, 0.03)],
+    "wing": open_wing(**LAND_WING[0]),
+}
+
+# Hind feet down and taking the weight, forelegs still reaching.
+LAND_TOUCH = {
+    "hip": (0.0, 0.225, 0.335),
+    "back": [(0.0, 0.075, 0.42)],
+    "chest": (0.0, -0.07, 0.49),
+    "chest_rot": (-22, 0, 0),
+    "neck": [(0.0, -0.175, 0.60), (0.0, -0.225, 0.655), (0.0, -0.275, 0.695)],
+    "head": (0.0, -0.31, 0.715),
+    "look": (0.0, -1.0, -0.25),
+    "feet": {
+        "Hand_L": {"at": (0.095, -0.215, 0.27), "rot": (35, 6, 0)},
+        "Hand_R": {"at": (-0.095, -0.165, 0.295), "rot": (30, -5, 0)},
+        "back_food_L": STANCE["feet"]["back_food_L"],
+        "back_food_R": STANCE["feet"]["back_food_R"],
+    },
+    "tail": [(0.015, 0.40, 0.25), (0.05, 0.67, 0.10), (0.14, 0.97, 0.03), (0.30, 1.22, 0.03)],
+    "wing": open_wing(**LAND_WING[1]),
+}
+
+# All four down and sunk over them, wings up and starting to close.
+LAND_SINK = dict(TAKEOFF_CROUCH, wing=wing_unfold(STANCE["wing"], open_wing(**LAND_WING[2]), 0.6))
+
+LAND_KEYS = [hover_at(0.0), LAND_BRAKE, LAND_TOUCH, LAND_SINK, STANCE]
+
+
+def land_blocked_at(t):
+    return LAND_KEYS[min(int(t * len(LAND_KEYS) + 1e-6), len(LAND_KEYS) - 1)]
+
+
+_LAND_LENGTH = 30
+LAND_FRAMES = [0, 6, 11, 17, _LAND_LENGTH]
+_LAND_OPEN = [1.0, 1.0, 1.0, 0.6, 0.0]  # how open the wing is at each key
+
+
+def _land_wing(f, fade, side):
+    """The wing's angles through the landing, folding away once the feet are down."""
+    hover_lag = HOVER_WING_R_LAG if side == "R" else 0.0
+    keys = [_between(HOVER_WING, HOVER_TIMES, -hover_lag, HOVER_WING_LAG)] + LAND_WING + [LAND_WING[2]]
+    u = f - (TAKEOFF_WING_R_LAG * fade if side == "R" else 0.0)
+    spread = open_wing(**_between(keys, LAND_FRAMES, u, _scaled(TAKEOFF_WING_LAG, fade), _once))
+    k = _once(_LAND_OPEN, LAND_FRAMES, u)
+    return spread if k >= 1.0 else wing_unfold(STANCE["wing"], spread, k)
+
+
+def land_at(t):
+    f = t * _LAND_LENGTH
+    # The lags close up at the end, so the clip finishes exactly on the stance.
+    fade = min(1.0, (_LAND_LENGTH - f) / 6.0)
+    out = {}
+    for name, lag in TAKEOFF_LAG.items():
+        keys = [key[name] for key in LAND_KEYS]
+        out[name] = _between(keys, LAND_FRAMES, f, _scaled(lag, fade), _once)
+    out["wing_L"] = _land_wing(f, fade, "L")
+    out["wing_R"] = _land_wing(f, fade, "R")
+    return out
+
+
 # length in seconds; `at` takes 0..1 of the loop and returns a pose.
 CLIPS = {
     "idle": {"length": 8.0, "at": idle_at},
@@ -641,4 +727,6 @@ CLIPS = {
     "hover_blocked": {"length": 4.0 / 24.0, "at": lambda t: HOVER_KEYS[min(int(t * 4.0 + 1e-6), 3)]},
     "takeoff_blocked": {"length": 6.0 / 24.0, "at": takeoff_blocked_at},
     "takeoff": {"length": _TAKEOFF_LENGTH / 24.0, "at": takeoff_at},
+    "land_blocked": {"length": 5.0 / 24.0, "at": land_blocked_at},
+    "land": {"length": _LAND_LENGTH / 24.0, "at": land_at},
 }
