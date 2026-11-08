@@ -23,7 +23,6 @@ signal leveled_up(level: int)
 signal points_changed(member_id: StringName)
 
 const TABLE: ProgressionTable = preload("res://data/progression/progression.tres")
-const TOAST: PackedScene = preload("res://systems/progression_system/level_up_toast.tscn")
 
 const ATTRIBUTES := &"attributes"
 const SKILLS := &"skills"
@@ -34,7 +33,6 @@ var level: int = 1
 
 ## StringName (persistent_id) -> {"attributes": int, "skills": int, "abilities": int}
 var _unspent: Dictionary = {}
-var _toast: Node = null
 
 
 ## SaveManager is created after this autoload, so registering waits a
@@ -69,7 +67,6 @@ func award_xp(amount: int, reason: String = "") -> void:
 		_grant_level_to_party()
 		SystemLog.print("[b]Level %d reached.[/b]" % level)
 		leveled_up.emit(level)
-		_show_toast()
 	xp_changed.emit(xp, level)
 
 
@@ -170,13 +167,6 @@ func open_level_up(unit: Unit) -> String:
 	return screen.open_level_up(unit)
 
 
-func _show_toast() -> void:
-	if not is_instance_valid(_toast):
-		_toast = TOAST.instantiate()
-		add_child(_toast)
-	_toast.show_level(level)
-
-
 # --- Save ---------------------------------------------------------------
 
 func save_state() -> Dictionary:
@@ -214,5 +204,3 @@ func _reset() -> void:
 	xp = 0
 	level = 1
 	_unspent.clear()
-	if is_instance_valid(_toast):
-		_toast.hide_now()

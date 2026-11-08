@@ -450,9 +450,9 @@ func _on_xp_changed() -> void:
 
 
 ## A toast on the Character tab while the member shown has points left:
-## what is left to spend, and LEVEL UP. It stays until they are spent
-## (the world toast only reaches the leader; this reaches anyone), and
-## fades in each time it comes into view.
+## what is left to spend, and LEVEL UP. The only way in: levelling up
+## happens in this menu, never from a prompt over the world. It stays
+## until the points are spent and fades in each time it comes into view.
 func _refresh_level_toast() -> void:
 	var points: Dictionary = Progression.unspent(_unit) if is_instance_valid(_unit) else {}
 	var wanted: bool = is_instance_valid(_unit) and Progression.has_unspent(_unit)
