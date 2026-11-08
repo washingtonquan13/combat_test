@@ -175,6 +175,12 @@ struct AStarPage {
 	int g_gen[CELLS];
 	int closed_gen[CELLS];
 	uint8_t came_dir[CELLS];
+	// is_valid_cell's answer this search (valid_gen == sid). A cell is
+	// reached from up to 26 expanded neighbours before it closes, and each
+	// used to re-ask: for a tall wide body that is a column of distance
+	// field reads and an occupancy disc scan every time.
+	int valid_gen[CELLS];
+	uint8_t valid_result[CELLS];
 };
 
 // smooth_path's memo of is_valid_cell, paged the same way as AStarPage.
@@ -304,6 +310,10 @@ protected:
 
 private:
 	static constexpr float CELL_SIZE = 0.25f;
+	// Width of the body a start escape walks with (find_escape_cell): one
+	// cell, enough that it can't pass through a wall, thin enough that a
+	// wide body wedged against one can still sidle out.
+	static constexpr float ESCAPE_CLEARANCE = 0.25f;
 	// Height a flier keeps above the ground under it - relative, not a world
 	// Y, so a pit or a raised floor gets the same 1 m as y=0 ground.
 	static constexpr float FLIGHT_MIN_ALTITUDE = 1.0f;
@@ -561,6 +571,7 @@ private:
 		Vector3i cell;
 	};
 	NearestResult find_nearest_free_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int max_radius);
+	NearestResult find_escape_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int max_radius);
 
 	void ensure_neighbor_offsets();
 	static float heuristic(const Vector3i &a, const Vector3i &b);

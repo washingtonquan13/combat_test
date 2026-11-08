@@ -2662,6 +2662,52 @@ NavigationGrid::NearestResult NavigationGrid::find_nearest_free_cell(const Vecto
 	return { false, cell };
 }
 
+// The nearest cell a body fits, reached by walking from where it stands.
+// find_nearest_free_cell answers "where near here does it fit", which is
+// right for a clicked goal but not for a start: the nearest fit can be on
+// the far side of a wall, and the route's first leg would go through it.
+// This walks the A* neighbour steps instead, over cells a thin body could
+// stand in, so the step out is one the body can actually take.
+NavigationGrid::NearestResult NavigationGrid::find_escape_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int max_radius) {
+	ensure_neighbor_offsets();
+	const std::vector<Vector3i> &thin = disc_offsets(ESCAPE_CLEARANCE);
+	auto key = [](const Vector3i &c) -> int64_t {
+		return ((int64_t)c.x << 42) ^ ((int64_t)c.y << 21) ^ (int64_t)c.z;
+	};
+	std::unordered_set<int64_t> seen;
+	std::vector<Vector3i> frontier;
+	frontier.push_back(cell);
+	seen.insert(key(cell));
+	// One layer per step, so the first fit found is the fewest steps away.
+	while (!frontier.empty()) {
+		std::vector<Vector3i> next;
+		for (const Vector3i &current : frontier) {
+			for (const Vector3i &offset : neighbor_offsets) {
+				Vector3i n = current + offset;
+				if (!in_bounds(n)) {
+					continue;
+				}
+				Vector3i d = n - cell;
+				if (std::abs(d.x) > max_radius || std::abs(d.y) > max_radius || std::abs(d.z) > max_radius) {
+					continue;
+				}
+				if (!seen.insert(key(n)).second) {
+					continue;
+				}
+				if (!is_valid_cell(n, thin, ESCAPE_CLEARANCE, height, flying, self_unit)) {
+					continue;
+				}
+				if (is_valid_cell(n, offsets, clearance, height, flying, self_unit)) {
+					return { true, n };
+				}
+				next.push_back(n);
+			}
+		}
+		frontier.swap(next);
+	}
+	return { false, cell };
+}
+
 // --- Pathfinding -------------------------------------------------------------
 
 PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore) {
@@ -2690,7 +2736,25 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 	}
 	Vector3i goal_cell = goal_snap.cell;
 
-	if (start_cell == goal_cell) {
+	// A body can stand where its clearance says it does not fit: spawned
+	// there, grown there, or pressed there by physics (its collider is
+	// narrower than its clearance disc). A* only steps onto valid cells, so
+	// from such a start every neighbour is refused and no route exists to
+	// anywhere. The search starts instead from the nearest cell the body
+	// does fit, walked to rather than looked up (find_escape_cell), and the
+	// route's first leg is the step out to it.
+	Vector3i search_start_cell = start_cell;
+	bool start_snapped = false;
+	if (!is_valid_cell(start_cell, offsets, clearance, height, flying, unit)) {
+		NearestResult start_snap = find_escape_cell(start_cell, offsets, clearance, height, flying, unit, snap_radius);
+		if (!start_snap.found) {
+			return PackedVector3Array();
+		}
+		search_start_cell = start_snap.cell;
+		start_snapped = true;
+	}
+
+	if (search_start_cell == goal_cell) {
 		PackedVector3Array result;
 		result.push_back(start);
 		result.push_back(cell_center(goal_cell));
@@ -2699,7 +2763,7 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 
 	// A goal sealed off from the start is answered here, not by a search
 	// that has to exhaust itself (MAX_EXPANSIONS, ~160 ms) to find out.
-	if (!regions_may_connect(start_cell, goal_cell, flying)) {
+	if (!regions_may_connect(search_start_cell, goal_cell, flying)) {
 		return PackedVector3Array();
 	}
 
@@ -2720,22 +2784,25 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 	// emptied its open set without the corridor ever turning a cell away
 	// has already seen the start's whole side: in both cases the
 	// unrestricted retry could only fail again, slowly, so it is skipped.
-	std::vector<uint8_t> corridor = coarse_corridor(start_cell, goal_cell, flying);
+	std::vector<uint8_t> corridor = coarse_corridor(search_start_cell, goal_cell, flying);
 	GoalFlood flood;
-	goal_flood_begin(flood, start_cell, goal_cell);
+	goal_flood_begin(flood, search_start_cell, goal_cell);
 	PackedVector3Array raw;
 	bool mask_cut = true;
 	if (!corridor.empty()) {
 		mask_cut = false;
-		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, &corridor, &flood, &mask_cut);
+		raw = a_star(start, search_start_cell, goal_cell, offsets, clearance, height, flying, unit, &corridor, &flood, &mask_cut);
 	}
 	if (raw.size() < 2 && mask_cut && flood.state != GoalFlood::SEALED) {
 		// The flood carries on where it left off, so a goal side it had
 		// not finished emptying still ends this search early.
-		raw = a_star(start, start_cell, goal_cell, offsets, clearance, height, flying, unit, nullptr, &flood);
+		raw = a_star(start, search_start_cell, goal_cell, offsets, clearance, height, flying, unit, nullptr, &flood);
 	}
 	if (raw.size() < 2) {
 		return raw;
+	}
+	if (start_snapped) {
+		raw.insert(1, cell_center(search_start_cell));
 	}
 	return smooth_path(raw, offsets, clearance, height, flying, unit);
 }
@@ -3266,7 +3333,11 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			if (last_page->closed_gen[neighbor_local] == sid) {
 				continue;
 			}
-			if (!is_valid_cell(neighbor, offsets, clearance, height, flying, unit)) {
+			if (last_page->valid_gen[neighbor_local] != sid) {
+				last_page->valid_gen[neighbor_local] = sid;
+				last_page->valid_result[neighbor_local] = is_valid_cell(neighbor, offsets, clearance, height, flying, unit) ? (uint8_t)1 : (uint8_t)0;
+			}
+			if (!last_page->valid_result[neighbor_local]) {
 				continue;
 			}
 			float step_cost = neighbor_step_cost[oi];
