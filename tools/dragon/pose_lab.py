@@ -2,6 +2,8 @@
 #
 #   blender -b -Y <Dragon_Baked_Actions.blend> --python tools/dragon/pose_lab.py -- <out dir> <pose> [<pose> ...]
 #
+# A name from poses.CLIPS renders one loop instead, as <out dir>/<name>/frame_NNNN.png.
+#
 # Flat clay on purpose: the hide is near black and hides the shape. The wing
 # membrane is tinted so a bad fold is visible.
 
@@ -93,21 +95,41 @@ def sheet(panels, cols, path):
     bpy.data.images.remove(img)
 
 
-for name in NAMES:
-    rig.solve(poses.POSES[name])
-    rig.apply()
+def views(wanted, stem):
     panels = []
     for label, loc, at, scale in VIEWS:
+        if wanted and label not in wanted:
+            continue
         loc, at = Vector(loc), Vector(at)
         cam_data.ortho_scale = scale
         cam.location = loc
         cam.rotation_euler = (at - loc).to_track_quat("-Z", "Y").to_euler()
         bpy.context.view_layer.update()
-        path = os.path.join(OUT, "%s_%s.png" % (name, label.replace(" ", "_")))
+        path = "%s_%s.png" % (stem, label.replace(" ", "_"))
         scene.render.filepath = path
         bpy.ops.render.render(write_still=True)
         panels.append(read(path))
-    sheet(panels, 3, os.path.join(OUT, "%s_sheet.png" % name))
-    print("LAB", name, "tail end", tuple(round(x, 3) for x in rig._tail("ik_ACT_tail_5")),
-          "wing tip L", tuple(round(x, 3) for x in rig._tail("w3_L")))
+        os.remove(path) if wanted else None
+    return panels
+
+
+CLIP_VIEWS = ("left side", "front", "CRPG camera")
+FPS = 24
+
+for name in NAMES:
+    if name in poses.CLIPS:
+        clip = poses.CLIPS[name]
+        out = os.path.join(OUT, name)
+        os.makedirs(out, exist_ok=True)
+        frames = int(round(clip["length"] * FPS))
+        for f in range(frames):
+            rig.solve(clip["at"](f / frames))
+            rig.apply()
+            sheet(views(CLIP_VIEWS, os.path.join(out, "_v")), 3, os.path.join(out, "frame_%04d.png" % f))
+            if f % 12 == 0:
+                print("LAB", name, f, "/", frames, flush=True)
+        continue
+    rig.solve(poses.POSES[name])
+    rig.apply()
+    sheet(views(None, os.path.join(OUT, name)), 3, os.path.join(OUT, "%s_sheet.png" % name))
 print("LAB OK")
