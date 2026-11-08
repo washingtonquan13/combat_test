@@ -47,6 +47,11 @@ VIEWS_ALOFT = [
     ("top", (0, 0.2, 6), (0, 0.2, 0), 3.1),
     ("CRPG camera", (-2.4, -2.4, 4.2), (0, 0.1, 0.7), 3.3),
 ]
+VIEWS_LIFTED = [
+    ("left side", (5, 0.2, 1.05), (0, 0.2, 1.05), 3.0),
+    ("front", (0, -5, 1.05), (0, 0, 1.05), 3.2),
+    ("CRPG camera", (-2.4, -2.4, 4.5), (0, 0.1, 1.0), 3.6),
+]
 
 scene.render.engine = "BLENDER_WORKBENCH"
 scene.display.shading.light = "STUDIO"
@@ -65,7 +70,8 @@ for mat in body.data.materials:
         continue
     mat.diffuse_color = (0.62, 0.3, 0.24, 1.0) if mat.name.startswith("Game_dragon.003") else (0.8, 0.72, 0.58, 1.0)
 
-bpy.ops.mesh.primitive_plane_add(size=9.0, location=(0, 0, -0.003))
+# A slab, not a plane: a plane is invisible edge-on from the side cameras.
+bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, -0.053), scale=(9.0, 9.0, 0.1))
 ground = bpy.context.active_object
 ground_mat = bpy.data.materials.new("Ground")
 ground_mat.diffuse_color = (0.33, 0.33, 0.35, 1.0)
@@ -105,7 +111,7 @@ def sheet(panels, cols, path):
 
 def views(wanted, stem, name):
     panels = []
-    for label, loc, at, scale in (VIEWS_ALOFT if name in poses.ALOFT else VIEWS):
+    for label, loc, at, scale in (VIEWS_LIFTED if name in poses.LIFTED else VIEWS_ALOFT if name in poses.ALOFT else VIEWS):
         if wanted and label not in wanted:
             continue
         loc, at = Vector(loc), Vector(at)
@@ -131,8 +137,10 @@ for name in NAMES:
         os.makedirs(out, exist_ok=True)
         frames = int(round(clip["length"] * FPS))
         for f in range(frames):
-            rig.solve(clip["at"](f / frames))
+            pose = clip["at"](f / frames)
+            rig.solve(pose)
             rig.apply()
+            arm.location.z = pose.get("lift", 0.0)
             sheet(views(CLIP_VIEWS, os.path.join(out, "_v"), name), 3, os.path.join(out, "frame_%04d.png" % f))
             if f % 12 == 0:
                 print("LAB", name, f, "/", frames, flush=True)

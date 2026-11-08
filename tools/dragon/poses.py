@@ -2,7 +2,8 @@
 
 import math
 
-from mathutils import Quaternion, Vector
+from body_rig import WING_FACE
+from mathutils import Matrix, Quaternion, Vector
 
 # The stance every clip starts and ends on: low and heavy, weight toward the
 # forelegs, feet on a diagonal, neck in an S, wings shut on the back, the tail
@@ -362,17 +363,41 @@ def _cycle(values, times, t):
             + (3 * u ** 2 - 2 * u ** 3) * b + (u ** 3 - u ** 2) * h * tangent(i + 1))
 
 
-def _between(keys, times, t, lag):
+def _once(values, times, t):
+    """_cycle for a clip that ends: holds its first and last values."""
+    if t <= times[0]:
+        return values[0]
+    if t >= times[-1]:
+        return values[-1]
+    i = 0
+    while times[i + 1] <= t:
+        i += 1
+    slope = lambda a: (values[a + 1] - values[a]) / (times[a + 1] - times[a])
+
+    def tangent(a):
+        if a <= 0 or a >= len(values) - 1:
+            return 0.0
+        before, after = slope(a - 1), slope(a)
+        return 0.0 if before * after <= 0.0 else 2.0 * before * after / (before + after)
+
+    h = times[i + 1] - times[i]
+    u = (t - times[i]) / h
+    a, b = values[i], values[i + 1]
+    return ((2 * u ** 3 - 3 * u ** 2 + 1) * a + (u ** 3 - 2 * u ** 2 + u) * h * tangent(i)
+            + (3 * u ** 2 - 2 * u ** 3) * b + (u ** 3 - u ** 2) * h * tangent(i + 1))
+
+
+def _between(keys, times, t, lag, curve=_cycle):
     """The keys swung through at t, with lag shaped like them: one number or a matching tree."""
     first = keys[0]
     if isinstance(first, dict):
-        return {k: _between([p[k] for p in keys], times, t, lag[k] if isinstance(lag, dict) else lag) for k in first}
+        return {k: _between([p[k] for p in keys], times, t, lag[k] if isinstance(lag, dict) else lag, curve) for k in first}
     if isinstance(first, list):
         lags = lag if isinstance(lag, list) else [lag] * len(first)
-        return [_between([p[i] for p in keys], times, t, lags[i]) for i in range(len(first))]
+        return [_between([p[i] for p in keys], times, t, lags[i], curve) for i in range(len(first))]
     if isinstance(first, tuple):
-        return tuple(_cycle([p[i] for p in keys], times, t - lag) for i in range(len(first)))
-    return _cycle(keys, times, t - lag)
+        return tuple(curve([p[i] for p in keys], times, t - lag) for i in range(len(first)))
+    return curve(keys, times, t - lag)
 
 
 # Top, drive, bottom, recover. The push down is the hit, about a third of the beat;
@@ -431,6 +456,181 @@ def cruise_at(t):
     return _flap(CRUISE_KEYS, CRUISE_WING, CRUISE_WHIP, t)
 
 
+# Taking off. The game holds the unit on the ground for 0.2 s (fly.tres
+# lift_delay), then eases it up 3 m over 0.6 s; these keys sit on that climb, so
+# a foot still pushing is placed against the ground it is leaving.
+TAKEOFF_FRAMES = [0, 5, 9, 15, 24]
+
+
+def takeoff_lift(frame):
+    """How far the game has raised the body by this frame, at SM 0."""
+    u = max(0.0, min(1.0, (frame / 24.0 - 0.2) / 0.6))
+    return 0.6 * (0.5 - 0.5 * math.cos(math.pi * u))
+
+
+def _facing(forward, up):
+    y = forward.normalized()
+    x = y.cross(up).normalized()
+    return Matrix((x, y, x.cross(y))).transposed().to_quaternion()
+
+
+def wing_unfold(shut, spread, k):
+    """A wing part way open. Each segment turns from its folded heading to its
+    spread one about its own joint, so the zigzag opens instead of cutting
+    straight across the back. k is 0 folded, 1 spread."""
+    out = Vector(shut["out"]).normalized()
+    fingers, ups = [], []
+    for rest, closed, opened, opened_ups in zip(_WING_REST, shut["fingers"], spread["fingers"], spread["ups"]):
+        p, from_closed, from_opened = Vector(rest[0]), Vector(rest[0]), Vector(rest[0])
+        points, faces = [], []
+        for i in range(3):
+            a, b = Vector(closed[i]), Vector(opened[i])
+            turn = _facing(a - from_closed, out * WING_FACE[i]).slerp(_facing(b - from_opened, Vector(opened_ups[i])), k)
+            from_closed, from_opened = a, b
+            p = p + turn @ Vector((0.0, (Vector(rest[i + 1]) - Vector(rest[i])).length, 0.0))
+            points.append(tuple(p))
+            faces.append(tuple(turn @ Vector((0.0, 0.0, 1.0))))
+        fingers.append(points)
+        ups.append(faces)
+    return {"out": shut["out"], "fingers": fingers, "ups": ups}
+
+
+TAKEOFF_WING = [
+    {"lift": 62, "sweep": -14, "twist": -14, "elbow": 8, "wrist": -38, "back": 18, "fan": 0.7},
+    {"lift": 32, "sweep": -2, "twist": 10, "elbow": 5, "wrist": -8, "back": 0, "fan": 1.0},
+    {"lift": -42, "sweep": 6, "twist": 16, "elbow": -8, "wrist": -14, "back": 0, "fan": 1.0},
+]
+
+# Sunk over its haunches with the head low, wings thrown up and nearly open.
+TAKEOFF_CROUCH = {
+    "hip": (0.0, 0.215, 0.205),
+    "back": [(0.0, 0.07, 0.238)],
+    "chest": (0.0, -0.095, 0.19),
+    "chest_rot": (9, 0, 0),
+    "neck": [(0.0, -0.245, 0.205), (0.0, -0.305, 0.25), (0.0, -0.36, 0.30)],
+    "head": (0.0, -0.405, 0.32),
+    "look": (0.0, -1.0, 0.02),
+    "feet": STANCE["feet"],
+    "tail": [(0.02, 0.41, 0.14), (0.11, 0.70, 0.04), (0.30, 1.0, 0.03), (0.58, 1.18, 0.03)],
+    "wing": wing_unfold(STANCE["wing"], open_wing(**TAKEOFF_WING[0]), 0.8),
+}
+
+# Hind legs straight and still on the ground, forelegs already up, chest thrown
+# skyward, the wings starting down.
+TAKEOFF_PUSH = {
+    "hip": (0.0, 0.22, 0.35),
+    "back": [(0.0, 0.07, 0.43)],
+    "chest": (0.0, -0.075, 0.50),
+    "chest_rot": (-24, 0, 0),
+    "neck": [(0.0, -0.18, 0.615), (0.0, -0.22, 0.672), (0.0, -0.265, 0.72)],
+    "head": (0.0, -0.30, 0.745),
+    "look": (0.0, -1.0, 0.05),
+    "feet": {
+        "Hand_L": {"at": (0.095, -0.20, 0.29), "rot": (60, 6, 0)},
+        "Hand_R": {"at": (-0.09, -0.185, 0.305), "rot": (54, -5, 0)},
+        "back_food_L": {"at": (0.098, 0.238, 0.1016 - takeoff_lift(9)), "rot": (25, 5, 0)},
+        "back_food_R": {"at": (-0.098, 0.195, 0.1016 - takeoff_lift(9)), "rot": (25, -5, 0)},
+    },
+    "tail": [(0.015, 0.40, 0.31), (0.06, 0.67, 0.15), (0.17, 0.97, 0.03), (0.36, 1.24, -0.06)],
+    "wing": open_wing(**TAKEOFF_WING[1]),
+}
+
+# Bottom of the first stroke: off the ground, hind legs trailing where they
+# pushed, tail still catching up.
+TAKEOFF_BOTTOM = {
+    "hip": (0.0, 0.205, 0.52),
+    "back": [(0.0, 0.06, 0.62)],
+    "chest": (0.0, -0.075, 0.70),
+    "chest_rot": (-32, 0, 0),
+    "neck": [(0.0, -0.17, 0.81), (0.0, -0.20, 0.875), (0.0, -0.25, 0.93)],
+    "head": (0.0, -0.285, 0.96),
+    "look": (0.0, -1.0, -0.12),
+    "feet": {
+        "Hand_L": {"at": (0.085, -0.20, 0.53), "rot": (66, 6, 0)},
+        "Hand_R": {"at": (-0.085, -0.186, 0.542), "rot": (60, -5, 0)},
+        "back_food_L": {"at": (0.12, 0.30, 0.19), "rot": (75, 10, 0)},
+        "back_food_R": {"at": (-0.11, 0.27, 0.22), "rot": (65, -10, 0)},
+    },
+    "tail": [(0.015, 0.37, 0.39), (0.05, 0.62, 0.22), (0.12, 0.93, 0.12), (0.24, 1.20, 0.13)],
+    "wing": open_wing(**TAKEOFF_WING[2]),
+}
+
+# The last stretch is the hover's own upstroke, so the loop picks up with no seam.
+TAKEOFF_HOVER_FROM = 0.75
+TAKEOFF_KEYS = [STANCE, TAKEOFF_CROUCH, TAKEOFF_PUSH, TAKEOFF_BOTTOM, hover_at(TAKEOFF_HOVER_FROM), hover_at(0.0)]
+_TAKEOFF_KEY_FRAMES = TAKEOFF_FRAMES + [34]
+
+
+def takeoff_blocked_at(t):
+    i = min(int(t * len(TAKEOFF_KEYS) + 1e-6), len(TAKEOFF_KEYS) - 1)
+    return dict(TAKEOFF_KEYS[i], lift=takeoff_lift(_TAKEOFF_KEY_FRAMES[i]))
+
+
+_TAKEOFF_LENGTH = 34
+_TAKEOFF_HOVER_AT = 24
+_TAKEOFF_RELEASE = 9
+_HIND_FEET = ("back_food_L", "back_food_R")
+
+# The extra key is only there to give the last one the hover's speed.
+_TAKEOFF_CURVE_FRAMES = TAKEOFF_FRAMES + [25]
+_TAKEOFF_CURVE_KEYS = TAKEOFF_KEYS[:5] + [hover_at(TAKEOFF_HOVER_FROM + 1.0 / 40.0)]
+
+# In frames. The legs do the pushing, so the hips lead and the rest is thrown up by them.
+TAKEOFF_LAG = {
+    "hip": 0.0, "back": 0.3, "chest": 0.5, "chest_rot": 0.6,
+    "neck": [1.0, 1.4, 1.8], "head": 2.2, "look": 2.6,
+    "tail": [1.0, 2.0, 3.0, 4.0],
+    "feet": 0.0,
+}
+TAKEOFF_WING_LAG = {"lift": 0.0, "sweep": 0.0, "twist": -0.5, "elbow": 0.6, "wrist": 1.4, "back": 1.2, "fan": 0.8}
+TAKEOFF_WING_R_LAG = 0.3
+
+
+def _scaled(lag, w):
+    if isinstance(lag, dict):
+        return {k: _scaled(v, w) for k, v in lag.items()}
+    if isinstance(lag, list):
+        return [_scaled(v, w) for v in lag]
+    return lag * w
+
+
+def _takeoff_wing(f, fade, side):
+    """The wing's angles along the climb, opened out of the fold over the first frames."""
+    hover_lag = HOVER_WING_R_LAG if side == "R" else 0.0
+    end = [_between(HOVER_WING, HOVER_TIMES, u - hover_lag, HOVER_WING_LAG)
+           for u in (TAKEOFF_HOVER_FROM, TAKEOFF_HOVER_FROM + 1.0 / 40.0)]
+    keys = [TAKEOFF_WING[0]] + TAKEOFF_WING + end
+    u = f - (TAKEOFF_WING_R_LAG * fade if side == "R" else 0.0)
+    spread = open_wing(**_between(keys, _TAKEOFF_CURVE_FRAMES, u, _scaled(TAKEOFF_WING_LAG, fade), _once))
+    x = max(0.0, min(1.0, u / 7.0))
+    k = x * x * (3.0 - 2.0 * x)
+    return spread if k >= 1.0 else wing_unfold(STANCE["wing"], spread, k)
+
+
+def takeoff_at(t):
+    f = t * _TAKEOFF_LENGTH
+    if f >= _TAKEOFF_HOVER_AT:
+        return dict(hover_at(TAKEOFF_HOVER_FROM + (f - _TAKEOFF_HOVER_AT) / 40.0), lift=takeoff_lift(f))
+    # The lags close up before the hover takes over, or the join would step.
+    fade = min(1.0, (_TAKEOFF_HOVER_AT - f) / 6.0)
+    out = {}
+    for name, lag in TAKEOFF_LAG.items():
+        keys = [key[name] for key in _TAKEOFF_CURVE_KEYS]
+        out[name] = _between(keys, _TAKEOFF_CURVE_FRAMES, f, _scaled(lag, fade), _once)
+    if f <= _TAKEOFF_RELEASE:
+        # Planted: the armature rises under the game's lift, so the foot sinks in it.
+        for foot in _HIND_FEET:
+            x, y, z = STANCE["feet"][foot]["at"]
+            out["feet"][foot]["at"] = (x, y, z - takeoff_lift(f))
+    out["wing_L"] = _takeoff_wing(f, fade, "L")
+    out["wing_R"] = _takeoff_wing(f, fade, "R")
+    out["lift"] = takeoff_lift(f)
+    return out
+
+
+# Rendered with the game's climb added, so the feet read against the ground.
+LIFTED = {"takeoff_blocked", "takeoff"}
+
 # length in seconds; `at` takes 0..1 of the loop and returns a pose.
 CLIPS = {
     "idle": {"length": 8.0, "at": idle_at},
@@ -439,4 +639,6 @@ CLIPS = {
     "idle_blocked": {"length": 2.0 / 24.0, "at": lambda t: INHALE if t >= 0.5 else STANCE},
     "cruise_blocked": {"length": 4.0 / 24.0, "at": lambda t: CRUISE_KEYS[min(int(t * 4.0 + 1e-6), 3)]},
     "hover_blocked": {"length": 4.0 / 24.0, "at": lambda t: HOVER_KEYS[min(int(t * 4.0 + 1e-6), 3)]},
+    "takeoff_blocked": {"length": 6.0 / 24.0, "at": takeoff_blocked_at},
+    "takeoff": {"length": _TAKEOFF_LENGTH / 24.0, "at": takeoff_at},
 }
