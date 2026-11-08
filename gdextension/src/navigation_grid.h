@@ -59,10 +59,7 @@ namespace godot {
 
 // One CHUNK_DIM^3 cube of the grid. Lazily rasterized (solid geometry
 // only), then baked in two independent tiers on top of that:
-//   - support tier: no_support[] (needs solid straight down) plus two
-//     coarse flags (has_ground_passable / has_flyable) used ONLY by the
-//     cheap chunk-level coarse search, deliberately ignoring clearance and
-//     occupancy so it stays cheap — see NavigationGrid::coarse_corridor.
+//   - support tier: no_support[] (needs solid straight down).
 //   - dist tier: per-cell horizontal distance-to-nearest-solid, replacing
 //     the old per-clearance inflated_solid_cache with one shared field
 //     (see NavigationGrid::bake_chunk_dist for why one field suffices).
@@ -307,15 +304,45 @@ private:
 // cells in different regions can never be joined by a search. Open cells
 // touching across any of the 26 neighbours share a region, the same
 // neighbours a_star steps through. See NavigationGrid::regions_may_connect.
+//
+// Wide bodies get their own labelling (NavChunk::wide): a cell is open for
+// a clearance class only if that class also fits at it, so a gap too narrow
+// for a dragon splits regions the way a wall does.
+
+// A region in a neighbouring chunk that a region here touches, and the box
+// of this chunk's own cells (local coords) along that touch.
+struct RegionLink {
+	uint32_t chunk;
+	uint16_t label;
+	uint8_t lo[3];
+	uint8_t hi[3];
+};
+
+// One region's part in the current query's route estimate
+// (NavigationGrid::build_region_guide): the cost from `entry` on to the
+// goal, where entry is the point the route leaves this region's side at.
+struct RegionGuide {
+	int gen = 0;
+	bool settled = false;
+	float g = 0.0f;
+	Vector3i entry;
+};
+
 struct NavRegions {
 	bool labelled = false;
 	bool linked = false;
 	uint16_t count = 0;
 	BrickField<uint16_t> label; // CHUNK_DIM^3, 0 = closed, else 1..count
-	// [region - 1] -> region keys (see region_key) in neighbouring chunks
-	// that one of its cells touches.
-	std::vector<std::vector<uint64_t>> links;
+	// A region's links are links[link_first[region - 1]] up to
+	// links[link_first[region]]; count + 1 entries once linked.
+	std::vector<uint32_t> link_first;
+	std::vector<RegionLink> links;
+	std::vector<RegionGuide> guide; // sized on first use, one per region
 };
+
+// Clearance classes above class 0, which every body narrower than the first
+// threshold shares (see NavigationGrid::CLEARANCE_CLASS_M).
+constexpr int WIDE_CLASSES = 5;
 
 // One occupant as is_clear_of_units tests it: a vertical column from its
 // feet cell up `layers` cells, `clearance` (radius + margin) around.
@@ -374,9 +401,22 @@ struct NavChunk {
 	bool sealed = false;
 	bool support_baked = false;
 	bool dist_baked = false;
-	bool has_ground_passable = false;
-	bool has_flyable = false;
 	NavRegions regions[2]; // [0] walking, [1] flying
+	// [flying][class - 1], allocated by the main thread for the classes
+	// something in this world has asked about: a map with no dragon on it
+	// pays nothing for them.
+	std::unique_ptr<NavRegions> wide[2][WIDE_CLASSES];
+
+	NavRegions &regions_of(bool flying, int cls) {
+		if (cls == 0) {
+			return regions[flying ? 1 : 0];
+		}
+		std::unique_ptr<NavRegions> &slot = wide[flying ? 1 : 0][cls - 1];
+		if (!slot) {
+			slot = std::make_unique<NavRegions>();
+		}
+		return *slot;
+	}
 	SealLabels seal;
 };
 
@@ -597,7 +637,6 @@ private:
 	// Must stay below CHUNK_DIM (bake_chunk_dist reads direct neighbours).
 	static constexpr int MAX_CLEARANCE_CELLS = 20;
 	static constexpr int DIST_SCALE = 8; // fixed-point precision for NavChunk::dist (1/8 cell ~= 0.03m)
-	static constexpr int CORRIDOR_RADIUS_CHUNKS = 1; // fine search slack around the coarse route
 	// Weighted A* (Pohl 1970): trades a bounded amount of path optimality
 	// for far fewer expansions. Grid pathfinding with an unweighted
 	// admissible heuristic suffers badly from tie-breaking symmetry — many
@@ -611,7 +650,7 @@ private:
 	// the weight (not the technique) if a future map ever produces a
 	// visibly suboptimal path — smooth_path's post-hoc string-pulling also
 	// cleans up most of any minor raggedness this could introduce.
-	static constexpr float HEURISTIC_WEIGHT = 1.3f;
+	static constexpr float HEURISTIC_WEIGHT = 1.6f;
 
 	// --- Multi-world registry ----------------------------------------
 	// Every world EXCEPT the active one, parked. The active world's state
@@ -847,18 +886,6 @@ private:
 	static float heuristic(const Vector3i &a, const Vector3i &b);
 	static float coarse_heuristic(const Vector3i &a, const Vector3i &b);
 
-	// Cheap chunk-level A* (using only the support-tier coarse flags) that
-	// returns a chunk_coord_index -> allowed flat mask covering
-	// CORRIDOR_RADIUS_CHUNKS around an approximate route from start to
-	// goal, or an empty vector if none was found. A flat mask rather than
-	// a hash set for the same reason as astar_pages above — chunk counts
-	// are small, so this is cheap to allocate fresh per query. Deliberately
-	// optimistic/approximate — see find_path for why that's safe (a failed
-	// corridor-restricted fine search falls back to an unrestricted one
-	// whenever the corridor could be why it failed, so this can only affect
-	// speed).
-	std::vector<uint8_t> coarse_corridor(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
-
 	// --- Connectivity regions ----------------------------------------
 	// Whether a search from start_cell could ever reach goal_cell: false
 	// only when it provably can't (their regions are not connected), so
@@ -866,18 +893,39 @@ private:
 	// search from both ends at once over the region graph, so a goal
 	// sealed off from the start (a pocket inside hollow terrain, a ledge
 	// with no way up) fails in the time it takes to walk ITS side, not
-	// the whole level. Labels need only the support tier and are built
-	// per chunk as the search reaches it; they go with the chunks when
-	// the world is rescanned.
+	// the whole level. Labels are built with the rest of a chunk's tiers
+	// and go with the chunks when the world is rescanned.
 	static constexpr int MAX_REGION_EXPANSIONS = 20000;
-	bool regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying);
-	NavRegions &ensure_chunk_regions(const Vector3i &chunk_coord, bool flying);
-	NavRegions &ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying);
+	bool regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying, int cls);
+	NavRegions &ensure_chunk_regions(const Vector3i &chunk_coord, bool flying, int cls = 0);
+	NavRegions &ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying, int cls = 0);
 	// (chunk index << 16) | label, or 0 for a closed cell.
-	uint64_t region_key(const Vector3i &cell, bool flying);
+	uint64_t region_key(const Vector3i &cell, bool flying, int cls);
+
+	// A body's clearance class is the largest threshold (metres) it reaches.
+	// A class's regions admit every cell its bodies can stand on and may
+	// admit more, so they can rule a route out but never rule one in.
+	static constexpr float CLEARANCE_CLASS_M[WIDE_CLASSES + 1] = { 0.0f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f };
+	static int clearance_class(float clearance);
+	// Has the class baked with the rest of a world baked whole, on the first
+	// query that needs it. In a world baked lazily it follows chunk by chunk.
+	void ensure_class_ready(bool flying, int cls);
+
+	// The route estimate a_star steers by: an A* over the region graph from
+	// the goal toward the start, leaving each region it reaches a cost-to-goal
+	// and the point that cost is measured from. It stops once every region
+	// that could be on a route about as short as the best one is settled.
+	static constexpr float GUIDE_SLACK_RATIO = 1.1f;
+	static constexpr float GUIDE_SLACK_M = 4.0f;
+	void build_region_guide(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying, int cls);
+	int guide_gen = 0;
+	// Regions the guide never reached are at least this far by way of the
+	// start (their cost to the goal plus their distance to the start).
+	float guide_bound = 0.0f;
 
 	// The goal's own side of a search, flooded alongside it. Regions
-	// (above) ignore clearance and occupancy, so a goal they pass can still
+	// (above) ignore occupancy and only approximate clearance, so a goal
+	// they pass can still
 	// be sealed off for THIS unit: ringed by units, or behind a gap too
 	// narrow for its body. A search from the start finds that out only by
 	// exhausting everything it can reach, which on an open map is the
@@ -906,7 +954,7 @@ private:
 	void goal_flood_begin(GoalFlood &flood, const Vector3i &start_cell, const Vector3i &goal_cell);
 	void goal_flood_step(GoalFlood &flood, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
 
-	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask, GoalFlood *flood = nullptr, bool *mask_cut = nullptr);
+	PackedVector3Array a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int cls, GoalFlood *flood = nullptr);
 	PackedVector3Array reconstruct_path(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell);
 	PackedVector3Array smooth_path(const PackedVector3Array &path, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit);
 	bool line_clear(const Vector3 &a, const Vector3 &b, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int smooth_sid);

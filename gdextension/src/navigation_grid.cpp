@@ -130,6 +130,26 @@ int NavigationGrid::prebake(Node *world_ref) {
 	}
 	activate_for(world_ref);
 	ensure_baked(world_ref->get_tree());
+	for (int i = 0; i < (int)chunks.size(); i++) {
+		ensure_chunk_rasterized(chunk_coord_from_index(i));
+	}
+	// The wide classes of the bodies standing here, walking and flying both:
+	// a dragon's first path would otherwise bake them mid-fight.
+	TypedArray<Node> units = world_ref->get_tree()->get_nodes_in_group("units");
+	for (int u = 0; u < units.size(); u++) {
+		Node3D *unit = Object::cast_to<Node3D>((Object *)units[u]);
+		if (!unit || !in_active_world(unit)) {
+			continue;
+		}
+		const int cls = clearance_class(get_float_prop(unit, "radius") + get_float_prop(unit, "avoidance_margin"));
+		if (cls == 0) {
+			continue;
+		}
+		for (const std::unique_ptr<NavChunk> &chunk : chunks) {
+			chunk->regions_of(false, cls);
+			chunk->regions_of(true, cls);
+		}
+	}
 	bake_missing_tiers();
 	return (int)chunks.size();
 }
@@ -171,14 +191,71 @@ void NavigationGrid::bake_missing_tiers() {
 		bake_chunk_dist(chunk_coord_from_index(i), c);
 		c.dist_baked = true;
 	});
-	phase(STAGE_REGIONS, [](const NavChunk &c) { return !c.regions[0].labelled || !c.regions[1].labelled; }, [&](int i, NavChunk &) {
-		ensure_chunk_regions(chunk_coord_from_index(i), false);
-		ensure_chunk_regions(chunk_coord_from_index(i), true);
+	// Both modes at class 0, and every wide class this world has used. Its
+	// slots are made here, on this thread, so the workers only ever read
+	// the slot pointers.
+	struct Layer {
+		bool flying;
+		int cls;
+	};
+	std::vector<Layer> layers = { { false, 0 }, { true, 0 } };
+	for (int f = 0; f < 2; f++) {
+		for (int cls = 1; cls <= WIDE_CLASSES; cls++) {
+			bool used = false;
+			for (int i = 0; i < count && !used; i++) {
+				used = chunks[i]->wide[f][cls - 1] != nullptr;
+			}
+			if (!used) {
+				continue;
+			}
+			for (int i = 0; i < count; i++) {
+				chunks[i]->regions_of(f == 1, cls);
+			}
+			layers.push_back({ f == 1, cls });
+		}
+	}
+	phase(STAGE_REGIONS, [&](NavChunk &c) {
+		for (const Layer &l : layers) {
+			if (!c.regions_of(l.flying, l.cls).labelled) {
+				return true;
+			}
+		}
+		return false; }, [&](int i, NavChunk &) {
+		for (const Layer &l : layers) {
+			ensure_chunk_regions(chunk_coord_from_index(i), l.flying, l.cls);
+		}
 	});
-	phase(STAGE_LINKS, [](const NavChunk &c) { return !c.regions[0].linked || !c.regions[1].linked; }, [&](int i, NavChunk &) {
-		ensure_chunk_region_links(chunk_coord_from_index(i), false);
-		ensure_chunk_region_links(chunk_coord_from_index(i), true);
+	phase(STAGE_LINKS, [&](NavChunk &c) {
+		for (const Layer &l : layers) {
+			if (!c.regions_of(l.flying, l.cls).linked) {
+				return true;
+			}
+		}
+		return false; }, [&](int i, NavChunk &) {
+		for (const Layer &l : layers) {
+			ensure_chunk_region_links(chunk_coord_from_index(i), l.flying, l.cls);
+		}
 	});
+}
+
+int NavigationGrid::clearance_class(float clearance) {
+	int cls = 0;
+	for (int k = 1; k <= WIDE_CLASSES; k++) {
+		if (clearance >= CLEARANCE_CLASS_M[k]) {
+			cls = k;
+		}
+	}
+	return cls;
+}
+
+void NavigationGrid::ensure_class_ready(bool flying, int cls) {
+	if (cls == 0 || (!chunks.empty() && chunks[0] && chunks[0]->wide[flying ? 1 : 0][cls - 1]) || !every_chunk_baked()) {
+		return;
+	}
+	for (const std::unique_ptr<NavChunk> &chunk : chunks) {
+		chunk->regions_of(flying, cls);
+	}
+	bake_missing_tiers();
 }
 
 NavigationGrid::NavigationGrid() {}
@@ -291,11 +368,21 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 		bytes += c->solid.bytes() + c->ground.bytes() + c->no_support.bytes() + c->flight_low.bytes() + c->flight_high.bytes();
 		bytes += c->dist.bytes();
 		bytes += (int64_t)c->occupants.capacity() * sizeof(OccupantVolume);
-		for (const NavRegions &r : c->regions) {
+		auto add_regions = [&](const NavRegions &r) {
 			bytes += r.label.bytes();
-			bytes += (int64_t)r.links.capacity() * sizeof(std::vector<uint64_t>);
-			for (const std::vector<uint64_t> &l : r.links) {
-				bytes += (int64_t)l.capacity() * sizeof(uint64_t);
+			bytes += (int64_t)r.link_first.capacity() * sizeof(uint32_t);
+			bytes += (int64_t)r.links.capacity() * sizeof(RegionLink);
+			bytes += (int64_t)r.guide.capacity() * sizeof(RegionGuide);
+		};
+		for (const NavRegions &r : c->regions) {
+			add_regions(r);
+		}
+		for (const auto &by_mode : c->wide) {
+			for (const std::unique_ptr<NavRegions> &r : by_mode) {
+				if (r) {
+					bytes += sizeof(NavRegions);
+					add_regions(*r);
+				}
 			}
 		}
 	}
@@ -379,6 +466,13 @@ Dictionary NavigationGrid::debug_structure_stats(int since_search) const {
 		bytes_dist += c.dist.bytes();
 		for (const NavRegions &r : c.regions) {
 			bytes_labels += r.label.bytes();
+		}
+		for (const auto &by_mode : c.wide) {
+			for (const std::unique_ptr<NavRegions> &r : by_mode) {
+				if (r) {
+					bytes_labels += r->label.bytes();
+				}
+			}
 		}
 		const bool has_solid = c.rasterized && c.solid.present();
 		const bool has_ground = c.rasterized && c.ground.present();
@@ -1030,9 +1124,11 @@ void NavigationGrid::invalidate_active_region(SceneTree *tree, const AABB &regio
 	const int support_reach = (flight_high_cells() + CHUNK_DIM - 1) / CHUNK_DIM;
 	auto within = [](int v, int a, int b) { return v >= a && v <= b; };
 	auto unbake = [&](const Vector3i &a, const Vector3i &b, bool raster) {
-		for (int cx = a.x - 1; cx <= b.x + 1; cx++) {
+		// Two chunks out in x and z: a wide class's labels read dist, which
+		// reaches one chunk past the box, and its links read those labels.
+		for (int cx = a.x - 2; cx <= b.x + 2; cx++) {
 			for (int cy = a.y - 1; cy <= b.y + support_reach + 1; cy++) {
-				for (int cz = a.z - 1; cz <= b.z + 1; cz++) {
+				for (int cz = a.z - 2; cz <= b.z + 2; cz++) {
 					Vector3i cc(cx, cy, cz);
 					if (!chunk_in_bounds(cc)) {
 						continue;
@@ -1050,14 +1146,26 @@ void NavigationGrid::invalidate_active_region(SceneTree *tree, const AABB &regio
 					if (in_support) {
 						chunk.support_baked = false;
 					}
-					if (within(cx, a.x - 1, b.x + 1) && within(cz, a.z - 1, b.z + 1) && within(cy, a.y, b.y)) {
+					const bool near_xz = within(cx, a.x - 1, b.x + 1) && within(cz, a.z - 1, b.z + 1);
+					const bool in_dist = near_xz && within(cy, a.y, b.y);
+					if (in_dist) {
 						chunk.dist_baked = false;
 					}
 					for (NavRegions &r : chunk.regions) {
 						if (in_support) {
 							r.labelled = false;
 						}
-						r.linked = false; // this loop's box is the support box grown by one chunk
+						if (near_xz) {
+							r.linked = false; // the support box grown by one chunk
+						}
+					}
+					for (auto &by_mode : chunk.wide) {
+						for (std::unique_ptr<NavRegions> &r : by_mode) {
+							if (r) {
+								r->labelled = r->labelled && !in_support && !in_dist;
+								r->linked = false;
+							}
+						}
 					}
 				}
 			}
@@ -2460,8 +2568,6 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 			chunk.no_support.fill(1);
 			chunk.flight_low.fill(0);
 			chunk.flight_high.fill(1);
-			chunk.has_ground_passable = false;
-			chunk.has_flyable = false;
 			return;
 		}
 	}
@@ -2475,8 +2581,6 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 	uint8_t *no_support_w = chunk.no_support.begin_write(0);
 	uint8_t *flight_low_w = chunk.flight_low.begin_write(0);
 	uint8_t *flight_high_w = chunk.flight_high.begin_write(0);
-	chunk.has_ground_passable = false;
-	chunk.has_flyable = false;
 
 	// One walk up each column, carrying how far below the nearest solid
 	// cell is: supported = it is 1, too low = it is within flight_low,
@@ -2507,16 +2611,10 @@ void NavigationGrid::bake_chunk_support(const Vector3i &chunk_coord, NavChunk &c
 				bool supported = base.y + y > 0 && since_solid == 1;
 				no_support_w[li] = supported ? 0 : 1;
 				if (own_solid[li] == 0) {
-					if (supported) {
-						chunk.has_ground_passable = true;
-					}
 					bool low = since_solid <= flight_low;
 					bool high = since_solid > flight_high;
 					flight_low_w[li] = low ? 1 : 0;
 					flight_high_w[li] = high ? 1 : 0;
-					if (!low && !high) {
-						chunk.has_flyable = true;
-					}
 					since_solid = std::min(since_solid + 1, flight_high + 1);
 				} else {
 					since_solid = 1;
@@ -3276,41 +3374,24 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 
 	// A goal sealed off from the start is answered here, not by a search
 	// that has to exhaust itself (MAX_EXPANSIONS, ~160 ms) to find out.
-	if (!regions_may_connect(search_start_cell, goal_cell, flying)) {
+	const int cls = clearance_class(clearance);
+	ensure_class_ready(flying, cls);
+	if (!regions_may_connect(search_start_cell, goal_cell, flying, cls)) {
 		return PackedVector3Array();
 	}
 
-	// Coarse-guided fast path: restrict the fine search to a corridor of
-	// chunks around an approximate chunk-level route. The coarse pass is
-	// deliberately optimistic (ignores clearance/occupancy entirely), so
-	// it can never make the fine search MISS a real path that exists — if
-	// the restricted search fails, fall back to a full unrestricted one
-	// below. This mirrors the project's standing rule that a speed
-	// optimization must never silently change correctness (see the old
-	// navmesh outage in HANDOFF.md): it can only affect how fast a path is
-	// found, never whether one is found when it exists.
+	// One search, steered by a route estimate over the region graph. The
+	// estimate changes which cells are looked at first and never which are
+	// allowed, so a route that exists is still found.
 	//
-	// Regions above ignore clearance and occupancy, so a goal they pass
-	// can still be sealed off for this unit (ringed by units, behind a gap
-	// too narrow for it). The goal flood (see GoalFlood) answers that from
-	// the goal's side while the search runs, and a corridor search that
-	// emptied its open set without the corridor ever turning a cell away
-	// has already seen the start's whole side: in both cases the
-	// unrestricted retry could only fail again, slowly, so it is skipped.
-	std::vector<uint8_t> corridor = coarse_corridor(search_start_cell, goal_cell, flying);
+	// Regions ignore occupancy and only approximate a body's clearance, so
+	// a goal they pass can still be sealed off for this unit (ringed by
+	// units, behind a gap a little too narrow for it). The goal flood (see
+	// GoalFlood) answers that from the goal's side while the search runs.
+	build_region_guide(search_start_cell, goal_cell, flying, cls);
 	GoalFlood flood;
 	goal_flood_begin(flood, search_start_cell, goal_cell);
-	PackedVector3Array raw;
-	bool mask_cut = true;
-	if (!corridor.empty()) {
-		mask_cut = false;
-		raw = a_star(start, search_start_cell, goal_cell, offsets, clearance, height, flying, unit, &corridor, &flood, &mask_cut);
-	}
-	if (raw.size() < 2 && mask_cut && flood.state != GoalFlood::SEALED) {
-		// The flood carries on where it left off, so a goal side it had
-		// not finished emptying still ends this search early.
-		raw = a_star(start, search_start_cell, goal_cell, offsets, clearance, height, flying, unit, nullptr, &flood);
-	}
+	PackedVector3Array raw = a_star(start, search_start_cell, goal_cell, offsets, clearance, height, flying, unit, cls, &flood);
 	if (raw.size() < 2) {
 		return raw;
 	}
@@ -3367,116 +3448,20 @@ struct OpenEntryCompare {
 };
 } // namespace
 
-std::vector<uint8_t> NavigationGrid::coarse_corridor(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying) {
-	std::vector<uint8_t> corridor; // stays empty (size 0) to signal "not found"
-
-	Vector3i start_chunk = cell_to_chunk_coord(start_cell);
-	Vector3i goal_chunk = cell_to_chunk_coord(goal_cell);
-	if (!chunk_in_bounds(start_chunk) || !chunk_in_bounds(goal_chunk)) {
-		return corridor;
-	}
-
-	auto traversable = [&](const Vector3i &cc) -> bool {
-		NavChunk &c = ensure_chunk_support(cc);
-		return flying ? c.has_flyable : c.has_ground_passable;
-	};
-	if (!traversable(start_chunk) || !traversable(goal_chunk)) {
-		return corridor;
-	}
-
-	static const Vector3i FACE[6] = {
-		Vector3i(1, 0, 0), Vector3i(-1, 0, 0),
-		Vector3i(0, 1, 0), Vector3i(0, -1, 0),
-		Vector3i(0, 0, 1), Vector3i(0, 0, -1)
-	};
-
-	int start_idx = chunk_coord_index(start_chunk);
-	int goal_idx = chunk_coord_index(goal_chunk);
-
-	std::unordered_map<int, int> came_from;
-	std::unordered_map<int, float> g_score;
-	std::unordered_set<int> closed;
-	std::priority_queue<OpenEntry, std::vector<OpenEntry>, OpenEntryCompare> open_heap;
-
-	g_score[start_idx] = 0.0f;
-	open_heap.push({ coarse_heuristic(start_chunk, goal_chunk), start_chunk });
-
-	bool found = false;
-	while (!open_heap.empty()) {
-		OpenEntry top = open_heap.top();
-		open_heap.pop();
-		int cur_idx = chunk_coord_index(top.cell);
-		if (closed.count(cur_idx)) {
-			continue;
-		}
-		closed.insert(cur_idx);
-		if (cur_idx == goal_idx) {
-			found = true;
-			break;
-		}
-
-		float cur_g = g_score[cur_idx];
-		for (const Vector3i &f : FACE) {
-			Vector3i nc = top.cell + f;
-			if (!chunk_in_bounds(nc)) {
-				continue;
-			}
-			int nidx = chunk_coord_index(nc);
-			if (closed.count(nidx)) {
-				continue;
-			}
-			if (!traversable(nc)) {
-				continue;
-			}
-			float ng = cur_g + 1.0f;
-			auto gs_it = g_score.find(nidx);
-			if (gs_it == g_score.end() || ng < gs_it->second) {
-				g_score[nidx] = ng;
-				came_from[nidx] = cur_idx;
-				open_heap.push({ ng + coarse_heuristic(nc, goal_chunk), nc });
-			}
-		}
-	}
-
-	if (!found) {
-		return corridor; // empty — caller falls back to an unrestricted fine search
-	}
-
-	std::vector<int> route;
-	int cur = goal_idx;
-	route.push_back(cur);
-	while (cur != start_idx) {
-		cur = came_from.at(cur);
-		route.push_back(cur);
-	}
-
-	corridor.assign((size_t)chunk_grid_size.x * (size_t)chunk_grid_size.y * (size_t)chunk_grid_size.z, 0);
-	for (int idx : route) {
-		Vector3i cc = chunk_coord_from_index(idx);
-		for (int dx = -CORRIDOR_RADIUS_CHUNKS; dx <= CORRIDOR_RADIUS_CHUNKS; dx++) {
-			for (int dy = -CORRIDOR_RADIUS_CHUNKS; dy <= CORRIDOR_RADIUS_CHUNKS; dy++) {
-				for (int dz = -CORRIDOR_RADIUS_CHUNKS; dz <= CORRIDOR_RADIUS_CHUNKS; dz++) {
-					Vector3i nc = cc + Vector3i(dx, dy, dz);
-					if (chunk_in_bounds(nc)) {
-						corridor[chunk_coord_index(nc)] = 1;
-					}
-				}
-			}
-		}
-	}
-	return corridor;
-}
-
 // --- Connectivity regions ----------------------------------------------------
 
-NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bool flying) {
+NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bool flying, int cls) {
 	NavChunk &chunk = ensure_chunk_support(chunk_coord);
-	NavRegions &r = chunk.regions[flying ? 1 : 0];
+	NavRegions &r = chunk.regions_of(flying, cls);
 	if (r.labelled) {
 		return r;
 	}
+	if (cls > 0) {
+		ensure_chunk_dist(chunk_coord);
+	}
 	StageClock clock(STAGE_REGIONS);
 	r.labelled = true;
+	r.guide.clear();
 	uint16_t *label_w = r.label.begin_write(0);
 	r.count = 0;
 
@@ -3488,7 +3473,9 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 	// Open = is_open_cell, the very call is_valid_cell makes: the part of
 	// its rule that holds for every clearance and height. Sharing the rule
 	// instead of restating it is what keeps regions from ever being
-	// stricter than A*. Closed cells stay 0.
+	// stricter than A*. Closed cells stay 0. A wide class also wants its
+	// threshold's room at the cell, which is_valid_cell demands of every
+	// cell of the body, the feet included: still never stricter.
 	//
 	// Labelled by runs, not cells: each x-row's open cells split into runs,
 	// and a run joins (union-find) every run it touches in the 8 rows
@@ -3501,6 +3488,9 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 	const uint8_t *solid = chunk.solid.dense(s_solid);
 	const uint8_t *fa = flying ? chunk.flight_low.dense(s_a) : chunk.no_support.dense(s_a);
 	const uint8_t *fb = flying ? chunk.flight_high.dense(s_b) : nullptr;
+	thread_local std::vector<uint16_t> s_dist;
+	const uint16_t *dist = cls > 0 ? chunk.dist.dense(s_dist) : nullptr;
+	const uint16_t min_dist = (uint16_t)(CLEARANCE_CLASS_M[cls] / CELL_SIZE * DIST_SCALE);
 
 	struct Run {
 		int16_t x0, x1;
@@ -3523,7 +3513,7 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 			while (x < cx1) {
 				auto open = [&](int xi) {
 					const int li = li0 + xi;
-					return solid[li] == 0 && fa[li] == 0 && (!fb || fb[li] == 0);
+					return solid[li] == 0 && fa[li] == 0 && (!fb || fb[li] == 0) && (!dist || dist[li] >= min_dist);
 				};
 				if (!open(x)) {
 					x++;
@@ -3614,14 +3604,15 @@ NavRegions &NavigationGrid::ensure_chunk_regions(const Vector3i &chunk_coord, bo
 	return r;
 }
 
-NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying) {
-	NavRegions &r = ensure_chunk_regions(chunk_coord, flying);
+NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coord, bool flying, int cls) {
+	NavRegions &r = ensure_chunk_regions(chunk_coord, flying, cls);
 	if (r.linked) {
 		return r;
 	}
 	StageClock clock(STAGE_LINKS);
 	r.linked = true;
-	r.links.assign(r.count, std::vector<uint64_t>());
+	r.links.clear();
+	r.link_first.assign((size_t)r.count + 1, 0);
 	if (r.count == 0) {
 		return r;
 	}
@@ -3629,7 +3620,7 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 	// The 26 neighbouring chunks' labels, resolved once. chunks is sized
 	// once per scan, so these references stay valid while more are built.
 	const NavRegions *around[3][3][3] = {};
-	uint64_t around_idx[3][3][3] = {};
+	uint32_t around_idx[3][3][3] = {};
 	for (int dx = -1; dx <= 1; dx++) {
 		for (int dy = -1; dy <= 1; dy++) {
 			for (int dz = -1; dz <= 1; dz++) {
@@ -3637,21 +3628,27 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 				if ((dx == 0 && dy == 0 && dz == 0) || !chunk_in_bounds(nc)) {
 					continue;
 				}
-				around[dx + 1][dy + 1][dz + 1] = &ensure_chunk_regions(nc, flying);
-				around_idx[dx + 1][dy + 1][dz + 1] = (uint64_t)chunk_coord_index(nc);
+				around[dx + 1][dy + 1][dz + 1] = &ensure_chunk_regions(nc, flying, cls);
+				around_idx[dx + 1][dy + 1][dz + 1] = (uint32_t)chunk_coord_index(nc);
 			}
 		}
 	}
 
-	// Every (own region, neighbour region) pair across the chunk's skin,
-	// gathered flat and sorted once. Consecutive cells mostly repeat the
-	// pair before them, so that one is skipped as it comes; links end up
-	// exactly sized, where per-region vectors that had every touch pushed
-	// and were then deduplicated kept the capacity of all of them.
+	// Every (own region, neighbour region) pair across the chunk's skin, each
+	// with the box of own cells along it. A neighbour chunk is across exactly
+	// one side, so a pair is met on one side only: looking back over that
+	// side's few pairs finds any repeat, and the flat sort needs no merging.
+	struct Touch {
+		uint16_t own;
+		uint32_t chunk;
+		uint16_t label;
+		uint8_t lo[3];
+		uint8_t hi[3];
+	};
 	thread_local std::vector<uint16_t> s_own;
 	const uint16_t *own_label = r.label.dense(s_own);
-	thread_local std::vector<std::pair<uint16_t, uint64_t>> pairs;
-	pairs.clear();
+	thread_local std::vector<Touch> touches;
+	touches.clear();
 	const int last = CHUNK_DIM - 1;
 	for (int cdz = -1; cdz <= 1; cdz++) {
 		for (int cdy = -1; cdy <= 1; cdy++) {
@@ -3660,14 +3657,14 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 				if (!nb || nb->count == 0) {
 					continue;
 				}
-				const uint64_t nb_key = around_idx[cdx + 1][cdy + 1][cdz + 1] << 16;
+				const uint32_t nb_idx = around_idx[cdx + 1][cdy + 1][cdz + 1];
 				// This chunk's cells on that side: the face, edge or corner
 				// layer, and for each the neighbour cells across it.
 				const int x0 = cdx < 0 ? 0 : (cdx > 0 ? last : 0), x1 = cdx == 0 ? last : x0;
 				const int y0 = cdy < 0 ? 0 : (cdy > 0 ? last : 0), y1 = cdy == 0 ? last : y0;
 				const int z0 = cdz < 0 ? 0 : (cdz > 0 ? last : 0), z1 = cdz == 0 ? last : z0;
-				uint16_t prev_own = 0;
-				uint64_t prev_other = 0;
+				const size_t side_first = touches.size();
+				size_t prev = (size_t)-1;
 				for (int z = z0; z <= z1; z++) {
 					for (int y = y0; y <= y1; y++) {
 						for (int x = x0; x <= x1; x++) {
@@ -3692,13 +3689,26 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 										if (other == 0) {
 											continue;
 										}
-										const uint64_t key = nb_key | other;
-										if (own == prev_own && key == prev_other) {
-											continue;
+										if (prev == (size_t)-1 || touches[prev].own != own || touches[prev].label != other) {
+											prev = (size_t)-1;
+											for (size_t t = side_first; t < touches.size(); t++) {
+												if (touches[t].own == own && touches[t].label == other) {
+													prev = t;
+													break;
+												}
+											}
+											if (prev == (size_t)-1) {
+												prev = touches.size();
+												touches.push_back({ own, nb_idx, other, { (uint8_t)x, (uint8_t)y, (uint8_t)z }, { (uint8_t)x, (uint8_t)y, (uint8_t)z } });
+											}
 										}
-										prev_own = own;
-										prev_other = key;
-										pairs.push_back({ own, key });
+										Touch &t = touches[prev];
+										t.lo[0] = std::min(t.lo[0], (uint8_t)x);
+										t.lo[1] = std::min(t.lo[1], (uint8_t)y);
+										t.lo[2] = std::min(t.lo[2], (uint8_t)z);
+										t.hi[0] = std::max(t.hi[0], (uint8_t)x);
+										t.hi[1] = std::max(t.hi[1], (uint8_t)y);
+										t.hi[2] = std::max(t.hi[2], (uint8_t)z);
 									}
 								}
 							}
@@ -3708,47 +3718,49 @@ NavRegions &NavigationGrid::ensure_chunk_region_links(const Vector3i &chunk_coor
 			}
 		}
 	}
-	std::sort(pairs.begin(), pairs.end());
-	pairs.erase(std::unique(pairs.begin(), pairs.end()), pairs.end());
-	std::vector<int> per_region(r.count, 0);
-	for (const auto &p : pairs) {
-		per_region[p.first - 1]++;
+	std::sort(touches.begin(), touches.end(), [](const Touch &a, const Touch &b) {
+		if (a.own != b.own) {
+			return a.own < b.own;
+		}
+		return a.chunk != b.chunk ? a.chunk < b.chunk : a.label < b.label;
+	});
+	r.links.reserve(touches.size());
+	for (const Touch &t : touches) {
+		r.link_first[t.own]++;
+		r.links.push_back({ t.chunk, t.label, { t.lo[0], t.lo[1], t.lo[2] }, { t.hi[0], t.hi[1], t.hi[2] } });
 	}
-	for (int i = 0; i < r.count; i++) {
-		r.links[i].reserve(per_region[i]);
-	}
-	for (const auto &p : pairs) {
-		r.links[p.first - 1].push_back(p.second);
+	for (int i = 1; i <= r.count; i++) {
+		r.link_first[i] += r.link_first[i - 1];
 	}
 	return r;
 }
 
-uint64_t NavigationGrid::region_key(const Vector3i &cell, bool flying) {
+uint64_t NavigationGrid::region_key(const Vector3i &cell, bool flying, int cls) {
 	if (!in_bounds(cell)) {
 		return 0;
 	}
 	Vector3i cc = cell_to_chunk_coord(cell);
-	uint16_t label = ensure_chunk_regions(cc, flying).label.get(local_index(cell_to_local(cell)));
+	uint16_t label = ensure_chunk_regions(cc, flying, cls).label.get(local_index(cell_to_local(cell)));
 	if (label == 0) {
 		return 0;
 	}
 	return ((uint64_t)chunk_coord_index(cc) << 16) | label;
 }
 
-bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying) {
-	uint64_t goal_key = region_key(goal_cell, flying);
+bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying, int cls) {
+	uint64_t goal_key = region_key(goal_cell, flying, cls);
 	if (goal_key == 0) {
 		return true; // the goal passed is_valid_cell, so this can't happen; let the search decide
 	}
 	// a_star expands the start cell whether or not it is valid, then steps
 	// only into valid cells: its own region if open, else its neighbours'.
 	std::vector<uint64_t> seeds;
-	uint64_t own = region_key(start_cell, flying);
+	uint64_t own = region_key(start_cell, flying, cls);
 	if (own != 0) {
 		seeds.push_back(own);
 	} else {
 		for (const Vector3i &offset : neighbor_offsets) {
-			uint64_t k = region_key(start_cell + offset, flying);
+			uint64_t k = region_key(start_cell + offset, flying, cls);
 			if (k != 0 && std::find(seeds.begin(), seeds.end(), k) == seeds.end()) {
 				seeds.push_back(k);
 			}
@@ -3794,8 +3806,10 @@ bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vecto
 		uint64_t key = me.open.top().second;
 		me.open.pop();
 		Vector3i cc = chunk_coord_from_index((int)(key >> 16));
-		const NavRegions &r = ensure_chunk_region_links(cc, flying);
-		for (uint64_t next : r.links[(key & 0xFFFF) - 1]) {
+		const NavRegions &r = ensure_chunk_region_links(cc, flying, cls);
+		const int region = (int)(key & 0xFFFF) - 1;
+		for (uint32_t li = r.link_first[region]; li < r.link_first[region + 1]; li++) {
+			const uint64_t next = ((uint64_t)r.links[li].chunk << 16) | r.links[li].label;
 			if (other.seen.count(next)) {
 				return true;
 			}
@@ -3805,6 +3819,104 @@ bool NavigationGrid::regions_may_connect(const Vector3i &start_cell, const Vecto
 		}
 	}
 	return true; // too big to settle cheaply: the search decides, capped as ever
+}
+
+// Where the straight line from `from` toward `toward` first enters the box
+// [lo, hi], or the box's nearest point to where it stops. Aiming at the far
+// end, not just the nearest point of the box, keeps a chain of these taut
+// across open ground instead of staircasing along chunk faces.
+static Vector3i portal_point(const Vector3i &from, const Vector3i &toward, const Vector3i &lo, const Vector3i &hi) {
+	const float p[3] = { (float)from.x, (float)from.y, (float)from.z };
+	const float d[3] = { (float)(toward.x - from.x), (float)(toward.y - from.y), (float)(toward.z - from.z) };
+	float t = 0.0f;
+	for (int a = 0; a < 3; a++) {
+		if (d[a] != 0.0f) {
+			const float t0 = ((float)lo[a] - p[a]) / d[a];
+			const float t1 = ((float)hi[a] - p[a]) / d[a];
+			t = std::max(t, std::min(t0, t1));
+		}
+	}
+	t = std::min(t, 1.0f);
+	Vector3i q;
+	for (int a = 0; a < 3; a++) {
+		const int v = (int)std::lround(p[a] + d[a] * t);
+		q[a] = std::min(std::max(v, lo[a]), hi[a]);
+	}
+	return q;
+}
+
+void NavigationGrid::build_region_guide(const Vector3i &start_cell, const Vector3i &goal_cell, bool flying, int cls) {
+	guide_gen++;
+	guide_bound = 0.0f;
+	const uint64_t goal_key = region_key(goal_cell, flying, cls);
+	if (goal_key == 0) {
+		return;
+	}
+	const uint64_t start_key = region_key(start_cell, flying, cls);
+
+	auto guide_of = [&](NavRegions &r, int label) -> RegionGuide & {
+		if (r.guide.size() != r.count) {
+			r.guide.resize(r.count);
+		}
+		return r.guide[label - 1];
+	};
+
+	std::priority_queue<std::pair<float, uint64_t>, std::vector<std::pair<float, uint64_t>>, std::greater<std::pair<float, uint64_t>>> open;
+	{
+		NavRegions &r = ensure_chunk_region_links(cell_to_chunk_coord(goal_cell), flying, cls);
+		RegionGuide &seed = guide_of(r, (int)(goal_key & 0xFFFF));
+		seed.gen = guide_gen;
+		seed.settled = false;
+		seed.g = 0.0f;
+		seed.entry = goal_cell;
+	}
+	open.push({ heuristic(goal_cell, start_cell), goal_key });
+
+	float f_start = -1.0f;
+	int settled = 0;
+	while (!open.empty()) {
+		const float f = open.top().first;
+		const uint64_t key = open.top().second;
+		if ((f_start >= 0.0f && f > f_start * GUIDE_SLACK_RATIO + GUIDE_SLACK_M) || settled >= MAX_REGION_EXPANSIONS) {
+			guide_bound = f;
+			return;
+		}
+		open.pop();
+		const Vector3i cc = chunk_coord_from_index((int)(key >> 16));
+		NavRegions &r = ensure_chunk_region_links(cc, flying, cls);
+		const int region = (int)(key & 0xFFFF) - 1;
+		RegionGuide &u = r.guide[region];
+		if (u.settled) {
+			continue;
+		}
+		u.settled = true;
+		settled++;
+		if (key == start_key && f_start < 0.0f) {
+			f_start = f;
+		}
+		const float g_u = u.g;
+		const Vector3i entry_u = u.entry;
+		const Vector3i base = cc * CHUNK_DIM;
+		for (uint32_t li = r.link_first[region]; li < r.link_first[region + 1]; li++) {
+			const RegionLink &link = r.links[li];
+			NavRegions &nr = chunks[link.chunk]->regions_of(flying, cls);
+			RegionGuide &v = guide_of(nr, link.label);
+			if (v.gen == guide_gen && v.settled) {
+				continue;
+			}
+			const Vector3i lo = base + Vector3i(link.lo[0], link.lo[1], link.lo[2]);
+			const Vector3i hi = base + Vector3i(link.hi[0], link.hi[1], link.hi[2]);
+			const Vector3i p = portal_point(entry_u, start_cell, lo, hi);
+			const float ng = g_u + heuristic(entry_u, p);
+			if (v.gen != guide_gen || ng < v.g) {
+				v.gen = guide_gen;
+				v.settled = false;
+				v.g = ng;
+				v.entry = p;
+				open.push({ ng + heuristic(p, start_cell), ((uint64_t)link.chunk << 16) | link.label });
+			}
+		}
+	}
 }
 
 // A local cell's brick within its chunk's page, and its index in the brick.
@@ -3901,7 +4013,7 @@ void NavigationGrid::goal_flood_step(GoalFlood &flood, const std::vector<Vector3
 	}
 }
 
-PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, const std::vector<uint8_t> *allowed_chunks_mask, GoalFlood *flood, bool *mask_cut) {
+PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &start_cell, const Vector3i &goal_cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *unit, int cls, GoalFlood *flood) {
 	std::priority_queue<OpenEntry, std::vector<OpenEntry>, OpenEntryCompare> open_heap;
 
 	astar_search_id++;
@@ -3910,7 +4022,26 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 	int start_local;
 	AStarBrick &start_brick = astar_brick(start_cell, sid, start_local);
 	start_brick.g[start_local] = 0.0f;
-	open_heap.push({ heuristic(start_cell, goal_cell) * HEURISTIC_WEIGHT, start_cell });
+
+	// Cost to the goal by way of the region the cell is in, from the guide;
+	// most steps stay in the last cell's chunk, so its regions are kept.
+	int cached_chunk = -1;
+	NavRegions *cached_r = nullptr;
+	auto estimate = [&](const Vector3i &cell, int chunk_idx, const Vector3i &local_cell) -> float {
+		if (chunk_idx != cached_chunk) {
+			cached_r = &ensure_chunk_regions(chunk_coord_from_index(chunk_idx), flying, cls);
+			cached_chunk = chunk_idx;
+		}
+		const uint16_t label = cached_r->label.get(local_index(local_cell));
+		if (label != 0 && !cached_r->guide.empty()) {
+			const RegionGuide &g = cached_r->guide[label - 1];
+			if (g.gen == guide_gen) {
+				return heuristic(cell, g.entry) + g.g;
+			}
+		}
+		return std::max(heuristic(cell, goal_cell), guide_bound - heuristic(cell, start_cell));
+	};
+	open_heap.push({ estimate(start_cell, chunk_coord_index(cell_to_chunk_coord(start_cell)), cell_to_local(start_cell)) * HEURISTIC_WEIGHT, start_cell });
 
 	int expansions = 0;
 
@@ -3940,9 +4071,6 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 		expansions++;
 		debug_expansion_count++;
 		if (expansions > MAX_EXPANSIONS) {
-			if (mask_cut) {
-				*mask_cut = true; // capped, not exhausted: a wider search might still get there
-			}
 			break;
 		}
 		if (flood && expansions % GOAL_FLOOD_EVERY == 0) {
@@ -3961,12 +4089,6 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 				continue;
 			}
 			int neighbor_chunk = chunk_coord_index(cell_to_chunk_coord(neighbor));
-			if (allowed_chunks_mask && !(*allowed_chunks_mask)[neighbor_chunk]) {
-				if (mask_cut) {
-					*mask_cut = true;
-				}
-				continue;
-			}
 			Vector3i neighbor_cell = cell_to_local(neighbor);
 			int key = neighbor_chunk * AStarPage::BRICKS + brick_slot(neighbor_cell);
 			if (key != last_key) {
@@ -3990,7 +4112,7 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			if (tentative < last_brick->g[neighbor_local]) {
 				last_brick->g[neighbor_local] = tentative;
 				state = (state & ~AStarBrick::DIR_MASK) | (uint8_t)oi;
-				open_heap.push({ tentative + heuristic(neighbor, goal_cell) * HEURISTIC_WEIGHT, neighbor });
+				open_heap.push({ tentative + estimate(neighbor, neighbor_chunk, neighbor_cell) * HEURISTIC_WEIGHT, neighbor });
 			}
 		}
 	}
