@@ -47,6 +47,17 @@ extends UIScreen
 ## handlers already use. This still does NOT read PartyManager.
 ## pending_leader back in to pre-fill on open — this screen's only
 ## contact with PartyManager stays writing to it on Confirm.
+##
+## LEVEL-UP MODE (open_level_up): the same point-buy, reopened on a party
+## member who has unspent points from Progression. Each row's floor is
+## the member's current value, so nothing already bought can be sold
+## back, and the pool is what that member has unspent rather than the
+## table's point_pool. Origin, Portrait and the name are fixed by then and
+## hidden; an Abilities tab appears instead — the ONLY place abilities
+## are bought (a new character starts with just the basics). Confirm
+## writes onto the live Unit and hands back what was spent; whatever was
+## not spent stays with Progression for next time. Back cancels and
+## changes nothing. The mode ends when the screen closes.
 
 ## The one budget every bought stat is spent from. Each bought stat's
 ## file names this same table as its point_buy; a stat naming a different
@@ -99,6 +110,16 @@ const QUICK_CREATE_NAME: String = "Debug Hero"
 @onready var _skills_header: Label = %SkillsHeader
 @onready var _skills_list: VBoxContainer = %SkillsList
 @onready var _confirm_button: Button = %ConfirmButton
+@onready var _back_button: Button = %BackButton
+@onready var _title: Label = %Title
+@onready var _abilities_header: Label = %AbilitiesHeader
+@onready var _abilities_list: VBoxContainer = %AbilitiesList
+
+## Tab indices, as the .tscn orders them.
+const TAB_ORIGIN: int = 0
+const TAB_PORTRAIT: int = 1
+const TAB_ATTRIBUTES: int = 2
+const TAB_ABILITIES: int = 4
 
 ## Stat ids with a point_buy table, in display order — the rows.
 var _attribute_ids: Array[String] = []
@@ -108,6 +129,16 @@ var _attribute_rows: Dictionary = {}  # String -> Dictionary (row's own widgets)
 var _skill_rows: Dictionary = {}
 var _portrait_buttons: Dictionary = {}  # String (res:// path) -> Button, for selection highlighting
 var _selected_portrait_path: String = ""
+
+## Level-up mode: the member being levelled, or null when creating.
+var _level_up_unit: Unit = null
+## Each row's value when the screen opened — the floor of its "-".
+var _floor_attributes: Dictionary = {}  # String -> int
+var _floor_skills: Dictionary = {}  # String -> int
+## Progression.unspent(_level_up_unit), read once on open.
+var _points: Dictionary = {}
+var _picked_abilities: Array[Ability] = []
+var _ability_boxes: Dictionary = {}  # Ability -> CheckBox
 
 
 func _enter_tree() -> void:
@@ -162,6 +193,36 @@ func _ready() -> void:
 ## ASSIGNS state; never connects a signal or creates a node — those are
 ## _ready()'s job, exactly once.
 func reset() -> void:
+	if not is_instance_valid(_level_up_unit):
+		_level_up_unit = null
+	var levelling: bool = _level_up_unit != null
+	_tabs.set_tab_hidden(TAB_ORIGIN, levelling)
+	_tabs.set_tab_hidden(TAB_PORTRAIT, levelling)
+	_tabs.set_tab_hidden(TAB_ABILITIES, not levelling)
+	_name_edit.editable = not levelling
+	_debug_tools.visible = OS.is_debug_build() and not levelling
+	_back_button.text = "CANCEL" if levelling else "BACK"
+	_confirm_button.text = "LEVEL UP" if levelling else "BEGIN ADVENTURE"
+	_floor_attributes.clear()
+	_floor_skills.clear()
+	_picked_abilities.clear()
+	if levelling:
+		_reset_level_up()
+	else:
+		_reset_create()
+	# Recomputes every row's label/cost/disabled state off the values just
+	# reset above, and _update_confirm_state() off all of it together —
+	# same refresh calls _on_attribute_step/_on_skill_step already use, so
+	# there's no separate "blank state" rendering path to keep in sync.
+	_refresh_attributes()
+	_refresh_skills()
+	_refresh_abilities()
+	_update_confirm_state()
+
+
+func _reset_create() -> void:
+	_title.text = "CREATE YOUR CHARACTER"
+	_points.clear()
 	_name_edit.text = ""
 
 	for id in _attribute_ids:
@@ -176,23 +237,100 @@ func reset() -> void:
 	_preview_texture.texture = null
 	_portrait_placeholder.visible = true
 
-	_tabs.current_tab = 0
+	_tabs.current_tab = TAB_ORIGIN
 
-	# Recomputes every row's label/cost/disabled state off the values just
-	# reset above, and _update_confirm_state() off all of it together —
-	# same refresh calls _on_attribute_step/_on_skill_step already use, so
-	# there's no separate "blank state" rendering path to keep in sync.
-	_refresh_attributes()
-	_refresh_skills()
-	_update_confirm_state()
+
+## The member as they stand: every row starts at, and cannot go below,
+## its current value. The ability list is rebuilt here, not in _ready,
+## because what is left to learn depends on who is levelling.
+func _reset_level_up() -> void:
+	var unit: Unit = _level_up_unit
+	_points = Progression.unspent(unit)
+	_title.text = "LEVEL UP  —  %s  (Level %d)" % [unit.get_display_name(), Progression.level]
+	_name_edit.text = unit.get_display_name()
+	_preview_texture.texture = unit.portrait_texture
+	_portrait_placeholder.visible = unit.portrait_texture == null
+
+	for id in _attribute_ids:
+		var value: int = unit.get_base_stat(StringName(id))
+		_attribute_values[id] = value
+		_floor_attributes[id] = value
+
+	var known: Dictionary = _known_skills(unit)
+	for skill in SkillDatabase.get_all():
+		var instance: SkillInstance = known.get(skill.skill_name)
+		var value: int = instance.levels_purchased - 1 if instance != null else SKILL_TABLE.default_value
+		_skill_values[skill.skill_name] = value
+		_floor_skills[skill.skill_name] = value
+
+	for child in _abilities_list.get_children():
+		_abilities_list.remove_child(child)
+		child.queue_free()
+	_ability_boxes.clear()
+	var learnable: Array[Ability] = []
+	for ability in AbilityDatabase.get_all():
+		if Progression.TABLE.is_learnable(ability) and not _knows_ability(unit, ability):
+			learnable.append(ability)
+	learnable.sort_custom(func(a: Ability, b: Ability) -> bool: return a.ability_name < b.ability_name)
+	for ability in learnable:
+		var box := CheckBox.new()
+		box.text = ability.ability_name
+		box.icon = ability.icon
+		box.expand_icon = false
+		box.toggled.connect(_on_ability_toggled.bind(ability))
+		_abilities_list.add_child(box)
+		_ability_boxes[ability] = box
+
+	_tabs.current_tab = TAB_ATTRIBUTES
+
+
+## skill name -> SkillInstance.
+func _known_skills(unit: Unit) -> Dictionary:
+	var known: Dictionary = {}
+	for instance in unit.get_skills():
+		if instance.skill_data != null:
+			known[instance.skill_data.skill_name] = instance
+	return known
+
+
+func _knows_ability(unit: Unit, ability: Ability) -> bool:
+	for owned in unit.abilities:
+		if owned != null and owned.ability_name == ability.ability_name:
+			return true
+	return false
+
+
+## Level-up mode on `unit`. Returns why it could not open, or "" when it
+## did. The state is set BEFORE open(): opening is what runs reset().
+func open_level_up(unit: Unit) -> String:
+	if not is_instance_valid(unit):
+		return "No one to level up."
+	if unit.encounter != null and unit.encounter.is_running:
+		return "Not during a fight."
+	if not Progression.has_unspent(unit):
+		return "%s has no points to spend." % unit.get_display_name()
+	if visible or not UIStack.can_open():
+		return "Close the open screen first."
+	_level_up_unit = unit
+	open()
+	return ""
+
+
+func is_levelling_up() -> bool:
+	return _level_up_unit != null
 
 
 func _on_visibility_changed() -> void:
 	if visible:
 		reset()
+	else:
+		# Whatever closed it, the next open is a new character unless
+		# open_level_up says otherwise.
+		_level_up_unit = null
 
 
 func _on_new_game_started() -> void:
+	_level_up_unit = null
 	reset()
 
 
@@ -223,14 +361,14 @@ func _build_row(parent: VBoxContainer, label_text: String, tag_text: String, too
 
 
 func _on_attribute_step(attr: String, delta: int) -> void:
-	if not _can_afford_step(ATTRIBUTE_TABLE, _attribute_values, attr, delta):
+	if not _can_afford_step(ATTRIBUTE_TABLE, _attribute_values, _floor_attributes, ATTRIBUTE_POOL, attr, delta):
 		return
 	_attribute_values[attr] = _attribute_values[attr] + delta
 	_refresh_attributes()
 
 
 func _on_skill_step(skill_name: String, delta: int) -> void:
-	if not _can_afford_step(SKILL_TABLE, _skill_values, skill_name, delta):
+	if not _can_afford_step(SKILL_TABLE, _skill_values, _floor_skills, SKILL_POOL, skill_name, delta):
 		return
 	_skill_values[skill_name] = _skill_values[skill_name] + delta
 	_refresh_skills()
@@ -244,15 +382,52 @@ func _on_skill_step(skill_name: String, delta: int) -> void:
 ## function has to independently refuse an unaffordable step regardless
 ## of whether it was reached through a live (non-disabled) button or any
 ## other future caller.
-func _can_afford_step(table: PointBuyTable, values: Dictionary, key: String, delta: int) -> bool:
+func _can_afford_step(table: PointBuyTable, values: Dictionary, floors: Dictionary, pool: StringName, key: String, delta: int) -> bool:
 	var new_value: int = values[key] + delta
-	if new_value < table.min_value or new_value > table.max_value:
+	if new_value < _lowest(table, floors, key) or new_value > _highest(table, floors, key):
 		return false
 	if delta > 0:
 		var marginal_cost: int = table.cost_for(new_value) - table.cost_for(values[key])
-		if marginal_cost > table.points_remaining(values):
+		if marginal_cost > _remaining(table, values, floors, pool):
 			return false
 	return true
+
+
+## Which of Progression's pools a table spends from in level-up mode.
+const ATTRIBUTE_POOL := &"attributes"
+const SKILL_POOL := &"skills"
+
+
+## A row's bounds. Creating: the table's. Levelling: from the member's
+## current value (no selling back) up to the table's cap — or no higher
+## than they already are, for a member authored past it, since the
+## table has no price for those values.
+func _lowest(table: PointBuyTable, floors: Dictionary, key: String) -> int:
+	return floors.get(key, table.min_value)
+
+
+func _highest(table: PointBuyTable, floors: Dictionary, key: String) -> int:
+	return maxi(table.max_value, floors.get(key, table.min_value))
+
+
+## Points left. Creating: the table's own pool less the whole build.
+## Levelling: what the member has unspent less what this visit raised —
+## the cost of each row now over its cost at the floor.
+func _remaining(table: PointBuyTable, values: Dictionary, floors: Dictionary, pool: StringName) -> int:
+	if _level_up_unit == null:
+		return table.points_remaining(values)
+	return int(_points.get(pool, 0)) - _spent(table, values, floors)
+
+
+func _spent(table: PointBuyTable, values: Dictionary, floors: Dictionary) -> int:
+	var spent: int = 0
+	for key in values:
+		spent += table.cost_for(values[key]) - table.cost_for(floors.get(key, values[key]))
+	return spent
+
+
+func _picks_left() -> int:
+	return int(_points.get(&"abilities", 0)) - _picked_abilities.size()
 
 
 ## Refuses a "+" the instant the NEXT step's marginal cost would exceed
@@ -262,15 +437,15 @@ func _can_afford_step(table: PointBuyTable, values: Dictionary, key: String, del
 ## refunds or holds cost steady on both of these tables, it can never
 ## itself cause an overspend.
 func _refresh_attributes() -> void:
-	var remaining: int = ATTRIBUTE_TABLE.points_remaining(_attribute_values)
+	var remaining: int = _remaining(ATTRIBUTE_TABLE, _attribute_values, _floor_attributes, ATTRIBUTE_POOL)
 	for id in _attribute_ids:
 		var value: int = _attribute_values[id]
 		var row: Dictionary = _attribute_rows[id]
 		row["value_label"].text = str(value)
 		row["cost_label"].text = "cost %d" % ATTRIBUTE_TABLE.cost_for(value)
-		row["minus"].disabled = value <= ATTRIBUTE_TABLE.min_value
+		row["minus"].disabled = value <= _lowest(ATTRIBUTE_TABLE, _floor_attributes, id)
 		var next_step_cost: int = ATTRIBUTE_TABLE.cost_for(value + 1) - ATTRIBUTE_TABLE.cost_for(value)
-		row["plus"].disabled = value >= ATTRIBUTE_TABLE.max_value or next_step_cost > remaining
+		row["plus"].disabled = value >= _highest(ATTRIBUTE_TABLE, _floor_attributes, id) or next_step_cost > remaining
 
 	_attributes_header.text = "ATTRIBUTES  —  Points remaining: %d" % remaining
 	var parts: PackedStringArray = []
@@ -295,18 +470,40 @@ func _preview_value(id: StringName) -> float:
 
 
 func _refresh_skills() -> void:
-	var remaining: int = SKILL_TABLE.points_remaining(_skill_values)
+	var remaining: int = _remaining(SKILL_TABLE, _skill_values, _floor_skills, SKILL_POOL)
 	for skill_name in _skill_values:
 		var value: int = _skill_values[skill_name]
 		var row: Dictionary = _skill_rows[skill_name]
 		row["value_label"].text = "%+d" % value
 		row["cost_label"].text = "cost %d" % SKILL_TABLE.cost_for(value)
-		row["minus"].disabled = value <= SKILL_TABLE.min_value
+		row["minus"].disabled = value <= _lowest(SKILL_TABLE, _floor_skills, skill_name)
 		var next_step_cost: int = SKILL_TABLE.cost_for(value + 1) - SKILL_TABLE.cost_for(value)
-		row["plus"].disabled = value >= SKILL_TABLE.max_value or next_step_cost > remaining
+		row["plus"].disabled = value >= _highest(SKILL_TABLE, _floor_skills, skill_name) or next_step_cost > remaining
 
 	_skills_header.text = "SKILLS  —  Points remaining: %d" % remaining
 	_update_confirm_state()
+
+
+## A box can be ticked while picks remain; once they are used up only
+## the ticked ones stay live, so a pick can always be taken back.
+func _refresh_abilities() -> void:
+	var left: int = _picks_left()
+	for ability in _ability_boxes:
+		var box: CheckBox = _ability_boxes[ability]
+		box.set_pressed_no_signal(ability in _picked_abilities)
+		box.disabled = left <= 0 and not box.button_pressed
+	_abilities_header.text = "ABILITIES  —  Picks remaining: %d" % left
+	if _level_up_unit != null and _ability_boxes.is_empty():
+		_abilities_header.text += "  (nothing left to learn)"
+	_update_confirm_state()
+
+
+func _on_ability_toggled(on: bool, ability: Ability) -> void:
+	if on and not ability in _picked_abilities and _picks_left() > 0:
+		_picked_abilities.append(ability)
+	elif not on:
+		_picked_abilities.erase(ability)
+	_refresh_abilities()
 
 
 ## Scans PORTRAITS_DIR directly rather than any authored list — "they're
@@ -358,6 +555,9 @@ func _on_portrait_selected(path: String) -> void:
 ## Also writes the sheet's checklist, from the same four conditions, so
 ## a disabled BEGIN ADVENTURE always says what it is waiting for.
 func _update_confirm_state() -> void:
+	if _level_up_unit != null:
+		_update_level_up_confirm_state()
+		return
 	var name_given: bool = not _name_edit.text.strip_edges().is_empty()
 	var portrait_given: bool = not _selected_portrait_path.is_empty()
 	var attributes_done: bool = ATTRIBUTE_TABLE.is_valid(_attribute_values)
@@ -372,6 +572,20 @@ func _update_confirm_state() -> void:
 	_checklist.text = "\n".join(lines)
 
 
+## Levelling has nothing it MUST spend — points carry over — so LEVEL UP
+## is live as soon as anything changed.
+func _update_level_up_confirm_state() -> void:
+	var attributes_spent: int = _spent(ATTRIBUTE_TABLE, _attribute_values, _floor_attributes)
+	var skills_spent: int = _spent(SKILL_TABLE, _skill_values, _floor_skills)
+	_confirm_button.disabled = attributes_spent == 0 and skills_spent == 0 and _picked_abilities.is_empty()
+	var lines: PackedStringArray = []
+	lines.append("Attributes: %d points left" % _remaining(ATTRIBUTE_TABLE, _attribute_values, _floor_attributes, ATTRIBUTE_POOL))
+	lines.append("Skills: %d points left" % _remaining(SKILL_TABLE, _skill_values, _floor_skills, SKILL_POOL))
+	lines.append("Abilities: %d picks left" % _picks_left())
+	lines.append("Unspent points carry over.")
+	_checklist.text = "\n".join(lines)
+
+
 func _checklist_line(done: bool, text: String) -> String:
 	return ("[x]  " if done else "[  ]  ") + text
 
@@ -382,6 +596,9 @@ func _on_name_text_changed(_new_text: String) -> void:
 
 func _on_confirm_pressed() -> void:
 	if _confirm_button.disabled:
+		return
+	if _level_up_unit != null:
+		_confirm_level_up()
 		return
 
 	var record := PartyMemberData.new()
@@ -449,11 +666,63 @@ func _on_confirm_pressed() -> void:
 	WorldManager.travel_area(&"goblin_quarry")
 
 
+## Writes the visit onto the live Unit — PartyManager captures it from
+## there like any other change — and hands Progression what was spent.
+## Raising a pool's maximum raises its current value by the same amount
+## (more ST is more HP now, not after a rest); nothing is ever lowered.
+func _confirm_level_up() -> void:
+	var unit: Unit = _level_up_unit
+	if not is_instance_valid(unit):
+		close()
+		return
+	var attributes_spent: int = _spent(ATTRIBUTE_TABLE, _attribute_values, _floor_attributes)
+	var skills_spent: int = _spent(SKILL_TABLE, _skill_values, _floor_skills)
+	if not Progression.spend(unit, attributes_spent, skills_spent, _picked_abilities.size()):
+		push_warning("Level up: spent more than %s had." % unit.get_display_name())
+		return
+
+	var pool_maxes: Dictionary = {}
+	for definition in StatDatabase.get_all():
+		if definition.is_pool:
+			pool_maxes[definition.id] = floori(unit.get_stat(definition.id))
+	for id in _attribute_ids:
+		if _attribute_values[id] != _floor_attributes[id]:
+			unit.set_base_stat(StringName(id), _attribute_values[id])
+	for pool_id in pool_maxes:
+		var gained: int = floori(unit.get_stat(pool_id)) - pool_maxes[pool_id]
+		if gained > 0:
+			unit.set_pool(pool_id, unit.get_pool(pool_id) + gained)
+
+	var known: Dictionary = _known_skills(unit)
+	for skill_name in _skill_values:
+		var value: int = _skill_values[skill_name]
+		if value == _floor_skills[skill_name]:
+			continue
+		if known.has(skill_name):
+			(known[skill_name] as SkillInstance).levels_purchased = value + 1
+			continue
+		var skill: Skill = SkillDatabase.find(skill_name)
+		if skill == null:
+			continue
+		var instance := SkillInstance.new()
+		instance.skill_data = skill
+		instance.levels_purchased = value + 1  # see _on_confirm_pressed's +1
+		add_child(instance)  # add_skill reparents, so it needs a parent first
+		unit.add_skill(instance)
+
+	for ability in _picked_abilities:
+		unit.add_ability(ability)
+
+	SystemLog.print("[b]%s levelled up.[/b]" % unit.get_display_name())
+	close()
+
+
 ## Debug: a valid build in every field, through the same step and
 ## selection functions the buttons use, so it can never produce a
 ## character the UI itself could not. Starts from reset() so it is
 ## deterministic regardless of what was typed before.
 func _on_auto_fill_pressed() -> void:
+	_level_up_unit = null
 	reset()
 	_name_edit.text = QUICK_CREATE_NAME
 	if not _portrait_buttons.is_empty():
@@ -461,7 +730,7 @@ func _on_auto_fill_pressed() -> void:
 
 	var attributes: Array[String] = []
 	attributes.assign(_attribute_ids)
-	_spend_round_robin(attributes, _on_attribute_step, ATTRIBUTE_TABLE, _attribute_values)
+	_spend_round_robin(attributes, _on_attribute_step, ATTRIBUTE_TABLE, _attribute_values, _floor_attributes, ATTRIBUTE_POOL)
 
 	var skills: Array[String] = []
 	for skill_name in QUICK_CREATE_SKILLS:
@@ -469,21 +738,21 @@ func _on_auto_fill_pressed() -> void:
 			skills.append(skill_name)
 	if skills.is_empty():
 		skills.assign(_skill_values.keys())
-	_spend_round_robin(skills, _on_skill_step, SKILL_TABLE, _skill_values)
+	_spend_round_robin(skills, _on_skill_step, SKILL_TABLE, _skill_values, _floor_skills, SKILL_POOL)
 
 	_update_confirm_state()
 
 
 ## +1 to each key in turn until the pool is empty or nothing more is
 ## affordable. Spreads points evenly instead of maxing one stat.
-func _spend_round_robin(keys: Array[String], step: Callable, table: PointBuyTable, values: Dictionary) -> void:
+func _spend_round_robin(keys: Array[String], step: Callable, table: PointBuyTable, values: Dictionary, floors: Dictionary, pool: StringName) -> void:
 	var progressed: bool = true
 	while progressed and table.points_remaining(values) > 0:
 		progressed = false
 		for key in keys:
 			if table.points_remaining(values) <= 0:
 				break
-			if _can_afford_step(table, values, key, 1):
+			if _can_afford_step(table, values, floors, pool, key, 1):
 				step.call(key, 1)
 				progressed = true
 
@@ -498,6 +767,9 @@ func _on_quick_create_pressed() -> void:
 
 
 func _on_back_pressed() -> void:
+	if _level_up_unit != null:
+		close()  # cancel: nothing was written
+		return
 	# close() first: with no world loaded the mode is read off which front
 	# end screen is open, so closing this one is what makes it MAIN_MENU.
 	close()

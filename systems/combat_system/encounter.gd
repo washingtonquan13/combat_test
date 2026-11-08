@@ -116,6 +116,16 @@ var _world: World3D = null
 var _turn_index: int = -1
 var _pending_delay_positions: int = -1
 
+## What this fight was worth, for Progression (read on
+## CombatManager.encounter_finished). Kept here, not counted later from
+## turn_order, because the dead are released and may be freed before the
+## fight ends. A level per foe that died while the fight ran: a unit
+## hostile to the player at the moment it died.
+var defeated_foe_levels: Array[int] = []
+## Whether a player-faction unit fought in this at all: a fight between
+## goblins and wolves over the hill is worth nothing to the party.
+var player_took_part: bool = false
+
 ## Set by CombatManager.start_from_hostile_act — this unit's triggering
 ## attack already spent an attack action out of combat (see
 ## UnitCombat._maybe_trigger_combat), so _begin_unit_turn_actions
@@ -228,6 +238,8 @@ func _adopt(unit: Unit) -> void:
 	if _world == null and unit.is_inside_tree():
 		_world = unit.get_world_3d()
 	unit.encounter = self
+	if unit.faction == Unit.PLAYER_FACTION:
+		player_took_part = true
 	if not unit.died.is_connected(_on_unit_died):
 		unit.died.connect(_on_unit_died)
 	if not unit.downed_changed.is_connected(_on_unit_downed_changed):
@@ -579,9 +591,13 @@ func _check_combat_end() -> bool:
 	return true
 
 
-func _on_unit_died(_unit: Unit) -> void:
+func _on_unit_died(unit: Unit) -> void:
 	if phase == Phase.OUT_OF_COMBAT:
 		return
+
+	# Before the end check: finish() runs inside it.
+	if FactionRelations.is_hostile(unit.faction, Unit.PLAYER_FACTION):
+		defeated_foe_levels.append(unit.definition.level if unit.definition != null else 1)
 
 	# Check win/loss the instant anyone dies rather than at the next turn
 	# boundary — a death on someone else's turn would otherwise leave the

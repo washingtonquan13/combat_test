@@ -1,0 +1,65 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/progression_system/level_up_toast.gd" id="1_toast"]
+
+[node name="LevelUpToast" type="CanvasLayer"]
+layer = 3
+script = ExtResource("1_toast")
+
+[node name="Anchor" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 72.0
+offset_bottom = 72.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="Anchor"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Anchor/Center"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Anchor/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 12
+
+[node name="Box" type="VBoxContainer" parent="Anchor/Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LevelLabel" type="Label" parent="Anchor/Center/Panel/Margin/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 26
+text = "LEVEL 2"
+horizontal_alignment = 1
+
+[node name="Note" type="Label" parent="Anchor/Center/Panel/Margin/Box"]
+unique_name_in_owner = true
+modulate = Color(0.8, 0.8, 0.8, 1)
+layout_mode = 2
+text = "Every party member has points to spend."
+horizontal_alignment = 1
+
+[node name="LevelUpButton" type="Button" parent="Anchor/Center/Panel/Margin/Box"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(160, 32)
+layout_mode = 2
+size_flags_horizontal = 4
+text = "LEVEL UP"
+
+[node name="HideTimer" type="Timer" parent="."]
+unique_name_in_owner = true
+one_shot = true

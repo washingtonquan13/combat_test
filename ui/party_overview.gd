@@ -89,6 +89,9 @@ extends UIScreen
 @onready var _inventory: Inventory = %Inventory
 @onready var _gold_label: Label = %GoldLabel
 @onready var _debug_add_gold_button: Button = %DebugAddGoldButton
+@onready var _debug_add_xp_button: Button = %DebugAddXpButton
+@onready var _level_label: Label = %LevelLabel
+@onready var _level_up_button: Button = %LevelUpButton
 @onready var _party_list: VBoxContainer = %PartyList
 
 const RAIL_BUTTON_SIZE := Vector2(72, 88)
@@ -198,6 +201,12 @@ func _ready() -> void:
 	CurrencyManager.gold_changed.connect(_on_gold_changed)
 	_on_gold_changed(CurrencyManager.gold)
 
+	_debug_add_xp_button.visible = OS.is_debug_build()
+	_debug_add_xp_button.pressed.connect(func(): Progression.award_xp(100, "debug"))
+	_level_up_button.pressed.connect(_on_level_up_pressed)
+	Progression.xp_changed.connect(func(_xp, _level): _refresh_level())
+	Progression.points_changed.connect(func(_id): _refresh_level())
+
 	_debug_grant_section.visible = OS.is_debug_build()
 	if OS.is_debug_build():
 		_grantable_abilities = AbilityDatabase.get_all()
@@ -282,6 +291,7 @@ func show_unit(unit: Unit) -> void:
 	_refresh_alignment_grid(unit)
 	_refresh_skill_list(unit)
 	_refresh_ability_list(unit)
+	_refresh_level()
 	_refresh_journal_list()
 	_demon_panel.refresh()
 	_spawn_panel.refresh()
@@ -426,6 +436,28 @@ func _refresh_skill_list(unit: Unit) -> void:
 		row.add_child(spacer)
 		row.add_child(level_label)
 		_skill_list.add_child(row)
+
+
+## The party's shared level and XP, and LEVEL UP while the member shown
+## has points left (the toast only reaches the leader; this reaches anyone).
+func _refresh_level() -> void:
+	var into: Vector2i = Progression.progress()
+	if into.y > 0:
+		_level_label.text = "Level %d  —  XP %d / %d" % [Progression.level, into.x, into.y]
+	else:
+		_level_label.text = "Level %d  —  max level" % Progression.level
+	_level_up_button.visible = is_instance_valid(_unit) and Progression.has_unspent(_unit)
+
+
+## The level-up screen opens over the world, not over this one, so this
+## closes first (UIStack.can_open() is false while it is up).
+func _on_level_up_pressed() -> void:
+	var unit: Unit = _unit
+	close()
+	var why: String = Progression.open_level_up(unit)
+	if not why.is_empty():
+		SystemLog.print(why)
+		open_for(unit)
 
 
 func _refresh_ability_list(unit: Unit) -> void:

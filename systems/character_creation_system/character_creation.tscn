@@ -82,6 +82,7 @@ layout_mode = 2
 theme_override_constants/separation = 16
 
 [node name="Title" type="Label" parent="Margin/Root"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "CREATE YOUR CHARACTER"
@@ -342,6 +343,34 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 2
 
+[node name="Abilities" type="VBoxContainer" parent="Margin/Root/Body/Tabs"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+metadata/_tab_index = 4
+
+[node name="AbilitiesHeader" type="Label" parent="Margin/Root/Body/Tabs/Abilities"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ABILITIES"
+
+[node name="AbilitiesHint" type="Label" parent="Margin/Root/Body/Tabs/Abilities"]
+modulate = Color(0.6, 0.62, 0.7, 1)
+layout_mode = 2
+text = "Each level grants ability picks. Anything here can be learned, with no prerequisites."
+autowrap_mode = 3
+
+[node name="AbilitiesScroll" type="ScrollContainer" parent="Margin/Root/Body/Tabs/Abilities"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="AbilitiesList" type="VBoxContainer" parent="Margin/Root/Body/Tabs/Abilities/AbilitiesScroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
 [node name="ButtonRow" type="HBoxContainer" parent="Margin/Root"]
 layout_mode = 2
 theme_override_constants/separation = 12
@@ -376,6 +405,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="BackButton" type="Button" parent="Margin/Root/ButtonRow"]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(120, 36)
 layout_mode = 2
 text = "BACK"

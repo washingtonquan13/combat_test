@@ -57,6 +57,10 @@ signal combat_ended_in_world(world: World3D)
 ## surfaces from this, picking one clock per world itself.
 signal round_started_in(encounter: Encounter, round_number: int)
 
+## Every fight's end, any world, naming the fight while it can still be
+## read (it is freed straight after). Progression awards XP from this.
+signal encounter_finished(encounter: Encounter, winning_faction: StringName)
+
 ## How close another unit needs to be to the attacker OR the target (same
 ## faction as whichever one it's near) to get pulled into a freshly
 ## triggered fight. A plain tunable constant, same convention as
@@ -409,6 +413,7 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 	var where: World3D = encounter.world_3d()
 	combat_ended.emit(winning_faction)
 	combat_ended_in_world.emit(where)
+	encounter_finished.emit(encounter, winning_faction)
 	encounter.queue_free()
 
 

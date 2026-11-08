@@ -518,6 +518,12 @@ layout_mode = 2
 text = "+50 g (debug)"
 flat = true
 
+[node name="DebugAddXpButton" type="Button" parent="ContentArea/InventoryPanel/InventoryColumn/VBoxContainer/FooterRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+100 XP (debug)"
+flat = true
+
 [node name="CharacterPanel" type="Control" parent="ContentArea"]
 unique_name_in_owner = true
 visible = false
@@ -621,6 +627,24 @@ theme_override_constants/margin_right = 24
 [node name="VBoxContainer" type="VBoxContainer" parent="ContentArea/CharacterPanel/AbilitiesColumn"]
 layout_mode = 2
 theme_override_constants/separation = 8
+
+[node name="LevelRow" type="HBoxContainer" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer"]
+layout_mode = 2
+
+[node name="LevelLabel" type="Label" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer/LevelRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Level 1  —  XP 0 / 100"
+
+[node name="LevelUpButton" type="Button" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer/LevelRow"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "LEVEL UP"
+
+[node name="LevelHSeparator" type="HSeparator" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer"]
+layout_mode = 2
 
 [node name="Header" type="Label" parent="ContentArea/CharacterPanel/AbilitiesColumn/VBoxContainer"]
 layout_mode = 2

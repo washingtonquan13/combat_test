@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ProgressionTable" load_steps=18 format=3]
+
+[ext_resource type="Script" path="res://systems/progression_system/progression_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="17_ability"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="2_melee"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_ranged.tres" id="3_ranged"]
+[ext_resource type="Resource" path="res://data/abilities/jump.tres" id="4_jump"]
+[ext_resource type="Resource" path="res://data/abilities/shove.tres" id="5_shove"]
+[ext_resource type="Resource" path="res://data/abilities/pick_up.tres" id="6_pickup"]
+[ext_resource type="Resource" path="res://data/abilities/target_head.tres" id="7_head"]
+[ext_resource type="Resource" path="res://data/abilities/target_vitals.tres" id="8_vitals"]
+[ext_resource type="Resource" path="res://data/abilities/deceptive_attack.tres" id="9_deceptive"]
+[ext_resource type="Resource" path="res://data/abilities/reload.tres" id="10_reload"]
+[ext_resource type="Resource" path="res://data/abilities/dismiss_summon.tres" id="11_dismiss"]
+[ext_resource type="Resource" path="res://data/abilities/summon_demon_template.tres" id="12_summon"]
+[ext_resource type="Resource" path="res://data/abilities/fire_breath.tres" id="13_fire"]
+[ext_resource type="Resource" path="res://data/abilities/frost_breath.tres" id="14_frost"]
+[ext_resource type="Resource" path="res://data/abilities/lightning_breath.tres" id="15_lightning"]
+[ext_resource type="Resource" path="res://data/abilities/fly.tres" id="16_fly"]
+
+[resource]
+script = ExtResource("1_table")
+xp_to_reach = Array[int]([100, 250, 450, 700, 1000, 1400, 1900, 2500, 3200])
+attribute_points = 3
+skill_points = 3
+ability_picks = 1
+xp_per_foe_level = 25
+not_learnable = Array[ExtResource("17_ability")]([ExtResource("2_melee"), ExtResource("3_ranged"), ExtResource("4_jump"), ExtResource("5_shove"), ExtResource("6_pickup"), ExtResource("7_head"), ExtResource("8_vitals"), ExtResource("9_deceptive"), ExtResource("10_reload"), ExtResource("11_dismiss"), ExtResource("12_summon"), ExtResource("13_fire"), ExtResource("14_frost"), ExtResource("15_lightning"), ExtResource("16_fly")])
