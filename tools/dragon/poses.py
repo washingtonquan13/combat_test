@@ -210,6 +210,47 @@ HOVER_RECOVER = {
 
 HOVER_KEYS = [HOVER_TOP, HOVER_DRIVE, HOVER_BOTTOM, HOVER_RECOVER]
 
+
+# Flying forward: the spine laid out nearly level, neck reaching ahead, legs
+# drawn up and back, tail streaming straight behind. The same beat as the hover
+# and at the same height, so the two loops cross-fade on the stroke.
+def _cruise(rise, head_rise, wing, tail_z):
+    """Key pose: rise lifts the body, head_rise the head, which moves less."""
+    hip, chest = 0.62 + rise, 0.675 + rise * 1.25
+    head = 0.795 + head_rise
+    return {
+        "hip": (0.0, 0.22, hip),
+        "back": [(0.0, 0.06, (hip + chest) * 0.5 + 0.022)],
+        "chest": (0.0, -0.10, chest),
+        "chest_rot": (-8, 0, 0),
+        "neck": [(0.0, -0.241, chest + 0.059), (0.0, -0.31, chest + 0.085 + (head_rise - rise) * 0.4), (0.0, -0.38, head - 0.015)],
+        "head": (0.0, -0.44, head),
+        "look": (0.0, -1.0, -0.16),
+        "feet": {
+            "Hand_L": {"at": (0.085, -0.17, chest - 0.165), "rot": (104, 6, 0)},
+            "Hand_R": {"at": (-0.085, -0.155, chest - 0.155), "rot": (97, -5, 0)},
+            "back_food_L": {"at": (0.125, 0.56, hip - 0.13), "rot": (138, 8, 0)},
+            "back_food_R": {"at": (-0.125, 0.53, hip - 0.105), "rot": (126, -8, 0)},
+        },
+        "tail": [(0.005, 0.48, hip - 0.03 + tail_z * 0.2), (0.02, 0.78, hip - 0.09 + tail_z * 0.5), (0.05, 1.1, hip - 0.145 + tail_z), (0.1, 1.41, hip - 0.11 + tail_z * 1.6)],
+        "wing": open_wing(**wing),
+    }
+
+
+CRUISE_WING = [
+    {"lift": 42, "sweep": -6, "twist": -6, "elbow": 0, "wrist": -20, "back": 0, "fan": 0.95},
+    {"lift": 2, "sweep": 12, "twist": 12, "elbow": 5, "wrist": 10, "back": 0, "fan": 1.0},
+    {"lift": -32, "sweep": 14, "twist": 8, "elbow": -5, "wrist": -10, "back": 0, "fan": 1.0},
+    {"lift": 22, "sweep": -14, "twist": -14, "elbow": 18, "wrist": -80, "back": 45, "fan": 0.5},
+]
+
+CRUISE_KEYS = [
+    _cruise(0.0, 0.0, CRUISE_WING[0], 0.0),
+    _cruise(0.015, 0.008, CRUISE_WING[1], 0.01),
+    _cruise(0.03, 0.018, CRUISE_WING[2], -0.01),
+    _cruise(0.018, 0.012, CRUISE_WING[3], 0.02),
+]
+
 POSES = {
     "stance": STANCE,
     "inhale": INHALE,
@@ -220,10 +261,15 @@ POSES = {
     "hover_drive": HOVER_DRIVE,
     "hover_bottom": HOVER_BOTTOM,
     "hover_recover": HOVER_RECOVER,
+    "cruise_top": CRUISE_KEYS[0],
+    "cruise_drive": CRUISE_KEYS[1],
+    "cruise_bottom": CRUISE_KEYS[2],
+    "cruise_recover": CRUISE_KEYS[3],
 }
 
 # Framed for open wings and height off the ground.
-ALOFT = {"hover_top", "hover_drive", "hover_bottom", "hover_recover", "hover_blocked", "hover"}
+ALOFT = {"hover_top", "hover_drive", "hover_bottom", "hover_recover", "hover_blocked", "hover",
+         "cruise_top", "cruise_drive", "cruise_bottom", "cruise_recover", "cruise_blocked", "cruise"}
 
 
 def _layer(value, stance, key, curve, t, lag):
@@ -354,35 +400,43 @@ HOVER_LOWER_LAG = {
 HOVER_WHIP = [(0.0, 0.0, 0.0), (0.014, 0.02, 0.06), (0.035, 0.055, 0.12), (0.06, 0.1, 0.19)]
 
 
-def _whip(tail, t):
+# Forward flight drags the tail straight: less side to side, more up and down.
+CRUISE_WHIP = [(0.0, 0.0, 0.0), (0.008, 0.025, 0.06), (0.02, 0.065, 0.12), (0.035, 0.12, 0.19)]
+
+
+def _whip(tail, table, t):
     out = []
-    for point, (sideways, up, lag) in zip(tail, HOVER_WHIP):
+    for point, (sideways, up, lag) in zip(tail, table):
         wave = math.sin(2.0 * math.pi * (t - lag))
         out.append((point[0] + sideways * wave, point[1], point[2] + up * wave))
     return out
 
 
-def _hover_part(lags, t):
-    return {name: _between([key[name] for key in HOVER_KEYS], HOVER_TIMES, t, lag) for name, lag in lags.items()}
-
-
-def _hover_wing(t):
-    return open_wing(**_between(HOVER_WING, HOVER_TIMES, t, HOVER_WING_LAG))
+def _flap(keys, wings, whip, t):
+    """One wingbeat at t. Every flying loop shares its times, so they cross-fade on the stroke."""
+    lags = dict(HOVER_UPPER_LAG, **HOVER_LOWER_LAG)
+    out = {name: _between([key[name] for key in keys], HOVER_TIMES, t, lag) for name, lag in lags.items()}
+    out["tail"] = _whip(out["tail"], whip, t)
+    wing = lambda u: open_wing(**_between(wings, HOVER_TIMES, u, HOVER_WING_LAG))
+    out["wing_L"] = wing(t)
+    out["wing_R"] = wing(t - HOVER_WING_R_LAG)
+    return out
 
 
 def hover_at(t):
-    out = _hover_part(HOVER_UPPER_LAG, t)
-    out.update(_hover_part(HOVER_LOWER_LAG, t))
-    out["tail"] = _whip(out["tail"], t)
-    out["wing_L"] = _hover_wing(t)
-    out["wing_R"] = _hover_wing(t - HOVER_WING_R_LAG)
-    return out
+    return _flap(HOVER_KEYS, HOVER_WING, HOVER_WHIP, t)
+
+
+def cruise_at(t):
+    return _flap(CRUISE_KEYS, CRUISE_WING, CRUISE_WHIP, t)
 
 
 # length in seconds; `at` takes 0..1 of the loop and returns a pose.
 CLIPS = {
     "idle": {"length": 8.0, "at": idle_at},
     "hover": {"length": 40.0 / 24.0, "at": hover_at},
+    "cruise": {"length": 40.0 / 24.0, "at": cruise_at},
     "idle_blocked": {"length": 2.0 / 24.0, "at": lambda t: INHALE if t >= 0.5 else STANCE},
+    "cruise_blocked": {"length": 4.0 / 24.0, "at": lambda t: CRUISE_KEYS[min(int(t * 4.0 + 1e-6), 3)]},
     "hover_blocked": {"length": 4.0 / 24.0, "at": lambda t: HOVER_KEYS[min(int(t * 4.0 + 1e-6), 3)]},
 }

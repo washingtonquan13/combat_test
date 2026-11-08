@@ -236,7 +236,7 @@ for track in list(arm.animation_data.nla_tracks):
         arm.animation_data.nla_tracks.remove(track)
 
 # The action clips, authored over Idle (dragon_clips.py).
-authored, moments = dragon_clips.build(arm, body, bpy.data.actions["Idle-loop"], fly=hover_act)
+authored, moments = dragon_clips.build(arm, body, bpy.data.actions["Idle-loop"])
 for act in authored:
     track = arm.animation_data.nla_tracks.new()
     track.name = act.name
@@ -245,9 +245,10 @@ for act in authored:
 
 # Authored from scratch (poses.py). Run last: the clips above still build on
 # the model's own Idle until they are re-authored.
-bake_poses.replace(arm, body, {"Idle-loop": "idle", "Fly-loop": "hover"})
+FROM_POSES = {"Idle-loop": "idle", "Fly-loop": "hover", "Fly_Forward-loop": "cruise"}
+bake_poses.replace(arm, body, FROM_POSES)
 
-KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"} | {a.name for a in authored}
+KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"} | set(FROM_POSES) | {a.name for a in authored}
 for act in [a for a in bpy.data.actions if a.name not in KEEP]:
     bpy.data.actions.remove(act)
 

@@ -225,24 +225,6 @@ def clips():
     return [_bite(), _claw(), _breath(), _breath_hold(), _breath_out(), _hit(), _death()]
 
 
-ALL_FEET = tuple(LEGS)
-
-
-def _fly_forward(frames):
-    """Forward flight, posed over the hover loop (`frames` is its last
-    frame): the body tipped nose down into the direction of travel, the
-    neck and head raised back to look ahead, the tail lowered to trail
-    level, the forelegs tucked and the hind legs swept back. The wings keep
-    the hover's beat, so the two loops cross-fade cleanly."""
-    hold = lambda v: [(0, v), (frames, v)]
-    return Clip("Fly_Forward-loop", frames, {
-        "pitch": hold(-35), "neck_lo": hold(4), "neck_hi": hold(6), "head": hold(10),
-        "tail_pitch": hold(22), "fore_tuck": hold(30), "hind_back": hold(35),
-    }, follow=ALL_FEET)
-
-
-def fly_clips(frames):
-    return [_fly_forward(frames)]
 
 
 # --- Posing -----------------------------------------------------------------
@@ -454,10 +436,9 @@ def _continuous(frames):
                     frames[i][k] = -frames[i][k]
 
 
-def build(arm, body, idle, fly=None):
-    """Bakes every clip into a new action: clips() over `idle`, fly_clips()
-    over `fly` (the hover loop). Returns (actions, moments), with moments as
-    {clip: {method: [seconds]}}."""
+def build(arm, body, idle):
+    """Bakes every clip into a new action, over `idle`. Returns (actions,
+    moments), with moments as {clip: {method: [seconds]}}."""
     deform = [m for m in body.modifiers if m.type == "ARMATURE"]
     for m in deform:
         m.show_viewport = False  # no skinning on every pose update while baking
@@ -465,15 +446,11 @@ def build(arm, body, idle, fly=None):
     poser = Poser(arm, idle)
     poser.pose(clips()[0], 0)  # the first pose after setup reads stale matrices; spend it
     actions, moments = [], {}
-    jobs = [(poser, c) for c in clips()]
-    if fly is not None:
-        flyer = Poser(arm, fly)
-        jobs += [(flyer, c) for c in fly_clips(flyer.idle_len)]
-    for posing, clip in jobs:
+    for clip in clips():
         frames = []
         for f in range(clip.frames + 1):
-            posing.pose(clip, f)
-            frames.append(posing.channels())
+            poser.pose(clip, f)
+            frames.append(poser.channels())
         _continuous(frames)
         actions.append(_action(arm, clip.name, frames))
         if clip.name == "Death":
