@@ -46,9 +46,21 @@ func _init() -> void:
 		if failed:
 			push_error("carry_clips: not saving %s" % path)
 			continue
-		print("CARRY saved ", path, " err ", ResourceSaver.save(library, path))
+		print("CARRY saved ", path, " err ", _save_keeping_uid(library, path))
 	model.free()
 	quit()
+
+
+# A save from a script drops the file's uid, and scenes refer to the file by it.
+func _save_keeping_uid(library: AnimationLibrary, path: String) -> Error:
+	var uid := FileAccess.get_file_as_string(path).get_slice("
+", 0).get_slice(" uid=", 1).trim_suffix("]")
+	var err := ResourceSaver.save(library, path)
+	var text := FileAccess.get_file_as_string(path)
+	var end := text.find("]")
+	if err == OK and uid != "" and not text.substr(0, end).contains(" uid="):
+		FileAccess.open(path, FileAccess.WRITE).store_string(text.insert(end, " uid=" + uid))
+	return err
 
 
 # A copy of the baked clip with exactly the old clip's bone tracks.

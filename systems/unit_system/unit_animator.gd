@@ -901,6 +901,10 @@ func _play(anim_name: String, blend: float = -1.0) -> bool:
 	var flight := [fly_idle_animation, fly_move_animation]
 	var keep_beat: bool = from != anim_name and from in flight and anim_name in flight
 	var beat: float = animation_player.current_animation_position if keep_beat else 0.0
+	# Hover and the glide hold different poses, and a move starts and stops
+	# between them; a body with no default blend would cut.
+	if keep_beat and blend < 0.0:
+		blend = stance_blend_time
 	animation_player.play(anim_name, blend)
 	if keep_beat:
 		animation_player.seek(fposmod(beat, animation_player.current_animation_length), false)

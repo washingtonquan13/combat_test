@@ -373,23 +373,24 @@ def hover_at(t):
 
 
 def fly_at(t):
-    """Stretched out along the flight: the chest leads, the legs stream behind and flutter,
-    the arms held back alongside and steering."""
+    """A gentle forward drift, close to the hover: the body leans in, the legs trail and
+    flutter, the arms hang back a little and steer."""
     flap = math.sin(TAU * t)
     late = math.sin(TAU * (t - 0.12))
     weave = math.sin(TAU * (t + 0.25))
+    height = 1.18
     return {
-        "hip": (0.012 * weave, 0.02 + 0.01 * late, 0.96 + 0.018 * flap),
-        "hip_rot": (52.0 + 2.0 * late, -1.5 * weave, -1.5 * flap),
-        "chest_rot": (61.0 + 2.5 * flap, 2.0 * weave, 2.0 * flap),
-        "look": (0.04 * weave, -1.0, 0.18 + 0.03 * flap),
+        "hip": (0.012 * weave, 0.03 + 0.01 * late, height + 0.018 * flap),
+        "hip_rot": (17.0 + 2.0 * late, -1.5 * weave, -1.5 * flap),
+        "chest_rot": (27.0 + 2.5 * flap, 2.0 * weave, 2.0 * flap),
+        "look": (0.04 * weave, -1.0, -0.04 + 0.03 * flap),
         "feet": {
-            "l": {"at": (0.1 + 0.01 * weave, 0.63 + 0.03 * late, 0.475 + 0.04 * late), "rot": (108.0 + 5.0 * late, 0.0, 6.0), "toe": 0.0, "pole": (0.25, -0.5, -1.0)},
-            "r": {"at": (-0.12 + 0.01 * weave, 0.62 - 0.03 * late, 0.45 - 0.04 * late), "rot": (108.0 - 5.0 * late, 0.0, -8.0), "toe": 0.0, "pole": (-0.25, -0.5, -1.0)},
+            "l": {"at": (0.11 + 0.01 * weave, 0.25 + 0.03 * late, height - 0.69 + 0.04 * late), "rot": (62.0 + 5.0 * late, 0.0, 7.0), "toe": 4.0, "pole": (0.28, -1.0, -0.3)},
+            "r": {"at": (-0.125 + 0.01 * weave, 0.36 - 0.03 * late, height - 0.67 - 0.04 * late), "rot": (72.0 - 5.0 * late, 0.0, -9.0), "toe": 4.0, "pole": (-0.28, -1.0, -0.3)},
         },
         "hands": {
-            "l": {"at": (0.31 + 0.02 * weave, 0.13 - 0.015 * flap, 0.93 + 0.015 * flap), "space": "chest", "pole": (0.55, 0.85, -0.3), "curl": 0.25, "thumb": 0.2},
-            "r": {"at": (-0.315 + 0.02 * weave, 0.14 + 0.015 * flap, 0.925 - 0.015 * flap), "space": "chest", "pole": (-0.55, 0.85, -0.3), "curl": 0.28, "thumb": 0.2},
+            "l": {"at": (0.32 + 0.02 * weave, 0.08 - 0.015 * flap, 0.945 + 0.015 * flap), "space": "chest", "pole": (0.5, 0.85, -0.5), "curl": 0.3, "thumb": 0.22},
+            "r": {"at": (-0.325 + 0.02 * weave, 0.09 + 0.015 * flap, 0.94 - 0.015 * flap), "space": "chest", "pole": (-0.5, 0.85, -0.5), "curl": 0.32, "thumb": 0.22},
         },
     }
 

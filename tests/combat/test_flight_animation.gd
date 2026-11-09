@@ -50,9 +50,20 @@ func _lifts_hovers_glides_and_lands() -> void:
 		player.current_animation)
 	check("SETUP: it really climbed", unit.global_position.y > 2.0, "y=%.2f" % unit.global_position.y)
 
+	var skeleton: Skeleton3D = unit.find_children("*", "Skeleton3D", true, false)[0]
+	var hips: int = skeleton.find_bone("Hips")
+	var hovering: Quaternion = skeleton.get_bone_pose_rotation(hips)
 	unit.movement_started.emit(unit)
 	check("moving in the air glides, not jogs", player.current_animation == "Flight/Fly_Fwd",
 		player.current_animation)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var leaving: Quaternion = skeleton.get_bone_pose_rotation(hips)
+	await get_tree().create_timer(0.3).timeout
+	var gliding: Quaternion = skeleton.get_bone_pose_rotation(hips)
+	check("the hips fade out of the hover instead of cutting to the glide",
+		hovering.angle_to(leaving) < hovering.angle_to(gliding) * 0.5,
+		"moved %.1f deg in two frames of %.1f" % [rad_to_deg(hovering.angle_to(leaving)), rad_to_deg(hovering.angle_to(gliding))])
 	unit.movement_finished.emit(unit)
 	check("stopping in the air goes back to the hover", player.current_animation == "Flight/Hover",
 		player.current_animation)
