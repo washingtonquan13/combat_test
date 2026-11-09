@@ -56,6 +56,8 @@ func set_level(advantage: Advantage, level: int) -> void:
 			if not _owner.abilities.has(ability):
 				_owner.add_ability(ability)
 				instance.granted.append(ability)
+			if ability.on_when_granted:
+				_owner.set_toggled(ability, true)
 	elif instance.level == target:
 		return
 	else:

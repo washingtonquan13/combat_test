@@ -932,12 +932,22 @@ func set_toggled(toggle: Ability, on: bool, notify: bool = true) -> void:
 		return
 	if on:
 		if toggle.toggle_group != &"":
-			_toggles = _toggles.filter(func(other: Ability) -> bool: return other.toggle_group != toggle.toggle_group)
+			for other in _toggles.duplicate():
+				if other.toggle_group == toggle.toggle_group:
+					_switch_off(other)
 		_toggles.append(toggle)
+		if toggle.while_on:
+			_owner.add_permanent_status(toggle.while_on)
 	else:
-		_toggles.erase(toggle)
+		_switch_off(toggle)
 	if notify:
 		_owner.toggles_changed.emit(_owner)
+
+
+func _switch_off(toggle: Ability) -> void:
+	_toggles.erase(toggle)
+	if toggle.while_on:
+		_owner.remove_status(toggle.while_on)
 
 
 ## A leveled toggle's level, on or off: 1 until it is first changed.

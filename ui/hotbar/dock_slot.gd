@@ -181,6 +181,9 @@ func _build_tooltip() -> String:
 		lines.append(ability.hit_location.describe())
 	if ability == UnitCombat.DECEPTIVE_ATTACK:
 		lines.append("Per level: -2 to your skill, -1 to the target's defense")
+	if ability.while_on:
+		for behavior in ability.while_on.behaviors:
+			lines.append(behavior.describe())
 	if ability.toggle_off:
 		lines.append("Use again while on: %s" % ability.toggle_off.ability_name)
 	if ability.max_level > 0:

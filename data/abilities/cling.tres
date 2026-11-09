@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="Ability" load_steps=8 format=3]
+
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="1_ability"]
+[ext_resource type="Script" path="res://systems/ability_system/status_effect.gd" id="2_status"]
+[ext_resource type="Script" path="res://systems/ability_system/status_behavior.gd" id="3_base"]
+[ext_resource type="Script" path="res://systems/ability_system/crawl_behavior.gd" id="4_crawl"]
+[ext_resource type="Texture2D" path="res://assets/ability_icon/clinging_icon.png" id="5_icon"]
+
+[sub_resource type="Resource" id="Resource_crawl"]
+script = ExtResource("4_crawl")
+
+[sub_resource type="Resource" id="Resource_status"]
+script = ExtResource("2_status")
+status_name = "Clinging"
+curable = false
+behaviors = Array[ExtResource("3_base")]([SubResource("Resource_crawl")])
+
+[resource]
+script = ExtResource("1_ability")
+ability_name = "Cling"
+icon = ExtResource("5_icon")
+icon_color = Color(0.74, 0.8, 0.6, 1)
+category = 0
+is_toggle = true
+while_on = SubResource("Resource_status")
+on_when_granted = true
+requires_to_hit = false
+uses_attack_action = false

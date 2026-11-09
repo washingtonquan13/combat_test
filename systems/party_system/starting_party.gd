@@ -21,6 +21,8 @@ const ITEM_DIR := "res://data/items/"
 const INNATE_ABILITIES: Array[String] = [
 	"pick_up", "target_head", "target_vitals", "deceptive_attack", "reload",
 ]
+## These come with an advantage, and the leader hasn't got it.
+const ADVANTAGE_ABILITIES: Array[String] = ["cling"]
 ## What the character starts wearing. Everything else goes in the bag.
 const WORN := {
 	EquipSlot.Slot.HELMET: "leather_helmet",
@@ -66,7 +68,7 @@ static func _build_leader(area: Node3D, spawn_point: Node3D) -> Unit:
 static func _give_everything(leader: Unit) -> void:
 	var abilities: Array[Ability] = []
 	for id in _resource_ids(ABILITY_DIR):
-		if not INNATE_ABILITIES.has(id):
+		if not INNATE_ABILITIES.has(id) and not ADVANTAGE_ABILITIES.has(id):
 			abilities.append(load(ABILITY_DIR + id + ".tres"))
 	leader.set_abilities(abilities)
 

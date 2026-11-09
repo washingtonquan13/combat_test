@@ -62,6 +62,9 @@ var _moving: bool = false
 ## The tween carrying the body through the air, if one is (carry_tween).
 var _carrier: Tween = null
 var _crawl_pose: CrawlPose = null
+## Whether the route being walked was planned for a crawler. Neither body
+## can walk the other's route, so a change mid-walk ends the walk.
+var _route_crawls: bool = false
 ## Where a crawler last had hold of a wall: how far it falls if it lets go.
 var _hold_height: float = NAN
 var _stuck_timer: float = 0.0
@@ -529,6 +532,7 @@ func _begin_route(planned: Dictionary) -> bool:
 	_climb_up = planned.get("climb_up", true)
 	_stuck_timer = 0.0
 	_last_progress_position = _owner.global_position
+	_route_crawls = _crawls()
 	_moving = true
 	_owner.movement_started.emit(_owner)
 	return true
@@ -592,6 +596,8 @@ func physics_process(delta: float) -> void:
 
 func _step(delta: float) -> void:
 	var crawling: bool = _crawls()
+	if _moving and crawling != _route_crawls:
+		stop_moving()
 	var clinging: bool = _update_crawl(delta, crawling)
 	if _carrier != null and _carrier.is_valid():
 		_hold_height = NAN

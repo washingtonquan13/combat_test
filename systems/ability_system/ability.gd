@@ -44,8 +44,9 @@ enum Category { COMMON, ABILITIES }
 
 @export_group("Toggle")
 ## A toggle is switched on and off from the hotbar instead of used: it
-## changes how the unit's other abilities work while it is on (see
-## UnitCombat's Toggles section). No targeting or effects of its own.
+## changes how the unit's other abilities work, or what its body can do,
+## while it is on (see UnitCombat's Toggles section). No targeting or
+## effects of its own, and it costs nothing to switch.
 @export var is_toggle: bool = false
 ## Toggles sharing a group are mutually exclusive: switching one on
 ## switches the rest off. Empty is a group of its own.
@@ -56,6 +57,12 @@ enum Category { COMMON, ABILITIES }
 ## steps to the next, wrapping round to 1, and switching it off keeps the
 ## level for next time (UnitCombat.toggle_level).
 @export_range(0, 9) var max_level: int = 0
+## Held on the unit for as long as the toggle is on, hidden (see
+## StatusManager.add_permanent): anything a status can do, a toggle can.
+@export var while_on: StatusEffect
+## Switched on the moment an advantage grants it: the ability simply works,
+## and the toggle is how to stop it.
+@export var on_when_granted: bool = false
 ## A toggle CAST, unlike is_toggle above: a real cast that is on for as
 ## long as its caster has on_status (Fly: while flying). Using it while
 ## on uses toggle_off instead, with toggle_off's own costs, effects and

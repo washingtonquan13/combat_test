@@ -9,4 +9,4 @@ func grants_crawl() -> bool:
 
 
 func describe() -> String:
-	return "Walks on walls and ceilings"
+	return "Walks on walls and ceilings. Switched off, it lets go"

@@ -50,6 +50,41 @@ func run() -> void:
 		highest = maxf(highest, point.y)
 	check("a walker sent at the wall stays on the floor", highest < 0.5, "highest %.2f" % highest)
 
+	var cling: Ability = load("res://data/abilities/cling.tres")
+	check("Cling is on from the start", spider.is_toggled(cling) and spider.abilities.has(cling))
+	spider.move_to(on_wall)
+	await get_tree().physics_frame
+	check("sent up the wall", spider.is_moving())
+	spider.set_toggled(cling, false)
+	await get_tree().physics_frame
+	check("switched off, it stops: that route was a crawler's", not spider.is_moving())
+	check("switched off, it is no crawler", not spider.can_crawl())
+
+	spider.set_toggled(cling, true)
+	var high: Vector3 = up_wall[up_wall.size() - 1]
+	spider.global_position = high
+	for i in 20:
+		await get_tree().physics_frame
+	check("switched on, it holds the wall", absf(spider.global_position.y - high.y) < 0.05, str(spider.global_position))
+	spider.set_toggled(cling, false)
+	for i in 90:
+		await get_tree().physics_frame
+	check("switched off on the wall, it drops", spider.global_position.y < 0.3, str(spider.global_position))
+
+	var summon: Ability = load("res://data/abilities/summon_giant_spider.tres")
+	summon.effects[0].apply(walker, Vector3(-3.0, 0.0, 0.0), summon, false)
+	var summoned: Unit = null
+	for sibling in walker.get_parent().get_children():
+		if sibling is Unit and sibling.summoned_by == walker:
+			summoned = sibling
+	check("the summon makes a spider on the caster's side", summoned != null and summoned.faction == walker.faction)
+	check("summoned, it is already a crawler", summoned != null and summoned.can_crawl())
+	if summoned:
+		summoned.queue_free()
+	StartingParty._give_everything(walker)
+	check("the leader gets the summon", walker.abilities.has(summon))
+	check("but not Cling, which needs the advantage", not walker.abilities.has(cling))
+
 	spider.queue_free()
 	free_spawned()
 	wall.queue_free()

@@ -937,7 +937,7 @@ func _ready() -> void:
 	_selection.name = "Selection"
 	add_child(_selection)
 	_movement = UnitMovement.new(self)
-	_combat = UnitCombat.new(self)
+	_unit_combat()  # a definition's advantages may have built it
 	_equipment = UnitEquipment.new(self)
 	_alignment = UnitAlignment.new(self)
 	_skills = UnitSkills.new(self)
@@ -1526,6 +1526,11 @@ func _update_low_pool_statuses() -> void:
 
 ## voluntary forwarded straight to StatusManager.remove() — see that
 ## method's own header. LandEffect is the one caller that passes true.
+## Hidden, unsaved, and on until removed: see StatusManager.add_permanent.
+func add_permanent_status(effect: StatusEffect) -> void:
+	_status_manager.add_permanent(effect)
+
+
 func remove_status(effect: StatusEffect, voluntary: bool = false) -> void:
 	_status_manager.remove(effect, voluntary)
 
@@ -1927,6 +1932,14 @@ func _unit_advantages() -> UnitAdvantages:
 	return _advantages
 
 
+## Built lazily, as _unit_advantages is: an advantage can switch a toggle
+## on while the definition setter is still running.
+func _unit_combat() -> UnitCombat:
+	if _combat == null:
+		_combat = UnitCombat.new(self)
+	return _combat
+
+
 func _unit_stats() -> UnitStats:
 	if _stats == null:
 		_stats = UnitStats.new(self)
@@ -2061,6 +2074,8 @@ func add_ability(ability: Ability) -> void:
 func remove_ability(ability: Ability) -> bool:
 	if not abilities.has(ability):
 		return false
+	if ability.is_toggle:
+		set_toggled(ability, false)
 	var next: Array[Ability] = abilities.duplicate()
 	next.erase(ability)
 	abilities = next
@@ -2279,11 +2294,11 @@ func expected_damage(damage_type: UnitCombat.DamageType, bonus: int, target: Uni
 
 ## See UnitCombat's Toggles section.
 func is_toggled(toggle: Ability) -> bool:
-	return _combat.is_toggled(toggle)
+	return _unit_combat().is_toggled(toggle)
 
 
 func set_toggled(toggle: Ability, on: bool) -> void:
-	_combat.set_toggled(toggle, on)
+	_unit_combat().set_toggled(toggle, on)
 
 
 func aim() -> Ability:
