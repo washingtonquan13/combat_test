@@ -1,0 +1,57 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
+[ext_resource type="PackedScene" path="res://assets/spider/spider.glb" id="2_glb"]
+[ext_resource type="Resource" path="res://data/motion_sets/spider.tres" id="3_motions"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+top_radius = 0.75
+bottom_radius = 0.75
+height = 0.02
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_move"]
+radius = 0.3
+height = 0.6
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_torso"]
+radius = 0.26
+height = 1.46
+
+[node name="SpiderModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "collision_shape", "hit_shapes", "head_anchor", "eye_anchor", "chest_anchor")]
+script = ExtResource("1_cm")
+animation_player = NodePath("Body/AnimationPlayer")
+idle_animation = "Idle"
+walk_animation = "Walk"
+death_animation = "Death"
+motions = ExtResource("3_motions")
+highlight_mesh = NodePath("HighlightMesh")
+radius = 0.55
+height = 0.7
+collision_shape = NodePath("CollisionTemplate")
+hit_shapes = [NodePath("HitTorso")]
+head_anchor = NodePath("Body/RootNode/SpiderArmature/Skeleton3D/Head")
+eye_anchor = NodePath("Body/RootNode/SpiderArmature/Skeleton3D/Head")
+chest_anchor = NodePath("Body/RootNode/SpiderArmature/Skeleton3D/Chest")
+
+[node name="Body" parent="." instance=ExtResource("2_glb")]
+transform = Transform3D(0.35, 0, 0, 0, 0.35, 0, 0, 0, 0.35, 0, 0, 0)
+
+[node name="Head" type="BoneAttachment3D" parent="Body/RootNode/SpiderArmature/Skeleton3D" index="1"]
+bone_name = "Head"
+bone_idx = 37
+
+[node name="Chest" type="BoneAttachment3D" parent="Body/RootNode/SpiderArmature/Skeleton3D" index="2"]
+bone_name = "Thorax"
+bone_idx = 36
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+mesh = SubResource("CylinderMesh_ring")
+
+[node name="CollisionTemplate" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.3, 0)
+shape = SubResource("CapsuleShape3D_move")
+
+[node name="HitTorso" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.33, -0.17)
+shape = SubResource("CapsuleShape3D_torso")

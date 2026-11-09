@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
+
+[ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
+[ext_resource type="Texture2D" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
+[ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
+[ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="5_attack"]
+[ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="6_row"]
+[ext_resource type="Resource" path="res://data/attacks/fangs.tres" id="7_fangs"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/spider_model.tscn" id="8_model"]
+[ext_resource type="Resource" uid="uid://ccb0sfp6xq6b2" path="res://data/ai_archetypes/brute.tres" id="9_arch"]
+
+[resource]
+script = ExtResource("1_def")
+ai_archetype = ExtResource("9_arch")
+id = "giant_spider"
+display_name = "Giant Spider"
+stats = Dictionary[StringName, int]({&"ST": 13, &"DX": 12, &"IQ": 5, &"HT": 12, &"Move": 1, &"DR": 1, &"SM": 1})
+faction = &"enemy"
+portrait_texture = ExtResource("3_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("8_model")
+abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
+natural_attacks = Array[ExtResource("6_row")]([ExtResource("7_fangs")])
