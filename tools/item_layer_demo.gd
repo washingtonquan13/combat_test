@@ -408,7 +408,7 @@ func _widget_center(inventory: Inventory, item: ItemInstance) -> Vector2:
 	await get_tree().process_frame
 	for widget in _widgets(inventory):
 		if widget.instance == item:
-			var scroll := widget.get_ancestor_scroll_container()
+			var scroll := _scroll_above(widget)
 			if scroll:
 				scroll.ensure_control_visible(widget)
 				await get_tree().process_frame
@@ -416,6 +416,15 @@ func _widget_center(inventory: Inventory, item: ItemInstance) -> Vector2:
 			return _center(widget)
 	push_warning("item_layer_demo: no widget for %s" % item.definition.id)
 	return _mouse
+
+
+func _scroll_above(widget: Control) -> ScrollContainer:
+	var parent: Node = widget.get_parent()
+	while parent:
+		if parent is ScrollContainer:
+			return parent
+		parent = parent.get_parent()
+	return null
 
 
 func _grid_layer(inventory: Inventory) -> InventoryGridLayer:
