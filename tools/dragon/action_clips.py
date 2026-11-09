@@ -343,85 +343,119 @@ _KD_BOUNCE = dict(SPRAWL, hip=(0.0, 0.235, 0.14), back=[(0.0, 0.075, 0.165)], ch
 _KNOCKDOWN = one_shot([_k(), _KD_THROWN, _KD_FALLING, _KD_SLAM, _KD_BOUNCE, SPRAWL], [0, 4, 11, 15, 19, 26], ACTION_LAG)
 
 
-def _feet_mix(**changes):
-    return dict(_SPRAWL_FEET, **changes)
+# One unbroken heave. Nothing holds and nothing starts from a dead stop: every part
+# runs on its own long curve and each overlaps the next. The feet walk in on a slow
+# diagonal, weight rolling off each one before it lifts, and the body comes up the
+# whole time the feet are moving, chest a moment ahead of the hips. The head rises
+# first and then stays nearly level while the shoulders come up under it. The wings
+# fold as the legs take the weight.
 
-
-# The head comes up first, each forepaw is dragged in under its shoulder, then
-# the forelegs press the chest up with the hindquarters still on the floor like
-# a dog sitting. The weight goes forward over the paws, the hind feet come in
-# one at a time, and the wings press down as the hips heave up past standing
-# and settle.
-
-_STAND = STANCE["feet"]
+_UP_LENGTH = 58
+_UP_STEPS = {
+    "Hand_L": (8.0, 24.0, 0.04),
+    "back_food_R": (15.0, 31.0, 0.07),
+    "Hand_R": (24.0, 40.0, 0.04),
+    "back_food_L": (31.0, 47.0, 0.07),
+}
 _UP_PUSH = {"lift": 6, "sweep": -12, "twist": -10, "elbow": 14, "wrist": -30, "back": 14, "fan": 0.6}
-_UP_LOOK = _k(
-    hip=(0.0, 0.235, 0.118), back=[(0.0, 0.075, 0.14)], chest=(0.0, -0.09, 0.135), chest_rot=(-4, 1, -2),
-    neck=[(0.01, -0.225, 0.20), (0.02, -0.27, 0.27), (0.03, -0.31, 0.33)],
-    head=(0.045, -0.35, 0.355), look=(0.18, -1.0, 0.12),
-    feet=_feet_mix(Hand_L={"at": (0.17, -0.255, 0.085), "rot": (-14, 15, 0)}),
-    tail=SPRAWL["tail"], jaw=6.0, lip=2.0, wing_k=0.45, wing_a=_SPRAWL_WING,
-)
-_UP_PAW = _k(
-    hip=(0.0, 0.235, 0.116), back=[(0.0, 0.075, 0.142)], chest=(0.012, -0.09, 0.152), chest_rot=(0, -1, 4),
-    neck=[(0.012, -0.235, 0.20), (0.02, -0.295, 0.25), (0.025, -0.34, 0.285)],
-    head=(0.03, -0.375, 0.30), look=(0.1, -1.0, -0.1),
-    feet=_feet_mix(Hand_L={"at": (0.125, -0.235, 0.0165), "rot": (0, 10, 0)},
-                   Hand_R={"at": (-0.16, -0.22, 0.085), "rot": (-14, -14, 0)}),
-    tail=SPRAWL["tail"], jaw=4.0, wing_k=0.5, wing_a=_SPRAWL_WING,
-)
-_UP_BRACE = _k(
-    hip=(0.0, 0.232, 0.112), back=[(0.0, 0.075, 0.14)], chest=(0.0, -0.09, 0.172), chest_rot=(4, 0, 0),
-    neck=[(0.0, -0.245, 0.195), (0.005, -0.305, 0.225), (0.01, -0.35, 0.255)],
-    head=(0.01, -0.385, 0.268), look=(0.0, -1.0, -0.3),
-    feet=_feet_mix(Hand_L={"at": (0.125, -0.235, 0.0165), "rot": (0, 10, 0)},
-                   Hand_R={"at": (-0.12, -0.185, 0.0165), "rot": (0, -8, 0)}),
-    tail=[(0.03, 0.44, 0.09), (0.15, 0.72, 0.05), (0.38, 1.0, 0.03), (0.68, 1.18, 0.03)],
-    jaw=14.0, lip=4.0, wing_k=0.62, wing_a=_SPRAWL_WING,
-)
-_UP_PRESS = _k(
-    hip=(0.0, 0.212, 0.125), back=[(0.0, 0.07, 0.20)], chest=(0.0, -0.075, 0.27), chest_rot=(-18, 0, 0),
-    neck=[(0.0, -0.17, 0.355), (0.0, -0.195, 0.43), (0.0, -0.235, 0.49)],
-    head=(0.0, -0.27, 0.525), look=(0.0, -1.0, 0.18),
-    feet=_feet_mix(Hand_L={"at": (0.125, -0.235, 0.0165), "rot": (0, 10, 0)},
-                   Hand_R={"at": (-0.12, -0.185, 0.0165), "rot": (0, -8, 0)}),
-    tail=[(0.03, 0.42, 0.10), (0.14, 0.70, 0.05), (0.36, 0.98, 0.03), (0.66, 1.16, 0.03)],
-    jaw=30.0, lip=10.0, wing_k=0.56, wing_a=_UP_PUSH,
-)
-_UP_FORWARD = _k(
-    hip=(0.0, 0.185, 0.15), back=[(0.0, 0.03, 0.225)], chest=(0.0, -0.125, 0.255), chest_rot=(-4, 0, 0),
-    neck=[(0.0, -0.25, 0.30), (0.0, -0.31, 0.345), (0.0, -0.36, 0.36)],
-    head=(0.0, -0.40, 0.36), look=(0.0, -1.0, -0.18),
-    feet={"Hand_L": _STAND["Hand_L"], "Hand_R": _STAND["Hand_R"],
-          "back_food_L": {"at": (0.14, 0.255, 0.18), "rot": (-14, 12, 0)}, "back_food_R": _SPRAWL_FEET["back_food_R"]},
-    tail=[(0.03, 0.40, 0.13), (0.13, 0.69, 0.06), (0.34, 0.98, 0.03), (0.64, 1.16, 0.03)],
-    jaw=16.0, lip=5.0, wing_k=0.56, wing_a=_UP_PUSH,
-)
-_UP_DRIVE = _k(
-    hip=(0.0, 0.20, 0.215), back=[(0.0, 0.05, 0.275)], chest=(0.0, -0.12, 0.25), chest_rot=(4, 0, 0),
-    neck=[(0.0, -0.26, 0.285), (0.0, -0.32, 0.33), (0.0, -0.37, 0.355)],
-    head=(0.0, -0.41, 0.36), look=(0.0, -1.0, -0.2),
-    feet={"Hand_L": _STAND["Hand_L"], "Hand_R": _STAND["Hand_R"], "back_food_L": _STAND["back_food_L"],
-          "back_food_R": {"at": (-0.145, 0.24, 0.19), "rot": (-14, -12, 0)}},
-    tail=[(0.02, 0.42, 0.19), (0.10, 0.71, 0.10), (0.30, 1.0, 0.04), (0.60, 1.19, 0.03)],
-    jaw=10.0, lip=3.0, wing_k=0.5, wing_a=_UP_PUSH,
-)
-_UP_HEAVE = _k(
-    hip=(0.0, 0.232, 0.302), back=[(0.0, 0.075, 0.325)], chest=(0.0, -0.09, 0.245), chest_rot=(10, 0, 0),
-    neck=[(0.0, -0.25, 0.265), (0.0, -0.315, 0.32), (0.0, -0.37, 0.36)],
-    head=(0.0, -0.41, 0.37), look=(0.0, -1.0, -0.26),
-    tail=[(0.0, 0.44, 0.25), (0.06, 0.73, 0.16), (0.24, 1.05, 0.08), (0.52, 1.28, 0.04)],
-    jaw=6.0, lip=2.0, wing_k=0.28, wing_a=_UP_PUSH,
-)
-_UP_SETTLE = _k(
-    hip=(0.0, 0.227, 0.258), back=[(0.0, 0.072, 0.295)], chest=(0.0, -0.098, 0.258), chest_rot=(1, 0, 0),
-    neck=[(0.0, -0.245, 0.285), (0.005, -0.30, 0.35), (0.01, -0.345, 0.41)],
-    head=(0.012, -0.378, 0.435), look=(0.1, -1.0, -0.1),
-    tail=[(0.015, 0.43, 0.19), (0.10, 0.72, 0.07), (0.31, 1.02, 0.03), (0.60, 1.2, 0.03)],
-    wing_k=0.04, wing_a=_UP_PUSH,
-)
-_GET_UP = one_shot([SPRAWL, _UP_LOOK, _UP_PAW, _UP_BRACE, _UP_PRESS, _UP_FORWARD, _UP_DRIVE, _UP_HEAVE, _UP_SETTLE, _k()],
-                   [0, 7, 12, 17, 23, 28, 33, 38, 45, 56], ACTION_LAG)
+_UP_WING_LATE = {"lift": 0.0, "sweep": 0.0, "twist": 1.0, "elbow": 2.0, "wrist": 4.0, "back": 3.0, "fan": 3.0}
+_UP_NECK_LATE = [0.0, 1.0, 2.0, 3.0]
+_UP_NECK_SWAY = [0.7, 0.4, 0.15, 0.0]
+_UP_TAIL_LATE = [1.5, 3.0, 4.5, 6.0]
+_UP_TAIL_SWAY = [1.0, 1.6, 2.2, 2.6]
+
+
+def _rise(f, start, end):
+    u = max(0.0, min(1.0, (f - start) / (end - start)))
+    return u * u * u * (u * (u * 6.0 - 15.0) + 10.0)
+
+
+def _swell(f, start, end):
+    u = max(0.0, min(1.0, (f - start) / (end - start)))
+    return math.sin(math.pi * u) ** 2
+
+
+def _mix(a, b, s):
+    return tuple(x + (y - x) * s for x, y in zip(a, b))
+
+
+def _up_sway_chest(f):
+    """Toward the side that keeps standing while a forefoot is up."""
+    return 0.022 * (_swell(f, 20.0, 44.0) - _swell(f, 4.0, 28.0))
+
+
+def _up_sway_hip(f):
+    return 0.02 * (_swell(f, 11.0, 35.0) - _swell(f, 27.0, 51.0))
+
+
+def _up_foot(name, f):
+    start, end, lift = _UP_STEPS[name]
+    a, b = _SPRAWL_FEET[name], STANCE["feet"][name]
+    s = _rise(f, start, end)
+    arc = _swell(f, start, end)
+    x, y, z = _mix(a["at"], b["at"], s)
+    pitch, yaw, roll = _mix(a["rot"], b["rot"], s)
+    return dict(b, at=(x, y, z + lift * arc), rot=(pitch + 20.0 * arc, yaw, roll))
+
+
+def _up_wing(f, late):
+    angles = {}
+    for name, value in _SPRAWL_WING.items():
+        d = late + _UP_WING_LATE[name]
+        angles[name] = value + (_UP_PUSH[name] - value) * _rise(f, 4.0 + d, 32.0 + d)
+    k = 0.55 * (1.0 - _rise(f, 12.0 + late, 52.0 + late))
+    return wing_unfold(STANCE["wing"], open_wing(**angles), k)
+
+
+def _up_neck(f, i, offset_from, offset_to, chest):
+    """A point on the neck, swung about the chest: the head goes up before the body does."""
+    d = _UP_NECK_LATE[i]
+    s = _rise(f, 2.0 + d, 50.0 + d)
+    x, y, z = _mix(offset_from, offset_to, s)
+    e = math.radians(20.0 * _once([0.0, 1.0, 0.0], [2.0, 24.0, 56.0], f - d))
+    y, z = y * math.cos(e) - z * math.sin(e), z * math.cos(e) - y * math.sin(e)
+    return (x + chest[0] * _UP_NECK_SWAY[i], chest[1] + y, chest[2] + z)
+
+
+def get_up_at(t):
+    f = t * _UP_LENGTH
+    A, B = SPRAWL, STANCE
+    sag = 0.005 * _swell(f, 44.0, 58.0)
+    sway_chest, sway_hip = _up_sway_chest(f), _up_sway_hip(f)
+    hx, hy, hz = _mix(A["hip"], B["hip"], _rise(f, 14.0, 50.0))
+    cx, cy, cz = _mix(A["chest"], B["chest"], _rise(f, 11.0, 48.0))
+    bx, by, bz = _mix(A["back"][0], B["back"][0], _rise(f, 12.5, 49.0))
+    chest = (cx + sway_chest, cy, cz - sag)
+    pitch, yaw, roll = _mix(A["chest_rot"], B["chest_rot"], _rise(f, 6.0, 50.0))
+    def offsets(pose):
+        points = list(pose["neck"]) + [pose["head"]]
+        return [tuple(a - b for a, b in zip(q, pose["chest"])) for q in points]
+    from_a, to_b = offsets(A), offsets(B)
+    points = [_up_neck(f, i, from_a[i], to_b[i], chest) for i in range(4)]
+    tail = []
+    for i, (a, b) in enumerate(zip(A["tail"], B["tail"])):
+        d = _UP_TAIL_LATE[i]
+        x, y, z = _mix(a, b, _rise(f, 14.0 + d, 50.0 + d))
+        tail.append((x + _up_sway_hip(f - d) * _UP_TAIL_SWAY[i], y, z))
+    jaw = _once([10.0, 3.0, 14.0, 0.0], [0.0, 14.0, 36.0, 54.0], f)
+    return {
+        "hip": (hx + sway_hip, hy, hz - sag),
+        "back": [(bx + 0.5 * (sway_hip + sway_chest), by, bz - sag)],
+        "chest": chest,
+        "chest_rot": (pitch - 5.0 * _swell(f, 8.0, 50.0), yaw, roll + 140.0 * sway_chest),
+        "neck": points[:3],
+        "head": points[3],
+        "look": _mix(A["look"], B["look"], _rise(f, 4.0, 52.0)),
+        "feet": {name: _up_foot(name, f) for name in _UP_STEPS},
+        "tail": tail,
+        "jaw": jaw,
+        "lip": 0.3 * jaw,
+        "wing_L": _up_wing(f, 0.0),
+        "wing_R": _up_wing(f, 2.0),
+    }
+
+
+_GET_UP = {"length": _UP_LENGTH / 24.0, "at": get_up_at, "moments": {}}
 
 
 # --- Death ------------------------------------------------------------------
@@ -543,82 +577,140 @@ _ROAR = one_shot([_k(), _ROAR_DRAW, _ROAR_DRAW, _ROAR_OPEN, _ROAR_L, _ROAR_R, _R
 
 
 # --- Tail swipe -------------------------------------------------------------
-# No turn of the whole body: the feet stay down and the spine does it. It coils
-# into a C with the tail wound round to the right and the head glancing back at
-# it, then the C snaps the other way. The hips throw out to the right, the root
-# of the tail goes first, and the tip arrives last and fastest, round the left
-# side. The momentum drags the left hind foot out a step.
+# A full turn on the spot. It winds up away from the spin with its eyes still on
+# the target, drives off all four feet and turns in the air, head first, the tail
+# dragged out behind it, and the tail comes through where the head was. It lands
+# in a crouch short of facing front and steps the last of the way round. The
+# unit doesn't turn: the clip goes round inside its own frame.
 
+_SWIPE_WING = {"lift": 10, "sweep": -20, "twist": -10, "elbow": 20, "wrist": -30, "back": 20, "fan": 0.5}
 _SW_WIND = _k(
-    hip=(0.035, 0.24, 0.255), back=[(0.03, 0.085, 0.285)], chest=(0.0, -0.085, 0.24), chest_rot=(8, -16, -6),
-    neck=[(-0.02, -0.235, 0.27), (-0.05, -0.29, 0.33), (-0.08, -0.335, 0.38)],
-    head=(-0.10, -0.37, 0.40), look=(-0.7, -1.0, -0.1),
-    wing_k=0.0, jaw=6.0,
+    hip=(0.0, 0.24, 0.245), back=[(0.0, 0.085, 0.27)], chest=(0.0, -0.085, 0.225), chest_rot=(8, -10, -6),
+    neck=[(0.085, -0.24, 0.265), (0.13, -0.28, 0.32), (0.17, -0.295, 0.37)],
+    head=(0.195, -0.32, 0.39), look=(0.6, -0.85, -0.12), jaw=6.0, wing_a=_SWIPE_WING,
 )
 _SW_COIL = _k(
-    hip=(0.045, 0.245, 0.25), back=[(0.04, 0.09, 0.275)], chest=(-0.005, -0.08, 0.238), chest_rot=(10, -20, -8),
-    neck=[(-0.025, -0.23, 0.265), (-0.06, -0.285, 0.325), (-0.10, -0.325, 0.37)],
-    head=(-0.13, -0.365, 0.39), look=(-0.85, -1.0, -0.1),
-    wing_k=0.0, jaw=8.0,
+    hip=(0.0, 0.245, 0.225), back=[(0.0, 0.09, 0.25)], chest=(0.0, -0.08, 0.205), chest_rot=(10, -14, -8),
+    neck=[(0.085, -0.235, 0.245), (0.13, -0.275, 0.30), (0.17, -0.29, 0.35)],
+    head=(0.195, -0.315, 0.37), look=(0.6, -0.85, -0.12), jaw=10.0, lip=3.0, wing_k=0.03, wing_a=_SWIPE_WING,
 )
-_SW_SNAP = _k(
-    hip=(0.0, 0.235, 0.26), back=[(0.0, 0.08, 0.285)], chest=(0.01, -0.09, 0.24), chest_rot=(8, 0, 0),
-    neck=[(0.005, -0.24, 0.265), (0.0, -0.30, 0.325), (0.0, -0.35, 0.38)],
-    head=(0.0, -0.39, 0.40), look=(0.0, -1.0, -0.15),
-    wing_k=0.02, jaw=14.0, lip=4.0,
+_SW_DRIVE = _k(
+    hip=(0.0, 0.22, 0.30), back=[(0.0, 0.065, 0.325)], chest=(0.0, -0.105, 0.29), chest_rot=(2, -6, 8),
+    neck=[(0.085, -0.235, 0.32), (0.13, -0.27, 0.375), (0.175, -0.28, 0.43)],
+    head=(0.20, -0.30, 0.45), look=(0.8, -0.7, 0.05), jaw=14.0, lip=4.0, wing_k=0.12, wing_a=_SWIPE_WING,
+)
+_SW_SPIN = _k(
+    hip=(0.0, 0.225, 0.27), back=[(0.0, 0.07, 0.30)], chest=(0.0, -0.10, 0.265), chest_rot=(4, -10, 10),
+    neck=[(0.085, -0.24, 0.295), (0.13, -0.275, 0.35), (0.175, -0.285, 0.405)],
+    head=(0.20, -0.305, 0.425), look=(0.75, -0.8, 0.0), jaw=18.0, lip=5.0, wing_k=0.2, wing_a=_SWIPE_WING,
 )
 _SW_WHIP = _k(
-    hip=(-0.05, 0.215, 0.26), back=[(-0.03, 0.06, 0.29)], chest=(0.03, -0.105, 0.24), chest_rot=(9, 18, 7),
-    neck=[(0.04, -0.25, 0.26), (0.05, -0.32, 0.315), (0.055, -0.37, 0.365)],
-    head=(0.06, -0.41, 0.385), look=(0.25, -1.0, -0.14),
-    wing_k=0.05, wing_k_R=0.07, jaw=34.0, lip=10.0,
+    hip=(0.0, 0.225, 0.275), back=[(0.0, 0.07, 0.303)], chest=(0.0, -0.10, 0.265), chest_rot=(6, -6, 6),
+    neck=[(0.06, -0.245, 0.29), (0.10, -0.29, 0.345), (0.13, -0.32, 0.395)],
+    head=(0.15, -0.35, 0.415), look=(0.5, -0.9, -0.05), jaw=26.0, lip=8.0, wing_k=0.18, wing_a=_SWIPE_WING,
 )
-_SW_PAST = dict(_SW_WHIP, hip=(-0.058, 0.21, 0.262), chest=(0.036, -0.108, 0.243), chest_rot=(9, 20, 8), jaw=30.0)
-_SW_DRAG = _k(
-    hip=(-0.04, 0.218, 0.262), back=[(-0.02, 0.065, 0.292)], chest=(0.03, -0.105, 0.24), chest_rot=(8, 14, 5),
-    neck=[(0.035, -0.25, 0.262), (0.045, -0.315, 0.32), (0.05, -0.365, 0.37)],
-    head=(0.05, -0.405, 0.39), look=(0.2, -1.0, -0.15),
-    feet=_feet(back_food_L={"at": (0.125, 0.235, 0.175), "rot": (-14, 10, 0)}),
-    wing_k=0.03, jaw=12.0, lip=3.0,
+_SW_LAND = _k(
+    hip=(0.0, 0.23, 0.215), back=[(0.0, 0.075, 0.235)], chest=(0.0, -0.09, 0.195), chest_rot=(12, -3, -3),
+    neck=[(0.03, -0.24, 0.205), (0.05, -0.31, 0.22), (0.07, -0.375, 0.235)],
+    head=(0.085, -0.41, 0.225), look=(0.25, -1.0, -0.2), jaw=20.0, lip=6.0, wing_k=0.12, wing_a=_SWIPE_WING,
 )
-_SW_STAGGER = _k(
-    hip=(-0.012, 0.222, 0.258), back=[(-0.005, 0.068, 0.288)], chest=(0.015, -0.103, 0.24), chest_rot=(7, 8, 3),
-    neck=[(0.015, -0.25, 0.268), (0.02, -0.31, 0.33), (0.025, -0.355, 0.385)],
-    head=(0.03, -0.395, 0.405), look=(0.12, -1.0, -0.16),
-    feet=_feet(back_food_L={"at": (0.14, 0.235, 0.1016), "rot": (0, 10, 0)}),
-    wing_k=0.0, jaw=4.0,
+_SW_RECOVER = _k(
+    hip=(0.0, 0.225, 0.25), back=[(0.0, 0.07, 0.285)], chest=(0.0, -0.10, 0.235), chest_rot=(6, 0, 0),
+    neck=[(0.012, -0.25, 0.255), (0.025, -0.315, 0.30), (0.035, -0.365, 0.35)],
+    head=(0.05, -0.40, 0.375), look=(0.12, -1.0, -0.15), jaw=8.0, lip=2.0, wing_k=0.06, wing_a=_SWIPE_WING,
 )
-_SW_RETURN = _k(
-    hip=(0.0, 0.225, 0.266), back=[(0.0, 0.07, 0.298)], chest=(0.0, -0.10, 0.247), chest_rot=(6, 2, 1),
-    head=(0.012, -0.385, 0.413),
-    feet=_feet(back_food_L={"at": (0.12, 0.235, 0.17), "rot": (-14, 8, 0)}),
-    wing_k=0.05,
-)
-_SWIPE_FRAMES = [0, 10, 15, 19, 22, 25, 30, 36, 43, 50]
-_SWIPE_BODY = one_shot([_k(), _SW_WIND, _SW_COIL, _SW_SNAP, _SW_WHIP, _SW_PAST, _SW_DRAG, _SW_STAGGER, _SW_RETURN, _k()],
-                       _SWIPE_FRAMES, ACTION_LAG, {"impact": [23]})
-# Where the tail points at each key, in degrees, + to its left. Each joint gets a
-# growing share of it, later than the joint before: the root leads and the tip
-# cracks round after it.
-_SWIPE_ANGLE = [25.0, -72.0, -82.0, -38.0, 62.0, 102.0, 110.0, 62.0, 32.0, 25.0]
-_SWIPE_SHARE = [0.35, 0.7, 1.0, 1.2]
-_SWIPE_LENGTH = [0.205, 0.31, 0.365, 0.34]
-_SWIPE_Z = [0.20, 0.105, 0.08, 0.07]
-_SWIPE_JOINT_LAG = 1.4
+_SW_SETTLE = _k(hip=(0.0, 0.225, 0.264), back=[(0.0, 0.07, 0.30)], chest=(0.0, -0.10, 0.248), chest_rot=(5, 0, 0),
+                head=(0.02, -0.385, 0.41), wing_k=0.02, wing_a=_SWIPE_WING)
+_SWIPE_FRAMES = [0, 9, 13, 16, 20, 24, 28, 33, 41, 52]
+_SWIPE_BODY = one_shot([_k(), _SW_WIND, _SW_COIL, _SW_DRIVE, _SW_SPIN, _SW_WHIP, _SW_LAND, _SW_RECOVER, _SW_SETTLE, _k()],
+                       _SWIPE_FRAMES, ACTION_LAG, {"impact": [25]})
+
+# The turn, counter-clockwise from above, so the head goes to its left and the
+# tail round by its right. Degrees; body_rig's yaw runs the other way.
+_SPIN_FRAMES = [0, 9, 13, 16, 20, 24, 28, 32, 37, 42, 52]
+_SPIN_ANGLE = [0.0, -24.0, -28.0, -8.0, 105.0, 215.0, 300.0, 338.0, 354.0, 361.0, 360.0]
+_SPIN_PIVOT = (0.0, 0.02)
+_HOP_START, _HOP_END, _HOP_HEIGHT = 17.0, 27.0, 0.055
+# Each foot: off the floor, back on it, the angle it comes down at, and the step
+# that finishes the turn.
+_SPIN_FEET = {
+    "Hand_L": (15.0, 28.0, 322.0, 30.0, 36.0),
+    "Hand_R": (15.5, 28.5, 326.0, 32.0, 38.0),
+    "back_food_R": (16.0, 27.0, 308.0, 33.0, 39.0),
+    "back_food_L": (16.5, 27.5, 312.0, 36.0, 42.0),
+}
+
+
+def _spin(f):
+    return _once(_SPIN_ANGLE, _SPIN_FRAMES, f)
+
+
+def _spin_foot(name, f, turn):
+    """A foot in the body's frame, from where it is on the floor."""
+    launch, land, land_angle, step_from, step_to = _SPIN_FEET[name]
+    home = STANCE["feet"][name]
+    ground = home["at"][2]
+    lift, tip = 0.0, 0.0
+    if f <= launch:
+        angle = 0.0
+    elif f < land:
+        reach = land_angle - _spin(land)
+        flying = _spin(f) + reach * _smooth(max(0.0, (f - 22.0) / (land - 22.0)))
+        angle = flying * _smooth(min(1.0, (f - launch) / 3.0))
+        arc = math.sin(math.pi * (f - launch) / (land - launch))
+        lift, tip = 0.05 * arc, 22.0 * arc
+    elif f < step_from:
+        angle = land_angle
+    elif f < step_to:
+        v = (f - step_from) / (step_to - step_from)
+        angle = land_angle + (360.0 - land_angle) * _smooth(v)
+        lift = (0.04 + 0.5 * ground) * math.sin(math.pi * v)
+        tip = math.sin(math.pi * v) * (30.0 * (1.0 - v) - 12.0 * v)
+    else:
+        angle = 360.0
+    off = angle - turn
+    c, s_ = math.cos(math.radians(off)), math.sin(math.radians(off))
+    px, py = home["at"][0] - _SPIN_PIVOT[0], home["at"][1] - _SPIN_PIVOT[1]
+    x = _SPIN_PIVOT[0] + px * c - py * s_
+    y = _SPIN_PIVOT[1] + px * s_ + py * c
+    pitch, yaw, roll = home["rot"]
+    return {"at": (x, y, ground + lift), "rot": (pitch + tip, yaw + off, roll)}
+
+
+# Each joint trails the body by what the body has turned in the last few frames,
+# so the faster it spins the straighter out sideways the tail drags. Before the
+# drive it curls the other way; after the hit the tip cracks past.
+_TAIL_LENGTH = [0.205, 0.31, 0.365, 0.34]
+_TAIL_REST = [8.75, 17.5, 25.0, 30.0]
+_TAIL_TRAIL = [0.8, 1.6, 2.4, 3.2]
+_TAIL_CURL = [12.0, 25.0, 35.0, 45.0]
+_TAIL_CRACK = [-6.0, -16.0, -26.0, -38.0]
+_TAIL_HIGH = [0.24, 0.22, 0.20, 0.18]
 
 
 def tail_swipe_at(t):
     out = _SWIPE_BODY["at"](t)
     length = _SWIPE_FRAMES[-1]
     f = t * length
-    fade = min(1.0, (length - f) / 6.0)
+    turn = _spin(f)
+    out["feet"] = {name: _spin_foot(name, f, turn) for name in _SPIN_FEET}
+    hop, bank, rear = 0.0, 0.0, 0.0
+    if _HOP_START < f < _HOP_END:
+        v = (f - _HOP_START) / (_HOP_END - _HOP_START)
+        hop = 4.0 * _HOP_HEIGHT * v * (1.0 - v)
+        bank = 6.0 * math.sin(math.pi * v)
+        rear = -4.0 * math.sin(math.pi * v)
+    out["body"] = {"pivot": (_SPIN_PIVOT[0], _SPIN_PIVOT[1], 0.0), "shift": (0.0, 0.0, hop), "rot": (rear, -turn, bank)}
+    curl = _once([0.0, 1.0, 0.0], [3.0, 13.0, 18.0], f)
+    crack = _once([0.0, 1.0, 0.0], [25.0, 29.0, 35.0], f)
+    raised = _once([0.0, 0.0, 1.0, 1.0, 0.0], [0.0, 13.0, 18.0, 26.0, 34.0], f)
     x, y = out["hip"][0], out["hip"][1]
     swept = []
-    for i, z in enumerate(_SWIPE_Z):
-        heading = math.radians(_once(_SWIPE_ANGLE, _SWIPE_FRAMES, f - (i + 1.0) * _SWIPE_JOINT_LAG * fade) * _SWIPE_SHARE[i])
-        x += _SWIPE_LENGTH[i] * math.sin(heading)
-        y += _SWIPE_LENGTH[i] * math.cos(heading)
-        swept.append((x, y, z))
+    for i, rest in enumerate(STANCE["tail"]):
+        heading = _TAIL_REST[i] + turn - _spin(f - _TAIL_TRAIL[i]) + curl * _TAIL_CURL[i] + crack * _TAIL_CRACK[i]
+        x += _TAIL_LENGTH[i] * math.sin(math.radians(heading))
+        y += _TAIL_LENGTH[i] * math.cos(math.radians(heading))
+        swept.append((x, y, rest[2] + (_TAIL_HIGH[i] - rest[2]) * raised))
     w = _smooth(min(1.0, f / 4.0, (length - f) / 4.0))
     out["tail"] = [tuple(a + (b - a) * w for a, b in zip(rest, p)) for rest, p in zip(STANCE["tail"], swept)]
     return out
