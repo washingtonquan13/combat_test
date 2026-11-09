@@ -419,7 +419,7 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 		if action:
 			action.release()
 		return
-	var sequence: AnimationSequence = _motions.sequence_for(ability.motion) if _motions else null
+	var sequence: AnimationSequence = _sequence_for(ability.motion)
 	# Launched out of the stance: blend from wherever the hold loop is.
 	var from_stance: bool = String(animation_player.current_animation) in _armed_stance_clips
 	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time, action)
@@ -494,6 +494,8 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 	_end_hold()
 	var posed: StatusEffect = unit.posed_status
 	var reaction: String = _clip(posed.hit_reaction_motion) if posed else ""
+	if reaction == "" and _aloft:
+		reaction = _clip(&"hit.air")
 	_play(reaction if reaction != "" else hit_animation)
 
 
@@ -592,9 +594,10 @@ var _climb_shown: int = 0
 ## walk; this swaps it for the climb on the rungs and back for the level
 ## steps on and off. Polled because the route crosses onto the ladder
 ## with no signal of its own.
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if unit == null or _cutscene_claimed or unit.posed_status or not unit.is_alive():
 		return
+	_show_turning(delta)
 	var over: int = unit.climbing_over()
 	var over_clip: String = climb_off_animation if over > 0 else climb_on_animation
 	var shown: int = unit.climb_direction()
@@ -622,6 +625,42 @@ func _physics_process(_delta: float) -> void:
 	var phase: float = fposmod((unit.global_position.y - unit.climb_stop_height()) / rise, 1.0)
 	animation_player.play(climb_animation, 0.15, rate * shown)
 	animation_player.seek(phase * clip.length, true)
+
+
+## Yaw last physics frame, and how many frames in a row it has been changing
+## fast enough to count: a smooth turn lasts many frames, snap_face_point one.
+const TURN_START_RATE := 1.0  # radians a second
+const TURN_STOP_RATE := 0.3
+
+var _last_yaw: float = 0.0
+var _turn_frames: int = 0
+
+
+## Standing still and swinging round steps the feet, for a body with turn
+## clips. Polled because facing has several smooth callers (aim, movement,
+## prop drag) and no signal of its own. The clips loop and leave at once when
+## the turn stops; anything else that starts playing has already replaced
+## them.
+func _show_turning(delta: float) -> void:
+	var yaw: float = unit.rotation.y
+	var rate: float = wrapf(yaw - _last_yaw, -PI, PI) / maxf(delta, 0.0001)
+	_last_yaw = yaw
+	var left: String = _clip(&"turn.left")
+	var right: String = _clip(&"turn.right")
+	if left == "" or right == "":
+		return
+	var playing: String = String(animation_player.current_animation)
+	var turning: bool = playing == left or playing == right
+	if unit.is_moving() or _aloft or _active_sequence != null or not (turning or playing == _idle()):
+		_turn_frames = 0
+		return
+	_turn_frames = _turn_frames + 1 if absf(rate) >= (TURN_STOP_RATE if turning else TURN_START_RATE) else 0
+	if _turn_frames >= 2:
+		var clip: String = left if rate > 0.0 else right
+		if playing != clip:
+			_play(clip, 0.15)
+	elif turning and _turn_frames == 0:
+		_play(_idle(), 0.2)
 
 
 func _walk() -> String:
@@ -824,6 +863,14 @@ func play_motion(motion: StringName) -> bool:
 	if _cutscene_claimed or _active_sequence != null:
 		return false
 	return _play(_clip(motion), phase_blend_time)
+
+
+## This body's sequence for `motion`, or null. Aloft it asks for the ".air"
+## member first, so a body with no air version plays its usual one.
+func _sequence_for(motion: StringName) -> AnimationSequence:
+	if _motions == null or motion == &"":
+		return null
+	return _motions.sequence_for(StringName(motion + ".air") if _aloft else motion)
 
 
 ## This body's clip for `motion`, or "" when it has none.

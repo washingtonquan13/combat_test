@@ -1,19 +1,28 @@
-[gd_resource type="Resource" script_class="MotionSet" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="MotionSet" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/motion_set.gd" id="1_motion_set"]
 [ext_resource type="Script" path="res://systems/ability_system/animation_sequence.gd" id="2_sequence"]
 [ext_resource type="Resource" path="res://data/animation_sequences/dragon_bite.tres" id="3_bite"]
 [ext_resource type="Resource" path="res://data/animation_sequences/dragon_claw.tres" id="4_claw"]
 [ext_resource type="Resource" path="res://data/animation_sequences/dragon_breath.tres" id="5_breath"]
+[ext_resource type="Resource" path="res://data/animation_sequences/dragon_bite_air.tres" id="6_bite_air"]
+[ext_resource type="Resource" path="res://data/animation_sequences/dragon_claw_air.tres" id="7_claw_air"]
+[ext_resource type="Resource" path="res://data/animation_sequences/dragon_breath_air.tres" id="8_breath_air"]
 
 [resource]
 script = ExtResource("1_motion_set")
 sequences = Dictionary[StringName, ExtResource("2_sequence")]({
 &"attack.bite": ExtResource("3_bite"),
+&"attack.bite.air": ExtResource("6_bite_air"),
 &"attack.claw": ExtResource("4_claw"),
-&"breath": ExtResource("5_breath")
+&"attack.claw.air": ExtResource("7_claw_air"),
+&"breath": ExtResource("5_breath"),
+&"breath.air": ExtResource("8_breath_air")
 })
 clips = Dictionary[StringName, String]({
 &"get_up": "Get_Up",
-&"knockdown": "Death"
+&"hit.air": "Hit_Air",
+&"knockdown": "Knockdown",
+&"turn.left": "Turn_L",
+&"turn.right": "Turn_R"
 })

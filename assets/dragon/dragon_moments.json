@@ -4,14 +4,39 @@
    0.5417
   ]
  },
+ "Bite_Air": {
+  "impact": [
+   0.5417
+  ]
+ },
  "Breath": {
   "release": [
-   0.5417
+   0.7917
+  ]
+ },
+ "Breath_Air": {
+  "release": [
+   0.9583
   ]
  },
  "Claw": {
   "impact": [
    0.625
+  ]
+ },
+ "Claw_Air": {
+  "impact": [
+   0.625
+  ]
+ },
+ "Tail_Swipe": {
+  "impact": [
+   0.7917
+  ]
+ },
+ "Wing_Buffet": {
+  "impact": [
+   0.7917
   ]
  }
 }

@@ -7,20 +7,16 @@
 # <textures dir> is the unzipped textures folder that ships beside the
 # .blend; it needs Dragon_ground_color.jpg and Dragon_Nor.jpg.
 #
-# The source is a Blender 2.77 file in arbitrary units, head toward -Y,
-# with four baked in-place loops (Idel_New, Walk_New, Run_New, Fly_New) and
+# The source is a Blender 2.77 file in arbitrary units, head toward -Y, with
 # legacy materials with no image nodes. This script:
 #   - scales it to SM 0, 2 m nose to tail, and centres the torso on the
 #     origin, so CharacterModel.authored_size_modifier stays 0 and the
 #     unit's SM stat alone makes it bigger;
-#   - scales every action's location keys by the same factor, since
-#     applying scale to an armature leaves its keyframes in the old units;
 #   - rebuilds the materials on the colour and normal maps, on the
 #     non-mirrored UV set (the mirrored set is for a grey detail map the
 #     game doesn't use);
-#   - names the loops Idle/Walk/Run/Fly with Godot's -loop suffix, cuts
-#     Fly down to two clean wing beats, and splits its lift-off out as
-#     Takeoff (and, reversed, Land).
+#   - throws away the clips that came with the model and bakes every clip
+#     from action_clips.py, solved from the rest pose.
 # Blender space: +Z up, the dragon faces -Y; glTF turns that into Godot +Z.
 
 import os
@@ -32,29 +28,13 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 OUT_DIR = os.path.join(ROOT, "assets", "dragon")
 ARGS = sys.argv[sys.argv.index("--") + 1:]
 TEX_DIR = ARGS[0]
-# --preview=<dir>: render the authored clips there instead of exporting.
-PREVIEW = next((a.split("=", 1)[1] for a in ARGS if a.startswith("--preview=")), None)
-# --clips=Bite,Claw: preview only these.
-ONLY = next((a.split("=", 1)[1].split(",") for a in ARGS if a.startswith("--clips=")), None)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bake_poses  # noqa: E402
-import dragon_clips  # noqa: E402
 
 LENGTH = 2.0  # metres nose to tail: SizeModifier.length_for(0)
-ACTIONS = {"Idel_New": "Idle-loop", "Walk_New": "Walk-loop",
-           "Run_New": "Run-loop", "Fly_New": "Fly-loop"}
-
 arm = bpy.data.objects["Armature"]
 body = bpy.data.objects["Dragon_Mesh"]
 scene = bpy.context.scene
-
-
-def fcurves(act):
-    try:
-        return list(act.fcurves)
-    except AttributeError:
-        return [fc for layer in act.layers for strip in layer.strips
-                for cb in strip.channelbags for fc in cb.fcurves]
 
 
 # --- Size and centre --------------------------------------------------------
@@ -88,14 +68,6 @@ for pb in arm.pose.bones:
     for c in pb.constraints:
         c.mute = True  # the clips are baked; constraints would apply twice
 
-for act in bpy.data.actions:
-    for fc in fcurves(act):
-        if fc.data_path.endswith(".location"):
-            for k in fc.keyframe_points:
-                k.co[1] *= s
-                k.handle_left[1] *= s
-                k.handle_right[1] *= s
-            fc.update()
 print("DRAGON muted constraints", constraints)
 
 
@@ -148,119 +120,49 @@ print("DRAGON membrane faces", sum(slots))
 
 # --- Clips ------------------------------------------------------------------
 
+# Action name (with Godot's -loop suffix) -> clip in action_clips.py.
+CLIPS = {
+    "Idle-loop": "idle",
+    "Walk-loop": "walk",
+    "Turn_L-loop": "turn_l",
+    "Turn_R-loop": "turn_r",
+    "Fly-loop": "hover",
+    "Fly_Forward-loop": "cruise",
+    "Takeoff": "takeoff",
+    "Land": "land",
+    "Hit": "hit",
+    "Hit_Air": "hit_air",
+    "Death": "death",
+    "Knockdown": "knockdown",
+    "Get_Up": "get_up",
+    "Bite": "bite",
+    "Bite_Air": "bite_air",
+    "Claw": "claw",
+    "Claw_Air": "claw_air",
+    "Breath": "breath",
+    "Breath_Hold-loop": "breath_hold",
+    "Breath_Out": "breath_out",
+    "Breath_Air": "breath_air",
+    "Breath_Hold_Air-loop": "breath_hold_air",
+    "Breath_Out_Air": "breath_out_air",
+    "Roar": "roar",
+    "Tail_Swipe": "tail_swipe",
+    "Wing_Buffet": "wing_buffet",
+}
+
 arm.animation_data_create()
+arm.animation_data.action = None
 for track in list(arm.animation_data.nla_tracks):
     arm.animation_data.nla_tracks.remove(track)
-for src, name in ACTIONS.items():
-    act = bpy.data.actions[src]
-    act.name = name
-    start, end = act.frame_range
-    act.use_frame_range = True
-    act.frame_start = start
-    act.frame_end = end
-    track = arm.animation_data.nla_tracks.new()
-    track.name = name
-    strip = track.strips.new(name, int(start), act)
-    if hasattr(strip, "action_slot") and act.slots:
-        strip.action_slot = act.slots[0]
-arm.animation_data.action = None
-
-
-# Fly_New takes off (frames 0-14), beats its wings (a ~19-frame flap that
-# settles by about frame 40 and runs to about 120), glides, lands and stands
-# still. Split it: the hover loops over the closest-matching pair of frames
-# two flaps apart in the settled flapping; Takeoff runs from the start to
-# the early frame that best matches the loop's first, so it hands over
-# without a jump; Land is Takeoff run backwards. (Looping to the end would
-# replay the landing and the standing frames in mid air.)
-def pose_at(curves, f):
-    return [fc.evaluate(f) for fc in curves]
-
-
-def mismatch(a, b):
-    return sum((x - y) ** 2 for x, y in zip(a, b))
-
-
-fly = bpy.data.actions["Fly-loop"]
-curves = fcurves(fly)
-fly_start, fly_end = (int(x) for x in fly.frame_range)
-poses = {f: pose_at(curves, f) for f in range(fly_start, fly_start + 121)}
-loop_from, loop_to = min(((s, e) for s in range(fly_start + 34, fly_start + 80)
-                          for e in range(s + 30, min(s + 46, fly_start + 121))),
-                         key=lambda se: mismatch(poses[se[0]], poses[se[1]]))
-takeoff_to = min(range(fly_start + 12, fly_start + 35), key=lambda f: mismatch(poses[f], poses[loop_from]))
-print("DRAGON fly loops over frames", loop_from, loop_to, "mismatch %.5f;" % mismatch(poses[loop_from], poses[loop_to]),
-      "takeoff ends", takeoff_to, "mismatch %.5f" % mismatch(poses[takeoff_to], poses[loop_from]))
-
-
-def copy_range(src, name, frames, reverse=False):
-    act = bpy.data.actions.new(name)
-    act.use_fake_user = True
-    slot = act.slots.new("OBJECT", arm.name) if hasattr(act, "slots") else None
-    if slot:
-        layer = act.layers.new("Layer")
-        strip = layer.strips.new(type="KEYFRAME")
-        bag = strip.channelbag(slot, ensure=True)
-        new_curve = lambda fc: bag.fcurves.new(fc.data_path, index=fc.array_index)
-    else:
-        new_curve = lambda fc: act.fcurves.new(fc.data_path, index=fc.array_index, action_group=fc.group.name if fc.group else "")
-    seq = list(frames)[::-1] if reverse else list(frames)
-    for fc in fcurves(src):
-        out = new_curve(fc)
-        out.keyframe_points.add(len(seq))
-        for i, f in enumerate(seq):
-            k = out.keyframe_points[i]
-            k.co = (i, fc.evaluate(f))
-            k.interpolation = "LINEAR"
-        out.update()
-    act.use_frame_range = True
-    act.frame_start = 0
-    act.frame_end = len(seq) - 1
-    return act
-
-
-takeoff = range(fly_start, takeoff_to + 1)
-hover = range(loop_from, loop_to + 1)
-extra = [copy_range(fly, "Takeoff", takeoff), copy_range(fly, "Land", takeoff, reverse=True)]
-hover_act = copy_range(fly, "Hover-loop", hover)
-bpy.data.actions.remove(fly)
-hover_act.name = "Fly-loop"
-for act in extra + [hover_act]:
-    track = arm.animation_data.nla_tracks.new()
-    track.name = act.name
-    strip = track.strips.new(act.name, int(act.frame_start), act)
-    if hasattr(strip, "action_slot") and act.slots:
-        strip.action_slot = act.slots[0]
-for track in list(arm.animation_data.nla_tracks):
-    if not track.strips or track.strips[0].action is None:
-        arm.animation_data.nla_tracks.remove(track)
-
-# The action clips, authored over Idle (dragon_clips.py).
-authored, moments = dragon_clips.build(arm, body, bpy.data.actions["Idle-loop"])
-for act in authored:
-    track = arm.animation_data.nla_tracks.new()
-    track.name = act.name
-    strip = track.strips.new(act.name, 0, act)
-    strip.action_slot = act.slots[0]
-
-# Authored from scratch (poses.py). Run last: the clips above still build on
-# the model's own Idle until they are re-authored.
-FROM_POSES = {"Idle-loop": "idle", "Fly-loop": "hover", "Fly_Forward-loop": "cruise", "Takeoff": "takeoff", "Land": "land"}
-bake_poses.replace(arm, body, FROM_POSES)
-
-KEEP = set(ACTIONS.values()) | {"Takeoff", "Land"} | set(FROM_POSES) | {a.name for a in authored}
-for act in [a for a in bpy.data.actions if a.name not in KEEP]:
+for act in list(bpy.data.actions):
     bpy.data.actions.remove(act)
+moments = bake_poses.bake(arm, body, CLIPS)
 
 for o in [o for o in bpy.data.objects if o not in (arm, body)]:
     bpy.data.objects.remove(o)
 
 
 # --- Write ------------------------------------------------------------------
-
-if PREVIEW:
-    dragon_clips.preview(arm, authored + [bpy.data.actions["Fly-loop"]], PREVIEW, only=ONLY)
-    sys.exit(0)
 
 bpy.context.view_layer.update()
 co = [body.matrix_world @ v.co for v in mesh.vertices]
@@ -271,7 +173,7 @@ print("DRAGON rest bbox", tuple(round(v, 3) for v in lo), tuple(round(v, 3) for 
 os.makedirs(OUT_DIR, exist_ok=True)
 # Keyed into the clips as release()/impact() method tracks on import
 # (dragon_post_import.gd).
-dragon_clips.write_moments(os.path.join(OUT_DIR, "dragon_moments.json"), moments)
+bake_poses.write_moments(os.path.join(OUT_DIR, "dragon_moments.json"), moments)
 bpy.ops.export_scene.gltf(
     filepath=os.path.join(OUT_DIR, "dragon.glb"),
     export_format="GLB",

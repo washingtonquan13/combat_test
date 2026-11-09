@@ -2,12 +2,12 @@
 #
 #   blender -b -Y <Dragon_Baked_Actions.blend> --python tools/dragon/pose_lab.py -- <out dir> <pose> [<pose> ...]
 #
-# A name from poses.CLIPS renders one loop instead, as <out dir>/<name>/frame_NNNN.png.
+# A name from action_clips.CLIPS renders one loop instead, as <out dir>/<name>/frame_NNNN.png.
+# name@0,7,13 renders only those frames.
 #
 # Flat clay on purpose: the hide is near black and hides the shape. The wing
 # membrane is tinted so a bad fold is visible.
 
-import importlib
 import os
 import sys
 import bpy
@@ -16,8 +16,7 @@ from mathutils import Vector
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import body_rig  # noqa: E402
-import poses  # noqa: E402
-importlib.reload(poses)
+import action_clips as poses  # noqa: E402
 
 ARGS = sys.argv[sys.argv.index("--") + 1:]
 OUT = ARGS[0]
@@ -131,12 +130,13 @@ CLIP_VIEWS = ("left side", "front", "CRPG camera")
 FPS = 24
 
 for name in NAMES:
+    name, _, wanted = name.partition("@")
     if name in poses.CLIPS:
         clip = poses.CLIPS[name]
         out = os.path.join(OUT, name)
         os.makedirs(out, exist_ok=True)
         frames = int(round(clip["length"] * FPS))
-        for f in range(frames):
+        for f in ([int(x) for x in wanted.split(",")] if wanted else range(frames)):
             pose = clip["at"](f / frames)
             rig.solve(pose)
             rig.apply()

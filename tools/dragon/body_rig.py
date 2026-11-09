@@ -8,6 +8,9 @@
 #   feet            where each paw stands; the legs reach it
 #   wing            where each finger's two knuckles and tip are; the right
 #                   wing mirrors the left unless wing_R is given
+#   jaw, lip        degrees the mouth opens: lower jaw down, upper lip up
+#   body            optional: the finished pose turned about `pivot` by `rot`
+#                   (as chest_rot) and moved by `shift`, for a body on its side
 #
 # A wing is three fingers fanned from the shoulder, and it closes by bringing
 # them together and zigzagging each: back from the shoulder, forward to the
@@ -200,7 +203,15 @@ class Rig:
             self._wing(side, pose.get("wing_" + side) or pose["wing"])
         for foot, (upper, lower) in LEGS.items():
             self._leg(foot, upper, lower, pose["feet"][foot])
+        for name, angle in (("Bone", pose.get("jaw", 0.0)), ("upper_lip", -pose.get("lip", 0.0))):
+            at = self._child_rigid("IK_head", name).translation
+            self._set(name, at, self._delta("IK_head") @ Matrix.Rotation(math.radians(angle), 3, "X"))
         self._fill_rest()
+        b = pose.get("body")
+        if b:
+            pivot = Vector(b["pivot"])
+            m = Matrix.Translation(pivot + Vector(b["shift"])) @ _euler(*b["rot"]).to_4x4() @ Matrix.Translation(-pivot)
+            self.P = {n: m @ p for n, p in self.P.items()}
         return self.P
 
     def _child_rigid(self, parent, name):
