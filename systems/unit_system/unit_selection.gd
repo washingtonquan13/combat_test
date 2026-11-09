@@ -131,6 +131,8 @@ const GROUND_COLLISION_MASK: int = 1
 ## Below this a grounded unit's feet and the hit are the same place; above
 ## it the gap is worth drawing.
 const DROP_LINE_MIN_HEIGHT: float = 0.3
+## A surface facing further down than this is a ceiling.
+const CEILING_BELOW: float = -0.5
 ## The drop line's fade at each end (it is a PathTube, the one look
 ## every indicator line shares).
 const DROP_LINE_FADE: float = 0.25
@@ -590,13 +592,22 @@ func _physics_process(delta: float) -> void:
 
 func _place_ring(from: Vector3) -> void:
 	var feet: Vector3 = _owner.global_position
+	var wall: Dictionary = CrawlPose.surface_at(_owner, feet)
+	if _is_wall(wall):
+		var on_wall := Transform3D(CrawlPose.lying_on(wall.normal), wall.point)
+		for decal in [_ring, _turn_ring]:
+			if decal:
+				decal.global_transform = on_wall
+		if _drop_line:
+			_drop_line.visible = false
+		return
 	var ground: Vector3 = feet
 	var hit: Dictionary = _ground_below(from)
 	if not hit.is_empty():
 		ground = hit.position
 	for decal in [_ring, _turn_ring]:
 		if decal:
-			decal.global_position = ground
+			decal.global_transform = Transform3D(Basis.IDENTITY, ground)
 
 	if _drop_line == null:
 		return
@@ -605,6 +616,16 @@ func _place_ring(from: Vector3) -> void:
 	_drop_line.visible = airborne and drop > 0.05 and not hit.is_empty()
 	if _drop_line.visible:
 		_drop_line.show_line(PackedVector3Array([feet, Vector3(feet.x, ground.y, feet.z)]), _drop_color)
+
+
+## A crawler on a wall wears its ring there. On a ceiling it stays on the
+## floor with the drop line, a flier's ring: the camera is above the ceiling
+## and can't see its underside.
+static func _is_wall(surface: Dictionary) -> bool:
+	if surface.is_empty():
+		return false
+	var up: float = (surface.normal as Vector3).y
+	return up < UnitMovement.CLING_BELOW and up > CEILING_BELOW
 
 
 ## The first non-unit surface straight below `from`. Units share the

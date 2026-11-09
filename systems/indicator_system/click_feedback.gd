@@ -24,6 +24,11 @@ extends Node3D
 ## and a shrinking PathTube ring marks the midair point itself, joined
 ## to it by a drop line for the moment of the pulse.
 ##
+## A crawler's order can end on a wall or a ceiling. There the decal is
+## turned to lie on that surface (surface_normal), and the ring held at the
+## end of its route sits on the surface too, not at the route's own point a
+## body's height out from it.
+##
 ## After the pulse, each unit the player ordered keeps a smaller ring at
 ## the end of its route, breathing, until it stops walking that route:
 ## arrived, stopped, or given another order (the CRPG convention - the
@@ -101,10 +106,10 @@ func _notification(what: int) -> void:
 
 ## A move order was given: ring at the destination, tick. floor_point is
 ## the floor under a midair destination (Cursor.floor_below), or null.
-func confirm_move(point, floor_point = null) -> void:
+func confirm_move(point, floor_point = null, surface_normal: Vector3 = Vector3.ZERO) -> void:
 	_confirm_player.play()
 	if point is Vector3:
-		_spawn_marker(point, floor_point, IndicatorPalette.OK)
+		_spawn_marker(point, floor_point, IndicatorPalette.OK, surface_normal)
 
 
 ## Holds a breathing ring at the end of unit's current route until it
@@ -119,6 +124,9 @@ func hold_destination(unit: Unit, floor_point = null) -> void:
 	var end: Vector3 = path[path.size() - 1]
 	var decal: Decal = _ring_decal(IndicatorPalette.OK, HOLD_SIZE)
 	decal.global_position = floor_point if floor_point is Vector3 else end
+	var surface: Dictionary = CrawlPose.surface_at(unit, end)
+	if not surface.is_empty() and (surface.normal as Vector3).y < UnitMovement.CLING_BELOW:
+		decal.global_transform = Transform3D(CrawlPose.lying_on(surface.normal), surface.point)
 	_held[unit] = {"decal": decal, "end": end}
 
 
@@ -167,11 +175,11 @@ func confirm() -> void:
 ## A click was refused. point may be null (the ray missed): then there is
 ## only the sound, since there is nowhere to put the ring or the reason.
 ## floor_point as for confirm_move.
-func refuse(point, reason: String, floor_point = null) -> void:
+func refuse(point, reason: String, floor_point = null, surface_normal: Vector3 = Vector3.ZERO) -> void:
 	_refuse_player.play()
 	if not (point is Vector3):
 		return
-	_spawn_marker(point, floor_point, IndicatorPalette.BLOCKED)
+	_spawn_marker(point, floor_point, IndicatorPalette.BLOCKED, surface_normal)
 	if reason != "":
 		_show_reason(point, reason)
 
@@ -189,13 +197,13 @@ func show_cursor(shape: Input.CursorShape) -> void:
 
 ## The ring for a click at point: on the ground there, or, for a point
 ## in the air over floor_point, on that floor and in the air both.
-func _spawn_marker(point: Vector3, floor_point, color: Color) -> void:
+func _spawn_marker(point: Vector3, floor_point, color: Color, surface_normal: Vector3 = Vector3.ZERO) -> void:
 	if floor_point is Vector3 and point.y - (floor_point as Vector3).y >= MIDAIR_HEIGHT:
 		var below := Vector3(point.x, (floor_point as Vector3).y, point.z)
 		_spawn_ring(below, color)
 		_spawn_air_ring(point, below, color)
 		return
-	_spawn_ring(point, color)
+	_spawn_ring(point, color, surface_normal)
 
 
 ## A ring at a midair point and a drop line to the floor, shrinking and
@@ -235,9 +243,11 @@ func _spawn_air_ring(point: Vector3, below: Vector3, color: Color) -> void:
 	tween.tween_callback(drop.queue_free)
 
 
-func _spawn_ring(point: Vector3, color: Color) -> void:
+func _spawn_ring(point: Vector3, color: Color, surface_normal: Vector3 = Vector3.ZERO) -> void:
 	var decal: Decal = _ring_decal(color, MARKER_SIZE)
 	decal.global_position = point
+	if surface_normal != Vector3.ZERO:
+		decal.global_basis = CrawlPose.lying_on(surface_normal)
 
 	# Bound to the decal, so a world freed mid-fade takes the tween with it.
 	var end_size := Vector3(MARKER_SIZE * MARKER_END_SCALE, MARKER_HEIGHT, MARKER_SIZE * MARKER_END_SCALE)

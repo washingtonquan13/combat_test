@@ -170,6 +170,9 @@ class ClickAnswer:
 	## The surface below point when point is midair (Cursor.floor_below),
 	## else null - where the feedback ring lands under a midair marker.
 	var floor_point = null
+	## The wall or ceiling a crawler was sent to, ZERO otherwise: the
+	## feedback ring lies on it.
+	var surface_normal: Vector3 = Vector3.ZERO
 
 	func _init(answer_verb: StringName = &"none", answer_point = null) -> void:
 		verb = answer_verb
@@ -1024,6 +1027,8 @@ func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
 		var move: ClickAnswer = _move_answer(at.move_point(), at.ground)
 		if at.on_plane:
 			move.floor_point = at.floor_below
+		elif at.surface_normal != Vector3.ZERO and at.surface_normal.y < UnitMovement.CLING_BELOW and move_order_units().any(func(u: Unit) -> bool: return u.can_crawl()):
+			move.surface_normal = at.surface_normal
 		return move
 	if current is AimingIntent:
 		var ability: Ability = current.ability
@@ -1131,9 +1136,9 @@ func _give_feedback(answer: ClickAnswer, consumed: bool) -> void:
 	match answer.verb:
 		&"move":
 			if answer.ok and consumed:
-				_feedback.confirm_move(answer.point, answer.floor_point)
+				_feedback.confirm_move(answer.point, answer.floor_point, answer.surface_normal)
 			else:
-				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Can't move there", answer.floor_point)
+				_feedback.refuse(answer.point, answer.reason if answer.reason != "" else "Can't move there", answer.floor_point, answer.surface_normal)
 		&"use":
 			if answer.ok:
 				_feedback.confirm()

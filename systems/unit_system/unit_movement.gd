@@ -584,6 +584,13 @@ func carry_tween() -> Tween:
 
 
 func physics_process(delta: float) -> void:
+	_step(delta)
+	# Steering turns the unit during the step, and the tilt is relative to it.
+	if _crawl_pose != null:
+		_crawl_pose.refit()
+
+
+func _step(delta: float) -> void:
 	var crawling: bool = _crawls()
 	var clinging: bool = _update_crawl(delta, crawling)
 	if _carrier != null and _carrier.is_valid():
@@ -704,12 +711,15 @@ func physics_process(delta: float) -> void:
 ## Returns whether the unit is hanging on (a floor needs no hanging on to).
 func _update_crawl(delta: float, crawling: bool) -> bool:
 	var normal := Vector3.ZERO
+	var surface: Dictionary = {}
 	if crawling:
 		normal = NavigationGrid.crawl_normal(_owner.get_tree(), _owner.global_position, _owner)
+		surface = CrawlPose.true_surface(_owner, _owner.global_position, normal)
 		if _crawl_pose == null:
 			_crawl_pose = CrawlPose.new(_owner)
 	if _crawl_pose != null:
-		_crawl_pose.update(delta, normal, _crawl_travel(crawling))
+		# The grid's normal decides whether it clings, the true one how it looks.
+		_crawl_pose.update(delta, surface.get("normal", Vector3.ZERO), surface.get("gap", 0.0), _crawl_travel(crawling))
 	return normal != Vector3.ZERO and normal.y < CLING_BELOW
 
 
