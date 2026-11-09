@@ -69,6 +69,10 @@ static func get_skill_level(unit: Unit, skill_name: String, depth: int = 0) -> S
 	# is deliberately narrower than is_usable for exactly that gap — see
 	# SkillCheckResult.attemptable.
 	var attemptable: bool = instance != null or has_valid_default
+	# Only on the skill actually asked about: a bonus picked up partway down
+	# a default chain would count toward some other skill.
+	if depth == 0 and attemptable:
+		best_level += unit.skill_bonus(skill_data)
 	return SkillCheckResult.new(best_level, is_usable, instance != null, attemptable)
 
 

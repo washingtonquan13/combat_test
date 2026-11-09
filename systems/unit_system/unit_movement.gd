@@ -861,9 +861,10 @@ func land(controlled: bool = false) -> void:
 ## reason about whether a lethal fall should interrupt the descent
 ## animation.
 func _apply_fall_damage(descent: float) -> void:
-	var raw_damage: int = FLIGHT_RULES.roll_fall_damage(descent)
+	var raw_damage: int = FLIGHT_RULES.roll_fall_damage(_owner.counted_fall(descent))
 	if raw_damage <= 0:
 		return
+	raw_damage = _owner.soften_fall(raw_damage)
 
 	var applied: int = DamageResolver.injury(raw_damage, _owner, DamageResolver.WoundType.CRUSHING, 1.0, false, not FLIGHT_RULES.fall_damage_reduced_by_dr)
 

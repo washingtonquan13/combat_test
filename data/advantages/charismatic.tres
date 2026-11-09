@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="Advantage" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://systems/ability_system/status_behavior.gd" id="1_base"]
+[ext_resource type="Script" path="res://systems/ability_system/skill_bonus_behavior.gd" id="2_behavior"]
+[ext_resource type="Script" path="res://systems/advantage_system/advantage.gd" id="3_advantage"]
+[ext_resource type="Script" path="res://systems/skill_system/skill.gd" id="4_skill"]
+[ext_resource type="Resource" path="res://data/skills/persuasion.tres" id="skill_persuasion"]
+[ext_resource type="Resource" path="res://data/skills/deception.tres" id="skill_deception"]
+[ext_resource type="Resource" path="res://data/skills/intimidation.tres" id="skill_intimidation"]
+[ext_resource type="Resource" path="res://data/skills/performance.tres" id="skill_performance"]
+
+[sub_resource type="Resource" id="Resource_behavior"]
+script = ExtResource("2_behavior")
+skills = Array[ExtResource("4_skill")]([ExtResource("skill_persuasion"), ExtResource("skill_deception"), ExtResource("skill_intimidation"), ExtResource("skill_performance")])
+amount = 1
+
+[resource]
+script = ExtResource("3_advantage")
+id = &"charismatic"
+advantage_name = "Charismatic"
+description = "You have a natural ability to impress and lead. +1 per level to Persuasion, Deception, Intimidation and Performance."
+max_level = 4
+behaviors = Array[ExtResource("1_base")]([SubResource("Resource_behavior")])

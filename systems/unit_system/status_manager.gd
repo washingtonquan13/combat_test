@@ -295,6 +295,50 @@ func flight_granting_effects() -> Array[StatusEffect]:
 	return result
 
 
+## See StatusBehavior.jump_distance_multiplier.
+func jump_distance_multiplier() -> float:
+	var total: float = 1.0
+	for a in active:
+		for behavior in a.effect.behaviors:
+			total *= behavior.jump_distance_multiplier()
+	return total
+
+
+## See StatusBehavior.ignored_fall_distance.
+func ignored_fall_distance() -> float:
+	var total: float = 0.0
+	for a in active:
+		for behavior in a.effect.behaviors:
+			total += behavior.ignored_fall_distance()
+	return total
+
+
+## See StatusBehavior.soften_fall.
+func soften_fall(damage: int) -> int:
+	for a in active:
+		for behavior in a.effect.behaviors:
+			damage = behavior.soften_fall(_owner, damage)
+	return damage
+
+
+## See StatusBehavior.survival_roll_bonus.
+func survival_roll_bonus() -> int:
+	var total: int = 0
+	for a in active:
+		for behavior in a.effect.behaviors:
+			total += behavior.survival_roll_bonus()
+	return total
+
+
+## See StatusBehavior.skill_bonus.
+func skill_bonus(skill: Skill) -> int:
+	var total: int = 0
+	for a in active:
+		for behavior in a.effect.behaviors:
+			total += behavior.skill_bonus(skill)
+	return total
+
+
 ## Sum of every active status's modifier to an incoming attack's to-hit
 ## target number, from this unit being the DEFENDER — see
 ## StatusBehavior.modify_incoming_attack_to_hit.

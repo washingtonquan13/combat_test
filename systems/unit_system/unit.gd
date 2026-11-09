@@ -1665,6 +1665,31 @@ func outgoing_attack_to_hit_modifier(target, ability: Ability) -> int:
 	return _status_manager.outgoing_attack_to_hit_modifier(target, ability)
 
 
+## How many times over this unit jumps by strength (Super Jump).
+func jump_distance_multiplier() -> float:
+	return _status_manager.jump_distance_multiplier()
+
+
+## The part of a drop of metres that counts as a fall, once this unit's
+## Catfall or Super Jump has taken its share. Both kinds of fall and the
+## AI's previews ask here, so they can't disagree.
+func counted_fall(drop: float) -> float:
+	return maxf(drop - _status_manager.ignored_fall_distance(), 0.0)
+
+
+## Rolled fall damage after anything that softens it (Catfall's DX roll).
+func soften_fall(damage: int) -> int:
+	return _status_manager.soften_fall(damage)
+
+
+func survival_roll_bonus() -> int:
+	return _status_manager.survival_roll_bonus()
+
+
+func skill_bonus(skill: Skill) -> int:
+	return _status_manager.skill_bonus(skill)
+
+
 ## Whether this unit could cover `distance` this turn without exceeding
 ## its move budget. Not used internally by move_to() anymore (which
 ## clamps rather than rejects) — kept as a query helper for anything that

@@ -1059,7 +1059,7 @@ static func _unsustainable_flight_cost(unit: Unit, plan: AiPlan, end_position: V
 	var descent: float = maxf(0.0, end_position.y - ground_y)
 
 	var cost: float = 0.0
-	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
+	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(unit.counted_fall(descent))
 	if roll.dice_count > 0:
 		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
 			unit, DamageResolver.WoundType.CRUSHING, 1.0, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)
@@ -1122,7 +1122,7 @@ static func _forced_descent_cost(unit: Unit, position: Vector3) -> float:
 		return 0.0
 
 	var cost: float = 0.0
-	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(descent)
+	var roll: Dictionary = UnitMovement.FLIGHT_RULES.fall_damage_for_descent(unit.counted_fall(descent))
 	if roll.dice_count > 0:
 		cost = DamageResolver.expected_injury(roll.dice_count, UnitMovement.FLIGHT_RULES.fall_dice_sides, roll.dice_bonus,
 			unit, DamageResolver.WoundType.CRUSHING, 1.0, not UnitMovement.FLIGHT_RULES.fall_damage_reduced_by_dr)

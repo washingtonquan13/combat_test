@@ -161,12 +161,13 @@ static func fall_dice(hp: float, drop: float) -> int:
 static func take_fall(unit: Unit, drop: float) -> int:
 	if not is_instance_valid(unit) or unit.is_flying() or not unit.is_alive():
 		return 0
-	var dice: int = fall_dice(unit.get_stat(StatIds.HP), drop)
+	var dice: int = fall_dice(unit.get_stat(StatIds.HP), unit.counted_fall(drop))
 	if dice <= 0:
 		return 0
 	var raw: int = 0
 	for _i in dice:
 		raw += randi_range(1, 6)
+	raw = unit.soften_fall(raw)
 	var injury: int = DamageResolver.injury(raw, unit, DamageResolver.WoundType.CRUSHING)
 	SystemLog.print("%s falls %.1f m (%dd6: %d) and takes %d." % [LogFormat.unit_name(unit), drop, dice, raw, injury])
 	unit.take_damage(injury)

@@ -52,7 +52,7 @@ func _draw_jump(unit: Unit, ability: Ability, hover_point: Vector3) -> void:
 	# mouse is: short of move, the jump lands short, so the preview does.
 	var landing: Vector3 = targeting.landing_for(unit, hover_point)
 	var valid: bool = targeting.check(unit, landing) == AbilityTargeting.Reach.OK
-	_draw_arc(unit, unit.global_position, landing, MoveCasterEffect.arc_height_of(ability), valid)
+	_draw_arc(unit, unit.global_position, landing, MoveCasterEffect.arc_height_of(ability, unit, landing), valid)
 
 
 ## The target's flight, while the shove can reach it from here (out of

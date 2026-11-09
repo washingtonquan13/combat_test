@@ -1463,7 +1463,7 @@ func _roll_to_stay_up(crossed: int) -> void:
 ## penalty as staying up.
 func roll_while_downed() -> Dictionary:
 	var penalty: int = _depth()
-	var roll: Dictionary = SuccessRoll.roll_vs(floori(_owner.get_stat(StatIds.HT)) - penalty)
+	var roll: Dictionary = SuccessRoll.roll_vs(floori(_owner.get_stat(StatIds.HT)) - penalty + _owner.survival_roll_bonus())
 	var verdict: String = "success" if roll["success"] else "failure"
 	if roll["critical_success"] or roll["critical_failure"]:
 		verdict = "critical " + verdict

@@ -64,7 +64,7 @@ func check(attacker: Unit, target) -> Reach:
 		return Reach.OUT_OF_RANGE
 	if not _can_stand_at(attacker, destination):
 		return Reach.INVALID
-	if flight_arc_height > 0.0 and ArcFlight.clear_fraction(attacker, attacker.global_position, destination, flight_arc_height) < 1.0:
+	if flight_arc_height > 0.0 and ArcFlight.clear_fraction(attacker, attacker.global_position, destination, arc_height_for(attacker, destination)) < 1.0:
 		return Reach.PATH_BLOCKED
 	return Reach.OK
 
@@ -108,9 +108,10 @@ func landing_for(attacker: Unit, point: Vector3) -> Vector3:
 		return point
 	var from: Vector3 = attacker.global_position
 	var distance: float = from.distance_to(point)
-	if distance <= attacker.move_remaining or distance <= 0.001:
+	var reach: float = attacker.move_remaining * jump_multiplier(attacker)
+	if distance <= reach or distance <= 0.001:
 		return point
-	return from + (point - from) / distance * attacker.move_remaining
+	return from + (point - from) / distance * reach
 
 
 func resolve_click(attacker: Unit, click_position: Vector3) -> Variant:
@@ -125,7 +126,29 @@ func check_click(attacker: Unit, click_position: Vector3) -> Reach:
 func range_for(attacker: Unit) -> float:
 	if not range_from_strength:
 		return max_range
+	return _strength_range(attacker) * jump_multiplier(attacker)
+
+
+func _strength_range(attacker: Unit) -> float:
 	return ArcFlight.strength_distance(attacker.get_stat_unhalved(StatIds.ST), strength_rule)
+
+
+## How many times over attacker's Super Jump stretches this. 1 for anything
+## not ranged by strength. Range, move spent and arc all use it, because a
+## longer range alone would still stop at the Move left this turn.
+func jump_multiplier(attacker: Unit) -> float:
+	return attacker.jump_distance_multiplier() if range_from_strength else 1.0
+
+
+## The curve's peak for attacker landing at point: flight_arc_height up to
+## an ordinary jump's length, then rising with the distance, so a short
+## hop under a low ceiling is still a short hop.
+func arc_height_for(attacker: Unit, point: Vector3) -> float:
+	var multiplier: float = jump_multiplier(attacker)
+	if multiplier <= 1.0:
+		return flight_arc_height
+	var ordinary: float = maxf(_strength_range(attacker), 0.001)
+	return flight_arc_height * clampf(attacker.global_position.distance_to(point) / ordinary, 1.0, multiplier)
 
 
 func expects_point_target() -> bool:

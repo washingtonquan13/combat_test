@@ -98,6 +98,36 @@ func grants_flight() -> bool:
 	return false
 
 
+## Multiplies how far this unit jumps by strength (see
+## GroundPointTargeting.jump_multiplier). Multiplied across active statuses.
+func jump_distance_multiplier() -> float:
+	return 1.0
+
+
+## Metres of any fall this unit doesn't count. Summed across active
+## statuses; see Unit.counted_fall.
+func ignored_fall_distance() -> float:
+	return 0.0
+
+
+## The rolled damage of a fall after this behavior has had its say, before
+## DR. See Unit.soften_fall.
+func soften_fall(_unit: Unit, damage: int) -> int:
+	return damage
+
+
+## Added to the HT roll a unit makes each turn while Downed, the roll that
+## decides whether it dies. Summed across active statuses.
+func survival_roll_bonus() -> int:
+	return 0
+
+
+## Added to this unit's level in skill. Summed across active statuses; see
+## SkillCalculator.get_skill_level.
+func skill_bonus(_skill: Skill) -> int:
+	return 0
+
+
 ## This behavior as it works at level on a leveled advantage, whose
 ## numbers are per level. Override where a number should scale; the
 ## default is the same at every level. Must not change this resource,
