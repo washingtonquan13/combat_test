@@ -146,6 +146,7 @@ CLIPS = {
     "Breath_Hold_Air-loop": "breath_hold_air",
     "Breath_Out_Air": "breath_out_air",
     "Roar": "roar",
+    "Roar_Air": "roar_air",
     "Tail_Swipe": "tail_swipe",
     "Wing_Buffet": "wing_buffet",
 }
