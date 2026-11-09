@@ -1,5 +1,8 @@
 extends SceneTree
 
+# Rewrites the whole library, including the clips hand-solved in tools/humanoid/.
+# Rerun tools/humanoid/carry_clips.gd afterwards to put those back.
+
 # Generates assets/weapon_animations.tres: one clip per kind of attack row,
 # keyed onto the UAL mannequin's GeneralSkeleton.
 #

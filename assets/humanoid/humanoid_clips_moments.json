@@ -1,0 +1,41 @@
+{
+ "Bow_Shot": {
+  "release": [
+   0.9
+  ]
+ },
+ "Breath": {
+  "release": [
+   0.36
+  ]
+ },
+ "Claw": {
+  "impact": [
+   0.625
+  ]
+ },
+ "Crossbow_Shot": {
+  "release": [
+   0.7
+  ]
+ },
+ "Punch": {
+  "impact": [
+   0.3333
+  ]
+ },
+ "Rifle_Burst": {
+  "release": [
+   0.7,
+   0.77,
+   0.84,
+   0.91,
+   0.98,
+   1.05,
+   1.12,
+   1.19,
+   1.26,
+   1.33
+  ]
+ }
+}

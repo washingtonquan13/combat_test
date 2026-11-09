@@ -1,5 +1,8 @@
 extends SceneTree
 
+# Rewrites the whole library, including the clips hand-solved in tools/humanoid/.
+# Rerun tools/humanoid/carry_clips.gd afterwards to put those back.
+
 # Generates assets/flight_animations.tres: a humanoid's levitation clips,
 # keyed onto the UAL mannequin's GeneralSkeleton.
 #
