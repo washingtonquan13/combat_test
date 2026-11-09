@@ -71,6 +71,9 @@ var aim: Aim = null
 ## resolve_cursor reads or writes it (and _input on Ctrl release), so no
 ## indicator switching off mid-press can leave it stale.
 var _held_ground = null
+## The arc's height when this Ctrl hold started; the mouse raises it from
+## there, so pressing Ctrl doesn't make the curve jump. Null with no hold.
+var _arc_hold_base = null
 
 ## The height plane the player set: Ctrl + wheel steps it (PLANE_STEP), a
 ## Ctrl hold drags it, and it STAYS when Ctrl is let go - that is the
@@ -289,6 +292,7 @@ func _on_ability_armed(_ability: Ability) -> void:
 func _clear_plane() -> void:
 	_plane_height = null
 	_held_ground = null
+	_arc_hold_base = null
 	_wheel_steered = false
 
 
@@ -364,6 +368,8 @@ func resolve_cursor(current: PlayerIntent) -> Cursor:
 	if not _same_intent(current, _plane_intent):
 		_clear_plane()
 		_plane_intent = current
+	if current != null and current.drags_arc(self):
+		return _arc_cursor(current, result, surface)
 	if current == null or not current.drags_height(self):
 		_clear_plane()
 		result.ground = surface
@@ -404,6 +410,34 @@ func resolve_cursor(current: PlayerIntent) -> Cursor:
 	return result
 
 
+## Aiming a flight: the cursor is the floor, as with no plane at all, and
+## a Ctrl hold keeps the landing where it was while the mouse's rise on
+## screen raises the curve over it.
+func _arc_cursor(current: PlayerIntent, result: Cursor, surface) -> Cursor:
+	if not Input.is_action_pressed("fly_altitude_modifier"):
+		_held_ground = null
+		_arc_hold_base = null
+		result.ground = surface
+		result.floor_below = surface
+		return result
+	if _held_ground == null:
+		_held_ground = surface
+		_arc_hold_base = null
+	if _held_ground == null:
+		result.ground = surface
+		result.floor_below = surface
+		return result
+	if _arc_hold_base == null:
+		_arc_hold_base = current.arc_height_at(_held_ground)
+	var sampled = _sample_height(Vector2(_held_ground.x, _held_ground.z))
+	if sampled != null:
+		current.set_arc_height(_held_ground, _arc_hold_base + sampled - _held_ground.y)
+	result.holding_height = true
+	result.ground = _held_ground
+	result.floor_below = _held_ground
+	return result
+
+
 ## The first thing the mouse ray meets: surface, or the ray's crossing of
 ## the plane y = plane when that is nearer the camera. The surface when
 ## there is no plane or the plane is not in front of the camera.
@@ -435,6 +469,11 @@ func _steered(current: PlayerIntent) -> void:
 ## Y of this frame's aim point, or the active unit's own Y over nothing).
 ## Returns whether there was a plane to step.
 func _step_plane(current: PlayerIntent, direction: float) -> bool:
+	if current != null and current.drags_arc(self):
+		if _arc_hold_base == null or _held_ground == null:
+			return false
+		_arc_hold_base = current.clamp_arc(_held_ground, _arc_hold_base + direction * HEIGHT_STEP)
+		return true
 	if current == null or not current.drags_height(self):
 		return false
 	if not _same_intent(current, _plane_intent):
@@ -876,7 +915,12 @@ func use_ground_targeted(ability: Ability, click_position: Vector3) -> bool:
 	# up a stray height override.
 	var target = ability.targeting.resolve_click(unit, click_position)
 	if target != null:
+		# A cast spends the curve set for it (Jump can stay armed after one);
+		# a refused one keeps it, to be adjusted.
+		var flies: bool = ability.targeting.takes_arc_height() and ability.targeting.check(unit, target) == AbilityTargeting.Reach.OK
 		unit.use_ability(ability, target)
+		if flies:
+			AbilityManager.clear_arc_height_override()
 	return true
 
 

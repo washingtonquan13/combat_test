@@ -51,6 +51,15 @@ extends AbilityTargeting
 ## this false in their .tres.
 @export var validate_as_caster_flying: bool = true
 
+## How far the curve may rise over its usual height (arc_height_for), for
+## clearing something on its own or by the player's Ctrl.
+const ARC_RAISE: float = 2.0
+## The lowest curve the player may set.
+const ARC_MIN: float = 0.25
+## How many heights the automatic rise tries between the usual and the
+## limit: a fixed count, since it runs every frame while aiming.
+const ARC_TRIES: int = 6
+
 
 func is_valid_target(attacker: Unit, target) -> bool:
 	return check(attacker, target) == Reach.OK
@@ -64,7 +73,7 @@ func check(attacker: Unit, target) -> Reach:
 		return Reach.OUT_OF_RANGE
 	if not _can_stand_at(attacker, destination):
 		return Reach.INVALID
-	if flight_arc_height > 0.0 and ArcFlight.clear_fraction(attacker, attacker.global_position, destination, arc_height_for(attacker, destination)) < 1.0:
+	if flight_arc_height > 0.0 and ArcFlight.clear_fraction(attacker, attacker.global_position, destination, chosen_arc(attacker, destination)) < 1.0:
 		return Reach.PATH_BLOCKED
 	return Reach.OK
 
@@ -149,6 +158,43 @@ func arc_height_for(attacker: Unit, point: Vector3) -> float:
 		return flight_arc_height
 	var ordinary: float = maxf(_strength_range(attacker), 0.001)
 	return flight_arc_height * clampf(attacker.global_position.distance_to(point) / ordinary, 1.0, multiplier)
+
+
+## The peak attacker's flight to point really takes: what the player set
+## with Ctrl if they did, else the usual curve, else the lowest one up to
+## the limit that clears what's in the way. Nothing clears: the usual
+## curve, which check() then refuses. A height the player set is kept even
+## when blocked, so it shows red instead of quietly changing.
+func chosen_arc(attacker: Unit, point: Vector3) -> float:
+	if _player_set_arc(attacker):
+		return clamp_arc(attacker, point, AbilityManager.arc_height_override)
+	var from: Vector3 = attacker.global_position
+	var usual: float = arc_height_for(attacker, point)
+	if ArcFlight.clear_fraction(attacker, from, point, usual) >= 1.0:
+		return usual
+	var limit: float = usual * ARC_RAISE
+	for i in range(1, ARC_TRIES + 1):
+		var height: float = lerpf(usual, limit, float(i) / ARC_TRIES)
+		if ArcFlight.clear_fraction(attacker, from, point, height) >= 1.0:
+			return height
+	return usual
+
+
+## height, kept within what attacker's flight to point allows.
+func clamp_arc(attacker: Unit, point: Vector3, height: float) -> float:
+	return clampf(height, ARC_MIN, arc_height_for(attacker, point) * ARC_RAISE)
+
+
+## Only the player's own armed use of this ability: the same Resource in
+## an AI's hands flies its own curve.
+func _player_set_arc(attacker: Unit) -> bool:
+	var armed: Ability = AbilityManager.armed_ability
+	return AbilityManager.has_arc_height_override and armed != null \
+			and armed.targeting == self and AbilityManager.armed_unit == attacker
+
+
+func takes_arc_height() -> bool:
+	return flight_arc_height > 0.0
 
 
 func expects_point_target() -> bool:

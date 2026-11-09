@@ -66,6 +66,26 @@ func drags_height(_router) -> bool:
 	return ability != null and ability.targeting != null and ability.targeting.takes_aim_height()
 
 
+## A flight whose curve the player may set (AbilityTargeting.takes_arc_height).
+func drags_arc(_router) -> bool:
+	return ability != null and ability.targeting != null and ability.targeting.takes_arc_height() \
+			and is_instance_valid(AbilityManager.armed_unit)
+
+
+func arc_height_at(point: Vector3) -> float:
+	var unit: Unit = AbilityManager.armed_unit
+	return ability.targeting.chosen_arc(unit, ability.targeting.landing_for(unit, point))
+
+
+func clamp_arc(point: Vector3, height: float) -> float:
+	var unit: Unit = AbilityManager.armed_unit
+	return ability.targeting.clamp_arc(unit, ability.targeting.landing_for(unit, point), height)
+
+
+func set_arc_height(point: Vector3, height: float) -> void:
+	AbilityManager.set_arc_height_override(clamp_arc(point, height))
+
+
 ## The one rule for the aim height, from the cursor alone, so the preview
 ## (Aim.point) and the click (AbilityTargeting.resolve_target_point) read
 ## the same answer - the router calls this each frame and again with a

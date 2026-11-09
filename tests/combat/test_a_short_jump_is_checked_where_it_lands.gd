@@ -29,9 +29,16 @@ func run() -> void:
 	var landing: Vector3 = targeting.landing_for(jumper, click)
 	check("it lands short", absf(jumper.global_position.distance_to(landing) - 2.5) < 0.01,
 		"%s from %s" % [landing, jumper.global_position])
+	# Held at the usual height, or the curve would rise over the wall by itself.
+	AbilityManager.armed_ability = jump
+	AbilityManager.armed_unit = jumper
+	AbilityManager.set_arc_height_override(targeting.flight_arc_height)
 	check("the short curve is the one checked",
 		targeting.check_click(jumper, click) == AbilityTargeting.Reach.PATH_BLOCKED,
 		str(targeting.check_click(jumper, click)))
+	AbilityManager.armed_ability = null
+	AbilityManager.armed_unit = null
+	AbilityManager.clear_arc_height_override()
 	enemy.take_damage(50)
 	free_spawned()
 	wall.queue_free()

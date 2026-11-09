@@ -56,6 +56,13 @@ func takes_aim_height() -> bool:
 	return false
 
 
+## Whether the caster flies to the point on a curve the player may raise
+## or lower (GroundPointTargeting.chosen_arc). The point stays on the
+## floor, so this is a separate question from takes_aim_height.
+func takes_arc_height() -> bool:
+	return false
+
+
 ## Whether attacker has ANY legal target for this ability at all right
 ## now, regardless of where the player is currently aiming — used to
 ## disable a hotbar slot outright rather than leaving it clickable for

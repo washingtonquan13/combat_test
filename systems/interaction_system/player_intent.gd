@@ -67,6 +67,13 @@ func drags_height(_router) -> bool:
 	return false
 
 
+## Whether Ctrl sets the height of a flight's curve rather than a plane:
+## the aim stays on the floor and the mouse raises the arc (see
+## ClickRouter._arc_cursor). AimingIntent answers the rest of it.
+func drags_arc(_router) -> bool:
+	return false
+
+
 ## A height plane this intent always has, with no latch needed - an idle
 ## flier's own altitude - or null when it has none and the plane exists
 ## only once the player sets one. Read by the router each frame, so the

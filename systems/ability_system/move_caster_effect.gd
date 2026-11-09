@@ -25,7 +25,21 @@ extends AbilityEffect
 ## same for a jump as for a shove.
 
 
-func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+func apply(attacker: Unit, target, ability: Ability, is_critical: bool) -> Dictionary:
+	return commit(attacker, target, ability, is_critical, resolve(attacker, target, ability, is_critical))
+
+
+## The curve is settled on the click: the height the player set with Ctrl
+## is gone by the time the cast animation reaches the leap.
+func resolve(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dictionary:
+	if not target is Vector3:
+		return {}
+	var targeting := ability.targeting as GroundPointTargeting if ability else null
+	var destination: Vector3 = targeting.landing_for(attacker, target) if targeting else target
+	return {"arc_height": arc_height_of(ability, attacker, destination)}
+
+
+func commit(attacker: Unit, target, ability: Ability, _is_critical: bool, plan: Dictionary) -> Dictionary:
 	if not target is Vector3:
 		return {}
 
@@ -36,7 +50,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	var destination: Vector3 = targeting.landing_for(attacker, target) if targeting else target
 	var distance: float = attacker.global_position.distance_to(destination)
 
-	ArcFlight.fly(attacker, destination, arc_height_of(ability, attacker, destination))
+	ArcFlight.fly(attacker, destination, plan.get("arc_height", 0.0))
 
 	if attacker.in_combat():
 		attacker.spend_move(distance / targeting.jump_multiplier(attacker) if targeting else distance)
@@ -44,11 +58,11 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 	return {"jumped_distance": distance}
 
 
-## The jump's peak height: its targeting's arc_height_for, the curve the
+## The jump's peak height: its targeting's chosen_arc, the curve the
 ## targeting checks for walls, so the flight and the check can't differ.
 static func arc_height_of(ability: Ability, attacker: Unit, landing: Vector3) -> float:
 	var targeting := ability.targeting as GroundPointTargeting if ability else null
-	return targeting.arc_height_for(attacker, landing) if targeting else 0.0
+	return targeting.chosen_arc(attacker, landing) if targeting else 0.0
 
 
 func describe() -> String:

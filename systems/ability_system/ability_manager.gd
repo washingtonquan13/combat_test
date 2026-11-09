@@ -62,6 +62,13 @@ var has_aim_height_override: bool = false
 var line_start: Vector3 = Vector3.ZERO
 var has_line_start: bool = false
 
+## The peak the player set for the armed flight with Ctrl, in metres over
+## its higher end, so it holds as the landing moves (see
+## GroundPointTargeting.chosen_arc). Reset with the armed ability and
+## after each cast.
+var arc_height_override: float = 0.0
+var has_arc_height_override: bool = false
+
 
 func arm(ability: Ability) -> void:
 	var unit: Unit = PlayerInteractionState.get_active_unit()
@@ -72,6 +79,7 @@ func arm(ability: Ability) -> void:
 	armed_ability = ability
 	armed_unit = unit
 	has_aim_height_override = false
+	has_arc_height_override = false
 	has_line_start = false
 	_watch_current_unit()
 	ability_armed.emit(ability)
@@ -80,6 +88,7 @@ func arm(ability: Ability) -> void:
 func disarm() -> void:
 	_unwatch_unit()
 	has_aim_height_override = false
+	has_arc_height_override = false
 	has_line_start = false
 	if armed_ability == null:
 		return
@@ -101,6 +110,15 @@ func set_aim_height_override(y: float) -> void:
 ## The aim point is a plain surface point again: no height of its own.
 func clear_aim_height_override() -> void:
 	has_aim_height_override = false
+
+
+func set_arc_height_override(height: float) -> void:
+	arc_height_override = height
+	has_arc_height_override = true
+
+
+func clear_arc_height_override() -> void:
+	has_arc_height_override = false
 
 
 func set_line_start(point: Vector3) -> void:
