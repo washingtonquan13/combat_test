@@ -84,17 +84,22 @@ def bake(arm, body, clips):
     for m in deform:
         m.show_viewport = False  # no skinning on every pose update while baking
     moments = {}
+    actions = {}
     for name, source in clips.items():
         clip = action_clips.CLIPS[source]
         act = _bake(arm, rig, name, clip)
-        track = arm.animation_data.nla_tracks.new()
-        track.name = name
-        strip = track.strips.new(name, 0, act)
-        strip.action_slot = act.slots[0]
+        actions[name] = act
         if clip.get("moments"):
             moments[name.removesuffix("-loop")] = {
                 method: [round(f / FPS, 4) for f in frames] for method, frames in clip["moments"].items()}
         print("DRAGON baked", name, "from", source, int(act.frame_end) + 1, "frames")
+    # Tracks go on last: a new one makes the next view layer update evaluate the
+    # NLA over the pose just solved, and that frame would bake the wrong pose.
+    for name, act in actions.items():
+        track = arm.animation_data.nla_tracks.new()
+        track.name = name
+        strip = track.strips.new(name, 0, act)
+        strip.action_slot = act.slots[0]
     for m in deform:
         m.show_viewport = True
     return moments

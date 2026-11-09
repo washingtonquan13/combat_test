@@ -236,7 +236,7 @@ class Rig:
                 rest_up = Vector((0, 0, 1))
                 rest_up = (rest_up - rest_dir * rest_up.dot(rest_dir)).normalized()
                 new_dir = (joints[i + 1] - joints[i]).normalized()
-                up = self._delta("breast") @ mirrored(ups[k][i]) if ups else out * WING_FACE[i]
+                up = self._delta("breast") @ (mirrored(ups[k][i]) if ups else out * WING_FACE[i])
                 self._set(name, joints[i], _frame(new_dir, up) @ _frame(rest_dir, rest_up).inverted())
 
     def _leg(self, foot, upper, lower, c):

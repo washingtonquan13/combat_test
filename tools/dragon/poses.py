@@ -2,7 +2,7 @@
 
 import math
 
-from body_rig import WING_FACE
+from body_rig import WING_FACE, _fabrik
 from mathutils import Matrix, Quaternion, Vector
 
 # The stance every clip starts and ends on: low and heavy, weight toward the
@@ -474,17 +474,25 @@ def _facing(forward, up):
     return Matrix((x, y, x.cross(y))).transposed().to_quaternion()
 
 
+def _settled(rest, closed):
+    """A folded finger as the rig's solve lands it, bone lengths kept."""
+    joints = [Vector(rest[0])] + [Vector(p) for p in closed]
+    lengths = [(Vector(rest[i + 1]) - Vector(rest[i])).length for i in range(3)]
+    return _fabrik(joints, lengths, joints[-1])[1:]
+
+
 def wing_unfold(shut, spread, k):
     """A wing part way open. Each segment turns from its folded heading to its
     spread one about its own joint, so the zigzag opens instead of cutting
-    straight across the back. k is 0 folded, 1 spread."""
+    straight across the back. k is 0 folded, exactly the shut pose, 1 spread."""
     out = Vector(shut["out"]).normalized()
     fingers, ups = [], []
     for rest, closed, opened, opened_ups in zip(_WING_REST, shut["fingers"], spread["fingers"], spread["ups"]):
         p, from_closed, from_opened = Vector(rest[0]), Vector(rest[0]), Vector(rest[0])
+        settled = _settled(rest, closed)
         points, faces = [], []
         for i in range(3):
-            a, b = Vector(closed[i]), Vector(opened[i])
+            a, b = settled[i], Vector(opened[i])
             turn = _facing(a - from_closed, out * WING_FACE[i]).slerp(_facing(b - from_opened, Vector(opened_ups[i])), k)
             from_closed, from_opened = a, b
             p = p + turn @ Vector((0.0, (Vector(rest[i + 1]) - Vector(rest[i])).length, 0.0))

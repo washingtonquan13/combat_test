@@ -6,8 +6,11 @@ extends EditorScenePostImport
 ## the GLB (dragon_moments.json: clip -> method -> times in seconds), and
 ## this adds them back as a Call Method track on CharacterModel - the same
 ## track path ".." the humanoid libraries use (make_weapon_animations.gd).
+## Also gives the player a default cross-fade: a clip that starts without its
+## own blend would otherwise snap the wings from wherever they were mid-beat.
 
 const MOMENTS: String = "res://assets/dragon/dragon_moments.json"
+const DEFAULT_BLEND: float = 0.15
 
 
 func _post_import(scene: Node) -> Object:
@@ -20,6 +23,7 @@ func _post_import(scene: Node) -> Object:
 		push_error("dragon_post_import: no AnimationPlayer")
 		return scene
 	var player: AnimationPlayer = players[0]
+	player.playback_default_blend_time = DEFAULT_BLEND
 	for clip: String in moments:
 		if not player.has_animation(clip):
 			push_error("dragon_post_import: no clip \"%s\"" % clip)
