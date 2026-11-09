@@ -33,8 +33,13 @@ extends CharacterBody3D
 			display_name = definition.display_name
 			portrait_texture = definition.portrait_texture
 			faction = definition.faction
-			_unit_stats().reset(definition.stats)
+			# Advantages come off first, for a unit changing species, and
+			# go on after the ability list they add to. Stats are last so
+			# pools fill to a maximum that counts them.
+			_unit_advantages().clear()
 			abilities = definition.abilities
+			_unit_advantages().add_all(definition.advantages)
+			_unit_stats().reset(definition.stats)
 			natural_attacks = definition.natural_attacks
 			body_plan = definition.body_plan
 			injury_preset = definition.injury_preset
@@ -911,7 +916,8 @@ static func _scaled_shape(shape: Shape3D, size: float) -> Shape3D:
 
 
 func _ready() -> void:
-	_status_manager = StatusManager.new(self)
+	if _status_manager == null:  # a definition's advantages may have built it
+		_status_manager = StatusManager.new(self)
 	_action_state = UnitActionState.new(self)
 	_facing = UnitFacing.new(self)
 	# A real child Node, not a RefCounted field like its neighbours — see
@@ -1532,7 +1538,8 @@ func has_status(effect: StatusEffect) -> bool:
 func active_statuses() -> Array[StatusEffect]:
 	var out: Array[StatusEffect] = []
 	for active in _status_manager.active:
-		out.append(active.effect)
+		if not active.permanent:
+			out.append(active.effect)
 	return out
 
 
@@ -1843,6 +1850,49 @@ func stats_to_dict() -> Dictionary:
 ## stats enter a unit.
 func stats_from_dict(data: Dictionary) -> void:
 	_unit_stats().from_dict(data)
+
+
+func get_advantages() -> Array[AdvantageInstance]:
+	return _unit_advantages().get_all()
+
+
+## 0 for an advantage this unit doesn't have.
+func advantage_level(id: StringName) -> int:
+	return _unit_advantages().level_of(id)
+
+
+## Clamped to the advantage's max_level; 0 takes it away.
+func set_advantage_level(advantage: Advantage, level: int) -> void:
+	_unit_advantages().set_level(advantage, level)
+	_recheck_low_pools()
+
+
+func advantages_to_dict() -> Dictionary:
+	return _unit_advantages().to_dict()
+
+
+func advantages_from_dict(data: Dictionary) -> void:
+	_unit_advantages().from_dict(data)
+	_recheck_low_pools()
+
+
+## An advantage moved a maximum with no status signal to say so.
+func _recheck_low_pools() -> void:
+	if is_node_ready():
+		_update_low_pool_statuses()
+
+
+var _advantages: UnitAdvantages
+
+
+## Lazy for the same reason as _unit_stats, and it brings the status
+## manager with it: the definition setter runs before _ready.
+func _unit_advantages() -> UnitAdvantages:
+	if _advantages == null:
+		if _status_manager == null:
+			_status_manager = StatusManager.new(self)
+		_advantages = UnitAdvantages.new(self, _status_manager)
+	return _advantages
 
 
 func _unit_stats() -> UnitStats:
@@ -2258,6 +2308,7 @@ func use_ability(ability: Ability, target) -> Dictionary:
 func save_state() -> Dictionary:
 	return {
 		"stats": stats_to_dict(),
+		"advantages": advantages_to_dict(),
 		"transform": global_transform,
 		"flight_altitude": flight_target_altitude,
 		"move_remaining": move_remaining,
@@ -2282,13 +2333,20 @@ func _apply_pending_state() -> void:
 	var state: Dictionary = _pending_state
 	_pending_state = {}
 
+	# Advantages and statuses go back before the stats, so a pool is capped
+	# by a maximum that counts their bonuses. Held busy so the low-pool
+	# check can't see a unit half restored and strip a saved status.
+	_status_manager.busy += 1
+	if state.has("advantages"):
+		_unit_advantages().from_dict(state["advantages"])
+	_status_manager.load_state(state.get("statuses", []))
 	stats_from_dict(state.get("stats", {}))
+	_status_manager.busy -= 1
 	flight_target_altitude = float(state.get("flight_altitude", flight_target_altitude))
 	move_remaining = float(state.get("move_remaining", move_remaining))
 	has_attacked = bool(state.get("has_attacked", has_attacked))
 	_combat.parries = int(state.get("parries", 0))
 	_combat.blocked = bool(state.get("blocked", false))
-	_status_manager.load_state(state.get("statuses", []))
 	# Restored sheathed: a state from before weapon sets has no key, and
 	# drawing is the encounter's to decide, not the save's.
 	if state.has("active_weapon_set"):

@@ -59,12 +59,17 @@ func save_state() -> Array:
 ## apply() would reset each duration to the effect's default and fire
 ## whatever an application is supposed to announce. Stat modifiers are
 ## the exception: they live on the unit's stats, not here, so they are
-## taken off with the old list and put back with the new one.
+## taken off with the old list and put back with the new one. Permanent
+## statuses aren't in a save and stay where they are.
 func load_state(state: Array) -> void:
 	busy += 1
+	var kept: Array[ActiveStatus] = []
 	for status in active:
-		_set_stat_modifiers(status.effect, false)
-	active.clear()
+		if status.permanent:
+			kept.append(status)
+		else:
+			_set_stat_modifiers(status.effect, false)
+	active = kept
 	for entry in state:
 		var effect: StatusEffect = load(entry.get("effect", ""))
 		if effect == null:
@@ -122,6 +127,20 @@ func apply(effect: StatusEffect) -> void:
 	status_applied.emit(effect, new_active)
 
 
+## Puts on a status that is part of what the unit is (an advantage, see
+## UnitAdvantages): no duration, no signals, no rivals. Can run before the
+## unit is in the tree, so can a behavior's on_apply here.
+func add_permanent(effect: StatusEffect) -> void:
+	var status := ActiveStatus.new(effect, 0)
+	status.permanent = true
+	busy += 1
+	active.append(status)
+	for behavior in effect.behaviors:
+		behavior.on_apply(_owner, status)
+	_set_stat_modifiers(effect, true)
+	busy -= 1
+
+
 ## The status on this unit that effect would counter (see
 ## StatusEffect.counters) instead of landing, or null.
 func countered_by(effect: StatusEffect) -> StatusEffect:
@@ -161,7 +180,8 @@ func remove(effect: StatusEffect, voluntary: bool = false) -> void:
 		if behavior is StatModifierBehavior:
 			_owner.unregister_stat_modifier(behavior, effect.status_name)
 	busy -= 1
-	status_removed.emit(effect)
+	if not existing.permanent:
+		status_removed.emit(effect)
 
 
 ## A surface just put effect on the unit by their getting into it: each
@@ -206,6 +226,8 @@ func tick_turn_start() -> void:
 	for a in active.duplicate():
 		for behavior in a.effect.behaviors:
 			behavior.on_turn_start(_owner, a)
+		if a.permanent:
+			continue
 		status_ticked.emit(a.effect, a)
 
 		if a.stopped:
@@ -264,6 +286,8 @@ func grants_flight() -> bool:
 func flight_granting_effects() -> Array[StatusEffect]:
 	var result: Array[StatusEffect] = []
 	for a in active:
+		if a.permanent:
+			continue
 		for behavior in a.effect.behaviors:
 			if behavior.grants_flight():
 				result.append(a.effect)

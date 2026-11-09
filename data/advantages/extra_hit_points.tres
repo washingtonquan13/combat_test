@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="Advantage" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://systems/ability_system/status_behavior.gd" id="1_base"]
+[ext_resource type="Script" path="res://systems/ability_system/stat_modifier_behavior.gd" id="2_statmod"]
+[ext_resource type="Script" path="res://systems/advantage_system/advantage.gd" id="3_advantage"]
+
+[sub_resource type="Resource" id="Resource_hp"]
+script = ExtResource("2_statmod")
+stat_name = &"HP"
+amount = 1
+multiplier = 1.0
+
+[resource]
+script = ExtResource("3_advantage")
+id = &"extra_hit_points"
+advantage_name = "Extra Hit Points"
+description = "Tougher than your frame suggests. +1 HP per level."
+max_level = 10
+behaviors = Array[ExtResource("1_base")]([SubResource("Resource_hp")])

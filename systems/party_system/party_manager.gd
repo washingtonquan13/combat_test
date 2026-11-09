@@ -540,6 +540,7 @@ func _capture_one(unit: Unit) -> PartyMemberData:
 	data.portrait_texture = unit.portrait_texture
 	data.faction = unit.faction
 	data.stats = unit.stats_to_dict()
+	data.advantages = unit.advantages_to_dict()
 	data.move_speed = unit.move_speed
 	data.alignment = unit.alignment
 	data.tendency = unit.tendency
@@ -713,6 +714,7 @@ func _save_one(record: PartyMemberData) -> Dictionary:
 		"selected_color": record.selected_color,
 		"hover_color": record.hover_color,
 		"stats": record.stats,
+		"advantages": record.advantages,
 		"move_speed": record.move_speed,
 		"alignment": record.alignment,
 		"tendency": record.tendency,
@@ -787,6 +789,7 @@ func _load_one(entry: Dictionary) -> PartyMemberData:
 	record.selected_color = entry.get("selected_color", record.selected_color)
 	record.hover_color = entry.get("hover_color", record.hover_color)
 	record.stats = entry.get("stats", {})
+	record.advantages = entry.get("advantages", {})
 	record.move_speed = entry.get("move_speed", record.move_speed)
 	record.alignment = entry.get("alignment", record.alignment)
 	record.tendency = entry.get("tendency", record.tendency)
@@ -878,12 +881,13 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 	unit.display_name = record.display_name
 	unit.portrait_texture = record.portrait_texture
 	unit.faction = record.faction
-	# One dict, every stat — a stat added to res://data/stats/ travels
-	# with the record without anyone listing it here.
-	unit.stats_from_dict(record.stats)
 	unit.move_speed = record.move_speed
 	unit.alignment = record.alignment
 	unit.tendency = record.tendency
+	# Before the ability list: the record's list already holds what these
+	# grant, and it has the last word.
+	if not record.advantages.is_empty():
+		unit.advantages_from_dict(record.advantages)
 	unit.set_abilities(record.abilities.duplicate())
 	unit.set_custom_slots(record.custom_slots.duplicate())
 	unit.set_active_weapon_set(record.active_weapon_set, false)
@@ -899,6 +903,11 @@ func spawn_member(record: PartyMemberData, world: Node, spawn_point: Node3D) -> 
 
 	for slot in record.equipment:
 		unit.equip_item(slot, record.equipment[slot].copy())
+
+	# Last, so a pool is capped by a maximum that counts gear and
+	# advantages. One dict, every stat — a stat added to res://data/stats/
+	# travels with the record without anyone listing it here.
+	unit.stats_from_dict(record.stats)
 
 	return unit
 

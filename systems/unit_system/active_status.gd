@@ -13,6 +13,10 @@ var stacks: int = 1
 ## A stopped timer never runs down — Downed, whose own rolls decide
 ## how it ends (DeathRollsBehavior).
 var stopped: bool = false
+## Part of what the unit is, not something happening to it (see
+## StatusManager.add_permanent): hidden, unannounced, never saved, never
+## runs out.
+var permanent: bool = false
 ## Counts a behavior keeps for this one application — Downed's marks
 ## toward stable and toward death.
 var tally: Dictionary = {}

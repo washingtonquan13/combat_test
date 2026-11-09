@@ -53,6 +53,10 @@ extends Resource
 ## captured whole, so a stat added to res://data/stats/ survives a world
 ## reload without this file listing it.
 @export var stats: Dictionary = {}
+## Advantage id -> level, in UnitAdvantages.to_dict() shape. Empty on a
+## record that was authored rather than captured: the unit keeps what its
+## definition gave it.
+@export var advantages: Dictionary = {}
 ## Real-time physical movement speed — distinct from Move (the tactical
 ## move-budget stat) the same way it's distinct on Unit itself. Missing
 ## this was a silent bug of the exact same shape selected_color's own doc

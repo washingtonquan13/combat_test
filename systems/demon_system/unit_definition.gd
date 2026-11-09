@@ -47,6 +47,9 @@ extends Resource
 ## here, and a species reads as what makes it unusual.
 @export var stats: Dictionary[StringName, int] = {}
 
+## Advantage -> level, for what this species is born with.
+@export var advantages: Dictionary[Advantage, int] = {}
+
 ## Senses — cascade onto Unit exactly like every other stat here, so a
 ## blind burrower and a hawk are the same detection code at different
 ## numbers. Defaults match Unit's own, making an unauthored species a

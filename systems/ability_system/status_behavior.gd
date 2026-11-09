@@ -98,6 +98,14 @@ func grants_flight() -> bool:
 	return false
 
 
+## This behavior as it works at level on a leveled advantage, whose
+## numbers are per level. Override where a number should scale; the
+## default is the same at every level. Must not change this resource,
+## which is shared.
+func at_level(_level: int) -> StatusBehavior:
+	return self
+
+
 ## Human-readable summary for tooltips. Override in each subclass.
 func describe() -> String:
 	return ""

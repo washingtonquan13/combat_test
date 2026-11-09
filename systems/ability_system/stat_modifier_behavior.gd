@@ -34,6 +34,16 @@ func _validate_property(property: Dictionary) -> void:
 		StatDatabase.suggest_ids(property)
 
 
+## amount is per level. multiplier isn't: three levels of a halving are
+## not an eighth.
+func at_level(level: int) -> StatusBehavior:
+	if level == 1 or amount == 0:
+		return self
+	var scaled: StatModifierBehavior = duplicate()
+	scaled.amount = amount * level
+	return scaled
+
+
 func describe() -> String:
 	if amount == 0 and multiplier != 1.0:
 		return "x%s %s" % [String.num(multiplier), stat_name]
