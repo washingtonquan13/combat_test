@@ -21,7 +21,7 @@ height = 0.6
 radius = 0.05
 height = 1.14
 
-[node name="DragonModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "collision_shape", "hit_shapes", "head_anchor", "eye_anchor", "chest_anchor")]
+[node name="DragonModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "collision_shape", "hit_shapes", "head_anchor", "eye_anchor", "chest_anchor", "mouth_anchor", "mouth_anchor_aloft")]
 script = ExtResource("1_cm")
 animation_player = NodePath("Body/AnimationPlayer")
 idle_animation = "Idle"
@@ -41,6 +41,8 @@ hit_shapes = [NodePath("HitTorso"), NodePath("HitTail")]
 head_anchor = NodePath("Body/Armature/Skeleton3D/Head")
 eye_anchor = NodePath("Body/Armature/Skeleton3D/Head")
 chest_anchor = NodePath("Body/Armature/Skeleton3D/Chest")
+mouth_anchor = NodePath("Mouth")
+mouth_anchor_aloft = NodePath("MouthAloft")
 
 [node name="Body" parent="." instance=ExtResource("2_glb")]
 
@@ -49,6 +51,12 @@ bone_name = "head"
 
 [node name="Chest" type="BoneAttachment3D" parent="Body/Armature/Skeleton3D"]
 bone_name = "breast"
+
+[node name="Mouth" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0.59)
+
+[node name="MouthAloft" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.52, 0.58)
 
 [node name="HighlightMesh" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)

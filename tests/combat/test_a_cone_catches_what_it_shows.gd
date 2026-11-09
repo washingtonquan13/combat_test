@@ -1,5 +1,5 @@
 extends AiTestCase
-## Fire Breath: a cone from the caster's chest. It burns who stands in it,
+## Fire Breath: a cone from the caster's mouth. It burns who stands in it,
 ## not who stands beside it or behind a wall, and its effects ask the same
 ## units_caught the preview outlines.
 
@@ -11,7 +11,7 @@ func run() -> void:
 	var caster: Unit = spawn_unit(&"enemy", 10, 10, 10, [melee()], Vector3(0.0, 0.0, 0.0))
 	var inside: Unit = spawn_unit(&"player", 10, 10, 10, [melee()], Vector3(5.0, 0.0, 0.0))
 	var beside: Unit = spawn_unit(&"player", 10, 10, 10, [melee()], Vector3(0.0, 0.0, 6.0))
-	var aim: Vector3 = Vector3(5.0, cone.origin(caster).y, 0.0)
+	var aim: Vector3 = Vector3(5.0, cone.origin(caster, Vector3(5.0, 0.0, 0.0)).y, 0.0)
 
 	var caught: Array[Unit] = cone.units_caught(caster, aim, true, false)
 	check("the unit in the cone is caught", inside in caught)

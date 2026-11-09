@@ -188,7 +188,7 @@ func touch(element: Surface.Element, ability: Ability, attacker: Unit, target) -
 		var cone := ability.targeting as ConeTargeting
 		var area := ability.targeting as AreaTargeting
 		if cone:
-			position = cone.origin(attacker)
+			position = cone.origin(attacker, target)
 			radius = cone.length
 			reached = _cone_cells(space, position, cone.direction(attacker, target), cone.length, cone.half_angle())
 		elif area is AerialAreaTargeting:
@@ -278,7 +278,7 @@ func _cloud_reach(grid: CloudGrid, ability: Ability, attacker: Unit, target) -> 
 	var point: Vector3 = target.global_position if target is Unit else (target if target is Vector3 else Vector3.ZERO)
 	var half_cube: float = CloudGrid.CELL * 0.87
 	if cone and attacker:
-		var apex: Vector3 = cone.origin(attacker)
+		var apex: Vector3 = cone.origin(attacker, point)
 		var aim: Vector3 = cone.direction(attacker, point)
 		var half: float = cone.half_angle()
 		for cell: CloudCell in grid.cells.values():

@@ -1,7 +1,7 @@
 class_name FireBreathStep
 extends VfxStep
 ## Breathes a gust of fire (fire_breath.tscn) down the ability's cone,
-## from the caster's chest along its aim, landing the cast as it leaves
+## from the caster's mouth along its aim, landing the cast as it leaves
 ## the mouth (notify_impact: the damage, and the ground, which catches as
 ## the front reaches it - SpawnSurfaceEffect.front_seconds), and returns
 ## once it has burnt out. The caster's head looks down the cone, up or
@@ -18,7 +18,7 @@ func play(context: Node, _from: Vector3, to: Vector3, ability: Ability = null, c
 	var cone := ability.targeting as ConeTargeting
 	if not cone:
 		return
-	var apex: Vector3 = cone.origin(caster)
+	var apex: Vector3 = cone.origin(caster, to)
 	var along: Vector3 = cone.direction(caster, to)
 	var gust: Node3D = scene.instantiate()
 	context.add_child(gust)

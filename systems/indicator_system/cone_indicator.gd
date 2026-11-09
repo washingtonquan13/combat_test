@@ -35,5 +35,5 @@ func draw(aim: Aim) -> void:
 		hide_visuals()
 		return
 	var point: Vector3 = aim.point
-	_shell.show_cone(targeting.origin(unit), targeting.direction(unit, point), targeting.length, targeting.half_angle())
+	_shell.show_cone(targeting.origin(unit, point), targeting.direction(unit, point), targeting.length, targeting.half_angle())
 	_outline_caught(unit, ability, point)

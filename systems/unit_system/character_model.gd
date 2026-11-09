@@ -169,7 +169,10 @@ extends Node3D
 ## pose throws that arm out (Spell_Simple_Shoot reaches with the left
 ## while the right keeps the weapon). Appended last: abilities store the
 ## enum as a number.
-enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE, OFF_HAND }
+##
+## MOUTH is where a breath leaves the body (ConeTargeting). Undeclared, it
+## is the chest: a humanoid's cone already came from there.
+enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE, OFF_HAND, MOUTH }
 
 @export_group("Anchors")
 ## Where a camera frames the face, and where floating UI belongs.
@@ -187,6 +190,16 @@ enum Anchor { HEAD, EYE, CHEST, GROUND, HAND, MUZZLE, OFF_HAND }
 ## The other hand, likewise on a BoneAttachment3D. Null falls back to
 ## the off-hand grip, which already rides that hand.
 @export var off_hand_anchor: Node3D
+## Where a breath leaves the body: in front of the mouth as it is when it
+## breathes (the breath clip's release pose). A plain child of the model,
+## not a BoneAttachment3D: the cone is decided at the cast, shown at the
+## release, and previewed before either, so it must not move with the
+## pose, or the three would disagree. Null falls back to the chest.
+@export var mouth_anchor: Node3D
+## The same, for a body that breathes differently in the air: used while
+## `aloft`, the flag that also picks the air clips, so the two can't
+## disagree. Null uses mouth_anchor in the air too.
+@export var mouth_anchor_aloft: Node3D
 ## Where a held weapon sits in each hand, on a BoneAttachment3D so it
 ## follows the hand. Oriented so a weapon scene's +Y leaves the thumb
 ## side of the fist and +Z faces the way the knuckles do (WeaponData.
@@ -321,6 +334,12 @@ func anchor_position(kind: Anchor) -> Vector3:
 	return global_position + Vector3(0.0, height * global_basis.get_scale().y * _fallback_ratio(kind), 0.0)
 
 
+func _declared_mouth() -> Node3D:
+	if aloft and is_instance_valid(mouth_anchor_aloft):
+		return mouth_anchor_aloft
+	return mouth_anchor if is_instance_valid(mouth_anchor) else chest_anchor
+
+
 func _declared(kind: Anchor) -> Node3D:
 	match kind:
 		Anchor.HEAD: return head_anchor
@@ -330,6 +349,7 @@ func _declared(kind: Anchor) -> Node3D:
 		Anchor.HAND: return hand_anchor
 		Anchor.MUZZLE: return _held_muzzle()
 		Anchor.OFF_HAND: return off_hand_anchor if is_instance_valid(off_hand_anchor) else off_hand_grip
+		Anchor.MOUTH: return _declared_mouth()
 	return null
 
 
@@ -429,6 +449,7 @@ func _fallback_ratio(kind: Anchor) -> float:
 		Anchor.HAND: return 0.55   # no hand declared: the chest
 		Anchor.MUZZLE: return 0.55
 		Anchor.OFF_HAND: return 0.55
+		Anchor.MOUTH: return 0.55   # no mouth declared: the chest
 	return 0.0
 
 

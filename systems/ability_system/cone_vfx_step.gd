@@ -20,7 +20,7 @@ func play(context: Node, _from: Vector3, to: Vector3, ability: Ability = null, c
 	var cone := ability.targeting as ConeTargeting
 	if not cone:
 		return
-	var apex: Vector3 = cone.origin(caster)
+	var apex: Vector3 = cone.origin(caster, to)
 	var along: Vector3 = cone.direction(caster, to)
 	var targets := PackedVector3Array()
 	for unit in cone.units_caught(caster, to, true, true):

@@ -1,7 +1,7 @@
 class_name ConeTargeting
 extends AbilityTargeting
 ## A cone breathed or sprayed from the caster: fixed at its origin (the
-## caster's chest), it can only turn, never move. The target is a Vector3
+## caster's mouth, held out along the aim), it can only turn, never move. The target is a Vector3
 ## that only sets the direction; the cone always reaches its full length.
 ## A Ctrl height drag pitches it up or down (see resolve_target_point),
 ## clamped to max_pitch_degrees.
@@ -25,25 +25,50 @@ func half_angle() -> float:
 	return atan2(end_width * 0.5, length)
 
 
-## Where the cone comes from: the caster's chest, on its own axis, so it
-## does not swing about as the body turns to face the aim.
-func origin(attacker: Unit) -> Vector3:
-	var chest: Vector3 = attacker.anchor(CharacterModel.Anchor.CHEST)
-	return Vector3(attacker.global_position.x, chest.y, attacker.global_position.z)
+## Where the cone comes from for an aim at target: the mouth's height, as
+## far out from the body's axis as the mouth is, but on the aim's bearing
+## rather than the head's, so it does not swing about as the body turns
+## (or the head sways) to face the aim. A long-necked body breathes from
+## its snout, not its chest; a body with no mouth declared breathes from
+## its chest (CharacterModel.Anchor.MOUTH).
+func origin(attacker: Unit, target: Vector3) -> Vector3:
+	var axis: Vector3 = _axis(attacker)
+	return axis + _bearing(attacker, target - axis) * _reach(attacker)
 
 
-## The unit direction the cone points for an aim point, pitch clamped.
+## The unit direction the cone points for an aim at target, from origin,
+## pitch clamped.
 func direction(attacker: Unit, target: Vector3) -> Vector3:
-	var to: Vector3 = target - origin(attacker)
-	var flat := Vector2(to.x, to.z)
-	if flat.length_squared() < 0.0001:
-		flat = Vector2(attacker.visual_forward().x, attacker.visual_forward().z)
-		if flat.length_squared() < 0.0001:
-			flat = Vector2(0.0, -1.0)
+	var axis: Vector3 = _axis(attacker)
+	var flat: Vector3 = _bearing(attacker, target - axis)
+	var to: Vector3 = target - (axis + flat * _reach(attacker))
 	var limit: float = deg_to_rad(max_pitch_degrees)
-	var pitch: float = clampf(atan2(to.y, flat.length()), -limit, limit)
-	flat = flat.normalized() * cos(pitch)
-	return Vector3(flat.x, sin(pitch), flat.y)
+	# An aim inside the snout's reach still breathes forward, steeply.
+	var pitch: float = clampf(atan2(to.y, maxf(to.dot(flat), 0.001)), -limit, limit)
+	return flat * cos(pitch) + Vector3.UP * sin(pitch)
+
+
+## The body's own vertical axis at the mouth's height.
+func _axis(attacker: Unit) -> Vector3:
+	var mouth: Vector3 = attacker.anchor(CharacterModel.Anchor.MOUTH)
+	return Vector3(attacker.global_position.x, mouth.y, attacker.global_position.z)
+
+
+## How far out from the body's axis the mouth is, flat.
+func _reach(attacker: Unit) -> float:
+	var mouth: Vector3 = attacker.anchor(CharacterModel.Anchor.MOUTH)
+	return Vector2(mouth.x - attacker.global_position.x, mouth.z - attacker.global_position.z).length()
+
+
+## The flat unit bearing of to, or the body's facing when to is straight
+## up or down.
+func _bearing(attacker: Unit, to: Vector3) -> Vector3:
+	var flat := Vector3(to.x, 0.0, to.z)
+	if flat.length_squared() < 0.0001:
+		flat = Vector3(attacker.visual_forward().x, 0.0, attacker.visual_forward().z)
+		if flat.length_squared() < 0.0001:
+			flat = Vector3(0.0, 0.0, -1.0)
+	return flat.normalized()
 
 
 func is_valid_target(attacker: Unit, target) -> bool:
@@ -86,7 +111,7 @@ func units_caught(attacker: Unit, target, affects_hostiles: bool, affects_allies
 	var caught: Array[Unit] = []
 	if not target is Vector3:
 		return caught
-	var from: Vector3 = origin(attacker)
+	var from: Vector3 = origin(attacker, target)
 	var aim: Vector3 = direction(attacker, target)
 	var half: float = half_angle()
 	for unit in UnitQuery.living_units_near(attacker):

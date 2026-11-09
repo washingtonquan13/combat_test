@@ -35,7 +35,7 @@ func apply(attacker: Unit, target, ability: Ability, _is_critical: bool) -> Dict
 
 	var cone := ability.targeting as ConeTargeting
 	if cone:
-		SurfaceManager.spawn_cone(surface, cone.origin(attacker), cone.direction(attacker, target), cone.length, cone.half_angle(), attacker, front_seconds)
+		SurfaceManager.spawn_cone(surface, cone.origin(attacker, target), cone.direction(attacker, target), cone.length, cone.half_angle(), attacker, front_seconds)
 		return {"spawned_surface": surface.surface_name}
 
 	var targeting := ability.targeting as AreaTargeting
