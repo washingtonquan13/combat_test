@@ -64,5 +64,28 @@ func run() -> void:
 	check("a 10 m fall hurts", faller.get_pool(StatIds.HP) < 10, str(faller.get_pool(StatIds.HP)))
 	free_spawned()
 
+	await _flies_on_the_physics_step()
+
+
+## Below the physics rate a render-frame flight would sit still for ticks
+## at a time, and gravity would build under it.
+func _flies_on_the_physics_step() -> void:
+	var cap: int = Engine.max_fps
+	Engine.max_fps = 20
+	var jumper: Unit = spawn_unit(&"player", 10, 10, 10, [], Vector3.ZERO)
+	await get_tree().physics_frame
+	ArcFlight.fly(jumper, Vector3(6, 0, 0), 2.0)
+	await get_tree().physics_frame
+	var last: Vector3 = jumper.global_position
+	var every_tick: bool = true
+	for i: int in 12:
+		await get_tree().physics_frame
+		every_tick = every_tick and not jumper.global_position.is_equal_approx(last)
+		last = jumper.global_position
+	check("at 20 fps a flight moves every physics tick", every_tick)
+	check("and no gravity builds under it", is_zero_approx(jumper.velocity.y), str(jumper.velocity.y))
+	Engine.max_fps = cap
+	free_spawned()
+
 
 const SAFE_DROP: float = 3.0

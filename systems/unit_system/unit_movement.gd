@@ -59,6 +59,8 @@ var _owner: Unit
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
 var _moving: bool = false
+## The tween carrying the body through the air, if one is (carry_tween).
+var _carrier: Tween = null
 var _stuck_timer: float = 0.0
 var _last_progress_position: Vector3 = Vector3.ZERO
 
@@ -552,7 +554,18 @@ func force_stop() -> void:
 	_after_climb = {}
 
 
+## A tween to carry the body with: Jump, Shove, takeoff, landing. It runs on
+## the physics step, as walking does, and while it runs physics_process
+## leaves the body alone, so one thing at a time writes the position.
+func carry_tween() -> Tween:
+	_carrier = _owner.create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
+	return _carrier
+
+
 func physics_process(delta: float) -> void:
+	if _carrier != null and _carrier.is_valid():
+		return
+
 	var flying: bool = _owner.is_flying()
 
 	# Gravity is intentionally the ONLY thing that ever writes velocity.y
@@ -832,7 +845,7 @@ func land(controlled: bool = false) -> void:
 		_apply_fall_damage(descent)
 
 	_owner.begin_busy()
-	var tween: Tween = _owner.create_tween()
+	var tween: Tween = carry_tween()
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
 	tween.tween_property(_owner, "global_position:y", result.position.y, duration)

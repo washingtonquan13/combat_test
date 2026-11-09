@@ -156,7 +156,7 @@ func fly_to(point: Vector3, basis = null) -> void:
 	var to_turn: Quaternion = _landing.basis.get_rotation_quaternion()
 	var scale: Vector3 = start.basis.get_scale()
 	in_flight = true
-	var tween: Tween = create_tween()
+	var tween: Tween = create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	tween.tween_method(func(t: float) -> void:
 		global_transform = Transform3D(
 			Basis(from_turn.slerp(to_turn, t)).scaled(scale),

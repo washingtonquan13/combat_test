@@ -78,7 +78,7 @@ static func duration(from: Vector3, to: Vector3) -> float:
 static func fly(unit: Unit, to: Vector3, height: float) -> Tween:
 	var from: Vector3 = unit.global_position
 	unit.begin_busy()
-	var tween: Tween = unit.create_tween()
+	var tween: Tween = unit.carry_tween()
 	tween.tween_method(
 		func(t: float): unit.global_position = point(from, to, height, t),
 		0.0, 1.0, duration(from, to)

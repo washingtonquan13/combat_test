@@ -65,13 +65,13 @@ func _ready() -> void:
 	CombatManager.combat_ended_in_world.connect(_on_combat_ended_in_world)
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if not enabled:
 		return
 	_elapsed += delta
 	if _elapsed < SCAN_INTERVAL:
 		return
-	_elapsed = 0.0
+	_elapsed -= SCAN_INTERVAL
 	scan()
 
 

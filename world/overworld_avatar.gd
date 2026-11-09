@@ -298,7 +298,7 @@ func enter(at: Vector3, then_travel: Callable) -> void:
 		return
 	_entering = true
 	velocity = Vector3.ZERO
-	var tween := create_tween().set_parallel()
+	var tween := create_tween().set_parallel().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS)
 	tween.tween_property(self, "global_position", Vector3(at.x, global_position.y, at.z), enter_time * 0.5) 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
 	# Smaller every frame from the first: an overshoot (TRANS_BACK) spent
 	# half the time growing and left the shrink itself a blink.

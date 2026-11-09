@@ -1569,6 +1569,10 @@ func land(controlled: bool = false) -> void:
 	_movement.land(controlled)
 
 
+func carry_tween() -> Tween:
+	return _movement.carry_tween()
+
+
 ## The list of this unit's active statuses currently granting it flight
 ## — see StatusManager.flight_granting_effects(). Exists so UnitMovement
 ## can drive ground_if_flying() without reaching into _status_manager

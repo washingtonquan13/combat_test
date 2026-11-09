@@ -28,7 +28,7 @@ func run() -> void:
 	check("ground fire burns under it at once", SurfaceManager.surface_at(Vector3.ZERO, context) == wall.leaves_behind)
 	var hp: int = target.get_pool(StatIds.HP)
 	target.global_position = Vector3.ZERO
-	SurfaceManager._process(0.0)
+	SurfaceManager._physics_process(0.0)
 	var burnt: int = target.get_pool(StatIds.HP)
 	check("walking in burns at once", burnt < hp)
 	SurfaceManager._on_turn_started(target)

@@ -28,7 +28,7 @@ extends Node
 ## are walked cube by cube (blocks_sight).
 ##
 ## BOTH:
-##  - Every frame (_process), each unit is checked against the cells under
+##  - Every physics tick (_physics_process), each unit is checked against the cells under
 ##    its footprint and the cubes its body touches (_holding): getting
 ##    into one applies its status, the INSTANT it happens, mid-move,
 ##    and the status's on_contact bites then too (fire burns at once);
@@ -933,11 +933,11 @@ func _space_of(node: Node) -> PhysicsDirectSpaceState3D:
 	return node.get_viewport().find_world_3d().direct_space_state
 
 
-## Every frame: moves units into and out of surfaces. Reads the cells
+## Every physics tick: moves units into and out of surfaces. Reads the cells
 ## under each unit's footprint and the cubes around its body, so it is
 ## the grid that decides — the same answer movement cost and turn start
 ## get.
-func _process(_delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	for unit in _inside.keys():
 		if not is_instance_valid(unit):
 			_inside.erase(unit)

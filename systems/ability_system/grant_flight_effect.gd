@@ -72,7 +72,7 @@ func apply(attacker: Unit, _target, _ability: Ability, _is_critical: bool) -> Di
 	var duration: float = clampf(ascent / vertical_speed, min_ascend_duration, max_ascend_duration)
 
 	attacker.begin_busy()
-	var tween: Tween = attacker.create_tween()
+	var tween: Tween = attacker.carry_tween()
 	tween.set_trans(Tween.TRANS_SINE)
 	tween.set_ease(Tween.EASE_IN_OUT)
 	if lift_delay > 0.0:
