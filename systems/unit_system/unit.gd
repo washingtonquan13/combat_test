@@ -510,6 +510,9 @@ signal movement_finished(unit: Unit)
 ## neither: it turns on before the climb and off before the descent.
 signal took_off(unit: Unit)
 signal touched_down(unit: Unit)
+## A smooth turn stepped, at this many radians a second, positive to the
+## left. A snap never fires it: that's a change of facing, not a turn.
+signal facing_swung(rate: float)
 ## Fired the instant this unit has nothing left in flight — no move in
 ## progress, no async ability effect (e.g. Jump's arc animation) still
 ## running. This is what CombatManager waits on before actually ending a

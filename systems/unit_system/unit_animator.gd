@@ -233,6 +233,7 @@ func _ready() -> void:
 	unit.status_removed.connect(_on_status_removed)
 	unit.took_off.connect(_on_took_off)
 	unit.touched_down.connect(_on_touched_down)
+	unit.facing_swung.connect(_on_facing_swung)
 	animation_player.animation_finished.connect(_on_animation_finished)
 	_weapons = unit.get_node_or_null("UnitWeapons") as UnitWeapons
 	if _weapons:
@@ -627,24 +628,30 @@ func _physics_process(delta: float) -> void:
 	animation_player.seek(phase * clip.length, true)
 
 
-## Yaw last physics frame, and how many frames in a row it has been changing
-## fast enough to count: a smooth turn lasts many frames, snap_face_point one.
-const TURN_START_RATE := 1.0  # radians a second
+## Faster than this starts a turn, and slower than this ends one, in radians
+## a second.
+const TURN_START_RATE := 1.0
 const TURN_STOP_RATE := 0.3
+## How long the last step of a turn still counts. Facing is mostly written on
+## render frames and this runs on physics ticks, so at a low frame rate
+## several ticks go by between steps of one continuous turn.
+const TURN_HOLD := 0.1
 
-var _last_yaw: float = 0.0
-var _turn_frames: int = 0
+var _turn_rate: float = 0.0
+var _turn_held: float = 0.0
+
+
+func _on_facing_swung(rate: float) -> void:
+	_turn_rate = rate
+	_turn_held = TURN_HOLD
 
 
 ## Standing still and swinging round steps the feet, for a body with turn
-## clips. Polled because facing has several smooth callers (aim, movement,
-## prop drag) and no signal of its own. The clips loop and leave at once when
-## the turn stops; anything else that starts playing has already replaced
-## them.
+## clips. The clips loop and leave at once when the turn stops; anything else
+## that starts playing has already replaced them.
 func _show_turning(delta: float) -> void:
-	var yaw: float = unit.rotation.y
-	var rate: float = wrapf(yaw - _last_yaw, -PI, PI) / maxf(delta, 0.0001)
-	_last_yaw = yaw
+	_turn_held -= delta
+	var rate: float = _turn_rate if _turn_held > 0.0 else 0.0
 	var left: String = _clip(&"turn.left")
 	var right: String = _clip(&"turn.right")
 	if left == "" or right == "":
@@ -652,14 +659,14 @@ func _show_turning(delta: float) -> void:
 	var playing: String = String(animation_player.current_animation)
 	var turning: bool = playing == left or playing == right
 	if unit.is_moving() or _aloft or _active_sequence != null or not (turning or playing == _idle()):
-		_turn_frames = 0
+		# Or the last step of a walk would read as a turn once it stops.
+		_turn_held = 0.0
 		return
-	_turn_frames = _turn_frames + 1 if absf(rate) >= (TURN_STOP_RATE if turning else TURN_START_RATE) else 0
-	if _turn_frames >= 2:
+	if absf(rate) >= (TURN_STOP_RATE if turning else TURN_START_RATE):
 		var clip: String = left if rate > 0.0 else right
 		if playing != clip:
 			_play(clip, 0.15)
-	elif turning and _turn_frames == 0:
+	elif turning:
 		_play(_idle(), 0.2)
 
 

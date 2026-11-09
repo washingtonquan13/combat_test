@@ -41,25 +41,43 @@ func run() -> void:
 	free_spawned()
 
 
+## Facing is written on render frames (the aim indicator) while the animator
+## ticks on physics frames, so this runs at frame rates either side of the
+## physics rate.
 func _turning(dragon: Unit, player: AnimationPlayer) -> void:
-	player.play("Idle")
-	await _physics_frames(2)
-	await _turn(dragon, 0.05, 8)
-	check("turning left steps left", player.current_animation == "Turn_L", player.current_animation)
-	await _physics_frames(2)
-	check("and it stops when the turn does", player.current_animation == "Idle", player.current_animation)
-	await _turn(dragon, -0.05, 8)
-	check("turning right steps right", player.current_animation == "Turn_R", player.current_animation)
-	await _physics_frames(2)
-	dragon.rotation.y += 1.0
+	var cap: int = Engine.max_fps
+	for fps: int in [20, 30, 60, 144]:
+		Engine.max_fps = fps
+		player.play("Idle")
+		await _settle()
+		await _turn(dragon, 2.0)
+		check("at %d fps turning left steps left" % fps, player.current_animation == "Turn_L", player.current_animation)
+		await _settle()
+		check("at %d fps it stops when the turn does" % fps, player.current_animation == "Idle", player.current_animation)
+		await _turn(dragon, -2.0)
+		check("at %d fps turning right steps right" % fps, player.current_animation == "Turn_R", player.current_animation)
+		await _settle()
+		dragon.snap_face_direction(_direction(dragon, 1.0))
+		await _physics_frames(2)
+		check("at %d fps a snap to a target is not a turn" % fps, player.current_animation == "Idle", player.current_animation)
+	Engine.max_fps = cap
+
+
+func _turn(dragon: Unit, angle: float) -> void:
+	var toward: Vector3 = _direction(dragon, angle)
+	for i: int in 4:
+		await get_tree().process_frame
+		dragon.face_direction(toward, get_process_delta_time())
 	await _physics_frames(1)
-	check("a snap to a target is not a turn", player.current_animation == "Idle", player.current_animation)
 
 
-func _turn(dragon: Unit, step: float, frames: int) -> void:
-	for i: int in frames:
-		dragon.rotation.y += step
-		await get_tree().physics_frame
+func _direction(dragon: Unit, angle: float) -> Vector3:
+	var yaw: float = dragon.rotation.y + angle - deg_to_rad(dragon.facing_offset_degrees)
+	return Vector3(-sin(yaw), 0.0, -cos(yaw))
+
+
+func _settle() -> void:
+	await get_tree().create_timer(0.3).timeout
 
 
 func _physics_frames(count: int) -> void:

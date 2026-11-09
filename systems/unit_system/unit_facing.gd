@@ -37,7 +37,9 @@ func face_direction(direction: Vector3, delta: float) -> void:
 	if direction.length_squared() < 0.0001:
 		return
 	var target_yaw: float = atan2(-direction.x, -direction.z) + deg_to_rad(_owner.facing_offset_degrees)
-	_owner.rotation.y = lerp_angle(_owner.rotation.y, target_yaw, 1.0 - exp(-_owner.rotation_speed * delta))
+	var before: float = _owner.rotation.y
+	_owner.rotation.y = lerp_angle(before, target_yaw, 1.0 - exp(-_owner.rotation_speed * delta))
+	_owner.facing_swung.emit(wrapf(_owner.rotation.y - before, -PI, PI) / maxf(delta, 0.0001))
 
 
 ## Convenience wrapper — faces smoothly toward a world-space point
