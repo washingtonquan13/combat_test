@@ -29,7 +29,6 @@ func _can_drop_data(at_position: Vector2, data: Variant) -> bool:
 
 	var grid_position := _grid_position_from_local(at_position, data)
 	inventory.update_ghost_preview(data, grid_position)
-	inventory.autoscroll_toward_mouse(data)
 	return inventory.can_place_item(data, grid_position)
 
 func _drop_data(at_position: Vector2, data: Variant) -> void:

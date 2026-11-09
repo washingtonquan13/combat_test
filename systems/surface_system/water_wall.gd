@@ -508,11 +508,10 @@ func _standing(i: int) -> bool:
 	return false
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if _station_t.is_empty():
 		return
-	# At most a 30 fps step, so a hitch slows the rise instead of skipping it.
-	_age += minf(delta, 1.0 / 30.0)
+	_age += delta
 	var changed: bool = not _risen or _strength < 1.0
 	if not _risen and _age > rise_spread + rise_seconds:
 		_risen = true

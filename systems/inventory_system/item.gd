@@ -2,6 +2,9 @@
 class_name Item
 extends Container
 
+const BACKGROUND_ALPHA: float = 0.5
+const BACKGROUND_ALPHA_HOVERED: float = 0.8
+
 @onready var background: ColorRect = $Background
 @onready var icon_rect: TextureRect = $Icon
 @onready var stack_count_label: Label = $StackCount
@@ -96,23 +99,14 @@ func _ready() -> void:
 	_update_size()
 	update_stack_count_label()
 	_show_sockets()
+	if not Engine.is_editor_hint():
+		mouse_entered.connect(func() -> void: background.color.a = BACKGROUND_ALPHA_HOVERED)
+		mouse_exited.connect(func() -> void: background.color.a = BACKGROUND_ALPHA)
 
 func _update_size() -> void:
 	if layout == LayoutMode.GRID and cell_size_px > 0:
 		size = Vector2i(width, height) * cell_size_px
 	# EQUIPPED layout size is owned by whichever EquipSlot the item is placed in.
-
-func _physics_process(_delta: float) -> void:
-	if Engine.is_editor_hint():
-		return
-
-	var mouse_inside := is_mouse_visible_and_hovered()
-
-	# Background alpha
-	if mouse_inside:
-		background.color.a = 0.8
-	else:
-		background.color.a = 0.5
 
 func _notification(what: int) -> void:
 	match what:
@@ -206,29 +200,6 @@ func _update_tooltip_text() -> void:
 
 func get_cell_size() -> Vector2i:
 	return Vector2i(width, height)
-
-func is_mouse_visible_and_hovered() -> bool:
-	var mouse_pos: Vector2 = get_global_mouse_position()
-	var item_rect: Rect2 = get_global_rect()
-
-	var scroll := get_ancestor_scroll_container()
-	if scroll:
-		var clip_rect: Rect2 = Rect2(
-			scroll.get_global_transform().origin,
-			scroll.size
-		)
-		if not clip_rect.has_point(mouse_pos):
-			return false
-
-	return item_rect.has_point(mouse_pos)
-
-func get_ancestor_scroll_container() -> ScrollContainer:
-	var p := get_parent()
-	while p:
-		if p is ScrollContainer:
-			return p
-		p = p.get_parent()
-	return null
 
 ## Godot calls this natively when the built-in hover-tooltip timer elapses;
 ## returning a Control here shows it instead of the plain default text box.

@@ -42,6 +42,7 @@ const ITEM_SCENE: PackedScene = preload("res://systems/inventory_system/item.tsc
 		_update_sizes()
 
 func _ready() -> void:
+	set_physics_process(false)
 	scroll_container.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 	scroll_container.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_NEVER
 
@@ -126,8 +127,11 @@ func _update_sizes() -> void:
 		h_scrollbar.max_value = content_size.x
 		h_scrollbar.page = viewport_size.x
 
-## Called by ItemLayer's _can_drop_data while a drag hovers over this inventory.
-func autoscroll_toward_mouse(item: Item) -> void:
+## Runs only while a drag hovers over this inventory.
+func _physics_process(delta: float) -> void:
+	_autoscroll_toward_mouse(_hovering_item, delta)
+
+func _autoscroll_toward_mouse(item: Item, delta: float) -> void:
 	var mouse_pos := scroll_container.get_local_mouse_position()
 	var s_size := scroll_container.size
 
@@ -140,7 +144,6 @@ func autoscroll_toward_mouse(item: Item) -> void:
 	var vertical_margin: float = clamp(item_px.y * 0.5, base_margin, max_margin)
 
 	var scroll_speed := 640.0
-	var delta := get_process_delta_time()
 
 	# Horizontal ramp
 	if mouse_pos.x < horizontal_margin:
@@ -183,6 +186,8 @@ func update_ghost_preview(item: Item, grid_position: Vector2i) -> void:
 	ghost_preview.size = item.get_cell_size() * cell_size_px
 	ghost_preview.position = grid_position * cell_size_px
 	ghost_preview.visible = true
+	_hovering_item = item
+	set_physics_process(true)
 
 	if is_valid:
 		ghost_preview.color = Color(1, 1, 1, 0.3)
@@ -191,6 +196,8 @@ func update_ghost_preview(item: Item, grid_position: Vector2i) -> void:
 
 func hide_ghost_preview() -> void:
 	ghost_preview.visible = false
+	_hovering_item = null
+	set_physics_process(false)
 
 ## A drop onto this grid: a move when the item is already here, otherwise
 ## the instance leaves wherever it was (another grid, an equip slot) and
@@ -227,6 +234,7 @@ func sort_items() -> void:
 ## ItemLayer in the scene (chest.tscn) so editor authoring keeps working.
 
 var _container: ItemContainer
+var _hovering_item: Item = null
 var _widgets: Dictionary = {}  # ItemInstance -> Item
 ## Items it rejects are drawn dimmed, still there to drag; see set_filter().
 var _filter: Callable = func(_i: ItemInstance) -> bool: return true

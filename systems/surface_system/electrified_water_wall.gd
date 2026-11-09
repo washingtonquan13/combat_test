@@ -40,7 +40,7 @@ func _ready() -> void:
 	add_child(_light)
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	super(delta)
 	if _station_t.is_empty():
 		return

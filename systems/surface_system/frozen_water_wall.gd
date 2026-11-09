@@ -27,7 +27,7 @@ func _emit_from_points() -> void:
 	pass
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	super(delta)
 	if _ice < 1.0:
 		_ice = minf(_ice + delta / freeze_seconds, 1.0)
