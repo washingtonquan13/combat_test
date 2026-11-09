@@ -521,7 +521,10 @@ BREATH_HOLD = [
         "hands": {"r": {"at": (-0.32, -0.08, 0.91)}, "l": {"at": (0.32, -0.08, 0.91)}},
     }),
 ]
-BREATH_HOLD_FRAMES = [0, 2, 5, 9, 18, 29]
+# Runs as long as the flame is out (1.54 s at the 9 m cone), so he is still
+# straining when the breath ends and never stands frozen waiting for it.
+BREATH_HOLD_FRAMES = [0, 2, 5, 9, 20, 38]
+BREATH_HOLD_LENGTH = float(BREATH_HOLD_FRAMES[-1])
 
 
 _breath_hold_base = act(BREATH_HOLD, BREATH_HOLD_FRAMES)["at"]
@@ -529,7 +532,7 @@ _breath_hold_base = act(BREATH_HOLD, BREATH_HOLD_FRAMES)["at"]
 
 def breath_hold_at(t):
     """The keyed drive, with the whole upper body shaking under the strain."""
-    f = t * 29.0
+    f = t * BREATH_HOLD_LENGTH
     env = m.smooth((f - 4.0) / 5.0)
     s1 = math.sin(TAU * (f / 3.7 + 0.1))
     s2 = math.sin(TAU * (f / 2.9 + 0.4))
@@ -588,6 +591,6 @@ CLIPS = {
     "Disarm": act(DISARM, [0, 3, 5, 8, 13]),
     "Cast": act(CAST, [0, 2, 4.25, 6, 9, 12, 17, 23, 27, 31], curve=m.once, moments={"release": [8.8]}),
     "Breath": act(BREATH, [0, 3, 6, 9], moments={"release": [8.64]}),
-    "Breath_Hold": {"length": 29.0 / 24.0, "at": breath_hold_at},
-    "Breath_Out": act(BREATH_OUT, [0, 3, 6, 9, 12]),
+    "Breath_Hold": {"length": BREATH_HOLD_LENGTH / 24.0, "at": breath_hold_at},
+    "Breath_Out": act(BREATH_OUT, [0, 2, 7, 12, 16]),
 }

@@ -2,10 +2,10 @@ extends Node3D
 ## Fire Breath's gust (fire_breath.gdshader): one live volume of fire
 ## streaming out along the cone it was breathed in, set by breathe().
 ## The Light rides out with the front, flaring, and dies with it. When
-## the tail has chased the fire out and what is left has burnt out, it
-## frees itself, saying so first (burnt_out).
+## the tail has chased the fire out it says so (burnt_out); the Light
+## fades a moment longer, then it frees itself.
 
-## The fire is spent; it frees itself right after.
+## The tail has reached the end: no flame is left to see.
 signal burnt_out
 
 const VOLUME_SHADER: Shader = preload("res://systems/surface_system/fire_breath.gdshader")
@@ -21,7 +21,7 @@ const VOLUME_SHADER: Shader = preload("res://systems/surface_system/fire_breath.
 @export var tail_speed: float = 13.0
 ## Meters the far end rises.
 @export var lift: float = 0.9
-## How long what is left takes to burn out once the tail reaches the end.
+## How long the Light takes to die once the tail reaches the end.
 @export var burnout_seconds: float = 0.4
 
 @onready var _volume: MeshInstance3D = $Volume
@@ -32,6 +32,7 @@ var _length: float = 9.0
 var _age: float = 0.0
 var _life: float = 1.0
 var _light_energy: float
+var _spent: bool = false
 
 
 func _ready() -> void:
@@ -96,7 +97,9 @@ func _process(delta: float) -> void:
 	var reach: float = clampf(_age / front_seconds, 0.0, 1.0)
 	_light.position = Vector3(_length * 0.5 * reach, 0.0, 0.0)
 	_light.light_energy = _light_energy * (1.0 + 0.5 * (1.0 - reach)) * reach * out
+	if not _spent and _age >= _life - burnout_seconds:
+		_spent = true
+		burnt_out.emit()
 	if _age >= _life:
 		set_process(false)
-		burnt_out.emit()
 		queue_free()
