@@ -9,7 +9,7 @@ extends Node
 ## who looks at whom, which is what this node does.
 ##
 ## A PRESENTATION LISTENER, in the same family as dialogue_overlay.gd,
-## dialogue_camera_rig.gd and skill_check_dice_popup.gd: it follows a
+## dialogue_camera_rig.gd and skill_check_wheel_popup.gd: it follows a
 ## conversation's `changed` signal and reads its transcript and cast, and
 ## never calls back into it. Only a conversation presented as dialogue is
 ## followed; a negotiation is a menu panel with nobody staged to look.

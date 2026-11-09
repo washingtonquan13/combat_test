@@ -152,8 +152,8 @@ func _on_changed() -> void:
 	if snap.visit != _shown_visit:
 		_shown_visit = snap.visit
 		_show_choices(snap.choices)
-	# Frozen, not cleared, while a choice resolves or the dice play out
-	# under skill_check_dice_popup.gd — a second click can't pick again
+	# Frozen, not cleared, while a choice resolves or the wheel plays out
+	# under skill_check_wheel_popup.gd — a second click can't pick again
 	# (Conversation.choose refuses it anyway), and nothing has to restore
 	# the rows: the next node's `changed` rebuilds them.
 	_set_choices_interactive(not snap.busy and snap.waiting.is_empty())

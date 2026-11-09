@@ -43,7 +43,7 @@ extends Node
 
 const OVERLAY_SCENE: String = "res://systems/dialogue_system/dialogue_overlay.tscn"
 const LOG_SCENE: String = "res://systems/dialogue_system/conversation_log.tscn"
-const DICE_SCENE: String = "res://systems/dialogue_system/skill_check_dice_popup.tscn"
+const DICE_SCENE: String = "res://systems/dialogue_system/skill_check_wheel_popup.tscn"
 const PANEL_SCENE: String = "res://ui/negotiation_panel.tscn"
 const SYNTHETIC_DIR: String = "res://tests/conversation/__synthetic__"
 

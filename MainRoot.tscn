@@ -16,7 +16,7 @@
 [ext_resource type="PackedScene" uid="uid://divqi7putsgwu" path="res://systems/dialogue_system/dialogue_overlay.tscn" id="17_dlgoverlay"]
 [ext_resource type="PackedScene" uid="uid://d0e788k8s6tyw" path="res://systems/dialogue_system/conversation_log.tscn" id="18_convlog"]
 [ext_resource type="PackedScene" path="res://ui/negotiation_panel.tscn" id="19_negotiationpanel"]
-[ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_dice_popup.tscn" id="20_dicepopup"]
+[ext_resource type="PackedScene" uid="uid://bfl788333hlg2" path="res://systems/dialogue_system/skill_check_wheel_popup.tscn" id="20_dicepopup"]
 [ext_resource type="PackedScene" uid="uid://du3ql8xrqy76h" path="res://ui/main_menu.tscn" id="21_mainmenu"]
 [ext_resource type="PackedScene" path="res://systems/character_creation_system/character_creation.tscn" id="22_charcreate"]
 [ext_resource type="Script" uid="uid://bf7c211agnqgs" path="res://systems/indicator_system/ground_click_target.gd" id="23_groundclick"]
@@ -375,7 +375,7 @@ hides_hud = true
 blocks_input_below = true
 closes_on_cancel = false
 
-[node name="SkillCheckDicePopup" parent="CanvasLayer" instance=ExtResource("20_dicepopup")]
+[node name="SkillCheckWheelPopup" parent="CanvasLayer" instance=ExtResource("20_dicepopup")]
 
 [node name="MainMenu" parent="CanvasLayer" node_paths=PackedStringArray("save_load_panel") instance=ExtResource("21_mainmenu")]
 save_load_panel = NodePath("../SaveLoadPanel")

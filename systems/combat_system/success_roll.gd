@@ -29,13 +29,11 @@ static var _chances_cache: Dictionary = {}
 static func roll_vs(target_number: int, rng: RandomNumberGenerator = null) -> Dictionary:
 	var dice: Array[int] = [_d6(rng), _d6(rng), _d6(rng)]
 	var roll: int = dice[0] + dice[1] + dice[2]
-	var outcome: Dictionary = _outcome(roll, target_number)
+	var outcome: Dictionary = outcome_of(roll, target_number)
 	return {
 		"roll": roll,
-		# The three individual dice, not just their sum — added for
-		# skill_check_dice_popup.gd, which shows the actual rolled
-		# faces rather than an abstract number. Purely additive: every
-		# existing caller only ever read "roll" and ignores this key.
+		# The three individual dice. Nothing reads these since the wheel
+		# replaced the animated dice; goes when the dice assets do.
 		"dice": dice,
 		"target": target_number,
 		"success": outcome.success,
@@ -47,7 +45,7 @@ static func roll_vs(target_number: int, rng: RandomNumberGenerator = null) -> Di
 
 ## The exact odds of roll_vs against target_number — {success,
 ## critical_success}, each 0..1 — from all 216 equally likely rolls
-## rather than sampling. The same _outcome as roll_vs, so the AI's
+## rather than sampling. The same outcome_of as roll_vs, so the AI's
 ## expected damage and the player's hit-chance readout cannot drift from
 ## the real roll.
 static func chances(target_number: int) -> Dictionary:
@@ -58,7 +56,7 @@ static func chances(target_number: int) -> Dictionary:
 	for d1 in range(1, 7):
 		for d2 in range(1, 7):
 			for d3 in range(1, 7):
-				var outcome: Dictionary = _outcome(d1 + d2 + d3, target_number)
+				var outcome: Dictionary = outcome_of(d1 + d2 + d3, target_number)
 				if outcome.success:
 					success_count += 1
 				if outcome.critical_success:
@@ -71,7 +69,7 @@ static func chances(target_number: int) -> Dictionary:
 	return result
 
 
-static func _outcome(roll: int, target_number: int) -> Dictionary:
+static func outcome_of(roll: int, target_number: int) -> Dictionary:
 	var critical_success: bool = roll == 3 or roll == 4 \
 		or (roll == 5 and target_number >= 15) \
 		or (roll == 6 and target_number >= 16)
