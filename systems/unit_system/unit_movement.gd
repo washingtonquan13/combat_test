@@ -61,6 +61,9 @@ var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 
 var _moving: bool = false
 ## The tween carrying the body through the air, if one is (carry_tween).
 var _carrier: Tween = null
+var _crawl_pose: CrawlPose = null
+## Where a crawler last had hold of a wall: how far it falls if it lets go.
+var _hold_height: float = NAN
 var _stuck_timer: float = 0.0
 var _last_progress_position: Vector3 = Vector3.ZERO
 
@@ -93,6 +96,9 @@ var _climb_up: bool = true
 ## The tolerance a climb point is reached within — tight, because the
 ## points are the corner of the landing, and arriving early cuts it.
 const CLIMB_ARRIVAL: float = 0.01
+## A surface facing up less than this needs holding on to. Steeper floors
+## than the walkable limit count, so a crawler never slides off a ramp.
+const CLING_BELOW: float = 0.7
 
 ## The exact route this unit is currently walking, and which point in it
 ## is next. Planned ONCE, in full, before movement starts (see move_to /
@@ -116,6 +122,7 @@ var _planned_cost: float = 0.0
 ## function. Only the search is cached; RoutePlanner.plan() re-runs.
 var _preview_cached: bool = false
 var _preview_flying: bool = false
+var _preview_crawling: bool = false
 var _preview_start_cell: Vector3i
 var _preview_dest_cell: Vector3i
 var _preview_waypoints: PackedVector3Array = PackedVector3Array()
@@ -281,6 +288,8 @@ func move_to(destination: Vector3, ignore: Array = []) -> bool:
 ## budget defaults to INF — a bare route/cost query has no inherent
 ## budget of its own; move_to() passes move_remaining in combat.
 func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = []) -> Dictionary:
+	if _crawls():
+		return _plan_waypoints(_crawl_waypoints(raw_destination, ignore), budget, false)
 	if not _owner.is_flying():
 		var route: Dictionary = Ladder.find_route(_owner, raw_destination, ignore)
 		if not route.is_empty():
@@ -288,6 +297,15 @@ func plan_route(raw_destination: Vector3, budget: float = INF, ignore: Array = [
 				return _ladder_route(route, budget - _climb_end_cost(route))
 			return _direct_route(route.near, budget, ignore)
 	return _direct_route(raw_destination, budget, ignore)
+
+
+## A flier uses its wings, not its feet.
+func _crawls() -> bool:
+	return _owner.can_crawl() and not _owner.is_flying()
+
+
+func _crawl_waypoints(destination: Vector3, ignore: Array) -> PackedVector3Array:
+	return NavigationGrid.find_crawl_path(_owner.get_tree(), _owner.global_position, destination, _owner, ignore)
 
 
 ## plan_route()'s walked case: find_path() and RoutePlanner, nothing else.
@@ -391,7 +409,8 @@ func _plan_waypoints(waypoints: PackedVector3Array, budget: float, flying: bool)
 ## moving changes the version. RoutePlanner.plan() re-runs every call: a
 ## cheap linear walk, and it keeps terrain cost live.
 func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
-	if not _owner.is_flying():
+	var crawling: bool = _crawls()
+	if not _owner.is_flying() and not crawling:
 		var route: Dictionary = Ladder.find_route(_owner, dest, ignore)
 		if not route.is_empty():
 			return _preview_ladder_route(route, ignore)
@@ -404,14 +423,16 @@ func preview_route(dest: Vector3, ignore: Array = []) -> Dictionary:
 	if not (
 		_preview_cached
 		and flying == _preview_flying
+		and crawling == _preview_crawling
 		and start_cell == _preview_start_cell
 		and dest_cell == _preview_dest_cell
 		and version == _preview_occupancy_version
 		and ignore == _preview_ignore
 	):
-		_preview_waypoints = NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying, ignore)
+		_preview_waypoints = _crawl_waypoints(query_destination, ignore) if crawling else NavigationGrid.find_path(_owner.get_tree(), _owner.global_position, query_destination, _owner, flying, ignore)
 		_preview_cached = true
 		_preview_flying = flying
+		_preview_crawling = crawling
 		_preview_start_cell = start_cell
 		_preview_dest_cell = dest_cell
 		# find_path may itself have rebuilt occupancy; read the version it used.
@@ -563,8 +584,13 @@ func carry_tween() -> Tween:
 
 
 func physics_process(delta: float) -> void:
+	var crawling: bool = _crawls()
+	var clinging: bool = _update_crawl(delta, crawling)
 	if _carrier != null and _carrier.is_valid():
+		_hold_height = NAN
 		return
+	if clinging:
+		_hold_height = _owner.global_position.y
 
 	var flying: bool = _owner.is_flying()
 
@@ -577,7 +603,7 @@ func physics_process(delta: float) -> void:
 	# is untouched — altitude there is owned entirely by
 	# flight_target_altitude, never by gravity.
 	var climbing: bool = is_climbing()
-	if not flying and not climbing:
+	if not flying and not climbing and not clinging:
 		if _owner.is_on_floor():
 			_owner.velocity.y = 0.0
 		else:
@@ -589,8 +615,9 @@ func physics_process(delta: float) -> void:
 		# floor-snap. A flying, idle unit is unchanged from before this:
 		# it never touches move_and_slide() until it's actually ordered
 		# somewhere.
-		if not flying:
+		if not flying and not clinging:
 			_owner.move_and_slide()
+			_land_if_let_go()
 		return
 
 	# Skip past any waypoints already within arrival_tolerance — matters
@@ -610,7 +637,7 @@ func physics_process(delta: float) -> void:
 			break
 		var to_waypoint: Vector3 = _current_path[_path_index] - _owner.global_position
 		var climb_point: bool = _climb_first >= 0 and _path_index >= _climb_first and _path_index <= _climb_last
-		if not flying and not climb_point:
+		if not flying and not climb_point and not crawling:
 			to_waypoint.y = 0.0
 		if to_waypoint.length() > (CLIMB_ARRIVAL if climb_point else _owner.arrival_tolerance):
 			break
@@ -627,6 +654,10 @@ func physics_process(delta: float) -> void:
 	if is_climbing():
 		_climb_ladder.claim(_owner)
 		_climb_step(delta)
+		return
+
+	if crawling:
+		_crawl_step(delta)
 		return
 
 	# Last-resort safety net — see stuck_timeout's doc comment. The path
@@ -666,6 +697,54 @@ func physics_process(delta: float) -> void:
 		_owner.velocity.x = direction.x * _owner.move_speed
 		_owner.velocity.z = direction.z * _owner.move_speed
 	_owner.move_and_slide()
+
+
+## Holding on is asked of the surface every tick, never remembered: nothing
+## to save, and nothing to go stale when the wall goes or the unit is Downed.
+## Returns whether the unit is hanging on (a floor needs no hanging on to).
+func _update_crawl(delta: float, crawling: bool) -> bool:
+	var normal := Vector3.ZERO
+	if crawling:
+		normal = NavigationGrid.crawl_normal(_owner.get_tree(), _owner.global_position, _owner)
+		if _crawl_pose == null:
+			_crawl_pose = CrawlPose.new(_owner)
+	if _crawl_pose != null:
+		_crawl_pose.update(delta, normal, _crawl_travel(crawling))
+	return normal != Vector3.ZERO and normal.y < CLING_BELOW
+
+
+func _crawl_travel(crawling: bool) -> Vector3:
+	if not crawling or not _moving or _path_index >= _current_path.size():
+		return Vector3.ZERO
+	return (_current_path[_path_index] - _owner.global_position).normalized()
+
+
+## A crawler that let go pays for the drop from where it last had hold. Asked
+## straight after move_and_slide: direct placement leaves is_on_floor() stale.
+func _land_if_let_go() -> void:
+	if is_nan(_hold_height) or not _owner.is_on_floor():
+		return
+	ArcFlight.take_fall(_owner, _hold_height - _owner.global_position.y)
+	_hold_height = NAN
+
+
+## One frame on a surface, placed directly like a ladder climb: the route
+## already runs a body's radius off everything, and it runs where a capsule
+## under gravity can't go.
+func _crawl_step(delta: float) -> void:
+	var target: Vector3 = _current_path[_path_index]
+	var to_target: Vector3 = target - _owner.global_position
+	var step: float = _owner.move_speed * delta
+	_owner.velocity = Vector3.ZERO
+	var level := Vector3(to_target.x, 0.0, to_target.z)
+	if level.length() > 0.05:
+		_owner.face_direction(level.normalized(), delta)
+	if to_target.length() <= step:
+		_owner.global_position = target
+	else:
+		_owner.global_position += to_target.normalized() * step
+	_stuck_timer = 0.0
+	_last_progress_position = _owner.global_position
 
 
 ## Whether this unit is walking to a ladder someone else is on and has

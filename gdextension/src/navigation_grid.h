@@ -547,6 +547,11 @@ public:
 	// live unit and blocking corpse in the world.
 	Dictionary nearest_valid_point(SceneTree *tree, Vector3 point, float clearance, bool flying, Object *exclude_unit, int max_radius_cells, Object *world_ref = nullptr, Array ignore = Array());
 	PackedVector3Array find_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, bool flying, Array ignore = Array());
+	// A route over floors, walls and ceilings for a unit that can cling to
+	// them (see is_crawl_cell).
+	PackedVector3Array find_crawl_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, Array ignore = Array());
+	// Which way the surface under a crawler faces; ZERO with none in reach.
+	Vector3 crawl_normal(SceneTree *tree, Vector3 origin, Object *unit);
 	// Bumps whenever the world's occupancy actually changes (anyone moves
 	// a cell, dies, arrives, leaves), and whenever its geometry is
 	// invalidated. For callers caching a route: equal versions mean
@@ -775,6 +780,29 @@ private:
 	std::vector<Object *> query_ignore;
 	void set_query_ignore(const Array &ignore);
 
+	// Set for the length of a crawl query only: is_valid_cell swaps its cell
+	// rule on this, the way is_clear_of_units reads query_ignore.
+	struct CrawlOffset {
+		Vector3i offset;
+		int d2;
+	};
+	static constexpr float CRAWL_SHELL_CELLS = 1.5f;
+	static constexpr float CRAWL_OFF_FLOOR_COST = 1.5f;
+	static constexpr float CRAWL_CONTACT_CELLS = 1.5f;
+	bool crawl_query = false;
+	float crawl_radius = 0.0f;
+	int crawl_radius_cells = 0;
+	float crawl_core2 = 0.0f;
+	int crawl_floor_first = 0;
+	int crawl_floor_last = 0;
+	std::vector<CrawlOffset> crawl_ball;
+	void begin_crawl_query(float radius);
+	bool crawl_solid(const Vector3i &cell);
+	bool is_crawl_cell(const Vector3i &cell);
+	bool crawl_has_floor(const Vector3i &cell);
+	bool crawl_surface(const Vector3 &point, Vector3 &normal, Vector3 &nearest);
+	Vector3 crawl_project(const Vector3 &point);
+
 	void ensure_project_scanned(SceneTree *tree);
 	// invalidate_region's work on the active world: refreshes the shape
 	// list, rebuckets and un-bakes the chunks around region.
@@ -871,6 +899,7 @@ private:
 		bool found;
 		Vector3i cell;
 	};
+	NearestResult nearest_crawl_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, Object *unit, int max_radius);
 	NearestResult find_nearest_free_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int max_radius);
 	NearestResult find_escape_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, bool flying, Object *self_unit, int max_radius);
 

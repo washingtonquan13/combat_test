@@ -1562,6 +1562,13 @@ func is_flying() -> bool:
 	return _status_manager.grants_flight()
 
 
+## Whether this unit can hold on to walls and ceilings: its routes run over
+## them (NavigationGrid.find_crawl_path) and gravity leaves it alone while it
+## is against one. Downed or dead, it lets go and falls.
+func can_crawl() -> bool:
+	return _status_manager.grants_crawl() and is_alive() and not is_downed()
+
+
 func set_flight_altitude(altitude: float) -> void:
 	_movement.set_flight_altitude(altitude)
 

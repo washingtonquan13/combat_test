@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="Advantage" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://systems/ability_system/status_behavior.gd" id="1_base"]
+[ext_resource type="Script" path="res://systems/ability_system/crawl_behavior.gd" id="2_behavior"]
+[ext_resource type="Script" path="res://systems/advantage_system/advantage.gd" id="3_advantage"]
+
+[sub_resource type="Resource" id="Resource_behavior"]
+script = ExtResource("2_behavior")
+
+[resource]
+script = ExtResource("3_advantage")
+id = &"clinging"
+advantage_name = "Clinging"
+description = "Walks on walls and ceilings as easily as on the floor, and lets go only when knocked out."
+max_level = 1
+behaviors = Array[ExtResource("1_base")]([SubResource("Resource_behavior")])

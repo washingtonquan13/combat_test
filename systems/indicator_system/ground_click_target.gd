@@ -361,6 +361,7 @@ func resolve_cursor(current: PlayerIntent) -> Cursor:
 	if collider is Node and not (collider is Unit) and collider.has_method("get_interactions"):
 		result.interactable = collider
 	var surface = null if ground_hit.is_empty() else ground_hit.position
+	result.surface_normal = Vector3.ZERO if ground_hit.is_empty() else ground_hit.normal
 	result.unit = _unit_under_mouse(ground_hit)
 	if result.unit and result.unit.has_method("get_interactions"):
 		result.interactable = result.unit

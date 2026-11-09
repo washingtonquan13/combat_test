@@ -271,6 +271,8 @@ void NavigationGrid::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("unregister_world", "root"), &NavigationGrid::unregister_world);
 	ClassDB::bind_method(D_METHOD("nearest_valid_point", "tree", "point", "clearance", "flying", "exclude_unit", "max_radius_cells", "world_ref", "ignore"), &NavigationGrid::nearest_valid_point, DEFVAL(Variant()), DEFVAL(12), DEFVAL(Variant()), DEFVAL(Array()));
 	ClassDB::bind_method(D_METHOD("find_path", "tree", "start", "destination", "unit", "flying", "ignore"), &NavigationGrid::find_path, DEFVAL(Array()));
+	ClassDB::bind_method(D_METHOD("find_crawl_path", "tree", "start", "destination", "unit", "ignore"), &NavigationGrid::find_crawl_path, DEFVAL(Array()));
+	ClassDB::bind_method(D_METHOD("crawl_normal", "tree", "origin", "unit"), &NavigationGrid::crawl_normal);
 	ClassDB::bind_method(D_METHOD("occupancy_version", "tree", "world_ref"), &NavigationGrid::occupancy_version, DEFVAL(Variant()));
 	ClassDB::bind_method(D_METHOD("world_to_cell", "pos", "world_ref"), &NavigationGrid::world_to_cell_in);
 
@@ -3124,6 +3126,20 @@ bool NavigationGrid::is_valid_cell(const Vector3i &cell, const std::vector<Vecto
 		return false;
 	}
 
+	// A crawl query's cell is the middle of the body, and it has its own
+	// rule (see is_crawl_cell). Other units are kept off the same way as
+	// always, from the bottom of the body up.
+	if (crawl_query) {
+		if (!is_crawl_cell(cell)) {
+			return false;
+		}
+		if (!any_occupied) {
+			return true;
+		}
+		const Vector3i feet(cell.x, std::max(0, cell.y - crawl_radius_cells), cell.z);
+		return is_clear_of_units(feet, chunk_coord_index(cell_to_chunk_coord(feet)), clearance, height, self_unit);
+	}
+
 	// Chunk coordinate/local index/chunk lookup computed ONCE and shared
 	// across the support, clearance, and occupancy checks below — this
 	// used to be independently re-derived by cell_no_support(),
@@ -3377,6 +3393,199 @@ PackedVector3Array NavigationGrid::find_path(SceneTree *tree, Vector3 start, Vec
 		raw.insert(1, cell_center(search_start_cell));
 	}
 	return smooth_path(raw, offsets, clearance, height, flying, unit);
+}
+
+// --- Wall crawling -----------------------------------------------------------
+//
+// A crawler's body is a ball, and the cells it may be centred on are a shell:
+// no solid closer than the ball's radius, and some solid just past it. Floors,
+// walls and ceilings are the same rule, the ball always fits, and inner and
+// outer corners round off without anyone describing them.
+
+void NavigationGrid::begin_crawl_query(float radius) {
+	crawl_query = true;
+	if (radius == crawl_radius && !crawl_ball.empty()) {
+		return;
+	}
+	crawl_radius = radius;
+	const float radius_cells = radius / CELL_SIZE;
+	crawl_radius_cells = (int)std::round(radius_cells);
+	// Half a cell because a solid cell's centre is half a cell behind its face.
+	const float core = radius_cells + 0.5f;
+	const float outer = core + CRAWL_SHELL_CELLS;
+	crawl_core2 = core * core;
+	crawl_ball.clear();
+	const int reach = (int)std::ceil(outer);
+	for (int dx = -reach; dx <= reach; dx++) {
+		for (int dy = -reach; dy <= reach; dy++) {
+			for (int dz = -reach; dz <= reach; dz++) {
+				const int d2 = dx * dx + dy * dy + dz * dz;
+				if ((float)d2 <= outer * outer) {
+					crawl_ball.push_back({ Vector3i(dx, dy, dz), d2 });
+				}
+			}
+		}
+	}
+	std::sort(crawl_ball.begin(), crawl_ball.end(), [](const CrawlOffset &a, const CrawlOffset &b) { return a.d2 < b.d2; });
+	// Directly below: from the first layer the core allows to the shell's end.
+	crawl_floor_first = (int)std::floor(core) + 1;
+	crawl_floor_last = (int)std::floor(outer);
+}
+
+// The map's sides and top are open air, not a surface to climb; only off the
+// bottom counts as solid, as it does for everyone.
+bool NavigationGrid::crawl_solid(const Vector3i &cell) {
+	if (cell.x < 0 || cell.z < 0 || cell.x >= grid_size.x || cell.y >= grid_size.y || cell.z >= grid_size.z) {
+		return false;
+	}
+	return is_solid(cell);
+}
+
+// The ball is sorted by distance, so the nearest solid is the first one met
+// and it alone decides: inside the core the body doesn't fit, past it the
+// body is against a surface. Nothing met means nothing to hold on to.
+bool NavigationGrid::is_crawl_cell(const Vector3i &cell) {
+	for (const CrawlOffset &entry : crawl_ball) {
+		if (crawl_solid(cell + entry.offset)) {
+			return (float)entry.d2 > crawl_core2;
+		}
+	}
+	return false;
+}
+
+bool NavigationGrid::crawl_has_floor(const Vector3i &cell) {
+	for (int down = crawl_floor_first; down <= crawl_floor_last; down++) {
+		if (crawl_solid(cell - Vector3i(0, down, 0))) {
+			return true;
+		}
+	}
+	return false;
+}
+
+// Away from whatever solid the ball holds: the offsets of a flat surface's
+// cells cancel sideways, so a floor or wall is exact, and a corner, where two
+// surfaces share the ball, comes out between them and turns smoothly.
+bool NavigationGrid::crawl_surface(const Vector3 &point, Vector3 &normal, Vector3 &nearest) {
+	const Vector3i cell = world_to_cell(point);
+	Vector3i sum;
+	bool found = false;
+	float contact2 = 0.0f;
+	for (const CrawlOffset &entry : crawl_ball) {
+		if (found && (float)entry.d2 > contact2) {
+			break;
+		}
+		if (!crawl_solid(cell + entry.offset)) {
+			continue;
+		}
+		if (!found) {
+			nearest = cell_center(cell + entry.offset);
+			found = true;
+			// Only what the body is touching: a wall a metre off doesn't
+			// lean a spider walking the floor beside it.
+			const float contact = std::sqrt((float)entry.d2) + CRAWL_CONTACT_CELLS;
+			contact2 = contact * contact;
+		}
+		sum += entry.offset;
+	}
+	if (!found || sum == Vector3i()) {
+		return false;
+	}
+	normal = -Vector3((float)sum.x, (float)sum.y, (float)sum.z).normalized();
+	return true;
+}
+
+// The cells only say which layer of the shell a point is in; the body rides
+// exactly one radius off the surface.
+Vector3 NavigationGrid::crawl_project(const Vector3 &point) {
+	Vector3 normal;
+	Vector3 nearest;
+	if (!crawl_surface(point, normal, nearest)) {
+		return point;
+	}
+	const float gap = (point - nearest).dot(normal) - CELL_SIZE * 0.5f;
+	return point + normal * (crawl_radius - gap);
+}
+
+// A click lands on the surface, a few cells inside the shell's reach, so the
+// ball (sorted by distance) finds the truly nearest cell. The cube search
+// returns the first hit from one corner of each ring, which on a wall is a
+// metre down and to the side of where the player clicked.
+NavigationGrid::NearestResult NavigationGrid::nearest_crawl_cell(const Vector3i &cell, const std::vector<Vector3i> &offsets, float clearance, float height, Object *unit, int max_radius) {
+	for (const CrawlOffset &entry : crawl_ball) {
+		const Vector3i candidate = cell + entry.offset;
+		if (is_valid_cell(candidate, offsets, clearance, height, true, unit)) {
+			return { true, candidate };
+		}
+	}
+	return find_nearest_free_cell(cell, offsets, clearance, height, true, unit, max_radius);
+}
+
+// Start and result are the unit's origin, as every other route is, so the
+// preview, the budget and the walking code need no second kind of point. The
+// body's centre is always one radius straight above that origin.
+PackedVector3Array NavigationGrid::find_crawl_path(SceneTree *tree, Vector3 start, Vector3 destination, Object *unit, Array ignore) {
+	StageClock clock(STAGE_SEARCH);
+	activate_for(unit);
+	ensure_baked(tree);
+	ensure_occupancy_current(tree);
+	set_query_ignore(ignore);
+
+	const float clearance = get_float_prop(unit, "radius") + get_float_prop(unit, "avoidance_margin");
+	const float height = get_float_prop(unit, "height");
+	const float radius = height * 0.5f;
+	const std::vector<Vector3i> &offsets = disc_offsets(clearance);
+	ensure_neighbor_offsets();
+	begin_crawl_query(radius);
+	struct EndQuery {
+		bool &flag;
+		~EndQuery() { flag = false; }
+	} end_query{ crawl_query };
+
+	const Vector3 centre_lift(0.0f, radius, 0.0f);
+	const Vector3 centre = start + centre_lift;
+	const Vector3i start_cell = world_to_cell(centre);
+	if (!in_bounds(start_cell)) {
+		return PackedVector3Array();
+	}
+	const int snap_radius = 12 + (int)Math::ceil(clearance / CELL_SIZE);
+	const NearestResult goal = nearest_crawl_cell(world_to_cell(destination), offsets, clearance, height, unit, snap_radius);
+	const NearestResult from = nearest_crawl_cell(start_cell, offsets, clearance, height, unit, snap_radius);
+	if (!goal.found || !from.found) {
+		return PackedVector3Array();
+	}
+
+	PackedVector3Array path;
+	if (from.cell == goal.cell) {
+		path.push_back(centre);
+		path.push_back(cell_center(goal.cell));
+	} else {
+		GoalFlood flood;
+		goal_flood_begin(flood, from.cell, goal.cell);
+		PackedVector3Array raw = a_star(centre, from.cell, goal.cell, offsets, clearance, height, true, unit, 0, &flood);
+		if (raw.size() < 2) {
+			return PackedVector3Array();
+		}
+		path = smooth_path(raw, offsets, clearance, height, true, unit);
+	}
+	for (int i = 0; i < path.size(); i++) {
+		path.set(i, (i == 0 ? path[i] : crawl_project(path[i])) - centre_lift);
+	}
+	return path;
+}
+
+// ZERO when the ball holds no surface at all: the unit has nothing to cling to.
+Vector3 NavigationGrid::crawl_normal(SceneTree *tree, Vector3 origin, Object *unit) {
+	activate_for(unit);
+	ensure_baked(tree);
+	const float radius = get_float_prop(unit, "height") * 0.5f;
+	begin_crawl_query(radius);
+	crawl_query = false;
+	Vector3 normal;
+	Vector3 nearest;
+	if (!crawl_surface(origin + Vector3(0.0f, radius, 0.0f), normal, nearest)) {
+		return Vector3();
+	}
+	return normal;
 }
 
 void NavigationGrid::ensure_neighbor_offsets() {
@@ -3989,6 +4198,10 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 	int cached_chunk = -1;
 	NavRegions *cached_r = nullptr;
 	auto estimate = [&](const Vector3i &cell, int chunk_idx, const Vector3i &local_cell) -> float {
+		// Regions describe walkers and fliers; a crawler's cells aren't in them.
+		if (crawl_query) {
+			return heuristic(cell, goal_cell);
+		}
 		if (chunk_idx != cached_chunk) {
 			cached_r = &ensure_chunk_regions(chunk_coord_from_index(chunk_idx), flying, cls);
 			cached_chunk = chunk_idx;
@@ -4089,7 +4302,9 @@ PackedVector3Array NavigationGrid::a_star(const Vector3 &start, const Vector3i &
 			if (!valid_this_search(*last_brick, neighbor_local, neighbor, offsets, clearance, height, flying, unit)) {
 				continue;
 			}
-			const float tentative = current_g + neighbor_step_cost[oi];
+			// A crawler takes the floor unless a wall is really a shortcut.
+			const float step_cost = neighbor_step_cost[oi] * ((crawl_query && !crawl_has_floor(neighbor)) ? CRAWL_OFF_FLOOR_COST : 1.0f);
+			const float tentative = current_g + step_cost;
 			if (tentative < last_brick->g[neighbor_local]) {
 				last_brick->g[neighbor_local] = tentative;
 				state = (state & ~AStarBrick::DIR_MASK) | (uint8_t)oi;

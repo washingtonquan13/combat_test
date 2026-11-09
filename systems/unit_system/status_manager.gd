@@ -277,6 +277,14 @@ func grants_flight() -> bool:
 	return false
 
 
+func grants_crawl() -> bool:
+	for a in active:
+		for behavior in a.effect.behaviors:
+			if behavior.grants_crawl():
+				return true
+	return false
+
+
 ## Every currently active StatusEffect that's granting this unit flight
 ## right now — see Unit.ground_if_flying(), which removes each of these
 ## to force a fall (e.g. getting Incapacitated mid-air). Plural: nothing

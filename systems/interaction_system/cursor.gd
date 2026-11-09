@@ -39,6 +39,9 @@ var plane_height = null
 ## point goes, and what a drop line from a midair marker reaches.
 var floor_below = null
 
+## Which way the surface under the mouse faces, ZERO with none.
+var surface_normal: Vector3 = Vector3.ZERO
+
 ## Whether Ctrl is held over an intent that takes a height this frame:
 ## ground's XZ is frozen at the spot the hold started on and the mouse's
 ## height on screen sets plane_height (ClickRouter._sample_height).
@@ -96,6 +99,10 @@ func aims_at_unit(ability: Ability) -> bool:
 func move_point() -> Variant:
 	if on_plane and floor_below != null:
 		return floor_below
+	# A click on a wall or ceiling means this side of it, and a wall can be
+	# thin enough that the nearest spot to the bare hit is behind it.
+	if not on_plane and ground != null and surface_normal != Vector3.ZERO and surface_normal.y < 0.7:
+		return ground + surface_normal * 0.3
 	return ground
 
 

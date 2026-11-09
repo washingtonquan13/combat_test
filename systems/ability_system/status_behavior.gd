@@ -98,6 +98,12 @@ func grants_flight() -> bool:
 	return false
 
 
+## Whether this behavior lets the unit hold on to walls and ceilings (see
+## Unit.can_crawl). Any active status can grant it, as with flight.
+func grants_crawl() -> bool:
+	return false
+
+
 ## Multiplies how far this unit jumps by strength (see
 ## GroundPointTargeting.jump_multiplier). Multiplied across active statuses.
 func jump_distance_multiplier() -> float:
