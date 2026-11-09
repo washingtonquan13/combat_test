@@ -25,20 +25,34 @@ extends IndicatorBase
 ## has no visuals of its own, so _create_line_mesh() goes unused): it is
 ## handed the same Aim the indicators draw from — the hovered unit first,
 ## the ground point as fallback — rather than raycasting for itself.
+##
+## The Aim comes once per render frame but the turn is applied on every
+## physics tick, like all facing, so a turn takes the same time at any frame
+## rate. Below the physics rate several ticks share one Aim, so the point is
+## kept between draws rather than used up.
+
+var _unit: Unit = null
+var _aim_point: Vector3 = Vector3.ZERO
 
 
 func serves() -> StringName:
 	return &"aim_facing"
 
 
-func draw(aim: Aim) -> void:
-	var unit: Unit = aim.caster
-	if not unit:
-		return
+func set_live(live: bool) -> void:
+	super(live)
+	if not live:
+		_unit = null
 
+
+func draw(aim: Aim) -> void:
 	var hovered: Unit = aim.cursor.unit if aim.cursor else null
 	var aim_point = hovered.global_position if hovered else aim.point
-	if aim_point == null:
-		return
+	_unit = aim.caster if aim_point != null else null
+	if _unit:
+		_aim_point = aim_point
 
-	unit.face_point(aim_point, get_process_delta_time())
+
+func _physics_process(delta: float) -> void:
+	if is_instance_valid(_unit):
+		_unit.face_point(_aim_point, delta)

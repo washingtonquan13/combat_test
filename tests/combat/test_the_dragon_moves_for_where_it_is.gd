@@ -7,6 +7,8 @@ extends AiTestCase
 ## real needs a Fly cast and a climb that have nothing to do with which clip
 ## answers.
 
+const AIM_FACING = preload("res://systems/unit_system/unit_aim_facing.gd")
+
 
 func run() -> void:
 	var dragon: Unit = spawn_demon("dragon", Vector3.ZERO)
@@ -41,34 +43,42 @@ func run() -> void:
 	free_spawned()
 
 
-## Facing is written on render frames (the aim indicator) while the animator
-## ticks on physics frames, so this runs at frame rates either side of the
-## physics rate.
+## Aiming hands over a point per render frame and the turn runs on physics
+## ticks, so this aims through the real indicator at frame rates either side
+## of the physics rate.
 func _turning(dragon: Unit, player: AnimationPlayer) -> void:
 	var cap: int = Engine.max_fps
+	var facing: Node = AIM_FACING.new()
+	add_child(facing)
 	for fps: int in [20, 30, 60, 144]:
 		Engine.max_fps = fps
 		player.play("Idle")
 		await _settle()
-		await _turn(dragon, 2.0)
+		await _turn(facing, dragon, 2.0)
 		check("at %d fps turning left steps left" % fps, player.current_animation == "Turn_L", player.current_animation)
 		await _settle()
 		check("at %d fps it stops when the turn does" % fps, player.current_animation == "Idle", player.current_animation)
-		await _turn(dragon, -2.0)
+		await _turn(facing, dragon, -2.0)
 		check("at %d fps turning right steps right" % fps, player.current_animation == "Turn_R", player.current_animation)
 		await _settle()
 		dragon.snap_face_direction(_direction(dragon, 1.0))
 		await _physics_frames(2)
 		check("at %d fps a snap to a target is not a turn" % fps, player.current_animation == "Idle", player.current_animation)
 	Engine.max_fps = cap
+	facing.free()
 
 
-func _turn(dragon: Unit, angle: float) -> void:
-	var toward: Vector3 = _direction(dragon, angle)
-	for i: int in 4:
+func _turn(facing: Node, dragon: Unit, angle: float) -> void:
+	var aim := Aim.new()
+	aim.caster = dragon
+	aim.point = dragon.global_position + _direction(dragon, angle) * 10.0
+	facing.set_live(true)
+	var aiming: float = 0.15
+	while aiming > 0.0:
 		await get_tree().process_frame
-		dragon.face_direction(toward, get_process_delta_time())
-	await _physics_frames(1)
+		facing.draw(aim)
+		aiming -= get_process_delta_time()
+	facing.set_live(false)
 
 
 func _direction(dragon: Unit, angle: float) -> Vector3:

@@ -175,6 +175,6 @@ func _gesture_toward(at: Vector3) -> void:
 	if animator:
 		animator.play_motion(&"gesture")
 	var who: Unit = mover
-	mover.create_tween().tween_method(
-		func(_t: float) -> void: who.face_point(at, who.get_process_delta_time()),
+	mover.create_tween().set_process_mode(Tween.TWEEN_PROCESS_PHYSICS).tween_method(
+		func(_t: float) -> void: who.face_point(at, who.get_physics_process_delta_time()),
 		0.0, 1.0, FACE_TIME)

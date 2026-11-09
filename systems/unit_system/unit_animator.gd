@@ -598,7 +598,7 @@ var _climb_shown: int = 0
 func _physics_process(delta: float) -> void:
 	if unit == null or _cutscene_claimed or unit.posed_status or not unit.is_alive():
 		return
-	_show_turning(delta)
+	_show_turning()
 	var over: int = unit.climbing_over()
 	var over_clip: String = climb_off_animation if over > 0 else climb_on_animation
 	var shown: int = unit.climb_direction()
@@ -632,26 +632,22 @@ func _physics_process(delta: float) -> void:
 ## a second.
 const TURN_START_RATE := 1.0
 const TURN_STOP_RATE := 0.3
-## How long the last step of a turn still counts. Facing is mostly written on
-## render frames and this runs on physics ticks, so at a low frame rate
-## several ticks go by between steps of one continuous turn.
-const TURN_HOLD := 0.1
 
+## The last swing of facing. Every smooth turn is written on a physics tick,
+## so a tick without one means the turn has stopped.
 var _turn_rate: float = 0.0
-var _turn_held: float = 0.0
 
 
 func _on_facing_swung(rate: float) -> void:
 	_turn_rate = rate
-	_turn_held = TURN_HOLD
 
 
 ## Standing still and swinging round steps the feet, for a body with turn
 ## clips. The clips loop and leave at once when the turn stops; anything else
 ## that starts playing has already replaced them.
-func _show_turning(delta: float) -> void:
-	_turn_held -= delta
-	var rate: float = _turn_rate if _turn_held > 0.0 else 0.0
+func _show_turning() -> void:
+	var rate: float = _turn_rate
+	_turn_rate = 0.0
 	var left: String = _clip(&"turn.left")
 	var right: String = _clip(&"turn.right")
 	if left == "" or right == "":
@@ -659,8 +655,6 @@ func _show_turning(delta: float) -> void:
 	var playing: String = String(animation_player.current_animation)
 	var turning: bool = playing == left or playing == right
 	if unit.is_moving() or _aloft or _active_sequence != null or not (turning or playing == _idle()):
-		# Or the last step of a walk would read as a turn once it stops.
-		_turn_held = 0.0
 		return
 	if absf(rate) >= (TURN_STOP_RATE if turning else TURN_START_RATE):
 		var clip: String = left if rate > 0.0 else right
