@@ -21,10 +21,12 @@ const SPIN_TIME: float = 2.8
 const SPIN_TURNS_MIN: int = 3
 const SPIN_TURNS_MAX: int = 5
 const DIM_TIME: float = 0.25
-const CARD_BG: Color = Color(0.085, 0.08, 0.074, 0.9)
 const TEXT: Color = Color(0.93, 0.9, 0.84)
-const CARD_MARGIN: float = 14.0
-const COLUMN_SEPARATION: int = 8
+## No panel behind the wheel, so the text carries its own edge to stay
+## readable over whatever the scene is showing.
+const TEXT_OUTLINE: Color = Color(0.03, 0.03, 0.04, 0.95)
+const TEXT_OUTLINE_SIZE: int = 7
+const COLUMN_SEPARATION: int = 4
 const BUTTON_WIDTH: float = 120.0
 const RESULT_FONT_SIZE: int = 18
 ## Centred in the screen above the conversation band: the room the
@@ -40,7 +42,7 @@ var _play_token: int = 0
 var _animating: bool = false
 var _tweens: Array[Tween] = []
 
-var _card: PanelContainer
+var _card: VBoxContainer
 var _wheel: OddsWheel
 var _result_label: Label
 var _continue_button: Button
@@ -190,7 +192,7 @@ func _build_scene() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_card = PanelContainer.new()
+	_card = VBoxContainer.new()
 	add_child(_card)
 	_card.anchor_left = 0.5
 	_card.anchor_top = 0.5
@@ -201,44 +203,33 @@ func _build_scene() -> void:
 	_card.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_card.grow_vertical = Control.GROW_DIRECTION_BOTH
 	_card.mouse_filter = Control.MOUSE_FILTER_STOP
-	_card.add_theme_stylebox_override("panel", _box(CARD_BG, CARD_MARGIN))
+	_card.add_theme_constant_override("separation", COLUMN_SEPARATION)
 	_card.gui_input.connect(_on_card_gui_input)
 
-	var column := VBoxContainer.new()
-	_card.add_child(column)
-	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	column.add_theme_constant_override("separation", COLUMN_SEPARATION)
-
 	_wheel = OddsWheel.new()
-	column.add_child(_wheel)
+	_card.add_child(_wheel)
 	_wheel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 
-	_result_label = _label(column, RESULT_FONT_SIZE, TEXT)
+	_result_label = _label(_card, RESULT_FONT_SIZE, TEXT)
 	_result_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_result_label.custom_minimum_size.x = _wheel.custom_minimum_size.x
 	# One line always reserved, so the card doesn't jump as the text changes.
 	_result_label.custom_minimum_size.y = _result_label.get_line_height()
 
 	var button_holder := CenterContainer.new()
-	column.add_child(button_holder)
+	_card.add_child(button_holder)
 	button_holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_continue_button = Button.new()
 	button_holder.add_child(_continue_button)
 	_continue_button.custom_minimum_size.x = BUTTON_WIDTH
 	_continue_button.text = "Continue"
+	_continue_button.add_theme_color_override("font_outline_color", TEXT_OUTLINE)
+	_continue_button.add_theme_constant_override("outline_size", TEXT_OUTLINE_SIZE)
 	# The holder keeps the button's room while it's hidden, so the card
 	# holds its size through the spin.
 	button_holder.custom_minimum_size = _continue_button.get_combined_minimum_size()
 	_continue_button.visible = false
 	_continue_button.pressed.connect(_step.emit)
-
-
-static func _box(bg: Color, margin: float) -> StyleBoxFlat:
-	var box := StyleBoxFlat.new()
-	box.bg_color = bg
-	box.set_corner_radius_all(10)
-	box.set_content_margin_all(margin)
-	return box
 
 
 static func _label(parent: Control, font_size: int, colour: Color) -> Label:
@@ -248,4 +239,6 @@ static func _label(parent: Control, font_size: int, colour: Color) -> Label:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", colour)
+	label.add_theme_color_override("font_outline_color", TEXT_OUTLINE)
+	label.add_theme_constant_override("outline_size", TEXT_OUTLINE_SIZE)
 	return label

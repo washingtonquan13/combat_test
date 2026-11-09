@@ -25,10 +25,10 @@ const FIRST_TOTAL: int = 3
 const ROLL_COUNTS: Array[int] = [1, 3, 6, 10, 15, 21, 25, 27, 27, 25, 21, 15, 10, 6, 3, 1]
 
 ## On screen, to the outside of the rim.
-const RADIUS: float = 280.0
+const RADIUS: float = 200.0
 ## Around the rim, and above it for the needle's head.
-const SIDE_MARGIN: float = 8.0
-const TOP_MARGIN: float = 44.0
+const SIDE_MARGIN: float = RADIUS * 0.03
+const TOP_MARGIN: float = RADIUS * 0.16
 
 ## The render's own measurements, from tools/wheel/render_wheel.py: how much
 ## of the scene the square image spans, the rim's outer radius, the axis
@@ -89,7 +89,7 @@ const PEGS_SLICE: int = 4
 const INKS: Array = [Color("#62aee8"), Color("#e2566f"), Color("#ffd03a"), Color("#ff4438")]
 const BACKING: Color = Color("#0a0c12")
 const HIGHLIGHT: Color = Color("#fff4cf")
-const HUB_FONT_SIZE: int = 56
+const HUB_FONT_SIZE: int = int(RADIUS * 0.2)
 
 ## The wheel's rotation, radians, clockwise. Tweened through a roll.
 var spin: float = 0.0:
