@@ -1,0 +1,27 @@
+[remap]
+
+importer="2d_array_texture"
+type="CompressedTexture2DArray"
+uid="uid://bl2s4kb6xanix"
+path.bptc="res://.godot/imported/spinning.png-d2a785cba55f3de983b5a19f29ed0733.bptc.ctexarray"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+
+[deps]
+
+source_file="res://assets/ui/wheel/lacquer/spinning.png"
+dest_files=["res://.godot/imported/spinning.png-d2a785cba55f3de983b5a19f29ed0733.bptc.ctexarray"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=true
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+slices/horizontal=5
+slices/vertical=1

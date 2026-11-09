@@ -21,12 +21,6 @@ const SPIN_TIME: float = 2.8
 const SPIN_TURNS_MIN: int = 3
 const SPIN_TURNS_MAX: int = 5
 const DIM_TIME: float = 0.25
-## How far across the winning wedge the needle may stop. Past the wedge's
-## first stretch, so the needle is never left bent at rest, and short of
-## its far edge, so it's plain which wedge came up.
-const LAND_FRACTION_MIN: float = 0.5
-const LAND_FRACTION_MAX: float = 0.88
-
 const CARD_BG: Color = Color(0.085, 0.08, 0.074, 0.9)
 const TEXT: Color = Color(0.93, 0.9, 0.84)
 const CARD_MARGIN: float = 14.0
@@ -134,7 +128,7 @@ func _on_dice_roll_requested(skill_name: String, roll: Dictionary) -> void:
 	_animating = true
 	var landing: float = _wheel.spin_to_land_on(
 		roll.roll,
-		randf_range(LAND_FRACTION_MIN, LAND_FRACTION_MAX),
+		randf(),
 		randi_range(SPIN_TURNS_MIN, SPIN_TURNS_MAX))
 	var spin_tween: Tween = _new_tween()
 	spin_tween.tween_property(_wheel, "spin", landing, SPIN_TIME) \
