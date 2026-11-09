@@ -55,6 +55,7 @@ func set_level(advantage: Advantage, level: int) -> void:
 		for ability in advantage.abilities:
 			if not _owner.abilities.has(ability):
 				_owner.add_ability(ability)
+				instance.granted.append(ability)
 	elif instance.level == target:
 		return
 	else:
@@ -104,12 +105,26 @@ func _find(advantage: Advantage) -> AdvantageInstance:
 func _remove(instance: AdvantageInstance) -> void:
 	_status_manager.remove(_statuses[instance])
 	_statuses.erase(instance)
-	for ability in instance.advantage.abilities:
-		_owner.remove_ability(ability)
+	for ability in instance.granted:
+		var heir: AdvantageInstance = _other_holder(instance, ability)
+		if heir:
+			heir.granted.append(ability)
+		else:
+			_owner.remove_ability(ability)
 	instance.free()
 
 
+## Another advantage on this unit that would grant ability too, or null.
+func _other_holder(instance: AdvantageInstance, ability: Ability) -> AdvantageInstance:
+	for other in get_all():
+		if other != instance and other.advantage.abilities.has(ability):
+			return other
+	return null
+
+
 func _build_status(advantage: Advantage, level: int) -> StatusEffect:
+	if level > 1 and not advantage.scales():
+		push_error("Advantages: '%s' is at level %d but none of its behaviors scale (StatusBehavior.at_level), so it does the same as level 1." % [advantage.id, level])
 	var effect := StatusEffect.new()
 	effect.status_name = advantage.advantage_name
 	effect.curable = false

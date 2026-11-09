@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -10,6 +10,8 @@
 [ext_resource type="Resource" path="res://data/abilities/jump.tres" id="a2"]
 [ext_resource type="Script" path="res://systems/dialogue_system/dialogue_root_option.gd" id="dlgopt"]
 [ext_resource type="Resource" path="res://data/dialogue/test_npc/greeting.tres" id="dlgroot"]
+[ext_resource type="Script" path="res://systems/advantage_system/advantage.gd" id="adv_script"]
+[ext_resource type="Resource" path="res://data/advantages/catfall.tres" id="adv_catfall"]
 
 [sub_resource type="Resource" id="dlg0"]
 script = ExtResource("dlgopt")
@@ -24,6 +26,7 @@ faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
+advantages = Dictionary[ExtResource("adv_script"), int]({ExtResource("adv_catfall"): 1})
 abilities = Array[ExtResource("5_ability")]([ExtResource("a0"), ExtResource("a1"), ExtResource("a2")])
 
 move_speed = 5.0

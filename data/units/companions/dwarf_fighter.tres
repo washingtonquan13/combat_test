@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -6,6 +6,9 @@
 [ext_resource type="Texture2D" path="res://assets/portraits/dwarf_fighter_1.jpg" id="4_portrait"]
 [ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="5_ability"]
 [ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="a0"]
+[ext_resource type="Script" path="res://systems/advantage_system/advantage.gd" id="adv_script"]
+[ext_resource type="Resource" path="res://data/advantages/hard_to_kill.tres" id="adv_hard_to_kill"]
+[ext_resource type="Resource" path="res://data/advantages/damage_resistance.tres" id="adv_damage_resistance"]
 
 [resource]
 script = ExtResource("1_def")
@@ -16,6 +19,7 @@ faction = &"player"
 portrait_texture = ExtResource("4_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("3_model")
+advantages = Dictionary[ExtResource("adv_script"), int]({ExtResource("adv_hard_to_kill"): 2, ExtResource("adv_damage_resistance"): 1})
 abilities = Array[ExtResource("5_ability")]([ExtResource("a0")])
 
 move_speed = 5.0

@@ -29,5 +29,14 @@ func roll_heal() -> int:
 	return total + dice_bonus
 
 
+func at_level(level: int) -> StatusBehavior:
+	if level == 1:
+		return self
+	var scaled: HealOverTimeBehavior = duplicate()
+	scaled.dice_count = dice_count * level
+	scaled.dice_bonus = dice_bonus * level
+	return scaled
+
+
 func describe() -> String:
 	return "%dd%d+%d healing per turn" % [dice_count, dice_sides, dice_bonus]

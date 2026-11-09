@@ -442,6 +442,21 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 4
 
+[node name="AdvantagesHeader" type="Label" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)
+theme_override_font_sizes/font_size = 14
+text = "ADVANTAGES"
+
+[node name="AdvantagesHeaderRule" type="HSeparator" parent="ScrollContainer/VBoxContainer"]
+layout_mode = 2
+
+[node name="AdvantageList" type="HFlowContainer" parent="ScrollContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 6
+
 [node name="ConditionsHeader" type="Label" parent="ScrollContainer/VBoxContainer"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.553, 0.541, 0.502, 1)

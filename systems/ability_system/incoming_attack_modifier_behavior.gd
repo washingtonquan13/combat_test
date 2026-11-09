@@ -15,5 +15,13 @@ func modify_incoming_attack_to_hit(_defender: Unit, _attacker: Unit, _ability: A
 	return bonus
 
 
+func at_level(level: int) -> StatusBehavior:
+	if level == 1:
+		return self
+	var scaled: IncomingAttackModifierBehavior = duplicate()
+	scaled.bonus = bonus * level
+	return scaled
+
+
 func describe() -> String:
 	return "%+d to incoming attacks" % bonus

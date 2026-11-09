@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=18 format=3 uid="uid://cq4j1lx0pvp1k"]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=20 format=3 uid="uid://cq4j1lx0pvp1k"]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
@@ -16,6 +16,8 @@
 [ext_resource type="Resource" uid="uid://dna4g0dvtk5dm" path="res://data/items/buckler.tres" id="92_buckler"]
 [ext_resource type="PackedScene" uid="uid://btnqexsmk20xa" path="res://scenes/character_models/placeholder_model.tscn" id="98_model"]
 [ext_resource type="Resource" uid="uid://cf3i7kwauv7dv" path="res://data/ai_archetypes/skirmisher.tres" id="99_arch"]
+[ext_resource type="Script" path="res://systems/advantage_system/advantage.gd" id="adv_script"]
+[ext_resource type="Resource" path="res://data/advantages/catfall.tres" id="adv_catfall"]
 
 [sub_resource type="Resource" id="Resource_negotiation_root"]
 script = ExtResource("4_ba8yd")
@@ -42,6 +44,7 @@ is_special = false
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("98_model")
+advantages = Dictionary[ExtResource("adv_script"), int]({ExtResource("adv_catfall"): 1})
 abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
 natural_attacks = Array[ExtResource("8_y1gep")]([])
 equipment = Dictionary[int, ExtResource("90_itemdef")]({

@@ -6,3 +6,6 @@ extends Node
 
 var advantage: Advantage
 var level: int = 1
+## What this unit got from having it, not what it already knew, so taking
+## it away leaves the rest alone.
+var granted: Array[Ability] = []

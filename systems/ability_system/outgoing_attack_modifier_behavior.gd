@@ -14,5 +14,13 @@ func modify_outgoing_attack_to_hit(_attacker: Unit, _target, _ability: Ability) 
 	return bonus
 
 
+func at_level(level: int) -> StatusBehavior:
+	if level == 1:
+		return self
+	var scaled: OutgoingAttackModifierBehavior = duplicate()
+	scaled.bonus = bonus * level
+	return scaled
+
+
 func describe() -> String:
 	return "%+d to outgoing attacks" % bonus

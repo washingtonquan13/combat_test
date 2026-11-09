@@ -15,3 +15,12 @@ extends Resource
 @export var max_level: int = 1
 @export var behaviors: Array[StatusBehavior] = []
 @export var abilities: Array[Ability] = []
+
+
+## Whether a second level changes anything. One behavior scaling is enough:
+## a fixed rider beside a scaling number is legal.
+func scales() -> bool:
+	for behavior in behaviors:
+		if behavior.at_level(2) != behavior:
+			return true
+	return false

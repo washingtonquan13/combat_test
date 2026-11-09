@@ -10,7 +10,7 @@ extends MarginContainer
 ## points to spend, so the button is wherever the bar is), HP/FP, ST/DX/IQ/HT/Will/Per, Basic Speed, Move (with Air Move for a
 ## unit that can fly), Thrust/Swing; the active defenses and DR; every
 ## attack the unit has now, both weapon sets at once since both are
-## always live; and its conditions. Hovering a number shows how it is
+## always live; its advantages; and its conditions. Hovering a number shows how it is
 ## reached (stat_tip.gd), so the sheet itself carries no footnotes.
 
 @onready var _name_label: Label = %NameLabel
@@ -37,6 +37,7 @@ extends MarginContainer
 @onready var _parry_value: Label = %ParryValue
 @onready var _block_value: Label = %BlockValue
 @onready var _attack_list: VBoxContainer = %AttackList
+@onready var _advantage_list: HFlowContainer = %AdvantageList
 @onready var _condition_list: HFlowContainer = %ConditionList
 
 const DIM := Color(1, 1, 1, 0.5)
@@ -81,6 +82,7 @@ func refresh(unit: Unit) -> void:
 
 	_refresh_tips(unit)
 	_refresh_attacks(unit)
+	_refresh_advantages(unit)
 	_refresh_conditions(unit)
 
 
@@ -183,6 +185,28 @@ func _refresh_attacks(unit: Unit) -> void:
 		none.text = "No attacks."
 		none.modulate = DIM
 		_attack_list.add_child(none)
+
+
+## One chip each, with its level where it has levels; hovering says what
+## it does.
+func _refresh_advantages(unit: Unit) -> void:
+	for child in _advantage_list.get_children():
+		child.queue_free()
+	var held: Array[AdvantageInstance] = unit.get_advantages()
+	if held.is_empty():
+		var none := Label.new()
+		none.text = "None"
+		none.modulate = DIM
+		_advantage_list.add_child(none)
+	for instance in held:
+		var chip := Label.new()
+		chip.text = instance.advantage.advantage_name
+		if instance.advantage.max_level > 1:
+			chip.text += " %d" % instance.level
+		chip.set_script(StatTip)
+		chip.mouse_filter = Control.MOUSE_FILTER_STOP
+		chip.tooltip_text = StatTip.tip_text(chip.text, instance.advantage.description, [])
+		_advantage_list.add_child(chip)
 
 
 func _refresh_conditions(unit: Unit) -> void:

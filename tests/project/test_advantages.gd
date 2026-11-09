@@ -22,6 +22,7 @@ func run() -> void:
 	_test_save_and_load(extra)
 	_test_definition(extra)
 	_test_granted_ability()
+	_test_levels_scale()
 	_test_party_round_trip(extra)
 	_test_damage_resistance()
 	_test_falls()
@@ -175,6 +176,40 @@ func _test_granted_ability() -> void:
 	check("it grants its ability", hero.abilities.has(granted))
 	hero.set_advantage_level(trick, 0)
 	check("taking it away takes the ability", not hero.abilities.has(granted))
+
+	var knew_it: Unit = spawn_unit(&"player", 10, 10, 10, [granted], Vector3.ZERO)
+	knew_it.set_advantage_level(trick, 1)
+	knew_it.set_advantage_level(trick, 0)
+	check("an ability the unit already knew stays", knew_it.abilities.has(granted))
+
+	var second := Advantage.new()
+	second.id = &"test_trick_2"
+	second.advantage_name = "Second Trick"
+	second.abilities.append(granted)
+	hero.set_advantage_level(trick, 1)
+	hero.set_advantage_level(second, 1)
+	hero.set_advantage_level(trick, 0)
+	check("another advantage granting it keeps it", hero.abilities.has(granted))
+	hero.set_advantage_level(second, 0)
+	check("the last one to grant it takes it", not hero.abilities.has(granted))
+
+
+func _test_levels_scale() -> void:
+	for advantage in AdvantageDatabase.get_all():
+		if advantage.max_level > 1:
+			check("%s does more at a higher level" % advantage.advantage_name, advantage.scales())
+	var flat := Advantage.new()
+	flat.behaviors.append(NoFallDamage.new())
+	check("a behavior with no levels is caught", not flat.scales())
+	var incoming := IncomingAttackModifierBehavior.new()
+	incoming.bonus = -1
+	check("incoming attack modifier scales", incoming.at_level(3).bonus == -3 and incoming.bonus == -1)
+	var outgoing := OutgoingAttackModifierBehavior.new()
+	outgoing.bonus = 1
+	check("outgoing attack modifier scales", outgoing.at_level(3).bonus == 3)
+	var regen := HealOverTimeBehavior.new()
+	check("regeneration scales", regen.at_level(2).dice_count == 2 and regen.dice_count == 1)
+	check("authored units carry advantages", not load("res://data/units/companions/dwarf_fighter.tres").advantages.is_empty())
 
 
 func _test_party_round_trip(extra: Advantage) -> void:
