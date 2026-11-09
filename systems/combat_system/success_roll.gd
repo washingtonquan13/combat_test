@@ -32,8 +32,8 @@ static func roll_vs(target_number: int, rng: RandomNumberGenerator = null) -> Di
 	var outcome: Dictionary = outcome_of(roll, target_number)
 	return {
 		"roll": roll,
-		# The three individual dice. Nothing reads these since the wheel
-		# replaced the animated dice; goes when the dice assets do.
+		# The three individual dice. Only the deprecated dice popup reads
+		# these; the wheel shows the total.
 		"dice": dice,
 		"target": target_number,
 		"success": outcome.success,

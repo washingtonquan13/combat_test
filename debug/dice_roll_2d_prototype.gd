@@ -1,4 +1,6 @@
 extends Node2D
+## DEPRECATED: skill checks spin the odds wheel now (skill_check_wheel_popup.gd).
+##
 ## Standalone prototype — the REAL node type this project would use
 ## once actual rendered dice frames exist (AnimatedSprite2D +
 ## SpriteFrames), fed placeholder frames generated procedurally

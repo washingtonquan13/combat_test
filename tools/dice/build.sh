@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# DEPRECATED: skill checks spin the odds wheel now (tools/wheel). The dice stay
+# buildable, for skill_check_dice_popup.gd, but no new work should build on them.
+#
 # Builds the sprite d6: simulates and picks the throws (d6_throws.py, about
 # eight minutes), renders each throw whole once per result face in Blender
 # from the community "Numbered Dice" d20 scene (Nexus mod 1325, not in the

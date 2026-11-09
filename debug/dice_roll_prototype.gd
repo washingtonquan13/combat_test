@@ -1,4 +1,6 @@
 extends Node3D
+## DEPRECATED: skill checks spin the odds wheel now (skill_check_wheel_popup.gd).
+##
 ## Standalone prototype — proves out "tumble, then settle on a
 ## pre-decided result" for an animated 3d6 roll (this project's actual
 ## resolution mechanic, not BG3's d20). The result is picked FIRST, by
