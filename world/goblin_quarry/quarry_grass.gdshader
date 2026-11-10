@@ -45,20 +45,30 @@ uniform float thin_start = 12.0;
 uniform float fade_start = 30.0;
 uniform float fade_end = 44.0;
 // Where units have stood (world/grass_trample.gd): per texel, the time it
-// was last trodden. Fresh grass lies flat, pushed out from the middle of
-// the trodden patch, and stands again over `trample_recover` seconds once
-// the mark is `trample_hold` seconds old.
-global uniform sampler2D grass_trample : filter_linear, repeat_disable;
+// was last trodden (red) and the time this press began (green). Grass eases
+// down over `trample_down` seconds as a foot arrives. Fresh grass lies curled flat, pushed out from the middle
+// of the trodden patch, each card of a clump a little to its own side. Once
+// the mark is `trample_hold` seconds old it stands again over
+// `trample_recover` seconds, rocking as it comes up, and a shallow dent
+// lingers `trample_dent` seconds more. Pressed grass is darker and duller,
+// its blades crushed together.
+// Read texel by texel (trample_field): blending two texels' times makes a
+// time neither had, so each texel's flatness is worked out first and the
+// flatness is blended.
+global uniform sampler2D grass_trample : filter_nearest, repeat_disable;
 global uniform vec4 grass_trample_rect;
 global uniform float grass_trample_now;
 uniform float trample_hold = 2.0;
 uniform float trample_recover = 6.0;
+uniform float trample_dent = 20.0;
+uniform float trample_down = 0.35;
 
 varying float tip;
 varying vec3 base;
 varying vec3 top;
 varying vec2 cell;
 varying float near;
+varying float crushed;
 
 float lum(vec3 c) {
 	return dot(c, vec3(0.33));
@@ -68,10 +78,35 @@ float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
-float trodden(vec2 xz) {
-	vec2 uv = (xz - grass_trample_rect.xy) / grass_trample_rect.zw;
-	float age = grass_trample_now - textureLod(grass_trample, uv, 0.0).r;
-	return 1.0 - smoothstep(trample_hold, trample_hold + trample_recover, age);
+// One texel's mark, last trodden at `stamp` in a press begun at `begun`:
+// x how flat the grass lies (1 flat, 0 upright), y how far it rocks back
+// past upright as it rises.
+vec2 trample_texel(float stamp, float begun) {
+	float t = grass_trample_now - stamp - trample_hold;
+	float rise = 1.0 - smoothstep(0.0, trample_recover, t);
+	float dent = 0.18 * (1.0 - smoothstep(trample_recover * 0.5, trample_recover + trample_dent, t));
+	float pressed = max(rise, dent) * smoothstep(0.0, trample_down, grass_trample_now - begun);
+	float s = max(t, 0.0);
+	float rock = t > 0.0 ? sin(s * 4.2) * exp(-s * 0.9) * 0.22 * (1.0 - pressed) : 0.0;
+	return vec2(pressed, rock);
+}
+
+// The trample at xz, blended between the four texels around it, so a
+// trodden patch grows and its push direction turns smoothly rather than a
+// texel at a time.
+vec2 trample_field(vec2 xz) {
+	vec2 size = vec2(textureSize(grass_trample, 0));
+	vec2 p = (xz - grass_trample_rect.xy) / grass_trample_rect.zw * size - 0.5;
+	vec2 f = fract(p);
+	vec2 at = (floor(p) + 1.0) / size;
+	// Gather order: (0,1) (1,1) (1,0) (0,0).
+	vec4 stamp = textureGather(grass_trample, at, 0);
+	vec4 begun = textureGather(grass_trample, at, 1);
+	vec2 a = trample_texel(stamp.w, begun.w);
+	vec2 b = trample_texel(stamp.z, begun.z);
+	vec2 c = trample_texel(stamp.x, begun.x);
+	vec2 d = trample_texel(stamp.y, begun.y);
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
 void vertex() {
@@ -107,20 +142,40 @@ void vertex() {
 
 	// Trodden grass folds over about its root, away from the middle of the
 	// trodden patch (downhill on the mark), so a path parts the grass.
+	// Blades curve over along their length rather than hinging at the root:
+	// each point keeps its height up the blade as length along an arc whose
+	// angle grows toward the tip.
 	float pressed = 0.0;
+	crushed = 0.0;
 	if (grass_trample_rect.z > 0.0) {
-		pressed = trodden(origin.xz);
-		if (pressed > 0.001) {
-			vec2 slope = vec2(trodden(origin.xz + vec2(0.35, 0.0)), trodden(origin.xz + vec2(0.0, 0.35))) - pressed;
+		vec2 field = trample_field(origin.xz);
+		pressed = field.x;
+		float rock = field.y;
+		if (pressed > 0.001 || abs(rock) > 0.001) {
+			vec2 slope = vec2(
+					trample_field(origin.xz + vec2(0.3, 0.0)).x - trample_field(origin.xz - vec2(0.3, 0.0)).x,
+					trample_field(origin.xz + vec2(0.0, 0.3)).x - trample_field(origin.xz - vec2(0.0, 0.3)).x);
 			float h = hash(origin.xz) * 6.2832;
-			vec2 away = length(slope) > 0.02 ? -normalize(slope) : vec2(cos(h), sin(h));
+			// Where the patch is level (its middle) the clump falls its own way;
+			// toward the rim it turns outward, blended, so it never flips.
+			vec2 own = vec2(cos(h), sin(h));
+			float edge = smoothstep(0.02, 0.2, length(slope));
+			vec2 away = mix(own, -slope / max(length(slope), 1e-4), edge);
+			away = length(away) > 1e-3 ? normalize(away) : own;
+			// Each card of the clump falls a little to its own side.
+			float fan = (UV2.y - 0.5) * 1.1;
+			away = mat2(vec2(cos(fan), sin(fan)), vec2(-sin(fan), cos(fan))) * away;
+			// Coming up, the clump rocks back past upright and settles.
+			float angle = (pressed * 1.45 + rock) * (0.8 + 0.4 * UV2.y);
 			mat3 to_world = mat3(MODEL_MATRIX);
 			vec3 w = to_world * VERTEX;
 			float up = max(w.y, 0.0);
-			float angle = pressed * 1.25 * (0.85 + 0.3 * UV2.y);
-			w.y = up * cos(angle);
-			w.xz += away * up * sin(angle);
+			float a = angle * tip;
+			float k = abs(a) > 0.001 ? 1.0 / a : 0.0;
+			w.y = abs(a) > 0.001 ? up * sin(a) * k : up;
+			w.xz += away * (abs(a) > 0.001 ? up * (1.0 - cos(a)) * k : 0.0);
 			VERTEX = inverse(to_world) * w;
+			crushed = pressed;
 		}
 	}
 
@@ -149,11 +204,13 @@ void fragment() {
 		ALBEDO = mix(base, top, smoothstep(0.0, 0.7, tip)) * mix(vec3(1.0), mix(0.55 + 0.6 * t.rgb, 0.25 + 0.95 * t.rgb, near), smoothstep(0.0, 0.5, tip));
 		ALBEDO *= mix(1.0, mix(0.45, 1.0, smoothstep(0.0, 0.65, tip)), near);
 	}
+	// Crushed blades lie in each other's shade and lose their sheen.
+	ALBEDO *= mix(1.0, 0.78, crushed);
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ROUGHNESS = 0.85;
 	AO = mix(0.9, 1.0, tip);
 	AO_LIGHT_AFFECT = 0.3;
 	// Light through a blade comes out a deeper, yellower green.
-	BACKLIGHT = (painted ? ALBEDO : top * vec3(1.0, 0.95, 0.5)) * 0.25 * tip;
+	BACKLIGHT = (painted ? ALBEDO : top * vec3(1.0, 0.95, 0.5)) * 0.25 * tip * (1.0 - crushed * 0.7);
 }
