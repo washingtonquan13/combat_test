@@ -1,13 +1,17 @@
-[gd_resource type="Resource" script_class="MotionSet" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="MotionSet" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/motion_set.gd" id="1_motion_set"]
 [ext_resource type="Script" path="res://systems/ability_system/animation_sequence.gd" id="2_sequence"]
 [ext_resource type="Resource" path="res://data/animation_sequences/spider_attack.tres" id="3_attack"]
+[ext_resource type="Resource" path="res://data/animation_sequences/spider_jump.tres" id="4_jump"]
+[ext_resource type="Resource" path="res://data/animation_sequences/spider_jump_wall.tres" id="5_jump_wall"]
 
 [resource]
 script = ExtResource("1_motion_set")
 sequences = Dictionary[StringName, ExtResource("2_sequence")]({
-&"attack": ExtResource("3_attack")
+&"attack": ExtResource("3_attack"),
+&"jump": ExtResource("4_jump"),
+&"jump.wall": ExtResource("5_jump_wall")
 })
 clips = Dictionary[StringName, String]({
 &"knockdown": "Knockdown",

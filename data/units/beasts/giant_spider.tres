@@ -1,10 +1,11 @@
-[gd_resource type="Resource" script_class="UnitDefinition" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=13 format=3]
 
 [ext_resource type="Script" uid="uid://c56l4crul5ds" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
 [ext_resource type="PackedScene" uid="uid://dfjhg20p6pvxm" path="res://systems/unit_system/unit.tscn" id="2_scene"]
 [ext_resource type="Texture2D" path="res://assets/portraits/test_portrait.jpg" id="3_portrait"]
 [ext_resource type="Script" uid="uid://bpidhds13g0p8" path="res://systems/ability_system/ability.gd" id="4_ability"]
 [ext_resource type="Resource" uid="uid://ccpq7il7jxpx1" path="res://data/abilities/basic_attack_melee.tres" id="5_attack"]
+[ext_resource type="Resource" uid="uid://vk3dtgoqxf16" path="res://data/abilities/jump.tres" id="10_jump"]
 [ext_resource type="Script" path="res://systems/inventory_system/attack_row.gd" id="6_row"]
 [ext_resource type="Resource" path="res://data/attacks/fangs.tres" id="7_fangs"]
 [ext_resource type="PackedScene" path="res://scenes/character_models/spider_model.tscn" id="8_model"]
@@ -23,6 +24,6 @@ faction = &"enemy"
 portrait_texture = ExtResource("3_portrait")
 unit_scene = ExtResource("2_scene")
 model_scene = ExtResource("8_model")
-abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack")])
+abilities = Array[ExtResource("4_ability")]([ExtResource("5_attack"), ExtResource("10_jump")])
 natural_attacks = Array[ExtResource("6_row")]([ExtResource("7_fangs")])
 advantages = Dictionary[ExtResource("adv_script"), int]({ExtResource("adv_clinging"): 1})

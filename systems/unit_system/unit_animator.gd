@@ -871,7 +871,8 @@ func play_motion(motion: StringName) -> bool:
 func _sequence_for(motion: StringName) -> AnimationSequence:
 	if _motions == null or motion == &"":
 		return null
-	return _motions.sequence_for(StringName(motion + ".air") if _aloft else motion)
+	var place: String = ".air" if _aloft else ".wall" if unit.held_surface_normal() != Vector3.ZERO else ""
+	return _motions.sequence_for(StringName(motion + place))
 
 
 ## This body's clip for `motion`, or "" when it has none.

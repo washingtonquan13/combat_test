@@ -66,6 +66,28 @@ func run() -> void:
 	for i in 20:
 		await get_tree().physics_frame
 	check("switched on, it holds the wall", absf(spider.global_position.y - high.y) < 0.05, str(spider.global_position))
+
+	var jump: Ability = load("res://data/abilities/jump.tres")
+	var leap: GroundPointTargeting = jump.targeting
+	var clear_of_slab: Vector3 = Vector3(-5.2, high.y, high.z)
+	spider.global_position = clear_of_slab
+	for i in 3:
+		await get_tree().physics_frame
+	check("it can jump off the wall", leap.check(spider, Vector3(clear_of_slab.x, 0.0, high.z - 2.5)) == AbilityTargeting.Reach.OK,
+		str(leap.check(spider, Vector3(clear_of_slab.x, 0.0, high.z - 2.5))))
+	check("but not through it", leap.check(spider, Vector3(clear_of_slab.x, 0.0, high.z + 3.0)) == AbilityTargeting.Reach.PATH_BLOCKED,
+		str(leap.check(spider, Vector3(clear_of_slab.x, 0.0, high.z + 3.0))))
+	check("a jump picks the push-off off a wall", spider.animator()._sequence_for(&"jump") == spider.animator()._motions.sequence_for(&"jump.wall"))
+	var hanging: Vector3 = to_ceiling[to_ceiling.size() - 1]
+	spider.global_position = hanging
+	for i in 3:
+		await get_tree().physics_frame
+	var below: Vector3 = Vector3(hanging.x + 1.5, 0.0, hanging.z)
+	check("off a ceiling it can jump down", leap.check(spider, below) == AbilityTargeting.Reach.OK, str(leap.check(spider, below)))
+	check("and the curve doesn't rise first", leap.chosen_arc(spider, below) == 0.0)
+	spider.global_position = high
+	for i in 3:
+		await get_tree().physics_frame
 	spider.set_toggled(cling, false)
 	for i in 90:
 		await get_tree().physics_frame

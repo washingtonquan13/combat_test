@@ -34,13 +34,12 @@ static func strength_distance(st: float, rule: StrengthRule = StrengthRule.ROUND
 ## above the HIGHER end. On the flat that is height above the line at t
 ## 0.5; off a ledge it rises before it drops, so it clears the edge it
 ## leaves (over the straight line it would dip into it), and up onto one
-## it clears the edge it lands on.
+## it clears the edge it lands on. Height 0 going down is a plain fall: it
+## starts with no upward speed and gains it, which is a drop off a ceiling.
 static func point(from: Vector3, to: Vector3, height: float, t: float) -> Vector3:
 	var p: Vector3 = from.lerp(to, t)
 	var rise: float = maxf(from.y, to.y) + maxf(height, 0.0) - from.y
 	var drop: float = to.y - from.y
-	if rise <= 0.0:
-		return p
 	var b: float = 2.0 * rise + 2.0 * sqrt(maxf(rise * (rise - drop), 0.0))
 	p.y = from.y + b * t + (drop - b) * t * t
 	return p
@@ -110,11 +109,20 @@ const PATH_MASK: int = 1 | (1 << 18)
 ## is in the way: 1.0 when the whole curve is clear, else the t (0..1)
 ## where it hits. Units don't count: a jump goes over them, and a shove's
 ## landing is already kept off them.
+##
+## The lift keeps the body clear of what it stands on, so leaving a wall or
+## a ceiling it starts out along that surface's normal and comes round to
+## up by the landing. A curve that goes into the wall still hits it.
 static func clear_fraction(unit: Unit, from: Vector3, to: Vector3, height: float) -> float:
 	var space: PhysicsDirectSpaceState3D = unit.get_world_3d().direct_space_state
 	var sphere := SphereShape3D.new()
 	sphere.radius = unit.radius
 	var lift := Vector3(0, unit.radius + PATH_LIFT, 0)
+	var first_lift: Vector3 = lift
+	if from.is_equal_approx(unit.global_position):
+		var held: Vector3 = unit.held_surface_normal()
+		if held != Vector3.ZERO:
+			first_lift = held * lift.y
 	var exclude: Array[RID] = []
 	for other in unit.get_tree().get_nodes_in_group("units"):
 		if other is CollisionObject3D:
@@ -126,8 +134,8 @@ static func clear_fraction(unit: Unit, from: Vector3, to: Vector3, height: float
 	for i in PATH_SAMPLES:
 		var t0: float = float(i) / PATH_SAMPLES
 		var t1: float = float(i + 1) / PATH_SAMPLES
-		var a: Vector3 = point(from, to, height, t0) + lift
-		var b: Vector3 = point(from, to, height, t1) + lift
+		var a: Vector3 = point(from, to, height, t0) + first_lift.lerp(lift, t0)
+		var b: Vector3 = point(from, to, height, t1) + first_lift.lerp(lift, t1)
 		query.transform = Transform3D(Basis(), a)
 		query.motion = b - a
 		# A clear sweep is [1.0, 1.0], not empty.

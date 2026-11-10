@@ -164,8 +164,11 @@ func arc_height_for(attacker: Unit, point: Vector3) -> float:
 ## with Ctrl if they did, else the usual curve, else the lowest one up to
 ## the limit that clears what's in the way. Nothing clears: the usual
 ## curve, which check() then refuses. A height the player set is kept even
-## when blocked, so it shows red instead of quietly changing.
+## when blocked, so it shows red instead of quietly changing. Leaving a
+## ceiling there is nothing to rise into: the curve is a plain drop.
 func chosen_arc(attacker: Unit, point: Vector3) -> float:
+	if attacker.held_surface_normal().y < 0.0:
+		return 0.0
 	if _player_set_arc(attacker):
 		return clamp_arc(attacker, point, AbilityManager.arc_height_override)
 	var from: Vector3 = attacker.global_position

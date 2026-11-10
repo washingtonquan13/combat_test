@@ -1574,6 +1574,15 @@ func can_crawl() -> bool:
 	return _status_manager.grants_crawl() and is_alive() and not is_downed()
 
 
+## The way out of the wall or ceiling this unit is hanging on, ZERO when it
+## is on the floor or in the air.
+func held_surface_normal() -> Vector3:
+	if not can_crawl():
+		return Vector3.ZERO
+	var normal: Vector3 = NavigationGrid.crawl_normal(get_tree(), global_position, self)
+	return normal if normal.y < UnitMovement.CLING_BELOW else Vector3.ZERO
+
+
 func set_flight_altitude(altitude: float) -> void:
 	_movement.set_flight_altitude(altitude)
 
