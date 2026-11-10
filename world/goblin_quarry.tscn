@@ -238,7 +238,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 6.0684, 1.4)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.0, 1.87, 30.0)
 script = ExtResource("q_walkin")
 roof = NodePath("Roof")
-rooms = Array[AABB]([AABB(-3.15, -1.75, 0.15, 2.1, 4.03105, 2.5), AABB(-3.15, -1.75, -2.65, 6.3, 4.32474, 2.8)])
+rooms = Array[AABB]([AABB(-3.15, -1.75, 0.15, 2.1, 4.03105, 2.5), AABB(-3.15, -1.75, -2.65, 6.3, 4.32474, 2.8), AABB(-1.05, -1.75, 0.215739, 1.1, 2.75, 2.41426)])
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseWest"]
 mesh = ExtResource("p_house_west")

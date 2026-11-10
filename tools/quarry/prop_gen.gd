@@ -718,10 +718,11 @@ func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: f
 				if interior:
 					_wall_inside(key, fname, at, n, t, span, u0, u1, ys[k], ys[k + 1], skip)
 	if interior:
-		# The wall's top, mitred at corners it shares.
+		# The wall's top, mitred at corners it shares: a dark timber plate, so
+		# with the roof hidden the cut reads as the wall's edge, not a slab.
 		var ends := _inner_ends(fname, span, skip)
 		var ai: Vector3 = at - n * WALL
-		face(key, [at + t * -span + Vector3.UP * y1, at + t * span + Vector3.UP * y1,
+		face("beam", [at + t * -span + Vector3.UP * y1, at + t * span + Vector3.UP * y1,
 				ai + t * ends.y + Vector3.UP * y1, ai + t * ends.x + Vector3.UP * y1], Vector3.UP, t)
 	_ao = 0.6
 	for hh: Array in holes:
@@ -914,8 +915,15 @@ func _porch(x0: float, x1: float, z0: float, z1: float, y_floor: float, y_hi: fl
 	var dep := z1 - z0
 	var bs := Basis(Vector3.RIGHT, p)
 	var c := Vector3(xm, y_hi - dep * 0.5 * tan(p) + 0.02, z0 + dep * 0.5)
+	# The pent roof hides with the house's, and standing on the deck counts
+	# as inside, so the door it shades stays in view during a fight there.
+	_to_roof = interior
 	box("planks", Transform3D(bs, c), Vector3(wd + 0.2, 0.04, dep / cos(p)), 0)
 	box("roof", Transform3D(bs, c + bs.y * 0.035), Vector3(wd + 0.24, 0.03, dep / cos(p) + 0.04), 0)
+	_to_roof = false
+	if interior:
+		rooms.append(AABB(_root * Vector3(x0, y_floor - 0.3, z0), Vector3.ZERO)
+				.expand(_root * Vector3(x1, y_hi, deck_z1)))
 
 
 ## Where an opening sits: a point on the wall surface and the wall's outward axes.
