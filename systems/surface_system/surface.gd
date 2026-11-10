@@ -34,6 +34,11 @@ enum Element { NONE, FIRE, COLD, WATER, LIGHTNING, SHADOW }
 ## its own. -1 means permanent — it never ages out via round tick and has
 ## to be cleared some other way (a future dispel effect, say).
 @export var duration_rounds: int = 3
+## Painted into the level, not cast: a river or pond. Nothing landing
+## or touching it changes it (lightning, frost, fire, grease all pass it
+## by), it never ages, and clearing the ground leaves it. Laid at load by
+## SurfaceManager.lay_fixed. Give it duration_rounds -1.
+@export var fixed: bool = false
 
 enum Shape {
 	DISC,   ## spilled over the ground's SurfaceGrid cells within the radius, merging with its own kind (Grease)

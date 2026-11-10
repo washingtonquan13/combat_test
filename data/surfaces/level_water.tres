@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="Surface" load_steps=2 format=3]
+
+[ext_resource type="Script" uid="uid://cykbj1s0c82e5" path="res://systems/surface_system/surface.gd" id="1_surface"]
+
+[resource]
+script = ExtResource("1_surface")
+surface_name = "Deep Water"
+duration_rounds = -1
+fixed = true
+element = 3
+movement_cost_multiplier = 2.0

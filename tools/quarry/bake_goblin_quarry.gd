@@ -35,11 +35,21 @@ const ROAD := [Vector2(2, 22), Vector2(8, 0), Vector2(13, -20), RAMP_A]
 const FLOOR_PATH := [RAMP_B, Vector2(5, -48.5), Vector2(0, -46.5), Vector2(-7, -48), Vector2(-12.5, -50)]
 const LADDER_BASE := Vector2(-13.4, -50.0)
 const LADDER_TOP := Vector2(-14.8, -50.0)
-# A stream from a spring at the foot of the west hills down to a pond in the
-# field. Shallow throughout: units wade it.
-const STREAM := [Vector2(-31, 9), Vector2(-27.5, 4.5), Vector2(-25, -0.5), Vector2(-21, -4), Vector2(-17.5, -6.5)]
-const POND := Vector2(-13.5, -9.5)
-const POND_R := Vector2(7.0, 4.8)
+# A stream from a spring in the west hills, down a gully that splits the
+# field from the quarry rim, into a pond at its east end. The gully is cut
+# about 3 m into the ground with steep walls; the road fords it, and a log
+# bridges it further west. Shallow throughout: units wade it.
+const STREAM := [Vector2(-40, -17), Vector2(-28, -22), Vector2(-14, -25.5), Vector2(0, -26), Vector2(10, -24.5), Vector2(17.5, -23.4)]
+const POND := Vector2(22.0, -23.0)
+const POND_R := Vector2(5.5, 4.0)
+const GULLY_HW := 2.6
+const FORD := Vector2(13.7, -24.0)
+const LOG_A := Vector2(-11.4, -20.8)
+const LOG_B := Vector2(-10.6, -30.6)
+# Archer perches on the rim over the camp: [centre, the way its gentle side faces].
+const KNOLLS := [[Vector2(-4.0, -31.0), Vector2(-1, 0)], [Vector2(6.0, -30.0), Vector2(1, 0)]]
+const SHELF := Vector2(-6.0, -36.5)
+const SPIRE := Vector2(-24.0, -62.0)
 const F := "res://assets/level/forest/"
 
 # Places clutter must leave alone: [centre, radius]. Houses, props, units,
@@ -54,7 +64,7 @@ const KEEP_OUT := [
 	[Vector2(4, 34), 2.5], [LADDER_BASE, 2.5], [LADDER_TOP, 2.5],
 	[Vector2(-10.4, -48), 1.2], [Vector2(-10.4, -46.5), 1.2], [Vector2(-5.4, -50), 1.2],
 	[Vector2(4, 30), 1.5], [Vector2(0, -44), 1.5], [Vector2(6, -40), 1.5], [Vector2(12, -30), 1.5],
-	[Vector2(1.8, -24.7), 1.5],
+	[LOG_A, 2.0], [LOG_B, 2.0], [(LOG_A + LOG_B) * 0.5, 2.5],
 ]
 
 var _rng := RandomNumberGenerator.new()
@@ -101,6 +111,8 @@ func _initialize() -> void:
 	_small.frequency = 0.35
 	_patch.seed = 21
 	_patch.frequency = 0.11
+	for i in STREAM.size() - 1:
+		_stream_len += (STREAM[i] as Vector2).distance_to(STREAM[i + 1])
 	_hA = _h_base(RAMP_A.x, RAMP_A.y)
 	_hB = _h_base(RAMP_B.x, RAMP_B.y)
 
@@ -109,7 +121,10 @@ func _initialize() -> void:
 	_bake_heights()
 	print("heights %d x %d in %d ms" % [_nx, _nz, Time.get_ticks_msec() - t0])
 	for spot: Array in [["ramp top", RAMP_A], ["ramp foot", RAMP_B], ["camp", CAMP], ["ledge", Vector2(0, -57.5)],
-			["ladder base", LADDER_BASE], ["ladder top", LADDER_TOP], ["town", Vector2(4, 30)], ["exit", Vector2(0, 43)]]:
+			["ladder base", LADDER_BASE], ["ladder top", LADDER_TOP], ["town", Vector2(4, 30)], ["exit", Vector2(0, 43)],
+			["field", Vector2(-4.5, -14)], ["ford", FORD], ["log field end", LOG_A], ["log rim end", LOG_B],
+			["knoll west", KNOLLS[0][0]], ["knoll east", KNOLLS[1][0]], ["shelf", SHELF], ["spire", SPIRE],
+			["spire foot", SPIRE + Vector2(7, 4)], ["pond", POND]]:
 		var p: Vector2 = spot[1]
 		print("  %s (%.1f, %.1f): y %.2f  pit d %.2f  n.y %.2f" % [spot[0], p.x, p.y, _gy(p.x, p.y), _pit_d(p.x, p.y), _n_at(p.x, p.y).y])
 
@@ -121,6 +136,7 @@ func _initialize() -> void:
 	_build_ground(root)
 	_build_ground_body(root)
 	_build_water(root)
+	_build_log_bridge(root)
 	var clutter := Node3D.new()
 	clutter.name = "Clutter"
 	root.add_child(clutter)
@@ -252,10 +268,64 @@ func _h_base(x: float, z: float) -> float:
 	var rim := (_big.get_noise_2d(x + 40.0, z) * (0.25 + 0.4 * smoothstep(4.0, 20.0, d)) + small * 0.06) * (1.0 - _road(x, z) * 0.7)
 	var town := _smooth(2.0, -2.0, _rect_sdf(x, z, 0.0, 30.0, 22.0, 18.0))
 	rim = lerpf(rim, clampf(rim, -0.05, 0.05), town)
-	rim += _berm(x, z)
+	rim += _tier(x, z) + _knolls(x, z) + _berm(x, z)
 	var w_in := lerpf(1.3, 2.6, 0.5 + 0.5 * _patch.get_noise_2d(x * 0.5, z * 0.5))
 	var s := lerpf(smoothstep(-w_in, 0.4, d), smoothstep(-0.3, 0.3, d), win)
-	return lerpf(floor_y + talus, rim, s) + _small.get_noise_2d(x * 2.1, z * 2.1) * 0.25 * 4.0 * s * (1.0 - s) * (1.0 - win)
+	var h := lerpf(floor_y + talus, rim, s) + _small.get_noise_2d(x * 2.1, z * 2.1) * 0.25 * 4.0 * s * (1.0 - s) * (1.0 - win)
+	return minf(h, _gully(x, z))
+
+
+func _gully_z(x: float) -> float:
+	# Where the gully runs at this x, held flat past its ends.
+	if x <= STREAM[0].x:
+		return STREAM[0].y
+	for i in STREAM.size() - 1:
+		var a: Vector2 = STREAM[i]
+		var b: Vector2 = STREAM[i + 1]
+		if x <= b.x:
+			return lerpf(a.y, b.y, (x - a.x) / (b.x - a.x))
+	return POND.y
+
+
+func _tier(x: float, z: float) -> float:
+	# The ground's steps: the town on a plateau at 0, a bluff down to the field
+	# at -2.5, and past the gully the quarry rim, -1.5 on its north side and
+	# climbing to the south and west. The bluff eases where the road and a
+	# goat path go down it.
+	var rim_lv := -1.5 + 3.0 * _smooth(-30.0, -68.0, z) + 0.6 * _smooth(-10.0, -36.0, x)
+	var t := smoothstep(_gully_z(x) - 3.0, _gully_z(x) + 3.0, z)
+	var y := lerpf(rim_lv, -2.5, t)
+	var bz := 10.0 + _warp.get_noise_2d(x * 0.4, 61.0) * 2.5
+	var gentle := maxf(_smooth(5.0, 2.5, _line_dist(Vector2(x, z), ROAD)), _smooth(5.0, 2.5, absf(x + 22.0)))
+	var bw := lerpf(0.6, 4.5, gentle)
+	return lerpf(y, 0.0, smoothstep(bz - bw, bz + bw, z))
+
+
+func _knolls(x: float, z: float) -> float:
+	# Rock knolls on the rim, 2.5 m up, steep but for one side to walk up.
+	var best := 0.0
+	for k: Array in KNOLLS:
+		var p := Vector2(x, z) - (k[0] as Vector2)
+		var l := p.length()
+		var facing := maxf(0.0, (p / maxf(l, 0.001)).dot(k[1]))
+		var r_in := 1.8 + _warp.get_noise_2d(x * 1.5, z * 1.5) * 0.3
+		var r_out := lerpf(2.7, 7.0, facing * facing)
+		best = maxf(best, 2.5 * _smooth(r_out, r_in, l))
+	return best
+
+
+func _gully(x: float, z: float) -> float:
+	# The gully the stream runs down: a floor about 3 m under the ground, walls
+	# too steep to climb, and a gentle cut where the road fords it. It opens
+	# round the pond at its east end and rises to a spring at its head.
+	var p := Vector2(x, z)
+	var s := _line_param(p, STREAM)
+	var gd := minf(s.x - GULLY_HW, _ellipse_sdf(p - POND, POND_R) - 1.6)
+	gd += _warp.get_noise_2d(x * 1.2 + 5.0, z * 1.2) * 0.5
+	var floor_y := lerpf(-5.2, -5.5, clampf(s.y / _stream_len, 0.0, 1.0)) + 2.4 * _smooth(8.0, 0.0, s.y)
+	var ford := _smooth(4.5, 2.2, _line_dist(p, ROAD)) * _smooth(20.0, 15.0, p.distance_to(FORD))
+	var k := lerpf(lerpf(2.0, 2.8, 0.5 + 0.5 * _patch.get_noise_2d(x * 0.7, z * 0.7)), 0.36, ford)
+	return floor_y + maxf(0.0, gd) * k + _small.get_noise_2d(x * 2.0, z * 2.0) * 0.08
 
 
 func _h(x: float, z: float) -> float:
@@ -263,10 +333,11 @@ func _h(x: float, z: float) -> float:
 	var h := _h_dry(x, z)
 	var s := _line_param(Vector2(x, z), STREAM)
 	var sd := s.x - _stream_hw(s.y)
-	if sd < 5.0:
+	# Only on the gully floor: past it the bank slope would carve the walls.
+	if sd < 1.5:
 		h = minf(h, _bed(_stream_level(s.y), sd, 0.3 * smoothstep(0.0, 3.0, s.y), 0.9, x, z))
 	var pd := _pond_d(x, z)
-	if pd < 5.0:
+	if pd < 1.5:
 		h = minf(h, _bed(_pond_lv, pd, 0.55, 3.0, x, z))
 	return h
 
@@ -381,6 +452,17 @@ func _h_dry(x: float, z: float) -> float:
 	# The shaman's ledge against the south wall.
 	var ld := _ellipse_sdf(Vector2(x, z + 58.5), Vector2(5.5, 3.0)) + _warp.get_noise_2d(x + 9.0, z) * 0.4
 	h = maxf(h, lerpf(-6.5, -3.0 + _small.get_noise_2d(x, z) * 0.05, _smooth(0.5, -0.5, ld)))
+	# A shelf halfway down the north wall: drop to it from the rim, then to the floor.
+	var sd := _ellipse_sdf(Vector2(x, z) - SHELF, Vector2(4.0, 2.2)) + _warp.get_noise_2d(x - 13.0, z) * 0.4
+	h = maxf(h, lerpf(-6.5, -3.5 + _small.get_noise_2d(x, z) * 0.05, _smooth(0.4, -0.4, sd)))
+	# The landmark: a rock spire at the quarry's south-west corner, seen from town.
+	var q := Vector2(x, z) - SPIRE
+	var th := atan2(q.y, q.x)
+	var lump := sin(3.0 * th + 1.0) * 0.6 + sin(7.0 * th + 0.3) * 0.25 + _warp.get_noise_2d(x * 1.4, z * 1.4) * 0.4
+	var r0 := 4.6 + lump
+	var r1 := 1.7 + lump * 0.5
+	var up := clampf((r0 - q.length()) / (r0 - r1), 0.0, 1.0)
+	h = lerpf(h, maxf(h, 14.0 + _small.get_noise_2d(x * 2.0, z * 2.0) * 0.4), up)
 	return h
 
 
@@ -622,6 +704,66 @@ func _build_water(root: Node3D) -> void:
 	root.add_child(mi)
 	print("water: %d cells" % cells)
 
+	# The same water as a fixed surface, one entry per SurfaceGrid cell it
+	# covers, so units wade it and spells leave it be.
+	var layer: Node3D = load("res://systems/surface_system/fixed_surface_layer.gd").new()
+	layer.name = "WaterSurface"
+	layer.set("surface", load("res://data/surfaces/level_water.tres"))
+	var sc := 0.25  # SurfaceGrid.CELL; the bake can't load the surface system's autoload chain
+	var laid := PackedVector3Array()
+	for kz in range(floori(lo.y / sc), ceili(hi.y / sc) + 1):
+		for kx in range(floori(lo.x / sc), ceili(hi.x / sc) + 1):
+			var cx := (kx + 0.5) * sc
+			var cz := (kz + 0.5) * sc
+			var wa := _water_at(cx, cz)
+			var gy := _gy(cx, cz)
+			if wa.y < 2.5 and wa.x > gy + 0.03:
+				laid.append(Vector3(kx, gy, kz))
+	layer.set("cells", laid)
+	root.add_child(layer)
+	print("water surface: %d cells" % laid.size())
+
+
+func _build_log_bridge(root: Node3D) -> void:
+	# Two felled trunks across the gully, field to rim, with one box the
+	# nav grid walks over. The ends sink into the ground.
+	var a := Vector3(LOG_A.x, _gy(LOG_A.x, LOG_A.y) - 0.12, LOG_A.y)
+	var b := Vector3(LOG_B.x, _gy(LOG_B.x, LOG_B.y) - 0.12, LOG_B.y)
+	var along := (b - a).normalized()
+	var side := Vector3.UP.cross(along).normalized()
+	var basis := Basis(side, along.cross(side), along)
+	var length := a.distance_to(b) + 1.6
+	var body := StaticBody3D.new()
+	body.name = "LogBridge"
+	body.transform = Transform3D(basis, (a + b) * 0.5)
+	var col := CollisionShape3D.new()
+	col.name = "Collision"
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.3, 0.62, length)
+	col.shape = box
+	body.add_child(col)
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = load(F + "models/fir_tree_01_fir_tree_01_bark_diff_2k.jpg")
+	mat.normal_enabled = true
+	mat.normal_texture = load(F + "models/fir_tree_01_fir_tree_01_bark_nor_gl_2k.jpg")
+	mat.uv1_scale = Vector3(2.0, length / 2.0, 1.0)
+	for i in 2:
+		var cyl := CylinderMesh.new()
+		cyl.top_radius = 0.3 - i * 0.03
+		cyl.bottom_radius = 0.34 - i * 0.03
+		cyl.height = length + 0.4 - i * 0.9
+		cyl.radial_segments = 14
+		cyl.rings = 1
+		cyl.material = mat
+		var mi := MeshInstance3D.new()
+		mi.name = "Trunk%d" % i
+		mi.mesh = cyl
+		# A cylinder stands on its own y: lay it along the box's length.
+		mi.transform = Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3((i - 0.5) * 0.66, -0.02 + i * 0.03, i * 0.3))
+		body.add_child(mi)
+	root.add_child(body)
+	print("log bridge: %.1f m, %.2f to %.2f" % [length, a.y, b.y])
+
 
 # ---------------------------------------------------------------- checks
 
@@ -693,7 +835,7 @@ func _flood_checks() -> bool:
 	var leaks := 0
 	var first := Vector2.ZERO
 	for i in sealed.size():
-		if sealed[i] != 0 and _hgrid[i] > -1.0:
+		if sealed[i] != 0 and _pit_d(X0 + (i % _nx) * CELL, Z0 + (i / _nx) * CELL) > 1.0:
 			if leaks == 0:
 				first = Vector2(X0 + (i % _nx) * CELL, Z0 + (i / _nx) * CELL)
 			leaks += 1

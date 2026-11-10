@@ -683,6 +683,10 @@ func _spill_cells(space: PhysicsDirectSpaceState3D, position: Vector3, radius: f
 ## nothing of surface landed (fire poured wholly on water).
 func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent: Node, position: Vector3, radius: float, extra_rounds: int = 0, front_seconds: float = 0.0) -> SurfacePatch:
 	var grid: SurfaceGrid = _grid_for(context)
+	for key: Vector2i in reached.keys():
+		var held: SurfaceCell = grid.cell_at(key, reached[key])
+		if held and held.surface.fixed and held.surface != surface:
+			reached.erase(key)  # level water: nothing lands on it
 	var cast: int = reached.size()
 	_land_turned(_react(surface.element, surface, reached, grid), context, parent, position, radius, front_seconds)
 	if reached.is_empty():
@@ -769,6 +773,17 @@ func _land(surface: Surface, reached: Dictionary, context: WorldContext, parent:
 	return patch
 
 
+## Lays a level's fixed surface (Surface.fixed: its rivers and ponds)
+## over cells (SurfaceGrid key -> floor y) in the world owning node. One
+## patch, no visual: the level draws its own water. Called by
+## FixedSurfaceLayer once the world's context exists.
+func lay_fixed(surface: Surface, cells: Dictionary, node: Node) -> SurfacePatch:
+	var context: WorldContext = WorldManager.context_for(node)
+	if context == null or cells.is_empty():
+		return null
+	return _land(surface, cells.duplicate(), context, node, Vector3.ZERO, 0.0)
+
+
 ## Lands what a reaction turned the ground into (_react's result: Surface
 ## -> its reached): a ground surface onto those cells (_land), a cloud
 ## rising off them (_rise). position, radius and front_seconds as for
@@ -842,6 +857,9 @@ func _react(element: Surface.Element, landing: Surface, reached: Dictionary, gri
 	for key: Vector2i in reached.keys():
 		var cell: SurfaceCell = grid.cell_at(key, reached[key])
 		if cell == null or (landing and cell.surface == landing):
+			continue
+		if cell.surface.fixed:
+			reached.erase(key)
 			continue
 		var reaction: SurfaceReaction = cell.surface.reaction_to(element)
 		if reaction == null:
@@ -1384,10 +1402,13 @@ func expire_cells(grid: SurfaceGrid, patch: SurfacePatch, cells: Array[SurfaceCe
 		patch.visual.queue_free()
 
 
-## Runs every ground patch in context out at once.
+## Runs every ground patch in context out at once, bar the level's own
+## fixed water.
 func expire_all_ground(context: WorldContext) -> void:
 	var grid: SurfaceGrid = _grid_for(context)
 	for patch in grid.patches.duplicate():
+		if patch.surface.fixed:
+			continue
 		expire_cells(grid, patch, patch.cells.duplicate())
 
 
