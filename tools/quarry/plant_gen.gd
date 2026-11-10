@@ -564,6 +564,149 @@ func _broad_card(leaf: Surf, p: Vector3, tan: Vector3, tint: float) -> void:
 
 # ---------------------------------------------------------------- output
 
+# ---------------------------------------------------------------- vine
+
+# Cells of the ivy atlas (tools/quarry/vine_atlas.py): young runs, then the
+# darker old growth in the bottom row.
+const VINE_YOUNG := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+const VINE_OLD := [12, 13, 14, 15]
+const VINE_STEP := 0.12
+
+
+func vine(leaf: Surf, seed: int, start: Vector3, pref: Vector3, length: float, surface: Callable, detail := 1.0) -> int:
+	# Ivy that creeps over whatever `surface` describes. surface(p) returns
+	# [point, normal] on the surface nearest p, or [] where there is none.
+	# Unlike the other plants a vine is grown in place, so its cards are
+	# appended to `leaf` in world space. `pref` is where it wants to go: up
+	# for ivy climbing from a wall's foot, down for a curtain hanging off a
+	# rim. Returns how many cards it laid.
+	rng.seed = seed
+	_h = 1.0
+	_phase = rng.randf()
+	var hit: Array = surface.call(start)
+	if hit.is_empty():
+		return 0
+	var tint := rng.randf()
+	return _strand(leaf, hit[0], hit[1], pref, pref, length, surface, 0, tint, detail)
+
+
+func _strand(leaf: Surf, p: Vector3, n: Vector3, dir: Vector3, pref: Vector3, length: float, surface: Callable, depth: int, tint: float, detail: float) -> int:
+	# One stem, walked over the surface a step at a time: it keeps on, leans
+	# toward `pref`, wanders, and is pulled back onto the surface after every
+	# step. It stops where the surface ends, jumps, or flattens out for long
+	# (ivy that tops a wall creeps only a little way onto the ground).
+	var pts: Array[Vector3] = [p]
+	var nrm: Array[Vector3] = [n]
+	var d := (dir - n * dir.dot(n)).normalized()
+	var flat := 0.0
+	var walked := 0.0
+	var forks: Array = []
+	var flat_max := rng.randf_range(0.3, 0.9)
+	while walked < length:
+		var wander := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1))
+		d = d + pref * 0.22 + wander * 0.45
+		d = (d - n * d.dot(n))
+		if d.length() < 0.01:
+			break
+		d = d.normalized()
+		var hit: Array = surface.call(p + d * VINE_STEP)
+		if hit.is_empty():
+			break
+		var q: Vector3 = hit[0]
+		if q.distance_to(p) > VINE_STEP * 2.5 or q.distance_to(p) < VINE_STEP * 0.2:
+			break
+		flat = flat + VINE_STEP if (hit[1] as Vector3).y > 0.85 else 0.0
+		if flat > flat_max:
+			break
+		d = (q - p).normalized()
+		p = q
+		n = hit[1]
+		pts.append(p)
+		nrm.append(n)
+		walked += VINE_STEP
+		if depth < 2 and walked > 0.3 and rng.randf() < 0.08 * detail:
+			forks.append([pts.size() - 1, (length - walked) * rng.randf_range(0.4, 0.8)])
+	if pts.size() < 3:
+		return 0
+	var cards := _strand_cards(leaf, pts, nrm, depth, tint, detail)
+	for f: Array in forks:
+		var i: int = f[0]
+		var side := 1.0 if rng.randf() < 0.5 else -1.0
+		var along := (pts[mini(i + 1, pts.size() - 1)] - pts[maxi(i - 1, 0)]).normalized()
+		var fd := along.rotated(nrm[i], side * rng.randf_range(0.7, 1.3))
+		cards += _strand(leaf, pts[i], nrm[i], fd, pref, f[1], surface, depth + 1, tint, detail)
+	return cards
+
+
+func _strand_cards(leaf: Surf, pts: Array[Vector3], nrm: Array[Vector3], depth: int, tint: float, detail: float) -> int:
+	# Cards end to end along the stem, each a straight chord of it, so the
+	# stem drawn in one card runs on into the next. Old growth near the root.
+	var l := rng.randf_range(0.42, 0.55) / sqrt(detail)
+	var total := (pts.size() - 1) * VINE_STEP
+	var s := 0.0
+	var count := 0
+	while s < total - l * 0.3:
+		var a := _path_at(pts, s / VINE_STEP)
+		var b := _path_at(pts, minf(s + l, total) / VINE_STEP)
+		var i := clampi(int(round(s / VINE_STEP)), 0, nrm.size() - 1)
+		var along := b - a
+		if along.length() < l * 0.3:
+			break
+		along = along.normalized()
+		var n := nrm[i]
+		var side := n.cross(along).normalized()
+		n = along.cross(side).normalized()
+		var old := depth == 0 and s < 0.8 and rng.randf() < 0.7
+		var cell: int = (VINE_OLD if old else VINE_YOUNG)[rng.randi() % (4 if old else 12)]
+		_vine_card(leaf, a, along, side, n, l, cell, tint, s, rng.randf() < 0.5)
+		count += 1
+		# Side shoots fill the run out into a mat, thickest low down where
+		# the ivy is oldest.
+		var fill := (0.75 if s < 1.5 else 0.4) * detail
+		while rng.randf() < fill:
+			fill -= 0.6
+			var off := side * l * rng.randf_range(-0.45, 0.45)
+			var tw := along.rotated(n, rng.randf_range(-0.9, 0.9))
+			_vine_card(leaf, a + off, tw, n.cross(tw).normalized(), n, l * 0.9, VINE_YOUNG[rng.randi() % 12], tint, s, rng.randf() < 0.5)
+			count += 1
+		s += l * rng.randf_range(0.7, 0.85)
+	return count
+
+
+func _path_at(pts: Array[Vector3], f: float) -> Vector3:
+	var i := clampi(int(floor(f)), 0, pts.size() - 2)
+	return pts[i].lerp(pts[i + 1], clampf(f - i, 0.0, 1.0))
+
+
+func _vine_card(leaf: Surf, base: Vector3, along: Vector3, side: Vector3, n: Vector3, l: float, cell: int, tint: float, reach: float, flip: bool) -> void:
+	# A card lying on the surface: the stem line close to it, the leaf edges
+	# standing off a little, as ivy leaves stand on their stalks. Normals are
+	# the surface's with a lift toward the sky, so a wall of ivy lights as
+	# one layer.
+	var c0 := Vector2(cell % 4, cell / 4) * 0.25 + Vector2(0.004, 0.004)
+	var c1 := c0 + Vector2(0.242, 0.242)
+	if flip:
+		var t := c0.x
+		c0.x = c1.x
+		c1.x = t
+	var lift := n * 0.035
+	var light := (n * 0.75 + Vector3.UP * 0.35).normalized()
+	var first := leaf.v.size()
+	for r in 3:
+		var p := base + along * l * (r / 2.0 - 0.05) + lift
+		var v := lerpf(c1.y, c0.y, r / 2.0)
+		for k in 3:
+			var x := k - 1.0
+			var q := p + side * x * l * 0.6 + n * absf(x) * l * 0.1
+			leaf.vert(q, light, Vector2(lerpf(c0.x, c1.x, k / 2.0), v), Vector2(0.15 + minf(reach, 3.0) * 0.1, _phase),
+				Color(rng.randf_range(0.8, 1.0), tint, 0.0, 0.0))
+	for r in 2:
+		for k in 2:
+			var a := first + r * 3 + k
+			leaf.tri(a, a + 3, a + 1)
+			leaf.tri(a + 1, a + 3, a + 4)
+
+
 func mesh(parts: Array, bark_mat: Material, leaf_mat: Material) -> ArrayMesh:
 	var m := ArrayMesh.new()
 	# A plant with no wood (a fern) has an empty bark surface; skip it.

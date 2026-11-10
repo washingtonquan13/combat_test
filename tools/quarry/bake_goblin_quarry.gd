@@ -145,6 +145,7 @@ func _initialize() -> void:
 	root.add_child(_obstacles)
 	_dress()
 	_dress_trees()
+	_vines(root)
 	_build_campfire(root)
 	_flush_batches(clutter)
 	_build_grass(root)
@@ -1368,6 +1369,129 @@ func _build_grass(root: Node3D) -> void:
 			cz += chunk
 		cx += chunk
 	print("grass: %d clumps" % total)
+
+
+# ---------------------------------------------------------------- vines
+
+const VINE_END := 120.0
+
+
+func _surface_at(q: Vector3) -> Array:
+	# The ground point nearest q, found by stepping along the normal; on a
+	# cliff that is the point on the face, not the one straight below.
+	# [] off the map or in the water.
+	var p := q
+	var n := Vector3.UP
+	for i in 5:
+		if p.x < X0 + 1.0 or p.x > X1 - 1.0 or p.z < Z0 + 1.0 or p.z > Z1 - 1.0:
+			return []
+		n = _n_at(p.x, p.z)
+		p -= n * (p.y - _gy(p.x, p.z)) * n.y
+	p.y = _gy(p.x, p.z)
+	if _water_at(p.x, p.z).y < 0.3:
+		return []
+	return [p, _n_at(p.x, p.z)]
+
+
+func _vines(root: Node3D) -> void:
+	# Ivy on the faces: the pit, the gully, the spire and the ledges. Walls
+	# are found by their slope, patches by the clutter noise, and each patch
+	# grows a few strands up from the wall's foot and, sometimes, a curtain
+	# down from its rim. Grown in place, so one mesh per 24 m tile.
+	var vrng := RandomNumberGenerator.new()
+	vrng.seed = 77
+	if _gen == null:
+		_gen = load("res://tools/quarry/plant_gen.gd").new()
+	var atlas: Texture2D = _gen.coverage_texture("res://assets/level/quarry/foliage/vine_runs.png")
+	ResourceSaver.save(atlas, OUT + "meshes/vine_runs.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+	atlas.take_over_path(OUT + "meshes/vine_runs.res")
+	var mat: Material = _gen.leaf_material(atlas)
+	var surface := Callable(self, "_surface_at")
+	var tiles := {}
+	var spots: Array[Vector2] = []
+	var strands := 0
+	var cards := 0
+	var x := X0 + 2.0
+	while x < X1 - 2.0:
+		var z := Z0 + 2.0
+		while z < Z1 - 2.0:
+			var sx := x + vrng.randf_range(-0.5, 0.5)
+			var sz := z + vrng.randf_range(-0.5, 0.5)
+			z += 1.2
+			var n := _n_at(sx, sz)
+			if n.y > 0.5 or _patch.get_noise_2d(sx * 1.7, sz * 1.7) < 0.15:
+				continue
+			var h := Vector3(n.x, 0.0, n.z).normalized()
+			var foot := _walk_flat(sx, sz, h)
+			var top := _walk_flat(sx, sz, -h)
+			if foot.is_empty() or top.is_empty():
+				continue
+			var tall: float = _gy(top[0].x, top[0].y) - _gy(foot[0].x, foot[0].y)
+			if tall < 1.6:
+				continue
+			var here := Vector2(sx, sz)
+			var near := false
+			for o in spots:
+				if o.distance_to(here) < 3.0:
+					near = true
+					break
+			if near or _ladder_win(sx, sz) > 0.05 or not _clear(foot[0].x, foot[0].y, 0.3) or not _clear(sx, sz, 0.3):
+				continue
+			spots.append(here)
+			var key := Vector2i(floori(sx / TILE), floori(sz / TILE))
+			if not tiles.has(key):
+				tiles[key] = _gen.Surf.new()
+			var surf = tiles[key]
+			var along := h.cross(Vector3.UP).normalized()
+			for k in vrng.randi_range(3, 6):
+				var off := along * vrng.randf_range(-1.8, 1.8)
+				var st: Array = _walk_flat(sx + off.x, sz + off.z, h, 0.6)
+				if st.is_empty():
+					continue
+				var start := Vector3(st[0].x, _gy(st[0].x, st[0].y) + 0.05, st[0].y)
+				cards += _gen.vine(surf, vrng.randi(), start, Vector3.UP, tall * vrng.randf_range(0.5, 1.05), surface)
+				strands += 1
+			if vrng.randf() < 0.4:
+				for k in vrng.randi_range(2, 4):
+					var off := along * vrng.randf_range(-1.5, 1.5)
+					var st: Array = _walk_flat(sx + off.x, sz + off.z, -h, 0.6)
+					if st.is_empty():
+						continue
+					var start := Vector3(st[0].x, _gy(st[0].x, st[0].y), st[0].y)
+					cards += _gen.vine(surf, vrng.randi(), start, Vector3.DOWN, tall * vrng.randf_range(0.3, 0.7), surface)
+					strands += 1
+		x += 1.2
+	var node := Node3D.new()
+	node.name = "Vines"
+	root.add_child(node)
+	for key: Vector2i in tiles:
+		var surf = tiles[key]
+		if surf.idx.is_empty():
+			continue
+		var m := ArrayMesh.new()
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surf.arrays())
+		m.surface_set_material(0, mat)
+		var mi := MeshInstance3D.new()
+		mi.name = "Vines_%d_%d" % [key.x, key.y]
+		mi.mesh = m
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.visibility_range_end = VINE_END
+		mi.visibility_range_end_margin = 10.0
+		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		node.add_child(mi)
+	print("vines: %d patches, %d strands, %d cards" % [spots.size(), strands, cards])
+
+
+func _walk_flat(x: float, z: float, h: Vector3, flat := 0.75) -> Array:
+	# Steps from (x, z) along h until the ground levels out (n.y > flat);
+	# [Vector2] where it does, [] if it doesn't within 10 m.
+	var p := Vector2(x, z)
+	var d := Vector2(h.x, h.z) * 0.25
+	for i in 40:
+		if _n_at(p.x, p.y).y > flat:
+			return [p]
+		p += d
+	return []
 
 
 func _own(node: Node, root: Node) -> void:
