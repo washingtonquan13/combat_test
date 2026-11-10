@@ -107,6 +107,20 @@ func run() -> void:
 	check("the leader gets the summon", walker.abilities.has(summon))
 	check("but not Cling, which needs the advantage", not walker.abilities.has(cling))
 
+	# What a crawler can hold is remembered per cell, so new geometry has to
+	# clear it. Asked first so the open air is already remembered as open.
+	spider.global_position = Vector3(-8.0, 0.0, -6.0)
+	var by_pillar: Vector3 = Vector3(-8.0, 3.0, -8.0)
+	var before: PackedVector3Array = NavigationGrid.find_crawl_path(get_tree(), spider.global_position, by_pillar, spider)
+	check("with nothing there, it can't climb the air", before.is_empty() or before[before.size() - 1].y < 1.5, str(before))
+	var pillar: StaticBody3D = _solid(Vector3(-8.0, 3.0, -8.5), Vector3(2.0, 6.0, 1.0))
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	NavigationGrid.invalidate_region(pillar, AABB(Vector3(-9.0, 0.0, -9.0), Vector3(2.0, 6.0, 1.0)))
+	var after: PackedVector3Array = NavigationGrid.find_crawl_path(get_tree(), spider.global_position, by_pillar, spider)
+	check("a pillar put there can be climbed at once", not after.is_empty() and after[after.size() - 1].y > 2.0, str(after))
+	pillar.queue_free()
+
 	spider.queue_free()
 	free_spawned()
 	wall.queue_free()

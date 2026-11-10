@@ -353,6 +353,21 @@ struct OccupantVolume {
 	int layers = 0;
 };
 
+// What each cell of a chunk is to a crawler of one size, worked out the first
+// time a search asks and kept until the geometry around it changes. Working
+// it out means testing a body-sized ball of cells, hundreds of them for a cell
+// in open air, and a search asks about thousands. 8^3 bricks, allocated on
+// first touch: a crawler only ever visits the surfaces.
+struct CrawlCells {
+	enum Kind : uint8_t {
+		UNKNOWN = 0,
+		NONE, // the body doesn't fit, or has nothing to hold on to
+		HOLDING, // on a wall or ceiling
+		FLOORED, // something to stand on straight below
+	};
+	std::unique_ptr<uint8_t[]> bricks[64];
+};
+
 // seal_interiors' labels of one chunk with shapes, from its raw raster:
 // kept so a pass relabels only the chunks whose raster was laid again.
 struct SealLabels {
@@ -418,6 +433,8 @@ struct NavChunk {
 		return *slot;
 	}
 	SealLabels seal;
+	// By NavigationGrid::crawl_class. Empty on a map no crawler has walked.
+	std::vector<std::unique_ptr<CrawlCells>> crawl;
 };
 
 // Fine-A* scratch in 8^3 bricks: a chunk's page holds one slot per brick,
@@ -791,6 +808,9 @@ private:
 	static constexpr float CRAWL_CONTACT_CELLS = 1.5f;
 	bool crawl_query = false;
 	float crawl_radius = 0.0f;
+	// Which of NavChunk::crawl this size reads: an index into crawl_radii.
+	int crawl_class = 0;
+	std::vector<float> crawl_radii;
 	int crawl_radius_cells = 0;
 	float crawl_core2 = 0.0f;
 	int crawl_floor_first = 0;
@@ -798,6 +818,8 @@ private:
 	std::vector<CrawlOffset> crawl_ball;
 	void begin_crawl_query(float radius);
 	bool crawl_solid(const Vector3i &cell);
+	CrawlCells::Kind classify_crawl_cell(const Vector3i &cell);
+	CrawlCells::Kind crawl_kind(const Vector3i &cell);
 	bool is_crawl_cell(const Vector3i &cell);
 	bool crawl_has_floor(const Vector3i &cell);
 	bool crawl_surface(const Vector3 &point, Vector3 &normal, Vector3 &nearest);

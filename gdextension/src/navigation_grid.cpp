@@ -369,6 +369,14 @@ int64_t NavigationGrid::debug_memory_bytes() const {
 		bytes += sizeof(NavChunk);
 		bytes += c->solid.bytes() + c->ground.bytes() + c->no_support.bytes() + c->flight_low.bytes() + c->flight_high.bytes();
 		bytes += c->dist.bytes();
+		for (const std::unique_ptr<CrawlCells> &cells : c->crawl) {
+			if (cells) {
+				bytes += sizeof(CrawlCells);
+				for (const std::unique_ptr<uint8_t[]> &brick : cells->bricks) {
+					bytes += brick ? BrickField<uint8_t>::BRICK_CELLS : 0;
+				}
+			}
+		}
 		bytes += (int64_t)c->occupants.capacity() * sizeof(OccupantVolume);
 		auto add_regions = [&](const NavRegions &r) {
 			bytes += r.label.bytes();
@@ -1119,6 +1127,11 @@ void NavigationGrid::invalidate_active_region(SceneTree *tree, const AABB &regio
 					const bool in_dist = near_xz && within(cy, a.y, b.y);
 					if (in_dist) {
 						chunk.dist_baked = false;
+					}
+					// A crawler's ball is under a chunk across, so it only
+					// reads the chunks either side.
+					if (near_xz && within(cy, a.y - 1, b.y + 1)) {
+						chunk.crawl.clear();
 					}
 					for (NavRegions &r : chunk.regions) {
 						if (in_support) {
@@ -3408,6 +3421,10 @@ void NavigationGrid::begin_crawl_query(float radius) {
 		return;
 	}
 	crawl_radius = radius;
+	crawl_class = (int)(std::find(crawl_radii.begin(), crawl_radii.end(), radius) - crawl_radii.begin());
+	if (crawl_class == (int)crawl_radii.size()) {
+		crawl_radii.push_back(radius);
+	}
 	const float radius_cells = radius / CELL_SIZE;
 	crawl_radius_cells = (int)std::round(radius_cells);
 	// Half a cell because a solid cell's centre is half a cell behind its face.
@@ -3444,22 +3461,51 @@ bool NavigationGrid::crawl_solid(const Vector3i &cell) {
 // The ball is sorted by distance, so the nearest solid is the first one met
 // and it alone decides: inside the core the body doesn't fit, past it the
 // body is against a surface. Nothing met means nothing to hold on to.
-bool NavigationGrid::is_crawl_cell(const Vector3i &cell) {
+CrawlCells::Kind NavigationGrid::classify_crawl_cell(const Vector3i &cell) {
 	for (const CrawlOffset &entry : crawl_ball) {
-		if (crawl_solid(cell + entry.offset)) {
-			return (float)entry.d2 > crawl_core2;
+		if (!crawl_solid(cell + entry.offset)) {
+			continue;
 		}
+		if ((float)entry.d2 <= crawl_core2) {
+			return CrawlCells::NONE;
+		}
+		for (int down = crawl_floor_first; down <= crawl_floor_last; down++) {
+			if (crawl_solid(cell - Vector3i(0, down, 0))) {
+				return CrawlCells::FLOORED;
+			}
+		}
+		return CrawlCells::HOLDING;
 	}
-	return false;
+	return CrawlCells::NONE;
+}
+
+CrawlCells::Kind NavigationGrid::crawl_kind(const Vector3i &cell) {
+	NavChunk &chunk = ensure_chunk_rasterized(cell_to_chunk_coord(cell));
+	if ((int)chunk.crawl.size() <= crawl_class) {
+		chunk.crawl.resize(crawl_class + 1);
+	}
+	std::unique_ptr<CrawlCells> &cells = chunk.crawl[crawl_class];
+	if (!cells) {
+		cells = std::make_unique<CrawlCells>();
+	}
+	const int li = local_index(cell_to_local(cell));
+	std::unique_ptr<uint8_t[]> &brick = cells->bricks[BrickField<uint8_t>::slot_of(li)];
+	if (!brick) {
+		brick.reset(new uint8_t[BrickField<uint8_t>::BRICK_CELLS]());
+	}
+	uint8_t &kind = brick[BrickField<uint8_t>::local_of(li)];
+	if (kind == CrawlCells::UNKNOWN) {
+		kind = classify_crawl_cell(cell);
+	}
+	return (CrawlCells::Kind)kind;
+}
+
+bool NavigationGrid::is_crawl_cell(const Vector3i &cell) {
+	return crawl_kind(cell) != CrawlCells::NONE;
 }
 
 bool NavigationGrid::crawl_has_floor(const Vector3i &cell) {
-	for (int down = crawl_floor_first; down <= crawl_floor_last; down++) {
-		if (crawl_solid(cell - Vector3i(0, down, 0))) {
-			return true;
-		}
-	}
-	return false;
+	return crawl_kind(cell) == CrawlCells::FLOORED;
 }
 
 // Away from whatever solid the ball holds: the offsets of a flat surface's
