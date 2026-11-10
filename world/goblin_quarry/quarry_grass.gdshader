@@ -6,8 +6,9 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // smoothly rather than geometry thinner than a pixel. The atlas carries only
 // each blade's shading; its colour is the ground's own grass layer under the
 // clump, graded as the ground shader grades it, so grass grows out of the
-// ground instead of sitting on it as a separate carpet. Tips are lighter,
-// and straw in dry patches. INSTANCE color is per-clump variation.
+// ground instead of sitting on it as a separate carpet. The upper blades
+// turn a fresher green, deeper in lush patches and warmer in sunny ones, and
+// straw in dry patches. INSTANCE color is per-clump variation.
 //
 // Card normals point up at the root, so a clump's base lights exactly like
 // the ground under it, and tip outward toward the top like a dome over the
@@ -29,6 +30,15 @@ uniform sampler2D ground_soil : source_color, filter_linear_mipmap, repeat_enabl
 uniform bool painted = false;
 uniform float grass_tile = 0.33;
 uniform vec3 dry_tip = vec3(0.58, 0.54, 0.27);
+// Upper blades: a fresh green, bluer and deeper in lush patches, warmer in
+// sunny ones. The roots keep the ground's colour.
+uniform vec3 fresh = vec3(0.31, 0.5, 0.12);
+uniform vec3 lush = vec3(0.22, 0.41, 0.12);
+uniform vec3 sunny = vec3(0.42, 0.54, 0.13);
+// Inside a clump, close to the camera, the lower blades stand in each
+// other's shade. Kept to near the camera: from the game's height deep root
+// shade reads as dark spots on the ground.
+uniform float near_end = 14.0;
 uniform float wind = 0.05;
 uniform float thin_start = 12.0;
 uniform float fade_start = 30.0;
@@ -38,6 +48,7 @@ varying float tip;
 varying vec3 base;
 varying vec3 top;
 varying vec2 cell;
+varying float near;
 
 float lum(vec3 c) {
 	return dot(c, vec3(0.33));
@@ -59,14 +70,20 @@ void vertex() {
 
 	// The ground shader's grass layer, at the mip it mostly shows.
 	vec3 g = textureLod(ground_grass, origin.xz * grass_tile, 7.0).rgb;
-	g = mix(vec3(lum(g)), g, 1.3) * vec3(0.4, 0.56, 0.27);
+	g = mix(vec3(lum(g)), g, 1.3) * vec3(0.3, 0.5, 0.22);
 	float macro = textureLod(ground_soil, origin.xz * 0.031, 0.0).g;
 	g *= mix(0.86, 1.14, smoothstep(0.08, 0.34, macro));
 	float dry = smoothstep(0.38, 0.62, textureLod(ground_soil, origin.xz * 0.013 + vec2(0.37, 0.71), 0.0).r);
 	base = g * COLOR.rgb;
-	top = mix(g * vec3(1.65, 1.7, 1.4), dry_tip, dry * 0.4) * COLOR.rgb;
+	float l = textureLod(ground_soil, origin.xz * 0.019 + vec2(0.61, 0.13), 0.0).b;
+	vec3 green = mix(lush, fresh, smoothstep(0.2, 0.45, l));
+	green = mix(green, sunny, smoothstep(0.45, 0.7, l));
+	// The per-clump tint rides on top, a little stronger than on the roots.
+	green *= 1.0 + (COLOR.rgb - 1.0) * 1.5;
+	top = mix(green * mix(0.9, 1.1, smoothstep(0.08, 0.34, macro)), dry_tip, dry * 0.4) * 0.8;
 
 	float dist = length((VIEW_MATRIX * vec4(origin, 1.0)).xyz);
+	near = 1.0 - smoothstep(near_end * 0.4, near_end, dist);
 	float keep = mix(1.0, 0.6, smoothstep(thin_start, fade_start, dist));
 	float alive = clamp((keep - UV2.y) / 0.08, 0.0, 1.0);
 	float sink = 1.0 - smoothstep(fade_start, fade_end, dist);
@@ -94,12 +111,14 @@ void fragment() {
 	if (painted) {
 		ALBEDO = t.rgb * COLOR.rgb * mix(0.8, 1.0, tip);
 	} else {
-		ALBEDO = mix(base, top, tip) * mix(vec3(1.0), 0.55 + 0.6 * t.rgb, smoothstep(0.0, 0.5, tip));
+		ALBEDO = mix(base, top, smoothstep(0.0, 0.7, tip)) * mix(vec3(1.0), mix(0.55 + 0.6 * t.rgb, 0.25 + 0.95 * t.rgb, near), smoothstep(0.0, 0.5, tip));
+		ALBEDO *= mix(1.0, mix(0.45, 1.0, smoothstep(0.0, 0.65, tip)), near);
 	}
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ROUGHNESS = 0.85;
 	AO = mix(0.9, 1.0, tip);
 	AO_LIGHT_AFFECT = 0.3;
-	BACKLIGHT = (painted ? ALBEDO : top) * 0.35 * tip;
+	// Light through a blade comes out a deeper, yellower green.
+	BACKLIGHT = (painted ? ALBEDO : top * vec3(1.0, 1.0, 0.45)) * 0.35 * tip;
 }

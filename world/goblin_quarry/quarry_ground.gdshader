@@ -69,7 +69,7 @@ void fragment() {
 	// toward its average and darkened: gaps between clumps read as deeper
 	// grass, not bare stones.
 	g_a = mix(textureLod(grass_albedo, uv_g, 7.0).rgb, g_a, 0.3);
-	g_a = mix(vec3(lum(g_a)), g_a, 1.3) * vec3(0.4, 0.56, 0.27);
+	g_a = mix(vec3(lum(g_a)), g_a, 1.3) * vec3(0.3, 0.5, 0.22);
 	s_a = s_a * vec3(0.72, 0.68, 0.6);
 	d_a = mix(vec3(lum(d_a)), d_a, 0.3) * vec3(0.74, 0.72, 0.66);
 
