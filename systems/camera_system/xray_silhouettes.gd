@@ -47,6 +47,10 @@ const CAPTURE_SHADER: Shader = preload("res://systems/camera_system/level_depth_
 ## Render layer only the depth capture quad wears. The player's camera
 ## leaves it out (setup), so the quad is never seen on screen.
 const CAPTURE_LAYER: int = 20
+## Render layer for level geometry that never hides a unit: grass, ferns,
+## ground plants, vines. The depth render leaves it out, so a goblin
+## standing in grass gets no silhouette, and that foliage isn't drawn twice.
+const SEE_THROUGH_LAYER: int = 19
 ## Units in this group are under the floor on purpose and get no
 ## silhouette. Whoever adds one calls refresh_all, so the silhouette goes
 ## the same frame rather than at the next refresh.
@@ -107,7 +111,7 @@ func _build_depth_viewport() -> void:
 
 	_depth_camera = Camera3D.new()
 	_depth_camera.name = "DepthCamera"
-	_depth_camera.cull_mask = 0xFFFFF & ~_layer_bit(Unit.RENDER_LAYER)
+	_depth_camera.cull_mask = 0xFFFFF & ~_layer_bit(Unit.RENDER_LAYER) & ~_layer_bit(SEE_THROUGH_LAYER)
 	# Its own plain Environment and attributes, so the world's tonemap,
 	# exposure, glow and fog never touch the numbers the quad writes.
 	_depth_camera.environment = Environment.new()

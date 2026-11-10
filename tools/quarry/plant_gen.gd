@@ -75,6 +75,7 @@ var _cr := Vector3.ONE
 func fir(seed: int, height: float, detail := 1.0) -> Array:
 	# Returns [bark Surf, leaf Surf]. `detail` below 1 makes a far version:
 	# fewer, larger cards and no thin branches.
+	_lite = detail < 1.0
 	rng.seed = seed
 	_h = height
 	_broad = false
@@ -266,21 +267,23 @@ func _card(s: Surf, base: Vector3, along: Vector3, side: Vector3, w: float, l: f
 		norm = -norm
 	var fold := norm * w * 0.18
 	var start := base - along * l * 0.08
-	var rows := [start, start + along * l * 0.5 + norm * l * 0.03, start + along * l]
+	# Far versions (`_lite`) get a flat quad: 2 triangles instead of 8.
+	var rows := [start, start + along * l] if _lite else [start, start + along * l * 0.5 + norm * l * 0.03, start + along * l]
+	var cols := 2 if _lite else 3
 	var first := s.v.size()
-	for r in 3:
+	for r in rows.size():
 		var p: Vector3 = rows[r]
-		var v := lerpf(c1.y, c0.y, r / 2.0)
-		for k in 3:
-			var x := (k - 1.0)
-			var q := p + side * x * w * 0.5 - (fold if k != 1 else Vector3.ZERO)
-			s.vert(q, _crown_normal(q, norm), Vector2(lerpf(c0.x, c1.x, k / 2.0), v),
+		var v := lerpf(c1.y, c0.y, r / float(rows.size() - 1))
+		for k in cols:
+			var f := k / float(cols - 1)
+			var q := p + side * (f * 2.0 - 1.0) * w * 0.5 - (fold if cols == 3 and k != 1 else Vector3.ZERO)
+			s.vert(q, _crown_normal(q, norm), Vector2(lerpf(c0.x, c1.x, f), v),
 				Vector2(Vector2(q.x, q.z).length(), _phase), Color(_crown_ao(q) * ao, tint, 0.0, clampf(q.y / _h, 0.0, 1.0)))
-	for r in 2:
-		for k in 2:
-			var a := first + r * 3 + k
-			s.tri(a, a + 3, a + 1)
-			s.tri(a + 1, a + 3, a + 4)
+	for r in rows.size() - 1:
+		for k in cols - 1:
+			var a := first + r * cols + k
+			s.tri(a, a + cols, a + 1)
+			s.tri(a + 1, a + cols, a + cols + 1)
 
 
 func _crown_normal(p: Vector3, card_n: Vector3) -> Vector3:
@@ -316,6 +319,7 @@ func _crown_ao(p: Vector3) -> float:
 const BROAD_CELLS := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
 var _leaf_l := 0.8
+var _lite := false
 var _depth_max := 3
 var _tube_max := 2
 
@@ -325,6 +329,7 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	# ellipsoid crown; twigs carry the leaf cards. Returns [bark, leaf] like
 	# fir(). Below detail 1 the last level of twigs goes, and the cards on
 	# what's left grow to keep the crown's cover.
+	_lite = detail < 1.0
 	rng.seed = seed
 	_h = height
 	_broad = true
@@ -378,6 +383,7 @@ func bush(seed: int, height: float, detail := 1.0) -> Array:
 	# No trunk: stems rise from one root crown and branch into a low, wide
 	# ellipsoid that sits on the ground. Same boughs and cards as broadleaf();
 	# the stems start a level down so they carry two levels of twigs.
+	_lite = detail < 1.0
 	rng.seed = seed
 	_h = height
 	_broad = true
@@ -422,6 +428,7 @@ func fern(seed: int, height: float, detail := 1.0) -> Array:
 	# card from the base of its cell to the tip, rising steeply and arching
 	# over. Inner fronds stand tall, outer ones lie wide and low and are more
 	# often browning. Returns [bark, leaf] like the others; bark is empty.
+	_lite = detail < 1.0
 	rng.seed = seed
 	_h = height
 	_broad = true
@@ -580,6 +587,7 @@ func vine(leaf: Surf, seed: int, start: Vector3, pref: Vector3, length: float, s
 	# appended to `leaf` in world space. `pref` is where it wants to go: up
 	# for ivy climbing from a wall's foot, down for a curtain hanging off a
 	# rim. Returns how many cards it laid.
+	_lite = detail < 1.0
 	rng.seed = seed
 	_h = 1.0
 	_phase = rng.randf()

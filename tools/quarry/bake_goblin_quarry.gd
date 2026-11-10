@@ -948,11 +948,12 @@ func _xf_shut(mesh: Mesh, at: Vector3, away: Vector3, roll: float, size: float, 
 	return Transform3D(b, at + Vector3.UP * height * (0.5 - sink) - b * aabb.get_center())
 
 
-func _add(mesh: Mesh, xf: Transform3D, shadow := true, solid := false, fade := -1.0, begin := 0.0) -> void:
+func _add(mesh: Mesh, xf: Transform3D, shadow := true, solid := false, fade := -1.0, begin := 0.0, shadow_only := false) -> void:
 	# `fade`: how far away it stops drawing; by default only shadowless small
 	# things fade, at 60 m. `begin`: how far away it starts, for far LODs.
+	# `shadow_only`: drawn into shadow maps but never seen.
 	var cell := Vector2i(floori(xf.origin.x / 24.0), floori(xf.origin.z / 24.0))
-	var key := [mesh, cell, shadow, fade if fade >= 0.0 else (0.0 if shadow else 60.0), begin]
+	var key := [mesh, cell, shadow, fade if fade >= 0.0 else (0.0 if shadow else 60.0), begin, shadow_only]
 	if not _batches.has(key):
 		_batches[key] = []
 	_batches[key].append(xf)
@@ -985,6 +986,11 @@ func _height_of(mesh: Mesh, xf: Transform3D) -> float:
 	return (Transform3D(xf.basis, Vector3.ZERO) * mesh.get_aabb()).size.y
 
 
+# Plants that never hide a unit go on XRaySilhouettes.SEE_THROUGH_LAYER.
+const SEE_THROUGH := 1 << (19 - 1)
+const SEE_THROUGH_PLANTS := ["gen_fern", "gen_bush", "nettle", "celandine", "grass_medium"]
+
+
 func _flush_batches(clutter: Node3D) -> void:
 	var instances := 0
 	for key: Array in _batches:
@@ -997,16 +1003,25 @@ func _flush_batches(clutter: Node3D) -> void:
 		for i in list.size():
 			mm.set_instance_transform(i, list[i])
 		var inst := MultiMeshInstance3D.new()
-		inst.name = "%s_%d_%d%s" % [mesh.resource_path.get_file().get_basename(), key[1].x, key[1].y, "" if key[2] else "_ns"]
+		inst.name = "%s_%d_%d%s" % [mesh.resource_path.get_file().get_basename(), key[1].x, key[1].y, "_so" if key[5] else ("" if key[2] else "_ns")]
 		inst.multimesh = mm
-		if not key[2]:
+		if key[5]:
+			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+		elif not key[2]:
 			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if key[3] > 0.0:
 			inst.visibility_range_end = key[3]
-			inst.visibility_range_end_margin = 2.0
+			inst.visibility_range_end_margin = 4.0
 		if key[4] > 0.0:
 			inst.visibility_range_begin = key[4]
-			inst.visibility_range_begin_margin = 2.0
+			inst.visibility_range_begin_margin = 4.0
+		# Near/far pairs cross-fade instead of popping; shadow proxies needn't.
+		if not key[5] and (key[4] > 0.0 or key[3] > 0.0):
+			inst.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
+		var base := mesh.resource_path.get_file()
+		for prefix in SEE_THROUGH_PLANTS:
+			if base.begins_with(prefix):
+				inst.layers = SEE_THROUGH
 		clutter.add_child(inst)
 		instances += list.size()
 	print("clutter: %d pieces in %d batches" % [instances, _batches.size()])
@@ -1273,7 +1288,13 @@ func _build_campfire(root: Node3D) -> void:
 	fire.add_child(flame)
 
 
-func _blade_clump() -> ArrayMesh:
+func _tuft_clump() -> ArrayMesh:
+	# Five cards fanned out from one root, each leaning outward and bending a
+	# little more toward its top, so the clump reads as one tuft from any
+	# side. The blades themselves are drawn in grass_tufts.png. UV is the
+	# point in the card (0..1, V down from the top); the shader picks the
+	# atlas cell. UV2.x is 0 at the root and 1 at the top; UV2.y is a random
+	# number per card that the shader folds cards away by with distance.
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var uv2s := PackedVector2Array()
@@ -1281,25 +1302,28 @@ func _blade_clump() -> ArrayMesh:
 	var idx := PackedInt32Array()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
-	for b in 10:
-		# The grass shader folds blades away by this number with distance.
-		var r := (b + rng.randf() * 0.9) / 10.0
-		var yaw := rng.randf() * TAU
-		var root := Vector3(rng.randf_range(-0.16, 0.16), 0.0, rng.randf_range(-0.16, 0.16))
-		var height := rng.randf_range(0.12, 0.36)
-		var lean := Vector3(cos(yaw), 0.0, sin(yaw)) * rng.randf_range(0.04, 0.22) * height / 0.25
-		var side := Vector3(-sin(yaw), 0.0, cos(yaw)) * rng.randf_range(0.013, 0.02)
+	var cards := 5
+	for k in cards:
+		var r := (k + rng.randf() * 0.9) / cards
+		var yaw := TAU * k / cards + rng.randf_range(-0.35, 0.35)
+		var out := Vector3(cos(yaw), 0.0, sin(yaw))
+		var side := Vector3(-sin(yaw), 0.0, cos(yaw))
+		var lean := deg_to_rad(rng.randf_range(22.0, 34.0))
+		var width := rng.randf_range(0.3, 0.38)
+		var height := rng.randf_range(0.36, 0.44)
+		var root := out * 0.05
 		var start := verts.size()
 		for s in 3:
 			var t := s / 2.0
-			var c := root + Vector3.UP * height * t + lean * t * t
-			var w := side * (1.0 - t * 0.9)
-			verts.append(c - w)
-			verts.append(c + w)
-			uvs.append(Vector2(r, t))
-			uvs.append(Vector2(r, t))
-			uv2s.append(Vector2(-w.x, -w.z))
-			uv2s.append(Vector2(w.x, w.z))
+			# The lean grows toward the top, so the card curves outward.
+			var a := lean * (0.6 + 0.4 * t)
+			var c := root + (Vector3.UP * cos(a) + out * sin(a)) * height * t
+			verts.append(c - side * width * 0.5)
+			verts.append(c + side * width * 0.5)
+			uvs.append(Vector2(0.0, 1.0 - t))
+			uvs.append(Vector2(1.0, 1.0 - t))
+			uv2s.append(Vector2(t, r))
+			uv2s.append(Vector2(t, r))
 			norms.append(Vector3.UP)
 			norms.append(Vector3.UP)
 		for q: int in [0, 2]:
@@ -1320,14 +1344,20 @@ func _build_grass(root: Node3D) -> void:
 	var grass := Node3D.new()
 	grass.name = "Grass"
 	root.add_child(grass)
-	var clump := _blade_clump()
+	var clump := _tuft_clump()
+	if _gen == null:
+		_gen = load("res://tools/quarry/plant_gen.gd").new()
+	var atlas: Texture2D = _gen.coverage_texture("res://assets/level/quarry/foliage/grass_tufts.png")
+	ResourceSaver.save(atlas, OUT + "meshes/grass_tufts.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+	atlas.take_over_path(OUT + "meshes/grass_tufts.res")
 	var mat := ShaderMaterial.new()
 	mat.shader = load(OUT + "quarry_grass.gdshader")
+	mat.set_shader_parameter("tufts", atlas)
 	mat.set_shader_parameter("ground_grass", load(T + "grass_path_2_diff_2k.jpg"))
 	mat.set_shader_parameter("ground_soil", load(T + "forest_ground_04_diff_2k.jpg"))
 	clump.surface_set_material(0, mat)
 	var chunk := 8.0
-	var per_chunk := int(chunk * chunk * 13.0)
+	var per_chunk := int(chunk * chunk * 7.0)
 	var total := 0
 	var cx := CX0
 	while cx < CX1:
@@ -1345,7 +1375,7 @@ func _build_grass(root: Node3D) -> void:
 					continue
 				# Tall and short stands, not one mown height.
 				var stand := smoothstep(-0.4, 0.5, _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1))
-				var size := _rng.randf_range(0.75, 1.25) * lerpf(0.5, 1.1, g) * lerpf(0.6, 1.45, stand)
+				var size := _rng.randf_range(0.75, 1.2) * lerpf(0.45, 0.9, g) * lerpf(0.6, 1.4, stand)
 				var b := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * size)
 				spots.append(Transform3D(b, Vector3(x, _gy(x, z) - 0.02, z)))
 				var v := _patch.get_noise_2d(x * 2.0, z * 2.0)
@@ -1363,6 +1393,7 @@ func _build_grass(root: Node3D) -> void:
 				inst.name = "Grass_%d_%d" % [int(cx), int(cz)]
 				inst.multimesh = mm
 				inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				inst.layers = SEE_THROUGH
 				inst.visibility_range_end = 48.0
 				grass.add_child(inst)
 				total += spots.size()
@@ -1475,6 +1506,7 @@ func _vines(root: Node3D) -> void:
 		mi.name = "Vines_%d_%d" % [key.x, key.y]
 		mi.mesh = m
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.layers = SEE_THROUGH
 		mi.visibility_range_end = VINE_END
 		mi.visibility_range_end_margin = 10.0
 		mi.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
@@ -1922,12 +1954,20 @@ func _bushes() -> Array:
 	return _bush_lods
 
 
+func _add_lod_pair(pair: Array, xf: Transform3D, shade: bool, lod: float) -> void:
+	# The near mesh casts no shadow: the far mesh stands in for it in the
+	# shadow maps, at a fraction of the triangles.
+	_add(pair[0], xf, false, false, lod)
+	if shade:
+		_add(pair[1], xf, true, false, lod, 0.0, true)
+	_add(pair[1], xf, shade, false, 0.0, lod)
+
+
 func _add_bush(at: Vector3, yaw: float, size: float, pick: int, shade := true) -> void:
 	var pair: Array = _bushes()[pick % int(BUSH_GEN[1])]
 	var xf := _xf_tree(at - Vector3.UP * 0.03, yaw, size, Vector2.ZERO)
 	_bush_count += 1
-	_add(pair[0], xf, shade, false, BUSH_LOD)
-	_add(pair[1], xf, shade, false, 0.0, BUSH_LOD)
+	_add_lod_pair(pair, xf, shade, BUSH_LOD)
 
 
 func _ferns() -> Array:
@@ -2033,11 +2073,10 @@ func _dress_trees() -> void:
 		var shade := _valley_d(p.x, p.y) < 8.0
 		if lods.has(t.kind):
 			var pair: Array = lods[t.kind][t.pick % lods[t.kind].size()]
-			_add(pair[0], xf, shade, false, TREE_LOD)
-			_add(pair[1], xf, shade, false, 0.0, TREE_LOD)
+			_add_lod_pair(pair, xf, shade, TREE_LOD)
 		else:
 			var pool: Array = pools[t.kind]
-			_add(pool[t.pick % pool.size()], xf, shade, false, 0.0)
+			_add(pool[t.pick % pool.size()], xf, shade, false, 50.0)
 		if TREE_TRUNK[t.kind] > 0.0:
 			_add_trunk(at, TREE_TRUNK[t.kind] * size)
 		if t.kind == "sap":
@@ -2045,7 +2084,7 @@ func _dress_trees() -> void:
 		var conifer: bool = t.kind == "fir" or t.kind == "firm"
 		if conifer:
 			var r: Mesh = roots[_trng.randi() % roots.size()]
-			_add(r, _xf_tree(Vector3(p.x, _gy(p.x, p.y) - 0.04, p.y), t.yaw, size * (1.3 if t.kind == "fir" else 0.7), Vector2.ZERO))
+			_add(r, _xf_tree(Vector3(p.x, _gy(p.x, p.y) - 0.04, p.y), t.yaw, size * (1.3 if t.kind == "fir" else 0.7), Vector2.ZERO), true, false, 40.0)
 		if _valley_d(p.x, p.y) > 10.0:
 			continue
 		for k in _trng.randi_range(2, 5):
