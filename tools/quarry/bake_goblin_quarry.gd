@@ -947,11 +947,11 @@ func _xf_shut(mesh: Mesh, at: Vector3, away: Vector3, roll: float, size: float, 
 	return Transform3D(b, at + Vector3.UP * height * (0.5 - sink) - b * aabb.get_center())
 
 
-func _add(mesh: Mesh, xf: Transform3D, shadow := true, solid := false, fade := -1.0) -> void:
+func _add(mesh: Mesh, xf: Transform3D, shadow := true, solid := false, fade := -1.0, begin := 0.0) -> void:
 	# `fade`: how far away it stops drawing; by default only shadowless small
-	# things fade, at 60 m.
+	# things fade, at 60 m. `begin`: how far away it starts, for far LODs.
 	var cell := Vector2i(floori(xf.origin.x / 24.0), floori(xf.origin.z / 24.0))
-	var key := [mesh, cell, shadow, fade if fade >= 0.0 else (0.0 if shadow else 60.0)]
+	var key := [mesh, cell, shadow, fade if fade >= 0.0 else (0.0 if shadow else 60.0), begin]
 	if not _batches.has(key):
 		_batches[key] = []
 	_batches[key].append(xf)
@@ -1002,6 +1002,10 @@ func _flush_batches(clutter: Node3D) -> void:
 			inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if key[3] > 0.0:
 			inst.visibility_range_end = key[3]
+			inst.visibility_range_end_margin = 2.0
+		if key[4] > 0.0:
+			inst.visibility_range_begin = key[4]
+			inst.visibility_range_begin_margin = 2.0
 		clutter.add_child(inst)
 		instances += list.size()
 	print("clutter: %d pieces in %d batches" % [instances, _batches.size()])
@@ -1752,12 +1756,46 @@ func _add_trunk(at: Vector3, radius: float) -> void:
 	_obstacle_count += 1
 
 
+const FIR_LOD := 45.0
+# Each kind: the height it's generated at (placement scales it by `size`) and
+# how many variants.
+const FIR_GEN := {"fir": [17.0, 4], "firm": [8.0, 3]}
+
+
+func _gen_firs() -> Dictionary:
+	var gen = load("res://tools/quarry/plant_gen.gd").new()
+	var tex := F + "models/fir_tree_01_fir_tree_01_"
+	var atlas: Texture2D = gen.coverage_texture(tex + "twig_cards_diff_2k.png")
+	ResourceSaver.save(atlas, OUT + "meshes/fir_cards.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+	atlas.take_over_path(OUT + "meshes/fir_cards.res")
+	var leaf: Material = gen.leaf_material(atlas)
+	var bark: Material = gen.bark_material(load(tex + "bark_diff_2k.jpg"), load(tex + "bark_nor_gl_2k.jpg"))
+	var out := {}
+	var seed := 7100
+	for kind: String in FIR_GEN:
+		var h: float = FIR_GEN[kind][0]
+		out[kind] = []
+		for v in int(FIR_GEN[kind][1]):
+			var pair := []
+			for lod in 2:
+				var m: ArrayMesh = gen.mesh(gen.fir(seed, h, 1.0 if lod == 0 else 0.4), bark, leaf)
+				var path := OUT + "meshes/gen_%s_%d_%s.res" % [kind, v, "near" if lod == 0 else "far"]
+				ResourceSaver.save(m, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+				m.take_over_path(path)
+				pair.append(m)
+			out[kind].append(pair)
+			seed += 1
+	return out
+
+
 func _dress_trees() -> void:
 	var d := F + "models/"
 	var isles: Array[Mesh] = []
 	for f: String in ["island_tree_01", "island_tree_02", "island_tree_03"]:
 		isles.append(_meshes_of(f, d)[0])
-	var pools := {"fir": _meshes_of("fir_tree_01", d), "firm": _meshes_of("fir_sapling_medium", d), "sap": _meshes_of("fir_sapling", d), "isle": isles}
+	var pools := {"sap": _meshes_of("fir_sapling", d), "isle": isles}
+	# Firs come from our own generator, each as a near and a far mesh.
+	var lods := _gen_firs()
 	var roots: Array[Mesh] = _meshes_of("pine_roots", d)
 	var bark: Array[Mesh] = _meshes_of("bark_debris_01", d)
 	var fern: Array[Mesh] = _meshes_of("fern_02")
@@ -1772,13 +1810,19 @@ func _dress_trees() -> void:
 	for t: Dictionary in _trees:
 		var p: Vector2 = t.at
 		var size: float = t.size
-		var pool: Array = pools[t.kind]
-		var m: Mesh = pool[t.pick % pool.size()]
 		# Stood on the lowest ground under the trunk, so no side floats.
 		var y := minf(_gy(p.x, p.y), minf(minf(_gy(p.x + 0.5, p.y), _gy(p.x - 0.5, p.y)), minf(_gy(p.x, p.y + 0.5), _gy(p.x, p.y - 0.5))))
 		var at := Vector3(p.x, y - 0.06, p.y)
+		var xf := _xf_tree(at, t.yaw, size, t.lean)
 		# The back rows of the treeline cast no shadow: it would land on the hills.
-		_add(m, _xf_tree(at, t.yaw, size, t.lean), _valley_d(p.x, p.y) < 8.0, false, 0.0)
+		var shade := _valley_d(p.x, p.y) < 8.0
+		if lods.has(t.kind):
+			var pair: Array = lods[t.kind][t.pick % lods[t.kind].size()]
+			_add(pair[0], xf, shade, false, FIR_LOD)
+			_add(pair[1], xf, shade, false, 0.0, FIR_LOD)
+		else:
+			var pool: Array = pools[t.kind]
+			_add(pool[t.pick % pool.size()], xf, shade, false, 0.0)
 		if TREE_TRUNK[t.kind] > 0.0:
 			_add_trunk(at, TREE_TRUNK[t.kind] * size)
 		if t.kind == "sap":
