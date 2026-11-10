@@ -271,3 +271,11 @@ grass_trample_now={
 "type": "float",
 "value": 0.0
 }
+grass_trample_then={
+"type": "float",
+"value": 0.0
+}
+grass_trample_time={
+"type": "float",
+"value": -1.0
+}

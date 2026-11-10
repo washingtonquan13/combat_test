@@ -30,6 +30,14 @@ extends Node3D
 ## (interpolated between physics ticks) and runs LAG behind, so a mark is
 ## always uploaded before the time it holds comes round: grass starts to
 ## go down from upright instead of partway through its ease.
+##
+## Motion vectors: for TAA, Godot runs the grass vertex shader a second time
+## as of the previous frame, with that frame's TIME, but a global holds
+## only its current value. So the clock is published for this frame and
+## the last (grass_trample_now, grass_trample_then), with this frame's TIME
+## (grass_trample_time, from RenderTime): the shader takes the last frame's
+## clock when its TIME is the one before. If TIME isn't known the grass
+## still bends right; only its motion vectors are lost.
 
 const TEXEL := 0.25
 const HOLD := 2.0
@@ -60,6 +68,8 @@ var _since := 0.0
 var _dirty := false
 ## Instance id -> [where on the ground (xz), when] at the unit's last mark.
 var _last := {}
+var _render_time := preload("res://world/render_time.gd").new() as SubViewport
+var _then := -LAG
 
 
 func _ready() -> void:
@@ -87,18 +97,24 @@ func _ready() -> void:
 	RenderingServer.global_shader_parameter_set(&"grass_trample_rect",
 			Vector4(_origin.x, _origin.y, _size.x * TEXEL, _size.y * TEXEL))
 	RenderingServer.global_shader_parameter_set(&"grass_trample_now", -LAG)
+	add_child(_render_time)
 
 
 func _exit_tree() -> void:
 	if _image != null:
 		RenderingServer.global_shader_parameter_set(&"grass_trample_rect", Vector4.ZERO)
+		RenderingServer.global_shader_parameter_set(&"grass_trample_time", -1.0)
 
 
 func _process(_delta: float) -> void:
 	# The physics clock plus how far rendering is into the next tick: moves
 	# every frame, at the same pace whatever the frame rate.
 	var between := Engine.get_physics_interpolation_fraction() / Engine.physics_ticks_per_second
-	RenderingServer.global_shader_parameter_set(&"grass_trample_now", _clock + between - LAG)
+	var now := _clock + between - LAG
+	RenderingServer.global_shader_parameter_set(&"grass_trample_now", now)
+	RenderingServer.global_shader_parameter_set(&"grass_trample_then", _then)
+	RenderingServer.global_shader_parameter_set(&"grass_trample_time", _render_time.call(&"now"))
+	_then = now
 
 
 func _physics_process(delta: float) -> void:

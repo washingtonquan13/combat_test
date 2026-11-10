@@ -58,6 +58,10 @@ uniform float fade_end = 44.0;
 global uniform sampler2D grass_trample : filter_nearest, repeat_disable;
 global uniform vec4 grass_trample_rect;
 global uniform float grass_trample_now;
+// For motion vectors: the clock last frame, and TIME this frame (-1 if not
+// known). See trample_clock().
+global uniform float grass_trample_then;
+global uniform float grass_trample_time;
 uniform float trample_hold = 2.0;
 uniform float trample_recover = 6.0;
 uniform float trample_dent = 20.0;
@@ -78,14 +82,23 @@ float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
 }
 
+// The trample clock for this run of the vertex code. For TAA's motion
+// vectors Godot runs it again as of the previous frame, TIME then being the
+// previous frame's: that run takes the previous frame's clock, so trodden
+// grass moving between frames gets motion vectors like the wind does.
+float trample_clock() {
+	float behind = grass_trample_time - TIME;
+	return behind > 0.0015 && behind < 0.25 ? grass_trample_then : grass_trample_now;
+}
+
 // One texel's mark, last trodden at `stamp` in a press begun at `begun`:
 // x how flat the grass lies (1 flat, 0 upright), y how far it rocks back
 // past upright as it rises.
-vec2 trample_texel(float stamp, float begun) {
-	float t = grass_trample_now - stamp - trample_hold;
+vec2 trample_texel(float now, float stamp, float begun) {
+	float t = now - stamp - trample_hold;
 	float rise = 1.0 - smoothstep(0.0, trample_recover, t);
 	float dent = 0.18 * (1.0 - smoothstep(trample_recover * 0.5, trample_recover + trample_dent, t));
-	float pressed = max(rise, dent) * smoothstep(0.0, trample_down, grass_trample_now - begun);
+	float pressed = max(rise, dent) * smoothstep(0.0, trample_down, now - begun);
 	float s = max(t, 0.0);
 	float rock = t > 0.0 ? sin(s * 4.2) * exp(-s * 0.9) * 0.22 * (1.0 - pressed) : 0.0;
 	return vec2(pressed, rock);
@@ -94,7 +107,7 @@ vec2 trample_texel(float stamp, float begun) {
 // The trample at xz, blended between the four texels around it, so a
 // trodden patch grows and its push direction turns smoothly rather than a
 // texel at a time.
-vec2 trample_field(vec2 xz) {
+vec2 trample_field(float now, vec2 xz) {
 	vec2 size = vec2(textureSize(grass_trample, 0));
 	vec2 p = (xz - grass_trample_rect.xy) / grass_trample_rect.zw * size - 0.5;
 	vec2 f = fract(p);
@@ -102,10 +115,10 @@ vec2 trample_field(vec2 xz) {
 	// Gather order: (0,1) (1,1) (1,0) (0,0).
 	vec4 stamp = textureGather(grass_trample, at, 0);
 	vec4 begun = textureGather(grass_trample, at, 1);
-	vec2 a = trample_texel(stamp.w, begun.w);
-	vec2 b = trample_texel(stamp.z, begun.z);
-	vec2 c = trample_texel(stamp.x, begun.x);
-	vec2 d = trample_texel(stamp.y, begun.y);
+	vec2 a = trample_texel(now, stamp.w, begun.w);
+	vec2 b = trample_texel(now, stamp.z, begun.z);
+	vec2 c = trample_texel(now, stamp.x, begun.x);
+	vec2 d = trample_texel(now, stamp.y, begun.y);
 	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
@@ -148,13 +161,14 @@ void vertex() {
 	float pressed = 0.0;
 	crushed = 0.0;
 	if (grass_trample_rect.z > 0.0) {
-		vec2 field = trample_field(origin.xz);
+		float now = trample_clock();
+		vec2 field = trample_field(now, origin.xz);
 		pressed = field.x;
 		float rock = field.y;
 		if (pressed > 0.001 || abs(rock) > 0.001) {
 			vec2 slope = vec2(
-					trample_field(origin.xz + vec2(0.3, 0.0)).x - trample_field(origin.xz - vec2(0.3, 0.0)).x,
-					trample_field(origin.xz + vec2(0.0, 0.3)).x - trample_field(origin.xz - vec2(0.0, 0.3)).x);
+					trample_field(now, origin.xz + vec2(0.3, 0.0)).x - trample_field(now, origin.xz - vec2(0.3, 0.0)).x,
+					trample_field(now, origin.xz + vec2(0.0, 0.3)).x - trample_field(now, origin.xz - vec2(0.0, 0.3)).x);
 			float h = hash(origin.xz) * 6.2832;
 			// Where the patch is level (its middle) the clump falls its own way;
 			// toward the rim it turns outward, blended, so it never flips.
@@ -180,8 +194,8 @@ void vertex() {
 	}
 
 	// One slow sway and a broad gust rolling across the field. Slow and low
-	// in frequency on purpose: this motion has no motion vectors, so fast
-	// wind smears under TAA.
+	// in frequency on purpose: it has motion vectors (TIME), but thin cards
+	// moving fast still shimmer under TAA.
 	float gust = 0.6 + 0.4 * sin(TIME * 0.31 + origin.x * 0.06 - origin.z * 0.045);
 	float sway = sin(TIME * 0.8 + origin.x * 0.23 + origin.z * 0.17) * gust;
 	float bend = tip * tip * (1.0 - pressed * 0.8);
