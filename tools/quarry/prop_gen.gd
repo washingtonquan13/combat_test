@@ -14,13 +14,14 @@ extends RefCounted
 # the same on a crate and a house wall.
 
 const T := "res://assets/level/quarry/textures/"
+const SHADER := "res://assets/level/quarry/weathered.gdshader"
 
 # key: [texture set, metres per repeat, tint]
 const SETS := {
 	"planks": ["weathered_brown_planks", 2.0, Color(1, 1, 1)],
-	"beam": ["weathered_brown_planks", 2.0, Color(0.5, 0.42, 0.36)],
-	"roof": ["grey_roof_tiles_02", 2.6, Color(1, 1, 1)],
-	"plaster": ["white_rough_plaster", 2.5, Color(0.93, 0.89, 0.8)],
+	"beam": ["weathered_brown_planks", 2.0, Color(0.6, 0.5, 0.42)],
+	"roof": ["grey_roof_tiles_02", 2.6, Color(0.74, 0.75, 0.78)],
+	"plaster": ["white_rough_plaster", 2.5, Color(0.82, 0.76, 0.65)],
 	"stone": ["rustic_stone_wall_02", 2.2, Color(1, 1, 1)],
 	"canvas": ["hessian_230", 1.2, Color(1, 0.95, 0.85)],
 }
@@ -30,33 +31,47 @@ var _mats := {}
 var _st := {}
 var _root := Basis.IDENTITY
 
+# Weathering context, set per prop and cleared by commit(). Heights are local.
+var _ground := -1e9      # grime rises from here
+var _eave := 1e9         # vertical faces just under this sit in the eave's shade
+var _ao := 1.0           # occlusion forced on what is drawn while it is below 1
+var _moss := 1.0         # scales the moss mask (stone and roofs keep it, beams less)
+# Deformation, applied to positions after UVs are taken so textures don't swim.
+var _lean := Vector2.ZERO  # x, z drift per metre above _lean_from
+var _lean_from := 0.0
+var _sag := 0.0          # ridge sag at mid-length, fading out toward the eaves
+var _sag_half := 1.0     # half-length the sag spans
+var _sag_from := 1e9     # sag starts above this height
+var _sag_to := 1e9       # and is full at this height
+var _jitter := 0.0       # beam ends wander by up to this much
+var bevel := 0.0         # chamfer on box edges, capped by the box's size
+
 
 func material(key: String) -> Material:
 	if _mats.has(key):
 		return _mats[key]
-	var m: BaseMaterial3D
 	if SETS.has(key):
 		var s: Array = SETS[key]
-		var o := ORMMaterial3D.new()
-		o.albedo_texture = load(T + s[0] + "_diff_2k.jpg")
-		o.albedo_color = s[2]
-		o.normal_enabled = true
-		o.normal_texture = load(T + s[0] + "_nor_gl_2k.jpg")
-		o.orm_texture = load(T + s[0] + "_arm_2k.jpg")
-		o.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-		m = o
-	else:
-		m = StandardMaterial3D.new()
-		match key:
-			"dark":
-				m.albedo_color = Color(0.035, 0.03, 0.028)
-				m.roughness = 1.0
-			"water":
-				m.albedo_color = Color(0.02, 0.035, 0.035)
-				m.roughness = 0.08
-			"glass":
-				m.albedo_color = Color(0.06, 0.07, 0.07)
-				m.roughness = 0.25
+		var sm := ShaderMaterial.new()
+		sm.shader = load(SHADER)
+		sm.set_shader_parameter("albedo_tex", load(T + s[0] + "_diff_2k.jpg"))
+		sm.set_shader_parameter("normal_tex", load(T + s[0] + "_nor_gl_2k.jpg"))
+		sm.set_shader_parameter("orm_tex", load(T + s[0] + "_arm_2k.jpg"))
+		var c: Color = s[2]
+		sm.set_shader_parameter("tint", c)
+		_mats[key] = sm
+		return sm
+	var m := StandardMaterial3D.new()
+	match key:
+		"dark":
+			m.albedo_color = Color(0.035, 0.03, 0.028)
+			m.roughness = 1.0
+		"water":
+			m.albedo_color = Color(0.02, 0.035, 0.035)
+			m.roughness = 0.08
+		"glass":
+			m.albedo_color = Color(0.06, 0.07, 0.07)
+			m.roughness = 0.25
 	_mats[key] = m
 	return m
 
@@ -86,24 +101,58 @@ func face(key: String, pts: Array, n: Vector3, u: Vector3, off := Vector2.ZERO) 
 	for q: Vector3 in pts:
 		p.append(_root * q)
 	var flip := (p[1] - p[0]).cross(p[2] - p[0]).dot(nn) > 0.0
+	var ln := n.normalized()
 	for i in range(1, p.size() - 1):
-		var tri := [p[0], p[i + 1], p[i]] if flip else [p[0], p[i], p[i + 1]]
-		for q: Vector3 in tri:
+		var tri := [0, i + 1, i] if flip else [0, i, i + 1]
+		for k: int in tri:
+			var q: Vector3 = p[k]
 			st.set_normal(nn)
 			st.set_uv(Vector2(q.dot(uu), -q.dot(vv)) / tile + off)
-			st.add_vertex(q)
+			st.set_color(_weather(pts[k], ln))
+			st.add_vertex(_root * _deform(pts[k]))
+
+
+## Vertex-colour masks for weathered.gdshader, from a local point and normal.
+func _weather(q: Vector3, n: Vector3) -> Color:
+	var above := q.y - _ground
+	var grime := clampf(1.0 - above / 1.1, 0.0, 1.0)
+	grime *= grime
+	var vertical := 1.0 - absf(n.y)
+	var moss := (clampf(n.y, 0.0, 1.0) * 0.4 + grime * 0.4) * _moss
+	var ao := 1.0
+	ao -= 0.35 * clampf(1.0 - above / 0.35, 0.0, 1.0)
+	ao -= 0.4 * vertical * clampf(1.0 - (_eave - q.y) / 0.8, 0.0, 1.0) * float(q.y < _eave + 0.05)
+	ao -= 0.15 * clampf(-n.y, 0.0, 1.0)
+	ao = minf(ao, _ao)
+	return Color(grime, clampf(moss, 0.0, 1.0), vertical, clampf(ao, 0.2, 1.0))
+
+
+func _deform(q: Vector3) -> Vector3:
+	var up := maxf(q.y - _lean_from, 0.0)
+	q.x += _lean.x * up
+	q.z += _lean.y * up
+	if _sag > 0.0 and q.y > _sag_from:
+		var along := clampf(q.x / _sag_half, -1.0, 1.0)
+		var high := clampf((q.y - _sag_from) / maxf(_sag_to - _sag_from, 0.01), 0.0, 1.0)
+		q.y -= _sag * (1.0 - along * along) * high
+	return q
 
 
 ## A box of `size` placed by `xf`. Texture U follows `grain` (0 x, 1 y, 2 z)
-## where it lies in a face; by default the longest axis.
-func box(key: String, xf: Transform3D, size: Vector3, grain := -1) -> void:
+## where it lies in a face; by default the longest axis. Edges are chamfered by
+## `bevel` (capped at a fifth of the smallest side). `off` fixes the texture
+## offset; by default it is random.
+func box(key: String, xf: Transform3D, size: Vector3, grain := -1, off := Vector2(-1, -1)) -> void:
 	if grain < 0:
 		grain = 0
 		for a in 3:
 			if size[a] > size[grain]:
 				grain = a
 	var h := size * 0.5
-	var off := Vector2(rng.randf(), rng.randf())
+	if off.x < 0.0:
+		off = Vector2(rng.randf(), rng.randf())
+	var bv := minf(bevel, minf(size.x, minf(size.y, size.z)) * 0.2) if key not in ["dark", "glass", "water"] else 0.0
+	var axes := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
 	for axis in 3:
 		var a := (axis + 1) % 3
 		var b := (axis + 2) % 3
@@ -114,15 +163,40 @@ func box(key: String, xf: Transform3D, size: Vector3, grain := -1) -> void:
 		for sgn in [-1.0, 1.0]:
 			var n := Vector3.ZERO
 			n[axis] = sgn
-			var eu := Vector3.ZERO
-			eu[ua] = 1.0
-			var ev := Vector3.ZERO
-			ev[va] = 1.0
+			var eu: Vector3 = axes[ua]
+			var ev: Vector3 = axes[va]
 			var c := n * h[axis]
 			var pts := []
 			for s: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
-				pts.append(xf * (c + eu * s.x * h[ua] + ev * s.y * h[va]))
+				pts.append(xf * (c + eu * s.x * (h[ua] - bv) + ev * s.y * (h[va] - bv)))
 			face(key, pts, xf.basis * n, xf.basis * eu, off)
+	if bv <= 0.0:
+		return
+	# Chamfer strips along the 12 edges, then the 8 corner triangles.
+	for k in 3:
+		var i := (k + 1) % 3
+		var j := (k + 2) % 3
+		var ek: Vector3 = axes[k]
+		for si in [-1.0, 1.0]:
+			for sj in [-1.0, 1.0]:
+				var ni: Vector3 = axes[i] * si
+				var nj: Vector3 = axes[j] * sj
+				var p_i: Vector3 = ni * h[i] + nj * (h[j] - bv)
+				var p_j: Vector3 = ni * (h[i] - bv) + nj * h[j]
+				var e := ek * (h[k] - bv)
+				var pts := [xf * (p_i - e), xf * (p_j - e), xf * (p_j + e), xf * (p_i + e)]
+				face(key, pts, xf.basis * (ni + nj).normalized(), xf.basis * ek, off)
+	for sx in [-1.0, 1.0]:
+		for sy in [-1.0, 1.0]:
+			for sz in [-1.0, 1.0]:
+				var sg := Vector3(sx, sy, sz)
+				var pts := []
+				for ax in 3:
+					var q := sg * (h - Vector3.ONE * bv)
+					q[ax] = sg[ax] * h[ax]
+					pts.append(xf * q)
+				var cn := xf.basis * sg.normalized()
+				face(key, pts, cn, cn.cross(xf.basis * Vector3.UP + Vector3(0.01, 0, 0)), off)
 
 
 ## A prism along local Y: `segs` sides of radius r, height h, centred.
@@ -153,6 +227,9 @@ func _xf(at: Vector3, yaw := 0.0, pitch := 0.0, roll := 0.0) -> Transform3D:
 
 ## A beam from a to b with a square section, grain along its length.
 func beam(key: String, a: Vector3, b: Vector3, w: float, d := -1.0) -> void:
+	if _jitter > 0.0:
+		a += Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)) * _jitter
+		b += Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)) * _jitter
 	var dir := b - a
 	var y := dir.normalized()
 	var x := Vector3.UP.cross(y)
@@ -173,6 +250,17 @@ func commit(yaw := 0.0) -> ArrayMesh:
 		mesh.surface_set_material(mesh.get_surface_count() - 1, material(key))
 	_st.clear()
 	_root = Basis.IDENTITY
+	_ground = -1e9
+	_eave = 1e9
+	_ao = 1.0
+	_moss = 1.0
+	_lean = Vector2.ZERO
+	_lean_from = 0.0
+	_sag = 0.0
+	_sag_from = 1e9
+	_sag_to = 1e9
+	_jitter = 0.0
+	bevel = 0.0
 	return mesh
 
 
@@ -185,7 +273,9 @@ func _face_to(yaw_deg: float) -> void:
 
 
 ## A cottage filling `size`, front door facing `yaw_deg` (0 = +Z). Built with
-## the ridge along X and the door on the +Z side, then turned.
+## the ridge along X and the door on the +Z side, then turned. Walls are cut
+## round their openings with lined reveals, the roof is laid in slate courses
+## over boards and rafters, and the whole frame leans and sags a little.
 func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMesh:
 	rng.seed = seed
 	_face_to(yaw_deg)
@@ -201,31 +291,22 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 	var pitch := minf(deg_to_rad(38.0), atan(2.3 / (Wd * 0.5)))
 	var rise := hz * tan(pitch)
 	var ridge := top + rise
+	var wall := "plaster" if plaster else "planks"
+
+	_ground = y0
+	_eave = top
+	bevel = 0.025
+	_jitter = 0.01
+	var lean_dir := rng.randf() * TAU
+	_lean = Vector2(cos(lean_dir), sin(lean_dir)) * rng.randf_range(0.006, 0.013)
+	_lean_from = plinth
+	_sag = rng.randf_range(0.05, 0.1)
+	_sag_half = L * 0.5
+	_sag_from = top - 0.5
+	_sag_to = ridge
 
 	# Stone plinth, going down to meet a falling slope.
 	box("stone", _xf(Vector3(0, (y0 - 0.9 + plinth) * 0.5, 0)), Vector3(hx * 2 + 0.16, plinth - y0 + 0.9, hz * 2 + 0.16))
-	# Walls.
-	box("plaster" if plaster else "planks", _xf(Vector3(0, (plinth + top) * 0.5, 0)), Vector3(hx * 2, top - plinth, hz * 2), 0 if not plaster else -1)
-	# Gable ends.
-	for sx in [-1.0, 1.0]:
-		var x: float = sx * hx
-		var tri := [Vector3(x, top, -hz), Vector3(x, top, hz), Vector3(x, ridge, 0)]
-		face("plaster" if plaster else "planks", tri, Vector3(sx, 0, 0), Vector3(0, 0, 1))
-
-	# Roof: two slabs from the ridge out to the footprint's edge.
-	var reach := Wd * 0.5
-	var drop := reach * tan(pitch)
-	var slope := Vector2(reach, drop).length() + 0.12
-	var th := 0.14
-	for sz in [-1.0, 1.0]:
-		var ang: float = sz * pitch
-		var n := Vector3(0, cos(pitch), sz * sin(pitch))
-		var mid := Vector3(0, ridge - drop * 0.5, sz * reach * 0.5) + n * th * 0.5
-		box("roof", Transform3D(Basis(Vector3.RIGHT, ang), mid), Vector3(L, th, slope), 0)
-		# Barge boards along the gable edges.
-		for sx in [-1.0, 1.0]:
-			beam("beam", Vector3(sx * (L * 0.5 - 0.06), ridge + 0.05, 0), Vector3(sx * (L * 0.5 - 0.06), ridge - drop + 0.05, sz * reach), 0.1, 0.22)
-	beam("beam", Vector3(-L * 0.5, ridge + th + 0.04, 0), Vector3(L * 0.5, ridge + th + 0.04, 0), 0.2)
 
 	# Door on the front, windows either side, more round the back and on one gable.
 	var door_x := rng.randf_range(-0.4, 0.4) * (hx - 1.6)
@@ -242,8 +323,17 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 	if top - plinth > 3.0:
 		opens.append(["east", 0.0, 0.6, ridge - rise * 0.75, ridge - rise * 0.75 + 0.6])
 
+	for fname: String in ["front", "back", "east", "west"]:
+		_wall(wall, fname, opens, hx, hz, plinth, top)
+	for sx in [-1.0, 1.0]:
+		var x: float = sx * hx
+		var tri := [Vector3(x, top, -hz), Vector3(x, top, hz), Vector3(x, ridge, 0)]
+		face(wall, tri, Vector3(sx, 0, 0), Vector3(0, 0, 1))
+
+	_roof(hx, hz, top, ridge, pitch)
+
 	for o: Array in opens:
-		_opening(o, hx, hz, o == opens[0])
+		_opening(o, hx, hz, o == opens[0], o[4] <= top)
 
 	if plaster:
 		_timber_frame(opens, hx, hz, plinth, top, ridge)
@@ -254,13 +344,127 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 	# Step in front of the door.
 	box("stone", _xf(Vector3(door_x, plinth - 0.1, hz + 0.2), rng.randf_range(-0.05, 0.05)), Vector3(1.3, 0.3, 0.36))
 
-	# Chimney on the west gable, half in the wall.
+	# Chimney on the west gable, half in the wall, with a pot.
 	var cz := rng.randf_range(-0.3, 0.3) * hz
 	var cx0 := -L * 0.5 + 0.45
 	box("stone", _xf(Vector3(cx0, (plinth + ridge + 0.9) * 0.5, cz)), Vector3(0.9, ridge + 0.9 - plinth, 0.9), 1)
 	box("stone", _xf(Vector3(cx0, ridge + 0.95, cz)), Vector3(1.0, 0.14, 1.0))
-	box("dark", _xf(Vector3(cx0, ridge + 1.025, cz)), Vector3(0.5, 0.02, 0.5))
+	cyl("stone", _xf(Vector3(cx0 + 0.12, ridge + 1.18, cz)), 0.13, 0.36, 8)
+	box("dark", _xf(Vector3(cx0 + 0.12, ridge + 1.365, cz)), Vector3(0.17, 0.01, 0.17))
 	return commit()
+
+
+## One wall of a cottage, cut round its openings, with the openings' reveals
+## lined back into the wall: deep for the door, shallow for windows. Openings
+## above the wall top (gable windows) are left to sit on the gable.
+func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: float, y1: float) -> void:
+	var span := hz if fname in ["east", "west"] else hx
+	var f := _wall_frame(fname, 0.0, hx, hz)
+	var at: Vector3 = f[0]
+	var n: Vector3 = f[1]
+	var t: Vector3 = f[2]
+	var holes: Array = []
+	for o: Array in opens:
+		if o[0] == fname and o[4] <= y1:
+			holes.append([o[1] - o[2] * 0.5, o[1] + o[2] * 0.5, o[3], o[4], 0.45 if o == opens[0] else 0.2])
+	var us: Array[float] = [-span, span]
+	for hh: Array in holes:
+		us.append(hh[0])
+		us.append(hh[1])
+	us.sort()
+	for i in us.size() - 1:
+		var u0 := us[i]
+		var u1 := us[i + 1]
+		if u1 - u0 < 0.001:
+			continue
+		var mid := (u0 + u1) * 0.5
+		var ys: Array[float] = [y0]
+		for hh: Array in holes:
+			if mid > hh[0] and mid < hh[1]:
+				ys.append(hh[2])
+				ys.append(hh[3])
+		ys.append(y1)
+		for k in range(0, ys.size(), 2):
+			if ys[k + 1] - ys[k] > 0.001:
+				face(key, [at + t * u0 + Vector3.UP * ys[k], at + t * u1 + Vector3.UP * ys[k],
+						at + t * u1 + Vector3.UP * ys[k + 1], at + t * u0 + Vector3.UP * ys[k + 1]], n, t)
+	_ao = 0.6
+	for hh: Array in holes:
+		var d: float = hh[4]
+		var c00: Vector3 = at + t * hh[0] + Vector3.UP * hh[2]
+		var c10: Vector3 = at + t * hh[1] + Vector3.UP * hh[2]
+		var c01: Vector3 = at + t * hh[0] + Vector3.UP * hh[3]
+		var c11: Vector3 = at + t * hh[1] + Vector3.UP * hh[3]
+		face(key, [c00, c10, c10 - n * d, c00 - n * d], Vector3.UP, t)
+		face(key, [c01, c11, c11 - n * d, c01 - n * d], Vector3.DOWN, t)
+		face(key, [c00, c01, c01 - n * d, c00 - n * d], t, Vector3.UP)
+		face(key, [c10, c11, c11 - n * d, c10 - n * d], -t, Vector3.UP)
+	_ao = 1.0
+
+
+## Slate courses over sheathing boards, carried on rafters whose tails show
+## under the eaves, with barge boards on the gables and a ridge of round tiles.
+## Each course's texture is shifted so a row of slates ends on its lower edge.
+func _roof(hx: float, hz: float, top: float, ridge: float, pitch: float) -> void:
+	var ov := 0.45
+	var rx := hx + 0.3
+	var tp := tan(pitch)
+	var sheath := 0.03
+	var th := 0.028
+	var row := 2.6 / 9.0
+	var lap := row * 1.7
+	var slope := (hz + ov) / cos(pitch)
+	var segs := maxi(2, int(ceil(rx * 2.0 / 1.3)))
+	var seg_len := rx * 2.0 / segs
+	var keep_bevel := bevel
+	for sz in [-1.0, 1.0]:
+		var up := Vector3(0, sin(pitch), -sz * cos(pitch))
+		var n := Vector3(0, cos(pitch), sz * sin(pitch))
+		var eave := Vector3(0, top - ov * tp, sz * (hz + ov))
+		var bx: Vector3 = Vector3.RIGHT * sz
+		bevel = 0.0
+		for k in segs:
+			var sx := Vector3(-rx + seg_len * (k + 0.5), 0, 0)
+			box("planks", Transform3D(Basis(bx, n, bx.cross(n)), eave + up * slope * 0.5 + n * sheath * 0.5 + sx), Vector3(seg_len, sheath, slope), 0)
+		var s0 := 0.0
+		var i := 0
+		while s0 < slope - 0.05:
+			var len := minf(lap, slope - s0 + 0.04)
+			var lift := th + (rng.randf_range(0.0, 0.006) if i > 0 else 0.0)
+			var lo := eave + up * s0 + n * (sheath + lift)
+			var hi := eave + up * (s0 + len) + n * sheath
+			var dd := (hi - lo).normalized()
+			var nn: Vector3 = bx.cross(dd).normalized()
+			var bs := Basis(bx, nn, bx.cross(nn))
+			var edge: Vector3 = lo + nn * th
+			var off := Vector2(rng.randf(), edge.dot(nn.cross(bx)) / 2.6 - 0.004)
+			for k in segs:
+				var x := -rx + seg_len * (k + 0.5)
+				box("roof", Transform3D(bs, (lo + hi) * 0.5 + nn * th * 0.5 + Vector3(x, 0, 0)), Vector3(seg_len + 0.002, th, (hi - lo).length()), 0, off)
+			if i == 0:
+				box("roof", Transform3D(bs, eave + up * row * 0.5 + n * (sheath + th * 0.5)), Vector3(rx * 2, th, row), 0)
+			s0 += row
+			i += 1
+		bevel = keep_bevel
+		# Rafter tails under the eave, along the wall.
+		var count := int(hx * 2.0 / 0.6)
+		for k in count + 1:
+			var x := lerpf(-hx + 0.1, hx - 0.1, float(k) / count)
+			var w := Vector3(x, top, sz * hz)
+			beam("beam", w + up * (0.25 / cos(pitch)) - n * 0.075, w - up * ((ov - 0.05) / cos(pitch)) - n * 0.075, 0.09, 0.15)
+		# Barge boards on the verges.
+		for sx in [-1.0, 1.0]:
+			var vx := Vector3(sx * (rx - 0.03), 0, 0)
+			beam("beam", Vector3(0, ridge, 0) + vx - n * 0.09, eave + vx - n * 0.09 - up * 0.04, 0.06, 0.24)
+	# Ridge of round tiles, each a touch out of line.
+	bevel = 0.0
+	var x := -rx
+	while x < rx - 0.05:
+		var l := minf(0.42, rx - x)
+		var at := Vector3(x + l * 0.5, ridge + sheath + th + 0.03 + rng.randf_range(-0.008, 0.008), rng.randf_range(-0.01, 0.01))
+		cyl("roof", Transform3D(Basis(Vector3.BACK, PI * 0.5).rotated(Vector3.UP, rng.randf_range(-0.02, 0.02)), at), 0.13, l - 0.01, 8)
+		x += l
+	bevel = keep_bevel
 
 
 ## Where an opening sits: a point on the wall surface and the wall's outward axes.
@@ -270,11 +474,13 @@ func _wall_frame(face_name: String, u: float, hx: float, hz: float) -> Array:
 			return [Vector3(u, 0, hz), Vector3(0, 0, 1), Vector3(1, 0, 0)]
 		"back":
 			return [Vector3(-u, 0, -hz), Vector3(0, 0, -1), Vector3(-1, 0, 0)]
+		"west":
+			return [Vector3(-hx, 0, u), Vector3(-1, 0, 0), Vector3(0, 0, 1)]
 		_:
 			return [Vector3(hx, 0, -u), Vector3(1, 0, 0), Vector3(0, 0, -1)]
 
 
-func _opening(o: Array, hx: float, hz: float, is_door: bool) -> void:
+func _opening(o: Array, hx: float, hz: float, is_door: bool, recessed := true) -> void:
 	var f := _wall_frame(o[0], o[1], hx, hz)
 	var at: Vector3 = f[0]
 	var n: Vector3 = f[1]
@@ -286,18 +492,19 @@ func _opening(o: Array, hx: float, hz: float, is_door: bool) -> void:
 	var yaw := atan2(n.x, n.z)
 	var c := at + Vector3.UP * (b + h * 0.5)
 	if is_door:
-		box("dark", _xf(c + n * 0.01, yaw), Vector3(w, h, 0.02))
-		# Planked leaf, ajar.
-		var hinge := c - t * w * 0.5 + n * 0.04
-		var swing := deg_to_rad(rng.randf_range(15.0, 40.0))
-		var leaf := Basis(Vector3.UP, yaw - swing)
+		box("dark", _xf(c - n * 0.45, yaw), Vector3(w, h, 0.02))
+		# Planked leaf, ajar, swung in from a hinge in the reveal.
+		var hinge := c - t * w * 0.5 - n * 0.1
+		var swing := deg_to_rad(rng.randf_range(20.0, 45.0))
+		var leaf := Basis(Vector3.UP, yaw + swing)
 		box("planks", Transform3D(leaf, hinge + leaf * Vector3(w * 0.47, 0, 0.03)), Vector3(w * 0.94, h - 0.04, 0.06), 1)
 		for ly in [-0.6, 0.6]:
 			box("beam", Transform3D(leaf, hinge + leaf * Vector3(w * 0.47, ly, 0.08)), Vector3(w * 0.9, 0.12, 0.04))
 	else:
-		box("glass", _xf(c + n * 0.015, yaw), Vector3(w, h, 0.02))
-		box("beam", _xf(c + n * 0.06, yaw), Vector3(0.06, h, 0.04))
-		box("beam", _xf(c + n * 0.06, yaw), Vector3(w, 0.06, 0.04))
+		var back := 0.13 if recessed else -0.015
+		box("glass", _xf(c - n * back, yaw), Vector3(w, h, 0.02))
+		box("beam", _xf(c - n * (back - 0.04), yaw), Vector3(0.06, h, 0.04))
+		box("beam", _xf(c - n * (back - 0.04), yaw), Vector3(w, 0.06, 0.04))
 		box("beam", _xf(at + Vector3.UP * b + n * 0.09 + Vector3.DOWN * 0.04, yaw), Vector3(w + 0.3, 0.08, 0.2))
 		# Shutters, swung back against the wall at a slight angle.
 		for s in [-1.0, 1.0]:
