@@ -259,3 +259,15 @@ city_has_shore={
 "type": "bool",
 "value": false
 }
+grass_trample={
+"type": "sampler2D",
+"value": ""
+}
+grass_trample_rect={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+grass_trample_now={
+"type": "float",
+"value": 0.0
+}

@@ -8,6 +8,10 @@ var _goblinoids_remaining: Array[Unit] = []
 
 func _ready() -> void:
 	_watch_goblinoid_raid_quest()
+	var trample := GrassTrample.new()
+	trample.name = "GrassTrample"
+	trample.grass = $LevelGeometry/Terrain/Grass
+	add_child(trample)
 	StartingParty.bootstrap(self, $PartySpawnPoint)
 
 

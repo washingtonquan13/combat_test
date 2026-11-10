@@ -17,7 +17,8 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // blade carries the atlas shading, so a card's base never draws a line.
 // UV is the point in the card; UV2.x is 0 at the root and 1 at the top,
 // UV2.y a random number per card. With distance a share of the cards fold
-// away, and past fade_start the clump sinks into the ground.
+// away, and past fade_start the clump sinks into the ground. Where units
+// walk, the clump is pressed flat and springs back after they leave.
 //
 // INSTANCE_CUSTOM picks the atlas cells: r the first row, g how many rows,
 // b a fixed column, or 4 for any. The same shader draws the meadow plants
@@ -43,6 +44,15 @@ uniform float wind = 0.05;
 uniform float thin_start = 12.0;
 uniform float fade_start = 30.0;
 uniform float fade_end = 44.0;
+// Where units have stood (world/grass_trample.gd): per texel, the time it
+// was last trodden. Fresh grass lies flat, pushed out from the middle of
+// the trodden patch, and stands again over `trample_recover` seconds once
+// the mark is `trample_hold` seconds old.
+global uniform sampler2D grass_trample : filter_linear, repeat_disable;
+global uniform vec4 grass_trample_rect;
+global uniform float grass_trample_now;
+uniform float trample_hold = 2.0;
+uniform float trample_recover = 6.0;
 
 varying float tip;
 varying vec3 base;
@@ -56,6 +66,12 @@ float lum(vec3 c) {
 
 float hash(vec2 p) {
 	return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+float trodden(vec2 xz) {
+	vec2 uv = (xz - grass_trample_rect.xy) / grass_trample_rect.zw;
+	float age = grass_trample_now - textureLod(grass_trample, uv, 0.0).r;
+	return 1.0 - smoothstep(trample_hold, trample_hold + trample_recover, age);
 }
 
 void vertex() {
@@ -89,12 +105,31 @@ void vertex() {
 	float sink = 1.0 - smoothstep(fade_start, fade_end, dist);
 	VERTEX *= alive * sink;
 
+	// Trodden grass folds over about its root, away from the middle of the
+	// trodden patch (downhill on the mark), so a path parts the grass.
+	float pressed = 0.0;
+	if (grass_trample_rect.z > 0.0) {
+		pressed = trodden(origin.xz);
+		if (pressed > 0.001) {
+			vec2 slope = vec2(trodden(origin.xz + vec2(0.35, 0.0)), trodden(origin.xz + vec2(0.0, 0.35))) - pressed;
+			float h = hash(origin.xz) * 6.2832;
+			vec2 away = length(slope) > 0.02 ? -normalize(slope) : vec2(cos(h), sin(h));
+			mat3 to_world = mat3(MODEL_MATRIX);
+			vec3 w = to_world * VERTEX;
+			float up = max(w.y, 0.0);
+			float angle = pressed * 1.25 * (0.85 + 0.3 * UV2.y);
+			w.y = up * cos(angle);
+			w.xz += away * up * sin(angle);
+			VERTEX = inverse(to_world) * w;
+		}
+	}
+
 	// One slow sway and a broad gust rolling across the field. Slow and low
 	// in frequency on purpose: this motion has no motion vectors, so fast
 	// wind smears under TAA.
 	float gust = 0.6 + 0.4 * sin(TIME * 0.31 + origin.x * 0.06 - origin.z * 0.045);
 	float sway = sin(TIME * 0.8 + origin.x * 0.23 + origin.z * 0.17) * gust;
-	float bend = tip * tip;
+	float bend = tip * tip * (1.0 - pressed * 0.8);
 	VERTEX.x += sway * wind * bend;
 	VERTEX.z += sway * wind * 0.6 * bend;
 }
