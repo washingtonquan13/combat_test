@@ -1278,16 +1278,19 @@ func _build_campfire(root: Node3D) -> void:
 func _blade_clump() -> ArrayMesh:
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
 	var norms := PackedVector3Array()
 	var idx := PackedInt32Array()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5
 	for b in 10:
+		# The grass shader folds blades away by this number with distance.
+		var r := (b + rng.randf() * 0.9) / 10.0
 		var yaw := rng.randf() * TAU
 		var root := Vector3(rng.randf_range(-0.16, 0.16), 0.0, rng.randf_range(-0.16, 0.16))
-		var height := rng.randf_range(0.15, 0.3)
-		var lean := Vector3(cos(yaw), 0.0, sin(yaw)) * rng.randf_range(0.05, 0.14)
-		var side := Vector3(-sin(yaw), 0.0, cos(yaw)) * 0.015
+		var height := rng.randf_range(0.12, 0.36)
+		var lean := Vector3(cos(yaw), 0.0, sin(yaw)) * rng.randf_range(0.04, 0.22) * height / 0.25
+		var side := Vector3(-sin(yaw), 0.0, cos(yaw)) * rng.randf_range(0.013, 0.02)
 		var start := verts.size()
 		for s in 3:
 			var t := s / 2.0
@@ -1295,8 +1298,10 @@ func _blade_clump() -> ArrayMesh:
 			var w := side * (1.0 - t * 0.9)
 			verts.append(c - w)
 			verts.append(c + w)
-			uvs.append(Vector2(0.0, t))
-			uvs.append(Vector2(1.0, t))
+			uvs.append(Vector2(r, t))
+			uvs.append(Vector2(r, t))
+			uv2s.append(Vector2(-w.x, -w.z))
+			uv2s.append(Vector2(w.x, w.z))
 			norms.append(Vector3.UP)
 			norms.append(Vector3.UP)
 		for q: int in [0, 2]:
@@ -1306,6 +1311,7 @@ func _blade_clump() -> ArrayMesh:
 	arrays[Mesh.ARRAY_VERTEX] = verts
 	arrays[Mesh.ARRAY_NORMAL] = norms
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = uv2s
 	arrays[Mesh.ARRAY_INDEX] = idx
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
@@ -1319,6 +1325,8 @@ func _build_grass(root: Node3D) -> void:
 	var clump := _blade_clump()
 	var mat := ShaderMaterial.new()
 	mat.shader = load(OUT + "quarry_grass.gdshader")
+	mat.set_shader_parameter("ground_grass", load(T + "grass_path_2_diff_2k.jpg"))
+	mat.set_shader_parameter("ground_soil", load(T + "forest_ground_04_diff_2k.jpg"))
 	clump.surface_set_material(0, mat)
 	var chunk := 8.0
 	var per_chunk := int(chunk * chunk * 13.0)
@@ -1337,11 +1345,13 @@ func _build_grass(root: Node3D) -> void:
 					continue
 				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5:
 					continue
-				var size := _rng.randf_range(0.7, 1.35) * lerpf(0.5, 1.1, g)
+				# Tall and short stands, not one mown height.
+				var stand := smoothstep(-0.4, 0.5, _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1))
+				var size := _rng.randf_range(0.75, 1.25) * lerpf(0.5, 1.1, g) * lerpf(0.6, 1.45, stand)
 				var b := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * size)
 				spots.append(Transform3D(b, Vector3(x, _gy(x, z) - 0.02, z)))
 				var v := _patch.get_noise_2d(x * 2.0, z * 2.0)
-				tints.append(Color(1.0 + v * 0.3 + _rng.randf() * 0.1, 1.0 + _rng.randf() * 0.12, 0.85 + v * 0.2))
+				tints.append(Color(1.0 + v * 0.12 + _rng.randf() * 0.08, 1.0 + _rng.randf() * 0.08, 0.95 + v * 0.08))
 			if not spots.is_empty():
 				var mm := MultiMesh.new()
 				mm.transform_format = MultiMesh.TRANSFORM_3D
