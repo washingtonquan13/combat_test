@@ -45,6 +45,7 @@ var _sag_from := 1e9     # sag starts above this height
 var _sag_to := 1e9       # and is full at this height
 var _jitter := 0.0       # beam ends wander by up to this much
 var bevel := 0.0         # chamfer on box edges, capped by the box's size
+var _blk := Transform3D.IDENTITY  # frame of the building block being drawn, inside the prop
 
 
 func material(key: String) -> Material:
@@ -93,23 +94,23 @@ func _tile(key: String) -> float:
 ## A flat convex polygon. `u` is the direction the texture's U runs along.
 func face(key: String, pts: Array, n: Vector3, u: Vector3, off := Vector2.ZERO) -> void:
 	var st := _surf(key)
-	var nn := (_root * n).normalized()
-	var uu := (_root * u).normalized()
+	var bn := (_blk.basis * n).normalized()
+	var nn := (_root * bn).normalized()
+	var uu := (_root * (_blk.basis * u)).normalized()
 	var vv := nn.cross(uu)
 	var tile := _tile(key)
-	var p: Array[Vector3] = []
+	var p: Array[Vector3] = []  # prop space, undeformed
 	for q: Vector3 in pts:
-		p.append(_root * q)
-	var flip := (p[1] - p[0]).cross(p[2] - p[0]).dot(nn) > 0.0
-	var ln := n.normalized()
+		p.append(_blk * q)
+	var flip := (p[1] - p[0]).cross(p[2] - p[0]).dot(bn) > 0.0
 	for i in range(1, p.size() - 1):
 		var tri := [0, i + 1, i] if flip else [0, i, i + 1]
 		for k: int in tri:
-			var q: Vector3 = p[k]
+			var q: Vector3 = _root * p[k]
 			st.set_normal(nn)
 			st.set_uv(Vector2(q.dot(uu), -q.dot(vv)) / tile + off)
-			st.set_color(_weather(pts[k], ln))
-			st.add_vertex(_root * _deform(pts[k]))
+			st.set_color(_weather(p[k], bn))
+			st.add_vertex(_root * _lean_at(_blk * _sag_at(pts[k])))
 
 
 ## Vertex-colour masks for weathered.gdshader, from a local point and normal.
@@ -127,10 +128,16 @@ func _weather(q: Vector3, n: Vector3) -> Color:
 	return Color(grime, clampf(moss, 0.0, 1.0), vertical, clampf(ao, 0.2, 1.0))
 
 
-func _deform(q: Vector3) -> Vector3:
+## Lean, in prop space.
+func _lean_at(q: Vector3) -> Vector3:
 	var up := maxf(q.y - _lean_from, 0.0)
 	q.x += _lean.x * up
 	q.z += _lean.y * up
+	return q
+
+
+## Ridge sag, in the block's own frame (ridge along x).
+func _sag_at(q: Vector3) -> Vector3:
 	if _sag > 0.0 and q.y > _sag_from:
 		var along := clampf(q.x / _sag_half, -1.0, 1.0)
 		var high := clampf((q.y - _sag_from) / maxf(_sag_to - _sag_from, 0.01), 0.0, 1.0)
@@ -261,6 +268,7 @@ func commit(yaw := 0.0) -> ArrayMesh:
 	_sag_to = 1e9
 	_jitter = 0.0
 	bevel = 0.0
+	_blk = Transform3D.IDENTITY
 	return mesh
 
 
@@ -272,10 +280,19 @@ func _face_to(yaw_deg: float) -> void:
 	_root = Basis(Vector3.UP, deg_to_rad(yaw_deg))
 
 
-## A cottage filling `size`, front door facing `yaw_deg` (0 = +Z). Built with
-## the ridge along X and the door on the +Z side, then turned. Walls are cut
-## round their openings with lined reveals, the roof is laid in slate courses
-## over boards and rafters, and the whole frame leans and sags a little.
+## A cottage filling `size`, front door facing `yaw_deg` (0 = +Z), laid out
+## by a small grammar: the footprint's shape and the box's height pick a plan,
+## the plan splits the footprint into blocks (gabled ranges, lean-tos,
+## dormers), and every facade is then filled with openings by rule, so walls
+## buried in another block, chimneys and doors are kept clear. The seed picks
+## the variants (which end a wing goes on, chimney, window size and rhythm,
+## lean-to length). Blocks share one lean, and gabled ones sag.
+##
+##   deep footprint            -> cross-wing: a front-gabled wing at one end,
+##                                a lower hall behind, a porch in the corner
+##   tall box                  -> two storeys, door hood
+##   long footprint            -> attic dormers in the front slope
+##   otherwise                 -> lean-to outshot along part of the back
 func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMesh:
 	rng.seed = seed
 	_face_to(yaw_deg)
@@ -284,74 +301,325 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 	var Wd := size.x if turned else size.z
 	var y0 := -size.y * 0.5
 	var inset := 0.35
-	var plinth := y0 + 0.55
-	var top := y0 + clampf(size.y - 0.9, 2.9, 3.7)
 	var hx := L * 0.5 - inset
 	var hz := Wd * 0.5 - inset
-	var pitch := minf(deg_to_rad(38.0), atan(2.3 / (Wd * 0.5)))
-	var rise := hz * tan(pitch)
-	var ridge := top + rise
+	var tall := size.y >= 4.6
+	var plinth := y0 + 0.55
+	var top := y0 + (clampf(size.y - 0.4, 4.2, 4.6) if tall else clampf(size.y - 0.6, 2.9, 3.4))
 	var wall := "plaster" if plaster else "planks"
 
 	_ground = y0
-	_eave = top
 	bevel = 0.025
 	_jitter = 0.01
 	var lean_dir := rng.randf() * TAU
 	_lean = Vector2(cos(lean_dir), sin(lean_dir)) * rng.randf_range(0.006, 0.013)
 	_lean_from = plinth
-	_sag = rng.randf_range(0.05, 0.1)
-	_sag_half = L * 0.5
-	_sag_from = top - 0.5
-	_sag_to = ridge
+	var sag := rng.randf_range(0.05, 0.1)
+
+	# House style: one window size and rhythm for the whole house.
+	var ww: float = [0.7, 0.8, 0.9][rng.randi() % 3]
+	var wh := rng.randf_range(0.8, 0.95)
+	var spacing := rng.randf_range(1.7, 2.4)
+	var sill := plinth + 0.95
+	var wtop := minf(sill + wh, top - 0.3)
+
+	var plan := "outshot"
+	if hz > hx * 1.05 and hx * 2.0 >= 4.6:
+		plan = "wing"
+	elif tall:
+		plan = "tall"
+	elif hx > hz * 1.45:
+		plan = "dormers"
+
+	var blocks: Array = []
+	var main: Dictionary
+	var door_face := "front"
+	var porch := false
+	match plan:
+		"wing":
+			var side := 1.0 if rng.randf() < 0.5 else -1.0
+			var wing_w := minf(clampf(hx, 2.8, 3.6), hx * 2.0 - 1.8)
+			var dm := minf(wing_w - 0.7, hz * 2.0 * 0.62)
+			var pw := minf(deg_to_rad(40.0), atan(2.4 / (wing_w * 0.5)))
+			var wing := _block(Vector3(side * (hx - wing_w * 0.5), 0, 0), PI * 0.5, hz, wing_w * 0.5, plinth, top, pw, y0)
+			var x0 := -side * hx
+			var x1 := side * (hx - wing_w)
+			main = _block(Vector3((x0 + x1) * 0.5, 0, -hz + dm * 0.5), 0.0, absf(x1 - x0) * 0.5, dm * 0.5, plinth, top, pw, y0)
+			main.skip = ["east" if side > 0.0 else "west"]
+			if side > 0.0:
+				main.ends.y = wing_w * 0.5
+			else:
+				main.ends.x = wing_w * 0.5
+			blocks = [main, wing]
+			porch = true
+		"outshot":
+			var dl := clampf(hz * 0.6, 1.4, 1.9)
+			var dm := hz * 2.0 - dl
+			var pm := minf(deg_to_rad(38.0), atan(2.3 / (dm * 0.5)))
+			main = _block(Vector3(0, 0, hz - dm * 0.5), 0.0, hx, dm * 0.5, plinth, top, pm, y0)
+			var lx := hx * rng.randf_range(0.55, 1.0)
+			var lc := (hx - lx) * (1.0 if rng.randf() < 0.5 else -1.0)
+			var lr := top - 0.55
+			var lp := clampf(atan((lr - (plinth + 2.05)) / dl), deg_to_rad(10.0), deg_to_rad(35.0))
+			var lean := _block(Vector3(lc, 0, -hz + dl * 0.5), 0.0, lx, dl * 0.5, plinth, lr - dl * tan(lp), lp, y0, "lean")
+			lean.skip = ["front"]
+			blocks = [main, lean]
+		_:
+			var pm := minf(deg_to_rad(38.0), atan(2.3 / hz))
+			main = _block(Vector3.ZERO, 0.0, hx, hz, plinth, top, pm, y0)
+			blocks = [main]
+			if plan == "dormers":
+				var dtop := top + 0.9
+				var dhz := 0.62
+				var pd := deg_to_rad(40.0)
+				var dridge := dtop + dhz * tan(pd)
+				var d := (dridge + 0.15 - top) / tan(pm)
+				if d <= hz - 0.05 and dridge < main.ridge - 0.1:
+					var n := 2 if hx >= 3.2 else 1
+					for i in n:
+						var dx := 0.0 if n == 1 else (-1.0 if i == 0 else 1.0) * hx * rng.randf_range(0.4, 0.5)
+						var dm_ := _block(Vector3(dx, 0, hz - d * 0.5), PI * 0.5, d * 0.5, dhz, top, dtop, pd, y0, "dormer")
+						dm_.skip = ["east"]
+						dm_.ends = Vector2(0.3, 0.0)
+						dm_.opens.append(["west", 0.0, 0.7, top + 0.2, dtop - 0.1, false, false])
+						blocks.append(dm_)
+
+	# Chimney, chosen among the places this plan leaves free.
+	var spots: Array[String] = []
+	for g: String in ["west", "east"]:
+		if g not in main.skip:
+			spots.append(g)
+	spots.append("ridge")
+	if plan != "outshot":
+		spots.append("back")
+	var chim: String = spots[rng.randi() % spots.size()]
+	var chim_u: float = rng.randf_range(-0.3, 0.3) * main.hz if chim in ["west", "east"] else rng.randf_range(-0.5, 0.5) * main.hx
+	var avoid: Array = []
+	if chim in ["west", "east"]:
+		avoid.append([main, chim, chim_u - 0.5, chim_u + 0.5])
+	elif chim == "back":
+		avoid.append([main, "back", -chim_u - 0.45, -chim_u + 0.45])
+
+	# Door on the main block's front, clear of other blocks.
+	var span: float = main.hx
+	var door_u := 0.0
+	for tries in 12:
+		var u := rng.randf_range(-0.45, 0.45) * maxf(span - 1.0, 0.0)
+		if _clear(blocks, main, door_face, u, 0.53, plinth, plinth + 1.95, false, avoid):
+			door_u = u
+			break
+	main.opens.push_front([door_face, door_u, 1.05, plinth, plinth + 1.95, true, false])
+
+	# Windows, facade by facade.
+	for b: Dictionary in blocks:
+		if b.kind == "dormer":
+			continue
+		var small: bool = b.kind == "lean"
+		for f: String in ["front", "back", "east", "west"]:
+			if f in b.skip:
+				continue
+			var is_door_face: bool = b == main and f == door_face
+			if not is_door_face and rng.randf() < 0.2:
+				continue
+			if small:
+				_fill_row(blocks, b, f, plinth + 1.0, minf(plinth + 1.6, b.top - 0.25), 0.6, spacing, avoid)
+			else:
+				_fill_row(blocks, b, f, sill, wtop, ww, spacing, avoid)
+		if tall:
+			# Upper storey: windows over the ones below, and over the door.
+			var s2 := plinth + 2.55
+			var t2 := minf(s2 + wh * 0.9, b.top - 0.25)
+			for o: Array in b.opens.duplicate():
+				if o[3] < s2 and o[0] in ["front", "back"]:
+					if _clear(blocks, b, o[0], o[1], ww * 0.5, s2, t2, true, avoid):
+						b.opens.append([o[0], o[1], ww, s2, t2, false, true])
+			for f: String in ["east", "west"]:
+				if f not in b.skip and _clear(blocks, b, f, 0.0, ww * 0.5, s2, t2, true, avoid):
+					b.opens.append([f, 0.0, ww, s2, t2, false, true])
+		# A small window high in a gable, where the gable is tall enough.
+		if b.kind == "gable":
+			var rise: float = b.ridge - b.top
+			var gb: float = b.ridge - rise * 0.75
+			if rise > 1.25 and b.hz * (b.ridge - gb - 0.6) / rise > 0.45:
+				for f: String in ["east", "west"]:
+					var chim_here: bool = b == main and chim == f
+					if f not in b.skip and not chim_here and rng.randf() < 0.7:
+						b.opens.append([f, 0.0, 0.6, gb, gb + 0.6, false, false])
+
+	for b: Dictionary in blocks:
+		_sag = sag if b.kind == "gable" else 0.0
+		_build_block(b, wall, plaster)
+
+	# Fittings, drawn straight and level.
+	_sag = 0.0
+	_blk = main.xf
+	_eave = main.top
+	if tall:
+		for f: String in ["front", "back", "east", "west"]:
+			if f in main.skip:
+				continue
+			var fr := _wall_frame(f, 0.0, main.hx, main.hz)
+			var sp: float = main.hz if f in ["east", "west"] else main.hx
+			var o0: Vector3 = fr[0] + fr[1] * 0.06 + Vector3.UP * (plinth + 2.3)
+			beam("beam", o0 - fr[2] * (sp + 0.04), o0 + fr[2] * (sp + 0.04), 0.2)
+	var door: Array = main.opens[0]
+	if porch:
+		var dfr := _wall_frame(door_face, door_u, main.hx, main.hz)
+		var dp: Vector3 = main.xf * dfr[0]
+		var lo := maxf(minf(main.xf.origin.x - main.hx, main.xf.origin.x + main.hx), dp.x - 1.3)
+		var hi := minf(maxf(main.xf.origin.x - main.hx, main.xf.origin.x + main.hx), dp.x + 1.3)
+		var depth := minf(1.8, hz - dp.z - 0.1)
+		_blk = Transform3D.IDENTITY
+		_porch(lo + 0.02, hi - 0.02, dp.z, dp.z + depth, plinth, minf(plinth + 2.45, top - 0.4), y0)
+	else:
+		var fr := _wall_frame(door[0], door[1], main.hx, main.hz)
+		var n: Vector3 = fr[1]
+		box("stone", _xf(fr[0] + n * 0.2 + Vector3.UP * (plinth - 0.1), atan2(n.x, n.z) + rng.randf_range(-0.05, 0.05)), Vector3(1.3, 0.3, 0.36))
+		if top - door[4] >= 0.55:
+			_door_hood(door, main.hx, main.hz, minf(door[4] + 0.42, top - 0.12))
+
+	# Chimney stack with a pot.
+	_blk = main.xf
+	_sag = sag
+	_sag_half = main.hx + 0.3
+	_sag_from = main.top - 0.5
+	_sag_to = main.ridge
+	match chim:
+		"west", "east":
+			var sx := -1.0 if chim == "west" else 1.0
+			_chimney(Vector3(sx * (main.hx - 0.1), 0, chim_u), 0.9, 0.9, plinth, main.ridge + 0.9)
+		"ridge":
+			_chimney(Vector3(chim_u, 0, 0), 0.75, 0.75, main.top - 0.3, main.ridge + 0.8)
+		"back":
+			_chimney(Vector3(chim_u, 0, -main.hz + 0.05), 0.9, 0.8, plinth, main.ridge + 0.5)
+	return commit()
+
+
+## One building block: a box of walls in its own frame (ridge along local x,
+## front +z), placed in the prop by `at` and `yaw`. Kind "gable" has a ridge
+## roof, "lean" a single slope falling to -z (ridge on its +z edge), "dormer"
+## a ridge roof on walls that start at the main roof's eave. `skip` lists
+## walls that are buried in another block; `ends` is how far the roof runs
+## past each gable (west, east): past 0.3 it runs on into another block's roof.
+func _block(at: Vector3, yaw: float, hx: float, hz: float, plinth: float, top: float,
+		pitch: float, ground: float, kind := "gable") -> Dictionary:
+	return {
+		xf = Transform3D(Basis(Vector3.UP, yaw), at), hx = hx, hz = hz,
+		plinth = plinth, top = top, pitch = pitch, ground = ground, kind = kind,
+		ridge = top + (hz * 2.0 if kind == "lean" else hz) * tan(pitch),
+		skip = [], ends = Vector2(0.3, 0.3),
+		opens = [],  # [face, u, width, bottom, top, is_door, shutters]
+	}
+
+
+func _inside(b: Dictionary, p: Vector3, grow: float) -> bool:
+	var q: Vector3 = b.xf.affine_inverse() * p
+	return absf(q.x) < b.hx + grow and absf(q.z) < b.hz + grow
+
+
+## How far an opening's furniture reaches from its centre along the wall.
+func _reach(w: float, shutters: bool) -> float:
+	return w + 0.08 if shutters else w * 0.5 + 0.15
+
+
+## Whether an opening of half-width hw fits at u on face `f` of block b: inside
+## the wall's ends, clear of the face's other openings at the same height, of
+## `avoid` spans, and not in front of another block.
+func _clear(blocks: Array, b: Dictionary, f: String, u: float, hw: float, y_lo: float, y_hi: float,
+		shutters: bool, avoid: Array) -> bool:
+	var span: float = b.hz if f in ["east", "west"] else b.hx
+	var r := _reach(hw * 2.0, shutters)
+	if absf(u) > span - r - 0.2:
+		return false
+	for o: Array in b.opens:
+		if o[0] == f and o[3] < y_hi + 0.2 and o[4] > y_lo - 0.2:
+			if absf(o[1] - u) < r + _reach(o[2], o[6]) + 0.12:
+				return false
+	for a: Array in avoid:
+		if a[0] == b and a[1] == f and u + hw + 0.2 > a[2] and u - hw - 0.2 < a[3]:
+			return false
+	var fr := _wall_frame(f, 0.0, b.hx, b.hz)
+	for s in [-1.0, 0.0, 1.0]:
+		var p: Vector3 = b.xf * (fr[0] + fr[2] * (u + s * (hw + 0.3)) + fr[1] * 0.05)
+		for o: Dictionary in blocks:
+			if o != b and o.kind != "dormer" and _inside(o, p, 0.05):
+				return false
+	return true
+
+
+## One row of windows along a facade, `spacing` apart where the wall is free,
+## centred when the whole row can move, with one sometimes left blind.
+func _fill_row(blocks: Array, b: Dictionary, f: String, sill: float, wtop: float, w: float,
+		spacing: float, avoid: Array) -> void:
+	var span: float = b.hz if f in ["east", "west"] else b.hx
+	var gap := maxf(spacing, _reach(w, true) * 2.0 + 0.12)
+	var placed: Array[float] = []
+	var u := -span + rng.randf_range(0.0, 0.4)
+	while u <= span:
+		if (placed.is_empty() or u - placed.back() >= gap) and _clear(blocks, b, f, u, w * 0.5, sill, wtop, true, avoid):
+			placed.append(u)
+			u += gap
+		else:
+			u += 0.1
+	if placed.is_empty():
+		return
+	var shift: float = ((span - placed.back()) - (placed[0] + span)) * 0.5
+	var ok := true
+	for pu in placed:
+		ok = ok and _clear(blocks, b, f, pu + shift, w * 0.5, sill, wtop, true, avoid)
+	if placed.size() > 2 and rng.randf() < 0.35:
+		placed.remove_at(rng.randi() % placed.size())
+	for pu in placed:
+		b.opens.append([f, pu + (shift if ok else 0.0), w, sill, wtop, false, true])
+
+
+func _build_block(b: Dictionary, wall: String, plaster: bool) -> void:
+	_blk = b.xf
+	_eave = b.top
+	_sag_half = b.hx + 0.3
+	_sag_from = b.top - 0.5
+	_sag_to = b.ridge
+	var hx: float = b.hx
+	var hz: float = b.hz
+	var top: float = b.top
+	var ridge: float = b.ridge
+	var skip: Array = b.skip
+	var lean: bool = b.kind == "lean"
 
 	# Stone plinth, going down to meet a falling slope.
-	box("stone", _xf(Vector3(0, (y0 - 0.9 + plinth) * 0.5, 0)), Vector3(hx * 2 + 0.16, plinth - y0 + 0.9, hz * 2 + 0.16))
+	if b.kind != "dormer":
+		var g: float = b.ground
+		box("stone", _xf(Vector3(0, (g - 0.9 + b.plinth) * 0.5, 0)), Vector3(hx * 2 + 0.16, b.plinth - g + 0.9, hz * 2 + 0.16))
 
-	# Door on the front, windows either side, more round the back and on one gable.
-	var door_x := rng.randf_range(-0.4, 0.4) * (hx - 1.6)
-	var opens: Array = []  # [face, u centre, width, bottom, top]
-	opens.append(["front", door_x, 1.05, plinth, plinth + 1.95])
-	var sill := plinth + 0.95
-	for wx in [door_x - 1.7, door_x + 1.7]:
-		if absf(wx) < hx - 0.7:
-			opens.append(["front", wx, 0.8, sill, sill + 0.85])
-	for i in maxi(1, int(L / 3.2)):
-		var bx := lerpf(-hx + 1.2, hx - 1.2, (i + 0.5) / maxi(1, int(L / 3.2)))
-		opens.append(["back", bx, 0.8, sill, sill + 0.85])
-	opens.append(["east", 0.0, 0.8, sill, sill + 0.85])
-	if top - plinth > 3.0:
-		opens.append(["east", 0.0, 0.6, ridge - rise * 0.75, ridge - rise * 0.75 + 0.6])
-
-	for fname: String in ["front", "back", "east", "west"]:
-		_wall(wall, fname, opens, hx, hz, plinth, top)
+	for f: String in ["front", "back", "east", "west"]:
+		if f not in skip:
+			_wall(wall, f, b.opens, hx, hz, b.plinth, top)
 	for sx in [-1.0, 1.0]:
+		if ("west" if sx < 0.0 else "east") in skip:
+			continue
 		var x: float = sx * hx
-		var tri := [Vector3(x, top, -hz), Vector3(x, top, hz), Vector3(x, ridge, 0)]
-		face(wall, tri, Vector3(sx, 0, 0), Vector3(0, 0, 1))
+		var apex := Vector3(x, ridge, hz) if lean else Vector3(x, ridge, 0)
+		face(wall, [Vector3(x, top, -hz), Vector3(x, top, hz), apex], Vector3(sx, 0, 0), Vector3(0, 0, 1))
 
-	_roof(hx, hz, top, ridge, pitch)
+	if lean:
+		# The slope's high edge sits on the wall it leans on.
+		_blk = b.xf * Transform3D(Basis.IDENTITY, Vector3(0, 0, hz))
+		_roof(hx, hz * 2.0, top, ridge, b.pitch, [-1.0], false, b.ends)
+		_blk = b.xf
+	else:
+		_roof(hx, hz, top, ridge, b.pitch, [-1.0, 1.0], true, b.ends)
 
-	for o: Array in opens:
-		_opening(o, hx, hz, o == opens[0], o[4] <= top)
+	for o: Array in b.opens:
+		_opening(o, hx, hz, o[4] <= top)
 
-	if plaster:
-		_timber_frame(opens, hx, hz, plinth, top, ridge)
+	if plaster and b.kind != "dormer":
+		_timber_frame(b.opens, hx, hz, b.plinth, top, -1.0 if lean else ridge, skip)
 	else:
 		for cx in [-1.0, 1.0]:
 			for cz in [-1.0, 1.0]:
-				beam("beam", Vector3(cx * hx, plinth, cz * hz), Vector3(cx * hx, top, cz * hz), 0.24)
-	# Step in front of the door.
-	box("stone", _xf(Vector3(door_x, plinth - 0.1, hz + 0.2), rng.randf_range(-0.05, 0.05)), Vector3(1.3, 0.3, 0.36))
-
-	# Chimney on the west gable, half in the wall, with a pot.
-	var cz := rng.randf_range(-0.3, 0.3) * hz
-	var cx0 := -L * 0.5 + 0.45
-	box("stone", _xf(Vector3(cx0, (plinth + ridge + 0.9) * 0.5, cz)), Vector3(0.9, ridge + 0.9 - plinth, 0.9), 1)
-	box("stone", _xf(Vector3(cx0, ridge + 0.95, cz)), Vector3(1.0, 0.14, 1.0))
-	cyl("stone", _xf(Vector3(cx0 + 0.12, ridge + 1.18, cz)), 0.13, 0.36, 8)
-	box("dark", _xf(Vector3(cx0 + 0.12, ridge + 1.365, cz)), Vector3(0.17, 0.01, 0.17))
-	return commit()
+				if ("west" if cx < 0.0 else "east") in skip or ("back" if cz < 0.0 else "front") in skip:
+					continue
+				beam("beam", Vector3(cx * hx, b.plinth, cz * hz), Vector3(cx * hx, top, cz * hz), 0.2 if b.kind == "dormer" else 0.24)
 
 
 ## One wall of a cottage, cut round its openings, with the openings' reveals
@@ -366,7 +634,7 @@ func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: f
 	var holes: Array = []
 	for o: Array in opens:
 		if o[0] == fname and o[4] <= y1:
-			holes.append([o[1] - o[2] * 0.5, o[1] + o[2] * 0.5, o[3], o[4], 0.45 if o == opens[0] else 0.2])
+			holes.append([o[1] - o[2] * 0.5, o[1] + o[2] * 0.5, o[3], o[4], 0.45 if o[5] else 0.2])
 	var us: Array[float] = [-span, span]
 	for hh: Array in holes:
 		us.append(hh[0])
@@ -383,6 +651,7 @@ func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: f
 			if mid > hh[0] and mid < hh[1]:
 				ys.append(hh[2])
 				ys.append(hh[3])
+		ys.sort()
 		ys.append(y1)
 		for k in range(0, ys.size(), 2):
 			if ys[k + 1] - ys[k] > 0.001:
@@ -405,26 +674,31 @@ func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: f
 ## Slate courses over sheathing boards, carried on rafters whose tails show
 ## under the eaves, with barge boards on the gables and a ridge of round tiles.
 ## Each course's texture is shifted so a row of slates ends on its lower edge.
-func _roof(hx: float, hz: float, top: float, ridge: float, pitch: float) -> void:
+## `sides` picks the slopes (-1 back, 1 front); `ends` is the run past each
+## gable, and an end that runs on into another roof gets no barge board.
+func _roof(hx: float, hz: float, top: float, ridge: float, pitch: float, sides := [-1.0, 1.0],
+		tiles := true, ends := Vector2(0.3, 0.3)) -> void:
 	var ov := 0.45
-	var rx := hx + 0.3
+	var x0 := -hx - ends.x
+	var x1 := hx + ends.y
+	var xm := (x0 + x1) * 0.5
 	var tp := tan(pitch)
 	var sheath := 0.03
 	var th := 0.028
 	var row := 2.6 / 9.0
 	var lap := row * 1.7
 	var slope := (hz + ov) / cos(pitch)
-	var segs := maxi(2, int(ceil(rx * 2.0 / 1.3)))
-	var seg_len := rx * 2.0 / segs
+	var segs := maxi(2, int(ceil((x1 - x0) / 1.3)))
+	var seg_len := (x1 - x0) / segs
 	var keep_bevel := bevel
-	for sz in [-1.0, 1.0]:
+	for sz: float in sides:
 		var up := Vector3(0, sin(pitch), -sz * cos(pitch))
 		var n := Vector3(0, cos(pitch), sz * sin(pitch))
 		var eave := Vector3(0, top - ov * tp, sz * (hz + ov))
 		var bx: Vector3 = Vector3.RIGHT * sz
 		bevel = 0.0
 		for k in segs:
-			var sx := Vector3(-rx + seg_len * (k + 0.5), 0, 0)
+			var sx := Vector3(x0 + seg_len * (k + 0.5), 0, 0)
 			box("planks", Transform3D(Basis(bx, n, bx.cross(n)), eave + up * slope * 0.5 + n * sheath * 0.5 + sx), Vector3(seg_len, sheath, slope), 0)
 		var s0 := 0.0
 		var i := 0
@@ -439,32 +713,92 @@ func _roof(hx: float, hz: float, top: float, ridge: float, pitch: float) -> void
 			var edge: Vector3 = lo + nn * th
 			var off := Vector2(rng.randf(), edge.dot(nn.cross(bx)) / 2.6 - 0.004)
 			for k in segs:
-				var x := -rx + seg_len * (k + 0.5)
+				var x := x0 + seg_len * (k + 0.5)
 				box("roof", Transform3D(bs, (lo + hi) * 0.5 + nn * th * 0.5 + Vector3(x, 0, 0)), Vector3(seg_len + 0.002, th, (hi - lo).length()), 0, off)
 			if i == 0:
-				box("roof", Transform3D(bs, eave + up * row * 0.5 + n * (sheath + th * 0.5)), Vector3(rx * 2, th, row), 0)
+				box("roof", Transform3D(bs, eave + up * row * 0.5 + n * (sheath + th * 0.5) + Vector3(xm, 0, 0)), Vector3(x1 - x0, th, row), 0)
 			s0 += row
 			i += 1
 		bevel = keep_bevel
 		# Rafter tails under the eave, along the wall.
-		var count := int(hx * 2.0 / 0.6)
+		var count := maxi(1, int(hx * 2.0 / 0.6))
 		for k in count + 1:
 			var x := lerpf(-hx + 0.1, hx - 0.1, float(k) / count)
 			var w := Vector3(x, top, sz * hz)
 			beam("beam", w + up * (0.25 / cos(pitch)) - n * 0.075, w - up * ((ov - 0.05) / cos(pitch)) - n * 0.075, 0.09, 0.15)
-		# Barge boards on the verges.
-		for sx in [-1.0, 1.0]:
-			var vx := Vector3(sx * (rx - 0.03), 0, 0)
+		# Barge boards on the open verges.
+		for e in 2:
+			if ends[e] <= 0.0 or ends[e] > 0.31:
+				continue
+			var vx := Vector3((x0 + 0.03) if e == 0 else (x1 - 0.03), 0, 0)
 			beam("beam", Vector3(0, ridge, 0) + vx - n * 0.09, eave + vx - n * 0.09 - up * 0.04, 0.06, 0.24)
+	if not tiles:
+		return
 	# Ridge of round tiles, each a touch out of line.
 	bevel = 0.0
-	var x := -rx
-	while x < rx - 0.05:
-		var l := minf(0.42, rx - x)
+	var x := x0
+	while x < x1 - 0.05:
+		var l := minf(0.42, x1 - x)
 		var at := Vector3(x + l * 0.5, ridge + sheath + th + 0.03 + rng.randf_range(-0.008, 0.008), rng.randf_range(-0.01, 0.01))
 		cyl("roof", Transform3D(Basis(Vector3.BACK, PI * 0.5).rotated(Vector3.UP, rng.randf_range(-0.02, 0.02)), at), 0.13, l - 0.01, 8)
 		x += l
 	bevel = keep_bevel
+
+
+## A stack of `w` x `d` from y_from to y_to, with a capping course and a pot.
+func _chimney(c: Vector3, w: float, d: float, y_from: float, y_to: float) -> void:
+	box("stone", _xf(Vector3(c.x, (y_from + y_to) * 0.5, c.z)), Vector3(w, y_to - y_from, d), 1)
+	box("stone", _xf(Vector3(c.x, y_to + 0.05, c.z)), Vector3(w + 0.1, 0.14, d + 0.1))
+	var px := c.x + rng.randf_range(-0.15, 0.15) * w
+	cyl("stone", _xf(Vector3(px, y_to + 0.28, c.z)), 0.13, 0.36, 8)
+	box("dark", _xf(Vector3(px, y_to + 0.465, c.z)), Vector3(0.17, 0.01, 0.17))
+
+
+## A pent hood over a door on two brackets, its top edge at `y` on the wall.
+func _door_hood(o: Array, hx: float, hz: float, y: float) -> void:
+	var f := _wall_frame(o[0], o[1], hx, hz)
+	var at: Vector3 = f[0]
+	var n: Vector3 = f[1]
+	var t: Vector3 = f[2]
+	var w: float = o[2] + 0.7
+	var dep := 0.5
+	var p := deg_to_rad(28.0)
+	var bs := Basis(Vector3.UP, atan2(n.x, n.z)) * Basis(Vector3.RIGHT, p)
+	var c := at + n * (dep * 0.5) + Vector3.UP * (y - dep * 0.5 * tan(p))
+	box("planks", Transform3D(bs, c), Vector3(w, 0.04, dep / cos(p)), 0)
+	box("roof", Transform3D(bs, c + bs.y * 0.035), Vector3(w + 0.04, 0.03, dep / cos(p) + 0.04), 0)
+	for s in [-1.0, 1.0]:
+		var side: Vector3 = t * s * (o[2] * 0.5 + 0.2)
+		beam("beam", at + side + Vector3.UP * (o[4] - 0.3) + n * 0.03,
+				at + side + n * (dep - 0.08) + Vector3.UP * (y - dep * tan(p) - 0.04), 0.08)
+
+
+## An open porch in prop space, from the wall at z0 out to z1, between x0 and
+## x1: a planked deck on stone with a step, two posts with knee braces, and a
+## low pent roof from `y_hi` on the wall.
+func _porch(x0: float, x1: float, z0: float, z1: float, y_floor: float, y_hi: float, ground: float) -> void:
+	var p := deg_to_rad(12.0)
+	var xm := (x0 + x1) * 0.5
+	var wd := x1 - x0
+	var deck_z1 := z1 - 0.4
+	box("stone", _xf(Vector3(xm, (ground - 0.6 + y_floor - 0.06) * 0.5, (z0 + deck_z1) * 0.5)), Vector3(wd, y_floor - 0.06 - ground + 0.6, deck_z1 - z0))
+	box("planks", _xf(Vector3(xm, y_floor - 0.03, (z0 + deck_z1) * 0.5)), Vector3(wd + 0.04, 0.06, deck_z1 - z0 + 0.04), 0)
+	var step_h := (y_floor - ground) * 0.5
+	box("stone", _xf(Vector3(xm, ground + step_h * 0.5 - 0.1, (deck_z1 + z1) * 0.5), rng.randf_range(-0.03, 0.03)), Vector3(minf(wd, 1.4), step_h + 0.2, z1 - deck_z1 - 0.02))
+	var zp := deck_z1 - 0.12
+	var y_at := func(z: float) -> float: return y_hi - (z - z0) * tan(p)
+	var ypost: float = y_at.call(zp) - 0.1
+	for x in [x0 + 0.12, x1 - 0.12]:
+		beam("beam", Vector3(x, y_floor, zp), Vector3(x, ypost, zp), 0.15)
+		var inward := 1.0 if x < xm else -1.0
+		beam("beam", Vector3(x, ypost - 0.45, zp), Vector3(x + inward * 0.45, ypost - 0.04, zp), 0.09)
+	beam("beam", Vector3(x0, ypost + 0.04, zp), Vector3(x1, ypost + 0.04, zp), 0.15)
+	beam("beam", Vector3(x0, y_hi - 0.1, z0 + 0.06), Vector3(x1, y_hi - 0.1, z0 + 0.06), 0.12)
+	var dep := z1 - z0
+	var bs := Basis(Vector3.RIGHT, p)
+	var c := Vector3(xm, y_hi - dep * 0.5 * tan(p) + 0.02, z0 + dep * 0.5)
+	box("planks", Transform3D(bs, c), Vector3(wd + 0.2, 0.04, dep / cos(p)), 0)
+	box("roof", Transform3D(bs, c + bs.y * 0.035), Vector3(wd + 0.24, 0.03, dep / cos(p) + 0.04), 0)
 
 
 ## Where an opening sits: a point on the wall surface and the wall's outward axes.
@@ -480,7 +814,8 @@ func _wall_frame(face_name: String, u: float, hx: float, hz: float) -> Array:
 			return [Vector3(hx, 0, -u), Vector3(1, 0, 0), Vector3(0, 0, -1)]
 
 
-func _opening(o: Array, hx: float, hz: float, is_door: bool, recessed := true) -> void:
+func _opening(o: Array, hx: float, hz: float, recessed := true) -> void:
+	var is_door: bool = o[5]
 	var f := _wall_frame(o[0], o[1], hx, hz)
 	var at: Vector3 = f[0]
 	var n: Vector3 = f[1]
@@ -507,11 +842,12 @@ func _opening(o: Array, hx: float, hz: float, is_door: bool, recessed := true) -
 		box("beam", _xf(c - n * (back - 0.04), yaw), Vector3(w, 0.06, 0.04))
 		box("beam", _xf(at + Vector3.UP * b + n * 0.09 + Vector3.DOWN * 0.04, yaw), Vector3(w + 0.3, 0.08, 0.2))
 		# Shutters, swung back against the wall at a slight angle.
-		for s in [-1.0, 1.0]:
-			var hinge: Vector3 = c + t * s * (w * 0.5 + 0.08) + n * 0.05
-			var open := deg_to_rad(rng.randf_range(150.0, 172.0))
-			var bs := Basis(Vector3.UP, yaw - s * (PI - open))
-			box("planks", Transform3D(bs, hinge + bs * Vector3(s * w * 0.25, 0, 0.02)), Vector3(w * 0.5, h, 0.04), 1)
+		if o[6]:
+			for s in [-1.0, 1.0]:
+				var hinge: Vector3 = c + t * s * (w * 0.5 + 0.08) + n * 0.05
+				var open := deg_to_rad(rng.randf_range(150.0, 172.0))
+				var bs := Basis(Vector3.UP, yaw - s * (PI - open))
+				box("planks", Transform3D(bs, hinge + bs * Vector3(s * w * 0.25, 0, 0.02)), Vector3(w * 0.5, h, 0.04), 1)
 	# Frame: posts and a lintel.
 	for s in [-1.0, 1.0]:
 		beam("beam", at + t * s * (w * 0.5 + 0.06) + Vector3.UP * (b - (0.0 if is_door else 0.08)) + n * 0.05,
@@ -520,31 +856,35 @@ func _opening(o: Array, hx: float, hz: float, is_door: bool, recessed := true) -
 
 
 ## Oak framing proud of the plaster: sill, plate and corner posts, posts beside
-## openings, a mid rail broken by them, and braces in the clear bays.
-func _timber_frame(opens: Array, hx: float, hz: float, y0: float, y1: float, ridge: float) -> void:
+## openings, a mid rail broken by them, and braces in the clear bays. A king
+## post runs up each gable that has no window in it (ridge < 0: no gables).
+func _timber_frame(opens: Array, hx: float, hz: float, y0: float, y1: float, ridge: float, skip := []) -> void:
 	var proud := 0.05
 	var w := 0.17
 	for fname: String in ["front", "back", "east", "west"]:
+		if fname in skip:
+			continue
 		var span := hz if fname in ["east", "west"] else hx
-		var f := _wall_frame(fname if fname != "west" else "east", 0.0, hx, hz)
+		var f := _wall_frame(fname, 0.0, hx, hz)
 		var at: Vector3 = f[0]
 		var n: Vector3 = f[1]
 		var t: Vector3 = f[2]
-		if fname == "west":
-			at = Vector3(-hx, 0, 0)
-			n = Vector3(-1, 0, 0)
-			t = Vector3(0, 0, 1)
 		var o0 := at + n * proud
 		beam("beam", o0 + t * -span + Vector3.UP * (y0 + w * 0.5), o0 + t * span + Vector3.UP * (y0 + w * 0.5), w)
 		beam("beam", o0 + t * -span + Vector3.UP * (y1 - w * 0.5), o0 + t * span + Vector3.UP * (y1 - w * 0.5), w)
 		var posts: Array[float] = [-span + w * 0.5, span - w * 0.5]
 		var holes: Array = []
+		var gable_window := false
 		for o: Array in opens:
-			if o[0] == fname:
-				var u: float = o[1]
-				holes.append([u - o[2] * 0.5 - 0.15, u + o[2] * 0.5 + 0.15])
-				posts.append(u - o[2] * 0.5 - 0.15)
-				posts.append(u + o[2] * 0.5 + 0.15)
+			if o[0] != fname:
+				continue
+			if o[3] >= y1:
+				gable_window = true
+				continue
+			var u: float = o[1]
+			holes.append([u - o[2] * 0.5 - 0.15, u + o[2] * 0.5 + 0.15])
+			posts.append(u - o[2] * 0.5 - 0.15)
+			posts.append(u + o[2] * 0.5 + 0.15)
 		posts.sort()
 		# Fill wide bays with an extra post.
 		var extra: Array[float] = []
@@ -579,8 +919,7 @@ func _timber_frame(opens: Array, hx: float, hz: float, y0: float, y1: float, rid
 				var lo := o0 + n * 0.01 + t * (a if lean < 0 else b) + Vector3.UP * (mid + w * 0.4)
 				var hi := o0 + n * 0.01 + t * (b if lean < 0 else a) + Vector3.UP * (y1 - w)
 				beam("beam", lo, hi, w * 0.75)
-		# King post up each gable.
-		if fname in ["east", "west"]:
+		if fname in ["east", "west"] and ridge > y1 and not gable_window:
 			beam("beam", o0 + Vector3.UP * y1, o0 + Vector3.UP * (ridge - 0.1), w)
 
 
