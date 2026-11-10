@@ -1,4 +1,4 @@
-[gd_scene load_steps=56 format=3]
+[gd_scene load_steps=99 format=3]
 
 [ext_resource type="Script" path="res://world/goblin_quarry.gd" id="1_area"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_unit"]
@@ -26,6 +26,8 @@
 [ext_resource type="Script" path="res://systems/world_system/area_exit.gd" id="26_exit"]
 [ext_resource type="PackedScene" path="res://world/goblin_quarry/terrain.scn" id="q_terrain"]
 [ext_resource type="Environment" path="res://world/goblin_quarry/quarry_environment.tres" id="q_env"]
+[ext_resource type="Script" path="res://world/walk_in_building.gd" id="q_walkin"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_roof.res" id="q_walkin_roof"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west.res" id="p_house_west"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_back.res" id="p_house_west_back"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_east.res" id="p_house_east"]
@@ -53,9 +55,6 @@ prerequisite = SubResource("Resource_raids_resolved")
 [sub_resource type="Resource" id="Resource_hub_dlgopt"]
 script = ExtResource("20_rootopt")
 root = ExtResource("19_hub")
-
-[sub_resource type="BoxShape3D" id="Shape_8"]
-size = Vector3(7, 4, 6)
 
 [sub_resource type="BoxShape3D" id="Shape_9"]
 size = Vector3(6, 5, 5)
@@ -94,6 +93,132 @@ size = Vector3(1, 1, 1)
 [sub_resource type="BoxShape3D" id="Shape_24"]
 size = Vector3(1.2, 1.2, 2.2)
 
+[sub_resource type="BoxShape3D" id="walkin_0"]
+size = Vector3(2.66, 1.45, 2.26)
+
+[sub_resource type="BoxShape3D" id="walkin_1"]
+size = Vector3(0.504261, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_2"]
+size = Vector3(1.3, 0.65, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_3"]
+size = Vector3(0.695739, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_4"]
+size = Vector3(0.85, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_5"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_6"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_7"]
+size = Vector3(0.85, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_8"]
+size = Vector3(2.1, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_9"]
+size = Vector3(6.46, 1.45, 2.96)
+
+[sub_resource type="BoxShape3D" id="walkin_10"]
+size = Vector3(0.87, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_11"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_12"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_13"]
+size = Vector3(1.08, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_14"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_15"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_16"]
+size = Vector3(1.08, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_17"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_18"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_19"]
+size = Vector3(0.87, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_20"]
+size = Vector3(0.4, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_21"]
+size = Vector3(1.3, 0.65, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_22"]
+size = Vector3(0.777014, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_23"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_24"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_25"]
+size = Vector3(1.08, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_26"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_27"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_28"]
+size = Vector3(1.14299, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_29"]
+size = Vector3(1, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_30"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_31"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_32"]
+size = Vector3(1, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_33"]
+size = Vector3(1, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_34"]
+size = Vector3(0.8, 0.95, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_35"]
+size = Vector3(0.8, 1.07902, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_36"]
+size = Vector3(1, 2.85, 0.22)
+
+[sub_resource type="BoxShape3D" id="walkin_37"]
+size = Vector3(2.41426, 1.15, 1.1)
+
+[sub_resource type="BoxShape3D" id="walkin_38"]
+size = Vector3(1.6, 0.6, 1.28533)
+
+[sub_resource type="BoxShape3D" id="walkin_39"]
+size = Vector3(0.15, 2.14169, 0.15)
+
+[sub_resource type="BoxShape3D" id="walkin_40"]
+size = Vector3(0.15, 2.14169, 0.15)
+
+[sub_resource type="BoxShape3D" id="walkin_41"]
+size = Vector3(0.9, 4.63105, 0.9)
+
 [node name="GoblinQuarry" type="Node3D"]
 script = ExtResource("1_area")
 
@@ -111,12 +236,183 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 6.0684, 1.4)
 
 [node name="HouseWest" type="StaticBody3D" parent="LevelGeometry/Town"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.0, 1.87, 30.0)
+script = ExtResource("q_walkin")
+roof = NodePath("Roof")
+rooms = Array[AABB]([AABB(-3.15, -1.75, 0.15, 2.1, 4.03105, 2.5), AABB(-3.15, -1.75, -2.65, 6.3, 4.32474, 2.8)])
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseWest"]
 mesh = ExtResource("p_house_west")
 
-[node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
-shape = SubResource("Shape_8")
+[node name="Roof" type="MeshInstance3D" parent="LevelGeometry/Town/HouseWest"]
+mesh = ExtResource("q_walkin_roof")
+
+[node name="Box0" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -2.1, -2.175, 1.4)
+shape = SubResource("walkin_0")
+
+[node name="Box1" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -1.16, -0.025, 2.39787)
+shape = SubResource("walkin_1")
+
+[node name="Box2" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -1.16, 1.075, 1.49574)
+shape = SubResource("walkin_2")
+
+[node name="Box3" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -1.16, -0.025, 0.49787)
+shape = SubResource("walkin_3")
+
+[node name="Box4" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(4.37114e-08, 0, -1, 0, 1, 0, 1, 0, 4.37114e-08, -3.04, -0.025, 0.575)
+shape = SubResource("walkin_4")
+
+[node name="Box5" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(4.37114e-08, 0, -1, 0, 1, 0, 1, 0, 4.37114e-08, -3.04, -0.975, 1.4)
+shape = SubResource("walkin_5")
+
+[node name="Box6" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(4.37114e-08, 0, -1, 0, 1, 0, 1, 0, 4.37114e-08, -3.04, 0.860488, 1.4)
+shape = SubResource("walkin_6")
+
+[node name="Box7" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(4.37114e-08, 0, -1, 0, 1, 0, 1, 0, 4.37114e-08, -3.04, -0.025, 2.225)
+shape = SubResource("walkin_7")
+
+[node name="Box8" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 4.37114e-08, 0, 1, 0, -4.37114e-08, 0, 1, -2.1, -0.025, 2.54)
+shape = SubResource("walkin_8")
+
+[node name="Box9" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -5.46392e-08, -2.175, -1.25)
+shape = SubResource("walkin_9")
+
+[node name="Box10" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 2.715, -0.025, -2.54)
+shape = SubResource("walkin_10")
+
+[node name="Box11" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 1.88, -0.975, -2.54)
+shape = SubResource("walkin_11")
+
+[node name="Box12" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 1.88, 0.860488, -2.54)
+shape = SubResource("walkin_12")
+
+[node name="Box13" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0.94, -0.025, -2.54)
+shape = SubResource("walkin_13")
+
+[node name="Box14" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1.67415e-07, -0.975, -2.54)
+shape = SubResource("walkin_14")
+
+[node name="Box15" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1.67415e-07, 0.860488, -2.54)
+shape = SubResource("walkin_15")
+
+[node name="Box16" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -0.94, -0.025, -2.54)
+shape = SubResource("walkin_16")
+
+[node name="Box17" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1.88, -0.975, -2.54)
+shape = SubResource("walkin_17")
+
+[node name="Box18" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -1.88, 0.860488, -2.54)
+shape = SubResource("walkin_18")
+
+[node name="Box19" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -2.715, -0.025, -2.54)
+shape = SubResource("walkin_19")
+
+[node name="Box20" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, -2.95, -0.025, 0.0400002)
+shape = SubResource("walkin_20")
+
+[node name="Box21" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, -2.1, 1.075, 0.0400002)
+shape = SubResource("walkin_21")
+
+[node name="Box22" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, -1.06149, -0.025, 0.0400001)
+shape = SubResource("walkin_22")
+
+[node name="Box23" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, -0.272986, -0.975, 0.04)
+shape = SubResource("walkin_23")
+
+[node name="Box24" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, -0.272986, 0.860488, 0.04)
+shape = SubResource("walkin_24")
+
+[node name="Box25" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, 0.667014, -0.025, 0.04)
+shape = SubResource("walkin_25")
+
+[node name="Box26" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, 1.60701, -0.975, 0.0399998)
+shape = SubResource("walkin_26")
+
+[node name="Box27" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, 1.60701, 0.860488, 0.0399998)
+shape = SubResource("walkin_27")
+
+[node name="Box28" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(1, 0, 8.74228e-08, 0, 1, 0, -8.74228e-08, 0, 1, 2.57851, -0.025, 0.0399997)
+shape = SubResource("walkin_28")
+
+[node name="Box29" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(8.74228e-08, 0, -1, 0, 1, 0, 1, 0, 8.74228e-08, -3.04, -0.025, -2.15)
+shape = SubResource("walkin_29")
+
+[node name="Box30" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(8.74228e-08, 0, -1, 0, 1, 0, 1, 0, 8.74228e-08, -3.04, -0.975, -1.25)
+shape = SubResource("walkin_30")
+
+[node name="Box31" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(8.74228e-08, 0, -1, 0, 1, 0, 1, 0, 8.74228e-08, -3.04, 0.860488, -1.25)
+shape = SubResource("walkin_31")
+
+[node name="Box32" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(8.74228e-08, 0, -1, 0, 1, 0, 1, 0, 8.74228e-08, -3.04, -0.025, -0.35)
+shape = SubResource("walkin_32")
+
+[node name="Box33" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-8.74228e-08, 0, 1, 0, 1, 0, -1, 0, -8.74228e-08, 3.04, -0.025, -0.35)
+shape = SubResource("walkin_33")
+
+[node name="Box34" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-8.74228e-08, 0, 1, 0, 1, 0, -1, 0, -8.74228e-08, 3.04, -0.975, -1.25)
+shape = SubResource("walkin_34")
+
+[node name="Box35" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-8.74228e-08, 0, 1, 0, 1, 0, -1, 0, -8.74228e-08, 3.04, 0.860488, -1.25)
+shape = SubResource("walkin_35")
+
+[node name="Box36" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-8.74228e-08, 0, 1, 0, 1, 0, -1, 0, -8.74228e-08, 3.04, -0.025, -2.15)
+shape = SubResource("walkin_36")
+
+[node name="Box37" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -0.5, -2.025, 1.42287)
+shape = SubResource("walkin_37")
+
+[node name="Box38" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0.464007, 0.885832, 0, 0.885832, -0.464007, -1, -2.02824e-08, -3.87209e-08, 0.435798, -1.99075, 1.42287)
+shape = SubResource("walkin_38")
+
+[node name="Box39" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -0.0699998, -0.379153, 2.51)
+shape = SubResource("walkin_39")
+
+[node name="Box40" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -0.0699999, -0.379153, 0.335739)
+shape = SubResource("walkin_40")
+
+[node name="Box41" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
+transform = Transform3D(-4.37114e-08, 0, 1, 0, 1, 0, -1, 0, -4.37114e-08, -1.95215, 0.865527, 2.55)
+shape = SubResource("walkin_41")
 
 [node name="HouseWestBack" type="StaticBody3D" parent="LevelGeometry/Town"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.0, 2.37, 40.0)

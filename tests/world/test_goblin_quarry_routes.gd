@@ -43,6 +43,15 @@ func run() -> void:
 		"top %s" % top)
 	check("the ladder's base is reachable from the camp", _arrives(_route(walker, CAMP, base), base),
 		"base %s" % base)
+	# HouseWest is walk-in: up the porch steps, through the front door, then
+	# the inner doorway into the wing.
+	var hall := Vector3(-11.5, 0.45, 28.8)
+	var w0 := Vector3(-15.1, 0.45, 31.4)
+	var wing := Vector3(-15.1, 0.45, 31.4)
+	check("the walk-in house's hall routes from the town", _arrives(_route(walker, TOWN, hall), hall),
+		"path %s" % _route(walker, TOWN, hall))
+	check("and its wing through the inner doorway", _arrives(_route(walker, TOWN, wing), wing),
+		"path %s" % _route(walker, TOWN, wing))
 	check("the shaman's ledge does not route on foot (Jump only)",
 		not _arrives(_route(walker, CAMP, LEDGE), LEDGE))
 	# Sealed off is answered by connectivity, not by a search that runs to

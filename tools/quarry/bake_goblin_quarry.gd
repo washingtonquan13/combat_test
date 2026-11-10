@@ -161,6 +161,7 @@ func _initialize() -> void:
 	_vines(root)
 	_build_campfire(root)
 	_flush_batches(clutter)
+	_build_props()
 	_build_grass(root)
 	_own(root, root)
 	var packed := PackedScene.new()
@@ -170,7 +171,6 @@ func _initialize() -> void:
 	root.free()
 
 	_save_environment()
-	_build_props()
 	_patch_scene()
 	print("bake %s in %d ms" % ["OK" if ok else "WITH FLOOD FAILURES", Time.get_ticks_msec() - t0])
 	quit(0 if ok else 1)
@@ -1791,7 +1791,7 @@ func _build_grass(root: Node3D) -> void:
 				var g := _grassiness(x, z)
 				if g < 0.08 or g < _rng.randf() * 0.5:
 					continue
-				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5:
+				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5 or _indoors(x, z):
 					continue
 				var stand := smoothstep(-0.4, 0.5, _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1))
 				var v := _patch.get_noise_2d(x * 2.0, z * 2.0)
@@ -1823,7 +1823,7 @@ func _build_grass(root: Node3D) -> void:
 				var g := _grassiness(x, z)
 				if g < 0.25:
 					continue
-				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5:
+				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5 or _indoors(x, z):
 					continue
 				var at := Vector3(x, _gy(x, z) - 0.01, z)
 				var spin := Basis(Vector3.UP, _rng.randf() * TAU)
@@ -2080,10 +2080,30 @@ func _seat(x: float, z: float) -> float:
 var _props := {}
 
 
+# HouseWest is a walk-in experiment: hollow walls with their own collision, and
+# a roof that WalkInBuilding hides while the party is inside.
+const WALK_IN := "LevelGeometry/Town/HouseWest"
+const WALK_IN_AT := Vector2(-13, 30)
+var _walk_in := {}
+
+
+func _indoors(x: float, z: float) -> bool:
+	# Grass would poke up through the walk-in house's floor.
+	var p := Vector2(x, z) - WALK_IN_AT
+	for room: AABB in _walk_in.get("rooms", []):
+		if p.x > room.position.x - 0.2 and p.x < room.end.x + 0.2 and p.y > room.position.z - 0.2 and p.y < room.end.z + 0.2:
+			return true
+	return false
+
+
 func _build_props() -> void:
 	var g = load("res://tools/quarry/prop_gen.gd").new()
+	g.interior = true
+	var walk_in: ArrayMesh = g.cottage(Vector3(7, 4, 6), 90, true, 1)
+	_walk_in = {roof = g.roof_mesh, colliders = g.colliders.duplicate(), rooms = g.rooms.duplicate()}
+	g.interior = false
 	var plan := {
-		"LevelGeometry/Town/HouseWest": g.cottage(Vector3(7, 4, 6), 90, true, 1),
+		WALK_IN: walk_in,
 		"LevelGeometry/Town/HouseWestBack": g.cottage(Vector3(6, 5, 5), 180, false, 2),
 		"LevelGeometry/Town/HouseEast": g.cottage(Vector3(6, 4, 7), 270, true, 3),
 		"LevelGeometry/Town/HouseEastBack": g.cottage(Vector3(8, 3.5, 5), 180, false, 4),
@@ -2105,7 +2125,9 @@ func _build_props() -> void:
 		var file := OUT + "props/%s.res" % path.get_file().to_snake_case()
 		ResourceSaver.save(plan[path], file, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
 		_props[path + "/Mesh"] = file
-	print("props: %d meshes, %d materials" % [plan.size(), g._mats.size()])
+	_walk_in.file = OUT + "props/house_west_roof.res"
+	ResourceSaver.save(_walk_in.roof, _walk_in.file, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+	print("props: %d meshes, %d materials; walk-in %d boxes, %d rooms" % [plan.size(), g._mats.size(), _walk_in.colliders.size(), _walk_in.rooms.size()])
 
 
 func _patch_scene() -> void:
@@ -2159,6 +2181,14 @@ func _patch_scene() -> void:
 				block = header + "\ntransform = Transform3D(%s, 0, 10, 0)\nlight_color = Color(1, 0.93, 0.8, 1)\nlight_energy = 2.3\nlight_angular_distance = 1.0\nlight_volumetric_fog_energy = 1.4\nshadow_enabled = true\nshadow_opacity = 0.92\ndirectional_shadow_max_distance = 75.0\n" % ", ".join(vals)
 		if _props.has(path):
 			block = header + "\nmesh = ExtResource(\"p_%s\")\n" % path.get_slice("/", 2).to_snake_case()
+		if path == WALK_IN:
+			block = block.strip_edges() + "\nscript = ExtResource(\"q_walkin\")\nroof = NodePath(\"Roof\")\nrooms = %s\n" % var_to_str(_walk_in.rooms)
+		if path == WALK_IN + "/Collision":
+			# The one box becomes the walls, floors, steps and chimney.
+			block = "[node name=\"Roof\" type=\"MeshInstance3D\" parent=\"%s\"]\nmesh = ExtResource(\"q_walkin_roof\")\n" % WALK_IN
+			for i in _walk_in.colliders.size():
+				block += "\n[node name=\"Box%d\" type=\"CollisionShape3D\" parent=\"%s\"]\ntransform = %s\nshape = SubResource(\"walkin_%d\")\n" \
+						% [i, WALK_IN, var_to_str(_walk_in.colliders[i][0]), i]
 		kept.append(block)
 		if path == "LevelGeometry":
 			kept.append("[node name=\"Terrain\" parent=\"LevelGeometry\" instance=ExtResource(\"q_terrain\")]\n")
@@ -2170,10 +2200,18 @@ func _patch_scene() -> void:
 			first_sub = i + 1
 	kept.insert(first_sub, "[ext_resource type=\"PackedScene\" path=\"%sterrain.scn\" id=\"q_terrain\"]\n" % OUT)
 	kept.insert(first_sub + 1, "[ext_resource type=\"Environment\" path=\"%squarry_environment.tres\" id=\"q_env\"]\n" % OUT)
-	var at := first_sub + 2
+	kept.insert(first_sub + 2, "[ext_resource type=\"Script\" path=\"res://world/walk_in_building.gd\" id=\"q_walkin\"]\n")
+	kept.insert(first_sub + 3, "[ext_resource type=\"ArrayMesh\" path=\"%s\" id=\"q_walkin_roof\"]\n" % _walk_in.file)
+	var at := first_sub + 4
 	for p: String in _props:
 		kept.insert(at, "[ext_resource type=\"ArrayMesh\" path=\"%s\" id=\"p_%s\"]\n" % [_props[p], p.get_slice("/", 2).to_snake_case()])
 		at += 1
+	# The walk-in boxes go after the last sub_resource, before the first node.
+	for i in kept.size():
+		if kept[i].begins_with("[node"):
+			for j in range(_walk_in.colliders.size() - 1, -1, -1):
+				kept.insert(i, "[sub_resource type=\"BoxShape3D\" id=\"walkin_%d\"]\nsize = %s\n" % [j, var_to_str(_walk_in.colliders[j][1])])
+			break
 	var changed := true
 	while changed:
 		changed = false

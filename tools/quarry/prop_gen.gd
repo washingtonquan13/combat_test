@@ -47,6 +47,18 @@ var _jitter := 0.0       # beam ends wander by up to this much
 var bevel := 0.0         # chamfer on box edges, capped by the box's size
 var _blk := Transform3D.IDENTITY  # frame of the building block being drawn, inside the prop
 
+# Walk-in cottages. Set `interior` before cottage(): walls get thickness, an
+# inside face and collision, the floor is planked, doors are full height with
+# stairs, and roof, gables and gable windows go to `roof_mesh` instead, so the
+# building can stop drawing them while someone is inside.
+const WALL := 0.22
+var interior := false
+var roof_mesh: ArrayMesh   # set by commit(), null when nothing went to the roof
+var colliders: Array = []  # [Transform3D, size] boxes in prop space
+var rooms: Array[AABB] = []  # each block's inside, prop space
+var _st_roof := {}
+var _to_roof := false
+
 
 func material(key: String) -> Material:
 	if _mats.has(key):
@@ -80,11 +92,30 @@ func material(key: String) -> Material:
 # ---------------------------------------------------------------- primitives
 
 func _surf(key: String) -> SurfaceTool:
-	if not _st.has(key):
+	var d := _st_roof if _to_roof else _st
+	if not d.has(key):
 		var st := SurfaceTool.new()
 		st.begin(Mesh.PRIMITIVE_TRIANGLES)
-		_st[key] = st
-	return _st[key]
+		d[key] = st
+	return d[key]
+
+
+## A collision box placed by `xf` in the current block's frame (walk-in only).
+func _collide(xf: Transform3D, size: Vector3) -> void:
+	if interior:
+		colliders.append([Transform3D(_root, Vector3.ZERO) * _blk * xf, size])
+
+
+func _bake(d: Dictionary) -> ArrayMesh:
+	var mesh := ArrayMesh.new()
+	for key: String in d:
+		var st: SurfaceTool = d[key]
+		st.index()
+		st.generate_tangents()
+		st.commit(mesh)
+		mesh.surface_set_material(mesh.get_surface_count() - 1, material(key))
+	d.clear()
+	return mesh
 
 
 func _tile(key: String) -> float:
@@ -248,14 +279,9 @@ func beam(key: String, a: Vector3, b: Vector3, w: float, d := -1.0) -> void:
 
 
 func commit(yaw := 0.0) -> ArrayMesh:
-	var mesh := ArrayMesh.new()
-	for key: String in _st:
-		var st: SurfaceTool = _st[key]
-		st.index()
-		st.generate_tangents()
-		st.commit(mesh)
-		mesh.surface_set_material(mesh.get_surface_count() - 1, material(key))
-	_st.clear()
+	var mesh := _bake(_st)
+	roof_mesh = _bake(_st_roof) if not _st_roof.is_empty() else null
+	_to_roof = false
 	_root = Basis.IDENTITY
 	_ground = -1e9
 	_eave = 1e9
@@ -296,6 +322,10 @@ func _face_to(yaw_deg: float) -> void:
 func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMesh:
 	rng.seed = seed
 	_face_to(yaw_deg)
+	colliders = []
+	rooms = []
+	var dw := 1.3 if interior else 1.05
+	var dh := 2.2 if interior else 1.95
 	var turned := int(round(yaw_deg / 90.0)) % 2 != 0
 	var L := size.z if turned else size.x
 	var Wd := size.x if turned else size.z
@@ -352,6 +382,10 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 				main.ends.x = wing_w * 0.5
 			blocks = [main, wing]
 			porch = true
+			if interior:
+				# A doorway through the wing's wall into the hall.
+				var mz: float = -hz + dm * 0.5
+				wing.opens.append(["back" if side > 0.0 else "front", mz if side > 0.0 else -mz, dw, plinth, plinth + dh, true, false, true])
 		"outshot":
 			var dl := clampf(hz * 0.6, 1.4, 1.9)
 			var dm := hz * 2.0 - dl
@@ -405,10 +439,10 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 	var door_u := 0.0
 	for tries in 12:
 		var u := rng.randf_range(-0.45, 0.45) * maxf(span - 1.0, 0.0)
-		if _clear(blocks, main, door_face, u, 0.53, plinth, plinth + 1.95, false, avoid):
+		if _clear(blocks, main, door_face, u, dw * 0.5, plinth, plinth + dh, false, avoid):
 			door_u = u
 			break
-	main.opens.push_front([door_face, door_u, 1.05, plinth, plinth + 1.95, true, false])
+	main.opens.push_front([door_face, door_u, dw, plinth, plinth + dh, true, false])
 
 	# Windows, facade by facade.
 	for b: Dictionary in blocks:
@@ -449,6 +483,13 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 	for b: Dictionary in blocks:
 		_sag = sag if b.kind == "gable" else 0.0
 		_build_block(b, wall, plaster)
+		if interior and b.kind != "dormer":
+			var room := AABB()
+			for k in 8:
+				var c := Vector3(b.hx * (1 if k & 1 else -1), b.plinth - 0.3 if k & 2 else b.ridge, b.hz * (1 if k & 4 else -1))
+				var q: Vector3 = _root * (b.xf * c)
+				room = AABB(q, Vector3.ZERO) if k == 0 else room.expand(q)
+			rooms.append(room)
 
 	# Fittings, drawn straight and level.
 	_sag = 0.0
@@ -474,7 +515,11 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 	else:
 		var fr := _wall_frame(door[0], door[1], main.hx, main.hz)
 		var n: Vector3 = fr[1]
-		box("stone", _xf(fr[0] + n * 0.2 + Vector3.UP * (plinth - 0.1), atan2(n.x, n.z) + rng.randf_range(-0.05, 0.05)), Vector3(1.3, 0.3, 0.36))
+		var turn := rng.randf_range(-0.05, 0.05)
+		if interior:
+			_stair(fr[0], n, dw + 0.3, plinth, y0)
+		else:
+			box("stone", _xf(fr[0] + n * 0.2 + Vector3.UP * (plinth - 0.1), atan2(n.x, n.z) + turn), Vector3(1.3, 0.3, 0.36))
 		if top - door[4] >= 0.55:
 			_door_hood(door, main.hx, main.hz, minf(door[4] + 0.42, top - 0.12))
 
@@ -489,7 +534,9 @@ func cottage(size: Vector3, yaw_deg: float, plaster: bool, seed: int) -> ArrayMe
 			var sx := -1.0 if chim == "west" else 1.0
 			_chimney(Vector3(sx * (main.hx - 0.1), 0, chim_u), 0.9, 0.9, plinth, main.ridge + 0.9)
 		"ridge":
+			_to_roof = interior
 			_chimney(Vector3(chim_u, 0, 0), 0.75, 0.75, main.top - 0.3, main.ridge + 0.8)
+			_to_roof = false
 		"back":
 			_chimney(Vector3(chim_u, 0, -main.hz + 0.05), 0.9, 0.8, plinth, main.ridge + 0.5)
 	return commit()
@@ -590,16 +637,24 @@ func _build_block(b: Dictionary, wall: String, plaster: bool) -> void:
 	if b.kind != "dormer":
 		var g: float = b.ground
 		box("stone", _xf(Vector3(0, (g - 0.9 + b.plinth) * 0.5, 0)), Vector3(hx * 2 + 0.16, b.plinth - g + 0.9, hz * 2 + 0.16))
+		_collide(_xf(Vector3(0, (g - 0.9 + b.plinth) * 0.5, 0)), Vector3(hx * 2 + 0.16, b.plinth - g + 0.9, hz * 2 + 0.16))
+		if interior:
+			box("planks", _xf(Vector3(0, b.plinth, 0)), Vector3(hx * 2 - 0.1, 0.03, hz * 2 - 0.1), 0)
 
 	for f: String in ["front", "back", "east", "west"]:
 		if f not in skip:
-			_wall(wall, f, b.opens, hx, hz, b.plinth, top)
+			_wall(wall, f, b.opens, hx, hz, b.plinth, top, skip)
+	_to_roof = interior
 	for sx in [-1.0, 1.0]:
 		if ("west" if sx < 0.0 else "east") in skip:
 			continue
 		var x: float = sx * hx
 		var apex := Vector3(x, ridge, hz) if lean else Vector3(x, ridge, 0)
 		face(wall, [Vector3(x, top, -hz), Vector3(x, top, hz), apex], Vector3(sx, 0, 0), Vector3(0, 0, 1))
+		if interior:
+			var xi: float = x - sx * WALL
+			var ai := Vector3(xi, ridge, hz) if lean else Vector3(xi, ridge, 0)
+			face(wall, [Vector3(xi, top, -hz), Vector3(xi, top, hz), ai], Vector3(-sx, 0, 0), Vector3(0, 0, 1))
 
 	if lean:
 		# The slope's high edge sits on the wall it leans on.
@@ -609,8 +664,11 @@ func _build_block(b: Dictionary, wall: String, plaster: bool) -> void:
 	else:
 		_roof(hx, hz, top, ridge, b.pitch, [-1.0, 1.0], true, b.ends)
 
+	_to_roof = false
 	for o: Array in b.opens:
+		_to_roof = interior and o[3] >= top
 		_opening(o, hx, hz, o[4] <= top)
+		_to_roof = false
 
 	if plaster and b.kind != "dormer":
 		_timber_frame(b.opens, hx, hz, b.plinth, top, -1.0 if lean else ridge, skip)
@@ -625,7 +683,7 @@ func _build_block(b: Dictionary, wall: String, plaster: bool) -> void:
 ## One wall of a cottage, cut round its openings, with the openings' reveals
 ## lined back into the wall: deep for the door, shallow for windows. Openings
 ## above the wall top (gable windows) are left to sit on the gable.
-func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: float, y1: float) -> void:
+func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: float, y1: float, skip := []) -> void:
 	var span := hz if fname in ["east", "west"] else hx
 	var f := _wall_frame(fname, 0.0, hx, hz)
 	var at: Vector3 = f[0]
@@ -634,7 +692,7 @@ func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: f
 	var holes: Array = []
 	for o: Array in opens:
 		if o[0] == fname and o[4] <= y1:
-			holes.append([o[1] - o[2] * 0.5, o[1] + o[2] * 0.5, o[3], o[4], 0.45 if o[5] else 0.2])
+			holes.append([o[1] - o[2] * 0.5, o[1] + o[2] * 0.5, o[3], o[4], WALL if interior else (0.45 if o[5] else 0.2)])
 	var us: Array[float] = [-span, span]
 	for hh: Array in holes:
 		us.append(hh[0])
@@ -657,6 +715,14 @@ func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: f
 			if ys[k + 1] - ys[k] > 0.001:
 				face(key, [at + t * u0 + Vector3.UP * ys[k], at + t * u1 + Vector3.UP * ys[k],
 						at + t * u1 + Vector3.UP * ys[k + 1], at + t * u0 + Vector3.UP * ys[k + 1]], n, t)
+				if interior:
+					_wall_inside(key, fname, at, n, t, span, u0, u1, ys[k], ys[k + 1], skip)
+	if interior:
+		# The wall's top, mitred at corners it shares.
+		var ends := _inner_ends(fname, span, skip)
+		var ai: Vector3 = at - n * WALL
+		face(key, [at + t * -span + Vector3.UP * y1, at + t * span + Vector3.UP * y1,
+				ai + t * ends.y + Vector3.UP * y1, ai + t * ends.x + Vector3.UP * y1], Vector3.UP, t)
 	_ao = 0.6
 	for hh: Array in holes:
 		var d: float = hh[4]
@@ -669,6 +735,49 @@ func _wall(key: String, fname: String, opens: Array, hx: float, hz: float, y0: f
 		face(key, [c00, c01, c01 - n * d, c00 - n * d], t, Vector3.UP)
 		face(key, [c10, c11, c11 - n * d, c10 - n * d], -t, Vector3.UP)
 	_ao = 1.0
+
+
+## How far a wall's inside face runs each way along it: short of the corner
+## by the wall's thickness, unless the wall it meets there is left out.
+func _inner_ends(fname: String, span: float, skip: Array) -> Vector2:
+	var ends := {front = ["west", "east"], back = ["east", "west"], west = ["back", "front"], east = ["front", "back"]}
+	var e: Array = ends[fname]
+	return Vector2(-span if e[0] in skip else -span + WALL, span if e[1] in skip else span - WALL)
+
+
+## The inside of one piece of wall between openings, and its collision box.
+func _wall_inside(key: String, fname: String, at: Vector3, n: Vector3, t: Vector3, span: float,
+		u0: float, u1: float, ya: float, yb: float, skip: Array) -> void:
+	_collide(Transform3D(Basis(t, Vector3.UP, n), at + t * (u0 + u1) * 0.5 - n * WALL * 0.5 + Vector3.UP * (ya + yb) * 0.5),
+			Vector3(u1 - u0, yb - ya, WALL))
+	var ends := _inner_ends(fname, span, skip)
+	var a := maxf(u0, ends.x)
+	var b := minf(u1, ends.y)
+	if b - a < 0.001:
+		return
+	var ai: Vector3 = at - n * WALL
+	face(key, [ai + t * a + Vector3.UP * ya, ai + t * b + Vector3.UP * ya,
+			ai + t * b + Vector3.UP * yb, ai + t * a + Vector3.UP * yb], -n, t)
+
+
+## Two stone steps down from y_hi at `at` (on the wall or deck edge) outward
+## along n, with a ramp collider laid over their nosings: the nav grid climbs
+## ramps but steps only a quarter metre at a time.
+func _stair(at: Vector3, n: Vector3, w: float, y_hi: float, ground: float) -> void:
+	var t := Vector3.UP.cross(n)
+	var rise := (y_hi - ground) / 3.0
+	var yaw := atan2(n.x, n.z)
+	for k in 2:
+		var top := y_hi - rise * (k + 1)
+		var h := top - (ground - 0.25)
+		box("stone", _xf(at + n * (0.35 * k + 0.18) + Vector3.UP * (top - h * 0.5), yaw + rng.randf_range(-0.02, 0.02)),
+				Vector3(w + 0.1 * k, h, 0.36))
+	var d := n * 1.05 + Vector3.DOWN * (y_hi - ground)
+	var len := d.length()
+	var up := d.normalized().cross(t)
+	# A slab, not a sheet: the nav grid only turns solid cells under a ramp's
+	# face into ground, and a sheet thinner than a cell has none.
+	_collide(Transform3D(Basis(t, up, d.normalized()), at + Vector3.UP * y_hi + d * 0.5 - up * 0.3), Vector3(w, 0.6, len + 0.1))
 
 
 ## Slate courses over sheathing boards, carried on rafters whose tails show
@@ -748,6 +857,8 @@ func _roof(hx: float, hz: float, top: float, ridge: float, pitch: float, sides :
 ## A stack of `w` x `d` from y_from to y_to, with a capping course and a pot.
 func _chimney(c: Vector3, w: float, d: float, y_from: float, y_to: float) -> void:
 	box("stone", _xf(Vector3(c.x, (y_from + y_to) * 0.5, c.z)), Vector3(w, y_to - y_from, d), 1)
+	if not _to_roof:
+		_collide(_xf(Vector3(c.x, (y_from + y_to) * 0.5, c.z)), Vector3(w, y_to - y_from, d))
 	box("stone", _xf(Vector3(c.x, y_to + 0.05, c.z)), Vector3(w + 0.1, 0.14, d + 0.1))
 	var px := c.x + rng.randf_range(-0.15, 0.15) * w
 	cyl("stone", _xf(Vector3(px, y_to + 0.28, c.z)), 0.13, 0.36, 8)
@@ -780,16 +891,22 @@ func _porch(x0: float, x1: float, z0: float, z1: float, y_floor: float, y_hi: fl
 	var p := deg_to_rad(12.0)
 	var xm := (x0 + x1) * 0.5
 	var wd := x1 - x0
-	var deck_z1 := z1 - 0.4
+	var deck_z1 := z1 - (0.7 if interior else 0.4)
 	box("stone", _xf(Vector3(xm, (ground - 0.6 + y_floor - 0.06) * 0.5, (z0 + deck_z1) * 0.5)), Vector3(wd, y_floor - 0.06 - ground + 0.6, deck_z1 - z0))
+	_collide(_xf(Vector3(xm, (ground - 0.6 + y_floor) * 0.5, (z0 + deck_z1) * 0.5)), Vector3(wd, y_floor - ground + 0.6, deck_z1 - z0))
 	box("planks", _xf(Vector3(xm, y_floor - 0.03, (z0 + deck_z1) * 0.5)), Vector3(wd + 0.04, 0.06, deck_z1 - z0 + 0.04), 0)
 	var step_h := (y_floor - ground) * 0.5
-	box("stone", _xf(Vector3(xm, ground + step_h * 0.5 - 0.1, (deck_z1 + z1) * 0.5), rng.randf_range(-0.03, 0.03)), Vector3(minf(wd, 1.4), step_h + 0.2, z1 - deck_z1 - 0.02))
+	var turn := rng.randf_range(-0.03, 0.03)
+	if interior:
+		_stair(Vector3(xm, 0, deck_z1), Vector3.BACK, minf(wd, 1.6), y_floor, ground)
+	else:
+		box("stone", _xf(Vector3(xm, ground + step_h * 0.5 - 0.1, (deck_z1 + z1) * 0.5), turn), Vector3(minf(wd, 1.4), step_h + 0.2, z1 - deck_z1 - 0.02))
 	var zp := deck_z1 - 0.12
 	var y_at := func(z: float) -> float: return y_hi - (z - z0) * tan(p)
 	var ypost: float = y_at.call(zp) - 0.1
 	for x in [x0 + 0.12, x1 - 0.12]:
 		beam("beam", Vector3(x, y_floor, zp), Vector3(x, ypost, zp), 0.15)
+		_collide(_xf(Vector3(x, (y_floor + ypost) * 0.5, zp)), Vector3(0.15, ypost - y_floor, 0.15))
 		var inward := 1.0 if x < xm else -1.0
 		beam("beam", Vector3(x, ypost - 0.45, zp), Vector3(x + inward * 0.45, ypost - 0.04, zp), 0.09)
 	beam("beam", Vector3(x0, ypost + 0.04, zp), Vector3(x1, ypost + 0.04, zp), 0.15)
@@ -827,14 +944,20 @@ func _opening(o: Array, hx: float, hz: float, recessed := true) -> void:
 	var yaw := atan2(n.x, n.z)
 	var c := at + Vector3.UP * (b + h * 0.5)
 	if is_door:
-		box("dark", _xf(c - n * 0.45, yaw), Vector3(w, h, 0.02))
-		# Planked leaf, ajar, swung in from a hinge in the reveal.
-		var hinge := c - t * w * 0.5 - n * 0.1
 		var swing := deg_to_rad(rng.randf_range(20.0, 45.0))
+		var hinge := c - t * w * 0.5 - n * 0.1
+		if interior:
+			# Open: the leaf stands back against the inside wall.
+			swing = PI - 0.12
+			hinge = c - t * w * 0.5 - n * WALL
+		else:
+			box("dark", _xf(c - n * 0.45, yaw), Vector3(w, h, 0.02))
+		# Planked leaf, swung in from a hinge in the reveal.
 		var leaf := Basis(Vector3.UP, yaw + swing)
-		box("planks", Transform3D(leaf, hinge + leaf * Vector3(w * 0.47, 0, 0.03)), Vector3(w * 0.94, h - 0.04, 0.06), 1)
-		for ly in [-0.6, 0.6]:
-			box("beam", Transform3D(leaf, hinge + leaf * Vector3(w * 0.47, ly, 0.08)), Vector3(w * 0.9, 0.12, 0.04))
+		if not (o.size() > 7 and o[7]):
+			box("planks", Transform3D(leaf, hinge + leaf * Vector3(w * 0.47, 0, 0.05)), Vector3(w * 0.94, h - 0.04, 0.06), 1)
+			for ly in [-0.6, 0.6]:
+				box("beam", Transform3D(leaf, hinge + leaf * Vector3(w * 0.47, ly, 0.1)), Vector3(w * 0.9, 0.12, 0.04))
 	else:
 		var back := 0.13 if recessed else -0.015
 		box("glass", _xf(c - n * back, yaw), Vector3(w, h, 0.02))
@@ -920,7 +1043,9 @@ func _timber_frame(opens: Array, hx: float, hz: float, y0: float, y1: float, rid
 				var hi := o0 + n * 0.01 + t * (b if lean < 0 else a) + Vector3.UP * (y1 - w)
 				beam("beam", lo, hi, w * 0.75)
 		if fname in ["east", "west"] and ridge > y1 and not gable_window:
+			_to_roof = interior
 			beam("beam", o0 + Vector3.UP * y1, o0 + Vector3.UP * (ridge - 0.1), w)
+			_to_roof = false
 
 
 func fence(size: Vector3, seed: int) -> ArrayMesh:
