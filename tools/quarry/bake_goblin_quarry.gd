@@ -170,6 +170,7 @@ func _initialize() -> void:
 	root.free()
 
 	_save_environment()
+	_build_props()
 	_patch_scene()
 	print("bake %s in %d ms" % ["OK" if ok else "WITH FLOOD FAILURES", Time.get_ticks_msec() - t0])
 	quit(0 if ok else 1)
@@ -2072,6 +2073,41 @@ func _seat(x: float, z: float) -> float:
 	return lo
 
 
+# ---------------------------------------------------------------- props
+
+# Blockout placeholder -> generated prop. The StaticBody and its box collision
+# stay; only the Mesh child's mesh is swapped, so nav and cover don't change.
+var _props := {}
+
+
+func _build_props() -> void:
+	var g = load("res://tools/quarry/prop_gen.gd").new()
+	var plan := {
+		"LevelGeometry/Town/HouseWest": g.cottage(Vector3(7, 4, 6), 90, true, 1),
+		"LevelGeometry/Town/HouseWestBack": g.cottage(Vector3(6, 5, 5), 180, false, 2),
+		"LevelGeometry/Town/HouseEast": g.cottage(Vector3(6, 4, 7), 270, true, 3),
+		"LevelGeometry/Town/HouseEastBack": g.cottage(Vector3(8, 3.5, 5), 180, false, 4),
+		"LevelGeometry/Town/Fence": g.fence(Vector3(6, 1, 0.3), 5),
+		"LevelGeometry/Town/Well": g.well(1.2, 1.0, 6),
+		"LevelGeometry/Road/Cart": g.cart(Vector3(2, 1.2, 3), 7),
+		"LevelGeometry/Road/LowWall": g.low_wall(Vector3(5, 1, 0.5), 8),
+		"LevelGeometry/Camp/TentWest": g.tent(Vector3(3, 2.2, 3), 90, 9),
+		"LevelGeometry/Camp/TentEast": g.tent(Vector3(3, 2.2, 3), 0, 10),
+		"LevelGeometry/Camp/Crate": g.crate(Vector3(1, 1, 1), 11),
+		"LevelGeometry/Camp/Crate2": g.crate(Vector3(1, 1, 1), 12),
+		"LevelGeometry/Camp/Crates3": g.crate(Vector3(1.2, 1.2, 2.2), 13),
+	}
+	DirAccess.make_dir_recursive_absolute(OUT + "props")
+	# Materials first, saved once, so every prop mesh points at the same files.
+	for key: String in g._mats:
+		ResourceSaver.save(g._mats[key], OUT + "props/mat_%s.tres" % key, ResourceSaver.FLAG_CHANGE_PATH)
+	for path: String in plan:
+		var file := OUT + "props/%s.res" % path.get_file().to_snake_case()
+		ResourceSaver.save(plan[path], file, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+		_props[path + "/Mesh"] = file
+	print("props: %d meshes, %d materials" % [plan.size(), g._mats.size()])
+
+
 func _patch_scene() -> void:
 	var text := FileAccess.get_file_as_string(OLD_SCENE)
 	var blocks: Array[String] = []
@@ -2121,6 +2157,8 @@ func _patch_scene() -> void:
 					for col in 3:
 						vals.append(String.num(snappedf(b[col][row], 0.000001)))
 				block = header + "\ntransform = Transform3D(%s, 0, 10, 0)\nlight_color = Color(1, 0.93, 0.8, 1)\nlight_energy = 2.3\nlight_angular_distance = 1.0\nlight_volumetric_fog_energy = 1.4\nshadow_enabled = true\nshadow_opacity = 0.92\ndirectional_shadow_max_distance = 75.0\n" % ", ".join(vals)
+		if _props.has(path):
+			block = header + "\nmesh = ExtResource(\"p_%s\")\n" % path.get_slice("/", 2).to_snake_case()
 		kept.append(block)
 		if path == "LevelGeometry":
 			kept.append("[node name=\"Terrain\" parent=\"LevelGeometry\" instance=ExtResource(\"q_terrain\")]\n")
@@ -2132,6 +2170,10 @@ func _patch_scene() -> void:
 			first_sub = i + 1
 	kept.insert(first_sub, "[ext_resource type=\"PackedScene\" path=\"%sterrain.scn\" id=\"q_terrain\"]\n" % OUT)
 	kept.insert(first_sub + 1, "[ext_resource type=\"Environment\" path=\"%squarry_environment.tres\" id=\"q_env\"]\n" % OUT)
+	var at := first_sub + 2
+	for p: String in _props:
+		kept.insert(at, "[ext_resource type=\"ArrayMesh\" path=\"%s\" id=\"p_%s\"]\n" % [_props[p], p.get_slice("/", 2).to_snake_case()])
+		at += 1
 	var changed := true
 	while changed:
 		changed = false

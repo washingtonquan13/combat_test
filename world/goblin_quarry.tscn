@@ -1,10 +1,9 @@
-[gd_scene load_steps=60 format=3]
+[gd_scene load_steps=56 format=3]
 
 [ext_resource type="Script" path="res://world/goblin_quarry.gd" id="1_area"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_unit"]
 [ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="3_cam"]
 [ext_resource type="PackedScene" path="res://world/ladder.tscn" id="4_ladder"]
-[ext_resource type="Texture2D" path="res://assets/placeholder_grid.png" id="5_grid"]
 [ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="7_town"]
 [ext_resource type="Resource" path="res://data/units/demons/goblin_rogue.tres" id="8_rogue"]
 [ext_resource type="Resource" path="res://data/units/demons/hobgoblin.tres" id="9_hob"]
@@ -27,6 +26,19 @@
 [ext_resource type="Script" path="res://systems/world_system/area_exit.gd" id="26_exit"]
 [ext_resource type="PackedScene" path="res://world/goblin_quarry/terrain.scn" id="q_terrain"]
 [ext_resource type="Environment" path="res://world/goblin_quarry/quarry_environment.tres" id="q_env"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west.res" id="p_house_west"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_back.res" id="p_house_west_back"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_east.res" id="p_house_east"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_east_back.res" id="p_house_east_back"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/fence.res" id="p_fence"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/well.res" id="p_well"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/cart.res" id="p_cart"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/low_wall.res" id="p_low_wall"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/tent_west.res" id="p_tent_west"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/tent_east.res" id="p_tent_east"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crate.res" id="p_crate"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crate_2.res" id="p_crate_2"]
+[ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/crates_3.res" id="p_crates_3"]
 
 [sub_resource type="Resource" id="Resource_raids_resolved"]
 script = ExtResource("22_flag")
@@ -42,104 +54,42 @@ prerequisite = SubResource("Resource_raids_resolved")
 script = ExtResource("20_rootopt")
 root = ExtResource("19_hub")
 
-[sub_resource type="StandardMaterial3D" id="Mat_wood"]
-albedo_color = Color(0.55, 0.38, 0.24, 1)
-albedo_texture = ExtResource("5_grid")
-uv1_scale = Vector3(0.5, 0.5, 0.5)
-uv1_triplanar = true
-texture_filter = 0
-
-[sub_resource type="StandardMaterial3D" id="Mat_stone"]
-albedo_color = Color(0.68, 0.68, 0.7, 1)
-albedo_texture = ExtResource("5_grid")
-uv1_scale = Vector3(0.5, 0.5, 0.5)
-uv1_triplanar = true
-texture_filter = 0
-
-[sub_resource type="StandardMaterial3D" id="Mat_cloth"]
-albedo_color = Color(0.62, 0.55, 0.4, 1)
-albedo_texture = ExtResource("5_grid")
-uv1_scale = Vector3(0.5, 0.5, 0.5)
-uv1_triplanar = true
-texture_filter = 0
-
-[sub_resource type="BoxMesh" id="Mesh_8"]
-size = Vector3(7, 4, 6)
-
 [sub_resource type="BoxShape3D" id="Shape_8"]
 size = Vector3(7, 4, 6)
-
-[sub_resource type="BoxMesh" id="Mesh_9"]
-size = Vector3(6, 5, 5)
 
 [sub_resource type="BoxShape3D" id="Shape_9"]
 size = Vector3(6, 5, 5)
 
-[sub_resource type="BoxMesh" id="Mesh_10"]
-size = Vector3(6, 4, 7)
-
 [sub_resource type="BoxShape3D" id="Shape_10"]
 size = Vector3(6, 4, 7)
-
-[sub_resource type="BoxMesh" id="Mesh_11"]
-size = Vector3(8, 3.5, 5)
 
 [sub_resource type="BoxShape3D" id="Shape_11"]
 size = Vector3(8, 3.5, 5)
 
-[sub_resource type="BoxMesh" id="Mesh_12"]
-size = Vector3(6, 1, 0.3)
-
 [sub_resource type="BoxShape3D" id="Shape_12"]
 size = Vector3(6, 1, 0.3)
-
-[sub_resource type="CylinderMesh" id="Mesh_well"]
-top_radius = 1.2
-bottom_radius = 1.2
-height = 1.0
 
 [sub_resource type="CylinderShape3D" id="Shape_well"]
 radius = 1.2
 height = 1.0
 
-[sub_resource type="BoxMesh" id="Mesh_13"]
-size = Vector3(2, 1.2, 3)
-
 [sub_resource type="BoxShape3D" id="Shape_13"]
 size = Vector3(2, 1.2, 3)
-
-[sub_resource type="BoxMesh" id="Mesh_14"]
-size = Vector3(5, 1, 0.5)
 
 [sub_resource type="BoxShape3D" id="Shape_14"]
 size = Vector3(5, 1, 0.5)
 
-[sub_resource type="BoxMesh" id="Mesh_19"]
-size = Vector3(3, 2.2, 3)
-
 [sub_resource type="BoxShape3D" id="Shape_19"]
-size = Vector3(3, 2.2, 3)
-
-[sub_resource type="BoxMesh" id="Mesh_20"]
 size = Vector3(3, 2.2, 3)
 
 [sub_resource type="BoxShape3D" id="Shape_20"]
 size = Vector3(3, 2.2, 3)
 
-[sub_resource type="BoxMesh" id="Mesh_22"]
-size = Vector3(1, 1, 1)
-
 [sub_resource type="BoxShape3D" id="Shape_22"]
-size = Vector3(1, 1, 1)
-
-[sub_resource type="BoxMesh" id="Mesh_23"]
 size = Vector3(1, 1, 1)
 
 [sub_resource type="BoxShape3D" id="Shape_23"]
 size = Vector3(1, 1, 1)
-
-[sub_resource type="BoxMesh" id="Mesh_24"]
-size = Vector3(1.2, 1.2, 2.2)
 
 [sub_resource type="BoxShape3D" id="Shape_24"]
 size = Vector3(1.2, 1.2, 2.2)
@@ -163,8 +113,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 6.0684, 1.4)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.0, 1.87, 30.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseWest"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_8")
+mesh = ExtResource("p_house_west")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWest"]
 shape = SubResource("Shape_8")
@@ -173,8 +122,7 @@ shape = SubResource("Shape_8")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.0, 2.37, 40.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseWestBack"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_9")
+mesh = ExtResource("p_house_west_back")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Town/HouseWestBack"]
 shape = SubResource("Shape_9")
@@ -183,8 +131,7 @@ shape = SubResource("Shape_9")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.0, 1.87, 28.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseEast"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_10")
+mesh = ExtResource("p_house_east")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Town/HouseEast"]
 shape = SubResource("Shape_10")
@@ -193,8 +140,7 @@ shape = SubResource("Shape_10")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.0, 1.62, 39.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/HouseEastBack"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_11")
+mesh = ExtResource("p_house_east_back")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Town/HouseEastBack"]
 shape = SubResource("Shape_11")
@@ -203,8 +149,7 @@ shape = SubResource("Shape_11")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -7.0, 0.3974, 23.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/Fence"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_12")
+mesh = ExtResource("p_fence")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Town/Fence"]
 shape = SubResource("Shape_12")
@@ -213,8 +158,7 @@ shape = SubResource("Shape_12")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.0, 0.3777, 22.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Town/Well"]
-material_override = SubResource("Mat_stone")
-mesh = SubResource("Mesh_well")
+mesh = ExtResource("p_well")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Town/Well"]
 shape = SubResource("Shape_well")
@@ -225,8 +169,7 @@ shape = SubResource("Shape_well")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, -1.9018, -2.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Road/Cart"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_13")
+mesh = ExtResource("p_cart")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Road/Cart"]
 shape = SubResource("Shape_13")
@@ -235,8 +178,7 @@ shape = SubResource("Shape_13")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.5, -2.3922, -14.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Road/LowWall"]
-material_override = SubResource("Mat_stone")
-mesh = SubResource("Mesh_14")
+mesh = ExtResource("p_low_wall")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Road/LowWall"]
 shape = SubResource("Shape_14")
@@ -247,8 +189,7 @@ shape = SubResource("Shape_14")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.0, -4.9066, -52.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentWest"]
-material_override = SubResource("Mat_cloth")
-mesh = SubResource("Mesh_19")
+mesh = ExtResource("p_tent_west")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Camp/TentWest"]
 shape = SubResource("Shape_19")
@@ -257,8 +198,7 @@ shape = SubResource("Shape_19")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5.0, -5.019, -54.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentEast"]
-material_override = SubResource("Mat_cloth")
-mesh = SubResource("Mesh_20")
+mesh = ExtResource("p_tent_east")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Camp/TentEast"]
 shape = SubResource("Shape_20")
@@ -267,8 +207,7 @@ shape = SubResource("Shape_20")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.5, -5.5753, -41.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/Crate"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_22")
+mesh = ExtResource("p_crate")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Camp/Crate"]
 shape = SubResource("Shape_22")
@@ -277,8 +216,7 @@ shape = SubResource("Shape_22")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.4, -5.5865, -41.3)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/Crate2"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_23")
+mesh = ExtResource("p_crate_2")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Camp/Crate2"]
 shape = SubResource("Shape_23")
@@ -287,8 +225,7 @@ shape = SubResource("Shape_23")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.0, -5.5536, -42.0)
 
 [node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/Crates3"]
-material_override = SubResource("Mat_wood")
-mesh = SubResource("Mesh_24")
+mesh = ExtResource("p_crates_3")
 
 [node name="Collision" type="CollisionShape3D" parent="LevelGeometry/Camp/Crates3"]
 shape = SubResource("Shape_24")
