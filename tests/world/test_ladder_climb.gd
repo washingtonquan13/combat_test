@@ -87,7 +87,7 @@ func run() -> void:
 	check("at climb speed, not a snap (%.1fs for %.1fm)" % [seconds, climb_length],
 		seconds > 0.7 * climb_length / ladder.climb_speed)
 
-	var enemy: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], base + Vector3(0.0, 0.0, -8.0))
+	var enemy: Unit = spawn_unit(&"enemy", 12, 12, 20, [melee()], base - ladder.facing() * 8.0)
 	await get_tree().physics_frame
 	check("the AI knows a grounded foe can climb up to the top",
 		AiScorer._can_ever_reach(enemy, top, melee()))

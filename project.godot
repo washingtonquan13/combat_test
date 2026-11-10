@@ -213,6 +213,10 @@ cinematic_advance={
 ]
 }
 
+[rendering]
+
+anti_aliasing/quality/use_taa=true
+
 [shader_globals]
 
 player_position={

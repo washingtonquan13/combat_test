@@ -1,0 +1,38 @@
+[remap]
+
+importer="texture"
+type="CompressedTexture2D"
+uid="uid://dqioiul1343nk"
+path.s3tc="res://.godot/imported/rock_moss_set_01_rock_moss_set_01_nor_gl_2k.jpg-4e1e040331d03e5572f5adcd1da5c78c.s3tc.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc"],
+"vram_texture": true
+}
+generator_parameters={
+"md5": "51218d573ae88de383a4ef2a00494890"
+}
+
+[deps]
+
+source_file="res://assets/level/quarry/models/rock_moss_set_01_rock_moss_set_01_nor_gl_2k.jpg"
+dest_files=["res://.godot/imported/rock_moss_set_01_rock_moss_set_01_nor_gl_2k.jpg-4e1e040331d03e5572f5adcd1da5c78c.s3tc.ctex"]
+
+[params]
+
+compress/mode=2
+compress/high_quality=false
+compress/lossy_quality=0.7
+compress/hdr_compression=1
+compress/normal_map=1
+compress/channel_pack=0
+mipmaps/generate=true
+mipmaps/limit=-1
+roughness/mode=1
+roughness/src_normal="res://assets/level/quarry/models/rock_moss_set_01_rock_moss_set_01_nor_gl_2k.jpg"
+process/fix_alpha_border=true
+process/premult_alpha=false
+process/normal_map_invert_y=false
+process/hdr_as_srgb=false
+process/hdr_clamp_exposure=false
+process/size_limit=0
+detect_3d/compress_to=0
