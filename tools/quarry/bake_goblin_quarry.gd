@@ -50,6 +50,12 @@ const LOG_B := Vector2(-10.6, -30.6)
 const KNOLLS := [[Vector2(-4.0, -31.0), Vector2(-1, 0)], [Vector2(6.0, -30.0), Vector2(1, 0)]]
 const SHELF := Vector2(-6.0, -36.5)
 const SPIRE := Vector2(-24.0, -62.0)
+## The spider cave's entrance: a rock outcrop (tools/cave/cave_volume.py
+## --mouth, which holds the same numbers) with a tunnel into the south cliff.
+## The ground is cut to just under the tunnel's floor where the outcrop
+## stands, and raised to it in front, so the cliff doesn't fill the tunnel.
+const CAVE_MOUTH := Vector2(-14.0, -79.0)
+const CAVE_FLOOR := 3.6
 const F := "res://assets/level/forest/"
 
 # Places clutter must leave alone: [centre, radius]. Houses, props, units,
@@ -65,6 +71,7 @@ const KEEP_OUT := [
 	[Vector2(-10.4, -48), 1.2], [Vector2(-10.4, -46.5), 1.2], [Vector2(-5.4, -50), 1.2],
 	[Vector2(4, 30), 1.5], [Vector2(0, -44), 1.5], [Vector2(6, -40), 1.5], [Vector2(12, -30), 1.5],
 	[LOG_A, 2.0], [LOG_B, 2.0], [(LOG_A + LOG_B) * 0.5, 2.5],
+	[CAVE_MOUTH + Vector2(0, 7), 3.5], [CAVE_MOUTH + Vector2(0, 2), 4.5], [CAVE_MOUTH + Vector2(0, -3), 6.0],
 ]
 
 var _rng := RandomNumberGenerator.new()
@@ -128,7 +135,8 @@ func _initialize() -> void:
 			["ladder base", LADDER_BASE], ["ladder top", LADDER_TOP], ["town", Vector2(4, 30)], ["exit", Vector2(0, 43)],
 			["field", Vector2(-4.5, -14)], ["ford", FORD], ["log field end", LOG_A], ["log rim end", LOG_B],
 			["knoll west", KNOLLS[0][0]], ["knoll east", KNOLLS[1][0]], ["shelf", SHELF], ["spire", SPIRE],
-			["spire foot", SPIRE + Vector2(7, 4)], ["pond", POND]]:
+			["spire foot", SPIRE + Vector2(7, 4)], ["pond", POND], ["cave mouth", CAVE_MOUTH + Vector2(0, 6)],
+			["cave tunnel", CAVE_MOUTH + Vector2(0, -1)], ["cave arrival", CAVE_MOUTH + Vector2(0, 9)]]:
 		var p: Vector2 = spot[1]
 		print("  %s (%.1f, %.1f): y %.2f  pit d %.2f  n.y %.2f" % [spot[0], p.x, p.y, _gy(p.x, p.y), _pit_d(p.x, p.y), _n_at(p.x, p.y).y])
 
@@ -141,6 +149,7 @@ func _initialize() -> void:
 	_build_ground_body(root)
 	_build_water(root)
 	_build_log_bridge(root)
+	_build_cave_mouth(root)
 	var clutter := Node3D.new()
 	clutter.name = "Clutter"
 	root.add_child(clutter)
@@ -468,6 +477,12 @@ func _h_dry(x: float, z: float) -> float:
 	var r1 := 1.7 + lump * 0.5
 	var up := clampf((r0 - q.length()) / (r0 - r1), 0.0, 1.0)
 	h = lerpf(h, maxf(h, 14.0 + _small.get_noise_2d(x * 2.0, z * 2.0) * 0.4), up)
+	# The cave mouth: flat just under the tunnel floor across the outcrop's
+	# footprint, easing back to the ground in front and at the sides.
+	var side := smoothstep(4.0, 2.4, absf(x - CAVE_MOUTH.x))
+	var front := smoothstep(CAVE_MOUTH.y + 10.0, CAVE_MOUTH.y + 7.0, z)
+	front *= smoothstep(CAVE_MOUTH.y - 9.0, CAVE_MOUTH.y - 7.0, z)
+	h = lerpf(h, CAVE_FLOOR - 0.12, side * front)
 	return h
 
 
@@ -519,8 +534,15 @@ func _grassiness(x: float, z: float) -> float:
 	var n := _patch.get_noise_2d(x, z)
 	var rim := smoothstep(0.1, 1.5, d) * smoothstep(-0.75, -0.1, n)
 	var edge := smoothstep(-7.5, -3.0, d) * smoothstep(-1.0, -2.2, d) * smoothstep(0.05, 0.4, n)
-	var path := maxf(_road(x, z), _floor_path(x, z))
+	var path := maxf(maxf(_road(x, z), _floor_path(x, z)), _cave_path(x, z))
 	return clampf(maxf(rim, edge) - path * 1.5 - _on_ramp(x, z) * 2.0, 0.0, 1.0) * (1.0 - 0.8 * _canopy_at(x, z))
+
+
+func _cave_path(x: float, z: float) -> float:
+	# The way into the cave mouth and the ground under the outcrop: bare
+	# soil, no grass.
+	var w := 2.6 + smoothstep(CAVE_MOUTH.y + 6.0, CAVE_MOUTH.y + 11.0, z) * 0.8 + _warp.get_noise_2d(x * 2.0, z * 2.0) * 0.6
+	return smoothstep(w + 0.8, w - 0.4, absf(x - CAVE_MOUTH.x)) * smoothstep(CAVE_MOUTH.y + 12.5, CAVE_MOUTH.y + 9.0, z)
 
 
 func _splat(x: float, z: float, n: Vector3) -> Color:
@@ -973,6 +995,93 @@ func _build_log_bridge(root: Node3D) -> void:
 
 
 # ---------------------------------------------------------------- checks
+
+func _build_cave_mouth(root: Node3D) -> void:
+	# The outcrop over the spider cave's entrance, meshed by the cave tool,
+	# drawn with the cave's rock shader and walked under by its own trimesh;
+	# a black card deep in the tunnel stands for the dark beyond.
+	var dir := OS.get_user_data_dir().path_join("cave_mouth_bake")
+	var out: Array = []
+	var code := OS.execute("python", ["-I", ProjectSettings.globalize_path("res://tools/cave/cave_volume.py"), dir,
+			"--mouth", "--cell", "0.25"], out, true)
+	if code != 0:
+		push_error("cave_volume.py --mouth failed: %d
+%s" % [code, "".join(out)])
+		return
+	var verts := FileAccess.get_file_as_bytes(dir.path_join("verts.bin")).to_float32_array()
+	var normals := FileAccess.get_file_as_bytes(dir.path_join("normals.bin")).to_float32_array()
+	var ao := FileAccess.get_file_as_bytes(dir.path_join("ao.bin")).to_float32_array()
+	var index := FileAccess.get_file_as_bytes(dir.path_join("index.bin")).to_int32_array()
+	var n := ao.size()
+	var v := PackedVector3Array()
+	var nrm := PackedVector3Array()
+	var col := PackedColorArray()
+	v.resize(n)
+	nrm.resize(n)
+	col.resize(n)
+	for i in n:
+		v[i] = Vector3(verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2])
+		nrm[i] = Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2])
+		col[i] = Color(ao[i], ao[i], ao[i])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = v
+	arrays[Mesh.ARRAY_NORMAL] = nrm
+	arrays[Mesh.ARRAY_COLOR] = col
+	arrays[Mesh.ARRAY_INDEX] = index
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var mat := ShaderMaterial.new()
+	mat.shader = load("res://world/spider_cave/cave_rock.gdshader")
+	# All rock, ledges too: the cave's dirt floor layer browns every ledge.
+	for layer: Array in [["rock", T + "rock_face_03"], ["floor", T + "rock_face_03"], ["stones", F + "textures/river_small_rocks"]]:
+		mat.set_shader_parameter(layer[0] + "_albedo", load(layer[1] + "_diff_2k.jpg"))
+		mat.set_shader_parameter(layer[0] + "_normal", load(layer[1] + "_nor_gl_2k.jpg"))
+		mat.set_shader_parameter(layer[0] + "_arm", load(layer[1] + "_arm_2k.jpg"))
+	# Lit like the quarry's own rock faces, not the cave's damp walls.
+	mat.set_shader_parameter("rock_tint", Color(0.84, 0.86, 0.88))
+	mat.set_shader_parameter("floor_tint", Color(0.78, 0.8, 0.82))
+	mat.set_shader_parameter("floor_tile", 0.22)
+	mat.set_shader_parameter("rock_tile", 0.22)
+	mat.set_shader_parameter("wet_roughness", 1.0)
+	mat.set_shader_parameter("ao_strength", 0.7)
+	mesh.surface_set_material(0, mat)
+
+	var mouth := Node3D.new()
+	mouth.name = "CaveMouth"
+	root.add_child(mouth)
+	var mi := MeshInstance3D.new()
+	mi.name = "Rock"
+	mi.mesh = mesh
+	mouth.add_child(mi)
+	var faces := PackedVector3Array()
+	faces.resize(index.size())
+	for i in index.size():
+		faces[i] = v[index[i]]
+	var shape := ConcavePolygonShape3D.new()
+	shape.set_faces(faces)
+	var body := StaticBody3D.new()
+	body.name = "RockBody"
+	var cs := CollisionShape3D.new()
+	cs.name = "Collision"
+	cs.shape = shape
+	body.add_child(cs)
+	mouth.add_child(body)
+
+	var dark := StandardMaterial3D.new()
+	dark.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	dark.albedo_color = Color.BLACK
+	var card := QuadMesh.new()
+	card.size = Vector2(5.0, 4.2)
+	card.material = dark
+	var void_mi := MeshInstance3D.new()
+	void_mi.name = "Dark"
+	void_mi.mesh = card
+	void_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	void_mi.position = Vector3(CAVE_MOUTH.x, CAVE_FLOOR + 2.0, CAVE_MOUTH.y - 3.0)
+	mouth.add_child(void_mi)
+	print("cave mouth: %d verts, %d triangles" % [n, index.size() / 3])
+
 
 func _flood(blocked: Callable) -> PackedByteArray:
 	# Which grid points a walker can reach from the camp: gentle enough to
@@ -1995,7 +2104,7 @@ func _patch_scene() -> void:
 		match path:
 			"Scared Townperson", "GoblinRogue", "Hobgoblin", "GoblinShaman":
 				block = _with_origin(block, Vector3(o.x, _gy(o.x, o.z) + 0.05, o.z))
-			"MovableBox", "OverworldExit":
+			"MovableBox", "OverworldExit", "CaveExit":
 				block = _with_origin(block, o + Vector3.UP * _gy(o.x, o.z))
 			"PartySpawnPoint":
 				block = _with_origin(block, Vector3(o.x, _gy(o.x, o.z), o.z))

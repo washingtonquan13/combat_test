@@ -248,16 +248,72 @@ def surface_nets(F, axes, cell):
     return verts, quads
 
 
+# ---------------------------------------------------------------- mouth
+# The cave's entrance in the goblin quarry: a rock outcrop set into a notch
+# in the quarry's south cliff, with a tunnel through it, in quarry space.
+# Here the rock is the solid and the faces point out, seen from outside.
+MOUTH_AT = np.array([-14.0, 0.0, -79.0])
+MOUTH_FLOOR = 3.6
+MOUTH_LO = np.array([-24.0, 0.0, -90.0])
+MOUTH_HI = np.array([-4.0, 20.0, -68.0])
+
+
+def rbox(p, c, b, r):
+    # A box of half-extents b with edges rounded by r.
+    q = np.abs(p - c) - b
+    return np.sqrt((np.maximum(q, 0.0) ** 2).sum(-1)) + np.minimum(q.max(-1), 0.0) - r
+
+
+def build_mouth_field(cell, seed):
+    rng = np.random.default_rng(seed)
+    axes = [np.arange(MOUTH_LO[i], MOUTH_HI[i] + 1e-6, cell) for i in range(3)]
+    shape = tuple(len(a) for a in axes)
+    X, Y, Z = np.meshgrid(*axes, indexing="ij")
+    P = np.stack([X, Y, Z], -1)
+    c = MOUTH_AT
+    # Rock, blocky like the quarry's cut faces: a brow over the opening,
+    # stepped back and up into a mass that fills the notch past the cliff
+    # top, and a buttress either side, the west one taller.
+    rock = rbox(P, c + [0.0, 5.6, 2.6], np.array([4.2, 2.6, 2.4]), 0.8)
+    rock = smin(rock, rbox(P, c + [0.3, 9.5, -3.0], np.array([5.2, 8.5, 4.6]), 1.0), 1.2)
+    rock = smin(rock, rbox(P, c + [-4.3, 4.2, 2.2], np.array([1.6, 4.2, 2.4]), 0.7), 0.9)
+    rock = smin(rock, rbox(P, c + [4.1, 3.0, 1.8], np.array([1.5, 3.0, 2.6]), 0.7), 0.9)
+    # Bedding: noise stretched flat into horizontal layers, and creases
+    # from folded noise, so faces break in ledges and cracks rather than
+    # bulging.
+    beds = noise(shape, cell, np.array([5.0, 0.9, 5.0]), rng)
+    crease = np.abs(noise(shape, cell, 2.2, rng))
+    big = noise(shape, cell, 4.0, rng)
+    rock = rock + beds * 0.32 + crease * 0.45 + big * 0.5
+    # The tunnel: a rounded bore with a flat floor, ending blind inside.
+    bore = capsule(P, c + [0.0, MOUTH_FLOOR + 1.3, 7.0], c + [0.0, MOUTH_FLOOR + 1.1, -5.0], 2.3, 2.0)
+    bore = bore + noise(shape, cell, 1.5, rng) * 0.25
+    air = np.maximum(bore, MOUTH_FLOOR - Y)
+    # Negative is air: outside the rock, or in the bore.
+    d = np.minimum(-rock, air)
+    # Rock below the floor everywhere near the tunnel, so it has a floor.
+    d = np.where((Y < MOUTH_FLOOR) & (rock < 1.0), np.maximum(d, MOUTH_FLOOR - Y), d)
+    # Open at the grid's edges so the surface closes on itself.
+    edge = np.zeros(shape, bool)
+    edge[[0, -1], :, :] = edge[:, [0, -1], :] = edge[:, :, [0, -1]] = True
+    d[edge & (d > 0)] = -0.1
+    return d.astype(np.float32), axes
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--cell", type=float, default=0.4)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--mouth", action="store_true", help="the entrance outcrop in the quarry")
     args = ap.parse_args()
     t0 = time.time()
-    F, axes = build_field(args.cell, args.seed)
+    if args.mouth:
+        F, axes = build_mouth_field(args.cell, args.seed)
+    else:
+        F, axes = build_field(args.cell, args.seed)
     print("field %.1fs" % (time.time() - t0))
-    if not check_routes(F, axes, args.cell):
+    if not args.mouth and not check_routes(F, axes, args.cell):
         raise SystemExit("a route is blocked")
     verts, quads = surface_nets(F, axes, args.cell)
     print("nets %.1fs, %d verts, %d quads" % (time.time() - t0, len(verts), len(quads)))
