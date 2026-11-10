@@ -2377,14 +2377,11 @@ func _add_trunk(at: Vector3, radius: float) -> void:
 	_obstacle_count += 1
 
 
-const TREE_LOD := 45.0
-const BUSH_LOD := 28.0
 # Each kind: the height it's generated at (placement scales it by `size`) and
 # how many variants.
 const FIR_GEN := {"fir": [17.0, 4], "firm": [8.0, 3]}
 const BROAD_GEN := {"isle": [6.0, 4]}
 const BUSH_GEN := [1.5, 5]
-const FERN_LOD := 22.0
 const FERN_GEN := [0.6, 5]
 
 var _gen: Object
@@ -2426,20 +2423,22 @@ func _bushes() -> Array:
 	return _bush_lods
 
 
-func _add_lod_pair(pair: Array, xf: Transform3D, shade: bool, lod: float) -> void:
-	# The near mesh casts no shadow: the far mesh stands in for it in the
-	# shadow maps, at a fraction of the triangles.
-	_add(pair[0], xf, false, false, lod)
+func _add_lod_pair(pair: Array, xf: Transform3D, shade: bool) -> void:
+	# The full mesh is all that's ever seen, at any distance: swapping to the
+	# coarse one popped in mid-view (the CRPG camera always sees past any
+	# swap distance, and a swap goes a whole 24 m cell at once). The coarse
+	# mesh only stands in for it in the shadow maps, at a fraction of the
+	# triangles.
+	_add(pair[0], xf, false, false, 0.0)
 	if shade:
-		_add(pair[1], xf, true, false, lod, 0.0, true)
-	_add(pair[1], xf, shade, false, 0.0, lod)
+		_add(pair[1], xf, true, false, 0.0, 0.0, true)
 
 
 func _add_bush(at: Vector3, yaw: float, size: float, pick: int, shade := true) -> void:
 	var pair: Array = _bushes()[pick % int(BUSH_GEN[1])]
 	var xf := _xf_tree(at - Vector3.UP * 0.03, yaw, size, Vector2.ZERO)
 	_bush_count += 1
-	_add_lod_pair(pair, xf, shade, BUSH_LOD)
+	_add_lod_pair(pair, xf, shade)
 
 
 func _ferns() -> Array:
@@ -2468,8 +2467,8 @@ func _add_fern(at: Vector3, pick: int, yaw: float, size: float) -> void:
 	var pair: Array = _ferns()[pick % int(FERN_GEN[1])]
 	var xf := _xf_tree(at - Vector3.UP * 0.02, yaw, size, Vector2.ZERO)
 	_fern_count += 1
-	_add(pair[0], xf, false, false, FERN_LOD)
-	_add(pair[1], xf, false, false, 0.0, FERN_LOD)
+	# Full mesh only; it fades at 60 m with the other small plants.
+	_add(pair[0], xf, false, false)
 
 
 func _gen_trees() -> Dictionary:
@@ -2545,7 +2544,7 @@ func _dress_trees() -> void:
 		var shade := _valley_d(p.x, p.y) < 8.0
 		if lods.has(t.kind):
 			var pair: Array = lods[t.kind][t.pick % lods[t.kind].size()]
-			_add_lod_pair(pair, xf, shade, TREE_LOD)
+			_add_lod_pair(pair, xf, shade)
 		else:
 			var pool: Array = pools[t.kind]
 			_add(pool[t.pick % pool.size()], xf, shade, false, 50.0)
