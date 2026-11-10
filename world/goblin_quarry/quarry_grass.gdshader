@@ -9,7 +9,11 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // ground instead of sitting on it as a separate carpet. Tips are lighter,
 // and straw in dry patches. INSTANCE color is per-clump variation.
 //
-// Cards carry an upward normal so a clump lights like the ground under it.
+// Card normals point up at the root, so a clump's base lights exactly like
+// the ground under it, and tip outward toward the top like a dome over the
+// clump, so each clump shades as a mound: lit on the sunward side, darker
+// on the far side. Roots take the ground's own colour and only the upper
+// blade carries the atlas shading, so a card's base never draws a line.
 // UV is the point in the card; UV2.x is 0 at the root and 1 at the top,
 // UV2.y a random number per card. With distance a share of the cards fold
 // away, and past fade_start the clump sinks into the ground.
@@ -53,13 +57,14 @@ void vertex() {
 	float col = INSTANCE_CUSTOM.b < 3.5 ? INSTANCE_CUSTOM.b : mod(c, 4.0);
 	cell = vec2(col, INSTANCE_CUSTOM.r + floor(c / 4.0));
 
-	vec3 g = textureLod(ground_grass, origin.xz * grass_tile, 5.0).rgb;
-	g = mix(vec3(lum(g)), g, 1.2) * vec3(0.5, 0.68, 0.36);
+	// The ground shader's grass layer, at the mip it mostly shows.
+	vec3 g = textureLod(ground_grass, origin.xz * grass_tile, 7.0).rgb;
+	g = mix(vec3(lum(g)), g, 1.3) * vec3(0.4, 0.56, 0.27);
 	float macro = textureLod(ground_soil, origin.xz * 0.031, 0.0).g;
 	g *= mix(0.86, 1.14, smoothstep(0.08, 0.34, macro));
 	float dry = smoothstep(0.38, 0.62, textureLod(ground_soil, origin.xz * 0.013 + vec2(0.37, 0.71), 0.0).r);
 	base = g * COLOR.rgb;
-	top = mix(g * vec3(1.3, 1.35, 1.1), dry_tip, dry * 0.4) * COLOR.rgb;
+	top = mix(g * vec3(1.65, 1.7, 1.4), dry_tip, dry * 0.4) * COLOR.rgb;
 
 	float dist = length((VIEW_MATRIX * vec4(origin, 1.0)).xyz);
 	float keep = mix(1.0, 0.6, smoothstep(thin_start, fade_start, dist));
@@ -75,7 +80,6 @@ void vertex() {
 	float bend = tip * tip;
 	VERTEX.x += sway * wind * bend;
 	VERTEX.z += sway * wind * 0.6 * bend;
-	NORMAL = (inverse(MODEL_MATRIX) * vec4(0.0, 1.0, 0.0, 0.0)).xyz;
 }
 
 void fragment() {
@@ -90,7 +94,7 @@ void fragment() {
 	if (painted) {
 		ALBEDO = t.rgb * COLOR.rgb * mix(0.8, 1.0, tip);
 	} else {
-		ALBEDO = mix(base, top, tip) * (0.5 + 0.75 * t.rgb);
+		ALBEDO = mix(base, top, tip) * mix(vec3(1.0), 0.55 + 0.6 * t.rgb, smoothstep(0.0, 0.5, tip));
 	}
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;

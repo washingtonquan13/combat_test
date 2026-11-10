@@ -1323,8 +1323,13 @@ func _card_clump(cards: int, lean_deg: Vector2, width: Vector2, height: Vector2,
 			uvs.append(Vector2(1.0, 1.0 - t))
 			uv2s.append(Vector2(t, r))
 			uv2s.append(Vector2(t, r))
-			norms.append(Vector3.UP)
-			norms.append(Vector3.UP)
+			# Normals tip outward toward the top, as on a dome over the
+			# clump: the sunward side of a clump lights and the far side
+			# shades, so it reads as a mound of blades. At the root the
+			# normal is straight up, so the base lights like the ground.
+			var n := (Vector3.UP + out * 0.9 * t).normalized()
+			norms.append(n)
+			norms.append(n)
 		for q in rows:
 			var o := start + q * 2
 			idx.append_array([o, o + 1, o + 2, o + 1, o + 3, o + 2])
@@ -1429,7 +1434,7 @@ func _build_grass(root: Node3D) -> void:
 	grass.name = "Grass"
 	root.add_child(grass)
 	var tall := _card_clump(5, Vector2(22, 34), Vector2(0.3, 0.38), Vector2(0.36, 0.44), 2, 5)
-	var carpet := _card_clump(4, Vector2(14, 24), Vector2(0.46, 0.56), Vector2(0.2, 0.26), 1, 9)
+	var carpet := _card_clump(5, Vector2(32, 48), Vector2(0.36, 0.44), Vector2(0.24, 0.3), 1, 9)
 	var upright := _card_clump(3, Vector2(4, 12), Vector2(0.36, 0.44), Vector2(0.42, 0.52), 1, 13)
 	var flat := _flat_clump()
 	var grass_mat := _grass_material("res://assets/level/quarry/foliage/grass_tufts.png", "grass_tufts.res", false)

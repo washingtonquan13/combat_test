@@ -8,8 +8,8 @@ smoothly instead of being geometry thinner than a pixel.
 
 Rows 0-1 are tall tufts: blades of mixed width, some bent over or snapped,
 some seed stems with a head of spikelets, and a few dead straw blades.
-Rows 2-3 are short carpet: many low blades rooted across the whole bottom
-edge, for the wide clumps that cover the ground between the tall tufts.
+Rows 2-3 are short carpet: low blades fanning from a few separate roots
+with gaps between, for the clumps that cover the ground between tall tufts.
 
 Colour is near neutral except dead blades and seed heads, which are warm:
 the grass shader multiplies this by the ground's own grass colour.
@@ -104,17 +104,23 @@ def spray(rng, tall):
     img = Image.new("RGBA", (CELL, CELL))
     draw = ImageDraw.Draw(img)
     items = []
-    count = rng.integers(36, 46) if tall else rng.integers(70, 90)
+    count = rng.integers(36, 46) if tall else rng.integers(40, 52)
+    # Carpet blades grow from a few separate roots with bare gaps between
+    # them, each fanning out. Roots spread evenly along the edge make an
+    # opaque band with a straight top: a wall up close, a dark streak from
+    # above.
+    roots = sorted(rng.uniform(-0.38, 0.38, rng.integers(3, 5)))
     for k in range(count):
         if tall:
             off = float(np.clip(rng.normal(0.0, 0.09), -0.22, 0.22))
             lean = float(np.clip(off * 2.6 + rng.normal(0.0, 0.18), -0.7, 0.7))
-            h = CELL * rng.uniform(0.5, 0.95) * (1.0 - abs(lean) * 0.3)
+            h = CELL * rng.uniform(0.5, 0.95) * (1.0 - abs(lean) * 0.25)
         else:
-            # Rooted across the whole bottom edge, so a wide card is solid.
-            off = float(rng.uniform(-0.44, 0.44))
-            lean = float(np.clip(off * 0.9 + rng.normal(0.0, 0.3), -0.8, 0.8))
-            h = CELL * rng.uniform(0.28, 0.78) * (1.0 - abs(lean) * 0.25)
+            centre = roots[rng.integers(0, len(roots))]
+            spread = float(rng.normal(0.0, 0.025))
+            off = float(np.clip(centre + spread, -0.45, 0.45))
+            lean = float(np.clip(spread * 6.0 + rng.normal(0.0, 0.32), -0.85, 0.85))
+            h = CELL * rng.uniform(0.35, 0.85) * (1.0 - abs(lean) * 0.25)
         root = (CELL * (0.5 + off), CELL - 2)
         # Keep the tip inside the cell.
         room = (CELL * 0.48 - abs(root[0] - CELL * 0.5)) / max(h, 1.0)
@@ -122,6 +128,8 @@ def spray(rng, tall):
             room = 0.9
         lean = float(np.clip(lean, -max(room, 0.05), max(room, 0.05)))
         w = CELL * (rng.uniform(0.009, 0.024) if rng.random() < 0.8 else rng.uniform(0.024, 0.032))
+        if not tall:
+            w *= 0.8
         dead = rng.random() < (0.08 if tall else 0.05)
         kink = rng.uniform(0.45, 0.8) if rng.random() < (0.18 if tall else 0.1) else None
         droop = rng.uniform(0.0, 0.6) if rng.random() < 0.4 else 0.0
