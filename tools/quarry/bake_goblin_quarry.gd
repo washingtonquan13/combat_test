@@ -1288,10 +1288,12 @@ func _build_campfire(root: Node3D) -> void:
 	fire.add_child(flame)
 
 
-func _card_clump(cards: int, lean_deg: Vector2, width: Vector2, height: Vector2, rows: int, seed: int) -> ArrayMesh:
+func _card_clump(cards: int, lean_deg: Vector2, width: Vector2, height: Vector2, rows: int, seed: int, core := 0) -> ArrayMesh:
 	# Cards fanned out from one root, each leaning outward and bending a
 	# little more toward its top, so the clump reads as one plant from any
-	# side. What a card shows is drawn in an atlas; UV is the point in the
+	# side. `core` more cards stand nearly upright through the middle,
+	# turned across each other, so the clump is full rather than a ring of
+	# blades around an empty centre. What a card shows is drawn in an atlas; UV is the point in the
 	# card (0..1, V down from the top) and the shader picks the cell. UV2.x
 	# is 0 at the root and 1 at the top; UV2.y is a random number per card
 	# that the shader folds cards away by with distance.
@@ -1302,8 +1304,8 @@ func _card_clump(cards: int, lean_deg: Vector2, width: Vector2, height: Vector2,
 	var idx := PackedInt32Array()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
-	for k in cards:
-		var r := (k + rng.randf() * 0.9) / cards
+	for k in cards + core:
+		var r := (k + rng.randf() * 0.9) / (cards + core)
 		var yaw := TAU * k / cards + rng.randf_range(-0.35, 0.35)
 		var out := Vector3(cos(yaw), 0.0, sin(yaw))
 		var side := Vector3(-sin(yaw), 0.0, cos(yaw))
@@ -1311,6 +1313,14 @@ func _card_clump(cards: int, lean_deg: Vector2, width: Vector2, height: Vector2,
 		var w := rng.randf_range(width.x, width.y)
 		var h := rng.randf_range(height.x, height.y)
 		var root := out * 0.05
+		if k >= cards:
+			# A core card: its plane runs through the middle of the clump.
+			yaw = PI * (k - cards) / core + rng.randf_range(-0.3, 0.3)
+			out = Vector3(cos(yaw), 0.0, sin(yaw))
+			side = Vector3(-sin(yaw), 0.0, cos(yaw))
+			lean = deg_to_rad(rng.randf_range(2.0, 12.0))
+			h *= rng.randf_range(1.0, 1.15)
+			root = Vector3(rng.randf_range(-0.04, 0.04), 0.0, rng.randf_range(-0.04, 0.04))
 		var start := verts.size()
 		for s in rows + 1:
 			var t := float(s) / rows
@@ -1433,8 +1443,8 @@ func _build_grass(root: Node3D) -> void:
 	var grass := Node3D.new()
 	grass.name = "Grass"
 	root.add_child(grass)
-	var tall := _card_clump(5, Vector2(22, 34), Vector2(0.3, 0.38), Vector2(0.36, 0.44), 2, 5)
-	var carpet := _card_clump(5, Vector2(32, 48), Vector2(0.36, 0.44), Vector2(0.24, 0.3), 1, 9)
+	var tall := _card_clump(6, Vector2(20, 34), Vector2(0.36, 0.46), Vector2(0.62, 0.82), 3, 5, 3)
+	var carpet := _card_clump(6, Vector2(28, 44), Vector2(0.4, 0.5), Vector2(0.34, 0.44), 2, 9, 2)
 	var upright := _card_clump(3, Vector2(4, 12), Vector2(0.36, 0.44), Vector2(0.42, 0.52), 1, 13)
 	var flat := _flat_clump()
 	var grass_mat := _grass_material("res://assets/level/quarry/foliage/grass_tufts.png", "grass_tufts.res", false)
@@ -1452,7 +1462,7 @@ func _build_grass(root: Node3D) -> void:
 		while cz < CZ1:
 			var t_sc := Scatter.new()
 			var c_sc := Scatter.new()
-			for i in int(chunk * chunk * 9.0):
+			for i in int(chunk * chunk * 15.0):
 				var x := cx + _rng.randf() * chunk
 				var z := cz + _rng.randf() * chunk
 				var g := _grassiness(x, z)
@@ -1465,7 +1475,7 @@ func _build_grass(root: Node3D) -> void:
 				var tint := Color(1.0 + v * 0.12 + _rng.randf() * 0.08, 1.0 + _rng.randf() * 0.08, 0.95 + v * 0.08)
 				var at := Vector3(x, _gy(x, z) - 0.02, z)
 				var spin := Basis(Vector3.UP, _rng.randf() * TAU)
-				if _rng.randf() < lerpf(0.05, 0.55, stand) * g:
+				if _rng.randf() < lerpf(0.12, 0.7, stand) * g:
 					var size := _rng.randf_range(0.8, 1.2) * lerpf(0.6, 0.95, g) * lerpf(0.8, 1.4, stand)
 					t_sc.add(Transform3D(spin.scaled(Vector3.ONE * size), at), tint, Color(0, 2, 4, 0))
 				else:
