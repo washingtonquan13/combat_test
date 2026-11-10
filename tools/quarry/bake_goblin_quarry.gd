@@ -1040,7 +1040,6 @@ func _dress() -> void:
 	var stones: Array[Mesh] = _meshes_of("rock_07")
 	stones.append_array(_meshes_of("rock_09"))
 	var fern: Array[Mesh] = _meshes_of("fern_02")
-	var shrub: Array[Mesh] = _meshes_of("shrub_03")
 	var stump: Mesh = _meshes_of("tree_stump_01")[0]
 	var trunk: Mesh = _meshes_of("dead_tree_trunk_02")[0]
 	var branches: Array[Mesh] = _meshes_of("dry_branches_medium_01")
@@ -1159,11 +1158,8 @@ func _dress() -> void:
 			var m: Mesh = fern[_rng.randi() % fern.size()]
 			at.y += m.get_aabb().size.y * 0.45
 			_add(m, _xf_place(m, at, _rng.randf() * TAU, _rng.randf_range(0.8, 1.3)), false)
-		else:
-			var m: Mesh = shrub[_rng.randi() % shrub.size()]
-			var size := _rng.randf_range(1.6, 2.8)
-			at.y += m.get_aabb().size.y * size * 0.45
-			_add(m, _xf_place(m, at, _rng.randf() * TAU, size))
+		elif _rng.randf() < 0.35 and _clear(x, z, 0.9):
+			_add_bush(at, _rng.randf() * TAU, _rng.randf_range(0.55, 1.1), _rng.randi())
 
 	# Dead wood on the rim and the hills.
 	placed = 0
@@ -1757,14 +1753,62 @@ func _add_trunk(at: Vector3, radius: float) -> void:
 
 
 const TREE_LOD := 45.0
+const BUSH_LOD := 28.0
 # Each kind: the height it's generated at (placement scales it by `size`) and
 # how many variants.
 const FIR_GEN := {"fir": [17.0, 4], "firm": [8.0, 3]}
 const BROAD_GEN := {"isle": [6.0, 4]}
+const BUSH_GEN := [1.5, 5]
+
+var _gen: Object
+var _broad_mat: Array = []
+var _bush_lods: Array = []
+var _bush_count := 0
+
+
+func _broad_mats() -> Array:
+	# [bark, leaf] for everything leafy: leafy-twig cards from
+	# tools/quarry/leaf_atlas.py and the island tree's bark. Made once.
+	if _broad_mat.is_empty():
+		if _gen == null:
+			_gen = load("res://tools/quarry/plant_gen.gd").new()
+		var atlas: Texture2D = _gen.coverage_texture("res://assets/level/quarry/foliage/broadleaf_cards.png")
+		ResourceSaver.save(atlas, OUT + "meshes/broadleaf_cards.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+		atlas.take_over_path(OUT + "meshes/broadleaf_cards.res")
+		var tex := F + "models/island_tree_01_island_tree_01_"
+		_broad_mat = [_gen.bark_material(load(tex + "diff_2k.jpg"), load(tex + "nor_gl_2k.jpg")), _gen.leaf_material(atlas)]
+	return _broad_mat
+
+
+func _bushes() -> Array:
+	# Generated bushes as [near, far] pairs, made on first use.
+	if _bush_lods.is_empty():
+		var mats := _broad_mats()
+		for v in int(BUSH_GEN[1]):
+			var pair := []
+			for lod in 2:
+				var m: ArrayMesh = _gen.mesh(_gen.bush(7300 + v, BUSH_GEN[0], 1.0 if lod == 0 else 0.4), mats[0], mats[1])
+				var path := OUT + "meshes/gen_bush_%d_%s.res" % [v, "near" if lod == 0 else "far"]
+				ResourceSaver.save(m, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+				m.take_over_path(path)
+				pair.append(m)
+				print("  bush %d %s: %d tris" % [v, "near" if lod == 0 else "far", (m.surface_get_array_index_len(0) + m.surface_get_array_index_len(1)) / 3])
+			_bush_lods.append(pair)
+	return _bush_lods
+
+
+func _add_bush(at: Vector3, yaw: float, size: float, pick: int, shade := true) -> void:
+	var pair: Array = _bushes()[pick % int(BUSH_GEN[1])]
+	var xf := _xf_tree(at - Vector3.UP * 0.03, yaw, size, Vector2.ZERO)
+	_bush_count += 1
+	_add(pair[0], xf, shade, false, BUSH_LOD)
+	_add(pair[1], xf, shade, false, 0.0, BUSH_LOD)
 
 
 func _gen_trees() -> Dictionary:
-	var gen = load("res://tools/quarry/plant_gen.gd").new()
+	if _gen == null:
+		_gen = load("res://tools/quarry/plant_gen.gd").new()
+	var gen = _gen
 	var tex := F + "models/fir_tree_01_fir_tree_01_"
 	var atlas: Texture2D = gen.coverage_texture(tex + "twig_cards_diff_2k.png")
 	ResourceSaver.save(atlas, OUT + "meshes/fir_cards.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
@@ -1786,13 +1830,9 @@ func _gen_trees() -> Dictionary:
 				pair.append(m)
 			out[kind].append(pair)
 			seed += 1
-	# Broadleaves: leafy-twig cards from tools/quarry/leaf_atlas.py.
-	atlas = gen.coverage_texture("res://assets/level/quarry/foliage/broadleaf_cards.png")
-	ResourceSaver.save(atlas, OUT + "meshes/broadleaf_cards.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
-	atlas.take_over_path(OUT + "meshes/broadleaf_cards.res")
-	leaf = gen.leaf_material(atlas)
-	tex = F + "models/island_tree_01_island_tree_01_"
-	bark = gen.bark_material(load(tex + "diff_2k.jpg"), load(tex + "nor_gl_2k.jpg"))
+	var mats := _broad_mats()
+	bark = mats[0]
+	leaf = mats[1]
 	seed = 7200
 	for kind: String in BROAD_GEN:
 		var h: float = BROAD_GEN[kind][0]
@@ -1863,6 +1903,8 @@ func _dress_trees() -> void:
 			if roll < 0.3 and conifer:
 				var b: Mesh = bark[_trng.randi() % bark.size()]
 				_add(b, _xf_on_ground(b, g + Vector3.UP * 0.02, _trng.randf() * TAU, _trng.randf_range(1.6, 2.6)), false)
+			elif roll < 0.3 and _clear(q.x, q.y, 0.8):
+				_add_bush(g, _trng.randf() * TAU, _trng.randf_range(0.6, 1.2), _trng.randi())
 			elif roll < 0.55:
 				var f: Mesh = fern[_trng.randi() % fern.size()]
 				g.y += f.get_aabb().size.y * 0.45
@@ -1920,4 +1962,5 @@ func _dress_trees() -> void:
 		var m: Mesh = slabs[_trng.randi() % slabs.size()]
 		_add(m, _xf_on_ground(m, _ground_at(p.x, p.y) - Vector3.UP * 0.03, _trng.randf() * TAU, _trng.randf_range(0.035, 0.06)))
 		stones += 1
+	print("bushes: %d" % _bush_count)
 	print("forest floor: %d plants, %d bank stones" % [plants, stones])

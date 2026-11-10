@@ -374,6 +374,40 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	return [bark, leaf]
 
 
+func bush(seed: int, height: float, detail := 1.0) -> Array:
+	# No trunk: stems rise from one root crown and branch into a low, wide
+	# ellipsoid that sits on the ground. Same boughs and cards as broadleaf();
+	# the stems start a level down so they carry two levels of twigs.
+	rng.seed = seed
+	_h = height
+	_broad = true
+	_cells = BROAD_CELLS
+	# A bush is all twigs, so the far mesh keeps every level and saves on
+	# bark and on fewer, bigger cards instead.
+	_depth_max = 3
+	_tube_max = 2 if detail >= 1.0 else 1
+	_leaf_l = clampf(height * 0.22, 0.32, 0.6) / sqrt(detail)
+	var bark := Surf.new()
+	var leaf := Surf.new()
+	var wide := height * rng.randf_range(0.6, 0.8)
+	_cr = Vector3(wide, height * 0.55, wide * rng.randf_range(0.8, 1.2))
+	_cc = Vector3(0.0, height * 0.45, 0.0)
+	var r0 := height * 0.012 + 0.012
+	var stems := rng.randi_range(4, 7) if detail >= 1.0 else rng.randi_range(3, 5)
+	var turn := rng.randf() * TAU
+	for i in stems:
+		var az := turn + TAU * i / stems + rng.randf_range(-0.5, 0.5)
+		var tilt := rng.randf_range(0.25, 0.9)
+		var dir := (Vector3.UP * cos(tilt) + _h_dir(az) * sin(tilt)).normalized()
+		var start := _h_dir(az) * rng.randf_range(0.0, r0 * 4.0) + Vector3.DOWN * 0.05
+		var len := _to_envelope(start + Vector3.UP * 0.06, dir) * rng.randf_range(0.8, 0.95)
+		_phase = rng.randf()
+		_bough(bark, leaf, start, dir, len, r0 * rng.randf_range(0.8, 1.1), 1, rng.randf(), r0 * TAU * 4.0)
+	_broad = false
+	_cells = FIR_CELLS
+	return [bark, leaf]
+
+
 func _to_envelope(p: Vector3, d: Vector3) -> float:
 	# Distance from p along d to the crown's surface; 0 if p is outside it.
 	var q := (p - _cc) / _cr
