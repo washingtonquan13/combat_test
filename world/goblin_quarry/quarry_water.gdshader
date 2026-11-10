@@ -3,9 +3,11 @@ render_mode blend_mix, depth_draw_always, cull_back, diffuse_burley, specular_sc
 
 // The stream and the pond. Clear in the shallows, where the bed shows through
 // bent by the ripples, darkening with depth; the sky reflects at a grazing look.
-// COLOR.rg is the flow direction (0.5 = still), COLOR.b the flow speed.
-// Ripples move with the flow by two staggered phases faded into each other,
-// so they never stretch where the flow turns.
+// COLOR.rg is the flow direction (0.5 = still), COLOR.b the flow speed over
+// flow_max, solved by the bake from the banks and depth: fast in narrows and
+// shallows, slow at the banks, near still across the pond. Ripples move with
+// the flow by two staggered phases faded into each other, so they never
+// stretch where the flow turns, and run choppier where it is fast.
 
 uniform vec3 deep_color : source_color = vec3(0.035, 0.075, 0.06);
 uniform vec3 murk_color : source_color = vec3(0.16, 0.2, 0.12);
@@ -14,6 +16,13 @@ uniform float clear_depth = 0.55;
 uniform float ripple_size = 0.7;
 uniform float ripple_height = 0.35;
 uniform float refraction = 0.03;
+// Metres a second a flow speed of 1 stands for: the bake's FLOW_MAX.
+uniform float flow_max = 1.2;
+// Seconds each ripple phase is dragged along before it fades and resets.
+uniform float flow_cycle = 3.0;
+// Ripple height in still water and in water at flow_max.
+uniform float chop_still = 0.7;
+uniform float chop_fast = 1.8;
 uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform sampler2D depth_tex : hint_depth_texture, filter_nearest;
 
@@ -22,7 +31,7 @@ varying vec3 flow;
 
 void vertex() {
 	world_pos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
-	flow = vec3(COLOR.rg * 2.0 - 1.0, COLOR.b);
+	flow = vec3(COLOR.rg * 2.0 - 1.0, COLOR.b * flow_max);
 }
 
 float hash(vec2 p) {
@@ -47,11 +56,12 @@ float ripples(vec2 p) {
 float field(vec2 p) {
 	// Two copies dragged along the flow half a cycle apart, each faded out
 	// as it resets.
-	vec2 dir = flow.xy * flow.z;
-	float ph0 = fract(TIME * 0.2);
-	float ph1 = fract(TIME * 0.2 + 0.5);
-	float a = ripples(p - dir * ph0 * 5.0);
-	float b = ripples(p - dir * ph1 * 5.0 + vec2(3.7, 1.3));
+	// Ripple units a second: p is in ripple_size metres.
+	vec2 vel = flow.xy * flow.z / ripple_size;
+	float ph0 = fract(TIME / flow_cycle);
+	float ph1 = fract(TIME / flow_cycle + 0.5);
+	float a = ripples(p - vel * ph0 * flow_cycle);
+	float b = ripples(p - vel * ph1 * flow_cycle + vec2(3.7, 1.3));
 	return mix(a, b, abs(1.0 - 2.0 * ph0));
 }
 
@@ -60,7 +70,8 @@ void fragment() {
 	float e = 0.08;
 	float h0 = field(p);
 	vec2 grad = vec2(field(p + vec2(e, 0.0)) - h0, field(p + vec2(0.0, e)) - h0) / e;
-	vec3 n_world = normalize(vec3(-grad.x * ripple_height, 1.0, -grad.y * ripple_height));
+	float chop = ripple_height * mix(chop_still, chop_fast, clamp(flow.z / flow_max, 0.0, 1.0));
+	vec3 n_world = normalize(vec3(-grad.x * chop, 1.0, -grad.y * chop));
 	NORMAL = normalize((VIEW_MATRIX * vec4(n_world, 0.0)).xyz);
 
 	// How much water lies between this surface and the bed behind it.

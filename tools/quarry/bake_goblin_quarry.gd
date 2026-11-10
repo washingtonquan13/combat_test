@@ -642,6 +642,206 @@ func _build_ground_body(root: Node3D) -> void:
 	print("collision: %d triangles" % (faces.size() / 3))
 
 
+## Metres a second that a flow speed of 1 (COLOR.b) stands for; the water
+## shader's flow_max.
+const FLOW_MAX := 1.2
+## The stream's typical (median) speed, metres a second.
+const FLOW_TYPICAL := 0.35
+## Metres of stream the spring seeps in along, so the flow gathers rather
+## than bursting from one shallow spot.
+const SPRING := 5.0
+
+
+func _flow_colors(w: int, h: int, wet: PackedByteArray, depth: PackedFloat32Array, role: PackedInt32Array) -> PackedColorArray:
+	# The water's flow, per vertex of the water sheet: COLOR.rg the direction
+	# (0.5 = still), COLOR.b the speed over FLOW_MAX.
+	#
+	# Solved, not drawn: water seeps in along the first SPRING metres of the
+	# stream, sinks evenly over the pond, and moves down a potential phi with
+	# flux h^(5/3) * -grad(phi) (Manning's
+	# law with the surface slope folded into phi), so what goes in comes out.
+	# The speed h^(2/3) * |grad(phi)| is then faster where the stream narrows or
+	# shallows, slower at its banks, and dies away across the pond; and the
+	# direction follows every bend of the banks rather than the centre line.
+	var n := w * h
+	var k := PackedInt32Array()
+	k.resize(n)
+	k.fill(-1)
+	var cells := PackedInt32Array()
+	for i in n:
+		if wet[i] == 1:
+			k[i] = cells.size()
+			cells.append(i)
+	var m := cells.size()
+	# Only water joined to the spring flows; a puddle cut off by a dry cell
+	# stays still.
+	var reached := PackedByteArray()
+	reached.resize(m)
+	var todo: Array[int] = []
+	for j in m:
+		if role[cells[j]] == 1:
+			reached[j] = 1
+			todo.append(j)
+	while not todo.is_empty():
+		var i := cells[todo.pop_back()]
+		for o: int in [i - 1, i + 1, i - w, i + w]:
+			if o >= 0 and o < n and (o % w - i % w) * (o % w - i % w) <= 1 and k[o] >= 0 and reached[k[o]] == 0:
+				reached[k[o]] = 1
+				todo.append(k[o])
+	var src := 0
+	var sink := 0
+	for j in m:
+		if reached[j] == 1:
+			src += 1 if role[cells[j]] == 1 else 0
+			sink += 1 if role[cells[j]] == -1 else 0
+	var b := PackedFloat64Array()
+	b.resize(m)
+	for j in m:
+		if reached[j] == 0:
+			continue
+		if role[cells[j]] == 1:
+			b[j] = 1.0 / src
+		elif role[cells[j]] == -1 and sink > 0:
+			b[j] = -1.0 / sink
+	# Conductance across each cell's east and south faces.
+	var ce := PackedFloat64Array()
+	var cs := PackedFloat64Array()
+	ce.resize(m)
+	cs.resize(m)
+	var diag := PackedFloat64Array()
+	diag.resize(m)
+	for j in m:
+		var i := cells[j]
+		if i % w < w - 1 and k[i + 1] >= 0:
+			ce[j] = pow(0.5 * (depth[i] + depth[i + 1]), 5.0 / 3.0)
+			diag[j] += ce[j]
+			diag[k[i + 1]] += ce[j]
+		if i + w < n and k[i + w] >= 0:
+			cs[j] = pow(0.5 * (depth[i] + depth[i + w]), 5.0 / 3.0)
+			diag[j] += cs[j]
+			diag[k[i + w]] += cs[j]
+	var phi := _solve_flow(cells, k, w, ce, cs, diag, b)
+	# Speeds from the potential's slope, central differences where both
+	# neighbours are wet.
+	var vel := PackedVector2Array()
+	vel.resize(n)
+	var speeds := PackedFloat32Array()
+	for j in m:
+		var i := cells[j]
+		if reached[j] == 0:
+			continue
+		var g := Vector2.ZERO
+		for axis in 2:
+			var step := 1 if axis == 0 else w
+			var lo := i - step
+			var hi := i + step
+			var lo_ok := lo >= 0 and k[lo] >= 0 and (axis == 1 or i % w > 0)
+			var hi_ok := hi < n and k[hi] >= 0 and (axis == 1 or i % w < w - 1)
+			var d := 0.0
+			if lo_ok and hi_ok:
+				d = (phi[k[hi]] - phi[k[lo]]) / 2.0
+			elif hi_ok:
+				d = phi[k[hi]] - phi[j]
+			elif lo_ok:
+				d = phi[j] - phi[k[lo]]
+			g[axis] = d
+		vel[i] = -g * pow(depth[i], 2.0 / 3.0)
+		if role[i] != -1:
+			speeds.append(vel[i].length())
+	speeds.sort()
+	var scale := FLOW_TYPICAL / maxf(speeds[speeds.size() / 2], 1e-12) if not speeds.is_empty() else 0.0
+	var colors := PackedColorArray()
+	colors.resize(n)
+	var fast := 0.0
+	for i in n:
+		var v := vel[i] * scale
+		if wet[i] == 0:
+			# Under the bank: the mean of the wet water beside it, so the
+			# ripples at the shore move with the water next to them.
+			var sum := Vector2.ZERO
+			var c := 0
+			for o: int in [i - 1, i + 1, i - w, i + w]:
+				if o >= 0 and o < n and absi(o % w - i % w) <= 1 and wet[o] == 1:
+					sum += vel[o] * scale
+					c += 1
+			v = sum / c if c > 0 else Vector2.ZERO
+		var sp := minf(v.length(), FLOW_MAX)
+		fast = maxf(fast, sp)
+		var dir := v.normalized() if sp > 1e-4 else Vector2.ZERO
+		colors[i] = Color(dir.x * 0.5 + 0.5, dir.y * 0.5 + 0.5, sp / FLOW_MAX)
+	print("flow: %d wet cells (%d joined), spring %d, pond %d; median %.2f m/s, fastest %.2f" % [
+		m, reached.count(1), src, sink, FLOW_TYPICAL, fast])
+	return colors
+
+
+func _solve_flow(cells: PackedInt32Array, k: PackedInt32Array, w: int, ce: PackedFloat64Array,
+		cs: PackedFloat64Array, diag: PackedFloat64Array, b: PackedFloat64Array) -> PackedFloat64Array:
+	# Conjugate gradients, Jacobi-preconditioned, on the weighted Laplacian
+	# (A phi)_j = sum over neighbours of c (phi_j - phi_o). A tiny pull to 0
+	# makes it definite; the sources balance, so it only fixes phi's level.
+	var m := cells.size()
+	var eps := 1e-9
+	var east := PackedInt32Array()
+	var south := PackedInt32Array()
+	east.resize(m)
+	south.resize(m)
+	for j in m:
+		var i := cells[j]
+		east[j] = k[i + 1] if ce[j] > 0.0 else -1
+		south[j] = k[i + w] if cs[j] > 0.0 else -1
+	var apply := func(x: PackedFloat64Array) -> PackedFloat64Array:
+		var y := PackedFloat64Array()
+		y.resize(m)
+		for j in m:
+			y[j] += (diag[j] + eps) * x[j]
+			var e := east[j]
+			if e >= 0:
+				y[j] -= ce[j] * x[e]
+				y[e] -= ce[j] * x[j]
+			var s := south[j]
+			if s >= 0:
+				y[j] -= cs[j] * x[s]
+				y[s] -= cs[j] * x[j]
+		return y
+	var x := PackedFloat64Array()
+	x.resize(m)
+	var r := b.duplicate()
+	var z := PackedFloat64Array()
+	z.resize(m)
+	for j in m:
+		z[j] = r[j] / (diag[j] + eps)
+	var p := z.duplicate()
+	var rz := 0.0
+	var bb := 0.0
+	for j in m:
+		rz += r[j] * z[j]
+		bb += b[j] * b[j]
+	var it := 0
+	var rr := bb
+	while it < 4000 and rr > bb * 1e-14:
+		var ap: PackedFloat64Array = apply.call(p)
+		var pap := 0.0
+		for j in m:
+			pap += p[j] * ap[j]
+		var alpha := rz / pap
+		rr = 0.0
+		for j in m:
+			x[j] += alpha * p[j]
+			r[j] -= alpha * ap[j]
+			z[j] = r[j] / (diag[j] + eps)
+			rr += r[j] * r[j]
+		var rz2 := 0.0
+		for j in m:
+			rz2 += r[j] * z[j]
+		var beta := rz2 / rz
+		rz = rz2
+		for j in m:
+			p[j] = z[j] + beta * p[j]
+		it += 1
+	print("flow solve: %d cells, %d iterations, residual %s" % [m, it, str(sqrt(rr / maxf(bb, 1e-30)))])
+	return x
+
+
 func _build_water(root: Node3D) -> void:
 	# One sheet over every grid cell the water reaches, its edge running on
 	# under the banks so the ground cuts the shore line.
@@ -658,7 +858,9 @@ func _build_water(root: Node3D) -> void:
 	var level := PackedFloat32Array()
 	var wet := PackedByteArray()
 	var verts := PackedVector3Array()
-	var colors := PackedColorArray()
+	var depth := PackedFloat32Array()
+	# 1 where the spring feeds the stream, -1 in the pond it drains into.
+	var role := PackedInt32Array()
 	for iz in range(iz0, iz1 + 1):
 		for ix in range(ix0, ix1 + 1):
 			var x := X0 + ix * CELL
@@ -668,11 +870,11 @@ func _build_water(root: Node3D) -> void:
 			level.append(y)
 			wet.append(1 if y > _hv(ix, iz) + 0.005 else 0)
 			verts.append(Vector3(x, y, z))
-			# The stream flows along its line, slowing as it opens into the still pond.
+			depth.append(maxf(0.0, y - _hv(ix, iz)))
 			var s := _line_param(Vector2(x, z), STREAM)
-			var dir := (_along(STREAM, minf(s.y + 0.5, _stream_len)) - _along(STREAM, maxf(s.y - 0.5, 0.0))).normalized()
-			dir *= smoothstep(-1.5, 1.5, _pond_d(x, z) - (s.x - _stream_hw(s.y)))
-			colors.append(Color(dir.x * 0.5 + 0.5, dir.y * 0.5 + 0.5, 0.35))
+			var pond := _pond_d(x, z) < s.x - _stream_hw(s.y)
+			role.append(-1 if pond else (1 if s.y < SPRING else 0))
+	var colors := _flow_colors(w, iz1 - iz0 + 1, wet, depth, role)
 	var idx := PackedInt32Array()
 	var cells := 0
 	for iz in iz1 - iz0:
