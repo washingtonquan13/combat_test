@@ -184,8 +184,9 @@ func _tube(s: Surf, pts: Array[Vector3], radii: Array[float], sides: int, phase:
 		for k in sides:
 			var a := first + i * (sides + 1) + k
 			var b := a + sides + 1
-			s.tri(a, b, a + 1)
-			s.tri(a + 1, b, b + 1)
+			# Clockwise seen from outside: Godot's front face.
+			s.tri(a, a + 1, b)
+			s.tri(a + 1, b + 1, b)
 
 
 func _fir_branch(bark: Surf, leaf: Surf, y: float, ang: float, reach: float, t: float, r0: float, detail: float) -> void:
