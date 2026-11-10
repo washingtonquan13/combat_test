@@ -1,0 +1,113 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://world/spider_cave.gd" id="1_area"]
+[ext_resource type="PackedScene" path="res://world/spider_cave/rock.scn" id="2_rock"]
+[ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="3_cam"]
+[ext_resource type="PackedScene" path="res://systems/interaction_system/interactable_prop.tscn" id="4_prop"]
+[ext_resource type="Script" path="res://systems/interaction_system/interaction_option.gd" id="5_iopt"]
+[ext_resource type="Resource" path="res://data/interactions/travel.tres" id="6_travel"]
+[ext_resource type="Script" path="res://systems/world_system/area_exit.gd" id="7_exit"]
+
+[sub_resource type="Environment" id="Environment_cave"]
+background_mode = 1
+background_color = Color(0.01, 0.012, 0.015, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.32, 0.36, 0.42, 1)
+ambient_light_energy = 1.0
+tonemap_mode = 2
+tonemap_exposure = 1.1
+ssao_enabled = true
+glow_enabled = true
+glow_intensity = 0.6
+glow_bloom = 0.05
+volumetric_fog_enabled = true
+volumetric_fog_density = 0.012
+volumetric_fog_albedo = Color(0.8, 0.82, 0.85, 1)
+volumetric_fog_length = 48.0
+
+[node name="SpiderCave" type="Node3D"]
+script = ExtResource("1_area")
+
+[node name="LevelGeometry" type="Node3D" parent="."]
+
+[node name="CaveRock" parent="LevelGeometry" instance=ExtResource("2_rock")]
+
+[node name="Lights" type="Node3D" parent="."]
+
+[node name="Skylight" type="SpotLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 6.6, 14.6, -13.6)
+light_color = Color(1, 0.94, 0.82, 1)
+light_energy = 9.0
+light_volumetric_fog_energy = 1.0
+shadow_enabled = true
+spot_range = 22.0
+spot_attenuation = 0.4
+spot_angle = 24.0
+spot_angle_attenuation = 0.6
+
+[node name="Daylight" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 29)
+light_color = Color(1, 0.93, 0.8, 1)
+light_energy = 2.5
+light_volumetric_fog_energy = 2.0
+shadow_enabled = true
+omni_range = 13.0
+omni_attenuation = 1.6
+
+[node name="FungusLedge" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -14.5, 4.4, -6)
+light_color = Color(0.35, 1, 0.75, 1)
+light_energy = 1.6
+omni_range = 6.5
+omni_attenuation = 1.4
+
+[node name="FungusLobe" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11, 0.6, -22)
+light_color = Color(0.35, 1, 0.75, 1)
+light_energy = 1.8
+omni_range = 7.0
+omni_attenuation = 1.4
+
+[node name="FungusGallery" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -11, 3.2, 14)
+light_color = Color(0.35, 1, 0.75, 1)
+light_energy = 1.5
+omni_range = 5.5
+omni_attenuation = 1.4
+
+[node name="FungusSqueeze" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 13.5, 0.8, 7)
+light_color = Color(0.35, 1, 0.75, 1)
+light_energy = 1.5
+omni_range = 5.5
+omni_attenuation = 1.4
+
+[node name="FungusChamber" type="OmniLight3D" parent="Lights"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 0.6, -15)
+light_color = Color(0.35, 1, 0.75, 1)
+light_energy = 1.6
+omni_range = 6.0
+omni_attenuation = 1.4
+
+[node name="QuarryExit" parent="." instance=ExtResource("4_prop")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.55, 28)
+interactions = Array[ExtResource("5_iopt")]([ExtResource("6_travel")])
+
+[node name="AreaExit" type="Node" parent="QuarryExit" node_paths=PackedStringArray("arrival_point")]
+script = ExtResource("7_exit")
+target_area = &"goblin_quarry"
+arrival_point = NodePath("../ArrivalPoint")
+
+[node name="ArrivalPoint" type="Marker3D" parent="QuarryExit"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, -3)
+
+[node name="PartySpawnPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 23)
+
+[node name="CRPGCamera" parent="." instance=ExtResource("3_cam")]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 12, 34)
+max_pan_radius = 40.0
+collision_mask = 0
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_cave")
