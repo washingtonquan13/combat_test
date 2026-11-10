@@ -64,8 +64,12 @@ void fragment() {
 	vec3 g_a = texture(grass_albedo, uv_g).rgb;
 	vec3 d_a = texture(dirt_albedo, uv_d).rgb;
 	// Forest floor, not dry field: the grass layer pulled green and dark,
-	// the soil to a damp loam.
-	g_a = mix(vec3(lum(g_a)), g_a, 1.2) * vec3(0.5, 0.68, 0.36);
+	// the soil to a damp loam. Under the grass cards the ground is the shade
+	// at the roots of the blades, so the texture's gravel is evened out
+	// toward its average and darkened: gaps between clumps read as deeper
+	// grass, not bare stones.
+	g_a = mix(textureLod(grass_albedo, uv_g, 7.0).rgb, g_a, 0.3);
+	g_a = mix(vec3(lum(g_a)), g_a, 1.3) * vec3(0.4, 0.56, 0.27);
 	s_a = s_a * vec3(0.72, 0.68, 0.6);
 	d_a = mix(vec3(lum(d_a)), d_a, 0.3) * vec3(0.74, 0.72, 0.66);
 
@@ -93,7 +97,7 @@ void fragment() {
 		+ texture(dirt_arm, uv_d).rgb * w.a;
 	vec3 nrm = triplanar(rock_normal, rock_pos).rgb * w.r
 		+ texture(soil_normal, uv_s).rgb * w.g
-		+ texture(grass_normal, uv_g).rgb * w.b
+		+ mix(texture(grass_normal, uv_g).rgb, vec3(0.5, 0.5, 1.0), 0.6) * w.b
 		+ texture(dirt_normal, uv_d).rgb * w.a;
 	arm = mix(arm, texture(bed_arm, uv_b).rgb, bed);
 	nrm = mix(nrm, texture(bed_normal, uv_b).rgb, bed);

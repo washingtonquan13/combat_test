@@ -1288,46 +1288,75 @@ func _build_campfire(root: Node3D) -> void:
 	fire.add_child(flame)
 
 
-func _tuft_clump() -> ArrayMesh:
-	# Five cards fanned out from one root, each leaning outward and bending a
-	# little more toward its top, so the clump reads as one tuft from any
-	# side. The blades themselves are drawn in grass_tufts.png. UV is the
-	# point in the card (0..1, V down from the top); the shader picks the
-	# atlas cell. UV2.x is 0 at the root and 1 at the top; UV2.y is a random
-	# number per card that the shader folds cards away by with distance.
+func _card_clump(cards: int, lean_deg: Vector2, width: Vector2, height: Vector2, rows: int, seed: int) -> ArrayMesh:
+	# Cards fanned out from one root, each leaning outward and bending a
+	# little more toward its top, so the clump reads as one plant from any
+	# side. What a card shows is drawn in an atlas; UV is the point in the
+	# card (0..1, V down from the top) and the shader picks the cell. UV2.x
+	# is 0 at the root and 1 at the top; UV2.y is a random number per card
+	# that the shader folds cards away by with distance.
 	var verts := PackedVector3Array()
 	var uvs := PackedVector2Array()
 	var uv2s := PackedVector2Array()
 	var norms := PackedVector3Array()
 	var idx := PackedInt32Array()
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 5
-	var cards := 5
+	rng.seed = seed
 	for k in cards:
 		var r := (k + rng.randf() * 0.9) / cards
 		var yaw := TAU * k / cards + rng.randf_range(-0.35, 0.35)
 		var out := Vector3(cos(yaw), 0.0, sin(yaw))
 		var side := Vector3(-sin(yaw), 0.0, cos(yaw))
-		var lean := deg_to_rad(rng.randf_range(22.0, 34.0))
-		var width := rng.randf_range(0.3, 0.38)
-		var height := rng.randf_range(0.36, 0.44)
+		var lean := deg_to_rad(rng.randf_range(lean_deg.x, lean_deg.y))
+		var w := rng.randf_range(width.x, width.y)
+		var h := rng.randf_range(height.x, height.y)
 		var root := out * 0.05
 		var start := verts.size()
-		for s in 3:
-			var t := s / 2.0
+		for s in rows + 1:
+			var t := float(s) / rows
 			# The lean grows toward the top, so the card curves outward.
 			var a := lean * (0.6 + 0.4 * t)
-			var c := root + (Vector3.UP * cos(a) + out * sin(a)) * height * t
-			verts.append(c - side * width * 0.5)
-			verts.append(c + side * width * 0.5)
+			var c := root + (Vector3.UP * cos(a) + out * sin(a)) * h * t
+			verts.append(c - side * w * 0.5)
+			verts.append(c + side * w * 0.5)
 			uvs.append(Vector2(0.0, 1.0 - t))
 			uvs.append(Vector2(1.0, 1.0 - t))
 			uv2s.append(Vector2(t, r))
 			uv2s.append(Vector2(t, r))
 			norms.append(Vector3.UP)
 			norms.append(Vector3.UP)
-		for q: int in [0, 2]:
-			idx.append_array([start + q, start + q + 1, start + q + 2, start + q + 1, start + q + 3, start + q + 2])
+		for q in rows:
+			var o := start + q * 2
+			idx.append_array([o, o + 1, o + 2, o + 1, o + 3, o + 2])
+	return _clump_mesh(verts, norms, uvs, uv2s, idx)
+
+
+func _flat_clump() -> ArrayMesh:
+	# Two cards lying just above the ground, turned against each other, for
+	# plants seen from above: clover patches and weed rosettes.
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var uv2s := PackedVector2Array()
+	var norms := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for k in 2:
+		var yaw := k * 0.9
+		var u := Vector3(cos(yaw), 0.0, sin(yaw))
+		var v := Vector3(-sin(yaw), 0.0, cos(yaw))
+		var off := Vector3(0.12, 0.0, -0.08) * (k * 2 - 1)
+		var y := Vector3.UP * (0.03 + 0.02 * k)
+		var size := 0.5 - 0.1 * k
+		var start := verts.size()
+		for c: Vector2 in [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1), Vector2(1, 1)]:
+			verts.append(off + y + (u * (c.x - 0.5) + v * (c.y - 0.5)) * size)
+			uvs.append(c)
+			uv2s.append(Vector2(0.4, 0.15 + 0.5 * k))
+			norms.append(Vector3.UP)
+		idx.append_array([start, start + 1, start + 2, start + 1, start + 3, start + 2])
+	return _clump_mesh(verts, norms, uvs, uv2s, idx)
+
+
+func _clump_mesh(verts: PackedVector3Array, norms: PackedVector3Array, uvs: PackedVector2Array, uv2s: PackedVector2Array, idx: PackedInt32Array) -> ArrayMesh:
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
@@ -1340,66 +1369,148 @@ func _tuft_clump() -> ArrayMesh:
 	return mesh
 
 
-func _build_grass(root: Node3D) -> void:
-	var grass := Node3D.new()
-	grass.name = "Grass"
-	root.add_child(grass)
-	var clump := _tuft_clump()
+func _grass_material(atlas_png: String, res_name: String, painted: bool) -> ShaderMaterial:
 	if _gen == null:
 		_gen = load("res://tools/quarry/plant_gen.gd").new()
-	var atlas: Texture2D = _gen.coverage_texture("res://assets/level/quarry/foliage/grass_tufts.png")
-	ResourceSaver.save(atlas, OUT + "meshes/grass_tufts.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
-	atlas.take_over_path(OUT + "meshes/grass_tufts.res")
+	var atlas: Texture2D = _gen.coverage_texture(atlas_png)
+	ResourceSaver.save(atlas, OUT + "meshes/" + res_name, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+	atlas.take_over_path(OUT + "meshes/" + res_name)
 	var mat := ShaderMaterial.new()
 	mat.shader = load(OUT + "quarry_grass.gdshader")
 	mat.set_shader_parameter("tufts", atlas)
+	mat.set_shader_parameter("painted", painted)
 	mat.set_shader_parameter("ground_grass", load(T + "grass_path_2_diff_2k.jpg"))
 	mat.set_shader_parameter("ground_soil", load(T + "forest_ground_04_diff_2k.jpg"))
-	clump.surface_set_material(0, mat)
-	var chunk := 8.0
-	var per_chunk := int(chunk * chunk * 7.0)
-	var total := 0
+	return mat
+
+
+class Scatter:
+	# Instances of one mesh in one chunk: transform, tint, and which atlas
+	# cells (INSTANCE_CUSTOM, see quarry_grass.gdshader).
+	var xforms: Array[Transform3D] = []
+	var tints: Array[Color] = []
+	var cells: Array[Color] = []
+
+	func add(xf: Transform3D, tint: Color, cell: Color) -> void:
+		xforms.append(xf)
+		tints.append(tint)
+		cells.append(cell)
+
+
+func _emit_scatter(parent: Node3D, node_name: String, mesh: Mesh, sc: Scatter, range_end: float) -> int:
+	if sc.xforms.is_empty():
+		return 0
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.use_custom_data = true
+	mm.mesh = mesh
+	mm.instance_count = sc.xforms.size()
+	for i in sc.xforms.size():
+		mm.set_instance_transform(i, sc.xforms[i])
+		mm.set_instance_color(i, sc.tints[i])
+		mm.set_instance_custom_data(i, sc.cells[i])
+	var inst := MultiMeshInstance3D.new()
+	inst.name = node_name
+	inst.multimesh = mm
+	inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	inst.layers = SEE_THROUGH
+	inst.visibility_range_end = range_end
+	parent.add_child(inst)
+	return sc.xforms.size()
+
+
+func _build_grass(root: Node3D) -> void:
+	# Two layers. Grass: a dense carpet of short wide clumps over every grassy
+	# spot, with tall tufts standing out of it in patches. Meadow: clover in
+	# colonies, flowers in drifts of one colour, dry stalks in dry spots and
+	# the odd weed rosette, all from meadow_plants.png.
+	var grass := Node3D.new()
+	grass.name = "Grass"
+	root.add_child(grass)
+	var tall := _card_clump(5, Vector2(22, 34), Vector2(0.3, 0.38), Vector2(0.36, 0.44), 2, 5)
+	var carpet := _card_clump(4, Vector2(14, 24), Vector2(0.46, 0.56), Vector2(0.2, 0.26), 1, 9)
+	var upright := _card_clump(3, Vector2(4, 12), Vector2(0.36, 0.44), Vector2(0.42, 0.52), 1, 13)
+	var flat := _flat_clump()
+	var grass_mat := _grass_material("res://assets/level/quarry/foliage/grass_tufts.png", "grass_tufts.res", false)
+	var meadow_mat := _grass_material("res://assets/level/quarry/foliage/meadow_plants.png", "meadow_plants.res", true)
+	tall.surface_set_material(0, grass_mat)
+	carpet.surface_set_material(0, grass_mat)
+	upright.surface_set_material(0, meadow_mat)
+	flat.surface_set_material(0, meadow_mat)
+	var counts := {"tall": 0, "carpet": 0, "flat": 0, "upright": 0}
+
+	var chunk := 12.0
 	var cx := CX0
 	while cx < CX1:
 		var cz := CZ0
 		while cz < CZ1:
-			var spots: Array[Transform3D] = []
-			var tints: Array[Color] = []
-			for i in per_chunk:
+			var t_sc := Scatter.new()
+			var c_sc := Scatter.new()
+			for i in int(chunk * chunk * 9.0):
 				var x := cx + _rng.randf() * chunk
 				var z := cz + _rng.randf() * chunk
 				var g := _grassiness(x, z)
-				if g < 0.08 or g < _rng.randf() * 0.6:
+				if g < 0.08 or g < _rng.randf() * 0.5:
 					continue
 				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5:
 					continue
-				# Tall and short stands, not one mown height.
 				var stand := smoothstep(-0.4, 0.5, _patch.get_noise_2d(x * 3.1 + 17.0, z * 3.1))
-				var size := _rng.randf_range(0.75, 1.2) * lerpf(0.45, 0.9, g) * lerpf(0.6, 1.4, stand)
-				var b := Basis(Vector3.UP, _rng.randf() * TAU).scaled(Vector3.ONE * size)
-				spots.append(Transform3D(b, Vector3(x, _gy(x, z) - 0.02, z)))
 				var v := _patch.get_noise_2d(x * 2.0, z * 2.0)
-				tints.append(Color(1.0 + v * 0.12 + _rng.randf() * 0.08, 1.0 + _rng.randf() * 0.08, 0.95 + v * 0.08))
-			if not spots.is_empty():
-				var mm := MultiMesh.new()
-				mm.transform_format = MultiMesh.TRANSFORM_3D
-				mm.use_colors = true
-				mm.mesh = clump
-				mm.instance_count = spots.size()
-				for i in spots.size():
-					mm.set_instance_transform(i, spots[i])
-					mm.set_instance_color(i, tints[i])
-				var inst := MultiMeshInstance3D.new()
-				inst.name = "Grass_%d_%d" % [int(cx), int(cz)]
-				inst.multimesh = mm
-				inst.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				inst.layers = SEE_THROUGH
-				inst.visibility_range_end = 48.0
-				grass.add_child(inst)
-				total += spots.size()
+				var tint := Color(1.0 + v * 0.12 + _rng.randf() * 0.08, 1.0 + _rng.randf() * 0.08, 0.95 + v * 0.08)
+				var at := Vector3(x, _gy(x, z) - 0.02, z)
+				var spin := Basis(Vector3.UP, _rng.randf() * TAU)
+				if _rng.randf() < lerpf(0.05, 0.55, stand) * g:
+					var size := _rng.randf_range(0.8, 1.2) * lerpf(0.6, 0.95, g) * lerpf(0.8, 1.4, stand)
+					t_sc.add(Transform3D(spin.scaled(Vector3.ONE * size), at), tint, Color(0, 2, 4, 0))
+				else:
+					var size := _rng.randf_range(0.8, 1.2) * lerpf(0.55, 1.0, g)
+					c_sc.add(Transform3D(spin.scaled(Vector3.ONE * size), at), tint * 0.94, Color(2, 2, 4, 0))
+			var tag := "%d_%d" % [int(cx), int(cz)]
+			counts.tall += _emit_scatter(grass, "Tufts_" + tag, tall, t_sc, 48.0)
+			counts.carpet += _emit_scatter(grass, "Carpet_" + tag, carpet, c_sc, 44.0)
 			cz += chunk
 		cx += chunk
-	print("grass: %d clumps" % total)
+
+	chunk = 16.0
+	cx = CX0
+	while cx < CX1:
+		var cz := CZ0
+		while cz < CZ1:
+			var f_sc := Scatter.new()
+			var u_sc := Scatter.new()
+			for i in int(chunk * chunk * 1.4):
+				var x := cx + _rng.randf() * chunk
+				var z := cz + _rng.randf() * chunk
+				var g := _grassiness(x, z)
+				if g < 0.25:
+					continue
+				if _n_at(x, z).y < 0.84 or _water_at(x, z).y < 0.5:
+					continue
+				var at := Vector3(x, _gy(x, z) - 0.01, z)
+				var spin := Basis(Vector3.UP, _rng.randf() * TAU)
+				var shade := _rng.randf_range(0.85, 1.1)
+				var tint := Color(shade, shade, shade)
+				var clover := _patch.get_noise_2d(x * 0.6 + 90.0, z * 0.6 - 40.0)
+				var bloom := _patch.get_noise_2d(x * 0.45 - 120.0, z * 0.45 + 60.0)
+				var dry := _patch.get_noise_2d(x * 0.5 + 200.0, z * 0.5 - 11.0)
+				if clover > 0.2 and _rng.randf() < 0.85:
+					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.9, 1.4)), at), tint, Color(0, 1, 4, 0))
+				elif bloom > 0.3 and _rng.randf() < 0.6:
+					# One colour per drift, from a broad noise.
+					var hue := _patch.get_noise_2d(x * 0.12 + 300.0, z * 0.12)
+					var col := floorf(clampf(hue + 0.5, 0.0, 0.999) * 4.0)
+					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.75, 1.15)), at), tint, Color(2, 1, col, 0))
+				elif dry > 0.3 and _rng.randf() < 0.5:
+					u_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.8, 1.25)), at), tint, Color(3, 1, 4, 0))
+				elif _rng.randf() < 0.06:
+					f_sc.add(Transform3D(spin.scaled(Vector3.ONE * _rng.randf_range(0.7, 1.1)), at), tint, Color(1, 1, 4, 0))
+			var tag := "%d_%d" % [int(cx), int(cz)]
+			counts.flat += _emit_scatter(grass, "Low_" + tag, flat, f_sc, 40.0)
+			counts.upright += _emit_scatter(grass, "Herbs_" + tag, upright, u_sc, 44.0)
+			cz += chunk
+		cx += chunk
+	print("grass: %s" % counts)
 
 
 # ---------------------------------------------------------------- vines

@@ -13,10 +13,16 @@ render_mode cull_disabled, diffuse_lambert_wrap, specular_disabled;
 // UV is the point in the card; UV2.x is 0 at the root and 1 at the top,
 // UV2.y a random number per card. With distance a share of the cards fold
 // away, and past fade_start the clump sinks into the ground.
+//
+// INSTANCE_CUSTOM picks the atlas cells: r the first row, g how many rows,
+// b a fixed column, or 4 for any. The same shader draws the meadow plants
+// (clover, weeds, flowers, stalks) with `painted` on: their atlas is in full
+// colour and keeps it, tinted only by INSTANCE color.
 
 uniform sampler2D tufts : source_color, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform sampler2D ground_grass : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D ground_soil : source_color, filter_linear_mipmap, repeat_enable;
+uniform bool painted = false;
 uniform float grass_tile = 0.33;
 uniform vec3 dry_tip = vec3(0.58, 0.54, 0.27);
 uniform float wind = 0.05;
@@ -41,9 +47,11 @@ void vertex() {
 	tip = UV2.x;
 	vec3 origin = MODEL_MATRIX[3].xyz;
 
-	// Each card of a clump shows a different cell of the 4x4 atlas.
-	float c = mod(floor(hash(origin.xz) * 16.0) + floor(UV2.y * 5.0) * 3.0, 16.0);
-	cell = vec2(mod(c, 4.0), floor(c / 4.0));
+	// Each card of a clump shows a different cell of its rows of the atlas.
+	float cells = INSTANCE_CUSTOM.g * 4.0;
+	float c = mod(floor(hash(origin.xz) * cells) + floor(UV2.y * 5.0) * 3.0, cells);
+	float col = INSTANCE_CUSTOM.b < 3.5 ? INSTANCE_CUSTOM.b : mod(c, 4.0);
+	cell = vec2(col, INSTANCE_CUSTOM.r + floor(c / 4.0));
 
 	vec3 g = textureLod(ground_grass, origin.xz * grass_tile, 5.0).rgb;
 	g = mix(vec3(lum(g)), g, 1.2) * vec3(0.5, 0.68, 0.36);
@@ -79,11 +87,15 @@ void fragment() {
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
 	// The atlas shading is kept shallow: deep shade at the roots reads as dark
 	// spots on the ground from the game's high camera.
-	ALBEDO = mix(base, top, tip) * (0.5 + 0.75 * t.rgb);
+	if (painted) {
+		ALBEDO = t.rgb * COLOR.rgb * mix(0.8, 1.0, tip);
+	} else {
+		ALBEDO = mix(base, top, tip) * (0.5 + 0.75 * t.rgb);
+	}
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ROUGHNESS = 0.85;
 	AO = mix(0.9, 1.0, tip);
 	AO_LIGHT_AFFECT = 0.3;
-	BACKLIGHT = top * 0.35 * tip;
+	BACKLIGHT = (painted ? ALBEDO : top) * 0.35 * tip;
 }
