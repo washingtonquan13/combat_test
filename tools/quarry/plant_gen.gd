@@ -63,6 +63,13 @@ const FIR_CELLS := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 15]
 
 var _h := 1.0
 var _spine: Array[Vector3] = []
+# Which atlas cells cards draw from, and the phase the next cards bob with.
+var _cells: Array = FIR_CELLS
+var _phase := 0.0
+# Broadleaf crowns are lit and shaded as an ellipsoid instead of round the spine.
+var _broad := false
+var _cc := Vector3.ZERO
+var _cr := Vector3.ONE
 
 
 func fir(seed: int, height: float, detail := 1.0) -> Array:
@@ -70,6 +77,9 @@ func fir(seed: int, height: float, detail := 1.0) -> Array:
 	# fewer, larger cards and no thin branches.
 	rng.seed = seed
 	_h = height
+	_broad = false
+	_cells = FIR_CELLS
+	_phase = 0.0
 	var bark := Surf.new()
 	var leaf := Surf.new()
 	var r0 := height * 0.017 + 0.04
@@ -187,6 +197,7 @@ func _fir_branch(bark: Surf, leaf: Surf, y: float, ang: float, reach: float, t: 
 	if drop > y - 0.7:
 		droop -= (drop - maxf(y - 0.7, 0.0)) / reach
 	var phase := rng.randf()
+	_phase = phase
 	var seg := 5
 	var pts: Array[Vector3] = []
 	var radii: Array[float] = []
@@ -247,7 +258,7 @@ func _stub(bark: Surf, y: float, ang: float, reach: float, r0: float) -> void:
 func _card(s: Surf, base: Vector3, along: Vector3, side: Vector3, w: float, l: float, pick: int, tint: float, ao: float) -> void:
 	# A card in two halves folded down from its centre line, so a spray has
 	# some body from the side. Its base sits on `base` and it grows `along`.
-	var cell: int = FIR_CELLS[pick % FIR_CELLS.size()]
+	var cell: int = _cells[pick % _cells.size()]
 	var c0 := Vector2(cell % 4, cell / 4) * 0.25 + Vector2(0.004, 0.004)
 	var c1 := c0 + Vector2(0.242, 0.242)
 	var norm := along.cross(side).normalized()
@@ -264,7 +275,7 @@ func _card(s: Surf, base: Vector3, along: Vector3, side: Vector3, w: float, l: f
 			var x := (k - 1.0)
 			var q := p + side * x * w * 0.5 - (fold if k != 1 else Vector3.ZERO)
 			s.vert(q, _crown_normal(q, norm), Vector2(lerpf(c0.x, c1.x, k / 2.0), v),
-				Vector2(Vector2(q.x, q.z).length(), 0.0), Color(_crown_ao(q) * ao, tint, 0.0, clampf(q.y / _h, 0.0, 1.0)))
+				Vector2(Vector2(q.x, q.z).length(), _phase), Color(_crown_ao(q) * ao, tint, 0.0, clampf(q.y / _h, 0.0, 1.0)))
 	for r in 2:
 		for k in 2:
 			var a := first + r * 3 + k
@@ -274,6 +285,10 @@ func _card(s: Surf, base: Vector3, along: Vector3, side: Vector3, w: float, l: f
 
 func _crown_normal(p: Vector3, card_n: Vector3) -> Vector3:
 	# Out from the trunk with an upward bias, more so near the top.
+	if _broad:
+		var g := (p - _cc) / (_cr * _cr)
+		var bn := (g.normalized() + Vector3.UP * 0.35).normalized()
+		return (bn * 0.8 + card_n * 0.2).normalized()
 	var axis := _spine_at(p.y)
 	var out := Vector3(p.x - axis.x, 0.0, p.z - axis.z)
 	var r := out.length()
@@ -284,11 +299,159 @@ func _crown_normal(p: Vector3, card_n: Vector3) -> Vector3:
 
 
 func _crown_ao(p: Vector3) -> float:
+	if _broad:
+		var e := ((p - _cc) / _cr).length()
+		var up := clampf((p.y - (_cc.y - _cr.y)) / (2.0 * _cr.y), 0.0, 1.0)
+		return lerpf(0.3, 1.0, smoothstep(0.25, 1.0, e)) * lerpf(0.7, 1.0, up)
 	var axis := _spine_at(p.y)
 	var r := Vector2(p.x - axis.x, p.z - axis.z).length()
 	var t := clampf(p.y / _h, 0.0, 1.0)
 	var out := clampf(r / maxf(_h * 0.22 * (1.0 - t) + 0.3, 0.3), 0.0, 1.0)
 	return lerpf(0.35, 1.0, smoothstep(0.0, 1.0, out)) * lerpf(0.75, 1.0, t)
+
+
+# ---------------------------------------------------------------- broadleaf
+
+# Every cell of the leafy-twig atlas (tools/quarry/leaf_atlas.py) is usable.
+const BROAD_CELLS := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+var _leaf_l := 0.8
+var _depth_max := 3
+var _tube_max := 2
+
+
+func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
+	# A trunk that forks into limbs, each limb branching recursively into an
+	# ellipsoid crown; twigs carry the leaf cards. Returns [bark, leaf] like
+	# fir(). Below detail 1 the last level of twigs goes, and the cards on
+	# what's left grow to keep the crown's cover.
+	rng.seed = seed
+	_h = height
+	_broad = true
+	_cells = BROAD_CELLS
+	_depth_max = 3 if detail >= 1.0 else 2
+	_tube_max = 2 if detail >= 1.0 else 1
+	_leaf_l = clampf(height * 0.1, 0.65, 1.2) / sqrt(detail)
+	var bark := Surf.new()
+	var leaf := Surf.new()
+	var r0 := height * 0.02 + 0.05
+	var fork := height * rng.randf_range(0.28, 0.4)
+	var lean := _h_dir(rng.randf() * TAU) * rng.randf_range(0.0, 0.08)
+	var top := Vector3(lean.x * fork, fork, lean.z * fork)
+	var wide := height * rng.randf_range(0.36, 0.48)
+	_cr = Vector3(wide, (height - fork) * 0.55, wide * rng.randf_range(0.85, 1.15))
+	_cc = Vector3(top.x, height - _cr.y, top.z)
+
+	_phase = 0.0
+	var pts: Array[Vector3] = []
+	var radii: Array[float] = []
+	var y := -0.3
+	while true:
+		var f := clampf(y / fork, 0.0, 1.0)
+		pts.append(top * f + Vector3.DOWN * maxf(-y, 0.0))
+		radii.append(r0 * lerpf(1.0, 0.8, f) * (1.0 + 0.8 * exp(-maxf(y, 0.0) / (r0 * 2.2))))
+		if y >= fork:
+			break
+		y = minf(y + (0.2 if y < r0 * 4.0 else 0.5), fork)
+	# On past the fork, tapering inside the limbs so the joint has no rim.
+	pts.append(top + Vector3.UP * r0 * 2.5)
+	radii.append(r0 * 0.3)
+	_tube(bark, pts, radii, 10 if detail >= 1.0 else 6, 0.0, 1.0, r0 * TAU)
+
+	var limbs := rng.randi_range(2, 4)
+	var turn := rng.randf() * TAU
+	var rf := r0 * 0.8
+	for i in limbs:
+		var az := turn + TAU * i / limbs + rng.randf_range(-0.4, 0.4)
+		var tilt := rng.randf_range(0.1, 0.25) if i == 0 else rng.randf_range(0.45, 0.85)
+		var dir := (Vector3.UP * cos(tilt) + _h_dir(az) * sin(tilt)).normalized()
+		var len := _to_envelope(top, dir) * rng.randf_range(0.8, 0.92)
+		_phase = rng.randf()
+		var r := rf * (0.9 if i == 0 else rng.randf_range(0.65, 0.8))
+		_bough(bark, leaf, top + Vector3.DOWN * r0 * 1.5, dir, len + r0 * 1.5, r, 0, rng.randf(), r0 * TAU)
+	_broad = false
+	_cells = FIR_CELLS
+	return [bark, leaf]
+
+
+func _to_envelope(p: Vector3, d: Vector3) -> float:
+	# Distance from p along d to the crown's surface; 0 if p is outside it.
+	var q := (p - _cc) / _cr
+	var e := d / _cr
+	var a := e.dot(e)
+	var b := 2.0 * q.dot(e)
+	var c := q.dot(q) - 1.0
+	var disc := b * b - 4.0 * a * c
+	if disc < 0.0:
+		return 0.0
+	return maxf((-b + sqrt(disc)) / (2.0 * a), 0.0)
+
+
+func _perp(t: Vector3, az: float) -> Vector3:
+	var a := t.cross(Vector3.UP)
+	if a.length() < 0.2:
+		a = t.cross(Vector3.RIGHT)
+	a = a.normalized()
+	var b := t.cross(a).normalized()
+	return a * cos(az) + b * sin(az)
+
+
+func _bough(bark: Surf, leaf: Surf, start: Vector3, dir: Vector3, len: float, rad: float, depth: int, tint: float, u_span: float) -> void:
+	# One branch and, recursively, its children. Limbs curve up toward the
+	# light, small branches droop under their leaves.
+	var seg := 6 if depth == 0 else (4 if depth == 1 else 3)
+	var grav: float = [0.25, 0.05, -0.2, -0.3][depth]
+	var wander := Vector3(rng.randf_range(-1, 1), rng.randf_range(-0.3, 0.3), rng.randf_range(-1, 1)) * 0.25
+	var terminal := depth >= _depth_max
+	var pts: Array[Vector3] = [start]
+	var radii: Array[float] = [rad]
+	var d := dir
+	for i in range(1, seg + 1):
+		d = (d + (Vector3.UP * grav + wander) / seg).normalized()
+		pts.append(pts[i - 1] + d * len / seg)
+		radii.append(lerpf(rad, 0.003 if terminal else rad * 0.4, float(i) / seg))
+	if depth <= _tube_max and rad > 0.004:
+		var sides: int = [8, 6, 4, 3][depth]
+		_tube(bark, pts, radii, sides, _phase, lerpf(0.6, 1.0, 1.0 - depth / 3.0), u_span)
+
+	if not terminal:
+		var count: int = [rng.randi_range(6, 8), rng.randi_range(5, 7), rng.randi_range(4, 6)][depth]
+		var az := rng.randf() * TAU
+		for k in count:
+			var s := lerpf(0.25 if depth == 0 else 0.15, 0.97, (k + rng.randf_range(0.2, 0.8)) / count)
+			var p := _branch_at(pts, s)
+			var tan := (_branch_at(pts, minf(s + 0.05, 1.0)) - _branch_at(pts, maxf(s - 0.05, 0.0))).normalized()
+			az += 2.39996 + rng.randf_range(-0.3, 0.3)
+			var ang := rng.randf_range(0.6, 1.0) if depth < 2 else rng.randf_range(0.8, 1.25)
+			var cd := (tan * cos(ang) + _perp(tan, az) * sin(ang)).normalized()
+			var want := len * rng.randf_range(0.5, 0.7) * lerpf(1.0, 0.55, s)
+			var room := _to_envelope(p, cd)
+			var cl := minf(want, room * rng.randf_range(0.85, 1.0)) if room > want * 0.35 else want * 0.35
+			var cr := minf(lerpf(rad, rad * 0.4, s) * 0.75, rad * pow(cl / len, 1.1))
+			_bough(bark, leaf, p, cd, cl, maxf(cr, 0.003), depth + 1, tint if depth > 0 else rng.randf(), u_span)
+
+	# Leaves on the last two levels: thick on twigs, sparse on what bears them.
+	if depth >= _depth_max - 1:
+		var step := _leaf_l * (0.38 if terminal else 0.7)
+		var s := 0.35 + rng.randf() * 0.15
+		while s < 1.0:
+			var p := _branch_at(pts, s)
+			var tan := (_branch_at(pts, minf(s + 0.05, 1.0)) - _branch_at(pts, maxf(s - 0.05, 0.0))).normalized()
+			_broad_card(leaf, p, tan, tint)
+			s += step / maxf(len, 0.1) * rng.randf_range(0.8, 1.2)
+		_broad_card(leaf, pts[seg], (pts[seg] - pts[seg - 1]).normalized(), tint)
+
+
+func _broad_card(leaf: Surf, p: Vector3, tan: Vector3, tint: float) -> void:
+	var out := (p - _cc).normalized()
+	var jitter := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1))
+	var along := (tan * 0.6 + out * 0.5 + jitter * 0.35).normalized()
+	var side := along.cross(Vector3.UP)
+	if side.length() < 0.2:
+		side = along.cross(Vector3.RIGHT)
+	side = side.normalized().rotated(along, rng.randf_range(-0.8, 0.8))
+	var l := _leaf_l * rng.randf_range(0.8, 1.2)
+	_card(leaf, p, along, side, l * 0.95, l, rng.randi(), tint, 1.0)
 
 
 # ---------------------------------------------------------------- output

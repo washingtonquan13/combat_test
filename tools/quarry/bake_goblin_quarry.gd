@@ -1756,13 +1756,14 @@ func _add_trunk(at: Vector3, radius: float) -> void:
 	_obstacle_count += 1
 
 
-const FIR_LOD := 45.0
+const TREE_LOD := 45.0
 # Each kind: the height it's generated at (placement scales it by `size`) and
 # how many variants.
 const FIR_GEN := {"fir": [17.0, 4], "firm": [8.0, 3]}
+const BROAD_GEN := {"isle": [6.0, 4]}
 
 
-func _gen_firs() -> Dictionary:
+func _gen_trees() -> Dictionary:
 	var gen = load("res://tools/quarry/plant_gen.gd").new()
 	var tex := F + "models/fir_tree_01_fir_tree_01_"
 	var atlas: Texture2D = gen.coverage_texture(tex + "twig_cards_diff_2k.png")
@@ -1785,17 +1786,37 @@ func _gen_firs() -> Dictionary:
 				pair.append(m)
 			out[kind].append(pair)
 			seed += 1
+	# Broadleaves: leafy-twig cards from tools/quarry/leaf_atlas.py.
+	atlas = gen.coverage_texture("res://assets/level/quarry/foliage/broadleaf_cards.png")
+	ResourceSaver.save(atlas, OUT + "meshes/broadleaf_cards.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+	atlas.take_over_path(OUT + "meshes/broadleaf_cards.res")
+	leaf = gen.leaf_material(atlas)
+	tex = F + "models/island_tree_01_island_tree_01_"
+	bark = gen.bark_material(load(tex + "diff_2k.jpg"), load(tex + "nor_gl_2k.jpg"))
+	seed = 7200
+	for kind: String in BROAD_GEN:
+		var h: float = BROAD_GEN[kind][0]
+		out[kind] = []
+		for v in int(BROAD_GEN[kind][1]):
+			var pair := []
+			for lod in 2:
+				var m: ArrayMesh = gen.mesh(gen.broadleaf(seed, h, 1.0 if lod == 0 else 0.4), bark, leaf)
+				var path := OUT + "meshes/gen_%s_%d_%s.res" % [kind, v, "near" if lod == 0 else "far"]
+				ResourceSaver.save(m, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+				m.take_over_path(path)
+				pair.append(m)
+				print("  %s %d %s: %d tris" % [kind, v, "near" if lod == 0 else "far", (m.surface_get_array_index_len(0) + m.surface_get_array_index_len(1)) / 3])
+			out[kind].append(pair)
+			seed += 1
 	return out
 
 
 func _dress_trees() -> void:
 	var d := F + "models/"
-	var isles: Array[Mesh] = []
-	for f: String in ["island_tree_01", "island_tree_02", "island_tree_03"]:
-		isles.append(_meshes_of(f, d)[0])
-	var pools := {"sap": _meshes_of("fir_sapling", d), "isle": isles}
-	# Firs come from our own generator, each as a near and a far mesh.
-	var lods := _gen_firs()
+	var pools := {"sap": _meshes_of("fir_sapling", d)}
+	# Firs and broadleaves come from our own generator, each as a near and a
+	# far mesh.
+	var lods := _gen_trees()
 	var roots: Array[Mesh] = _meshes_of("pine_roots", d)
 	var bark: Array[Mesh] = _meshes_of("bark_debris_01", d)
 	var fern: Array[Mesh] = _meshes_of("fern_02")
@@ -1818,8 +1839,8 @@ func _dress_trees() -> void:
 		var shade := _valley_d(p.x, p.y) < 8.0
 		if lods.has(t.kind):
 			var pair: Array = lods[t.kind][t.pick % lods[t.kind].size()]
-			_add(pair[0], xf, shade, false, FIR_LOD)
-			_add(pair[1], xf, shade, false, 0.0, FIR_LOD)
+			_add(pair[0], xf, shade, false, TREE_LOD)
+			_add(pair[1], xf, shade, false, 0.0, TREE_LOD)
 		else:
 			var pool: Array = pools[t.kind]
 			_add(pool[t.pick % pool.size()], xf, shade, false, 0.0)
