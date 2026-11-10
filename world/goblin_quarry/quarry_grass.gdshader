@@ -33,9 +33,9 @@ uniform float grass_tile = 0.33;
 uniform vec3 dry_tip = vec3(0.58, 0.54, 0.27);
 // Upper blades: a fresh green, bluer and deeper in lush patches, warmer in
 // sunny ones. The roots keep the ground's colour.
-uniform vec3 fresh = vec3(0.31, 0.5, 0.12);
-uniform vec3 lush = vec3(0.22, 0.41, 0.12);
-uniform vec3 sunny = vec3(0.42, 0.54, 0.13);
+uniform vec3 fresh = vec3(0.26, 0.4, 0.14);
+uniform vec3 lush = vec3(0.19, 0.33, 0.13);
+uniform vec3 sunny = vec3(0.35, 0.43, 0.15);
 // Inside a clump, close to the camera, the lower blades stand in each
 // other's shade. Kept to near the camera: from the game's height deep root
 // shade reads as dark spots on the ground.
@@ -155,5 +155,5 @@ void fragment() {
 	AO = mix(0.9, 1.0, tip);
 	AO_LIGHT_AFFECT = 0.3;
 	// Light through a blade comes out a deeper, yellower green.
-	BACKLIGHT = (painted ? ALBEDO : top * vec3(1.0, 1.0, 0.45)) * 0.35 * tip;
+	BACKLIGHT = (painted ? ALBEDO : top * vec3(1.0, 0.95, 0.5)) * 0.25 * tip;
 }

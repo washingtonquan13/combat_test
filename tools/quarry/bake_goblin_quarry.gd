@@ -1435,6 +1435,10 @@ func _emit_scatter(parent: Node3D, node_name: String, mesh: Mesh, sc: Scatter, r
 	return sc.xforms.size()
 
 
+## Grass grid spacing: about 15 clumps per square metre.
+const GRASS_STEP := 0.26
+
+
 func _build_grass(root: Node3D) -> void:
 	# Two layers. Grass: a dense carpet of short wide clumps over every grassy
 	# spot, with tall tufts standing out of it in patches. Meadow: clover in
@@ -1462,9 +1466,12 @@ func _build_grass(root: Node3D) -> void:
 		while cz < CZ1:
 			var t_sc := Scatter.new()
 			var c_sc := Scatter.new()
-			for i in int(chunk * chunk * 15.0):
-				var x := cx + _rng.randf() * chunk
-				var z := cz + _rng.randf() * chunk
+			# One clump per cell of a jittered grid: purely random spots bunch
+			# up and leave bare holes at any density.
+			var cells_n := int(chunk / GRASS_STEP)
+			for i in cells_n * cells_n:
+				var x := cx + (i % cells_n + _rng.randf()) * GRASS_STEP
+				var z := cz + (i / cells_n + _rng.randf()) * GRASS_STEP
 				var g := _grassiness(x, z)
 				if g < 0.08 or g < _rng.randf() * 0.5:
 					continue
