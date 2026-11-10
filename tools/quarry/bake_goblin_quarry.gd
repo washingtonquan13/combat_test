@@ -1039,7 +1039,6 @@ func _dress() -> void:
 	blocks.append_array(_meshes_of("rock_face_02"))
 	var stones: Array[Mesh] = _meshes_of("rock_07")
 	stones.append_array(_meshes_of("rock_09"))
-	var fern: Array[Mesh] = _meshes_of("fern_02")
 	var stump: Mesh = _meshes_of("tree_stump_01")[0]
 	var trunk: Mesh = _meshes_of("dead_tree_trunk_02")[0]
 	var branches: Array[Mesh] = _meshes_of("dry_branches_medium_01")
@@ -1155,9 +1154,7 @@ func _dress() -> void:
 			continue
 		var at := _ground_at(x, z)
 		if _rng.randf() < 0.45:
-			var m: Mesh = fern[_rng.randi() % fern.size()]
-			at.y += m.get_aabb().size.y * 0.45
-			_add(m, _xf_place(m, at, _rng.randf() * TAU, _rng.randf_range(0.8, 1.3)), false)
+			_add_fern(at, _rng.randi(), _rng.randf() * TAU, _rng.randf_range(0.8, 1.3))
 		elif _rng.randf() < 0.35 and _clear(x, z, 0.9):
 			_add_bush(at, _rng.randf() * TAU, _rng.randf_range(0.55, 1.1), _rng.randi())
 
@@ -1759,11 +1756,15 @@ const BUSH_LOD := 28.0
 const FIR_GEN := {"fir": [17.0, 4], "firm": [8.0, 3]}
 const BROAD_GEN := {"isle": [6.0, 4]}
 const BUSH_GEN := [1.5, 5]
+const FERN_LOD := 22.0
+const FERN_GEN := [0.6, 5]
 
 var _gen: Object
 var _broad_mat: Array = []
 var _bush_lods: Array = []
 var _bush_count := 0
+var _fern_lods: Array = []
+var _fern_count := 0
 
 
 func _broad_mats() -> Array:
@@ -1803,6 +1804,36 @@ func _add_bush(at: Vector3, yaw: float, size: float, pick: int, shade := true) -
 	_bush_count += 1
 	_add(pair[0], xf, shade, false, BUSH_LOD)
 	_add(pair[1], xf, shade, false, 0.0, BUSH_LOD)
+
+
+func _ferns() -> Array:
+	# Generated ferns as [near, far] pairs: frond cards from
+	# tools/quarry/fern_atlas.py, no bark. Made on first use.
+	if _fern_lods.is_empty():
+		if _gen == null:
+			_gen = load("res://tools/quarry/plant_gen.gd").new()
+		var atlas: Texture2D = _gen.coverage_texture("res://assets/level/quarry/foliage/fern_fronds.png")
+		ResourceSaver.save(atlas, OUT + "meshes/fern_fronds.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+		atlas.take_over_path(OUT + "meshes/fern_fronds.res")
+		var leaf: Material = _gen.leaf_material(atlas)
+		for v in int(FERN_GEN[1]):
+			var pair := []
+			for lod in 2:
+				var m: ArrayMesh = _gen.mesh(_gen.fern(7400 + v, FERN_GEN[0], 1.0 if lod == 0 else 0.5), null, leaf)
+				var path := OUT + "meshes/gen_fern_%d_%s.res" % [v, "near" if lod == 0 else "far"]
+				ResourceSaver.save(m, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+				m.take_over_path(path)
+				pair.append(m)
+			_fern_lods.append(pair)
+	return _fern_lods
+
+
+func _add_fern(at: Vector3, pick: int, yaw: float, size: float) -> void:
+	var pair: Array = _ferns()[pick % int(FERN_GEN[1])]
+	var xf := _xf_tree(at - Vector3.UP * 0.02, yaw, size, Vector2.ZERO)
+	_fern_count += 1
+	_add(pair[0], xf, false, false, FERN_LOD)
+	_add(pair[1], xf, false, false, 0.0, FERN_LOD)
 
 
 func _gen_trees() -> Dictionary:
@@ -1859,7 +1890,6 @@ func _dress_trees() -> void:
 	var lods := _gen_trees()
 	var roots: Array[Mesh] = _meshes_of("pine_roots", d)
 	var bark: Array[Mesh] = _meshes_of("bark_debris_01", d)
-	var fern: Array[Mesh] = _meshes_of("fern_02")
 	var nettle: Array[Mesh] = _meshes_of("nettle_plant", d)
 	var celandine: Array[Mesh] = _meshes_of("celandine_01", d)
 	var tufts: Array[Mesh] = _meshes_of("grass_medium_01", d)
@@ -1906,9 +1936,7 @@ func _dress_trees() -> void:
 			elif roll < 0.3 and _clear(q.x, q.y, 0.8):
 				_add_bush(g, _trng.randf() * TAU, _trng.randf_range(0.6, 1.2), _trng.randi())
 			elif roll < 0.55:
-				var f: Mesh = fern[_trng.randi() % fern.size()]
-				g.y += f.get_aabb().size.y * 0.45
-				_add(f, _xf_place(f, g, _trng.randf() * TAU, _trng.randf_range(0.8, 1.2)), false)
+				_add_fern(g, _trng.randi(), _trng.randf() * TAU, _trng.randf_range(0.8, 1.2))
 			elif roll < 0.8:
 				var n: Mesh = nettle[_trng.randi() % nettle.size()]
 				_add(n, _xf_tree(g - Vector3.UP * 0.02, _trng.randf() * TAU, _trng.randf_range(5.0, 8.0), Vector2.ZERO), false)
@@ -1924,10 +1952,8 @@ func _dress_trees() -> void:
 		var v := _valley_d(x, z)
 		if v < 1.0 or v > 14.0 or _canopy_at(x, z) < 0.2 or _pit_d(x, z) < 2.0 or not _clear(x, z, 0.3):
 			continue
-		var f: Mesh = fern[_trng.randi() % fern.size()]
-		var g := _ground_at(x, z)
-		g.y += f.get_aabb().size.y * 0.45
-		_add(f, _xf_place(f, g, _trng.randf() * TAU, _trng.randf_range(0.9, 1.5)), false)
+		var pick := _trng.randi()
+		_add_fern(_ground_at(x, z), pick, _trng.randf() * TAU, _trng.randf_range(0.9, 1.5))
 		plants += 1
 
 	# Banks: tufts, celandine and nettles at the water's edge, thinning away
@@ -1962,5 +1988,5 @@ func _dress_trees() -> void:
 		var m: Mesh = slabs[_trng.randi() % slabs.size()]
 		_add(m, _xf_on_ground(m, _ground_at(p.x, p.y) - Vector3.UP * 0.03, _trng.randf() * TAU, _trng.randf_range(0.035, 0.06)))
 		stones += 1
-	print("bushes: %d" % _bush_count)
+	print("bushes: %d, ferns: %d" % [_bush_count, _fern_count])
 	print("forest floor: %d plants, %d bank stones" % [plants, stones])

@@ -408,6 +408,80 @@ func bush(seed: int, height: float, detail := 1.0) -> Array:
 	return [bark, leaf]
 
 
+
+# ---------------------------------------------------------------- fern
+
+# Cells of the frond atlas (tools/quarry/fern_atlas.py): the bottom row is
+# browning, for the old outer fronds.
+const FERN_GREEN := [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+const FERN_OLD := [12, 13, 14, 15]
+
+
+func fern(seed: int, height: float, detail := 1.0) -> Array:
+	# A rosette of fronds from one crown, each a bent strip carrying one frond
+	# card from the base of its cell to the tip, rising steeply and arching
+	# over. Inner fronds stand tall, outer ones lie wide and low and are more
+	# often browning. Returns [bark, leaf] like the others; bark is empty.
+	rng.seed = seed
+	_h = height
+	_broad = true
+	var reach := height * 1.1
+	_cr = Vector3(reach, height, reach)
+	_cc = Vector3(0.0, -height * 0.15, 0.0)
+	var leaf := Surf.new()
+	var count := rng.randi_range(10, 15) if detail >= 1.0 else rng.randi_range(7, 9)
+	var segs := 6 if detail >= 1.0 else 3
+	var turn := rng.randf() * TAU
+	for i in count:
+		var outer := rng.randf()
+		var az := turn + i * 2.39996 + rng.randf_range(-0.3, 0.3)
+		var rise := lerpf(1.2, 0.55, outer) + rng.randf_range(-0.12, 0.12)
+		var droop := lerpf(1.4, 2.1, outer) * rng.randf_range(0.85, 1.15)
+		var l := height * lerpf(1.15, 1.6, outer) * rng.randf_range(0.85, 1.1)
+		var cells: Array = FERN_OLD if outer > 0.7 and rng.randf() < 0.45 else FERN_GREEN
+		_phase = rng.randf()
+		_frond(leaf, az, rise, droop, l, segs, cells[rng.randi() % cells.size()], rng.randf())
+	_broad = false
+	return [Surf.new(), leaf]
+
+
+func _frond(s: Surf, az: float, rise: float, droop: float, l: float, segs: int, cell: int, tint: float) -> void:
+	# One strip, `segs` rows by three columns. The frond in its cell is about
+	# 0.7 of the cell wide, so the strip only spans that much of it.
+	var c0 := Vector2(cell % 4, cell / 4) * 0.25 + Vector2(0.004, 0.004)
+	var c1 := c0 + Vector2(0.242, 0.242)
+	var u0 := lerpf(c0.x, c1.x, 0.14)
+	var u1 := lerpf(c0.x, c1.x, 0.86)
+	var w := l * 0.72
+	var out := _h_dir(az)
+	var side := out.cross(Vector3.UP).normalized()
+	var twist := rng.randf_range(-0.35, 0.35)
+	var p := out * l * 0.02
+	var first := s.v.size()
+	for r in segs + 1:
+		var t := float(r) / segs
+		# Pitch falls along the frond: up at the crown, over and down at the tip.
+		var pitch := rise - droop * t * t
+		var d := (out * cos(pitch) + Vector3.UP * sin(pitch)).normalized()
+		var sd := side.rotated(d, twist * t)
+		var norm := d.cross(sd).normalized()
+		if norm.y < 0.0:
+			norm = -norm
+		# Pinnae hang a little either side of the rachis.
+		var hang := norm * w * 0.12 * t
+		var v := lerpf(c1.y, c0.y, t)
+		for k in 3:
+			var x := k - 1.0
+			var q := p + sd * x * w * 0.5 * lerpf(0.6, 1.0, minf(t * 3.0, 1.0)) - (hang if k != 1 else Vector3.ZERO)
+			s.vert(q, _crown_normal(q, norm), Vector2(lerpf(u0, u1, k / 2.0), v),
+				Vector2(Vector2(q.x, q.z).length(), _phase), Color(_crown_ao(q), tint, 0.0, clampf(q.y / _h, 0.0, 1.0)))
+		p += d * l / segs
+	for r in segs:
+		for k in 2:
+			var a := first + r * 3 + k
+			s.tri(a, a + 3, a + 1)
+			s.tri(a + 1, a + 3, a + 4)
+
 func _to_envelope(p: Vector3, d: Vector3) -> float:
 	# Distance from p along d to the crown's surface; 0 if p is outside it.
 	var q := (p - _cc) / _cr
@@ -492,12 +566,13 @@ func _broad_card(leaf: Surf, p: Vector3, tan: Vector3, tint: float) -> void:
 
 func mesh(parts: Array, bark_mat: Material, leaf_mat: Material) -> ArrayMesh:
 	var m := ArrayMesh.new()
-	var b: Surf = parts[0]
-	var l: Surf = parts[1]
-	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, b.arrays())
-	m.surface_set_material(0, bark_mat)
-	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, l.arrays())
-	m.surface_set_material(1, leaf_mat)
+	# A plant with no wood (a fern) has an empty bark surface; skip it.
+	for i in 2:
+		var surf: Surf = parts[i]
+		if surf.idx.is_empty():
+			continue
+		m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, surf.arrays())
+		m.surface_set_material(m.get_surface_count() - 1, bark_mat if i == 0 else leaf_mat)
 	return m
 
 
