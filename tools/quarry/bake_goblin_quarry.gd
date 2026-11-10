@@ -90,6 +90,10 @@ var _pond_lv := 0.0
 # go bare: each is {at, kind, pick, size, yaw, lean}. Their own random stream,
 # so moving a tree doesn't reshuffle every rock.
 var _trees: Array[Dictionary] = []
+## Tree spots turned down for bad footing, for the bake log.
+var _unfooted := 0
+const FOOT_R := 2.0
+const FOOT_STEP := 0.6
 var _trng := RandomNumberGenerator.new()
 var _canopy := PackedFloat32Array()
 var _cnx := 0
@@ -1876,12 +1880,14 @@ func _plan_trees() -> void:
 	_trng.seed = 5
 	var t0 := Time.get_ticks_msec()
 	var tries := 0
-	while tries < 14000:
+	# Out past the steep bank too: the bank itself is a rock face trees can't
+	# stand on, so the treeline carries on along the hilltops above it.
+	while tries < 20000:
 		tries += 1
 		var x := _trng.randf_range(X0 + 1.0, X1 - 1.0)
 		var z := _trng.randf_range(Z0 + 1.0, Z1 - 1.0)
 		var v := _valley_d(x, z)
-		if v < 2.0 or v > 10.0 or _pit_d(x, z) < 3.0 or _water_at(x, z).y < 2.0 or not _clear(x, z, 1.0):
+		if v < 2.0 or v > 20.0 or _pit_d(x, z) < 3.0 or _water_at(x, z).y < 2.0 or not _clear(x, z, 1.0):
 			continue
 		var deep := smoothstep(2.0, 9.0, v)
 		if _trng.randf() > lerpf(0.5, 1.0, deep):
@@ -1979,7 +1985,7 @@ func _plan_trees() -> void:
 	var counts := {}
 	for t: Dictionary in _trees:
 		counts[t.kind] = counts.get(t.kind, 0) + 1
-	print("trees: %s, %d clumps, in %d ms" % [counts, clumps.size(), Time.get_ticks_msec() - t0])
+	print("trees: %s, %d clumps, %d spots on bad footing, in %d ms" % [counts, clumps.size(), _unfooted, Time.get_ticks_msec() - t0])
 
 
 func _try_tree(p: Vector2, kind: String, gap: float, size: float, trunk := 1.0, lean := Vector2.ZERO) -> bool:
@@ -1988,9 +1994,31 @@ func _try_tree(p: Vector2, kind: String, gap: float, size: float, trunk := 1.0, 
 			return false
 	if kind != "sap" and (_water_at(p.x, p.y).y < 0.8 or not _clear(p.x, p.y, trunk)):
 		return false
+	if kind != "sap" and not _footing(p):
+		_unfooted += 1
+		return false
 	if lean == Vector2.ZERO:
 		lean = Vector2.from_angle(_trng.randf() * TAU) * _trng.randf_range(0.0, 0.04)
 	_trees.append({"at": p, "kind": kind, "pick": _trng.randi() % 3, "size": size, "yaw": _trng.randf() * TAU, "lean": lean})
+	return true
+
+
+func _footing(p: Vector2) -> bool:
+	# A tree needs ground it could grow on: no slope steeper than about 45
+	# degrees, and no break in the ground within FOOT_R of the trunk. A
+	# break is where the ground leaves the plane of the slope at the trunk
+	# by more than FOOT_STEP: a cliff lip falling away, a gully wall rising,
+	# a ledge. A smooth hillside, however steep, stays near its plane.
+	var n := _n_at(p.x, p.y)
+	if n.y < 0.7:
+		return false
+	var y0 := _gy(p.x, p.y)
+	var grad := Vector2(-n.x, -n.z) / n.y
+	for k in 12:
+		var d := Vector2.from_angle(TAU * k / 12.0) * FOOT_R
+		var q := p + d
+		if absf(_gy(q.x, q.y) - (y0 + grad.dot(d))) > FOOT_STEP:
+			return false
 	return true
 
 
