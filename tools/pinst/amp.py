@@ -7,6 +7,7 @@ from __future__ import annotations
 import fastlib
 import numpy as np
 import soundfile as sf
+from scipy.fft import irfft, next_fast_len, rfft
 from scipy.signal import firwin, lfilter, resample_poly, fftconvolve
 
 SR = 44100
@@ -159,6 +160,19 @@ def disto(x, depth=85, stages=3, tone=100, dry=0.01, wet=1.0):
 _cab = None
 
 
+_cab_spec = [0, None]
+
+
+def _cab_conv(y):
+    """fftconvolve(y, _cab), its numbers exactly, with the cab's spectrum kept
+    for the next signal of the same length: a file's original and its
+    rebuilds all are."""
+    size = next_fast_len(len(y) + len(_cab) - 1, real=True)
+    if _cab_spec[0] != size:
+        _cab_spec[:] = size, rfft(_cab, size)
+    return irfft(rfft(y, size) * _cab_spec[1], size)[: len(y) + len(_cab) - 1]
+
+
 def amp_cab(x: np.ndarray) -> np.ndarray:
     """x: (n, 2) DI. Returns (n + tail, 2)."""
     global _cab
@@ -174,6 +188,6 @@ def amp_cab(x: np.ndarray) -> np.ndarray:
     y = hpf(y, 80)
     y = peak(y, 300, 1.4, -4)
     y = y * 10 ** (-24.5 / 20)
-    left = fftconvolve(y[:, 0], _cab)[: len(y) + 2048]
+    left = _cab_conv(y[:, 0])[: len(y) + 2048]
     same = np.array_equal(y[:, 1], y[:, 0])
-    return np.stack([left, left if same else fftconvolve(y[:, 1], _cab)[: len(y) + 2048]], axis=1)
+    return np.stack([left, left if same else _cab_conv(y[:, 1])[: len(y) + 2048]], axis=1)

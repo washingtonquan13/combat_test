@@ -20,6 +20,8 @@ def _load():
         ("steer_keys", i, [p, p, p, p, i64, i64, d, d, d, d, d, d, d, p]),
         ("st_phase", None, [p, p, p, p, i64, i, p, p, p, p]),
         ("st_acc", None, [p, p, p, p, i64, i, p, p, i64]),
+        ("mr_absdiff", d, [p, i64, d, p, p, d]),
+        ("mel_rows", d, [p, i64, i64, d, i, p, p, p, p, p, p, p]),
     ):
         f = getattr(lib, name)
         f.restype, f.argtypes = res, args

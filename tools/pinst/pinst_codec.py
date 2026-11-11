@@ -93,59 +93,67 @@ def find_peaks_frames(x, N, H, max_peaks=100, rel_db=-80.0, abs_db=-110.0, prom_
         loc[:, :2] = False
         thr = np.maximum(db.max(axis=1, keepdims=True) + rel_db, abs_db)
         loc &= (db > thr) & (db > floor + prom_db)
+        # every peak of the batch at once, then dealt out to its frame
+        fi, k = np.nonzero(loc)
+        a, b, c = db[fi, k - 1], db[fi, k], db[fi, k + 1]
+        den = a - 2 * b + c
+        p = np.where(np.abs(den) > 1e-9, 0.5 * (a - c) / den, 0.0)
+        f = (k + p) * SR / Z
+        amp = b - 0.25 * (a - c) * p
+        nb = np.where(p >= 0, k + 1, k - 1)
+        ak = np.angle(X[fi, k])     # phases only where there is a peak
+        d = np.angle(np.exp(1j * (np.angle(X[fi, nb]) - ak)))
+        ph = ak + np.abs(p) * d
+        cuts = np.searchsorted(fi, np.arange(db.shape[0] + 1))
         for i in range(db.shape[0]):
-            k = np.flatnonzero(loc[i])
-            if len(k) == 0:
-                frames.append((np.zeros(0), np.zeros(0), np.zeros(0)))
-                continue
-            a, b, c = db[i, k - 1], db[i, k], db[i, k + 1]
-            den = a - 2 * b + c
-            p = np.where(np.abs(den) > 1e-9, 0.5 * (a - c) / den, 0.0)
-            f = (k + p) * SR / Z
-            amp = b - 0.25 * (a - c) * p
-            nb = np.where(p >= 0, k + 1, k - 1)
-            ak = np.angle(X[i, k])     # phases only where there is a peak
-            d = np.angle(np.exp(1j * (np.angle(X[i, nb]) - ak)))
-            ph = ak + np.abs(p) * d
-            if len(k) > max_peaks:
-                keep = np.argsort(amp)[-max_peaks:]
-                f, amp, ph = f[keep], amp[keep], ph[keep]
-            frames.append((f, amp, ph))
+            s0, s1 = cuts[i], cuts[i + 1]
+            if s1 - s0 > max_peaks:
+                keep = s0 + np.argsort(amp[s0:s1])[-max_peaks:]
+                frames.append((f[keep], amp[keep], ph[keep]))
+            else:
+                frames.append((f[s0:s1], amp[s0:s1], ph[s0:s1]))
     return frames
 
 
 def track_peaks(frames, tol_oct=0.025, min_len=5, first_frame=0):
-    done, active = [], []   # active: [start, [f], [a], [ph]]
+    """Tracks are numbered as they are born, so the live ones are always in
+    number order. Each frame records which track took which peak; the tracks
+    are cut out of those records at the end, in the order they ended."""
+    none = np.zeros(0, dtype=np.int64)
+    act_id, act_last, born = none, np.zeros(0), 0
+    ids, fs, as_, phs, starts = [], [], [], [], []
     for i, (f, a, ph) in enumerate(frames):
         if i < first_frame:
             f = np.zeros(0)
-        nxt = []
-        used = np.zeros(len(f), dtype=bool)
-        if active and len(f):
-            last = np.array([t[1][-1] for t in active])
-            cost = np.abs(np.log2(f[None, :] / last[:, None]))
+        r = c = none
+        if len(act_id) and len(f):
+            cost = np.abs(np.log2(f[None, :] / act_last[:, None]))
             cost = np.where(cost < tol_oct, cost, 1e6)
             r, c = linear_sum_assignment(cost)
             ok = cost[r, c] < 1e6
-            matched = dict(zip(r[ok], c[ok]))
-        else:
-            matched = {}
-        for ti, t in enumerate(active):
-            if ti in matched:
-                j = matched[ti]
-                used[j] = True
-                t[1].append(f[j]); t[2].append(a[j]); t[3].append(ph[j])
-                nxt.append(t)
-            else:
-                done.append(t)
-        for j in np.flatnonzero(~used):
-            nxt.append([i, [f[j]], [a[j]], [ph[j]]])
-        active = nxt
-    done.extend(active)
+            r, c = r[ok], c[ok]
+        used = np.zeros(len(f), dtype=bool)
+        used[c] = True
+        new = np.flatnonzero(~used)
+        act_id = np.concatenate([act_id[r], born + np.arange(len(new))])
+        js = np.concatenate([c, new])
+        act_last = f[js]
+        starts.append(np.full(len(new), i))
+        born += len(new)
+        ids.append(act_id); fs.append(act_last); as_.append(a[js]); phs.append(ph[js])
+    if not born:
+        return []
+    ids = np.concatenate(ids)
+    order = np.argsort(ids, kind="stable")      # by track, frames in order
+    f, a, ph = (np.concatenate(v)[order] for v in (fs, as_, phs))
+    count = np.bincount(ids, minlength=born)
+    first = np.cumsum(count) - count
+    start = np.concatenate(starts)
     out = []
-    for s, f, a, ph in done:
-        if len(f) >= min_len:
-            out.append(Track(s, np.array(f), np.array(a), np.array(ph)))
+    for t in np.lexsort((np.arange(born), start + count)):     # by the frame it ended, then by number
+        if count[t] >= min_len:
+            q = slice(first[t], first[t] + count[t])
+            out.append(Track(int(start[t]), f[q].copy(), a[q].copy(), ph[q].copy()))
     return out
 
 
@@ -400,6 +408,34 @@ def _varint(v: int, out: bytearray):
             return
 
 
+def _ints(a) -> bytes:
+    """Zigzag varints of an int array, the bytes _varint would write."""
+    a = np.asarray(a, dtype=np.int64).ravel()
+    z = (a << 1) ^ (a >> 63)
+    if not len(z) or z.max() < 128:
+        return z.astype(np.uint8).tobytes()
+    n = np.ones(len(z), dtype=np.int64)     # bytes each value takes
+    s = 7
+    while True:
+        more = z >= (1 << s)
+        if not more.any():
+            break
+        n += more
+        s += 7
+    pos = np.cumsum(n) - n
+    out = np.zeros(int(n.sum()), dtype=np.uint8)
+    for j in range(int(n.max())):
+        m = n > j
+        out[pos[m] + j] = ((z[m] >> (7 * j)) & 0x7F) | ((n[m] > j + 1) << 7)
+    return out.tobytes()
+
+
+def _deltas(a):
+    """a[0], then the steps; along the first axis."""
+    a = np.asarray(a, dtype=np.int64)
+    return np.concatenate([a[:1], np.diff(a, axis=0)])
+
+
 @dataclass
 class Tier:
     name: str
@@ -514,7 +550,7 @@ def quantize(ch: Channel, tier: Tier):
     H = ch.H
     jf = ch.junction // H if tier.pcm_ms > 0 else 0
     top = max([t.a.max() for t in ch.tracks], default=-200)
-    hdr, dts, dfs, das = bytearray(), bytearray(), bytearray(), bytearray()
+    hdr, dts, dfs, das = bytearray(), [], [], []
     dec, anchors = [], []
     prev_start = 0
     f0_bytes = 0
@@ -526,9 +562,7 @@ def quantize(ch: Channel, tier: Tier):
         c0 = 1200 * np.log2(f0t / 20.0)
         k0 = keyframes(c0[:, None], np.array([tier.f0_cents]))
         q0 = np.round(c0[k0] / tier.f0_cents).astype(np.int64)
-        for i in range(len(k0)):
-            _varint(k0[i] - (k0[i - 1] if i else 0), fs)
-            _varint(q0[i] - (q0[i - 1] if i else 0), fs)
+        fs += _ints(np.stack([_deltas(k0), _deltas(q0)], axis=1))
         f0_bytes = _lz(bytes(fs))
         f0q = 20.0 * 2 ** (expand(k0, (q0 * tier.f0_cents).astype(float)[:, None], nfr)[:, 0] / 1200)
     for tr in sorted(ch.tracks, key=lambda t: t.start):
@@ -556,10 +590,7 @@ def quantize(ch: Channel, tier: Tier):
         if f0q is not None:
             _varint(hh, hdr)
         _varint(qc[0], hdr); _varint(qa[0], hdr); hdr.append(qph)
-        for i in range(1, len(keys)):
-            _varint(keys[i] - keys[i - 1], dts)
-            _varint(qc[i] - qc[i - 1], dfs)
-            _varint(qa[i] - qa[i - 1], das)
+        dts.append(np.diff(keys)); dfs.append(np.diff(qc)); das.append(np.diff(qa))
         L = len(tr.f)
         kv = np.stack([qc * tier.f_cents, qa * tier.a_db], axis=1).astype(float)
         full = expand(keys, kv, L)
@@ -567,26 +598,19 @@ def quantize(ch: Channel, tier: Tier):
         ph[anchor] = qph / (1 << tier.phase_bits) * TWO_PI
         dec.append(Track(tr.start, ref * 2 ** (full[:, 0] / 1200), full[:, 1], ph))
         anchors.append(anchor)
+    dts, dfs, das = (_ints(np.concatenate(v)) if v else b"" for v in (dts, dfs, das))
     # noise
     nd = ch.noise_db
     nkeys = keyframes(nd, np.full(nd.shape[1], tier.noise_tol))
     qn = np.round(np.maximum(nd[nkeys], -200) / tier.noise_q).astype(np.int64)
-    nstream = bytearray()
-    for b in range(qn.shape[1]):
-        _varint(qn[0, b], nstream)
-    for i in range(1, len(nkeys)):
-        _varint(nkeys[i] - nkeys[i - 1], nstream)
-        for b in range(qn.shape[1]):
-            _varint(qn[i, b] - qn[i - 1, b], nstream)
+    nstream = _ints(qn[0]) + _ints(np.concatenate([np.diff(nkeys)[:, None], np.diff(qn, axis=0)], axis=1))
     noise_dec = expand(nkeys, qn.astype(float) * tier.noise_q, len(nd))
     tns_bytes = 0
     tns_dec = None
     if ch.tns is not None:
         tk = keyframes(ch.tns[:, None], np.array([1.5]))
         qt = np.round(ch.tns[tk] / 1.5).astype(np.int64)
-        for i in range(len(tk)):
-            _varint(tk[i] - (tk[i - 1] if i else 0), ts)
-            _varint(qt[i] - (qt[i - 1] if i else 0), ts)
+        ts += _ints(np.stack([_deltas(tk), _deltas(qt)], axis=1))
         tns_bytes = _lz(bytes(ts))
         tns_dec = expand(tk, (qt * 1.5).astype(float)[:, None], len(ch.tns))[:, 0]
     pcm_bytes = 0
@@ -626,16 +650,6 @@ def _mdct(M):
     return _MDCT[M]
 
 
-def _ints(a) -> bytes:
-    """Zigzag varints of an int array."""
-    a = np.asarray(a, dtype=np.int64).ravel()
-    z = (a << 1) ^ (a >> 63)
-    if not len(z) or z.max() < 128:
-        return z.astype(np.uint8).tobytes()
-    out = bytearray()
-    for v in a:
-        _varint(v, out)
-    return bytes(out)
 
 
 def _xf_edges(K, nbands):

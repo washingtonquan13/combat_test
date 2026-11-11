@@ -5,6 +5,8 @@ import numpy as np
 from scipy.fft import rfft
 from scipy.signal import get_window
 
+import fastlib
+
 SR = 44100
 
 
@@ -16,7 +18,7 @@ def _fit(x, N=4096):
 _WIN = {}
 
 
-def _spectra(x, N):
+def _spectra(x, N, raw=False):
     """The frames scipy.signal.stft(x, nperseg=N, noverlap=3N/4) gives with
     its defaults, as (frames, bins) pieces small enough to stay in the
     cache: a note's whole spectrogram is tens of megabytes, and walking it
@@ -31,7 +33,8 @@ def _spectra(x, N):
     rows = np.lib.stride_tricks.sliding_window_view(x, N)[::hop]
     step = max(8, 32768 // N)
     for a in range(0, len(rows), step):
-        yield a, rfft(win * rows[a:a + step], axis=-1) * scale
+        Z = rfft(win * rows[a:a + step], axis=-1)
+        yield a, (Z, scale) if raw else Z * scale
 
 
 def _logmag(Z):
@@ -62,9 +65,14 @@ def mrstft_db(ref, test, floor_db=-80.0, cache=None):
             return lo, m, np.maximum(R, lo)[m], at
         lo, m, Rm, at = _kept(cache, ("mrstft", N, n, floor_db), side)
         total = 0.0
-        for a, Z in _spectra(_fit(test[:n]), N):
-            b = a + len(Z)
-            total += np.abs(Rm[at[a]:at[b]] - np.maximum(_logmag(Z)[m[a:b]], lo)).sum()
+        if fastlib.lib:      # the same sum in one pass in C, last bits apart
+            for a, (Z, scale) in _spectra(_fit(test[:n]), N, raw=True):
+                total += fastlib.lib.mr_absdiff(Z.ctypes.data, Z.size, scale, m.ctypes.data + a * m.shape[1],
+                                                Rm.ctypes.data + 8 * int(at[a]), lo)
+        else:
+            for a, Z in _spectra(_fit(test[:n]), N):
+                b = a + len(Z)
+                total += np.abs(Rm[at[a]:at[b]] - np.maximum(_logmag(Z)[m[a:b]], lo)).sum()
         out.append(total / len(Rm) if len(Rm) else np.nan)
     return float(np.mean(out))
 
@@ -90,6 +98,22 @@ def _mel(x, N, nmel):
         yield a, 10 * np.log10((Z.real ** 2 + Z.imag ** 2) @ fb + 1e-18)
 
 
+_SPARSE = {}
+
+
+def _mel_sparse(N, nmel):
+    """The bank as the run of bins each filter touches: (start, length, offset, weights)."""
+    if (N, nmel) not in _SPARSE:
+        fb = _mel_bank(np.fft.rfftfreq(N, 1 / SR), nmel)
+        nz = [np.flatnonzero(r) for r in fb]
+        fs = np.array([k[0] if len(k) else 0 for k in nz], dtype=np.int32)
+        fl = np.array([k[-1] - k[0] + 1 if len(k) else 0 for k in nz], dtype=np.int32)
+        fo = (np.cumsum(fl) - fl).astype(np.int32)
+        fw = np.concatenate([fb[i, fs[i]:fs[i] + fl[i]] for i in range(nmel)] + [np.zeros(1)])
+        _SPARSE[N, nmel] = fs, fl, fo, fw
+    return _SPARSE[N, nmel]
+
+
 def mel_db(ref, test, nmel=64, N=2048, cache=None):
     n = min(len(ref), len(test))
 
@@ -98,8 +122,15 @@ def mel_db(ref, test, nmel=64, N=2048, cache=None):
         return r, r > r.max() - 80
     r, m = _kept(cache, ("mel", N, nmel, n), side)
     total = 0.0
-    for a, t in _mel(_fit(test[:n]), N, nmel):
-        b = a + len(t)
-        total += np.abs(r[a:b] - t)[m[a:b]].sum()
+    if fastlib.lib and N // 2 + 1 <= 4100 and nmel <= 256:
+        fs, fl, fo, fw = _mel_sparse(N, nmel)
+        for a, (Z, scale) in _spectra(_fit(test[:n]), N, raw=True):
+            total += fastlib.lib.mel_rows(Z.ctypes.data, Z.shape[0], Z.shape[1], scale, nmel, fs.ctypes.data,
+                                          fl.ctypes.data, fo.ctypes.data, fw.ctypes.data, None,
+                                          r.ctypes.data + 8 * a * nmel, m.ctypes.data + a * nmel)
+    else:
+        for a, t in _mel(_fit(test[:n]), N, nmel):
+            b = a + len(t)
+            total += np.abs(r[a:b] - t)[m[a:b]].sum()
     k = int(m.sum())
     return float(total / k) if k else float("nan")
