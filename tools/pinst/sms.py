@@ -24,7 +24,8 @@ import numpy as np
 import gen_noise
 import gen_partials
 
-GENERATORS = [gen_partials, gen_noise]
+import gen_modes  # noqa: E402
+GENERATORS = [gen_partials, gen_modes, gen_noise]
 
 
 def run(x, sr, hint):
