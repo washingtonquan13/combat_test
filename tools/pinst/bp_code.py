@@ -35,13 +35,24 @@ from __future__ import annotations
 
 import numpy as np
 
-TOL = 1.0    # steps; one value for every stream and every instrument (set on the 16-note listening set)
+# steps; one value for every stream and every instrument. Measured on the
+# 16-note listening set only: not yet set on the proof set, not yet heard.
+TOL = 1.0
 
 _TOP = 1 << 24
 _PB = 11
 _MOVE = 4
 _P0 = 1 << (_PB - 1)
-_GAMMA = 24          # longest Elias-gamma prefix handled (|v| < 2^24)
+_GAMMA = 24          # longest Elias-gamma prefix: every coded integer (a step,
+                     # a gap, a count) needs |x| < 2^(_GAMMA + 1) = 2^25
+_PAD = 4             # trailing zero bytes finish() may strip; the decoder
+                     # reads at most this many past the end
+
+# Decoder caps, so corrupt input cannot make it allocate or loop without end.
+MAX_TRACKS = 1 << 20
+MAX_COLS = 256
+MAX_SIDE = 64
+MAX_LAST = 1 << 20   # last frame of a track
 
 
 # ------------------------------------------------------------ breakpoints
@@ -157,7 +168,8 @@ class _Enc:
         for _ in range(5):
             self._shift()
         b = bytes(self.out[1:])      # the first byte is always 0
-        return b.rstrip(b"\x00")     # the decoder reads zeros past the end
+        # the decoder reads up to _PAD zeros past the end
+        return b[: max(len(b.rstrip(b"\x00")), len(b) - _PAD)]
 
 
 class _Dec:
@@ -170,9 +182,13 @@ class _Dec:
         self.bits = 0
 
     def _byte(self):
-        b = self.d[self.pos] if self.pos < len(self.d) else 0
-        self.pos += 1
-        return b
+        pos = self.pos
+        self.pos = pos + 1
+        if pos < len(self.d):
+            return self.d[pos]
+        if pos >= len(self.d) + _PAD:
+            raise ValueError("bp_code: payload truncated (read past the end)")
+        return 0
 
     def bit(self, p, i):
         self.bits += 1
@@ -214,6 +230,9 @@ class _Int:
             e.bit(p, o + 1, v < 0)
         m = abs(v)                    # >= 1, Elias gamma of m
         nb = m.bit_length() - 1
+        if nb > _GAMMA:
+            raise ValueError(f"bp_code: coded integer {v} out of range (|x| < 2^{_GAMMA + 1}); "
+                             "the limit is on the coded step, not the value")
         for i in range(nb):
             e.bit(p, o + 2 + min(i, _GAMMA - 1), 1)
         if nb < _GAMMA:
@@ -280,6 +299,8 @@ def _code(io, points=None, side=None, C=None, ns=None):
     n = io(hdr, len(points) if points is not None else 0, 0, False)
     C = io(hdr, C or 0, 1, False)
     ns = io(hdr, ns or 0, 2, False)
+    if n > MAX_TRACKS or C < 1 or C > MAX_COLS or ns > MAX_SIDE:
+        raise ValueError(f"bp_code: header out of range (tracks {n}, columns {C}, side {ns})")
     M = _Models(C, ns)
     out = []
     prev_s, prev_first = 0, [0] * C
@@ -293,6 +314,8 @@ def _code(io, points=None, side=None, C=None, ns=None):
         same = int(s == prev_s and ti > 0)
         prev_s = s
         last = io(M.length, int(keys[-1]) if keys is not None else 0, 0, False)
+        if last > MAX_LAST:
+            raise ValueError(f"bp_code: track {ti} last frame {last} out of range")
         sd = [io(M.side[j], sd[j]) for j in range(ns)]
         first = [prev_first[c] + io(M.first[c], (int(kv[0, c]) - prev_first[c]) if kv is not None else 0, same)
                  for c in range(C)]
@@ -306,6 +329,8 @@ def _code(io, points=None, side=None, C=None, ns=None):
             g = int(keys[i] - keys[i - 1]) if keys is not None else 0
             if last - pos > 1:           # one frame left: the gap is 1
                 g = 1 + io(M.gap, g - 1, last_gap, False)
+                if g > last - pos:
+                    raise ValueError(f"bp_code: track {ti} gap {g} runs past its last frame")
             else:
                 g = 1
             pos += g
@@ -330,26 +355,49 @@ def encode(tracks, tol=TOL, side=None) -> bytes:
     optional per-track lists of ints, the same length for every track.
     Returns the payload; decode() gives back the kept points."""
     pts = []
-    for s, v in tracks:
+    for i, (s, v) in enumerate(tracks):
         v = np.asarray(v, dtype=float)
         v = v[:, None] if v.ndim == 1 else v
+        if v.ndim != 2 or len(v) == 0 or v.shape[1] == 0:
+            raise ValueError(f"bp_code: track {i} is empty or not (L,) / (L, C); shape {v.shape}")
         k = select(v, tol)
         pts.append((int(s), k, np.rint(v[k]).astype(np.int64)))
     return encode_points(pts, side)
 
 
 def encode_points(points, side=None) -> bytes:
-    """points: list of (start, keys, kvals int (K,) or (K, C)). Keys start at
-    0 and end at the track's last frame, strictly rising."""
-    C = 1
-    if points:
-        kv0 = np.asarray(points[0][2])
-        C = 1 if kv0.ndim == 1 else kv0.shape[1]
-    ns = len(side[0]) if side else 0
-    pts = [(int(s), np.asarray(k, dtype=np.int64), np.asarray(kv, dtype=np.int64).reshape(len(k), C))
-           for s, k, kv in points]
-    for _, k, _ in pts:
-        assert k[0] == 0 and np.all(np.diff(k) > 0)
+    """points: list of (start, keys, kvals int (K,) or (K, C)), all the same
+    C. Keys start at 0 and end at the track's last frame, strictly rising.
+    side: None, or one list of ints per track, all the same length.
+    Every coded integer (start and first-value differences between tracks,
+    gaps, steps between kept values) needs |x| < 2^25."""
+    pts, C = [], None
+    for i, (s, k, kv) in enumerate(points):
+        k = np.asarray(k, dtype=np.int64)
+        kv = np.asarray(kv, dtype=np.int64)
+        if k.ndim != 1 or len(k) == 0:
+            raise ValueError(f"bp_code: track {i} has no keys")
+        if kv.ndim == 1:
+            kv = kv[:, None]
+        if kv.ndim != 2 or kv.shape[0] != len(k) or kv.shape[1] == 0:
+            raise ValueError(f"bp_code: track {i} values {kv.shape} do not match {len(k)} keys")
+        if C is None:
+            C = kv.shape[1]
+        elif kv.shape[1] != C:
+            raise ValueError(f"bp_code: track {i} has {kv.shape[1]} columns, track 0 has {C}")
+        if k[0] != 0 or np.any(np.diff(k) <= 0):
+            raise ValueError(f"bp_code: track {i} keys must start at 0 and rise strictly")
+        pts.append((int(s), k, kv))
+    C = C or 1
+    ns = 0
+    if side is not None:
+        side = [list(map(int, sd)) for sd in side]
+        if len(side) != len(pts):
+            raise ValueError(f"bp_code: {len(side)} side lists for {len(pts)} tracks")
+        ns = len(side[0]) if side else 0
+        for i, sd in enumerate(side):
+            if len(sd) != ns:
+                raise ValueError(f"bp_code: track {i} side has {len(sd)} values, track 0 has {ns}")
     io = _Put()
     _code(io, pts, side if ns else None, C, ns)
     return io.e.finish()
