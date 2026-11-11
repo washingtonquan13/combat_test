@@ -42,20 +42,20 @@ var _base: Dictionary = {}  # pair-key String -> Tier
 var _temporary_hostile: Dictionary = {}  # pair-key String -> true
 
 ## Snapshot of _base exactly as _ready() seeds it, captured once below.
-## Today that seed is empty — per the class doc above, _base is
-## "Authored content only, via set_relation(); nothing in this file ever
-## calls it automatically," and nothing else in the codebase calls
-## set_relation() either, so a fresh game currently starts with every
-## pair falling through to get_relation()'s own Hostile/Neutral
-## fallbacks. Captured as a variable (not hardcoded {}) so load_state({})
-## below stays correct if authored seed calls are ever added here —
-## "restore the authored defaults" should never silently drift from
-## whatever _ready() actually seeds.
+## The seed is the authored relation table (today one pair: townsfolk
+## and the player are allied). load_state() lays a save's pairs over
+## this snapshot, so an authored pair added after a save was written
+## still holds when that save loads.
 var _authored_defaults: Dictionary = {}
 
 
 func _ready() -> void:
 	CombatManager.combat_ended.connect(_on_combat_ended)
+	# Authored seed. Written to _base directly, not through set_relation():
+	# nothing is listening yet, and this is the table a new game starts
+	# from, not a change to it. Townsfolk (the quarry watchman) fight
+	# beside the party; every other pair keeps get_relation()'s fallback.
+	_base[_pair_key(&"townsfolk", Unit.PLAYER_FACTION)] = Tier.ALLIED
 	_authored_defaults = _base.duplicate()
 	_register_persistence.call_deferred()
 
@@ -132,26 +132,22 @@ func _on_combat_ended(_winning_faction: StringName) -> void:
 	temporary_hostilities_cleared.emit()
 
 
-## Only _base persists. _temporary_hostile is combat-scoped and already
-## self-clears on combat_ended (see _on_combat_ended above) — and
-## SaveManager.can_save() only allows saving in EXPLORATION/OVERWORLD,
-## never mid-combat — so a save can never observe it non-empty; nothing
-## to write.
+## Only _base persists. _temporary_hostile is combat-scoped and
+## self-clears on combat_ended (see _on_combat_ended above). Saving
+## mid-combat is allowed now (SaveManager.can_save), so a save taken
+## during an attack-provoked fight does not carry that escalation; the
+## fight itself is restored by Encounter.save_state.
 func save_state() -> Dictionary:
 	return {"base": _base.duplicate()}
 
 
-## {} (or a "base"-less section) restores _authored_defaults — the
-## snapshot of whatever _ready() actually seeded _base to — not an empty
-## dictionary. Per SaveManager's own contract (save_manager.gd, near its
-## _load_area()/open-save loop): "A section the file does not have loads
-## as {} rather than being skipped... load_state() means 'become what
-## this save says', and a save that says nothing about a system means
-## that system was empty." Read here, "empty of player-caused changes"
-## is "back to the authored table," not "every pair falls back to the
-## unlisted-pair default regardless of what was ever authored" — those
-## happen to be the same thing today only because nothing seeds _base
-## yet (see _authored_defaults above).
+## The new base is _authored_defaults with the save's "base" pairs laid
+## over it. {} or a "base"-less section therefore restores the authored
+## table, and a save written before an authored pair existed still gets
+## that pair; a pair the save does name (set_relation() during play)
+## wins over the authored value. Per SaveManager's contract a missing
+## section loads as {}, read here as "no player-caused changes", which
+## is the authored table, not "every pair falls back to the default".
 ##
 ## Emits relation_changed for every pair whose EFFECTIVE tier actually
 ## differs before vs. after the load — mirroring set_relation()'s own
@@ -160,7 +156,8 @@ func save_state() -> Dictionary:
 ## signal doesn't churn over a no-op load.
 func load_state(state: Dictionary) -> void:
 	var old_base: Dictionary = _base
-	var new_base: Dictionary = (state.get("base", _authored_defaults) as Dictionary).duplicate()
+	var new_base: Dictionary = _authored_defaults.duplicate()
+	new_base.merge(state.get("base", {}) as Dictionary, true)
 	_base = new_base
 	var touched_keys: Dictionary = {}
 	for key in old_base:

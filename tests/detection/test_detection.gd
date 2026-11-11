@@ -22,6 +22,7 @@ func run() -> void:
 	# teardown has already freed its units.
 	await _blocked_by_geometry()
 	_starts_combat_on_sight()
+	_blind_while_a_cutscene_plays()
 	_neutral_observer_does_not_attack()
 	_obscurity_is_a_real_input()
 
@@ -106,6 +107,25 @@ func _starts_combat_on_sight() -> void:
 			and guard.encounter.turn_order.has(intruder))
 
 	CombatManager.end_combat(&"")
+	free_spawned()
+
+
+## A cutscene that walks goblins up to the party must not start the fight
+## halfway through it. Marked active by hand: the gate only asks
+## is_active(), and mounting a real stage here would test the director.
+func _blind_while_a_cutscene_plays() -> void:
+	_ensure_out_of_combat()
+	var guard: Unit = spawn_unit(&"enemy", 10, 12, 20, [melee()], Vector3.ZERO)
+	var intruder: Unit = spawn_unit(&"player", 10, 12, 20, [melee()], Vector3(0.0, 0.0, -5.0))
+	guard.snap_face_point(intruder.global_position)
+
+	CinematicDirector._running = PackedScene.new()
+	var noticed: bool = _sweep_until_aware(guard, intruder)
+	CinematicDirector._running = null
+	check("nobody is noticed while a cutscene plays", not noticed and not guard.in_combat())
+
+	if CombatManager.any_combat_running():
+		CombatManager.end_combat(&"")
 	free_spawned()
 
 

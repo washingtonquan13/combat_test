@@ -1,0 +1,399 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
+[ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
+[ext_resource type="Script" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/walk_to_beat.gd" id="4_walk"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/face_beat.gd" id="5_face"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/line_beat.gd" id="6_line"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/place_beat.gd" id="7_place"]
+
+[sub_resource type="Animation" id="Animation_reset"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [&"camp_wide"]
+}
+
+[sub_resource type="Animation" id="Animation_scene"]
+resource_name = "scene"
+length = 10.6
+step = 0.1
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 6.6, 7.0, 9.0),
+"transitions": PackedFloat32Array(1, 1, 1, 1),
+"update": 1,
+"values": [&"camp_wide", &"hobgoblin_close", &"watchman_close", &"camp_wide"]
+}
+tracks/1/type = "method"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Beats/PlaceWatchman")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/2/type = "method"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Beats/LeaderFacesCamp")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/3/type = "method"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Beats/ShamanFacesLeader")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(0.1),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/4/type = "method"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("Beats/HobgoblinRounds")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(0.1),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/5/type = "method"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("Beats/RogueRounds")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(0.1),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/6/type = "method"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath("Beats/HobgoblinClimbs")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(2.9),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/7/type = "method"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath("Beats/RogueClimbs")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(3.7),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/8/type = "method"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath("Beats/HobgoblinThreat")
+tracks/8/interp = 1
+tracks/8/loop_wrap = true
+tracks/8/keys = {
+"times": PackedFloat32Array(6.7),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/9/type = "method"
+tracks/9/imported = false
+tracks/9/enabled = true
+tracks/9/path = NodePath("Beats/WatchmanArrives")
+tracks/9/interp = 1
+tracks/9/loop_wrap = true
+tracks/9/keys = {
+"times": PackedFloat32Array(7.0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/10/type = "method"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath("Beats/WatchmanFacesHobgoblin")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(8.7),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/11/type = "method"
+tracks/11/imported = false
+tracks/11/enabled = true
+tracks/11/path = NodePath("Beats/HobgoblinFacesWatchman")
+tracks/11/interp = 1
+tracks/11/loop_wrap = true
+tracks/11/keys = {
+"times": PackedFloat32Array(8.7),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/12/type = "method"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath("Beats/WatchmanStands")
+tracks/12/interp = 1
+tracks/12/loop_wrap = true
+tracks/12/keys = {
+"times": PackedFloat32Array(8.8),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/13/type = "method"
+tracks/13/imported = false
+tracks/13/enabled = true
+tracks/13/path = NodePath("Beats/HobgoblinBark")
+tracks/13/interp = 1
+tracks/13/loop_wrap = true
+tracks/13/keys = {
+"times": PackedFloat32Array(9.0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_ambush"]
+_data = {
+"RESET": SubResource("Animation_reset"),
+"scene": SubResource("Animation_scene")
+}
+
+[node name="GoblinCampAmbush" type="Node3D"]
+script = ExtResource("1_stage")
+anchor_mark = &"CampAmbush"
+props = {}
+world_marks = PackedStringArray("CampAmbush", "AmbushHobPath", "AmbushHobgoblin", "AmbushRoguePath", "AmbushRogue", "AmbushWatchmanEnter", "AmbushWatchmanStand")
+shot = &"camp_wide"
+
+[node name="Roles" type="Node3D" parent="."]
+
+[node name="leader" type="Marker3D" parent="Roles"]
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="hobgoblin" type="Marker3D" parent="Roles"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -2, 1.9, -7.5)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="rogue" type="Marker3D" parent="Roles"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -1.2, 1.7, -9)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="shaman" type="Marker3D" parent="Roles"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -14.5, 2.5, -31)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="watchman" type="Marker3D" parent="Roles"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.3, 0, 1.3)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="Marks" type="Node3D" parent="."]
+
+[node name="Shots" type="Node3D" parent="."]
+
+[node name="camp_wide" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"leader"
+subject_mark = &""
+distance = 6.5
+azimuth_degrees = 160.0
+elevation_degrees = 22.0
+fov_degrees = 55.0
+look_role = &"hobgoblin"
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="hobgoblin_close" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"hobgoblin"
+subject_mark = &""
+distance = 2.4
+azimuth_degrees = 20.0
+elevation_degrees = 6.0
+fov_degrees = 40.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="watchman_close" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"watchman"
+subject_mark = &""
+distance = 2.4
+azimuth_degrees = -25.0
+elevation_degrees = 6.0
+fov_degrees = 40.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="Beats" type="Node" parent="."]
+
+[node name="PlaceWatchman" type="Node" parent="Beats"]
+script = ExtResource("7_place")
+role = &"watchman"
+mark = &"AmbushWatchmanEnter"
+
+[node name="LeaderFacesCamp" type="Node" parent="Beats"]
+script = ExtResource("5_face")
+role = &"leader"
+target = &"hobgoblin"
+
+[node name="ShamanFacesLeader" type="Node" parent="Beats"]
+script = ExtResource("5_face")
+role = &"shaman"
+target = &"leader"
+
+[node name="HobgoblinRounds" type="Node" parent="Beats"]
+script = ExtResource("4_walk")
+role = &"hobgoblin"
+mark = &"AmbushHobPath"
+speed = 0.0
+duration = 2.7
+
+[node name="RogueRounds" type="Node" parent="Beats"]
+script = ExtResource("4_walk")
+role = &"rogue"
+mark = &"AmbushRoguePath"
+speed = 0.0
+duration = 3.5
+
+[node name="HobgoblinClimbs" type="Node" parent="Beats"]
+script = ExtResource("4_walk")
+role = &"hobgoblin"
+mark = &"AmbushHobgoblin"
+speed = 0.0
+duration = 3.7
+
+[node name="RogueClimbs" type="Node" parent="Beats"]
+script = ExtResource("4_walk")
+role = &"rogue"
+mark = &"AmbushRogue"
+speed = 0.0
+duration = 3.5
+
+[node name="HobgoblinThreat" type="Node" parent="Beats"]
+script = ExtResource("6_line")
+role = &"hobgoblin"
+speaker_name = "Hobgoblin"
+text = "Fresh meat, walking right into our quarry. Nobody leaves this pit."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="WatchmanArrives" type="Node" parent="Beats"]
+script = ExtResource("4_walk")
+role = &"watchman"
+mark = &"AmbushWatchmanStand"
+speed = 0.0
+duration = 1.6
+
+[node name="WatchmanFacesHobgoblin" type="Node" parent="Beats"]
+script = ExtResource("5_face")
+role = &"watchman"
+target = &"hobgoblin"
+
+[node name="HobgoblinFacesWatchman" type="Node" parent="Beats"]
+script = ExtResource("5_face")
+role = &"hobgoblin"
+target = &"watchman"
+
+[node name="WatchmanStands" type="Node" parent="Beats"]
+script = ExtResource("6_line")
+role = &"watchman"
+speaker_name = "Town Watchman"
+text = "Not today. I've followed these raiders for three nights. Stand with me, travellers, and we end this here."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="HobgoblinBark" type="Node" parent="Beats"]
+script = ExtResource("6_line")
+role = &"hobgoblin"
+speaker_name = "Hobgoblin"
+text = "Then you die with them. Get them!"
+wait_for_advance = false
+auto_seconds = 1.5
+
+[node name="Timeline" type="AnimationPlayer" parent="."]
+callback_mode_method = 1
+libraries = {
+"": SubResource("AnimationLibrary_ambush")
+}

@@ -1,4 +1,4 @@
-[gd_scene load_steps=99 format=3]
+[gd_scene load_steps=101 format=3]
 
 [ext_resource type="Script" path="res://world/goblin_quarry.gd" id="1_area"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_unit"]
@@ -8,6 +8,7 @@
 [ext_resource type="Resource" path="res://data/units/demons/goblin_rogue.tres" id="8_rogue"]
 [ext_resource type="Resource" path="res://data/units/demons/hobgoblin.tres" id="9_hob"]
 [ext_resource type="Resource" path="res://data/units/demons/goblin_shaman.tres" id="10_shaman"]
+[ext_resource type="Resource" path="res://data/units/npcs/quarry_watchman.tres" id="q_watchman"]
 [ext_resource type="Texture2D" path="res://assets/portraits/elf_archer.jpg" id="11_portrait"]
 [ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="12_ability"]
 [ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="13_melee"]
@@ -55,6 +56,9 @@ prerequisite = SubResource("Resource_raids_resolved")
 [sub_resource type="Resource" id="Resource_hub_dlgopt"]
 script = ExtResource("20_rootopt")
 root = ExtResource("19_hub")
+
+[sub_resource type="BoxShape3D" id="Shape_ambush"]
+size = Vector3(8, 9, 5.5)
 
 [sub_resource type="BoxShape3D" id="Shape_9"]
 size = Vector3(6, 5, 5)
@@ -562,6 +566,40 @@ definition = ExtResource("10_shaman")
 persistent_id = &"goblin_quarry_goblin_shaman"
 hover_color = Color(1, 0, 0, 0.501961)
 selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="Watchman" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 5.8, -2.56, -2.0)
+definition = ExtResource("q_watchman")
+persistent_id = &"goblin_quarry_watchman"
+
+[node name="CampAmbushTrigger" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 15.0, -3.5, -26.25)
+collision_layer = 0
+monitorable = false
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="CampAmbushTrigger"]
+shape = SubResource("Shape_ambush")
+
+[node name="CampAmbush" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 14.5, -5.47, -26.5)
+
+[node name="AmbushHobPath" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 12.5, -5.75, -48.5)
+
+[node name="AmbushHobgoblin" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 14.5, -3.5, -34.0)
+
+[node name="AmbushRoguePath" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 11.5, -5.85, -49.5)
+
+[node name="AmbushRogue" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 13.3, -3.75, -35.5)
+
+[node name="AmbushWatchmanEnter" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(-0.76, 0, -0.65, 0, 1, 0, 0.65, 0, -0.76, 20.0, -6.06, -21.5)
+
+[node name="AmbushWatchmanStand" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 16.8, -5.51, -25.2)
 
 [node name="MovableBox" parent="." instance=ExtResource("23_box")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.0, 0.35, 32.0)

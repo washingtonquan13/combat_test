@@ -1,0 +1,33 @@
+[gd_resource type="Resource" script_class="UnitDefinition" load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://systems/demon_system/unit_definition.gd" id="1_def"]
+[ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_scene"]
+[ext_resource type="PackedScene" path="res://scenes/character_models/placeholder_model.tscn" id="3_model"]
+[ext_resource type="Texture2D" path="res://assets/portraits/dwarf_fighter_1.jpg" id="4_portrait"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="5_ability"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="6_attack"]
+[ext_resource type="Script" path="res://systems/inventory_system/item_definition.gd" id="7_itemdef"]
+[ext_resource type="Resource" path="res://data/items/iron_sword.tres" id="8_sword"]
+[ext_resource type="Resource" path="res://data/ai_archetypes/brute.tres" id="9_arch"]
+
+[resource]
+script = ExtResource("1_def")
+id = "quarry_watchman"
+display_name = "Town Watchman"
+stats = Dictionary[StringName, int]({
+&"DX": 12,
+&"HT": 12,
+&"ST": 12
+})
+faction = &"townsfolk"
+portrait_texture = ExtResource("4_portrait")
+unit_scene = ExtResource("2_scene")
+model_scene = ExtResource("3_model")
+abilities = Array[ExtResource("5_ability")]([ExtResource("6_attack")])
+equipment = Dictionary[int, ExtResource("7_itemdef")]({
+12: ExtResource("8_sword")
+})
+ai_archetype = ExtResource("9_arch")
+level = 1
+move_speed = 4.0
+negotiable = false

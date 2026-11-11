@@ -81,6 +81,11 @@ func scan() -> void:
 	var tree: SceneTree = get_tree()
 	if tree == null:
 		return
+	# Nobody notices anything while a cutscene plays: units walked into
+	# view by the scene must not start a fight before it ends. The caller
+	# starts that fight itself once play() returns.
+	if CinematicDirector.is_active():
+		return
 
 	var units: Array[Unit] = UnitQuery.living_units(tree)
 	if units.size() < 2:

@@ -22,8 +22,10 @@ extends Node
 ## wasn't in this list), soft-locking CombatManager in Phase.ACTIVE
 ## forever with nobody calling end_turn(). Safe for an uninvolved
 ## bystander too — nobody's escalated against them, so AiScorer finds
-## nothing to do and their turn just passes.
-@export var ai_factions: Array[StringName] = [&"enemy", &"neutral"]
+## nothing to do and their turn just passes. &"townsfolk" is here for the
+## same reason: an allied NPC (the quarry watchman) takes turns in the
+## party's fights and is never player-controlled.
+@export var ai_factions: Array[StringName] = [&"enemy", &"neutral", &"townsfolk"]
 
 ## Safety cap on movement attempts within a single turn — guards against a
 ## pathological loop where a unit is fully wedged against something and
