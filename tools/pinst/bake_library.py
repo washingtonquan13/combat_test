@@ -40,6 +40,9 @@ import inventory  # noqa: E402
 import pinst_codec as pc  # noqa: E402
 import pinst_file as pf  # noqa: E402
 import run_prototype as rp  # noqa: E402
+import fastlib  # noqa: E402
+
+fastlib.recycle_big_arrays()
 
 
 def bake(x, f0, mid, body=None):
@@ -103,6 +106,37 @@ def do_file(job):
             "tiers": {k: v[1] for k, v in out.items()}, "bake_s": round(time.time() - t0, 2)}
 
 
+def core_masks():
+    """One affinity mask per physical core (Windows), or [] when unknown."""
+    if os.name != "nt":
+        return []
+    import ctypes
+
+    class Info(ctypes.Structure):
+        _fields_ = [("mask", ctypes.c_size_t), ("rel", ctypes.c_int), ("pad", ctypes.c_ulonglong * 2)]
+    k = ctypes.WinDLL("kernel32")
+    size = ctypes.c_ulong(0)
+    k.GetLogicalProcessorInformation(None, ctypes.byref(size))
+    buf = (Info * (size.value // ctypes.sizeof(Info)))()
+    if not k.GetLogicalProcessorInformation(buf, ctypes.byref(size)):
+        return []
+    return [i.mask for i in buf if i.rel == 0]
+
+
+def pin_worker(masks, counter):
+    """Each worker keeps to one core of its own. Left to the scheduler, two
+    workers now and then share a core's two threads while another core idles."""
+    import ctypes
+    with counter.get_lock():
+        i = counter.value
+        counter.value += 1
+    mask = masks[i % len(masks)]
+    k = ctypes.WinDLL("kernel32")
+    k.GetCurrentProcess.restype = ctypes.c_void_p
+    k.SetProcessAffinityMask.argtypes = [ctypes.c_void_p, ctypes.c_size_t]
+    k.SetProcessAffinityMask(k.GetCurrentProcess(), mask)
+
+
 def main():
     from concurrent.futures import ProcessPoolExecutor, as_completed
     sfz, root = sys.argv[1], sys.argv[2]
@@ -130,8 +164,12 @@ def main():
     jobs.sort(key=lambda j: -os.path.getsize(j[1]))
     print(f"{len(jobs)} files to bake, {len(done)} already done", flush=True)
     t0, n, bad = time.time(), 0, 0
-    workers = int(arg("--jobs") or max(1, (os.cpu_count() or 4) - 2))
-    with ProcessPoolExecutor(workers) as ex, open(log, "a", encoding="utf-8") as lf:
+    import multiprocessing
+    masks = core_masks()
+    # a worker per core: the second thread of a core adds nothing here
+    workers = int(arg("--jobs") or len(masks) or max(1, (os.cpu_count() or 4) // 2))
+    pin = dict(initializer=pin_worker, initargs=(masks, multiprocessing.Value("i", 0))) if masks else {}
+    with ProcessPoolExecutor(workers, **pin) as ex, open(log, "a", encoding="utf-8") as lf:
         futs = {ex.submit(do_file, j): j[0] for j in jobs}
         for fut in as_completed(futs):
             n += 1

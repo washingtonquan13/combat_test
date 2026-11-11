@@ -25,3 +25,29 @@ def _load():
 
 
 lib = _load()
+
+
+_keep = []
+
+
+def recycle_big_arrays():
+    """Make numpy take its big arrays from memfast.c, which keeps freed ones
+    for the next asker instead of handing them back to Windows. Same numbers;
+    a long-running baker stops paying for fresh pages. Returns whether it is on."""
+    if lib is None or _keep:
+        return bool(_keep)
+    try:
+        import numpy as np
+        from numpy._core import multiarray as ma
+        api = ctypes.pythonapi
+        api.PyCapsule_GetPointer.restype, api.PyCapsule_GetPointer.argtypes = ctypes.c_void_p, [ctypes.py_object, ctypes.c_char_p]
+        api.PyCapsule_New.restype, api.PyCapsule_New.argtypes = ctypes.py_object, [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p]
+        table = ctypes.cast(api.PyCapsule_GetPointer(ma._ARRAY_API, None), ctypes.POINTER(ctypes.c_void_p))
+        set_handler = ctypes.PYFUNCTYPE(ctypes.py_object, ctypes.py_object)(table[304])     # PyDataMem_SetHandler
+        name = b"mem_handler"
+        cap = api.PyCapsule_New(ctypes.addressof(ctypes.c_char.in_dll(lib, "mem_handler")), name, None)
+        _keep.extend([name, cap, set_handler(cap)])
+        assert ma.get_handler_name() == "pinst_recycle"
+    except Exception:
+        return False
+    return True

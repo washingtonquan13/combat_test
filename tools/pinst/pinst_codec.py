@@ -232,10 +232,19 @@ def _ref_db(H, edges):
     return _REF[key]
 
 
+_NOISE_Z = {}
+
+
 def synth_noise(db, H, n, edges, seed=7):
-    rng = np.random.default_rng(seed)
-    wn = rng.standard_normal(n + NOISE_N)
-    f, _, Z = stft(wn, SR, window="hann", nperseg=NOISE_N, noverlap=NOISE_N - H, boundary="even", padded=True)
+    # the white noise and its spectrum depend only on the length: every
+    # channel and tier of a note asks for the same one
+    key = (seed, H, n)
+    if key not in _NOISE_Z:
+        _NOISE_Z.clear()
+        wn = np.random.default_rng(seed).standard_normal(n + NOISE_N)
+        f, _, Z = stft(wn, SR, window="hann", nperseg=NOISE_N, noverlap=NOISE_N - H, boundary="even", padded=True)
+        _NOISE_Z[key] = (f, Z)
+    f, Z = _NOISE_Z[key]
     F = min(Z.shape[1], db.shape[0])
     centres = np.sqrt(edges[:-1] * edges[1:])
     g_db = db[:F] - _ref_db(H, edges)[None, :]
@@ -715,7 +724,6 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
     ndb = np.where(ndb < _band_db(x, nH, edges).max() + tier.noise_floor, -200.0, ndb)
     ch = Channel(n, H, tracks, ndb, nH)
     # 1 ms residual envelope over the onset and the 200 ms after it
-    noise_try = synth_noise(ndb, nH, n, edges)
     s0 = max(0, on - 10 * TNS_BLOCK)
     m = min(len(x) - s0, int(0.2 * SR)) // TNS_BLOCK
     ch.tns = block_db(resid[s0 : s0 + m * TNS_BLOCK]) if m > 2 else None
@@ -724,8 +732,7 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
         ch.junction = on + int(tier.pcm_ms * SR / 1000)
         ch.pcm = x[: ch.junction + int(0.004 * SR)].astype(np.float32)
     snr = 10 * np.log10((x**2).sum() / max((resid**2).sum(), 1e-20))
-    ch.info = {"f0": f0 if pitched else None, "N": N, "onset": on, "sine_snr_db": float(snr), "raw_tracks": len(tracks),
-               "noise_try_rms": float(np.sqrt((noise_try**2).mean()))}
+    ch.info = {"f0": f0 if pitched else None, "N": N, "onset": on, "sine_snr_db": float(snr), "raw_tracks": len(tracks)}
     return ch
 
 
