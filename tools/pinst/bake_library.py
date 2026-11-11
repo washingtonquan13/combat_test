@@ -84,14 +84,14 @@ def do_file(job):
     quiet = not np.any(x)
     ref = None if quiet else amp.amp_cab(two(x))
     tiers = {t.name: t for t in rp.TIERS}
-    di, amped = {}, {}      # the original's spectra, kept across the two candidates
+    amped = {}      # the original's spectra, kept across the two candidates
     out = {}
     if quiet:
         data = bake(x, f0, tiers["mid"])[0][0]
         out["mid"] = (data, {"bytes": len(data)})
     else:
         for name, (data, y) in zip(("mid", "body"), bake(x, f0, tiers["mid"], tiers["body"])):
-            out[name] = (data, {"bytes": len(data), **rp.score(two(x), two(y), di), "amp": rp.score(ref, amp.amp_cab(two(y)), amped)})
+            out[name] = (data, {"bytes": len(data), "amp": rp.score(ref, amp.amp_cab(two(y)), amped)})
     pick = "mid"
     if "body" in out and not quiet:
         m, b = out["mid"][1]["amp"], out["body"][1]["amp"]
