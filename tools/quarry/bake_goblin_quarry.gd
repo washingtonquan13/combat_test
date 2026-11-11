@@ -2182,6 +2182,9 @@ func _patch_scene() -> void:
 		if _props.has(path):
 			block = header + "\nmesh = ExtResource(\"p_%s\")\n" % path.get_slice("/", 2).to_snake_case()
 		if path == WALK_IN:
+			# A node export saved as a NodePath only resolves when the header
+			# lists it in node_paths; without that the roof is null.
+			block = block.replace(header, header.trim_suffix("]") + " node_paths=PackedStringArray(\"roof\")]")
 			block = block.strip_edges() + "\nscript = ExtResource(\"q_walkin\")\nroof = NodePath(\"Roof\")\nrooms = %s\n" % var_to_str(_walk_in.rooms)
 		if path == WALK_IN + "/Collision":
 			# The one box becomes the walls, floors, steps and chimney.

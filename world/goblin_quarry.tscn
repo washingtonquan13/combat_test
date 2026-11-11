@@ -234,7 +234,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0, 6.0684, 1.4)
 
 [node name="Town" type="Node3D" parent="LevelGeometry"]
 
-[node name="HouseWest" type="StaticBody3D" parent="LevelGeometry/Town"]
+[node name="HouseWest" type="StaticBody3D" parent="LevelGeometry/Town" node_paths=PackedStringArray("roof")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -13.0, 1.87, 30.0)
 script = ExtResource("q_walkin")
 roof = NodePath("Roof")
