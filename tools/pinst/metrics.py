@@ -88,15 +88,15 @@ _MEL = {}
 
 
 def _mel_bank(f, nmel):
-    if (len(f), nmel) not in _MEL:
+    if (SR, len(f), nmel) not in _MEL:
         mel = lambda h: 2595 * np.log10(1 + h / 700)
         edges = 700 * (10 ** (np.linspace(mel(30), mel(16000), nmel + 2) / 2595) - 1)
         fb = np.zeros((nmel, len(f)))
         for i in range(nmel):
             lo, c, hi = edges[i : i + 3]
             fb[i] = np.clip(np.minimum((f - lo) / (c - lo), (hi - f) / (hi - c)), 0, None)
-        _MEL[len(f), nmel] = fb
-    return _MEL[len(f), nmel]
+        _MEL[SR, len(f), nmel] = fb
+    return _MEL[SR, len(f), nmel]
 
 
 def _mel(x, N, nmel):
@@ -110,15 +110,15 @@ _SPARSE = {}
 
 def _mel_sparse(N, nmel):
     """The bank as the run of bins each filter touches: (start, length, offset, weights)."""
-    if (N, nmel) not in _SPARSE:
+    if (SR, N, nmel) not in _SPARSE:
         fb = _mel_bank(np.fft.rfftfreq(N, 1 / SR), nmel)
         nz = [np.flatnonzero(r) for r in fb]
         fs = np.array([k[0] if len(k) else 0 for k in nz], dtype=np.int32)
         fl = np.array([k[-1] - k[0] + 1 if len(k) else 0 for k in nz], dtype=np.int32)
         fo = (np.cumsum(fl) - fl).astype(np.int32)
         fw = np.concatenate([fb[i, fs[i]:fs[i] + fl[i]] for i in range(nmel)] + [np.zeros(1)])
-        _SPARSE[N, nmel] = fs, fl, fo, fw
-    return _SPARSE[N, nmel]
+        _SPARSE[SR, N, nmel] = fs, fl, fo, fw
+    return _SPARSE[SR, N, nmel]
 
 
 def mel_db(ref, test, nmel=64, N=2048, cache=None):

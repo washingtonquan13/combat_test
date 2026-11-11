@@ -270,7 +270,8 @@ def unpack(data: bytes):
     c = Cur(data)
     c.i = len(MAGIC)
     sr, nch, packed = c.v(), c.v(), c.v()
-    assert sr == pc.SR
+    assert sr in (44100, 48000), sr
+    pc.SR = sr      # the decoder runs at the note's own rate
     return [unpack_channel(c.take(c.v()), packed=packed) for _ in range(nch)]
 
 
@@ -281,14 +282,18 @@ def blobs(data: bytes):
     c = Cur(data)
     c.i = len(MAGIC)
     sr, nch, packed = c.v(), c.v(), c.v()
+    assert sr in (44100, 48000), sr
+    pc.SR = sr      # the decoder runs at the note's own rate
     return [c.take(c.v()) for _ in range(nch)], packed
 
 
 def repack(data: bytes, packed: bool) -> bytes:
     """The same note with its streams packed or stored."""
     bl, was = blobs(data)
+    c = Cur(relayout(data, to_frames=False))
+    c.i = len(MAGIC)
     out = bytearray(MAGIC)
-    _put(out, pc.SR, len(bl), int(packed))
+    _put(out, c.v(), len(bl), int(packed))
     for b in bl:
         c = Cur(b)
         for _ in range(17):

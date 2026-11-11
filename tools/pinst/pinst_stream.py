@@ -51,7 +51,7 @@ def noise_frame(seed, i, gain):
 
 def noise_ref_db(edges):
     """Band levels of this generator at unit gain, as the analysis measures them."""
-    key = len(edges)
+    key = (pc.SR, len(edges))
     if key not in _NREF:
         F = 4 * pc.SR // NH
         y = np.zeros((F + 1) * NH)

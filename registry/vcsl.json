@@ -4,7 +4,7 @@
     "harpsichord": {
       "layers": [
         {
-          "sfz": "vcsl/Chordophones/Zithers/Harpsichord, Flemish - Full.sfz"
+          "sfz": "pinst2/vcsl/Chordophones/Zithers/Harpsichord, Flemish - Full.sfz"
         }
       ],
       "range": [
@@ -15,7 +15,7 @@
     "dan-tranh": {
       "layers": [
         {
-          "sfz": "vcsl/Chordophones/Zithers/Dan Tranh - Normal.sfz"
+          "sfz": "pinst2/vcsl/Chordophones/Zithers/Dan Tranh - Normal.sfz"
         }
       ],
       "range": [
@@ -26,7 +26,7 @@
     "kalimba": {
       "layers": [
         {
-          "sfz": "vcsl/Idiophones/Plucked Idiophones/Kalimba, Kenya.sfz"
+          "sfz": "pinst2/vcsl/Idiophones/Plucked Idiophones/Kalimba, Kenya.sfz"
         }
       ],
       "range": [
@@ -37,7 +37,7 @@
     "ritual-kit": {
       "layers": [
         {
-          "sfz": "vcsl/ritual-kit.sfz"
+          "sfz": "pinst2/vcsl/ritual-kit.sfz"
         }
       ],
       "range": [

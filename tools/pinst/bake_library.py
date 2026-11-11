@@ -39,6 +39,7 @@ import os
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
 
+import collections
 import json
 import sys
 import time
@@ -49,6 +50,7 @@ import soundfile as sf
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import amp  # noqa: E402
 import inventory  # noqa: E402
+import metrics  # noqa: E402
 import pinst_codec as pc  # noqa: E402
 import pinst_file as pf  # noqa: E402
 import run_prototype as rp  # noqa: E402
@@ -90,7 +92,11 @@ def do_file(job):
     by = "amp" if judge != "dry" else None     # the scores the choice is made on
     t0 = time.time()
     x, sr = sf.read(src, always_2d=True)
-    assert sr == pc.SR, src
+    if len(x) < 4096:   # a stub (a library's 24-frame silence.wav) is padded with silence to the analysis windows
+        x = np.concatenate([x, np.zeros((4096 - len(x), x.shape[1]))])
+    # the note is coded at its own rate; the amp judge's cab is a 44.1 kHz IR
+    assert sr in (44100, 48000) and (sr == 44100 or by is None), (src, sr)
+    pc.SR = metrics.SR = sr
     nm = inventory.note_of(src)
     f0 = hz if hz != "name" else (rp.note_hz(nm) if nm else None)
     two = lambda a: a if a.shape[1] == 2 else np.repeat(a, 2, axis=1)
@@ -228,13 +234,21 @@ def main():
     # (--every, --only, a stopped run) leaves the rest on their original files
     for path in scan.files:
         lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
-        for ln, a, b, w, full, op in sorted(scan.sites[path], key=lambda t: (t[0], -t[1])):
-            if full is None or not os.path.exists(note_path(full)):
+        # a file included more than once (Salamander's region.txt, once per
+        # velocity layer) has each sample= site once per inclusion, each a
+        # different note: the text is rewritten once, when every one is there
+        at = collections.defaultdict(list)
+        for ln, a, b, w, full, op in scan.sites[path]:
+            at[ln, a, b].append((full, op))
+        for (ln, a, b), uses in sorted(at.items(), key=lambda t: (t[0][0], -t[0][1])):
+            if any(full is None or not os.path.exists(note_path(full)) for full, _ in uses):
                 continue
             new = os.path.splitext(lines[ln][a:b])[0] + ".pinst"
-            loop = inventory.wav_loop(full)
-            if loop and op is not None and "loop_mode" not in op:
-                assert "loop_start" not in op and "loop_end" not in op, (path, ln)
+            loops = {inventory.wav_loop(full) if op is not None and "loop_mode" not in op else None for full, op in uses}
+            assert len(loops) == 1, (path, ln, "one site, notes with different loops")
+            loop = loops.pop()
+            if loop:
+                assert all("loop_start" not in op and "loop_end" not in op for _, op in uses), (path, ln)
                 new += " loop_mode=loop_continuous loop_start=%d loop_end=%d" % loop
             lines[ln] = lines[ln][:a] + new + lines[ln][b:]
         os.makedirs(os.path.dirname(mirror(path)), exist_ok=True)

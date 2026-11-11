@@ -27,6 +27,7 @@ def samples(sfz_path):
 
 NAME_RE = re.compile(r"([a-g])([#b]?)(-?\d+)$")
 TOKEN_RE = re.compile(r"<(\w+)>|([A-Za-z0-9_$]+)=")
+INCLUDE_RE = re.compile(r'#include\s+"([^"]*)"')
 STEP = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
 
 
@@ -87,12 +88,16 @@ class Scan:
                 parts = st.split(None, 2)
                 self.defines[parts[1]] = parts[2].strip() if len(parts) > 2 else ""
                 continue
-            if st.startswith("#include"):
-                inc = self._subst(st[len("#include"):].strip()).strip('"').replace(BS, "/")
+            # an #include can sit anywhere on a line (Salamander: <group> #include "a" lovel=1 #include "b"):
+            # the text on each side is read in order around it, the rest blanked so columns stay put
+            at = 0
+            for m in INCLUDE_RE.finditer(line):
+                self._line(path, ln, raw, " " * at + line[at:m.start()] + " " * (len(line) - m.start()))
+                inc = self._subst(m.group(1)).replace(BS, "/")
                 cand = [os.path.join(self.base, inc), os.path.join(os.path.dirname(path), inc)]
                 self._file(next((c for c in cand if os.path.exists(c)), cand[0]))
-                continue
-            self._line(path, ln, raw, line)
+                at = m.end()
+            self._line(path, ln, raw, " " * at + line[at:])
 
     def _subst(self, s):
         for k in sorted(self.defines, key=len, reverse=True):
@@ -107,9 +112,11 @@ class Scan:
                 continue
             end = toks[i + 1].start() if i + 1 < len(toks) else len(line)
             op, val = self._subst(m.group(2)), line[m.end():end].strip()
-            if op == "sample" and "$" in val:
-                raise ValueError(f"{path}:{ln + 1}: a sample named through a #define")
             v = self._subst(val)
+            # the copy swaps the written extension for .pinst, so a define may
+            # name the extension (sample=x.$EXT) but nothing that moves the stem
+            if op == "sample" and "$" in val and self._subst(os.path.splitext(val)[0]) != os.path.splitext(v)[0]:
+                raise ValueError(f"{path}:{ln + 1}: a sample named through a #define")
             if self.where == "control":
                 self.control[op] = v
             elif self.where in self.scope and self.scope[self.where] is not None:

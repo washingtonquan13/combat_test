@@ -290,7 +290,7 @@ _REF = {}
 
 
 def _ref_db(H, edges):
-    key = (H, len(edges))
+    key = (SR, H, len(edges))
     if key not in _REF:
         rng = np.random.default_rng(1)
         _REF[key] = _band_db(rng.standard_normal(SR * 4), H, edges)[8:-8].mean(axis=0)
@@ -303,7 +303,7 @@ _NOISE_Z = {}
 def synth_noise(db, H, n, edges, seed=7):
     # the white noise and its spectrum depend only on the length: every
     # channel and tier of a note asks for the same one
-    key = (seed, H, n)
+    key = (SR, seed, H, n)
     if key not in _NOISE_Z:
         _NOISE_Z.clear()
         wn = np.random.default_rng(seed).standard_normal(n + NOISE_N)
@@ -597,7 +597,7 @@ def quantize(ch: Channel, tier: Tier):
     f0_bytes = 0
     f0q = None
     fs, ts, nfr = bytearray(), bytearray(), 0
-    if tier.harmonic_lock and ch.info.get("f0"):
+    if tier.harmonic_lock and ch.info.get("f0") and ch.tracks:     # a release thump can have no partials at all
         nfr = max(t.start + len(t.f) for t in ch.tracks) + 1
         memo = getattr(ch, "memo", None)    # the same for every tier of one analysis
         if memo is None or memo.get("f0k") != (ch.info["f0"], nfr):
