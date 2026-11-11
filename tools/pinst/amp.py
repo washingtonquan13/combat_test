@@ -37,6 +37,11 @@ def peak(x, fc, bw_oct, gain_db):
 
 
 def comp(x, thr_db=-26, ratio=4, att=0.005, rel=0.100):
+    if _native and x.ndim == 2 and x.shape[1] == 2:     # the lines below in one pass in C, last bits apart
+        x, out = np.ascontiguousarray(x, dtype=float), np.empty(x.shape)
+        _native.comp_stereo(x.ctypes.data, out.ctypes.data, len(x), thr_db, np.exp(-1 / (att * SR)),
+                            np.exp(-1 / (rel * SR)), 1 - 1 / ratio)
+        return out
     lvl = 20 * np.log10(np.abs(x).max(axis=1) + 1e-12)     # stereo link
     over = np.maximum(lvl - thr_db, 0)
     ga, gr = np.exp(-1 / (att * SR)), np.exp(-1 / (rel * SR))

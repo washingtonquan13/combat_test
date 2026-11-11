@@ -109,6 +109,13 @@ EXPORT double mr_absdiff(const double* Z, int64_t count, double scale, const uin
     return total;
 }
 
+/* out[i] = 20 log10(scale |Z[i]| + 1e-9). */
+EXPORT void mr_logmag(const double* Z, int64_t count, double scale, double* out) {
+    double s2 = scale * scale;
+    for (int64_t i = 0; i < count; i++) out[i] = (Z[2 * i] * Z[2 * i] + Z[2 * i + 1] * Z[2 * i + 1]) * s2;
+    for (int64_t a = 0; a < count; a += CH) vln(out + a, count - a < CH ? count - a : CH, 1, 1e-9, 2.0 * DB10);
+}
+
 /* Z: rows x bins complex. Filter f covers bins [fs[f], fs[f] + fl[f]) with
    weights fw[fo[f] ..]. out (rows x nmel, may be null) gets
    10 log10(scale^2 |Z|^2 . filter + 1e-18); returns the sum over kept cells
@@ -138,4 +145,77 @@ EXPORT double mel_rows(const double* Z, int64_t rows, int64_t bins, double scale
             if (m[nmel * j + f]) total += fabs(r[nmel * j + f] - v[f]);
     }
     return total;
+}
+
+#define EP1 1.66666666666666019037e-01
+#define EP2 -2.77777777770155933842e-03
+#define EP3 6.61375632143793436117e-05
+#define EP4 -1.65339022054652515390e-06
+#define EP5 4.13813679705723846039e-08
+#define INVLN2 1.44269504088896338700e+00
+
+/* x[i] = exp(x[i]) for x in [-700, 0]: fdlibm's, four at a time, same bits either way. */
+static void vexp_c(double* x, int64_t n) {
+    for (int64_t i = 0; i < n; i++) {
+        double k = floor(x[i] * INVLN2 + 0.5);
+        double hi = x[i] - k * LN2HI, lo = k * LN2LO, r = hi - lo, t = r * r;
+        double c = r - t * (EP1 + t * (EP2 + t * (EP3 + t * (EP4 + t * EP5))));
+        double y = 1.0 - ((lo - (r * c) / (2.0 - c)) - hi);
+        union { double d; uint64_t u; } q;
+        q.u = (uint64_t)((int64_t)k + 1023) << 52;
+        x[i] = y * q.d;
+    }
+}
+
+static void vexp_avx(double* x, int64_t n) {
+    const __m256d inv = _mm256_set1_pd(INVLN2), half = _mm256_set1_pd(0.5), hi2 = _mm256_set1_pd(LN2HI), lo2 = _mm256_set1_pd(LN2LO);
+    const __m256d p1 = _mm256_set1_pd(EP1), p2 = _mm256_set1_pd(EP2), p3 = _mm256_set1_pd(EP3), p4 = _mm256_set1_pd(EP4);
+    const __m256d p5 = _mm256_set1_pd(EP5), one = _mm256_set1_pd(1.0), two = _mm256_set1_pd(2.0);
+    const __m128i e1023 = _mm_set1_epi32(1023);
+    int64_t i = 0;
+    for (; i + 4 <= n; i += 4) {
+        __m256d v = _mm256_loadu_pd(x + i);
+        __m256d k = _mm256_floor_pd(_mm256_add_pd(_mm256_mul_pd(v, inv), half));
+        __m256d hi = _mm256_sub_pd(v, _mm256_mul_pd(k, hi2)), lo = _mm256_mul_pd(k, lo2);
+        __m256d r = _mm256_sub_pd(hi, lo), t = _mm256_mul_pd(r, r);
+        __m256d c = _mm256_sub_pd(r, _mm256_mul_pd(t, _mm256_add_pd(p1, _mm256_mul_pd(t, _mm256_add_pd(p2, _mm256_mul_pd(t,
+                    _mm256_add_pd(p3, _mm256_mul_pd(t, _mm256_add_pd(p4, _mm256_mul_pd(t, p5))))))))));
+        __m256d y = _mm256_sub_pd(one, _mm256_sub_pd(_mm256_sub_pd(lo, _mm256_div_pd(_mm256_mul_pd(r, c), _mm256_sub_pd(two, c))), hi));
+        __m256i e = _mm256_slli_epi64(_mm256_cvtepi32_epi64(_mm_add_epi32(_mm256_cvtpd_epi32(k), e1023)), 52);
+        _mm256_storeu_pd(x + i, _mm256_mul_pd(y, _mm256_castsi256_pd(e)));
+    }
+    _mm256_zeroupper();
+    vexp_c(x + i, n - i);
+}
+
+EXPORT void metric_exp(double* x, int64_t n) {
+    if (!metric_no_avx && has_avx2()) vexp_avx(x, n);
+    else vexp_c(x, n);
+}
+
+/* The amp's compressor (amp.comp) on n stereo frames: level of the louder
+   side in dB, the part over thr followed up fast (ga) and down slow (gr),
+   gain 10^(-that * slope / 20) on both sides. */
+EXPORT void comp_stereo(const double* x, double* out, int64_t n, double thr, double ga, double gr, double slope) {
+    double p[CH], e = 0.0, k = -slope / 20.0 * 2.302585092994046;
+    for (int64_t a = 0; a < n; a += CH) {
+        int64_t m = n - a < CH ? n - a : CH;
+        const double* z = x + 2 * a;
+        for (int64_t i = 0; i < m; i++) {
+            double l = fabs(z[2 * i]), r = fabs(z[2 * i + 1]);
+            p[i] = l > r ? l : r;
+        }
+        vln(p, m, 0, 1e-12, 2.0 * DB10);
+        for (int64_t i = 0; i < m; i++) {
+            double v = p[i] - thr;
+            if (!(v > 0.0)) v = 0.0;
+            e = v > e ? ga * e + (1 - ga) * v : gr * e + (1 - gr) * v;
+            p[i] = e * k;
+        }
+        metric_exp(p, m);
+        for (int64_t i = 0; i < m; i++) {
+            out[2 * (a + i)] = z[2 * i] * p[i];
+            out[2 * (a + i) + 1] = z[2 * i + 1] * p[i];
+        }
+    }
 }

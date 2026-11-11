@@ -58,7 +58,14 @@ def mrstft_db(ref, test, floor_db=-80.0, cache=None):
     out = []
     for N in (256, 1024, 4096):
         def side(N=N):
-            R = np.concatenate([_logmag(Z) for _, Z in _spectra(_fit(ref[:n]), N)])
+            if fastlib.lib:
+                R = []
+                for _, (Z, scale) in _spectra(_fit(ref[:n]), N, raw=True):
+                    R.append(np.empty(Z.shape))
+                    fastlib.lib.mr_logmag(Z.ctypes.data, Z.size, scale, R[-1].ctypes.data)
+                R = np.concatenate(R)
+            else:
+                R = np.concatenate([_logmag(Z) for _, Z in _spectra(_fit(ref[:n]), N)])
             lo = R.max() + floor_db
             m = R > lo
             at = np.concatenate([[0], np.cumsum(m.sum(axis=1))])    # where each frame's kept bins start
@@ -116,14 +123,24 @@ def _mel_sparse(N, nmel):
 
 def mel_db(ref, test, nmel=64, N=2048, cache=None):
     n = min(len(ref), len(test))
+    fast = bool(fastlib.lib) and N // 2 + 1 <= 4100 and nmel <= 256
+    if fast:
+        fs, fl, fo, fw = _mel_sparse(N, nmel)
 
     def side():
-        r = np.concatenate([t for _, t in _mel(_fit(ref[:n]), N, nmel)])
+        if fast:
+            r = []
+            for _, (Z, scale) in _spectra(_fit(ref[:n]), N, raw=True):
+                r.append(np.empty((len(Z), nmel)))
+                fastlib.lib.mel_rows(Z.ctypes.data, Z.shape[0], Z.shape[1], scale, nmel, fs.ctypes.data, fl.ctypes.data,
+                                     fo.ctypes.data, fw.ctypes.data, r[-1].ctypes.data, None, None)
+            r = np.concatenate(r)
+        else:
+            r = np.concatenate([t for _, t in _mel(_fit(ref[:n]), N, nmel)])
         return r, r > r.max() - 80
     r, m = _kept(cache, ("mel", N, nmel, n), side)
     total = 0.0
-    if fastlib.lib and N // 2 + 1 <= 4100 and nmel <= 256:
-        fs, fl, fo, fw = _mel_sparse(N, nmel)
+    if fast:
         for a, (Z, scale) in _spectra(_fit(test[:n]), N, raw=True):
             total += fastlib.lib.mel_rows(Z.ctypes.data, Z.shape[0], Z.shape[1], scale, nmel, fs.ctypes.data,
                                           fl.ctypes.data, fo.ctypes.data, fw.ctypes.data, None,
