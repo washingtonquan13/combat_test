@@ -84,6 +84,10 @@ var _nz := 0
 var _hgrid := PackedFloat32Array()
 var _hA := 0.0
 var _hB := 0.0
+## Poly Haven scans that come cracked and backless; MeshClose seals them.
+const MeshCloser := preload("res://tools/quarry/mesh_close.gd")
+const SCANNED_ROCKS := ["rock_moss_set_01", "rock_moss_set_02", "rock_face_01", "rock_face_02", "rock_07", "rock_09", "coast_rocks_01", "coast_rocks_02"]
+
 var _open_cache := {}
 var _convex_cache := {}
 var _saved := {}
@@ -1176,6 +1180,14 @@ func _meshes_of(file: String, dir := M) -> Array[Mesh]:
 	var i := 0
 	for mi: Node in scene.find_children("*", "MeshInstance3D", true, false):
 		var mesh: Mesh = (mi as MeshInstance3D).mesh
+		if file in SCANNED_ROCKS:
+			# Their cracks and missing backs show the sky through the rock.
+			var shut: Dictionary = MeshCloser.close(mesh)
+			print("  closed %s[%d]: %s" % [file, i, shut.report])
+			if shut.left > 0:
+				print("  WARNING %s[%d] still has %d open edges" % [file, i, shut.left])
+			mesh = shut.mesh
+			_open_cache[mesh] = shut.open_dir
 		var path := OUT + "meshes/%s_%d.res" % [file, i]
 		ResourceSaver.save(mesh, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
 		mesh.take_over_path(path)
