@@ -35,6 +35,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pinst_codec as pc  # noqa: E402
 
 MAGIC = b"PINST1"
+MAGIC2 = b"PINST2"      # the same, the dt df da keys in frame order (_reorder)
 _F = [{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME}]
 
 
@@ -111,6 +112,66 @@ def pack_channel(dec: pc.Channel, tier: pc.Tier, packed=True) -> bytes:
     return bytes(out)
 
 
+def _key_order(hdr: bytes, lock: int, ntr: int):
+    """Each track's (start, key count), from hdr."""
+    c = Cur(hdr)
+    start, info = 0, []
+    for _ in range(ntr):
+        start += c.v()
+        nk = c.v()
+        if lock:
+            c.v()
+        c.v(); c.v(); c.raw()
+        info.append((start, nk))
+    return info
+
+
+def _reorder(hdr: bytes, dt: bytes, df: bytes, da: bytes, lock: int, ntr: int, to_frames: bool):
+    """dt df da from track order to PINST2's frame order (to_frames) or back.
+    Frame order is the order a player reads the keys in when it reads each
+    one on the frame before it is first needed: key j (j >= 1) of a track
+    starting at frame s on frame max(s + key[j-1] - 1, 0), ties by track,
+    then key. So a note's first block reads only the keys it plays."""
+    import heapq
+    info = _key_order(hdr, lock, ntr)
+    heap = [(max(s - 1, 0), i) for i, (s, nk) in enumerate(info) if nk > 1]
+    heapq.heapify(heap)
+    order = []                      # (track, key index) in frame order
+    if to_frames:
+        ct, cf, ca = Cur(dt), Cur(df), Cur(da)
+        trk = []
+        for s, nk in info:
+            trk.append([(ct.v(), cf.v(), ca.v()) for _ in range(nk - 1)])
+        last = [0] * ntr
+        got = [0] * ntr
+        while heap:
+            _, i = heapq.heappop(heap)
+            d = trk[i][got[i]]
+            order.append(d)
+            last[i] += d[0]
+            got[i] += 1
+            if got[i] < info[i][1] - 1:
+                heapq.heappush(heap, (max(info[i][0] + last[i] - 1, 0), i))
+        seq = order
+    else:
+        ct, cf, ca = Cur(dt), Cur(df), Cur(da)
+        trk = [[] for _ in range(ntr)]
+        last = [0] * ntr
+        while heap:
+            _, i = heapq.heappop(heap)
+            d = (ct.v(), cf.v(), ca.v())
+            trk[i].append(d)
+            last[i] += d[0]
+            if len(trk[i]) < info[i][1] - 1:
+                heapq.heappush(heap, (max(info[i][0] + last[i] - 1, 0), i))
+        seq = [d for t in trk for d in t]
+    o = [bytearray(), bytearray(), bytearray()]
+    for d in seq:
+        for k in range(3):
+            pc._varint(int(d[k]), o[k])
+    return bytes(o[0]), bytes(o[1]), bytes(o[2])
+
+
 def pack(channels, tier, packed=True) -> bytes:
     """channels: decoded Channels, mid first, side second if kept."""
     out = bytearray(MAGIC)
@@ -119,7 +180,7 @@ def pack(channels, tier, packed=True) -> bytes:
         b = pack_channel(ch, tier, packed)
         _put(out, len(b))
         out += b
-    return bytes(out)
+    return relayout(bytes(out), True)     # written as PINST2, the keys in frame order
 
 
 # -------------------------------------------------------------------- read
@@ -204,6 +265,7 @@ def unpack_channel(blob: bytes, decode_layers=True, packed=True):
 
 
 def unpack(data: bytes):
+    data = relayout(data, to_frames=False)
     assert data[: len(MAGIC)] == MAGIC
     c = Cur(data)
     c.i = len(MAGIC)
@@ -214,6 +276,7 @@ def unpack(data: bytes):
 
 def blobs(data: bytes):
     """(channel blobs, packed)"""
+    data = relayout(data, to_frames=False)
     assert data[: len(MAGIC)] == MAGIC
     c = Cur(data)
     c.i = len(MAGIC)
@@ -238,6 +301,38 @@ def repack(data: bytes, packed: bool) -> bytes:
             s = c.take(c.v())
             s = _unlz(s) if was else bytes(s)
             s = _lz(s) if packed else s
+            _put(o, len(s))
+            o += s
+        _put(out, len(o))
+        out += o
+    return bytes(out)
+
+
+def relayout(data: bytes, to_frames=True) -> bytes:
+    """The same note, its partials' keys in PINST2's frame order (or back to
+    PINST1's track order). Every other byte of every stream is kept."""
+    want, have = (MAGIC2, MAGIC) if to_frames else (MAGIC, MAGIC2)
+    if data[:6] == want:
+        return data
+    assert data[:6] == have
+    c = Cur(data)
+    c.i = 6
+    sr, nch, packed = c.v(), c.v(), c.v()
+    out = bytearray(want)
+    _put(out, sr, nch, packed)
+    for _ in range(nch):
+        b = c.take(c.v())
+        cc = Cur(b)
+        h = [cc.v() for _ in range(18)]
+        for _ in range(8 * h[17]):
+            cc.v()
+        o = bytearray(b[: cc.i])
+        raw = [bytes(cc.take(cc.v())) for _ in range(7 + 2 * h[17])]
+        st = [_unlz(s) if packed else s for s in raw[:4]]
+        dt, df, da = _reorder(st[0], st[1], st[2], st[3], h[9], h[11], to_frames)
+        for k, s in enumerate((dt, df, da)):
+            raw[1 + k] = (_lz(s) if s else b"") if packed else s
+        for s in raw:
             _put(o, len(s))
             o += s
         _put(out, len(o))
