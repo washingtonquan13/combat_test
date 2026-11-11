@@ -18,6 +18,8 @@ def _load():
         ("np_sum", d, [p, i64]),
         ("keyframes", i64, [p, i64, i, p, i64, p]),
         ("steer_keys", i, [p, p, p, p, i64, i64, d, d, d, d, d, d, d, p]),
+        ("st_phase", None, [p, p, p, p, i64, i, p, p, p, p]),
+        ("st_acc", None, [p, p, p, p, i64, i, p, p, i64]),
     ):
         f = getattr(lib, name)
         f.restype, f.argtypes = res, args

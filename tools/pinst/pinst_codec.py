@@ -29,6 +29,7 @@ import numpy as np
 import soundfile as sf
 from scipy.optimize import linear_sum_assignment
 from scipy.ndimage import uniform_filter1d
+from scipy.fft import rfft as _rfft     # numpy's own gives the same bits, slower
 from scipy.signal import get_window, stft, istft
 
 SR = 44100
@@ -75,7 +76,7 @@ def _stft_frames(x: np.ndarray, N: int, H: int, Z: int, rows: int = 0):
         buf = np.zeros((len(idx), Z))
         buf[:, : N - N // 2] = seg[:, N // 2 :]
         buf[:, Z - N // 2 :] = seg[:, : N // 2]
-        yield np.fft.rfft(buf, axis=1), w.sum()
+        yield _rfft(buf, axis=1), w.sum()
 
 
 def find_peaks_frames(x, N, H, max_peaks=100, rel_db=-80.0, abs_db=-110.0, prom_db=9.0, fmax=18000.0):
@@ -156,6 +157,7 @@ def synth_tracks(tracks, n, H, mode="phase", anchors=None, gate_from=0):
     default its first frame) and integrated from frequency after that."""
     out = np.zeros(n + 4 * H)
     t = np.arange(H)
+    rows = []
     for ti, tr in enumerate(tracks):
         L = len(tr.f)
         w = TWO_PI * tr.f / SR
@@ -185,17 +187,38 @@ def synth_tracks(tracks, n, H, mode="phase", anchors=None, gate_from=0):
         e = th1 - th0 - w0 * T + TWO_PI * M
         al = 3.0 / T**2 * e - (w1 - w0) / T
         be = -2.0 / T**3 * e + (w1 - w0) / T**2
+        s0 = (tr.start - 1) * H
+        if fastlib.lib:
+            rows.append((th0, w0, al, be, amp[:-1], amp[1:] - amp[:-1], s0 + H * np.arange(len(al))))
+            continue
         phase = th0[:, None] + w0[:, None] * t + al[:, None] * t**2 + be[:, None] * t**3
         A = amp[:-1, None] + (amp[1:] - amp[:-1])[:, None] * (t / T)
         y = (A * np.cos(phase)).ravel()
-        s0 = (tr.start - 1) * H
         a0, b0 = max(0, s0), min(len(out), s0 + len(y))
         if b0 > a0:
             out[a0:b0] += y[a0 - s0 : b0 - s0]
+    if rows:
+        _synth_rows(rows, H, out)
     out = out[:n]
     if gate_from > 0:
         out[:gate_from] = 0.0
     return out
+
+
+def _synth_rows(rows, H, out):
+    """The frames of every partial, in order, a cache-sized batch at a time."""
+    th0, w0, al, be, a0, da = (np.ascontiguousarray(np.concatenate([r[k] for r in rows]), dtype=float) for k in range(6))
+    off = np.ascontiguousarray(np.concatenate([r[6] for r in rows]), dtype=np.int64)
+    t = np.arange(H)
+    t1, t2, t3, tT = t.astype(float), (t**2).astype(float), (t**3).astype(float), t / float(H)
+    step = max(1, 16384 // H)
+    buf = np.empty(step * H)
+    ptr = lambda a, i=0: a.ctypes.data + 8 * i
+    for a in range(0, len(off), step):
+        m = min(step, len(off) - a)
+        fastlib.lib.st_phase(ptr(th0, a), ptr(w0, a), ptr(al, a), ptr(be, a), m, H, ptr(t1), ptr(t2), ptr(t3), ptr(buf))
+        np.cos(buf[: m * H], out=buf[: m * H])
+        fastlib.lib.st_acc(ptr(buf), ptr(a0, a), ptr(da, a), ptr(tT), m, H, ptr(off, a), ptr(out), len(out))
 
 
 # --------------------------------------------------------------------- noise

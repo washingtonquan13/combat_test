@@ -104,3 +104,28 @@ EXPORT int steer_keys(const double* cents, const double* ref, const double* ph, 
     }
     return 0;
 }
+
+/* synth_tracks, a few frames of many partials at a time. st_phase writes the
+   cubic phase of each frame, numpy takes its cosine, st_acc scales it by the
+   frame's amplitude ramp and adds it to the note. The sums are written out
+   in numpy's order: ((th + w t) + al t^2) + be t^3 and a0 + da (t / T). */
+EXPORT void st_phase(const double* th0, const double* w0, const double* al, const double* be, int64_t rows, int H,
+                     const double* t1, const double* t2, const double* t3, double* buf) {
+    for (int64_t r = 0; r < rows; r++) {
+        double a = th0[r], b = w0[r], c = al[r], d = be[r];
+        double* o = buf + r * H;
+        for (int i = 0; i < H; i++) o[i] = ((a + b * t1[i]) + c * t2[i]) + d * t3[i];
+    }
+}
+
+EXPORT void st_acc(const double* cosv, const double* a0, const double* da, const double* tT, int64_t rows, int H,
+                   const int64_t* off, double* out, int64_t nout) {
+    for (int64_t r = 0; r < rows; r++) {
+        const double* c = cosv + r * H;
+        double a = a0[r], d = da[r];
+        int64_t j0 = off[r];
+        int lo = j0 < 0 ? (int)(-j0 < H ? -j0 : H) : 0;
+        int hi = j0 + H > nout ? (int)(nout - j0 > 0 ? nout - j0 : 0) : H;
+        for (int i = lo; i < hi; i++) out[j0 + i] += (a + d * tT[i]) * c[i];
+    }
+}
