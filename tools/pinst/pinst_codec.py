@@ -443,13 +443,13 @@ def quantize(ch: Channel, tier: Tier):
     prev_start = 0
     f0_bytes = 0
     f0q = None
+    fs, ts, nfr = bytearray(), bytearray(), 0
     if tier.harmonic_lock and ch.info.get("f0"):
         nfr = max(t.start + len(t.f) for t in ch.tracks) + 1
         f0t = estimate_f0_track(ch.tracks, ch.info["f0"], nfr)
         c0 = 1200 * np.log2(f0t / 20.0)
         k0 = keyframes(c0[:, None], np.array([tier.f0_cents]))
         q0 = np.round(c0[k0] / tier.f0_cents).astype(np.int64)
-        fs = bytearray()
         for i in range(len(k0)):
             _varint(k0[i] - (k0[i - 1] if i else 0), fs)
             _varint(q0[i] - (q0[i - 1] if i else 0), fs)
@@ -508,7 +508,6 @@ def quantize(ch: Channel, tier: Tier):
     if ch.tns is not None:
         tk = keyframes(ch.tns[:, None], np.array([1.5]))
         qt = np.round(ch.tns[tk] / 1.5).astype(np.int64)
-        ts = bytearray()
         for i in range(len(tk)):
             _varint(tk[i] - (tk[i - 1] if i else 0), ts)
             _varint(qt[i] - (qt[i - 1] if i else 0), ts)
@@ -530,7 +529,11 @@ def quantize(ch: Channel, tier: Tier):
         "f0": f0_bytes,
     }
     out = Channel(ch.n, H, dec, noise_dec, ch.noise_H, tns_dec, ch.tns_start, ch.pcm, ch.junction,
-                  {"anchors": anchors, "n_tracks": len(dec), "n_keys": int(sum(len(t.f) for t in dec))})
+                  {"anchors": anchors, "n_tracks": len(dec), "n_keys": int(sum(len(t.f) for t in dec)),
+                   "streams": {"hdr": bytes(hdr), "dt": bytes(dts), "df": bytes(dfs), "da": bytes(das),
+                               "noise": bytes(nstream), "tns": bytes(ts), "f0": bytes(fs)},
+                   "lock": f0q is not None, "f0_frames": nfr, "noise_frames": len(nd),
+                   "tns_len": 0 if ch.tns is None else len(ch.tns)})
     return out, sizes
 
 
@@ -559,43 +562,69 @@ def _ints(a) -> bytes:
     return bytes(out)
 
 
+def _xf_edges(K, nbands):
+    return np.unique(np.concatenate([[0], np.round(np.geomspace(2, K, nbands + 1)).astype(int)]))
+
+
+def xform_decode(sc, q, n, M, K, nbands, snr, noise_hz, dead):
+    """The signal from what the stream holds. sc: (frames, bands) scale
+    codes in 1.5 dB steps, `dead` marking bands that carry nothing.
+    q: (frames, K) coefficient codes."""
+    B, w = _mdct(M)
+    B = B[:, :K]
+    edges = _xf_edges(K, nbands)
+    wid = np.diff(edges)
+    F = sc.shape[0]
+    live = sc != dead
+    rms = 10 ** (sc * 1.5 / 20) * live
+    step = np.repeat(np.maximum(rms, 1e-30) * 10 ** (-snr / 20) * np.sqrt(12), wid, axis=1)
+    noisy = (edges[:-1] * SR / (2 * M) >= noise_hz) if noise_hz > 0 else np.zeros(len(wid), bool)
+    coded = np.repeat(live & ~noisy[None, :], wid, axis=1)
+    Xd = q * step
+    lack = np.maximum(rms**2 * wid - np.add.reduceat(Xd**2, edges[:-1], axis=1), 0)
+    nzero = np.add.reduceat((q == 0).astype(float), edges[:-1], axis=1)
+    fill = np.repeat(np.sqrt(lack / np.maximum(nzero, 1)), wid, axis=1)
+    fill = np.where(coded, np.minimum(fill, step / np.sqrt(12)), fill)    # a coded zero was under half a step: never louder than that
+    Xd = Xd + (q == 0) * fill * np.random.default_rng(11).standard_normal(Xd.shape)
+    yf = (Xd @ B.T) * w * (2 / M)
+    out = np.zeros((F + 1) * M)
+    for i in range(F):
+        out[i * M : i * M + 2 * M] += yf[i]
+    return out[M : M + n]
+
+
 def xform_code(e, tier, M=None, snr=None, fmax=None):
     """What the partials miss, as quantized MDCT coefficients: a scale per
     band and frame, coefficients rounded to a step set by the SNR target.
     Coefficients that round to nothing are refilled with noise so each band
-    keeps its energy. Returns (decoded signal, bytes)."""
+    keeps its energy. Returns (decoded signal, bytes, stream)."""
     M = M or tier.xf_M
     snr = tier.xf_snr if snr is None else snr
     K = M if fmax is None else max(4, int(np.ceil(fmax * 2 * M / SR)))    # bins kept
+    noise_hz = tier.xf_noise_hz if fmax is None else 0.0
     B, w = _mdct(M)
     B = B[:, :K]
     F = int(np.ceil(len(e) / M)) + 1
     buf = np.zeros((F + 1) * M)
     buf[M : M + len(e)] = e
     X = (np.lib.stride_tricks.sliding_window_view(buf, 2 * M)[::M] * w) @ B
-    edges = np.unique(np.concatenate([[0], np.round(np.geomspace(2, K, tier.xf_bands + 1)).astype(int)]))
+    edges = _xf_edges(K, tier.xf_bands)
     wid = np.diff(edges)
     sdb = 10 * np.log10(np.add.reduceat(X**2, edges[:-1], axis=1) / wid + 1e-30)
     live = sdb > sdb.max() + tier.xf_floor
     qs = np.round(sdb / 1.5).astype(np.int64)
+    dead = int(qs[live].min() - 1) if live.any() else 0
+    sc = np.where(live, qs, dead)
     rms = 10 ** (qs * 1.5 / 20) * live
     step = np.repeat(np.maximum(rms, 1e-30) * 10 ** (-snr / 20) * np.sqrt(12), wid, axis=1)
-    noisy = (edges[:-1] * SR / (2 * M) >= tier.xf_noise_hz) if (tier.xf_noise_hz > 0 and fmax is None) else np.zeros(len(wid), bool)
-    coded = np.repeat(live & ~noisy[None, :], wid, axis=1)
-    q = np.where(coded, np.round(X / step), 0).astype(np.int64)
-    Xd = q * step
-    lack = np.maximum(rms**2 * wid - np.add.reduceat(Xd**2, edges[:-1], axis=1), 0)
-    nzero = np.add.reduceat((q == 0).astype(float), edges[:-1], axis=1)
-    fill = np.repeat(np.sqrt(lack / np.maximum(nzero, 1)), wid, axis=1)
-    fill = np.where(coded, np.minimum(fill, step / np.sqrt(12)), fill)    # a coded zero was under half a step: never louder than that
-    Xd = Xd + (q == 0) * fill * np.random.default_rng(11).standard_normal(X.shape)
-    yf = (Xd @ B.T) * w * (2 / M)
-    out = np.zeros_like(buf)
-    for i in range(F):
-        out[i * M : i * M + 2 * M] += yf[i]
-    sc = np.where(live, qs, qs[live].min() - 1 if live.any() else 0)
-    sc[1:] -= sc[:-1].copy()
-    return out[M : M + len(e)], _lz(_ints(sc)) + _lz(_ints(q))
+    noisy = (edges[:-1] * SR / (2 * M) >= noise_hz) if noise_hz > 0 else np.zeros(len(wid), bool)
+    q = np.where(np.repeat(live & ~noisy[None, :], wid, axis=1), np.round(X / step), 0).astype(np.int64)
+    d = sc.copy()
+    d[1:] -= sc[:-1]
+    stream = {"n": len(e), "M": M, "K": K, "nbands": tier.xf_bands, "snr": snr, "noise_hz": noise_hz, "dead": dead,
+              "frames": F, "sc": _ints(d), "q": _ints(q)}
+    y = xform_decode(sc, q, len(e), M, K, tier.xf_bands, snr, noise_hz, dead)
+    return y, _lz(stream["sc"]) + _lz(stream["q"]), stream
 
 
 # ------------------------------------------------------------------ compile
@@ -691,7 +720,7 @@ def compile_channel(x, pitched, f0, tier):
         j = min(ch.n, ch.info["onset"] + int(tier.xf_ms * SR / 1000))
         L = min(ch.n, j + int(0.004 * SR))
         det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
-        dec.xres, sizes["xform"] = xform_code(x[:L] - det[:L], tier)
+        dec.xres, sizes["xform"], dec.info["xf"] = xform_code(x[:L] - det[:L], tier)
         dec.junction = j
         if j >= dec.tns_start + int(0.2 * SR):
             # the layer already covers the stretch the 1 ms envelope was for
@@ -703,7 +732,8 @@ def compile_channel(x, pitched, f0, tier):
             w[j:L] = np.linspace(1, 0, L - j)
             left = x - det
             left[:L] -= dec.xres * w[:L]
-            dec.xlf, sizes["xform_lf"] = xform_code(left, tier, M=tier.xf_lf_M, snr=tier.xf_lf_snr, fmax=tier.xf_lf_hz)
+            dec.xlf, sizes["xform_lf"], dec.info["xlf"] = xform_code(left, tier, M=tier.xf_lf_M, snr=tier.xf_lf_snr, fmax=tier.xf_lf_hz)
+            dec.info["lf_hz"] = tier.xf_lf_hz
             edges = erb_edges(tier.noise_bands)
             dec.noise_db = dec.noise_db.copy()
             dec.noise_db[:, np.sqrt(edges[:-1] * edges[1:]) < tier.xf_lf_hz] = -200.0
