@@ -1,7 +1,7 @@
 """Bake every sample an SFZ uses into .pinst notes, and write the same SFZ
 pointing at them.
 
-  python -I tools/pinst/bake_library.py FILE.sfz OUT_ROOT [--every N] [--jobs N] [--only TEXT]
+  python -I tools/pinst/bake_library.py FILE.sfz OUT_ROOT [--judge amp|dry|both] [--every N] [--jobs N] [--only TEXT]
 
 FILE.sfz sits in LIB/Programs and names its samples relative to itself; the
 notes land at the same relative paths under OUT_ROOT with .pinst in place of
@@ -13,7 +13,11 @@ offsets in the SFZ mean what they meant.
 A file keeps its channel count (sfizz treats mono and stereo regions
 differently): a stereo file whose side is under -40 dB keeps a silent second
 channel. Each file is baked at the mid and body tiers and the chooser from
-run_prototype keeps one, judged through the amp.
+run_prototype keeps one. --judge says how the library is heard, which is how
+the two are compared: amp (the default) through the amp and cabinet, for a
+guitar that is never played without them; dry as they are, for drums and
+anything else heard clean, with no amp run at all; both chooses by the amp
+and writes the dry scores to the log as well, for checking the codec itself.
 
 Rows go to OUT_ROOT/bake.jsonl as files finish; files already there are
 skipped, so a stopped run carries on. --every N bakes each Nth file, for a
@@ -74,7 +78,8 @@ def bake(x, f0, mid, body=None):
 
 
 def do_file(job):
-    written, src, dst = job
+    written, src, dst, judge = job
+    by = "amp" if judge != "dry" else None     # the scores the choice is made on
     t0 = time.time()
     x, sr = sf.read(src, always_2d=True)
     assert sr == pc.SR, src
@@ -82,19 +87,24 @@ def do_file(job):
     f0 = rp.note_hz(nm) if nm else None
     two = lambda a: a if a.shape[1] == 2 else np.repeat(a, 2, axis=1)
     quiet = not np.any(x)
-    ref = None if quiet else amp.amp_cab(two(x))
+    ref = None if quiet or not by else amp.amp_cab(two(x))
     tiers = {t.name: t for t in rp.TIERS}
-    amped = {}      # the original's spectra, kept across the two candidates
+    di, amped = {}, {}      # the original's spectra, kept across the two candidates
     out = {}
     if quiet:
         data = bake(x, f0, tiers["mid"])[0][0]
         out["mid"] = (data, {"bytes": len(data)})
     else:
         for name, (data, y) in zip(("mid", "body"), bake(x, f0, tiers["mid"], tiers["body"])):
-            out[name] = (data, {"bytes": len(data), "amp": rp.score(ref, amp.amp_cab(two(y)), amped)})
+            sc = {"bytes": len(data)}
+            if judge != "amp":
+                sc.update(rp.score(two(x), two(y), di))
+            if by:
+                sc["amp"] = rp.score(ref, amp.amp_cab(two(y)), amped)
+            out[name] = (data, sc)
     pick = "mid"
     if "body" in out and not quiet:
-        m, b = out["mid"][1]["amp"], out["body"][1]["amp"]
+        m, b = ((v[1][by] if by else v[1]) for v in (out["mid"], out["body"]))
         gain = max(m["mrstft_db"] - b["mrstft_db"], 2 * (m["mel_db"] - b["mel_db"]))
         pick = "body" if gain >= rp.AUTO_GAIN_DB else "mid"
     os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -102,7 +112,7 @@ def do_file(job):
         f.write(out[pick][0])
     os.replace(dst + ".part", dst)      # a stopped run never leaves half a note behind
     return {"sample": written, "seconds": round(len(x) / pc.SR, 3), "channels": x.shape[1], "note": nm,
-            "wav_bytes": os.path.getsize(src), "picked": pick, "bytes": len(out[pick][0]),
+            "wav_bytes": os.path.getsize(src), "judge": judge, "picked": pick, "bytes": len(out[pick][0]),
             "tiers": {k: v[1] for k, v in out.items()}, "bake_s": round(time.time() - t0, 2)}
 
 
@@ -141,7 +151,8 @@ def main():
     from concurrent.futures import ProcessPoolExecutor, as_completed
     sfz, root = sys.argv[1], sys.argv[2]
     arg = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
-    every, only = int(arg("--every") or 1), arg("--only")
+    every, only, judge = int(arg("--every") or 1), arg("--only"), arg("--judge") or "amp"
+    assert judge in ("amp", "dry", "both"), judge
     text, seen = inventory.samples(sfz)
     prog = os.path.join(root, "Programs")
     os.makedirs(prog, exist_ok=True)
@@ -159,7 +170,7 @@ def main():
             continue
         if i % every or w in done or first != w or (only and only not in w):
             continue
-        jobs.append((w, src, dst))
+        jobs.append((w, src, dst, judge))
     # longest first, so the tail of the run is not one long note on one core
     jobs.sort(key=lambda j: -os.path.getsize(j[1]))
     print(f"{len(jobs)} files to bake, {len(done)} already done", flush=True)
