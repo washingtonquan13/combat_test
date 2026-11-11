@@ -46,26 +46,53 @@ def comp(x, thr_db=-26, ratio=4, att=0.005, rel=0.100):
 _TABLE = 1 / (1 + np.exp(-(0.078125 * np.arange(256) - 10.0)))
 
 
-def _disto_stage(x, fs, depth):
-    s0 = 0.2 * depth + 2.0
-    s1 = _TABLE[127] + 0.5 * (_TABLE[128] - _TABLE[127])
-    prev = np.concatenate([[0.0], x[:-1]])
-    ev = np.full(len(x), np.nan)
-    ev[(x > prev) & (x > 0.25)] = 0.0
-    ev[(x < prev) & (x < -0.25)] = 1.0
-    idx = np.where(np.isnan(ev), 0, np.arange(len(x)))
-    np.maximum.accumulate(idx, out=idx)
-    state = np.nan_to_num(ev[idx], nan=0.0)
-    c4 = np.exp(-100.0 / fs)
-    rec1 = lfilter([1 - c4], [1, -c4], state)
-    t2 = np.maximum(0.0, 12.75 * (s0 * x + 10.0))
-    i3 = t2.astype(np.int64)
-    t4 = _TABLE[np.minimum(255, i3)]
-    t5 = t4 + (t2 - i3) * (_TABLE[np.minimum(255, i3 + 1)] - t4)
-    t6 = rec1 * (t5 - s1 - 1.0) + (1 - rec1) * (t5 - s1)
-    c1 = 125.663704 / fs
-    c2, c3 = 1 / (c1 + 1), 1 - c1
-    return lfilter([2 * c2, -2 * c2], [1, -c2 * c3], t6)
+_BLOCK = 16384      # samples a pass: every array of a stage stays in the cache
+
+
+class _Stage:
+    """One distortion stage, fed in blocks; the same numbers as one pass
+    over the whole signal."""
+
+    def __init__(self, fs, depth):
+        self.s0 = 0.2 * depth + 2.0
+        self.s1 = _TABLE[127] + 0.5 * (_TABLE[128] - _TABLE[127])
+        c4 = np.exp(-100.0 / fs)
+        self.f1 = ([1 - c4], [1, -c4])
+        c1 = 125.663704 / fs
+        c2, c3 = 1 / (c1 + 1), 1 - c1
+        self.f2 = ([2 * c2, -2 * c2], [1, -c2 * c3])
+        self.last_x = self.last_state = 0.0
+        self.z1, self.z2 = np.zeros(1), np.zeros(1)
+
+    def run(self, x):
+        prev = np.concatenate([[self.last_x], x[:-1]])
+        ev = np.full(len(x), np.nan)
+        ev[(x > prev) & (x > 0.25)] = 0.0
+        ev[(x < prev) & (x < -0.25)] = 1.0
+        idx = np.where(np.isnan(ev), 0, np.arange(len(x)))
+        np.maximum.accumulate(idx, out=idx)
+        state = ev[idx]
+        state[np.isnan(state)] = self.last_state
+        self.last_x, self.last_state = x[-1], state[-1]
+        rec1, self.z1 = lfilter(*self.f1, state, zi=self.z1)
+        t2 = np.maximum(0.0, 12.75 * (self.s0 * x + 10.0))
+        i3 = t2.astype(np.int64)
+        t4 = _TABLE[np.minimum(255, i3)]
+        t5 = t4 + (t2 - i3) * (_TABLE[np.minimum(255, i3 + 1)] - t4)
+        t6 = rec1 * (t5 - self.s1 - 1.0) + (1 - rec1) * (t5 - self.s1)
+        y, self.z2 = lfilter(*self.f2, t6, zi=self.z2)
+        return y
+
+
+def _disto_stages(x, fs, depth, stages):
+    chain = [_Stage(fs, depth) for _ in range(stages)]
+    out = np.empty_like(x)
+    for a in range(0, len(x), _BLOCK):
+        y = x[a:a + _BLOCK]
+        for st in chain:
+            y = st.run(y)
+        out[a:a + _BLOCK] = y
+    return out
 
 
 def disto(x, depth=85, stages=3, tone=100, dry=0.01, wet=1.0):
@@ -76,8 +103,7 @@ def disto(x, depth=85, stages=3, tone=100, dry=0.01, wet=1.0):
     for c in range(x.shape[1]):
         lp = lfilter([dry * (1 - pole)], [1, -pole], x[:, c])
         up = resample_poly(lp, 8, 1)
-        for _ in range(stages):
-            up = _disto_stage(up, 8 * SR, depth)
+        up = _disto_stages(up, 8 * SR, depth, stages)
         y = resample_poly(up, 1, 8)[: len(x)]
         out[:, c] = y * wet + x[:, c] * (1 - wet)
     return out
