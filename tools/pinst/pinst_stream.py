@@ -101,8 +101,8 @@ class Layer:
 
 
 class ChannelVoice:
-    def __init__(self, blob, seed):
-        ch, tier, lay = pf.unpack_channel(blob, decode_layers=False)
+    def __init__(self, blob, seed, packed=True):
+        ch, tier, lay = pf.unpack_channel(blob, decode_layers=False, packed=packed)
         self.ch, self.n, self.H, self.pos = ch, ch.n, ch.H, 0
         self.seed = seed
         edges = pc.erb_edges(tier.noise_bands)
@@ -154,7 +154,8 @@ class ChannelVoice:
             while self.next_tr < len(self.order) and tracks[self.order[self.next_tr]].start - 1 <= fr:
                 tr = tracks[self.order[self.next_tr]]
                 self.next_tr += 1
-                if tr.start - 1 < fr:       # began before sample 0: only its fade in is lost
+                if tr.start - 1 < fr:       # frame 0 track: its fade in fell before sample 0
+                    self.live.append([tr, tr.ph[0]])
                     continue
                 self.live.append([tr, tr.ph[0] - pc.TWO_PI * tr.f[0] / pc.SR * H])
             keep = []
@@ -194,19 +195,12 @@ class ChannelVoice:
         return y + nz
 
 
-def blobs(data):
-    assert data[: len(pf.MAGIC)] == pf.MAGIC
-    c = pf.Cur(data)
-    c.i = len(pf.MAGIC)
-    c.v()
-    return [c.take(c.v()) for _ in range(c.v())]
-
-
 class Voice:
     """Stereo note from file bytes. render(n) returns the next n samples."""
 
     def __init__(self, data: bytes):
-        self.ch = [ChannelVoice(b, 7 + 100 * i) for i, b in enumerate(blobs(data))]
+        bl, packed = pf.blobs(data)
+        self.ch = [ChannelVoice(b, 7 + 100 * i, packed) for i, b in enumerate(bl)]
         self.n, self.pos = self.ch[0].n, 0
         self.buf = np.zeros((0, 2))
 
@@ -235,7 +229,7 @@ def _check(job):
     v = Voice(data)
     y = v.render(v.n)
     sd = 0.0    # partials alone, offline against block by block
-    for (ch, tier), b in zip(pf.unpack(data), blobs(data)):
+    for (ch, tier), b in zip(pf.unpack(data), pf.blobs(data)[0]):
         cv = ChannelVoice(b, 7)
         a = pc.synth_tracks(ch.tracks, ch.n, ch.H, mode="integrate", anchors=ch.info["anchors"])
         s = np.concatenate([cv._sines(p, G) for p in range(0, ch.n + G, G)])[: ch.n]

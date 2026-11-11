@@ -5,7 +5,8 @@ any other player has to match.
 Layout (every integer is a zigzag varint unless said otherwise):
 
   "PINST1"
-  sample rate, channel count (1 = mid only, 2 = mid + side)
+  sample rate, channel count (1 = mid only, 2 = mid + side),
+  packed (1 = streams are raw LZMA2, 0 = streams stored as they are)
   per channel: byte length, then the channel blob
 
 Channel blob:
@@ -13,7 +14,7 @@ Channel blob:
            f0_cents*1000, phase_bits, lock (0/1), f0_frames, track count,
            noise_frames, tns_len, tns_start, junction, lf_hz,
            layer count, then per layer: n, M, K, bands, snr*100, noise_hz, dead, frames
-  streams  each: byte length, then raw LZMA2 data
+  streams  each: byte length, then the data
            hdr dt df da noise tns f0, then sc and q per layer
 
   hdr      per track: start delta, key count, [harmonic number if lock],
@@ -87,7 +88,7 @@ def _ints(b, count):
 
 # ------------------------------------------------------------------- write
 
-def pack_channel(dec: pc.Channel, tier: pc.Tier) -> bytes:
+def pack_channel(dec: pc.Channel, tier: pc.Tier, packed=True) -> bytes:
     assert dec.pcm is None, "the verbatim-attack tier has no file form"
     I = dec.info
     S = I["streams"]
@@ -104,18 +105,18 @@ def pack_channel(dec: pc.Channel, tier: pc.Tier) -> bytes:
     for x in layers:
         streams += [x["sc"], x["q"]]
     for s in streams:
-        z = _lz(s)
+        z = _lz(s) if packed else bytes(s)
         _put(out, len(z))
         out += z
     return bytes(out)
 
 
-def pack(channels, tier) -> bytes:
+def pack(channels, tier, packed=True) -> bytes:
     """channels: decoded Channels, mid first, side second if kept."""
     out = bytearray(MAGIC)
-    _put(out, pc.SR, len(channels))
+    _put(out, pc.SR, len(channels), int(packed))
     for ch in channels:
-        b = pack_channel(ch, tier)
+        b = pack_channel(ch, tier, packed)
         _put(out, len(b))
         out += b
     return bytes(out)
@@ -123,7 +124,7 @@ def pack(channels, tier) -> bytes:
 
 # -------------------------------------------------------------------- read
 
-def unpack_channel(blob: bytes, decode_layers=True):
+def unpack_channel(blob: bytes, decode_layers=True, packed=True):
     """Returns (Channel, Tier holding what render needs). With
     decode_layers off the transform layers come back as their codes:
     (Channel, Tier, [(sc, q, n, M, K, bands, snr, noise_hz, dead)])."""
@@ -135,7 +136,7 @@ def unpack_channel(blob: bytes, decode_layers=True):
     st = []
     for _ in range(7 + 2 * nlay):
         L = c.v()
-        st.append(_unlz(c.take(L)))
+        st.append(_unlz(c.take(L)) if packed else bytes(c.take(L)))
     hdr, dt, df, da, noise, tns, f0 = st[:7]
 
     def pairs(b):
@@ -205,9 +206,42 @@ def unpack(data: bytes):
     assert data[: len(MAGIC)] == MAGIC
     c = Cur(data)
     c.i = len(MAGIC)
-    sr, nch = c.v(), c.v()
+    sr, nch, packed = c.v(), c.v(), c.v()
     assert sr == pc.SR
-    return [unpack_channel(c.take(c.v())) for _ in range(nch)]
+    return [unpack_channel(c.take(c.v()), packed=packed) for _ in range(nch)]
+
+
+def blobs(data: bytes):
+    """(channel blobs, packed)"""
+    assert data[: len(MAGIC)] == MAGIC
+    c = Cur(data)
+    c.i = len(MAGIC)
+    sr, nch, packed = c.v(), c.v(), c.v()
+    return [c.take(c.v()) for _ in range(nch)], packed
+
+
+def repack(data: bytes, packed: bool) -> bytes:
+    """The same note with its streams packed or stored."""
+    bl, was = blobs(data)
+    out = bytearray(MAGIC)
+    _put(out, pc.SR, len(bl), int(packed))
+    for b in bl:
+        c = Cur(b)
+        for _ in range(17):
+            c.v()
+        nl = c.v()
+        for _ in range(8 * nl):
+            c.v()
+        o = bytearray(b[: c.i])
+        for _ in range(7 + 2 * nl):
+            s = c.take(c.v())
+            s = _unlz(s) if was else bytes(s)
+            s = _lz(s) if packed else s
+            _put(o, len(s))
+            o += s
+        _put(out, len(o))
+        out += o
+    return bytes(out)
 
 
 def render(data: bytes) -> np.ndarray:
