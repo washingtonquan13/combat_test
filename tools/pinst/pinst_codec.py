@@ -18,6 +18,7 @@ Model (per channel):
 """
 from __future__ import annotations
 
+import copy
 import io
 import lzma
 from dataclasses import dataclass, field
@@ -524,6 +525,9 @@ def onset_sample(x, rel_db=-40.0):
     return int(i[0] * 44) if len(i) else 0
 
 
+_ANALYSIS: dict = {}
+
+
 def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Channel:
     n = len(x)
     H = 256
@@ -535,9 +539,16 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
         N = 2048
     on = onset_sample(x)
     first = int(np.ceil((on + N // 4) / H))     # no partial whose window mostly precedes the hit
-    frames = find_peaks_frames(x, N, H)
-    tracks = track_peaks(frames, first_frame=first)
-    sines = synth_tracks(tracks, n, H, mode="phase")
+    # the partial analysis does not depend on the tier: keep the last few
+    key = (hash(x.tobytes()), N)
+    if key not in _ANALYSIS:
+        frames = find_peaks_frames(x, N, H)
+        tr = track_peaks(frames, first_frame=first)
+        if len(_ANALYSIS) >= 4:
+            _ANALYSIS.pop(next(iter(_ANALYSIS)))
+        _ANALYSIS[key] = (tr, synth_tracks(tr, n, H, mode="phase"))
+    tracks, sines = _ANALYSIS[key]
+    tracks = copy.deepcopy(tracks)
     resid = x - sines
     nH = tier.noise_H
     edges = erb_edges(tier.noise_bands)

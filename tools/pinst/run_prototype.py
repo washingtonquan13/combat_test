@@ -1,7 +1,10 @@
 """Bake ~24 test notes at several tiers, rebuild them, measure bytes and
 distance against reference codecs, and write listening material.
 
-  python -I tools/pinst/run_prototype.py OUT_DIR [--only NAME] [--no-amp]
+  python -I tools/pinst/run_prototype.py OUT_DIR [--only A,B] [--tiers mid,hybrid] [--no-amp] [--no-reels]
+
+Notes bake in parallel. The original's amp render and codec round trips are
+cached in each note's folder; delete OUT_DIR to redo them.
 
 Run from the project root. Writes OUT_DIR/report.md, OUT_DIR/results.json,
 per-note WAVs and MP3 reels for listening."""
@@ -129,62 +132,93 @@ def write_mp3(path, x):
         subprocess.run([FF, "-y", "-loglevel", "error", "-i", w, "-c:a", "libmp3lame", "-b:a", "192k", path], check=True)
 
 
-def main():
-    out_dir = sys.argv[1]
-    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv else None
-    do_amp = "--no-amp" not in sys.argv
-    os.makedirs(out_dir, exist_ok=True)
-    results = []
-    reels = {}   # key -> list of arrays
-    gap = lambda s: np.zeros((int(s * pc.SR), 2))
-    for name, path, kind, pitched, nm in NOTES:
-        if only and only not in name:
-            continue
-        t0 = time.time()
-        x, sr = sf.read(path, always_2d=True)
-        assert sr == pc.SR, path
-        if kind == "gtr":
-            x = x[500:]          # the program's offset=500
-        f0 = note_hz(nm) if nm else None
-        nd = os.path.join(out_dir, name)
-        os.makedirs(nd, exist_ok=True)
+def do_note(job):
+    """One note, start to finish, in a worker. The original's side (amp
+    reference, codec round trips) is cached in the note's folder, since it
+    never changes between iterations."""
+    (name, path, kind, pitched, nm), out_dir, tier_names, do_amp = job
+    t0 = time.time()
+    x, sr = sf.read(path, always_2d=True)
+    assert sr == pc.SR, path
+    if kind == "gtr":
+        x = x[500:]          # the program's offset=500
+    f0 = note_hz(nm) if nm else None
+    nd = os.path.join(out_dir, name)
+    os.makedirs(nd, exist_ok=True)
+    amped = do_amp and kind == "gtr"
+    ref_json = os.path.join(nd, "ref.json")
+    amp_ref = None
+    if os.path.exists(ref_json) and (not amped or os.path.exists(os.path.join(nd, "amp_orig.wav"))):
+        codecs = json.load(open(ref_json))
+        if amped:
+            amp_ref, _ = sf.read(os.path.join(nd, "amp_orig.wav"), always_2d=True)
+            if any("amp" not in v for v in codecs.values()):
+                codecs = None
+    else:
+        codecs = None
+    if codecs is None:
         sf.write(os.path.join(nd, "orig.wav"), x, pc.SR, subtype="PCM_24")
-        pcm_bytes = x.shape[0] * x.shape[1] * 3
-        row = {"name": name, "kind": kind, "seconds": round(len(x) / pc.SR, 2), "pcm24_bytes": pcm_bytes,
-               "tiers": {}, "codecs": {}}
-        amp_ref = amp.amp_cab(x) if (do_amp and kind == "gtr") else None
-        if amp_ref is not None:
+        if amped:
+            amp_ref = amp.amp_cab(x)
             sf.write(os.path.join(nd, "amp_orig.wav"), amp_ref, pc.SR, subtype="PCM_24")
-        for tier in TIERS:
-            y, size, parts, info = bake_stereo(x, pitched, f0, tier)
-            sf.write(os.path.join(nd, f"{tier.name}.wav"), y, pc.SR, subtype="PCM_24")
-            r = {"bytes": size, "parts": parts, **score(x, y), "info": info}
-            if amp_ref is not None:
-                ya = amp.amp_cab(y)
-                sf.write(os.path.join(nd, f"amp_{tier.name}.wav"), ya, pc.SR, subtype="PCM_24")
-                r["amp"] = score(amp_ref, ya)
-                reels.setdefault("amp_" + tier.name, []).extend([amp_ref, gap(0.4), ya, gap(1.0)])
-            reels.setdefault(tier.name, []).extend([x, gap(0.4), y, gap(1.0)])
-            row["tiers"][tier.name] = r
+        codecs = {}
         for cname, args, ext in CODECS:
             y, size = codec_roundtrip(x, args, ext)
             sf.write(os.path.join(nd, f"{cname}.wav"), y, pc.SR, subtype="PCM_24")
-            row["codecs"][cname] = {"bytes": size, **score(x, y)}
-            if amp_ref is not None:
-                row["codecs"][cname]["amp"] = score(amp_ref, amp.amp_cab(y))
-        row["secs_to_bake"] = round(time.time() - t0, 1)
-        results.append(row)
+            codecs[cname] = {"bytes": size, **score(x, y)}
+            if amped:
+                codecs[cname]["amp"] = score(amp_ref, amp.amp_cab(y))
+        json.dump(codecs, open(ref_json, "w"))
+    row = {"name": name, "kind": kind, "seconds": round(len(x) / pc.SR, 2),
+           "pcm24_bytes": x.shape[0] * x.shape[1] * 3, "tiers": {}, "codecs": codecs}
+    for tier in TIERS:
+        if tier_names and tier.name not in tier_names:
+            continue
+        y, size, parts, info = bake_stereo(x, pitched, f0, tier)
+        sf.write(os.path.join(nd, f"{tier.name}.wav"), y, pc.SR, subtype="PCM_24")
+        r = {"bytes": size, "parts": parts, **score(x, y), "info": info}
+        if amped:
+            ya = amp.amp_cab(y)
+            sf.write(os.path.join(nd, f"amp_{tier.name}.wav"), ya, pc.SR, subtype="PCM_24")
+            r["amp"] = score(amp_ref, ya)
+        row["tiers"][tier.name] = r
+    row["secs_to_bake"] = round(time.time() - t0, 1)
+    return row
+
+
+def main():
+    from concurrent.futures import ProcessPoolExecutor
+    out_dir = sys.argv[1]
+    arg = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
+    only, tier_names = arg("--only"), (arg("--tiers") or "").split(",") if arg("--tiers") else None
+    do_amp = "--no-amp" not in sys.argv
+    os.makedirs(out_dir, exist_ok=True)
+    jobs = [(n, out_dir, tier_names, do_amp) for n in NOTES if not only or any(o in n[0] for o in only.split(","))]
+    t0 = time.time()
+    with ProcessPoolExecutor(max(1, min(len(jobs), (os.cpu_count() or 4) - 2))) as ex:
+        results = list(ex.map(do_note, jobs))
+    for row in results:
         t = row["tiers"]
-        if amp_ref is not None:
+        if any("amp" in v for v in t.values()):
             print("   amp: " + "  ".join(f"{k}={v['amp']['mrstft_db']:4.1f}/{v['amp']['mel_db']:4.1f}" for k, v in
                                        list(t.items()) + list(row["codecs"].items())))
-        print(f"{name:20s} {row['seconds']:5.2f}s  " + "  ".join(
+        print(f"{row['name']:20s} {row['seconds']:5.2f}s  " + "  ".join(
             f"{k}={v['bytes']/1024:6.1f}K/{v['mrstft_db']:4.1f}dB" for k, v in t.items()) + "  |  " + "  ".join(
             f"{k}={v['bytes']/1024:5.1f}K/{v['mrstft_db']:4.1f}dB" for k, v in row["codecs"].items()), flush=True)
     with open(os.path.join(out_dir, "results.json"), "w") as f:
         json.dump(results, f, indent=1)
-    for key, parts in reels.items():
-        write_mp3(os.path.join(out_dir, f"reel_{key}.mp3"), np.concatenate(parts))
+    if "--no-reels" not in sys.argv:
+        gap = lambda s: np.zeros((int(s * pc.SR), 2))
+        rd = lambda n, f: sf.read(os.path.join(out_dir, n, f), always_2d=True)[0]
+        for tn in (results[0]["tiers"] if results else []):
+            for pre in ("", "amp_"):
+                parts = []
+                for row in results:
+                    if os.path.exists(os.path.join(out_dir, row["name"], f"{pre}{tn}.wav")):
+                        parts += [rd(row["name"], pre + "orig.wav"), gap(0.4), rd(row["name"], f"{pre}{tn}.wav"), gap(1.0)]
+                if parts:
+                    write_mp3(os.path.join(out_dir, f"reel_{pre}{tn}.mp3"), np.concatenate(parts))
+    print(f"total {time.time() - t0:.0f}s")
 
 
 if __name__ == "__main__":
