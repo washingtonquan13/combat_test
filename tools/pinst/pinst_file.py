@@ -123,8 +123,10 @@ def pack(channels, tier) -> bytes:
 
 # -------------------------------------------------------------------- read
 
-def unpack_channel(blob: bytes):
-    """Returns (Channel, Tier holding what render needs)."""
+def unpack_channel(blob: bytes, decode_layers=True):
+    """Returns (Channel, Tier holding what render needs). With
+    decode_layers off the transform layers come back as their codes:
+    (Channel, Tier, [(sc, q, n, M, K, bands, snr, noise_hz, dead)])."""
     c = Cur(blob)
     (n, H, noise_H, nb, f_c, a_d, n_q, f0_c, pbits, lock, f0_frames, ntr, nfr, tns_len, tns_start, junction,
      lf_hz, nlay) = [c.v() for _ in range(18)]
@@ -180,18 +182,22 @@ def unpack_channel(blob: bytes):
         tk, qt = pairs(tns)
         tns_dec = pc.expand(tk, (qt * 1.5).astype(float)[:, None], tns_len)[:, 0]
     out = pc.Channel(n, H, tracks, noise_db, noise_H, tns_dec, tns_start, None, junction, {"anchors": anchors})
-    sig = []
+    codes = []
     for i, (xn, M, K, bands, snr, noise_hz, dead, F) in enumerate(lay):
         nbx = len(pc._xf_edges(K, bands)) - 1
         sc = np.cumsum(_ints(st[7 + 2 * i], F * nbx).reshape(F, nbx), axis=0)
         q = _ints(st[8 + 2 * i], F * K).reshape(F, K)
-        sig.append(pc.xform_decode(sc, q, xn, M, K, bands, snr / 100, float(noise_hz), dead))
+        codes.append((sc, q, xn, M, K, bands, snr / 100, float(noise_hz), dead))
+    if len(codes) > 1:
+        edges = pc.erb_edges(nb)
+        out.noise_db[:, np.sqrt(edges[:-1] * edges[1:]) < lf_hz] = -200.0
+    if not decode_layers:
+        return out, pc.Tier("file", noise_bands=nb), codes
+    sig = [pc.xform_decode(*c) for c in codes]
     if sig:
         out.xres = sig[0]
     if len(sig) > 1:
         out.xlf = sig[1]
-        edges = pc.erb_edges(nb)
-        out.noise_db[:, np.sqrt(edges[:-1] * edges[1:]) < lf_hz] = -200.0
     return out, pc.Tier("file", noise_bands=nb)
 
 
