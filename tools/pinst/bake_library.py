@@ -42,22 +42,32 @@ import pinst_file as pf  # noqa: E402
 import run_prototype as rp  # noqa: E402
 
 
-def bake(x, f0, tier):
-    """x: (n, 1 or 2). Returns file bytes and the offline render, same shape."""
+def bake(x, f0, mid, body=None):
+    """x: (n, 1 or 2). Returns (file bytes, offline render shaped like x) for
+    mid, and for body too when it is given: the two share one analysis."""
     if x.shape[1] == 1:
         sigs = [x[:, 0]]
     else:
         M, S = 0.5 * (x[:, 0] + x[:, 1]), 0.5 * (x[:, 0] - x[:, 1])
         side_db = 20 * np.log10(np.sqrt((S**2).mean()) / max(np.sqrt((M**2).mean()), 1e-12) + 1e-12)
         sigs = [M, S if side_db >= -40 else np.zeros_like(S)]
-    chans, ys = [], []
-    for i, sig in enumerate(sigs):
+    tiers = [mid] if body is None else [mid, body]
+    chans, ys = [[] for _ in tiers], [[] for _ in tiers]
+    for sig in sigs:
         live = bool(np.any(sig))
-        _, dec, _ = pc.compile_channel(sig, live and f0 is not None, f0 if live else None, tier)
-        chans.append(dec)
-        ys.append(pc.render(dec, tier))
-    y = ys[0][:, None] if len(ys) == 1 else np.stack([ys[0] + ys[1], ys[0] - ys[1]], axis=1)
-    return pf.pack(chans, tier), y
+        pitched, hz = live and f0 is not None, f0 if live else None
+        if body is None:
+            decs, det = [pc.compile_channel(sig, pitched, hz, mid)[1]], None
+        else:
+            *decs, det = pc.compile_tiers(sig, pitched, hz, mid, body)
+        for k, (dec, tier) in enumerate(zip(decs, tiers)):
+            chans[k].append(dec)
+            ys[k].append(pc.render(dec, tier, det=det))
+    out = []
+    for c, y, tier in zip(chans, ys, tiers):
+        y = y[0][:, None] if len(y) == 1 else np.stack([y[0] + y[1], y[0] - y[1]], axis=1)
+        out.append((pf.pack(c, tier), y))
+    return out
 
 
 def do_file(job):
@@ -70,15 +80,15 @@ def do_file(job):
     two = lambda a: a if a.shape[1] == 2 else np.repeat(a, 2, axis=1)
     quiet = not np.any(x)
     ref = None if quiet else amp.amp_cab(two(x))
+    tiers = {t.name: t for t in rp.TIERS}
+    di, amped = {}, {}      # the original's spectra, kept across the two candidates
     out = {}
-    for tier in rp.TIERS:
-        if tier.name not in ("mid", "body"):
-            continue
-        data, y = bake(x, f0, tier)
-        out[tier.name] = (data, {"bytes": len(data)} if quiet else
-                          {"bytes": len(data), **rp.score(two(x), two(y)), "amp": rp.score(ref, amp.amp_cab(two(y)))})
-        if quiet:
-            break
+    if quiet:
+        data = bake(x, f0, tiers["mid"])[0][0]
+        out["mid"] = (data, {"bytes": len(data)})
+    else:
+        for name, (data, y) in zip(("mid", "body"), bake(x, f0, tiers["mid"], tiers["body"])):
+            out[name] = (data, {"bytes": len(data), **rp.score(two(x), two(y), di), "amp": rp.score(ref, amp.amp_cab(two(y)), amped)})
     pick = "mid"
     if "body" in out and not quiet:
         m, b = out["mid"][1]["amp"], out["body"][1]["amp"]

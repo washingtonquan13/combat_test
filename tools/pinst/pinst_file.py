@@ -44,7 +44,7 @@ def _put(out, *vals):
 
 
 def _lz(b):
-    return lzma.compress(b, format=lzma.FORMAT_RAW, filters=_F) if b else b""
+    return pc.lz_bytes(b)
 
 
 def _unlz(b):

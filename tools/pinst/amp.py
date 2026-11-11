@@ -9,6 +9,26 @@ import soundfile as sf
 from scipy.signal import lfilter, resample_poly, fftconvolve
 
 SR = 44100
+
+
+def _load_native():
+    """native/ampfast.dll (native/build.bat makes it): the per-sample loops
+    in C, the same numbers many times faster. None when it is not built."""
+    import ctypes
+    import os
+    try:
+        lib = ctypes.CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)), "native", "ampfast.dll"))
+    except OSError:
+        return None
+    d, p, i64 = ctypes.c_double, ctypes.c_void_p, ctypes.c_int64
+    lib.comp_env.argtypes = [p, p, i64, d, d]
+    lib.comp_env.restype = None
+    lib.disto_stages.argtypes = [p, p, i64, ctypes.c_int, d, d, d, d, d, d, p, p]
+    lib.disto_stages.restype = None
+    return lib
+
+
+_native = _load_native()
 CAB = "samples/cab/jester-brutal/Impulses/44.1kHz/14_Cathode_Ray_Fleshburn_44.wav"
 
 
@@ -36,10 +56,14 @@ def comp(x, thr_db=-26, ratio=4, att=0.005, rel=0.100):
     over = np.maximum(lvl - thr_db, 0)
     ga, gr = np.exp(-1 / (att * SR)), np.exp(-1 / (rel * SR))
     env = np.empty_like(over)
-    e = 0.0
-    for i, v in enumerate(over):
-        e = ga * e + (1 - ga) * v if v > e else gr * e + (1 - gr) * v
-        env[i] = e
+    if _native:
+        over = np.ascontiguousarray(over)
+        _native.comp_env(over.ctypes.data, env.ctypes.data, len(over), ga, gr)
+    else:
+        e = 0.0
+        for i, v in enumerate(over):
+            e = ga * e + (1 - ga) * v if v > e else gr * e + (1 - gr) * v
+            env[i] = e
     return x * (10 ** (-env * (1 - 1 / ratio) / 20))[:, None]
 
 
@@ -56,7 +80,7 @@ class _Stage:
     def __init__(self, fs, depth):
         self.s0 = 0.2 * depth + 2.0
         self.s1 = _TABLE[127] + 0.5 * (_TABLE[128] - _TABLE[127])
-        c4 = np.exp(-100.0 / fs)
+        self.c4 = c4 = np.exp(-100.0 / fs)
         self.f1 = ([1 - c4], [1, -c4])
         c1 = 125.663704 / fs
         c2, c3 = 1 / (c1 + 1), 1 - c1
@@ -87,6 +111,12 @@ class _Stage:
 def _disto_stages(x, fs, depth, stages):
     chain = [_Stage(fs, depth) for _ in range(stages)]
     out = np.empty_like(x)
+    if _native:
+        st, x = chain[0], np.ascontiguousarray(x)
+        carry = np.zeros(4 * stages)
+        _native.disto_stages(x.ctypes.data, out.ctypes.data, len(x), stages, st.s0, st.s1, st.c4,
+                             st.f2[0][0], st.f2[0][1], st.f2[1][1], _TABLE.ctypes.data, carry.ctypes.data)
+        return out
     for a in range(0, len(x), _BLOCK):
         y = x[a:a + _BLOCK]
         for st in chain:
@@ -101,6 +131,9 @@ def disto(x, depth=85, stages=3, tone=100, dry=0.01, wet=1.0):
     pole = np.exp(-2 * np.pi * fc / SR)
     out = np.empty_like(x)
     for c in range(x.shape[1]):
+        if c and np.array_equal(x[:, c], x[:, 0]):
+            out[:, c] = out[:, 0]
+            continue
         lp = lfilter([dry * (1 - pole)], [1, -pole], x[:, c])
         up = resample_poly(lp, 8, 1)
         up = _disto_stages(up, 8 * SR, depth, stages)
@@ -127,4 +160,6 @@ def amp_cab(x: np.ndarray) -> np.ndarray:
     y = hpf(y, 80)
     y = peak(y, 300, 1.4, -4)
     y = y * 10 ** (-24.5 / 20)
-    return np.stack([fftconvolve(y[:, c], _cab)[: len(y) + 2048] for c in range(2)], axis=1)
+    left = fftconvolve(y[:, 0], _cab)[: len(y) + 2048]
+    same = np.array_equal(y[:, 1], y[:, 0])
+    return np.stack([left, left if same else fftconvolve(y[:, 1], _cab)[: len(y) + 2048]], axis=1)

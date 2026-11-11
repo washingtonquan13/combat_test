@@ -130,9 +130,11 @@ def mono(x):
     return x.mean(axis=1)
 
 
-def score(ref, y):
-    return {"mrstft_db": round(metrics.mrstft_db(mono(ref), mono(y)), 2),
-            "mel_db": round(metrics.mel_db(mono(ref), mono(y)), 2)}
+def score(ref, y, cache=None):
+    """cache: a dict the caller keeps per original, when it scores several rebuilds of it."""
+    r = cache.setdefault("mono", mono(ref)) if cache is not None else mono(ref)
+    return {"mrstft_db": round(metrics.mrstft_db(r, mono(y), cache=cache), 2),
+            "mel_db": round(metrics.mel_db(r, mono(y), cache=cache), 2)}
 
 
 def write_mp3(path, x):

@@ -19,6 +19,7 @@ Model (per channel):
 from __future__ import annotations
 
 import copy
+import dataclasses
 import io
 import lzma
 from dataclasses import dataclass, field
@@ -85,7 +86,6 @@ def find_peaks_frames(x, N, H, max_peaks=100, rel_db=-80.0, abs_db=-110.0, prom_
     loc[:, :2] = False
     thr = np.maximum(db.max(axis=1, keepdims=True) + rel_db, abs_db)
     loc &= (db > thr) & (db > floor + prom_db)
-    ang = np.angle(X)
     frames = []
     for i in range(db.shape[0]):
         k = np.flatnonzero(loc[i])
@@ -98,8 +98,9 @@ def find_peaks_frames(x, N, H, max_peaks=100, rel_db=-80.0, abs_db=-110.0, prom_
         f = (k + p) * SR / Z
         amp = b - 0.25 * (a - c) * p
         nb = np.where(p >= 0, k + 1, k - 1)
-        d = np.angle(np.exp(1j * (ang[i, nb] - ang[i, k])))
-        ph = ang[i, k] + np.abs(p) * d
+        ak = np.angle(X[i, k])     # phases only where there is a peak
+        d = np.angle(np.exp(1j * (np.angle(X[i, nb]) - ak)))
+        ph = ak + np.abs(p) * d
         if len(k) > max_peaks:
             keep = np.argsort(amp)[-max_peaks:]
             f, amp, ph = f[keep], amp[keep], ph[keep]
@@ -311,11 +312,33 @@ def expand(keys, kvals, L):
 
 # -------------------------------------------------------------- bit budget
 
-def _lz(b: bytes) -> int:
+_LZ_FILTERS = [{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME}]
+_LZ: dict = {}
+
+
+def lz_bytes(b: bytes) -> bytes:
+    """A stream packed. The last few are kept: a stream is sized while it is
+    built and packed again when the file is written, and both tiers of a
+    bake share most of theirs."""
     if not b:
-        return 0
-    f = [{"id": lzma.FILTER_LZMA2, "preset": 9 | lzma.PRESET_EXTREME}]
-    return len(lzma.compress(b, format=lzma.FORMAT_RAW, filters=f))
+        return b""
+    b = bytes(b)
+    z = _LZ.get(b)
+    if z is None:
+        if len(_LZ) >= 64:
+            _LZ.clear()
+        # Preset 9 on its own sets up a 64 MB dictionary and ~670 MB of
+        # tables for every stream, most of them a few KB. A dictionary just
+        # as long as the stream gives the same bytes without that.
+        d = 4096
+        while d < len(b):
+            d *= 2
+        z = _LZ[b] = lzma.compress(b, format=lzma.FORMAT_RAW, filters=[dict(_LZ_FILTERS[0], dict_size=d)])
+    return z
+
+
+def _lz(b: bytes) -> int:
+    return len(lz_bytes(b))
 
 
 def _varint(v: int, out: bytearray):
@@ -685,10 +708,11 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
     return ch
 
 
-def render(ch: Channel, tier: Tier, edges=None) -> np.ndarray:
+def render(ch: Channel, tier: Tier, edges=None, det=None) -> np.ndarray:
+    """det: the partials already synthesized (compile_tiers hands them back)."""
     edges = erb_edges(tier.noise_bands) if edges is None else edges
     anchors = ch.info.get("anchors")
-    y = synth_tracks(ch.tracks, ch.n, ch.H, mode="integrate", anchors=anchors, gate_from=0)
+    y = synth_tracks(ch.tracks, ch.n, ch.H, mode="integrate", anchors=anchors, gate_from=0) if det is None else det.copy()
     nz = synth_noise(ch.noise_db, ch.noise_H, ch.n, edges)
     if ch.tns is not None:
         nz = apply_tns(nz, ch.tns, ch.tns_start)
@@ -714,28 +738,54 @@ def render(ch: Channel, tier: Tier, edges=None) -> np.ndarray:
     return y
 
 
+def _add_layers(x, ch, dec, sizes, tier, det=None):
+    """The transform-coded residual layers of a tier, onto a quantized channel.
+    Returns the partials as the decoder will synthesize them."""
+    j = min(ch.n, ch.info["onset"] + int(tier.xf_ms * SR / 1000))
+    L = min(ch.n, j + int(0.004 * SR))
+    if det is None:
+        det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
+    dec.xres, sizes["xform"], dec.info["xf"] = xform_code(x[:L] - det[:L], tier)
+    dec.junction = j
+    if j >= dec.tns_start + int(0.2 * SR):
+        # the layer already covers the stretch the 1 ms envelope was for
+        dec.tns, sizes["tns"] = None, 0
+    if tier.xf_lf_hz > 0:
+        # what is left under the cutoff once the attack layer is in, for the whole note
+        w = np.zeros(ch.n)
+        w[:j] = 1
+        w[j:L] = np.linspace(1, 0, L - j)
+        left = x - det
+        left[:L] -= dec.xres * w[:L]
+        dec.xlf, sizes["xform_lf"], dec.info["xlf"] = xform_code(left, tier, M=tier.xf_lf_M, snr=tier.xf_lf_snr, fmax=tier.xf_lf_hz)
+        dec.info["lf_hz"] = tier.xf_lf_hz
+        edges = erb_edges(tier.noise_bands)
+        dec.noise_db = dec.noise_db.copy()
+        dec.noise_db[:, np.sqrt(edges[:-1] * edges[1:]) < tier.xf_lf_hz] = -200.0
+    return det
+
+
 def compile_channel(x, pitched, f0, tier):
     ch = analyse(x, pitched, f0, tier)
     dec, sizes = quantize(ch, tier)
     if tier.xf_ms > 0:
-        j = min(ch.n, ch.info["onset"] + int(tier.xf_ms * SR / 1000))
-        L = min(ch.n, j + int(0.004 * SR))
-        det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
-        dec.xres, sizes["xform"], dec.info["xf"] = xform_code(x[:L] - det[:L], tier)
-        dec.junction = j
-        if j >= dec.tns_start + int(0.2 * SR):
-            # the layer already covers the stretch the 1 ms envelope was for
-            dec.tns, sizes["tns"] = None, 0
-        if tier.xf_lf_hz > 0:
-            # what is left under the cutoff once the attack layer is in, for the whole note
-            w = np.zeros(ch.n)
-            w[:j] = 1
-            w[j:L] = np.linspace(1, 0, L - j)
-            left = x - det
-            left[:L] -= dec.xres * w[:L]
-            dec.xlf, sizes["xform_lf"], dec.info["xlf"] = xform_code(left, tier, M=tier.xf_lf_M, snr=tier.xf_lf_snr, fmax=tier.xf_lf_hz)
-            dec.info["lf_hz"] = tier.xf_lf_hz
-            edges = erb_edges(tier.noise_bands)
-            dec.noise_db = dec.noise_db.copy()
-            dec.noise_db[:, np.sqrt(edges[:-1] * edges[1:]) < tier.xf_lf_hz] = -200.0
+        _add_layers(x, ch, dec, sizes, tier)
     return ch, dec, sizes
+
+
+_LAYER_FIELDS = ("name", "xf_ms", "xf_snr", "xf_M", "xf_bands", "xf_floor", "xf_noise_hz", "xf_lf_hz", "xf_lf_snr", "xf_lf_M")
+
+
+def compile_tiers(x, pitched, f0, plain: Tier, layered: Tier):
+    """A channel at two tiers that differ only in their residual layers:
+    one analysis, one quantization, the layers added to a copy. Returns
+    (plain channel, layered channel, the partials both synthesize)."""
+    a, b = dataclasses.asdict(plain), dataclasses.asdict(layered)
+    assert plain.xf_ms == 0 and layered.xf_ms > 0 and all(a[k] == b[k] for k in a if k not in _LAYER_FIELDS)
+    ch = analyse(x, pitched, f0, plain)
+    dec, sizes = quantize(ch, plain)
+    det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
+    lay = copy.copy(dec)
+    lay.info = dict(dec.info)
+    _add_layers(x, ch, lay, dict(sizes), layered, det)
+    return dec, lay, det
