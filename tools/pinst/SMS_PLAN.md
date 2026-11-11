@@ -198,6 +198,49 @@ Gate: native and reference agree on the proof set.
 
 Gate: the user accepts all three. Only then is the wider re-bake planned.
 
+## Language
+
+The encoder stays in Python (numpy) until stage 5 has passed. The generators
+are still guesses and will be rewritten more than once; that is cheap in
+Python and slow in C++. Bake time is paid offline and is attacked by
+profiling first. A C++ encoder is decided after stage 5, when the design has
+stopped moving, and only if the wider re-bake would otherwise take days. The
+player is already C++ and stays so (stage 8).
+
+## Working in parallel
+
+Stages 0 and 1 are done by one hand, in order: they fix the interface and the
+report card everything else is measured with.
+
+After that each generator is its own module with the same two functions:
+`analyse(what_is_left, sr)` gives its settings, `render(settings, n, sr)`
+gives its sound. With that fixed, these run at once, one Opus agent each, in
+its own worktree, touching only its own module:
+
+| Agent | Work | Measured by |
+|---|---|---|
+| A | Stage 2, noise envelope | envelope misses on the card |
+| B | Stage 3, partials that follow pitch | tone misses on the card |
+| C | Stage 4, modes | kick, tom and pluck bodies on the card |
+| D | Stage 7, sample rate as a parameter and loop phase | hamorg bakes |
+| E | Stage 6 groundwork: breakpoint coding of the existing streams | bytes, output unchanged |
+
+Rules:
+
+- Agents never judge sound. They report card numbers and sizes, and produce
+  clips. The user hears them.
+- One hand (the main session) owns `pinst_encode.py`, the file format and
+  the merge. Agents do not edit those.
+- The merge is its own step: the generators are chained in the standard's
+  order and the card is run again, because each one changes what the next
+  is given. Clips for stages 2, 3 and 4 go to the user as one gate: each
+  alone, then all together.
+- Stage 5 (pulses) is not started in parallel. It depends on what the
+  merged three leave.
+- Each agent's work is reviewed by a second agent that did not write it,
+  before the merge.
+- No agent touches `sfpp_test` or Godot.
+
 ## What goes away
 
 The transform layers and their coder, the need map as a chooser, the
