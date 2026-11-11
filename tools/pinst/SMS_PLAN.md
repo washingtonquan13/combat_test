@@ -60,9 +60,11 @@ before it left, and takes only what it explains:
    plucks, bells).
 3. **Pulses.** The part of a hit that is in step across bands. Candidate
    form: an onset time, a level per band and a short decay, rendered with one
-   shared phase. The published alternative is Verma and Meng's method (sine
-   modelling of the block's DCT). Which one is decided in stage 5, from what
-   is measured to be left by then.
+   shared phase. The published alternatives are Verma and Meng's method (sine
+   modelling of the block's DCT) and hybrid dictionary decomposition
+   (Daudet and Torrésani): matching pursuit over short atoms at several
+   scales, each atom a position, scale, frequency, phase and level. Which one
+   is decided in stage 5, from what is measured to be left by then.
 4. **Noise.** Band noise as today, with a time envelope fine enough to carry
    the noisy part of a hit. Whatever the first three leave goes here.
 
@@ -235,8 +237,16 @@ made worse or larger.
 - Read the card: what is still an envelope or level miss at onsets after
   stages 2 to 4 (stage 1 found no measure that separates a click from fast
   noise).
-- Build the pulse generator in the candidate form. If it fails by ear on the
-  closing hat and the pick attacks, try the DCT method.
+- Build three candidates and compare them on the same card and clips:
+  the plan's own pulse form, the DCT method, and matching pursuit atoms.
+- Atoms: a dictionary of short atoms at several scales, picked one at a time
+  from what stages 2 to 4 left at each onset. Each atom must lower the
+  residual in its bands. Atoms per onset are capped by one number for all
+  instruments, as modes are. Past the cap the attack belongs to noise.
+- The atom cap is what keeps this a generator and not a stored waveform in
+  another basis. Report misses and bytes at several caps. If the bar is only
+  reached where the atoms are as dense as the attack's samples, that count
+  is reported and the user decides where the line is.
 
 Gate: clips. This is where earlier work stopped short, so the gate may fail.
 If it does, what remains is listed note by note and the user decides what
@@ -340,8 +350,10 @@ stage 9 passes.
 - **It may not be reachable.** No published generic system got to "sounds
   the same" without stored waveform. Sharp high onsets and cymbals are the
   known hard spots. With no net, some notes may stay wrong for a long time.
-- **Pulses are unproven.** The candidate form is this plan's own guess. The
-  published alternative was never shown to be transparent either.
+- **Pulses are unproven.** The candidate form is this plan's own guess.
+  The published alternatives (DCT sines, matching pursuit atoms) separate
+  transients well, but were shown transparent only with their own bit
+  rate for the transient layer, not as a few settings per hit.
 - **Bake time.** Modes and per-frame pitch are slow to find. PINST3 already
   cost 5 to 7 times PINST2.
 - **Size could rise.** A fine noise envelope and many modes cost bytes;
