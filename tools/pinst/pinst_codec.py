@@ -55,6 +55,7 @@ class Channel:
     pcm: np.ndarray | None = None    # verbatim attack (hybrid tier)
     junction: int = 0                # sample where the model takes over
     info: dict = field(default_factory=dict)
+    xres: np.ndarray | None = None   # decoded transform-coded residual over the attack
 
 
 def _stft_frames(x: np.ndarray, N: int, H: int, Z: int):
@@ -345,6 +346,11 @@ class Tier:
     noise_smooth: int = 5     # frames of power averaging: store the envelope, not one draw of it
     noise_floor: float = -130.0  # band dB under the note's loudest band: below it is silent
     pcm_ms: float = 0.0       # hybrid: verbatim attack length
+    xf_ms: float = 0.0        # transform-coded residual: how long after the onset it runs (big = whole note)
+    xf_snr: float = 12.0      # its signal-to-noise target per band, dB
+    xf_M: int = 128           # MDCT hop
+    xf_bands: int = 18
+    xf_floor: float = -80.0   # bands this far under the residual's loudest band are not coded
     phase_bits: int = 6
     f0_cents: float = 0.1     # harmonic lock: the shared f0 track's quantum and tolerance
     harmonic_lock: bool = True
@@ -523,6 +529,65 @@ def quantize(ch: Channel, tier: Tier):
     return out, sizes
 
 
+# ------------------------------------------------- transform-coded residual
+
+_MDCT = {}
+
+
+def _mdct(M):
+    if M not in _MDCT:
+        n = np.arange(2 * M)
+        _MDCT[M] = (np.cos(np.pi / M * (n[:, None] + 0.5 + M / 2) * (np.arange(M)[None, :] + 0.5)),
+                    np.sin(np.pi * (n + 0.5) / (2 * M)))
+    return _MDCT[M]
+
+
+def _ints(a) -> bytes:
+    """Zigzag varints of an int array."""
+    a = np.asarray(a, dtype=np.int64).ravel()
+    z = (a << 1) ^ (a >> 63)
+    if not len(z) or z.max() < 128:
+        return z.astype(np.uint8).tobytes()
+    out = bytearray()
+    for v in a:
+        _varint(v, out)
+    return bytes(out)
+
+
+def xform_code(e, tier):
+    """What the partials miss, as quantized MDCT coefficients: a scale per
+    band and frame, coefficients rounded to a step set by the SNR target.
+    Coefficients that round to nothing are refilled with noise so each band
+    keeps its energy. Returns (decoded signal, bytes)."""
+    M = tier.xf_M
+    B, w = _mdct(M)
+    F = int(np.ceil(len(e) / M)) + 1
+    buf = np.zeros((F + 1) * M)
+    buf[M : M + len(e)] = e
+    X = (np.lib.stride_tricks.sliding_window_view(buf, 2 * M)[::M] * w) @ B
+    edges = np.unique(np.concatenate([[0], np.round(np.geomspace(2, M, tier.xf_bands + 1)).astype(int)]))
+    wid = np.diff(edges)
+    sdb = 10 * np.log10(np.add.reduceat(X**2, edges[:-1], axis=1) / wid + 1e-30)
+    live = sdb > sdb.max() + tier.xf_floor
+    qs = np.round(sdb / 1.5).astype(np.int64)
+    rms = 10 ** (qs * 1.5 / 20) * live
+    step = np.repeat(np.maximum(rms, 1e-30) * 10 ** (-tier.xf_snr / 20) * np.sqrt(12), wid, axis=1)
+    q = np.where(np.repeat(live, wid, axis=1), np.round(X / step), 0).astype(np.int64)
+    Xd = q * step
+    lack = np.maximum(rms**2 * wid - np.add.reduceat(Xd**2, edges[:-1], axis=1), 0)
+    nzero = np.add.reduceat((q == 0).astype(float), edges[:-1], axis=1)
+    fill = np.repeat(np.sqrt(lack / np.maximum(nzero, 1)), wid, axis=1)
+    fill = np.minimum(fill, step / np.sqrt(12))    # a zero was under half a step: never louder than that
+    Xd = Xd + (q == 0) * fill * np.random.default_rng(11).standard_normal(X.shape)
+    yf = (Xd @ B.T) * w * (2 / M)
+    out = np.zeros_like(buf)
+    for i in range(F):
+        out[i * M : i * M + 2 * M] += yf[i]
+    sc = np.where(live, qs, qs[live].min() - 1 if live.any() else 0)
+    sc[1:] -= sc[:-1].copy()
+    return out[M : M + len(e)], _lz(_ints(sc)) + _lz(_ints(q))
+
+
 # ------------------------------------------------------------------ compile
 
 def onset_sample(x, rel_db=-40.0):
@@ -587,6 +652,14 @@ def render(ch: Channel, tier: Tier, edges=None) -> np.ndarray:
     nz = synth_noise(ch.noise_db, ch.noise_H, ch.n, edges)
     if ch.tns is not None:
         nz = apply_tns(nz, ch.tns, ch.tns_start)
+    if ch.xres is not None:
+        # the coded residual stands in for the noise model while it runs
+        L, j = len(ch.xres), ch.junction
+        w = np.ones(L)
+        if L > j:
+            w[j:] = np.linspace(1, 0, L - j)
+        nz[:L] *= 1 - w
+        y[:L] += ch.xres * w
     y = y + nz
     if ch.pcm is not None and ch.junction > 0:
         xf = int(0.004 * SR)
@@ -602,4 +675,10 @@ def render(ch: Channel, tier: Tier, edges=None) -> np.ndarray:
 def compile_channel(x, pitched, f0, tier):
     ch = analyse(x, pitched, f0, tier)
     dec, sizes = quantize(ch, tier)
+    if tier.xf_ms > 0:
+        j = min(ch.n, ch.info["onset"] + int(tier.xf_ms * SR / 1000))
+        L = min(ch.n, j + int(0.004 * SR))
+        det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
+        dec.xres, sizes["xform"] = xform_code(x[:L] - det[:L], tier)
+        dec.junction = j
     return ch, dec, sizes
