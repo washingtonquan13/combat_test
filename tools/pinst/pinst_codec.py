@@ -24,6 +24,7 @@ import io
 import lzma
 from dataclasses import dataclass, field
 
+import fastlib
 import numpy as np
 import soundfile as sf
 from scipy.optimize import linear_sum_assignment
@@ -275,12 +276,21 @@ def apply_tns(y, tns_db, start, blk=TNS_BLOCK):
 
 # ------------------------------------------------------------- keyframing
 
+_fast = fastlib.lib
+
+
 def keyframes(vals: np.ndarray, tol: np.ndarray, max_span=64):
     """Indices to keep so linear interpolation stays within tol on every
     column. vals: (L, C)."""
     L = len(vals)
     if L <= 2:
         return np.arange(L)
+    if _fast:
+        vals = np.ascontiguousarray(vals, dtype=float)
+        tol = np.ascontiguousarray(np.broadcast_to(tol, vals.shape[1:]), dtype=float)
+        keep = np.empty(L, dtype=np.int64)
+        n = _fast.keyframes(vals.ctypes.data, L, vals.shape[1], tol.ctypes.data, max_span, keep.ctypes.data)
+        return keep[:n].copy()
     keep = [0]
     k = 0
     while k < L - 1:
@@ -437,6 +447,13 @@ def steer_keys(cents, ref, ph, keys, ki0, phi0, H, q, gain, clip):
     if gain <= 0:
         return qc
     k = 2 * np.pi / SR
+    if _fast:
+        c, r, p = (np.ascontiguousarray(v, dtype=float) for v in (cents, ref, ph))
+        ks = np.ascontiguousarray(keys, dtype=np.int64)
+        if not _fast.steer_keys(c.ctypes.data, r.ctypes.data, p.ctypes.data, ks.ctypes.data, len(ks), ki0, phi0, H,
+                                q, gain, clip, k, np.log(2) / 1200, qc.ctypes.data):
+            return qc
+        qc = np.round(cents[keys] / q).astype(np.int64)
     th = phi0
     for i in range(ki0 + 1, len(keys)):
         a, b = keys[i - 1], keys[i]

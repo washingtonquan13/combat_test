@@ -4,6 +4,7 @@ disto follow sfizz's code; the compressor is a plain feed-forward stand-in.
 Both sides of every A/B go through the same chain."""
 from __future__ import annotations
 
+import fastlib
 import numpy as np
 import soundfile as sf
 from scipy.signal import firwin, lfilter, resample_poly, fftconvolve
@@ -11,26 +12,7 @@ from scipy.signal import firwin, lfilter, resample_poly, fftconvolve
 SR = 44100
 
 
-def _load_native():
-    """native/ampfast.dll (native/build.bat makes it): the per-sample loops
-    in C, the same numbers many times faster. None when it is not built."""
-    import ctypes
-    import os
-    try:
-        lib = ctypes.CDLL(os.path.join(os.path.dirname(os.path.abspath(__file__)), "native", "ampfast.dll"))
-    except OSError:
-        return None
-    d, p, i64 = ctypes.c_double, ctypes.c_void_p, ctypes.c_int64
-    lib.comp_env.argtypes = [p, p, i64, d, d]
-    lib.comp_env.restype = None
-    lib.disto_stages.argtypes = [p, p, i64, ctypes.c_int, d, d, d, d, d, d, p, p]
-    lib.disto_stages.restype = None
-    lib.disto_os.argtypes = [p, p, i64, p, p, ctypes.c_int, d, d, d, d, d, d, p]
-    lib.disto_os.restype = None
-    return lib
-
-
-_native = _load_native()
+_native = fastlib.lib
 CAB = "samples/cab/jester-brutal/Impulses/44.1kHz/14_Cathode_Ray_Fleshburn_44.wav"
 
 
