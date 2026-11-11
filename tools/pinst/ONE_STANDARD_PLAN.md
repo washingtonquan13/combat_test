@@ -1,6 +1,7 @@
 # pinst: one standard
 
-Written 2026-11-11. Status: plan only, nothing built.
+Written 2026-11-11. Status: stages 0 to 2 built (c852c85). Stage 3 on is
+replaced by `SMS_PLAN.md`, which drops the stored remainder.
 
 ## Why
 
