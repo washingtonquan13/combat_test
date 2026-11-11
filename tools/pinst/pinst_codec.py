@@ -60,51 +60,55 @@ class Channel:
     xlf: np.ndarray | None = None    # decoded low-band residual, whole note
 
 
-def _stft_frames(x: np.ndarray, N: int, H: int, Z: int):
-    """Zero-phase windowed spectra, one per frame centred at i*H."""
+def _stft_frames(x: np.ndarray, N: int, H: int, Z: int, rows: int = 0):
+    """Zero-phase windowed spectra, one per frame centred at i*H, yielded a
+    few frames at a time: every later step works frame by frame, and a
+    whole note's spectra are far larger than the cache."""
     w = get_window("blackmanharris", N, fftbins=True)
     xp = np.concatenate([np.zeros(N // 2), x, np.zeros(N)])
     F = 1 + len(x) // H
-    idx = np.arange(F)[:, None] * H + np.arange(N)[None, :]
-    seg = xp[idx] * w
-    buf = np.zeros((F, Z))
-    buf[:, : N - N // 2] = seg[:, N // 2 :]
-    buf[:, Z - N // 2 :] = seg[:, : N // 2]
-    return np.fft.rfft(buf, axis=1), w.sum()
+    rows = rows or max(4, 65536 // Z)
+    for f0 in range(0, F, rows):
+        idx = np.arange(f0, min(F, f0 + rows))[:, None] * H + np.arange(N)[None, :]
+        seg = xp[idx] * w
+        buf = np.zeros((len(idx), Z))
+        buf[:, : N - N // 2] = seg[:, N // 2 :]
+        buf[:, Z - N // 2 :] = seg[:, : N // 2]
+        yield np.fft.rfft(buf, axis=1), w.sum()
 
 
 def find_peaks_frames(x, N, H, max_peaks=100, rel_db=-80.0, abs_db=-110.0, prom_db=9.0, fmax=18000.0):
     Z = 2 * N
-    X, wsum = _stft_frames(x, N, H, Z)
-    mag = np.abs(X) * 2.0 / wsum
-    db = 20.0 * np.log10(mag + 1e-12)
-    floor = uniform_filter1d(db, size=max(9, Z // 128), axis=1)
-    loc = np.zeros_like(db, dtype=bool)
-    loc[:, 1:-1] = (db[:, 1:-1] > db[:, :-2]) & (db[:, 1:-1] >= db[:, 2:])
-    fmax_bin = int(fmax * Z / SR)
-    loc[:, fmax_bin:] = False
-    loc[:, :2] = False
-    thr = np.maximum(db.max(axis=1, keepdims=True) + rel_db, abs_db)
-    loc &= (db > thr) & (db > floor + prom_db)
     frames = []
-    for i in range(db.shape[0]):
-        k = np.flatnonzero(loc[i])
-        if len(k) == 0:
-            frames.append((np.zeros(0), np.zeros(0), np.zeros(0)))
-            continue
-        a, b, c = db[i, k - 1], db[i, k], db[i, k + 1]
-        den = a - 2 * b + c
-        p = np.where(np.abs(den) > 1e-9, 0.5 * (a - c) / den, 0.0)
-        f = (k + p) * SR / Z
-        amp = b - 0.25 * (a - c) * p
-        nb = np.where(p >= 0, k + 1, k - 1)
-        ak = np.angle(X[i, k])     # phases only where there is a peak
-        d = np.angle(np.exp(1j * (np.angle(X[i, nb]) - ak)))
-        ph = ak + np.abs(p) * d
-        if len(k) > max_peaks:
-            keep = np.argsort(amp)[-max_peaks:]
-            f, amp, ph = f[keep], amp[keep], ph[keep]
-        frames.append((f, amp, ph))
+    for X, wsum in _stft_frames(x, N, H, Z):
+        mag = np.abs(X) * 2.0 / wsum
+        db = 20.0 * np.log10(mag + 1e-12)
+        floor = uniform_filter1d(db, size=max(9, Z // 128), axis=1)
+        loc = np.zeros_like(db, dtype=bool)
+        loc[:, 1:-1] = (db[:, 1:-1] > db[:, :-2]) & (db[:, 1:-1] >= db[:, 2:])
+        fmax_bin = int(fmax * Z / SR)
+        loc[:, fmax_bin:] = False
+        loc[:, :2] = False
+        thr = np.maximum(db.max(axis=1, keepdims=True) + rel_db, abs_db)
+        loc &= (db > thr) & (db > floor + prom_db)
+        for i in range(db.shape[0]):
+            k = np.flatnonzero(loc[i])
+            if len(k) == 0:
+                frames.append((np.zeros(0), np.zeros(0), np.zeros(0)))
+                continue
+            a, b, c = db[i, k - 1], db[i, k], db[i, k + 1]
+            den = a - 2 * b + c
+            p = np.where(np.abs(den) > 1e-9, 0.5 * (a - c) / den, 0.0)
+            f = (k + p) * SR / Z
+            amp = b - 0.25 * (a - c) * p
+            nb = np.where(p >= 0, k + 1, k - 1)
+            ak = np.angle(X[i, k])     # phases only where there is a peak
+            d = np.angle(np.exp(1j * (np.angle(X[i, nb]) - ak)))
+            ph = ak + np.abs(p) * d
+            if len(k) > max_peaks:
+                keep = np.argsort(amp)[-max_peaks:]
+                f, amp, ph = f[keep], amp[keep], ph[keep]
+            frames.append((f, amp, ph))
     return frames
 
 
