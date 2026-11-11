@@ -1,7 +1,7 @@
 """Bake every sample an SFZ uses into .pinst notes, and write the same SFZ
 pointing at them.
 
-  python -I tools/pinst/bake_library.py FILE.sfz OUT_ROOT [--lib DIR] [--judge amp|dry|both]
+  python -I tools/pinst/bake_library.py FILE.sfz OUT_ROOT [--lib DIR]
       [--pitch name|key|none] [--every N] [--jobs N] [--only TEXT]
 
 OUT_ROOT mirrors the library folder LIB (--lib, default the folder above the
@@ -21,12 +21,8 @@ where there is one; none for drums.
 
 A file keeps its channel count (sfizz treats mono and stereo regions
 differently): a stereo file whose side is under -40 dB keeps a silent second
-channel. Each file is baked at the mid and body tiers and the chooser from
-run_prototype keeps one. --judge says how the library is heard, which is how
-the two are compared: amp (the default) through the amp and cabinet, for a
-guitar that is never played without them; dry as they are, for drums and
-anything else heard clean, with no amp run at all; both chooses by the amp
-and writes the dry scores to the log as well, for checking the codec itself.
+channel. Every file goes through the one encoder (pinst_encode, PINST3),
+44.1 or 48 kHz at the file's own rate: no tiers, nothing chosen per file.
 
 Rows go to OUT_ROOT/bake.jsonl as files finish; files already there are
 skipped, so a stopped run carries on. --every N bakes each Nth file, for a
@@ -48,96 +44,34 @@ import numpy as np
 import soundfile as sf
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import amp  # noqa: E402
 import inventory  # noqa: E402
-import metrics  # noqa: E402
 import pinst_codec as pc  # noqa: E402
+import pinst_encode as pe  # noqa: E402
 import pinst_file as pf  # noqa: E402
-import run_prototype as rp  # noqa: E402
 import fastlib  # noqa: E402
 
 fastlib.recycle_big_arrays()
 
 
-def bake(x, f0, mid, body=None):
-    """x: (n, 1 or 2). Returns (file bytes, offline render shaped like x) for
-    mid, and for body too when it is given: the two share one analysis."""
-    if x.shape[1] == 1:
-        sigs = [x[:, 0]]
-    else:
-        M, S = 0.5 * (x[:, 0] + x[:, 1]), 0.5 * (x[:, 0] - x[:, 1])
-        side_db = 20 * np.log10(np.sqrt((S**2).mean()) / max(np.sqrt((M**2).mean()), 1e-12) + 1e-12)
-        sigs = [M, S if side_db >= -40 else np.zeros_like(S)]
-    tiers = [mid] if body is None else [mid, body]
-    chans, ys = [[] for _ in tiers], [[] for _ in tiers]
-    for sig in sigs:
-        live = bool(np.any(sig))
-        pitched, hz = live and f0 is not None, f0 if live else None
-        if body is None:
-            decs, det = [pc.compile_channel(sig, pitched, hz, mid)[1]], None
-        else:
-            *decs, det = pc.compile_tiers(sig, pitched, hz, mid, body)
-        for k, (dec, tier) in enumerate(zip(decs, tiers)):
-            chans[k].append(dec)
-            ys[k].append(pc.render(dec, tier, det=det))
-    out = []
-    for c, y, tier in zip(chans, ys, tiers):
-        y = y[0][:, None] if len(y) == 1 else np.stack([y[0] + y[1], y[0] - y[1]], axis=1)
-        out.append((pf.pack(c, tier), y))
-    return out
-
-
 def do_file(job):
-    written, src, dst, judge, hz = job
-    by = "amp" if judge != "dry" else None     # the scores the choice is made on
+    written, src, dst, hz = job
     t0 = time.time()
     x, sr = sf.read(src, always_2d=True)
     if len(x) < 4096:   # a stub (a library's 24-frame silence.wav) is padded with silence to the analysis windows
         x = np.concatenate([x, np.zeros((4096 - len(x), x.shape[1]))])
-    # the note is coded at its own rate; the amp judge's cab is a 44.1 kHz IR
-    assert sr in (44100, 48000) and (sr == 44100 or by is None), (src, sr)
-    pc.SR = metrics.SR = sr
+    assert sr in (44100, 48000), (src, sr)
+    pc.SR = sr          # the note is coded at its own rate
     nm = inventory.note_of(src)
-    f0 = hz if hz != "name" else (rp.note_hz(nm) if nm else None)
-    two = lambda a: a if a.shape[1] == 2 else np.repeat(a, 2, axis=1)
-    quiet = not np.any(x)
-    ref = None if quiet or not by else amp.amp_cab(two(x))
-    tiers = {t.name: t for t in rp.TIERS}
-    di, amped = {}, {}      # the original's spectra, kept across the two candidates
-    da, ampa = {}, {}       # the same, for the attack window
-    # the onset to 200 ms after, the stretch the body tier's attack layer codes:
-    # scored on its own, since over a whole note a pluck turned to noise is a
-    # few percent of the frames and barely moves the score
-    on = pc.onset_sample(x.mean(axis=1))
-    att = slice(max(0, on - 10 * pc.TNS_BLOCK), on + int(0.2 * sr))
-    out = {}
-    if quiet:
-        data = bake(x, f0, tiers["mid"])[0][0]
-        out["mid"] = (data, {"bytes": len(data)})
-    else:
-        for name, (data, y) in zip(("mid", "body"), bake(x, f0, tiers["mid"], tiers["body"])):
-            sc = {"bytes": len(data)}
-            if judge != "amp":
-                sc.update(rp.score(two(x), two(y), di))
-                sc["attack"] = rp.score(two(x[att]), two(y[att]), da)
-            if by:
-                ya = amp.amp_cab(two(y))
-                sc["amp"] = rp.score(ref, ya, amped)
-                sc["amp"]["attack"] = rp.score(ref[att], ya[att], ampa)
-            out[name] = (data, sc)
-    pick = "mid"
-    if "body" in out and not quiet:
-        m, b = ((v[1][by] if by else v[1]) for v in (out["mid"], out["body"]))
-        gain = lambda m, b: max(m["mrstft_db"] - b["mrstft_db"], 2 * (m["mel_db"] - b["mel_db"]))
-        # the body tier where it buys a clear step over the note or over its attack
-        pick = "body" if max(gain(m, b), gain(m["attack"], b["attack"])) >= rp.AUTO_GAIN_DB else "mid"
+    f0 = hz if hz != "name" else (inventory.note_hz(nm) if nm else None)
+    chans, _ = pe.encode_note(x, f0)
+    data = pf.pack3(chans, pe.STANDARD)
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     with open(dst + ".part", "wb") as f:
-        f.write(out[pick][0])
+        f.write(data)
     os.replace(dst + ".part", dst)      # a stopped run never leaves half a note behind
-    return {"sample": written, "seconds": round(len(x) / pc.SR, 3), "channels": x.shape[1], "note": nm,
-            "wav_bytes": os.path.getsize(src), "judge": judge, "picked": pick, "bytes": len(out[pick][0]),
-            "tiers": {k: v[1] for k, v in out.items()}, "bake_s": round(time.time() - t0, 2)}
+    return {"sample": written, "seconds": round(len(x) / sr, 3), "channels": x.shape[1], "note": nm,
+            "wav_bytes": os.path.getsize(src), "bytes": len(data),
+            "need_pct": [c.info["need_pct"] for c in chans], "bake_s": round(time.time() - t0, 2)}
 
 
 def core_masks():
@@ -175,9 +109,8 @@ def main():
     from concurrent.futures import ProcessPoolExecutor, as_completed
     sfz, root = sys.argv[1], sys.argv[2]
     arg = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
-    every, only, judge = int(arg("--every") or 1), arg("--only"), arg("--judge") or "amp"
+    every, only = int(arg("--every") or 1), arg("--only")
     pitch = arg("--pitch") or "name"
-    assert judge in ("amp", "dry", "both"), judge
     assert pitch in ("name", "key", "none"), pitch
     scan = inventory.Scan(sfz)
     lib = os.path.abspath(arg("--lib") or os.path.dirname(os.path.dirname(os.path.abspath(sfz))))
@@ -213,7 +146,7 @@ def main():
             continue
         if i % every or w in done or first != w or (only and only not in w):
             continue
-        jobs.append((w, src, dst, judge, hz_of(src)))
+        jobs.append((w, src, dst, hz_of(src)))
     # longest first, so the tail of the run is not one long note on one core
     jobs.sort(key=lambda j: -os.path.getsize(j[1]))
     print(f"{len(jobs)} files to bake, {len(done)} already done", flush=True)

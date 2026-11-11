@@ -65,9 +65,10 @@ def noise_ref_db(edges):
 class Layer:
     """One transform layer, decoded a frame at a time."""
 
-    def __init__(self, sc, q, n, M, K, nbands, snr, noise_hz, dead, seed):
+    def __init__(self, sc, q, n, M, K, nbands, snr, noise_hz, dead, seed, grid3=False):
         self.q, self.n, self.M, self.K, self.seed = q, n, M, K, seed
         B, self.w = pc._mdct(M)
+        self.w0 = pc.layer_windows(M)[0] if grid3 else self.w
         self.B = B[:, :K]
         self.edges = pc._xf_edges(K, nbands)
         self.wid = np.diff(self.edges)
@@ -78,6 +79,16 @@ class Layer:
         self.coded = live & ~noisy[None, :]
         self.tail = np.zeros(M)
         self.f = 0          # next frame; frame f covers samples (f-1)*M .. (f+1)*M
+        # PINST3 (pc.layer_windows): frame f covers f*M - M/2 .. f*M + 3M/2,
+        # so the note starts half way into the first hop
+        self.pending = self.hop()[M // 2 :] if grid3 else np.zeros(0)
+
+    def take(self, n):
+        """The next n samples (PINST3 grid)."""
+        while len(self.pending) < n:
+            self.pending = np.concatenate([self.pending, self.hop()])
+        out, self.pending = self.pending[:n], self.pending[n:]
+        return out
 
     def hop(self):
         """The next M samples."""
@@ -94,15 +105,20 @@ class Layer:
         fill = np.repeat(np.sqrt(lack / np.maximum(nz, 1)), wid)
         fill = np.where(np.repeat(self.coded[f], wid), np.minimum(fill, step / np.sqrt(12)), fill)
         X = X + (q == 0) * fill * hash_uniform(self.seed, f * self.K, self.K) * _SQ3
-        y = (self.B @ X) * self.w * (2 / M)
+        y = (self.B @ X) * (self.w0 if f == 0 else self.w) * (2 / M)
         out = self.tail + y[:M]
         self.tail = y[M:]
         return out
 
 
 class ChannelVoice:
-    def __init__(self, blob, seed, packed=True):
-        ch, tier, lay = pf.unpack_channel(blob, decode_layers=False, packed=packed)
+    def __init__(self, blob, seed, packed=True, v3=False):
+        self.v3 = v3
+        if v3:
+            ch, tier, lay = pf.unpack3_channel(blob, packed, decode_layers=False)
+            seed = ch.seed
+        else:
+            ch, tier, lay = pf.unpack_channel(blob, decode_layers=False, packed=packed)
         self.ch, self.n, self.H, self.pos = ch, ch.n, ch.H, 0
         self.seed = seed
         edges = pc.erb_edges(tier.noise_bands)
@@ -112,9 +128,16 @@ class ChannelVoice:
         self.ngain = np.array([10 ** (np.interp(f, centres, r) / 20) for r in g_db])
         self.ntail = np.zeros(NH)
         self.nf = 0
-        self.layers = [Layer(*a, seed=seed + 1 + i) for i, a in enumerate(lay)]
-        for L in self.layers:
-            L.hop()         # the half frame before sample 0
+        if v3:
+            # noise frame i is centred on sample i * NH: the first half frame
+            # falls before the note
+            self._noise_hop()
+            self.layers = [Layer(sc, q, n, M, K, b, s, 0.0, d, sd, grid3=True)
+                           for sc, q, n, M, K, b, s, d, sd in lay]
+        else:
+            self.layers = [Layer(*a, seed=seed + 1 + i) for i, a in enumerate(lay)]
+            for L in self.layers:
+                L.hop()         # the half frame before sample 0
         self.xn = lay[0][2] if lay else 0
         self.order = sorted(range(len(ch.tracks)), key=lambda i: ch.tracks[i].start)
         self.next_tr = 0
@@ -182,6 +205,10 @@ class ChannelVoice:
         self.pos += G
         y = self._sines(p, G)
         nz = self._noise(p, G)
+        if self.v3:     # the noise is already muted where a layer carries the band
+            for L in self.layers:
+                y += L.take(G)
+            return y + nz
         for i, L in enumerate(self.layers):
             x = np.concatenate([L.hop() for _ in range(G // L.M)])
             if i == 0:
@@ -200,7 +227,8 @@ class Voice:
 
     def __init__(self, data: bytes):
         bl, packed = pf.blobs(data)
-        self.ch = [ChannelVoice(b, 7 + 100 * i, packed) for i, b in enumerate(bl)]
+        v3 = data[: len(pf.MAGIC3)] == pf.MAGIC3
+        self.ch = [ChannelVoice(b, 7 + 100 * i, packed, v3) for i, b in enumerate(bl)]
         self.n, self.pos = self.ch[0].n, 0
         self.buf = np.zeros((0, 2))
 
@@ -222,6 +250,7 @@ def _check(job):
     import run_prototype as rp
     (name, path, kind, pitched, nm), out_dir, tname = job
     data = open(os.path.join(out_dir, name, f"{tname}.pinst"), "rb").read()
+    v3 = data[: len(pf.MAGIC3)] == pf.MAGIC3
     x, _ = sf.read(path, always_2d=True)
     if kind == "gtr":
         x = x[500:]
@@ -230,7 +259,7 @@ def _check(job):
     y = v.render(v.n)
     sd = 0.0    # partials alone, offline against block by block
     for (ch, tier), b in zip(pf.unpack(data), pf.blobs(data)[0]):
-        cv = ChannelVoice(b, 7)
+        cv = ChannelVoice(b, 7, v3=v3)
         a = pc.synth_tracks(ch.tracks, ch.n, ch.H, mode="integrate", anchors=ch.info["anchors"])
         s = np.concatenate([cv._sines(p, G) for p in range(0, ch.n + G, G)])[: ch.n]
         sd = max(sd, float(np.abs(a - s).max()))
@@ -239,9 +268,10 @@ def _check(job):
         parts.append(v2.render(int(rng.integers(1, 3000))))
     blk = float(np.abs(np.concatenate(parts)[: v2.n] - y).max())
     m = min(len(x), len(y))
+    od = float(np.abs(off[: len(y)] - y[: len(off)]).max())
     so, ss = rp.score(x[:m], off[:m]), rp.score(x[:m], y[:m])
     sf.write(os.path.join(out_dir, name, f"{tname}_stream.wav"), y, pc.SR, subtype="PCM_24")
-    return name, tname, sd, blk, so, ss
+    return name, tname, sd, blk, od, so, ss
 
 
 if __name__ == "__main__":
@@ -250,8 +280,9 @@ if __name__ == "__main__":
     from concurrent.futures import ProcessPoolExecutor
     import run_prototype as rp
     out_dir = sys.argv[1]
-    jobs = [(n, out_dir, t) for n in rp.NOTES for t in ("mid", "body")]
-    print(f"{'note':18s} tier   sines diff  block diff   offline (mrstft mel)   stream (mrstft mel)")
+    tiers = sys.argv[2:] or ["standard"]
+    jobs = [(n, out_dir, t) for n in rp.NOTES for t in tiers]
+    print(f"{'note':18s} tier      sines diff  block diff  vs offline   offline (mrstft mel)   stream (mrstft mel)")
     with ProcessPoolExecutor(12) as ex:
-        for name, t, sd, blk, so, ss in ex.map(_check, jobs):
-            print(f"{name:18s} {t:5s}  {sd:.1e}    {blk:.1e}     {so["mrstft_db"]:5.2f} {so["mel_db"]:5.2f}          {ss["mrstft_db"]:5.2f} {ss["mel_db"]:5.2f}")
+        for name, t, sd, blk, od, so, ss in ex.map(_check, jobs):
+            print(f"{name:18s} {t:9s} {sd:.1e}    {blk:.1e}     {od:.1e}     {so["mrstft_db"]:5.2f} {so["mel_db"]:5.2f}          {ss["mrstft_db"]:5.2f} {ss["mel_db"]:5.2f}")

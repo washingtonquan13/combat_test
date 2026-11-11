@@ -247,6 +247,35 @@ Gate: size per library against the baseline is reported, and single-note A/B
 clips from the proof set (WAV, old pinst, new pinst) go to the user. The user
 is the only judge of sound.
 
+#### Stage 2 result (2026-11-11): built, gate open (clips with the user)
+
+`pinst_encode.py`, PINST3 in `pinst_file.py` / `pinst_stream.py`;
+`bake_library.py` has one path (no tiers, no chooser, no `--judge`).
+
+- Noise is hash noise: frame i is centred on sample i·512, and the seed is
+  in the file. A layer frame f covers f·M−M/2 .. f·M+3M/2, and frame 0 has a
+  start window (0, then 1, then the sine half), so a layer needs no junction
+  crossfade.
+- Around each transient (a 128-block 12 dB over the 8 before it) the noise
+  frames are muted and short blocks carry everything. The noise comes back on
+  its own window, so no step.
+- The block player matches the offline render to 2e-13 on the 23 old notes.
+
+| Library | Notes | PINST2 | PINST3 | kbit/s | cpu-min | need % p10/50/90 |
+|---|---|---|---|---|---|---|
+| standard-bass | 940 | 6.44 MB | 5.17 MB (−20%) | 18.5 → 14.8 | 4.6 → 24.5 | 2/12/39 |
+| sm-drums | 3358 | 71.5 MB | 83.1 MB (+16%) | 41.9 → 48.6 | 32 → 237 | 5/13/26 |
+
+No constant needed a per-library value. Waveform error against the source
+(not a judge of sound, since noise is uncorrelated by design, but a pointer)
+is worse on bass, median −27.3 → −22.9 dB, and peaks overshoot more, max
+2.07× the source against 1.34×. Seen on e2_Hammer-On1, the cause: where the
+partials miss part of a pitch move, the residual under a partial is a tone,
+and the noise replaces it with band noise of equal energy. That doubles the
+error and raises the crest. The need map compares whole-signal band levels,
+so a residual 15 dB under a partial in the same band is not flagged. The
+worst notes are fret noises (peak 2.07×) and Tom4 (14 dB more error).
+
 ### 3. Pitch from the audio
 
 - Lock decided by fit. Delete `--pitch` and the kit-name test.

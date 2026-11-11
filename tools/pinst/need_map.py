@@ -51,7 +51,7 @@ def plain_model(x, pitched, f0, seeds=SEEDS):
     dec, _ = pc.quantize(ch, MODEL)
     det = pc.synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
     edges = pc.erb_edges(MODEL.noise_bands)
-    noises = [pc.synth_noise(dec.noise_db, dec.noise_H, ch.n, edges, seed=s) for s in seeds]
+    noises = [pc.hash_noise(dec.noise_db, ch.n, edges, s) for s in seeds]
     return det, noises, dec
 
 
@@ -98,8 +98,11 @@ def band_stats(sigs, sr, edges):
     return 10 * np.log10(P + 1e-30), 10 * np.log10(K + 1e-30)
 
 
-def need_map(x, det, noises, sr=None):
+def need_map(x, det, noises, sr=None, ref=None):
     """x: the source channel. det, noises: the plain model (plain_model()).
+    ref: the dB that audible is measured from (default: x's loudest
+    band-frame); a side channel passes the mid's, so a quiet side is judged
+    by how loud the note is, not by itself.
     Returns a dict of (frames, bands) arrays: need (bool), level (model over
     source, dB), tone (source peakiness over model's, dB), audible (bool),
     and the band edges."""
@@ -109,6 +112,6 @@ def need_map(x, det, noises, sr=None):
     py, ky = band_stats([det + nz for nz in noises], sr, edges)
     level = py - px
     tone = kx - ky
-    audible = np.maximum(px, py) > px.max() + AUDIBLE_DB
+    audible = np.maximum(px, py) > (px.max() if ref is None else ref) + AUDIBLE_DB
     need = audible & ((np.abs(level) > LEVEL_DB) | (np.abs(tone) > TONE_DB))
     return {"need": need, "level": level, "tone": tone, "audible": audible, "edges": edges, "px": px}

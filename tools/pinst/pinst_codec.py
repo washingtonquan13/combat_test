@@ -18,8 +18,6 @@ Model (per channel):
 """
 from __future__ import annotations
 
-import copy
-import dataclasses
 import io
 import lzma
 from dataclasses import dataclass, field
@@ -60,6 +58,8 @@ class Channel:
     info: dict = field(default_factory=dict)
     xres: np.ndarray | None = None   # decoded transform-coded residual over the attack
     xlf: np.ndarray | None = None    # decoded low-band residual, whole note
+    layers: list | None = None       # PINST3: decoded residual layers, added as they are
+    seed: int = 7                    # PINST3: the channel's noise seed (layer i: seed + 1 + i)
 
 
 def _stft_frames(x: np.ndarray, N: int, H: int, Z: int, rows: int = 0):
@@ -320,6 +320,70 @@ def synth_noise(db, H, n, edges, seed=7):
     _, y = istft(Z, SR, window="hann", nperseg=NOISE_N, noverlap=NOISE_N - H, boundary=True)
     y = y[:n]
     return np.pad(y, (0, n - len(y)))
+
+
+# The players' noise. Everything random comes from an integer hash of
+# (seed, counter), so another implementation can reproduce it exactly. Each
+# NOISE_N-sample frame is its own random spectrum, shaped by the band levels,
+# sine-windowed and overlap-added at hop NOISE_N / 2.
+
+def hash_uniform(seed: int, start: int, count: int) -> np.ndarray:
+    """count values in [-1, 1), from counters start..start+count-1."""
+    x = (np.arange(start, start + count, dtype=np.uint64) * 0x9E3779B9 + seed) & 0xFFFFFFFF
+    x ^= x >> 16
+    x = (x * 0x85EBCA6B) & 0xFFFFFFFF
+    x ^= x >> 13
+    x = (x * 0xC2B2AE35) & 0xFFFFFFFF
+    x ^= x >> 16
+    return x.astype(np.float64) / 2147483648.0 - 1.0
+
+
+_SQ3 = np.sqrt(3.0)
+_NWIN = np.sin(np.pi * (np.arange(NOISE_N) + 0.5) / NOISE_N)
+_NREF = {}
+
+
+def noise_frame(seed, i, gain):
+    """Frame i of shaped noise: NOISE_N samples, to be overlap-added at i * NOISE_N / 2."""
+    u = hash_uniform(seed, i * (NOISE_N + 2), NOISE_N + 2) * _SQ3
+    return np.fft.irfft((u[0::2] + 1j * u[1::2]) * gain, NOISE_N) * _NWIN
+
+
+def noise_ref_db(edges):
+    """Band levels of this generator at unit gain, as the analysis measures them."""
+    NH = NOISE_N // 2
+    key = (SR, len(edges))
+    if key not in _NREF:
+        F = 4 * SR // NH
+        y = np.zeros((F + 1) * NH)
+        one = np.ones(NH + 1)
+        for i in range(F):
+            y[i * NH : i * NH + NOISE_N] += noise_frame(1, i, one)
+        _NREF[key] = _band_db(y, NH, edges)[8:-8].mean(axis=0)
+    return _NREF[key]
+
+
+def noise_gain(db, edges):
+    """(frames, NOISE_N/2 + 1) spectral gains of the hash noise for band levels db."""
+    centres = np.sqrt(edges[:-1] * edges[1:])
+    f = np.fft.rfftfreq(NOISE_N, 1 / SR)
+    g_db = db - noise_ref_db(edges)[None, :]
+    return np.array([10 ** (np.interp(f, centres, r) / 20) for r in g_db])
+
+
+def hash_noise(db, n, edges, seed):
+    """The players' noise for a whole note (PINST3): frame i centred on sample
+    i * NOISE_N / 2, where the analysis measured band row i."""
+    NN, NH = NOISE_N, NOISE_N // 2
+    g = noise_gain(db, edges)
+    F = len(g)
+    u = hash_uniform(seed, 0, F * (NN + 2)).reshape(F, NN + 2) * _SQ3
+    y = np.fft.irfft((u[:, 0::2] + 1j * u[:, 1::2]) * g, NN, axis=1) * _NWIN
+    buf = np.zeros((F + 1) * NH)
+    buf[: F * NH] += y[:, :NH].ravel()
+    buf[NH : (F + 1) * NH] += y[:, NH:].ravel()
+    out = buf[NH : NH + n]
+    return np.pad(out, (0, n - len(out)))
 
 
 TNS_BLOCK = 44   # ~1 ms
@@ -585,6 +649,14 @@ def steer_keys(cents, ref, ph, keys, ki0, phi0, H, q, gain, clip):
     return qc
 
 
+def quantize_noise(nd, tier: Tier):
+    """Band levels (frames, bands) as keyframed codes. Returns (stream, decoded levels)."""
+    nkeys = keyframes(nd, np.full(nd.shape[1], tier.noise_tol))
+    qn = np.round(np.maximum(nd[nkeys], -200) / tier.noise_q).astype(np.int64)
+    nstream = _ints(qn[0]) + _ints(np.concatenate([np.diff(nkeys)[:, None], np.diff(qn, axis=0)], axis=1))
+    return bytes(nstream), expand(nkeys, qn.astype(float) * tier.noise_q, len(nd))
+
+
 def quantize(ch: Channel, tier: Tier):
     """Returns (decoded Channel, bytes). Decoded tracks hold only what a
     stream would: keyframes expanded back, quantized values, one phase."""
@@ -645,12 +717,8 @@ def quantize(ch: Channel, tier: Tier):
         dec.append(Track(tr.start, ref * 2 ** (full[:, 0] / 1200), full[:, 1], ph))
         anchors.append(anchor)
     dts, dfs, das = (_ints(np.concatenate(v)) if v else b"" for v in (dts, dfs, das))
-    # noise
     nd = ch.noise_db
-    nkeys = keyframes(nd, np.full(nd.shape[1], tier.noise_tol))
-    qn = np.round(np.maximum(nd[nkeys], -200) / tier.noise_q).astype(np.int64)
-    nstream = _ints(qn[0]) + _ints(np.concatenate([np.diff(nkeys)[:, None], np.diff(qn, axis=0)], axis=1))
-    noise_dec = expand(nkeys, qn.astype(float) * tier.noise_q, len(nd))
+    nstream, noise_dec = quantize_noise(nd, tier)
     tns_bytes = 0
     tns_dec = None
     if ch.tns is not None:
@@ -702,10 +770,11 @@ def _xf_edges(K, nbands):
     return np.unique(np.concatenate([[0], np.round(np.geomspace(2, K, nbands + 1)).astype(int)]))
 
 
-def xform_decode(sc, q, n, M, K, nbands, snr, noise_hz, dead):
+def xform_decode(sc, q, n, M, K, nbands, snr, noise_hz, dead, seed=None):
     """The signal from what the stream holds. sc: (frames, bands) scale
     codes in 1.5 dB steps, `dead` marking bands that carry nothing.
-    q: (frames, K) coefficient codes."""
+    q: (frames, K) coefficient codes. seed: the players' hash fill (PINST3);
+    None is PINST1/2's offline fill, which no player reproduces."""
     B, w = _mdct(M)
     B = B[:, :K]
     edges = _xf_edges(K, nbands)
@@ -721,46 +790,105 @@ def xform_decode(sc, q, n, M, K, nbands, snr, noise_hz, dead):
     nzero = np.add.reduceat((q == 0).astype(float), edges[:-1], axis=1)
     fill = np.repeat(np.sqrt(lack / np.maximum(nzero, 1)), wid, axis=1)
     fill = np.where(coded, np.minimum(fill, step / np.sqrt(12)), fill)    # a coded zero was under half a step: never louder than that
-    Xd = Xd + (q == 0) * fill * np.random.default_rng(11).standard_normal(Xd.shape)
-    yf = (Xd @ B.T) * w * (2 / M)
+    if seed is None:
+        r = np.random.default_rng(11).standard_normal(Xd.shape)
+    else:
+        r = hash_uniform(seed, 0, F * K).reshape(F, K) * _SQ3
+    Xd = Xd + (q == 0) * fill * r
+    yf = (Xd @ B.T) * (2 / M)
+    off = M
+    if seed is None:
+        yf *= w
+    else:                       # PINST3: the layer grid (layer_windows)
+        w0, w = layer_windows(M)
+        yf[1:] *= w
+        yf[0] *= w0
+        off = M // 2
     out = np.zeros((F + 1) * M)
-    for i in range(F):
-        out[i * M : i * M + 2 * M] += yf[i]
-    return out[M : M + n]
+    out[: F * M] += yf[:, :M].ravel()
+    out[M : (F + 1) * M] += yf[:, M:].ravel()
+    return out[off : off + n]
 
 
-def xform_code(e, tier, M=None, snr=None, fmax=None):
-    """What the partials miss, as quantized MDCT coefficients: a scale per
-    band and frame, coefficients rounded to a step set by the SNR target.
-    Coefficients that round to nothing are refilled with noise so each band
-    keeps its energy. Returns (decoded signal, bytes, stream)."""
-    M = M or tier.xf_M
-    snr = tier.xf_snr if snr is None else snr
-    K = M if fmax is None else max(4, int(np.ceil(fmax * 2 * M / SR)))    # bins kept
-    noise_hz = tier.xf_noise_hz if fmax is None else 0.0
-    B, w = _mdct(M)
-    B = B[:, :K]
-    F = int(np.ceil(len(e) / M)) + 1
+def layer_live(sc, dead, K, nbands):
+    """(frames, K) bool: the coefficients a PINST3 layer stores (live bands)."""
+    return np.repeat(sc != dead, np.diff(_xf_edges(K, nbands)), axis=1)
+
+
+def layer_frames(n, M):
+    """Frames a PINST3 layer of n samples has."""
+    return int(np.ceil((n + M // 2) / M)) + 1
+
+
+def layer_windows(M):
+    """(window of frame 0, window of every other frame) of a PINST3 layer.
+
+    Frame f covers samples f*M - M/2 .. f*M + 3M/2, so frame 0's left half
+    folds at sample 0 (between -1 and 0), where the basis is odd. Frame 0 is
+    1 from sample 0 on in its left half and nothing comes before it: the
+    left half then rebuilds the signal on its own, since what it folds in is
+    the silence before the note, and its quantization error, odd about the
+    fold, is zero at sample 0. On the old grid the first frame was at its
+    peak at sample 0 and the error stepped out of silence there, a click
+    across the spectrum on every attack."""
+    _, w = _mdct(M)
+    w0 = w.copy()
+    w0[: M // 2] = 0.0
+    w0[M // 2 : M] = 1.0
+    return w0, w
+
+
+def mdct_frames(e, M):
+    """MDCT of e on the PINST3 layer grid (layer_windows)."""
+    B, _ = _mdct(M)
+    w0, w = layer_windows(M)
+    F = layer_frames(len(e), M)
     buf = np.zeros((F + 1) * M)
-    buf[M : M + len(e)] = e
-    X = (np.lib.stride_tricks.sliding_window_view(buf, 2 * M)[::M] * w) @ B
-    edges = _xf_edges(K, tier.xf_bands)
+    buf[M // 2 : M // 2 + len(e)] = e
+    fr = np.lib.stride_tricks.sliding_window_view(buf, 2 * M)[::M][:F] * w
+    fr[0] = buf[: 2 * M] * w0
+    return fr @ B
+
+
+def band_power_db(X, nbands):
+    """Mean power per coefficient in each band, dB."""
+    edges = _xf_edges(X.shape[1], nbands)
+    return 10 * np.log10(np.add.reduceat(X**2, edges[:-1], axis=1) / np.diff(edges) + 1e-30)
+
+
+def layer_bands_hz(M, nbands):
+    """(nbands + 1) band edges of a layer, Hz."""
+    return _xf_edges(M, nbands) * SR / (2 * M)
+
+
+def layer_code(e, M, nbands, snr, floor_db, seed, allow=None):
+    """A PINST3 residual layer: e as quantized MDCT coefficients, a scale per
+    band and frame and coefficients rounded to a step the SNR sets. A band
+    under floor_db (absolute, dB per coefficient), or outside allow ((frames,
+    bands) bool), carries nothing. Coefficients that round to nothing are
+    refilled from the hash so each band keeps its energy. Returns (decoded
+    signal, layer dict for the file)."""
+    K = M
+    X = mdct_frames(e, M)
+    F = len(X)
+    edges = _xf_edges(K, nbands)
     wid = np.diff(edges)
-    sdb = 10 * np.log10(np.add.reduceat(X**2, edges[:-1], axis=1) / wid + 1e-30)
-    live = sdb > sdb.max() + tier.xf_floor
+    sdb = band_power_db(X, nbands)
+    live = sdb > floor_db
+    if allow is not None:
+        live &= allow
     qs = np.round(sdb / 1.5).astype(np.int64)
     dead = int(qs[live].min() - 1) if live.any() else 0
     sc = np.where(live, qs, dead)
     rms = 10 ** (qs * 1.5 / 20) * live
     step = np.repeat(np.maximum(rms, 1e-30) * 10 ** (-snr / 20) * np.sqrt(12), wid, axis=1)
-    noisy = (edges[:-1] * SR / (2 * M) >= noise_hz) if noise_hz > 0 else np.zeros(len(wid), bool)
-    q = np.where(np.repeat(live & ~noisy[None, :], wid, axis=1), np.round(X / step), 0).astype(np.int64)
+    lv = np.repeat(live, wid, axis=1)
+    q = np.where(lv, np.round(X / step), 0).astype(np.int64)
     d = sc.copy()
     d[1:] -= sc[:-1]
-    stream = {"n": len(e), "M": M, "K": K, "nbands": tier.xf_bands, "snr": snr, "noise_hz": noise_hz, "dead": dead,
-              "frames": F, "sc": _ints(d), "q": _ints(q)}
-    y = xform_decode(sc, q, len(e), M, K, tier.xf_bands, snr, noise_hz, dead)
-    return y, _lz(stream["sc"]) + _lz(stream["q"]), stream
+    lay = {"M": M, "K": K, "nbands": nbands, "snr": snr, "dead": dead, "frames": F,
+           "sc": _ints(d), "q": _ints(q[lv]), "live": float(live.mean())}
+    return xform_decode(sc, q, len(e), M, K, nbands, round(snr * 100) / 100, 0.0, dead, seed), lay
 
 
 # ------------------------------------------------------------------ compile
@@ -821,10 +949,17 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
 
 
 def render(ch: Channel, tier: Tier, edges=None, det=None) -> np.ndarray:
-    """det: the partials already synthesized (compile_tiers hands them back)."""
+    """det: the partials already synthesized, when the caller has them."""
     edges = erb_edges(tier.noise_bands) if edges is None else edges
     anchors = ch.info.get("anchors")
     y = synth_tracks(ch.tracks, ch.n, ch.H, mode="integrate", anchors=anchors, gate_from=0) if det is None else det.copy()
+    if ch.layers is not None:
+        # PINST3: the players' own noise, and the layers on top; the noise is
+        # already muted wherever a layer carries the band
+        y += hash_noise(ch.noise_db, ch.n, edges, ch.seed)
+        for L in ch.layers:
+            y += L
+        return y
     nz = synth_noise(ch.noise_db, ch.noise_H, ch.n, edges)
     if ch.tns is not None:
         nz = apply_tns(nz, ch.tns, ch.tns_start)
@@ -848,56 +983,3 @@ def render(ch: Channel, tier: Tier, edges=None, det=None) -> np.ndarray:
         out[j : j + xf] = ch.pcm[j : j + xf] * (1 - ramp) + y[j : j + xf] * ramp
         y = out
     return y
-
-
-def _add_layers(x, ch, dec, sizes, tier, det=None):
-    """The transform-coded residual layers of a tier, onto a quantized channel.
-    Returns the partials as the decoder will synthesize them."""
-    j = min(ch.n, ch.info["onset"] + int(tier.xf_ms * SR / 1000))
-    L = min(ch.n, j + int(0.004 * SR))
-    if det is None:
-        det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
-    dec.xres, sizes["xform"], dec.info["xf"] = xform_code(x[:L] - det[:L], tier)
-    dec.junction = j
-    if j >= dec.tns_start + int(0.2 * SR):
-        # the layer already covers the stretch the 1 ms envelope was for
-        dec.tns, sizes["tns"] = None, 0
-    if tier.xf_lf_hz > 0:
-        # what is left under the cutoff once the attack layer is in, for the whole note
-        w = np.zeros(ch.n)
-        w[:j] = 1
-        w[j:L] = np.linspace(1, 0, L - j)
-        left = x - det
-        left[:L] -= dec.xres * w[:L]
-        dec.xlf, sizes["xform_lf"], dec.info["xlf"] = xform_code(left, tier, M=tier.xf_lf_M, snr=tier.xf_lf_snr, fmax=tier.xf_lf_hz)
-        dec.info["lf_hz"] = tier.xf_lf_hz
-        edges = erb_edges(tier.noise_bands)
-        dec.noise_db = dec.noise_db.copy()
-        dec.noise_db[:, np.sqrt(edges[:-1] * edges[1:]) < tier.xf_lf_hz] = -200.0
-    return det
-
-
-def compile_channel(x, pitched, f0, tier):
-    ch = analyse(x, pitched, f0, tier)
-    dec, sizes = quantize(ch, tier)
-    if tier.xf_ms > 0:
-        _add_layers(x, ch, dec, sizes, tier)
-    return ch, dec, sizes
-
-
-_LAYER_FIELDS = ("name", "xf_ms", "xf_snr", "xf_M", "xf_bands", "xf_floor", "xf_noise_hz", "xf_lf_hz", "xf_lf_snr", "xf_lf_M")
-
-
-def compile_tiers(x, pitched, f0, plain: Tier, layered: Tier):
-    """A channel at two tiers that differ only in their residual layers:
-    one analysis, one quantization, the layers added to a copy. Returns
-    (plain channel, layered channel, the partials both synthesize)."""
-    a, b = dataclasses.asdict(plain), dataclasses.asdict(layered)
-    assert plain.xf_ms == 0 and layered.xf_ms > 0 and all(a[k] == b[k] for k in a if k not in _LAYER_FIELDS)
-    ch = analyse(x, pitched, f0, plain)
-    dec, sizes = quantize(ch, plain)
-    det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
-    lay = copy.copy(dec)
-    lay.info = dict(dec.info)
-    _add_layers(x, ch, lay, dict(sizes), layered, det)
-    return dec, lay, det

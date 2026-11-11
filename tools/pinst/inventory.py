@@ -187,6 +187,16 @@ def note_of(path):
     return m.group(1) if m else None
 
 
+NAMES = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
+
+
+def note_hz(nm):
+    """'d#4' -> Hz (A4 = 440)."""
+    m = re.fullmatch(r"([a-g])(#?)(-?\d)", nm)
+    midi = 12 * (int(m.group(3)) + 1) + NAMES[m.group(1)] + (1 if m.group(2) else 0)
+    return 440 * 2 ** ((midi - 69) / 12)
+
+
 if __name__ == "__main__":
     s, seen = samples(sys.argv[1])
     print(len(re.findall(r"^sample=", s, re.M)), "regions,", len(seen), "files")

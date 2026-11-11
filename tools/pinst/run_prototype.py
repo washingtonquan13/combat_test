@@ -86,10 +86,7 @@ CODECS = [
 NAMES = {"c": 0, "d": 2, "e": 4, "f": 5, "g": 7, "a": 9, "b": 11}
 
 
-def note_hz(nm):
-    m = re.fullmatch(r"([a-g])(#?)(-?\d)", nm)
-    midi = 12 * (int(m.group(3)) + 1) + NAMES[m.group(1)] + (1 if m.group(2) else 0)
-    return 440 * 2 ** ((midi - 69) / 12)
+from inventory import note_hz  # noqa: E402,F401  (kept here for the old scripts)
 
 
 def codec_roundtrip(x, args, ext):
