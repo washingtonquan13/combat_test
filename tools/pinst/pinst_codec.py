@@ -277,16 +277,24 @@ def keyframes(vals: np.ndarray, tol: np.ndarray, max_span=64):
     keep = [0]
     k = 0
     while k < L - 1:
-        j = k + 2
         best = k + 1
-        while j < L and j - k <= max_span:
-            r = (np.arange(k + 1, j) - k) / (j - k)
-            interp = vals[k] + r[:, None] * (vals[j] - vals[k])
-            if np.all(np.abs(interp - vals[k + 1 : j]) <= tol):
-                best = j
-                j += 1
-            else:
+        j0, batch = k + 2, 4
+        hi = min(L - 1, k + max_span)
+        while j0 <= hi:
+            # test a batch of candidate ends at once; stop at the first that fails
+            js = np.arange(j0, min(hi, j0 + batch - 1) + 1)
+            m = np.arange(k + 1, js[-1])
+            r = (m[None, :] - k) / (js[:, None] - k)
+            interp = vals[k] + r[:, :, None] * (vals[js] - vals[k])[:, None, :]
+            bad = (np.abs(interp - vals[m]) > tol) & (m[None, :] < js[:, None])[:, :, None]
+            fail = bad.any(axis=(1, 2))
+            if fail.any():
+                f = int(np.argmax(fail))
+                if f:
+                    best = int(js[f - 1])
                 break
+            best = int(js[-1])
+            j0, batch = best + 1, min(batch * 2, 32)
         keep.append(best)
         k = best
     return np.array(keep)
@@ -351,13 +359,11 @@ def estimate_f0_track(tracks, f0_nominal, n_frames):
     strong = sorted(tracks, key=lambda t: -(10 ** (t.a / 10)).sum())[:12]
     grid = f0_nominal * 2 ** (np.linspace(-3, 3, 1201) / 12)
     best, score = f0_nominal, -1.0
+    fms = np.array([np.median(t.f) for t in strong])
+    ens = np.array([(10 ** (t.a / 10)).sum() for t in strong])
     for g in grid:
-        sc = 0.0
-        for t in strong:
-            fm = np.median(t.f)
-            h = max(1, round(fm / g))
-            if h <= 10 and abs(np.log2(fm / (h * g))) < 0.004:
-                sc += (10 ** (t.a / 10)).sum()
+        h = np.maximum(1, np.round(fms / g))
+        sc = sum(ens[(h <= 10) & (np.abs(np.log2(fms / (h * g))) < 0.004)].tolist(), 0.0)
         if sc > score:
             best, score = g, sc
     num = np.zeros(n_frames)

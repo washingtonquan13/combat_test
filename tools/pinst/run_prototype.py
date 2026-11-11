@@ -10,6 +10,13 @@ Run from the project root. Writes OUT_DIR/report.md, OUT_DIR/results.json,
 per-note WAVs and MP3 reels for listening."""
 from __future__ import annotations
 
+import os
+
+# one thread per worker: the notes run in parallel, and BLAS threads on top
+# of that made every note three times slower
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 import json
 import os
 import re
@@ -195,7 +202,7 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     jobs = [(n, out_dir, tier_names, do_amp) for n in NOTES if not only or any(o in n[0] for o in only.split(","))]
     t0 = time.time()
-    with ProcessPoolExecutor(max(1, min(len(jobs), (os.cpu_count() or 4) - 2))) as ex:
+    with ProcessPoolExecutor(max(1, min(len(jobs), int(arg("--jobs") or (os.cpu_count() or 4) - 2)))) as ex:
         results = list(ex.map(do_note, jobs))
     for row in results:
         t = row["tiers"]
