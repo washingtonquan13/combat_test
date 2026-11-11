@@ -85,7 +85,7 @@ func fir(seed: int, height: float, detail := 1.0) -> Array:
 	var leaf := Surf.new()
 	var r0 := height * 0.017 + 0.04
 	_build_spine(height)
-	_trunk(bark, r0, 10 if detail >= 1.0 else 6)
+	_trunk(bark, r0, 20 if detail >= 1.0 else 8)
 
 	var crown_base := height * rng.randf_range(0.12, 0.28)
 	var crown_r := height * rng.randf_range(0.2, 0.25)
@@ -139,27 +139,61 @@ func _spine_at(y: float) -> Vector3:
 
 
 func _trunk_r(y: float, r0: float) -> float:
+	return _trunk_core(y, r0) * (1.0 + _flare(y, r0) * 0.75)
+
+
+func _trunk_core(y: float, r0: float) -> float:
 	var t := clampf(y / _h, 0.0, 1.0)
-	var r := r0 * lerpf(1.0, 0.08, pow(t, 0.85))
-	# Root flare.
-	return r * (1.0 + 0.7 * exp(-y / (r0 * 2.2)))
+	return r0 * lerpf(1.0, 0.08, pow(t, 0.85))
+
+
+func _flare(y: float, r0: float) -> float:
+	# How far the roots spread the trunk at height y, as a share of its radius.
+	return exp(-maxf(y, 0.0) / (r0 * 2.6))
 
 
 func _trunk(bark: Surf, r0: float, sides: int) -> void:
 	var pts: Array[Vector3] = []
 	var radii: Array[float] = []
+	var flare: Array[float] = []
 	var y := -0.3
 	while y < _h:
 		pts.append(_spine_at(maxf(y, 0.0)) + Vector3.DOWN * maxf(-y, 0.0))
-		radii.append(_trunk_r(maxf(y, 0.0), r0))
-		y += 0.25 if y < r0 * 4.0 else 0.6
+		radii.append(_trunk_core(maxf(y, 0.0), r0))
+		flare.append(_flare(y, r0))
+		y += 0.12 if y < r0 * 3.0 else (0.25 if y < r0 * 8.0 else 0.6)
 	pts.append(_spine_at(_h))
 	radii.append(0.01)
-	_tube(bark, pts, radii, sides, 0.0, 1.0, r0 * TAU)
+	flare.append(0.0)
+	_tube(bark, pts, radii, sides, 0.0, 1.0, r0 * TAU, flare)
 
 
-func _tube(s: Surf, pts: Array[Vector3], radii: Array[float], sides: int, phase: float, ao: float, u_span: float) -> void:
+# Root buttresses and an uneven girth for a trunk tube; see _tube().
+var _lobes := 5
+var _lobe_off := 0.0
+var _girth_ph := Vector2.ZERO
+
+
+func _bole_r(r: float, flare: float, a: float, y: float) -> float:
+	# The flare gathers into `_lobes` roots of uneven size instead of a round
+	# cone; the whole trunk bulges and narrows a little as it climbs.
+	var lobe := pow(0.5 + 0.5 * cos(_lobes * a + _lobe_off), 1.6) * (1.0 + 0.4 * sin(a + _lobe_off * 1.7))
+	var girth := 1.0 + 0.05 * sin(2.0 * a + y * 1.7 + _girth_ph.x) + 0.035 * sin(3.0 * a - y * 2.9 + _girth_ph.y)
+	return r * (1.0 + flare * (0.3 + 1.1 * lobe)) * girth
+
+
+func _tube(s: Surf, pts: Array[Vector3], radii: Array[float], sides: int, phase: float, ao: float, u_span: float, flare: Array[float] = []) -> void:
 	# Bark tube along pts; texture u wraps once per u_span metres of girth.
+	# With `flare` (a trunk) the rings are shaped by _bole_r() and the normals
+	# follow the shape round the ring.
+	var bole := not flare.is_empty()
+	if bole:
+		# Its own generator, so the roots don't shift every later branch.
+		var r2 := RandomNumberGenerator.new()
+		r2.seed = hash(rng.seed * 31 + 7)
+		_lobes = r2.randi_range(4, 6)
+		_lobe_off = r2.randf() * TAU
+		_girth_ph = Vector2(r2.randf(), r2.randf()) * TAU
 	var first := s.v.size()
 	var ref := Vector3.RIGHT
 	var along := 0.0
@@ -176,10 +210,26 @@ func _tube(s: Surf, pts: Array[Vector3], radii: Array[float], sides: int, phase:
 		for k in sides + 1:
 			var a := TAU * k / sides
 			var dir := side * cos(a) + up * sin(a)
-			var p := pts[i] + dir * radii[i]
+			var r := radii[i]
+			var n := dir
+			if bole:
+				var y := pts[i].y
+				r = _bole_r(radii[i], flare[i], a, y)
+				# Normal from the shape: tilted round the ring by how fast the
+				# radius changes with angle, and up the trunk by how fast it
+				# narrows (the root flare's slope).
+				var da := 0.01
+				var dr_da := (_bole_r(radii[i], flare[i], a + da, y) - _bole_r(radii[i], flare[i], a - da, y)) / (2.0 * da)
+				var j0 := maxi(i - 1, 0)
+				var j1 := mini(i + 1, pts.size() - 1)
+				var ds := maxf(pts[j1].distance_to(pts[j0]), 0.001)
+				var dr_ds := (_bole_r(radii[j1], flare[j1], a, pts[j1].y) - _bole_r(radii[j0], flare[j0], a, pts[j0].y)) / ds
+				var tang := -side * sin(a) + up * cos(a)
+				n = (dir - tang * dr_da / maxf(r, 0.001) - fwd * dr_ds).normalized()
+			var p := pts[i] + dir * r
 			var w := Vector2(Vector2(p.x, p.z).length(), phase)
 			var occl := ao * lerpf(0.7, 1.0, clampf(p.y / _h * 1.5, 0.0, 1.0))
-			s.vert(p, dir, Vector2(float(k) / sides * u_wrap, along / (radii[0] * TAU) * u_wrap * 0.5), w, Color(occl, phase, 0.0, clampf(p.y / _h, 0.0, 1.0)))
+			s.vert(p, n, Vector2(float(k) / sides * u_wrap, along / (radii[0] * TAU) * u_wrap * 0.5), w, Color(occl, phase, 0.0, clampf(p.y / _h, 0.0, 1.0)))
 	for i in pts.size() - 1:
 		for k in sides:
 			var a := first + i * (sides + 1) + k
@@ -351,18 +401,21 @@ func broadleaf(seed: int, height: float, detail := 1.0) -> Array:
 	_phase = 0.0
 	var pts: Array[Vector3] = []
 	var radii: Array[float] = []
+	var flare: Array[float] = []
 	var y := -0.3
 	while true:
 		var f := clampf(y / fork, 0.0, 1.0)
 		pts.append(top * f + Vector3.DOWN * maxf(-y, 0.0))
-		radii.append(r0 * lerpf(1.0, 0.8, f) * (1.0 + 0.8 * exp(-maxf(y, 0.0) / (r0 * 2.2))))
+		radii.append(r0 * lerpf(1.0, 0.8, f))
+		flare.append(_flare(y, r0) * 1.1)
 		if y >= fork:
 			break
-		y = minf(y + (0.2 if y < r0 * 4.0 else 0.5), fork)
+		y = minf(y + (0.1 if y < r0 * 3.0 else (0.2 if y < r0 * 6.0 else 0.5)), fork)
 	# On past the fork, tapering inside the limbs so the joint has no rim.
 	pts.append(top + Vector3.UP * r0 * 2.5)
 	radii.append(r0 * 0.3)
-	_tube(bark, pts, radii, 10 if detail >= 1.0 else 6, 0.0, 1.0, r0 * TAU)
+	flare.append(0.0)
+	_tube(bark, pts, radii, 20 if detail >= 1.0 else 8, 0.0, 1.0, r0 * TAU, flare)
 
 	var limbs := rng.randi_range(2, 4)
 	var turn := rng.randf() * TAU
