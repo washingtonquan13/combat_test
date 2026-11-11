@@ -7,6 +7,11 @@ from scipy.signal import stft
 SR = 44100
 
 
+def _fit(x, N=4096):
+    """A note shorter than the longest window, padded with silence up to it."""
+    return x if len(x) >= N else np.pad(x, (0, N - len(x)))
+
+
 def _logmag(x, N):
     _, _, Z = stft(x, SR, window="hann", nperseg=N, noverlap=N * 3 // 4)
     return 20 * np.log10(np.abs(Z) + 1e-9)
@@ -18,7 +23,7 @@ def mrstft_db(ref, test, floor_db=-80.0):
     n = min(len(ref), len(test))
     out = []
     for N in (256, 1024, 4096):
-        R, T = _logmag(ref[:n], N), _logmag(test[:n], N)
+        R, T = _logmag(_fit(ref[:n]), N), _logmag(_fit(test[:n]), N)
         m = R > R.max() + floor_db
         out.append(np.abs(np.maximum(R, R.max() + floor_db) - np.maximum(T, R.max() + floor_db))[m].mean())
     return float(np.mean(out))
@@ -26,8 +31,8 @@ def mrstft_db(ref, test, floor_db=-80.0):
 
 def mel_db(ref, test, nmel=64, N=2048):
     n = min(len(ref), len(test))
-    f, _, R = stft(ref[:n], SR, nperseg=N, noverlap=N * 3 // 4)
-    _, _, T = stft(test[:n], SR, nperseg=N, noverlap=N * 3 // 4)
+    f, _, R = stft(_fit(ref[:n]), SR, nperseg=N, noverlap=N * 3 // 4)
+    _, _, T = stft(_fit(test[:n]), SR, nperseg=N, noverlap=N * 3 // 4)
     mel = lambda h: 2595 * np.log10(1 + h / 700)
     edges = 700 * (10 ** (np.linspace(mel(30), mel(16000), nmel + 2) / 2595) - 1)
     fb = np.zeros((nmel, len(f)))
