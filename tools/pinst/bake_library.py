@@ -104,6 +104,12 @@ def do_file(job):
     ref = None if quiet or not by else amp.amp_cab(two(x))
     tiers = {t.name: t for t in rp.TIERS}
     di, amped = {}, {}      # the original's spectra, kept across the two candidates
+    da, ampa = {}, {}       # the same, for the attack window
+    # the onset to 200 ms after, the stretch the body tier's attack layer codes:
+    # scored on its own, since over a whole note a pluck turned to noise is a
+    # few percent of the frames and barely moves the score
+    on = pc.onset_sample(x.mean(axis=1))
+    att = slice(max(0, on - 10 * pc.TNS_BLOCK), on + int(0.2 * sr))
     out = {}
     if quiet:
         data = bake(x, f0, tiers["mid"])[0][0]
@@ -113,14 +119,18 @@ def do_file(job):
             sc = {"bytes": len(data)}
             if judge != "amp":
                 sc.update(rp.score(two(x), two(y), di))
+                sc["attack"] = rp.score(two(x[att]), two(y[att]), da)
             if by:
-                sc["amp"] = rp.score(ref, amp.amp_cab(two(y)), amped)
+                ya = amp.amp_cab(two(y))
+                sc["amp"] = rp.score(ref, ya, amped)
+                sc["amp"]["attack"] = rp.score(ref[att], ya[att], ampa)
             out[name] = (data, sc)
     pick = "mid"
     if "body" in out and not quiet:
         m, b = ((v[1][by] if by else v[1]) for v in (out["mid"], out["body"]))
-        gain = max(m["mrstft_db"] - b["mrstft_db"], 2 * (m["mel_db"] - b["mel_db"]))
-        pick = "body" if gain >= rp.AUTO_GAIN_DB else "mid"
+        gain = lambda m, b: max(m["mrstft_db"] - b["mrstft_db"], 2 * (m["mel_db"] - b["mel_db"]))
+        # the body tier where it buys a clear step over the note or over its attack
+        pick = "body" if max(gain(m, b), gain(m["attack"], b["attack"])) >= rp.AUTO_GAIN_DB else "mid"
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     with open(dst + ".part", "wb") as f:
         f.write(out[pick][0])
