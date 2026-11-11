@@ -82,7 +82,11 @@ func get_tactical_camera() -> Camera3D:
 ## null here degrades to "spawn at world origin" instead of a hard error.
 func get_spawn_point(spawn_point_name: StringName) -> Node3D:
 	if spawn_point_name != &"":
-		var found := find_child(String(spawn_point_name), true, false) as Node3D
+		# A path from this scene first (a derived back-link is one), then a
+		# name at any depth.
+		var found := get_node_or_null(NodePath(String(spawn_point_name))) as Node3D
+		if not found:
+			found = find_child(String(spawn_point_name), true, false) as Node3D
 		if found:
 			return found
 

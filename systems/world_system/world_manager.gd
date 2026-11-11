@@ -1236,14 +1236,20 @@ func _resolve_entry_spawn_point(world: Node, requested_name: StringName, from_ar
 	return &"default"
 
 
-## The name of whichever landing spot inside `world` leads back to
-## from_area_id, or &"" if none does (an intentionally one-way link, or a
-## world with no exits of its own at all).
+## The path, from `world`, of whichever landing spot inside it leads back
+## to from_area_id, or &"" if none does (an intentionally one-way link, or a
+## world with no exits of its own at all). A path, not a name: every exit's
+## marker is called ArrivalPoint, and a name lookup takes the first one.
 func _find_back_link(world: Node, from_area_id: StringName) -> StringName:
 	for exit in _find_area_exits(world):
 		if exit.target_area == from_area_id:
 			var landing: Node = exit.arrival_point if exit.arrival_point else exit.get_parent()
-			return landing.name
+			# Built by hand: world is not in the tree yet, so get_path_to() is out.
+			var parts: PackedStringArray = []
+			while landing != world:
+				parts.insert(0, landing.name)
+				landing = landing.get_parent()
+			return StringName("/".join(parts))
 	return &""
 
 

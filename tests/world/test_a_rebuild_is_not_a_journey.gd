@@ -33,7 +33,7 @@ const OVERWORLD := &"overworld"
 ## What the overworld authors as its way back to HOME (see its
 ## SpawnPoints/CongoSquare, target_area = "test_arena"). Travel must resolve to
 ## this; a rebuild must not.
-const BACK_LINK := &"CongoSquare"
+const BACK_LINK := &"SpawnPoints/CongoSquare"
 ## Where a world with no doorway to arrive through puts people instead.
 const FALLBACK := &"default"
 
