@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import numpy as np
 import soundfile as sf
-from scipy.signal import lfilter, resample_poly, fftconvolve
+from scipy.signal import firwin, lfilter, resample_poly, fftconvolve
 
 SR = 44100
 
@@ -25,6 +25,8 @@ def _load_native():
     lib.comp_env.restype = None
     lib.disto_stages.argtypes = [p, p, i64, ctypes.c_int, d, d, d, d, d, d, p, p]
     lib.disto_stages.restype = None
+    lib.disto_os.argtypes = [p, p, i64, p, p, ctypes.c_int, d, d, d, d, d, d, p]
+    lib.disto_os.restype = None
     return lib
 
 
@@ -125,6 +127,38 @@ def _disto_stages(x, fs, depth, stages):
     return out
 
 
+def _os_filters():
+    """The two filters resample_poly(x, 8, 1) and resample_poly(x, 1, 8) use,
+    laid out for the native pass: the up filter as 8 phases of 21 taps
+    against x[i-10 .. i+10], the down filter against u[8j-80 .. 8j+80]."""
+    h = firwin(161, 1 / 8, window=("kaiser", 5.0))
+    hup = np.zeros((8, 21))
+    for p in range(8):
+        for d in range(-10, 11):
+            k = p + 80 - 8 * d
+            if 0 <= k <= 160:
+                hup[p, d + 10] = 8 * h[k]
+    return np.ascontiguousarray(hup), np.ascontiguousarray(h[::-1])
+
+
+_OSF = None
+
+
+def _disto_os(lp, depth, stages):
+    """8x up, the distortion stages, 8x down."""
+    global _OSF
+    if not _native:
+        up = resample_poly(lp, 8, 1)
+        up = _disto_stages(up, 8 * SR, depth, stages)
+        return resample_poly(up, 1, 8)[: len(lp)]
+    if _OSF is None:
+        _OSF = _os_filters()
+    st, lp, y = _Stage(8 * SR, depth), np.ascontiguousarray(lp), np.empty(len(lp))
+    _native.disto_os(lp.ctypes.data, y.ctypes.data, len(lp), _OSF[0].ctypes.data, _OSF[1].ctypes.data, stages,
+                     st.s0, st.s1, st.c4, st.f2[0][0], st.f2[0][1], st.f2[1][1], _TABLE.ctypes.data)
+    return y
+
+
 def disto(x, depth=85, stages=3, tone=100, dry=0.01, wet=1.0):
     mk = 21 + tone * 1.08
     fc = 440 * 2 ** ((mk - 69) / 12)
@@ -135,9 +169,7 @@ def disto(x, depth=85, stages=3, tone=100, dry=0.01, wet=1.0):
             out[:, c] = out[:, 0]
             continue
         lp = lfilter([dry * (1 - pole)], [1, -pole], x[:, c])
-        up = resample_poly(lp, 8, 1)
-        up = _disto_stages(up, 8 * SR, depth, stages)
-        y = resample_poly(up, 1, 8)[: len(x)]
+        y = _disto_os(lp, depth, stages)
         out[:, c] = y * wet + x[:, c] * (1 - wet)
     return out
 
