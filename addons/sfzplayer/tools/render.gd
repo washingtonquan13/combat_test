@@ -46,6 +46,8 @@ extends Node
 #                                tools/loudness_fix.py)
 #   --only   bass perc          (solo: mute every other bus; a part is
 #                                heard or muted with the others on its bus)
+#   --registry DIR              (instruments from this registry folder
+#                                instead of sfzplayer/paths/registry)
 #   --loops  3                  (a looping score's loop, this many times;
 #                                default once, which is the piece as written)
 #   --leave  bar 130            (loop until 130 s in, then leave at the next
@@ -327,6 +329,13 @@ func _read_args() -> void:
 				i += 1
 				if i < args.size():
 					_to = args[i]
+			"--registry":
+				# Another registry folder for this run only (the project
+				# setting is left as it is): the same score through other
+				# copies of the instruments.
+				i += 1
+				if i < args.size():
+					ProjectSettings.set_setting(SfzSettings.REGISTRY, args[i])
 			"--loops":
 				i += 1
 				if i < args.size():

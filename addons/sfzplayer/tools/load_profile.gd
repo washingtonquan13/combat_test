@@ -17,6 +17,11 @@ func _initialize() -> void:
 	if id == "":
 		id = "combo"
 
+	# --registry DIR: instruments from another registry folder, this run only.
+	var registry := _value(args, "--registry")
+	if registry != "":
+		ProjectSettings.set_setting(SfzSettings.REGISTRY, registry)
+
 	var only := _value(args, "--sfz")
 	if only != "":
 		var f := _value(args, "--frames")

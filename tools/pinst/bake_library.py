@@ -1,14 +1,23 @@
 """Bake every sample an SFZ uses into .pinst notes, and write the same SFZ
 pointing at them.
 
-  python -I tools/pinst/bake_library.py FILE.sfz OUT_ROOT [--judge amp|dry|both] [--every N] [--jobs N] [--only TEXT]
+  python -I tools/pinst/bake_library.py FILE.sfz OUT_ROOT [--lib DIR] [--judge amp|dry|both]
+      [--pitch name|key|none] [--every N] [--jobs N] [--only TEXT]
 
-FILE.sfz sits in LIB/Programs and names its samples relative to itself; the
-notes land at the same relative paths under OUT_ROOT with .pinst in place of
-the extension, and OUT_ROOT/Programs gets the SFZ once the bake is over,
-naming a note wherever one was baked (so a part bake still loads). The SFZ
-must give each sample= a line of its own, as ours do. Whole files are baked, so
-offsets in the SFZ mean what they meant.
+OUT_ROOT mirrors the library folder LIB (--lib, default the folder above the
+SFZ's own): every note lands at its sample's path under OUT_ROOT with .pinst
+in place of the extension, and once the bake is over every SFZ file read
+(FILE.sfz and whatever it #includes) is written at its own path there,
+naming a note wherever one was baked (so a part bake still loads). The SFZ is
+read as sfizz reads it (inventory.Scan: #define, #include, default_path).
+Whole files are baked, so offsets in the SFZ mean what they meant; a WAV's
+own loop, which the note does not carry, is written into the region as
+opcodes when the region sets none.
+
+--pitch says where a note's pitch comes from, which sets the analysis window
+(below 200 Hz a longer one): name (the default) from the file name, as
+METAL-GTX names its notes; key from the region's pitch_keycenter, the name
+where there is one; none for drums.
 
 A file keeps its channel count (sfizz treats mono and stereo regions
 differently): a stereo file whose side is under -40 dB keeps a silent second
@@ -31,7 +40,6 @@ for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
 
 import json
-import re
 import sys
 import time
 
@@ -78,13 +86,13 @@ def bake(x, f0, mid, body=None):
 
 
 def do_file(job):
-    written, src, dst, judge = job
+    written, src, dst, judge, hz = job
     by = "amp" if judge != "dry" else None     # the scores the choice is made on
     t0 = time.time()
     x, sr = sf.read(src, always_2d=True)
     assert sr == pc.SR, src
     nm = inventory.note_of(src)
-    f0 = rp.note_hz(nm) if nm else None
+    f0 = hz if hz != "name" else (rp.note_hz(nm) if nm else None)
     two = lambda a: a if a.shape[1] == 2 else np.repeat(a, 2, axis=1)
     quiet = not np.any(x)
     ref = None if quiet or not by else amp.amp_cab(two(x))
@@ -152,25 +160,44 @@ def main():
     sfz, root = sys.argv[1], sys.argv[2]
     arg = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
     every, only, judge = int(arg("--every") or 1), arg("--only"), arg("--judge") or "amp"
+    pitch = arg("--pitch") or "name"
     assert judge in ("amp", "dry", "both"), judge
-    text, seen = inventory.samples(sfz)
-    prog = os.path.join(root, "Programs")
-    os.makedirs(prog, exist_ok=True)
-    note_path = lambda w: os.path.normpath(os.path.join(prog, os.path.splitext(w.replace(inventory.BS, "/"))[0] + ".pinst"))
+    assert pitch in ("name", "key", "none"), pitch
+    scan = inventory.Scan(sfz)
+    lib = os.path.abspath(arg("--lib") or os.path.dirname(os.path.dirname(os.path.abspath(sfz))))
+    mirror = lambda full: os.path.normpath(os.path.join(root, os.path.relpath(full, lib)))
+    for full in scan.files + [f for _, f, _ in scan.regions]:
+        assert not os.path.relpath(full, lib).startswith(".."), f"{full} is outside {lib}"
+    note_path = lambda full: os.path.splitext(mirror(full))[0] + ".pinst"
+    os.makedirs(root, exist_ok=True)
+    seen, keys = {}, {}
+    for w, full, k in scan.regions:     # a file once, by the name it is first written as
+        if os.path.normcase(full) not in keys:
+            # two files written alike (default_path): the second by its path in the library
+            seen[w if w not in seen else os.path.relpath(full, lib)] = full
+        keys.setdefault(os.path.normcase(full), k)
+
+    def hz_of(full):
+        if pitch == "none":
+            return None
+        if pitch == "name" or inventory.note_of(full):
+            return "name"
+        k = keys.get(os.path.normcase(full))
+        return None if k is None else 440.0 * 2 ** ((k - 69) / 12)
     log = os.path.join(root, "bake.jsonl")
     done = set()
     if os.path.exists(log):
         done = {json.loads(l)["sample"] for l in open(log, encoding="utf-8") if l.strip()}
     jobs, dsts = [], {}
     for i, (w, src) in enumerate(sorted(seen.items())):
-        dst = note_path(w)
+        dst = note_path(src)
         first = dsts.setdefault(os.path.normcase(dst), w)    # two spellings of one file bake once
         if not os.path.exists(src):
             print(f"MISSING {w}", flush=True)
             continue
         if i % every or w in done or first != w or (only and only not in w):
             continue
-        jobs.append((w, src, dst, judge))
+        jobs.append((w, src, dst, judge, hz_of(src)))
     # longest first, so the tail of the run is not one long note on one core
     jobs.sort(key=lambda j: -os.path.getsize(j[1]))
     print(f"{len(jobs)} files to bake, {len(done)} already done", flush=True)
@@ -199,13 +226,20 @@ def main():
 
     # the SFZ last, naming a note only where the note is there: a part bake
     # (--every, --only, a stopped run) leaves the rest on their original files
-    def name(m):
-        w = m.group(1)
-        if w.startswith("*") or not os.path.exists(note_path(w)):
-            return m.group(0)
-        return "sample=" + os.path.splitext(w)[0] + ".pinst"
-    with open(os.path.join(prog, os.path.basename(sfz)), "w", encoding="utf-8", newline="") as f:
-        f.write(re.sub(r"^sample=(.+?)[ \t]*$", name, text, flags=re.M))
+    for path in scan.files:
+        lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
+        for ln, a, b, w, full, op in sorted(scan.sites[path], key=lambda t: (t[0], -t[1])):
+            if full is None or not os.path.exists(note_path(full)):
+                continue
+            new = os.path.splitext(lines[ln][a:b])[0] + ".pinst"
+            loop = inventory.wav_loop(full)
+            if loop and op is not None and "loop_mode" not in op:
+                assert "loop_start" not in op and "loop_end" not in op, (path, ln)
+                new += " loop_mode=loop_continuous loop_start=%d loop_end=%d" % loop
+            lines[ln] = lines[ln][:a] + new + lines[ln][b:]
+        os.makedirs(os.path.dirname(mirror(path)), exist_ok=True)
+        with open(mirror(path), "w", encoding="utf-8", newline="") as f:
+            f.write("\n".join(lines))
     print(f"total {time.time() - t0:.0f} s")
 
 
