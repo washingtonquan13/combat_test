@@ -352,6 +352,7 @@ class Tier:
     xf_M: int = 128           # MDCT hop
     xf_bands: int = 18
     xf_floor: float = -80.0   # bands this far under the residual's loudest band are not coded
+    xf_noise_hz: float = 0.0  # attack layer: bands from here up carry a level only, filled with noise
     xf_lf_hz: float = 0.0     # low-band layer: below this the residual is coded for the whole note (drum bodies)
     xf_lf_snr: float = 15.0
     xf_lf_M: int = 1024
@@ -579,12 +580,14 @@ def xform_code(e, tier, M=None, snr=None, fmax=None):
     qs = np.round(sdb / 1.5).astype(np.int64)
     rms = 10 ** (qs * 1.5 / 20) * live
     step = np.repeat(np.maximum(rms, 1e-30) * 10 ** (-snr / 20) * np.sqrt(12), wid, axis=1)
-    q = np.where(np.repeat(live, wid, axis=1), np.round(X / step), 0).astype(np.int64)
+    noisy = (edges[:-1] * SR / (2 * M) >= tier.xf_noise_hz) if (tier.xf_noise_hz > 0 and fmax is None) else np.zeros(len(wid), bool)
+    coded = np.repeat(live & ~noisy[None, :], wid, axis=1)
+    q = np.where(coded, np.round(X / step), 0).astype(np.int64)
     Xd = q * step
     lack = np.maximum(rms**2 * wid - np.add.reduceat(Xd**2, edges[:-1], axis=1), 0)
     nzero = np.add.reduceat((q == 0).astype(float), edges[:-1], axis=1)
     fill = np.repeat(np.sqrt(lack / np.maximum(nzero, 1)), wid, axis=1)
-    fill = np.minimum(fill, step / np.sqrt(12))    # a zero was under half a step: never louder than that
+    fill = np.where(coded, np.minimum(fill, step / np.sqrt(12)), fill)    # a coded zero was under half a step: never louder than that
     Xd = Xd + (q == 0) * fill * np.random.default_rng(11).standard_normal(X.shape)
     yf = (Xd @ B.T) * w * (2 / M)
     out = np.zeros_like(buf)

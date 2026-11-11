@@ -19,7 +19,7 @@ def main():
     out = sys.argv[1]
     rows = json.load(open(os.path.join(out, "results.json")))
     paths = {n: p for n, p, *_ in NOTES}
-    keys = [t.name for t in TIERS] + [c[0] for c in CODECS]
+    keys = [t.name for t in TIERS] + ["auto"] + [c[0] for c in CODECS]
     L = ["# .pinst prototype results", "",
          "Sizes in KB. Distances in dB, lower is closer: mrstft = multi-resolution spectral, "
          "mel = 64-band mel. Not a perceptual score; the reels decide.", ""]

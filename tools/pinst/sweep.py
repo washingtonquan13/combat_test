@@ -10,13 +10,12 @@ sys.path.insert(0, "tools/pinst")
 import numpy as np, soundfile as sf
 import run_prototype as rp, pinst_codec as pc
 T = lambda name, **k: pc.Tier(name, f_cents=0.5, f_tol=1, **k)
-TRIALS = [T("mid"), T("hybrid", pcm_ms=50), T("xf150_12", xf_ms=150, xf_snr=12),
-          T("xf200_12", xf_ms=200, xf_snr=12),
-          T("lf300", xf_ms=200, xf_snr=12, xf_lf_hz=300),
-          T("lf300_9", xf_ms=200, xf_snr=9, xf_lf_hz=300, xf_lf_snr=12),
-          T("lf600", xf_ms=200, xf_snr=12, xf_lf_hz=600),
-          T("lf300_m512", xf_ms=200, xf_snr=12, xf_lf_hz=300, xf_lf_M=512),
-          T("lf300_80ms", xf_ms=80, xf_snr=12, xf_lf_hz=300)]
+B = dict(xf_ms=200, xf_snr=12, xf_lf_hz=300)
+TRIALS = [T("mid"), T("body", **B),
+          T("nz8k", **B, xf_noise_hz=8000), T("nz5k", **B, xf_noise_hz=5000),
+          T("nz3k", **B, xf_noise_hz=3000), T("nz1500", **B, xf_noise_hz=1500),
+          T("nz5k_9", **{**B, "xf_snr": 9}, xf_noise_hz=5000),
+          T("nz3k_15", **{**B, "xf_snr": 15}, xf_noise_hz=3000)]
 def job(a):
     (name, path, kind, pitched, nm), tier, out = a
     x, sr = sf.read(path, always_2d=True)

@@ -66,6 +66,7 @@ NOTES = [
     ("ride17_v1", C + "Ride (Samples)/Ride 17 (Samples)/RR1/01_Ride_17in_L_Cnt_Tip_RR1.wav", "drum", False, None),
 ]
 
+AUTO_GAIN_DB = 1.0    # spectral dB (or half that in mel dB) the body layers must buy to be chosen
 TIERS = [
     pc.Tier("fine", f_cents=0.5, f_tol=0.5, a_db=0.5, a_tol=0.5, cull_db=-80, noise_q=1.0, noise_tol=1.0),
     pc.Tier("mid", f_cents=0.5, f_tol=1),
@@ -191,6 +192,15 @@ def do_note(job):
             sf.write(os.path.join(nd, f"amp_{tier.name}.wav"), ya, pc.SR, subtype="PCM_24")
             r["amp"] = score(amp_ref, ya)
         row["tiers"][tier.name] = r
+    t = row["tiers"]
+    if "mid" in t and "body" in t:
+        # per-note choice: the residual layers only where they buy a clear step
+        # (judged through the amp for guitar, since that is how it is heard)
+        f = lambda v: v.get("amp", v)
+        gain = max(f(t["mid"])["mrstft_db"] - f(t["body"])["mrstft_db"],
+                   2 * (f(t["mid"])["mel_db"] - f(t["body"])["mel_db"]))
+        pick = "body" if gain >= AUTO_GAIN_DB else "mid"
+        t["auto"] = {**t[pick], "picked": pick}
     row["secs_to_bake"] = round(time.time() - t0, 1)
     return row
 
