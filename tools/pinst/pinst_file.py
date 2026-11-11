@@ -177,7 +177,8 @@ def unpack_channel(blob: bytes, decode_layers=True, packed=True):
     while cn.left():
         nkeys.append(nkeys[-1] + cn.v())
         rows.append(rows[-1] + np.array([cn.v() for _ in range(nb)]))
-    noise_db = pc.expand(np.array(nkeys), np.array(rows).astype(float) * n_q, nfr)
+    # -200 dB is silence; nothing under it means anything
+    noise_db = pc.expand(np.array(nkeys), np.maximum(np.array(rows).astype(float) * n_q, -200.0), nfr)
     tns_dec = None
     if tns_len:
         tk, qt = pairs(tns)

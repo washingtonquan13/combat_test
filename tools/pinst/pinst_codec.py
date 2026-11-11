@@ -664,7 +664,8 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
     edges = erb_edges(tier.noise_bands)
     ndb = _band_db(resid, nH, edges)
     if tier.noise_smooth > 1:
-        ndb = 10 * np.log10(uniform_filter1d(10 ** (ndb / 10), tier.noise_smooth, axis=0, mode="nearest") + 1e-20)
+        # the running mean can come out a hair under zero where silence follows sound
+        ndb = 10 * np.log10(np.maximum(uniform_filter1d(10 ** (ndb / 10), tier.noise_smooth, axis=0, mode="nearest"), 0.0) + 1e-20)
     # under the floor is silence, not floor-level hiss: the amp's gain and
     # compressor lift a constant floor into an audible bed under the decay
     ndb = np.where(ndb < _band_db(x, nH, edges).max() + tier.noise_floor, -200.0, ndb)
