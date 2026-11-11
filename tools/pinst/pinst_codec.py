@@ -115,10 +115,26 @@ def find_peaks_frames(x, N, H, max_peaks=100, rel_db=-80.0, abs_db=-110.0, prom_
     return frames
 
 
+_TRACK_PY = False      # tests: run the numpy tracker
+
+
 def track_peaks(frames, tol_oct=0.025, min_len=5, first_frame=0):
     """Tracks are numbered as they are born, so the live ones are always in
     number order. Each frame records which track took which peak; the tracks
     are cut out of those records at the end, in the order they ended."""
+    if fastlib.lib and frames and not _TRACK_PY:
+        cuts = np.zeros(len(frames) + 1, dtype=np.int64)
+        cuts[1:] = np.cumsum([len(fr[0]) for fr in frames])
+        fc, ac, pc = (np.ascontiguousarray(np.concatenate([fr[k] for fr in frames]), dtype=float) for k in range(3))
+        ids, src, start = (np.empty(max(1, int(cuts[-1])), dtype=np.int64) for _ in range(3))
+        born = fastlib.lib.track_assign(fc.ctypes.data, cuts.ctypes.data, len(frames), first_frame, tol_oct,
+                                        ids.ctypes.data, src.ctypes.data, start.ctypes.data)
+        assert born >= 0
+        if not born:
+            return []
+        m = int(cuts[-1] - cuts[min(max(first_frame, 0), len(frames))])
+        ids, src, start = ids[:m], src[:m], start[:born]
+        return _cut_tracks(ids, fc[src], ac[src], pc[src], start, born, min_len)
     none = np.zeros(0, dtype=np.int64)
     act_id, act_last, born = none, np.zeros(0), 0
     ids, fs, as_, phs, starts = [], [], [], [], []
@@ -143,12 +159,15 @@ def track_peaks(frames, tol_oct=0.025, min_len=5, first_frame=0):
         ids.append(act_id); fs.append(act_last); as_.append(a[js]); phs.append(ph[js])
     if not born:
         return []
-    ids = np.concatenate(ids)
+    return _cut_tracks(np.concatenate(ids), np.concatenate(fs), np.concatenate(as_), np.concatenate(phs),
+                       np.concatenate(starts), born, min_len)
+
+
+def _cut_tracks(ids, f, a, ph, start, born, min_len):
     order = np.argsort(ids, kind="stable")      # by track, frames in order
-    f, a, ph = (np.concatenate(v)[order] for v in (fs, as_, phs))
+    f, a, ph = f[order], a[order], ph[order]
     count = np.bincount(ids, minlength=born)
     first = np.cumsum(count) - count
-    start = np.concatenate(starts)
     out = []
     for t in np.lexsort((np.arange(born), start + count)):     # by the frame it ended, then by number
         if count[t] >= min_len:
@@ -477,11 +496,19 @@ def estimate_f0_track(tracks, f0_nominal, n_frames):
     best, score = f0_nominal, -1.0
     fms = np.array([np.median(t.f) for t in strong])
     ens = np.array([(10 ** (t.a / 10)).sum() for t in strong])
-    for g in grid:
-        h = np.maximum(1, np.round(fms / g))
-        sc = sum(ens[(h <= 10) & (np.abs(np.log2(fms / (h * g))) < 0.004)].tolist(), 0.0)
-        if sc > score:
-            best, score = g, sc
+    if len(strong):
+        # every candidate at once. The sum is Python's own (compensated, in
+        # track order), so the winner is the one the loop over candidates picked.
+        h = np.maximum(1, np.round(fms[None, :] / grid[:, None]))
+        ok = (h <= 10) & (np.abs(np.log2(fms[None, :] / (h * grid[:, None]))) < 0.004)
+        tot, comp = np.zeros(len(grid)), np.zeros(len(grid))
+        for j in range(len(strong)):
+            v = np.where(ok[:, j], ens[j], 0.0)
+            t = tot + v
+            comp += np.where(np.abs(tot) >= np.abs(v), (tot - t) + v, (v - t) + tot)
+            tot = t
+        sc = np.where(comp != 0, tot + comp, tot)
+        best = grid[int(np.argmax(sc))]
     num = np.zeros(n_frames)
     den = np.zeros(n_frames)
     for t in tracks:
@@ -490,10 +517,9 @@ def estimate_f0_track(tracks, f0_nominal, n_frames):
             continue
         dev = np.log2(t.f / (h * best))
         ok = np.abs(dev) < 0.03
-        idx = t.start + np.arange(len(t.f))
         w = 10 ** (t.a / 20) * ok
-        np.add.at(num, idx, w * np.log2(t.f / h))
-        np.add.at(den, idx, w)
+        num[t.start : t.start + len(t.f)] += w * np.log2(t.f / h)
+        den[t.start : t.start + len(t.f)] += w
     have = den > 0
     if not have.any():
         return np.full(n_frames, best)
@@ -558,7 +584,12 @@ def quantize(ch: Channel, tier: Tier):
     fs, ts, nfr = bytearray(), bytearray(), 0
     if tier.harmonic_lock and ch.info.get("f0"):
         nfr = max(t.start + len(t.f) for t in ch.tracks) + 1
-        f0t = estimate_f0_track(ch.tracks, ch.info["f0"], nfr)
+        memo = getattr(ch, "memo", None)    # the same for every tier of one analysis
+        if memo is None or memo.get("f0k") != (ch.info["f0"], nfr):
+            f0t = estimate_f0_track(ch.tracks, ch.info["f0"], nfr)
+            if memo is not None:
+                memo["f0k"], memo["f0t"] = (ch.info["f0"], nfr), f0t
+        f0t = f0t if memo is None else memo["f0t"]
         c0 = 1200 * np.log2(f0t / 20.0)
         k0 = keyframes(c0[:, None], np.array([tier.f0_cents]))
         q0 = np.round(c0[k0] / tier.f0_cents).astype(np.int64)
@@ -746,9 +777,9 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
         tr = track_peaks(frames, first_frame=first)
         if len(_ANALYSIS) >= 4:
             _ANALYSIS.pop(next(iter(_ANALYSIS)))
-        _ANALYSIS[key] = (tr, synth_tracks(tr, n, H, mode="phase"))
-    tracks, sines = _ANALYSIS[key]
-    tracks = copy.deepcopy(tracks)
+        _ANALYSIS[key] = (tr, synth_tracks(tr, n, H, mode="phase"), {})
+    tracks, sines, memo = _ANALYSIS[key]
+    tracks = [Track(t.start, t.f.copy(), t.a.copy(), t.ph.copy()) for t in tracks]
     resid = x - sines
     nH = tier.noise_H
     edges = erb_edges(tier.noise_bands)
@@ -760,6 +791,7 @@ def analyse(x: np.ndarray, pitched: bool, f0: float | None, tier: Tier) -> Chann
     # compressor lift a constant floor into an audible bed under the decay
     ndb = np.where(ndb < _band_db(x, nH, edges).max() + tier.noise_floor, -200.0, ndb)
     ch = Channel(n, H, tracks, ndb, nH)
+    ch.memo = memo
     # 1 ms residual envelope over the onset and the 200 ms after it
     s0 = max(0, on - 10 * TNS_BLOCK)
     m = min(len(x) - s0, int(0.2 * SR)) // TNS_BLOCK
