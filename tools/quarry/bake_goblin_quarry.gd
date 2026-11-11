@@ -579,9 +579,24 @@ func _ground_material() -> ShaderMaterial:
 	for layer: Array in [["rock", "rock_face_03"], ["soil", "forest_ground_04"], ["grass", "grass_path_2"], ["dirt", "dirt_floor"]]:
 		mat.set_shader_parameter(layer[0] + "_albedo", load(T + layer[1] + "_diff_2k.jpg"))
 		mat.set_shader_parameter(layer[0] + "_normal", load(T + layer[1] + "_nor_gl_2k.jpg"))
-		mat.set_shader_parameter(layer[0] + "_arm", load(T + layer[1] + "_arm_2k.jpg"))
-	for map: String in ["diff", "nor_gl", "arm"]:
-		mat.set_shader_parameter("bed_" + {"diff": "albedo", "nor_gl": "normal", "arm": "arm"}[map], load(F + "textures/river_small_rocks_%s_2k.jpg" % map))
+		# ARM with height in B, from tools/quarry/height_from_normal.py.
+		mat.set_shader_parameter(layer[0] + "_arm", load(T + layer[1] + "_armh_2k.png"))
+	mat.set_shader_parameter("bed_albedo", load(F + "textures/river_small_rocks_diff_2k.jpg"))
+	mat.set_shader_parameter("bed_normal", load(F + "textures/river_small_rocks_nor_gl_2k.jpg"))
+	mat.set_shader_parameter("bed_arm", load(F + "textures/river_small_rocks_armh_2k.png"))
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	noise.frequency = 0.012
+	noise.fractal_octaves = 3
+	noise.seed = 71
+	var variation := NoiseTexture2D.new()
+	variation.width = 256
+	variation.height = 256
+	variation.seamless = true
+	variation.generate_mipmaps = true
+	variation.normalize = true
+	variation.noise = noise
+	mat.set_shader_parameter("variation", variation)
 	return mat
 
 
