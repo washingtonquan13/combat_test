@@ -10,10 +10,13 @@ sys.path.insert(0, "tools/pinst")
 import numpy as np, soundfile as sf
 import run_prototype as rp, pinst_codec as pc
 T = lambda name, **k: pc.Tier(name, f_cents=0.5, f_tol=1, **k)
-TRIALS = [T("mid"), T("hybrid", pcm_ms=50),
-          T("xf50_6", xf_ms=50, xf_snr=6), T("xf50_12", xf_ms=50, xf_snr=12), T("xf50_18", xf_ms=50, xf_snr=18),
-          T("xf150_6", xf_ms=150, xf_snr=6), T("xf150_12", xf_ms=150, xf_snr=12),
-          T("xfall_3", xf_ms=1e6, xf_snr=3), T("xfall_6", xf_ms=1e6, xf_snr=6), T("xfall_12", xf_ms=1e6, xf_snr=12)]
+TRIALS = [T("mid"), T("hybrid", pcm_ms=50), T("xf150_12", xf_ms=150, xf_snr=12),
+          T("xf200_12", xf_ms=200, xf_snr=12),
+          T("lf300", xf_ms=200, xf_snr=12, xf_lf_hz=300),
+          T("lf300_9", xf_ms=200, xf_snr=9, xf_lf_hz=300, xf_lf_snr=12),
+          T("lf600", xf_ms=200, xf_snr=12, xf_lf_hz=600),
+          T("lf300_m512", xf_ms=200, xf_snr=12, xf_lf_hz=300, xf_lf_M=512),
+          T("lf300_80ms", xf_ms=80, xf_snr=12, xf_lf_hz=300)]
 def job(a):
     (name, path, kind, pitched, nm), tier, out = a
     x, sr = sf.read(path, always_2d=True)

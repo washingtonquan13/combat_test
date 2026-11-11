@@ -56,6 +56,7 @@ class Channel:
     junction: int = 0                # sample where the model takes over
     info: dict = field(default_factory=dict)
     xres: np.ndarray | None = None   # decoded transform-coded residual over the attack
+    xlf: np.ndarray | None = None    # decoded low-band residual, whole note
 
 
 def _stft_frames(x: np.ndarray, N: int, H: int, Z: int):
@@ -351,6 +352,9 @@ class Tier:
     xf_M: int = 128           # MDCT hop
     xf_bands: int = 18
     xf_floor: float = -80.0   # bands this far under the residual's loudest band are not coded
+    xf_lf_hz: float = 0.0     # low-band layer: below this the residual is coded for the whole note (drum bodies)
+    xf_lf_snr: float = 15.0
+    xf_lf_M: int = 1024
     phase_bits: int = 6
     f0_cents: float = 0.1     # harmonic lock: the shared f0 track's quantum and tolerance
     harmonic_lock: bool = True
@@ -554,24 +558,27 @@ def _ints(a) -> bytes:
     return bytes(out)
 
 
-def xform_code(e, tier):
+def xform_code(e, tier, M=None, snr=None, fmax=None):
     """What the partials miss, as quantized MDCT coefficients: a scale per
     band and frame, coefficients rounded to a step set by the SNR target.
     Coefficients that round to nothing are refilled with noise so each band
     keeps its energy. Returns (decoded signal, bytes)."""
-    M = tier.xf_M
+    M = M or tier.xf_M
+    snr = tier.xf_snr if snr is None else snr
+    K = M if fmax is None else max(4, int(np.ceil(fmax * 2 * M / SR)))    # bins kept
     B, w = _mdct(M)
+    B = B[:, :K]
     F = int(np.ceil(len(e) / M)) + 1
     buf = np.zeros((F + 1) * M)
     buf[M : M + len(e)] = e
     X = (np.lib.stride_tricks.sliding_window_view(buf, 2 * M)[::M] * w) @ B
-    edges = np.unique(np.concatenate([[0], np.round(np.geomspace(2, M, tier.xf_bands + 1)).astype(int)]))
+    edges = np.unique(np.concatenate([[0], np.round(np.geomspace(2, K, tier.xf_bands + 1)).astype(int)]))
     wid = np.diff(edges)
     sdb = 10 * np.log10(np.add.reduceat(X**2, edges[:-1], axis=1) / wid + 1e-30)
     live = sdb > sdb.max() + tier.xf_floor
     qs = np.round(sdb / 1.5).astype(np.int64)
     rms = 10 ** (qs * 1.5 / 20) * live
-    step = np.repeat(np.maximum(rms, 1e-30) * 10 ** (-tier.xf_snr / 20) * np.sqrt(12), wid, axis=1)
+    step = np.repeat(np.maximum(rms, 1e-30) * 10 ** (-snr / 20) * np.sqrt(12), wid, axis=1)
     q = np.where(np.repeat(live, wid, axis=1), np.round(X / step), 0).astype(np.int64)
     Xd = q * step
     lack = np.maximum(rms**2 * wid - np.add.reduceat(Xd**2, edges[:-1], axis=1), 0)
@@ -661,6 +668,8 @@ def render(ch: Channel, tier: Tier, edges=None) -> np.ndarray:
         nz[:L] *= 1 - w
         y[:L] += ch.xres * w
     y = y + nz
+    if ch.xlf is not None:
+        y = y + ch.xlf
     if ch.pcm is not None and ch.junction > 0:
         xf = int(0.004 * SR)
         j = ch.junction
@@ -681,4 +690,18 @@ def compile_channel(x, pitched, f0, tier):
         det = synth_tracks(dec.tracks, ch.n, ch.H, mode="integrate", anchors=dec.info["anchors"], gate_from=0)
         dec.xres, sizes["xform"] = xform_code(x[:L] - det[:L], tier)
         dec.junction = j
+        if j >= dec.tns_start + int(0.2 * SR):
+            # the layer already covers the stretch the 1 ms envelope was for
+            dec.tns, sizes["tns"] = None, 0
+        if tier.xf_lf_hz > 0:
+            # what is left under the cutoff once the attack layer is in, for the whole note
+            w = np.zeros(ch.n)
+            w[:j] = 1
+            w[j:L] = np.linspace(1, 0, L - j)
+            left = x - det
+            left[:L] -= dec.xres * w[:L]
+            dec.xlf, sizes["xform_lf"] = xform_code(left, tier, M=tier.xf_lf_M, snr=tier.xf_lf_snr, fmax=tier.xf_lf_hz)
+            edges = erb_edges(tier.noise_bands)
+            dec.noise_db = dec.noise_db.copy()
+            dec.noise_db[:, np.sqrt(edges[:-1] * edges[1:]) < tier.xf_lf_hz] = -200.0
     return ch, dec, sizes

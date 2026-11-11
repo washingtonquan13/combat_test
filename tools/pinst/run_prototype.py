@@ -71,6 +71,8 @@ TIERS = [
     pc.Tier("mid", f_cents=0.5, f_tol=1),
     pc.Tier("lean", f_cents=0.5, f_tol=2, a_tol=1.5, cull_db=-60, noise_q=2.0, noise_tol=2.5, noise_bands=28),
     pc.Tier("hybrid", f_cents=0.5, f_tol=1, pcm_ms=50),
+    pc.Tier("attack", f_cents=0.5, f_tol=1, xf_ms=200, xf_snr=12),
+    pc.Tier("body", f_cents=0.5, f_tol=1, xf_ms=200, xf_snr=12, xf_lf_hz=300),
 ]
 
 CODECS = [
