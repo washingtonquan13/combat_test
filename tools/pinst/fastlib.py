@@ -22,6 +22,7 @@ def _load():
         ("st_acc", None, [p, p, p, p, i64, i, p, p, i64]),
         ("mr_absdiff", d, [p, i64, d, p, p, d]), ("mr_logmag", None, [p, i64, d, p]),
         ("comp_stereo", None, [p, p, i64, d, d, d, d]), ("metric_exp", None, [p, i64]),
+        ("st_tracks", i, [p, p, p, p, p, p, i64, i, i, d, d, p, i64]),
         ("track_assign", i64, [p, p, i64, i64, d, p, p, p]),
         ("mel_rows", d, [p, i64, i64, d, i, p, p, p, p, p, p, p]),
     ):

@@ -178,11 +178,26 @@ def _cut_tracks(ids, f, a, ph, start, born, min_len):
 
 # ---------------------------------------------------------------- synthesis
 
+_SYNTH_PY = False      # tests: run the numpy synthesis
+
+
 def synth_tracks(tracks, n, H, mode="phase", anchors=None, gate_from=0):
     """mode 'phase': cubic phase through every measured phase (analysis).
     mode 'integrate': phase set once per track (at anchors[i] frame offset,
     default its first frame) and integrated from frequency after that."""
     out = np.zeros(n + 4 * H)
+    if fastlib.lib and len(tracks) and not _SYNTH_PY:
+        f, a, ph = (np.ascontiguousarray(np.concatenate([getattr(tr, k) for tr in tracks]), dtype=float) for k in ("f", "a", "ph"))
+        lens = np.array([len(tr.f) for tr in tracks], dtype=np.int64)
+        starts = np.array([tr.start for tr in tracks], dtype=np.int64)
+        anc = None if mode == "phase" or anchors is None else np.ascontiguousarray(anchors, dtype=np.int64)
+        assert fastlib.lib.st_tracks(f.ctypes.data, a.ctypes.data, ph.ctypes.data, lens.ctypes.data, starts.ctypes.data,
+                                     None if anc is None else anc.ctypes.data, len(tracks), H, int(mode != "phase"),
+                                     TWO_PI, float(SR), out.ctypes.data, len(out))
+        out = out[:n]
+        if gate_from > 0:
+            out[:gate_from] = 0.0
+        return out
     t = np.arange(H)
     rows = []
     for ti, tr in enumerate(tracks):
