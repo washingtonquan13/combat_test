@@ -243,6 +243,10 @@ made worse or larger.
   from what stages 2 to 4 left at each onset. Each atom must lower the
   residual in its bands. Atoms per onset are capped by one number for all
   instruments, as modes are. Past the cap the attack belongs to noise.
+- Atoms start at their onset and decay (damped atoms, Goodwin and
+  Vetterli), never symmetric Gabor atoms: half of a symmetric atom sounds
+  before the hit, which is pre-echo. Several scales solve the one-window
+  trade-off; the damped shape keeps nothing ahead of the attack.
 - The atom cap is what keeps this a generator and not a stored waveform in
   another basis. Report misses and bytes at several caps. If the bar is only
   reached where the atoms are as dense as the attack's samples, that count
