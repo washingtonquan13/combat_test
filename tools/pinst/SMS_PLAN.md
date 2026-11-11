@@ -108,6 +108,34 @@ Each stage ends at a gate. Nothing past a gate starts until it passes.
 Gate: clips sent, numbers in this file. This is the honest starting point,
 and it is expected to sound worse than PINST3.
 
+**Result (2026-11-11).** Clips sent: original, PINST3, stage 0, Opus at
+stage 0's size. Bytes are PINST3 → stage 0. Peak is source / stage 0, the
+crudest sign of a lost or overshot hit.
+
+| Note | Bytes | Need % | Peak |
+|---|---|---|---|
+| bass d#4 release2 | 2558 → 1110 | 42 | 0.437 / 0.468 |
+| bass a2 mute down1 | 4682 → 3521 | 6.6 | 1.0 / 0.732 |
+| bass e2 hammer-on1 | 9173 → 6490 | 6.2 | 1.0 / 1.502 |
+| bass e2 sus long | 26263 → 20957 | | |
+| bass fret noise10 | 3613 → 898 | | 1.0 / 1.715 |
+| kick v32 | 6011 → 2813 | 44 | |
+| snare v34 | 7390 → 2514 | | |
+| tom2 v30 | 9490 → 5672 | | |
+| tom4 v23 | 11620 → 7406 | | |
+| hat open v14 | 79695 → 59275 | | 0.943 / 0.333 |
+| hat tight v47 | 11730 → 4184 | | 0.839 / 0.263 |
+| hat closed-open v12 | 58255 → 44021 | | 0.943 / 0.71 |
+| crash15 v22 | 56681 → 45769 | | |
+| gtr e2 sus | 22395 → 19075 | 0.1 | |
+| gtr e2 mute | 11073 → 8337 | | 0.999 / 0.557 |
+| gtr a2 release | 8061 → 4842 | 17 | |
+
+Read: hat onsets lose most of their peak (smeared into noise); the hammer-on
+and fret noise overshoot (partials fitted at the wrong pitch or lock); kick
+body is the largest need share on drums. These are the cases stage 1's card
+has to name.
+
 ### 1. Report card
 
 - The test the old plan described and never built: is what is left after
