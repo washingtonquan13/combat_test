@@ -4,7 +4,7 @@
     "head": {
       "layers": [
         {
-          "sfz": "pinst/metal-gtx/Programs/metal-gtx-head.sfz",
+          "sfz": "pinst2/metal-gtx/Programs/metal-gtx-head.sfz",
           "release_cuts": true
         }
       ],
@@ -80,7 +80,7 @@
     "head-turned": {
       "layers": [
         {
-          "sfz": "pinst/metal-gtx/Programs/metal-gtx-head-turned.sfz",
+          "sfz": "pinst2/metal-gtx/Programs/metal-gtx-head-turned.sfz",
           "release_cuts": true
         }
       ],
@@ -156,7 +156,7 @@
     "guitar": {
       "layers": [
         {
-          "sfz": "pinst/metal-gtx/Programs/metal-gtx-guitar.sfz",
+          "sfz": "pinst2/metal-gtx/Programs/metal-gtx-guitar.sfz",
           "release_cuts": true
         }
       ],

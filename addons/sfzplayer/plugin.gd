@@ -30,6 +30,9 @@ func _enter_tree() -> void:
 		elif key == SfzSettings.PRELOAD_SCALE:
 			info.merge({"type": TYPE_FLOAT, "hint": PROPERTY_HINT_RANGE,
 				"hint_string": "0.125,4,0.125"}, true)
+		elif key == SfzSettings.PINST_HEAD:
+			info.merge({"type": TYPE_INT, "hint": PROPERTY_HINT_RANGE,
+				"hint_string": "-1,65536,1"}, true)
 		ProjectSettings.add_property_info(info)
 	add_tool_menu_item(EXPORT_MIDI, _pick_score)
 

@@ -21,6 +21,11 @@ func _initialize() -> void:
 	var registry := _value(args, "--registry")
 	if registry != "":
 		ProjectSettings.set_setting(SfzSettings.REGISTRY, registry)
+	# --pinst-head N: the head kept of each .pinst note, this run only.
+	var head := _value(args, "--pinst-head")
+	if head != "":
+		ProjectSettings.set_setting(SfzSettings.PINST_HEAD, int(head))
+	SfzSettings.apply_pinst_head()
 
 	var only := _value(args, "--sfz")
 	if only != "":

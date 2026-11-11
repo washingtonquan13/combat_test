@@ -98,6 +98,7 @@ var _dropped_seen := 0
 # moved, until note_off() moves the release with them.
 var _moved: Dictionary = {}
 var _starved_at_load := 0
+var _late_at_load := 0
 
 # heard(): heard game time minus conductor time, as of the game frame
 # _heard_frame, and heard(now()) at that anchor, which the next may not go
@@ -194,6 +195,11 @@ func _watch() -> void:
 		_warned["!starved"] = true
 		push_warning("conductor: %d voices cut short waiting on the disk while ensemble %s is loaded; see stats()" % [
 			starved, ensemble.id])
+	var late := SfzInstrument.get_late_voices() - _late_at_load
+	if late > 0 and not _warned.has("!late"):
+		_warned["!late"] = true
+		push_warning("conductor: %d notes started late waiting on the disk while ensemble %s is loaded; see stats()" % [
+			late, ensemble.id])
 
 
 # True on the main thread. Everything a game calls on the conductor and the
@@ -369,6 +375,7 @@ func load_ensemble(new_ensemble: SfzEnsemble, articulations: Variant = null,
 	_moved = {}
 	_dropped_seen = 0
 	_starved_at_load = _starved_voices()
+	_late_at_load = SfzInstrument.get_late_voices()
 	_loaded = true
 	ensemble_ready.emit(ensemble)
 	return true
@@ -413,6 +420,7 @@ func _attach(part: SfzEnsemble.Part, layer: SfzEnsemble.Layer, arts: Variant,
 	# and is not waited for until the next one, and its file garbage
 	# collection fires off the wall clock. Both are still open. The
 	# resident preload was a very expensive way of not fixing them.
+	SfzSettings.apply_pinst_head()
 	instrument.preload_frames = SfzSettings.preload_frames(layer.preload_frames)
 
 	# Both trims, because they answer different questions: the part's
@@ -1094,12 +1102,15 @@ func instruments(part_name: String) -> Array:
 # sent too late and moved to now() + lead() (_on_time()), since load.
 # `starved` is voices sfizz cut short waiting on the disk since load, and it
 # is the same number in every row: sfizz counts it for the whole process, so
-# it is not this part's or even this ensemble's alone. Reading this also runs the
-# warnings in _watch().
+# it is not this part's or even this ensemble's alone. `late` is counted the
+# same way: notes that started whole but late, the first of their sample not
+# read yet (a library with no head in memory, a note sent with no lead).
+# Reading this also runs the warnings in _watch().
 func stats() -> Dictionary:
 	_watch()
 	var out := {}
 	var starved := _starved_voices() - _starved_at_load if _loaded else 0
+	var late := SfzInstrument.get_late_voices() - _late_at_load if _loaded else 0
 	for part_name in _stacks:
 		var stack: Array = _stacks[part_name]
 		var row := {
@@ -1107,6 +1118,7 @@ func stats() -> Dictionary:
 			"subframe": 0, "peak": 0.0, "preloaded": 0, "layers": stack.size(),
 			"offset": stack[0].offset if not stack.is_empty() else 0.0,
 			"clamped": int(_clamped.get(part_name, 0)), "starved": starved,
+			"late": late,
 		}
 		for entry in stack:
 			var instrument: SfzInstrument = entry.instrument

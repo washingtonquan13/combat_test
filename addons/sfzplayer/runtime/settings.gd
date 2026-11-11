@@ -22,6 +22,16 @@ extends RefCounted
 #                                ensembles were written for kept band's 156
 #                                voices unstarved on a warm cache (2026-09-25;
 #                                a cold cache or an HDD is not measured)
+#   sfzplayer/memory/pinst_head_frames
+#                                the head held of each .pinst note, in frames.
+#                                A .pinst note is synthesized as it is read, so
+#                                a head is audio made at load and kept. 0: no
+#                                head at all - nothing of a note is unpacked
+#                                or made at load, and each note is asked for
+#                                as its event is scheduled, ahead of sounding
+#                                (a note sent with no lead starts late, see
+#                                stats().late). -1: the same head as any other
+#                                sample file
 #
 # The editor plugin registers them with these defaults, so they show up in
 # Project Settings; a project that never enables the plugin still gets the
@@ -37,6 +47,7 @@ const TRANSITIONS := "sfzplayer/paths/transitions"
 const LOUDNESS := "sfzplayer/paths/loudness"
 const BUS := "sfzplayer/audio/bus"
 const PRELOAD_SCALE := "sfzplayer/memory/preload_scale"
+const PINST_HEAD := "sfzplayer/memory/pinst_head_frames"
 
 const DEFAULTS := {
 	SAMPLES: "res://samples",
@@ -47,6 +58,7 @@ const DEFAULTS := {
 	LOUDNESS: "res://scores/loudness.json",
 	BUS: "Music",
 	PRELOAD_SCALE: 0.5,
+	PINST_HEAD: -1,
 }
 
 # sfizz's streaming has nothing to fall back on below this: a voice that
@@ -111,6 +123,12 @@ static func loudness_path() -> String:
 
 static func music_bus() -> StringName:
 	return StringName(get_path(BUS))
+
+
+# Hands the .pinst head size to the engine; it holds for libraries loaded
+# after the call.
+static func apply_pinst_head() -> void:
+	SfzInstrument.set_pinst_head_frames(int(get_value(PINST_HEAD)))
 
 
 # The frames a layer actually preloads, for the frames its ensemble asks for.

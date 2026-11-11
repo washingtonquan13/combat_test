@@ -48,6 +48,8 @@ extends Node
 #                                heard or muted with the others on its bus)
 #   --registry DIR              (instruments from this registry folder
 #                                instead of sfzplayer/paths/registry)
+#   --pinst-head N              (frames kept of each .pinst note instead
+#                                of sfzplayer/memory/pinst_head_frames)
 #   --loops  3                  (a looping score's loop, this many times;
 #                                default once, which is the piece as written)
 #   --leave  bar 130            (loop until 130 s in, then leave at the next
@@ -336,6 +338,12 @@ func _read_args() -> void:
 				i += 1
 				if i < args.size():
 					ProjectSettings.set_setting(SfzSettings.REGISTRY, args[i])
+			"--pinst-head":
+				# The head kept of each .pinst note, this run only.
+				i += 1
+				if i < args.size():
+					ProjectSettings.set_setting(SfzSettings.PINST_HEAD, int(args[i]))
+					SfzSettings.apply_pinst_head()
 			"--loops":
 				i += 1
 				if i < args.size():
@@ -634,6 +642,8 @@ func _render_realtime(score: SfzScore, id: String, suffix: String) -> void:
 
 	var seconds := float(wav.data.size()) / (wav.mix_rate * (4.0 if wav.stereo else 2.0))
 	print("  %s  %.1fs  %.1f MB" % [path, seconds, wav.data.size() / 1048576.0])
+	print("  voices starved %d, started late %d" % [
+		SfzInstrument.get_starved_voices(), SfzInstrument.get_late_voices()])
 	_print_peaks(peaks)
 
 	await get_tree().create_timer(0.5).timeout
