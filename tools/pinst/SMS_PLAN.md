@@ -149,10 +149,60 @@ correctly: the hammer-on and fret noise as tone, the kick body as tone or
 mode, the hat and snare onsets as envelope or click. If it cannot, the plan
 is revised here.
 
+**Result (2026-11-11). Gate failed as written; the card works, and the plan
+is revised.**
+
+The card (`report_card.py`, run through `sms.py`) is calibrated. The
+calibration source (the output with another noise draw) misses ≤ 5 % of
+audible band-frames on 15 of 16 notes; the worst is the bass release at
+14.6 %. The kinds it gives:
+
+- Every level miss is the output too loud, never too quiet.
+- The tone test never fires. With the partials in, tones turn into level
+  errors and not into missing peaks.
+- No click test could be made. A phase-alignment measure across bands
+  (Rayleigh statistic, at the band's best instant) gives our own noise draw
+  scores as high as the sources' attacks, because a noise band that switches
+  on at a frame edge is itself in step. The sources' attacks are fast
+  envelopes, not phase-aligned impulses, at any scale the bands can resolve.
+
+The card's misses trace to two causes, both checked directly:
+
+1. **Power smoothing smears the noise envelope.** Turning the 5-frame
+   smoothing off drops attack misses on its own:
+
+   | Note | Attack misses: smoothing on → off |
+   |---|---|
+   | fret noise | 15.5 → 0.4 % |
+   | hammer-on | 39.8 → 6.8 % |
+   | kick | 29 → 17 % |
+
+   So the hammer-on and fret noise are envelope misses, not tone misses.
+2. **The noise generator spills across bands.** Asked for one band, it
+   gives the next band at 0 dB at 100 Hz, and a skirt of −40 to −60 dB over
+   the whole spectrum from a mid band. Wherever the source has little
+   energy, the spill is the output: low bands on hats, snare and crash
+   (19–51 % misses below 300 Hz), high bands on bass (90–100 % above
+   4 kHz). The kick body is a low tone carried by noise (partials: 30
+   bytes), and its spill makes the low bands 45 % too loud.
+
+Plan changes:
+
+- Stage 2 gains a noise generator with sharp band edges and no frame-edge
+  skirt; the band shape is part of the generator.
+- Stage 5 uses envelope misses at onsets in place of a click kind.
+- The gate's expectations were wrong about kinds, not about notes. Each
+  later gate is read on misses per note.
+
 ### 2. Noise that follows a hit
 
 - A level per band every 128 samples (2.9 ms at 44.1 kHz), stored as
   breakpoints so a steady stretch costs nothing extra.
+- Band shape decoupled from the envelope step: each band's noise is
+  filtered to its band with sharp edges (long filters, or one long FFT per
+  note) and its gain moves in time, so a 128-sample step does not widen the
+  band. The test is one band alone: every other band at least 60 dB down.
+  No power smoothing.
 - If the card still shows envelope misses at that step, an all-pole envelope
   inside the frame (the SSC method) is the next move.
 - The transient detector, the forced mute and their constants are deleted.
@@ -182,7 +232,9 @@ made worse or larger.
 
 ### 5. Pulses
 
-- Read the card: what is still a click miss after stages 2 to 4.
+- Read the card: what is still an envelope or level miss at onsets after
+  stages 2 to 4 (stage 1 found no measure that separates a click from fast
+  noise).
 - Build the pulse generator in the candidate form. If it fails by ear on the
   closing hat and the pick attacks, try the DCT method.
 
