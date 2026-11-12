@@ -84,13 +84,36 @@ def fine_power(sigs, sr, edges):
     return 10 * np.log10(out + 1e-30)
 
 
-def card(x, det, noises, sr, ref=None):
+def shifted_edges():
+    """The card's grid moved by half a band. A generator whose bands are cut
+    on the card's own grid can hide a wrong shape inside each band; scored on
+    both grids, it cannot."""
+    return pc.erb_edges(2 * nm.MODEL.noise_bands)[1::2]
+
+
+def pre_onset(x, y, onset, sr):
+    """Output energy before the source's onset, dB over the source's energy
+    there (both floored at the source's loudest HOP block - 120 dB). The
+    card's windows are too long to see it; nothing may sound before the hit."""
+    if onset <= 0:
+        return 0.0
+    n = len(x) // HOP * HOP
+    peak = float((x[:n].reshape(-1, HOP) ** 2).sum(1).max()) if n else 0.0
+    fl = peak * 1e-12 + 1e-30
+    return round(10 * np.log10((float(np.dot(y[:onset], y[:onset])) + fl)
+                               / (float(np.dot(x[:onset], x[:onset])) + fl)), 1)
+
+
+def card(x, det, noises, sr, ref=None, edges=None):
     """x: the source channel. det: the deterministic generators' sum. noises:
     the random generators' output, one per seed. ref: band dB that audible is
-    measured from (the mid's for a side). Returns a dict: kind (frames, bands)
-    int, -1 where no miss, else an index into KINDS; audible; the measures."""
-    edges = pc.erb_edges(nm.MODEL.noise_bands)
-    r = nm.need_map(x, det, noises, sr, ref=ref)
+    measured from (the mid's for a side). edges: the band grid (default the
+    model's; shifted_edges() for the second grid). Returns a dict: kind
+    (frames, bands) int, -1 where no miss, else an index into KINDS; audible;
+    the measures."""
+    if edges is None:
+        edges = pc.erb_edges(nm.MODEL.noise_bands)
+    r = nm.need_map(x, det, noises, sr, ref=ref, edges=edges)
     aud = r["audible"]
     fine = fine_power([x], sr, edges) - fine_power([det + nz for nz in noises], sr, edges)
     pd, _ = nm.band_stats([det], sr, edges)

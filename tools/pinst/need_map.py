@@ -98,16 +98,18 @@ def band_stats(sigs, sr, edges):
     return 10 * np.log10(P + 1e-30), 10 * np.log10(K + 1e-30)
 
 
-def need_map(x, det, noises, sr=None, ref=None):
+def need_map(x, det, noises, sr=None, ref=None, edges=None):
     """x: the source channel. det, noises: the plain model (plain_model()).
     ref: the dB that audible is measured from (default: x's loudest
     band-frame); a side channel passes the mid's, so a quiet side is judged
-    by how loud the note is, not by itself.
+    by how loud the note is, not by itself. edges: the band grid (default
+    the model's ERB bands).
     Returns a dict of (frames, bands) arrays: need (bool), level (model over
     source, dB), tone (source peakiness over model's, dB), audible (bool),
     and the band edges."""
     sr = sr or pc.SR
-    edges = pc.erb_edges(MODEL.noise_bands)
+    if edges is None:
+        edges = pc.erb_edges(MODEL.noise_bands)
     px, kx = band_stats([x], sr, edges)
     py, ky = band_stats([det + nz for nz in noises], sr, edges)
     level = py - px
