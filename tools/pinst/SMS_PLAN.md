@@ -299,7 +299,13 @@ loops this way.
 - The player in `sfpp_test` brought to the new reference. It gets simpler:
   the transform decoder and layer reader go.
 - The user has uncommitted changes in `pinst_source.cpp`; this stage is
-  agreed with them before it touches that file.
+  agreed with them before it touches that file. **Agreed 2026-11-12:** the
+  user commits or finishes their `sfpp_test` changes first and stage 8
+  builds on top; the PINST2/PINST3 decoders are dropped now (only PINST4
+  plays; existing baked libraries stop playing until re-baked).
+- Loops as stage 7's reference: partial phase and the noise table read run
+  on through the loop; only frequencies and levels are read at the looped
+  position.
 
 Gate: native and reference agree on the proof set.
 
