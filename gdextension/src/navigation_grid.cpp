@@ -1011,18 +1011,27 @@ void NavigationGrid::invalidate_active_region(SceneTree *tree, const AABB &regio
 	// The shape list is re-walked whole: a moved body may have changed
 	// buckets, a freed one must not leave a dangling pointer behind, and
 	// walking the tree is cheap. Building a mesh's triangles is not, so a
-	// mesh shape clear of the region (and so, by this call's contract,
-	// unmoved) keeps the TriShape it already has, column index included —
-	// the grid's size is unchanged or the rescan below replaces it anyway.
+	// mesh shape keeps the TriShape it already has, column index included,
+	// when it is clear of the region (and so, by this call's contract,
+	// unmoved) or still holds the same shape resource in the same place:
+	// a level's ground lies under every region, and rebuilding it for each
+	// box set down on it cost a third of a second in the quarry. (A shape
+	// resource whose own data is rewritten in place is not noticed; give
+	// the node a new resource.) The grid's size is unchanged or the rescan
+	// below replaces everything anyway.
 	std::vector<CollisionShape3D *> shapes;
 	collect_static_shapes(root, shapes);
 	std::unordered_map<CollisionShape3D *, std::shared_ptr<TriShape>> tris;
 	std::vector<TriShape *> fresh;
 	for (CollisionShape3D *cs : shapes) {
 		auto old = tri_shapes.find(cs);
-		if (old != tri_shapes.end() && !old->second->aabb.intersects(touched)) {
-			tris[cs] = old->second;
-			continue;
+		if (old != tri_shapes.end()) {
+			const TriShape &had = *old->second;
+			const bool unmoved = had.built_shape == cs->get_shape()->get_instance_id() && had.built_at == cs->get_global_transform();
+			if (unmoved || !had.aabb.intersects(touched)) {
+				tris[cs] = old->second;
+				continue;
+			}
 		}
 		auto tri = std::make_shared<TriShape>();
 		if (build_tri_shape(cs, *tri)) {
@@ -1412,6 +1421,8 @@ bool hull_triangles(const std::vector<Vector3> &in, std::vector<Vector3> &verts,
 bool NavigationGrid::build_tri_shape(CollisionShape3D *cs, TriShape &out) {
 	Ref<Shape3D> shape = cs->get_shape();
 	Transform3D t = cs->get_global_transform();
+	out.built_shape = shape->get_instance_id();
+	out.built_at = t;
 	// A mirroring transform turns the winding inside out.
 	float handedness = t.basis.determinant() < 0.0f ? -1.0f : 1.0f;
 	auto add = [&](const Vector3 &la, const Vector3 &lb, const Vector3 &lc) {

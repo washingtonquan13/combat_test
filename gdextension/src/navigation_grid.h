@@ -94,6 +94,11 @@ struct TriShape {
 	std::vector<uint8_t> outer_edge;
 	AABB aabb;
 	bool any_walkable = false;
+	// What it was built from: the shape resource and where its node stood.
+	// While both still hold, the triangles are still right (see
+	// invalidate_active_region).
+	uint64_t built_shape = 0;
+	Transform3D built_at;
 	// chunk column (cx * chunk_grid_size.z + cz) -> triangles whose
 	// footprint, or ground band, reaches into it.
 	std::unordered_map<int, std::vector<int>> by_column;
