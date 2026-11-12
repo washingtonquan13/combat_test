@@ -4,35 +4,35 @@
     "toll": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/toll.sfz"
+          "sfz": "homebuilt/toll.sfz"
         }
       ]
     },
     "chant": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/chant.sfz"
+          "sfz": "homebuilt/chant.sfz"
         }
       ]
     },
     "drone-saw": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/drone-saw.sfz"
+          "sfz": "homebuilt/drone-saw.sfz"
         }
       ]
     },
     "drone-cluster": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/drone-cluster.sfz"
+          "sfz": "homebuilt/drone-cluster.sfz"
         }
       ]
     },
     "industrial-kit": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/industrial-kit.sfz"
+          "sfz": "homebuilt/industrial-kit.sfz"
         }
       ],
       "range": [
@@ -63,49 +63,49 @@
     "chip-pulse25": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/chip-pulse25.sfz"
+          "sfz": "homebuilt/chip-pulse25.sfz"
         }
       ]
     },
     "chip-pulse12": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/chip-pulse12.sfz"
+          "sfz": "homebuilt/chip-pulse12.sfz"
         }
       ]
     },
     "chip-pulse50": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/chip-pulse50.sfz"
+          "sfz": "homebuilt/chip-pulse50.sfz"
         }
       ]
     },
     "fm-brass": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/fm-brass.sfz"
+          "sfz": "homebuilt/fm-brass.sfz"
         }
       ]
     },
     "chip-tri": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/chip-tri.sfz"
+          "sfz": "homebuilt/chip-tri.sfz"
         }
       ]
     },
     "fm-slap": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/fm-slap.sfz"
+          "sfz": "homebuilt/fm-slap.sfz"
         }
       ]
     },
     "chip-kit": {
       "layers": [
         {
-          "sfz": "pinst2/homebuilt/chip-kit.sfz"
+          "sfz": "homebuilt/chip-kit.sfz"
         }
       ],
       "range": [

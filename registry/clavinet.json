@@ -4,7 +4,7 @@
     "placed": {
       "layers": [
         {
-          "sfz": "pinst2/clavinet/clavinet-placed.sfz"
+          "sfz": "clavinet/clavinet-placed.sfz"
         }
       ],
       "range": [

@@ -5,7 +5,7 @@
     "placed": {
       "layers": [
         {
-          "sfz": "pinst2/karoryfer.swagbass/swagbass-placed.sfz"
+          "sfz": "karoryfer.swagbass/swagbass-placed.sfz"
         }
       ],
       "range": [
@@ -27,7 +27,7 @@
     "shiny": {
       "layers": [
         {
-          "sfz": "pinst2/karoryfer.swagbass/swagbass_shiny.sfz"
+          "sfz": "karoryfer.swagbass/swagbass_shiny.sfz"
         }
       ],
       "range": [

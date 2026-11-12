@@ -4,7 +4,7 @@
     "organ-loud": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/OrganLoud.sfz"
+          "sfz": "vsco2/OrganLoud.sfz"
         }
       ],
       "range": [
@@ -15,7 +15,7 @@
     "organ-quiet": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/OrganQuiet.sfz"
+          "sfz": "vsco2/OrganQuiet.sfz"
         }
       ],
       "range": [
@@ -30,7 +30,7 @@
     "trumpet-stac": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/TrumpetStac.sfz"
+          "sfz": "vsco2/TrumpetStac.sfz"
         }
       ],
       "range": [
@@ -41,7 +41,7 @@
     "trombone-stac": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/TromboneStac.sfz"
+          "sfz": "vsco2/TromboneStac.sfz"
         }
       ],
       "range": [
@@ -52,7 +52,7 @@
     "horn-stac": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/FHornStac.sfz"
+          "sfz": "vsco2/FHornStac.sfz"
         }
       ],
       "range": [
@@ -63,7 +63,7 @@
     "organ-loud-pedal": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/OrganLoudPedal.sfz"
+          "sfz": "vsco2/OrganLoudPedal.sfz"
         }
       ],
       "range": [
@@ -74,7 +74,7 @@
     "timpani": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/Timpani.sfz"
+          "sfz": "vsco2/Timpani.sfz"
         }
       ],
       "range": [
@@ -92,7 +92,7 @@
     "tubular-bells": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/TubularBells.sfz"
+          "sfz": "vsco2/TubularBells.sfz"
         }
       ],
       "range": [
@@ -109,7 +109,7 @@
     "tuba-stac": {
       "layers": [
         {
-          "sfz": "pinst2/vsco2/TubaStac.sfz"
+          "sfz": "vsco2/TubaStac.sfz"
         }
       ],
       "range": [
