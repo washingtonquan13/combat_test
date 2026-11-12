@@ -419,7 +419,8 @@ func _on_party_entered_combat(unit: Unit) -> void:
 			continue
 		if walker.is_inside_tree() and walker.get_world_3d() == world:
 			if not walker.in_combat() and walker.is_moving():
-				walker.force_stop_movement()
+				# Announced: a silent stop leaves the walk animation running.
+				walker.stop_moving()
 			continue
 		still.append(walker)
 	_chain_walkers = still

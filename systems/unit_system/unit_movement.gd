@@ -138,6 +138,9 @@ var _preview_ignore: Array = []
 ## The ignore list of the journey in flight, so a ladder journey's later
 ## walking legs avoid the same units its first leg did.
 var _move_ignore: Array = []
+## TEMPORARY stall logging, see _log_stuck.
+const STUCK_LOG_AFTER := 0.3
+var _stuck_logged: bool = false
 
 
 func _init(owner: Unit) -> void:
@@ -254,15 +257,7 @@ func move_to(destination: Vector3, ignore: Array = []) -> bool:
 		_end_route_at_climb_end()
 		return true
 
-	# The order in flight is REPLACED, not queued behind. Ended without
-	# announcing, since it did not finish — but still charged for the
-	# distance actually walked, which _finish_move already measures for a
-	# move cut short rather than trusting the abandoned plan's cost.
-	if _moving:
-		_finish_move(false)
-
 	var budget: float = INF
-	_move_ignore = ignore
 
 	# Turn order binds a unit only while it is actually IN a fight. A unit
 	# standing outside one moves freely even while a battle rages nearby —
@@ -270,11 +265,28 @@ func move_to(destination: Vector3, ignore: Array = []) -> bool:
 	if _owner.in_combat():
 		if not _owner.is_my_turn():
 			return false
-		if not _owner.has_move_remaining():
+		# What is left once the move in flight is charged for the distance
+		# walked so far, which replacing it below does.
+		budget = _owner.move_remaining - cost_walked()
+		if budget <= 0.0:
 			return false
-		budget = _owner.move_remaining
 
-	return _begin_route(plan_route(destination, budget, ignore))
+	# Planned before the order in flight is touched: an order that can't
+	# start (nowhere to stand, no way there) leaves the unit doing what it
+	# was doing, rather than standing still mid-stride with a walk nobody
+	# ended.
+	var planned: Dictionary = plan_route(destination, budget, ignore)
+	if (planned.path as PackedVector3Array).size() < 2:
+		return false
+
+	# The order in flight is REPLACED, not queued behind. Ended without
+	# announcing, since it did not finish — but still charged for the
+	# distance actually walked, which _finish_move already measures for a
+	# move cut short rather than trusting the abandoned plan's cost.
+	if _moving:
+		_finish_move(false)
+	_move_ignore = ignore
+	return _begin_route(planned)
 
 
 ## The route move_to(raw_destination) would walk, cut at budget, WITHOUT
@@ -531,6 +543,7 @@ func _begin_route(planned: Dictionary) -> bool:
 	_climb_ladder = planned.get("ladder", null)
 	_climb_up = planned.get("climb_up", true)
 	_stuck_timer = 0.0
+	_stuck_logged = false
 	_last_progress_position = _owner.global_position
 	_route_crawls = _crawls()
 	_moving = true
@@ -682,11 +695,16 @@ func _step(delta: float) -> void:
 	# mechanism for anything.
 	if _owner.global_position.distance_to(_last_progress_position) < 0.05:
 		_stuck_timer += delta
+		if _stuck_timer >= STUCK_LOG_AFTER and not _stuck_logged:
+			_stuck_logged = true
+			_log_stuck()
 		if _stuck_timer >= _owner.stuck_timeout:
+			print("[stuck] %s gave up after %.1f s" % [_owner.name, _stuck_timer])
 			_finish_move()
 			return
 	else:
 		_stuck_timer = 0.0
+		_stuck_logged = false
 		_last_progress_position = _owner.global_position
 
 	# Y flattened for a GROUND unit — horizontal direction only; the
@@ -710,6 +728,44 @@ func _step(delta: float) -> void:
 		_owner.velocity.x = direction.x * _owner.move_speed
 		_owner.velocity.z = direction.z * _owner.move_speed
 	_owner.move_and_slide()
+
+
+## TEMPORARY, for finding why units stall: what the route asks for and what
+## the body is pushing against, printed once per stall. Remove with
+## STUCK_LOG_AFTER and _stuck_logged once the causes are known.
+func _log_stuck() -> void:
+	var at: Vector3 = _owner.global_position
+	var target: Vector3 = _current_path[_path_index]
+	var from: Vector3 = _current_path[_path_index - 1]
+	var level: float = Vector2(target.x - at.x, target.z - at.z).length()
+	print("[stuck] %s in %s at %s, on floor %s, floor normal %s" % [
+		_owner.name, _owner.get_tree().current_scene.name if _owner.get_tree().current_scene else "?",
+		at.snappedf(0.01), _owner.is_on_floor(), _owner.get_floor_normal().snappedf(0.01)])
+	print("[stuck]   waypoint %d of %d: from %s to %s, %.2f m away on the level, %+.2f m in height" % [
+		_path_index, _current_path.size() - 1, from.snappedf(0.01), target.snappedf(0.01), level, target.y - at.y])
+	# The steepest step the route asks for anywhere, and where.
+	var worst: float = 0.0
+	var worst_at: int = -1
+	for i in range(1, _current_path.size()):
+		var a: Vector3 = _current_path[i - 1]
+		var b: Vector3 = _current_path[i]
+		var run: float = Vector2(b.x - a.x, b.z - a.z).length()
+		var angle: float = rad_to_deg(atan2(absf(b.y - a.y), run))
+		if angle > worst:
+			worst = angle
+			worst_at = i
+	if worst_at >= 0:
+		print("[stuck]   steepest leg of the route: %.0f deg, into waypoint %d (%s to %s)" % [
+			worst, worst_at, _current_path[worst_at - 1].snappedf(0.01), _current_path[worst_at].snappedf(0.01)])
+	if _owner.get_slide_collision_count() == 0:
+		print("[stuck]   touching nothing")
+	for i in _owner.get_slide_collision_count():
+		var hit: KinematicCollision3D = _owner.get_slide_collision(i)
+		var other: Object = hit.get_collider()
+		var who: String = str((other as Node).get_path()) if other is Node else str(other)
+		print("[stuck]   touching %s, normal %s (%.0f deg from up), %+.2f m from the unit's origin" % [
+			who, hit.get_normal().snappedf(0.01), rad_to_deg(hit.get_normal().angle_to(Vector3.UP)),
+			hit.get_position().y - at.y])
 
 
 ## Holding on is asked of the surface every tick, never remembered: nothing
