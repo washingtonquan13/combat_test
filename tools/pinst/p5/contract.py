@@ -1,0 +1,86 @@
+"""PINST5: what the stage files hand each other (AGENT_PLAN.md, wave 0).
+
+Owned by the integrator. A stage that needs a change here says so in its
+report and does not make it.
+
+Encoder, per channel (encode.py):
+
+    sines = analysis.encode_sines(x, f0)            -> SineCode or None
+    det   = analysis.render_sines(sines, n)         (decoded from the code itself)
+    e     = x - det
+    for M, w in blocks.plan(e, ref):                (pieces that sum to 1 over time)
+        X  = transform.forward(e * w, M)            (frames, M) coefficients
+        Xr = transform.forward(ref, M)              the mid, which sets every floor
+        L  = quant.quantize(X, Xr, M, seed, DIAL)   -> LayerCode or None
+    bytes = pack.pack(NoteCode)
+
+Decoder (decode.py), the one source F ports to C:
+
+    note = pack.unpack(bytes)
+    per channel: analysis.render_sines(...) + sum(transform.inverse(quant.dequantize(L), n, L.M))
+    stereo == 1: left = mid + side, right = mid - side
+
+Every stage keeps both halves of its own work (encode and decode) in its one
+file, so the encoder always subtracts exactly what the decoder plays.
+"""
+from __future__ import annotations
+
+import os
+import sys
+from dataclasses import dataclass, field
+
+import numpy as np
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+LEGACY = os.path.dirname(HERE)          # tools/pinst: pinst_codec, pinst_file, read-only
+if LEGACY not in sys.path:
+    sys.path.insert(0, LEGACY)
+
+import pinst_codec as pc        # noqa: E402
+
+MAGIC = b"PIN5"
+VERSION = 0
+DIAL = 30.0         # the one quality setting: dB of signal over quantization error per band
+
+
+def set_rate(sr: int):
+    """pc.SR is a module global the legacy helpers read; every note sets it."""
+    pc.SR = int(sr)
+
+
+@dataclass
+class SineCode:
+    """The sine layer of one channel, as analysis.py stores it. ints: small
+    integers the decoder needs; streams: byte strings pack.py compresses."""
+    ints: dict
+    streams: dict
+
+
+@dataclass
+class LayerCode:
+    """One MDCT layer of one channel. sc: (frames, bands) scale codes, 1.5 dB
+    steps, `dead` where a band carries nothing. q: (frames, K) coefficient
+    codes, zero outside live bands. seed: the hash that fills zeros."""
+    M: int
+    K: int
+    nbands: int
+    snr: float
+    dead: int
+    frames: int
+    seed: int
+    sc: np.ndarray
+    q: np.ndarray
+
+
+@dataclass
+class ChannelCode:
+    sines: SineCode | None = None
+    layers: list = field(default_factory=list)
+
+
+@dataclass
+class NoteCode:
+    sr: int
+    n: int
+    stereo: int                     # 0 mono, 1 mid/side
+    channels: list                  # ChannelCode, mid first
