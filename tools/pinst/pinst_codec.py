@@ -489,6 +489,35 @@ def lz_bytes(b: bytes) -> bytes:
     return z
 
 
+def lz_split(z: bytes, k: int) -> list:
+    """k streams packed back to back by lz_bytes -> their bytes. Each raw
+    LZMA2 stream ends with its own end marker, so none needs a length; an
+    empty stream packs to nothing, so streams past the end come back empty
+    (only trailing streams may be empty)."""
+    out = []
+    for _ in range(k):
+        if not z:
+            out.append(b"")
+            continue
+        d = lzma.LZMADecompressor(lzma.FORMAT_RAW, filters=[{"id": lzma.FILTER_LZMA2, "dict_size": 1 << 24}])
+        out.append(d.decompress(z))
+        z = d.unused_data
+    assert not z, "bytes past the last stream"
+    return out
+
+
+def _uvarint_list(b: bytes, signed=True) -> list:
+    """Every varint in b (zigzag-decoded when signed), as _varint wrote them."""
+    out, v, s = [], 0, 0
+    for c in b:
+        v |= (c & 0x7F) << s
+        s += 7
+        if not c & 0x80:
+            out.append((v >> 1) ^ -(v & 1) if signed else v)
+            v = s = 0
+    return out
+
+
 def _lz(b: bytes) -> int:
     return len(lz_bytes(b))
 

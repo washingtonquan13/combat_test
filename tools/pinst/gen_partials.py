@@ -578,5 +578,55 @@ def render(dec, n, sr, seed=0):
 
 
 def pack(dec):
+    """Streams (quantize): hdr, the key steps dt df da, then f0 (empty, and
+    so absent, when the tracks are not locked to a pitch)."""
     st = dec["info"]["streams"]
     return b"".join(pc.lz_bytes(st[k]) for k in ("hdr", "dt", "df", "da", "f0"))
+
+
+def unpack(z, tier=TIER):
+    """bytes -> settings render() takes, the tracks as quantize decoded them."""
+    hdr, dt, df, da, f0 = pc.lz_split(z, 5)
+    info = {"streams": dict(zip(("hdr", "dt", "df", "da", "f0"), (hdr, dt, df, da, f0)))}
+    if not hdr:
+        return {"tracks": [], "anchors": [], "info": info}
+    f0q = None
+    if f0:
+        v = np.array(pc._uvarint_list(f0), dtype=np.int64).reshape(-1, 2)
+        k0, q0 = np.cumsum(v[:, 0]), np.cumsum(v[:, 1])
+        f0q = 20.0 * 2 ** (pc.expand(k0, (q0 * tier.f0_cents).astype(float)[:, None], int(k0[-1]) + 1)[:, 0] / 1200)
+    tracks, anchors = [], []
+    dts, dfs, das = (iter(pc._uvarint_list(s)) for s in (dt, df, da))
+    start = 0
+    b, i = hdr, 0        # qph is one raw byte among the varints: walk hdr by hand
+
+    def v():
+        nonlocal i
+        x = s = 0
+        while True:
+            ch = b[i]; i += 1
+            x |= (ch & 0x7F) << s; s += 7
+            if not ch & 0x80:
+                return (x >> 1) ^ -(x & 1)
+
+    while i < len(b):
+        start += v()
+        nk = v()
+        hh = v() if f0q is not None else 0
+        qc, qa = [v()], [v()]
+        qph = b[i]; i += 1
+        keys = [0]
+        for _ in range(nk - 1):
+            keys.append(keys[-1] + next(dts))
+            qc.append(qc[-1] + next(dfs))
+            qa.append(qa[-1] + next(das))
+        L = keys[-1] + 1
+        ref = hh * f0q[start : start + L] if f0q is not None else np.full(L, 20.0)
+        kv = np.stack([np.array(qc) * tier.f_cents, np.array(qa) * tier.a_db], axis=1).astype(float)
+        full = pc.expand(np.array(keys), kv, L)
+        ph = np.zeros(L)
+        ph[0] = qph / (1 << tier.phase_bits) * pc.TWO_PI
+        tracks.append(pc.Track(start, ref * 2 ** (full[:, 0] / 1200), full[:, 1], ph))
+        anchors.append(0)
+    info["n_tracks"] = len(tracks)
+    return {"tracks": tracks, "anchors": anchors, "info": info}

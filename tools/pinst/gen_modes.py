@@ -600,3 +600,27 @@ def pack(s):
     if not hdr:
         return b""
     return b"".join(pc.lz_bytes(bytes(b)) for b in (hdr, fq, dq, aq, pq))
+
+
+def unpack(z):
+    """bytes -> settings, as pack wrote them (modes in rising frequency)."""
+    hdr, fq, dq, aq, pq = pc.lz_split(z, 5)
+    fq = np.frombuffer(fq, "<u2").astype(np.int64)
+    groups, i, j, last = [], 0, 0, 0
+    while i < len(hdr):
+        v = s = 0
+        while True:          # unsigned varint, as pack writes it
+            c = hdr[i]; i += 1
+            v |= (c & 0x7F) << s; s += 7
+            if not c & 0x80:
+                break
+        last += v
+        k, top, rise = hdr[i], hdr[i + 1], hdr[i + 2]
+        i += 3
+        groups.append({"t0": last, "top": int(top), "rise": int(rise),
+                       "qf": np.cumsum(fq[j:j + k]).astype(np.uint16),
+                       "qd": np.frombuffer(dq[j:j + k], np.uint8).copy(),
+                       "qa": np.frombuffer(aq[j:j + k], np.uint8).copy(),
+                       "qp": np.frombuffer(pq[j:j + k], np.uint8).copy()})
+        j += k
+    return {"groups": groups}
