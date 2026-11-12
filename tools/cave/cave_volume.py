@@ -21,6 +21,11 @@ Writes little-endian binaries the Godot bake reads:
     verts.bin    float32 x,y,z per vertex
     normals.bin  float32 x,y,z per vertex (into the air)
     ao.bin       float32 per vertex: 1 open, 0 tucked into a crevice
+    masks.bin    float32 x3 per vertex, the rock's shape for the shader to
+                 paint by: hollow (above 0.5) or crest (below 0.5) against
+                 the rock a stride away; runoff, how much seeping water
+                 passes down through here, 0..1; and how open the air is
+                 several metres out, 1 open, 0 the back of an alcove
     index.bin    int32, three per triangle, Godot's clockwise front faces
 
     python -I tools/cave/cave_volume.py <out_dir> [--cell 0.4] [--seed 7]
@@ -31,7 +36,7 @@ import os
 import time
 
 import numpy as np
-from scipy import ndimage
+from scipy import ndimage, sparse
 
 # Grid bounds in metres (the cave's own space; the area scene uses it as is).
 LO = np.array([-34.0, -3.0, -42.0])
@@ -300,6 +305,48 @@ def build_mouth_field(cell, seed):
     return d.astype(np.float32), axes
 
 
+def runoff(verts, normals, tris, cell, steps=300):
+    """Water seeps out of the rock evenly and runs down the surface, split
+    between a vertex's lower neighbours by steepness. Under a roof it drips
+    off rather than running on, so roof vertices pass nothing down. Returns
+    the surface draining through each vertex, in square metres."""
+    e = np.concatenate([tris[:, [0, 1]], tris[:, [1, 2]], tris[:, [2, 0]]])
+    e = np.unique(np.sort(e, axis=1), axis=0)
+    e = np.concatenate([e, e[:, ::-1]])              # both directions
+    src, dst = e[:, 0], e[:, 1]
+    d = verts[dst] - verts[src]
+    drop = -d[:, 1] / np.maximum(np.linalg.norm(d, axis=1), 1e-6)
+    w = np.maximum(drop, 0.0) ** 2
+    w[normals[src, 1] < -0.25] = 0.0
+    n = len(verts)
+    total = np.maximum(np.bincount(src, w, n), 1e-12)
+    # flow[j, i]: the share of vertex i's water that goes to j.
+    flow = sparse.csr_matrix((w / total[src], (dst, src)), shape=(n, n))
+    acc = np.ones(n)
+    for _ in range(steps):
+        acc = 1.0 + flow @ acc
+    # Averaged with the neighbours, twice: one-vertex threads would crawl.
+    link = sparse.csr_matrix((np.ones(len(src)), (dst, src)), shape=(n, n))
+    count = np.asarray(link.sum(1)).ravel() + 1.0
+    for _ in range(2):
+        acc = (acc + link @ acc) / count
+    return acc * cell * cell
+
+
+def shape_masks(F, verts, normals, tris, sample, cell):
+    # Against the rock within a stride: the field blurred is positive where
+    # rock crowds in (a hollow) and negative on a spur. tanh so deep cracks
+    # don't swamp it.
+    hollow = sample(ndimage.gaussian_filter(F, 0.8 / cell), verts)
+    hollow = 0.5 + 0.5 * np.tanh(hollow / 0.2)
+    acc = runoff(verts, normals, tris, cell)
+    run = np.clip((np.log2(np.maximum(acc, 1e-6)) + 0.5) / 4.5, 0.0, 1.0)   # 1 at ~16 m2
+    far = sum(np.clip(-sample(F, verts + normals * r) / r, 0.0, 1.0) for r in (2.0, 3.5, 5.0)) / 3.0
+    print("masks: hollow %.2f..%.2f, runoff mean %.2f (%.0f%% above 0.5), far openness mean %.2f" % (
+        hollow.min(), hollow.max(), run.mean(), 100.0 * (run > 0.5).mean(), far.mean()))
+    return np.stack([hollow, run, far], 1)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
@@ -344,10 +391,13 @@ def main():
     tris[wrong] = tris[wrong][:, ::-1]
     print("tris %d, flipped %d" % (len(tris), wrong.sum()))
 
+    masks = shape_masks(F, verts, normals, tris, sample, args.cell)
+
     os.makedirs(args.out, exist_ok=True)
     verts.astype("<f4").tofile(os.path.join(args.out, "verts.bin"))
     normals.astype("<f4").tofile(os.path.join(args.out, "normals.bin"))
     ao.astype("<f4").tofile(os.path.join(args.out, "ao.bin"))
+    masks.astype("<f4").tofile(os.path.join(args.out, "masks.bin"))
     tris.astype("<i4").tofile(os.path.join(args.out, "index.bin"))
     print("done %.1fs -> %s" % (time.time() - t0, args.out))
 

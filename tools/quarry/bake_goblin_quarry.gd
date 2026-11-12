@@ -1080,6 +1080,7 @@ func _build_cave_mouth(root: Node3D) -> void:
 	var verts := FileAccess.get_file_as_bytes(dir.path_join("verts.bin")).to_float32_array()
 	var normals := FileAccess.get_file_as_bytes(dir.path_join("normals.bin")).to_float32_array()
 	var ao := FileAccess.get_file_as_bytes(dir.path_join("ao.bin")).to_float32_array()
+	var masks := FileAccess.get_file_as_bytes(dir.path_join("masks.bin")).to_float32_array()
 	var index := FileAccess.get_file_as_bytes(dir.path_join("index.bin")).to_int32_array()
 	var n := ao.size()
 	var v := PackedVector3Array()
@@ -1091,7 +1092,7 @@ func _build_cave_mouth(root: Node3D) -> void:
 	for i in n:
 		v[i] = Vector3(verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2])
 		nrm[i] = Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2])
-		col[i] = Color(ao[i], ao[i], ao[i])
+		col[i] = Color(ao[i], masks[i * 3], masks[i * 3 + 1], masks[i * 3 + 2])
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = v
@@ -1114,6 +1115,8 @@ func _build_cave_mouth(root: Node3D) -> void:
 	mat.set_shader_parameter("rock_tile", 0.22)
 	mat.set_shader_parameter("wet_roughness", 1.0)
 	mat.set_shader_parameter("ao_strength", 0.7)
+	# Out in the sun: rain leaves stains down the faces, not a wet shine.
+	mat.set_shader_parameter("streak_gloss", 0.1)
 	mesh.surface_set_material(0, mat)
 
 	var mouth := Node3D.new()

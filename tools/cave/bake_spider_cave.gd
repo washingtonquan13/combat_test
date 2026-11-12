@@ -26,6 +26,7 @@ func _init() -> void:
 	var verts := FileAccess.get_file_as_bytes(dir.path_join("verts.bin")).to_float32_array()
 	var normals := FileAccess.get_file_as_bytes(dir.path_join("normals.bin")).to_float32_array()
 	var ao := FileAccess.get_file_as_bytes(dir.path_join("ao.bin")).to_float32_array()
+	var masks := FileAccess.get_file_as_bytes(dir.path_join("masks.bin")).to_float32_array()
 	var index := FileAccess.get_file_as_bytes(dir.path_join("index.bin")).to_int32_array()
 	var n := ao.size()
 	var v := PackedVector3Array()
@@ -37,7 +38,8 @@ func _init() -> void:
 	for i in n:
 		v[i] = Vector3(verts[i * 3], verts[i * 3 + 1], verts[i * 3 + 2])
 		nrm[i] = Vector3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2])
-		col[i] = Color(ao[i], ao[i], ao[i])
+		# Openness close by, hollow or crest, runoff, openness far out.
+		col[i] = Color(ao[i], masks[i * 3], masks[i * 3 + 1], masks[i * 3 + 2])
 
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
