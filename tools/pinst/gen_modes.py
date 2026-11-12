@@ -340,7 +340,7 @@ def _counts_run(src, det, left, sr, ref, a, b):
     c0 = max(0, (a - pad) // H * H)
     c1 = min(n, b + pad)
     ns = gen_noise.analyse(left, sr, {"src": src})
-    noises = [gen_noise.render(ns, n, sr, sd)[c0:c1] for sd in nm.SEEDS]
+    noises = [gen_noise.render(ns, n, sr, sd, c0, c1) for sd in nm.SEEDS]
     c = rc.card(src[c0:c1], det[c0:c1], noises, sr, ref=ref)
     f0, f1 = max(0, (a - c0) // H), int(np.ceil((b - c0) / H))
     k, aud = c["kind"][f0:f1], c["audible"][f0:f1]

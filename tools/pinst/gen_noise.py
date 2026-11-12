@@ -354,11 +354,15 @@ def analyse(left, sr, hint):
     return _coded(db, 10 * np.log10(np.maximum(G, 1e-300)), top=top)
 
 
-def render(s, n, sr, seed=0):
+def render(s, n, sr, seed=0, lo=0, hi=None):
+    """The n-sample render, or its samples [lo, hi) only: every sample is
+    made on its own (table read times gain), so a window is the same numbers
+    as the full render cut there, for the judges that read a window."""
+    hi = n if hi is None else min(n, hi)
     T = tables(sr)
     off = offsets(seed, T.shape[0])
-    y = np.zeros(n)
-    t = np.arange(n)
+    y = np.zeros(max(0, hi - lo))
+    t = np.arange(lo, hi)
     F = int(np.ceil(n / HOP))
     for b, st, line in s["tracks"]:
         e = min(F, st + len(line))
@@ -374,9 +378,12 @@ def render(s, n, sr, seed=0):
             fr = np.r_[fr, e]; amp = np.r_[amp, 0.0]
         a0 = fr[0] * HOP
         a1 = n if e == F else min(n, fr[-1] * HOP + 1)   # the last span holds to the end
-        tt = t[a0:a1]
+        a0, a1 = max(a0, lo), min(a1, hi)
+        if a1 <= a0:
+            continue
+        tt = t[a0 - lo : a1 - lo]
         g = np.interp(tt, fr * HOP, amp)
-        y[a0:a1] += g * T[b, (off[b] + tt) % TABLE_N]
+        y[a0 - lo : a1 - lo] += g * T[b, (off[b] + tt) % TABLE_N]
     if s.get("gain") is not None:
         st, line = s["gain"]
         fr = np.arange(st - 1, st + len(line) + 1)
