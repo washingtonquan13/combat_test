@@ -26,6 +26,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
 
+import gen_modes
 import need_map as nm
 import pinst_codec as pc
 
@@ -400,10 +401,79 @@ def _energy(v):
     return 10 * np.log10(float((v**2).sum()) + 1e-30)
 
 
+def _prune(tracks, f0t, x, src, det, on, sr, ref):
+    """The tracks the report card takes, coded. Waveform error is not what
+    follows: noise takes what is left, and a sine that lowers the error can
+    leave a residual that noise renders wrong (a short loud low sine leaves
+    a hole in the residual's local power, and gen_noise's common gain then
+    cuts every band there). So the tracks are judged in groups, one per card
+    band (by median frequency). The card runs on all the tracks and on none;
+    a group is dropped where its own band misses more with the tracks than
+    without. If that drops some groups but not all, the card runs once more
+    on what is left. Of the three, the one with the fewest missed
+    band-frames over the whole note is coded (ties keep more tracks). A note
+    costs at most 3 card runs, whatever its group count (a sequential
+    per-group search cost 1 + groups runs, up to 4 min a note, and fit the
+    card's grid: worse on the shifted grid).
+
+    Each card run is gen_modes._counts: what is kept rendered as the
+    decoder plays it (silent before the note's onset, as sms gates it), on
+    top of det, with noise analysed by gen_noise from what is left. Modes
+    are not run here, on either side of a trial. Modes come next and only
+    take an onset when the card's misses fall, so they can only lower the
+    misses of what is kept or dropped; leaving them out makes a drop look
+    worse than it will be (modes would pick up a decaying sine the drop
+    hands on), so the bias is toward keeping tracks, the parent's
+    behaviour, and a drop happens only where the tracks hurt before modes
+    could help. Returns (dec, info)."""
+    n = len(x)
+
+    def counts(sub):
+        dec = quantize(sub, f0t if sub else None, n, TIER)
+        if not dec["tracks"]:
+            # nothing coded: what the noise gets is x itself
+            y = np.zeros(n)
+        else:
+            y = render(dec, n, sr)
+            if on > 0:
+                y[:on] = 0.0
+        miss, _, edges = gen_modes._counts(src, det + y, x - y, sr, ref, 0, n)
+        return dec, miss, edges
+
+    d_all, m_all, edges = counts(tracks)
+    info = {"m_all": int(m_all.sum()), "m_none": None, "m_part": None, "m_kept": int(m_all.sum()),
+            "chose": "all", "card_runs": 1, "groups": 0, "flagged": 0, "dropped": 0}
+    if not d_all["tracks"]:
+        return d_all, info
+    d_none, m_none, _ = counts([])
+    info.update(m_none=int(m_none.sum()), card_runs=2)
+    band = np.clip(np.searchsorted(edges, [np.median(t.f) for t in tracks]) - 1, 0, len(edges) - 2)
+    groups = np.unique(band)
+    bad = groups[m_all[groups] > m_none[groups]]
+    info.update(groups=len(groups), flagged=len(bad))
+    best = [(int(m_all.sum()), 0, d_all)]
+    if 0 < len(bad) < len(groups):
+        d_part, m_part, _ = counts([t for t, b in zip(tracks, band) if b not in bad])
+        info.update(m_part=int(m_part.sum()), card_runs=3)
+        best.append((int(m_part.sum()), 1, d_part))
+    best.append((int(m_none.sum()), 2, d_none))
+    m, k, dec = min(best, key=lambda e: e[:2])
+    info.update(m_kept=m, chose=("all", "part", "none")[k], dropped=(0, len(bad), len(groups))[k])
+    return dec, info
+
+
 def analyse(left, sr, hint):
     pc.SR = sr
     x = np.asarray(left, dtype=float)
     n = len(x)
+    # without "src" this assumes partials run first: what is left is the source
+    src = np.asarray(hint.get("src", left), dtype=float)
+    det = np.asarray(hint["det"], dtype=float) if "det" in hint else np.zeros(n)
+    # audible is measured from the mid's bands for a side (the card's ref)
+    ref = None
+    if hint.get("ref") is not None:
+        pr, _ = nm.band_stats([np.asarray(hint["ref"], dtype=float)], sr, pc.erb_edges(nm.MODEL.noise_bands))
+        ref = float(pr.max())
     on = pc.onset_sample(x)
     free, peaks = free_tracks(x, sr, on)
     yf = pc.synth_tracks(free, n, H, mode="phase")
@@ -418,6 +488,7 @@ def analyse(left, sr, hint):
     dec = quantize(free, None, n, TIER)
     e_free, b_free = _energy(x - render(dec, n, sr)), len(pack(dec))
     lock, e_lock, b_lock = False, None, None
+    side = (free, None)
     if lt:
         r = x - pc.synth_tracks(lt, n, H, mode="phase")
         free2, _ = free_tracks(r, sr, on)
@@ -426,8 +497,17 @@ def analyse(left, sr, hint):
         # clearly better is kept; within LOCK_DB either way, the cheaper side
         lock = e_lock < e_free - LOCK_DB or (abs(e_lock - e_free) <= LOCK_DB and b_lock < b_free)
         if lock:
-            dec = dl
-    dec["info"].update({"lock": lock, "e_free": e_free, "e_lock": e_lock, "b_free": b_free, "b_lock": b_lock,
+            dec, side = dl, (lt + free2, f0)
+    # the side kept, then its tracks as the card takes them (_prune). The
+    # note's onset gates the render as sms does; sms takes it from the source
+    on_src = pc.onset_sample(src)
+    pinfo = {"m_all": None, "m_none": None, "m_part": None, "m_kept": None, "chose": None,
+             "card_runs": 0, "groups": 0, "flagged": 0, "dropped": 0}
+    if dec["tracks"]:
+        dec, pinfo = _prune(side[0], side[1], x, src, det, on_src, sr, ref)
+    lock = lock and bool(dec["tracks"])
+    dec["info"].update({"lock": lock, **pinfo,
+                        "e_free": e_free, "e_lock": e_lock, "b_free": b_free, "b_lock": b_lock,
                         "onset": on, **info, "f0_med": None if f0 is None else float(np.median(f0))})
     return dec
 
