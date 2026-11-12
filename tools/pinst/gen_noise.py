@@ -392,6 +392,39 @@ def render(s, n, sr, seed=0, lo=0, hi=None):
     return y
 
 
+def render_at(s, n, sr, seed, idx):
+    """The render played along idx (sms.loop_index): each band's level is
+    read at idx, its table read runs on the played samples (so a loop does
+    not jump the noise back)."""
+    T = tables(sr)
+    off = offsets(seed, T.shape[0])
+    tl = np.arange(len(idx))
+    t = np.arange(n)
+    F = int(np.ceil(n / HOP))
+    y = np.zeros(len(idx))
+    for b, st, line in s["tracks"]:
+        e = min(F, st + len(line))
+        if e <= st:
+            continue
+        fr = np.arange(st, e)
+        amp = 10 ** (line[: e - st] / 20)
+        if st > 0:
+            fr = np.r_[st - 1, fr]; amp = np.r_[0.0, amp]
+        if e < F:
+            fr = np.r_[fr, e]; amp = np.r_[amp, 0.0]
+        a0 = fr[0] * HOP
+        a1 = n if e == F else min(n, fr[-1] * HOP + 1)
+        g = np.zeros(n)
+        g[a0:a1] = np.interp(t[a0:a1], fr * HOP, amp)
+        y += g[idx] * T[b, (off[b] + tl) % TABLE_N]
+    if s.get("gain") is not None:
+        st, line = s["gain"]
+        fr = np.arange(st - 1, st + len(line) + 1)
+        amp = np.r_[1.0, 10 ** (line / 20), 1.0]
+        y *= np.interp(t, fr * HOP, amp)[idx]
+    return y
+
+
 def pack(s):
     if s["z"] is None:
         s["z"] = bp_code.encode_points(*s["_pts"])

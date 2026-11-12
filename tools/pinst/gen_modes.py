@@ -571,6 +571,27 @@ def render(s, n, sr, seed=0):
     return y
 
 
+def render_at(s, n, sr, seed, idx):
+    """The render played along idx (sms.loop_index): each mode's level (decay
+    and rise) is read at idx, its phase runs on the played samples."""
+    y = np.zeros(len(idx))
+    tl = np.arange(len(idx))
+    for g in s["groups"]:
+        t0 = g["t0"]
+        f, d = _df(g["qf"]), _dd(g["qd"])
+        a, ph = _da(g["top"], g["qa"], g["qp"])
+        R = int(round(RISE_S[g.get("rise", 0)] * sr))
+        for k in range(len(f)):
+            T = int(min(n - t0, np.ceil(np.log(10 ** (120 / 20)) / d[k] * sr)))
+            m = (idx >= t0) & (idx < t0 + T)
+            if not m.any():
+                continue
+            u = idx[m] - t0
+            env = a[k] * np.exp(-d[k] * u / sr) * _rise(T, R)[u]
+            y[m] += env * np.cos(2 * np.pi * f[k] * (tl[m] - t0) / sr + ph[k])
+    return y
+
+
 def pack(s):
     """Streams: per onset the sample delta (varint), count, top level and rise;
     per mode the frequency (2 bytes, log, delta in rising order), decay,

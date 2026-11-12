@@ -88,11 +88,15 @@ def unpack(data):
     return sr, n, chans
 
 
-def render(data):
-    """A note file -> (samples (n, channels) as the source was laid out, sr)."""
+def render(data, loop=None, length=None):
+    """A note file -> (samples (n, channels) as the source was laid out, sr).
+    loop=(loop_start, loop_end) plays it looped for `length` samples, as a
+    player must (sms.render with sms.loop_index)."""
     sr, n, chans = unpack(data)
     pc.SR = sr
-    ys = [np.zeros(n) if ch is None else sms.render(ch[0], n, sr, ch[1]) for ch in chans]
+    idx = None if loop is None else sms.loop_index(loop[0], loop[1], length)
+    m = n if idx is None else len(idx)
+    ys = [np.zeros(m) if ch is None else sms.render(ch[0], n, sr, ch[1], idx) for ch in chans]
     if len(ys) == 1:
         return ys[0][:, None], sr
     return np.stack([ys[0] + ys[1], ys[0] - ys[1]], axis=1), sr

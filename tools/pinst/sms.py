@@ -126,14 +126,30 @@ def _onset(parts):
     return parts[0][0].sample if parts and isinstance(parts[0][0], Onset) else 0
 
 
-def render(parts, n, sr, seed):
+def loop_index(ls, le, length):
+    """The note sample each of `length` played samples reads, looped as
+    sfizz plays loop_continuous: up to loop_end inclusive, then loop_start."""
+    p = np.arange(length)
+    span = le - ls + 1
+    return np.where(p <= le, p, ls + (p - le - 1) % span)
+
+
+def render(parts, n, sr, seed, idx=None):
+    """The n-sample render, or played along idx (loop_index): each
+    generator's render_at reads its levels and frequencies at idx while its
+    oscillators and noise reads run on through idx's jumps, so a loop jumps
+    the parameters back and nothing else."""
     on = _onset(parts)
-    y = np.zeros(n)
+    y = np.zeros(n if idx is None else len(idx))
     for g, s in parts:
         if isinstance(g, Onset):
             continue
-        r = g.render(s, n, sr, seed)
-        y += r if g.RANDOM else _gate(r, on)
+        if idx is None:
+            r = g.render(s, n, sr, seed)
+            y += r if g.RANDOM else _gate(r, on)
+        else:
+            r = g.render_at(s, n, sr, seed, idx)
+            y += r if g.RANDOM else np.where(idx < on, 0.0, r)
     return y
 
 

@@ -485,6 +485,28 @@ def render(s, n, sr, seed=0):
     return y
 
 
+def render_at(s, n, sr, seed, idx):
+    """The render played along idx (sms.loop_index): each atom's window is
+    read at idx, its phase runs on the played samples."""
+    y = np.zeros(len(idx))
+    tl = np.arange(len(idx))
+    for g in s["groups"]:
+        tdb = QT_TOP - g["top"] * QT_STEP
+        a = 10 ** ((tdb - g["qa"].astype(float) * QA_STEP) / 20)
+        ph = g["qp"].astype(float) * 2 * np.pi / 256
+        f = gm._df(g["qf"])
+        for k in range(len(f)):
+            u = g["t0"] + int(g["du"][k])
+            if u >= n:
+                continue
+            w = _win(int(g["si"][k]), sr)[: n - u]
+            m = (idx >= u) & (idx < u + len(w))
+            if not m.any():
+                continue
+            y[m] += a[k] * w[idx[m] - u] * np.cos(2 * np.pi * f[k] * (tl[m] - u) / sr + ph[k])
+    return y
+
+
 def pack(s):
     """Streams: per onset the sample delta (varint), count and top level;
     per atom (in start order) the start under the onset (varint), scale,

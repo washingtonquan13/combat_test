@@ -577,6 +577,41 @@ def render(dec, n, sr, seed=0):
     return pc.synth_tracks(dec["tracks"], n, H, mode="integrate", anchors=dec["anchors"], gate_from=0)
 
 
+def render_at(dec, n, sr, seed, idx):
+    """The render played along idx (the note sample each played sample
+    reads, sms.loop_index): every track's frequency and level are read at
+    idx, linear between frames and faded one hop either end as render's;
+    its phase runs on through every jump of idx, advancing from one played
+    sample to the next by the mean of the two frequencies. Where idx is
+    0, 1, 2, ... this is render, to rounding."""
+    t = np.arange(n, dtype=float)
+    out = np.zeros(len(idx))
+    top = idx.max()
+    for ti, tr in enumerate(dec["tracks"]):
+        L = len(tr.f)
+        w = 2 * np.pi * np.asarray(tr.f, float) / sr
+        k = 0 if dec["anchors"] is None else dec["anchors"][ti]
+        inc = 0.5 * (w[1:] + w[:-1]) * H
+        th0 = tr.ph[k] - inc[:k].sum() - w[0] * H       # phase at the fade-in frame
+        tj = (tr.start - 1 + np.arange(L + 2)) * H
+        we = np.concatenate([[w[0]], w, [w[-1]]])
+        ae = np.concatenate([[0.0], 10.0 ** (np.asarray(tr.a, float) / 20.0), [0.0]])
+        a0, a1 = max(0, tj[0]), min(n, tj[-1])
+        if a1 <= a0 or tj[0] > top:
+            continue
+        ws = np.zeros(n)
+        As = np.zeros(n)
+        ws[a0:a1] = np.interp(t[a0:a1], tj, we)
+        As[a0:a1] = np.interp(t[a0:a1], tj, ae)
+        wi = ws[idx]
+        c = np.concatenate([[0.0], np.cumsum(0.5 * (wi[1:] + wi[:-1]))])
+        # before idx's first jump c is the note's own running phase; the
+        # track's phase is th0 at its fade-in frame
+        ph = th0 + c - c[tj[0]] if tj[0] >= 0 else th0 + 0.5 * (we[0] + ws[0]) * (-tj[0]) + c
+        out += As[idx] * np.cos(ph)
+    return out
+
+
 def pack(dec):
     """Streams (quantize): hdr, the key steps dt df da, then f0 (empty, and
     so absent, when the tracks are not locked to a pitch)."""
