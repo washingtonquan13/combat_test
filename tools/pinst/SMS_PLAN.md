@@ -288,10 +288,23 @@ Gate: native and reference agree on the proof set.
 
 ### 9. Proof listen
 
-- The three libraries re-baked, one song per library rendered WAV against
-  pinst, sent as MP3.
+- One song per library (the three libraries), rendered WAV against pinst,
+  sent as MP3. Only the notes the songs play are baked, in Python: the
+  whole three libraries are about 7,800 notes, 1-2 days at the Python bake's
+  speed.
+- Each library's size against PINST2 and Opus (stage 6 is a stretch goal).
 
 Gate: the user accepts all three. Only then is the wider re-bake planned.
+
+### 10. Native bake
+
+- The bake in C++, after the sound is signed off, so it ports a design that
+  holds still. It reuses stage 8's render code for the card's candidates.
+- The Python bake stays the reference: the native bake makes the same
+  choices (packs per generator) on the 16-note set.
+- Then the wider re-bake (about 23,000 notes; several days in Python).
+
+Gate: same choices as Python on the 16 notes, and the bake time reported.
 
 ## Language
 
