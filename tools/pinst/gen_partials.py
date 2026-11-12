@@ -26,8 +26,10 @@ from __future__ import annotations
 import numpy as np
 from scipy.ndimage import median_filter, uniform_filter1d
 
+import gen_noise
 import need_map as nm
 import pinst_codec as pc
+import report_card as rc
 
 RANDOM = False
 TIER = nm.MODEL
@@ -400,10 +402,29 @@ def _energy(v):
     return 10 * np.log10(float((v**2).sum()) + 1e-30)
 
 
+def _misses(src, det, dec, x, on, sr, ref):
+    """The report card's missed band-frames (whole note) if dec is taken:
+    dec rendered as the decoder plays it (silent before the note's onset, as
+    sms gates it), added to det, and noise analysed by gen_noise from what
+    is left, rendered at the card's seeds."""
+    n = len(x)
+    y = render(dec, n, sr)
+    if on > 0:
+        y[:on] = 0.0
+    ns = gen_noise.analyse(x - y, sr, {})
+    noises = [gen_noise.render(ns, n, sr, sd) for sd in nm.SEEDS]
+    c = rc.card(src, det + y, noises, sr, ref=ref)
+    return int(((c["kind"] >= 0) & c["audible"]).sum())
+
+
 def analyse(left, sr, hint):
     pc.SR = sr
     x = np.asarray(left, dtype=float)
     n = len(x)
+    src = np.asarray(hint.get("src", left), dtype=float)
+    det = np.asarray(hint["det"], dtype=float) if "det" in hint else np.zeros(n)
+    px, _ = nm.band_stats([src], sr, pc.erb_edges(nm.MODEL.noise_bands))
+    ref = float(px.max())
     on = pc.onset_sample(x)
     free, peaks = free_tracks(x, sr, on)
     yf = pc.synth_tracks(free, n, H, mode="phase")
@@ -427,7 +448,18 @@ def analyse(left, sr, hint):
         lock = e_lock < e_free - LOCK_DB or (abs(e_lock - e_free) <= LOCK_DB and b_lock < b_free)
         if lock:
             dec = dl
-    dec["info"].update({"lock": lock, "e_free": e_free, "e_lock": e_lock, "b_free": b_free, "b_lock": b_lock,
+    # waveform error is not what follows: noise takes what is left, and a
+    # sine that lowers the error can leave a residual noise renders wrong.
+    # The side kept is judged by the card against taking no partials at all.
+    on_src = pc.onset_sample(src)
+    none = quantize([], None, n, TIER)
+    m_take = _misses(src, det, dec, x, on_src, sr, ref) if dec["tracks"] else None
+    m_none = _misses(src, det, none, x, on_src, sr, ref)
+    take = m_take is not None and m_take < m_none
+    if not take:
+        dec, lock = none, False
+    dec["info"].update({"lock": lock, "take": take, "m_take": m_take, "m_none": m_none,
+                        "e_free": e_free, "e_lock": e_lock, "b_free": b_free, "b_lock": b_lock,
                         "onset": on, **info, "f0_med": None if f0 is None else float(np.median(f0))})
     return dec
 
