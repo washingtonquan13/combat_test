@@ -256,10 +256,11 @@ Gate: clips. This is where earlier work stopped short, so the gate may fail.
 If it does, what remains is listed note by note and the user decides what
 happens next. No remainder is added quietly.
 
-### 6. Fewer bytes for the same generators
+### 6. Fewer bytes for the same generators (stretch goal)
 
-Two thirds of a PINST3 file is already generator settings, so this matters
-as much as the stages above.
+Moved to a stretch goal (2026-11-12): after stage 5 the 16-note set is about
+8 KB a note, small enough to ship. The fewer-tracks ideas below come back if
+stage 8 measures voice cost as too high; stage 9 reports the size either way.
 
 - Breakpoints for every slowly changing value (partial levels, noise bands).
 - Harmonic partials stored as a pitch and a spectral shape, not one track
