@@ -78,20 +78,35 @@ def select(vals, tol=TOL) -> np.ndarray:
     eps = 1e-9
     cand = np.all(np.abs(v - np.rint(v)) < 1e-6, axis=1)
     assert cand[0] and cand[-1], "first and last frame must hold integers"
+    # plain floats: the same IEEE operations as numpy's, without its per-call
+    # cost on these one-frame steps
+    C = v.shape[1]
+    vl = v.tolist()
+    cl = cand.tolist()
+    tol = float(tol)
     keep = [0]
     k = 0
     while k < L - 1:
-        lo = np.full(v.shape[1], -np.inf)
-        hi = np.full(v.shape[1], np.inf)
+        lo = [-np.inf] * C
+        hi = [np.inf] * C
+        vk = vl[k]
         best = None
         for j in range(k + 1, L):
             d = j - k
-            sl = (v[j] - v[k]) / d
-            if cand[j] and (best is None or (np.all(sl >= lo - eps) and np.all(sl <= hi + eps))):
+            vj = vl[j]
+            if cl[j] and (best is None or all(lo[c] - eps <= (vj[c] - vk[c]) / d <= hi[c] + eps for c in range(C))):
                 best = j
-            lo = np.maximum(lo, (v[j] - tol - v[k]) / d)
-            hi = np.minimum(hi, (v[j] + tol - v[k]) / d)
-            if np.any(lo > hi + eps):
+            empty = False
+            for c in range(C):
+                a = (vj[c] - tol - vk[c]) / d
+                b = (vj[c] + tol - vk[c]) / d
+                if a > lo[c]:
+                    lo[c] = a
+                if b < hi[c]:
+                    hi[c] = b
+                if lo[c] > hi[c] + eps:
+                    empty = True
+            if empty:
                 break
         if best is None:     # the cone emptied before any integer frame
             best = k + 1 + int(np.argmax(cand[k + 1 :]))

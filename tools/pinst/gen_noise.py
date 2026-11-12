@@ -60,6 +60,7 @@ import numpy as np
 from scipy import fft as sfft
 from scipy.signal import fftconvolve
 
+import band_smooth as bs
 import bp_code
 import need_map as nm
 import pinst_codec as pc
@@ -153,13 +154,27 @@ def offsets(seed, nb):
     return ((u + 1.0) * 0.5 * TABLE_N).astype(np.int64) % TABLE_N
 
 
-def _mean(p, win, idx):
-    """p averaged over a centred Hann of win samples, at idx, using only the
-    samples inside p (normalised by the window weight inside)."""
+def _hann(win):
+    """The centred Hann of win samples, as (weights, offset, plain filter) for
+    band_smooth: fftconvolve(p, w, mode="same") centres it at -(win // 2)."""
     w = np.hanning(int(win) + 2)[1:-1]
-    num = fftconvolve(p, w, mode="same")[idx]
-    den = fftconvolve(np.ones(len(p)), w, mode="same")[idx]
-    return np.maximum(num, 0.0) / np.maximum(den, 1e-12)
+    return w[::-1].copy(), -(int(win) // 2), lambda v: fftconvolve(v, w, mode="same")
+
+
+def _mean(num, n, win, idx):
+    """num (a band's power summed over the centred Hann of win samples at idx,
+    zero outside the note) as a mean over the samples inside the note
+    (normalised by the window weight inside)."""
+    key = (n, int(win), idx.tobytes())
+    if key not in _DEN:
+        if len(_DEN) >= 256:
+            _DEN.clear()
+        w = np.hanning(int(win) + 2)[1:-1]
+        _DEN[key] = np.maximum(fftconvolve(np.ones(n), w, mode="same")[idx], 1e-12)
+    return np.maximum(num, 0.0) / _DEN[key]
+
+
+_DEN = {}
 
 
 def _local_power(p, idx):
@@ -199,12 +214,13 @@ def band_power(x, sr, edges):
     for b in range(len(bw)):
         nz = np.nonzero(W[b])[0]
         a, e = nz[0], nz[-1] + 1
-        Z = np.zeros(L, np.complex128)
-        Z[a:e] = X[a:e] * W[b, a:e]        # analytic band
-        z = sfft.ifft(Z, workers=-1)[:n]
-        p = 2.0 * np.abs(z) ** 2           # real band power
-        Lb = _mean(p, max(HOP, round(CYCLES * sr / bw[b])), idx)
-        Sb = _mean(p, max(HOP, round(SHORT_CYCLES * sr / bw[b])), idx)
+        Zs = X[a:e] * W[b, a:e]            # analytic band
+        wl = max(HOP, round(CYCLES * sr / bw[b]))
+        ws = max(HOP, round(SHORT_CYCLES * sr / bw[b]))
+        # real band power 2 |z|^2, summed over each window
+        nl, ns = bs.smoothed([Zs], int(a), L, n, [_hann(wl), _hann(ws)], idx)
+        Lb = _mean(2.0 * nl, n, wl, idx)
+        Sb = _mean(2.0 * ns, n, ws, idx)
         P[:, b] = np.minimum(Lb, K_LOCAL * Sb)
     # the bands together against everything there is, where they sound
     tot = P.sum(1)
@@ -233,6 +249,12 @@ def _from_code(c):
 def encode_grid(db, gain=None, top=None):
     """(frames, bands) dB grid (SILENT where silent), and the (frames,) common
     gain in dB (None: 0) -> bytes."""
+    tracks, side = _grid_tracks(db, gain, top)
+    return bp_code.encode(tracks, TOL, side)
+
+
+def _grid_tracks(db, gain=None, top=None):
+    """encode_grid's tracks (start, integer codes) and side lists."""
     F, B = db.shape
     top = float(np.max(db[np.isfinite(db)])) if top is None else top
     topq = int(round(2 * top))
@@ -252,14 +274,33 @@ def encode_grid(db, gain=None, top=None):
             nz = np.nonzero(g)[0]
             s, e = int(nz[0]), int(nz[-1]) + 1
             tracks.append((s, g[s:e])); side.append([B, 0])
-    return bp_code.encode(tracks, TOL, side)
+    return tracks, side
 
 
 def unpack(z):
     """bytes -> settings: per sounding band, its first frame and its decoded
     dB line (absolute); the common gain (first frame, dB line) or None."""
+    return _settings(bp_code.decode(z), z)
+
+
+def _coded(db, gain=None, top=None):
+    """unpack(encode_grid(...)) without running the coder: the decoder gets
+    back exactly the kept points, so the settings come from them, and the
+    bytes are made only when pack() asks."""
+    tracks, side = _grid_tracks(db, gain, top)
+    pts = []
+    for (s, v), sd in zip(tracks, side):
+        v = np.asarray(v, dtype=float)[:, None]
+        k = bp_code.select(v, TOL)
+        pts.append((int(s), k, np.rint(v[k]).astype(np.int64), list(map(int, sd))))
+    out = _settings(pts, None)
+    out["_pts"] = ([p[:3] for p in pts], side)
+    return out
+
+
+def _settings(points, z):
     out, gain = [], None
-    for s, keys, kv, sd in bp_code.decode(z):
+    for s, keys, kv, sd in points:
         line = bp_code.expand(keys, kv, int(keys[-1]) + 1)[:, 0]
         if sd[0] == nm.MODEL.noise_bands:
             gain = (int(s), line * Q_DB)
@@ -310,7 +351,7 @@ def analyse(left, sr, hint):
     db = 10 * np.log10(P + 1e-300)
     db[P <= 0] = SILENT
     top = note_top(hint["src"], sr) if hint.get("src") is not None else None
-    return unpack(encode_grid(db, 10 * np.log10(np.maximum(G, 1e-300)), top=top))
+    return _coded(db, 10 * np.log10(np.maximum(G, 1e-300)), top=top)
 
 
 def render(s, n, sr, seed=0):
@@ -345,4 +386,6 @@ def render(s, n, sr, seed=0):
 
 
 def pack(s):
+    if s["z"] is None:
+        s["z"] = bp_code.encode_points(*s["_pts"])
     return s["z"]

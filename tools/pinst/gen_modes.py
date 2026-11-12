@@ -327,6 +327,13 @@ def _counts(src, det, left, sr, ref, a, b):
     """The report card on src with this det and noise analysed (gen_noise)
     from this left at the card's seeds, cut to [a - CARD_PAD_S, b + CARD_PAD_S):
     per band, the missed and the det_over band-frames in [a, b)."""
+    return nm.memo(_MEMO, (src, det, left, sr, ref, a, b), lambda: _counts_run(src, det, left, sr, ref, a, b))
+
+
+_MEMO = {}
+
+
+def _counts_run(src, det, left, sr, ref, a, b):
     n = len(src)
     H = nm.HOP
     pad = int(CARD_PAD_S * sr)

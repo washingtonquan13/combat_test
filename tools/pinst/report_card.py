@@ -36,6 +36,7 @@ import numpy as np
 from scipy import fft as sfft
 from scipy.ndimage import uniform_filter1d
 
+import band_smooth as bs
 import need_map as nm
 import pinst_codec as pc
 
@@ -47,16 +48,14 @@ KINDS = ("tone", "tone_extra", "det_over", "level", "envelope")
 
 
 def _bands(x, sr, edges, L):
-    """Yield (band, analytic band signal) for each band (brick-wall in one FFT)."""
+    """Yield (band, first bin, the analytic band's bins) for each band
+    (brick-wall in one L-point FFT; band_smooth makes its signal)."""
     X = sfft.rfft(x, L, workers=-1)
     f = sfft.rfftfreq(L, 1 / sr)
-    n = len(x)
     for b, (lo, hi) in enumerate(zip(edges[:-1], edges[1:])):
         a, e = np.searchsorted(f, lo), np.searchsorted(f, hi)
         e = max(e, a + 1)
-        Z = np.zeros(L, np.complex128)
-        Z[a:e] = 2 * X[a:e]
-        yield b, sfft.ifft(Z, workers=-1)[:n]
+        yield b, int(a), 2 * X[a:e]
 
 
 def _L(n, sr, edges):
@@ -77,10 +76,14 @@ def fine_power(sigs, sr, edges):
     L = _L(n, sr, edges)
     i = np.minimum(np.arange(F) * HOP, n - 1)
     out = np.zeros((F, len(T)))
-    for s in sigs:
-        for b, a in _bands(s, sr, edges, L):
-            sm = uniform_filter1d(np.abs(a) ** 2, T[b], mode="constant")
-            out[:, b] += np.maximum(sm[i], 0.0) / len(sigs)
+    per = [list(_bands(s, sr, edges, L)) for s in sigs]
+    for b in range(len(T)):
+        a = per[0][b][1]
+        # the band's power over a centred box of T[b] samples (zero outside
+        # the signal), as uniform_filter1d(mode="constant") centres it
+        box = (np.full(T[b], 1.0 / T[b]), -(T[b] // 2),
+               lambda v, t=T[b]: uniform_filter1d(v, t, mode="constant"))
+        out[:, b], = bs.smoothed([p[b][2] for p in per], a, L, n, [box], i)
     return 10 * np.log10(out + 1e-30)
 
 
@@ -115,7 +118,8 @@ def card(x, det, noises, sr, ref=None, edges=None):
         edges = pc.erb_edges(nm.MODEL.noise_bands)
     r = nm.need_map(x, det, noises, sr, ref=ref, edges=edges)
     aud = r["audible"]
-    fine = fine_power([x], sr, edges) - fine_power([det + nz for nz in noises], sr, edges)
+    fx = nm.cached(nm.source_key(x, sr, edges, "fine_power"), lambda: fine_power([x], sr, edges))
+    fine = fx - fine_power([det + nz for nz in noises], sr, edges)
     pd, _ = nm.band_stats([det], sr, edges)
     tone_m = aud & (r["tone"] > nm.TONE_DB)
     tone_x = aud & (r["tone"] < -nm.TONE_DB)
