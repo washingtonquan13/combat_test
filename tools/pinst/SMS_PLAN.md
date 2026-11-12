@@ -306,8 +306,14 @@ loops this way.
 - Loops as stage 7's reference: partial phase and the noise table read run
   on through the loop; only frequencies and levels are read at the looped
   position.
+- **Reference set (28e1bb9):** `reference/notes/` holds 19 PINST4 notes (the
+  16 test notes, the stereo snare, hamorg 1-01 and 5-57 looped by their SFZ
+  loops). `make_reference.py` renders them (21 renders, float32 interleaved,
+  `reference/render/`, not in git); `make_reference.py --check DIR` compares
+  a native player's renders of the same names.
 
-Gate: native and reference agree on the proof set.
+Gate: native and reference agree on the proof set: `--check` passes, every
+render at least 80 dB under its peak.
 
 ### 9. Proof listen
 
