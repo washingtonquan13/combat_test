@@ -19,6 +19,12 @@ uniform vec3 tint_b = vec3(1.0, 0.98, 0.82);
 uniform float translucency = 0.6;
 uniform vec3 transmit = vec3(1.1, 1.3, 0.5);
 uniform float wrap = 0.5;
+// Scanned leaves bring their own surface (vine_atlas.py): R, G the normal's
+// x and y in the atlas, y up the image; B roughness. Off at zero. The cards
+// carry no tangents, so the atlas's axes are found from how position and UV
+// change across the pixel.
+uniform sampler2D surface : hint_default_white, filter_linear_mipmap_anisotropic;
+uniform float surface_relief = 0.0;
 
 void vertex() {
 	VERTEX = tree_wind(VERTEX, UV2, COLOR.a, MODEL_MATRIX[3].xyz, TIME);
@@ -35,6 +41,24 @@ void fragment() {
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ROUGHNESS = 0.75;
 	SPECULAR = 0.25;
+	if (surface_relief > 0.0) {
+		vec3 s = texture(surface, UV).rgb;
+		vec3 px = dFdx(VERTEX);
+		vec3 py = dFdy(VERTEX);
+		vec2 ux = dFdx(UV);
+		vec2 uy = dFdy(UV);
+		vec3 along_u = px * uy.y - py * ux.y;
+		vec3 along_v = py * ux.x - px * uy.x;
+		float det = ux.x * uy.y - uy.x * ux.y;
+		if (abs(det) > 1e-12) {
+			along_u = normalize(along_u * sign(det));
+			along_v = normalize(along_v * sign(det));
+			vec2 d = (s.rg * 2.0 - 1.0) * surface_relief;
+			// V runs down the image, the stored y up it.
+			NORMAL = normalize(NORMAL + along_u * d.x - along_v * d.y);
+		}
+		ROUGHNESS = s.b;
+	}
 }
 
 void light() {

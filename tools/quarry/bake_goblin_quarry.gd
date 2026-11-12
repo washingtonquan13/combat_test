@@ -2038,7 +2038,16 @@ func _vines(root: Node3D) -> void:
 	var atlas: Texture2D = _gen.coverage_texture("res://assets/level/quarry/foliage/vine_runs.png")
 	ResourceSaver.save(atlas, OUT + "meshes/vine_runs.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
 	atlas.take_over_path(OUT + "meshes/vine_runs.res")
-	var mat: Material = _gen.leaf_material(atlas)
+	var mat: ShaderMaterial = _gen.leaf_material(atlas)
+	# The scanned leaves' own normals and roughness, in the atlas's layout.
+	var relief_img := Image.load_from_file(ProjectSettings.globalize_path("res://assets/level/quarry/foliage/vine_runs_surface.png"))
+	relief_img.convert(Image.FORMAT_RGB8)
+	relief_img.generate_mipmaps()
+	var relief := ImageTexture.create_from_image(relief_img)
+	ResourceSaver.save(relief, OUT + "meshes/vine_runs_surface.res", ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+	relief.take_over_path(OUT + "meshes/vine_runs_surface.res")
+	mat.set_shader_parameter("surface", relief)
+	mat.set_shader_parameter("surface_relief", 1.0)
 	var surface := Callable(self, "_surface_at")
 	var tiles := {}
 	var spots: Array[Vector2] = []

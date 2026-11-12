@@ -1,0 +1,3 @@
+Scanned ivy leaves from ambientCG (https://ambientcg.com), licence CC0 1.0:
+LeafSet017 and LeafSet029, 2K JPG. Source for tools/quarry/vine_atlas.py;
+the game loads only the atlas built from them. Godot ignores this folder.
