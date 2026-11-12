@@ -283,9 +283,16 @@ bakes through `sms.run`. Every 60th hamorg file (10, 48 kHz) baked with no
 switches, 7-15 KB a note against ~470 KB WAV. Seams looped plainly on the
 SFZ's loop points, jump over step at the seam, source → render: within reach
 of the source on 9 of 10; Drawbar 1-01 1.33 → 6.13. The user hears clicks
-but most are imperceptible: "this is probably good enough". Phase carried
-across loop points is not built; it stays an option for stage 8 if a song
-shows a click.
+but most are imperceptible: "this is probably good enough".
+
+The loop fix was then built as a Python reference anyway. The worst click
+(1-01) was the noise, not the partials: the band-noise table read jumped
+back with the loop. Looped with the state carried (partial phase and the
+noise table read both run on through the loop; only frequencies and levels
+are read at the looped position), every seam is at or below the source's
+(1-01 6.15 → 0.47). The user listened: "this is good". Stage 8's player
+loops this way.
+
 
 ### 8. Native player
 
