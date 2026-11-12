@@ -20,22 +20,27 @@ Analysis, on what the partials left:
 4. A mode is kept only if it explains its own band: with the others fixed,
    the band's residual over the mode's ring time is at least GAIN_DB lower
    with it than without. The worst failing modes are dropped and the rest
-   refitted until all pass. Then the card's det_over test, in the card's
-   bands and windows: where the source is audible, the deterministic
-   output plus noise at the power of what is left may not run LEVEL_DB / 2
-   over the source in more excess than without the modes. While it does,
-   the mode whose absence lowers the excess most is dropped. Then at most
-   CAP modes per onset, the ones that explain the most energy. Past the cap
-   the sound is dense and is left to the noise.
+   refitted until all pass. Then at most CAP modes per onset, the ones that
+   explain the most energy. Past the cap the sound is dense and is left to
+   the noise. Steps 3-5 run once per rise in RISE_S; the rise kept is the
+   one the card (step 6) scores best.
 5. Frequency and decay are quantized, levels and phases refitted on the
    quantized poles and quantized relative to the onset's loudest mode. The
    onset is kept only if what is rendered lowers the energy from the onset
    to the next one by GROUP_DB; else the sound there is dense and belongs
-   to the noise. What is rendered is what the next onset and the noise are
-   given.
+   to the noise.
+6. The set is judged by report_card.card itself, on the onset's span
+   (CARD_PAD_S before it to the ring's end), with noise analysed by
+   gen_noise from what is left after the modes and rendered at the
+   harness's seeds. Accepted only if the missed band-frames fall in total
+   and no band's det_over band-frames rise. While some band's det_over
+   rises, the modes in the band where it rose most are dropped; then each
+   dropped mode is tried back, most energy first, and kept if the misses
+   fall further with no band's det_over rising. What is rendered is what
+   the next onset and the noise are given.
 
 hint: "src" (the channel) and "det" (what the generators before this one
-render) let step 4 judge as the card does; without them the left signal
+render) let step 6 judge as the card does; without them the left signal
 stands for the source and det is zero.
 
 Nothing here knows the instrument. Every constant is one value for all.
@@ -45,8 +50,10 @@ from __future__ import annotations
 import numpy as np
 from scipy import fft as sfft
 
+import gen_noise
 import need_map as nm
 import pinst_codec as pc
+import report_card as rc
 
 RANDOM = False
 
@@ -57,7 +64,7 @@ PAST_S = 0.05
 ONSET_DB = 9.0
 FLOOR_DB = -40.0
 GAP_S = 0.05
-REFINE_DB = 20.0     # the onset sample: first within this of the hit's peak amplitude
+REFINE_DB = 30.0     # the onset sample: first within this of the hit's peak amplitude
 
 # poles
 SEG_S = 1.0          # longest fit window; a mode must fall DECAY_DB within it
@@ -66,7 +73,7 @@ Q_MIN = 2.0          # at least this many radians of ring per neper of decay
 F_LO = 20.0
 SUB_EDGES = (0.0, 100.0, 200.0, 400.0, 800.0, 1600.0, 3200.0, 6400.0, 12800.0)
 OVERLAP = 0.5        # each sub-band is analysed this much of its width past either edge
-ORDER = 16
+ORDER = 10
 ESP_MAX_N = 4096     # decimated samples per sub-band, at most
 ESP_SKIP_S = 0.002   # the first instants of a hit are left out of the pole fit
 
@@ -75,7 +82,7 @@ GAIN_DB = 1.0
 RING_DB = 30.0       # a mode's band is judged over the time it takes to fall this far
 CAP = 24
 GROUP_DB = 3.0       # an onset's modes must take this much of the energy there
-OVER_FRAC = 0.02     # det_over band-frames the modes may add, as a share of the audible ones
+CARD_PAD_S = 0.2     # the card is run this far either side of what an onset's modes touch
 RISE_S = (0.0, 0.0005, 0.001, 0.002, 0.004)  # an onset's rise, fitted per onset from these
 ATTACK_S = 0.02     # the rise is fitted on the start of the hit this long
 
@@ -314,124 +321,34 @@ def _gains(s, Y, f, d, sr, erb):
     return g, ex, r
 
 
-# ---------------------------------------------------------------- the card's det_over test
+# ---------------------------------------------------------------- the card itself
 
-class _Card:
-    """The report card's det_over measure on one onset's window, in its
-    bands and windows (need_map.band_stats: Hann windows of the band's
-    length, power over one window length), framed at a quarter window.
-    det_over: where the source is audible, det plus noise at the power of
-    what is left runs over the source by more than LEVEL_DB / 2."""
-
-    def __init__(self, src, det, t0, W, sr, ref):
-        edges = pc.erb_edges(nm.MODEL.noise_bands)
-        plan = nm._plan(sr, edges)
-        self.sr, self.t0, self.W = sr, t0, W
-        self.groups = []                       # per window length: (N, H, bins a..e, band starts)
-        for N in sorted({p[0] for p in plan}):
-            bands = [(a, e) for (n, a, e) in plan if n == N]
-            a0, e0 = min(b[0] for b in bands), max(b[1] for b in bands)
-            starts = np.array([a - a0 for a, _ in bands])
-            self.groups.append((N, N // 4, a0, e0, starts))
-        self.lim = 10 ** ((nm.LEVEL_DB / 2) / 10)
-        self.S = [self._spec(src, N, H, a, e) for N, H, a, e, _ in self.groups]
-        self.Dp = [self._spec(det, N, H, a, e) for N, H, a, e, _ in self.groups]
-        self.px = [self._pow(np.abs(S) ** 2, k) for k, S in enumerate(self.S)]
-        self.thr = ref * 10 ** (nm.AUDIBLE_DB / 10)
-        self.aud = [p > self.thr for p in self.px]
-
-    def _spec(self, x, N, H, a, e):
-        """Complex spectra (frames, bins a..e) of x around [t0, t0+W): frames
-        centred every H samples from t0 - N/2 to t0 + W."""
-        F = int(np.ceil((self.W + N // 2) / H))
-        lo = self.t0 - N // 2 - N // 2
-        L = (F - 1) * H + N
-        buf = np.zeros(L)
-        i0, i1 = max(lo, 0), min(lo + L, len(x))
-        if i1 > i0:
-            buf[i0 - lo : i1 - lo] = x[i0:i1]
-        fr = np.lib.stride_tricks.sliding_window_view(buf, N)[::H][:F]
-        return np.fft.rfft(fr * np.hanning(N + 1)[:-1], axis=1)[:, a:e].astype(np.complex64)
-
-    def _segspec(self, Y, k):
-        """Spectra of mode renders (W x K, starting at t0) for group k: (K, frames, bins)."""
-        N, H, a, e, _ = self.groups[k]
-        F = int(np.ceil((self.W + N // 2) / H))
-        L = (F - 1) * H + N
-        o = N  # t0 sits N samples into the buffer (lo = t0 - N)
-        n = min(Y.shape[0], L - o)
-        w = np.hanning(N + 1)[:-1]
-        out = np.zeros((Y.shape[1], F, e - a), np.complex64)
-        buf = np.zeros(L)
-        for k in range(Y.shape[1]):
-            buf[o : o + n] = Y[:n, k]
-            fr = np.lib.stride_tricks.sliding_window_view(buf, N)[::H][:F]
-            out[k] = np.fft.rfft(fr * w, axis=1)[:, a:e]
-        return out
-
-    def _pow(self, P, k):
-        """Bin power (..., frames, bins) -> band power over one window (..., frames, bands)."""
-        starts = self.groups[k][4]
-        b = np.add.reduceat(P, starts, axis=-1)
-        # one window length = 4 frames at a quarter-window hop
-        c = np.cumsum(b, axis=-2)
-        c = np.concatenate([np.zeros_like(c[..., :1, :]), c], axis=-2)
-        F = b.shape[-2]
-        i = np.arange(F)
-        lo, hi = np.maximum(i - 2, 0), np.minimum(i + 2, F)
-        return (c[..., hi, :] - c[..., lo, :]) / (hi - lo)[:, None]
-
-    def prepare(self, Y):
-        """Spectra of the current set's mode renders Y (W x K)."""
-        self.Y = [self._segspec(Y, k) for k in range(len(self.groups))]
-
-    def _excess(self, pd, pl, k):
-        both = pd + pl
-        x = np.maximum(10 * np.log10((both + 1e-30) / (self.px[k] * self.lim + 1e-30)), 0.0)
-        # audible as the card has it: the source or the output (a mode
-        # ringing on where the source has gone quiet is heard)
-        aud = self.aud[k] | (both > self.thr)
-        if self.cells:
-            return np.sum(aud & (x > 0), axis=(-2, -1)).astype(float)
-        return np.sum(np.where(aud, x, 0.0), axis=(-2, -1))
-
-    cells = False
-
-    def audible(self):
-        return float(sum(a.sum() for a in self.aud))
-
-    def excess(self, drop=None, none=False, cells=False):
-        """Total excess (dB summed over audible band-frames, or with
-        cells=True the number of band-frames over) of the set, or, with
-        drop=True, of the set less each mode in turn (array), or with
-        none=True of no modes at all."""
-        self.cells = cells
-        tot = 0.0
-        for k in range(len(self.groups)):
-            Dp, Lf = self.Dp[k], self.S[k] - self.Dp[k]   # left = src - det
-            if none:
-                tot = tot + self._excess(self._pow(np.abs(Dp) ** 2, k), self._pow(np.abs(Lf) ** 2, k), k)
-                continue
-            Ys = self.Y[k]
-            Ysum = Ys.sum(0)
-            if drop:
-                pd = self._pow(np.abs(Dp + Ysum - Ys) ** 2, k)
-                pl = self._pow(np.abs(Lf - Ysum + Ys) ** 2, k)
-            else:
-                pd = self._pow(np.abs(Dp + Ysum) ** 2, k)
-                pl = self._pow(np.abs(Lf - Ysum) ** 2, k)
-            tot = tot + self._excess(pd, pl, k)
-        return tot
+def _counts(src, det, left, sr, ref, a, b):
+    """The report card on src with this det and noise analysed (gen_noise)
+    from this left at the card's seeds, cut to [a - CARD_PAD_S, b + CARD_PAD_S):
+    per band, the missed and the det_over band-frames in [a, b)."""
+    n = len(src)
+    H = nm.HOP
+    pad = int(CARD_PAD_S * sr)
+    c0 = max(0, (a - pad) // H * H)
+    c1 = min(n, b + pad)
+    ns = gen_noise.analyse(left, sr, {})
+    noises = [gen_noise.render(ns, n, sr, sd)[c0:c1] for sd in nm.SEEDS]
+    c = rc.card(src[c0:c1], det[c0:c1], noises, sr, ref=ref)
+    f0, f1 = max(0, (a - c0) // H), int(np.ceil((b - c0) / H))
+    k, aud = c["kind"][f0:f1], c["audible"][f0:f1]
+    miss = ((k >= 0) & aud).sum(0)
+    over = ((k == rc.KINDS.index("det_over")) & aud).sum(0)
+    return miss, over, c["edges"]
 
 
-def select(s, f, d, sr, card, cap=True, R=0):
-    """The poles (f, d) that each explain their own band and add no det_over,
-    at most CAP."""
+def select(s, f, d, sr, cap=True, R=0):
+    """The poles (f, d) that each explain their own band, at most CAP, the
+    ones that explain the most energy first."""
     erb = np.concatenate([[0.0], pc.erb_edges(), [sr / 2]])
     f0, d0 = np.asarray(f, float), np.asarray(d, float)
     fit = _Fit(s, f0, d0, sr, R)
     idx = np.arange(len(f0))
-    base = None
     while len(idx):
         f, d = f0[idx], d0[idx]
         Y, _ = fit.renders(idx)
@@ -442,29 +359,13 @@ def select(s, f, d, sr, card, cap=True, R=0):
             # drop the worst half of the failing ones (at least one)
             o = bad[np.argsort(g[bad])]
             keep[o[: max(1, len(o) // 2)]] = False
+        elif cap and len(f) > CAP:
+            keep[:] = False
+            keep[np.argsort(-ex)[:CAP]] = True
         else:
-            # judged over all the time the modes ring, not just the fit window
-            c, _ = fit.solve(idx)
-            A = _basis(f, d, card.W, sr, R)
-            k = len(idx)
-            card.prepare(A[:, :k] * c[:k] + A[:, k:] * c[k:])
-            if base is None:
-                base = float(card.excess(none=True, cells=True)) + OVER_FRAC * card.audible()
-            if float(card.excess(cells=True)) > base:
-                now = float(card.excess())
-                # drop the mode that removes the most excess per energy it
-                # explains (a mode whose absence removes none goes last)
-                cost = card.excess(drop=True)
-                gain = now - cost
-                k = int(np.argmax(gain / np.maximum(ex, 1e-30))) if (gain > 1e-6).any() else int(np.argmin(ex))
-                keep[k] = False
-                if TRACE is not None:
-                    TRACE.append(("over", float(card.excess(cells=True)), round(base, 1), round(now, 1), round(float(cost[k]), 1), round(f[k]), round(d[k]), round(g[k], 1)))
-            elif cap and len(f) > CAP:
-                keep[:] = False
-                keep[np.argsort(-ex)[:CAP]] = True
-            else:
-                break
+            # most explained energy first
+            idx = idx[np.argsort(-ex)]
+            break
         idx = idx[keep]
     return f0[idx], d0[idx]
 
@@ -507,6 +408,85 @@ def _da(top, qa, qp):
 
 # ---------------------------------------------------------------- interface
 
+def _group(s, fq, dq, ri, R, t0, sr):
+    if len(fq) == 0:
+        return None
+    c = _fit(s, fq, dq, sr, R)
+    top, qa, qp = _qa(c)
+    live = qa < 255
+    if not live.any():
+        return None
+    return {"t0": t0, "top": top, "rise": ri, "qf": _qf(fq)[live], "qd": _qd(dq)[live],
+            "qa": qa[live], "qp": qp[live]}
+
+
+def _accept(src, det, x, s, fq, dq, ri, R, t0, end, span, sr, ref, base):
+    """The onset's group as the card takes it, or None. All the poles
+    together must first take GROUP_DB of the energy to the next onset (else
+    the sound is dense and belongs to the noise). Then the card on the
+    onset's span (report_card.card, noise from gen_noise on what the modes
+    leave, at the card's seeds): the set is taken if the card's misses fall
+    in total and no band's det_over band-frames rise. While some band's
+    det_over rises, the modes in the band where it rose most are dropped (if
+    none is in it, the one nearest it) and the rest refitted. Then each
+    dropped mode, most explained energy first, is tried back and kept if the
+    misses fall further and still no band's det_over rises."""
+    n = len(x)
+    e0 = float(np.dot(x[t0:end], x[t0:end]))
+    g = _group(s, fq, dq, ri, R, t0, sr)
+    if g is None:
+        return None
+    r = x[t0:end] - _render_group(g, n, sr)[t0:end]
+    gdb = 10 * np.log10((e0 + 1e-30) / (float(np.dot(r, r)) + 1e-30))
+    if gdb < GROUP_DB:
+        if TRACE is not None:
+            TRACE.append(("group_db", t0, len(g["qf"]), round(gdb, 2)))
+        return None
+    m0, o0, edges = base
+    fa, da = fq, dq                      # every pole, for the second pass
+
+    def judge(fq, dq):
+        g = _group(s, fq, dq, ri, R, t0, sr)
+        if g is None:
+            return None, None, None
+        y = _render_group(g, n, sr)
+        m1, o1, _ = _counts(src, det + y, x - y, sr, ref, *span)
+        if TRACE is not None:
+            up = o1 - o0
+            TRACE.append(("card", t0, len(g["qf"]), int(m0.sum()), int(m1.sum()), int(o0.sum()), int(o1.sum()),
+                          [(round(edges[b]), int(m1[b] - m0[b]), int(up[b])) for b in np.flatnonzero(up > 0)][:8]))
+        return g, m1, o1
+
+    g, m1, o1 = judge(fq, dq)
+    while g is not None and (o1 > o0).any():
+        # drop the modes in the band whose det_over rose most (if none is
+        # in it, the one nearest it) and refit the rest
+        wb = int(np.argmax(o1 - o0))
+        f = _df(g["qf"])
+        band = np.clip(np.searchsorted(edges, f) - 1, 0, len(edges) - 2)
+        inb = np.flatnonzero(band == wb)
+        k = inb if len(inb) else np.argmin(np.abs(np.log(f / np.sqrt(edges[wb] * edges[wb + 1]))))
+        keep = ~np.isin(np.round(fq, 6), np.round(np.atleast_1d(f[k]), 6))
+        fq, dq = fq[keep], dq[keep]
+        g, m1, o1 = judge(fq, dq)
+    if g is None:
+        fq, dq, cur = fq[:0], dq[:0], m0.sum()
+    else:
+        cur = m1.sum()
+    # second pass: each dropped pole, most explained energy first, comes
+    # back if with it the misses fall and no band's det_over rises
+    for k in range(len(fa)):
+        if np.any(np.isclose(fq, fa[k])):
+            continue
+        t = np.concatenate([fq, fa[k : k + 1]]), np.concatenate([dq, da[k : k + 1]])
+        g2, m2, o2 = judge(*t)
+        if g2 is not None and m2.sum() < cur and not (o2 > o0).any():
+            fq, dq, cur, g = t[0], t[1], m2.sum(), g2
+    if g is None or cur >= m0.sum():
+        return None
+    return _group(s, fq, dq, ri, R, t0, sr)
+
+
 def analyse(left, sr, hint):
     x = np.asarray(left, float).copy()
     n = len(x)
@@ -514,7 +494,7 @@ def analyse(left, sr, hint):
     det = np.asarray(hint["det"], float).copy() if "det" in hint else np.zeros(n)
     edges = pc.erb_edges(nm.MODEL.noise_bands)
     px, _ = nm.band_stats([src], sr, edges)
-    ref = 10 ** (px.max() / 10)
+    ref = float(px.max())
     ons = onsets(x, sr)
     groups = []
     for j, t0 in enumerate(ons):
@@ -530,33 +510,34 @@ def analyse(left, sr, hint):
         # the card is judged until the slowest candidate has fallen out of
         # what is audible (AUDIBLE_DB), past the next onset if it rings on
         ring = np.log(10 ** (-nm.AUDIBLE_DB / 20)) / np.min(d) * sr
-        card = _Card(src, det, t0, int(min(n - t0, max(W, ring))), sr, ref)
-        ri = rise_of(s, f, d, sr)
-        R = int(round(RISE_S[ri] * sr))
-        f, d = select(s, f, d, sr, card, R=R)
-        if len(f) == 0:
+        span = (t0 - int(CARD_PAD_S * sr), t0 + int(min(n - t0, max(W, ring))))
+        # the rise: the one under which the whole set does best on the card
+        base = _counts(src, det, x, sr, ref, *span)
+        best = None
+        for ri in range(len(RISE_S)):
+            R = int(round(RISE_S[ri] * sr))
+            fr, dr = select(s, f, d, sr, R=R)
+            if len(fr) == 0:
+                continue
+            # quantize the poles, then check them again as stored
+            fq, dq = select(s, _df(_qf(fr)), _dd(_qd(dr)), sr, cap=False, R=R)
+            g = _group(s, fq, dq, ri, R, int(t0), sr)
+            if g is None:
+                continue
+            y = _render_group(g, n, sr)
+            m1, o1, _ = _counts(src, det + y, x - y, sr, ref, *span)
+            score = m1.sum() + np.maximum(o1 - base[1], 0).sum()
+            if TRACE is not None:
+                TRACE.append(("rise", t0, RISE_S[ri], len(fq), int(m1.sum()), int(o1.sum()), int(score)))
+            if best is None or score < best[0]:
+                best = (score, ri, R, fq, dq)
+        if best is None:
             continue
-        # quantize the poles, then check them again as stored
-        fq, dq = select(s, _df(_qf(f)), _dd(_qd(d)), sr, card, cap=False, R=R)
-        if len(fq) == 0:
+        _, ri, R, fq, dq = best
+        g = _accept(src, det, x, s, fq, dq, ri, R, int(t0), end, span, sr, ref, base)
+        if g is None:
             continue
-        qf, qd = _qf(fq), _qd(dq)
-        c = _fit(s, fq, dq, sr, R)
-        top, qa, qp = _qa(c)
-        live = qa < 255
-        if not live.any():
-            continue
-        g = {"t0": int(t0), "top": top, "rise": ri, "qf": qf[live], "qd": qd[live], "qa": qa[live], "qp": qp[live]}
         y = _render_group(g, n, sr)
-        # the onset as a whole must be mostly modes: if they take less than
-        # GROUP_DB of what is there up to the next onset, the sound is dense
-        # and belongs to the noise
-        e0 = float(np.dot(x[t0:end], x[t0:end]))
-        r = x[t0:end] - y[t0:end]
-        if TRACE is not None:
-            TRACE.append(("group", t0, len(qf), round(10 * np.log10((e0 + 1e-30) / (float(np.dot(r, r)) + 1e-30)), 2)))
-        if 10 * np.log10((e0 + 1e-30) / (float(np.dot(r, r)) + 1e-30)) < GROUP_DB:
-            continue
         groups.append(g)
         x -= y
         det += y
