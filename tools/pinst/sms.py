@@ -31,7 +31,8 @@ import gen_noise
 import gen_partials
 
 import gen_modes  # noqa: E402
-GENERATORS = [gen_partials, gen_modes, gen_noise]
+import gen_pulses_mp  # noqa: E402
+GENERATORS = [gen_partials, gen_modes, gen_pulses_mp, gen_noise]
 
 
 class Onset:
