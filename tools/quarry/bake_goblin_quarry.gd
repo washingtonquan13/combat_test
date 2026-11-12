@@ -1248,12 +1248,47 @@ func _dry_stone(mesh: Mesh, file: String) -> void:
 		var mat := mesh.surface_get_material(s) as BaseMaterial3D
 		if mat == null:
 			continue
-		mat = mat.duplicate()
-		mat.vertex_color_use_as_albedo = false
-		if file in POLISHED_ROCKS:
-			mat.roughness_texture = null
-			mat.roughness = 0.92
-		mesh.surface_set_material(s, mat)
+		# And a scan alone looks dropped in: quarry_rock.gdshader shades each
+		# copy apart, settles the local ground on its top and fades its foot
+		# into the ground it sits on.
+		var rock := ShaderMaterial.new()
+		rock.shader = load(OUT + "quarry_rock.gdshader")
+		rock.set_shader_parameter("albedo_tex", mat.albedo_texture)
+		rock.set_shader_parameter("normal_tex", mat.normal_texture)
+		rock.set_shader_parameter("arm_tex", mat.roughness_texture)
+		rock.set_shader_parameter("flat_roughness", 0.92 if file in POLISHED_ROCKS or mat.roughness_texture == null else -1.0)
+		rock.set_shader_parameter("arm_occlusion", mat.roughness_texture != null and mat.roughness_texture.resource_path.contains("_arm_"))
+		rock.set_shader_parameter("rock_height", mesh.get_aabb().size.y)
+		_set_rock_ground(rock)
+		mesh.surface_set_material(s, rock)
+
+
+var _rock_ground: Array[Texture2D] = []
+
+
+# The ground as the rocks read it: heights and paint weights, one texel per
+# mesh cell, saved beside the meshes so every rock shares the one copy.
+func _set_rock_ground(mat: ShaderMaterial) -> void:
+	if _rock_ground.is_empty():
+		var heights := Image.create_from_data(_nx, _nz, false, Image.FORMAT_RF, _hgrid.to_byte_array())
+		var paint := Image.create(_nx, _nz, false, Image.FORMAT_RGBA8)
+		for iz in _nz:
+			for ix in _nx:
+				paint.set_pixel(ix, iz, _splat(X0 + ix * CELL, Z0 + iz * CELL, _grid_normal(ix, iz)))
+		for pair: Array in [["ground_height", heights], ["ground_paint", paint]]:
+			var tex := ImageTexture.create_from_image(pair[1])
+			var path: String = OUT + "meshes/%s.res" % pair[0]
+			ResourceSaver.save(tex, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
+			tex.take_over_path(path)
+			_rock_ground.append(tex)
+	mat.set_shader_parameter("ground_height", _rock_ground[0])
+	mat.set_shader_parameter("ground_paint", _rock_ground[1])
+	# Texel centres sit on the grid points.
+	var w := _nx * CELL
+	var d := _nz * CELL
+	mat.set_shader_parameter("ground_rect", Vector4(X0 - CELL * 0.5, Z0 - CELL * 0.5, 1.0 / w, 1.0 / d))
+	for layer: Array in [["soil", "forest_ground_04"], ["grass", "grass_path_2"], ["dirt", "dirt_floor"]]:
+		mat.set_shader_parameter(layer[0] + "_albedo", load(T + layer[1] + "_diff_2k.jpg"))
 
 
 func _meshes_of(file: String, dir := M) -> Array[Mesh]:
@@ -1277,7 +1312,9 @@ func _meshes_of(file: String, dir := M) -> Array[Mesh]:
 		ResourceSaver.save(mesh, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
 		mesh.take_over_path(path)
 		for dep: String in ResourceLoader.get_dependencies(path):
-			if not dep.contains(dir.trim_prefix("res://")):
+			# A rock's own shader and the ground it reads are expected.
+			var known := file in SCANNED_ROCKS and (dep.contains(OUT.trim_prefix("res://")) or dep.contains(T.trim_prefix("res://")))
+			if not known and not dep.contains(dir.trim_prefix("res://")):
 				print("  WARNING %s depends on %s" % [path, dep])
 		out.append(mesh)
 		i += 1
