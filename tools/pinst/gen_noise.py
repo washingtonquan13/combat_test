@@ -40,7 +40,8 @@ frame is measured, not muted. With squared responses summing to one,
 g^2 = band power over unit-power tables gives the noise the source's power
 density at each band centre, interpolated between.
 
-Coding: levels in dB relative to the note's loudest band-frame, Q_DB steps
+Coding: levels in dB relative to the note's loudest band-frame (measured on
+the source, note_top, not on what is left), Q_DB steps
 down to need_map.AUDIBLE_DB, LO_DB steps below it (quiet bands only need
 to be quiet), nothing under FLOOR_DB. Each band sounds over one span of
 frames; bp_code codes the spans' breakpoints (tol 1 step). A band with no
@@ -52,6 +53,8 @@ band that has a span there, one gain step per band (the linear ramp), and
 one multiply for G. There is no FFT at play time.
 """
 from __future__ import annotations
+
+import hashlib
 
 import numpy as np
 from scipy import fft as sfft
@@ -280,11 +283,34 @@ def from_grid(db):
     return unpack(encode_grid(db))
 
 
+_TOP = {}   # source fingerprint -> its loudest band-frame (dB); card runs reuse it
+
+
+def note_top(src, sr):
+    """The note's loudest band-frame, dB, measured on the source as the
+    noise measures its bands. The coding's top: the floor and the level grid
+    hang from it. Measured on what is left instead, they would move with
+    whatever the generators before noise take (one that takes the loudest
+    frame drops the floor by tens of dB and re-rounds every level in the
+    note, changing bytes and misses far from what it took)."""
+    x = np.ascontiguousarray(src, dtype=float)
+    key = (len(x), sr, hashlib.blake2b(x.tobytes(), digest_size=16).digest())
+    if key not in _TOP:
+        if len(_TOP) >= 16:
+            _TOP.clear()
+        P, _ = band_power(x, sr, _edges())
+        _TOP[key] = float(10 * np.log10(P.max())) if (P > 0).any() else None
+    return _TOP[key]
+
+
 def analyse(left, sr, hint):
+    """hint["src"], when given, is the note: the coding's top is measured on
+    it (note_top). Without it, `left` is taken to be the note."""
     P, G = band_power(np.asarray(left, float), sr, _edges())
     db = 10 * np.log10(P + 1e-300)
     db[P <= 0] = SILENT
-    return unpack(encode_grid(db, 10 * np.log10(np.maximum(G, 1e-300))))
+    top = note_top(hint["src"], sr) if hint.get("src") is not None else None
+    return unpack(encode_grid(db, 10 * np.log10(np.maximum(G, 1e-300)), top=top))
 
 
 def render(s, n, sr, seed=0):
