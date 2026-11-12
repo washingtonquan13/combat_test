@@ -87,6 +87,8 @@ var _hB := 0.0
 ## Poly Haven scans that come cracked and backless; MeshClose seals them.
 const MeshCloser := preload("res://tools/quarry/mesh_close.gd")
 const SCANNED_ROCKS := ["rock_moss_set_01", "rock_moss_set_02", "rock_face_01", "rock_face_02", "rock_07", "rock_09", "coast_rocks_01", "coast_rocks_02"]
+# Scans whose gloss map says polished stone; see _dry_stone.
+const POLISHED_ROCKS := ["rock_07", "rock_09"]
 
 var _open_cache := {}
 var _convex_cache := {}
@@ -1234,6 +1236,23 @@ func _flood_checks() -> bool:
 
 # ---------------------------------------------------------------- dressing
 
+func _dry_stone(mesh: Mesh, file: String) -> void:
+	# Two faults in the scans as they come. rock_07 carries leftover vertex
+	# colours, a dark grey that the import multiplies into the stone. And the
+	# small stones' gloss maps are flat at 0.3 and 0.5, a wet pebble's: in the
+	# quarry they mirror the sky and turn purple and silver.
+	for s in mesh.get_surface_count():
+		var mat := mesh.surface_get_material(s) as BaseMaterial3D
+		if mat == null:
+			continue
+		mat = mat.duplicate()
+		mat.vertex_color_use_as_albedo = false
+		if file in POLISHED_ROCKS:
+			mat.roughness_texture = null
+			mat.roughness = 0.92
+		mesh.surface_set_material(s, mat)
+
+
 func _meshes_of(file: String, dir := M) -> Array[Mesh]:
 	if _saved.has(file):
 		return _saved[file]
@@ -1250,6 +1269,7 @@ func _meshes_of(file: String, dir := M) -> Array[Mesh]:
 				print("  WARNING %s[%d] still has %d open edges" % [file, i, shut.left])
 			mesh = shut.mesh
 			_open_cache[mesh] = shut.open_dir
+			_dry_stone(mesh, file)
 		var path := OUT + "meshes/%s_%d.res" % [file, i]
 		ResourceSaver.save(mesh, path, ResourceSaver.FLAG_CHANGE_PATH | ResourceSaver.FLAG_COMPRESS)
 		mesh.take_over_path(path)
@@ -1421,6 +1441,18 @@ func _ground_at(x: float, z: float) -> Vector3:
 	return Vector3(x, _gy(x, z), z)
 
 
+func _at_wall_foot(x: float, z: float) -> bool:
+	# Ground a stone can rest on, with a wall rising within a stride or two.
+	# The wall's own face is no place for one: it would hang there.
+	if _n_at(x, z).y < 0.85:
+		return false
+	for k in 8:
+		var o := Vector2.from_angle(k * TAU / 8.0) * 1.6
+		if _n_at(x + o.x, z + o.y).y < 0.55 and _gy(x + o.x, z + o.y) > _gy(x, z) + 0.4:
+			return true
+	return false
+
+
 func _place_group(pool: Array[Mesh], c: Vector2, big: Vector2, small: Vector2, want: int) -> void:
 	var placed := 0
 	var attempts := 0
@@ -1432,6 +1464,9 @@ func _place_group(pool: Array[Mesh], c: Vector2, big: Vector2, small: Vector2, w
 			continue
 		var off := Vector2.ZERO if placed == 0 else Vector2.from_angle(_rng.randf() * TAU) * _rng.randf_range(0.6, 1.5)
 		var p := c + off
+		# The group's middle was checked; a member a stride off may be on a wall.
+		if _n_at(p.x, p.y).y < 0.8:
+			continue
 		var size := _rng.randf_range(big.x, big.y) if placed == 0 else _rng.randf_range(small.x, small.y)
 		var xf := _xf_shut(m, _ground_at(p.x, p.y), away, _rng.randf() * TAU, size, 0.3)
 		_add(m, xf, true, _height_of(m, xf) > 0.7)
@@ -1457,7 +1492,9 @@ func _dress() -> void:
 		var c := Vector2(_rng.randf_range(X0 + 6.0, X1 - 6.0), _rng.randf_range(Z0 + 6.0, Z1 - 6.0))
 		var d := _pit_d(c.x, c.y)
 		var in_pit := d < -0.5
-		if in_pit and not (absf(d + 2.6) < 1.0 or _rng.randf() < 0.2):
+		# In the pit: against the foot of a wall, or now and then out on the
+		# floor. Never by distance from the rim, which lands on the wall itself.
+		if in_pit and not (_at_wall_foot(c.x, c.y) or (_rng.randf() < 0.2 and _n_at(c.x, c.y).y > 0.85)):
 			continue
 		if not _clear(c.x, c.y, 2.0) or _n_at(c.x, c.y).y < 0.6:
 			continue
@@ -1481,7 +1518,7 @@ func _dress() -> void:
 		var x := _rng.randf_range(-20.0, 22.0)
 		var z := _rng.randf_range(-66.0, -28.0)
 		var d := _pit_d(x, z)
-		if d < -3.6 or d > -1.0 or not _clear(x, z, 0.4):
+		if d < -7.0 or d > -1.0 or not _clear(x, z, 0.4) or not _at_wall_foot(x, z):
 			continue
 		var m: Mesh = stones[_rng.randi() % stones.size()]
 		if _is_upright(m, Vector3.DOWN):
@@ -1497,7 +1534,7 @@ func _dress() -> void:
 		tries += 1
 		var x := _rng.randf_range(-14.0, 14.0)
 		var z := _rng.randf_range(-60.0, -34.0)
-		if _pit_d(x, z) > -3.0 or not _clear(x, z, 0.4):
+		if _pit_d(x, z) > -3.0 or not _clear(x, z, 0.4) or _n_at(x, z).y < 0.7:
 			continue
 		var m: Mesh = stones[_rng.randi() % stones.size()]
 		if _is_upright(m, Vector3.DOWN):
@@ -1508,21 +1545,22 @@ func _dress() -> void:
 	# Rubble spilled down the ramp's banks, broken and half buried.
 	placed = 0
 	tries = 0
-	var rubble: Array[Mesh] = blocks.duplicate()
-	rubble.append_array(stones)
+	# Stones only: a cliff-face scan shrunk to rubble is a thin black shard.
+	var rubble: Array[Mesh] = stones
 	while placed < 70 and tries < 4000:
 		tries += 1
 		var t := _rng.randf()
 		var along := RAMP_A.lerp(RAMP_B, t)
 		var side := (RAMP_B - RAMP_A).normalized().orthogonal() * (1.0 if _rng.randf() < 0.5 else -1.0)
 		var p := along + side * (_ramp_hw(along.x, along.y) + _rng.randf_range(0.5, 3.0))
-		if not _clear(p.x, p.y, 0.0):
+		# The banks, not the pit wall the ramp runs beside.
+		if not _clear(p.x, p.y, 0.0) or _n_at(p.x, p.y).y < 0.65:
 			continue
 		var m: Mesh = rubble[_rng.randi() % rubble.size()]
 		var away := Vector3.DOWN + Vector3(_rng.randf_range(-0.3, 0.3), 0.0, _rng.randf_range(-0.3, 0.3))
 		if _is_upright(m, away):
 			continue
-		var size := _rng.randf_range(0.08, 0.18) if blocks.has(m) else _rng.randf_range(1.0, 3.0)
+		var size := _rng.randf_range(1.0, 3.0)
 		_add(m, _xf_shut(m, _ground_at(p.x, p.y), away, _rng.randf() * TAU, size, 0.4))
 		placed += 1
 
@@ -1540,7 +1578,7 @@ func _dress() -> void:
 		for k: Array in KEEP_OUT.slice(0, 8):
 			if Vector2(x, z).distance_to(k[0]) < k[1]:
 				blocked = true
-		if blocked:
+		if blocked or _n_at(x, z).y < 0.7:
 			continue
 		var m: Mesh = stones[_rng.randi() % stones.size()]
 		_add(m, _xf_shut(m, _ground_at(x, z), Vector3.DOWN, _rng.randf() * TAU, _rng.randf_range(0.3, 0.75), 0.35), false)
