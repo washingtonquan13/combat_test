@@ -29,6 +29,17 @@ uniform sampler2D tufts : source_color, filter_linear_mipmap_anisotropic, repeat
 uniform sampler2D ground_grass : source_color, filter_linear_mipmap, repeat_enable;
 uniform sampler2D ground_soil : source_color, filter_linear_mipmap, repeat_enable;
 uniform bool painted = false;
+// The valley's relief and shape maps, as the ground reads them
+// (quarry_ground.gdshader, tools/quarry/terrain_relief.py). A clump takes the
+// light of the ground's swell under it, is shaded where the valley closes
+// off the sky, and grows deeper green in a field's dips and paler on its
+// rises. All three amounts at 0 leave the grass as it was.
+uniform sampler2D terrain_relief : filter_linear_mipmap, repeat_disable;
+uniform sampler2D terrain_masks : filter_linear_mipmap, repeat_disable;
+uniform vec4 relief_rect = vec4(0.0, 0.0, 1.0, 1.0);
+uniform float relief_amount = 0.0;
+uniform float occlusion_amount = 0.0;
+uniform float shape_paint = 0.0;
 uniform float grass_tile = 0.33;
 uniform vec3 dry_tip = vec3(0.58, 0.54, 0.27);
 // Upper blades: a fresh green, bluer and deeper in lush patches, warmer in
@@ -73,6 +84,8 @@ varying vec3 top;
 varying vec2 cell;
 varying float near;
 varying float crushed;
+varying vec2 swell;
+varying float sky;
 
 float lum(vec3 c) {
 	return dot(c, vec3(0.33));
@@ -146,6 +159,17 @@ void vertex() {
 	green *= 1.0 + (COLOR.rgb - 1.0) * 1.5;
 	top = mix(green * mix(0.9, 1.1, smoothstep(0.08, 0.34, macro)), dry_tip, dry * 0.4) * 0.8;
 
+	// One texel up the mips: a clump is wider than a texel of the maps.
+	vec2 relief_uv = (origin.xz - relief_rect.xy) * relief_rect.zw;
+	vec3 relief = textureLod(terrain_relief, relief_uv, 1.0).rgb;
+	float dip = (textureLod(terrain_masks, relief_uv, 1.0).b - 0.5) * 2.0 * shape_paint;
+	swell = (relief.rg - 0.5) * 2.0 * relief_amount;
+	sky = mix(1.0, relief.b, occlusion_amount);
+	base *= 1.0 - 0.1 * dip;
+	top *= 1.0 - 0.16 * dip;
+	top = mix(top, lush * 0.8, max(dip, 0.0) * 0.4);
+	top = mix(top, sunny * 0.8, max(-dip, 0.0) * 0.4);
+
 	float dist = length((VIEW_MATRIX * vec4(origin, 1.0)).xyz);
 	near = 1.0 - smoothstep(near_end * 0.4, near_end, dist);
 	float keep = mix(1.0, 0.6, smoothstep(thin_start, fade_start, dist));
@@ -210,6 +234,10 @@ void fragment() {
 	// Godot turns the normal over on a card's back face; both faces should
 	// light like the ground, so turn it back.
 	NORMAL = FRONT_FACING ? NORMAL : -NORMAL;
+	// Lean it as the ground's swell leans, the way the ground shader does.
+	vec3 wn = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	wn = wn / max(wn.y, 0.2) - vec3(swell.x, 0.0, swell.y);
+	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
 	// The atlas shading is kept shallow: deep shade at the roots reads as dark
 	// spots on the ground from the game's high camera.
 	if (painted) {
@@ -220,10 +248,11 @@ void fragment() {
 	}
 	// Crushed blades lie in each other's shade and lose their sheen.
 	ALBEDO *= mix(1.0, 0.78, crushed);
+	ALBEDO *= mix(0.9, 1.0, sky);
 	ALPHA = t.a;
 	ALPHA_SCISSOR_THRESHOLD = 0.5;
 	ROUGHNESS = 0.85;
-	AO = mix(0.9, 1.0, tip);
+	AO = mix(0.9, 1.0, tip) * sky;
 	AO_LIGHT_AFFECT = 0.3;
 	// Light through a blade comes out a deeper, yellower green.
 	BACKLIGHT = (painted ? ALBEDO : top * vec3(1.0, 0.95, 0.5)) * 0.25 * tip * (1.0 - crushed * 0.7);

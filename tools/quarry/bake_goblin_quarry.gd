@@ -113,7 +113,11 @@ const CAN := 1.0
 
 
 func _initialize() -> void:
-	if DisplayServer.get_name() == "headless":
+	# `-- --dump-heights <file>` writes the height grid and the paint for
+	# tools/quarry/terrain_relief.py and stops; that much runs headless.
+	var args := OS.get_cmdline_user_args()
+	var dump := args.find("--dump-heights")
+	if dump < 0 and DisplayServer.get_name() == "headless":
 		push_error("Run the quarry bake windowed: headless Godot saves every MultiMesh transform as zero.")
 		quit(1)
 		return
@@ -135,6 +139,11 @@ func _initialize() -> void:
 	_plan_water()
 	_bake_heights()
 	print("heights %d x %d in %d ms" % [_nx, _nz, Time.get_ticks_msec() - t0])
+	if dump >= 0:
+		_plan_trees()
+		_dump_heights(args[dump + 1])
+		quit(0)
+		return
 	for spot: Array in [["ramp top", RAMP_A], ["ramp foot", RAMP_B], ["camp", CAMP], ["ledge", Vector2(0, -57.5)],
 			["ladder base", LADDER_BASE], ["ladder top", LADDER_TOP], ["town", Vector2(4, 30)], ["exit", Vector2(0, 43)],
 			["field", Vector2(-4.5, -14)], ["ford", FORD], ["log field end", LOG_A], ["log rim end", LOG_B],
@@ -502,6 +511,31 @@ func _bake_heights() -> void:
 			_hgrid[ix + iz * _nx] = _h(X0 + ix * CELL, Z0 + iz * CELL)
 
 
+func _dump_heights(path: String) -> void:
+	# Little-endian: nx, nz (int32), x0, z0, cell (float32), then nx * nz
+	# heights, then nx * nz * 4 paint weights (rock, soil, grass, dirt).
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_32(_nx)
+	f.store_32(_nz)
+	f.store_float(X0)
+	f.store_float(Z0)
+	f.store_float(CELL)
+	f.store_buffer(_hgrid.to_byte_array())
+	var paint := PackedFloat32Array()
+	paint.resize(_nx * _nz * 4)
+	for iz in _nz:
+		for ix in _nx:
+			var c := _splat(X0 + ix * CELL, Z0 + iz * CELL, _grid_normal(ix, iz))
+			var i := (ix + iz * _nx) * 4
+			paint[i] = c.r
+			paint[i + 1] = c.g
+			paint[i + 2] = c.b
+			paint[i + 3] = c.a
+	f.store_buffer(paint.to_byte_array())
+	f.close()
+	print("heights dumped to %s" % path)
+
+
 func _hv(ix: int, iz: int) -> float:
 	return _hgrid[clampi(ix, 0, _nx - 1) + clampi(iz, 0, _nz - 1) * _nx]
 
@@ -597,7 +631,20 @@ func _ground_material() -> ShaderMaterial:
 	variation.normalize = true
 	variation.noise = noise
 	mat.set_shader_parameter("variation", variation)
+	_set_relief(mat)
 	return mat
+
+
+# The valley-wide maps from tools/quarry/terrain_relief.py, which the ground
+# and the grass on it both read: finer ground than the mesh has, in the light
+# and the paint only.
+func _set_relief(mat: ShaderMaterial) -> void:
+	mat.set_shader_parameter("terrain_relief", load(OUT + "terrain_relief.png"))
+	mat.set_shader_parameter("terrain_masks", load(OUT + "terrain_masks.png"))
+	mat.set_shader_parameter("relief_rect", Vector4(X0, Z0, 1.0 / (X1 - X0), 1.0 / (Z1 - Z0)))
+	mat.set_shader_parameter("relief_amount", 1.0)
+	mat.set_shader_parameter("occlusion_amount", 1.0)
+	mat.set_shader_parameter("shape_paint", 1.0)
 
 
 func _grid_mesh(ix0: int, iz0: int, ix1: int, iz1: int, paint: bool) -> Array:
@@ -1739,6 +1786,7 @@ func _grass_material(atlas_png: String, res_name: String, painted: bool) -> Shad
 	mat.set_shader_parameter("painted", painted)
 	mat.set_shader_parameter("ground_grass", load(T + "grass_path_2_diff_2k.jpg"))
 	mat.set_shader_parameter("ground_soil", load(T + "forest_ground_04_diff_2k.jpg"))
+	_set_relief(mat)
 	return mat
 
 

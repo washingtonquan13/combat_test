@@ -11,6 +11,11 @@ shader_type spatial;
 // The flat layers are read at two random offsets chosen by a slow noise and
 // blended where the noise moves from one to the next, so the 3 m tiles stop
 // lining up into a grid when seen from the rim.
+//
+// Two maps cover the whole valley at 0.2 m a texel, from
+// tools/quarry/terrain_relief.py. They describe a finer ground than the
+// mesh has: bumps and the rills rain would cut down the slopes. The mesh
+// stays as it is; the maps bend the light and move the paint.
 
 uniform sampler2D rock_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
 uniform sampler2D rock_normal : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
@@ -32,6 +37,18 @@ uniform sampler2D bed_arm : filter_linear_mipmap_anisotropic, repeat_enable;
 // Seamless grey noise, read at several scales. Drives tile offsets and the
 // colour drift across the valley.
 uniform sampler2D variation : filter_linear_mipmap, repeat_enable;
+
+// R,G: slope of the fine ground along +X and +Z (0.5 level, ends = slope 1).
+// B: how much sky the spot sees past the valley's walls and banks.
+uniform sampler2D terrain_relief : filter_linear_mipmap, repeat_disable;
+// R: runoff, where rain gathers on a slope. G: hollow above 0.5, crest below.
+uniform sampler2D terrain_masks : filter_linear_mipmap, repeat_disable;
+// World x, z of the maps' corner, and one over their size in metres.
+uniform vec4 relief_rect = vec4(0.0, 0.0, 1.0, 1.0);
+// All three are 0 until the bake sets the maps.
+uniform float relief_amount = 0.0;
+uniform float occlusion_amount = 0.0;
+uniform float shape_paint = 0.0;
 
 uniform float rock_tile = 0.22;
 uniform float bed_tile = 0.45;
@@ -141,7 +158,19 @@ void fragment() {
 	// decides where inside the blend it shows. The grass layer is flattened:
 	// its cards stand on it, its own relief would only show as gravel.
 	vec4 h = vec4(r_m.b, s_m.b, g_m.b * 0.4 + 0.3, d_m.b) * 0.5;
-	vec4 lift = COLOR + h;
+	// Shape moves the paint: rain washes crests and rills down to dirt and
+	// stones, and what it carries settles in the hollows as soil. Grass
+	// keeps its ground, the cards stand on it.
+	vec2 relief_uv = (xz - relief_rect.xy) * relief_rect.zw;
+	vec3 relief = texture(terrain_relief, relief_uv).rgb;
+	vec3 shape = texture(terrain_masks, relief_uv).rgb;
+	float hollow = (shape.g - 0.5) * 2.0;
+	float wash = clamp(max(-hollow, 0.0) * 0.5 + shape.r, 0.0, 1.0) * shape_paint;
+	float fill = max(hollow, 0.0) * shape_paint;
+	vec4 paint = COLOR;
+	paint.a += wash * 0.45 * (1.0 - paint.b);
+	paint.g += fill * 0.45 * (1.0 - paint.b);
+	vec4 lift = paint + h;
 	float top = max(max(lift.r, lift.g), max(lift.b, lift.a)) - blend_depth;
 	vec4 w = max(lift - vec4(top), vec4(0.0));
 	w /= max(w.r + w.g + w.b + w.a, 0.0001);
@@ -165,6 +194,11 @@ void fragment() {
 	// Damp ground darkens most in its hollows, where water would sit.
 	float damp = wet.y * mix(1.15, 0.7, height);
 	ALBEDO = mix(dry, b_a * 0.8, bed) * mix(1.0, 0.62, clamp(damp, 0.0, 1.0));
+	// Hollows hold damp and litter, crests dry pale; runoff stains rock.
+	ALBEDO *= mix(1.0, 0.8, fill) * mix(1.0, 1.08, max(-hollow, 0.0) * shape_paint);
+	ALBEDO *= mix(1.0, 0.8, shape.r * w.r * shape_paint);
+	float sky = mix(1.0, relief.b, occlusion_amount);
+	ALBEDO *= mix(0.9, 1.0, sky);
 
 	vec3 arm = r_m * w.r + s_m * w.g + g_m * w.b + d_m * w.a;
 	vec3 nrm = r_n * w.r + s_n * w.g + g_n * w.b + d_n * w.a;
@@ -180,10 +214,15 @@ void fragment() {
 	nrm = add_normal(nrm, far_n, far * 0.8);
 
 	// Crevices: the rock's own height deepens its AO.
-	AO = arm.r * mix(1.0, mix(0.55, 1.0, r_m.b), w.r);
+	AO = arm.r * mix(1.0, mix(0.55, 1.0, r_m.b), w.r) * sky;
 	AO_LIGHT_AFFECT = 0.4;
 	ROUGHNESS = mix(clamp(arm.g, 0.55, 1.0), 0.35, clamp(damp, 0.0, 1.0) * 0.8);
 	METALLIC = 0.0;
+	// The fine ground's slope, added to the mesh's own as heights add.
+	vec2 fine = (relief.rg - 0.5) * 2.0 * relief_amount;
+	vec3 wn = (INV_VIEW_MATRIX * vec4(NORMAL, 0.0)).xyz;
+	wn = wn / max(wn.y, 0.2) - vec3(fine.x, 0.0, fine.y);
+	NORMAL = normalize((VIEW_MATRIX * vec4(wn, 0.0)).xyz);
 	NORMAL_MAP = nrm;
 	NORMAL_MAP_DEPTH = 1.1;
 }
