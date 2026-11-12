@@ -3,6 +3,7 @@ pointing at them.
 
   python -I tools/pinst/bake_library.py FILE.sfz OUT_ROOT [--lib DIR]
       [--pitch name|key|none] [--every N] [--jobs N] [--only TEXT]
+      [--files LIST]
 
 OUT_ROOT mirrors the library folder LIB (--lib, default the folder above the
 SFZ's own): every note lands at its sample's path under OUT_ROOT with .pinst
@@ -27,7 +28,10 @@ tiers, nothing chosen per file.
 
 Rows go to OUT_ROOT/bake.jsonl as files finish; files already there are
 skipped, so a stopped run carries on. --every N bakes each Nth file, for a
-quick projection.
+quick projection. --files LIST bakes only the samples LIST names (one path a
+line), skipping any whose note is already under OUT_ROOT, so several SFZs of
+one library can share an OUT_ROOT; run each SFZ again once all are baked, so
+every SFZ names the notes the others baked.
 """
 from __future__ import annotations
 
@@ -120,6 +124,9 @@ def main():
     sfz, root = sys.argv[1], sys.argv[2]
     arg = lambda k: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else None
     every, only = int(arg("--every") or 1), arg("--only")
+    listed = None
+    if arg("--files"):
+        listed = {os.path.normcase(os.path.abspath(l.strip())) for l in open(arg("--files"), encoding="utf-8") if l.strip()}
     pitch = arg("--pitch") or "name"
     assert pitch in ("name", "key", "none"), pitch
     scan = inventory.Scan(sfz)
@@ -156,6 +163,8 @@ def main():
             continue
         if i % every or w in done or first != w or (only and only not in w):
             continue
+        if listed is not None and (os.path.normcase(os.path.abspath(src)) not in listed or os.path.exists(dst)):
+            continue    # not on the list, or baked already by another SFZ sharing this OUT_ROOT
         jobs.append((w, src, dst, hz_of(src)))
     # longest first, so the tail of the run is not one long note on one core
     jobs.sort(key=lambda j: -os.path.getsize(j[1]))

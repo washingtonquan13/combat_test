@@ -324,7 +324,49 @@ render at least 80 dB under its peak.
 
 Gate: the user accepts all three. Only then is the wider re-bake planned.
 
+**Passed 2026-11-12, with a known gap.** Songs: sealed-ward (hamorg),
+low-end (standard-bass), level-up-groovy (sm-drums, and once with all three
+swapped). The user's verdict: within acceptable bounds for now, about 70-80%
+accurate; some notes sound dropped (percussion near 0:04, bass near 0:08).
+Measured: the drum attacks lose their front. At 4.57 s and 8.00 s the attack
+peak is about a third of the WAV's (0.85 against 0.25, 0.56 against 0.25),
+the first 10 ms 7-15 dB under and the next 200 ms 2-3 dB under; 84 of 4,546
+10 ms frames of the song are more than 6 dB under the WAV, all on hits. The
+bass at 0:08 is unconfirmed (about 1 dB down over 200 ms with all three).
+Raising this toward "sounds the same" is the first quality work after stage
+10, done in the native bake.
+
+Storage, every note the three songs play:
+
+| Library | Notes | WAV | pinst | Opus 32k | Opus 64k | Opus 96k | PINST2 |
+|---|---|---|---|---|---|---|---|
+| hamorg | 186 | 87.24 MB | 1.884 MB | 1.344 MB | 3.371 MB | 4.902 MB | none |
+| standard-bass | 222 | 112.73 MB | 1.085 MB | 1.813 MB | 3.629 MB | 5.294 MB | table only |
+| sm-drums | 196 | 65.51 MB | 0.716 MB | 0.685 MB | 1.586 MB | 2.670 MB | 2.266 MB |
+
+Real-time playback, whole process (`render.gd --realtime --as-game`):
+
+| Song, build | Load | RAM after load | Peak RAM | CPU-s | Starved |
+|---|---|---|---|---|---|
+| sealed-ward WAV | 864 ms | 269 MB | 383 MB | 68.6 | 7 |
+| sealed-ward pinst | 953 ms | 294 MB | 674 MB | 136.8 | 4 |
+| low-end WAV | 1372 ms | 296 MB | 451 MB | 111.8 | 12 |
+| low-end pinst | 1561 ms | 321 MB | 554 MB | 119.3 | 15 |
+| level-up-groovy WAV | 229 ms | 194 MB | 255 MB | 32.2 | 13 |
+| level-up-groovy pinst drums | 424 ms | 216 MB | 329 MB | 35.8 | 173 |
+| level-up-groovy all three | 634 ms | 230 MB | 658 MB | 106.9 | 173 |
+
+Every starved voice is a WAV voice (its disk stream did not arrive past the
+2048-frame preload), never a pinst one; WAV streaming falls behind more when
+pinst plays alongside. That is a player bug, fixed before stage 10.
+
 ### 10. Native bake
+
+**Agreed 2026-11-12:** the Python encoder is frozen as it stood at stage 9
+and ported as is; the stage 8 reference check is the gate. Once it passes,
+encoder changes (the attack work above first) are made in C++ only; Python
+stays a frozen reference, not a second place to change.
+
 
 - The bake in C++, after the sound is signed off, so it ports a design that
   holds still. It reuses stage 8's render code for the card's candidates.
