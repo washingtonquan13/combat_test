@@ -36,7 +36,7 @@ def run(x, sr, hint):
     det = np.zeros(n)
     parts = []
     for g in GENERATORS:
-        s = g.analyse(left, sr, hint)
+        s = g.analyse(left, sr, {**hint, "src": x, "det": det.copy()})
         parts.append((g, s))
         if not g.RANDOM:
             y = g.render(s, n, sr)
