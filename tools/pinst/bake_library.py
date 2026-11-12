@@ -21,8 +21,9 @@ where there is one; none for drums.
 
 A file keeps its channel count (sfizz treats mono and stereo regions
 differently): a stereo file whose side is under -40 dB keeps a silent second
-channel. Every file goes through the one encoder (pinst_encode, PINST3),
-44.1 or 48 kHz at the file's own rate: no tiers, nothing chosen per file.
+channel. Every file goes through the one encoder (sms.run, the generators
+only, written as PINST4 by sms_file) at the file's own sample rate: no
+tiers, nothing chosen per file.
 
 Rows go to OUT_ROOT/bake.jsonl as files finish; files already there are
 skipped, so a stopped run carries on. --every N bakes each Nth file, for a
@@ -47,7 +48,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import inventory  # noqa: E402
 import pinst_codec as pc  # noqa: E402
 import pinst_encode as pe  # noqa: E402
-import pinst_file as pf  # noqa: E402
+import sms  # noqa: E402
+import sms_file  # noqa: E402
 import fastlib  # noqa: E402
 
 fastlib.recycle_big_arrays()
@@ -59,19 +61,27 @@ def do_file(job):
     x, sr = sf.read(src, always_2d=True)
     if len(x) < 4096:   # a stub (a library's 24-frame silence.wav) is padded with silence to the analysis windows
         x = np.concatenate([x, np.zeros((4096 - len(x), x.shape[1]))])
-    assert sr in (44100, 48000), (src, sr)
     pc.SR = sr          # the note is coded at its own rate
     nm = inventory.note_of(src)
     f0 = hz if hz != "name" else (inventory.note_hz(nm) if nm else None)
-    chans, _ = pe.encode_note(x, f0)
-    data = pf.pack3(chans, pe.STANDARD)
+    sigs = pe.channels_of(x)
+    chans, sizes = [], []
+    for i, sig in enumerate(sigs):
+        if not np.any(sig):
+            chans.append(None)
+            sizes.append({})
+            continue
+        parts, _, _ = sms.run(sig, sr, {"f0": f0, "ref": sigs[0] if i else None})
+        chans.append((parts, 7 + 100 * i))
+        sizes.append(sms.size(parts))
+    data = sms_file.pack(sr, len(x), chans)
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     with open(dst + ".part", "wb") as f:
         f.write(data)
     os.replace(dst + ".part", dst)      # a stopped run never leaves half a note behind
-    return {"sample": written, "seconds": round(len(x) / sr, 3), "channels": x.shape[1], "note": nm,
-            "wav_bytes": os.path.getsize(src), "bytes": len(data),
-            "need_pct": [c.info["need_pct"] for c in chans], "bake_s": round(time.time() - t0, 2)}
+    return {"sample": written, "seconds": round(len(x) / sr, 3), "sr": sr, "channels": x.shape[1], "note": nm,
+            "wav_bytes": os.path.getsize(src), "bytes": len(data), "gen_bytes": sizes,
+            "bake_s": round(time.time() - t0, 2)}
 
 
 def core_masks():
