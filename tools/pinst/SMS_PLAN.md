@@ -369,3 +369,9 @@ stage 9 passes.
 
 The wider re-bake, engine-side prefetch and late-voice behaviour, trained
 (neural) generators, and hand-written physical models per instrument.
+
+Stretch goal, most likely never pursued (user, 2026-11-11): recipes. Fit
+smooth generic rules across an instrument's notes (harmonic level by number,
+decay by frequency) and store the rules plus corrections instead of each
+note's measured settings, for tens of bytes per note. Judged too much work
+for the return; measured settings fit the premise.
