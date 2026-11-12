@@ -277,6 +277,16 @@ is unchanged by ear.
 
 Gate: hamorg bakes with no switches and loops without a click.
 
+**Result (2026-11-12). Gate passed by the user's ear.** PINST4 (`sms_file.py`:
+the generators' own bytes, any rate) round-trips exactly; `bake_library.py`
+bakes through `sms.run`. Every 60th hamorg file (10, 48 kHz) baked with no
+switches, 7-15 KB a note against ~470 KB WAV. Seams looped plainly on the
+SFZ's loop points, jump over step at the seam, source → render: within reach
+of the source on 9 of 10; Drawbar 1-01 1.33 → 6.13. The user hears clicks
+but most are imperceptible: "this is probably good enough". Phase carried
+across loop points is not built; it stays an option for stage 8 if a song
+shows a click.
+
 ### 8. Native player
 
 - The player in `sfpp_test` brought to the new reference. It gets simpler:
