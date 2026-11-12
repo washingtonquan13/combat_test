@@ -9,6 +9,9 @@ Every generator is a module with:
     render(settings, n, sr, seed=0) -> np.ndarray of n samples
     pack(settings) -> bytes               its stream, compressed, for sizes
 
+and optionally options(left, sr, hint) -> [settings], several ways to
+explain `left`, which run() judges after the generators that follow (_chain).
+
 `hint` is a dict of starting hints that are not instrument knowledge:
 "f0" (the file name's pitch or None) and "ref" (the mid channel when this is
 the side). A generator may ignore any of them. Generators never read the
@@ -21,7 +24,9 @@ from __future__ import annotations
 
 import numpy as np
 
+import need_map as nm
 import pinst_codec as pc
+import report_card as rc
 import gen_noise
 import gen_partials
 
@@ -55,24 +60,65 @@ def _gate(y, on):
     return y
 
 
+def _misses(x, parts, det, sr, ref):
+    """Missed band-frames over the whole note on both of the card's grids,
+    with the chain's own noise at the card's seeds."""
+    noises = noise_renders(parts, len(x), sr, nm.SEEDS)
+    m = 0
+    for edges in (None, rc.shifted_edges()):
+        c = rc.card(x, det, noises, sr, ref=ref, edges=edges)
+        m += int(((c["kind"] >= 0) & c["audible"]).sum())
+    return m
+
+
+def _chain(x, sr, hint, ref, gens, parts, det, left, judge):
+    """The generators in order on what the ones before left. A generator with
+    options(left, sr, hint) offers several settings; while `judge`, each is
+    finished by the rest of the chain and the one with the fewest misses
+    (_misses) is kept, ties keeping the earlier. Only the first generator
+    that offers candidates is judged that way; later ones take their first."""
+    n = len(x)
+    on = parts[0][0].sample
+    for i, g in enumerate(gens):
+        h = {**hint, "src": x, "det": det.copy()}
+        if hasattr(g, "options"):
+            cands = g.options(left, sr, h)
+        else:
+            cands = [g.analyse(left, sr, h)]
+        if judge and len(cands) > 1:
+            best = None
+            for s in cands:
+                d, l = det, left
+                if not g.RANDOM:
+                    y = _gate(g.render(s, n, sr), on)
+                    d, l = det + y, left - y
+                r = _chain(x, sr, hint, ref, gens[i + 1:], parts + [(g, s)], d, l, False)
+                m = _misses(x, r[0], r[1], sr, ref)
+                if best is None or m < best[0]:
+                    best = (m, r)
+            return best[1]
+        s = cands[0]
+        parts = parts + [(g, s)]
+        if not g.RANDOM:
+            y = _gate(g.render(s, n, sr), on)
+            det = det + y
+            left = left - y
+    return parts, det, left
+
+
 def run(x, sr, hint):
     """Returns (parts, det, left): parts = [(module, settings)], det = the sum
     of the deterministic renders, left = x - det (what the noise was given).
     parts[0] is the note's Onset."""
     n = len(x)
     pc.SR = sr
-    on = Onset(pc.onset_sample(np.asarray(x, dtype=float)))
-    left = np.asarray(x, dtype=float).copy()
-    det = np.zeros(n)
-    parts = [(on, None)]
-    for g in GENERATORS:
-        s = g.analyse(left, sr, {**hint, "src": x, "det": det.copy()})
-        parts.append((g, s))
-        if not g.RANDOM:
-            y = _gate(g.render(s, n, sr), on.sample)
-            det += y
-            left -= y
-    return parts, det, left
+    x = np.asarray(x, dtype=float)
+    on = Onset(pc.onset_sample(x))
+    ref = None
+    if hint.get("ref") is not None:
+        pr, _ = nm.band_stats([np.asarray(hint["ref"], dtype=float)], sr, pc.erb_edges(nm.MODEL.noise_bands))
+        ref = float(pr.max())
+    return _chain(x, sr, hint, ref, GENERATORS, [(on, None)], np.zeros(n), x.copy(), True)
 
 
 def _onset(parts):
