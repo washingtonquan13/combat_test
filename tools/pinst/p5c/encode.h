@@ -26,8 +26,8 @@
  * Sine render: by default p5_sine_render (the rotation render) for
  * encode_sines' det, its worth_keeping and the in-memory decode;
  * P5_SINE_RENDER_EXACT (compile time) picks p5_sine_render_exact
- * (render_sines bit for bit) instead. Same gate tiers note for note on dev
- * and full (2026-11-12).
+ * (render_sines bit for bit) instead. Either gives the same bytes on all
+ * 1213 full-gate notes (gate --against c, 2026-11-13).
  */
 #ifndef P5ENCODE_H
 #define P5ENCODE_H
