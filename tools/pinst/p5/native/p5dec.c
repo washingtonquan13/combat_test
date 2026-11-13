@@ -10,21 +10,23 @@
    it also builds as C++.
 
    What is decoded when.
-   * p5_parse decodes everything that cannot be reached at random: the LZMA
-     sine streams (to per-track keys), the range-coded layer grids (scale
-     codes, step offsets, coefficient codes). Coefficient codes are kept one
-     byte each (an escape for the rare large one), frame by frame; a track's
-     integrated phase is kept every CP frames. The note also holds the
-     transform tables of each layer length, which every voice reads.
-   * p5_seek sets each sounding track's oscillator from its nearest phase
-     checkpoint (at most CP frame steps per track). Layers need nothing: the
-     render decodes the (at most two) frames it is missing.
+   * p5_parse decodes the LZMA sine streams (to per-track keys; a track's
+     integrated phase is kept every CP frames). Of the range-coded layer
+     grids it decodes the scale codes and step offsets once, to keep the
+     coder state at the start of each grid and the per-frame tables; no
+     grid is kept frame by frame. Transform tables are shared by every note
+     of a layer length.
+   * A voice decodes a layer's grids row by row as it plays (a cursor holding
+     the last three rows), plus a bookmark: a copy of the cursor at the frame
+     it was last seeked to. A row behind the cursor restarts from the
+     bookmark when it can, from frame 0 when not.
+   * p5_seek sets where the bookmark falls, and each sounding track's
+     oscillator from its nearest phase checkpoint (at most CP frame steps).
    * p5_render runs one complex oscillator per sounding track (exact for the
      reference's quadratic phase, re-aimed every hop), and per layer
      dequantizes and inverse-transforms (FFT) one frame per M samples.
-   A voice keeps the last few decoded frames of every layer (enough for 1024
-   samples) and the sine state at the last seek, so a loop that wraps to the
-   same point decodes nothing. */
+   A voice keeps the sine state at the last seek and the bookmark, so a loop
+   that wraps to the same point decodes only from there. */
 #include "p5dec.h"
 
 #ifdef _WIN32
