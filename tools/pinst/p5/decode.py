@@ -30,7 +30,7 @@ def decode(data: bytes):
     note = pack.unpack(data)
     C.set_rate(note.sr)
     ys = [channel(ch, note.n) for ch in note.channels]
-    if note.stereo:
+    if note.stereo == 1:
         m, s = ys
         return np.stack([m + s, m - s], axis=1), note.sr
     return np.stack(ys, axis=1), note.sr

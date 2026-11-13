@@ -21,6 +21,7 @@ Decoder (decode.py), the one source F ports to C:
     note = pack.unpack(bytes)
     per channel: analysis.render_sines(...) + sum(transform.inverse(quant.dequantize(L), n, L.M, L.start))
     stereo == 1: left = mid + side, right = mid - side
+    stereo == 2: the two channels are left and right as they are (wave 2: chosen per note)
 
 Every stage keeps both halves of its own work (encode and decode) in its one
 file, so the encoder always subtracts exactly what the decoder plays.
@@ -88,5 +89,5 @@ class ChannelCode:
 class NoteCode:
     sr: int
     n: int
-    stereo: int                     # 0 mono, 1 mid/side
+    stereo: int                     # 0 mono, 1 mid/side, 2 left/right
     channels: list                  # ChannelCode, mid first
