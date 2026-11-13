@@ -1,0 +1,172 @@
+// Hearthwild - exploration music for the goblin quarry, written for the
+// Hearthwild ensemble. An original piece in the manner of fantasy-RPG
+// exploration scores: a folk tune on a solo instrument over a harp and a
+// drone, slow enough to walk to and quiet enough to talk over.
+//
+// Mode. D dorian: D minor with a B natural. The B is the colour - it turns
+// the fourth chord into G major, which is what makes the tune sound old and
+// out of doors rather than sad. The bridge borrows one chord from outside
+// the mode, A major with its C sharp, so the way back into the tune has a
+// pull to it.
+//
+// Players.
+//   lead   a solo cello carries the tune. Long notes, a swell on the notes a
+//          phrase arrives at, a breath at the end of each phrase.
+//   reed   a solo English horn takes the tune in the bridge while the
+//          cello plays under it, and in the reprise holds a slow descant
+//          above it.
+//   harp   turns every chord over in eighths, with the ninth in the
+//          figure. It is the clock of the piece; nothing else keeps time.
+//   bass   the bass section on the roots, a bar at a time.
+//   pad    the cello section holding open fifths. At intensity 1 and up
+//          the same fifths are played tremolo instead: the drone starts to
+//          shiver, and nothing else about the tune changes.
+//
+// Intensity is what this ensemble is built around. The game raises it when
+// something is wrong - enemies near, a trap noticed - and lowers it again;
+// the lanes below come in and go out at the next bar without the piece
+// starting over.
+//   0      the piece as above.
+//   1      the drone goes to tremolo, and a hand drum starts a slow
+//          heartbeat on the first beat of every bar.
+//   2      the choir comes in under the tune, the heartbeat doubles, and a
+//          gong marks the top of every section.
+//
+// Form. A four-bar intro of harp and drone, then a loop of three eight-bar
+// sections - the tune, the bridge, the tune again with the descant - about
+// a minute and three quarters a pass. `out` is the way out: back to D, the
+// harp's last chord left to ring.
+
+title: Hearthwild
+ensemble: hearthwild
+parts: lead reed:lead harp:keys bass pad choir perc
+tempo: 66
+meter: 4/4
+key: d minor
+order: intro [tune bridge reprise] out
+
+// The harp's figures, one bar each: up the chord with its ninth, and back.
+pattern arp_dm
+  | d2:0.5 a2:0.5. d3:0.5 e3:0.5. f3:0.5 a3:0.5. f3:0.5 e3:0.5. |
+pattern arp_c
+  | c2:0.5 g2:0.5. c3:0.5 d3:0.5. e3:0.5 g3:0.5. e3:0.5 d3:0.5. |
+pattern arp_g
+  | g1:0.5 d2:0.5. g2:0.5 a2:0.5. b2:0.5 d3:0.5. b2:0.5 a2:0.5. |
+pattern arp_f
+  | f2:0.5 c3:0.5. f3:0.5 g3:0.5. a3:0.5 c4:0.5. a3:0.5 g3:0.5. |
+pattern arp_am
+  | a1:0.5 e2:0.5. a2:0.5 b2:0.5. c3:0.5 e3:0.5. c3:0.5 b2:0.5. |
+pattern arp_a
+  | a1:0.5 e2:0.5. a2:0.5 b2:0.5. c#3:0.5 e3:0.5. c#3:0.5 b2:0.5. |
+
+// The heartbeat: a low hand drum on one, its muted stroke after it.
+pattern heart
+  | frame_low:1! frame_low_muted:1. r:2 |
+// The doubled heartbeat at intensity 2: the same, again on three.
+pattern heart2
+  | frame_low:1! frame_low_muted:1. frame_low:1 frame_low_muted:1. |
+
+// Harp and drone alone, the drone swelling in.
+section intro bars:4
+  harp dyn:pp..mp feel:loose
+    | arp_dm | arp_dm | arp_c | arp_dm |
+  bass dyn:pp..p art:sustain
+    | d2:16^ |
+  pad.calm dyn:pp..p art:sustain layer:..0
+    | [d3 a3]:16^ |
+  pad.shiver dyn:p art:tremolo layer:1..
+    | [d3 a3]:16^ |
+  perc.heart dyn:p layer:1..1
+    | heart*4 |
+  perc.drive dyn:mp layer:2..
+    | gong:1! frame_low_muted:1. frame_low:1 frame_low_muted:1. | heart2*3 |
+  choir dyn:pp layer:2..
+    | [d3 f3 a3]:16^ |
+
+// The tune: two four-bar phrases, the first ending on the G major chord
+// with its B natural, the second coming home.
+section tune bars:8
+  lead dyn:mp..mf art:sustain feel:loose pocket:lay
+    | r:2 a3:1_ d4:1_ | e4:3^ f4:1 | e4:2 d4:1 c4:1 | d4:3~ b3:1 |
+    | a3:4^ | r:1 c4:1 f4:1 g4:1 | a4:2^ g4:1 e4:1 | d4:4. |
+  reed dyn:p
+    | r:32 |
+  harp dyn:mp feel:loose
+    | arp_dm | arp_dm | arp_c | arp_g |
+    | arp_dm | arp_f | arp_c | arp_dm |
+  bass dyn:p art:sustain
+    | d2:8 | c2:4 g1:4 |
+    | d2:4 f2:4 | c2:4 d2:4 |
+  pad.calm dyn:p art:sustain layer:..0
+    | [d3 a3]:8 | [c3 g3]:4 [b2 g3]:4 |
+    | [d3 a3]:4 [f3 c4]:4 | [e3 g3]:4 [d3 a3]:4 |
+  pad.shiver dyn:mp art:tremolo layer:1..
+    | [d3 a3]:8 | [c3 g3]:4 [b2 g3]:4 |
+    | [d3 a3]:4 [f3 c4]:4 | [e3 g3]:4 [d3 a3]:4 |
+  perc.heart dyn:p layer:1..1
+    | heart*8 |
+  perc.drive dyn:mp layer:2..
+    | gong:1! frame_low_muted:1. frame_low:1 frame_low_muted:1. | heart2*7 |
+  choir dyn:pp..p layer:2..
+    | [d3 f3 a3]:8 | [c3 e3 g3]:4 [b2 d3 g3]:4 |
+    | [d3 f3 a3]:4 [c3 f3 a3]:4 | [c3 e3 g3]:4 [d3 f3 a3]:4 |
+
+// The bridge. The English horn takes the tune up into its own register
+// while the cello walks underneath it; the last bar is A major, and the
+// C sharp in the cello leads back to the D the reprise starts on.
+section bridge bars:8
+  reed dyn:mp..mf art:sustain feel:loose pocket:lay
+    | c5:2_ a4:1 g4:1 | g4:3^ e4:1 | b4:2 a4:1 g4:1 | a4:4^ |
+    | c5:1 d5:1 e5:1 f5:1 | e5:3^ c5:1 | d5:2 b4:1 g4:1 | a4:4. |
+  lead dyn:p..mp art:sustain feel:loose pocket:22
+    | f3:4_ | e3:4_ | d3:4_ | f3:4^ |
+    | a3:4_ | a3:2 c4:2 | b3:4^ | c#4:4 |
+  harp dyn:mp feel:loose
+    | arp_f | arp_c | arp_g | arp_dm |
+    | arp_f | arp_am | arp_g | arp_a |
+  bass dyn:p art:sustain
+    | f2:4 c2:4 | g1:4 d2:4 |
+    | f2:4 a1:4 | g1:4 a1:4 |
+  pad.calm dyn:p art:sustain layer:..0
+    | [f3 c4]:4 [c3 g3]:4 | [b2 g3]:4 [d3 a3]:4 |
+    | [f3 c4]:4 [e3 a3]:4 | [d3 g3]:4 [e3 a3]:4 |
+  pad.shiver dyn:mp art:tremolo layer:1..
+    | [f3 c4]:4 [c3 g3]:4 | [b2 g3]:4 [d3 a3]:4 |
+    | [f3 c4]:4 [e3 a3]:4 | [d3 g3]:4 [e3 a3]:4 |
+  perc.heart dyn:p layer:1..1
+    | heart*8 |
+  perc.drive dyn:mp..mf layer:2..
+    | gong:1! frame_low_muted:1. frame_low:1 frame_low_muted:1. | heart2*7 |
+  choir dyn:p layer:2..
+    | [f3 a3 c4]:4 [e3 g3 c4]:4 | [d3 g3 b3]:4 [d3 f3 a3]:4 |
+    | [f3 a3 c4]:4 [e3 a3 c4]:4 | [d3 g3 b3]:4 [e3 a3 c#4]:4 |
+
+// The tune again, with the English horn holding a slow descant over it.
+section reprise bars:8 from:tune
+  lead dyn:mf art:sustain feel:loose pocket:lay
+    | r:2 a3:1_ d4:1_ | e4:3^ f4:1 | e4:2 d4:1 c4:1 | d4:3~ b3:1 |
+    | a3:4^ | r:1 c4:1 f4:1 g4:1 | a4:2^ g4:1 e4:1 | d4:4. |
+  reed dyn:p..mp art:sustain feel:loose pocket:30
+    | r:4 | a4:4^ | g4:4_ | b4:4^ |
+    | a4:8^ | g4:4_ | f4:2 e4:2. |
+
+// The way out: home to D, the harp's last chord left to ring.
+section out bars:4
+  lead dyn:mp..p art:sustain feel:loose
+    | a3:4^ | d4:8. | r:4 |
+  reed dyn:p
+    | r:16 |
+  harp dyn:mp..pp feel:loose
+    | arp_c | arp_dm | [d2 a2 d3 f3 a3 e4]:8. |
+  bass dyn:p..pp art:sustain
+    | c2:4 d2:12. |
+  pad.calm dyn:p..pp art:sustain layer:..0
+    | [c3 g3]:4 [d3 a3]:12. |
+  pad.shiver dyn:mp..p art:tremolo layer:1..
+    | [c3 g3]:4 [d3 a3]:12. |
+  perc.heart dyn:p..pp layer:1..1
+    | heart*2 | r:8 |
+  perc.drive dyn:mp..p layer:2..
+    | heart2*2 | gong:8. |
+  choir dyn:p..pp layer:2..
+    | [c3 e3 g3]:4 [d3 f3 a3]:12. |

@@ -1,0 +1,145 @@
+{
+  "format": 2,
+  "id": "hearthwild",
+  "name": "Hearthwild",
+  "description": "A small acoustic ensemble for exploration music in the fantasy-RPG manner: a solo cello for the voice, a solo English horn to answer it, a concert harp turning the chords over, and a drone of cello and bass sections underneath, all from Virtual Playing Orchestra and VSCO 2. Two parts wait for the music's intensity to rise: a mixed choir, and the hand drums and gong of the VCSL ritual kit. Everything is in the hall with a long predelay, so the room stays behind the players instead of washing them out.",
+  "buses": {
+    "lead": {
+      "space": "hall",
+      "wet": 0.3,
+      "predelay": 40.0
+    },
+    "keys": {
+      "space": "hall",
+      "wet": 0.34,
+      "predelay": 30.0
+    },
+    "bass": {
+      "space": "hall",
+      "wet": 0.16,
+      "predelay": 20.0
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.36,
+      "predelay": 30.0
+    },
+    "perc": {
+      "space": "hall",
+      "wet": 0.32,
+      "predelay": 20.0
+    }
+  },
+  "parts": {
+    "lead": {
+      "family": "lead",
+      "layers": [
+        {
+          "instrument": "vpo/cello-solo",
+          "name": "cello"
+        }
+      ],
+      "range": [
+        36,
+        81
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": 0.0
+    },
+    "reed": {
+      "family": "lead",
+      "bus": "lead",
+      "layers": [
+        {
+          "instrument": "vpo/english-horn",
+          "name": "english horn"
+        }
+      ],
+      "range": [
+        52,
+        81
+      ],
+      "voices": 6,
+      "gain_source": "guessed",
+      "gain_db": -2.0
+    },
+    "harp": {
+      "family": "keys",
+      "layers": [
+        {
+          "instrument": "vsco2/harp",
+          "name": "harp"
+        }
+      ],
+      "range": [
+        30,
+        101
+      ],
+      "voices": 32,
+      "gain_source": "guessed",
+      "gain_db": 7.0
+    },
+    "bass": {
+      "family": "bass",
+      "layers": [
+        {
+          "instrument": "vpo/basses",
+          "name": "basses"
+        }
+      ],
+      "range": [
+        28,
+        67
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": 9.0
+    },
+    "pad": {
+      "family": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/cellos",
+          "name": "cellos"
+        }
+      ],
+      "range": [
+        36,
+        81
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": 1.0
+    },
+    "choir": {
+      "family": "choir",
+      "bus": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-mixed",
+          "name": "choir"
+        }
+      ],
+      "range": [
+        43,
+        84
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -4.0
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "vcsl/ritual-kit",
+          "name": "ritual"
+        }
+      ],
+      "voices": 16,
+      "gain_source": "guessed",
+      "gain_db": -18.0
+    }
+  }
+}

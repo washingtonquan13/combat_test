@@ -34,6 +34,12 @@
 			"lufs": -15.9,
 			"true_peak": -1.3
 		},
+		"hearthwild": {
+			"ensemble": "hearthwild",
+			"gain_db": 6.0,
+			"lufs": -16.0,
+			"true_peak": -3.0
+		},
 		"iron-deity": {
 			"ensemble": "industrial",
 			"gain_db": 1.6,

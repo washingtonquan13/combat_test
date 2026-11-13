@@ -1,0 +1,92 @@
+<title>Game Spice Ideas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* Layout: one reading column; the list is a numbered build order, each item a row with its status chip and notes. */
+:root {
+  --bg: #f6f4f0; --surface: #fffdf9; --fg: #22201c; --muted: #6b6559; --line: #ddd6c9;
+  --accent: #6b3fa0; --accent-soft: #ece4f5;
+  --ok: #2f7a4a; --ok-soft: #e1f0e6; --wait: #8a6514; --wait-soft: #f6ecd5;
+  --display: "Fraunces", Georgia, serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #17151a; --surface: #201d24; --fg: #ece8e1; --muted: #a59e92; --line: #38333d;
+  --accent: #b996e6; --accent-soft: #2e2540; --ok: #7cc795; --ok-soft: #1d3326; --wait: #e0b65a; --wait-soft: #3a2f17; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #17151a; --surface: #201d24; --fg: #ece8e1; --muted: #a59e92; --line: #38333d;
+  --accent: #b996e6; --accent-soft: #2e2540; --ok: #7cc795; --ok-soft: #1d3326; --wait: #e0b65a; --wait-soft: #3a2f17; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 40px 64px; }
+main { max-width: 720px; margin: 0 auto; display: grid; gap: 32px; }
+header { display: grid; gap: 8px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--display); font-weight: 700; font-size: clamp(30px, 6vw, 42px); line-height: 1.1; margin: 0; text-wrap: balance; }
+.lede { margin: 0; color: var(--muted); max-width: 62ch; }
+blockquote { margin: 0; padding: 12px 16px; border-left: 3px solid var(--accent); background: var(--accent-soft); font-style: italic; }
+ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; counter-reset: item; border-top: 1px solid var(--line); }
+li { counter-increment: item; display: grid; grid-template-columns: 2.4em 1fr; gap: 4px 12px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+li::before { content: counter(item); font-family: var(--display); font-size: 26px; font-weight: 500; color: var(--accent); line-height: 1; grid-row: span 3; font-variant-numeric: tabular-nums; }
+.row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; min-width: 0; }
+h2 { font-family: var(--display); font-weight: 500; font-size: 21px; margin: 0; text-wrap: balance; }
+.chip { font-family: var(--mono); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; background: var(--wait-soft); color: var(--wait); }
+.chip.go { background: var(--ok-soft); color: var(--ok); }
+li p { margin: 0; min-width: 0; }
+.notes { color: var(--muted); font-size: 15px; }
+h3 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0 0 8px; }
+.foot { font-size: 14px; color: var(--muted); display: grid; gap: 6px; }
+.foot p { margin: 0; }
+</style>
+<main>
+  <header>
+    <span class="eyebrow">combat_test · polish phase · 2026-11-13</span>
+    <h1>Game Spice Ideas</h1>
+    <p class="lede">These are the things that move the prototype past white-boxing. They are listed in the suggested build order: cheapest and most audible first, riskiest last.</p>
+  </header>
+
+  <blockquote>"We need to move on from white boxing … in short, we need the spice that comes with games."</blockquote>
+
+  <ol>
+    <li>
+      <div class="row"><h2>Sound effects</h2><span class="chip">idea</span></div>
+      <p>Footsteps by surface, weapon swings and impacts, spell casts, UI clicks, doors, and props being dragged.</p>
+      <p class="notes">This gives the most game feel for the least work. It needs a small SFX bus, and the sources must be CC0 or generated.</p>
+    </li>
+    <li>
+      <div class="row"><h2>BG3-like ambient soundtrack</h2><span class="chip go">started</span></div>
+      <p>A generated exploration score built for the sfpp engine. It uses intensity layers, a loop with exits, reverb spaces per bus, and transition rules between areas.</p>
+      <p class="notes">The first draft uses libraries already on disk: VPO, VSCO2 and VCSL.</p>
+    </li>
+    <li>
+      <div class="row"><h2>Environmental interactivity</h2><span class="chip">idea</span></div>
+      <p>Surfaces that react, props that can be broken or pushed, levers, hidden stashes, and objects that respond to fire, water and lightning.</p>
+      <p class="notes">This builds on movable props, surfaces, and Jump/Shove, which already exist.</p>
+    </li>
+    <li>
+      <div class="row"><h2>Customizable character models</h2><span class="chip">idea</span></div>
+      <p>Real character models with swappable heads, hair, body and colors in place of placeholder figures.</p>
+      <p class="notes">Model and animation are already decoupled, so new bodies can reuse the existing animations through retargeting.</p>
+    </li>
+    <li>
+      <div class="row"><h2>Cinematics with markerless mocap</h2><span class="chip">idea</span></div>
+      <p>Dialogue and story shots driven by motion captured from video with no suits or markers, played through the existing cinematic director.</p>
+      <p class="notes">No Mixamo. This depends on having real character models first.</p>
+    </li>
+    <li>
+      <div class="row"><h2>Procedural voices as placeholders</h2><span class="chip">idea</span></div>
+      <p>Generated barks and dialogue lines that hold the place of real voice acting.</p>
+      <p class="notes">These are placeholders. The voice prefetch plan, saved for later, covers streaming them.</p>
+    </li>
+    <li>
+      <div class="row"><h2>The spice that comes with games</h2><span class="chip">open</span></div>
+      <p>The catch-all: small reactions, juice, ambient life, and the details that make a world feel inhabited.</p>
+      <p class="notes">Add to this item as ideas come up.</p>
+    </li>
+  </ol>
+
+  <section class="foot">
+    <h3>Ground rule</h3>
+    <p>Aim each piece at one short, polished stretch of play, such as the goblin quarry, rather than spreading it thin across every area.</p>
+  </section>
+</main>

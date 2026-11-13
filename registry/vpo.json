@@ -207,6 +207,95 @@
         36,
         81
       ]
+    },
+    "cello-solo": {
+      "layers": [
+        {
+          "sfz": "pinst5_d25/vpo/Strings/cello-SOLO-KS-C6.sfz"
+        }
+      ],
+      "range": [
+        36,
+        81
+      ],
+      "controls": {
+        "dynamics": 11
+      },
+      "keyswitches": {
+        "sustain": 84,
+        "expressive": 86,
+        "accent": 87,
+        "staccato": 88,
+        "pizzicato": 89
+      },
+      "keyswitch_default": "sustain"
+    },
+    "cellos": {
+      "layers": [
+        {
+          "sfz": "pinst5_d25/vpo/Strings/cello-SEC-KS-C6.sfz"
+        }
+      ],
+      "range": [
+        36,
+        81
+      ],
+      "controls": {
+        "dynamics": 11
+      },
+      "keyswitches": {
+        "sustain": 84,
+        "expressive": 86,
+        "accent": 87,
+        "staccato": 88,
+        "pizzicato": 89,
+        "tremolo": 85
+      },
+      "keyswitch_default": "sustain"
+    },
+    "basses": {
+      "layers": [
+        {
+          "sfz": "pinst5_d25/vpo/Strings/bass-SEC-KS-C5.sfz"
+        }
+      ],
+      "range": [
+        28,
+        67
+      ],
+      "controls": {
+        "dynamics": 11
+      },
+      "keyswitches": {
+        "sustain": 72,
+        "tremolo": 73,
+        "expressive": 74,
+        "accent": 75,
+        "staccato": 76,
+        "pizzicato": 77
+      },
+      "keyswitch_default": "sustain"
+    },
+    "english-horn": {
+      "layers": [
+        {
+          "sfz": "pinst5_d25/vpo/Woodwinds/english-horn-SOLO-KS-C2.sfz"
+        }
+      ],
+      "range": [
+        52,
+        81
+      ],
+      "controls": {
+        "dynamics": 11
+      },
+      "keyswitches": {
+        "sustain": 36,
+        "expressive": 38,
+        "accent": 39,
+        "staccato": 40
+      },
+      "keyswitch_default": "sustain"
     }
   }
 }

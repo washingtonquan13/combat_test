@@ -16,7 +16,7 @@
 		"test_area_3.exploration": {"ensemble": "tonewheel", "score": "sealed-ward-lament"},
 		"test_area_3.combat": {"ensemble": "band", "score": "low-end"},
 		"test_area_3.negotiation": {"ensemble": "decadence", "score": "decadence"},
-		"goblin_quarry.exploration": {"ensemble": "tonewheel", "score": "sealed-ward-lament"},
+		"goblin_quarry.exploration": {"ensemble": "hearthwild", "score": "hearthwild"},
 		"goblin_quarry.combat": {"ensemble": "tonewheel", "score": "sealed-ward"},
 		"goblin_quarry.negotiation": {"ensemble": "decadence", "score": "decadence"}
 	},
