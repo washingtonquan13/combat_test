@@ -11,7 +11,7 @@ every note lands at its sample's path with .pinst5 for the extension; the SFZ
 and its #includes are read as sfizz reads them (inventory.Scan) and rewritten
 under OUT_ROOT naming a note wherever one exists. --pitch is only a hint to
 encode.encode_note (name: from the file name; key: from pitch_keycenter; none).
---jobs defaults to 2.
+--jobs defaults to 12.
 
 Skipping: OUT_ROOT/bake.manifest.jsonl holds one row per baked sample (last
 row wins): source path, source size and mtime, pitch hint, encoder version,
@@ -151,7 +151,7 @@ def main():
     jobs.sort(key=lambda j: -os.path.getsize(j[1]))     # longest first
     print(f"encoder {ver}: {len(jobs)} files to bake, {skipped} unchanged", flush=True)
     t0, n, bad = time.time(), 0, 0
-    workers = int(arg("--jobs") or 2)
+    workers = int(arg("--jobs") or 12)
     if jobs:
         with ProcessPoolExecutor(workers) as ex, open(mpath, "a", encoding="utf-8") as lf:
             futs = {ex.submit(do_file, j): j[0] for j in jobs}

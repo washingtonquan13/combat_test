@@ -10,23 +10,28 @@ a channel's whole sine layer is dropped when it cannot pay for itself
 """
 from __future__ import annotations
 
+import hashlib
+from collections import OrderedDict
+
 import numpy as np
 from scipy.signal import find_peaks
 
 import contract as C
 import pinst_codec as pc
 import pinst_file as pf
+import sines_fast as sfast
 
 TIER = pc.Tier("model", f_cents=0.5, f_tol=1)       # PINST3's partial settings (need_map.MODEL)
 H = 256
 
 # ------------------------------------------------------------------ pitch
 
-def _long_spectrum(x):
-    """Mean power spectrum over the 1.5 s after the onset, ~0.35 s windows."""
+def _long_spectrum(x, on=None):
+    """Mean power spectrum over the 1.5 s after the onset, ~0.35 s windows.
+    on: pc.onset_sample(x), when the caller has it."""
     sr = pc.SR
     N = 1 << int(np.ceil(np.log2(0.35 * sr)))
-    on = pc.onset_sample(x)
+    on = pc.onset_sample(x) if on is None else on
     seg = x[on : on + int(1.5 * sr)]
     if len(seg) < N:
         seg = np.concatenate([seg, np.zeros(N - len(seg))])
@@ -52,7 +57,7 @@ def _peaks(P, N, rel_db=-60.0, prom_db=12.0, maxp=40):
 PITCHED = 0.5       # share of the peaks' amplitude a harmonic series must explain, past chance
 
 
-def find_pitch(x):
+def find_pitch(x, on=None):
     """The fundamental the sound's own spectrum shows, or None.
 
     Every candidate f0 on a 2-cent grid is scored by the share of the peaks'
@@ -60,8 +65,8 @@ def find_pitch(x):
     random peak would hit by chance (so low candidates, whose harmonics lie
     dense, gain nothing for density alone). The best candidate wins if the
     series explains most of the spectrum; it is then refined by least squares
-    on the peaks it matched."""
-    P, N = _long_spectrum(x)
+    on the peaks it matched. on: pc.onset_sample(x), when the caller has it."""
+    P, N = _long_spectrum(x, on)
     f, a = _peaks(P, N)
     if len(f) == 0:
         return None
@@ -104,21 +109,22 @@ def window_for(f0):
     return int(np.clip(1 << int(np.ceil(np.log2(CYCLES * pc.SR / f0))), N_MIN, N_MAX))
 
 
-def _analyse(x, f0, N):
-    """pc.analyse's partial part: peaks up to Nyquist, tracks; no noise model."""
+def _analyse(x, f0, N, on=None):
+    """pc.analyse's partial part: peaks up to Nyquist, tracks; no noise model.
+    (The peaks and tracks are sines_fast.find_tracks: the legacy tracker's,
+    bit for bit, faster.)"""
     # 8x overlap for the 8192 window halves its cost and measured no worse;
     # at 4096 a 512 hop cost a3_Sus_Up1 3.5 dB, so it keeps wave 0's 256
     hop = H if N <= 4096 else N // 8
-    on = pc.onset_sample(x)
+    on = pc.onset_sample(x) if on is None else on
     first = int(np.ceil((on + N // 4) / hop))
-    frames = pc.find_peaks_frames(x, N, hop, fmax=pc.SR / 2)
-    tracks = pc.track_peaks(frames, first_frame=first)
+    tracks = sfast.find_tracks(x, N, hop, first)
     ch = pc.Channel(len(x), hop, tracks, np.full((1, 1), -200.0), 512)
     ch.info = {"f0": f0}
     return ch
 
 
-def worth_keeping(x, det, sine_bytes):
+def worth_keeping(x, det, sine_bytes, on=None):
     """Whether the sine layer can save more than it costs.
 
     Taking the rendered sines out leaves a remainder Delta dB weaker than the
@@ -128,32 +134,58 @@ def worth_keeping(x, det, sine_bytes):
     that takes out a sliver of the energy (an inharmonic crash, a click) goes."""
     rem = float(np.dot(x - det, x - det))
     delta = 10 * np.log10(float(np.dot(x, x)) / max(rem, 1e-30))
-    n = len(x) - pc.onset_sample(x)
+    n = len(x) - (pc.onset_sample(x) if on is None else on)
     return delta / 6.02 * n > 8 * sine_bytes
 
 
-_last = (None, None)    # the layer encode_sines kept and its render, which encode.py asks for next
+# encode_sines is asked for the same signal more than once (a dual-mono pair's
+# mid is its left and its right; every coding of a pair asks again): the
+# answer depends only on the samples, the hint and the rate, so it is kept.
+_ENC: OrderedDict = OrderedDict()
+_ENC_KEEP = 4       # a note asks for 4 signals at most (mid, side, left, right)
+
+
+def _quantize(ch):
+    """(info, sizes) of pc.quantize(ch, TIER), the sine part (sines_fast.quantize)."""
+    q = sfast.quantize(ch.tracks, ch.H, ch.info["f0"], TIER)
+    if q is None:
+        dec, sizes = pc.quantize(ch, TIER)
+        return dec.info, sizes
+    return q
 
 
 def encode_sines(x: np.ndarray, f0: float | None) -> C.SineCode | None:
     """f0 is a hint, used only when the sound itself shows no pitch."""
-    global _last
     if not np.any(x):
         return None
-    f0 = find_pitch(x) or f0
-    ch = _analyse(x, f0, window_for(f0))
-    dec, sizes = pc.quantize(ch, TIER)
-    I, S = dec.info, dec.info["streams"]
+    xb = np.ascontiguousarray(x, dtype=float)
+    key = (pc.SR, f0, len(xb), x.dtype.str, hashlib.blake2b(memoryview(xb).cast("B"), digest_size=32).digest())
+    if key in _ENC:
+        _ENC.move_to_end(key)
+        code = _ENC[key]
+        return None if code is None else C.SineCode(dict(code.ints), dict(code.streams))
+    code = _encode_sines(x, f0)
+    _ENC[key] = code
+    while len(_ENC) > _ENC_KEEP:
+        _ENC.popitem(last=False)
+    return None if code is None else C.SineCode(dict(code.ints), dict(code.streams))
+
+
+def _encode_sines(x, f0):
+    on = pc.onset_sample(x)
+    f0 = find_pitch(x, on) or f0
+    ch = _analyse(x, f0, window_for(f0), on)
+    I, sizes = _quantize(ch)
+    S = I["streams"]
     if not I["n_tracks"]:
         return None
     ints = {"H": ch.H, "f_c": round(TIER.f_cents * 1000), "a_d": round(TIER.a_db * 1000),
             "f0_c": round(TIER.f0_cents * 1000), "pbits": TIER.phase_bits, "lock": int(I["lock"]),
             "f0_frames": I["f0_frames"], "n_tracks": I["n_tracks"]}
     code = C.SineCode(ints, {k: S[k] for k in STREAM_KEYS})
-    det = render_sines(code, len(x))
-    if not worth_keeping(x, det, sum(sizes[k] for k in ("track_hdr", "track_dt", "track_df", "track_da", "f0"))):
+    det = render_sines(code, len(x))    # kept in _REN: encode.py asks for it next
+    if not worth_keeping(x, det, sum(sizes[k] for k in ("track_hdr", "track_dt", "track_df", "track_da", "f0")), on):
         return None
-    _last = (code, det)
     return code
 
 
@@ -192,10 +224,29 @@ def tracks_of(code: C.SineCode):
     return tracks
 
 
+def _render(code, n):
+    tr = tracks_of(code)
+    return pc.synth_tracks(tr, n, code.ints["H"], mode="integrate", anchors=[0] * len(tr), gate_from=0)
+
+
+# The encoder plays one code many times (every coding it tries, every decode
+# of one, each a fresh SineCode from the bytes): the samples depend only on
+# the code's content, n and the rate, so the last few are kept.
+_REN: OrderedDict = OrderedDict()
+_REN_KEEP = 6
+
+
 def render_sines(code: C.SineCode | None, n: int) -> np.ndarray:
     if code is None:
         return np.zeros(n)
-    if code is _last[0] and len(_last[1]) == n:
-        return _last[1].copy()      # the same call's samples, made once
-    tr = tracks_of(code)
-    return pc.synth_tracks(tr, n, code.ints["H"], mode="integrate", anchors=[0] * len(tr), gate_from=0)
+    key = (pc.SR, int(n), tuple(int(code.ints[k]) for k in INT_KEYS),
+           tuple(bytes(code.streams[k]) for k in STREAM_KEYS))
+    y = _REN.get(key)
+    if y is None:
+        # sines_fast.render: _render's samples, bit for bit (the same tracks into the same C synth)
+        y = _REN[key] = sfast.render(code, n, _render)
+        while len(_REN) > _REN_KEEP:
+            _REN.popitem(last=False)
+    else:
+        _REN.move_to_end(key)
+    return y.copy()

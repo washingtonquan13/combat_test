@@ -31,6 +31,7 @@ from __future__ import annotations
 import numpy as np
 
 import contract  # noqa: F401  (puts the legacy modules on the path)
+import memo
 import pinst_codec as pc
 
 SHORT_M, LONG_M = 128, 1024
@@ -161,12 +162,29 @@ def _first_nonzero(e, w=None, start=0, chunk=8192):
     return -1
 
 
+_PLAN = memo.Memo(12, 128 << 20)
+
+
 def plan(e: np.ndarray, ref: np.ndarray, heard=()):
     """heard: the channels a mid/side pair is heard as (left, right), whose
     clean hits it also takes, each on a layer of its own: one channel's hit
     a few ms after the other's (or under its steady sound) is no hit of mid
     or side's own, and a layer over both puts noise sized to the louder
-    channel in the silent one before its hit (Marimba, 11.6 dB)."""
+    channel in the silent one before its hit (Marimba, 11.6 dB).
+
+    The w are read-only: the same e, ref and heard again (another coding of
+    the note, a peak round) share them."""
+    args = (e, ref) + tuple(heard)
+    hit, out = _PLAN.get(args, len(heard))
+    if not hit:
+        out = _plan(e, ref, heard)
+        for _, w, _ in out:
+            w.setflags(write=False)
+        _PLAN.put(args, len(heard), out, sum(w.nbytes for _, w, _ in out))
+    return list(out)
+
+
+def _plan(e, ref, heard):
     n = len(e)
     nz = [_first_nonzero(e)]
     if nz[0] < 0:

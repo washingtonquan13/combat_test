@@ -60,6 +60,7 @@ import numpy as np
 
 import analysis
 import contract as C
+import memo
 import pinst_codec as pc
 import pinst_file as pf
 import quant
@@ -348,35 +349,74 @@ def _sc_grid(sc):
     return d
 
 
+_SINE_SEC = {}                      # (channel, ints, streams) -> the SINE payload
+_LAYR_SEC = memo.Memo(48, 64 << 20)  # a layer's fields and codes -> the LAYR payload
+_PACKED = []                        # (bytes, NoteCode): the last few pack() results, for packed()
+
+
+def packed(data: bytes) -> C.NoteCode | None:
+    """The NoteCode this process last packed to exactly these bytes, or None.
+    It is what unpack(data) gives back (every field the file holds, from the
+    same values), so the encoder's trial decodes need not unpack."""
+    for b, note in reversed(_PACKED):
+        if b is data or b == data:
+            return note
+    return None
+
+
+def _sine_payload(ci, sines):
+    I, S = sines.ints, sines.streams
+    k = (ci, tuple(I.items()), tuple(S.items()))
+    p = _SINE_SEC.get(k)
+    if p is None:
+        p = bytearray()
+        _put(p, ci, *(I[k] for k in analysis.INT_KEYS))
+        dt, df, da = pf._reorder(S["hdr"], S["dt"], S["df"], S["da"], I["lock"], I["n_tracks"], to_frames=True)
+        for b in (S["hdr"], dt, df, da, S["f0"]):
+            _stream(p, b)
+        p = bytes(p)
+        _SINE_SEC[k] = p
+        while len(_SINE_SEC) > 8:
+            del _SINE_SEC[next(iter(_SINE_SEC))]
+    return p
+
+
+def _layer_payload(ci, L):
+    key = (ci, L.M, L.K, L.nbands, L.snr, L.dead, L.frames, L.seed, L.start)
+    arrs = (L.sc, L.q, L.dq)
+    hit, p = _LAYR_SEC.get(arrs, key)
+    if hit:
+        return p
+    p = bytearray()
+    lb = L.sc != L.dead
+    has_dq = int(L.dq[lb].any())
+    _put(p, ci, L.M, L.K, L.nbands, round(L.snr * 100), L.dead, L.frames, L.seed, L.start, has_dq)
+    d = _sc_grid(L.sc)
+    live = quant.coded_mask(L)
+    assert np.abs(d).max(initial=0) < 1 << 31 and np.abs(L.q).max(initial=0) < 1 << 31
+    assert not L.q[~live].any(), "coefficients outside coded bands"
+    rc = _enc(2 * d.size + int(live.sum()))
+    rc.grid(SC, d, np.ones(d.shape, dtype=bool))
+    if has_dq:
+        rc.grid(SC, L.dq, lb)
+    rc.grid(Q, L.q, live)
+    p += rc.finish()
+    p = bytes(p)
+    return _LAYR_SEC.put(arrs, key, p, len(p))
+
+
 def pack(note: C.NoteCode) -> bytes:
     out = bytearray(C.MAGIC)
     _put(out, C.VERSION, note.sr, note.n, note.stereo, len(note.channels))
     for ci, ch in enumerate(note.channels):
         if ch.sines is not None:
-            I, S = ch.sines.ints, ch.sines.streams
-            p = bytearray()
-            _put(p, ci, *(I[k] for k in analysis.INT_KEYS))
-            dt, df, da = pf._reorder(S["hdr"], S["dt"], S["df"], S["da"], I["lock"], I["n_tracks"], to_frames=True)
-            for b in (S["hdr"], dt, df, da, S["f0"]):
-                _stream(p, b)
-            _section(out, b"SINE", p)
+            _section(out, b"SINE", _sine_payload(ci, ch.sines))
         for L in ch.layers:
-            p = bytearray()
-            lb = L.sc != L.dead
-            has_dq = int(L.dq[lb].any())
-            _put(p, ci, L.M, L.K, L.nbands, round(L.snr * 100), L.dead, L.frames, L.seed, L.start, has_dq)
-            d = _sc_grid(L.sc)
-            live = quant.coded_mask(L)
-            assert np.abs(d).max(initial=0) < 1 << 31 and np.abs(L.q).max(initial=0) < 1 << 31
-            assert not L.q[~live].any(), "coefficients outside coded bands"
-            rc = _enc(2 * d.size + int(live.sum()))
-            rc.grid(SC, d, np.ones(d.shape, dtype=bool))
-            if has_dq:
-                rc.grid(SC, L.dq, lb)
-            rc.grid(Q, L.q, live)
-            p += rc.finish()
-            _section(out, b"LAYR", p)
-    return bytes(out)
+            _section(out, b"LAYR", _layer_payload(ci, L))
+    data = bytes(out)
+    _PACKED.append((data, note))
+    del _PACKED[:-4]
+    return data
 
 
 def unpack(data: bytes) -> C.NoteCode:

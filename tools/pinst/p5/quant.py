@@ -47,6 +47,7 @@ import numpy as np
 from scipy.ndimage import convolve1d
 
 import contract as C
+import memo
 import pinst_codec as pc
 
 NBANDS = 18
@@ -65,10 +66,40 @@ NARROW_DB = 20.0        # ... when within this of the note's loudest band (per c
 MS_SLACK = 8.0         # dB mid + side error may stand over the quieter of left and right
 _SQ3 = np.sqrt(3.0)
 _NOISE = {}
+_HASH = {}      # seed -> pc.hash_uniform(seed, 0, n) * _SQ3 for the longest n asked: a counter hash, so any shorter run is its start
+_BSNR = memo.Memo(16, 64 << 20)
+_HEARD = memo.Memo(16, 64 << 20)
+
+
+def _hash3(seed, count):
+    """pc.hash_uniform(seed, 0, count) * sqrt 3 (read-only)."""
+    h = _HASH.get(seed)
+    if h is None or len(h) < count:
+        have = 0 if h is None else len(h)
+        tail = pc.hash_uniform(seed, have, count - have) * _SQ3
+        h = tail if h is None else np.concatenate([h, tail])
+        h.setflags(write=False)
+        _HASH[seed] = h
+        if len(_HASH) > 16:
+            del _HASH[next(iter(_HASH))]
+    return h[:count]
 
 
 def edges(K, nbands=NBANDS):
     return pc._xf_edges(K, nbands)
+
+
+_COLS = {}      # band widths -> the band of each coefficient
+
+
+def _rep(a, wid):
+    """np.repeat(a, wid, axis=1) (each band's value over its coefficients), as
+    a gather: the same array, made faster."""
+    k = (wid.dtype.str, wid.tobytes())
+    idx = _COLS.get(k)
+    if idx is None:
+        idx = _COLS[k] = np.repeat(np.arange(len(wid)), wid)
+    return a[:, idx]
 
 
 def _smooth(P, S):
@@ -110,7 +141,16 @@ def tonality(Xref, M):
 
 
 def band_snr(Xref, M, snr):
-    """(frames, bands) SNR, dB, each band-frame is coded to (before the floor)."""
+    """(frames, bands) SNR, dB, each band-frame is coded to (before the floor).
+    Read-only: the same Xref again (another coding of the note) shares it."""
+    hit, bs = _BSNR.get((Xref,), (M, snr))
+    if not hit:
+        bs = memo.frozen(_band_snr(Xref, M, snr))
+        _BSNR.put((Xref,), (M, snr), bs, bs.nbytes)
+    return bs
+
+
+def _band_snr(Xref, M, snr):
     F, K = Xref.shape
     ed = edges(K)
     bs = np.minimum(snr, snr * NOISE_FRAC - TONE_SLOPE * 10 * np.log10(tonality(Xref, M)))
@@ -147,24 +187,32 @@ def _code(X, M, seed, snr, bs, floor, hdb):
     over = np.maximum(over, np.minimum(floor - HEARD_FLOOR_DB + bs - qs * 1.5, 0))     # heard pulls the error no lower than floor
     dq = np.where(live, np.round((snr - bs + over) / 1.5), 0).astype(np.int64)
     dq = _narrow_dq(X, sc, live, wid, snr, dq, seed, floor + FLOOR_DB)
-    fill = np.repeat(snr - 1.5 * dq <= 0, wid, axis=1)
+    fill = _rep(snr - 1.5 * dq <= 0, wid)
     step = _steps(sc, live, wid, snr, dq)
-    q = np.where(np.repeat(live, wid, axis=1) & ~fill, np.round(X / step), 0).astype(np.int64)
+    q = np.where(_rep(live, wid) & ~fill, np.round(X / step), 0).astype(np.int64)
     return C.LayerCode(M, K, NBANDS, snr, dead, F, seed, sc, q, dq)
 
 
 def _decoded(X, sc, live, wid, snr, dq, r):
     """What dequantize makes of X coded at these steps (r: the hash, times sqrt 3)."""
     ed = np.concatenate([[0], np.cumsum(wid)])
-    step = _steps(sc, live, wid, snr, dq)
-    q = np.where(np.repeat(live & (snr - 1.5 * dq > 0), wid, axis=1), np.round(X / step), 0)
+    sb = _band_steps(sc, live, snr, dq)
+    step = _rep(sb, wid)
+    q = np.where(_rep(live & (snr - 1.5 * dq > 0), wid), np.round(X / step), 0)
     Xd = q * step
     rms = 10 ** (sc * 1.5 / 20) * live
     lack = np.maximum(rms**2 * wid - np.add.reduceat(Xd**2, ed[:-1], axis=1), 0)
-    nzero = np.add.reduceat((q == 0).astype(float), ed[:-1], axis=1)
-    fill = np.repeat(np.sqrt(lack / np.maximum(nzero, 1)), wid, axis=1)
-    fill = np.where(np.repeat(live, wid, axis=1), np.minimum(fill, step / np.sqrt(12)), fill)
-    return Xd + (q == 0) * fill * r
+    z = q == 0
+    nzero = np.add.reduceat(z.astype(float), ed[:-1], axis=1)
+    return Xd + z * _rep(_band_fill(lack, nzero, live, sb), wid) * r
+
+
+def _band_fill(lack, nzero, live, sb):
+    """Per band the fill level: what the zeros make up of the band's missing
+    power, no more than a step's rounding error where the band is live. Per
+    band then spread (elementwise, so the same as spreading first)."""
+    fb = np.sqrt(lack / np.maximum(nzero, 1))
+    return np.where(live, np.minimum(fb, sb / np.sqrt(12)), fb)
 
 
 def _narrow_dq(X, sc, live, wid, snr, dq, seed, top):
@@ -190,7 +238,7 @@ def _narrow_dq(X, sc, live, wid, snr, dq, seed, top):
     if not coded.any():
         return dq
     ed = np.concatenate([[0], np.cumsum(wn)])
-    r = pc.hash_uniform(seed, 0, F * K).reshape(F, K)[:, :k] * _SQ3
+    r = _hash3(seed, F * K).reshape(F, K)[:, :k]
     want = _steps(scn, lvn, wn, snr, d0)[:, ed[:-1]] ** 2 / 12 * wn * 10 ** (NARROW_SLACK / 10)
     best, bdist = d0.copy(), np.full((F, nb), np.inf)
     for c in sorted(range(-NARROW_TRY, NARROW_TRY + 1), key=lambda c: (abs(c), -c)):
@@ -219,12 +267,30 @@ def quantize(X: np.ndarray, Xref: np.ndarray, M: int, seed: int, dial: float, to
     return _code(X, M, seed, snr, bs, top - FLOOR_DB, heard)
 
 
+def _memo_heard(f, Xs):
+    Xs = list(Xs)
+    hit, h = _HEARD.get(Xs, f.__name__)
+    if not hit:
+        h = memo.frozen(f(*Xs))
+        _HEARD.put(Xs, f.__name__, h, h.nbytes)
+    return h
+
+
 def heard_db(Xs) -> np.ndarray:
-    """(frames, bands) dB per coefficient of the summed power of the channels' coefficients."""
-    return 10 * np.log10(sum(10 ** (pc.band_power_db(X, NBANDS) / 10) for X in Xs) + 1e-30)
+    """(frames, bands) dB per coefficient of the summed power of the channels'
+    coefficients. Read-only (shared with the same Xs again)."""
+    return _memo_heard(_heard_db, Xs)
 
 
 def heard_ms_db(Xm, Xs) -> np.ndarray:
+    return _memo_heard(_heard_ms_db, (Xm, Xs))
+
+
+def _heard_db(*Xs) -> np.ndarray:
+    return 10 * np.log10(sum(10 ** (pc.band_power_db(X, NBANDS) / 10) for X in Xs) + 1e-30)
+
+
+def _heard_ms_db(Xm, Xs) -> np.ndarray:
     """heard for a mid/side pair (coefficients on one grid): the level H each
     of mid and side is coded under so that their errors, which add in both
     left (M + S) and right (M - S), stay under the quieter of left and right
@@ -240,21 +306,25 @@ def heard_ms_db(Xm, Xs) -> np.ndarray:
     return 10 * np.log10(H + 1e-30)
 
 
-def _steps(sc, live, wid, snr, dq):
+def _band_steps(sc, live, snr, dq):
     rms = 10 ** (sc * 1.5 / 20) * live
-    return np.repeat(np.maximum(rms, 1e-30) * 10 ** (-(snr - 1.5 * dq) / 20) * np.sqrt(12), wid, axis=1)
+    return np.maximum(rms, 1e-30) * 10 ** (-(snr - 1.5 * dq) / 20) * np.sqrt(12)
+
+
+def _steps(sc, live, wid, snr, dq):
+    return _rep(_band_steps(sc, live, snr, dq), wid)
 
 
 def live_mask(L: C.LayerCode) -> np.ndarray:
     """(frames, K): the coefficients the file stores."""
-    return np.repeat(L.sc != L.dead, np.diff(edges(L.K, L.nbands)), axis=1)
+    return _rep(L.sc != L.dead, np.diff(edges(L.K, L.nbands)))
 
 
 def coded_mask(L: C.LayerCode) -> np.ndarray:
     """(frames, K): the coefficients with a code; live bands whose SNR reaches
     0 dB are filled from the hash and store none."""
     ok = (L.sc != L.dead) & (L.snr - 1.5 * L.dq > 0)
-    return np.repeat(ok, np.diff(edges(L.K, L.nbands)), axis=1)
+    return _rep(ok, np.diff(edges(L.K, L.nbands)))
 
 
 def dequantize(L: C.LayerCode) -> np.ndarray:
@@ -262,12 +332,10 @@ def dequantize(L: C.LayerCode) -> np.ndarray:
     wid = np.diff(ed)
     live = L.sc != L.dead
     rms = 10 ** (L.sc * 1.5 / 20) * live
-    step = _steps(L.sc, live, wid, L.snr, L.dq)
-    coded = np.repeat(live, wid, axis=1)
-    Xd = L.q * step
+    sb = _band_steps(L.sc, live, L.snr, L.dq)
+    Xd = L.q * _rep(sb, wid)
     lack = np.maximum(rms**2 * wid - np.add.reduceat(Xd**2, ed[:-1], axis=1), 0)
-    nzero = np.add.reduceat((L.q == 0).astype(float), ed[:-1], axis=1)
-    fill = np.repeat(np.sqrt(lack / np.maximum(nzero, 1)), wid, axis=1)
-    fill = np.where(coded, np.minimum(fill, step / np.sqrt(12)), fill)
-    r = pc.hash_uniform(L.seed, 0, L.frames * L.K).reshape(L.frames, L.K) * _SQ3
-    return Xd + (L.q == 0) * fill * r
+    z = L.q == 0
+    nzero = np.add.reduceat(z.astype(float), ed[:-1], axis=1)
+    r = _hash3(L.seed, L.frames * L.K).reshape(L.frames, L.K)
+    return Xd + z * _rep(_band_fill(lack, nzero, live, sb), wid) * r
