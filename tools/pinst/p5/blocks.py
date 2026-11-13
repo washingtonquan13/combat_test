@@ -123,10 +123,21 @@ def shared_onsets(own, ref_ons):
     return sorted(out.items())
 
 
+def _first_nonzero(e, w=None, start=0, chunk=8192):
+    """Index of the first nonzero of e (or of e * w) at or after `start`, or -1
+    (scans in chunks: stops at the first without a pass over the rest)."""
+    for lo in range(start, len(e), chunk):
+        seg = e[lo : lo + chunk] if w is None else e[lo : lo + chunk] * w[lo : lo + chunk]
+        nz = np.flatnonzero(seg)
+        if len(nz):
+            return lo + int(nz[0])
+    return -1
+
+
 def plan(e: np.ndarray, ref: np.ndarray):
     n = len(e)
-    nz = np.flatnonzero(e)
-    if not len(nz):
+    nz = [_first_nonzero(e)]
+    if nz[0] < 0:
         return []
     top = pc.block_db(ref, BLOCK).max() if len(ref) >= BLOCK else 0.0
     hits = shared_onsets(onsets(e, top), onsets(ref, top))
@@ -156,7 +167,7 @@ def plan(e: np.ndarray, ref: np.ndarray):
         pieces.append((SHORT_M, w, a))
     out = []
     for M, w, a in pieces:
-        live = np.flatnonzero(w[a:] * e[a:])
-        if len(live):            # skip whole frames of nothing, staying on the grid from `a`
-            out.append((M, w, a + int(live[0]) // M * M))
+        live = _first_nonzero(e, w, a)
+        if live >= 0:            # skip whole frames of nothing, staying on the grid from `a`
+            out.append((M, w, a + (live - a) // M * M))
     return out
