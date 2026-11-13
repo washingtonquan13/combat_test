@@ -12,6 +12,11 @@
 
 #include "fft.h"
 
+#if defined(_M_X64) || defined(__SSE2__) || (defined(_M_IX86_FP) && _M_IX86_FP >= 2)
+#include <emmintrin.h>
+#define SA_SSE2 1   /* plain IEEE double ops two at a time: the same bits as scalar */
+#endif
+
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
@@ -329,12 +334,18 @@ static int peaks_frames(const double *x, int64_t n, int64_t sr, int64_t N, int64
     out->cuts = (int64_t *)malloc(sizeof(int64_t) * (F + 1));
     double *w = (double *)malloc(sizeof(double) * N), *buf = (double *)calloc(Z, sizeof(double));
     double *scr = (double *)malloc(sizeof(double) * Z), *X = (double *)malloc(sizeof(double) * (Z + 2));
-    double *db = (double *)malloc(sizeof(double) * L), *pw = (double *)malloc(sizeof(double) * L);
-    int64_t *seen = (int64_t *)calloc(L, sizeof(int64_t));
+    /* q = |X|^2 and ua (the floor estimate's u) live at [0, L) of padded rows
+     * whose pads [-s1-1, 0) and [L, L+s2] hold the reflected bins */
+    const int64_t off = s1 + 1, padn = L + S + 2;
+    double *db = (double *)malloc(sizeof(double) * L), *qrow = (double *)malloc(sizeof(double) * padn);
+    double *uarow = (double *)malloc(sizeof(double) * padn);
+    int64_t *seen = (int64_t *)calloc(L, sizeof(int64_t)), *hit = (int64_t *)malloc(sizeof(int64_t) * (L + 2));
     double *cf = (double *)malloc(sizeof(double) * L), *cph = (double *)malloc(sizeof(double) * L);
     VI *ca = (VI *)malloc(sizeof(VI) * L);
     p5fft_plan *plan = p5fft_plan_new((int)Z);
-    if (!out->cuts || !w || !buf || !scr || !X || !db || !pw || !seen || !cf || !cph || !ca || !plan) goto done;
+    if (!out->cuts || !w || !buf || !scr || !X || !db || !qrow || !uarow || !seen || !hit || !cf || !cph || !ca || !plan)
+        goto done;
+    double *const q = qrow + off, *const ua = uarow + off;
     if (!grow(out, &cap, 64)) goto done;
     {   /* get_window("blackmanharris", N, fftbins=True) */
         const double c0 = 0.35875, c1 = 0.48829, c2 = 0.14128, c3 = 0.01168;
@@ -357,6 +368,11 @@ static int peaks_frames(const double *x, int64_t n, int64_t sr, int64_t N, int64
      * under 10^(-110/20), with a margin far above the rounding, skips it
      * exactly (silent heads and tails cost no FFT). */
     const double quiet = pow(10.0, abs_db / 20.0) * (1.0 - 1e-6), bscale = 2.0 / wsum * (1.0 + 1e-6);
+    /* the floor estimate's constants (see the candidate loop) */
+    const double margin = 1e-6;                                  /* dB */
+    const double tlo = ldexp(1.0, -200), tup = ldexp(1.0, 200), lg200 = 200.0 * log10(2.0);
+    const double Kp = pow(10.0, dS * prom_db / 20.0);
+    const double Rhi = pow(10.0, dS * margin / 20.0), Rlo = pow(10.0, -dS * margin / 20.0);
     for (int64_t i = 0; i < F; i++) {
         out->cuts[i] = tot;
         if (i < first) continue;
@@ -364,6 +380,36 @@ static int peaks_frames(const double *x, int64_t n, int64_t sr, int64_t N, int64
         double sabs = 0.0;
         if (s >= 0 && s + N <= n) {
             const double *xs = x + s;
+#ifdef SA_SSE2
+            /* sabs only feeds the quiet test, whose margin (1e-6) is far over
+             * any summation order's rounding (N * 2^-53): any order skips the
+             * same peakless frames, so it is summed four ways at once */
+            const __m128d sm = _mm_castsi128_pd(_mm_set1_epi64x(0x7fffffffffffffffLL));
+            __m128d s0 = _mm_setzero_pd(), s1v = _mm_setzero_pd();
+            for (int64_t j = 0; j < half; j += 4) {      /* half = N/2 >= 2, a power of 2 */
+                if (j + 4 > half) {
+                    __m128d v = _mm_mul_pd(_mm_loadu_pd(xs + half + j), _mm_loadu_pd(w + half + j));
+                    _mm_storeu_pd(buf + j, v);
+                    s0 = _mm_add_pd(s0, _mm_and_pd(v, sm));
+                    __m128d q = _mm_mul_pd(_mm_loadu_pd(xs + j), _mm_loadu_pd(w + j));
+                    _mm_storeu_pd(buf + Z - half + j, q);
+                    s1v = _mm_add_pd(s1v, _mm_and_pd(q, sm));
+                    break;
+                }
+                __m128d v0 = _mm_mul_pd(_mm_loadu_pd(xs + half + j), _mm_loadu_pd(w + half + j));
+                __m128d v1 = _mm_mul_pd(_mm_loadu_pd(xs + half + j + 2), _mm_loadu_pd(w + half + j + 2));
+                __m128d q0 = _mm_mul_pd(_mm_loadu_pd(xs + j), _mm_loadu_pd(w + j));
+                __m128d q1 = _mm_mul_pd(_mm_loadu_pd(xs + j + 2), _mm_loadu_pd(w + j + 2));
+                _mm_storeu_pd(buf + j, v0);
+                _mm_storeu_pd(buf + j + 2, v1);
+                _mm_storeu_pd(buf + Z - half + j, q0);
+                _mm_storeu_pd(buf + Z - half + j + 2, q1);
+                s0 = _mm_add_pd(s0, _mm_add_pd(_mm_and_pd(v0, sm), _mm_and_pd(v1, sm)));
+                s1v = _mm_add_pd(s1v, _mm_add_pd(_mm_and_pd(q0, sm), _mm_and_pd(q1, sm)));
+            }
+            s0 = _mm_add_pd(s0, s1v);
+            sabs = _mm_cvtsd_f64(s0) + _mm_cvtsd_f64(_mm_unpackhi_pd(s0, s0));
+#else
             for (int64_t j = 0; j < half; j++) {
                 double v = xs[half + j] * w[half + j];
                 buf[j] = v;
@@ -374,6 +420,7 @@ static int peaks_frames(const double *x, int64_t n, int64_t sr, int64_t N, int64
                 buf[Z - half + j] = v;
                 sabs += fabs(v);
             }
+#endif
         } else {
             for (int64_t j = 0; j < half; j++) {
                 int64_t t = s + half + j;
@@ -390,52 +437,182 @@ static int peaks_frames(const double *x, int64_t n, int64_t sr, int64_t N, int64
         }
         if (sabs * bscale + 1e-12 < quiet) continue;
         p5fft_rfft(plan, buf, X, scr);
-        /* db is only worked out (log10) where a peak can depend on it: a
-         * bin over thr, its neighbours and its floor window. Python's db.max
-         * is the db of the largest |X|^2 (every step to db is monotone). */
-        int64_t am = 0;
-        double pm = -1.0;
-        for (int64_t k = 0; k < L; k++) {
-            double re = X[2 * k], im = X[2 * k + 1], q = re * re + im * im;
-            pw[k] = q;
-            if (q > pm) { pm = q; am = k; }
+        /* q[k] = |X_k|^2 (re*re + im*im, as Python's). db[k] is
+         * 20 log10(u_k), u_k = sqrt(q_k) * 2 / wsum + 1e-12; every step is
+         * monotone, so Python's db.max is the db of the largest q (and a tie
+         * in q is a tie in db). */
+        double qmax;
+        {
+            int64_t k = 0;
+#ifdef SA_SSE2
+            __m128d vmax = _mm_setzero_pd();
+            for (; k + 2 <= L; k += 2) {
+                __m128d p0 = _mm_loadu_pd(X + 2 * k), p1 = _mm_loadu_pd(X + 2 * k + 2);
+                __m128d re = _mm_unpacklo_pd(p0, p1), im = _mm_unpackhi_pd(p0, p1);
+                __m128d v = _mm_add_pd(_mm_mul_pd(re, re), _mm_mul_pd(im, im));
+                _mm_storeu_pd(q + k, v);
+                vmax = _mm_max_pd(vmax, v);
+            }
+            vmax = _mm_max_pd(vmax, _mm_unpackhi_pd(vmax, vmax));
+            qmax = _mm_cvtsd_f64(vmax);
+#else
+            qmax = 0.0;
+#endif
+            for (; k < L; k++) {
+                double re = X[2 * k], im = X[2 * k + 1], v = re * re + im * im;
+                q[k] = v;
+                if (v > qmax) qmax = v;
+            }
         }
+        for (int64_t j = -s1 - 1; j < 0; j++) q[j] = q[-1 - j];            /* the reflect pads */
+        for (int64_t j = L; j <= L + s2; j++) q[j] = q[2 * L - 1 - j];
         const int64_t stamp = i + 1;
-#define SA_DB(j) (seen[j] == stamp ? db[j] : (seen[j] = stamp, db[j] = 20.0 * log10(sqrt(pw[j]) * 2.0 / wsum + 1e-12)))
-        double mx = SA_DB(am);
+#define SA_DB(j) (seen[j] == stamp ? db[j] : (seen[j] = stamp, db[j] = 20.0 * log10(sqrt(q[j]) * 2.0 / wsum + 1e-12)))
+        double mx = 20.0 * log10(sqrt(qmax) * 2.0 / wsum + 1e-12);
         double thr = mx + rel_db;
         if (thr < abs_db) thr = abs_db;
-        /* db > thr needs |X|^2 over this (with a margin far over rounding) */
-        double mlo = (pow(10.0, thr / 20.0) - 1e-12) * wsum / 2.0, plo = mlo * mlo * (1.0 - 1e-6);
-        /* uniform_filter1d(db, S), mode reflect: a running sum over the
-         * reflected row, slid from one candidate to the next */
-        int64_t wk = -1;          /* the window sum t is for bin wk */
-        double t = 0.0;
+        /* Every test on db is first made on q, with log10 only where q cannot
+         * settle it. ut = 10^(thr/20) >= 10^-5.5, so a bin over plo has
+         * sqrt(q) * 2 / wsum >= 3e-6, a million times the 1e-12 added; log10
+         * errs by a few 1e-15 there, and 20 * (.) rounds monotonically. Then
+         *   q_k <= plo                         => db_k < thr  (Python's own prefilter)
+         *   q_k >= phi                         => db_k > thr  (u_k >= ut (1 + 1e-9))
+         *   q_k < q_j (1 - 1e-9), q_k > plo    => db_k < db_j (u ratio < 1 - 4.9e-10)
+         *   q_k > q_j (1 + 1e-9), q_k > plo    => db_k > db_j
+         *   q_k == q_j                         => db_k == db_j
+         * each u gap 4e-9 dB or more, a million times the rounding; between,
+         * db itself decides. */
+        const double ut = pow(10.0, thr / 20.0);
+        double mlo = (ut - 1e-12) * wsum / 2.0, plo = mlo * mlo * (1.0 - 1e-6);
+        double mhi = (ut * (1.0 + 1e-9) - 1e-12) * wsum / 2.0, phi = mhi * mhi * (1.0 + 1e-6);
+        const double elo = 1.0 - 1e-9, ehi = 1.0 + 1e-9;
+        /* bins not ruled out on q: over plo, not equal to the left neighbour,
+         * nor surely under either neighbour */
+        int64_t nh = 0;
+        {
+            int64_t k = 2;
+#ifdef SA_SSE2
+            const __m128d vlo = _mm_set1_pd(plo), ve = _mm_set1_pd(elo);
+            for (; k + 2 <= kend; k += 2) {
+                __m128d cq = _mm_loadu_pd(q + k), lq = _mm_loadu_pd(q + k - 1), rq = _mm_loadu_pd(q + k + 1);
+                __m128d m = _mm_and_pd(_mm_and_pd(_mm_cmpgt_pd(cq, vlo), _mm_cmpneq_pd(cq, lq)),
+                                       _mm_and_pd(_mm_cmpge_pd(cq, _mm_mul_pd(lq, ve)), _mm_cmpge_pd(cq, _mm_mul_pd(rq, ve))));
+                int bits = _mm_movemask_pd(m);
+                hit[nh] = k;
+                nh += bits & 1;
+                hit[nh] = k + 1;
+                nh += bits >> 1;
+            }
+#endif
+            for (; k < kend; k++) {
+                double cq = q[k], lq = q[k - 1], rq = q[k + 1];
+                if (cq > plo && cq != lq && cq >= lq * elo && cq >= rq * elo) hit[nh++] = k;
+            }
+        }
+        /* uniform_filter1d(db, S), mode reflect: Python's floor at a
+         * candidate is a running sum t, reset at a candidate wk >= S past the
+         * last one and slid bin by bin from it otherwise. Its value at k is a
+         * function of k and of the reset bin r0 alone: reset sum at r0, then
+         * t += db_in - db_out for m = r0+1..k. That sum is worked out (db, in
+         * that order: the same bits) only for a candidate the estimate below
+         * cannot settle.
+         * The estimate: db_k > t/S + prom is, up to roundings, ua_k^S / prod
+         * (ua over the window) > K = 10^(S prom / 20), with ua = sqrt(q) * c2
+         * + 1e-12 (u to 3 ulps; no log10, no divide). The product is kept as
+         * Pin / Pout (bins in, bins out), each as P * 2^(200 E). The exact
+         * t / S and the estimate agree to 1e-9 dB (sum roundings over <= 2 L
+         * slides; the products' roundings are 1e-12 dB), 1000 times under
+         * the margin of 1e-6 dB. */
+        const double c2 = 2.0 / wsum;
+        int64_t wk = -1, r0 = -1;  /* last candidate and the reset bin of its run */
+        double Pin = 1.0, Pout = 1.0;
+        int64_t Ein = 0, Eout = 0;
+        int64_t xr0 = -1, xk = -1; /* exact t is xt at bin xk of the run reset at xr0 */
+        double xt = 0.0;
         int64_t c = 0;
-        for (int64_t k = 2; k < kend; k++) {
-            if (!(pw[k] > plo)) continue;
-            double b = SA_DB(k);
-            if (!(b > thr)) continue;
-            double a = SA_DB(k - 1), cc = SA_DB(k + 1);
-            if (!(b > a && b >= cc)) continue;
+#define SA_RENORM(P, E) do { if ((P) < tlo) { (P) *= tup; (E)--; } else if ((P) > tup) { (P) *= tlo; (E)++; } } while (0)
+        for (int64_t h = 0; h < nh; h++) {
+            int64_t k = hit[h];
+            double qk = q[k];
+            if (!(qk >= phi) && !(SA_DB(k) > thr)) continue;
+            if (!(qk > q[k - 1] * ehi) && !(SA_DB(k) > SA_DB(k - 1))) continue;
+            if (!(qk >= q[k + 1] * ehi || qk == q[k + 1]) && !(SA_DB(k) >= SA_DB(k + 1))) continue;
+            /* a candidate: python's db > thr, db[k] > db[k-1], db[k] >= db[k+1] */
             if (wk < 0 || k - wk >= S) {
-                t = 0.0;
-                for (int64_t j = k - s1; j <= k + s2; j++) {
-                    int64_t r = j < 0 ? -1 - j : j >= L ? 2 * L - 1 - j : j;
-                    t += SA_DB(r);
+                r0 = k;
+                Pin = Pout = 1.0;
+                Ein = Eout = 0;
+                for (int64_t j = k - s1; j <= k + s2; j++) {      /* pads: no index reflects */
+                    double v = sqrt(q[j]) * c2 + 1e-12;
+                    ua[j] = v;
+                    Pin *= v;
+                    SA_RENORM(Pin, Ein);
                 }
             } else {
                 for (int64_t m = wk + 1; m <= k; m++) {
+                    double v = sqrt(q[m + s2]) * c2 + 1e-12;
+                    ua[m + s2] = v;
+                    Pin *= v;
+                    SA_RENORM(Pin, Ein);
+                    Pout *= ua[m - 1 - s1];                       /* set when it came in */
+                    SA_RENORM(Pout, Eout);
+                }
+            }
+            wk = k;
+            int pass;               /* 1 surely, 0 surely not, -1 too close to call */
+            if (S <= 256) {
+                /* ua_k = mk 2^ek, mk in [1, 2): mk^S <= 2^256 */
+                double uk = ua[k], mk, ms = 1.0;
+                uint64_t ub;
+                memcpy(&ub, &uk, 8);
+                int64_t ek = (int64_t)((ub >> 52) & 0x7ff) - 1023;
+                ub = (ub & 0x000fffffffffffffULL) | 0x3ff0000000000000ULL;
+                memcpy(&mk, &ub, 8);
+                for (int64_t z = S; z; z >>= 1) {
+                    if (z & 1) ms *= mk;
+                    mk *= mk;
+                }
+                double R = ms * Pout / (Pin * Kp);                /* in 2^[-783, 656] */
+                int64_t D = ek * S - 200 * (Ein - Eout);
+                if (D > 900) pass = 1;
+                else if (D < -900) pass = 0;
+                else {
+                    uint64_t tb = (uint64_t)(D + 1023) << 52;
+                    double t2;
+                    memcpy(&t2, &tb, 8);
+                    R *= t2;
+                    pass = R > Rhi ? 1 : R < Rlo ? 0 : -1;
+                }
+            } else {
+                double est = 20.0 * (log10(Pin) - log10(Pout) + (double)(Ein - Eout) * lg200) / dS + prom_db;
+                double bk = SA_DB(k);
+                pass = bk > est + margin ? 1 : bk <= est - margin ? 0 : -1;
+            }
+            if (!pass) continue;
+            double b = SA_DB(k);
+            if (pass < 0) {
+                if (xr0 != r0) {
+                    xt = 0.0;
+                    for (int64_t j = r0 - s1; j <= r0 + s2; j++) {
+                        int64_t r = j < 0 ? -1 - j : j >= L ? 2 * L - 1 - j : j;
+                        xt += SA_DB(r);
+                    }
+                    xr0 = r0;
+                    xk = r0;
+                }
+                for (int64_t m = xk + 1; m <= k; m++) {
                     int64_t jo = m - 1 - s1, ji = m + s2;
                     int64_t ro = jo < 0 ? -1 - jo : jo >= L ? 2 * L - 1 - jo : jo;
                     int64_t ri = ji < 0 ? -1 - ji : ji >= L ? 2 * L - 1 - ji : ji;
                     double vi = SA_DB(ri), vo = SA_DB(ro);
-                    t += vi - vo;
+                    xt += vi - vo;
                 }
+                xk = k;
+                if (!(b > xt / dS + prom_db)) continue;
             }
-            wk = k;
-            if (!(b > t / dS + prom_db)) continue;
+            double a = SA_DB(k - 1), cc = SA_DB(k + 1);
 #undef SA_DB
+#undef SA_RENORM
             double den = a - 2 * b + cc;
             double p = fabs(den) > 1e-9 ? 0.5 * (a - cc) / den : 0.0;
             int64_t nb = p >= 0 ? k + 1 : k - 1;
@@ -469,7 +646,8 @@ static int peaks_frames(const double *x, int64_t n, int64_t sr, int64_t N, int64
     out->cuts[F] = tot;
     rc = 0;
 done:
-    free(w); free(buf); free(scr); free(X); free(db); free(pw); free(seen); free(cf); free(cph); free(ca);
+    free(w); free(buf); free(scr); free(X); free(db); free(qrow); free(uarow); free(seen); free(hit); free(cf); free(cph);
+    free(ca);
     p5fft_plan_free(plan);
     if (rc) p5_sa_peaks_free(out);
     return rc;
