@@ -21,7 +21,7 @@ import transform
 def channel(ch: C.ChannelCode, n: int) -> np.ndarray:
     y = analysis.render_sines(ch.sines, n)
     for L in ch.layers:
-        y = y + transform.inverse(quant.dequantize(L), n, L.M)
+        y = y + transform.inverse(quant.dequantize(L), n, L.M, L.start)
     return y
 
 

@@ -137,7 +137,7 @@ def run_one(args):
     else:
         x, sr = sf.read(SRC + rel, always_2d=True)
     note = inventory.note_of(rel) if rel != "(silent)" else None
-    f0 = None if ("drums" in rel or not note) else inventory.note_hz(note)
+    f0 = None   # wave 1 (A): the name is hidden; analysis finds the pitch from the sound
     t0 = time.perf_counter()
     data = encode.encode_note(x, sr, f0, dial)
     t1 = time.perf_counter()

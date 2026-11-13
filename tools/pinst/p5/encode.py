@@ -30,25 +30,38 @@ def channels_of(x):
     return [m, s if side_db >= SIDE_DB else np.zeros_like(s)], 1
 
 
-def encode_channel(x, ref, f0, seed, dial):
+def encode_channel(x, ref, f0, seed, dial, sigs):
+    """sigs: every channel (mid first); their summed level sets each step."""
     ch = C.ChannelCode()
     if not np.any(x):
         return ch
     ch.sines = analysis.encode_sines(x, f0)
     e = x - analysis.render_sines(ch.sines, len(x))
-    for M, w in blocks.plan(e, ref):
-        L = quant.quantize(transform.forward(e * w, M), transform.forward(ref, M), M,
-                           seed + 1 + len(ch.layers), dial)
+    tops = {}
+    for M, w, s in blocks.plan(e, ref):
+        if M not in tops:
+            tops[M] = quant.top_db(transform.forward(ref, M))
+        X = transform.forward(e * w, M, s)
+        Xs = [_fit(transform.forward(g, M, s), len(X)) for g in sigs]    # every channel on X's grid
+        L = quant.quantize(X, Xs[0], M, seed + 1 + len(ch.layers), dial, tops[M], quant.heard_db(Xs))
         if L is not None:
+            L.start = s
             ch.layers.append(L)
     return ch
+
+
+def _fit(X, F):
+    """X cut or zero-padded to F frames."""
+    if len(X) >= F:
+        return X[:F]
+    return np.concatenate([X, np.zeros((F - len(X), X.shape[1]))])
 
 
 def encode_note(x: np.ndarray, sr: int, f0: float | None, dial: float = C.DIAL) -> bytes:
     """x: (n, 1 or 2) float. f0: a pitch hint in Hz, or None."""
     C.set_rate(sr)
     sigs, stereo = channels_of(x)
-    chans = [encode_channel(s, sigs[0], f0, 7 + 100 * i, dial) for i, s in enumerate(sigs)]
+    chans = [encode_channel(s, sigs[0], f0, 7 + 100 * i, dial, sigs) for i, s in enumerate(sigs)]
     return pack.pack(C.NoteCode(int(sr), len(x), stereo, chans))
 
 
