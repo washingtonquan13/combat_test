@@ -55,6 +55,7 @@ TONE_SLOPE = 3.0        # dB of SNR back per dB a band's flatness sits under noi
 MIN_WID = 8             # bands narrower than this count as tonal
 GATE = 1.0              # a band dial * this under its frame's loudest keeps the dial
 FLOOR_DB = 80.0         # no band this far under the note's loudest (per coefficient): unheard at any dial
+HEARD_FLOOR_DB = 0.0    # _code: heard pulls the error no lower than this under FLOOR_DB's level
 SPAN = 2048             # samples each side the band power is smoothed over before flatness
 HEARD = 1024            # samples a band's level is averaged over for the frame gate
 NARROW_WID = 2          # bands this narrow get the step whose actual error meets the dial
@@ -127,7 +128,12 @@ def top_db(Xnote):
 def _code(X, M, seed, snr, bs, floor, hdb):
     """One layer from coefficients X, each band-frame's error put bs dB (SNR)
     under the quieter of X's own level and hdb, the level heard there (source
-    band power per coefficient, dB)."""
+    band power per coefficient, dB). hdb pulls the error no lower than floor
+    (the note's unheard level): where the heard level falls away (one channel
+    silent in a band, a band the source has nothing in that the remainder
+    does, heard_ms_db's room where left or right is silent), the step would
+    otherwise follow it to nothing (steps 10^-14 of the band's level, codes
+    past pack's 31 bits)."""
     F, K = X.shape
     wid = np.diff(edges(K))
     sdb = pc.band_power_db(X, NBANDS)
@@ -138,6 +144,7 @@ def _code(X, M, seed, snr, bs, floor, hdb):
     dead = int(qs[live].min() - 1)
     sc = np.where(live, qs, dead)
     over = np.minimum(hdb - qs * 1.5, 0)            # where X is louder than what is heard
+    over = np.maximum(over, np.minimum(floor - HEARD_FLOOR_DB + bs - qs * 1.5, 0))     # heard pulls the error no lower than floor
     dq = np.where(live, np.round((snr - bs + over) / 1.5), 0).astype(np.int64)
     dq = _narrow_dq(X, sc, live, wid, snr, dq, seed, floor + FLOOR_DB)
     fill = np.repeat(snr - 1.5 * dq <= 0, wid, axis=1)
@@ -199,12 +206,17 @@ def _narrow_dq(X, sc, live, wid, snr, dq, seed, top):
 
 
 def quantize(X: np.ndarray, Xref: np.ndarray, M: int, seed: int, dial: float, top: float,
-             heard: np.ndarray) -> C.LayerCode | None:
+             heard: np.ndarray, tight: np.ndarray | None = None) -> C.LayerCode | None:
     """Xref: the mid on X's own grid (same frames). top: top_db of the whole mid.
     heard: (frames, bands) the level, dB per coefficient on X's grid, each
-    step is set under (heard_db, or heard_ms_db for a mid/side pair)."""
+    step is set under (heard_db, or heard_ms_db for a mid/side pair).
+    tight: (frames,) or None, the least SNR (dB) each frame's bands are coded
+    to (encode.py's peak rounds; 0 leaves the frame as band_snr has it)."""
     snr = round(dial * 100) / 100
-    return _code(X, M, seed, snr, band_snr(Xref, M, snr), top - FLOOR_DB, heard)
+    bs = band_snr(Xref, M, snr)
+    if tight is not None:
+        bs = np.maximum(bs, tight[:, None])
+    return _code(X, M, seed, snr, bs, top - FLOOR_DB, heard)
 
 
 def heard_db(Xs) -> np.ndarray:

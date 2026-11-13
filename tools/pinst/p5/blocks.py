@@ -5,7 +5,8 @@ transform.forward(e * w, M, start). The w sum to 1 wherever e is not zero,
 and each w is zero before its start.
 
 A hit is a 128-sample block whose level jumps 12 dB over the 8 before it
-(PINST3's test); a run of such blocks is one hit, found to the sample.
+(PINST3's test) or CLEAN_DB over the 2 just before (a dip, then a re-hit); a run of
+such blocks is one hit, found to the sample.
 
 Short blocks (128) cover each hit from 256 samples before to 2048 after,
 with 1024-sample raised-cosine ramps, long blocks (1024) the rest, as in
@@ -34,6 +35,7 @@ import pinst_codec as pc
 
 SHORT_M, LONG_M = 128, 1024
 TRANSIENT_DB = 12.0
+TRANSIENT_GAP = 2           # blocks: a dip this long that a block jumps CLEAN_DB over is a hit (transients)
 TRANSIENT_PRE, TRANSIENT_POST, TRANSIENT_RAMP = 256, 2048, 1024
 BLOCK = 128
 AUDIBLE_DB = -60.0
@@ -41,48 +43,66 @@ CLEAN_DB = contract.DIAL    # a hit this far over what is before it gets a grid 
 ONSET_OVER_PRE_DB = 12.0    # the onset sample is the first louder than this over the level before the hit
 ONSET_UNDER_HIT_DB = 24.0   # ... and no quieter than this under the hit block's level
 ONSET_W = 16
-ONSET_CUT = 32              # the cut moves on to a zero crossing at most this far after the onset
 ONSET_SHARE = 2 * BLOCK     # a channel's onset this close after one of the mid's is that hit
+HEARD_SHARE = ONSET_W       # ... and a left or right channel's (plan's heard): its own hit, a few ms on, is not the other's
 
 
-def transients(e, top_db):
-    """(start sample, jump dB) of each 128-block that jumps TRANSIENT_DB over
-    the mean of the 8 before."""
+def transients(e, top_db, gaps=True):
+    """(start sample, jump dB, by the gap) of each 128-block that jumps
+    TRANSIENT_DB over the mean of the 8 blocks before, or (if gaps) CLEAN_DB
+    over the mean of the TRANSIENT_GAP just before or one block earlier (then
+    "by the gap", and that is its jump). The 8 alone (23 ms) hear a sound
+    that dips for a few ms and hits again as no jump, the loud part before the
+    dip standing in for it, and the long blocks over the re-hit put its noise,
+    about the dial under it, in the dip (Timpani, 13.7 dB of pre-echo). A dip
+    shallower than CLEAN_DB hides that noise; heard as hits, such dips (a
+    horn's tremolo, a drum roll) put whole notes in short blocks (bytes -27 to
+    +45 %, b10 down 2-5 dB). gaps is for the signal coded (plan's e), not the
+    note it is heard against: the coding noise sits under e's own hit, and a
+    low pulse-like tone's source dips between its pulses every period (Horn,
+    gap hits every 1-2 periods, b10 -3.6 dB) where the sines leave e no dip."""
     m = len(e) // BLOCK
     p = (e[: m * BLOCK].reshape(m, BLOCK) ** 2).mean(1)
     pp = np.concatenate([np.zeros(8), p])
-    prev = np.convolve(pp, np.ones(8) / 8, mode="valid")[:m]
+    G = TRANSIENT_GAP
     db = 10 * np.log10(p + 1e-30)
-    jump = db - 10 * np.log10(prev + 1e-30)
+    j8 = db - 10 * np.log10(np.convolve(pp, np.ones(8) / 8, mode="valid")[:m] + 1e-30)
+    g = np.convolve(pp, np.ones(G) / G, mode="valid")
+    g = np.minimum(g[8 - G : 8 - G + m], g[7 - G : 7 - G + m])     # the gap just before, or one block earlier (onsets' lo)
+    jg = db - 10 * np.log10(g + 1e-30)
+    gap = (jg >= CLEAN_DB) & (jg > j8) & gaps & (np.arange(m) > G)     # a gap is in e, not before it
+    jump = np.where(gap, jg, j8)
     hit = np.flatnonzero((jump > TRANSIENT_DB) & (db > top_db + AUDIBLE_DB))
-    return hit * BLOCK, jump[hit]
+    return hit * BLOCK, jump[hit], gap[hit]
 
 
-def cut_at_crossing(e, s):
-    """The first sample at or after s, at most ONSET_CUT on, where e crosses
-    zero (the side nearer zero), else s. Cut there, the layer that ends and
-    the one that starts both meet the cut near zero, not with a step the
-    MDCT spreads over every band; the few samples before it are still far
-    under the hit, so the layer they stay in makes no pre-echo of it."""
-    seg = e[s : min(len(e), s + ONSET_CUT + 1)]
-    c = np.flatnonzero((np.signbit(seg[1:]) != np.signbit(seg[:-1])) | (seg[1:] == 0))
-    if not len(c):
-        return s
-    k = s + int(c[0]) + 1
-    return k if abs(e[k]) <= abs(e[k - 1]) else k - 1
-
-
-def onsets(e, top_db):
-    """[(onset sample, jump dB)], one per run of hit blocks. The run's hit is
+def onsets(e, top_db, gaps=True):
+    """[(onset sample, jump dB)], one per run of hit blocks. A block that
+    stands TRANSIENT_DB over the block just before it starts a run of its
+    own: the first block with anything in it jumps without limit over the
+    silence before it, so a quiet lead-in whose next block holds the hit
+    would otherwise take the run, and the hit would get no onset (pre-echo
+    of 10-28 dB in the few ms before it). The run's hit is
     its block with the biggest jump; its onset is the first sample, from one
-    block before that, whose power stands ONSET_OVER_PRE_DB over the mean
-    power of the 8 blocks before and within ONSET_UNDER_HIT_DB of the hit
-    block's, in a run of ONSET_W samples whose mean does too (so one stray
-    sample is not it), moved on to the next zero crossing."""
+    block before that, whose power stands ONSET_OVER_PRE_DB over the power
+    before (as transients() measures it) and within ONSET_UNDER_HIT_DB of the hit's
+    level (the louder of the hit block and the next: the block with the
+    biggest jump is often the one the hit starts in, half lead-in, and under
+    its mean a sample 30 dB under the hit passed as the onset), in a run of
+    ONSET_W samples whose mean does too (so one stray sample is not it).
+    The cut is that sample, not a zero crossing near it: moved on, the cut
+    lands inside the attack and the layer that ends there spreads those
+    samples over the quiet before the hit (Triangle3, 10.7 dB); moved back,
+    the new layer's noise, about the dial under the hit, fills the quiet
+    samples between (ht_qo, 10.8 dB)."""
     if len(e) < BLOCK:
         return []
-    ts, jumps = transients(e, top_db)
-    runs = np.split(np.arange(len(ts)), np.flatnonzero(np.diff(ts) > BLOCK) + 1) if len(ts) else []
+    ts, jumps, gaps = transients(e, top_db, gaps)
+    m = len(e) // BLOCK
+    bdb = 10 * np.log10((e[: m * BLOCK].reshape(m, BLOCK) ** 2).mean(1) + 1e-30)
+    b = ts[1:] // BLOCK
+    cut = (np.diff(ts) > BLOCK) | (bdb[b] - bdb[b - 1] > TRANSIENT_DB)
+    runs = np.split(np.arange(len(ts)), np.flatnonzero(cut) + 1) if len(ts) else []
     e2 = e**2
     cs = np.concatenate([[0.0], np.cumsum(e2)])
     out = []
@@ -90,22 +110,29 @@ def onsets(e, top_db):
         i = r[np.argmax(jumps[r])]
         t = int(ts[i])
         lo = max(0, t - BLOCK)
-        a = max(0, lo - 8 * BLOCK)
-        thr = (cs[lo] - cs[a]) / max(lo - a, 1) * 10 ** (ONSET_OVER_PRE_DB / 10)
-        thr = max(thr, (cs[t + BLOCK] - cs[t]) / BLOCK * 10 ** (-ONSET_UNDER_HIT_DB / 10))
+        a = max(0, lo - (TRANSIENT_GAP if gaps[i] else 8) * BLOCK)      # as transients() found it
+        pre = (cs[lo] - cs[a]) / max(lo - a, 1)
+        if gaps[i]:
+            pre = min(pre, (cs[t] - cs[a + BLOCK]) / max(t - a - BLOCK, 1))
+        thr = pre * 10 ** (ONSET_OVER_PRE_DB / 10)
+        t2 = min(len(e), t + 2 * BLOCK)     # the hit's level: the louder of its block and the next
+        hit = max(cs[t + BLOCK] - cs[t], (cs[t2] - cs[t + BLOCK]) * BLOCK / max(t2 - t - BLOCK, 1)) / BLOCK
+        thr = max(thr, hit * 10 ** (-ONSET_UNDER_HIT_DB / 10))
         n = np.arange(lo, t + BLOCK)
         win = (cs[np.minimum(n + ONSET_W, len(e))] - cs[n]) / ONSET_W
         ok = np.flatnonzero(win > thr)
         if not len(ok):
             continue
         n0 = lo + int(ok[0])
-        s = cut_at_crossing(e, n0 + int(np.flatnonzero(e2[n0 : n0 + ONSET_W] > thr)[0]))
-        if not out or s > out[-1][0]:
+        s = n0 + int(np.flatnonzero(e2[n0 : n0 + ONSET_W] > thr)[0])
+        if not out or s > out[-1][0] + ONSET_W:
             out.append((s, float(jumps[i])))
+        else:       # the lead-in's run found the hit's own onset (its level is the next block's), or one a few samples on: one hit, the bigger jump
+            out[-1] = (min(s, out[-1][0]), max(out[-1][1], float(jumps[i])))
     return out
 
 
-def shared_onsets(own, ref_ons):
+def shared_onsets(own, ref_ons, share=ONSET_SHARE):
     """The mid's onsets, plus this channel's own where the mid has none at or
     up to ONSET_SHARE before it (a mid onset that stands for one takes the
     bigger jump). Mid and side then put a shared hit on one grid, and an own
@@ -114,7 +141,7 @@ def shared_onsets(own, ref_ons):
     out = {s: j for s, j in ref_ons}
     r = np.array([s for s, _ in ref_ons], dtype=np.int64)
     for s, j in own:
-        m = np.flatnonzero((r <= s) & (r >= s - ONSET_SHARE))
+        m = np.flatnonzero((r <= s) & (r >= s - share))
         if len(m):
             k = int(r[m[-1]])
             out[k] = max(out[k], j)
@@ -134,13 +161,21 @@ def _first_nonzero(e, w=None, start=0, chunk=8192):
     return -1
 
 
-def plan(e: np.ndarray, ref: np.ndarray):
+def plan(e: np.ndarray, ref: np.ndarray, heard=()):
+    """heard: the channels a mid/side pair is heard as (left, right), whose
+    clean hits it also takes, each on a layer of its own: one channel's hit
+    a few ms after the other's (or under its steady sound) is no hit of mid
+    or side's own, and a layer over both puts noise sized to the louder
+    channel in the silent one before its hit (Marimba, 11.6 dB)."""
     n = len(e)
     nz = [_first_nonzero(e)]
     if nz[0] < 0:
         return []
     top = pc.block_db(ref, BLOCK).max() if len(ref) >= BLOCK else 0.0
-    hits = shared_onsets(onsets(e, top), onsets(ref, top))
+    ref_ons = onsets(ref, top, gaps=False)
+    for h in heard:         # only clean hits: a short cover over the others bought nothing (A0v1: +3.6 % bytes, b10 -0.6)
+        ref_ons = shared_onsets([o for o in onsets(h, top, gaps=False) if o[1] >= CLEAN_DB], ref_ons, HEARD_SHARE)
+    hits = shared_onsets(onsets(e, top), ref_ons)
     hits = [(int(nz[0]) if s - nz[0] <= ONSET_W else s, j) for s, j in hits]
     clean = [s for s, j in hits if j >= CLEAN_DB]
     R = TRANSIENT_RAMP
