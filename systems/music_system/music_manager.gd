@@ -62,9 +62,20 @@ const RELEASE_AFTER := 10.0
 ## loaded it, for the same reason.
 const RELEASE_REACH := 1.25
 
+## Exploration music's intensity follows the same question, graded: how near
+## the nearest hostile is. 1 within APPROACH_REACH of its sight range - a
+## camp up ahead; 2 inside its sight range, where detection is rolling, or
+## once any hostile is SUSPICIOUS. It rises on the next bar; it falls one
+## level at a time, and only after CALM_AFTER with nothing as tense, so
+## stepping in and out of a guard's range does not pump the music.
+const APPROACH_REACH := 2.0
+const CALM_AFTER := 8.0
+
 var _poll_elapsed := 0.0
 ## When a hostile was last in range, in ticks_msec.
 var _threat_seen_msec := 0
+## When the music's current intensity was last called for, in ticks_msec.
+var _level_seen_msec := 0
 
 
 ## Between SaveManager.load_started and load_finished: the game is passing
@@ -93,12 +104,47 @@ func _ready() -> void:
 	# screen that asks for it seconds later anyway. It loads when asked.
 
 
-func _process(delta: float) -> void:
+## On the physics tick, like DetectionManager's sweep: unit positions are
+## settled there, and the two read the same state.
+func _physics_process(delta: float) -> void:
 	_poll_elapsed += delta
 	if _poll_elapsed < THREAT_POLL:
 		return
 	_poll_elapsed = 0.0
 	_hold_combat_if_near()
+	_follow_threat()
+
+
+## Moves the exploration music's intensity to threat_level() (see
+## APPROACH_REACH). The director's own intensity is the level in force, so a
+## restored save starts from what it saved.
+func _follow_threat() -> void:
+	if _loading or wanted_moment() != EXPLORATION or WorldManager.current_area() == null:
+		return
+	var level := threat_level()
+	var now := Time.get_ticks_msec()
+	var current: int = Music.intensity
+	if level >= current:
+		_level_seen_msec = now
+		if level > current:
+			Music.set_intensity(level)
+	elif now - _level_seen_msec > CALM_AFTER * 1000.0:
+		_level_seen_msec = now
+		Music.set_intensity(current - 1)
+
+
+## How tense the world on screen is for the party: 2, 1 or 0 (see
+## APPROACH_REACH).
+func threat_level() -> int:
+	var nearest := INF
+	for pair in _hostile_pairs():
+		var other: Unit = pair[0]
+		if other.awareness().state == UnitAwareness.State.SUSPICIOUS:
+			return 2
+		nearest = minf(nearest, other.distance_to(pair[1]) / maxf(other.max_sight_range, 0.001))
+	if nearest <= 1.0:
+		return 2
+	return 1 if nearest <= APPROACH_REACH else 0
 
 
 ## Holds the area's combat ensemble while a fight is plausibly about to
@@ -127,6 +173,16 @@ func _hold_combat_if_near() -> void:
 ## range (times `reach`) of a party member there: the distance at which
 ## DetectionManager starts rolling, so the earliest a fight can begin.
 func a_hostile_is_in_range(reach: float = 1.0) -> bool:
+	for pair in _hostile_pairs():
+		var other: Unit = pair[0]
+		if other.distance_to(pair[1]) <= other.max_sight_range * reach:
+			return true
+	return false
+
+
+## Every [hostile, party member] pair of living units in the same world, in
+## the world on screen.
+func _hostile_pairs() -> Array[Array]:
 	var context: WorldContext = WorldManager.context()
 	var party: Array[Unit] = []
 	var others: Array[Unit] = []
@@ -137,11 +193,12 @@ func a_hostile_is_in_range(reach: float = 1.0) -> bool:
 			party.append(unit)
 		else:
 			others.append(unit)
+	var pairs: Array[Array] = []
 	for other in others:
 		for member in party:
-			if other.get_world_3d() == member.get_world_3d() and other.is_hostile_to(member) 					and other.distance_to(member) <= other.max_sight_range * reach:
-				return true
-	return false
+			if other.get_world_3d() == member.get_world_3d() and other.is_hostile_to(member):
+				pairs.append([other, member])
+	return pairs
 
 
 ## The director's name for an area's music at a moment. The one place the
@@ -249,6 +306,11 @@ func _go(music: String, urgent: bool = false, preload_next: String = "") -> void
 			_reported_missing[music] = true
 			push_warning("MusicManager: no music called '%s' in the transitions table" % music)
 		return
+	# Intensity belongs to the piece it was raised in: a fight's music starts
+	# at its own 0, and so does the exploration music the fight ends back in.
+	# The same piece asked for again keeps it.
+	if Music.area != music:
+		Music.set_intensity(0)
 	if not await Music.go_to(music, urgent):
 		return
 	if preload_next == "" or not Music.table.has_area(preload_next):
