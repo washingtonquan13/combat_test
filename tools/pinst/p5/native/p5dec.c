@@ -27,6 +27,17 @@
    same point decodes nothing. */
 #include "p5dec.h"
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <pthread.h>
+#endif
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,6 +51,10 @@ extern "C" {
 int64_t p5rc_state_size(void);
 void p5rc_dec_init(void* s, const uint8_t* in, int64_t len);
 void p5rc_dec_grid(void* s, int64_t kind, int64_t F, int64_t K, const uint8_t* mk, int32_t* v);
+int64_t p5rc_model_size(void);
+void p5rc_model_init(void* m, int64_t kind);
+void p5rc_dec_row(void* s, void* m, int64_t f, int64_t K, const uint8_t* mk0, int32_t* v0,
+                  const uint8_t* mk1, const int32_t* v1, const uint8_t* mk2, const int32_t* v2);
 #ifdef __cplusplus
 }
 #endif
@@ -93,18 +108,16 @@ typedef struct {
 } Sines;
 
 typedef struct {
-    int M, K, nbx, mi, ring;
+    int M, K, nbx, mi, ring, has_dq;
     int64_t F, start, dead;
     uint32_t seed;
     double snr;
     int32_t* edges;     /* nbx + 1 */
-    uint16_t* sc;       /* F x nbx: scale code less dead */
-    int16_t* dq;        /* F x nbx, or NULL (all 0) */
-    uint32_t* qoff;     /* F + 1 offsets into qb */
-    int8_t* qb;         /* coded coefficient codes, raster order; -128 escapes 4 bytes */
+    char* rst;          /* range-coder states at the start of the scale, step and coefficient grids */
     double* rmsT;       /* 10 ** ((dead + sc) * 1.5 / 20) by stored sc */
     double* stepT;      /* 10 ** (-(snr - 1.5 dq) / 20) by dq - dqmin */
     int dqmin;
+    size_t lzsz;        /* bytes of one row cursor (Lz) */
 } Layer;
 
 typedef struct {
@@ -128,9 +141,9 @@ struct p5_note {
     Chan ch[2];
     int nm;             /* distinct layer lengths */
     int Ms[16];
-    Tab tabs[16];       /* by Layer.mi, shared by every voice */
-    double* tabmem;
-    int simd;           /* use the AVX2+FMA builds of the hot loops */
+    const Tab* tabs[16]; /* by Layer.mi; one per length for the whole process */
+    uint8_t* ones;      /* the scale grid's mask row: widest nbx */
+    int simd;          /* use the AVX2+FMA builds of the hot loops */
     size_t mem;
 };
 
@@ -159,12 +172,34 @@ typedef struct {
     uint64_t* stamp;
 } Ring;
 
+/* A layer's grids decoded row by row. One block (Layer.lzsz bytes, so a
+   bookmark is a copy): the last row decoded, the three grids' coder states
+   and models, and rows last-2 .. last of each grid (row r in slot r % 3). */
+typedef struct {
+    int64_t* last;      /* -1: nothing decoded */
+    char *st, *md;      /* 3 each: scale, step, coefficient grid */
+    int32_t* sd;        /* 3 x nbx: scale-code deltas (the grid's values) */
+    int32_t* ss;        /* 3 x nbx: scale code less dead */
+    uint8_t* sm;        /* 3 x nbx: ss != 0 (the step grid's mask) */
+    int32_t* dv;        /* 3 x nbx: step offsets (0 without a step grid) */
+    int32_t* qv;        /* 3 x K: coefficient codes */
+    uint8_t* qm;        /* 3 x K: coded */
+} Lz;
+
+typedef struct {
+    char* cur;          /* the cursor */
+    char* bm;           /* the cursor at row `want` (the first row the last seek needs) */
+    int bm_ok;
+    int64_t want;
+} LzV;
+
 struct p5_voice {
     const p5_note* note;
     int64_t pos;
     uint64_t clock;
     SineVoice sv[2];
     Ring* rings[2];
+    LzV* lz[2];
     double* acc[2];
     double *X, *buf;    /* frame scratch: Mmax each */
     int32_t* qi;        /* a frame's coefficient codes: Mmax */
@@ -274,6 +309,35 @@ static uint32_t hash_u32(uint32_t seed, uint64_t c) {
     return x;
 }
 
+typedef struct { char* base; size_t off; } Bump;
+
+static void* bump(Bump* b, size_t n) {
+    size_t o = (b->off + 63) & ~(size_t)63;
+    b->off = o + n;
+    return b->base ? (void*)(b->base + o) : NULL;
+}
+
+/* layer L's row cursor in the block at base (NULL: only its size) */
+static size_t lz_bind(const Layer* L, char* base, Lz* z) {
+    Bump b = {base, 0};
+    size_t ss = (size_t)p5rc_state_size(), ms = (size_t)p5rc_model_size();
+    size_t nb = (size_t)L->nbx, K = (size_t)L->K;
+    int64_t* last = (int64_t*)bump(&b, sizeof(int64_t));
+    char* st = (char*)bump(&b, 3 * ss);
+    char* md = (char*)bump(&b, 3 * ms);
+    int32_t* sd = (int32_t*)bump(&b, 3 * nb * sizeof(int32_t));
+    int32_t* sv = (int32_t*)bump(&b, 3 * nb * sizeof(int32_t));
+    uint8_t* sm = (uint8_t*)bump(&b, 3 * nb);
+    int32_t* dv = (int32_t*)bump(&b, 3 * nb * sizeof(int32_t));
+    int32_t* qv = (int32_t*)bump(&b, 3 * K * sizeof(int32_t));
+    uint8_t* qm = (uint8_t*)bump(&b, 3 * K);
+    if (z) {
+        z->last = last; z->st = st; z->md = md; z->sd = sd; z->ss = sv;
+        z->sm = sm; z->dv = dv; z->qv = qv; z->qm = qm;
+    }
+    return b.off;
+}
+
 /* ------------------------------------------------------------------ parse */
 
 static void sines_free(Sines* s) {
@@ -287,10 +351,7 @@ static void sines_free(Sines* s) {
 
 static void layer_free(Layer* L) {
     free(L->edges);
-    free(L->sc);
-    free(L->dq);
-    free(L->qoff);
-    free(L->qb);
+    free(L->rst);
     free(L->rmsT);
     free(L->stepT);
 }
@@ -302,7 +363,7 @@ void p5_note_free(p5_note* nt) {
         for (int l = 0; l < nt->ch[c].nl; l++) layer_free(&nt->ch[c].lay[l]);
         free(nt->ch[c].lay);
     }
-    free(nt->tabmem);
+    free(nt->ones);
     free(nt);
 }
 
@@ -642,44 +703,47 @@ static const char* parse_layer(p5_note* nt, Cur* body) {
         int r = (RING_SPAN + L->M - 1) / L->M + 2;
         L->ring = r < 3 ? 3 : r;
     }
+    L->has_dq = has_dq != 0;
+    /* The scale and step grids are decoded here only to find where the next
+       grid starts in the stream and which levels and steps occur; voices
+       decode all three grids row by row as they play (lz_row). */
     const char* err = NULL;
-    void* rc = malloc((size_t)p5rc_state_size());
-    size_t nbf = (size_t)F * (size_t)nbx, ncf = (size_t)F * (size_t)K;
-    uint8_t* mk = (uint8_t*)malloc((ncf > nbf ? ncf : nbf) + 1);
-    int32_t* v = (int32_t*)malloc(((ncf > nbf ? ncf : nbf) + 1) * sizeof(int32_t));
-    int64_t* sc = (int64_t*)malloc((nbf + 1) * sizeof(int64_t));
+    size_t ss = (size_t)p5rc_state_size();
+    void* rc = malloc(ss);
+    size_t nbf = (size_t)F * (size_t)nbx;
+    uint8_t* mk = (uint8_t*)malloc(nbf + 1);
+    int32_t* v = (int32_t*)malloc((nbf + 1) * sizeof(int32_t));
     int32_t* dq = (int32_t*)calloc(nbf + 1, sizeof(int32_t));
-    L->sc = (uint16_t*)nalloc(nt, (nbf + 1) * sizeof(uint16_t));
-    if (has_dq) L->dq = (int16_t*)nalloc(nt, (nbf + 1) * sizeof(int16_t));
-    L->qoff = (uint32_t*)nalloc(nt, ((size_t)F + 1) * sizeof(uint32_t));
-    if (!rc || !mk || !v || !sc || !dq || !L->sc || (has_dq && !L->dq) || !L->qoff) { err = "out of memory"; goto done; }
+    L->rst = (char*)nalloc(nt, 3 * ss);
+    if (!rc || !mk || !v || !dq || !L->rst) { err = "out of memory"; goto done; }
     p5rc_dec_init(rc, body->b + body->i, (int64_t)(body->n - body->i));
+    memcpy(L->rst, rc, ss);
     memset(mk, 1, nbf);
     p5rc_dec_grid(rc, 0, F, nbx, mk, v);
-    for (size_t b = 0; b < (size_t)nbx; b++) {
+    int smax = 0;
+    for (size_t b = 0; b < (size_t)nbx; b++) {    /* v becomes the scale code less dead */
         int64_t a = 0;
         for (int64_t f = 0; f < F; f++) {
-            a += v[f * nbx + b];
-            sc[f * nbx + b] = a;
+            size_t i = (size_t)f * nbx + b;
+            a += v[i];
+            int64_t o = a - dead;
+            if (o < 0 || o > 65535) { err = "scale code out of range"; goto done; }
+            v[i] = (int32_t)o;
+            if (o > smax) smax = (int)o;
         }
     }
-    for (size_t i = 0; i < nbf; i++) {
-        int64_t o = sc[i] - dead;
-        if (o < 0 || o > 65535) { err = "scale code out of range"; goto done; }
-        L->sc[i] = (uint16_t)o;
-    }
+    memcpy(L->rst + ss, rc, ss);
     if (has_dq) {
-        for (size_t i = 0; i < nbf; i++) mk[i] = sc[i] != dead;
+        for (size_t i = 0; i < nbf; i++) mk[i] = v[i] != 0;
         p5rc_dec_grid(rc, 0, F, nbx, mk, dq);
-        for (size_t i = 0; i < nbf; i++) {
+        for (size_t i = 0; i < nbf; i++)
             if (dq[i] < -32768 || dq[i] > 32767) { err = "step offset out of range"; goto done; }
-            L->dq[i] = (int16_t)dq[i];
-        }
     }
+    memcpy(L->rst + 2 * ss, rc, ss);
+    L->lzsz = lz_bind(L, NULL, NULL);
     {   /* the band levels and step factors this layer uses, as dequantize computes them */
-        int smax = 0, dmin = 0, dmax = 0;
+        int dmin = 0, dmax = 0;
         for (size_t i = 0; i < nbf; i++) {
-            if (L->sc[i] > smax) smax = L->sc[i];
             if (dq[i] < dmin) dmin = dq[i];
             if (dq[i] > dmax) dmax = dq[i];
         }
@@ -690,68 +754,40 @@ static const char* parse_layer(p5_note* nt, Cur* body) {
         for (int d = dmin; d <= dmax; d++) L->stepT[d - dmin] = pow(10.0, -(L->snr - 1.5 * (double)d) / 20);
         L->dqmin = dmin;
     }
-    /* quant.coded_mask */
-    for (int64_t f = 0; f < F; f++)
-        for (int b = 0; b < nbx; b++) {
-            size_t i = (size_t)f * nbx + b;
-            int ok = sc[i] != dead && L->snr - 1.5 * (double)dq[i] > 0;
-            memset(mk + (size_t)f * K + ed[b], ok, (size_t)(ed[b + 1] - ed[b]));
-        }
-    p5rc_dec_grid(rc, 1, F, K, mk, v);
-    {   /* coded cells, one byte each */
-        size_t nb_ = 0;
-        for (size_t i = 0; i < ncf; i++)
-            if (mk[i]) nb_ += (v[i] >= -127 && v[i] <= 127) ? 1 : 5;
-        if (nb_ > 0xFFFFFFFFu) { err = "layer too large"; goto done; }
-        L->qb = (int8_t*)nalloc(nt, nb_ + 1);
-        if (!L->qb) { err = "out of memory"; goto done; }
-        size_t o = 0;
-        for (int64_t f = 0; f < F; f++) {
-            L->qoff[f] = (uint32_t)o;
-            for (int64_t k = 0; k < K; k++) {
-                size_t i = (size_t)f * K + k;
-                if (!mk[i]) continue;
-                int32_t x = v[i];
-                if (x >= -127 && x <= 127) L->qb[o++] = (int8_t)x;
-                else {
-                    uint32_t u = (uint32_t)x;
-                    L->qb[o++] = -128;
-                    for (int s = 0; s < 4; s++) L->qb[o++] = (int8_t)(uint8_t)(u >> (8 * s));
-                }
-            }
-        }
-        L->qoff[F] = (uint32_t)o;
-    }
 done:
     free(rc);
     free(mk);
     free(v);
-    free(sc);
     free(dq);
     return err;
 }
 
 static int is_pow2(int M) { return M >= 4 && (M & (M - 1)) == 0; }
 
-/* every layer length's transform tables, in one block */
-static const char* note_tables(p5_note* nt) {
-    size_t tot = 0;
-    for (int m = 0; m < nt->nm; m++) {
-        int M = nt->Ms[m];
-        if (is_pow2(M)) tot += (size_t)(6 * (M / 2) + M) * sizeof(double) + (size_t)(M / 2) * sizeof(int32_t);
-    }
-    if (!tot) {
-        for (int m = 0; m < nt->nm; m++) nt->tabs[m].M = nt->Ms[m];
-        return NULL;
-    }
-    nt->tabmem = (double*)nalloc(nt, tot);
-    if (!nt->tabmem) return "out of memory";
-    char* p = (char*)nt->tabmem;
-    for (int m = 0; m < nt->nm; m++) {
-        int M = nt->Ms[m], P = M / 2;
-        Tab* t = &nt->tabs[m];
-        t->M = M;
-        if (!is_pow2(M)) continue;
+/* Transform tables depend only on the length, so each length's are built
+   once for the process (on first use, under a lock) and never freed. */
+typedef struct TabNode { Tab t; struct TabNode* next; } TabNode;
+static TabNode* g_tabs;
+#ifdef _WIN32
+static SRWLOCK g_tab_lock = SRWLOCK_INIT;
+#define TAB_LOCK() AcquireSRWLockExclusive(&g_tab_lock)
+#define TAB_UNLOCK() ReleaseSRWLockExclusive(&g_tab_lock)
+#else
+static pthread_mutex_t g_tab_lock = PTHREAD_MUTEX_INITIALIZER;
+#define TAB_LOCK() pthread_mutex_lock(&g_tab_lock)
+#define TAB_UNLOCK() pthread_mutex_unlock(&g_tab_lock)
+#endif
+
+static TabNode* tab_make(int M) {
+    int P = M / 2;
+    size_t tot = sizeof(TabNode);
+    if (is_pow2(M)) tot += (size_t)(6 * P + M) * sizeof(double) + (size_t)P * sizeof(int32_t);
+    TabNode* n = (TabNode*)calloc(1, tot);
+    if (!n) return NULL;
+    char* p = (char*)(n + 1);
+    Tab* t = &n->t;
+    t->M = M;
+    if (is_pow2(M)) {
         t->fft = 1;
         double* d = (double*)p;
         p += (size_t)(6 * P + M) * sizeof(double);
@@ -780,6 +816,32 @@ static const char* note_tables(p5_note* nt) {
             }
         for (int i = 0; i < M; i++) t->win[i] = sin(PI_ * (i + 0.5) / (2 * M));
     }
+    return n;
+}
+
+static const Tab* tab_get(int M) {
+    TAB_LOCK();
+    TabNode* n = g_tabs;
+    while (n && n->t.M != M) n = n->next;
+    if (!n && (n = tab_make(M)) != NULL) {
+        n->next = g_tabs;
+        g_tabs = n;
+    }
+    TAB_UNLOCK();
+    return n ? &n->t : NULL;
+}
+
+/* every layer length's transform tables, and the scale grid's mask row */
+static const char* note_tables(p5_note* nt) {
+    for (int m = 0; m < nt->nm; m++)
+        if (!(nt->tabs[m] = tab_get(nt->Ms[m]))) return "out of memory";
+    int w = 1;
+    for (int c = 0; c < nt->nch; c++)
+        for (int l = 0; l < nt->ch[c].nl; l++)
+            if (nt->ch[c].lay[l].nbx > w) w = nt->ch[c].lay[l].nbx;
+    nt->ones = (uint8_t*)nalloc(nt, (size_t)w);
+    if (!nt->ones) return "out of memory";
+    memset(nt->ones, 1, (size_t)w);
     return NULL;
 }
 
@@ -845,14 +907,6 @@ size_t p5_note_memory(const p5_note* nt) { return nt->mem; }
 
 /* ------------------------------------------------------------------ voice layout */
 
-typedef struct { char* base; size_t off; } Bump;
-
-static void* bump(Bump* b, size_t n) {
-    size_t o = (b->off + 63) & ~(size_t)63;
-    b->off = o + n;
-    return b->base ? (void*)(b->base + o) : NULL;
-}
-
 static void tarr_bind(TArr* x, char* blk, int cap) {
     double* d = (double*)blk;
     x->zr = d; x->zi = d + cap; x->rr = d + 2 * cap; x->ri = d + 3 * cap; x->qr = d + 4 * cap;
@@ -887,16 +941,21 @@ static size_t voice_build(const p5_note* nt, p5_voice* v) {
             }
         }
         Ring* rings = (Ring*)bump(&b, (size_t)(ch->nl ? ch->nl : 1) * sizeof(Ring));
-        if (v) v->rings[c] = rings;
+        LzV* lz = (LzV*)bump(&b, (size_t)(ch->nl ? ch->nl : 1) * sizeof(LzV));
+        if (v) { v->rings[c] = rings; v->lz[c] = lz; }
         for (int l = 0; l < ch->nl; l++) {
             const Layer* L = &ch->lay[l];
             float* d = (float*)bump(&b, (size_t)L->ring * 2 * L->M * sizeof(float));
             int64_t* idx = (int64_t*)bump(&b, (size_t)L->ring * sizeof(int64_t));
             uint64_t* st = (uint64_t*)bump(&b, (size_t)L->ring * sizeof(uint64_t));
+            char* cur = (char*)bump(&b, L->lzsz);
+            char* bm = (char*)bump(&b, L->lzsz);
             if (v) {
                 rings[l].data = d;
                 rings[l].idx = idx;
                 rings[l].stamp = st;
+                lz[l].cur = cur;
+                lz[l].bm = bm;
             }
         }
     }
@@ -910,6 +969,7 @@ static size_t voice_build(const p5_note* nt, p5_voice* v) {
 size_t p5_voice_memory(const p5_note* nt) { return voice_build(nt, NULL); }
 
 static void sines_seek(p5_voice* v, int c, int64_t p);
+static void lz_restart(const Layer* L, char* blk);
 
 p5_voice* p5_voice_new(const p5_note* nt) {
     size_t sz = voice_build(nt, NULL);
@@ -918,8 +978,11 @@ p5_voice* p5_voice_new(const p5_note* nt) {
     voice_build(nt, v);
     v->note = nt;
     for (int c = 0; c < nt->nch; c++)
-        for (int l = 0; l < nt->ch[c].nl; l++)
+        for (int l = 0; l < nt->ch[c].nl; l++) {
             for (int r = 0; r < nt->ch[c].lay[l].ring; r++) v->rings[c][l].idx[r] = -1;
+            lz_restart(&nt->ch[c].lay[l], v->lz[c][l].cur);
+            v->lz[c][l].want = -1;
+        }
     v->pos = -1;
     p5_seek(v, 0);
     return v;
@@ -1157,20 +1220,77 @@ static P5_INLINE void fft_body(double* re, double* im, int P, const double* twr,
     }
 }
 
-static int32_t q_next(const int8_t** p) {
-    int8_t b = *(*p)++;
-    if (b != -128) return b;
-    uint32_t u = 0;
-    for (int s = 0; s < 4; s++) u |= (uint32_t)(uint8_t)(*(*p)++) << (8 * s);
-    return (int32_t)u;
+/* ------------------------------------------------------------------ layer rows */
+
+/* the cursor at row -1: the coder states the parse found, fresh models */
+static void lz_restart(const Layer* L, char* blk) {
+    Lz z;
+    lz_bind(L, blk, &z);
+    size_t ss = (size_t)p5rc_state_size(), ms = (size_t)p5rc_model_size();
+    *z.last = -1;
+    memcpy(z.st, L->rst, 3 * ss);
+    p5rc_model_init(z.md, 0);
+    p5rc_model_init(z.md + ms, 0);
+    p5rc_model_init(z.md + 2 * ms, 1);
 }
 
-/* quant.dequantize of frame f -> X[0..M) (zero past K) */
-static void dequant(const Layer* L, int64_t f, double* X, int32_t* qi) {
+/* decode the cursor's next row of all three grids */
+static void lz_step(const p5_note* nt, const Layer* L, const Lz* z) {
+    size_t ss = (size_t)p5rc_state_size(), ms = (size_t)p5rc_model_size();
+    int64_t r = *z->last + 1;
+    size_t nb = (size_t)L->nbx, K = (size_t)L->K;
+    size_t s0 = (size_t)(r % 3), s1 = (size_t)((r + 2) % 3), s2 = (size_t)((r + 1) % 3);
+    const uint8_t* one = nt->ones;
+    int32_t *sd0 = z->sd + s0 * nb, *ss0 = z->ss + s0 * nb, *dv0 = z->dv + s0 * nb, *qv0 = z->qv + s0 * K;
+    uint8_t *sm0 = z->sm + s0 * nb, *qm0 = z->qm + s0 * K;
+    p5rc_dec_row(z->st, z->md, r, L->nbx, one, sd0, one, z->sd + s1 * nb, one, z->sd + s2 * nb);
+    const int32_t* ss1 = z->ss + s1 * nb;
+    for (size_t b = 0; b < nb; b++) {
+        int32_t s = r ? ss1[b] + sd0[b] : (int32_t)(sd0[b] - L->dead);
+        ss0[b] = s;
+        sm0[b] = s != 0;
+    }
+    if (L->has_dq)
+        p5rc_dec_row(z->st + ss, z->md + ms, r, L->nbx, sm0, dv0, z->sm + s1 * nb, z->dv + s1 * nb, z->sm + s2 * nb,
+                     z->dv + s2 * nb);
     const int32_t* ed = L->edges;
-    const uint16_t* sc = L->sc + f * L->nbx;
-    const int16_t* dq = L->dq ? L->dq + f * L->nbx : NULL;
-    const int8_t* qp = L->qb + L->qoff[f];
+    for (size_t b = 0; b < nb; b++) {   /* quant.coded_mask */
+        int ok = sm0[b] && L->snr - 1.5 * (double)dv0[b] > 0;
+        memset(qm0 + ed[b], ok, (size_t)(ed[b + 1] - ed[b]));
+    }
+    p5rc_dec_row(z->st + 2 * ss, z->md + 2 * ms, r, L->K, qm0, qv0, z->qm + s1 * K, z->qv + s1 * K, z->qm + s2 * K,
+                 z->qv + s2 * K);
+    *z->last = r;
+}
+
+/* Row f of layer L's grids, in its slot (f % 3) of the cursor z. Forward
+   rows are decoded in order; an earlier row than the cursor holds restarts
+   from the bookmark (the first row the last seek needed, so a loop's wrap
+   costs nothing) when it is not past f, else from row 0. */
+static void lz_row(const p5_note* nt, const Layer* L, LzV* zv, int64_t f, Lz* z) {
+    lz_bind(L, zv->cur, z);
+    if (f <= *z->last && f >= *z->last - 2) return;
+    if (f < *z->last - 2) {
+        Lz b;
+        lz_bind(L, zv->bm, &b);
+        if (zv->bm_ok && *b.last >= 0 && f >= *b.last - 2) memcpy(zv->cur, zv->bm, L->lzsz);
+        else lz_restart(L, zv->cur);
+        if (f <= *z->last) return;
+    }
+    while (*z->last < f) {
+        lz_step(nt, L, z);
+        if (*z->last == zv->want && !(zv->bm_ok && *(int64_t*)zv->bm == zv->want)) {
+            memcpy(zv->bm, zv->cur, L->lzsz);
+            zv->bm_ok = 1;
+        }
+    }
+}
+
+/* quant.dequantize of frame f -> X[0..M) (zero past K), from its rows:
+   scale codes less dead, step offsets, coefficient codes */
+static void dequant(const Layer* L, int64_t f, const int32_t* sc, const int32_t* dq, const int32_t* qv, double* X,
+                    int32_t* qi) {
+    const int32_t* ed = L->edges;
     const double sq12 = sqrt(12.0), sq3 = sqrt(3.0);
     for (int b = 0; b < L->nbx; b++) {
         int lo = ed[b], hi = ed[b + 1], wid = hi - lo;
@@ -1178,14 +1298,14 @@ static void dequant(const Layer* L, int64_t f, double* X, int32_t* qi) {
             for (int k = lo; k < hi; k++) X[k] = 0.0;
             continue;
         }
-        int dqv = dq ? dq[b] : 0;
+        int dqv = dq[b];
         double rms = L->rmsT[sc[b]];
         double step = (rms > 1e-30 ? rms : 1e-30) * L->stepT[dqv - L->dqmin] * sq12;
         double sumsq = 0.0;
         int nz = 0;
         if (L->snr - 1.5 * (double)dqv > 0) {
             for (int k = lo; k < hi; k++) {
-                int32_t q = q_next(&qp);
+                int32_t q = qv[k];
                 double xd = (double)q * step;
                 qi[k] = q;
                 X[k] = xd;
@@ -1252,11 +1372,14 @@ static void imdct_gen(const Tab* t, double* X, double* buf, int f0, float* out) 
 P5_AVX2 static void imdct_avx2(const Tab* t, double* X, double* buf, int f0, float* out) { imdct_body(t, X, buf, f0, out); }
 #endif
 
-static void frame_decode(p5_voice* v, const Layer* L, int64_t f, float* out) {
+static void frame_decode(p5_voice* v, const Layer* L, LzV* zv, int64_t f, float* out) {
     int M = L->M;
     double* X = v->X;
-    const Tab* t = &v->note->tabs[L->mi];
-    dequant(L, f, X, v->qi);
+    const Tab* t = v->note->tabs[L->mi];
+    Lz z;
+    lz_row(v->note, L, zv, f, &z);
+    size_t s = (size_t)(f % 3), nb = (size_t)L->nbx;
+    dequant(L, f, z.ss + s * nb, z.dv + s * nb, z.qv + s * (size_t)L->K, X, v->qi);
     if (t->fft) {
 #ifdef P5_X86
         if (v->note->simd) { imdct_avx2(t, X, v->buf, f == 0, out); return; }
@@ -1276,7 +1399,7 @@ static void frame_decode(p5_voice* v, const Layer* L, int64_t f, float* out) {
     }
 }
 
-static const float* get_frame(p5_voice* v, const Layer* L, Ring* R, int64_t f, int64_t keep) {
+static const float* get_frame(p5_voice* v, const Layer* L, Ring* R, LzV* zv, int64_t f, int64_t keep) {
     int victim = -1;
     for (int r = 0; r < L->ring; r++)
         if (R->idx[r] == f) {
@@ -1288,14 +1411,14 @@ static const float* get_frame(p5_voice* v, const Layer* L, Ring* R, int64_t f, i
         if (victim < 0 || R->stamp[r] < R->stamp[victim]) victim = r;
     }
     float* d = R->data + (size_t)victim * 2 * L->M;
-    frame_decode(v, L, f, d);
+    frame_decode(v, L, zv, f, d);
     R->idx[victim] = f;
     R->stamp[victim] = ++v->clock;
     return d;
 }
 
 /* layer L's samples [p, p + len) added into acc */
-static void layer_add(p5_voice* v, const Layer* L, Ring* R, int64_t p, int len, double* acc) {
+static void layer_add(p5_voice* v, const Layer* L, Ring* R, LzV* zv, int64_t p, int len, double* acc) {
     int64_t M = L->M, off = L->M / 2;
     int64_t jmax = v->note->n - L->start;
     if ((L->F + 1) * M - off < jmax) jmax = (L->F + 1) * M - off;
@@ -1303,8 +1426,8 @@ static void layer_add(p5_voice* v, const Layer* L, Ring* R, int64_t p, int len, 
     while (a < b) {
         int64_t u = off + a, g = u / M, r = u % M;
         int64_t run = M - r < b - a ? M - r : b - a;
-        const float* fa = g < L->F ? get_frame(v, L, R, g, g - 1) : NULL;
-        const float* fb = g >= 1 && g - 1 < L->F ? get_frame(v, L, R, g - 1, g) : NULL;
+        const float* fa = g < L->F ? get_frame(v, L, R, zv, g, g - 1) : NULL;
+        const float* fb = g >= 1 && g - 1 < L->F ? get_frame(v, L, R, zv, g - 1, g) : NULL;
         double* o = acc + (a - j0);
         if (fa && fb)
             for (int64_t i = 0; i < run; i++) o[i] += (double)fa[r + i] + (double)fb[M + r + i];
@@ -1328,6 +1451,20 @@ void p5_seek(p5_voice* v, int64_t frame) {
         if (p >= nt->n) v->sv[c].valid = 0;
         else sines_seek(v, c, p);
     }
+    /* bookmark the first row this position needs (a loop seeks back to it) */
+    for (int c = 0; c < nt->nch; c++)
+        for (int l = 0; l < nt->ch[c].nl; l++) {
+            const Layer* L = &nt->ch[c].lay[l];
+            if (L->F <= 0) continue;
+            LzV* zv = &v->lz[c][l];
+            int64_t d = p - L->start, g = (L->M / 2 + (d > 0 ? d : 0)) / L->M;
+            if (g > L->F - 1) g = L->F - 1;
+            zv->want = g;
+            if (*(const int64_t*)zv->cur == g && !(zv->bm_ok && *(const int64_t*)zv->bm == g)) {
+                memcpy(zv->bm, zv->cur, L->lzsz);
+                zv->bm_ok = 1;
+            }
+        }
 }
 
 void p5_render(p5_voice* v, float* out, int k) {
@@ -1364,7 +1501,7 @@ void p5_render(p5_voice* v, float* out, int k) {
                 if (s->t == ch->s->H) sines_hop(s, ch->s);
                 /* the snapshot holds the state at the seek point; moving on leaves it */
             }
-            for (int l = 0; l < ch->nl; l++) layer_add(v, &ch->lay[l], &v->rings[c][l], p, len, acc);
+            for (int l = 0; l < ch->nl; l++) layer_add(v, &ch->lay[l], &v->rings[c][l], &v->lz[c][l], p, len, acc);
         }
         float* o = out + (size_t)i * nc;
         if (nc == 1) {

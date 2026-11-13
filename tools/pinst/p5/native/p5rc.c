@@ -7,7 +7,9 @@
    State is opaque to the caller: p5rc_state_size() bytes, zeroed or not.
    Encoder: enc_init(out buffer), enc_grid() per grid, enc_finish() -> bytes
    written (-1 if the buffer was too small). Decoder: dec_init(bytes),
-   dec_grid() per grid, in the same order and of the same kinds. */
+   dec_grid() per grid, in the same order and of the same kinds; or, for a
+   grid decoded lazily, a copy of the state at its start, a model_init'd
+   model, and dec_row() per row in order. */
 #include <stdint.h>
 #include <string.h>
 
@@ -208,24 +210,56 @@ API void p5rc_dec_init(St *s, const uint8_t *in, int64_t len) {
     for (int i = 0; i < 4; i++) s->code = (s->code << 8) | get(s);
 }
 
+/* ctx() over separate rows: row f (v0, mk0) and the two before it */
+static int ctx_rows(const Model *m, int64_t f, int64_t k, int64_t K, const int32_t *v0, const uint8_t *mk0,
+                    const int32_t *v1, const uint8_t *mk1, const int32_t *v2, const uint8_t *mk2) {
+#define A(vv, mm, kk) (mm[kk] ? mag(vv[kk]) : 0u)
+    uint32_t e = 0;
+    int up = 0;
+    if (k > 0) e += (uint32_t)m->k.wl * A(v0, mk0, k - 1);
+    if (k > 1) e += A(v0, mk0, k - 2);
+    if (f > 0) {
+        e += 2 * A(v1, mk1, k);
+        if (k > 0) e += A(v1, mk1, k - 1);
+        if (k + 1 < K) e += A(v1, mk1, k + 1);
+        up = mk1[k] != 0;
+        if (f > 1) e += 2 * A(v2, mk2, k);
+    }
+#undef A
+    int c = m->k.col && bitlen((uint32_t)k) >= m->k.col;
+    return U0 + (4 * cls(e) + 2 * up + c) * 32;
+}
+
+API int64_t p5rc_model_size(void) { return (int64_t)sizeof(Model); }
+API void p5rc_model_init(Model *m, int64_t kind) { model_init(m, kind); }
+
+/* Row f of a grid (a grid is decoded row by row, f = 0, 1, ..). Row f's mask
+   and values are mk0/v0; rows f-1 and f-2 (read only when f > 0, f > 1) are
+   mk1/v1 and mk2/v2. The model carries over from row to row. */
+API void p5rc_dec_row(St *s, Model *m, int64_t f, int64_t K, const uint8_t *mk0, int32_t *v0,
+                      const uint8_t *mk1, const int32_t *v1, const uint8_t *mk2, const int32_t *v2) {
+    int tree = 1 << m->k.ma;
+    for (int64_t k = 0; k < K; k++) {
+        if (!mk0[k]) { v0[k] = 0; continue; }
+        int base = ctx_rows(m, f, k, K, v0, mk0, v1, mk1, v2, mk2);
+        int b = 0;
+        while (b < NU && dbit(s, m, base + b)) b++;
+        uint32_t a = b ? 1 : 0;
+        int node = 1;
+        for (int j = 0; j < b - 1; j++) {
+            int bit;
+            if (node < tree) { bit = dbit(s, m, T0 + 8 * b + node); node = 2 * node + bit; }
+            else bit = draw_(s);
+            a = 2 * a + (uint32_t)bit;
+        }
+        v0[k] = (a && dbit(s, m, S0)) ? -(int32_t)a : (int32_t)a;
+    }
+}
+
 API void p5rc_dec_grid(St *s, int64_t kind, int64_t F, int64_t K, const uint8_t *mk, int32_t *v) {
     Model m;
     model_init(&m, kind);
-    int tree = 1 << m.k.ma;
     for (int64_t f = 0; f < F; f++)
-        for (int64_t k = 0; k < K; k++) {
-            if (!mk[f * K + k]) { v[f * K + k] = 0; continue; }
-            int base = ctx(&m, v, mk, f, k, K);
-            int b = 0;
-            while (b < NU && dbit(s, &m, base + b)) b++;
-            uint32_t a = b ? 1 : 0;
-            int node = 1;
-            for (int j = 0; j < b - 1; j++) {
-                int bit;
-                if (node < tree) { bit = dbit(s, &m, T0 + 8 * b + node); node = 2 * node + bit; }
-                else bit = draw_(s);
-                a = 2 * a + (uint32_t)bit;
-            }
-            v[f * K + k] = (a && dbit(s, &m, S0)) ? -(int32_t)a : (int32_t)a;
-        }
+        p5rc_dec_row(s, &m, f, K, mk + f * K, v + f * K, f > 0 ? mk + (f - 1) * K : NULL, f > 0 ? v + (f - 1) * K : NULL,
+                     f > 1 ? mk + (f - 2) * K : NULL, f > 1 ? v + (f - 2) * K : NULL);
 }
