@@ -43,7 +43,7 @@ import pinst_codec as pc        # noqa: E402
 
 MAGIC = b"PIN5"
 VERSION = 1         # 1: wave 1 (range-coded LAYR with dq)
-DIAL = 30.0         # the one quality setting: dB of signal over quantization error per band
+DIAL = 25.0         # the one quality setting: dB of signal over quantization error per band
 
 
 def set_rate(sr: int):
