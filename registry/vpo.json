@@ -5,7 +5,7 @@
     "choir-female": {
       "layers": [
         {
-          "sfz": "vpo/Vocals/choir-FEMALE-sustain.sfz"
+          "sfz": "pinst5_d25/vpo/Vocals/choir-FEMALE-sustain.sfz"
         }
       ],
       "range": [
@@ -19,7 +19,7 @@
     "choir-male": {
       "layers": [
         {
-          "sfz": "vpo/Vocals/choir-MALE-sustain.sfz"
+          "sfz": "pinst5_d25/vpo/Vocals/choir-MALE-sustain.sfz"
         }
       ],
       "range": [
@@ -33,7 +33,7 @@
     "celesta": {
       "layers": [
         {
-          "sfz": "vpo/Keys/celesta.sfz"
+          "sfz": "pinst5_d25/vpo/Keys/celesta.sfz"
         }
       ],
       "range": [
@@ -49,7 +49,7 @@
     "choir-and-brass": {
       "layers": [
         {
-          "sfz": "vpo/choir-and-brass.sfz"
+          "sfz": "pinst5_d25/vpo/choir-and-brass.sfz"
         }
       ],
       "range": [
@@ -75,7 +75,7 @@
     "strings-section": {
       "layers": [
         {
-          "sfz": "vpo/strings-section.sfz"
+          "sfz": "pinst5_d25/vpo/strings-section.sfz"
         }
       ],
       "range": [
@@ -101,7 +101,7 @@
     "tubular-bells": {
       "layers": [
         {
-          "sfz": "vpo/Percussion/tubular-bells.sfz"
+          "sfz": "pinst5_d25/vpo/Percussion/tubular-bells.sfz"
         }
       ],
       "range": [
@@ -115,7 +115,7 @@
     "choir-mixed": {
       "layers": [
         {
-          "sfz": "vpo/Vocals/choir-MIXED-sustain.sfz"
+          "sfz": "pinst5_d25/vpo/Vocals/choir-MIXED-sustain.sfz"
         }
       ],
       "range": [
@@ -129,7 +129,7 @@
     "all-strings": {
       "layers": [
         {
-          "sfz": "vpo/Strings/all-strings-SEC-sustain.sfz"
+          "sfz": "pinst5_d25/vpo/Strings/all-strings-SEC-sustain.sfz"
         }
       ],
       "range": [
@@ -143,7 +143,7 @@
     "violins": {
       "layers": [
         {
-          "sfz": "vpo/Strings/1st-violin-SEC-KS-C3.sfz"
+          "sfz": "pinst5_d25/vpo/Strings/1st-violin-SEC-KS-C3.sfz"
         }
       ],
       "range": [
@@ -166,7 +166,7 @@
     "violas": {
       "layers": [
         {
-          "sfz": "vpo/Strings/viola-SEC-KS-C2.sfz"
+          "sfz": "pinst5_d25/vpo/Strings/viola-SEC-KS-C2.sfz"
         }
       ],
       "range": [
@@ -189,7 +189,7 @@
     "upright-pizz": {
       "layers": [
         {
-          "sfz": "vpo/upright-pizz.sfz"
+          "sfz": "pinst5_d25/vpo/upright-pizz.sfz"
         }
       ],
       "range": [
@@ -200,7 +200,7 @@
     "cello-pizz": {
       "layers": [
         {
-          "sfz": "vpo/cello-pizz.sfz"
+          "sfz": "pinst5_d25/vpo/cello-pizz.sfz"
         }
       ],
       "range": [

@@ -4,7 +4,7 @@
     "kit": {
       "layers": [
         {
-          "sfz": "salamander.drums/salamander-kit.sfz"
+          "sfz": "pinst5_d25/salamander.drums/salamander-kit.sfz"
         }
       ],
       "range": [
@@ -38,7 +38,7 @@
     "kit2": {
       "layers": [
         {
-          "sfz": "salamander.drums/salamander-kit2.sfz"
+          "sfz": "pinst5_d25/salamander.drums/salamander-kit2.sfz"
         }
       ],
       "range": [

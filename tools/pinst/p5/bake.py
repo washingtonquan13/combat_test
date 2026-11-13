@@ -104,7 +104,8 @@ def main():
     lib = os.path.abspath(arg("--lib") or os.path.dirname(os.path.dirname(os.path.abspath(sfz))))
     mirror = lambda full: os.path.normpath(os.path.join(root, os.path.relpath(full, lib)))
     for full in scan.files + [f for _, f, _ in scan.regions]:
-        assert not os.path.relpath(full, lib).startswith(".."), f"{full} is outside {lib}"
+        # a file that is not there is reported MISSING below and its region left as written
+        assert not os.path.exists(full) or not os.path.relpath(full, lib).startswith(".."), f"{full} is outside {lib}"
     note_path = lambda full: os.path.splitext(mirror(full))[0] + EXT
     os.makedirs(root, exist_ok=True)
     seen, keys = {}, {}

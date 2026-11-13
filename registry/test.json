@@ -5,7 +5,7 @@
     "tone": {
       "layers": [
         {
-          "sfz": "test/test.sfz"
+          "sfz": "pinst5_d25/test/test.sfz"
         }
       ],
       "range": [

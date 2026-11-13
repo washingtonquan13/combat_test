@@ -4,35 +4,35 @@
     "toll": {
       "layers": [
         {
-          "sfz": "homebuilt/toll.sfz"
+          "sfz": "pinst5_d25/homebuilt/toll.sfz"
         }
       ]
     },
     "chant": {
       "layers": [
         {
-          "sfz": "homebuilt/chant.sfz"
+          "sfz": "pinst5_d25/homebuilt/chant.sfz"
         }
       ]
     },
     "drone-saw": {
       "layers": [
         {
-          "sfz": "homebuilt/drone-saw.sfz"
+          "sfz": "pinst5_d25/homebuilt/drone-saw.sfz"
         }
       ]
     },
     "drone-cluster": {
       "layers": [
         {
-          "sfz": "homebuilt/drone-cluster.sfz"
+          "sfz": "pinst5_d25/homebuilt/drone-cluster.sfz"
         }
       ]
     },
     "industrial-kit": {
       "layers": [
         {
-          "sfz": "homebuilt/industrial-kit.sfz"
+          "sfz": "pinst5_d25/homebuilt/industrial-kit.sfz"
         }
       ],
       "range": [
@@ -63,49 +63,49 @@
     "chip-pulse25": {
       "layers": [
         {
-          "sfz": "homebuilt/chip-pulse25.sfz"
+          "sfz": "pinst5_d25/homebuilt/chip-pulse25.sfz"
         }
       ]
     },
     "chip-pulse12": {
       "layers": [
         {
-          "sfz": "homebuilt/chip-pulse12.sfz"
+          "sfz": "pinst5_d25/homebuilt/chip-pulse12.sfz"
         }
       ]
     },
     "chip-pulse50": {
       "layers": [
         {
-          "sfz": "homebuilt/chip-pulse50.sfz"
+          "sfz": "pinst5_d25/homebuilt/chip-pulse50.sfz"
         }
       ]
     },
     "fm-brass": {
       "layers": [
         {
-          "sfz": "homebuilt/fm-brass.sfz"
+          "sfz": "pinst5_d25/homebuilt/fm-brass.sfz"
         }
       ]
     },
     "chip-tri": {
       "layers": [
         {
-          "sfz": "homebuilt/chip-tri.sfz"
+          "sfz": "pinst5_d25/homebuilt/chip-tri.sfz"
         }
       ]
     },
     "fm-slap": {
       "layers": [
         {
-          "sfz": "homebuilt/fm-slap.sfz"
+          "sfz": "pinst5_d25/homebuilt/fm-slap.sfz"
         }
       ]
     },
     "chip-kit": {
       "layers": [
         {
-          "sfz": "homebuilt/chip-kit.sfz"
+          "sfz": "pinst5_d25/homebuilt/chip-kit.sfz"
         }
       ],
       "range": [

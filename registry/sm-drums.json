@@ -6,7 +6,7 @@
       "layers": [
         {
           "name": "kick",
-          "sfz": "sm-drums/Programs/shaped-kick.sfz",
+          "sfz": "pinst5_d25/sm-drums/Programs/shaped-kick.sfz",
           "take": {
             "timing": 0.003,
             "velocity": 3
@@ -14,7 +14,7 @@
         },
         {
           "name": "snare",
-          "sfz": "sm-drums/Programs/shaped-snare.sfz",
+          "sfz": "pinst5_d25/sm-drums/Programs/shaped-snare.sfz",
           "take": {
             "timing": 0.004,
             "velocity": 5
@@ -22,7 +22,7 @@
         },
         {
           "name": "hats",
-          "sfz": "sm-drums/Programs/shaped-hats.sfz",
+          "sfz": "pinst5_d25/sm-drums/Programs/shaped-hats.sfz",
           "take": {
             "timing": 0.006,
             "velocity": 7
@@ -30,7 +30,7 @@
         },
         {
           "name": "toms",
-          "sfz": "sm-drums/Programs/shaped-toms.sfz",
+          "sfz": "pinst5_d25/sm-drums/Programs/shaped-toms.sfz",
           "take": {
             "timing": 0.005,
             "velocity": 6
@@ -38,7 +38,7 @@
         },
         {
           "name": "cymbals",
-          "sfz": "sm-drums/Programs/shaped-cymbals.sfz",
+          "sfz": "pinst5_d25/sm-drums/Programs/shaped-cymbals.sfz",
           "take": {
             "timing": 0.007,
             "velocity": 6
