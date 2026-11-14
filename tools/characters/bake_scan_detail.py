@@ -17,10 +17,15 @@ assets/characters/skin/CREDITS.md): its mesh is Z up, facing -Y, eyes shut.
 BUMP (env) is the displacement's height in metres, HIGHPASS the blur radius
 in texels that the low frequencies are taken out at.
 """
-import bpy, bmesh, sys, os, math
+import os
+import sys
+
+import bpy
 import numpy as np
-from mathutils import Vector, Matrix
-from mathutils.bvhtree import BVHTree
+from mathutils import Matrix, Vector
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import scan_fit
 
 args = sys.argv[sys.argv.index("--") + 1:]
 hero_glb, scan_glb, disp_jpg, out_png = args[:4]
@@ -38,123 +43,26 @@ body.modifiers.clear()
 if body.data.shape_keys:
     body.shape_key_clear()
 body.matrix_world = Matrix()
-bpy.ops.import_scene.gltf(filepath=scan_glb)
-for o in list(bpy.data.objects):
-    if o.type != 'MESH':
-        bpy.data.objects.remove(o, do_unlink=True)
-scan = next(o for o in bpy.data.objects if o is not body)
-scan.data.transform(scan.matrix_world)
-scan.matrix_world = Matrix()
+scan = scan_fit.load_scan(scan_glb)
 
-bv = np.array([v.co for v in body.data.vertices])
-bn = np.array([v.normal for v in body.data.vertices])
-sv = np.array([v.co for v in scan.data.vertices])
-
-def nose_and_crown(v, zlo, zhi, xtol):
-    c = v[(np.abs(v[:, 0]) < xtol) & (v[:, 2] > zlo) & (v[:, 2] < zhi)]
-    nose = c[np.argmin(c[:, 1])]
-    crown = v[np.argmax(v[:, 2])]
-    return nose, crown
-
-h_nose, h_crown = nose_and_crown(bv, 1.65, 1.80, 0.01)
-s_nose, s_crown = nose_and_crown(sv, -1.0, 3.0, 0.2)
-s = (h_crown[2] - h_nose[2]) / (s_crown[2] - s_nose[2])
-print("ALIGN init scale", s, "hero nose", h_nose, "scan nose", s_nose)
-# scan -> hero: x' = s R x + t
-R = np.eye(3)
-t = h_nose - s * s_nose
-
-head = np.where(bv[:, 2] > 1.62)[0]
-P = bv[head]
-
-def scan_tree(s, R, t):
-    vs = [Vector(s * R @ np.array(v.co) + t) for v in scan.data.vertices]
-    polys = [tuple(p.vertices) for p in scan.data.polygons]
-    return BVHTree.FromPolygons(vs, polys)
-
-for it in range(40):
-    tree = scan_tree(s, R, t)
-    Q, ok = [], []
-    for p in P:
-        hit = tree.find_nearest(Vector(p))
-        Q.append(hit[0] if hit[0] is not None else Vector(p))
-        ok.append(hit[3] if hit[0] is not None else 1e9)
-    Q = np.array(Q); d = np.array(ok)
-    keep = d < np.quantile(d, 0.75)
-    A, B = Q[keep], P[keep]  # move scan points A toward hero points B
-    ma, mb = A.mean(0), B.mean(0)
-    A0, B0 = A - ma, B - mb
-    U, S_, Vt = np.linalg.svd(B0.T @ A0)
-    D = np.eye(3); D[2, 2] = np.sign(np.linalg.det(U @ Vt))
-    Ri = U @ D @ Vt
-    si = (S_ * np.diag(D)).sum() / (A0 ** 2).sum()
-    ti = mb - si * Ri @ ma
-    s, R, t = si * s, Ri @ R, si * Ri @ t + ti
-    if it % 10 == 0 or it == 39:
-        print("ICP", it, "median mm", round(float(np.median(d)) * 1000, 2), "scale", round(s, 5))
-
-M = np.eye(4); M[:3, :3] = s * R; M[:3, 3] = t
-scan.data.transform(Matrix(M.tolist()))
-scan.data.update()
-
-# wrap a copy of the body onto the scan
+head = scan_fit.Head(body.data)
+scan_fit.align(scan, head)
+cur, good = scan_fit.wrap(scan, head)
 wrap = body.copy(); wrap.data = body.data.copy(); wrap.name = "wrap"
 bpy.context.scene.collection.objects.link(wrap)
-tree = BVHTree.FromObject(scan, bpy.context.evaluated_depsgraph_get())
-nbr = [[] for _ in bv]
-for e in body.data.edges:
-    a, b = e.vertices
-    nbr[a].append(b); nbr[b].append(a)
-
-def smooth(f, w, passes):
-    for _ in range(passes):
-        g = f.copy()
-        for i in head:
-            if nbr[i]:
-                g[i] = f[nbr[i]].mean(0) if f.ndim > 1 else f[nbr[i]].mean()
-        f = np.where(w[:, None] > 0, g, f) if f.ndim > 1 else np.where(w > 0, g, f)
-    return f
-
-cur = bv.copy()
-good = np.zeros(len(bv))
-zramp = np.clip((bv[:, 2] - 1.60) / 0.04, 0, 1)
-for rnd, (limit, passes) in enumerate([(0.015, 8), (0.008, 4), (0.004, 2)]):
-    off = np.zeros_like(cur)
-    g = np.zeros(len(bv))
-    for i in head:
-        hit = tree.find_nearest(Vector(cur[i]))
-        if hit[0] is None:
-            continue
-        if hit[3] < limit and np.dot(bn[i], np.array(hit[1])) > 0.6:
-            off[i] = np.array(hit[0]) - cur[i]; g[i] = 1
-    off = smooth(off * g[:, None], zramp, passes) / np.maximum(smooth(g, zramp, passes), 1e-3)[:, None]
-    cur = cur + off * zramp[:, None]
-    if rnd == 0:
-        good = g
-    print("WRAP round", rnd, "projected", int(g[head].sum()), "of", len(head))
 for i, v in enumerate(wrap.data.vertices):
     v.co = Vector(cur[i])
 wrap.data.update()
 
-# mask: well-projected, away from the eyes (the scan's are shut), above the neck
-eye_c = [np.array([sx * 0.031, -0.14, 1.77]) for sx in (-1, 1)]
-eye = np.ones(len(bv))
-for c in eye_c:
-    r = np.linalg.norm(bv - c, axis=1)
-    eye *= np.clip((r - 0.019) / 0.008, 0, 1)
-def keep_away(c, r0, r1):
-    return np.clip((np.linalg.norm(bv - np.array(c), axis=1) - r0) / (r1 - r0), 0, 1)
-# shapes too unlike the scan's to share its detail: ears, lips, nostrils
-side = bv[(bv[:, 2] > 1.70) & (bv[:, 2] < 1.80)]
-ear_x = np.abs(side[:, 0]).max()
-ear = side[np.argmax(np.abs(side[:, 0]))]
-away = np.ones(len(bv))
+# mask: well-projected, away from the eyes (the scan's are shut), above the
+# neck, and away from shapes too unlike the scan's to share its detail: ears,
+# lips, nostrils
+away = head.eyes()
 for sx in (-1, 1):
-    away *= keep_away((sx * ear_x, ear[1], ear[2]), 0.035, 0.05)
-    away *= keep_away((sx * 0.012, h_nose[1] + 0.012, h_nose[2] - 0.01), 0.008, 0.014)
-away *= keep_away((0, h_nose[1] + 0.012, h_nose[2] - 0.036), 0.016, 0.026)
-print("EAR", ear_x, ear)
-mask = np.clip(smooth(good, zramp, 6) * 1.5 - 0.25, 0, 1) * eye * zramp * away
+    away *= head.keep_away(head.ear * (sx, 1, 1), 0.035, 0.05)
+    away *= head.keep_away(head.at(sx * 0.012, 0.012, -0.01), 0.008, 0.014)
+away *= head.keep_away(head.at(0, 0.012, -0.036), 0.016, 0.026)
+mask = np.clip(head.smooth(good, head.zramp, 6) * 1.5 - 0.25, 0, 1) * head.zramp * away
 col = wrap.data.color_attributes.new("mask", 'FLOAT_COLOR', 'POINT')
 for i, m in enumerate(mask):
     col.data[i].color = (m, m, m, 1)

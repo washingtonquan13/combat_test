@@ -18,6 +18,7 @@ A recipe says what the character is, never how it is built:
                  "height": 0.55, "proportions": 0.5,
                  "race": {"african": 0.2, "asian": 0.1, "caucasian": 0.7}},
       "targets": {"nose/nose-scale-horiz-incr|decr": 0.3},
+      "parts": {"nose": "lee", "ears": ["lee", 0.7]},
       "skin": "young_caucasian_male",
       "eyes": "brown",
       "eyebrows": "eyebrow001",
@@ -27,6 +28,10 @@ A recipe says what the character is, never how it is built:
 
 `macros` are MakeHuman's macro sliders, 0..1; anything left out keeps MakeHuman's
 default. `targets` are optional detail targets by MakeHuman name, valued -1..1.
+`parts` are face parts cut from head scans by bake_scan_parts.py: a part
+(nose, mouth, chin, cheeks, brow, ears, skull) from a scan under
+tools/characters/parts/, whole or at an amount. They go on over the macros and
+targets, so the face is MPFB's with those features swapped in.
 The rest name assets from the MakeHuman system assets pack (CC0), installed in
 MPFB's user data: `skin` a folder under skins/, `eyes` an eye colour under
 eyes/materials/, the others a folder under their own kind. A face is always
@@ -94,6 +99,14 @@ for name, value in recipe.get("targets", {}).items():
     if path is None:
         sys.exit("bake_character: no target called '%s'" % name)
     TargetService.load_target(basemesh, path, weight=float(value), name=name)
+
+parts_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "parts")
+for part, source in recipe.get("parts", {}).items():
+    source, amount = (source, 1.0) if isinstance(source, str) else source
+    path = os.path.join(parts_dir, source, part + ".target")
+    if not os.path.exists(path):
+        sys.exit("bake_character: no part '%s' from '%s'" % (part, source))
+    TargetService.load_target(basemesh, path, weight=float(amount), name="part-%s-%s" % (source, part))
 
 # The shape is the character: bake it so the only blend shapes left are the face.
 TargetService.bake_targets(basemesh)
