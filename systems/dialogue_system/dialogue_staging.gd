@@ -23,8 +23,10 @@ extends Node
 ##
 ##   - consecutive lines from one speaker HOLD the shot; only a change of
 ##     speaker re-frames.
-##   - an aside (an alignment message, an echoed response, a skill-check
-##     result) has no speaker and never re-cuts.
+##   - an aside (an alignment message, a skill-check result) has no
+##     speaker and never re-cuts. A response the player's character says
+##     aloud is a line, not an aside: it cuts to them, and is held as a
+##     turn while they say it (see _hold_spoken).
 var _speaker: Unit = null
 ## Built once and reframed with, not rebuilt per line — the only thing
 ## that varies between lines is who is cast as the speaker, which the cast
@@ -43,9 +45,24 @@ var _staged_node: String = ""
 var _conversation: Conversation = null
 ## How many of its transcript entries have already been staged.
 var _seen: int = 0
+## Whose face is mouthing the latest line, so the next speaker shuts it.
+var _talking: Unit = null
+## The spoken-line wait being held (its serial), or -1. A response the
+## player's character says aloud is a turn: the conversation waits on it
+## (see DialogueChoice.resolve) while it is said, and this ends the wait.
+var _spoken_serial: int = -1
+var _spoken_elapsed: float = 0.0
+var _spoken_quiet: float = 0.0
+var _spoken_min: float = 0.0
 
 
 const BINDINGS_PATH: String = "res://cinematics/dialogue_bindings.tres"
+## A spoken turn holds at least this long per letter of the line, read or
+## mouthed, between these bounds; then a short beat after the mouth closes.
+const SPOKEN_SECONDS_PER_LETTER: float = 0.04
+const SPOKEN_MIN_SECONDS: float = 1.0
+const SPOKEN_MAX_SECONDS: float = 5.0
+const SPOKEN_TAIL_SECONDS: float = 0.3
 
 
 func _ready() -> void:
@@ -54,6 +71,7 @@ func _ready() -> void:
 	_cast = SceneCast.new().track(&"speaker", _current_speaker)
 	if ResourceLoader.exists(BINDINGS_PATH):
 		_bindings = load(BINDINGS_PATH) as SceneBinding
+	set_process(false)
 	Conversations.follow(self, _on_conversation_began)
 
 
@@ -67,6 +85,8 @@ func _on_conversation_began(c: Conversation) -> void:
 	_forget()
 	_conversation = c
 	_seen = 0
+	_spoken_serial = -1
+	c.attach(&"spoken", self)
 	c.changed.connect(_on_changed)
 	_on_changed()
 
@@ -84,12 +104,69 @@ func _on_changed() -> void:
 		_seen += 1
 		if entry.get("kind") == &"line":
 			_on_line(entry, c.cast)
+	var wait: Dictionary = c.waiting
+	if wait.get("kind") == &"spoken" and wait.serial != _spoken_serial:
+		_hold_spoken(wait.serial, c)
 
 
 func _forget() -> void:
-	if _conversation and _conversation.changed.is_connected(_on_changed):
-		_conversation.changed.disconnect(_on_changed)
+	if _conversation:
+		_conversation.detach(&"spoken", self)
+		if _conversation.changed.is_connected(_on_changed):
+			_conversation.changed.disconnect(_on_changed)
 	_conversation = null
+	_spoken_serial = -1
+	set_process(false)
+	_hush()
+
+
+## Holds the spoken turn just recorded for as long as it takes to say:
+## the reading time of the line, and until the speaker's mouth closes.
+func _hold_spoken(serial: int, c: Conversation) -> void:
+	_spoken_serial = serial
+	_spoken_elapsed = 0.0
+	_spoken_quiet = 0.0
+	var said: String = c.transcript[-1].text if not c.transcript.is_empty() else ""
+	_spoken_min = clampf(said.length() * SPOKEN_SECONDS_PER_LETTER, SPOKEN_MIN_SECONDS, SPOKEN_MAX_SECONDS)
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	if not _holding_spoken():
+		set_process(false)
+		return
+	_spoken_elapsed += delta
+	var face: FaceDriver = FaceDriver.of(_talking) if is_instance_valid(_talking) else null
+	if face and face.is_talking():
+		_spoken_quiet = 0.0
+		return
+	_spoken_quiet += delta
+	if _spoken_elapsed >= _spoken_min and _spoken_quiet >= SPOKEN_TAIL_SECONDS:
+		_end_spoken()
+
+
+## The same key that moves a cutscene line on cuts a spoken turn short.
+func _unhandled_input(event: InputEvent) -> void:
+	if _holding_spoken() and event.is_action_pressed(&"cinematic_advance"):
+		get_viewport().set_input_as_handled()
+		_end_spoken()
+
+
+func _holding_spoken() -> bool:
+	return _conversation != null and _spoken_serial >= 0 			and _conversation.waiting.get("serial", -1) == _spoken_serial
+
+
+func _end_spoken() -> void:
+	set_process(false)
+	if _holding_spoken():
+		_conversation.complete()
+
+
+func _hush() -> void:
+	var face: FaceDriver = FaceDriver.of(_talking) if is_instance_valid(_talking) else null
+	if face:
+		face.hush()
+	_talking = null
 
 
 func _current_speaker() -> Unit:
@@ -98,7 +175,17 @@ func _current_speaker() -> Unit:
 
 func _on_line(entry: Dictionary, cast: Dictionary) -> void:
 	var speaking: Unit = cast.get(entry.speaker) as Unit
-	if not is_instance_valid(speaking) or speaking == _speaker:
+	if not is_instance_valid(speaking):
+		return
+	# Every line is mouthed, the held ones included; whoever was talking
+	# stops when someone else starts.
+	if speaking != _talking:
+		_hush()
+	var face: FaceDriver = FaceDriver.of(speaking)
+	if face:
+		face.talk(entry.text)
+		_talking = speaking
+	if speaking == _speaker:
 		return
 	_speaker = speaking
 
@@ -136,6 +223,7 @@ func _staged_scene(node_id: String) -> PackedScene:
 
 
 func _on_conversation_ended() -> void:
+	_hush()
 	_staged_node = ""
 	_speaker = null
 	var camera: CinematicCamera = CinematicDirector.camera()

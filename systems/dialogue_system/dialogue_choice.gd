@@ -80,6 +80,12 @@ func resolve(c: Conversation) -> String:
 		# attribute it to them the same way a node's own text_block gets
 		# attributed to its speaker.
 		c.record("player", dialogue_line)
+		# Said aloud, it is a turn of its own: the conversation waits while
+		# the player's character says it (see DialogueStaging), so the
+		# answer doesn't land on top of the question.
+		await c.show(&"spoken", {"speaker": "player"})
+		if c.ended:
+			return ""
 	return await _resolve_next_node_id(c)
 
 

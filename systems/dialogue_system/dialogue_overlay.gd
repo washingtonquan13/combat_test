@@ -157,6 +157,9 @@ func _on_changed() -> void:
 	# (Conversation.choose refuses it anyway), and nothing has to restore
 	# the rows: the next node's `changed` rebuilds them.
 	_set_choices_interactive(not snap.busy and snap.waiting.is_empty())
+	# While the player's character says the response they picked, the
+	# band shows only that line, the way the other side's lines read.
+	_choice_list.visible = snap.waiting.get("kind") != &"spoken"
 
 
 ## An aside (speaker "" — an alignment note, a roll result, who assisted)
