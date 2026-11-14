@@ -14,9 +14,10 @@ The copy used was the one in three.js's examples
 was baked as a normal map onto the MakeHuman/MPFB head's UV layout, with its
 low frequencies removed and the eyes, ears, lips and nostrils masked out.
 
-It reaches a character through CharacterLook's `face_detail` (the
-townsperson has it; proof_hero does not). This credit must appear in the
-game's credits when it ships, while any character uses it.
+It reaches a character through CharacterLook's `face_detail`. No character
+uses it now: both use `procedural_face_detail.png`, made by rule by
+`tools/characters/bake_skin_detail.py` from no scan, which needs no credit.
+This credit must appear in the game's credits if a character uses it again.
 
 ## Face parts: tools/characters/parts/lee/
 

@@ -15,7 +15,7 @@
 [ext_resource type="Skin" path="res://assets/characters/townsperson/townsperson_outline_skin.tres" id="13_outline_skin"]
 [ext_resource type="Script" path="res://systems/unit_system/character_look.gd" id="14_look"]
 [ext_resource type="Texture2D" path="res://assets/characters/townsperson/townsperson_scalp.png" id="15_scalp"]
-[ext_resource type="Texture2D" uid="uid://dsqw0dy2l0fr1" path="res://assets/characters/skin/mpfb_face_detail.png" id="16_detail"]
+[ext_resource type="Texture2D" uid="uid://bs6muwl44bqu5" path="res://assets/characters/skin/procedural_face_detail.png" id="16_detail"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
