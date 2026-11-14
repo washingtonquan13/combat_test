@@ -37,6 +37,17 @@ lines alone, on flat skin).
 STRENGTH (env, default 3): scales every slope; at 3 they spread about as
 the scan map's do.
 SEED (env, default 1): another skin.
+
+ZONES (env, a path): instead of the normal map, writes the face's colour and
+shine zones there, in the same layout, for skin.gdshader's zone_texture
+(assets/characters/skin/procedural_face_zones.png is this):
+  R  flush: the cheeks, the nose, the ears, the lids, the chin, and the
+     pink inner corner of each eye and the rims of the lids;
+  G  where a beard grows: the upper lip, chin, jaw, sideburns, under the jaw;
+  B  under the eyes, where the skin is thin and darker;
+  A  shine: the forehead, nose and chin a little (oily), the lids' rims
+     where they meet the eye fully (wet).
+They are places, not colours: each face says how much of each it has.
 """
 import os
 import sys
@@ -57,6 +68,7 @@ AGE = float(os.environ.get("AGE", "0.2"))
 STRENGTH = float(os.environ.get("STRENGTH", "3"))
 SEED = int(os.environ.get("SEED", "1"))
 LINES = os.environ.get("LINES", "with")
+ZONES = os.environ.get("ZONES")
 if LINES == "without":
     AGE = 0.0
 MM = 0.001
@@ -263,6 +275,102 @@ forehead = smoothstep(eye_z + 0.014 * k, eye_z + 0.03 * k, P[:, 2]) * front \
     * (1 - smoothstep(0.035 * k, 0.055 * k, np.abs(P[:, 0])))
 lips_r = smoothstep(0.3, 0.7, lips)
 ears_r = smoothstep(0.2, 0.6, ears)
+
+
+def save(img, path, name):
+    """Writes img (RES x RES x 4, 0-1), its covered texels grown outward so
+    mipmaps don't pull in empty ones."""
+    img = img.astype(np.float32)
+    have = covered.copy()
+    for _ in range(8):
+        acc = np.zeros_like(img)
+        cnt = np.zeros((RES, RES))
+        for axis, shift in ((0, 1), (0, -1), (1, 1), (1, -1)):
+            hv = np.roll(have, shift, axis)
+            acc += np.roll(img, shift, axis) * hv[..., None]
+            cnt += hv
+        grow = ~have & (cnt > 0)
+        img[grow] = acc[grow] / cnt[grow][:, None]
+        have |= grow
+    out = bpy.data.images.new(name, RES, RES, alpha=True)
+    out.colorspace_settings.name = "Non-Color"
+    out.pixels.foreach_set(img.ravel())
+    out.filepath_raw = os.path.abspath(path)
+    out.file_format = 'PNG'
+    out.save()
+    print("WROTE", path)
+
+
+def zones():
+    """The face's colour and shine zones, per texel (see ZONES above)."""
+    Q = (P - head.nose) / k  # hero metres from the nose tip, y backwards
+    x, y, z = Q.T
+    ax = np.abs(x)
+    ear = (head.ear - head.nose) / k
+    lip_v = V0[weights(basemesh, "lips") > 0.5]
+    mouth = (lip_v[np.abs(lip_v[:, 0]) < 0.004 * k, 2].mean() - head.nose[2]) / k
+    lip_q = (lip_v - head.nose) / k
+    lip_z = (lip_q[:, 2].max() + lip_q[:, 2].min()) / 2
+    # the lips as an ellipse: a beard's shadow stops short of them, softly
+    to_lips = np.hypot(x / np.abs(lip_q[:, 0]).max(), (z - lip_z) / (np.ptp(lip_q[:, 2]) / 2))
+    no_lips = 1 - smoothstep(0.1, 0.5, lips)
+
+    def blob(cx, cz, rx, rz):
+        d = np.hypot((ax - cx) / rx, (z - cz) / rz)
+        return 1 - smoothstep(0.4, 1.0, d)
+
+    # the eyeballs, from MPFB's eye helpers: the skin touching one is the
+    # rim of a lid, or the inner corner's caruncle
+    rim = np.zeros(n)
+    corner = np.zeros(n)
+    lower = np.zeros(n)
+    for s, sx in (("l", 1), ("r", -1)):
+        ball = V0[weights(basemesh, "helper-%s-eye" % s) > 0]
+        c = ball.mean(0)
+        r = np.median(np.linalg.norm(ball - c, axis=1))
+        mine = np.sign(P[:, 0]) == sx
+        gap = np.linalg.norm(P - c, axis=1) - r
+        ahead = smoothstep(0.2 * r, 0.5 * r, c[1] - P[:, 1])
+        touch = (1 - smoothstep(0.6 * MM * k, 1.6 * MM * k, np.abs(gap))) * ahead * mine
+        rim = np.maximum(rim, touch)
+        inner = smoothstep(0.3 * r, 0.8 * r, sx * (c[0] - P[:, 0]))
+        corner = np.maximum(corner, touch * inner)
+        lower = np.maximum(lower, touch * smoothstep(-0.1 * r, -0.4 * r, P[:, 2] - c[2]))
+        print("EYE", s, "radius mm", round(float(r / MM), 2), "rim texels", int((touch > 0.5).sum()))
+    eye_q = (eye[1] - head.nose) / k
+
+    chin = (1 - smoothstep(0.010, 0.022, np.hypot(x, z - (mouth - 0.035)))) * front
+    flush = np.maximum.reduce([
+        0.7 * blob(0.042, 0.004, 0.026, 0.024) * front,  # cheeks
+        0.9 * (1 - smoothstep(0.010, 0.024, np.hypot(x, np.hypot(y, z)))),  # nose
+        0.8 * ears_r,
+        0.45 * blob(eye_q[0], eye_q[2], 0.024, 0.017) * front,  # lids
+        0.35 * chin,
+        0.6 * rim,
+        corner,
+    ]) * no_lips
+
+    top = np.minimum(-0.02 + 0.75 * np.maximum(ax - 0.022, 0), 0.03)
+    beard = (1 - smoothstep(top - 0.004, top + 0.006, z))         * (1 - smoothstep(ear[1] - 0.012, ear[1] - 0.004, y))         * smoothstep(-0.135, -0.105, z) * smoothstep(1.05, 1.5, to_lips)
+
+    under = np.zeros(n)
+    for sx in (-1, 1):
+        d = np.hypot((x - sx * (eye_q[0] - 0.002)) / 0.017, (z - (eye_q[2] - 0.017)) / 0.009)
+        under = np.maximum(under, 1 - smoothstep(0.35, 1.0, d))
+    under *= front * (1 - rim)
+
+    forehead_c = forehead * (1 - smoothstep(0.02, 0.04, ax))
+    shine = np.maximum.reduce([0.2 * forehead_c, 0.3 * nose, 0.15 * chin,
+                               0.7 * rim, lower, corner])
+
+    img = np.zeros((RES, RES, 4))
+    img[idx] = np.column_stack([flush, beard, under, shine])
+    return img
+
+
+if ZONES:
+    save(zones(), ZONES, "skin_zones")
+    sys.exit(0)
 
 # --- the height ------------------------------------------------------------------
 

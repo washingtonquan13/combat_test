@@ -36,6 +36,24 @@ uniform float age_amount : hint_range(0.0, 1.0) = 0.0;
 uniform sampler2D shape_texture : hint_normal, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform float shape_strength : hint_range(0.0, 3.0) = 0.0;
 
+// Where the face's colour and shine change, baked by
+// tools/characters/bake_skin_detail.py (ZONES) in the same layout: R flush
+// (cheeks, nose, ears, lids, the eyes' inner corners), G where a beard grows,
+// B under the eyes, A shine (oily T-zone, wet lid rims). Each face says how
+// much of each it has.
+uniform sampler2D zone_texture : hint_default_transparent, filter_linear_mipmap_anisotropic, repeat_disable;
+uniform vec4 flush_color : source_color = vec4(1.0, 0.7, 0.66, 1.0);
+uniform float flush : hint_range(0.0, 1.0) = 0.5;
+// A shaved beard's shadow: the stubble under the skin, grey-blue.
+uniform vec4 beard_color : source_color = vec4(0.6, 0.6, 0.64, 1.0);
+uniform float beard : hint_range(0.0, 1.0) = 0.0;
+uniform vec4 under_eye_color : source_color = vec4(0.8, 0.7, 0.76, 1.0);
+uniform float under_eye : hint_range(0.0, 1.0) = 0.5;
+// The roughness at full shine (a lid's wet rim), and how far the oily
+// places go towards it.
+uniform float shine_roughness : hint_range(0.0, 1.0) = 0.12;
+uniform float oil : hint_range(0.0, 1.0) = 1.0;
+
 uniform float roughness_base : hint_range(0.0, 1.0) = 0.5;
 // How much the pores and creases move roughness about.
 uniform float roughness_variation : hint_range(0.0, 0.5) = 0.15;
@@ -97,6 +115,10 @@ void fragment() {
 		+ (texture(shape_texture, UV).xy * 2.0 - 1.0) * shape_strength;
 	// Under the hair the skin takes the colour of its roots: what shows
 	// between the cards is hair, not skin.
+	vec4 zone = texture(zone_texture, UV);
+	albedo *= mix(vec3(1.0), flush_color.rgb, zone.r * flush);
+	albedo *= mix(vec3(1.0), beard_color.rgb, zone.g * beard);
+	albedo *= mix(vec3(1.0), under_eye_color.rgb, zone.b * under_eye);
 	albedo = mix(albedo, scalp_color.rgb * scalp_shade, scalp);
 	occlusion *= 1.0 - scalp * 0.5;
 
@@ -106,6 +128,9 @@ void fragment() {
 	NORMAL_MAP = vec3(bumps * 0.5 + 0.5, 1.0);
 	NORMAL_MAP_DEPTH = 1.0;
 	ROUGHNESS = clamp(roughness_base + roughness_variation * ((1.0 - crease) * 2.0 - (1.0 - pore_height)), 0.2, 1.0);
+	// Oil goes as far as oil says; a rim at full shine is wet whatever the face.
+	float shine = zone.a < 0.65 ? zone.a * oil : zone.a;
+	ROUGHNESS = mix(ROUGHNESS, shine_roughness, shine);
 	ROUGHNESS = mix(ROUGHNESS, 0.85, scalp);
 	// Hair takes the skin's sheen: no glancing shine or fuzz under it.
 	SPECULAR = specular_level * (1.0 - scalp);

@@ -14,6 +14,7 @@ const ENV := "res://world/goblin_quarry/quarry_environment.tres"
 # look offset from the head, fov.
 const VIEWS := [
 	["face", Vector3(0.0, 0.02, 0.55), Vector3(0.0, 0.0, 0.0), 30.0],
+	["eyes", Vector3(0.1, 0.0, 0.4), Vector3(0.03, -0.005, 0.07), 9.0],
 	["three_quarter", Vector3(0.38, 0.04, 0.42), Vector3(0.0, -0.01, 0.0), 30.0],
 	["profile_back", Vector3(-0.5, 0.06, -0.25), Vector3(0.0, 0.0, 0.0), 32.0],
 	["bust", Vector3(0.25, -0.05, 1.3), Vector3(0.0, -0.25, 0.0), 32.0],

@@ -46,6 +46,16 @@ const LASH := preload("res://assets/characters/shaders/lash.tres")
 ## and how deep they go: 0 a young face's (none), 1 an old one's.
 @export var age_lines: Texture2D
 @export_range(0.0, 1.0, 0.05) var age_amount: float = 0.0
+## Where the face's colour and shine change (flush, beard, under the eyes,
+## oil and wet lid rims), made by bake_skin_detail.py (ZONES), and how much
+## of each this face has.
+@export var face_zones: Texture2D
+@export_range(0.0, 1.0, 0.05) var flush: float = 0.5
+## A shaved beard's shadow; 0 for a face that grows none.
+@export_range(0.0, 1.0, 0.05) var beard_shadow: float = 0.0
+@export_range(0.0, 1.0, 0.05) var under_eye: float = 0.5
+## How far the oily places (forehead, nose, chin) shine.
+@export_range(0.0, 1.0, 0.05) var oil: float = 1.0
 ## Which fit of a Wearable this body takes (Wearable.meshes). Each baked
 ## character is its own body type for now: its recipe's name.
 @export var body_type: StringName
@@ -181,6 +191,12 @@ func _skin() -> ShaderMaterial:
 	if age_lines:
 		skin.set_shader_parameter("age_texture", age_lines)
 		skin.set_shader_parameter("age_amount", age_amount)
+	if face_zones:
+		skin.set_shader_parameter("zone_texture", face_zones)
+		skin.set_shader_parameter("flush", flush)
+		skin.set_shader_parameter("beard", beard_shadow)
+		skin.set_shader_parameter("under_eye", under_eye)
+		skin.set_shader_parameter("oil", oil)
 	return skin
 
 
