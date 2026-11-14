@@ -13,6 +13,7 @@
 [ext_resource type="Shader" path="res://systems/unit_system/outline.gdshader" id="11_outline"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/townsperson/townsperson_outline.mesh" id="12_outline_mesh"]
 [ext_resource type="Skin" path="res://assets/characters/townsperson/townsperson_outline_skin.tres" id="13_outline_skin"]
+[ext_resource type="Script" path="res://systems/unit_system/character_look.gd" id="14_look"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -90,6 +91,12 @@ libraries = {
 
 [node name="FaceDriver" type="Node" parent="."]
 script = ExtResource("10_face")
+
+[node name="CharacterLook" type="Node" parent="."]
+script = ExtResource("14_look")
+hair_part = "ponytail01"
+hair_color = Color(0.09, 0.065, 0.05, 1)
+dye = 1.0
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_outline")

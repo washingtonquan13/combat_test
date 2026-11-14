@@ -13,6 +13,7 @@
 [ext_resource type="Shader" path="res://systems/unit_system/outline.gdshader" id="11_outline"]
 [ext_resource type="ArrayMesh" path="res://assets/characters/proof_hero/proof_hero_outline.mesh" id="12_outline_mesh"]
 [ext_resource type="Skin" path="res://assets/characters/proof_hero/proof_hero_outline_skin.tres" id="13_outline_skin"]
+[ext_resource type="Script" path="res://systems/unit_system/character_look.gd" id="14_look"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -90,6 +91,10 @@ libraries = {
 
 [node name="FaceDriver" type="Node" parent="."]
 script = ExtResource("10_face")
+
+[node name="CharacterLook" type="Node" parent="."]
+script = ExtResource("14_look")
+hair_part = "short02"
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_outline")
