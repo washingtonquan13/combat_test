@@ -60,7 +60,11 @@ uniform float fuzz : hint_range(0.0, 1.0) = 0.15;
 // rooted hair rather than bare skin.
 uniform sampler2D scalp_texture : hint_default_black, filter_linear_mipmap, repeat_disable;
 uniform vec4 scalp_color : source_color = vec4(0.25, 0.17, 0.11, 1.0);
-uniform float scalp_strength : hint_range(0.0, 1.0) = 0.95;
+uniform float scalp_strength : hint_range(0.0, 1.0) = 1.0;
+// The scalp's colour, as a share of the hair's: what its roots look like
+// between the cards. The cards light their colour up as a volume
+// (groom.gdshader's scatter), so much darker would show as holes.
+uniform float scalp_shade : hint_range(0.0, 2.0) = 0.7;
 uniform float fuzz_tint : hint_range(0.0, 1.0) = 0.7;
 
 // The skin the worn items hide (CharacterLook.wear): their covers masks, in
@@ -91,8 +95,9 @@ void fragment() {
 		+ (detail.xy * 2.0 - 1.0) * detail_strength * detail_mask
 		+ (texture(age_texture, UV).xy * 2.0 - 1.0) * age_amount * detail.a
 		+ (texture(shape_texture, UV).xy * 2.0 - 1.0) * shape_strength;
-	// Under hair the scalp sits in the hair's shadow, so darker than the hair.
-	albedo = mix(albedo, scalp_color.rgb * 0.3, scalp);
+	// Under the hair the skin takes the colour of its roots: what shows
+	// between the cards is hair, not skin.
+	albedo = mix(albedo, scalp_color.rgb * scalp_shade, scalp);
 	occlusion *= 1.0 - scalp * 0.5;
 
 	ALBEDO = albedo;
@@ -104,7 +109,7 @@ void fragment() {
 	ROUGHNESS = mix(ROUGHNESS, 0.85, scalp);
 	// Hair takes the skin's sheen: no glancing shine or fuzz under it.
 	SPECULAR = specular_level * (1.0 - scalp);
-	SSS_STRENGTH = subsurface * (1.0 - scalp * 0.7);
+	SSS_STRENGTH = subsurface * (1.0 - scalp);
 	SSS_TRANSMITTANCE_COLOR = transmittance_color;
 	SSS_TRANSMITTANCE_DEPTH = transmittance_depth;
 	SSS_TRANSMITTANCE_BOOST = transmittance_boost;

@@ -213,6 +213,8 @@ def _cards(head, S, info, rng):
 
 
 STRAND_ATLAS = 2048  # a character's strand atlas, square, in texels
+ROOT_RAGGED = 0.15  # how far down its card, as a share, a strand may start
+ROOT_FADE = 0.06  # over which share of its length a strand fades in
 ALONG_TEXELS = 0.4  # texels along a card for each one across: strands run along
 
 
@@ -313,6 +315,9 @@ def _bake_strands(tiles, uvs, png, rng):
         Z = np.repeat(z, c) + rng.normal(0.0, 0.3 * (z.std() + 1e-5), m_)
         rank = np.argsort(np.argsort(Z)) / max(m_ - 1, 1)
         ends = np.where(rng.uniform(size=m_) < 0.35, rng.uniform(0.6, 1.0, m_), 1.0)
+        # Each strand leaves the card's root row a little way down it, so
+        # the card's root edge breaks up instead of drawing a straight line.
+        starts = rng.uniform(0.0, ROOT_RAGGED, m_)
         # About a texel a step down the tile.
         q = np.linspace(0.0, L - 1.0, max(2 * th, 8))
         i0 = np.minimum(q.astype(int), L - 2)
@@ -323,10 +328,10 @@ def _bake_strands(tiles, uvs, png, rng):
         aq = np.interp(q, np.arange(L), root_to_tip)
         x = x0 + 1.0 + Uq * (tw - 2)
         y = np.broadcast_to(y0 + 1.0 + sq * (th - 2), x.shape)
-        fade = 1.0 - _smoothstep(0.85, 1.0, tq[None] / ends[:, None])
+        fade = (1.0 - _smoothstep(0.85, 1.0, tq[None] / ends[:, None]))             * _smoothstep(starts[:, None], starts[:, None] + ROOT_FADE, tq[None])
         hw = rng.uniform(0.25, 0.5, m_)[:, None] * (1.0 - 0.5 * tq[None])
         ids = np.broadcast_to(rng.uniform(size=m_)[:, None], x.shape)
-        inside = (Uq >= 0.0) & (Uq <= 1.0) & (tq[None] <= ends[:, None])
+        inside = (Uq >= 0.0) & (Uq <= 1.0) & (tq[None] <= ends[:, None]) & (tq[None] >= starts[:, None])
         yi = np.clip(y.astype(int), y0, y0 + th - 1)
         for off in (-1, 0, 1):
             px = np.floor(x).astype(int) + off
@@ -535,7 +540,7 @@ def _scalp_texture(body, head, S, info, png, rng):
     # about as many strokes as the old stamp, whose gain this keeps.
     gain = 1.6 * 30000.0 / len(S)
     scalp = 1.0 - np.exp(-acc * gain * density)
-    scalp = np.maximum(scalp, np.clip(fill * 1.4, 0.0, 1.0) * 0.8)
+    scalp = np.maximum(scalp, np.clip(fill * 1.4, 0.0, 1.0))
     write_png(png, (scalp * 255.0 + 0.5).astype(np.uint8))
     print("GROOM scalp", png, "covered", int(covered.sum()), "of", count)
 
