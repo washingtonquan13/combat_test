@@ -283,7 +283,9 @@ for sx in (-1, 1):
     dist, side, along = near_curve(pts, nrm, 3 * MM * k)
     h += np.where(np.isfinite(dist), 0.3 * MM * gauss(dist, 1.1 * MM) * taper(along, 0.2), 0)
 
-# lip border: a rolled edge just outside the lips
+# lip border: a soft rolled edge just outside the lips. It is the upper lip's
+# (most of all over the cupid's bow); under the lower lip it is faint, and it
+# fades out towards the corners. Even all round, it reads as a drawn outline.
 border = smooth(lips, 2)
 edge = np.where((border > 0.35) & (border < 0.65))[0]
 outside = border < 0.5
@@ -291,13 +293,16 @@ kd = KDTree(len(edge))
 for j, i in enumerate(edge):
     kd.insert(Vector(D[i]), j)
 kd.balance()
+half_width = np.abs(lip_pts[:, 0]).max()
+slit_z = (lip_top + lip_bottom) / 2
 near_mouth = np.where(np.linalg.norm(D - mouth_c, axis=1) < 0.04 * k)[0]
 for i in near_mouth:
+    if not outside[i]:
+        continue
     co, j, d = kd.find(Vector(D[i]))
-    if outside[i]:
-        h[i] += 0.25 * MM * gauss(d - 0.7 * MM, 0.6 * MM)
-    else:
-        h[i] -= 0.08 * MM * gauss(d, 0.5 * MM)
+    upper = np.clip((D[i, 2] - slit_z) / (0.003 * k), 0, 1)
+    across = 1 - np.clip((abs(D[i, 0]) / half_width - 0.5) / 0.45, 0, 1)
+    h[i] += 0.25 * MM * gauss(d - 1.0 * MM, 1.0 * MM) * (0.15 + 0.85 * upper) * across
 
 # groove under the lower lip
 xz = [(x * k, lip_bottom - 0.006 * k - 0.004 * k * (x / 0.014) ** 2) for x in np.linspace(-0.014, 0.014, 60)]
