@@ -52,6 +52,18 @@ extends Resource
 ## Shifts the aim point without moving the camera, in world axes. This is
 ## the pan/tilt knob: same position, different look.
 @export var look_offset: Vector3 = Vector3.ZERO
+## Turns the camera off its aim, in degrees to the camera's own right. The
+## aim point lands left of centre by that much, which is how a face is put
+## on a third of the frame instead of in the middle of it. look_offset
+## cannot do this: it is in world axes, and which way is "screen right"
+## depends on where the camera ended up.
+@export var pan_degrees: float = 0.0
+
+## How strongly everything nearer and farther than the aim point is thrown
+## out of focus; 0 leaves the whole frame sharp. A shot over somebody's
+## shoulder needs it: their head is a hand's width from the lens, and sharp
+## it is a wall across the corner of the frame.
+@export var focus_blur: float = 0.0
 
 
 ## True when `other` orbits the same person, and can therefore be reached
@@ -71,7 +83,7 @@ func resolve_position(cast: SceneCast) -> Vector3:
 
 func resolve_look(cast: SceneCast) -> Vector3:
 	var aim: Array = look_target()
-	return look_of(_read_source(cast, aim[0], aim[1]))
+	return _panned(resolve_position(cast), look_of(_read_source(cast, aim[0], aim[1])))
 
 
 ## The same two answers, from a source that is NOT a cast.
@@ -92,7 +104,13 @@ func position_from(source: Callable) -> Vector3:
 
 func look_from(source: Callable) -> Vector3:
 	var aim: Array = look_target()
-	return look_of(source.call(aim[0], aim[1]))
+	return _panned(position_from(source), look_of(source.call(aim[0], aim[1])))
+
+
+func _panned(eye: Vector3, look: Vector3) -> Vector3:
+	if is_zero_approx(pan_degrees):
+		return look
+	return eye + (look - eye).rotated(Vector3.UP, -deg_to_rad(pan_degrees))
 
 
 ## Which (mark, role) the camera aims at. Falls back to the SUBJECT, not
@@ -177,4 +195,6 @@ func blended_toward(to: CameraFraming, t: float) -> CameraFraming:
 	mid.elevation_degrees = lerpf(elevation_degrees, to.elevation_degrees, t)
 	mid.fov_degrees = lerpf(fov_degrees, to.fov_degrees, t)
 	mid.look_offset = look_offset.lerp(to.look_offset, t)
+	mid.pan_degrees = lerpf(pan_degrees, to.pan_degrees, t)
+	mid.focus_blur = lerpf(focus_blur, to.focus_blur, t)
 	return mid

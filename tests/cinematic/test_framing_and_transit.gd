@@ -195,7 +195,13 @@ func _the_rules_that_outlived_the_rig(a: Unit, b: Unit, bystander: Unit) -> void
 
 	_camera.release()
 	_conversation.record("npc", "Two.")
-	check("consecutive lines from the same speaker hold the shot",
+	check("a second line from the same speaker cuts in closer",
+		_camera.is_framing(),
+		"the speaker's second line in a row left the camera where it was")
+
+	_camera.release()
+	_conversation.record("npc", "Three.")
+	check("further lines from the same speaker hold the shot",
 		not _camera.is_framing(),
 		"the camera re-cut on a line from the person it was already framing")
 

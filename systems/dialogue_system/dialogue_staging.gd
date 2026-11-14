@@ -21,16 +21,25 @@ extends Node
 ## The two rules inherited from DialogueCameraRig, because they are what
 ## makes coverage read as coverage:
 ##
-##   - consecutive lines from one speaker HOLD the shot; only a change of
-##     speaker re-frames.
+##   - a change of speaker cuts to them over the listener's shoulder. If
+##     they keep talking, their second line cuts in to a close shot, and
+##     further lines hold it.
 ##   - an aside (an alignment message, a skill-check result) has no
 ##     speaker and never re-cuts. A response the player's character says
 ##     aloud is a line, not an aside: it cuts to them, and is held as a
 ##     turn while they say it (see _hold_spoken).
 var _speaker: Unit = null
-## Built once and reframed with, not rebuilt per line — the only thing
-## that varies between lines is who is cast as the speaker, which the cast
-## resolves live.
+## Who the speaker is talking to, or null when nobody else is in the
+## conversation. The shots below need two people; one alone gets the plain
+## shot.
+var _listener: Unit = null
+## How many lines in a row the speaker has had, which picks the shot.
+var _run: int = 0
+## Which side of the line between the two the camera works from, +1 or -1,
+## or 0 before the first shot. Chosen once per conversation and kept:
+## crossing that line flips who is on the left, which reads as the two
+## having swapped places.
+var _side: float = 0.0
 var _framing: CameraFraming = null
 var _cast: SceneCast = null
 ## Bindings are optional. No file, or no entry for a node, means the
@@ -64,11 +73,32 @@ const SPOKEN_MIN_SECONDS: float = 1.0
 const SPOKEN_MAX_SECONDS: float = 5.0
 const SPOKEN_TAIL_SECONDS: float = 0.3
 
+## OVER THE SHOULDER: the camera stands behind the listener, off to one
+## side, and looks at the speaker — who sits on the far third of the frame
+## with the listener's shoulder in the near corner.
+const SHOULDER_DISTANCE: float = 1.2
+const SHOULDER_AZIMUTH: float = 28.0
+const SHOULDER_ELEVATION: float = 6.0
+const SHOULDER_FOV: float = 15.0
+const SHOULDER_PAN: float = -3.0
+## CLOSE: the speaker alone, from the same side, off-centre with the empty
+## part of the frame in front of their face.
+const CLOSE_DISTANCE: float = 1.15
+const CLOSE_AZIMUTH: float = 28.0
+const CLOSE_ELEVATION: float = 1.0
+const CLOSE_FOV: float = 30.0
+const CLOSE_PAN: float = -4.5
+## Aims below the head so the face sits in the upper half of the frame,
+## clear of the line and the choices under it.
+const AIM_DROP: float = 0.04
+## How far out of focus the listener's shoulder and the scenery go.
+const FOCUS_BLUR: float = 0.09
+
 
 func _ready() -> void:
 	_framing = CameraFraming.new()
 	_framing.subject_role = &"speaker"
-	_cast = SceneCast.new().track(&"speaker", _current_speaker)
+	_cast = SceneCast.new().track(&"speaker", _current_speaker).track(&"listener", _current_listener)
 	if ResourceLoader.exists(BINDINGS_PATH):
 		_bindings = load(BINDINGS_PATH) as SceneBinding
 	set_process(false)
@@ -173,6 +203,60 @@ func _current_speaker() -> Unit:
 	return _speaker
 
 
+func _current_listener() -> Unit:
+	return _listener if is_instance_valid(_listener) else null
+
+
+func _someone_other_than(speaker: Unit, cast: Dictionary) -> Unit:
+	for token in cast:
+		var unit: Unit = cast[token] as Unit
+		if is_instance_valid(unit) and unit != speaker:
+			return unit
+	return null
+
+
+## The shot for the speaker's `run`-th line in a row. The plain shot when
+## they have nobody to talk to.
+func _shot(run: int) -> CameraFraming:
+	if not is_instance_valid(_listener):
+		return _framing
+	var shot := CameraFraming.new()
+	shot.look_offset = Vector3(0.0, -AIM_DROP, 0.0)
+	shot.focus_blur = FOCUS_BLUR
+	if run <= 1:
+		shot.subject_role = &"listener"
+		shot.look_role = &"speaker"
+		shot.distance = SHOULDER_DISTANCE
+		shot.elevation_degrees = SHOULDER_ELEVATION
+		shot.fov_degrees = SHOULDER_FOV
+		_keep_side(shot, 180.0, SHOULDER_AZIMUTH, SHOULDER_PAN)
+	else:
+		shot.subject_role = &"speaker"
+		shot.distance = CLOSE_DISTANCE
+		shot.elevation_degrees = CLOSE_ELEVATION
+		shot.fov_degrees = CLOSE_FOV
+		_keep_side(shot, 0.0, CLOSE_AZIMUTH, -CLOSE_PAN)
+	return shot
+
+
+## Swings `shot` off `centre` by `swing` degrees, to whichever hand keeps
+## the camera on this conversation's side of the line between the two, and
+## pans it by `pan` the same way round.
+func _keep_side(shot: CameraFraming, centre: float, swing: float, pan: float) -> void:
+	var from: Vector3 = _speaker.global_position
+	var along: Vector3 = _listener.global_position - from
+	if _side == 0.0:
+		var view: Camera3D = _speaker.get_viewport().get_camera_3d()
+		var seen_from: Vector3 = view.global_position if view else from + Vector3.RIGHT
+		_side = 1.0 if along.cross(seen_from - from).y >= 0.0 else -1.0
+	shot.azimuth_degrees = centre + swing
+	shot.pan_degrees = pan
+	var eye: Vector3 = shot.resolve_position(_cast)
+	if along.cross(eye - from).y * _side < 0.0:
+		shot.azimuth_degrees = centre - swing
+		shot.pan_degrees = -pan
+
+
 func _on_line(entry: Dictionary, cast: Dictionary) -> void:
 	var speaking: Unit = cast.get(entry.speaker) as Unit
 	if not is_instance_valid(speaking):
@@ -186,14 +270,20 @@ func _on_line(entry: Dictionary, cast: Dictionary) -> void:
 		face.talk(entry.text)
 		_talking = speaking
 	if speaking == _speaker:
+		_run += 1
+	else:
+		_run = 1
+		_speaker = speaking
+		_listener = _someone_other_than(speaking, cast)
+	if _run > 2:
 		return
-	_speaker = speaking
+	var opening: bool = _run == 1
 
 	# A node with a scene bound to it plays that scene instead of the
 	# default shot — once, on the first line of the node. Not awaited: the
 	# conversation carries on underneath, and the scene holds the screen
 	# until it ends.
-	var staged: PackedScene = _staged_scene(entry.get("node", ""))
+	var staged: PackedScene = _staged_scene(entry.get("node", "")) if opening else null
 	if staged != null:
 		CinematicDirector.play(staged, _cast)
 		return
@@ -204,7 +294,7 @@ func _on_line(entry: Dictionary, cast: Dictionary) -> void:
 	if camera:
 		# A CUT. Never a transit: sweeping from one face to another is the
 		# swoop shot-and-reverse exists to avoid.
-		camera.frame(_framing, _cast, 0.0)
+		camera.frame(_shot(_run), _cast, 0.0, -2.0, true)
 
 
 ## The bound scene for the node being spoken, or null — including null on
@@ -226,6 +316,9 @@ func _on_conversation_ended() -> void:
 	_hush()
 	_staged_node = ""
 	_speaker = null
+	_listener = null
+	_run = 0
+	_side = 0.0
 	var camera: CinematicCamera = CinematicDirector.camera()
 	if camera:
 		camera.release()

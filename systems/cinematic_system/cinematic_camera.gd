@@ -31,6 +31,7 @@ extends Node3D
 ## must not hand the screen back between them.
 
 var _camera: Camera3D
+var _lens: CameraAttributesPractical = CameraAttributesPractical.new()
 var _cast: SceneCast = null
 var _from: CameraFraming = null
 var _to: CameraFraming = null
@@ -54,8 +55,14 @@ func _ready() -> void:
 ## Crossing to a different subject is shot-and-reverse, which is an EDIT,
 ## not a move — sweeping between two faces is the swoop that coverage
 ## exists to avoid, so it snaps whatever the caller asked for.
+##
+## `locked_off` puts the camera where the framing resolves NOW and leaves it
+## there, like a camera on a tripod. A framing measures from a head, and a
+## head moves with every breath of an idle, so a shot that keeps following
+## one bobs with it. A conversation between people standing still wants the
+## tripod.
 func frame(framing: CameraFraming, cast: SceneCast, transit_seconds: float = 0.0,
-		ease_curve: float = -2.0) -> void:
+		ease_curve: float = -2.0, locked_off: bool = false) -> void:
 	if framing == null or cast == null:
 		return
 	_cast = cast
@@ -66,7 +73,7 @@ func frame(framing: CameraFraming, cast: SceneCast, transit_seconds: float = 0.0
 	_elapsed = 0.0
 	_to = framing
 	_claim()
-	set_process(true)
+	set_process(not locked_off)
 	_apply()
 
 
@@ -125,6 +132,24 @@ func _apply() -> void:
 	if not eye.is_equal_approx(target):
 		_camera.look_at(target, CameraFraming.up_for(eye, target))
 	_camera.fov = showing.fov_degrees
+	_focus(showing.focus_blur, eye.distance_to(target))
+
+
+## Focuses on whatever is `reach` away and blurs the rest by `blur`. The
+## sharp band is cut in proportion to the reach, so a face stays sharp ear
+## to nose whether the shot is close or long.
+func _focus(blur: float, reach: float) -> void:
+	if blur <= 0.0:
+		_camera.attributes = null
+		return
+	_lens.dof_blur_amount = blur
+	_lens.dof_blur_near_enabled = true
+	_lens.dof_blur_near_distance = reach * 0.7
+	_lens.dof_blur_near_transition = reach * 0.3
+	_lens.dof_blur_far_enabled = true
+	_lens.dof_blur_far_distance = reach * 1.5
+	_lens.dof_blur_far_transition = reach * 4.0
+	_camera.attributes = _lens
 
 
 func _claim() -> void:
