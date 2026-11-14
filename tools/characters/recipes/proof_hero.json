@@ -8,5 +8,10 @@
     "height": 0.6,
     "proportions": 0.6,
     "race": {"african": 0.3, "asian": 0.1, "caucasian": 0.6}
-  }
+  },
+  "skin": "young_caucasian_male",
+  "eyes": "brown",
+  "eyebrows": "eyebrow001",
+  "hair": "short02",
+  "clothes": ["male_casualsuit01", "shoes01"]
 }
