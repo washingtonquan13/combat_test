@@ -1,44 +1,23 @@
-"""Grows modern hair cards for a baked MPFB human, in place of its hair shell.
+"""Makes game hair from a hairstyle grown by hairstyle.py on a baked MPFB
+human: the strands are grown on the body by rule, then
 
-MakeHuman's hairstyles are shells: one or two helmets around the head with a
-painted picture of hair on them. That reads as a hat, with a hard cut where
-the shell meets the forehead. This keeps the shell only as the shape of the
-style and grows real hair inside it:
-
-1. roots are scattered over the scalp the shell covers;
-2. strands grow from them along the style's flow (away from a crown whorl, or
-   pulled back to a ponytail tie and down the tail), held between the scalp
-   and the shell, and stop where the shell ends;
-3. each strand becomes a ribbon card, in two layers (a dense inner one close
-   to the scalp, a looser outer one), textured from a shared strand atlas;
-4. every root is also stamped into the body's UV space as short strokes, the
+1. each lock (a guide and the strands that follow it; a bun's rope, split by
+   where it runs round the bun) becomes cards down its middle, as wide as its
+   strands spread: a dense inner card close to the skin, a looser outer one,
+   crossed where the lock hangs free; baby hairs get a wisp card;
+2. every root is stamped into the body's UV space as a short stroke, the
    scalp texture: under the cards the skin turns to short hair, and the
-   hairline fades out in strokes instead of ending at a card's edge.
+   hairline fades out in strokes instead of ending at a card's edge;
+3. a hull over the hair is kept for the outline bake.
 
 The atlas holds no colour, only strands: coverage, a random id per strand,
 shading across and along each strand. groom.gdshader colours it, so every
 character shares one atlas and any hair colour is a uniform.
 
 In Blender, from bake_character.py:
-    groom.build(body, shell, rig, style, name, scalp_png)
+    groom.build(body, eyes, rig, style_path, name, scalp_png)
 Outside Blender, for the shared atlas (numpy only):
     python tools/characters/groom.py atlas assets/characters/hair/hair_strands.png
-
-A style is tools/characters/grooms/<hair>.json, beside the MPFB hair it reworks:
-    flow          "crown" (strands leave a whorl) or "tie" (drawn back to a
-                  ponytail; the shell's tail gives the tail's path)
-    crown_dir     where the whorl sits, as a direction from the head's middle
-    comb          a direction every strand leans towards (x right, y back, z up)
-    gravity       how much strands fall
-    swirl         how much they turn around the whorl
-    length        longest strand on the scalp, metres
-    tip_jitter    how far past the shell's edge strands may run, metres
-    spacing       distance between card roots, metres
-    card_width    metres
-    layers        [{"height": share of the shell's thickness, "atlas": kind}]
-    hairline      how far below the top of the head the front hairline sits,
-                  metres: shells hang a fringe over the brow, but no roots go
-                  there
 """
 import math
 import struct
@@ -151,152 +130,267 @@ def _upsample(grid, size):
     return rows[:, i] * (1 - f)[None, :] + rows[:, i + 1] * f[None, :]
 
 
-def build(body, shell, rig, style, name, scalp_png, seed=1):
-    """Grows the cards for one character. body and shell are the baked body and
-    the MPFB hair; the shell is kept, emptied of its texture and renamed
-    "<name>.hair_shell" (the outline is built from it, CharacterLook hides it).
-    Returns the new cards object, "<name>.groom"."""
+CARD_STEP = 0.008  # metres between a card's rows
+BUN_LOCKS = 140  # cards' worth of locks the bun's rope is split into
+
+
+def build(body, eyes, rig, style_path, name, scalp_png, seed=1):
+    """Grows the hairstyle at style_path (tools/characters/hairstyles/) on the
+    baked body, whose eyes place the head, and makes game hair of it:
+    "<name>.groom", the cards, and "<name>.hair_shell", a hull over the hair
+    that the outline is built from (CharacterLook hides it). Both ride the
+    Head bone. scalp_png gets where the hair grows on the skin. Returns the
+    cards."""
+    import hairstyle
+
+    rng = np.random.default_rng(seed)
+    head = hairstyle.Head(body, eyes)
+    style = hairstyle.Style(style_path, head)
+    info = {}
+    strands, _, _ = hairstyle.grow(head, style, seed, info)
+    _scalp_texture(body, head, strands, info, scalp_png, rng)
+    cards = _object(name + ".groom", *_cards(head, strands, info, rng), rig)
+    _hull(head, strands, info, name + ".hair_shell", rig)
+    return cards
+
+
+def _locks(S, info, rng):
+    """The strands in locks, as (members, first point, last point, baby, free):
+    each guide's strands, over the scalp; a tied style's rope, split by where
+    its strands run round the bun."""
+    lead, tied, m0 = info["lead"], info["tied"], info["scalp_m"]
+    m = S.shape[1]
+    out = []
+    order = np.argsort(lead, kind="stable")
+    keys, starts = np.unique(lead[order], return_index=True)
+    for g, members in zip(keys, np.split(order, starts[1:])):
+        free = members[~tied[members]]
+        bound = members[tied[members]]
+        if len(free):
+            out.append((free, 0, m, bool(info["baby"][g]), True))
+        if len(bound):
+            out.append((bound, 0, m0, bool(info["baby"][g]), False))
+    rope = np.where(tied)[0]
+    if len(rope):
+        marks = np.linspace(m0, m - 1, 4).astype(int)
+        feature = S[rope][:, marks].reshape(len(rope), -1)
+        seeds = feature[rng.choice(len(rope), min(BUN_LOCKS, len(rope)), replace=False)]
+        near = np.argmin(((feature[:, None, :] - seeds[None]) ** 2).sum(-1), axis=1)
+        for k in range(len(seeds)):
+            members = rope[near == k]
+            if len(members):
+                out.append((members, m0 - 1, m, False, True))
+    return out
+
+
+def _cards(head, S, info, rng):
+    """Cards for each lock, running down its strands' middle as wide as they
+    spread: an inner card of dense strands under the middle, an outer one of
+    looser strands over it, which cross where the lock hangs free so it has
+    body from every side. Baby hairs get one wisp card a lock."""
+    positions, normals, uvs, colours, faces = [], [], [], [], []
+
+    def card(path, outward, side, width, columns, layer):
+        k = len(path)
+        col = columns[rng.integers(len(columns))]
+        u0, u1 = col / ATLAS_COLUMNS, (col + 1) / ATLAS_COLUMNS
+        card_rand = rng.uniform()
+        base = len(positions)
+        for j in range(k):
+            s = j / (k - 1)
+            half = 0.5 * width[j] * (1.0 - 0.2 * s)
+            positions.extend([path[j] - side[j] * half, path[j] + side[j] * half])
+            normals.extend([outward[j], outward[j]])
+            uvs.extend([(u0, 1.0 - s), (u1, 1.0 - s)])
+            colours.extend([(layer, card_rand, 0.0, 1.0)] * 2)
+        for j in range(k - 1):
+            l0, r0 = base + 2 * j, base + 2 * j + 1
+            faces.append((l0, l0 + 2, r0 + 2, r0))
+
+    for members, a, b, baby, hangs in _locks(S, info, rng):
+        lock = S[members, a:b]
+        spine = lock.mean(0)
+        seg = np.linalg.norm(np.diff(spine, axis=0), axis=1)
+        arc = np.concatenate([[0.0], np.cumsum(seg)])
+        if arc[-1] < 0.004:
+            continue
+        k = int(np.clip(round(arc[-1] / CARD_STEP) + 1, 3, 24))
+        at = np.interp(np.linspace(0.0, arc[-1], k), arc, np.arange(len(spine)))
+        idx = np.arange(len(spine))
+        path = np.column_stack([np.interp(at, idx, spine[:, c]) for c in range(3)])
+        tangent = np.gradient(path, axis=0)
+        tangent /= np.maximum(np.linalg.norm(tangent, axis=1), 1e-9)[:, None]
+        outward, side, spread, depth, free = [], [], [], [], []
+        for j, p in enumerate(path):
+            q, nq = head.nearest(p)
+            f = float(_smoothstep(0.01, 0.03, (p - q) @ nq)) if hangs else 0.0
+            o = nq * (1.0 - f) + _unit(p - head.c) * f
+            o = _unit(o - tangent[j] * (o @ tangent[j]))
+            sd = _unit(np.cross(o, tangent[j]))
+            d = lock[:, int(round(at[j]))] - path[j]
+            outward.append(o)
+            side.append(sd)
+            spread.append(float(np.std(d @ sd)))
+            depth.append(float(np.std(d @ o)))
+            free.append(f)
+        outward, side = np.array(outward), np.array(side)
+        free, spread, depth = np.array(free), np.array(spread), np.array(depth)
+        if baby:
+            card(path, outward, side, np.clip(4.0 * spread, 0.003, 0.008), VARIANTS["wisp"], 0.85)
+            continue
+        width = np.clip(4.0 * spread, 0.012, 0.03)
+        cross = math.radians(45.0) * free
+        for layer, sign, columns, scale, lift in ((0.3, 1.0, VARIANTS["dense"], 1.3, -0.8),
+                                                  (0.85, -1.0, VARIANTS["medium"], 1.0, 0.5)):
+            p = path + outward * (lift * depth)[:, None]
+            for j in range(k):
+                q, nq = head.nearest(p[j])
+                h = float((p[j] - q) @ nq)
+                if h < 0.0008:
+                    p[j] += nq * (0.0008 - h)
+            twist = sign * cross + rng.normal(0.0, 0.15)
+            sd = side * np.cos(twist)[:, None] + outward * np.sin(twist)[:, None]
+            card(p, outward, sd, width * scale * rng.uniform(0.85, 1.15), columns, layer)
+    print("GROOM cards", len(faces), "quads", len(positions), "verts")
+    return positions, normals, uvs, colours, faces
+
+
+def _unit(v):
+    return v / max(float(np.linalg.norm(v)), 1e-12)
+
+
+def _object(name, positions, normals, uvs, colours, faces, rig):
+    """The mesh as an object riding the rig's Head bone, with a material of
+    its own name (CharacterLook goes by it)."""
     import bpy
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([tuple(p) for p in positions], [], faces)
+    me.validate()
+    if uvs:
+        uv = me.uv_layers.new(name="UVMap")
+        uv.data.foreach_set("uv", [c for li in me.loops for c in uvs[li.vertex_index]])
+    if colours:
+        col = me.color_attributes.new("Color", "FLOAT_COLOR", "POINT")
+        col.data.foreach_set("color", [c for rgba in colours for c in rgba])
+        me.color_attributes.active_color = col
+    if normals:
+        me.normals_split_custom_set_from_vertices([tuple(n) for n in normals])
+    me.materials.append(bpy.data.materials.new(name))
+    obj = bpy.data.objects.new(name, me)
+    bpy.context.scene.collection.objects.link(obj)
+    obj.parent = rig
+    obj.matrix_parent_inverse = rig.matrix_world.inverted()
+    obj.vertex_groups.new(name="Head").add(list(range(len(me.vertices))), 1.0, "REPLACE")
+    obj.modifiers.new("Armature", "ARMATURE").object = rig
+    return obj
+
+
+def _hull(head, S, info, name, rig):
+    """The hair's outer surface, for the outline: the scalp under the hair,
+    lifted to where its outer strands lie, and a hull round the bun."""
+    import bmesh
+    from mathutils import Vector
+    from mathutils.kdtree import KDTree
+
+    m0 = info["scalp_m"]
+    on_head = np.where(info["tied"][:, None], np.arange(S.shape[1])[None] < m0, True)
+    hair_pts = S[::3][on_head[::3]]
+    roots = KDTree(len(S))
+    for i, p in enumerate(S[:, 0]):
+        roots.insert(Vector(p), i)
+    roots.balance()
+    hair = KDTree(len(hair_pts))
+    for i, p in enumerate(hair_pts):
+        hair.insert(Vector(p), i)
+    hair.balance()
+    covered = [int(v) for v in np.unique(head.T) if roots.find_range(Vector(head.V[v]), 0.006)]
+    lift = {}
+    for v in covered:
+        q, nq = head.nearest(head.V[v])
+        near = [np.array(p) for p, _, _ in hair.find_range(Vector(q), 0.015)]
+        h = float(np.percentile([(p - q) @ nq for p in near], 90)) if near else 0.002
+        lift[v] = (q, nq, float(np.clip(h, 0.002, 0.04)))
+    # Smoothed, so strays don't dent or spike it.
+    nbrs = {v: set() for v in lift}
+    for t in head.T:
+        for x in t:
+            for y in t:
+                if x != y and int(x) in lift and int(y) in lift:
+                    nbrs[int(x)].add(int(y))
+    h = {v: lift[v][2] for v in lift}
+    for _ in range(3):
+        h = {v: 0.5 * h[v] + 0.5 * np.mean([h[u] for u in nbrs[v]]) if nbrs[v] else h[v] for v in h}
+    bm = bmesh.new()
+    verts = {v: bm.verts.new(tuple(lift[v][0] + lift[v][1] * (h[v] + 0.001))) for v in lift}
+    for t in head.T:
+        if all(int(v) in verts for v in t):
+            try:
+                bm.faces.new([verts[int(v)] for v in t])
+            except ValueError:
+                pass
+    if info["tied"].any():
+        rope = S[info["tied"], m0:].reshape(-1, 3)
+        rope = rope[np.random.default_rng(0).permutation(len(rope))[:20000]]
+        bun = bmesh.new()
+        for p in rope:
+            bun.verts.new(tuple(p))
+        bmesh.ops.convex_hull(bun, input=bun.verts[:])
+        bmesh.ops.delete(bun, geom=[v for v in bun.verts if not v.link_faces], context="VERTS")
+        bun.verts.ensure_lookup_table()
+        new = [bm.verts.new(tuple(v.co)) for v in bun.verts]
+        for f in bun.faces:
+            bm.faces.new([new[v.index] for v in f.verts])
+        bun.free()
+    bm.verts.index_update()
+    positions = [tuple(v.co) for v in bm.verts]
+    faces = [[v.index for v in f.verts] for f in bm.faces]
+    bm.free()
+    print("GROOM hull", len(positions), "verts", len(faces), "faces")
+    return _object(name, positions, [], [], [], faces, rig)
+
+
+def _scalp_texture(body, head, S, info, png, rng):
+    """Where the hair grows, in the body's UVs: a short stroke for each root
+    the way it leaves the skin, over a blurred fill of the share of the skin
+    the roots cover, so the skin shader turns the scalp to short hair under
+    the cards and the hairline fades out in strokes."""
     from mathutils import Vector
     from mathutils.bvhtree import BVHTree
     from mathutils.kdtree import KDTree
 
-    rng = np.random.default_rng(seed)
+    me = body.data
+    me.calc_loop_triangles()
+    mw = body.matrix_world
+    bv = np.array([tuple(mw @ v.co) for v in me.vertices])
+    btri = np.array([tuple(t.vertices) for t in me.loop_triangles])
+    bloops = np.array([tuple(t.loops) for t in me.loop_triangles])
+    buv = np.array([tuple(l.uv) for l in me.uv_layers.active.data])
+    bvh = BVHTree.FromPolygons([tuple(v) for v in bv], [tuple(t) for t in btri])
 
-    def world_mesh(obj):
-        me = obj.data
-        me.calc_loop_triangles()
-        mw = obj.matrix_world
-        verts = np.array([tuple(mw @ v.co) for v in me.vertices], np.float64)
-        rot = mw.to_3x3().inverted().transposed()
-        normals = np.array([tuple((rot @ v.normal).normalized()) for v in me.vertices], np.float64)
-        tris = np.array([tuple(t.vertices) for t in me.loop_triangles], np.int64)
-        loops = np.array([tuple(t.loops) for t in me.loop_triangles], np.int64)
-        return verts, normals, tris, loops
-
-    bv, bn, btri, bloops = world_mesh(body)
-    uv_layer = body.data.uv_layers.active.data
-    buv = np.array([tuple(l.uv) for l in uv_layer], np.float64)
-    body_bvh = BVHTree.FromPolygons([tuple(v) for v in bv], [tuple(t) for t in btri])
-    sv, _, stri, _ = world_mesh(shell)
-    shell_bvh = BVHTree.FromPolygons([tuple(v) for v in sv], [tuple(t) for t in stri])
-
-    head_bone = rig.data.bones["Head"]
-    head_z = (rig.matrix_world @ head_bone.head_local).z
-    head_sel = bv[:, 2] > head_z - 0.035
-    centre = bv[head_sel].mean(0)
-    front = np.array([0.0, -1.0, 0.0])
-
-    def surface(p):
-        """Nearest point on the body: location, smooth normal, triangle, barycentrics."""
-        loc, _, tri, _ = body_bvh.find_nearest(Vector(p))
-        loc = np.array(loc)
+    def locate(p):
+        loc, _, tri, _ = bvh.find_nearest(Vector(p))
         a, b, c = bv[btri[tri]]
-        v0, v1, v2 = b - a, c - a, loc - a
-        d00, d01, d11 = v0 @ v0, v0 @ v1, v1 @ v1
-        d20, d21 = v2 @ v0, v2 @ v1
+        v0, v1, v2 = b - a, c - a, np.array(loc) - a
+        d00, d01, d11, d20, d21 = v0 @ v0, v0 @ v1, v1 @ v1, v2 @ v0, v2 @ v1
         den = max(d00 * d11 - d01 * d01, 1e-18)
-        w1 = (d11 * d20 - d01 * d21) / den
-        w2 = (d00 * d21 - d01 * d20) / den
-        bary = np.clip(np.array([1.0 - w1 - w2, w1, w2]), 0.0, 1.0)
-        n = bn[btri[tri]].T @ bary
-        return loc, n / np.linalg.norm(n), tri, bary
+        w1, w2 = (d11 * d20 - d01 * d21) / den, (d00 * d21 - d01 * d20) / den
+        return tri, np.clip(np.array([1.0 - w1 - w2, w1, w2]), 0.0, 1.0)
 
-    def thickness(loc, n, reach=0.08):
-        hit = shell_bvh.ray_cast(Vector(loc + n * 0.0005), Vector(n), reach)
-        return None if hit[0] is None else hit[3]
-
-    def tangent(v, n):
-        v = v - n * (v @ n)
-        length = np.linalg.norm(v)
-        return v / length if length > 1e-9 else None
-
-    # -- the style's flow
-    flow = style.get("flow", "crown")
-    comb = np.array(style.get("comb", [0.0, 0.0, 0.0]), np.float64)
-    gravity = float(style.get("gravity", 0.3))
-    swirl = float(style.get("swirl", 0.4))
-    max_len = float(style.get("length", 0.08))
-    tip_jitter = float(style.get("tip_jitter", 0.02))
-    step = 0.006
-
-    crown = None
-    if flow == "crown":
-        cdir = np.array(style.get("crown_dir", [0.0, 0.4, 1.0]), np.float64)
-        cdir /= np.linalg.norm(cdir)
-        hv = bv[head_sel]
-        crown = hv[np.argmax((hv - centre) @ cdir)]
-
-    tail = None
-    if flow == "tie":
-        tail = _tail_path(sv, surface)
-        tie = tail["points"][0]
-        tie_loc, tie_n, _, _ = surface(tie)
-
-    def direction(p, n, bias):
-        if flow == "crown":
-            radial = tangent(p - crown, n)
-            if radial is None:
-                radial = tangent(front.copy(), n)
-            # Strands leaving the whorl straight out would bare its middle;
-            # close to it they turn around it, and their cards cover it.
-            r = np.linalg.norm(p - crown)
-            d = radial + np.cross(n, radial) * (swirl * math.exp(-r / 0.05) + 2.5 * math.exp(-r / 0.02))
-        else:
-            d = tangent(tie_loc - p, n)
-            if d is None:
-                d = tangent(np.array([0.0, 1.0, 0.0]), n)
-        d = d + np.array([0.0, 0.0, -1.0]) * gravity + comb + bias
-        d = tangent(d, n)
-        return d if d is not None else tangent(np.array([0.0, 0.0, -1.0]), n)
-
-    # -- scalp samples: where the shell covers the head
-    tri_sel = np.where(head_sel[btri].all(1))[0]
-    a, b, c = (bv[btri[tri_sel, i]] for i in range(3))
-    areas = 0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1)
-    count = 60000
-    picks = tri_sel[rng.choice(len(tri_sel), count, p=areas / areas.sum())]
-    r1, r2 = np.sqrt(rng.uniform(size=count)), rng.uniform(size=count)
-    bary = np.stack([1 - r1, r1 * (1 - r2), r1 * r2], 1)
-    pts = np.einsum("ki,kij->kj", bary, bv[btri[picks]])
-    nrm = np.einsum("ki,kij->kj", bary, bn[btri[picks]])
-    nrm /= np.linalg.norm(nrm, axis=1)[:, None]
-    top = bv[head_sel, 2].max()
-    hairline = float(style.get("hairline", 1.0))
-    max_root = float(style.get("max_thickness", 0.045))
-    taus = np.full(count, -1.0)
-    for i in range(count):
-        # The brow: shells hang a fringe over it, but nothing grows there.
-        facing = float(_smoothstep(0.1, 0.6, nrm[i] @ front))
-        if facing > 0.0 and pts[i, 2] < top - hairline - (1.0 - facing) * 0.06:
-            continue
-        # Ears are thin flaps: the body is right behind them.
-        if body_bvh.ray_cast(Vector(pts[i] - nrm[i] * 0.001), Vector(-nrm[i]), 0.02)[0] is not None:
-            continue
-        tau = thickness(pts[i], nrm[i])
-        if tau is not None and tau <= max_root:
-            taus[i] = tau
-    covered = np.where(taus >= 0.0)[0]
-    print("GROOM scalp samples covered", len(covered), "of", count)
-
-    # -- scalp texture: a stroke per covered sample
     size = 2048
     acc = np.zeros((size, size), np.float32)
-    uvs = np.einsum("ki,kij->kj", bary, buv[bloops[picks]])
-    edge = np.percentile(taus[covered], 25) if len(covered) else 1.0
     stroke = 0.006
-    for i in covered:
-        n = nrm[i]
-        d = direction(pts[i], n, 0.0)
-        tri = picks[i]
+    edge = info["edge"]
+    for i in range(len(S)):
+        tri, bary = locate(S[i, 0])
         pa, pb, pc = bv[btri[tri]]
         ua, ub, uc = buv[bloops[tri]]
-        e = np.stack([pb - pa, pc - pa], 1)
-        coef, *_ = np.linalg.lstsq(e, d * stroke * rng.uniform(0.6, 1.2), rcond=None)
+        coef, *_ = np.linalg.lstsq(np.stack([pb - pa, pc - pa], 1),
+                                   _unit(S[i, 2] - S[i, 0]) * stroke * rng.uniform(0.6, 1.2), rcond=None)
         duv = coef[0] * (ub - ua) + coef[1] * (uc - ua)
-        weight = (0.35 + 0.65 * float(_smoothstep(0.0, edge, taus[i]))) * rng.uniform(0.6, 1.0)
+        uv0 = bary @ buv[bloops[tri]]
+        weight = (1.0 - 0.5 * edge[i]) * rng.uniform(0.6, 1.0)
         for s in np.linspace(0.0, 1.0, 7):
-            u, v = uvs[i] + duv * s
+            u, v = uv0 + duv * s
             x, y = u * size, (1.0 - v) * size
             xi, yi = int(x), int(y)
             if 0 <= xi < size - 1 and 0 <= yi < size - 1:
@@ -306,10 +400,23 @@ def build(body, shell, rig, style, name, scalp_png, seed=1):
                 acc[yi, xi + 1] += w * fx * (1 - fy)
                 acc[yi + 1, xi] += w * (1 - fx) * fy
                 acc[yi + 1, xi + 1] += w * fx * fy
-    # The head's UVs give some parts more texels per square centimetre than
-    # others, which would thin the strokes there; scale them by the samples'
-    # density in a coarse grid. A blurred fill of the covered fraction goes
-    # under the strokes, so no bare skin shows between them.
+    # Even samples over the head: how many texels a square centimetre gets
+    # (the strokes are scaled by it, or the UVs would thin them in places),
+    # and the share of each cell the roots cover (the fill under the strokes).
+    sel = np.where(np.isin(btri, np.unique(head.T)).all(1))[0]
+    a, b, c = (bv[btri[sel, j]] for j in range(3))
+    areas = 0.5 * np.linalg.norm(np.cross(b - a, c - a), axis=1)
+    count = 60000
+    picks = sel[rng.choice(len(sel), count, p=areas / areas.sum())]
+    r1, r2 = np.sqrt(rng.uniform(size=count)), rng.uniform(size=count)
+    bary = np.stack([1 - r1, r1 * (1 - r2), r1 * r2], 1)
+    pts = np.einsum("ki,kij->kj", bary, bv[btri[picks]])
+    uvs = np.einsum("ki,kij->kj", bary, buv[bloops[picks]])
+    roots = KDTree(len(S))
+    for i, p in enumerate(S[:, 0]):
+        roots.insert(Vector(p), i)
+    roots.balance()
+    covered = np.array([roots.find(Vector(p))[2] < 0.004 for p in pts])
     coarse = 64
     cx = np.clip((uvs[:, 0] * coarse).astype(int), 0, coarse - 1)
     cy = np.clip(((1.0 - uvs[:, 1]) * coarse).astype(int), 0, coarse - 1)
@@ -323,201 +430,13 @@ def build(body, shell, rig, style, name, scalp_png, seed=1):
     density = np.where(island, total.mean() / np.maximum(total, 1e-9) * island.mean(), 0.0)
     density = _upsample(_blur_within(np.clip(density, 0.0, 4.0), island, 1), size)
     fill = _upsample(_blur_within(hit / np.maximum(total, 1.0), island, 2), size)
-    scalp = 1.0 - np.exp(-acc * 1.6 * density)
+    # Strokes per texel scale with the roots per stroke; 30000 roots made
+    # about as many strokes as the old stamp, whose gain this keeps.
+    gain = 1.6 * 30000.0 / len(S)
+    scalp = 1.0 - np.exp(-acc * gain * density)
     scalp = np.maximum(scalp, np.clip(fill * 1.4, 0.0, 1.0) * 0.8)
-    write_png(scalp_png, (scalp * 255.0 + 0.5).astype(np.uint8))
-
-    # -- card roots: covered samples at least `spacing` apart
-    spacing = float(style.get("spacing", 0.011))
-    grid = {}
-    roots = []
-    for i in rng.permutation(covered):
-        cell = tuple((pts[i] // spacing).astype(int))
-        near = [r for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1)
-                for r in grid.get((cell[0] + dx, cell[1] + dy, cell[2] + dz), ())]
-        if any(np.sum((pts[r] - pts[i]) ** 2) < spacing * spacing for r in near):
-            continue
-        grid.setdefault(cell, []).append(i)
-        roots.append(i)
-    print("GROOM card roots", len(roots))
-
-    def grow(i, layer):
-        loc, n = pts[i], nrm[i]
-        angle = rng.normal(0.0, 0.25)
-        side = np.cross(n, direction(loc, n, 0.0))
-        bias = side * math.tan(angle)
-        path, normals = [loc + n * 0.001], [n]
-        length = 0.0
-        p = path[0]
-        reached_tie = False
-        # Strands run on past the shell's edge by a random amount, so the
-        # hair ends raggedly rather than where MakeHuman's mesh was cut.
-        overshoot = rng.uniform(0.0, tip_jitter)
-        past, last_tau = 0.0, None
-        limit = max_len * rng.uniform(0.85, 1.0)
-        while length < limit:
-            s_loc, s_n, _, _ = surface(p)
-            d = direction(s_loc, s_n, bias)
-            q = s_loc + d * step
-            q_loc, q_n, _, _ = surface(q)
-            tau = thickness(q_loc, q_n)
-            if tau is None:
-                if last_tau is None or past >= overshoot:
-                    break
-                tau = last_tau
-                past += step
-            else:
-                last_tau = tau
-            rise = min(1.0, (length + step) / 0.02)
-            h = max(0.0012, layer * tau * rise)
-            q = q_loc + q_n * h
-            length += np.linalg.norm(q - p)
-            path.append(q)
-            normals.append(q_n)
-            p = q
-            if flow == "tie" and np.linalg.norm(q_loc - tie_loc) < 0.02:
-                reached_tie = True
-                break
-        if flow == "tie" and (reached_tie or length >= max_len * 0.5):
-            tail_path, tail_normals = _tail_strand(tail, rng, path[-1])
-            path += tail_path
-            normals += tail_normals
-        return np.array(path), np.array(normals)
-
-    # -- cards
-    width = float(style.get("card_width", 0.018))
-    positions, normals_out, uvs_out, colours, faces = [], [], [], [], []
-    for li, layer in enumerate(style.get("layers", [{"height": 0.4, "atlas": "dense"},
-                                                    {"height": 0.85, "atlas": "medium"}])):
-        columns = VARIANTS[layer["atlas"]]
-        for i in roots:
-            path, pn = grow(i, float(layer["height"]))
-            if len(path) < 3:
-                continue
-            if len(path) > 4:
-                keep = list(range(0, len(path) - 1, 2)) + [len(path) - 1]
-                path, pn = path[keep], pn[keep]
-            col = columns[rng.integers(len(columns))]
-            u0, u1 = col / ATLAS_COLUMNS, (col + 1) / ATLAS_COLUMNS
-            twist = rng.normal(0.0, 0.3)
-            w = width * rng.uniform(0.8, 1.2) * float(layer.get("width", 1.0))
-            card_rand = rng.uniform()
-            k = len(path)
-            base = len(positions)
-            for j in range(k):
-                t = path[min(j + 1, k - 1)] - path[max(j - 1, 0)]
-                t /= max(np.linalg.norm(t), 1e-9)
-                n = pn[j]
-                side = np.cross(n, t)
-                side /= max(np.linalg.norm(side), 1e-9)
-                side = side * math.cos(twist) + n * math.sin(twist)
-                half = 0.5 * w * (1.0 - 0.35 * j / (k - 1))
-                v = 1.0 - j / (k - 1)
-                positions += [path[j] - side * half, path[j] + side * half]
-                normals_out += [n, n]
-                uvs_out += [(u0, v), (u1, v)]
-                colours += [(float(layer["height"]), card_rand, 0.0, 1.0)] * 2
-            for j in range(k - 1):
-                l0, r0 = base + 2 * j, base + 2 * j + 1
-                faces.append((l0, l0 + 2, r0 + 2, r0))
-
-    me = bpy.data.meshes.new(name + ".groom")
-    me.from_pydata([tuple(p) for p in positions], [], faces)
-    me.validate()
-    uv = me.uv_layers.new(name="UVMap")
-    flat_uv = [uvs_out[li.vertex_index] for li in me.loops]
-    uv.data.foreach_set("uv", [c for pair in flat_uv for c in pair])
-    col = me.color_attributes.new("Color", "FLOAT_COLOR", "POINT")
-    col.data.foreach_set("color", [c for rgba in colours for c in rgba])
-    me.color_attributes.active_color = col
-    me.normals_split_custom_set_from_vertices([tuple(n) for n in normals_out])
-    mat = bpy.data.materials.new(name + ".groom")
-    me.materials.append(mat)
-    cards = bpy.data.objects.new(name + ".groom", me)
-    bpy.context.scene.collection.objects.link(cards)
-    cards.parent = rig
-    cards.matrix_parent_inverse = rig.matrix_world.inverted()
-
-    # Weights: each card vertex takes the nearest shell vertex's.
-    tree = KDTree(len(sv))
-    for idx, p in enumerate(sv):
-        tree.insert(Vector(p), idx)
-    tree.balance()
-    groups = {g.index: cards.vertex_groups.new(name=g.name) for g in shell.vertex_groups}
-    shell_weights = [[(g.group, g.weight) for g in v.groups] for v in shell.data.vertices]
-    for vi, p in enumerate(positions):
-        _, nearest, _ = tree.find(Vector(p))
-        for gi, wgt in shell_weights[nearest]:
-            groups[gi].add([vi], wgt, "REPLACE")
-    mod = cards.modifiers.new("Armature", "ARMATURE")
-    mod.object = rig
-
-    # The shell stays, for the outline; it needs no texture.
-    shell.name = name + ".hair_shell"
-    plain = bpy.data.materials.new(name + ".hair_shell")
-    shell.data.materials.clear()
-    shell.data.materials.append(plain)
-    if shell.data.shape_keys:
-        shell.shape_key_clear()
-    print("GROOM cards", len(faces), "quads", len(positions), "verts")
-    return cards
-
-
-def _tail_path(shell_verts, surface):
-    """The ponytail's path: the shell's vertices well off the head, sliced
-    along their long axis. points[0] is the end at the head."""
-    off = []
-    for p in shell_verts:
-        loc, _, _, _ = surface(p)
-        if np.linalg.norm(p - loc) > 0.035:
-            off.append(p)
-    off = np.array(off)
-    if len(off) < 20:
-        sys.exit("groom: a tie style needs a tail on its shell")
-    mean = off.mean(0)
-    _, _, vt = np.linalg.svd(off - mean, full_matrices=False)
-    axis = vt[0]
-    proj = (off - mean) @ axis
-    near_end = off[np.argmin([np.linalg.norm(p - surface(p)[0]) for p in off])]
-    if (near_end - mean) @ axis > 0:
-        axis, proj = -axis, -proj
-    lo, hi = proj.min(), proj.max()
-    bins = max(4, int((hi - lo) / 0.02))
-    points, radii = [], []
-    for k in range(bins):
-        a = lo + (hi - lo) * k / bins
-        b = lo + (hi - lo) * (k + 1) / bins
-        sel = off[(proj >= a) & (proj <= b)]
-        if len(sel) < 3:
-            continue
-        cmean = sel.mean(0)
-        points.append(cmean)
-        radii.append(np.mean(np.linalg.norm((sel - cmean) - np.outer((sel - cmean) @ axis, axis), axis=1)))
-    print("GROOM tail", len(points), "slices, %.2f m" % (hi - lo))
-    return {"points": np.array(points), "radii": np.array(radii) * 0.85, "axis": axis}
-
-
-def _tail_strand(tail, rng, start):
-    pts, radii = tail["points"], tail["radii"]
-    angle = rng.uniform(0.0, 2.0 * math.pi)
-    radius = math.sqrt(rng.uniform(0.05, 1.0))
-    length = rng.uniform(0.75, 1.0)
-    path, normals = [], []
-    last = int(len(pts) * length)
-    for k in range(1, max(last, 2)):
-        a = pts[k] - pts[k - 1]
-        a /= np.linalg.norm(a)
-        u = np.cross(a, [0.0, 0.0, 1.0]) if abs(a[2]) < 0.9 else np.cross(a, [1.0, 0.0, 0.0])
-        u /= np.linalg.norm(u)
-        v = np.cross(a, u)
-        out = u * math.cos(angle) + v * math.sin(angle)
-        blend = min(1.0, k / 2.0)
-        p = pts[k] + out * radii[k] * radius
-        if k == 1:
-            p = start * (1 - blend) + p * blend
-        path.append(p)
-        normals.append(out)
-    return path, normals
+    write_png(png, (scalp * 255.0 + 0.5).astype(np.uint8))
+    print("GROOM scalp", png, "covered", int(covered.sum()), "of", count)
 
 
 if __name__ == "__main__" and len(sys.argv) >= 3 and sys.argv[1] == "atlas":

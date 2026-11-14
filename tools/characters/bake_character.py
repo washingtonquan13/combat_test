@@ -22,7 +22,7 @@ A recipe says what the character is, never how it is built:
       "skin": "young_caucasian_male",
       "eyes": "brown",
       "eyebrows": "eyebrow001",
-      "hair": "short02",
+      "hairstyle": "short_side_part",
       "clothes": ["male_casualsuit01", "shoes01"]
     }
 
@@ -37,8 +37,9 @@ The rest name assets from the MakeHuman system assets pack (CC0), installed in
 MPFB's user data: `skin` a folder under skins/, `eyes` an eye colour under
 eyes/materials/, the others a folder under their own kind. A face is always
 whole: eyes, eyebrows, eyelashes, teeth and tongue fall back to a default when
-left out ("eyebrows": null leaves brows off); `skin`, `hair` and `clothes` are
-only there when asked for. Clothes hide the body under them by deleting it.
+left out ("eyebrows": null leaves brows off); `skin` and `clothes` are only
+there when asked for. `hairstyle` is not MakeHuman's: it names a style under
+tools/characters/hairstyles/, grown by rule (hairstyle.py). Clothes hide the body under them by deleting it.
 
 What comes out, every time:
 - the body with its shape baked in: no slider shape keys, helper geometry gone;
@@ -52,10 +53,9 @@ What comes out, every time:
   by these alone;
 - every part with a game-engine material (Principled BSDF and image
   textures), which glTF carries as standard PBR;
-- when tools/characters/grooms/<hair>.json exists, the hair as cards grown by
-  groom.py in place of MakeHuman's painted shell (the shell stays, hidden in
-  game, for the outline), and <out>_scalp.png beside the .glb: where the hair
-  grows, for the skin shader.
+- with a hairstyle, its hair as cards (groom.py), a hull over it for the
+  outline (hidden in game), and <out>_scalp.png beside the .glb: where the
+  hair grows, for the skin shader.
 """
 import json
 import os
@@ -169,12 +169,12 @@ if recipe.get("skin"):
 FACE_DEFAULTS = {"eyebrows": "eyebrow001", "eyelashes": "eyelashes01",
                  "teeth": "teeth_base", "tongue": "tongue01"}
 eye_colour = recipe.get("eyes", "brown")
+eyes = None
 if eye_colour:
-    add_part("eyes", "high-poly", material="materials/%s.mhmat" % eye_colour)
+    eyes = add_part("eyes", "high-poly", material="materials/%s.mhmat" % eye_colour)
 for kind, default in FACE_DEFAULTS.items():
     if recipe.get(kind, default):
         add_part(kind, recipe.get(kind, default))
-hair = add_part("hair", recipe["hair"]) if recipe.get("hair") else None
 for name in recipe.get("clothes", []):
     add_part("clothes", name)
 
@@ -193,14 +193,13 @@ for old, new in (("Root", "root"), ("head", "Head")):
     rig.data.bones[old].name = new
 
 here = os.path.dirname(os.path.abspath(__file__))
-style_path = os.path.join(here, "grooms", "%s.json" % recipe.get("hair"))
-if hair is not None and os.path.exists(style_path):
+if recipe.get("hairstyle"):
+    if eyes is None:
+        sys.exit("bake_character: a hairstyle needs the eyes, which place the head")
     sys.path.insert(0, here)
     import groom
-    with open(style_path, encoding="utf-8") as f:
-        style = json.load(f)
-    groom.build(basemesh, hair, rig, style, basemesh.name,
-                os.path.splitext(out_path)[0] + "_scalp.png")
+    groom.build(basemesh, eyes, rig, os.path.join(here, "hairstyles", recipe["hairstyle"] + ".json"),
+                basemesh.name, os.path.splitext(out_path)[0] + "_scalp.png")
 
 for obj in [basemesh] + [c for c in rig.children if c is not basemesh]:
     keys = obj.data.shape_keys.key_blocks if obj.data.shape_keys else []

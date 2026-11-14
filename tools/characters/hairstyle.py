@@ -449,8 +449,12 @@ def wave(G, N, amp, wavelength, rng):
     return G + across * (amp * smoothstep(0.0, 0.25, t) * np.sin(arc / wavelength * 6.28 + ph))[:, None]
 
 
-def grow(head, style, seed=1):
-    """The style on this head: (strands [n, m, 3], radius [n, m], guides)."""
+def grow(head, style, seed=1, info=None):
+    """The style on this head: (strands [n, m, 3], radius [n, m], guides).
+    info, a dict, is given how the strands were made: per strand its lock's
+    guide (lead, a strand index), group, tied, baby and edge (1 at the
+    hairline); guides, the guide strands' indices; scalp_m, how many points
+    each strand has on the scalp (the rest of a tied one is in the bun)."""
     rng = np.random.default_rng(seed)
     d = style.d
     m = d.get("points", 24)
@@ -569,6 +573,9 @@ def grow(head, style, seed=1):
                     S[i, k] -= nq * (dist - lim)
     radius = 0.0001 * (1 - 0.6 * t)[None, :] * (1 - 0.45 * edge)[:, None]
     radius[baby] *= 0.6
+    if info is not None:
+        info.update(lead=lead, group=group, tied=tied & (bun is not None), baby=baby, edge=edge, guides=gi,
+                    scalp_m=scalp_m)
     if bun is None:
         return S, radius, G
     # tied strands: drawn into their slot at the tie, then round the rope

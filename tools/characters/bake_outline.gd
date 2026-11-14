@@ -12,7 +12,7 @@ extends SceneTree
 ## parts share (<name>_outline_skin.tres), which the outline MeshInstance3D
 ## needs to follow the skeleton. Eyes, brows, lashes, teeth and tongue sit
 ## inside or flat on the head and add nothing to the silhouette. Groomed hair
-## cards are skipped too: the hair shell they replaced stands in for them.
+## cards are skipped too: the hull baked over them stands in for them.
 ##
 ## Rerun it whenever the glb is rebaked.
 

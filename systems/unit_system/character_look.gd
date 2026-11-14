@@ -1,34 +1,28 @@
 class_name CharacterLook
 extends Node
 ## Puts the character shaders on a baked MPFB human in place of the plain
-## materials its .glb imports with: skin.gdshader on the body and the hair
-## shaders on its hair. Each gets the imported material's own texture, so one
-## pair of templates serves every character.
+## materials its .glb imports with: skin.gdshader on the body, and so on.
+## Each gets the imported material's own texture, so one template serves
+## every character.
 ##
 ## A sibling of the model's Body; it finds the surfaces by the names
-## tools/characters/bake_character.py gives their materials, "<name>.body"
-## and "<name>.<hair>", where <hair> is the recipe's hair.
+## tools/characters/bake_character.py gives their materials: "<name>.body".
 ##
-## A character baked with a groom (tools/characters/groom.py) has hair cards,
-## "<name>.groom", in place of MakeHuman's hair: they get groom.gdshader, and
-## the old hair, kept in the .glb as "<name>.hair_shell" for the outline bake,
-## is hidden. Its scalp texture darkens the skin where the hair grows.
+## A character baked with a hairstyle has hair cards (tools/characters/
+## groom.py), "<name>.groom", which get groom.gdshader, and a hull over them,
+## "<name>.hair_shell", kept for the outline bake and hidden. Its scalp
+## texture turns the skin to short hair where the hair grows.
 ##
 ## The eyes ("<name>.high-poly") get eye.gdshader, and the lashes
 ## ("<name>.eyelashes..") lash.gdshader, coloured from hair_color.
 
 const SKIN := preload("res://assets/characters/shaders/skin.tres")
-const HAIR := preload("res://assets/characters/shaders/hair.tres")
 const GROOM := preload("res://assets/characters/shaders/groom.tres")
 const EYE := preload("res://assets/characters/shaders/eye.tres")
 const LASH := preload("res://assets/characters/shaders/lash.tres")
 
-## The recipe's hair, as its material is named ("short02", "ponytail01").
-@export var hair_part: String = ""
-## The hair's colour once dyed; see dye.
+## The hair's colour: the cards', the scalp's and the lashes'.
 @export var hair_color: Color = Color(0.25, 0.17, 0.11)
-## 0 keeps the hair texture's own colour, 1 dyes it fully to hair_color.
-@export_range(0.0, 1.0, 0.05) var dye: float = 0.0
 ## Multiplies the skin's diffuse map.
 @export var skin_tint: Color = Color.WHITE
 ## Where the groom's hair grows on the skin, baked with it; none without one.
@@ -49,7 +43,6 @@ const LASH := preload("res://assets/characters/shaders/lash.tres")
 
 func _ready() -> void:
 	var skin := _skin()
-	var hair := _hair()
 	var groom := _groom()
 	var lash := LASH.duplicate() as ShaderMaterial
 	lash.set_shader_parameter("hair_color", hair_color)
@@ -71,8 +64,6 @@ func _ready() -> void:
 				mesh.set_surface_override_material(i, _with_texture(EYE, imported))
 			elif part.begins_with("eyelashes"):
 				mesh.set_surface_override_material(i, _with_texture(lash, imported))
-			elif hair_part != "" and part == hair_part:
-				mesh.set_surface_override_material(i, _with_texture(hair, imported))
 
 
 func _skin() -> ShaderMaterial:
@@ -90,15 +81,6 @@ func _skin() -> ShaderMaterial:
 		skin.set_shader_parameter("age_texture", age_lines)
 		skin.set_shader_parameter("age_amount", age_amount)
 	return skin
-
-
-func _hair() -> ShaderMaterial:
-	var hair := HAIR.duplicate() as ShaderMaterial
-	hair.next_pass = hair.next_pass.duplicate()
-	for pass_material: ShaderMaterial in [hair, hair.next_pass]:
-		pass_material.set_shader_parameter("hair_color", hair_color)
-		pass_material.set_shader_parameter("dye", dye)
-	return hair
 
 
 func _groom() -> ShaderMaterial:

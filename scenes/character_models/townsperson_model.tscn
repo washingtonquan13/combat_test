@@ -98,10 +98,8 @@ script = ExtResource("10_face")
 
 [node name="CharacterLook" type="Node" parent="."]
 script = ExtResource("14_look")
-hair_part = "ponytail01"
 hair_color = Color(0.09, 0.065, 0.05, 1)
 scalp_texture = ExtResource("15_scalp")
-dye = 1.0
 face_shapes = ExtResource("17_shapes")
 face_detail = ExtResource("16_detail")
 age_lines = ExtResource("18_age")
