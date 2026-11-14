@@ -1,20 +1,91 @@
 {
-  "density": 30000,
-  "points": 40,
-  "guide_spacing": 0.007,
-  "hairline": {"raise": 0},
-  "tie": {"at": [0, -0.95, -0.25], "radius": 0.032, "turns": 1.6},
-  "base": {"flow": "tie", "length": 0.16, "lift": 0.05, "gravity": 0.0, "stiffness": 0.3,
-           "volume": 0.003, "hug": 0.8, "clump": 0.25, "frizz": 0.0006},
-  "sections": [
-    {"at": [0, 40], "reach": 25, "volume": 0.004, "lift": 0.1}
+ "density": 32000,
+ "points": 64,
+ "scalp_points": 24,
+ "guide_spacing": 0.007,
+ "hairline": {
+  "front": 34,
+  "temple": 0,
+  "sideburn": 6,
+  "nape": -50
+ },
+ "tie": {
+  "at": [
+   180,
+   -24
   ],
-  "strays": [
-    {"at": [66, 8], "reach": 12, "share": 0.4, "flow": "comb", "comb": [0, 0.2, -1], "hug": 0,
-     "length": 0.11, "lift": 0.5, "gravity": 0.8, "volume": 0.008, "clump": 0.7, "wave": 0.006, "wavelength": 0.03, "frizz": 0.002},
-    {"at": [-66, 8], "reach": 12, "share": 0.35, "flow": "comb", "comb": [0, 0.2, -1], "hug": 0,
-     "length": 0.09, "lift": 0.5, "gravity": 0.8, "volume": 0.008, "clump": 0.7, "wave": 0.006, "wavelength": 0.03, "frizz": 0.002},
-    {"at": [180, -38], "reach": 18, "share": 0.2, "flow": "comb", "comb": [0, -0.3, -1], "hug": 0,
-     "length": 0.035, "lift": 0.2, "gravity": 0.9, "volume": 0.003, "clump": 0.4, "frizz": 0.0025}
-  ]
+  "rope": 0.012,
+  "turns": 1.6,
+  "twist": 28
+ },
+ "baby_hairs": 0.25,
+ "base": {
+  "lift": 8,
+  "volume": 0.0028,
+  "hug": 0.9,
+  "gravity": 0.0,
+  "stiffness": 0.35,
+  "clump": 0.15,
+  "clump2": 0.2,
+  "frizz": 0.0003
+ },
+ "sections": [
+  {
+   "at": [
+    0,
+    55
+   ],
+   "reach": 30,
+   "volume": 0.006,
+   "lift": 14
+  }
+ ],
+ "locks": [
+  {
+   "at": [
+    60,
+    14
+   ],
+   "strands": 480,
+   "dir": [
+    0,
+    0.45,
+    -1
+   ],
+   "length": 0.11,
+   "lift": 30,
+   "volume": 0.012,
+   "hug": 0.0,
+   "gravity": 0.65,
+   "stiffness": 0.25,
+   "clump": 0.45,
+   "clump2": 0.45,
+   "wave": 0.011,
+   "wavelength": 0.075,
+   "frizz": 0.0015
+  },
+  {
+   "at": [
+    -60,
+    14
+   ],
+   "strands": 480,
+   "dir": [
+    0,
+    0.45,
+    -1
+   ],
+   "length": 0.1,
+   "lift": 30,
+   "volume": 0.012,
+   "hug": 0.0,
+   "gravity": 0.65,
+   "stiffness": 0.25,
+   "clump": 0.45,
+   "clump2": 0.45,
+   "wave": 0.011,
+   "wavelength": 0.075,
+   "frizz": 0.0015
+  }
+ ]
 }
