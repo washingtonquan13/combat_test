@@ -1,8 +1,10 @@
-[gd_resource type="ShaderMaterial" load_steps=3 format=3]
+[gd_resource type="ShaderMaterial" load_steps=4 format=3]
 
 [ext_resource type="Shader" path="res://assets/characters/shaders/skin.gdshader" id="1_skin"]
 [ext_resource type="Texture2D" path="res://assets/characters/shaders/skin_pores.tres" id="2_pores"]
+[ext_resource type="Texture2D" path="res://assets/characters/skin/mpfb_face_detail.png" id="3_detail"]
 
 [resource]
 shader = ExtResource("1_skin")
 shader_parameter/pore_normal = ExtResource("2_pores")
+shader_parameter/detail_texture = ExtResource("3_detail")

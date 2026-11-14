@@ -15,6 +15,13 @@ uniform sampler2D pore_normal : hint_normal, filter_linear_mipmap_anisotropic, r
 uniform float pore_scale = 60.0;
 uniform float pore_strength : hint_range(0.0, 2.0) = 0.4;
 
+// The face's fine detail (pores, lines, creases) from a head scan, baked by
+// tools/characters/bake_scan_detail.py into the UV layout every MPFB human
+// shares: RGB a tangent-space normal, A where it applies. Under it the tiling
+// pores give way to the scan's own.
+uniform sampler2D detail_texture : hint_default_transparent, filter_linear_mipmap_anisotropic, repeat_disable;
+uniform float detail_strength : hint_range(0.0, 3.0) = 1.0;
+
 uniform float roughness_base : hint_range(0.0, 1.0) = 0.5;
 // How much the pores and creases move roughness about.
 uniform float roughness_variation : hint_range(0.0, 0.5) = 0.15;
@@ -56,6 +63,10 @@ void fragment() {
 	float pore_height = pore.b * 2.0 - 1.0;
 
 	float scalp = texture(scalp_texture, UV).r * scalp_strength;
+	vec4 detail = texture(detail_texture, UV);
+	float detail_mask = detail.a * (1.0 - scalp);
+	vec2 bumps = (pore.xy * 2.0 - 1.0) * pore_strength * (1.0 - detail_mask * 0.8)
+		+ (detail.xy * 2.0 - 1.0) * detail_strength * detail_mask;
 	// Under hair the scalp sits in the hair's shadow, so darker than the hair.
 	albedo = mix(albedo, scalp_color.rgb * 0.3, scalp);
 	occlusion *= 1.0 - scalp * 0.5;
@@ -63,8 +74,8 @@ void fragment() {
 	ALBEDO = albedo;
 	AO = occlusion;
 	AO_LIGHT_AFFECT = mix(0.25, 0.6, scalp);
-	NORMAL_MAP = pore;
-	NORMAL_MAP_DEPTH = pore_strength;
+	NORMAL_MAP = vec3(bumps * 0.5 + 0.5, 1.0);
+	NORMAL_MAP_DEPTH = 1.0;
 	ROUGHNESS = clamp(roughness_base + roughness_variation * ((1.0 - crease) * 2.0 - (1.0 - pore_height)), 0.2, 1.0);
 	ROUGHNESS = mix(ROUGHNESS, 0.85, scalp);
 	// Hair takes the skin's sheen: no glancing shine or fuzz under it.
