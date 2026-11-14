@@ -1,9 +1,10 @@
 shader_type spatial;
 render_mode cull_disabled, depth_draw_opaque;
 
-// Hair cards grown by tools/characters/groom.py. The atlas holds strands, not
-// colour: R a random id per strand, G shading, B how far along its strand,
-// A coverage. The colour is made here, so every character shares one atlas.
+// Hair cards grown by tools/characters/groom.py. Each character's strand atlas
+// ("<name>_strands.png", baked with its cards from the grown strands) holds
+// strands, not colour: R a random id per strand, G shading, B how far along
+// its strand, A coverage. The colour is made here, so any hair colour is a uniform.
 //
 // Coverage is hashed (dithered) rather than blended: the cards write depth,
 // sort themselves and cast shadows strand by strand, and the project's TAA

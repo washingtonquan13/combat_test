@@ -2,8 +2,8 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://ytbfdokxieb6"
-path.bptc="res://.godot/imported/hair_strands.png-db9001fc76c61d1b1b114ac7368e1af6.bptc.ctex"
+uid="uid://53ps6kjurlst"
+path.bptc="res://.godot/imported/townsperson_strands.png-d502c71f887e516f050ce9e10414df90.bptc.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc"],
 "vram_texture": true
@@ -11,8 +11,8 @@ metadata={
 
 [deps]
 
-source_file="res://assets/characters/hair/hair_strands.png"
-dest_files=["res://.godot/imported/hair_strands.png-db9001fc76c61d1b1b114ac7368e1af6.bptc.ctex"]
+source_file="res://assets/characters/townsperson/townsperson_strands.png"
+dest_files=["res://.godot/imported/townsperson_strands.png-d502c71f887e516f050ce9e10414df90.bptc.ctex"]
 
 [params]
 

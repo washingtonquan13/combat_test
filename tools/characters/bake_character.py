@@ -151,7 +151,8 @@ def make_opaque(obj):
 def add_part(kind, name, path=None, material=None):
     path = path or asset_file(kind, name, "mhclo")
     alternatives = {mhclo_uuid(path): material} if material else None
-    # subdiv 0: a game mesh carries its own resolution. The part is fitted to
+    # subdiv 0 here: the clothes are subdivided below, once the face shapes
+    # have reached every part; the face parts are fine as cut. The part is fitted to
     # the baked shape and weighted to the rig, so it deforms with the body.
     part = HumanService.add_mhclo_asset(path, basemesh, asset_type=kind.capitalize(),
                                         subdiv_levels=0, material_type="GAMEENGINE",
@@ -175,14 +176,26 @@ if eye_colour:
 for kind, default in FACE_DEFAULTS.items():
     if recipe.get(kind, default):
         add_part(kind, recipe.get(kind, default))
-for name in recipe.get("clothes", []):
-    add_part("clothes", name)
+clothes = [add_part("clothes", name) for name in recipe.get("clothes", [])]
 
 FaceService.load_targets(basemesh, load_microsoft_visemes=False,
                          load_meta_visemes=True, load_arkit_faceunits=True)
 # The face shapes live on the body; the parts riding on it need them too.
 FaceService.interpolate_targets(basemesh)
-ExportService.bake_modifiers_remove_helpers(basemesh, bake_masks=True, remove_helpers=True)
+# One level of subdivision on the body and the clothes: MakeHuman's base mesh
+# is cut for 2000s game budgets, and its polygons show at the jaw, ears and
+# shoulders up close. The shape keys are carried through the subdivision, and
+# Godot builds the far LODs back down on import.
+SUBDIV = int(recipe.get("subdiv", 1))
+if SUBDIV:
+    for obj in [basemesh] + clothes:
+        mod = obj.modifiers.new("Subdivision", "SUBSURF")
+        mod.levels = mod.render_levels = SUBDIV
+        if obj is not basemesh:
+            bpy.context.view_layer.objects.active = obj
+            ExportService._apply_modifiers_keep_shapekeys(obj, [mod.name])
+ExportService.bake_modifiers_remove_helpers(basemesh, bake_masks=True, bake_subdiv=bool(SUBDIV),
+                                            remove_helpers=True)
 
 rig = basemesh.parent
 # Named as the UAL library names its own: the same BoneMap and the same
@@ -199,7 +212,8 @@ if recipe.get("hairstyle"):
     sys.path.insert(0, here)
     import groom
     groom.build(basemesh, eyes, rig, os.path.join(here, "hairstyles", recipe["hairstyle"] + ".json"),
-                basemesh.name, os.path.splitext(out_path)[0] + "_scalp.png")
+                basemesh.name, os.path.splitext(out_path)[0] + "_scalp.png",
+                os.path.splitext(out_path)[0] + "_strands.png")
 
 for obj in [basemesh] + [c for c in rig.children if c is not basemesh]:
     keys = obj.data.shape_keys.key_blocks if obj.data.shape_keys else []

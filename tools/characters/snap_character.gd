@@ -5,7 +5,7 @@ extends SceneTree
 #
 #   godot --path . -s tools/characters/snap_character.gd -- --out <dir>
 #       [--model res://scenes/character_models/proof_hero_model.tscn]
-#       [--tag after]
+#       [--tag after] [--light soft]
 #
 # Needs a window: headless Godot draws nothing.
 
@@ -53,6 +53,20 @@ func _run() -> void:
 	sun.shadow_opacity = 0.92
 	sun.directional_shadow_max_distance = 20.0
 	world.add_child(sun)
+	# --light soft adds a fill and a rim, as a portrait or dialogue shot would,
+	# to tell a lighting problem from a mesh or shading one.
+	if _arg("--light") == "soft":
+		sun.shadow_blur = 4.0
+		sun.shadow_opacity = 0.7
+		var fill := DirectionalLight3D.new()
+		fill.basis = Basis.from_euler(Vector3(deg_to_rad(-15.0), deg_to_rad(-60.0), 0.0))
+		fill.light_color = Color(0.85, 0.9, 1.0)
+		fill.light_energy = 0.8
+		world.add_child(fill)
+		var rim := DirectionalLight3D.new()
+		rim.basis = Basis.from_euler(Vector3(deg_to_rad(-25.0), deg_to_rad(160.0), 0.0))
+		rim.light_energy = 1.2
+		world.add_child(rim)
 	var ground := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(20, 20)

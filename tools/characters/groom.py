@@ -8,16 +8,17 @@ human: the strands are grown on the body by rule, then
 2. every root is stamped into the body's UV space as a short stroke, the
    scalp texture: under the cards the skin turns to short hair, and the
    hairline fades out in strokes instead of ending at a card's edge;
-3. a hull over the hair is kept for the outline bake.
+3. each card's own strands, the lock's grown strands carried onto it, are
+   drawn into a tile of the character's strand atlas;
+4. a hull over the hair is kept for the outline bake.
 
 The atlas holds no colour, only strands: coverage, a random id per strand,
-shading across and along each strand. groom.gdshader colours it, so every
-character shares one atlas and any hair colour is a uniform.
+shading across each strand and by how far back it lies, and how far along
+its strand a texel is. groom.gdshader colours it, so any hair colour is a
+uniform.
 
 In Blender, from bake_character.py:
-    groom.build(body, eyes, rig, style_path, name, scalp_png)
-Outside Blender, for the shared atlas (numpy only):
-    python tools/characters/groom.py atlas assets/characters/hair/hair_strands.png
+    groom.build(body, eyes, rig, style_path, name, scalp_png, strands_png)
 """
 import math
 import struct
@@ -25,13 +26,6 @@ import sys
 import zlib
 
 import numpy as np
-
-ATLAS_SIZE = 2048
-ATLAS_COLUMNS = 8
-# The kinds of card, and which atlas columns hold each.
-VARIANTS = {"dense": (0, 1, 2), "medium": (3, 4, 5), "wisp": (6, 7)}
-STRANDS_PER_COLUMN = {"dense": 120, "medium": 64, "wisp": 18}
-
 
 def write_png(path, array):
     """array: uint8, HxW (grey) or HxWx4 (RGBA)."""
@@ -52,53 +46,6 @@ def write_png(path, array):
 def _smoothstep(a, b, x):
     t = np.clip((x - a) / (b - a), 0.0, 1.0)
     return t * t * (3.0 - 2.0 * t)
-
-
-def make_atlas(path, seed=7):
-    """The shared strand atlas. Each column is one card: roots at the top,
-    tips at the bottom. R a random id per strand, G shading (round across the
-    strand, darker for strands further back), B how far along its strand,
-    A coverage."""
-    rng = np.random.default_rng(seed)
-    size, cw = ATLAS_SIZE, ATLAS_SIZE // ATLAS_COLUMNS
-    cover = np.zeros((size, size), np.float32)
-    ident = np.full((size, size), 0.5, np.float32)
-    shade = np.full((size, size), 0.6, np.float32)
-    along = np.repeat(np.linspace(0.0, 1.0, size, dtype=np.float32)[:, None], size, 1)
-    for kind, columns in VARIANTS.items():
-        spread = {"dense": 0.17, "medium": 0.22, "wisp": 0.26}[kind]
-        for col in columns:
-            x0 = col * cw
-            count = STRANDS_PER_COLUMN[kind]
-            # Back to front: later strands lie over earlier ones.
-            for s in range(count):
-                depth = s / max(count - 1, 1)
-                start = rng.uniform(0.0, 0.06) * size
-                reach = rng.uniform(0.78, 1.0) if kind == "dense" else rng.uniform(0.5, 1.0)
-                end = reach * size
-                rows = np.arange(int(start), int(end))
-                t = np.clip((rows - start) / max(end - start, 1.0), 0.0, 1.0)
-                centre = np.clip(rng.normal(cw * 0.5, cw * spread), cw * 0.06, cw * 0.94)
-                drift = rng.normal(0.0, cw * 0.07) * t ** 1.6
-                wave = rng.uniform(0.5, 3.0) * np.sin(2 * math.pi * (t * rng.uniform(0.6, 2.2) + rng.uniform()))
-                x = centre + drift + wave
-                half = rng.uniform(0.7, 1.5) * (1.0 - 0.55 * t)
-                fade = 1.0 - _smoothstep(0.8, 1.0, t)
-                sid = rng.uniform()
-                body = 0.55 + 0.45 * depth
-                for off in range(-3, 4):
-                    px = np.floor(x).astype(int) + off
-                    d = np.abs(px + 0.5 - x)
-                    cov = np.clip(half + 0.5 - d, 0.0, 1.0) * fade
-                    keep = (px >= 0) & (px < cw) & (cov > 0.0)
-                    r, c, cv = rows[keep], px[keep] + x0, cov[keep]
-                    round_ = 1.0 - np.clip(d[keep] / np.maximum(half[keep] + 0.5, 0.5), 0.0, 1.0) ** 2
-                    cover[r, c] = cover[r, c] + cv * (1.0 - cover[r, c])
-                    ident[r, c] += (sid - ident[r, c]) * cv
-                    shade[r, c] += (body * (0.7 + 0.3 * round_) - shade[r, c]) * cv
-                    along[r, c] += (t[keep] - along[r, c]) * cv
-    out = np.stack([ident, shade, along, cover], -1)
-    write_png(path, (np.clip(out, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8))
 
 
 # ---------------------------------------------------------------- Blender side
@@ -134,13 +81,13 @@ CARD_STEP = 0.008  # metres between a card's rows
 BUN_LOCKS = 140  # cards' worth of locks the bun's rope is split into
 
 
-def build(body, eyes, rig, style_path, name, scalp_png, seed=1):
+def build(body, eyes, rig, style_path, name, scalp_png, strands_png, seed=1):
     """Grows the hairstyle at style_path (tools/characters/hairstyles/) on the
     baked body, whose eyes place the head, and makes game hair of it:
     "<name>.groom", the cards, and "<name>.hair_shell", a hull over the hair
     that the outline is built from (CharacterLook hides it). Both ride the
-    Head bone. scalp_png gets where the hair grows on the skin. Returns the
-    cards."""
+    Head bone. scalp_png gets where the hair grows on the skin, strands_png
+    the cards' strands. Returns the cards."""
     import hairstyle
 
     rng = np.random.default_rng(seed)
@@ -149,7 +96,9 @@ def build(body, eyes, rig, style_path, name, scalp_png, seed=1):
     info = {}
     strands, _, _ = hairstyle.grow(head, style, seed, info)
     _scalp_texture(body, head, strands, info, scalp_png, rng)
-    cards = _object(name + ".groom", *_cards(head, strands, info, rng), rig)
+    positions, normals, uvs, colours, faces, tiles = _cards(head, strands, info, rng)
+    uvs = _bake_strands(tiles, uvs, strands_png, rng)
+    cards = _object(name + ".groom", positions, normals, uvs, colours, faces, rig)
     _hull(head, strands, info, name + ".hair_shell", rig)
     return cards
 
@@ -188,27 +137,34 @@ def _cards(head, S, info, rng):
     spread: an inner card of dense strands under the middle, an outer one of
     looser strands over it, which cross where the lock hangs free so it has
     body from every side. Baby hairs get one wisp card a lock."""
-    positions, normals, uvs, colours, faces = [], [], [], [], []
+    positions, normals, uvs, colours, faces, tiles = [], [], [], [], [], []
 
-    def card(path, outward, side, width, columns, layer):
+    def card(path, outward, side, width, layer, lock, at, along, density, keep_back=0.0):
+        """A card down path; its UVs name its tile until _bake_strands
+        places it. density: strands across the card per texel; keep_back:
+        the share of the lock's strands, furthest back, it leaves out."""
         k = len(path)
-        col = columns[rng.integers(len(columns))]
-        u0, u1 = col / ATLAS_COLUMNS, (col + 1) / ATLAS_COLUMNS
         card_rand = rng.uniform()
         base = len(positions)
+        half = 0.5 * width * (1.0 - 0.2 * np.linspace(0.0, 1.0, k))
         for j in range(k):
             s = j / (k - 1)
-            half = 0.5 * width[j] * (1.0 - 0.2 * s)
-            positions.extend([path[j] - side[j] * half, path[j] + side[j] * half])
+            positions.extend([path[j] - side[j] * half[j], path[j] + side[j] * half[j]])
             normals.extend([outward[j], outward[j]])
-            uvs.extend([(u0, 1.0 - s), (u1, 1.0 - s)])
+            uvs.extend([(len(tiles), 0.0, s), (len(tiles), 1.0, s)])
             colours.extend([(layer, card_rand, 0.0, 1.0)] * 2)
         for j in range(k - 1):
             l0, r0 = base + 2 * j, base + 2 * j + 1
             faces.append((l0, l0 + 2, r0 + 2, r0))
+        tiles.append(dict(path=np.asarray(path), side=np.asarray(side), outward=np.asarray(outward),
+                          half=half, strands=lock, at=at, along=along,
+                          density=density, keep_back=keep_back))
+        tiles[-1]["length"] = float(np.linalg.norm(np.diff(path, axis=0), axis=1).sum())
 
+    m = S.shape[1]
     for members, a, b, baby, hangs in _locks(S, info, rng):
         lock = S[members, a:b]
+        along = (a + np.arange(b - a)) / (m - 1.0)
         spine = lock.mean(0)
         seg = np.linalg.norm(np.diff(spine, axis=0), axis=1)
         arc = np.concatenate([[0.0], np.cumsum(seg)])
@@ -236,12 +192,12 @@ def _cards(head, S, info, rng):
         outward, side = np.array(outward), np.array(side)
         free, spread, depth = np.array(free), np.array(spread), np.array(depth)
         if baby:
-            card(path, outward, side, np.clip(4.0 * spread, 0.003, 0.008), VARIANTS["wisp"], 0.85)
+            card(path, outward, side, np.clip(4.0 * spread, 0.003, 0.008), 0.85, lock, at, along, 0.15)
             continue
         width = np.clip(4.0 * spread, 0.012, 0.03)
         cross = math.radians(45.0) * free
-        for layer, sign, columns, scale, lift in ((0.3, 1.0, VARIANTS["dense"], 1.3, -0.8),
-                                                  (0.85, -1.0, VARIANTS["medium"], 1.0, 0.5)):
+        for layer, sign, density, keep_back, scale, lift in ((0.3, 1.0, 0.4, 0.0, 1.3, -0.8),
+                                                             (0.85, -1.0, 0.25, 0.4, 1.0, 0.5)):
             p = path + outward * (lift * depth)[:, None]
             for j in range(k):
                 q, nq = head.nearest(p[j])
@@ -250,9 +206,154 @@ def _cards(head, S, info, rng):
                     p[j] += nq * (0.0008 - h)
             twist = sign * cross + rng.normal(0.0, 0.15)
             sd = side * np.cos(twist)[:, None] + outward * np.sin(twist)[:, None]
-            card(p, outward, sd, width * scale * rng.uniform(0.85, 1.15), columns, layer)
+            card(p, outward, sd, width * scale * rng.uniform(0.85, 1.15), layer, lock, at, along,
+                 density, keep_back)
     print("GROOM cards", len(faces), "quads", len(positions), "verts")
-    return positions, normals, uvs, colours, faces
+    return positions, normals, uvs, colours, faces, tiles
+
+
+STRAND_ATLAS = 2048  # a character's strand atlas, square, in texels
+ALONG_TEXELS = 0.4  # texels along a card for each one across: strands run along
+
+
+def _pack(sizes, side):
+    """Shelf-packs (w, h) rectangles into a side x side square, tallest
+    first; their top-left corners, or None if they don't fit."""
+    order = sorted(range(len(sizes)), key=lambda i: -sizes[i][1])
+    x = y = shelf = 0
+    out = [None] * len(sizes)
+    for i in order:
+        w, h = sizes[i]
+        if x + w > side:
+            x, y, shelf = 0, y + shelf, 0
+        if y + h > side:
+            return None
+        out[i] = (x, y)
+        x, shelf = x + w, max(shelf, h)
+    return out
+
+
+def _bake_strands(tiles, uvs, png, rng):
+    """Draws each card's own strands into a tile of its own and points the
+    card's UVs at it. A tile is the card unrolled: across it the card's width,
+    down it the card from root to tip. The lock's strands are carried onto
+    the card along its rows, each with children combed round it until the
+    card is as full as it asks; the frontmost strand gives a texel its id,
+    shade and length, and the coverage of all of them adds up."""
+    side = STRAND_ATLAS
+    metres = np.array([(2.0 * t["half"].max(), t["length"]) for t in tiles])
+    area = float((metres[:, 0] * metres[:, 1] * ALONG_TEXELS).sum())
+    rho = math.sqrt(0.9 * side * side / area)  # texels per metre across
+    while True:
+        sizes = [(max(4, math.ceil(w * rho)) + 2, max(4, math.ceil(l * rho * ALONG_TEXELS)) + 2)
+                 for w, l in metres]
+        corners = _pack(sizes, side)
+        if corners:
+            break
+        rho *= 0.97
+    print("GROOM strand atlas: %d cards, %.2f texels/mm across" % (len(tiles), rho / 1000.0))
+
+    n_px = side * side
+    clear = np.zeros(n_px, np.float64)  # sum of log(1 - coverage)
+    ident = np.full(n_px, 0.5, np.float32)
+    shade = np.full(n_px, 0.6, np.float32)
+    along = np.zeros((side, side), np.float32)
+    flat, cov, key, sid, shd, alg = [], [], [], [], [], []
+
+    def flush():
+        if not flat:
+            return
+        f, c = np.concatenate(flat), np.concatenate(cov)
+        clear[:] += np.bincount(f, np.log1p(-np.minimum(c, 0.995)), n_px)
+        top = c > 0.35
+        order = np.argsort(np.concatenate(key)[top], kind="stable")
+        ft = f[top][order]
+        ident[ft] = np.concatenate(sid)[top][order]
+        shade[ft] = np.concatenate(shd)[top][order]
+        along.reshape(-1)[ft] = np.concatenate(alg)[top][order]
+        for lst in (flat, cov, key, sid, shd, alg):
+            lst.clear()
+
+    for t, (x0, y0), (tw, th) in zip(tiles, corners, sizes):
+        path, sd, half, out = t["path"], t["side"], t["half"], t["outward"]
+        lock, at, root_to_tip = t["strands"], t["at"], t["along"]
+        k, (n, L, _) = len(path), lock.shape
+        # Each strand sample's place on the card: its row, then across.
+        r = np.interp(np.arange(L), at, np.arange(k))
+        j0 = np.minimum(r.astype(int), k - 2)
+        f = (r - j0)[:, None]
+        P = path[j0] * (1 - f) + path[j0 + 1] * f
+        D = sd[j0] * (1 - f) + sd[j0 + 1] * f
+        D /= np.linalg.norm(D, axis=1)[:, None]
+        N = out[j0] * (1 - f) + out[j0 + 1] * f
+        N -= D * (N * D).sum(1)[:, None]
+        N /= np.maximum(np.linalg.norm(N, axis=1), 1e-9)[:, None]
+        H = half[j0] * (1 - f[:, 0]) + half[j0 + 1] * f[:, 0]
+        d = lock - P[None]
+        u = np.einsum("nlc,lc->nl", d, D) / (2.0 * H)[None] + 0.5
+        # A lock wider than its card (a bun's rope, wound round) is drawn
+        # squeezed onto it rather than cut off at its edges.
+        u = 0.5 + (u - 0.5) / max(1.0, float(np.quantile(np.abs(u - 0.5), 0.95)) / 0.45)
+        z = np.einsum("nlc,lc->nl", d, N).mean(1)
+        s = r / (k - 1)
+        keep = z >= np.quantile(z, t["keep_back"]) if t["keep_back"] > 0 else np.ones(n, bool)
+        u, z = u[keep], z[keep]
+        # Children combed round each strand, until the card holds as many
+        # strands across as it asks for.
+        want = max(len(u), int(t["density"] * (tw - 2)))
+        c = math.ceil(want / len(u))
+        m_ = len(u) * c
+        U = np.repeat(u, c, 0)
+        if c > 1:
+            spread = rng.normal(0.0, 0.12, m_)[:, None] * (0.6 + 0.8 * s[None])
+            spread[::c] = 0.0
+            wave = rng.uniform(0.0, 0.02, m_)[:, None] * np.sin(
+                2 * math.pi * (rng.uniform(0.5, 2.0, m_)[:, None] * s[None] + rng.uniform(0, 1, m_)[:, None]))
+            U = U + spread + wave
+        Z = np.repeat(z, c) + rng.normal(0.0, 0.3 * (z.std() + 1e-5), m_)
+        rank = np.argsort(np.argsort(Z)) / max(m_ - 1, 1)
+        ends = np.where(rng.uniform(size=m_) < 0.35, rng.uniform(0.6, 1.0, m_), 1.0)
+        # About a texel a step down the tile.
+        q = np.linspace(0.0, L - 1.0, max(2 * th, 8))
+        i0 = np.minimum(q.astype(int), L - 2)
+        fq = q - i0
+        Uq = U[:, i0] * (1 - fq) + U[:, i0 + 1] * fq
+        sq = np.interp(q, np.arange(L), s)
+        tq = q / (L - 1.0)
+        aq = np.interp(q, np.arange(L), root_to_tip)
+        x = x0 + 1.0 + Uq * (tw - 2)
+        y = np.broadcast_to(y0 + 1.0 + sq * (th - 2), x.shape)
+        fade = 1.0 - _smoothstep(0.85, 1.0, tq[None] / ends[:, None])
+        hw = rng.uniform(0.25, 0.5, m_)[:, None] * (1.0 - 0.5 * tq[None])
+        ids = np.broadcast_to(rng.uniform(size=m_)[:, None], x.shape)
+        inside = (Uq >= 0.0) & (Uq <= 1.0) & (tq[None] <= ends[:, None])
+        yi = np.clip(y.astype(int), y0, y0 + th - 1)
+        for off in (-1, 0, 1):
+            px = np.floor(x).astype(int) + off
+            dist = np.abs(px + 0.5 - x)
+            cv = np.clip(hw + 0.5 - dist, 0.0, 1.0) * fade
+            ok = inside & (cv > 0.0) & (px >= x0) & (px < x0 + tw)
+            rnd = 1.0 - np.clip(dist / np.maximum(hw + 0.5, 0.5), 0.0, 1.0) ** 2
+            flat.append((yi * side + px)[ok])
+            cov.append(cv[ok])
+            key.append(np.broadcast_to(rank[:, None], x.shape)[ok])
+            sid.append(ids[ok].astype(np.float32))
+            shd.append(((0.55 + 0.45 * rank[:, None]) * (0.7 + 0.3 * rnd))[ok].astype(np.float32))
+            alg.append(np.broadcast_to(aq[None], x.shape)[ok].astype(np.float32))
+        # Bare texels keep the length their row would have, so mips blend true.
+        along[y0:y0 + th, x0:x0 + tw] = np.interp(np.linspace(0.0, 1.0, th), s, root_to_tip)[:, None]
+        if sum(len(a) for a in flat) > 4_000_000:
+            flush()
+    flush()
+    cover = 1.0 - np.exp(clear)
+    rgba = np.stack([ident, shade, along.reshape(-1), cover], -1).reshape(side, side, 4)
+    write_png(png, (np.clip(rgba, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8))
+
+    out = []
+    for ti, uu, s in uvs:
+        (x0, y0), (tw, th) = corners[ti], sizes[ti]
+        out.append(((x0 + 1.0 + uu * (tw - 2)) / side, 1.0 - (y0 + 1.0 + s * (th - 2)) / side))
+    return out
 
 
 def _unit(v):
@@ -438,7 +539,3 @@ def _scalp_texture(body, head, S, info, png, rng):
     write_png(png, (scalp * 255.0 + 0.5).astype(np.uint8))
     print("GROOM scalp", png, "covered", int(covered.sum()), "of", count)
 
-
-if __name__ == "__main__" and len(sys.argv) >= 3 and sys.argv[1] == "atlas":
-    make_atlas(sys.argv[2])
-    print("wrote", sys.argv[2])

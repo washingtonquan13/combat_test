@@ -10,8 +10,9 @@ extends Node
 ##
 ## A character baked with a hairstyle has hair cards (tools/characters/
 ## groom.py), "<name>.groom", which get groom.gdshader, and a hull over them,
-## "<name>.hair_shell", kept for the outline bake and hidden. Its scalp
-## texture turns the skin to short hair where the hair grows.
+## "<name>.hair_shell", kept for the outline bake and hidden. The cards draw
+## their own strands, baked with them; the scalp texture turns the skin to
+## short hair where the hair grows.
 ##
 ## The eyes ("<name>.high-poly") get eye.gdshader, and the lashes
 ## ("<name>.eyelashes..") lash.gdshader, coloured from hair_color.
@@ -27,6 +28,8 @@ const LASH := preload("res://assets/characters/shaders/lash.tres")
 @export var skin_tint: Color = Color.WHITE
 ## Where the groom's hair grows on the skin, baked with it; none without one.
 @export var scalp_texture: Texture2D
+## The groom's cards' strands ("<name>_strands.png"), baked with them.
+@export var strands_texture: Texture2D
 ## The face's creases and folds, baked for this character's own face by
 ## tools/characters/bake_face_shapes.py; none leaves the face as MPFB made it.
 @export var face_shapes: Texture2D
@@ -86,6 +89,8 @@ func _skin() -> ShaderMaterial:
 func _groom() -> ShaderMaterial:
 	var groom := GROOM.duplicate() as ShaderMaterial
 	groom.set_shader_parameter("hair_color", hair_color)
+	if strands_texture:
+		groom.set_shader_parameter("strands", strands_texture)
 	return groom
 
 

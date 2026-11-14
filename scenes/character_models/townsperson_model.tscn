@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=23 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="PackedScene" path="res://assets/characters/townsperson/townsperson.glb" id="2_glb"]
@@ -18,6 +18,7 @@
 [ext_resource type="Texture2D" uid="uid://bs6muwl44bqu5" path="res://assets/characters/skin/procedural_face_detail.png" id="16_detail"]
 [ext_resource type="Texture2D" uid="uid://b43xmg1v1wh43" path="res://assets/characters/townsperson/townsperson_face_shapes.png" id="17_shapes"]
 [ext_resource type="Texture2D" uid="uid://c8uoa4ppsntwl" path="res://assets/characters/skin/procedural_face_age.png" id="18_age"]
+[ext_resource type="Texture2D" path="res://assets/characters/townsperson/townsperson_strands.png" id="19_strands"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -100,6 +101,7 @@ script = ExtResource("10_face")
 script = ExtResource("14_look")
 hair_color = Color(0.09, 0.065, 0.05, 1)
 scalp_texture = ExtResource("15_scalp")
+strands_texture = ExtResource("19_strands")
 face_shapes = ExtResource("17_shapes")
 face_detail = ExtResource("16_detail")
 age_lines = ExtResource("18_age")
