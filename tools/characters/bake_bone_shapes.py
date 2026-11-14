@@ -1,7 +1,8 @@
-"""Makes the face's bony forms by rule, as MakeHuman targets a recipe can pick.
+"""Makes the face's bony and soft forms by rule, as MakeHuman targets a recipe
+can pick.
 
     blender -b --factory-startup --python tools/characters/bake_bone_shapes.py -- \\
-        <out_dir> [debug.glb]
+        <parts_dir> [debug.glb]
 
 Needs MPFB, as bake_character.py does (BLENDER_USER_RESOURCES).
 
@@ -15,9 +16,22 @@ the way the bone under it would move the skin:
     jaw            the jaw's corner under the ear and its line to the chin
     chin           the chin's point and its two corners, forward
 
-each written to <out_dir>/<form>.target, at 1 a strong but plausible amount
-(4 to 5 millimetres at most). A recipe picks them as parts from "bone":
-"parts": {"cheekbones": ["bone", 0.6]}. A target is a change from MakeHuman's
+and the fat and folds over them, the forms age and weight change:
+
+    temples        the hollow behind the eye socket's outer rim, in
+    malar_fat      the cheek's fat pad under the eye, out and up (full,
+                   young cheeks)
+    nasolabial     the cheek's roll beside the line from the nose's wing to
+                   the mouth's corner, forward: the fold beside the mouth
+    tear_trough    the groove from the eye's inner corner down and out, in
+    jowls          the fat over the jaw line in front of its corner, down
+    submental      the fat under the chin, down (a double chin)
+
+each written to <parts_dir>/bone/<form>.target or <parts_dir>/soft/<form>.target,
+at 1 a strong but plausible amount (3 to 6 millimetres at most). A recipe
+picks them as parts from "bone" or "soft":
+"parts": {"cheekbones": ["bone", 0.6], "jowls": ["soft", 0.5]}. A negative
+amount works too: temples at -0.5 fill them out. A target is a change from MakeHuman's
 base, so it goes on over any macros; it is made on the default human, and a
 few millimetres sit as well on any other.
 
@@ -37,7 +51,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import scan_fit
 
 args = sys.argv[sys.argv.index("--") + 1:]
-out_dir = args[0]
+parts_dir = args[0]
 debug_glb = args[1] if len(args) > 1 else None
 MM = 0.001
 
@@ -168,9 +182,54 @@ for sx in (-1, 1):
     w = np.maximum(w, blob(front(sx * 0.012 * k, chin_z - 0.002 * k), (0.01, 0.02, 0.012)) * 0.7)
 forms["chin"] = soft(along(w, (0, -0.7, -0.2), 7.0))
 
+# The soft forms. As above the lids, the lids themselves stay still.
+below_lids = np.clip(((eye_z - 0.011 * k) - V[:, 2]) / (0.006 * k), 0, 1)
+soft_forms = {}
+
+w = np.zeros(len(V))
+for sx in (-1, 1):
+    w = np.maximum(w, blob(side(sx, eye[sx][1] + 0.016 * k, eye_z + 0.004 * k), (0.014, 0.018, 0.02)))
+soft_forms["temples"] = soft(along(w, (0, 0, 0), -4.5))
+
+w = np.zeros(len(V))
+for sx in (-1, 1):
+    w = np.maximum(w, blob(front(eye[sx][0] * 1.1, eye_z - 0.03 * k), (0.017, 0.02, 0.014)))
+soft_forms["malar_fat"] = soft(along(w * below_lids, (0, -0.4, 0.35), 5.0))
+
+w = np.zeros(len(V))
+for sx in (-1, 1):
+    wing = front(sx * 0.024 * k, head.nose[2] - 0.006 * k)
+    corner = front(sx * 0.032 * k, mouth_z - 0.006 * k)
+    w = np.maximum(w, tube(wing, corner, 0.008))
+w *= head.keep_away(np.array([0, lips[:, 1].min(), mouth_z]), 0.016, 0.024)
+soft_forms["nasolabial"] = soft(along(w, (0, -0.8, 0), 5.0))
+
+w = np.zeros(len(V))
+for sx in (-1, 1):
+    inner = front(eye[sx][0] - sx * 0.011 * k, eye_z - 0.017 * k)
+    outer = front(eye[sx][0] + sx * 0.006 * k, eye_z - 0.027 * k)
+    w = np.maximum(w, tube(inner, outer, 0.007))
+soft_forms["tear_trough"] = soft(along(w * below_lids, (0, 0, 0), -6.0))
+
+w = np.zeros(len(V))
+for sx in (-1, 1):
+    w = np.maximum(w, blob(front(sx * 0.037 * k, mouth_z - 0.03 * k), (0.015, 0.016, 0.016)))
+down = np.zeros((len(V), 3))
+down[:, 0] = np.sign(V[:, 0]) * 0.3
+down[:, 1] = -0.2
+down[:, 2] = -0.6
+soft_forms["jowls"] = soft(along(w, down, 6.0))
+
+under = np.array(tree.ray_cast(Vector((0, point[1] + 0.035 * k, chin_z - 0.05 * k)), Vector((0, 0, 1)))[0])
+w = blob(under, (0.028, 0.024, 0.016))
+soft_forms["submental"] = soft(along(w, (0, -0.3, -1.0), 6.0))
+
 print("LANDMARKS eye", np.round(eye[1], 4), "mouth z", round(float(mouth_z), 4), "ear", np.round(head.ear, 4),
-      "chin", np.round(point, 4))
-scan_fit.write_targets(basemesh, head, skin, forms, out_dir, TargetService.shape_key_info_as_target_string)
+      "chin", np.round(point, 4), "under chin", np.round(under, 4))
+for source, deltas in (("bone", forms), ("soft", soft_forms)):
+    scan_fit.write_targets(basemesh, head, skin, deltas, os.path.join(parts_dir, source),
+                           TargetService.shape_key_info_as_target_string)
+forms.update(soft_forms)
 
 if debug_glb:
     import bmesh
@@ -191,4 +250,4 @@ if debug_glb:
         bpy.context.scene.collection.objects.link(o)
         o.select_set(True)
     bpy.ops.export_scene.gltf(filepath=debug_glb, use_selection=True, export_format='GLB')
-print("WROTE", out_dir)
+print("WROTE", parts_dir)
