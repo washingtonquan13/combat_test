@@ -11,11 +11,12 @@ extends SceneTree
 ## writes it beside the glb as <name>_outline.mesh, along with the skin the
 ## parts share (<name>_outline_skin.tres), which the outline MeshInstance3D
 ## needs to follow the skeleton. Eyes, brows, lashes, teeth and tongue sit
-## inside or flat on the head and add nothing to the silhouette.
+## inside or flat on the head and add nothing to the silhouette. Groomed hair
+## cards are skipped too: the hair shell they replaced stands in for them.
 ##
 ## Rerun it whenever the glb is rebaked.
 
-const INSIDE_THE_HEAD: Array[String] = ["eyebrow", "eyelash", "high-poly", "teeth", "tongue"]
+const INSIDE_THE_HEAD: Array[String] = ["eyebrow", "eyelash", "groom", "high-poly", "teeth", "tongue"]
 
 
 func _init() -> void:

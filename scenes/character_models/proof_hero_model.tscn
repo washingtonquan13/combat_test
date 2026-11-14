@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="PackedScene" path="res://assets/characters/proof_hero/proof_hero.glb" id="2_glb"]
@@ -14,6 +14,7 @@
 [ext_resource type="ArrayMesh" path="res://assets/characters/proof_hero/proof_hero_outline.mesh" id="12_outline_mesh"]
 [ext_resource type="Skin" path="res://assets/characters/proof_hero/proof_hero_outline_skin.tres" id="13_outline_skin"]
 [ext_resource type="Script" path="res://systems/unit_system/character_look.gd" id="14_look"]
+[ext_resource type="Texture2D" path="res://assets/characters/proof_hero/proof_hero_scalp.png" id="15_scalp"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -95,6 +96,8 @@ script = ExtResource("10_face")
 [node name="CharacterLook" type="Node" parent="."]
 script = ExtResource("14_look")
 hair_part = "short02"
+hair_color = Color(0.36, 0.26, 0.18, 1)
+scalp_texture = ExtResource("15_scalp")
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_outline")

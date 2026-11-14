@@ -1,4 +1,4 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="PackedScene" path="res://assets/characters/townsperson/townsperson.glb" id="2_glb"]
@@ -14,6 +14,7 @@
 [ext_resource type="ArrayMesh" path="res://assets/characters/townsperson/townsperson_outline.mesh" id="12_outline_mesh"]
 [ext_resource type="Skin" path="res://assets/characters/townsperson/townsperson_outline_skin.tres" id="13_outline_skin"]
 [ext_resource type="Script" path="res://systems/unit_system/character_look.gd" id="14_look"]
+[ext_resource type="Texture2D" path="res://assets/characters/townsperson/townsperson_scalp.png" id="15_scalp"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -96,6 +97,7 @@ script = ExtResource("10_face")
 script = ExtResource("14_look")
 hair_part = "ponytail01"
 hair_color = Color(0.09, 0.065, 0.05, 1)
+scalp_texture = ExtResource("15_scalp")
 dye = 1.0
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]

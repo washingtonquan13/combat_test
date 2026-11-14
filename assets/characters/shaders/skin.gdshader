@@ -32,6 +32,14 @@ uniform float cavity : hint_range(0.0, 2.0) = 0.8;
 uniform float cavity_mip = 5.0;
 
 uniform float fuzz : hint_range(0.0, 1.0) = 0.15;
+
+// Where hair grows: the scalp under the hair cards, grown with them by
+// tools/characters/groom.py (white where hair roots are). The skin there is
+// tinted towards the hair and made rougher, so gaps between cards show
+// rooted hair rather than bare skin.
+uniform sampler2D scalp_texture : hint_default_black, filter_linear_mipmap, repeat_disable;
+uniform vec4 scalp_color : source_color = vec4(0.25, 0.17, 0.11, 1.0);
+uniform float scalp_strength : hint_range(0.0, 1.0) = 0.95;
 uniform float fuzz_tint : hint_range(0.0, 1.0) = 0.7;
 
 float luma(vec3 c) {
@@ -47,17 +55,24 @@ void fragment() {
 	vec3 pore = texture(pore_normal, UV * pore_scale).rgb;
 	float pore_height = pore.b * 2.0 - 1.0;
 
+	float scalp = texture(scalp_texture, UV).r * scalp_strength;
+	// Under hair the scalp sits in the hair's shadow, so darker than the hair.
+	albedo = mix(albedo, scalp_color.rgb * 0.3, scalp);
+	occlusion *= 1.0 - scalp * 0.5;
+
 	ALBEDO = albedo;
 	AO = occlusion;
-	AO_LIGHT_AFFECT = 0.25;
+	AO_LIGHT_AFFECT = mix(0.25, 0.6, scalp);
 	NORMAL_MAP = pore;
 	NORMAL_MAP_DEPTH = pore_strength;
 	ROUGHNESS = clamp(roughness_base + roughness_variation * ((1.0 - crease) * 2.0 - (1.0 - pore_height)), 0.2, 1.0);
-	SPECULAR = specular_level;
-	SSS_STRENGTH = subsurface;
+	ROUGHNESS = mix(ROUGHNESS, 0.85, scalp);
+	// Hair takes the skin's sheen: no glancing shine or fuzz under it.
+	SPECULAR = specular_level * (1.0 - scalp);
+	SSS_STRENGTH = subsurface * (1.0 - scalp * 0.7);
 	SSS_TRANSMITTANCE_COLOR = transmittance_color;
 	SSS_TRANSMITTANCE_DEPTH = transmittance_depth;
 	SSS_TRANSMITTANCE_BOOST = transmittance_boost;
-	RIM = fuzz;
+	RIM = fuzz * (1.0 - scalp);
 	RIM_TINT = fuzz_tint;
 }

@@ -45,9 +45,14 @@ What comes out, every time:
   drop moves them too. The rig has no jaw or eye bones, so the face is driven
   by these alone;
 - every part with a game-engine material (Principled BSDF and image
-  textures), which glTF carries as standard PBR.
+  textures), which glTF carries as standard PBR;
+- when tools/characters/grooms/<hair>.json exists, the hair as cards grown by
+  groom.py in place of MakeHuman's painted shell (the shell stays, hidden in
+  game, for the outline), and <out>_scalp.png beside the .glb: where the hair
+  grows, for the skin shader.
 """
 import json
+import os
 import sys
 
 import addon_utils
@@ -139,6 +144,7 @@ def add_part(kind, name, path=None, material=None):
                                         alternative_materials=alternatives)
     if kind not in SEE_THROUGH:
         make_opaque(part)
+    return part
 
 
 if recipe.get("skin"):
@@ -154,8 +160,7 @@ if eye_colour:
 for kind, default in FACE_DEFAULTS.items():
     if recipe.get(kind, default):
         add_part(kind, recipe.get(kind, default))
-if recipe.get("hair"):
-    add_part("hair", recipe["hair"])
+hair = add_part("hair", recipe["hair"]) if recipe.get("hair") else None
 for name in recipe.get("clothes", []):
     add_part("clothes", name)
 
@@ -172,6 +177,17 @@ rig = basemesh.parent
 rig.name = rig.data.name = "Armature"
 for old, new in (("Root", "root"), ("head", "Head")):
     rig.data.bones[old].name = new
+
+here = os.path.dirname(os.path.abspath(__file__))
+style_path = os.path.join(here, "grooms", "%s.json" % recipe.get("hair"))
+if hair is not None and os.path.exists(style_path):
+    sys.path.insert(0, here)
+    import groom
+    with open(style_path, encoding="utf-8") as f:
+        style = json.load(f)
+    groom.build(basemesh, hair, rig, style, basemesh.name,
+                os.path.splitext(out_path)[0] + "_scalp.png")
+
 for obj in [basemesh] + [c for c in rig.children if c is not basemesh]:
     keys = obj.data.shape_keys.key_blocks if obj.data.shape_keys else []
     print("BAKED", obj.name, "verts", len(obj.data.vertices),
@@ -182,5 +198,6 @@ print("BAKED", basemesh.name, "height %.3f m" % basemesh.dimensions.z,
 
 bpy.ops.export_scene.gltf(filepath=out_path, export_format="GLB", export_apply=False,
                           export_animations=False, export_morph=True,
-                          export_morph_normal=True)
+                          export_morph_normal=True, export_tangents=True,
+                          export_vertex_color="ACTIVE")
 print("WROTE", out_path)
