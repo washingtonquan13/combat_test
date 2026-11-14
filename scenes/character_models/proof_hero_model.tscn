@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="PackedScene" path="res://assets/characters/proof_hero/proof_hero.glb" id="2_glb"]
@@ -10,6 +10,16 @@
 [ext_resource type="AnimationLibrary" path="res://assets/ladder_animations.tres" id="8_ladder"]
 [ext_resource type="Resource" path="res://data/motion_sets/humanoid.tres" id="9_motions"]
 [ext_resource type="Script" path="res://systems/unit_system/face_driver.gd" id="10_face"]
+[ext_resource type="Shader" path="res://systems/unit_system/outline.gdshader" id="11_outline"]
+[ext_resource type="ArrayMesh" path="res://assets/characters/proof_hero/proof_hero_outline.mesh" id="12_outline_mesh"]
+[ext_resource type="Skin" path="res://assets/characters/proof_hero/proof_hero_outline_skin.tres" id="13_outline_skin"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
+resource_local_to_scene = true
+render_priority = 0
+shader = ExtResource("11_outline")
+shader_parameter/outline_color = Color(1, 0.85, 0.2, 1)
+shader_parameter/outline_width = 0.02
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
 height = 0.001
@@ -20,7 +30,7 @@ height = 0.001
 radius = 0.25
 height = 1.75
 
-[node name="ProofHeroModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "face", "collision_shape", "head_anchor", "hand_anchor", "main_hand_grip", "off_hand_grip")]
+[node name="ProofHeroModel" type="Node3D" node_paths=PackedStringArray("animation_player", "outline_mesh", "highlight_mesh", "face", "collision_shape", "head_anchor", "hand_anchor", "main_hand_grip", "off_hand_grip")]
 script = ExtResource("1_cm")
 animation_player = NodePath("Body/AnimationPlayer")
 idle_animation = "Idle"
@@ -35,6 +45,7 @@ land_animation = "Flight/Land"
 climb_animation = "Ladder/Climb_Up"
 climb_off_animation = "Ladder/Climb_Over_Top"
 climb_on_animation = "Ladder/Climb_On_Top"
+outline_mesh = NodePath("OutlineMesh")
 highlight_mesh = NodePath("HighlightMesh")
 face = NodePath("FaceDriver")
 height = 1.8
@@ -80,6 +91,12 @@ libraries = {
 
 [node name="FaceDriver" type="Node" parent="."]
 script = ExtResource("10_face")
+
+[node name="OutlineMesh" type="MeshInstance3D" parent="."]
+material_override = SubResource("ShaderMaterial_outline")
+mesh = ExtResource("12_outline_mesh")
+skin = ExtResource("13_outline_skin")
+skeleton = NodePath("../Body/Armature/GeneralSkeleton")
 
 [node name="HighlightMesh" type="MeshInstance3D" parent="."]
 mesh = SubResource("CylinderMesh_ring")
