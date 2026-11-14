@@ -41,6 +41,10 @@ const LASH := preload("res://assets/characters/shaders/lash.tres")
 ## tools/characters/bake_skin_detail.py, or from a head scan by
 ## bake_scan_detail.py; none leaves the tiling pores alone.
 @export var face_detail: Texture2D
+## The face's age lines, made by rule by bake_skin_detail.py (LINES=only),
+## and how deep they go: 0 a young face's (none), 1 an old one's.
+@export var age_lines: Texture2D
+@export_range(0.0, 1.0, 0.05) var age_amount: float = 0.0
 
 
 func _ready() -> void:
@@ -82,6 +86,9 @@ func _skin() -> ShaderMaterial:
 		skin.set_shader_parameter("shape_strength", face_shape_strength)
 	if face_detail:
 		skin.set_shader_parameter("detail_texture", face_detail)
+	if age_lines:
+		skin.set_shader_parameter("age_texture", age_lines)
+		skin.set_shader_parameter("age_amount", age_amount)
 	return skin
 
 

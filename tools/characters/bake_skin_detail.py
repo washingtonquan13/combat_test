@@ -18,17 +18,22 @@ Needs MPFB, as bake_character.py does (BLENDER_USER_RESOURCES).
      grain       the skin's criss-cross of fine grooves, everywhere;
      lip lines   the lips' vertical lines;
      unevenness  very gentle bumps a few millimetres across;
-     age lines   forehead lines, crow's feet, lines under the eyes: as deep
-                 as AGE says;
+     age lines   forehead lines, the frown's "11", crow's feet, arcs and
+                 crinkles under the eyes, lines over the upper lip: each
+                 a stroke of its own, as deep as AGE says;
 3. <out.png>: RGB the height's tangent-space normal (OpenGL, as Godot reads
    it), A where it applies (the head, fading out down the neck). The same
    format as the scan's, so CharacterLook's face_detail takes either.
 
 Its UVs are every MPFB human's, so one map serves every character:
 assets/characters/skin/procedural_face_detail.png is this at the defaults.
-AGE much past 0.3 is not ready: the lines round the eyes read as rings.
+Its age lines are a map of their own, assets/characters/skin/procedural_face_age.png
+(LINES=only, AGE=1), that CharacterLook lays on as deep as each face's age;
+procedural_face_detail.png is the skin without them (LINES=without).
 
 AGE (env, default 0.2): 0 no expression lines, 1 an old face's.
+LINES (env, default with): with, without (the skin alone) or only (the age
+lines alone, on flat skin).
 STRENGTH (env, default 3): scales every slope; at 3 they spread about as
 the scan map's do.
 SEED (env, default 1): another skin.
@@ -51,6 +56,9 @@ RES = int(os.environ.get("RES", "4096"))
 AGE = float(os.environ.get("AGE", "0.2"))
 STRENGTH = float(os.environ.get("STRENGTH", "3"))
 SEED = int(os.environ.get("SEED", "1"))
+LINES = os.environ.get("LINES", "with")
+if LINES == "without":
+    AGE = 0.0
 MM = 0.001
 
 addon_utils.enable("bl_ext.user_default.mpfb", default_set=True)
@@ -293,30 +301,170 @@ h -= grooves(lx, 0.9 * MM * k, 0.12 * MM * k) * lips_r * 0.02 * MM \
 # unevenness
 h += fbm(P, 4 * MM * k, SEED * 3 + 2) * 0.02 * MM * (1 - lips_r)
 
-# age lines
+# age lines: each line a stroke of its own, drawn as a polyline in a flat
+# frame laid over its region, tapering at both ends, broken up, no two alike
+# (a regular pattern of grooves reads as rings and stripes)
+rng = np.random.default_rng(SEED * 977 + 5)
+# every line's width and depth below, times these: creases, not cuts
+WIDE, DEEP = 1.7, 2.2
+lip_v = V0[weights(basemesh, "lips") > 0.5]
+mouth_z = lip_v[np.abs(lip_v[:, 0]) < 0.004 * k, 2].mean()
+upper_lip = lip_v[lip_v[:, 2] > mouth_z]
+
+
+def region(mask, origin, e1):
+    """The texels of mask, with their coordinates in the frame at origin whose
+    axes are e1 and e2 (up, Z, made square to e1)."""
+    r = np.where(mask)[0]
+    e1 = np.array(e1, float) / np.linalg.norm(e1)
+    e2 = np.array([0.0, 0, 1]) - e1 * e1[2]
+    e2 /= np.linalg.norm(e2)
+    d = P[r] - origin
+    return r, d @ e1, d @ e2
+
+
+def stroke(reg, pts, width, depth, seed):
+    """A groove along the polyline pts (frame metres), width (metres) and
+    depth (mm at AGE 1) at its middle; both taper to nothing at its ends.
+    Small raised shoulders either side, as skin folds; noise breaks it."""
+    r, U, W = reg
+    pts = np.asarray(pts, float)
+    lo, hi = pts.min(0) - 4 * WIDE * width, pts.max(0) + 4 * WIDE * width
+    sel = np.where((U > lo[0]) & (U < hi[0]) & (W > lo[1]) & (W < hi[1]))[0]
+    if len(sel) == 0:
+        return
+    q = np.column_stack([U[sel], W[sel]])
+    seg = np.diff(pts, axis=0)
+    length = np.linalg.norm(seg, axis=1)
+    cum = np.concatenate([[0], np.cumsum(length)])
+    best = np.full(len(q), np.inf)
+    at = np.zeros(len(q))
+    for i in range(len(seg)):
+        t = np.clip(((q - pts[i]) @ seg[i]) / max(length[i] ** 2, 1e-12), 0, 1)
+        d = np.linalg.norm(q - (pts[i] + t[:, None] * seg[i]), axis=1)
+        c = d < best
+        best = np.where(c, d, best)
+        at = np.where(c, (cum[i] + t * length[i]) / cum[-1], at)
+    taper = np.sin(np.pi * np.clip(at, 0, 1)) ** 0.7
+    w = width * WIDE * (0.45 + 0.55 * taper)
+    profile = gauss(best, w) - 0.3 * gauss(best, 2.5 * w)
+    pr = P[r[sel]]
+    breaks = smoothstep(-0.85, -0.25, value_noise(pr, 2.5 * MM * k, seed)) \
+        * (0.75 + 0.25 * value_noise(pr, 1.0 * MM * k, seed + 1))
+    h[r[sel]] -= depth * DEEP * MM * AGE * taper * profile * breaks
+
+
+def curve(f, a, b, steps=12):
+    return np.array([f(t) for t in np.linspace(a, b, steps)])
+
+
+def pieces(a, b, gap=(0.06, 0.18)):
+    """a..b cut into one to three pieces with gaps between."""
+    cuts = sorted(rng.uniform(a, b, rng.integers(0, 3)))
+    out, start = [], a
+    for c in cuts + [b]:
+        g = rng.uniform(*gap) * (b - a) * 0.5
+        end = c - g if c < b else c
+        if end - start > 0.12 * (b - a):
+            out.append((start, end))
+        start = c + g
+    return out or [(a, b)]
+
+
+if LINES == "only":
+    h[:] = 0
 if AGE > 0:
-    # forehead: horizontal, wavering, some stronger than others
-    z = P[:, 2] + fbm(P, 20 * MM * k, SEED * 19) * 2.5 * MM * k
-    strength = smoothstep(-0.3, 0.6, value_noise(P, 15 * MM * k, SEED * 19 + 1))
-    h -= grooves(z, 7 * MM * k, 0.5 * MM * k) * forehead * strength * 0.06 * MM * AGE
+    seed = SEED * 4001
+    # forehead: five across, wavering, arching over each brow, broken
+    reg = region(forehead > 0.05, np.array([0, 0, eye_z]), (1, 0, 0))
+    for j in range(5):
+        z0 = (0.028 + 0.0078 * j + rng.normal(0, 0.0012)) * k
+        amp, tilt = rng.uniform(0.0012, 0.003) * k, rng.normal(0, 0.03)
+        phase = rng.uniform(0, 6.28)
+        half = rng.uniform(0.032, 0.046) * k
+
+        def line(x, z0=z0, amp=amp, tilt=tilt, phase=phase):
+            arch = amp * np.exp(-((abs(x) - 0.028 * k) / (0.016 * k)) ** 2)
+            return (x, z0 + arch + tilt * x + 0.0012 * k * np.sin(x / (0.011 * k) + phase))
+        for a, b in pieces(-half, half):
+            seed += 1
+            stroke(reg, curve(line, a, b, 16), 0.42 * MM * k,
+                   0.075 * rng.uniform(0.5, 1.0) * (1 - 0.12 * j), seed)
+    # between the brows: the "11"
+    reg = region((np.abs(P[:, 0]) < 0.016 * k) & (P[:, 2] > eye_z) & (P[:, 2] < eye_z + 0.04 * k)
+                 & (front > 0.3), np.array([0, 0, eye_z]), (1, 0, 0))
     for sx in (-1, 1):
-        # crow's feet: fanning out from the eye's outer corner
-        o = eye[sx] + np.array([sx * 0.015 * k, 0, 0])
-        rx, rz = (P[:, 0] - o[0]) * sx, P[:, 2] - o[2]
-        r = np.hypot(rx, rz)
-        ang = np.arctan2(rz, np.maximum(rx, 1e-9)) + fbm(P, 6 * MM * k, SEED * 29 + sx) * 0.12
-        spread = 0.2
-        perp = np.abs(ang / spread - np.round(ang / spread)) * spread * r
-        fan = smoothstep(0.003 * k, 0.007 * k, r) * (1 - smoothstep(0.014 * k, 0.022 * k, r)) \
-            * (rx > 0) * (1 - smoothstep(0.8, 1.1, np.abs(ang)))
-        h -= gauss(perp, 0.35 * MM * k) * fan * 0.05 * MM * AGE
-        # under the eye: arcs below the lower lid
+        x0 = sx * rng.uniform(0.0035, 0.006) * k
+        lean = sx * rng.uniform(0.05, 0.25)
+        z0, z1 = rng.uniform(0.006, 0.01) * k, rng.uniform(0.022, 0.03) * k
+        seed += 1
+        stroke(reg, curve(lambda z: (x0 + lean * (z - z0), z), z0, z1, 8), 0.4 * MM * k,
+               0.06 * rng.uniform(0.6, 1.0), seed)
+    for sx in (-1, 1):
         e = eye[sx]
-        re = np.linalg.norm((P - e)[:, [0, 2]], axis=1) + fbm(P, 8 * MM * k, SEED * 31 + sx) * 0.6 * MM * k
-        below = smoothstep(0.0, 0.006 * k, e[2] - P[:, 2]) * (1 - smoothstep(0.0, 0.012 * k,
-                                                                              np.abs(P[:, 0] - e[0]) - 0.008 * k))
-        ring = (1 - smoothstep(0.022 * k, 0.03 * k, re)) * smoothstep(0.015 * k, 0.018 * k, re)
-        h -= grooves(re, 2.6 * MM * k, 0.35 * MM * k) * ring * below * 0.035 * MM * AGE
+        # crow's feet: rays of uneven length from the outer corner, bending
+        # with the orbit, the lower ones down onto the cheek; finer between
+        o = e + np.array([sx * 0.015 * k, 0, -0.001 * k])
+        out_n = np.array([sx * 0.8, -0.6, 0])
+        e1 = np.array([0.6, sx * 0.8, 0]) * sx
+        reg = region((np.linalg.norm(P - o, axis=1) < 0.035 * k) & ((P[:, 0] - o[0]) * sx > -0.003 * k)
+                     & (N @ out_n > 0.1), o, e1)
+        angles = np.sort(rng.uniform(-0.75, 0.55, rng.integers(4, 7)))
+        for i, th in enumerate(angles):
+            for fine in (False, True):
+                if fine and i == len(angles) - 1:
+                    continue
+                t = (th + angles[i + 1]) / 2 + rng.normal(0, 0.04) if fine else th + rng.normal(0, 0.03)
+                r0 = rng.uniform(0.002, 0.0045) * k
+                length = rng.uniform(0.005, 0.009) * k if fine else rng.uniform(0.008, 0.016) * k
+                bend = rng.normal(-0.15, 0.25) - 0.4 * (t < -0.3)
+
+                def ray(r, t=t, bend=bend):
+                    a = t + bend * (r / (0.015 * k))
+                    return (r * np.cos(a), r * np.sin(a))
+                seed += 1
+                stroke(reg, curve(ray, r0, r0 + length, 10), (0.2 if fine else 0.3) * MM * k,
+                       (0.025 if fine else 0.06) * rng.uniform(0.6, 1.0), seed)
+        # under the eye: broken arcs along the lower lid, a tear trough, and
+        # short crinkles under the outer half
+        below = (P[:, 2] < e[2] - 0.002 * k) & (np.linalg.norm((P - e)[:, [0, 2]], axis=1) < 0.04 * k) \
+            & (P[:, 1] < e[1]) & (-N[:, 1] > 0.15)
+        reg = region(below, e, (sx, 0, 0))
+        for j in range(3):
+            ax = (0.012 + 0.003 * j + rng.normal(0, 0.0008)) * k
+            bz = (0.0085 + 0.0038 * j + rng.normal(0, 0.0006)) * k
+            shift = rng.uniform(0.0, 0.003) * k
+
+            def arc(phi, ax=ax, bz=bz, shift=shift):
+                return (shift + ax * np.cos(phi), -bz * np.sin(phi) - 0.0006 * k * np.sin(3 * phi))
+            span = (rng.uniform(0.12, 0.3) * np.pi, rng.uniform(0.75, 0.95) * np.pi)
+            for a, b in pieces(*span):
+                seed += 1
+                stroke(reg, curve(arc, a, b, 14), 0.3 * MM * k,
+                       0.04 * rng.uniform(0.55, 1.0) * (1 - 0.15 * j), seed)
+        seed += 1
+        stroke(reg, curve(lambda t: (-0.011 * k + 0.012 * k * t, -0.006 * k - 0.014 * k * t ** 0.8), 0, 1, 8),
+               0.75 * MM * k, 0.03, seed)
+        for _ in range(rng.integers(6, 10)):
+            c = np.array([rng.uniform(0.002, 0.016), -rng.uniform(0.008, 0.015)]) * k
+            a = rng.uniform(-0.9, -0.3) + 0.5 * c[0] / (0.016 * k)
+            length = rng.uniform(0.002, 0.004) * k
+            d = np.array([np.cos(a), np.sin(a)]) * length / 2
+            seed += 1
+            stroke(reg, [c - d, c + d], 0.17 * MM * k, 0.02 * rng.uniform(0.5, 1.0), seed)
+    # above the upper lip: short lines rising from its border
+    reg = region((np.abs(P[:, 0]) < 0.03 * k) & (P[:, 2] > mouth_z) & (P[:, 2] < mouth_z + 0.025 * k)
+                 & (front > 0.3) & (lips_r < 0.5), np.array([0, 0, mouth_z]), (1, 0, 0))
+    for x in np.sort(rng.uniform(-0.019, 0.019, rng.integers(5, 9))) * k:
+        near_x = upper_lip[np.abs(upper_lip[:, 0] - x) < 0.003 * k]
+        if len(near_x) == 0:
+            continue
+        z0 = near_x[:, 2].max() - mouth_z + 0.0006 * k
+        length = rng.uniform(0.002, 0.005) * k
+        lean = rng.normal(0, 0.15) - 0.25 * x / (0.02 * k)
+        seed += 1
+        stroke(reg, curve(lambda t: (x + lean * length * t, z0 + length * t), 0, 1, 4), 0.2 * MM * k,
+               0.03 * rng.uniform(0.5, 1.0), seed)
 
 # --- height to a tangent-space normal ------------------------------------------------
 

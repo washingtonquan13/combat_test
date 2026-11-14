@@ -1,4 +1,4 @@
-[gd_scene load_steps=21 format=3]
+[gd_scene load_steps=22 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="PackedScene" path="res://assets/characters/townsperson/townsperson.glb" id="2_glb"]
@@ -17,6 +17,7 @@
 [ext_resource type="Texture2D" path="res://assets/characters/townsperson/townsperson_scalp.png" id="15_scalp"]
 [ext_resource type="Texture2D" uid="uid://bs6muwl44bqu5" path="res://assets/characters/skin/procedural_face_detail.png" id="16_detail"]
 [ext_resource type="Texture2D" uid="uid://b43xmg1v1wh43" path="res://assets/characters/townsperson/townsperson_face_shapes.png" id="17_shapes"]
+[ext_resource type="Texture2D" uid="uid://c8uoa4ppsntwl" path="res://assets/characters/skin/procedural_face_age.png" id="18_age"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -103,6 +104,8 @@ scalp_texture = ExtResource("15_scalp")
 dye = 1.0
 face_shapes = ExtResource("17_shapes")
 face_detail = ExtResource("16_detail")
+age_lines = ExtResource("18_age")
+age_amount = 0.35
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_outline")

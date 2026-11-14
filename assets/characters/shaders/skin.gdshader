@@ -22,6 +22,13 @@ uniform float pore_strength : hint_range(0.0, 2.0) = 0.4;
 uniform sampler2D detail_texture : hint_default_transparent, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform float detail_strength : hint_range(0.0, 3.0) = 1.0;
 
+// The face's age lines (forehead, frown, crow's feet, under the eyes, over
+// the lip), baked by tools/characters/bake_skin_detail.py as an old face's,
+// in the same layout: a tangent-space normal. age_amount is how far along a
+// face is; the lines' depths scale with it.
+uniform sampler2D age_texture : hint_normal, filter_linear_mipmap_anisotropic, repeat_disable;
+uniform float age_amount : hint_range(0.0, 1.0) = 0.0;
+
 // The face's mid-scale shapes (lid creases, nasolabial fold, lip border,
 // philtrum) made by rule from the character's own landmarks, baked by
 // tools/characters/bake_face_shapes.py: RGB a tangent-space normal. These are
@@ -74,6 +81,7 @@ void fragment() {
 	float detail_mask = detail.a * (1.0 - scalp);
 	vec2 bumps = (pore.xy * 2.0 - 1.0) * pore_strength * (1.0 - detail_mask * 0.8)
 		+ (detail.xy * 2.0 - 1.0) * detail_strength * detail_mask
+		+ (texture(age_texture, UV).xy * 2.0 - 1.0) * age_amount * detail.a
 		+ (texture(shape_texture, UV).xy * 2.0 - 1.0) * shape_strength;
 	// Under hair the scalp sits in the hair's shadow, so darker than the hair.
 	albedo = mix(albedo, scalp_color.rgb * 0.3, scalp);
