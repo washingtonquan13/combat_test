@@ -184,11 +184,16 @@ func _skin() -> ShaderMaterial:
 	return skin
 
 
+## The hair's material and its edges pass (groom.tres), copied together so
+## each character's hair has its own colour and strands.
 func _groom() -> ShaderMaterial:
-	var groom := GROOM.duplicate() as ShaderMaterial
-	groom.set_shader_parameter("hair_color", hair_color)
-	if strands_texture:
-		groom.set_shader_parameter("strands", strands_texture)
+	var groom := GROOM.duplicate(true) as ShaderMaterial
+	var material := groom
+	while material:
+		material.set_shader_parameter("hair_color", hair_color)
+		if strands_texture:
+			material.set_shader_parameter("strands", strands_texture)
+		material = material.next_pass as ShaderMaterial
 	return groom
 
 
