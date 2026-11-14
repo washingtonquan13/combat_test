@@ -2,19 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bdfnx72ofucxq"
-path="res://.godot/imported/proof_hero_shoes01_normal.png-35edf4cf072a9665ec1c817d6e86a062.ctex"
+uid="uid://cb87dtul0f2uo"
+path="res://.godot/imported/shoes01_covers.png-cee162a03e58ceae309aa1c7231b0ae0.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "ddc222212a99fbf88ea2da90d83c475f"
 }
 
 [deps]
 
-source_file="res://assets/characters/proof_hero/proof_hero_shoes01_normal.png"
-dest_files=["res://.godot/imported/proof_hero_shoes01_normal.png-35edf4cf072a9665ec1c817d6e86a062.ctex"]
+source_file="res://assets/wearables/shoes01/shoes01_covers.png"
+dest_files=["res://.godot/imported/shoes01_covers.png-cee162a03e58ceae309aa1c7231b0ae0.ctex"]
 
 [params]
 
@@ -24,7 +21,7 @@ compress/lossy_quality=0.7
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
@@ -34,4 +31,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

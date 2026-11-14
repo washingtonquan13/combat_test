@@ -106,6 +106,7 @@ face_shapes = ExtResource("16_shapes")
 face_detail = ExtResource("17_detail")
 age_lines = ExtResource("18_age")
 age_amount = 0.15
+body_type = &"proof_hero"
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_outline")

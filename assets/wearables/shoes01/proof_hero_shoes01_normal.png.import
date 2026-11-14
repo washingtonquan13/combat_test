@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bl8vqb4h40pij"
-path="res://.godot/imported/proof_hero_male_casualsuit01_normal.png-a66f865e237c5a7e713444421674772a.ctex"
+uid="uid://gjwwx83s71ys"
+path="res://.godot/imported/proof_hero_shoes01_normal.png-2a0643f0743435b23df0ae072b7f8411.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "0ba4ed6e01979ac80685fb30f189c4e0"
+"md5": "ddc222212a99fbf88ea2da90d83c475f"
 }
 
 [deps]
 
-source_file="res://assets/characters/proof_hero/proof_hero_male_casualsuit01_normal.png"
-dest_files=["res://.godot/imported/proof_hero_male_casualsuit01_normal.png-a66f865e237c5a7e713444421674772a.ctex"]
+source_file="res://assets/wearables/shoes01/proof_hero_shoes01_normal.png"
+dest_files=["res://.godot/imported/proof_hero_shoes01_normal.png-2a0643f0743435b23df0ae072b7f8411.ctex"]
 
 [params]
 

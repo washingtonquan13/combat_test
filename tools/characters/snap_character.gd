@@ -5,7 +5,7 @@ extends SceneTree
 #
 #   godot --path . -s tools/characters/snap_character.gd -- --out <dir>
 #       [--model res://scenes/character_models/proof_hero_model.tscn]
-#       [--tag after] [--light soft]
+#       [--tag after] [--light soft] [--wear res://...wearable.tres ...]
 #
 # Needs a window: headless Godot draws nothing.
 
@@ -83,6 +83,15 @@ func _run() -> void:
 	for hidden in ["OutlineMesh", "HighlightMesh"]:
 		if model.has_node(hidden):
 			(model.get_node(hidden) as Node3D).visible = false
+	# --wear dresses the model, once per item given, as UnitWearables would.
+	var worn: Array[Wearable] = []
+	var args := OS.get_cmdline_user_args()
+	for k in args.size() - 1:
+		if args[k] == "--wear":
+			worn.append(load(args[k + 1]) as Wearable)
+	for child in model.get_children():
+		if child is CharacterLook:
+			child.wear(worn)
 	var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
 	if player and player.has_animation("Idle"):
 		player.play("Idle")

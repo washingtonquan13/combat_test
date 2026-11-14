@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="GearItem" load_steps=4 format=3]
+
+[ext_resource type="Script" uid="uid://clhao6yvv8b25" path="res://systems/inventory_system/gear_item.gd" id="1_gear"]
+[ext_resource type="Texture2D" path="res://assets/test_item_icons/test_chest.png" id="2_icon"]
+[ext_resource type="Resource" path="res://assets/wearables/male_casualsuit01/male_casualsuit01.tres" id="3_wear"]
+
+[resource]
+script = ExtResource("1_gear")
+slot_type = 4
+weight = 1.5
+wearable = ExtResource("3_wear")
+id = &"casual_suit"
+item_name = "Casual Suit"
+icon = ExtResource("2_icon")
+width = 2
+height = 3
+maximum_stack_count = 1

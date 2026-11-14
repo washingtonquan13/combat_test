@@ -23,7 +23,8 @@ A recipe says what the character is, never how it is built:
       "eyes": "brown",
       "eyebrows": "eyebrow001",
       "hairstyle": "short_side_part",
-      "clothes": ["male_casualsuit01", "shoes01"]
+      "clothes": [],
+      "wearables": ["male_casualsuit01", "shoes01"]
     }
 
 `macros` are MakeHuman's macro sliders, 0..1; anything left out keeps MakeHuman's
@@ -40,6 +41,9 @@ whole: eyes, eyebrows, eyelashes, teeth and tongue fall back to a default when
 left out ("eyebrows": null leaves brows off); `skin` and `clothes` are only
 there when asked for. `hairstyle` is not MakeHuman's: it names a style under
 tools/characters/hairstyles/, grown by rule (hairstyle.py). Clothes hide the body under them by deleting it.
+`wearables` are MakeHuman clothes too, fitted to this body the same way, but
+baked to their own .glb so the game can put them on and take them off: see
+"What comes out" below.
 
 What comes out, every time:
 - the body with its shape baked in: no slider shape keys, helper geometry gone;
@@ -55,7 +59,12 @@ What comes out, every time:
   textures), which glTF carries as standard PBR;
 - with a hairstyle, its hair as cards (groom.py), a hull over it for the
   outline (hidden in game), and <out>_scalp.png beside the .glb: where the
-  hair grows, for the skin shader.
+  hair grows, for the skin shader;
+- for each wearable, assets/wearables/<item>/<name>.glb, the item fitted to
+  this body on the same rig (no blend shapes), and <item>_covers.png beside
+  it: the body's skin it hides, in the body's UV space, which is every
+  character's. The body keeps its skin there; the skin shader drops what the
+  worn items cover (Wearable, CharacterLook.wear).
 """
 import json
 import os
@@ -63,6 +72,7 @@ import sys
 
 import addon_utils
 import bpy
+import numpy as np
 
 argv = sys.argv[sys.argv.index("--") + 1:]
 recipe_path, out_path = argv[0], argv[1]
@@ -70,6 +80,7 @@ with open(recipe_path, encoding="utf-8") as f:
     recipe = json.load(f)
 
 addon_utils.enable("bl_ext.user_default.mpfb", default_set=True)
+from bl_ext.user_default.mpfb.entities.clothes.mhclo import Mhclo
 from bl_ext.user_default.mpfb.services.assetservice import AssetService
 from bl_ext.user_default.mpfb.services.exportservice import ExportService
 from bl_ext.user_default.mpfb.services.faceservice import FaceService
@@ -178,6 +189,79 @@ for kind, default in FACE_DEFAULTS.items():
         add_part(kind, recipe.get(kind, default))
 clothes = [add_part("clothes", name) for name in recipe.get("clothes", [])]
 
+COVERS_SIZE = 1024
+
+
+def covers_mask(mhclo_path):
+    """Where an item hides the body: its delete faces (those whose every vertex
+    it deletes, as MPFB's own conservative mask has it) drawn into the body's
+    UV space, as an RGBA image whose alpha is the cover."""
+    mhclo = Mhclo()
+    mhclo.load(mhclo_path)
+    deleted = np.zeros(len(basemesh.data.vertices), bool)
+    deleted[[v for v in mhclo.delverts if v < len(deleted)]] = True
+    uv = np.zeros(len(basemesh.data.loops) * 2)
+    basemesh.data.uv_layers.active.data.foreach_get("uv", uv)
+    uv = uv.reshape(-1, 2)
+    alpha = np.zeros((COVERS_SIZE, COVERS_SIZE), np.uint8)
+    for poly in basemesh.data.polygons:
+        if not deleted[list(poly.vertices)].all():
+            continue
+        corners = uv[list(poly.loop_indices)] * COVERS_SIZE
+        corners[:, 1] = COVERS_SIZE - corners[:, 1]  # rows run down from the image's top
+        for i in range(1, len(corners) - 1):
+            a, b, c = corners[0], corners[i], corners[i + 1]
+            x0, y0 = np.floor(np.minimum(np.minimum(a, b), c)).astype(int)
+            x1, y1 = np.ceil(np.maximum(np.maximum(a, b), c)).astype(int)
+            x0, y0, x1, y1 = max(x0, 0), max(y0, 0), min(x1, COVERS_SIZE), min(y1, COVERS_SIZE)
+            if x1 <= x0 or y1 <= y0:
+                continue
+            px, py = np.meshgrid(np.arange(x0, x1) + 0.5, np.arange(y0, y1) + 0.5)
+            area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+            if abs(area) < 1e-9:
+                continue
+            w0 = ((b[0] - px) * (c[1] - py) - (b[1] - py) * (c[0] - px)) / area
+            w1 = ((c[0] - px) * (a[1] - py) - (c[1] - py) * (a[0] - px)) / area
+            inside = (w0 >= -1e-3) & (w1 >= -1e-3) & (1.0 - w0 - w1 >= -1e-3)
+            alpha[y0:y1, x0:x1][inside] = 255
+    rgba = np.full((COVERS_SIZE, COVERS_SIZE, 4), 255, np.uint8)
+    rgba[..., 3] = alpha
+    return rgba
+
+
+# Wearables are fitted like clothes, but the body under them stays: adding one
+# masks the body with a vertex group of what it deletes, which the mask bake
+# would cut away, so every mask goes back to what the baked clothes alone ask.
+
+
+def mask_groups():
+    out = {}
+    for mod in basemesh.modifiers:
+        group = basemesh.vertex_groups.get(mod.vertex_group) if mod.type == "MASK" else None
+        if group:
+            out[mod.name] = (group.name, [v.index for v in basemesh.data.vertices
+                                          if any(g.group == group.index for g in v.groups)])
+    return out
+
+
+masks_before = mask_groups()
+wearables = {}
+wearables_covers = {}
+for name in recipe.get("wearables", []):
+    wearables[name] = add_part("clothes", name)
+    wearables_covers[name] = covers_mask(asset_file("clothes", name, "mhclo"))
+if wearables:
+    everything = list(range(len(basemesh.data.vertices)))
+    for mod_name, (group_name, _members) in mask_groups().items():
+        group = basemesh.vertex_groups[group_name]
+        group.remove(everything)
+        if mod_name in masks_before:
+            if masks_before[mod_name][1]:
+                group.add(masks_before[mod_name][1], 1.0, "REPLACE")
+        else:
+            basemesh.modifiers.remove(basemesh.modifiers[mod_name])
+
+
 FaceService.load_targets(basemesh, load_microsoft_visemes=False,
                          load_meta_visemes=True, load_arkit_faceunits=True)
 # The face shapes live on the body; the parts riding on it need them too.
@@ -188,7 +272,7 @@ FaceService.interpolate_targets(basemesh)
 # Godot builds the far LODs back down on import.
 SUBDIV = int(recipe.get("subdiv", 1))
 if SUBDIV:
-    for obj in [basemesh] + clothes:
+    for obj in [basemesh] + clothes + list(wearables.values()):
         mod = obj.modifiers.new("Subdivision", "SUBSURF")
         mod.levels = mod.render_levels = SUBDIV
         if obj is not basemesh:
@@ -206,11 +290,31 @@ for old, new in (("Root", "root"), ("head", "Head")):
     rig.data.bones[old].name = new
 
 here = os.path.dirname(os.path.abspath(__file__))
+
+# Each wearable to its own .glb, on the same rig: worn, its skin binds to the
+# body's skeleton by bone name. No blend shapes: the face's don't reach cloth.
+sys.path.insert(0, here)
+import groom
+wear_root = os.path.join(here, "..", "..", "assets", "wearables")
+for name, obj in wearables.items():
+    if obj.data.shape_keys:
+        obj.shape_key_clear()
+    folder = os.path.join(wear_root, name)
+    os.makedirs(folder, exist_ok=True)
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    rig.select_set(True)
+    glb = os.path.join(folder, basemesh.name + ".glb")
+    bpy.ops.export_scene.gltf(filepath=glb, export_format="GLB", use_selection=True,
+                              export_apply=False, export_animations=False, export_morph=False,
+                              export_tangents=True, export_vertex_color="ACTIVE")
+    groom.write_png(os.path.join(folder, name + "_covers.png"), wearables_covers[name])
+    print("WORE", name, "verts", len(obj.data.vertices), "->", glb)
+    bpy.data.objects.remove(obj, do_unlink=True)
+
 if recipe.get("hairstyle"):
     if eyes is None:
         sys.exit("bake_character: a hairstyle needs the eyes, which place the head")
-    sys.path.insert(0, here)
-    import groom
     groom.build(basemesh, eyes, rig, os.path.join(here, "hairstyles", recipe["hairstyle"] + ".json"),
                 basemesh.name, os.path.splitext(out_path)[0] + "_scalp.png",
                 os.path.splitext(out_path)[0] + "_strands.png")

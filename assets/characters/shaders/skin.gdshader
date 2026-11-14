@@ -63,11 +63,19 @@ uniform vec4 scalp_color : source_color = vec4(0.25, 0.17, 0.11, 1.0);
 uniform float scalp_strength : hint_range(0.0, 1.0) = 0.95;
 uniform float fuzz_tint : hint_range(0.0, 1.0) = 0.7;
 
+// The skin the worn items hide (CharacterLook.wear): their covers masks, in
+// the body's UV space, joined; alpha is the cover. That skin is not drawn,
+// in the shadow pass either, so it can't show through or shade the cloth.
+uniform sampler2D covers : hint_default_transparent, filter_linear, repeat_disable;
+
 float luma(vec3 c) {
 	return dot(c, vec3(0.299, 0.587, 0.114));
 }
 
 void fragment() {
+	if (texture(covers, UV).a > 0.5) {
+		discard;
+	}
 	vec3 albedo = texture(albedo_texture, UV).rgb * tint.rgb;
 	vec3 around = textureLod(albedo_texture, UV, cavity_mip).rgb * tint.rgb;
 	float crease = clamp(luma(albedo) / max(luma(around), 0.001), 0.0, 1.0);

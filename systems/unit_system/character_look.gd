@@ -16,6 +16,10 @@ extends Node
 ##
 ## The eyes ("<name>.high-poly") get eye.gdshader, and the lashes
 ## ("<name>.eyelashes..") lash.gdshader, coloured from hair_color.
+##
+## What the body wears goes on with wear(): each Wearable's fit for this
+## body_type, skinned to the body's skeleton, and its covers mask on the
+## skin, which drops the skin under it.
 
 const SKIN := preload("res://assets/characters/shaders/skin.tres")
 const GROOM := preload("res://assets/characters/shaders/groom.tres")
@@ -42,6 +46,16 @@ const LASH := preload("res://assets/characters/shaders/lash.tres")
 ## and how deep they go: 0 a young face's (none), 1 an old one's.
 @export var age_lines: Texture2D
 @export_range(0.0, 1.0, 0.05) var age_amount: float = 0.0
+## Which fit of a Wearable this body takes (Wearable.meshes). Each baked
+## character is its own body type for now: its recipe's name.
+@export var body_type: StringName
+
+## The skin's materials, every pass, to hand the covers mask to.
+var _skin_passes: Array[ShaderMaterial] = []
+## What wear() put on: the items' meshes and their outline hulls.
+var _worn: Array[Node] = []
+## The joined covers of what is worn; null for none.
+var _covers: Texture2D
 
 
 func _ready() -> void:
@@ -62,11 +76,95 @@ func _ready() -> void:
 			elif part == "groom":
 				mesh.set_surface_override_material(i, groom)
 			elif part == "body":
-				mesh.set_surface_override_material(i, _with_texture(skin, imported))
+				var material := _with_texture(skin, imported)
+				mesh.set_surface_override_material(i, material)
+				while material:
+					_skin_passes.append(material)
+					material = material.next_pass as ShaderMaterial
 			elif part == "high-poly":
 				mesh.set_surface_override_material(i, _with_texture(EYE, imported))
 			elif part.begins_with("eyelashes"):
 				mesh.set_surface_override_material(i, _with_texture(lash, imported))
+	_show_covers()
+
+
+## Dresses the body in items, in place of what it wore. An item with no fit
+## for this body_type shows nothing. Each item's meshes go on the body's
+## skeleton, each with an outline hull under the model's outline mesh, so
+## the hover outline follows the clothes; the skin under them is dropped.
+func wear(items: Array[Wearable]) -> void:
+	for node in _worn:
+		if is_instance_valid(node):
+			node.queue_free()
+	_worn.clear()
+	var skeleton := _skeleton()
+	var model := get_parent() as CharacterModel
+	var outline: MeshInstance3D = model.outline_mesh if model else null
+	var masks: Array[Texture2D] = []
+	for item in items:
+		var scene: PackedScene = item.meshes.get(body_type)
+		if scene == null or skeleton == null:
+			continue
+		if item.covers:
+			masks.append(item.covers)
+		var fitted: Node = scene.instantiate()
+		for mesh: MeshInstance3D in fitted.find_children("*", "MeshInstance3D", true, false):
+			mesh.get_parent().remove_child(mesh)
+			mesh.owner = null
+			skeleton.add_child(mesh)
+			mesh.skeleton = mesh.get_path_to(skeleton)
+			mesh.layers = _body_layers(skeleton)
+			_worn.append(mesh)
+			if outline:
+				var hull := MeshInstance3D.new()
+				hull.mesh = mesh.mesh
+				hull.skin = mesh.skin
+				hull.material_override = outline.material_override
+				hull.layers = outline.layers
+				outline.add_child(hull)
+				hull.skeleton = hull.get_path_to(skeleton)
+				_worn.append(hull)
+		fitted.free()
+	_covers = _joined(masks)
+	_show_covers()
+
+
+func _show_covers() -> void:
+	for material in _skin_passes:
+		material.set_shader_parameter("covers", _covers)
+
+
+func _skeleton() -> Skeleton3D:
+	var found: Array[Node] = get_parent().find_children("*", "Skeleton3D", true, false)
+	return found[0] as Skeleton3D if found else null
+
+
+## The render layers the body draws on (Unit.wear_render_layer), for the
+## items to draw on too.
+func _body_layers(skeleton: Skeleton3D) -> int:
+	for child in skeleton.get_children():
+		if child is MeshInstance3D and not _worn.has(child):
+			return (child as MeshInstance3D).layers
+	return 1
+
+
+## The masks laid over each other: what any of them covers.
+static func _joined(masks: Array[Texture2D]) -> Texture2D:
+	if masks.size() <= 1:
+		return masks[0] if masks else null
+	var joined: Image = null
+	for mask in masks:
+		var image: Image = mask.get_image()
+		if image.is_compressed():
+			image.decompress()
+		image.convert(Image.FORMAT_RGBA8)
+		if joined == null:
+			joined = image
+			continue
+		if image.get_size() != joined.get_size():
+			image.resize(joined.get_width(), joined.get_height(), Image.INTERPOLATE_NEAREST)
+		joined.blend_rect(image, Rect2i(Vector2i.ZERO, image.get_size()), Vector2i.ZERO)
+	return ImageTexture.create_from_image(joined)
 
 
 func _skin() -> ShaderMaterial:

@@ -41,6 +41,10 @@ enum SlotType {
 ## Null for armor/accessories — only set when this GearItem is a weapon.
 @export var weapon_data: WeaponData = null
 
+## How it looks worn (UnitWearables); null for gear that shows nothing on
+## the body, or that shows in the hands instead (weapon_data.model_scene).
+@export var wearable: Wearable = null
+
 
 ## Each hand slot's partner, main -> off.
 const OFF_HAND_OF: Dictionary = {
