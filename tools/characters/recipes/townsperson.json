@@ -13,5 +13,6 @@
   "eyes": "brown",
   "eyebrows": "eyebrow003",
   "hair": "ponytail01",
-  "clothes": ["male_worksuit01", "shoes02"]
+  "clothes": ["male_worksuit01", "shoes02"],
+  "parts": {"brow_ridge": ["bone", 0.3], "cheekbones": ["bone", 0.7], "cheek_hollows": ["bone", 0.3], "jaw": ["bone", 0.35], "chin": ["bone", 0.4]}
 }
