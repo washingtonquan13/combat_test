@@ -73,6 +73,9 @@ func _ready() -> void:
 	_outline = ShaderMaterial.new()
 	_outline.shader = OUTLINE_SHADER
 	_outline.set_shader_parameter("outline_width", 0.0)
+	# A prop's shell has no folds to hide, and pushed back it would sink
+	# into the ground it is being set down on.
+	_outline.set_shader_parameter("depth_push", 0.0)
 	_ghost_material = StandardMaterial3D.new()
 	_ghost_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_ghost_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
