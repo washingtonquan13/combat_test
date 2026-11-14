@@ -13,10 +13,15 @@ extends Node
 ## "<name>.groom", in place of MakeHuman's hair: they get groom.gdshader, and
 ## the old hair, kept in the .glb as "<name>.hair_shell" for the outline bake,
 ## is hidden. Its scalp texture darkens the skin where the hair grows.
+##
+## The eyes ("<name>.high-poly") get eye.gdshader, and the lashes
+## ("<name>.eyelashes..") lash.gdshader, coloured from hair_color.
 
 const SKIN := preload("res://assets/characters/shaders/skin.tres")
 const HAIR := preload("res://assets/characters/shaders/hair.tres")
 const GROOM := preload("res://assets/characters/shaders/groom.tres")
+const EYE := preload("res://assets/characters/shaders/eye.tres")
+const LASH := preload("res://assets/characters/shaders/lash.tres")
 
 ## The recipe's hair, as its material is named ("short02", "ponytail01").
 @export var hair_part: String = ""
@@ -42,6 +47,8 @@ func _ready() -> void:
 	var skin := _skin()
 	var hair := _hair()
 	var groom := _groom()
+	var lash := LASH.duplicate() as ShaderMaterial
+	lash.set_shader_parameter("hair_color", hair_color)
 	for mesh: MeshInstance3D in get_parent().find_children("*", "MeshInstance3D", true, false):
 		if mesh.mesh == null:
 			continue
@@ -56,6 +63,10 @@ func _ready() -> void:
 				mesh.set_surface_override_material(i, groom)
 			elif part == "body":
 				mesh.set_surface_override_material(i, _with_texture(skin, imported))
+			elif part == "high-poly":
+				mesh.set_surface_override_material(i, _with_texture(EYE, imported))
+			elif part.begins_with("eyelashes"):
+				mesh.set_surface_override_material(i, _with_texture(lash, imported))
 			elif hair_part != "" and part == hair_part:
 				mesh.set_surface_override_material(i, _with_texture(hair, imported))
 
