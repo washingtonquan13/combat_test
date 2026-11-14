@@ -1,0 +1,12 @@
+{
+  "name": "proof_hero",
+  "macros": {
+    "gender": 1.0,
+    "age": 0.5,
+    "muscle": 0.65,
+    "weight": 0.5,
+    "height": 0.6,
+    "proportions": 0.6,
+    "race": {"african": 0.3, "asian": 0.1, "caucasian": 0.6}
+  }
+}
