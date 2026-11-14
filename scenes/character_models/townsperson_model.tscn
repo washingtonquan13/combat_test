@@ -105,7 +105,7 @@ dye = 1.0
 face_shapes = ExtResource("17_shapes")
 face_detail = ExtResource("16_detail")
 age_lines = ExtResource("18_age")
-age_amount = 0.35
+age_amount = 0.1
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_outline")

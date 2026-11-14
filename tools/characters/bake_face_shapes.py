@@ -314,6 +314,9 @@ h += np.where(np.isfinite(dist), -0.45 * MM * gauss(dist, 2.5 * MM) * taper(alon
 detail = ((D - smooth(D, 10)) * DN).sum(1)
 dn = np.linalg.norm(D - head.at(0, 0.018, 0.004), axis=1)
 nose_w = np.clip(1 - (dn - 0.020 * k) / (0.012 * k), 0, 1)
+# not above the eyes: deepened there, the hollow between the brows reads as a frown
+lid_z = np.mean([c[2] for c in lid_joint.values()])
+nose_w *= np.clip((lid_z - D[:, 2]) / (0.006 * k), 0, 1)
 h += 0.9 * np.minimum(detail, 0) * nose_w
 h += 1.2 * detail * smooth(ears, 3)
 

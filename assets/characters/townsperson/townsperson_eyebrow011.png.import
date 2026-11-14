@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bnxabvfxnfi4e"
-path="res://.godot/imported/townsperson_eyebrow003.png-dd0212eabc4df42083e448228e208213.ctex"
+uid="uid://dngfxjbl5tha3"
+path="res://.godot/imported/townsperson_eyebrow011.png-08767ef135b07ddbd5d982a2b03586be.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "c65c2388e6a5b8f42c027ec0ec741754"
+"md5": "166853f3dd42a7eadf37d3d0640e724c"
 }
 
 [deps]
 
-source_file="res://assets/characters/townsperson/townsperson_eyebrow003.png"
-dest_files=["res://.godot/imported/townsperson_eyebrow003.png-dd0212eabc4df42083e448228e208213.ctex"]
+source_file="res://assets/characters/townsperson/townsperson_eyebrow011.png"
+dest_files=["res://.godot/imported/townsperson_eyebrow011.png-08767ef135b07ddbd5d982a2b03586be.ctex"]
 
 [params]
 

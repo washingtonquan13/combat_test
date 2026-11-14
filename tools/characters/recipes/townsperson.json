@@ -7,12 +7,55 @@
     "weight": 0.55,
     "height": 0.45,
     "proportions": 0.6,
-    "race": {"african": 0.55, "asian": 0.1, "caucasian": 0.35}
+    "race": {
+      "african": 0.55,
+      "asian": 0.1,
+      "caucasian": 0.35
+    }
   },
   "skin": "young_african_female",
   "eyes": "brown",
-  "eyebrows": "eyebrow003",
+  "eyebrows": "eyebrow011",
   "hair": "ponytail01",
-  "clothes": ["male_worksuit01", "shoes02"],
-  "parts": {"brow_ridge": ["bone", 0.3], "cheekbones": ["bone", 0.7], "cheek_hollows": ["bone", 0.3], "jaw": ["bone", 0.35], "chin": ["bone", 0.4]}
+  "clothes": [
+    "male_worksuit01",
+    "shoes02"
+  ],
+  "parts": {
+    "cheekbones": [
+      "bone",
+      0.6
+    ],
+    "cheek_hollows": [
+      "bone",
+      0.15
+    ],
+    "jaw": [
+      "bone",
+      0.1
+    ],
+    "chin": [
+      "bone",
+      0.15
+    ]
+  },
+  "targets": {
+    "eyebrows-trans-up": 0.6,
+    "eyebrows-angle-up": 0.55,
+    "eyebrows-trans-backward": 0.4,
+    "forehead-trans-backward": 0.2,
+    "l-eye-scale-incr": 0.25,
+    "r-eye-scale-incr": 0.25,
+    "nose-scale-horiz-decr": 0.2,
+    "nose-point-width-decr": 0.25,
+    "nose-flaring-decr": 0.2,
+    "mouth-upperlip-volume-incr": 0.35,
+    "mouth-lowerlip-volume-incr": 0.3,
+    "mouth-cupidsbow-incr": 0.3,
+    "chin-width-decr": 0.35,
+    "chin-prominent-decr": 0.2,
+    "chin-jaw-drop-decr": 0.2,
+    "l-cheek-volume-incr": 0.2,
+    "r-cheek-volume-incr": 0.2
+  }
 }
