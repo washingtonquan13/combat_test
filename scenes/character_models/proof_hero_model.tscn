@@ -19,7 +19,6 @@ resource_local_to_scene = true
 render_priority = 0
 shader = ExtResource("11_outline")
 shader_parameter/outline_color = Color(1, 0.85, 0.2, 1)
-shader_parameter/outline_width = 0.02
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
 height = 0.001

@@ -16,7 +16,6 @@ resource_local_to_scene = true
 render_priority = 0
 shader = ExtResource("2_outline")
 shader_parameter/outline_color = Color(1, 0.85, 0.2, 1)
-shader_parameter/outline_width = 0.02
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_lpv7g"]
 resource_name = "M_Main"
@@ -80,6 +79,7 @@ idle_animation = "Idle"
 walk_animation = "Jog_Fwd"
 hit_animation = "Hit_Chest"
 death_animation = "Death01"
+motions = ExtResource("10_motions")
 fly_idle_animation = "Flight/Hover"
 fly_move_animation = "Flight/Fly_Fwd"
 takeoff_animation = "Flight/Takeoff"
@@ -87,7 +87,6 @@ land_animation = "Flight/Land"
 climb_animation = "Ladder/Climb_Up"
 climb_off_animation = "Ladder/Climb_Over_Top"
 climb_on_animation = "Ladder/Climb_On_Top"
-motions = ExtResource("10_motions")
 outline_mesh = NodePath("OutlineMesh")
 highlight_mesh = NodePath("HighlightMesh")
 collision_shape = NodePath("CollisionTemplate")

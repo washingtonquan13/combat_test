@@ -31,7 +31,7 @@ const BLOCKED_COLOR: Color = Color(0.9, 0.12, 0.1, 1)
 const FIT_LIFT: float = 0.03
 
 ## The outline shell's scale over the mesh. Scaled rather than pushed
-## along normals (outline.gdshader's outline_width): a box's faces have
+## along normals (outline.gdshader's outline_pixels): a box's faces have
 ## split normals, and pushing them apart leaves the corners open.
 const OUTLINE_SCALE: float = 1.06
 
@@ -72,7 +72,7 @@ func _init(dragged: MovableProp, by: Unit, mask: int = 1) -> void:
 func _ready() -> void:
 	_outline = ShaderMaterial.new()
 	_outline.shader = OUTLINE_SHADER
-	_outline.set_shader_parameter("outline_width", 0.0)
+	_outline.set_shader_parameter("outline_pixels", 0.0)
 	# A prop's shell has no folds to hide, and pushed back it would sink
 	# into the ground it is being set down on.
 	_outline.set_shader_parameter("depth_push", 0.0)
