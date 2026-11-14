@@ -643,10 +643,10 @@ environment = ExtResource("q_env")
 transform = Transform3D(0.469472, 0.543597, -0.695772, 0.0, 0.788011, 0.615662, 0.882948, -0.289036, 0.369949, 0, 10, 0)
 light_color = Color(1, 0.93, 0.8, 1)
 light_energy = 2.3
-light_angular_distance = 1.0
 light_volumetric_fog_energy = 1.4
 shadow_enabled = true
 shadow_opacity = 0.92
+shadow_blur = 1.5
 directional_shadow_max_distance = 75.0
 
 [editable path="LevelGeometry/Ladder"]

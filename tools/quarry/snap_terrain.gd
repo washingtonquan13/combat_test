@@ -60,7 +60,8 @@ func _run() -> void:
 	sun.basis = Basis.from_euler(Vector3(deg_to_rad(-38.0), deg_to_rad(-62.0), 0.0))
 	sun.light_color = Color(1, 0.93, 0.8)
 	sun.light_energy = 2.3
-	sun.light_angular_distance = 1.0
+	# Blurred, not soft: the quarry's workaround (see bake_goblin_quarry.gd).
+	sun.shadow_blur = 1.5
 	sun.light_volumetric_fog_energy = 1.4
 	sun.shadow_enabled = true
 	sun.shadow_opacity = 0.92

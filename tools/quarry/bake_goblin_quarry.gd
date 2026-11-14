@@ -2340,7 +2340,11 @@ func _patch_scene() -> void:
 				for row in 3:
 					for col in 3:
 						vals.append(String.num(snappedf(b[col][row], 0.000001)))
-				block = header + "\ntransform = Transform3D(%s, 0, 10, 0)\nlight_color = Color(1, 0.93, 0.8, 1)\nlight_energy = 2.3\nlight_angular_distance = 1.0\nlight_volumetric_fog_energy = 1.4\nshadow_enabled = true\nshadow_opacity = 0.92\ndirectional_shadow_max_distance = 75.0\n" % ", ".join(vals)
+				# WORKAROUND: blurred shadows (shadow_blur), not soft ones (PCSS,
+				# light_angular_distance > 0). Soft shadows hung the GPU (Vulkan
+				# device lost) on an AMD RX 5700 XT in Godot 4.4.1. Put them back
+				# once a Godot or driver update is shown not to.
+				block = header + "\ntransform = Transform3D(%s, 0, 10, 0)\nlight_color = Color(1, 0.93, 0.8, 1)\nlight_energy = 2.3\nlight_volumetric_fog_energy = 1.4\nshadow_enabled = true\nshadow_opacity = 0.92\nshadow_blur = 1.5\ndirectional_shadow_max_distance = 75.0\n" % ", ".join(vals)
 		if _props.has(path):
 			block = header + "\nmesh = ExtResource(\"p_%s\")\n" % path.get_slice("/", 2).to_snake_case()
 		if path == WALK_IN:

@@ -589,7 +589,8 @@ func _build_lighting() -> void:
 	_sun.rotation_degrees = Vector3(-38.0, -62.0, 0.0)
 	_sun.light_color = Color(1.0, 0.93, 0.8)
 	_sun.light_energy = 2.3
-	_sun.light_angular_distance = 1.0
+	# Blurred, not soft: the quarry's workaround (see bake_goblin_quarry.gd).
+	_sun.shadow_blur = 1.5
 	_sun.shadow_enabled = true
 	_sun.shadow_opacity = 0.92
 	_sun.directional_shadow_max_distance = 75.0
