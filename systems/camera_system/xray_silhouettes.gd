@@ -59,8 +59,7 @@ const GROUP: StringName = &"xray_silhouettes"
 
 var enabled: bool = true
 var show_enemies: bool = true
-var fill_alpha: float = 0.22
-var rim_alpha: float = 0.55
+var fill_alpha: float = 0.45
 var occlusion_bias: float = 0.1
 ## Level depth resolution as a fraction of the camera's viewport.
 var depth_scale: float = 0.5
@@ -169,14 +168,13 @@ func _sync_depth_camera() -> void:
 	_depth_camera.far = _camera.far
 
 
-## Re-pushes the knobs into both materials. Call after changing any of
-## the alpha/bias fields at runtime.
+## Re-pushes the knobs into both materials. Call after changing
+## fill_alpha or occlusion_bias at runtime.
 func apply_settings() -> void:
 	for material in [_party_material, _enemy_material]:
 		if material == null:
 			continue
 		material.set_shader_parameter("fill_alpha", fill_alpha)
-		material.set_shader_parameter("rim_alpha", rim_alpha)
 		material.set_shader_parameter("occlusion_bias", occlusion_bias)
 	_since_refresh = INF
 
@@ -186,7 +184,6 @@ func _make_material(color: Color) -> ShaderMaterial:
 	material.shader = SHADER
 	material.set_shader_parameter("silhouette_color", color)
 	material.set_shader_parameter("fill_alpha", fill_alpha)
-	material.set_shader_parameter("rim_alpha", rim_alpha)
 	material.set_shader_parameter("occlusion_bias", occlusion_bias)
 	material.set_shader_parameter("level_depth", _depth_viewport.get_texture())
 	# Over everything else transparent (fire, fog), so the outline is not

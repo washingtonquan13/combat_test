@@ -17,6 +17,15 @@ shader_type spatial;
 // from a camera that mirrors this one and leaves Unit.RENDER_LAYER out
 // (see level_depth_capture.gdshader), so only level geometry hides.
 //
+// One flat shape, however many meshes make up the body. Every mesh of
+// the body wears this overlay with no depth test, so a shirt over a
+// torso, an arm across a chest or hair on a scalp all reach the same
+// pixel more than once. Blended, each layer would darken it again and
+// the body would read as its parts. Instead each fragment reads the
+// screen as it was before transparents (hint_screen_texture), mixes the
+// tint into that, and writes the result opaque: every layer writes the
+// same colour, so overlap changes nothing.
+//
 // The bias covers a foot sunk a little into the floor and the coarser
 // edges of a reduced-resolution level_depth. Only opaque geometry is in
 // it: clouds, fire and fog never trigger the tint.
@@ -26,16 +35,14 @@ shader_type spatial;
 render_mode unshaded, blend_mix, depth_test_disabled, depth_draw_never, cull_back, fog_disabled;
 
 uniform vec4 silhouette_color : source_color = vec4(0.34, 0.71, 0.91, 1.0);
-// Flat tint across the whole hidden body.
-uniform float fill_alpha : hint_range(0.0, 1.0) = 0.22;
-// Extra alpha at grazing angles, so the shape reads as a figure, not a blob.
-uniform float rim_alpha : hint_range(0.0, 1.0) = 0.55;
-uniform float rim_power : hint_range(0.5, 8.0) = 2.0;
+// How much of the tint covers the wall, across the whole hidden body.
+uniform float fill_alpha : hint_range(0.0, 1.0) = 0.45;
 // Metres something must sit in front of the body before it counts as hiding it.
 uniform float occlusion_bias : hint_range(0.0, 2.0) = 0.1;
 
 // Linear metres to the nearest level surface, in R. Set by XRaySilhouettes.
 uniform sampler2D level_depth : filter_nearest, repeat_disable;
+uniform sampler2D screen_texture : hint_screen_texture, filter_nearest, repeat_disable;
 
 void fragment() {
 	float scene_distance = textureLod(level_depth, SCREEN_UV, 0.0).r;
@@ -44,8 +51,7 @@ void fragment() {
 		discard;
 	}
 
-	float facing = clamp(dot(normalize(NORMAL), normalize(VIEW)), 0.0, 1.0);
-	float rim = pow(1.0 - facing, rim_power);
-	ALBEDO = silhouette_color.rgb;
-	ALPHA = clamp((fill_alpha + rim * rim_alpha) * silhouette_color.a, 0.0, 1.0);
+	vec3 behind = textureLod(screen_texture, SCREEN_UV, 0.0).rgb;
+	ALBEDO = mix(behind, silhouette_color.rgb, fill_alpha * silhouette_color.a);
+	ALPHA = 1.0;
 }

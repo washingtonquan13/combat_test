@@ -228,8 +228,8 @@ enum Mode { BOUND, UNBOUND }
 @export var xray_enabled: bool = true
 ## Enemies in a fight with the party get a silhouette too.
 @export var xray_show_enemies: bool = true
-@export_range(0.0, 1.0) var xray_fill_alpha: float = 0.22
-@export_range(0.0, 1.0) var xray_rim_alpha: float = 0.55
+## How strongly the tint covers the wall in front of a hidden unit.
+@export_range(0.0, 1.0) var xray_fill_alpha: float = 0.45
 ## Metres level geometry must sit in front of a unit to count as hiding
 ## it — see xray_silhouette.gdshader for why this cannot be zero.
 @export_range(0.0, 2.0) var xray_occlusion_bias: float = 0.1
@@ -360,7 +360,6 @@ func _setup_xray() -> void:
 	_xray.enabled = xray_enabled
 	_xray.show_enemies = xray_show_enemies
 	_xray.fill_alpha = xray_fill_alpha
-	_xray.rim_alpha = xray_rim_alpha
 	_xray.occlusion_bias = xray_occlusion_bias
 	_xray.depth_scale = xray_depth_scale
 	_xray.setup(self)
