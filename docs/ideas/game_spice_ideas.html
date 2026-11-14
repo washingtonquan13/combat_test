@@ -79,6 +79,21 @@ h3 { font-family: var(--display); font-weight: 500; font-size: 19px; margin: 0 0
       <p class="notes">These are placeholders. The voice prefetch plan, saved for later, covers streaming them.</p>
     </li>
     <li>
+      <div class="row"><h2>Conversations: voiced timing</h2><span class="chip">idea</span></div>
+      <p>When a line has audio, the mouth and the length of the turn follow the clip instead of an estimated reading time.</p>
+      <p class="notes">The spoken-turn hold in DialogueStaging (0209010) already waits for the face to go quiet, so a clip only needs to drive the face. This pairs with the procedural voices above.</p>
+    </li>
+    <li>
+      <div class="row"><h2>Conversations: listener reactions</h2><span class="chip">idea</span></div>
+      <p>The person listening nods, shifts, or changes expression while the other side speaks, instead of holding still.</p>
+      <p class="notes">FaceDriver.express() exists. This needs small reaction cues per line or per tone.</p>
+    </li>
+    <li>
+      <div class="row"><h2>Conversations: shot variety</h2><span class="chip">idea</span></div>
+      <p>Over-the-shoulder, close-up and two-shot framings picked per line, the way the cinematic's Shots are, instead of one cut per speaker.</p>
+      <p class="notes">Dialogue already shares the cinematic camera backbone, so this reuses the director's Shot framing.</p>
+    </li>
+    <li>
       <div class="row"><h2>The spice that comes with games</h2><span class="chip">open</span></div>
       <p>The catch-all: small reactions, juice, ambient life, and the details that make a world feel inhabited.</p>
       <p class="notes">Add to this item as ideas come up.</p>
