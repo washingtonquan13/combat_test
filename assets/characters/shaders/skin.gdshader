@@ -22,6 +22,13 @@ uniform float pore_strength : hint_range(0.0, 2.0) = 0.4;
 uniform sampler2D detail_texture : hint_default_transparent, filter_linear_mipmap_anisotropic, repeat_disable;
 uniform float detail_strength : hint_range(0.0, 3.0) = 1.0;
 
+// The face's mid-scale shapes (lid creases, nasolabial fold, lip border,
+// philtrum) made by rule from the character's own landmarks, baked by
+// tools/characters/bake_face_shapes.py: RGB a tangent-space normal. These are
+// forms, not pores, so they go on over everything else.
+uniform sampler2D shape_texture : hint_normal, filter_linear_mipmap_anisotropic, repeat_disable;
+uniform float shape_strength : hint_range(0.0, 3.0) = 0.0;
+
 uniform float roughness_base : hint_range(0.0, 1.0) = 0.5;
 // How much the pores and creases move roughness about.
 uniform float roughness_variation : hint_range(0.0, 0.5) = 0.15;
@@ -66,7 +73,8 @@ void fragment() {
 	vec4 detail = texture(detail_texture, UV);
 	float detail_mask = detail.a * (1.0 - scalp);
 	vec2 bumps = (pore.xy * 2.0 - 1.0) * pore_strength * (1.0 - detail_mask * 0.8)
-		+ (detail.xy * 2.0 - 1.0) * detail_strength * detail_mask;
+		+ (detail.xy * 2.0 - 1.0) * detail_strength * detail_mask
+		+ (texture(shape_texture, UV).xy * 2.0 - 1.0) * shape_strength;
 	// Under hair the scalp sits in the hair's shadow, so darker than the hair.
 	albedo = mix(albedo, scalp_color.rgb * 0.3, scalp);
 	occlusion *= 1.0 - scalp * 0.5;

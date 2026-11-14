@@ -28,6 +28,10 @@ const GROOM := preload("res://assets/characters/shaders/groom.tres")
 @export var skin_tint: Color = Color.WHITE
 ## Where the groom's hair grows on the skin, baked with it; none without one.
 @export var scalp_texture: Texture2D
+## The face's creases and folds, baked for this character's own face by
+## tools/characters/bake_face_shapes.py; none leaves the face as MPFB made it.
+@export var face_shapes: Texture2D
+@export_range(0.0, 3.0, 0.05) var face_shape_strength: float = 1.0
 
 
 func _ready() -> void:
@@ -58,6 +62,9 @@ func _skin() -> ShaderMaterial:
 	if scalp_texture:
 		skin.set_shader_parameter("scalp_texture", scalp_texture)
 		skin.set_shader_parameter("scalp_color", hair_color)
+	if face_shapes:
+		skin.set_shader_parameter("shape_texture", face_shapes)
+		skin.set_shader_parameter("shape_strength", face_shape_strength)
 	return skin
 
 
