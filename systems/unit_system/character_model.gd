@@ -89,6 +89,10 @@ extends Node3D
 ## this mesh, then clears it and projects a decal ring onto the ground in
 ## its place, so the mesh is only ever seen in the editor.
 @export var highlight_mesh: MeshInstance3D
+## What moves this body's face, if its face moves at all: blinks, holds an
+## expression, mouths its lines. Null for a body with no face shapes, which
+## is every body built before the MPFB humans.
+@export var face: FaceDriver
 
 @export_group("Extent")
 ## What the NAVIGATION grid is told this body is. The C++ reads radius and

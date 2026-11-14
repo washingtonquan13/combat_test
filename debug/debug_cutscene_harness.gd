@@ -9,7 +9,7 @@ extends Node
 ## file is a monument to.
 ##
 ## SETUP: Project Settings > Input Map already carries "test_fusion_cutscene"
-## (J) and "test_demo_cutscene" (K). Load any area, stand somewhere with
+## (J), "test_demo_cutscene" (K) and "test_hero_cutscene" (H). Load any area, stand somewhere with
 ## room in front of you, press one.
 ##
 ## K plays cinematics/demo_conversation.tscn, the reference scene that uses
@@ -41,6 +41,10 @@ const DEMO_PATH: String = "res://cinematics/demo_conversation.tscn"
 ## anchor_mark; it is a world mark because only the harness knows where
 ## the leader is standing.
 const DEMO_ANCHOR: StringName = &"DemoConversation"
+## H: the first MPFB human (data/units/npcs/proof_hero.tres) walks up to the
+## leader and talks, mouthing its lines and changing expression.
+const HERO_PATH: String = "res://cinematics/proof_hero_meeting.tscn"
+const HERO_ANCHOR: StringName = &"ProofHeroMeeting"
 
 const FUSION_CHART_PATH: String = "res://data/fusion_charts/fusion_chart.tres"
 const PARENT_A_PATH: String = "res://data/units/demons/test_pixie.tres"
@@ -60,12 +64,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("test_fusion_cutscene"):
 		_play_fusion()
 	elif event.is_action_pressed("test_demo_cutscene"):
-		_play_demo()
+		_play_at_leader(DEMO_PATH, DEMO_ANCHOR)
+	elif event.is_action_pressed("test_hero_cutscene"):
+		_play_at_leader(HERO_PATH, HERO_ANCHOR)
 
 
-## The demo stages itself around the leader: the anchor is dropped on the
-## leader, facing where they face, so the stage's local -Z is "ahead".
-func _play_demo() -> void:
+## The demo and the hero meeting stage themselves around the leader: the
+## anchor is dropped on the leader, facing where they face, so the stage's
+## local -Z is "ahead".
+func _play_at_leader(path: String, anchor_name: StringName) -> void:
 	if CinematicDirector.is_active():
 		print("A scene is already playing.")
 		return
@@ -80,7 +87,7 @@ func _play_demo() -> void:
 	_marks.name = "DebugDemoMarks"
 	stage.add_child(_marks)
 	var anchor := Marker3D.new()
-	anchor.name = DEMO_ANCHOR
+	anchor.name = anchor_name
 	_marks.add_child(anchor)
 	anchor.global_position = leader.global_position
 	var ahead: Vector3 = leader.visual_forward()
@@ -90,8 +97,8 @@ func _play_demo() -> void:
 	anchor.add_to_group(SceneCast.MARK_GROUP)
 
 	var cast := SceneCast.new().track_unit(CinematicCues.LEADER_ROLE, leader)
-	var completed: bool = await CinematicDirector.play(load(DEMO_PATH) as PackedScene, cast)
-	print("Demo cutscene %s." % ("finished" if completed else "aborted"))
+	var completed: bool = await CinematicDirector.play(load(path) as PackedScene, cast)
+	print("%s %s." % [path.get_file(), "finished" if completed else "aborted"])
 	_clear_marks()
 
 

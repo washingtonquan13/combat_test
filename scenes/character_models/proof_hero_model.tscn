@@ -1,0 +1,92 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
+[ext_resource type="PackedScene" path="res://assets/characters/proof_hero/proof_hero.glb" id="2_glb"]
+[ext_resource type="AnimationLibrary" path="res://assets/unit_animations.tres" id="3_anims"]
+[ext_resource type="AnimationLibrary" path="res://assets/UAL2_Standard.glb" id="4_ual2"]
+[ext_resource type="AnimationLibrary" path="res://assets/flight_animations.tres" id="5_flight"]
+[ext_resource type="AnimationLibrary" path="res://assets/fireball_animations.tres" id="6_fireball"]
+[ext_resource type="AnimationLibrary" path="res://assets/weapon_animations.tres" id="7_weapon"]
+[ext_resource type="AnimationLibrary" path="res://assets/ladder_animations.tres" id="8_ladder"]
+[ext_resource type="Resource" path="res://data/motion_sets/humanoid.tres" id="9_motions"]
+[ext_resource type="Script" path="res://systems/unit_system/face_driver.gd" id="10_face"]
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_ring"]
+height = 0.001
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ring"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+radius = 0.25
+height = 1.75
+
+[node name="ProofHeroModel" type="Node3D" node_paths=PackedStringArray("animation_player", "highlight_mesh", "face", "collision_shape", "head_anchor", "hand_anchor", "main_hand_grip", "off_hand_grip")]
+script = ExtResource("1_cm")
+animation_player = NodePath("Body/AnimationPlayer")
+idle_animation = "Idle"
+walk_animation = "Jog_Fwd"
+hit_animation = "Hit_Chest"
+death_animation = "Death01"
+motions = ExtResource("9_motions")
+fly_idle_animation = "Flight/Hover"
+fly_move_animation = "Flight/Fly_Fwd"
+takeoff_animation = "Flight/Takeoff"
+land_animation = "Flight/Land"
+climb_animation = "Ladder/Climb_Up"
+climb_off_animation = "Ladder/Climb_Over_Top"
+climb_on_animation = "Ladder/Climb_On_Top"
+highlight_mesh = NodePath("HighlightMesh")
+face = NodePath("FaceDriver")
+height = 1.8
+collision_shape = NodePath("CollisionTemplate")
+head_anchor = NodePath("Body/Armature/GeneralSkeleton/HeadAnchor")
+hand_anchor = NodePath("Body/Armature/GeneralSkeleton/HandAnchor")
+main_hand_grip = NodePath("Body/Armature/GeneralSkeleton/MainHand/Grip")
+off_hand_grip = NodePath("Body/Armature/GeneralSkeleton/OffHand/Grip")
+
+[node name="Body" parent="." instance=ExtResource("2_glb")]
+
+[node name="HeadAnchor" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="0"]
+bone_name = "Head"
+bone_idx = 44
+
+[node name="HandAnchor" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="1"]
+bone_name = "RightMiddleProximal"
+bone_idx = 31
+
+[node name="MainHand" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="2"]
+bone_name = "RightHand"
+bone_idx = 27
+
+[node name="Grip" type="Node3D" parent="Body/Armature/GeneralSkeleton/MainHand"]
+transform = Transform3D(0, 0.94, 0.342, 0, -0.342, 0.94, 1, 0, 0, 0, 0.085, 0.035)
+
+[node name="OffHand" type="BoneAttachment3D" parent="Body/Armature/GeneralSkeleton" index="3"]
+bone_name = "LeftHand"
+bone_idx = 8
+
+[node name="Grip" type="Node3D" parent="Body/Armature/GeneralSkeleton/OffHand"]
+transform = Transform3D(0, -0.94, -0.342, 0, -0.342, 0.94, -1, 0, 0, 0, 0.085, 0.035)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="Body"]
+libraries = {
+&"": ExtResource("3_anims"),
+&"Fireball": ExtResource("6_fireball"),
+&"Flight": ExtResource("5_flight"),
+&"Ladder": ExtResource("8_ladder"),
+&"UAL2_Standard": ExtResource("4_ual2"),
+&"Weapon": ExtResource("7_weapon")
+}
+
+[node name="FaceDriver" type="Node" parent="."]
+script = ExtResource("10_face")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("CylinderMesh_ring")
+surface_material_override/0 = SubResource("ShaderMaterial_ring")
+
+[node name="CollisionTemplate" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.875, 0)
+shape = SubResource("CapsuleShape3D_body")
+
+[editable path="Body"]

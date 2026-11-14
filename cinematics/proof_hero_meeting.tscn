@@ -1,0 +1,375 @@
+[gd_scene load_steps=14 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
+[ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
+[ext_resource type="Script" path="res://systems/cinematic_system/framing_rig.gd" id="3_rig"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/spawn_beat.gd" id="4_spawn"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/walk_to_beat.gd" id="5_walk"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/face_beat.gd" id="6_face"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/line_beat.gd" id="7_line"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/despawn_beat.gd" id="8_despawn"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/expression_beat.gd" id="9_expr"]
+[ext_resource type="Resource" path="res://data/units/npcs/proof_hero.tres" id="10_hero"]
+
+[sub_resource type="Animation" id="Animation_reset"]
+length = 0.001
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0),
+"transitions": PackedFloat32Array(1),
+"update": 1,
+"values": [&"wide"]
+}
+
+[sub_resource type="Animation" id="Animation_scene"]
+resource_name = "scene"
+length = 7.2
+step = 0.05
+tracks/0/type = "value"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".:shot")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 3.0, 3.5, 4.0, 4.5),
+"transitions": PackedFloat32Array(1, 1, 1, 1, 1),
+"update": 1,
+"values": [&"wide", &"hero_close", &"leader_close", &"hero_close", &"wide"]
+}
+tracks/1/type = "method"
+tracks/1/imported = false
+tracks/1/enabled = true
+tracks/1/path = NodePath("Beats/SpawnHero")
+tracks/1/interp = 1
+tracks/1/loop_wrap = true
+tracks/1/keys = {
+"times": PackedFloat32Array(0.1),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/2/type = "method"
+tracks/2/imported = false
+tracks/2/enabled = true
+tracks/2/path = NodePath("Beats/HeroApproaches")
+tracks/2/interp = 1
+tracks/2/loop_wrap = true
+tracks/2/keys = {
+"times": PackedFloat32Array(0.3),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/3/type = "method"
+tracks/3/imported = false
+tracks/3/enabled = true
+tracks/3/path = NodePath("Beats/LeaderTurns")
+tracks/3/interp = 1
+tracks/3/loop_wrap = true
+tracks/3/keys = {
+"times": PackedFloat32Array(2.9),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/4/type = "method"
+tracks/4/imported = false
+tracks/4/enabled = true
+tracks/4/path = NodePath("Beats/HeroTurns")
+tracks/4/interp = 1
+tracks/4/loop_wrap = true
+tracks/4/keys = {
+"times": PackedFloat32Array(2.9),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/5/type = "method"
+tracks/5/imported = false
+tracks/5/enabled = true
+tracks/5/path = NodePath("Beats/HeroWary")
+tracks/5/interp = 1
+tracks/5/loop_wrap = true
+tracks/5/keys = {
+"times": PackedFloat32Array(3.0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/6/type = "method"
+tracks/6/imported = false
+tracks/6/enabled = true
+tracks/6/path = NodePath("Beats/Greeting")
+tracks/6/interp = 1
+tracks/6/loop_wrap = true
+tracks/6/keys = {
+"times": PackedFloat32Array(3.05),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/7/type = "method"
+tracks/7/imported = false
+tracks/7/enabled = true
+tracks/7/path = NodePath("Beats/Reply")
+tracks/7/interp = 1
+tracks/7/loop_wrap = true
+tracks/7/keys = {
+"times": PackedFloat32Array(3.5),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/8/type = "method"
+tracks/8/imported = false
+tracks/8/enabled = true
+tracks/8/path = NodePath("Beats/HeroSmiles")
+tracks/8/interp = 1
+tracks/8/loop_wrap = true
+tracks/8/keys = {
+"times": PackedFloat32Array(4.0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/9/type = "method"
+tracks/9/imported = false
+tracks/9/enabled = true
+tracks/9/path = NodePath("Beats/Offer")
+tracks/9/interp = 1
+tracks/9/loop_wrap = true
+tracks/9/keys = {
+"times": PackedFloat32Array(4.05),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/10/type = "method"
+tracks/10/imported = false
+tracks/10/enabled = true
+tracks/10/path = NodePath("Beats/HeroSettles")
+tracks/10/interp = 1
+tracks/10/loop_wrap = true
+tracks/10/keys = {
+"times": PackedFloat32Array(4.5),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/11/type = "method"
+tracks/11/imported = false
+tracks/11/enabled = true
+tracks/11/path = NodePath("Beats/HeroLeaves")
+tracks/11/interp = 1
+tracks/11/loop_wrap = true
+tracks/11/keys = {
+"times": PackedFloat32Array(4.5),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+tracks/12/type = "method"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath("Beats/DespawnHero")
+tracks/12/interp = 1
+tracks/12/loop_wrap = true
+tracks/12/keys = {
+"times": PackedFloat32Array(7.0),
+"transitions": PackedFloat32Array(1),
+"values": [{
+"args": [],
+"method": &"fire"
+}]
+}
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_hero"]
+_data = {
+"RESET": SubResource("Animation_reset"),
+"scene": SubResource("Animation_scene")
+}
+
+[node name="ProofHeroMeeting" type="Node3D"]
+script = ExtResource("1_stage")
+anchor_mark = &"ProofHeroMeeting"
+props = {}
+world_marks = PackedStringArray("ProofHeroMeeting")
+shot = &"wide"
+
+[node name="Roles" type="Node3D" parent="."]
+
+[node name="leader" type="Marker3D" parent="Roles"]
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="hero" type="Marker3D" parent="Roles"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6.5)
+script = ExtResource("2_role")
+role = &""
+drives_actor = false
+
+[node name="Marks" type="Node3D" parent="."]
+
+[node name="HeroEntry" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3, 0, -6.5)
+
+[node name="MeetSpot" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1.6)
+
+[node name="HeroExit" type="Marker3D" parent="Marks"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.5, 0, -7)
+
+[node name="Shots" type="Node3D" parent="."]
+
+[node name="wide" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"leader"
+subject_mark = &""
+distance = 6.5
+azimuth_degrees = 160.0
+elevation_degrees = 24.0
+fov_degrees = 55.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="hero_close" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"hero"
+subject_mark = &""
+distance = 1.1
+azimuth_degrees = 20.0
+elevation_degrees = 2.0
+fov_degrees = 32.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="leader_close" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"leader"
+subject_mark = &""
+distance = 1.8
+azimuth_degrees = -25.0
+elevation_degrees = 4.0
+fov_degrees = 40.0
+look_role = &""
+look_mark = &""
+look_offset = Vector3(0, 0, 0)
+
+[node name="Beats" type="Node" parent="."]
+
+[node name="SpawnHero" type="Node" parent="Beats"]
+script = ExtResource("4_spawn")
+role = &"hero"
+definition = ExtResource("10_hero")
+prop_key = ""
+at = &"HeroEntry"
+
+[node name="HeroApproaches" type="Node" parent="Beats"]
+script = ExtResource("5_walk")
+role = &"hero"
+mark = &"MeetSpot"
+speed = 0.0
+duration = 2.6
+
+[node name="LeaderTurns" type="Node" parent="Beats"]
+script = ExtResource("6_face")
+role = &"leader"
+target = &"hero"
+
+[node name="HeroTurns" type="Node" parent="Beats"]
+script = ExtResource("6_face")
+role = &"hero"
+target = &"leader"
+
+[node name="HeroWary" type="Node" parent="Beats"]
+script = ExtResource("9_expr")
+role = &"hero"
+expression = &"wary"
+weight = 0.7
+fade_seconds = 0.4
+
+[node name="Greeting" type="Node" parent="Beats"]
+script = ExtResource("7_line")
+role = &"hero"
+speaker_name = "Wanderer"
+text = "Didn't expect anyone else out here."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="Reply" type="Node" parent="Beats"]
+script = ExtResource("7_line")
+role = &"leader"
+speaker_name = ""
+text = "Neither did I."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="HeroSmiles" type="Node" parent="Beats"]
+script = ExtResource("9_expr")
+role = &"hero"
+expression = &"smile"
+weight = 0.9
+fade_seconds = 0.5
+
+[node name="Offer" type="Node" parent="Beats"]
+script = ExtResource("7_line")
+role = &"hero"
+speaker_name = "Wanderer"
+text = "Then we're both lost. Good. I hate being lost alone."
+wait_for_advance = true
+auto_seconds = 0.0
+
+[node name="HeroSettles" type="Node" parent="Beats"]
+script = ExtResource("9_expr")
+role = &"hero"
+expression = &"neutral"
+weight = 1.0
+fade_seconds = 0.6
+
+[node name="HeroLeaves" type="Node" parent="Beats"]
+script = ExtResource("5_walk")
+role = &"hero"
+mark = &"HeroExit"
+speed = 0.0
+duration = 2.4
+
+[node name="DespawnHero" type="Node" parent="Beats"]
+script = ExtResource("8_despawn")
+role = &"hero"
+
+[node name="Timeline" type="AnimationPlayer" parent="."]
+callback_mode_method = 1
+libraries = {
+"": SubResource("AnimationLibrary_hero")
+}

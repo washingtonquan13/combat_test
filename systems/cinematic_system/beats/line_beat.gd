@@ -48,7 +48,12 @@ func _validate_property(property: Dictionary) -> void:
 
 func _fire(owner_stage: CinematicStage) -> void:
 	_elapsed = 0.0
-	owner_stage.show_line(self, _speaker(owner_stage), owner_stage.fill(text))
+	var said: String = owner_stage.fill(text)
+	owner_stage.show_line(self, _speaker(owner_stage), said)
+	# A body with a face mouths the line it is saying.
+	var face: FaceDriver = FaceDriver.of(owner_stage.actor(role)) if role != &"" else null
+	if face:
+		face.talk(said)
 	if wait_for_advance:
 		owner_stage.wait_for_advance()
 		owner_stage.run(self)
@@ -71,12 +76,19 @@ func tick(delta: float) -> bool:
 			owner_stage.advance()
 	elif _elapsed < auto_seconds:
 		return true
-	owner_stage.clear_line(self)
+	_end_line(owner_stage)
 	return false
 
 
 func _finish(owner_stage: CinematicStage) -> void:
+	_end_line(owner_stage)
+
+
+func _end_line(owner_stage: CinematicStage) -> void:
 	owner_stage.clear_line(self)
+	var face: FaceDriver = FaceDriver.of(owner_stage.actor(role)) if role != &"" else null
+	if face:
+		face.hush()
 
 
 func _speaker(owner_stage: CinematicStage) -> String:
