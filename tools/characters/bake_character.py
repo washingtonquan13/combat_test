@@ -28,9 +28,10 @@ A recipe says what the character is, never how it is built:
 
 `macros` are MakeHuman's macro sliders, 0..1; anything left out keeps MakeHuman's
 default. `targets` are optional detail targets by MakeHuman name, valued -1..1.
-`parts` are face parts cut from head scans by bake_scan_parts.py: a part
-(nose, mouth, chin, cheeks, brow, ears, skull) from a scan under
-tools/characters/parts/, whole or at an amount. They go on over the macros and
+`parts` are face parts under tools/characters/parts/<source>/, whole or at
+an amount: cut from a head scan by bake_scan_parts.py (nose, mouth, chin,
+cheeks, brow, ears, skull) or made by rule, with no scan, by
+bake_bone_shapes.py ("bone": brow_ridge, cheekbones, cheek_hollows, jaw, chin). They go on over the macros and
 targets, so the face is MPFB's with those features swapped in.
 The rest name assets from the MakeHuman system assets pack (CC0), installed in
 MPFB's user data: `skin` a folder under skins/, `eyes` an eye colour under

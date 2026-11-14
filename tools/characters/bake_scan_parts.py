@@ -27,7 +27,6 @@ import sys
 import addon_utils
 import bpy
 import numpy as np
-from mathutils.kdtree import KDTree
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import scan_fit
@@ -87,29 +86,6 @@ for name in weights:
     weights[name] = weights[name] / over
 weights["skull"] = np.clip(1 - sum(weights.values()), 0, 1)
 
-# Helpers are not skin: each follows its nearest skin vertex. The joint cubes
-# the rig is fitted to stay: a nose or a brow must not move the head's pivot,
-# or every animation would turn the head differently.
-kd = KDTree(int(skin.sum()))
-skin_index = np.where(skin)[0]
-for j, i in enumerate(skin_index):
-    kd.insert(head.v[i], j)
-kd.balance()
-follow = np.arange(len(head.v))
-for i in np.where(~skin)[0]:
-    follow[i] = skin_index[kd.find(head.v[i])[1]]
-joint_group = basemesh.vertex_groups["JointCubes"].index
-joints = np.array([any(g.group == joint_group for g in v.groups) for v in mesh.vertices])
-
-os.makedirs(out_dir, exist_ok=True)
-scale = 0.1  # MakeHuman targets are in decimetres
-for name, w in weights.items():
-    d = (delta * w[:, None])[follow] / scale
-    d[joints] = 0
-    moved = np.where(np.abs(d).max(1) > 0.0005)[0]
-    info = {"name": name, "vertices": [(int(i), *d[i]) for i in moved]}
-    path = os.path.join(out_dir, name + ".target")
-    with open(path, "w", newline="\n") as f:
-        f.write(TargetService.shape_key_info_as_target_string(info))
-    print("PART", name, "vertices", len(moved), "max mm", round(float(np.abs(d).max()) * 100, 2))
+scan_fit.write_targets(basemesh, head, skin, {name: delta * w[:, None] for name, w in weights.items()},
+                      out_dir, TargetService.shape_key_info_as_target_string)
 print("WROTE", out_dir)

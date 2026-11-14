@@ -7,10 +7,13 @@ head itself (nose tip, crown, the ear's widest point) and everything else is
 placed from them, scaled by the head's size, so any MPFB head fits: the hero's
 numbers (nose tip to crown 0.159 m) are the unit.
 """
+import os
+
 import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
+from mathutils.kdtree import KDTree
 
 HERO_HEAD = 0.159
 
@@ -159,3 +162,32 @@ def wrap(scan, head, rounds=((0.015, 8), (0.008, 4), (0.004, 2))):
             good = g
         print("WRAP round", rnd, "projected", int(g[head.head].sum()), "of", len(head.head))
     return cur, good
+
+
+def write_targets(basemesh, head, skin, deltas, out_dir, target_string):
+    """Writes each of deltas ({part: per-vertex move in metres, on the skin})
+    to <out_dir>/<part>.target. Helpers (eyes, teeth, tongue) follow the skin
+    vertex nearest them; the rig's joint cubes stay put, or a nose or a jaw
+    would move the bones and every animation with them. target_string is
+    MPFB's TargetService.shape_key_info_as_target_string."""
+    mesh = basemesh.data
+    skin_index = np.where(skin)[0]
+    kd = KDTree(len(skin_index))
+    for j, i in enumerate(skin_index):
+        kd.insert(head.v[i], j)
+    kd.balance()
+    follow = np.arange(len(head.v))
+    for i in np.where(~skin)[0]:
+        follow[i] = skin_index[kd.find(head.v[i])[1]]
+    joint_group = basemesh.vertex_groups["JointCubes"].index
+    joints = np.array([any(g.group == joint_group for g in v.groups) for v in mesh.vertices])
+    os.makedirs(out_dir, exist_ok=True)
+    scale = 0.1  # MakeHuman targets are in decimetres
+    for name, delta in deltas.items():
+        d = delta[follow] / scale
+        d[joints] = 0
+        moved = np.where(np.abs(d).max(1) > 0.0005)[0]
+        info = {"name": name, "vertices": [(int(i), *d[i]) for i in moved]}
+        with open(os.path.join(out_dir, name + ".target"), "w", newline="\n") as f:
+            f.write(target_string(info))
+        print("PART", name, "vertices", len(moved), "max mm", round(float(np.abs(d).max()) * 100, 2))
