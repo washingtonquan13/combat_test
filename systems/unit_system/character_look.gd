@@ -32,6 +32,9 @@ const GROOM := preload("res://assets/characters/shaders/groom.tres")
 ## tools/characters/bake_face_shapes.py; none leaves the face as MPFB made it.
 @export var face_shapes: Texture2D
 @export_range(0.0, 3.0, 0.05) var face_shape_strength: float = 1.0
+## The face's fine detail (pores, lines) from a head scan, baked by
+## tools/characters/bake_scan_detail.py; none leaves the tiling pores alone.
+@export var face_detail: Texture2D
 
 
 func _ready() -> void:
@@ -65,6 +68,8 @@ func _skin() -> ShaderMaterial:
 	if face_shapes:
 		skin.set_shader_parameter("shape_texture", face_shapes)
 		skin.set_shader_parameter("shape_strength", face_shape_strength)
+	if face_detail:
+		skin.set_shader_parameter("detail_texture", face_detail)
 	return skin
 
 

@@ -14,7 +14,9 @@ The copy used was the one in three.js's examples
 was baked as a normal map onto the MakeHuman/MPFB head's UV layout, with its
 low frequencies removed and the eyes, ears, lips and nostrils masked out.
 
-This credit must appear in the game's credits when it ships.
+It reaches a character through CharacterLook's `face_detail` (the
+townsperson has it; proof_hero does not). This credit must appear in the
+game's credits when it ships, while any character uses it.
 
 ## Face parts: tools/characters/parts/lee/
 
@@ -23,5 +25,6 @@ scan (**"Infinite, 3D Head Scan" by Lee Perry-Smith**, CC BY 3.0, as above).
 Changes: the scan was fitted to an MPFB head and its difference from it cut,
 with soft edges, into nose, mouth, chin, cheeks, brow, ears and skull; the
 eyes and lids are MPFB's. Characters whose recipe uses these parts
-(`"parts"` in `tools/characters/recipes/*.json`, proof_hero among them) carry
-the scan's shapes, so this credit covers them too.
+(`"parts"` from `"lee"` in `tools/characters/recipes/*.json`) carry the
+scan's shapes, so this credit covers them too. None does now: proof_hero's
+face parts are made by rule (`parts/bone/`, no scan).
