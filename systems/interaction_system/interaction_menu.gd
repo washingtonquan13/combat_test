@@ -99,4 +99,4 @@ func _get_screen_position(target: Node) -> Vector2:
 func _on_id_pressed(id: int) -> void:
 	if id < 0 or id >= _options.size():
 		return
-	_options[id].execute(_actor, _target)
+	InteractionApproach.run(_options[id], _actor, _target)

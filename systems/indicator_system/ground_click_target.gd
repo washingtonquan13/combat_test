@@ -157,7 +157,8 @@ var _hovered: Unit = null
 class ClickAnswer:
 	## &"none" (no opinion: locked, a pushed tool, nothing under the
 	## cursor), &"move", &"select", &"use" (an ability, at a unit or a
-	## point), &"interact", &"nothing" (aiming at nothing - consumed, does
+	## point), &"interact", &"talk" (walk up to someone and talk),
+	## &"nothing" (aiming at nothing - consumed, does
 	## nothing).
 	var verb: StringName = &"none"
 	var ok: bool = true
@@ -876,6 +877,10 @@ func click_unit(clicked: Unit, aiming: bool = false) -> bool:
 		return false
 
 	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
+	var talk: InteractionOption = null if aiming else _click_talk_on(clicked)
+	if talk:
+		InteractionApproach.run(talk, acting_unit, clicked)
+		return true
 	var ability: Ability = _click_ability_on(clicked)
 	if ability:
 		acting_unit.use_ability(ability, clicked)
@@ -1003,6 +1008,23 @@ func _click_ability_on(clicked: Unit) -> Ability:
 	return clicked.click_ability_for(acting_unit)
 
 
+## The talk a plain click on clicked starts, or null. Someone who is not
+## the player's and not against them is talked to rather than attacked
+## (an attack on them is still the right-click menu's, or an armed
+## ability's): with nothing armed, out of a fight, and when they offer
+## Talk at all. Walks into talking distance first (InteractionApproach).
+func _click_talk_on(clicked: Unit) -> InteractionOption:
+	var acting_unit: Unit = PlayerInteractionState.get_active_unit()
+	if acting_unit == null or acting_unit == clicked or acting_unit not in SelectionManager.selected_units:
+		return null
+	if AbilityManager.armed_ability or acting_unit.in_combat() or clicked.is_player_controlled() or clicked.is_downed():
+		return null
+	for option in clicked.get_interactions(acting_unit):
+		if option is TalkInteraction:
+			return option
+	return null
+
+
 func _armed_for_anyone() -> bool:
 	var armed: Ability = AbilityManager.armed_ability
 	return armed != null and armed.targeting != null and armed.targeting.any_unit
@@ -1064,8 +1086,8 @@ func _answer(current: PlayerIntent, at: Cursor) -> ClickAnswer:
 	return ClickAnswer.new()
 
 
-## A click on a unit: an ability at it (in reach or not), else a
-## selection. aiming says an ability is armed, so a unit the armed
+## A click on a unit: a talk with someone friendly (see _click_talk_on),
+## else an ability at it (in reach or not), else a selection. aiming says an ability is armed, so a unit the armed
 ## ability cannot take (a heal on a hostile) is a refusal rather than a
 ## quiet selection - the player meant to cast. A unit that is not the
 ## player's to select is interact (its right-click menu).
@@ -1073,6 +1095,8 @@ func _unit_answer(clicked: Unit, aiming: bool) -> ClickAnswer:
 	if not is_instance_valid(clicked) or not clicked.is_alive():
 		return ClickAnswer.new()
 	var point: Vector3 = clicked.global_position
+	if not aiming and _click_talk_on(clicked):
+		return ClickAnswer.new(&"talk", point)
 	var ability: Ability = _click_ability_on(clicked)
 	if ability == null:
 		if aiming:
@@ -1163,7 +1187,7 @@ func _cursor_shape(current: PlayerIntent) -> Input.CursorShape:
 	match answer.verb:
 		&"use":
 			return Input.CURSOR_CROSS
-		&"interact":
+		&"interact", &"talk":
 			return Input.CURSOR_POINTING_HAND
 	return Input.CURSOR_ARROW
 

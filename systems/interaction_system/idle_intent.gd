@@ -5,9 +5,10 @@ extends PlayerIntent
 ##
 ## Left-click priority, unchanged from what the two old owners between
 ## them did:
-##   1. a unit under the cursor — attack it if the acting unit has an
-##      ability that routes at it, otherwise select it (additively with
-##      select_additive held). This half used to live on Unit itself, in
+##   1. a unit under the cursor — talk to it if it is someone friendly
+##      out of a fight (walking up first, see InteractionApproach), else
+##      attack it if the acting unit has an ability that routes at it,
+##      otherwise select it (additively with select_additive held). This half used to live on Unit itself, in
 ##      a physics-picked _on_input_event, which is why it needed its own
 ##      copy of the "is a conversation running" guard and its own copy of
 ##      the acting-unit rules;

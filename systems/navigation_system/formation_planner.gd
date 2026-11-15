@@ -33,8 +33,12 @@ extends RefCounted
 ## to know chaining exists. Chain followers share the movers' ring: they
 ## take the slots after the selected followers, so nobody is sent to the
 ## same spot.
-static func command_group_move(units: Array[Unit], destination: Vector3) -> void:
-	var leader: Unit = _leader_of(units)
+##
+## leader, when given, is the one who goes to destination itself (the
+## character walking up to talk), whoever leads the party otherwise.
+static func command_group_move(units: Array[Unit], destination: Vector3, leader: Unit = null) -> void:
+	if leader == null or leader not in units:
+		leader = _leader_of(units)
 	if not leader:
 		for unit in units:
 			unit.move_to(destination, units)

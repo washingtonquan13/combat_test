@@ -5,3 +5,4 @@
 [resource]
 script = ExtResource("1_loot")
 label = "Open"
+reach = 1.5

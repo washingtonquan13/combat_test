@@ -5,3 +5,4 @@
 [resource]
 script = ExtResource("1_talk")
 label = "Talk"
+reach = 2.0

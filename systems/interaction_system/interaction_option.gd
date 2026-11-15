@@ -19,6 +19,10 @@ extends Resource
 
 @export var label: String
 @export var icon: Texture2D
+## How close (metres, body to body) the actor has to be for this verb to
+## run. Picked from further away, out of combat, the actor walks into it
+## first (see InteractionApproach). 0: from anywhere.
+@export var reach: float = 0.0
 
 
 ## Whether this verb should appear in actor's context menu for target
@@ -31,6 +35,21 @@ func is_available(_actor: Unit, _target) -> bool:
 	return false
 
 
-## Runs the verb once the player picks it from the menu.
+## Whether actor stands close enough to target to run this verb: the gap
+## between their bodies against a unit (Unit.edge_distance_to), the gap
+## from the actor's body to the thing's origin otherwise.
+func in_reach(actor: Unit, target) -> bool:
+	if reach <= 0.0:
+		return true
+	if target is Unit:
+		return actor.edge_distance_to(target) <= reach
+	if target is Node3D:
+		var gap: Vector3 = (target as Node3D).global_position - actor.global_position
+		return Vector2(gap.x, gap.z).length() - actor.radius <= reach
+	return true
+
+
+## Runs the verb once the player picks it from the menu, in reach (see
+## InteractionApproach.run, the way it is called).
 func execute(_actor: Unit, _target) -> void:
 	push_error("%s doesn't implement execute() yet" % get_script().resource_path)

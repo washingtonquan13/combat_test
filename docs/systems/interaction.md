@@ -12,6 +12,7 @@ Turns mouse/keyboard input into intents (idle / aiming / locked / pushed) and di
 | Open context menu: popup, actor, target, options | interaction_menu.gd:19-22 | No |
 | Pushed intent stack | ground_click_target.gd:144-153 | No |
 | Last emitted intent | ground_click_target.gd:113, :165-171 | No |
+| A verb walking to its target (pending verb, actor, target) | interaction_approach.gd, an `InteractionApproach` child of the actor | No |
 | Overworld prompt current target | interact_prompt.gd:36-42, :75-84 | No |
 | Option lists on units / props | unit.gd:350 `interactions`, :844-849; interactable_prop.gd:16-33 | Content |
 
@@ -42,6 +43,8 @@ Turns mouse/keyboard input into intents (idle / aiming / locked / pushed) and di
 - One router in the tree (group `click_router`, ground_click_target.gd:73) and one context menu process-wide. Both act on the focused world only; hover raycasts use `get_viewport().get_camera_3d()` (indicator_base.gd:107), so they assume the focused world owns the main viewport camera - single-focused-world assumption, consistent with WorldManager focus model.
 - Intent has one owner (pinned by tests/interaction/test_intent_has_one_owner.gd).
 - Menu actor/target stay valid between open and click - not checked (issue 1).
+- A picked verb runs through `InteractionApproach.run`: an `InteractionOption.reach` above 0 (Talk 2.0 m, Open 1.5 m, body to body) walks the actor there first, party in formation, out of combat only. It is called off by any other order (the actor's route stops ending where it sent it), a target that is gone, dead or no longer offering the verb, or combat. A stop short of a target that moved walks again, up to 3 times.
+- A plain left click on a non-party, non-hostile, non-downed unit, with nothing armed and out of combat, is Talk, not an attack (`ClickRouter._click_talk_on`; cursor answer `talk`).
 - Talk is out-of-combat only, Negotiate in-combat only (talk_interaction.gd:24-29; negotiate_interaction.gd:35, :74-78).
 
 ## Lifecycle
@@ -59,4 +62,4 @@ Turns mouse/keyboard input into intents (idle / aiming / locked / pushed) and di
 | 3 | Hover/raycast uses the viewport's current camera and world rather than an explicit focused world; relies on CameraDirector keeping the focused world's camera current. | indicator_base.gd:107, :114 | NEW (assumption, not a bug today) |
 
 ## Tests
-`tests/interaction/test_intent_has_one_owner.gd` only. Gaps: no test for menu-target invalidation, option availability rules, or the overworld prompt.
+`tests/interaction/test_intent_has_one_owner.gd`; `tests/interaction/test_talking_walks_up_first.gd` (left click talks, walks into reach, a move order cancels). Gaps: no test for menu-target invalidation, option availability rules, or the overworld prompt.
