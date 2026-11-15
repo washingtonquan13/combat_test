@@ -10,7 +10,7 @@ extends UIScreen
 ## SIZING: no layout lives in this script at all — every size relationship
 ## is anchors/size-flags baked into dialogue_overlay.tscn, editable in the
 ## Godot inspector. Stack (a full-height VBoxContainer, anchor_left/right
-## at 6.5%/93.5%, anchor_top 0 / anchor_bottom 1) is the inset column;
+## at 24%/76%, anchor_top 0 / anchor_bottom 1) is the inset column;
 ## alignment = END is what bottom-aligns its one child (BandMargin) without
 ## any negative-offset/zero-height-sliver trick a 2D-editor drag could ever
 ## grab. BandMargin carries only the 29px bottom gap
@@ -25,7 +25,7 @@ extends UIScreen
 ## `panel` stylebox is a StyleBoxTexture wrapping the same GradientTexture2D
 ## the old standalone Scrim TextureRect used, with expand_margin_top/left/
 ## right/bottom pushing the painted area out past Band's own rect: up and
-## to both sides far enough to clear the 6.5%/93.5% inset at any tested
+## to both sides far enough to clear the 24%/76% inset at any tested
 ## resolution, and down through BandMargin's 29px gap to the screen edge.
 ## A StyleBoxTexture's expand margins are pure paint — draw calls in Godot
 ## aren't clipped by an ancestor's rect unless that ancestor sets

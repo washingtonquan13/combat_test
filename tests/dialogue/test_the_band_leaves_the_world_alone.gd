@@ -13,7 +13,7 @@ extends AiTestCase
 ## to a VBoxContainer anchored by PERCENTAGE, with every spanning child on
 ## EXPAND_FILL. A suite that only checks the band's position/size at one
 ## fixed viewport width cannot tell those two apart — a fixed-pixel inset
-## and a 6.5% anchor land on the exact same numbers at 1600x900. So this
+## and a 6.5% anchor (the inset then; 24% now) land on the exact same numbers at 1600x900. So this
 ## suite resizes the host mid-run and re-measures: a percentage anchor
 ## MOVES with the host, a pixel constant does not. See
 ## _check_layout_is_anchor_driven and _check_resize_ratchet_with_rows_present.
@@ -269,11 +269,11 @@ func _check_layout_is_anchor_driven() -> void:
 	var left_pct_wide: float = band_rect_wide.position.x / float(DESIGN.x)
 	var right_pct_wide: float = band_rect_wide.end.x / float(DESIGN.x)
 
-	check("the band's left edge sits at about 6.5%% of a %dpx-wide host" % DESIGN.x,
-		absf(left_pct_wide - 0.065) < 0.01,
+	check("the band's left edge sits at about 24%% of a %dpx-wide host" % DESIGN.x,
+		absf(left_pct_wide - 0.24) < 0.01,
 		"left edge at %.1fpx = %.3f of %d" % [band_rect_wide.position.x, left_pct_wide, DESIGN.x])
-	check("and its right edge sits at about 93.5%",
-		absf(right_pct_wide - 0.935) < 0.01,
+	check("and its right edge sits at about 76%",
+		absf(right_pct_wide - 0.76) < 0.01,
 		"right edge at %.1fpx = %.3f of %d" % [band_rect_wide.end.x, right_pct_wide, DESIGN.x])
 	check("the Line label's width matches the band's own inner width",
 		absf(line_width_wide - band.size.x) < 4.0,
@@ -531,11 +531,11 @@ func _check_resize_ratchet_with_rows_present() -> void:
 	var left_pct_narrow: float = band_rect_narrow.position.x / float(NARROW_WIDTH)
 	var right_pct_narrow: float = band_rect_narrow.end.x / float(NARROW_WIDTH)
 
-	check("F7: the band's left edge is still about 6.5%% at a %dpx-wide host with rows on screen" % NARROW_WIDTH,
-		absf(left_pct_narrow - 0.065) < 0.01,
+	check("F7: the band's left edge is still about 24%% at a %dpx-wide host with rows on screen" % NARROW_WIDTH,
+		absf(left_pct_narrow - 0.24) < 0.01,
 		"left edge at %.1fpx = %.3f of %d" % [band_rect_narrow.position.x, left_pct_narrow, NARROW_WIDTH])
-	check("F7: and its right edge is still about 93.5%",
-		absf(right_pct_narrow - 0.935) < 0.01,
+	check("F7: and its right edge is still about 76%",
+		absf(right_pct_narrow - 0.76) < 0.01,
 		"right edge at %.1fpx = %.3f of %d" % [band_rect_narrow.end.x, right_pct_narrow, NARROW_WIDTH])
 	check("F7: the band's left edge actually MOVED when the host resized (rows on screen)",
 		absf(band_rect_narrow.position.x - band_rect_wide.position.x) > 5.0,
