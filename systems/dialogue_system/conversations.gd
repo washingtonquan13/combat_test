@@ -126,6 +126,7 @@ func lint(dir: String, strict: bool = false) -> void:
 func problems_in(dir: String, strict: bool = false) -> PackedStringArray:
 	var problems: PackedStringArray = []
 	var index: DialogueNodeIndex = Conversation.index_for(dir)
+	problems.append_array(index.problems)
 	for id in index.all_ids():
 		var node: DialogueNode = index.find_node(id)
 		_check(problems, index, id, "DialogueNode.next_node_id", node.next_node_id, false)

@@ -11,6 +11,10 @@ extends PrerequisiteRule
 ## No exported fields, same reasoning SacrificeNegotiatedGoldEffect has
 ## none — there's nothing to author, the amount is never fixed.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["can_pay_gold"]
+
+
 func is_satisfied(_unit: Unit) -> bool:
 	return false
 

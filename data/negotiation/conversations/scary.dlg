@@ -1,0 +1,49 @@
+responses silent
+
+== command
+~ Then perhaps YOU should be giving the orders here. Go on. Try.
+* Get out of my way, or don't. Your choice.
+    mood +3
+    -> request
+* Let's talk terms, then.
+    mood +1
+    -> request
+* I- I don't really know what to say.
+    pardon
+    -> request
+* Whatever you want, just spare me!
+    outcome attack
+
+
+== greeting
+start: opening
+~ Kneel. Now. ...No? ...Interesting. Most do, by this point.
+* I don't kneel to anyone. Least of all you.
+    mood +3
+    -> command
+* I'll stand, if it's all the same to you.
+    mood +1
+    -> command
+* I- I'll kneel, just don't hurt me.
+    pardon
+    -> command
+* Please, please don't kill me!
+    outcome attack
+
+
+== pressed
+~ ...Refused. Twice defiant, now. That is either very brave, or very foolish.
+* ...Nothing beneath me refuses me twice. Fine. Follow, then — as an equal.
+    outcome recruit
+* Then you'll learn why tribute was the wiser choice.
+    outcome attack
+
+
+== request
+~ Very well. Then prove your worth the way everything beneath me does — {gold} gold, as tribute.
+* [can_pay_gold] Tribute, then. {gold} gold. Take it.
+    pay_gold
+    outcome recruit
+* I don't pay tribute to anyone.
+    mood -3
+    -> pressed

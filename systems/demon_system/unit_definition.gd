@@ -204,7 +204,7 @@ extends Resource
 func resolve_negotiation_root(c: Conversation) -> DialogueNode:
 	for option in negotiation_options:
 		if not option.prerequisite or option.prerequisite.is_satisfied_in(c):
-			return option.root
+			return option.node_in(NegotiateInteraction.CONVERSATIONS_DIR)
 	return null
 
 

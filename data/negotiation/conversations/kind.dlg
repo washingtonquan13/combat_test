@@ -1,0 +1,49 @@
+responses silent
+
+== greeting
+start: opening
+~ Before we speak further — why did you spare the wounded ones behind you, instead of finishing them?
+* Because they'd already lost. That was enough.
+    mood +3
+    -> sacrifice
+* No real reason to waste the effort finishing them.
+    mood +1
+    -> sacrifice
+* I honestly didn't think about it either way.
+    pardon
+    -> sacrifice
+* I was saving them for later, that's all.
+    outcome attack
+
+
+== pressed
+~ That's alright — I shouldn't have asked. Let's set it aside.
+* Of course not. Kindness was never a transaction.
+    outcome recruit
+* Then let me give first. Rest, and take your time.
+    outcome heal
+
+
+== request
+~ Then perhaps you'd share a little — {gold} gold — so I might help someone else the way you've helped me.
+* [can_pay_gold] Then take this — {gold} gold — for whoever needs it after me.
+    pay_gold
+    outcome recruit
+* I don't have anything to spare right now.
+    mood -1
+    -> pressed
+
+
+== sacrifice
+~ If helping me cost you something real — not just spare change — would you still offer it?
+* Yes. That's exactly what makes it worth something.
+    mood +3
+    -> request
+* Depends how much it costs me, honestly.
+    mood +1
+    -> request
+* Probably not, if I'm being honest.
+    pardon
+    -> request
+* Only if I got something better in return.
+    outcome attack

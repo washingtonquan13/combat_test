@@ -1,0 +1,49 @@
+responses silent
+
+== deal
+~ Fine. Then answer me this — if I asked for something you didn't actually want to give, what would you really do?
+* Give you something that LOOKS like what you asked for.
+    mood +3
+    -> request
+* Try to talk you out of it first.
+    mood +1
+    -> request
+* Refuse outright. No games.
+    pardon
+    -> request
+* Tell you honesty is the best policy.
+    outcome attack
+
+
+== greeting
+start: opening
+~ You didn't even try to sneak up on me. Bold. Or stupid. Which is it, exactly?
+* Does it matter, as long as it worked?
+    mood +3
+    -> deal
+* A bit of both, probably.
+    mood +1
+    -> deal
+* I wanted a fair fight, honestly.
+    pardon
+    -> deal
+* Sneaking around is dishonorable.
+    outcome attack
+
+
+== pressed
+~ ...Didn't think you'd call that bluff. Alright — maybe coin isn't the only currency worth trading in.
+* Smart, not just cheap. I can respect that.
+    outcome recruit
+* Then we're done here.
+    outcome flee
+
+
+== request
+~ ...Clever enough. Prove it's not just talk, then — {gold} gold says you mean it.
+* [can_pay_gold] Fine. {gold} gold, no questions asked.
+    pay_gold
+    outcome recruit
+* Nice try. I don't pay for conversation.
+    mood -2
+    -> pressed

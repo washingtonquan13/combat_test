@@ -1,0 +1,49 @@
+responses silent
+
+== greeting
+start: opening
+~ You want something from me? Then prove you're not afraid of me first.
+* Try me and find out.
+    mood +3
+    -> pressure
+* I'm not afraid. I'm careful.
+    mood +1
+    -> pressure
+* I'd rather not fight, if it's all the same to you.
+    pardon
+    -> pressure
+* Please, I don't want any trouble.
+    outcome attack
+
+
+== pressed
+~ You'd really rather fight than pay? ...Alright. That's a kind of answer too.
+* Ha! Fine. Guts count for something.
+    outcome recruit
+* Then let's settle this properly.
+    outcome attack
+
+
+== pressure
+~ Strength only matters until something stronger shows up. What then?
+* Then I get stronger. That's the whole point.
+    mood +3
+    -> request
+* Then I adapt and keep moving.
+    mood +1
+    -> request
+* Then I retreat and regroup.
+    pardon
+    -> request
+* Then I hope someone stronger saves me.
+    outcome attack
+
+
+== request
+~ Good enough. Now show me you've got something worth having — {gold} gold, or don't bother.
+* [can_pay_gold] Here — {gold} gold. Call it a toll.
+    pay_gold
+    outcome recruit
+* Come take it, if you think you can.
+    mood -2
+    -> pressed

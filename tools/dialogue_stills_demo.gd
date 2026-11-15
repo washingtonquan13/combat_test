@@ -71,6 +71,10 @@ func _run() -> void:
 			var entry: Dictionary = c.transcript[seen - 1]
 			await _wait(INTO_LINE)
 			await _still("line_%s" % entry.speaker, "%s: %s" % [entry.speaker, entry.text])
+			var skip := InputEventAction.new()
+			skip.action = &"cinematic_advance"
+			skip.pressed = true
+			Input.parse_input_event(skip)
 			idle = 0.0
 			continue
 		var snap: Dictionary = c.snapshot()

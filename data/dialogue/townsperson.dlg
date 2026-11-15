@@ -1,0 +1,125 @@
+// The Scared Townperson of Millhaven: the goblin raid quest, before and after.
+
+== hub
+npc: I don't get many friendly faces through here anymore.
+npc: Watch yourself. Even standing here talking to you, I keep expecting something to come out of the trees.
+npc: What did you want to know?
+* [noflag townsperson_heard_raids] What's been happening around here?
+    set townsperson_heard_raids
+    -> quest_intro
+* Tell me about this town.
+    -> town
+* What are the people like, around here?
+    -> people
+* What's day-to-day life like for you?
+    -> life
+* I should get going. Take care.
+
+
+== quest_intro
+before: [present DwarfFighter] -> quest_intro_dwarf_reaction
+npc: You mean the raids.
+npc: Goblins, mostly. Small bands, quick and mean.
+npc: But there's bigger ones running with them now. Uglier, smarter, giving the orders.
+npc: It's gotten worse these past few months.
+* What exactly have they done?
+    give healing_potion
+    -> quest_details
+* [passive Insight] If you aren't telling me everything, please do so.
+    -> quest_insight
+* [Light] That's terrible. I hope it gets better.
+    -> hub
+* [Dark] Rough. But that's not really my problem.
+    -> hub
+
+
+== quest_intro_dwarf_reaction
+DwarfFighter: Whatever's got her this rattled, we should hear her out.
+-> quest_intro
+
+
+== quest_details
+npc: Three nights back they hit the Hollis farm.
+npc: Burned the grain store, took what livestock they could herd off.
+npc: Put an arrow through Old Hollis's leg when he came out swinging a torch at them.
+npc: Before that it was the mill. Before that, some fool who wandered too close to the tree line at dusk never came home at all.
+npc: They don't come every night. Just enough that nobody sleeps easy anymore.
+* Do you know where they're camped?
+    -> quest_location
+* [contest Persuasion vs Insight] Push her for exactly where they're camped.
+    say: You know more than you're saying. Where exactly are they camped?
+    success -> quest_location
+    failure -> quest_pushed_back
+* I'll keep an eye out.
+    -> potion_gift
+
+
+== quest_insight
+npc: ...There's one more thing.
+npc: The night they hit the mill, I saw one of them stop at the well and just stare at it. Like it was looking for something.
+npc: The others didn't seem to notice, but the big one did. It got angry, herded it along.
+npc: I haven't told anyone that part. Didn't want people thinking I'd lost my nerve completely.
+-> quest_details
+
+
+== quest_location
+npc: Somewhere out past the old quarry, if I had to guess.
+npc: That's the direction they always come from, and where the tracks lead back to.
+npc: Nobody from town's been foolish enough to go look.
+npc: If you're thinking about it... just be careful. Please.
+-> potion_gift
+
+
+== quest_pushed_back
+npc: I've told you what I know. Don't push me on this.
+-> potion_gift
+
+
+== potion_gift
+npc: Here, take this. I hope it helps if you encounter them.
+-> hub
+
+
+== town
+npc: This is Millhaven. Or what's left of the name, anyway.
+npc: Used to be a proper stop on the trade road, back when the road was worth traveling.
+npc: There's the mill, the old chapel, maybe two dozen houses worth calling homes.
+npc: Half the storefronts on the square have been shuttered since the raids started. Folks who could afford to leave, did.
+-> hub
+
+
+== people
+npc: Stubborn, mostly. That's what's kept this place standing as long as it has.
+npc: We look out for each other, share what food there is, take turns on the watch at night.
+npc: There's an old woman, Maren, who's buried two sons to the raids and still bakes bread for anyone who knocks.
+npc: That's the kind of people we are. Doesn't mean we're not scared. Just means we haven't left yet.
+-> hub
+
+
+== life
+npc: Tiring, if I'm honest.
+npc: I used to work the mill during the day and sleep easy at night.
+npc: Now I still work the mill, but I take a turn on the watch wall twice a week, and I don't sleep easy any night.
+npc: You get used to flinching at every sound past dark.
+npc: I keep telling myself it won't always be like this. Some days I believe it.
+-> hub
+
+
+== resolved_hub
+npc: They're gone. All of them.
+npc: No torches on the treeline last night, first time since this started.
+npc: I keep waiting to hear something moving out there, and there's nothing.
+npc: I don't have the words for what you did for this town.
+* [Lawful] We were glad to help.
+    -> resolved_hub
+* [Chaotic] It's what you paid us for.
+    -> resolved_hub
+* Is it really over?
+    -> resolved_reassurance
+* Take care of yourself.
+
+
+== resolved_reassurance
+npc: I think so. I sent word to the mill and the Hollis farm. Nobody's seen so much as a footprint since.
+npc: Doesn't mean I've stopped checking the treeline every morning, but... it's quiet. Really quiet.
+-> resolved_hub

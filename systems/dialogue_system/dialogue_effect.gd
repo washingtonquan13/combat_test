@@ -48,3 +48,11 @@ func ends_conversation() -> bool:
 ## quietly at runtime (an outcome left unset, say) is still seen.
 func authoring_problem() -> String:
 	return ""
+
+
+## Fills this in from a phrase in a dialogue file: `word` is the one of its
+## SCRIPT_WORDS that was written, `args` the words after it, `where` the id
+## of the node it is on. Returns what is wrong with the phrase, "" if
+## nothing. A class with nothing to read needs only SCRIPT_WORDS.
+func read_script(word: String, args: PackedStringArray, _where: String) -> String:
+	return "" if args.is_empty() else "'%s' takes nothing after it." % word

@@ -7,6 +7,11 @@ extends RefCounted
 ## showing anything or deciding what a node/choice means.
 
 var _id_to_path: Dictionary = {}  # String id -> String res:// path
+## String id -> DialogueNode, for the nodes written in dialogue files
+## (see DialogueScript): those are read once here, not loaded by path.
+var _scripted: Dictionary = {}
+## What is wrong with the dialogue files read, for Conversations.lint.
+var problems: PackedStringArray = []
 var _indexed: bool = false
 ## Prefixes every push_warning from this index, so its warnings say who
 ## was indexing.
@@ -27,20 +32,22 @@ func ensure_indexed(root_dir: String) -> void:
 
 
 func find_node(id: String) -> DialogueNode:
+	if _scripted.has(id):
+		return _scripted[id]
 	if not _id_to_path.has(id):
 		return null
 	return load(_id_to_path[id]) as DialogueNode
 
 
 func has_id(id: String) -> bool:
-	return _id_to_path.has(id)
+	return _scripted.has(id) or _id_to_path.has(id)
 
 
 ## Every currently-indexed id, for a caller's own validation pass (see
 ## Conversations.lint) — this index doesn't know what a valid reference
 ## looks like, only what ids actually exist to be referenced.
 func all_ids() -> Array:
-	return _id_to_path.keys()
+	return _scripted.keys() + _id_to_path.keys()
 
 
 func _index_directory(dir_path: String) -> void:
@@ -58,6 +65,13 @@ func _index_directory(dir_path: String) -> void:
 		var full_path: String = dir_path + "/" + entry_name
 		if da.current_is_dir():
 			_index_directory(full_path)
+		elif entry_name.get_extension() == DialogueScript.EXTENSION:
+			var script: DialogueScript = DialogueScript.compile_file(full_path)
+			problems.append_array(script.problems)
+			for node in script.nodes:
+				if has_id(node.id):
+					push_warning("%s: duplicate DialogueNode id '%s' — '%s' claims it again; the second silently wins." % [_log_prefix, node.id, full_path])
+				_scripted[node.id] = node
 		elif entry_name.get_extension() == "tres":
 			var res: Resource = load(full_path)
 			if res is DialogueNode:

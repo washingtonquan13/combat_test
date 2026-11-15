@@ -14,6 +14,9 @@ extends DialogueEffect
 ## always end SOMEHOW — there is no neutral "just stop talking" the way
 ## ordinary dialogue has.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["opening"]
+
 
 ## Alignment/tendency mismatch nudges the starting mood down instead of a
 ## flat 0 — the closest cheap equivalent to the real eligibility check's

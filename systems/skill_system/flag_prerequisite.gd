@@ -14,6 +14,9 @@ extends PrerequisiteRule
 ## PrerequisiteRule subclass — a flag is global world state, not
 ## per-character, so which unit is asking doesn't change the answer.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["flag", "noflag"]
+
 @export var flag_name: String = ""
 @export var requires_absent: bool = false
 
@@ -21,3 +24,12 @@ extends PrerequisiteRule
 func is_satisfied(_unit: Unit) -> bool:
 	var flag_set: bool = FlagManager.has_flag(flag_name)
 	return not flag_set if requires_absent else flag_set
+
+
+## "flag met_the_mayor", or "noflag met_the_mayor" for its absence.
+func read_script(word: String, args: PackedStringArray, _where: String) -> String:
+	if args.size() != 1:
+		return "'%s' is followed by one flag name." % word
+	flag_name = args[0]
+	requires_absent = word == "noflag"
+	return ""

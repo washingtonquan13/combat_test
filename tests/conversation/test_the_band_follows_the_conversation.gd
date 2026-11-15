@@ -105,6 +105,9 @@ func _rows_and_clicks() -> void:
 	d.register_dialogue([hub])
 	d.start_dialogue(hub, _pair())
 	await get_tree().process_frame
+	# The line is read first; the responses follow it.
+	overlay._end_reading()
+	await get_tree().process_frame
 	var rows: Array = d.overlay_view(overlay).rows
 	check("one row per visible choice, numbered 01, 02, 03",
 		rows.size() == 3 and rows[0].index == "01" and rows[2].index == "03" and rows[1].text == "Second.",

@@ -8,6 +8,9 @@ extends DialogueEffect
 ## forgivable and ending hostile rather than peaceful, matching the real,
 ## confirmed distinction between the two categories.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["pardon"]
+
 
 func apply(c: Conversation) -> void:
 	var pardon: int = int(c.vars.get("pardon", 0))

@@ -1,0 +1,46 @@
+== ask_more
+npc: Scouting. Bandits have been raiding the trade road east of here — best you keep your wits about you.
+* [check Perception] [hidden] [silent] (size him up)
+    success -> perception_success
+    failure -> perception_failure
+* Safe travels.
+    -> end
+
+
+== dismissive_end
+npc: Suit yourself.
+
+
+== end
+npc: Safe travels.
+
+
+== greeting
+npc: You there — this road isn't safe alone. What do you want?
+* [silent] What are you doing out here?
+    -> ask_more
+* [Chaotic] I don't have time for this.
+    -> dismissive_end
+* [Light] [check Persuasion] Let me travel with you — I can help.
+    success -> persuade_success
+    failure -> persuade_failure
+
+
+== perception_failure
+npc: Just be careful out there.
+-> end
+
+
+== perception_success
+npc: ...You've got sharp eyes. Yes, I'm out here for more than scouting — there's a bounty on one of those bandits, and I mean to collect it.
+-> end
+
+
+== persuade_failure
+npc: Not a chance. I travel alone.
+-> end
+
+
+== persuade_success
+npc: ...Fine. You've got an honest face. Stay close and don't slow me down.
+-> end

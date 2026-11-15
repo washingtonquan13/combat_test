@@ -1028,7 +1028,8 @@ func all_species_ids() -> PackedStringArray:
 func species_root_options(def: UnitDefinition) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for option in def.negotiation_options:
-		out.append({"root_id": option.root.id if option.root else "", "conditioned": option.prerequisite != null})
+		var root: DialogueNode = option.node_in(NegotiateInteraction.CONVERSATIONS_DIR)
+		out.append({"root_id": root.id if root else "", "conditioned": option.prerequisite != null})
 	return out
 
 

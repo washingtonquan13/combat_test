@@ -1,0 +1,49 @@
+responses silent
+
+== again
+~ Good. GOOD. Or bad. I genuinely can't tell yet. Say something else, quickly.
+* Take your time. I'm not going anywhere.
+    mood_swing +1 +4
+    -> request
+* ...Okay. Sure. Whatever works.
+    mood_swing -2 +3
+    -> request
+* Could you just make up your mind?
+    pardon
+    -> request
+* Honestly, you seem pretty unstable.
+    outcome attack
+
+
+== greeting
+start: opening
+~ WHO ARE YOU. WHY ARE YOU HERE. ANSWER FAST OR— ...sorry. Sorry. Just. Answer me.
+* I'm not here to make anything worse. Promise.
+    mood_swing +1 +4
+    -> again
+* Just... passing through, mostly.
+    mood_swing -2 +3
+    -> again
+* Hey, just calm down for a second.
+    pardon
+    -> again
+* You're being completely ridiculous right now.
+    outcome attack
+
+
+== pressed
+~ ...No, you're right, that was a weird thing to demand. Sorry. Sorry! Are we okay?
+* You know what, FINE, I didn't need it anyway. Let's just go.
+    outcome recruit
+* Ugh. Forget it. Forget this whole thing.
+    outcome flee
+
+
+== request
+~ I NEED — no wait, I WANT — {gold} gold. Is that so much to ask?! Is it?!
+* [can_pay_gold] Fine! Take it! {gold} gold, whatever, here!
+    pay_gold
+    outcome recruit
+* No! Why would I just GIVE you that?!
+    mood_swing -4 +1
+    -> pressed

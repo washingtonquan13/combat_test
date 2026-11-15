@@ -16,4 +16,14 @@ extends Resource
 ## fallback last.
 
 @export var root: DialogueNode = null
+## The same node by id, for one written in a dialogue file (see
+## DialogueScript), which has no resource of its own to point at.
+@export var root_id: String = ""
 @export var prerequisite: PrerequisiteRule = null
+
+
+## The node this option opens on, looked up in `dir` when it is named by id.
+func node_in(dir: String) -> DialogueNode:
+	if root or root_id == "":
+		return root
+	return Conversation.index_for(dir).find_node(root_id)

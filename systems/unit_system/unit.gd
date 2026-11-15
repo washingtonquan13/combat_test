@@ -1115,7 +1115,7 @@ func get_interactions(actor: Unit) -> Array[InteractionOption]:
 func resolve_dialogue_root(c: Conversation) -> DialogueNode:
 	for option in dialogue_options:
 		if not option.prerequisite or option.prerequisite.is_satisfied_in(c):
-			return option.root
+			return option.node_in(Conversation.DIALOGUE_DIR)
 	return null
 
 

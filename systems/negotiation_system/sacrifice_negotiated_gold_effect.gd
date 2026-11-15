@@ -8,6 +8,9 @@ extends DialogueEffect
 ## into different choices. Unlike the generic, fixed-amount
 ## SacrificeGoldEffect in systems/dialogue_system/.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["pay_gold"]
+
 
 func apply(c: Conversation) -> void:
 	CurrencyManager.spend_gold(int(c.vars.get("gold", 0)))

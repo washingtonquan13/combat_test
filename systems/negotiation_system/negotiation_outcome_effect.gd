@@ -18,6 +18,9 @@ extends DialogueEffect
 ## alone," neither of which needs added suspense the way "will they
 ## actually join me" does.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["outcome"]
+
 enum Outcome { UNSET, RECRUIT, FLEE, ATTACK, HEAL }
 
 @export var outcome: Outcome = Outcome.UNSET
@@ -105,3 +108,12 @@ static func ending_name(resolved: Outcome) -> StringName:
 		Outcome.HEAL:
 			return &"heal"
 	return &"flee"
+
+
+## "outcome recruit"
+func read_script(_word: String, args: PackedStringArray, _where: String) -> String:
+	var named: int = Outcome.keys().find(args[0].to_upper()) if args.size() == 1 else -1
+	if named <= Outcome.UNSET:
+		return "'outcome' is followed by one of recruit, flee, attack, heal."
+	outcome = named as Outcome
+	return ""

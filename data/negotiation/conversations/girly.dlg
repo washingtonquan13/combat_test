@@ -1,0 +1,49 @@
+responses silent
+
+== bearing
+~ Better. Now — look at me. What do you actually see?
+* Someone who's clearly used to being underestimated, and shouldn't be.
+    mood +3
+    -> request
+* Someone dangerous.
+    mood +1
+    -> request
+* Just another demon.
+    pardon
+    -> request
+* A monster wearing a pretty face.
+    outcome attack
+
+
+== greeting
+start: opening
+~ You raise a weapon in my presence without so much as a proper word. Tell me — do you even know how to address someone like me?
+* Forgive my haste — I'd be glad to start again, properly.
+    mood +3
+    -> bearing
+* Fine. What would you have me call you?
+    mood +1
+    -> bearing
+* Does it really matter what I call you?
+    pardon
+    -> bearing
+* I don't bow to monsters.
+    outcome attack
+
+
+== pressed
+~ No? ...Very well. I suppose sincerity doesn't always come with a price tag.
+* Then let sincerity be enough.
+    outcome recruit
+* Then we have nothing further to discuss.
+    outcome flee
+
+
+== request
+~ ...Acceptable. If you'd have me consider joining you properly, a gesture of good faith wouldn't go amiss — say, {gold} gold.
+* [can_pay_gold] Consider it a gesture, then.
+    pay_gold
+    outcome recruit
+* I don't owe you anything just for talking.
+    mood -2
+    -> pressed

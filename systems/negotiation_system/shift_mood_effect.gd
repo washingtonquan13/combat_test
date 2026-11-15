@@ -14,6 +14,9 @@ extends DialogueEffect
 ## negotiation_panel.gd), and the negotiation's echo to SystemLog puts
 ## the note there too.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["mood"]
+
 @export var amount: int = 0
 
 
@@ -39,3 +42,11 @@ static func shift(c: Conversation, delta: int) -> void:
 
 	if note != "":
 		c.record("", note, {"tag": &"mood", "mood": mood})
+
+
+## "mood +2", "mood -1"
+func read_script(_word: String, args: PackedStringArray, _where: String) -> String:
+	if args.size() != 1 or not args[0].is_valid_int():
+		return "'mood' is followed by one whole number, like 'mood +2'."
+	amount = args[0].to_int()
+	return ""

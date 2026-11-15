@@ -118,6 +118,7 @@ func _on_conversation_began(c: Conversation) -> void:
 	_spoken_serial = -1
 	c.attach(&"spoken", self)
 	c.changed.connect(_on_changed)
+	c.choices_offered.connect(_on_choices_offered)
 	_on_changed()
 
 
@@ -144,6 +145,7 @@ func _forget() -> void:
 		_conversation.detach(&"spoken", self)
 		if _conversation.changed.is_connected(_on_changed):
 			_conversation.changed.disconnect(_on_changed)
+			_conversation.choices_offered.disconnect(_on_choices_offered)
 	_conversation = null
 	_spoken_serial = -1
 	set_process(false)
@@ -288,13 +290,32 @@ func _on_line(entry: Dictionary, cast: Dictionary) -> void:
 		CinematicDirector.play(staged, _cast)
 		return
 
+	_cut()
+
+
+## Puts the camera on the shot the current speaker's run calls for.
+## A CUT, never a transit: sweeping from one face to another is the swoop
+## shot-and-reverse exists to avoid.
+func _cut() -> void:
 	if CinematicDirector.is_active():
 		return
 	var camera: CinematicCamera = CinematicDirector.camera()
 	if camera:
-		# A CUT. Never a transit: sweeping from one face to another is the
-		# swoop shot-and-reverse exists to avoid.
 		camera.frame(_shot(_run), _cast, 0.0, -2.0, true)
+
+
+## While the player chooses, the camera is on the character who is about to
+## answer, over the shoulder of whoever just spoke. The answer is then their
+## second beat, so it cuts in close as they say it.
+func _on_choices_offered() -> void:
+	var player: Unit = _conversation.cast.get("player") as Unit if _conversation else null
+	if not is_instance_valid(player) or player == _speaker:
+		return
+	var spoke: Unit = _speaker
+	_speaker = player
+	_listener = spoke if is_instance_valid(spoke) else _someone_other_than(player, _conversation.cast)
+	_run = 1
+	_cut()
 
 
 ## The bound scene for the node being spoken, or null — including null on

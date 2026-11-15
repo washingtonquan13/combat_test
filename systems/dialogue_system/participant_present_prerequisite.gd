@@ -24,6 +24,9 @@ extends PrerequisiteRule
 ## Unit.resolve_dialogue_root). Any kind of conversation has a cast, so a
 ## negotiation's "npc" (the demon) and "player" are present in it too.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["present"]
+
 @export var participant_token: String = ""
 
 
@@ -33,3 +36,11 @@ func is_satisfied(_unit: Unit) -> bool:
 
 func is_satisfied_in(c: Conversation) -> bool:
 	return c.cast.has(participant_token)
+
+
+## "present DwarfFighter"
+func read_script(_word: String, args: PackedStringArray, _where: String) -> String:
+	if args.size() != 1:
+		return "'present' is followed by one participant, like 'present DwarfFighter'."
+	participant_token = args[0]
+	return ""

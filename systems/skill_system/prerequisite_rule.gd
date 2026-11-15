@@ -26,3 +26,11 @@ func is_satisfied(_unit: Unit) -> bool:
 ## (its cast, its variables, its dice) overrides this instead.
 func is_satisfied_in(c: Conversation) -> bool:
 	return is_satisfied(c.cast.get("player") as Unit)
+
+
+## Fills this in from a phrase in a dialogue file: `word` is the one of its
+## SCRIPT_WORDS that was written, `args` the words after it, `where` the id
+## of the node it is on. Returns what is wrong with the phrase, "" if
+## nothing. A class with nothing to read needs only SCRIPT_WORDS.
+func read_script(word: String, args: PackedStringArray, _where: String) -> String:
+	return "" if args.is_empty() else "'%s' takes nothing after it." % word

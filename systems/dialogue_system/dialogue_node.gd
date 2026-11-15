@@ -42,3 +42,10 @@ extends Resource
 ## mood and the gold amount here (see NegotiationOpeningEffect), so the
 ## engine needs no idea what a negotiation is.
 @export var start_effects: Array[DialogueEffect] = []
+## One line of a longer passage: the next line follows by itself once this
+## one has been read, with no button to press, and a passage already heard
+## is not walked through again. Set on every line but the last of a run
+## written in a dialogue file (see DialogueScript).
+@export var continues: bool = false
+## Staging notes written after the line ("#close"), for whoever frames it.
+@export var tags: PackedStringArray = []

@@ -1,0 +1,49 @@
+responses silent
+
+== greeting
+start: opening
+~ ...The space between your words says more than the words themselves. What do you seek here — truly?
+* Perhaps I don't fully know that myself, yet.
+    mood +3
+    -> riddle
+* An ally, I suppose. If that's simple enough.
+    mood +1
+    -> riddle
+* I want you to join me. That's the whole answer.
+    pardon
+    -> riddle
+* Can you just answer the question normally?
+    outcome attack
+
+
+== pressed
+~ ...Interesting. Most who refuse do so out of fear. You didn't.
+* ...Just as I suspected. The refusal WAS the offering.
+    outcome recruit
+* Then we understood each other after all. Farewell.
+    outcome flee
+
+
+== request
+~ Not a price — an offering. {gold} gold, given freely, or not given at all. The choice itself is the answer I want.
+* [can_pay_gold] An offering, then — {gold} gold, given freely.
+    pay_gold
+    outcome recruit
+* Offerings should mean something. This wouldn't.
+    mood -1
+    -> pressed
+
+
+== riddle
+~ A riddle, then. What is stronger than a blade, yet leaves no wound anyone else can see?
+* Trust. Or its absence — the wound it leaves is the same shape.
+    mood +3
+    -> request
+* ...Words, maybe?
+    mood +1
+    -> request
+* I don't know. Just tell me the answer.
+    pardon
+    -> request
+* This riddle is a waste of both our time.
+    outcome attack

@@ -1,0 +1,49 @@
+responses silent
+
+== greeting
+start: opening
+~ Words words words. Why you here. Simple words only.
+* Want you to fight with me.
+    mood +3
+    -> strong
+* Need help. That's all.
+    mood +1
+    -> strong
+* The tactical situation necessitates additional—
+    pardon
+    -> strong
+* Let me explain the nuances of the geopolitical—
+    outcome attack
+
+
+== pressed
+~ Hm. Okay. Shiny not that important.
+* Okay. Fight with you anyway.
+    outcome recruit
+* No shiny, no deal. Bye.
+    outcome flee
+
+
+== request
+~ Want shiny. {gold} gold. Give.
+* [can_pay_gold] Give shiny. {gold}. Now.
+    pay_gold
+    outcome recruit
+* No shiny.
+    mood -2
+    -> pressed
+
+
+== strong
+~ Fight good? Strong?
+* Yes. Strong. Good fight.
+    mood +3
+    -> request
+* Strong enough, I think.
+    mood +1
+    -> request
+* Strength is a complicated metric, actually—
+    pardon
+    -> request
+* Define 'strong' first, precisely.
+    outcome attack

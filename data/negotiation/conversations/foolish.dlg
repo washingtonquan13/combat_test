@@ -1,0 +1,49 @@
+responses silent
+
+== greeting
+start: opening
+~ Ooh! A fight! Or a friend? Or maybe both?? Tell me something SILLY first, quick!
+* I once fought a rock. The rock won.
+    mood +3
+    -> purple
+* Uh... I like snacks?
+    mood +1
+    -> purple
+* I don't really have time for games.
+    pardon
+    -> purple
+* Let's be rational about this, please.
+    outcome attack
+
+
+== pressed
+~ Wait, that means nobody wins? That's the silliest outcome of all!
+* Okay then YOU win! Which means I follow you now! Fun!
+    outcome recruit
+* Boo. No fun. Bye then!
+    outcome flee
+
+
+== purple
+~ If the sky turned purple right now, this very second, what would you do?
+* Paint my face purple too, obviously.
+    mood +3
+    -> request
+* Probably just... look up?
+    mood +1
+    -> request
+* That's not physically possible.
+    pardon
+    -> request
+* I would calmly assess the situation.
+    outcome attack
+
+
+== request
+~ Wheee! Okay, silly game — whoever gives up {gold} gold first wins! Go!
+* [can_pay_gold] Ooh, shiny! Here, {gold} gold, catch!
+    pay_gold
+    outcome recruit
+* Nooo, my shinies are MINE.
+    mood -1
+    -> pressed

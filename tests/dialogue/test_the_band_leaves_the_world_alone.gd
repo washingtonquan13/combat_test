@@ -497,9 +497,10 @@ func _check_choice_row_grows_with_wrapped_text() -> void:
 ## each time rather than settling back to where they started.
 func _check_resize_ratchet_with_rows_present() -> void:
 	var band: Control = _overlay.find_child("Band", true, false)
-	var line: Label = _overlay.find_child("Line", true, false)
+	# The line gives way to the responses, so the responses are measured.
+	var line: Control = _overlay.find_child("Choices", true, false)
 	if band == null or line == null:
-		check("SETUP: Band and Line exist for the resize-with-rows check", false)
+		check("SETUP: Band and Choices exist for the resize-with-rows check", false)
 		return
 
 	var wrap_choice := LineChoice.new()
@@ -543,10 +544,10 @@ func _check_resize_ratchet_with_rows_present() -> void:
 	check("F7: the band's right edge moved too",
 		absf(band_rect_narrow.end.x - band_rect_wide.end.x) > 5.0,
 		"right edge stayed at %.1fpx across both host widths" % band_rect_wide.end.x)
-	check("F7: the Line label's width still matches the band's inner width at the narrower host",
+	check("F7: the response list's width still matches the band's inner width at the narrower host",
 		absf(line_width_narrow - band.size.x) < 4.0,
 		"line width %.1f vs band width %.1f at %dpx host" % [line_width_narrow, band.size.x, NARROW_WIDTH])
-	check("F7: the Line label's width actually changed with the host (not a stuck constant)",
+	check("F7: the response list's width actually changed with the host (not a stuck constant)",
 		absf(line_width_narrow - line_width_wide) > 20.0,
 		"line width stayed at %.1fpx across a %dpx and %dpx host" % [line_width_wide, DESIGN.x, NARROW_WIDTH])
 
@@ -564,7 +565,7 @@ func _check_resize_ratchet_with_rows_present() -> void:
 	check("F7: the band's left edge came back after restoring the host to %dpx (proves no ratchet, not just 'still a percentage')" % DESIGN.x,
 		absf(band_rect_restored.position.x - band_rect_wide.position.x) < 4.0,
 		"left edge was %.1fpx originally, %.1fpx after restore" % [band_rect_wide.position.x, band_rect_restored.position.x])
-	check("F7: the Line label's width came back too",
+	check("F7: the response list's width came back too",
 		absf(line_width_restored - line_width_wide) < 4.0,
 		"line width was %.1fpx originally, %.1fpx after restore" % [line_width_wide, line_width_restored])
 

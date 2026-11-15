@@ -1,0 +1,49 @@
+responses silent
+
+== faith
+~ If I asked you to lower your weapon first, entirely on faith, would you?
+* If the reasoning held up, yes, without hesitation.
+    mood +3
+    -> request
+* I'd want the reasoning first.
+    mood +1
+    -> request
+* Not a chance. Faith isn't a strategy.
+    pardon
+    -> request
+* Only if I got to hit you first.
+    outcome attack
+
+
+== greeting
+start: opening
+~ You arrived mid-battle, weapon drawn, breathing hard. Why, exactly, are you not calmer right now?
+* I am calm. This is simply what focus looks like.
+    mood +3
+    -> faith
+* Adrenaline. It fades quickly enough.
+    mood +1
+    -> faith
+* Maybe I don't owe you an explanation.
+    pardon
+    -> faith
+* Because fighting is exciting, obviously!
+    outcome attack
+
+
+== pressed
+~ No matter. An unnecessary condition, in hindsight. Let's not let it become a disagreement.
+* Reasonable enough. Let's proceed on trust, then.
+    outcome recruit
+* Very well. No harm in parting ways.
+    outcome flee
+
+
+== request
+~ Then let's be reasonable about this. A gesture of good faith — {gold} gold — and we can speak further.
+* [can_pay_gold] A fair exchange, then — {gold} gold.
+    pay_gold
+    outcome recruit
+* I'd rather not, if there's another way.
+    mood -2
+    -> pressed

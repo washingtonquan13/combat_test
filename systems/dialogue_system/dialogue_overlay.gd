@@ -91,10 +91,24 @@ var _seen: int = 0
 var _shown_visit: int = -1
 ## The id the Continue button chooses: &"continue" or &"end".
 var _builtin_id: StringName = &""
+## ONE LINE AT A TIME. A line is shown alone for as long as it takes to
+## read. Then, if it is one of a run (DialogueNode.continues), the next line
+## follows by itself; if it ends in responses, they take its place. Line and
+## responses at once stack into a column half the screen tall, over the face
+## the camera went to the trouble of framing.
+var _reading: bool = false
+## The line being read is one of a run, and the next follows when it is read.
+var _flows: bool = false
+## The visit whose responses were last announced on choices_offered.
+var _offered_visit: int = -1
+var _read_left: float = 0.0
+const READ_SECONDS_PER_LETTER: float = 0.05
+const READ_MIN_SECONDS: float = 1.5
 
 
 func _ready() -> void:
 	visible = false
+	set_process(false)
 
 	_continue_button.pressed.connect(_on_continue_pressed)
 	_log_chip.pressed.connect(_on_log_pressed)
@@ -144,14 +158,23 @@ func _on_changed() -> void:
 		_on_conversation_ended()
 		return
 
+	var heard: String = ""
 	while _seen < c.transcript.size():
-		_draw_entry(c.transcript[_seen])
+		var entry: Dictionary = c.transcript[_seen]
+		_draw_entry(entry)
+		if entry.kind == &"line":
+			heard = entry.text
 		_seen += 1
 
 	var snap: Dictionary = c.snapshot()
 	if snap.visit != _shown_visit:
 		_shown_visit = snap.visit
+		_flows = snap.flows
 		_show_choices(snap.choices)
+		if heard != "" and (_flows or not _choice_rows.is_empty()):
+			_reading = true
+			_read_left = maxf(heard.length() * READ_SECONDS_PER_LETTER, READ_MIN_SECONDS)
+			set_process(true)
 	# Frozen, not cleared, while a choice resolves or the wheel plays out
 	# under skill_check_wheel_popup.gd — a second click can't pick again
 	# (Conversation.choose refuses it anyway), and nothing has to restore
@@ -159,7 +182,42 @@ func _on_changed() -> void:
 	_set_choices_interactive(not snap.busy and snap.waiting.is_empty())
 	# While the player's character says the response they picked, the
 	# band shows only that line, the way the other side's lines read.
-	_choice_list.visible = snap.waiting.get("kind") != &"spoken"
+	var choosing: bool = not _reading and not _choice_rows.is_empty() 			and snap.waiting.get("kind") != &"spoken"
+	_choice_list.visible = choosing
+	_speaker_name_label.visible = not choosing
+	_line_label.visible = not choosing
+	if choosing and _offered_visit != snap.visit:
+		_offered_visit = snap.visit
+		c.choices_offered.emit()
+
+
+func _process(delta: float) -> void:
+	_read_left -= delta
+	if _read_left <= 0.0:
+		_end_reading()
+
+
+## A click or the cutscene-advance key moves on early.
+func _unhandled_input(event: InputEvent) -> void:
+	if not _reading:
+		return
+	var clicked: bool = event is InputEventMouseButton and event.pressed 			and event.button_index == MOUSE_BUTTON_LEFT
+	if clicked or event.is_action_pressed(&"cinematic_advance"):
+		get_viewport().set_input_as_handled()
+		_end_reading()
+
+
+func _end_reading() -> void:
+	set_process(false)
+	if not _reading:
+		return
+	_reading = false
+	if _flows and _conversation:
+		_conversation.choose(_builtin_id)
+		return
+	_on_changed()
+	if not _choice_rows.is_empty() and _choice_list.visible:
+		_choice_rows[0].grab_focus()
 
 
 ## An aside (speaker "" — an alignment note, a roll result, who assisted)
@@ -198,8 +256,8 @@ func _show_choices(entries: Array) -> void:
 			authored.append(entry)
 
 	if authored.is_empty():
-		_continue_button.visible = _builtin_id != &""
-		if _builtin_id != &"":
+		_continue_button.visible = _builtin_id != &"" and not _flows
+		if _continue_button.visible:
 			_continue_button.disabled = false
 			_continue_button.text = entries[entries.size() - 1].text
 			_continue_button.grab_focus()
@@ -237,6 +295,10 @@ func _on_conversation_ended() -> void:
 
 
 func _release() -> void:
+	_reading = false
+	_flows = false
+	_offered_visit = -1
+	set_process(false)
 	if _conversation and _conversation.changed.is_connected(_on_changed):
 		_conversation.changed.disconnect(_on_changed)
 	_conversation = null

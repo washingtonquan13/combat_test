@@ -31,6 +31,12 @@ extends RefCounted
 ## end.
 signal changed
 
+## Announced BY whoever is showing the conversation, for whoever is staging
+## it: a line is read before its responses come up, and only the band on
+## screen knows when that is — but that is the moment the camera wants to
+## turn to the character who is about to answer.
+signal choices_offered
+
 ## Plumbing for show()'s await, not an event for presenters: they learn a
 ## wait finished from `changed` like everything else.
 signal _wait_completed
@@ -242,6 +248,8 @@ func snapshot() -> Dictionary:
 		"node_id": current_node.id if current_node else "",
 		"node_text": format(current_node.text_block) if current_node else "",
 		"visit": visit,
+		# The line shown is one of a run: the next follows by itself.
+		"flows": current_node.continues if current_node else false,
 		"choices": entries,
 		"waiting": waiting.duplicate(),
 		"busy": _resolving,
@@ -381,7 +389,12 @@ func _show_node(node: DialogueNode) -> void:
 	if not _narrated.has(node.id):
 		_narrated[node.id] = true
 		# record() emits changed, which also carries the new choices.
-		record(node.speaker, node.text_block, {"narration": true})
+		record(node.speaker, node.text_block, {"narration": true, "tags": node.tags})
+		return
+	if node.continues:
+		# Back at a passage already heard: straight to its last line, where
+		# the responses are.
+		_go_to(node.next_node_id)
 		return
 	changed.emit()
 
@@ -414,11 +427,12 @@ func _dead_end() -> void:
 ## interjection's own next_node_id is authored to land back on node.
 func _resolve_interjection(node: DialogueNode) -> DialogueNode:
 	for option in node.interjection_options:
-		if _used_interjections.has(option.root.id):
+		var cut_in: DialogueNode = option.node_in(node_dir)
+		if cut_in == null or _used_interjections.has(cut_in.id):
 			continue
 		if not option.prerequisite or option.prerequisite.is_satisfied_in(self):
-			_used_interjections[option.root.id] = true
-			return option.root
+			_used_interjections[cut_in.id] = true
+			return cut_in
 	return node
 
 

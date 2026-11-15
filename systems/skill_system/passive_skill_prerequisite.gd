@@ -28,6 +28,9 @@ extends PrerequisiteRule
 ## flag_name must be unique per passive check, same authoring discipline
 ## DialogueChoice.sets_flag already requires.
 
+## What this is called in a dialogue file (see DialogueScript).
+const SCRIPT_WORDS: PackedStringArray = ["passive"]
+
 @export var skill_name: String = ""
 @export var flag_name: String = ""
 
@@ -50,3 +53,13 @@ func _check(unit: Unit, rng: RandomNumberGenerator) -> bool:
 	var passed: bool = result.can_use_skill and unit.roll_vs(result.skill_level, rng).success
 	FlagManager.set_flag(flag_name, passed)
 	return passed
+
+
+## "passive Insight". The flag that remembers the roll is named after the
+## node it is asked on unless a second word names it.
+func read_script(_word: String, args: PackedStringArray, where: String) -> String:
+	if args.is_empty() or args.size() > 2:
+		return "'passive' is followed by a skill name."
+	skill_name = args[0]
+	flag_name = args[1] if args.size() == 2 else "%s_%s_rolled" % [where, skill_name.to_lower()]
+	return ""
