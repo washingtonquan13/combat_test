@@ -2,7 +2,7 @@
 class_name AreaBeat
 extends BeatNode
 ## Changes the area the scene plays in, by calling one of the area's own
-## methods with no arguments: RaidCamp.break_gate. The area owns what the
+## methods with no arguments: the goblin quarry's break_gate. The area owns what the
 ## change means (a flag, collision, the nav grid); the scene only says when.
 ##
 ## Skipped, the same call: a gate smashed in a skipped scene is smashed.

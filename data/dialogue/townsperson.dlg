@@ -110,6 +110,9 @@ npc: They're gone. All of them.  #line:baae8b
 npc: No torches on the treeline last night, first time since this started.  #line:986237
 npc: I keep waiting to hear something moving out there, and there's nothing.  #line:bb922a
 npc: I don't have the words for what you did for this town.  #line:e45c0d
+* [noflag goblin_raid.begun] Were those all of them?  #line:7d1e94
+    set goblin_raid.begun
+    -> raid_warning
 * [Lawful] We were glad to help.  #line:a96334
     -> resolved_hub
 * [Chaotic] It's what you paid us for.  #line:c4a368
@@ -117,6 +120,15 @@ npc: I don't have the words for what you did for this town.  #line:e45c0d
 * Is it really over?  #line:57af74
     -> resolved_reassurance
 * Take care of yourself.  #line:951d41
+
+
+== raid_warning
+npc: ...No. That's what's been eating at me.  #line:a84f2b
+npc: The quarry crew saw more of them on the road at dawn. A big one, and bows. Heading for the rise.  #line:3c61e7
+npc: That's where the crew sleeps, behind that palisade up past the pit. Goblins don't forget a thing like what you did.  #line:e92d50
+npc: If they hit anyone back, it'll be the camp. And it'll be tonight.  #line:5b07ac
+* Then we go now.  #line:c4f81d
+* Keep your doors barred. We'll handle it.  #line:16e3a9
 
 
 == resolved_reassurance

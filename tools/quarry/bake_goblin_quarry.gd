@@ -4,7 +4,9 @@ extends SceneTree
 # rocks and plants, with collision the nav grid reads as exact triangles.
 # Writes world/goblin_quarry/terrain.scn and rewrites world/goblin_quarry.tscn
 # from the retired blockout: the blockout's ground goes, its town, camp,
-# units, exit and ladder stay and are seated on the new ground.
+# units, exit and ladder stay and are seated on the new ground. Across a ridge
+# to the east stands the palisade camp (tools/quarry/raid_camp_builder.gd),
+# saved as world/goblin_quarry/raid_camp.scn, with its people and the raiders.
 #
 #   godot --path . -s tools/quarry/bake_goblin_quarry.gd
 #
@@ -20,12 +22,12 @@ const CELL := 0.4
 const TILE := 24.0
 # What is drawn, and the smaller part that has collision and can be walked.
 const X0 := -64.0
-const X1 := 64.0
-const Z0 := -104.0
+const X1 := 124.0
+const Z0 := -112.0
 const Z1 := 84.0
 const CX0 := -52.0
-const CX1 := 52.0
-const CZ0 := -92.0
+const CX1 := 110.0
+const CZ0 := -100.0
 const CZ1 := 72.0
 
 const RAMP_A := Vector2(15.5, -33.5)
@@ -73,6 +75,29 @@ const KEEP_OUT := [
 	[LOG_A, 2.0], [LOG_B, 2.0], [(LOG_A + LOG_B) * 0.5, 2.5],
 	[CAVE_MOUTH + Vector2(0, 7), 3.5], [CAVE_MOUTH + Vector2(0, 2), 4.5], [CAVE_MOUTH + Vector2(0, -3), 6.0],
 ]
+
+const RaidCampBuilder := preload("res://tools/quarry/raid_camp_builder.gd")
+## The palisade camp in the basin across the ridge east of the quarry: the
+## middle of its floor and the height the floor is levelled to. It keeps the
+## builder's axes, so world = CAMP_O + camp-local: the gate faces -z.
+const CAMP_O := Vector2(66.0, -6.0)
+const CAMP_Y := 3.0
+## The ridge between the quarry and the basin hides one from the other. The
+## road from the ramp top crosses it at a saddle and runs on to the gate.
+const SADDLE_Z := -31.5
+const SADDLE_ROAD := [Vector2(15.5, -31), Vector2(24, -32.5), Vector2(34, -31.5), Vector2(46, -32), Vector2(57, -33), Vector2(64.9, -36)]
+## The builder's road, in the world: gate down to the raiders' ground and on south.
+const CAMP_ROAD := [Vector2(66, -20), Vector2(66.6, -28), Vector2(64.6, -38), Vector2(67, -48), Vector2(69, -61), Vector2(70.5, -78)]
+## A footpath out of the postern, round the ridge's north end to the town.
+const TOWN_PATH := [Vector2(66, 9), Vector2(65, 18), Vector2(62, 27), Vector2(52, 34), Vector2(40, 36), Vector2(30, 34), Vector2(22, 33)]
+## The worked face: benches cut back into the pit's south-east wall, between
+## the ramp's foot and the shaman's ledge. Which way from the pit's middle
+## (radians, atan2 of z over x) and how far either side.
+const BENCH_TH := -0.85
+const BENCH_HALF := 0.2
+## Spoil heaps by the rim, where the stone that was no good was tipped:
+## [centre, radius, height].
+const SPOIL := [[Vector2(24, -55), 5.0, 2.4], [Vector2(20, -62), 4.0, 1.8], [Vector2(-19, -38), 4.5, 2.0]]
 
 var _rng := RandomNumberGenerator.new()
 var _warp := FastNoiseLite.new()
@@ -151,7 +176,10 @@ func _initialize() -> void:
 			["field", Vector2(-4.5, -14)], ["ford", FORD], ["log field end", LOG_A], ["log rim end", LOG_B],
 			["knoll west", KNOLLS[0][0]], ["knoll east", KNOLLS[1][0]], ["shelf", SHELF], ["spire", SPIRE],
 			["spire foot", SPIRE + Vector2(7, 4)], ["pond", POND], ["cave mouth", CAVE_MOUTH + Vector2(0, 6)],
-			["cave tunnel", CAVE_MOUTH + Vector2(0, -1)], ["cave arrival", CAVE_MOUTH + Vector2(0, 9)]]:
+			["cave tunnel", CAVE_MOUTH + Vector2(0, -1)], ["cave arrival", CAVE_MOUTH + Vector2(0, 9)],
+			["camp middle", CAMP_O], ["camp gate", CAMP_O + Vector2(0, -16.5)], ["camp postern", CAMP_O + Vector2(0, 16.5)],
+			["saddle", Vector2(40, -32)], ["raiders", CAMP_O + Vector2(2, -57)], ["town path", Vector2(52, 34)],
+			["bench", Vector2(12, -60)], ["spoil", SPOIL[0][0]]]:
 		var p: Vector2 = spot[1]
 		print("  %s (%.1f, %.1f): y %.2f  pit d %.2f  n.y %.2f" % [spot[0], p.x, p.y, _gy(p.x, p.y), _pit_d(p.x, p.y), _n_at(p.x, p.y).y])
 
@@ -185,7 +213,17 @@ func _initialize() -> void:
 	print("terrain.scn: err %d, %d KB, %d obstacles" % [err, FileAccess.get_file_as_bytes(OUT + "terrain.scn").size() / 1024, _obstacle_count])
 	root.free()
 
+	# The camp, on the ground just baked; it reads the props' materials.
+	var camp_ground := func(lx: float, lz: float) -> float: return _gy(CAMP_O.x + lx, CAMP_O.y + lz) - CAMP_Y
+	var camp: Node3D = RaidCampBuilder.new().build(camp_ground, OUT + "raid_camp/", OUT + "props/")
+	var camp_packed := PackedScene.new()
+	camp_packed.pack(camp)
+	err = ResourceSaver.save(camp_packed, OUT + "raid_camp.scn", ResourceSaver.FLAG_COMPRESS)
+	print("raid_camp.scn: err %d" % err)
+	camp.free()
+
 	_save_environment()
+	RaidCampBuilder.new().save_dusk(OUT + "quarry_environment.tres", OUT + "dusk_environment.tres")
 	_patch_scene()
 	print("bake %s in %d ms" % ["OK" if ok else "WITH FLOOD FAILURES", Time.get_ticks_msec() - t0])
 	quit(0 if ok else 1)
@@ -241,7 +279,73 @@ func _pit_d(x: float, z: float) -> float:
 
 
 func _road(x: float, z: float) -> float:
-	return _smooth(3.0, 1.6, _line_dist(Vector2(x, z), ROAD))
+	var p := Vector2(x, z)
+	var r := _smooth(3.0, 1.6, _line_dist(p, ROAD))
+	if x > 12.0:
+		r = maxf(r, _smooth(2.6, 1.3, _line_dist(p, SADDLE_ROAD)))
+		r = maxf(r, _smooth(3.0, 1.6, _line_dist(p, CAMP_ROAD)))
+		r = maxf(r, _smooth(2.0, 1.0, _line_dist(p, TOWN_PATH)))
+	return r
+
+
+func _camp_sdf(x: float, z: float) -> float:
+	# Distance out from the palisade's square, negative inside.
+	return _rect_sdf(x, z, CAMP_O.x, CAMP_O.y, RaidCampBuilder.HALF, RaidCampBuilder.HALF)
+
+
+func _camp_floor(x: float, z: float) -> float:
+	# The camp's trodden floor, out to just past the logs.
+	return _smooth(0.5, -0.8, _camp_sdf(x, z))
+
+
+func _ridge_x(z: float) -> float:
+	return 38.0 + _warp.get_noise_2d(211.0, z * 0.6) * 4.0
+
+
+func _ridge(x: float, z: float) -> float:
+	# A long rise between the quarry and the basin, too steep to climb but at
+	# the saddle, where the road is cut through it; it runs out into the hills
+	# to the south and dies away short of the town to the north.
+	var along := _smooth(-82.0, -64.0, z) * _smooth(26.0, 10.0, z)
+	if along <= 0.0:
+		return 0.0
+	var hw := 12.0 + _patch.get_noise_2d(z * 0.5, 33.0) * 2.5
+	var across := _smooth(hw, 0.0, absf(x - _ridge_x(z)))
+	if across <= 0.0:
+		return 0.0
+	var top := lerpf(6.0, 9.5, 0.5 + 0.5 * _big.get_noise_2d(55.0, z * 0.7))
+	var saddle := lerpf(1.0, 0.15, _smooth(12.0, 4.0, absf(z - SADDLE_Z)))
+	var cut := 1.0 - _smooth(7.0, 3.0, _line_dist(Vector2(x, z), SADDLE_ROAD))
+	var crag := (_small.get_noise_2d(x * 0.8, z * 0.8) * 0.6 + _patch.get_noise_2d(x * 0.35, z * 0.35) * 1.2) * across
+	return (top * across + crag) * along * saddle * cut
+
+
+func _basin_level(x: float, z: float) -> float:
+	# The basin's floor east of the ridge: low in the south where the raiders
+	# come up the road, level with the town in the north.
+	return -1.0 + smoothstep(-80.0, -20.0, z) + _big.get_noise_2d(x * 0.5 + 300.0, z * 0.5) * 0.4
+
+
+func _bench_w(x: float, z: float) -> float:
+	# How much of the worked face is here: 1 across its sector of the wall.
+	var th := atan2(z + 47.0, x)
+	var off := absf(wrapf(th - BENCH_TH, -PI, PI))
+	return _smooth(BENCH_HALF + 0.15, BENCH_HALF, off) * (1.0 - _ladder_win(x, z))
+
+
+func _bench_s(d: float, x: float, z: float) -> float:
+	# The wall's rise from floor (0) to rim (1) as three benches: a tread,
+	# then a riser cut near sheer, from a metre in front of the old wall to
+	# five behind it. The risers wander a little along the face.
+	var f := clampf((d + 1.0 + _warp.get_noise_2d(x * 1.6, z * 1.6) * 0.35) / 6.0, 0.0, 1.0)
+	var g := f * 3.0
+	var i := minf(floorf(g), 2.0)
+	return (i + smoothstep(0.72, 1.0, g - i)) / 3.0
+
+
+func _bench_zone(x: float, z: float, d: float) -> float:
+	# The benches' treads and risers, for the paint: cut stone, no grass.
+	return _bench_w(x, z) * smoothstep(-1.4, -0.8, d) * smoothstep(5.6, 5.0, d)
 
 
 func _floor_path(x: float, z: float) -> float:
@@ -273,6 +377,10 @@ func _valley_d(x: float, z: float) -> float:
 	var d := _ellipse_sdf(p - Vector2(0.0, 26.0), Vector2(31.0, 25.0))
 	d = _smin(d, _ellipse_sdf(p - Vector2(4.0, -10.0), Vector2(29.0, 28.0)), 10.0)
 	d = _smin(d, _ellipse_sdf(p - Vector2(1.0, -50.0), Vector2(30.0, 20.0)), 10.0)
+	# The camp's basin across the ridge, and the low ground round the ridge's
+	# north end that joins it to the town.
+	d = _smin(d, _ellipse_sdf(p - Vector2(64.0, -20.0), Vector2(24.0, 58.0)), 10.0)
+	d = _smin(d, _ellipse_sdf(p - Vector2(44.0, 32.0), Vector2(16.0, 9.0)), 10.0)
 	return d + _warp.get_noise_2d(x * 0.35, z * 0.35) * 5.0 + _warp.get_noise_2d(x * 0.9 + 30.0, z * 0.9) * 1.5
 
 
@@ -298,10 +406,18 @@ func _h_base(x: float, z: float) -> float:
 	var rim := (_big.get_noise_2d(x + 40.0, z) * (0.25 + 0.4 * smoothstep(4.0, 20.0, d)) + small * 0.06) * (1.0 - _road(x, z) * 0.7)
 	var town := _smooth(2.0, -2.0, _rect_sdf(x, z, 0.0, 30.0, 22.0, 18.0))
 	rim = lerpf(rim, clampf(rim, -0.05, 0.05), town)
-	rim += _tier(x, z) + _knolls(x, z) + _berm(x, z)
+	var tier := _tier(x, z)
+	var rx := _ridge_x(z)
+	var east := smoothstep(rx - 2.0, rx + 6.0, x)
+	if east > 0.0:
+		tier = lerpf(tier, _basin_level(x, z), east)
+	rim += tier + _knolls(x, z) + _berm(x, z) + _ridge(x, z)
 	var w_in := lerpf(1.3, 2.6, 0.5 + 0.5 * _patch.get_noise_2d(x * 0.5, z * 0.5))
 	var s := lerpf(smoothstep(-w_in, 0.4, d), smoothstep(-0.3, 0.3, d), win)
-	var h := lerpf(floor_y + talus, rim, s) + _small.get_noise_2d(x * 2.1, z * 2.1) * 0.25 * 4.0 * s * (1.0 - s) * (1.0 - win)
+	var bw := _bench_w(x, z) if d > -2.0 and d < 6.0 else 0.0
+	if bw > 0.0:
+		s = lerpf(s, _bench_s(d, x, z), bw)
+	var h := lerpf(floor_y + talus, rim, s) + _small.get_noise_2d(x * 2.1, z * 2.1) * 0.25 * 4.0 * s * (1.0 - s) * (1.0 - win) * (1.0 - 0.8 * bw)
 	return minf(h, _gully(x, z))
 
 
@@ -499,6 +615,18 @@ func _h_dry(x: float, z: float) -> float:
 	var front := smoothstep(CAVE_MOUTH.y + 10.0, CAVE_MOUTH.y + 7.0, z)
 	front *= smoothstep(CAVE_MOUTH.y - 9.0, CAVE_MOUTH.y - 7.0, z)
 	h = lerpf(h, CAVE_FLOOR - 0.12, side * front)
+	# Spoil heaps: loose mounds tipped by the rim.
+	for sp: Array in SPOIL:
+		var dist := Vector2(x, z).distance_to(sp[0])
+		var r: float = sp[1] * (1.0 + _warp.get_noise_2d(x * 1.3 + 40.0, z * 1.3) * 0.15)
+		if dist < r:
+			h += sp[2] * _smooth(r, 0.0, dist) * (1.0 + _small.get_noise_2d(x * 1.8, z * 1.8) * 0.12)
+	# The camp's rise: levelled at CAMP_Y inside, a little lower at the logs so
+	# they follow a slope, easing down to the basin over ten metres.
+	var rsd := _camp_sdf(x, z)
+	if rsd < 12.0:
+		var lv := CAMP_Y - 0.5 * _smooth(-4.0, 3.0, rsd) + _small.get_noise_2d(x * 1.5, z * 1.5) * 0.04
+		h = lerpf(h, lv, _smooth(12.0, 2.0, rsd))
 	return h
 
 
@@ -575,7 +703,8 @@ func _grassiness(x: float, z: float) -> float:
 	var n := _patch.get_noise_2d(x, z)
 	var rim := smoothstep(0.1, 1.5, d) * smoothstep(-0.75, -0.1, n)
 	var edge := smoothstep(-7.5, -3.0, d) * smoothstep(-1.0, -2.2, d) * smoothstep(0.05, 0.4, n)
-	var path := maxf(maxf(_road(x, z), _floor_path(x, z)), _cave_path(x, z))
+	var path := maxf(maxf(maxf(_road(x, z), _floor_path(x, z)), _cave_path(x, z)), _camp_floor(x, z))
+	path = maxf(path, _bench_zone(x, z, d))
 	return clampf(maxf(rim, edge) - path * 1.5 - _on_ramp(x, z) * 2.0, 0.0, 1.0) * (1.0 - 0.8 * _canopy_at(x, z))
 
 
@@ -595,7 +724,9 @@ func _splat(x: float, z: float, n: Vector3) -> Color:
 	var mottle := smoothstep(-0.45, 0.45, _patch.get_noise_2d(x * 0.9 + 50.0, z * 0.9))
 	var bedrock := smoothstep(0.26, 0.46, _patch.get_noise_2d(x * 0.8 - 30.0, z * 0.8)) * floor_zone
 	rock = maxf(rock, bedrock * 0.8 * (1.0 - ramp))
-	var path := maxf(_road(x, z), _floor_path(x, z))
+	var bench := _bench_zone(x, z, d)
+	rock = maxf(rock, bench * lerpf(0.35, 0.8, mottle))
+	var path := maxf(maxf(_road(x, z), _floor_path(x, z)), maxf(_camp_floor(x, z) * 0.9, bench))
 	var dirt := maxf(maxf(ramp * lerpf(0.5, 1.0, mottle), path), floor_zone * lerpf(0.25, 1.0, mottle))
 	var soil := clampf(1.0 - dirt - grass, 0.0, 1.0)
 	return Color(rock, soil * (1.0 - rock), grass * (1.0 - rock), dirt * (1.0 - rock))
@@ -1207,6 +1338,12 @@ func _flood_checks() -> bool:
 	if not _reached(open, 4.0, 30.0):
 		print("FLOOD FAIL: the town is not reachable from the camp")
 		ok = false
+	for spot: Array in [["the saddle", Vector2(40, -32)], ["the palisade's gate", CAMP_O + Vector2(0, -17)],
+			["the raiders' ground", CAMP_O + Vector2(2, -57)], ["the postern path", CAMP_O + Vector2(0, 18)],
+			["the town path", Vector2(52, 34)]]:
+		if not _reached(open, spot[1].x, spot[1].y):
+			print("FLOOD FAIL: %s is not reachable from the camp" % spot[0])
+			ok = false
 	var edge := 0
 	for iz in _nz:
 		for ix in _nx:
@@ -1328,6 +1465,12 @@ func _clear(x: float, z: float, r: float, water := true) -> bool:
 	for k: Array in KEEP_OUT:
 		if p.distance_to(k[0]) < k[1] + r:
 			return false
+	if x > 30.0:
+		if _camp_sdf(x, z) < r + 2.5:
+			return false
+		for k: Array in RaidCampBuilder.KEEP_OUT:
+			if p.distance_to(CAMP_O + (k[0] as Vector2)) < k[1] + r:
+				return false
 	if x > -18.0 - r and x < -14.8 + r and z > -51.5 - r and z < -48.5 + r:
 		return false
 	if _ramp_dist(x, z).x < _ramp_hw(x, z) + 0.3 + r:
@@ -1527,7 +1670,7 @@ func _dress() -> void:
 	# Boulder groups: mossy on the grass and the hills, broken blocks in the pit.
 	var groups: Array[Vector2] = []
 	var tries := 0
-	while groups.size() < 42 and tries < 3000:
+	while groups.size() < 60 and tries < 4500:
 		tries += 1
 		var c := Vector2(_rng.randf_range(X0 + 6.0, X1 - 6.0), _rng.randf_range(Z0 + 6.0, Z1 - 6.0))
 		var d := _pit_d(c.x, c.y)
@@ -1555,8 +1698,8 @@ func _dress() -> void:
 	tries = 0
 	while placed < 160 and tries < 6000:
 		tries += 1
-		var x := _rng.randf_range(-20.0, 22.0)
-		var z := _rng.randf_range(-66.0, -28.0)
+		var x := _rng.randf_range(-20.0, 24.0)
+		var z := _rng.randf_range(-68.0, -28.0)
 		var d := _pit_d(x, z)
 		if d < -7.0 or d > -1.0 or not _clear(x, z, 0.4) or not _at_wall_foot(x, z):
 			continue
@@ -1618,14 +1761,36 @@ func _dress() -> void:
 		for k: Array in KEEP_OUT.slice(0, 8):
 			if Vector2(x, z).distance_to(k[0]) < k[1]:
 				blocked = true
-		if blocked or _n_at(x, z).y < 0.7:
+		if blocked or _n_at(x, z).y < 0.7 or _camp_sdf(x, z) < 1.0:
 			continue
 		var m: Mesh = stones[_rng.randi() % stones.size()]
 		_add(m, _xf_shut(m, _ground_at(x, z), Vector3.DOWN, _rng.randf() * TAU, _rng.randf_range(0.3, 0.75), 0.35), false)
 		placed += 1
 
+	# The spoil heaps: broken stone over each mound, a block or two at the foot.
+	for sp: Array in SPOIL:
+		var c: Vector2 = sp[0]
+		var r: float = sp[1]
+		placed = 0
+		tries = 0
+		while placed < int(r * 6.0) and tries < 400:
+			tries += 1
+			var p := c + Vector2.from_angle(_rng.randf() * TAU) * r * sqrt(_rng.randf()) * 0.9
+			if not _clear(p.x, p.y, 0.3) or _n_at(p.x, p.y).y < 0.6:
+				continue
+			var m: Mesh = stones[_rng.randi() % stones.size()]
+			var away := Vector3.DOWN + Vector3(_rng.randf_range(-0.3, 0.3), 0.0, _rng.randf_range(-0.3, 0.3))
+			if _is_upright(m, away):
+				continue
+			_add(m, _xf_shut(m, _ground_at(p.x, p.y), away, _rng.randf() * TAU, _rng.randf_range(0.8, 2.2), 0.35), placed % 3 == 0)
+			placed += 1
+		for k in 2:
+			var foot := c + Vector2.from_angle(_rng.randf() * TAU) * (r + 0.6)
+			if _clear(foot.x, foot.y, 1.0) and _n_at(foot.x, foot.y).y > 0.8:
+				_place_group(blocks, foot, Vector2(0.28, 0.4), Vector2(0.12, 0.2), _rng.randi_range(1, 3))
+
 	# Plants tucked against rock and in the grass, on the hills too.
-	for i in 2600:
+	for i in 3900:
 		var x := _rng.randf_range(X0 + 2.0, X1 - 2.0)
 		var z := _rng.randf_range(Z0 + 2.0, Z1 - 2.0)
 		var d := _pit_d(x, z)
@@ -1645,10 +1810,10 @@ func _dress() -> void:
 	# Dead wood on the rim and the hills.
 	placed = 0
 	tries = 0
-	while placed < 22 and tries < 2000:
+	while placed < 32 and tries < 3000:
 		tries += 1
-		var x := _rng.randf_range(-40.0, 40.0)
-		var z := _rng.randf_range(-80.0, 56.0)
+		var x := _rng.randf_range(-40.0, 95.0)
+		var z := _rng.randf_range(-90.0, 56.0)
 		if _pit_d(x, z) < 2.0 or not _clear(x, z, 2.0) or _n_at(x, z).y < 0.9:
 			continue
 		var at := _ground_at(x, z)
@@ -2361,6 +2526,8 @@ func _patch_scene() -> void:
 		kept.append(block)
 		if path == "LevelGeometry":
 			kept.append("[node name=\"Terrain\" parent=\"LevelGeometry\" instance=ExtResource(\"q_terrain\")]\n")
+			kept.append("[node name=\"RaidCamp\" parent=\"LevelGeometry\" instance=ExtResource(\"q_raid_camp\")]\ntransform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s, %s, %s)\n" % [CAMP_O.x, CAMP_Y, CAMP_O.y])
+	kept.append_array(_camp_people())
 
 	# Ext resources for the terrain and environment, then drop what nothing uses.
 	var first_sub := 0
@@ -2371,7 +2538,8 @@ func _patch_scene() -> void:
 	kept.insert(first_sub + 1, "[ext_resource type=\"Environment\" path=\"%squarry_environment.tres\" id=\"q_env\"]\n" % OUT)
 	kept.insert(first_sub + 2, "[ext_resource type=\"Script\" path=\"res://world/walk_in_building.gd\" id=\"q_walkin\"]\n")
 	kept.insert(first_sub + 3, "[ext_resource type=\"ArrayMesh\" path=\"%s\" id=\"q_walkin_roof\"]\n" % _walk_in.file)
-	var at := first_sub + 4
+	kept.insert(first_sub + 4, "[ext_resource type=\"PackedScene\" path=\"%sraid_camp.scn\" id=\"q_raid_camp\"]\n" % OUT)
+	var at := first_sub + 5
 	for p: String in _props:
 		kept.insert(at, "[ext_resource type=\"ArrayMesh\" path=\"%s\" id=\"p_%s\"]\n" % [_props[p], p.get_slice("/", 2).to_snake_case()])
 		at += 1
@@ -2419,6 +2587,35 @@ func _patch_scene() -> void:
 	print("scene: %d resources, %d blocks -> %s" % [count, kept.size(), NEW_SCENE])
 
 
+func _camp_people() -> Array[String]:
+	# The camp's mark (cinematics/camp_raid.tscn stages on it), then its people
+	# and the raiders waiting down the road, seated on the ground or, for the
+	# lookout, on the walk.
+	var out: Array[String] = []
+	var num := func(f: float) -> String: return String.num(snappedf(f, 0.0001))
+	out.append("[node name=\"RaidCampOrigin\" type=\"Marker3D\" parent=\".\" groups=[\"scene_marks\"]]\ntransform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, %s, %s, %s)\n" % [num.call(CAMP_O.x), num.call(CAMP_Y), num.call(CAMP_O.y)])
+	var defs := {watch = "q_watchman", towns = "7_town", hob = "9_hob", rogue = "8_rogue", shaman = "10_shaman"}
+	for row: Array in RaidCampBuilder.PEOPLE:
+		var key: String = row[1]
+		var goblin := key in ["hob", "rogue", "shaman"]
+		var node: String = ("Raid" if goblin else "") + row[0]
+		var local: Vector3 = row[2]
+		var x := CAMP_O.x + local.x
+		var z := CAMP_O.y + local.z
+		var y := CAMP_Y + local.y if row[0] == "Lookout" else _gy(x, z) + 0.05
+		var b := Basis(Vector3.UP, deg_to_rad(row[3]))
+		var vals := []
+		for r in 3:
+			for c in 3:
+				vals.append(num.call(b[c][r]))
+		var block := "[node name=\"%s\" parent=\".\" instance=ExtResource(\"2_unit\")]\ntransform = Transform3D(%s, %s, %s, %s)\ndefinition = ExtResource(\"%s\")\npersistent_id = &\"goblin_quarry_%s\"\n" \
+				% [node, ", ".join(vals), num.call(x), num.call(y), num.call(z), defs[key], node.to_snake_case()]
+		if goblin:
+			block += "hover_color = Color(1, 0, 0, 0.501961)\nselected_color = Color(1, 0, 0, 0.627451)\n"
+		out.append(block)
+	return out
+
+
 # ---------------------------------------------------------------- trees
 
 const TREE_SHADE := {"fir": 3.2, "firm": 2.4, "isle": 2.3, "sap": 0.0}
@@ -2442,7 +2639,7 @@ func _plan_trees() -> void:
 	var tries := 0
 	# Out past the steep bank too: the bank itself is a rock face trees can't
 	# stand on, so the treeline carries on along the hilltops above it.
-	while tries < 20000:
+	while tries < 32000:
 		tries += 1
 		var x := _trng.randf_range(X0 + 1.0, X1 - 1.0)
 		var z := _trng.randf_range(Z0 + 1.0, Z1 - 1.0)
@@ -2460,12 +2657,14 @@ func _plan_trees() -> void:
 
 	var clumps: Array[Vector2] = []
 	tries = 0
-	while clumps.size() < 14 and tries < 4000:
+	while clumps.size() < 20 and tries < 6000:
 		tries += 1
-		var c := Vector2(_trng.randf_range(-34.0, 34.0), _trng.randf_range(-80.0, 62.0))
-		if _valley_d(c.x, c.y) > 0.0 or _pit_d(c.x, c.y) < 5.0 or not _clear(c.x, c.y, 3.0):
+		var c := Vector2(_trng.randf_range(-34.0, 90.0), _trng.randf_range(-80.0, 62.0))
+		if _valley_d(c.x, c.y) > 0.0 or _pit_d(c.x, c.y) < 5.0 or not _clear(c.x, c.y, 3.0) or _camp_sdf(c.x, c.y) < 8.0:
 			continue
 		if _rect_sdf(c.x, c.y, 0.0, 30.0, 20.0, 16.0) < 2.0 or _line_dist(c, ROAD) < 6.0 or _n_at(c.x, c.y).y < 0.85:
+			continue
+		if _line_dist(c, SADDLE_ROAD) < 6.0 or _line_dist(c, CAMP_ROAD) < 6.0 or _line_dist(c, TOWN_PATH) < 5.0:
 			continue
 		var crowded := false
 		for o: Vector2 in clumps:
@@ -2507,13 +2706,27 @@ func _plan_trees() -> void:
 		if _try_tree(p, "isle", 2.6, _trng.randf_range(1.1, 1.6), 1.0, to.normalized() * _trng.randf_range(0.08, 0.16)):
 			banked += 1
 
+	# Firs along the ridge's crest, thinning toward the saddle.
+	var crest := 0
+	tries = 0
+	while crest < 26 and tries < 1500:
+		tries += 1
+		var z := _trng.randf_range(-66.0, 12.0)
+		var p := Vector2(_ridge_x(z) + _trng.randf_range(-3.5, 3.5), z)
+		if _line_dist(p, SADDLE_ROAD) < 9.0 or _trng.randf() > smoothstep(4.0, 14.0, absf(z - SADDLE_Z)):
+			continue
+		if _trng.randf() < 0.45:
+			crest += int(_try_tree(p, "fir", 4.0, _trng.randf_range(0.7, 1.0)))
+		else:
+			crest += int(_try_tree(p, "firm", 2.6, _trng.randf_range(0.8, 1.2)))
+
 	# Saplings at the clumps' and the treeline's edges.
 	var saps := 0
 	tries = 0
-	while saps < 90 and tries < 6000:
+	while saps < 130 and tries < 9000:
 		tries += 1
-		var x := _trng.randf_range(-44.0, 44.0)
-		var z := _trng.randf_range(-92.0, 72.0)
+		var x := _trng.randf_range(-44.0, 100.0)
+		var z := _trng.randf_range(-100.0, 72.0)
 		var v := _valley_d(x, z)
 		var near_clump := false
 		for c: Vector2 in clumps:

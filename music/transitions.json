@@ -20,9 +20,7 @@
 		"goblin_quarry.combat": {"ensemble": "tonewheel", "score": "sealed-ward"},
 		"goblin_quarry.negotiation": {"ensemble": "decadence", "score": "decadence"},
 		"raid_at_dusk": {"ensemble": "warband", "score": "raid-at-dusk"},
-		"raid_camp.exploration": {"ensemble": "hearthwild", "score": "hearthwild"},
-		"warband_battle": {"ensemble": "warband", "score": "warband-battle"},
-		"raid_camp.negotiation": {"ensemble": "decadence", "score": "decadence"}
+		"warband_battle": {"ensemble": "warband", "score": "warband-battle"}
 	},
 	"rules": [
 		{"from": "*", "to": "*", "exit": "now", "fade": 1.5, "fade_in": 1.0},
@@ -55,8 +53,6 @@
 		{"from": "raid_at_dusk", "to": "warband_battle", "exit": "bar", "fade": 0.3, "urgent": true},
 		{"from": "warband_battle", "to": "*", "exit": "now", "fade": 2.0, "fade_in": 1.5, "pick_up": true},
 		{"from": "warband_battle", "to": "goblin_quarry.negotiation", "exit": "now", "fade": 1.0, "fade_in": 0.5},
-		{"from": "goblin_quarry.negotiation", "to": "warband_battle", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true},
-		{"from": "warband_battle", "to": "raid_camp.negotiation", "exit": "now", "fade": 1.0, "fade_in": 0.5},
-		{"from": "raid_camp.negotiation", "to": "warband_battle", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true}
+		{"from": "goblin_quarry.negotiation", "to": "warband_battle", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true}
 	]
 }

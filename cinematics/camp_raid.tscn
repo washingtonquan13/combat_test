@@ -18,91 +18,91 @@
 
 [sub_resource type="Curve3D" id="Curve3D_HobRoad"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 1.5, 0, -56, 0, 0, 0, 0, 0, 0, 1, 0, -42, 0, 0, 0, 0, 0, 0, -0.6, 0, -32, 0, 0, 0, 0, 0, 0, 0.4, 0, -24),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 1.5, -3.7, -56, 0, 0, 0, 0, 0, 0, 1, -3.254, -42, 0, 0, 0, 0, 0, 0, -0.6, -3.063, -32, 0, 0, 0, 0, 0, 0, 0.4, -2.549, -24),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
 
 [sub_resource type="Curve3D" id="Curve3D_HobToGate"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0.4, 0, -24, 0, 0, 0, 0, 0, 0, 0.5, 0, -20, 0, 0, 0, 0, 0, 0, 0.6, 0, -16.3),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0.4, -2.549, -24, 0, 0, 0, 0, 0, 0, 0.5, -1.06, -20, 0, 0, 0, 0, 0, 0, 0.6, -0.418, -16.3),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
 [sub_resource type="Curve3D" id="Curve3D_HobIn"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0.6, 0, -16.3, 0, 0, 0, 0, 0, 0, 0.6, 0, -13.2, 0, 0, 0, 0, 0, 0, 2.2, 0, -11),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 0.6, -0.418, -16.3, 0, 0, 0, 0, 0, 0, 0.6, -0.116, -13.2, 0, 0, 0, 0, 0, 0, 2.2, 0.012, -11),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
 [sub_resource type="Curve3D" id="Curve3D_RogueARoad"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -1, 0, -54, 0, 0, 0, 0, 0, 0, 0, 0, -42, 0, 0, 0, 0, 0, 0, -2, 0, -32, 0, 0, 0, 0, 0, 0, -4.2, 0, -27),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -1, -3.823, -54, 0, 0, 0, 0, 0, 0, 0, -3.258, -42, 0, 0, 0, 0, 0, 0, -2, -3.047, -32, 0, 0, 0, 0, 0, 0, -4.2, -3.043, -27),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
 
 [sub_resource type="Curve3D" id="Curve3D_RogueBRoad"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 3.6, 0, -57.5, 0, 0, 0, 0, 0, 0, 2.6, 0, -42, 0, 0, 0, 0, 0, 0, 0.4, 0, -33, 0, 0, 0, 0, 0, 0, 4.6, 0, -26.5),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 3.6, -3.757, -57.5, 0, 0, 0, 0, 0, 0, 2.6, -3.271, -42, 0, 0, 0, 0, 0, 0, 0.4, -3.097, -33, 0, 0, 0, 0, 0, 0, 4.6, -3.186, -26.5),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
 
 [sub_resource type="Curve3D" id="Curve3D_RogueCRoad"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -0.5, 0, -59, 0, 0, 0, 0, 0, 0, 0.2, 0, -44, 0, 0, 0, 0, 0, 0, -1.8, 0, -34, 0, 0, 0, 0, 0, 0, -5, 0, -29.5),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -0.5, -3.721, -59, 0, 0, 0, 0, 0, 0, 0.2, -3.283, -44, 0, 0, 0, 0, 0, 0, -1.8, -3.111, -34, 0, 0, 0, 0, 0, 0, -5, -2.984, -29.5),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
 
 [sub_resource type="Curve3D" id="Curve3D_RogueDRoad"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 4.6, 0, -53, 0, 0, 0, 0, 0, 0, 3, 0, -42, 0, 0, 0, 0, 0, 0, 1.2, 0, -32, 0, 0, 0, 0, 0, 0, 5.2, 0, -29),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 4.6, -3.612, -53, 0, 0, 0, 0, 0, 0, 3, -3.284, -42, 0, 0, 0, 0, 0, 0, 1.2, -3.087, -32, 0, 0, 0, 0, 0, 0, 5.2, -3.236, -29),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
 
 [sub_resource type="Curve3D" id="Curve3D_ArcherWestRoad"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -2.5, 0, -61, 0, 0, 0, 0, 0, 0, -0.6, 0, -46, 0, 0, 0, 0, 0, 0, -3, 0, -31),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -2.5, -3.873, -61, 0, 0, 0, 0, 0, 0, -0.6, -3.285, -46, 0, 0, 0, 0, 0, 0, -3, -3.057, -31),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
 [sub_resource type="Curve3D" id="Curve3D_ArcherEastRoad"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 6, 0, -61.5, 0, 0, 0, 0, 0, 0, 3.4, 0, -46, 0, 0, 0, 0, 0, 0, 1.2, 0, -33),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 6, -3.804, -61.5, 0, 0, 0, 0, 0, 0, 3.4, -3.306, -46, 0, 0, 0, 0, 0, 0, 1.2, -3.087, -33),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
 
 [sub_resource type="Curve3D" id="Curve3D_RogueAIn"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -4.2, 0, -27, 0, 0, 0, 0, 0, 0, -0.3, 0, -17.5, 0, 0, 0, 0, 0, 0, -0.3, 0, -13, 0, 0, 0, 0, 0, 0, -1.8, 0, -4),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -4.2, -3.043, -27, 0, 0, 0, 0, 0, 0, -0.3, -0.504, -17.5, 0, 0, 0, 0, 0, 0, -0.3, -0.094, -13, 0, 0, 0, 0, 0, 0, -1.8, 0.002, -4),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
 
 [sub_resource type="Curve3D" id="Curve3D_RogueBIn"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 4.6, 0, -26.5, 0, 0, 0, 0, 0, 0, 0.3, 0, -17.5, 0, 0, 0, 0, 0, 0, 0, 0, -13, 0, 0, 0, 0, 0, 0, -0.8, 0, -9, 0, 0, 0, 0, 0, 0, 2, 0, -4.2, 0, 0, 0, 0, 0, 0, 3.2, 0, -2.4),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 4.6, -3.186, -26.5, 0, 0, 0, 0, 0, 0, 0.3, -0.516, -17.5, 0, 0, 0, 0, 0, 0, 0, -0.103, -13, 0, 0, 0, 0, 0, 0, -0.8, 0, -9, 0, 0, 0, 0, 0, 0, 2, 0.008, -4.2, 0, 0, 0, 0, 0, 0, 3.2, -0.004, -2.4),
 "tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
 }
 point_count = 6
 
 [sub_resource type="Curve3D" id="Curve3D_RogueCIn"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -5, 0, -29.5, 0, 0, 0, 0, 0, 0, -0.5, 0, -17.5, 0, 0, 0, 0, 0, 0, -0.5, 0, -13, 0, 0, 0, 0, 0, 0, -3.6, 0, -8),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -5, -2.984, -29.5, 0, 0, 0, 0, 0, 0, -0.5, -0.504, -17.5, 0, 0, 0, 0, 0, 0, -0.5, -0.093, -13, 0, 0, 0, 0, 0, 0, -3.6, 0.003, -8),
 "tilts": PackedFloat32Array(0, 0, 0, 0)
 }
 point_count = 4
 
 [sub_resource type="Curve3D" id="Curve3D_RogueDIn"]
 _data = {
-"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 5.2, 0, -29, 0, 0, 0, 0, 0, 0, 0.5, 0, -17.5, 0, 0, 0, 0, 0, 0, 0.2, 0, -13, 0, 0, 0, 0, 0, 0, -0.6, 0, -10.5, 0, 0, 0, 0, 0, 0, 1.6, 0, -6.8, 0, 0, 0, 0, 0, 0, 2.8, 0, -6.2),
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, 5.2, -3.236, -29, 0, 0, 0, 0, 0, 0, 0.5, -0.52, -17.5, 0, 0, 0, 0, 0, 0, 0.2, -0.098, -13, 0, 0, 0, 0, 0, 0, -0.6, -0.02, -10.5, 0, 0, 0, 0, 0, 0, 1.6, -0.008, -6.8, 0, 0, 0, 0, 0, 0, 2.8, 0.012, -6.2),
 "tilts": PackedFloat32Array(0, 0, 0, 0, 0, 0)
 }
 point_count = 6
@@ -982,13 +982,14 @@ script = ExtResource("1_stage")
 performs_on_stand_ins = true
 music = "raid_at_dusk"
 music_carries_on = true
+anchor_mark = &"RaidCampOrigin"
 props = {}
 shot = &"camp_crane"
 
 [node name="Roles" type="Node3D" parent="."]
 
 [node name="leader" type="Marker3D" parent="Roles"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 0, 0, 24)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 0, -2.522, 24)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
@@ -1000,67 +1001,67 @@ role = &""
 drives_actor = false
 
 [node name="guard_gate" type="Marker3D" parent="Roles"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 2.6, 0, -9)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 2.6, 0.008, -9)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="guard_fire" type="Marker3D" parent="Roles"]
-transform = Transform3D(-0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, -0.866025, -1.8, 0, -2.6)
+transform = Transform3D(-0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, -0.866025, -1.8, 0.007, -2.6)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="camper_fire" type="Marker3D" parent="Roles"]
-transform = Transform3D(-0.939693, 0, -0.34202, 0, 1, 0, 0.34202, 0, -0.939693, 1.4, 0, 0.4)
+transform = Transform3D(-0.939693, 0, -0.34202, 0, 1, 0, 0.34202, 0, -0.939693, 1.4, 0.006, 0.4)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="camper_tent" type="Marker3D" parent="Roles"]
-transform = Transform3D(-0.173648, 0, -0.984808, 0, 1, 0, 0.984808, 0, -0.173648, 6.2, 0, 4)
+transform = Transform3D(-0.173648, 0, -0.984808, 0, 1, 0, 0.984808, 0, -0.173648, 6.2, -0.014, 4)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="hobgoblin" type="Marker3D" parent="Roles"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 1.5, 0, -56)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 1.5, -3.7, -56)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="rogue_a" type="Marker3D" parent="Roles"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -1, 0, -54)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -1, -3.823, -54)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="rogue_b" type="Marker3D" parent="Roles"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 3.6, 0, -57.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 3.6, -3.757, -57.5)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="rogue_c" type="Marker3D" parent="Roles"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -0.5, 0, -59)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -0.5, -3.721, -59)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="rogue_d" type="Marker3D" parent="Roles"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 4.6, 0, -53)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 4.6, -3.612, -53)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="archer_west" type="Marker3D" parent="Roles"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -2.5, 0, -61)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, -2.5, -3.873, -61)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
 
 [node name="archer_east" type="Marker3D" parent="Roles"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 6, 0, -61.5)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 6, -3.804, -61.5)
 script = ExtResource("2_role")
 role = &""
 drives_actor = false
@@ -1071,22 +1072,22 @@ drives_actor = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 0, 1.8, -15)
 
 [node name="HobGate" type="Marker3D" parent="Marks"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 0.6, 0, -16.3)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 0.6, -0.418, -16.3)
 
 [node name="ChopAt" type="Marker3D" parent="Marks"]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 2.2, 0, -11)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, -0, 0, -1, 2.2, 0.012, -11)
 
 [node name="GuardHold" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 2.3, 0, -9.9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 2.3, -0.004, -9.9)
 
 [node name="CamperHide" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 4.8, 0, 2.6)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 4.8, -0.003, 2.6)
 
 [node name="LeaderPostern" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 0, 0, 16)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 0, -0.394, 16)
 
 [node name="LeaderStop" type="Marker3D" parent="Marks"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 0, 0, 9)
+transform = Transform3D(1, 0, 0, 0, 1, 0, -0, 0, 1, 0, -0.005, 9)
 
 [node name="Paths" type="Node3D" parent="."]
 

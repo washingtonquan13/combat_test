@@ -1,6 +1,5 @@
 {
 	"cues": [
-		{"area": "goblin_quarry", "moment": "combat", "when": ["goblin_raid.begun", "!goblin_raid.broken"], "music": "warband_battle"},
-		{"area": "raid_camp", "moment": "combat", "music": "warband_battle"}
+		{"area": "goblin_quarry", "moment": "combat", "when": ["goblin_raid.begun", "!goblin_raid.broken"], "music": "warband_battle"}
 	]
 }

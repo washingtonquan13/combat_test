@@ -1,4 +1,4 @@
-[gd_scene load_steps=99 format=3]
+[gd_scene load_steps=100 format=3]
 
 [ext_resource type="Script" path="res://world/goblin_quarry.gd" id="1_area"]
 [ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="2_unit"]
@@ -27,6 +27,7 @@
 [ext_resource type="Environment" path="res://world/goblin_quarry/quarry_environment.tres" id="q_env"]
 [ext_resource type="Script" path="res://world/walk_in_building.gd" id="q_walkin"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_roof.res" id="q_walkin_roof"]
+[ext_resource type="PackedScene" path="res://world/goblin_quarry/raid_camp.scn" id="q_raid_camp"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west.res" id="p_house_west"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_west_back.res" id="p_house_west_back"]
 [ext_resource type="ArrayMesh" path="res://world/goblin_quarry/props/house_east.res" id="p_house_east"]
@@ -227,6 +228,9 @@ script = ExtResource("1_area")
 [node name="LevelGeometry" type="Node3D" parent="."]
 
 [node name="Terrain" parent="LevelGeometry" instance=ExtResource("q_terrain")]
+
+[node name="RaidCamp" parent="LevelGeometry" instance=ExtResource("q_raid_camp")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66.0, 3.0, -6.0)
 
 [node name="Ladder" parent="LevelGeometry" instance=ExtResource("4_ladder")]
 transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -13.4, -5.9719, -50.0)
@@ -648,3 +652,80 @@ shadow_blur = 1.5
 directional_shadow_max_distance = 75.0
 
 [editable path="LevelGeometry/Ladder"]
+
+[node name="RaidCampOrigin" type="Marker3D" parent="." groups=["scene_marks"]]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 66.0, 3.0, -6.0)
+
+[node name="Lookout" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0, 62.6, 5.2, -20.1)
+definition = ExtResource("q_watchman")
+persistent_id = &"goblin_quarry_lookout"
+
+[node name="GuardGate" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(-1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, -1.0, 68.6, 3.0629, -15.0)
+definition = ExtResource("q_watchman")
+persistent_id = &"goblin_quarry_guard_gate"
+
+[node name="GuardFire" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(-0.866, 0.0, 0.5, 0.0, 1.0, 0.0, -0.5, 0.0, -0.866, 64.2, 3.0565, -8.6)
+definition = ExtResource("q_watchman")
+persistent_id = &"goblin_quarry_guard_fire"
+
+[node name="CamperFire" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(-0.9397, 0.0, -0.342, 0.0, 1.0, 0.0, 0.342, 0.0, -0.9397, 67.4, 3.0564, -5.6)
+definition = ExtResource("7_town")
+persistent_id = &"goblin_quarry_camper_fire"
+
+[node name="CamperTent" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(-0.1736, 0.0, -0.9848, 0.0, 1.0, 0.0, 0.9848, 0.0, -0.1736, 72.2, 3.0364, -2.0)
+definition = ExtResource("7_town")
+persistent_id = &"goblin_quarry_camper_tent"
+
+[node name="RaidHobgoblin" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 67.5, -0.6497, -62.0)
+definition = ExtResource("9_hob")
+persistent_id = &"goblin_quarry_raid_hobgoblin"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="RaidRogueA" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 65.0, -0.7734, -60.0)
+definition = ExtResource("8_rogue")
+persistent_id = &"goblin_quarry_raid_rogue_a"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="RaidRogueB" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 69.6, -0.707, -63.5)
+definition = ExtResource("8_rogue")
+persistent_id = &"goblin_quarry_raid_rogue_b"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="RaidRogueC" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 65.5, -0.6722, -65.0)
+definition = ExtResource("8_rogue")
+persistent_id = &"goblin_quarry_raid_rogue_c"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="RaidRogueD" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 70.6, -0.5607, -59.0)
+definition = ExtResource("8_rogue")
+persistent_id = &"goblin_quarry_raid_rogue_d"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="RaidArcherWest" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 63.5, -0.8235, -67.0)
+definition = ExtResource("10_shaman")
+persistent_id = &"goblin_quarry_raid_archer_west"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+
+[node name="RaidArcherEast" parent="." instance=ExtResource("2_unit")]
+transform = Transform3D(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 72.0, -0.7539, -67.5)
+definition = ExtResource("10_shaman")
+persistent_id = &"goblin_quarry_raid_archer_east"
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)

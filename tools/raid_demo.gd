@@ -1,7 +1,7 @@
 extends Node
 ## Standalone walkthrough — NOT a test, NOT part of tests/run.sh.
-## Starts a new game and travels to the raid camp, where the goblin raid
-## plays on arrival. Once the fight after it has started, prints how the
+## Starts a new game in the goblin quarry and sets the flag the
+## townsperson's turn-in sets, so the goblin raid plays at the camp. Once the fight after it has started, prints how the
 ## scene left everyone and quits. Record it with Movie Maker:
 ##
 ##   Godot --resolution 1600x900 --write-movie raid.avi --fixed-fps 30 res://tools/raid_demo.tscn
@@ -23,9 +23,9 @@ func _run() -> void:
 	await _wait(0.5)
 	creation._on_confirm_pressed()
 	await WorldManager.world_focused
+	var world: Node = WorldManager.current_world()
 	await _wait(1.0)
-	WorldManager.travel_area(&"raid_camp")
-	var world: Node = await WorldManager.world_focused
+	FlagManager.set_flag("goblin_raid.begun")
 	var started := Time.get_ticks_msec()
 	var turn_order: Array = await CombatManager.combat_started
 	print("DEMO raid ran %.1f s; combat with %d" % [(Time.get_ticks_msec() - started) / 1000.0, turn_order.size()])
