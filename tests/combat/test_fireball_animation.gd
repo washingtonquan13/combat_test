@@ -34,7 +34,7 @@ func _fireball() -> Ability:
 
 func _the_clips_meet_on_shared_poses() -> void:
 	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3.ZERO)
-	var player: AnimationPlayer = unit.animator().animation_player
+	var player: BodyAnimationTree = unit.animator().playback
 	for clip in ["Fireball/Arm", "Fireball/Hold", "Fireball/Disarm", "Fireball/Cast"]:
 		check("SETUP: the body has %s" % clip, player.has_animation(clip))
 	if not player.has_animation("Fireball/Cast"):
@@ -77,8 +77,8 @@ func _arm_hold_and_put_away() -> void:
 	var caster: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), _fireball()], Vector3.ZERO)
 	var bystander: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), _fireball()], Vector3(3, 0, 0))
 	await get_tree().process_frame
-	var player: AnimationPlayer = caster.animator().animation_player
-	var their_player: AnimationPlayer = bystander.animator().animation_player
+	var player: BodyAnimationTree = caster.animator().playback
+	var their_player: BodyAnimationTree = bystander.animator().playback
 
 	SelectionManager.select(caster)
 	check("SETUP: the caster is the commanded unit", PlayerInteractionState.get_active_unit() == caster)
@@ -118,7 +118,7 @@ func _arm_hold_and_put_away() -> void:
 func _launched_from_the_stance() -> void:
 	var caster: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), _fireball()], Vector3.ZERO)
 	await get_tree().process_frame
-	var player: AnimationPlayer = caster.animator().animation_player
+	var player: BodyAnimationTree = caster.animator().playback
 	SelectionManager.select(caster)
 	AbilityManager.arm(_fireball())
 	await get_tree().create_timer(0.9).timeout

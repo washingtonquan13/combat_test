@@ -106,7 +106,7 @@ func _gun(item: String, row: String, stance: String, reload_clip: String) -> voi
 
 
 func _check_stance(stance: String, when: String = "") -> void:
-	var showing := String(_animator(_hero).animation_player.current_animation)
+	var showing := String(_animator(_hero).playback.current_animation)
 	_check("standing in %s%s (%s)" % [stance, " " + when if when else "", showing], showing == stance)
 
 

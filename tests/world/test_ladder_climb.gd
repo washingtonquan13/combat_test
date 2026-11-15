@@ -155,5 +155,5 @@ func _climb_cost(route: Dictionary) -> float:
 	return total
 
 
-static func _animation_player(unit: Unit) -> AnimationPlayer:
-	return unit.find_child("AnimationPlayer", true, false) as AnimationPlayer
+static func _animation_player(unit: Unit) -> BodyAnimationTree:
+	return unit.animator().playback

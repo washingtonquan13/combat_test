@@ -45,6 +45,7 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 	if copy == null:
 		return null
 	_mirror_owners(original, copy, {original: copy})
+	_play_on_own_player(copy)
 	for solid in copy.find_children("*", "CollisionObject3D", true, false):
 		solid.free()
 	_strip_player_feedback(original, copy)
@@ -90,6 +91,26 @@ static func _mirror_owners(from: Node, to: Node, twins: Dictionary) -> void:
 		if twins.has(child.owner):
 			twin.owner = twins[child.owner]
 		_mirror_owners(child, twin, twins)
+
+
+## The unit's body shows its clips through a BodyAnimationTree, and the
+## copy takes that along with everything else, sharing the original's tree
+## root and so its playback. The copy is played straight on its own player
+## instead (play()), so the tree goes and the player is woken back up.
+static func _play_on_own_player(copy: CharacterModel) -> void:
+	for tree in copy.find_children("*", "BodyAnimationTree", true, false):
+		tree.free()
+	var player: AnimationPlayer = copy.resolve_animation_player()
+	if player:
+		player.active = true
+
+
+## What shows the original body's clips: its BodyAnimationTree, or its
+## player for a body with none. Either answers assigned_animation,
+## current_animation_position and seek().
+static func _shown_by(original: CharacterModel) -> Object:
+	var tree: BodyAnimationTree = BodyAnimationTree.of(original)
+	return tree if tree else original.resolve_animation_player()
 
 
 ## The body carries what the player is shown about the unit: the hover
@@ -197,7 +218,7 @@ func match_original() -> void:
 	if copy == null or not is_instance_valid(_original):
 		return
 	var shown: AnimationPlayer = copy.resolve_animation_player()
-	var own: AnimationPlayer = _original.resolve_animation_player()
+	var own: Object = _shown_by(_original)
 	if shown and own and shown.assigned_animation != "" \
 			and own.assigned_animation == shown.assigned_animation:
 		own.seek(shown.current_animation_position, true)
@@ -210,7 +231,7 @@ func _stand_idle(original: CharacterModel, copy: CharacterModel) -> void:
 	if player == null:
 		return
 	var clip: String = copy.idle_animation
-	var source: AnimationPlayer = original.resolve_animation_player()
+	var source: Object = _shown_by(original)
 	if not player.has_animation(clip):
 		clip = source.assigned_animation if source else ""
 	if clip == "" or not player.has_animation(clip):

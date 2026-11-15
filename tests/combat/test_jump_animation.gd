@@ -24,7 +24,7 @@ func run() -> void:
 	var jump: Ability = load("res://data/abilities/jump.tres")
 	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), jump], Vector3.ZERO)
 	await get_tree().process_frame
-	var player: AnimationPlayer = unit.animator().animation_player
+	var player: BodyAnimationTree = unit.animator().playback
 	var skeleton: Skeleton3D = unit.find_children("*", "Skeleton3D", true, false)[0]
 	var missing := WATCHED.filter(func(bone): return skeleton.find_bone(bone) < 0)
 	check("SETUP: the skeleton has every watched bone", missing.is_empty(), str(missing))

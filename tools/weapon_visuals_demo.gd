@@ -156,7 +156,7 @@ func _timed(ability: Ability, target, attacker: Unit = null) -> Dictionary:
 			if t.impact < 0.0:
 				t.impact = now.call())
 		await get_tree().process_frame
-		t.clip = String(_animator(attacker).animation_player.current_animation)
+		t.clip = String(_animator(attacker).playback.current_animation)
 	var on_release := func(_action):
 		t.releases.append(now.call())
 		if t.release < 0.0:

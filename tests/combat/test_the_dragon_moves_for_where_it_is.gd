@@ -14,7 +14,7 @@ func run() -> void:
 	var dragon: Unit = spawn_demon("dragon", Vector3.ZERO)
 	await get_tree().process_frame
 	var animator: Node = dragon.get_node("UnitAnimator")
-	var player: AnimationPlayer = animator.animation_player
+	var player: BodyAnimationTree = animator.playback
 
 	check("on the ground it bites from the ground", _first(animator, &"attack.bite") == "Bite",
 		_first(animator, &"attack.bite"))
@@ -46,7 +46,7 @@ func run() -> void:
 ## Aiming hands over a point per render frame and the turn runs on physics
 ## ticks, so this aims through the real indicator at frame rates either side
 ## of the physics rate.
-func _turning(dragon: Unit, player: AnimationPlayer) -> void:
+func _turning(dragon: Unit, player: BodyAnimationTree) -> void:
 	var cap: int = Engine.max_fps
 	var facing: Node = AIM_FACING.new()
 	add_child(facing)

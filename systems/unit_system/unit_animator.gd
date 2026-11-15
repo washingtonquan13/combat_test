@@ -1,6 +1,6 @@
 class_name UnitAnimator
 extends Node
-## Drives this unit's AnimationPlayer in response to existing Unit/
+## Drives this unit's body animation in response to existing Unit/
 ## ability signals — a thin translation layer between "game state
 ## changed" and "play this clip (or sequence of clips)," so unit.gd
 ## itself never needs to know or care about animation names or timing.
@@ -10,6 +10,13 @@ extends Node
 ## imported scene). Drag your Unit into `unit`, drag the AnimationPlayer
 ## from inside your instanced/editable-children .glb into
 ## `animation_player`.
+##
+## The player holds the clips; what shows them is `playback`, a
+## BodyAnimationTree put beside the player in _ready. It replays clips the
+## way the player did (same crossfades, same method keys, same finished
+## signal), so everything here still reads as if a player were driving the
+## body. It is a tree so that later a second layer (an upper body drawing a
+## bow over a run) can be blended in without changing that.
 ##
 ## An ability's cast motion is driven entirely by data (see
 ## AnimationSequence/AnimationPhase) rather than hardcoded per ability
@@ -49,6 +56,9 @@ extends Node
 
 @export var unit: Unit
 @export var animation_player: AnimationPlayer
+## What shows the clips: an AnimationTree reading animation_player's clips.
+## Made in _ready; ask it, not the player, what is playing.
+var playback: BodyAnimationTree = null
 
 @export_group("Clip Names")
 @export var idle_animation: String = "Idle"
@@ -222,6 +232,7 @@ func _ready() -> void:
 		push_warning("unit_animator.gd needs both `unit` and `animation_player` assigned in the Inspector.")
 		return
 
+	playback = BodyAnimationTree.attach(animation_player)
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.movement_started.connect(_on_movement_started)
 	unit.movement_finished.connect(_on_movement_finished)
@@ -234,7 +245,7 @@ func _ready() -> void:
 	unit.took_off.connect(_on_took_off)
 	unit.touched_down.connect(_on_touched_down)
 	unit.facing_swung.connect(_on_facing_swung)
-	animation_player.animation_finished.connect(_on_animation_finished)
+	playback.animation_finished.connect(_on_animation_finished)
 	_weapons = unit.get_node_or_null("UnitWeapons") as UnitWeapons
 	if _weapons:
 		_weapons.stance_changed.connect(_on_stance_changed)
@@ -382,8 +393,8 @@ func _on_ability_armed(ability: Ability) -> void:
 ## player - the cast that caused this disarm, a hit, a walk - that clip
 ## already left the stance behind and is left to finish.
 func _put_stance_away() -> void:
-	var showing: bool = animation_player.current_animation != "" \
-		and String(animation_player.current_animation) in _armed_stance_clips
+	var showing: bool = playback.current_animation != "" \
+		and String(playback.current_animation) in _armed_stance_clips
 	var exit: String = _armed_exit_clip
 	_armed_stance_clips = []
 	_armed_exit_clip = ""
@@ -422,7 +433,7 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 		return
 	var sequence: AnimationSequence = _sequence_for(ability.motion)
 	# Launched out of the stance: blend from wherever the hold loop is.
-	var from_stance: bool = String(animation_player.current_animation) in _armed_stance_clips
+	var from_stance: bool = String(playback.current_animation) in _armed_stance_clips
 	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time, action)
 	if ability.uses_attack_action and _active_sequence:
 		_hold_busy()
@@ -581,7 +592,7 @@ func _on_stance_changed(stance: StringName) -> void:
 		return
 	if _base_animation == was_idle:
 		_base_animation = _idle()
-	var showing_idle: bool = String(animation_player.current_animation) == was_idle
+	var showing_idle: bool = String(playback.current_animation) == was_idle
 	if showing_idle and was_idle != _idle() and not unit.is_moving() and _active_sequence == null:
 		_play(_idle(), stance_blend_time)
 
@@ -613,7 +624,7 @@ func _physics_process(delta: float) -> void:
 		return
 	if absi(shown) == 2:
 		var over_seconds: float = maxf(unit.climb_over_seconds(), 0.01)
-		animation_player.play(over_clip, 0.1, animation_player.get_animation(over_clip).length / over_seconds)
+		playback.play(over_clip, 0.1, animation_player.get_animation(over_clip).length / over_seconds)
 		return
 	if climb_animation == "" or not animation_player.has_animation(climb_animation):
 		return
@@ -624,8 +635,8 @@ func _physics_process(delta: float) -> void:
 	var rise: float = clip.get_meta("rise", 0.3)
 	var rate: float = unit.climb_speed() * clip.length / rise
 	var phase: float = fposmod((unit.global_position.y - unit.climb_stop_height()) / rise, 1.0)
-	animation_player.play(climb_animation, 0.15, rate * shown)
-	animation_player.seek(phase * clip.length, true)
+	playback.play(climb_animation, 0.15, rate * shown)
+	playback.seek(phase * clip.length, true)
 
 
 ## Faster than this starts a turn, and slower than this ends one, in radians
@@ -652,7 +663,7 @@ func _show_turning() -> void:
 	var right: String = _clip(&"turn.right")
 	if left == "" or right == "":
 		return
-	var playing: String = String(animation_player.current_animation)
+	var playing: String = String(playback.current_animation)
 	var turning: bool = playing == left or playing == right
 	if unit.is_moving() or _aloft or _active_sequence != null or not (turning or playing == _idle()):
 		return
@@ -703,7 +714,7 @@ func _lift_without_takeoff() -> void:
 		return
 	var was_idle: bool = _base_animation == ground_idle
 	_base_animation = _idle()
-	if was_idle and animation_player.current_animation == ground_idle:
+	if was_idle and playback.current_animation == ground_idle:
 		_play(_base_animation)
 
 
@@ -806,7 +817,7 @@ func _rest_on_base_animation(blend: float = -1.0) -> void:
 	if unit.posed_status and _posed_clip != "" and _base_animation == _posed_clip \
 			and animation_player.has_animation(_posed_clip) \
 			and animation_player.get_animation(_posed_clip).loop_mode == Animation.LOOP_NONE:
-		animation_player.seek(animation_player.current_animation_length, true)
+		playback.seek(playback.current_animation_length, true)
 
 
 ## Returns whether a clip actually started playing.
@@ -898,17 +909,17 @@ func _play(anim_name: String, blend: float = -1.0) -> bool:
 		return false
 	# The two flight loops share one wing beat: starting the other over at
 	# frame 0 would cross-fade two different points in the flap.
-	var from: String = String(animation_player.current_animation)
+	var from: String = String(playback.current_animation)
 	var flight := [fly_idle_animation, fly_move_animation]
 	var keep_beat: bool = from != anim_name and from in flight and anim_name in flight
-	var beat: float = animation_player.current_animation_position if keep_beat else 0.0
+	var beat: float = playback.current_animation_position if keep_beat else 0.0
 	# Hover and the glide hold different poses, and a move starts and stops
 	# between them; a body with no default blend would cut.
 	if keep_beat and blend < 0.0:
 		blend = stance_blend_time
-	animation_player.play(anim_name, blend)
+	playback.play(anim_name, blend)
 	if keep_beat:
-		animation_player.seek(fposmod(beat, animation_player.current_animation_length), false)
+		playback.seek(fposmod(beat, playback.current_animation_length), false)
 	return true
 
 

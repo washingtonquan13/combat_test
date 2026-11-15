@@ -56,7 +56,7 @@ func run() -> void:
 	# damage — which removing the guard does not change, so the check could
 	# not fail and sabotaging it left the suite green. What a lost claim
 	# actually looks like is the CLIP changing.
-	var performing: String = animator.animation_player.current_animation
+	var performing: String = animator.playback.current_animation
 	check("SETUP: the performance clip is actually playing",
 		performing != "",
 		"nothing is playing, so a hit reaction has nothing to interrupt")
@@ -67,9 +67,9 @@ func run() -> void:
 
 	actor.took_damage.emit(actor, 5)
 	check("a hit reaction does not replace the performance",
-		animator.animation_player.current_animation == performing,
+		animator.playback.current_animation == performing,
 		"the clip changed from '%s' to '%s' — gameplay animated over the " % [
-			performing, animator.animation_player.current_animation] +
+			performing, animator.playback.current_animation] +
 		"shot, and nothing would have reported it")
 
 	# --- death is deliberately still allowed through ----------------------

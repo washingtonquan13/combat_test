@@ -23,7 +23,7 @@ func _lifts_hovers_glides_and_lands() -> void:
 	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee(), fly], Vector3.ZERO)
 	await get_tree().process_frame
 	var animator: Node = unit.get_node("UnitAnimator")
-	var player: AnimationPlayer = animator.animation_player
+	var player: BodyAnimationTree = animator.playback
 
 	check("SETUP: the body names its flight clips",
 		animator.takeoff_animation == "Flight/Takeoff" and animator.fly_idle_animation == "Flight/Hover",
@@ -94,7 +94,7 @@ func _spawned_flying_hovers_without_a_takeoff() -> void:
 	var unit: Unit = spawn_unit(&"player", 12, 12, 20, [melee()], Vector3(0, 4, 0))
 	await get_tree().process_frame
 	var animator: Node = unit.get_node("UnitAnimator")
-	var player: AnimationPlayer = animator.animation_player
+	var player: BodyAnimationTree = animator.playback
 	var fly: Ability = load("res://data/abilities/fly.tres")
 	unit.apply_status((fly.effects[0] as GrantFlightEffect).flying_status)
 	check("a flight status with no takeoff swaps idle for the hover",
