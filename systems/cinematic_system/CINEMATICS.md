@@ -263,6 +263,8 @@ A **FramingRig** under `Shots/` is one shot. It has no camera of its own. It des
 | `look_role` | Look at someone else instead of the subject, for an over-the-shoulder shot. |
 | `look_mark` | Look at a mark instead. Wins over `look_role`. |
 | `look_offset` | Shift the aim point without moving the camera, in world axes (x, y, z). This is the pan and tilt control. |
+| `pan_degrees` | Turn the camera sideways after aiming, so the subject sits on a third of the frame instead of in the middle. |
+| `focus_blur` | Depth-of-field strength. 0 leaves the frame sharp. Key it over a shot for a rack focus. |
 
 Empty look fields mean "look at the subject", which is what most shots want.
 
@@ -288,6 +290,24 @@ A move is keys on **one rig's** numbers, with the track's update mode set to **C
 | Pan / tilt | `look_offset` |
 
 Name fields such as `subject_role` should never be interpolated: key them on a Discrete track. To move from one person to another, **cut** to a second rig. Don't animate one rig from one person to the other.
+
+**Held lines freeze moves.** A line that waits for the player (`wait_for_advance`) stops the timeline, and every keyed move stops with it. Put a move under an unheld line or between lines, as the ambush puts its push-in on the final bark.
+
+### Moving shots on a line: CameraPathRig
+
+A **CameraPathRig** is a shot whose camera rides a drawn line instead of an orbit. Use it for a move that is about the place rather than a person: a crane down over a wall, a track along a road, a dolly past a gate. It lives under `Shots/` and is cut to like any rig.
+
+1. Add a `CameraPathRig` under `Shots/`, then add a `Path3D` child (call it `Line`) and draw the route the camera takes. Point `path` at it.
+2. Set what it looks at with `look_role` or `look_mark`, as on any rig. The aim follows that person as they walk.
+3. Key `progress` from 0 (first point) to 1 (last point) on a Continuous track. Speed and easing come from the keys, nothing else. A transition curve of -2 eases in and out.
+
+| Field | Meaning |
+|---|---|
+| `path` | The Path3D the camera rides. The line is the stage's, so it moves with `anchor_mark`. |
+| `progress` | 0 to 1, by distance along the line. The one property to key. |
+| `aim_path` | Optional second line the aim rides at the same progress, for a move that starts on one thing and ends on another. Replaces `look_role`/`look_mark`. |
+
+The orbit fields (`distance`, angles) are ignored; `fov_degrees`, `look_offset`, `pan_degrees` and `focus_blur` still apply. With no usable line the camera holds where it was. Cutting to or from a ride is always a hard cut, never a blend. Example: `Shots/camp_crane` in `cinematics/goblin_camp_ambush.tscn`.
 
 ### When the scene ends
 

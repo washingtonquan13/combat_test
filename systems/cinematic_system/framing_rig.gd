@@ -44,6 +44,9 @@ extends Node3D
 @export var look_role: StringName = &""
 @export var look_mark: StringName = &""
 @export var look_offset: Vector3 = Vector3.ZERO
+@export var pan_degrees: float = 0.0
+## Keyed over a shot, this is a rack focus. 0 leaves the frame sharp.
+@export var focus_blur: float = 0.0
 
 ## ONE framing, reused. A new Resource every frame would be sixty
 ## allocations a second for a value overwritten before anything reads it
@@ -96,16 +99,24 @@ func tick() -> void:
 
 ## This rig's properties as a CameraFraming. The same object every time.
 func framing() -> CameraFraming:
-	_framing.subject_role = subject_role
-	_framing.subject_mark = subject_mark
-	_framing.distance = distance
-	_framing.azimuth_degrees = azimuth_degrees
-	_framing.elevation_degrees = elevation_degrees
-	_framing.fov_degrees = fov_degrees
-	_framing.look_role = look_role
-	_framing.look_mark = look_mark
-	_framing.look_offset = look_offset
-	return _framing
+	return _fill(_framing)
+
+
+## Copies every mirrored field onto `into`. One copy, so a subclass that
+## hands the camera a framing of its own cannot drop a field the base keeps.
+func _fill(into: CameraFraming) -> CameraFraming:
+	into.subject_role = subject_role
+	into.subject_mark = subject_mark
+	into.distance = distance
+	into.azimuth_degrees = azimuth_degrees
+	into.elevation_degrees = elevation_degrees
+	into.fov_degrees = fov_degrees
+	into.look_role = look_role
+	into.look_mark = look_mark
+	into.look_offset = look_offset
+	into.pan_degrees = pan_degrees
+	into.focus_blur = focus_blur
+	return into
 
 
 ## Where this rig puts the camera, given a source that answers

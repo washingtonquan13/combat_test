@@ -1,4 +1,4 @@
-[gd_scene load_steps=14 format=3]
+[gd_scene load_steps=16 format=3]
 
 [ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
 [ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/line_beat.gd" id="6_line"]
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/place_beat.gd" id="7_place"]
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/walk_path_beat.gd" id="8_path"]
+[ext_resource type="Script" path="res://systems/cinematic_system/camera_path_rig.gd" id="9_ride"]
 
 [sub_resource type="Curve3D" id="Curve3D_hobgoblin"]
 _data = {
@@ -19,6 +20,13 @@ point_count = 3
 [sub_resource type="Curve3D" id="Curve3D_rogue"]
 _data = {
 "points": PackedVector3Array(0, 0, 0, 0, 0, 0, -16.5, -0.49, -19, -2.09, 0, -1.37, 2.09, 0, 1.37, -3, -0.38, -23, 0, 0, 0, 0, 0, 0, -1.2, 1.72, -9),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_crane"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, -0.9, -1.2, -1.0, 4.5, 7.0, 7.0, 0.8, 1.0, 1.0, -0.8, -1.0, -1.0, 2.6, 3.9, 4.2, 0.5, 0.6, 0.7, 0, 0, 0, 1.2, 2.4, 2.3),
 "tilts": PackedFloat32Array(0, 0, 0)
 }
 point_count = 3
@@ -35,7 +43,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0),
 "transitions": PackedFloat32Array(1),
 "update": 1,
-"values": [&"camp_wide"]
+"values": [&"camp_crane"]
 }
 
 [sub_resource type="Animation" id="Animation_scene"]
@@ -52,7 +60,7 @@ tracks/0/keys = {
 "times": PackedFloat32Array(0, 6.6, 7.0, 9.0),
 "transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [&"camp_wide", &"hobgoblin_close", &"watchman_close", &"camp_wide"]
+"values": [&"camp_crane", &"hobgoblin_close", &"watchman_close", &"hobgoblin_push"]
 }
 tracks/1/type = "method"
 tracks/1/imported = false
@@ -208,6 +216,42 @@ tracks/11/keys = {
 "method": &"fire"
 }]
 }
+tracks/12/type = "value"
+tracks/12/imported = false
+tracks/12/enabled = true
+tracks/12/path = NodePath("Shots/camp_crane:progress")
+tracks/12/interp = 1
+tracks/12/loop_wrap = true
+tracks/12/keys = {
+"times": PackedFloat32Array(0, 6.6),
+"transitions": PackedFloat32Array(-2, 1),
+"update": 0,
+"values": [0.0, 1.0]
+}
+tracks/13/type = "value"
+tracks/13/imported = false
+tracks/13/enabled = true
+tracks/13/path = NodePath("Shots/hobgoblin_push:distance")
+tracks/13/interp = 1
+tracks/13/loop_wrap = true
+tracks/13/keys = {
+"times": PackedFloat32Array(9.0, 10.6),
+"transitions": PackedFloat32Array(-1.6, 1),
+"update": 0,
+"values": [4.2, 2.0]
+}
+tracks/14/type = "value"
+tracks/14/imported = false
+tracks/14/enabled = true
+tracks/14/path = NodePath("Shots/hobgoblin_push:fov_degrees")
+tracks/14/interp = 1
+tracks/14/loop_wrap = true
+tracks/14/keys = {
+"times": PackedFloat32Array(9.0, 10.6),
+"transitions": PackedFloat32Array(-1.6, 1),
+"update": 0,
+"values": [46.0, 38.0]
+}
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_ambush"]
 _data = {
@@ -221,7 +265,7 @@ performs_on_stand_ins = true
 anchor_mark = &"CampAmbush"
 props = {}
 world_marks = PackedStringArray("CampAmbush", "AmbushWatchmanEnter", "AmbushWatchmanStand")
-shot = &"camp_wide"
+shot = &"camp_crane"
 
 [node name="Roles" type="Node3D" parent="."]
 
@@ -266,17 +310,22 @@ curve = SubResource("Curve3D_rogue")
 
 [node name="Shots" type="Node3D" parent="."]
 
-[node name="camp_wide" type="Node3D" parent="Shots"]
-script = ExtResource("3_rig")
+[node name="camp_crane" type="Node3D" parent="Shots"]
+script = ExtResource("9_ride")
+path = NodePath("Line")
 subject_role = &"leader"
-subject_mark = &""
-distance = 6.5
-azimuth_degrees = 160.0
-elevation_degrees = 22.0
-fov_degrees = 55.0
 look_role = &"hobgoblin"
-look_mark = &""
-look_offset = Vector3(0, 0, 0)
+
+[node name="Line" type="Path3D" parent="Shots/camp_crane"]
+curve = SubResource("Curve3D_crane")
+
+[node name="hobgoblin_push" type="Node3D" parent="Shots"]
+script = ExtResource("3_rig")
+subject_role = &"hobgoblin"
+distance = 4.2
+azimuth_degrees = 25.0
+elevation_degrees = 8.0
+fov_degrees = 46.0
 
 [node name="hobgoblin_close" type="Node3D" parent="Shots"]
 script = ExtResource("3_rig")

@@ -14,6 +14,12 @@ A staged scene never moves a gameplay unit. `StandIn.raise(unit, at, facing)` (s
 - **Clip blending**: `CinematicStage.clip` crossfades on the actor's `UnitAnimator.stance_blend_time`, through `StandIn.play(clip, blend)` or `UnitAnimator.play_cutscene_clip(clip, blend)`, so scene clips no longer cut pose to pose.
 - **Limits**: effects and floating text stay on the real unit; on a stage without `performs_on_stand_ins`, clip and walk beats animate the unit itself; the copy is taken once at raise, so gear changed mid-scene does not show.
 
+## Shots
+- `FramingRig` (framing_rig.gd) mirrors every CameraFraming field, including `pan_degrees` and `focus_blur`, through `_fill`. Keying the stage's `shot` is a cut; keying a rig's numbers is a move.
+- `CameraPathRig` (camera_path_rig.gd) extends it: the eye is `path` (a Path3D, stage-owned) sampled at `progress` 0..1 by baked distance; the aim is the usual look role/mark, or `aim_path` at the same progress. Its framing (`_Riding`) never `shares_subject_with` another, so it is always a cut. No line resolves to ZERO and the camera holds.
+- A held line (`wait_for_advance`) sets the timeline's speed_scale to 0, so keyed moves freeze during it.
+- The goblin camp ambush opens on `camp_crane` (a ride) and ends on `hobgoblin_push` (keyed distance and fov on the unheld last bark).
+
 ## State it owns (source of truth)
 | State | Where (file:line) | Persisted? (save key) |
 |---|---|---|
@@ -69,4 +75,4 @@ A staged scene never moves a gameplay unit. `StandIn.raise(unit, at, facing)` (s
 | 7 | dialogue_staging calls play without awaiting or checking refusal; a staged node during a running cutscene is silently dropped. | dialogue_staging.gd:111 | NEW |
 
 ## Tests
-`tests/cinematic/` (11): a_stand_in_wears_no_rings, dialogue_stand_ins, a_scene_performs_on_stand_ins, a_scene_can_direct_a_performance, a_scene_is_a_timeline, framing_and_transit, fusion_plays_without_dialogue, new_callers_cost_nothing, staging_stays_out_of_the_dialogue, the_rig_speaks_one_vocabulary, the_seam (world_loading cancel). Gaps: no multi-resident-world mark lookup test; no combat-intro-in-unfocused-world test.
+`tests/cinematic/` (12): a_shot_can_ride_a_line, a_stand_in_wears_no_rings, dialogue_stand_ins, a_scene_performs_on_stand_ins, a_scene_can_direct_a_performance, a_scene_is_a_timeline, framing_and_transit, fusion_plays_without_dialogue, new_callers_cost_nothing, staging_stays_out_of_the_dialogue, the_rig_speaks_one_vocabulary, the_seam (world_loading cancel). Gaps: no multi-resident-world mark lookup test; no combat-intro-in-unfocused-world test.
