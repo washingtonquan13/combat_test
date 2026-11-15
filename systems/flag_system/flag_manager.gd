@@ -21,6 +21,10 @@ extends Node
 ## behind this same dictionary, under a reserved "areastate/" prefix)
 ## along for free, with no separate save path for either.
 
+## A flag was set or cleared. Not for a whole load_state(): a restore is
+## answered by SaveManager.load_finished, once everything else is back too.
+signal flag_changed(flag_name: String)
+
 var _flags: Dictionary = {}
 
 
@@ -64,6 +68,7 @@ func load_state(state: Dictionary) -> void:
 ## needing more than yes/no, without this API needing to change later.
 func set_flag(flag_name: String, value: Variant = true) -> void:
 	_flags[flag_name] = value
+	flag_changed.emit(flag_name)
 
 
 func get_flag(flag_name: String, default: Variant = false) -> Variant:
@@ -75,7 +80,8 @@ func has_flag(flag_name: String) -> bool:
 
 
 func clear_flag(flag_name: String) -> void:
-	_flags.erase(flag_name)
+	if _flags.erase(flag_name):
+		flag_changed.emit(flag_name)
 
 
 ## Every currently-set flag name starting with prefix — lets a consumer

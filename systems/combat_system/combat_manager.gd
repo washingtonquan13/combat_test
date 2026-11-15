@@ -446,12 +446,19 @@ func _on_encounter_ended(encounter: Encounter, winning_faction: StringName) -> v
 ## somewhere else changes it without anything happening in the fight. That
 ## is precisely what a pushed mode could not express.
 func a_watched_fight_is_running() -> bool:
+	return watched_fight() != null
+
+
+## The fight a_watched_fight_is_running() is about, or null. A split party
+## can be in two fights at once; only one is in the world on screen.
+func watched_fight() -> Encounter:
 	for encounter in all_encounters():
 		if not is_instance_valid(encounter):
 			continue
-		if encounter.is_running 				and _involves_player(encounter.turn_order) 				and _is_in_focused_world(encounter):
-			return true
-	return false
+		if encounter.is_running and _involves_player(encounter.turn_order) \
+				and _is_in_focused_world(encounter):
+			return encounter
+	return null
 
 
 func _is_in_focused_world(encounter: Encounter) -> bool:

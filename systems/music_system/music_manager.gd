@@ -9,12 +9,19 @@ extends Node
 ## and the table says whether that lands on the next bar, the next section,
 ## or through the outgoing piece's ending.
 ##
-## Music is named per game area and moment — "<area id>.<moment>" — and
+## An area's music is named per area and moment — "<area id>.<moment>" — and
 ## derived, never stored: an AreaDefinition does not say what it plays,
 ## the table does, under a name built from the area's own id. So a new
 ## area gets its music by adding three entries to the table and nothing
 ## else. An area the table does not know stays on whatever is already
 ## playing, with a warning; AreaValidator reports the gap ahead of time.
+##
+## The story can play something else in an area's place: a cue in
+## music/cues.json names a piece for an area and moment while some flags hold
+## (see MusicCues) - the valley's fights while the goblins raid it. A fight
+## keeps the piece it started with to its end, however the story moves on
+## during it. A cutscene on screen plays its own (CinematicStage.music) over
+## all of it.
 ##
 ## The game rules that survived from the WAV-stem system, unchanged:
 ## combat music only for a fight in the world on SCREEN, the fight's music
@@ -86,6 +93,13 @@ var _loading := false
 ## CinematicStage.music_carries_on), until the game next asks for anything.
 var _carried := ""
 
+var _cues: MusicCues
+## Every flag a cue reads: only a change to one of those is a reason to look
+## again (AreaState writes flags all the time).
+var _cue_flags: Dictionary[String, bool] = {}
+## The piece each fight started with, by the Encounter's instance id.
+var _fight_music: Dictionary[int, String] = {}
+
 
 func _ready() -> void:
 	CombatManager.combat_started.connect(_on_combat_started)
@@ -101,6 +115,9 @@ func _ready() -> void:
 	CinematicDirector.scene_finished.connect(_on_scene_finished)
 	SaveManager.load_started.connect(_on_load_started.unbind(1))
 	SaveManager.load_finished.connect(_on_load_finished.unbind(3))
+	_cues = MusicCues.load_from()
+	_cue_flags = _cues.flags_read()
+	FlagManager.flag_changed.connect(_on_flag_changed)
 	Music.preload_hold = SfzMusicDirector.Hold.SCORES
 	# The game's target for resident sample audio, so the director's meter
 	# warns when a load goes past it (its own default is 768 MB).
@@ -163,16 +180,16 @@ func _hold_combat_if_near() -> void:
 	var area: AreaDefinition = WorldManager.current_area()
 	if area == null or not Music.table:
 		return
-	var combat := music_area(area.id, COMBAT)
+	var combat := music_for(area.id, COMBAT)
 	if not Music.table.has_area(combat):
 		return
-	var held := Music.preloaded() == combat
+	var held: String = Music.preloaded()
 	var now := Time.get_ticks_msec()
-	if a_hostile_is_in_range(RELEASE_REACH if held else 1.0):
+	if a_hostile_is_in_range(RELEASE_REACH if held != "" else 1.0):
 		_threat_seen_msec = now
-		if not held:
+		if held != combat:
 			Music.preload_area(combat, SfzMusicDirector.Hold.ENSEMBLE)
-	elif held and now - _threat_seen_msec > RELEASE_AFTER * 1000.0:
+	elif held != "" and now - _threat_seen_msec > RELEASE_AFTER * 1000.0:
 		Music.release_preload()
 
 
@@ -242,6 +259,12 @@ func _on_combat_started(turn_order: Array[Unit]) -> void:
 	_reconcile(_is_on_screen(turn_order))
 
 
+## A cue's flag moved: the story is somewhere else, and so may the music be.
+func _on_flag_changed(flag_name: String) -> void:
+	if _cue_flags.has(flag_name):
+		_reconcile()
+
+
 ## A scene scored to music asks for it, and holds its first frame until that
 ## music's downbeat has sounded: the score and the timeline start together
 ## however long the ensemble took to load. A scene with no music changes
@@ -299,10 +322,35 @@ func _reconcile(urgent: bool = false) -> void:
 	var scored := _scene_music()
 	if scored != "":
 		# A scene mostly ends in a fight where it is staged.
-		_go(scored, urgent, music_area(area.id, COMBAT))
+		_go(scored, urgent, music_for(area.id, COMBAT))
 		return
 	var moment := wanted_moment()
-	_go(music_area(area.id, moment), urgent, _next_likely(area.id, moment))
+	_go(music_for(area.id, moment), urgent, _next_likely(area.id, moment))
+
+
+## What plays in this area at this moment: what a cue says, while the story
+## is where one holds, or else the area's own music (music_area()). A fight on
+## screen answers COMBAT with the piece it started with, so a fight scored to
+## the raid stays scored to it when the raid is broken partway through it;
+## a fight restored from a save starts with whatever holds then.
+func music_for(area_id: StringName, moment: StringName) -> String:
+	var fight: Encounter = CombatManager.watched_fight() if moment == COMBAT else null
+	if fight != null and _fight_music.has(fight.get_instance_id()):
+		return _fight_music[fight.get_instance_id()]
+	var music: String = _cues.music_for(area_id, moment, FlagManager.has_flag) if _cues else ""
+	if music == "":
+		music = music_area(area_id, moment)
+	if fight != null:
+		_forget_finished_fights()
+		_fight_music[fight.get_instance_id()] = music
+	return music
+
+
+func _forget_finished_fights() -> void:
+	for id in _fight_music.keys():
+		var encounter := instance_from_id(id) as Encounter
+		if encounter == null or not encounter.is_running:
+			_fight_music.erase(id)
 
 
 ## The moment the game is in, from live state alone. Only a negotiation has
@@ -341,13 +389,13 @@ func _scene_music() -> String:
 func _next_likely(area_id: StringName, moment: StringName) -> String:
 	match moment:
 		EXPLORATION:
-			return music_area(area_id, COMBAT)
+			return music_for(area_id, COMBAT)
 		COMBAT:
-			return music_area(area_id, NEGOTIATION)
+			return music_for(area_id, NEGOTIATION)
 		NEGOTIATION:
 			# Loading the negotiation's ensemble unloaded the fight's, and a
 			# negotiation mostly ends back in the fight.
-			return music_area(area_id, COMBAT)
+			return music_for(area_id, COMBAT)
 	return ""
 
 

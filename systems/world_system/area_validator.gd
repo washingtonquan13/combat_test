@@ -57,6 +57,8 @@ static func validate() -> Array[Issue]:
 	for area in areas:
 		known_ids[area.id] = true
 
+	_check_cues(MusicCues.load_from(), known_ids, issues)
+
 	var links: Dictionary = {}  # StringName -> Dictionary of StringName -> true
 	for area in areas:
 		links[area.id] = {}
@@ -103,6 +105,46 @@ static func _check_music(area: AreaDefinition, where: String, issues: Array[Issu
 		var music: String = MusicManager.music_area(area.id, moment)
 		if not table.has_area(music):
 			issues.append(Issue.new(false, where, "no '%s' in the transitions table — %s keeps the previous music" % [music, moment]))
+
+
+## A cue (see MusicCues) names a piece outright, so the table has to know it,
+## and its area has to exist. A fight's piece also needs rules of its own to
+## and from the area's negotiation: a fight's music otherwise leaves through
+## its rule for leaving a fight, made for walking back into the area.
+static func _check_cues(cues: MusicCues, known_ids: Dictionary, issues: Array[Issue]) -> void:
+	var table: SfzTransitions = SfzTransitions.load_from(SfzSettings.transitions_path())
+	var moments := [String(MusicManager.EXPLORATION), String(MusicManager.COMBAT), String(MusicManager.NEGOTIATION)]
+	for cue in cues.cues:
+		var where := "%s %s" % [MusicCues.PATH, cue["music"]]
+		var area: String = cue["area"]
+		if area != "*" and not known_ids.has(StringName(area)):
+			issues.append(Issue.new(true, where, "area '%s' names no known area" % area))
+		if not moments.has(cue["moment"]):
+			issues.append(Issue.new(true, where, "no moment called '%s' (%s)" % [cue["moment"], ", ".join(moments)]))
+		for condition: Variant in cue.get("when", []):
+			if not condition is String or String(condition).trim_prefix("!").is_empty():
+				issues.append(Issue.new(true, where, "'when' holds something that is not a flag: %s" % [condition]))
+		if table == null:
+			continue
+		var music: String = cue["music"]
+		if not table.has_area(music):
+			issues.append(Issue.new(true, where, "no '%s' in the transitions table" % music))
+			continue
+		if cue["moment"] != String(MusicManager.COMBAT):
+			continue
+		var areas: Array = known_ids.keys() if area == "*" else [StringName(area)]
+		for id: StringName in areas:
+			var negotiation := MusicManager.music_area(id, MusicManager.NEGOTIATION)
+			for pair in [[music, negotiation], [negotiation, music]]:
+				if not _has_exact_rule(table, pair[0], pair[1]):
+					issues.append(Issue.new(false, where, "no rule from '%s' to '%s' — a negotiation in this fight takes the general one" % pair))
+
+
+static func _has_exact_rule(table: SfzTransitions, from: String, to: String) -> bool:
+	for rule: Dictionary in table.rules:
+		if rule["from"] == from and rule["to"] == to:
+			return true
+	return false
 
 
 static func _check_exits(area: AreaDefinition, known_ids: Dictionary, links: Dictionary, issues: Array[Issue]) -> void:
