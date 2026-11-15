@@ -51,14 +51,19 @@ Three representations of "a unit's skills" that must be copied by hand:
 ## Known issues
 | # | Issue | Evidence (file:line) | Status |
 |---|---|---|---|
-| 1 | No stable skill id: `SkillDatabase` and `SkillCalculator` key on `skill_name` display text; saves store it; renaming a skill silently drops it from loaded party members and breaks the code literals "Basic Attack"/"Stealth" (Basic Attack falling to default changes every to-hit) | `skill_database.gd:30,55`; `skill_calculator.gd:94`; `party_manager.gd:516,668-670`; `unit_combat.gd:178`; `detection_manager.gd:268` | CONFIRMED |
-| 2 | Duplicate `skill_name` resolves to the LAST loaded file (`find_first_wins=false`), the opposite policy from AbilityDatabase | `skill_database.gd:56`; `resource_catalog.gd:157-161`; `ability_database.gd:52` | NEW |
-| 3 | Exported builds: `handle_remap=false`, so `.tres.remap` skills are invisible; `find()` returns null for every saved/defaulted skill | `skill_database.gd:56`; `resource_catalog.gd:21-27,142-145` | NEW |
+| 1 | No stable skill id: `SkillDatabase` and `SkillCalculator` key on `skill_name` display text; saves store it; renaming a skill silently drops it from loaded party members and breaks the code literals "Basic Attack"/"Stealth" (Basic Attack falling to default changes every to-hit) | `skill_database.gd:30,55`; `skill_calculator.gd:94`; `party_manager.gd:516,668-670`; `unit_combat.gd:178`; `detection_manager.gd:268` | CONFIRMED; review 11-15: still open, see U24 (`unit_combat.gd:196-197` still passes the literal "Basic Attack"; `skill_calculator.gd:97-99` matches on `skill_name`) |
+| 2 | Duplicate `skill_name` resolves to the LAST loaded file (`find_first_wins=false`), the opposite policy from AbilityDatabase | `skill_database.gd:56`; `resource_catalog.gd:157-161`; `ability_database.gd:52` | NEW; review 11-15: still open, see U24 |
+| 3 | Exported builds: `handle_remap=false`, so `.tres.remap` skills are invisible; `find()` returns null for every saved/defaulted skill | `skill_database.gd:56`; `resource_catalog.gd:21-27,142-145` | NEW; review 11-15: still open, see U24 |
 | 4 | `Skill.prerequisites` is exported but never evaluated anywhere (only `learned_only` is read) | `skill.gd:31`; only `.prerequisites` reader is `conversation.gd:371` (choices) | NEW |
-| 5 | `AdvantagePrerequisite`, `TagPrerequisite`, `SkillCategoryPrerequisite` have no `is_satisfied`; the base pushes an error and returns false | `advantage_prerequisite.gd:9-11`, `tag_prerequisite.gd:11-12`, `skill_category_prerequisite.gd:9-10`; `prerequisite_rule.gd:17-19` | NEW (documented stubs) |
+| 5 | `AdvantagePrerequisite`, `TagPrerequisite`, `SkillCategoryPrerequisite` have no `is_satisfied`; the base pushes an error and returns false | `advantage_prerequisite.gd:9-11`, `tag_prerequisite.gd:11-12`, `skill_category_prerequisite.gd:9-10`; `prerequisite_rule.gd:17-19` | NEW (documented stubs) [review 11-15: DOC DRIFT, advantages now exist (`systems/advantage_system/`), so `AdvantagePrerequisite` could use `unit.advantage_level(id)` (unit.gd:1906); still a stub, not re-verified] |
 | 6 | `ItemOwnedPrerequisite` reads inventory from the PartyOverview UI node via a group lookup; false if the UI is not in the tree | `item_owned_prerequisite.gd` | FIXED (reads PartyManager.inventory) |
-| 7 | Three hand-synced copies of a unit's skills (instances, PartyMemberData, UnitDefinition) | `party_manager.gd:396-400,745-750`; `unit.gd:1067-1084` | NEW |
+| 7 | Three hand-synced copies of a unit's skills (instances, PartyMemberData, UnitDefinition) | `party_manager.gd:396-400,745-750`; `unit.gd:1067-1084` | NEW; review 11-15: still open (party_manager.gd:555-559, 899-904; unit.gd:1405-1422) |
 | 8 | Unknown skill on load is skipped with no warning | `party_manager.gd:668-670` vs `:654` | NEW (minor) |
+
+### Review 2026-11-15 (HEAD 14cb4ad9)
+| id | Issue | Evidence | Cause | Sustainable fix | Root | Size | Status |
+|---|---|---|---|---|---|---|---|
+| U24 | The skills database follows a different rule from the stat and advantage databases: skills are keyed by display name, a duplicate silently replaces the earlier one (last wins) and `.remap` files in an exported build are not followed. | skill_database.gd:56 vs stat_database.gd:167, advantage_database.gd:35 | SkillDatabase was built before the shared catalog policy and not converted. | Build it on `ResourceCatalog` with first-wins, remap handling and duplicate reporting, keyed by a stable id. | R4, R6 | S | KNOWN (#2, #3) |
 
 ## Tests
 - `tests/dialogue/test_a_skill_shows_its_level.gd` (level display via calculator).

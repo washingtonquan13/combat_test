@@ -1,7 +1,7 @@
 # Selection & indicators
 
 **Files:**
-- `systems/selection_system/`: selection_manager.gd (114), drag_select_box.gd (142).
+- `systems/selection_system/`: selection_manager.gd (362), drag_select_box.gd (142).
 - `systems/indicator_system/`:
   - indicator_base.gd (live/draw contract + line meshes only)
   - ground_click_target.gd (ClickRouter: the one Cursor, the one Aim, the draw loop)
@@ -81,19 +81,21 @@ None of these validate or execute actions. Execution goes to CombatManager, Abil
 - **Indicators, ClickRouter and DragSelectBox are attention nodes.** WorldManager reparents them into the focused world's viewport (main_root.gd:41-44; world_manager.gd:230-239). They only ever raycast and render in *one* world: the focused one. This is a deliberate "one focused world" assumption, and it still holds, because only one world is on screen.
 - **ClickRouter sets process_priority -10** so it runs before nodes that read its cursor (nav overlay). Intent-driven indicators no longer process; the router draws them after the intent is applied.
 - **Freed selection entries are not cleaned up proactively.**
-  - Only `_clear_all_except` filters freed entries (selection_manager.gd:99-114), and only when the next select or deselect happens.
+  - Only `_clear_all_except` filters freed entries (selection_manager.gd:347-362), and only when the next select or deselect happens.
   - Only unit_death removes a unit (unit_death.gd:74-75). Despawn, `_disembody` (world_manager.gd:410-427) and the debug-panel removal (debug_spawn_panel.gd:146-151) leave dangling entries.
   - Every reader must guard with is_instance_valid. Readers that do:
     - area_exit.gd:84
     - player_interaction_state.gd:70-72
     - ground_click_target.gd:308
-- **The selection is world-agnostic storage.** Nothing stops it from holding units in a non-focused world. The turn hook filters (selection_manager.gd:44-46), and travel empties it (world_manager.gd:379).
+- **Weapon-set swap (F) is handled here, not by the router** (`selection_manager.gd:217-221,239-245`): weapon sets were built with the dock hotbar and the key went where the selected units are (f31df5fe). Tab cycling is also here (`:223-231`).
+- Router cites at HEAD: intent `ground_click_target.gd:256-280`, world focus `:288-289`, `click_unit` `:866-902`, `use_ground_targeted` `:909-933`. Not described above: `click_feedback.gd`, `aoe_shell.gd` + shader, `cone_indicator.gd`, `hit_chance_indicator.gd`, `indicator_palette.gd`, `ClickAnswer` and the context cursor, the latched height plane and Ctrl-wheel, the arc cursor, press/release clicks, body-sized pick areas (8cdf7f8e), the pre-combat selection snapshot and restore, and the "selection never empty" rule (c4d350c7).
+- **The selection is world-agnostic storage.** Nothing stops it from holding units in a non-focused world. The turn hook filters (selection_manager.gd:64-72), and travel empties it (world_manager.gd:379).
 
 ## Lifecycle
 - **Boot.** The SelectionManager autoload has an empty selection. Indicators and ClickRouter are MainRoot nodes. They are registered as attention nodes in main_root.gd:41-44 and move into each focused world's viewport.
 - **Travel and world switch.** `_leave_focused` calls deselect_all (world_manager.gd:379). The attention nodes are reparented (world_manager.gd:230-239). ClickRouter's `_last` resets on world_focused (ground_click_target.gd:161-162).
 - **Load.** `_tear_down_worlds` → `_leave_focused` → deselect_all (world_manager.gd:343-353, 375-381). The units are then freed by `_disembody`, after the selection is already empty, so this path is safe.
-- **Combat.** A turn starting in the focused world selects the acting unit (selection_manager.gd:43-47). Turns elsewhere leave the selection alone.
+- **Combat.** A turn starting in the focused world selects the acting unit (selection_manager.gd:64-72). Turns elsewhere leave the selection alone.
 - **Dialogue and cutscene.** The drag box is off when CameraDirector lacks control (drag_select_box.gd:51). The indicators follow ClickRouter's intent.
 - **New game and save.** Nothing is saved, and nothing is reset beyond what travel does.
 
@@ -101,10 +103,20 @@ None of these validate or execute actions. Execution goes to CombatManager, Abil
 | # | Issue | Evidence (file:line) | Status |
 |---|---|---|---|
 | 1 | IdleIntent.flying_units_for_altitude (moved from movement_indicator) guards each selected unit with is_instance_valid before `is_flying()`. | idle_intent.gd | FIXED |
-| 2 | AbilityHotbar's refresh passes each selected entry to a typed `_in_view(candidate: Unit)`, which errors on a freed one. This is the same root cause as issue 1. | ability_hotbar.gd:163-164 | NEW |
-| 3 | Root cause of issues 1 and 2: the selection is never pruned when a unit leaves the tree. Only the next select or deselect filters it. | selection_manager.gd:99-114; unit_death.gd:74-75 | CONFIRMED |
+| 2 | AbilityHotbar's refresh passes each selected entry to a typed `_in_view(candidate: Unit)`, which errors on a freed one. This is the same root cause as issue 1. | ui/hotbar/dock.gd (was ability_hotbar.gd:163-164, file gone; ui scope to confirm) | NEW |
+| 3 | Root cause of issues 1 and 2: the selection is never pruned when a unit leaves the tree. Only the next select or deselect filters it. | selection_manager.gd:347-362; unit_death.gd:75 | CONFIRMED; review 11-15: still open, see ABIL-10 |
 | 4 | (was: static `_raycast_cache` shared across worlds) | removed with the cache 2026-11-04 | FIXED |
-| 5 | deselect_all emits selection_changed even when nothing was selected, so listeners re-run on every travel. | selection_manager.gd:94-96 | NEW (minor) |
+| 5 | deselect_all emits selection_changed even when nothing was selected, so listeners re-run on every travel. | selection_manager.gd:342-344 | NEW (minor); review 11-15: still open, see ABIL-19 |
+
+### Review 2026-11-15 (HEAD 14cb4ad9)
+| id | Issue | Evidence | Cause | Sustainable fix | Root | Size | Status |
+|---|---|---|---|---|---|---|---|
+| ABIL-10 | Selection and indicators hold units that can be freed (a dismissed summon, an unloaded area); the next `_clear_all_except` touches the freed instance. `drag_select_box`, `click_feedback._held` and `seeking_indicator._last_query_unit` also cache units | `selection_manager.gd:347-362`; `drag_select_box.gd:119-121,129-130`; `click_feedback.gd:89`; `seeking_indicator.gd:45-49` | Nothing removes a unit from `selected_units` when it leaves the tree; death is covered (`unit_death.gd:75`), a free without death is not. | `select()` connects the unit's `tree_exiting` to `deselect` (the pre-combat snapshot does the same); other holders listen to `selection_changed` instead of caching. | R5 | S | KNOWN (#3): see row 3 above |
+| ABIL-11 | Weapon-set swap input (F key) lives in SelectionManager, a second input handler for unit commands with its own gating | `selection_manager.gd:217-221,239-245` | Weapon sets (BG3-style) were built with the dock hotbar (f31df5fe) and the key went where the selected units were. | If it moves, unit-command keys go through the router's intent (`IdleIntent` handles F, `AimingIntent` ignores or disarms first). | - | S | INTENTIONAL; document why: weapon sets and the dock hotbar built together, F swap beside the selection (f31df5fe) |
+| ABIL-14 | "Who does this ability catch" is answered by type tests and duck-typed field probes in the indicators; the union across effects can differ from what each effect applies | `indicator_base.gd:106-119`; `aerial_area_indicator.gd:75-79`; `hit_chance_indicator.gd:67`; `line_of_sight_indicator.gd:57,90`; `ability.gd:243`; `area_indicator.gd:87-104` | The indicators were written against the effect and targeting classes as they existed, and each new class added a test instead of a virtual. | Virtuals on the model: `AbilityEffect.catches(caster, unit)`, `AbilityTargeting.sight_mask()`, `Ability.preview_shape()`; indicators stop importing effect classes. | R8, R4 | M | BUG (latent: a new effect or targeting class is silently drawn wrong) |
+| ABIL-19 | `deselect_all` can leave nobody selected (and always emits `selection_changed`) | `ground_click_target.gd:781-782`; `selection_manager.gd:342-344` | The "selection never empty" rule (c4d350c7) is enforced in the click and box paths only, not in `SelectionManager`. | Decide the rule in `SelectionManager`: either `deselect_all` is the one documented exception, or it reselects the leader. | - | S | DECISION NEEDED: the selection-never-empty rule (c4d350c7) says selection is never empty; is this path the deliberate exception? |
+| ABIL-20 | `alignment_grid.gd` (62 lines) is a UI Control for demon alignment, not a world indicator, and sits in `systems/indicator_system/` | `systems/indicator_system/alignment_grid.gd` | Placed beside the indicators when written. | Move under `ui/` or the demon system and drop it from this doc's file list. | - | S | LEFTOVER |
+| ABIL-D | Doc text was behind the code (file sizes, selection cites, router cites, hotbar file renamed, undocumented mechanics) | rows and bullets edited in place | | | - | S | DOC DRIFT; fixed in doc |
 
 ## Tests
 - tests/combat/test_selection_is_a_node.gd

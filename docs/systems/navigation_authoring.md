@@ -6,7 +6,7 @@ What level geometry has to look like for `NavigationGrid` (gdextension/src/navig
 - A `CollisionShape3D` that is a **direct child** of a `StaticBody3D` (`collect_static_shapes`). A shape nested deeper, for example under a plain Node3D inside the body, is not read.
 - The body must be on at least one collision layer. A body with `collision_layer == 0` collides with nothing and is skipped. The project defines no separate world-geometry layer (units, props and level share layer 1), so any layer counts.
 - `CollisionShape3D.disabled` shapes are skipped, as are shapes with no Shape resource.
-- The bake is a snapshot taken at the first query after `NavigationGrid.invalidate()`. Geometry that moves must call `invalidate()` when it settles; movable_prop.gd does this on every drop.
+- The bake is a snapshot taken at the first query after `NavigationGrid.invalidate()`. Geometry that moves must call `invalidate_region` when it settles; movable_prop.gd (line 122), the quarry gate and surface barriers do this. The bake does not notice a rewritten shape or a freed body on its own (review 2026-11-15, MOVE-25, see navigation.md).
 
 ## Ignored
 - `AnimatableBody3D` (it moves; the bake cannot follow it), `RigidBody3D`, `CharacterBody3D`, `Area3D`.

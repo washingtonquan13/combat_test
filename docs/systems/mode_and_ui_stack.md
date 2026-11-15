@@ -67,6 +67,7 @@ Neither one gates 3D input; that is CameraDirector.has_control (camera_director.
 - **"Mode is derived, nothing to keep in sync".** True for GameMode itself, but it inherits any staleness in its sources. A non-null `Conversations.current` pins DIALOGUE regardless of UI (M1).
 - **COMBAT means a watched fight in the FOCUSED world** (combat_manager.gd:441). Fights in other residents leave the mode at the base mode. This is deliberate and multi-world aware.
 - **`can_open()` is advisory.** `push()` does not consult it (ui_stack.gd:80-85), and neither does UIStack's own Escape fallback (M2).
+- **GameOver is a blocking screen** (MainRoot.tscn:392-396, added since the last audit); it opens through the same push/pop path.
 - **One HUD and one party rail** (ui_stack.gd:30-31): there is a single global UI layer over whichever world is focused.
 
 ## Lifecycle
@@ -83,11 +84,17 @@ Neither one gates 3D input; that is CameraDirector.has_control (camera_director.
 ## Known issues
 | # | Issue | Evidence (file:line) | Status |
 |---|---|---|---|
-| M1 | Esc → Load mid-dialogue leaves `Conversations.current` set while the overlay is gone. The mode is stuck at DIALOGUE, so travel, save and camera control are refused. Full trace in save.md S4. GameMode has no way to tell an orphaned conversation from a live one. | game_mode.gd:98-100; conversations.gd:24; world_manager.gd:381 | CONFIRMED |
-| M2 | Escape opens the esc menu without checking `can_open()`. That includes over DialogueOverlay / NegotiationPanel (both `closes_on_cancel=false`, MainRoot.tscn:397, :404), the main menu and character creation. This is the entry point for M1. | ui_stack.gd:136-145, :80-85, :129-133 | NEW |
-| M3 | The "one-way dependency" header is stale (see Assumptions). | game_mode.gd:36-42; world_manager.gd:261, :1054 | NEW |
-| M4 | `close_all`'s comment names `WorldManager.load_world()`, but the real callers are `_leave_focused` and `travel_area`. | ui_stack.gd:96-100; world_manager.gd:381, :884 | NEW |
-| M5 | `mode_changed` is emitted from polling, up to one frame late. Listeners that act on it (unit_selection.gd:104) can briefly disagree with direct `current_mode()` readers. | game_mode.gd:172-176 | NEW (low) |
+| M1 | Esc → Load mid-dialogue leaves `Conversations.current` set while the overlay is gone. The mode is stuck at DIALOGUE, so travel, save and camera control are refused. Full trace in save.md S4. GameMode has no way to tell an orphaned conversation from a live one. | game_mode.gd:98-100; conversations.gd:24; world_manager.gd:381 | CONFIRMED; review 11-15: still open, see WLD-10 |
+| M2 | Escape opens the esc menu without checking `can_open()`. That includes over DialogueOverlay / NegotiationPanel (both `closes_on_cancel=false`, MainRoot.tscn:369, :376; review 11-15 corrected the line refs), the main menu and character creation. This is the entry point for M1. | ui_stack.gd:136-145, :80-85, :129-133 | NEW; review 11-15: still open, see WLD-10 |
+| M3 | The "one-way dependency" header is stale (see Assumptions). | game_mode.gd:36-42; world_manager.gd:261, :1054 | NEW; review 11-15: still open |
+| M4 | `close_all`'s comment names `WorldManager.load_world()`, but the real callers are `_leave_focused` and `travel_area`. | ui_stack.gd:96-100; world_manager.gd:381, :884 | NEW; review 11-15: still open |
+| M5 | `mode_changed` is emitted from polling, up to one frame late. Listeners that act on it (unit_selection.gd:104) can briefly disagree with direct `current_mode()` readers. | game_mode.gd:172-176 | NEW (low); review 11-15: still open |
+
+### Review 2026-11-15 (HEAD 14cb4ad9)
+| id | Issue | Evidence | Cause | Sustainable fix | Root | Size | Status |
+|---|---|---|---|---|---|---|---|
+| WLD-10 | Load or New Game during a conversation still soft-locks (M1), and Escape still ignores `can_open` (M2). New exposure: the camp raid parks, because `_stage_raid` waits for the mode to return to EXPLORATION. | ui_stack.gd:142-145, :129-133; MainRoot.tscn:369 and :376 (`closes_on_cancel = false`); esc_menu.gd:79-80; conversations.gd:100; game_mode.gd:98-100; goblin_quarry.gd:224-225 | Nothing ends `Conversations.current` on a world load or new game, and the Escape path never asks `can_open()`. | `Conversations` ends `current` on `WorldManager.world_loading` and `SaveManager.new_game_started` (as CinematicDirector does, cinematic_director.gd:87). `UIStack._unhandled_input` asks `can_open()`. | R3 | S | KNOWN (M1, M2) |
+| DLG-1 | same as WLD-10 (mode_and_ui_stack.md) | | | | R3 | | see dialogue.md |
 
 ## Tests
 - tests/combat/test_mode_is_derived.gd

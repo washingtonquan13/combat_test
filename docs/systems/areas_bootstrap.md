@@ -5,7 +5,8 @@
 - **Area contract and data:** `systems/world_system/game_area.gd` (100), area_definition.gd (33), area_database.gd (51), area_exit.gd (94), area_validator.gd (180), and `systems/interaction_system/travel_interaction.gd`.
 - **Area scripts in `world/`:** test_arena.gd (111), overworld.gd (268), overworld_avatar.gd (287), overworld_door.gd (96), overworld_district.gd (46), cathedral_of_shadows.gd (88), ladder.gd (309), proto_block.gd (43), city_geometry.gd (59).
 - **Debug:** `debug/debug_spawner.gd` (115), debug_combat_harness.gd (166).
-- **Data:** `data/areas/*.tres` — test_arena, test_area_2, test_area_3, overworld, cathedral_of_shadows.
+- **Data:** `data/areas/*.tres` — test_arena, test_area_2, test_area_3, overworld, cathedral_of_shadows; review 11-15 adds goblin_quarry.tres and spider_cave.tres.
+- **Review 11-15 additions (file list was stale):** world scripts goblin_quarry.gd (366), spider_cave.gd (10), walk_in_building.gd (31), grass_trample.gd (207), render_time.gd (83), look_test/quarry_look.gd (661); test_arena.gd is now 9 lines and no longer touches PartyManager or FlagManager directly (game_area.gd 123, area_validator.gd 222).
 
 WorldManager internals (residency, focus, teardown) are documented in world.md.
 
@@ -82,7 +83,7 @@ This system does not hold residency, party embodiment or save state. Those belon
 
 ## Assumptions and invariants
 - **Boot is not a world load.** Mode is MAIN_MENU because no world is focused (main_root.gd:80-83). The only front-end world load is character creation's travel to the hard-coded test_arena (character_creation.gd:447-451).
-- **test_arena is the implicit start area.** It builds the starting party in `_ready` only when PartyManager is empty (test_arena.gd:39-46). Pointing new game at any other area would produce no party.
+- **test_arena is the implicit start area.** It builds the starting party in `_ready` only when PartyManager is empty (test_arena.gd:39-46). Pointing new game at any other area would produce no party. (Review 11-15, DOC DRIFT fixed in doc: new game now travels to `&"goblin_quarry"` (character_creation.gd:685), and the bootstrap is `StartingParty.bootstrap(self, $PartySpawnPoint)`, called from test_arena.gd:9, spider_cave.gd:10 and goblin_quarry.gd:72. It is still true that an area without that call cannot be a start area. This is deliberate: the demo's start party is "one character with every spell and all the gear" (e190dbdb) and the start moved to the quarry with the demo area (f52cf9cb), so each area script calls the bootstrap itself rather than WorldManager asking once; the cost is WLD-13. The goblinoid quest watch moved from test_arena to goblin_quarry.gd:79-93.)
 - **GameArea defines no `_ready`, on purpose.** Subclasses therefore never need super() (game_area.gd:15-19; cathedral_of_shadows.gd:35-37).
 - **A world's `_ready` runs inside add_child, before WorldManager registers its resident and context.** The world is added to the viewport before `resident.context` and `_residents[id]` are set (world_manager.gd:746 vs 750, 755). So `WorldManager.area_of(self)` returns null during `_ready`, and the Overworld's `_ready` sync_avatars and snap_to_target do nothing (overworld.gd:83-84, 195-198). World_focused, which follows straight after, does the real work (overworld.gd:87-91).
 - **"The fight starting is in the world on screen."** cinematic_cues `_on_combat_started` picks the intro from `WorldManager.current_world()`, not from the fight's world (cinematic_cues.gd:80-84). STALE: fights run in non-focused worlds (see world.md and combat.md).
@@ -101,14 +102,21 @@ This system does not hold residency, party embodiment or save state. Those belon
 ## Known issues
 | # | Issue | Evidence (file:line) | Status |
 |---|---|---|---|
-| 1 | AreaValidator.validate() has no caller anywhere: no test, tool or editor hook. Missing music, broken exits and one-way links go unreported. | area_validator.gd:43; repo-wide grep finds only comments in music_manager.gd and world_manager.gd:826 | NEW |
-| 2 | A fight's intro cutscene is chosen from the focused world, not the fight's world. A fight breaking out off-screen plays the on-screen area's combat_intro_scene, or none. | cinematic_cues.gd:80-84 | NEW |
-| 3 | The start area is hard-coded twice: in character_creation and in test_arena's party bootstrap. No AreaDefinition says "start here". | character_creation.gd:451; test_arena.gd:39-46 | CONFIRMED (known design) |
+| 1 | AreaValidator.validate() has no caller anywhere: no test, tool or editor hook. Missing music, broken exits and one-way links go unreported. | area_validator.gd:43; repo-wide grep finds only comments in music_manager.gd and world_manager.gd:826 | NEW; review 11-15: still open (git grep still finds only comments) |
+| 2 | A fight's intro cutscene is chosen from the focused world, not the fight's world. A fight breaking out off-screen plays the on-screen area's combat_intro_scene, or none. | cinematic_cues.gd:80-84 | NEW; review 11-15: still open (now cinematic_cues.gd:80-86) |
+| 3 | The start area is hard-coded twice: in character_creation and in test_arena's party bootstrap. No AreaDefinition says "start here". | character_creation.gd:451; test_arena.gd:39-46 | CONFIRMED (known design); review 11-15: changed, still open: the start area is `goblin_quarry` (character_creation.gd:685) and the bootstrap is called from three area scripts, see WLD-13 |
 | 4 | Overworld `_ready` calls sync_avatars and snap_to_target, but `area_of(self)` is still null at that point, so both are no-ops on first build. This is harmless only because world_focused follows. | overworld.gd:83-84, 195-198; world_manager.gd:746-755 | NEW (minor) |
-| 5 | The goblinoid quest hook is bound by hard-coded node names (`GoblinRogue`, `Hobgoblin`). A rename silently disables the flag. | test_arena.gd:98-105 | NEW (minor) |
-| 6 | The global shader params are written by whichever overworld or avatar runs last. This is not world-scoped, but only one overworld exists today. | overworld.gd:75, 148; overworld_avatar.gd:125-126 | NEW (minor) |
-| 7 | The main_root.gd header is stale. It says MainRoot "owns two registrations", but it makes six. It also says music starts from `world_loaded`. | main_root.gd:2-3, 17-20 vs 22-83 | NEW (doc) |
+| 5 | The goblinoid quest hook is bound by hard-coded node names (`GoblinRogue`, `Hobgoblin`). A rename silently disables the flag. | test_arena.gd:98-105 | NEW (minor); review 11-15: still open, moved to goblin_quarry.gd:79-93 |
+| 6 | The global shader params are written by whichever overworld or avatar runs last. This is not world-scoped, but only one overworld exists today. | overworld.gd:75, 148; overworld_avatar.gd:125-126 | NEW (minor); review 11-15: still open, widened: grass_trample.gd also writes them per world, see WLD-16 |
+| 7 | The main_root.gd header is stale. It says MainRoot "owns two registrations", but it makes six. It also says music starts from `world_loaded`. | main_root.gd:2-3, 17-20 vs 22-83 (review 11-15: registrations are :23-81) | NEW (doc); review 11-15: still open (stale comment in main_root.gd) |
 | 8 | DebugSpawner keeps its SpawningIntent pushed on ClickRouter across a travel or load. The intent survives because ClickRouter is a persistent attention node. Debug only. | debug_spawner.gd:54-61; ground_click_target.gd:144-153 | NEW (minor) |
+
+### Review 2026-11-15 (HEAD 14cb4ad9)
+| id | Issue | Evidence | Cause | Sustainable fix | Root | Size | Status |
+|---|---|---|---|---|---|---|---|
+| WLD-13 | Three area scripts each call the party bootstrap, and the start area is named in a fourth place. An area without the call cannot be a start area. With an emptied roster, re-entry spawns a fresh fully-equipped leader. `_resource_ids` is a private folder scan that strips `.remap`, beside the databases that do not. | test_arena.gd:9; spider_cave.gd:10; goblin_quarry.gd:72; character_creation.gd:685; starting_party.gd:40, :68-82, :87-94 | The demo loadout was added as a call in each area script, and the start area as a literal in chargen, instead of WorldManager owning "is there a party yet". | `WorldManager._enter_world` asks once and bootstraps any `spawns_party()` area. The start area id lives on one resource. The demo loadout is data, not code. | R7 | M | INTENTIONAL; document why: demo start fixed (e190dbdb, f52cf9cb) |
+| WLD-16 | Global shader parameters are written per world with no owner. With two resident grassy worlds the last writer wins, and the world that exits zeroes the rect for the other. Latent: only the quarry has grass. | grass_trample.gd:105-161; overworld.gd:76, :91, :149; overworld_avatar.gd:150; city_geometry.gd:26-59 | Per-world values go to global shader params, so the world that wrote them last owns them. | Put the values on that world's material instances, or write only while `WorldManager.current_world()` is the writer's world and rewrite on `world_focused`. | R1 | S | KNOWN (#6) |
+| DLG-26 | same as WLD-13 (areas_bootstrap.md) | | | | R7 | | see areas_bootstrap.md (INTENTIONAL; demo start fixed, f52cf9cb) |
 
 ## Tests
 - tests/world/test_arrival_placement.gd (back-link spawn)

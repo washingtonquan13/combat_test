@@ -1,6 +1,6 @@
 # Inventory, stash and currency
 
-**Files:** `systems/inventory_system/` — `item_instance.gd` (254, RefCounted), `item_modifier.gd` (38), `rune_item.gd` (24), `socket_tool.gd` (12), `item_tooltip.gd` (58) + `item_tooltip.tscn`, `item_container.gd` (183, RefCounted), `inventory.gd` (325, @tool Control), `item.gd` (271, Container), `equip_slot.gd` (119), `item_layer.gd` (59), `stash_component.gd` (69), `stash_manager.gd` (78, autoload), `item_database.gd` (48), `item_definition.gd` (26), `gear_item.gd` (70), `weapon_data.gd` (22), `attack_row.gd` (124), `context_menu.gd` (36). `systems/currency_system/currency_manager.gd` (82, autoload). Owner of the party bag: `systems/party_system/party_manager.gd` (`inventory`). Inventory parts of `ui/party_overview.gd` (422). Unit side: `systems/unit_system/unit_equipment.gd` (115).
+**Files:** `systems/inventory_system/` — `item_instance.gd` (339, RefCounted), `item_modifier.gd` (38), `rune_item.gd` (24), `socket_tool.gd` (12), `item_tooltip.gd` (58) + `item_tooltip.tscn`, `item_container.gd` (183, RefCounted), `inventory.gd` (353, @tool Control), `item.gd` (244, Container), `equip_slot.gd` (197), `item_layer.gd` (59), `stash_component.gd` (98), `stash_manager.gd` (78, autoload), `item_database.gd` (48), `item_definition.gd` (26), `gear_item.gd` (70), `weapon_data.gd` (22), `attack_row.gd` (124), `context_menu.gd` (36). `systems/currency_system/currency_manager.gd` (82, autoload). Owner of the party bag: `systems/party_system/party_manager.gd` (`inventory`). Inventory parts of `ui/party_overview.gd` (422). Unit side: `systems/unit_system/unit_equipment.gd` (115). Review 11-15: the list omits `affix.gd`, `affix_database.gd`, `loot_roller.gd`, `remains.gd`, the unique item and its database, `identify_scroll.gd`, `wearable.gd`, `socket_overlay.gd`, `socket_tool.gd`, `rune_item.gd` (all described under Assumptions).
 **Autoloads owned:** `StashManager`, `CurrencyManager`.
 
 ## Purpose
@@ -12,8 +12,8 @@ A shared grid inventory (10x13), equipment slots per unit, area stashes, and gol
 | Party grid contents (instance → cell) | `PartyManager.inventory` (party_manager.gd:43); item_container.gd:19 | Yes `inventory`, registered at party_manager.gd:478 |
 | Per-copy state (definition, stack, rarity, sockets, runes) | item_instance.gd | Yes, `ItemInstance.to_dict()` + x, y; keys left out at their defaults, and a bare id still loads (`from_dict`) |
 | Equipped gear per unit (an ItemInstance per slot) | unit_equipment.gd `_equipped` | Via the party record: `PartyMemberData.equipment` holds `ItemInstance.copy()` snapshots, saved with `to_dict()` |
-| Stash contents | the stash Inventory's own ItemContainer (`get_container()`, inventory.gd:247) | Yes, AreaState inside `flags` (stash_manager.gd:66-78) |
-| Gold | currency_manager.gd:27 (STARTING_GOLD 50 :25) | Yes `currency` (:49-61) |
+| Stash contents | the stash Inventory's own ItemContainer (`get_container()`, inventory.gd:272-287) | Yes, AreaState inside `flags` (stash_manager.gd:67-79) |
+| Gold | currency_manager.gd:27 (STARTING_GOLD 50 :25) | Yes `currency` (about :52-61) |
 
 ## Derived / cached state
 - Item widgets per ItemInstance (inventory.gd:225 `_widgets`), created, moved and freed from the container's signals (:264-291). Freed with remove_child + queue_free, because a widget can be the drag data of the drop in progress.
@@ -31,9 +31,9 @@ A shared grid inventory (10x13), equipment slots per unit, area stashes, and gol
 - **Signals in:** Inventory listens to its bound container; Item listens to its instance.
 
 ## Depends on
-- SaveManager: `&"inventory"` is the ItemContainer itself, registered by PartyManager (party_manager.gd:478). No screen is needed to save or load. `&"currency"` (currency_manager.gd:49).
+- SaveManager: `&"inventory"` is the ItemContainer itself, registered by PartyManager (party_manager.gd:478). No screen is needed to save or load. `&"currency"` (currency_manager.gd:~52).
 - ItemDatabase for id → definition on load.
-- AreaState / WorldManager.current_area() for stashes (stash_manager.gd:66-78).
+- AreaState / WorldManager.current_area() for stashes (stash_manager.gd:67-79).
 - UnitEquipment for equip/unequip.
 
 ## Assumptions and invariants
@@ -54,7 +54,7 @@ A shared grid inventory (10x13), equipment slots per unit, area stashes, and gol
 - Applying one item to another is `ItemDefinition.can_apply_to/apply_to`: `Item._can_drop_data` asks it, `_drop_data` applies it and spends one of the stack. Any future currency is a new ItemDefinition subclass.
 - Per-copy magazine: `ItemInstance._shots_left` (-1 = full) for weapons with `WeaponData.shots`. Runtime only, not in the save dict.
 - Equip picks the first global `equip_slots` node (context_menu.gd:18-24): assumes one viewed unit's slots.
-- Stash keyed by current area (stash_manager.gd:66-78): assumes one focused world.
+- Stash keyed by current area (stash_manager.gd:67-79): assumes one focused world.
 
 ## Lifecycle
 PartyManager owns the bag for the whole session; party_overview only binds its Inventory widget to it on ready. The widget shows it at 52px cells, 10x13 with no scrolling. A grid's cell size is set in one place, `Inventory.cell_size_px` (per instance in the .tscn): `InventoryGridLayer` and every `Item` in it read it from there, so item art always matches its footprint; `Inventory.set_filter(callable)` dims (modulate) items the filter rejects without hiding or moving them, reapplied on add and move. The bag sits in `%BagSlot`, its own VBox, so StashPanel putting it back can't reorder it past the header or footer. New game: `load_state({})` empties the bag and resets gold to 50. Load: `ItemContainer.load_state` clears (emitting item_removed, which frees widgets) and places fresh instances; one whose saved cell no longer fits (a save from the old 12-wide bag) goes to the first free spot instead. Stash: open loads from AreaState, close persists (stash_manager.gd:26-78). World travel: inventory unaffected (autoload-owned); equipment rides the party record. Combat/dialogue: dialogue effects give/sacrifice items.
@@ -65,16 +65,35 @@ PartyManager owns the bag for the whole session; party_overview only binds its I
 | 1 | Inventory state is owned by a UI screen, not a system | now `PartyManager.inventory` | FIXED (item layer) |
 | 2 | Item extends Container (UI node is the item model) | model is ItemInstance/ItemContainer; Item is a view | FIXED (item layer) |
 | 3 | has_item/consume_item typed GearItem; non-gear items unusable by effects | `ItemContainer.has/consume` take any ItemDefinition | FIXED (item layer); effects still export GearItem |
-| 4 | Healing potion has no use hook; ItemDefinition has none; context menu has Equip/Drop/Inspect only | item_definition.gd; context_menu.gd:18-36 | CONFIRMED |
+| 4 | Healing potion has no use hook; ItemDefinition has none; context menu has Equip/Drop/Inspect only | item_definition.gd; context_menu.gd:18-36 | CONFIRMED; review 11-15: still open |
 | 5 | `load_state` used queue_free without remove_child, so old items occupied the grid during the rebuild | occupancy is the container's, not the widgets' | FIXED (item layer) |
-| 6 | Loaded stack count never updated its label; stacking never implemented (`maximum_stack_count` unread) | label follows ItemInstance.changed; merging stacks still unbuilt | PARTLY FIXED |
-| 7 | Drop permanently deletes the item, no confirmation or world drop | context_menu.gd:27-32 | NEW |
-| 8 | Equip targets the first global equip_slots node | context_menu.gd:18-24 | NEW |
+| 6 | Loaded stack count never updated its label; stacking never implemented (`maximum_stack_count` unread) | label follows ItemInstance.changed; merging stacks still unbuilt | HALF FIXED: stacking unbuilt, `maximum_stack_count` unread (review 11-15: still open, see UI-31) |
+| 7 | Drop permanently deletes the item, no confirmation or world drop | context_menu.gd:27-32 | NEW; review 11-15: still open |
+| 8 | Equip targets the first global equip_slots node | context_menu.gd:18-24 | NEW; review 11-15: still open, same defect as UI-11 |
 | 9 | Items of the last-viewed unit stayed parented in UI EquipSlots after close | slots now show views of the unit's instances; the gear lives on the unit | FIXED (item layer) |
 | 10 | No inventory change signals; consumers poll | ItemContainer signals | FIXED (item layer) |
-| 11 | Inspect is a stub | context_menu.gd:34-36 | NEW |
+| 11 | Inspect is a stub | context_menu.gd:34-36 | NEW; review 11-15: still open |
 | 12 | Per-copy state is dropped when a member is captured to a record and respawned (the record keeps definitions) | the record keeps `ItemInstance.copy()` and saves `to_dict()` | FIXED (sockets) |
 | 13 | party_overview's stat column only refreshed in `open_for`, so equipping or socketing showed stale DR/HP | it now follows the shown unit's `equipment_changed` | FIXED (sockets) |
+
+### Review 2026-11-15 (HEAD 14cb4ad9)
+The Files line and line counts were corrected in place (item_instance 339, inventory 353, item 244, equip_slot 197, stash_component 98; `get_container()` is inventory.gd:272-287; stash persist is stash_manager.gd:67-79; currency save is about currency_manager.gd:52-61). Spawned units don't persist, so a `Remains` is not saved by design (UI-28): drops lie on the ground only for the session of the fight that made them.
+
+| id | Issue | Evidence | Cause | Sustainable fix | Root | Size | Status |
+|---|---|---|---|---|---|---|---|
+| UI-11 | Shared EquipSlots keep the last unit shown, and the context menu's Equip picks the first global slot node, so Equip from the bag can target the wrong unit's slots. Same defect as row 8. | context_menu.gd:18-26; party_overview.gd:380-384 | The slots are global singletons with a mutable `unit` and nothing clears it on close. | The context menu asks its owner for an equip target; slots clear `unit` on close. | R5 | S | BUG |
+| UI-24 | The stash panel shows two inventories by rebinding one widget between them and putting the bag back by node path, so the bag's place depends on call order. | stash_panel.gd:79-89, :69-71; MainRoot.tscn:285 | One Inventory widget is reused for the bag and the stash. | The panel owns two Inventory views and binds each once. | R5 | S | DECISION NEEDED: is the rebind-and-restore shape acceptable until the panel is reworked, or should it own two views now? |
+| UI-25 | A weapon's magazine (`_shots_left`) is not saved, so a reload refills every weapon, and the equipped copy snapshot drops it too. | item_instance.gd:70, :277-297, :338 | `to_dict`/`from_dict` were written before shots existed and the invariant says "runtime only". | Add `shots_left` to `to_dict`/`from_dict`, omitted at the default like the other keys. | R2 | S | BUG |
+| UI-26 | Equip rules are asked twice: the slot's `accepts` and `UnitEquipment` each carry their own hands check and an `OFF_HAND_OF` table, so they can drift. | equip_slot.gd:193-197; unit_equipment.gd:74 | The slot grew its own reasons so it could grey a drop. | `UnitEquipment.why_cannot_equip(item)` returns the reason; the slot only displays it. | R4, R9 | S | BUG (bug-prone) |
+| UI-27 | The stash is owned by an Inventory Control placed under the chest in the scene; the model lives in a UI node and loads only when something asks `get_container()`. | inventory.gd:272-287; stash_manager.gd:67-79 | Stashes were built before the item layer split model from view. | The StashComponent owns an ItemContainer; the panel binds a widget to it. | R5, R1, R2 | M | DECISION NEEDED: should the stash model move off the Control now, given a chest's load already depends on `get_container()` order? |
+| UI-28 | Remains hold loot in an unsaved node, so quitting after a fight loses drops. | remains.gd:18, :20, :40 | Spawned units and their leftovers are session objects. | None while spawned units are not persisted. | R1, R2 | - | INTENTIONAL; document why: spawned units don't persist, so what they leave is not saved either |
+| UI-29 | Loot rolls use an unseeded RNG, so the same chest or kill rolls differently per run. | loot_roller.gd:50-58; stash_component.gd:40; remains.gd:20 | `roll(level, rng)` takes an RNG but callers pass a fresh one. | One seeded RNG from the world (prototype 861e6632), saved with the area. | R6 | S | DECISION NEEDED: should rolls be reproducible per save (so reloading cannot re-roll a chest), or is a fresh roll intended? |
+| UI-30 | The tooltip decides an item's kind by type-checking the definition. | item_tooltip.gd:71-76 | `_kind_of` was the quickest way to label the tooltip. | `ItemDefinition.kind_name()` overridden by subclasses. | R8 | S | LEFTOVER |
+| UI-31 | `maximum_stack_count` is never read and nothing merges stacks. | item_definition.gd; item.gd:20-26 | Stacking was planned and not built. | Build merge on place, or delete the field. | R4 | M | KNOWN (row 6) |
+| UI-32 | No use hook, no drop confirmation, Inspect is a stub: the context menu has three entries and two do nothing useful. | context_menu.gd:18-36 | The menu was written as a placeholder. | An `ItemDefinition.use()` hook and menu entries built from it. | R4 | M | KNOWN (rows 4, 7, 11) |
+| UI-35 | The currency comment says the party overview is the only `gold_changed` listener, but compendium_menu.gd listens too. | currency_manager.gd:16; compendium_menu.gd | The comment predates the compendium menu. | Reword the comment. | - | S | DOC DRIFT |
+| WLD-14 | same as DLG-17 (demons.md) for the DemonDatabase half | | | | R6 | | see world.md |
+| WLD-19 | same as UI-27 (stash owned by a Control under the chest) | | | | R1 | | see UI-27 |
 
 ## Tests
 Only indirect: persistence suites (tests/world/test_persistence_is_a_registry.gd, test_a_new_game_is_new.gd, test_a_refused_load_changes_nothing.gd, test_load_restores_every_area.gd; some still install a party_overview they no longer need), tests/combat/test_defenses.gd (shield as an ItemInstance), tests/combat/test_mode_is_derived.gd (StashManager), conversation suites (CurrencyManager). No direct tests of grid placement, consume, stash round-trip or equip in the suite. `tools/item_layer_demo.tscn` (see tools/README.md) drives all of those through the real UI and prints 27 PASS/FAIL checks. It passed 27/27 on 2026-11-01. `tests/project/test_rune_sockets.gd` (12 checks): socket limits, the awl's cap, permanent runes, per-copy rows leaving the shared row alone, a rune socketed into worn armour adding DR and unequipping removing it, and the save round trip. `tools/sockets_demo.tscn` does the same through real drags and a hover tooltip (12/12 on 2026-11-02). `tests/project/test_encumbrance.gd` (5 checks): BL from ST, the level and its Move/Dodge for a known weight, the 10 x BL cap, and unequipping restoring both.

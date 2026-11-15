@@ -1,6 +1,6 @@
 # Camera
 
-**Files:** `systems/camera_system/` — camera_director.gd (75), crpg_camera.gd (699), overworld_camera.gd (150)
+**Files:** `systems/camera_system/` — camera_director.gd (75), crpg_camera.gd (716), xray_silhouettes.gd (296; undocumented, owned per CRPGCamera, shares the `material_overlay` convention with the cinematic silhouette beat), overworld_camera.gd (150)
 **Autoloads owned:** CameraDirector (project.godot:27)
 
 ## Purpose
@@ -73,12 +73,17 @@ It is NOT responsible for:
 ## Known issues
 | # | Issue | Evidence (file:line) | Status |
 |---|---|---|---|
-| C1 | Every CRPGCamera follows every encounter's turns. `turn_started` is a global relay, so a camera whose world has no fight binds `focus_target` to a unit in ANOTHER World3D and swings to that unit's coordinates. Likewise, any fight ending unbinds every camera, including one following an ongoing fight in its own world. | crpg_camera.gd:276-277, :335-348; combat_manager.gd:360-364, :404 | NEW |
-| C2 | Hidden resident CRPGCameras keep consuming WASD/Q/E. `has_control()` reads the focused world's mode, and an unfocused world still processes, so its camera drifts off while you play elsewhere. | resident_world.gd:83-85; crpg_camera.gd:405-410, :588-590; camera_director.gd:55-58 | NEW |
-| C3 | No refocus when re-entering a resident world. Re-entry skips instantiation (world_manager.gd:699-710), and `_ready` and the ancestor-matched `world_loaded` handler leave the camera where it was. The camera does not listen to `world_focused`. | crpg_camera.gd:283, :365-371; world_manager.gd:95 | NEW |
-| C4 | `_on_world_loaded` targets the global `PartyManager.leader` even when the leader's group is in another area (a split party). The ancestor guard scopes the camera, but not the target. | crpg_camera.gd:368-370; world_manager.gd:436 | NEW |
-| C5 | Stale comments. CameraDirector says it is re-registered "by WorldManager.load_world()" (actually `_focus`), and overworld_camera claims crpg_camera "is freed before this loads". | camera_director.gd:28-33; overworld_camera.gd:12-14; world_manager.gd:555-561 | NEW |
+| C1 | Every CRPGCamera follows every encounter's turns. `turn_started` is a global relay, so a camera whose world has no fight binds `focus_target` to a unit in ANOTHER World3D and swings to that unit's coordinates. Likewise, any fight ending unbinds every camera, including one following an ongoing fight in its own world. | crpg_camera.gd:276-277, :335-348; combat_manager.gd:360-364, :404 | NEW; review 11-15: still open, see WLD-15 (refs now crpg_camera.gd:301-302, :376-377, :388-389) |
+| C2 | Hidden resident CRPGCameras keep consuming WASD/Q/E. `has_control()` reads the focused world's mode, and an unfocused world still processes, so its camera drifts off while you play elsewhere. | resident_world.gd:83-85; crpg_camera.gd:405-410, :588-590; camera_director.gd:55-58 | NEW; review 11-15: still open, see WLD-15 |
+| C3 | No refocus when re-entering a resident world. Re-entry skips instantiation (world_manager.gd:699-710), and `_ready` and the ancestor-matched `world_loaded` handler leave the camera where it was. The camera does not listen to `world_focused`. | crpg_camera.gd:283, :365-371; world_manager.gd:95 | NEW; review 11-15: still open, see WLD-15 (crpg_camera.gd:406-411) |
+| C4 | `_on_world_loaded` targets the global `PartyManager.leader` even when the leader's group is in another area (a split party). The ancestor guard scopes the camera, but not the target. | crpg_camera.gd:368-370; world_manager.gd:436 | NEW; review 11-15: still open, see WLD-15 |
+| C5 | Stale comments. CameraDirector says it is re-registered "by WorldManager.load_world()" (actually `_focus`), and overworld_camera claims crpg_camera "is freed before this loads". | camera_director.gd:28-33; overworld_camera.gd:12-14; world_manager.gd:555-561 | NEW; review 11-15: still open, see WLD-15 (also camera_director.gd:29-34, :39-41) |
 | C6 | Occlusion fade is unimplemented, so tight corners still pull the camera close. | crpg_camera.gd:59-66, :576-580 | CONFIRMED (known, by design) |
+
+### Review 2026-11-15 (HEAD 14cb4ad9)
+| id | Issue | Evidence | Cause | Sustainable fix | Root | Size | Status |
+|---|---|---|---|---|---|---|---|
+| WLD-15 | Rows C1-C5 are unchanged. New: xray_silhouettes.gd (one per CRPGCamera, guarded by `_camera.current`, correct per world) shares only a convention with the cinematic silhouette beat: do not touch a `material_overlay` that is not yours. A third user of `material_overlay` would break both. | crpg_camera.gd:301-302, :376-377, :388-389, :406-411; camera_director.gd:55-58, :29-34, :39-41; overworld_camera.gd:12-14; xray_silhouettes.gd:148, :225, :291-295 | The camera binds to global relays and the global leader instead of its own world. The overlay convention has no owner. | The camera asks `WorldManager.area_of(self)` or its own World3D and ignores turns and endings from other worlds; it listens to `world_focused`. Give CharacterModel one small overlay stack before a third `material_overlay` user appears. | R1 | S each | KNOWN (C1-C5) |
 
 ## Tests
 - tests/cinematic/test_the_seam.gd:65 (has_control during a cutscene)

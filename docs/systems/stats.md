@@ -34,7 +34,7 @@ What stats exist and how a derived stat is computed, as data: one `StatDefinitio
 - A stat id is a valid identifier: formulas read other stats by exactly the id.
 - Startup validation fails loudly, by name: a formula that does not parse, names an unknown stat, does not evaluate to a number at all-10s, or forms a cycle; a duplicate id; an empty directory. A bad stat then reads 0 — loud, not silent.
 - Pools are capped at their maximum on write and never floored (HP below 0 is Downed, down to -5×HP).
-- `from_dict` merges what is present and skips unknown ids (a removed stat must not break saves); `reset` (the definition setter) is a full overwrite, so a re-assigned species keeps nothing of the old one.
+- `from_dict` merges what is present and skips unknown ids (a removed stat must not break saves), but each unknown id logs one `push_error` per unit (unit_stats.gd:189-193, U7); `reset` (the definition setter) is a full overwrite, so a re-assigned species keeps nothing of the old one.
 - UnitStats is built lazily by `Unit._unit_stats()`, not in `_ready`, because the `definition` setter writes stats while the scene is still instantiating.
 - Saves from before the conversion (`hp`/`fp` keys, per-field party/demon records) do not restore stats — no converter, by decision.
 
@@ -45,9 +45,15 @@ What stats exist and how a derived stat is computed, as data: one `StatDefinitio
 ## Known issues
 | # | Issue | Evidence (file:line) | Status |
 |---|---|---|---|
-| 1 | No listener uses `stat_changed`/`pool_changed`; HP bars and sheets still poll. | ui/ | NEW (by design for now) |
+| 1 | Listeners of `stat_changed`/`pool_changed` now exist (unit.gd:1955-1957, unit_equipment.gd:31); HP bars and sheets may still poll. | ui/ | DOC DRIFT (fixed in doc, review 11-15): listeners now exist, `unit.gd:1955-1957` and `unit_equipment.gd:31` (encumbrance); HP bars and sheets may still poll |
 | 2 | Character creation's attribute rows come from `get_bought()`, but the stats column on the party screen is still scene-authored labels — a new stat appears in chargen but not there. | ui/stats_column.gd | NEW |
 | 3 | `DefaultRule.source_name` stays a String with no suggestions: it names an attribute or a skill. | default_rule.gd | NEW (accepted) |
+
+### Review 2026-11-15 (HEAD 14cb4ad9)
+| id | Issue | Evidence | Cause | Sustainable fix | Root | Size | Status |
+|---|---|---|---|---|---|---|---|
+| U7 | `UnitStats.from_dict` says unknown keys are skipped, but `_instance` pushes an error for each, one per unit per removed stat. | unit_stats.gd:180-193 | The skip was documented but the check for a known id was never added; saves carry no version, so a removed stat cannot be migrated. | Check `StatDatabase.has(id)` in `from_dict` and skip with one warning per id per session. | R2 | S | BUG |
+| U25 | Any stat change announces every pool: one modifier emits `stat_changed` once and `pool_changed` per pool, each relayed to the low-pool check and the encumbrance recompute; this is why `StatusManager.busy` and `_updating_encumbrance` re-entrancy guards exist. | unit_stats.gd:219-225; unit.gd:1955-1957, 967-970; unit_equipment.gd:31, 183; status_manager.gd:28; stat_database.gd:97-113 | Correct but chatty; the guards were added instead of narrowing the signal. | Emit `pool_changed` only for pools whose max changed, and batch with a `begin_change` / `end_change` pair so the two guards can go. | - | S | DECISION NEEDED: narrow the pool signal now, or keep the re-entrancy guards? |
 
 ## Tests
 - tests/project/test_secondary_stats_derive.gd — beast's derived stats match their pre-conversion numbers; raising ST/IQ/HT carries through. Sabotage-checked: an unknown name and an unparseable formula in move.tres both error at load and turn it red.
