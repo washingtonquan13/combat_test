@@ -111,6 +111,23 @@ func handle_death() -> void:
 		dependent.expire()
 
 	if _owner.death_cleanup_delay > 0.0:
-		_owner.get_tree().create_timer(_owner.death_cleanup_delay).timeout.connect(_owner.queue_free)
+		_clear_corpse_after(_owner, _owner.death_cleanup_delay)
 	else:
 		_owner.queue_free()
+
+
+## Frees `corpse` once it has lain `seconds` where it can be seen. A scene
+## showing it on a stand-in is still showing it, whatever the clock says: a
+## defender cut down early in a raid lies there until the scene ends, then
+## the usual time, rather than vanishing from the middle of a shot.
+static func _clear_corpse_after(corpse: Unit, seconds: float) -> void:
+	corpse.get_tree().create_timer(seconds).timeout.connect(func() -> void:
+		if not is_instance_valid(corpse):
+			return
+		var stand: StandIn = StandIn.of(corpse)
+		if stand:
+			stand.tree_exited.connect(func() -> void:
+				if is_instance_valid(corpse) and corpse.is_inside_tree():
+					_clear_corpse_after(corpse, seconds), CONNECT_ONE_SHOT)
+		else:
+			corpse.queue_free())

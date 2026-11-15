@@ -1,4 +1,4 @@
-[gd_scene load_steps=24 format=3]
+[gd_scene load_steps=25 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="PackedScene" path="res://assets/characters/townsperson/townsperson.glb" id="2_glb"]
@@ -8,6 +8,7 @@
 [ext_resource type="AnimationLibrary" path="res://assets/fireball_animations.tres" id="6_fireball"]
 [ext_resource type="AnimationLibrary" path="res://assets/weapon_animations.tres" id="7_weapon"]
 [ext_resource type="AnimationLibrary" path="res://assets/ladder_animations.tres" id="8_ladder"]
+[ext_resource type="AnimationLibrary" path="res://assets/scene_animations.tres" id="9_scene"]
 [ext_resource type="Resource" path="res://data/motion_sets/humanoid.tres" id="9_motions"]
 [ext_resource type="Script" path="res://systems/unit_system/face_driver.gd" id="10_face"]
 [ext_resource type="Shader" path="res://systems/unit_system/outline.gdshader" id="11_outline"]
@@ -91,6 +92,7 @@ libraries = {
 &"Fireball": ExtResource("6_fireball"),
 &"Flight": ExtResource("5_flight"),
 &"Ladder": ExtResource("8_ladder"),
+&"Scene": ExtResource("9_scene"),
 &"UAL2_Standard": ExtResource("4_ual2"),
 &"Weapon": ExtResource("7_weapon")
 }

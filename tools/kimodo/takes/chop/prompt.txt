@@ -1,0 +1,2 @@
+kmd-generate, kimodo-soma-rp-v1.1, 50 steps, seed 3, 80 frames
+A person raises a weapon high overhead with both hands and chops down hard in front of them, then steps back.

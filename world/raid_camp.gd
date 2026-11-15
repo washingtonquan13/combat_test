@@ -9,6 +9,21 @@ extends GameArea
 ## broken in the fight after it, in a save, and on every later visit.
 
 const GATE_BROKEN := "raid_camp.gate_broken"
+const RAID_STAGE: PackedScene = preload("res://cinematics/camp_raid.tscn")
+const RAID_PLAYED := "raid_camp.raid_played"
+## The camp's people and the raiders, by role in the stage: node name here.
+const RAID_CAST := {
+	&"lookout": "Lookout", &"guard_gate": "GuardGate", &"guard_fire": "GuardFire",
+	&"camper_fire": "CamperFire", &"camper_tent": "CamperTent", &"hobgoblin": "Hobgoblin",
+	&"rogue_a": "RogueA", &"rogue_b": "RogueB", &"rogue_c": "RogueC", &"rogue_d": "RogueD",
+	&"archer_west": "ArcherWest", &"archer_east": "ArcherEast",
+}
+## Who fights once the raid has played: the goblins, the armed camp and the
+## party. The campers hide.
+const RAID_FIGHTERS: Array[StringName] = [
+	&"lookout", &"guard_gate", &"guard_fire", &"hobgoblin",
+	&"rogue_a", &"rogue_b", &"rogue_c", &"rogue_d", &"archer_west", &"archer_east",
+]
 
 @onready var _gate_shut: StaticBody3D = $Gate/Closed
 @onready var _gate_smashed: Node3D = $Gate/Broken
@@ -17,6 +32,55 @@ const GATE_BROKEN := "raid_camp.gate_broken"
 func _ready() -> void:
 	if FlagManager.has_flag(GATE_BROKEN):
 		_show_broken()
+	WorldManager.world_focused.connect(_on_world_focused)
+
+
+## The raid plays the first time the party arrives, and the fight starts
+## from where it left everyone: the lookout dead under the wall, the gate
+## guard cut down, the guard at the fire wounded, the gate in pieces. Every
+## precondition returns before the flag is set, so an arrival that cannot
+## have the scene gets it on a later one; a cast member already dead means
+## the camp the scene shows is gone, and it never plays.
+func _on_world_focused(world: Node) -> void:
+	if world != self or FlagManager.has_flag(RAID_PLAYED):
+		return
+	await get_tree().process_frame
+	await get_tree().process_frame
+	if GameMode.current_mode() != GameMode.Mode.EXPLORATION:
+		return
+	var leader: Unit = PartyManager.leader
+	if not is_instance_valid(leader) or not leader.is_alive() or leader.in_combat() \
+			or not leader.is_inside_tree():
+		return
+	var cast := SceneCast.new().track_unit(&"leader", leader)
+	var units: Dictionary = {}
+	for role: StringName in RAID_CAST:
+		var unit := get_node_or_null(RAID_CAST[role]) as Unit
+		if unit == null or not unit.is_alive() or unit.in_combat():
+			return
+		units[role] = unit
+		cast.track_unit(role, unit)
+	FlagManager.set_flag(RAID_PLAYED)
+
+	var party: Array[Unit] = [leader]
+	var group := PartyManager.group_of(leader)
+	if group:
+		party = group.live_units()
+	for member in party:
+		member.stop_moving()
+	var finished: bool = await CinematicDirector.play(RAID_STAGE, cast)
+	if not finished:
+		return  # Aborted: the director released everything, something else owns the screen.
+	var camera := CinematicDirector.camera()
+	if camera:
+		camera.release()
+
+	var roster: Array[Unit] = []
+	var fighters: Array = party + RAID_FIGHTERS.map(func(role: StringName) -> Unit: return units[role])
+	for unit in fighters:
+		if is_instance_valid(unit) and unit.is_alive() and not unit.in_combat():
+			roster.append(unit as Unit)
+	CombatManager.start_combat(roster)
 
 
 func gate_is_broken() -> bool:

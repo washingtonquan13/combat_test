@@ -186,14 +186,7 @@ func _end(owner_stage: CinematicStage) -> void:
 	if dying == null or not dying.is_alive():
 		return
 	# The unit's death is the clip's last frame: it has already fallen.
-	var animator: UnitAnimator = dying.animator()
-	var lies: bool = animator != null and animator.animation_player != null \
-			and animator.animation_player.has_animation(clip.partner_clip)
-	if lies:
-		animator.death_animation = clip.partner_clip
-	dying.die()
-	if lies and animator.playback:
-		animator.playback.seek(clip.length, true)
+	HurtBeat.kill(dying, clip.partner_clip)
 
 
 func _forward(body: Node3D) -> Vector3:

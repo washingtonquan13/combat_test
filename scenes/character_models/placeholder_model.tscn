@@ -1,4 +1,4 @@
-[gd_scene load_steps=19 format=4 uid="uid://btnqexsmk20xa"]
+[gd_scene load_steps=20 format=4 uid="uid://btnqexsmk20xa"]
 
 [ext_resource type="Script" uid="uid://ee0ub37ip226" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://systems/unit_system/outline.gdshader" id="2_outline"]
@@ -11,6 +11,7 @@
 [ext_resource type="AnimationLibrary" uid="uid://bnor2mfisrdex" path="res://assets/ladder_animations.tres" id="9_ladder"]
 [ext_resource type="Resource" path="res://data/motion_sets/humanoid.tres" id="10_motions"]
 [ext_resource type="AnimationLibrary" path="res://assets/paired_animations.tres" id="11_paired"]
+[ext_resource type="AnimationLibrary" path="res://assets/scene_animations.tres" id="12_scene"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_baxm0"]
 resource_local_to_scene = true
@@ -181,6 +182,7 @@ libraries = {
 &"Flight": ExtResource("6_flight"),
 &"Ladder": ExtResource("9_ladder"),
 &"Paired": ExtResource("11_paired"),
+&"Scene": ExtResource("12_scene"),
 &"UAL2_Standard": ExtResource("5_ual2"),
 &"Weapon": ExtResource("8_weapon")
 }

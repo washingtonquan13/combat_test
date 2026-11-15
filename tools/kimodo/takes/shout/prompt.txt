@@ -1,0 +1,2 @@
+kmd-generate, kimodo-soma-rp-v1.1, 50 steps, seed 3, 100 frames
+A person stands on guard, then points forward with the right arm and shouts a warning, waving the left arm over their head.

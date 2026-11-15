@@ -1,0 +1,3 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 1
+20 frames: A person stands still, looking around nervously.
+70 frames: A person crouches down in fear and covers their head with both arms, trembling.

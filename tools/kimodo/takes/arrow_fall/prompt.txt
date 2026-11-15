@@ -1,0 +1,3 @@
+kmd-generate --sequence, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 2
+20 frames: A person stands still, looking forward.
+70 frames: A person is shot in the chest by an arrow, staggers backward and falls onto their back.
