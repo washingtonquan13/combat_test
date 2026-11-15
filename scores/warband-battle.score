@@ -1,0 +1,160 @@
+// Warband Battle - the fight at the raided camp, written for the Warband
+// ensemble. The raid cutscene (raid-at-dusk) ends on a bar of this piece's
+// drive in the same key and tempo, so the fight starts on a downbeat of
+// music that was already playing.
+//
+// Key. D minor, with the phrygian E flat as in the cutscene.
+//
+// Form. A loop of four eight-bar sections, about 56 s a pass:
+//   a  the theme on held brass over the ostinato, the war drums driving.
+//   b  the men's choir chants, short brass answering at the ends of phrases.
+//   c  a breath: the theme on violins over the ostinato and slit drums.
+//   d  everything: the theme on brass and violins together, a stab every
+//      bar, and a last bar that runs back up into a.
+
+title: Warband Battle
+ensemble: warband
+parts: horns:brass brass strings low:bass choir perc timp:perc
+tempo: 136
+meter: 4/4
+key: d minor
+order: [a b c d]
+
+pattern ost_d
+  | d2:0.5' d2:0.5' d3:0.5' d2:0.5' eb2:0.5' d2:0.5' c3:0.5' d2:0.5' |
+pattern ost_bb
+  | bb1:0.5' bb1:0.5' bb2:0.5' bb1:0.5' c2:0.5' bb1:0.5' a2:0.5' bb1:0.5' |
+pattern ost_f
+  | f1:0.5' f1:0.5' f2:0.5' f1:0.5' g1:0.5' f1:0.5' eb2:0.5' f1:0.5' |
+pattern ost_g
+  | g1:0.5' g1:0.5' g2:0.5' g1:0.5' a1:0.5' g1:0.5' f2:0.5' g1:0.5' |
+pattern ost_eb
+  | eb2:0.5' eb2:0.5' eb3:0.5' eb2:0.5' f2:0.5' eb2:0.5' d3:0.5' eb2:0.5' |
+pattern ost_c
+  | c2:0.5' c2:0.5' c3:0.5' c2:0.5' d2:0.5' c2:0.5' bb2:0.5' c2:0.5' |
+pattern ost_run
+  | d2:0.5' eb2:0.5' f2:0.5' g2:0.5' a2:0.5' bb2:0.5' c3:0.5' c3:0.5! |
+
+// Theme progression: Dm Dm Bb F | Dm Gm Eb Dm.
+pattern ost_theme
+  | ost_d | ost_d | ost_bb | ost_f | ost_d | ost_g | ost_eb | ost_d |
+// Chant progression: Dm Dm Bb Dm | F Eb C Dm.
+pattern ost_chant
+  | ost_d | ost_d | ost_bb | ost_d | ost_f | ost_eb | ost_c | ost_d |
+
+pattern vio_d
+  | a4:0.5' d5:0.5' a4:0.5' d5:0.5' bb4:0.5' d5:0.5' a4:0.5' d5:0.5' |
+pattern vio_bb
+  | bb4:0.5' d5:0.5' bb4:0.5' d5:0.5' c5:0.5' d5:0.5' bb4:0.5' d5:0.5' |
+pattern vio_f
+  | a4:0.5' c5:0.5' a4:0.5' c5:0.5' bb4:0.5' c5:0.5' a4:0.5' c5:0.5' |
+pattern vio_g
+  | bb4:0.5' d5:0.5' bb4:0.5' d5:0.5' a4:0.5' d5:0.5' g4:0.5' d5:0.5' |
+pattern vio_eb
+  | bb4:0.5' eb5:0.5' bb4:0.5' eb5:0.5' c5:0.5' eb5:0.5' bb4:0.5' eb5:0.5' |
+pattern vio_theme
+  | vio_d | vio_d | vio_bb | vio_f | vio_d | vio_g | vio_eb | vio_d |
+
+pattern theme
+  | d4:1.5 d4:0.5 f4:1 eb4:1 | d4:2 a3:2 | c4:1.5 bb3:0.5 a3:1 g3:1 | a3:4 |
+  | d4:1.5 d4:0.5 f4:1 g4:1 | a4:2 bb4:1 a4:1 | g4:1 f4:1 eb4:1 f4:1 | d4:4 |
+
+pattern timp_d
+  | d2:1! r:1 a2:1 d2:1 |
+pattern timp_bb
+  | bb2:1! r:1 f2:1 bb2:1 |
+pattern timp_f
+  | f2:1! r:1 c3:1 f2:1 |
+pattern timp_g
+  | g2:1! r:1 d3:1 g2:1 |
+pattern timp_eb
+  | eb2:1! r:1 bb2:1 eb2:1 |
+pattern timp_c
+  | c2:1! r:1 g2:1 c2:1 |
+pattern timp_theme
+  | timp_d | timp_d | timp_bb | timp_f | timp_d | timp_g | timp_eb | timp_d |
+
+pattern drive
+  | boom:1! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5 |
+pattern drive_gong
+  | gong:1! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5 |
+pattern dar
+  | darbuka_1:0.5! darbuka_3:0.5. darbuka_3:0.5. darbuka_2:0.5 darbuka_1:0.5! darbuka_3:0.5. darbuka_2:0.5 darbuka_3:0.5. |
+pattern slits
+  | slit_low:0.5! slit_high:0.5. slit_low:0.5 slit_high:0.5. slit_low:0.5! slit_low:0.5 slit_high:0.5 slit_high:0.5. |
+
+// A stab on the beat that opens a phrase.
+chord sd = [d3 a3 d4]
+chord seb = [eb3 bb3 eb4]
+chord sbb = [d3 bb3 d4]
+chord sf = [f3 c4 f4]
+chord sg = [d3 g3 bb3]
+chord sc = [e3 g3 c4]
+
+section a bars:8
+  horns dyn:f
+    | theme |
+  brass dyn:ff
+    | sd:1! r:3 | r:12 | sd:1! r:3 | r:12 |
+  low dyn:f
+    | ost_theme |
+  strings dyn:mf art:staccato
+    | vio_theme |
+  choir dyn:mf
+    | [d3 a3]:8 | [d3 bb3]:4 | [f3 c4]:4 | [d3 a3]:4 | [d3 bb3]:4 | [eb3 bb3]:4 | [d3 a3]:4 |
+  perc.drive dyn:f
+    | drive_gong | drive*7 |
+  perc.hands dyn:mf
+    | dar*8 |
+  timp dyn:f
+    | timp_theme |
+
+section b bars:8
+  choir dyn:f
+    | d3:1 d3:1 f3:1 eb3:1 | d3:2 c3:2 | d3:1 c3:1 bb2:1 c3:1 | d3:4 |
+    | f3:1 f3:1 g3:1 f3:1 | eb3:2 d3:2 | c3:1 d3:1 eb3:1 c3:1 | d3:4 |
+  brass dyn:f
+    | r:12 | r:1 sd:0.5! sd:0.5! seb:1! sd:1! |
+    | r:12 | r:1 sd:0.5! sd:0.5! seb:1! sd:1! |
+  low dyn:f
+    | ost_chant |
+  strings dyn:mp..mf art:tremolo
+    | [a4 d5]:8 | [bb4 d5]:4 [a4 d5]:4 | [a4 c5]:4 [bb4 eb5]:4 | [g4 c5]:4 [a4 d5]:4 |
+  perc.drive dyn:f
+    | drive*8 |
+  perc.hands dyn:mf
+    | dar*8 |
+  timp dyn:mf
+    | timp_d | timp_d | timp_bb | timp_d | timp_f | timp_eb | timp_c | timp_d |
+
+section c bars:8
+  strings dyn:mf..f art:sustain
+    | d5:1.5 d5:0.5 f5:1 eb5:1 | d5:2 a4:2 | c5:1.5 bb4:0.5 a4:1 g4:1 | a4:4 |
+    | d5:1.5 d5:0.5 f5:1 g5:1 | a5:2 bb5:1 a5:1 | g5:1 f5:1 eb5:1 f5:1 | d5:4 |
+  low dyn:mp..mf
+    | ost_theme |
+  choir dyn:p..mp
+    | [d3 a3]:8 | [d3 bb3]:4 | [f3 c4]:4 | [d3 a3]:4 | [d3 bb3]:4 | [eb3 bb3]:4 | [d3 a3]:4 |
+  perc dyn:mp..mf
+    | slits*8 |
+  timp dyn:mp
+    | d2:1! r:3 | r:4 | bb2:1! r:3 | r:4 | d2:1! r:3 | r:4 | eb2:1! r:3 | d2:0.25*16 |
+
+section d bars:8
+  horns dyn:ff
+    | theme |
+  strings dyn:f art:sustain
+    | d5:1.5 d5:0.5 f5:1 eb5:1 | d5:2 a4:2 | c5:1.5 bb4:0.5 a4:1 g4:1 | a4:4 |
+    | d5:1.5 d5:0.5 f5:1 g5:1 | a5:2 bb5:1 a5:1 | g5:1 f5:1 eb5:1 f5:1 | d5:4 |
+  brass dyn:ff
+    | sd:1! r:3 | sd:1! r:3 | sbb:1! r:3 | sf:1! r:3 | sd:1! r:3 | sg:1! r:3 | seb:1! r:3 | sd:1! r:1 sd:0.5! sd:0.5! r:1 |
+  low dyn:f..ff
+    | ost_d | ost_d | ost_bb | ost_f | ost_d | ost_g | ost_eb | ost_run |
+  choir dyn:f
+    | [d3 a3]:8 | [d3 bb3]:4 | [f3 c4]:4 | [d3 a3]:4 | [d3 bb3]:4 | [eb3 bb3]:4 | [d3 a3]:4 |
+  perc.drive dyn:f..ff
+    | drive_gong | drive*6 | boom:1! frame_low:0.25*12 |
+  perc.hands dyn:mf..f
+    | dar*8 |
+  timp dyn:f..ff
+    | timp_d | timp_d | timp_bb | timp_f | timp_d | timp_g | timp_eb | d2:0.25*16 |

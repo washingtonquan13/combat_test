@@ -118,6 +118,17 @@ const PREVIEW_REFRESH_FRAMES: int = 15
 ## Scene dock, which is the only other way to select it.
 @export_tool_button("Look through preview camera", "Camera3D")
 var look_through_preview: Callable = _look_through_preview
+## The music this scene is scored to: a name in music/transitions.json, or
+## empty to leave whatever is playing. MusicManager asks for it as the scene
+## starts, and holds the first frame until it has (see
+## CinematicDirector.hold_start), so a score written to the timeline meets it.
+@export var music: String = ""
+## The music outlives the scene: it plays on until the game next asks for
+## something - a fight, a door, a conversation. For a score that ends on a
+## loop written to wait for what follows, as the raid's does for the fight
+## that starts where it leaves off. Off, the scene's end hands the music
+## back to wherever the game is.
+@export var music_carries_on: bool = false
 
 var _cast: SceneCast = null
 var _driven: Array[StageRole] = []
@@ -155,6 +166,19 @@ func _validate_property(property: Dictionary) -> void:
 
 
 # --- Discovery -----------------------------------------------------
+
+
+## The value `scene`'s root stage was authored with for `property`, read off
+## the packed scene without building it: what can be known about a scene
+## before it is mounted, or before it is played at all.
+static func authored(scene: PackedScene, property: StringName, fallback: Variant = null) -> Variant:
+	if scene == null:
+		return fallback
+	var state := scene.get_state()
+	for i in state.get_node_property_count(0):
+		if state.get_node_property_name(0, i) == property:
+			return state.get_node_property_value(0, i)
+	return fallback
 
 
 ## The AnimationPlayer that IS the performance, or null.

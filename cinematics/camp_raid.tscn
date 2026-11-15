@@ -980,6 +980,8 @@ _data = {
 [node name="CampRaid" type="Node3D"]
 script = ExtResource("1_stage")
 performs_on_stand_ins = true
+music = "raid_camp.raid"
+music_carries_on = true
 props = {}
 shot = &"camp_crane"
 

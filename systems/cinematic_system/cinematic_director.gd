@@ -69,6 +69,14 @@ var _advance_requested: bool = false
 ## a headless harness, and every caller checks.
 var _camera: CinematicCamera = null
 var _overlay: CinematicOverlay = null
+## What the scene starting now waits for before its timeline runs - see
+## hold_start(). Emptied as each answers, and when the timeline starts.
+var _start_holds: Array[Callable] = []
+
+## The longest a scene's first frame is held for anything (see hold_start).
+## Past it the scene plays regardless: a hold is for keeping things in step,
+## and nothing it waits on is worth a screen that does not move.
+const START_HOLD_LIMIT: float = 4.0
 
 
 func _ready() -> void:
@@ -97,6 +105,18 @@ func overlay() -> CinematicOverlay:
 
 func is_active() -> bool:
 	return _running != null
+
+
+## Holds the timeline of the scene now starting until `ready` returns true,
+## for at most START_HOLD_LIMIT - so a score written to the scene starts on
+## its first frame (MusicManager). Only from a scene_started handler: a
+## timeline already running is past holding.
+##
+## POLLED, like everything else here: `ready` is asked once a frame, and the
+## director never waits on whoever answers it, so a hold whose answer never
+## comes costs the limit and nothing more. A skip ends the hold too.
+func hold_start(ready: Callable) -> void:
+	_start_holds.append(ready)
 
 
 func current_scene() -> PackedScene:
@@ -139,6 +159,7 @@ func play(stage: PackedScene, cast: SceneCast = null, props: Dictionary = {},
 	_settle_on_cancel = true
 	_skip_requested = false
 	_advance_requested = false
+	_start_holds.clear()
 	var players: SceneCast = cast if cast != null else SceneCast.new()
 	players.tree = get_tree()
 	scene_started.emit(stage)
@@ -251,7 +272,9 @@ func _run_timeline(stage: CinematicStage, animation: StringName, mine: int) -> v
 		stage.unbind()
 		return
 
-	timeline.play(animation)
+	await _hold_first_frame(stage, mine)
+	if mine == _generation:
+		timeline.play(animation)
 	while mine == _generation:
 		# The stage lives in the world, and a world is freed a frame after
 		# it announces it is going (or, on a path that never announces,
@@ -302,6 +325,24 @@ func _run_timeline(stage: CinematicStage, animation: StringName, mine: int) -> v
 		if mine == _generation or (_settle_on_cancel and stage.is_inside_tree()):
 			stage.commit_stand_ins()
 		stage.unbind()
+
+
+## Waits out hold_start()'s holds, polled. Stops early on a cancel, a skip
+## (left set, so the loop after skips the scene it was asked of) or a stage
+## that vanished, which is a cancel like the loop's own.
+func _hold_first_frame(stage: CinematicStage, mine: int) -> void:
+	var since: int = Time.get_ticks_msec()
+	while mine == _generation and not _skip_requested \
+			and Time.get_ticks_msec() - since < START_HOLD_LIMIT * 1000.0:
+		if not is_instance_valid(stage):
+			_cancel(false)
+			break
+		_start_holds = _start_holds.filter(
+			func(ready: Callable) -> bool: return ready.is_valid() and not ready.call())
+		if _start_holds.is_empty():
+			break
+		await get_tree().process_frame
+	_start_holds.clear()
 
 
 func _show_prompt(waiting: bool) -> void:

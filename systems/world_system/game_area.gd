@@ -54,6 +54,20 @@ extends Node3D
 @export var combat_intro_scene: PackedScene
 
 
+## The cutscene arriving here is about to play, or null. Asked by what has
+## to get ready before a scene starts and cannot wait for it to - the music,
+## which on arrival would otherwise start the area's own piece and could not
+## take it back. The entry_scene until it has played; an area that stages its
+## own arrival says so by overriding this.
+func arrival_scene() -> PackedScene:
+	if entry_scene == null:
+		return null
+	var area: AreaDefinition = WorldManager.area_of(self)
+	if area == null or FlagManager.has_flag(CinematicCues.ENTRY_FLAG_PREFIX + String(area.id)):
+		return null
+	return entry_scene
+
+
 func get_base_mode() -> GameMode.Mode:
 	return GameMode.Mode.EXPLORATION
 

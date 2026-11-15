@@ -1,0 +1,179 @@
+// Raid at Dusk - the goblin raid on the walled camp (cinematics/camp_raid.tscn),
+// written for the Warband ensemble. Through-composed to the scene's shots,
+// then a one-bar hold that loops until the fight takes over; the battle loop
+// (warband-battle) is in the same key and tempo, so the hand-off is a
+// downbeat, not a change of piece.
+//
+// Key. D minor with the phrygian E flat: the flat second is the goblins.
+//
+// Timeline (scene seconds) and the sections that meet it:
+//   0     dusk       60 bpm, 3 bars. The camp at rest; a far horn, slit drums.
+//   12    alarm      120 bpm, 4 bars. The lookout's shout is the downbeat;
+//                    the hit on the last off-beat is the arrow (19.7).
+//   20    gate       112 bpm, 4 bars. A ram blow every bar, everything
+//                    climbing to the downbeat after it: the gate breaks (28.55).
+//   28.6  breach     136 bpm, 9 bars. The theme. Stabs on the paired kill
+//                    (34.3) and the rogue's strike (38.3); the last two bars
+//                    fall to almost nothing for the cowering campers (41).
+//   44.4  leader     126 bpm, 4 bars. A horn call as the leader walks in, then
+//                    out of the way of "Leave them be!" (48).
+//   52.1  hobgoblin  136 bpm, 4 bars. One hit, quiet under his line (52.3),
+//                    then the build into the fight.
+//   59.1  brink      136 bpm, 1 bar, looping until combat starts.
+
+title: Raid at Dusk
+ensemble: warband
+parts: horns:brass brass strings low:bass choir perc timp:perc
+tempo: 60
+meter: 4/4
+key: d minor
+order: dusk alarm gate breach leader hobgoblin [brink]
+
+pattern ost_d
+  | d2:0.5' d2:0.5' d3:0.5' d2:0.5' eb2:0.5' d2:0.5' c3:0.5' d2:0.5' |
+pattern ost_bb
+  | bb1:0.5' bb1:0.5' bb2:0.5' bb1:0.5' c2:0.5' bb1:0.5' a2:0.5' bb1:0.5' |
+pattern ost_f
+  | f1:0.5' f1:0.5' f2:0.5' f1:0.5' g1:0.5' f1:0.5' eb2:0.5' f1:0.5' |
+pattern ost_g
+  | g1:0.5' g1:0.5' g2:0.5' g1:0.5' a1:0.5' g1:0.5' f2:0.5' g1:0.5' |
+
+pattern vio_d
+  | a4:0.5' d5:0.5' a4:0.5' d5:0.5' bb4:0.5' d5:0.5' a4:0.5' d5:0.5' |
+pattern vio_bb
+  | bb4:0.5' d5:0.5' bb4:0.5' d5:0.5' c5:0.5' d5:0.5' bb4:0.5' d5:0.5' |
+pattern vio_f
+  | a4:0.5' c5:0.5' a4:0.5' c5:0.5' bb4:0.5' c5:0.5' a4:0.5' c5:0.5' |
+pattern vio_g
+  | bb4:0.5' d5:0.5' bb4:0.5' d5:0.5' a4:0.5' d5:0.5' g4:0.5' d5:0.5' |
+
+pattern timp_d
+  | d2:1! r:1 a2:1 d2:1 |
+
+pattern drive
+  | boom:1! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5 |
+pattern dar
+  | darbuka_1:0.5! darbuka_3:0.5. darbuka_3:0.5. darbuka_2:0.5 darbuka_1:0.5! darbuka_3:0.5. darbuka_2:0.5 darbuka_3:0.5. |
+pattern alarm_hi
+  | frame_high:0.5! frame_high_muted:0.5. frame_high:0.5 frame_high_muted:0.5. frame_high:0.5! frame_high_muted:0.5. frame_high:0.5 frame_high_muted:0.5. |
+
+// The camp at dusk: a drone, a far-off horn, someone tapping on a slit drum.
+section dusk bars:3
+  low dyn:pp..p art:sustain
+    | d2:12 |
+  strings dyn:pp art:tremolo
+    | r:4 | [a4 d5]:8^ |
+  horns dyn:p..mp feel:loose
+    | r:2 a3:1_ d4:1 | eb4:3^ d4:1 | d4:2 r:2 |
+  perc dyn:pp
+    | slit_low:1 r:1 slit_low:1 slit_high:0.5. slit_low:0.5 | % | slit_low:1 r:1 frame_low:1 frame_low:0.5 frame_low:0.5 |
+  timp dyn:p..f
+    | r:8 | r:2 d2:0.25*8 |
+
+// The alarm: the shout on the downbeat, horns calling it on, the arrow on
+// the last off-beat.
+section alarm bars:4 tempo:120
+  brass dyn:f
+    | [d3 a3 d4]:1! r:3 | r:4 | [d3 a3 d4]:1! r:1 [eb3 bb3 eb4]:1! r:1 | r:3.5 [d3 a3 d4]:0.5! |
+  horns dyn:mf
+    | r:1 d4:1 a4:2^ | g4:1 f4:1 eb4:2 | r:1 d4:1 a4:2^ | bb4:2 a4:2 |
+  strings dyn:mp..f art:staccato
+    | vio_d*4 |
+  low dyn:mp..f
+    | ost_d*4 |
+  perc dyn:mf..f
+    | alarm_hi*3 | frame_low:0.5! frame_low:0.5 frame_low:0.5 frame_low:0.5 frame_low:0.5 frame_low:0.5 frame_low:0.5 boom:0.5! |
+  timp dyn:mf
+    | d2:1! r:3 | r:4 | d2:1! r:1 eb2:1! r:1 | r:3.5 d2:0.5! |
+
+// The ram at the gate: a blow every bar, everything climbing to the break.
+section gate bars:4 tempo:112
+  perc.ram dyn:mf..ff
+    | boom:1! r:1 frame_low:0.5 frame_low:0.5 frame_low_muted:1. | % | % | boom:1! frame_low:0.25*12 |
+  perc.hands dyn:mp..f
+    | dar*4 |
+  timp dyn:mf..ff
+    | d2:1! r:3 | d2:1! r:3 | d2:1! r:3 | d2:0.25*16 |
+  low dyn:mf..ff art:accent
+    | d2:1! r:1 d2:1 eb2:1 | % | % | d2:0.5' eb2:0.5' f2:0.5' g2:0.5' a2:1! bb2:0.5' c3:0.5' |
+  strings dyn:mp..ff art:tremolo
+    | a4:4 | bb4:4 | c5:4 | d5:2 eb5:2 |
+  choir dyn:mp..f
+    | [d3 a3]:4^ | [eb3 bb3]:4^ | [f3 c4]:4^ | [d3 a3]:4^ |
+  horns dyn:mf..f
+    | d4:4^ | eb4:4^ | f4:4^ | g4:2 a4:2 |
+
+// The gate breaks on the downbeat and the raiders pour in: the theme over
+// the ostinato. Stabs on the paired kill and the rogue's strike. The last
+// two bars are the campers cowering: nearly nothing.
+section breach bars:9 tempo:136
+  brass dyn:ff
+    | [d3 a3 d4]:1! r:1 [d3 a3 d4]:0.5! [d3 a3 d4]:0.5! r:1 | r:8 | r:1 [eb3 bb3 eb4]:1! r:2 | r:4 | r:2 [d3 a3 d4]:1! r:1 | r:12 |
+  horns dyn:f
+    | r:4 | d4:1.5 d4:0.5 f4:1 eb4:1 | d4:2 a3:2 | c4:1.5 bb3:0.5 a3:1 g3:1 | a3:4 | d4:1.5 d4:0.5 f4:1 g4:1 | a4:2 bb4:1 a4:1 | r:8 |
+  low.drive dyn:f
+    | ost_d | ost_d | ost_d | ost_bb | ost_f | ost_d | ost_g | r:8 |
+  low.hush dyn:pp art:sustain
+    | r:28 | d2:8 |
+  strings.drive dyn:f art:staccato
+    | vio_d | vio_d | vio_d | vio_bb | vio_f | vio_d | vio_g | r:8 |
+  strings.hush dyn:pp..p art:tremolo
+    | r:28 | [a4 d5]:8 |
+  choir.drive dyn:mf
+    | [d3 a3]:12 | [d3 bb3]:4 | [f3 c4]:4 | [d3 a3]:4 | [d3 bb3]:4 | r:8 |
+  choir.hush dyn:p
+    | r:28 | d3:2 eb3:2 | d3:4 |
+  perc.drive dyn:f
+    | gong:1! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5! frame_low_muted:0.5. frame_low:0.5 frame_high:0.5 | drive*6 | r:8 |
+  perc.hands dyn:mf
+    | r:4 | dar*6 | r:8 |
+  perc.hush dyn:pp
+    | r:28 | slit_low:1 r:1 slit_low:1 r:1 | slit_low:1 r:1 frame_low:0.5 frame_low:0.5 frame_low:0.5 frame_low:0.5 |
+  timp dyn:f
+    | timp_d*3 | bb2:1! r:1 f2:1 bb2:1 | f2:1! r:1 c3:1 f2:1 | timp_d | g2:1! r:1 d3:1 g2:1 | r:8 |
+
+// The leader walks in: a horn call, then out of the way of the line.
+section leader bars:4 tempo:126
+  low dyn:p..mp art:tremolo
+    | d2:16 |
+  strings dyn:pp..mp art:tremolo
+    | [d5 a5]:8 | [eb5 bb5]:8 |
+  horns dyn:mf..p
+    | d4:1 a4:2 g4:1 | a4:4^ | r:8 |
+  choir dyn:p
+    | r:8 | [d3 a3]:4 [eb3 bb3]:4 |
+  perc dyn:pp
+    | slit_low:1 r:3 | % | % | slit_low:1 slit_high:1 slit_low:1 slit_high:1 |
+  timp dyn:p..f
+    | r:12 | d2:0.25*16 |
+
+// The hobgoblin: one hit, quiet under "More meat for the pot", then the
+// build into the fight.
+section hobgoblin bars:4 tempo:136
+  brass dyn:f
+    | [d3 a3 d4]:1! r:3 | r:8 | [d3 a3 d4]:1! r:1 [eb3 bb3 eb4]:1! [d3 a3 d4]:0.5! [d3 a3 d4]:0.5! |
+  horns dyn:f
+    | r:12 | d4:2 a4:2^ |
+  timp dyn:mf..ff
+    | d2:1! r:3 | r:4 | d2:1 r:1 d2:1 r:1 | d2:0.25*16 |
+  low dyn:p..f
+    | r:4 | d2:0.5'*8 | ost_d*2 |
+  strings dyn:p..f art:staccato
+    | r:8 | vio_d*2 |
+  choir dyn:mp..f
+    | r:4 | [d3 a3]:8 | [eb3 bb3]:2 [d3 a3]:2 |
+  perc dyn:mp..ff
+    | r:4 | frame_low:1 frame_low_muted:1. frame_low:1 frame_low_muted:1. | drive*2 |
+
+// The brink: the drive, holding, until the fight takes over.
+section brink bars:1 tempo:136
+  low dyn:f
+    | ost_d |
+  strings dyn:mf art:staccato
+    | vio_d |
+  choir dyn:mf
+    | [d3 a3]:4 |
+  perc dyn:f
+    | drive |
+  timp dyn:mf
+    | timp_d |

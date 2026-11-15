@@ -1,0 +1,170 @@
+{
+  "format": 2,
+  "id": "warband",
+  "name": "Warband",
+  "description": "An orchestra for a goblin raid and the fight after it, from Virtual Playing Orchestra, VSCO 2 and the VCSL ritual kit. Held horns carry the calls, short brass stabs hit the accents, violins run ostinati and tremolo over cellos and basses digging in on the beat, a male choir chants under it, and the war drums are hand drums, slit drums and a gong over timpani. Everything sits in one hall so the cutscene and the battle sound like the same room.",
+  "buses": {
+    "lead": {
+      "space": "hall",
+      "wet": 0.3,
+      "predelay": 30.0
+    },
+    "guitar": {
+      "space": "hall",
+      "wet": 0.26,
+      "predelay": 20.0
+    },
+    "keys": {
+      "space": "hall",
+      "wet": 0.28,
+      "predelay": 24.0
+    },
+    "bass": {
+      "space": "hall",
+      "wet": 0.18,
+      "predelay": 20.0
+    },
+    "pad": {
+      "space": "hall",
+      "wet": 0.36,
+      "predelay": 30.0
+    },
+    "perc": {
+      "space": "hall",
+      "wet": 0.26,
+      "predelay": 16.0
+    }
+  },
+  "parts": {
+    "horns": {
+      "family": "brass",
+      "bus": "lead",
+      "layers": [
+        {
+          "instrument": "vpo/choir-and-brass",
+          "name": "held brass"
+        }
+      ],
+      "range": [
+        40,
+        84
+      ],
+      "voices": 16,
+      "keyswitch_default": "brass_long",
+      "gain_source": "guessed",
+      "gain_db": -24.0
+    },
+    "brass": {
+      "family": "brass",
+      "bus": "guitar",
+      "layers": [
+        {
+          "instrument": "vsco2/horn-stac",
+          "name": "horns"
+        },
+        {
+          "instrument": "vsco2/trombone-stac",
+          "name": "trombones",
+          "gain_db": -2.0,
+          "gain_source": "guessed"
+        },
+        {
+          "instrument": "vsco2/tuba-stac",
+          "name": "tuba",
+          "gain_db": -4.0,
+          "gain_source": "guessed",
+          "transpose": -12
+        }
+      ],
+      "range": [
+        41,
+        70
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -10.0
+    },
+    "strings": {
+      "family": "strings",
+      "bus": "keys",
+      "layers": [
+        {
+          "instrument": "vpo/violins",
+          "name": "violins"
+        }
+      ],
+      "range": [
+        55,
+        100
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -3.0
+    },
+    "low": {
+      "family": "bass",
+      "bus": "bass",
+      "layers": [
+        {
+          "instrument": "vpo/cellos",
+          "name": "cellos"
+        },
+        {
+          "instrument": "vpo/basses",
+          "name": "basses",
+          "gain_db": 3.0,
+          "gain_source": "guessed"
+        }
+      ],
+      "range": [
+        28,
+        67
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": 4.0
+    },
+    "choir": {
+      "family": "choir",
+      "bus": "pad",
+      "layers": [
+        {
+          "instrument": "vpo/choir-male",
+          "name": "men"
+        }
+      ],
+      "range": [
+        43,
+        66
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -2.0
+    },
+    "perc": {
+      "family": "perc",
+      "layers": [
+        {
+          "instrument": "vcsl/ritual-kit",
+          "name": "war drums"
+        }
+      ],
+      "voices": 24,
+      "gain_source": "guessed",
+      "gain_db": -12.0
+    },
+    "timp": {
+      "family": "perc",
+      "bus": "perc",
+      "layers": [
+        {
+          "instrument": "vsco2/timpani",
+          "name": "timpani"
+        }
+      ],
+      "voices": 8,
+      "gain_source": "guessed",
+      "gain_db": 0.0
+    }
+  }
+}

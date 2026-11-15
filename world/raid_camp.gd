@@ -48,18 +48,13 @@ func _on_world_focused(world: Node) -> void:
 	await get_tree().process_frame
 	if GameMode.current_mode() != GameMode.Mode.EXPLORATION:
 		return
-	var leader: Unit = PartyManager.leader
-	if not is_instance_valid(leader) or not leader.is_alive() or leader.in_combat() \
-			or not leader.is_inside_tree():
+	var units := _raid_units()
+	if units.is_empty():
 		return
-	var cast := SceneCast.new().track_unit(&"leader", leader)
-	var units: Dictionary = {}
-	for role: StringName in RAID_CAST:
-		var unit := get_node_or_null(RAID_CAST[role]) as Unit
-		if unit == null or not unit.is_alive() or unit.in_combat():
-			return
-		units[role] = unit
-		cast.track_unit(role, unit)
+	var leader: Unit = units[&"leader"]
+	var cast := SceneCast.new()
+	for role: StringName in units:
+		cast.track_unit(role, units[role])
 	FlagManager.set_flag(RAID_PLAYED)
 
 	var party: Array[Unit] = [leader]
@@ -81,6 +76,31 @@ func _on_world_focused(world: Node) -> void:
 		if is_instance_valid(unit) and unit.is_alive() and not unit.in_combat():
 			roster.append(unit as Unit)
 	CombatManager.start_combat(roster)
+
+
+## The raid, while it has yet to play and the camp it shows is all still
+## here - the same checks that decide to play it, bar the mode, which is
+## still settling on the arrival that asks.
+func arrival_scene() -> PackedScene:
+	if FlagManager.has_flag(RAID_PLAYED) or _raid_units().is_empty():
+		return null
+	return RAID_STAGE
+
+
+## Role -> unit for the raid, the party leader as &"leader"; empty if any of
+## them cannot play it.
+func _raid_units() -> Dictionary:
+	var leader: Unit = PartyManager.leader
+	if not is_instance_valid(leader) or not leader.is_alive() or leader.in_combat() \
+			or not leader.is_inside_tree():
+		return {}
+	var units: Dictionary = {&"leader": leader}
+	for role: StringName in RAID_CAST:
+		var unit := get_node_or_null(RAID_CAST[role]) as Unit
+		if unit == null or not unit.is_alive() or unit.in_combat():
+			return {}
+		units[role] = unit
+	return units
 
 
 func gate_is_broken() -> bool:

@@ -18,7 +18,11 @@
 		"test_area_3.negotiation": {"ensemble": "decadence", "score": "decadence"},
 		"goblin_quarry.exploration": {"ensemble": "hearthwild", "score": "hearthwild"},
 		"goblin_quarry.combat": {"ensemble": "tonewheel", "score": "sealed-ward"},
-		"goblin_quarry.negotiation": {"ensemble": "decadence", "score": "decadence"}
+		"goblin_quarry.negotiation": {"ensemble": "decadence", "score": "decadence"},
+		"raid_camp.raid": {"ensemble": "warband", "score": "raid-at-dusk"},
+		"raid_camp.exploration": {"ensemble": "hearthwild", "score": "hearthwild"},
+		"raid_camp.combat": {"ensemble": "warband", "score": "warband-battle"},
+		"raid_camp.negotiation": {"ensemble": "decadence", "score": "decadence"}
 	},
 	"rules": [
 		{"from": "*", "to": "*", "exit": "now", "fade": 1.5, "fade_in": 1.0},
@@ -45,6 +49,12 @@
 		{"from": "*", "to": "goblin_quarry.combat", "exit": "beat", "fade": 0.5, "urgent": true, "max_wait": 0.5},
 		{"from": "goblin_quarry.combat", "to": "*", "exit": "now", "fade": 2.0, "fade_in": 1.5, "pick_up": true},
 		{"from": "goblin_quarry.combat", "to": "goblin_quarry.negotiation", "exit": "now", "fade": 1.0, "fade_in": 0.5},
-		{"from": "goblin_quarry.negotiation", "to": "goblin_quarry.combat", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true}
+		{"from": "goblin_quarry.negotiation", "to": "goblin_quarry.combat", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true},
+		{"from": "*", "to": "raid_camp.raid", "exit": "now", "fade": 1.5},
+		{"from": "*", "to": "raid_camp.combat", "exit": "beat", "fade": 0.5, "urgent": true, "max_wait": 0.5},
+		{"from": "raid_camp.raid", "to": "raid_camp.combat", "exit": "bar", "fade": 0.3, "urgent": true},
+		{"from": "raid_camp.combat", "to": "*", "exit": "now", "fade": 2.0, "fade_in": 1.5, "pick_up": true},
+		{"from": "raid_camp.combat", "to": "raid_camp.negotiation", "exit": "now", "fade": 1.0, "fade_in": 0.5},
+		{"from": "raid_camp.negotiation", "to": "raid_camp.combat", "exit": "beat", "fade": 0.5, "fade_in": 0.5, "pick_up": true}
 	]
 }

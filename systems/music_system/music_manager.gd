@@ -82,6 +82,10 @@ var _level_seen_msec := 0
 ## through states nobody saved, and none of them is asked for.
 var _loading := false
 
+## The music of a scene that finished asking for it to carry on (see
+## CinematicStage.music_carries_on), until the game next asks for anything.
+var _carried := ""
+
 
 func _ready() -> void:
 	CombatManager.combat_started.connect(_on_combat_started)
@@ -93,6 +97,8 @@ func _ready() -> void:
 	# somewhere else. world_loaded comes after it for a new world and says
 	# nothing more about where the player is.
 	WorldManager.world_focused.connect(_reconcile.unbind(1))
+	CinematicDirector.scene_started.connect(_on_scene_started)
+	CinematicDirector.scene_finished.connect(_on_scene_finished)
 	SaveManager.load_started.connect(_on_load_started.unbind(1))
 	SaveManager.load_finished.connect(_on_load_finished.unbind(3))
 	Music.preload_hold = SfzMusicDirector.Hold.SCORES
@@ -119,7 +125,8 @@ func _physics_process(delta: float) -> void:
 ## APPROACH_REACH). The director's own intensity is the level in force, so a
 ## restored save starts from what it saved.
 func _follow_threat() -> void:
-	if _loading or wanted_moment() != EXPLORATION or WorldManager.current_area() == null:
+	if _loading or wanted_moment() != EXPLORATION or WorldManager.current_area() == null \
+			or _scene_music() != "":
 		return
 	var level := threat_level()
 	var now := Time.get_ticks_msec()
@@ -151,7 +158,7 @@ func threat_level() -> int:
 ## start, and lets go of it once one is not (see the header). Only while
 ## exploring: in a fight or a negotiation, _go() owns what is preloaded.
 func _hold_combat_if_near() -> void:
-	if _loading or wanted_moment() != EXPLORATION or Music.is_busy():
+	if _loading or wanted_moment() != EXPLORATION or Music.is_busy() or _scene_music() != "":
 		return
 	var area: AreaDefinition = WorldManager.current_area()
 	if area == null or not Music.table:
@@ -235,6 +242,32 @@ func _on_combat_started(turn_order: Array[Unit]) -> void:
 	_reconcile(_is_on_screen(turn_order))
 
 
+## A scene scored to music asks for it, and holds its first frame until that
+## music's downbeat has sounded: the score and the timeline start together
+## however long the ensemble took to load. A scene with no music changes
+## nothing.
+func _on_scene_started(stage: PackedScene) -> void:
+	var music: String = CinematicStage.authored(stage, &"music", "")
+	if music == "":
+		return
+	_reconcile()
+	if Music.table and Music.table.has_area(music):
+		CinematicDirector.hold_start(func() -> bool:
+			return Music.area == music and Music.is_playing() and Music.position() >= 0.0)
+
+
+## Its music hands back to wherever the game is - unless the scene finished
+## and its music carries on into whatever the game asks for next.
+func _on_scene_finished(stage: PackedScene, completed: bool) -> void:
+	var music: String = CinematicStage.authored(stage, &"music", "")
+	if music == "":
+		return
+	if completed and CinematicStage.authored(stage, &"music_carries_on", false):
+		_carried = music
+		return
+	_reconcile()
+
+
 ## True when any of these units is in the world being looked at. No world
 ## loaded means nowhere else to be, so everything counts.
 func _is_on_screen(units: Array[Unit]) -> bool:
@@ -254,12 +287,19 @@ func _is_on_screen(units: Array[Unit]) -> bool:
 func _reconcile(urgent: bool = false) -> void:
 	if _loading:
 		return
+	# Whatever is asked for now is what carried music was waiting for.
+	_carried = ""
 	var area: AreaDefinition = WorldManager.current_area()
 	if area == null:
 		# No world: the front end. The title has music of its own;
 		# character creation keeps whatever was playing.
 		if GameMode.current_mode() == GameMode.Mode.MAIN_MENU:
 			_go(MAIN_MENU)
+		return
+	var scored := _scene_music()
+	if scored != "":
+		# A scene mostly ends in a fight where it is staged.
+		_go(scored, urgent, music_area(area.id, COMBAT))
 		return
 	var moment := wanted_moment()
 	_go(music_area(area.id, moment), urgent, _next_likely(area.id, moment))
@@ -276,6 +316,23 @@ func wanted_moment() -> StringName:
 	if CombatManager.a_watched_fight_is_running():
 		return COMBAT
 	return EXPLORATION
+
+
+## The music of a scene on screen, of one this arrival is about to play, or
+## of one carried on past its end. While there is one it is what plays, and
+## the area's music for the moment waits. Asking for an arriving scene's
+## music before the scene starts is the point: the director never takes back
+## a transition it has begun, so the area's own piece, asked for first, would
+## play before the scene's could.
+func _scene_music() -> String:
+	if CinematicDirector.is_active():
+		return CinematicStage.authored(CinematicDirector.current_scene(), &"music", "")
+	if _carried != "":
+		return _carried
+	var world := WorldManager.current_world() as GameArea
+	if world != null:
+		return CinematicStage.authored(world.arrival_scene(), &"music", "")
+	return ""
 
 
 ## What the game may ask for next from here, loaded in the background so it
