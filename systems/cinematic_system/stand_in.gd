@@ -21,7 +21,9 @@ extends Node3D
 ## (FaceDriver.of). Gameplay never does, so a rule cannot be fooled by where
 ## somebody appears to stand.
 ##
-## WHAT IT DOES NOT CARRY. Effects and floating text follow the unit, not
+## WHAT IT DOES NOT CARRY. What the body shows the player about the unit
+## (hover outline, selection and turn rings) is left off the copy and stays
+## on the unit's hidden body. Effects and floating text follow the unit, not
 ## the copy; a scene that needs them on screen should not use a stand-in.
 
 const NODE_NAME: StringName = &"StandIn"
@@ -45,6 +47,7 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 	_mirror_owners(original, copy, {original: copy})
 	for solid in copy.find_children("*", "CollisionObject3D", true, false):
 		solid.free()
+	_strip_player_feedback(original, copy)
 	copy.name = BODY_NAME
 	copy.visible = true
 
@@ -87,6 +90,21 @@ static func _mirror_owners(from: Node, to: Node, twins: Dictionary) -> void:
 		if twins.has(child.owner):
 			twin.owner = twins[child.owner]
 		_mirror_owners(child, twin, twins)
+
+
+## The body carries what the player is shown about the unit: the hover
+## outline and the ring (whose decals hang under highlight_mesh). On the
+## copy nothing would drive them, so whatever was showing at the moment of
+## the copy, a ring for the selected leader, an outline for the person just
+## clicked to talk to, would stand frozen in every shot. They stay the
+## unit's own, hidden with its body and back when the copy is struck.
+static func _strip_player_feedback(original: CharacterModel, copy: CharacterModel) -> void:
+	for own: Node in [original.outline_mesh, original.highlight_mesh]:
+		if own == null or not original.is_ancestor_of(own):
+			continue
+		var twin: Node = copy.get_node_or_null(original.get_path_to(own))
+		if twin:
+			twin.free()
 
 
 ## The stand-in showing unit, or null when its own body is what is on screen.
@@ -158,14 +176,16 @@ func face_point(point: Vector3) -> void:
 	global_transform = Transform3D(Basis.looking_at(ahead, Vector3.UP), global_position)
 
 
-## Plays one of the body's clips on the copy. False when it has no such clip.
-func play(clip: String) -> bool:
+## Plays one of the body's clips on the copy, crossfading from the one it
+## is in over `blend` seconds (-1 is the player's own default). False when
+## it has no such clip.
+func play(clip: String, blend: float = -1.0) -> bool:
 	var copy: CharacterModel = body()
 	var player: AnimationPlayer = copy.resolve_animation_player() if copy else null
 	if player == null or not player.has_animation(clip):
 		return false
 	if player.assigned_animation != clip or not player.is_playing():
-		player.play(clip)
+		player.play(clip, blend)
 	return true
 
 

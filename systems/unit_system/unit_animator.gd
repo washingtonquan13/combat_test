@@ -850,9 +850,9 @@ func is_claimed_for_cutscene() -> bool:
 
 ## Plays a clip AS a scene, ignoring the claim — this is the one caller the
 ## claim exists to protect, so it must not be blocked by it.
-func play_cutscene_clip(anim_name: String) -> bool:
+func play_cutscene_clip(anim_name: String, blend: float = -1.0) -> bool:
 	_base_animation = anim_name
-	return _play(anim_name)
+	return _play(anim_name, blend)
 
 
 ## A one-shot motion with nothing behind it - moving a prop raises a hand

@@ -636,19 +636,23 @@ func clip(role: StringName, animation_name: String, claims: bool = true) -> void
 	if actor_now == null:
 		push_warning("CinematicStage.clip: nobody is playing '%s'." % role)
 		return
+	# A scene's clips crossfade as gameplay's stance changes do, on the
+	# body's own blend time: a walk that stops or a gesture that starts
+	# would otherwise cut, pose to pose, in the middle of a shot.
+	var animator: UnitAnimator = actor_now.animator()
+	var blend: float = animator.stance_blend_time if animator else -1.0
 	# On a copy there is no gameplay to hold off, so nothing to claim.
 	var shown: StandIn = body(role) as StandIn
 	if shown:
-		shown.play(animation_name)
+		shown.play(animation_name, blend)
 		return
-	var animator: UnitAnimator = actor_now.animator()
 	if animator == null:
 		# Normal: a bodiless unit, or a model with no AnimationPlayer.
 		return
 	if claims:
 		animator.claim_for_cutscene()
 		_cast.note_claim(actor_now)
-	animator.play_cutscene_clip(animation_name)
+	animator.play_cutscene_clip(animation_name, blend)
 
 
 ## `from` and `to` are role or mark names; an empty `to` means "at the same
