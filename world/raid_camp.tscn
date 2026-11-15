@@ -1,0 +1,905 @@
+[gd_scene load_steps=122 format=4]
+
+[ext_resource type="Script" path="res://world/raid_camp.gd" id="1_u05gs"]
+[ext_resource type="Material" path="res://world/raid_camp/props/mat_ground.tres" id="2_3m1b7"]
+[ext_resource type="Material" path="res://world/raid_camp/props/mat_camp_floor.tres" id="3_lw7j1"]
+[ext_resource type="Material" path="res://world/raid_camp/props/mat_road.tres" id="4_bmfxj"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/palisade_north_west.res" id="5_2menx"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/palisade_north_east.res" id="6_6cvfq"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/palisade_south_west.res" id="7_ckc43"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/palisade_south_east.res" id="8_3rho0"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/palisade_west.res" id="9_b822b"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/palisade_east.res" id="10_uwp4i"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/GatePosts.res" id="11_5lvpm"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/PosternPosts.res" id="12_k28kc"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/tent_north_west.res" id="13_g5ef8"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/tent_south_west.res" id="14_qojb5"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/tent_north_east.res" id="15_kta0u"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/tent_south_east.res" id="16_poegb"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/crates_gate.res" id="17_mqe5q"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/crate_gate.res" id="18_fntnr"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/crates_store.res" id="19_pgjys"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/crate_store.res" id="20_3ovu2"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/crate_fire.res" id="21_m3ged"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/cart.res" id="22_fnouj"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/rack.res" id="23_dwjrw"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/low_wall_west.res" id="24_5kwce"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/low_wall_east.res" id="25_wic3t"]
+[ext_resource type="PackedScene" path="res://assets/level/quarry/models/rock_07.glb" id="26_n1k7m"]
+[ext_resource type="PackedScene" path="res://assets/level/quarry/models/rock_09.glb" id="27_k3sap"]
+[ext_resource type="PackedScene" path="res://assets/level/quarry/models/tree_stump_01.glb" id="28_ntnm6"]
+[ext_resource type="PackedScene" path="res://assets/level/quarry/models/dead_tree_trunk_02.glb" id="29_kwedb"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/gate_closed.res" id="30_yck80"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/gate_broken.res" id="31_m3a66"]
+[ext_resource type="PackedScene" path="res://world/ladder.tscn" id="32_85die"]
+[ext_resource type="Script" path="res://world/ladder.gd" id="33_f1ok5"]
+[ext_resource type="ArrayMesh" path="res://world/raid_camp/props/campfire.res" id="34_dpsb8"]
+[ext_resource type="Texture2D" path="res://world/raid_camp/props/flame_dot.tres" id="35_ctc08"]
+[ext_resource type="Script" path="res://world/goblin_quarry/fire_flicker.gd" id="36_c14qu"]
+[ext_resource type="PackedScene" path="res://systems/unit_system/unit.tscn" id="37_sj5mk"]
+[ext_resource type="Script" path="res://systems/unit_system/unit.gd" id="38_bs5wd"]
+[ext_resource type="Resource" path="res://data/units/npcs/quarry_watchman.tres" id="39_1ojvl"]
+[ext_resource type="Script" path="res://systems/ability_system/ability.gd" id="40_gf5cb"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_melee.tres" id="41_0e7o7"]
+[ext_resource type="Script" path="res://systems/ai_system/ai_behavior.gd" id="42_3cneo"]
+[ext_resource type="Script" path="res://systems/ai_system/hold_range_behavior.gd" id="43_7apc1"]
+[ext_resource type="Script" path="res://systems/ai_system/focus_fire_behavior.gd" id="44_cvgqs"]
+[ext_resource type="Resource" path="res://data/ai_behaviors/finish_downed.tres" id="45_mypen"]
+[ext_resource type="Texture2D" path="res://assets/portraits/dwarf_fighter_1.jpg" id="46_f620g"]
+[ext_resource type="Resource" path="res://data/units/npcs/townsperson.tres" id="47_kn8qt"]
+[ext_resource type="Resource" path="res://data/units/demons/hobgoblin.tres" id="48_sw6d0"]
+[ext_resource type="Texture2D" path="res://assets/portraits/hobgoblin.jpg" id="49_gno1h"]
+[ext_resource type="Resource" path="res://data/units/demons/goblin_rogue.tres" id="50_f4u6j"]
+[ext_resource type="Script" path="res://systems/ai_system/withdraw_after_attack_behavior.gd" id="51_dodgg"]
+[ext_resource type="Texture2D" path="res://assets/portraits/woodland_goblin_rogue_by_thedrimdrim_dh26oji-fullview.jpg" id="52_dmpke"]
+[ext_resource type="Resource" path="res://data/units/demons/goblin_shaman.tres" id="53_2jipq"]
+[ext_resource type="Resource" path="res://data/abilities/basic_attack_ranged.tres" id="54_irkyo"]
+[ext_resource type="Resource" path="res://data/abilities/bless.tres" id="55_yogdi"]
+[ext_resource type="Resource" path="res://data/abilities/shield.tres" id="56_ih78b"]
+[ext_resource type="Resource" path="res://data/abilities/cure.tres" id="57_il53s"]
+[ext_resource type="Resource" path="res://data/abilities/heal.tres" id="58_x45ss"]
+[ext_resource type="Script" path="res://systems/ai_system/support_ally_behavior.gd" id="59_cl021"]
+[ext_resource type="Script" path="res://systems/ai_system/flee_behavior.gd" id="60_kpbne"]
+[ext_resource type="Environment" path="res://world/raid_camp/raid_camp_environment.tres" id="61_vl6er"]
+[ext_resource type="PackedScene" path="res://systems/camera_system/crpg_camera.tscn" id="62_ab7v0"]
+[ext_resource type="Script" path="res://systems/camera_system/crpg_camera.gd" id="63_c3puo"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_fg7kr"]
+size = Vector3(180, 2, 180)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_2raqy"]
+size = Vector2(600, 600)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_wppaf"]
+size = Vector2(30, 30)
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_plp0l"]
+_surfaces = [{
+"aabb": AABB(-3.09966, 0.022, -72.1494, 9.29308, 1e-05, 58.2766),
+"format": 34359738375,
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 30,
+"vertex_data": PackedByteArray("lv3YP1g5tDw5913Blv3Yv1g5tDzHCGLBEiWMv1g5tDwG8q7Blv3YP1g5tDw5913BEiWMv1g5tDwG8q7BVt8SQFg5tDz6DbHBVt8SQFg5tDz6DbHBEiWMv1g5tDwG8q7B1GBGwFg5tDzPIgDCVt8SQFg5tDz6DbHB1GBGwFg5tDzPIgDCDG2ZPlg5tDxiuv/BDG2ZPlg5tDxiuv/B1GBGwFg5tDzPIgDC1HIrv1g5tDwXRynCDG2ZPlg5tDxiuv/B1HIrv1g5tDwXRynCtdwqQFg5tDzpuCbCtdwqQFg5tDzpuCbC1HIrv1g5tDwXRynCrd2nP1g5tDy6yVzCtdwqQFg5tDzpuCbCrd2nP1g5tDy6yVzClQiWQFg5tDxGNlvClQiWQFg5tDxGNlvCrd2nP1g5tDy6yVzC/p4zQFg5tDyBTJDClQiWQFg5tDxGNlvC/p4zQFg5tDyBTJDCgTDGQFg5tDx/s4/C/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
+}]
+
+[sub_resource type="ArrayMesh" id="ArrayMesh_i05ec"]
+_surfaces = [{
+"aabb": AABB(-1.59692, 0.022, 13.9314, 4.19622, 1e-05, 36.1372),
+"format": 34359738375,
+"primitive": 3,
+"uv_scale": Vector4(0, 0, 0, 0),
+"vertex_count": 18,
+"vertex_data": PackedByteArray("m4aMv1g5tDzz5l5Bm4aMP1g5tDwNGWFBtM8YP1g5tDyDV69Bm4aMv1g5tDzz5l5BtM8YP1g5tDyDV69B2mfMv1g5tDx9qLBB2mfMv1g5tDx9qLBBtM8YP1g5tDyDV69B61omQFg5tDzM1wdC2mfMv1g5tDx9qLBB61omQFg5tDzM1wdCqCjNPlg5tDw0KAhCqCjNPlg5tDw0KAhC61omQFg5tDzM1wdCm4bMP1g5tDxDRkhCqCjNPlg5tDw0KAhCm4bMP1g5tDxDRkhCNg0Zv1g5tDy9uUdC/3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+//3///wAA/7//f///AAD/v/9///8AAP+/")
+}]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_6jjxv"]
+size = Vector3(13.2, 3.6, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_s82g6"]
+size = Vector3(11.4, 2.2, 1.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_gybg7"]
+size = Vector3(13.2, 3.6, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_j08kl"]
+size = Vector3(11.4, 2.2, 1.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_4h77q"]
+size = Vector3(14, 3.6, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_lnuam"]
+size = Vector3(12.2, 2.2, 1.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_j50n2"]
+size = Vector3(14, 3.6, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pn861"]
+size = Vector3(12.2, 2.2, 1.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_v47tx"]
+size = Vector3(29.6, 3.6, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kbfln"]
+size = Vector3(29.6, 2.2, 1.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7hbix"]
+size = Vector3(29.6, 3.6, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nd4j7"]
+size = Vector3(29.6, 2.2, 1.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_8534i"]
+size = Vector3(0.52, 4.8, 0.52)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_svvia"]
+size = Vector3(0.52, 4.8, 0.52)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_kynw2"]
+size = Vector3(0.4, 4, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_uph72"]
+size = Vector3(0.4, 4, 0.4)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_cc5ek"]
+size = Vector3(3.2, 2.4, 3.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_206qg"]
+size = Vector3(3.2, 2.4, 3.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_uqc5x"]
+size = Vector3(3.2, 2.4, 3.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_u1ugo"]
+size = Vector3(3.2, 2.4, 3.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_7smjd"]
+size = Vector3(1.2, 1.2, 2.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_h5p7f"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_p2i2j"]
+size = Vector3(1.2, 1.2, 2.2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_c52re"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_nuaay"]
+size = Vector3(0.9, 0.8, 0.9)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_inoe4"]
+size = Vector3(2, 1.2, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_grbcd"]
+size = Vector3(5, 1, 0.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_vfq4a"]
+size = Vector3(5, 1.1, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_j3d73"]
+size = Vector3(4, 1.1, 0.6)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_15l68"]
+size = Vector3(2, 1.2, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_myi75"]
+size = Vector3(1.16455, 0.990653, 2.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_1a7eq"]
+size = Vector3(1.33172, 0.583564, 2.7)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_62rvl"]
+size = Vector3(0.901104, 0.784267, 1.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_rash6"]
+size = Vector3(0.884457, 0.363872, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_jt52g"]
+size = Vector3(5.9, 1.4401, 1.4588)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_2qtct"]
+size = Vector3(1.97, 3.2, 0.3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_lpsol"]
+size = Vector3(1.97, 3.2, 0.3)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yvrwd"]
+albedo_color = Color(0.12, 0.04, 0.02, 1)
+emission_enabled = true
+emission = Color(1, 0.36, 0.08, 1)
+emission_energy_multiplier = 3.0
+
+[sub_resource type="SphereMesh" id="SphereMesh_8wacp"]
+radius = 0.32
+height = 0.22
+
+[sub_resource type="Gradient" id="Gradient_508hx"]
+colors = PackedColorArray(1, 0.85, 0.45, 1, 0.9, 0.18, 0.02, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture1D_q313h"]
+gradient = SubResource("Gradient_508hx")
+
+[sub_resource type="Curve" id="Curve_oa08o"]
+_data = [Vector2(0, 0.4), 0.0, 0.0, 0, 0, Vector2(0.25, 1), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_mt3nt"]
+curve = SubResource("Curve_oa08o")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_ch7y6"]
+emission_shape = 1
+emission_sphere_radius = 0.22
+direction = Vector3(0, 1, 0)
+spread = 12.0
+initial_velocity_min = 0.6
+initial_velocity_max = 1.3
+gravity = Vector3(0, 0.6, 0)
+scale_min = 0.6
+scale_curve = SubResource("CurveTexture_mt3nt")
+color_ramp = SubResource("GradientTexture1D_q313h")
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_8cccp"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+vertex_color_use_as_albedo = true
+albedo_color = Color(1.6, 1.2, 1, 1)
+albedo_texture = ExtResource("35_ctc08")
+billboard_mode = 3
+particles_anim_h_frames = 1
+particles_anim_v_frames = 1
+particles_anim_loop = false
+
+[sub_resource type="QuadMesh" id="QuadMesh_rspg2"]
+material = SubResource("StandardMaterial3D_8cccp")
+size = Vector2(0.4, 0.55)
+
+[sub_resource type="Resource" id="R_hold_range"]
+script = ExtResource("43_7apc1")
+preferred_range = 0.5
+preferred_altitude = nan
+range_tolerance = 1.5
+bias = 0.0
+
+[sub_resource type="Resource" id="R_focus_fire"]
+script = ExtResource("44_cvgqs")
+bias_per_ally = 1.0
+
+[sub_resource type="Resource" id="Resource_bah4x"]
+script = ExtResource("43_7apc1")
+preferred_range = 0.5
+preferred_altitude = nan
+range_tolerance = 1.5
+bias = 0.0
+
+[sub_resource type="Resource" id="R_withdraw"]
+script = ExtResource("51_dodgg")
+withdraw_distance = 6.0
+bias = 0.0
+
+[sub_resource type="Resource" id="R_support"]
+script = ExtResource("59_cl021")
+heal_abilities = Array[ExtResource("40_gf5cb")]([ExtResource("58_x45ss")])
+cure_abilities = Array[ExtResource("40_gf5cb")]([ExtResource("57_il53s")])
+buff_abilities = Array[ExtResource("40_gf5cb")]([ExtResource("55_yogdi"), ExtResource("56_ih78b")])
+bias = 0.0
+
+[sub_resource type="Resource" id="Resource_m056y"]
+script = ExtResource("43_7apc1")
+preferred_range = 9.0
+preferred_altitude = nan
+range_tolerance = 2.0
+bias = 0.0
+
+[sub_resource type="Resource" id="R_flee"]
+script = ExtResource("60_kpbne")
+hp_threshold = 0.35
+flee_distance = 10.0
+altitude_while_fleeing = 8.0
+bias = 0.0
+
+[node name="RaidCamp" type="Node3D" node_paths=PackedStringArray("party_spawn_point")]
+script = ExtResource("1_u05gs")
+party_spawn_point = NodePath("PartySpawnPoint")
+
+[node name="LevelGeometry" type="Node3D" parent="."]
+
+[node name="Ground" type="StaticBody3D" parent="LevelGeometry"]
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Ground"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -1, 0)
+shape = SubResource("BoxShape3D_fg7kr")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Ground"]
+material_override = ExtResource("2_3m1b7")
+mesh = SubResource("PlaneMesh_2raqy")
+
+[node name="CampFloor" type="MeshInstance3D" parent="LevelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.012, 0)
+material_override = ExtResource("3_lw7j1")
+mesh = SubResource("PlaneMesh_wppaf")
+
+[node name="Road" type="MeshInstance3D" parent="LevelGeometry"]
+material_override = ExtResource("4_bmfxj")
+mesh = SubResource("ArrayMesh_plp0l")
+
+[node name="PathSouth" type="MeshInstance3D" parent="LevelGeometry"]
+material_override = ExtResource("4_bmfxj")
+mesh = SubResource("ArrayMesh_i05ec")
+
+[node name="Palisade" type="Node3D" parent="LevelGeometry"]
+
+[node name="NorthWest" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.6, 0, -15)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/NorthWest"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("BoxShape3D_6jjxv")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/NorthWest"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.9, 1.1, 0.9)
+shape = SubResource("BoxShape3D_s82g6")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/NorthWest"]
+mesh = ExtResource("5_2menx")
+
+[node name="NorthEast" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.6, 0, -15)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/NorthEast"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("BoxShape3D_gybg7")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/NorthEast"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1.1, 0.9)
+shape = SubResource("BoxShape3D_j08kl")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/NorthEast"]
+mesh = ExtResource("6_6cvfq")
+
+[node name="SouthWest" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -8.2, 0, 15)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/SouthWest"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("BoxShape3D_4h77q")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/SouthWest"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.9, 1.1, 0.9)
+shape = SubResource("BoxShape3D_lnuam")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/SouthWest"]
+mesh = ExtResource("7_ckc43")
+
+[node name="SouthEast" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 8.2, 0, 15)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/SouthEast"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("BoxShape3D_j50n2")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/SouthEast"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.9, 1.1, 0.9)
+shape = SubResource("BoxShape3D_pn861")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/SouthEast"]
+mesh = ExtResource("8_3rho0")
+
+[node name="West" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, -15, 0, 0)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/West"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("BoxShape3D_v47tx")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/West"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0.9)
+shape = SubResource("BoxShape3D_kbfln")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/West"]
+mesh = ExtResource("9_b822b")
+
+[node name="East" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, 15, 0, 0)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/East"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.8, 0)
+shape = SubResource("BoxShape3D_7hbix")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/East"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, 0.9)
+shape = SubResource("BoxShape3D_nd4j7")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/East"]
+mesh = ExtResource("10_uwp4i")
+
+[node name="GatePosts" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -15)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/GatePosts"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.21, 2.4, 0)
+shape = SubResource("BoxShape3D_8534i")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/GatePosts"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.21, 2.4, 0)
+shape = SubResource("BoxShape3D_svvia")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/GatePosts"]
+mesh = ExtResource("11_5lvpm")
+
+[node name="PosternPosts" type="StaticBody3D" parent="LevelGeometry/Palisade"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 15)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Palisade/PosternPosts"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.35, 2, 0)
+shape = SubResource("BoxShape3D_kynw2")
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Palisade/PosternPosts"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, 2, 0)
+shape = SubResource("BoxShape3D_uph72")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Palisade/PosternPosts"]
+mesh = ExtResource("12_k28kc")
+
+[node name="Camp" type="Node3D" parent="LevelGeometry"]
+
+[node name="TentNorthWest" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 1.2, -5.5)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/TentNorthWest"]
+shape = SubResource("BoxShape3D_cc5ek")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentNorthWest"]
+mesh = ExtResource("13_g5ef8")
+
+[node name="TentSouthWest" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8.5, 1.2, 3.5)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/TentSouthWest"]
+shape = SubResource("BoxShape3D_206qg")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentSouthWest"]
+mesh = ExtResource("14_qojb5")
+
+[node name="TentNorthEast" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 1.2, -5.5)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/TentNorthEast"]
+shape = SubResource("BoxShape3D_uqc5x")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentNorthEast"]
+mesh = ExtResource("15_kta0u")
+
+[node name="TentSouthEast" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8.5, 1.2, 3.5)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/TentSouthEast"]
+shape = SubResource("BoxShape3D_u1ugo")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/TentSouthEast"]
+mesh = ExtResource("16_poegb")
+
+[node name="CratesGate" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.6, 0.6, -11)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/CratesGate"]
+shape = SubResource("BoxShape3D_7smjd")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/CratesGate"]
+mesh = ExtResource("17_mqe5q")
+
+[node name="CrateGate" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6.2, 0.5, -10.6)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/CrateGate"]
+shape = SubResource("BoxShape3D_h5p7f")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/CrateGate"]
+mesh = ExtResource("18_fntnr")
+
+[node name="CratesStore" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10.6, 0.6, 10.8)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/CratesStore"]
+shape = SubResource("BoxShape3D_p2i2j")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/CratesStore"]
+mesh = ExtResource("19_pgjys")
+
+[node name="CrateStore" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -12, 0.5, 9.4)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/CrateStore"]
+shape = SubResource("BoxShape3D_c52re")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/CrateStore"]
+mesh = ExtResource("20_3ovu2")
+
+[node name="CrateFire" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.2, 0.4, 2.6)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/CrateFire"]
+shape = SubResource("BoxShape3D_nuaay")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/CrateFire"]
+mesh = ExtResource("21_m3ged")
+
+[node name="Cart" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10.4, 0.6, 10.2)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/Cart"]
+shape = SubResource("BoxShape3D_inoe4")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/Cart"]
+mesh = ExtResource("22_fnouj")
+
+[node name="Rack" type="StaticBody3D" parent="LevelGeometry/Camp"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.8, 0.5, 9)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Camp/Rack"]
+shape = SubResource("BoxShape3D_grbcd")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Camp/Rack"]
+mesh = ExtResource("23_dwjrw")
+
+[node name="Approach" type="Node3D" parent="LevelGeometry"]
+
+[node name="LowWallWest" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5.5, 0.55, -26)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Approach/LowWallWest"]
+shape = SubResource("BoxShape3D_vfq4a")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Approach/LowWallWest"]
+mesh = ExtResource("24_5kwce")
+
+[node name="LowWallEast" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0.55, -31.5)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Approach/LowWallEast"]
+shape = SubResource("BoxShape3D_j3d73")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Approach/LowWallEast"]
+mesh = ExtResource("25_wic3t")
+
+[node name="Cart" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.8, 0.6, -37.5)
+
+[node name="Shape0" type="CollisionShape3D" parent="LevelGeometry/Approach/Cart"]
+shape = SubResource("BoxShape3D_15l68")
+
+[node name="Mesh" type="MeshInstance3D" parent="LevelGeometry/Approach/Cart"]
+mesh = ExtResource("22_fnouj")
+
+[node name="RockNear" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(0.825336, 0, 0.564642, 0, 1, 0, -0.564642, 0, 0.825336, 7.5, 0, -21.5)
+
+[node name="Model" type="Node3D" parent="LevelGeometry/Approach/RockNear" instance=ExtResource("26_n1k7m")]
+transform = Transform3D(7.49435, 0, 0, 0, 7.49435, 0, 0, 0, 7.49435, 0.0241353, -0.072464, 0.134352)
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Approach/RockNear"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.495326, 0)
+shape = SubResource("BoxShape3D_myi75")
+
+[node name="RockFar" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(-0.504846, 0, 0.863209, 0, 1, 0, -0.863209, 0, -0.504846, -8.5, 0, -44)
+
+[node name="Model" type="Node3D" parent="LevelGeometry/Approach/RockFar" instance=ExtResource("27_k3sap")]
+transform = Transform3D(19.327, 0, 0, 0, 19.327, 0, 0, 0, 19.327, -0.0063567, -0.0418789, -0.218084)
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Approach/RockFar"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.291782, 0)
+shape = SubResource("BoxShape3D_1a7eq")
+
+[node name="RockRoad" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(-0.8481, 0, -0.529836, 0, 1, 0, 0.529836, 0, -0.8481, 6, 0, -46.5)
+
+[node name="Model" type="Node3D" parent="LevelGeometry/Approach/RockRoad" instance=ExtResource("26_n1k7m")]
+transform = Transform3D(5.93303, 0, 0, 0, 5.93303, 0, 0, 0, 5.93303, 0.0191071, -0.0573673, 0.106362)
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Approach/RockRoad"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.392133, 0)
+shape = SubResource("BoxShape3D_62rvl")
+
+[node name="Stump" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(0.362358, 0, 0.932039, 0, 1, 0, -0.932039, 0, 0.362358, -3.4, 0, -19.5)
+
+[node name="Model" type="Node3D" parent="LevelGeometry/Approach/Stump" instance=ExtResource("28_ntnm6")]
+transform = Transform3D(0.691266, 0, 0, 0, 0.691266, 0, 0, 0, 0.691266, 0.0500768, 0.101454, -0.0241244)
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Approach/Stump"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.181936, 0)
+shape = SubResource("BoxShape3D_rash6")
+
+[node name="Trunk" type="StaticBody3D" parent="LevelGeometry/Approach"]
+transform = Transform3D(0.955337, 0, 0.29552, 0, 1, 0, -0.29552, 0, 0.955337, 10.5, 0, -39)
+
+[node name="Model" type="Node3D" parent="LevelGeometry/Approach/Trunk" instance=ExtResource("29_kwedb")]
+transform = Transform3D(1.48064, 0, 0, 0, 1.48064, 0, 0, 0, 1.48064, -0.151562, 0.363739, -0.0432428)
+
+[node name="Shape1" type="CollisionShape3D" parent="LevelGeometry/Approach/Trunk"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.720051, 0)
+shape = SubResource("BoxShape3D_jt52g")
+
+[node name="Gate" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -15)
+
+[node name="Closed" type="StaticBody3D" parent="Gate"]
+
+[node name="Shape0" type="CollisionShape3D" parent="Gate/Closed"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.985, 1.6, 0)
+shape = SubResource("BoxShape3D_2qtct")
+
+[node name="Shape1" type="CollisionShape3D" parent="Gate/Closed"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.985, 1.6, 0)
+shape = SubResource("BoxShape3D_lpsol")
+
+[node name="Mesh" type="MeshInstance3D" parent="Gate/Closed"]
+mesh = ExtResource("30_yck80")
+
+[node name="Broken" type="Node3D" parent="Gate"]
+visible = false
+
+[node name="Mesh" type="MeshInstance3D" parent="Gate/Broken"]
+mesh = ExtResource("31_m3a66")
+
+[node name="Ladders" type="Node3D" parent="."]
+
+[node name="NorthWest" parent="Ladders" instance=ExtResource("32_85die")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -6, 0, -12.7)
+script = ExtResource("33_f1ok5")
+
+[node name="Top" parent="Ladders/NorthWest" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 1.25)
+
+[node name="NorthEast" parent="Ladders" instance=ExtResource("32_85die")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 6, 0, -12.7)
+script = ExtResource("33_f1ok5")
+
+[node name="Top" parent="Ladders/NorthEast" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 1.25)
+
+[node name="West" parent="Ladders" instance=ExtResource("32_85die")]
+transform = Transform3D(-4.37114e-08, 0, -1, 0, 1, 0, 1, 0, -4.37114e-08, -12.7, 0, 4)
+script = ExtResource("33_f1ok5")
+
+[node name="Top" parent="Ladders/West" index="1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 1.25)
+
+[node name="Campfire" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
+
+[node name="Mesh" type="MeshInstance3D" parent="Campfire"]
+mesh = ExtResource("34_dpsb8")
+
+[node name="Embers" type="MeshInstance3D" parent="Campfire"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.04, 0)
+material_override = SubResource("StandardMaterial3D_yvrwd")
+mesh = SubResource("SphereMesh_8wacp")
+
+[node name="Flames" type="GPUParticles3D" parent="Campfire"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+amount = 40
+lifetime = 0.7
+process_material = SubResource("ParticleProcessMaterial_ch7y6")
+draw_pass_1 = SubResource("QuadMesh_rspg2")
+
+[node name="Light" type="OmniLight3D" parent="Campfire"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+light_color = Color(1, 0.58, 0.28, 1)
+light_energy = 1.8
+shadow_enabled = true
+omni_range = 11.0
+script = ExtResource("36_c14qu")
+
+[node name="Lookout" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, -3.4, 2.2, -14.1)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("39_1ojvl")
+display_name = "Town Watchman"
+persistent_id = &"raid_camp_lookout"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"townsfolk"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("R_hold_range"), SubResource("R_focus_fire"), ExtResource("45_mypen")])
+death_cleanup_delay = 2.0
+hover_color = Color(0.156863, 1, 1, 0.501961)
+portrait_texture = ExtResource("46_f620g")
+
+[node name="GuardGate" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 2.6, 0, -9)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("39_1ojvl")
+display_name = "Town Watchman"
+persistent_id = &"raid_camp_guard_gate"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"townsfolk"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("R_hold_range"), SubResource("R_focus_fire"), ExtResource("45_mypen")])
+death_cleanup_delay = 2.0
+hover_color = Color(0.156863, 1, 1, 0.501961)
+portrait_texture = ExtResource("46_f620g")
+
+[node name="GuardFire" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(-0.866025, 0, 0.5, 0, 1, 0, -0.5, 0, -0.866025, -1.8, 0, -2.6)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("39_1ojvl")
+display_name = "Town Watchman"
+persistent_id = &"raid_camp_guard_fire"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"townsfolk"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("R_hold_range"), SubResource("R_focus_fire"), ExtResource("45_mypen")])
+death_cleanup_delay = 2.0
+hover_color = Color(0.156863, 1, 1, 0.501961)
+portrait_texture = ExtResource("46_f620g")
+
+[node name="CamperFire" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(-0.939693, 0, -0.34202, 0, 1, 0, 0.34202, 0, -0.939693, 1.4, 0, 0.4)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("47_kn8qt")
+display_name = "Townsperson"
+persistent_id = &"raid_camp_camper_fire"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"neutral"
+death_cleanup_delay = 2.0
+hover_color = Color(0.156863, 1, 1, 0.501961)
+
+[node name="CamperTent" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(-0.173648, 0, -0.984808, 0, 1, 0, 0.984808, 0, -0.173648, 6.2, 0, 4)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("47_kn8qt")
+display_name = "Townsperson"
+persistent_id = &"raid_camp_camper_tent"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"neutral"
+death_cleanup_delay = 2.0
+hover_color = Color(0.156863, 1, 1, 0.501961)
+
+[node name="Hobgoblin" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 0, -56)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("48_sw6d0")
+display_name = "Hobgoblin"
+persistent_id = &"raid_camp_hobgoblin"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"enemy"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("R_hold_range"), SubResource("R_focus_fire"), ExtResource("45_mypen")])
+negotiable = true
+death_cleanup_delay = 2.0
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("49_gno1h")
+
+[node name="RogueA" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1, 0, -54)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("50_f4u6j")
+display_name = "Goblin Rogue"
+persistent_id = &"raid_camp_rogue_a"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"enemy"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("Resource_bah4x"), SubResource("R_withdraw"), ExtResource("45_mypen")])
+negotiable = true
+death_cleanup_delay = 2.0
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("52_dmpke")
+
+[node name="RogueB" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 3.6, 0, -57.5)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("50_f4u6j")
+display_name = "Goblin Rogue"
+persistent_id = &"raid_camp_rogue_b"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"enemy"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("Resource_bah4x"), SubResource("R_withdraw"), ExtResource("45_mypen")])
+negotiable = true
+death_cleanup_delay = 2.0
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("52_dmpke")
+
+[node name="RogueC" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.5, 0, -59)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("50_f4u6j")
+display_name = "Goblin Rogue"
+persistent_id = &"raid_camp_rogue_c"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"enemy"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("Resource_bah4x"), SubResource("R_withdraw"), ExtResource("45_mypen")])
+negotiable = true
+death_cleanup_delay = 2.0
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("52_dmpke")
+
+[node name="RogueD" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.6, 0, -53)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("50_f4u6j")
+display_name = "Goblin Rogue"
+persistent_id = &"raid_camp_rogue_d"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"enemy"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("41_0e7o7")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("Resource_bah4x"), SubResource("R_withdraw"), ExtResource("45_mypen")])
+negotiable = true
+death_cleanup_delay = 2.0
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("52_dmpke")
+
+[node name="ArcherWest" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.5, 0, -61)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("53_2jipq")
+display_name = "Goblin Shaman"
+persistent_id = &"raid_camp_archer_west"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"enemy"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("54_irkyo")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("R_support"), SubResource("Resource_m056y"), SubResource("R_flee"), ExtResource("45_mypen")])
+negotiable = true
+death_cleanup_delay = 2.0
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("52_dmpke")
+
+[node name="ArcherEast" type="CharacterBody3D" parent="." instance=ExtResource("37_sj5mk")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 6, 0, -61.5)
+script = ExtResource("38_bs5wd")
+definition = ExtResource("53_2jipq")
+display_name = "Goblin Shaman"
+persistent_id = &"raid_camp_archer_east"
+avoidance_margin = 0.25
+facing_offset_degrees = 180.0
+faction = &"enemy"
+abilities = Array[ExtResource("40_gf5cb")]([ExtResource("54_irkyo")])
+ai_behaviors = Array[ExtResource("42_3cneo")]([SubResource("R_support"), SubResource("Resource_m056y"), SubResource("R_flee"), ExtResource("45_mypen")])
+negotiable = true
+death_cleanup_delay = 2.0
+hover_color = Color(1, 0, 0, 0.501961)
+selected_color = Color(1, 0, 0, 0.627451)
+portrait_texture = ExtResource("52_dmpke")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("61_vl6er")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(-0.43073, 0.181332, -0.884076, 0, 0.979606, 0.200926, 0.902481, 0.0865449, -0.421945, 0, 12, 0)
+light_color = Color(1, 0.64, 0.4, 1)
+light_energy = 1.7
+light_volumetric_fog_energy = 1.6
+shadow_enabled = true
+shadow_opacity = 0.9
+shadow_blur = 1.5
+directional_shadow_max_distance = 80.0
+
+[node name="PartySpawnPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 24)
+
+[node name="CRPGCamera" type="Camera3D" parent="." instance=ExtResource("62_ab7v0")]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 12, 34)
+script = ExtResource("63_c3puo")
+max_pan_radius = 60.0
+
+[editable path="Ladders/NorthWest"]
+[editable path="Ladders/NorthEast"]
+[editable path="Ladders/West"]

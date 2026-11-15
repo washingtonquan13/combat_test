@@ -441,7 +441,12 @@ static func climb_waypoints(base: Vector3, top: Vector3) -> PackedVector3Array:
 ## close to `near`, already confirmed walkable by the ordinary
 ## ground-based find_path call earlier in find_route, so skipping them
 ## isn't skipping a real risk — it's a small region this specific check
-## structurally can't see, covered by a different one instead.
+## structurally can't see, covered by a different one instead. The floor is
+## measured from the ground UNDER each sample (flight_floor_at), as the grid
+## measures it: a world-height cut only ever matched it for a landing near
+## y 0, and refused every climb onto a platform higher than the floor
+## itself (a rampart walk at 2.2 m), because the last metre over the
+## landing is below the flier floor there.
 ##
 ## Third bug, also caught by the same run: max_radius_cells=0 (an exact,
 ## no-snap check) is precise but brittle exactly where this needs it
@@ -463,7 +468,6 @@ static func _climb_path_is_clear(unit: Unit, base: Vector3, top: Vector3, going_
 	var waypoints: PackedVector3Array = climb_waypoints(base, top)
 	if not going_up:
 		waypoints.reverse()
-	var min_checkable_altitude: float = NavigationGrid.get_flight_min_altitude()
 
 	for i in range(1, waypoints.size()):
 		var a: Vector3 = waypoints[i - 1]
@@ -476,7 +480,7 @@ static func _climb_path_is_clear(unit: Unit, base: Vector3, top: Vector3, going_
 		for s in range(steps + 1):
 			var t: float = float(s) / float(steps)
 			var sample: Vector3 = a.lerp(b, t)
-			if sample.y < min_checkable_altitude:
+			if sample.y < NavigationGrid.flight_floor_at(unit.get_tree(), sample, unit):
 				continue
 			var check: Dictionary = NavigationGrid.nearest_valid_point(unit.get_tree(), sample, clearance, true, unit, SNAP_RADIUS_CELLS)
 			if not check.found:
