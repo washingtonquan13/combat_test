@@ -1,0 +1,2 @@
+kmd-generate, kimodo-soma-rp-v1.1, 50 steps, seed 3, 90 frames
+A person lunges forward and stabs with a sword held in the right hand, holds it, then pulls it back.

@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="PairedClip" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/paired_clip.gd" id="1_5spwl"]
+
+[resource]
+script = ExtResource("1_5spwl")
+lead_clip = "Paired/Stab_Lead"
+partner_clip = "Paired/Stab_Partner"
+partner_from_lead = Transform3D(-1, 0, -8.74228e-08, 0, 1, 0, 8.74228e-08, 0, -1, 0, 0, 2.31467)
+contact_time = 0.8
+length = 2.16667
+kills_partner = true
