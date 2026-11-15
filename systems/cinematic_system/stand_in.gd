@@ -63,6 +63,12 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 	stand.global_transform = Transform3D(Basis.looking_at(ahead, Vector3.UP), at)
 
 	stand._stand_idle(original, copy)
+	# A mesh binds its skin when it enters the tree, which is after its
+	# skeleton did, and a skin is only filled on the skeleton's update. Left
+	# to the next frame's, the copy draws nothing for the one frame in which
+	# the unit's own body is already hidden.
+	for skeleton: Skeleton3D in copy.find_children("*", "Skeleton3D", true, false):
+		skeleton.notification(Skeleton3D.NOTIFICATION_UPDATE_SKELETON)
 	original.visible = false
 	return stand
 
