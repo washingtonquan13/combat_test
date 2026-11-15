@@ -2,48 +2,48 @@ responses silent
 
 == greeting
 start: opening
-~ Words words words. Why you here. Simple words only.
-* Want you to fight with me.
+~ Words words words. Why you here. Simple words only.  #line:d16221
+* Want you to fight with me.  #line:0d6a64
     mood +3
     -> strong
-* Need help. That's all.
+* Need help. That's all.  #line:1f78a4
     mood +1
     -> strong
-* The tactical situation necessitates additional—
+* The tactical situation necessitates additional—  #line:dc11cf
     pardon
     -> strong
-* Let me explain the nuances of the geopolitical—
+* Let me explain the nuances of the geopolitical—  #line:82bd5d
     outcome attack
 
 
 == pressed
-~ Hm. Okay. Shiny not that important.
-* Okay. Fight with you anyway.
+~ Hm. Okay. Shiny not that important.  #line:dc19db
+* Okay. Fight with you anyway.  #line:160d21
     outcome recruit
-* No shiny, no deal. Bye.
+* No shiny, no deal. Bye.  #line:bab481
     outcome flee
 
 
 == request
-~ Want shiny. {gold} gold. Give.
-* [can_pay_gold] Give shiny. {gold}. Now.
+~ Want shiny. {gold} gold. Give.  #line:9a9289
+* [can_pay_gold] Give shiny. {gold}. Now.  #line:160b12
     pay_gold
     outcome recruit
-* No shiny.
+* No shiny.  #line:78f0d4
     mood -2
     -> pressed
 
 
 == strong
-~ Fight good? Strong?
-* Yes. Strong. Good fight.
+~ Fight good? Strong?  #line:ba9b4e
+* Yes. Strong. Good fight.  #line:c382ce
     mood +3
     -> request
-* Strong enough, I think.
+* Strong enough, I think.  #line:769f7f
     mood +1
     -> request
-* Strength is a complicated metric, actually—
+* Strength is a complicated metric, actually—  #line:02b4a2
     pardon
     -> request
-* Define 'strong' first, precisely.
+* Define 'strong' first, precisely.  #line:7cf805
     outcome attack

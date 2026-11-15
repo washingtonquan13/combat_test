@@ -28,6 +28,10 @@ extends Resource
 @export var alignment_name: String = ""
 @export var is_repeatable: bool = false
 @export var dialogue_line: String = ""
+## The permanent names of `text` and of `dialogue_line` (see DialogueScript,
+## LINE IDS). The same when the response is said as it is written.
+@export var line_id: String = ""
+@export var spoken_line_id: String = ""
 ## Set on FlagManager the instant this choice is picked — the write
 ## half of dialogue's flag/state support. "" means this choice doesn't
 ## touch a flag, the common case.
@@ -79,7 +83,7 @@ func resolve(c: Conversation) -> String:
 		# just spoke aloud, not a system aside, so the log should
 		# attribute it to them the same way a node's own text_block gets
 		# attributed to its speaker.
-		c.record("player", dialogue_line)
+		c.record("player", dialogue_line, {"line_id": spoken_line_id})
 		# Said aloud, it is a turn of its own: the conversation waits while
 		# the player's character says it (see DialogueStaging), so the
 		# answer doesn't land on top of the question.

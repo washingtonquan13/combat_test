@@ -1,49 +1,49 @@
 responses silent
 
 == bearing
-~ Better. Now — look at me. What do you actually see?
-* Someone who's clearly used to being underestimated, and shouldn't be.
+~ Better. Now — look at me. What do you actually see?  #line:d52d9f
+* Someone who's clearly used to being underestimated, and shouldn't be.  #line:5406ff
     mood +3
     -> request
-* Someone dangerous.
+* Someone dangerous.  #line:8082d6
     mood +1
     -> request
-* Just another demon.
+* Just another demon.  #line:eb7c87
     pardon
     -> request
-* A monster wearing a pretty face.
+* A monster wearing a pretty face.  #line:ad17c3
     outcome attack
 
 
 == greeting
 start: opening
-~ You raise a weapon in my presence without so much as a proper word. Tell me — do you even know how to address someone like me?
-* Forgive my haste — I'd be glad to start again, properly.
+~ You raise a weapon in my presence without so much as a proper word. Tell me — do you even know how to address someone like me?  #line:0a080e
+* Forgive my haste — I'd be glad to start again, properly.  #line:6226f5
     mood +3
     -> bearing
-* Fine. What would you have me call you?
+* Fine. What would you have me call you?  #line:542d28
     mood +1
     -> bearing
-* Does it really matter what I call you?
+* Does it really matter what I call you?  #line:827379
     pardon
     -> bearing
-* I don't bow to monsters.
+* I don't bow to monsters.  #line:40cd0d
     outcome attack
 
 
 == pressed
-~ No? ...Very well. I suppose sincerity doesn't always come with a price tag.
-* Then let sincerity be enough.
+~ No? ...Very well. I suppose sincerity doesn't always come with a price tag.  #line:7ed244
+* Then let sincerity be enough.  #line:45f1a4
     outcome recruit
-* Then we have nothing further to discuss.
+* Then we have nothing further to discuss.  #line:c81536
     outcome flee
 
 
 == request
-~ ...Acceptable. If you'd have me consider joining you properly, a gesture of good faith wouldn't go amiss — say, {gold} gold.
-* [can_pay_gold] Consider it a gesture, then.
+~ ...Acceptable. If you'd have me consider joining you properly, a gesture of good faith wouldn't go amiss — say, {gold} gold.  #line:c692ca
+* [can_pay_gold] Consider it a gesture, then.  #line:be0bbf
     pay_gold
     outcome recruit
-* I don't owe you anything just for talking.
+* I don't owe you anything just for talking.  #line:60ea39
     mood -2
     -> pressed

@@ -2,48 +2,48 @@ responses silent
 
 == greeting
 start: opening
-~ You want something from me? Then prove you're not afraid of me first.
-* Try me and find out.
+~ You want something from me? Then prove you're not afraid of me first.  #line:6e7fbc
+* Try me and find out.  #line:0e687e
     mood +3
     -> pressure
-* I'm not afraid. I'm careful.
+* I'm not afraid. I'm careful.  #line:8537ec
     mood +1
     -> pressure
-* I'd rather not fight, if it's all the same to you.
+* I'd rather not fight, if it's all the same to you.  #line:61160f
     pardon
     -> pressure
-* Please, I don't want any trouble.
+* Please, I don't want any trouble.  #line:c03d49
     outcome attack
 
 
 == pressed
-~ You'd really rather fight than pay? ...Alright. That's a kind of answer too.
-* Ha! Fine. Guts count for something.
+~ You'd really rather fight than pay? ...Alright. That's a kind of answer too.  #line:9862cc
+* Ha! Fine. Guts count for something.  #line:c15a67
     outcome recruit
-* Then let's settle this properly.
+* Then let's settle this properly.  #line:7d68c1
     outcome attack
 
 
 == pressure
-~ Strength only matters until something stronger shows up. What then?
-* Then I get stronger. That's the whole point.
+~ Strength only matters until something stronger shows up. What then?  #line:03e909
+* Then I get stronger. That's the whole point.  #line:29b12f
     mood +3
     -> request
-* Then I adapt and keep moving.
+* Then I adapt and keep moving.  #line:62fb38
     mood +1
     -> request
-* Then I retreat and regroup.
+* Then I retreat and regroup.  #line:e215fc
     pardon
     -> request
-* Then I hope someone stronger saves me.
+* Then I hope someone stronger saves me.  #line:db92ec
     outcome attack
 
 
 == request
-~ Good enough. Now show me you've got something worth having — {gold} gold, or don't bother.
-* [can_pay_gold] Here — {gold} gold. Call it a toll.
+~ Good enough. Now show me you've got something worth having — {gold} gold, or don't bother.  #line:87aa35
+* [can_pay_gold] Here — {gold} gold. Call it a toll.  #line:76bb34
     pay_gold
     outcome recruit
-* Come take it, if you think you can.
+* Come take it, if you think you can.  #line:f37e6f
     mood -2
     -> pressed

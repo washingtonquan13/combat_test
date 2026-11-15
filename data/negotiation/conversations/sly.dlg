@@ -1,49 +1,49 @@
 responses silent
 
 == deal
-~ Fine. Then answer me this — if I asked for something you didn't actually want to give, what would you really do?
-* Give you something that LOOKS like what you asked for.
+~ Fine. Then answer me this — if I asked for something you didn't actually want to give, what would you really do?  #line:423086
+* Give you something that LOOKS like what you asked for.  #line:1397cc
     mood +3
     -> request
-* Try to talk you out of it first.
+* Try to talk you out of it first.  #line:62d1b5
     mood +1
     -> request
-* Refuse outright. No games.
+* Refuse outright. No games.  #line:f4711e
     pardon
     -> request
-* Tell you honesty is the best policy.
+* Tell you honesty is the best policy.  #line:2cec4c
     outcome attack
 
 
 == greeting
 start: opening
-~ You didn't even try to sneak up on me. Bold. Or stupid. Which is it, exactly?
-* Does it matter, as long as it worked?
+~ You didn't even try to sneak up on me. Bold. Or stupid. Which is it, exactly?  #line:09249a
+* Does it matter, as long as it worked?  #line:fdc0ea
     mood +3
     -> deal
-* A bit of both, probably.
+* A bit of both, probably.  #line:66439f
     mood +1
     -> deal
-* I wanted a fair fight, honestly.
+* I wanted a fair fight, honestly.  #line:81d7dc
     pardon
     -> deal
-* Sneaking around is dishonorable.
+* Sneaking around is dishonorable.  #line:349836
     outcome attack
 
 
 == pressed
-~ ...Didn't think you'd call that bluff. Alright — maybe coin isn't the only currency worth trading in.
-* Smart, not just cheap. I can respect that.
+~ ...Didn't think you'd call that bluff. Alright — maybe coin isn't the only currency worth trading in.  #line:f466c1
+* Smart, not just cheap. I can respect that.  #line:bcca08
     outcome recruit
-* Then we're done here.
+* Then we're done here.  #line:30a034
     outcome flee
 
 
 == request
-~ ...Clever enough. Prove it's not just talk, then — {gold} gold says you mean it.
-* [can_pay_gold] Fine. {gold} gold, no questions asked.
+~ ...Clever enough. Prove it's not just talk, then — {gold} gold says you mean it.  #line:0ec7e4
+* [can_pay_gold] Fine. {gold} gold, no questions asked.  #line:46e260
     pay_gold
     outcome recruit
-* Nice try. I don't pay for conversation.
+* Nice try. I don't pay for conversation.  #line:6c7a07
     mood -2
     -> pressed

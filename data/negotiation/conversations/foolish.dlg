@@ -2,48 +2,48 @@ responses silent
 
 == greeting
 start: opening
-~ Ooh! A fight! Or a friend? Or maybe both?? Tell me something SILLY first, quick!
-* I once fought a rock. The rock won.
+~ Ooh! A fight! Or a friend? Or maybe both?? Tell me something SILLY first, quick!  #line:04ad87
+* I once fought a rock. The rock won.  #line:e03399
     mood +3
     -> purple
-* Uh... I like snacks?
+* Uh... I like snacks?  #line:adf889
     mood +1
     -> purple
-* I don't really have time for games.
+* I don't really have time for games.  #line:f590d4
     pardon
     -> purple
-* Let's be rational about this, please.
+* Let's be rational about this, please.  #line:570546
     outcome attack
 
 
 == pressed
-~ Wait, that means nobody wins? That's the silliest outcome of all!
-* Okay then YOU win! Which means I follow you now! Fun!
+~ Wait, that means nobody wins? That's the silliest outcome of all!  #line:4b5f77
+* Okay then YOU win! Which means I follow you now! Fun!  #line:b46dfc
     outcome recruit
-* Boo. No fun. Bye then!
+* Boo. No fun. Bye then!  #line:98d168
     outcome flee
 
 
 == purple
-~ If the sky turned purple right now, this very second, what would you do?
-* Paint my face purple too, obviously.
+~ If the sky turned purple right now, this very second, what would you do?  #line:ba0dff
+* Paint my face purple too, obviously.  #line:796aa3
     mood +3
     -> request
-* Probably just... look up?
+* Probably just... look up?  #line:7813f5
     mood +1
     -> request
-* That's not physically possible.
+* That's not physically possible.  #line:6a04ca
     pardon
     -> request
-* I would calmly assess the situation.
+* I would calmly assess the situation.  #line:d122b8
     outcome attack
 
 
 == request
-~ Wheee! Okay, silly game — whoever gives up {gold} gold first wins! Go!
-* [can_pay_gold] Ooh, shiny! Here, {gold} gold, catch!
+~ Wheee! Okay, silly game — whoever gives up {gold} gold first wins! Go!  #line:10f863
+* [can_pay_gold] Ooh, shiny! Here, {gold} gold, catch!  #line:e78827
     pay_gold
     outcome recruit
-* Nooo, my shinies are MINE.
+* Nooo, my shinies are MINE.  #line:0a0013
     mood -1
     -> pressed

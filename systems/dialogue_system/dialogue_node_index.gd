@@ -66,7 +66,9 @@ func _index_directory(dir_path: String) -> void:
 		if da.current_is_dir():
 			_index_directory(full_path)
 		elif entry_name.get_extension() == DialogueScript.EXTENSION:
-			var script: DialogueScript = DialogueScript.compile_file(full_path)
+			# Run from the editor, a file gets its missing line ids written in.
+			var script: DialogueScript = DialogueScript.stamp_file(full_path) \
+					if OS.has_feature("editor") else DialogueScript.compile_file(full_path)
 			problems.append_array(script.problems)
 			for node in script.nodes:
 				if has_id(node.id):

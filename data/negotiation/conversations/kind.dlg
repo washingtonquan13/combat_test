@@ -2,48 +2,48 @@ responses silent
 
 == greeting
 start: opening
-~ Before we speak further — why did you spare the wounded ones behind you, instead of finishing them?
-* Because they'd already lost. That was enough.
+~ Before we speak further — why did you spare the wounded ones behind you, instead of finishing them?  #line:5eaa36
+* Because they'd already lost. That was enough.  #line:ab7bf5
     mood +3
     -> sacrifice
-* No real reason to waste the effort finishing them.
+* No real reason to waste the effort finishing them.  #line:bac926
     mood +1
     -> sacrifice
-* I honestly didn't think about it either way.
+* I honestly didn't think about it either way.  #line:5f168c
     pardon
     -> sacrifice
-* I was saving them for later, that's all.
+* I was saving them for later, that's all.  #line:939a86
     outcome attack
 
 
 == pressed
-~ That's alright — I shouldn't have asked. Let's set it aside.
-* Of course not. Kindness was never a transaction.
+~ That's alright — I shouldn't have asked. Let's set it aside.  #line:722466
+* Of course not. Kindness was never a transaction.  #line:763b3d
     outcome recruit
-* Then let me give first. Rest, and take your time.
+* Then let me give first. Rest, and take your time.  #line:b7c527
     outcome heal
 
 
 == request
-~ Then perhaps you'd share a little — {gold} gold — so I might help someone else the way you've helped me.
-* [can_pay_gold] Then take this — {gold} gold — for whoever needs it after me.
+~ Then perhaps you'd share a little — {gold} gold — so I might help someone else the way you've helped me.  #line:e5d07f
+* [can_pay_gold] Then take this — {gold} gold — for whoever needs it after me.  #line:78d38d
     pay_gold
     outcome recruit
-* I don't have anything to spare right now.
+* I don't have anything to spare right now.  #line:a1a235
     mood -1
     -> pressed
 
 
 == sacrifice
-~ If helping me cost you something real — not just spare change — would you still offer it?
-* Yes. That's exactly what makes it worth something.
+~ If helping me cost you something real — not just spare change — would you still offer it?  #line:12a631
+* Yes. That's exactly what makes it worth something.  #line:d23b8c
     mood +3
     -> request
-* Depends how much it costs me, honestly.
+* Depends how much it costs me, honestly.  #line:f87b46
     mood +1
     -> request
-* Probably not, if I'm being honest.
+* Probably not, if I'm being honest.  #line:fe89b4
     pardon
     -> request
-* Only if I got something better in return.
+* Only if I got something better in return.  #line:09d5cf
     outcome attack

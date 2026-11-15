@@ -389,7 +389,7 @@ func _show_node(node: DialogueNode) -> void:
 	if not _narrated.has(node.id):
 		_narrated[node.id] = true
 		# record() emits changed, which also carries the new choices.
-		record(node.speaker, node.text_block, {"narration": true, "tags": node.tags})
+		record(node.speaker, node.text_block, {"narration": true, "tags": node.tags, "line_id": node.line_id})
 		return
 	if node.continues:
 		# Back at a passage already heard: straight to its last line, where

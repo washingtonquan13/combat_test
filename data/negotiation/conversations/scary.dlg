@@ -1,49 +1,49 @@
 responses silent
 
 == command
-~ Then perhaps YOU should be giving the orders here. Go on. Try.
-* Get out of my way, or don't. Your choice.
+~ Then perhaps YOU should be giving the orders here. Go on. Try.  #line:c9e7db
+* Get out of my way, or don't. Your choice.  #line:d55bde
     mood +3
     -> request
-* Let's talk terms, then.
+* Let's talk terms, then.  #line:1c5153
     mood +1
     -> request
-* I- I don't really know what to say.
+* I- I don't really know what to say.  #line:10d23f
     pardon
     -> request
-* Whatever you want, just spare me!
+* Whatever you want, just spare me!  #line:76b408
     outcome attack
 
 
 == greeting
 start: opening
-~ Kneel. Now. ...No? ...Interesting. Most do, by this point.
-* I don't kneel to anyone. Least of all you.
+~ Kneel. Now. ...No? ...Interesting. Most do, by this point.  #line:149e0a
+* I don't kneel to anyone. Least of all you.  #line:daac1a
     mood +3
     -> command
-* I'll stand, if it's all the same to you.
+* I'll stand, if it's all the same to you.  #line:037973
     mood +1
     -> command
-* I- I'll kneel, just don't hurt me.
+* I- I'll kneel, just don't hurt me.  #line:a7f65b
     pardon
     -> command
-* Please, please don't kill me!
+* Please, please don't kill me!  #line:550e5d
     outcome attack
 
 
 == pressed
-~ ...Refused. Twice defiant, now. That is either very brave, or very foolish.
-* ...Nothing beneath me refuses me twice. Fine. Follow, then — as an equal.
+~ ...Refused. Twice defiant, now. That is either very brave, or very foolish.  #line:0cc1c4
+* ...Nothing beneath me refuses me twice. Fine. Follow, then — as an equal.  #line:1979d4
     outcome recruit
-* Then you'll learn why tribute was the wiser choice.
+* Then you'll learn why tribute was the wiser choice.  #line:faa3aa
     outcome attack
 
 
 == request
-~ Very well. Then prove your worth the way everything beneath me does — {gold} gold, as tribute.
-* [can_pay_gold] Tribute, then. {gold} gold. Take it.
+~ Very well. Then prove your worth the way everything beneath me does — {gold} gold, as tribute.  #line:cfdb93
+* [can_pay_gold] Tribute, then. {gold} gold. Take it.  #line:972f8f
     pay_gold
     outcome recruit
-* I don't pay tribute to anyone.
+* I don't pay tribute to anyone.  #line:029070
     mood -3
     -> pressed

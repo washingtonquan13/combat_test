@@ -1,49 +1,49 @@
 responses silent
 
 == again
-~ Good. GOOD. Or bad. I genuinely can't tell yet. Say something else, quickly.
-* Take your time. I'm not going anywhere.
+~ Good. GOOD. Or bad. I genuinely can't tell yet. Say something else, quickly.  #line:46a1b5
+* Take your time. I'm not going anywhere.  #line:aeddb4
     mood_swing +1 +4
     -> request
-* ...Okay. Sure. Whatever works.
+* ...Okay. Sure. Whatever works.  #line:e89100
     mood_swing -2 +3
     -> request
-* Could you just make up your mind?
+* Could you just make up your mind?  #line:787b7f
     pardon
     -> request
-* Honestly, you seem pretty unstable.
+* Honestly, you seem pretty unstable.  #line:6484d3
     outcome attack
 
 
 == greeting
 start: opening
-~ WHO ARE YOU. WHY ARE YOU HERE. ANSWER FAST OR— ...sorry. Sorry. Just. Answer me.
-* I'm not here to make anything worse. Promise.
+~ WHO ARE YOU. WHY ARE YOU HERE. ANSWER FAST OR— ...sorry. Sorry. Just. Answer me.  #line:2f5cde
+* I'm not here to make anything worse. Promise.  #line:0b9cf0
     mood_swing +1 +4
     -> again
-* Just... passing through, mostly.
+* Just... passing through, mostly.  #line:ed7c2a
     mood_swing -2 +3
     -> again
-* Hey, just calm down for a second.
+* Hey, just calm down for a second.  #line:0c3dc7
     pardon
     -> again
-* You're being completely ridiculous right now.
+* You're being completely ridiculous right now.  #line:ed23a2
     outcome attack
 
 
 == pressed
-~ ...No, you're right, that was a weird thing to demand. Sorry. Sorry! Are we okay?
-* You know what, FINE, I didn't need it anyway. Let's just go.
+~ ...No, you're right, that was a weird thing to demand. Sorry. Sorry! Are we okay?  #line:ca4d27
+* You know what, FINE, I didn't need it anyway. Let's just go.  #line:45c532
     outcome recruit
-* Ugh. Forget it. Forget this whole thing.
+* Ugh. Forget it. Forget this whole thing.  #line:e730a6
     outcome flee
 
 
 == request
-~ I NEED — no wait, I WANT — {gold} gold. Is that so much to ask?! Is it?!
-* [can_pay_gold] Fine! Take it! {gold} gold, whatever, here!
+~ I NEED — no wait, I WANT — {gold} gold. Is that so much to ask?! Is it?!  #line:a4adbe
+* [can_pay_gold] Fine! Take it! {gold} gold, whatever, here!  #line:a2b64c
     pay_gold
     outcome recruit
-* No! Why would I just GIVE you that?!
+* No! Why would I just GIVE you that?!  #line:1bf91a
     mood_swing -4 +1
     -> pressed

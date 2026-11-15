@@ -1,49 +1,49 @@
 responses silent
 
 == faith
-~ If I asked you to lower your weapon first, entirely on faith, would you?
-* If the reasoning held up, yes, without hesitation.
+~ If I asked you to lower your weapon first, entirely on faith, would you?  #line:71f4a8
+* If the reasoning held up, yes, without hesitation.  #line:1f1635
     mood +3
     -> request
-* I'd want the reasoning first.
+* I'd want the reasoning first.  #line:1c649f
     mood +1
     -> request
-* Not a chance. Faith isn't a strategy.
+* Not a chance. Faith isn't a strategy.  #line:c7f46e
     pardon
     -> request
-* Only if I got to hit you first.
+* Only if I got to hit you first.  #line:ab6f17
     outcome attack
 
 
 == greeting
 start: opening
-~ You arrived mid-battle, weapon drawn, breathing hard. Why, exactly, are you not calmer right now?
-* I am calm. This is simply what focus looks like.
+~ You arrived mid-battle, weapon drawn, breathing hard. Why, exactly, are you not calmer right now?  #line:a80dcf
+* I am calm. This is simply what focus looks like.  #line:a457f2
     mood +3
     -> faith
-* Adrenaline. It fades quickly enough.
+* Adrenaline. It fades quickly enough.  #line:9e2164
     mood +1
     -> faith
-* Maybe I don't owe you an explanation.
+* Maybe I don't owe you an explanation.  #line:13052c
     pardon
     -> faith
-* Because fighting is exciting, obviously!
+* Because fighting is exciting, obviously!  #line:3a3d7c
     outcome attack
 
 
 == pressed
-~ No matter. An unnecessary condition, in hindsight. Let's not let it become a disagreement.
-* Reasonable enough. Let's proceed on trust, then.
+~ No matter. An unnecessary condition, in hindsight. Let's not let it become a disagreement.  #line:f69e0a
+* Reasonable enough. Let's proceed on trust, then.  #line:41437a
     outcome recruit
-* Very well. No harm in parting ways.
+* Very well. No harm in parting ways.  #line:9fd5de
     outcome flee
 
 
 == request
-~ Then let's be reasonable about this. A gesture of good faith — {gold} gold — and we can speak further.
-* [can_pay_gold] A fair exchange, then — {gold} gold.
+~ Then let's be reasonable about this. A gesture of good faith — {gold} gold — and we can speak further.  #line:e8099b
+* [can_pay_gold] A fair exchange, then — {gold} gold.  #line:186bb2
     pay_gold
     outcome recruit
-* I'd rather not, if there's another way.
+* I'd rather not, if there's another way.  #line:44fa3e
     mood -2
     -> pressed

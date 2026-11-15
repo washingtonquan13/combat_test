@@ -49,3 +49,6 @@ extends Resource
 @export var continues: bool = false
 ## Staging notes written after the line ("#close"), for whoever frames it.
 @export var tags: PackedStringArray = []
+## The line's permanent name (see DialogueScript, LINE IDS): what a
+## recording, a translation or a shot bound to these words is filed under.
+@export var line_id: String = ""

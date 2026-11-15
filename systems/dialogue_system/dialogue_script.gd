@@ -38,6 +38,13 @@ extends RefCounted
 ## A file that begins with "responses silent" is one whose responses are
 ## acts, not speech (negotiation).
 ##
+## LINE IDS. Every line, response and "say:" ends in "#line:xxxxxx", a name
+## for those words that survives rewording and reordering: it is what a
+## recording, a translation or a shot bound to the line is filed under. They
+## are not typed. Running the game from the editor writes one onto any line
+## that lacks it (see stamp_file); copy a line and the copy's id must be
+## deleted, or the file reports the duplicate.
+##
 ## Conditions and effects are not named here. Each PrerequisiteRule or
 ## DialogueEffect that can be written in a file says so itself with a
 ## SCRIPT_WORDS constant and reads its own arguments in read_script(), so a
@@ -59,9 +66,16 @@ var _silent: bool = false
 var _line_no: int = 0
 var _locals: Dictionary = {}
 var _blocks: Array[Dictionary] = []
+## Indices of the source lines that hold words and have no line id yet.
+var _unstamped: PackedInt32Array = []
 
 static var _speaker_pattern: RegEx = RegEx.create_from_string("^([A-Za-z_][A-Za-z0-9_]*):\\s*(.*)$")
 static var _tag_pattern: RegEx = RegEx.create_from_string("\\s#([A-Za-z_][A-Za-z0-9_]*)$")
+static var _id_pattern: RegEx = RegEx.create_from_string("(^|\\s)#line:([0-9a-z]+)$")
+## Line id -> "file:line" of the line that holds it, across every file read.
+static var _ids: Dictionary = {}
+const ID_TAG: String = "#line:"
+const ID_LETTERS: int = 6
 ## Root class name -> { word -> Script }. See _script_for.
 static var _words: Dictionary = {}
 
@@ -85,7 +99,58 @@ static func compile_text(text: String, source: String) -> DialogueScript:
 	return script
 
 
+## compile_file, after first writing a line id onto every line of the file
+## that has none. The file is only rewritten when something was missing.
+static func stamp_file(path: String) -> DialogueScript:
+	var script: DialogueScript = compile_file(path)
+	if script._unstamped.is_empty():
+		return script
+	var read: FileAccess = FileAccess.open(path, FileAccess.READ)
+	var lines: PackedStringArray = read.get_as_text().split("\n")
+	read.close()
+	for i in script._unstamped:
+		var ending: String = "\r" if lines[i].ends_with("\r") else ""
+		lines[i] = "%s  %s%s%s" % [lines[i].strip_edges(false, true), ID_TAG, _new_id(), ending]
+	var write: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if write == null:
+		return script
+	write.store_string("\n".join(lines))
+	write.close()
+	_forget_ids(path)
+	return compile_file(path)
+
+
+static func _new_id() -> String:
+	var id: String = ""
+	while id == "" or _ids.has(id):
+		id = ("%08x" % randi()).right(ID_LETTERS)
+	_ids[id] = ""
+	return id
+
+
+static func _forget_ids(source: String) -> void:
+	for id in _ids.keys():
+		if _ids[id] == "" or _ids[id].begins_with(source + ":"):
+			_ids.erase(id)
+
+
+## Takes the line id off the end of `words`. Returns [the words, the id].
+func _take_id(words: String) -> Array:
+	var found: RegExMatch = _id_pattern.search(words)
+	if found == null:
+		_unstamped.append(_line_no - 1)
+		return [words, ""]
+	var id: String = found.get_string(2)
+	var here: String = "%s:%d" % [_source, _line_no]
+	if _ids.get(id, here) not in ["", here]:
+		_problem("line id '%s' is already the line at %s; delete it from the copy." % [id, _ids[id]])
+	else:
+		_ids[id] = here
+	return [words.substr(0, found.get_start()).strip_edges(), id]
+
+
 func _compile(text: String) -> void:
+	_forget_ids(_source)
 	var lines: PackedStringArray = text.replace("\r", "").split("\n")
 	for raw in lines:
 		if raw.begins_with("=="):
@@ -137,6 +202,8 @@ func _node_name(line: String) -> String:
 
 
 func _read_line(line: String) -> Dictionary:
+	var named: Array = _take_id(line)
+	line = named[0]
 	var tags: PackedStringArray = []
 	var tagged: RegExMatch = _tag_pattern.search(line)
 	while tagged:
@@ -152,7 +219,7 @@ func _read_line(line: String) -> Dictionary:
 		if spoken:
 			speaker = spoken.get_string(1)
 			text = spoken.get_string(2)
-	return {"speaker": speaker, "text": _unescape(text), "tags": tags}
+	return {"speaker": speaker, "text": _unescape(text), "tags": tags, "id": named[1]}
 
 
 func _unescape(text: String) -> String:
@@ -178,7 +245,7 @@ func _read_before(rest: String, block: Dictionary) -> void:
 func _read_choice(rest: String, block: Dictionary) -> Dictionary:
 	var c: Dictionary = {"line": _line_no, "text": "", "alignment": "", "repeat": false,
 			"silent": _silent, "hidden": false, "kind": &"line", "skill": "", "npc_skill": "",
-			"prerequisite": null, "say": null, "flag": "", "effects": [],
+			"prerequisite": null, "say": null, "flag": "", "effects": [], "id": "", "say_id": "",
 			"next": "", "root": false, "success": "", "failure": ""}
 	while rest.begins_with("["):
 		var close: int = rest.find("]")
@@ -187,7 +254,9 @@ func _read_choice(rest: String, block: Dictionary) -> Dictionary:
 			break
 		_read_bracket(rest.substr(1, close - 1).strip_edges(), c, block)
 		rest = rest.substr(close + 1).strip_edges()
-	c.text = _unescape(rest)
+	var named: Array = _take_id(rest)
+	c.text = _unescape(named[0])
+	c.id = named[1]
 	return c
 
 
@@ -233,7 +302,9 @@ func _read_choice_body(line: String, c: Dictionary, block: Dictionary) -> void:
 	elif line.begins_with("failure") and line.substr(7).strip_edges().begins_with("->"):
 		c.failure = _target(line.substr(7).strip_edges().substr(2))
 	elif line.begins_with("say:"):
-		c.say = _unescape(line.substr(4).strip_edges())
+		var named: Array = _take_id(line.substr(4).strip_edges())
+		c.say = _unescape(named[0])
+		c.say_id = named[1]
 	elif line.begins_with("set "):
 		c.flag = line.substr(4).strip_edges()
 	else:
@@ -257,13 +328,14 @@ func _emit(block: Dictionary) -> void:
 	var id: String = _prefix + block.name
 	var lines: Array = block.lines
 	if lines.is_empty():
-		lines = [{"speaker": "", "text": "", "tags": PackedStringArray()}]
+		lines = [{"speaker": "", "text": "", "tags": PackedStringArray(), "id": ""}]
 	for i in lines.size():
 		var node := DialogueNode.new()
 		node.id = id if i == 0 else "%s.%d" % [id, i + 1]
 		node.speaker = lines[i].speaker
 		node.text_block = lines[i].text
 		node.tags = lines[i].tags
+		node.line_id = lines[i].id
 		if i == 0:
 			for effect in block.start:
 				node.start_effects.append(effect)
@@ -302,6 +374,8 @@ func _build_choice(c: Dictionary) -> DialogueChoice:
 		if c.next != "" or c.root:
 			_problem("a [check] or [contest] leads 'success ->' and 'failure ->', not '->'.")
 	choice.text = c.text
+	choice.line_id = c.id
+	choice.spoken_line_id = c.say_id if c.say != null else c.id
 	choice.alignment_name = c.alignment
 	choice.is_repeatable = c.repeat
 	choice.sets_flag = c.flag
