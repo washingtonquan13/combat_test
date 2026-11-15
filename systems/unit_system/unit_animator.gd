@@ -166,6 +166,11 @@ var _pending_armed_hold: String = ""
 ## screen: the auto-disarm after a cast arrives while the cast is playing,
 ## and must not cut it.
 var _armed_stance_clips: Array[String] = []
+## What the head was turned to look at for the cast under way, so letting go
+## lets go of that look only and not of one a step or a talk began since.
+var _gaze_target: Node3D = null
+## Stands at a point the cast was aimed at, for the head to look at.
+var _gaze_marker: Marker3D = null
 var _armed_exit_clip: String = ""
 
 ## Whether the body is off the ground, which is not quite unit.is_flying():
@@ -327,6 +332,25 @@ func _on_movement_started(_u: Unit) -> void:
 	unit.visual_state = Unit.VisualState.STANDING
 	_base_animation = _idle()
 	_play(_walk())
+	_carry_stance()
+
+
+## Walking with a stance up keeps it up: the upper body holds the guard
+## over the legs' walk (BodyAnimationTree's UPPER layer). Not in the air,
+## where the whole body flies, and not on a body with no upper body.
+func _carry_stance() -> void:
+	var hold: String = _armed_hold()
+	if hold == "" or _aloft or not playback.has_upper() or not animation_player.has_animation(hold):
+		return
+	# The enter clip the walk replaced is never finishing: the hold is up.
+	_pending_armed_enter_clip = ""
+	_pending_armed_hold = ""
+	playback.play_upper(hold, stance_blend_time)
+
+
+## The armed stance's held loop, or "" when nothing is armed.
+func _armed_hold() -> String:
+	return _armed_stance_clips[1] if _armed_stance_clips.size() > 1 else ""
 
 
 ## Does NOT touch idle_animation while a pose is being held — this is
@@ -341,6 +365,11 @@ func _on_movement_finished(_u: Unit) -> void:
 	if _cutscene_claimed:
 		return
 	if unit.posed_status:
+		return
+	# Stopping with the stance carried: the whole body takes the guard.
+	var carried: String = String(playback.upper_animation)
+	if carried != "" and carried == _armed_hold():
+		_play(carried, stance_blend_time)
 		return
 	_play(_idle())
 
@@ -373,6 +402,11 @@ func _on_ability_armed(ability: Ability) -> void:
 	_armed_stance_clips = [enter, hold]
 	_armed_exit_clip = _armed_clip(&"armed.exit", ability.armed_motion)
 
+	# Armed on the move: the legs go on walking and the arms take the hold.
+	if unit.is_moving() and playback.has_upper() and not _aloft:
+		_carry_stance()
+		return
+
 	if enter != "" and _play(enter, stance_blend_time):
 		_pending_armed_enter_clip = enter
 		_pending_armed_hold = hold
@@ -395,9 +429,13 @@ func _on_ability_armed(ability: Ability) -> void:
 func _put_stance_away() -> void:
 	var showing: bool = playback.current_animation != "" \
 		and String(playback.current_animation) in _armed_stance_clips
+	var carried: bool = playback.upper_animation != &"" \
+		and String(playback.upper_animation) in _armed_stance_clips
 	var exit: String = _armed_exit_clip
 	_armed_stance_clips = []
 	_armed_exit_clip = ""
+	if carried:
+		playback.stop_upper(stance_blend_time)
 	if not showing or unit.is_moving():
 		return
 	if not _play(exit, stance_blend_time):
@@ -432,6 +470,7 @@ func _on_ability_use_started(_attacker: Unit, _target, ability: Ability) -> void
 			action.release()
 		return
 	var sequence: AnimationSequence = _sequence_for(ability.motion)
+	_look_at(_target)
 	# Launched out of the stance: blend from wherever the hold loop is.
 	var from_stance: bool = String(playback.current_animation) in _armed_stance_clips
 	_play_sequence(sequence, stance_blend_time if from_stance else phase_blend_time, action)
@@ -450,6 +489,37 @@ func _on_model_moment(moment_name: StringName) -> void:
 				_cast_action.release_next()
 		&"impact":
 			unit.notify_impact()
+
+
+## Turns the head to what the cast is aimed at: a unit's face, or the point
+## on the ground (a LineTarget's middle). Not at itself. A body with no head
+## to turn simply does not look.
+func _look_at(target) -> void:
+	_stop_looking(0.0)
+	if not is_instance_valid(_model):
+		return
+	var node: Node3D = null
+	if target is Unit:
+		if target != unit:
+			node = (target as Unit).gaze_point()
+	elif target is Vector3 or target is LineTarget:
+		if not is_instance_valid(_gaze_marker):
+			_gaze_marker = Marker3D.new()
+			_gaze_marker.name = "CastGaze"
+			_gaze_marker.top_level = true
+			add_child(_gaze_marker)
+		_gaze_marker.global_position = target if target is Vector3 else (target as LineTarget).centre()
+		node = _gaze_marker
+	if node and _model.gaze_at(node):
+		_gaze_target = node
+
+
+## Lets the cast's look go, eased, unless something else took the head since.
+func _stop_looking(ease_seconds: float = 0.3) -> void:
+	var looked: Node3D = _gaze_target
+	_gaze_target = null
+	if looked and is_instance_valid(_model) and _model.is_gazing_at(looked):
+		_model.stop_gazing(ease_seconds)
 
 
 ## Lets every shot the clip still held go, and lets go of the action.
@@ -499,6 +569,9 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 		return
 	if not unit.is_alive():
 		return
+	if _flinches():
+		playback.flinch(hit_animation)
+		return
 
 	# The hit clip replaces the wind-up, and with it the release key the
 	# wind-up was going to reach: let the cast go now.
@@ -511,9 +584,24 @@ func _on_took_damage(_u: Unit, _amount: int) -> void:
 	_play(reaction if reaction != "" else hit_animation)
 
 
+## A hit on a body that is busy - walking, casting, holding a stance up -
+## recoils on top of what it is doing (BodyFlinch) instead of stopping it,
+## so the walk walks on and the cast keeps its release. Standing about, held
+## in a pose or in the air, the hit clip plays as it always did.
+func _flinches() -> bool:
+	if not playback.has_upper() or _aloft or unit.posed_status:
+		return false
+	if hit_animation == "" or not animation_player.has_animation(hit_animation):
+		return false
+	var showing: String = String(playback.current_animation)
+	return unit.is_moving() or _active_sequence != null or playback.upper_animation != &"" \
+		or (showing != "" and showing in _armed_stance_clips)
+
+
 func _on_died(_u: Unit) -> void:
 	_release_cast()
 	_end_hold()
+	_stop_looking(0.0)
 	_active_sequence = null
 	_active_phase_index = -1
 	_pending_armed_enter_clip = ""
@@ -621,7 +709,10 @@ func _physics_process(delta: float) -> void:
 	if shown == 0:
 		if unit.is_moving():
 			_play(_walk(), 0.15)
+			_carry_stance()
 		return
+	# Hands on the rungs: nothing is carried up a ladder.
+	playback.stop_upper(0.1)
 	if absi(shown) == 2:
 		var over_seconds: float = maxf(unit.climb_over_seconds(), 0.01)
 		playback.play(over_clip, 0.1, animation_player.get_animation(over_clip).length / over_seconds)
@@ -721,6 +812,7 @@ func _lift_without_takeoff() -> void:
 func _abandon_sequence() -> void:
 	_release_cast()
 	_end_hold()
+	_stop_looking()
 	_sequence_token += 1
 	_external_advance_pending = false
 	_active_sequence = null
@@ -848,6 +940,11 @@ var _cutscene_claimed: bool = false
 func claim_for_cutscene() -> void:
 	_release_cast()
 	_end_hold()
+	_stop_looking()
+	# What gameplay had up comes down as the scene takes over; what the
+	# scene puts up after that is the scene's (every clip claims again).
+	if not _cutscene_claimed:
+		playback.stop_upper(stance_blend_time)
 	_cutscene_claimed = true
 
 
@@ -861,9 +958,23 @@ func is_claimed_for_cutscene() -> bool:
 
 ## Plays a clip AS a scene, ignoring the claim — this is the one caller the
 ## claim exists to protect, so it must not be blocked by it.
-func play_cutscene_clip(anim_name: String, blend: float = -1.0) -> bool:
+##
+## `layer` says where (BodyAnimationTree.Layer). BODY leaves an upper clip
+## the scene put up in place, so a bow stays drawn across the walk under
+## it; UPPER with no name lowers it; FLINCH adds a hit's recoil.
+func play_cutscene_clip(anim_name: String, blend: float = -1.0,
+		layer: BodyAnimationTree.Layer = BodyAnimationTree.Layer.BODY) -> bool:
+	match layer:
+		BodyAnimationTree.Layer.UPPER:
+			if anim_name == "":
+				playback.stop_upper(maxf(blend, 0.0))
+				return true
+			return animation_player.has_animation(anim_name) \
+				and playback.play_upper(anim_name, maxf(blend, 0.0))
+		BodyAnimationTree.Layer.FLINCH:
+			return animation_player.has_animation(anim_name) and playback.flinch(anim_name)
 	_base_animation = anim_name
-	return _play(anim_name, blend)
+	return _play(anim_name, blend, true)
 
 
 ## A one-shot motion with nothing behind it - moving a prop raises a hand
@@ -900,13 +1011,16 @@ func _armed_clip(stage: StringName, kind: StringName) -> String:
 
 
 ## `blend` is the crossfade from the current clip; -1 is the player's own
-## default (none, unless a body sets one).
-func _play(anim_name: String, blend: float = -1.0) -> bool:
+## default (none, unless a body sets one). A clip for the whole body lowers
+## the upper body's own over the same blend, unless `keep_upper`.
+func _play(anim_name: String, blend: float = -1.0, keep_upper: bool = false) -> bool:
 	if anim_name == "":
 		return false
 	if not animation_player.has_animation(anim_name):
 		push_warning("unit_animator.gd: tried to play unknown animation \"%s\" on %s." % [anim_name, unit.name])
 		return false
+	if not keep_upper:
+		playback.stop_upper(maxf(blend, 0.0))
 	# The two flight loops share one wing beat: starting the other over at
 	# frame 0 would cross-fade two different points in the flap.
 	var from: String = String(playback.current_animation)
@@ -972,6 +1086,7 @@ func _advance_to_next_phase(blend: float = -1.0) -> bool:
 		# as its sequence ends.
 		_release_cast()
 		_end_hold(turn_gap)
+		_stop_looking()
 		_active_sequence = null
 		_active_phase_index = -1
 		return false

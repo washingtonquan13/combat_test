@@ -146,11 +146,24 @@ func pause() -> void:
 	playing = false
 
 
+## Shows nothing at all from here on, as AnimationPlayer.stop() with nothing
+## assigned. Only a layer is ever stopped: a body's base always shows a clip.
+func stop() -> void:
+	current = null
+	assigned = &""
+	playing = false
+	_fades.clear()
+	_started = false
+	_seeked = false
+
+
 func _process(time: float, seek_request: bool, _is_external_seeking: bool, test_only: bool) -> float:
 	if test_only or current == null or current.animation == null:
 		return 0.0
-	# Not seeking, the tree hands the root its delta as `time`.
-	var delta: float = 0.0 if seek_request else time
+	# Not seeking, the tree hands the root its delta as `time`. A paused clip
+	# is still applied, where it stands: the tree runs while another layer
+	# plays, and this one must keep its pose without moving on.
+	var delta: float = 0.0 if seek_request or not playing else time
 	_processed_from = current.animation
 	_end_reached = false
 	_end_notify = false

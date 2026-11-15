@@ -476,6 +476,15 @@ func gaze_at(target: Node3D) -> bool:
 	return true
 
 
+## Whether the head is turned to `target` now, and not on its way back.
+func is_gazing_at(target: Node3D) -> bool:
+	if not is_instance_valid(_gaze_modifier) or not is_instance_valid(target):
+		return false
+	if _gaze_release and _gaze_release.is_valid() or _gaze_modifier.influence <= 0.0:
+		return false
+	return _gaze_modifier.get_node_or_null(_gaze_modifier.target_node) == target
+
+
 ## Release the head back to whatever the animation is doing, at once or
 ## eased over ease_seconds.
 ##

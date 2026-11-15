@@ -25,6 +25,9 @@ extends BeatNode
 ## RUNS IN REAL TIME, like WalkToBeat, and a walk still going when the last
 ## key passes keeps the scene open until it arrives.
 ##
+## WALKING AND DOING. upper_animation_name plays on the upper body over the
+## walk, a bow drawn and loosed on the move, and comes down on arrival.
+##
 ## Skipped, the actor is on the path's last point, turned the way the path
 ## ends.
 
@@ -51,6 +54,9 @@ const GROUND_REACH: float = 1.5
 @export_range(0.0, 60.0, 0.1, "suffix:s") var duration: float = 0.0
 ## The clip to move in. Empty = the unit's own walk clip.
 @export var animation_name: String = ""
+## A clip for the upper body over the walk, from the first step; one that
+## does not loop comes down by itself when it ends. Empty = none.
+@export var upper_animation_name: String = ""
 ## Drop each step onto the floor under it. See the header.
 @export var follows_ground: bool = true
 
@@ -82,6 +88,8 @@ func _fire(owner_stage: CinematicStage) -> void:
 	var animator: UnitAnimator = walker.animator()
 	if animator:
 		owner_stage.clip(role, animation_name if animation_name != "" else animator.walk_animation)
+		if upper_animation_name != "":
+			owner_stage.clip(role, upper_animation_name, true, BodyAnimationTree.Layer.UPPER)
 	owner_stage.run(self)
 
 
@@ -109,6 +117,8 @@ func _arrive(owner_stage: CinematicStage, walker: Unit) -> void:
 	var animator: UnitAnimator = walker.animator()
 	if animator:
 		owner_stage.clip(role, animator.idle_animation)
+		if upper_animation_name != "":
+			owner_stage.clip(role, "", true, BodyAnimationTree.Layer.UPPER)
 
 
 func _skip(owner_stage: CinematicStage) -> void:

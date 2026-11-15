@@ -45,7 +45,7 @@ static func raise(unit: Unit, at: Vector3, facing: Vector3) -> StandIn:
 	if copy == null:
 		return null
 	_mirror_owners(original, copy, {original: copy})
-	_play_on_own_player(copy)
+	_give_own_tree(copy)
 	for solid in copy.find_children("*", "CollisionObject3D", true, false):
 		solid.free()
 	_strip_player_feedback(original, copy)
@@ -95,14 +95,22 @@ static func _mirror_owners(from: Node, to: Node, twins: Dictionary) -> void:
 
 ## The unit's body shows its clips through a BodyAnimationTree, and the
 ## copy takes that along with everything else, sharing the original's tree
-## root and so its playback. The copy is played straight on its own player
-## instead (play()), so the tree goes and the player is woken back up.
-static func _play_on_own_player(copy: CharacterModel) -> void:
-	for tree in copy.find_children("*", "BodyAnimationTree", true, false):
-		tree.free()
+## root and so its playback, and its flinch. Both go, and the copy gets a
+## tree of its own on its own player, so it layers as the unit's body does.
+static func _give_own_tree(copy: CharacterModel) -> void:
+	for shared in copy.find_children("*", "BodyAnimationTree", true, false):
+		shared.free()
+	for shared in copy.find_children("*", "BodyFlinch", true, false):
+		shared.free()
 	var player: AnimationPlayer = copy.resolve_animation_player()
 	if player:
 		player.active = true
+		BodyAnimationTree.attach(player)
+
+
+## What shows the copy's clips: its own tree.
+func _shown() -> BodyAnimationTree:
+	return BodyAnimationTree.of(body())
 
 
 ## What shows the original body's clips: its BodyAnimationTree, or its
@@ -198,15 +206,26 @@ func face_point(point: Vector3) -> void:
 
 
 ## Plays one of the body's clips on the copy, crossfading from the one it
-## is in over `blend` seconds (-1 is the player's own default). False when
-## it has no such clip.
-func play(clip: String, blend: float = -1.0) -> bool:
-	var copy: CharacterModel = body()
-	var player: AnimationPlayer = copy.resolve_animation_player() if copy else null
-	if player == null or not player.has_animation(clip):
+## is in over `blend` seconds (-1 is the player's own default), on `layer`
+## (see UnitAnimator.play_cutscene_clip: BODY leaves an upper clip up, UPPER
+## with no clip lowers it). False when it has no such clip.
+func play(clip: String, blend: float = -1.0,
+		layer: BodyAnimationTree.Layer = BodyAnimationTree.Layer.BODY) -> bool:
+	var tree: BodyAnimationTree = _shown()
+	if tree == null:
 		return false
-	if player.assigned_animation != clip or not player.is_playing():
-		player.play(clip, blend)
+	match layer:
+		BodyAnimationTree.Layer.UPPER:
+			if clip == "":
+				tree.stop_upper(maxf(blend, 0.0))
+				return true
+			return tree.has_animation(clip) and tree.play_upper(clip, maxf(blend, 0.0))
+		BodyAnimationTree.Layer.FLINCH:
+			return tree.has_animation(clip) and tree.flinch(clip)
+	if not tree.has_animation(clip):
+		return false
+	if tree.assigned_animation != clip or not tree.is_playing():
+		tree.play(clip, blend)
 	return true
 
 
@@ -217,7 +236,7 @@ func match_original() -> void:
 	var copy: CharacterModel = body()
 	if copy == null or not is_instance_valid(_original):
 		return
-	var shown: AnimationPlayer = copy.resolve_animation_player()
+	var shown: BodyAnimationTree = _shown()
 	var own: Object = _shown_by(_original)
 	if shown and own and shown.assigned_animation != "" \
 			and own.assigned_animation == shown.assigned_animation:
@@ -227,7 +246,7 @@ func match_original() -> void:
 ## The copy stands at rest, picking up the idle where the unit's own body
 ## had got to so the swap does not restart a breath.
 func _stand_idle(original: CharacterModel, copy: CharacterModel) -> void:
-	var player: AnimationPlayer = copy.resolve_animation_player()
+	var player: BodyAnimationTree = BodyAnimationTree.of(copy)
 	if player == null:
 		return
 	var clip: String = copy.idle_animation

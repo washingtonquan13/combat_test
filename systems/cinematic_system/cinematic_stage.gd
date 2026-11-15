@@ -629,7 +629,13 @@ func sync_marker(role: StringName) -> void:
 ## Makes an actor play a clip, and claims it while it does — the claim is
 ## what stops gameplay animating over the shot. Released by the director
 ## when the scene ends, however it ends.
-func clip(role: StringName, animation_name: String, claims: bool = true) -> void:
+##
+## `layer` is where on the body (BodyAnimationTree.Layer): BODY replaces the
+## whole body's clip and leaves an upper one up; UPPER plays over the legs,
+## and with no clip lowers the upper body; FLINCH adds a hit's recoil.
+## `blend` below 0 is the body's own stance blend time.
+func clip(role: StringName, animation_name: String, claims: bool = true,
+		layer: BodyAnimationTree.Layer = BodyAnimationTree.Layer.BODY, blend: float = -1.0) -> void:
 	if not _ready_to_act("clip"):
 		return
 	var actor_now: Unit = actor(role)
@@ -640,11 +646,12 @@ func clip(role: StringName, animation_name: String, claims: bool = true) -> void
 	# body's own blend time: a walk that stops or a gesture that starts
 	# would otherwise cut, pose to pose, in the middle of a shot.
 	var animator: UnitAnimator = actor_now.animator()
-	var blend: float = animator.stance_blend_time if animator else -1.0
+	if blend < 0.0:
+		blend = animator.stance_blend_time if animator else -1.0
 	# On a copy there is no gameplay to hold off, so nothing to claim.
 	var shown: StandIn = body(role) as StandIn
 	if shown:
-		shown.play(animation_name, blend)
+		shown.play(animation_name, blend, layer)
 		return
 	if animator == null:
 		# Normal: a bodiless unit, or a model with no AnimationPlayer.
@@ -652,7 +659,7 @@ func clip(role: StringName, animation_name: String, claims: bool = true) -> void
 	if claims:
 		animator.claim_for_cutscene()
 		_cast.note_claim(actor_now)
-	animator.play_cutscene_clip(animation_name, blend)
+	animator.play_cutscene_clip(animation_name, blend, layer)
 
 
 ## `from` and `to` are role or mark names; an empty `to` means "at the same
