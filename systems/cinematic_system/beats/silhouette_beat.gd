@@ -47,7 +47,9 @@ func _paint(owner_stage: CinematicStage) -> void:
 	if actor == null:
 		push_warning("SilhouetteBeat '%s': nobody is playing '%s'." % [name, role])
 		return
-	var model: Node = actor.get_node_or_null("CharacterModel")
+	# The body on screen: the stage's stand-in when it performs on one.
+	owner_stage.body(role)
+	var model: Node = StandIn.body_of(actor)
 	if model == null:
 		return
 	var paint: Material = null if clear else overlay_for(color)

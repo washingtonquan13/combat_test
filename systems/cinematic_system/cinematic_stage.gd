@@ -103,6 +103,16 @@ const PREVIEW_REFRESH_FRAMES: int = 15
 	set(value):
 		preview_set = value
 		_rebuild_preview_set()
+## The scene performs on a StandIn of each actor and leaves the units
+## where the game has them until it is over. A unit walked across a camp by
+## a cutscene is a unit the rules can see half way across it: it trips
+## triggers, it is in reach of things, and a scene that is aborted leaves it
+## wherever it had got to. With this on, every beat that moves, turns or
+## animates a body does it to the copy (see body()), and the units are put
+## where their copies ended only when the scene finishes
+## (commit_stand_ins()). An actor the scene itself spawned has no gameplay
+## to keep out of, and is moved directly.
+@export var performs_on_stand_ins: bool = false
 ## Selects the preview camera so the 3D viewport's Preview toggle appears
 ## for it. Needed because the camera is unsaved and so never listed in the
 ## Scene dock, which is the only other way to select it.
@@ -111,6 +121,8 @@ var look_through_preview: Callable = _look_through_preview
 
 var _cast: SceneCast = null
 var _driven: Array[StageRole] = []
+## [Unit, StandIn] for every stand-in this stage raised. See body().
+var _stands: Array = []
 var _bound: bool = false
 ## A beat asked the timeline to hold for the player. The director polls
 ## this; see wait_for_advance().
@@ -369,7 +381,9 @@ func bind(cast: SceneCast) -> void:
 	set_process(true)
 
 
-## Stops driving. The actors are left exactly where the scene put them and
+## Stops driving. Any stand-in still up is struck WITHOUT moving its unit:
+## a scene that got as far as its end state was committed by the director
+## first. The actors are left exactly where the scene put them and
 ## still claimed — the DIRECTOR releases claims, on every exit path, which
 ## is the one place that can be sure it happens however a scene ends.
 ##
@@ -381,6 +395,7 @@ func unbind() -> void:
 	set_process(false)
 	for rig in shots():
 		rig.end()
+	_strike_stand_ins()
 	_driven.clear()
 	_active.clear()
 	_line_owner = null
@@ -510,9 +525,9 @@ func _drive(delta: float) -> void:
 	for marker in _driven:
 		if not is_instance_valid(marker):
 			continue
-		var actor_now: Unit = actor(marker.role_name())
-		if actor_now:
-			actor_now.global_transform = marker.global_transform
+		var driven: Node3D = body(marker.role_name())
+		if driven:
+			driven.global_transform = marker.global_transform
 	var rig: FramingRig = live_shot()
 	if rig:
 		rig.tick()
@@ -575,19 +590,40 @@ func despawn(role: StringName) -> void:
 ## drives its actor, the marker too, or the next frame's copy would put
 ## the actor straight back. The one way a beat moves a body.
 func put(role: StringName, where: Transform3D) -> void:
-	var actor_now: Unit = actor(role)
-	if actor_now:
-		actor_now.global_transform = where
+	var moved: Node3D = body(role)
+	if moved:
+		moved.global_transform = where
 	sync_marker(role)
 
 
-## Copies an actor's transform onto its marker when the marker drives it.
-## For a beat that turned the actor through the Unit's own API.
+## Moves the body in `role` to `at`, keeping the way it faces.
+func move(role: StringName, at: Vector3) -> void:
+	var moved: Node3D = body(role)
+	if moved:
+		moved.global_position = at
+	sync_marker(role)
+
+
+## Turns the body in `role` to look toward `at`. Through the unit's own
+## facing or the stand-in's, both of which know the model's facing offset —
+## a raw look_at would turn the real rig's back to the target.
+func face(role: StringName, at: Vector3) -> void:
+	var turned: Node3D = body(role)
+	if turned is StandIn:
+		(turned as StandIn).face_point(at)
+	elif turned is Unit:
+		(turned as Unit).snap_face_point(at)
+	sync_marker(role)
+
+
+## Copies a body's transform onto its marker when the marker drives it.
 func sync_marker(role: StringName) -> void:
 	var marker: StageRole = role_marker(role)
-	var actor_now: Unit = actor(role)
-	if marker and actor_now and marker.drives_actor:
-		marker.global_transform = actor_now.global_transform
+	if marker == null or not marker.drives_actor:
+		return
+	var shown: Node3D = body(role)
+	if shown:
+		marker.global_transform = shown.global_transform
 
 
 ## Makes an actor play a clip, and claims it while it does — the claim is
@@ -599,6 +635,11 @@ func clip(role: StringName, animation_name: String, claims: bool = true) -> void
 	var actor_now: Unit = actor(role)
 	if actor_now == null:
 		push_warning("CinematicStage.clip: nobody is playing '%s'." % role)
+		return
+	# On a copy there is no gameplay to hold off, so nothing to claim.
+	var shown: StandIn = body(role) as StandIn
+	if shown:
+		shown.play(animation_name)
 		return
 	var animator: UnitAnimator = actor_now.animator()
 	if animator == null:
@@ -686,6 +727,60 @@ func actor(role: StringName) -> Unit:
 	return _cast.unit(role) if _cast else null
 
 
+## What a beat moves, turns and animates for `role`: the unit, or with
+## performs_on_stand_ins a StandIn of it, raised where the unit stands the
+## first time anything asks. Null when nobody plays the role.
+func body(role: StringName) -> Node3D:
+	var actor_now: Unit = actor(role)
+	if actor_now == null or not performs_on_stand_ins or Engine.is_editor_hint():
+		return actor_now
+	if _cast.is_held(role):
+		return actor_now
+	var stand: StandIn = StandIn.of(actor_now)
+	if stand:
+		return stand
+	stand = StandIn.raise(actor_now, actor_now.global_position, actor_now.visual_forward())
+	if stand == null:
+		return actor_now
+	_stands.append([actor_now, stand])
+	return stand
+
+
+## Puts every unit where its stand-in ended, facing as it faced, and takes
+## the stand-ins away: the scene's end state becomes the game's. Called by
+## the director once the scene has reached that state (finished, skipped or
+## settled), and by nothing else — an abandoned scene leaves the units where
+## they always were.
+##
+## Each unit goes to the nearest place it can stand to its copy, which for
+## a path authored on the ground is the same place.
+func commit_stand_ins() -> void:
+	for pair in _stands:
+		var unit_now: Unit = pair[0] as Unit if is_instance_valid(pair[0]) else null
+		var stand: StandIn = pair[1] as StandIn if is_instance_valid(pair[1]) else null
+		if unit_now == null or stand == null or stand.is_queued_for_deletion():
+			continue
+		var at: Vector3 = stand.global_position
+		if at.distance_to(unit_now.global_position) > 0.01:
+			var snap: Dictionary = NavigationGrid.nearest_valid_point(
+					get_tree(), at, unit_now.radius, unit_now.is_flying(), unit_now, 4, unit_now)
+			if snap.found:
+				at.x = snap.point.x
+				at.z = snap.point.z
+			unit_now.global_position = at
+		unit_now.snap_face_point(at + stand.visual_forward())
+		stand.match_original()
+		stand.strike()
+	_stands.clear()
+
+
+func _strike_stand_ins() -> void:
+	for pair in _stands:
+		if is_instance_valid(pair[1]) and not (pair[1] as Node).is_queued_for_deletion():
+			(pair[1] as StandIn).strike()
+	_stands.clear()
+
+
 ## A transform to put something on, from a name that may be a stage-local
 ## mark, a StageRole, or a world mark. Stage-local wins: an area sharing a
 ## mark name with a scene's own staging should not silently retarget it.
@@ -703,12 +798,12 @@ func spot(spot_name: StringName) -> Node3D:
 	return null
 
 
-## Where someone or something IS: the actor in a role first (an actor
+## Where someone or something IS: the body in a role first (a body
 ## moves, and a non-driving marker does not follow it), then spot(). What
 ## a walk heads for and a turn faces.
 func locate(spot_name: StringName) -> Node3D:
-	var actor_now: Unit = actor(spot_name)
-	return actor_now if actor_now else spot(spot_name)
+	var shown: Node3D = body(spot_name)
+	return shown if shown else spot(spot_name)
 
 
 ## Somewhere for an effect or a sound to happen. The actor's CHEST in a
@@ -719,7 +814,9 @@ func point(spot_name: StringName) -> Vector3:
 		return Vector3.ZERO
 	var actor_now: Unit = actor(spot_name)
 	if actor_now:
-		return actor_now.anchor(CharacterModel.Anchor.CHEST)
+		var stand: StandIn = StandIn.of(actor_now)
+		return stand.anchor(CharacterModel.Anchor.CHEST) if stand \
+			else actor_now.anchor(CharacterModel.Anchor.CHEST)
 	var spot_node: Node3D = spot(spot_name)
 	return spot_node.global_position if spot_node else Vector3.ZERO
 

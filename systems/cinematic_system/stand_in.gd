@@ -148,6 +148,41 @@ func visual_forward() -> Vector3:
 	return (-global_transform.basis.z).rotated(Vector3.UP, -deg_to_rad(_facing_offset_degrees))
 
 
+## Turns the copy to look toward `point`, on the ground plane. The stand-in's
+## own Unit.snap_face_point.
+func face_point(point: Vector3) -> void:
+	var flat := Vector3(point.x - global_position.x, 0.0, point.z - global_position.z)
+	if flat.length() < 0.001:
+		return
+	var ahead: Vector3 = flat.normalized().rotated(Vector3.UP, deg_to_rad(_facing_offset_degrees))
+	global_transform = Transform3D(Basis.looking_at(ahead, Vector3.UP), global_position)
+
+
+## Plays one of the body's clips on the copy. False when it has no such clip.
+func play(clip: String) -> bool:
+	var copy: CharacterModel = body()
+	var player: AnimationPlayer = copy.resolve_animation_player() if copy else null
+	if player == null or not player.has_animation(clip):
+		return false
+	if player.assigned_animation != clip or not player.is_playing():
+		player.play(clip)
+	return true
+
+
+## Brings the unit's own body to the point of the clip the copy has reached,
+## when both are in the same one, so taking the copy away does not restart
+## a breath. The other half of _stand_idle.
+func match_original() -> void:
+	var copy: CharacterModel = body()
+	if copy == null or not is_instance_valid(_original):
+		return
+	var shown: AnimationPlayer = copy.resolve_animation_player()
+	var own: AnimationPlayer = _original.resolve_animation_player()
+	if shown and own and shown.assigned_animation != "" \
+			and own.assigned_animation == shown.assigned_animation:
+		own.seek(shown.current_animation_position, true)
+
+
 ## The copy stands at rest, picking up the idle where the unit's own body
 ## had got to so the swap does not restart a breath.
 func _stand_idle(original: CharacterModel, copy: CharacterModel) -> void:

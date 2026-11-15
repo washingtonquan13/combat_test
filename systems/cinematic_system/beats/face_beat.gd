@@ -1,9 +1,9 @@
 @tool
 class_name FaceBeat
 extends BeatNode
-## Turns an actor to face someone or something, instantly. Through the
-## Unit's own facing (snap_face_point), which knows the model's facing
-## offset — a raw look_at would turn the real rig's back to the target.
+## Turns an actor to face someone or something, instantly. Through
+## CinematicStage.face(), which knows the model's facing offset — a raw
+## look_at would turn the real rig's back to the target.
 ##
 ## Skipped, it does exactly the same: which way someone faces is state.
 
@@ -38,13 +38,11 @@ func _skip(owner_stage: CinematicStage) -> void:
 
 
 func _face(owner_stage: CinematicStage) -> void:
-	var turning: Unit = owner_stage.actor(role)
 	var looked_at: Node3D = owner_stage.locate(target)
-	if turning == null or looked_at == null:
+	if owner_stage.actor(role) == null or looked_at == null:
 		push_warning("FaceBeat '%s': '%s' or '%s' does not resolve." % [name, role, target])
 		return
-	turning.snap_face_point(looked_at.global_position)
-	owner_stage.sync_marker(role)
+	owner_stage.face(role, looked_at.global_position)
 
 
 func preview(seconds_since_fire: float) -> void:

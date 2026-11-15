@@ -12,7 +12,8 @@ extends BeatNode
 ## long the route takes. A cutscene needs the opposite of each — a known
 ## path, a known duration, an exact end — so the body is moved here, the
 ## same way the stage already places one, and only the CLIPS are borrowed
-## from the unit (its animator's own walk and idle names).
+## from the unit (its animator's own walk and idle names). For a route with
+## a bend in it, see WalkPathBeat.
 ##
 ## RUNS IN REAL TIME, not timeline time: a walk keeps going while a line
 ## holds the timeline for the player, which is what a person talking over
@@ -64,15 +65,14 @@ func _fire(owner_stage: CinematicStage) -> void:
 	if walker == null or goal == null:
 		push_warning("WalkToBeat '%s': '%s' or '%s' does not resolve." % [name, role, mark])
 		return
-	_from = walker.global_position
+	_from = owner_stage.body(role).global_position
 	_to = goal.global_position
 	_seconds = _duration_for(_from.distance_to(_to), walker.move_speed)
 	_elapsed = 0.0
-	walker.snap_face_point(_to)
+	owner_stage.face(role, _to)
 	var animator: UnitAnimator = walker.animator()
 	if animator:
 		owner_stage.clip(role, animator.walk_animation)
-	owner_stage.sync_marker(role)
 	owner_stage.run(self)
 
 
@@ -85,8 +85,7 @@ func tick(delta: float) -> bool:
 	if _seconds <= 0.0 or _elapsed >= _seconds:
 		_arrive(owner_stage, walker)
 		return false
-	walker.global_position = _from.lerp(_to, _elapsed / _seconds)
-	owner_stage.sync_marker(role)
+	owner_stage.move(role, _from.lerp(_to, _elapsed / _seconds))
 	return true
 
 
@@ -98,8 +97,7 @@ func _finish(owner_stage: CinematicStage) -> void:
 
 ## On the mark, not near it, and back to standing.
 func _arrive(owner_stage: CinematicStage, walker: Unit) -> void:
-	walker.global_position = _to
-	owner_stage.sync_marker(role)
+	owner_stage.move(role, _to)
 	var animator: UnitAnimator = walker.animator()
 	if animator:
 		owner_stage.clip(role, animator.idle_animation)
@@ -112,9 +110,9 @@ func _skip(owner_stage: CinematicStage) -> void:
 	var goal: Node3D = owner_stage.locate(mark)
 	if walker == null or goal == null:
 		return
-	walker.snap_face_point(goal.global_position)
-	walker.global_position = goal.global_position
-	owner_stage.sync_marker(role)
+	var to: Vector3 = goal.global_position
+	owner_stage.face(role, to)
+	owner_stage.move(role, to)
 
 
 func _duration_for(distance: float, unit_speed: float) -> float:

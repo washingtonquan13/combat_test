@@ -297,6 +297,10 @@ func _run_timeline(stage: CinematicStage, animation: StringName, mine: int) -> v
 		if showing:
 			showing.release()
 	if standing:
+		# A scene that reached its end state hands it to the units; one whose
+		# world is going, or that was cancelled without settling, does not.
+		if mine == _generation or (_settle_on_cancel and stage.is_inside_tree()):
+			stage.commit_stand_ins()
 		stage.unbind()
 
 

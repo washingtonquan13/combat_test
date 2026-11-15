@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="Script" path="res://systems/cinematic_system/cinematic_stage.gd" id="1_stage"]
 [ext_resource type="Script" path="res://systems/cinematic_system/stage_role.gd" id="2_role"]
@@ -7,6 +7,21 @@
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/face_beat.gd" id="5_face"]
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/line_beat.gd" id="6_line"]
 [ext_resource type="Script" path="res://systems/cinematic_system/beats/place_beat.gd" id="7_place"]
+[ext_resource type="Script" path="res://systems/cinematic_system/beats/walk_path_beat.gd" id="8_path"]
+
+[sub_resource type="Curve3D" id="Curve3D_hobgoblin"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -12.5, -0.52, -19.5, -1.8, 0, -1.725, 1.8, 0, 1.725, -2, -0.28, -22, 0, 0, 0, 0, 0, 0, 0, 1.97, -7.5),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
+
+[sub_resource type="Curve3D" id="Curve3D_rogue"]
+_data = {
+"points": PackedVector3Array(0, 0, 0, 0, 0, 0, -16.5, -0.49, -19, -2.09, 0, -1.37, 2.09, 0, 1.37, -3, -0.38, -23, 0, 0, 0, 0, 0, 0, -1.2, 1.72, -9),
+"tilts": PackedFloat32Array(0, 0, 0)
+}
+point_count = 3
 
 [sub_resource type="Animation" id="Animation_reset"]
 length = 0.001
@@ -112,11 +127,11 @@ tracks/5/keys = {
 tracks/6/type = "method"
 tracks/6/imported = false
 tracks/6/enabled = true
-tracks/6/path = NodePath("Beats/HobgoblinClimbs")
+tracks/6/path = NodePath("Beats/HobgoblinThreat")
 tracks/6/interp = 1
 tracks/6/loop_wrap = true
 tracks/6/keys = {
-"times": PackedFloat32Array(2.9),
+"times": PackedFloat32Array(6.7),
 "transitions": PackedFloat32Array(1),
 "values": [{
 "args": [],
@@ -126,11 +141,11 @@ tracks/6/keys = {
 tracks/7/type = "method"
 tracks/7/imported = false
 tracks/7/enabled = true
-tracks/7/path = NodePath("Beats/RogueClimbs")
+tracks/7/path = NodePath("Beats/WatchmanArrives")
 tracks/7/interp = 1
 tracks/7/loop_wrap = true
 tracks/7/keys = {
-"times": PackedFloat32Array(3.7),
+"times": PackedFloat32Array(7.0),
 "transitions": PackedFloat32Array(1),
 "values": [{
 "args": [],
@@ -140,11 +155,11 @@ tracks/7/keys = {
 tracks/8/type = "method"
 tracks/8/imported = false
 tracks/8/enabled = true
-tracks/8/path = NodePath("Beats/HobgoblinThreat")
+tracks/8/path = NodePath("Beats/WatchmanFacesHobgoblin")
 tracks/8/interp = 1
 tracks/8/loop_wrap = true
 tracks/8/keys = {
-"times": PackedFloat32Array(6.7),
+"times": PackedFloat32Array(8.7),
 "transitions": PackedFloat32Array(1),
 "values": [{
 "args": [],
@@ -154,11 +169,11 @@ tracks/8/keys = {
 tracks/9/type = "method"
 tracks/9/imported = false
 tracks/9/enabled = true
-tracks/9/path = NodePath("Beats/WatchmanArrives")
+tracks/9/path = NodePath("Beats/HobgoblinFacesWatchman")
 tracks/9/interp = 1
 tracks/9/loop_wrap = true
 tracks/9/keys = {
-"times": PackedFloat32Array(7.0),
+"times": PackedFloat32Array(8.7),
 "transitions": PackedFloat32Array(1),
 "values": [{
 "args": [],
@@ -168,11 +183,11 @@ tracks/9/keys = {
 tracks/10/type = "method"
 tracks/10/imported = false
 tracks/10/enabled = true
-tracks/10/path = NodePath("Beats/WatchmanFacesHobgoblin")
+tracks/10/path = NodePath("Beats/WatchmanStands")
 tracks/10/interp = 1
 tracks/10/loop_wrap = true
 tracks/10/keys = {
-"times": PackedFloat32Array(8.7),
+"times": PackedFloat32Array(8.8),
 "transitions": PackedFloat32Array(1),
 "values": [{
 "args": [],
@@ -182,38 +197,10 @@ tracks/10/keys = {
 tracks/11/type = "method"
 tracks/11/imported = false
 tracks/11/enabled = true
-tracks/11/path = NodePath("Beats/HobgoblinFacesWatchman")
+tracks/11/path = NodePath("Beats/HobgoblinBark")
 tracks/11/interp = 1
 tracks/11/loop_wrap = true
 tracks/11/keys = {
-"times": PackedFloat32Array(8.7),
-"transitions": PackedFloat32Array(1),
-"values": [{
-"args": [],
-"method": &"fire"
-}]
-}
-tracks/12/type = "method"
-tracks/12/imported = false
-tracks/12/enabled = true
-tracks/12/path = NodePath("Beats/WatchmanStands")
-tracks/12/interp = 1
-tracks/12/loop_wrap = true
-tracks/12/keys = {
-"times": PackedFloat32Array(8.8),
-"transitions": PackedFloat32Array(1),
-"values": [{
-"args": [],
-"method": &"fire"
-}]
-}
-tracks/13/type = "method"
-tracks/13/imported = false
-tracks/13/enabled = true
-tracks/13/path = NodePath("Beats/HobgoblinBark")
-tracks/13/interp = 1
-tracks/13/loop_wrap = true
-tracks/13/keys = {
 "times": PackedFloat32Array(9.0),
 "transitions": PackedFloat32Array(1),
 "values": [{
@@ -230,9 +217,10 @@ _data = {
 
 [node name="GoblinCampAmbush" type="Node3D"]
 script = ExtResource("1_stage")
+performs_on_stand_ins = true
 anchor_mark = &"CampAmbush"
 props = {}
-world_marks = PackedStringArray("CampAmbush", "AmbushHobPath", "AmbushHobgoblin", "AmbushRoguePath", "AmbushRogue", "AmbushWatchmanEnter", "AmbushWatchmanStand")
+world_marks = PackedStringArray("CampAmbush", "AmbushWatchmanEnter", "AmbushWatchmanStand")
 shot = &"camp_wide"
 
 [node name="Roles" type="Node3D" parent="."]
@@ -267,6 +255,14 @@ role = &""
 drives_actor = false
 
 [node name="Marks" type="Node3D" parent="."]
+
+[node name="Paths" type="Node3D" parent="."]
+
+[node name="HobgoblinRoute" type="Path3D" parent="Paths"]
+curve = SubResource("Curve3D_hobgoblin")
+
+[node name="RogueRoute" type="Path3D" parent="Paths"]
+curve = SubResource("Curve3D_rogue")
 
 [node name="Shots" type="Node3D" parent="."]
 
@@ -324,32 +320,16 @@ role = &"shaman"
 target = &"leader"
 
 [node name="HobgoblinRounds" type="Node" parent="Beats"]
-script = ExtResource("4_walk")
+script = ExtResource("8_path")
 role = &"hobgoblin"
-mark = &"AmbushHobPath"
-speed = 0.0
-duration = 2.7
+path = NodePath("../../Paths/HobgoblinRoute")
+duration = 6.5
 
 [node name="RogueRounds" type="Node" parent="Beats"]
-script = ExtResource("4_walk")
+script = ExtResource("8_path")
 role = &"rogue"
-mark = &"AmbushRoguePath"
-speed = 0.0
-duration = 3.5
-
-[node name="HobgoblinClimbs" type="Node" parent="Beats"]
-script = ExtResource("4_walk")
-role = &"hobgoblin"
-mark = &"AmbushHobgoblin"
-speed = 0.0
-duration = 3.7
-
-[node name="RogueClimbs" type="Node" parent="Beats"]
-script = ExtResource("4_walk")
-role = &"rogue"
-mark = &"AmbushRogue"
-speed = 0.0
-duration = 3.5
+path = NodePath("../../Paths/RogueRoute")
+duration = 7.0
 
 [node name="HobgoblinThreat" type="Node" parent="Beats"]
 script = ExtResource("6_line")

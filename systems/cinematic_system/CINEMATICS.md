@@ -215,6 +215,7 @@ Each beat has two behaviours:
 | **PlaceBeat** | `role`, `mark` (role or mark) | Puts the actor on the mark instantly, position **and** rotation. | Same as fire | Stand-in jumps to the mark |
 | **FaceBeat** | `role`, `target` (role or mark) | Turns the actor to face the target instantly. | Same as fire | Stand-in turns |
 | **WalkToBeat** | `role`, `mark` (role or mark)<br>`speed` (m/s, 0 = unit's own)<br>`duration` (seconds, overrides speed) | Turns toward the mark, plays the walk clip, moves in a **straight line**, and stops exactly on the mark in idle. | Actor lands on the mark, facing the way it walked | Stand-in slides along the line (4 m/s if speed is 0) |
+| **WalkPathBeat** | `role`, `path` (a Path3D, usually under the stage's `Paths/`)<br>`speed`, `duration` (as WalkToBeat)<br>`animation_name` (empty = the unit's walk clip)<br>`follows_ground` (default on) | Walks the drawn curve at an even pace, turning as the line turns, and stops on its last point in idle. Starts from wherever the actor stands: a straight leg to the path's first point is walked first, inside the same duration. With `follows_ground` each step is dropped onto the floor within 1.5 m of the drawn height. | Actor lands on the path's last point, facing the way the path ends | Stand-in follows the curve at the drawn heights |
 | **SpawnBeat** | `role`, `definition`<br>`prop_key` (wins when set)<br>`at` (optional) | Creates the unit, gives it the role, and stands it on `at`. | Same as fire | Hidden before the key, on `at` after |
 | **DespawnBeat** | `role` | Removes the unit from the world (frees it). | Same as fire | Hidden after the key |
 | **ClipBeat** | `role`, `animation_name` (typed)<br>`claims` (default on) | Plays the named clip on the actor's model. With `claims`, gameplay stops animating it until the scene ends. | Nothing | Nothing |
@@ -510,7 +511,9 @@ These appear while the game runs, not in the editor:
 
 **Stage marks need an anchor.** Without `anchor_mark`, the stage sits at the world origin and so do its marks.
 
-**Walks are straight lines.** WalkToBeat does not pathfind. It walks through walls, furniture and other units. Lay marks out with a clear line between them.
+**Walks are straight lines.** WalkToBeat does not pathfind. It walks through walls, furniture and other units. Lay marks out with a clear line between them. For a route with a bend, draw a Path3D under a `Paths` node in the stage and use WalkPathBeat; it does not pathfind either, it follows what you drew.
+
+**Perform on stand-ins when the scene moves people the game cares about.** Turn on the stage's `performs_on_stand_ins` and every beat acts on a copy of each actor while the units stay where they were. When the scene ends (played through, skipped or aborted) each unit is put where its copy ended. Until then triggers, detection and reach see the units in their old places. See `docs/systems/cinematics.md`.
 
 **DespawnBeat frees the unit.** Despawning a tracked role such as `leader` removes the actual party leader from the game. To get someone out of shot, walk them away instead.
 
