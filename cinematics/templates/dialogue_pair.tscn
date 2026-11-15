@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/cinematic_system/scene_template.gd" id="1"]
+
+[node name="DialoguePair" type="Node3D"]
+script = ExtResource("1")
+
+[node name="npc" type="Marker3D" parent="."]
+
+[node name="player" type="Marker3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -1.15)

@@ -45,6 +45,7 @@ Side effects that DO persist live in other systems: `FlagManager.set_flag` (dial
 - No save during dialogue: `can_save` false in DIALOGUE/NEGOTIATION (save_manager.gd:292-302), so no save_state is needed - but LOAD is not gated (issue 1).
 
 ## Lifecycle
+- **Stand-ins**: `DialogueStandIns` (dialogue_stand_ins.gd; added in main_root.gd before DialogueGaze and DialogueStaging, which work on what it raises) follows `Conversations`. On begin of a `dialogue` presentation it fits `cinematics/templates/dialogue_pair.tscn` to the cast (`npc` on the spot, `player` 1.15 m in front, facing each other) and raises a `StandIn` per role; on end it strikes them, in the frame the camera cuts back. Units are not moved or turned. When the template does not fit, nothing is raised and the talk plays on the units as they stand. Only `npc` and `player` have marks; other cast members and bystanders keep their own bodies. Negotiation raises none. See cinematics.md.
 - **Begin**: interaction -> `Conversations.begin` sets current, connects, emits began, `c.start()` (conversations.gd:49-60); overlay opens only for `presentation == dialogue` (dialogue_overlay.gd:124-136), negotiation panel for negotiation.
 - **Step**: `choose()` awaits `choice.resolve()` (conversation.gd:141-163) which may await dice (`show()` awaits `_wait_completed`, returns immediately with no presenter :304-310); `advance()` / `complete()` :168-185.
 - **End**: `end()` (conversation.gd:190-202) -> changed -> Conversations clears current, emits ended -> overlay closes.

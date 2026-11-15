@@ -83,14 +83,15 @@ func aim_at(speaker: Unit, cast: Dictionary) -> void:
 	_release()
 
 	var addressee: Node3D = _someone_other_than(speaker, cast)
-	var speaker_face: Node3D = speaker.gaze_point()
+	var speaker_face: Node3D = _gaze_point(speaker)
 
 	for token in cast:
 		var unit: Unit = cast[token] as Unit
 		if not is_instance_valid(unit):
 			continue
 		var target: Node3D = addressee if unit == speaker else speaker_face
-		if target and unit.gaze_at(target):
+		var body: CharacterModel = StandIn.body_of(unit)
+		if target and body and body.gaze_at(target):
 			_aimed.append(unit)
 
 
@@ -102,8 +103,9 @@ func _forget() -> void:
 
 func _release() -> void:
 	for unit in _aimed:
-		if is_instance_valid(unit):
-			unit.stop_gazing()
+		var body: CharacterModel = StandIn.body_of(unit)
+		if body:
+			body.stop_gazing()
 	_aimed.clear()
 
 
@@ -114,5 +116,12 @@ func _someone_other_than(speaker: Unit, cast: Dictionary) -> Node3D:
 	for token in cast:
 		var unit: Unit = cast[token] as Unit
 		if is_instance_valid(unit) and unit != speaker:
-			return unit.gaze_point()
+			return _gaze_point(unit)
 	return null
+
+
+## What to look at to look at unit: on its stand-in when it is shown by one
+## (see StandIn), since that is where its face is.
+func _gaze_point(unit: Unit) -> Node3D:
+	var body: CharacterModel = StandIn.body_of(unit)
+	return body.gaze_point() if body else null

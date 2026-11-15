@@ -158,6 +158,13 @@ func _read_source(cast: SceneCast, mark_name: StringName, role: StringName) -> D
 	var actor: Unit = cast.unit(role)
 	if actor == null:
 		return {}
+	# A unit shown by a stand-in is framed where it is seen, not where it is.
+	var stand: StandIn = StandIn.of(actor)
+	if stand:
+		return {
+			"origin": stand.anchor(CharacterModel.Anchor.HEAD),
+			"facing": stand.visual_forward(),
+		}
 	return {
 		"origin": actor.anchor(CharacterModel.Anchor.HEAD),
 		"facing": actor.visual_forward(),

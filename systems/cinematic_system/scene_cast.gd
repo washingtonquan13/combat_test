@@ -109,7 +109,10 @@ func point(mark_name: StringName, role: StringName) -> Vector3:
 		var spot: Node3D = mark(mark_name)
 		return spot.global_position if spot else Vector3.ZERO
 	var actor: Unit = unit(role)
-	return actor.anchor(CharacterModel.Anchor.CHEST) if actor else Vector3.ZERO
+	if actor == null:
+		return Vector3.ZERO
+	var stand: StandIn = StandIn.of(actor)
+	return stand.anchor(CharacterModel.Anchor.CHEST) if stand else actor.anchor(CharacterModel.Anchor.CHEST)
 
 
 ## Actors this scene has taken over the animation of, so the director can

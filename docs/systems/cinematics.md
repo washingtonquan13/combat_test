@@ -6,6 +6,11 @@
 ## Purpose
 Plays authored cutscenes: a stage .tscn is a timeline of beats (line, walk, spawn, face, clip, effect, sound, wait...) against a `SceneCast` of bound roles and marks, driven by one director with one cinematic camera and overlay. `CinematicCues` decides when to auto-play (area intros, combat intros). It does NOT know about Conversations (cinematic_director.gd:13) - dialogue staging asks it, not the reverse - and it does not own camera control in gameplay (CameraDirector does).
 
+## Stand-ins and scene templates
+A staged scene never moves a gameplay unit. `StandIn.raise(unit, at, facing)` (stand_in.gd) duplicates the unit's live `CharacterModel` under a top-level child of the unit named `StandIn`, hides the unit's own body, and `strike()` (or the node leaving the tree) puts the body back. The unit's transform, collision and nav occupancy are never written. `SceneTemplate` (scene_template.gd) is a .tscn of `Marker3D` marks named by cast role; `fit(cast)` puts its origin on the `anchor_role` unit, turns -Z toward the `toward_role` unit, checks every mark for floor within 0.4 m of the origin's height and standing room (trying turns of 0, +-30, +-60 degrees), and returns `{}` when the cast (radius over `widest_radius`, flying, dead) or the ground does not fit. No fit is ordinary: the scene plays on the units as they stand.
+- **Readers that ask the stand-in first**: `CameraFraming._read_source`, `SceneCast.point`, `FaceDriver.of`, `DialogueGaze`, `DialogueStaging._keep_side`. Gameplay never reads it.
+- **Limits**: effects and floating text stay on the real unit; a bound cutscene's clip and walk beats animate the hidden original, not the copy; the copy is taken once at raise, so gear changed mid-scene does not show.
+
 ## State it owns (source of truth)
 | State | Where (file:line) | Persisted? (save key) |
 |---|---|---|
@@ -15,6 +20,7 @@ Plays authored cutscenes: a stage .tscn is a timeline of beats (line, walk, spaw
 | Settle-on-cancel, skip/advance requests | cinematic_director.gd:62, :65-66 | No |
 | Registered camera and overlay | cinematic_director.gd:70-71, :82-95 | No |
 | Role/unit claims during a scene | scene_cast.gd:121-138; clip claims cinematic_stage.gd:596-609 | No |
+| Stand-in per unit (node `StandIn` under the unit) and the hidden body's prior visibility | stand_in.gd | No |
 | Spawned role nodes | cinematic_stage.gd:532-571 | No |
 | "Intro already played" | cinematic_cues.gd:57-75 via FlagManager | Yes, as a flag (FlagManager save) |
 
@@ -60,4 +66,4 @@ Plays authored cutscenes: a stage .tscn is a timeline of beats (line, walk, spaw
 | 7 | dialogue_staging calls play without awaiting or checking refusal; a staged node during a running cutscene is silently dropped. | dialogue_staging.gd:111 | NEW |
 
 ## Tests
-`tests/cinematic/` (8): a_scene_can_direct_a_performance, a_scene_is_a_timeline, framing_and_transit, fusion_plays_without_dialogue, new_callers_cost_nothing, staging_stays_out_of_the_dialogue, the_rig_speaks_one_vocabulary, the_seam (world_loading cancel). Gaps: no multi-resident-world mark lookup test; no combat-intro-in-unfocused-world test.
+`tests/cinematic/` (9): dialogue_stand_ins, a_scene_can_direct_a_performance, a_scene_is_a_timeline, framing_and_transit, fusion_plays_without_dialogue, new_callers_cost_nothing, staging_stays_out_of_the_dialogue, the_rig_speaks_one_vocabulary, the_seam (world_loading cancel). Gaps: no multi-resident-world mark lookup test; no combat-intro-in-unfocused-world test.

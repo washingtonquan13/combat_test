@@ -42,6 +42,9 @@ func _ready() -> void:
 		$Indicators, $GroundClickTarget, $CinematicCamera, $CanvasLayer/DragSelectBox,
 	]
 	WorldManager.register_attention_nodes(attention)
+	# Stands the people talking on a scene template's marks. Before the two
+	# below: they work on the stand-ins, so those have to exist first.
+	add_child(DialogueStandIns.new())
 	# Heads turn toward whoever is speaking. Created here rather than
 	# authored into MainRoot.tscn because it renders nothing and owns no
 	# transform — it only reads the live conversation and sets a bone

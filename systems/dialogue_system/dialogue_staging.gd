@@ -245,8 +245,8 @@ func _shot(run: int) -> CameraFraming:
 ## the camera on this conversation's side of the line between the two, and
 ## pans it by `pan` the same way round.
 func _keep_side(shot: CameraFraming, centre: float, swing: float, pan: float) -> void:
-	var from: Vector3 = _speaker.global_position
-	var along: Vector3 = _listener.global_position - from
+	var from: Vector3 = StandIn.place_of(_speaker)
+	var along: Vector3 = StandIn.place_of(_listener) - from
 	if _side == 0.0:
 		var view: Camera3D = _speaker.get_viewport().get_camera_3d()
 		var seen_from: Vector3 = view.global_position if view else from + Vector3.RIGHT

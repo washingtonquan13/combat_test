@@ -83,7 +83,8 @@ var _blink_elapsed: float = -1.0
 static func of(unit: Node) -> FaceDriver:
 	if unit == null:
 		return null
-	var body := unit.get_node_or_null("CharacterModel") as CharacterModel
+	# The face on screen: a unit shown by a stand-in talks with the copy's.
+	var body: CharacterModel = StandIn.body_of(unit)
 	return body.face if body and is_instance_valid(body.face) else null
 
 
