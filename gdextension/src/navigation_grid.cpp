@@ -1713,8 +1713,9 @@ void NavigationGrid::rasterize_tri_shape(const TriShape &tri, const Vector3i &ch
 // lying just under its face, down by as much as the face rises over the
 // widest clearance the grid measures, so the slope ahead of a unit's feet
 // is not a wall to it. Where the triangle borders no other walkable one
-// (open_edge), the band runs on along the slope past it, under the face's
-// plane, onto whatever the slope meets there: the platform it climbs to.
+// (open_edge) at the slope's top, the band runs on up the slope past it,
+// under the face's plane, onto whatever the slope meets there: the
+// platform it climbs to. Never past its foot (see the check below).
 // Across the slope it stops short of the triangle's own sides: an outer
 // side running with the slope is the top of the ramp's side face, so the
 // cell just inside it stays a wall and a unit on the floor beside the face
@@ -1801,10 +1802,16 @@ void NavigationGrid::mark_tri_ground(const TriShape &tri, int id, const Vector3i
 				continue;
 			}
 			// Off the triangle, the band runs on only past an outer edge
-			// across the slope (a toe or a top, not a side), and only
-			// within reach of it: never through a neighbouring triangle.
+			// at the slope's top (not a side), and only within reach of
+			// it: never through a neighbouring triangle. Never past its
+			// foot (s_lo > 0, the point lies downhill of it): a floor the
+			// slope meets there lies over the face's plane, so all that
+			// lies under it is lower than the slope - a drop, steeper than
+			// the slope. Counted as ground, the cells on a cliff face below
+			// a slope's foot had no wall beside them and were routed down,
+			// where a body can't stand.
 			auto crossable = [&](int k) { return k >= 0 && tri.outer_edge[id * 3 + edge_of[k]] && inset[k] == 0.0f; };
-			if (s_lo > 1e-6f && !(s_lo <= sweep && crossable(lo_edge))) {
+			if (s_lo > 1e-6f) {
 				continue;
 			}
 			if (s_hi < -1e-6f && !(-s_hi <= sweep && crossable(hi_edge))) {

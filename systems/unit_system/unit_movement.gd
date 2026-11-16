@@ -33,11 +33,12 @@ extends RefCounted
 ## movement entirely (combat targeting, area effects). This component
 ## reads all of them back through its owner reference.
 ##
-## Can't call move_and_slide() or set velocity/global_position on
-## itself — a RefCounted has no physics body or transform at all — so
-## the physics step, like UnitFacing's rotation methods, writes to
-## _owner.velocity and calls _owner.move_and_slide() directly rather
-## than being fully self-contained.
+## Can't set velocity/global_position on itself — a RefCounted has no
+## physics body or transform at all — so the physics step, like
+## UnitFacing's rotation methods, writes to _owner directly rather than
+## being fully self-contained. A grounded body is placed (see
+## _keep_to_ground): NavigationGrid is the one judge of where it can
+## stand. Only a flier still moves by _owner.move_and_slide().
 
 ## Same "authored global rule, reached by a preload const" idiom
 ## UnitCombat.ALTITUDE_ADVANTAGE already uses — see FlightRules' own
@@ -50,12 +51,10 @@ var _owner: Unit
 ## Read once from ProjectSettings rather than re-fetched every physics
 ## frame — same default (physics/3d/default_gravity, 9.8) every
 ## CharacterBody3D in Godot uses out of the box. Only applied to a
-## grounded (non-flying) unit — see physics_process()'s own note on why
-## this exists: without it, ANY vertical displacement (two units spawning
-## on the exact same point, a knockback, a despawning platform) leaves a
-## unit permanently airborne with no support cell for NavigationGrid to
-## path across, since nothing before this ever wrote velocity.y for a
-## grounded mover at all.
+## grounded (non-flying) unit, by _keep_to_ground, when it stands higher
+## over its grid ground than a walk follows (a stacked spawn, a knockback,
+## a despawning platform): it falls there rather than hanging in the air
+## with no support cell for NavigationGrid to path across.
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity", 9.8)
 
 var _moving: bool = false
@@ -138,9 +137,9 @@ var _preview_ignore: Array = []
 ## The ignore list of the journey in flight, so a ladder journey's later
 ## walking legs avoid the same units its first leg did.
 var _move_ignore: Array = []
-## TEMPORARY stall logging, see _log_stuck.
-const STUCK_LOG_AFTER := 0.3
-var _stuck_logged: bool = false
+
+## How fast a grounded body falls right now (m/s, down); 0 on the ground.
+var _fall_speed: float = 0.0
 
 
 func _init(owner: Unit) -> void:
@@ -543,7 +542,6 @@ func _begin_route(planned: Dictionary) -> bool:
 	_climb_ladder = planned.get("ladder", null)
 	_climb_up = planned.get("climb_up", true)
 	_stuck_timer = 0.0
-	_stuck_logged = false
 	_last_progress_position = _owner.global_position
 	_route_crawls = _crawls()
 	_moving = true
@@ -620,30 +618,17 @@ func _step(delta: float) -> void:
 
 	var flying: bool = _owner.is_flying()
 
-	# Gravity is intentionally the ONLY thing that ever writes velocity.y
-	# for a grounded unit now — see _gravity's own header. Runs before the
-	# _moving early-out below so an IDLE grounded unit still falls (a
-	# stacked spawn resolves before anyone ever issues it a move order),
-	# and runs unconditionally rather than only while moving, so gravity
-	# can't be reintroduced as a "only applies mid-walk" bug later. Flying
-	# is untouched — altitude there is owned entirely by
-	# flight_target_altitude, never by gravity.
-	var climbing: bool = is_climbing()
-	if not flying and not climbing and not clinging:
-		if _owner.is_on_floor():
-			_owner.velocity.y = 0.0
-		else:
-			_owner.velocity.y -= _gravity * delta
-
+	# A grounded body stands where the grid says the ground is (see
+	# _keep_to_ground), idle or walking: the grid is the one judge of where
+	# a body can stand. Physics contact never was a second judge that
+	# agreed with it - a capsule slid off faces the grid routed over and
+	# lips it let a route step up. Idle, it runs too, so a body set down in
+	# the air (a stacked spawn, a vanished platform) falls onto its ground
+	# before anyone orders it anywhere. Flying is untouched: altitude there
+	# is flight_target_altitude's.
 	if not _moving:
-		# Only a grounded unit needs move_and_slide() here — that's what
-		# actually turns the velocity.y just set above into a real fall/
-		# floor-snap. A flying, idle unit is unchanged from before this:
-		# it never touches move_and_slide() until it's actually ordered
-		# somewhere.
 		if not flying and not clinging:
-			_owner.move_and_slide()
-			_land_if_let_go()
+			_keep_to_ground(delta)
 		return
 
 	# Skip past any waypoints already within arrival_tolerance — matters
@@ -674,7 +659,7 @@ func _step(delta: float) -> void:
 		return
 
 	if held:
-		_hold()
+		_hold(delta)
 		return
 
 	if is_climbing():
@@ -686,86 +671,96 @@ func _step(delta: float) -> void:
 		_crawl_step(delta)
 		return
 
-	# Last-resort safety net — see stuck_timeout's doc comment. The path
-	# being followed here is already geometrically clear of every other
-	# unit AND every solid cell (it came straight from NavigationGrid), so
-	# in normal circumstances this should never trigger; it exists for
-	# genuinely unexpected physical obstruction (e.g. physics collision
-	# response deviating from the plan) rather than as the primary
-	# mechanism for anything.
+	if not flying:
+		_walk_step(delta)
+		return
+
+	# Last-resort safety net for a flier, the one body still moved by
+	# move_and_slide — see stuck_timeout's doc comment. Its route is
+	# already clear of every unit and solid cell, so this exists only for
+	# collision response deviating from the plan.
 	if _owner.global_position.distance_to(_last_progress_position) < 0.05:
 		_stuck_timer += delta
-		if _stuck_timer >= STUCK_LOG_AFTER and not _stuck_logged:
-			_stuck_logged = true
-			_log_stuck()
 		if _stuck_timer >= _owner.stuck_timeout:
-			print("[stuck] %s gave up after %.1f s" % [_owner.name, _stuck_timer])
 			_finish_move()
 			return
 	else:
 		_stuck_timer = 0.0
-		_stuck_logged = false
 		_last_progress_position = _owner.global_position
 
-	# Y flattened for a GROUND unit — horizontal direction only; the
-	# vertical component of velocity is gravity's alone now (see the top
-	# of this function), never overwritten here. A flying unit needs the
-	# real 3D direction, or it silently only ever moves horizontally no
-	# matter what altitude its planned path actually climbs/descends to
-	# (confirmed by testing: the planned path and its movement COST were
-	# correctly 3D, but nothing ever consumed the path's Y before this —
-	# this is that missing consumer).
-	var to_target: Vector3 = _current_path[_path_index] - _owner.global_position
-	if not flying:
-		to_target.y = 0.0
-	var direction: Vector3 = to_target.normalized()
-
+	# A flier takes the path's real 3D direction: its planned altitude is
+	# in the path's Y, and nothing else would carry it there.
+	var direction: Vector3 = (_current_path[_path_index] - _owner.global_position).normalized()
 	_owner.face_direction(direction, delta)
-
-	if flying:
-		_owner.velocity = direction * _owner.move_speed
-	else:
-		_owner.velocity.x = direction.x * _owner.move_speed
-		_owner.velocity.z = direction.z * _owner.move_speed
+	_owner.velocity = direction * _owner.move_speed
 	_owner.move_and_slide()
 
 
-## TEMPORARY, for finding why units stall: what the route asks for and what
-## the body is pushing against, printed once per stall. Remove with
-## STUCK_LOG_AFTER and _stuck_logged once the causes are known.
-func _log_stuck() -> void:
+## One frame of a grounded walk: placed directly along the grid's route at
+## move_speed, the height from the grid's ground under it (_keep_to_ground),
+## never pushed about by physics contact. The route runs a body's clearance
+## off every wall and other unit, and only where the grid has ground, so
+## nothing is left for collision to decide: a walk the grid planned is a
+## walk the body makes.
+func _walk_step(delta: float) -> void:
 	var at: Vector3 = _owner.global_position
 	var target: Vector3 = _current_path[_path_index]
-	var from: Vector3 = _current_path[_path_index - 1]
-	var level: float = Vector2(target.x - at.x, target.z - at.z).length()
-	print("[stuck] %s in %s at %s, on floor %s, floor normal %s" % [
-		_owner.name, _owner.get_tree().current_scene.name if _owner.get_tree().current_scene else "?",
-		at.snappedf(0.01), _owner.is_on_floor(), _owner.get_floor_normal().snappedf(0.01)])
-	print("[stuck]   waypoint %d of %d: from %s to %s, %.2f m away on the level, %+.2f m in height" % [
-		_path_index, _current_path.size() - 1, from.snappedf(0.01), target.snappedf(0.01), level, target.y - at.y])
-	# The steepest step the route asks for anywhere, and where.
-	var worst: float = 0.0
-	var worst_at: int = -1
-	for i in range(1, _current_path.size()):
-		var a: Vector3 = _current_path[i - 1]
-		var b: Vector3 = _current_path[i]
-		var run: float = Vector2(b.x - a.x, b.z - a.z).length()
-		var angle: float = rad_to_deg(atan2(absf(b.y - a.y), run))
-		if angle > worst:
-			worst = angle
-			worst_at = i
-	if worst_at >= 0:
-		print("[stuck]   steepest leg of the route: %.0f deg, into waypoint %d (%s to %s)" % [
-			worst, worst_at, _current_path[worst_at - 1].snappedf(0.01), _current_path[worst_at].snappedf(0.01)])
-	if _owner.get_slide_collision_count() == 0:
-		print("[stuck]   touching nothing")
-	for i in _owner.get_slide_collision_count():
-		var hit: KinematicCollision3D = _owner.get_slide_collision(i)
-		var other: Object = hit.get_collider()
-		var who: String = str((other as Node).get_path()) if other is Node else str(other)
-		print("[stuck]   touching %s, normal %s (%.0f deg from up), %+.2f m from the unit's origin" % [
-			who, hit.get_normal().snappedf(0.01), rad_to_deg(hit.get_normal().angle_to(Vector3.UP)),
-			hit.get_position().y - at.y])
+	var level := Vector3(target.x - at.x, 0.0, target.z - at.z)
+	var run: float = level.length()
+	var step: float = _owner.move_speed * delta
+	if run > 1e-4:
+		_owner.face_direction(level / run, delta)
+	var next: Vector3 = at + (level if run <= step else level / run * step)
+	_owner.velocity = Vector3.ZERO
+	_owner.global_position = next
+	_keep_to_ground(delta)
+	_stuck_timer = 0.0
+	_last_progress_position = _owner.global_position
+
+
+## Up or down a slope as fast as the walk climbs it (twice its speed:
+## anything up to 63 degrees, past the steepest ground there is), and
+## falling under gravity when the ground is further below than that.
+const GROUND_FOLLOW_RATE := 2.0
+
+## Brings a grounded body to the grid's ground under it: onto it along a
+## slope or a lip, falling onto it when it's further below. A crawler that
+## let go pays for its drop on landing.
+func _keep_to_ground(delta: float) -> void:
+	var at: Vector3 = _owner.global_position
+	_owner.velocity = Vector3.ZERO
+	var ground: float = _ground_height(at)
+	var follow: float = _owner.move_speed * GROUND_FOLLOW_RATE * delta
+	if at.y - ground > follow + _fall_speed * delta:
+		_fall_speed += _gravity * delta
+		_owner.global_position.y = maxf(ground, at.y - _fall_speed * delta)
+		if _owner.global_position.y > ground:
+			return
+	else:
+		_owner.global_position.y = move_toward(at.y, ground, maxf(follow, _fall_speed * delta))
+	if _owner.global_position.y != ground:
+		return
+	_fall_speed = 0.0
+	if not is_nan(_hold_height):
+		ArcFlight.take_fall(_owner, _hold_height - ground)
+		_hold_height = NAN
+
+
+## The ground a body at `at` stands on: the grid's (ground_height_at, the
+## top of the first solid cell at or under its feet), which says which
+## floor and to within a cell how high, made exact by the face itself
+## inside that one cell, so a slope is a slope and not 0.25 m stairs. The
+## face is only read inside the grid's cell: it never moves the body onto
+## a floor the grid doesn't have.
+func _ground_height(at: Vector3) -> float:
+	var cell: float = NavigationGrid.CELL_SIZE
+	var tree := _owner.get_tree()
+	var grid: float = NavigationGrid.ground_height_at(tree, at + Vector3.UP * cell * 0.5, _owner)
+	var query := PhysicsRayQueryParameters3D.create(
+		Vector3(at.x, grid + cell, at.z), Vector3(at.x, grid - cell, at.z), _owner.collision_mask)
+	query.exclude = [_owner.get_rid()]
+	var hit: Dictionary = _owner.get_world_3d().direct_space_state.intersect_ray(query)
+	return hit.position.y if not hit.is_empty() else grid
 
 
 ## Holding on is asked of the surface every tick, never remembered: nothing
@@ -790,14 +785,6 @@ func _crawl_travel(crawling: bool) -> Vector3:
 		return Vector3.ZERO
 	return (_current_path[_path_index] - _owner.global_position).normalized()
 
-
-## A crawler that let go pays for the drop from where it last had hold. Asked
-## straight after move_and_slide: direct placement leaves is_on_floor() stale.
-func _land_if_let_go() -> void:
-	if is_nan(_hold_height) or not _owner.is_on_floor():
-		return
-	ArcFlight.take_fall(_owner, _hold_height - _owner.global_position.y)
-	_hold_height = NAN
 
 
 ## One frame on a surface, placed directly like a ladder climb: the route
@@ -829,12 +816,10 @@ func _waiting_for_ladder() -> bool:
 	return to_near.length() <= Ladder.WAIT_DISTANCE and _climb_ladder.is_busy_for(_owner)
 
 
-## One frame waiting for the ladder: standing, still under gravity, and
-## never counted as stuck — the wait ends when the ladder frees.
-func _hold() -> void:
-	_owner.velocity.x = 0.0
-	_owner.velocity.z = 0.0
-	_owner.move_and_slide()
+## One frame waiting for the ladder: standing on its ground, and never
+## counted as stuck — the wait ends when the ladder frees.
+func _hold(delta: float) -> void:
+	_keep_to_ground(delta)
 	_stuck_timer = 0.0
 	_last_progress_position = _owner.global_position
 

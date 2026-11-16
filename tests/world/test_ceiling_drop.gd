@@ -48,7 +48,8 @@ func run() -> void:
 		check("it lets go", dropper.drop())
 		for i in 150:
 			await get_tree().physics_frame
-		check("it lands on the floor", spider.global_position.y < 1.0 and spider.is_on_floor(), str(spider.global_position))
+		var floor_y: float = NavigationGrid.ground_height_at(get_tree(), spider.global_position + Vector3.UP * 0.125, spider)
+		check("it lands on the floor", spider.global_position.y < 1.0 and absf(spider.global_position.y - floor_y) < 0.05, "%s, floor %.2f" % [spider.global_position, floor_y])
 		check("unhurt", spider.get_pool(StatIds.HP) == health, "%d -> %d" % [health, spider.get_pool(StatIds.HP)])
 		check("and is free to act", not spider.is_busy())
 		check("on the floor a fight starting does nothing", not dropper.drop())
