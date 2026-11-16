@@ -716,7 +716,7 @@ func _walk_step(delta: float) -> void:
 	var loco: UnitLocomotion = animator.locomotion if animator else null
 	if loco and loco.drives():
 		step = loco.travel(delta, remaining_distance())
-	if run > 1e-4 and not (loco and loco.holds_facing()):
+	if run > 1e-4:
 		_owner.face_direction(level / run, delta)
 	var next: Vector3 = at + (level if run <= step else level / run * step)
 	_owner.velocity = Vector3.ZERO
