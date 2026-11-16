@@ -56,6 +56,13 @@ extends Node3D
 ## at all: every action still runs, with nothing played.
 @export var motions: MotionSet
 
+@export_group("Locomotion")
+## How this body walks a route (LocomotionSet, driven by UnitLocomotion):
+## its idle, walk and jog loops, starts, stops and turns, each moving the
+## unit by the ground it covers. Its clips must be on the body's player.
+## Null walks the walk_animation at move_speed, as before.
+@export var locomotion: LocomotionSet
+
 @export_group("Flight Animation")
 ## While the unit is in the air these stand in for idle and walk; empty
 ## means the ground clip plays in the air too. Takeoff plays as the unit

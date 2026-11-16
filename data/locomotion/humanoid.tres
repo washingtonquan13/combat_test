@@ -288,6 +288,7 @@ leaves_at = -1.0
 travel = 5.65362
 turn = 0.0
 speed = 1.84357
+strides = 3
 
 [sub_resource type="Resource" id="Resource_7wpev"]
 script = ExtResource("1_6nq0i")

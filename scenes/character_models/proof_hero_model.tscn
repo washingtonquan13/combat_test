@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3]
+[gd_scene load_steps=28 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Resource" path="res://data/ragdolls/humanoid.tres" id="9_ragdoll"]
@@ -21,6 +21,8 @@
 [ext_resource type="Texture2D" uid="uid://bs6muwl44bqu5" path="res://assets/characters/skin/procedural_face_detail.png" id="17_detail"]
 [ext_resource type="Texture2D" uid="uid://c8uoa4ppsntwl" path="res://assets/characters/skin/procedural_face_age.png" id="18_age"]
 [ext_resource type="Texture2D" path="res://assets/characters/proof_hero/proof_hero_strands.png" id="19_strands"]
+[ext_resource type="AnimationLibrary" path="res://assets/locomotion_animations.tres" id="20_loco_lib"]
+[ext_resource type="Resource" path="res://data/locomotion/humanoid.tres" id="21_loco_set"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -46,6 +48,7 @@ walk_animation = "Jog_Fwd"
 hit_animation = "Hit_Chest"
 death_animation = "Death01"
 motions = ExtResource("9_motions")
+locomotion = ExtResource("21_loco_set")
 fly_idle_animation = "Flight/Hover"
 fly_move_animation = "Flight/Fly_Fwd"
 takeoff_animation = "Flight/Takeoff"
@@ -93,6 +96,7 @@ libraries = {
 &"Fireball": ExtResource("6_fireball"),
 &"Flight": ExtResource("5_flight"),
 &"Ladder": ExtResource("8_ladder"),
+&"Locomotion": ExtResource("20_loco_lib"),
 &"UAL2_Standard": ExtResource("4_ual2"),
 &"Weapon": ExtResource("7_weapon")
 }

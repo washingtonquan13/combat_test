@@ -302,9 +302,31 @@ func _loop(clip_name: String, spec: Array, roots: Dictionary) -> Resource:
 		path.append(roots[f])
 	var clip: Resource = _make(clip_name, take, a, b, path, true)
 	var seam: float = _pose_gap(take, a, roots[a], take, b, roots[b])
-	print("  %-20s %5.2f s  %5.2f m %6.1f deg  %5.2f m/s  seam %4.1f cm" % [clip_name, clip.length, clip.travel,
-		rad_to_deg(clip.turn), clip.speed, seam])
+	clip.strides = _strides(take, a, b, roots)
+	print("  %-20s %5.2f s  %5.2f m %6.1f deg  %5.2f m/s  seam %4.1f cm  %d strides" % [clip_name, clip.length,
+		clip.travel, rad_to_deg(clip.turn), clip.speed, seam, clip.strides])
 	return clip
+
+
+## How many times a loop's frames a..b repeat their own pose: the most n for
+## which every frame looks, within STRIDE_GAP on average, like the one a
+## 1/n of the cycle on.
+const STRIDE_GAP := 8.0
+
+func _strides(take: Retarget, a: int, b: int, roots: Dictionary) -> int:
+	var frames: int = b - a
+	for n in [4, 3, 2]:
+		var shift: int = roundi(float(frames) / n)
+		if shift < 4:
+			continue
+		var gap := 0.0
+		var count := 0
+		for f in range(a, b - shift, 3):
+			gap += _pose_gap(take, f, roots[f], take, f + shift, roots[f + shift])
+			count += 1
+		if count > 0 and gap / count <= STRIDE_GAP:
+			return n
+	return 1
 
 
 ## A clip off a loop, from frame `from` of its take to `to` (-1 = its end):

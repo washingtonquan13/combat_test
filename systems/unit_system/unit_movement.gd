@@ -702,13 +702,21 @@ func _step(delta: float) -> void:
 ## off every wall and other unit, and only where the grid has ground, so
 ## nothing is left for collision to decide: a walk the grid planned is a
 ## walk the body makes.
+##
+## A body with a locomotion set (UnitLocomotion) says how far instead: its
+## loop's own speed, a start's or a stop's own curve, nothing while it turns
+## in place (and then it, not the path, turns the unit).
 func _walk_step(delta: float) -> void:
 	var at: Vector3 = _owner.global_position
 	var target: Vector3 = _current_path[_path_index]
 	var level := Vector3(target.x - at.x, 0.0, target.z - at.z)
 	var run: float = level.length()
 	var step: float = _owner.move_speed * delta
-	if run > 1e-4:
+	var animator: UnitAnimator = _owner.animator()
+	var loco: UnitLocomotion = animator.locomotion if animator else null
+	if loco and loco.drives():
+		step = loco.travel(delta, remaining_distance())
+	if run > 1e-4 and not (loco and loco.holds_facing()):
 		_owner.face_direction(level / run, delta)
 	var next: Vector3 = at + (level if run <= step else level / run * step)
 	_owner.velocity = Vector3.ZERO
@@ -716,6 +724,33 @@ func _walk_step(delta: float) -> void:
 	_keep_to_ground(delta)
 	_stuck_timer = 0.0
 	_last_progress_position = _owner.global_position
+
+
+## Metres of route left on the ground, from where the unit stands.
+func remaining_distance() -> float:
+	if not _moving:
+		return 0.0
+	var from: Vector3 = _owner.global_position
+	var left: float = 0.0
+	for i in range(_path_index, _current_path.size()):
+		var p: Vector3 = _current_path[i]
+		left += Vector2(p.x - from.x, p.z - from.z).length()
+		from = p
+	return left
+
+
+## The way the route leaves from where the unit stands, level.
+func first_leg() -> Vector3:
+	if not _moving or _path_index >= _current_path.size():
+		return Vector3.ZERO
+	var to: Vector3 = _current_path[_path_index] - _owner.global_position
+	return Vector3(to.x, 0.0, to.z).normalized()
+
+
+## Whether this move is all walked on the ground: no ladder, wall or flight
+## in it. Only such a move is shown by the body's locomotion set.
+func walks_on_foot() -> bool:
+	return _moving and _climb_first < 0 and not _route_crawls and not _owner.is_flying()
 
 
 ## Up or down a slope as fast as the walk climbs it (twice its speed:

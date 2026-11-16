@@ -211,6 +211,13 @@ func seek(seconds: float, update: bool = false) -> void:
 		_playback.clear_seek()
 
 
+## The playing clip's own speed, changed as it plays (a loop sped or slowed
+## to fit the ground it must cover: UnitLocomotion).
+func set_clip_speed(scale: float) -> void:
+	if _playback.current:
+		_playback.current.speed_scale = scale
+
+
 ## AnimationPlayer.pause(): stops where it is and leaves the pose.
 func pause() -> void:
 	_playback.pause()

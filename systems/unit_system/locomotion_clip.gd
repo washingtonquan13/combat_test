@@ -46,6 +46,9 @@ const FPS := 30.0
 @export var turn: float = 0.0
 ## A loop's metres a second.
 @export var speed: float = 0.0
+## A loop's cycles of the same stride pair (the walk: 3). A stop that enters
+## on one frame of the loop enters as well a 1/strides of the cycle on.
+@export var strides: int = 1
 
 
 ## Where the unit stands `seconds` in, from where it stood on the first

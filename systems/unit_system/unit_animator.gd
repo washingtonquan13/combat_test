@@ -59,6 +59,10 @@ extends Node
 ## What shows the clips: an AnimationTree reading animation_player's clips.
 ## Made in _ready; ask it, not the player, what is playing.
 var playback: BodyAnimationTree = null
+## How a walk on the ground is shown and paced, for a body with a
+## LocomotionSet (CharacterModel.locomotion); null for one without.
+var locomotion: UnitLocomotion = null
+var _locomotion_set: LocomotionSet = null
 
 @export_group("Clip Names")
 @export var idle_animation: String = "Idle"
@@ -227,6 +231,9 @@ func adopt_model(model: CharacterModel) -> void:
 	climb_animation = model.climb_animation
 	climb_off_animation = model.climb_off_animation
 	climb_on_animation = model.climb_on_animation
+	_locomotion_set = model.locomotion
+	if _locomotion_set and _locomotion_set.idle:
+		idle_animation = String(_locomotion_set.idle.clip)
 	model.moment.connect(_on_model_moment)
 	_model = model
 	model.aloft = _aloft
@@ -238,6 +245,8 @@ func _ready() -> void:
 		return
 
 	playback = BodyAnimationTree.attach(animation_player)
+	if _locomotion_set:
+		locomotion = UnitLocomotion.new(unit, playback, _locomotion_set, animation_player.get_parent() as Node3D)
 	AbilityManager.ability_armed.connect(_on_ability_armed)
 	unit.movement_started.connect(_on_movement_started)
 	unit.movement_finished.connect(_on_movement_finished)
@@ -331,7 +340,12 @@ func _on_movement_started(_u: Unit) -> void:
 	_posed_clip = ""
 	unit.visual_state = Unit.VisualState.STANDING
 	_base_animation = _idle()
-	_play(_walk())
+	if locomotion and not _aloft and unit.walks_on_foot():
+		locomotion.begin(unit.remaining_distance(), unit.first_leg())
+	else:
+		if locomotion:
+			locomotion.abandon()
+		_play(_walk())
 	_carry_stance()
 
 
@@ -369,7 +383,11 @@ func _on_movement_finished(_u: Unit) -> void:
 	# Stopping with the stance carried: the whole body takes the guard.
 	var carried: String = String(playback.upper_animation)
 	if carried != "" and carried == _armed_hold():
+		if locomotion:
+			locomotion.abandon()
 		_play(carried, stance_blend_time)
+		return
+	if locomotion and locomotion.finish():
 		return
 	_play(_idle())
 
@@ -697,6 +715,8 @@ var _climb_shown: int = 0
 func _physics_process(delta: float) -> void:
 	if unit == null or _cutscene_claimed or unit.posed_status or not unit.is_alive():
 		return
+	if locomotion and not unit.is_moving():
+		locomotion.tick(delta)
 	_show_turning()
 	var over: int = unit.climbing_over()
 	var over_clip: String = climb_off_animation if over > 0 else climb_on_animation
@@ -750,8 +770,8 @@ func _on_facing_swung(rate: float) -> void:
 func _show_turning() -> void:
 	var rate: float = _turn_rate
 	_turn_rate = 0.0
-	var left: String = _clip(&"turn.left")
-	var right: String = _clip(&"turn.right")
+	var left: String = locomotion.turn_loop(true) if locomotion else _clip(&"turn.left")
+	var right: String = locomotion.turn_loop(false) if locomotion else _clip(&"turn.right")
 	if left == "" or right == "":
 		return
 	var playing: String = String(playback.current_animation)
@@ -945,6 +965,8 @@ func claim_for_cutscene() -> void:
 	# scene puts up after that is the scene's (every clip claims again).
 	if not _cutscene_claimed:
 		playback.stop_upper(stance_blend_time)
+	if locomotion:
+		locomotion.abandon()
 	_cutscene_claimed = true
 
 
