@@ -1,6 +1,7 @@
-[gd_scene load_steps=20 format=4 uid="uid://btnqexsmk20xa"]
+[gd_scene load_steps=21 format=4 uid="uid://btnqexsmk20xa"]
 
 [ext_resource type="Script" uid="uid://ee0ub37ip226" path="res://systems/unit_system/character_model.gd" id="1_cm"]
+[ext_resource type="Resource" path="res://data/ragdolls/humanoid.tres" id="9_ragdoll"]
 [ext_resource type="Shader" uid="uid://b4ebpgxfrrswq" path="res://systems/unit_system/outline.gdshader" id="2_outline"]
 [ext_resource type="PackedScene" uid="uid://bsk4jx2fxytqm" path="res://assets/UAL1_Standard.glb" id="3_glb"]
 [ext_resource type="AnimationLibrary" uid="uid://cqnay5mbp4o52" path="res://assets/unit_animations.tres" id="4_anims"]
@@ -78,6 +79,7 @@ radius = 0.25
 script = ExtResource("1_cm")
 animation_player = NodePath("Body/AnimationPlayer")
 idle_animation = "Idle"
+ragdoll = ExtResource("9_ragdoll")
 walk_animation = "Jog_Fwd"
 hit_animation = "Hit_Chest"
 death_animation = "Death01"

@@ -378,8 +378,9 @@ const LOW_POOL_STATUSES: Dictionary[StringName, StatusEffect] = {
 
 @export_group("Death")
 ## Seconds between a unit's HP hitting 0 and its node actually being freed.
-## 0 means immediate. Raise this if you want time for a death animation or
-## ragdoll to play before the unit disappears — see UnitDeath.handle_death.
+## 0 means immediate. The body does not go with it: it has already been
+## handed to the unit's Corpse, which keeps it where it fell. What this
+## delays is the Unit node itself - see UnitDeath.handle_death.
 @export var death_cleanup_delay: float = 0.0
 ## Whether a dead unit's collision shape keeps blocking other units'
 ## movement (e.g. as terrain-like debris) or is cleared so the space opens

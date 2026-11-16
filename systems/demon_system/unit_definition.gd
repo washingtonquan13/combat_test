@@ -141,7 +141,7 @@ extends Resource
 ## which only orders a species within its order for fusion.
 @export var level: int = 1
 ## Rolls for its remains, each kept on drop_chance. Party members and
-## owned demons never drop anything (Remains.drop_for).
+## owned demons never drop anything (Corpse.roll_drops).
 @export var max_drops: int = 2
 @export_range(0.0, 1.0) var drop_chance: float = 0.5
 

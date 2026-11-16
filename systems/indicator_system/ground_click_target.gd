@@ -339,7 +339,8 @@ func _input(event: InputEvent) -> void:
 
 ## What the mouse is over right now, on the height plane if one is up.
 ## The only mouse raycasts in the project: the world past units (see
-## _raycast_past_units), and the unit pick areas (_unit_under_mouse).
+## _raycast_past_units), the unit pick areas (_unit_under_mouse), and a
+## lootable corpse's pick area (_corpse_under_mouse).
 ##
 ## A height plane exists only while the intent takes a height
 ## (PlayerIntent.drags_height) - Ctrl over anything else leaves the
@@ -369,6 +370,8 @@ func resolve_cursor(current: PlayerIntent) -> Cursor:
 	result.unit = _unit_under_mouse(ground_hit)
 	if result.unit and result.unit.has_method("get_interactions"):
 		result.interactable = result.unit
+	if result.unit == null and result.interactable == null:
+		result.interactable = _corpse_under_mouse(ground_hit)
 
 	if not _same_intent(current, _plane_intent):
 		_clear_plane()
@@ -617,6 +620,22 @@ func _unit_under_mouse(world_hit: Dictionary) -> Unit:
 			best = unit
 			best_miss = miss
 	return best
+
+
+## The lootable corpse the mouse is over, by its pick area (Corpse.
+## PICK_LAYER; only a corpse holding something has one), nearer the camera
+## than the world behind it. Nothing of a corpse is solid, so the world
+## ray goes straight through it.
+func _corpse_under_mouse(world_hit: Dictionary) -> Corpse:
+	var hit: Dictionary = _raycast(Corpse.PICK_LAYER, [], true)
+	if hit.is_empty():
+		return null
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	if camera and not world_hit.is_empty():
+		var from: Vector3 = camera.project_ray_origin(get_viewport().get_mouse_position())
+		if from.distance_to(hit.position) > from.distance_to(world_hit.position) + 0.05:
+			return null
+	return Corpse.from_pick_area(hit.collider)
 
 
 ## What a ray hit, but only if that body would have accepted a click.

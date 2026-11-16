@@ -78,6 +78,12 @@ extends Node3D
 @export var climb_off_animation: String = ""
 @export var climb_on_animation: String = ""
 
+@export_group("Death")
+## How this body falls when it dies (Corpse): one profile per rig, so every
+## body on the shared humanoid rig names data/ragdolls/humanoid.tres. Null
+## means it plays death_animation and lies however that leaves it.
+@export var ragdoll: RagdollProfile
+
 @export_group("Presentation")
 ## The silhouette drawn behind the body when hovered or selected. Skinned
 ## to THIS body's skeleton, which is the whole reason it cannot live on

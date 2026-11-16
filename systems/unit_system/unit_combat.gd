@@ -1493,13 +1493,15 @@ func _hp_step() -> int:
 
 
 ## A dead owned demon stays in the roster, marked dead, rather than being
-## released — so it can be revived. A killed monster leaves its drops
-## (Remains); a summon running out (UnitDeath.expire) doesn't come here.
+## released — so it can be revived. A killed unit leaves its Corpse, which
+## holds its drops; a summon running out (UnitDeath.expire) doesn't come
+## here. The corpse is left after `died`, so it takes the body from where
+## everything that reacts to a death has left it.
 func _die() -> void:
 	SystemLog.print(_death_log_line())
 	if _owner.owned_demon:
 		_owner.owned_demon.capture_pools(_owner)
 		_owner.owned_demon.is_dead = true
-	Remains.drop_for(_owner)
 	_owner.handle_death()
 	_owner.died.emit(_owner)
+	Corpse.leave(_owner)

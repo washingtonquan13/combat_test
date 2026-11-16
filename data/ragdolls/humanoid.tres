@@ -1,0 +1,128 @@
+[gd_resource type="Resource" script_class="RagdollProfile" load_steps=15 format=3]
+
+[ext_resource type="Script" path="res://systems/unit_system/ragdoll_profile.gd" id="1_profile"]
+[ext_resource type="Script" path="res://systems/unit_system/ragdoll_part.gd" id="2_part"]
+
+[sub_resource type="Resource" id="part_Hips"]
+script = ExtResource("2_part")
+bone = &"Hips"
+tip = &"LeftUpperLeg"
+tip_b = &"RightUpperLeg"
+radius_ratio = 0.6
+sphere_radius = 0.1
+mass = 3.0
+swing_degrees = 0.0
+twist_degrees = 0.0
+
+[sub_resource type="Resource" id="part_Spine"]
+script = ExtResource("2_part")
+bone = &"Spine"
+tip = &"UpperChest"
+radius_ratio = 0.8
+sphere_radius = 0.1
+mass = 3.0
+swing_degrees = 25.0
+twist_degrees = 15.0
+
+[sub_resource type="Resource" id="part_UpperChest"]
+script = ExtResource("2_part")
+bone = &"UpperChest"
+tip = &"Neck"
+radius_ratio = 0.38
+sphere_radius = 0.1
+mass = 4.0
+swing_degrees = 25.0
+twist_degrees = 15.0
+
+[sub_resource type="Resource" id="part_Head"]
+script = ExtResource("2_part")
+bone = &"Head"
+radius_ratio = 0.2
+sphere_radius = 0.11
+mass = 1.5
+swing_degrees = 40.0
+twist_degrees = 30.0
+
+[sub_resource type="Resource" id="part_LeftUpperArm"]
+script = ExtResource("2_part")
+bone = &"LeftUpperArm"
+tip = &"LeftLowerArm"
+radius_ratio = 0.2
+sphere_radius = 0.1
+mass = 1.2
+swing_degrees = 70.0
+twist_degrees = 30.0
+
+[sub_resource type="Resource" id="part_RightUpperArm"]
+script = ExtResource("2_part")
+bone = &"RightUpperArm"
+tip = &"RightLowerArm"
+radius_ratio = 0.2
+sphere_radius = 0.1
+mass = 1.2
+swing_degrees = 70.0
+twist_degrees = 30.0
+
+[sub_resource type="Resource" id="part_LeftLowerArm"]
+script = ExtResource("2_part")
+bone = &"LeftLowerArm"
+tip = &"LeftHand"
+radius_ratio = 0.17
+sphere_radius = 0.1
+mass = 1.0
+swing_degrees = 70.0
+twist_degrees = 10.0
+
+[sub_resource type="Resource" id="part_RightLowerArm"]
+script = ExtResource("2_part")
+bone = &"RightLowerArm"
+tip = &"RightHand"
+radius_ratio = 0.17
+sphere_radius = 0.1
+mass = 1.0
+swing_degrees = 70.0
+twist_degrees = 10.0
+
+[sub_resource type="Resource" id="part_LeftUpperLeg"]
+script = ExtResource("2_part")
+bone = &"LeftUpperLeg"
+tip = &"LeftLowerLeg"
+radius_ratio = 0.17
+sphere_radius = 0.1
+mass = 2.5
+swing_degrees = 50.0
+twist_degrees = 20.0
+
+[sub_resource type="Resource" id="part_RightUpperLeg"]
+script = ExtResource("2_part")
+bone = &"RightUpperLeg"
+tip = &"RightLowerLeg"
+radius_ratio = 0.17
+sphere_radius = 0.1
+mass = 2.5
+swing_degrees = 50.0
+twist_degrees = 20.0
+
+[sub_resource type="Resource" id="part_LeftLowerLeg"]
+script = ExtResource("2_part")
+bone = &"LeftLowerLeg"
+tip = &"LeftFoot"
+radius_ratio = 0.12
+sphere_radius = 0.1
+mass = 1.5
+swing_degrees = 60.0
+twist_degrees = 5.0
+
+[sub_resource type="Resource" id="part_RightLowerLeg"]
+script = ExtResource("2_part")
+bone = &"RightLowerLeg"
+tip = &"RightFoot"
+radius_ratio = 0.12
+sphere_radius = 0.1
+mass = 1.5
+swing_degrees = 60.0
+twist_degrees = 5.0
+
+[resource]
+script = ExtResource("1_profile")
+parts = Array[ExtResource("2_part")]([SubResource("part_Hips"), SubResource("part_Spine"), SubResource("part_UpperChest"), SubResource("part_Head"), SubResource("part_LeftUpperArm"), SubResource("part_RightUpperArm"), SubResource("part_LeftLowerArm"), SubResource("part_RightLowerArm"), SubResource("part_LeftUpperLeg"), SubResource("part_RightUpperLeg"), SubResource("part_LeftLowerLeg"), SubResource("part_RightLowerLeg")])

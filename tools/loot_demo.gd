@@ -1,8 +1,8 @@
 extends "res://tools/item_layer_demo.gd"
 ## Recorded showcase of affixes, item level, identification and the loot
 ## roller — NOT a test. Rolls at two levels, a rare sword refused by the
-## hand until a real drag of the scroll identifies it, a kill leaving
-## Remains, and test_arena's loot chest rolling on first open. Record it
+## hand until a real drag of the scroll identifies it, a kill leaving a
+## ragdoll Corpse holding its drops, and test_arena's loot chest rolling on first open. Record it
 ## the same way as item_layer_demo.
 
 const MAIN := EquipSlot.Slot.MELEE_MAIN_HAND
@@ -105,15 +105,22 @@ func _run() -> void:
 	await _wait(1.5)
 	var spot := monster.global_position
 	monster.take_damage(9999)
-	await _wait(1.5)
-	var remains: Remains = _remains()
-	_check("it left Remains where it fell", remains != null and remains.global_position.distance_to(spot) < 0.1)
-	if remains:
-		var stash := StashComponent.find_on(remains)
-		var items := stash.inventory.get_container().items()
+	await _wait(3.5)
+	var corpse: Corpse = _corpse()
+	_check("it left a Corpse where it fell", corpse != null and Vector2(corpse.global_position.x - spot.x, corpse.global_position.z - spot.z).length() < 1.5)
+	if corpse:
+		var head: Skeleton3D = corpse.find_children("*", "Skeleton3D", true, false)[0]
+		var head_y: float = (head.global_transform * head.get_bone_global_pose(head.find_bone(&"Head"))).origin.y
+		_check("lying down: head %.2f m above where it stood" % (head_y - spot.y), head_y - spot.y < 0.6)
+		_check("settled: no physics left", corpse.find_children("*", "RigidBody3D", true, false).is_empty())
+		_check("blocks nothing: its only collider is the pick area", corpse.find_children("*", "CollisionObject3D", true, false).all(
+			func(c: CollisionObject3D) -> bool: return c is Area3D and c.collision_layer == Corpse.PICK_LAYER or c.collision_layer == 0))
+		var stash := StashComponent.find_on(corpse)
+		var items := stash.inventory.get_container().items() if stash else []
 		_check("holding its drops (%d), gear at item level 10" % items.size(), items.size() > 0
 			and items.all(func(i): return not i.definition is GearItem or i.item_level == 10))
-		_say("Open the Remains: Take All")
+		_check("offers Open", corpse.get_interactions(_hero).size() == 1)
+		_say("Open the corpse: Take All")
 		StashManager.open_stash(stash, _hero)
 		await _wait(2.0)
 		var panel: Node = get_tree().root.find_child("StashPanel", true, false)
@@ -121,7 +128,8 @@ func _run() -> void:
 		await _wait(1.5)
 		StashManager.close_stash()
 		await _wait(0.5)
-		_check("emptied Remains are gone", not is_instance_valid(remains) or remains.is_queued_for_deletion())
+		_check("emptied: nothing to open, the body stays", is_instance_valid(corpse) and corpse.get_interactions(_hero).is_empty()
+			and corpse.find_children("*", "Area3D", true, false).all(func(a: Node) -> bool: return a.is_queued_for_deletion()))
 
 	_say("The loot chest rolls its contents the first time it's opened, at the area's level")
 	var chest_stash := StashComponent.find_on(get_tree().root.find_child("LootChest", true, false))
@@ -178,8 +186,8 @@ func _monster(forward: float) -> Unit:
 	return unit
 
 
-func _remains() -> Remains:
-	for node in get_tree().root.find_children("*", "StaticBody3D", true, false):
-		if node is Remains and not node.is_queued_for_deletion():
+func _corpse() -> Corpse:
+	for node in get_tree().root.find_children("*", "Node3D", true, false):
+		if node is Corpse and not node.is_queued_for_deletion():
 			return node
 	return null
