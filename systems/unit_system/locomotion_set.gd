@@ -16,6 +16,9 @@ extends Resource
 @export var idle: LocomotionClip
 @export var walk: LocomotionClip
 @export var jog: LocomotionClip
+## The running loop. Has no start or stops of its own: the jog's serve it,
+## matched by the legs at the handover (UnitLocomotion).
+@export var run: LocomotionClip
 ## From the idle into the jog.
 @export var jog_start: LocomotionClip
 ## Off the walk, each on its own frame of it, into the idle.

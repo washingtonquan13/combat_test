@@ -1,9 +1,9 @@
-[gd_resource type="Resource" script_class="LocomotionSet" load_steps=31 format=3]
+[gd_resource type="Resource" script_class="LocomotionSet" load_steps=32 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/locomotion_clip.gd" id="1_6nq0i"]
 [ext_resource type="Script" path="res://systems/unit_system/locomotion_set.gd" id="2_0ods0"]
 
-[sub_resource type="Resource" id="Resource_1uvrb"]
+[sub_resource type="Resource" id="Resource_6nq0i"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/idle"
 loops = true
@@ -15,8 +15,9 @@ leaves_at = -1.0
 travel = 0.0
 turn = 0.0
 speed = 0.0
+strides = 4
 
-[sub_resource type="Resource" id="Resource_ayd58"]
+[sub_resource type="Resource" id="Resource_0ods0"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/jog"
 loops = true
@@ -28,8 +29,9 @@ leaves_at = -1.0
 travel = 2.69702
 turn = 0.0
 speed = 3.23642
+strides = 1
 
-[sub_resource type="Resource" id="Resource_1fo51"]
+[sub_resource type="Resource" id="Resource_1uvrb"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/jog_start"
 loops = false
@@ -41,8 +43,9 @@ leaves_at = 0.566667
 travel = 4.47175
 turn = -0.047113
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_kfsay"]
+[sub_resource type="Resource" id="Resource_ayd58"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/jog_stop_a"
 loops = false
@@ -54,8 +57,9 @@ leaves_at = 3.76667
 travel = 3.91861
 turn = -0.0694347
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_se2eg"]
+[sub_resource type="Resource" id="Resource_1fo51"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/jog_stop_b"
 loops = false
@@ -67,8 +71,23 @@ leaves_at = 3.76667
 travel = 4.92818
 turn = -0.132024
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_fi56c"]
+[sub_resource type="Resource" id="Resource_kfsay"]
+script = ExtResource("1_6nq0i")
+clip = &"Locomotion/run"
+loops = true
+length = 0.533333
+root_positions = PackedVector3Array(0, 0, 0, 6.59948e-08, 0, 0.164244, 0, 0, 0.328489, 6.59948e-08, 0, 0.492734, 6.59948e-08, 0, 0.656979, 1.3199e-07, 0, 0.821224, 6.59948e-08, 0, 0.985468, 1.3199e-07, 0, 1.14971, 6.59948e-08, 0, 1.31396, 6.59948e-08, 0, 1.4782, 6.59948e-08, 0, 1.64245, 6.59948e-08, 0, 1.80669, 6.59948e-08, 0, 1.97094, 6.59948e-08, 0, 2.13518, 6.59948e-08, 0, 2.29943, 1.3199e-07, 0, 2.46367, 1.3199e-07, 0, 2.62792)
+root_yaws = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+enters_at = -1.0
+leaves_at = -1.0
+travel = 2.62792
+turn = 0.0
+speed = 4.92734
+strides = 1
+
+[sub_resource type="Resource" id="Resource_se2eg"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_loop_l"
 loops = true
@@ -80,8 +99,9 @@ leaves_at = -1.0
 travel = 0.0
 turn = 3.28341
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_7bxqg"]
+[sub_resource type="Resource" id="Resource_fi56c"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_loop_l_in"
 loops = false
@@ -93,8 +113,9 @@ leaves_at = 0.0
 travel = 0.0416255
 turn = 2.7032
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_mstes"]
+[sub_resource type="Resource" id="Resource_7bxqg"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_loop_r"
 loops = true
@@ -106,8 +127,9 @@ leaves_at = -1.0
 travel = 0.0
 turn = -3.00095
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_1p57y"]
+[sub_resource type="Resource" id="Resource_mstes"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_loop_r_in"
 loops = false
@@ -119,8 +141,9 @@ leaves_at = 0.0
 travel = 0.0807791
 turn = -2.92201
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_e3c5u"]
+[sub_resource type="Resource" id="Resource_1p57y"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_l45"
 loops = false
@@ -132,8 +155,9 @@ leaves_at = 2.2
 travel = 0.0521163
 turn = 0.608978
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_7yww7"]
+[sub_resource type="Resource" id="Resource_e3c5u"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_r45"
 loops = false
@@ -145,8 +169,9 @@ leaves_at = 2.16667
 travel = 0.078688
 turn = -0.698665
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_8brq0"]
+[sub_resource type="Resource" id="Resource_7yww7"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_l60"
 loops = false
@@ -158,8 +183,9 @@ leaves_at = 2.16667
 travel = 0.162887
 turn = 1.03147
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_28a1h"]
+[sub_resource type="Resource" id="Resource_8brq0"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_r60"
 loops = false
@@ -171,8 +197,9 @@ leaves_at = 2.2
 travel = 0.0821037
 turn = -1.31007
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_bb0b5"]
+[sub_resource type="Resource" id="Resource_28a1h"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_l90"
 loops = false
@@ -184,8 +211,9 @@ leaves_at = 0.0
 travel = 0.0737407
 turn = 1.59245
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_x3lvx"]
+[sub_resource type="Resource" id="Resource_bb0b5"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_r90"
 loops = false
@@ -197,8 +225,9 @@ leaves_at = 0.7
 travel = 0.106469
 turn = -1.55158
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_gjarr"]
+[sub_resource type="Resource" id="Resource_x3lvx"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_l135"
 loops = false
@@ -210,8 +239,9 @@ leaves_at = 4.53333
 travel = 0.118098
 turn = 2.42282
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_aqueo"]
+[sub_resource type="Resource" id="Resource_gjarr"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_r135"
 loops = false
@@ -223,8 +253,9 @@ leaves_at = 4.3
 travel = 0.100571
 turn = -2.45295
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_fgu2c"]
+[sub_resource type="Resource" id="Resource_aqueo"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_l180"
 loops = false
@@ -236,8 +267,9 @@ leaves_at = 0.466667
 travel = 0.117785
 turn = 3.03994
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_xe76u"]
+[sub_resource type="Resource" id="Resource_fgu2c"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_r180"
 loops = false
@@ -249,8 +281,9 @@ leaves_at = 1.23333
 travel = 0.160314
 turn = -3.11645
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_ddkey"]
+[sub_resource type="Resource" id="Resource_xe76u"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_l270"
 loops = false
@@ -262,8 +295,9 @@ leaves_at = 3.76667
 travel = 0.102844
 turn = 4.87477
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_p8uar"]
+[sub_resource type="Resource" id="Resource_ddkey"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/turn_r270"
 loops = false
@@ -275,8 +309,9 @@ leaves_at = 4.3
 travel = 0.217409
 turn = -4.80579
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_776kw"]
+[sub_resource type="Resource" id="Resource_p8uar"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/walk"
 loops = true
@@ -288,9 +323,9 @@ leaves_at = -1.0
 travel = 5.65362
 turn = 0.0
 speed = 1.84357
-strides = 3
+strides = 1
 
-[sub_resource type="Resource" id="Resource_7wpev"]
+[sub_resource type="Resource" id="Resource_776kw"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/walk_stop_l"
 loops = false
@@ -302,8 +337,9 @@ leaves_at = 0.933333
 travel = 2.09374
 turn = -0.142436
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_j7q8f"]
+[sub_resource type="Resource" id="Resource_7wpev"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/walk_stop_r"
 loops = false
@@ -315,8 +351,9 @@ leaves_at = 3.83333
 travel = 2.5528
 turn = -0.0278912
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_mye4a"]
+[sub_resource type="Resource" id="Resource_j7q8f"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/walk_stop_l_contact"
 loops = false
@@ -328,8 +365,9 @@ leaves_at = 0.666667
 travel = 2.21845
 turn = -0.0623134
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_gx3bf"]
+[sub_resource type="Resource" id="Resource_mye4a"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/walk_stop_r_contact"
 loops = false
@@ -341,8 +379,9 @@ leaves_at = 0.933333
 travel = 2.12866
 turn = 0.0580315
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_1kipd"]
+[sub_resource type="Resource" id="Resource_gx3bf"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/walk_stop_l_passing"
 loops = false
@@ -354,8 +393,9 @@ leaves_at = 0.8
 travel = 2.37838
 turn = 0.0817411
 speed = 0.0
+strides = 1
 
-[sub_resource type="Resource" id="Resource_4d2ok"]
+[sub_resource type="Resource" id="Resource_1kipd"]
 script = ExtResource("1_6nq0i")
 clip = &"Locomotion/walk_stop_r_passing"
 loops = false
@@ -367,17 +407,19 @@ leaves_at = 0.966667
 travel = 1.80383
 turn = -0.0364401
 speed = 0.0
+strides = 1
 
 [resource]
 script = ExtResource("2_0ods0")
-idle = SubResource("Resource_1uvrb")
-walk = SubResource("Resource_776kw")
-jog = SubResource("Resource_ayd58")
-jog_start = SubResource("Resource_1fo51")
-walk_stops = Array[ExtResource("1_6nq0i")]([SubResource("Resource_7wpev"), SubResource("Resource_j7q8f"), SubResource("Resource_mye4a"), SubResource("Resource_gx3bf"), SubResource("Resource_1kipd"), SubResource("Resource_4d2ok")])
-jog_stops = Array[ExtResource("1_6nq0i")]([SubResource("Resource_kfsay"), SubResource("Resource_se2eg")])
-turns = Array[ExtResource("1_6nq0i")]([SubResource("Resource_e3c5u"), SubResource("Resource_7yww7"), SubResource("Resource_8brq0"), SubResource("Resource_28a1h"), SubResource("Resource_bb0b5"), SubResource("Resource_x3lvx"), SubResource("Resource_gjarr"), SubResource("Resource_aqueo"), SubResource("Resource_fgu2c"), SubResource("Resource_xe76u"), SubResource("Resource_ddkey"), SubResource("Resource_p8uar")])
-turn_loop_left_in = SubResource("Resource_7bxqg")
-turn_loop_left = SubResource("Resource_fi56c")
-turn_loop_right_in = SubResource("Resource_1p57y")
-turn_loop_right = SubResource("Resource_mstes")
+idle = SubResource("Resource_6nq0i")
+walk = SubResource("Resource_p8uar")
+jog = SubResource("Resource_0ods0")
+run = SubResource("Resource_kfsay")
+jog_start = SubResource("Resource_1uvrb")
+walk_stops = Array[ExtResource("1_6nq0i")]([SubResource("Resource_776kw"), SubResource("Resource_7wpev"), SubResource("Resource_j7q8f"), SubResource("Resource_mye4a"), SubResource("Resource_gx3bf"), SubResource("Resource_1kipd")])
+jog_stops = Array[ExtResource("1_6nq0i")]([SubResource("Resource_ayd58"), SubResource("Resource_1fo51")])
+turns = Array[ExtResource("1_6nq0i")]([SubResource("Resource_1p57y"), SubResource("Resource_e3c5u"), SubResource("Resource_7yww7"), SubResource("Resource_8brq0"), SubResource("Resource_28a1h"), SubResource("Resource_bb0b5"), SubResource("Resource_x3lvx"), SubResource("Resource_gjarr"), SubResource("Resource_aqueo"), SubResource("Resource_fgu2c"), SubResource("Resource_xe76u"), SubResource("Resource_ddkey")])
+turn_loop_left_in = SubResource("Resource_fi56c")
+turn_loop_left = SubResource("Resource_se2eg")
+turn_loop_right_in = SubResource("Resource_mstes")
+turn_loop_right = SubResource("Resource_7bxqg")

@@ -52,6 +52,10 @@ const FADE := 15
 const IDLE := ["up_idle_a_1", 80, 231]
 const WALK := ["up_walk_2", 17, 109]
 const JOG := ["up_jog_2", 62, 87]
+# The run, one stride. Its own take (not a --continue off the idle), so
+# nothing hands to it on a frame: the jog's start and stops serve it and
+# UnitLocomotion matches the legs at the handover.
+const RUN := ["up_run_c_1", 68, 84]
 
 # Stops: [clip, take, frame of the loop it starts on, idle frame its end shows].
 const WALK_STOPS := [
@@ -135,8 +139,10 @@ func _bake() -> void:
 	set.idle = _loop("idle", IDLE, idle_roots)
 	set.walk = _loop("walk", WALK, walk_roots)
 	set.jog = _loop("jog", JOG, jog_roots)
+	set.run = _loop("run", RUN, _straight_roots(RUN))
 	_contacts("walk", WALK)
 	_contacts("jog", JOG)
+	_contacts("run", RUN)
 
 	print("\nSTOPS")
 	var walk_stops: Array[Resource] = []

@@ -134,7 +134,7 @@ func begin(route: float, _first_leg: Vector3) -> void:
 			state = State.MOVING
 		return
 	var runs: bool = route >= WALK_UNDER and _set.jog != null
-	_loop = _set.jog if runs else _set.walk
+	_loop = (_set.run if _set.run else _set.jog) if runs else _set.walk
 	_stops = _set.jog_stops if runs else _set.walk_stops
 	_top = RUN_SPEED if runs else _loop.speed
 	_accel = _top / (RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME)
@@ -246,10 +246,13 @@ func _starting(_delta: float) -> void:
 	var own: float = _clip_speed(_clip, t)
 	var rate: float = MATCH_RATE_MOST if own < 0.05 else clampf(_v / own, 0.5, MATCH_RATE_MOST)
 	_playback.set_clip_speed(rate)
-	if t >= _clip.length - BLEND_HAND:
-		# Onto the loop on its own frame.
+	# Up to speed, or the start runs out: the rest of the start is the jog's
+	# own long run-up, which the loop shows better at this speed.
+	if _v >= _top * 0.98 or t >= _clip.length - BLEND_HAND:
+		# Onto the loop on the frame whose legs match the start's.
+		var from: StringName = _playback.current_animation
 		_playback.play(_loop.clip, BLEND_HAND)
-		_playback.seek(fposmod(_clip.leaves_at - (_clip.length - t), _loop.length))
+		_playback.seek(_matching_time(from, t, _loop))
 		state = State.MOVING
 		_moving()
 
@@ -351,6 +354,20 @@ func _time_left(clip: LocomotionClip, metres: float) -> float:
 			var w: float = (goal - p[i - 1]) / maxf(p[i] - p[i - 1], 1e-5)
 			return (i - 1 + w) / LocomotionClip.FPS
 	return clip.length
+
+
+## The second of `loop` whose legs are nearest `clip`'s at `at`.
+func _matching_time(clip: StringName, at: float, loop: LocomotionClip) -> float:
+	var best: float = 0.0
+	var best_gap: float = INF
+	var t: float = 0.0
+	while t < loop.length:
+		var gap: float = _pose_gap(clip, at, loop.clip, t)
+		if gap < best_gap:
+			best = t
+			best_gap = gap
+		t += 1.0 / LocomotionClip.FPS
+	return best
 
 
 ## How far apart two clips' legs are at their times, radians summed.
