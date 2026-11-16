@@ -109,8 +109,11 @@ func world(frame: int) -> Array[Transform3D]:
 ## The motion from frame `from` to `to` as a clip on `skeleton`. Fingers
 ## hold as `fingers` has them at `fingers_time` (none = at rest). `placed`
 ## moves the whole motion first (its start onto the origin, say).
+## `per_frame`, when given, holds one placement per frame from `from` to
+## `to` and is used instead of `placed`: a clip played in place, its travel
+## and turn taken out frame by frame (make_locomotion.gd).
 func animation(skeleton: Skeleton3D, from: int = 0, to: int = -1, placed := Transform3D.IDENTITY,
-		fingers: Animation = null, fingers_time: float = 0.0) -> Animation:
+		fingers: Animation = null, fingers_time: float = 0.0, per_frame: Array[Transform3D] = []) -> Animation:
 	if to < 0:
 		to = frames - 1
 	var anim := Animation.new()
@@ -141,6 +144,8 @@ func animation(skeleton: Skeleton3D, from: int = 0, to: int = -1, placed := Tran
 	for f in range(from, to + 1):
 		var t: float = (f - from) / FPS
 		var joints: Array[Transform3D] = world(f)
+		if not per_frame.is_empty():
+			placed = per_frame[f - from]
 		var ours := {}
 		for i in order:
 			var basis: Basis = placed.basis * joints[soma_of[i]].basis * fix[i]

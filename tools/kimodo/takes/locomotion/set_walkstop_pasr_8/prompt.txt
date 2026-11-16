@@ -1,0 +1,5 @@
+kmd-generate --continue, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 8
+continues take up_walk (150 frames, seed 2) from frame 98; frames up to 94 are that take's own
+source: A person walks forward with an upright posture, head up, looking ahead.
+then 50 frames: A person comes to a stop and stands still with an upright posture.
+then 60 frames: A person stands upright with good posture, idly shifting their weight.

@@ -1,0 +1,2 @@
+kmd-generate, kimodo-soma-rp-v1.1, 50 steps, seed 1, 240 frames
+A person stands upright with good posture, idly shifting their weight.

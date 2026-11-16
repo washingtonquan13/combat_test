@@ -1,0 +1,5 @@
+kmd-generate --continue, kimodo-soma-rp-v1.1, transition 5, 50 steps, seed 5
+continues take up_idle_a (240 frames, seed 1) from frame 235; frames up to 231 are that take's own
+source: A person stands upright with good posture, idly shifting their weight.
+then 60 frames: A person turns 60 degrees to their right in place and stands still with an upright posture.
+then 50 frames: A person stands upright with good posture, idly shifting their weight.

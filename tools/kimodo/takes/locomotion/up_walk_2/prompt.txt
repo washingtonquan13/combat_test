@@ -1,0 +1,2 @@
+kmd-generate, kimodo-soma-rp-v1.1, 50 steps, seed 2, 150 frames
+A person walks forward with an upright posture, head up, looking ahead.
