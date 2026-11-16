@@ -7,6 +7,10 @@ extends SceneTree
 #
 #   godot --headless --path . -s res://tools/kimodo/make_locomotion.gd
 #
+# It rewrites the whole library and set. The game's idle, walk, run, run
+# start and stops are not these takes' but tools/gait/author_gait.gd's, so
+# run that (GAIT_LAND=1) after this.
+#
 # The takes are Kimodo's (tools/kimodo/takes/locomotion, the text and seed
 # that made each beside it). Three are loops: an idle, a walk, a jog. The
 # rest were made from a frame of one of those, by kimodo.cpp's --continue,
