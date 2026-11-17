@@ -41,6 +41,9 @@ func _run() -> void:
 	_order(at + right * 10.0)
 	await _wait(1.0)
 	await _go(at - right * 2.0)
+	await _wait(2.0)
+	_say("Run a curve, as hold-to-move does: the head leads into it")
+	await _curve(_hero.global_position, ahead, right)
 	await _wait(3.0)
 	get_tree().quit()
 
@@ -71,8 +74,9 @@ func _order(to: Vector3) -> bool:
 			under_way = t
 			print("  under way after %.2f s" % t)
 		if i % 6 == 5:
-			print("  t %.2f state %s clip %s, walk under %.2f, %.2f m/s" % [t, UnitLocomotion.State.keys()[loco.state],
-				_hero.animator().playback.current_animation, _hero.animator().playback.partner_weight(), loco._speed])
+			print("  t %.2f state %s clip %s, walk under %.2f, %.2f m/s, lead %.0f deg" % [t, UnitLocomotion.State.keys()[loco.state],
+				_hero.animator().playback.current_animation, _hero.animator().playback.partner_weight(), loco._speed,
+				rad_to_deg(loco._turn_lead._shown) if loco._turn_lead else 0.0])
 	return true
 
 
@@ -93,3 +97,20 @@ func _face(direction: Vector3, seconds: float) -> void:
 		left -= dt
 		if fmod(left, 0.5) < dt:
 			print("  yaw %.1f, turning %s" % [rad_to_deg(_hero.rotation.y), _hero.animator().locomotion.turning()])
+
+
+## Orders along a half circle, one ahead of the hero every 0.3 s, the way a
+## held button sends them, and prints the lead.
+func _curve(from: Vector3, ahead: Vector3, right: Vector3) -> void:
+	var loco: UnitLocomotion = _hero.animator().locomotion
+	var centre: Vector3 = from + right * 4.0
+	for i in 14:
+		var angle: float = PI * float(i + 2) / 14.0
+		var point: Vector3 = centre - right * 4.0 * cos(angle) + ahead * 4.0 * sin(angle)
+		_hero.move_to(point)
+		for f in 9:
+			await get_tree().physics_frame
+		print("  curve %d lead %.0f deg, %.2f m/s, clip %s" % [i, rad_to_deg(loco._turn_lead._shown) if loco._turn_lead else 0.0,
+			loco._speed, _hero.animator().playback.current_animation])
+	while _hero.is_moving():
+		await get_tree().physics_frame

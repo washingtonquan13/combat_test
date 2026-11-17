@@ -739,6 +739,25 @@ func remaining_distance() -> float:
 	return left
 
 
+## The point `metres` further along the route from where the unit stands
+## (its end, if nearer), level with the unit. INF when not moving.
+func point_ahead(metres: float) -> Vector3:
+	if not _moving or _path_index >= _current_path.size():
+		return Vector3.INF
+	var from: Vector3 = _owner.global_position
+	var left: float = metres
+	for i in range(_path_index, _current_path.size()):
+		var p: Vector3 = _current_path[i]
+		var leg := Vector3(p.x - from.x, 0.0, p.z - from.z)
+		var length: float = leg.length()
+		if length >= left:
+			from = Vector3(from.x, _owner.global_position.y, from.z) + leg / maxf(length, 1e-5) * left
+			return from
+		left -= length
+		from = p
+	return Vector3(from.x, _owner.global_position.y, from.z)
+
+
 ## The way the route leaves from where the unit stands, level.
 func first_leg() -> Vector3:
 	if not _moving or _path_index >= _current_path.size():

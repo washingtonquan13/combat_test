@@ -107,6 +107,10 @@ const MATCH_BONES := ["LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLow
 const LEAN_MOST := deg_to_rad(8.0)
 const LEAN_SHARE := 0.35
 const LEAN_RATE := 6.0
+## The head leads into a turn toward the route this far on: metres at the
+## least, and seconds of travel at speed.
+const LEAD_NEAREST := 1.5
+const LEAD_SECONDS := 1.0
 
 var state: State = State.OFF
 
@@ -139,6 +143,8 @@ var _turn_target: float = 0.0
 var _route: float = 0.0
 
 var _lean: float = 0.0
+## The head and chest's lead into a turn (null on a body with no skeleton).
+var _turn_lead: BodyTurnLead = null
 var _last_yaw: float = NAN
 var _speed: float = 0.0
 var _ticked: int = -1
@@ -154,6 +160,9 @@ func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: No
 	_body = body
 	if _body:
 		_body_rest = _body.transform
+		var skeletons: Array[Node] = _body.find_children("*", "Skeleton3D", true, false)
+		if not skeletons.is_empty():
+			_turn_lead = BodyTurnLead.attach(skeletons[0] as Skeleton3D)
 
 
 ## The idle the set's stops and turns hand to.
@@ -666,3 +675,21 @@ func _lean_into(delta: float) -> void:
 	_lean = lerpf(_lean, want, 1.0 - exp(-LEAN_RATE * delta))
 	# Left (a positive turn) tips the head to the body's left, +X.
 	_body.transform = Transform3D(Basis(Vector3.BACK, -_lean), Vector3.ZERO) * _body_rest
+	_lead_into_turn()
+
+
+## The head and chest turn to the route a little way on, ahead of the body.
+func _lead_into_turn() -> void:
+	if _turn_lead == null:
+		return
+	var lead: float = 0.0
+	if state == State.MOVING or state == State.STARTING:
+		var ahead: Vector3 = _unit.route_point_ahead(maxf(LEAD_NEAREST, _speed * LEAD_SECONDS))
+		if ahead != Vector3.INF:
+			var to: Vector3 = ahead - _unit.global_position
+			to.y = 0.0
+			var facing: Vector3 = _unit.visual_forward()
+			facing.y = 0.0
+			if to.length() > 0.2 and facing.length() > 0.01:
+				lead = facing.signed_angle_to(to, Vector3.UP)
+	_turn_lead.lead = lead

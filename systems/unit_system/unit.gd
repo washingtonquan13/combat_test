@@ -1296,6 +1296,12 @@ func is_moving() -> bool:
 	return _movement.is_moving()
 
 
+## The point `metres` on along the route, level; INF when not moving. See
+## UnitMovement.point_ahead. Where the head leads into a turn.
+func route_point_ahead(metres: float) -> Vector3:
+	return _movement.point_ahead(metres)
+
+
 ## On a ladder right now — part of a move, so is_moving() too.
 func is_climbing() -> bool:
 	return _movement.is_climbing()
