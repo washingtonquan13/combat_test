@@ -47,9 +47,20 @@ const HEIGHT_STEP: float = 0.25
 const PLANE_STEP: float = 0.5
 
 ## Pixels the mouse may travel between press and release and still be a
-## click. Past it the gesture is a box select (DragSelectBox reads this
-## same constant), so a box drag never also issues a move.
+## click. Past it the gesture is a drag: hold-to-move, a prop drag, or with
+## box_select (Alt) held a box select (DragSelectBox reads this same
+## constant), so a drag never also issues a click.
 const CLICK_DRAG_THRESHOLD: float = 6.0
+
+## Hold-to-move (as Baldur's Gate 3's): a left press on the ground with
+## nothing armed, held this long or dragged past CLICK_DRAG_THRESHOLD, and
+## the selection follows the cursor until release. Out of combat only (a
+## turn's move is a placed click).
+const HOLD_MOVE_AFTER: float = 0.25
+## While holding, the order is sent again this often, when the cursor's
+## ground point has moved at least HOLD_MOVE_STEP metres since the last.
+const HOLD_MOVE_EVERY: float = 0.1
+const HOLD_MOVE_STEP: float = 0.3
 
 ## How far every ray this router casts reaches.
 const RAY_LENGTH: float = 1000.0
@@ -98,6 +109,14 @@ var _wheel_steered: bool = false
 var _press_cursor: Cursor = null
 var _press_intent: PlayerIntent = null
 var _press_position: Vector2 = Vector2.ZERO
+
+## When the press came (Time msec), and whether it has become a hold-to-
+## move: then the release is no click. The last point it ordered, and when
+## it may order again (msec).
+var _press_msec: int = 0
+var _hold_moving: bool = false
+var _hold_point: Vector3 = Vector3.INF
+var _hold_next_msec: int = 0
 
 ## The MovableProp a left press landed on, while that press may still turn
 ## into dragging it (see _begin_prop_drag). Null otherwise.
@@ -314,6 +333,7 @@ func _process(_delta: float) -> void:
 	_hover(null if _not_listening(now) else cursor.unit)
 	if _drag:
 		_drag.follow(cursor.ground)
+	_hold_move_tick(now)
 	now.steer(self, cursor)
 	_steered(now)
 	aim = Aim.build(cursor, now)
@@ -744,13 +764,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		_press_cursor = resolve_cursor(_press_intent)
 		_press_position = event.position if event is InputEventMouse else get_viewport().get_mouse_position()
 		_press_prop = _press_cursor.interactable as MovableProp if _press_intent == _idle else null
+		_press_msec = Time.get_ticks_msec()
+		_end_hold_move()
 		return
 	if event is InputEventMouseMotion and _press_cursor != null:
 		# A press while aiming is a cast however far the hand drifts on
 		# the way to the target: there is no box to draw mid-aim.
 		if _press_intent is AimingIntent:
 			return
+		if _hold_moving:
+			return
 		if _press_position.distance_to(event.position) >= CLICK_DRAG_THRESHOLD:
+			if _can_hold_move():
+				_begin_hold_move()
+				return
 			var prop: MovableProp = _press_prop
 			var at: Cursor = _press_cursor
 			_press_cursor = null
@@ -762,6 +789,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_released("left_click") and _drag:
 		_finish_prop_drag()
+		get_viewport().set_input_as_handled()
+		return
+	if event.is_action_released("left_click") and _hold_moving:
+		_end_hold_move()
+		_press_cursor = null
+		_press_intent = null
+		_press_prop = null
 		get_viewport().set_input_as_handled()
 		return
 	if event.is_action_released("left_click"):
@@ -804,6 +838,60 @@ func _unhandled_input(event: InputEvent) -> void:
 	var current: PlayerIntent = intent()
 	if current.handle_right_click(self, resolve_cursor(current)):
 		get_viewport().set_input_as_handled()
+
+
+## Whether the left press waiting for its release may become a hold-to-
+## move: idle, on bare ground (not a unit, an interactable or a prop), no
+## box_select held, and everyone it would send out of combat.
+func _can_hold_move() -> bool:
+	if _press_cursor == null or _press_intent != _idle or _press_prop != null:
+		return false
+	if _press_cursor.unit or _press_cursor.interactable or _press_cursor.ground == null:
+		return false
+	if Input.is_action_pressed("box_select"):
+		return false
+	var movers: Array[Unit] = move_order_units()
+	if movers.is_empty():
+		return false
+	for unit in movers:
+		if unit.in_combat():
+			return false
+	return true
+
+
+func _begin_hold_move() -> void:
+	_hold_moving = true
+	_hold_point = Vector3.INF
+	_hold_next_msec = 0
+
+
+func _end_hold_move() -> void:
+	_hold_moving = false
+	_hold_point = Vector3.INF
+
+
+## Each frame: a press held still past HOLD_MOVE_AFTER becomes a hold; a
+## hold sends the move to the cursor's ground point (HOLD_MOVE_EVERY,
+## HOLD_MOVE_STEP). It ends on release, or when the intent is no longer
+## idle (something took the screen) or the selection can't go.
+func _hold_move_tick(now: PlayerIntent) -> void:
+	if not _hold_moving:
+		if _press_cursor != null and Time.get_ticks_msec() - _press_msec >= HOLD_MOVE_AFTER * 1000.0 and _can_hold_move():
+			_begin_hold_move()
+		else:
+			return
+	if now != _idle or not Input.is_action_pressed("left_click"):
+		_end_hold_move()
+		return
+	var msec: int = Time.get_ticks_msec()
+	if msec < _hold_next_msec or cursor.ground == null:
+		return
+	var point: Vector3 = cursor.move_point()
+	if _hold_point != Vector3.INF and point.distance_to(_hold_point) < HOLD_MOVE_STEP:
+		return
+	_hold_point = point
+	_hold_next_msec = msec + int(HOLD_MOVE_EVERY * 1000.0)
+	command_move(point)
 
 
 ## Whether a left press is spoken for, so it draws no box: a prop drag -

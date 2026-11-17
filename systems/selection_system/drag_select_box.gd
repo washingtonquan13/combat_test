@@ -1,5 +1,6 @@
 extends Control
-## Classic RTS/CRPG drag-select box.
+## Classic RTS/CRPG drag-select box, drawn with box_select (Alt) held
+## at the press: a plain left drag is hold-to-move (ClickRouter).
 ##
 ## Scene setup: put this on a Control set to Full Rect anchors, ideally
 ## under its own CanvasLayer so it draws above the 3D view. mouse_filter is
@@ -31,6 +32,8 @@ var _drag_end: Vector2 = Vector2.ZERO
 ## is exactly what gets committed to SelectionManager.
 var _boxed_units: Array[Unit] = []
 var _additive: bool = false
+## box_select was held at the press: this press may draw a box.
+var _boxing: bool = false
 
 
 func _ready() -> void:
@@ -53,6 +56,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_drag_end = event.position
 		_dragging = false
 		_additive = Input.is_action_pressed("select_additive")
+		_boxing = Input.is_action_pressed("box_select")
 		_boxed_units.clear()
 
 	elif event.is_action_released("left_click"):
@@ -61,7 +65,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_dragging = false
 		queue_redraw()
 
-	elif event is InputEventMouseMotion and Input.is_action_pressed("left_click"):
+	elif event is InputEventMouseMotion and Input.is_action_pressed("left_click") and _boxing:
 		# A press on a movable prop drags the prop, not a box.
 		var router: ClickRouter = get_tree().get_first_node_in_group(&"click_router") as ClickRouter
 		if router and router.claims_drag():

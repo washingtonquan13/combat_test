@@ -580,7 +580,8 @@ func _the_router_runs_before_the_indicators_it_drives() -> void:
 	var release: InputEventMouseButton = press.duplicate()
 	release.pressed = false
 
-	# A press that drags past the threshold is a box select, not a click:
+	# A press that drags past the threshold is a drag (hold-to-move, a prop
+	# or, with box_select held, a box), not a click:
 	# before, the press alone commanded a move under every box drag.
 	_router.get_viewport().push_input(press)
 	var drag := InputEventMouseMotion.new()
