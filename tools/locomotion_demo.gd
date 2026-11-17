@@ -91,8 +91,9 @@ func _go(to: Vector3) -> void:
 		var left: float = _hero.global_position.distance_to(to)
 		if left < 4.0 and n % 4 == 0:
 			var current = _hero.animator().playback._playback.current
-			print("  end %.2f m left, %s, %.2f m/s, clip %s at %.2fx" % [left, UnitLocomotion.State.keys()[loco.state],
-				loco._speed, _hero.animator().playback.current_animation, current.speed_scale if current else 0.0])
+			print("  end %.2f m left, %s, %.2f m/s, clip %s at %.2fx, walk under %.2f, entered %.0f deg off" % [left,
+				UnitLocomotion.State.keys()[loco.state], loco._speed, _hero.animator().playback.current_animation,
+				current.speed_scale if current else 0.0, _hero.animator().playback.partner_weight(), loco.entry_gap])
 
 
 ## Faces `direction` the way gameplay does: face_direction every physics frame.

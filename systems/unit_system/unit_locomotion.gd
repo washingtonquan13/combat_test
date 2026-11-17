@@ -81,6 +81,13 @@ const WALK_BRAKE := 2.0
 const ENTRY_SPAN := 0.2
 ## How fast a stop's playback rate follows the ground (1/s).
 const STOP_RATE_EASE := 12.0
+## The slowest the run plays while slowing for a stop (its speed over the
+## loop's, about 1.5 / 4.5).
+const BRAKE_RATE_LEAST := 0.3
+## How far the run's rate may be bent while braking, to land on the stop's
+## stride (beyond about a quarter the feet are seen to slide).
+const PHASE_STEER_LEAST := 0.75
+const PHASE_STEER_MOST := 1.35
 ## A turn of facing this large is a turn in place; less, UnitFacing's.
 const TURN_FROM := deg_to_rad(60.0)
 ## The turn is done once this much of it is, and hands on.
@@ -149,6 +156,21 @@ var _stop_ground: float = 0.0
 ## The stop's playback rate, eased (the clip's position moves in frame steps,
 ## so the rate read off one tick jumps about).
 var _stop_rate: float = 1.0
+## Slowing for the route's end, ahead of the stop: the run shows alone, as
+## the run stops begin from a running pose, not the walk's.
+var _braking: bool = false
+## Metres of the brake still to go before the stop is entered.
+var _to_entry: float = 0.0
+## Each stop's second of `_loop` whose legs are nearest the stop's own on
+## the frame it is entered at (cached per gait).
+var _entry_phase: Dictionary = {}
+## The loop seconds still to play to the stride the stop is aimed at, and the
+## loop's position when last counted (-1: none aimed at yet).
+var _steer_left: float = -1.0
+var _steer_at: float = 0.0
+## How far the stop's legs were from the pose showing as it was entered,
+## degrees summed (for the demo).
+var entry_gap: float = 0.0
 ## Per clip, its progress along its own way on each frame, metres.
 var _ground := {}
 ## A gait's stop distance, per stop list (cached).
@@ -296,6 +318,11 @@ func _take_gait(runs: bool) -> LocomotionClip:
 		_entry_speed += _entry_speed_of(stop) / _stops.size()
 		_stop_ground += _stop_ground_of(stop) / _stops.size()
 	_entry_speed = minf(_entry_speed, _top)
+	_entry_phase.clear()
+	_steer_left = -1.0
+	if _loop != null:
+		for stop in _stops:
+			_entry_phase[stop] = _matching_time(stop.clip, _time_left(stop, _stop_ground), _loop)
 	if _stops.is_empty():
 		_brake = _decel
 	return start
@@ -356,6 +383,10 @@ func travel(delta: float, left: float) -> float:
 		_v = most
 	# The stop takes over for its own ground; before that the loop slows.
 	var stopping: bool = ending and left <= _stop_ground + 1e-3
+	_braking = ending and not stopping and not _stops.is_empty()
+	if not _braking:
+		_steer_left = -1.0
+	_to_entry = left - _stop_ground
 	var step: float = minf((maxf(_v, ARRIVE_SPEED) if stopping or _stops.is_empty() and ending else _v) * delta, left)
 	match state:
 		State.STARTING:
@@ -477,6 +508,11 @@ func _starting(_delta: float) -> void:
 
 
 func _moving() -> void:
+	if _braking:
+		_playback.clear_partner()
+		if _loop.speed > 0.0:
+			_playback.set_clip_speed(clampf(_v / _loop.speed * _phase_steer(), BRAKE_RATE_LEAST, LOOP_RATE_MOST))
+		return
 	if _blends():
 		_moving_blended()
 		return
@@ -496,6 +532,39 @@ func _blends() -> bool:
 ## length is theirs weighed the same way, and it goes at the rate that keeps
 ## the feet down at the unit's speed. The run is played at that rate; the
 ## walk stands on the same point of its stride (_walk_in_step).
+## How much faster or slower than its ground the loop plays while braking
+## so that it reaches the stop on the stride the stop begins from. Played at
+## its ground, the loop gains `_to_entry / speed` seconds by the entry. As
+## the brake begins this picks the nearest second some stop's legs match
+## (nearest as a ratio, so a little faster and a little slower weigh alike)
+## and keeps to it, counting down the loop seconds played, so the target
+## never flips between strides; the ratio is worked out afresh each tick.
+func _phase_steer() -> float:
+	var length: float = _loop.length
+	var now: float = _playback.current_animation_position
+	var natural: float = _to_entry / _loop.speed
+	if _steer_left < 0.0:
+		if _entry_phase.is_empty() or natural <= 0.0:
+			return 1.0
+		var best_off: float = INF
+		for stop in _entry_phase:
+			var ahead: float = fposmod(float(_entry_phase[stop]) - now, length)
+			for k in 3:
+				var want: float = ahead + k * length
+				if want <= 0.0:
+					continue
+				var off: float = absf(log(want / natural))
+				if off < best_off:
+					best_off = off
+					_steer_left = want
+	else:
+		_steer_left = maxf(_steer_left - fposmod(now - _steer_at, length), 0.0)
+	_steer_at = now
+	if natural <= 0.02:
+		return 1.0
+	return clampf(_steer_left / natural, PHASE_STEER_LEAST, PHASE_STEER_MOST)
+
+
 func _moving_blended() -> void:
 	var run: LocomotionClip = _loop
 	var walk: LocomotionClip = _set.walk
@@ -545,6 +614,8 @@ func _begin_stop(left: float) -> void:
 			best_t = t
 			best_gap = gap
 	_clip = best
+	entry_gap = rad_to_deg(best_gap)
+	_braking = false
 	_playback.play(_clip.clip, BLEND_STOP)
 	_playback.seek(best_t)
 	_stop_rate = 1.0
