@@ -23,8 +23,10 @@ extends SceneTree
 #                    stand to where the last's do (a Mixamo loop's last frame
 #                    is its first again, a cycle on), set across so the hips
 #                    sway about it evenly, facing the hips' mean.
-#   a turn, the walk start, a stop
+#   a turn, the walk start, a walk stop
 #                    follows the hips smoothed over about half a second.
+#   a run stop       follows the hips smoothed over a tenth of a second
+#                    (SIGMA_RUN_STOP), keeping its hard slowing.
 #
 # The walk and run are marked with their foot strikes (LocomotionClip.strikes):
 # the frames each foot is furthest ahead of the body, refined between frames,
@@ -46,6 +48,11 @@ const SET_PATH := "res://data/locomotion/humanoid.tres"
 const LIBRARY := "Locomotion"
 const FPS := 30.0
 const SIGMA := 12.0
+## The run stops' smoothing, frames: Run To Stop sheds most of its speed in
+## its first 0.4 s, and SIGMA (0.4 s each way) over the 0.9 s clip flattened
+## that into an even 1.5 m/s slide, so the in-place hips lurched ahead of a
+## unit moving by it. This keeps the clip's own slowing (from about 3 m/s).
+const SIGMA_RUN_STOP := 3.0
 const TURNS := ["turn_l90", "turn_r90", "turn_l180", "turn_r180"]
 # Each stop and its mirror (off the other foot).
 const WALK_STOPS := ["walk_stop_a", "walk_stop_b"]
@@ -110,7 +117,7 @@ func _land() -> void:
 	set.walk_stops.assign(walk_stops)
 	var run_stops: Array[Resource] = []
 	for n: String in RUN_STOPS:
-		run_stops.append(_bake(library, n, "smoothed"))
+		run_stops.append(_bake(library, n, "run_stop"))
 	set.jog_stops.assign(run_stops)
 
 	print("\nONTO THE IDLE")
@@ -213,12 +220,13 @@ func _roots(g: PackedVector3Array, how: String) -> PackedVector3Array:
 			var w: float = float(f) / (n - 1)
 			out.append(Vector3(a.x + span.x * w + off.x, yaw, a.z + span.y * w + off.y))
 	else:
-		var reach: int = ceili(SIGMA * 3.0)
+		var sigma: float = SIGMA_RUN_STOP if how == "run_stop" else SIGMA
+		var reach: int = ceili(sigma * 3.0)
 		for f in n:
 			var sum := Vector3.ZERO
 			var total := 0.0
 			for k in range(-reach, reach + 1):
-				var w: float = exp(-0.5 * (k / SIGMA) * (k / SIGMA))
+				var w: float = exp(-0.5 * (k / sigma) * (k / sigma))
 				var at: int = f + k
 				var p: Vector3
 				if at < 0:
@@ -244,7 +252,7 @@ func _bake(library: AnimationLibrary, name: String, how: String) -> Resource:
 	var hips: Array[Transform3D] = s[0]
 	var parents: Array[Transform3D] = s[1]
 	var path: PackedVector3Array = _roots(_ground(hips), how)
-	var loops: bool = how != "smoothed"
+	var loops: bool = how != "smoothed" and how != "run_stop"
 
 	var anim := Animation.new()
 	anim.length = src.length

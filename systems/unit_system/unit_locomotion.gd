@@ -71,9 +71,9 @@ const SLOWING := 0.9
 const STOP_DISTANCE_LEAST := 0.3
 const STOP_DISTANCE_MOST := 1.2
 ## The route's end comes in two parts. A stop clip begins already slowed
-## (Mixamo's Run To Stop at about 1.5 m/s, its Stop Walking at 0.9), so the
+## (Mixamo's Run To Stop at about 3 m/s, its Stop Walking at 0.9), so the
 ## loop first slows to the stop's own speed at its entry, at this rate (m/s^2),
-## the run with the walk under it as it does; then the stop plays out its own
+## the run alone; then the stop plays out its own
 ## ground, slowing as it does.
 const RUN_BRAKE := 5.0
 const WALK_BRAKE := 2.0
@@ -82,12 +82,15 @@ const ENTRY_SPAN := 0.2
 ## How fast a stop's playback rate follows the ground (1/s).
 const STOP_RATE_EASE := 12.0
 ## The slowest the run plays while slowing for a stop (its speed over the
-## loop's, about 1.5 / 4.5).
+## loop's; a run stop now enters near 3 m/s, so the run rarely gets near it).
 const BRAKE_RATE_LEAST := 0.3
-## How far the run's rate may be bent while braking, to land on the stop's
+## How far the loop's rate may be bent while steering, to land on the stop's
 ## stride (beyond about a quarter the feet are seen to slide).
 const PHASE_STEER_LEAST := 0.75
 const PHASE_STEER_MOST := 1.35
+## How far ahead of a stop's entry the loop starts bending to its stride, m.
+## The brake alone is too short for it (about a metre from the run).
+const STEER_FROM := 5.0
 ## A turn of facing this large is a turn in place; less, UnitFacing's.
 const TURN_FROM := deg_to_rad(60.0)
 ## The turn is done once this much of it is, and hands on.
@@ -130,6 +133,11 @@ const LEAN_RATE := 6.0
 const LEAD_NEAREST := 1.5
 const LEAD_SECONDS := 1.0
 
+## For comparing in tools/locomotion_demo only (not a gameplay setting): a run
+## ends on the walk's stops, slowing with the walk under it and handing to
+## the walk loop at the walk's speed, instead of on Run To Stop.
+static var runs_end_on_walk_stop: bool = false
+
 var state: State = State.OFF
 
 var _unit: Unit
@@ -159,6 +167,9 @@ var _stop_rate: float = 1.0
 ## Slowing for the route's end, ahead of the stop: the run shows alone, as
 ## the run stops begin from a running pose, not the walk's.
 var _braking: bool = false
+## Bending the loop's rate to land on the stop's stride (within STEER_FROM
+## of the stop's entry).
+var _steering: bool = false
 ## Metres of the brake still to go before the stop is entered.
 var _to_entry: float = 0.0
 ## Each stop's second of `_loop` whose legs are nearest the stop's own on
@@ -302,7 +313,7 @@ func _start_moving(blend: float) -> void:
 ## it; returns its start (null for none).
 func _take_gait(runs: bool) -> LocomotionClip:
 	_loop = (_set.run if _set.run else _set.jog) if runs else _set.walk
-	_stops = _set.jog_stops if runs else _set.walk_stops
+	_stops = _set.jog_stops if runs and not runs_end_on_walk_stop else _set.walk_stops
 	_top = RUN_SPEED if runs else _loop.speed
 	var start: LocomotionClip = _set.jog_start if runs else _set.walk_start
 	var accel_time: float = RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME
@@ -384,9 +395,10 @@ func travel(delta: float, left: float) -> float:
 	# The stop takes over for its own ground; before that the loop slows.
 	var stopping: bool = ending and left <= _stop_ground + 1e-3
 	_braking = ending and not stopping and not _stops.is_empty()
-	if not _braking:
-		_steer_left = -1.0
 	_to_entry = left - _stop_ground
+	_steering = not stopping and not _stops.is_empty() and _to_entry <= STEER_FROM
+	if not _steering:
+		_steer_left = -1.0
 	var step: float = minf((maxf(_v, ARRIVE_SPEED) if stopping or _stops.is_empty() and ending else _v) * delta, left)
 	match state:
 		State.STARTING:
@@ -508,16 +520,21 @@ func _starting(_delta: float) -> void:
 
 
 func _moving() -> void:
-	if _braking:
+	var run_into_walk_stop: bool = runs_end_on_walk_stop and _loop == _set.run and _set.walk != null
+	if run_into_walk_stop and _braking and _v <= _set.walk.speed:
+		_hand_run_to_walk()
+		run_into_walk_stop = false
+	var steer: float = _phase_steer() if _steering and not run_into_walk_stop else 1.0
+	if _braking and not (run_into_walk_stop and _blends()):
 		_playback.clear_partner()
 		if _loop.speed > 0.0:
-			_playback.set_clip_speed(clampf(_v / _loop.speed * _phase_steer(), BRAKE_RATE_LEAST, LOOP_RATE_MOST))
+			_playback.set_clip_speed(clampf(_v / _loop.speed * steer, BRAKE_RATE_LEAST, LOOP_RATE_MOST))
 		return
 	if _blends():
-		_moving_blended()
+		_moving_blended(steer)
 		return
 	if _loop.speed > 0.0:
-		_playback.set_clip_speed(clampf(_v / _loop.speed, LOOP_RATE_LEAST, LOOP_RATE_MOST))
+		_playback.set_clip_speed(clampf(_v / _loop.speed * steer, LOOP_RATE_LEAST, LOOP_RATE_MOST))
 
 
 ## Whether the run can have the walk under it: running on the run loop, and
@@ -565,18 +582,32 @@ func _phase_steer() -> float:
 	return clampf(_steer_left / natural, PHASE_STEER_LEAST, PHASE_STEER_MOST)
 
 
-func _moving_blended() -> void:
+func _moving_blended(steer: float) -> void:
 	var run: LocomotionClip = _loop
 	var walk: LocomotionClip = _set.walk
 	var w: float = clampf((_v - walk.speed) / (run.speed - walk.speed), 0.0, 1.0)
 	var own: float = lerpf(walk.speed, run.speed, w)
 	var run_stride: float = run.length / run.pairs()
 	var stride: float = lerpf(walk.length / walk.pairs(), run_stride, w)
-	_playback.set_clip_speed(clampf(run_stride / stride * _v / own, LOOP_RATE_LEAST, LOOP_RATE_MOST))
+	_playback.set_clip_speed(clampf(run_stride / stride * _v / own * steer, LOOP_RATE_LEAST, LOOP_RATE_MOST))
 	if w >= 0.999:
 		_playback.clear_partner()
 	else:
 		_playback.set_partner(walk.clip, 1.0 - w, _walk_in_step)
+
+
+## runs_end_on_walk_stop: the run, slowed to the walk's speed with the walk
+## under it at full weight, hands to the walk loop on the walk's own frame,
+## and the walk's stops are aimed at from it.
+func _hand_run_to_walk() -> void:
+	_loop = _set.walk
+	_playback.clear_partner()
+	_playback.play(_loop.clip, BLEND_HAND)
+	_playback.seek(_under_at)
+	_entry_phase.clear()
+	_steer_left = -1.0
+	for stop in _stops:
+		_entry_phase[stop] = _matching_time(stop.clip, _time_left(stop, _stop_ground), _loop)
 
 
 ## The walk's seconds on the same point of its stride as the run at `run_at`.
