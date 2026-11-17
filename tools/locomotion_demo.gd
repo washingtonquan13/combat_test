@@ -1,5 +1,5 @@
 extends "res://tools/fog_cloud_demo.gd"
-## Recorded showcase of the hero's locomotion - NOT a test. Warrior Idle,
+## Recorded showcase of the hero's locomotion - NOT a test. Standing Idle,
 ## the turns in place standing, a short move behind (under way at once,
 ## swinging round as it steps off), a walk that a click further on breaks
 ## into the run, and a run sent back the other way. Prints how soon each
@@ -24,7 +24,7 @@ func _run() -> void:
 	_follow(4.5)
 	await _wait(1.5)
 
-	_say("Warrior Idle")
+	_say("Standing Idle")
 	await _wait(3.0)
 	_say("Turn in place, 90 left (standing)")
 	await _face(-right, 2.5)
@@ -99,6 +99,11 @@ func _go(to: Vector3) -> void:
 			print("  end %.2f m left, %s, %.2f m/s, clip %s at %.2fx, walk under %.2f, entered %.0f deg off" % [left,
 				UnitLocomotion.State.keys()[loco.state], loco._speed, _hero.animator().playback.current_animation,
 				current.speed_scale if current else 0.0, _hero.animator().playback.partner_weight(), loco.entry_gap])
+	# Standing again: the feet the stop planted, held into the idle.
+	for f in 90:
+		await get_tree().physics_frame
+		if f % 15 == 14:
+			print("  stood %.2f s, %s, %s" % [(f + 1) / 60.0, _hero.animator().playback.current_animation, _feet(loco)])
 
 
 ## How planted each foot is and how far the lock holds it from the clip.

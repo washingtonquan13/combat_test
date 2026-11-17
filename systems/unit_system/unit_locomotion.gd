@@ -716,16 +716,21 @@ func _lean_into(delta: float) -> void:
 
 ## Tells the foot lock how planted each foot is in the clip showing: the
 ## loop on its own clock, a start or stop on _clip_t, a turn or the settle
-## on the player's. Nothing locks off locomotion (OFF: a stance, a cast).
+## on the player's. OFF, the set's idle is read while it shows, so the feet
+## a stop or turn plants stay where it planted them (the idle's own stance
+## is 11-13 cm off the stops'; blending to it would slide them). Nothing
+## else locks off locomotion (a stance, a cast, the turning loops).
 func _plant_feet() -> void:
 	if foot_lock == null:
 		return
 	var clip: LocomotionClip = _loop if state == State.MOVING else _clip
+	if state == State.OFF and _set.idle != null and _playback.current_animation == _set.idle.clip:
+		clip = _set.idle
 	foot_lock.forward = _unit.visual_forward()
 	# The loop plays at 1x while the unit goes at its own speed: the stride
 	# is warped to it. Starts and stops give the unit their own speed.
 	foot_lock.stride = _speed / _loop.speed if state == State.MOVING and _loop and _loop.speed > 0.1 else 1.0
-	if state == State.OFF or clip == null or _playback.current_animation != clip.clip:
+	if (state == State.OFF and clip != _set.idle) or clip == null or _playback.current_animation != clip.clip:
 		foot_lock.left_plant = 0.0
 		foot_lock.right_plant = 0.0
 		return

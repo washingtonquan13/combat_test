@@ -37,10 +37,10 @@ OUT = os.path.join(HERE, "takes", "mixamo.glb")
 PACK = "D:/ai_motion/mixamo/locomotion_pack/"
 STARTS = "D:/ai_motion/mixamo/starts_stops/"
 # game clip name: (Mixamo file, played mirrored). The Locomotion Pack's loops
-# and turns; Warrior Idle, Start Walking, Stop Walking and Run To Stop, each
+# and turns; Standing Idle, Start Walking, Stop Walking and Run To Stop, each
 # stop also mirrored so there is one off either foot.
 CLIPS = {
-    "idle": (STARTS + "warrior idle", False),
+    "idle": (STARTS + "standing idle", False),
     "walk": (PACK + "walking", False),
     "run": (PACK + "running", False),
     "turn_l90": (PACK + "left turn 90", False),

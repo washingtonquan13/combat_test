@@ -2,7 +2,7 @@ extends SceneTree
 
 # Lands the Mixamo clips (tools/locomotion/takes/mixamo.glb, made by
 # tools/locomotion/mixamo_retarget.py) in the humanoid locomotion set: the
-# idle (Warrior Idle), walk, run, turns in place, walk start and the walk
+# idle (Standing Idle), walk, run, turns in place, walk start and the walk
 # and run stops in assets/locomotion_animations.tres and
 # data/locomotion/humanoid.tres. The stops replace author_gait.gd's (whose
 # clips are taken out of the library); the run start, jog and turning loops
