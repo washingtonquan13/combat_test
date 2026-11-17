@@ -32,6 +32,10 @@ extends SceneTree
 # the frames each foot is furthest ahead of the body, refined between frames,
 # by which the game plays the two in step.
 #
+# Every Mixamo clip is marked with its foot plants (LocomotionClip.left_plant,
+# right_plant): how far down and still each foot is, frame by frame, for the
+# foot pinning to hold it where it came down.
+#
 # The stops and turns hand to the idle on a pose of it
 # (LocomotionClip.leaves_at): the idle's frame nearest the clip's last pose. A
 # turn also enters off the idle's frame nearest its first (enters_at).
@@ -48,6 +52,13 @@ const SET_PATH := "res://data/locomotion/humanoid.tres"
 const LIBRARY := "Locomotion"
 const FPS := 30.0
 const SIGMA := 12.0
+## Foot plants (_mark_plants): an ankle within PLANT_LOW of its own
+## lowest and slower than PLANT_SLOW is wholly planted; above PLANT_HIGH or
+## faster than PLANT_FAST, not at all.
+const PLANT_LOW := 0.04
+const PLANT_HIGH := 0.10
+const PLANT_SLOW := 0.3
+const PLANT_FAST := 0.8
 ## The run stops' smoothing, frames: Run To Stop sheds most of its speed in
 ## its first 0.4 s, and SIGMA (0.4 s each way) over the 0.9 s clip flattened
 ## that into an even 1.5 m/s slide, so the in-place hips lurched ahead of a
@@ -134,6 +145,10 @@ func _land() -> void:
 FOOT STRIKES")
 	for clip: Resource in [set.walk, set.run]:
 		_mark_strikes(clip, hero_player, hero)
+	print("
+FOOT PLANTS")
+	for clip: Resource in [set.idle, set.walk, set.run, set.walk_start] + set.walk_stops + set.jog_stops + set.turns:
+		_mark_plants(clip, hero_player, hero)
 
 	var err: Error = ResourceSaver.save(library, LIBRARY_PATH)
 	print("\n%s: %s" % [LIBRARY_PATH, error_string(err)])
@@ -367,6 +382,61 @@ func _mark_strikes(clip: Resource, player: AnimationPlayer, skeleton: Skeleton3D
 		for m: Array in marks:
 			clip.strikes.append(m[0] + (clip.length if m[0] < marks[0][0] else 0.0))
 	print("  %-16s %s%s" % [clip.clip, clip.strikes, "" if ok else "  NOT MARKED (feet do not take turns)"])
+
+
+## A clip's foot plants (LocomotionClip.left_plant, right_plant): each
+## frame, the ankle carried along the clip's root curve, as the unit moves
+## by it; planted where it is within PLANT_HIGH of that ankle's lowest in the clip
+## and slower than PLANT_FAST, wholly where within PLANT_LOW and slower than
+## PLANT_SLOW, smoothstepped between. Prints how much of the clip each foot
+## is down and how far a wholly planted foot still drifts in one plant (what
+## the pin will hold still).
+func _mark_plants(clip: Resource, player: AnimationPlayer, skeleton: Skeleton3D) -> void:
+	var n: int = roundi(clip.length * FPS) + 1
+	var feet := {"LeftFoot": PackedVector3Array(), "RightFoot": PackedVector3Array()}
+	player.play(clip.clip)
+	# A frame either side of the clip (a loop's from the cycle before and
+	# after, carried on by its root; a clip's own ends held), for speeds.
+	for f in range(-1, n + 1):
+		var t: float = f / FPS
+		if not clip.loops:
+			t = clampf(t, 0.0, clip.length)
+		player.seek(fposmod(t, clip.length) if clip.loops else t, true)
+		var root: Transform3D = clip.root_at(t)
+		for foot: String in feet:
+			feet[foot].append(root * (_basis * skeleton.get_bone_global_pose(skeleton.find_bone(foot)).origin))
+	var said := "  %-22s" % clip.clip
+	for foot: String in feet:
+		var at: PackedVector3Array = feet[foot]
+		# Each ankle from its own lowest: the two need not ride as low.
+		var low: float = INF
+		for f in n:
+			low = minf(low, at[f + 1].y)
+		var w := PackedFloat32Array()
+		for f in n:
+			# Ground speed by the frames either side (at[f + 1] is frame f).
+			var speed: float = Vector2(at[f + 2].x - at[f].x, at[f + 2].z - at[f].z).length() * FPS * 0.5
+			var high: float = at[f + 1].y - low
+			var still: float = 1.0 - smoothstep(PLANT_SLOW, PLANT_FAST, speed)
+			var down: float = 1.0 - smoothstep(PLANT_LOW, PLANT_HIGH, high)
+			w.append(still * down)
+		var share := 0.0
+		var drift := 0.0
+		var from: int = -1
+		for f in n:
+			share += w[f] / n
+			if w[f] >= 0.99:
+				if from < 0:
+					from = f
+				drift = maxf(drift, Vector2(at[f + 1].x - at[from + 1].x, at[f + 1].z - at[from + 1].z).length())
+			else:
+				from = -1
+		if foot == "LeftFoot":
+			clip.left_plant = w
+		else:
+			clip.right_plant = w
+		said += "  %s down %3.0f%%, drifts %4.1f cm" % [foot.substr(0, foot.length() - 4).to_lower(), share * 100.0, drift * 100.0]
+	print(said)
 
 
 ## [seconds, metres]: the idle frame nearest `pose`, and how far its worst joint is.

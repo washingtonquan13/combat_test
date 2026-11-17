@@ -59,6 +59,16 @@ const FPS := 30.0
 ## cycle on).
 ## Empty: not marked. Set by tools/locomotion/land_mixamo.gd.
 @export var strikes: PackedFloat32Array = PackedFloat32Array()
+## Foot plants: for each frame (at FPS), how planted the left and right
+## foot is, 0 (in the air or sliding) to 1 (down and still on the ground),
+## easing between as the heel comes down and as it lifts. A foot counts as
+## planted where its ankle, carried along the clip's own root curve (so as
+## the unit moves by it), is near its lowest and nearly still. What pins a
+## foot (BodyFootLock) reads it to hold the foot where it came down and let
+## it go smoothly. Empty: not marked (the foot is never pinned). Set by
+## tools/locomotion/land_mixamo.gd.
+@export var left_plant: PackedFloat32Array = PackedFloat32Array()
+@export var right_plant: PackedFloat32Array = PackedFloat32Array()
 
 
 ## Whether the loop's strikes are marked, so it can be played in step.
@@ -92,6 +102,23 @@ func time_at(phase: float) -> float:
 	var i: int = mini(floori(p), n - 1)
 	var to: float = strikes[i + 1] if i + 1 < n else strikes[0] + length
 	return fposmod(lerpf(strikes[i], to, p - i), length)
+
+
+## How planted a foot is `seconds` in (left_plant / right_plant, between
+## frames, round the cycle on a loop, held at the ends otherwise). 0 where
+## the clip is not marked.
+func plant_at(left: bool, seconds: float) -> float:
+	var w: PackedFloat32Array = left_plant if left else right_plant
+	var n: int = w.size()
+	if n == 0:
+		return 0.0
+	var at: float = seconds * FPS
+	if loops and n > 1:
+		# A loop's last frame is its first again.
+		at = fposmod(at, float(n - 1))
+	at = clampf(at, 0.0, n - 1)
+	var i: int = mini(floori(at), maxi(n - 2, 0))
+	return lerpf(w[i], w[mini(i + 1, n - 1)], at - i)
 
 
 ## Where the unit stands `seconds` in, from where it stood on the first

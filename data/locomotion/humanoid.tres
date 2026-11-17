@@ -17,6 +17,8 @@ turn = 0.0
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_0ods0"]
 script = ExtResource("1_6nq0i")
@@ -32,6 +34,8 @@ turn = 0.0
 speed = 3.23642
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array()
+right_plant = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_ee2f0"]
 script = ExtResource("1_6nq0i")
@@ -47,6 +51,8 @@ turn = 0.0
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array()
+right_plant = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_1uvrb"]
 script = ExtResource("1_6nq0i")
@@ -62,6 +68,8 @@ turn = -0.804021
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0.99512, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(0.30129, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.005475, 0.0449172, 0.126752, 0.383734, 0.717054, 0.92298, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_ayd58"]
 script = ExtResource("1_6nq0i")
@@ -77,6 +85,8 @@ turn = 0.804021
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(0.305895, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.00456685, 0.0415578, 0.120204, 0.372155, 0.705757, 0.915451, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0.995893, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_1fo51"]
 script = ExtResource("1_6nq0i")
@@ -92,6 +102,8 @@ turn = 0.0
 speed = 4.49953
 strides = 1
 strikes = PackedFloat32Array(0.195686, 0.535881)
+left_plant = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0.975028, 0.115366, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+right_plant = PackedFloat32Array(0.989081, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.891956, 1, 0.989082)
 
 [sub_resource type="Resource" id="Resource_se2eg"]
 script = ExtResource("1_6nq0i")
@@ -107,6 +119,8 @@ turn = 3.28341
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array()
+right_plant = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_fi56c"]
 script = ExtResource("1_6nq0i")
@@ -122,6 +136,8 @@ turn = 2.7032
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array()
+right_plant = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_7bxqg"]
 script = ExtResource("1_6nq0i")
@@ -137,6 +153,8 @@ turn = -3.00095
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array()
+right_plant = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_mstes"]
 script = ExtResource("1_6nq0i")
@@ -152,6 +170,8 @@ turn = -2.92201
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array()
+right_plant = PackedFloat32Array()
 
 [sub_resource type="Resource" id="Resource_kfsay"]
 script = ExtResource("1_6nq0i")
@@ -167,6 +187,8 @@ turn = 1.56158
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(1, 1, 0.995561, 0.533608, 0, 0, 0, 0, 0, 0, 0, 0.325525, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.979613, 0.665892, 0.137967, 0, 0, 0, 0.660777, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_1p57y"]
 script = ExtResource("1_6nq0i")
@@ -182,6 +204,8 @@ turn = -1.7893
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.99768, 0.865363, 0.677839, 0.156379, 0, 0, 0, 0, 0, 0, 0.161852, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(1, 1, 1, 0.718277, 0.239208, 0, 0, 0, 0, 2.70811e-07, 0.644601, 0.966044, 0.855932, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_e3c5u"]
 script = ExtResource("1_6nq0i")
@@ -197,6 +221,8 @@ turn = 3.0743
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.874443, 0.619481, 0.183333, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.533112, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(1, 0.999567, 0.595066, 0.338115, 0.206845, 0, 0, 0, 0, 0, 0, 0, 0, 0.0487542, 0.962486, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.995732, 0.978955, 0.957056, 0.976637, 0.99725, 1, 1, 0.999884, 0.749179, 0.134689, 0, 0, 0, 0, 0, 0, 0, 0.721994, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_7yww7"]
 script = ExtResource("1_6nq0i")
@@ -212,6 +238,8 @@ turn = -3.05556
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(1, 0.96927, 0.815152, 0.786042, 0.63478, 0.156918, 0, 0, 0, 0, 0, 0, 0, 0.0459046, 0.837794, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.994516, 0.945763, 0.86598, 0.595366, 0.112139, 0, 0, 0, 0, 0, 0, 0, 0.534244, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.737901, 0.2217, 0, 0, 0, 0, 0, 0, 0.106929, 0.739559, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_8brq0"]
 script = ExtResource("1_6nq0i")
@@ -227,6 +255,8 @@ turn = 0.0
 speed = 1.71545
 strides = 1
 strikes = PackedFloat32Array(0.189224, 0.73256)
+left_plant = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0.978433, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.467609, 0, 0, 0, 0, 0, 0, 0, 0)
+right_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 0.999454, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.809238, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_28a1h"]
 script = ExtResource("1_6nq0i")
@@ -242,6 +272,8 @@ turn = 0.1833
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.948349, 0.364314, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0392313, 0.713308, 0.906364, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.852259, 2.80829e-07, 0, 0, 0, 0, 0, 0, 0, 0)
+right_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.904863, 0.358286, 0.000150009, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.379795, 0.999172, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.9987, 0.613545, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.442048, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_bb0b5"]
 script = ExtResource("1_6nq0i")
@@ -257,6 +289,8 @@ turn = -0.1833
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0.189033, 0.448166, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.999967, 0.975004, 0.948928, 0.678449, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.138414, 0.761593, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.0129976, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.236611, 0.708987, 0.960112, 0.997998, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [sub_resource type="Resource" id="Resource_x3lvx"]
 script = ExtResource("1_6nq0i")
@@ -272,6 +306,8 @@ turn = 0.1833
 speed = 0.0
 strides = 1
 strikes = PackedFloat32Array()
+left_plant = PackedFloat32Array(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.0146348, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.233594, 0.704202, 0.957382, 0.997583, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
+right_plant = PackedFloat32Array(0, 0, 0, 0, 0, 0, 0, 0, 0.196205, 0.456922, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.976434, 0.921305, 0.506228, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.140107, 0.763531, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 [resource]
 script = ExtResource("2_0ods0")
