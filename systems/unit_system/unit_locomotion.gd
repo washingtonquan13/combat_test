@@ -70,6 +70,17 @@ const WALK_STOP_DISTANCE := 0.45
 const SLOWING := 0.9
 const STOP_DISTANCE_LEAST := 0.3
 const STOP_DISTANCE_MOST := 1.2
+## The route's end comes in two parts. A stop clip begins already slowed
+## (Mixamo's Run To Stop at about 1.5 m/s, its Stop Walking at 0.9), so the
+## loop first slows to the stop's own speed at its entry, at this rate (m/s^2),
+## the run with the walk under it as it does; then the stop plays out its own
+## ground, slowing as it does.
+const RUN_BRAKE := 5.0
+const WALK_BRAKE := 2.0
+## How much of a stop's start its entry speed is read over, seconds.
+const ENTRY_SPAN := 0.2
+## How fast a stop's playback rate follows the ground (1/s).
+const STOP_RATE_EASE := 12.0
 ## A turn of facing this large is a turn in place; less, UnitFacing's.
 const TURN_FROM := deg_to_rad(60.0)
 ## The turn is done once this much of it is, and hands on.
@@ -130,6 +141,14 @@ var _v: float = 0.0
 var _top: float = 0.0
 var _accel: float = 0.0
 var _decel: float = 0.0
+## The end of the route: the loop slows at `_brake` to `_entry_speed`, then
+## the stop covers its last `_stop_ground` metres (both 0 with no stops).
+var _brake: float = 0.0
+var _entry_speed: float = 0.0
+var _stop_ground: float = 0.0
+## The stop's playback rate, eased (the clip's position moves in frame steps,
+## so the rate read off one tick jumps about).
+var _stop_rate: float = 1.0
 ## Per clip, its progress along its own way on each frame, metres.
 var _ground := {}
 ## A gait's stop distance, per stop list (cached).
@@ -270,6 +289,15 @@ func _take_gait(runs: bool) -> LocomotionClip:
 	_accel = _top / accel_time
 	var stop_distance: float = _stop_distance(_stops, _top, RUN_STOP_DISTANCE if runs else WALK_STOP_DISTANCE)
 	_decel = _top * _top / (2.0 * stop_distance)
+	_brake = RUN_BRAKE if runs else WALK_BRAKE
+	_entry_speed = 0.0
+	_stop_ground = 0.0
+	for stop in _stops:
+		_entry_speed += _entry_speed_of(stop) / _stops.size()
+		_stop_ground += _stop_ground_of(stop) / _stops.size()
+	_entry_speed = minf(_entry_speed, _top)
+	if _stops.is_empty():
+		_brake = _decel
 	return start
 
 
@@ -322,22 +350,36 @@ func travel(delta: float, left: float) -> float:
 		_v = minf(_v + _accel * delta, want)
 	else:
 		_v = maxf(want, _v - _decel * delta)
-	var ending: bool = sqrt(2.0 * _decel * left) < _v
+	var most: float = _speed_for_left(left)
+	var ending: bool = most < _v
 	if ending:
-		_v = sqrt(2.0 * _decel * left)
-	var step: float = minf((maxf(_v, ARRIVE_SPEED) if ending else _v) * delta, left)
+		_v = most
+	# The stop takes over for its own ground; before that the loop slows.
+	var stopping: bool = ending and left <= _stop_ground + 1e-3
+	var step: float = minf((maxf(_v, ARRIVE_SPEED) if stopping or _stops.is_empty() and ending else _v) * delta, left)
 	match state:
 		State.STARTING:
 			_starting(delta)
 		State.MOVING:
 			_moving()
-	if ending and state != State.STOPPING:
+	if (stopping or ending and _stops.is_empty()) and state != State.STOPPING:
 		_begin_stop(left)
 	if state == State.STOPPING:
 		_stopping(delta, left - step)
 	_speed = step / maxf(delta, 1e-4)
 	_lean_into(delta)
 	return step
+
+
+## The most speed the unit may have `left` metres from the end: down to the
+## stop's entry speed at `_brake` by the stop's ground, and from there to
+## nothing over it, evenly.
+func _speed_for_left(left: float) -> float:
+	if left > _stop_ground:
+		return sqrt(_entry_speed * _entry_speed + 2.0 * _brake * (left - _stop_ground))
+	if _stop_ground <= 1e-4:
+		return 0.0
+	return _entry_speed * sqrt(left / _stop_ground)
 
 
 ## A tick with no walk: the settle after a stop, the lean coming upright.
@@ -505,6 +547,7 @@ func _begin_stop(left: float) -> void:
 	_clip = best
 	_playback.play(_clip.clip, BLEND_STOP)
 	_playback.seek(best_t)
+	_stop_rate = 1.0
 	state = State.STOPPING
 
 
@@ -512,7 +555,9 @@ func _begin_stop(left: float) -> void:
 func _stopping(delta: float, left_after: float) -> void:
 	var t: float = _playback.current_animation_position
 	var want: float = _time_left(_clip, maxf(left_after, 0.0))
-	_playback.set_clip_speed(clampf((want - t) / maxf(delta, 1e-4), 0.3, MATCH_RATE_MOST))
+	var rate: float = clampf((want - t) / maxf(delta, 1e-4), 0.3, MATCH_RATE_MOST)
+	_stop_rate = lerpf(_stop_rate, rate, 1.0 - exp(-STOP_RATE_EASE * delta))
+	_playback.set_clip_speed(_stop_rate)
 
 
 func _hand_to_idle_near_end() -> void:
@@ -609,6 +654,22 @@ func _onset(clip: LocomotionClip) -> float:
 			return maxf(t - 3.0 / LocomotionClip.FPS, 0.0)
 		t += 1.0 / LocomotionClip.FPS
 	return 0.0
+
+
+## How fast a stop goes as it begins: the most over its first ENTRY_SPAN.
+func _entry_speed_of(stop: LocomotionClip) -> float:
+	var most: float = 0.0
+	var t: float = 0.0
+	while t <= ENTRY_SPAN:
+		most = maxf(most, _clip_speed(stop, t))
+		t += 1.0 / LocomotionClip.FPS
+	return most
+
+
+## The ground a stop covers from its first frame to its arrival.
+func _stop_ground_of(stop: LocomotionClip) -> float:
+	var p: PackedFloat32Array = _progress_frames(stop)
+	return maxf(p[p.size() - 1] * ARRIVED - p[0], 0.0)
 
 
 ## The second of a stop at which `metres` are left to its arrival.

@@ -83,8 +83,16 @@ func _order(to: Vector3) -> bool:
 func _go(to: Vector3) -> void:
 	if not await _order(to):
 		return
+	var loco: UnitLocomotion = _hero.animator().locomotion
+	var n: int = 0
 	while _hero.is_moving():
 		await get_tree().physics_frame
+		n += 1
+		var left: float = _hero.global_position.distance_to(to)
+		if left < 4.0 and n % 4 == 0:
+			var current = _hero.animator().playback._playback.current
+			print("  end %.2f m left, %s, %.2f m/s, clip %s at %.2fx" % [left, UnitLocomotion.State.keys()[loco.state],
+				loco._speed, _hero.animator().playback.current_animation, current.speed_scale if current else 0.0])
 
 
 ## Faces `direction` the way gameplay does: face_direction every physics frame.
