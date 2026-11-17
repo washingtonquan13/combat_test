@@ -1226,6 +1226,12 @@ func face_point(point: Vector3, delta: float) -> void:
 	_facing.face_point(point, delta)
 
 
+## The rotation.y that faces `direction` on the ground (NAN for none). See
+## UnitFacing.yaw_facing.
+func yaw_facing(direction: Vector3) -> float:
+	return _facing.yaw_facing(direction)
+
+
 ## Instantly snaps to face a direction, no smoothing — used where a
 ## gradual turn would look wrong, e.g. facing your target the instant an
 ## attack resolves rather than still turning mid-swing (see use_ability).

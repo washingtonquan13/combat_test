@@ -29,21 +29,29 @@ bone-turn error against the source (both 0.0 when right), its lowest toe and
 its loop seam.
 """
 import bpy, math, os
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 HERO = os.path.join(HERE, "..", "..", "assets", "characters", "proof_hero", "proof_hero.glb")
 OUT = os.path.join(HERE, "takes", "mixamo.glb")
-SOURCE = "D:/ai_motion/mixamo/locomotion_pack/"
-# game clip name: Mixamo file (its Locomotion Pack)
+PACK = "D:/ai_motion/mixamo/locomotion_pack/"
+STARTS = "D:/ai_motion/mixamo/starts_stops/"
+# game clip name: (Mixamo file, played mirrored). The Locomotion Pack's loops
+# and turns; Breathing Idle, Start Walking, Stop Walking and Run To Stop, each
+# stop also mirrored so there is one off either foot.
 CLIPS = {
-    "idle": "idle",
-    "walk": "walking",
-    "run": "running",
-    "turn_l90": "left turn 90",
-    "turn_r90": "right turn 90",
-    "turn_l180": "left turn",
-    "turn_r180": "right turn",
+    "idle": (STARTS + "breathing idle", False),
+    "walk": (PACK + "walking", False),
+    "run": (PACK + "running", False),
+    "turn_l90": (PACK + "left turn 90", False),
+    "turn_r90": (PACK + "right turn 90", False),
+    "turn_l180": (PACK + "left turn", False),
+    "turn_r180": (PACK + "right turn", False),
+    "walk_start": (STARTS + "start walking", False),
+    "walk_stop_a": (STARTS + "stop walking", False),
+    "walk_stop_b": (STARTS + "stop walking", True),
+    "run_stop_a": (STARTS + "run to stop", False),
+    "run_stop_b": (STARTS + "run to stop", True),
 }
 
 P = "mixamorig:"
@@ -92,7 +100,18 @@ def laid_rest(s_rest, aim):
     return T
 
 
-def retarget(fbx, action):
+def swap(name):
+    """The bone's other-side twin ("LeftHand" <-> "RightHand")."""
+    if "Left" in name:
+        return name.replace("Left", "Right")
+    return name.replace("Right", "Left")
+
+
+FLIP = Matrix.Diagonal((-1.0, 1.0, 1.0))          # across the source's middle (its x is to the side)
+FLIP4 = Matrix.Diagonal((-1.0, 1.0, 1.0, 1.0))
+
+
+def retarget(fbx, action, mirror=False):
     before, acts = set(bpy.data.objects), set(bpy.data.actions)
     bpy.ops.import_scene.fbx(filepath=fbx, automatic_bone_orientation=False, ignore_leaf_bones=False)
     new = [o for o in bpy.data.objects if o not in before]
@@ -102,6 +121,8 @@ def retarget(fbx, action):
     T = laid_rest(s_rest, aim)
     s_inv = {n: m.to_3x3().normalized().inverted() for n, m in s_rest.items()}
     scale = REST["Hips"].translation.z / s_rest[P + "Hips"].translation.z
+    side = s_rest[P + "LeftUpLeg"].translation - s_rest[P + "RightUpLeg"].translation
+    assert not mirror or abs(side.x) > 10 * max(abs(side.y), abs(side.z)), "the source's side is not along x"
 
     a, z = map(int, src.animation_data.action.frame_range)
     sc = bpy.context.scene
@@ -111,6 +132,9 @@ def retarget(fbx, action):
         bpy.context.view_layer.update()
         Mw = {n: src.matrix_world @ src.pose.bones[n].matrix for n in s_rest}
         G = {n[len(P):]: Mw[n].to_3x3().normalized() @ s_inv[n] for n in s_rest}
+        if mirror:                               # across the body's middle: the other side's turn, x flipped
+            G = {n: FLIP @ G[swap(n)] @ FLIP for n in G}
+            Mw = {n: FLIP4 @ Mw[swap(n)] for n in Mw}
         frames.append((G, Mw[P + "Hips"].translation.copy()))
         src_dirs.append({b: (Mw[aim[P + b]].translation - Mw[P + b].translation).normalized()
                          for b in BONES if b not in BUILD and aim.get(P + b) in Mw and aim[P + b][len(P):] in REST})
@@ -197,8 +221,8 @@ def measure(out, src_dirs, aim, frames, T):
         Vector((hips.x, hips.y)).length, round(seam * 1000))
 
 
-for name, fbx in CLIPS.items():
-    print("CLIP %-10s %s" % (name, retarget(SOURCE + fbx + ".fbx", name)))
+for name, (fbx, mirror) in CLIPS.items():
+    print("CLIP %-11s %s" % (name, retarget(fbx + ".fbx", name, mirror)))
 A.animation_data.action = None
 for b in A.pose.bones:
     b.rotation_quaternion = (1, 0, 0, 0)

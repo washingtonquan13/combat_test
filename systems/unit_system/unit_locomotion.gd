@@ -14,11 +14,17 @@ extends RefCounted
 ## on the route's end. The clips are timed to that speed: a loop plays at the
 ## rate that keeps its feet on the ground at the unit's speed; the start and
 ## the stop are distance-matched, each frame showing the clip's own frame for
-## the ground the unit has covered or has left.
+## the ground the unit has covered or has left. How fast the unit comes up
+## to speed and slows for the end is read off the start and stops
+## themselves, so each plays out rather than being cut short.
 ##
 ## A move goes:
-##   STARTING  from rest into the run, by the run start (its idle lead-in
-##             skipped); a walk blends in from the idle.
+##   TURNING   the first leg is TURN_FROM or more off the unit's facing:
+##             the turn in place nearest the angle, scaled to it, turns the
+##             unit (its root yaw, not UnitFacing), at TURN_RATE_MOVING;
+##             the unit does not travel until it is done.
+##   STARTING  from rest into the run or the walk, by its start (its idle
+##             lead-in skipped).
 ##   MOVING    the loop, at the rate of the unit's speed.
 ##   STOPPING  once the unit slows for the end: the stop whose pose is
 ##             nearest the loop's, on its frame for the ground left.
@@ -26,24 +32,45 @@ extends RefCounted
 ##             idle on the idle's own frame.
 ## A new order while moving or stopping goes on at the same gait; one while
 ## settling starts at once. Routes under WALK_UNDER are walked, the rest run.
+##
+## Standing, a swing of facing of TURN_FROM or more (UnitFacing asks,
+## turn_to) is the same turn in place, at its own rate, back into the idle;
+## smaller swings are UnitFacing's, shown by UnitAnimator's turning loops.
 ## Never in the air, on a ladder or on a wall: those keep their own clips and
 ## move_speed.
 ##
 ## While the unit moves the body leans into its turns (lean), a roll of the
 ## body about its forward axis, from speed times turn rate.
 
-enum State { OFF, STARTING, MOVING, STOPPING, SETTLING }
+enum State { OFF, TURNING, STARTING, MOVING, STOPPING, SETTLING }
 
 ## A route shorter than this is walked; anything longer is run.
 const WALK_UNDER := 2.0
 ## The run's ground speed, metres a second (the walk goes at its loop's).
 const RUN_SPEED := 4.6
-## Seconds from rest to full speed.
+## Seconds from rest to full speed, at the least; a start that takes longer
+## to come up to speed, played at START_RATE, sets it.
 const RUN_ACCEL_TIME := 0.3
 const WALK_ACCEL_TIME := 0.25
-## Metres from the end the unit begins to slow, at full speed.
+const ACCEL_TIME_MOST := 0.6
+const START_RATE := 2.0
+## Metres from the end the unit begins to slow, at full speed, where the
+## stops do not say (they do: where they drop below SLOWING of the loop's
+## speed), within STOP_DISTANCE_LEAST..MOST.
 const RUN_STOP_DISTANCE := 1.1
 const WALK_STOP_DISTANCE := 0.45
+const SLOWING := 0.9
+const STOP_DISTANCE_LEAST := 0.3
+const STOP_DISTANCE_MOST := 1.2
+## A turn of facing this large is a turn in place; less, UnitFacing's.
+const TURN_FROM := deg_to_rad(60.0)
+## The turn is done once this much of it is, and hands on.
+const TURN_DONE := 0.92
+## A turn plays this much faster before a move than standing.
+const TURN_RATE_MOVING := 1.4
+## A turn is scaled to the angle wanted by no more or less than this.
+const TURN_SCALE_LEAST := 0.5
+const TURN_SCALE_MOST := 1.6
 ## The slowest the unit closes the last centimetres at.
 const ARRIVE_SPEED := 0.4
 ## Facing further off the way than this slows the unit, down to SLOWEST at
@@ -63,6 +90,7 @@ const BLEND_START := 0.15
 const BLEND_HAND := 0.2
 const BLEND_STOP := 0.18
 const BLEND_IDLE := 0.3
+const BLEND_TURN := 0.2
 ## A stop's ground is covered once this much of its travel is done; the
 ## rest is its settle, which plays after the route ends.
 const ARRIVED := 0.97
@@ -94,6 +122,16 @@ var _accel: float = 0.0
 var _decel: float = 0.0
 ## Per clip, its progress along its own way on each frame, metres.
 var _ground := {}
+## A gait's stop distance, per stop list (cached).
+var _stop_distances := {}
+
+## The turn in place: the unit's yaw it began from, how much of the clip's
+## turn it takes, the yaw it is for, and whether a move follows it.
+var _turn_from: float = 0.0
+var _turn_scale: float = 1.0
+var _turn_target: float = 0.0
+var _then_move: bool = false
+var _route: float = 0.0
 
 var _lean: float = 0.0
 var _last_yaw: float = NAN
@@ -123,27 +161,93 @@ func turn_loop(left: bool) -> String:
 
 ## Whether a move is under way that this drives.
 func drives() -> bool:
-	return state == State.STARTING or state == State.MOVING or state == State.STOPPING
+	return state == State.TURNING or state == State.STARTING or state == State.MOVING or state == State.STOPPING
 
 
-func begin(route: float, _first_leg: Vector3) -> void:
+## Whether a turn in place is turning the unit (UnitFacing keeps off it).
+func turning() -> bool:
+	return state == State.TURNING
+
+
+func begin(route: float, first_leg: Vector3) -> void:
 	if (state == State.STARTING or state == State.MOVING or state == State.STOPPING) and _loop:
 		# An order replaced mid-move: go on at the same gait.
 		if state == State.STOPPING:
 			_playback.play(_loop.clip, BLEND_HAND)
 			state = State.MOVING
 		return
-	var runs: bool = route >= WALK_UNDER and _set.jog != null
+	_route = route
+	_v = 0.0
+	var target: float = _unit.yaw_facing(first_leg)
+	if state == State.TURNING:
+		# Mid-turn: turn for the new way, then move.
+		_aim_turn(target)
+		_then_move = true
+		return
+	if not is_nan(target) and _turn_in_place(target, true):
+		return
+	_start_moving(BLEND_START)
+
+
+## Standing, a turn of facing to `yaw`: a turn in place if it is TURN_FROM or
+## more and the body is in its idle (or settling into it). Returns whether
+## the turn in place has it; if not, UnitFacing turns the unit.
+func turn_to(yaw: float) -> bool:
+	if state == State.TURNING:
+		if not _then_move:
+			_aim_turn(yaw)
+		return true
+	var idle: bool = _set.idle != null and _playback.current_animation == _set.idle.clip
+	if not (idle or state == State.SETTLING) or _unit.is_moving():
+		return false
+	return _turn_in_place(yaw, false)
+
+
+func _turn_in_place(yaw: float, then_move: bool) -> bool:
+	var off: float = angle_difference(_unit.rotation.y, yaw)
+	if absf(off) < TURN_FROM:
+		return false
+	var turn: LocomotionClip = _set.turn_for(off)
+	if turn == null or absf(turn.turn) < 0.01 or signf(turn.turn) != signf(off):
+		return false
+	_clip = turn
+	_turn_from = _unit.rotation.y
+	_then_move = then_move
+	_aim_turn(yaw)
+	_playback.play(turn.clip, BLEND_TURN, TURN_RATE_MOVING if then_move else 1.0)
+	state = State.TURNING
+	return true
+
+
+## The turn playing set to end facing `yaw`, from where it began.
+func _aim_turn(yaw: float) -> void:
+	_turn_target = yaw
+	var whole: float = angle_difference(_turn_from, yaw)
+	# Past the half-turn the other way round is shorter, but the clip turns
+	# its own way: keep to it.
+	if signf(whole) != signf(_clip.turn) and absf(whole) > PI * 0.5:
+		whole += TAU * signf(_clip.turn)
+	_turn_scale = clampf(whole / _clip.turn, TURN_SCALE_LEAST, TURN_SCALE_MOST)
+
+
+## Into the move, by the gait's start: the run past WALK_UNDER, the walk
+## short of it.
+func _start_moving(blend: float) -> void:
+	var runs: bool = _route >= WALK_UNDER and _set.jog != null
 	_loop = (_set.run if _set.run else _set.jog) if runs else _set.walk
 	_stops = _set.jog_stops if runs else _set.walk_stops
 	_top = RUN_SPEED if runs else _loop.speed
-	_accel = _top / (RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME)
-	var stop_distance: float = RUN_STOP_DISTANCE if runs else WALK_STOP_DISTANCE
+	var start: LocomotionClip = _set.jog_start if runs else _set.walk_start
+	var accel_time: float = RUN_ACCEL_TIME if runs else WALK_ACCEL_TIME
+	if start:
+		accel_time = clampf(_ramp_time(start, _top) / START_RATE, accel_time, ACCEL_TIME_MOST)
+	_accel = _top / accel_time
+	var stop_distance: float = _stop_distance(_stops, _top, RUN_STOP_DISTANCE if runs else WALK_STOP_DISTANCE)
 	_decel = _top * _top / (2.0 * stop_distance)
 	_v = 0.0
-	if runs and _set.jog_start:
-		_clip = _set.jog_start
-		_playback.play(_clip.clip, BLEND_START)
+	if start:
+		_clip = start
+		_playback.play(_clip.clip, blend)
 		_playback.seek(_onset(_clip))
 		state = State.STARTING
 		return
@@ -158,6 +262,11 @@ func travel(delta: float, left: float) -> float:
 	if not _still_showing():
 		state = State.OFF
 		return _unit.move_speed * delta
+	if state == State.TURNING:
+		_turning()
+		_speed = 0.0
+		_lean_into(delta)
+		return 0.0
 	var want: float = _top * _facing_share()
 	if _v < want:
 		_v = minf(_v + _accel * delta, want)
@@ -187,9 +296,11 @@ func tick(delta: float) -> void:
 		return
 	_ticked = Engine.get_physics_frames()
 	_speed = 0.0
-	if state == State.SETTLING:
+	if state == State.SETTLING or state == State.TURNING:
 		if not _still_showing():
 			state = State.OFF
+		elif state == State.TURNING:
+			_turning()
 		else:
 			_hand_to_idle_near_end()
 	_lean_into(delta)
@@ -205,6 +316,10 @@ func finish() -> bool:
 			state = State.SETTLING
 			return true
 		State.SETTLING:
+			return true
+		State.TURNING:
+			# Cut short before it moved: the turn plays out into the idle.
+			_then_move = false
 			return true
 		State.STARTING, State.MOVING:
 			# Cut short of a stop: back to the idle.
@@ -239,6 +354,22 @@ func _facing_share() -> float:
 
 
 # --- states -------------------------------------------------------------------
+
+## The turn in place, the unit turned by the clip's own root yaw, scaled to
+## the angle wanted. Done, it hands to the move or to the idle.
+func _turning() -> void:
+	var t: float = _playback.current_animation_position
+	var yaw: float = _yaw_at(_clip, t)
+	_unit.rotation.y = _turn_from + yaw * _turn_scale
+	if absf(yaw) < absf(_clip.turn) * TURN_DONE and t < _clip.length - BLEND_HAND:
+		return
+	_unit.rotation.y = _turn_from + _clip.turn * _turn_scale
+	if _then_move and _unit.is_moving():
+		_start_moving(BLEND_HAND)
+		return
+	_playback.play(_set.idle.clip, BLEND_IDLE)
+	_playback.seek(fposmod(_clip.leaves_at - (_clip.length - t), _set.idle.length))
+	state = State.OFF
 
 ## The start, played at the rate that keeps its feet under the unit's speed.
 func _starting(_delta: float) -> void:
@@ -329,6 +460,53 @@ func _progress(clip: LocomotionClip, seconds: float) -> float:
 func _clip_speed(clip: LocomotionClip, seconds: float) -> float:
 	var dt: float = 2.0 / LocomotionClip.FPS
 	return (_progress(clip, seconds + dt) - _progress(clip, seconds)) / dt
+
+
+## A clip's root yaw `seconds` in, unwrapped (a half-turn and more).
+func _yaw_at(clip: LocomotionClip, seconds: float) -> float:
+	var y: PackedFloat32Array = clip.root_yaws
+	var at: float = clampf(seconds * LocomotionClip.FPS, 0.0, y.size() - 1)
+	var i: int = mini(floori(at), maxi(y.size() - 2, 0))
+	return lerpf(y[i], y[mini(i + 1, y.size() - 1)], at - i)
+
+
+## Seconds a start takes from its onset to SLOWING of `top`, at its own rate.
+func _ramp_time(clip: LocomotionClip, top: float) -> float:
+	var from: float = _onset(clip)
+	var t: float = from
+	while t < clip.length:
+		if _clip_speed(clip, t) >= top * SLOWING:
+			return t - from
+		t += 1.0 / LocomotionClip.FPS
+	return clip.length - from
+
+
+## Metres from the end the unit begins to slow, as the stops do: the ground
+## each has left to its arrival where it first drops below SLOWING of `top`,
+## on average; `otherwise` with no stops.
+func _stop_distance(stops: Array[LocomotionClip], top: float, otherwise: float) -> float:
+	if stops.is_empty():
+		return otherwise
+	if _stop_distances.has(stops):
+		return _stop_distances[stops]
+	var sum: float = 0.0
+	for stop in stops:
+		var p: PackedFloat32Array = _progress_frames(stop)
+		var arrive: float = p[p.size() - 1] * ARRIVED
+		var at: float = p[0]
+		var t: float = 0.0
+		var fast: bool = false
+		while t < stop.length:
+			var v: float = _clip_speed(stop, t)
+			fast = fast or v >= top * SLOWING
+			if fast and v < top * SLOWING:
+				at = _progress(stop, t)
+				break
+			t += 1.0 / LocomotionClip.FPS
+		sum += arrive - at
+	var d: float = clampf(sum / stops.size(), STOP_DISTANCE_LEAST, STOP_DISTANCE_MOST)
+	_stop_distances[stops] = d
+	return d
 
 
 ## The second a clip's motion begins, a few frames ahead of it.

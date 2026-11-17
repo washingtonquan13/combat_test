@@ -32,14 +32,32 @@ func _init(owner: Unit) -> void:
 ## Smoothly rotates toward facing `direction` (ground-plane only — Y is
 ## ignored, since facing is a yaw-only concept for a walking character)
 ## over `delta` seconds, at _owner.rotation_speed.
+##
+## A body with a locomotion set turns itself instead while a turn in place
+## plays (UnitLocomotion.turning), and, standing, a swing as large as one
+## (UnitLocomotion.turn_to) is one: the clip turns the unit, not this.
 func face_direction(direction: Vector3, delta: float) -> void:
 	direction.y = 0.0
 	if direction.length_squared() < 0.0001:
 		return
-	var target_yaw: float = atan2(-direction.x, -direction.z) + deg_to_rad(_owner.facing_offset_degrees)
+	var target_yaw: float = yaw_facing(direction)
+	var animator: UnitAnimator = _owner.animator()
+	var loco: UnitLocomotion = animator.locomotion if animator else null
+	var standing: bool = not _owner.is_moving()
+	if loco and not animator.is_claimed_for_cutscene() \
+			and (loco.turning() or (standing and loco.turn_to(target_yaw))):
+		return
 	var before: float = _owner.rotation.y
 	_owner.rotation.y = lerp_angle(before, target_yaw, 1.0 - exp(-_owner.rotation_speed * delta))
 	_owner.facing_swung.emit(wrapf(_owner.rotation.y - before, -PI, PI) / maxf(delta, 0.0001))
+
+
+## The unit's rotation.y that faces `direction` on the ground; NAN for none.
+func yaw_facing(direction: Vector3) -> float:
+	direction.y = 0.0
+	if direction.length_squared() < 0.0001:
+		return NAN
+	return atan2(-direction.x, -direction.z) + deg_to_rad(_owner.facing_offset_degrees)
 
 
 ## Convenience wrapper — faces smoothly toward a world-space point

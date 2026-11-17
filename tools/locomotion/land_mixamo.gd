@@ -2,10 +2,11 @@ extends SceneTree
 
 # Lands the Mixamo clips (tools/locomotion/takes/mixamo.glb, made by
 # tools/locomotion/mixamo_retarget.py) in the humanoid locomotion set: the
-# idle, walk, run and turns in place in assets/locomotion_animations.tres
-# and data/locomotion/humanoid.tres. Nothing else in either is touched: the
-# run start, stops, jog and turning loops stay author_gait.gd's and
-# make_locomotion.gd's.
+# idle (Breathing Idle), walk, run, turns in place, walk start and the walk
+# and run stops in assets/locomotion_animations.tres and
+# data/locomotion/humanoid.tres. The stops replace author_gait.gd's (whose
+# clips are taken out of the library); the run start, jog and turning loops
+# stay author_gait.gd's and make_locomotion.gd's.
 #
 #   godot --headless --path . -s res://tools/locomotion/land_mixamo.gd
 #
@@ -22,11 +23,12 @@ extends SceneTree
 #                    stand to where the last's do (a Mixamo loop's last frame
 #                    is its first again, a cycle on), set across so the hips
 #                    sway about it evenly, facing the hips' mean.
-#   a turn           follows the hips smoothed over about half a second.
+#   a turn, the walk start, a stop
+#                    follows the hips smoothed over about half a second.
 #
-# The stops hand to the idle on a pose of it (LocomotionClip.leaves_at): each
-# is set again here to the idle's frame nearest the stop's last pose, as the
-# idle is new.
+# The stops and turns hand to the idle on a pose of it
+# (LocomotionClip.leaves_at): the idle's frame nearest the clip's last pose. A
+# turn also enters off the idle's frame nearest its first (enters_at).
 #
 # The clips were baked on the proof hero's own skeleton; this checks the
 # imported one still is it, to the millimetre.
@@ -41,6 +43,12 @@ const LIBRARY := "Locomotion"
 const FPS := 30.0
 const SIGMA := 12.0
 const TURNS := ["turn_l90", "turn_r90", "turn_l180", "turn_r180"]
+# Each stop and its mirror (off the other foot).
+const WALK_STOPS := ["walk_stop_a", "walk_stop_b"]
+const RUN_STOPS := ["run_stop_a", "run_stop_b"]
+# author_gait.gd's stops, which the Mixamo ones replace.
+const OLD_STOPS := ["walk_stop_1", "walk_stop_2", "walk_stop_3", "walk_stop_4", "walk_stop_5", "walk_stop_6",
+	"run_stop_1", "run_stop_2", "run_stop_3", "run_stop_4"]
 # The Kimodo turns the Mixamo four replace.
 const OLD_TURNS := ["turn_l45", "turn_r45", "turn_l60", "turn_r60", "turn_l135", "turn_r135",
 	"turn_l270", "turn_r270"]
@@ -87,14 +95,30 @@ func _land() -> void:
 	for n: String in TURNS:
 		turns.append(_bake(library, n, "smoothed"))
 	set.turns.assign(turns)
+	print("\nSTART, STOPS")
+	set.walk_start = _bake(library, "walk_start", "smoothed")
+	for n: String in OLD_STOPS:
+		if library.has_animation(n):
+			library.remove_animation(n)
+	var walk_stops: Array[Resource] = []
+	for n: String in WALK_STOPS:
+		walk_stops.append(_bake(library, n, "smoothed"))
+	set.walk_stops.assign(walk_stops)
+	var run_stops: Array[Resource] = []
+	for n: String in RUN_STOPS:
+		run_stops.append(_bake(library, n, "smoothed"))
+	set.jog_stops.assign(run_stops)
 
-	print("\nSTOPS, onto the new idle")
+	print("\nONTO THE IDLE")
 	var hero_player: AnimationPlayer = model.find_children("*", "AnimationPlayer", true, false)[0]
 	if hero_player.has_animation_library(LIBRARY):
 		hero_player.remove_animation_library(LIBRARY)
 	hero_player.add_animation_library(LIBRARY, library)
-	for stop: Resource in set.walk_stops + set.jog_stops:
-		_reland(stop, set.idle, hero_player, hero)
+	var idle_poses: Array[PackedVector3Array] = []
+	for f in roundi(set.idle.length * FPS) + 1:
+		idle_poses.append(_pose(hero_player, hero, set.idle.clip, f / FPS))
+	for clip: Resource in set.walk_stops + set.jog_stops + set.turns:
+		_reland(clip, idle_poses, hero_player, hero, clip in set.turns)
 
 	var err: Error = ResourceSaver.save(library, LIBRARY_PATH)
 	print("\n%s: %s" % [LIBRARY_PATH, error_string(err)])
@@ -271,19 +295,30 @@ func _pose(player: AnimationPlayer, skeleton: Skeleton3D, clip: StringName, seco
 	return out
 
 
-## A stop's leaves_at set again to the idle frame whose pose its last frame is nearest.
-func _reland(stop: Resource, idle: Resource, player: AnimationPlayer, skeleton: Skeleton3D) -> void:
-	var end: PackedVector3Array = _pose(player, skeleton, stop.clip, stop.length)
+## A clip's leaves_at set to the idle frame whose pose its last frame is
+## nearest; a turn's enters_at too, to the one nearest its first.
+func _reland(clip: Resource, idle_poses: Array[PackedVector3Array], player: AnimationPlayer,
+		skeleton: Skeleton3D, enters: bool) -> void:
+	var out: Array = _nearest(idle_poses, _pose(player, skeleton, clip.clip, clip.length))
+	clip.leaves_at = out[0]
+	var said := "  %-22s leaves at %5.2f s of the idle, %4.1f cm off" % [clip.clip, out[0], out[1] * 100.0]
+	clip.enters_at = -1.0
+	if enters:
+		var into: Array = _nearest(idle_poses, _pose(player, skeleton, clip.clip, 0.0))
+		clip.enters_at = into[0]
+		said += "; enters at %5.2f s, %4.1f cm off" % [into[0], into[1] * 100.0]
+	print(said)
+
+
+## [seconds, metres]: the idle frame nearest `pose`, and how far its worst joint is.
+func _nearest(idle_poses: Array[PackedVector3Array], pose: PackedVector3Array) -> Array:
 	var best := 0.0
 	var best_gap := INF
-	for f in roundi(idle.length * FPS) + 1:
-		var at: PackedVector3Array = _pose(player, skeleton, idle.clip, f / FPS)
+	for f in idle_poses.size():
 		var gap := 0.0
-		for i in at.size():
-			gap = maxf(gap, at[i].distance_to(end[i]))
+		for i in pose.size():
+			gap = maxf(gap, idle_poses[f][i].distance_to(pose[i]))
 		if gap < best_gap:
 			best_gap = gap
 			best = f / FPS
-	print("  %-22s leaves at %5.2f s of the idle (was %5.2f), end pose %4.1f cm off" % [stop.clip, best,
-		stop.leaves_at, best_gap * 100.0])
-	stop.leaves_at = best
+	return [best, best_gap]

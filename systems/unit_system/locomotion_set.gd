@@ -1,18 +1,17 @@
 class_name LocomotionSet
 extends Resource
 ## A humanoid body's locomotion clips, in the shape of Baldur's Gate 3's
-## gameplay set: an idle, a walk and a run loop; a start into the run (a walk
-## blends in from the idle, as BG3's does); walk stops and run stops, one for
-## each evenly spaced frame of its loop; turns in place left and right; a
-## turning loop each way.
+## gameplay set: an idle, a walk and a run loop; a start into each; walk
+## stops and run stops (each a stop and its mirror); turns in place left and
+## right; a turning loop each way.
 ##
 ## Every clip plays in place and carries the ground it covers
 ## (LocomotionClip). The humanoid set is data/locomotion/humanoid.tres. Its
-## run start and stops are written from the rest pose by
-## tools/gait/author_gait.gd; its jog and turning loops are made by
-## tools/kimodo/make_locomotion.gd from the Kimodo takes in
-## tools/kimodo/takes/locomotion; its idle, walk, run and turns are Mixamo's
-## Locomotion Pack, landed by tools/locomotion/land_mixamo.gd. Run them in
+## run start is written from the rest pose by tools/gait/author_gait.gd; its
+## jog and turning loops are made by tools/kimodo/make_locomotion.gd from the
+## Kimodo takes in tools/kimodo/takes/locomotion; its idle (Breathing Idle),
+## walk, run, turns, walk start and stops are Mixamo's, landed by
+## tools/locomotion/land_mixamo.gd. Run them in
 ## that order: make_locomotion.gd, author_gait.gd (GAIT_LAND=1),
 ## land_mixamo.gd.
 ##
@@ -25,6 +24,8 @@ extends Resource
 @export var run: LocomotionClip
 ## From the idle into the run (named for the jog it once started).
 @export var jog_start: LocomotionClip
+## From the idle into the walk.
+@export var walk_start: LocomotionClip
 ## Off the walk, each on its own frame of it, into the idle.
 @export var walk_stops: Array[LocomotionClip] = []
 ## Off the run, each on its own frame of it, into the idle.
