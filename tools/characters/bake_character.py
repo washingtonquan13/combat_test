@@ -47,10 +47,11 @@ baked to their own .glb so the game can put them on and take them off: see
 
 What comes out, every time:
 - the body with its shape baked in: no slider shape keys, helper geometry gone;
-- the game_engine rig, as "Armature", with bones named as the UAL animation
-  library names them, so UAL1_Standard.glb's BoneMap retargets UAL clips onto
-  it unchanged. It rests in an A-pose: the import also needs
-  retarget/rest_fixer/fix_silhouette;
+- MPFB's mixamo rig, as "Armature", with Mixamo's bone names less the
+  "mixamorig:" prefix and a "root" bone that Hips hangs from, so Mixamo's clips
+  go onto it bone for bone. The .glb's import BoneMap takes it to Godot's
+  humanoid profile, which every library retargets through. It rests in an
+  A-pose: the import also needs retarget/rest_fixer/fix_silhouette;
 - the 52 ARKit face units and the Meta/Oculus visemes as blend shapes, at 0,
   carried over onto the brows, lashes, teeth and tongue so a blink or a jaw
   drop moves them too. The rig has no jaw or eye bones, so the face is driven
@@ -124,7 +125,9 @@ for part, source in recipe.get("parts", {}).items():
 TargetService.bake_targets(basemesh)
 
 # The rig is fitted to the helper geometry, so it goes on before helpers go.
-HumanService.add_builtin_rig(basemesh, "game_engine", import_weights=True)
+# MPFB's "mixamo" rig: Mixamo's own skeleton (52 bones, Hips at the top), so
+# Mixamo's clips are laid on it bone for bone (tools/_probe/gait/mixrig).
+HumanService.add_builtin_rig(basemesh, "mixamo", import_weights=True)
 
 
 def asset_file(kind, name, ext):
@@ -282,12 +285,22 @@ ExportService.bake_modifiers_remove_helpers(basemesh, bake_masks=True, bake_subd
                                             remove_helpers=True)
 
 rig = basemesh.parent
-# Named as the UAL library names its own: the same BoneMap and the same
-# animation track paths (Armature/Skeleton3D:bone) then fit every character.
+# Bones named as Mixamo's without the "mixamorig:" prefix (Hips, Spine1,
+# LeftUpLeg, ...); the .glb's import BoneMap takes them to Godot's humanoid
+# profile, which every animation library and the ragdoll are written in.
 # Renaming a bone renames its vertex group with it.
 rig.name = rig.data.name = "Armature"
-for old, new in (("Root", "root"), ("head", "Head")):
-    rig.data.bones[old].name = new
+for bone in rig.data.bones:
+    if bone.name.startswith("mixamorig:"):
+        bone.name = bone.name[len("mixamorig:"):]
+# The profile's Root, which Mixamo's rig lacks: a bone at the feet that Hips
+# hangs from, as the old game_engine rig had. The libraries key it (at rest).
+bpy.context.view_layer.objects.active = rig
+bpy.ops.object.mode_set(mode="EDIT")
+root = rig.data.edit_bones.new("root")
+root.head, root.tail = (0.0, 0.0, 0.0), (0.0, 0.1, 0.0)
+rig.data.edit_bones["Hips"].parent = root
+bpy.ops.object.mode_set(mode="OBJECT")
 
 here = os.path.dirname(os.path.abspath(__file__))
 
