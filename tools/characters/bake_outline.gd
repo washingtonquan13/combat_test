@@ -16,7 +16,7 @@ extends SceneTree
 ##
 ## Rerun it whenever the glb is rebaked.
 
-const INSIDE_THE_HEAD: Array[String] = ["eye_occlusion", "eyebrow", "eyelash", "groom", "high-poly", "tearline", "teeth", "tongue"]
+const INSIDE_THE_HEAD: Array[String] = ["eyebrow", "eyelash", "groom", "high-poly", "teeth", "tongue"]
 
 
 func _init() -> void:

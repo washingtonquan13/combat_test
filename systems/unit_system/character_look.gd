@@ -17,11 +17,7 @@ extends Node
 ##
 ## The eyes ("<name>.high-poly") get HumanShaders' eye (human_eye.gdshader,
 ## with its own sclera and iris maps), and the lashes
-## ("<name>.eyelashes..") lash.gdshader, coloured from hair_color. Over each
-## eye lie the two strips tools/characters/eye_shells.py lays along the lid:
-## "<name>.eye_occlusion", the lid's shadow on the eye
-## (eye_occlusion.gdshader), and "<name>.tearline", the wet line where lid
-## and eye meet (tear_line.gdshader).
+## ("<name>.eyelashes..") lash.gdshader, coloured from hair_color.
 ##
 ## What the body wears goes on with wear(): each Wearable's fit for this
 ## body_type, skinned to the body's skeleton, and its covers mask on the
@@ -31,8 +27,6 @@ const SKIN := preload("res://assets/characters/shaders/human_skin.tres")
 const GROOM := preload("res://assets/characters/shaders/groom.tres")
 const EYE := preload("res://assets/characters/shaders/human_eye.tres")
 const LASH := preload("res://assets/characters/shaders/lash.tres")
-const EYE_OCCLUSION := preload("res://assets/characters/shaders/eye_occlusion.tres")
-const TEARLINE := preload("res://assets/characters/shaders/tear_line.tres")
 
 ## The hair's colour: the cards', the scalp's and the lashes'.
 @export var hair_color: Color = Color(0.25, 0.17, 0.11)
@@ -79,10 +73,6 @@ func _ready() -> void:
 					material = material.next_pass as ShaderMaterial
 			elif part == "high-poly":
 				mesh.set_surface_override_material(i, EYE.duplicate())
-			elif part == "eye_occlusion":
-				mesh.set_surface_override_material(i, EYE_OCCLUSION)
-			elif part == "tearline":
-				mesh.set_surface_override_material(i, TEARLINE)
 			elif part.begins_with("eyelashes"):
 				mesh.set_surface_override_material(i, _with_texture(lash, imported))
 	_show_covers()
