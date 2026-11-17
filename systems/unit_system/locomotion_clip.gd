@@ -19,7 +19,7 @@ extends Resource
 ##
 ## Made by tools/gait/author_gait.gd (run start),
 ## tools/kimodo/make_locomotion.gd (jog, turning loops) or
-## tools/locomotion/land_mixamo.gd (Breathing Idle, walk, run, turns, walk
+## tools/locomotion/land_mixamo.gd (Warrior Idle, walk, run, turns, walk
 ## start, stops, from Mixamo); nothing here is hand-set.
 
 const FPS := 30.0

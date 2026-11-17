@@ -1,5 +1,5 @@
 extends "res://tools/fog_cloud_demo.gd"
-## Recorded showcase of the hero's locomotion - NOT a test. Breathing Idle,
+## Recorded showcase of the hero's locomotion - NOT a test. Warrior Idle,
 ## the turns in place standing, a move behind (turn first, then the walk
 ## start), a walk stop, and a long move into the run and its stop. Record it
 ## the same way as item_layer_demo, without opengl3.
@@ -16,7 +16,7 @@ func _run() -> void:
 	_frame(home + Vector3(0.0, 1.0, 0.0), 5.0)
 	await _wait(1.5)
 
-	_say("Breathing Idle")
+	_say("Warrior Idle")
 	await _wait(5.0)
 	_say("Turn in place, 90 left")
 	await _face(-right, 3.0)

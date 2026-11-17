@@ -9,7 +9,7 @@ extends Resource
 ## (LocomotionClip). The humanoid set is data/locomotion/humanoid.tres. Its
 ## run start is written from the rest pose by tools/gait/author_gait.gd; its
 ## jog and turning loops are made by tools/kimodo/make_locomotion.gd from the
-## Kimodo takes in tools/kimodo/takes/locomotion; its idle (Breathing Idle),
+## Kimodo takes in tools/kimodo/takes/locomotion; its idle (Warrior Idle),
 ## walk, run, turns, walk start and stops are Mixamo's, landed by
 ## tools/locomotion/land_mixamo.gd. Run them in
 ## that order: make_locomotion.gd, author_gait.gd (GAIT_LAND=1),
