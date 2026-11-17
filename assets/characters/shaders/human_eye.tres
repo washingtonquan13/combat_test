@@ -1,0 +1,20 @@
+[gd_resource type="ShaderMaterial" load_steps=8 format=3]
+
+[ext_resource type="Shader" path="res://assets/characters/shaders/human_eye.gdshader" id="1_eye"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/Eye/eye_sclera_diff.png" id="2_sd"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/Eye/eye_iris_diff.png" id="3_id"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/Eye/eye_sclera_nrm.png" id="4_sn"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/Eye/eye_iris_nrm.png" id="5_in"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/Eye/eye_iris_parallax.png" id="6_h"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/InterleavedGradientNoise.png" id="7_noise"]
+
+[resource]
+shader = ExtResource("1_eye")
+shader_parameter/sclera_albedo_texture = ExtResource("2_sd")
+shader_parameter/iris_albedo_texture = ExtResource("3_id")
+shader_parameter/sclera_normal_texture = ExtResource("4_sn")
+shader_parameter/iris_normal_texture = ExtResource("5_in")
+shader_parameter/texture_heightmap = ExtResource("6_h")
+shader_parameter/heightmap_flip = Vector2(1, 1)
+shader_parameter/iris_scale = 3.38
+shader_parameter/texture_sss_noise = ExtResource("7_noise")

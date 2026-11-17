@@ -42,3 +42,11 @@ From [game-icons.net](https://game-icons.net), licensed under
 | shadow_step_icon.png | Shadow follower | Lorc |
 | puddle_step_icon.png | Droplet splash | Lorc |
 | wall_of_water_icon.png | Big wave | Lorc |
+
+## Character shaders
+
+Human Shaders by MatMADNESS (github.com/matmadness/HumanShaders), MIT and
+CC BY 4.0. Vendored in `addons/human_shaders/` (licence and notes there);
+the skin and eye in `assets/characters/shaders/human_skin.gdshader` and
+`human_eye.gdshader` are changed copies. Upstream does not state where its
+eye and micro-detail textures come from.

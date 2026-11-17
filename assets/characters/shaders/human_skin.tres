@@ -1,0 +1,26 @@
+[gd_resource type="ShaderMaterial" load_steps=6 format=3]
+
+[ext_resource type="Shader" path="res://assets/characters/shaders/human_skin.gdshader" id="1_skin"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/MicroDetail/skin_micro_nrm_ao.png" id="2_micro"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/lightwarp_skin1.tres" id="3_warp"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/InterleavedGradientNoise.png" id="4_noise"]
+[ext_resource type="Texture2D" path="res://addons/human_shaders/Resources/translucency_gradient.tres" id="5_transl"]
+
+[resource]
+shader = ExtResource("1_skin")
+shader_parameter/roughness = 0.5
+shader_parameter/specular = 0.5
+shader_parameter/double_specularity = true
+shader_parameter/use_micro_detail = true
+shader_parameter/micro_detail_scale = 60.0
+shader_parameter/micro_normal_strength = 0.3
+shader_parameter/micro_ao_strength = 0.3
+shader_parameter/texture_micro_detail = ExtResource("2_micro")
+shader_parameter/use_subsurface_scattering = true
+shader_parameter/use_noise = true
+shader_parameter/subsurface_scattering_strength = 0.4
+shader_parameter/skin_smoothness = 5.0
+shader_parameter/lightwarp = ExtResource("3_warp")
+shader_parameter/texture_sss_noise = ExtResource("4_noise")
+shader_parameter/translucency = false
+shader_parameter/texture_translucency_color = ExtResource("5_transl")

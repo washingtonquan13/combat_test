@@ -1,9 +1,10 @@
 class_name CharacterLook
 extends Node
 ## Puts the character shaders on a baked MPFB human in place of the plain
-## materials its .glb imports with: skin.gdshader on the body, and so on.
-## Each gets the imported material's own texture, so one template serves
-## every character.
+## materials its .glb imports with: HumanShaders' skin on the body
+## (human_skin.gdshader, over the body's own diffuse map), and so on. Each
+## gets the imported material's own texture where it takes one, so one
+## template serves every character.
 ##
 ## A sibling of the model's Body; it finds the surfaces by the names
 ## tools/characters/bake_character.py gives their materials: "<name>.body".
@@ -14,16 +15,17 @@ extends Node
 ## their own strands, baked with them; the scalp texture turns the skin to
 ## short hair where the hair grows.
 ##
-## The eyes ("<name>.high-poly") get eye.gdshader, and the lashes
+## The eyes ("<name>.high-poly") get HumanShaders' eye (human_eye.gdshader,
+## with its own sclera and iris maps), and the lashes
 ## ("<name>.eyelashes..") lash.gdshader, coloured from hair_color.
 ##
 ## What the body wears goes on with wear(): each Wearable's fit for this
 ## body_type, skinned to the body's skeleton, and its covers mask on the
 ## skin, which drops the skin under it.
 
-const SKIN := preload("res://assets/characters/shaders/skin.tres")
+const SKIN := preload("res://assets/characters/shaders/human_skin.tres")
 const GROOM := preload("res://assets/characters/shaders/groom.tres")
-const EYE := preload("res://assets/characters/shaders/eye.tres")
+const EYE := preload("res://assets/characters/shaders/human_eye.tres")
 const LASH := preload("res://assets/characters/shaders/lash.tres")
 
 ## The hair's colour: the cards', the scalp's and the lashes'.
@@ -34,28 +36,6 @@ const LASH := preload("res://assets/characters/shaders/lash.tres")
 @export var scalp_texture: Texture2D
 ## The groom's cards' strands ("<name>_strands.png"), baked with them.
 @export var strands_texture: Texture2D
-## The face's creases and folds, baked for this character's own face by
-## tools/characters/bake_face_shapes.py; none leaves the face as MPFB made it.
-@export var face_shapes: Texture2D
-@export_range(0.0, 3.0, 0.05) var face_shape_strength: float = 1.0
-## The face's fine detail (pores, lines): made by rule by
-## tools/characters/bake_skin_detail.py, or from a head scan by
-## bake_scan_detail.py; none leaves the tiling pores alone.
-@export var face_detail: Texture2D
-## The face's age lines, made by rule by bake_skin_detail.py (LINES=only),
-## and how deep they go: 0 a young face's (none), 1 an old one's.
-@export var age_lines: Texture2D
-@export_range(0.0, 1.0, 0.05) var age_amount: float = 0.0
-## Where the face's colour and shine change (flush, beard, under the eyes,
-## oil and wet lid rims), made by bake_skin_detail.py (ZONES), and how much
-## of each this face has.
-@export var face_zones: Texture2D
-@export_range(0.0, 1.0, 0.05) var flush: float = 0.5
-## A shaved beard's shadow; 0 for a face that grows none.
-@export_range(0.0, 1.0, 0.05) var beard_shadow: float = 0.0
-@export_range(0.0, 1.0, 0.05) var under_eye: float = 0.5
-## How far the oily places (forehead, nose, chin) shine.
-@export_range(0.0, 1.0, 0.05) var oil: float = 1.0
 ## Which fit of a Wearable this body takes (Wearable.meshes). Each baked
 ## character is its own body type for now: its recipe's name.
 @export var body_type: StringName
@@ -86,13 +66,13 @@ func _ready() -> void:
 			elif part == "groom":
 				mesh.set_surface_override_material(i, groom)
 			elif part == "body":
-				var material := _with_texture(skin, imported)
+				var material := _with_texture(skin, imported, "texture_albedo")
 				mesh.set_surface_override_material(i, material)
 				while material:
 					_skin_passes.append(material)
 					material = material.next_pass as ShaderMaterial
 			elif part == "high-poly":
-				mesh.set_surface_override_material(i, _with_texture(EYE, imported))
+				mesh.set_surface_override_material(i, EYE.duplicate())
 			elif part.begins_with("eyelashes"):
 				mesh.set_surface_override_material(i, _with_texture(lash, imported))
 	_show_covers()
@@ -179,24 +159,10 @@ static func _joined(masks: Array[Texture2D]) -> Texture2D:
 
 func _skin() -> ShaderMaterial:
 	var skin := SKIN.duplicate() as ShaderMaterial
-	skin.set_shader_parameter("tint", skin_tint)
+	skin.set_shader_parameter("albedo", skin_tint)
 	if scalp_texture:
 		skin.set_shader_parameter("scalp_texture", scalp_texture)
 		skin.set_shader_parameter("scalp_color", hair_color)
-	if face_shapes:
-		skin.set_shader_parameter("shape_texture", face_shapes)
-		skin.set_shader_parameter("shape_strength", face_shape_strength)
-	if face_detail:
-		skin.set_shader_parameter("detail_texture", face_detail)
-	if age_lines:
-		skin.set_shader_parameter("age_texture", age_lines)
-		skin.set_shader_parameter("age_amount", age_amount)
-	if face_zones:
-		skin.set_shader_parameter("zone_texture", face_zones)
-		skin.set_shader_parameter("flush", flush)
-		skin.set_shader_parameter("beard", beard_shadow)
-		skin.set_shader_parameter("under_eye", under_eye)
-		skin.set_shader_parameter("oil", oil)
 	return skin
 
 
@@ -214,13 +180,14 @@ func _groom() -> ShaderMaterial:
 
 
 ## material, or a copy of it per texture, carrying the imported texture on
-## every pass.
-func _with_texture(material: ShaderMaterial, imported: BaseMaterial3D) -> ShaderMaterial:
+## every pass, as its uniform texture_name.
+func _with_texture(material: ShaderMaterial, imported: BaseMaterial3D,
+		texture_name := "albedo_texture") -> ShaderMaterial:
 	var out := material.duplicate() as ShaderMaterial
 	if out.next_pass:
 		out.next_pass = out.next_pass.duplicate()
 	var pass_material := out
 	while pass_material:
-		pass_material.set_shader_parameter("albedo_texture", imported.albedo_texture)
+		pass_material.set_shader_parameter(texture_name, imported.albedo_texture)
 		pass_material = pass_material.next_pass as ShaderMaterial
 	return out
