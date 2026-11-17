@@ -1,4 +1,4 @@
-[gd_scene load_steps=22 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://systems/unit_system/character_model.gd" id="1_cm"]
 [ext_resource type="Resource" path="res://data/ragdolls/humanoid.tres" id="9_ragdoll"]
@@ -16,8 +16,6 @@
 [ext_resource type="ArrayMesh" path="res://assets/characters/townsperson/townsperson_outline.mesh" id="12_outline_mesh"]
 [ext_resource type="Skin" path="res://assets/characters/townsperson/townsperson_outline_skin.tres" id="13_outline_skin"]
 [ext_resource type="Script" path="res://systems/unit_system/character_look.gd" id="14_look"]
-[ext_resource type="Texture2D" path="res://assets/characters/townsperson/townsperson_scalp.png" id="15_scalp"]
-[ext_resource type="Texture2D" path="res://assets/characters/townsperson/townsperson_strands.png" id="19_strands"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_outline"]
 resource_local_to_scene = true
@@ -101,8 +99,6 @@ script = ExtResource("10_face")
 [node name="CharacterLook" type="Node" parent="."]
 script = ExtResource("14_look")
 hair_color = Color(0.09, 0.065, 0.05, 1)
-scalp_texture = ExtResource("15_scalp")
-strands_texture = ExtResource("19_strands")
 
 [node name="OutlineMesh" type="MeshInstance3D" parent="."]
 material_override = SubResource("ShaderMaterial_outline")
