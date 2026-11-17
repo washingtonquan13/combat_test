@@ -171,6 +171,8 @@ var _route: float = 0.0
 var _lean: float = 0.0
 ## The head and chest's lead into a turn (null on a body with no skeleton).
 var _turn_lead: BodyTurnLead = null
+## The planted feet held to the ground (null on a body with no skeleton).
+var foot_lock: BodyFootLock = null
 var _last_yaw: float = NAN
 var _speed: float = 0.0
 var _ticked: int = -1
@@ -185,6 +187,7 @@ func _init(unit: Unit, playback: BodyAnimationTree, set: LocomotionSet, body: No
 		_body_rest = _body.transform
 		var skeletons: Array[Node] = _body.find_children("*", "Skeleton3D", true, false)
 		if not skeletons.is_empty():
+			foot_lock = BodyFootLock.attach(skeletons[0] as Skeleton3D)
 			_turn_lead = BodyTurnLead.attach(skeletons[0] as Skeleton3D)
 
 
@@ -708,6 +711,27 @@ func _lean_into(delta: float) -> void:
 	# Left (a positive turn) tips the head to the body's left, +X.
 	_body.transform = Transform3D(Basis(Vector3.BACK, -_lean), Vector3.ZERO) * _body_rest
 	_lead_into_turn()
+	_plant_feet()
+
+
+## Tells the foot lock how planted each foot is in the clip showing: the
+## loop on its own clock, a start or stop on _clip_t, a turn or the settle
+## on the player's. Nothing locks off locomotion (OFF: a stance, a cast).
+func _plant_feet() -> void:
+	if foot_lock == null:
+		return
+	var clip: LocomotionClip = _loop if state == State.MOVING else _clip
+	foot_lock.forward = _unit.visual_forward()
+	# The loop plays at 1x while the unit goes at its own speed: the stride
+	# is warped to it. Starts and stops give the unit their own speed.
+	foot_lock.stride = _speed / _loop.speed if state == State.MOVING and _loop and _loop.speed > 0.1 else 1.0
+	if state == State.OFF or clip == null or _playback.current_animation != clip.clip:
+		foot_lock.left_plant = 0.0
+		foot_lock.right_plant = 0.0
+		return
+	var at: float = _clip_t if state == State.STARTING or state == State.STOPPING else _playback.current_animation_position
+	foot_lock.left_plant = clip.plant_at(true, at)
+	foot_lock.right_plant = clip.plant_at(false, at)
 
 
 ## The head and chest turn to the route a little way on, ahead of the body.

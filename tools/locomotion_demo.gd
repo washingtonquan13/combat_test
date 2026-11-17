@@ -15,6 +15,9 @@ func _run() -> void:
 	_hero = PartyManager.leader
 	SelectionManager.select(_hero)
 	BodyAnimationTree.of(_hero).inertia().enabled = OS.get_environment("INERTIA") != "0"
+	var lock: BodyFootLock = _hero.animator().locomotion.foot_lock
+	if lock:
+		lock.active = OS.get_environment("FOOTLOCK") != "0"
 	var home: Vector3 = _hero.global_position
 	var ahead: Vector3 = _hero.visual_forward()
 	var right: Vector3 = ahead.cross(Vector3.UP)
@@ -74,6 +77,7 @@ func _order(to: Vector3) -> bool:
 			under_way = t
 			print("  under way after %.2f s" % t)
 		if i % 6 == 5:
+			print("  " + _feet(loco))
 			print("  t %.2f state %s clip %s, walk under %.2f, %.2f m/s, lead %.0f deg" % [t, UnitLocomotion.State.keys()[loco.state],
 				_hero.animator().playback.current_animation, _hero.animator().playback.partner_weight(), loco._speed,
 				rad_to_deg(loco._turn_lead._shown) if loco._turn_lead else 0.0])
@@ -90,10 +94,21 @@ func _go(to: Vector3) -> void:
 		n += 1
 		var left: float = _hero.global_position.distance_to(to)
 		if left < 4.0 and n % 4 == 0:
+			print("  " + _feet(loco))
 			var current = _hero.animator().playback._playback.current
 			print("  end %.2f m left, %s, %.2f m/s, clip %s at %.2fx, walk under %.2f, entered %.0f deg off" % [left,
 				UnitLocomotion.State.keys()[loco.state], loco._speed, _hero.animator().playback.current_animation,
 				current.speed_scale if current else 0.0, _hero.animator().playback.partner_weight(), loco.entry_gap])
+
+
+## How planted each foot is and how far the lock holds it from the clip.
+func _feet(loco: UnitLocomotion) -> String:
+	var lock: BodyFootLock = loco.foot_lock
+	if lock == null:
+		return "no foot lock"
+	return "stride %.2f, feet L %.2f%s R %.2f%s, held %.1f / %.1f cm, missed %.1f / %.1f cm" % [lock._stride, lock._weight[0], "*" if lock._pinned[0] else "",
+		lock._weight[1], "*" if lock._pinned[1] else "", lock.pull[0] * 100.0, lock.pull[1] * 100.0,
+		lock.miss[0] * 100.0, lock.miss[1] * 100.0]
 
 
 ## Faces `direction` the way gameplay does: face_direction every physics frame.
