@@ -8,10 +8,13 @@ extends Resource
 ##
 ## Every clip plays in place and carries the ground it covers
 ## (LocomotionClip). The humanoid set is data/locomotion/humanoid.tres. Its
-## idle, walk, run, run start and stops are written from the rest pose by
-## tools/gait/author_gait.gd; its jog, turns and turning loops are made by
+## run start and stops are written from the rest pose by
+## tools/gait/author_gait.gd; its jog and turning loops are made by
 ## tools/kimodo/make_locomotion.gd from the Kimodo takes in
-## tools/kimodo/takes/locomotion (run author_gait.gd after it).
+## tools/kimodo/takes/locomotion; its idle, walk, run and turns are Mixamo's
+## Locomotion Pack, landed by tools/locomotion/land_mixamo.gd. Run them in
+## that order: make_locomotion.gd, author_gait.gd (GAIT_LAND=1),
+## land_mixamo.gd.
 ##
 ## Owned by the unit system (docs/systems/unit.md, "Locomotion").
 

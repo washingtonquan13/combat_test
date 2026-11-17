@@ -17,8 +17,10 @@ extends Resource
 ## on that frame, and where it ends on a pose of the loop it goes to, with
 ## that one: the handover shows no step.
 ##
-## Made by tools/gait/author_gait.gd (idle, walk, run, run start, stops) or
-## tools/kimodo/make_locomotion.gd (jog, turns); nothing here is hand-set.
+## Made by tools/gait/author_gait.gd (run start, stops),
+## tools/kimodo/make_locomotion.gd (jog, turning loops) or
+## tools/locomotion/land_mixamo.gd (idle, walk, run, turns, from Mixamo's
+## Locomotion Pack); nothing here is hand-set.
 
 const FPS := 30.0
 

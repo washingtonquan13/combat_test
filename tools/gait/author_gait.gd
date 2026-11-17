@@ -8,7 +8,9 @@ extends SceneTree
 # (assets/locomotion_animations.tres, data/locomotion/humanoid.tres),
 # replacing the idle, walk and run, the start and the stops, and leaving the
 # jog, the turns and the turning loops as tools/kimodo/make_locomotion.gd
-# made them. Run it again after make_locomotion.gd, which rewrites both.
+# made them. Run it again after make_locomotion.gd, which rewrites both, and
+# run tools/locomotion/land_mixamo.gd after it: Mixamo's idle, walk, run and
+# turns replace this one's idle, walk and run.
 #
 # The feet come first. A foot on the ground is pinned to it and carried back
 # at exactly the speed the unit moves, rolling heel -> flat -> ball, so
